@@ -60,6 +60,9 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
   // Every column: rank, team, (asked), OPR, (four phases), record, (the phone's toggle). No stacked phase bar: each
   // phase is its own column.
   const cols = 4 + (table.asked ? 1 : 0) + (phases ? 5 : 0);
+  // A list ranked by a phase ("best auto"): on a phone that phase's column is the number shown, not the OPR (§8).
+  const byPhase = phases && (table.by === "auto" || table.by === "dc" || table.by === "endgame");
+  const onPhone = (k: TeamSortKey) => (byPhase && k === table.by ? "" : "max-md:hidden");
 
   return (
     <figure data-team-table data-sort-key={sort.key} data-sort-dir={sort.dir}>
@@ -72,11 +75,11 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
               </th>
               <th scope="col" className={th}>Team</th>
               {table.asked && sortTh("asked", table.asked.label, "max-md:whitespace-normal max-md:leading-tight", table.asked.label)}
-              {sortTh("opr", "OPR", "md:w-28")}
+              {sortTh("opr", "OPR", cn("md:w-28", byPhase && "max-md:hidden"))}
               {phases && <>
-                {sortTh("auto", "Auto", "max-md:hidden")}
-                {sortTh("dc", withEndgame ? "TeleOp" : "DC", "max-md:hidden")}
-                {sortTh("endgame", "Endgame", "max-md:hidden")}
+                {sortTh("auto", "Auto", onPhone("auto"))}
+                {sortTh("dc", withEndgame ? "TeleOp" : "DC", onPhone("dc"))}
+                {sortTh("endgame", "Endgame", onPhone("endgame"))}
                 {sortTh("pen", "Pen", "max-md:hidden")}
               </>}
               {sortTh("record", "W-L-T")}
@@ -101,15 +104,15 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
                       {r.location && <span className="block break-words text-[11px] text-muted-foreground">{r.location}</span>}
                     </td>
                     {table.asked && <td className="whitespace-nowrap px-2 py-1.5 text-right font-medium tabular-nums text-foreground" data-asked>{r.asked?.display ?? "–"}</td>}
-                    <td className="relative px-2 py-1.5 text-right font-semibold tabular-nums text-foreground" data-opr>
+                    <td className={cn("relative px-2 py-1.5 text-right font-semibold tabular-nums text-foreground", byPhase && "max-md:hidden")} data-opr>
                       {/* The bar inset in its own track, so its length is exactly OPR / max of the track. */}
                       {r.opr != null && r.opr > 0 && <span aria-hidden className="absolute inset-x-1 bottom-1 h-1"><span className={cn("block h-full rounded-full", INK_BAR)} style={{ width: `${(r.opr / oprMax) * 100}%` }} data-opr-bar data-bar data-value={r.opr} data-scale={oprMax} /></span>}
                       <span className="relative">{oneDp(r.opr)}</span>
                     </td>
                     {phases && <>
-                      <td className="px-2 py-1.5 text-right tabular-nums text-foreground max-md:hidden">{oneDp(r.auto)}</td>
-                      <td className="px-2 py-1.5 text-right tabular-nums text-foreground max-md:hidden">{oneDp(r.dc)}</td>
-                      <td className="px-2 py-1.5 text-right tabular-nums text-foreground max-md:hidden">{oneDp(r.endgame)}</td>
+                      <td className={cn("px-2 py-1.5 text-right tabular-nums text-foreground", onPhone("auto"))}>{oneDp(r.auto)}</td>
+                      <td className={cn("px-2 py-1.5 text-right tabular-nums text-foreground", onPhone("dc"))}>{oneDp(r.dc)}</td>
+                      <td className={cn("px-2 py-1.5 text-right tabular-nums text-foreground", onPhone("endgame"))}>{oneDp(r.endgame)}</td>
                       <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground max-md:hidden">{oneDp(r.pen)}</td>
                     </>}
                     <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums"><RecordText text={record(r)} /></td>

@@ -16,11 +16,29 @@ import { OPR_CARDS, oprRankHint } from "../../oprCards";
 import { AnswerFrame, RelatedQuestions, TAP, repeats, statedSeason, useAnswerSeason, useTeamProfile } from "./TeamAnswer";
 import { rangeCaption } from "../../../shared/format";
 import { AnswerVideo, RowPlay, useRowPlays } from "./AnswerVideo";
-import { Cell, EventMarker, HeadlineValue, INK_BAR, RecordText, RichText, SeasonChip, better, columnMax, foldsOnPhone } from "./answerCells";
+import { Cell, EventMarker, HeadlineValue, INK_BAR, MethodNote, RecordText, RichText, SeasonChip, better, columnMax, foldsOnPhone } from "./answerCells";
 import { MatchBox, RankBadge, TeamChip } from "./MatchBox";
 import { CompareCard, comparisonOf } from "./CompareCard";
 
 const H3 = "mb-1.5 text-xs font-semibold text-muted-foreground";
+
+/** What the card has already said, read off its scope and headline: a block below says none of it again (the guide's
+ *  §8, each fact printed once). `has(x)` is true for a number or a phrase it states. */
+export function saidBy(stat: StatAnswer) {
+  const text = [...stat.scope, stat.headline?.value, stat.headline?.label, stat.headline?.sub].filter(Boolean).join(" · ");
+  const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return { text, has: (x: string) => !!x.trim() && new RegExp(`(^|[^\\w.,#–-])${esc(x.trim())}(?![\\w.,%–-])`, "i").test(text) };
+}
+type Said = ReturnType<typeof saidBy>;
+
+/** A headline's context: a rank or a percentile, never both (they're the same fact twice), and no season the scope
+ *  above already shows. */
+export function oneContext(label: string, sub: string | undefined, scope: string[]) {
+  const ranked = /#\d[\d,]*\s+of\s+\d/.test(label);
+  const lab = ranked ? label.replace(/\s*·\s*top \d+(?:\.\d+)?%/g, "") : label;
+  const rest = sub?.split(" · ").filter((x) => !scope.includes(x)).join(" · ");
+  return { label: lab, sub: rest || undefined };
+}
 
 export function StatAnswerCard({ stat, heading }: { stat: StatAnswer; heading?: string }) {
   // One card in the team page's treatment (./TeamAnswer.tsx): the team (or both teams) up top with the season the
@@ -36,6 +54,7 @@ function OneCard({ stat, heading }: { stat: StatAnswer; heading?: string }) {
   const teams = stat.teams && stat.teams.length > 1 ? stat.teams : stat.team ? [stat.team] : undefined;
   const stated = statedSeason(stat.title, ...stat.scope);
   const season = useAnswerSeason(stated);
+  const said = saidBy(stat);
   const profile = useTeamProfile(teams?.length === 1 ? teams[0].number : null, season);
   const scope = !!stat.scope.length && (
     <p className="flex flex-wrap gap-1.5 text-xs" data-scope>
@@ -45,19 +64,17 @@ function OneCard({ stat, heading }: { stat: StatAnswer; heading?: string }) {
   return (
     <AnswerFrame teams={teams} profile={profile} season={stated} title={stat.title} hideTitle={repeats(heading, stat.title)} sub={scope || undefined}
       data={{ "data-stat-answer": stat.intent, "data-family": stat.family }}>
-      {stat.headline && <Headline h={stat.headline} />}
+      {stat.headline && <Headline h={{ ...stat.headline, ...oneContext(stat.headline.label, stat.headline.sub, stat.scope) }} />}
       <AnswerVideo />
       {stat.none && (
         <p className="mt-3 flex items-start gap-2 rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm text-foreground" data-none>
           <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />{stat.none}
         </p>
       )}
-      <div className="mt-4 space-y-5">{stat.blocks.map((b, i) => <Block key={`${b.kind}-${i}`} b={b} team={stat.team} teams={teams} />)}</div>
-      <footer className="mt-5 space-y-1 border-t border-border pt-3 text-xs text-muted-foreground" data-definition>
-        <p><span className="font-medium text-foreground">How this is counted: </span>{stat.definition}</p>
-        <p data-source>{stat.source}.</p>
+      <div className="mt-4 space-y-5">{stat.blocks.map((b, i) => <Block key={`${b.kind}-${i}`} b={b} team={stat.team} teams={teams} said={said} />)}</div>
+      <MethodNote source={stat.source} definition={stat.definition}>
         {stat.more && <p><Link to={stat.more.href} className="inline-flex items-center text-xs font-medium text-foreground underline decoration-border underline-offset-2 hover:text-accent-text max-md:min-h-[44px] pointer-coarse:min-h-[44px]" data-more>{stat.more.label}</Link></p>}
-      </footer>
+      </MethodNote>
     </AnswerFrame>
   );
 }
@@ -110,9 +127,13 @@ function teamOf(label: string, teams: { number: number }[]): number {
   return teams.findIndex((t) => new RegExp(`(^|\\(|\\s)${t.number}(\\)|\\s|$)`).test(label));
 }
 
-function Block({ b, team, teams }: { b: StatBlock; team?: StatAnswer["team"]; teams?: { number: number; name: string | null }[] }) {
+function Block({ b: block, team, teams, said }: { b: StatBlock; team?: StatAnswer["team"]; teams?: { number: number; name: string | null }[]; said?: Said }) {
+  // A tile that says again what the headline or scope says (the headline's number, its win rate, the season): left out.
+  const b: StatBlock = block.kind === "kpis" && said && !(teams && teams.length > 1)
+    ? { ...block, items: block.items.filter((k) => !said.has(String(k.value))) } : block;
   switch (b.kind) {
     case "kpis": {
+      if (!b.items.length) return null;
       if (b.items.some((k) => k.phase)) return <OprTiles items={b.items} teams={teams} />;
       // Two or more teams: each team's tile under its own header (A left, B right), anything about both between them.
       const sides = teams && teams.length > 1 ? b.items.map((k) => teamOf(k.label, teams)) : [];
@@ -163,20 +184,23 @@ function Block({ b, team, teams }: { b: StatBlock; team?: StatAnswer["team"]; te
           </div>
           <p className="mt-1.5 flex flex-wrap gap-x-4 text-xs tabular-nums text-foreground" aria-hidden>
             <span><b>{b.wins}</b> won</span><span><b>{b.losses}</b> lost</span><span><b>{b.ties}</b> tied</span>
-            {n > 0 && <span className="text-muted-foreground">{Math.round((100 * b.wins) / n)}% win rate</span>}
+            {n > 0 && !said?.has(`${Math.round((100 * b.wins) / n)}%`) && <span className="text-muted-foreground">{Math.round((100 * b.wins) / n)}% win rate</span>}
           </p>
           {b.split && <RecordSplit split={b.split} />}
         </figure>
       );
     }
-    case "matches":
+    case "matches": {
+      // Every match at one event: the event, its type and season said once, over the list, not in every box (§8).
+      const ev = b.rows.length > 1 && b.rows.every((r) => r.event.href === b.rows[0].event.href && r.season === b.rows[0].season) ? b.rows[0] : null;
       return (
         <div data-block="matches">
-          <h3 className={H3}>{b.title}</h3>
-          <ul className={cn("grid gap-3", b.rows.length > 1 && "lg:grid-cols-2")}>{b.rows.map((r) => <MatchBox key={`${r.href}|${r.alliance}`} r={r} team={team ?? undefined} />)}</ul>
+          <h3 className={H3}>{b.title}{ev && !said?.has(ev.event.label) && <> · <Link to={ev.event.href} className="text-foreground/90 hover:text-accent-text hover:underline">{ev.event.label}</Link></>}</h3>
+          <ul className={cn("grid gap-3", b.rows.length > 1 && "lg:grid-cols-2")}>{b.rows.map((r) => <MatchBox key={`${r.href}|${r.alliance}`} r={r} team={team ?? undefined} atEvent={!!ev} />)}</ul>
           {b.more && <p className="mt-1 text-[11px] text-muted-foreground">{b.more}</p>}
         </div>
       );
+    }
     case "table":
       return b.rows.some((r) => r.teams) ? <MatchTable b={b} /> : <Table b={b} />;
     case "leaderboard":

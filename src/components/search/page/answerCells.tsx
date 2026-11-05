@@ -3,8 +3,8 @@
 // a record and a result read as their text with the win in bold, an OPR has a small neutral bar from zero to the best
 // one listed, a season is the header's season badge, an event's type a neutral badge. Alliance red and blue stay where
 // they mark an alliance. Drawn from the text the server sends: a cell that isn't in a known shape stays plain.
-import type { ReactNode } from "react";
-import { Award, Medal, Trophy } from "lucide-react";
+import { useId, useState, type ReactNode } from "react";
+import { Award, Info, Medal, Trophy } from "lucide-react";
 import { PODIUM_CHIP } from "../../../lib/textTones";
 import { eventTypeLabel } from "../../../shared/labels";
 import { Badge } from "../../ui/basic";
@@ -160,4 +160,26 @@ export function better(label: string, a: unknown, b: unknown): "a" | "b" | null 
   // near-zero matches, swing).
   const low = /pen|foul|rank|miss|loss|lost|no-?show|disqualif|\bdq|near-zero|swing/i.test(label) || String(a).trim().startsWith("#");
   return (low ? x < y : x > y) ? "a" : "b";
+}
+
+/** An answer's one footnote line (the guide's §8): where its numbers come from, with how they're counted behind an
+ *  info button (a 44px target; the sentence opens under the line, by tap or keyboard), never a paragraph in the card. */
+export function MethodNote({ lead, source, definition, children }: { lead?: string; source: string; definition: string; children?: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const note = useId();
+  return (
+    <footer className="mt-5 border-t border-border pt-3" data-definition>
+      <p className="flex items-center gap-1 text-xs text-muted-foreground">
+        <span className="min-w-0 flex-1">{lead}<span data-source>{source}.</span></span>
+        {definition && (
+          <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-controls={note} aria-label="How this is counted"
+            className="inline-flex size-[44px] shrink-0 items-center justify-center rounded-md hover:bg-muted hover:text-foreground" data-method>
+            <Info className="size-4" aria-hidden />
+          </button>
+        )}
+      </p>
+      {definition && <p id={note} hidden={!open} className="mt-1 text-xs text-muted-foreground" role="note">{definition}</p>}
+      {children}
+    </footer>
+  );
 }

@@ -33,7 +33,8 @@ export function TeamChip({ t, side, self }: { t: StatLink; side: "red" | "blue";
 
 const PHASES: ["auto" | "teleop" | "endgame" | "pen", string][] = [["auto", "Auto"], ["teleop", "TeleOp"], ["endgame", "Endgame"], ["pen", "Pen given"]];
 
-export function MatchBox({ r, team }: { r: StatMatchRow; team?: Who }) {
+/** `atEvent`: every box in the list is at this event, named once over it; the box keeps only its date. */
+export function MatchBox({ r, team, atEvent }: { r: StatMatchRow; team?: Who; atEvent?: boolean }) {
   const other = r.alliance === "red" ? "blue" : "red";
   // A team's own row lists its partners without it: the team goes first on its own alliance (the row's own team, else
   // the card's). The card's team is named in the card's header, so its chip is the number alone (each name once).
@@ -54,9 +55,11 @@ export function MatchBox({ r, team }: { r: StatMatchRow; team?: Who }) {
         {r.note && <span className="rounded-md border border-border bg-muted/50 px-1.5 py-0.5 text-[11px] font-semibold text-foreground" data-note>{r.note}</span>}
         <Link to={r.href} className={cn("inline-flex items-center font-display text-base font-semibold text-foreground hover:text-accent-text hover:underline", TAP)}>{r.label}</Link>
         <span className="min-w-0 flex-1 basis-40 text-xs text-muted-foreground">
-          <Link to={r.event.href} className="break-words font-medium text-foreground/90 hover:text-accent-text hover:underline">{r.event.label}</Link>
-          {!!r.type && <EventMarker type={r.type} chip />}
-          {` · ${r.season}`}{r.date ? ` · ${r.date}` : ""}
+          {atEvent ? r.date : <>
+            <Link to={r.event.href} className="break-words font-medium text-foreground/90 hover:text-accent-text hover:underline">{r.event.label}</Link>
+            {!!r.type && <EventMarker type={r.type} chip />}
+            {` · ${r.season}`}{r.date ? ` · ${r.date}` : ""}
+          </>}
         </span>
         <RowPlay href={r.href} label={`${r.label} · ${r.event.label}`} className="-my-1 -mr-1 ml-auto" />
       </div>
