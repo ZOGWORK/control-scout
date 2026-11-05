@@ -89,6 +89,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   const intent = p.intent!;
   const scope = readScopeOf(p);
   if (!scope) return null;
+  // The finals are a filter only the match finder applies: anything else would answer for every playoff match.
+  if (p.finals && (p.teams.length || !(FIND[intent] || intent === "top-matches"))) return null;
   const said = normalise(p.q);
   if (p.teams.length === 1 && TEAM_INTENTS.has(intent)) {
     // An award with an answer of its own: Inspire (its places) and Finalist finishes.

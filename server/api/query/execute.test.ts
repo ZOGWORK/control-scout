@@ -218,6 +218,9 @@ describe("the match finder: matches by a measure, every filter applied and state
     expect(s.headline).toBeUndefined();
     expect(s.scope).toContain("Playoff matches");
   });
+  it("the finals are the finder's filter only: a team's finals record is never its playoff record", async () => {
+    expect((await ask("4215 record in finals matches only")).stat?.title ?? "").not.toMatch(/playoffs/i);
+  });
   it("a comeback needs the auto points: none on record is said with the rule", async () => {
     expect((await stat("biggest comeback in california this season")).none).toMatch(/^None of the 2 played matches in California in 2025–26 is one: a comeback is a match won/);
   });
