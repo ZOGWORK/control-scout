@@ -174,7 +174,7 @@ export function AccuracySection() {
         <div className="mb-2.5"><EngineTag /></div>
         <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border lg:grid-cols-4" role="list" aria-label={`Headline numbers from ${ENGINE_TEST}`}>
           <StatCell tone="gold" value={<CountUp value={ENG.matches.liveAccuracy * 100} decimals={1} suffix="%" />} label="of matches called right with live ratings (engine 1.x)" />
-          <StatCell tone="good" value={<CountUp value={ENG.matches.scoreRange80Coverage * 100} decimals={0} suffix="%" />} label="of real scores inside the 80% range (honest ranges)" />
+          <StatCell tone="good" value={<CountUp value={ENG.matches.scoreRange80Coverage * 100} decimals={0} suffix="%" />} label="of real scores inside the 80% range (engine 2.2 ranges; today's are under Score ranges)" />
           <StatCell tone="blue" value={<CountUp value={ENG.advancement.selected.brier} decimals={3} />} label="advancement Brier after alliance selection (lower is better)" />
           <StatCell value={<CountUp value={ENG.matches.count} />} label={`held-out test matches · ${ENG.advancement.events} advancing events`} />
         </div>

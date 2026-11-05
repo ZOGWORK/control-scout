@@ -125,5 +125,7 @@ describe("current engine table", () => {
     expect(rows[0]).toMatch(/2024–25tuning season · 32,974 matches76\.5%0\.157838\.64was 38\.75/);
     expect(rows[1]).toMatch(/2025–26reused season · 36,572 matches74\.8%0\.168137\.26was 37\.36/);
     expect(screen.getByText(/First held-out test · engine 1\.x/)).toBeTruthy();
+    // Its range coverage was rewritten by engine 2.2, so that cell names 2.2.
+    expect(screen.getByText(/inside the 80% range \(engine 2\.2 ranges/)).toBeTruthy();
   });
 });

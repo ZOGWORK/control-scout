@@ -26,7 +26,7 @@ How it works shows today's engine on the month-by-month test, instead of the eng
 
 ### Changes
 - **Today's engine.** How it works › Accuracy opens its engine results with a table of engine 3.5 on the rolling monthly test: 76.5% called right, Brier 0.1578 and margin error 38.64 points on 2024–25; 74.8%, 0.1681 and 37.26 on 2025–26. The margin column shows 3.5's smaller error next to the previous one.
-- **Engine 1.x test, named.** The 72.7% headline, its baselines (Figure 8) and the learning curve come from the engine's first held-out test; they now say engine 1.x. The ledger's season replay (73.8% on 2025–26) is unchanged: 3.5 moved no win chance. (#673)
+- **Engine 1.x test, named.** The 72.7% headline, its baselines (Figure 8) and the learning curve come from the engine's first held-out test; they now say engine 1.x. Its 82% range coverage is engine 2.2's ranges result and says so. The ledger's season replay (73.8% on 2025–26) is unchanged: 3.5 moved no win chance. (#673)
 
 ## 3.0.9 — 2026-11-04
 
