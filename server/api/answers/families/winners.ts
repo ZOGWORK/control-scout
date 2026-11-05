@@ -9,7 +9,7 @@
 import type { StatAnswer, StatBlock, StatMatchRow } from "../../../../src/shared/searchStat.js";
 import { dateRange, seasonLabel } from "../../../../src/shared/format.js";
 import { all, get } from "../../../db.js";
-import { CURRENT_SEASON, SEASONS } from "../../../data/seasons.js";
+import { CURRENT_SEASON, SEASONS, gameOf as gameOfSeason } from "../../../data/seasons.js";
 import { fuzzyScore } from "../../fuzzy.js";
 import { CHAMPIONSHIP_TYPE } from "../clauses.js";
 import { eventHref, matchHref, shortEvent, teamLinks } from "../matchSet.js";
@@ -19,7 +19,7 @@ const RULE = "The winning alliance is the alliance that won the event's final ma
 interface Ev { season: number; code: string; name: string; type: string | null; start: string | null; end: string | null; division: string | null }
 
 const evCols = "season, code, name, type, start, end, division_code division";
-const gameOf = (s: number) => SEASONS.find((x) => x.season === s)?.game ?? seasonLabel(s);
+const gameOf = (s: number) => gameOfSeason(s) ?? seasonLabel(s);
 
 /** The latest season with a FIRST Championship in the data. */
 async function latestChampionship(): Promise<number | null> {

@@ -576,12 +576,15 @@ async function changeWithoutTeam(q: string, c: ChangeQuestion, pages: SearchPage
   const top = await all<{ team: number; name: string | null }>(`SELECT s.team, t.name FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE s.season = ? AND ${col} IS NOT NULL AND ${teamPageSql("s.team", "t.name")} ORDER BY ${col} DESC, s.team LIMIT 3`, [c.to]);
   const word = c.stat === "opr" ? "opr" : "rating";
   const ask = (s: string) => ({ href: `/search?q=${encodeURIComponent(s)}` });
+  // The seasons the card was read for go with every question it asks ("… rating change in 2023-24", "… from A to B").
+  const typed = (s: number) => `${s}-${String((s + 1) % 100).padStart(2, "0")}`;
+  const when = c.from != null ? `from ${typed(c.from)} to ${typed(c.to)}` : `in ${typed(c.to)}`;
   const title = `A ${what} change is one team's: name the team`;
   return {
     q, hits: [], pages, step: "deterministic", weak: false,
     card: { kind: "info", title, lines: [
-      ...top.map((t) => ({ text: `${t.team}${t.name ? ` ${t.name}` : ""}: ${word} change`, detail: `"${t.team} ${word} change", one of ${seasonLabel(c.to)}'s top-rated teams`, ...ask(`${t.team} ${word} change`) })),
-      { text: "Most improved teams", detail: `The biggest climbs in ${seasonLabel(c.to)}`, ...ask("most improved teams") },
+      ...top.map((t) => ({ text: `${t.team}${t.name ? ` ${t.name}` : ""}: ${word} change`, detail: `"${t.team} ${word} change ${when}", one of ${seasonLabel(c.to)}'s top-rated teams`, ...ask(`${t.team} ${word} change ${when}`) })),
+      { text: "Most improved teams", detail: `The biggest climbs in ${seasonLabel(c.to)}`, ...ask(`most improved teams in ${typed(c.to)}`) },
     ] },
     understood: { kind: "question", label: title, season: c.to },
     intent: { kind: `stat-${c.stat}-change`, pattern: `[team] ${c.stat} change`, met: false, understood: [title] },

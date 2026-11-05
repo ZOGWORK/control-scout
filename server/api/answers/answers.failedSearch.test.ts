@@ -78,6 +78,11 @@ beforeAll(async () => {
     await at(2025, code, t, 1, 150);
     await match(2025, code, "qual", 150, 100, [t], [t === 7 ? 1 : 7]);
   }
+  // 2023–24 Worlds (CENTERSTAGE): 4215, 23268 and 7149 in the Edison Division.
+  await ev(2023, "FTCCMP1", "FIRST Championship", "FIRSTChampionship", "2024-04-17", null, "TX");
+  await ev(2023, "FTCCMP1EDIS", "FIRST Championship - FIRST Tech Challenge - Edison Division", "FIRSTChampionship", "2024-04-17", "FTCCMP1", "TX");
+  for (const [t, rank] of [[4215, 3], [23268, 7], [7149, 12]] as const) await at(2023, "FTCCMP1EDIS", t, rank, 140);
+  await match(2023, "FTCCMP1EDIS", "qual", 200, 150, [4215, 23268], [7149]);
   // 20205's last season with events is 2024–25.
   await at(2024, "USNJSOLT", 20205, 4, 70);
   await match(2024, "USNJSOLT", "qual", 90, 80, [20205], [4215]);
@@ -168,6 +173,25 @@ describe("typos the spelling layer missed", () => {
       expect(a.didYouMean).toBe(`when was the first time ${name} went to worlds`);
       expect(a.card).toMatchObject({ title: "Worlds appearances", team: { number: t } });
     }
+  });
+});
+
+describe("a Worlds trip names its season's game", () => {
+  it("the first and last trip's headline: years, game and division (4215, 23268, 7149)", async () => {
+    const cases: [string, string, number][] = [
+      ["when was the last time 4215 went worlds", "Last went to Worlds in 2023–24 · CENTERSTAGE, Edison Division", 2023],
+      ["when was the first time 23268 went to worlds", "First went to Worlds in 2023–24 · CENTERSTAGE, Edison Division", 2023],
+      ["when was the first time 7149 went to worlds", "First went to Worlds in 2023–24 · CENTERSTAGE, Edison Division", 2023],
+      ["when was the last time 7149 went worlds", "Last went to Worlds in 2025–26 · DECODE, Ross Division", 2025],
+    ];
+    for (const [q, headline, season] of cases) {
+      const a = await full(q);
+      expect(a.card?.headline, q).toBe(headline);
+      expect(a.card?.trip?.season, q).toBe(season);
+    }
+    // Each trip's line carries its game, for the card's season line.
+    const lines = (await full("enforcers worlds appearances")).card!.lines;
+    expect(lines.map((l) => l.game)).toEqual(["CENTERSTAGE", "DECODE"]);
   });
 });
 

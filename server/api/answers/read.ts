@@ -494,8 +494,10 @@ export function readLeaderboard(raw: string): LeaderboardQuestion | null {
   if ((m = new RegExp(`^(?:all )?${TEAMS} (?:in|from|based in) (.+)$`).exec(rest)) && !findRegions(m[1]).length && !nearRegion(m[1]) && scope.season == null) {
     return { kind: "city", stat: "opr", n: 25, region: null, city: m[1].trim(), season: null };
   }
-  const sorted = readSorted(rest);
-  return sorted ? { kind: "top", ...sorted, n: 10, region: null, city: null, season: scope.season } : null;
+  // A place read as events' ("in nj events") is the teams from there; outside the team's own state has no board.
+  const sorted = scope.outOfState ? null : readSorted(rest);
+  if (!sorted || (sorted.region && scope.place)) return null;
+  return { kind: "top", ...sorted, n: 10, region: sorted.region ?? scope.place ?? null, city: null, season: scope.season };
 }
 
 const LOW_WORDS = "worst|lowest|weakest", LOW = `(?:${LOW_WORDS})`;
@@ -519,14 +521,18 @@ function sortStat(s: string): string | null {
 /** A leaderboard asked for as a sort, in plain words: "what is the best team sorted by auto", "best auto sorted lowest
  *  to highest", "teleop ranked", "best auto and endgame". `asc`: lowest first. A sort word, a direction or phases
  *  joined has to be said, so "best auto" and "best team" stay the asks' own. */
-function readSorted(rest: string): { stat: string; asc?: boolean } | null {
+function readSorted(rest: string): { stat: string; asc?: boolean; region?: Region } | null {
   let t = rest.replace(/^(?:what|who|which)(?: is| are|s)? (?:the )?/, "").replace(/(?:^| )(?:right now|right|rn|currently|now|please)(?= |$)/g, " ").replace(/\s+/g, " ").trim();
+  // A place said last ("teams ranked by auto in nj"): its teams, or no board when it names no region.
+  let region: Region | undefined;
+  const pl = / (?:in|from) (.+)$/.exec(t);
+  if (pl) { const r = regionOf(pl[1]); if (!r) return null; region = r; t = t.slice(0, pl.index).trim(); }
   let dir: "asc" | "desc" | null = null;
   const d = new RegExp(String.raw`(?:^| )(?:${SORTED} )?(${ASC}|${DESC})$`).exec(t);
   if (d) { dir = new RegExp(`^${ASC}$`).test(d[1]) ? "asc" : "desc"; t = t.slice(0, d.index).trim(); }
   const out = (q: string | undefined, s: string) => {
     const stat = sortStat(s);
-    return stat ? { stat, ...(dir === "asc" || (!dir && q && new RegExp(`^${LOW}$`).test(q)) ? { asc: true } : {}) } : null;
+    return stat ? { stat, ...(region ? { region } : {}), ...(dir === "asc" || (!dir && q && new RegExp(`^${LOW}$`).test(q)) ? { asc: true } : {}) } : null;
   };
   const Q = `(?:(best|top|highest|strongest|${LOW_WORDS}) )?`;
   let m: RegExpExecArray | null;
@@ -629,7 +635,9 @@ export function readStatQuestion(raw: string): StatQuestion | null {
     // Search reads plurals as their singular ("matches" → "match"): "match" alone names a team's matches only at an
     // event or Worlds ("4215 match record" is the record's).
     // Nor a question that asks for a record, rank or OPR ("4215 match record at worlds in 2025" is the record's).
-    if (r.id === "results" && m[0] === "match" && (!(scope.at || scope.championship || scope.states) || /\b(?:record|w-l-t|win[\s-]+loss|rank(?:ed|ing)?|placement|place[ds]?|finish(?:ed)?|seed(?:ed)?|opr)\b/.test(q))) continue;
+    // An event named beside the team counts as one ("4215 matches east bergen conference": read beside it, below).
+    const besideTeam = /\s/.test(squash(rest.replace(FRAME, " ")));
+    if (r.id === "results" && m[0] === "match" && (!(scope.at || scope.championship || scope.states || besideTeam) || /\b(?:record|w-l-t|win[\s-]+loss|rank(?:ed|ing)?|placement|place[ds]?|finish(?:ed)?|seed(?:ed)?|opr)\b/.test(q))) continue;
     // A team's matches at Worlds need no one event ("4215 matches at worlds in 2025").
     // At states: the team's own state championship that season (its division and finals), answered as one event.
     // Else the event may be in what's left beside the team ("4215 rank in the east bergen conference"): the answer

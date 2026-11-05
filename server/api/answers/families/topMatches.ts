@@ -8,7 +8,7 @@ import type { Region } from "../../../../src/shared/regions.js";
 import { dateRange, seasonLabel } from "../../../../src/shared/format.js";
 import { regionOf } from "../../../../src/shared/searchEventQuery.js";
 import { all, get } from "../../../db.js";
-import { SEASONS, ownScorePenalties } from "../../../data/seasons.js";
+import { SEASONS, gameOf as gameOfSeason, ownScorePenalties } from "../../../data/seasons.js";
 import { parseHighScore } from "../../searchHighScores.js";
 import { OFFICIAL_TYPES } from "../clauses.js";
 import { eventHref, matchHref, shortEvent, teamLinks } from "../matchSet.js";
@@ -123,7 +123,7 @@ export async function topMatchesAnswer(t: TopMatchesQuestion, findEvent: (words:
   const latest = async () => Number((await get<{ s: number | null }>(`SELECT MAX(m.season) s FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE m.played = 1 AND e.type IN (${OFFICIAL_TYPES.map(() => "?").join(", ")})`, [...OFFICIAL_TYPES]))?.s ?? NaN);
   const season = ev?.season ?? t.season ?? await latest();
   if (!Number.isFinite(season)) return null;
-  const gameOf = (s: number) => SEASONS.find((x) => x.season === s)?.game ?? seasonLabel(s);
+  const gameOf = (s: number) => gameOfSeason(s) ?? seasonLabel(s);
   const top = await topOf(season, t.region, ev);
   const all2 = [...top.alliances, ...top.combined];
   const ups = await lineups(all2);
@@ -169,7 +169,7 @@ export async function everTopMatches(t: TopMatchesQuestion, findEvent: Parameter
   const seasons = (await all<{ s: number }>(`SELECT DISTINCT m.season s ${SIDE_FROM} WHERE m.played = 1 AND e.type IN (${OFFICIAL_TYPES.map(() => "?").join(", ")})${ev ? " AND (e.code = ? OR e.division_code = ?)" : ""} ORDER BY m.season DESC`, [...OFFICIAL_TYPES, ...(ev ? [ev.code, ev.code] : [])])).map((r) => Number(r.s));
   const per = (await Promise.all(seasons.map(async (s) => ({ s, r: await bestOf(s, t.region, ev ? { season: s, code: ev.code } : null) })))).filter((p) => p.r);
   if (!per.length) return latest;
-  const gameOf = (s: number) => SEASONS.find((x) => x.season === s)?.game ?? seasonLabel(s);
+  const gameOf = (s: number) => gameOfSeason(s) ?? seasonLabel(s);
   const table: StatBlock = { kind: "table", title: "Highest alliance score each season (each season is a different game)", columns: [{ key: "season", label: "Season" }, { key: "score", label: "Score", num: true }, { key: "match", label: "Match" }, { key: "event", label: "Event" }],
     rows: per.map(({ s, r }) => ({ cells: { season: `${gameOf(s)} ${seasonLabel(s)}`, score: r!.score, match: r!.label, event: shortEvent(r!.name, r!.type) }, href: matchHref(r!), strong: s === per[0].s })) };
   const place = ev ? ` at ${shortEvent(ev.name, ev.type)}` : t.region ? ` in ${t.region.name}` : "";

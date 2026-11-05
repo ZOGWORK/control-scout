@@ -97,7 +97,7 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
     all<{ team: number; name: string | null; city: string | null; state: string | null; country: string | null; v: number | null; opr: number | null; auto: number | null; teleop: number | null; endgame: number | null; pen: number | null; wins: number; losses: number; ties: number; matches: number }>(
       `SELECT s.team, t.name, t.city, t.state, t.country, ${st.sql} v, s.opr_np opr, s.opr_auto auto, s.opr_teleop teleop, s.opr_endgame endgame, s.opr_pen pen, s.wins, s.losses, s.ties, s.matches
        FROM ${from} WHERE ${ranked}
-       ORDER BY v ${b.asc ? "ASC" : "DESC"}, ${st.id === "rating" ? "" : `s.wins ${b.asc ? "ASC" : "DESC"}, `}s.team LIMIT ?`, [...args, b.n]),
+       ORDER BY v ${b.asc ? "ASC" : "DESC"}, ${st.id === "rating" ? "" : `s.wins ${b.asc ? "ASC" : "DESC"}, `}s.team ${b.asc ? "DESC" : "ASC"} LIMIT ?`, [...args, b.n]),
     get<{ n: number }>(`SELECT COUNT(*) n FROM ${from} WHERE ${ranked}`, args),
   ]);
   const title = rookie ? `Best rookie team${b.n > 1 ? "s" : ""}${where} by ${statWords(st)}` : b.best ? `Best team${where} by ${statWords(st)}` : b.asc ? `Bottom ${b.n} teams by ${statWords(st)}${where}, lowest first` : `Top ${b.n} teams by ${statWords(st)}${where}`;

@@ -33,6 +33,7 @@ Search answers the failed searches filed since 3.1.4: an event named without "at
 - **Sorts in plain words.** "Best team sorted by auto", "teleop ranked", "sorted lowest to highest" (the bottom of the list, each team's place counted from the top) and "best auto and endgame" (the two OPRs added) are the phase-OPR leaderboards. "What is the bet" and "what is the best time" offer "what is the best team".
 - **A rating change with no team.** "Predicted changes" says a change is one team's and asks it of the season's top-rated teams; "4215 predicted change" is its rating change.
 - **An event a team didn't play.** The card says why, from the records: a team from another state or country, else the kinds of events it played that season (or none, with its latest season's), and links each of those events' pages.
+- **Worlds trips name their game.** "Last went to Worlds in 2023–24 · CENTERSTAGE, Edison Division": the headline, each trip and the streak and best-rank notes say the season's game. The trip asked about is marked, and ranks, records, OPRs, awards and the summary numbers take the team page's colours.
 
 ## 3.1.4 — 2026-11-04
 
