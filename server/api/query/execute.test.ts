@@ -282,6 +282,11 @@ describe("forecasts", () => {
       const t = s.blocks.find((b) => b.kind === "table");
       expect(t && t.kind === "table" && t.rows.map((r) => [r.cells.before, r.cells.after, r.cells.called]), q).toEqual([["70% · 140–100", "W 150–90", "Yes"], ["60% · 110–100", "L 80–120", "No"], ["55%", "Not played yet", "–"]]);
       expect(a.pages[0], q).toMatchObject({ title: "Open in Predict: 4215 at Garden Qualifier", href: "/predict?mode=advancement&season=2025&code=USNJQ1&team=4215" });
+      // The chance on its 0–100% bar leads: the next match still to come (Q99, 55%), Predict its one action and
+      // printed nowhere else on the card.
+      expect(s.blocks[0], q).toMatchObject({ kind: "chance", p: 0.55, who: "4215", label: "to win the next match (Q99), before it's played", action: { label: "Open in Predict: 4215 at Garden Qualifier" } });
+      const links = s.blocks.filter((b) => b.kind === "links").flatMap((b) => (b.kind === "links" ? b.items : []));
+      expect(links.map((l) => l.label), q).not.toContain("Open in Predict: 4215 at Garden Qualifier");
     }
   });
   it("two teams at an event: their meetings, before and after", async () => {

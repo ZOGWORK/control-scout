@@ -14,10 +14,31 @@ import { eventFit } from "../answers/index.js";
 import { eventHref, matchHref, shortEvent } from "../answers/matchSet.js";
 import { nextEventPrediction } from "../answers/families/predict.js";
 import { readProjections } from "../../projections/store.js";
+import { readyForecaster, recentRecords } from "../../predict/engine.js";
+import { plusMinus } from "../../../src/shared/scoreRange.js";
 import { EVENT_FIT } from "./context.js";
 
 interface Ev { season: number; code: string; name: string; type: string | null; start: string | null; end: string | null }
 const pct = (p: number) => `${Math.round(100 * p)}%`;
+
+/** The event's stored pre-event projection for a team, only while event forecasts are switched on (as on the event page). */
+async function projectionOf(ev: Ev, team: number) {
+  const odds = await isEnabled("advancementOdds").catch(() => false);
+  const run = odds ? (await readProjections(Number(ev.season), ev.code).catch(() => null))?.baseline : undefined;
+  return run?.teams.find((t) => t.team === team);
+}
+
+/** A match's call as the engine makes it now, with its score ranges, the team's side first ("Predicted 138 ±14 –
+ *  92 ±12"): a stored call keeps no range. Null when live predictions are off or the engine isn't built yet. */
+async function rangedCall(season: number, red: number[], blue: number[], level: string, own: "red" | "blue"): Promise<string | null> {
+  if (!(await isEnabled("livePredictions").catch(() => false))) return null;
+  const f = readyForecaster(season);
+  if (!f) return null;
+  const x = (await f).explain(season, red, blue, level === "playoff" ? "playoff" : "qual", undefined, await recentRecords(season, [...red, ...blue]));
+  if (!x) return null;
+  const [mo, ro, mp, rp] = own === "red" ? [x.predictedScoreA, x.scoreRangeA, x.predictedScoreB, x.scoreRangeB] : [x.predictedScoreB, x.scoreRangeB, x.predictedScoreA, x.scoreRangeA];
+  return `Predicted ${Math.round(mo)} ±${plusMinus(mo, ro)} – ${Math.round(mp)} ±${plusMinus(mp, rp)}, the engine's call with its 80% ranges`;
+}
 
 /** The event the words name for these teams: the year asked (held that year), else the latest one they're listed at,
  *  else the latest of that name (and the answer says they aren't listed). Null when no event has that name. */
@@ -61,9 +82,11 @@ export async function forecastAt(teams: { number: number; name: string | null }[
     ? { label: `Open in Predict: ${a.number} vs ${b.number}`, href: predictHref({ mode: "match", season: Number(ev.season), red: [a.number], blue: [b.number] }) }
     : { label: `Open in Predict: ${a.number} at ${name}`, href: predictHref({ mode: "advancement", season: Number(ev.season), code: ev.code, team: a.number }) };
   const links: StatBlock = { kind: "links", title: "Open", items: [predict, { label: name, sub: when, href: eventHref(Number(ev.season), ev.code, a.number) }] };
+  // Predict printed once: as the chance's action when the card has one, else in the links.
+  const withoutPredict: StatBlock = { ...links, items: links.items.filter((l) => l !== predict) };
   const base: Omit<StatAnswer, "blocks"> = {
     family: b ? "two-team" : "stat", intent: b ? "pipeline-two-predict-event" : "pipeline-team-predict-event", title, team: a, ...(b ? { teams } : {}),
-    scope: [name, S], definition: "Before: the engine's prediction logged before each match (live), or, for matches it didn't log live, its walk-forward replay of the same match, said which; the two are never mixed on one card. The pre-event projection is the forecast stored before the event's first match. After: the official result.",
+    scope: [name, S], definition: "Before: the engine's prediction logged before each match (live), or, for matches it didn't log live, its walk-forward replay of the same match, said which; the two are never mixed on one card. The pre-event projection is the forecast stored before the event's first match. A stored call keeps its predicted score but not its range; a match still to come shows the engine's call now with its 80% ranges. After: the official result.",
     source: `${ev.name}, ${S}${when ? ` · ${when}` : ""}`,
   };
   if (!listed) return { ...base, blocks: [links], none: `${teams.map(who).join(" and ")} ${b ? "aren't" : "isn't"} listed at ${ev.name} (${S}), the latest event by that name, so there's no prediction for ${b ? "them" : "it"} there.` };
@@ -73,7 +96,10 @@ export async function forecastAt(teams: { number: number; name: string | null }[
   // Still to come (or not started): the forecast the event page shows, with Predict open on it.
   if (upcoming && !Number(played?.n) && !b) {
     const f = await nextEventPrediction("event-win-chance", a, new Date(now), { season: Number(ev.season), code: ev.code }, Number(ev.season));
-    return { ...f, title, intent: base.intent, scope: [...f.scope, "Not played yet"], blocks: [...f.blocks.filter((x) => x.kind !== "links"), links], definition: `${f.definition} After: the event hasn't been played yet, so there's no result to set beside it.` };
+    // The chance to win it on its 0–100% bar, with Predict as the card's one action.
+    const pre = await projectionOf(ev, a.number);
+    const chance: StatBlock | null = pre ? { kind: "chance", p: pre.pWin, who: String(a.number), label: "to win the event, before it starts", action: predict } : null;
+    return { ...f, title, intent: base.intent, scope: [...f.scope, "Not played yet"], blocks: [...(chance ? [chance] : []), ...f.blocks.filter((x) => x.kind !== "links"), chance ? withoutPredict : links], definition: `${f.definition} After: the event hasn't been played yet, so there's no result to set beside it.` };
   }
   // The matches: the team's (or both teams'), qualifications and playoffs, at the event and its divisions; one still to
   // be played shows its saved call with no result yet.
@@ -89,10 +115,7 @@ export async function forecastAt(teams: { number: number; name: string | null }[
   // One kind per card: live when any match was logged live, else the replay.
   const kind = mine.some((r) => r.kind === "live") ? "live" : "backtest";
   const ms = mine.filter((r) => r.kind === kind);
-  // The pre-event projection, only while event forecasts are switched on (as on the event page).
-  const odds = await isEnabled("advancementOdds").catch(() => false);
-  const run = odds ? (await readProjections(Number(ev.season), ev.code).catch(() => null))?.baseline : undefined;
-  const pre = run?.teams.find((t) => t.team === a.number);
+  const pre = await projectionOf(ev, a.number);
   const rank = await get<{ rank: number | null }>("SELECT rank FROM event_teams WHERE season = ? AND team = ? AND (code = ? OR code IN (SELECT code FROM events WHERE season = ? AND division_code = ?)) AND rank IS NOT NULL ORDER BY rank LIMIT 1", [ev.season, a.number, ev.code, ev.season, ev.code]);
   const won = await wonEvent(Number(ev.season), ev.code, a.number);
   // Two teams: only their meetings are the answer (one team's odds to win the event never stand in for them).
@@ -111,6 +134,12 @@ export async function forecastAt(teams: { number: number; name: string | null }[
   const done = table.filter((r) => r.played), next = table.find((r) => !r.played);
   const expWins = done.reduce((n, r) => n + r.pWin, 0), wins = table.filter((r) => r.result === "W").length, losses = table.filter((r) => r.result === "L").length, ties = table.filter((r) => r.result === "T").length;
   const called = table.filter((r) => r.row.cells.called === "Yes").length, decided = table.filter((r) => r.row.cells.called !== "–").length;
+  // The chance on its 0–100% bar: the next match's, else the average over the matches played, else the event's.
+  const nextRow = next ? ms[table.indexOf(next)] : undefined;
+  const note = nextRow ? await rangedCall(Number(ev.season), lineup(nextRow.red), lineup(nextRow.blue), nextRow.level, side(nextRow)).catch(() => null) : null;
+  const chance: StatBlock | null = next ? { kind: "chance", p: next.pWin, who: String(a.number), label: `to win ${b ? "their next meeting" : "the next match"} (${next.row.cells.match}), before it's played`, ...(note ? { note } : {}), action: predict }
+    : done.length ? { kind: "chance", p: expWins / done.length, who: String(a.number), label: `average chance to win each ${b ? "meeting" : "match"}, before it was played`, action: predict }
+    : pre ? { kind: "chance", p: pre.pWin, who: String(a.number), label: "to win the event, before it started", action: predict } : null;
   const label = kind === "live" ? "logged live before each match" : "walk-forward replay (not logged live)";
   // Two teams always on the same footing (all partners, or all opponents) say so in the title, not a column.
   const sides = new Set(table.map((r) => r.row.cells.as));
@@ -118,6 +147,7 @@ export async function forecastAt(teams: { number: number; name: string | null }[
   const asTitle = b && sides.size === 1 ? `, as ${[...sides][0]}` : "";
   if (!asColumn) for (const r of table) delete r.row.cells.as;
   const blocks: StatBlock[] = [
+    ...(chance ? [chance] : []),
     { kind: "kpis", items: [
       { label: "Before: expected wins", value: done.length ? expWins.toFixed(1) : "–", sub: done.length ? `of ${done.length} match${done.length === 1 ? "" : "es"} played, ${label}` : ms.length ? "None played yet" : "No match predictions stored" },
       { label: "After: record", value: done.length ? `${wins}-${losses}-${ties}` : "–", sub: rank?.rank != null ? `Ranked #${rank.rank}` : undefined },
@@ -126,7 +156,7 @@ export async function forecastAt(teams: { number: number; name: string | null }[
       ...(decided ? [{ label: "Called right", value: `${called} of ${decided}`, sub: pct(called / decided) }] : []),
     ] },
     ...(ms.length ? [{ kind: "table" as const, title: `Before (win chance · predicted score) and after, match by match${asTitle}`, columns: [{ key: "match", label: "Match" }, ...(asColumn ? [{ key: "as", label: "As" }] : []), { key: "before", label: "Before" }, { key: "after", label: "After" }, { key: "called", label: "Right" }], rows: table.map((r) => r.row) }] : []),
-    links,
+    chance ? withoutPredict : links,
   ];
   return {
     ...base, blocks,
