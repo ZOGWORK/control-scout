@@ -23,6 +23,7 @@ import { AnswerNotesView, useSearchHits, useSections } from "../components/searc
 import { CompareCard, EventCard, HeadToHead, ResultRow, TeamCard, teamSeasons, type SeasonSummary } from "../components/search/page/ResultCards";
 import { NoResults } from "../components/search/page/NoResults";
 import { StatAnswerCard } from "../components/search/page/StatAnswer";
+import { comparisonOf } from "../components/search/page/CompareCard";
 import { FactCard } from "../components/search/page/FactCard";
 import { RelatedQuestions } from "../components/search/page/TeamAnswer";
 import { PhoneSearchBar } from "../components/search/page/PhoneSearchBar";
@@ -118,7 +119,9 @@ export default function SearchPage() {
     return m;
   }, [now.data, before.data, base, asked, hits]);
   // One line for what the query was read as (the server's reading, else the top result's subject and what it opens on).
-  const title = found ? pageTitle(ax, hits, isQualityQuestion(query)) : null;
+  // A comparison card names its teams in its own title: the heading keeps the numbers only, so each name shows once
+  // (the search results guide).
+  const title = found ? (answer?.stat && comparisonOf(answer.stat) ? answer.stat.title : pageTitle(ax, hits, isQualityQuestion(query))) : null;
   // A question card's heading names its team in bold ("Where **Hypnotic Robotics (4215)** is from").
   const strong = title && ax?.card?.team ? cardTeamName(ax.card.team) : null;
   const shownTitle = strong && title!.includes(strong)
