@@ -14,6 +14,8 @@ export const TONES = {
   amber: { box: "border-warning/30 bg-warning/[0.06]", hover: "hover:border-warning/60", selected: "border-warning ring-2 ring-warning/50 bg-warning/[0.12]", chip: "bg-warning/15 text-warning", bar: "bg-warning", text: "text-warning", edge: "border-t-warning" },
   rose: { box: "border-rose-500/30 bg-rose-500/[0.06]", hover: "hover:border-rose-500/60", selected: "border-rose-500 ring-2 ring-rose-500/50 bg-rose-500/[0.12]", chip: "bg-rose-500/15 text-rose-600 dark:text-rose-400", bar: "bg-rose-500", text: "text-rose-600 dark:text-rose-400", edge: "border-t-rose-500" },
   teal: { box: "border-teal-500/30 bg-teal-500/[0.06]", hover: "hover:border-teal-500/60", selected: "border-teal-500 ring-2 ring-teal-500/50 bg-teal-500/[0.12]", chip: "bg-teal-500/15 text-teal-600 dark:text-teal-400", bar: "bg-teal-500", text: "text-teal-600 dark:text-teal-400", edge: "border-t-teal-500" },
+  // Search answer cards (the search results guide: hue means team only): a tile with no colour of its own.
+  neutral: { box: "border-border bg-muted/30", hover: "hover:border-foreground/30", selected: "border-foreground/40 ring-2 ring-foreground/20 bg-muted/50", chip: "bg-muted text-foreground", bar: "bg-foreground/55", text: "text-foreground", edge: "border-t-border" },
   orange: { box: "border-orange-500/30 bg-orange-500/[0.06]", hover: "hover:border-orange-500/60", selected: "border-orange-500 ring-2 ring-orange-500/50 bg-orange-500/[0.12]", chip: "bg-orange-500/15 text-orange-600 dark:text-orange-400", bar: "bg-orange-500", text: "text-orange-600 dark:text-orange-400", edge: "border-t-orange-500" },
 } as const;
 export type Tone = keyof typeof TONES;

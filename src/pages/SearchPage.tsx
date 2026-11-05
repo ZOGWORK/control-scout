@@ -24,6 +24,7 @@ import { CompareCard, EventCard, HeadToHead, ResultRow, TeamCard, teamSeasons, t
 import { NoResults } from "../components/search/page/NoResults";
 import { StatAnswerCard } from "../components/search/page/StatAnswer";
 import { AnswerVideo, AnswerVideoProvider } from "../components/search/page/AnswerVideo";
+import { comparisonOf } from "../components/search/page/CompareCard";
 import { FactCard } from "../components/search/page/FactCard";
 import { RelatedQuestions } from "../components/search/page/TeamAnswer";
 import { PhoneSearchBar } from "../components/search/page/PhoneSearchBar";
@@ -119,13 +120,16 @@ export default function SearchPage() {
     return m;
   }, [now.data, before.data, base, asked, hits]);
   // One line for what the query was read as (the server's reading, else the top result's subject and what it opens on).
-  const title = found ? pageTitle(ax, hits, isQualityQuestion(query)) : null;
+  // A comparison card names its teams in its own title: the heading keeps the numbers only, so each name shows once
+  // (the search results guide).
+  const title = found ? (answer?.stat && comparisonOf(answer.stat) ? answer.stat.title : pageTitle(ax, hits, isQualityQuestion(query))) : null;
   // A question card's heading names its team in bold ("Where **Hypnotic Robotics (4215)** is from").
   const strong = title && ax?.card?.team ? cardTeamName(ax.card.team) : null;
   const shownTitle = strong && title!.includes(strong)
     ? <span className="font-medium">{title!.slice(0, title!.indexOf(strong))}<strong className="font-bold" data-title-team>{strong}</strong>{title!.slice(title!.indexOf(strong) + strong.length)}</span>
     : title;
-  const badge = !found || !ax ? null : badgeUnder(title!, contextBadge({ ...ax, hits }, notes.understood));
+  // A comparison says what it compares in its own card: no reading badge repeating the teams.
+  const badge = !found || !ax || (answer?.stat && comparisonOf(answer.stat)) ? null : badgeUnder(title!, contextBadge({ ...ax, hits }, notes.understood));
   const open = (h: SearchHit) => logPick(h);
   // Phase 2 summary: a championship question's records as a timeline and stats; "how good is X" as X's standing.
   const apps = useMemo(() => appearances(answer?.card), [answer?.card]);

@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.1.8 — 2026-11-05
+## 3.2.2 — 2026-11-05
 
 Search plays the video the site has for what you asked: a match's clip, or the event's stream, in the answer.
 
@@ -30,6 +30,71 @@ Search plays the video the site has for what you asked: a match's clip, or the e
 - **An event's stream.** An event's results, rank, winning alliance and awards, and an event searched by name, play its live stream or recording in the card. An event with no video shows nothing about it.
 - **Play buttons in lists.** Top-scoring matches and a team's matches at an event give each match with a clip a small play button; it plays in the app's video player over the search page, so search stays where it was.
 - **One read for all of it.** An answer's video is read once for the whole answer, whatever its number of rows, from the stored match times and the kept recording lists, which now keep answering while they refresh. Event-local match times convert about ten times faster. (#725)
+
+## 3.2.1 — 2026-11-05
+
+Search answer cards follow the search results guide: comparisons say the result once, bars start at zero, and colour means team.
+
+### Highlights
+- [appearance] One headline per comparison: who leads and by how much
+- [appearance] Paired bars from zero, each row on its own season scale
+- [appearance] Colour means team only: violet and orange bars
+- [appearance] No phase, podium or win colours on answer data
+- [fixes] No "read as" text; team names printed once per card
+
+### Search
+- **Comparison cards.** Two- and three-team answers (OPR, rating, phase, record, reliability, awards, compare) are one card: the teams named once in the title, one headline with the result and the gap, one context line (ranks, records, the phase that decided it), then a row per metric. Each row has a bar per team from zero to the row's own maximum, printed as "max N", and the gap on the right. The Total comes first, then the rest by the size of the gap, five rows at most. A row's maximum is the season's highest, rounded up, so the same number draws the same bar on every card that season. The team header strip, the second season pill and the stat tiles are gone; the method sits behind an info button, and "Open in Predict" is the one button.
+- **Team colours.** Teams are violet and orange (the app's own chart colours; teal for a third team), apart under every colour vision and each at least 4.5:1 against the card in Light, Dim, Dark and Midnight. They are used only on bars and swatches. A winner is bold with its "+N", not coloured.
+- **No hue on other data.** Phases, ranks, podium places, records, results, event types and stat tiles are neutral on every answer card. Red and blue stay only where they mark an alliance. OPR and combined-score bars are neutral and start at zero.
+- **Matches as boxes.** Every list of matches is a grid of match boxes: the place in the list, the match and its event, the red alliance over the blue with their teams and scores (the winner marked, the loser muted) and the listed alliance's points by phase.
+- **Less meta text.** Boolean queries no longer add "read as" to their label, and an unclear query asks "awards or location? Say which". (#709)
+
+## 3.2.0 — 2026-11-05
+
+Search answers misspelled questions about four times faster, and filtered team lists in well under a second.
+
+### Highlights
+- [speed] A misspelled search answers about four times faster
+- [speed] Filtered team lists answer in under a second, not a minute
+- [speed] A search asked again within a minute answers at once
+- [fixes] A page's first slow search tries once more before saying so
+
+### Search
+- **Typos, faster.** Search's in-memory typo scan scores each distinct name word once per word typed (about a third of the work), skips the spelling distance for words whose letters are already too different, and reuses its working rows. Spelling correction skips the same words. Every score is the same number as before. (#716)
+- **Repeated reads kept.** The search index's reads and the event lists a search reads are kept until the data or the index changes, so the readings of one search (and a correction's second reading) share them. A whole answer is kept for a minute.
+- **Places.** "Events at River Dell High School" and "events in Oradell" work out each venue's spelling once, and each time zone's date format once, instead of once per event per search.
+- **Measured.** `scripts/search-bench.ts` asks a running server 365 queries (the 260 list, the complex queries, misspellings) and checks every answer against an earlier run's.
+- **Filtered lists.** "NJ teams that won Inspire" and "teams that went to Worlds" looked up each team's awards and events the slow way: 30 to 100 seconds a list, holding up every other request meanwhile. A new index (migration 72) and a reordered lookup make them a few tens of milliseconds.
+- **Slow searches.** A page's first search that runs out of time now tries once more before showing "Search is slow", as every other search already did.
+
+## 3.1.9 — 2026-11-05
+
+Home's search chips change every hour, six at a time from a pool that shows each kind of answer search gives.
+
+### Highlights
+- [home] Six new search chips every hour, the same for everyone
+- [home] Chips for OPR, records, Worlds, awards, winners and more
+- [home] Questions in a sentence and searches with several filters
+- [home] The box's "Try" hint walks through the hour's chips
+
+### Home
+- **Suggestions that rotate.** The six chips under Home's search are picked each UTC hour from about 70 queries: team facts, OPR by phase, prediction rating, records with quals and playoffs apart, matches at an event or Worlds, awards, Worlds trips, two and three teams compared, leaderboards, event winners, next events, a misspelt name, questions in a sentence and searches joining several filters. Never two of one kind, always a leaderboard and a sentence or filtered search, and no team twice. A long query shows a short label and runs in full. The pick is worked out from the clock, so nothing extra loads and a cached page still changes on the hour.
+- **Every chip answers.** `npm run suggestions:check` asks the live search for each query and fails on any that gives no answer card, or one that says nothing was found. (#705)
+- **Taps and room.** On a touch screen each chip's tap area is 44px tall, with the chip drawn the same size as before. Where the search column is too narrow for three rows to hold any six (a phone, or beside the globe), the chips are one row that scrolls sideways, so the hourly change never moves the page.
+
+## 3.1.8 — 2026-11-05
+
+Search reads a season's best scores by its game, without penalties or by period, and common words never name a team.
+
+### Highlights
+- [rankings] "Highest score in decode without penalties": the season's best
+- [rankings] "Highest auto score in centerstage", each period's best
+- [fixes] Words like "without", "team" and "best" never name a team alone
+
+### Search
+- **A season's best, by its game.** "What was the highest score in decode without penalties" is DECODE's (2025–26) best alliance score with penalties taken off: the match, its event, both alliances, the score with and without penalties and its auto, teleop and endgame points in their phase colours. Each season's game name, in any spelling ("center stage", "into the deep"), is read from the season list, and a place narrows it ("highest score in nj in into the deep").
+- **One period's best.** "Highest auto score in centerstage", "top teleop scores in decode", "highest endgame score in nj in into the deep": the season's best alliance scores in that period, and both alliances' combined, the period marked on each match.
+- **Common words name no team.** A question whose leftover words are only common ones ("without", "team", "best", "the", "robotics", …) names no team, however many team names hold them ("T.W.C.A. (Team Without a Cool Acronym)" for "without"). Beside a word of a name's own ("team without a cool acronym", "sparks") they still find it, and a name typed whole is still found. (#712)
 
 ## 3.1.7 — 2026-11-05
 

@@ -27,8 +27,22 @@ export interface StatMatchRow {
   /** The alliance's score without penalties, when it's what the answer ranks by. */
   ownNp?: number | null;
   result: "W" | "L" | "T";
+  /** `ranked`, the period an answer ranks by (`phases` holds its points). */
+  ranked?: "auto" | "teleop" | "endgame";
   partners?: StatLink[];
   opponents?: StatLink[];
+  /** The other alliance's score without penalties. */
+  oppNp?: number | null;
+  /** The event's type as FIRST lists it ("Qualifier", "FIRSTChampionship"): its Events-card colour. */
+  type?: string | null;
+  /** The alliance's points by period (without penalties), as reported: TeleOp with the endgame where FIRST counts it
+   *  so (`teleopWithEndgame`); only Auto for a totals-only match. `pen`, the penalty points it gave away. */
+  phases?: { auto: number | null; teleop?: number | null; endgame?: number | null; pen?: number | null; teleopWithEndgame?: boolean } | null;
+  /** Its place in a ranked list (1 is the top score). */
+  rank?: number;
+  /** The team the row is about (not in `partners`): the first chip on its alliance. Each row its own (a list of
+   *  matches across several teams). */
+  self?: StatLink;
 }
 
 /** One team on a leaderboard. `value` is the asked stat (as `display` shows it); `parts`, an OPR's split. */
@@ -61,8 +75,14 @@ export type StatBlock =
       split?: { quals: StatRecord; playoffs: StatRecord } }
   /** Matches, best first or newest first as `title` says. */
   | { kind: "matches"; title: string; rows: StatMatchRow[]; more?: string }
-  /** Rows of named columns; a row may link (its first cell is the link text). */
-  | { kind: "table"; title: string; columns: { key: string; label: string; num?: boolean }[]; rows: { cells: Record<string, string | number | null>; href?: string; strong?: boolean }[]; more?: string }
+  /** Rows of named columns; a row may link (its first cell is the link text). A row about one event may carry its
+   *  `type` (FIRST's event type, "Qualifier"): its name then gets the Events cards' type colour. */
+  | { kind: "table"; title: string; columns: { key: string; label: string; num?: boolean }[]; rows: { cells: Record<string, string | number | null>; href?: string; strong?: boolean; type?: string | null;
+      /** The event the row's match was at, linked from its event cell (a match row's link is the match). */
+      eventHref?: string;
+      /** A match row's two alliances, as team chips in their alliance colours, and which won (the official result,
+       *  penalties included; null on a tie). */
+      teams?: { red: StatLink[]; blue: StatLink[] }; winner?: "red" | "blue" | null }[]; more?: string }
   /** A value over time (events or seasons, oldest first): drawn as a line. */
   | { kind: "series"; title: string; unit?: string; points: { x: string; y: number | null; href?: string; note?: string }[] }
   /** Values as horizontal bars (phase split, two teams side by side). */
@@ -72,10 +92,34 @@ export type StatBlock =
   | { kind: "leaderboard"; title: string; stat: { id: string; label: string; unit?: string }; note: string; rows: LeaderboardRow[]; more?: StatLink;
       /** The season's TeleOp OPR includes the endgame, as FIRST reports it (server/data/seasons.ts, teleopAsReported). */
       teleopWithEndgame?: boolean }
+  /** Two or more teams compared (server/api/answers/compareBlock.ts): a row per metric, Total first and then by the
+   *  gap, each on its own scale from zero. `scale`: what each row's max is, for the footnote ("100", "the 2025–26 high, rounded up"). */
+  | { kind: "compare"; title: string; teams: StatLink[]; rows: CompareRow[]; scale?: string }
   /** Buttons to pages (a championship's divisions). */
   | { kind: "links"; title: string; items: (StatLink & { sub?: string })[]; none?: string }
   /** Related questions, each run as a search. */
   | { kind: "related"; title: string; queries: string[] };
+
+/** One metric in a comparison (server/api/answers/compareBlock.ts). */
+export interface CompareRow {
+  label: string;
+  /** Each team's value as it reads, in the block's team order. */
+  values: string[];
+  /** The better team's index; null on a tie, a missing value or a stat with no better side. */
+  best: number | null;
+  /** How far ahead the better one is ("+42.7", "Even"). */
+  gap?: string;
+  /** The gap as a number (the rows' sort key). */
+  diff?: number;
+  /** The row's scale, from zero (the season's highest, rounded up): drawn as paired bars to `nums`, "max" printed.
+   *  Absent: a row of values only. */
+  max?: number;
+  nums?: (number | null)[];
+  /** On a tie for the lead: the teams level at the top, by index. */
+  tied?: number[];
+  /** Why a row with a scale has no bars ("below zero: no bars"). */
+  note?: string;
+}
 
 export interface StatAnswer {
   family: StatFamily;
@@ -92,7 +136,9 @@ export interface StatAnswer {
   /** What the answer covers, as chips ("FIRST Championship events", "All seasons"). */
   scope: string[];
   /** The one number the question asks for, read first. */
-  headline?: { value: string; label: string; sub?: string; href?: string };
+  /** `type`: the headline is one event, of FIRST's event type (null when FIRST lists none): drawn with its type chip. */
+  /** `teams` and `alliance`: the headline is one alliance's score, its teams drawn as chips in its colour. */
+  headline?: { value: string; label: string; sub?: string; href?: string; type?: string | null; teams?: StatLink[]; alliance?: "red" | "blue" };
   blocks: StatBlock[];
   /** The rule applied, in words ("Highest score: the alliance's points without penalties, …"). */
   definition: string;

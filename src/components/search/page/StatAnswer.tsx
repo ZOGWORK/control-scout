@@ -3,30 +3,43 @@
 // counted and from which records. Drawn here from the JSON the server sends; nothing is computed or filled in.
 import { Link } from "react-router-dom";
 import { ArrowRight, BarChart3, CalendarDays, Hash, Info, Medal, Sparkles, Target, Trophy, type LucideIcon } from "lucide-react";
+import { eventTypeLabel } from "../../../shared/labels";
+import { seasonLabel } from "../../../shared/format";
 import { useMemo } from "react";
-import type { StatAnswer, StatBlock, StatMatchRow, StatRecord } from "../../../shared/searchStat";
+import type { StatAnswer, StatBlock, StatLink, StatRecord } from "../../../shared/searchStat";
 import { teamTableOfLeaderboard } from "../../../shared/teamTable";
 import { TeamTable } from "../TeamTable";
 import { cn } from "../../cn";
-import { Meter, StatTile, TONES, rankPc, type Tone } from "../../StatTile";
-import { OPR_CARDS, OPR_TONE, oprRankHint } from "../../oprCards";
-import { AnswerFrame, RelatedQuestions, repeats, statedSeason, useAnswerSeason, useTeamProfile } from "./TeamAnswer";
+import { Meter, StatTile, rankPc, type Tone } from "../../StatTile";
+import { Badge } from "../../ui/basic";
+import { OPR_CARDS, oprRankHint } from "../../oprCards";
+import { AnswerFrame, RelatedQuestions, TAP, repeats, statedSeason, useAnswerSeason, useTeamProfile } from "./TeamAnswer";
 import { rangeCaption } from "../../../shared/format";
 import { AnswerVideo, RowPlay, useRowPlays } from "./AnswerVideo";
+import { Cell, EventMarker, HeadlineValue, INK_BAR, RecordText, RichText, SeasonChip, better, columnMax, foldsOnPhone } from "./answerCells";
+import { MatchBox, RankBadge, TeamChip } from "./MatchBox";
+import { CompareCard, comparisonOf } from "./CompareCard";
 
 const H3 = "mb-1.5 text-xs font-semibold text-muted-foreground";
 
 export function StatAnswerCard({ stat, heading }: { stat: StatAnswer; heading?: string }) {
   // One card in the team page's treatment (./TeamAnswer.tsx): the team (or both teams) up top with the season the
   // answer states, then the answer's title and what it covers, the number asked for big and bold with no band
-  // behind it, and its blocks. A team's season OPR keeps the team page's coloured OPR tiles (../../oprCards.ts).
+  // behind it, and its blocks. No hue on data (the search results guide): tiles, bars and marks are neutral.
+  // A comparison of teams: its own card, each fact said once (./CompareCard.tsx).
+  const cmp = comparisonOf(stat);
+  if (cmp) return <CompareCard stat={stat} b={cmp} />;
+  return <OneCard stat={stat} heading={heading} />;
+}
+
+function OneCard({ stat, heading }: { stat: StatAnswer; heading?: string }) {
   const teams = stat.teams && stat.teams.length > 1 ? stat.teams : stat.team ? [stat.team] : undefined;
   const stated = statedSeason(stat.title, ...stat.scope);
   const season = useAnswerSeason(stated);
   const profile = useTeamProfile(teams?.length === 1 ? teams[0].number : null, season);
   const scope = !!stat.scope.length && (
     <p className="flex flex-wrap gap-1.5 text-xs" data-scope>
-      {stat.scope.map((s) => <span key={s} className="rounded-full border border-border bg-muted/50 px-2.5 py-0.5 font-medium text-foreground/80">{s}</span>)}
+      {stat.scope.map((s) => statedSeason(s) != null && s.length <= 7 ? <SeasonChip key={s} text={s} /> : <span key={s} className="rounded-full border border-border bg-muted/50 px-2.5 py-0.5 font-medium text-foreground/80">{s}</span>)}
     </p>
   );
   return (
@@ -39,7 +52,7 @@ export function StatAnswerCard({ stat, heading }: { stat: StatAnswer; heading?: 
           <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />{stat.none}
         </p>
       )}
-      <div className="mt-4 space-y-5">{stat.blocks.map((b, i) => <Block key={`${b.kind}-${i}`} b={b} />)}</div>
+      <div className="mt-4 space-y-5">{stat.blocks.map((b, i) => <Block key={`${b.kind}-${i}`} b={b} team={stat.team} teams={teams} />)}</div>
       <footer className="mt-5 space-y-1 border-t border-border pt-3 text-xs text-muted-foreground" data-definition>
         <p><span className="font-medium text-foreground">How this is counted: </span>{stat.definition}</p>
         <p data-source>{stat.source}.</p>
@@ -51,44 +64,81 @@ export function StatAnswerCard({ stat, heading }: { stat: StatAnswer; heading?: 
 
 /** The number asked for: big and bold, what it is under it; no band behind it (the team page shows its numbers so). */
 function Headline({ h }: { h: NonNullable<StatAnswer["headline"]> }) {
+  // One event's headline: its type and season as neutral badges (the season leaves the line under it, so it isn't
+  // said twice).
+  const ev = h.type !== undefined;
+  const season = ev ? statedSeason(h.sub) : null;
+  const sub = h.sub && season != null ? h.sub.split(" · ").filter((x) => x !== seasonLabel(season)).join(" · ") : h.sub;
   const body = (
     <>
-      <p className="break-words font-display text-4xl font-semibold leading-tight tabular-nums text-foreground group-hover:text-accent-text">{h.value}</p>
-      <p className="mt-1 text-sm text-foreground">{h.label}</p>
-      {h.sub && <p className="mt-0.5 text-xs text-muted-foreground">{h.sub}</p>}
+      <p className="break-words font-display text-4xl font-semibold leading-tight tabular-nums text-foreground group-hover:text-accent-text"><HeadlineValue value={h.value} /></p>
+      <p className="mt-1 text-sm text-foreground"><RichText text={h.label} /></p>
+      {sub && <p className="mt-0.5 text-xs text-muted-foreground"><RichText text={sub} /></p>}
+      {ev && (h.type || season != null) && (
+        <p className="mt-2 flex flex-wrap gap-1.5" data-headline-chips>
+          {h.type && <Badge variant="outline" data-event-type={h.type}>{eventTypeLabel(h.type)}</Badge>}
+          {season != null && <SeasonChip text={seasonLabel(season)} />}
+        </p>
+      )}
     </>
   );
-  const cls = "group block rounded-lg py-1";
-  return h.href ? <Link to={h.href} className={cls} data-headline>{body}</Link> : <div className={cls} data-headline>{body}</div>;
+  const cls = cn("group block min-w-0 flex-1 rounded-lg py-1");
+  const main = h.href ? <Link to={h.href} className={cls}>{body}</Link> : <div className={cls}>{body}</div>;
+  return (
+    <div className="flex gap-3" data-headline>
+      <div className="min-w-0 flex-1">
+        {main}
+        {!!h.teams?.length && h.alliance && (
+          <p className="mt-1 flex flex-wrap gap-1" aria-label={`${h.alliance === "red" ? "Red" : "Blue"} alliance`} data-headline-teams>
+            {h.teams.map((t) => <TeamChip key={t.href} t={t} side={h.alliance!} />)}
+          </p>
+        )}
+      </div>
+    </div>
+  );
 }
 
-/** A plain number's tile colour and icon, by what it counts (the team page's tones; a good or bad result its own). */
-function kpiLook(label: string, tone?: string): [LucideIcon, Tone] {
+/** A plain number's tile icon, by what it counts; the tile itself neutral (no hue for a kind of number). */
+function kpiLook(label: string, _tone?: string): [LucideIcon, Tone] {
   const icon: LucideIcon = /win|record|loss|won|lost/i.test(label) ? Trophy : /rank|#|place/i.test(label) ? Hash : /season|year|date|when/i.test(label) ? CalendarDays
     : /rating/i.test(label) ? Sparkles : /award/i.test(label) ? Medal : /opr|score|points|margin/i.test(label) ? Target : BarChart3;
-  if (tone === "good") return [icon, "emerald"];
-  if (tone === "bad") return [icon, "rose"];
-  const t: Tone = icon === Trophy ? "emerald" : icon === Hash ? "violet" : icon === CalendarDays ? "sky" : icon === Sparkles ? "amber" : icon === Medal ? "orange" : "teal";
-  return [icon, t];
+  return [icon, "neutral"];
 }
 
-/** A phase's colour where a block names one (Auto, TeleOp, Endgame): the team page's OPR tile colours, never another. */
-export function phaseTone(label: string): Tone | null {
-  if (/^auto(nomous)?\b/i.test(label)) return OPR_TONE.auto;
-  if (/^tele-?op\b/i.test(label)) return OPR_TONE.teleop;
-  if (/^end-?game\b/i.test(label)) return OPR_TONE.endgame;
-  return null;
+/** The compared team a tile is about (its label names the team: "Ultraviolet (23268)", "4215 wins"), or -1. */
+function teamOf(label: string, teams: { number: number }[]): number {
+  return teams.findIndex((t) => new RegExp(`(^|\\(|\\s)${t.number}(\\)|\\s|$)`).test(label));
 }
 
-function Block({ b }: { b: StatBlock }) {
+function Block({ b, team, teams }: { b: StatBlock; team?: StatAnswer["team"]; teams?: { number: number; name: string | null }[] }) {
   switch (b.kind) {
-    case "kpis":
-      if (b.items.some((k) => k.phase)) return <OprTiles items={b.items} />;
+    case "kpis": {
+      if (b.items.some((k) => k.phase)) return <OprTiles items={b.items} teams={teams} />;
+      // Two or more teams: each team's tile under its own header (A left, B right), anything about both between them.
+      const sides = teams && teams.length > 1 ? b.items.map((k) => teamOf(k.label, teams)) : [];
+      if (teams && sides.length && teams.every((_, i) => sides.includes(i))) {
+        const n = teams.length;
+        const order = b.items.map((k, j) => ({ k, s: sides[j] })).sort((x, y) => (x.s < 0 ? (n - 1) / 2 : x.s) - (y.s < 0 ? (n - 1) / 2 : y.s));
+        const cols = order.length === 2 ? "grid-cols-2" : order.length === 3 ? "grid-cols-3" : "grid-cols-2 lg:grid-cols-4";
+        return (
+          <div className={cn("grid gap-3", cols)} data-block="kpis" data-kpi-sides>
+            {order.map(({ k, s }, j) => {
+              const [icon, tone] = kpiLook(k.label, k.tone);
+              const right = order.length === 2 && j === 1;
+              const value = <span className="text-foreground">{k.value}</span>;
+              const tile = <StatTile tone={tone} icon={icon} label={k.label} value={value} hint={k.sub} className={cn(right && "items-end text-right")} />;
+              return k.href
+                ? <Link key={k.label} to={k.href} className="block rounded-xl transition-transform hover:-translate-y-0.5 motion-reduce:hover:translate-y-0" data-kpi data-side={s}>{tile}</Link>
+                : <div key={k.label} data-kpi data-side={s}>{tile}</div>;
+            })}
+          </div>
+        );
+      }
       return (
         <div className={cn("grid gap-3", b.items.length === 1 ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : b.items.length === 3 ? "grid-cols-2 lg:grid-cols-3" : "grid-cols-2 lg:grid-cols-4")} data-block="kpis">
           {b.items.map((k) => {
             const [icon, tone] = kpiLook(k.label, k.tone);
-            const value = <span className={cn(k.tone === "good" ? "text-success-text" : k.tone === "bad" ? "text-danger-text" : "text-foreground")}>{k.value}</span>;
+            const value = <span className="text-foreground">{k.value}</span>;
             const tile = <StatTile tone={tone} icon={icon} label={k.label} value={value} hint={k.sub} />;
             return k.href
               ? <Link key={k.label} to={k.href} className="block rounded-xl transition-transform hover:-translate-y-0.5 motion-reduce:hover:translate-y-0" data-kpi>{tile}</Link>
@@ -96,19 +146,23 @@ function Block({ b }: { b: StatBlock }) {
           })}
         </div>
       );
+    }
+    case "compare":
+      // Only inside a card of several answers (a combined card): the comparison's own rows.
+      return <CompareCard stat={{ family: "two-team", intent: "compare", title: b.title, scope: [], blocks: [], definition: "", source: "", teams: b.teams.map((t) => ({ number: Number(t.label), name: null })) }} b={b} />;
     case "record": {
       const n = b.wins + b.losses + b.ties;
       const w = (x: number) => `${n ? (100 * x) / n : 0}%`;
       return (
         <figure data-block="record">
           {b.title && <figcaption className={H3}>{b.title}</figcaption>}
-          <div className="flex h-3 overflow-hidden rounded-full bg-muted" role="img" aria-label={`${b.wins} wins, ${b.losses} losses, ${b.ties} ties`}>
-            <span className="bg-success" style={{ width: w(b.wins) }} />
-            <span className="bg-danger" style={{ width: w(b.losses) }} />
-            <span className="bg-muted-foreground/50" style={{ width: w(b.ties) }} />
+          <div className="flex h-1.5 overflow-hidden rounded-full bg-muted" role="img" aria-label={`${b.wins} wins, ${b.losses} losses, ${b.ties} ties`}>
+            <span className="bg-foreground/70" style={{ width: w(b.wins) }} />
+            <span className="bg-foreground/25" style={{ width: w(b.losses) }} />
+            <span className="bg-muted-foreground/40" style={{ width: w(b.ties) }} />
           </div>
           <p className="mt-1.5 flex flex-wrap gap-x-4 text-xs tabular-nums text-foreground" aria-hidden>
-            <span><b className="text-success-text">{b.wins}</b> won</span><span><b className="text-danger-text">{b.losses}</b> lost</span><span><b>{b.ties}</b> tied</span>
+            <span><b>{b.wins}</b> won</span><span><b>{b.losses}</b> lost</span><span><b>{b.ties}</b> tied</span>
             {n > 0 && <span className="text-muted-foreground">{Math.round((100 * b.wins) / n)}% win rate</span>}
           </p>
           {b.split && <RecordSplit split={b.split} />}
@@ -119,12 +173,12 @@ function Block({ b }: { b: StatBlock }) {
       return (
         <div data-block="matches">
           <h3 className={H3}>{b.title}</h3>
-          <ul className="overflow-hidden rounded-lg border border-border">{b.rows.map((r) => <MatchRow key={`${r.href}|${r.alliance}`} r={r} />)}</ul>
+          <ul className={cn("grid gap-3", b.rows.length > 1 && "lg:grid-cols-2")}>{b.rows.map((r) => <MatchBox key={`${r.href}|${r.alliance}`} r={r} team={team ?? undefined} />)}</ul>
           {b.more && <p className="mt-1 text-[11px] text-muted-foreground">{b.more}</p>}
         </div>
       );
     case "table":
-      return <Table b={b} />;
+      return b.rows.some((r) => r.teams) ? <MatchTable b={b} /> : <Table b={b} />;
     case "leaderboard":
       return <Leaderboard b={b} />;
     case "series":
@@ -149,18 +203,21 @@ function Block({ b }: { b: StatBlock }) {
   }
 }
 
-/** A season OPR and its phases as the team page's OPR tiles: each in its phase's colour, with its rank line and bar. */
-function OprTiles({ items }: { items: Extract<StatBlock, { kind: "kpis" }>["items"] }) {
+/** A season OPR and its phases as the team page's OPR tiles, neutral (no phase hue), each with its rank line and bar. */
+function OprTiles({ items, teams }: { items: Extract<StatBlock, { kind: "kpis" }>["items"]; teams?: { number: number }[] }) {
+  // Two teams' tiles for one phase: one column each, under its own header (A left, B right).
+  const many = !!teams && teams.length > 1 && OPR_CARDS.some(([k]) => items.filter((i) => i.phase === k).length > 1);
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" data-block="kpis" data-opr-tiles>
-      {OPR_CARDS.flatMap(([k, label, Icon, tone]) => {
+    <div className={cn("grid gap-3", many ? (teams!.length === 2 ? "grid-cols-2" : "grid-cols-3") : "grid-cols-2 lg:grid-cols-4")} data-block="kpis" data-opr-tiles>
+      {OPR_CARDS.flatMap(([k, label, Icon]) => {
+        const tone: Tone = "neutral";
         // Two teams' tiles for one phase (a phase side by side) each name their team.
         const its = items.filter((i) => i.phase === k);
         return its.map((it, n) => (
           <StatTile key={`${k}-${n}`} tone={tone} icon={Icon} label={its.length > 1 ? `${label} · ${it.label}` : label}
-            value={<span className={TONES[tone].text}>{it.value}</span>}
+            value={<span className="text-foreground">{it.value}</span>}
             hint={it.rank == null && it.pc != null ? it.sub : oprRankHint(it.rank, it.of)}
-            bar={<Meter parts={[{ pc: it.rank == null && it.pc != null ? it.pc : rankPc(it.rank, it.of), cls: TONES[tone].bar }]} />} />
+            bar={<Meter parts={[{ pc: it.rank == null && it.pc != null ? it.pc : rankPc(it.rank, it.of), cls: INK_BAR }]} />} />
         ));
       })}
     </div>
@@ -183,9 +240,9 @@ function RecordSplit({ split }: { split: { quals: StatRecord; playoffs: StatReco
             <tr key={label} className="border-t border-border" data-split={label}>
               <th scope="row" className="px-3 py-2 text-left font-medium text-foreground">
                 {label}
-                <span className="mt-1 block h-1.5 w-full max-w-40 overflow-hidden rounded-full bg-muted" aria-hidden><span className="block h-full bg-success" style={{ width: `${pc}%` }} /></span>
+                <span className="mt-1 block h-1.5 w-full max-w-40 overflow-hidden rounded-full bg-muted" aria-hidden><span className={cn("block h-full", INK_BAR)} style={{ width: `${pc}%` }} /></span>
               </th>
-              <td className="px-3 py-2 text-right font-semibold text-foreground">{r.wins}-{r.losses}-{r.ties}</td>
+              <td className="px-3 py-2 text-right font-semibold text-foreground"><RecordText text={`${r.wins}-${r.losses}-${r.ties}`} /></td>
               <td className="px-3 py-2 text-right text-foreground">{pc}%</td>
               <td className="px-3 py-2 text-right text-muted-foreground max-sm:hidden">{n}</td>
             </tr>
@@ -196,8 +253,15 @@ function RecordSplit({ split }: { split: { quals: StatRecord; playoffs: StatReco
   );
 }
 
-/** Rows of named columns; with any match's clip among them, a last column of play buttons (./AnswerVideo.tsx). */
+/** Rows of named columns, each cell as ./answerCells.tsx reads it: ranks as pills, records with the wins bold, an OPR
+ *  with a neutral bar from zero to the best listed, seasons and event types as badges. On a phone
+ *  an event's season and date fold under its name, so the columns left are numbers (the team page's phone rows). Two
+ *  teams side by side (columns `a` and `b`): each row's better number is bold with a trophy (no hue). */
 function Table({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
+  const first = b.columns[0];
+  const max = new Map(b.columns.map((c) => [c.key, columnMax(c, b.rows.map((r) => r.cells[c.key]))]));
+  const folded = b.columns.filter((c) => foldsOnPhone(c, first));
+  const vs = b.columns.some((c) => c.key === "a") && b.columns.some((c) => c.key === "b");
   const plays = useRowPlays(b.rows.map((r) => r.href));
   return (
     <div data-block="table">
@@ -205,19 +269,36 @@ function Table({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
       <div className="overflow-x-auto rounded-lg border border-border">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-left text-[11px] text-muted-foreground">
-            <tr>{b.columns.map((c) => { const p = phaseTone(c.label); return <th key={c.key} scope="col" className={cn("px-2.5 py-1.5 font-medium", c.num && "text-right", c !== b.columns[0] && "whitespace-nowrap max-md:px-1.5", p && cn("border-b-2", BORDER[p]))} data-phase={p ?? undefined}>{c.label}</th>; })}{plays && <th scope="col" className="w-0 px-1"><span className="sr-only">Video</span></th>}</tr>
+            <tr>{b.columns.map((c) => <th key={c.key} scope="col" className={cn("px-2.5 py-1.5 font-medium", c.num && "text-right", c !== first && "whitespace-nowrap max-md:px-1.5", folded.includes(c) && "max-md:hidden")}>{c.label}</th>)}{plays && <th scope="col" className="w-0 px-1"><span className="sr-only">Video</span></th>}</tr>
           </thead>
           <tbody>
-            {b.rows.map((r, i) => (
-              <tr key={i} className={cn("border-t border-border", r.strong && "bg-muted/60 font-semibold")}>
-                {b.columns.map((c, j) => (
-                  <td key={c.key} className={cn("px-2.5 py-1.5 align-top", c.num && "text-right tabular-nums", j === 0 ? "min-w-[4.5rem] md:min-w-[8rem]" : "whitespace-nowrap max-md:px-1.5")}>
-                    {j === 0 && r.href ? <Link to={r.href} className="text-foreground hover:text-accent-text hover:underline max-md:inline-flex max-md:min-h-[44px] max-md:items-center pointer-coarse:inline-flex pointer-coarse:min-h-[44px] pointer-coarse:items-center">{r.cells[c.key] ?? "–"}</Link> : (r.cells[c.key] ?? "–")}
-                  </td>
-                ))}
-                {plays && <td className="w-0 px-1 py-0.5 align-middle">{r.href && <RowPlay href={r.href} label={[r.cells.match, r.cells.event].filter(Boolean).join(" · ") || "This match"} />}</td>}
-              </tr>
-            ))}
+            {b.rows.map((r, i) => {
+              const win = vs ? better(String(r.cells[first.key] ?? ""), r.cells.a, r.cells.b) : null;
+              return (
+                <tr key={i} className={cn("border-t border-border", r.strong && "font-semibold")} data-strong={r.strong ? "" : undefined}>
+                  {b.columns.map((c, j) => {
+                    const v = r.cells[c.key];
+                    const won = win === c.key;
+                    return (
+                      <td key={c.key} className={cn("px-2.5 py-1.5 align-middle", c.num && "text-right tabular-nums", j === 0 ? "min-w-[4.5rem] md:min-w-[8rem]" : "whitespace-nowrap max-md:px-1.5", folded.includes(c) && "max-md:hidden", won && "font-bold text-foreground")} data-better={won ? "" : undefined}>
+                        {j === 0 && r.strong && <Trophy className="mr-1 inline size-3.5 align-[-2px] text-muted-foreground" aria-label="Best" />}
+                        {j === 0 && r.href
+                          ? <Link to={r.href} className="text-foreground hover:text-accent-text hover:underline max-md:inline-flex max-md:min-h-[44px] max-md:items-center pointer-coarse:inline-flex pointer-coarse:min-h-[44px] pointer-coarse:items-center">{v ?? "–"}</Link>
+                          : j === 0 ? (v ?? "–") : <Cell col={c} value={v} max={max.get(c.key)} />}
+                        {j === 0 && first.key === "event" && !!r.type && <EventMarker type={r.type} chip />}
+                        {won && <Trophy className="ml-1 inline size-3 align-[-1px] text-muted-foreground" aria-label="Better" />}
+                        {j === 0 && !!folded.length && (
+                          <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] font-normal text-muted-foreground md:hidden" data-folded>
+                            {folded.map((f) => r.cells[f.key] != null && <span key={f.key}>{f.key === "season" ? <SeasonChip text={String(r.cells[f.key])} /> : r.cells[f.key]}</span>)}
+                          </span>
+                        )}
+                      </td>
+                    );
+                  })}
+                  {plays && <td className="w-0 px-1 py-0.5 align-middle">{r.href && <RowPlay href={r.href} label={[r.cells.match, r.cells.event].filter(Boolean).join(" · ") || "This match"} />}</td>}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -226,29 +307,67 @@ function Table({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
   );
 }
 
-function MatchRow({ r }: { r: StatMatchRow }) {
-  const tone = r.result === "W" ? "bg-success/15 text-success-text" : r.result === "L" ? "bg-danger/15 text-danger-text" : "bg-muted text-foreground";
+/** Matches in a table with both alliances' teams (a season's top combined scores): a row each, its place as a podium
+ *  badge, the number it ranks by with a thin neutral bar from zero to the top one (never a cut baseline), the
+ *  red and blue scores in their colours (the winner bold), the match, its event with its type, and both alliances as
+ *  team chips. On a phone each row is two lines: the numbers and the match, then the event and the teams. */
+function MatchTable({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
+  const key = b.columns.find((c) => c.num && c.key !== "rank")?.key ?? "combined";
+  const vs = b.rows.map((r) => Number(r.cells[key])).filter(Number.isFinite);
+  const hi = Math.max(0, ...vs);
+  const pc = (v: number) => (hi > 0 ? (100 * Math.max(0, v)) / hi : 0);
+  const label = b.columns.find((c) => c.key === key)?.label ?? "";
   return (
-    <li className="border-t border-border first:border-t-0">
-      <div className="flex items-start gap-2.5 px-3 py-2">
-        <span className={cn("mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-md text-xs font-bold", tone)} aria-label={r.result === "W" ? "Won" : r.result === "L" ? "Lost" : "Tied"}>{r.result}</span>
-        <div className="min-w-0 flex-1">
-          <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
-            <Link to={r.href} className="font-medium text-foreground hover:text-accent-text hover:underline max-md:inline-flex max-md:min-h-[44px] max-md:items-center pointer-coarse:inline-flex pointer-coarse:min-h-[44px] pointer-coarse:items-center">{r.label}</Link>
-            <span className="tabular-nums"><b className={r.alliance === "red" ? "text-red-alliance-text" : "text-blue-alliance-text"}>{r.ownNp ?? r.own}</b>{r.ownNp != null && r.ownNp !== r.own && <span className="text-[11px] text-muted-foreground"> ({r.own} with penalties)</span>}<span className="text-muted-foreground"> – {r.opp}</span></span>
-          </p>
-          <p className="break-words text-xs text-muted-foreground"><Link to={r.event.href} className="hover:text-accent-text hover:underline">{r.event.label}</Link> · {r.season}{r.date ? ` · ${r.date}` : ""}</p>
-          {!!(r.partners?.length || r.opponents?.length) && (
-            <p className="mt-0.5 break-words text-[11px] text-muted-foreground">
-              {r.partners?.length ? <>With {r.partners.map((p, i) => <span key={p.href}>{i > 0 && ", "}<Link to={p.href} className="hover:text-accent-text hover:underline">{p.label}</Link></span>)}</> : null}
-              {r.opponents?.length ? <>{r.partners?.length ? " · " : ""}vs {r.opponents.map((p, i) => <span key={p.href}>{i > 0 && ", "}<Link to={p.href} className="hover:text-accent-text hover:underline">{p.label}</Link></span>)}</> : null}
-            </p>
-          )}
-        </div>
-        <RowPlay href={r.href} label={`${r.label} · ${r.event.label}`} className="-my-1 -mr-1" />
-      </div>
-    </li>
+    <div data-block="table" data-match-table>
+      <h3 className={H3}>{b.title}</h3>
+      <ul className="overflow-hidden rounded-lg border border-border">
+        <li className="flex items-center gap-x-3 bg-muted/50 px-3 py-1.5 text-[11px] font-medium text-muted-foreground max-md:hidden" aria-hidden>
+          <span className="w-6">#</span><span className="w-20 text-right">{label}</span><span className="w-24 text-center">Red–Blue</span><span className="w-16">Match</span><span className="flex-1">Event</span><span>Red vs blue</span>
+        </li>
+        {b.rows.map((r, i) => {
+          const v = Number(r.cells[key]);
+          const [red, blue] = String(r.cells.score ?? "").split("–").map(Number);
+          // The official winner (penalties included) when the row says it, else the scores shown.
+          const won = r.winner !== undefined ? r.winner : red > blue ? "red" : blue > red ? "blue" : null;
+          return (
+            <li key={i} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border px-3 py-2 text-sm first:border-t-0" data-match-row>
+              <RankBadge rank={Number(r.cells.rank) || i + 1} />
+              <span className="w-20 shrink-0 text-right" data-combined>
+                <b className="block font-display text-lg font-semibold leading-tight tabular-nums text-foreground">{r.cells[key]}</b>
+                {Number.isFinite(v) && <span aria-hidden className="flex h-1 w-full overflow-hidden rounded-full bg-muted"><span className={cn("block h-full rounded-full", INK_BAR)} style={{ width: `${pc(v)}%` }} data-bar data-value={v} data-scale={hi} /></span>}
+              </span>
+              <span className="w-24 shrink-0 text-center tabular-nums" aria-label={`Red ${red}, blue ${blue}`}>
+                <span className={cn("text-red-alliance-text", won === "red" ? "font-bold" : "opacity-80")}>{red}</span><span className="text-muted-foreground">–</span><span className={cn("text-blue-alliance-text", won === "blue" ? "font-bold" : "opacity-80")}>{blue}</span>
+              </span>
+              {r.href ? <Link to={r.href} className={cn("inline-flex w-16 shrink-0 items-center font-medium text-foreground hover:text-accent-text hover:underline", TAP)}>{r.cells.match}</Link> : <span className="w-16 shrink-0">{r.cells.match}</span>}
+              <span className="flex min-w-0 basis-full flex-wrap items-center gap-x-3 gap-y-1 max-md:pl-9 md:basis-0 md:flex-1">
+                <span className="min-w-0 flex-1 basis-48 text-xs">
+                  {r.eventHref ? <Link to={r.eventHref} className={cn("inline-flex items-center font-medium text-foreground/90 hover:text-accent-text hover:underline", TAP)}>{r.cells.event}</Link> : r.cells.event}
+                  {!!r.type && <EventMarker type={r.type} chip />}
+                  {r.cells.date && <span className="text-muted-foreground"> · {r.cells.date}</span>}
+                </span>
+                {r.teams && (
+                  <span className="flex flex-wrap gap-1" data-teams>
+                    {r.teams.red.map((t) => <NumChip key={t.href} t={t} side="red" />)}
+                    <span className="self-center text-[11px] text-muted-foreground">vs</span>
+                    {r.teams.blue.map((t) => <NumChip key={t.href} t={t} side="blue" />)}
+                  </span>
+                )}
+                {r.href && <RowPlay href={r.href} label={`${r.cells.match} · ${r.cells.event}`} className="-my-1 -mr-1" />}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      {b.more && <p className="mt-1 text-[11px] text-muted-foreground">{b.more}</p>}
+    </div>
   );
+}
+
+/** A team as its number alone, in its alliance's colour, its name on hover and for screen readers. */
+function NumChip({ t, side }: { t: StatLink; side: "red" | "blue" }) {
+  const num = t.label.split(" ")[0];
+  return <Link to={t.href} title={t.label} aria-label={t.label} className={cn("inline-flex min-h-6 items-center rounded-md border px-1.5 text-xs font-semibold tabular-nums hover:underline", TAP, side === "red" ? "border-red-alliance/30 bg-red-alliance/10 text-red-alliance-text" : "border-blue-alliance/30 bg-blue-alliance/10 text-blue-alliance-text")} data-team-chip={num}>{num}</Link>;
 }
 
 /** A line through the points (oldest first); each point a link when it has one. Points with no value are skipped. */
@@ -289,32 +408,41 @@ function Series({ b }: { b: Extract<StatBlock, { kind: "series" }> }) {
   );
 }
 
-const TONE: Record<string, string> = { a: "bg-chart-1", b: "bg-chart-2", c: "bg-chart-3", d: "bg-chart-4" };
-/** A phase column's thin underline, in its phase's colour (static strings: Tailwind only builds what it sees). */
-const BORDER: Partial<Record<Tone, string>> = { sky: "border-b-info", emerald: "border-b-success", violet: "border-b-violet-500" };
-
 function Bars({ b }: { b: Extract<StatBlock, { kind: "bars" }> }) {
-  // Scaled to the largest size either way: a negative value (an OPR part can be below zero) is drawn in the danger
-  // colour from the left, its sign on the number.
-  const max = Math.max(1, ...b.groups.flatMap((g) => g.items.map((i) => Math.abs(i.value ?? 0))));
+  // One group's values are small neutral tiles (no phase hue); several groups a compact table, a row each.
+  const fmt = (v: number | null) => (v == null ? "–" : `${Number.isInteger(v) ? v : v.toFixed(1)}${b.unit === "%" ? "%" : ""}`);
+  if (b.groups.length === 1) {
+    const g = b.groups[0];
+    return (
+      <figure data-block="bars">
+        <figcaption className={H3}>{b.title}</figcaption>
+        <dl className={cn("grid gap-2", g.items.length <= 3 ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4")}>
+          {g.items.map((i) => (
+            <div key={i.label} className="rounded-lg border border-border bg-muted/30 px-3 py-2" data-bar-value={i.label}>
+              <dt className="text-xs font-medium text-muted-foreground">{i.label}</dt>
+              <dd className="font-display text-xl font-semibold tabular-nums text-foreground">{fmt(i.value)}</dd>
+            </div>
+          ))}
+        </dl>
+      </figure>
+    );
+  }
+  const labels = [...new Set(b.groups.flatMap((g) => g.items.map((i) => i.label)))];
   return (
     <figure data-block="bars">
       <figcaption className={H3}>{b.title}</figcaption>
-      <div className="space-y-2.5">
-        {b.groups.map((g) => (
-          <div key={g.label}>
-            {b.groups.length > 1 && <p className="mb-1 break-words text-xs font-medium text-foreground">{g.label}</p>}
-            <ul className="space-y-1">
-              {g.items.map((i) => (
-                <li key={i.label} className="grid grid-cols-[5.5rem_1fr_3.5rem] items-center gap-2 text-xs">
-                  <span className={cn("truncate", phaseTone(i.label) ? cn("font-medium", TONES[phaseTone(i.label)!].text) : "text-muted-foreground")}>{i.label}</span>
-                  <span className="h-2.5 overflow-hidden rounded-full bg-muted"><span className={cn("block h-full rounded-full", (i.value ?? 0) < 0 ? "bg-danger/70" : phaseTone(i.label) ? TONES[phaseTone(i.label)!].bar : TONE[i.tone ?? "a"])} style={{ width: `${(Math.abs(i.value ?? 0) / max) * 100}%` }} /></span>
-                  <span className="text-right tabular-nums text-foreground">{i.value == null ? "–" : `${Number.isInteger(i.value) ? i.value : i.value.toFixed(1)}${b.unit === "%" ? "%" : ""}`}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
+      <div className="overflow-x-auto rounded-lg border border-border">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50 text-[11px] text-muted-foreground"><tr><th scope="col" className="px-2.5 py-1.5 text-left font-medium"><span className="sr-only">Group</span></th>{labels.map((l) => <th key={l} scope="col" className="px-2.5 py-1.5 text-right font-medium">{l}</th>)}</tr></thead>
+          <tbody>
+            {b.groups.map((g) => (
+              <tr key={g.label} className="border-t border-border">
+                <th scope="row" className="px-2.5 py-1.5 text-left text-xs font-medium text-foreground">{g.label}</th>
+                {labels.map((l) => <td key={l} className="px-2.5 py-1.5 text-right tabular-nums">{fmt(g.items.find((i) => i.label === l)?.value ?? null)}</td>)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </figure>
   );

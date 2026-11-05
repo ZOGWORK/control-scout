@@ -13,6 +13,7 @@ import { CURRENT_SEASON, SEASONS, SEASON_NUMBERS, isLegacy, seasonInfo } from ".
 import { ensureSearchIndex, search } from "./api/search.js";
 import { cleanQuery, learnQuery, searchAnswer } from "./api/searchAnswer.js";
 import { withTeamStats } from "./api/searchTeamStats.js";
+import { keptAnswer } from "./api/searchReads.js";
 import { refine } from "./api/searchBruno.js";
 import { brunoAnswer } from "./api/searchBrunoAnswer.js";
 import { SEARCH_PAGE_LIMIT } from "../src/shared/search.js";
@@ -364,7 +365,9 @@ export function createApp(opts: { dist?: string } = {}) {
     // Team rows carry their season numbers (server/api/searchTeamStats.ts), added once, on the answer that's sent.
     if (req.query.answer === "1" && !kinds.size) {
       const q = String(req.query.q ?? "");
-      const ans = await searchAnswer(q, { limit, prefer });
+      // The same query asked again within a minute (a retry, another visitor) is the answer already worked out
+      // (server/api/searchReads.ts).
+      const ans = await keptAnswer(JSON.stringify([q, limit, [...prefer].sort()]), () => searchAnswer(q, { limit, prefer }));
       // How it was read (server/api/searchLayers.ts), taken from the answer object itself, before it's copied.
       const trace = outcomeTrace(ans);
       const at = Date.now();

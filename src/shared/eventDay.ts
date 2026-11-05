@@ -10,10 +10,22 @@ import type { EventSummary } from "./api";
 
 /** The calendar date (YYYY-MM-DD) at `now` in an IANA zone; null for an unknown zone. */
 export function localDate(now: number, zone: string): string | null {
-  try {
+  const f = dateFormat(zone);
+  try { return f ? f.format(new Date(now)) : null; } catch { return null; }
+}
+
+// One formatter a zone: making one is the slow part (search reads the date of every event it lists).
+const formats = new Map<string, Intl.DateTimeFormat | null>();
+function dateFormat(zone: string): Intl.DateTimeFormat | null {
+  let f = formats.get(zone);
+  if (f === undefined) {
     // en-CA formats as YYYY-MM-DD.
-    return new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(now));
-  } catch { return null; }
+    try { f = new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }); } catch { f = null; }
+    // Zones come from the data: a few hundred at most, but never let a stray one grow it without end.
+    if (formats.size > 1000) formats.clear();
+    formats.set(zone, f);
+  }
+  return f;
 }
 
 /**

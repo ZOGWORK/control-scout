@@ -200,13 +200,21 @@ describe("two teams", () => {
     const n = await searchAnswer("4215 vs 207 head to head", { limit: 25 });
     expect(n.stat!.none).toBe("Hypnotic Robotics (4215) and Critical Mass (207) have never played each other.");
   });
-  it("season numbers side by side: OPR bars, the better record, a win chance that points to Predict", async () => {
+  it("season numbers side by side: the result said once, paired rows on the season's scale, the better record, a win chance that points to Predict", async () => {
     await run("INSERT INTO team_season_stats (season, team, opr_np, opr_auto, opr_teleop, opr_endgame, rank_np, ranked_teams, rating_np, rating_auto, rating_teleop, rating_endgame, rating_sd, rating_rank, matches, wins, losses, ties) VALUES (2025, 4215, 101.6, 30, 60, 11.6, 3, 50, 98, 29, 58, 11, 6, 40, 12, 9, 3, 0), (2025, 6980, 88.2, 25, 52, 11.2, 9, 50, 90, 26, 53, 11, 7, 80, 12, 10, 2, 0)");
     const o = await searchAnswer("4215 OPR vs 6980", { limit: 25 });
-    expect(o.stat!.headline).toMatchObject({ value: "Hypnotic Robotics (4215)", label: "OPR 101.6 against 88.2, +13.4" });
-    expect(o.stat!.blocks.find((b) => b.kind === "bars")).toMatchObject({ groups: [{ label: "Total", items: [{ value: 101.6 }, { value: 88.2 }] }, {}, {}, {}] });
+    // One headline with the result, one context line: both ranks, then the phase that decided it.
+    expect(o.stat!.headline).toMatchObject({ value: "4215 leads 101.6 – 88.2", label: "+13.4", sub: "#3 of 50 · #9 of 50 · TeleOp decided it (+8.0)" });
+    expect(o.stat!.blocks.find((b) => b.kind === "kpis")).toBeUndefined();
+    expect(o.stat!.blocks.find((b) => b.kind === "bars")).toBeUndefined();
+    // Total first, then the phases by the size of the gap; each row's scale the season's high, rounded up, from zero.
+    const cmp = o.stat!.blocks.find((b) => b.kind === "compare");
+    expect(cmp).toMatchObject({ teams: [{ label: "4215" }, { label: "6980" }],
+      rows: [{ label: "Total", values: ["101.6", "88.2"], nums: [101.6, 88.2], best: 0, gap: "+13.4" }, { label: "TeleOp", gap: "+8.0" }, { label: "Auto", gap: "+5.0" }, { label: "Endgame", gap: "+0.4" }] });
+    for (const r of cmp!.kind === "compare" ? cmp!.rows : []) expect(r.max!, r.label).toBeGreaterThanOrEqual(Math.max(...r.nums!.map(Number)));
     const r = await searchAnswer("Who has a better record, 4215 or 6980", { limit: 25 });
-    expect(r.stat!.headline).toMatchObject({ value: "Bad Wolf (6980)", label: "83% win rate against 75%" });
+    expect(r.stat!.headline).toMatchObject({ value: "6980 leads 83% – 75%", label: "+8%", sub: "9-3-0 in 12 matches · 10-2-0 in 12" });
+    expect(r.stat!.blocks.find((b) => b.kind === "compare")).toMatchObject({ rows: [{ label: "Win rate", values: ["75%", "83%"], best: 1, max: 1 }] });
     const w = await searchAnswer("4215 win chance vs 6980", { limit: 25 });
     // No ratings built in a test: the stored ratings said plainly, never a made-up score (the engine's call when built).
     expect(w.stat!.headline).toMatchObject({ value: "4215 rated higher", label: "by 8.0 points per match" });

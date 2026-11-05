@@ -51,7 +51,8 @@ function Player({ v, className }: { v: SearchVideoItem; className?: string }) {
         ) : (
           <button type="button" onClick={() => setOn(true)} className="group absolute inset-0 grid place-items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60" aria-label={`Play: ${caption}`} data-video-facade>
             <img src={thumbnailUrl(v.videoId)} alt="" loading="lazy" decoding="async" onError={(e) => { e.currentTarget.hidden = true; }} className="absolute inset-0 size-full object-cover opacity-80 transition-opacity group-hover:opacity-100 motion-reduce:transition-none" />
-            <span className="relative grid size-16 place-items-center rounded-full bg-video-fill text-white shadow-lg"><Play className="size-7 translate-x-0.5 fill-current" aria-hidden /></span>
+            {/* Neutral, not YouTube's red: on a search card hue means team and red marks the red alliance (the results guide). */}
+            <span className="relative grid size-16 place-items-center rounded-full bg-black/75 text-white shadow-lg ring-1 ring-white/40"><Play className="size-7 translate-x-0.5 fill-current" aria-hidden /></span>
           </button>
         )}
       </div>

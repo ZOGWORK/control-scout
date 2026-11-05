@@ -134,18 +134,26 @@ describe("the answers", () => {
   it("236 and 237: one card with OPR, rank, phases, rating and record, the season stated", async () => {
     const a = await ask("4215 versus 6980 compare");
     expect(a.stat!.title).toContain(`4215 vs 6980, ${S}–`);
-    const t = a.stat!.blocks.find((b) => b.kind === "table");
-    expect(t).toMatchObject({ rows: [{ cells: { team: "4215", opr: "101.6", rank: "#600", rating: "98.0", record: "6-2-0" } }, { cells: { opr: "46.9", record: "1-4-0" } }] });
+    // One comparison, five rows at most: OPR and its phases, then the rating; the ranks and records in the context.
+    expect(a.stat!.blocks.find((b) => b.kind === "bars")).toBeUndefined();
+    expect(a.stat!.headline).toMatchObject({ value: "4215 leads 101.6 – 46.9", sub: expect.stringMatching(/^#600 of [\d,]+ \(6-2-0\) · .* \(1-4-0\)/) });
+    const t = a.stat!.blocks.find((b) => b.kind === "compare");
+    expect(t).toMatchObject({ teams: [{ label: "4215" }, { label: "6980" }] });
+    const row = (l: string) => t && t.kind === "compare" ? t.rows.find((r) => r.label === l || r.label.startsWith(l)) : undefined;
+    expect(row("OPR")).toMatchObject({ values: ["101.6", "46.9"], best: 0 });
+    expect(row("Rank of")).toBeUndefined();
+    expect(row("Rating")).toMatchObject({ values: ["98.0", expect.any(String)] });
+    expect(t && t.kind === "compare" ? t.rows.length : 0).toBeLessThanOrEqual(5);
     const b = await ask("4215 6980 33950 compare");
     expect(b.stat!.teams!.map((x) => x.number)).toEqual([4215, 6980, 33950]);
     expect(b.hits[0]).toMatchObject({ kind: "compare", ref: "4215,6980,33950" });
   });
   it("256–260: phase, reliability and awards, the winner named", async () => {
-    expect((await ask("4215 versus 6980 who is better at auto")).stat!.headline).toMatchObject({ value: "Hypnotic Robotics (4215)", label: "Auto OPR 28.3 against 13.2, +15.1" });
+    expect((await ask("4215 versus 6980 who is better at auto")).stat!.headline).toMatchObject({ value: "4215 leads 28.3 – 13.2", label: "+15.1" });
     const e = await ask("4215 versus 6980 who is better at endgame");
-    expect(e.stat!.blocks[0]).toMatchObject({ kind: "kpis", items: [{ phase: "endgame", value: "6.7" }, { phase: "endgame", value: "5.6" }] });
-    expect((await ask("4215 versus 6980 who has higher reliability")).stat!.headline).toMatchObject({ value: "Hypnotic Robotics (4215)", label: "84 against 71 out of 100" });
-    expect((await ask("4215 versus 6980 who has won more awards")).stat!.headline).toMatchObject({ value: "Hypnotic Robotics (4215)", label: "3 awards against 1" });
+    expect(e.stat!.blocks[0]).toMatchObject({ kind: "compare", rows: [{ label: "Endgame", values: ["6.7", "5.6"] }] });
+    expect((await ask("4215 versus 6980 who has higher reliability")).stat!.headline).toMatchObject({ value: "4215 leads 84 – 71", label: "+13" });
+    expect((await ask("4215 versus 6980 who has won more awards")).stat!.headline).toMatchObject({ value: "4215 leads 3 – 1", label: "+2" });
   });
   it("partners and opponents, in the latest completed season unless Worlds or a season is named", async () => {
     // 207 and 23268 are both 2-1-0 in 3 matches: the tie goes to more matches, then the newer.

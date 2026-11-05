@@ -4,7 +4,7 @@
 // (a styled label, not a second control); no card shows a web address. The header dropdown keeps its compact rows.
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeftRight, ArrowRight, CalendarDays, Compass, FileText, MapPin, Shield, Swords, Users } from "lucide-react";
+import { ArrowLeftRight, ArrowRight, CalendarDays, Compass, FileText, MapPin, Shield, Swords, Trophy, Users } from "lucide-react";
 import type { SearchHit, TeamSummary } from "../../../shared/api";
 import { hitHref } from "../../../shared/search";
 import { eventTypeLabel } from "../../../shared/labels";
@@ -13,6 +13,7 @@ import { dateRange, seasonLabel } from "../../../lib/format";
 import { EventStatusChip } from "../../EventChips";
 import { HitFacts } from "../SearchBox";
 import { cn } from "../../cn";
+import { RecordText, better } from "./answerCells";
 import { compareSides, compareTeams, eventFacts, teamParts } from "./results";
 import { eventName } from "./records";
 
@@ -205,7 +206,18 @@ export function HeadToHead({ h, now, before, season: current }: { h: SearchHit; 
           {shown.map(([label, f]) => (
             <div key={label} className="py-2.5">
               <dt className="text-xs text-muted-foreground">{label}</dt>
-              <dd className="mt-0.5 grid grid-cols-2 gap-3 font-display text-lg font-semibold tabular-nums text-foreground">{sides.map(({ n, s }) => <span key={n}>{(s && f(s)) ?? "—"}</span>)}</dd>
+              <dd className="mt-0.5 grid grid-cols-2 gap-3 font-display text-lg font-semibold tabular-nums text-foreground">{(() => {
+                const vs = sides.map(({ s }) => (s && f(s)) ?? null);
+                // The better side marked (the record by win share; a rank the lower), as the search answers mark it.
+                const share = (r: string | null) => { const m = r && /^(\d+)-(\d+)-(\d+)/.exec(r); const g = m ? +m[1] + +m[2] + +m[3] : 0; return m && g ? (+m[1] + +m[3] / 2) / g : null; };
+                const win = vs.length === 2 ? (label === "Record" ? better(label, share(vs[0]), share(vs[1])) : better(label, vs[0], vs[1])) : null;
+                return sides.map(({ n }, i) => (
+                  <span key={n} className={cn("inline-flex items-center gap-1", win === (i === 0 ? "a" : "b") && "font-bold")} data-better={win === (i === 0 ? "a" : "b") ? "" : undefined}>
+                    {vs[i] == null ? "—" : label === "Record" ? <RecordText text={vs[i]!} /> : vs[i]}
+                    {win === (i === 0 ? "a" : "b") && <Trophy className="size-3.5 text-muted-foreground" aria-label="Better" />}
+                  </span>
+                ));
+              })()}</dd>
             </div>
           ))}
         </dl>

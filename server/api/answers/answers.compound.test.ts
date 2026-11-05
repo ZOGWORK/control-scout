@@ -203,7 +203,8 @@ describe("compound answers", () => {
   });
   it("17: three teams' reliability, the highest named", async () => {
     const a = await ask("4215 vs 6980 vs 33950 which has highest reliability");
-    expect(a.stat?.headline).toMatchObject({ value: "Hypnotic Robotics (4215)", label: "Highest reliability: 84 out of 100" });
+    expect(a.stat?.headline).toMatchObject({ value: expect.stringMatching(/^4215 leads 84 – /), label: expect.stringMatching(/^\+\d+$/) });
+    expect(a.stat?.blocks.find((b) => b.kind === "compare")).toMatchObject({ rows: [{ label: "Reliability", max: 100, best: 0 }, {}, {}, {}, {}] });
   });
   it("18: average score in wins against losses, never a team called 'Loose'", async () => {
     const a = await ask("what is 4215's average score when they win versus when they lose");

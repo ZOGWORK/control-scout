@@ -66,7 +66,14 @@ describe("season top matches", () => {
     expect(ms && ms.kind === "matches" && ms.rows[0]).toMatchObject({ own: 360, partners: [{ label: "207 Critical Mass" }, { label: "4215 Hypnotic Robotics" }], opponents: [{ label: "6980 Bad Wolf" }, { label: "23268 Ultraviolet" }] });
     const combined = a.blocks.find((b) => b.kind === "table");
     expect(combined && combined.kind === "table" && combined.rows.map((r) => r.cells.combined)).toEqual([450, 400, 400, 320]);
-    expect(a.blocks.find((b) => b.kind === "bars")).toBeDefined();
+    // One list per question: no bar chart repeating the alliance scores. Each row its place, its event's type and its
+    // alliance's phase split; each combined row both alliances' teams and its event's link.
+    expect(a.blocks.find((b) => b.kind === "bars")).toBeUndefined();
+    expect(ms && ms.kind === "matches" && ms.rows.map((r) => r.rank)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(ms && ms.kind === "matches" && ms.rows[0].type).toBeDefined();
+    expect(combined && combined.kind === "table" && combined.rows[0].teams?.red.length).toBeGreaterThan(0);
+    expect(combined && combined.kind === "table" && combined.rows[0].eventHref).toMatch(/^\/events\//);
+    expect(a.headline?.teams?.map((t) => t.label)).toEqual(["207 Critical Mass", "4215 Hypnotic Robotics"]);
   });
   it("in a place, or at one event", async () => {
     expect((await searchAnswer("highest scoring matches in new jersey in decode", { limit: 25 })).stat!.headline).toMatchObject({ value: "300 points" });

@@ -15,6 +15,8 @@ import { Meter, RecordMeter, StatTile, TONES, rankPc } from "../../StatTile";
 import { Button } from "../../ui/button";
 import { Badge } from "../../ui/basic";
 import { cn } from "../../cn";
+import { EventMarker, RankPill, RecordText } from "./answerCells";
+import { teamFill } from "../../../lib/textTones";
 
 /** The touch rule every search control keeps: 44px tall on phones and touch screens. */
 export const TAP = "max-md:min-h-[44px] pointer-coarse:min-h-[44px]";
@@ -125,7 +127,7 @@ function TeamsHeader({ teams, season }: { teams: Who[]; season?: number | null }
       </div>
       <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
         {teams.slice(0, 2).map((t, i) => (
-          <TeamSide key={t.number} t={t} q={q} right={i === 1} first={i === 0} />
+          <TeamSide key={t.number} t={t} q={q} right={i === 1} first={i === 0} i={i} />
         ))}
       </div>
       {teams.length > 2 && (
@@ -137,12 +139,13 @@ function TeamsHeader({ teams, season }: { teams: Who[]; season?: number | null }
   );
 }
 
-function TeamSide({ t, q, right, first }: { t: Who; q: string; right: boolean; first: boolean }) {
+function TeamSide({ t, q, right, first, i }: { t: Who; q: string; right: boolean; first: boolean; i: number }) {
   return (
     <>
       <Link to={`/teams/${t.number}${q}`} aria-label={t.name ? `${t.name} (${t.number})` : `Team ${t.number}`} className={cn("group block min-w-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/60", right && "col-start-3 text-right")}>
         <span className="block font-display text-3xl font-semibold leading-none tracking-tight tabular-nums text-foreground transition-colors group-hover:text-accent-text sm:text-4xl">{t.number}</span>
         <span className="mt-1.5 block break-words text-base text-foreground/90 sm:text-lg">{t.name ?? "Name not on file"}</span>
+        <span aria-hidden className={cn("mt-2 block h-1 w-10 rounded-full", teamFill(i), right && "ml-auto")} data-side-mark={i} />
       </Link>
       {first && <span aria-hidden className="col-start-2 row-start-1 text-sm font-medium text-muted-foreground">vs</span>}
     </>
@@ -199,11 +202,11 @@ function EventRow({ e, team }: { e: TeamEventRow; team: number }) {
     <li className="border-t border-border first:border-t-0">
       <Link to={`/events/${e.season}/${e.code}?team=${team}`} className="flex min-h-[44px] items-center gap-3 px-3.5 py-2.5 hover:bg-muted/50">
         <span className="min-w-0 flex-1">
-          <span className="block break-words text-sm font-medium text-foreground">{e.name}</span>
+          <span className="block break-words text-sm font-medium text-foreground"><EventMarker type={e.type} />{e.name}<EventMarker type={e.type} chip /></span>
           <span className="block text-xs text-muted-foreground">{[e.start ? dateRange(e.start, e.end) : null, where].filter(Boolean).join(" · ")}</span>
         </span>
-        {e.rank != null && <span className="shrink-0 text-right"><span className="block font-display text-base font-semibold tabular-nums text-foreground">#{e.rank}</span><span className="block text-[11px] text-muted-foreground">rank</span></span>}
-        {rec && <span className="shrink-0 text-right"><span className="block font-display text-base font-semibold tabular-nums text-foreground">{rec}</span><span className="block text-[11px] text-muted-foreground">record</span></span>}
+        {e.rank != null && <span className="shrink-0 text-right"><span className="block font-display text-base font-semibold"><RankPill text={`#${e.rank}`} /></span><span className="block text-[11px] text-muted-foreground">rank</span></span>}
+        {rec && <span className="shrink-0 text-right"><span className="block font-display text-base font-semibold tabular-nums text-foreground"><RecordText text={rec} /></span><span className="block text-[11px] text-muted-foreground">record</span></span>}
       </Link>
     </li>
   );
