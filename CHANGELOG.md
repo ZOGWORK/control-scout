@@ -22,13 +22,13 @@ Search answer cards follow the search results guide: comparisons say the result 
 ### Highlights
 - [appearance] One headline per comparison: who leads and by how much
 - [appearance] Paired bars from zero, each row on its own season scale
-- [appearance] Colour means team only: blue, orange and green bars
+- [appearance] Colour means team only: violet and orange bars
 - [appearance] No phase, podium or win colours on answer data
 - [fixes] No "read as" text; team names printed once per card
 
 ### Search
 - **Comparison cards.** Two- and three-team answers (OPR, rating, phase, record, reliability, awards, compare) are one card: the teams named once in the title, one headline with the result and the gap, one context line (ranks, records, the phase that decided it), then a row per metric. Each row has a bar per team from zero to the row's own maximum, printed as "max N", and the gap on the right. The Total comes first, then the rest by the size of the gap, five rows at most. A row's maximum is the season's highest, rounded up, so the same number draws the same bar on every card that season. The team header strip, the second season pill and the stat tiles are gone; the method sits behind an info button, and "Open in Predict" is the one button.
-- **Team colours.** Teams are blue, orange and green (Okabe–Ito, readable with any colour vision), each at least 3:1 against the card in Light, Dim, Dark and Midnight. They are used only on bars and swatches. A winner is bold with its "+N", not coloured.
+- **Team colours.** Teams are violet and orange (the app's own chart colours; teal for a third team), apart under every colour vision and each at least 4.5:1 against the card in Light, Dim, Dark and Midnight. They are used only on bars and swatches. A winner is bold with its "+N", not coloured.
 - **No hue on other data.** Phases, ranks, podium places, records, results, event types and stat tiles are neutral on every answer card. Red and blue stay only where they mark an alliance. OPR and combined-score bars are neutral and start at zero.
 - **Matches as boxes.** Every list of matches is a grid of match boxes: the place in the list, the match and its event, the red alliance over the blue with their teams and scores (the winner marked, the loser muted) and the listed alliance's points by phase.
 - **Less meta text.** Boolean queries no longer add "read as" to their label, and an unclear query asks "awards or location? Say which". (#709)
