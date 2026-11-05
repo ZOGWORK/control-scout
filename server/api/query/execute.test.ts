@@ -55,6 +55,10 @@ beforeAll(async () => {
   // A meeting still to come at the same event, its call saved before any rated match (win odds only, no score).
   await run("INSERT INTO matches (season, code, level, series, number, label, time, played, source) VALUES (2025, 'USNJQ1', 'qual', 0, 99, 'Q99', '2026-01-10T18:00:00Z', 0, 't')");
   await run("INSERT INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, no_score_basis, tier, engine_version, predicted_at) VALUES ('live', 2025, 'USNJQ1', 'qual', 0, 99, '[4215]', '[6980]', 0.55, 100, 100, 1, 'low', 't', '2026-01-09')");
+  // Matches the cards never count, for the eval's truth: one at a remote event, one with no points without penalties.
+  await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, remote, source) VALUES (2025, 'USOHR1', 'Remote Qualifier', 'Qualifier', 'Town', 'OH', 'USA', '2025-12-01', '2025-12-01', 1, 't'), (2025, 'USOHQ1', 'Buckeye Qualifier', 'Qualifier', 'Town', 'OH', 'USA', '2025-12-02', '2025-12-02', 0, 't')");
+  await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'USOHR1', 'qual', 0, 1, 'Q1', '2025-12-01T10:00:00Z', 1, 500, 500, 10, 10, 't'), (2025, 'USOHQ1', 'qual', 0, 1, 'Q1', '2025-12-02T10:00:00Z', 1, 999, NULL, 0, NULL, 't')");
+  await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'USOHR1', 'qual', 0, 1, 5555, 'red', 1), (2025, 'USOHQ1', 'qual', 0, 1, 5555, 'red', 1)");
   // A Leadership Award is filed as a "Winner" too: never the event won.
   await run("INSERT INTO awards (season, code, team, type, name, placement) VALUES (2025, 'USNJQ1', 4215, 'Winner', 'Leadership Award', 1)");
   await rebuildSearch();
@@ -138,6 +142,11 @@ describe("one question, any phrasing, any team", () => {
       expect(s.headline?.value, q).toBe("2");
     }
   });
+  it("a name typed nearly right offers the spelling, whatever stood between its words", async () => {
+    const a = await ask("hypnotc-robotics highest score");
+    expect(a.stat?.team?.number).toBe(4215);
+    expect(a.didYouMean).toBe("Hypnotic Robotics highest score");
+  });
 });
 
 describe("what the pipeline leaves to the other readers", () => {
@@ -214,6 +223,30 @@ describe("forecasts", () => {
     const t = s.blocks.find((b) => b.kind === "table");
     expect(t && t.kind === "table" && t.rows).toHaveLength(2);
     expect(s.headline?.sub).toMatch(/walk-forward replay/);
+  });
+});
+
+describe("the eval's truth", () => {
+  it("counts the matches the cards count: never a remote event's, never one without its points", async () => {
+    const { teamTruth, newestSeason } = await import("./eval/truth");
+    expect(await teamTruth(5555, 2025)).toMatchObject({ wins: 0, losses: 2, ties: 0, matches: 2, high: [110] });
+    expect(await newestSeason(5555)).toBe(2025);
+    // The card agrees.
+    expect((await stat("5555 highest score")).headline?.value).toBe("110 points");
+  });
+});
+
+describe("failure patterns", () => {
+  it("one pattern for every team that fails the same way, the unread word kept beside it", async () => {
+    const { failurePattern } = await import("./pattern");
+    const a = await failurePattern("4215 opr scorecard", NOW), b = await failurePattern("hypnotic robotics opr scorecard", NOW), c = await failurePattern("24033 opr scoresheet", NOW);
+    expect(a).toEqual({ key: "intent: team opr · slots: team · not read: 1 word", missed: ["scorecard"] });
+    expect(b.key).toBe(a.key);
+    expect(c).toEqual({ key: a.key, missed: ["scoresheet"] });
+    // No name or number ever in the pattern.
+    expect((await failurePattern("6980 vs 17713 zzz", NOW)).key).not.toMatch(/6980|17713/);
+    // With no intent read, what it did read keeps different questions apart.
+    expect((await failurePattern("4215 rp zzz qqq", NOW)).key).not.toBe((await failurePattern("4215 reliability zzz qqq", NOW)).key);
   });
 });
 

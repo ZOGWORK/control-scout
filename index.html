@@ -12,7 +12,7 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <!-- Address-bar search ("Press Tab to search Control Scout"): server/openSearch.ts. -->
     <link rel="search" type="application/opensearchdescription+xml" title="Control Scout" href="/opensearch.xml" />
-    <meta name="theme-color" content="#0a0a0b" />
+    <meta name="theme-color" content="#2b0f20" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Control Scout" />
     <meta property="og:title" content="Control Scout" />
@@ -32,7 +32,7 @@
         if (t === 'dim' || t === 'midnight') {
           document.documentElement.classList.add(t);
           var tc = document.querySelector('meta[name="theme-color"]');
-          if (tc) tc.setAttribute('content', t === 'dim' ? '#1e1f23' : '#000000');
+          if (tc) tc.setAttribute('content', t === 'dim' ? '#3d1a2e' : '#1a0612');
         }
         if (s && s.value && s.value.density === 'compact') document.documentElement.classList.add('compact');
         // This device's text size (src/lib/textSize.ts), before anything paints.

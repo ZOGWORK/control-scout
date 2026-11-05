@@ -1,4 +1,6 @@
-// Failed searches → GitHub issues, as a work queue to read (docs/failed-search-reporting.md).
+// Failed searches → GitHub issues, as a work queue to read (docs/failed-search-reporting.md). One issue per failure
+// pattern (server/api/query/pattern.ts: what search read, names and numbers left out, with the words it couldn't
+// read counted beside it), not per query: the queries that fail the same way are one entry with its examples.
 //
 // LOG ONLY. This files and updates issues; it never fixes, assigns, closes, marks in progress, opens a pull request
 // or merges anything. The owner reads the list (label failed-search), directs the work, and closes an issue by hand
@@ -23,6 +25,7 @@ import { isEnabled } from "./flags.js";
 import { ownerOf } from "./owner.js";
 import { GITHUB_REPO, GithubError, fenced, gh, refused, takeReportSlot } from "./errorReports.js";
 import { searchKey, searchOutcome, traceOf, type OutcomeResult } from "./api/searchLayers.js";
+import { failurePattern } from "./api/query/pattern.js";
 import type { SearchAnswer } from "../src/shared/api.js";
 
 // --- What counts as a failed search (brief §12.1) ---------------------------------------------------------------
@@ -177,6 +180,20 @@ export async function keyFor(q: string): Promise<string> {
   }
 }
 
+/** The failure pattern for a query as /api/search files it (server/api/query/pattern.ts), with the words it couldn't
+ *  read, redacted. Null when it can't be read: the query's own key (keyFor) is used instead. */
+export async function patternFor(q: string, now = Date.now()): Promise<{ key: string; missed: string[] } | null> {
+  try {
+    // Nothing left once personal data is out: no pattern, so the query's own key is skipped as before.
+    if (onlyRedacted(safeQuery(q))) return null;
+    // Read without the placeholders, so a question with personal data in it is the same pattern as one without.
+    const p = await failurePattern(safeQuery(q).replace(/\[(?:token|email|phone)\]/g, " ").replace(/\s+/g, " ").trim(), now);
+    return { key: `pattern: ${p.key}`, missed: p.missed.map(redact).filter((w) => !onlyRedacted(w)) };
+  } catch {
+    return null;
+  }
+}
+
 /** Personal data and secrets out of anything logged (brief §12.2: the repository is public). */
 export function redact(text: string): string {
   // Compatibility forms first ("＠" is "@", "５" is "5"): normalizing later must never turn a kept string into an
@@ -220,8 +237,9 @@ export const PER_IP_HOUR = 30;
 const SETTLE_MAX = 5_000;
 
 /** `legacy`: the key as it was made before 2.8.1 (reportKey), so a query already on record under it stays on its row. */
-interface Pending { q: string; key: string; legacy: string; failure: Failure | null; label: string; at: number }
-interface Buffered { key: string; legacy: string; count: number; first: number; last: number; examples: string[]; failure: Failure; label: string }
+interface Pending { q: string; key: string; legacy: string; failure: Failure | null; label: string; at: number; missed: string[] }
+/** `missed`: the words search couldn't read in this pattern's queries, with how often. */
+interface Buffered { key: string; legacy: string; count: number; first: number; last: number; examples: string[]; failure: Failure; label: string; missed: Map<string, number> }
 
 const pending = new Map<string, Pending>();
 const buffer = new Map<string, Buffered>();
@@ -231,8 +249,9 @@ export const counters = { dropped: 0, skipped: 0, limited: 0, unfiled: 0 };
 const related = (a: string, b: string) => a.startsWith(b) || b.startsWith(a);
 
 /** Called by /api/search after it answered (every answer=1 search, failed or not). Synchronous, never throws.
- *  `key`: the aggregation key (keyFor), worked out by the caller; reportKey of the query when not given. */
-export function noteSearch(q: string, a: SearchAnswer, client: string, trace?: SearchTrace | null, now = Date.now(), key?: string): void {
+ *  `key`: the aggregation key (patternFor, else keyFor), worked out by the caller; reportKey of the query when not
+ *  given. `missed`: a pattern's words search couldn't read. A pattern never lands on a query's old row. */
+export function noteSearch(q: string, a: SearchAnswer, client: string, trace?: SearchTrace | null, now = Date.now(), key?: string, missed: string[] = []): void {
   try {
     settle(now);
     const safe = safeQuery(q);
@@ -245,8 +264,8 @@ export function noteSearch(q: string, a: SearchAnswer, client: string, trace?: S
     // Re-inserted, so the map stays oldest first and settle() stops at the first entry still waiting.
     pending.delete(client);
     const failure = failureOf(q, a, trace);
-    const legacy = reportKey(safe);
-    pending.set(client, { q: safe, key: key || legacy, legacy, failure: failure && { ...failure, trace: redactTrace(failure.trace) }, label: redact(a.understood?.label ?? ""), at: now });
+    const legacy = key?.startsWith("pattern: ") ? key : reportKey(safe);
+    pending.set(client, { q: safe, key: key || legacy, legacy, failure: failure && { ...failure, trace: redactTrace(failure.trace) }, label: redact(a.understood?.label ?? ""), at: now, missed });
   } catch {
     // Reporting never breaks search.
   }
@@ -271,10 +290,11 @@ function commit(client: string, p: Pending) {
     b.count++; b.last = Math.max(b.last, p.at); b.failure = p.failure; b.label = p.label;
     // The latest first, a repeat too: the Reproduce link opens examples[0], and the reading is this one's.
     b.examples = [q, ...b.examples.filter((e) => e !== q)].slice(0, EXAMPLES_MAX);
+    tally(b.missed, p.missed);
     return;
   }
   if (buffer.size >= BUFFER_MAX) { counters.dropped++; return; }
-  buffer.set(key, { key, legacy: p.legacy, count: 1, first: p.at, last: p.at, examples: [q], failure: p.failure, label: p.label });
+  buffer.set(key, { key, legacy: p.legacy, count: 1, first: p.at, last: p.at, examples: [q], failure: p.failure, label: p.label, missed: tally(new Map(), p.missed) });
 }
 
 /** Tests: forget what's waiting and buffered. */
@@ -283,15 +303,41 @@ export function resetSearchFailures() { pending.clear(); buffer.clear(); Object.
 // --- Store --------------------------------------------------------------------------------------------------------
 
 export const EXAMPLES_MAX = 5;
+/** The unread words an issue lists, the most frequent first. */
+export const MISSED_MAX = 20;
+/** The unread words a pattern's row keeps counting (bounded): far more than it lists. */
+export const MISSED_KEEP = 500;
+/** Of those, the places kept for the words just seen that aren't among the most counted: a word that starts being
+ *  missed often keeps its count from flush to flush and climbs, however many words already have high counts. */
+export const MISSED_FRESH = 100;
+
+/** Each word of one query counted once per time it appears, the same whether its pattern is new or buffered. */
+function tally(m: Map<string, number>, words: string[]): Map<string, number> {
+  for (const w of words) m.set(w, (m.get(w) ?? 0) + 1);
+  return m;
+}
+
+/** Two tallies of missed words as one, the most frequent first, MISSED_KEEP at most: the most counted, then the
+ *  words in `b` (just seen), then the rest. */
+export function mergeMissed(a: Record<string, number>, b: Iterable<[string, number]>): Record<string, number> {
+  const m = new Map(Object.entries(a)), seen = new Set<string>();
+  for (const [w, n] of b) { m.set(w, (m.get(w) ?? 0) + n); seen.add(w); }
+  const byCount = [...m].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0]));
+  const top = byCount.slice(0, MISSED_KEEP - MISSED_FRESH), rest = byCount.slice(MISSED_KEEP - MISSED_FRESH);
+  const kept = [...top, ...[...rest.filter(([w]) => seen.has(w)), ...rest.filter(([w]) => !seen.has(w))].slice(0, MISSED_FRESH)];
+  return Object.fromEntries(kept.sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0])));
+}
 
 interface Row {
   key: string; hash: string; result_type: FailureType; intent: string | null; reading: string; label: string; examples: string;
+  /** JSON: a pattern's unread words and their counts (search_failures.missed, migration 73). */
+  missed: string;
   count: number; first_seen: string; last_seen: string;
   issue_number: number | null; issue_state: string | null; reported_count: number; filing_at: string | null;
   /** Reopened as a regression (the failure's last seen): its comment is still to be posted. */
   regression_seen: string | null;
 }
-const COLUMNS = "key, hash, result_type, intent, reading, label, examples, count, first_seen, last_seen, issue_number, issue_state, reported_count, filing_at, regression_seen";
+const COLUMNS = "key, hash, result_type, intent, reading, label, examples, missed, count, first_seen, last_seen, issue_number, issue_state, reported_count, filing_at, regression_seen";
 
 /** Puts a batch that couldn't be written back in the buffer, merged with what arrived meanwhile (still bounded). */
 function restore(items: Buffered[]) {
@@ -300,6 +346,7 @@ function restore(items: Buffered[]) {
     if (b) {
       b.count += it.count; b.first = Math.min(b.first, it.first);
       b.examples = [...b.examples, ...it.examples.filter((e) => !b.examples.includes(e))].slice(0, EXAMPLES_MAX);
+      for (const [w, n] of it.missed) b.missed.set(w, (b.missed.get(w) ?? 0) + n);
     } else if (buffer.size < BUFFER_MAX) buffer.set(it.key, it);
     else counters.dropped += it.count;
   }
@@ -307,7 +354,17 @@ function restore(items: Buffered[]) {
 
 /** Writes the buffer to search_failures in one batch (every minute; and on shutdown, `everything` still settling too).
  *  A failed write keeps the batch for the next flush. */
-export async function flushSearchFailures(now = Date.now(), everything = false): Promise<number> {
+/** One flush at a time (the minute job and a shutdown flush can meet): each reads the rows' word tallies and writes
+ *  them back merged, so two at once would lose one's words. */
+let flushing: Promise<unknown> = Promise.resolve();
+
+export function flushSearchFailures(now = Date.now(), everything = false): Promise<number> {
+  const run = flushing.then(() => flushOnce(now, everything));
+  flushing = run.catch(() => {});
+  return run;
+}
+
+async function flushOnce(now: number, everything: boolean): Promise<number> {
   settle(now, everything);
   const items = [...buffer.values()];
   buffer.clear();
@@ -334,27 +391,37 @@ export function onRows(batch: Buffered[], onRecord: Set<string>): Buffered[] {
     out.set(key, {
       ...newer, key, count: b.count + it.count, first: Math.min(b.first, it.first), last: newer.last,
       examples: [...newer.examples, ...older.examples.filter((e) => !newer.examples.includes(e))].slice(0, EXAMPLES_MAX),
+      missed: new Map(Object.entries(mergeMissed(Object.fromEntries(b.missed), it.missed))),
     });
   }
   return [...out.values()];
 }
 
+/** Reads the rows' examples and word tallies and writes them back merged, in one write transaction: another server
+ *  flushing the same pattern waits, so neither erases the other's words. */
 async function writeBatch(batch: Buffered[]) {
   const asked = [...new Set(batch.flatMap((b) => [b.key, b.legacy]))];
-  const rows = await all<{ key: string; examples: string }>(`SELECT key, examples FROM search_failures WHERE key IN (${asked.map(() => "?").join(",")})`, asked);
-  const had = new Map(rows.map((r) => [r.key, JSON.parse(r.examples) as string[]]));
-  const items = onRows(batch, new Set(had.keys()));
-  await db().batch(items.map((b) => {
-    const examples = [...b.examples, ...(had.get(b.key) ?? []).filter((e) => !b.examples.includes(e))].slice(0, EXAMPLES_MAX);
-    const reading = JSON.stringify(b.failure.trace);
-    return {
-      sql: `INSERT INTO search_failures (key, hash, result_type, intent, reading, label, examples, count, first_seen, last_seen)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT (key) DO UPDATE SET count = count + excluded.count, last_seen = MAX(last_seen, excluded.last_seen),
-              result_type = excluded.result_type, intent = excluded.intent, reading = excluded.reading, label = excluded.label, examples = excluded.examples`,
-      args: [b.key, keyHash(b.key), b.failure.type, b.failure.intent, reading, b.label, JSON.stringify(examples), b.count, new Date(b.first).toISOString(), new Date(b.last).toISOString()],
-    };
-  }), "write");
+  const tx = await db().transaction("write");
+  try {
+    const rows = (await tx.execute({ sql: `SELECT key, examples, missed FROM search_failures WHERE key IN (${asked.map(() => "?").join(",")})`, args: asked })).rows as unknown as { key: string; examples: string; missed: string }[];
+    const had = new Map(rows.map((r) => [String(r.key), JSON.parse(String(r.examples)) as string[]]));
+    const hadMissed = new Map(rows.map((r) => [String(r.key), JSON.parse(String(r.missed || "{}")) as Record<string, number>]));
+    const items = onRows(batch, new Set(had.keys()));
+    await tx.batch(items.map((b) => {
+      const examples = [...b.examples, ...(had.get(b.key) ?? []).filter((e) => !b.examples.includes(e))].slice(0, EXAMPLES_MAX);
+      const reading = JSON.stringify(b.failure.trace);
+      return {
+        sql: `INSERT INTO search_failures (key, hash, result_type, intent, reading, label, examples, missed, count, first_seen, last_seen)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT (key) DO UPDATE SET count = count + excluded.count, last_seen = MAX(last_seen, excluded.last_seen),
+                result_type = excluded.result_type, intent = excluded.intent, reading = excluded.reading, label = excluded.label, examples = excluded.examples, missed = excluded.missed`,
+        args: [b.key, keyHash(b.key), b.failure.type, b.failure.intent, reading, b.label, JSON.stringify(examples), JSON.stringify(mergeMissed(hadMissed.get(b.key) ?? {}, b.missed)), b.count, new Date(b.first).toISOString(), new Date(b.last).toISOString()],
+      };
+    }));
+    await tx.commit();
+  } finally {
+    tx.close();
+  }
 }
 
 // --- GitHub issues --------------------------------------------------------------------------------------------
@@ -394,6 +461,8 @@ export function failureBody(r: Row): string {
   const t = JSON.parse(r.reading) as SearchTrace;
   const list = (xs: string[]) => (xs.length ? xs.join(", ") : "none");
   const examples = JSON.parse(r.examples) as string[];
+  const pattern = r.key.startsWith("pattern: ");
+  const missed = Object.entries(JSON.parse(r.missed || "{}") as Record<string, number>).sort((x, y) => y[1] - x[1]).slice(0, MISSED_MAX);
   return [
     "Logged automatically by FTC One Search's failed-search reporting (`docs/failed-search-reporting.md`). This is an entry in a work list: nothing fixes, assigns or closes it automatically.",
     "",
@@ -405,12 +474,13 @@ export function failureBody(r: Row): string {
     `**Re-check (owner):** ${SITE}/api/reports/search-failures/${r.issue_number ?? "ISSUE"}/recheck`,
     `**Key:** \`${r.hash}\``,
     "",
-    `### Query as typed (latest ${EXAMPLES_MAX} variants at most)`,
+    `### ${pattern ? "Queries that failed this way" : "Query as typed"} (latest ${EXAMPLES_MAX} variants at most)`,
     fenced(examples.join("\n")),
     "",
-    "### Normalized query (aggregation key)",
+    pattern ? "### Pattern (aggregation key: what search read, names and numbers left out)" : "### Normalized query (aggregation key)",
     fenced(r.key),
     "",
+    ...(pattern ? ["### Words search didn't read, most often first", fenced(missed.length ? missed.map(([w, n]) => `${w} ×${n}`).join("\n") : "none"), ""] : []),
     "### Interpreted reading",
     fenced([
       `Team:             ${t.team ?? "none"}`,

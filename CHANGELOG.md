@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.2.5 — 2026-11-05
+## 3.2.6 — 2026-11-05
 
 Every search answer card now passes the results guide's checks: colour means team, bars match their numbers, and every number is readable in every theme.
 
@@ -30,6 +30,20 @@ Every search answer card now passes the results guide's checks: colour means tea
 - **Neutral where it isn't a team.** An award's podium is told by its steps, icons and places, not green, blue and orange. A Worlds trip's rank, record, OPR and awards are plain pills, its marked trip a solid label, and the summary's numbers, rank line and win-rate ring neutral ink. A team's location tile drops its blue. A trend line is no longer gold. A team card's season tiles (OPR, rating, record, events) are neutral too, an award's podium teams aren't listed again under it ("Other awards at this event"), and on a card about one team its own chip in a match box is its number alone, since the card's header already names it.
 - **Honest bars.** The leaderboard's OPR bar was 0.5rem short of its number; it now sits in its own track at exactly OPR over the best. A record's split bar uses the unrounded win share.
 - **Readable alliances.** On Dim, red alliance numbers take rose 400 (rose 500 fell to 3.8:1 on a match box's tint), and a losing alliance's score in the combined table is muted grey instead of faded red or blue. (#759)
+
+## 3.2.5 — 2026-11-05
+
+The whole site is pink now, with dog doodles drawn across the background.
+
+### Highlights
+- [appearance] A pink page in every theme, pale or deep
+- [appearance] Dog doodles (faces, paw prints, bones) across the background
+- [appearance] The browser bar and the first paint match the new pink
+
+### Appearance
+- **Pink background.** The page colour behind everything is pink for everyone, in every theme: #fdedf6 on Light, #3d1a2e on Dim, #2b0f20 on Dark and #1a0612 on Midnight. Cards, text and buttons keep their colours, and text and the keyboard focus ring keep their contrast on the new pages (the light pink is the palest that keeps the focus ring at 3:1).
+- **Dogs.** A tile of outline dog doodles in pink repeats behind the page. It's decorative only (hidden from screen readers, never in the way of a tap) and sits under every card.
+- **Matching chrome.** The phone's browser bar colour, the installed app's colours and the page's first paint before the app loads all use the same pinks, so nothing flashes grey or white first. (#761)
 
 ## 3.2.4 — 2026-11-05
 
@@ -66,6 +80,10 @@ Search reads a question as its parts in any word order (team, event, place, time
 - **One highest-scoring match.** "The highest-scoring match" lists that one match with both alliances, their teams, the event and the date; "matches", "scores" or "top 5" lists several. (#743)
 - **Widened in a stated order.** When a date window ("this week", "last weekend", "in March") has nothing in it, a team's question or a highest-scoring-match question widens it to the seasons its dates touch (newest first), then to the season before, one step at a time. The card's first chip says what changed ("Relaxed: this week → 2025–26"), its heading says it was relaxed, and its counting note lists each step tried. A place, an event, a team or a year named is never widened. (#749)
 - **Predictions before and after.** A prediction question that names an event ("predicted chances of 12345 east bergen conference") shows, for that event, what the engine predicted before each match beside what happened. That means the win chance and predicted score next to the result, whether the call was right, and expected wins against actual wins, with the stored pre-event projection when there is one. Calls come from the log made before each match. Where a match wasn't logged live, the card uses the walk-forward replay and says so; the two are never mixed on one card. With no year it's the latest event of that name the team is listed at; a team not listed there is told so, and no other event is shown instead. Open in Predict opens on the team at that event, or on the two teams for a matchup. (#752)
+- **Checked on every change.** A new search eval asks about teams drawn at random from the latest season in many phrasings (every word search knows for "highest", "score" and the rest, the team by number or name, in any order, with or without "what is"), checks each card against the match tables, and fails any answer slower than a second. It runs on every pull request. `npm run search:heldout` asks 533 questions people wrote for search and that it was never built from, and sorts each answer into a pattern with the pass rate per set.
+- **What the checks found.** A team name of seven words or more was never read whole, so its questions took the slow path (2.7 s, now about 30 ms). "Mean scoring for …" showed what "mean" means instead of the average. A name already looked up isn't searched for again as an event. A team's name one letter off is that team, with a "Did you mean", only when no other team's name is as close, and a name that starts with a colour ("Blue …") is read whole rather than as the blue alliance. A name written partly in another script no longer leaves a stray letter behind. (#753)
+- **Failed searches by pattern.** A failed search is filed under what search read (the intent, which parts were filled, what was left unexplained), with every team, number and place left out. Every query that fails the same way adds to that one entry and its examples, where before each query had its own. (#760)
+- **Missed words.** Each pattern counts the words its queries left unread and lists them, the most frequent first: the word at the top is usually a phrase search should learn. Entries filed per query before this release are left as they are. (#760)
 
 ## 3.2.2 — 2026-11-05
 
