@@ -4,7 +4,7 @@
 // loaded only by a click, so the page costs one image and nothing plays on its own. A row's button plays in the app's
 // video dialog (components/VideoDialog.tsx, lib/streamSeek.ts), never away from search. No video: nothing is drawn.
 // Never wider than the results column (680px, the search display spec); a phone gets the card's full width at 16:9.
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { ExternalLink, Play, PlayCircle } from "lucide-react";
 import type { SearchVideo, SearchVideoItem } from "../../../shared/api";
 import { embedUrl, thumbnailUrl } from "../../../shared/stream";
@@ -12,11 +12,13 @@ import { clipTime, watchUrl } from "../../../shared/recording";
 import { playMatchVideo } from "../../../lib/streamSeek";
 import { cn } from "../../cn";
 
-const Video = createContext<SearchVideo | undefined>(undefined);
+/** The answer's video, and how many row clips were played: each one stops the card's player, so two never play at once. */
+const Video = createContext<{ video?: SearchVideo; rowPlays: number; rowPlayed: () => void }>({ rowPlays: 0, rowPlayed: () => {} });
 
 /** The answer's video, for the card's player and the rows' buttons under it. */
 export function AnswerVideoProvider({ video, children }: { video: SearchVideo | undefined; children: ReactNode }) {
-  return <Video.Provider value={video}>{children}</Video.Provider>;
+  const [rowPlays, setRowPlays] = useState(0);
+  return <Video.Provider value={{ video, rowPlays, rowPlayed: () => setRowPlays((n) => n + 1) }}>{children}</Video.Provider>;
 }
 
 /** What the video is, in words: the match once, or the event's stream (the card's title already names the event). */
@@ -28,13 +30,16 @@ export function videoCaption(v: SearchVideoItem): string {
 
 /** The card's player: 16:9, the card's full width on a phone, loaded on a click. */
 export function AnswerVideo({ className }: { className?: string }) {
-  const v = useContext(Video)?.main;
+  const v = useContext(Video).video?.main;
   // Another answer's video starts at its picture again.
   return v ? <Player key={`${v.videoId}:${v.t}`} v={v} className={className} /> : null;
 }
 
 function Player({ v, className }: { v: SearchVideoItem; className?: string }) {
   const [on, setOn] = useState(false);
+  // A row's clip opened in the video dialog: the card's player goes back to its picture.
+  const { rowPlays } = useContext(Video);
+  useEffect(() => { setOn(false); }, [rowPlays]);
   const caption = videoCaption(v);
   const src = `${embedUrl(v.videoId)}?${new URLSearchParams({ autoplay: "1", rel: "0", ...(v.t ? { start: String(v.t) } : {}) })}`;
   return (
@@ -62,16 +67,17 @@ function Player({ v, className }: { v: SearchVideoItem; className?: string }) {
 
 /** Whether any of these rows has a clip (a table then gives its buttons a column). */
 export function useRowPlays(hrefs: (string | undefined)[]): boolean {
-  const rows = useContext(Video)?.rows;
+  const rows = useContext(Video).video?.rows;
   return !!rows && hrefs.some((h) => h && rows[h]);
 }
 
 /** A listed match's play button, when it has a clip: it plays in the app's video dialog. `label` names the match in it. */
 export function RowPlay({ href, label, className }: { href: string; label: string; className?: string }) {
-  const v = useContext(Video)?.rows?.[href];
+  const { video, rowPlayed } = useContext(Video);
+  const v = video?.rows?.[href];
   if (!v) return null;
   return (
-    <button type="button" onClick={() => playMatchVideo({ videoId: v.videoId, t: v.t, label })}
+    <button type="button" onClick={() => { rowPlayed(); playMatchVideo({ videoId: v.videoId, t: v.t, label }); }}
       className={cn("inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-text-base/[0.06] hover:text-foreground max-md:size-11 pointer-coarse:size-11", className)}
       aria-label={`Play ${label}: ${v.kind === "match" ? "official match video" : `the event's recording from ${clipTime(v.t)}`}`} title={videoCaption(v)} data-row-play={v.kind}>
       <PlayCircle className="size-5" aria-hidden />

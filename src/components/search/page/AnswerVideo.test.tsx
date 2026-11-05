@@ -53,6 +53,18 @@ describe("AnswerVideo", () => {
     } finally { off(); }
   });
 
+  it("a row's clip stops the card's player first: never two videos at once", () => {
+    const off = onVideoDialog(() => {});
+    try {
+      const c = draw(video);
+      fireEvent.click(c.querySelector("[data-video-facade]")!);
+      expect(c.querySelector("iframe")).not.toBeNull();
+      fireEvent.click(c.querySelector("[data-row-play]")!);
+      expect(c.querySelector("iframe")).toBeNull();
+      expect(c.querySelector("[data-video-facade]")).not.toBeNull();
+    } finally { off(); }
+  });
+
   it("no video: no player, no button, no empty box or words about it", () => {
     const c = draw(undefined);
     expect(c.querySelector("[data-answer-video], [data-row-play], iframe")).toBeNull();
