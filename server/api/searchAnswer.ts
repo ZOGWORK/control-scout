@@ -17,7 +17,7 @@
 // the app asks /api/search/refine after these results are on screen (./searchBruno.ts).
 import type { SearchAnswer, SearchHit, SearchRecovery, SearchUnderstood } from "../../src/shared/api.js";
 import { SEARCH_BROWSE, SEARCH_FILLER, SEARCH_PAGE_LIMIT, SEARCH_TOPICS, TOPIC_LABEL, VERSUS, cardWho, onlyPageWords, pagesFor, showingLine } from "../../src/shared/search.js";
-import { conversationQuery, isQuestionForm, nameWords, singularize } from "../../src/shared/searchQuery.js";
+import { conversationQuery, isQuestionForm, nameWords, onlyCommonWords, singularize } from "../../src/shared/searchQuery.js";
 import { readEventQuery, regionOf } from "../../src/shared/searchEventQuery.js";
 import { eventSetAnswer } from "./searchEvents.js";
 import { versusAnswer } from "./searchCompare.js";
@@ -263,7 +263,9 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   if (said) return said;
 
   // 0. A stat question about a team ("4215 highest score in worlds", "4215 worlds record"): ./answers/index.ts.
-  const stat = opts.intents === false ? null : await statAnswer(q, (core) => searchAnswer(core, { ...opts, intents: false, learn: false }), { full: !!opts.full, pages: pagesFor(q) });
+  // Common words alone ("without", "team", "best") name no team (COMMON_WORDS), however many names hold them.
+  const resolve = (core: string): Promise<SearchAnswer> => (onlyCommonWords(core) ? Promise.resolve(answer(core, { hits: [], step: "deterministic" })) : searchAnswer(core, { ...opts, intents: false, learn: false }));
+  const stat = opts.intents === false ? null : await statAnswer(q, resolve, { full: !!opts.full, pages: pagesFor(q) });
   if (stat) return stat;
 
   // 0. Then the other rewrites, and a question answered on its own: what a word means, a count, the FIRST Championship,

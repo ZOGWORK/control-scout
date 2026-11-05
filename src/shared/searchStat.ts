@@ -27,6 +27,9 @@ export interface StatMatchRow {
   /** The alliance's score without penalties, when it's what the answer ranks by. */
   ownNp?: number | null;
   result: "W" | "L" | "T";
+  /** The alliance's points by period (without penalties), when the match keeps them; `ranked`, the period ranked. */
+  phases?: { auto: number; teleop: number; endgame: number };
+  ranked?: "auto" | "teleop" | "endgame";
   partners?: StatLink[];
   opponents?: StatLink[];
 }
