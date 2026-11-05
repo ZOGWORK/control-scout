@@ -15,10 +15,10 @@ export const SWATCH = {
 } as const;
 
 const INFO: Record<ThemeChoice, { name: string; blurb: string }> = {
-  light: { name: "Light", blurb: "White pages, for daylight and bright venues." },
-  dim: { name: "Dim", blurb: "Soft dark grey, gentler than Dark." },
-  dark: { name: "Dark", blurb: "Graphite, the default." },
-  midnight: { name: "Midnight", blurb: "True black, for night and OLED screens." },
+  light: { name: "Light", blurb: "Pale pink pages, for daylight and bright venues." },
+  dim: { name: "Dim", blurb: "Soft dusky pink, gentler than Dark." },
+  dark: { name: "Dark", blurb: "Deep pink, the default." },
+  midnight: { name: "Midnight", blurb: "Near-black pink, the darkest, for night." },
   system: { name: "System", blurb: "Light or Dark, following your device." },
 };
 
