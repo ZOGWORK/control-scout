@@ -33,10 +33,10 @@ export const BOOT_STYLE = `<style>
       html::-webkit-scrollbar{width:6px;height:6px}html::-webkit-scrollbar-thumb{background:#2e2e35;border-radius:999px}html.light::-webkit-scrollbar-thumb{background:#d4d4d8}html.dim::-webkit-scrollbar-thumb{background:#45464e}html.midnight::-webkit-scrollbar-thumb{background:#222227}
       .csb,.csb *{box-sizing:border-box}
       .csb{line-height:1.5}
-      .csb{--b-bg:#2b0f20;--b-side:#0c0c0e;--b-fg:#f4f4f5;--b-mut:#a1a1aa;--b-line:#ffffff14;--b-acc:#ffc700;--b-tab:#0e0e10f2;display:flex;min-height:100vh;min-height:100dvh;overflow-x:clip;background:var(--b-bg);color:var(--b-fg);font-family:Inter,ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
-      html.light .csb{--b-bg:#fdedf6;--b-side:#fcfcfc;--b-fg:#09090b;--b-mut:#52525b;--b-line:#e4e4e7;--b-acc:#eab308;--b-tab:#fafafaf2}
-      html.dim .csb{--b-bg:#3d1a2e;--b-side:#19191c;--b-fg:#e4e4e7;--b-mut:#b4b4bd;--b-line:#ffffff1a;--b-tab:#19191cf2}
-      html.midnight .csb{--b-bg:#1a0612;--b-side:#000;--b-line:#ffffff12;--b-tab:#000000f2}
+      .csb{--b-bg:#2b0f20;--b-side:#240c1b;--b-fg:#f4f4f5;--b-mut:#a1a1aa;--b-line:#ffffff14;--b-acc:#ffc700;--b-tab:#0e0e10f2;display:flex;min-height:100vh;min-height:100dvh;overflow-x:clip;background:var(--b-bg);color:var(--b-fg);font-family:Inter,ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+      html.light .csb{--b-bg:#fdedf6;--b-side:#fdedf6;--b-fg:#09090b;--b-mut:#52525b;--b-line:#e4e4e7;--b-acc:#eab308;--b-tab:#fafafaf2}
+      html.dim .csb{--b-bg:#3d1a2e;--b-side:#35172a;--b-fg:#e4e4e7;--b-mut:#b4b4bd;--b-line:#ffffff1a;--b-tab:#19191cf2}
+      html.midnight .csb{--b-bg:#1a0612;--b-side:#14040e;--b-line:#ffffff12;--b-tab:#000000f2}
       .csb a:not(.csb-app a){color:inherit;text-decoration:none}
       .csb-side{display:none;position:sticky;top:0;align-self:flex-start;height:100vh;height:100dvh;flex-direction:column;flex-shrink:0;width:232px;border-right:1px solid var(--b-line);background:var(--b-side)}
       .csb-brand{display:flex;align-items:center;gap:10px;height:48px;padding:0 14px;font:700 16px/1 "Space Grotesk",sans-serif;letter-spacing:-.025em}

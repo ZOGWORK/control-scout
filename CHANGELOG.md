@@ -20,7 +20,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 The whole site is pink now, with dog doodles drawn across the background.
 
 ### Highlights
-- [appearance] A pink page in every theme: pale pink on Light, deep pink on Dim, Dark and Midnight
+- [appearance] A pink page in every theme, pale or deep
 - [appearance] Dog doodles (faces, paw prints, bones) across the background
 - [appearance] The browser bar and the first paint match the new pink
 

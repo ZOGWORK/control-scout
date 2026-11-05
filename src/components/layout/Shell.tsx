@@ -305,9 +305,7 @@ export function Shell({ children }: { children: ReactNode }) {
     <MotionConfig reducedMotion="user">
       <TooltipProvider delayDuration={250}>
         {/* At least a screen tall; sideways overflow is clipped (clip, not hidden: no scroll box, so the sticky bars still stick). */}
-        {/* isolate: the dog layer (z -1) paints over this pink background but under the page. */}
-        <div className="isolate flex min-h-dvh w-full overflow-x-clip bg-primary text-text-base">
-          <div aria-hidden className="dog-bg" data-dog-bg />
+        <div className="flex min-h-dvh w-full overflow-x-clip bg-primary text-text-base">
           <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[200] focus:rounded-lg focus:bg-accent focus:px-3 focus:py-2 focus:text-accent-ink">Skip to content</a>
           {!bare && <Sidebar rail={collapsed || !wide} wide={wide} onToggle={toggle} onMenu={openMenu} />}
           <div className="flex min-w-0 flex-1 flex-col">
@@ -336,6 +334,7 @@ export function Shell({ children }: { children: ReactNode }) {
                   toolbar folding away must not resize it mid-scroll. */}
               {!bare && <div className="pointer-events-none sticky top-(--header-h) -mb-[calc(100svh-var(--header-h))] h-[calc(100svh-var(--header-h))]">
                 <Ambient target={mainRef} />
+                <div aria-hidden className="dog-bg" data-dog-bg />
               </div>}
               <main id="main" ref={mainRef} className={bare ? "relative" : "m-canvas relative z-10"}>
                 {bare ? children : (
