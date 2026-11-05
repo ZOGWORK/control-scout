@@ -26,7 +26,7 @@ Search answers misspelled questions about four times faster, and filtered team l
 - [fixes] A page's first slow search tries once more before saying so
 
 ### Search
-- **Typos, faster.** Search's in-memory typo scan scores each distinct name word once per word typed (about a third of the work), skips the spelling distance for words whose letters are already too different, and reuses its working rows. Spelling correction skips the same words. Every score is the same number as before. (#PR)
+- **Typos, faster.** Search's in-memory typo scan scores each distinct name word once per word typed (about a third of the work), skips the spelling distance for words whose letters are already too different, and reuses its working rows. Spelling correction skips the same words. Every score is the same number as before. (#716)
 - **Repeated reads kept.** The search index's reads and the event lists a search reads are kept until the data or the index changes, so the readings of one search (and a correction's second reading) share them. A whole answer is kept for a minute.
 - **Places.** "Events at River Dell High School" and "events in Oradell" work out each venue's spelling once, and each time zone's date format once, instead of once per event per search.
 - **Measured.** `scripts/search-bench.ts` asks a running server 365 queries (the 260 list, the complex queries, misspellings) and checks every answer against an earlier run's.
