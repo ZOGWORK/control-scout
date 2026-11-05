@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.2.5 — 2026-11-05
+
+Search is checked against 533 questions people wrote for it, and the slow ones are fast. (#PRNUM)
+
+### Highlights
+- [speed] Lists of teams that went to Worlds or won an award: under a second, not 45
+- [speed] Long questions no longer look the same words up again and again
+- [report] Search is measured on 533 questions people wrote, by pattern
+
+### Changes
+- **Held-out questions.** `npm run search:heldout` asks the 200 unique queries, the 260-query list and the complex queries, and sorts every answer into a pattern (answered, fallback only, team card only, a place or time not stated, words not read), with the pass rate per set and per pattern.
+- **Speed.** A search remembers the names it looked up for a minute (per index version), so one long question no longer searches the same word dozens of times. Lists filtered by Worlds or an award read each team's own events and awards by index, not the whole season's for every team.
+
 ## 3.2.4 — 2026-11-05
 
 "North Jersey", "Northern California" and every other part of a region now read as that whole region, said so. (#722)

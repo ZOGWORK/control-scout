@@ -116,6 +116,28 @@ to the slow legacy chain at 2.7 s, now 30 ms); "mean" in "mean scoring for …" 
 average; the event check searched again for every repeat of a name (now remembered per index, and skipped for words
 that start like no event's).
 
+## Held-out sets
+
+`npm run search:heldout` (`scripts/search-heldout.ts`) asks the questions people wrote for search and that search was
+never built from: the 200 unique queries, the 260-query list and the complex queries (`scripts/search-heldout.json`,
+533 in all, the invalid and excluded ones left out). They hold no expected numbers: the answer is judged by what it
+shows, and its numbers are the data's. Each is sorted into a pattern, never fixed one by one:
+
+- **pass**: a card (or an events list) that answers it, every place and time typed stated on it
+- **fallback only**, **team card only**, **names only**: no answer, only a list or a team to open
+- **not answered**: the card says it isn't answered directly yet
+- **place not stated**, **time not stated**: a filter typed that the card doesn't show (or shows relaxed)
+- **words not read**: the pipeline answered with a word it didn't read, or a reader said it left one out
+
+It prints the pass rate per set and per pattern, each failing question with its card, and the slowest answer; with
+`--out` it writes one line per question (the intent read, the filters, the place and time resolved, whether the card
+states them). A pattern is fixed in the pipeline (a phrase in the lexicon, a rule, a family), and every set and the
+generated eval run again.
+
+What its first run found and fixed, besides the patterns: one answer looked the same words up 29 times (each reader
+and layer asking again, and each miss scanning every name), now remembered per index version; and the Worlds and
+award filters on a list scanned the season's every event entry for each team (45 s and 36 s), now read by team.
+
 ## Failure patterns
 
 Failed-search reporting (`server/searchFailures.ts`, `docs/failed-search-reporting.md`) files a failure under its
