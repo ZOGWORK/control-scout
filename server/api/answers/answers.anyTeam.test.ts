@@ -143,9 +143,10 @@ describe("an event phrase reads the events the team played", () => {
   it("a team that played none of them is told so, the event checked named, with its own events to ask about", async () => {
     for (const q of ["10809 matches at NJ championship", "10809 record at NJ championship", "10809 opr at the New Jersey championship"]) {
       const r = await ask(q);
-      expect(r.none, q).toBe("Crow Force (10809) didn't play at New Jersey Championship in 2025–26, so it has no matches, rank or awards there. Its 2025–26 events are below.");
+      expect(r.none, q).toBe("Crow Force (10809) didn't play at New Jersey Championship in 2025–26, so it has no matches, rank or awards there. It's a team from California, and New Jersey Championship is New Jersey's. Its 2025–26 events are below.");
       expect(r.headline, q).toBeUndefined();
-      expect(r.blocks[0], q).toMatchObject({ kind: "related", queries: [expect.stringContaining("los angeles qualifier")] });
+      expect(r.blocks[0], q).toMatchObject({ kind: "links", items: [{ label: "Los Angeles Qualifier", href: "/events/2025/USCALAQ1?team=10809" }] });
+      expect(r.blocks[1], q).toMatchObject({ kind: "related", queries: [expect.stringContaining("los angeles qualifier")] });
     }
   });
 });

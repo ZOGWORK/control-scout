@@ -15,6 +15,25 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.1.5 — 2026-11-04
+
+Search answers the failed searches filed since 3.1.4: an event named without "at", numbers typed against words, typos, bare numbers and sorts said in plain words.
+
+### Highlights
+- [teams] "What rank did 4215 get in the east bergen conference"
+- [rankings] "Teleop ranked", "best auto sorted lowest to highest"
+- [fixes] "4215matches", "winnng", "appreacne" and cut-off words read
+- [fixes] A number with no team shows the closest team numbers
+- [teams] A team that skipped an event: the reason, and its real events
+
+### Search
+- **An event named beside the team.** An event's rank, OPR and results, and the forecasts, read the event wherever the query names it ("what rank did 4215 conference", "predicted chances of 4215 east bergen conference"), as one of the team's own events; "conference" alone is the team's conference tournament. Words that name none of its events leave the question as it was. (#689)
+- **Typed together, misspelled, cut off.** A team number typed against the next word ("23268matches") is two words. A long word with its letters jumbled ("appreacne") reaches search's own word, "winnng" is "winning", and "east bergen conference winner" is the event's winning alliance. A query cut off mid-word is read without it, a trip question ("when was the first time enforcers whe") as the Worlds one, offered as a correction.
+- **Numbers with no team.** A single digit or a number no team has ("676767") shows the closest real team numbers, as "238" did, never an empty page; a placeholder entry's number says it has no page.
+- **Sorts in plain words.** "Best team sorted by auto", "teleop ranked", "sorted lowest to highest" (the bottom of the list, each team's place counted from the top) and "best auto and endgame" (the two OPRs added) are the phase-OPR leaderboards. "What is the bet" and "what is the best time" offer "what is the best team".
+- **A rating change with no team.** "Predicted changes" says a change is one team's and asks it of the season's top-rated teams; "4215 predicted change" is its rating change.
+- **An event a team didn't play.** The card says why, from the records: a team from another state or country, else the kinds of events it played that season (or none, with its latest season's), and links each of those events' pages.
+
 ## 3.1.4 — 2026-11-04
 
 Search answers questions that join filters or ask two things at once, each filter it read named on the card and applied.

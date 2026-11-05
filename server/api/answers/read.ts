@@ -78,7 +78,7 @@ const AWARD_TYPES: [RegExp, string][] = [
 const RULES: IntentRule[] = [
   // A season's or an event's winners: "winning alliance", "who won …", and "winner(s)"/"champion(s)" (those two only
   // with Worlds or a season named: "decode winner", "into the deep champions", "worlds winners 2025").
-  { id: "winning-alliance", family: "event", season: "all", noTeam: true, re: /\bwinning\s+alliances?\b|\bwho\s+won\b|\b(?:world\s+)?(?:champions?|winners?)\b/ },
+  { id: "winning-alliance", family: "event", season: "all", noTeam: true, re: /\bwinning\s+alliances?\b|\bwho\s+won\b|\b(?:world\s+)?(?:champions?|winners?)\b|\bwinning(?=\s*$)/ },
   { id: "opr-by-season", family: "trend", season: "all", re: /\bopr\s+(?:by|per|each|every|over\s+the)\s+seasons?\b|\bseason(?:al)?\s+opr\b/ },
   { id: "record-by-season", family: "trend", season: "all", re: /\b(?:record|w-l-t|win[\s-]loss(?:[\s-]tie)?)\s+(?:by|per|each|every)\s+season\b|\bseason\s+by\s+season\s+record\b/ },
   // "Late season form versus early season form", "against top teams", "against rookie teams": groups of matches, never
@@ -114,7 +114,8 @@ const RULES: IntentRule[] = [
   { id: "next-event-wins", family: "stat", season: "all", re: /\bpredicted\s+(?:wins|record|w-l-t)(?:\s+(?:at|for|in)\s+(?:their|its|the)\s+next\s+(?:event|competition|meet))?\b|\bhow\s+many\s+(?:matches\s+)?will\s+(?<team>.+?)\s+win\b/ },
   { id: "playoff-chance", family: "stat", season: "all", re: /\b(?:predicted|projected|expected|likely)\s+to\s+make\s+(?:the\s+)?(?:playoffs?|eliminations?|elims?)(?:\s+(?:at|in)\s+(?:their|its|the)\s+next\s+(?:event|competition|meet))?\b|\b(?:playoffs?|elimination)\s+(?:chances?|odds|probability)\b|\bchances?\s+(?:to|of)\s+mak(?:e|ing)\s+(?:the\s+)?playoffs?\b/ },
   { id: "advance-chance", family: "stat", season: "all", re: /\badvancement\s+(?:chances?|odds|probability)\b|\bchances?\s+(?:to|of)\s+(?:advance|advancing|qualify|qualifying)(?:\s+to\s+(?:the\s+)?(?:worlds?|first\s+championship|states|state\s+championship))?\b|\b(?:odds|probability)\s+(?:to|of)\s+(?:advance|advancing)\b/ },
-  { id: "event-win-chance", family: "stat", season: "all", re: /\bchances?\s+(?:to|of)\s+win(?:ning)?\s+(?:an?|the|their|its)\s+(?:next\s+)?(?:event|competition|meet|tournament)\b|\bevent\s+win\s+(?:chances?|odds|probability)\b/ },
+  // "Predicted chances of 4215 at …": the projection's chances, led by the chance to win the event.
+  { id: "event-win-chance", family: "stat", season: "all", re: /\bchances?\s+(?:to|of)\s+win(?:ning)?\s+(?:an?|the|their|its)\s+(?:next\s+)?(?:event|competition|meet|tournament)\b|\bevent\s+win\s+(?:chances?|odds|probability)\b|\b(?:predicted|projected|forecast)\s+(?:chances?|odds|probabilit(?:y|ies))(?:\s+(?:of|for))?\b/ },
   { id: "toughest-opponent", family: "two-team", season: "all", re: /\b(?:toughest|hardest|strongest|worst)\s+(?:opponents?|rivals?|matchups?)\b|\bnemesis\b/ },
   { id: "most-played-opponent", family: "two-team", season: "all", re: /\bmost\s+(?:played|common|frequent|faced|often\s+(?:played|faced))\s+(?:opponents?|rivals?)\b|\bopponents?\s+(?:faced|played|met)\s+(?:the\s+)?most\b|\bbiggest\s+rival\b/ },
   { id: "frequent-partner", family: "two-team", season: "all", re: /\bmost\s+(?:frequent|common|often|played\s+with)\s+(?:alliance\s+)?partners?\b|\bfrequent\s+(?:alliance\s+)?partners?\b|\bpartnered\s+(?:with\s+)?(?:the\s+)?most\b/ },
@@ -201,6 +202,8 @@ export interface ReadScope {
   place?: Region | null;
   /** "at out-of-state events": events outside the team's own state. */
   outOfState?: boolean;
+  /** `at` was read beside the team, with no "at" (StatQuestion.eventInCore): only the team's own events count. */
+  own?: boolean;
 }
 
 export interface StatQuestion {
@@ -229,6 +232,11 @@ export interface StatQuestion {
   variant?: "per-event" | "rate" | "at-least" | null;
   /** No team: what's left (an event's name, or "" for the season's championship). */
   noTeam: boolean;
+  /** No "at": the event may be named anywhere in `core` beside the team ("what rank did 4215 get in the east bergen
+   *  conference", "4215 conference rank"), as one of the team's own events. */
+  eventInCore?: boolean;
+  /** "east bergen conference winner": a winner word alone, so `core` has to name an event outright. */
+  bare?: boolean;
   /** What names the team. */
   core: string;
 }
@@ -246,6 +254,9 @@ const SEASON_ROWS = new Set<IntentId>(["seasons-played", "seasons-count", "first
 const AWARD_IDS = new Set<IntentId>(["event-wins", "inspire-awards", "finalist-finishes", "total-awards", "award-split", "awards"]);
 /** Answered from event rows: an event-level scope (Worlds, states, a season) applies, a match type or colour doesn't. */
 const EVENT_ROWS = new Set<IntentId>(["best-finish", "worst-finish", "first-place-events", "worlds-divisions", "first-event", "last-event", "best-opr-event", "total-events", "average-rank"]);
+
+/** An event's rank, OPR and results, and the forecasts: their event can be named without "at" (StatQuestion.eventInCore). */
+const EVENT_IN_CORE = new Set<IntentId>(["event-rank", "event-opr", "results", "next-event-wins", "event-win-chance", "advance-chance", "playoff-chance"]);
 
 /** The scope phrases in `q` (lower case), and `q` without them. */
 export function readScope(q: string): { scope: ReadScope; rest: string } {
@@ -407,6 +418,8 @@ export interface LeaderboardQuestion {
   season: number | null;
   /** "best team in New Jersey by OPR": one team asked for. */
   best?: boolean;
+  /** "sorted lowest to highest": the bottom of the list, lowest first. */
+  asc?: boolean;
 }
 
 const BOARD_STAT_WORDS: [string, RegExp][] = [
@@ -481,6 +494,48 @@ export function readLeaderboard(raw: string): LeaderboardQuestion | null {
   if ((m = new RegExp(`^(?:all )?${TEAMS} (?:in|from|based in) (.+)$`).exec(rest)) && !findRegions(m[1]).length && !nearRegion(m[1]) && scope.season == null) {
     return { kind: "city", stat: "opr", n: 25, region: null, city: m[1].trim(), season: null };
   }
+  const sorted = readSorted(rest);
+  return sorted ? { kind: "top", ...sorted, n: 10, region: null, city: null, season: scope.season } : null;
+}
+
+const LOW_WORDS = "worst|lowest|weakest", LOW = `(?:${LOW_WORDS})`;
+/** Lowest first, or highest first, said in words ("sorted lowest to highest", "ascending", "high to low"). */
+const ASC = String.raw`(?:(?:from )?(?:the )?(?:lowest|worst|smallest|least|bottom) (?:to (?:the )?(?:highest|best|top|biggest|most)|first|up)|(?:in )?ascending(?: order)?|low to high|from the bottom)`;
+const DESC = String.raw`(?:(?:from )?(?:the )?(?:highest|best|top|biggest|most) (?:to (?:the )?(?:lowest|worst|smallest|bottom)|first|down)|(?:in )?descending(?: order)?|high to low)`;
+const SORTED = "(?:sorted|ranked|ordered|listed|sort|order|rank)";
+const PHASE_ORDER = ["auto", "teleop", "endgame"];
+
+/** A stat's words, or two or three phases joined ("auto and endgame", "auto + teleop"): their OPRs added, as
+ *  "auto+endgame" (families/leaderboard.ts boardStatFor). */
+function sortStat(s: string): string | null {
+  const one = boardStat(s);
+  if (one) return one;
+  const parts = s.split(/\s*(?:\band\b|\+|&|,)\s*/).filter(Boolean).map(boardStat);
+  if (parts.length < 2 || parts.some((p) => !p || !PHASE_ORDER.includes(p))) return null;
+  const ids = PHASE_ORDER.filter((p) => parts.includes(p));
+  return ids.length > 1 ? ids.join("+") : ids[0];
+}
+
+/** A leaderboard asked for as a sort, in plain words: "what is the best team sorted by auto", "best auto sorted lowest
+ *  to highest", "teleop ranked", "best auto and endgame". `asc`: lowest first. A sort word, a direction or phases
+ *  joined has to be said, so "best auto" and "best team" stay the asks' own. */
+function readSorted(rest: string): { stat: string; asc?: boolean } | null {
+  let t = rest.replace(/^(?:what|who|which)(?: is| are|s)? (?:the )?/, "").replace(/(?:^| )(?:right now|right|rn|currently|now|please)(?= |$)/g, " ").replace(/\s+/g, " ").trim();
+  let dir: "asc" | "desc" | null = null;
+  const d = new RegExp(String.raw`(?:^| )(?:${SORTED} )?(${ASC}|${DESC})$`).exec(t);
+  if (d) { dir = new RegExp(`^${ASC}$`).test(d[1]) ? "asc" : "desc"; t = t.slice(0, d.index).trim(); }
+  const out = (q: string | undefined, s: string) => {
+    const stat = sortStat(s);
+    return stat ? { stat, ...(dir === "asc" || (!dir && q && new RegExp(`^${LOW}$`).test(q)) ? { asc: true } : {}) } : null;
+  };
+  const Q = `(?:(best|top|highest|strongest|${LOW_WORDS}) )?`;
+  let m: RegExpExecArray | null;
+  // "best team sorted by auto", "teams ranked by teleop opr"
+  if ((m = new RegExp(String.raw`^(?:the )?${Q}(?:${TEAMS} )?${SORTED} (?:by|on) (.+)$`).exec(t))) return out(m[1], m[2]);
+  // "teleop ranked", "best auto sorted", "endgame rankings"
+  if ((m = new RegExp(String.raw`^(?:the )?${Q}(.+?)(?: ${TEAMS})? (?:${SORTED}|rankings?|leaderboard)$`).exec(t))) return out(m[1], m[2]);
+  // "best auto and endgame", or a direction said ("auto lowest to highest")
+  if ((m = new RegExp(String.raw`^(?:the )?${Q}(.+?)(?: ${TEAMS})?$`).exec(t)) && (dir || /\band\b|\+|&/.test(m[2]))) return out(m[1], m[2]);
   return null;
 }
 
@@ -536,14 +591,16 @@ export function readStatQuestion(raw: string): StatQuestion | null {
     // The intent's own words go; a team named inside them ("how many matches has 4215 in 2024-25 played") stays, so
     // its scope words are read like any other.
     const { scope, rest } = readScope(q.replace(m[0], ` ${m.groups?.team ?? ""} `));
+    let bare = false;
     if (r.id === "winning-alliance") {
       if (/^world\s/.test(m[0])) scope.championship = true;
       // An award's winner ("who won inspire at nj states", "4215 inspire winner") is the awards' own question; "winner"
       // and "champion" alone name a season's winners only with Worlds or a season ("4215 champion" is a team).
       if (AWARD_WORDS.test(q)) continue;
-      if (!/^(?:who|winning)/.test(m[0]) && !(scope.championship || scope.states || scope.season != null || scope.lastYear || scope.latest)) continue;
       // A team's number left over ("4215 worlds winner") is a question about that team.
       if (/(?:^|\s)\d{1,5}(?:\s|$)/.test(rest)) continue;
+      // Else an event named outright ("east bergen conference winner"): `bare`, checked once the event is looked up.
+      if (!/^(?:who|winning\s)/.test(m[0]) && !(scope.championship || scope.states || scope.season != null || scope.lastYear || scope.latest)) bare = true;
     }
     // A scope the answer's rows can't apply is never dropped silently: the query is left to search.
     if (SEASON_ROWS.has(r.id) && (scope.championship || scope.states || scope.level || scope.alliance)) return null;
@@ -575,7 +632,10 @@ export function readStatQuestion(raw: string): StatQuestion | null {
     if (r.id === "results" && m[0] === "match" && (!(scope.at || scope.championship || scope.states) || /\b(?:record|w-l-t|win[\s-]+loss|rank(?:ed|ing)?|placement|place[ds]?|finish(?:ed)?|seed(?:ed)?|opr)\b/.test(q))) continue;
     // A team's matches at Worlds need no one event ("4215 matches at worlds in 2025").
     // At states: the team's own state championship that season (its division and finals), answered as one event.
-    if (r.needsEvent && !scope.at && !(r.id === "results" && scope.championship) && !(scope.states && r.id !== "match-lookup")) return null;
+    // Else the event may be in what's left beside the team ("4215 rank in the east bergen conference"): the answer
+    // looks for it among the team's own events (StatQuestion.eventInCore).
+    const eventInCore = EVENT_IN_CORE.has(r.id) && !scope.at && !scope.championship && !scope.states;
+    if (r.needsEvent && !scope.at && !(r.id === "results" && scope.championship) && !(scope.states && r.id !== "match-lookup") && !eventInCore) return null;
     // Awards and event rows take a place too ("4215 awards at New Jersey events"): their clauses read the event's region.
     // A state's championship is any team question's ("nj states opr").
     if (((scope.place && !scope.states) || scope.outOfState) && !PLACE_IDS.has(r.id) && !AWARD_IDS.has(r.id) && !EVENT_ROWS.has(r.id)) return null;
@@ -599,7 +659,7 @@ export function readStatQuestion(raw: string): StatQuestion | null {
     // A team-less question: what's left names an event (or nothing: the season's championship).
     // Chosen once the scope is final: a bare year can still turn out to be the team ("2024 record").
     const defaultOf = () => (r.alone && !namesSeasons(scope) ? r.alone : r.season);
-    if (r.noTeam) return { id: r.id, family: r.family, defaultSeason: defaultOf(), scope, leadEvent, n, outcome, count, noTeam: true, core: squash(rest.replace(/\b(?:ftc|first|tech|challenge|the|who|won|what|which|was|is|of|in|for|world|winners?|champions?|winning|alliances?)\b/g, " ").replace(/^[\s-]+|[\s-]+$/g, "")) || (scope.at ?? "") };
+    if (r.noTeam) return { id: r.id, family: r.family, defaultSeason: defaultOf(), scope, leadEvent, n, outcome, count, noTeam: true, ...(bare ? { bare } : {}), core: squash(rest.replace(/\b(?:ftc|first|tech|challenge|the|who|won|what|which|was|is|of|in|for|world|winners?|champions?|winning|alliances?)\b/g, " ").replace(/^[\s-]+|[\s-]+$/g, "")) || (scope.at ?? "") };
     // One award named, and only the newest or the earliest: their words never name the team.
     let left = rest, award: string | undefined, pick: "first" | "latest" | undefined;
     if (r.id === "awards" || r.id === "total-awards" || r.id === "inspire-awards") {
@@ -613,8 +673,10 @@ export function readStatQuestion(raw: string): StatQuestion | null {
     // Nothing else names a team: the "year" was the team's number ("2024 worlds record").
     if (!core && scope.year) { core = String(scope.season); scope.season = null; scope.year = false; }
     if (!core) return null;
+    // An event's own number with only the team said ("4215 rank"): no event, so it's search's team answer.
+    if (eventInCore && r.needsEvent && !/\s/.test(core)) return null;
     const byRecord = (r.id === "best-finish" || r.id === "worst-finish") && /\b(?:event|competition|tournament)$/.test(m[0]);
-    return { id: r.id, family: r.family, defaultSeason: defaultOf(), scope, leadEvent, n, outcome, count, variant, noTeam: false, core, ...(award ? { award } : {}), ...(pick ? { pick } : {}), ...(byRecord ? { byRecord } : {}), ...(r.id === "total-events" && /schedule|calendar/.test(m[0]) ? { schedule: true } : {}) };
+    return { id: r.id, family: r.family, defaultSeason: defaultOf(), scope, leadEvent, n, outcome, count, variant, noTeam: false, core, ...(eventInCore ? { eventInCore } : {}), ...(award ? { award } : {}), ...(pick ? { pick } : {}), ...(byRecord ? { byRecord } : {}), ...(r.id === "total-events" && /schedule|calendar/.test(m[0]) ? { schedule: true } : {}) };
   }
   // "4215 at states": its results there.
   const { scope, rest } = readScope(q);
