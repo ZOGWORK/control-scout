@@ -31,6 +31,7 @@ Search answer cards speak the team page's colours, and match lists are match box
 - **Matches as boxes.** Every list of matches is a grid of match boxes: the place in the list, the match and its event, the red alliance over the blue with their teams as chips and their scores big (the winner marked, the loser muted, the score with penalties under it when it differs) and the listed alliance's points by phase. The highest-scoring matches card drops its bar chart, so each match shows once, and the headline names the alliance's teams.
 - **Combined scores.** The highest combined scores list each match's red and blue teams, its event with its type, the winning side bold and a thin bar scaled from the lowest listed to the top.
 - **Phones.** An event table's season and date fold under the event's name, so the columns left are numbers; combined-score rows are two lines.
+
 ## 3.1.5 — 2026-11-04
 
 How it works shows today's engine on the month-by-month test, instead of the engine 1.x figure.
