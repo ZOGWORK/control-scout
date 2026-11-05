@@ -1,9 +1,9 @@
 // Predictions in search: the engine's own numbers, never worked out here.
-//   Two teams ("4215 vs 6980 prediction", "4215 win probability against 6980", "4215 expected margin against 6980"):
+//   Two teams ("12345 vs 67890 prediction", "12345 win probability against 67890", "12345 expected margin against 67890"):
 //     the call /api/predict/match makes for the same lineup (one team on each alliance, a qualification match), from
 //     the ratings the pages already hold (readyForecaster: search never starts a ratings build). The ratings shown
 //     are the stored season rows the team pages show.
-//   One team's next event ("4215 chance to win an event", "4215 advancement chances"): the projection the background
+//   One team's next event ("12345 chance to win an event", "12345 advancement chances"): the projection the background
 //     job stored for that event (server/projections/store.ts: event_projections), read as the event page reads it.
 //     No stored projection: the card names the event and says the projection isn't published yet. Never a guess.
 import type { StatAnswer, StatBlock } from "../../../../src/shared/searchStat.js";
@@ -40,7 +40,7 @@ export async function predictionSeason(a: number, b: number): Promise<{ season: 
   return { season: both[0], why: `The season is ${seasonLabel(both[0])}, the latest season both teams have a prediction rating in.` };
 }
 
-/** "4215 vs 6980 prediction", "who wins", "predicted score", "expected margin", "win probability". */
+/** "12345 vs 67890 prediction", "who wins", "predicted score", "expected margin", "win probability". */
 export async function pairPrediction(intent: string, title: string, a: AnswerTeam, b: AnswerTeam, season: number, why?: string): Promise<StatAnswer> {
   const S = seasonLabel(season);
   const base = { family: "two-team" as const, intent, title, team: a, teams: [a, b], scope: [S, "Qualification match, one team per alliance"], definition: `${PREDICT_RULE}${why ? ` ${why}` : ""}`, source: `From the engine's ${S} prediction ratings` };

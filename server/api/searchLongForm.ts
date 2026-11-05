@@ -1,6 +1,6 @@
 // Long, conversational queries said the short way search's readers know (docs/search-layers.md, "Long-form"):
-// "when was the last time 4215 went worlds" is "4215 worlds appearances", "is 4215 better than 6980 at auto" is
-// "4215 versus 6980 who is better at auto". Fixed rules, no model: the question's wrapper ("can you tell me", "what
+// "when was the last time 12345 went worlds" is "12345 worlds appearances", "is 12345 better than 67890 at auto" is
+// "12345 versus 67890 who is better at auto". Fixed rules, no model: the question's wrapper ("can you tell me", "what
 // was", "how many times has", "please", "?") and its fillers ("the team", "right now") go, the verbs around Worlds
 // and events ("went", "made it to", "qualified for") become the phrase the answer families read, and every word that
 // scopes the answer stays: a season ("last season", "2024-25"), a place, an event's name.
@@ -21,8 +21,8 @@ const OPENERS = [
   /^(?:i\s+(?:want|wanna|would\s+like|'d\s+like|need)\s+(?:to\s+)?(?:know|see|find\s+out)\s+)/,
   /^(?:do\s+you\s+know\s+|tell\s+me\s+|show\s+me\s+|give\s+me\s+|find\s+me\s+|please\s+)/,
 ];
-/** Spoken fillers anywhere in a question ("what is like the opr for 4215"): never what is asked. "like" only where it
- *  says nothing: never comparing ("teams like 4215", "robots like theirs", "what does 4215 look like"), nor before a
+/** Spoken fillers anywhere in a question ("what is like the opr for 12345"): never what is asked. "like" only where it
+ *  says nothing: never comparing ("teams like 12345", "robots like theirs", "what does 12345 look like"), nor before a
  *  team's number. */
 const FILLERS = /\s(?:um+|uh+|basically|actually|literally|kinda|kind\s+of|sort\s+of|(?<!\b(?:teams?|robots?|ones?|someone|something|anything|similar|look|looks|looked|feel|feels|would|do|does|did|i|you|we|they)\s)like(?!\s+(?:#?\d+|them|theirs|their|it|this|that|those|these|team|robot)\b))(?=\s)/g;
 /** Closing fillers: "please", "for me", "right now", "thanks". */
@@ -58,15 +58,15 @@ const RULES: [RegExp, (m: RegExpExecArray) => string][] = [
   // Their events, OPR over time, rank.
   [new RegExp(String.raw`^(?:what|which)\s+(?:events?|meets?|competitions?|tournaments?)\s+(?:has|have|did|does)\s+${T}\s+(?:go(?:ne)?\s+to|went\s+to|compete(?:d)?\s+(?:at|in)|attend(?:ed)?|play(?:ed)?\s+(?:at|in))(.*)$`), (m) => `events ${m[1]} went to${m[2]}`],
   [new RegExp(String.raw`^how\s+(?:has|did|have)\s+${T}\s+opr\s+(?:changed|change|grown|grow|improved|improve|gone|developed)(?:\s+(?:over|across|through)\s+(?:the\s+)?(?:seasons|years))?(.*)$`), (m) => `${m[1]} opr trend over seasons${m[2]}`],
-  // "Where does 4215 rank": OPR, unless the question names the stat ("in rating", "by auto opr").
+  // "Where does 12345 rank": OPR, unless the question names the stat ("in rating", "by auto opr").
   [new RegExp(String.raw`^where\s+(?:does|did|do)\s+${T}\s+rank(?:\s+(?:in|by|for|on)\s+(?:the\s+)?((?:(?:auto|teleop|endgame|penalty)\s+)?opr|(?:prediction\s+)?rating|reliability))?(.*)$`), (m) => {
     const stat = m[2] ? (/rating/.test(m[2]) ? "rating" : m[2]) : "opr";
     return `${m[1]} ${stat} rank${m[3]}`;
   }],
   [new RegExp(String.raw`^how\s+(?:did|has|does|is)\s+${T}\s+(?:do|done|doing)\b(?:\s+record(?:\s+|-)?wise)?(.*?)(?:\s+record(?:\s+|-)?wise)?$`), (m) => `${m[1]} record${m[2]}`],
-  // "what is the highest score 4215 has ever gotten": the stat, then the team, then a verb.
+  // "what is the highest score 12345 has ever gotten": the stat, then the team, then a verb.
   [new RegExp(String.raw`^(?:what|which)\s+(?:is|was|are|were)\s+(?:the\s+)?(.+?)\s+(?:that\s+)?(?:team\s+)?(\d{1,6})\s+(?:has\s+|have\s+|had\s+)?(?:ever\s+)?(?:gotten|got|had|scored|earned|won|reached|posted|put\s+up|hit)(.*)$`), (m) => `${m[2]} ${m[1]} ever${m[3]}`],
-  // The plain wrappers last: "what is the opr of team 4215", "what was 4215 record at worlds".
+  // The plain wrappers last: "what is the opr of team 12345", "what was 12345 record at worlds".
   [/^(?:what|which)\s+(?:is|was|are|were)\s+(?:the\s+)?(.+?)\s+(?:of|for)\s+(?:the\s+)?(?:team\s+)?#?(\d{1,6})(.*)$/, (m) => `${m[2]} ${m[1]}${m[3]}`],
   [/^(?:what|which)\s+(?:is|was|are|were)\s+(?:the\s+)?(?:team\s+)?#?(\d{1,6})\s+(.+)$/, (m) => `${m[1]} ${m[2]}`],
 ];
@@ -76,11 +76,11 @@ const phase = (p: string) => (/^auto/.test(p) ? "auto" : /^tele|^driver/.test(p)
 /** The long query said the short way, or null when it isn't a long phrasing this knows (nothing would change). */
 export function longForm(raw: string): string | null {
   let t = ` ${raw.toLowerCase().replace(/[?!.]+\s*$/, "").replace(/[’]/g, "'").replace(/\s+/g, " ").trim()} `;
-  // "4215's", "hypnotic robotics'": the possessive is the team.
+  // "12345's", "hypnotic robotics'": the possessive is the team.
   t = t.replace(/(\d)'s\b/g, "$1").replace(/(\w)'s\s/g, "$1 ").replace(/(\w)s'\s/g, "$1s ");
   t = t.trim();
   const start = t;
-  // Inner fillers go once, before the wrappers are read ("what is like the opr for 4215" → "what is the opr for 4215").
+  // Inner fillers go once, before the wrappers are read ("what is like the opr for 12345" → "what is the opr for 12345").
   for (let n = ` ${t} `.replace(FILLERS, ""); n !== ` ${t} `; n = ` ${t} `.replace(FILLERS, "")) t = n.trim();
   for (let changed = true; changed;) {
     changed = false;
@@ -92,7 +92,7 @@ export function longForm(raw: string): string | null {
     const m = re.exec(t);
     if (m) { t = to(m); break; }
   }
-  // A team number with "team" before it ("the team 4215", "team #4215") is that number.
+  // A team number with "team" before it ("the team 12345", "team #12345") is that number.
   t = t.replace(/\b(?:the\s+)?team\s+#?(\d{1,6})\b/g, "$1").replace(/\s+/g, " ").trim();
   return t && t !== start ? t : null;
 }

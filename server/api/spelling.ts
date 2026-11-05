@@ -275,7 +275,7 @@ const naming = (a: SearchAnswer, w: string) => a.hits.slice(0, 10).filter((h) =>
 
 /** `a`, the answer for `typed`, read again with its spelling corrected (`run` answers a query). The corrected answer
  *  is taken, as a correction (`didYouMean`, step "did-you-mean" unless it found nothing), when it is better: stronger
- *  ("hypnotc robotics", "4215 recrod"), or as strong with more results naming the corrected words than named the typed
+ *  ("hypnotc robotics", "12345 recrod"), or as strong with more results naming the corrected words than named the typed
  *  ones ("oradel": one event's typo, "Oradell": every team there), or nothing either way when the fix is search's own
  *  word (the corrected reading says what was asked). Else `a`, with the fix offered (`didYouMean` alone) when it is
  *  search's own word and both found near matches alike. An answer that reads the query directly is never second-guessed. */

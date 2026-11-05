@@ -101,7 +101,7 @@ const LEADER_STATS: Record<string, (f: Found) => string> = {
 export const LEADER_STAT_WORDS = Object.keys(LEADER_STATS);
 const LEADER_STAT_ORDER = ["win rate", "wins", "auto", "teleop", "endgame", "opr", "prediction rating", "rating", "teams"];
 
-/** A phase is its own stat word: "4215 auto" is the team's Auto OPR, "best auto" the Auto OPR leaderboard. */
+/** A phase is its own stat word: "12345 auto" is the team's Auto OPR, "best auto" the Auto OPR leaderboard. */
 export const PHASES: Record<string, Found["phase"]> = { auto: "auto", autonomous: "auto", teleop: "teleop", endgame: "endgame" };
 
 /** Award names in the data: a name narrows the awards (or winners) intent, never a team-name search. */

@@ -4,12 +4,13 @@
 import { all, kvGet } from "../../db.js";
 import { registerCache } from "../../caches.js";
 import { countryOf } from "../../../src/shared/countries.js";
-import { regionOf } from "../../../src/shared/searchEventQuery.js";
+import { regionOf, regionPartOf } from "../../../src/shared/searchEventQuery.js";
 import { edits, nearRegion } from "../../../src/shared/regions.js";
 
 export interface TeamName { number: number; name: string | null; country: string | null; state: string | null; city: string | null; lastPlayed: number | null }
 /** A place: a region (a state or province), a whole country, or a town (with the region it's in). */
-export interface Place { kind: "region" | "country" | "city"; country: string; state: string | null; city: string | null; name: string }
+/** `part`: the words when they named part of a region ("north jersey"), which is read as the whole region. */
+export interface Place { kind: "region" | "country" | "city"; country: string; state: string | null; city: string | null; name: string; part?: string }
 
 export interface Names {
   team(n: number): TeamName | undefined;
@@ -95,6 +96,10 @@ export function buildNames(teams: Row[], places: { city: string | null; state: s
         const t = [...town.values()][0];
         return { kind: "city", country: t.country, state: t.state, city: t.city, name: t.city };
       }
+      // A part of a region ("north jersey", "northern IN"), as typed so a code in capitals still reads: after a stored
+      // town of that name ("East Brunswick" is a town, never New Brunswick).
+      const half = regionPartOf((typed ?? w).split(/\s+/));
+      if (half) return { kind: "region", country: half.region.country, state: half.region.state, city: null, name: half.region.name, part: half.part };
       return null;
     },
   };
