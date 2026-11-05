@@ -9,7 +9,7 @@
 export const FLAGS = [
   "livePredictions", "advancementOdds", "bracketOdds", "powerRankings", "coinFlips", "factorSheet", "offlinePacks", "eventBundle", "discordBot", "workspaceScouting", "scoutingAlliances", "scoutingCommons", "rulesReference", "venueLightMode", "scheduleDifficulty",
   "realtime", "errorReporting", "failedSearchReports", "photos", "push", "autoPowerRankings", "dailyPowerRankings", "weeklyDigest",
-  "seasonRoadMap", "brunoSearch", "brunoAnswers", "searchLearning",
+  "seasonRoadMap", "brunoSearch", "brunoAnswers", "searchLearning", "dogTheme",
 ] as const;
 export type Flag = (typeof FLAGS)[number];
 export type FlagSet = Record<Flag, boolean>;
@@ -19,8 +19,8 @@ export type FlagScope = "global" | "workspace";
 export const isFlag = (x: unknown): x is Flag => typeof x === "string" && (FLAGS as readonly string[]).includes(x);
 
 /** Flags a fresh server starts with off, until the owner turns them on: Bruno AI in search waits on the owner's pick
- *  from its experiment report (docs/search.md). */
-export const OFF_BY_DEFAULT: readonly Flag[] = ["brunoSearch"];
+ *  from its experiment report (docs/search.md); the dog theme is the owner's to turn on when they like. */
+export const OFF_BY_DEFAULT: readonly Flag[] = ["brunoSearch", "dogTheme"];
 
 /** Every flag on but OFF_BY_DEFAULT: what a fresh server, or one whose flags can't be read, runs with. */
 export const DEFAULT_FLAGS: FlagSet = Object.fromEntries(FLAGS.map((f) => [f, !OFF_BY_DEFAULT.includes(f)])) as FlagSet;
@@ -42,6 +42,7 @@ export const FLAG_META: Record<Flag, { group: FlagGroup; scope: FlagScope }> = {
   scheduleDifficulty: { group: "feature", scope: "global" },
   rulesReference: { group: "feature", scope: "global" },
   venueLightMode: { group: "feature", scope: "global" },
+  dogTheme: { group: "feature", scope: "global" },
   realtime: { group: "kill", scope: "global" },
   errorReporting: { group: "kill", scope: "global" },
   failedSearchReports: { group: "kill", scope: "global" },
@@ -163,6 +164,11 @@ export const FLAG_INFO: Record<Flag, { label: string; on: string; off: string; p
     label: "Scouting alliances",
     on: "Workspace admins can share scouting with other teams for one meet (a Scout-only alliance of any number of teams, never a Control Point membership); every team in it then reads the others' entries and assignments at that event and shares one consensus.",
     off: "No new links, and nothing is read across workspaces through existing ones: each workspace sees only its own scouting again. Links are kept (and still end with their event), so switching back on resumes them.",
+  },
+  dogTheme: {
+    label: "Dog theme",
+    on: "Every page is tinted yellow in every theme (Light, Dim, Dark and Midnight), with the dog's photo faintly across the background. Cards, text and answer colours stay as they are.",
+    off: "The usual page colours, no photo.",
   },
   venueLightMode: {
     label: "Light version (venue mode)",

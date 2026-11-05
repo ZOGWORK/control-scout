@@ -272,6 +272,8 @@ function NoDataNotice() {
 export function Shell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(() => { try { return localStorage.getItem("cs-sidebar") === "1"; } catch { return false; } });
   const [menu, setMenu] = useState(false);
+  // The owner's dog theme (dogTheme, off by default): the dog's photo faintly across the page (src/index.css).
+  const dog = useFlag("dogTheme");
   // The menu sheet and anything opened from it (What's new) hand focus back to the button that opened it (the
   // phone's menu button, or the narrow desktop's rail button) when they close, even when their own opener has
   // gone (a row in the closed sheet) or never had focus (Safari doesn't focus a tapped button).
@@ -334,7 +336,7 @@ export function Shell({ children }: { children: ReactNode }) {
                   toolbar folding away must not resize it mid-scroll. */}
               {!bare && <div className="pointer-events-none sticky top-(--header-h) -mb-[calc(100svh-var(--header-h))] h-[calc(100svh-var(--header-h))]">
                 <Ambient target={mainRef} />
-                <div aria-hidden className="dog-bg" data-dog-bg />
+                {dog && <div aria-hidden className="dog-bg" data-dog-bg />}
               </div>}
               <main id="main" ref={mainRef} className={bare ? "relative" : "m-canvas relative z-10"}>
                 {bare ? children : (
