@@ -7,7 +7,7 @@
 /** Which family of answer a suggestion shows off: the six on show are never two of one family. */
 export type SuggestionKind =
   | "team" | "opr" | "rating" | "record" | "matches" | "awards" | "worlds" | "versus" | "three"
-  | "leaderboard" | "winners" | "predict" | "spelling" | "question" | "filters";
+  | "leaderboard" | "winners" | "predict" | "question" | "filters";
 
 /** `q` runs on tap; `label` is the chip's text when the query is too long for a chip (sentence case); `teams`: the
  *  team numbers a query names by name, not number ("hypnotic robotics" is 4215), so a team still shows once. */
@@ -90,10 +90,6 @@ export const HOME_SUGGESTIONS: readonly HomeSuggestion[] = [
   { q: "Will 6980 win their next event", kind: "predict", label: "6980's next event" },
   { q: "What is 7149's next event", kind: "predict", label: "7149's next event" },
   { q: "16461 vs 6165 who wins", kind: "predict" },
-  // Spelling: "Did you mean"
-  { q: "hypnotik robotics opr", kind: "spelling", label: "Hypnotik robotics OPR", teams: ["4215"] },
-  { q: "infinte turtles record", kind: "spelling", label: "Infinte turtles record", teams: ["16461"] },
-  { q: "bad wolff record", kind: "spelling", label: "Bad wolff record", teams: ["6980"] },
   // Questions in a whole sentence
   { q: "when was the first time 7149 went to worlds", kind: "question", label: "7149's first time at Worlds" },
   { q: "what did 4215 do at states", kind: "question", label: "What did 4215 do at states" },
@@ -129,31 +125,96 @@ function seeded(seed: number): () => number {
   };
 }
 
+/** A chip's width on a desktop (16px text), from its label: measured in a browser, every label's chip is 119–235px
+ *  and no wider than this (68px of border, padding and icon, then about 6.6px a letter). */
+export const chipWidthEstimate = (s: HomeSuggestion) => 68 + 6.6 * suggestionLabel(s).length;
+
+/** The narrowest a desktop's chip column gets (beside the globe at 1280px it is 394px), its gap and its rows: every
+ *  hour's six fit there whole (fitChips), so a desktop always shows all six. */
+export const DESKTOP_CHIPS = { width: 390, gap: 8, rows: 3 } as const;
+
 /** The six for the UTC hour holding `now`: a leaderboard, a whole-sentence or several-filter query, then four other
- *  families, never two of one family. A family whose every query names a team already showing is passed over for
- *  the next one, so a team shows once (the first two always fill: most of their queries name no team). In a
- *  shuffled order. */
+ *  families, never two of one family. A query that names a team already showing, or that wouldn't fit a desktop's
+ *  rows beside the ones chosen (DESKTOP_CHIPS), is passed over; a family with none left gives way to the next one, so
+ *  a team shows once and a desktop shows all six (the first two always fill: most of their queries name no team and
+ *  are short). In a shuffled order. */
 export function suggestionsAt(now: number, pool: readonly HomeSuggestion[] = HOME_SUGGESTIONS): HomeSuggestion[] {
   const rand = seeded(Math.floor(now / SUGGESTION_HOUR_MS) * 2654435761);
   const pick = <T,>(xs: readonly T[]) => xs[Math.floor(rand() * xs.length)];
   const shuffle = <T,>(xs: readonly T[]) => { const a = [...xs]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   const kinds = [...new Set(pool.map((s) => s.kind))];
-  const must: SuggestionKind[] = ["leaderboard", pick(["question", "filters"] as const)];
-  const wanted = [...must, ...shuffle(kinds.filter((k) => !must.includes(k)))].filter((k) => kinds.includes(k));
-  const out: HomeSuggestion[] = [];
-  const used = new Set<string>();
-  for (const kind of wanted) {
-    if (out.length === SUGGESTION_COUNT) break;
-    const all = pool.filter((s) => s.kind === kind);
-    const fresh = all.filter((s) => !suggestionTeams(s).some((t) => used.has(t)));
-    if (!fresh.length && !must.includes(kind)) continue;
-    const s = pick(fresh.length ? fresh : all);
-    suggestionTeams(s).forEach((t) => used.add(t));
-    out.push(s);
-  }
+  // One try at the six; a try that runs out of families (its first picks too long to leave room) is tried again with
+  // the hour's next numbers, so the same hour still gives the same six.
+  const attempt = () => {
+    const must: SuggestionKind[] = ["leaderboard", pick(["question", "filters"] as const)];
+    const wanted = [...must, ...shuffle(kinds.filter((k) => !must.includes(k)))].filter((k) => kinds.includes(k));
+    const out: HomeSuggestion[] = [];
+    const used = new Set<string>();
+    for (const kind of wanted) {
+      if (out.length === SUGGESTION_COUNT) break;
+      const all = pool.filter((s) => s.kind === kind);
+      const fits = (s: HomeSuggestion) => allFit([...out, s].map(chipWidthEstimate), DESKTOP_CHIPS.width, DESKTOP_CHIPS.gap, DESKTOP_CHIPS.rows);
+      const fresh = all.filter((s) => !suggestionTeams(s).some((t) => used.has(t)) && fits(s));
+      if (!fresh.length && !must.includes(kind)) continue;
+      const s = pick(fresh.length ? fresh : all);
+      suggestionTeams(s).forEach((t) => used.add(t));
+      out.push(s);
+    }
+    return out;
+  };
+  let out = attempt();
+  for (let i = 0; i < 20 && out.length < SUGGESTION_COUNT; i++) out = attempt();
   return shuffle(out);
 }
 
-/** Which of the six the placeholder can show ("Try “…”"): queries short enough for the field that type as they
- *  read (a spelling mistake shown as the thing to try would read as our typo). */
-export const placeholderable = (s: HomeSuggestion) => s.kind !== "spelling" && s.q.length <= 30;
+/** Which of the six the placeholder can show ("Try “…”"): queries short enough for the field. */
+export const placeholderable = (s: HomeSuggestion) => s.q.length <= 30;
+
+/** Whether every chip fits whole onto `rows` rows `width` wide (fitChips keeps them all), worked out quickly: the
+ *  widest first, each onto a row with room, trying the next row when the rest won't follow. */
+export function allFit(widths: readonly number[], width: number, gap: number, rows: number): boolean {
+  const ws = [...widths].sort((a, b) => b - a);
+  const used = Array.from({ length: rows }, () => -gap);
+  const place = (i: number): boolean => {
+    if (i === ws.length) return true;
+    const tried = new Set<number>();
+    for (let r = 0; r < rows; r++) {
+      // Rows with the same room left are the same choice.
+      if (tried.has(used[r]) || used[r] + gap + ws[i] > width) continue;
+      tried.add(used[r]);
+      used[r] += gap + ws[i];
+      if (place(i + 1)) return true;
+      used[r] -= gap + ws[i];
+    }
+    return false;
+  };
+  return place(0);
+}
+
+/** Which chips to show, in what order, when they wrap onto `rows` rows `width` wide with `gap` between chips: the
+ *  most that fit whole, keeping a leaderboard and a sentence or filtered query where it can, then the earliest. A
+ *  chip that fits nowhere is left out (it is never cut). Returns indexes into `widths`, row by row, so a list that
+ *  wraps in this order uses no more than `rows` rows, as close to the given order as that allows. */
+export function fitChips(widths: readonly number[], width: number, gap: number, rows: number, kinds: readonly SuggestionKind[] = []): number[] {
+  const n = widths.length;
+  const fits = (row: number[]) => row.reduce((w, i) => w + widths[i], 0) + gap * Math.max(0, row.length - 1) <= width;
+  const must = (k: SuggestionKind) => k === "leaderboard" || k === "question" || k === "filters";
+  let best: number[] = []; let bestScore = -1;
+  // Every way of putting each chip on a row, or on none (rows + 1 choices each): at most 4^6, small.
+  const total = (rows + 1) ** n;
+  for (let code = 0; code < total; code++) {
+    const bins: number[][] = Array.from({ length: rows }, () => []);
+    let c = code;
+    for (let i = 0; i < n; i++) { const b = c % (rows + 1); c = Math.floor(c / (rows + 1)); if (b < rows) bins[b].push(i); }
+    if (!bins.every(fits)) continue;
+    const kept = bins.flat();
+    // More chips first, then the must-have kinds, then the earliest chips (a lower mask of left-out ones).
+    const left = Array.from({ length: n }, (_, i) => (kept.includes(i) ? 0 : 1 << (n - 1 - i))).reduce((a, b) => a + b, 0);
+    const score = kept.length * 1e6 + kept.filter((i) => kinds[i] && must(kinds[i])).length * 1e4 + (2 ** n - left);
+    const order = bins.flatMap((b) => [...b].sort((x, y) => x - y));
+    // Of equal ones, the order closest to the hour's own (the first to differ comes earlier).
+    const earlier = () => { const d = order.findIndex((x, i) => x !== best[i]); return d >= 0 && order[d] < best[d]; };
+    if (score > bestScore || (score === bestScore && earlier())) { bestScore = score; best = order; }
+  }
+  return best;
+}

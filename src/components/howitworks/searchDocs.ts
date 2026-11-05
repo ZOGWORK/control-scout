@@ -33,7 +33,7 @@ export const SEARCH_STEPS: { title: string; body: string; example: string; detai
     title: "Find the team, event or match",
     body: "A number, a name, an event code or two teams to compare.",
     example: "hypnotic robotics",
-    detail: "A bare number (\"4215\", \"team 4215\", \"#4215\") is that team. Two to four teams with \"vs\" open a comparison. Otherwise names are matched word by word: a typo of one letter is forgiven in words of 4 to 7 letters and two in longer ones, and a name typed without spaces (\"badwolf\") still matches. A weaker match is labelled \"Did you mean …?\".",
+    detail: "A bare number (\"4215\", \"team 4215\", \"#4215\") is that team. Two to four teams with \"vs\" open a comparison. Otherwise names are matched word by word: a typo of one letter is forgiven in words of 4 to 7 letters and two in longer ones, and a name typed without spaces still matches. A weaker match is labelled \"Did you mean …?\".",
   },
   {
     title: "Say so when nothing fits",

@@ -7,7 +7,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { RECENT_KEY } from "../search/discover";
-import { SUGGESTION_HOUR_MS, placeholderable, suggestionLabel, suggestionsAt } from "../../shared/homeSuggestions";
+import { SUGGESTION_HOUR_MS, fitChips, placeholderable, suggestionLabel, suggestionsAt } from "../../shared/homeSuggestions";
 import { HERO_EXAMPLE_MS, HeroSearch, heroPlaceholder } from "./HeroSearch";
 
 let reduced = false;
@@ -96,5 +96,47 @@ describe("HeroSearch", () => {
     fireEvent.focus(field());
     fireEvent.keyDown(field(), { key: "Enter" });
     expect(screen.getByTestId("at").textContent).toBe("/");
+  });
+
+  it("never scrolls sideways, and draws only the chips that fit its rows whole, the placeholder skipping the rest", () => {
+    // jsdom lays nothing out: give the list room for two rows of 300px and each chip a width, longer labels wider.
+    const W = (b: Element) => 60 + 7 * (b.textContent ?? "").length;
+    const rect = vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+      const width = this.tagName === "BUTTON" ? W(this) : this.tagName === "UL" ? 300 : 0, height = this.tagName === "BUTTON" ? 30 : 0;
+      return { top: 0, bottom: height, left: 0, right: width, width, height, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
+    });
+    const size = (k: "clientWidth" | "clientHeight", v: number) => vi.spyOn(HTMLElement.prototype, k, "get").mockImplementation(function (this: HTMLElement) { return this.tagName === "UL" ? v : 0; });
+    const cw = size("clientWidth", 300), ch = size("clientHeight", 60);
+    try {
+      show();
+      const list = screen.getByRole("list", { name: "Example searches" });
+      expect(list.className).toContain("flex-wrap");
+      expect(list.className).not.toContain("overflow-x-auto");
+      const all = six();
+      const order = fitChips(all.map((s) => 60 + 7 * suggestionLabel(s).length), 300, 0, 2, all.map((s) => s.kind));
+      const drawn = order.map((i) => all[i]);
+      expect(drawn.length).toBeLessThan(all.length);
+      expect(chips().map((b) => b.textContent)).toEqual(drawn.map(suggestionLabel));
+      const kept = drawn.filter(placeholderable);
+      for (let n = 0; n < kept.length * 2; n++) {
+        expect(kept.map(heroPlaceholder)).toContain(field().getAttribute("placeholder"));
+        act(() => { vi.advanceTimersByTime(HERO_EXAMPLE_MS); });
+      }
+    } finally { rect.mockRestore(); cw.mockRestore(); ch.mockRestore(); }
+  });
+
+  it("draws no chip, and stays put, when none fits the list", () => {
+    const rect = vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+      const width = this.tagName === "BUTTON" ? 400 : this.tagName === "UL" ? 300 : 0, height = this.tagName === "BUTTON" ? 30 : 0;
+      return { top: 0, bottom: height, left: 0, right: width, width, height, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
+    });
+    const ch = vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(function (this: HTMLElement) { return this.tagName === "UL" ? 60 : 0; });
+    try {
+      show();
+      expect(chips()).toEqual([]);
+      act(() => { vi.advanceTimersByTime(HERO_EXAMPLE_MS * 3); });
+      expect(chips()).toEqual([]);
+      expect(field().getAttribute("placeholder")).toBe(heroPlaceholder(six()[0]));
+    } finally { rect.mockRestore(); ch.mockRestore(); }
   });
 });
