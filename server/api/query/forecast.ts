@@ -175,16 +175,17 @@ export async function forecastAt(teams: { number: number; name: string | null }[
   });
 }
 
-/** The chance printed once (the results guide, §7): with a chance bar, a headline or a tile of the same percentage
- *  goes, its details kept under the bar. */
-function once(a: StatAnswer): StatAnswer {
+/** The chance printed once (the results guide, §7): with a chance bar, a headline of the same percentage goes (its
+ *  details kept under the bar), and so does the tile of the same measure, a win chance; another measure (playoffs,
+ *  advancement) stays even when its number matches. */
+export function once(a: StatAnswer): StatAnswer {
   const c = a.blocks.find((x): x is Extract<StatBlock, { kind: "chance" }> => x.kind === "chance");
   if (!c) return a;
   const same = pct(c.p);
   const head = a.headline?.value === same ? a.headline : undefined;
   const note = [head?.sub, c.note].filter(Boolean).join(" · ");
   const blocks = a.blocks.map((x) => (x === c ? { ...c, ...(note ? { note } : {}) }
-    : x.kind === "kpis" ? { ...x, items: x.items.filter((i) => i.value !== same) } : x)).filter((x) => x.kind !== "kpis" || x.items.length);
+    : x.kind === "kpis" ? { ...x, items: x.items.filter((i) => !(i.value === same && /^win\b/i.test(i.label))) } : x)).filter((x) => x.kind !== "kpis" || x.items.length);
   return { ...a, blocks, ...(head ? { headline: undefined } : {}) };
 }
 
