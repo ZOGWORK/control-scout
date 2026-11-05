@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.1.8 — 2026-11-05
+
+Search reads a season's best scores by its game, without penalties or by period, and common words never name a team.
+
+### Highlights
+- [rankings] "Highest score in decode without penalties": the season's best
+- [rankings] "Highest auto score in centerstage", each period's best
+- [fixes] Words like "without", "team" and "best" never name a team alone
+
+### Search
+- **A season's best, by its game.** "What was the highest score in decode without penalties" is DECODE's (2025–26) best alliance score with penalties taken off: the match, its event, both alliances, the score with and without penalties and its auto, teleop and endgame points in their phase colours. Each season's game name, in any spelling ("center stage", "into the deep"), is read from the season list, and a place narrows it ("highest score in nj in into the deep").
+- **One period's best.** "Highest auto score in centerstage", "top teleop scores in decode", "highest endgame score in nj in into the deep": the season's best alliance scores in that period, and both alliances' combined, the period marked on each match.
+- **Common words name no team.** A question whose leftover words are only common ones ("without", "team", "best", "the", "robotics", …) names no team, however many team names hold them ("T.W.C.A. (Team Without a Cool Acronym)" for "without"). Beside a word of a name's own ("team without a cool acronym", "sparks") they still find it, and a name typed whole is still found. (#712)
+
 ## 3.1.7 — 2026-11-05
 
 Search answers the failed searches filed since 3.1.4: an event named without "at", numbers typed against words, typos, bare numbers and sorts said in plain words.

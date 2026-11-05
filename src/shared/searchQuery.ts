@@ -30,6 +30,24 @@ export function singularize(q: string): string {
 /** Words that never name a team or event when other words do (Requirement 1.1 of the FTC One Search brief). */
 export const STOPWORDS = new Set(["in", "at", "on", "the", "a", "an", "for", "of", "this"]);
 
+/** Common words that never name a team by themselves: a stat question's leftovers ("without" in "highest score
+ *  without penalties", "team", "best") resolve no team when only these are left, however many team names hold
+ *  them ("T.W.C.A. (Team Without a Cool Acronym)", "We are the best"). Beside a word of a name's own ("cool
+ *  acronym", "hypnotic robotics") they still help it match. */
+export const COMMON_WORDS = new Set([
+  ...STOPWORDS, "and", "or", "not", "no", "with", "without", "to", "from", "by", "is", "are", "was", "were", "be", "it",
+  "what", "who", "which", "how", "my", "our", "their", "all", "any", "every", "ever", "very", "so",
+  "team", "robot", "robotic", "robotics", "ftc", "first", "tech", "challenge", "club",
+  "best", "top", "highest", "lowest", "most", "least", "high", "low", "good", "great", "big", "new", "old",
+  "score", "scores", "points", "point", "match", "game", "penalty", "penalties",
+]);
+
+/** Whether every word of `q` is a common word (COMMON_WORDS): nothing in it names a team. */
+export const onlyCommonWords = (q: string): boolean => {
+  const ws = singularize(q.toLowerCase()).split(/[^\p{L}\d]+/u).filter(Boolean);
+  return ws.length > 0 && ws.every((w) => COMMON_WORDS.has(w));
+};
+
 /** Words about when, never what: "upcoming meets in New Jersey" is New Jersey's meets from today on. "past",
  *  "recent", "previous" and "latest" are time words only beside an event word ("past meets"), so a name with one
  *  stays a name. Phrases are matched as whole words; longer ones first. */
