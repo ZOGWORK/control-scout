@@ -69,9 +69,40 @@ describe("place and time are applied and stated", () => {
       expect((await stat(q)).headline, q).toMatchObject({ value: "210 points" });
     }
   });
-  it("a window with nothing in it says so for that window", async () => {
-    const s = await stat("highest-scoring match in California this week", Date.parse("2026-02-11T12:00:00Z"));
-    expect(s.none).toBe("No played matches at official events in California this week yet.");
+  it("a window with nothing in it is relaxed to its season, said on the card", async () => {
+    const a = await ask("highest-scoring match in California this week", Date.parse("2026-02-11T12:00:00Z"));
+    const s = a.stat as StatAnswer;
+    expect(s.headline).toMatchObject({ value: "260 points" });
+    expect(s.scope[0]).toBe("Relaxed: this week → 2025–26");
+    expect(s.scope).toContain("California");
+    expect(s.definition).toContain("Nothing matched this week (No played matches at official events in California this week yet)");
+    expect(a.understood?.label).toMatch(/relaxed from this week to 2025–26$/);
+  });
+  it("relaxes to the season before when the window's season has nothing yet, and never relaxes the place", async () => {
+    // Early in 2026–27: nothing played in California yet, so the latest finished season, still California only.
+    const a = await ask("highest-scoring match in California this week", Date.parse("2026-11-04T12:00:00Z"));
+    expect(a.stat).toMatchObject({ headline: { value: "260 points" }, scope: expect.arrayContaining(["Relaxed: this week → 2025–26", "California"]) });
+    expect(a.stat!.definition).toContain("this week → 2026–27, then 2026–27 → 2025–26");
+    // A team's question too: its season instead of the week.
+    const t = await ask("4215 highest score this week", Date.parse("2026-02-11T12:00:00Z"));
+    expect(t.stat).toMatchObject({ headline: { value: expect.stringContaining("150") }, scope: expect.arrayContaining(["Relaxed: this week → 2025–26"]) });
+  });
+  it("a year named is never relaxed", async () => {
+    const s = await stat("highest scoring match in romania in 2024-25");
+    expect(s.none).toBeTruthy();
+    expect(s.scope.some((c) => c.startsWith("Relaxed"))).toBe(false);
+  });
+  it("a window with its year typed keeps that year", async () => {
+    for (const q of ["highest scoring match in California in february 2026", "highest scoring match in California on feb 3 2026"]) {
+      const s = await stat(q);
+      expect(s.none, q).toBeTruthy();
+      expect(s.scope.some((c) => c.startsWith("Relaxed")), q).toBe(false);
+    }
+  });
+  it("nothing after every step says which steps were tried", async () => {
+    const s = await stat("highest scoring match in Texas this week");
+    expect(s.headline).toBeFalsy();
+    expect(s.none).toContain("Nothing in 2025–26 or 2024–25 either");
   });
   it("no place named is every place, never one region by default", async () => {
     const s = await stat("highest scoring match on mar 14 2026");
