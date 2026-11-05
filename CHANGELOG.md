@@ -27,7 +27,7 @@ The whole site is pink now, with dog doodles drawn across the background.
 ### Appearance
 - **Pink background.** The page colour behind everything is pink for everyone, in every theme: #fdedf6 on Light, #3d1a2e on Dim, #2b0f20 on Dark and #1a0612 on Midnight. Cards, text and buttons keep their colours, and text and the keyboard focus ring keep their contrast on the new pages (the light pink is the palest that keeps the focus ring at 3:1).
 - **Dogs.** A tile of outline dog doodles in pink repeats behind the page. It's decorative only (hidden from screen readers, never in the way of a tap) and sits under every card.
-- **Matching chrome.** The phone's browser bar colour, the installed app's colours and the page's first paint before the app loads all use the same pinks, so nothing flashes grey or white first. (#PR)
+- **Matching chrome.** The phone's browser bar colour, the installed app's colours and the page's first paint before the app loads all use the same pinks, so nothing flashes grey or white first. (#761)
 
 ## 3.2.4 — 2026-11-05
 
