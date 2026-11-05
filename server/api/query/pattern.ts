@@ -8,11 +8,8 @@
 // with "scorecard" counted under it.
 import { describe, parseQuery } from "./parse.js";
 import { parseContext } from "./context.js";
-import { LEXICON } from "./lexicon.js";
 
 export interface Pattern { key: string; missed: string[] }
-
-const LEX = new Set(LEXICON.flatMap((e) => e.words));
 
 /** The pattern a query reads as, and the words it couldn't read (lower case, never a number). */
 export async function failurePattern(q: string, now = Date.now()): Promise<Pattern> {
@@ -23,11 +20,14 @@ export async function failurePattern(q: string, now = Date.now()): Promise<Patte
     p.place ? p.place.kind : null, p.event ? "event" : null, p.time ? (p.time.kind === "window" ? "window" : p.time.kind) : null,
     p.n != null ? "count" : null, p.level, p.alliance, p.worlds ? "worlds" : null, p.states ? "states" : null,
   ].filter((x): x is string => !!x);
-  const missed = p.leftover.map((w) => w.toLowerCase()).filter((w) => !/^\d+$/.test(w) && !LEX.has(w));
+  // Every word the parser left, a lexicon word too ("offensive" without "power rating" was never read).
+  const missed = p.leftover.map((w) => w.toLowerCase()).filter((w) => !/^\d+$/.test(w));
   const parts = [
     `intent: ${intent.toLowerCase()}`,
     `slots: ${slots.length ? slots.join(", ") : "none"}`,
     ...(p.unexplained.length ? [`unexplained: ${[...p.unexplained].sort().join(", ")}`] : []),
+    // No intent: what it did read, so "… rp scorecard" and "… reliability scorecard" stay apart.
+    ...(!p.intent ? [`read: ${p.symbols.filter((s) => !s.startsWith("prep:")).sort().join(", ") || "nothing"}`] : []),
     ...(missed.length ? [`not read: ${missed.length === 1 ? "1 word" : `${Math.min(missed.length, 3)}${missed.length > 3 ? "+" : ""} words`}`] : []),
   ];
   return { key: parts.join(" · "), missed };

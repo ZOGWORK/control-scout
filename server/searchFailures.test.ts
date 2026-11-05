@@ -13,7 +13,7 @@ import { setFlag } from "./flags";
 import { searchAnswer } from "./api/searchAnswer";
 import {
   counters, failureBody, onRows, failureOf, readTrace, failureTitle, flushSearchFailures, githubPausedUntil, keyFor, keyHash, noteSearch, outcomeTrace, recheck, redact, reportKey,
-  NEW_PER_DAY, resetSearchFailures, settle, SETTLE_MS, syncOne, syncSearchFailures, type SearchTrace, MISSED_MAX, mergeMissed } from "./searchFailures";
+  NEW_PER_DAY, resetSearchFailures, settle, SETTLE_MS, syncOne, syncSearchFailures, type SearchTrace, MISSED_KEEP, MISSED_MAX, mergeMissed, patternFor } from "./searchFailures";
 import type { SearchAnswer } from "../src/shared/api";
 
 let server: Server;
@@ -204,11 +204,34 @@ describe("failure patterns (docs/search-pipeline.md)", () => {
     expect(body).toContain("### Pattern");
     expect(body).toMatch(/scorecard ×3\nscoresheet ×1/);
   });
-  it("tallies keep the most frequent words", () => {
-    const many = Object.fromEntries(Array.from({ length: MISSED_MAX + 5 }, (_, i) => [`w${i}`, i + 1]));
-    const m = mergeMissed(many, [["w0", 100]]);
-    expect(Object.keys(m)).toHaveLength(MISSED_MAX);
-    expect(Object.keys(m)[0]).toBe("w0");
+  it("rows keep counting well past the words an issue lists, so a newly frequent word can climb", () => {
+    const many = Object.fromEntries(Array.from({ length: MISSED_KEEP + 5 }, (_, i) => [`w${i}`, 100]));
+    expect(Object.keys(mergeMissed(many, []))).toHaveLength(MISSED_KEEP);
+    // Twenty words at 100 each: a new word missed once a flush is kept, and overtakes them.
+    let m: Record<string, number> = Object.fromEntries(Array.from({ length: MISSED_MAX }, (_, i) => [`old${i}`, 100]));
+    for (let i = 0; i < 101; i++) m = mergeMissed(m, [["new", 1]]);
+    expect(Object.entries(m).sort((a, b) => b[1] - a[1])[0]).toEqual(["new", 101]);
+  });
+  it("a word repeated in one query counts the same whether its pattern is new or buffered", async () => {
+    const key = "pattern: intent: team opr · slots: team · not read: 2 words";
+    noteSearch("4215 opr zzz zzz", fallback("4215 opr zzz zzz", "opr zzz zzz"), "192.0.2.31", null, clock, key, ["zzz", "zzz"]);
+    noteSearch("6980 opr zzz zzz", fallback("6980 opr zzz zzz", "opr zzz zzz"), "192.0.2.32", null, clock, key, ["zzz", "zzz"]);
+    clock += SETTLE_MS; settle(clock);
+    await flushSearchFailures(clock);
+    expect(JSON.parse((await all<{ missed: string }>("SELECT missed FROM search_failures WHERE key = ?", [key]))[0].missed)).toEqual({ zzz: 4 });
+  });
+  it("a query that is only personal data has no pattern: skipped as before", async () => {
+    expect(await patternFor("jane@example.com")).toBeNull();
+  });
+  it("two flushes at once never lose words", async () => {
+    const key = "pattern: intent: team opr · slots: team · not read: 1 word";
+    noteSearch("4215 opr aaa", fallback("4215 opr aaa", "opr aaa"), "192.0.2.41", null, clock, key, ["aaa"]);
+    clock += SETTLE_MS; settle(clock);
+    const one = flushSearchFailures(clock);
+    noteSearch("6980 opr bbb", fallback("6980 opr bbb", "opr bbb"), "192.0.2.42", null, clock, key, ["bbb"]);
+    clock += SETTLE_MS;
+    await Promise.all([one, flushSearchFailures(clock)]);
+    expect(JSON.parse((await all<{ missed: string }>("SELECT missed FROM search_failures WHERE key = ?", [key]))[0].missed)).toEqual({ aaa: 1, bbb: 1 });
   });
 });
 
@@ -407,7 +430,7 @@ describe("GitHub issues (cases 23–30)", () => {
     clock = Date.now() + SETTLE_MS * 2;
     await flushSearchFailures(clock);
     // Filed by its pattern (names and numbers left out), the unread word counted beside it.
-    expect((await rows()).map((r) => r.key)).toEqual(["pattern: intent: unread question · slots: none · not read: 1 word"]);
+    expect((await rows()).map((r) => r.key)).toEqual(["pattern: intent: unread question · slots: none · read: nothing · not read: 1 word"]);
     expect(JSON.parse((await all<{ missed: string }>("SELECT missed FROM search_failures"))[0].missed)).toEqual({ xyzzyq: 1 });
     await syncSearchFailures();
     expect(counters.unfiled).toBe(1);

@@ -184,6 +184,8 @@ export async function keyFor(q: string): Promise<string> {
  *  read, redacted. Null when it can't be read: the query's own key (keyFor) is used instead. */
 export async function patternFor(q: string, now = Date.now()): Promise<{ key: string; missed: string[] } | null> {
   try {
+    // Nothing left once personal data is out: no pattern, so the query's own key is skipped as before.
+    if (onlyRedacted(safeQuery(q))) return null;
     const p = await failurePattern(safeQuery(q), now);
     return { key: `pattern: ${p.key}`, missed: p.missed.map(redact).filter((w) => !onlyRedacted(w)) };
   } catch {
@@ -287,11 +289,11 @@ function commit(client: string, p: Pending) {
     b.count++; b.last = Math.max(b.last, p.at); b.failure = p.failure; b.label = p.label;
     // The latest first, a repeat too: the Reproduce link opens examples[0], and the reading is this one's.
     b.examples = [q, ...b.examples.filter((e) => e !== q)].slice(0, EXAMPLES_MAX);
-    for (const w of p.missed) b.missed.set(w, (b.missed.get(w) ?? 0) + 1);
+    tally(b.missed, p.missed);
     return;
   }
   if (buffer.size >= BUFFER_MAX) { counters.dropped++; return; }
-  buffer.set(key, { key, legacy: p.legacy, count: 1, first: p.at, last: p.at, examples: [q], failure: p.failure, label: p.label, missed: new Map(p.missed.map((w) => [w, 1])) });
+  buffer.set(key, { key, legacy: p.legacy, count: 1, first: p.at, last: p.at, examples: [q], failure: p.failure, label: p.label, missed: tally(new Map(), p.missed) });
 }
 
 /** Tests: forget what's waiting and buffered. */
@@ -300,14 +302,23 @@ export function resetSearchFailures() { pending.clear(); buffer.clear(); Object.
 // --- Store --------------------------------------------------------------------------------------------------------
 
 export const EXAMPLES_MAX = 5;
-/** The words a pattern's queries left unread, the most frequent kept. */
+/** The unread words an issue lists, the most frequent first. */
 export const MISSED_MAX = 20;
+/** The unread words a pattern's row keeps counting (bounded): far more than it lists, so a word that starts being
+ *  missed often can still climb into the listed ones. */
+export const MISSED_KEEP = 500;
 
-/** Two tallies of missed words as one, the most frequent first, MISSED_MAX at most. */
+/** Each word of one query counted once per time it appears, the same whether its pattern is new or buffered. */
+function tally(m: Map<string, number>, words: string[]): Map<string, number> {
+  for (const w of words) m.set(w, (m.get(w) ?? 0) + 1);
+  return m;
+}
+
+/** Two tallies of missed words as one, the most frequent first, MISSED_KEEP at most. */
 export function mergeMissed(a: Record<string, number>, b: Iterable<[string, number]>): Record<string, number> {
   const m = new Map(Object.entries(a));
   for (const [w, n] of b) m.set(w, (m.get(w) ?? 0) + n);
-  return Object.fromEntries([...m].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0])).slice(0, MISSED_MAX));
+  return Object.fromEntries([...m].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0])).slice(0, MISSED_KEEP));
 }
 
 interface Row {
@@ -336,7 +347,17 @@ function restore(items: Buffered[]) {
 
 /** Writes the buffer to search_failures in one batch (every minute; and on shutdown, `everything` still settling too).
  *  A failed write keeps the batch for the next flush. */
-export async function flushSearchFailures(now = Date.now(), everything = false): Promise<number> {
+/** One flush at a time (the minute job and a shutdown flush can meet): each reads the rows' word tallies and writes
+ *  them back merged, so two at once would lose one's words. */
+let flushing: Promise<unknown> = Promise.resolve();
+
+export function flushSearchFailures(now = Date.now(), everything = false): Promise<number> {
+  const run = flushing.then(() => flushOnce(now, everything));
+  flushing = run.catch(() => {});
+  return run;
+}
+
+async function flushOnce(now: number, everything: boolean): Promise<number> {
   settle(now, everything);
   const items = [...buffer.values()];
   buffer.clear();
@@ -426,7 +447,7 @@ export function failureBody(r: Row): string {
   const list = (xs: string[]) => (xs.length ? xs.join(", ") : "none");
   const examples = JSON.parse(r.examples) as string[];
   const pattern = r.key.startsWith("pattern: ");
-  const missed = Object.entries(JSON.parse(r.missed || "{}") as Record<string, number>);
+  const missed = Object.entries(JSON.parse(r.missed || "{}") as Record<string, number>).sort((x, y) => y[1] - x[1]).slice(0, MISSED_MAX);
   return [
     "Logged automatically by FTC One Search's failed-search reporting (`docs/failed-search-reporting.md`). This is an entry in a work list: nothing fixes, assigns or closes it automatically.",
     "",
