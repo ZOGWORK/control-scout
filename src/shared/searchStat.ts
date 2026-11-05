@@ -37,6 +37,9 @@ export interface StatMatchRow {
   phases?: { auto: number | null; teleop: number | null; endgame: number | null; pen: number | null } | null;
   /** Its place in a ranked list (1 is the top score). */
   rank?: number;
+  /** The team the row is about (not in `partners`): the first chip on its alliance. Each row its own (a list of
+   *  matches across several teams). */
+  self?: StatLink;
 }
 
 /** One team on a leaderboard. `value` is the asked stat (as `display` shows it); `parts`, an OPR's split. */
@@ -74,8 +77,9 @@ export type StatBlock =
   | { kind: "table"; title: string; columns: { key: string; label: string; num?: boolean }[]; rows: { cells: Record<string, string | number | null>; href?: string; strong?: boolean; type?: string | null;
       /** The event the row's match was at, linked from its event cell (a match row's link is the match). */
       eventHref?: string;
-      /** A match row's two alliances, as team chips in their alliance colours. */
-      teams?: { red: StatLink[]; blue: StatLink[] } }[]; more?: string }
+      /** A match row's two alliances, as team chips in their alliance colours, and which won (the official result,
+       *  penalties included; null on a tie). */
+      teams?: { red: StatLink[]; blue: StatLink[] }; winner?: "red" | "blue" | null }[]; more?: string }
   /** A value over time (events or seasons, oldest first): drawn as a line. */
   | { kind: "series"; title: string; unit?: string; points: { x: string; y: number | null; href?: string; note?: string }[] }
   /** Values as horizontal bars (phase split, two teams side by side). */

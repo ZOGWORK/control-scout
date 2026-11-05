@@ -121,7 +121,7 @@ export function matchRow(m: TeamMatch, links: Map<number, StatLink>, team?: numb
   return {
     label: m.label, href: matchHref(m), event: { label: m.event, href: eventHref(m.season, m.code, team) }, season: seasonLabel(m.season),
     date: m.date ? dateRange(m.date.slice(0, 10)) : null, alliance: m.alliance, own: m.own, opp: m.opp, ownNp: m.ownNp, result: m.result,
-    partners: m.partners.map(link), opponents: m.opponents.map(link), oppNp: m.oppNp, type: m.type,
+    partners: m.partners.map(link), opponents: m.opponents.map(link), oppNp: m.oppNp, type: m.type, ...(team != null ? { self: link(team) } : {}),
     phases: m.ownAuto != null || m.ownTeleop != null || m.ownEndgame != null ? { auto: m.ownAuto, teleop: m.ownTeleop, endgame: m.ownEndgame, pen: m.ownPen } : null,
   };
 }

@@ -156,9 +156,12 @@ export function ResultPill({ text }: { text: string }) {
  *  the lower for a rank, a miss or penalties. */
 export function better(label: string, a: unknown, b: unknown): "a" | "b" | null {
   if (a == null || b == null) return null;
-  const n = (x: unknown) => Number(String(x).replace(/[#,%+]/g, "").replace("−", "-"));
+  // The first number in each (a rank "#12 of 300", a rating "101.6 ±2.3", a ratio "0.50×"), the formatting dropped.
+  const n = (x: unknown) => { const m = /[-−]?\d[\d,]*(?:\.\d+)?/.exec(String(x)); return m ? Number(m[0].replace(/,/g, "").replace("−", "-")) : NaN; };
   const x = n(a), y = n(b);
-  if (!Number.isFinite(x) || !Number.isFinite(y) || x === y || String(a).trim() === "" || String(b).trim() === "") return null;
-  const low = /pen|foul|rank|miss/i.test(label) || String(a).startsWith("#");
+  if (!Number.isFinite(x) || !Number.isFinite(y) || x === y) return null;
+  // Lower is better for a rank, a miss, penalties, losses and every reliability part (no-shows, disqualifications,
+  // near-zero matches, swing).
+  const low = /pen|foul|rank|miss|loss|lost|no-?show|disqualif|\bdq|near-zero|swing/i.test(label) || String(a).trim().startsWith("#");
   return (low ? x < y : x > y) ? "a" : "b";
 }

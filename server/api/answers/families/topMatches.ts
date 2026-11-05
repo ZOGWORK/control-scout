@@ -67,6 +67,8 @@ interface Row { season: number; code: string; level: string; series: number; num
 const COLS = "m.season, m.code, m.level, m.series, m.number, m.label, m.time, e.name, e.type, e.start, e.end, m.red_total, m.red_np, m.blue_total, m.blue_np, m.red_auto, m.red_teleop, m.red_endgame, m.red_pen, m.blue_auto, m.blue_teleop, m.blue_endgame, m.blue_pen, m.breakdown";
 const np = (r: Row, side: "red" | "blue") => (side === "red" ? r.red_np ?? r.red_total : r.blue_np ?? r.blue_total) ?? 0;
 const n0 = (v: number | null | undefined) => (v == null ? null : Number(v));
+/** The official winner (penalties included), null on a tie. */
+const winnerOf = (r: Row): "red" | "blue" | null => { const red = Number(r.red_total) || 0, blue = Number(r.blue_total) || 0; return red > blue ? "red" : blue > red ? "blue" : null; };
 /** An alliance's points by phase, as stored (TeleOp without the endgame), and the penalty points it gave away; null
  *  when the match has no breakdown (breakdown 0: only totals were posted). */
 const phasesOf = (r: Row, s: "red" | "blue") => {
@@ -161,7 +163,7 @@ export async function topMatchesAnswer(t: TopMatchesQuestion, findEvent: (words:
     { kind: "matches", title: `Top ${top.alliances.length} alliance scores`, rows: top.alliances.map(row) },
     { kind: "table", title: "Highest combined scores (both alliances)", columns: [{ key: "rank", label: "#", num: true }, { key: "combined", label: "Combined", num: true }, { key: "score", label: "Red–Blue" }, { key: "match", label: "Match" }, { key: "event", label: "Event" }, { key: "date", label: "Date" }],
       rows: top.combined.map((r, i) => ({ cells: { rank: i + 1, combined: r.score, score: `${np(r, "red")}–${np(r, "blue")}`, match: r.label, event: shortEvent(r.name, r.type), date: dateRange((r.time ?? r.start)?.slice(0, 10) ?? null) },
-        href: matchHref(r), eventHref: eventHref(r.season, r.code), type: r.type, teams: { red: named(r, "red"), blue: named(r, "blue") } })) },
+        href: matchHref(r), eventHref: eventHref(r.season, r.code), type: r.type, teams: { red: named(r, "red"), blue: named(r, "blue") }, winner: winnerOf(r) })) },
   ];
   const bestTotal = Number(best.side === "red" ? best.red_total : best.blue_total);
   return {

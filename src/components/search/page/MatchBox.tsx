@@ -34,8 +34,11 @@ const PHASES: [keyof NonNullable<StatMatchRow["phases"]>, string, Tone][] = [["a
 
 export function MatchBox({ r, team }: { r: StatMatchRow; team?: Who }) {
   const other = r.alliance === "red" ? "blue" : "red";
-  // A team's own row lists its partners without it: the team goes first on its own alliance.
-  const self: StatLink[] = team ? [{ label: `${team.number}${team.name ? ` ${team.name}` : ""}`, href: `/teams/${team.number}` }] : [];
+  // A team's own row lists its partners without it: the team goes first on its own alliance (the row's own team, else
+  // the card's; its name from the card when the row has only the number).
+  const own = r.self ?? (team ? { label: String(team.number), href: `/teams/${team.number}` } : null);
+  const named = own && team && own.label === String(team.number) && team.name ? { ...own, label: `${team.number} ${team.name}` } : own;
+  const self: StatLink[] = named && !(r.partners ?? []).some((p) => p.href.split("?")[0] === named.href.split("?")[0]) ? [named] : [];
   const sides = { [r.alliance]: [...self, ...(r.partners ?? [])], [other]: r.opponents ?? [] } as Record<"red" | "blue", StatLink[]>;
   // The listed score without penalties where the row ranks by it (the other side's then too), else the official ones.
   const np = r.ownNp != null;
@@ -63,7 +66,7 @@ export function MatchBox({ r, team }: { r: StatMatchRow; team?: Who }) {
               <div key={s} className={cn("flex min-w-0 items-center gap-2 rounded-lg px-2.5 py-1.5", s === "red" ? "bg-red-alliance/[0.08]" : "bg-blue-alliance/[0.08]")} data-alliance={s} data-won={won ? "" : undefined}>
                 <span className="sr-only">{s === "red" ? "Red" : "Blue"} alliance{won ? ", won" : lost ? ", lost" : ""}: </span>
                 <span className="flex min-w-0 flex-1 flex-wrap gap-1">
-                  {sides[s].length ? sides[s].map((t) => <TeamChip key={t.href} t={t} side={s} self={!!team && t.href === `/teams/${team.number}`} />) : <span className="text-xs text-muted-foreground">Teams not listed</span>}
+                  {sides[s].length ? sides[s].map((t) => <TeamChip key={t.href} t={t} side={s} self={t === self[0]} />) : <span className="text-xs text-muted-foreground">Teams not listed</span>}
                 </span>
                 <span className="shrink-0 text-right">
                   <span className="flex items-center justify-end gap-1.5">

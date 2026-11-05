@@ -297,6 +297,8 @@ function MatchTable({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
         {b.rows.map((r, i) => {
           const v = Number(r.cells[key]);
           const [red, blue] = String(r.cells.score ?? "").split("–").map(Number);
+          // The official winner (penalties included) when the row says it, else the scores shown.
+          const won = r.winner !== undefined ? r.winner : red > blue ? "red" : blue > red ? "blue" : null;
           return (
             <li key={i} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border px-3 py-2 text-sm first:border-t-0" data-match-row>
               <RankBadge rank={Number(r.cells.rank) || i + 1} />
@@ -305,13 +307,13 @@ function MatchTable({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
                 {Number.isFinite(v) && <span aria-hidden className="flex h-1 w-full justify-end overflow-hidden rounded-full bg-muted"><span className={cn("block h-full rounded-full", TONES.teal.bar)} style={{ width: `${pc(v)}%` }} /></span>}
               </span>
               <span className="w-24 shrink-0 text-center tabular-nums" aria-label={`Red ${red}, blue ${blue}`}>
-                <span className={cn("text-red-alliance-text", red > blue ? "font-bold" : "opacity-80")}>{red}</span><span className="text-muted-foreground">–</span><span className={cn("text-blue-alliance-text", blue > red ? "font-bold" : "opacity-80")}>{blue}</span>
+                <span className={cn("text-red-alliance-text", won === "red" ? "font-bold" : "opacity-80")}>{red}</span><span className="text-muted-foreground">–</span><span className={cn("text-blue-alliance-text", won === "blue" ? "font-bold" : "opacity-80")}>{blue}</span>
               </span>
               {r.href ? <Link to={r.href} className={cn("inline-flex w-16 shrink-0 items-center font-medium text-foreground hover:text-accent-text hover:underline", TAP)}>{r.cells.match}</Link> : <span className="w-16 shrink-0">{r.cells.match}</span>}
               <span className="flex min-w-0 basis-full flex-wrap items-center gap-x-3 gap-y-1 max-md:pl-9 md:basis-0 md:flex-1">
                 <span className="min-w-0 flex-1 basis-48 text-xs">
                   <EventMarker type={r.type} />
-                  {r.eventHref ? <Link to={r.eventHref} className="font-medium text-foreground/90 hover:text-accent-text hover:underline">{r.cells.event}</Link> : r.cells.event}
+                  {r.eventHref ? <Link to={r.eventHref} className={cn("inline-flex items-center font-medium text-foreground/90 hover:text-accent-text hover:underline", TAP)}>{r.cells.event}</Link> : r.cells.event}
                   {!!r.type && <EventMarker type={r.type} chip />}
                   {r.cells.date && <span className="text-muted-foreground"> · {r.cells.date}</span>}
                 </span>

@@ -58,6 +58,12 @@ describe("answer cells", () => {
     expect(better("Penalties", 3, 9)).toBe("a");
     expect(better("OPR", "50", "50")).toBeNull();
     expect(better("OPR", "–", "50")).toBeNull();
+    // Formatted numbers compare by their number; reliability parts are lower-is-better.
+    expect(better("OPR rank", "#12 of 300", "#40 of 300")).toBe("a");
+    expect(better("Prediction rating", "98.0 ±3.2", "101.6 ±2.3")).toBe("b");
+    expect(better("No-shows", 5, 2)).toBe("b");
+    expect(better("Swing", "0.40", "0.25")).toBe("b");
+    expect(better("Penalties given away vs field", "0.50×", "1.20×")).toBe("a");
   });
 });
 
@@ -111,8 +117,23 @@ describe("match box", () => {
     expect(tiles[1].className).toContain(TONES.emerald.box.split(" ")[0]);
     expect(tiles[2].className).toContain(TONES.violet.box.split(" ")[0]);
   });
+  it("a row's own team (a list across several teams) goes first on its alliance, with no card team", () => {
+    const c = html(<ul><MatchBox r={{ ...m, alliance: "red", self: { label: "6980 Bad Wolf", href: "/teams/6980" }, partners: [{ label: "4215 Hypnotic Robotics", href: "/teams/4215" }] }} /></ul>);
+    expect([...c.querySelectorAll('[data-alliance="red"] [data-team-chip]')].map((t) => t.getAttribute("data-team-chip"))).toEqual(["6980", "4215"]);
+  });
   it("a team's own match puts the team first on its alliance", () => {
     const c = html(<ul><MatchBox r={{ ...m, alliance: "red", partners: [{ label: "207 Critical Mass", href: "/teams/207" }] }} team={{ number: 4215, name: "Hypnotic Robotics" }} /></ul>);
     expect([...c.querySelectorAll('[data-alliance="red"] [data-team-chip]')].map((t) => t.getAttribute("data-team-chip"))).toEqual(["4215", "207"]);
+  });
+});
+
+describe("combined scores", () => {
+  it("bolds the official winner, penalties included, not the higher score without them", () => {
+    const stat: StatAnswer = { ...latest, team: undefined, headline: undefined, blocks: [{ kind: "table", title: "Highest combined scores", columns: [{ key: "rank", label: "#", num: true }, { key: "combined", label: "Combined", num: true }, { key: "score", label: "Red–Blue" }, { key: "match", label: "Match" }, { key: "event", label: "Event" }, { key: "date", label: "Date" }],
+      rows: [{ cells: { rank: 1, combined: 205, score: "100–105", match: "Q1", event: "Texas Qualifier", date: "Mar 1, 2026" }, href: "/m", eventHref: "/events/2025/TX", type: "Qualifier", teams: { red: [{ label: "1 A", href: "/teams/1" }], blue: [{ label: "2 B", href: "/teams/2" }] }, winner: "red" }] }] };
+    const c = html(<StatAnswerCard stat={stat} />);
+    expect(c.querySelector("[data-match-row] .text-red-alliance-text")!.className).toContain("font-bold");
+    expect(c.querySelector("[data-match-row] .text-blue-alliance-text.opacity-80")).toBeTruthy();
+    expect([...c.querySelectorAll("[data-match-row] [data-team-chip]")].map((t) => t.getAttribute("data-team-chip"))).toEqual(["1", "2"]);
   });
 });
