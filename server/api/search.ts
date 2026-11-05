@@ -208,10 +208,10 @@ async function searchWords(q: string, limit: number, prefer: ReadonlySet<string>
   type Cand = SearchHit & { weight: number; name: string };
   const cands = new Map<string, Cand>();
   // Common words alone ("without", "team", "best") name no team (COMMON_WORDS): a team's name matches on a word of its
-  // own, or when it's typed whole ("match point" is Match Point).
+  // own, or when it's typed whole ("match point" is Match Point; both sides cleaned alike, so "the best" is The Best).
   const plain = (t: string) => t.toLowerCase().replace(/[^\p{L}\d]+/gu, " ").trim();
   const nameless = onlyCommonWords(query) ? plain(query) : null;
-  const unnamed = (kind: string, title: string) => nameless != null && kind === "team" && plain(teamNameOf(title)) !== nameless;
+  const unnamed = (kind: string, title: string) => nameless != null && kind === "team" && plain(nameWords(teamNameOf(title))) !== nameless;
   const add = (r: any, name: string) => {
     if (unnamed(r.kind, r.title)) return;
     const k = `${r.kind}:${r.ref}`;

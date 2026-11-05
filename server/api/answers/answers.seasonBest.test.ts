@@ -30,7 +30,7 @@ beforeAll(async () => {
   await migrate(c);
   const teams: [number, string, string][] = [
     [4215, "Hypnotic Robotics", "NJ"], [6980, "Bad Wolf", "NJ"], [16091, "T.W.C.A. (Team Without a Cool Acronym)", "NJ"], [24551, "We are the best", "NJ"],
-    [25334, "Best Robotics", "TX"], [10809, "Crow Force", "TX"], [12689, "The Sparks", "TX"],
+    [25334, "Best Robotics", "TX"], [10809, "Crow Force", "TX"], [12689, "The Sparks", "TX"], [30001, "The Best", "TX"],
   ];
   for (const [n, name, state] of teams) {
     await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, 'Town', ?, 'USA')", [n, name, state]);
@@ -75,6 +75,10 @@ describe("common words never name a team by themselves", () => {
     }
     // A name made only of common words is found when typed whole, never from a part of it.
     expect((await full("best robotics highest auto score")).understood?.label).toMatch(/^Best Robotics \(25334\) · /);
+    // Typed whole with its stopword ("the best"), the name is cleaned as the query is.
+    expect((await full("the best")).hits.map((h) => h.ref)).toContain("30001");
+    // "best" reads as The Best's whole name (its "the" dropped), never as a part of "We are the best" or "Best Robotics".
+    expect((await full("best")).hits.filter((h) => h.kind === "team").map((h) => h.ref)).toEqual(["30001"]);
     // A distinctive word beside the common ones keeps the team: its own question, as before.
     expect((await full("team without a cool acronym highest score")).understood?.label).toMatch(/^T\.W\.C\.A\. .*\(16091\) · /);
     expect((await full("4215 highest auto score")).understood?.label).toMatch(/^Hypnotic Robotics \(4215\) · /);
