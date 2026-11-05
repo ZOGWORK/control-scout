@@ -63,7 +63,9 @@ for (const x of sets) {
   // "This season", "last season": the season it resolved to, whichever that is (the card names it); a season said is
   // that season, and a month said is that month and year (its first three letters and the year on the card).
   const timeStated = !p.time || /relaxed|no .* yet|showing \d{4}/.test(text) || text.includes(fold(p.time.label))
-    || (p.time.kind === "season" && (p.time.season == null ? /\b20\d\d 2[0-9]\b/.test(text) : text.includes(fold(seasonLabel(p.time.season)))))
+    // A bare year ("states in 2024") is either season it touches: the one it starts or the one it ends.
+    || (p.time.kind === "season" && (p.time.season == null ? /\b20\d\d 2[0-9]\b/.test(text)
+      : [p.time.season, ...(p.time.year != null ? [p.time.year - 1] : [])].some((y) => text.includes(fold(seasonLabel(y))))))
     || (p.time.kind === "ever" && /every season|all seasons|each season|ever/.test(text))
     || (p.time.kind === "window" && p.time.year != null && fold(p.time.label).split(" ").filter((w) => w && w !== "in").every((w) => text.includes(w.slice(0, 3))));
   // An events question's answer is the list of events, its place and time in the heading.
