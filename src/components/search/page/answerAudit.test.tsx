@@ -6,11 +6,22 @@ import { cleanup, render } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { SearchCard, SearchVideo } from "../../../shared/api";
+import type { SearchCard, SearchVideo, TeamProfile } from "../../../shared/api";
 import type { StatAnswer, StatMatchRow } from "../../../shared/searchStat";
 import type { Appearance } from "./records";
 
-vi.mock("../../../lib/api", async (orig) => ({ ...(await orig<typeof import("../../../lib/api")>()), useApi: () => ({ data: undefined, error: null, loading: false }) }));
+// A team's page data, loaded (the card's team header, season tiles and events draw with it).
+const profile = (team: number, season: number): TeamProfile => ({
+  team: { number: team, name: "Hypnotic Robotics", fullName: null, school: "River Dell Regional High School", sponsors: [], city: "Oradell", state: "NJ", country: "USA", rookieYear: 2010, website: null, homeRegion: "NJ" } as TeamProfile["team"],
+  season, seasons: [season], awardsAllTime: [],
+  stats: { opr: { np: { value: 142.5, rank: 12, of: 8308 }, auto: { value: 40.1, rank: 30, of: 8308 }, teleop: { value: 82, rank: 9, of: 8308 }, endgame: { value: 20.4, rank: 50, of: 8308 }, pen: 3 },
+    rating: { np: 140, auto: 40, teleop: 80, endgame: 20, pen: 3, sd: 6, matches: 39, rank: 15 }, record: { wins: 32, losses: 6, ties: 1, matches: 39, events: 2 }, avg: { np: 200, score: 210, pen: 5 } },
+  events: [{ season, code: "USNJCMP", name: "NJ Championship", type: "Championship", start: "2026-03-07", end: "2026-03-08", city: "Hillsborough", state: "NJ", country: "USA", rank: 2, rp: 2.1, wins: 9, losses: 1, ties: 0, played: 10 } as TeamProfile["events"][number]],
+});
+vi.mock("../../../lib/api", async (orig) => ({ ...(await orig<typeof import("../../../lib/api")>()), useApi: (path: string | null) => {
+  const m = path && /^\/api\/teams\/(\d+)\?season=(\d+)/.exec(path);
+  return { data: m ? profile(+m[1], +m[2]) : undefined, error: null, loading: false };
+} }));
 vi.mock("../../../lib/meta", async (orig) => ({ ...(await orig<typeof import("../../../lib/meta")>()), useCurrentSeason: () => 2025 }));
 const { StatAnswerCard } = await import("./StatAnswer");
 const { EventAwardsAnswer } = await import("./EventAwards");
@@ -75,7 +86,7 @@ const CARDS: Record<string, () => HTMLElement> = {
   "match video (AnswerVideo)": () => draw(<AnswerVideoProvider video={{ main: { videoId: "xnQFL9T27fY", t: 30, kind: "recording", match: "Q10" }, rows: { [match(1).href]: { videoId: "xnQFL9T27fY", t: 90, kind: "recording", match: "Q11" } } } satisfies SearchVideo}>
     <StatAnswerCard stat={{ ...base, family: "superlative", intent: "season-top-matches", title: "Highest-scoring matches", headline: { value: "290 points", label: "Q10 at NJ Championship", href: match(0).href }, blocks: [{ kind: "matches", title: "Top alliance scores", rows: [match(0), match(1)] }] }} /></AnswerVideoProvider>),
   "event awards": () => draw(<EventAwardsAnswer card={{ kind: "event-awards", title: "Inspire Award · NJ Championship · 2025–26", lines: [], award: "Inspire", event: { season: 2025, code: "USNJCMP", name: "NJ Championship" },
-    awards: [{ type: "Inspire", placement: 1, team: 4215, teamName: "Hypnotic Robotics", name: "Inspire Award" }, { type: "Inspire", placement: 2, team: 207, teamName: "Critical Mass", name: "Inspire Award 2nd Place" },
+    awards: [{ type: "Inspire", placement: 1, team: 30439, teamName: "Cool Name", name: "Inspire Award" }, { type: "Inspire", placement: 2, team: 207, teamName: "Critical Mass", name: "Inspire Award 2nd Place" },
       { type: "Inspire", placement: 3, team: 13617, teamName: "Bectobots", name: "Inspire Award 3rd Place" }, { type: "Think", placement: 1, team: 6980, teamName: "Bad Wolf", name: "Think Award" }] } satisfies SearchCard} />),
   "team facts": () => draw(<FactCard card={{ kind: "info", title: "Where they're from", team: { number: 4215, name: "Hypnotic Robotics" }, lines: [], facts: [{ label: "Where they're from", values: ["Oradell, NJ, USA"] }, { label: "Rookie year", values: ["2009"] }] }} />),
   "Worlds trips": () => draw(<AppearancesAnswer team={{ number: 4215, name: "Hypnotic Robotics" }} title="4215's Worlds trips" headline="First went to Worlds in 2023–24 · CENTERSTAGE, Franklin Division" trip={{ which: "first", season: 2023 }} apps={TRIPS} />),
@@ -83,12 +94,26 @@ const CARDS: Record<string, () => HTMLElement> = {
   "how good is a team (quality banner)": () => draw(<QualityBanner s={{ season: 2025, record: "32-6-1", opr: 142.5, rank: 12, of: 8308, pct: 99.9, tier: "Elite", winRate: 83.3 }} />),
 };
 
+/** The team names each card must print exactly once. A list of matches names a team once per match it played (each
+ *  row is a different match), so those cards name none; neither does a card about no team. */
+const NAMES: Record<keyof typeof CARDS, string[]> = {
+  comparison: ["Ultraviolet", "ENFORCERS"],
+  "top matches (match boxes, combined table)": [],
+  "single match": ["Hypnotic Robotics", "Critical Mass", "Bad Wolf", "Infinite Turtles"],
+  leaderboard: ["Ultraviolet", "ENFORCERS"],
+  "team record": [], "stat tiles, OPR by phase": [], "event result (table)": [], "over time (series)": [], bars: [], "prediction at an event (#752)": [],
+  "relaxed window chip (#749)": [], "match video (AnswerVideo)": [],
+  "event awards": ["Cool Name", "Critical Mass", "Bectobots", "Bad Wolf"],
+  "team facts": ["Hypnotic Robotics"],
+  "Worlds trips": ["Hypnotic Robotics"],
+  "Worlds summary (stat banner, timeline)": [], "how good is a team (quality banner)": [],
+};
+
 describe("every answer card passes the guide's checks (§11)", () => {
   for (const [name, make] of Object.entries(CARDS)) {
     // Joined, so a failure lists every problem.
-    it(name, () => expect(auditAnswer(make()).join("\n")).toBe(""));
+    it(name, () => expect(auditAnswer(make(), { names: NAMES[name] }).join("\n")).toBe(""));
   }
-  it("each team name once on a comparison", () => expect(auditAnswer(CARDS.comparison(), { names: ["Ultraviolet", "ENFORCERS"] })).toEqual([]));
 });
 
 describe("the audit catches what it's for", () => {
@@ -97,11 +122,16 @@ describe("the audit catches what it's for", () => {
     expect(bad(`<div class="bg-foreground/50" style="width:40%"></div>`)).toEqual([expect.stringContaining("unmarked bar")]);
     expect(bad(`<div data-bar data-value="50" data-scale="100" class="bg-team-a" style="width:70%"></div>`)).toEqual([expect.stringContaining("lie factor 1.40")]);
     expect(bad(`<div data-bar data-value="50" data-scale="100" class="bg-team-a" style="width:50%;margin-left:20%"></div>`)).toEqual([expect.stringContaining("not from zero")]);
+    expect(bad(`<div data-bar data-value="0" data-scale="100" class="bg-team-a" style="width:100%"></div>`)).toEqual(["bar for 0 drawn 100%"]);
+    expect(bad(`<div data-bar data-value="" data-scale="100" class="bg-team-a" style="width:40%"></div>`)).toEqual([expect.stringContaining("bar without value/scale")]);
   });
   it("a hue on data, gold on data, more than 3 hues", () => {
     expect(bad(`<span class="text-sky-600">Auto</span>`)).toEqual(expect.arrayContaining([expect.stringContaining("hue on data: text-sky-600")]));
     expect(bad(`<b class="text-accent-text">1st</b>`)).toEqual(expect.arrayContaining([expect.stringContaining("gold on data")]));
-    expect(bad(`<button class="bg-accent text-accent-ink">Open</button>`)).toEqual([]);
+    expect(bad(`<a data-primary-cta class="bg-accent text-accent-ink">Open in Predict</a>`)).toEqual([]);
+    // Only the marked primary action and the video's own controls take those colours, not any button or link.
+    expect(bad(`<button class="bg-accent text-accent-ink">Open</button>`)).toEqual(expect.arrayContaining([expect.stringContaining("gold on data: bg-accent")]));
+    expect(bad(`<a href="/teams/1" class="text-video">1</a>`)).toEqual(expect.arrayContaining([expect.stringContaining("hue on data: text-video")]));
     expect(bad(`<i class="bg-team-a"></i><i class="bg-team-b"></i><i class="bg-team-c"></i><i class="bg-red-alliance"></i>`)).toEqual(["4 hues: team-a, team-b, team-c, red-alliance"]);
   });
   it("a line said twice, meta text, a glued heading, low contrast", () => {
@@ -110,5 +140,8 @@ describe("the audit catches what it's for", () => {
     expect(bad(`<h3>157.9leads</h3>`)).toEqual(["glued heading: 157.9leads"]);
     expect(bad(`<h3>2nd place</h3>`)).toEqual([]);
     expect(bad(`<p class="text-foreground/30">faint</p>`)).toEqual([expect.stringContaining("contrast")]);
+    // Seen though aria-hidden, and on every tint at once: rose 500 on a 10% red over an 8% red is under 4.5:1 on Dark.
+    expect(bad(`<p aria-hidden="true" class="text-foreground/30">faint</p>`)).toEqual([expect.stringContaining("contrast")]);
+    expect(bad(`<div class="bg-red-alliance/[0.08]"><span class="bg-red-alliance/10"><b class="text-red-alliance-text">4215</b></span></div>`)).toEqual([expect.stringMatching(/^contrast dark: .*bg-red-alliance\/\[0\.08\] > bg-red-alliance\/10/)]);
   });
 });

@@ -37,9 +37,10 @@ describe("award-at-event answer", () => {
     const c = draw({ ...card, awards: card.awards!.filter((x) => x.placement === 1) });
     expect(c.querySelector("[data-podium] [data-place='1']")!.className).toContain("col-start-2");
   });
-  it("lists every award at the event and links to its Awards tab", () => {
+  it("lists the event's other awards (the podium's places not again) and links to its Awards tab", () => {
     const c = draw(card);
-    expect(c.querySelectorAll("[data-all-awards] [data-award]")).toHaveLength(4);
+    expect(c.querySelectorAll("[data-all-awards] [data-award]")).toHaveLength(1);
+    expect(c.querySelector("[data-all-awards] h3")!.textContent).toBe("Other awards at this event · 1");
     expect(c.querySelector("[data-all-awards]")!.textContent).toContain("Think Award");
     expect(c.querySelector("[data-awards-page]")!.getAttribute("href")).toBe("/events/2025/USNJNOLT2?tab=awards");
   });

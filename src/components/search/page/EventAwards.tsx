@@ -27,12 +27,15 @@ export function EventAwardsAnswer({ card, heading }: { card: SearchCard; heading
   // The podium: the asked award's first three places (a placement each), in podium order 2nd, 1st, 3rd.
   const placed = card.award ? awards.filter((a) => a.type === card.award && a.placement >= 1 && a.placement <= 3) : [];
   const podium = [2, 1, 3].map((p) => placed.find((a) => a.placement === p)).filter((a): a is SearchCardAward => !!a);
+  // The rest of the event's awards: the podium's places aren't listed again (each fact once).
+  const shown = podium.some((a) => a.placement === 1);
+  const rest = shown ? awards.filter((a) => !podium.includes(a)) : awards;
   return (
     <AnswerFrame title={card.title} hideTitle={repeats(heading, card.title)}
       sub={ev ? `${ev.name} · ${seasonLabel(ev.season)} · from FIRST's award list for the event` : "From FIRST's award list for the event"}
       data={{ "data-card-kind": card.kind, "data-event-awards": "" }}>
       {card.none && <p className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm text-foreground" data-none>{card.none}</p>}
-      {podium.some((a) => a.placement === 1) && <Podium places={podium} season={ev?.season} />}
+      {shown && <Podium places={podium} season={ev?.season} />}
       <AnswerVideo />
       {/* An older server's card (no award list): its lines, as before. */}
       {!awards.length && !!card.lines.length && (
@@ -44,11 +47,11 @@ export function EventAwardsAnswer({ card, heading }: { card: SearchCard; heading
           ))}
         </ul>
       )}
-      {!!awards.length && (
-        <section aria-label="Every award at this event" className={cn(podium.length && "mt-6")} data-all-awards>
-          <h3 className={PART}>Every award at this event · {awards.length}</h3>
+      {!!rest.length && (
+        <section aria-label={shown ? "Other awards at this event" : "Every award at this event"} className={cn(shown && "mt-6")} data-all-awards>
+          <h3 className={PART}>{shown ? "Other awards at this event" : "Every award at this event"} · {rest.length}</h3>
           <ul className="grid gap-2 sm:grid-cols-2">
-            {awards.map((a) => (
+            {rest.map((a) => (
               <li key={`${a.type}|${a.placement}|${a.team}`} data-award={a.type}>
                 <AwardRow name={nameOf(a)} team={`${a.team}${a.teamName ? ` ${a.teamName}` : ""}`} href={`/teams/${a.team}${ev ? `?season=${ev.season}` : ""}`} asked={a.type === card.award} />
               </li>

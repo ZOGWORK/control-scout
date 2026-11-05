@@ -3,12 +3,15 @@
 //   - lie factor: every bar is `[data-bar]` with its `data-value` and `data-scale`, drawn from zero, its length within
 //     5% of value / scale (an unmarked bar is a problem, so no bar escapes the check);
 //   - hue means team: data takes only the team tokens and, where they mark an alliance, red and blue; no status,
-//     phase, palette or gold colour on data (gold only on the primary button, a play button's red only on its button);
+//     phase, palette or gold colour on data (gold only on the marked primary action, a video's red, white and black
+//     only on the player or a marked video control);
 //     at most 3 hues on a card;
 //   - print once: each team name once, and no heading, headline, context or scope line said twice;
 //   - no meta or debug text, no number glued to a word in a heading;
-//   - contrast: every piece of text at 4.5:1 on its surface in Light, Dim, Dark and Midnight.
-import { measure, type Theme } from "../../../lib/themeTokens.testkit";
+//   - contrast: every visible piece of text (aria-hidden included: it's still seen) at 4.5:1 on its surface, every
+//     tint from the card in blended in, in Light, Dim, Dark and Midnight.
+import { contrast as ratio, over, toHex, type RGBA } from "../../../lib/contrast";
+import { utility, value, type Theme } from "../../../lib/themeTokens.testkit";
 
 const THEMES: Theme[] = ["light", "dim", "dark", "midnight"];
 const NEUTRAL = new Set(["foreground", "muted", "muted-foreground", "background", "card", "card-foreground", "border", "line", "primary", "secondary",
@@ -51,9 +54,11 @@ export function auditAnswer(card: HTMLElement, { names = [] as string[], contras
     if (!el.hasAttribute("data-bar")) { if (w.includes("%") && fill) problems.push(`unmarked bar: ${el.className}`); continue; }
     const v = Number(el.dataset.value), max = Number(el.dataset.scale), pc = /^[\d.]+%$/.test(w) ? Number.parseFloat(w) : NaN;
     if (Number.isNaN(pc)) { problems.push(`bar length not a plain percent: ${w}`); continue; }
-    if (!Number.isFinite(v) || !Number.isFinite(max) || max <= 0) { problems.push(`bar without value/scale: ${el.outerHTML.slice(0, 80)}`); continue; }
+    // An empty value reads as 0 through Number(): it must be said, not defaulted.
+    if (!el.dataset.value?.trim() || !el.dataset.scale?.trim() || !Number.isFinite(v) || !Number.isFinite(max) || max <= 0) { problems.push(`bar without value/scale: ${el.outerHTML.slice(0, 80)}`); continue; }
     if (el.style.left || el.style.marginLeft || el.style.insetInlineStart) problems.push(`bar not from zero: ${el.outerHTML.slice(0, 80)}`);
-    if (v <= 0) continue;
+    // Zero or below draws nothing.
+    if (v <= 0) { if (pc > 0) problems.push(`bar for ${v} drawn ${pc}%`); continue; }
     const lf = pc / 100 / (v / max);
     if (Math.abs(lf - 1) > 0.05) problems.push(`lie factor ${lf.toFixed(2)} (value ${v} of ${max} drawn ${pc}%)`);
   }
@@ -66,8 +71,8 @@ export function auditAnswer(card: HTMLElement, { names = [] as string[], contras
       const f = colourOf(c);
       if (!f || NEUTRAL.has(f)) continue;
       if (TEAM.test(f) || ALLIANCE.test(f)) { hues.add(f.replace(/-(text|ink)$/, "")); continue; }
-      if (GOLD.test(f) && el.closest("button, [data-primary-cta]")) continue;
-      if (PLAY.test(f) && el.closest("button, a, [data-answer-video]")) continue;
+      if (GOLD.test(f) && el.closest("[data-primary-cta]")) continue;
+      if (PLAY.test(f) && el.closest("[data-answer-video], [data-video-control]")) continue;
       problems.push(`${GOLD.test(f) ? "gold" : "hue"} on data: ${c} (${el.tagName.toLowerCase()} "${(el.textContent ?? "").trim().slice(0, 30)}")`);
     }
     for (const attr of ["fill", "stroke", "color"]) {
@@ -96,23 +101,32 @@ export function auditAnswer(card: HTMLElement, { names = [] as string[], contras
     for (const t of texts(h)) if (/\d[a-z]/i.test(t.replace(/\b\d+(st|nd|rd|th)\b/gi, ""))) problems.push(`glued heading: ${t}`);
   }
 
-  // Contrast: each text node's colour (its nearest set one) on its nearest tint over the card.
+  // Contrast: each visible text node's colour (its nearest set one, faded by every opacity above it) on every tint
+  // from the card down to it, blended in order.
   if (contrast) {
     const seen = new Set<string>();
     for (const el of card.querySelectorAll<HTMLElement>("*")) {
       const own = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent!.trim());
-      if (!own || el.closest(".sr-only, [aria-hidden=true], [hidden]")) continue;
-      const near = (test: (c: string) => boolean) => { for (let e: Element | null = el; e && e !== card.parentElement; e = e.parentElement) { const c = [...e.classList].filter(test); if (c.length) return c.join(" "); } return ""; };
-      const fg = near((c) => { const f = colourOf(c); return !!f && /(^|:)!?text-/.test(c); });
-      const bg = near((c) => { const f = colourOf(c); return !!f && /(^|:)bg-/.test(c) && f !== "transparent"; });
-      const fade = near((c) => /^opacity-\d+$/.test(c));
-      const classes = `${fg} ${bg} ${fade}`.trim();
-      if (seen.has(classes)) continue;
-      seen.add(classes);
+      if (!own || el.closest(".sr-only, [hidden]")) continue;
+      const chain: Element[] = [];
+      for (let e: Element | null = el; e && e !== card.parentElement; e = e.parentElement) chain.unshift(e);
+      const classesOf = (e: Element, test: RegExp) => [...e.classList].filter((c) => test.test(c) && !!colourOf(c)).join(" ");
+      const fgOwner = [...chain].reverse().find((e) => classesOf(e, /(^|:)!?text-/));
+      const fgClasses = fgOwner ? classesOf(fgOwner, /(^|:)!?text-/) : "";
+      const layers = chain.map((e) => classesOf(e, /(^|:)bg-/)).filter(Boolean);
+      const fade = chain.reduce((a, e) => { const m = [...e.classList].map((c) => /^opacity-(\d+)$/.exec(c)).find(Boolean); return m ? a * (+m[1] / 100) : a; }, 1);
+      const key = `${fgClasses}|${layers.join("|")}|${fade}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
       for (const theme of THEMES) {
-        let m: { ratio: number; pair: string };
-        try { m = measure(theme, classes); } catch (e) { problems.push(`contrast: ${(e as Error).message}`); break; }
-        if (m.ratio < 4.5) { problems.push(`contrast ${theme}: "${el.textContent!.trim().slice(0, 30)}" ${classes} ${m.pair}`); break; }
+        try {
+          let bg: RGBA = value(theme, "--color-card");
+          for (const l of layers) { const tint = utility(theme, l, "bg"); if (tint) bg = over(tint, bg); }
+          const c = utility(theme, fgClasses, "text") ?? value(theme, "--color-foreground");
+          const fg: RGBA = [c[0], c[1], c[2], c[3] * fade];
+          const r = ratio(over(fg, bg), bg);
+          if (r < 4.5) { problems.push(`contrast ${theme}: "${el.textContent!.trim().slice(0, 30)}" ${fgClasses} on ${layers.join(" > ") || "card"}${fade < 1 ? ` at ${fade}` : ""}: ${toHex(over(fg, bg))} on ${toHex(bg)} = ${r.toFixed(2)}`); break; }
+        } catch (e) { problems.push(`contrast: ${(e as Error).message}`); break; }
       }
     }
   }

@@ -11,11 +11,11 @@ import { qs, useApi } from "../../../lib/api";
 import { useCurrentSeason } from "../../../lib/meta";
 import { dateRange, num, place, rankPct, seasonLabel } from "../../../lib/format";
 import type { TeamEventRow, TeamProfile } from "../../../shared/api";
-import { Meter, RecordMeter, StatTile, TONES, rankPc } from "../../StatTile";
+import { Meter, StatTile, rankPc } from "../../StatTile";
 import { Button } from "../../ui/button";
 import { Badge } from "../../ui/basic";
 import { cn } from "../../cn";
-import { EventMarker, RankPill, RecordText } from "./answerCells";
+import { EventMarker, INK_BAR, RankPill, RecordText } from "./answerCells";
 import { teamFill } from "../../../lib/textTones";
 
 /** The touch rule every search control keeps: 44px tall on phones and touch screens. */
@@ -152,7 +152,8 @@ function TeamSide({ t, q, right, first, i }: { t: Who; q: string; right: boolean
   );
 }
 
-/** The team page's season tiles (My Teams' Season): OPR with its world rank, prediction rating, record, events. */
+/** The team page's season tiles (My Teams' Season): OPR with its world rank, prediction rating, record, events. On a
+ *  search card they are neutral (hue means team only): told by icon and label, bars in neutral ink. */
 export function SeasonTiles({ profile, season }: { profile?: TeamProfile | null; season: number }) {
   if (profile === null) return null;
   if (!profile) return <div className="skeleton h-32 rounded-xl" aria-hidden data-season-tiles="loading" />;
@@ -164,17 +165,17 @@ export function SeasonTiles({ profile, season }: { profile?: TeamProfile | null;
     <section aria-label={`${seasonLabel(season)} at a glance`} data-season-tiles>
       <h3 className={PART}>{seasonLabel(season)} at a glance</h3>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile tone="accent" icon={Target} label="OPR" value={num(s?.opr.np.value)}
+        <StatTile tone="neutral" icon={Target} label="OPR" value={num(s?.opr.np.value)}
           hint={s?.opr.np.rank ? `#${s.opr.np.rank.toLocaleString()} of ${s.opr.np.of?.toLocaleString()}${top ? ` · ${top}` : ""}` : "not ranked"}
-          bar={s?.opr.np.rank ? <Meter parts={[{ pc: rankPc(s.opr.np.rank, s.opr.np.of), cls: TONES.accent.bar }]} /> : null} />
-        <StatTile tone="amber" icon={Sparkles} label="Prediction rating"
+          bar={s?.opr.np.rank ? <Meter parts={[{ pc: rankPc(s.opr.np.rank, s.opr.np.of), cls: INK_BAR }]} /> : null} />
+        <StatTile tone="neutral" icon={Sparkles} label="Prediction rating"
           value={s?.rating ? <>{num(s.rating.np)}<span className="ml-1 text-base font-medium text-muted-foreground">±{num(s.rating.sd)}</span></> : "—"}
           hint={s?.rating ? `${s.rating.rank ? `#${s.rating.rank.toLocaleString()} worldwide · ` : ""}${s.rating.matches} matches` : `no matches ${when}`} />
-        <StatTile tone="emerald" icon={Trophy} label="Record"
-          value={r ? <span aria-label={`${r.wins} wins, ${r.losses} losses, ${r.ties} ties`}><span className="text-success">{r.wins}</span><span className="text-muted-foreground">-</span><span className="text-destructive">{r.losses}</span><span className="text-muted-foreground">-{r.ties}</span></span> : "—"}
+        <StatTile tone="neutral" icon={Trophy} label="Record"
+          value={r ? <span aria-label={`${r.wins} wins, ${r.losses} losses, ${r.ties} ties`}><RecordText text={`${r.wins}-${r.losses}-${r.ties}`} /></span> : "—"}
           hint={r ? `${r.matches} matches · ${r.events} event${r.events === 1 ? "" : "s"}` : `no matches ${when}`}
-          bar={r && r.wins + r.losses + r.ties > 0 ? <RecordMeter w={r.wins} l={r.losses} t={r.ties} /> : null} />
-        <StatTile tone="violet" icon={CalendarDays} label="Events" value={String(profile.events.length)}
+          bar={r && r.wins + r.losses + r.ties > 0 ? <Meter parts={[{ pc: (100 * r.wins) / (r.wins + r.losses + r.ties), cls: INK_BAR, value: r.wins, scale: r.wins + r.losses + r.ties }]} /> : null} />
+        <StatTile tone="neutral" icon={CalendarDays} label="Events" value={String(profile.events.length)}
           hint={profile.events.length ? `last: ${profile.events[profile.events.length - 1].name}` : `none ${when}`} />
       </div>
     </section>
