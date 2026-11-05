@@ -217,6 +217,12 @@ describe("leaderboard sorts in plain words", () => {
     expect(readLeaderboard("teleop ranked")).toMatchObject({ stat: "teleop" });
     expect(readLeaderboard("endgame ranked high to low")?.asc).toBeUndefined();
     expect(readLeaderboard("best auto right and endgame")).toMatchObject({ stat: "auto+endgame" });
+    // Directions that start like a place ("in ascending order", "from the bottom") stay directions, with or without a place.
+    expect(readLeaderboard("auto in ascending order")).toMatchObject({ stat: "auto", asc: true });
+    expect(readLeaderboard("teleop from the bottom")).toMatchObject({ stat: "teleop", asc: true });
+    expect(readLeaderboard("auto lowest to highest in nj")).toMatchObject({ stat: "auto", asc: true, region: { key: "USA:NJ" } });
+    expect(readLeaderboard("teleop ranked in new jersey in ascending order")).toMatchObject({ stat: "teleop", asc: true, region: { key: "USA:NJ" } });
+    expect(readLeaderboard("teleop ranked in nowhereville")).toBeNull();
     // A plain "best auto" stays the asks' own; a team's rank is a team's.
     expect(readLeaderboard("best auto")).toBeNull();
     expect(readLeaderboard("4215 ranked")).toBeNull();

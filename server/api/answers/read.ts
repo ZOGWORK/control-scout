@@ -523,13 +523,17 @@ function sortStat(s: string): string | null {
  *  joined has to be said, so "best auto" and "best team" stay the asks' own. */
 function readSorted(rest: string): { stat: string; asc?: boolean; region?: Region } | null {
   let t = rest.replace(/^(?:what|who|which)(?: is| are|s)? (?:the )?/, "").replace(/(?:^| )(?:right now|right|rn|currently|now|please)(?= |$)/g, " ").replace(/\s+/g, " ").trim();
+  // A direction said last, before or after a place ("in ascending order", "from the bottom" are directions, not places).
+  let dir: "asc" | "desc" | null = null;
+  const direction = () => {
+    const d = new RegExp(String.raw`(?:^| )(?:${SORTED} )?(${ASC}|${DESC})$`).exec(t);
+    if (d) { dir = new RegExp(`^${ASC}$`).test(d[1]) ? "asc" : "desc"; t = t.slice(0, d.index).trim(); }
+  };
+  direction();
   // A place said last ("teams ranked by auto in nj"): its teams, or no board when it names no region.
   let region: Region | undefined;
   const pl = / (?:in|from) (.+)$/.exec(t);
-  if (pl) { const r = regionOf(pl[1]); if (!r) return null; region = r; t = t.slice(0, pl.index).trim(); }
-  let dir: "asc" | "desc" | null = null;
-  const d = new RegExp(String.raw`(?:^| )(?:${SORTED} )?(${ASC}|${DESC})$`).exec(t);
-  if (d) { dir = new RegExp(`^${ASC}$`).test(d[1]) ? "asc" : "desc"; t = t.slice(0, d.index).trim(); }
+  if (pl) { const r = regionOf(pl[1]); if (!r) return null; region = r; t = t.slice(0, pl.index).trim(); if (!dir) direction(); }
   const out = (q: string | undefined, s: string) => {
     const stat = sortStat(s);
     return stat ? { stat, ...(region ? { region } : {}), ...(dir === "asc" || (!dir && q && new RegExp(`^${LOW}$`).test(q)) ? { asc: true } : {}) } : null;
