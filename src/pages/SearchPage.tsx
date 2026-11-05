@@ -23,6 +23,7 @@ import { AnswerNotesView, useSearchHits, useSections } from "../components/searc
 import { CompareCard, EventCard, HeadToHead, ResultRow, TeamCard, teamSeasons, type SeasonSummary } from "../components/search/page/ResultCards";
 import { NoResults } from "../components/search/page/NoResults";
 import { StatAnswerCard } from "../components/search/page/StatAnswer";
+import { AnswerVideo, AnswerVideoProvider } from "../components/search/page/AnswerVideo";
 import { comparisonOf } from "../components/search/page/CompareCard";
 import { FactCard } from "../components/search/page/FactCard";
 import { RelatedQuestions } from "../components/search/page/TeamAnswer";
@@ -194,6 +195,7 @@ export default function SearchPage() {
                 </>
               )
           ) : (
+            <AnswerVideoProvider video={answer?.video}>
             <div className={cn("transition-opacity", stale && "opacity-60")} aria-busy={stale || undefined}>
               {/* The badge carries what was understood; a correction ("Did you mean …") and a gap still say so here. */}
               <AnswerNotesView notes={{ ...notes, understood: [] }} query={query} className="mb-4 text-sm" onDidYouMean={runFix} />
@@ -228,6 +230,8 @@ export default function SearchPage() {
                     <AppearancesAnswer team={answer!.card!.team} title={answer!.card!.title} heading={title} headline={answer!.card!.headline} trip={answer!.card!.trip} apps={apps} />
                   ) : answer?.card?.kind === "event-awards" ? <EventAwardsAnswer card={answer.card} heading={title ?? undefined} />
                     : answer?.card && <FactCard card={answer.card} heading={title ?? undefined} season={hits.find((h) => h.kind === "team" && !isCompare(h) && Number(h.ref) === answer.card!.team?.number)?.linkSeason} />}
+                  {/* A match or event searched by name (no answer card): its video above the results (./search/page/AnswerVideo.tsx). */}
+                  {!answer?.stat && !answer?.card && <AnswerVideo className="mb-5 mt-0 max-sm:mx-0" />}
                   {!!compares.length && (
                     <section aria-label="Compare" className="mb-5" data-section="compare">
                       <h2 className="mb-1.5 text-xs font-semibold text-muted-foreground">Compare</h2>
@@ -256,6 +260,7 @@ export default function SearchPage() {
                 {panel === "versus" && h2h && <aside aria-label="Head-to-head" className="max-lg:hidden lg:sticky lg:top-[calc(var(--header-h)+1rem)] lg:col-start-2 lg:row-start-1" data-panel="versus"><HeadToHead h={h2h} now={now.data?.teams} before={asked == null ? before.data?.teams : undefined} season={base} /></aside>}
               </div>
             </div>
+            </AnswerVideoProvider>
           )}
       {phone && (
         <>

@@ -3,11 +3,15 @@
 // ("Australia/Sydney"). This turns the pair into a real instant, so
 // "before the match" means before the match — not before a UTC guess.
 
+/** One formatter per zone: making one costs far more than using it (a page's hundreds of matches). */
+const formats = new Map<string, Intl.DateTimeFormat>();
+const formatOf = (zone: string) => formats.get(zone) ?? formats.set(zone, new Intl.DateTimeFormat("en-US", {
+  timeZone: zone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit",
+})).get(zone)!;
+
 /** Offset (ms) of `zone` from UTC at the instant `utcMs`. */
 function zoneOffset(utcMs: number, zone: string): number {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: zone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit",
-  }).formatToParts(new Date(utcMs));
+  const parts = formatOf(zone).formatToParts(new Date(utcMs));
   const v = (t: string) => Number(parts.find((p) => p.type === t)?.value);
   const asUtc = Date.UTC(v("year"), v("month") - 1, v("day"), v("hour"), v("minute"), v("second"));
   return asUtc - Math.floor(utcMs / 1000) * 1000;

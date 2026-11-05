@@ -15,6 +15,7 @@ import { Badge } from "../../ui/basic";
 import { OPR_CARDS, oprRankHint } from "../../oprCards";
 import { AnswerFrame, RelatedQuestions, TAP, repeats, statedSeason, useAnswerSeason, useTeamProfile } from "./TeamAnswer";
 import { rangeCaption } from "../../../shared/format";
+import { AnswerVideo, RowPlay, useRowPlays } from "./AnswerVideo";
 import { Cell, EventMarker, HeadlineValue, INK_BAR, RecordText, RichText, SeasonChip, better, columnMax, foldsOnPhone } from "./answerCells";
 import { MatchBox, RankBadge, TeamChip } from "./MatchBox";
 import { CompareCard, comparisonOf } from "./CompareCard";
@@ -45,6 +46,7 @@ function OneCard({ stat, heading }: { stat: StatAnswer; heading?: string }) {
     <AnswerFrame teams={teams} profile={profile} season={stated} title={stat.title} hideTitle={repeats(heading, stat.title)} sub={scope || undefined}
       data={{ "data-stat-answer": stat.intent, "data-family": stat.family }}>
       {stat.headline && <Headline h={stat.headline} />}
+      <AnswerVideo />
       {stat.none && (
         <p className="mt-3 flex items-start gap-2 rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm text-foreground" data-none>
           <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />{stat.none}
@@ -260,13 +262,14 @@ function Table({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
   const max = new Map(b.columns.map((c) => [c.key, columnMax(c, b.rows.map((r) => r.cells[c.key]))]));
   const folded = b.columns.filter((c) => foldsOnPhone(c, first));
   const vs = b.columns.some((c) => c.key === "a") && b.columns.some((c) => c.key === "b");
+  const plays = useRowPlays(b.rows.map((r) => r.href));
   return (
     <div data-block="table">
       <h3 className={H3}>{b.title}</h3>
       <div className="overflow-x-auto rounded-lg border border-border">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-left text-[11px] text-muted-foreground">
-            <tr>{b.columns.map((c) => <th key={c.key} scope="col" className={cn("px-2.5 py-1.5 font-medium", c.num && "text-right", c !== first && "whitespace-nowrap max-md:px-1.5", folded.includes(c) && "max-md:hidden")}>{c.label}</th>)}</tr>
+            <tr>{b.columns.map((c) => <th key={c.key} scope="col" className={cn("px-2.5 py-1.5 font-medium", c.num && "text-right", c !== first && "whitespace-nowrap max-md:px-1.5", folded.includes(c) && "max-md:hidden")}>{c.label}</th>)}{plays && <th scope="col" className="w-0 px-1"><span className="sr-only">Video</span></th>}</tr>
           </thead>
           <tbody>
             {b.rows.map((r, i) => {
@@ -292,6 +295,7 @@ function Table({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
                       </td>
                     );
                   })}
+                  {plays && <td className="w-0 px-1 py-0.5 align-middle">{r.href && <RowPlay href={r.href} label={[r.cells.match, r.cells.event].filter(Boolean).join(" · ") || "This match"} />}</td>}
                 </tr>
               );
             })}
@@ -349,6 +353,7 @@ function MatchTable({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
                     {r.teams.blue.map((t) => <NumChip key={t.href} t={t} side="blue" />)}
                   </span>
                 )}
+                {r.href && <RowPlay href={r.href} label={`${r.cells.match} · ${r.cells.event}`} className="-my-1 -mr-1" />}
               </span>
             </li>
           );
