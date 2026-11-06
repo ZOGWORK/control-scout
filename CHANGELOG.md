@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.7.4 — 2026-11-06
+
+A place's name beside "states" or "championship" is that place's championship: "romania states results" is the Romania Championship's results, never a team with Romania in its name.
+
+### Highlights
+- [fixes] "Romania states results" opens the Romania Championship
+- [fixes] A country beside "states" is its championship, not a team
+- [teams] A team named just a country is still found by that name
+
+### Search
+- **A place beside states or championship.** A country, state or province named beside "states" or "championship" ("romania states", "canada states results", "germany states results") reads as that place's championship, never as a team whose name has the place in it. A team's number, or a team's whole name when it is just a country's name, still reads the team. (#1016)
+
 ## 3.7.3 — 2026-11-06
 
 An event can be searched by its initials: "MTI highlights" finds the Multinational Tech Invitational, and an event held only in past seasons is read in its latest one.
