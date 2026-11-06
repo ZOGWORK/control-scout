@@ -26,7 +26,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 - [teams] "Has … ever won Inspire?" says yes or no above the awards
 
 ### Search
-- **Yes or no, said every way.** "Has <team> ever …", "did <team> ever …", "was <team> at …" and "did <team> make it to …" are read as one yes-or-no question about Worlds, a state championship, an event in a season, a kind of event, an award, an event won, or beating or losing to another team. The answer is the word Yes (green) or No (slate), with a sentence saying it, above the card that answered the question before, unchanged; when nothing answered it, the card is the evidence: the meetings, the awards or the events played. Only official events count. A no is an answer, never the no-match page. (#PR)
+- **Yes or no, said every way.** "Has <team> ever …", "did <team> ever …", "was <team> at …" and "did <team> make it to …" are read as one yes-or-no question about Worlds, a state championship, an event in a season, a kind of event, an award, an event won, or beating or losing to another team. The answer is the word Yes (green) or No (slate), with a sentence saying it, above the card that answered the question before, unchanged; when nothing answered it, the card is the evidence: the meetings, the awards or the events played. Only official events count. A no is an answer, never the no-match page. (#873)
 
 ## 3.4.8 — 2026-11-06
 
