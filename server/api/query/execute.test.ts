@@ -338,6 +338,10 @@ describe("forecasts", () => {
       expect(s.headline, q).toMatchObject({ value: "1.3 → 1 wins", sub: expect.stringContaining("logged live before each match") });
       const t = s.blocks.find((b) => b.kind === "table");
       expect(t && t.kind === "table" && t.rows.map((r) => [r.cells.before, r.cells.after, r.cells.called]), q).toEqual([["70% · 140–100", "W 150–90", "Yes"], ["60% · 110–100", "L 80–120", "No"], ["55%", "Not played yet", "–"]]);
+      // The event rank printed once: as the event tile, never again under the record.
+      const kpis = s.blocks.flatMap((b) => (b.kind === "kpis" ? b.items : []));
+      const shownRank = kpis.flatMap((x) => [x.value, x.sub ?? ""]).filter((v) => /#\d/.test(v));
+      expect(shownRank.length, q).toBeLessThanOrEqual(1);
       // Predict is the card's own action (below), so the page lists it nowhere else; the search box keeps the link.
       expect(a.pages.map((x) => x.title), q).not.toContain("Open in Predict: 4215 at Garden Qualifier");
       expect((await searchAnswer(q, { limit: 25, full: false, now: NOW })).pages[0], q).toMatchObject({ title: "Open in Predict", href: "/predict?mode=advancement&season=2025&code=USNJQ1&team=4215" });

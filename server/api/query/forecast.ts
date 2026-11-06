@@ -154,7 +154,8 @@ export async function forecastAt(teams: { number: number; name: string | null }[
     { kind: "kpis", items: [
       // Expected wins are the headline's once any match is played: printed once.
       ...(done.length ? [] : [{ label: "Before: expected wins", value: "–", sub: ms.length ? "None played yet" : "No match predictions stored" }]),
-      { label: "After: record", value: done.length ? `${wins}-${losses}-${ties}` : "–", sub: rank?.rank != null ? `Ranked #${rank.rank}` : undefined },
+      // The rank printed once: under the record when the event tile says "Won", else as the event tile itself.
+      { label: "After: record", value: done.length ? `${wins}-${losses}-${ties}` : "–", sub: won && rank?.rank != null ? `Ranked #${rank.rank}` : undefined },
       ...(pre ? [{ label: "Before: projected rank", value: pre.rank ? `#${Math.round(pre.rank.p50)}` : "–", sub: `Win the event ${pct(pre.pWin)} · playoffs ${pct(pre.pPlayoff)}` }] : []),
       { label: "After: event", value: won ? "Won" : rank?.rank != null ? `#${rank.rank}` : "–", ...(won ? { tone: "good" as const } : {}) },
       ...(decided ? [{ label: "Called right", value: `${called} of ${decided}`, sub: pct(called / decided) }] : []),
