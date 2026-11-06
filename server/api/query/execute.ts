@@ -8,7 +8,7 @@ import type { StatAnswer } from "../../../src/shared/searchStat.js";
 import type { Region } from "../../../src/shared/regions.js";
 import { dateRange, seasonLabel } from "../../../src/shared/format.js";
 import { get } from "../../db.js";
-import { intentDefaults, scopeFits, type IntentId, type LeaderboardQuestion, type ReadScope, type StatQuestion, type TwoTeamId } from "../answers/read.js";
+import { intentDefaults, readLeaderboard, scopeFits, type IntentId, type LeaderboardQuestion, type ReadScope, type StatQuestion, type TwoTeamId } from "../answers/read.js";
 import { boardSearch, statAnswerOf, topSearch, twoTeamSearch, type Resolve } from "../answers/index.js";
 import { searchSeason } from "../answers/season.js";
 import { BOARD_STATS } from "../answers/families/leaderboard.js";
@@ -231,6 +231,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     // The search box keeps the asks' own short card; the page draws the list.
     if (!opts.full) return null;
     if (p.event || p.worlds || p.states || p.level || p.alliance || scope.window || scope.ever) return null;
+    // A "leaderboard" the leaderboard reader reads (a state's, by a stat) is its own; a country's is answered here.
+    if (/\bleader ?boards?\b/.test(said) && readLeaderboard(p.q)) return null;
     let stats = [...new Set(p.symbols.map((s) => BOARD_STAT[s]).filter((s): s is string => !!s && !!BOARD_STATS[s]))];
     // "Auto OPR" is the auto phase's OPR; a record beside another stat is the column every row shows.
     if (stats.some((s) => s === "auto" || s === "teleop" || s === "endgame")) stats = stats.filter((s) => s !== "opr");
