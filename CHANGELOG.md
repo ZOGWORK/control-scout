@@ -27,7 +27,7 @@ Search lists events by status, then by date: what's live now first, then what's 
 
 ### Search
 - **Status, then date.** A search's events sit in sections: Live now (by start), Upcoming (soonest first: Today, Tomorrow or the weekday for this week, then "Week of …"), and Finished (newest first, sectioned the same way). Each heading says how many events are under it, and an event split in divisions sits whole in its section as its tree. Nothing names an event, a date or a type: any list works.
-- **Counts that match.** The Upcoming tab counts the events to come and says its live ones apart ("Upcoming 23 · 2 live"), as its sections do; All is the three together.
+- **Counts that match.** The Upcoming tab counts the events to come and says its live ones apart ("Upcoming 23 · 2 live"), as its sections do; All is the three together (#805).
 
 ## 3.4.1 — 2026-11-06
 
