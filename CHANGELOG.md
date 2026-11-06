@@ -25,7 +25,7 @@ A question search can't answer yet now says "Sorry — I can't answer that yet",
 - [fixes] Tap a suggested search that does answer about them
 
 ### Search
-- **Sorry, with what was read.** A question about a team that search can't answer yet ("what is <team>'s favorite color") now has the heading "Sorry — I can't answer that yet", a line saying what it read, and up to four searches about the same team, place, event or name that do answer, one tap each. A search that reads nothing real (a team that doesn't exist) keeps the plain no-match page, and the dropdown is unchanged. (#PR)
+- **Sorry, with what was read.** A question about a team that search can't answer yet ("what is <team>'s favorite color") now has the heading "Sorry — I can't answer that yet", a line saying what it read, and up to four searches about the same team, place, event or name that do answer, one tap each. A search that reads nothing real (a team that doesn't exist) keeps the plain no-match page, and the dropdown is unchanged. (#877)
 
 ## 3.4.8 — 2026-11-06
 
