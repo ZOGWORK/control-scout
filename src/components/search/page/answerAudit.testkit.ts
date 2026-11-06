@@ -6,7 +6,8 @@
 //     phase, palette or gold colour on data (gold only on the marked primary action, a video's red, white and black
 //     only on the player or a marked video control);
 //     at most 3 hues on a card;
-//   - print once: each team name once, and no heading, headline, context or scope line said twice;
+//   - print once: each team name once, and no heading, headline, context or scope line said twice; a scope note (a
+//     relaxed time, "No 2026–27 matches yet …; showing 2025–26") nowhere else on the card, its method included;
 //   - no meta or debug text, no number glued to a word in a heading;
 //   - contrast: every visible piece of text (aria-hidden included: it's still seen) at 4.5:1 on its surface, every
 //     tint from the card in blended in, in Light, Dim, Dark and Midnight.
@@ -92,6 +93,11 @@ export function auditAnswer(card: HTMLElement, { names = [] as string[], contras
   const lines = [...card.querySelectorAll("h1, h2, h3, h4, figcaption, [data-headline], [data-context], [data-scope] > *, [data-source]")]
     .map((h) => (h.textContent ?? "").replace(/\s+/g, " ").trim()).filter((t) => t.length > 3);
   for (const [i, t] of lines.entries()) if (lines.indexOf(t) !== i) problems.push(`said twice: "${t}"`);
+  for (const chip of card.querySelectorAll("[data-scope] > *")) {
+    const note = (chip.textContent ?? "").replace(/\s+/g, " ").trim();
+    const first = note.split(";")[0].trim();
+    if (note.length > 12 && text.split(first).length - 1 > 1) problems.push(`scope note said again: "${first}"`);
+  }
   const ctas = card.querySelectorAll("[data-primary-cta]").length;
   if (ctas > 1) problems.push(`${ctas} primary actions`);
 

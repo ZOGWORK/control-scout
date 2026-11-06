@@ -96,7 +96,7 @@ describe("place and time are applied and stated", () => {
     expect(s.scope[0]).toBe("Relaxed: this week → 2025–26");
     expect(s.scope).toContain("California");
     expect(s.definition).toContain("Nothing matched this week (No played matches at official events in California this week yet)");
-    expect(a.understood?.label).toMatch(/relaxed from this week to 2025–26$/);
+    expect(a.understood?.label).not.toMatch(/relaxed/); // said once, in the chip: never the heading too
   });
   it("relaxes to the season before when the window's season has nothing yet, and never relaxes the place", async () => {
     // Early in 2026–27: nothing played in California yet, so the latest finished season, still California only.
@@ -219,7 +219,8 @@ describe("the match finder: matches by a measure, every filter applied and state
     const a = await ask("biggest upset in new jersey", Date.parse("2026-11-04T12:00:00Z"));
     expect(a.stat?.headline?.value).toBe("60% favourite lost");
     expect(a.stat?.scope[0]).toBe("No 2026–27 matches yet in New Jersey; showing 2025–26");
-    expect(a.understood?.label).toMatch(/2025–26 · No 2026–27 matches yet in New Jersey$/);
+    expect(a.understood?.label).not.toContain("No 2026–27 matches yet"); // the note is the chip alone
+    expect(a.stat?.definition).not.toContain("No 2026–27 matches yet");
     // An upset is only a favourite's loss: a win the winner was expected to get is never one.
     const t = (await ask("biggest upsets in new jersey", Date.parse("2026-11-04T12:00:00Z"))).stat?.blocks.find((b) => b.kind === "table");
     expect(t && t.kind === "table" && t.rows.every((r) => Number(String(r.cells.value).slice(0, -"% favourite lost".length)) > 50)).toBe(true);

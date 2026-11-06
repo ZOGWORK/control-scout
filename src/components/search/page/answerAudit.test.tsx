@@ -81,6 +81,9 @@ const CARDS: Record<string, () => HTMLElement> = {
       { kind: "table", title: "Before (win chance · predicted score) and after, match by match", columns: [{ key: "match", label: "Match" }, { key: "before", label: "Before" }, { key: "after", label: "After" }, { key: "called", label: "Right" }],
         rows: [{ cells: { match: "Q1", before: "71% · 210–180", after: "W 230–170", called: "Yes" }, href: "/m1" }, { cells: { match: "Q2", before: "40% · 190–200", after: "W 205–199", called: "No" }, href: "/m2" }] },
       { kind: "links", title: "Open", items: [{ label: "Open in Predict", href: "/predict" }, { label: "NJ Championship", sub: "Mar 7–8, 2026", href: "/events/2025/USNJCMP" }] }] }),
+  "no season said, the one before shown (relax note)": () => card({ ...base, scope: ["No 2026–27 matches yet in New Jersey; showing 2025–26", "2025–26"], family: "superlative", intent: "season-top-matches", title: "Highest-scoring matches",
+    definition: "No season was named, so the current one was read first, and it has none yet. Every other filter is as asked. From the stored season numbers.",
+    headline: { value: "290 points", label: "Q10 at NJ Championship" }, blocks: [{ kind: "matches", title: "Top alliance scores", rows: [match(0)] }] }),
   "relaxed window chip (#749)": () => card({ ...base, scope: ["Relaxed: this week → 2025–26", "2025–26"], family: "superlative", intent: "season-top-matches", title: "Highest-scoring matches, DECODE 2025–26",
     headline: { value: "290 points", label: "Q10 at NJ Championship" }, blocks: [{ kind: "matches", title: "Top alliance scores", rows: [match(0)] }] }),
   "match video (AnswerVideo)": () => draw(<AnswerVideoProvider video={{ main: { videoId: "xnQFL9T27fY", t: 30, kind: "recording", match: "Q10" }, rows: { [match(1).href]: { videoId: "xnQFL9T27fY", t: 90, kind: "recording", match: "Q11" } } } satisfies SearchVideo}>
@@ -105,7 +108,7 @@ const NAMES: Record<keyof typeof CARDS, string[]> = {
   "single match": ["Hypnotic Robotics", "Critical Mass", "Bad Wolf", "Infinite Turtles"],
   leaderboard: ["Ultraviolet", "ENFORCERS"],
   "team record": [], "stat tiles, OPR by phase": [], "event result (table)": [], "over time (series)": [], bars: [], "prediction at an event (#752)": [],
-  "relaxed window chip (#749)": [], "match video (AnswerVideo)": [],
+  "relaxed window chip (#749)": [], "match video (AnswerVideo)": [], "no season said, the one before shown (relax note)": [],
   "team highlights (labelled match boxes)": [],
   "event awards": ["Cool Name", "Critical Mass", "Bectobots", "Bad Wolf"],
   "team facts": ["Hypnotic Robotics"],
@@ -143,6 +146,7 @@ describe("the audit catches what it's for", () => {
     expect(bad(`<p>read as "vs"</p>`)).toEqual(["meta text /read as/i"]);
     expect(bad(`<h3>157.9leads</h3>`)).toEqual(["glued heading: 157.9leads"]);
     expect(bad(`<h3>2nd place</h3>`)).toEqual([]);
+    expect(bad(`<p data-scope><span>No 2026–27 matches yet in NJ; showing 2025–26</span></p><p>No 2026–27 matches yet in NJ: no season was named.</p>`)).toEqual(['scope note said again: "No 2026–27 matches yet in NJ"']);
     expect(bad(`<p class="text-foreground/30">faint</p>`)).toEqual([expect.stringContaining("contrast")]);
     // Seen though aria-hidden, and on every tint at once: rose 500 on a 10% red over an 8% red is under 4.5:1 on Dark.
     expect(bad(`<p aria-hidden="true" class="text-foreground/30">faint</p>`)).toEqual([expect.stringContaining("contrast")]);

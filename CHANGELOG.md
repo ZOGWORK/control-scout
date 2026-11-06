@@ -29,6 +29,7 @@ Search answers say each fact once: the number you asked for, its context, then w
 - **Each fact once.** A single number's answer keeps a rank or a percentile beside it, never both, and drops a tile that repeats the headline (an OPR answer's Total OPR tile; a record's win rate tile and its "win rate" line again under the bar; a Season tile when the season is already shown). A list of matches all at one event names the event once over the list, each box keeping its date.
 - **How it's counted, one tap away.** Every answer's method is behind an info button beside one footnote line, as on comparisons, instead of a paragraph in the card.
 - **A ranking shows what it ranks by.** A list of teams ranked by Auto, TeleOp or Endgame shows that column on a phone instead of the total OPR.
+- **"No 2026–27 matches yet" said once.** When no season is named and the current one has nothing yet, the note saying the season before is shown appears once, beside the answer, instead of in the page heading and the method as well.
 - **No highlights for an unanswered question.** A question about a team that search can't answer yet ("will 4215 win the NJ championship") says so with its suggested searches, without the team's highlights under it (#772).
 
 ## 3.3.0 — 2026-11-05
