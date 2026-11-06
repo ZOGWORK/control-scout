@@ -55,7 +55,8 @@ const OUTCOMES = ["metric:win", "metric:loss", "outcome:W", "outcome:L"];
 /** The season numbers a leaderboard ranks teams by. */
 const BOARD_METRICS = ["metric:opr", "metric:rating", "metric:winrate", "metric:auto", "metric:teleop", "metric:endgame", "metric:reliability"];
 /** What a leaderboard takes in: its stats, a record beside them (every row shows it), "by". */
-const BOARD_OPT = ["thing:team", ...BOARD_METRICS, "metric:record", "metric:win", "prep:by", "list"];
+// Penalties only beside "team" ("which team fouls the least"): the most penalties alone are the matches with the most.
+const BOARD_OPT = ["thing:team", ...BOARD_METRICS, "metric:penalty", "per:match", "metric:record", "metric:win", "prep:by", "list"];
 const R = (id: PipelineIntent, teams: 0 | 1 | 2 | 4, all: string[], opt: string[] = [], more: Partial<IntentRule> = {}): IntentRule => ({ id, teams, all, opt, ...more });
 
 /** Every rule. Order breaks a tie between rules that explain the same symbols. */
@@ -118,7 +119,7 @@ export const INTENTS: IntentRule[] = [
   R("longest-streak", 1, ["agg:max", "metric:streak"], OUTCOMES),
   R("current-streak", 1, ["metric:streak"], ["agg:last", "metric:win", "metric:loss", "outcome:W", "outcome:L"]),
   R("avg-penalties", 1, ["agg:mean", "metric:penalty"], ["thing:match"]),
-  R("penalties", 1, ["metric:penalty"], ["thing:match", "per:match", "per:event", "per:rate", "agg:mean"]),
+  R("penalties", 1, ["metric:penalty"], ["thing:match", "per:match", "per:event", "per:rate", "agg:mean", "agg:count", "agg:sum"]),
   R("score-range", 1, ["metric:range"], ["metric:score"]),
   R("score-consistency", 1, ["metric:consistency"], ["metric:score"]),
   R("playoff-matches", 1, ["level:playoff", "thing:match"], ["list"], { noEvent: true }),

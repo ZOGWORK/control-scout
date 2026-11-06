@@ -95,7 +95,8 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["rating|prediction rating|strength|power rating|elo", { k: "metric", v: "rating" }],
   ["rank|ranking|ranked|placement|place|placed|finish|finished|standing|standings|seed|seeded|position", { k: "metric", v: "rank" }],
   ["award|awards|trophy|trophies|honors|honours|banners", { k: "metric", v: "award" }],
-  ["penalty|penalties|foul|fouls|penalty points|foul points", { k: "metric", v: "penalty" }],
+  // Penalty points are given away ("which team gives away the most").
+  ["penalty|penalties|foul|fouls|fouled|penalty points|foul points|give away|gives away|gave away|given away|giving away", { k: "metric", v: "penalty" }],
   ["auto|autonomous|auton|auto period", { k: "metric", v: "auto" }],
   ["teleop|tele op|tele-op|driver controlled|driver-controlled|driver period|dc", { k: "metric", v: "teleop" }],
   ["endgame|end game|end-game", { k: "metric", v: "endgame" }],
