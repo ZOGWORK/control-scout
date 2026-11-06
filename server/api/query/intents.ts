@@ -20,6 +20,8 @@ export type PipelineIntent =
   | "top-matches" | "leaderboard"
   // A scope's standout matches, or one team's (./highlights.ts).
   | "highlights"
+  // No team: the teams with a name said as words (server/api/answers/teamsNamed.ts), and a town's teams counted.
+  | "teams-named" | "count-teams"
   // No team: matches found by a measure (./matchFind.ts).
   | "low-matches" | "close-matches" | "lopsided-matches" | "penalty-matches" | "upset-matches" | "comeback-matches";
 
@@ -173,6 +175,9 @@ export const INTENTS: IntentRule[] = [
     R("highlights", n, ["highlights"], ["videos", "thing:match", "list", "agg:max"], { noMatchNo: true }),
     R("highlights", n, ["videos"], ["thing:match", "thing:event", "list", "agg:max", "agg:last"], { noMatchNo: true }),
   ]),
+  // The teams with a name, counted and listed: "how many teams named …", "teams called …".
+  R("teams-named", 0, ["named"], ["agg:count", "thing:team", "list"]),
+  R("count-teams", 0, ["agg:count", "thing:team"], ["list"], { noEvent: true }),
   // Teams with no losses, the most wins first.
   // "and" is "with": "teams with a perfect record".
   R("leaderboard", 0, ["undefeated"], [...BOARD_OPT, "agg:max", "agg:min", "metric:loss", "and"]),

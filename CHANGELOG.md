@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.4.6 — 2026-11-06
+## 3.5.5 — 2026-11-06
 
 A team's wins and losses by event, side by side.
 
@@ -26,6 +26,46 @@ A team's wins and losses by event, side by side.
 
 ### Search
 - **Wins and losses by event.** "12345 wins vs losses by event in 2025-26", "12345 record by event", "wins and losses per event" answer with the team's record card and a row for each event (its wins and losses, ties when there are any, and its season when the answer spans several), oldest first, each linked to the event. "Wins vs losses" said without an event split is the record alone. Before, "vs" there was read as a second team. (#850)
+
+## 3.4.8 — 2026-11-06
+
+A question that names its season and also says "this season" is answered for the season it named.
+
+### Highlights
+- [fixes] "This season in 2025-26" answers for 2025–26 instead of nothing
+- [fixes] The card names the season the question named
+- [fixes] Works in any word order, for any team, place or match question
+
+### Search
+- **"This season" beside a season named.** A question that names a season and also says "this season" ("biggest upset in NJ this season in 2025-26", "this season 4215 record in 2025-26") had the extra words left over, so nothing answered it. Now the season named stands, the card says it, and the words saying it again are read with it. "Last season" next to a named season is a second season (a comparison), so it is never read as the same one. (#811)
+
+## 3.4.7 — 2026-11-06
+
+Search lists events by status, then by date: what's live now first, then what's coming day by day, then what's over.
+
+### Highlights
+- [fixes] Live events first, under a solid rose header
+- [fixes] Upcoming events, cyan, grouped by day this week, then by week
+- [fixes] Finished events come last, newest first, under a lime header
+- [fixes] Every heading and tab counts the events under it
+
+### Search
+- **Status, then date.** A search's events sit in sections: Live now (by start), Upcoming (soonest first: Today, Tomorrow or the weekday for this week, then "Week of …"), and Finished (newest first, sectioned the same way). Each heading says how many events are under it, and an event split in divisions sits whole in its section as its tree. Nothing names an event, a date or a type: any list works.
+- **Counts that match.** The Upcoming tab counts the events to come and says its live ones apart ("Upcoming 23 · 2 live"), as its sections do; All is the three together (#805).
+
+## 3.4.6 — 2026-11-06
+
+"How many teams are called …" counts every team with that name and lists them, however it's asked.
+
+### Highlights
+- [teams] "How many teams named …" counts and lists every team with that name
+- [teams] Asked as "called", "with the name" or "go by", it's the same answer
+- [teams] Add a place or a season to count only those teams
+- [teams] "How many teams from" a town lists that town's teams
+
+### Search
+- **Teams by name, counted.** "How many teams named …", "teams called …", "number of teams with the name …" read the words after "named" as a name, never as the one team that has it, and answer with the count and every team with that whole name, by number, with where each is from and its last season played; the count is always the list. A place ("… from NJ") or a season ("… in 2025-26") narrows it and is said on the card. No team with the name says so, with the names the words nearly spell or are part of and Browse all teams, never the no-match page.
+- **A town's teams counted.** "How many teams from" or "in" a town answers with the town's list of teams, its length the count. A state's or a country's count is unchanged. (#804)
 
 ## 3.4.5 — 2026-11-06
 
