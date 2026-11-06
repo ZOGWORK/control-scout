@@ -27,6 +27,19 @@ A question search can't answer yet now says "Sorry — I can't answer that yet",
 ### Search
 - **Sorry, with what was read.** A question about a team that search can't answer yet ("what is <team>'s favorite color") now has the heading "Sorry — I can't answer that yet", a line saying what it read, and up to four searches about the same team, place, event or name that do answer, one tap each. A search that reads nothing real (a team that doesn't exist) keeps the plain no-match page, and the dropdown is unchanged. (#877)
 
+## 3.6.3 — 2026-11-06
+
+"12345 at worlds" answers with the team's results there, as "12345 states" does for its state championship.
+
+### Highlights
+- [teams] "12345 at worlds" shows the team's Worlds results
+- [teams] A team with no Worlds matches is told so plainly
+- [teams] "Has 12345 been to worlds" still counts its trips there
+
+### Search
+- **A team at Worlds.** A team and Worlds alone ("12345 at worlds", "12345 worlds", "show me 12345 at worlds 2025-26") answer with the team's results at the FIRST Championship: its record, its division and its matches, as a team and its state championship already did. A team with no Worlds matches is told it has none on record, never an empty page. A measure named with it ("worlds record", "opr at worlds") is still that measure.
+- **Whether a team went.** "Has 12345 been to worlds", "went to", "made it to", "qualified for" and "appearances" stay the question of its trips there, answered by its Worlds appearances, never its results. (#852)
+
 ## 3.6.2 — 2026-11-06
 
 "What events are happening right now?" and "number of teams in …" are answered however they're asked.
