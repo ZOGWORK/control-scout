@@ -13,6 +13,9 @@ import { failureOf, outcomeTrace } from "../../searchFailures";
 import { clearAllCaches } from "../../caches";
 import { relatedPage, grouped } from "./relatedPage";
 import { pageMeta } from "../../seoMeta";
+import { canonicalQuery } from "../../../src/lib/meta";
+import { RELATED_QUERY_MAX, relatedApiPath } from "../../../src/shared/search";
+import { MAX_QUERY } from "../searchAnswer";
 import type { SearchAnswer, SearchFollowUp } from "../../../src/shared/api";
 import { answerKey, candidates, followUps, lineOf, pageAnswer, previewOf, ASK_MAX, RELATED_MAX } from "./followUps";
 
@@ -153,6 +156,9 @@ describe("the related searches page", () => {
     expect(g.map((x) => [x.title, x.items.map((i) => i.q)])).toEqual([["About this team", ["a", "b"]], ["More searches", ["c", "d"]]]);
     // One left over joins the biggest group: never a heading over one link.
     expect(grouped([item("a", "team"), item("b", "team"), item("c", "awards")]).map((x) => x.items.length)).toEqual([3]);
+    // One search alone, with no group to join: listed, with no heading.
+    expect(grouped([item("a", "awards")])).toEqual([{ title: "", items: [item("a", "awards")] }]);
+    expect(grouped([])).toEqual([]);
   });
 
   it("lists only searches answered directly, grouped, for any team", async () => {
@@ -170,6 +176,12 @@ describe("the related searches page", () => {
     }
   });
 
+  it("lists a plain team search's own follow-ups, as /search does beside it", async () => {
+    const r = await relatedPage("4215");
+    expect(r.found).toBe(true);
+    expect(r.groups.flatMap((g) => g.items).some((x) => x.q.includes("4215"))).toBe(true);
+  });
+
   it("gives the starting points with no search, or one nothing follows from", async () => {
     for (const q of ["", "qqzx vvblorp"]) {
       const r = await relatedPage(q);
@@ -184,6 +196,11 @@ describe("the related searches page", () => {
     const m = await pageMeta("/related-searches", { q: "4215 record" });
     expect(m.title).toBe("Related searches: 4215 record");
     expect(m.path).toBe("/related-searches?q=4215%20record");
+    // The app's own canonical keeps the same address, and it starts from the lists drawn here.
+    expect(canonicalQuery("/related-searches", "?q=+4215+record+&utm_source=x")).toBe("?q=4215%20record");
+    expect(Object.keys(m.pageData ?? {})).toEqual([relatedApiPath("4215 record")]);
+    expect(m.pageData?.[relatedApiPath("4215 record")]).toEqual(await relatedPage("4215 record"));
+    expect(RELATED_QUERY_MAX).toBe(MAX_QUERY);
     expect(m.description.length).toBeGreaterThanOrEqual(120);
     expect(m.bodyHtml).toContain("<h2>");
     expect(m.bodyHtml).toContain(`href="/search?q=${encodeURIComponent("What awards has 4215 won?")}"`);

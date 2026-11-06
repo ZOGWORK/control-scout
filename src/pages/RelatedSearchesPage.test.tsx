@@ -6,6 +6,8 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
 import type { RelatedPageView, SearchFollowUp } from "../shared/api";
 import { prime } from "../lib/api";
+import { PersonalProvider } from "../lib/personal";
+import { relatedApiPath } from "../shared/search";
 import RelatedSearchesPage from "./RelatedSearchesPage";
 
 afterEach(cleanup);
@@ -13,7 +15,7 @@ const item = (q: string, value: string, rest: string): SearchFollowUp => ({ q, f
 const view: RelatedPageView = { q: "4215 opr", found: true, groups: [
   { title: "About this team", items: [item("4215 record", "26-6-0", "81% win rate"), item("4215 win rate", "81%", "26 wins out of 32 matches")] },
 ] };
-const draw = (url: string) => render(<MemoryRouter initialEntries={[url]}><RelatedSearchesPage /></MemoryRouter>).container;
+const draw = (url: string) => render(<MemoryRouter initialEntries={[url]}><PersonalProvider><RelatedSearchesPage /></PersonalProvider></MemoryRouter>).container;
 
 describe("related searches page", () => {
   it("lists each group's searches as links with their answers' lines", () => {
@@ -38,5 +40,17 @@ describe("related searches page", () => {
   it("titles the page with no search as the popular searches", () => {
     prime("/api/search/related", { q: "", found: false, groups: view.groups });
     expect(draw("/related-searches").querySelector("h1")?.textContent).toBe("Popular FTC searches");
+  });
+
+  it("asks with the visitor's preferred teams, as /search does", () => {
+    expect(relatedApiPath("4215 opr")).toBe("/api/search/related?q=4215+opr");
+    expect(relatedApiPath(" 4215 opr ", "team:4215,event:2025:USNJQ1")).toBe("/api/search/related?q=4215+opr&prefer=team%3A4215%2Cevent%3A2025%3AUSNJQ1");
+  });
+
+  it("lists one search alone with no heading", () => {
+    prime("/api/search/related?q=gearview", { q: "gearview", found: true, groups: [{ title: "", items: [item("9848 record", "10-2-0", "83% win rate")] }] } satisfies RelatedPageView);
+    const c = draw("/related-searches?q=gearview");
+    expect(c.querySelectorAll("[data-group] h2")).toHaveLength(0);
+    expect(c.querySelectorAll("[data-group] a")).toHaveLength(1);
   });
 });

@@ -4,7 +4,9 @@
 // season's starting points. The server draws the same lists in the first paint (server/seoMeta.ts).
 import { Link, useSearchParams } from "react-router-dom";
 import { Search } from "lucide-react";
-import { useApi, qs } from "../lib/api";
+import { useApi } from "../lib/api";
+import { usePreferKey } from "../components/search/SearchBox";
+import { relatedApiPath, relatedQuery } from "../shared/search";
 import { useTitle } from "../lib/meta";
 import type { RelatedPageView } from "../shared/api";
 import { cn } from "../components/cn";
@@ -14,8 +16,9 @@ const searchHref = (q: string) => `/search?q=${encodeURIComponent(q)}`;
 
 export default function RelatedSearchesPage() {
   const [params] = useSearchParams();
-  const q = (params.get("q") ?? "").trim();
-  const { data, error } = useApi<RelatedPageView>(`/api/search/related${qs({ q })}`);
+  const q = relatedQuery(params.get("q") ?? "");
+  // With the visitor's preferred teams, as /search asks: a name several teams share stays theirs here too.
+  const { data, error } = useApi<RelatedPageView>(relatedApiPath(q, usePreferKey()));
   const page = data?.q === q ? data : undefined;
   useTitle(q ? `Related searches: ${q}` : "Popular FTC searches");
   return (
@@ -29,8 +32,8 @@ export default function RelatedSearchesPage() {
       {error && !page ? <p className="mt-5 text-sm text-destructive">{error.message}</p>
         : !page ? <p className="mt-5 text-sm text-muted-foreground">Finding related searches…</p>
         : page.groups.map((g) => (
-          <section key={g.title} aria-label={g.title} className="mt-6" data-group>
-            <h2 className="mb-2 text-base font-semibold text-foreground">{g.title}</h2>
+          <section key={g.title || "searches"} aria-label={g.title || "Related searches"} className="mt-6" data-group>
+            {g.title && <h2 className="mb-2 text-base font-semibold text-foreground">{g.title}</h2>}
             <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
               {g.items.map((x) => (
                 <li key={x.q}>

@@ -42,7 +42,7 @@ import { withEventParents } from "./api/searchEvents.js";
 import { recordIntent } from "./api/searchIntents.js";
 import { answerSections } from "../src/shared/searchSections.js";
 import { rebuildSearch } from "./stats/job.js";
-import { SEARCH_HITS_ID, SEARCH_PAGE_LIMIT, cardWho, hitHref } from "../src/shared/search.js";
+import { SEARCH_HITS_ID, SEARCH_PAGE_LIMIT, cardWho, hitHref, relatedApiPath, relatedQuery, relatedSearch } from "../src/shared/search.js";
 import { hasPhases, phaseNote, teamColumns, teamTableOfLeaderboard, type TeamTable } from "../src/shared/teamTable.js";
 import { badgeUnder, contextBadge, isQualityQuestion, pageTitle } from "../src/shared/searchPage.js";
 
@@ -79,6 +79,9 @@ export interface PageMeta {
   /** The page's content as static, already-safe HTML for the first paint (server/bootShell.ts), for pages
    *  whose words are the point (power rankings): crawlers and previews read it without running the app. */
   bodyHtml?: string;
+  /** A content page's answers (API path → answer, as the app asks for it): put in the app's cache before it draws, so
+   *  it starts from the lists bodyHtml shows (src/lib/pageData.ts). A drawn first paint carries its own. */
+  pageData?: Record<string, unknown>;
   /** The first paint's <h1> when it's shorter than the title (a team: "4215 Hypnotic Robotics"). */
   heading?: string;
   /** The page itself, drawn by the server with the app's own component (a team's or an event's: server/firstPaint.ts), and the
@@ -646,18 +649,18 @@ async function searchMeta(raw: string): Promise<PageMeta> {
  * one nothing follows from), the season's starting points.
  */
 async function relatedMeta(raw: string): Promise<PageMeta> {
-  const q = raw.trim().slice(0, MAX_QUERY);
+  const q = relatedQuery(raw);
   await ensureSearchIndex(rebuildSearch);
   const r = await relatedPage(q);
   const title = q ? `Related searches: ${q}` : "Popular FTC searches";
   const body = (q && !r.found ? `<p>Nothing follows from “${esc(q)}” yet. These searches are good starting points.</p>` : "")
     + (q ? `<p><a href="/search?q=${esc(encodeURIComponent(q))}">Back to the answer for “${esc(q)}”</a></p>` : "")
-    + r.groups.map((g) => `<h2>${esc(g.title)}</h2><ul>${g.items.map((x) => `<li><a href="/search?q=${esc(encodeURIComponent(x.q))}">${esc(x.q)}</a><br><small>${esc(x.preview)}</small></li>`).join("")}</ul>`).join("")
+    + r.groups.map((g) => `${g.title ? `<h2>${esc(g.title)}</h2>` : ""}<ul>${g.items.map((x) => `<li><a href="/search?q=${esc(encodeURIComponent(x.q))}">${esc(x.q)}</a><br><small>${esc(x.preview)}</small></li>`).join("")}</ul>`).join("")
     + `<p><a href="/search">Search any FTC team, event or match</a></p>`;
   const n = r.groups.reduce((t, g) => t + g.items.length, 0);
   return {
-    title, type: "website", bodyHtml: body,
-    ...(q ? { path: `/related-searches?q=${encodeURIComponent(q)}` } : {}),
+    title, type: "website", bodyHtml: body, pageData: { [relatedApiPath(q)]: r },
+    ...(q ? { path: `/related-searches${relatedSearch(q)}` } : {}),
     description: fitDescription(q && r.found ? `${n} FTC searches related to “${q}” on Control Scout, each with its answer: team stats, records, awards and events.` : "Popular FTC searches on Control Scout, each with its answer: top teams, OPR leaders, upcoming events and the season's standout teams."),
   };
 }

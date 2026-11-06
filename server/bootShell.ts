@@ -192,7 +192,9 @@ export function bootShell(path: string, meta: PageMeta, hero: HeroLinesResponse 
       // A page whose own markup has its H1 (How it works, prerendered) keeps that one: one H1 per page.
       ? `<div class="csb-page" id="cs-boot-page" data-path="${esc(p)}">${meta.bodyHtml && /<h1[\s>]/.test(meta.bodyHtml) ? "" : `<h1>${esc(meta.heading ?? meta.title)}</h1>`}${meta.bodyHtml ? `<div class="csb-body">${meta.bodyHtml}</div>` : `<p>${esc(meta.description)}</p>`}`
         // Still here after LITE_BOOT_S seconds (CSS alone: no script needed, and the app's first render removes it): the light version.
-        + liteLink + `</div>` : "";
+        + liteLink + `</div>`
+        // The answers a content page was drawn from (PageMeta.pageData), for the app to start from: the same lists.
+        + (meta.pageData ? `<script type="application/json" id="${PAGE_DATA_ID}">${JSON.stringify(meta.pageData).replace(/</g, "\\u003c")}</script>` : "") : "";
   // The owner's own hero lines (not the built-in ones the app already has), on every page: the app reads them
   // before its first render (src/lib/heroLines.ts), so Home draws the same lines whichever page it opens from.
   const heroJson = hero.custom ? `<script type="application/json" id="${HERO_LINES_ID}">${JSON.stringify(lines).replace(/</g, "\\u003c")}</script>` : "";

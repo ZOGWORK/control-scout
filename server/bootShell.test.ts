@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { PRELOAD_MAX_DEP, afterFirstPaint, nonBlockingCss, renderIndex, routePreloads } from "./seo";
-import { APP_CSS_ID, HOME_HEADLINE_MS, HOME_HEADLINES, homeHeadlineAt } from "../src/shared/boot";
+import { APP_CSS_ID, HOME_HEADLINE_MS, HOME_HEADLINES, PAGE_DATA_ID, homeHeadlineAt } from "../src/shared/boot";
 import { BOOT_STYLE, bootShell } from "./bootShell";
 import { migrate, openDb, run, setDb } from "./db";
 import { pageModule, pageTitle } from "../src/shared/routes";
@@ -110,6 +110,15 @@ describe("static first paint", () => {
     // How it works' two pages sit level with the other rows in the rail, as the app's do.
     expect(narrow).toContain(".csb-sub>div{margin-left:0;padding-left:0;border-left:0}");
     expect(narrow).not.toMatch(/\.csb-nav a span[^{]*\{display:none/);
+  });
+});
+
+describe("a content page's data", () => {
+  it("comes with its first paint for the app to start from, never able to close its script", () => {
+    const html = bootShell("/related-searches", { title: "Popular FTC searches", description: "d", type: "website", bodyHtml: "<p>x</p>", pageData: { "/api/search/related": { q: "</script><b>", groups: [] } } });
+    const m = html.match(new RegExp(`<script type="application/json" id="${PAGE_DATA_ID}">(.*?)</script>`));
+    expect(JSON.parse(m![1])).toEqual({ "/api/search/related": { q: "</script><b>", groups: [] } });
+    expect(bootShell("/related-searches", { title: "t", description: "d", type: "website", bodyHtml: "<p>x</p>" })).not.toContain(PAGE_DATA_ID);
   });
 });
 
