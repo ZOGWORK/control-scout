@@ -14,6 +14,7 @@ import { useServerFlag } from "../../lib/flags";
 import type { SearchAnswer, SearchCard, SearchFact, SearchHit } from "../../shared/api";
 import { SEARCH_GROUPS, cardWho, shownPath } from "../../shared/search";
 import { cn } from "../cn";
+import { SEARCH_PALETTE } from "../../lib/textTones";
 import { TeamTable } from "./TeamTable";
 import { SEARCH_EXAMPLES, addRecentSearch, clearRecentSearches, useRecentSearches } from "./discover";
 import { dateRange, seasonLabel } from "../../lib/format";
@@ -159,9 +160,10 @@ export function AnswerNotesView({ notes, refining, className, query, onDidYouMea
     // Kept off the field's focus (as the rows are), so a tap in the header's list lands before it closes.
     const said = onDidYouMean
       ? <button type="button" data-did-you-mean-link onMouseDown={(e) => e.preventDefault()} onClick={() => onDidYouMean(fix)}
-        className="font-medium text-accent-text underline decoration-accent/40 underline-offset-2 hover:decoration-accent">{fix}</button>
-      : <b className="font-medium text-foreground">{fix}</b>;
-    lines.push(<span data-did-you-mean>Did you mean: {said}{notes.corrected === false ? "" : <>. Showing results for that{query ? <>, not “{query}”</> : ""}.</>}</span>);
+        className={cn("font-semibold underline decoration-current/40 underline-offset-2 hover:decoration-current", SEARCH_PALETTE.reference.text)}>{fix}</button>
+      : <b className={cn("font-semibold", SEARCH_PALETTE.reference.text)}>{fix}</b>;
+    // In Reference's sky (search's palette: a pointer to what to read), a thick bar on its wash.
+    lines.push(<span className={cn("inline-block rounded-md border-l-4 px-2 py-1 text-foreground", SEARCH_PALETTE.reference.edge, SEARCH_PALETTE.reference.tint)} data-did-you-mean>Did you mean: {said}{notes.corrected === false ? "" : <>. Showing results for that{query ? <>, not “{query}”</> : ""}.</>}</span>);
   }
   for (const u of notes.understood) lines.push(u);
   if (notes.gap) lines.push(<span className="inline-flex items-start gap-1 rounded-md border border-warning/40 bg-warning/[0.08] px-1.5 py-0.5 text-foreground"><Info className="mt-px size-3 shrink-0 text-warning" />{notes.gap}</span>);

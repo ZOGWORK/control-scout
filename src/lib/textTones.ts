@@ -77,7 +77,7 @@ export const PODIUM_CHIP: Record<number, string> = {
  *  card (a deep shade on Light, a bright one on dark themes), `bar` a graphic fill, `edge` a thick left bar's colour,
  *  `tint` a pale wash behind a tile. textTones.test.ts holds every fill and text to 4.5:1 in every theme and every
  *  family to one meaning. Teams keep their own tokens (team A, B, C: --color-team-*). RP is the only yellow, and only
- *  as a fill, its text a black-on-yellow chip (no light yellow text on dark). */
+ *  as a fill, its text a black-on-yellow chip (no light yellow text on dark); a count's number is amber. */
 // Literal class names (Tailwind only generates classes it can see written out).
 export const SEARCH_PALETTE = {
   // Scoring phases.
@@ -99,8 +99,24 @@ export const SEARCH_PALETTE = {
   // A yes-or-no question's answer (components/search/page/Verdict.tsx): green yes; no in slate, red being penalties'.
   yes: { family: "green", label: "Yes", fill: "bg-green-700 text-white", text: "text-green-700 dark:text-green-400", bar: "bg-green-700 dark:bg-green-500", edge: "border-l-green-700 dark:border-l-green-500", tint: "bg-green-500/10", stroke: "stroke-green-700 dark:stroke-green-500" },
   no: { family: "slate", label: "No", fill: "bg-slate-700 text-white", text: "text-slate-700 dark:text-slate-300", bar: "bg-slate-700 dark:bg-slate-400", edge: "border-l-slate-700 dark:border-l-slate-400", tint: "bg-slate-500/10", stroke: "stroke-slate-700 dark:stroke-slate-400" },
+  // A how-many answer's number ("578 teams registered in Canada"): amber, the owner's mock (11-06). Amber is not RP's
+  // yellow: its fill is a deeper orange-gold, and the card audit keeps the two off one card.
+  count: { family: "amber", label: "Count", fill: "bg-amber-500 text-black", text: "text-amber-700 dark:text-amber-400", bar: "bg-amber-600 dark:bg-amber-400", edge: "border-l-amber-600 dark:border-l-amber-400", tint: "bg-amber-500/10", stroke: "stroke-amber-600 dark:stroke-amber-400" },
+  // What a word or rule means, and where to read more (a definition, the game manual, a pointer to a page).
+  reference: { family: "sky", label: "Reference", fill: "bg-sky-700 text-white", text: "text-sky-700 dark:text-sky-400", bar: "bg-sky-700 dark:bg-sky-500", edge: "border-l-sky-700 dark:border-l-sky-500", tint: "bg-sky-500/10", stroke: "stroke-sky-700 dark:stroke-sky-500" },
 } as const;
 export type Meaning = keyof typeof SEARCH_PALETTE;
+
+/** A team card's season-at-a-glance tiles (components/search/page/TeamAnswer.tsx SeasonTiles): the tiles plain, each
+ *  number in its own colour (the owner, 11-06: colour on the text, not the block). OPR yellow, the prediction rating
+ *  purple, a record's wins green and losses red, events blue. Only on those tiles (the audit lets them by there). */
+export const GLANCE_TONE = {
+  opr: { text: "text-yellow-700 dark:text-yellow-400", bar: "bg-yellow-700 dark:bg-yellow-400" },
+  rating: { text: "text-purple-700 dark:text-purple-400" },
+  win: { text: "text-green-700 dark:text-green-400", bar: "bg-green-600 dark:bg-green-500" },
+  loss: { text: "text-red-700 dark:text-red-400", bar: "bg-red-600 dark:bg-red-500" },
+  events: { text: "text-blue-700 dark:text-blue-400" },
+} as const;
 
 /** The meaning a label names, read the same way on every card: a phase ("Auto", "TeleOp + end", "Pen given", "Avg
  *  RP"), an award ("Inspire Award 2nd Place", "1st place (Winning Alliance)", "Think"), a status. Null: none (the

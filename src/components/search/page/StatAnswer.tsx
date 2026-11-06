@@ -75,11 +75,12 @@ function OneCard({ stat, heading }: { stat: StatAnswer; heading?: string }) {
   return (
     <AnswerFrame teams={teams} split={stat.split} profile={profile} season={stated} title={stat.title} hideTitle={repeats(heading, stat.title)} sub={scope || undefined}
       data={{ "data-stat-answer": stat.intent, "data-family": stat.family }}>
-      {stat.headline && <Headline h={{ ...stat.headline, ...oneContext(stat.headline.label, stat.headline.sub, stat.scope) }} hue={one} />}
+      {stat.headline && <Headline h={{ ...stat.headline, ...oneContext(stat.headline.label, stat.headline.sub, stat.scope) }} hue={one} tone={headlineTone(stat, teams)} />}
       <AnswerVideo />
       {stat.none && (
-        <p className="mt-3 flex items-start gap-2 rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm text-foreground" data-none>
-          <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />{stat.none}
+        // Nothing found is the answer "no": No's slate, a thick bar and a filled chip.
+        <p className={cn("mt-3 flex items-start gap-3 rounded-xl border border-l-[6px] border-border px-4 py-3 text-sm font-semibold text-foreground", SEARCH_PALETTE.no.edge, SEARCH_PALETTE.no.tint)} data-none>
+          <span className={cn("grid size-7 shrink-0 place-items-center rounded-lg", SEARCH_PALETTE.no.fill)} data-line-icon><Info className="size-4" aria-hidden /></span><span className="mt-1">{stat.none}</span>
         </p>
       )}
       <div className="mt-4 space-y-5">{stat.blocks.map((b, i) => <Block key={`${b.kind}-${i}`} b={b} team={stat.team} teams={teams} said={said} hue={one} />)}</div>
@@ -90,8 +91,26 @@ function OneCard({ stat, heading }: { stat: StatAnswer; heading?: string }) {
   );
 }
 
+/** The headline number's colour (nothing grey for data): one team's card in its hue; a headline that leads with one of
+ *  the teams ("7149 favoured", "7149 leads 2-1") in that team's, or its alliance's (`split`: the first side team A's,
+ *  the other team B's, as the header draws them); a card about no team in its meaning (a winning alliance's orange), a
+ *  ranked list's top team in team A's, else Count's amber (a season's "190 points"). Ink only for a several-team line
+ *  naming none. */
+export function headlineTone(stat: Pick<StatAnswer, "intent" | "headline" | "family" | "split">, teams?: { number: number }[]): string {
+  if (teams?.length === 1) return TEAM_TEXT;
+  const v = stat.headline?.value ?? "";
+  if (teams?.length) {
+    const i = teams.findIndex((t) => new RegExp(`^${t.number}\\b`).test(v));
+    const side = i < 0 ? -1 : stat.split ? (i < stat.split ? 0 : 1) : i;
+    return side >= 0 && side < 3 ? TEAM_SWATCH[side].text : "text-foreground";
+  }
+  if (stat.family === "leaderboard") return TEAM_TEXT;
+  const m = /winning/.test(stat.intent) ? "winning" : meaningOf(stat.headline?.label ?? "");
+  return SEARCH_PALETTE[m ?? "count"].text;
+}
+
 /** The number asked for: big and bold, what it is under it; no band behind it (the team page shows its numbers so). */
-function Headline({ h, hue }: { h: NonNullable<StatAnswer["headline"]>; hue?: boolean }) {
+function Headline({ h, hue, tone }: { h: NonNullable<StatAnswer["headline"]>; hue?: boolean; tone: string }) {
   // One event's headline: its type and season as neutral badges (the season leaves the line under it, so it isn't
   // said twice).
   const ev = h.type !== undefined;
@@ -99,7 +118,7 @@ function Headline({ h, hue }: { h: NonNullable<StatAnswer["headline"]>; hue?: bo
   const sub = h.sub && season != null ? h.sub.split(" · ").filter((x) => x !== seasonLabel(season)).join(" · ") : h.sub;
   const body = (
     <>
-      <p className={cn("break-words font-display text-4xl font-semibold leading-tight tabular-nums group-hover:text-accent-text", hue ? TEAM_TEXT : "text-foreground")}><HeadlineValue value={h.value} win={hue ? TEAM_TEXT : undefined} /></p>
+      <p className={cn("break-words font-display text-4xl font-semibold leading-tight tabular-nums group-hover:underline", tone)}><HeadlineValue value={h.value} win={hue ? TEAM_TEXT : tone} /></p>
       <p className="mt-1 text-sm text-foreground"><RichText text={h.label} /></p>
       {sub && <p className="mt-0.5 text-xs text-muted-foreground"><RichText text={sub} /></p>}
       {ev && (h.type || season != null) && (
