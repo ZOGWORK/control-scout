@@ -20,7 +20,7 @@ import { EventAwardsAnswer } from "../components/search/page/EventAwards";
 import { useSubmittedSearch } from "../components/search/direct";
 import { SearchSkeleton } from "../components/search/SearchSkeleton";
 import { AnswerNotesView, useSearchHits, useSections } from "../components/search/SearchBox";
-import { CompareCard, EventCard, HeadToHead, ResultRow, TeamCard, teamSeasons, type SeasonSummary } from "../components/search/page/ResultCards";
+import { CompareCard, EventCard, EventFamilyCard, HeadToHead, ResultRow, TeamCard, teamSeasons, type SeasonSummary } from "../components/search/page/ResultCards";
 import { NoResults } from "../components/search/page/NoResults";
 import { StatAnswerCard } from "../components/search/page/StatAnswer";
 import { AnswerVideo, AnswerVideoProvider } from "../components/search/page/AnswerVideo";
@@ -31,9 +31,10 @@ import { PhoneSearchBar } from "../components/search/page/PhoneSearchBar";
 import { PhoneTeamCard } from "../components/search/page/PhoneTeamActions";
 import { CompareBar, CompareSheet, togglePick } from "../components/search/page/PhoneCompare";
 import { AppearancesAnswer, QualityBanner, StatBanner, Timeline } from "../components/search/page/Summary";
-import { appearanceStats, appearances, eventName, isQualityQuestion, hasNumbers, standing } from "../components/search/page/records";
+import { appearanceStats, appearances, isQualityQuestion, hasNumbers, standing } from "../components/search/page/records";
 import { SearchFilters } from "../components/search/page/SearchFilters";
-import { answerTeams, anyFilter, askedWhen, filterAlternatives, whenCounts, compareSeason, compareSides, compareTeams, filterChoices, cardTeamName, isCompare, isFuzzy, keeps, pageTitle, contextBadge, badgeUnder, readingOf, fuzzyWords, readFilters, teamParts, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
+import { eventGroups } from "../components/search/page/eventFamilies";
+import { answerTeams, anyFilter, askedWhen, filteredTitle, filterAlternatives, whenCounts, compareSeason, compareSides, compareTeams, filterChoices, cardTeamName, isCompare, isFuzzy, keeps, pageTitle, contextBadge, badgeUnder, readingOf, fuzzyWords, readFilters, teamParts, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
 import { SEARCH_PAGE_LIMIT } from "../shared/search";
 import type { AnswerRow, AnswerSection } from "../shared/searchSections";
 import type { SearchHit, TeamSummary } from "../shared/api";
@@ -126,14 +127,17 @@ export default function SearchPage() {
   // One line for what the query was read as (the server's reading, else the top result's subject and what it opens on).
   // A comparison card names its teams in its own title: the heading keeps the numbers only, so each name shows once
   // (the search results guide).
-  const title = found ? (answer?.stat && comparisonOf(answer.stat) ? answer.stat.title : pageTitle(ax, hits, isQualityQuestion(query))) : null;
+  // A set of events the filters narrow says what's left ("…, 2024–25"), as the tabs and cards count it.
+  const narrowed = filteredTitle(ax, filters, askedTime);
+  const title = found ? (answer?.stat && comparisonOf(answer.stat) ? answer.stat.title : narrowed ?? pageTitle(ax, hits, isQualityQuestion(query))) : null;
   // A question card's heading names its team in bold ("Where **Hypnotic Robotics (4215)** is from").
   const strong = title && ax?.card?.team ? cardTeamName(ax.card.team) : null;
   const shownTitle = strong && title!.includes(strong)
     ? <span className="font-medium">{title!.slice(0, title!.indexOf(strong))}<strong className="font-bold" data-title-team>{strong}</strong>{title!.slice(title!.indexOf(strong) + strong.length)}</span>
     : title;
   // A comparison says what it compares in its own card: no reading badge repeating the teams.
-  const badge = !found || !ax || (answer?.stat && comparisonOf(answer.stat)) ? null : badgeUnder(title!, contextBadge({ ...ax, hits }, notes.understood));
+  // Nor does a heading the filters rewrote: the server's reading is of the whole set, which the page no longer shows.
+  const badge = !found || !ax || narrowed || (answer?.stat && comparisonOf(answer.stat)) ? null : badgeUnder(title!, contextBadge({ ...ax, hits }, notes.understood));
   const open = (h: SearchHit) => logPick(h);
   // Phase 2 summary: a championship question's records as a timeline and stats; "how good is X" as X's standing.
   const apps = useMemo(() => appearances(answer?.card), [answer?.card]);
@@ -328,7 +332,7 @@ function ResultSection({ s, summaries, covered, picks, onPick, fuzzyWord, twoCol
         {s.id !== "pages" && s.id !== "browse" && <span className="rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-foreground/80">{count}</span>}
       </h2>
       {s.id === "event" ? (
-        <div className={cn("grid gap-3 sm:grid-cols-2", twoCol ? "2xl:grid-cols-3" : "xl:grid-cols-3")}>{bySeasons(s.rows.map((r) => r.hit)).map((g) => <EventCard key={g[0].ref} h={g[0]} seasons={g} onOpen={onOpen} />)}</div>
+        <div className={cn("grid gap-3 sm:grid-cols-2", twoCol ? "2xl:grid-cols-3" : "xl:grid-cols-3")}>{eventGroups(s.rows.map((r) => r.hit)).map((g) => (g.kind === "family" ? <EventFamilyCard key={g.family.key} f={g.family} onOpen={onOpen} /> : <EventCard key={g.hits[0].ref} h={g.hits[0]} seasons={g.hits} onOpen={onOpen} />))}</div>
       ) : teamish ? (
         <div className="space-y-2">
           {teamGroups.map(({ head, subs }) => (
@@ -358,21 +362,6 @@ function ResultSection({ s, summaries, covered, picks, onPick, fuzzyWord, twoCol
       )}
     </section>
   );
-}
-
-/** An event's name for grouping: a championship division by its own name ("Edison Division", whatever the year's
- *  championship was called), anything else by its whole name. */
-const nameKey = (h: SearchHit) => eventName(h.title).title.trim().toLowerCase();
-
-/** Events that share a name across seasons, as one group (a card with a tab per season) where the first stood.
- *  Every event stays reachable; two with one name in the same season stay apart. */
-function bySeasons(hits: SearchHit[]): SearchHit[][] {
-  const groups: SearchHit[][] = [];
-  for (const h of hits) {
-    const g = groups.find((x) => nameKey(x[0]) === nameKey(h) && !x.some((y) => y.season === h.season));
-    if (g) g.push(h); else groups.push([h]);
-  }
-  return groups;
 }
 
 /** The team's own pages a summary leads on to (its scouting profile's parts and Compare), all existing routes, in the

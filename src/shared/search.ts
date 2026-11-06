@@ -5,8 +5,26 @@ import type { SearchHit, SearchPageLink, SearchSection } from "./api.js";
 /** The kinds in the order they're listed, with their group names. */
 export const SEARCH_GROUPS: [SearchHit["kind"], string][] = [["compare", "Compare"], ["place", "Places"], ["team", "Teams"], ["event", "Events"], ["match", "Matches"]];
 
-/** How many hits the /search page lists (the API's most). */
+/** How many hits the /search page lists (the API's most), counted as cards: an event and its divisions are one
+ *  (firstCards). */
 export const SEARCH_PAGE_LIMIT = 25;
+
+/** The card a hit is listed on: an event's divisions share their event's (season and parent code), so a
+ *  championship's finals and divisions are one card; any other hit is its own. */
+export const familyKey = (h: Pick<SearchHit, "kind" | "ref" | "season" | "parent">): string =>
+  h.kind === "event" && h.season != null ? `event:${h.season}:${h.parent ?? h.ref.split(":")[1]}` : `${h.kind}:${h.ref}`;
+
+/** The hits of the first `n` cards (familyKey), in order: a cut never splits an event from its divisions. */
+export function firstCards<T extends Pick<SearchHit, "kind" | "ref" | "season" | "parent">>(hits: T[], n: number): T[] {
+  const seen = new Set<string>();
+  return hits.filter((h) => {
+    const k = familyKey(h);
+    if (seen.has(k)) return true;
+    if (seen.size >= n) return false;
+    seen.add(k);
+    return true;
+  });
+}
 
 /** What a query can ask about a team or event besides its name ("hypnotic ranking points", "USNJCMP odds"). */
 export type SearchTopic = "awards" | "matches" | "rankings" | "odds" | "playoffs" | "rp" | "opr" | "record" | "stats" | "difficulty" | "history";

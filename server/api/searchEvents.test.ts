@@ -251,11 +251,13 @@ describe("a state's championships, every season (owner report: \"new jesey state
 });
 
 describe("Greptile on #450, round 3", () => {
-  it("more championships than a page holds: the newest first, how many in all, and the full list linked", async () => {
+  it("more championships than a page holds: the newest first, how many of them are listed, and the full list linked", async () => {
     for (let i = 0; i < 30; i++) await run("INSERT INTO events (season, code, name, type, venue, city, state, country, start, end, source) VALUES (?, ?, ?, 'Championship', 'V', 'Austin', 'TX', 'USA', ?, ?, 'test')", [S - (i % 4), `USTXR${i}`, `Texas Region ${i} Championship`, `2026-0${1 + (i % 9)}-01`, `2026-0${1 + (i % 9)}-01`]);
     const a = await ask("tx states");
     expect(a.understood?.total).toBe(30); // never the FIRST Championship held in Houston (above)
-    expect(a.understood?.label).toMatch(/, 30 in all \(the full list is on Events\)$/);
+    // The place's link takes one card of the 25; the heading counts what's listed, as the events heading and tabs do.
+    expect(a.understood?.label).toMatch(/, the newest 24 of 30 listed \(the full list is on Events\)$/);
+    expect(a.hits.filter((h) => h.kind === "event")).toHaveLength(24);
     expect((await searchAnswer("tx states", { now, limit: 15, learn: false })).understood?.label).toBe(a.understood?.label); // the same line for any limit
     expect(a.pages[0]).toEqual({ title: "Championships in Texas, each season: Events", href: "/events?region=USA%3ATX&type=Championship" });
   });

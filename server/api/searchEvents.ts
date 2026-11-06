@@ -13,18 +13,18 @@
 //     the venue or city.
 //     A year is never dropped: no event in 2019 is said plainly, with the other years' events as closest matches.
 import type { SearchAnswer, SearchEventInfo, SearchHit, SearchUnderstood } from "../../src/shared/api.js";
-import { eventSetLabel, eventTypesOf, timeWindow, type EventQuery } from "../../src/shared/searchEventQuery.js";
+import { eventSetLabel, eventSetSpan, eventTypesOf, timeWindow, type EventQuery } from "../../src/shared/searchEventQuery.js";
 import { STOPWORDS } from "../../src/shared/searchQuery.js";
-import { SEARCH_BROWSE, SEARCH_PAGE_LIMIT, pagesFor } from "../../src/shared/search.js";
+import { SEARCH_BROWSE, SEARCH_PAGE_LIMIT, familyKey, firstCards, pagesFor } from "../../src/shared/search.js";
 import { eventStatus, localDate } from "../../src/shared/eventDay.js";
 import { seasonLabel } from "../../src/shared/format.js";
 import { wordScore, words } from "./fuzzy.js";
-import { get } from "../db.js";
+import { all, get } from "../db.js";
 import { searchRead } from "./searchReads.js";
-import { CURRENT_SEASON, SEASON_NUMBERS } from "../data/seasons.js";
+import { CURRENT_SEASON, SEASON_NUMBERS, gameOf } from "../data/seasons.js";
 import { edits, type Region } from "../../src/shared/regions.js";
 
-interface Row { season: number; code: string; name: string; type: string | null; venue: string | null; city: string | null; state: string | null; country: string | null; start: string | null; end: string | null; timezone: string | null }
+interface Row { season: number; code: string; name: string; type: string | null; division_code?: string | null; venue: string | null; city: string | null; state: string | null; country: string | null; start: string | null; end: string | null; timezone: string | null }
 
 /** Today's date (UTC): the reference for windows like "this weekend". */
 export const searchToday = (now = Date.now()) => new Date(now).toISOString().slice(0, 10);
@@ -109,7 +109,51 @@ export const venueName = (v: string | null): string | null => v?.replace(/[,\s]+
 export function eventHit(r: Row, now = Date.now()): SearchHit {
   const status = eventStatus({ start: r.start, end: r.end, timezone: r.timezone }, 0, 0, now);
   const event: SearchEventInfo = { start: r.start, end: r.end, type: r.type, venue: venueName(r.venue), status };
-  return { kind: "event", ref: `${r.season}:${r.code}`, title: r.name, subtitle: [r.code, r.start, placeOf(r)].filter(Boolean).join(" · "), season: Number(r.season), event, match: "exact" };
+  return { kind: "event", ref: `${r.season}:${r.code}`, title: r.name, subtitle: [r.code, r.start, placeOf(r)].filter(Boolean).join(" · "), season: Number(r.season), event, match: "exact", ...(r.division_code ? { parent: r.division_code } : {}) };
+}
+
+/** Each event hit with its season's game (SearchHit.game), and each division with its event's code (SearchHit.parent)
+ *  from the events table: hits read from names (the search index) don't carry it. One read for the whole answer. */
+export async function withEventParents(hits: SearchHit[]): Promise<SearchHit[]> {
+  const ask = hits.filter((h) => h.kind === "event" && h.parent == null && h.season != null);
+  const rows = ask.length ? await all<{ season: number; code: string; division_code: string }>(
+    `SELECT season, code, division_code FROM events WHERE division_code IS NOT NULL AND (${ask.map(() => "(season = ? AND code = ?)").join(" OR ")})`,
+    ask.flatMap((h) => [h.season!, h.ref.split(":")[1]])) : [];
+  const of = new Map(rows.map((r) => [`${r.season}:${r.code}`, r.division_code]));
+  return hits.map((h) => {
+    if (h.kind !== "event" || h.season == null) return h;
+    const parent = h.parent ?? of.get(h.ref), game = gameOf(h.season);
+    return { ...h, ...(parent ? { parent } : {}), ...(game ? { game } : {}) };
+  });
+}
+
+/** The hits with each family listed in part made whole (an event split in divisions: its finals and every division), the
+ *  missing members right after the last one listed, each hit with its parent and game (withEventParents). A list cut
+ *  by raw hits (names matched) can hold part of one; the page's cut (firstCards) then keeps or drops it whole. Never
+ *  for a filtered set: its filters, not a limit, left the others out. */
+export async function withWholeFamilies(hits: SearchHit[], now = Date.now()): Promise<SearchHit[]> {
+  const out = await withEventParents(hits);
+  // Only a family the list already shows (2+ of it): a lone event or division ("edison division") stays as found.
+  const listed = new Map<string, number>();
+  for (const h of out) listed.set(familyKey(h), (listed.get(familyKey(h)) ?? 0) + 1);
+  const fams = new Map<string, { season: number; code: string }>();
+  for (const h of out) if (h.kind === "event" && h.season != null && listed.get(familyKey(h))! >= 2) fams.set(familyKey(h), { season: h.season, code: h.parent ?? h.ref.split(":")[1] });
+  if (!fams.size) return out;
+  const rows = await all<Row>(
+    `SELECT season, code, name, type, division_code, venue, city, state, country, start, end, timezone FROM events WHERE ${[...fams.values()].map(() => "(season = ? AND (code = ? OR division_code = ?))").join(" OR ")} ORDER BY season, code`,
+    [...fams.values()].flatMap((f) => [f.season, f.code, f.code]));
+  const have = new Set(out.map((h) => `${h.kind}:${h.ref}`));
+  const missing = new Map<string, SearchHit[]>();
+  for (const r of rows) {
+    const h = eventHit(r, now);
+    if (have.has(`event:${h.ref}`)) continue;
+    const k = familyKey(h);
+    missing.set(k, [...(missing.get(k) ?? []), h]);
+  }
+  if (!missing.size) return out;
+  const last = new Map<string, number>();
+  out.forEach((h, i) => last.set(familyKey(h), i));
+  return withEventParents(out.flatMap((h, i) => (last.get(familyKey(h)) === i ? [h, ...(missing.get(familyKey(h)) ?? [])] : [h])));
 }
 
 /** Upcoming soonest first, then past most recent first: the two never interleave (brief Requirement 9). */
@@ -139,7 +183,7 @@ async function rowsFor(e: EventQuery, now: number, drop: { where?: boolean; time
     if (w.to) { where.push("start <= ?"); args.push(w.to); }
   }
   // A copy: the rows read are shared (./searchReads.ts), and an every-season list is sorted in place below.
-  let rows = [...(await searchRead<Row>(`SELECT season, code, name, type, venue, city, state, country, start, end, timezone FROM events WHERE ${where.join(" AND ")}`, args))];
+  let rows = [...(await searchRead<Row>(`SELECT season, code, name, type, division_code, venue, city, state, country, start, end, timezone FROM events WHERE ${where.join(" AND ")}`, args))];
   if (e.time === "upcoming" && !drop.time) rows = rows.filter((r) => (r.end ?? r.start ?? "") >= dayAt(r.timezone));
   if (e.time === "past" && !drop.time) rows = rows.filter((r) => (r.end ?? r.start ?? "") < dayAt(r.timezone));
   // The kind of event: its type, or (no type stored) the word in its name ("… League Meet"). The most specific word
@@ -238,21 +282,30 @@ export async function eventSetAnswer(q: string, e: EventQuery, opts: { now?: num
   const inPlace = e.region ? await placeCount(e.region) : 0;
   // The place's link names the set listed too, in the label's own words with the place left out ("meets", "upcoming
   // meets"), counted as the list is: one definition for the link, the events heading and the time tabs. A page holds
-  // `room` events after the link (every answer is cut to SEARCH_PAGE_LIMIT hits), so more than that says how many
-  // are listed.
+  // `room` cards after the link (every answer is cut to SEARCH_PAGE_LIMIT cards, an event with its divisions as one:
+  // firstCards), so more than that says how many are listed.
   const room = SEARCH_PAGE_LIMIT - (inPlace ? 1 : 0);
-  const placeFor = (rows: Row[], o: Parameters<typeof eventSetLabel>[1]) => (e.region ? placeHitOf(e.region, inPlace, { n: rows.length, listed: Math.min(rows.length, room), label: lower(eventSetLabel({ ...e, region: null }, { seasonLabel, ...o })) }) : null);
-  // Every season but more than a page holds: the newest first, how many in all, and the full list one click away.
-  const more = (rows: Row[]) => (e.allSeasons && rows.length > room ? rows.length : 0);
-  const done = (rows: Row[], understood: SearchUnderstood, o: Parameters<typeof eventSetLabel>[1] = {}): SearchAnswer => ({
-    q, hits: [...[placeFor(rows, o)].filter((h): h is SearchHit => !!h), ...rows.map((r) => eventHit(r, now)), ...(opts.others ?? [])],
-    pages: more(rows) && e.region ? [{ title: `Championships in ${e.region.name}, each season: Events`, href: `/events?region=${encodeURIComponent(e.region.key)}&type=Championship` }, ...pagesFor(q)] : pagesFor(q),
-    step: "deterministic", weak: false,
-    understood: { ...understood, ...(more(rows) ? { label: `${understood.label}, ${rows.length} in all (the full list is on Events)` } : {}), total: rows.length },
-  });
+  const placeFor = (rows: Row[], listed: number, o: Parameters<typeof eventSetLabel>[1]) => (e.region ? placeHitOf(e.region, inPlace, { n: rows.length, listed, label: lower(eventSetLabel({ ...e, region: null }, { seasonLabel, ...o })) }) : null);
+  const done = (rows: Row[], understood: SearchUnderstood, o: Parameters<typeof eventSetLabel>[1] = {}): SearchAnswer => {
+    const events = firstCards(rows.map((r) => eventHit(r, now)), room);
+    // Every season but more than a page holds: the newest first, how many of them are listed (what the events
+    // heading and the All tab count), and the full list one click away.
+    const more = e.allSeasons && events.length < rows.length;
+    return {
+      q, hits: [...[placeFor(rows, events.length, o)].filter((h): h is SearchHit => !!h), ...events, ...(opts.others ?? [])],
+      pages: more && e.region ? [{ title: `Championships in ${e.region.name}, each season: Events`, href: `/events?region=${encodeURIComponent(e.region.key)}&type=Championship` }, ...pagesFor(q)] : pagesFor(q),
+      step: "deterministic", weak: false,
+      understood: { ...understood, ...(more ? { label: `${understood.label}, the newest ${events.length} of ${rows.length} listed (the full list is on Events)` } : {}), total: rows.length },
+    };
+  };
 
   const rows = await rowsFor(e, now);
-  if (rows.length) return done(rows, { ...base, label: label({ where: whereAsStored(e, rows) }) + gaps(e, rows) }, { where: whereAsStored(e, rows) });
+  if (rows.length) {
+    const where = whereAsStored(e, rows);
+    // A bounded window ("this week") stays in the heading: the page's tabs only stand in for upcoming and past.
+    const scope = e.time && e.time !== "upcoming" && e.time !== "past" ? undefined : { subject: eventSetLabel({ ...e, time: null, season: null, year: null, allSeasons: false }, { seasonLabel, where }), span: eventSetSpan(e, seasonLabel) };
+    return done(rows, { ...base, label: label({ where }) + gaps(e, rows), ...(scope ? { scope } : {}) }, { where });
+  }
   // Nothing matched: the closest honest set, labelled as such. The time goes first (the venue asked for stays), then
   // the venue or city.
   const asked = label();
