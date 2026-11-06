@@ -14,7 +14,7 @@ export type IntentId =
   // Family 4: a count, a mean, a record or a streak over a filtered set.
   | "wins-count" | "record" | "average-score" | "average-margin" | "total-points" | "total-matches" | "total-events" | "seasons-played" | "seasons-count"
   | "current-streak" | "longest-streak" | "last-matches" | "average-rank" | "playoff-appearances"
-  | "blowout-wins" | "losses" | "playoff-matches" | "qual-matches" | "red-blue-record"
+  | "blowout-wins" | "losses" | "playoff-matches" | "qual-matches" | "season-matches" | "red-blue-record"
   // Family 4 again, over the match rows' scores, phases and penalties (families/matchStats.ts).
   | "ties-count" | "win-percent" | "score-range" | "median-score" | "score-consistency" | "scores-over"
   | "highest-auto" | "highest-teleop" | "highest-endgame" | "most-penalties" | "penalties"
@@ -158,6 +158,8 @@ const RULES: IntentRule[] = [
   { id: "playoff-appearances", family: "aggregate", season: "all", re: /\b(?:playoffs?|elimination|elims?)\s+appearances?\b|\b(?:times|events)\s+(?:in|made|reached)\s+(?:the\s+)?(?:playoffs?|eliminations?|elims?)\b/ },
   { id: "playoff-matches", family: "aggregate", season: "all", re: new RegExp(`\\b(?:playoffs?|elimination|elims?)\\s+${MATCHES}\\b`) },
   { id: "qual-matches", family: "aggregate", season: "all", re: new RegExp(`\\b(?:qualification|qualifying|quals?)\\s+${MATCHES}\\b`) },
+  // A team's matches in a season ("12345 matches in 2025-26"): read by the search pipeline only, so no phrasing here.
+  { id: "season-matches", family: "aggregate", season: "latest", re: /(?!)/ },
   { id: "average-rank", family: "aggregate", season: "all", re: /\b(?:average|avg|mean)\s+(?:event\s+)?(?:rank(?:ing)?|placement|finish|place)\b/ },
   { id: "average-margin", family: "aggregate", season: "all", re: /\b(?:average|avg|mean|typical)\s+(?:winning\s+|losing\s+|match\s+)?(?:margin|point\s+differential|differential|point\s+diff)\b|\bmargin\s+(?:of\s+victory\s+)?(?:on\s+)?average\b/ },
   { id: "total-points", family: "aggregate", season: "all", re: /\btotal\s+(?:points|score)(?:\s+scored)?\b|\b(?:points|score)\s+total\b|\ball\s+the\s+points\b|\bhow\s+many\s+points\s+(?:has|have|did)\s+(?<team>.+?)\s+score[ds]?\b/ },
@@ -333,7 +335,7 @@ export function readScope(q: string): { scope: ReadScope; rest: string } {
 const namesSeasons = (s: ReadScope) => s.season != null || s.latest || s.ever || s.championship || s.states || !!s.at;
 /** Read from the team's match rows: the only answers a place of events ("at NJ events") applies to. */
 const PLACE_IDS = new Set<IntentId>(["highest-score", "lowest-score", "biggest-win", "biggest-loss", "closest-match", "first-match", "recent-match", "wins-count", "record", "average-score", "average-margin", "total-points", "total-matches",
-  "current-streak", "longest-streak", "last-matches", "blowout-wins", "losses", "playoff-matches", "qual-matches", "ties-count", "win-percent", "score-range", "median-score", "score-consistency", "scores-over",
+  "current-streak", "longest-streak", "last-matches", "blowout-wins", "losses", "playoff-matches", "qual-matches", "season-matches", "ties-count", "win-percent", "score-range", "median-score", "score-consistency", "scores-over",
   "highest-auto", "highest-teleop", "highest-endgame", "most-penalties", "penalties", "vs-top", "vs-rookies", "early-late"]);
 
 /** Whether `scope` can apply to the rows intent `id` is answered from: a scope that can't is never dropped silently,

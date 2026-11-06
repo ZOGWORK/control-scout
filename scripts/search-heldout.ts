@@ -78,7 +78,8 @@ for (const x of sets) {
   // against a reader's that says it left a word out; another reader's answer is judged by its card.
   const piped = !!a.intent?.understood?.some((u) => u.startsWith("Intent: "));
   const leftOut = /isnt part of this answer/.test(text);
-  const pattern = !answered ? (a.understood?.fallback || a.step === "recovery" || a.step === "closest" ? "fallback only"
+  // A question search can't answer yet, said so with what was read: its own pattern, never a pass.
+  const pattern = !answered ? (a.sorry ? "sorry shown" : a.understood?.fallback || a.step === "recovery" || a.step === "closest" ? "fallback only"
       : a.understood?.kind === "team" ? "team card only" : a.understood?.kind === "events" ? "event list only" : "names only")
     : /isnt answered|not answered/.test(text) ? "not answered"
     : !placeStated ? "place not stated"

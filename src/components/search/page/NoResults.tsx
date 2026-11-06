@@ -4,7 +4,7 @@
 // it travels as a data attribute only.
 import { Link } from "react-router-dom";
 import { CalendarDays, Shield } from "lucide-react";
-import type { SearchHit } from "../../../shared/api";
+import type { SearchAnswer, SearchHit } from "../../../shared/api";
 import { EventCard, TeamCard, type SeasonSummary } from "./ResultCards";
 import { RelatedQuestions } from "./TeamAnswer";
 import { seasonLabel } from "../../../shared/format";
@@ -20,7 +20,20 @@ export function relatedFor(closest: SearchHit[]): string[] {
   return [...new Set(out)].slice(0, 4);
 }
 
-export function NoResults({ query, understood, closest, summaries, onOpen }: {
+/** A question search can't answer yet (§4 of the natural-questions brief): what it was read as, in one line, and the
+ *  searches that do answer about it. The page's heading says sorry, once. */
+export function SorryNote({ sorry, className }: { sorry: NonNullable<SearchAnswer["sorry"]>; className?: string }) {
+  return (
+    <div className={className} data-sorry>
+      {!!sorry.understood.length && (
+        <p className="text-sm text-foreground"><span className="font-semibold">I read:</span> {sorry.understood.join(" · ")}</p>
+      )}
+      <RelatedQuestions queries={sorry.suggest} title="Searches that answer about them" className="mt-3" />
+    </div>
+  );
+}
+
+export function NoResults({ query, understood, closest, summaries, onOpen, sorry }: {
   query: string;
   understood: string[];
   /** Near matches that didn't make the cut. */
@@ -28,14 +41,18 @@ export function NoResults({ query, understood, closest, summaries, onOpen }: {
   /** Each team's season numbers, as the results list shows them. */
   summaries?: Map<number, SeasonSummary>;
   onOpen: (h: SearchHit) => void;
+  /** Read as a question search can't answer yet: said with what was read, never "no answer for" too. */
+  sorry?: SearchAnswer["sorry"];
 }) {
   const cards = closest.filter((h) => h.kind === "team" || h.kind === "event").slice(0, 3);
-  const related = relatedFor(cards);
+  const related = sorry ? [] : relatedFor(cards);
   return (
     <div className="space-y-5" data-no-results data-understood={understood.map((u) => u.replace(/^Understood:\s*/, "")).join(" · ") || undefined}>
-      <p className="text-sm text-foreground">
-        Search has no answer for “{query}”{cards.length ? "; these are the closest real results." : ". Try a team number, a team or event name, or a place."}
-      </p>
+      {sorry ? <SorryNote sorry={sorry} /> : (
+        <p className="text-sm text-foreground">
+          Search has no answer for “{query}”{cards.length ? "; these are the closest real results." : ". Try a team number, a team or event name, or a place."}
+        </p>
+      )}
       {!!cards.length && (
         <section aria-label="Closest results" className="space-y-3">
           {cards.map((h) => (h.kind === "team"

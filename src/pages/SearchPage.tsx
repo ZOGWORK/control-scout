@@ -21,7 +21,7 @@ import { useSubmittedSearch } from "../components/search/direct";
 import { SearchSkeleton } from "../components/search/SearchSkeleton";
 import { AnswerNotesView, useSearchHits, useSections } from "../components/search/SearchBox";
 import { CompareCard, EventCard, HeadToHead, ResultRow, TeamCard, teamSeasons, type SeasonSummary } from "../components/search/page/ResultCards";
-import { NoResults } from "../components/search/page/NoResults";
+import { NoResults, SorryNote } from "../components/search/page/NoResults";
 import { StatAnswerCard } from "../components/search/page/StatAnswer";
 import { AnswerVideo, AnswerVideoProvider } from "../components/search/page/AnswerVideo";
 import { comparisonOf } from "../components/search/page/CompareCard";
@@ -45,6 +45,7 @@ import { BOOT_HITS } from "../lib/searchBoot";
 import { useTitle, useMeta, useCurrentSeason, useMediaQuery } from "../lib/meta";
 import { useApi, qs } from "../lib/api";
 import { cn } from "../components/cn";
+import { Verdict } from "../components/search/page/Verdict";
 
 const RESULT_KINDS = new Set(["place", "team", "event", "match"]);
 
@@ -97,6 +98,10 @@ export default function SearchPage() {
   // shows that season, like the page it opens. Otherwise: this season, and early in it (most teams have no numbers
   // yet) last season's, labelled with it. A team hit asking for yet another season gets no badges (never another's).
   const h2h = compares.find((c) => compareTeams(c).length >= 2);
+  // Numbers print once: an answer card that already sets the teams side by side takes the head-to-head panel's place
+  // (the Compare still picks the season the page shows).
+  const sideBySide = answer?.stat?.family === "two-team" && answer.stat.blocks.some((b) => b.kind === "compare");
+  const shownH2h = sideBySide ? undefined : h2h;
   // The closest results when nothing answers count too: a card opening a season shows that season's numbers.
   const listed = useMemo(() => [...hits, ...closest], [hits, closest]);
   const asked = (h2h ? compareSeason(h2h) : null) ?? listed.find((h) => h.kind === "team" && h.linkSeason != null)?.linkSeason ?? null;
@@ -156,7 +161,7 @@ export default function SearchPage() {
   // A team-at-an-event answer keeps its card's facts: those are the event's numbers, not the summary's season ones.
   const covered = quality && topTeam && !topTeam.atEvent ? Number(topTeam.ref) : null;
   // The one right-hand panel (desktop): a versus query's head-to-head, else a question's computed summary.
-  const panel: "versus" | "summary" | null = h2h ? "versus" : apps.length || quality ? "summary" : null;
+  const panel: "versus" | "summary" | null = shownH2h ? "versus" : apps.length || quality ? "summary" : null;
   const aboutTeam = answer?.card?.team?.number ?? (quality && topTeam ? Number(topTeam.ref) : null);
   // Search answered it directly (a card or a stat answer, not a guess): Bruno isn't asked, so the page never shows his
   // card and the answer saying the same thing twice.
@@ -180,7 +185,7 @@ export default function SearchPage() {
       {/* The accent is the selected control's alone on this page (the active time tab): the eyebrow is plain. */}
       <p className="text-xs font-semibold text-muted-foreground max-md:hidden" data-eyebrow>FTC One Search</p>
       <h1 className="mt-1 font-display text-xl font-semibold tracking-tight text-foreground max-md:mt-0 md:text-2xl lg:text-3xl">
-        {!query ? "Search" : found ? <>{phone && "Results: "}{shownTitle}</> : busy || error ? "Search results" : "No matches found"}
+        {!query ? "Search" : ax?.sorry && !busy && !error ? "Sorry — I can't answer that yet" : found ? <>{phone && "Results: "}{shownTitle}</> : busy || error ? "Search results" : "No matches found"}
       </h1>
       {badge && (
         <p className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-muted/50 px-2.5 py-1 text-xs font-medium text-foreground" data-context-badge>
@@ -208,7 +213,7 @@ export default function SearchPage() {
                   <NoResults
                     query={query} onOpen={open}
                     understood={readingOf(ax) ? [readingOf(ax)!] : notes.understood}
-                    closest={closest} summaries={summaries}
+                    closest={closest} summaries={summaries} sorry={ax?.sorry}
                   />
                 </>
               )
@@ -224,7 +229,10 @@ export default function SearchPage() {
                 </p>
               )}
               {/* The team was found but not the answer: what search can answer about it, one tap each. */}
-              {!!ax?.suggest?.length && <RelatedQuestions queries={ax.suggest} title="Search can answer these about them" className="mb-5" />}
+              {ax?.sorry ? <SorryNote sorry={ax.sorry} className="mb-5" />
+                : !!ax?.suggest?.length && <RelatedQuestions queries={ax.suggest} title="Search can answer these about them" className="mb-5" />}
+              {/* A yes-or-no question's answer, first: above the summary and the card that proves it. */}
+              {answer?.verdict && <Verdict v={answer.verdict} />}
               {(events >= 2 || choices.seasons.length > 1 || filtersOn) && <div className="mb-4"><SearchFilters f={filters} seasons={choices.seasons} types={choices.types} counts={events ? counts : undefined} asked={askedTime} onChange={setFilters} /></div>}
               {/* Desktop: results left (at most 720px, narrower before the panel gets under 20rem), at most one panel
                   right, chosen by the query: a versus query's
@@ -258,7 +266,7 @@ export default function SearchPage() {
                     </section>
                   )}
                   {/* Phones: a versus query's side-by-side numbers under its Compare (desktop has them beside it). */}
-                  {h2h && <div className="mb-5 lg:hidden"><HeadToHead h={h2h} now={now.data?.teams} before={asked == null ? before.data?.teams : undefined} season={base} /></div>}
+                  {shownH2h && <div className="mb-5 lg:hidden"><HeadToHead h={shownH2h} now={now.data?.teams} before={asked == null ? before.data?.teams : undefined} season={base} /></div>}
                   {view.map((s) => <ResultSection key={s.id} s={s} statuses={statuses} summaries={summaries} covered={covered} picks={picks} onPick={pick} fuzzyWord={fuzzyWords(hits) ?? undefined} twoCol={!!panel} onOpen={open} />)}
                   {filtersOn && !view.some((s) => RESULT_KINDS.has(s.id) || s.id === "top" || s.id === "fuzzy") && (
                     // Never a dead end: what's empty, said plainly, and each choice that isn't, one tap away.
@@ -276,7 +284,7 @@ export default function SearchPage() {
                   )}
                   {panel === "versus" && summary}
                 </div>
-                {panel === "versus" && h2h && <aside aria-label="Head-to-head" className="max-lg:hidden lg:sticky lg:top-[calc(var(--header-h)+1rem)] lg:col-start-2 lg:row-start-1" data-panel="versus"><HeadToHead h={h2h} now={now.data?.teams} before={asked == null ? before.data?.teams : undefined} season={base} /></aside>}
+                {panel === "versus" && shownH2h && <aside aria-label="Head-to-head" className="max-lg:hidden lg:sticky lg:top-[calc(var(--header-h)+1rem)] lg:col-start-2 lg:row-start-1" data-panel="versus"><HeadToHead h={shownH2h} now={now.data?.teams} before={asked == null ? before.data?.teams : undefined} season={base} /></aside>}
               </div>
             </div>
             </AnswerVideoProvider>

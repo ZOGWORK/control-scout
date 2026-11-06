@@ -67,7 +67,12 @@ describe("the fixed rules", () => {
   it("nothing typed, punctuation, and over-long queries", async () => {
     expect((await searchAnswer("   ")).step).toBe("recovery");
     expect(cleanQuery("  HYPnotic,  ")).toBe("HYPnotic");
-    expect(cleanQuery("x".repeat(200))).toHaveLength(80);
+    expect(cleanQuery("x".repeat(200))).toHaveLength(160);
+    // A long question is read whole; past the limit it's cut at a word, never inside one.
+    const long = "did the prediction for hypnotic robotics at the east bergen conference league tournament get it right or was it way off in 2025-26";
+    expect(cleanQuery(long)).toBe(long);
+    const over = `${"word ".repeat(31)}2025-26 extra`;
+    expect(cleanQuery(over)).toBe("word ".repeat(31).trim());
     // Matched word by word: a closest match, labelled as one (never presented as the answer).
     const sql = await searchAnswer("4215 OR 1=1");
     expect(order([...sql.hits, ...(sql.recovery?.closest ?? [])])).toContain("4215");

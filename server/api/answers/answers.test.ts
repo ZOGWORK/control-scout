@@ -205,5 +205,8 @@ describe("the answers", () => {
     expect(m.bodyHtml).toMatch(/<h2>Record at Worlds<\/h2>/);
     expect(m.bodyHtml).toContain("<b>2-1-0</b>");
     expect(m.heading).not.toMatch(/^No matches/);
+    // A long question is read whole there too, past 80 characters: its last words still count.
+    const long = await pageMeta("/search", { q: `${"please ".repeat(12)}4215 worlds record` });
+    expect(long.bodyHtml).toMatch(/<h2>Record at Worlds<\/h2>/);
   });
 });
