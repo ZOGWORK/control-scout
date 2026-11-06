@@ -170,6 +170,18 @@ describe("one question, any phrasing, any team", () => {
       expect(s.headline?.value, q).toBe("2");
     }
   });
+  it("a trend, said any way, is the trend card for the team and season", async () => {
+    for (const q of ["4215 opr at each event", "4215 opr trend over the season", "hypnotic robotics opr event by event in 2025-26", "is 4215 opr going up or down"]) {
+      expect((await ask(q)).stat, q).toMatchObject({ family: "trend", intent: "opr-history", title: "OPR by event in 2025–26" });
+    }
+    for (const q of ["4215 rating going up or down lately in 2025-26, event by event trend", "is 4215 rating improving in 2025-26", "4215 rating after each event in 2025-26"]) {
+      expect((await ask(q)).stat, q).toMatchObject({ family: "trend", intent: "rating-trend", title: "Prediction rating by event in 2025–26" });
+    }
+    // The plain number stays the plain number.
+    expect((await ask("4215 opr")).stat?.intent).not.toBe("opr-history");
+    // A count the trend card can't apply is never the whole season's card under "Limit: 2".
+    expect((await ask("4215 opr trend last 2 events")).stat?.intent).not.toBe("opr-history");
+  });
   it("wins vs losses, said any way, is the record; by event, each event's wins and losses", async () => {
     for (const q of ["4215 wins vs losses by event in 2025-26", "4215 record by event in 2025-26", "hypnotic robotics wins and losses per event", "4215 record each event"]) {
       const s = await stat(q);

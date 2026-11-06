@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.6.1 — 2026-11-06
+
+A team's rating or OPR trend, asked any way, shows the trend card.
+
+### Highlights
+- [teams] "Is the rating going up or down" shows the rating after each event
+- [teams] "OPR at each event", "event by event", "over the season" read alike
+- [teams] The trend's season is the one you name, else the team's latest
+
+### Search
+- **Trends, said any way.** A team's prediction rating or OPR asked as a trend ("12345 rating going up or down lately in 2025-26", "is 12345's rating improving", "rating after each event", "12345 opr at each event", "opr event by event in 2024-25", "opr trend over the season") answers with the trend card already used for "rating trend" and "opr history": the number after each event, rising or falling, in the season named (else the team's latest). The trend words are one entry in the search lexicon; the plain "12345 opr" stays the plain number. (#851)
+
 ## 3.6.0 — 2026-11-06
 
 More ways to ask who, what and where get the same answer: who beat a team, a team's region or school asked first, its Worlds division, its best match ever.
