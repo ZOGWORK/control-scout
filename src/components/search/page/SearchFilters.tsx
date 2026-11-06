@@ -9,16 +9,17 @@ import { anyFilter, type PageFilters, type When } from "./results";
 
 const WHEN: { v: When; label: string }[] = [{ v: "all", label: "All" }, { v: "upcoming", label: "Upcoming" }, { v: "past", label: "Past" }];
 
-/** `counts`: how many events each time tab would show, beside its name ("Past 0"), so an empty tab is plain before it's picked.
+/** `counts`: how many events each time tab would show, beside its name ("Past 0"), so an empty tab is plain before it's
+ *  picked; the Upcoming tab says its live ones apart ("Upcoming 23 · 2 live"), as its sections do.
  *  `asked`: the query's own time tab ("upcoming meets": Upcoming), where Clear goes back to. */
-export function SearchFilters({ f, seasons, types, counts, asked = "all", onChange }: { f: PageFilters; seasons: number[]; types: { value: string; label: string }[]; counts?: Record<When, number>; asked?: When; onChange: (f: PageFilters) => void }) {
+export function SearchFilters({ f, seasons, types, counts, asked = "all", onChange }: { f: PageFilters; seasons: number[]; types: { value: string; label: string }[]; counts?: Record<When, number> & { live?: number }; asked?: When; onChange: (f: PageFilters) => void }) {
   return (
     <div role="group" aria-label="Filter results" className="flex flex-wrap items-center gap-2" data-search-filters>
       <div role="radiogroup" aria-label="Time" className="inline-flex rounded-lg border border-border bg-card p-0.5">
         {WHEN.map((w) => (
-          <button key={w.v} type="button" role="radio" aria-checked={f.when === w.v} aria-label={counts ? `${w.label}, ${counts[w.v]} ${counts[w.v] === 1 ? "event" : "events"}` : undefined} onClick={() => onChange({ ...f, when: w.v })}
+          <button key={w.v} type="button" role="radio" aria-checked={f.when === w.v} aria-label={counts ? `${w.label}, ${counts[w.v]} ${counts[w.v] === 1 ? "event" : "events"}${w.v === "upcoming" && counts.live ? ` and ${counts.live} live now` : ""}` : undefined} onClick={() => onChange({ ...f, when: w.v })}
             className={cn("rounded-md px-3 py-1 text-xs font-medium max-md:min-h-[44px] pointer-coarse:min-h-[44px]", f.when === w.v ? "bg-accent text-accent-ink" : "text-muted-foreground hover:text-foreground")}>
-            {w.label}{counts && <span className={cn("ml-1.5 tabular-nums", f.when === w.v ? "opacity-80" : counts[w.v] === 0 && "opacity-60")} aria-hidden data-count>{counts[w.v]}</span>}
+            {w.label}{counts && <span className={cn("ml-1.5 tabular-nums", f.when === w.v ? "opacity-80" : counts[w.v] === 0 && !(w.v === "upcoming" && counts.live) && "opacity-60")} aria-hidden data-count>{counts[w.v]}{w.v === "upcoming" && !!counts.live && ` · ${counts.live} live`}</span>}
           </button>
         ))}
       </div>
