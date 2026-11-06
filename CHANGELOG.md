@@ -27,7 +27,7 @@ Search answers sit in one readable column, the page footer stays at the bottom o
 ### Search
 - **One column.** Search results and answers sit in a centred column at most 720px wide on a wide screen (a side panel, when a question has one, beside it), so a card's numbers and their labels stay a short glance apart instead of stretching across the whole window.
 - **The footer at the bottom.** A search page with one short answer grows to fill the screen, so the footer sits at the bottom of the window as on every other page, never floating under the card.
-- **One main action.** "Full team page" on an answer and "Awards page for …" under an event's awards are underlined text links (as is a compare card's "View comparison"), so a comparison's "Open in Predict" is the only button on the page.
+- **One main action.** "Full team page" on an answer and "Awards page for …" under an event's awards are underlined text links (as is a compare card's "View comparison"), so a comparison's "Open in Predict" is the only button on the page (#775).
 
 ## 3.3.1 — 2026-11-05
 
