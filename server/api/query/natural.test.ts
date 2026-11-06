@@ -51,6 +51,9 @@ beforeAll(async () => {
   await match(2025, "USNJQ1", 150, 90, [4215, 23268], [6980]);
   await match(2025, "USNJQ1", 80, 120, [4215], [6980, 7149]);
   await match(2025, "USNJQ1", 170, 60, [4215], [9848]);
+  // An older season's match, 4215's highest score of all (a loss, so this season's numbers stay as they are).
+  await match(2024, "USMIQ1", 190, 200, [4215], [20245]);
+  await run("INSERT OR IGNORE INTO team_seasons (season, team) VALUES (2024, 4215), (2024, 20245)");
   // 20245 played only in 2024–25: a season named leaves it out.
   await match(2024, "USMIQ1", 100, 50, [20245], [24033]);
   await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) SELECT season, code, team, 50, 1 FROM event_teams");
@@ -143,6 +146,18 @@ describe("who, what, where and the best, said more ways (3d, 3e)", () => {
     const first = card(await ask(SAID[0]));
     expect(first).toMatchObject({ kind: "highest-score", headline: "170 points" });
     for (const q of SAID.slice(1)) expect(card(await ask(q)).headline, q).toBe("170 points");
+  });
+  it("ever: every season's own best (or worst) below the latest season's, an older higher score included", async () => {
+    /** Each season's row of the "each season" table: season, score, event. */
+    const seasons = async (q: string) => (await ask(q)).stat!.blocks.flatMap((b) => (b.kind === "table" ? b.rows.map((r) => [r.cells.season, r.cells.score, r.cells.event]) : []));
+    for (const q of ["4215 best match ever", "4215 best game of all time"]) {
+      expect(await seasons(q), q).toEqual(await seasons("4215 highest score ever"));
+      expect(await seasons(q), q).toContainEqual(["2024–25", 190, "Lakes Qualifier"]);
+    }
+    for (const q of ["4215 worst match ever", "4215 worst game of all time"]) {
+      expect(card(await ask(q)), q).toMatchObject({ kind: "lowest-score", headline: "80 points" });
+      expect(await seasons(q), q).toEqual(await seasons("4215 lowest score ever"));
+    }
   });
   it("a team's division at Worlds asked as a question is its Worlds divisions", () => {
     expect(rewriteQuery("what division was 4215 in at worlds")).toMatchObject({ q: "4215 worlds division" });
