@@ -23,8 +23,8 @@ export const INK_BAR = TEAM_BAR;
 /** The team hue as a palette swatch (the same keys as SEARCH_PALETTE's), and teams B and C's. */
 export const TEAM_SWATCH = [
   { fill: "bg-team-a text-background", text: TEAM_TEXT, bar: TEAM_BAR, edge: "border-l-team-a", tint: "bg-team-a/10", stroke: "stroke-team-a" },
-  { fill: "bg-team-b text-background", text: "text-team-b", bar: "bg-team-b", edge: "border-l-team-b", tint: "bg-team-b/10", stroke: "stroke-team-b" },
-  { fill: "bg-team-c text-background", text: "text-team-c", bar: "bg-team-c", edge: "border-l-team-c", tint: "bg-team-c/10", stroke: "stroke-team-c" },
+  { fill: "bg-team-b text-background", text: "text-team-b-text", bar: "bg-team-b", edge: "border-l-team-b", tint: "bg-team-b/10", stroke: "stroke-team-b" },
+  { fill: "bg-team-c text-background", text: "text-team-c-text", bar: "bg-team-c", edge: "border-l-team-c", tint: "bg-team-c/10", stroke: "stroke-team-c" },
 ] as const;
 export type Swatch = { fill: string; text: string; bar: string; edge: string; tint: string; stroke: string };
 /** A label's colour: its meaning's (an award, a phase, a status), else team `i`'s hue. */
@@ -57,7 +57,8 @@ export function RankPill({ text, className }: { text: string; className?: string
       {m[1] && <span className="text-muted-foreground">Ranked</span>}
       <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold tabular-nums leading-none", tone ? PODIUM_CHIP[rank] : "bg-team-a/15 text-foreground")} data-rank-pill>
         {tone && <Medal className="size-3" aria-hidden />}#{rank.toLocaleString()}
-        {m[3] && <span className="font-medium opacity-80">{` of ${n(m[3]).toLocaleString()}`}</span>}
+        {/* No fade: on the filled podium pill a faded count fell under 4.5:1. */}
+        {m[3] && <span className="font-medium">{` of ${n(m[3]).toLocaleString()}`}</span>}
       </span>
       {m[4].trim() && <span className="text-xs text-muted-foreground">{m[4].trim()}</span>}
     </span>

@@ -10,7 +10,7 @@ import { TONE_CLASS } from "./records/describe";
 import { badgeVariants } from "../components/ui/basic";
 import { buttonVariants } from "../components/ui/button";
 import { ALLIANCE_HUES } from "../components/PlayoffBracket";
-import { TEAM_TEXT } from "../components/search/page/answerCells";
+import { TEAM_SWATCH, TEAM_TEXT } from "../components/search/page/answerCells";
 
 const THEMES: Theme[] = ["light", "dim", "dark", "midnight"];
 const AA = 4.5, LARGE = 3;
@@ -70,6 +70,10 @@ describe("text tones reach WCAG AA in every theme", () => {
     });
     it(`one team's numbers in its hue, team A, as text on the card and on its pills' 10% tint (${theme})`, () => {
       for (const cls of [TEAM_TEXT, `bg-team-a/10 ${TEAM_TEXT}`]) expect(measure(theme, cls).ratio, measure(theme, cls).pair).toBeGreaterThanOrEqual(AA);
+    });
+    it(`each team's numbers on its own tint, and a rank pill's whole text on its podium fill, reach AA (${theme})`, () => {
+      for (const sw of TEAM_SWATCH) for (const cls of [sw.text, `${sw.tint} ${sw.text}`]) expect(measure(theme, cls).ratio, `${cls}: ${measure(theme, cls).pair}`).toBeGreaterThanOrEqual(AA);
+      for (const cls of Object.values(PODIUM_CHIP)) expect(measure(theme, cls).ratio, `${cls}: ${measure(theme, cls).pair}`).toBeGreaterThanOrEqual(AA);
     });
     it(`search's palette: every meaning's fill (its text on it) and its text on the card reach AA (${theme})`, () => {
       for (const [k, sw] of Object.entries(SEARCH_PALETTE)) {

@@ -20,7 +20,7 @@ import { SEARCH_PALETTE } from "../../../lib/textTones";
 const THEMES: Theme[] = ["light", "dim", "dark", "midnight"];
 const NEUTRAL = new Set(["foreground", "muted", "muted-foreground", "background", "card", "card-foreground", "border", "line", "primary", "secondary",
   "input", "ring", "popover", "popover-foreground", "elevated", "transparent", "current", "inherit", "white", "black", "text-base", "text-muted", "scrollbar", "scrollbar-hover"]);
-const TEAM = /^team-[abc]$/;
+const TEAM = /^team-[abc](-text)?$/;
 const ALLIANCE = /^(red|blue)-alliance(-text|-ink)?$/;
 const GOLD = /^(accent|accent-[a-z]+|amber|yellow|warning|warning-text)$/;
 // A video control: its red play mark, and white or black over the picture.

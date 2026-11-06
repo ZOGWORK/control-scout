@@ -55,6 +55,9 @@
   --color-team-a: #56b4e9;
   --color-team-b: #e69f00;
   --color-team-c: #009e73;
+  /* Team B and C's numbers as text on their tints: B as is; C a step brighter (bluish green is 4.0:1 on Dim's tint). */
+  --color-team-b-text: var(--color-team-b);
+  --color-team-c-text: #34c79b;
   --color-warning: #fb923c;
   --color-danger: #fb7185;
   /* Status colours as small text. On dark they are the bright shades above; on light (html.light) a deeper
@@ -162,6 +165,9 @@ html.light {
   --color-team-a: #0072b2;
   --color-team-b: #d55e00;
   --color-team-c: #009e73;
+  /* Light's B and C as text are a step deeper (vermillion 3.4:1 and bluish green 3.1:1 on their tints): 4.5:1 and up. */
+  --color-team-b-text: #9a3f00;
+  --color-team-c-text: #006a50;
   --color-warning: #f97316;
   --color-danger: #f43f5e;
   --color-red-alliance: #f43f5e;
