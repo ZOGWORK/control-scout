@@ -153,7 +153,9 @@ describe("search results page", () => {
     state.answer = answer([ev("A", "Next Meet", "2099-11-17"), ev("B", "Old Meet", "2020-01-11", 2019), ev("C", "Later Meet", "2099-12-01")]);
     const { container } = show("/search?q=meets%20in%20nj");
     const titles = () => [...container.querySelectorAll('[data-result="event"]')].map((e) => e.querySelector("a.line-clamp-2")?.textContent);
-    expect(titles()).toEqual(["Next Meet", "Old Meet", "Later Meet"]);
+    // In sections: upcoming (soonest first) above finished.
+    expect(titles()).toEqual(["Next Meet", "Later Meet", "Old Meet"]);
+    expect([...container.querySelectorAll("[data-status-section] > h3")].map((h) => h.textContent)).toEqual(["Upcoming· 2", "Finished· 1"]);
     // Each time tab says how many events it holds before it's picked.
     expect(screen.getAllByRole("radio").map((r) => r.getAttribute("aria-label"))).toEqual(["All, 3 events", "Upcoming, 2 events", "Past, 1 event"]);
     fireEvent.click(screen.getByRole("radio", { name: /^Upcoming/ }));
@@ -163,7 +165,20 @@ describe("search results page", () => {
     expect(titles()).toEqual(["Old Meet"]);
     fireEvent.click(screen.getByRole("button", { name: /Clear filters/ }));
     expect(loc).toBe("/search?q=meets+in+nj");
-    expect(titles()).toEqual(["Next Meet", "Old Meet", "Later Meet"]);
+    expect(titles()).toEqual(["Next Meet", "Later Meet", "Old Meet"]);
+  });
+
+  it("live events are a section of their own, first, with the red dot; the Upcoming tab counts them apart", () => {
+    const live = (code: string, name: string) => ({ ...ev(code, name, "2026-01-01"), event: { start: "2026-01-01", end: "2099-01-01", type: "LeagueMeet", venue: null, status: "live" as const } });
+    state.answer = answer([ev("A", "Next Meet", "2099-11-17"), live("L", "Now Meet"), ev("B", "Old Meet", "2020-01-11", 2019)]);
+    const { container } = show("/search?q=meets%20in%20nj");
+    const sections = [...container.querySelectorAll("[data-status-section]")];
+    expect(sections.map((x) => x.getAttribute("data-status-section"))).toEqual(["live", "upcoming", "finished"]);
+    expect(sections[0].querySelector("h3 [data-live-dot]")).not.toBeNull();
+    expect(sections[0].textContent).toContain("Now Meet");
+    // No live card under an Upcoming heading.
+    expect(sections[1].textContent).not.toContain("Now Meet");
+    expect(screen.getByRole("radio", { name: "Upcoming, 1 event and 1 live now" })).toBeTruthy();
   });
 
   it("the time tab follows the query: 'upcoming meets' opens on Upcoming, highlighted, and a pick of All is kept in the address", () => {
@@ -419,8 +434,9 @@ describe("search results page, Phase 2 cards", () => {
     const cards = container.querySelectorAll('[data-result="event"]');
     expect(cards).toHaveLength(2);
     for (const a of container.querySelectorAll("a")) expect(a.querySelector("a, button")).toBeNull();
-    expect(within(cards[0] as HTMLElement).getByRole("link", { name: "Teams" }).getAttribute("href")).toBe("/events/2019/A?tab=teams");
-    expect(within(cards[1] as HTMLElement).getByRole("link", { name: "Ohio State Championship" }).getAttribute("href")).toBe("/events/2020/B");
+    // Finished, newest first.
+    expect(within(cards[1] as HTMLElement).getByRole("link", { name: "Teams" }).getAttribute("href")).toBe("/events/2019/A?tab=teams");
+    expect(within(cards[0] as HTMLElement).getByRole("link", { name: "Ohio State Championship" }).getAttribute("href")).toBe("/events/2020/B");
     // One link to the event's page (the card's own): no "View event" cue repeating it, and no season tabs.
     expect(container.querySelector("[data-season-tabs], [data-cta]")).toBeNull();
   });

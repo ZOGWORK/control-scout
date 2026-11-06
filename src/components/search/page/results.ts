@@ -168,11 +168,13 @@ export function keeps(h: SearchHit, f: PageFilters, today = todayIso()): boolean
 }
 
 /** How many events each time tab would show with the other filters as they are (a tab with none is plain before
- *  it's picked). */
-export function whenCounts(hits: SearchHit[], f: PageFilters, today = todayIso()): Record<When, number> {
+ *  it's picked). The Upcoming tab lists the live ones too, in a section of their own: `upcoming` counts the ones to
+ *  come and `live` the ones under way, so its count matches its Upcoming section. */
+export function whenCounts(hits: SearchHit[], f: PageFilters, today = todayIso()): Record<When, number> & { live: number } {
   const ev = hits.filter((h) => h.kind === "event");
   const n = (when: When) => ev.filter((h) => keeps(h, { ...f, when }, today)).length;
-  return { all: n("all"), upcoming: n("upcoming"), past: n("past") };
+  const live = ev.filter((h) => keeps(h, { ...f, when: "upcoming" }, today) && eventFacts(h, today).status !== "upcoming").length;
+  return { all: n("all"), upcoming: n("upcoming") - live, past: n("past"), live };
 }
 
 /** What a filtered page with nothing left can switch to instead, nearest first: the other time tab, then every season,

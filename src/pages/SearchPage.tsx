@@ -33,7 +33,9 @@ import { CompareBar, CompareSheet, togglePick } from "../components/search/page/
 import { AppearancesAnswer, QualityBanner, StatBanner, Timeline } from "../components/search/page/Summary";
 import { appearanceStats, appearances, isQualityQuestion, hasNumbers, standing } from "../components/search/page/records";
 import { SearchFilters } from "../components/search/page/SearchFilters";
-import { eventGroups, openFamilies } from "../components/search/page/eventFamilies";
+import { openFamilies } from "../components/search/page/eventFamilies";
+import { eventSections, localDay } from "../components/search/page/eventSections";
+import { LiveDot } from "../components/EventChips";
 import { EventTree } from "../components/search/page/EventTree";
 import { answerTeams, anyFilter, askedWhen, filteredTitle, filterAlternatives, whenCounts, compareSeason, compareSides, compareTeams, filterChoices, cardTeamName, isCompare, isFuzzy, keeps, pageTitle, contextBadge, badgeUnder, readingOf, fuzzyWords, readFilters, teamParts, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
 import { SEARCH_PAGE_LIMIT } from "../shared/search";
@@ -366,16 +368,39 @@ function ResultSection({ s, summaries, covered, picks, onPick, fuzzyWord, twoCol
   );
 }
 
-/** The events, grouped before any card is drawn (../components/search/page/eventFamilies.ts): an event split in
- *  divisions as a tree a season, full width; any other event a card in the grid. */
+/** The events, grouped before any card is drawn: by status (Live now, Upcoming, Finished), then by date
+ *  (../components/search/page/eventSections.ts), then an event split in divisions as a tree a season, full width
+ *  (../components/search/page/eventFamilies.ts), any other event a card in the grid. Every heading says how many
+ *  events are under it. */
 function EventResults({ hits, twoCol, onOpen }: { hits: SearchHit[]; twoCol: boolean; onOpen: (h: SearchHit) => void }) {
-  const groups = useMemo(() => eventGroups(hits), [hits]);
-  const open = useMemo(() => openFamilies(groups), [groups]);
+  const sections = useMemo(() => eventSections(hits, localDay()), [hits]);
+  const open = useMemo(() => openFamilies(sections.flatMap((s) => s.dates.flatMap((d) => d.groups))), [sections]);
+  const grid = cn("grid gap-3 sm:grid-cols-2", twoCol ? "2xl:grid-cols-3" : "xl:grid-cols-3");
   return (
-    <div className={cn("grid gap-3 sm:grid-cols-2", twoCol ? "2xl:grid-cols-3" : "xl:grid-cols-3")}>
-      {groups.map((g) => (g.kind === "family"
-        ? <EventTree key={g.family.key} f={g.family} open={open.has(g.family.key)} onOpen={onOpen} />
-        : <EventCard key={g.hits[0].ref} h={g.hits[0]} onOpen={onOpen} />))}
+    <div className="space-y-8 max-sm:space-y-6" data-event-sections>
+      {sections.map((s) => (
+        <section key={s.status} aria-label={`${s.title}, ${s.count} ${s.count === 1 ? "event" : "events"}`} data-status-section={s.status}>
+          <h3 className="mb-3 flex items-center gap-2 border-b border-border pb-2 font-display text-base font-semibold text-foreground">
+            {s.status === "live" && <LiveDot />}{s.title}<span className="tabular-nums text-muted-foreground" data-section-count>· {s.count}</span>
+          </h3>
+          <div className="space-y-5">
+            {s.dates.map((d) => (
+              <div key={d.key} data-date-section={d.key}>
+                {d.title && (
+                  <h4 className="mb-2 flex min-w-0 items-baseline gap-1.5 text-sm font-medium text-foreground">
+                    <span className="truncate">{d.title}</span><span className="shrink-0 tabular-nums text-muted-foreground">· {d.count}</span>
+                  </h4>
+                )}
+                <div className={grid}>
+                  {d.groups.map((g) => (g.kind === "family"
+                    ? <EventTree key={g.family.key} f={g.family} open={open.has(g.family.key)} onOpen={onOpen} />
+                    : <EventCard key={g.hits[0].ref} h={g.hits[0]} onOpen={onOpen} />))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ))}
     </div>
   );
 }
