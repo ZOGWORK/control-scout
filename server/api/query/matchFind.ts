@@ -103,15 +103,17 @@ interface Row { season: number; code: string; level: string; series: number; num
 
 /** The filters the match finder and a scope's highlights (./highlights.ts) take. `events`: these events only (a
  *  division is an event of its own: ./highlights.ts scopeEvents lists them). */
-export type MatchScope = Pick<MatchFind, "season" | "window" | "region" | "level" | "finals" | "decided" | "kind"> & { events?: { season: number; code: string }[] };
+export type MatchScope = Pick<MatchFind, "season" | "window" | "region" | "level" | "finals" | "decided" | "kind"> & { events?: { season: number; code: string }[];
+  /** `events` were named by the query and one isn't official (an off-season event): theirs are the matches all the same. */
+  named?: boolean };
 
 /** The matches' filters as SQL over m and e; `upTo`, every season up to the scope's (its latest with matches). */
 export function where(f: MatchScope, upTo = false) {
-  const types = f.kind?.types ?? [...OFFICIAL_TYPES];
+  const types = f.kind?.types ?? (f.named && f.events ? null : [...OFFICIAL_TYPES]);
   // A date window is its own range: a week across the season's start (Aug 31 to Sep 6) holds both seasons' matches.
   const sql = [`${f.window ? "" : `m.season ${upTo ? "<=" : "="} ? AND `}m.played = 1 AND m.red_np IS NOT NULL AND m.blue_np IS NOT NULL AND m.red_total IS NOT NULL AND m.blue_total IS NOT NULL
-    AND COALESCE(e.remote, 0) = 0 AND e.type IN (${types.map(() => "?").join(", ")})`];
-  const args: (string | number)[] = [...(f.window ? [] : [f.season]), ...types];
+    AND COALESCE(e.remote, 0) = 0${types ? ` AND e.type IN (${types.map(() => "?").join(", ")})` : ""}`];
+  const args: (string | number)[] = [...(f.window ? [] : [f.season]), ...(types ?? [])];
   if (f.region) { sql.push(f.region.state ? "e.country = ? AND e.state = ?" : "e.country = ?"); args.push(f.region.country, ...(f.region.state ? [f.region.state] : [])); }
   if (f.window) { sql.push("substr(COALESCE(m.time, e.start), 1, 10) BETWEEN ? AND ?"); args.push(f.window.from, f.window.to); }
   if (f.level) { sql.push("m.level = ?"); args.push(f.level); }

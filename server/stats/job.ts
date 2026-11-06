@@ -28,6 +28,7 @@ import { teamPageTest } from "../teamPages.js";
 import { teamPageSql } from "../../src/shared/teamPages.js";
 import { searchTeamTitle } from "../../src/shared/teamTitle.js";
 import { SEARCH_INDEX_SCHEMA } from "../api/search.js";
+import { eventInitialisms } from "../api/query/initialisms.js";
 
 type Log = (m: string) => void;
 const r1 = (x: number | null | undefined) => (x == null || !Number.isFinite(x) ? null : Math.round(x * 100) / 100);
@@ -438,7 +439,7 @@ export async function rebuildSearch(log: Log = () => {}): Promise<void> {
   for (const e of events) {
     const place = [e.city, e.state, e.country].filter(Boolean).join(", ");
     const subtitle = [e.code, e.start, place].filter(Boolean).join(" · "), weight = e.season === CURRENT_SEASON ? 2 : 1;
-    stmts.push({ sql: "INSERT INTO search (kind, ref, season, weight, title, subtitle, terms) VALUES ('event', ?, ?, ?, ?, ?, ?)", args: [`${e.season}:${e.code}`, e.season, weight, e.name, subtitle, `${e.code} ${e.name} ${e.venue ?? ""} ${place} ${regionNames(e.state, e.country)}`] });
+    stmts.push({ sql: "INSERT INTO search (kind, ref, season, weight, title, subtitle, terms) VALUES ('event', ?, ?, ?, ?, ?, ?)", args: [`${e.season}:${e.code}`, e.season, weight, e.name, subtitle, `${e.code} ${e.name} ${eventInitialisms(e.name).join(" ")} ${e.venue ?? ""} ${place} ${regionNames(e.state, e.country)}`] });
     stmts.push({ sql: "INSERT INTO search_fuzzy (kind, ref, season, weight, title, subtitle, name) VALUES ('event', ?, ?, ?, ?, ?, ?)", args: [`${e.season}:${e.code}`, e.season, weight, e.name, subtitle, normalize(`${e.name} ${e.city ?? ""}`)] });
   }
   await writeBatch(stmts, 5000);
