@@ -298,7 +298,8 @@ export default function SearchPage() {
         </>
       )}
       </div>
-      <p className="mt-10 border-t border-border pt-4 text-sm text-muted-foreground max-md:mb-20">
+      {/* Room under it for the phone's Compare bar only while the bar is up: the page already clears the tab bar. */}
+      <p className={`mt-10 border-t border-border pt-4 text-sm text-muted-foreground ${phone && picks.length ? "mb-20" : ""}`}>
         <Link to="/how-it-works/search" className="inline-flex items-center font-medium text-foreground underline-offset-2 hover:underline max-md:min-h-[44px] pointer-coarse:min-h-[44px]">How FTC One Search works</Link>
       </p>
     </div>

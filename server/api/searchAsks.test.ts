@@ -8,6 +8,7 @@ import { searchAnswer } from "./searchAnswer";
 import { askAnswer, eventWon, readAsk, type Stat } from "./searchAsks";
 import { readStatQuestion } from "./answers/read";
 import { pageMeta } from "../seoMeta";
+import { awardQuery } from "./searchCoverage";
 import { withTeamStats } from "./searchTeamStats";
 import { parseQuestion } from "./searchQuestions";
 import { CURRENT_SEASON } from "../data/seasons";
@@ -432,5 +433,31 @@ describe("who won a division (owner: \"who won nj turnpike division this year\" 
     const a = await ask("who won vermont maple qualifier");
     expect(a.stat?.headline).toBeUndefined();
     expect(JSON.stringify(a)).not.toContain("23268");
+  });
+  // Owner: "East Bergen conference inspire award winner" read names and a sorry note.
+  it("an event's award asked any way round: the award's winner, its name kept wherever it sits", async () => {
+    for (const q of ["vermont championship inspire award winner", "vermont championship inspire", "inspire winner at vermont championship", "who got inspire at vermont championship", "the inspire award winners from vermont championship", "who won inspire at vermont championship"]) {
+      expect(await awardQuery(q), q).toBe("who won inspire at vermont championship");
+      const a = await ask(q);
+      expect(a.card?.kind, q).toBe("event-awards");
+      expect(a.card?.lines.map((l) => l.text), q).toEqual(["20265 Heart of RoBots"]);
+      expect(a.understood?.label, q).toBe("Who won the Inspire Award at Vermont Championship (2025–26)");
+    }
+    // Every award word, and the name FIRST's type doesn't spell.
+    expect((await ask("vermont championship think award")).card?.lines.map((l) => l.text)).toEqual(["4215 Hypnotic Robotics"]);
+    expect((await ask("judges' choice winner vermont championship")).understood?.label).toBe("Who won the Judges' Choice Award at Vermont Championship (2025–26)");
+    // A team's awards stay the team's, and an award alone names no event.
+    expect(await awardQuery("Heart of RoBots inspire")).toBeNull();
+    expect(await awardQuery("4215 inspire at vermont championship")).toBeNull();
+    expect(await awardQuery("inspire award")).toBeNull();
+  });
+  it("a recurring event's award: its latest one given, the season said, the newer one not held yet said too", async () => {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2026, 'USVTCMP', 'Vermont Championship', 'Championship', 'Burlington', 'VT', 'USA', '2027-03-06', '2027-03-06', 't')");
+    await rebuildSearch();
+    const a = await ask("vermont championship inspire award winner");
+    expect(a.card?.lines.map((l) => l.text)).toEqual(["20265 Heart of RoBots"]);
+    expect(a.understood?.label).toBe("Who won the Inspire Award at Vermont Championship (2025–26) · The 2026–27 one (Mar 6, 2027) isn't held yet");
+    await run("DELETE FROM events WHERE season = 2026 AND code = 'USVTCMP'");
+    await rebuildSearch();
   });
 });

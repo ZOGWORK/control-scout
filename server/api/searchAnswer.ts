@@ -37,13 +37,13 @@ import { parseQuestion, questionAnswer } from "./searchQuestions.js";
 import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
 import { statAnswer } from "./answers/index.js";
 import { refreshSearchSeason } from "./answers/season.js";
-import { carryOutcome, layeredAnswer } from "./searchLayers.js";
+import { FALLBACK_NOTE, carryOutcome, layeredAnswer } from "./searchLayers.js";
 import { spelled } from "./spelling.js";
 import { booleanAnswer } from "./searchBoolean.js";
 import { pipelineAnswer, pipelineReads } from "./query/execute.js";
 import { yesNoAnswer } from "./answers/yesNo.js";
 import { sorryFor } from "./answers/sorry.js";
-import { bottomAnswer, countAnswer, eventCodeAnswer, eventPageAnswer, explainAnswer, monthAnswer, nearMeAnswer, namedParts, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
+import { awardQuery, bottomAnswer, countAnswer, eventCodeAnswer, eventPageAnswer, explainAnswer, monthAnswer, nearMeAnswer, namedParts, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
 
 /** The longest query read: a full question ("did the prediction for 12345 at the state championship get it right, or
  *  was it way off") fits. Longer is cut at a word, never inside one. */
@@ -72,6 +72,8 @@ export interface AnswerOptions {
   /** A stat answer's blocks are worked out (/search and its first paint, never the dropdown): ./answers/index.ts.
    *  Set by searchAnswer from the caller's limit (the page asks for SEARCH_PAGE_LIMIT) unless given. */
   full?: boolean;
+  /** False: the page's answer without its sorry note or verdict, for checking a sorry suggestion (never in a loop). */
+  sorry?: boolean;
 }
 
 /** The query as search reads it: punctuation that never means anything dropped, spaces folded, at most MAX_QUERY
@@ -181,7 +183,7 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
 /** What the page adds to an answer (the dropdown's is never changed): a yes-or-no question's answer, else, for a
  *  question search can't answer yet, the sorry note. */
 async function onPage(raw: string, a: SearchAnswer, opts: AnswerOptions): Promise<SearchAnswer> {
-  if (!(opts.full ?? (opts.limit ?? 12) >= SEARCH_PAGE_LIMIT)) return a;
+  if (!(opts.full ?? (opts.limit ?? 12) >= SEARCH_PAGE_LIMIT) || opts.sorry === false) return a;
   return (await withVerdict(raw, a, opts)) ?? withSorry(raw, a, opts);
 }
 
@@ -200,7 +202,13 @@ async function withVerdict(raw: string, a: SearchAnswer, opts: AnswerOptions): P
 /** A question search can't answer yet: sorry, with what was read and the searches that do answer about it
  *  (./answers/sorry.ts). */
 async function withSorry(raw: string, a: SearchAnswer, opts: AnswerOptions): Promise<SearchAnswer> {
-  const sorry = await sorryFor(cleanQuery(raw), a, opts);
+  // Each suggestion run as the page runs it (with no sorry of its own, so never in a loop), kept only if it answers.
+  const answers = async (s: string) => {
+    const b = await searchAnswer(s, { ...opts, full: true, limit: SEARCH_PAGE_LIMIT, learn: false, sorry: false });
+    const empty = (b.card?.none && !b.card.lines.length) || (b.stat?.none && !b.stat.headline);
+    return b.step !== "recovery" && !(b.understood?.label ?? "").includes(FALLBACK_NOTE) && (!!b.hits.length || !!b.stat || !!b.card) && !empty;
+  };
+  const sorry = await sorryFor(cleanQuery(raw), a, { ...opts, answers });
   // A copy keeps the outcome failed-search reporting reads (./searchLayers.ts).
   return sorry ? carryOutcome(a, { ...a, sorry }) : a;
 }
@@ -307,6 +315,14 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
     return { ...a, q, understood: r.note ? { ...u, label: `${u.label} · ${r.note}` } : u };
   };
   if (rw && rw.q !== q && (rw.pre || /^who won worlds /.test(rw.q))) return rewritten(rw);
+  // An event's award asked any way round ("East Bergen inspire award winner", "who got inspire at …"): the award ask,
+  // before the stat answers read an award word as a team's name ("got", "Think-aBot-it").
+  const aw = opts.intents === false ? null : await awardQuery(q);
+  const awarded = aw ? readAsk(aw) : null;
+  if (awarded) {
+    const a = await askAnswer(q, awarded, { prefer, ask: (x) => searchAnswer(x, { ...opts, learn: false }) });
+    if (a) return a;
+  }
 
   // 0. What a word means ("how is opr calculated"), before the stat answers read a word of it as a team's name
   // ("CALculated Risk"); and the questions that name no team ("teams near me", "lowest opr in nj").

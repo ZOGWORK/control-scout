@@ -18,7 +18,7 @@ import { RANKED_MIN_MATCHES, parsePlaces } from "../../src/shared/rankings.js";
 import { predictHref } from "../../src/shared/predictUrl.js";
 import { cleanTeamName } from "../../src/shared/teamTitle.js";
 import type { Region } from "../../src/shared/regions.js";
-import { possessive, seasonLabel } from "../../src/shared/format.js";
+import { dateRange, possessive, seasonLabel } from "../../src/shared/format.js";
 import { teamPageSql } from "../../src/shared/teamPages.js";
 import { CURRENT_SEASON, FIRST_PREDICT_SEASON, isLegacy } from "../data/seasons.js";
 import { all } from "../db.js";
@@ -52,6 +52,8 @@ const AWARDS: Record<string, string> = {
   connect: "Connect", control: "Control", motivate: "Motivate", compass: "Compass", judges: "JudgesChoice", "judges choice": "JudgesChoice",
   "deans list": "DeansList", "dean's list": "DeansList",
 };
+/** An award type's name in words, where FIRST's type isn't one ("JudgesChoice"). */
+const AWARD_NAME: Record<string, string> = { JudgesChoice: "Judges' Choice", DeansList: "Dean's List" };
 
 /** A region named by the words `s` (all of them), or null. */
 const regionWords = (s: string): Region | null => regionOf(s.trim().replace(/^(?:the )?(?:state of )?/i, "").split(/\s+/).filter(Boolean));
@@ -315,16 +317,20 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
       const rows = await all<any>(
         "SELECT a.placement, a.team, a.name award, t.name FROM awards a LEFT JOIN teams t ON t.number = a.team WHERE a.season = ? AND a.code = ? AND a.type = ? ORDER BY a.placement, a.team",
         [season, code, ask.award]);
-      // An older season: that season's event, with its own dates and place.
+      // An older season: that season's event, with its own dates and place, and the newer one said when it's still to
+      // come or not posted ("The 2026–27 one (Nov 15, 2026) isn't held yet").
+      const [newer] = await all<{ season: number; start: string | null; end: string | null }>("SELECT season, start, end FROM events WHERE code = ? AND season > ? ORDER BY season DESC LIMIT 1", [code, season]);
+      const held = !!newer?.start && (newer.end ?? newer.start) < new Date().toISOString().slice(0, 10);
+      const upcoming = newer?.start ? ` · The ${seasonLabel(Number(newer.season))} one (${dateRange(newer.start, newer.end)}) ${held ? "has no award posted yet" : "isn't held yet"}` : "";
       if (season !== Number(found)) ev = (await search(code, 5, opts.prefer, new Set(["event"]), season)).find((h) => h.kind === "event" && h.ref === `${season}:${code}`)
         ?? { ...ev, ref: `${season}:${code}`, season, subtitle: seasonLabel(season) };
       const place = (p: number) => (p === 1 ? "Winner" : `${p}${p === 2 ? "nd" : p === 3 ? "rd" : "th"} place`);
       const lines = rows.map((r) => teamLine(Number(r.team), r.name, [place(Number(r.placement))], r.award ?? undefined));
-      const award = rows[0]?.award ?? `${ask.award} Award`;
+      const award = rows[0]?.award ?? `${AWARD_NAME[ask.award] ?? ask.award} Award`;
       return answer(q, {
         hits: [{ ...ev, section: "awards" }], pages: pagesFor(q),
         card: { kind: "event-awards", title: `${award} · ${ev.title} · ${seasonLabel(season)}`, lines, award: ask.award, ...(await eventAwards(season, code, ev.title)), ...(lines.length ? {} : { none: `No ${award} recorded at ${ev.title} in any season on record.` }) },
-        understood: { kind: "question", label: `Who won the ${award} at ${ev.title} (${seasonLabel(season)})`, season },
+        understood: { kind: "question", label: `Who won the ${award} at ${ev.title} (${seasonLabel(season)})${upcoming}`, season },
       });
     }
 
