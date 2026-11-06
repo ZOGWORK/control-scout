@@ -137,7 +137,7 @@ describe("search results page", () => {
     state.answer = answer([{ ...team(4215, "Hypnotic Robotics", "Oradell, NJ"), linkSeason: 2024 }]);
     paths.length = 0;
     const { container } = show("/search?q=4215%202024-25");
-    expect(paths.filter(Boolean).every((p) => p!.includes("season=2024"))).toBe(true);
+    expect(paths.filter((p) => p && !p.startsWith("/api/search/follow")).every((p) => p!.includes("season=2024"))).toBe(true);
     expect(container.querySelector('[data-result="team"]')!.textContent).toContain("2024–25");
   });
 
@@ -298,7 +298,7 @@ describe("search results page", () => {
     state.answer = answer([compare]);
     paths.length = 0;
     show("/search?q=x");
-    expect(paths.filter(Boolean).every((p) => p!.includes("season=2024"))).toBe(true);
+    expect(paths.filter((p) => p && !p.startsWith("/api/search/follow")).every((p) => p!.includes("season=2024"))).toBe(true);
     expect(screen.getAllByText("2024–25").length).toBeGreaterThan(0);
   });
 

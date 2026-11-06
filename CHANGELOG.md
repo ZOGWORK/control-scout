@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.7.0 — 2026-11-06
+
+Under a search's answer, "People also ask": the next questions search answers directly, each opening to its answer's line and a link that runs it.
+
+### Highlights
+- [home] "People also ask" under a search's answer
+- [home] Each question opens to its answer, numbers included
+- [fixes] Only questions search answers directly are asked
+
+### Search
+- **People also ask.** Under the answer, up to six questions about the same team, event, place or season ("What is its record?", "Who won the Think Award there?"), closed until tapped. Each opens to one line from that question's own answer and "See the full answer", which runs it as a search.
+- **Never a dead end.** Every question is run as a search before it's shown, and only one with a direct answer is asked: never one that would say sorry, guess or list names. The questions come from what the search read, never from a list of teams or events.
+
 ## 3.6.6 — 2026-11-06
 
 More ways of asking for a place's top teams find the leaderboard: "Romania leaderboard", "highest rated teams", "by rating, not OPR".

@@ -202,6 +202,10 @@ export interface SearchVideo {
   mainRow?: string;
 }
 
+/** A next question after a search (server/api/answers/followUps.ts, GET /api/search/follow): one search answers
+ *  directly, with a line from its answer. `family`: what it's about, the related searches page's groups. */
+export interface SearchFollowUp { q: string; family: "team" | "compare" | "events" | "awards" | "predict"; preview: string }
+
 /** A question's answer (server/api/searchQuestions.ts): each line a real record, linked to where it's shown. */
 export interface SearchCard {
   kind: "worlds" | "states" | "wins" | "awards" | "next-event" | "next-match" | "high-scores" | "rule" | "leaderboard" | "event-awards" | "info";
