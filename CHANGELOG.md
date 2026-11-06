@@ -26,7 +26,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 - [teams] "What year did … start" shows its rookie year
 
 ### Search
-- **When, said every way.** "When was the last time <team> played", "when did <team> last play", "<team>'s most recent match" and "<team> last played when" give the most recent match card; "the first time", "first ever" and "very first" give the first match; "the next time <team> plays" and "when will <team> play again" give the next match, saying plainly when none is scheduled. "When did <team> begin competing", "join FTC" or "get started", and "which season was <team> founded", give the rookie year. (#PR)
+- **When, said every way.** "When was the last time <team> played", "when did <team> last play", "<team>'s most recent match" and "<team> last played when" give the most recent match card; "the first time", "first ever" and "very first" give the first match; "the next time <team> plays" and "when will <team> play again" give the next match, saying plainly when none is scheduled. "When did <team> begin competing", "join FTC" or "get started", and "which season was <team> founded", give the rookie year. (#872)
 
 ## 3.4.8 — 2026-11-06
 
