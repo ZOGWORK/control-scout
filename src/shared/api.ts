@@ -221,6 +221,8 @@ export type FollowUpTone =
   | { card: SearchCard["kind"] }
   | { verdict: "Yes" | "No" }
   | { count: true };
+/** GET /api/search/follow: People also ask, Related searches, and the team's highlights search (`team`: whose). */
+export interface SearchFollowUps { ask: SearchFollowUp[]; related: SearchFollowUp[]; highlights?: SearchFollowUp & { team: number } }
 
 /** A question's answer (server/api/searchQuestions.ts): each line a real record, linked to where it's shown. */
 export interface SearchCard {
