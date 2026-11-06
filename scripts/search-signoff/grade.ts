@@ -61,6 +61,7 @@ export const signature = (r: Live) => [r.stat?.family ?? (r.card ? "card" : r.un
   .map((x) => fold(x).replace(/ /g, "-")).join(":");
 
 // Places a question can name, as the grader's own list (not the parser's): the card must say the place back.
+// Towns last: grade() reads the last three as towns.
 const PLACES: [RegExp, string[]][] = [
   [/\b(new jersey|nj)\b/i, ["new jersey", "nj"]], [/\bcalifornia\b/i, ["california"]], [/\btexas\b/i, ["texas"]], [/\bflorida\b/i, ["florida"]],
   [/\bohio\b/i, ["ohio"]], [/\bmichigan\b/i, ["michigan"]], [/\bnew york\b/i, ["new york"]], [/\bromania(n)?\b/i, ["romania"]],
@@ -147,7 +148,10 @@ export function grade(q: string, expect: string, r: Live | null, err?: string, t
     if (!ds.length) return fail("time filter not stated", `"${w[0]}" on the card`);
     if (!ds.some((d) => d >= a && d <= b)) return fail("time filter missed", `a match from ${w[0]} (${new Date(a).toISOString().slice(0, 10)}–${new Date(b).toISOString().slice(0, 10)})`);
   }
-  for (const [re, says] of PLACES) if (re.test(q) && !says.some((w) => new RegExp(`\\b${w}\\b`).test(text))) return fail("place not stated", `${says[0]} on the card`);
+  // A town said back stands for its state or country too ("Cluj-Napoca, Romania" → "Cluj-Napoca").
+  const stated = (says: string[]) => says.some((w) => new RegExp(`\\b${w}\\b`).test(text));
+  const town = PLACES.slice(-3).some(([re, says]) => re.test(q) && stated(says));
+  for (const [re, says] of PLACES) if (re.test(q) && !stated(says) && !town) return fail("place not stated", `${says[0]} on the card`);
   return { verdict: "pass", invalid: false, pattern: "pass", card, missing: "" };
 }
 
