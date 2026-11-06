@@ -16,9 +16,10 @@ import { all, kvGet } from "../db.js";
 import { teamPageSql } from "../../src/shared/teamPages.js";
 import { registerCache } from "../caches.js";
 import { SEASONS } from "../data/seasons.js";
-import { REGION_PHRASES } from "../../src/shared/regions.js";
+import { REGION_NAMES } from "../../src/shared/regions.js";
 import { SEARCH_FILLER, SEARCH_PAGES, SEARCH_TOPICS, pagesFor } from "../../src/shared/search.js";
 import { CONVERSATIONAL, EVENT_WORDS, PLURALS, QUESTION_WORDS, STOPWORDS, TIME_WORDS } from "../../src/shared/searchQuery.js";
+import { EVENT_NAME_WORDS, LEXICON } from "./query/lexicon.js";
 import { allowedEdits, charSet, editDistance, normalize, setsApart, words } from "./fuzzy.js";
 import { FALLBACK_NOTE, carryOutcome } from "./searchLayers.js";
 import { AWARDS, FILLER, INTENTS, LEADER_STAT_WORDS, PARAPHRASES, PHASES, SCAFFOLD, WEAK_SIGNALS } from "./searchCatalog.js";
@@ -85,7 +86,7 @@ export function ownWords(): Map<string, 1 | 2> {
     ...ASKED_WORDS, ...phraseWords(SEARCH_TOPICS.map(([p]) => p)), ...phraseWords(SEARCH_PAGES.flatMap((p) => p.words)),
     ...phraseWords(INTENTS.flatMap((i) => i.words)), ...AWARDS, ...Object.keys(PHASES), ...phraseWords(LEADER_STAT_WORDS),
     ...Object.keys(WEAK_SIGNALS), ...EVENT_WORDS, ...Object.keys(PLURALS), ...Object.values(PLURALS),
-    ...phraseWords(SEASONS.map((s) => s.game)), ...phraseWords(REGION_PHRASES),
+    ...phraseWords(SEASONS.map((s) => s.game)), ...phraseWords(REGION_NAMES),
   ];
   const plain = [
     ...PLAIN_WORDS, ...SEARCH_FILLER, ...phraseWords(PARAPHRASES.flat()), ...phraseWords(FILLER), ...phraseWords(SCAFFOLD),
@@ -94,6 +95,8 @@ export function ownWords(): Map<string, 1 | 2> {
   const out = new Map<string, 1 | 2>();
   for (const w of plain.map(normalize).filter(Boolean)) out.set(w, 1);
   for (const w of asked.map(normalize).filter(Boolean)) out.set(w, 2);
+  // Each of search's own nouns in both numbers ("rank", "ranks"): a typo of either is a typo of the same word.
+  for (const [w, other] of numberPairs()) if (!out.has(other)) out.set(other, 2);
   return out;
 }
 
@@ -186,6 +189,76 @@ function jumbled(a: string, b: string): boolean {
   return off <= 1;
 }
 
+/** The keys beside each letter on a QWERTY keyboard: a slip onto one is the likeliest typo ("evntd" for "events"). */
+const ROWS = ["qwertyuiop", "asdfghjkl", "zxcvbnm"];
+const NEAR = new Map<string, Set<string>>();
+for (let r = 0; r < ROWS.length; r++) for (let c = 0; c < ROWS[r].length; c++) {
+  const near = new Set<string>();
+  for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) { const ch = ROWS[r + dr]?.[c + dc]; if (ch && (dr || dc)) near.add(ch); }
+  NEAR.set(ROWS[r][c], near);
+}
+/** Edits from `a` to `b` (a swap counts one), a slip onto a neighbouring key half of one: how far a typo is from one of
+ *  search's own words, whose allowance is half an edit more than a name's. */
+export function typoDistance(a: string, b: string): number {
+  const d: number[][] = Array.from({ length: a.length + 1 }, (_, i) => Array.from({ length: b.length + 1 }, (_, j) => (i ? (j ? 0 : i) : j)));
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) {
+    const sub = a[i - 1] === b[j - 1] ? 0 : NEAR.get(a[i - 1])?.has(b[j - 1]) ? 0.5 : 1;
+    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + sub);
+    if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+  }
+  return d[a.length][b.length];
+}
+
+/** The nouns search asks about (its intent words: "award", "event", "rating"), each form to its other number ("awards"
+ *  → "award", "award" → "awards"). Never a word naming an event or its kind by itself ("worlds" is the FIRST
+ *  Championship, "states" a state championship): the lexicon reads those as events, not counts of a thing. */
+let pairs: Map<string, string> | null = null;
+function numberPairs(): Map<string, string> {
+  if (pairs) return pairs;
+  // Plain words around a question ("how", "year", "won") are never its nouns, whatever list also has them.
+  const plain = new Set([...PLAIN_WORDS, ...QUESTION_WORDS, ...STOPWORDS, ...phraseWords(TIME_WORDS)].map(normalize));
+  // A word the lexicon reads only as something else ("last", "upcoming": which one; "highest": a measure's end) is
+  // never a noun; the lexicon's things, measures, awards and forecasts are, and so are the catalog's other words.
+  const kinds = new Map<string, Set<string>>();
+  for (const e of LEXICON) if (e.words.length === 1) for (const x of e.syms) (kinds.get(e.words[0]) ?? kinds.set(e.words[0], new Set()).get(e.words[0])!).add(x.k);
+  const noun = (w: string) => !kinds.has(w) || ["thing", "metric", "award", "predict"].some((k) => kinds.get(w)!.has(k));
+  const nouns = new Set([...ASKED_WORDS, ...phraseWords(INTENTS.flatMap((i) => i.words)), ...Object.keys(PLURALS), ...Object.values(PLURALS)].map(normalize).filter((w) => /^\p{L}{3,}$/u.test(w) && !plain.has(w) && noun(w)));
+  // An event read by its kind's word alone ("worlds", "states") or a word of an event's name ("championship",
+  // "league"), unless the lexicon reads it as events in general ("event", "tournament").
+  const thing = new Set(LEXICON.filter((e) => e.words.length === 1 && e.syms.some((x) => x.k === "thing")).map((e) => e.words[0]));
+  const named = new Set([...LEXICON.filter((e) => e.words.length === 1 && e.syms.some((x) => x.k === "worlds" || x.k === "states")).map((e) => e.words[0]),
+    ...[...EVENT_NAME_WORDS].filter((w) => !thing.has(w))]);
+  const many = (w: string) => (/(?:s|x|z|ch|sh)$/.test(w) ? `${w}es` : /[^aeiou]y$/.test(w) ? `${w.slice(0, -1)}ies` : `${w}s`);
+  pairs = new Map();
+  for (const w of nouns) {
+    if (/(?:ed|est|ly)$/.test(w) || (w.endsWith("s") && nouns.has(w.slice(0, -1)))) continue;
+    const p = many(w);
+    // A short word's plural only when search knows it ("opr", "oprs"; never "won", "wons").
+    if (named.has(w) || named.has(p) || PLURALS[w] || (w.length < 4 && !nouns.has(p) && !kinds.has(p))) continue;
+    pairs.set(w, p);
+    pairs.set(p, w);
+  }
+  for (const [p, w] of Object.entries(PLURALS)) if (!named.has(w) && !named.has(p)) { pairs.set(p, w); pairs.set(w, p); }
+  return pairs;
+}
+
+/** A query with each of search's own nouns in the other number: its plurals as singulars ("4215 upcoming events" →
+ *  "4215 upcoming event"), else (`many`) its singulars as plurals ("4215 season" → "4215 seasons"); null when it has
+ *  none. The same question, read again when the query as typed reads nothing (searchAnswer.ts), whose answer is kept
+ *  unless this reading answers more: a team's name with the word in it ("Season Robotics") still reads as typed. */
+export function numberQuery(q: string, many = false): string | null {
+  const ps = numberPairs();
+  let changed = false;
+  const out = q.replace(/\p{L}+/gu, (w) => {
+    const lower = w.toLowerCase(), other = ps.get(lower);
+    // A plural is one ending in s its other form doesn't.
+    if (!other || many === lower.endsWith("s") || other.endsWith("s") === lower.endsWith("s")) return w;
+    changed = true;
+    return other;
+  });
+  return changed ? out : null;
+}
+
 /** A correction: the word it reaches and whether it is one of search's own words. */
 export interface WordFix { word: string; own: boolean }
 
@@ -197,15 +270,18 @@ export function correctWord(w: string, v: Vocab, last = false): WordFix | null {
   const seen = v.count.get(w) ?? 0;
   const found: { word: string; d: number; own: number; slip: boolean; n: number }[] = [];
   const set = charSet(w);
-  for (let len = w.length - max; len <= w.length + max; len++) {
+  // A word allowed one edit reaches one of search's own words by half an edit more, a slip onto a neighbouring key
+  // (typoDistance: "evntd" is "events").
+  const reach = max === 1 ? 1.5 : max;
+  for (let len = w.length - Math.ceil(reach); len <= w.length + Math.ceil(reach); len++) {
     const list = v.byLength.get(len) ?? [], sets = v.setsByLength.get(len);
     for (let i = 0; i < list.length; i++) {
       const c = list[i];
-      if (sets && setsApart(set, sets[i], max)) continue;
-      if (c === w || pluralPair(c, w)) continue;
-      const d = editDistance(w, c, max);
-      if (d > max) continue;
       const own = v.own.get(c) ?? 0, n = v.count.get(c) ?? 0;
+      if (sets && setsApart(set, sets[i], own === 2 ? Math.ceil(reach) : max)) continue;
+      if (c === w || pluralPair(c, w)) continue;
+      const d = own === 2 ? typoDistance(w, c) : editDistance(w, c, max);
+      if (d > (own === 2 ? reach : max)) continue;
       // A word the data has once or twice (an event's or a city's one-off spelling, "Oradel") is only corrected to a
       // word that is clearly the usual one: search's own, or one seen five times as often.
       if (seen && !own && n < Math.max(5, seen * 5)) continue;

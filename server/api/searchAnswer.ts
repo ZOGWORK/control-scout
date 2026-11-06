@@ -37,8 +37,8 @@ import { parseQuestion, questionAnswer } from "./searchQuestions.js";
 import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
 import { statAnswer } from "./answers/index.js";
 import { refreshSearchSeason } from "./answers/season.js";
-import { carryOutcome, layeredAnswer } from "./searchLayers.js";
-import { spelled } from "./spelling.js";
+import { FALLBACK_NOTE, carryOutcome, layeredAnswer } from "./searchLayers.js";
+import { numberQuery, spelled, strength } from "./spelling.js";
 import { booleanAnswer } from "./searchBoolean.js";
 import { asksOfTeams, pipelineAnswer, pipelineReads } from "./query/execute.js";
 import { yesNoAnswer } from "./answers/yesNo.js";
@@ -170,7 +170,7 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   // The season a query naming none means (./answers/season.ts), read before the readers that use it.
   await refreshSearchSeason();
   if (opts.inner || opts.intents === false || opts.rewrites) return readerAnswer(raw, opts);
-  const a = await typedAnswer(raw, opts);
+  const a = await numberedAnswer(raw, opts);
   // Then its spelling (./spelling.ts): a misspelled query is read again corrected, and the better answer kept. Never
   // a quoted phrase, which asks for exactly those words.
   if (opts.spell === false || String(raw ?? "").includes('"')) return onPage(raw, a, opts);
@@ -203,6 +203,31 @@ async function withSorry(raw: string, a: SearchAnswer, opts: AnswerOptions): Pro
   const sorry = await sorryFor(cleanQuery(raw), a, opts);
   // A copy keeps the outcome failed-search reporting reads (./searchLayers.ts).
   return sorry ? carryOutcome(a, { ...a, sorry }) : a;
+}
+
+/** typedAnswer, with search's own nouns read in the other number when the query as typed reads nothing: its plurals
+ *  as singulars ("4215 upcoming events" is "4215 upcoming event"), else its singulars as plurals ("4215 season").
+ *  Singular and plural are one question. A query answered as typed is never read again, and the answer keeps the
+ *  query as typed. */
+async function numberedAnswer(raw: string, opts: AnswerOptions): Promise<SearchAnswer> {
+  let a = await typedAnswer(raw, opts);
+  if (String(raw ?? "").includes('"')) return a;
+  const asked = /\?\s*$/.test(String(raw ?? ""));
+  // A team's page opened at the section that answers ("4215 seasons": its history) answers more than the page alone.
+  const answers = (x: SearchAnswer) => strength(x) + (x.hits[0]?.kind === "team" && x.hits[0].section && !x.understood?.label.includes(FALLBACK_NOTE) ? 0.5 : 0);
+  // Read again only when the query as typed found nothing, or only a team's page; the dropdown builds no stat answers,
+  // so there only when it found nothing. Anything else it read ("which ultraviolet?", a team at an event it never
+  // played) is its answer.
+  const page = opts.full ?? (opts.limit ?? 12) >= SEARCH_PAGE_LIMIT;
+  const unread = (x: SearchAnswer) => strength(x) <= 2 || (page && !x.stat && !x.card && x.understood?.kind === "team" && x.step !== "closest");
+  for (const many of [false, true]) {
+    if (!unread(a)) return a;
+    const other = numberQuery(cleanQuery(raw), many);
+    if (!other) continue;
+    const b = await typedAnswer(asked ? `${other}?` : other, opts);
+    if (answers(b) > answers(a)) a = carryOutcome(b, { ...b, q: a.q });
+  }
+  return a;
 }
 
 /** searchAnswer for the query as typed. */
