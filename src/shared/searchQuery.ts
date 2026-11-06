@@ -51,7 +51,10 @@ export const onlyCommonWords = (q: string): boolean => {
 /** Words about when, never what: "upcoming meets in New Jersey" is New Jersey's meets from today on. "past",
  *  "recent", "previous" and "latest" are time words only beside an event word ("past meets"), so a name with one
  *  stays a name. Phrases are matched as whole words; longer ones first. */
-export const TIME_WORDS = ["today", "tomorrow", "this weekend", "next weekend", "this week", "next week", "this month", "next month", "upcoming", "coming up", "past", "recent", "previous", "latest"];
+// "Live", "right now", "happening now" with an event word are today's events (events run a day or two: today is the
+// one under way). Longest first, so "live now" is one phrase.
+export const TIME_WORDS = ["today", "tomorrow", "this weekend", "next weekend", "this week", "next week", "this month", "next month", "upcoming", "coming up", "past", "recent", "previous", "latest",
+  "happening now", "going on now", "on right now", "right now", "live now", "live", "currently"];
 const ALWAYS_TIME = new Set(["today", "tomorrow", "this weekend", "next weekend", "this week", "next week", "this month", "next month", "upcoming", "coming up"]);
 
 /** The words that say a query asks for events ("meets in New Jersey"), singular (after singularize). */

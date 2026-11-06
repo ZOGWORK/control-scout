@@ -35,7 +35,7 @@ import { trackRecordIfReady } from "./api/accuracy.js";
 import { isEnabled } from "./flags.js";
 import type { SearchCardLine, TrackRecord } from "../src/shared/api.js";
 import { ensureSearchIndex } from "./api/search.js";
-import { searchAnswer } from "./api/searchAnswer.js";
+import { MAX_QUERY, searchAnswer } from "./api/searchAnswer.js";
 import { withTeamStats } from "./api/searchTeamStats.js";
 import { withEventParents } from "./api/searchEvents.js";
 import { recordIntent } from "./api/searchIntents.js";
@@ -587,7 +587,9 @@ export function teamTableHtml(t: TeamTable, label: string): string {
  * indexed ("noindex, follow", searchPage): engines index the pages its results link to.
  */
 async function searchMeta(raw: string): Promise<PageMeta> {
-  const q = raw.trim().slice(0, 80);
+  // As typed (quotes and | are the boolean reader's): searchAnswer reads it to MAX_QUERY, cut at a word. Only a
+  // runaway address is trimmed here.
+  const q = raw.trim().slice(0, 4 * MAX_QUERY);
   if (!q) return { title: "Search", description: "Search any FTC team, event or match.", type: "website", searchPage: true };
   // The same readiness check as /api/search (typo matches on an upgraded database).
   await ensureSearchIndex(rebuildSearch);

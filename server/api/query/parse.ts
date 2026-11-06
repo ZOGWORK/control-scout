@@ -45,6 +45,8 @@ export interface Parsed {
   /** Penalty points left out of scores ("without penalties"): read, and an intent that can't apply it leaves the parse
    *  incomplete. */
   noPenalties: boolean;
+  /** Where the first "vs" stands (a word's index, as a team's `at`): two alliances are the teams either side of it. */
+  vsAt?: number;
   /** Every intent symbol read ("agg:max", "metric:score"). */
   symbols: string[];
   /** The stats said not to go by ("not OPR"), as typed: the card says it left them out. */
@@ -271,6 +273,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       else if (s.k === "nopen") p.noPenalties = true;
       else if (s.k === "undefeated") p.undefeated = true;
       else if (s.k === "agg" && !p.agg) p.agg = s.v;
+      else if (s.k === "vs" && p.vsAt == null) p.vsAt = i;
       const k = symKey(s);
       if (k && s.k !== "award") symbols.add(k);
     }

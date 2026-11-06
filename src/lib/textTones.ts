@@ -96,6 +96,9 @@ export const SEARCH_PALETTE = {
   live: { family: "rose", label: "Live", fill: "bg-rose-700 text-white", text: "text-rose-700 dark:text-rose-400", bar: "bg-rose-700 dark:bg-rose-500", edge: "border-l-rose-700 dark:border-l-rose-500", tint: "bg-rose-500/10", stroke: "stroke-rose-700 dark:stroke-rose-500" },
   upcoming: { family: "cyan", label: "Upcoming", fill: "bg-cyan-700 text-white", text: "text-cyan-700 dark:text-cyan-400", bar: "bg-cyan-700 dark:bg-cyan-500", edge: "border-l-cyan-700 dark:border-l-cyan-500", tint: "bg-cyan-500/10", stroke: "stroke-cyan-700 dark:stroke-cyan-500" },
   finished: { family: "lime", label: "Finished", fill: "bg-lime-700 text-white", text: "text-lime-700 dark:text-lime-400", bar: "bg-lime-700 dark:bg-lime-500", edge: "border-l-lime-700 dark:border-l-lime-500", tint: "bg-lime-500/10", stroke: "stroke-lime-700 dark:stroke-lime-500" },
+  // A yes-or-no question's answer (components/search/page/Verdict.tsx): green yes; no in slate, red being penalties'.
+  yes: { family: "green", label: "Yes", fill: "bg-green-700 text-white", text: "text-green-700 dark:text-green-400", bar: "bg-green-700 dark:bg-green-500", edge: "border-l-green-700 dark:border-l-green-500", tint: "bg-green-500/10", stroke: "stroke-green-700 dark:stroke-green-500" },
+  no: { family: "slate", label: "No", fill: "bg-slate-700 text-white", text: "text-slate-700 dark:text-slate-300", bar: "bg-slate-700 dark:bg-slate-400", edge: "border-l-slate-700 dark:border-l-slate-400", tint: "bg-slate-500/10", stroke: "stroke-slate-700 dark:stroke-slate-400" },
 } as const;
 export type Meaning = keyof typeof SEARCH_PALETTE;
 

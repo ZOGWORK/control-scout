@@ -83,7 +83,7 @@ export function counts(id: IntentId, m: TeamMatch): boolean {
 }
 
 /** The answer for a match-set intent, or null when `id` isn't one of these families' match intents. */
-export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch[], scope: Scope, opts: { leadEvent?: boolean; n?: number | null; outcome?: "W" | "L" | null }): Promise<StatAnswer | null> {
+export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch[], scope: Scope, opts: { leadEvent?: boolean; n?: number | null; outcome?: "W" | "L" | null; perEvent?: boolean }): Promise<StatAnswer | null> {
   const ms = pool(id, all, scope);
   const who = whoOf(team), where = scopePhrase(scope);
   const base = { team, scope: scopeChips(scope), source: sourceOf(ms) };
@@ -216,6 +216,8 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
             : listed ? [] : [{ label: "World rank by win rate", value: "Not ranked", sub: `under ${RANKED_MIN_MATCHES} matches` }]),
         ] });
       }
+      // "By event": each event's wins and losses, a row each, oldest first.
+      if (id === "record" && opts.perEvent) blocks.push(perEventTable(ms, team.number));
       if (seasons.length > 1 || id !== "record") blocks.push(seasonTable(ms));
       if (scope.championship) blocks.push(eventTable(ms, "Worlds events"));
       const headline = id === "wins-count" ? { value: `${r.wins} win${r.wins === 1 ? "" : "s"}`, label: `in ${ms.length} match${ms.length === 1 ? "" : "es"}${where}`, sub: seasonsText(seasons) }
@@ -391,6 +393,23 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
       return { ...base, source: sourceOf(xs), family: "aggregate", intent: id, title, headline: { value: String(xs.length), label: `${title.toLowerCase().replace(where.toLowerCase(), "")}${id === "playoff-matches" || id === "qual-matches" ? ` · ${recText(r)}` : ""}`, sub: `of ${ms.length} matches${where}` }, blocks, definition: def };
     }
 
+    // Every match in the scope (a season, a window, a place): the record, quals and playoffs apart, then the list.
+    case "season-matches": {
+      const title = `Matches${where}`;
+      if (!ms.length) return { ...base, family: "aggregate", intent: id, title, blocks: [], definition: RESULT_RULE, none: none("matches") };
+      const r = record(ms), quals = ms.filter((m) => m.level === "qual"), playoffs = ms.filter((m) => m.level === "playoff");
+      return {
+        ...base, family: "aggregate", intent: id, title,
+        headline: { value: recText(r), label: `in ${ms.length} match${ms.length === 1 ? "" : "es"}${where}` },
+        blocks: [
+          { kind: "record", title: "Wins, losses and ties", ...r, ...(quals.length && playoffs.length ? { split: { quals: record(quals), playoffs: record(playoffs) } } : {}) },
+          // Every match: a season is a few dozen at most, and the list is the answer.
+          { kind: "matches", title: "Newest first", rows: newestFirst(ms).map(row) },
+        ],
+        definition: RESULT_RULE,
+      };
+    }
+
     case "playoff-appearances": {
       const evs = new Map<string, TeamMatch[]>();
       for (const m of ms) if (m.level === "playoff") evs.set(`${m.season}|${m.code}`, [...(evs.get(`${m.season}|${m.code}`) ?? []), m]);
@@ -417,6 +436,22 @@ const rate = (r: { wins: number; losses: number; ties: number }) => { const n = 
 export const seasonsText = (ss: number[]) => (ss.length === 1 ? seasonLabel(ss[0]) : `${ss.length} seasons: ${ss.map(seasonLabel).join(", ")}`);
 
 /** Per event: its record (newest first), each a link to the event on the team. */
+/** Wins and losses (and ties, when any) at each event, oldest first, a row each linked to the event: a "by event"
+ *  record. Its season beside it when the answer spans seasons (one event name is held every year). */
+function perEventTable(ms: TeamMatch[], team: number): StatBlock {
+  const evs = new Map<string, TeamMatch[]>();
+  for (const m of ms) evs.set(`${m.season}|${m.code}`, [...(evs.get(`${m.season}|${m.code}`) ?? []), m]);
+  const ties = ms.some((m) => m.result === "T"), seasons = new Set(ms.map((m) => m.season)).size > 1;
+  return {
+    kind: "table", title: "Wins and losses by event",
+    columns: [{ key: "event", label: "Event" }, ...(seasons ? [{ key: "season", label: "Season" }] : []), { key: "wins", label: "Wins", num: true }, { key: "losses", label: "Losses", num: true }, ...(ties ? [{ key: "ties", label: "Ties", num: true }] : [])],
+    rows: [...evs.values()].map((xs) => {
+      const r = record(xs);
+      return { cells: { event: xs[0].event, season: seasonLabel(xs[0].season), wins: r.wins, losses: r.losses, ties: r.ties }, href: eventHref(xs[0].season, xs[0].code, team) };
+    }),
+  };
+}
+
 export function eventTable(ms: TeamMatch[], title: string): StatBlock {
   const evs = new Map<string, TeamMatch[]>();
   for (const m of ms) evs.set(`${m.season}|${m.code}`, [...(evs.get(`${m.season}|${m.code}`) ?? []), m]);

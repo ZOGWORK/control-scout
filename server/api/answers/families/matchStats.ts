@@ -69,7 +69,7 @@ async function ratingsOf(pairs: { team: number; season: number }[]): Promise<{ r
 }
 
 /** The answer for one of MATCH_STAT_IDS, or null for any other intent. */
-export async function matchStatAnswer(id: IntentId, team: AnswerTeam, all0: TeamMatch[], scope: Scope, opts: { n?: number | null; variant?: "per-event" | "rate" | "at-least" | null }): Promise<StatAnswer | null> {
+export async function matchStatAnswer(id: IntentId, team: AnswerTeam, all0: TeamMatch[], scope: Scope, opts: { n?: number | null; variant?: "per-event" | "rate" | "at-least" | "total" | null }): Promise<StatAnswer | null> {
   if (!MATCH_STAT_IDS.has(id)) return null;
   const keep = inScope(scope);
   const pool = all0.filter((m) => keep(m) && counts(id, m));
@@ -243,6 +243,8 @@ export async function matchStatAnswer(id: IntentId, team: AnswerTeam, all0: Team
         ? { value: one(perEvent), label: `penalty points given away per event, over ${plural(evs.length, "event")}${where}`, sub: `${one(per)} a match · ${total} in all over ${n}` }
         : opts.variant === "rate"
           ? { value: rate, label: `of ${n} had penalty points given away (${fouled.length} of ${xs.length})`, sub: `${one(per)} points a match · ${at}` }
+          : opts.variant === "total"
+            ? { value: String(total), label: `penalty points given away in all, over ${n}`, sub: `${one(per)} a match · ${at}` }
           : { value: one(per), label: `penalty points given away per match, over ${n}`, sub: `${fouled.length} of ${xs.length} matches with any · ${at}` };
       return {
         ...base, family: "aggregate", intent: id, title, headline,
