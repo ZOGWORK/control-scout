@@ -25,7 +25,7 @@ A Scout form closed while it waits for its workspace's template no longer leaves
 - [fixes] A test that failed now and then on CI is steady again
 
 ### Scout
-- **The template wait is cleared.** A new-entry form waits up to 6 seconds for a workspace template it has never seen, then opens with the built-in fields. That timer is now cleared when the form closes, and a second fetch replaces the first's timer instead of adding one. Before, a closed form's timer still fired, which on CI showed as an occasional "window is not defined" error after the Scout templates tests. (#000)
+- **The template wait is cleared.** A new-entry form waits up to 6 seconds for a workspace template it has never seen, then opens with the built-in fields. That timer is now cleared when the form closes, and a second fetch replaces the first's timer instead of adding one. Before, a closed form's timer still fired, which on CI showed as an occasional "window is not defined" error after the Scout templates tests. (#869)
 
 ## 3.4.8 — 2026-11-06
 
