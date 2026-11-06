@@ -36,6 +36,8 @@ export interface IntentRule {
   n?: boolean;
   /** A match's number given ("match 12", "q12"). */
   matchNo?: boolean;
+  /** The query must give no match's number: "did a team win match 2" is that match, never its wins. */
+  noMatchNo?: boolean;
 }
 
 const SCORE_LIKE = ["metric:score", "thing:match", "thing:event"];
@@ -83,7 +85,7 @@ export const INTENTS: IntentRule[] = [
   // Counts, means and records over its matches.
   R("wins-count", 1, ["agg:count", "metric:win"], ["thing:match"]),
   // "Did 12345 ever win a match": its wins, none said as none.
-  R("wins-count", 1, ["metric:win", "thing:match"], []),
+  R("wins-count", 1, ["metric:win", "thing:match"], [], { noMatchNo: true }),
   R("losses", 1, ["metric:loss"], ["agg:count", "thing:match"]),
   R("ties-count", 1, ["metric:tie"], ["agg:count", "thing:match"]),
   R("record", 1, ["metric:record"], ["metric:win", "metric:loss", "metric:tie", "thing:match"]),
@@ -180,6 +182,7 @@ export function pickIntent(symbols: Set<string>, teams: number, opts: { event: b
     if (rule.teams !== Math.min(teams, 2) || (teams > 2)) continue;
     if (rule.event && !atEvent) continue;
     if (rule.noEvent && opts.event) continue;
+    if (rule.noMatchNo && opts.matchNo) continue;
     if (rule.n && !opts.n) continue;
     // A match's number is only a match lookup's, and a match lookup needs one.
     if (!!rule.matchNo !== !!opts.matchNo && (rule.matchNo || rule.event)) continue;
