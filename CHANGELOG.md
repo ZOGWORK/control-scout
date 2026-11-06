@@ -26,7 +26,7 @@ A page of a search's related searches, grouped by what they're about, each with 
 
 ### Search
 - **Related searches page.** `/related-searches?q=…` lists every search that follows from one: about the team, top teams, events, awards, predictions and more, a group only with two or more. Each is a link to the live search with one line from its answer. Only searches with a direct answer are listed.
-- **Popular searches.** With no query, or one nothing follows from, the page lists the season's starting points the same way, and search itself is always one tap away. The page is drawn whole by the server and is in the sitemap.
+- **Popular searches.** With no query, or one nothing follows from, the page lists the season's starting points the same way, and search itself is always one tap away. The page is drawn whole by the server and is in the sitemap. (#1017)
 
 ## 3.7.4 — 2026-11-06
 
