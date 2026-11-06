@@ -5,6 +5,7 @@
 import type { SearchAnswer, SearchPageLink } from "../../../src/shared/api.js";
 import type { StatAnswer } from "../../../src/shared/searchStat.js";
 import { seasonLabel } from "../../../src/shared/format.js";
+import { hasTeamPage, teamPageSql } from "../../../src/shared/teamPages.js";
 import { all } from "../../db.js";
 import { fold, names, type TeamName } from "../query/names.js";
 import type { Parsed } from "../query/parse.js";
@@ -32,7 +33,9 @@ export async function teamsNamedSearch(p: Parsed, opts: { full: boolean; pages: 
   const idx = await names();
   const place = p.place;
   const inPlace = (t: TeamName) => !place || (t.country === place.country && (place.state == null || t.state === place.state) && (place.city == null || fold(t.city ?? "") === fold(place.city)));
-  let teams = idx.teamsNamed(p.named.words).filter(inPlace);
+  // Only teams with a page: never a placeholder registration or a stand-in number.
+  const named = idx.teamsNamed(p.named.words).filter((t) => hasTeamPage(t.number, t.name));
+  let teams = named.filter(inPlace);
   if (season != null && teams.length) {
     const played = new Set((await all<{ team: number }>(`SELECT DISTINCT team FROM team_event_stats WHERE season = ? AND matches > 0 AND team IN (${teams.map(() => "?").join(",")})`, [season, ...teams.map((t) => t.number)])).map((r) => Number(r.team)));
     teams = teams.filter((t) => played.has(t.number));
@@ -54,10 +57,14 @@ export async function teamsNamedSearch(p: Parsed, opts: { full: boolean; pages: 
   } else {
     // The names to try instead: the one these words nearly spell, the names they're part of, and the name anywhere
     // when a place or a season narrowed it to none.
-    const near = idx.nearTeam(p.named.words)?.name;
-    const part = await all<{ name: string }>("SELECT DISTINCT name FROM teams WHERE LOWER(name) LIKE ? ORDER BY number LIMIT 4", [`%${p.named.words}%`]);
-    const wider = (place || season != null) && idx.teamsNamed(p.named.words).length ? [`teams named ${p.named.typed}`] : [];
-    const queries = [...new Set([...wider, ...(near ? [`teams named ${near}`] : []), ...part.map((r) => r.name.trim()).filter((n) => fold(n) !== fold(p.named!.words))])].slice(0, 4);
+    const nt = idx.nearTeam(p.named.words);
+    const near = nt && hasTeamPage(nt.number, nt.name) ? nt.name : null;
+    // Compared folded, as the whole-name lookup is (accents and punctuation aside).
+    const words = fold(p.named.words);
+    const part = (await all<{ name: string }>(`SELECT name FROM teams t WHERE name IS NOT NULL AND ${teamPageSql("t.number", "t.name")} ORDER BY number`))
+      .map((r) => r.name.trim()).filter((n) => fold(n).includes(words) && fold(n) !== words).slice(0, 4);
+    const wider = (place || season != null) && named.length ? [`teams named ${p.named.typed}`] : [];
+    const queries = [...new Set([...wider, ...(near ? [`teams named ${near}`] : []), ...part])].slice(0, 4);
     if (queries.length) blocks.push({ kind: "related", title: "Did you mean", queries });
   }
   const stat: StatAnswer = {

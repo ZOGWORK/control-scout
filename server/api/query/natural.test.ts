@@ -27,6 +27,9 @@ beforeAll(async () => {
     [4215, "Hypnotic Robotics", "Oradell", "NJ", "USA"], [6980, "Bad Wolf", "Fair Lawn", "NJ", "USA"], [7149, "Enforcers", "Oradell", "NJ", "USA"],
     [20245, "Ultraviolet", "Detroit", "MI", "USA"], [23268, "Ultraviolet", "Hackettstown", "NJ", "USA"], [22457, "Ultraviolet Bots", "Leeds", "", "United Kingdom"],
     [9848, "GearView", "Dallas", "TX", "USA"], [24033, "Alphatronic", "Cluj-Napoca", "CJ", "Romania"],
+    // Names ending in a question's filler or holding a place's preposition; a name with punctuation; a placeholder.
+    [30001, "Robots R Us", "Town", "OH", "USA"], [30002, "Lost In Space", "Town", "OH", "USA"], [30003, "O'Brien Robotics", "Town", "OH", "USA"],
+    [99950, "Off-Season Demo Team", "Town", "OH", "USA"], [99951, "Off-Season Demo Team", "Town", "OH", "USA"],
   ];
   for (const [n, name, city, state, country] of teams) {
     await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, ?, ?, ?)", [n, name, city, state || null, country]);
@@ -77,6 +80,14 @@ describe("count teams by name (3a)", () => {
     const s = (await ask("teams called ultraviolet in 2025-26")).stat as StatAnswer;
     expect(s).toMatchObject({ headline: { value: "1 team", label: "named Ultraviolet that played in 2025–26" }, scope: ["2025–26"] });
   });
+  it("a whole stored name is read whole, whatever words it holds", async () => {
+    expect(card(await ask("how many teams named robots r us"))).toMatchObject({ headline: "1 team", rows: ["30001 Robots R Us"] });
+    expect(card(await ask("teams called lost in space"))).toMatchObject({ headline: "1 team", rows: ["30002 Lost In Space"] });
+    expect(card(await ask("how many teams named o'brien robotics are there"))).toMatchObject({ headline: "1 team", rows: ["30003 O'Brien Robotics"] });
+  });
+  it("never counts a placeholder registration", async () => {
+    expect(card(await ask("how many teams named off-season demo team"))).toMatchObject({ headline: "0 teams", rows: [] });
+  });
   it("none: said plainly, with names to try and every team a tap away, never the no-match page", async () => {
     const a = await ask("how many teams named zzzqqq");
     expect(a.step).toBe("deterministic");
@@ -85,6 +96,8 @@ describe("count teams by name (3a)", () => {
     // The names the words are part of, and the name anywhere when a place narrowed it to none.
     const part = (await ask("how many teams named ultraviolet b")).stat as StatAnswer;
     expect(part.blocks).toContainEqual({ kind: "related", title: "Did you mean", queries: ["Ultraviolet Bots"] });
+    // Spelled as the name search folds it: no apostrophe.
+    expect(((await ask("how many teams named obrien r")).stat as StatAnswer).blocks).toContainEqual({ kind: "related", title: "Did you mean", queries: ["O'Brien Robotics"] });
     const there = (await ask("how many teams named bad wolf in Romania")).stat as StatAnswer;
     expect(there.none).toBe("No team is named bad wolf in Romania.");
     expect(there.blocks).toContainEqual({ kind: "related", title: "Did you mean", queries: ["teams named bad wolf"] });
@@ -95,6 +108,11 @@ describe("count teams by place (3a)", () => {
   it("a town's count is its list of teams", async () => {
     for (const q of ["how many teams from Oradell", "how many teams in Oradell", "number of teams from oradell"]) {
       expect(card(await ask(q)), q).toMatchObject({ kind: "city-teams", headline: "2 teams", rows: expect.arrayContaining(["4215 Hypnotic Robotics", "7149 Enforcers"]) });
+    }
+  });
+  it("never a town's whole list for a filter it doesn't take", async () => {
+    for (const q of ["how many teams from Oradell at worlds", "how many teams from Oradell at states", "how many teams from Oradell in 2025-26"]) {
+      expect((await ask(q)).stat?.intent, q).not.toBe("city-teams");
     }
   });
 });

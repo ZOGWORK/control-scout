@@ -55,8 +55,10 @@ export async function pipelineReads(q: string, now?: number, prefer?: ReadonlySe
   return p.complete && !!p.intent && ANSWERED.has(p.intent) && (p.intent !== "team-predict" || !!p.event) && (p.intent !== "count-teams" || townCount(p));
 }
 
-/** A count of teams the pipeline answers: a town's, with no time said. */
-const townCount = (p: Parsed) => p.place?.kind === "city" && !p.time && !p.teams.length;
+/** A count of teams the pipeline answers: a town's, with no time, event, championship, match type, side or award said
+ *  (its list is every team from the town, which none of those narrow). */
+const townCount = (p: Parsed) => p.place?.kind === "city" && !p.time && !p.teams.length && !p.event && !p.eventKind && !p.worlds && !p.states
+  && !p.level && !p.finals && !p.alliance && !p.award && p.n == null && !p.undefeated && !p.noPenalties;
 
 /** The answers that list as many rows as a count said ("12345 last 3 matches"). */
 const COUNTED = new Set<IntentId>(["last-matches"]);

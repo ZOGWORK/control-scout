@@ -128,15 +128,21 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   const lexAt = (i: number) => LEXICON.find((e) => e.words.every((w, j) => toks[i + j] && !toks[i + j].used && toks[i + j].w === w));
   const isLex = (w: string) => LEX_WORDS.has(w) || AWARD_ONE_WORD.has(w);
 
-  // 0. A name asked about as words ("how many teams named <name> from <place>"): the words after the phrase, up to a
-  // place's preposition and without the question's closing filler ("… are there"), are the name, never a team.
+  // 0. A name asked about as words ("how many teams named <name> from <place>"): the words after the phrase, never a
+  // team. The longest run of them that is a stored name, whatever words it holds ("in", "us"); else the words up to a
+  // place's preposition, without the question's closing filler ("… are there").
   for (let i = 0; i < toks.length && !p.named; i++) {
     const e = lexAt(i);
     if (!e?.syms.some((s) => s.k === "named")) continue;
     const from = i + e.words.length;
-    let to = from;
-    while (to < toks.length && !NAME_ENDS.test(toks[to].w)) to++;
-    while (to > from && FILLER_WORDS.has(toks[to - 1].w)) to--;
+    let to = toks.length;
+    // A stored name ends the words only where a place's preposition or the closing filler follows it.
+    const ends = (k: number) => k === toks.length || NAME_ENDS.test(toks[k].w) || toks.slice(k).every((t) => FILLER_WORDS.has(t.w));
+    while (to > from && !(ends(to) && ctx.names.teamsNamed(toks.slice(from, to).map((t) => t.w).join(" ")).length)) to--;
+    if (to === from) {
+      while (to < toks.length && !NAME_ENDS.test(toks[to].w)) to++;
+      while (to > from && FILLER_WORDS.has(toks[to - 1].w)) to--;
+    }
     if (to === from) continue;
     const span = toks.slice(from, to);
     p.named = { words: span.map((t) => t.w).join(" "), typed: span.map((t) => t.typed).join(" ") };
