@@ -199,7 +199,7 @@ describe("one question, any phrasing, any team", () => {
       expect(s.headline?.value, q).toBeTruthy();
     }
     // Compare's own link leads, on the card's season.
-    expect((await ask("4215 vs 6980")).hits[0]).toMatchObject({ kind: "compare", href: expect.stringMatching(/[?&]season=2025/) });
+    expect((await ask("4215 vs 6980")).hits[0]).toMatchObject({ kind: "compare", href: expect.stringMatching(/[?&]season=2025\b/) });
     expect((await ask("4215 or 6980")).stat?.intent).not.toBe("compare");
   });
   it("at Worlds with no season said: the newest one either went to; one never there is said so", async () => {
