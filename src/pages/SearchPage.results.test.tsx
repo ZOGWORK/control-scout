@@ -2,6 +2,7 @@
 // The /search page's results: a Compare is its own card above the teams (never counted as one), team cards carry
 // their season numbers, events are blocks with date and status, no card shows a web address, the filters narrow
 // the results in the address and clear back to all of them, and nothing found is never a bare dead end.
+import { SEARCH_PALETTE } from "../lib/textTones";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -153,7 +154,13 @@ describe("search results page", () => {
     state.answer = answer([ev("A", "Next Meet", "2099-11-17"), ev("B", "Old Meet", "2020-01-11", 2019), ev("C", "Later Meet", "2099-12-01")]);
     const { container } = show("/search?q=meets%20in%20nj");
     const titles = () => [...container.querySelectorAll('[data-result="event"]')].map((e) => e.querySelector("a.line-clamp-2")?.textContent);
-    expect(titles()).toEqual(["Next Meet", "Old Meet", "Later Meet"]);
+    // In sections: upcoming (soonest first) above finished.
+    expect(titles()).toEqual(["Next Meet", "Later Meet", "Old Meet"]);
+    expect([...container.querySelectorAll("[data-status-section] > h3")].map((h) => h.textContent)).toEqual(["Upcoming, 2", "Finished, 1"]);
+    // Each status heading in its own palette colour (lib/textTones SEARCH_PALETTE), the trees' colour.
+    for (const h of container.querySelectorAll<HTMLElement>("[data-section-tone]")) expect(h.className).toContain(SEARCH_PALETTE[h.dataset.sectionTone as "upcoming" | "finished"].fill);
+    // Its count on a darker pill, so the white number keeps at least the bare fill's contrast (never a lighter one).
+    for (const c of container.querySelectorAll("[data-section-count]")) expect(c.className).toContain("bg-black/25");
     // Each time tab says how many events it holds before it's picked.
     expect(screen.getAllByRole("radio").map((r) => r.getAttribute("aria-label"))).toEqual(["All, 3 events", "Upcoming, 2 events", "Past, 1 event"]);
     fireEvent.click(screen.getByRole("radio", { name: /^Upcoming/ }));
@@ -163,7 +170,37 @@ describe("search results page", () => {
     expect(titles()).toEqual(["Old Meet"]);
     fireEvent.click(screen.getByRole("button", { name: /Clear filters/ }));
     expect(loc).toBe("/search?q=meets+in+nj");
-    expect(titles()).toEqual(["Next Meet", "Old Meet", "Later Meet"]);
+    expect(titles()).toEqual(["Next Meet", "Later Meet", "Old Meet"]);
+  });
+
+  it("live events are a section of their own, first, with the red dot; the Upcoming tab counts them apart", () => {
+    const live = (code: string, name: string) => ({ ...ev(code, name, "2026-01-01"), event: { start: "2026-01-01", end: "2099-01-01", type: "LeagueMeet", venue: null, status: "live" as const } });
+    state.answer = answer([ev("A", "Next Meet", "2099-11-17"), live("L", "Now Meet"), ev("B", "Old Meet", "2020-01-11", 2019)]);
+    const { container } = show("/search?q=meets%20in%20nj");
+    const sections = [...container.querySelectorAll("[data-status-section]")];
+    expect(sections.map((x) => x.getAttribute("data-status-section"))).toEqual(["live", "upcoming", "finished"]);
+    expect(sections[0].querySelector("h3 [data-live-dot]")).not.toBeNull();
+    expect(sections[0].textContent).toContain("Now Meet");
+    // No live card under an Upcoming heading.
+    expect(sections[1].textContent).not.toContain("Now Meet");
+    expect(screen.getByRole("radio", { name: "Upcoming, 1 event and 1 live now" })).toBeTruthy();
+  });
+
+  it("Greptile on #805: a family's status is chosen after the type filter, the same for the tabs and the sections", () => {
+    const info = (type: string, status: "live" | "finished") => ({ start: "2026-01-01", end: status === "live" ? "2099-01-01" : "2026-01-02", type, venue: null, status });
+    state.answer = answer([
+      { ...ev("P", "Big Championship", "2026-01-01", 2025), event: info("Premier", "live") },
+      { ...ev("PA", "Big Championship - East Division", "2026-01-01", 2025), parent: "P", event: info("Championship", "finished") },
+      { ...ev("PB", "Big Championship - West Division", "2026-01-01", 2025), parent: "P", event: info("Championship", "finished") },
+    ]);
+    const { container } = show("/search?q=big%20championship&type=Championship");
+    expect([...container.querySelectorAll("[data-status-section]")].map((x) => x.getAttribute("data-status-section"))).toEqual(["finished"]);
+    expect(screen.getByRole("radio", { name: "Past, 2 events" })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: "Upcoming, 0 events" })).toBeTruthy();
+    // An empty choice offers only what its own statuses would show: the finals alone are live, so no past ones.
+    cleanup();
+    const empty = show("/search?q=big%20championship&type=Premier&when=past").container;
+    expect([...empty.querySelectorAll("[data-alternative]")].map((b) => b.textContent)).toEqual(["Show 1 upcoming"]);
   });
 
   it("the time tab follows the query: 'upcoming meets' opens on Upcoming, highlighted, and a pick of All is kept in the address", () => {
@@ -419,8 +456,9 @@ describe("search results page, Phase 2 cards", () => {
     const cards = container.querySelectorAll('[data-result="event"]');
     expect(cards).toHaveLength(2);
     for (const a of container.querySelectorAll("a")) expect(a.querySelector("a, button")).toBeNull();
-    expect(within(cards[0] as HTMLElement).getByRole("link", { name: "Teams" }).getAttribute("href")).toBe("/events/2019/A?tab=teams");
-    expect(within(cards[1] as HTMLElement).getByRole("link", { name: "Ohio State Championship" }).getAttribute("href")).toBe("/events/2020/B");
+    // Finished, newest first.
+    expect(within(cards[1] as HTMLElement).getByRole("link", { name: "Teams" }).getAttribute("href")).toBe("/events/2019/A?tab=teams");
+    expect(within(cards[0] as HTMLElement).getByRole("link", { name: "Ohio State Championship" }).getAttribute("href")).toBe("/events/2020/B");
     // One link to the event's page (the card's own): no "View event" cue repeating it, and no season tabs.
     expect(container.querySelector("[data-season-tabs], [data-cta]")).toBeNull();
   });

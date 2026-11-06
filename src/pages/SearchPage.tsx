@@ -33,9 +33,11 @@ import { CompareBar, CompareSheet, togglePick } from "../components/search/page/
 import { AppearancesAnswer, QualityBanner, StatBanner, Timeline } from "../components/search/page/Summary";
 import { appearanceStats, appearances, isQualityQuestion, hasNumbers, standing } from "../components/search/page/records";
 import { SearchFilters } from "../components/search/page/SearchFilters";
-import { eventGroups, openFamilies } from "../components/search/page/eventFamilies";
+import { openFamilies, type FamilyStatus } from "../components/search/page/eventFamilies";
+import { eventSections, eventStatuses, localDay } from "../components/search/page/eventSections";
+import { SEARCH_PALETTE } from "../lib/textTones";
 import { EventTree } from "../components/search/page/EventTree";
-import { answerTeams, anyFilter, askedWhen, filteredTitle, filterAlternatives, whenCounts, compareSeason, compareSides, compareTeams, filterChoices, cardTeamName, isCompare, isFuzzy, keeps, pageTitle, contextBadge, badgeUnder, readingOf, fuzzyWords, readFilters, teamParts, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
+import { answerTeams, anyFilter, askedWhen, filteredTitle, filterAlternatives, whenCounts, compareSeason, compareSides, compareTeams, filterChoices, cardTeamName, isCompare, isFuzzy, keeps, pageTitle, contextBadge, badgeUnder, readingOf, fuzzyWords, readFilters, teamParts, withFilters, type AnswerExtra, type PageFilters, type Statuses } from "../components/search/page/results";
 import { SEARCH_PAGE_LIMIT } from "../shared/search";
 import type { AnswerRow, AnswerSection } from "../shared/searchSections";
 import type { SearchHit, TeamSummary } from "../shared/api";
@@ -72,13 +74,17 @@ export default function SearchPage() {
   const compares = useMemo(() => hits.filter(isCompare), [hits]);
   // The teams the answer already shows get no card of their own under it (each team once), only a profile link.
   const named = useMemo(() => answerTeams(answer, compares), [answer, compares]);
-  const view = useMemo(() => shape(sections, filters, new Set(named)), [sections, filters.when, filters.season, filters.type, named]);
+  // One status per event, a family's for all of it, chosen among the events the season and type filters keep: the
+  // sections, the time filter and the tab counts all read it.
+  const statusesFor = (f: PageFilters) => eventStatuses(hits.filter((h) => keeps(h, { ...f, when: "all" })));
+  const statuses = useMemo(() => statusesFor(filters), [hits, filters.season, filters.type]);
+  const view = useMemo(() => shape(sections, filters, new Set(named), statuses), [sections, filters.when, filters.season, filters.type, named, statuses]);
   const choices = useMemo(() => filterChoices(hits), [hits]);
   // Site pages a query names ("rules", "rankings") are an answer too.
   const found = sections.some((s) => (RESULT_KINDS.has(s.id) || s.id === "pages") && s.rows.some((r) => !isCompare(r.hit))) || compares.length > 0 || !!answer?.card || !!answer?.stat;
   const events = hits.filter((h) => h.kind === "event").length;
   const filtersOn = anyFilter(filters, askedTime);
-  const counts = useMemo(() => whenCounts(hits, filters), [hits, filters.when, filters.season, filters.type]);
+  const counts = useMemo(() => whenCounts(hits, filters, undefined, statuses), [hits, filters.when, filters.season, filters.type, statuses]);
 
   // The closest real results when nothing answers (./search/page/NoResults.tsx), drawn as full cards.
   const closest = useMemo(() => sections.find((s) => s.id === "closest")?.rows.filter((r) => !r.sub).map((r) => r.hit) ?? [], [sections]);
@@ -253,13 +259,13 @@ export default function SearchPage() {
                   )}
                   {/* Phones: a versus query's side-by-side numbers under its Compare (desktop has them beside it). */}
                   {h2h && <div className="mb-5 lg:hidden"><HeadToHead h={h2h} now={now.data?.teams} before={asked == null ? before.data?.teams : undefined} season={base} /></div>}
-                  {view.map((s) => <ResultSection key={s.id} s={s} summaries={summaries} covered={covered} picks={picks} onPick={pick} fuzzyWord={fuzzyWords(hits) ?? undefined} twoCol={!!panel} onOpen={open} />)}
+                  {view.map((s) => <ResultSection key={s.id} s={s} statuses={statuses} summaries={summaries} covered={covered} picks={picks} onPick={pick} fuzzyWord={fuzzyWords(hits) ?? undefined} twoCol={!!panel} onOpen={open} />)}
                   {filtersOn && !view.some((s) => RESULT_KINDS.has(s.id) || s.id === "top" || s.id === "fuzzy") && (
                     // Never a dead end: what's empty, said plainly, and each choice that isn't, one tap away.
                     <div className="rounded-xl border border-border bg-card px-4 py-3.5 text-sm" data-filtered-empty>
                       <p className="text-foreground">{emptyLine(filters, hits)}</p>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
-                        {filterAlternatives(hits, filters).map((a) => (
+                        {filterAlternatives(hits, filters, undefined, statusesFor).map((a) => (
                           <Button key={a.label} size="sm" variant="secondary" onClick={() => setFilters(a.f)} data-alternative>
                             Show {a.label}
                           </Button>
@@ -296,13 +302,13 @@ type ViewSection = Omit<AnswerSection, "id"> & { id: AnswerSection["id"] | "top"
 /** The sections as the page lists them: no Compare among the teams, the filters applied (a team's events go with
  *  it), and, when some teams only share a word with the query, the exact ones apart from them. A team the answer
  *  already names (`named`) is left out, with its events. */
-function shape(sections: AnswerSection[], f: PageFilters, named: Set<number>): ViewSection[] {
+function shape(sections: AnswerSection[], f: PageFilters, named: Set<number>, statuses: Statuses): ViewSection[] {
   const out: ViewSection[] = [];
   for (const s of sections) {
     let dropped = false;
     const rows = s.rows.filter((r) => {
       if (!r.sub) dropped = s.id === "team" && r.hit.kind === "team" && named.has(Number(r.hit.ref));
-      return !dropped && !isCompare(r.hit) && (r.sub || !RESULT_KINDS.has(s.id) || keeps(r.hit, f));
+      return !dropped && !isCompare(r.hit) && (r.sub || !RESULT_KINDS.has(s.id) || keeps(r.hit, f, undefined, statuses));
     });
     if (!rows.some((r) => !r.sub)) continue;
     if (s.id === "team" && rows.some((r) => !r.sub && isFuzzy(r.hit))) {
@@ -318,7 +324,7 @@ function shape(sections: AnswerSection[], f: PageFilters, named: Set<number>): V
   return out;
 }
 
-function ResultSection({ s, summaries, covered, picks, onPick, fuzzyWord, twoCol, onOpen }: { s: ViewSection; summaries: Map<number, SeasonSummary>; covered: number | null; picks: number[]; onPick: (team: number) => void; fuzzyWord?: string; twoCol: boolean; onOpen: (h: SearchHit) => void }) {
+function ResultSection({ s, statuses, summaries, covered, picks, onPick, fuzzyWord, twoCol, onOpen }: { s: ViewSection; statuses: Statuses; summaries: Map<number, SeasonSummary>; covered: number | null; picks: number[]; onPick: (team: number) => void; fuzzyWord?: string; twoCol: boolean; onOpen: (h: SearchHit) => void }) {
   const phone = useMediaQuery("(max-width: 767px)");
   const current = useCurrentSeason();
   const count = s.rows.filter((r) => !r.sub).length;
@@ -334,7 +340,7 @@ function ResultSection({ s, summaries, covered, picks, onPick, fuzzyWord, twoCol
         {s.id !== "pages" && s.id !== "browse" && <span className="rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-foreground/80">{count}</span>}
       </h2>
       {s.id === "event" ? (
-        <EventResults hits={s.rows.map((r) => r.hit)} twoCol={twoCol} onOpen={onOpen} />
+        <EventResults hits={s.rows.map((r) => r.hit)} statuses={statuses} twoCol={twoCol} onOpen={onOpen} />
       ) : teamish ? (
         <div className="space-y-2">
           {teamGroups.map(({ head, subs }) => (
@@ -366,16 +372,42 @@ function ResultSection({ s, summaries, covered, picks, onPick, fuzzyWord, twoCol
   );
 }
 
-/** The events, grouped before any card is drawn (../components/search/page/eventFamilies.ts): an event split in
- *  divisions as a tree a season, full width; any other event a card in the grid. */
-function EventResults({ hits, twoCol, onOpen }: { hits: SearchHit[]; twoCol: boolean; onOpen: (h: SearchHit) => void }) {
-  const groups = useMemo(() => eventGroups(hits), [hits]);
-  const open = useMemo(() => openFamilies(groups), [groups]);
+/** The events, grouped before any card is drawn: by status (Live now, Upcoming, Finished), then by date
+ *  (../components/search/page/eventSections.ts), then an event split in divisions as a tree a season, full width
+ *  (../components/search/page/eventFamilies.ts), any other event a card in the grid. Every heading says how many
+ *  events are under it. */
+function EventResults({ hits, statuses, twoCol, onOpen }: { hits: SearchHit[]; statuses: Statuses; twoCol: boolean; onOpen: (h: SearchHit) => void }) {
+  const sections = useMemo(() => eventSections(hits, localDay(), statuses as ReadonlyMap<string, FamilyStatus>), [hits, statuses]);
+  const open = useMemo(() => openFamilies(sections.flatMap((s) => s.dates.flatMap((d) => d.groups))), [sections]);
+  const grid = cn("grid gap-3 sm:grid-cols-2", twoCol ? "2xl:grid-cols-3" : "xl:grid-cols-3");
   return (
-    <div className={cn("grid gap-3 sm:grid-cols-2", twoCol ? "2xl:grid-cols-3" : "xl:grid-cols-3")}>
-      {groups.map((g) => (g.kind === "family"
-        ? <EventTree key={g.family.key} f={g.family} open={open.has(g.family.key)} onOpen={onOpen} />
-        : <EventCard key={g.hits[0].ref} h={g.hits[0]} onOpen={onOpen} />))}
+    <div className="space-y-8 max-sm:space-y-6" data-event-sections>
+      {sections.map((s) => (
+        <section key={s.status} aria-label={`${s.title}, ${s.count} ${s.count === 1 ? "event" : "events"}`} data-status-section={s.status}>
+          {/* The status in its palette colour (lib/textTones SEARCH_PALETTE: live rose, upcoming cyan, finished lime), the
+              same as the trees' bars and chips; the words and order say it without the colour. */}
+          <h3 className={cn("mb-3 flex items-center gap-2 rounded-lg px-3 py-2 font-display text-base font-bold", SEARCH_PALETTE[s.status].fill)} data-section-tone={s.status}>
+            {s.status === "live" && <span aria-hidden className="size-2 shrink-0 animate-pulse rounded-full bg-white motion-reduce:animate-none" data-live-dot />}
+            {s.title}<span className="sr-only">, </span><span className="rounded-full bg-black/25 px-2 text-sm tabular-nums" data-section-count>{s.count}</span>
+          </h3>
+          <div className="space-y-5">
+            {s.dates.map((d) => (
+              <div key={d.key} data-date-section={d.key}>
+                {d.title && (
+                  <h4 className={cn("mb-2 flex min-w-0 items-baseline gap-1.5 border-l-4 pl-2 text-sm font-semibold text-foreground", SEARCH_PALETTE[s.status].edge)}>
+                    <span className="truncate">{d.title}</span><span className={cn("shrink-0 tabular-nums", SEARCH_PALETTE[s.status].text)}>· {d.count}</span>
+                  </h4>
+                )}
+                <div className={grid}>
+                  {d.groups.map((g) => (g.kind === "family"
+                    ? <EventTree key={g.family.key} f={g.family} open={open.has(g.family.key)} onOpen={onOpen} />
+                    : <EventCard key={g.hits[0].ref} h={g.hits[0]} onOpen={onOpen} />))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ))}
     </div>
   );
 }

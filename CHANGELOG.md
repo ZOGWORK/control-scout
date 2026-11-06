@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.4.6 — 2026-11-06
+## 3.5.0 — 2026-11-06
 
 Search predicts a full match: two alliances of two.
 
@@ -26,6 +26,34 @@ Search predicts a full match: two alliances of two.
 
 ### Search
 - **Two alliances of two.** Four teams with "vs" between the pairs ("predict 12345 23456 vs 34567 45678", "12345 and 23456 vs 34567 and 45678 who wins", "custom matchup …", by number or name) answer with the engine's call for that qualification match, as Predict makes it: each alliance's win chance, predicted score and margin, the confidence, each team's rating, and Predict opened on the same lineup. The season is the one named, else the latest every team has a rating in. Before, the card compared only the first team of each side. (#834)
+
+## 3.4.7 — 2026-11-06
+
+Search lists events by status, then by date: what's live now first, then what's coming day by day, then what's over.
+
+### Highlights
+- [fixes] Live events first, under a solid rose header
+- [fixes] Upcoming events, cyan, grouped by day this week, then by week
+- [fixes] Finished events come last, newest first, under a lime header
+- [fixes] Every heading and tab counts the events under it
+
+### Search
+- **Status, then date.** A search's events sit in sections: Live now (by start), Upcoming (soonest first: Today, Tomorrow or the weekday for this week, then "Week of …"), and Finished (newest first, sectioned the same way). Each heading says how many events are under it, and an event split in divisions sits whole in its section as its tree. Nothing names an event, a date or a type: any list works.
+- **Counts that match.** The Upcoming tab counts the events to come and says its live ones apart ("Upcoming 23 · 2 live"), as its sections do; All is the three together (#805).
+
+## 3.4.6 — 2026-11-06
+
+"How many teams are called …" counts every team with that name and lists them, however it's asked.
+
+### Highlights
+- [teams] "How many teams named …" counts and lists every team with that name
+- [teams] Asked as "called", "with the name" or "go by", it's the same answer
+- [teams] Add a place or a season to count only those teams
+- [teams] "How many teams from" a town lists that town's teams
+
+### Search
+- **Teams by name, counted.** "How many teams named …", "teams called …", "number of teams with the name …" read the words after "named" as a name, never as the one team that has it, and answer with the count and every team with that whole name, by number, with where each is from and its last season played; the count is always the list. A place ("… from NJ") or a season ("… in 2025-26") narrows it and is said on the card. No team with the name says so, with the names the words nearly spell or are part of and Browse all teams, never the no-match page.
+- **A town's teams counted.** "How many teams from" or "in" a town answers with the town's list of teams, its length the count. A state's or a country's count is unchanged. (#804)
 
 ## 3.4.5 — 2026-11-06
 
