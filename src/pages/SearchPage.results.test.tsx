@@ -438,6 +438,8 @@ describe("search results page, Phase 2 cards", () => {
     expect(families[0].textContent!.split("Oradell").length - 1).toBe(1);
     expect(families[0].querySelectorAll("[data-division]")[0].textContent).toBe("Edison DivisionMatchesRankingsTeamsPlayoffs");
     expect(families[0].querySelectorAll('[data-event-chip="status"]')).toHaveLength(1);
+    // The type only where the name doesn't already say it.
+    expect(families[0].querySelector("[data-family-type]")).toBeNull();
     // The accent is the selected control's alone: none in the tree.
     expect(container.querySelectorAll('[data-event-family] [class*="accent"]')).toHaveLength(0);
     expect(families[0].querySelector("[data-family-link]")!.getAttribute("href")).toBe("/events?season=2025&q=FTCCMP1");

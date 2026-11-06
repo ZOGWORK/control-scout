@@ -34,6 +34,9 @@ export function EventTree({ f, open: first, onOpen }: { f: EventFamily; open: bo
   const head = eventFacts(f.finals ?? f.divisions[0]);
   const n = f.divisions.length;
   const season = `${seasonLabel(f.season)}${f.game ? ` ${f.game}` : ""}`;
+  // The type, unless the event's name already says it ("FIRST Championship - …" is a FIRST Championship): once.
+  const type = head.type ? head.typeLabel ?? eventTypeLabel(head.type) : null;
+  const typeShown = type && !f.name.toLowerCase().includes(type.toLowerCase()) ? type : null;
   return (
     <section aria-label={`${f.name}, ${season}`} data-event-family={f.key} data-status={status} className="relative overflow-hidden rounded-xl border border-border bg-card sm:col-span-full">
       <span aria-hidden className={cn("absolute inset-y-0 left-0 w-1.5", tone.bar)} />
@@ -41,7 +44,7 @@ export function EventTree({ f, open: first, onOpen }: { f: EventFamily; open: bo
         <header className="min-w-0" data-family-parent>
           <div className="flex flex-wrap items-center gap-2">
             <StatusChip status={status} />
-            {head.type && <span className="text-xs text-muted-foreground" data-family-type>{head.typeLabel ?? eventTypeLabel(head.type)}</span>}
+            {typeShown && <span className="text-xs text-muted-foreground" data-family-type>{typeShown}</span>}
           </div>
           <Link to={familyHref(f)} className="mt-1 flex min-h-[44px] items-center font-semibold leading-snug text-foreground hover:underline" data-family-link>{f.name}</Link>
           <p className="text-sm font-medium text-foreground" data-family-season>{season} season</p>
