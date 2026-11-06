@@ -652,15 +652,18 @@ async function namedEvent(it: StatQuestion, season: number | null) {
 }
 
 /** The event the words name in the latest season, `from` down, where it has a result (a played playoff match or a
- *  posted award): with no season said, or "this year" before this season's is held. Never an older one only because
+ *  posted award, its own or a division's): with no season said, or "this year" before this season's is held. Never an older one only because
  *  its name fits the words better (owner: "who won nj turnpike division this year" read the 2022–23 division). */
 async function latestWithResult(it: StatQuestion, from: number) {
   for (const s of [...SEASON_NUMBERS].filter((x) => x <= from).sort((a, b) => b - a)) {
     const e = await namedEvent(it, s);
     if (!e || Number(e.season) !== s) continue;
     const done = await get<{ x: number }>(
-      `SELECT 1 x WHERE EXISTS (SELECT 1 FROM matches WHERE season = ? AND code = ? AND level = 'playoff' AND played = 1)
-       OR EXISTS (SELECT 1 FROM awards WHERE season = ? AND code = ?)`, [s, e.code, s, e.code]);
+      // The event's own, or a division's when it's a championship split in divisions (as winnersAnswer reads them).
+      `SELECT 1 x WHERE EXISTS (SELECT 1 FROM matches m WHERE m.season = ? AND m.level = 'playoff' AND m.played = 1
+         AND (m.code = ? OR m.code IN (SELECT d.code FROM events d WHERE d.season = ? AND d.division_code = ?)))
+       OR EXISTS (SELECT 1 FROM awards a WHERE a.season = ? AND (a.code = ? OR a.code IN (SELECT d.code FROM events d WHERE d.season = ? AND d.division_code = ?)))`,
+      [s, e.code, s, e.code, s, e.code, s, e.code]);
     if (done) return e;
   }
   return null;

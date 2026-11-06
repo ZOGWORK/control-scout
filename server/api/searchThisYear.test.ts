@@ -54,6 +54,14 @@ describe("an event held every season, asked by its words", () => {
       expect(await winners(q), q).toEqual({ teams: [4215, 9848], season: 2022 });
     }
   });
+  // Greptile on #1007: a championship whose results are its divisions' counts as held with a result.
+  it("a championship with only its divisions' results is the latest held, never an older one with its own", async () => {
+    await run("INSERT INTO awards (season, code, type, placement, team, name) VALUES (2022, 'NJ0312', 'Inspire', 1, 11166, 'Inspire Award')");
+    for (const q of ["who won nj states", "who won new jersey championship"]) {
+      expect((await ask(q)).understood?.season, q).toBe(2025);
+    }
+    await run("DELETE FROM awards WHERE season = 2022 AND code = 'NJ0312'");
+  });
   it("the same for other recurring divisions and events", async () => {
     for (const [words, latest, older, olderSeason] of [["michigan ford division", [8100, 8101], [8000, 8001], 2023], ["houston area qualifier", [7100, 7101], [7000, 7001], 2024]] as const) {
       for (const q of [`who won ${words} this year`, `who won ${words} this season`, `who won ${words}`]) expect(await winners(q), q).toEqual({ teams: latest, season: 2025 });
