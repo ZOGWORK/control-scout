@@ -25,7 +25,7 @@ A match question with a time that had to be widened no longer says the time was 
 - [fixes] Every other word left out is still said to be
 
 ### Search
-- **Widened time, read.** When a match question's week or month has nothing yet and the card widens it, the chip ("Relaxed: this week → 2025–26") counts as naming the time, so the heading no longer adds that the time isn't part of the answer. (#PR)
+- **Widened time, read.** When a match question's week or month has nothing yet and the card widens it, the chip ("Relaxed: this week → 2025–26") counts as naming the time, so the heading no longer adds that the time isn't part of the answer. (#777)
 
 ## 3.3.2 — 2026-11-05
 
