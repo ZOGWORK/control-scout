@@ -46,7 +46,7 @@ import { useTitle, useMeta, useCurrentSeason, useMediaQuery } from "../lib/meta"
 import { useApi, qs } from "../lib/api";
 import { cn } from "../components/cn";
 import { Verdict } from "../components/search/page/Verdict";
-import { PeopleAlsoAsk } from "../components/search/page/PeopleAlsoAsk";
+import { FollowUpsRail, PeopleAlsoAsk, RelatedSearches, TeamHighlights, useFollowUps } from "../components/search/page/FollowUps";
 
 const RESULT_KINDS = new Set(["place", "team", "event", "match"]);
 
@@ -63,6 +63,7 @@ export default function SearchPage() {
   // Asked at once, and on to the one page a submitted query names (../components/search/direct.ts).
   const leaving = useSubmittedSearch(query, { answer, live, error, searchNow });
   const phone = useMediaQuery("(max-width: 767px)");
+  const wide = useMediaQuery("(min-width: 1024px)");
   const meta = useMeta();
   const season = useCurrentSeason();
   useTitle(query ? `Search: ${query}` : "Search");
@@ -172,13 +173,19 @@ export default function SearchPage() {
       {apps.length ? <><StatBanner stats={appearanceStats(apps, answer?.card?.kind === "worlds" ? "Worlds" : "states")} /><Timeline apps={apps} /></> : quality ? <QualityBanner s={quality} /> : null}
     </BrunoAnswer>
   );
+  // The follow-ups (./search/page/FollowUps.tsx), asked once the answer is on screen. A wide screen gives them their own
+  // column beside the results, always there with an answer so the results never move when they arrive; a phone has
+  // them in the one column, People also ask under the answer and the rest at the end.
+  const follow = useFollowUps(query, prefer, !busy && !stale);
+  const railed = wide && found;
+  const side = !!panel || railed;
   // A search on its way (just submitted, or a new one run from here): its loading screen, never older results; and
   // while going on to the one page a submitted query names.
   if (query && !error && ((busy && (stale || !found)) || leaving)) return <SearchSkeleton query={query} top={phone ? <PhoneSearchBar query={query} /> : null} />;
   return (
     // One results column, 640–720px and centred (the search results guide's §9: a line the eye can follow across a
     // card); a page with a side panel keeps that column and puts the panel beside it.
-    <div className={cn("w-full pt-4 sm:pt-8", panel ? "max-w-6xl" : "mx-auto max-w-[720px]")} data-results-column={panel ? "with-panel" : ""}>
+    <div className={cn("w-full pt-4 sm:pt-8", side ? "max-w-6xl" : "mx-auto max-w-[720px]")} data-results-column={side ? "with-panel" : ""}>
       {/* The feature's name sits above the title; the title names what was found, the badge what the query was read as.
           The query itself lives in the top bar (refine there): the page never repeats it. */}
       {/* Phones: the query in a bar that stays under the top bar, then a short header ("Results: …"), no eyebrow. */}
@@ -240,12 +247,20 @@ export default function SearchPage() {
                   head-to-head; else a question's summary (timeline, stats or standing) with the team's pages. With
                   both, the head-to-head keeps the column and the summary goes below the results. Phone: one column,
                   the summary first (H1, badge, summary, cards). */}
-              <div className={cn(panel && "lg:grid lg:grid-cols-[minmax(0,720px)_minmax(20rem,1fr)] lg:items-start lg:gap-6")} data-layout={panel ?? "single"}>
-                {panel === "summary" && (
-                  <aside aria-label="Summary" className="mb-4 space-y-3 lg:sticky lg:top-[calc(var(--header-h)+1rem)] lg:col-start-2 lg:row-start-1" data-panel="summary">
-                    {summary}
-                    {aboutTeam && <TeamLinks team={aboutTeam} season={apps.length ? null : quality?.season} />}
-                  </aside>
+              <div className={cn(side && "lg:grid lg:grid-cols-[minmax(0,720px)_minmax(20rem,1fr)] lg:items-start lg:gap-6")} data-layout={panel ?? (railed ? "rail" : "single")}>
+                {/* The right-hand column: the panel, then the follow-ups. Kept in view while scrolling unless the
+                    follow-ups make it taller than the screen. */}
+                {side && (
+                  <div className={cn("space-y-5 lg:col-start-2 lg:row-start-1", !railed && "lg:sticky lg:top-[calc(var(--header-h)+1rem)]")} data-side>
+                    {panel === "summary" && (
+                      <aside aria-label="Summary" className="mb-4 space-y-3 lg:mb-0" data-panel="summary">
+                        {summary}
+                        {aboutTeam && <TeamLinks team={aboutTeam} season={apps.length ? null : quality?.season} />}
+                      </aside>
+                    )}
+                    {panel === "versus" && shownH2h && <aside aria-label="Head-to-head" className="max-lg:hidden" data-panel="versus"><HeadToHead h={shownH2h} now={now.data?.teams} before={asked == null ? before.data?.teams : undefined} season={base} /></aside>}
+                    {railed && <FollowUpsRail f={follow} />}
+                  </div>
                 )}
                 <div className="min-w-0 lg:col-start-1 lg:row-start-1">
                   {!panel && summary}
@@ -260,8 +275,8 @@ export default function SearchPage() {
                     : answer?.card && <FactCard card={answer.card} heading={title ?? undefined} season={hits.find((h) => h.kind === "team" && !isCompare(h) && Number(h.ref) === answer.card!.team?.number)?.linkSeason} />}
                   {/* A match or event searched by name (no answer card): its video above the results (./search/page/AnswerVideo.tsx). */}
                   {!answer?.stat && !answer?.card && <AnswerVideo className="mb-5 mt-0 max-sm:mx-0" />}
-                  {/* The next questions search answers directly, under the answer (./search/page/PeopleAlsoAsk.tsx). */}
-                  <PeopleAlsoAsk q={query} prefer={prefer} ready={!busy && !stale} />
+                  {/* One column: the next questions search answers directly, under the answer. */}
+                  {!railed && <PeopleAlsoAsk ask={follow.ask} className="mb-5" />}
                   {!!compares.length && (
                     <section aria-label="Compare" className="mb-5" data-section="compare">
                       <h2 className="mb-1.5 text-xs font-semibold text-muted-foreground">Compare</h2>
@@ -270,7 +285,7 @@ export default function SearchPage() {
                   )}
                   {/* Phones: a versus query's side-by-side numbers under its Compare (desktop has them beside it). */}
                   {shownH2h && <div className="mb-5 lg:hidden"><HeadToHead h={shownH2h} now={now.data?.teams} before={asked == null ? before.data?.teams : undefined} season={base} /></div>}
-                  {view.map((s) => <ResultSection key={s.id} s={s} statuses={statuses} summaries={summaries} covered={covered} picks={picks} onPick={pick} fuzzyWord={fuzzyWords(hits) ?? undefined} twoCol={!!panel} onOpen={open} />)}
+                  {view.map((s) => <ResultSection key={s.id} s={s} statuses={statuses} summaries={summaries} covered={covered} picks={picks} onPick={pick} fuzzyWord={fuzzyWords(hits) ?? undefined} twoCol={side} onOpen={open} />)}
                   {filtersOn && !view.some((s) => RESULT_KINDS.has(s.id) || s.id === "top" || s.id === "fuzzy") && (
                     // Never a dead end: what's empty, said plainly, and each choice that isn't, one tap away.
                     <div className="rounded-xl border border-border bg-card px-4 py-3.5 text-sm" data-filtered-empty>
@@ -286,8 +301,10 @@ export default function SearchPage() {
                     </div>
                   )}
                   {panel === "versus" && summary}
+                  {/* One column: the team's highlights and the related searches, after the results. */}
+                  {!railed && <TeamHighlights h={follow.highlights} className="mt-5" />}
+                  {!railed && <RelatedSearches related={follow.related} className="mt-5" />}
                 </div>
-                {panel === "versus" && shownH2h && <aside aria-label="Head-to-head" className="max-lg:hidden lg:sticky lg:top-[calc(var(--header-h)+1rem)] lg:col-start-2 lg:row-start-1" data-panel="versus"><HeadToHead h={shownH2h} now={now.data?.teams} before={asked == null ? before.data?.teams : undefined} season={base} /></aside>}
               </div>
             </div>
             </AnswerVideoProvider>

@@ -11,7 +11,7 @@ import { parseQuery } from "../query/parse";
 import { parseContext } from "../query/context";
 import { failureOf, outcomeTrace } from "../../searchFailures";
 import { clearAllCaches } from "../../caches";
-import { answerKey, candidates, followUps, pageAnswer, previewOf, ASK_MAX } from "./followUps";
+import { answerKey, candidates, followUps, pageAnswer, previewOf, ASK_MAX, RELATED_MAX } from "./followUps";
 
 const TEAMS = [4215, 6980, 7149] as const;
 
@@ -40,25 +40,34 @@ beforeAll(async () => {
   await rebuildSearch();
 });
 
-const asked = async (q: string) => followUps(q, await pageAnswer(q, 25, new Set()));
+const both = async (q: string) => followUps(q, await pageAnswer(q, 25, new Set()));
+const asked = async (q: string) => (await both(q)).ask;
 
 describe("people also ask", () => {
-  it.each(TEAMS)("asks only questions search answers directly, for %i", async (t) => {
+  it.each(TEAMS)("offers only searches answered directly, for %i", async (t) => {
     const q = `${t} record`;
-    const ask = await asked(q);
+    const { ask, related } = await both(q);
     expect(ask.length).toBeGreaterThan(0);
     expect(ask.length).toBeLessThanOrEqual(ASK_MAX);
-    // Never the search itself, never one question twice.
-    expect(ask.map((x) => x.q.toLowerCase())).not.toContain(q);
-    expect(new Set(ask.map((x) => x.q)).size).toBe(ask.length);
+    expect(related.length).toBeGreaterThan(0);
+    expect(related.length).toBeLessThanOrEqual(RELATED_MAX);
+    // Never the search itself, never one twice, never a question again as a related search.
+    const all = [...ask, ...related];
+    expect(all.map((x) => x.q.toLowerCase())).not.toContain(q);
+    expect(new Set(all.map((x) => x.q.toLowerCase())).size).toBe(all.length);
     clearAllCaches();
-    for (const x of ask) {
+    const keys = new Set<string>();
+    for (const x of all) {
       const a = await searchAnswer(x.q, { limit: 25 });
       expect(failureOf(x.q, a, outcomeTrace(a)), x.q).toBeNull();
       expect(a.sorry, x.q).toBeUndefined();
-      // The line shown is the answer's own.
+      // The line shown is the answer's own, and no two answer the same.
       expect(previewOf(a), x.q).toBe(x.preview);
+      expect(keys.has(answerKey(a)), x.q).toBe(false);
+      keys.add(answerKey(a));
     }
+    // Related searches are the short form: no question marks.
+    expect(related.every((x) => !x.q.includes("?"))).toBe(true);
   });
 
   it("leaves out a question with no answer for this team", async () => {
@@ -74,7 +83,7 @@ describe("people also ask", () => {
     expect(offered.length).toBeGreaterThan(0);
     const what = async (x: string) => answerKey(await pageAnswer(x, 25, new Set()));
     const theirs = new Set(await Promise.all(offered.map(what)));
-    const ask = await followUps(q, a);
+    const ask = (await followUps(q, a)).ask;
     expect(ask.length).toBeGreaterThan(0);
     for (const x of ask) expect(theirs.has(await what(x.q)), x.q).toBe(false);
   });
