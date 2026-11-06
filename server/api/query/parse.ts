@@ -108,7 +108,10 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   const teamNums = words0.filter((w, i) => /^\d{1,5}$/.test(w) && !COUNT_BEFORE.test(words0[i - 1] ?? "") && !MATCH_BEFORE.test(words0[i - 1] ?? "") && !!ctx.names.team(Number(w))).map(Number);
   // A bare year is a season unless it's the only team number and a team has it ("2024 record", "2024 last 5 matches").
   // "Season 2024" names the season, but "this season 2024 record" is the team after "this season".
-  const yearOk = (y: number) => teamNums.some((n) => n !== y) || !ctx.names.team(y) || new RegExp(`\\b(?:in|during|for|from|(?<!\\b(?:this|current)\\s)season)\\s+(?:the\\s+)?${y}\\b`).test(q);
+  // A team's number joined to another by "vs" or "and" is one of the teams compared, not a year.
+  const said = (y: number) => new RegExp(`\\b(?:in|during|for|from|(?<!\\b(?:this|current)\\s)season)\\s+(?:the\\s+)?${y}\\b`).test(q);
+  const paired = (y: number) => new RegExp(`\\b${y}\\s+(?:vs\\.?|v|versus|against|and|&)\\s|\\s(?:vs\\.?|v|versus|against|and|&)\\s+${y}\\b`).test(` ${q} `);
+  const yearOk = (y: number) => said(y) || (!(ctx.names.team(y) && paired(y)) && (teamNums.some((n) => n !== y) || !ctx.names.team(y)));
   const { time, rest, unread } = readTime(q, ctx.today, yearOk);
   // Each word with its own spelling as typed, matched in order ("in IN": the second is the state code).
   let at = 0;

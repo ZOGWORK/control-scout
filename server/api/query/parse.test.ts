@@ -178,6 +178,11 @@ describe("time", () => {
     expect(await parse("4215 record this season 2025")).toMatchObject({ teams: [{ number: 4215 }], time: { season: 2025, year: 2025 }, complete: true });
     expect(await parse("4215 record this season 2026")).toMatchObject({ teams: [{ number: 4215 }], time: { season: 2026 } });
     expect(await parse("2024 record this season 2025")).toMatchObject({ teams: [{ number: 2024 }], time: { season: 2025 } });
+    // Joined to another team by "vs" or "and", it's one of the teams compared.
+    for (const q of ["2024 vs 4215 opr this season", "4215 vs 2024 opr", "2024 and 4215 opr this season"]) {
+      expect((await parse(q)).teams.map((t) => t.number).sort(), q).toEqual([2024, 4215]);
+    }
+    expect(await parse("2024 vs 4215 opr in 2025")).toMatchObject({ time: { season: 2025 } });
     expect(readTime("this season 12345 opr in 2025-26", "2026-11-04")).toMatchObject({ time: { season: 2025 }, rest: "12345 opr" });
     expect(readTime("12345 opr this season", "2026-11-04").time).toMatchObject({ relative: "this" });
     // "Last season" beside a season named is a second season (a comparison): left for the parse to leave unread.
