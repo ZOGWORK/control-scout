@@ -22,7 +22,7 @@ Search answers are in bold colour: every award, scoring phase and team has its o
 ### Highlights
 - [appearance] Inspire, alliance and judged awards each in their own colour
 - [appearance] Auto blue, TeleOp green, Endgame purple, penalties red on every card
-- [appearance] Thick coloured bars, filled chips and coloured numbers instead of grey boxes
+- [appearance] Thick coloured bars, filled chips, coloured numbers, no grey
 
 ### Search
 - **One palette.** Every search answer uses one set of colours, one per meaning, never shared. Auto is blue, TeleOp green, Endgame purple, penalties red and ranking points yellow. Inspire is magenta, Winning Alliance orange, Finalist Alliance pink, judged awards teal and performance awards indigo. Live, Upcoming and Finished each have one too. Anything without a meaning of its own (a team's numbers, bars, lines and ranks) takes the team's colour.
