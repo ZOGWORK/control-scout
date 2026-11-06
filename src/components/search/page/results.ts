@@ -63,7 +63,7 @@ export function eventFacts(h: SearchHit, today = todayIso()): EventFacts {
     code, start, end, place,
     status: ev?.status ?? statusOf(start, end, today),
     type: ev?.type ?? null, typeLabel: ev?.typeLabel ?? null,
-    venue: ev?.venue ?? null, teams: ev?.teams ?? null,
+    venue: ev?.venue ?? null, teams: ev?.teams ?? h.eventTeams ?? null,
   };
 }
 
