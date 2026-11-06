@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.4.9 — 2026-11-06
+
+A question search can't answer yet now says "Sorry — I can't answer that yet", shows what it understood, and offers searches that do answer.
+
+### Highlights
+- [fixes] A question search can't answer yet says sorry, plainly
+- [fixes] It shows what it understood: the team, place, event or name
+- [fixes] Tap a suggested search that does answer about them
+
+### Search
+- **Sorry, with what was read.** A question about a team that search can't answer yet ("what is <team>'s favorite color") now has the heading "Sorry — I can't answer that yet", a line saying what it read, and up to four searches about the same team, place, event or name that do answer, one tap each. A search that reads nothing real (a team that doesn't exist) keeps the plain no-match page, and the dropdown is unchanged. (#PR)
+
 ## 3.4.8 — 2026-11-06
 
 A question that names its season and also says "this season" is answered for the season it named.
