@@ -107,6 +107,17 @@ export const SEARCH_PALETTE = {
 } as const;
 export type Meaning = keyof typeof SEARCH_PALETTE;
 
+/** A team card's season-at-a-glance tiles (components/search/page/TeamAnswer.tsx SeasonTiles): the tiles plain, each
+ *  number in its own colour (the owner, 11-06: colour on the text, not the block). OPR yellow, the prediction rating
+ *  purple, a record's wins green and losses red, events blue. Only on those tiles (the audit lets them by there). */
+export const GLANCE_TONE = {
+  opr: { text: "text-yellow-700 dark:text-yellow-400", bar: "bg-yellow-500 dark:bg-yellow-400" },
+  rating: { text: "text-purple-700 dark:text-purple-400" },
+  win: { text: "text-green-700 dark:text-green-400", bar: "bg-green-600 dark:bg-green-500" },
+  loss: { text: "text-red-700 dark:text-red-400", bar: "bg-red-600 dark:bg-red-500" },
+  events: { text: "text-blue-700 dark:text-blue-400" },
+} as const;
+
 /** The meaning a label names, read the same way on every card: a phase ("Auto", "TeleOp + end", "Pen given", "Avg
  *  RP"), an award ("Inspire Award 2nd Place", "1st place (Winning Alliance)", "Think"), a status. Null: none (the
  *  card's team hue then). */

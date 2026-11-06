@@ -82,6 +82,9 @@ export function auditAnswer(card: HTMLElement, { names = [] as string[], contras
   const hues = new Set<string>();
   // The card itself too: a colour set on it (a tinted article) is the card's.
   for (const el of [card, ...card.querySelectorAll<HTMLElement | SVGElement>("*")]) {
+    // A team card's season-at-a-glance tiles keep their own number colours (textTones GLANCE_TONE, the owner's ask);
+    // their contrast is still checked below.
+    if (el.closest("[data-season-tiles]")) continue;
     const cls = el.getAttribute("class") ?? "";
     for (const c of cls.split(/\s+/).filter(Boolean)) {
       const f = colourOf(c);

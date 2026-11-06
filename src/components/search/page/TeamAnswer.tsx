@@ -14,7 +14,8 @@ import type { TeamEventRow, TeamProfile } from "../../../shared/api";
 import { Meter, StatTile, rankPc } from "../../StatTile";
 import { Badge } from "../../ui/basic";
 import { cn } from "../../cn";
-import { EventMarker, RankPill, RecordText, TEAM_BAR, TEAM_SWATCH, TEAM_TEXT } from "./answerCells";
+import { EventMarker, RankPill, RecordText } from "./answerCells";
+import { GLANCE_TONE as G } from "../../../lib/textTones";
 import { teamFill } from "../../../lib/textTones";
 
 /** The touch rule every search control keeps: 44px tall on phones and touch screens. */
@@ -182,11 +183,8 @@ function TeamSide({ t, q, right, first, i }: { t: Who; q: string; right: boolean
   );
 }
 
-/** A season-at-a-glance tile in the team's hue: its icon a filled chip, a thick bar down its left on the hue's wash. */
-const GLANCE = { tone: "neutral" as const, chip: TEAM_SWATCH[0].fill, className: cn("border-l-[6px]", TEAM_SWATCH[0].edge, TEAM_SWATCH[0].tint) };
-
-/** The team page's season tiles (My Teams' Season): OPR with its world rank, prediction rating, record, events. On a
- *  search card they are in the team's hue (GLANCE), the numbers and bars too. */
+/** The team page's season tiles (My Teams' Season): OPR with its world rank, prediction rating, record, events. The
+ *  tiles plain; each number in its own colour (lib/textTones GLANCE_TONE), a record's wins green and losses red. */
 export function SeasonTiles({ profile, season }: { profile?: TeamProfile | null; season: number }) {
   if (profile === null) return null;
   if (!profile) return <div className="skeleton h-32 rounded-xl" aria-hidden data-season-tiles="loading" />;
@@ -198,17 +196,17 @@ export function SeasonTiles({ profile, season }: { profile?: TeamProfile | null;
     <section aria-label={`${seasonLabel(season)} at a glance`} data-season-tiles>
       <h3 className={PART}>{seasonLabel(season)} at a glance</h3>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile {...GLANCE} icon={Target} label="OPR" value={<span className={TEAM_TEXT}>{num(s?.opr.np.value)}</span>}
+        <StatTile tone="neutral" icon={Target} label="OPR" value={<span className={G.opr.text}>{num(s?.opr.np.value)}</span>}
           hint={s?.opr.np.rank ? `#${s.opr.np.rank.toLocaleString()} of ${s.opr.np.of?.toLocaleString()}${top ? ` · ${top}` : ""}` : "not ranked"}
-          bar={s?.opr.np.rank ? <Meter parts={[{ pc: rankPc(s.opr.np.rank, s.opr.np.of), cls: TEAM_BAR }]} /> : null} />
-        <StatTile {...GLANCE} icon={Sparkles} label="Prediction rating"
-          value={s?.rating ? <><span className={TEAM_TEXT}>{num(s.rating.np)}</span><span className="ml-1 text-base font-medium text-muted-foreground">±{num(s.rating.sd)}</span></> : "—"}
+          bar={s?.opr.np.rank ? <Meter parts={[{ pc: rankPc(s.opr.np.rank, s.opr.np.of), cls: G.opr.bar }]} /> : null} />
+        <StatTile tone="neutral" icon={Sparkles} label="Prediction rating"
+          value={s?.rating ? <><span className={G.rating.text}>{num(s.rating.np)}</span><span className="ml-1 text-base font-medium text-muted-foreground">±{num(s.rating.sd)}</span></> : "—"}
           hint={s?.rating ? `${s.rating.rank ? `#${s.rating.rank.toLocaleString()} worldwide · ` : ""}${s.rating.matches} matches` : `no matches ${when}`} />
-        <StatTile {...GLANCE} icon={Trophy} label="Record"
-          value={r ? <span aria-label={`${r.wins} wins, ${r.losses} losses, ${r.ties} ties`}><RecordText text={`${r.wins}-${r.losses}-${r.ties}`} win={TEAM_TEXT} /></span> : "—"}
+        <StatTile tone="neutral" icon={Trophy} label="Record"
+          value={r ? <span className="tabular-nums" aria-label={`${r.wins} wins, ${r.losses} losses, ${r.ties} ties`}><span aria-hidden><span className={G.win.text}>{r.wins}</span><span className="text-muted-foreground">-</span><span className={G.loss.text}>{r.losses}</span><span className="text-muted-foreground">-{r.ties}</span></span></span> : "—"}
           hint={r ? `${r.matches} matches · ${r.events} event${r.events === 1 ? "" : "s"}` : `no matches ${when}`}
-          bar={r && r.wins + r.losses + r.ties > 0 ? <Meter parts={[{ pc: (100 * r.wins) / (r.wins + r.losses + r.ties), cls: TEAM_BAR, value: r.wins, scale: r.wins + r.losses + r.ties }]} /> : null} />
-        <StatTile {...GLANCE} icon={CalendarDays} label="Events" value={<span className={TEAM_TEXT}>{profile.events.length}</span>}
+          bar={r && r.wins + r.losses + r.ties > 0 ? <Meter parts={[{ pc: (100 * r.wins) / (r.wins + r.losses + r.ties), cls: G.win.bar, value: r.wins, scale: r.wins + r.losses + r.ties }, { pc: (100 * r.losses) / (r.wins + r.losses + r.ties), cls: G.loss.bar, value: r.losses, scale: r.wins + r.losses + r.ties }]} /> : null} />
+        <StatTile tone="neutral" icon={CalendarDays} label="Events" value={<span className={G.events.text}>{profile.events.length}</span>}
           hint={profile.events.length ? `last: ${profile.events[profile.events.length - 1].name}` : `none ${when}`} />
       </div>
     </section>
