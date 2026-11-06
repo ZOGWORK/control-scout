@@ -159,22 +159,26 @@ export function SeriesCard({ s, matches, final }: { s: BracketSeriesView; matche
   );
 }
 
-/** Which alliance a match side's teams belong to (the event's alliance list), so a score lands on its own row. */
-export type AllianceOf = (teams: number[]) => number | null;
+/** The event's alliances by number, their teams captain first: names each row's teams and puts a score on its own row. */
+export type Roster = Map<number, number[]>;
 
-/** A side's score in a single-match series, once played. */
-function sideScore(alliance: number | null, matches: MatchView[], allianceOf: AllianceOf | undefined): number | null {
+/** A side's score in a single-match series, once played (a posted match may list either alliance as red). */
+function sideScore(alliance: number | null, matches: MatchView[], roster: Roster | undefined): number | null {
   const m = matches.filter((x) => x.played && x.red.score && x.blue.score).at(-1);
-  if (!m || alliance == null || !allianceOf) return null;
-  const red = allianceOf(m.red.teams.map((t) => t.number)), blue = allianceOf(m.blue.teams.map((t) => t.number));
-  return red === alliance ? m.red.score!.total : blue === alliance ? m.blue.score!.total : null;
+  const own = alliance != null ? roster?.get(alliance) : undefined;
+  if (!m || !own) return null;
+  const on = (side: MatchView["red"]) => side.teams.some((t) => own.includes(t.number));
+  return on(m.red) ? m.red.score!.total : on(m.blue) ? m.blue.score!.total : null;
 }
 
-function TreeSide({ slot, s, wins, score }: { slot: BracketSlotView; s: BracketSeriesView; wins: number; score: number | null }) {
+function TreeSide({ slot, s, wins, score, teams }: { slot: BracketSlotView; s: BracketSeriesView; wins: number; score: number | null; teams: number[] }) {
   const won = s.winner != null && slot.alliance === s.winner, lost = s.winner != null && !won;
   return (
     <div className={cn("flex min-h-7 items-center gap-1.5 px-2", won && "font-semibold")}>
-      {slot.alliance != null ? <AllianceChip alliance={slot.alliance} muted={lost} /> : (
+      {slot.alliance != null ? <>
+        <AllianceChip alliance={slot.alliance} muted={lost} />
+        {teams.length > 0 && <span className={cn("min-w-0 font-mono text-xs leading-tight tabular-nums", lost ? "text-muted-foreground" : "text-foreground")}>{teams.join(" ")}</span>}
+      </> : (
         <span className="truncate text-xs text-muted-foreground">
           {slot.source}
           {slot.likely && <> · likely <AllianceChip alliance={slot.likely.alliance} className="px-1 py-0 text-[11px]" /> {oddsPct(slot.likely.p)}</>}
@@ -189,16 +193,17 @@ function TreeSide({ slot, s, wins, score }: { slot: BracketSlotView; s: BracketS
 }
 
 /** One series as a node of the tree: two sides, the winner marked, and the call while it's open. */
-function TreeNode({ s, matches, allianceOf }: { s: BracketSeriesView; matches: MatchView[]; allianceOf?: AllianceOf }) {
+function TreeNode({ s, matches, roster }: { s: BracketSeriesView; matches: MatchView[]; roster?: Roster }) {
+  const teams = (a: number | null) => (a != null ? roster?.get(a) ?? [] : []);
   const named = s.stage !== "Upper bracket" && s.stage !== "Lower bracket";
   return (
-    <div data-series={s.index} className={cn("w-44 rounded-lg border border-border bg-card text-sm", s.stage === "Grand final" && "border-accent/50", s.skipped && "border-dashed bg-transparent")}>
+    <div data-series={s.index} className={cn("w-52 rounded-lg border border-border bg-card text-sm", s.stage === "Grand final" && "border-accent/50", s.skipped && "border-dashed bg-transparent")}>
       <p className="flex items-center gap-1 border-b border-border px-2 py-1 text-[11px] font-medium text-muted-foreground">
         <span className="text-foreground">{s.label}</span>{named && <> · {s.stage}</>}
       </p>
       <div className="py-0.5">
-        <TreeSide slot={s.red} s={s} wins={s.wins[0]} score={sideScore(s.red.alliance, matches, allianceOf)} />
-        <TreeSide slot={s.blue} s={s} wins={s.wins[1]} score={sideScore(s.blue.alliance, matches, allianceOf)} />
+        <TreeSide slot={s.red} s={s} wins={s.wins[0]} score={sideScore(s.red.alliance, matches, roster)} teams={teams(s.red.alliance)} />
+        <TreeSide slot={s.blue} s={s} wins={s.wins[1]} score={sideScore(s.blue.alliance, matches, roster)} teams={teams(s.blue.alliance)} />
       </div>
       {s.winner == null && (s.skipped || s.pending || s.call || s.likely) && (
         <div className="border-t border-border px-2 py-1 text-[11px] text-muted-foreground">
@@ -230,7 +235,7 @@ function useEdges(layout: BracketLayout) {
           return [{ key: `${from}-${to}`, d: `M${x} ${a.bottom - box.top}V${b.top - box.top}` }];
         }
         const x1 = a.right - box.left, y1 = a.top + a.height / 2 - box.top, x2 = b.left - box.left, y2 = b.top + b.height / 2 - box.top;
-        const mid = x2 - 16;
+        const mid = x2 - 12;
         return [{ key: `${from}-${to}`, d: `M${x1} ${y1}H${mid}V${y2}H${x2}` }];
       }));
     };
@@ -244,13 +249,13 @@ function useEdges(layout: BracketLayout) {
 }
 
 /** The double-elimination bracket drawn as a tree: upper lane over lower lane, rounds left to right, finals on the right. */
-function BracketTree({ bracket, layout, bySeries, allianceOf }: { bracket: BracketOdds; layout: BracketLayout; bySeries: Map<number, MatchView[]>; allianceOf?: AllianceOf }) {
+function BracketTree({ bracket, layout, bySeries, roster }: { bracket: BracketOdds; layout: BracketLayout; bySeries: Map<number, MatchView[]>; roster?: Roster }) {
   const { ref, paths } = useEdges(layout);
   const byIndex = new Map(bracket.series.map((s) => [s.index, s]));
   const rounds = Math.max(layout.upper.length, layout.lower.length);
   const node = (i: number) => {
     const s = byIndex.get(i)!;
-    return <TreeNode key={i} s={s} matches={bySeries.get(s.series) ?? []} allianceOf={allianceOf} />;
+    return <TreeNode key={i} s={s} matches={bySeries.get(s.series) ?? []} roster={roster} />;
   };
   const lane = (cols: number[][], row: number) => Array.from({ length: rounds }, (_, c) => (
     <div key={c} className="flex flex-col justify-around gap-3" style={{ gridColumn: c + 1, gridRow: row }}>{(cols[c] ?? []).map(node)}</div>
@@ -258,7 +263,7 @@ function BracketTree({ bracket, layout, bySeries, allianceOf }: { bracket: Brack
   const label = "text-xs font-medium text-muted-foreground";
   return (
     <div className="-mx-1 overflow-x-auto px-1 pb-2" data-testid="bracket-tree">
-      <div ref={ref} className="relative grid w-max gap-x-10 gap-y-2" style={{ gridTemplateColumns: `repeat(${rounds + 1}, 11rem)` }}>
+      <div ref={ref} className="relative grid w-max gap-x-6 gap-y-2" style={{ gridTemplateColumns: `repeat(${rounds + 1}, 13rem)` }}>
         <svg className="pointer-events-none absolute inset-0 size-full overflow-visible text-border" aria-hidden>
           {paths.map((p) => <path key={p.key} d={p.d} fill="none" stroke="currentColor" strokeWidth={1.5} />)}
         </svg>
@@ -274,7 +279,7 @@ function BracketTree({ bracket, layout, bySeries, allianceOf }: { bracket: Brack
 }
 
 /** The bracket's heading, its tier and the series: a tree for a double-elimination bracket, cards otherwise. */
-export function BracketSeries({ bracket, bySeries, allianceOf }: { bracket: BracketOdds; bySeries: Map<number, MatchView[]>; allianceOf?: AllianceOf }) {
+export function BracketSeries({ bracket, bySeries, roster }: { bracket: BracketOdds; bySeries: Map<number, MatchView[]>; roster?: Roster }) {
   const last = bracket.series.filter((s) => !s.ifNeeded).at(-1)?.index;
   const layout = bracket.format === "double" ? bracketLayout(bracket.series) : null;
   return (
@@ -283,7 +288,7 @@ export function BracketSeries({ bracket, bySeries, allianceOf }: { bracket: Brac
         <h3 className="text-base font-semibold">{FORMAT_TITLE[bracket.format]}</h3>
       </div>
       {bracket.note && <p className="mb-3 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">{bracket.note}</p>}
-      {layout ? <BracketTree bracket={bracket} layout={layout} bySeries={bySeries} allianceOf={allianceOf} /> : bracket.series.length ? (
+      {layout ? <BracketTree bracket={bracket} layout={layout} bySeries={bySeries} roster={roster} /> : bracket.series.length ? (
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {bracket.series.map((s) => <SeriesCard key={s.index} s={s} matches={bySeries.get(s.series) ?? []} final={s.index === last && bracket.format !== "unknown"} />)}
         </div>
