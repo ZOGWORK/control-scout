@@ -15,6 +15,21 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.3.2 — 2026-11-05
+
+Questions about a team's wins and losses answer with the matches asked for: the last loss, the first win, the longest losing streak, the teams it lost to.
+
+### Highlights
+- [fixes] "When did a team last lose a match" shows that loss
+- [fixes] "Longest losing streak" counts losses, not wins
+- [fixes] "Who did they lose to the most" lists the teams that beat them
+- [fixes] "Where is a team based out of" and "how old is it" answer
+
+### Search
+- **Wins and losses as a filter.** A team's first, most recent and last few matches, and its longest streak, read a win or a loss said with them, and the card's title says which. (#774)
+- **Lost to.** "Lose to", "lost to" and "beaten by" list the opponents that beat the team, most often first. "Most often" is how often, never the best partner.
+- **Team facts.** "Based out of" reads as where a team is from and "how old" as its rookie year; "if any" never stops an answer.
+
 ## 3.3.1 — 2026-11-05
 
 Search answers say each fact once: the number you asked for, its context, then what's new, with how it's counted one tap away.
