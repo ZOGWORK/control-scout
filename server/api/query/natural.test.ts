@@ -63,6 +63,9 @@ beforeAll(async () => {
   // Two Worlds divisions: 30001 played in Edison only.
   await run("INSERT INTO events (season, code, name, type, division_code, region, city, state, country, start, end, source) VALUES (2025, 'FTCCMP1EDIS', 'Edison Division', 'FIRSTChampionship', 'FTCCMP1', 'CMP', 'Houston', 'TX', 'USA', '2026-04-20', '2026-04-20', 't'), (2025, 'FTCCMP1FRAN', 'Franklin Division', 'FIRSTChampionship', 'FTCCMP1', 'CMP', 'Houston', 'TX', 'USA', '2026-04-20', '2026-04-20', 't')");
   await match(2025, "FTCCMP1EDIS", 150, 140, [30001], [30002]);
+  // 30004's only win over 30005, as a surrogate: never on its record.
+  await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'USNJQ1', 'qual', 0, 900, 'Q900', '2026-01-10T12:00:00Z', 1, 100, 100, 50, 50, 't')");
+  for (const [t, a, sur] of [[30004, "red", 1], [30005, "blue", 0]] as const) await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field, surrogate) VALUES (2025, 'USNJQ1', 'qual', 0, 900, ?, ?, 1, ?)", [t, a, sur]);
   await run("UPDATE teams SET home_region = 'USNJ' WHERE state = 'NJ'");
   await run("INSERT INTO awards (season, code, team, type, name, placement) VALUES (2025, 'USNJCMP', 7149, 'Inspire', 'Inspire Award', 1), (2025, 'USNJCMP', 7149, 'Winner', 'Winning Alliance', 1), (2025, 'FTCCMP1', 9848, 'Inspire', 'Inspire Award 2nd Place', 2), (2025, 'USNJQ1', 6980, 'Winner', 'Leadership Award', 1), (2025, 'USNJQ1', 30003, 'Inspire', 'Inspire Award', 1)");
   // 20245 played only in 2024–25: a season named leaves it out.
@@ -233,6 +236,9 @@ describe("yes or no, with the evidence (3c)", () => {
     expect(await yn("has 30003 ever won the winning alliance award")).toMatchObject({ answer: "No" });
     expect(await yn("has 30003 ever won an event")).toMatchObject({ answer: "Yes" });
     expect(await yn("has 7149 ever won the winning alliance award")).toMatchObject({ answer: "Yes" });
+  });
+  it("a win as a surrogate is never a win on the record", async () => {
+    expect(await yn("did 30004 ever beat 30005")).toMatchObject({ answer: "No" });
   });
   it("only a yes-or-no question: a count or a list stays what it was", async () => {
     expect((await ask("how many times has 7149 been to worlds")).stat?.intent ?? "").not.toMatch(/^yes-no/);

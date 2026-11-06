@@ -146,7 +146,8 @@ async function wonAward(t: Team, award: string | null, s: EventScope | null, eve
 async function beaten(a: Team, b: Team, outcome: "W" | "L", s: EventScope | null): Promise<StatAnswer> {
   const home = (await get<{ r: string | null }>("SELECT home_region r FROM teams WHERE number = ?", [a.number]))?.r ?? null;
   const events = s ? new Set((await playedAt(a.number)).filter(inScope(s, home)).map((e) => `${e.season}|${e.code}`)) : null;
-  const met = (await teamMatches(a.number)).filter((m) => m.onField && (OFFICIAL_TYPES as readonly string[]).includes(m.type ?? "") && m.opponents.includes(b.number) && (!events || events.has(`${m.season}|${m.code}`))).reverse();
+  // The matches on the team's record, as the head-to-head counts them: never one it played as a surrogate.
+  const met = (await teamMatches(a.number)).filter((m) => m.counted && m.onField && (OFFICIAL_TYPES as readonly string[]).includes(m.type ?? "") && m.opponents.includes(b.number) && (!events || events.has(`${m.season}|${m.code}`))).reverse();
   const hit = met.filter((m) => m.result === outcome);
   const links = await teamLinks(met.flatMap((m) => [...m.partners, ...m.opponents]));
   const verb = outcome === "L" ? `lost to ${who(b)}` : `beaten ${who(b)}`;
