@@ -25,7 +25,7 @@ A team's rating or OPR trend, asked any way, shows the trend card.
 - [teams] The trend's season is the one you name, else the team's latest
 
 ### Search
-- **Trends, said any way.** A team's prediction rating or OPR asked as a trend ("12345 rating going up or down lately in 2025-26", "is 12345's rating improving", "rating after each event", "12345 opr at each event", "opr event by event in 2024-25", "opr trend over the season") answers with the trend card already used for "rating trend" and "opr history": the number after each event, rising or falling, in the season named (else the team's latest). The trend words are one entry in the search lexicon; the plain "12345 opr" stays the plain number. (#000)
+- **Trends, said any way.** A team's prediction rating or OPR asked as a trend ("12345 rating going up or down lately in 2025-26", "is 12345's rating improving", "rating after each event", "12345 opr at each event", "opr event by event in 2024-25", "opr trend over the season") answers with the trend card already used for "rating trend" and "opr history": the number after each event, rising or falling, in the season named (else the team's latest). The trend words are one entry in the search lexicon; the plain "12345 opr" stays the plain number. (#851)
 
 ## 3.4.5 — 2026-11-06
 
