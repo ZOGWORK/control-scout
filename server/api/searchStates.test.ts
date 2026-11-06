@@ -53,7 +53,7 @@ describe("\"<place> states\" is \"<place> championship\"", () => {
   it("the winners are the place's own champions", async () => {
     for (const [place, , , , , red] of CHAMPS) {
       const a = await ask(`${place} states winner`);
-      for (const n of red) expect(a.stat?.headline?.value, place).toContain(String(n));
+      expect(a.stat?.headline?.teams?.map((t) => Number(t.label.split(" ")[0])), place).toEqual(red);
     }
   });
 });

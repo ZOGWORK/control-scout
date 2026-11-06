@@ -68,7 +68,7 @@ describe("people also ask", () => {
 
   it("never asks again, in other words, a search the page already offers", async () => {
     // A question search can't answer yet: the page offers the team's own searches ("4215 record 2025–26").
-    const q = "4215 upcoming events";
+    const q = "what is 4215's favorite color";
     const a = await pageAnswer(q, 25, new Set());
     const offered = [...(a.suggest ?? []), ...(a.sorry?.suggest ?? [])];
     expect(offered.length).toBeGreaterThan(0);
