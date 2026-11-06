@@ -2,7 +2,7 @@
 // predicted before each match (the predictions ledger: live, logged before the match, or else the walk-forward replay,
 // never the two blended) and the stored pre-event projection, beside what happened. An event still to come shows the
 // forecast only. Every number is stored; nothing is worked out for the search.
-import type { StatAnswer, StatBlock } from "../../../src/shared/searchStat.js";
+import type { StatAnswer, StatBlock, StatLink } from "../../../src/shared/searchStat.js";
 import { dateRange, seasonLabel } from "../../../src/shared/format.js";
 import { predictHref } from "../../../src/shared/predictUrl.js";
 import { isLegacy } from "../../data/seasons.js";
@@ -29,11 +29,11 @@ async function projectionOf(ev: Ev, team: number) {
   return run?.teams.find((t) => t.team === team);
 }
 
-/** A match's call as the engine makes it now, with its score ranges, the team's side first ("Predicted 138 ±14 –
- *  92 ±12"), as the match page makes it (its event's form in): a stored call keeps no range. Null when live
- *  predictions are off, the engine isn't built yet, or the season has no rated match (the match page shows no score
- *  then either: the ratings are carried over from the last game). */
-async function rangedCall(season: number, code: string, red: number[], blue: number[], level: string, own: "red" | "blue"): Promise<string | null> {
+/** A match's call as the engine makes it now, as the match page makes it (its event's form in): the team's chance and
+ *  its scores with their ranges, the team's side first ("Predicted 138 ±14 – 92 ±12"), all from this one call. A
+ *  stored call keeps no range. Null when live predictions are off, the engine isn't built yet, or the season has no
+ *  rated match (the match page shows no score then either: the ratings are carried over from the last game). */
+async function rangedCall(season: number, code: string, red: number[], blue: number[], level: string, own: "red" | "blue"): Promise<{ p: number; note: string } | null> {
   if (!(await isEnabled("livePredictions").catch(() => false))) return null;
   const p = readyForecaster(season);
   if (!p) return null;
@@ -42,7 +42,14 @@ async function rangedCall(season: number, code: string, red: number[], blue: num
   const x = f.explain(season, red, blue, level === "playoff" ? "playoff" : "qual", code, await recentRecords(season, [...red, ...blue]));
   if (!x) return null;
   const [mo, ro, mp, rp] = own === "red" ? [x.predictedScoreA, x.scoreRangeA, x.predictedScoreB, x.scoreRangeB] : [x.predictedScoreB, x.scoreRangeB, x.predictedScoreA, x.scoreRangeA];
-  return `Predicted ${Math.round(mo)} ±${plusMinus(mo, ro)} – ${Math.round(mp)} ±${plusMinus(mp, rp)}, the engine's call with its 80% ranges`;
+  return { p: own === "red" ? x.winProbA : x.winProbB, note: `Predicted ${Math.round(mo)} ±${plusMinus(mo, ro)} – ${Math.round(mp)} ±${plusMinus(mp, rp)}, with its 80% ranges` };
+}
+
+/** The next match's chance on its bar: the engine's call now when there is one (its chance with its own scores and
+ *  ranges, said as now), else the saved call's chance alone. Never one call's chance with another's scores. */
+export function nextChance(saved: number, now: { p: number; note: string } | null, label: string, who: string, action?: StatLink): Extract<StatBlock, { kind: "chance" }> {
+  return now ? { kind: "chance", p: now.p, who, label: `${label}, as the engine calls it now`, note: now.note, ...(action ? { action } : {}) }
+    : { kind: "chance", p: saved, who, label: `${label}, before it's played`, ...(action ? { action } : {}) };
 }
 
 /** The event the words name for these teams: the year asked (held that year) or the season named, else the latest one
@@ -139,8 +146,11 @@ export async function forecastAt(teams: { number: number; name: string | null }[
   const called = table.filter((r) => r.row.cells.called === "Yes").length, decided = table.filter((r) => r.row.cells.called !== "–").length;
   // The chance on its 0–100% bar: the next match's, else the average over the matches played, else the event's.
   const nextRow = next ? ms[table.indexOf(next)] : undefined;
-  const note = nextRow ? await rangedCall(Number(ev.season), nextRow.code, lineup(nextRow.red), lineup(nextRow.blue), nextRow.level, side(nextRow)).catch(() => null) : null;
-  const chance: StatBlock | null = next ? { kind: "chance", p: next.pWin, who: String(a.number), label: `to win ${b ? "their next meeting" : "the next match"} (${next.row.cells.match}), before it's played`, ...(note ? { note } : {}), action: act }
+  // The next match: the engine's call now (its chance, scores and ranges from one call, said as now), else the call
+  // saved for it (the chance alone, as its "Before" row has it). Never one call's chance with another's scores.
+  const call = nextRow ? await rangedCall(Number(ev.season), nextRow.code, lineup(nextRow.red), lineup(nextRow.blue), nextRow.level, side(nextRow)).catch(() => null) : null;
+  const nextLabel = next ? `to win ${b ? "their next meeting" : "the next match"} (${next.row.cells.match})` : "";
+  const chance: StatBlock | null = next ? nextChance(next.pWin, call, nextLabel, String(a.number), act)
     : done.length ? { kind: "chance", p: expWins / done.length, who: String(a.number), label: `average chance to win each ${b ? "meeting" : "match"}, before it was played`, action: act }
     : pre ? { kind: "chance", p: pre.pWin, who: String(a.number), label: "to win the event, before it started", action: act } : null;
   const label = kind === "live" ? "logged live before each match" : "walk-forward replay (not logged live)";
@@ -168,7 +178,8 @@ export async function forecastAt(teams: { number: number; name: string | null }[
     headline: done.length
       ? { value: `${expWins.toFixed(1)} → ${wins} wins`, label: `expected before, won after${b ? `, in their ${done.length} meeting${done.length === 1 ? "" : "s"}` : ""}`, sub: [S, when, label].filter(Boolean).join(" · "), href: predict.href }
       : next
-        ? { value: pct(next.pWin), label: `to win ${b ? "their next meeting" : "the next match"} (${next.row.cells.match}), not played yet`, sub: [S, when, label].filter(Boolean).join(" · "), href: predict.href }
+        // The bar's own chance (the call now, else the saved one): printed once, the bar keeping it.
+        ? { value: pct(call ? call.p : next.pWin), label: `to win ${b ? "their next meeting" : "the next match"} (${next.row.cells.match}), not played yet`, sub: [S, when, label].filter(Boolean).join(" · "), href: predict.href }
         : { value: pre ? pct(pre.pWin) : "–", label: "to win the event, before it started", sub: [S, when].filter(Boolean).join(" · "), href: predict.href },
   });
 }
