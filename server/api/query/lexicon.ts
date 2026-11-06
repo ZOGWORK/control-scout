@@ -39,7 +39,9 @@ export type Sym =
   /** A scope's or a team's standout matches: "worlds highlights". */
   | { k: "highlights" }
   /** Its match videos: "jackson division recap", "<team> videos" (read as its highlights). */
-  | { k: "videos" };
+  | { k: "videos" }
+  /** A name asked about as words ("teams named …", "called …"): the words after it are the name (./parse.ts). */
+  | { k: "named" };
 
 /** Each entry: the phrases (`|`-separated, words separated by spaces) and the symbol they mean (or several: "margin of
  *  victory" is a margin of wins only). Longer phrases win over shorter ones at the same place, so "win rate" is one
@@ -126,6 +128,8 @@ const TABLE: [string, Sym | Sym[]][] = [
   // Standout matches, each with why it's one.
   ["highlights|highlight|highlight reel|highlight reels|top moments|best moments|best matches|best games|standout matches|standout moments|best plays|top plays", { k: "highlights" }],
   ["recap|recaps|replay|replays|video|videos|clip|clips|watch|watch back|rewatch|stream|streams|livestream|live stream|vod|vods|footage|match videos|match video|youtube", { k: "videos" }],
+  // A name said as words, never a team read from them: "teams named …", "how many teams are called …".
+  ["named|called|with the name|have the name|has the name|having the name|by the name|by the name of|go by|goes by|going by|known as", { k: "named" }],
   // Penalty points left out.
   ["without penalties|no penalties|excluding penalties|minus penalties|penalty free|np|non penalty", { k: "nopen" }],
   // Prepositions that say which slot follows.
