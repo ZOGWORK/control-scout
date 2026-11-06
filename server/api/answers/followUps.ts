@@ -127,20 +127,35 @@ export function candidates(p: Parsed, a: SearchAnswer): { q: string; family: Fam
   return out.filter((x) => normalise(x.q) !== n);
 }
 
-/** One line from a direct answer, or null when `a` isn't one (no answer card, nothing found, a list of names). */
-export function previewOf(a: SearchAnswer): string | null {
+type Line = Pick<SearchFollowUp, "value" | "rest" | "tone">;
+
+/** One line from a direct answer, its number apart from the rest, or null when `a` isn't one (no answer card,
+ *  nothing found, a list of names). */
+export function lineOf(a: SearchAnswer): Line | null {
   if (a.sorry || a.weak || a.understood?.fallback) return null;
-  if (a.verdict) return `${a.verdict.answer}: ${a.verdict.label}`;
+  if (a.verdict) return { value: a.verdict.answer, rest: a.verdict.label, tone: { verdict: a.verdict.answer } };
   const st = a.stat;
-  if (st) return st.none || !st.headline ? null : [st.headline.value, st.headline.label].filter(Boolean).join(" · ");
+  if (st) {
+    if (st.none || !st.headline?.value) return null;
+    // The teams its card draws: two or more as the card lists them, else the one it's about.
+    const teams = (st.teams && st.teams.length > 1 ? st.teams : st.team ? [st.team] : []).map((t) => t.number);
+    return { value: st.headline.value, rest: st.headline.label, tone: { stat: { intent: st.intent, family: st.family, ...(st.split != null ? { split: st.split } : {}), teams } } };
+  }
   const c = a.card;
   if (c) {
     const first = c.lines[0];
-    return c.headline ?? (first ? [first.text, first.detail].filter(Boolean).join(" · ") : null);
+    if (c.headline) return { value: c.headline, rest: "", tone: { card: c.kind } };
+    return first?.text ? { value: first.text, rest: first.detail ?? "", tone: { card: c.kind } } : null;
   }
   const u = a.understood;
-  if (u?.kind === "events" && u.total) return `${u.label}: ${u.total.toLocaleString("en-US")} event${u.total === 1 ? "" : "s"}`;
+  if (u?.kind === "events" && u.total) return { value: `${u.total.toLocaleString("en-US")} event${u.total === 1 ? "" : "s"}`, rest: u.label, tone: { count: true } };
   return null;
+}
+
+/** The line as one string ("26-6-0 · 81% win rate …"), or null. */
+export function previewOf(a: SearchAnswer): string | null {
+  const l = lineOf(a);
+  return l && [l.value, l.rest].filter(Boolean).join(" · ");
 }
 
 /** What an answer answers: two candidates with the same are one question asked twice, and one with the search's own is
@@ -161,11 +176,11 @@ export async function followUps(q: string, a: SearchAnswer, prefer: ReadonlySet<
   const out: SearchFollowUp[] = [];
   tried.forEach((c, i) => {
     const ans = answers[i];
-    const preview = ans && !failureOf(c.q, ans, outcomeTrace(ans)) ? previewOf(ans) : null;
+    const line = ans && !failureOf(c.q, ans, outcomeTrace(ans)) ? lineOf(ans) : null;
     const key = ans && answerKey(ans).toLowerCase();
-    if (!preview || !key || seen.has(key) || out.length >= ASK_MAX) return;
+    if (!line || !key || seen.has(key) || out.length >= ASK_MAX) return;
     seen.add(key);
-    out.push({ ...c, preview });
+    out.push({ ...c, ...line, preview: [line.value, line.rest].filter(Boolean).join(" · ") });
   });
   return out;
 }
