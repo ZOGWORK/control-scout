@@ -12,7 +12,6 @@ import { useCurrentSeason } from "../../../lib/meta";
 import { dateRange, num, place, rankPct, seasonLabel } from "../../../lib/format";
 import type { TeamEventRow, TeamProfile } from "../../../shared/api";
 import { Meter, StatTile, rankPc } from "../../StatTile";
-import { Button } from "../../ui/button";
 import { Badge } from "../../ui/basic";
 import { cn } from "../../cn";
 import { EventMarker, INK_BAR, RankPill, RecordText } from "./answerCells";
@@ -20,6 +19,8 @@ import { teamFill } from "../../../lib/textTones";
 
 /** The touch rule every search control keeps: 44px tall on phones and touch screens. */
 export const TAP = "max-md:min-h-[44px] pointer-coarse:min-h-[44px]";
+/** A secondary action on an answer: underlined text, gold only on hover; the page's one primary action is the button. */
+export const SECONDARY = "inline-flex items-center gap-1 text-sm font-medium text-foreground underline decoration-border underline-offset-2 hover:text-accent-text";
 
 /** The H3 of a part inside an answer card. */
 export const PART = "mb-2 text-sm font-semibold text-foreground";
@@ -108,9 +109,8 @@ function TeamHeader({ who, profile, season }: { who: Who; profile?: TeamProfile 
       </div>
       <div className="flex flex-col items-end gap-2 max-sm:w-full max-sm:flex-row max-sm:items-center max-sm:justify-between">
         {season != null && <Badge variant="secondary" data-answer-season>{seasonLabel(season)}</Badge>}
-        <Button variant="secondary" size="sm" asChild className={TAP}>
-          <Link to={`/teams/${who.number}${season != null ? `?season=${season}` : ""}`}>Full team page <ArrowRight /></Link>
-        </Button>
+        {/* A secondary action: a text link, never a button (one primary action per page, the guide's §9). */}
+        <Link to={`/teams/${who.number}${season != null ? `?season=${season}` : ""}`} className={cn(SECONDARY, TAP)} data-secondary>Full team page <ArrowRight className="size-4" aria-hidden /></Link>
       </div>
     </header>
   );
