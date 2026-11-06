@@ -164,6 +164,8 @@ describe("when: the last, the first and the next time (3b)", () => {
       expect(a.card?.lines, q).toEqual([]);
       expect(a.card?.none, q).toMatch(/^No upcoming match/);
     }
+  });
+});
 
 describe("yes or no, with the evidence (3c)", () => {
   /** The yes or no, and the card under it: its kind and its rows (a stat's table or matches, a card's lines). */
