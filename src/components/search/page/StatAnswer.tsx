@@ -10,13 +10,13 @@ import type { StatAnswer, StatBlock, StatLink, StatRecord } from "../../../share
 import { teamTableOfLeaderboard } from "../../../shared/teamTable";
 import { TeamTable } from "../TeamTable";
 import { cn } from "../../cn";
-import { Meter, StatTile, rankPc, type Tone } from "../../StatTile";
+import { Meter, StatTile, TONES, rankPc, type Tone } from "../../StatTile";
 import { Badge } from "../../ui/basic";
-import { OPR_CARDS, oprRankHint } from "../../oprCards";
+import { OPR_CARDS, PHASE_TEXT, PHASE_TONE, oprRankHint, phaseOfLabel } from "../../oprCards";
 import { AnswerFrame, RelatedQuestions, TAP, repeats, statedSeason, useAnswerSeason, useTeamProfile } from "./TeamAnswer";
 import { rangeCaption } from "../../../shared/format";
 import { AnswerVideo, RowPlay, useRowPlays } from "./AnswerVideo";
-import { Cell, EventMarker, HeadlineValue, INK_BAR, MethodNote, RecordText, RichText, SeasonChip, better, columnMax, foldsOnPhone } from "./answerCells";
+import { Cell, EventMarker, HeadlineValue, INK_BAR, MethodNote, TEAM_BAR, TEAM_TEXT, RecordText, RichText, SeasonChip, better, columnMax, foldsOnPhone } from "./answerCells";
 import { MatchBox, RankBadge, TeamChip } from "./MatchBox";
 import { CompareCard, comparisonOf } from "./CompareCard";
 import { ChanceBar } from "./ChanceBar";
@@ -56,6 +56,8 @@ function OneCard({ stat, heading }: { stat: StatAnswer; heading?: string }) {
   const stated = statedSeason(stat.title, ...stat.scope);
   const season = useAnswerSeason(stated);
   const said = saidBy(stat);
+  // About one team: its hue on the card's numbers and bars; about none (a season's top matches): ink.
+  const one = teams?.length === 1;
   const profile = useTeamProfile(teams?.length === 1 ? teams[0].number : null, season);
   const scope = !!stat.scope.length && (
     <p className="flex flex-wrap gap-1.5 text-xs" data-scope>
@@ -65,14 +67,14 @@ function OneCard({ stat, heading }: { stat: StatAnswer; heading?: string }) {
   return (
     <AnswerFrame teams={teams} profile={profile} season={stated} title={stat.title} hideTitle={repeats(heading, stat.title)} sub={scope || undefined}
       data={{ "data-stat-answer": stat.intent, "data-family": stat.family }}>
-      {stat.headline && <Headline h={{ ...stat.headline, ...oneContext(stat.headline.label, stat.headline.sub, stat.scope) }} />}
+      {stat.headline && <Headline h={{ ...stat.headline, ...oneContext(stat.headline.label, stat.headline.sub, stat.scope) }} hue={one} />}
       <AnswerVideo />
       {stat.none && (
         <p className="mt-3 flex items-start gap-2 rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm text-foreground" data-none>
           <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />{stat.none}
         </p>
       )}
-      <div className="mt-4 space-y-5">{stat.blocks.map((b, i) => <Block key={`${b.kind}-${i}`} b={b} team={stat.team} teams={teams} said={said} />)}</div>
+      <div className="mt-4 space-y-5">{stat.blocks.map((b, i) => <Block key={`${b.kind}-${i}`} b={b} team={stat.team} teams={teams} said={said} hue={one} />)}</div>
       <MethodNote source={stat.source} definition={stat.definition}>
         {stat.more && <p><Link to={stat.more.href} className="inline-flex items-center text-xs font-medium text-foreground underline decoration-border underline-offset-2 hover:text-accent-text max-md:min-h-[44px] pointer-coarse:min-h-[44px]" data-more>{stat.more.label}</Link></p>}
       </MethodNote>
@@ -81,7 +83,7 @@ function OneCard({ stat, heading }: { stat: StatAnswer; heading?: string }) {
 }
 
 /** The number asked for: big and bold, what it is under it; no band behind it (the team page shows its numbers so). */
-function Headline({ h }: { h: NonNullable<StatAnswer["headline"]> }) {
+function Headline({ h, hue }: { h: NonNullable<StatAnswer["headline"]>; hue?: boolean }) {
   // One event's headline: its type and season as neutral badges (the season leaves the line under it, so it isn't
   // said twice).
   const ev = h.type !== undefined;
@@ -89,7 +91,7 @@ function Headline({ h }: { h: NonNullable<StatAnswer["headline"]> }) {
   const sub = h.sub && season != null ? h.sub.split(" · ").filter((x) => x !== seasonLabel(season)).join(" · ") : h.sub;
   const body = (
     <>
-      <p className="break-words font-display text-4xl font-semibold leading-tight tabular-nums text-foreground group-hover:text-accent-text"><HeadlineValue value={h.value} /></p>
+      <p className={cn("break-words font-display text-4xl font-semibold leading-tight tabular-nums group-hover:text-accent-text", hue ? TEAM_TEXT : "text-foreground")}><HeadlineValue value={h.value} win={hue ? TEAM_TEXT : undefined} /></p>
       <p className="mt-1 text-sm text-foreground"><RichText text={h.label} /></p>
       {sub && <p className="mt-0.5 text-xs text-muted-foreground"><RichText text={sub} /></p>}
       {ev && (h.type || season != null) && (
@@ -120,7 +122,9 @@ function Headline({ h }: { h: NonNullable<StatAnswer["headline"]> }) {
 function kpiLook(label: string, _tone?: string): [LucideIcon, Tone] {
   const icon: LucideIcon = /win|record|loss|won|lost/i.test(label) ? Trophy : /rank|#|place/i.test(label) ? Hash : /season|year|date|when/i.test(label) ? CalendarDays
     : /rating/i.test(label) ? Sparkles : /award/i.test(label) ? Medal : /opr|score|points|margin/i.test(label) ? Target : BarChart3;
-  return [icon, "neutral"];
+  // A phase's tile (Auto, TeleOp, Endgame, penalties, ranking points) in the team page's colour for it; the rest neutral.
+  const phase = phaseOfLabel(label);
+  return [icon, phase ? PHASE_TONE[phase] : "neutral"];
 }
 
 /** The compared team a tile is about (its label names the team: "Ultraviolet (23268)", "4215 wins"), or -1. */
@@ -128,7 +132,8 @@ function teamOf(label: string, teams: { number: number }[]): number {
   return teams.findIndex((t) => new RegExp(`(^|\\(|\\s)${t.number}(\\)|\\s|$)`).test(label));
 }
 
-function Block({ b: block, team, teams, said }: { b: StatBlock; team?: StatAnswer["team"]; teams?: { number: number; name: string | null }[]; said?: Said }) {
+function Block({ b: block, team, teams, said, hue }: { b: StatBlock; team?: StatAnswer["team"]; teams?: { number: number; name: string | null }[]; said?: Said; hue?: boolean }) {
+  const bar = hue ? TEAM_BAR : INK_BAR;
   // A tile that says nothing the headline or scope doesn't (its number, and its line and rank too: the headline's
   // number, its win rate, the season): left out. A tile with anything more (a rank, a count) stays.
   const fmt = (n: number) => n.toLocaleString("en-US");
@@ -155,9 +160,10 @@ function Block({ b: block, team, teams, said }: { b: StatBlock; team?: StatAnswe
               const right = order.length === 2 && j === 1;
               const value = <span className="text-foreground">{k.value}</span>;
               const tile = <StatTile tone={tone} icon={icon} label={k.label} value={value} hint={k.sub} className={cn(right && "items-end text-right")} />;
+              const phase = phaseOfLabel(k.label) ?? undefined;
               return k.href
-                ? <Link key={k.label} to={k.href} className="block rounded-xl transition-transform hover:-translate-y-0.5 motion-reduce:hover:translate-y-0" data-kpi data-side={s}>{tile}</Link>
-                : <div key={k.label} data-kpi data-side={s}>{tile}</div>;
+                ? <Link key={k.label} to={k.href} className="block rounded-xl transition-transform hover:-translate-y-0.5 motion-reduce:hover:translate-y-0" data-kpi data-side={s} data-phase={phase}>{tile}</Link>
+                : <div key={k.label} data-kpi data-side={s} data-phase={phase}>{tile}</div>;
             })}
           </div>
         );
@@ -166,11 +172,12 @@ function Block({ b: block, team, teams, said }: { b: StatBlock; team?: StatAnswe
         <div className={cn("grid gap-3", b.items.length === 1 ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : b.items.length === 3 ? "grid-cols-2 lg:grid-cols-3" : "grid-cols-2 lg:grid-cols-4")} data-block="kpis">
           {b.items.map((k) => {
             const [icon, tone] = kpiLook(k.label, k.tone);
-            const value = <span className="text-foreground">{k.value}</span>;
+            const phase = phaseOfLabel(k.label) ?? undefined;
+            const value = <span className={hue && !phase ? TEAM_TEXT : "text-foreground"}>{k.value}</span>;
             const tile = <StatTile tone={tone} icon={icon} label={k.label} value={value} hint={k.sub} />;
             return k.href
-              ? <Link key={k.label} to={k.href} className="block rounded-xl transition-transform hover:-translate-y-0.5 motion-reduce:hover:translate-y-0" data-kpi>{tile}</Link>
-              : <div key={k.label} data-kpi>{tile}</div>;
+              ? <Link key={k.label} to={k.href} className="block rounded-xl transition-transform hover:-translate-y-0.5 motion-reduce:hover:translate-y-0" data-kpi data-phase={phase}>{tile}</Link>
+              : <div key={k.label} data-kpi data-phase={phase}>{tile}</div>;
           })}
         </div>
       );
@@ -185,7 +192,7 @@ function Block({ b: block, team, teams, said }: { b: StatBlock; team?: StatAnswe
         <figure data-block="record">
           {b.title && <figcaption className={H3}>{b.title}</figcaption>}
           <div className="flex h-1.5 overflow-hidden rounded-full bg-muted" role="img" aria-label={`${b.wins} wins, ${b.losses} losses, ${b.ties} ties`}>
-            <span className="bg-foreground/70" style={{ width: w(b.wins) }} data-bar data-value={b.wins} data-scale={n} />
+            <span className={hue ? TEAM_BAR : "bg-foreground/70"} style={{ width: w(b.wins) }} data-bar data-value={b.wins} data-scale={n} />
             <span className="bg-foreground/25" style={{ width: w(b.losses) }} data-bar data-value={b.losses} data-scale={n} />
             <span className="bg-muted-foreground/40" style={{ width: w(b.ties) }} data-bar data-value={b.ties} data-scale={n} />
           </div>
@@ -193,7 +200,7 @@ function Block({ b: block, team, teams, said }: { b: StatBlock; team?: StatAnswe
             <span><b>{b.wins}</b> won</span><span><b>{b.losses}</b> lost</span><span><b>{b.ties}</b> tied</span>
             {n > 0 && !said?.has(`${Math.round((100 * b.wins) / n)}%`) && <span className="text-muted-foreground">{Math.round((100 * b.wins) / n)}% win rate</span>}
           </p>
-          {b.split && <RecordSplit split={b.split} />}
+          {b.split && <RecordSplit split={b.split} bar={bar} />}
         </figure>
       );
     }
@@ -241,21 +248,21 @@ function Block({ b: block, team, teams, said }: { b: StatBlock; team?: StatAnswe
   }
 }
 
-/** A season OPR and its phases as the team page's OPR tiles, neutral (no phase hue), each with its rank line and bar. */
+/** A season OPR and its phases as the team page's OPR tiles, each in that page's colour for it, with its rank line and bar. */
 function OprTiles({ items, teams }: { items: Extract<StatBlock, { kind: "kpis" }>["items"]; teams?: { number: number }[] }) {
   // Two teams' tiles for one phase: one column each, under its own header (A left, B right).
   const many = !!teams && teams.length > 1 && OPR_CARDS.some(([k]) => items.filter((i) => i.phase === k).length > 1);
   return (
     <div className={cn("grid gap-3", many ? (teams!.length === 2 ? "grid-cols-2" : "grid-cols-3") : "grid-cols-2 lg:grid-cols-4")} data-block="kpis" data-opr-tiles>
-      {OPR_CARDS.flatMap(([k, label, Icon]) => {
-        const tone: Tone = "neutral";
+      {OPR_CARDS.flatMap(([k, label, Icon, tone]) => {
         // Two teams' tiles for one phase (a phase side by side) each name their team.
         const its = items.filter((i) => i.phase === k);
         return its.map((it, n) => (
-          <StatTile key={`${k}-${n}`} tone={tone} icon={Icon} label={its.length > 1 ? `${label} · ${it.label}` : label}
+          // Each phase in the team page's colour for it (the same tile as the team page's OPR section).
+          <div key={`${k}-${n}`} className="min-w-0" data-phase={k}><StatTile tone={tone} icon={Icon} label={its.length > 1 ? `${label} · ${it.label}` : label}
             value={<span className="text-foreground">{it.value}</span>}
             hint={it.rank == null && it.pc != null ? it.sub : oprRankHint(it.rank, it.of)}
-            bar={<Meter parts={[{ pc: it.rank == null && it.pc != null ? it.pc : rankPc(it.rank, it.of), cls: INK_BAR }]} />} />
+            bar={<Meter parts={[{ pc: it.rank == null && it.pc != null ? it.pc : rankPc(it.rank, it.of), cls: TONES[tone].bar }]} />} /></div>
         ));
       })}
     </div>
@@ -263,7 +270,7 @@ function OprTiles({ items, teams }: { items: Extract<StatBlock, { kind: "kpis" }
 }
 
 /** The same record as qualifications and playoffs, a row each: W-L-T, win rate and matches, its own small bar. */
-function RecordSplit({ split }: { split: { quals: StatRecord; playoffs: StatRecord } }) {
+function RecordSplit({ split, bar = INK_BAR }: { split: { quals: StatRecord; playoffs: StatRecord }; bar?: string }) {
   const rows: [string, StatRecord][] = [["Qualifications", split.quals], ["Playoffs", split.playoffs]];
   return (
     <table className="mt-3 w-full overflow-hidden rounded-lg border border-border text-sm tabular-nums" data-record-split>
@@ -278,7 +285,7 @@ function RecordSplit({ split }: { split: { quals: StatRecord; playoffs: StatReco
             <tr key={label} className="border-t border-border" data-split={label}>
               <th scope="row" className="px-3 py-2 text-left font-medium text-foreground">
                 {label}
-                <span className="mt-1 block h-1.5 w-full max-w-40 overflow-hidden rounded-full bg-muted" aria-hidden><span className={cn("block h-full", INK_BAR)} style={{ width: `${n ? (100 * r.wins) / n : 0}%` }} data-bar data-value={r.wins} data-scale={n} /></span>
+                <span className="mt-1 block h-1.5 w-full max-w-40 overflow-hidden rounded-full bg-muted" aria-hidden><span className={cn("block h-full", bar)} style={{ width: `${n ? (100 * r.wins) / n : 0}%` }} data-bar data-value={r.wins} data-scale={n} /></span>
               </th>
               <td className="px-3 py-2 text-right font-semibold text-foreground"><RecordText text={`${r.wins}-${r.losses}-${r.ties}`} /></td>
               <td className="px-3 py-2 text-right text-foreground">{pc}%</td>
@@ -448,7 +455,7 @@ function Series({ b }: { b: Extract<StatBlock, { kind: "series" }> }) {
 }
 
 function Bars({ b }: { b: Extract<StatBlock, { kind: "bars" }> }) {
-  // One group's values are small neutral tiles (no phase hue); several groups a compact table, a row each.
+  // One group's values are small tiles (a phase's in the team page's colour for it); several groups a compact table, a row each.
   const fmt = (v: number | null) => (v == null ? "–" : `${Number.isInteger(v) ? v : v.toFixed(1)}${b.unit === "%" ? "%" : ""}`);
   if (b.groups.length === 1) {
     const g = b.groups[0];
@@ -457,9 +464,9 @@ function Bars({ b }: { b: Extract<StatBlock, { kind: "bars" }> }) {
         <figcaption className={H3}>{b.title}</figcaption>
         <dl className={cn("grid gap-2", g.items.length <= 3 ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4")}>
           {g.items.map((i) => (
-            <div key={i.label} className="rounded-lg border border-border bg-muted/30 px-3 py-2" data-bar-value={i.label}>
+            <div key={i.label} className={cn("rounded-lg border px-3 py-2", phaseOfLabel(i.label) ? TONES[PHASE_TONE[phaseOfLabel(i.label)!]].box : "border-border bg-muted/30")} data-bar-value={i.label} data-phase={phaseOfLabel(i.label) ?? undefined}>
               <dt className="text-xs font-medium text-muted-foreground">{i.label}</dt>
-              <dd className="font-display text-xl font-semibold tabular-nums text-foreground">{fmt(i.value)}</dd>
+              <dd className={cn("font-display text-xl font-semibold tabular-nums", phaseOfLabel(i.label) ? PHASE_TEXT(phaseOfLabel(i.label)!) : "text-foreground")}>{fmt(i.value)}</dd>
             </div>
           ))}
         </dl>
