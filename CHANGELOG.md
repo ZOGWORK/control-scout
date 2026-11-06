@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.4.8 — 2026-11-06
+## 3.5.8 — 2026-11-06
 
 "12345 at worlds" answers with the team's results there, as "12345 states" does for its state championship.
 
@@ -27,6 +27,18 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 ### Search
 - **A team at Worlds.** A team and Worlds alone ("12345 at worlds", "12345 worlds", "show me 12345 at worlds 2025-26") answer with the team's results at the FIRST Championship: its record, its division and its matches, as a team and its state championship already did. A team with no Worlds matches is told it has none on record, never an empty page. A measure named with it ("worlds record", "opr at worlds") is still that measure.
 - **Whether a team went.** "Has 12345 been to worlds", "went to", "made it to", "qualified for" and "appearances" stay the question of its trips there, answered by its Worlds appearances, never its results. (#852)
+
+## 3.4.8 — 2026-11-06
+
+A question that names its season and also says "this season" is answered for the season it named.
+
+### Highlights
+- [fixes] "This season in 2025-26" answers for 2025–26 instead of nothing
+- [fixes] The card names the season the question named
+- [fixes] Works in any word order, for any team, place or match question
+
+### Search
+- **"This season" beside a season named.** A question that names a season and also says "this season" ("biggest upset in NJ this season in 2025-26", "this season 4215 record in 2025-26") had the extra words left over, so nothing answered it. Now the season named stands, the card says it, and the words saying it again are read with it. "Last season" next to a named season is a second season (a comparison), so it is never read as the same one. (#811)
 
 ## 3.4.7 — 2026-11-06
 
