@@ -55,6 +55,8 @@ export interface Parsed {
   unexplained: string[];
   /** No losses asked ("undefeated teams"). */
   undefeated?: boolean;
+  /** A name asked about as words ("teams named <name>"): the words, never read as a team. */
+  named?: { words: string; typed: string };
   /** Every word explained and an intent found. */
   complete: boolean;
 }
@@ -74,6 +76,19 @@ export interface ParseContext {
 type Tok = { w: string; typed: string; used: boolean; alliance?: boolean; side?: "red" | "blue" };
 /** The one-word filler phrases ("the", "a"): read before a name that starts with one. */
 const FILLER_WORDS = new Set(LEXICON.filter((e) => e.words.length === 1 && e.syms.every((x) => x.k === "filler")).map((e) => e.words[0]));
+/** Every filler phrase, one word or more ("the", "thank you"). */
+const FILLER_PHRASES = LEXICON.filter((e) => e.syms.every((x) => x.k === "filler")).map((e) => e.words);
+/** True when `words` are filler phrases end to end ("are there", "thank you"); none at all is too. */
+function allFiller(words: string[]): boolean {
+  const ok = [true, ...words.map(() => false)];
+  for (let i = 0; i < words.length; i++) if (ok[i]) for (const f of FILLER_PHRASES) if (f.every((w, j) => words[i + j] === w)) ok[i + f.length] = true;
+  return ok[words.length];
+}
+const NAME_MARK = "namedname";
+/** The phrases that say a name follows ("named", "called", "with the name"). */
+const NAMED_PHRASES = LEXICON.filter((e) => e.syms.some((x) => x.k === "named")).map((e) => e.words);
+/** The words that end a name asked about as words: a place or a time follows. */
+const NAME_ENDS = /^(?:from|in|at|near|based|located|during|out)$/;
 /** The kind words an event's name can end with. */
 const KIND_WORDS = new Set(["meet", "meets", "tournament", "tournaments", "event", "events", "competition", "competitions"]);
 /** The words before a number that make it a count ("top 5", "last 10") or a match's number ("match 3"). */
@@ -99,6 +114,22 @@ export function normalise(q: string): string {
     .replace(/\s+/g, " ").trim();
 }
 
+/** The longest stored name after a phrase saying a name follows, ending where a place's preposition, the closing
+ *  filler or a time (`timeOnly`) follows it, or null. */
+function keptName(words: string[], ctx: ParseContext, timeOnly: (w: string[]) => boolean): { from: number; to: number } | null {
+  for (let i = 0; i < words.length; i++) {
+    const f = NAMED_PHRASES.find((n) => n.every((w, j) => words[i + j] === w));
+    if (!f) continue;
+    const from = i + f.length;
+    for (let to = words.length; to > from; to--) {
+      const tail = words.slice(to);
+      const ends = !tail.length || NAME_ENDS.test(tail[0]) || allFiller(tail) || timeOnly(tail);
+      if (ends && ctx.names.teamsNamed(words.slice(from, to).join(" ")).length) return { from, to };
+    }
+  }
+  return null;
+}
+
 /** Parses `raw`. */
 export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed> {
   const q = normalise(raw);
@@ -112,7 +143,14 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   const said = (y: number) => new RegExp(`\\b(?:in|during|for|from|(?<!\\b(?:this|current)\\s)season)\\s+(?:the\\s+)?${y}\\b`).test(q);
   const paired = (y: number) => new RegExp(`\\b${y}\\s+(?:vs\\.?|v|versus|against|and|&)\\s|\\s(?:vs\\.?|v|versus|against|and|&)\\s+${y}\\b`).test(` ${q} `);
   const yearOk = (y: number) => said(y) || (!(ctx.names.team(y) && paired(y)) && (teamNums.some((n) => n !== y) || !ctx.names.team(y)));
-  const { time, rest, unread } = readTime(q, ctx.today, yearOk);
+  // A stored name asked about as words keeps its words from the time reader ("Powerplay Robotics", "March Madness").
+  const timeOnly = (w: string[]) => { const r = readTime(w.join(" "), ctx.today, yearOk); return !!r.time && allFiller(r.rest.split(" ").filter(Boolean)); };
+  const at0 = keptName(words0, ctx, timeOnly);
+  // The name stands in as one word no time reads, then comes back whole.
+  const kept = at0 && words0.slice(at0.from, at0.to).join(" ");
+  const read = readTime(at0 ? [...words0.slice(0, at0.from), NAME_MARK, ...words0.slice(at0.to)].join(" ") : q, ctx.today, yearOk);
+  const { time, unread } = read;
+  const rest = kept ? read.rest.replace(NAME_MARK, kept) : read.rest;
   // Each word with its own spelling as typed, matched in order ("in IN": the second is the state code).
   let at = 0;
   const toks: Tok[] = rest.split(" ").filter(Boolean).map((w) => {
@@ -127,6 +165,30 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   };
   const lexAt = (i: number) => LEXICON.find((e) => e.words.every((w, j) => toks[i + j] && !toks[i + j].used && toks[i + j].w === w));
   const isLex = (w: string) => LEX_WORDS.has(w) || AWARD_ONE_WORD.has(w);
+
+  // 0. A name asked about as words ("how many teams named <name> from <place>"): the words after the phrase, never a
+  // team. The longest run of them that is a stored name, whatever words it holds ("in", "us"); else the words up to a
+  // place's preposition, without the question's closing filler ("… are there").
+  for (let i = 0; i < toks.length && !p.named; i++) {
+    const e = lexAt(i);
+    if (!e?.syms.some((s) => s.k === "named")) continue;
+    const from = i + e.words.length;
+    let to = toks.length;
+    // A stored name ends the words only where a place's preposition or the closing filler follows it.
+    const ends = (k: number) => k === toks.length || NAME_ENDS.test(toks[k].w) || allFiller(toks.slice(k).map((t) => t.w));
+    while (to > from && !(ends(to) && ctx.names.teamsNamed(toks.slice(from, to).map((t) => t.w).join(" ")).length)) to--;
+    if (to === from) {
+      while (to < toks.length && !NAME_ENDS.test(toks[to].w)) to++;
+      // Without the question's closing filler, a phrase of it too ("… thank you").
+      const end = to;
+      for (to = from + 1; to < end && !allFiller(toks.slice(to, end).map((t) => t.w)); to++);
+      if (allFiller(toks.slice(from, end).map((t) => t.w))) to = from;
+    }
+    if (to === from) continue;
+    const span = toks.slice(from, to);
+    p.named = { words: span.map((t) => t.w).join(" "), typed: span.map((t) => t.typed).join(" ") };
+    span.forEach((t) => (t.used = true));
+  }
 
   // 1. Teams by their whole name, longest first: a name made only of search's own words ("The Best") isn't claimed,
   // so "best team" stays a question.
@@ -352,6 +414,7 @@ export function describe(p: Parsed): string[] {
   return [
     p.intent ? `Intent: ${p.intent.replace(/-/g, " ")}` : "",
     ...p.teams.map((t) => `Team ${t.number}${t.name ? ` ${t.name}` : ""}`),
+    p.named ? `Name: ${p.named.typed}` : "",
     p.event ? `Event: ${p.event.typed}` : "",
     p.worlds ? "FIRST Championship" : p.states ? "State championship" : "",
     p.place ? `${p.place.kind === "city" ? "From" : "In"} ${p.place.name}` : "",
