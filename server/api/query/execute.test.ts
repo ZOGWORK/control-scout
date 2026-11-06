@@ -290,6 +290,44 @@ describe("the match finder: matches by a measure, every filter applied and state
   });
 });
 
+describe("a win or a loss said with a team's match question is a filter", () => {
+  it("the most recent loss, the first win, the last losses and the longest losing streak", async () => {
+    const lost = await stat("when did 4215 last lose a match");
+    expect(lost.title).toMatch(/^Most recent loss/);
+    expect(lost.headline?.value).toMatch(/^Lost /);
+    const won = await stat("4215 first win");
+    expect(won.title).toMatch(/^First win/);
+    expect(won.headline?.value).toMatch(/^Won /);
+    const last = await stat("4215 last 2 losses");
+    expect(last.title).toMatch(/^Last 2 losses/);
+    // The fixture's 4215 has lost once: that one, said as one.
+    expect(last.headline?.label).toBe("in the last 1 loss, oldest to newest L");
+    expect((await stat("longest losing streak for 4215")).title).toMatch(/^Longest losing streak/);
+    // 10809 lost once, then won twice: its losing streak counts the loss, its win streak the two wins.
+    const streak = async (q: string) => { const st = await stat(q); const b = st.blocks[0]; return { value: st.headline?.value, shown: b?.kind === "matches" ? b.rows.length : 0 }; };
+    expect(await streak("longest losing streak for 10809")).toEqual({ value: "1 loss", shown: 1 });
+    expect(await streak("longest win streak for 10809")).toEqual({ value: "2 wins", shown: 2 });
+    expect(await streak("longest losing streak for 5555")).toEqual({ value: "2 losses", shown: 2 });
+    // No outcome said: every match, as before. The headline's match is printed once: the list is the ones before it.
+    const recent = await stat("4215 last match");
+    expect(recent.title).toMatch(/^Most recent match/);
+    const before = recent.blocks[0] as { title?: string } | undefined;
+    expect(before?.title).toMatch(/^The (\d+ )?match(es)? before$/);
+    expect(JSON.stringify(before)).not.toContain(JSON.stringify(recent.headline?.href));
+  });
+  it("losing to someone is the opponents that beat the team; winning a match, its wins", async () => {
+    // A match's number said is that match, never the team's wins.
+    const one = await stat("did 4215 win match 2 at Garden Qualifier");
+    expect(one).toMatchObject({ title: "Match 2 at Garden Qualifier", headline: { value: "Lost 80–120" } });
+    for (const q of ["who did 4215 lose to the most times", "teams 4215 lost to most often"]) expect((await stat(q)).title, q).toMatch(/^Teams lost to most often/);
+    // A count of them is another question: never answered with the one that beat it most.
+    expect((await ask("how many teams has 4215 lost to")).stat?.title ?? "").not.toMatch(/^Teams lost to most often/);
+    expect((await stat("did 4215 ever win a match")).title).toMatch(/^Match wins/);
+    // "Most often" is how often, never the best: the partners list, not the best partner.
+    expect((await stat("4215 partners most often")).title).toMatch(/^Alliance partners/);
+  });
+});
+
 describe("forecasts", () => {
   it("a team at a named event: before and after side by side, Predict open on it", async () => {
     for (const q of ["predicted chances of 4215 garden qualifier", "4215 garden qualifier prediction", "garden qualifier forecast for hypnotic robotics"]) {

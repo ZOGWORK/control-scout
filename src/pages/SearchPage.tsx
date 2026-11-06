@@ -210,11 +210,12 @@ export default function SearchPage() {
               {/* The team was found but not the answer: what search can answer about it, one tap each. */}
               {!!ax?.suggest?.length && <RelatedQuestions queries={ax.suggest} title="Search can answer these about them" className="mb-5" />}
               {(events >= 2 || choices.seasons.length > 1 || filtersOn) && <div className="mb-4"><SearchFilters f={filters} seasons={choices.seasons} types={choices.types} counts={events ? counts : undefined} asked={askedTime} onChange={setFilters} /></div>}
-              {/* Desktop: results left (at most 720px), at most one panel right, chosen by the query: a versus query's
+              {/* Desktop: results left (at most 720px, narrower before the panel gets under 20rem), at most one panel
+                  right, chosen by the query: a versus query's
                   head-to-head; else a question's summary (timeline, stats or standing) with the team's pages. With
                   both, the head-to-head keeps the column and the summary goes below the results. Phone: one column,
                   the summary first (H1, badge, summary, cards). */}
-              <div className={cn(panel && "lg:grid lg:grid-cols-[minmax(0,720px)_minmax(0,1fr)] lg:items-start lg:gap-6")} data-layout={panel ?? "single"}>
+              <div className={cn(panel && "lg:grid lg:grid-cols-[minmax(0,720px)_minmax(20rem,1fr)] lg:items-start lg:gap-6")} data-layout={panel ?? "single"}>
                 {panel === "summary" && (
                   <aside aria-label="Summary" className="mb-4 space-y-3 lg:sticky lg:top-[calc(var(--header-h)+1rem)] lg:col-start-2 lg:row-start-1" data-panel="summary">
                     {summary}
