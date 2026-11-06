@@ -26,7 +26,7 @@ Questions about a team's wins and losses answer with the matches asked for: the 
 - [fixes] "Where is a team based out of" and "how old is it" answer
 
 ### Search
-- **Wins and losses as a filter.** A team's first, most recent and last few matches, and its longest streak, read a win or a loss said with them, and the card's title says which. (#PR)
+- **Wins and losses as a filter.** A team's first, most recent and last few matches, and its longest streak, read a win or a loss said with them, and the card's title says which. (#774)
 - **Lost to.** "Lose to", "lost to" and "beaten by" list the opponents that beat the team, most often first. "Most often" is how often, never the best partner.
 - **Team facts.** "Based out of" reads as where a team is from and "how old" as its rookie year; "if any" never stops an answer.
 
