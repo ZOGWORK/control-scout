@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.5.7 — 2026-11-06
+
+A team's wins and losses by event, side by side.
+
+### Highlights
+- [teams] "Wins vs losses by event" shows each event's wins and losses
+- [teams] "Record by event" and "per event" read the same
+- [fixes] "Wins vs losses" is a team's record, never a match against another team
+
+### Search
+- **Wins and losses by event.** "12345 wins vs losses by event in 2025-26", "12345 record by event", "wins and losses per event" answer with the team's record card and a row for each event (its wins and losses, ties when there are any, and its season when the answer spans several), oldest first, each linked to the event. "Wins vs losses" said without an event split is the record alone. Before, "vs" there was read as a second team. (#850)
+
 ## 3.5.6 — 2026-11-06
 
 "When did a team last play?" is answered however it's asked: the last, the first and the next time, and when it started.

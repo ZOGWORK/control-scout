@@ -98,7 +98,9 @@ export const INTENTS: IntentRule[] = [
   R("wins-count", 1, ["metric:win", "thing:match"], [], { noMatchNo: true }),
   R("losses", 1, ["metric:loss"], ["agg:count", "thing:match"]),
   R("ties-count", 1, ["metric:tie"], ["agg:count", "thing:match"]),
-  R("record", 1, ["metric:record"], ["metric:win", "metric:loss", "metric:tie", "thing:match"]),
+  R("record", 1, ["metric:record"], ["metric:win", "metric:loss", "metric:tie", "thing:match", "per:event"]),
+  // "Wins vs losses", "wins and losses": the record, as said.
+  R("record", 1, ["metric:win", "metric:loss"], ["vs", "and", "compare", "metric:tie", "thing:match", "per:event"]),
   R("win-percent", 1, ["metric:winrate"], ["thing:match"]),
   R("average-score", 1, ["agg:mean", "metric:score"], ["thing:match", "per:match"]),
   R("average-score", 1, ["metric:score", "per:match"], ["thing:match"]),
