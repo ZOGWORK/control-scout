@@ -100,6 +100,9 @@
   --color-chart-3: var(--sh-chart-3);
   --color-chart-4: var(--sh-chart-4);
   --color-chart-5: var(--sh-chart-5);
+  /* A chance's bar (search answers, ChanceBar): the results guide's Okabe–Ito blue on a neutral track, never volt. */
+  --color-chance: var(--color-team-a);
+  --color-chance-track: #262626;
 }
 
 :root {
@@ -178,6 +181,8 @@ html.light {
   --color-ring: #6b4100;
   --grid-rgb: 9 9 11;
   --cp-grid-alpha: 0.05;
+  --color-chance: var(--color-team-a);
+  --color-chance-track: #e5e5e5;
   color-scheme: light;
 }
 

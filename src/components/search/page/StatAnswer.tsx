@@ -19,6 +19,7 @@ import { AnswerVideo, RowPlay, useRowPlays } from "./AnswerVideo";
 import { Cell, EventMarker, HeadlineValue, INK_BAR, MethodNote, RecordText, RichText, SeasonChip, better, columnMax, foldsOnPhone } from "./answerCells";
 import { MatchBox, RankBadge, TeamChip } from "./MatchBox";
 import { CompareCard, comparisonOf } from "./CompareCard";
+import { ChanceBar } from "./ChanceBar";
 
 const H3 = "mb-1.5 text-xs font-semibold text-muted-foreground";
 
@@ -235,6 +236,8 @@ function Block({ b: block, team, teams, said }: { b: StatBlock; team?: StatAnswe
       );
     case "related":
       return <RelatedQuestions queries={b.queries} title={b.title} />;
+    case "chance":
+      return <ChanceBar b={b} />;
   }
 }
 
