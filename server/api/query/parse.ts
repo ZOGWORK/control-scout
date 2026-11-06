@@ -107,7 +107,8 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   const words0 = q.split(" ");
   const teamNums = words0.filter((w, i) => /^\d{1,5}$/.test(w) && !COUNT_BEFORE.test(words0[i - 1] ?? "") && !MATCH_BEFORE.test(words0[i - 1] ?? "") && !!ctx.names.team(Number(w))).map(Number);
   // A bare year is a season unless it's the only team number and a team has it ("2024 record", "2024 last 5 matches").
-  const yearOk = (y: number) => teamNums.some((n) => n !== y) || !ctx.names.team(y) || new RegExp(`\\b(?:in|during|for|season|from)\\s+(?:the\\s+)?${y}\\b`).test(q);
+  // "Season 2024" names the season, but "this season 2024 record" is the team after "this season".
+  const yearOk = (y: number) => teamNums.some((n) => n !== y) || !ctx.names.team(y) || new RegExp(`\\b(?:in|during|for|from|(?<!\\b(?:this|current)\\s)season)\\s+(?:the\\s+)?${y}\\b`).test(q);
   const { time, rest, unread } = readTime(q, ctx.today, yearOk);
   // Each word with its own spelling as typed, matched in order ("in IN": the second is the state code).
   let at = 0;

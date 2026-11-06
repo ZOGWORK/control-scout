@@ -90,12 +90,13 @@ export function readTime(q: string, today: string, yearOk: (y: number) => boolea
   };
   const known = (s: number) => SEASONS.some((x) => x.season === s);
   // A bare year: its season ("2025": 2025–26), a future year included (the executor says when it has no events yet).
-  // One after "in" or "during" first; a number after "team" is always the team ("team 2024 record in 2025").
-  // `said`: only a year after "in", "during", "for" or "from" (beside "this season", where a bare number can be a team:
-  // "this season 2024 record").
-  const bareYear = (said = false): TimeRead | null => {
-    const y4 = /\b(?:in|during|for|from|of)\s+(?:the\s+)?(20[1-3]\d)(?:\s+season)?\b/.exec(rest) ?? (said ? null : /(?<!\bteam\s)\b(20[1-3]\d)(?:\s+season)?\b/.exec(rest));
-    if (!y4 || !yearOk(Number(y4[1]))) return null;
+  // One after "in" or "during" first; a number after "team" is always the team ("team 2024 record in 2025"). The first
+  // number that can be a year is ("2024 record 2025": team 2024's record in 2025–26).
+  const bareYear = (): TimeRead | null => {
+    const fits = (x: RegExpExecArray) => yearOk(Number(x[1]));
+    const y4 = [...rest.matchAll(/\b(?:in|during|for|from|of)\s+(?:the\s+)?(20[1-3]\d)(?:\s+season)?\b/g)].find(fits)
+      ?? [...rest.matchAll(/(?<!\bteam\s)\b(20[1-3]\d)(?:\s+season)?\b/g)].find(fits);
+    if (!y4) return null;
     const y = Number(y4[1]);
     cut(y4);
     return out({ kind: "season", season: y, year: y, label: known(y) ? `in ${SEASONS.find((s) => s.season === y)!.label}` : `in ${y}–${String((y + 1) % 100).padStart(2, "0")}`, typed: y4[0].trim() });
@@ -149,7 +150,7 @@ export function readTime(q: string, today: string, yearOk: (y: number) => boolea
   if (m) {
     cut(m);
     // A year said beside it ("this season in 2025") is the season named; "this season" only says it again.
-    return bareYear(true) ?? out({ kind: "season", season: null, relative: "this", label: "this season", typed: m[0].trim() });
+    return bareYear() ?? out({ kind: "season", season: null, relative: "this", label: "this season", typed: m[0].trim() });
   }
   m = /\b(?:last|previous|past|prior)\s+(?:season|year)'?s?\b/.exec(rest);
   if (m) { cut(m); return out({ kind: "season", season: null, relative: "last", label: "last season", typed: m[0].trim() }); }
