@@ -182,6 +182,15 @@ describe("answerVideo: a video page", () => {
   });
 });
 
+describe("answerVideo: a video page whose lead has no clip", () => {
+  it("plays its first listed match with one, not the event's recording from its start", async () => {
+    const tile = (code: string, key: string, label: string) => ({ label, href: href(code, key), level: "playoff" as const, red: [], blue: [], redScore: 1, blueScore: 0 });
+    const v = await answerVideo(stat({ headline: { value: "x", label: "x", href: href("USCHSCMP", "playoff:0:2") },
+      blocks: [{ kind: "videos", title: "Every match", tiles: [tile("USCHSCMP", "playoff:0:2", "F2"), tile("FTCCMP1EDIS", "playoff:1:1", "M1")] }] }), NOW);
+    expect(v?.main).toMatchObject({ kind: "match", match: "M1" });
+  });
+});
+
 describe("refOfHref and mainRef", () => {
   it("reads only an answer's own event and match links", () => {
     expect(refOfHref("/events/2025/USMACMP?match=qual:0:12")).toEqual({ season: 2025, code: "USMACMP", key: "qual:0:12" });

@@ -61,6 +61,21 @@ describe("VideoGallery", () => {
     } finally { off(); }
   });
 
+  it("a filter the last answer had and this one lacks: all of this one's tiles", () => {
+    const r = render(<MemoryRouter><AnswerVideoProvider video={video}><StatAnswerCard stat={stat()} /></AnswerVideoProvider></MemoryRouter>);
+    fireEvent.click(r.container.querySelector('[data-video-level="playoff"]')!);
+    const qualsOnly: StatAnswer = { ...stat(), blocks: [{ kind: "videos", title: "Every match", tiles: quals.slice(0, 3) }] };
+    r.rerender(<MemoryRouter><AnswerVideoProvider video={video}><StatAnswerCard stat={qualsOnly} /></AnswerVideoProvider></MemoryRouter>);
+    expect(labels(r.container)).toEqual(["Q1", "Q2", "Q3"]);
+  });
+
+  it("a list cut short (too many matches): why, never that there's no video", () => {
+    const big: StatAnswer = { ...stat(), blocks: [{ kind: "videos", title: "Every match", tiles: [], more: "Too many matches to list here; open an event for each match's video." }] };
+    const c = draw(video, big);
+    expect(c.querySelector("[data-videos-more]")?.textContent).toBe("Too many matches to list here; open an event for each match's video.");
+    expect(c.querySelector("[data-videos-empty]")).toBeNull();
+  });
+
   it("nothing with a video: one line and where to look; no line when the page has none to say", () => {
     const c = draw(undefined, stat({ text: "No match videos at Worlds · Jackson Division in 2025–26 yet.", href: EV }));
     expect(c.querySelector("[data-videos-empty]")?.textContent).toBe("No match videos at Worlds · Jackson Division in 2025–26 yet. Open the event");

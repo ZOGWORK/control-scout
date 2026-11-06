@@ -88,11 +88,12 @@ function streamRefs(a: SearchAnswer): (VideoRef & { href: string })[] {
     .flatMap((l) => { const r = refOfHref(l.href); return r && !r.key ? [{ ...r, href: l.href }] : []; });
 }
 
-/** An answer about one team (its stat answer's team, or a link to an event for it) or a list of highlights. */
+/** An answer about one team (its stat answer's team, or a link to an event for it), a list of highlights or a video page. */
 function aboutTeam(a: SearchAnswer): boolean {
   if (a.stat?.team) return true;
   if (/[?&]team=\d+/.test(a.stat?.headline?.href ?? "")) return true;
-  return !!a.stat?.blocks.some((b) => b.kind === "matches" && b.rows.length > 0 && b.rows.every((r) => r.note));
+  // A list of highlights, or a video page: its own matches stand in before the event's recording too.
+  return !!a.stat?.blocks.some((b) => (b.kind === "matches" && b.rows.length > 0 && b.rows.every((r) => r.note)) || (b.kind === "videos" && b.tiles.length > 0));
 }
 
 /** The team an answer is about: its stat answer's team, else the one its headline's event link is for. */

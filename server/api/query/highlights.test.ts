@@ -40,6 +40,7 @@ beforeAll(async () => {
   await ev(2025, "FTCCMP1JACK", `${CMP} - Jackson Division`, "FIRSTChampionship", "2026-04-27", "TX", "FTCCMP1");
   await ev(2025, "USNJQ1", "Garden Qualifier", "Qualifier", "2026-01-10", "NJ");
   await ev(2025, "USTXQ1", "Lone Star Qualifier", "Qualifier", "2026-02-07", "TX");
+  await ev(2025, "USCOQ1", "Peak Qualifier", "Qualifier", "2026-02-14", "CO");
   let n = 0;
   const match = async (season: number, code: string, level: "qual" | "playoff", series: number, label: string, day: string, red: [number, number, number], blue: [number, number, number], reds: number[], blues: number[], video: string | null = null) => {
     n++;
@@ -71,6 +72,10 @@ beforeAll(async () => {
   await match(2025, "USTXQ1", "qual", 0, "Q2", "2026-02-07", [100, 100, 10], [20, 20, 5], [7149], [23268]);
   await match(2025, "USTXQ1", "playoff", 0, "M1", "2026-02-07", [90, 90, 10], [80, 80, 10], [7149], [23268]);
   await match(2025, "USTXQ1", "playoff", 5, "M6", "2026-02-07", [95, 95, 10], [70, 70, 10], [7149], [23268]);
+  // Colorado 2025–26: its final is also its best score, so its highlights list it as that, not as the latest playoff.
+  await match(2025, "USCOQ1", "qual", 0, "Q1", "2026-02-14", [100, 100, 10], [90, 90, 10], [7149], [23268]);
+  await match(2025, "USCOQ1", "playoff", 1, "M1", "2026-02-14", [120, 120, 10], [100, 100, 10], [7149], [23268]);
+  await match(2025, "USCOQ1", "playoff", 2, "M2", "2026-02-14", [300, 300, 10], [100, 100, 10], [7149], [23268]);
   await rebuildSearch();
   clearAllCaches();
 });
@@ -221,6 +226,16 @@ describe("a team's highlights", () => {
     expect((await stat("4215 highlights at worlds 2025")).title).toBe("Highlights at Worlds · Ross Division, 2024–25");
     expect(rows(await stat("top 2 4215 highlights at worlds"))).toHaveLength(2);
     expect((await ask("4215 top 0 highlights")).stat?.intent).not.toBe("team-highlights");
+  });
+
+  it("a recap leads with the last playoff match even when its highlights list it under another reason", async () => {
+    expect((await stat("colorado highlights")).headline?.label).toBe("Best score: M2 at Peak Qualifier");
+    expect((await stat("colorado recap")).headline).toMatchObject({ label: "Latest playoff match: M2 at Peak Qualifier", value: "300 points" });
+  });
+
+  it("a team's videos lead with its last playoff match, won or lost", async () => {
+    // 4215's Worlds: it won its division's M1 and lost the final.
+    expect((await stat("4215 videos at worlds")).headline?.label).toMatch(/^Latest playoff match: F1 at /);
   });
 
   it("a team's videos: every match it played there, its own events' streams", async () => {

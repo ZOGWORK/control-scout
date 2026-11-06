@@ -51,16 +51,18 @@ export async function teamHighlights(team: { number: number; name: string | null
   if (n != null) picks.splice(n);
   const links = await teamLinks(picks.flatMap(({ m }) => [...m.partners, ...m.opponents]));
   const rows: StatMatchRow[] = picks.map(({ m, note }) => ({ ...matchRow(m, links, team.number), note }));
-  // A video page asked for ("<team> videos", "watch <team> at worlds") leads with its latest playoff win; else its best score.
-  const lead = (page === "videos" ? picks.findIndex((p) => p.note === "Latest playoff win") : -1) + 1 || 1;
-  const top = picks[lead - 1].m;
+  // A video page asked for ("<team> videos", "watch <team> at worlds") leads with its latest playoff match (whatever
+  // reason it was listed under); else its best score.
+  const last = page === "videos" ? xs.filter((m) => m.level === "playoff").at(-1) : undefined;
+  const lead = last ? { m: last, note: last.result === "W" ? "Latest playoff win" : "Latest playoff match" } : picks[0];
+  const top = lead.m;
   const S = seasonLabel(season);
   const standout: StatBlock = { kind: "matches", title: `${picks.length} standout ${picks.length === 1 ? "match" : "matches"}`, rows };
   const gallery = page ? videoPage(xs, team.number, page === "highlights" ? null : `No match videos of ${team.number}${at ? ` at ${xs[0].event}` : ""} in ${S} yet.`) : null;
   return {
     // The event is said once, in the title: its first match's (a Worlds division before the finals it feeds).
     family: "superlative", intent: "team-highlights", title: `${page === "videos" ? "Match videos" : "Highlights"}${at ? ` at ${xs[0].event}` : ""}, ${S}`, team, scope: [S],
-    headline: { value: `${np(top)} points`, label: `${picks[lead - 1].note}: ${top.label} at ${top.event}`, sub: `${top.own !== np(top) ? `${top.own} with penalties · ` : ""}${top.result === "W" ? "Won" : top.result === "L" ? "Lost" : "Tied"} ${top.own}–${top.opp}`, href: rows[lead - 1].href },
+    headline: { value: `${np(top)} points`, label: `${lead.note}: ${top.label} at ${top.event}`, sub: `${top.own !== np(top) ? `${top.own} with penalties · ` : ""}${top.result === "W" ? "Won" : top.result === "L" ? "Lost" : "Tied"} ${top.own}–${top.opp}`, href: matchHref(top) },
     blocks: page === "videos" ? [gallery!] : gallery ? [standout, gallery] : [standout],
     definition: `The team's standout matches${at ? ` at ${xs[0].event}` : ""} of ${S}${asked == null ? `, its latest season with matches${at ? " there" : ""}` : ""}: its best score (points without penalties), biggest win (by margin), latest playoff win, best Auto and closest win, each match once. Only matches its robot played in. A match with a video plays here.`,
     source: `From ${xs.length} ${xs.length === 1 ? "match" : "matches"} in ${S}`,

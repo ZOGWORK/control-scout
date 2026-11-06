@@ -219,21 +219,24 @@ async function workOut(f0: HighlightFind): Promise<StatAnswer> {
   };
   if (!picks.length) return { ...base, blocks: [], none: `No played matches at official events${where2} yet.` };
   const gallery = await galleryOf(whole ? scored : null, events, f.videos ? `No match videos${where2} yet.` : null, ev ? f.eventName : undefined);
-  // The picks' teams, in one read of those matches.
-  const ups = await lineups(picks.map((x) => x.r));
+  // A video page leads with the scope's latest playoff match (a recap ends on the final, whatever reason it was
+  // listed under), highlights with the best score.
+  const last = f.videos ? (scored?.filter((r) => r.level === "playoff").at(-1) ?? picks.find((p) => p.note === "Latest playoff match")?.r) : undefined;
+  const lead = last ? { r: { ...last, side: winnerOf(last) } as Pick, note: "Latest playoff match" } : picks[0];
+  // The picks' teams (and the lead's), in one read of those matches.
+  const ups = await lineups([...picks.map((x) => x.r), lead.r]);
   const links = await teamLinks([...ups.values()].flat());
   const named = (r: Row, side: string) => (ups.get(`${key(r)}|${side}`) ?? []).map((t) => links.get(t)!).filter(Boolean);
   const rows: StatMatchRow[] = picks.map(({ r, note }) => ({ ...allianceRow(r, r.side, named), note }));
-  // A video page leads with the latest playoff match (a recap ends on the final), highlights with the best score.
-  const lead = (f.videos ? picks.findIndex((p) => p.note === "Latest playoff match") : -1) + 1 || 1;
-  const top = picks[lead - 1].r, best = rows[lead - 1];
+  const top = lead.r, best = allianceRow(top, top.side, named);
   const standout: StatBlock = { kind: "matches", title: `${picks.length} standout ${picks.length === 1 ? "match" : "matches"}`, rows };
   return {
     ...base, ...(f.videos ? { title: `Match videos${at ? ` ${at}` : ""}, ${S}` } : {}),
-    headline: { value: `${best.ownNp ?? best.own} points`, label: `${picks[lead - 1].note}: ${top.label} at ${shortEvent(top.name, top.type)}`, href: best.href, type: top.type,
+    headline: { value: `${best.ownNp ?? best.own} points`, label: `${lead.note}: ${top.label} at ${shortEvent(top.name, top.type)}`, href: best.href, type: top.type,
       sub: `${best.ownNp != null && best.own !== best.ownNp ? `${best.own} with penalties · ` : ""}${best.alliance === "red" ? "Red" : "Blue"} ${best.result === "W" ? "won" : best.result === "L" ? "lost" : "tied"} ${best.own}–${best.opp}`,
       teams: best.partners, alliance: best.alliance },
-    blocks: f.videos ? [gallery] : [standout, gallery],
+    // A scope too big to list keeps its standout matches, the gallery saying why it lists none.
+    blocks: f.videos && gallery.kind === "videos" && gallery.tiles.length ? [gallery] : [standout, gallery],
   };
 }
 
@@ -243,7 +246,7 @@ async function galleryOf(xs: Scored[] | null, events: { season: number; code: st
   named?: HighlightFind["eventName"]): Promise<StatBlock> {
   const playoffs = xs?.filter((r) => r.level === "playoff") ?? [];
   const listed = !xs ? [] : xs.length <= GALLERY ? xs : playoffs.length <= GALLERY ? playoffs : [];
-  const more = xs && listed.length < xs.length ? (listed.length ? `Playoff matches only: ${xs.length.toLocaleString("en-US")} matches in all.` : "Too many matches to list here; open an event for each match's video.") : undefined;
+  const more = !xs || listed.length < xs.length ? (listed.length ? `Playoff matches only: ${xs!.length.toLocaleString("en-US")} matches in all.` : "Too many matches to list here; open an event for each match's video.") : undefined;
   const sides = new Map<string, number[]>();
   if (listed.length) {
     const p = byEvent([...new Map(listed.map((r) => [`${r.season}|${r.code}`, r])).values()], "x");
@@ -261,5 +264,6 @@ async function galleryOf(xs: Scored[] | null, events: { season: number; code: st
   const streams: StatLink[] = [...new Map(at.map((r) => [`${r.season}|${r.code}`, { label: shortEvent(r.name, r.type), href: eventHref(r.season, r.code) }])).values()].slice(0, STREAMS);
   const first = events?.[0];
   return { kind: "videos", title: "Every match", tiles, ...(streams.length ? { streams } : {}), ...(more ? { more } : {}),
-    ...(empty ? { empty: { text: empty, ...(named && first ? { href: eventHref(first.season, first.code) } : {}) } } : {}) };
+    // Nothing with a video says so only when every match was listed; a list cut short says why instead.
+    ...(empty && !more ? { empty: { text: empty, ...(named && first ? { href: eventHref(first.season, first.code) } : {}) } } : {}) };
 }

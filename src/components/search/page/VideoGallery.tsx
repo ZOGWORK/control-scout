@@ -29,6 +29,8 @@ export function VideoGallery({ b }: { b: Videos }) {
   const withVideo = b.tiles.filter((t) => clip(t.href));
   const streams = (b.streams ?? []).filter((s) => clip(s.href));
   if (!withVideo.length && !streams.length) {
+    // A list cut short (a scope too big to list) says why, never that there's no video.
+    if (!b.empty) return b.more ? <p className="text-xs text-muted-foreground" data-videos-more>{b.more}</p> : null;
     return b.empty ? (
       <p className="text-sm text-foreground" data-videos-empty>
         {b.empty.text}{b.empty.href && <> <Link to={b.empty.href} className="font-medium underline decoration-border underline-offset-2 hover:text-accent-text max-md:inline-flex max-md:min-h-11 max-md:items-center">{b.empty.href.startsWith("/teams/") ? "Open the team's page" : "Open the event"}</Link></>}
@@ -36,7 +38,9 @@ export function VideoGallery({ b }: { b: Videos }) {
     ) : null;
   }
   const levels = (["qual", "playoff"] as const).filter((l) => withVideo.some((t) => t.level === l));
-  const shown = withVideo.filter((t) => level === "all" || t.level === level);
+  // A level the last answer had and this one doesn't: all of them (its buttons are gone).
+  const lv: Level = level === "all" || levels.includes(level) ? level : "all";
+  const shown = withVideo.filter((t) => lv === "all" || t.level === lv);
   return (
     <div className="space-y-5" data-block="videos">
       {!!streams.length && (
@@ -65,8 +69,8 @@ export function VideoGallery({ b }: { b: Videos }) {
             {levels.length > 1 && (
               <div role="group" aria-label="Show" className="inline-flex rounded-lg border border-border p-0.5 text-xs font-medium">
                 {(["all", ...levels] as Level[]).map((l) => (
-                  <button key={l} type="button" aria-pressed={level === l} onClick={() => { setLevel(l); setAll(false); }} data-video-level={l}
-                    className={cn("min-h-9 rounded-md px-3 max-md:min-h-11 pointer-coarse:min-h-11", level === l ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}>
+                  <button key={l} type="button" aria-pressed={lv === l} onClick={() => { setLevel(l); setAll(false); }} data-video-level={l}
+                    className={cn("min-h-9 rounded-md px-3 max-md:min-h-11 pointer-coarse:min-h-11", lv === l ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}>
                     {LEVELS[l]}
                   </button>
                 ))}
