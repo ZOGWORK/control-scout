@@ -43,6 +43,9 @@ import { winnersAnswer, worldsFollowUps } from "./families/winners.js";
 import { eventHref, shortEvent, teamMatches } from "./matchSet.js";
 import { readCompound } from "./compound.js";
 import { eventInitialisms, initialismEvent } from "../query/initialisms.js";
+import { names } from "../query/names.js";
+import { countryOf } from "../../../src/shared/countries.js";
+import { regionOf } from "../../../src/shared/searchEventQuery.js";
 import { compoundSearch } from "./compoundSearch.js";
 import { THEIR_FIRST, THEIR_LAST, readLeaderboard, readStatQuestion, readTeamSet, readTwoTeam, type LeaderboardQuestion, type TeamSetQuestion, type IntentId, type StatQuestion, type TwoTeamId, type TwoTeamQuestion } from "./read.js";
 
@@ -374,9 +377,15 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   return statAnswerOf(q, it, resolve, opts);
 }
 
+/** Whether `core` is a place's name alone: a country, or a state or province. */
+const placeNamed = (core: string) => !/\d/.test(core) && (!!countryOf(core) || !!regionOf(core.trim().split(/\s+/)));
+
 /** The answer to a stat question already read (by ./read.ts, or by the search pipeline from its slots), or null when
  *  its team isn't found. */
 export async function statAnswerOf(q: string, it: StatQuestion, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+  // A place's name beside states or a championship is the place's championship ("romania states results"), never a team
+  // with the place in its name: a team there only by its number or its whole name.
+  if ((it.scope.states || it.scope.championship || /\bchampionships?\b/i.test(q)) && placeNamed(it.core) && !(await names()).teamsNamed(it.core).length) return null;
   const base = await resolve(it.core);
   const top = base.step !== "recovery" ? base.hits[0] : undefined;
   if (!top || top.kind !== "team" || top.href) return null;
