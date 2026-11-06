@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.5.0 — 2026-11-06
+
+Search predicts a full match: two alliances of two.
+
+### Highlights
+- [predict] "Predict 12345 23456 vs 34567 45678" gives the match's call
+- [predict] Win chance, predicted score and margin for each alliance
+- [predict] "Custom matchup" and "who wins" phrasings read the same
+
+### Search
+- **Two alliances of two.** Four teams with "vs" between the pairs ("predict 12345 23456 vs 34567 45678", "12345 and 23456 vs 34567 and 45678 who wins", "custom matchup …", by number or name) answer with the engine's call for that qualification match, as Predict makes it: each alliance's win chance, predicted score and margin, the confidence, each team's rating, and Predict opened on the same lineup. The season is the one named, else the latest every team has a rating in. Before, the card compared only the first team of each side. (#834)
+
 ## 3.4.9 — 2026-11-06
 
 A forecast asked against what happened answers with the event's forecast card.

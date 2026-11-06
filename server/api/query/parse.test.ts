@@ -64,6 +64,20 @@ describe("slots", () => {
     const p = await parse("predicted chances of 4215 east bergen conference");
     expect(p).toMatchObject({ intent: "team-predict", complete: true, teams: [{ number: 4215 }], event: { words: "east bergen conference" }, time: null });
   });
+  it("reads two alliances of two either side of a vs, any wording, as a match's call", async () => {
+    for (const q of [
+      "predict 4215 6980 vs 24033 23268", "4215 and 6980 vs 24033 and 23268 who wins", "custom matchup 4215 6980 vs 24033 23268",
+      "predict a match with 4215 6980 vs 24033 23268", "4215 6980 versus 24033 23268 predicted score in 2025-26",
+    ]) {
+      const p = await parse(q);
+      expect(p, q).toMatchObject({ intent: "alliance-predict", complete: true });
+      expect(p.teams.filter((t) => t.at < p.vsAt!).map((t) => t.number), q).toEqual([4215, 6980]);
+      expect(p.teams.filter((t) => t.at > p.vsAt!).map((t) => t.number), q).toEqual([24033, 23268]);
+    }
+    // Three or five teams are no two alliances of two; two teams stay the two-team call.
+    expect((await parse("4215 6980 vs 24033")).intent).not.toBe("alliance-predict");
+    expect((await parse("4215 vs 6980 matchup")).intent).toBe("two-predict");
+  });
   it("reads a forecast held up against what happened as the forecast at the event (its card shows both)", async () => {
     for (const q of [
       "4215 last prediction for east bergen conference", "show me 4215's predictions before and after east bergen conference",

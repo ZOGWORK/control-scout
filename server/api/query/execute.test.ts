@@ -170,6 +170,20 @@ describe("one question, any phrasing, any team", () => {
       expect(s.headline?.value, q).toBe("2");
     }
   });
+  it("two alliances of two: the match's call for that lineup, red first, by number or name", async () => {
+    for (const q of ["predict 4215 6980 vs 24033 17713 in 2025-26", "hypnotic robotics and bad wolf vs alphatronic and delta force who wins"]) {
+      const s = await stat(q);
+      expect(s, q).toMatchObject({ family: "two-team", intent: "alliance-predict", title: "Prediction: 4215 & 6980 vs 24033 & 17713 in 2025–26" });
+      // No ratings stored here: said so, never a made-up call.
+      expect(s.none, q).toMatch(/^No 2025–26 prediction rating for /);
+    }
+    // "Last season" is the season before; the dropdown (no card) still opens Predict on the lineup.
+    expect((await stat("predict 4215 6980 vs 24033 17713 last season")).title).toBe("Prediction: 4215 & 6980 vs 24033 & 17713 in 2024–25");
+    const short = await searchAnswer("predict 4215 6980 vs 24033 17713 in 2025-26", { limit: 12, now: NOW });
+    expect(short.pages[0]).toMatchObject({ href: "/predict?mode=match&season=2025&red=4215,6980&blue=24033,17713" });
+    // A match number it can't answer for is never dropped from the question.
+    expect((await ask("predict 4215 6980 vs 24033 17713 match 12")).stat?.intent).not.toBe("alliance-predict");
+  });
   it("a name typed nearly right offers the spelling, whatever stood between its words", async () => {
     const a = await ask("hypnotc-robotics highest score");
     expect(a.stat?.team?.number).toBe(4215);
