@@ -27,7 +27,7 @@ After an update, the site answers from a warmed-up server: no more minutes of sl
 ### Speed
 - **Warm before answering.** A new server builds search's index (rebuilt once when the code that builds it changed), its names, spelling and typo index, and the track record before it takes requests, for at most 20 seconds (well under the proxy's 60). Ratings build in the background. Each step's time is logged, then the total.
 - **The first refresh later.** The first data refresh after a restart runs at 10 minutes instead of 1, and the regular schedule waits for it, so a stats run and search rebuild no longer land on a just-updated server's first minutes.
-- **Live means warm.** An update counts as live once the new server says it's ready and warm.
+- **Live means warm.** An update counts as live once the new server says it's ready and warm. (#1024)
 
 ## 3.7.6 — 2026-11-06
 
