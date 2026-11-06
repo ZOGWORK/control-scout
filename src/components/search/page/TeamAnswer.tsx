@@ -4,7 +4,7 @@
 // subtitle; then the team's season at a glance, the team page's own tiles (OPR, prediction rating, record, events)
 // and its events, read from the team page's own data (/api/teams/:n). Nothing here is computed: a value the data
 // doesn't hold is a dash. An answer about no team (a rule, a season's list) keeps the card and the title.
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, CalendarDays, GraduationCap, MapPin, Search, Sparkles, Target, Trophy } from "lucide-react";
 import { qs, useApi } from "../../../lib/api";
@@ -58,8 +58,10 @@ type Who = { number: number; name: string | null };
 
 /** The answer's card: a team header (one team, or two side by side), the title and subtitle, the answer, then
  *  whatever supports it. `season`: the badge in the header (the season the answer is about). */
-export function AnswerFrame({ teams, profile, season, title, hideTitle, sub, children, label, data }: {
+export function AnswerFrame({ teams, split, profile, season, title, hideTitle, sub, children, label, data }: {
   teams?: Who[];
+  /** Two alliances: the first `split` teams are one side of the "vs", the rest the other. */
+  split?: number;
   profile?: TeamProfile | null;
   season?: number | null;
   title: string;
@@ -74,7 +76,7 @@ export function AnswerFrame({ teams, profile, season, title, hideTitle, sub, chi
   return (
     <article aria-label={label ?? title} className="mb-5 overflow-hidden rounded-2xl border border-border bg-card" data-answer-frame {...data}>
       {shown.length === 1 ? <TeamHeader who={shown[0]} profile={profile} season={season} />
-        : shown.length > 1 ? <TeamsHeader teams={shown} season={season} /> : null}
+        : shown.length > 1 ? <TeamsHeader teams={shown} split={split} season={season} /> : null}
       <div className="p-4 sm:p-6">
         <div className={cn("min-w-0", (!hideTitle || sub) && "mb-4")}>
           <h2 className={cn("font-display text-lg font-semibold leading-snug text-foreground", hideTitle && "sr-only")} data-answer-title>{title}</h2>
@@ -117,8 +119,36 @@ function TeamHeader({ who, profile, season }: { who: Who; profile?: TeamProfile 
 }
 
 /** Two teams (a head-to-head, a comparison): each number big with its name, side by side, each its own link. */
-function TeamsHeader({ teams, season }: { teams: Who[]; season?: number | null }) {
+function TeamsHeader({ teams, split, season }: { teams: Who[]; split?: number; season?: number | null }) {
   const q = season != null ? `?season=${season}` : "";
+  // Two alliances: each side's teams together, one colour per side, "vs" between them.
+  if (split && split > 0 && split < teams.length) {
+    const sides = [teams.slice(0, split), teams.slice(split)];
+    return (
+      <header className="border-b border-border p-4 sm:p-6" data-answer-teams data-answer-sides>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="sr-only">Alliances</span>
+          {season != null && <Badge variant="secondary" className="ml-auto" data-answer-season>{seasonLabel(season)}</Badge>}
+        </div>
+        <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
+          {sides.map((side, i) => (
+            <Fragment key={i}>
+              <div className={cn("min-w-0 space-y-2", i === 1 && "col-start-3 text-right")} aria-label={side.map((t) => t.name ? `${t.name} (${t.number})` : `Team ${t.number}`).join(" and ")}>
+                {side.map((t) => (
+                  <Link key={t.number} to={`/teams/${t.number}${q}`} className={cn("group block min-w-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/60", TAP)}>
+                    <span className="block font-display text-2xl font-semibold leading-none tracking-tight tabular-nums text-foreground transition-colors group-hover:text-accent-text sm:text-3xl">{t.number}</span>
+                    <span className="mt-1 block break-words text-sm text-foreground/90 sm:text-base">{t.name ?? "Name not on file"}</span>
+                  </Link>
+                ))}
+                <span aria-hidden className={cn("block h-1 w-10 rounded-full", teamFill(i), i === 1 && "ml-auto")} data-side-mark={i} />
+              </div>
+              {i === 0 && <span aria-hidden className="col-start-2 row-start-1 text-sm font-medium text-muted-foreground">vs</span>}
+            </Fragment>
+          ))}
+        </div>
+      </header>
+    );
+  }
   return (
     <header className="border-b border-border p-4 sm:p-6" data-answer-teams>
       <div className="flex flex-wrap items-center justify-between gap-2">
