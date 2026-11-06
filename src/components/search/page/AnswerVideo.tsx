@@ -58,7 +58,7 @@ function Player({ v, className }: { v: SearchVideoItem; className?: string }) {
       </div>
       <figcaption className="mt-1.5 flex flex-wrap items-center justify-between gap-x-3 text-xs text-muted-foreground max-sm:px-4">
         <span data-video-caption>{caption}</span>
-        <a href={watchUrl(v.videoId, v.t)} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 hover:text-foreground max-md:min-h-11 pointer-coarse:min-h-11">
+        <a href={watchUrl(v.videoId, v.t)} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 hover:text-foreground max-md:min-h-[44px] pointer-coarse:min-h-[44px]">
           Open on YouTube <ExternalLink className="size-3" aria-hidden />
         </a>
       </figcaption>
@@ -79,7 +79,7 @@ export function RowPlay({ href, label, className }: { href: string; label: strin
   if (!v) return null;
   return (
     <button type="button" onClick={() => { rowPlayed(); playMatchVideo({ videoId: v.videoId, t: v.t, label }); }}
-      className={cn("inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-text-base/[0.06] hover:text-foreground max-md:size-11 pointer-coarse:size-11", className)}
+      className={cn("inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-text-base/[0.06] hover:text-foreground max-md:size-[44px] pointer-coarse:size-[44px]", className)}
       aria-label={`Play ${label}: ${v.kind === "match" ? "official match video" : `the event's recording from ${clipTime(v.t)}`}`} title={videoCaption(v)} data-row-play={v.kind} data-video-control>
       <PlayCircle className="size-5" aria-hidden />
     </button>
