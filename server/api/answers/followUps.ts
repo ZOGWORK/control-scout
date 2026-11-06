@@ -23,6 +23,8 @@ export const pageAnswer = (q: string, limit: number, prefer: ReadonlySet<string>
 /** At most this many questions are shown, and this many candidates run to find them. */
 export const ASK_MAX = 6;
 const CHECK_MAX = 16;
+/** At most this many of the searches the page already offers are read, to leave out questions that repeat them. */
+const SHOWN_MAX = 8;
 
 type Slots = { t?: number; u?: number; event?: string; place?: string; when?: string; award?: string };
 type Template = { family: Family; ask: (s: Required<Slots>) => string; needs: (keyof Slots)[]; when?: boolean };
@@ -143,15 +145,19 @@ export function previewOf(a: SearchAnswer): string | null {
 
 /** What an answer answers: two candidates with the same are one question asked twice, and one with the search's own is
  *  the search again. */
-const answerKey = (a: SearchAnswer) => `${a.stat?.intent ?? a.card?.kind ?? a.understood?.kind}|${a.stat?.title ?? a.card?.title ?? a.understood?.label}`;
+export const answerKey = (a: SearchAnswer) => `${a.stat?.intent ?? a.card?.kind ?? a.understood?.kind}|${a.stat?.title ?? a.card?.title ?? a.understood?.label}`;
 
 /** People also ask for `q` (its own answer `a`): up to ASK_MAX questions search answers directly, each with its answer's
  *  own line. Only the first CHECK_MAX candidates are run: fewer questions, never a slower page. */
 export async function followUps(q: string, a: SearchAnswer, prefer: ReadonlySet<string> = new Set()): Promise<SearchFollowUp[]> {
   const p = await parseQuery(q, await parseContext(Date.now(), prefer));
-  const seen = new Set([answerKey(a).toLowerCase()]);
+  // The searches the page already offers (a sorry note's, a team fallback's, the answer's own related ones): asked
+  // again in other words, they'd be offered twice. Their answers, kept the same way, say what they answer.
+  const shown = [...new Set([...(a.suggest ?? []), ...(a.sorry?.suggest ?? []), ...(a.stat?.blocks ?? []).flatMap((b) => (b.kind === "related" ? b.queries : []))])].slice(0, SHOWN_MAX);
   const tried = candidates(p, a).slice(0, CHECK_MAX);
-  const answers = await Promise.all(tried.map((c) => pageAnswer(c.q, SEARCH_PAGE_LIMIT, prefer).catch(() => null)));
+  const ask = (x: string) => pageAnswer(x, SEARCH_PAGE_LIMIT, prefer).catch(() => null);
+  const [answers, offered] = await Promise.all([Promise.all(tried.map((c) => ask(c.q))), Promise.all(shown.map(ask))]);
+  const seen = new Set([a, ...offered].flatMap((x) => (x ? [answerKey(x).toLowerCase()] : [])));
   const out: SearchFollowUp[] = [];
   tried.forEach((c, i) => {
     const ans = answers[i];

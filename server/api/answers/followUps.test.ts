@@ -11,7 +11,7 @@ import { parseQuery } from "../query/parse";
 import { parseContext } from "../query/context";
 import { failureOf, outcomeTrace } from "../../searchFailures";
 import { clearAllCaches } from "../../caches";
-import { candidates, followUps, pageAnswer, previewOf, ASK_MAX } from "./followUps";
+import { answerKey, candidates, followUps, pageAnswer, previewOf, ASK_MAX } from "./followUps";
 
 const TEAMS = [4215, 6980, 7149] as const;
 
@@ -64,6 +64,19 @@ describe("people also ask", () => {
   it("leaves out a question with no answer for this team", async () => {
     expect((await asked("4215 record")).map((x) => x.q)).toContain("What awards has 4215 won?");
     expect((await asked("6980 record")).map((x) => x.q)).not.toContain("What awards has 6980 won?");
+  });
+
+  it("never asks again, in other words, a search the page already offers", async () => {
+    // A question search can't answer yet: the page offers the team's own searches ("4215 record 2025–26").
+    const q = "4215 upcoming events";
+    const a = await pageAnswer(q, 25, new Set());
+    const offered = [...(a.suggest ?? []), ...(a.sorry?.suggest ?? [])];
+    expect(offered.length).toBeGreaterThan(0);
+    const what = async (x: string) => answerKey(await pageAnswer(x, 25, new Set()));
+    const theirs = new Set(await Promise.all(offered.map(what)));
+    const ask = await followUps(q, a);
+    expect(ask.length).toBeGreaterThan(0);
+    for (const x of ask) expect(theirs.has(await what(x.q)), x.q).toBe(false);
   });
 
   it("asks the same questions of any team", async () => {
