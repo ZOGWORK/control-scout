@@ -187,7 +187,9 @@ describe("the related searches page", () => {
     // Searches about two teams: no one team to name.
     expect(await teamTitle(4215, [item("4215 record", "team"), item("6980 record", "team")])).toBeUndefined();
     expect(await teamTitle(421, [item("4215 record", "team")])).toBeUndefined();
-    expect(await teamTitle(4215, [item("4215 record", "team"), item("top teams", "leaders")])).toBe("About 4215 Hypnotic Robotics");
+    expect(await teamTitle(4215, [item("4215 record", "team"), item("4215 win rate", "team")])).toBe("About 4215 Hypnotic Robotics");
+    // A broader search that joined the group (a lone leftover): no one team to name.
+    expect(await teamTitle(4215, [item("4215 record", "team"), item("4215 win rate", "team"), item("top teams", "leaders")])).toBeUndefined();
   });
 
   it("lists a plain team search's own follow-ups, as /search does beside it", async () => {
