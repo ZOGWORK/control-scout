@@ -11,6 +11,15 @@ export const EVENT_STATUS_TONE = {
   finished: "bg-emerald-400/15 text-success",
 } as const;
 
+/** Event status at full strength, where status is what a block is about (search's championship tree,
+ *  components/search/page/EventTree.tsx): a solid chip (`chip`, white on a deep fill, AA), the block's thick bar and the
+ *  dot on its divisions count (`bar`), and the tree's connector (`line`, `tick`). Same hues as EVENT_STATUS_TONE. */
+export const EVENT_STATUS_SOLID = {
+  live: { chip: "bg-red-700 text-white", bar: "bg-red-600", line: "border-red-600", tick: "before:bg-red-600" },
+  upcoming: { chip: "bg-sky-700 text-white", bar: "bg-sky-600", line: "border-sky-600", tick: "before:bg-sky-600" },
+  finished: { chip: "bg-emerald-700 text-white", bar: "bg-emerald-600", line: "border-emerald-600", tick: "before:bg-emerald-600" },
+} as const;
+
 /** Video and recordings (Has a recording, Clips, a match's Watch chip): the one video red, as text or on its own tint. */
 export const VIDEO_TONE = { text: "text-video", chip: "bg-video/12 text-video" } as const;
 
