@@ -435,8 +435,8 @@ function Series({ b }: { b: Extract<StatBlock, { kind: "series" }> }) {
           const style = { left: `${x(p.i)}%`, top: `${y(p.y)}%` };
           const label = `${p.x}: ${p.y}${b.unit ? ` ${b.unit}` : ""}${p.note ? ` (${p.note})` : ""}`;
           return p.href
-            ? <Link key={p.i} to={p.href} style={style} title={label} aria-label={label} className="absolute -translate-x-1/2 -translate-y-1/2 p-1 hover:[&>span]:bg-accent">{dot}</Link>
-            : <span key={p.i} style={style} title={label} aria-label={label} role="img" className="absolute -translate-x-1/2 -translate-y-1/2 p-1">{dot}</span>;
+            ? <Link key={p.i} to={p.href} style={style} title={label} aria-label={label} className="absolute flex size-[24px] -translate-x-1/2 -translate-y-1/2 items-center justify-center hover:[&>span]:bg-accent">{dot}</Link>
+            : <span key={p.i} style={style} title={label} aria-label={label} role="img" className="absolute flex size-[24px] -translate-x-1/2 -translate-y-1/2 items-center justify-center">{dot}</span>;
         })}
       </div>
       {/* Every event's full name is in the list below: no cut-off names under the line. */}

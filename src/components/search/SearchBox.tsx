@@ -503,7 +503,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
           </p>
           {suggestions.slice(0, recentCount).map((x, i) => (
             <div key={x.text} {...suggestion(i)} data-recent
-              className={cn("flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm pointer-coarse:min-h-11", i === active ? "bg-accent/[0.12] text-foreground" : "text-foreground/90")}>
+              className={cn("flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm pointer-coarse:min-h-[44px]", i === active ? "bg-accent/[0.12] text-foreground" : "text-foreground/90")}>
               <Clock className="size-4 shrink-0 text-muted-foreground" /><span className="min-w-0 flex-1 truncate">{x.text}</span>
             </div>
           ))}
@@ -540,7 +540,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
           type="button" aria-label="Run search" data-search-submit
           onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()}
           onClick={() => { if (query) submit(false); else field.current?.focus(); }}
-          className={cn("-ml-1 flex shrink-0 items-center justify-center rounded-lg outline-none hover:bg-accent/10 focus-visible:ring-2 focus-visible:ring-ring/60 pointer-coarse:size-11 pointer-coarse:-my-1", lg ? "size-9 -mr-1" : "size-7 -mr-1.5")}
+          className={cn("-ml-1 flex shrink-0 items-center justify-center rounded-lg outline-none hover:bg-accent/10 focus-visible:ring-2 focus-visible:ring-ring/60 pointer-coarse:size-[44px] pointer-coarse:-my-1", lg ? "size-9 -mr-1" : "size-7 -mr-1.5")}
         >
           {busy ? <Loader2 className={cn("animate-spin text-muted-foreground", lg ? "size-5" : "size-4")} /> : <Search className={cn("text-accent", lg ? "size-5" : "size-4")} />}
         </button>

@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.3.6 — 2026-11-05
+## 3.3.8 — 2026-11-05
 
 Cards about one team are in that team's colour again, scoring phases take the team page's colours, and team numbers in match boxes no longer spill out of their chips.
 
@@ -29,6 +29,32 @@ Cards about one team are in that team's colour again, scoring phases take the te
 - **One team's colour.** A card about one team (its Worlds or states trips, how good it is, its record, OPR, highlights and facts) draws its headline number, tiles, bars, division-rank line and dots, latest trip, game names, award chips and pills in team A's colour, the colour that team has when search compares it. The latest trip's dot is larger and filled. Cards about two or three teams keep a colour per team, and cards about no team stay neutral. No gold, at most three colours, and every number clears 4.5:1 in every theme. (#789)
 - **Phase colours.** Match boxes, OPR tiles and phase values show each scoring phase in the team page's colour: Auto blue, TeleOp green, Endgame purple, penalties red, and total and ranking points yellow.
 - **Team chips fit.** A match box's team chip never gets narrower than its number, so a 4- or 5-digit team stays inside its border, and only the name is shortened. The phase tiles sit beside the scores only when the box itself is wide enough (two boxes side by side are narrow); otherwise they go underneath.
+
+## 3.3.7 — 2026-11-05
+
+Long search questions answer faster: a word looked up once is remembered for the rest of the answer.
+
+### Highlights
+- [speed] Long questions answer up to 7 times faster
+- [speed] "Top NJ team vs top Romania team" answers in under a second
+- [speed] Award-filtered team lists read each team's awards directly
+
+### Search
+- **A word looked up once.** One answer asks for the same team or word many times (each reader and layer asks again), and a word that finds nothing used to scan every name each time. Search now remembers each lookup for a minute, until the search index is rebuilt. Of the 19 held-out questions that took over a second, 11 now take under one, and the slowest went from 6.8 s to 2.0 s, with every answer unchanged. (#779)
+- **Award lists by index.** A list of teams that won an award reads each team's own awards, never every award that season for each team.
+
+## 3.3.6 — 2026-11-05
+
+Every kind of search answer is checked on a 390 px phone: nothing runs off the screen, and every link and button is big enough to tap.
+
+### Highlights
+- [appearance] Match names in search answers are easier to tap on a phone
+- [appearance] A line chart's points are bigger tap targets
+- [appearance] Video buttons and the search list are full 44 px taps on phones
+
+### Search
+- **Checked at 390 px.** A new check (`npm run phone-proof`) opens one search for every kind of answer card on a 390 × 844 phone and fails on sideways scrolling, anything past the screen's edge, a link or button under 24 × 24 px, two that overlap, a team number cut off, or more than one main button; it saves a phone shot of each.
+- **Bigger taps.** A match's name in a match box ("Q1", "M2") is at least 44 px wide on a phone; a line chart's points are 24 px; the leaderboard's "#" sort is 24 px wide; and the video's "Open on YouTube", each match's play button and the search list's rows are 44 px on a phone (they were 44 px only where the text size is 16 px) (#778).
 
 ## 3.3.5 — 2026-11-05
 
