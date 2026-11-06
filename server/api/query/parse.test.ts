@@ -260,6 +260,7 @@ describe("leaderboards said other ways", () => {
     const not = await parse("top 5 teams in Romania by rating, not OPR");
     expect(not).toMatchObject({ intent: "leaderboard", n: 5, complete: true });
     expect(not.symbols).not.toContain("metric:opr");
+    expect(not.notStats).toEqual(["OPR"]);
     expect(await parse("top 10 teams in New Jersey by OPR, with their records")).toMatchObject({ intent: "leaderboard", complete: true });
     expect(await parse("most points in a match in New Jersey")).toMatchObject({ intent: "top-matches", complete: true });
   });
