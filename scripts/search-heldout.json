@@ -2733,5 +2733,55 @@
 "set": "natural",
 "n": 14,
 "q": "number of teams in Texas"
+},
+{
+"set": "natural",
+"n": 15,
+"q": "where is 4215 from"
+},
+{
+"set": "natural",
+"n": 16,
+"q": "what school is 4215 from"
+},
+{
+"set": "natural",
+"n": 17,
+"q": "4215 rookie year"
+},
+{
+"set": "natural",
+"n": 18,
+"q": "what is 4215's OPR"
+},
+{
+"set": "natural",
+"n": 19,
+"q": "what was 4215's best score"
+},
+{
+"set": "natural",
+"n": 20,
+"q": "4215 biggest win"
+},
+{
+"set": "natural",
+"n": 21,
+"q": "what region is 4215 in"
+},
+{
+"set": "natural",
+"n": 22,
+"q": "what division was 4215 in at worlds"
+},
+{
+"set": "natural",
+"n": 23,
+"q": "who beat 4215 at worlds"
+},
+{
+"set": "natural",
+"n": 24,
+"q": "4215 best match ever"
 }
 ]

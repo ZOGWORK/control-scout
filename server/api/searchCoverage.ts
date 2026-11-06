@@ -165,8 +165,11 @@ export function rewriteQuery(q: string, named: ReadonlySet<string> = new Set()):
   // A team's penalties, said the short way: the points it gave away, event by event.
   if ((m = /^(\d{1,6})\s+(?:penalties|penalty|penalty points|fouls|fouls given|penalties given)$/.exec(t))) return { q: `${m[1]} penalty points given`, pre: true };
   // "Best match" and "worst match" by their score; "best event" by where it finished.
-  if ((m = /^(\d{1,6})\s+(best|top|greatest)\s+(?:match|game)(?:es)?$/.exec(t))) return { q: `${m[1]} highest score`, note: "the best match is read as the highest-scoring one", pre: true };
-  if ((m = /^(\d{1,6})\s+(?:worst)\s+(?:match|game)(?:es)?$/.exec(t))) return { q: `${m[1]} lowest score`, note: "the worst match is read as the lowest-scoring one", pre: true };
+  // A team's division at Worlds asked as a question ("what division was <team> in at worlds"): its Worlds divisions.
+  if ((m = new RegExp(`^(?:what|which)\\s+divisions?\\s+(?:is|was|were|are|did)\\s+${TEAM}\\s+(?:(?:in|play in|compete in)\\s+)?(?:at|for)\\s+(?:the\\s+)?(?:worlds|first championship|world championships?)((?:\\s+(?:in\\s+)?20\\d\\d(?:\\s*-\\s*\\d\\d)?)?)$`).exec(t))) return { q: squash(`${m[1]} worlds division ${m[2]}`), pre: true };
+  // "Ever" or "of all time" after a match is every season, kept.
+  if ((m = /^(\d{1,6})\s+(best|top|greatest)\s+(?:match|game)(?:es)?(\s+(?:ever|of all time|all time))?$/.exec(t))) return { q: `${m[1]} highest score${m[3] ? " ever" : ""}`, note: "the best match is read as the highest-scoring one", pre: true };
+  if ((m = /^(\d{1,6})\s+(?:worst)\s+(?:match|game)(?:es)?(\s+(?:ever|of all time|all time))?$/.exec(t))) return { q: `${m[1]} lowest score${m[2] ? " ever" : ""}`, note: "the worst match is read as the lowest-scoring one", pre: true };
   if ((m = /^(\d{1,6})\s+(?:best|top|greatest)\s+(?:event|competition|tournament)s?$/.exec(t))) return { q: `${m[1]} best finish`, note: "the best event is read as the best finish", pre: true };
   // A team's partners and opponents: who it played with (or against) most often, every one counted.
   if ((m = /^(\d{1,6})\s+(?:alliance\s+)?(?:partners?|teammates?)$/.exec(t))) return { q: `${m[1]} most frequent partner`, pre: true };
@@ -959,7 +962,9 @@ export async function teamFactAnswer(q: string, prefer: ReadonlySet<string>): Pr
   const t = also ? full.slice(0, also.index) : full;
   const alsoLabel: string | null = also ? ({ record: "Record", opr: "OPR", rating: "Rating", reliability: "Reliability" } as Record<string, string>)[also[1]] : null;
   const named = /^(?:what(?:'s| is)\s+)?(?:the\s+)?name\s+of\s+(.+)$/.exec(t);
-  const said = /^where\s+(?:is|are)\s+(.+?)\s+(from|located|based)$/.exec(t)
+  // The fact said first ("what region is <team> in", "which school does <team> go to"): [who, fact] as below.
+  const first = /^(?:what|which)\s+(region|home region|school|high school|organization|organisation|city|town)\s+(?:is|are|was|does|do)\s+(.+?)(?:\s+(?:in|from|based in|located in|go to|attend|part of|with))?$/.exec(t);
+  const said = (first ? [first[0], first[2], first[1]] as unknown as RegExpExecArray : null) ?? /^where\s+(?:is|are)\s+(.+?)\s+(from|located|based)$/.exec(t)
     ?? /^what(?:'s| is| are)\s+(.+?)\s+(called)$/.exec(t)
     ?? new RegExp(`^(?:what(?:'s| is)\\s+)?(.+?)(?:'s)?\\s+(${FACT_PHRASES})$`).exec(t)
     ?? /^when\s+(?:was|did)\s+(.+?)\s+(founded|start|started)$/.exec(t);

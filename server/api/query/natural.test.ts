@@ -6,6 +6,7 @@ import { migrate, openDb, run, setDb } from "../../db";
 import { rebuildSearch } from "../../stats/job";
 import { clearAllCaches } from "../../caches";
 import { searchAnswer } from "../searchAnswer";
+import { rewriteQuery } from "../searchCoverage";
 import type { SearchAnswer } from "../../../src/shared/api";
 import type { StatAnswer } from "../../../src/shared/searchStat";
 
@@ -53,6 +54,7 @@ beforeAll(async () => {
   // 20245 played only in 2024–25: a season named leaves it out.
   await match(2024, "USMIQ1", 100, 50, [20245], [24033]);
   await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) SELECT season, code, team, 50, 1 FROM event_teams");
+  await run("UPDATE teams SET rookie_year = 2019, school = 'Oradell Public School' WHERE number = 4215");
   await rebuildSearch();
   clearAllCaches();
 });
@@ -121,6 +123,30 @@ describe("count teams by place (3a)", () => {
     for (const q of ["how many teams from Oradell at worlds", "how many teams from Oradell at states", "how many teams from Oradell in 2025-26"]) {
       expect((await ask(q)).stat?.intent, q).not.toBe("city-teams");
     }
+  });
+});
+
+describe("who, what, where and the best, said more ways (3d, 3e)", () => {
+  it("who beat a team: the teams it lost to, however it's asked", async () => {
+    const SAID = ["who did 6980 lose to", "who beat 6980", "who has beaten 6980", "who beat bad wolf", "who defeated 6980?"];
+    const first = card(await ask(SAID[0]));
+    expect(first).toMatchObject({ kind: "lost-to-most" });
+    for (const q of SAID.slice(1)) expect(card(await ask(q)), q).toEqual(first);
+  });
+  it("a team's fact asked with the fact first", async () => {
+    for (const [q, title] of [["what school is 4215 from", "School"], ["which school does 4215 go to", "School"], ["what region is 4215 in", "Region"], ["which region is hypnotic robotics in", "Region"], ["4215 region", "Region"]]) {
+      expect((await ask(q)).card, q).toMatchObject({ title, team: { number: 4215 } });
+    }
+  });
+  it("the best match, ever or not: the highest score", async () => {
+    const SAID = ["what was 4215's best score", "4215 highest scoring match", "4215 best match", "4215 best match ever", "4215 best game of all time"];
+    const first = card(await ask(SAID[0]));
+    expect(first).toMatchObject({ kind: "highest-score", headline: "170 points" });
+    for (const q of SAID.slice(1)) expect(card(await ask(q)).headline, q).toBe("170 points");
+  });
+  it("a team's division at Worlds asked as a question is its Worlds divisions", () => {
+    expect(rewriteQuery("what division was 4215 in at worlds")).toMatchObject({ q: "4215 worlds division" });
+    expect(rewriteQuery("which division did 4215 play in at worlds 2023-24")).toMatchObject({ q: "4215 worlds division 2023-24" });
   });
 });
 
