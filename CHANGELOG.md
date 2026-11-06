@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.3.9 — 2026-11-06
+
+Search answers are in bold colour: every award, scoring phase and team has its own colour, the same on every card.
+
+### Highlights
+- [appearance] Inspire, Winning Alliance, Finalist and judged awards each in their own colour
+- [appearance] Auto blue, TeleOp green, Endgame purple, penalties red on every card
+- [appearance] Thick coloured bars, filled chips and coloured numbers instead of grey boxes
+
+### Search
+- **One palette.** Every search answer uses one set of colours, one per meaning, never shared. Auto is blue, TeleOp green, Endgame purple, penalties red and ranking points yellow. Inspire is magenta, Winning Alliance orange, Finalist Alliance pink, judged awards teal and performance awards indigo. Live, Upcoming and Finished each have one too. Anything without a meaning of its own (a team's numbers, bars, lines and ranks) takes the team's colour.
+- **Bolder.** Tiles get a thick left bar in their colour and a filled icon, and their number is in the colour too. Award rows and chips are filled, phase tiles in match boxes are solid, and the event awards podium is in the award's colour. The leaderboard's phase columns and section headings are coloured. Every text and fill clears 4.5:1 in every theme.
+- **Checked on every card.** Each card type is tested so that nothing outside the palette is used, no two meanings share a colour, and no bar, line, tile, pill or chip is left grey. (#PRNUM)
+
 ## 3.3.8 — 2026-11-05
 
 Cards about one team are in that team's colour again, scoring phases take the team page's colours, and team numbers in match boxes no longer spill out of their chips.
