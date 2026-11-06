@@ -26,7 +26,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 - [teams] A team never at Worlds is told so, with the other's results
 
 ### Search
-- **Two teams side by side.** "12345 vs 67890", "12345 versus 67890", "compare 12345 and 67890", "who is better, 12345 or 67890": the season's numbers of both teams in one card (OPR and its phases, the prediction rating, ranks and records), with Compare's own page first among the links. "12345 or 67890" alone is still a search for either team, and a name two teams share still asks which one.
+- **Two teams side by side.** "12345 vs 67890", "12345 versus 67890", "compare 12345 and 67890", "who is better, 12345 or 67890": the season's numbers of both teams in one card (OPR and its phases, the prediction rating, ranks and records), with Compare's own page first among the links. The numbers are printed once: the head-to-head panel that used to repeat them under it is left out when the card shows them. "12345 or 67890" alone is still a search for either team, and a name two teams share still asks which one.
 - **At Worlds or states with no season said.** Two teams compared at Worlds when neither went this season use the newest Worlds either went to. One that has never been there is told so plainly, with the other team's own results linked. (#875)
 
 ## 3.5.2 — 2026-11-06

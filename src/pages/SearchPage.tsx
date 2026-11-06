@@ -96,7 +96,9 @@ export default function SearchPage() {
   // A query that names a season ("4215 vs 6980 2024-25", "4215 2024-25": the Compare's link, a team hit's linkSeason)
   // shows that season, like the page it opens. Otherwise: this season, and early in it (most teams have no numbers
   // yet) last season's, labelled with it. A team hit asking for yet another season gets no badges (never another's).
-  const h2h = compares.find((c) => compareTeams(c).length >= 2);
+  // Numbers print once: an answer card that already sets the teams side by side takes the head-to-head panel's place.
+  const sideBySide = answer?.stat?.family === "two-team" && answer.stat.blocks.some((b) => b.kind === "compare");
+  const h2h = sideBySide ? undefined : compares.find((c) => compareTeams(c).length >= 2);
   // The closest results when nothing answers count too: a card opening a season shows that season's numbers.
   const listed = useMemo(() => [...hits, ...closest], [hits, closest]);
   const asked = (h2h ? compareSeason(h2h) : null) ?? listed.find((h) => h.kind === "team" && h.linkSeason != null)?.linkSeason ?? null;
