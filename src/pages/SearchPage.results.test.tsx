@@ -268,7 +268,11 @@ describe("search results page", () => {
     // What it was understood as stays off the page (§7): an attribute only.
     expect(container.querySelector("[data-understood]")!.getAttribute("data-understood")).toContain("Events in New Jersey");
     expect(container.querySelector("[data-no-results]")!.textContent).not.toMatch(/understood|read as/i);
-    expect(screen.getByRole("region", { name: "Closest results" }).querySelector('[data-result="team"]')).not.toBeNull();
+    const near = screen.getByRole("region", { name: "Closest results" });
+    expect(near.querySelector('[data-result="team"]')).not.toBeNull();
+    // A closest team is a full card: its season numbers, as in the results list, asked for with the rest.
+    expect(near.textContent).toContain("12-3-0");
+    expect(paths.some((p) => p?.includes("/api/teams-summary") && p.includes("4215"))).toBe(true);
     expect(container.textContent).toContain("4215 record");
     expect(screen.getByRole("link", { name: /Browse all events/ }).getAttribute("href")).toBe("/events");
     // No example searches here: the top bar's dropdown offers those.

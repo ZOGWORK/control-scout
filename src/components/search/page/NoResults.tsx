@@ -5,7 +5,7 @@
 import { Link } from "react-router-dom";
 import { CalendarDays, Shield } from "lucide-react";
 import type { SearchHit } from "../../../shared/api";
-import { EventCard, TeamCard } from "./ResultCards";
+import { EventCard, TeamCard, type SeasonSummary } from "./ResultCards";
 import { RelatedQuestions } from "./TeamAnswer";
 import { seasonLabel } from "../../../shared/format";
 
@@ -20,11 +20,13 @@ export function relatedFor(closest: SearchHit[]): string[] {
   return [...new Set(out)].slice(0, 4);
 }
 
-export function NoResults({ query, understood, closest, onOpen }: {
+export function NoResults({ query, understood, closest, summaries, onOpen }: {
   query: string;
   understood: string[];
   /** Near matches that didn't make the cut. */
   closest: SearchHit[];
+  /** Each team's season numbers, as the results list shows them. */
+  summaries?: Map<number, SeasonSummary>;
   onOpen: (h: SearchHit) => void;
 }) {
   const cards = closest.filter((h) => h.kind === "team" || h.kind === "event").slice(0, 3);
@@ -37,7 +39,7 @@ export function NoResults({ query, understood, closest, onOpen }: {
       {!!cards.length && (
         <section aria-label="Closest results" className="space-y-3">
           {cards.map((h) => (h.kind === "team"
-            ? <TeamCard key={`${h.kind}:${h.ref}`} h={h} onOpen={() => onOpen(h)} />
+            ? <TeamCard key={`${h.kind}:${h.ref}`} h={h} summary={summaries?.get(Number(h.ref))} onOpen={() => onOpen(h)} />
             : <EventCard key={`${h.kind}:${h.ref}`} h={h} onOpen={onOpen} />))}
         </section>
       )}

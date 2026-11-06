@@ -78,11 +78,13 @@ export default function SearchPage() {
   const filtersOn = anyFilter(filters, askedTime);
   const counts = useMemo(() => whenCounts(hits, filters), [hits, filters.when, filters.season, filters.type]);
 
-  // Season numbers for the teams listed and the Compare's sides, in one request.
+  // The closest real results when nothing answers (./search/page/NoResults.tsx), drawn as full cards.
+  const closest = useMemo(() => sections.find((s) => s.id === "closest")?.rows.filter((r) => !r.sub).map((r) => r.hit) ?? [], [sections]);
+  // Season numbers for the teams listed, the closest ones and the Compare's sides, in one request.
   const teamNums = useMemo(() => [...new Set([
     ...compares.flatMap(compareTeams),
-    ...hits.filter((h) => h.kind === "team" && !isCompare(h)).map((h) => Number(h.ref)).filter(Number.isInteger),
-  ])].slice(0, 100), [hits, compares]);
+    ...[...hits, ...closest].filter((h) => h.kind === "team" && !isCompare(h)).map((h) => Number(h.ref)).filter(Number.isInteger),
+  ])].slice(0, 100), [hits, closest, compares]);
   // A query that names a season ("4215 vs 6980 2024-25", "4215 2024-25": the Compare's link, a team hit's linkSeason)
   // shows that season, like the page it opens. Otherwise: this season, and early in it (most teams have no numbers
   // yet) last season's, labelled with it. A team hit asking for yet another season gets no badges (never another's).
@@ -190,7 +192,7 @@ export default function SearchPage() {
                   <NoResults
                     query={query} onOpen={open}
                     understood={readingOf(ax) ? [readingOf(ax)!] : notes.understood}
-                    closest={sections.find((s) => s.id === "closest")?.rows.filter((r) => !r.sub).map((r) => r.hit) ?? []}
+                    closest={closest} summaries={summaries}
                   />
                 </>
               )
