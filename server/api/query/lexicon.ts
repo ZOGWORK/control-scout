@@ -23,6 +23,8 @@ export type Sym =
   | { k: "worlds" }
   | { k: "states" }
   | { k: "predict" }
+  /** Going through: from a division to the finals, from an event to the next level ("advancement odds"). */
+  | { k: "advance" }
   | { k: "vs" }
   | { k: "and" }
   | { k: "together" }
@@ -112,6 +114,7 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["states|state|state championship|state championships|state champs|state finals|regionals|regional championship|regional", { k: "states" }],
   // Forecasts.
   ["prediction|predictions|predicted|predict|forecast|forecasts|projected|projection|expected|expect|chance|chances|odds|probability|likely|likelihood|favourite|favorite|favored|favoured|who wins|who will win|who would win", { k: "predict" }],
+  ["advance|advances|advancing|advancement|advancements|advance to the finals|make the finals|making the finals|go through|goes through|get through|gets through", { k: "advance" }],
   // Two teams.
   ["vs|v|versus|against|facing|face|faced|play|played|playing|vs.", { k: "vs" }],
   ["and|&|plus|with|alongside", { k: "and" }],

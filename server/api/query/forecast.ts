@@ -69,6 +69,18 @@ export async function eventFor(words: string, teams: number[], year: number | nu
   return theirs.length ? { ev: theirs[0], listed: true } : { ev: named[0], listed: false };
 }
 
+/** A team's own event of a type ("FIRSTChampionship": its Worlds; "Championship": its state championship), the one it
+ *  is listed at: in `season` (or held in `year`), else its latest. A championship split into divisions is the team's
+ *  division, where its forecast is made. Null: it was never listed at one then. */
+export async function teamEventOfType(team: number, type: string, season: number | null, year: number | null): Promise<{ ev: Ev; listed: boolean } | null> {
+  const ev = await get<Ev>(
+    `SELECT e.season, e.code, e.name, e.type, e.start, e.end FROM ${ROSTER} r JOIN events e ON e.season = r.season AND e.code = r.code
+     WHERE r.team = ? AND e.type = ? AND (? IS NULL OR e.season = ?) AND (? IS NULL OR e.start LIKE ?)
+     ORDER BY e.season DESC, e.division_code IS NULL, e.start DESC LIMIT 1`,
+    [team, type, season, season, year, year == null ? null : `${year}%`]);
+  return ev ? { ev, listed: true } : null;
+}
+
 interface Pred { code: string; level: string; series: number; number: number; red: string; blue: string; p_red: number; red_mean: number; blue_mean: number; no_score_basis: number | null; red_score: number | null; blue_score: number | null; played: number; kind: string; label: string | null }
 
 /** Whether `team` won the event, by the winners answer's own rules (server/api/answers/families/winners.ts): the
@@ -77,7 +89,7 @@ interface Pred { code: string; level: string; series: number; number: number; re
 const wonEvent = wonEventByRules;
 
 /** Before and after at `ev` for `teams` (one team, or two teams' meetings). */
-export async function forecastAt(teams: { number: number; name: string | null }[], ev: Ev, listed: boolean, now: number): Promise<StatAnswer> {
+export async function forecastAt(teams: { number: number; name: string | null }[], ev: Ev, listed: boolean, now: number, opts: { advance?: boolean } = {}): Promise<StatAnswer> {
   const who = (t: { number: number; name: string | null }) => `${t.name ?? `Team ${t.number}`} (${t.number})`;
   const S = seasonLabel(Number(ev.season)), name = shortEvent(ev.name, ev.type), when = dateRange(ev.start, ev.end);
   const [a, b] = teams;
@@ -101,10 +113,12 @@ export async function forecastAt(teams: { number: number; name: string | null }[
   const played = await get<{ n: number }>("SELECT COUNT(*) n FROM matches WHERE season = ? AND (code = ? OR code IN (SELECT code FROM events WHERE season = ? AND division_code = ?)) AND played = 1", [ev.season, ev.code, ev.season, ev.code]);
   // Still to come (or not started): the forecast the event page shows, with Predict open on it.
   if (upcoming && !Number(played?.n) && !b) {
-    const f = await nextEventPrediction("event-win-chance", a, new Date(now), { season: Number(ev.season), code: ev.code }, Number(ev.season));
-    // The chance to win it on its 0–100% bar, with Predict as the card's one action.
+    // The chance asked: to advance from it ("advancement odds"), else to win it.
+    const f = await nextEventPrediction(opts.advance ? "advance-chance" : "event-win-chance", a, new Date(now), { season: Number(ev.season), code: ev.code }, Number(ev.season));
+    // That chance on its 0–100% bar, with Predict as the card's one action.
     const pre = await projectionOf(ev, a.number);
-    const chance: StatBlock | null = pre ? { kind: "chance", p: pre.pWin, who: String(a.number), label: "to win the event, before it starts", action: act } : null;
+    const p = pre ? (opts.advance ? pre.pAdvance : pre.pWin) : null;
+    const chance: StatBlock | null = p != null ? { kind: "chance", p, who: String(a.number), label: opts.advance ? "to advance, before it starts" : "to win the event, before it starts", action: act } : null;
     return { ...once({ ...f, blocks: [...(chance ? [chance] : []), ...f.blocks.filter((x) => x.kind !== "links"), chance ? withoutPredict : links] }), title, intent: base.intent, scope: [...f.scope, "Not played yet"], definition: `${f.definition} After: the event hasn't been played yet, so there's no result to set beside it.` };
   }
   // The matches: the team's (or both teams'), qualifications and playoffs, at the event and its divisions; one still to

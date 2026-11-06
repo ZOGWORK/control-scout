@@ -17,11 +17,11 @@ import { defaultSteps, isEmpty, relaxed, windowSteps } from "./relax.js";
 import { eventsNamed, heldInYear, highlightsAnswer, latestPlayed, type HighlightFind } from "./highlights.js";
 import { teamHighlights, type TeamHighlightScope } from "../answers/highlights.js";
 import { shortEvent } from "../answers/matchSet.js";
-import { CHAMPIONSHIP_TYPE } from "../answers/clauses.js";
+import { CHAMPIONSHIP_TYPE, STATES_TYPE } from "../answers/clauses.js";
 import { eventKindOf, matchFindAnswer, type MatchFind, type MatchMeasure } from "./matchFind.js";
 import { seasonOfDate } from "./time.js";
 import { searchToday } from "../searchEvents.js";
-import { eventFor, forecastAt } from "./forecast.js";
+import { eventFor, forecastAt, teamEventOfType } from "./forecast.js";
 import { describe, normalise, parseQuery, type Parsed } from "./parse.js";
 import { parseContext } from "./context.js";
 import type { PipelineIntent } from "./intents.js";
@@ -51,7 +51,7 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
 /** Whether the pipeline reads `q` completely (an intent it answers, every word explained). */
 export async function pipelineReads(q: string, now?: number, prefer?: ReadonlySet<string>): Promise<boolean> {
   const p = await parseQuery(q, await parseContext(now, prefer));
-  return p.complete && !!p.intent && ANSWERED.has(p.intent) && (p.intent !== "team-predict" || !!p.event);
+  return p.complete && !!p.intent && ANSWERED.has(p.intent) && (p.intent !== "team-predict" || !!p.event || p.worlds || p.states);
 }
 
 /** The answers that list as many rows as a count said ("12345 last 3 matches"). */
@@ -145,15 +145,18 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // A forecast at an event named: before and after, side by side (./forecast.ts). With no event, two teams' head-on
   // call (the engine's, with Predict open on it); one team's next match or event is left to the readers that know
   // which ("predicted score next match", "predicted wins at their next event").
-  if ((intent === "team-predict" || intent === "two-predict") && p.event) {
-    if (scope.level || scope.alliance || scope.place || scope.area || scope.window || p.worlds || p.states) return null;
+  // One team's Worlds or state championship ("advancement odds at worlds") is its own division there.
+  const ownChampionship = intent === "team-predict" && !p.event && p.teams.length === 1 && (p.worlds || p.states);
+  if ((intent === "team-predict" || intent === "two-predict") && (p.event || ownChampionship)) {
+    if (scope.level || scope.alliance || scope.place || scope.area || scope.window || (p.event && (p.worlds || p.states))) return null;
     // A calendar year ("2025") is the event held that year; a season or a game named ("2025-26", "decode") its season.
     const year = p.time?.kind === "season" && p.time.year != null ? p.time.year : null;
     const season = p.time?.kind === "season" && p.time.year == null && !p.time.relative && p.time.season != null ? p.time.season : null;
     if (p.time && year == null && season == null) return null;
-    const found = await eventFor(p.event.words, p.teams.map((t) => t.number), year, season);
+    const found = p.event ? await eventFor(p.event.words, p.teams.map((t) => t.number), year, season)
+      : await teamEventOfType(p.teams[0].number, p.worlds ? CHAMPIONSHIP_TYPE : STATES_TYPE, season, year);
     if (!found) return null;
-    const stat = await forecastAt(p.teams.map((t) => ({ number: t.number, name: t.name })), found.ev, found.listed, opts.now ?? Date.now());
+    const stat = await forecastAt(p.teams.map((t) => ({ number: t.number, name: t.name })), found.ev, found.listed, opts.now ?? Date.now(), { advance: p.symbols.includes("advance") });
     const hits = (await Promise.all(p.teams.map(async (t) => (await opts.resolve(String(t.number))).hits.find((h) => h.kind === "team" && h.ref === String(t.number))))).filter((h): h is NonNullable<typeof h> => !!h);
     // The search box's link to Predict; the page prints it once, as the card's own action, so not again under it.
     const inCard = stat.blocks.some((b) => b.kind === "chance" && b.action);
@@ -161,7 +164,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     return {
       q: p.q, hits: hits.map((h) => ({ ...h, facts: undefined, events: undefined })), pages: predictLink && !(opts.full && inCard) ? [{ title: predictLink.label, href: predictLink.href }, ...opts.pages] : opts.pages,
       step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season: found.ev.season }, ...(opts.full ? { stat } : {}),
-      intent: { kind: `stat-${stat.intent}`, pattern: `${p.teams.map(() => "[team]").join(" ")} predict [event]`, met: true, understood: [] },
+      intent: { kind: `stat-${stat.intent}`, pattern: `${p.teams.map(() => "[team]").join(" ")} predict ${p.event ? "[event]" : p.worlds ? "[worlds]" : "[states]"}`, met: true, understood: [] },
     };
   }
   if (p.teams.length === 2 && TWO_TEAM[intent]) {
