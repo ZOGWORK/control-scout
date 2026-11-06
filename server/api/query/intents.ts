@@ -18,6 +18,8 @@ export type PipelineIntent =
   | "head-to-head" | "shared-matches" | "two-predict" | "opr-vs" | "rating-vs" | "compare" | "h2h-wins" | "awards-vs"
   // No team.
   | "top-matches" | "leaderboard"
+  // A scope's standout matches, or one team's (./highlights.ts).
+  | "highlights"
   // No team: matches found by a measure (./matchFind.ts).
   | "low-matches" | "close-matches" | "lopsided-matches" | "penalty-matches" | "upset-matches" | "comeback-matches";
 
@@ -162,6 +164,12 @@ export const INTENTS: IntentRule[] = [
     R("leaderboard", 0, [agg, "thing:team"], BOARD_OPT),
     // A team stat asked about everyone, with no "team": "who has the highest auto OPR in NJ".
     ...BOARD_METRICS.map((m) => R("leaderboard", 0, [agg, m], BOARD_OPT)),
+  ]),
+  // Standout matches: a scope's ("worlds highlights", "new jersey highlights 2024-25"), or one team's ("<team> best
+  // matches at worlds"); its match videos ("jackson division recap", "watch <team>") are its highlights too.
+  ...([0, 1] as const).flatMap((n) => [
+    R("highlights", n, ["highlights"], ["videos", "thing:match", "list", "agg:max"], { noMatchNo: true }),
+    R("highlights", n, ["videos"], ["thing:match", "thing:event", "list", "agg:max", "agg:last"], { noMatchNo: true }),
   ]),
   // Teams with no losses, the most wins first.
   // "and" is "with": "teams with a perfect record".
