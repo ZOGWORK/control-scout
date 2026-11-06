@@ -170,6 +170,16 @@ describe("one question, any phrasing, any team", () => {
       expect(s.headline?.value, q).toBe("2");
     }
   });
+  it("a trend, said any way, is the trend card for the team and season", async () => {
+    for (const q of ["4215 opr at each event", "4215 opr trend over the season", "hypnotic robotics opr event by event in 2025-26", "is 4215 opr going up or down"]) {
+      expect((await ask(q)).stat, q).toMatchObject({ family: "trend", intent: "opr-history", title: "OPR by event in 2025–26" });
+    }
+    for (const q of ["4215 rating going up or down lately in 2025-26, event by event trend", "is 4215 rating improving in 2025-26", "4215 rating after each event in 2025-26"]) {
+      expect((await ask(q)).stat, q).toMatchObject({ family: "trend", intent: "rating-trend", title: "Prediction rating by event in 2025–26" });
+    }
+    // The plain number stays the plain number.
+    expect((await ask("4215 opr")).stat?.intent).not.toBe("opr-history");
+  });
   it("a name typed nearly right offers the spelling, whatever stood between its words", async () => {
     const a = await ask("hypnotc-robotics highest score");
     expect(a.stat?.team?.number).toBe(4215);

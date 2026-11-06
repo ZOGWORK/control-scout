@@ -23,6 +23,8 @@ export type Sym =
   | { k: "worlds" }
   | { k: "states" }
   | { k: "predict" }
+  /** How a number moved over a season: "trend", "going up or down", "event by event". */
+  | { k: "trend" }
   | { k: "vs" }
   | { k: "and" }
   | { k: "together" }
@@ -112,6 +114,7 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["states|state|state championship|state championships|state champs|state finals|regionals|regional championship|regional", { k: "states" }],
   // Forecasts.
   ["prediction|predictions|predicted|predict|forecast|forecasts|projected|projection|expected|expect|chance|chances|odds|probability|likely|likelihood|favourite|favorite|favored|favoured|who wins|who will win|who would win", { k: "predict" }],
+  ["trend|trends|trending|over time|progression|going up or down|going up|going down|up or down|improving|getting better|getting worse|rising|falling|event by event|over the season|across the season|through the season|week by week|after each event", { k: "trend" }],
   // Two teams.
   ["vs|v|versus|against|facing|face|faced|play|played|playing|vs.", { k: "vs" }],
   ["and|&|plus|with|alongside", { k: "and" }],

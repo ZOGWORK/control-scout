@@ -20,6 +20,8 @@ export type PipelineIntent =
   | "top-matches" | "leaderboard"
   // A scope's standout matches, or one team's (./highlights.ts).
   | "highlights"
+  // A team's number over a season, event by event (the readers' trend cards).
+  | "rating-trend" | "opr-trend"
   // No team: matches found by a measure (./matchFind.ts).
   | "low-matches" | "close-matches" | "lopsided-matches" | "penalty-matches" | "upset-matches" | "comeback-matches";
 
@@ -130,6 +132,11 @@ export const INTENTS: IntentRule[] = [
   // A count ("how many teams has it lost to") is a different answer: left unexplained.
   R("lost-to-most", 1, ["metric:opponent", "outcome:L"], ["agg:max", "thing:team", "thing:match", "per:match", "list"]),
   // The team's own numbers: its OPR, its rating, its forecast.
+  // How the rating or OPR moved, event by event: "trend", "going up or down", "at each event".
+  R("rating-trend", 1, ["metric:rating", "trend"], ["per:event", "thing:event", "list", "agg:last"], { noEvent: true }),
+  R("rating-trend", 1, ["metric:rating", "per:event"], ["thing:event", "list", "agg:last"], { noEvent: true }),
+  R("opr-trend", 1, ["metric:opr", "trend"], ["per:event", "thing:event", "list", "agg:last"], { noEvent: true }),
+  R("opr-trend", 1, ["metric:opr", "per:event"], ["thing:event", "list", "agg:last"], { noEvent: true }),
   R("team-opr", 1, ["metric:opr"], ["agg:last"], { noEvent: true }),
   R("team-rating", 1, ["metric:rating"], ["agg:last"], { noEvent: true }),
   R("team-predict", 1, ["predict"], ["metric:win", "metric:record", "metric:score", "metric:rank", "thing:event", "thing:match", "agg:next", "metric:playoffs"]),
