@@ -24,7 +24,7 @@ A count question about a team's name is no longer answered with that team's high
 - [fixes] A team searched alone still opens with its highlights
 
 ### Search
-- **Highlights only for the team alone.** A search read as one team and more words it couldn't answer ("how many teams named bad wolf", read as "6980 how many") no longer gets that team's highlights as its answer; a team's number or name alone, with a season or the word "team", still does. (#PR)
+- **Highlights only for the team alone.** A search read as one team and more words it couldn't answer ("how many teams named bad wolf", read as "6980 how many") no longer gets that team's highlights as its answer; a team's number or name alone, with a season or the word "team", still does. (#812)
 
 ## 3.4.2 — 2026-11-06
 
