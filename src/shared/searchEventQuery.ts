@@ -47,12 +47,15 @@ const TIME_OF: Record<string, SearchTime> = {
   today: "today", tomorrow: "tomorrow", upcoming: "upcoming", "coming up": "upcoming", past: "past", recent: "past", previous: "past", latest: "past",
   "this weekend": "this-weekend", "next weekend": "next-weekend", "this week": "this-week", "next week": "next-week",
   "this month": "this-month", "next month": "next-month",
+  "happening now": "today", "going on now": "today", "on right now": "today", "right now": "today", "live now": "today", live: "today", currently: "today",
 };
 
 /** Two-letter state codes that are also everyday words ("in", "or", "me"): a code only when typed in capitals. */
 const WORD_CODES = new Set(["in", "or", "me", "hi", "ok", "oh", "la", "ma", "pa", "de", "al", "co", "id", "ga", "mo", "ne", "wa", "md", "nd", "sd", "ct", "va", "ms", "mt", "nm", "sc", "ar", "on", "ab", "pe", "ns"]);
 /** Words that frame a request for events, never part of an event's name ("show me all meets in NJ"). */
-const FRAME_WORDS = new Set(["next", "many", "much", "there", "all", "any", "list", "show", "me", "find", "get", "give", "see", "every", "some"]);
+const FRAME_WORDS = new Set(["next", "many", "much", "there", "all", "any", "list", "show", "me", "find", "get", "give", "see", "every", "some",
+  // "What events are happening this week", "events going on today", "events taking place in NJ".
+  "happening", "going", "on", "taking", "place", "held", "running", "scheduled"]);
 const PLACE_MARKERS = new Set(["in", "at", "near", "from", "around", "within", "across"]);
 
 /** What an event-set query asks for (every part optional). */

@@ -2733,5 +2733,40 @@
 "set": "natural",
 "n": 14,
 "q": "number of teams in Texas"
+},
+{
+"set": "natural",
+"n": 15,
+"q": "what events are happening this week"
+},
+{
+"set": "natural",
+"n": 16,
+"q": "upcoming events"
+},
+{
+"set": "natural",
+"n": 17,
+"q": "live events"
+},
+{
+"set": "natural",
+"n": 18,
+"q": "events in NJ this weekend"
+},
+{
+"set": "natural",
+"n": 19,
+"q": "number of events in NJ in 2025-26"
+},
+{
+"set": "natural",
+"n": 20,
+"q": "events happening this week"
+},
+{
+"set": "natural",
+"n": 21,
+"q": "4215 matches at states"
 }
 ]

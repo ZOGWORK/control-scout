@@ -475,6 +475,8 @@ export function explainAnswer(q: string): SearchAnswer | null {
 /** "how many teams in NJ", "how many teams are there", "how many events this season": a count; or null. */
 export async function countAnswer(q: string): Promise<SearchAnswer | null> {
   let t = squash(q.toLowerCase().replace(/[?]/g, ""));
+  // "Number of", "count of" and "total" ask the same as "how many" ("number of events in NJ in 2025-26").
+  t = t.replace(/^(?:what is the\s+|whats the\s+)?(?:number of|count of|total number of|total)\s+/, "how many ");
   // A season at the end ("how many teams 2023", "… in 2024-25", "… last season"): that season's count. A bare year is
   // the season it starts for teams (they register by season), and the calendar year for events, as event searches
   // read it ("events in 2024": held in 2024, from two seasons).

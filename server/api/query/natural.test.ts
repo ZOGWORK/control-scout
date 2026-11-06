@@ -6,6 +6,8 @@ import { migrate, openDb, run, setDb } from "../../db";
 import { rebuildSearch } from "../../stats/job";
 import { clearAllCaches } from "../../caches";
 import { searchAnswer } from "../searchAnswer";
+import { countAnswer, rewriteQuery } from "../searchCoverage";
+import { readEventQuery } from "../../../src/shared/searchEventQuery";
 import type { SearchAnswer } from "../../../src/shared/api";
 import type { StatAnswer } from "../../../src/shared/searchStat";
 
@@ -120,6 +122,28 @@ describe("count teams by place (3a)", () => {
   it("never a town's whole list for a filter it doesn't take", async () => {
     for (const q of ["how many teams from Oradell at worlds", "how many teams from Oradell at states", "how many teams from Oradell in 2025-26"]) {
       expect((await ask(q)).stat?.intent, q).not.toBe("city-teams");
+    }
+  });
+});
+
+describe("events and time words (3g)", () => {
+  it("this week's events, however it's asked", async () => {
+    for (const q of ["events this week", "what events are happening this week", "events happening this week", "what events are going on this week"]) {
+      expect(readEventQuery(q), q).toMatchObject({ kinds: ["event"], time: "this-week", words: [] });
+      expect((await ask(q)).understood?.label, q).toMatch(/^This week's events/);
+    }
+  });
+  it("live, right now: today's events", async () => {
+    for (const q of ["live events", "events live now", "events going on today", "events happening now"]) {
+      expect(readEventQuery(q), q).toMatchObject({ kinds: ["event"], time: "today", words: [] });
+    }
+    // "Live" alone names no event: a team or a word, as before.
+    expect(readEventQuery("live")).toBeNull();
+  });
+  it("'number of' and 'count of' ask how many", async () => {
+    expect((await countAnswer("number of events in NJ in 2025-26"))?.understood?.label).toBe("How many events in New Jersey · 2025–26");
+    for (const q of ["count of teams in NJ", "total number of teams in NJ", "what is the number of teams in NJ"]) {
+      expect((await countAnswer(q))?.understood?.label, q).toBe((await countAnswer("how many teams in NJ"))?.understood?.label);
     }
   });
 });
