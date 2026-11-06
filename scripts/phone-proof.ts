@@ -53,12 +53,14 @@ const CARDS: { name: string; q: string; expect: string; needs?: string }[] = [
 const only = opt("only");
 
 /** What the page shows that breaks a 390 px rule, measured in the page. */
-function measure(expect: string): { failures: string[]; notes: string[]; card: boolean } {
+function measure(expect: string): { failures: string[]; notes: string[]; card: boolean; missing?: string } {
   const failures: string[] = [], notes: string[] = [];
   const vw = document.documentElement.clientWidth;
   if (document.documentElement.scrollWidth > vw + 1) failures.push(`page scrolls sideways: ${document.documentElement.scrollWidth}px wide on a ${vw}px screen`);
   const mark = document.querySelector(expect);
-  if (!mark) return { failures: [...failures, `no ${expect} on the page: the answer this case is for isn't there`], notes, card: false };
+  // No answer: the page's own failures (it scrolls sideways) still stand; the missing answer is said apart, so a case
+  // whose data has nothing to show is skipped without hiding them.
+  if (!mark) return { failures, notes, card: false, missing: `no ${expect} on the page: the answer this case is for isn't there` };
   // Its card, or for plain results (no card) the whole results region.
   const card = mark.closest<HTMLElement>("[data-answer-frame]") ?? mark.closest<HTMLElement>("main [aria-live]") ?? document.querySelector<HTMLElement>("main")!;
   const label = (el: Element) => `${el.tagName.toLowerCase()} "${(el.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 32)}"`;
@@ -114,7 +116,7 @@ function measure(expect: string): { failures: string[]; notes: string[]; card: b
   }
   const ctas = document.querySelectorAll("[data-primary-cta]").length;
   if (ctas > 1) failures.push(`${ctas} primary actions on the page`);
-  return { failures, notes, card: true };
+  return { failures, notes, card: true, missing: undefined };
 }
 
 async function proveOne(page: Page, c: (typeof CARDS)[number]) {
@@ -125,7 +127,8 @@ async function proveOne(page: Page, c: (typeof CARDS)[number]) {
   await page.waitForTimeout(800);
   const at = new URL(page.url()).pathname;
   const m = at === "/search" ? await page.evaluate(measure, c.expect) : { failures: [`left /search for ${at}`], notes: [], card: false };
-  if (!m.card && c.needs && at === "/search") return { ...c, failures: [], notes: [], skipped: `not checked: this data has no ${c.needs}`, shot: null };
+  if (!m.card && c.needs && at === "/search" && !m.failures.length) return { ...c, failures: [], notes: [], skipped: `not checked: this data has no ${c.needs}`, shot: null };
+  if (m.missing && !(c.needs && at === "/search")) m.failures.push(m.missing);
   const file = join(out, `${c.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.png`);
   await page.screenshot({ path: file, fullPage: true });
   return { ...c, failures: m.failures, notes: m.notes, skipped: null as string | null, shot: file as string | null };
