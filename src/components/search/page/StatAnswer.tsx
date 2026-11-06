@@ -472,8 +472,10 @@ function Series({ b }: { b: Extract<StatBlock, { kind: "series" }> }) {
 function Bars({ b }: { b: Extract<StatBlock, { kind: "bars" }> }) {
   // One group's values are small tiles (a phase's in the team page's colour for it); several groups a compact table, a row each.
   const fmt = (v: number | null) => (v == null ? "–" : `${Number.isInteger(v) ? v : v.toFixed(1)}${b.unit === "%" ? "%" : ""}`);
-  // A team's value (tone a, b, c: a prediction's two teams) in that team's hue; the rest by what the label means.
-  const sw = (i: { label: string; tone?: string }): Swatch => (i.tone && i.tone !== "d" ? TEAM_SWATCH["abc".indexOf(i.tone)] : swatchOf(i.label));
+  // A value's meaning first (a phase, an award: the same colour as everywhere); else a team's (tone a, b, c: a
+  // prediction's two teams, labelled by number) in that team's hue; else the card's.
+  const sw = (i: { label: string; tone?: string }): Swatch => (meaningOf(i.label) ? swatchOf(i.label)
+    : i.tone && i.tone !== "d" ? TEAM_SWATCH["abc".indexOf(i.tone)] : swatchOf(i.label));
   if (b.groups.length === 1) {
     const g = b.groups[0];
     return (
@@ -481,7 +483,7 @@ function Bars({ b }: { b: Extract<StatBlock, { kind: "bars" }> }) {
         <figcaption className={H3}>{b.title}</figcaption>
         <dl className={cn("grid gap-2", g.items.length <= 3 ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4")}>
           {g.items.map((i) => (
-            <div key={i.label} className={cn("rounded-lg border px-3 py-2", PAINT, sw(i).edge, sw(i).tint)} data-bar-value={i.label} data-phase={(!i.tone && meaningOf(i.label)) || undefined}>
+            <div key={i.label} className={cn("rounded-lg border px-3 py-2", PAINT, sw(i).edge, sw(i).tint)} data-bar-value={i.label} data-phase={meaningOf(i.label) ?? undefined}>
               <dt className={cn("text-xs font-semibold", sw(i).text)}>{i.label}</dt>
               <dd className={cn("font-display text-xl font-semibold tabular-nums", sw(i).text)}>{fmt(i.value)}</dd>
             </div>

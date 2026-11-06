@@ -86,6 +86,10 @@ describe("StatAnswerCard, a team's OPR", () => {
     expect([...c.querySelectorAll("[data-kpi] [class*=border-l-team]")].map((t) => t.className.match(/border-l-(team-[abc])/)?.[1])).toEqual(["team-a", "team-b"]);
     expect([...c.querySelectorAll("[data-bar-value]")].map((t) => t.className.match(/border-l-(team-[abc])/)?.[1])).toEqual(["team-a", "team-b"]);
   });
+  it("a phase or an award keeps its own colour whatever tone the server gave it", () => {
+    const c = draw({ ...opr, blocks: [{ kind: "bars", title: "Event OPR", groups: [{ label: "x", items: [{ label: "Auto", value: 30, tone: "a" }, { label: "TeleOp", value: 70, tone: "b" }, { label: "Inspire", value: 1, tone: "c" }] }] }] } as StatAnswer);
+    expect([...c.querySelectorAll("[data-bar-value]")].map((t) => t.className.match(/border-l-([a-z]+)-\d+/)?.[1])).toEqual(["blue", "emerald", "fuchsia"]);
+  });
   it("two teams' tiles for one phase both show, each naming its team", () => {
     const c = draw({ ...opr, family: "two-team", intent: "phase-vs", blocks: [{ kind: "kpis", items: [
       { label: "Hypnotic Robotics (4215)", value: "28.3", phase: "auto", rank: 880, of: 8308 },
