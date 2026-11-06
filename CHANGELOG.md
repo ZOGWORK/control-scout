@@ -15,6 +15,21 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.3.3 — 2026-11-05
+
+Prediction questions answer in the card, with the chance on a 0–100% bar, and a search nothing answers shows the closest real results.
+
+### Highlights
+- [predict] "Predicted chances of a team at an event" gets an answer
+- [predict] The win chance is a 0–100% bar, with Open in Predict
+- [fixes] No answer shows the closest teams and events as full cards
+- [fixes] How FTC One Search works describes the search as it is now
+
+### Search
+- **Prediction answers.** A team's prediction at a named event leads with its chance (the next match's, else the average over the matches played, else the event's) as a number and a bar on a 0–100% scale. The next match shows its predicted score with its ranges, only when the season has a rated match. Open in Predict is the card's one action, and expected wins print once. (#PR)
+- **No answer.** One sentence says what's missing; the closest teams and events follow as full cards, with searches that answer about them.
+- **How it works.** The search page's explainer covers reading a question in any order, the season rule, widening in a stated order and worked-out measures.
+
 ## 3.3.2 — 2026-11-05
 
 Questions about a team's wins and losses answer with the matches asked for: the last loss, the first win, the longest losing streak, the teams it lost to.
