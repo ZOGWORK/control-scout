@@ -74,6 +74,10 @@ describe("informal and short forms are their full words", () => {
   it("quotes, operators and punctuation around a form stay as typed", async () => {
     expect(informalQuery('"Hypnotic Robotics" rn?', () => false)).toBe('"Hypnotic Robotics" right now?');
     expect(informalQuery("4215 | 7149 events tmrw", () => false)).toBe("4215 | 7149 events tomorrow");
+    // Inside quotes, nothing is said another way; outside them, it still is.
+    expect(informalQuery('"RN" robotics events rn', () => false)).toBe('"RN" robotics events right now');
+    expect(informalQuery('"rn robotics" tmrw', () => false)).toBe('"rn robotics" tomorrow');
+    expect((await ask('"RN" Robotics')).hits.filter((h) => h.kind === "team").map((h) => h.ref)).toEqual(["31337"]);
     const a = await ask('"Hypnotic Robotics" rn');
     expect(a.q).toBe("Hypnotic Robotics rn");
     expect(a.hits.filter((h) => h.kind === "team").map((h) => h.ref)).toEqual(["4215"]);

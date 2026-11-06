@@ -218,18 +218,22 @@ export const INFORMAL: [string, string][] = [
 
 /** A word without the punctuation around it (`"rn"`, "rn?"): what a form is matched on, the rest kept as typed. */
 const core = (w: string) => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
+/** Whether word `i` of `ws` is inside a quoted phrase (or holds a quote mark itself). */
+const quoted = (ws: string[], i: number) => (ws.slice(0, i).join(" ").split('"').length - 1) % 2 === 1 || ws[i].includes('"');
 const edges = (w: string) => { const c = core(w); const at = c ? w.indexOf(c) : w.length; return [w.slice(0, at), w.slice(at + c.length)]; };
 
 /** `q` with each INFORMAL form said in full: whole words, any case, and never a word of a name `named` knows (a team
  *  named "RN Robotics" keeps it). `named` is asked of each run of up to four words holding a form; `wider`, whether the
- *  run holds more than the form (an event's name with the word in it). Quotes and operators around a form stay as typed
- *  (`"Raider Robotics" rn|tmrw`). */
+ *  run holds more than the form (an event's name with the word in it). Operators and punctuation around a form stay as
+ *  typed (`"Raider Robotics" rn?`), and nothing inside quotes is changed. */
 export function informalQuery(q: string, named: (words: string, wider: boolean) => boolean): string {
   let ws = q.split(" ");
   for (const [from, to] of INFORMAL) {
     const f = from.split(" ");
     for (let i = 0; i + f.length <= ws.length; i++) {
       if (ws.slice(i, i + f.length).map((w) => core(w).toLowerCase()).join(" ") !== from) continue;
+      // A quoted phrase is searched for exactly as typed ('"RN" Robotics'): nothing in it is said another way.
+      if (Array.from({ length: f.length }, (_, k) => i + k).some((j) => quoted(ws, j))) continue;
       let inName = false;
       for (let a = Math.max(0, i - 3); a <= i; a++) for (let b = i + f.length; b <= Math.min(ws.length, a + 4); b++) inName ||= named(ws.slice(a, b).map(core).join(" "), b - a > f.length);
       if (inName) continue;
