@@ -174,10 +174,13 @@ describe("one question, any phrasing, any team", () => {
     for (const q of ["4215 wins vs losses by event in 2025-26", "4215 record by event in 2025-26", "hypnotic robotics wins and losses per event", "4215 record each event"]) {
       const s = await stat(q);
       expect(s, q).toMatchObject({ intent: "record", headline: { value: "1-1-0" } });
-      expect(s.blocks.find((b) => b.kind === "bars"), q).toMatchObject({ title: "Wins and losses by event", groups: [{ label: "Garden Qualifier", items: [{ label: "Wins", value: 1 }, { label: "Losses", value: 1 }] }] });
+      expect(s.blocks.find((b) => b.title === "Wins and losses by event"), q).toMatchObject({ kind: "table", rows: [{ cells: { event: "Garden Qualifier", wins: 1, losses: 1 }, href: "/events/2025/USNJQ1?team=4215" }] });
     }
     // Without "by event", the record alone.
-    expect((await stat("4215 wins vs losses in 2025-26")).blocks.some((b) => b.kind === "bars")).toBe(false);
+    expect((await stat("4215 wins vs losses in 2025-26")).blocks.some((b) => b.title === "Wins and losses by event")).toBe(false);
+    // Across seasons, each row says its season (one event name is held every year).
+    const ever = (await stat("4215 record by event ever")).blocks.find((b) => b.title === "Wins and losses by event");
+    expect(ever?.kind === "table" && ever.columns.map((c) => c.key)).toEqual(expect.arrayContaining(["event", "wins", "losses"]));
   });
   it("a name typed nearly right offers the spelling, whatever stood between its words", async () => {
     const a = await ask("hypnotc-robotics highest score");

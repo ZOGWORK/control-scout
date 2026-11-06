@@ -216,8 +216,8 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
             : listed ? [] : [{ label: "World rank by win rate", value: "Not ranked", sub: `under ${RANKED_MIN_MATCHES} matches` }]),
         ] });
       }
-      // "By event": each event's wins and losses side by side, oldest first (no hue: on a search card colour means a team).
-      if (id === "record" && opts.perEvent) blocks.push(perEventBars(ms));
+      // "By event": each event's wins and losses, a row each, oldest first.
+      if (id === "record" && opts.perEvent) blocks.push(perEventTable(ms, team.number));
       if (seasons.length > 1 || id !== "record") blocks.push(seasonTable(ms));
       if (scope.championship) blocks.push(eventTable(ms, "Worlds events"));
       const headline = id === "wins-count" ? { value: `${r.wins} win${r.wins === 1 ? "" : "s"}`, label: `in ${ms.length} match${ms.length === 1 ? "" : "es"}${where}`, sub: seasonsText(seasons) }
@@ -419,16 +419,18 @@ const rate = (r: { wins: number; losses: number; ties: number }) => { const n = 
 export const seasonsText = (ss: number[]) => (ss.length === 1 ? seasonLabel(ss[0]) : `${ss.length} seasons: ${ss.map(seasonLabel).join(", ")}`);
 
 /** Per event: its record (newest first), each a link to the event on the team. */
-/** Wins and losses (and ties, when any) at each event, oldest first: a "by event" record. */
-function perEventBars(ms: TeamMatch[]): StatBlock {
+/** Wins and losses (and ties, when any) at each event, oldest first, a row each linked to the event: a "by event"
+ *  record. Its season beside it when the answer spans seasons (one event name is held every year). */
+function perEventTable(ms: TeamMatch[], team: number): StatBlock {
   const evs = new Map<string, TeamMatch[]>();
   for (const m of ms) evs.set(`${m.season}|${m.code}`, [...(evs.get(`${m.season}|${m.code}`) ?? []), m]);
-  const ties = ms.some((m) => m.result === "T");
+  const ties = ms.some((m) => m.result === "T"), seasons = new Set(ms.map((m) => m.season)).size > 1;
   return {
-    kind: "bars", title: "Wins and losses by event", unit: "matches",
-    groups: [...evs.values()].map((xs) => {
+    kind: "table", title: "Wins and losses by event",
+    columns: [{ key: "event", label: "Event" }, ...(seasons ? [{ key: "season", label: "Season" }] : []), { key: "wins", label: "Wins", num: true }, { key: "losses", label: "Losses", num: true }, ...(ties ? [{ key: "ties", label: "Ties", num: true }] : [])],
+    rows: [...evs.values()].map((xs) => {
       const r = record(xs);
-      return { label: shortEvent(xs[0].event, xs[0].type ?? null), items: [{ label: "Wins", value: r.wins }, { label: "Losses", value: r.losses }, ...(ties ? [{ label: "Ties", value: r.ties }] : [])] };
+      return { cells: { event: shortEvent(xs[0].event, xs[0].type ?? null), season: seasonLabel(xs[0].season), wins: r.wins, losses: r.losses, ties: r.ties }, href: eventHref(xs[0].season, xs[0].code, team) };
     }),
   };
 }
