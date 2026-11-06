@@ -1,25 +1,46 @@
-// How every /search answer card's numbers read, by the search results guide (.claude/search-viz-guide-2026-11-05.txt):
-// hue means team only, so nothing here is coloured by what it is. A rank is a neutral pill (a medal on the top three),
-// a record and a result read as their text with the win in bold, an OPR has a small neutral bar from zero to the best
-// one listed, a season is the header's season badge, an event's type a neutral badge. Alliance red and blue stay where
-// they mark an alliance. Drawn from the text the server sends: a cell that isn't in a known shape stays plain.
+// How every /search answer card's numbers read. Colour is the first signal (the owner's brief, 11-06, over the search
+// results guide's "hue means team"): one palette for every card (lib/textTones SEARCH_PALETTE), each meaning its own
+// colour (a phase, an award, a status), and whatever has no meaning of its own in the card's team hue. A rank is a pill
+// in the team hue (filled on the top three), an award a filled chip in its kind's colour, an OPR a bar in the team hue.
+// Alliance red and blue stay where they mark an alliance. A cell that isn't in a known shape stays plain text.
 import { useId, useState, type ReactNode } from "react";
 import { Award, Info, Medal, Trophy } from "lucide-react";
-import { PODIUM_CHIP } from "../../../lib/textTones";
+import { PODIUM_CHIP, SEARCH_PALETTE, meaningOf } from "../../../lib/textTones";
 import { eventTypeLabel } from "../../../shared/labels";
 import { Badge } from "../../ui/basic";
 import { Meter } from "../../StatTile";
 import { cn } from "../../cn";
 
-/** The places that get a medal: the top three, all in the same neutral chip (no hue for a place). */
+/** The places that get a medal: the top three, filled in the team hue. */
 export const PODIUM: Record<number, true> = { 1: true, 2: true, 3: true };
 
-/** A data bar's ink where no team is meant (one team's numbers, a table column): neutral, never a hue. */
-export const INK_BAR = "bg-foreground/55";
-/** A card about one team: that team's hue (team A, the colour a team has wherever search compares it) on its numbers,
- *  bars and marks, the one hue on the card (the search results guide: hue means team; a card without a team stays ink). */
+/** The card's team hue (team A, the colour a team has wherever search compares it) on whatever has no meaning of its
+ *  own: its numbers, bars and marks. No data visual is grey (the owner, 11-06). */
 export const TEAM_BAR = "bg-team-a";
 export const TEAM_TEXT = "text-team-a";
+/** A data bar with no meaning of its own (a table's OPR, a rate): the team hue. */
+export const INK_BAR = TEAM_BAR;
+/** The team hue as a palette swatch (the same keys as SEARCH_PALETTE's), and teams B and C's. */
+export const TEAM_SWATCH = [
+  { fill: "bg-team-a text-background", text: TEAM_TEXT, bar: TEAM_BAR, edge: "border-l-team-a", tint: "bg-team-a/10", stroke: "stroke-team-a" },
+  { fill: "bg-team-b text-background", text: "text-team-b-text", bar: "bg-team-b", edge: "border-l-team-b", tint: "bg-team-b/10", stroke: "stroke-team-b" },
+  { fill: "bg-team-c text-background", text: "text-team-c-text", bar: "bg-team-c", edge: "border-l-team-c", tint: "bg-team-c/10", stroke: "stroke-team-c" },
+] as const;
+export type Swatch = { fill: string; text: string; bar: string; edge: string; tint: string; stroke: string };
+/** A label's colour: its meaning's (an award, a phase, a status), else team `i`'s hue. */
+export function swatchOf(label: string | null | undefined, i = 0): Swatch {
+  const m = label ? meaningOf(label) : null;
+  return m ? SEARCH_PALETTE[m] : TEAM_SWATCH[Math.max(0, Math.min(2, i))];
+}
+
+/** An award as a filled chip in its kind's colour (Inspire, Winning or Finalist Alliance, a judged award), its name on it. */
+export function AwardChip({ name, className }: { name: string; className?: string }) {
+  return (
+    <span className={cn("inline-flex items-start gap-1 rounded-md px-1.5 py-0.5 text-xs font-semibold", SEARCH_PALETTE[meaningOf(name) ?? "judged"].fill, className)} data-award={meaningOf(name) ?? "judged"}>
+      <Award className="mt-0.5 size-3.5 shrink-0" aria-hidden /><span>{name}</span>
+    </span>
+  );
+}
 
 const RANK = /^(Ranked\s+)?#?(\d[\d,]*)(?:\s+of\s+(\d[\d,]*))?(.*)$/;
 const RECORD = /^(\d{1,4})-(\d{1,4})-(\d{1,4})(.*)$/;
@@ -34,9 +55,10 @@ export function RankPill({ text, className }: { text: string; className?: string
   return (
     <span className={cn("inline-flex items-center gap-1 whitespace-nowrap", className)} data-rank={rank}>
       {m[1] && <span className="text-muted-foreground">Ranked</span>}
-      <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold tabular-nums leading-none", tone ? PODIUM_CHIP[rank] : "bg-text-base/[0.07] text-foreground")} data-rank-pill>
+      <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold tabular-nums leading-none", tone ? PODIUM_CHIP[rank] : "bg-team-a/15 text-foreground")} data-rank-pill>
         {tone && <Medal className="size-3" aria-hidden />}#{rank.toLocaleString()}
-        {m[3] && <span className="font-medium opacity-80">{` of ${n(m[3]).toLocaleString()}`}</span>}
+        {/* No fade: on the filled podium pill a faded count fell under 4.5:1. */}
+        {m[3] && <span className="font-medium">{` of ${n(m[3]).toLocaleString()}`}</span>}
       </span>
       {m[4].trim() && <span className="text-xs text-muted-foreground">{m[4].trim()}</span>}
     </span>
@@ -97,7 +119,7 @@ export function Cell({ col, value, max }: { col: Col; value: string | number | n
   if (isRecordCol(col)) return <RecordText text={text} />;
   if (isSeasonCol(col)) return <SeasonChip text={text} />;
   if (col.key === "result") return <ResultChip text={text} />;
-  if (col.key === "award") return <span className="inline-flex items-start gap-1.5"><Award className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" aria-hidden /><span>{text}</span></span>;
+  if (col.key === "award") return <AwardChip name={text} />;
   if (col.label === "Red–Blue") {
     const [r, b] = text.split("–");
     if (b != null) return <span className="whitespace-nowrap tabular-nums"><b className="font-semibold text-red-alliance-text">{r}</b><span className="text-muted-foreground">–</span><b className="font-semibold text-blue-alliance-text">{b}</b></span>;

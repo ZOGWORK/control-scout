@@ -20,7 +20,7 @@ export const TONES = {
 } as const;
 export type Tone = keyof typeof TONES;
 
-export function StatTile({ tone, icon: Icon, label, value, hint, bar, onClick, selected, action, className }: {
+export function StatTile({ tone, icon: Icon, label, value, hint, bar, onClick, selected, action, className, chip }: {
   tone: Tone;
   icon: LucideIcon;
   label: ReactNode;
@@ -35,12 +35,14 @@ export function StatTile({ tone, icon: Icon, label, value, hint, bar, onClick, s
    *  visible text, so the button's name keeps everything it shows (WCAG 2.5.3, label in name). */
   action?: string;
   className?: string;
+  /** The icon chip's own colours, over the tone's (search's palette: a filled chip in the tile's meaning). */
+  chip?: string;
 }) {
   const t = TONES[tone];
   const body = (
     <>
       <span className="flex items-center gap-2 text-sm leading-tight text-muted-foreground">
-        <span className={cn("flex size-7 shrink-0 items-center justify-center rounded-lg", t.chip)}><Icon className="size-4" aria-hidden /></span>{label}
+        <span className={cn("flex size-7 shrink-0 items-center justify-center rounded-lg", chip ?? t.chip)}><Icon className="size-4" aria-hidden /></span>{label}
       </span>
       <span className="mt-2 block font-display text-3xl font-semibold tabular-nums text-foreground">{value}</span>
       {hint && <span className="mt-1 block break-words text-xs text-muted-foreground">{hint}</span>}

@@ -8,7 +8,10 @@ import { ArrowDown, ArrowUp, ChevronDown } from "lucide-react";
 import { firstDir, hasPhases, phaseNote, sortTeamRows, teamColumns, type TeamSortKey, type TeamTable as Table, type TeamTableRow } from "../../shared/teamTable";
 import { cn } from "../cn";
 import { INK_BAR, RecordText } from "./page/answerCells";
-import { PODIUM_CHIP } from "../../lib/textTones";
+import { PODIUM_CHIP, SEARCH_PALETTE } from "../../lib/textTones";
+
+// Each phase column in search's palette colour for it, header and numbers (the same colours as every other card).
+const P = SEARCH_PALETTE;
 
 /** The top three's rank badges: bordered and bold, no hue. */
 const TOP3: Record<number, string> = PODIUM_CHIP;
@@ -81,10 +84,10 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
               {table.asked && sortTh("asked", table.asked.label, "max-md:whitespace-normal max-md:leading-tight", table.asked.label)}
               {sortTh("opr", "OPR", cn("md:w-28", byPhase && "max-md:hidden"))}
               {phases && <>
-                {sortTh("auto", "Auto", onPhone("auto"))}
-                {sortTh("dc", withEndgame ? "TeleOp" : "DC", onPhone("dc"))}
-                {sortTh("endgame", "Endgame", onPhone("endgame"))}
-                {sortTh("pen", "Pen", "max-md:hidden")}
+                {sortTh("auto", "Auto", cn(onPhone("auto"), "font-semibold", P.auto.text))}
+                {sortTh("dc", withEndgame ? "TeleOp" : "DC", cn(onPhone("dc"), "font-semibold", P.teleop.text))}
+                {sortTh("endgame", "Endgame", cn(onPhone("endgame"), "font-semibold", P.endgame.text))}
+                {sortTh("pen", "Pen", cn("max-md:hidden font-semibold", P.pen.text))}
               </>}
               {sortTh("record", "W-L-T")}
               {phases && <th scope="col" className="w-8 md:hidden"><span className="sr-only">Phases</span></th>}
@@ -114,10 +117,10 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
                       <span className="relative">{oneDp(r.opr)}</span>
                     </td>
                     {phases && <>
-                      <td className={cn("px-2 py-1.5 text-right tabular-nums text-foreground", onPhone("auto"))}>{oneDp(r.auto)}</td>
-                      <td className={cn("px-2 py-1.5 text-right tabular-nums text-foreground", onPhone("dc"))}>{oneDp(r.dc)}</td>
-                      <td className={cn("px-2 py-1.5 text-right tabular-nums text-foreground", onPhone("endgame"))}>{oneDp(r.endgame)}</td>
-                      <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground max-md:hidden">{oneDp(r.pen)}</td>
+                      <td className={cn("px-2 py-1.5 text-right font-medium tabular-nums", P.auto.text, onPhone("auto"))} data-phase="auto">{oneDp(r.auto)}</td>
+                      <td className={cn("px-2 py-1.5 text-right font-medium tabular-nums", P.teleop.text, onPhone("dc"))} data-phase="teleop">{oneDp(r.dc)}</td>
+                      <td className={cn("px-2 py-1.5 text-right font-medium tabular-nums", P.endgame.text, onPhone("endgame"))} data-phase="endgame">{oneDp(r.endgame)}</td>
+                      <td className={cn("px-2 py-1.5 text-right font-medium tabular-nums max-md:hidden", P.pen.text)} data-phase="pen">{oneDp(r.pen)}</td>
                     </>}
                     <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums"><RecordText text={record(r)} /></td>
                     {phases && (
