@@ -12,17 +12,24 @@ import { TeamTable } from "../TeamTable";
 import { cn } from "../../cn";
 import { Meter, StatTile, TONES, rankPc, type Tone } from "../../StatTile";
 import { Badge } from "../../ui/basic";
-import { OPR_CARDS, PHASE_TEXT, PHASE_TONE, oprRankHint, phaseOfLabel } from "../../oprCards";
+import { OPR_CARDS, oprRankHint } from "../../oprCards";
+import { SEARCH_PALETTE, meaningOf } from "../../../lib/textTones";
 import { AnswerFrame, RelatedQuestions, TAP, repeats, statedSeason, useAnswerSeason, useTeamProfile } from "./TeamAnswer";
 import { rangeCaption } from "../../../shared/format";
 import { AnswerVideo, RowPlay, useRowPlays } from "./AnswerVideo";
-import { Cell, EventMarker, HeadlineValue, INK_BAR, MethodNote, TEAM_BAR, TEAM_TEXT, RecordText, RichText, SeasonChip, better, columnMax, foldsOnPhone } from "./answerCells";
+import { Cell, EventMarker, HeadlineValue, INK_BAR, MethodNote, TEAM_BAR, TEAM_TEXT, AwardChip, TEAM_SWATCH, swatchOf, type Swatch, RecordText, RichText, SeasonChip, better, columnMax, foldsOnPhone } from "./answerCells";
 import { MatchBox, RankBadge, TeamChip } from "./MatchBox";
 import { CompareCard, comparisonOf } from "./CompareCard";
 import { ChanceBar } from "./ChanceBar";
 import { HighlightGrid, isHighlights } from "./HighlightGrid";
+import { VideoGallery } from "./VideoGallery";
 
-const H3 = "mb-1.5 text-xs font-semibold text-muted-foreground";
+// Section headers in the team hue (the owner's brief: coloured section headers).
+const H3 = "mb-1.5 text-xs font-semibold text-team-a";
+/** A tile in search's palette: a thick left bar in its colour over a wash of it (StatTile's border, its left widened). */
+const PAINT = "border-l-[6px] border-y-transparent border-r-transparent";
+/** A phase's swatch; the total (no phase) in the team hue. */
+const sw = (k: string): Swatch => (k in SEARCH_PALETTE ? SEARCH_PALETTE[k as keyof typeof SEARCH_PALETTE] : TEAM_SWATCH[0]);
 
 /** What the card has already said, read off its scope and headline: a block below says none of it again (the guide's
  *  §8, each fact printed once). `has(x)` is true for a number or a phrase it states. */
@@ -123,9 +130,7 @@ function Headline({ h, hue }: { h: NonNullable<StatAnswer["headline"]>; hue?: bo
 function kpiLook(label: string, _tone?: string): [LucideIcon, Tone] {
   const icon: LucideIcon = /win|record|loss|won|lost/i.test(label) ? Trophy : /rank|#|place/i.test(label) ? Hash : /season|year|date|when/i.test(label) ? CalendarDays
     : /rating/i.test(label) ? Sparkles : /award/i.test(label) ? Medal : /opr|score|points|margin/i.test(label) ? Target : BarChart3;
-  // A phase's tile (Auto, TeleOp, Endgame, penalties, ranking points) in the team page's colour for it; the rest neutral.
-  const phase = phaseOfLabel(label);
-  return [icon, phase ? PHASE_TONE[phase] : "neutral"];
+  return [icon, "neutral"];
 }
 
 /** The compared team a tile is about (its label names the team: "Ultraviolet (23268)", "4215 wins"), or -1. */
@@ -159,9 +164,12 @@ function Block({ b: block, team, teams, said, hue }: { b: StatBlock; team?: Stat
             {order.map(({ k, s }, j) => {
               const [icon, tone] = kpiLook(k.label, k.tone);
               const right = order.length === 2 && j === 1;
-              const value = <span className="text-foreground">{k.value}</span>;
-              const tile = <StatTile tone={tone} icon={icon} label={k.label} value={value} hint={k.sub} className={cn(right && "items-end text-right")} />;
-              const phase = phaseOfLabel(k.label) ?? undefined;
+              // A tile about one team in that team's hue (its name never read as an award or a phase: "Control Freaks");
+              // one about both in its meaning's colour, else team A's.
+              const sw = s >= 0 ? TEAM_SWATCH[Math.min(s, 2)] : swatchOf(k.label);
+              const value = <span className={sw.text}>{k.value}</span>;
+              const tile = <StatTile tone={tone} icon={icon} label={k.label} value={value} hint={k.sub} chip={sw.fill} className={cn(PAINT, sw.edge, sw.tint, right && "items-end text-right")} />;
+              const phase = meaningOf(k.label) ?? undefined;
               return k.href
                 ? <Link key={k.label} to={k.href} className="block rounded-xl transition-transform hover:-translate-y-0.5 motion-reduce:hover:translate-y-0" data-kpi data-side={s} data-phase={phase}>{tile}</Link>
                 : <div key={k.label} data-kpi data-side={s} data-phase={phase}>{tile}</div>;
@@ -173,9 +181,11 @@ function Block({ b: block, team, teams, said, hue }: { b: StatBlock; team?: Stat
         <div className={cn("grid gap-3", b.items.length === 1 ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : b.items.length === 3 ? "grid-cols-2 lg:grid-cols-3" : "grid-cols-2 lg:grid-cols-4")} data-block="kpis">
           {b.items.map((k) => {
             const [icon, tone] = kpiLook(k.label, k.tone);
-            const phase = phaseOfLabel(k.label) ?? undefined;
-            const value = <span className={hue && !phase ? TEAM_TEXT : "text-foreground"}>{k.value}</span>;
-            const tile = <StatTile tone={tone} icon={icon} label={k.label} value={value} hint={k.sub} />;
+            // Each tile in its meaning's colour (an award, a phase), else the team's: a thick left bar, a filled icon, the number in it.
+            const phase = meaningOf(k.label) ?? undefined;
+            const sw = swatchOf(k.label);
+            const value = <span className={sw.text}>{k.value}</span>;
+            const tile = <StatTile tone={tone} icon={icon} label={k.label} value={value} hint={k.sub} chip={sw.fill} className={cn(PAINT, sw.edge, sw.tint)} />;
             return k.href
               ? <Link key={k.label} to={k.href} className="block rounded-xl transition-transform hover:-translate-y-0.5 motion-reduce:hover:translate-y-0" data-kpi data-phase={phase}>{tile}</Link>
               : <div key={k.label} data-kpi data-phase={phase}>{tile}</div>;
@@ -193,9 +203,9 @@ function Block({ b: block, team, teams, said, hue }: { b: StatBlock; team?: Stat
         <figure data-block="record">
           {b.title && <figcaption className={H3}>{b.title}</figcaption>}
           <div className="flex h-1.5 overflow-hidden rounded-full bg-muted" role="img" aria-label={`${b.wins} wins, ${b.losses} losses, ${b.ties} ties`}>
-            <span className={hue ? TEAM_BAR : "bg-foreground/70"} style={{ width: w(b.wins) }} data-bar data-value={b.wins} data-scale={n} />
-            <span className="bg-foreground/25" style={{ width: w(b.losses) }} data-bar data-value={b.losses} data-scale={n} />
-            <span className="bg-muted-foreground/40" style={{ width: w(b.ties) }} data-bar data-value={b.ties} data-scale={n} />
+            <span className={TEAM_BAR} style={{ width: w(b.wins) }} data-bar data-value={b.wins} data-scale={n} />
+            <span className="bg-team-a/40" style={{ width: w(b.losses) }} data-bar data-value={b.losses} data-scale={n} />
+            <span className="bg-team-a/20" style={{ width: w(b.ties) }} data-bar data-value={b.ties} data-scale={n} />
           </div>
           <p className="mt-1.5 flex flex-wrap gap-x-4 text-xs tabular-nums text-foreground" aria-hidden>
             <span><b>{b.wins}</b> won</span><span><b>{b.losses}</b> lost</span><span><b>{b.ties}</b> tied</span>
@@ -217,12 +227,14 @@ function Block({ b: block, team, teams, said, hue }: { b: StatBlock; team?: Stat
             {ev && !said?.has(ev.season) && <> · {ev.season}</>}
           </h3>
           {/* Highlights (every match saying why it's listed): a video grid, the reason each tile's label. */}
-          {isHighlights(b) ? <HighlightGrid b={b} team={team} hue={hue} atEvent={!!ev} />
+          {isHighlights(b) ? <HighlightGrid b={b} team={team} atEvent={!!ev} />
             : <ul className={cn("grid gap-3", b.rows.length > 1 && "lg:grid-cols-2")}>{b.rows.map((r) => <MatchBox key={`${r.href}|${r.alliance}`} r={r} team={team ?? undefined} atEvent={!!ev} />)}</ul>}
           {b.more && <p className="mt-1 text-[11px] text-muted-foreground">{b.more}</p>}
         </div>
       );
     }
+    case "videos":
+      return <VideoGallery b={b} />;
     case "table":
       return b.rows.some((r) => r.teams) ? <MatchTable b={b} /> : <Table b={b} />;
     case "leaderboard":
@@ -257,15 +269,17 @@ function OprTiles({ items, teams }: { items: Extract<StatBlock, { kind: "kpis" }
   const many = !!teams && teams.length > 1 && OPR_CARDS.some(([k]) => items.filter((i) => i.phase === k).length > 1);
   return (
     <div className={cn("grid gap-3", many ? (teams!.length === 2 ? "grid-cols-2" : "grid-cols-3") : "grid-cols-2 lg:grid-cols-4")} data-block="kpis" data-opr-tiles>
-      {OPR_CARDS.flatMap(([k, label, Icon, tone]) => {
+      {OPR_CARDS.flatMap(([k, label, Icon]) => {
+        const tone: Tone = "neutral";
         // Two teams' tiles for one phase (a phase side by side) each name their team.
         const its = items.filter((i) => i.phase === k);
         return its.map((it, n) => (
-          // Each phase in the team page's colour for it (the same tile as the team page's OPR section).
+          // Each phase in search's palette colour for it: a thick left bar, a filled icon, the number and bar in it.
           <div key={`${k}-${n}`} className="min-w-0" data-phase={k}><StatTile tone={tone} icon={Icon} label={its.length > 1 ? `${label} · ${it.label}` : label}
-            value={<span className="text-foreground">{it.value}</span>}
+            chip={sw(k).fill} className={cn(PAINT, sw(k).edge, sw(k).tint)}
+            value={<span className={sw(k).text}>{it.value}</span>}
             hint={it.rank == null && it.pc != null ? it.sub : oprRankHint(it.rank, it.of)}
-            bar={<Meter parts={[{ pc: it.rank == null && it.pc != null ? it.pc : rankPc(it.rank, it.of), cls: TONES[tone].bar }]} />} /></div>
+            bar={<Meter parts={[{ pc: it.rank == null && it.pc != null ? it.pc : rankPc(it.rank, it.of), cls: sw(k).bar }]} />} /></div>
         ));
       })}
     </div>
@@ -324,18 +338,20 @@ function Table({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
             {b.rows.map((r, i) => {
               const win = vs ? better(String(r.cells[first.key] ?? ""), r.cells.a, r.cells.b) : null;
               return (
-                <tr key={i} className={cn("border-t border-border", r.strong && "font-semibold")} data-strong={r.strong ? "" : undefined}>
+                // A row that is an award (or a phase): a thick left bar in its colour, its name a filled chip.
+                <tr key={i} className={cn("border-t border-border", r.strong && "font-semibold")} data-strong={r.strong ? "" : undefined} data-meaning={meaningOf(String(r.cells[first.key] ?? "")) ?? undefined}>
                   {b.columns.map((c, j) => {
                     const v = r.cells[c.key];
                     const won = win === c.key;
                     return (
-                      <td key={c.key} className={cn("px-2.5 py-1.5 align-middle", c.num && "text-right tabular-nums", j === 0 ? "min-w-[4.5rem] md:min-w-[8rem]" : "whitespace-nowrap max-md:px-1.5", folded.includes(c) && "max-md:hidden", won && "font-bold text-foreground")} data-better={won ? "" : undefined}>
-                        {j === 0 && r.strong && <Trophy className="mr-1 inline size-3.5 align-[-2px] text-muted-foreground" aria-label="Best" />}
+                      <td key={c.key} className={cn("px-2.5 py-1.5 align-middle", c.num && "text-right tabular-nums", j === 0 && meaningOf(String(v ?? "")) && cn("border-l-[6px]", swatchOf(String(v)).edge), j === 0 ? "min-w-[4.5rem] md:min-w-[8rem]" : "whitespace-nowrap max-md:px-1.5", folded.includes(c) && "max-md:hidden", won && "font-bold text-foreground")} data-better={won ? "" : undefined}>
+                        {j === 0 && r.strong && <Trophy className="mr-1 inline size-3.5 align-[-2px] text-team-a" aria-label="Best" />}
                         {j === 0 && r.href
-                          ? <Link to={r.href} className="text-foreground hover:text-accent-text hover:underline max-md:inline-flex max-md:min-h-[44px] max-md:items-center pointer-coarse:inline-flex pointer-coarse:min-h-[44px] pointer-coarse:items-center">{v ?? "–"}</Link>
+                          ? <Link to={r.href} className="text-foreground hover:text-accent-text hover:underline max-md:inline-flex max-md:min-h-[44px] max-md:items-center pointer-coarse:inline-flex pointer-coarse:min-h-[44px] pointer-coarse:items-center">{c.key === "award" && v != null ? <AwardChip name={String(v)} /> : (v ?? "–")}</Link>
+                          : j === 0 && c.key === "award" && v != null ? <AwardChip name={String(v)} />
                           : j === 0 ? (v ?? "–") : <Cell col={c} value={v} max={max.get(c.key)} />}
                         {j === 0 && first.key === "event" && !!r.type && <EventMarker type={r.type} chip />}
-                        {won && <Trophy className="ml-1 inline size-3 align-[-1px] text-muted-foreground" aria-label="Better" />}
+                        {won && <Trophy className="ml-1 inline size-3 align-[-1px] text-team-a" aria-label="Better" />}
                         {j === 0 && !!folded.length && (
                           <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] font-normal text-muted-foreground md:hidden" data-folded>
                             {folded.map((f) => r.cells[f.key] != null && <span key={f.key}>{f.key === "season" ? <SeasonChip text={String(r.cells[f.key])} /> : r.cells[f.key]}</span>)}
@@ -431,10 +447,12 @@ function Series({ b }: { b: Extract<StatBlock, { kind: "series" }> }) {
       <figcaption className={H3}>{b.title}</figcaption>
       <div className="relative h-32 rounded-lg border border-border bg-muted/20">
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 size-full" aria-hidden>
-          {pts.length > 1 && <polyline points={pts.map((p) => `${x(p.i)},${y(p.y)}`).join(" ")} fill="none" className="stroke-foreground/70" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />}
+          {pts.length > 1 && <polyline points={pts.map((p) => `${x(p.i)},${y(p.y)}`).join(" ")} fill="none" className="stroke-team-a" strokeWidth="3" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />}
         </svg>
         {pts.map((p) => {
-          const dot = <span className="block size-3 rounded-full border-2 border-foreground bg-card" />;
+          // In the team hue, the latest point larger and filled.
+          const last = p.i === pts[pts.length - 1].i;
+          const dot = <span className={cn("block rounded-full border-2 border-team-a", last ? "size-4 bg-team-a" : "size-3 bg-card")} />;
           const style = { left: `${x(p.i)}%`, top: `${y(p.y)}%` };
           const label = `${p.x}: ${p.y}${b.unit ? ` ${b.unit}` : ""}${p.note ? ` (${p.note})` : ""}`;
           return p.href
@@ -460,6 +478,10 @@ function Series({ b }: { b: Extract<StatBlock, { kind: "series" }> }) {
 function Bars({ b }: { b: Extract<StatBlock, { kind: "bars" }> }) {
   // One group's values are small tiles (a phase's in the team page's colour for it); several groups a compact table, a row each.
   const fmt = (v: number | null) => (v == null ? "–" : `${Number.isInteger(v) ? v : v.toFixed(1)}${b.unit === "%" ? "%" : ""}`);
+  // A value's meaning first (a phase, an award: the same colour as everywhere); else a team's (tone a, b, c: a
+  // prediction's two teams, labelled by number) in that team's hue; else the card's.
+  const sw = (i: { label: string; tone?: string }): Swatch => (meaningOf(i.label) ? swatchOf(i.label)
+    : i.tone && i.tone !== "d" ? TEAM_SWATCH["abc".indexOf(i.tone)] : swatchOf(i.label));
   if (b.groups.length === 1) {
     const g = b.groups[0];
     return (
@@ -467,9 +489,9 @@ function Bars({ b }: { b: Extract<StatBlock, { kind: "bars" }> }) {
         <figcaption className={H3}>{b.title}</figcaption>
         <dl className={cn("grid gap-2", g.items.length <= 3 ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4")}>
           {g.items.map((i) => (
-            <div key={i.label} className={cn("rounded-lg border px-3 py-2", phaseOfLabel(i.label) ? TONES[PHASE_TONE[phaseOfLabel(i.label)!]].box : "border-border bg-muted/30")} data-bar-value={i.label} data-phase={phaseOfLabel(i.label) ?? undefined}>
-              <dt className="text-xs font-medium text-muted-foreground">{i.label}</dt>
-              <dd className={cn("font-display text-xl font-semibold tabular-nums", phaseOfLabel(i.label) ? PHASE_TEXT(phaseOfLabel(i.label)!) : "text-foreground")}>{fmt(i.value)}</dd>
+            <div key={i.label} className={cn("rounded-lg border px-3 py-2", PAINT, sw(i).edge, sw(i).tint)} data-bar-value={i.label} data-phase={meaningOf(i.label) ?? undefined}>
+              <dt className={cn("text-xs font-semibold", sw(i).text)}>{i.label}</dt>
+              <dd className={cn("font-display text-xl font-semibold tabular-nums", sw(i).text)}>{fmt(i.value)}</dd>
             </div>
           ))}
         </dl>

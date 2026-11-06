@@ -1,0 +1,1002 @@
+[
+ {
+  "n": 1,
+  "q": "highest scoring match in California this week",
+  "expect": "match-find"
+ },
+ {
+  "n": 2,
+  "q": "lowest scoring match in Texas last week",
+  "expect": "match-find"
+ },
+ {
+  "n": 3,
+  "q": "biggest upset in New Jersey this season",
+  "expect": "match-find"
+ },
+ {
+  "n": 4,
+  "q": "closest match in Romania last month",
+  "expect": "match-find"
+ },
+ {
+  "n": 5,
+  "q": "highest scoring match in Florida yesterday",
+  "expect": "match-find"
+ },
+ {
+  "n": 6,
+  "q": "most lopsided match in Ohio this week",
+  "expect": "match-find"
+ },
+ {
+  "n": 7,
+  "q": "best comeback match in Michigan this season",
+  "expect": "match-find"
+ },
+ {
+  "n": 8,
+  "q": "highest scoring quals match in California this season",
+  "expect": "match-find"
+ },
+ {
+  "n": 9,
+  "q": "lowest scoring playoff match in Texas this season",
+  "expect": "match-find"
+ },
+ {
+  "n": 10,
+  "q": "match with the most penalty points in New Jersey last week",
+  "expect": "match-find"
+ },
+ {
+  "n": 11,
+  "q": "match where the underdog won by the most in Romania this year",
+  "expect": "match-find"
+ },
+ {
+  "n": 12,
+  "q": "highest combined score ever in a New York match",
+  "expect": "match-find"
+ },
+ {
+  "n": 13,
+  "q": "closest finals match in California last year",
+  "expect": "match-find"
+ },
+ {
+  "n": 14,
+  "q": "match with the biggest score gap in the world this week",
+  "expect": "match-find"
+ },
+ {
+  "n": 15,
+  "q": "highest scoring match at a league meet in New Jersey this month",
+  "expect": "match-find"
+ },
+ {
+  "n": 16,
+  "q": "how good is 7149 really, like in plain numbers, in 2025-26",
+  "expect": "any"
+ },
+ {
+  "n": 17,
+  "q": "is 23268 actually that good or just hype, in 2025-26",
+  "expect": "any"
+ },
+ {
+  "n": 18,
+  "q": "whats the deal with 14450, are they consistent",
+  "expect": "any"
+ },
+ {
+  "n": 19,
+  "q": "did 24033 Alphatronic ever win an Inspire award",
+  "expect": "awards"
+ },
+ {
+  "n": 20,
+  "q": "when did 17713 Delta Force last lose a match",
+  "expect": "team-match"
+ },
+ {
+  "n": 21,
+  "q": "how many matches has 17965 played in total, ever",
+  "expect": "count|record"
+ },
+ {
+  "n": 22,
+  "q": "whats 9848's worst event ever, by rank",
+  "expect": "event|team-match"
+ },
+ {
+  "n": 23,
+  "q": "which team in New Jersey has the most awards, ever",
+  "expect": "leaderboard|awards"
+ },
+ {
+  "n": 24,
+  "q": "who has the longest winning streak in Romania right now",
+  "expect": "leaderboard|record"
+ },
+ {
+  "n": 25,
+  "q": "has 207 Critical Mass ever made it to worlds",
+  "expect": "ever|worlds"
+ },
+ {
+  "n": 26,
+  "q": "what school is 8902 Cosmic Goose from, actually",
+  "expect": "fact"
+ },
+ {
+  "n": 27,
+  "q": "where is 14481 Don't Blink based out of",
+  "expect": "fact"
+ },
+ {
+  "n": 28,
+  "q": "is 23786 MakEMinds a rookie team or old",
+  "expect": "fact"
+ },
+ {
+  "n": 29,
+  "q": "how old is team 755 Delbotics, when did they start",
+  "expect": "fact"
+ },
+ {
+  "n": 30,
+  "q": "who has the highest auto OPR in New Jersey in 2025-26",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 31,
+  "q": "who has the worst teleop OPR in Romania in 2025-26",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 32,
+  "q": "whats the OPR gap between 7149 and 23268",
+  "expect": "compare"
+ },
+ {
+  "n": 33,
+  "q": "is 14450's rating going up or down in 2025-26, event by event",
+  "expect": "trend"
+ },
+ {
+  "n": 34,
+  "q": "show me the OPR trend for 17713 over the season, not just one number",
+  "expect": "trend"
+ },
+ {
+  "n": 35,
+  "q": "which NJ team improved their OPR the most between their first and last event in 2025-26",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 36,
+  "q": "which team has the most stable OPR, least ups and downs",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 37,
+  "q": "whats the average OPR of teams at the New Jersey Championship Turnpike Division",
+  "expect": "opr|event"
+ },
+ {
+  "n": 38,
+  "q": "who is ranked just above and just below 4215 worldwide in 2025-26",
+  "expect": "leaderboard|rank"
+ },
+ {
+  "n": 39,
+  "q": "what percentile is 7149 in, worldwide, in 2025-26, not just rank number",
+  "expect": "rank|opr"
+ },
+ {
+  "n": 40,
+  "q": "who did 4215 lose to the most times",
+  "expect": "h2h"
+ },
+ {
+  "n": 41,
+  "q": "who is 7149's biggest rival, by matches played",
+  "expect": "h2h"
+ },
+ {
+  "n": 42,
+  "q": "did 23268 ever beat 7149, and if so when",
+  "expect": "h2h"
+ },
+ {
+  "n": 43,
+  "q": "whats 14450's record against teams ranked top 10 worldwide",
+  "expect": "record|h2h"
+ },
+ {
+  "n": 44,
+  "q": "how many times have 4215 and 207 played each other, total",
+  "expect": "h2h|count"
+ },
+ {
+  "n": 45,
+  "q": "whats the longest losing streak for 6980 this season",
+  "expect": "record"
+ },
+ {
+  "n": 46,
+  "q": "did 33950 ever win a match in playoffs",
+  "expect": "record|ever"
+ },
+ {
+  "n": 47,
+  "q": "whats 9848's record in finals matches only",
+  "expect": "record"
+ },
+ {
+  "n": 48,
+  "q": "how many matches did 17713 win by more than 100 points",
+  "expect": "count|team-match"
+ },
+ {
+  "n": 49,
+  "q": "which team beat 17965 the most often",
+  "expect": "h2h|leaderboard"
+ },
+ {
+  "n": 50,
+  "q": "what events did 24033 Alphatronic play in Romania this year, in order",
+  "expect": "events|event"
+ },
+ {
+  "n": 51,
+  "q": "what was the last event 21229 played, and how did they do",
+  "expect": "event|when-last"
+ },
+ {
+  "n": 52,
+  "q": "which event had the most teams in California this season",
+  "expect": "leaderboard|events"
+ },
+ {
+  "n": 53,
+  "q": "whats the next event for 4215, if any",
+  "expect": "when-next"
+ },
+ {
+  "n": 54,
+  "q": "did 7149 play at any event in June",
+  "expect": "events|ever"
+ },
+ {
+  "n": 55,
+  "q": "which league tournament in New Jersey had the closest finals",
+  "expect": "match-find"
+ },
+ {
+  "n": 56,
+  "q": "what events are happening in Romania next month",
+  "expect": "events"
+ },
+ {
+  "n": 57,
+  "q": "how many events did 14450 play in 2025-26, and which was their best by rank",
+  "expect": "count|events|event"
+ },
+ {
+  "n": 58,
+  "q": "what was 23268's first event this season, and what was their OPR there",
+  "expect": "event|opr"
+ },
+ {
+  "n": 59,
+  "q": "which event did 17965 do worst at, by OPR",
+  "expect": "event|opr"
+ },
+ {
+  "n": 60,
+  "q": "what awards has 24033 Alphatronic won, ever, list them all",
+  "expect": "awards"
+ },
+ {
+  "n": 61,
+  "q": "who won Control award at the New Jersey Championship Turnpike Division",
+  "expect": "awards"
+ },
+ {
+  "n": 62,
+  "q": "did any NJ team win Inspire at worlds last year",
+  "expect": "awards|ever"
+ },
+ {
+  "n": 63,
+  "q": "which Romanian team has won the most Inspire awards",
+  "expect": "awards|leaderboard"
+ },
+ {
+  "n": 64,
+  "q": "what award did 7149 win at Deep South Conference",
+  "expect": "awards"
+ },
+ {
+  "n": 65,
+  "q": "who got 2nd place Inspire at East Bergen, not just winner",
+  "expect": "awards"
+ },
+ {
+  "n": 66,
+  "q": "did 14450 win any award at Far North Conference",
+  "expect": "awards"
+ },
+ {
+  "n": 67,
+  "q": "whats the rarest award a NJ team won this season",
+  "expect": "awards"
+ },
+ {
+  "n": 68,
+  "q": "how many awards total does 9848 have, by type",
+  "expect": "awards|count"
+ },
+ {
+  "n": 69,
+  "q": "who won Think award at Romania Championship VLAICU Division",
+  "expect": "awards"
+ },
+ {
+  "n": 70,
+  "q": "if 4215 played 7149 tomorrow, who would win and by how much",
+  "expect": "predict"
+ },
+ {
+  "n": 71,
+  "q": "what were 23268's chances before the NJ Championship Turnpike, versus what actually happened",
+  "expect": "predict"
+ },
+ {
+  "n": 72,
+  "q": "predict a match: 14450 and 207 vs 8902 and 755, who wins",
+  "expect": "predict"
+ },
+ {
+  "n": 73,
+  "q": "whats 17713's chance of making worlds next year, based on now",
+  "expect": "predict"
+ },
+ {
+  "n": 74,
+  "q": "did the prediction for 4215 at East Bergen get it right, or was it way off",
+  "expect": "predict"
+ },
+ {
+  "n": 75,
+  "q": "show me 7149's predicted vs actual rank at every event this season, side by side",
+  "expect": "predict"
+ },
+ {
+  "n": 76,
+  "q": "if I swap 4215 for 6980 in a match with 7149, how do the odds change",
+  "expect": "predict"
+ },
+ {
+  "n": 77,
+  "q": "whats the most unpredictable match 17965 played this season, where prediction was most wrong",
+  "expect": "predict|team-match"
+ },
+ {
+  "n": 78,
+  "q": "predict 24033 Alphatronic vs 17713 Delta Force, head to head",
+  "expect": "predict"
+ },
+ {
+  "n": 79,
+  "q": "can 33950 beat a top 10 worldwide team, according to predictions, and by how much would they lose",
+  "expect": "predict"
+ },
+ {
+  "n": 80,
+  "q": "compare 7149, 23268, and 14450 on auto, teleop, and endgame, all at once",
+  "expect": "compare"
+ },
+ {
+  "n": 81,
+  "q": "which is better at auto, 17713 or 17965, and by how many points",
+  "expect": "compare"
+ },
+ {
+  "n": 82,
+  "q": "is 4215 better than 7149 at endgame, or worse",
+  "expect": "compare"
+ },
+ {
+  "n": 83,
+  "q": "rank these NJ teams by reliability: 4215, 7149, 23268, 14450, 9848",
+  "expect": "compare|leaderboard"
+ },
+ {
+  "n": 84,
+  "q": "who has better penalties, 207 or 8902, like who gives away less",
+  "expect": "compare"
+ },
+ {
+  "n": 85,
+  "q": "compare 24033 and 17713 on OPR, record, and awards, not just OPR",
+  "expect": "compare"
+ },
+ {
+  "n": 86,
+  "q": "which team has the best teleop in Romania, top 3",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 87,
+  "q": "which NJ team is most consistent across all phases, not just highest OPR",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 88,
+  "q": "top 10 teams in New Jersey by OPR right now, with their records",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 89,
+  "q": "top 5 teams in Romania by rating, not OPR",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 90,
+  "q": "best rookie team in New Jersey this season",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 91,
+  "q": "best team in Cluj-Napoca, Romania, by OPR",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 92,
+  "q": "top 10 teams in the world by auto OPR only",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 93,
+  "q": "which state has the highest average OPR, top 5 states",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 94,
+  "q": "best team in Oradell, NJ, by record",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 95,
+  "q": "top 5 most improved teams in New Jersey this season, by OPR gain",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 96,
+  "q": "worst 5 teams in Romania by record, this season, just curious",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 97,
+  "q": "leaderboard for teams that played at least 20 matches, by win rate, worldwide",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 98,
+  "q": "show me 4215's match where they scored the most points ever",
+  "expect": "team-match"
+ },
+ {
+  "n": 99,
+  "q": "show me 7149's closest win, by margin",
+  "expect": "team-match"
+ },
+ {
+  "n": 100,
+  "q": "show me 23268's biggest loss, by margin",
+  "expect": "team-match"
+ },
+ {
+  "n": 101,
+  "q": "what was the score in 14450's last match",
+  "expect": "when-last|team-match"
+ },
+ {
+  "n": 102,
+  "q": "show me all matches where 17713 scored over 300 points",
+  "expect": "team-match"
+ },
+ {
+  "n": 103,
+  "q": "did 17965 ever play a match that went to tiebreak, or overtime",
+  "expect": "any"
+ },
+ {
+  "n": 104,
+  "q": "show me 24033's match against 17713, if they ever played",
+  "expect": "h2h"
+ },
+ {
+  "n": 105,
+  "q": "what was 9848's score in their first match this season",
+  "expect": "team-match|when-first"
+ },
+ {
+  "n": 106,
+  "q": "show me 207's matches at East Bergen, in order, with scores",
+  "expect": "event"
+ },
+ {
+  "n": 107,
+  "q": "which match did 8902 lose by 1 point, if any",
+  "expect": "team-match"
+ },
+ {
+  "n": 108,
+  "q": "which NJ team gives away the most penalty points per match",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 109,
+  "q": "is 4215 getting better or worse at penalties over the 2025-26 season",
+  "expect": "trend"
+ },
+ {
+  "n": 110,
+  "q": "which team has the best reliability score in Romania in 2025-26",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 111,
+  "q": "show me 7149's reliability trend, event by event",
+  "expect": "trend"
+ },
+ {
+  "n": 112,
+  "q": "which team fouls the least in New Jersey",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 113,
+  "q": "how many penalty points did 23268 give away at NJ Championship Turnpike in 2025-26, total",
+  "expect": "penalties|event"
+ },
+ {
+  "n": 114,
+  "q": "is 14450's teleop improving, or flat, in 2025-26",
+  "expect": "trend"
+ },
+ {
+  "n": 115,
+  "q": "which team had the biggest OPR jump from one event to the next",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 116,
+  "q": "which NJ teams made worlds in 2025-26, list them all",
+  "expect": "leaderboard|worlds"
+ },
+ {
+  "n": 117,
+  "q": "how did 7149 do at worlds, division by division",
+  "expect": "event|worlds"
+ },
+ {
+  "n": 118,
+  "q": "did any Romanian team make worlds finals last year",
+  "expect": "worlds|leaderboard|ever"
+ },
+ {
+  "n": 119,
+  "q": "whats 23268's best worlds result ever",
+  "expect": "event|worlds"
+ },
+ {
+  "n": 120,
+  "q": "which team from Romania has the most worlds appearances",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 121,
+  "q": "how many NJ teams went to worlds in 2024, versus 2025",
+  "expect": "count|compare"
+ },
+ {
+  "n": 122,
+  "q": "did 14450 ever win a match at worlds",
+  "expect": "record|ever"
+ },
+ {
+  "n": 123,
+  "q": "what division was 9848 in at worlds, and what was their rank there",
+  "expect": "event|worlds"
+ },
+ {
+  "n": 124,
+  "q": "what did 4215 do in 2024, not 2025, at states",
+  "expect": "event"
+ },
+ {
+  "n": 125,
+  "q": "show me 7149 in 2023, if they played then",
+  "expect": "any"
+ },
+ {
+  "n": 126,
+  "q": "what was 23268's record in 2024-25, not this season",
+  "expect": "record"
+ },
+ {
+  "n": 127,
+  "q": "how has 17713 changed from last season to this season",
+  "expect": "trend|compare"
+ },
+ {
+  "n": 128,
+  "q": "whats 17965's record this month, versus last month",
+  "expect": "record"
+ },
+ {
+  "n": 129,
+  "q": "which team played the most matches this week, worldwide",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 130,
+  "q": "what happened in FTC last weekend, biggest results",
+  "expect": "match-find|events"
+ },
+ {
+  "n": 131,
+  "q": "show me matches from yesterday, highest scoring first",
+  "expect": "match-find"
+ },
+ {
+  "n": 132,
+  "q": "4215 opr rn pls",
+  "expect": "opr"
+ },
+ {
+  "n": 133,
+  "q": "who is da best team in nj in 2025-26",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 134,
+  "q": "did hypnotic robotics choke at states or nah",
+  "expect": "event"
+ },
+ {
+  "n": 135,
+  "q": "whats up with ultraviolet, are they cracked",
+  "expect": "any"
+ },
+ {
+  "n": 136,
+  "q": "show me alphatronic stuff, like everything",
+  "expect": "any"
+ },
+ {
+  "n": 137,
+  "q": "is delta force actually from romania or what",
+  "expect": "fact"
+ },
+ {
+  "n": 138,
+  "q": "how many wins does enforcers have, like total wins",
+  "expect": "count|record"
+ },
+ {
+  "n": 139,
+  "q": "what team should i watch at nj champs, like actually good ones",
+  "expect": "leaderboard|event"
+ },
+ {
+  "n": 140,
+  "q": "who won inspire at east bergen, i forgot",
+  "expect": "awards"
+ },
+ {
+  "n": 141,
+  "q": "can u tell me if bad wolf is good, be honest",
+  "expect": "any"
+ },
+ {
+  "n": 142,
+  "q": "whats the score of that one match where 4215 lost by a lot",
+  "expect": "team-match"
+ },
+ {
+  "n": 143,
+  "q": "is there a team in romania that is better than all nj teams",
+  "expect": "leaderboard|compare"
+ },
+ {
+  "n": 144,
+  "q": "which team has the coolest name, no, actually which team has highest OPR in romania",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 145,
+  "q": "i typed 4215 wrong as 4216, did u mean 4215",
+  "expect": "any"
+ },
+ {
+  "n": 146,
+  "q": "what happens if 4215 plays against itself, lol, no, predict 4215 vs 4215",
+  "expect": "predict"
+ },
+ {
+  "n": 147,
+  "q": "show me teams near me, like in River Edge, NJ area",
+  "expect": "leaderboard|fact"
+ },
+ {
+  "n": 148,
+  "q": "whats a good team to scout for alliance selection at nj championship",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 149,
+  "q": "who would win in a match between the top NJ team and top Romania team",
+  "expect": "predict"
+ },
+ {
+  "n": 150,
+  "q": "is there any team with a perfect record this season, worldwide",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 151,
+  "q": "whats the most points any team scored in a single match this season, worldwide",
+  "expect": "match-find"
+ },
+ {
+  "n": 152,
+  "q": "teams in New Jersey with OPR over 100 who also won Inspire",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 153,
+  "q": "teams in Romania with at least 30 matches and a win rate over 70 percent",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 154,
+  "q": "matches in California this week where the losing alliance scored over 200",
+  "expect": "match-find"
+ },
+ {
+  "n": 155,
+  "q": "events in Texas this season with more than 40 teams",
+  "expect": "events"
+ },
+ {
+  "n": 156,
+  "q": "teams who won both Inspire and Winning Alliance at the same event",
+  "expect": "leaderboard|awards"
+ },
+ {
+  "n": 157,
+  "q": "matches where a team ranked below 1000 beat a team ranked top 100",
+  "expect": "match-find"
+ },
+ {
+  "n": 158,
+  "q": "teams with OPR over 120 who did NOT make worlds",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 159,
+  "q": "awards won by teams from Cluj-Napoca, Romania, this season",
+  "expect": "awards"
+ },
+ {
+  "n": 160,
+  "q": "highest OPR team that has never won an award",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 161,
+  "q": "most matches played by any team this season, worldwide, top 5",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 162,
+  "q": "teams that improved from rank 1000+ to top 100 in one season",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 163,
+  "q": "matches at NJ Championship where both alliances scored over 250",
+  "expect": "match-find"
+ },
+ {
+  "n": 164,
+  "q": "teams in New Jersey who played at both Parkway and Turnpike divisions, ever",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 165,
+  "q": "which event had the highest average match score in Romania this season",
+  "expect": "leaderboard|event"
+ },
+ {
+  "n": 166,
+  "q": "teams with a perfect 8-0 record at any championship event this season",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 167,
+  "q": "which alliance partner would be best for 4215 at NJ championship, based on OPR and auto",
+  "expect": "predict|leaderboard|picks"
+ },
+ {
+  "n": 168,
+  "q": "who should 7149 pick first at NJ championship, by predicted win odds",
+  "expect": "predict|leaderboard|picks"
+ },
+ {
+  "n": 169,
+  "q": "whats the best second pick for 23268 at worlds, by complementing their auto",
+  "expect": "predict|leaderboard|picks"
+ },
+ {
+  "n": 170,
+  "q": "show me teams that complement 14450's weak endgame",
+  "expect": "predict|leaderboard|picks"
+ },
+ {
+  "n": 171,
+  "q": "which team has the best auto in the world in 2025-26, but a weak teleop, so they need a teleop partner",
+  "expect": "predict|leaderboard|picks"
+ },
+ {
+  "n": 172,
+  "q": "whats the predicted score if 4215, 7149, and 23268 were on the same alliance",
+  "expect": "predict|leaderboard|picks"
+ },
+ {
+  "n": 173,
+  "q": "which team is the best defender, by opponent score suppression, in NJ",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 174,
+  "q": "who has the highest score in a match they lost, worldwide this season",
+  "expect": "match-find"
+ },
+ {
+  "n": 175,
+  "q": "whats the average match score at Romania Championship, versus NJ Championship, side by side",
+  "expect": "compare|event"
+ },
+ {
+  "n": 176,
+  "q": "which championship division was hardest this year, by average OPR",
+  "expect": "leaderboard|event"
+ },
+ {
+  "n": 177,
+  "q": "show me the top 3 matches of all time, by total score, in FTC history on this site",
+  "expect": "match-find"
+ },
+ {
+  "n": 178,
+  "q": "whats the fastest growing team in the world in 2025-26, by rating gain across the season",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 179,
+  "q": "which team played in the most different states or countries this season",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 180,
+  "q": "show me a team that started as a rookie this year and already made worlds",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 181,
+  "q": "whats the oldest team still active in New Jersey, by rookie year",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 182,
+  "q": "which team has played the most seasons, ever",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 183,
+  "q": "show me teams with a name that includes Robot, sorted by OPR",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 184,
+  "q": "whats the most common team name word in Romania",
+  "expect": "any"
+ },
+ {
+  "n": 185,
+  "q": "which city in New Jersey has the most FTC teams",
+  "expect": "leaderboard|count"
+ },
+ {
+  "n": 186,
+  "q": "which city in Romania has the most FTC teams",
+  "expect": "leaderboard|count"
+ },
+ {
+  "n": 187,
+  "q": "show me teams from a school, not just a city, for 4215",
+  "expect": "fact"
+ },
+ {
+  "n": 188,
+  "q": "what sponsors does 7149 have, list them",
+  "expect": "fact"
+ },
+ {
+  "n": 189,
+  "q": "does 23268 have any sponsors listed on their team page",
+  "expect": "fact"
+ },
+ {
+  "n": 190,
+  "q": "whats the difference between OPR and rating, in plain words, for a beginner",
+  "expect": "explain"
+ },
+ {
+  "n": 191,
+  "q": "how is OPR calculated, show me with 4215 as an example, step by step",
+  "expect": "explain"
+ },
+ {
+  "n": 192,
+  "q": "why did 4215's rating go down even though they won, explain it",
+  "expect": "explain|rating"
+ },
+ {
+  "n": 193,
+  "q": "what does ranking score mean, for 14450 at NJ Championship Parkway",
+  "expect": "explain"
+ },
+ {
+  "n": 194,
+  "q": "show me 17713's matches where prediction was wrong by more than 50 points",
+  "expect": "predict"
+ },
+ {
+  "n": 195,
+  "q": "which prediction was the most accurate this season, for any team",
+  "expect": "predict"
+ },
+ {
+  "n": 196,
+  "q": "can I filter predictions by event, team, and date, in search",
+  "expect": "explain"
+ },
+ {
+  "n": 197,
+  "q": "show me all predictions for tomorrow's matches, if any are scheduled",
+  "expect": "predict"
+ },
+ {
+  "n": 198,
+  "q": "whats the win probability for a match that hasn't happened yet, with teams I pick",
+  "expect": "predict|explain"
+ },
+ {
+  "n": 199,
+  "q": "if I change the alliance, does the win probability update, show me",
+  "expect": "predict|explain"
+ },
+ {
+  "n": 200,
+  "q": "show me the last 10 predictions for 4215, and whether they were right",
+  "expect": "predict"
+ }
+]
