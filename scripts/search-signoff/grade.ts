@@ -68,14 +68,15 @@ const PLACES: [RegExp, string[]][] = [
   [/\bcluj/i, ["cluj"]], [/\boradell\b/i, ["oradell"]], [/\briver edge\b/i, ["river edge"]],
 ];
 
-/** The season a question names ("2025-26", "in 2024"), as the labels a card may say it with. */
-export function seasonsAsked(q: string): string[] | null {
-  const m = q.match(/\b(20\d\d)\s*[-–]\s*(\d\d)\b/);
-  if (m) return [`${m[1]}-${m[2]}`];
-  const y = q.match(/\b(?:in|from|of|for)?\s*(20[12]\d)\b/);
-  if (!y) return null;
-  const n = +y[1];
-  return [`${n - 1}-${String(n % 100).padStart(2, "0")}`, `${n}-${String((n + 1) % 100).padStart(2, "0")}`, String(n)];
+/** Every season a question names ("2025-26", "in 2024, versus 2025"), each as the labels a card may say it with. */
+export function seasonsAsked(q: string): string[][] {
+  const out: string[][] = [];
+  const rest = q.replace(/\b(20\d\d)\s*[-–]\s*(\d\d)\b/g, (_, a: string, b: string) => { out.push([`${a}-${b}`]); return " "; });
+  for (const y of rest.matchAll(/\b(20[12]\d)\b/g)) {
+    const n = +y[1];
+    out.push([`${n - 1}-${String(n % 100).padStart(2, "0")}`, `${n}-${String((n + 1) % 100).padStart(2, "0")}`, String(n)]);
+  }
+  return out;
 }
 
 const WINDOW = /\b(this|last|next) (week|weekend|month)\b|\byesterday\b|\btoday\b|\btomorrow\b/i;
@@ -139,12 +140,17 @@ export function grade(q: string, expect: string, r: Live | null, err?: string, t
   }
   const kinds = expect.split("|");
   if (!kinds.some((k) => (KINDS[k] ?? new RegExp(k)).test(sig))) return fail("wrong answer kind", `a ${expect} answer (got ${sig.slice(0, 80)})`);
-  const said = seasonsAsked(q);
-  if (said && !said.some((s) => text.includes(s))) return fail("season not stated", `season ${said[0]} on the card`);
-  // A window ("this week", "yesterday") is a filter too: the card says it back, or its dates fall inside it.
-  const w = q.match(WINDOW);
-  if (w && !text.includes(fold(w[0]))) {
-    const [a, b] = windowDays(w[0], today), ds = datesIn(text, today);
+  // A side by side needs its numbers: a two-team card with no headline and no "none" line is an empty comparison.
+  // (A head-to-head or a yes/no may answer "never", which is a real answer.)
+  if (sig.startsWith("two-team:") && !r.stat?.headline?.value && !(r.stat?.none && kinds.some((k) => ["h2h", "ever", "predict"].includes(k))))
+    return fail("compare card without numbers", "the numbers side by side");
+  // Every season and every window said is a filter, each one stated: "2024 versus 2025" needs both.
+  for (const said of seasonsAsked(q)) if (!said.some((s) => text.includes(s))) return fail("season not stated", `season ${said[0]} on the card`);
+  // A window ("this week", "yesterday") is stated by its words, or by a date the card names inside it.
+  const ds = datesIn(text, today);
+  for (const w of q.matchAll(new RegExp(WINDOW.source, "gi"))) {
+    if (text.includes(fold(w[0]))) continue;
+    const [a, b] = windowDays(w[0], today);
     if (!ds.length) return fail("time filter not stated", `"${w[0]}" on the card`);
     if (!ds.some((d) => d >= a && d <= b)) return fail("time filter missed", `a match from ${w[0]} (${new Date(a).toISOString().slice(0, 10)}–${new Date(b).toISOString().slice(0, 10)})`);
   }

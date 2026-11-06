@@ -1,5 +1,6 @@
 // The sign-off's "no per-query branch" check: every team number, team name, event, division and place the sign-off
-// sets name, plus year literals, grepped in the search parser and answers (tests excluded). A hit is a line to
+// sets name, plus year literals, grepped in every search reader, the parser, the answers and the search UI (tests and
+// test-only phrase lists excluded). A hit is a line to
 // read: a team or event name there is a branch for one query; a year may be a season boundary, so years are listed
 // apart for a person to judge.
 //
@@ -8,13 +9,16 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
 const ROOT = join(import.meta.dirname, "..", "..");
-const DIRS = ["server/api/query", "server/api/answers", "server/api/searchAnswer.ts", "server/api/search.ts", "server/api/searchEvents.ts", "src/components/search"];
+// The parser and answers, every search reader beside them (server/api/search*.ts, which searchAnswer.ts calls), the
+// shared query readers (src/shared/search*.ts) and the search UI.
+const readers = (dir: string) => readdirSync(join(ROOT, dir)).filter((f) => /^search.*\.tsx?$/.test(f)).map((f) => `${dir}/${f}`);
+const DIRS = ["server/api/query", "server/api/answers", ...readers("server/api"), ...readers("src/shared"), "src/components/search"];
 const files = (p: string): string[] => {
   const abs = join(ROOT, p);
   try { if (statSync(abs).isFile()) return [abs]; } catch { return []; }
   return readdirSync(abs).flatMap((f) => files(join(p, f)));
 };
-const code = DIRS.flatMap(files).filter((f) => /\.(ts|tsx)$/.test(f) && !/\.test(kit)?\.(ts|tsx)$|testkit|fixtures?/.test(f));
+const code = DIRS.flatMap(files).filter((f) => /\.(ts|tsx)$/.test(f) && !/\.test(kit)?\.(ts|tsx)$|\.sets\.ts$|testkit|fixtures?/.test(f));
 
 // Every literal the sets use: team numbers, then the names of teams, events, divisions and places they mention.
 // The queries only (not the Nov 4 notes beside them, whose numbers are results, not literals a branch would use).

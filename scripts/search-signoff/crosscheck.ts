@@ -35,16 +35,21 @@ export async function crosscheck(base: string, r: Live): Promise<Check> {
   const near = (a: number | null, b: number | undefined, what: string): Check =>
     a == null || b == null ? { compared: false, ok: true, note: "" }
       : { compared: true, ok: Math.abs(a - b) < 0.06, note: Math.abs(a - b) < 0.06 ? "" : `${what} ${a} on the card, ${b.toFixed(1)} on the team page` };
-  if (s.family === "stat" && s.intent === "opr") return near(num(v), st?.opr?.np?.value, "OPR");
-  if (s.family === "stat" && s.intent === "rating") return near(num(v), st?.rating?.np, "rating");
+  // A season's number only when the card covers the whole season: its one scope chip is the season, and its title
+  // names no part of it (playoffs, a month, an event, a side). A filtered number is left to the grade.
+  const whole = (title: RegExp) => (s.scope ?? []).length === 1 && /^20\d\d[–-]\d\d$/.test(s.scope![0]) && title.test(s.title ?? "");
+  if (s.family === "stat" && s.intent === "opr" && whole(/^OPR in 20\d\d[–-]\d\d$/)) return near(num(v), st?.opr?.np?.value, "OPR");
+  if (s.family === "stat" && s.intent === "rating" && whole(/^(?:Prediction )?[Rr]ating in 20\d\d[–-]\d\d$/)) return near(num(v), st?.rating?.np, "rating");
   const card = wlt(v);
-  if (card && s.intent === "record" && !(s.scope ?? []).some((x) => /champ|league|meet|worlds|division|tournament|conference|qualifier/i.test(x))) {
+  if (card && s.intent === "record" && whole(/^Record in 20\d\d[–-]\d\d$/)) {
     const t = st?.record;
     if (!t) return { compared: false, ok: true, note: "" };
     const ok = card[0] === t.wins && card[1] === t.losses && card[2] === t.ties;
     return { compared: true, ok, note: ok ? "" : `record ${v} on the card, ${t.wins}-${t.losses}-${t.ties} on the team page` };
   }
-  if (card && s.family === "event" && s.intent === "results") {
+  // A team's results at events, or its record at one with nothing filtered out (no match type, no side).
+  const atEvents = (s.family === "event" && s.intent === "results") || (s.intent === "record" && /^Record at /.test(s.title ?? "") && (s.scope ?? []).length === 1 && !/state championships/i.test(s.title ?? ""));
+  if (card && atEvents) {
     // Every event the card links (a division and its finals, or several meets), summed as the team page lists them.
     const codes = new Set([...JSON.stringify(s).matchAll(new RegExp(`/events/${season}/([A-Z0-9]+)`, "g"))].map((m) => m[1]));
     const es = page.events.filter((x) => codes.has(x.code) && x.wins != null);

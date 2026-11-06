@@ -82,11 +82,17 @@ const audit = (page: Page, mobile: boolean) => page.evaluate((mobile) => {
   if (mobile) {
     // The results column only: the site's own header and footer are checked by the site-wide audit (npm run a11y).
     const col = document.querySelector("[data-results-column]") ?? main;
+    // A stretched link (an absolute ::after over its card, the result cards' pattern) is as big as that card.
+    const area = (e: Element) => {
+      const after = getComputedStyle(e, "::after");
+      const box = after.content !== "none" && after.position === "absolute" ? (e as HTMLElement).offsetParent ?? e : e;
+      return box.getBoundingClientRect();
+    };
     const small = [...col.querySelectorAll("a, button, [role=button], input, select, summary")].filter(vis).filter((e) => {
       if (getComputedStyle(e).display === "inline" && e.closest("p, li, td, figcaption, footer, dd")) return false;
-      const r = e.getBoundingClientRect(); return r.height < 43.5 || r.width < 43.5;
+      const r = area(e); return r.height < 43.5 || r.width < 43.5;
     });
-    const name = (e: Element) => `"${(e.textContent || e.getAttribute("aria-label") || e.tagName).trim().slice(0, 30)}" ${Math.round(e.getBoundingClientRect().width)}×${Math.round(e.getBoundingClientRect().height)}`;
+    const name = (e: Element) => `"${(e.textContent || e.getAttribute("aria-label") || e.tagName).trim().slice(0, 30)}" ${Math.round(area(e).width)}×${Math.round(area(e).height)}`;
     if (small.length) issues.push(`${small.length} tap targets under 44px (${small.slice(0, 4).map(name).join(", ")})`);
   } else {
     const col = document.querySelector("[data-results-column]")?.getBoundingClientRect().width;

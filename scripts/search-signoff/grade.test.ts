@@ -22,6 +22,14 @@ describe("grade", () => {
     const p = stat({ family: "leaderboard", intent: "top-opr", title: "Top 10 teams by OPR · 2025–26" });
     expect(grade("top teams in Romania in 2025-26", "leaderboard", p).pattern).toBe("place not stated");
   });
+  it("fails an empty comparison and a second period left out", () => {
+    const empty = stat({ family: "two-team", intent: "compare", title: "4215 vs 6980", scope: ["2025–26"] });
+    expect(grade("4215 vs 6980 in 2025-26", "compare", empty).pattern).toBe("compare card without numbers");
+    const never = stat({ family: "two-team", intent: "head-to-head", title: "Meetings", none: "They have never played each other." });
+    expect(grade("did 4215 ever play 6980", "h2h", never).verdict).toBe("pass");
+    const half = stat({ family: "aggregate", intent: "record", title: "Record this month", headline: { value: "3-1-0" } });
+    expect(grade("17965 record this month versus last month", "record", half, undefined, FRI).pattern).toBe("time filter not stated");
+  });
   it("fails debug text", () => {
     const r = stat({ family: "stat", intent: "opr", title: "OPR" }, { understood: { kind: "question", label: "4215 · read as 4215 with states or opr" } });
     expect(grade("4215 opr", "opr", r).pattern).toBe("debug or meta text");
@@ -48,9 +56,10 @@ describe("grade", () => {
 
 describe("helpers", () => {
   it("reads the seasons a question names", () => {
-    expect(seasonsAsked("4215 record in 2025-26")).toEqual(["2025-26"]);
-    expect(seasonsAsked("4215 matches at states in 2024")).toEqual(["2023-24", "2024-25", "2024"]);
-    expect(seasonsAsked("4215 record")).toBeNull();
+    expect(seasonsAsked("4215 record in 2025-26")).toEqual([["2025-26"]]);
+    expect(seasonsAsked("4215 matches at states in 2024")).toEqual([["2023-24", "2024-25", "2024"]]);
+    expect(seasonsAsked("how many NJ teams went to worlds in 2024, versus 2025").map((s) => s[2])).toEqual(["2024", "2025"]);
+    expect(seasonsAsked("4215 record")).toEqual([]);
   });
   it("works out windows from today", () => {
     const d = (n: number) => new Date(n).toISOString().slice(0, 10);

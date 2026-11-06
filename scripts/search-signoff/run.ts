@@ -8,7 +8,7 @@
 //   npx tsx scripts/search-signoff/run.ts --regrade <out>/results.jsonl   grade a saved run again, asking nothing new
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { crosscheck, type Check } from "./crosscheck.js";
 import { fold, grade, sameAnswer, type Grade, type Live } from "./grade.js";
 
@@ -43,18 +43,24 @@ if (SETS.includes("C")) for (const x of load<{ n: number; q: string; expect: str
 type Fam = { family: string; intent: string; expect: string; same?: boolean; phrasings: string[] };
 const D = SETS.includes("D") ? load<Fam[]>("D.json") : [];
 D.forEach((f, i) => f.phrasings.forEach((q, j) => qs.push({ set: "D", id: `D${i + 1}.${j + 1}`, q, expect: f.expect === "count" && /zzz/.test(q) ? "count|invalid" : f.expect, family: f.family, group: f.intent })));
-const P = SETS.includes("P") ? load<Omit<Fam, "family">[]>("paraphrase.json") : [];
-P.forEach((f, i) => f.phrasings.forEach((q, j) => qs.push({ set: "P", id: `P${i + 1}.${j + 1}`, q, expect: f.expect, family: f.intent, group: f.intent })));
+// A held-out group's anchor is the listed question it rewords: asked to compare against, never counted as held out.
+const P = SETS.includes("P") ? load<(Omit<Fam, "family"> & { anchor?: string })[]>("paraphrase.json") : [];
+P.forEach((f, i) => {
+  if (f.anchor) qs.push({ set: "PA", id: `P${i + 1}.0`, q: f.anchor, expect: f.expect, family: f.intent, group: f.intent });
+  f.phrasings.forEach((q, j) => qs.push({ set: "P", id: `P${i + 1}.${j + 1}`, q, expect: f.expect, family: f.intent, group: f.intent }));
+});
 type Pair = { intent: string; expect: string; a: { team: number; q: string; invalid?: boolean; region?: string }; b: { team: number; q: string; invalid?: boolean; region?: string } };
 const T = SETS.includes("T") ? load<Pair[]>("anyteam.json") : [];
 T.forEach((p, i) => (["a", "b"] as const).forEach((s) => qs.push({ set: "T", id: `T${i + 1}${s}`, q: p[s].q, expect: p[s].invalid ? "invalid" : p.expect, family: p.intent, group: p.intent })));
 
+// --regrade replays a saved run offline: its answers, its number checks and its release, nothing asked again.
 const REGRADE = arg("regrade");
-const saved = new Map<string, { res: Live | null; ms: number; err?: string }>(REGRADE
-  ? readFileSync(REGRADE, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)).map((d) => [d.q, { res: d.res, ms: d.ms, err: d.err }]) : []);
+type Saved = { res: Live | null; ms: number; err?: string; check?: Check };
+const saved = new Map<string, Saved>(REGRADE
+  ? readFileSync(REGRADE, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)).map((d) => [d.q, { res: d.res, ms: d.ms, err: d.err, check: d.check }]) : []);
 
-async function ask(q: string): Promise<{ res: Live | null; ms: number; err?: string }> {
-  if (saved.has(q)) return saved.get(q)!;
+async function ask(q: string): Promise<Saved> {
+  if (REGRADE) return saved.get(q) ?? { res: null, ms: 0, err: "not in the saved run" };
   let err = "";
   for (let i = 0; i < 3; i++) {
     const t = performance.now();
@@ -67,25 +73,43 @@ async function ask(q: string): Promise<{ res: Live | null; ms: number; err?: str
   return { res: null, ms: 0, err };
 }
 
-const health = await fetch(`${BASE}/api/health`).then((r) => r.json()).catch(() => ({})) as { release?: string; engine?: string };
-console.log(`${BASE} release ${health.release?.slice(0, 8)} · ${qs.length} queries → ${OUT}`);
+type Health = { release?: string; engine?: string; at?: string };
+const health: Health = REGRADE
+  ? (() => { try { return JSON.parse(readFileSync(join(dirname(REGRADE), "meta.json"), "utf8")) as Health; } catch { return {}; } })()
+  : { ...((await fetch(`${BASE}/api/health`).then((r) => r.json()).catch(() => ({}))) as Health), at: new Date().toISOString() };
+console.log(`${BASE} release ${health.release?.slice(0, 8)} · ${qs.length} queries → ${OUT}${REGRADE ? " (regrade, offline)" : ""}`);
 const done: Done[] = [];
 let next = 0;
 await Promise.all(Array.from({ length: PAR }, async () => {
   while (next < qs.length) {
     const x = qs[next++];
-    const { res, ms, err } = await ask(x.q);
+    const { res, ms, err, check: was } = await ask(x.q);
     // "or" in an expectation lets a zero case be a count card or a no-match card.
     const g = x.expect.endsWith("|invalid") ? (() => { const a = grade(x.q, x.expect.replace(/\|invalid$/, ""), res, err); return a.verdict === "pass" ? a : grade(x.q, "invalid", res, err); })() : grade(x.q, x.expect, res, err);
-    const check = res && g.verdict === "pass" ? await crosscheck(BASE, res) : { compared: false, ok: true, note: "" };
-    if (!check.ok) Object.assign(g, { verdict: "fail", pattern: "numbers differ from the team page", missing: check.note });
+    const check = REGRADE ? was ?? { compared: false, ok: true, note: "" } : res && g.verdict === "pass" ? await crosscheck(BASE, res) : { compared: false, ok: true, note: "" };
+    if (!check.ok && g.verdict === "pass") Object.assign(g, { verdict: "fail", pattern: "numbers differ from the team page", missing: check.note });
     done.push({ ...x, ms, res, err, g, check });
     if (done.length % 50 === 0) console.log(`  ${done.length}/${qs.length}`);
   }
 }));
 const order = new Map(qs.map((x, i) => [x.id, i]));
 done.sort((a, b) => order.get(a.id)! - order.get(b.id)!);
+
+// The any-team pairs, checked before anything is saved or counted: the answer is for the team asked about, and a
+// team's own region is used (a Romanian team's "states" is never an NJ event).
+const pairNotes = T.map((p, i) => {
+  const note: string[] = [];
+  for (const [d, s] of [[done.find((x) => x.id === `T${i + 1}a`), p.a], [done.find((x) => x.id === `T${i + 1}b`), p.b]] as const) {
+    if (!d || d.g.verdict !== "pass") continue;
+    const t = d.res?.stat?.team?.number;
+    const wrong: [string, string] | null = t != null && t !== s.team && !d.res?.stat?.teams?.some((x) => x.number === s.team) ? ["answered for another team", `${s.team}, not ${t}`]
+      : s.region && /new jersey|\bnj\b/.test(fold(JSON.stringify(d.res?.stat?.scope ?? ""))) ? ["NJ default for a non-NJ team", `${s.team}'s own ${s.region} event`] : null;
+    if (wrong) { d.g = { ...d.g, verdict: "fail", pattern: wrong[0], missing: wrong[1] }; note.push(`${s.team}: ${wrong[0]}`); }
+  }
+  return note;
+});
 writeFileSync(join(OUT, "results.jsonl"), done.map((d) => JSON.stringify({ ...d, res: d.res })).join("\n") + "\n");
+writeFileSync(join(OUT, "meta.json"), JSON.stringify(health));
 
 // The report: tables first, then every failure by pattern.
 const md: string[] = [];
@@ -96,7 +120,7 @@ const tally = (xs: Done[]) => {
   const inv = xs.filter((d) => d.g.invalid && d.g.verdict === "pass").length, pass = xs.filter((d) => !d.g.invalid && d.g.verdict === "pass").length;
   return { total: xs.length, pass, fail: xs.length - pass - inv, inv, rate: pct(pass + inv, xs.length) };
 };
-md.push(`Live: ${BASE} · release ${health.release ?? "?"} · engine ${health.engine ?? "?"} · run ${new Date().toISOString()} · signed out`, "");
+md.push(`Live: ${BASE} · release ${health.release ?? "?"} · engine ${health.engine ?? "?"} · asked ${health.at ?? "?"} · signed out${REGRADE ? " · graded again offline" : ""}`, "");
 const SETNAME: Record<string, string> = { A: "A — 200 unique", B: "B — 61 complex + P1–P23", C: "C — 50 core", D: "D — natural questions", P: "Held-out paraphrases", T: "Any-team pairs" };
 md.push("## By set", "", row(["Set", "Total", "Pass", "Fail", "Invalid (clear no-match)", "Pass rate"]), row(["---", "---:", "---:", "---:", "---:", "---:"]));
 for (const s of SETS) { const t = tally(done.filter((d) => d.set === s)); if (t.total) md.push(row([SETNAME[s], t.total, t.pass, t.fail, t.inv, t.rate])); }
@@ -143,7 +167,9 @@ const consistency = (set: string, groups: { intent: string; same?: boolean }[]) 
   for (const f of groups) {
     const xs = done.filter((d) => d.set === set && d.group === f.intent);
     const pass = xs.filter((d) => d.g.verdict === "pass");
-    const same = f.same === false ? "n/a (different questions)" : xs.every((d) => sameAnswer(d.res, xs[0].res)) ? "yes" : "NO";
+    // Compared with the listed question it rewords, when there is one, else with the first phrasing.
+    const ref = done.find((d) => d.set === "PA" && d.group === f.intent) ?? xs[0];
+    const same = f.same === false ? "n/a (different questions)" : xs.every((d) => sameAnswer(d.res, ref.res)) ? "yes" : "NO";
     md.push(row([f.intent, xs.length, pass.length, same, xs.filter((d) => d.g.verdict === "fail").map((d) => `${esc(d.q)} → ${d.g.pattern}`).join("; ") || "–"]));
   }
   md.push("");
@@ -154,14 +180,7 @@ if (T.length) {
   md.push("## Any-team check", "", row(["Intent", "Team A query", "A", "Team B query", "B", "Notes"]), row(["---", "---", "---", "---", "---", "---"]));
   T.forEach((p, i) => {
     const a = done.find((d) => d.id === `T${i + 1}a`)!, b = done.find((d) => d.id === `T${i + 1}b`)!;
-    const note: string[] = [];
-    for (const [d, s] of [[a, p.a], [b, p.b]] as const) {
-      const t = d.res?.stat?.team?.number;
-      if (t != null && t !== s.team && !d.res?.stat?.teams?.some((x) => x.number === s.team)) { d.g.verdict = "fail"; note.push(`${s.team}: answered for ${t}`); }
-      // A team's own region: a Romanian team's "states" is never an NJ event.
-      if (s.region && /new jersey|\bnj\b/.test(fold(JSON.stringify(d.res?.stat?.scope ?? "")))) { d.g.verdict = "fail"; note.push(`${s.team}: NJ default`); }
-    }
-    md.push(row([p.intent, esc(p.a.q), a.g.verdict === "pass" ? "pass" : `FAIL (${a.g.pattern})`, esc(p.b.q), b.g.verdict === "pass" ? "pass" : `FAIL (${b.g.pattern})`, note.join("; ") || esc(b.g.card).slice(0, 90)]));
+    md.push(row([p.intent, esc(p.a.q), a.g.verdict === "pass" ? "pass" : `FAIL (${a.g.pattern})`, esc(p.b.q), b.g.verdict === "pass" ? "pass" : `FAIL (${b.g.pattern})`, pairNotes[i].join("; ") || esc(b.g.card).slice(0, 90)]));
   });
   md.push("");
 }
