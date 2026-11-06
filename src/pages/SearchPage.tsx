@@ -171,7 +171,8 @@ export default function SearchPage() {
           The query itself lives in the top bar (refine there): the page never repeats it. */}
       {/* Phones: the query in a bar that stays under the top bar, then a short header ("Results: …"), no eyebrow. */}
       {phone && <PhoneSearchBar query={query} />}
-      <p className="text-xs font-semibold text-accent-text max-md:hidden" data-eyebrow>FTC One Search</p>
+      {/* The accent is the selected control's alone on this page (the active time tab): the eyebrow is plain. */}
+      <p className="text-xs font-semibold text-muted-foreground max-md:hidden" data-eyebrow>FTC One Search</p>
       <h1 className="mt-1 font-display text-xl font-semibold tracking-tight text-foreground max-md:mt-0 md:text-2xl lg:text-3xl">
         {!query ? "Search" : found ? <>{phone && "Results: "}{shownTitle}</> : busy || error ? "Search results" : "No matches found"}
       </h1>
@@ -263,7 +264,7 @@ export default function SearchPage() {
                             Show {a.label}
                           </Button>
                         ))}
-                        <button type="button" onClick={() => setFilters({ when: askedTime, season: null, type: null })} className="text-sm font-medium text-accent-text hover:underline">Clear filters</button>
+                        <button type="button" onClick={() => setFilters({ when: askedTime, season: null, type: null })} className="text-sm font-medium text-foreground underline-offset-2 hover:underline">Clear filters</button>
                       </div>
                     </div>
                   )}
@@ -284,7 +285,7 @@ export default function SearchPage() {
       )}
       </div>
       <p className="mt-10 border-t border-border pt-4 text-sm text-muted-foreground max-md:mb-20">
-        <Link to="/how-it-works/search" className="inline-flex items-center font-medium text-accent-text hover:underline max-md:min-h-[44px] pointer-coarse:min-h-[44px]">How FTC One Search works</Link>
+        <Link to="/how-it-works/search" className="inline-flex items-center font-medium text-foreground underline-offset-2 hover:underline max-md:min-h-[44px] pointer-coarse:min-h-[44px]">How FTC One Search works</Link>
       </p>
     </div>
   );
