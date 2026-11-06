@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.4.9 — 2026-11-06
+
+More ways to ask who, what and where get the same answer: who beat a team, a team's region or school asked first, its Worlds division, its best match ever.
+
+### Highlights
+- [teams] "Who beat …?" lists the teams that beat them
+- [teams] "What region is … in?" and "what school is … from?" answer the fact
+- [teams] "What Worlds division was … in?" answers the division
+- [teams] "…'s best match ever" shows its highest score of all time
+
+### Search
+- **Who, what, where and the best, said more ways.** "Who beat <team>", "who has beaten" and "who eliminated" give the teams that beat it; "what region / school / city is <team> in" answers the fact asked first; "what Worlds division was <team> in" answers the division; "<team>'s best match ever" or "of all time" gives its highest score ever (and "worst" its lowest). (#PR)
+
 ## 3.4.8 — 2026-11-06
 
 A question that names its season and also says "this season" is answered for the season it named.
