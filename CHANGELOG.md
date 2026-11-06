@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.6.9 — 2026-11-06
+
+An event can be searched by its initials: "MTI highlights" finds the Multinational Tech Invitational, and an event held only in past seasons is read in its latest one.
+
+### Highlights
+- [fixes] "MTI highlights" finds the Multinational Tech Invitational by its initials
+- [fixes] A past event named alone shows its latest season, never an empty current one
+- [fixes] An off-season event's own highlights and match videos
+
+### Search
+- **Events by their initials.** Each event is found by its initials, the first letters of its name's main words ("MTI" for Multinational Tech Invitational, skipping "of", "the" and "and"), and by a short form its name gives in brackets. A name typed in full still comes first, a team named the same is the team's, and when several events share the initials the latest one held is chosen (then the one with the most teams) and named in the answer.
+- **A past event, no season said.** An event named with no season, held only in past seasons, is read in its latest season ("Multinational Tech Invitational highlights" is its 2025–26 highlights), for highlights, recaps, winners and results.
+- **An off-season event's highlights.** Highlights and match videos of an off-season event named are its own matches; one with no video says "No recording for this event — stats only." (#1010)
+
 ## 3.6.8 — 2026-11-06
 
 The Playoffs tab draws a double-elimination bracket as a real bracket: upper and lower lanes, rounds left to right, lines to each winner's next match, the finals on the right.
