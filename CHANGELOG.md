@@ -15,6 +15,23 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.4.8 — 2026-11-06
+
+More ways of asking for a place's top teams find the leaderboard: "Romania leaderboard", "highest rated teams", "by rating, not OPR".
+
+### Highlights
+- [rankings] "Romania leaderboard" lists a country's top teams
+- [rankings] "Highest rated teams in …" ranks by prediction rating
+- [rankings] "By rating, not OPR" ranks by rating alone
+- [rankings] "Top 10 … with their records" keeps the record column
+
+### Search
+- **A country's leaderboard.** "Romania leaderboard 2025-26" lists the country's top teams, as "Romania top teams" does. A state's leaderboard ("New Jersey leaderboard by record") is unchanged.
+- **Highest rated.** "Highest rated teams in …" and "top rated" rank by the prediction rating.
+- **A stat not to go by.** "Top 5 teams in Romania by rating, not OPR" ranks by the rating alone; "not" drops only a stat, so "matches 12345 did not win" keeps its win.
+- **Records beside.** "Top 10 teams in New Jersey by OPR, with their records" is the OPR list, whose rows always show the record.
+- **Points in a match.** "Most points in a match in Texas" is the highest-scoring match there. (#000)
+
 ## 3.4.7 — 2026-11-06
 
 Search lists events by status, then by date: what's live now first, then what's coming day by day, then what's over.
