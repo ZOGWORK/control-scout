@@ -30,13 +30,14 @@ export function HighlightGrid({ b, team, hue, atEvent }: { b: Matches; team?: St
         </p>
       )}
       <ul className="grid gap-3 sm:grid-cols-2" data-video-grid>
-        {b.rows.map((r) => <Tile key={`${r.href}|${r.alliance}`} r={r} team={team ?? undefined} hue={hue} atEvent={atEvent} />)}
+        {b.rows.map((r) => <Tile key={`${r.href}|${r.alliance}`} r={r} team={team ?? undefined} hue={hue} atEvent={atEvent} said={!any} />)}
       </ul>
     </>
   );
 }
 
-function Tile({ r, team, hue, atEvent }: { r: Matches["rows"][number]; team?: { number: number; name: string | null }; hue?: boolean; atEvent: boolean }) {
+/** `said`: the line over the grid already says nothing here has video (no "No video" on each tile). */
+function Tile({ r, team, hue, atEvent, said }: { r: Matches["rows"][number]; team?: { number: number; name: string | null }; hue?: boolean; atEvent: boolean; said: boolean }) {
   const { v, play } = useClip(r.href);
   const label = `${r.label} · ${r.event.label}`;
   return (
@@ -47,7 +48,7 @@ function Tile({ r, team, hue, atEvent }: { r: Matches["rows"][number]; team?: { 
           className="group block w-full rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60" data-tile-play={v.kind}>
           <Picture v={v} />
         </button>
-      ) : (
+      ) : !said && (
         <p className="text-xs text-muted-foreground" data-no-video>No video</p>
       )}
       {/* The box's own list, so the tile stays one list item. */}

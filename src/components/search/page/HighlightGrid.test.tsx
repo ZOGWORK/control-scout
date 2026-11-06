@@ -62,6 +62,7 @@ describe("HighlightGrid", () => {
     const c = draw(undefined);
     expect(c.querySelectorAll("[data-video-tile]")).toHaveLength(3);
     expect(c.querySelectorAll("[data-no-recording]")).toHaveLength(1);
+    expect(c.querySelector("[data-no-video]")).toBeNull();
     expect(c.querySelector("[data-no-recording]")?.textContent).toBe("No recording for this event — stats only.");
     expect(c.querySelector("[data-answer-video], [data-tile-play], img")).toBeNull();
   });

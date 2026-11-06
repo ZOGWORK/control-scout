@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.4.1 — 2026-11-06
+
+Highlights as a grid of match videos; a team's card plays the team's own match.
+
+### Highlights
+- [history] Highlights are a grid of match videos, each labelled with its reason
+- [history] A team's card plays one of its own matches, not the event's start
+- [history] An event with no recording still lists its matches, stats only
+
+### Search
+- **Highlights as a video grid.** A highlights answer (a team's or a scope's) is a grid of tiles, one per match, its reason ("Best score", "Closest win") as the tile's label over the match's video and its match box; a tap plays it in the app's video dialog, one video at a time. A match's own video shows its picture; a second in the event's recording shows its time, never the recording's picture (whatever was on the field then). A match with no clip keeps its tile with "No video"; when none has a video, one line says "No recording for this event — stats only." (#PR)
+- **A team's card plays the team's match.** An answer about a team ("gearview opr at worlds", a team's highlights) plays its own listed match, else its best-scoring match at the event with a clip; the event's recording from its start is the fallback only when none has one.
+
 ## 3.4.0 — 2026-11-06
 
 "Highlights" answers for any event, division, region, season or team, with each match's video.
