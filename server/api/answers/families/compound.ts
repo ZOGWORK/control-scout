@@ -90,7 +90,8 @@ export async function listAnswer(c: ListQuestion): Promise<StatAnswer | null> {
   if (c.award) {
     // Placement 1: the award's winner (a 2nd or 3rd place is its own line on the team page); FIRST also stores its
     // Leadership Award as a Winner, never a winning alliance.
-    filters.push(`EXISTS (SELECT 1 FROM awards a WHERE a.season = s.season AND a.team = s.team AND a.type = ?${c.award.type === "Winner" ? " AND COALESCE(a.name, '') NOT LIKE '%eadership%'" : " AND a.placement = 1"})`);
+    // "+a.season": the team's own awards by awards_team (team, season), never the season's every row for each team.
+    filters.push(`EXISTS (SELECT 1 FROM awards a WHERE +a.season = s.season AND a.team = s.team AND a.type = ?${c.award.type === "Winner" ? " AND COALESCE(a.name, '') NOT LIKE '%eadership%'" : " AND a.placement = 1"})`);
     filterArgs.push(c.award.type);
   }
   if (c.worlds) {
