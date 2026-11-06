@@ -20,7 +20,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 Search answers are in bold colour: every award, scoring phase and team has its own colour, the same on every card.
 
 ### Highlights
-- [appearance] Inspire, Winning Alliance, Finalist and judged awards each in their own colour
+- [appearance] Inspire, alliance and judged awards each in their own colour
 - [appearance] Auto blue, TeleOp green, Endgame purple, penalties red on every card
 - [appearance] Thick coloured bars, filled chips and coloured numbers instead of grey boxes
 
