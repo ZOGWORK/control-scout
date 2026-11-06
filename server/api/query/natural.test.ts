@@ -50,6 +50,13 @@ beforeAll(async () => {
   await match(2025, "USNJQ1", 150, 90, [4215, 23268], [6980]);
   await match(2025, "USNJQ1", 80, 120, [4215], [6980, 7149]);
   await match(2025, "USNJQ1", 170, 60, [4215], [9848]);
+  // 7149 at its state championship and at Worlds, and beaten by 23268 only at an off-season event (never on the record).
+  await run("INSERT INTO events (season, code, name, type, region, city, state, country, start, end, source) VALUES (2025, 'USNJCMP', 'New Jersey Championship', 'Championship', 'USNJ', 'Town', 'NJ', 'USA', '2026-03-01', '2026-03-01', 't'), (2025, 'FTCCMP1', 'FIRST Championship', 'FIRSTChampionship', 'CMP', 'Houston', 'TX', 'USA', '2026-04-20', '2026-04-20', 't'), (2025, 'USNJOFF', 'Summer Scrimmage', 'OffSeason', 'USNJ', 'Town', 'NJ', 'USA', '2026-06-01', '2026-06-01', 't')");
+  await match(2025, "USNJCMP", 200, 100, [7149], [23268]);
+  await match(2025, "FTCCMP1", 210, 190, [7149], [9848]);
+  await match(2025, "USNJOFF", 50, 300, [7149], [23268]);
+  await run("UPDATE teams SET home_region = 'USNJ' WHERE state = 'NJ'");
+  await run("INSERT INTO awards (season, code, team, type, name, placement) VALUES (2025, 'USNJCMP', 7149, 'Inspire', 'Inspire Award', 1), (2025, 'USNJCMP', 7149, 'Winner', 'Winning Alliance', 1), (2025, 'FTCCMP1', 9848, 'Inspire', 'Inspire Award 2nd Place', 2), (2025, 'USNJQ1', 6980, 'Winner', 'Leadership Award', 1)");
   // 20245 played only in 2024–25: a season named leaves it out.
   await match(2024, "USMIQ1", 100, 50, [20245], [24033]);
   await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) SELECT season, code, team, 50, 1 FROM event_teams");
@@ -121,6 +128,54 @@ describe("count teams by place (3a)", () => {
     for (const q of ["how many teams from Oradell at worlds", "how many teams from Oradell at states", "how many teams from Oradell in 2025-26"]) {
       expect((await ask(q)).stat?.intent, q).not.toBe("city-teams");
     }
+  });
+});
+
+describe("yes or no, with the evidence (3c)", () => {
+  /** The yes or no, and the card under it: its kind and its rows (a stat's table or matches, a card's lines). */
+  const yn = async (q: string) => {
+    const a = await ask(q);
+    const rows = a.stat ? a.stat.blocks.flatMap((b) => (b.kind === "table" ? b.rows.map((r) => String(Object.values(r.cells)[0])) : b.kind === "matches" ? b.rows.map((r) => r.label) : [])) : a.card?.lines.map((l) => l.text);
+    return { kind: a.stat?.intent ?? a.card?.kind, answer: a.verdict?.answer, label: a.verdict?.label, rows };
+  };
+  it("been to Worlds: yes, above the card that answered it before, however it's asked", async () => {
+    const SAID = ["has 7149 ever been to worlds", "did 7149 ever go to worlds", "has enforcers ever been to worlds?", "did 7149 make it to worlds"];
+    const first = await yn(SAID[0]);
+    expect(first).toMatchObject({ kind: "worlds", answer: "Yes", label: "Enforcers (7149) played at Worlds" });
+    for (const q of SAID.slice(1)) expect(await yn(q), q).toEqual(first);
+    // The card is the one the question gave before, unchanged; only the yes or no is added.
+    const { verdict, ...rest } = await ask(SAID[0]);
+    expect(verdict).toBeTruthy();
+    expect(rest.card?.kind).toBe("worlds");
+  });
+  it("no is an answer, never the no-match page", async () => {
+    const a = await ask("has 6980 ever been to worlds");
+    expect(a.step).toBe("deterministic");
+    expect(a.verdict).toEqual({ answer: "No", label: "Bad Wolf (6980) has never played at Worlds" });
+  });
+  it("an event in a season, and a team's own state championship: its own card of where, or of what it played instead", async () => {
+    for (const q of ["did 7149 play at NJ championship in 2025-26", "was 7149 at NJ championship in 2025-26", "did 7149 compete at new jersey championship in 2025-26", "did 7149 go to NJ championship in 2025-26"]) {
+      expect(await yn(q), q).toMatchObject({ answer: "Yes", label: "Enforcers (7149) played at New Jersey Championship in 2025–26" });
+    }
+    expect(await yn("was 7149 at NJ championship in 2025-26")).toMatchObject({ kind: "yes-no-attended", rows: ["New Jersey Championship"] });
+    expect(await yn("was 4215 at NJ championship in 2025-26")).toMatchObject({ kind: "yes-no-attended", answer: "No", rows: ["Garden Qualifier"] });
+    expect((await yn("did 7149 make it to states")).answer).toBe("Yes");
+  });
+  it("an award won: 1st place only, and an event won never a Leadership Award", async () => {
+    expect(await yn("has 7149 ever won inspire")).toMatchObject({ answer: "Yes", label: "Enforcers (7149) won the Inspire Award: 1 time" });
+    expect(await yn("has gearview ever won inspire")).toMatchObject({ answer: "No" });
+    expect(await yn("has 7149 ever won a championship")).toMatchObject({ answer: "Yes", kind: "yes-no-award", rows: ["Winning Alliance", "Inspire Award"] });
+    expect(await yn("has 6980 ever won an event")).toMatchObject({ answer: "No" });
+  });
+  it("lost to or beaten another team: official meetings only, either way it's asked", async () => {
+    for (const q of ["has 7149 ever lost to 23268", "did 7149 ever lose to 23268", "has 7149 ever been beaten by 23268"]) {
+      expect(await yn(q), q).toMatchObject({ answer: "No", label: "Enforcers (7149) has never lost to Ultraviolet (23268) · 1 meeting: 7149 1-0-0" });
+    }
+    expect(await yn("did 7149 ever beat 23268")).toMatchObject({ answer: "Yes" });
+  });
+  it("only a yes-or-no question: a count or a list stays what it was", async () => {
+    expect((await ask("how many times has 7149 been to worlds")).stat?.intent ?? "").not.toMatch(/^yes-no/);
+    expect((await ask("7149 awards")).stat?.intent ?? "").not.toMatch(/^yes-no/);
   });
 });
 

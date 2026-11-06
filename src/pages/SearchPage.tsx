@@ -45,6 +45,7 @@ import { BOOT_HITS } from "../lib/searchBoot";
 import { useTitle, useMeta, useCurrentSeason, useMediaQuery } from "../lib/meta";
 import { useApi, qs } from "../lib/api";
 import { cn } from "../components/cn";
+import { Verdict } from "../components/search/page/Verdict";
 
 const RESULT_KINDS = new Set(["place", "team", "event", "match"]);
 
@@ -241,6 +242,8 @@ export default function SearchPage() {
                 <div className="min-w-0 lg:col-start-1 lg:row-start-1">
                   {!panel && summary}
                   {/* A stat question's answer ("4215 highest score in worlds"): ./search/page/StatAnswer.tsx. */}
+                  {/* A yes-or-no question's answer, above the card that proves it. */}
+                  {answer?.verdict && <Verdict v={answer.verdict} />}
                   {answer?.stat && <StatAnswerCard stat={answer.stat} heading={title ?? undefined} />}
                   {/* A question's records: as cards the timeline jumps to (championships, newest first: a "when" question reads
                       from the latest), else the answer card as before. */}
