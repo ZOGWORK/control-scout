@@ -10,6 +10,7 @@ import { TONE_CLASS } from "./records/describe";
 import { badgeVariants } from "../components/ui/basic";
 import { buttonVariants } from "../components/ui/button";
 import { ALLIANCE_HUES } from "../components/PlayoffBracket";
+import { TEAM_TEXT } from "../components/search/page/answerCells";
 
 const THEMES: Theme[] = ["light", "dim", "dark", "midnight"];
 const AA = 4.5, LARGE = 3;
@@ -56,6 +57,9 @@ describe("text tones reach WCAG AA in every theme", () => {
       }
       // Okabe–Ito: A and B told apart by lightness too, so grayscale still separates them.
       expect(Math.abs(contrast(fills[0], card) - contrast(fills[1], card)) + contrast(fills[0], fills[1])).toBeGreaterThan(1);
+    });
+    it(`one team's numbers in its hue, team A, as text on the card and on its pills' 10% tint (${theme})`, () => {
+      for (const cls of [TEAM_TEXT, `bg-team-a/10 ${TEAM_TEXT}`]) expect(measure(theme, cls).ratio, measure(theme, cls).pair).toBeGreaterThanOrEqual(AA);
     });
     it(`search podium place chips (${theme})`, () => {
       for (const [k, cls] of Object.entries(PODIUM_CHIP)) expect(measure(theme, cls).ratio, `${k}: ${measure(theme, cls).pair}`).toBeGreaterThanOrEqual(AA);

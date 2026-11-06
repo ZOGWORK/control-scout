@@ -49,8 +49,9 @@
   --color-info: #38bdf8;
   --color-success: #34d399;
   /* Compared teams' hues (the search results guide, Okabe–Ito, safe for every colour vision): team A, B, C on bars
-     and swatches only, never text, never a phase or a winner. Dark's are the light-on-dark steps; Dim and Midnight
-     keep them. textTones.test.ts holds each to 3:1 against the card as a graphic. */
+     and swatches, never a phase or a winner. A card about one team takes team A on its numbers too (answerCells
+     TEAM_TEXT, held to 4.5:1). Dark's are the light-on-dark steps; Dim and Midnight keep them. textTones.test.ts
+     holds each to 3:1 against the card as a graphic. */
   --color-team-a: #56b4e9;
   --color-team-b: #e69f00;
   --color-team-c: #009e73;

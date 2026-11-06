@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.3.6 — 2026-11-05
+
+Cards about one team are in that team's colour again: its numbers, chart, bars and awards.
+
+### Highlights
+- [appearance] One team's numbers, bars and chart are in its colour
+- [appearance] A Worlds card's latest trip and division-rank line in colour
+- [appearance] Award chips and season game names are coloured too
+
+### Search
+- **One team's colour.** A card about one team (its Worlds or states trips, how good it is, its record, OPR, highlights and facts) draws its headline number, tiles, bars, division-rank line and dots, latest trip, game names, award chips and pills in team A's colour, the colour that team has when search compares it. The latest trip's dot is larger and filled. Cards about two or three teams keep a colour per team, and cards about no team stay neutral. No gold, at most three colours, and every number clears 4.5:1 in every theme. (#PRNUM)
+
 ## 3.3.5 — 2026-11-05
 
 Prediction questions answer in the card, with the chance on a 0–100% bar, and a search nothing answers shows the closest real results.

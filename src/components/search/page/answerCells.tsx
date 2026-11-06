@@ -44,12 +44,13 @@ export function RankPill({ text, className }: { text: string; className?: string
 }
 
 /** "5-3-0" with the wins in bold (no win or loss hue: red and blue are alliances); anything after it muted. */
-export function RecordText({ text, className }: { text: string; className?: string }) {
+/** `win`: the wins' colour (ink, or one team's hue on its own card). */
+export function RecordText({ text, className, win = "text-foreground" }: { text: string; className?: string; win?: string }) {
   const m = RECORD.exec(text.trim());
   if (!m) return <>{text}</>;
   return (
     <span className={cn("whitespace-nowrap tabular-nums", className)} aria-label={`${m[1]} wins, ${m[2]} losses, ${m[3]} ties${m[4]}`} data-record-text>
-      <span aria-hidden><b className="font-semibold text-foreground">{m[1]}</b><span className="text-muted-foreground">-{m[2]}-{m[3]}</span></span>
+      <span aria-hidden><b className={cn("font-semibold", win)}>{m[1]}</b><span className="text-muted-foreground">-{m[2]}-{m[3]}</span></span>
       {m[4] && <span aria-hidden className="text-muted-foreground">{m[4]}</span>}
     </span>
   );

@@ -172,7 +172,7 @@ export function SeasonTiles({ profile, season }: { profile?: TeamProfile | null;
           value={s?.rating ? <><span className={TEAM_TEXT}>{num(s.rating.np)}</span><span className="ml-1 text-base font-medium text-muted-foreground">±{num(s.rating.sd)}</span></> : "—"}
           hint={s?.rating ? `${s.rating.rank ? `#${s.rating.rank.toLocaleString()} worldwide · ` : ""}${s.rating.matches} matches` : `no matches ${when}`} />
         <StatTile tone="neutral" icon={Trophy} label="Record"
-          value={r ? <span className={TEAM_TEXT} aria-label={`${r.wins} wins, ${r.losses} losses, ${r.ties} ties`}><RecordText text={`${r.wins}-${r.losses}-${r.ties}`} /></span> : "—"}
+          value={r ? <span aria-label={`${r.wins} wins, ${r.losses} losses, ${r.ties} ties`}><RecordText text={`${r.wins}-${r.losses}-${r.ties}`} win={TEAM_TEXT} /></span> : "—"}
           hint={r ? `${r.matches} matches · ${r.events} event${r.events === 1 ? "" : "s"}` : `no matches ${when}`}
           bar={r && r.wins + r.losses + r.ties > 0 ? <Meter parts={[{ pc: (100 * r.wins) / (r.wins + r.losses + r.ties), cls: TEAM_BAR, value: r.wins, scale: r.wins + r.losses + r.ties }]} /> : null} />
         <StatTile tone="neutral" icon={CalendarDays} label="Events" value={<span className={TEAM_TEXT}>{profile.events.length}</span>}

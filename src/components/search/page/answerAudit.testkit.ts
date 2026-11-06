@@ -5,7 +5,7 @@
 //   - hue means team: data takes only the team tokens and, where they mark an alliance, red and blue; no status,
 //     phase, palette or gold colour on data (gold only on the marked primary action, a video's red, white and black
 //     only on the player or a marked video control);
-//     at most 3 hues on a card;
+//     at most 3 hues on a card; a card about one team in that team's hue, team A, and no other team's;
 //   - print once: each team name once, and no heading, headline, context or scope line said twice; a scope note (a
 //     relaxed time, "No 2026–27 matches yet …; showing 2025–26") nowhere else on the card, its method included;
 //   - no meta or debug text, no number glued to a word in a heading;
@@ -43,8 +43,9 @@ function texts(el: Element): string[] {
   return out;
 }
 
-/** The rendered card's problems against the guide. `names`: team names that must be printed exactly once. */
-export function auditAnswer(card: HTMLElement, { names = [] as string[], contrast = true } = {}): string[] {
+/** The rendered card's problems against the guide. `names`: team names that must be printed exactly once. `one`: the
+ *  card is about one team, so team A is its only hue (B and C mean a second and third team). */
+export function auditAnswer(card: HTMLElement, { names = [] as string[], contrast = true, one = false } = {}): string[] {
   const problems: string[] = [];
   const text = card.textContent ?? "";
 
@@ -87,6 +88,7 @@ export function auditAnswer(card: HTMLElement, { names = [] as string[], contras
     }
   }
   if (hues.size > 3) problems.push(`${hues.size} hues: ${[...hues].join(", ")}`);
+  if (one) for (const h of hues) if (/^team-[bc]$/.test(h)) problems.push(`one team's card in ${h}`);
 
   // Print once.
   for (const n of names) { const k = text.split(n).length - 1; if (k !== 1) problems.push(`${n} printed ${k} times`); }
