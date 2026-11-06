@@ -222,16 +222,18 @@ export async function questionCard(it: ParsedQuestion, team: { number: number; n
     return card;
   }
 
-  card.lines = await nextEvents(n);
+  // Every upcoming event, the next first ("upcoming event" and "upcoming events" are one question).
+  card.lines = await nextEvents(n, 10);
+  if (card.lines.length > 1) card.title = "Upcoming events";
   if (!card.lines.length) card.none = `No upcoming event is published for ${who} yet.`;
   return card;
 }
 
 /** The team's published events that haven't ended, soonest first (a registration counts: it's FIRST's own list). */
-async function nextEvents(n: number): Promise<SearchCardLine[]> {
+async function nextEvents(n: number, most = 3): Promise<SearchCardLine[]> {
   const rows = (await all<{ season: number; code: string; name: string; start: string | null; end: string | null; city: string | null; state: string | null; timezone: string | null }>(
     `SELECT DISTINCT e.season, e.code, e.name, e.start, e.end, e.city, e.state, e.timezone FROM ${ROSTER} et JOIN events e ON e.season = et.season AND e.code = et.code
-     WHERE et.team = ? AND COALESCE(e.end, e.start) >= ? ORDER BY e.start, e.code LIMIT 10`, [n, yesterday()])).filter(notEnded).slice(0, 3);
+     WHERE et.team = ? AND COALESCE(e.end, e.start) >= ? ORDER BY e.start, e.code LIMIT 20`, [n, yesterday()])).filter(notEnded).slice(0, most);
   return rows.map((e) => ({ text: e.name, detail: [dateRange(e.start, e.end), place(e.city, e.state)].filter(Boolean).join(" · "), href: eventHref(e.season, e.code, n) }));
 }
 

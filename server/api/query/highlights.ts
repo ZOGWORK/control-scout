@@ -10,12 +10,14 @@ import { seasonLabel } from "../../../src/shared/format.js";
 import { all, get } from "../../db.js";
 import { registerCache } from "../../caches.js";
 import { search } from "../search.js";
-import { eventFit } from "../answers/index.js";
+import { INITIALISM_FIT, eventFit } from "../answers/index.js";
 import { eventHref, matchHref, shortEvent, teamLinks } from "../answers/matchSet.js";
 import { COLS, allianceRow, lineups, type Row } from "../answers/families/topMatches.js";
 import { OFFICIAL_TYPES } from "../answers/clauses.js";
 import { DOUBLE_ELIM_FROM } from "../../../src/shared/bracketOdds.js";
 import { EVENT_FIT } from "./context.js";
+import { names } from "./names.js";
+import { initialismEvent } from "./initialisms.js";
 import { FROM, MARGIN, NP, where, type MatchScope } from "./matchFind.js";
 
 export interface HighlightFind extends MatchScope {
@@ -74,14 +76,24 @@ const key = (r: { season: number; code: string; level: string; series: number; n
 /** A division before the finals it feeds, then the event's own order: qualifications, playoffs, a classic final last. */
 const ORDER = `e.start, COALESCE(e.division_code, e.code), e.division_code IS NULL, m.code, m.level = 'playoff', ${FINAL_LAST}, m.series, m.number`;
 
-/** The events `words` name (FIRST's `types` only, when given): in each season, the ones that fit them best. */
-export async function eventsNamed(words: string, types: readonly string[] | null): Promise<{ season: number; code: string; name: string; type: string | null; division: string | null; start: string | null; end: string | null; city: string | null; state: string | null }[]> {
+/** The events `words` name (FIRST's `types` only, when given, and only those `when` keeps: a year asked): in each
+ *  season, the ones that fit them best. */
+export async function eventsNamed(words: string, types: readonly string[] | null, when?: (e: { season: number; start: string | null }) => boolean): Promise<{ season: number; code: string; name: string; type: string | null; division: string | null; start: string | null; end: string | null; city: string | null; state: string | null }[]> {
   const hits = (await search(words, 25, new Set(), new Set(["event"]))).filter((h) => h.kind === "event" && eventFit(words, h.title, h.ref.split(":")[1] ?? "") >= EVENT_FIT);
-  const codes = [...new Set(hits.map((h) => h.ref.split(":")[1]))];
+  // An initialism's events by the names index, which a search for a short word may rank below others.
+  const codes = [...new Set([...hits.map((h) => h.ref.split(":")[1]), ...(await names()).initialism(words)])];
   if (!codes.length) return [];
   const rows = await all<{ season: number; code: string; name: string; type: string | null; division_code: string | null; start: string | null; end: string | null; city: string | null; state: string | null }>(
     `SELECT season, code, name, type, division_code, start, end, city, state FROM events WHERE code IN (${codes.map(() => "?").join(", ")})`, codes);
-  const fits = rows.map((e) => ({ e, fit: eventFit(words, e.name, e.code) })).filter(({ e, fit }) => fit >= EVENT_FIT && (!types || types.includes(e.type ?? "")));
+  const fits = rows.map((e) => ({ e, fit: eventFit(words, e.name, e.code) })).filter(({ e, fit }) => fit >= EVENT_FIT && (!types || types.includes(e.type ?? "")) && (!when || when({ season: Number(e.season), start: e.start ?? null })));
+  // An initialism several events share ("mti"): the one initialismEvent picks among these (the kinds and year asked),
+  // in each season it was held.
+  const shared = fits.filter(({ fit }) => fit === INITIALISM_FIT);
+  if (shared.length && shared.length === fits.length && new Set(shared.map(({ e }) => e.code)).size > 1) {
+    const among = new Set(shared.map(({ e }) => `${e.season}|${e.code}`));
+    const pick = (await initialismEvent(words, (e) => among.has(`${e.season}|${e.code}`)))?.code;
+    fits.splice(0, fits.length, ...shared.filter(({ e }) => e.code === pick));
+  }
   const best = new Map<number, number>();
   for (const { e, fit } of fits) best.set(Number(e.season), Math.max(best.get(Number(e.season)) ?? 0, fit));
   return fits.filter(({ e, fit }) => fit === best.get(Number(e.season)))
@@ -134,8 +146,8 @@ function byEvent(events: { season: number; code: string }[], alias: string) {
   };
 }
 
-const DEFINITION = (at: string, S: string, upset: boolean) =>
-  `The standout matches${at ? ` ${at}` : ""} in ${S}: the best score (an alliance's points without penalties), the biggest margin, the latest playoff match, the best Auto, the closest finish (the smallest winning margin)${upset ? " and the biggest upset (a favourite's loss: the losing alliance had over a 50% predicted chance before the match)" : ""}, each match once. Only played matches at official events held in person, with both alliances' points on record. A match with a video plays here.`;
+const DEFINITION = (at: string, S: string, upset: boolean, named = false) =>
+  `The standout matches${at ? ` ${at}` : ""} in ${S}: the best score (an alliance's points without penalties), the biggest margin, the latest playoff match, the best Auto, the closest finish (the smallest winning margin)${upset ? " and the biggest upset (a favourite's loss: the losing alliance had over a 50% predicted chance before the match)" : ""}, each match once. Only played matches ${named ? "at the event named" : "at official events"} held in person, with both alliances' points on record. A match with a video plays here.`;
 
 /** Each reason's pick, each match once. */
 function pickAll(xs: Scored[]): { r: Pick; note: string }[] {
@@ -210,15 +222,15 @@ async function workOut(f0: HighlightFind): Promise<StatAnswer> {
   const ev = f.eventName?.get(f.season);
   const at = ev ? `at ${ev.name}` : f.at;
   // The event's name is the title's; its dates and place are the chips'.
-  const scope = [S, ...(ev ? [...(ev.when ? [ev.when] : []), ...(ev.where ? [ev.where] : [])] : []), ...f.chips, "Official events"];
+  const scope = [S, ...(ev ? [...(ev.when ? [ev.when] : []), ...(ev.where ? [ev.where] : [])] : []), ...f.chips, ...(f.named ? [] : ["Official events"])];
   const where2 = `${at ? ` ${at}` : ""}${f.window ? ` ${f.window.label}` : ` in ${S}`}`;
   const base = {
     family: "superlative" as const, intent: "scope-highlights", title: `Highlights${at ? ` ${at}` : ""}, ${S}`, scope,
-    definition: DEFINITION(at, S, whole),
+    definition: DEFINITION(at, S, whole, !!f.named),
     source: `From ${count.toLocaleString("en-US")} played match${count === 1 ? "" : "es"}${where2}`,
   };
-  if (!picks.length) return { ...base, blocks: [], none: `No played matches at official events${where2} yet.` };
-  const gallery = await galleryOf(whole ? scored : null, events, f.videos ? `No match videos${where2} yet.` : null, ev ? f.eventName : undefined);
+  if (!picks.length) return { ...base, blocks: [], none: `No played matches${f.named ? "" : " at official events"}${where2} yet.` };
+  const gallery = await galleryOf(whole ? scored : null, events, f.videos ? (f.named && ev ? "No recording for this event — stats only." : `No match videos${where2} yet.`) : null, ev ? f.eventName : undefined);
   // A video page leads with the scope's latest playoff match (a recap ends on the final, whatever reason it was
   // listed under), highlights with the best score.
   const last = f.videos ? (scored?.filter((r) => r.level === "playoff").at(-1) ?? picks.find((p) => p.note === "Latest playoff match")?.r) : undefined;

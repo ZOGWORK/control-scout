@@ -399,8 +399,9 @@ export const warmTypoIndex = async (): Promise<void> => { await fuzzyIndex(); };
 
 /** What the search index holds and how (server/stats/job.ts rebuildSearch): raised when that changes, so a server
  *  running the new code rebuilds the index once instead of waiting for the next stats run.
- *  2: team titles as "18061 | Simply Complex" (number and name each once). 3: events' venues are searchable words. */
-export const SEARCH_INDEX_SCHEMA = 3;
+ *  2: team titles as "18061 | Simply Complex" (number and name each once). 3: events' venues are searchable words.
+ *  4: events' initialisms ("mti", ./query/initialisms.ts) are searchable words. */
+export const SEARCH_INDEX_SCHEMA = 4;
 
 /**
  * A database upgraded to migration 4 has an empty typo index until the next

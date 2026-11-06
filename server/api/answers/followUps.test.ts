@@ -13,8 +13,8 @@ import { failureOf, outcomeTrace } from "../../searchFailures";
 import { clearAllCaches } from "../../caches";
 import { relatedPage, grouped } from "./relatedPage";
 import { pageMeta } from "../../seoMeta";
-import type { SearchFollowUp } from "../../../src/shared/api";
-import { answerKey, candidates, followUps, pageAnswer, previewOf, ASK_MAX, RELATED_MAX } from "./followUps";
+import type { SearchAnswer, SearchFollowUp } from "../../../src/shared/api";
+import { answerKey, candidates, followUps, lineOf, pageAnswer, previewOf, ASK_MAX, RELATED_MAX } from "./followUps";
 
 const TEAMS = [4215, 6980, 7149] as const;
 
@@ -30,6 +30,8 @@ beforeAll(async () => {
   for (const [t, rank, opr] of [[4215, 1, 101.6], [6980, 2, 46.9], [7149, 3, 115.3], [207, 4, 60]] as const) {
     await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'USNJQ1', ?, ?)", [t, rank]);
     await run("INSERT INTO team_event_stats (season, code, team, opr_np, opr_auto, opr_teleop, opr_endgame, matches) VALUES (2025, 'USNJQ1', ?, ?, 30, 60, 10, 3)", [t, opr]);
+    // The season's numbers the boards rank by, each a little different so every board has its own order.
+    await run("INSERT INTO team_season_stats (season, team, opr_np, opr_auto, opr_teleop, opr_endgame, rank_np, ranked_teams, matches, wins, losses, ties) VALUES (2025, ?, ?, ?, ?, ?, ?, 4, 3, 2, 1, 0)", [t, opr, opr / 4, opr / 2, opr / 8, rank]);
   }
   const games: [number, number, number[], number[]][] = [[150, 90, [4215, 207], [6980, 7149]], [80, 120, [4215, 6980], [7149, 207]], [200, 100, [7149, 4215], [6980, 207]]];
   for (const [i, [red, blue, reds, blues]] of games.entries()) {
@@ -80,7 +82,7 @@ describe("people also ask", () => {
 
   it("never asks again, in other words, a search the page already offers", async () => {
     // A question search can't answer yet: the page offers the team's own searches ("4215 record 2025–26").
-    const q = "4215 upcoming events";
+    const q = "what is 4215's favorite color";
     const a = await pageAnswer(q, 25, new Set());
     const offered = [...(a.suggest ?? []), ...(a.sorry?.suggest ?? [])];
     expect(offered.length).toBeGreaterThan(0);
@@ -89,6 +91,41 @@ describe("people also ask", () => {
     const ask = (await followUps(q, a)).ask;
     expect(ask.length).toBeGreaterThan(0);
     for (const x of ask) expect(theirs.has(await what(x.q)), x.q).toBe(false);
+  });
+
+  it("offers a board's neighbours as related searches, in the season asked", async () => {
+    const { ask, related } = await both("best auto opr");
+    expect(ask.map((x) => x.q).filter((x) => /^Who has the best/.test(x))).toEqual([]);
+    expect(related.map((x) => x.q)).toEqual(expect.arrayContaining(["best teleop opr", "best endgame opr"]));
+    const q = "best auto opr in 2025-26";
+    const cs = candidates(await parseQuery(q, await parseContext()), await pageAnswer(q, 25, new Set()));
+    expect(cs.map((x) => x.short)).toContain("best teleop opr in 2025-26");
+    expect(cs.map((x) => x.q)).toContain("Who has the best TeleOp OPR in 2025-26?");
+  });
+
+  it("counts the events its page lists, never more", () => {
+    const events = (total: number, listed: number) => ({ q: "", hits: Array.from({ length: listed }, (_, i) => ({ kind: "event", ref: String(i), title: "" })), pages: [], understood: { kind: "events", label: "This week's events", total } }) as unknown as SearchAnswer;
+    expect(lineOf(events(86, 25))?.value).toBe("25 events");
+    expect(lineOf(events(9, 9))?.value).toBe("9 events");
+    expect(lineOf(events(4, 0))).toBeNull();
+  });
+
+  it("knows one board by its title's words, whatever their wording, and its other end as another", () => {
+    const board = (title: string) => ({ stat: { family: "leaderboard", intent: "top-opr", title, scope: ["New Jersey", "2025–26"] } }) as unknown as SearchAnswer;
+    expect(answerKey(board("Best team in New Jersey by OPR · 2025–26"))).toBe(answerKey(board("Top 10 teams by OPR in New Jersey · 2025–26")));
+    // Its other end, or a list of fewer teams, is another board.
+    expect(answerKey(board("Lowest 10 teams by OPR in New Jersey · 2025–26"))).not.toBe(answerKey(board("Top 10 teams by OPR in New Jersey · 2025–26")));
+    expect(answerKey(board("Top 10 rookies by OPR in New Jersey · 2025–26"))).not.toBe(answerKey(board("Top 10 teams by OPR in New Jersey · 2025–26")));
+  });
+
+  it("says a season the query typed with its preposition once", async () => {
+    const q = "4215 record in 2025-26";
+    const qs = candidates(await parseQuery(q, await parseContext()), await pageAnswer(q, 25, new Set())).map((x) => x.q);
+    expect(qs).toContain("What is 4215's OPR in 2025-26?");
+    const last = candidates(await parseQuery("4215 record last season", await parseContext()), await pageAnswer("4215 record last season", 25, new Set())).map((x) => x.q);
+    expect(last).toContain("What is 4215's OPR last season?");
+    expect(last.filter((x) => /\bin (?:last|this)\b/i.test(x))).toEqual([]);
+    expect(qs.filter((x) => /\bin in\b/i.test(x))).toEqual([]);
   });
 
   it("asks the same questions of any team", async () => {

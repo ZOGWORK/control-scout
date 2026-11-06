@@ -20,7 +20,7 @@ import { defaultSteps, isEmpty, relaxed, windowSteps } from "./relax.js";
 import { eventsNamed, heldInYear, highlightsAnswer, latestPlayed, type HighlightFind } from "./highlights.js";
 import { teamHighlights, type TeamHighlightScope } from "../answers/highlights.js";
 import { shortEvent } from "../answers/matchSet.js";
-import { CHAMPIONSHIP_TYPE, STATES_TYPE } from "../answers/clauses.js";
+import { CHAMPIONSHIP_TYPE, OFFICIAL_TYPES, STATES_TYPE } from "../answers/clauses.js";
 import { eventKindOf, matchFindAnswer, type MatchFind, type MatchMeasure } from "./matchFind.js";
 import { seasonOfDate } from "./time.js";
 import { searchToday } from "../searchEvents.js";
@@ -364,11 +364,11 @@ async function highlights(p: Parsed, scope: ReadScope, opts: PipelineOptions): P
   const videos = !p.symbols.includes("highlights") && !p.symbols.includes("agg:max");
   const kind = p.worlds ? WORLDS_KIND : p.states ? STATES_KIND : p.eventKind ? eventKindOf(p.eventKind) : null;
   if (p.eventKind && !kind) return null;
-  const named = p.event ? await eventsNamed(normalise(p.event.words), kind?.types ?? null) : null;
-  if (named && !named.length) return null;
   // A calendar year said with an event, Worlds or a state championship ("nj championship 2025", "worlds 2025") is the
-  // one held that year; a season ("2024-25"), that season's.
+  // one held that year; a season ("2024-25"), that season's. An event is chosen among those held that year.
   const year = p.time?.kind === "season" && p.time.year != null && !p.time.relative ? p.time.year : null;
+  const named = p.event ? await eventsNamed(normalise(p.event.words), kind?.types ?? null, year != null ? (e) => (e.start ?? "").startsWith(String(year)) : undefined) : null;
+  if (named && !named.length) return null;
   const evs = named && year != null ? named.filter((e) => (e.start ?? "").startsWith(String(year))) : named;
   if (evs && !evs.length) return null;
   const region = regionOf(p);
@@ -396,10 +396,14 @@ async function highlights(p: Parsed, scope: ReadScope, opts: PipelineOptions): P
       definition: "The team's standout matches of the season asked: its best score, biggest win, latest playoff win, best Auto and closest win.", source: `Matches on record in ${S}`,
       none: `${t.name ?? `Team ${t.number}`} (${t.number}) has no played matches in ${S}.` }, said, hits);
   }
+  // An event named with no season said is its latest held, never the current season it isn't in.
+  const lastHeld = evs && !p.time ? Math.max(...evs.map((e) => e.season)) : null;
   const f: HighlightFind = {
-    season: heldIn ?? placeSeason(p, scope.season, opts), region, level: p.level, finals: p.finals, kind: evs ? null : kind, ...(scope.window ? { window: scope.window } : {}), ...(p.n != null ? { n: p.n } : {}), ...(videos ? { videos } : {}),
+    season: heldIn ?? lastHeld ?? placeSeason(p, scope.season, opts), region, level: p.level, finals: p.finals, kind: evs ? null : kind, ...(scope.window ? { window: scope.window } : {}), ...(p.n != null ? { n: p.n } : {}), ...(videos ? { videos } : {}),
     ...(evs ? {
       events: evs.map((e) => ({ season: e.season, code: e.code })),
+      // An off-season event named ("MTI"): its own matches, though highlights are otherwise official events only.
+      ...(evs.some((e) => !(OFFICIAL_TYPES as readonly string[]).includes(e.type ?? "")) ? { named: true } : {}),
       eventName: new Map([...byMain!].reverse().map((e) => [e.season, { name: shortEvent(e.name, e.type), when: dateRange(e.start, e.end) || null, where: [e.city, e.state].filter(Boolean).join(", ") || null }])),
     } : {}),
     at: [kind && !evs ? `at ${kind === WORLDS_KIND ? kind.label : kind.label.toLowerCase()}` : "", region ? `in ${region.name}` : ""].filter(Boolean).join(" "),

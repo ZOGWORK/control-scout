@@ -37,13 +37,14 @@ import { parseQuestion, questionAnswer } from "./searchQuestions.js";
 import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
 import { statAnswer } from "./answers/index.js";
 import { refreshSearchSeason } from "./answers/season.js";
-import { carryOutcome, layeredAnswer } from "./searchLayers.js";
-import { spelled } from "./spelling.js";
+import { FALLBACK_NOTE, carryOutcome, layeredAnswer, nameKey, teamNames } from "./searchLayers.js";
+import { INFORMAL, informalQuery } from "./query/lexicon.js";
+import { numberQuery, spelled, strength } from "./spelling.js";
 import { booleanAnswer } from "./searchBoolean.js";
 import { asksOfTeams, pipelineAnswer, pipelineReads } from "./query/execute.js";
 import { yesNoAnswer } from "./answers/yesNo.js";
 import { sorryFor } from "./answers/sorry.js";
-import { bottomAnswer, countAnswer, eventCodeAnswer, eventPageAnswer, explainAnswer, monthAnswer, nearMeAnswer, namedParts, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
+import { awardQuery, bottomAnswer, countAnswer, eventCodeAnswer, eventPageAnswer, explainAnswer, monthAnswer, nearMeAnswer, namedParts, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
 
 /** The longest query read: a full question ("did the prediction for 12345 at the state championship get it right, or
  *  was it way off") fits. Longer is cut at a word, never inside one. */
@@ -72,6 +73,8 @@ export interface AnswerOptions {
   /** A stat answer's blocks are worked out (/search and its first paint, never the dropdown): ./answers/index.ts.
    *  Set by searchAnswer from the caller's limit (the page asks for SEARCH_PAGE_LIMIT) unless given. */
   full?: boolean;
+  /** False: the page's answer without its sorry note or verdict, for checking a sorry suggestion (never in a loop). */
+  sorry?: boolean;
 }
 
 /** The query as search reads it: punctuation that never means anything dropped, spaces folded, at most MAX_QUERY
@@ -170,7 +173,14 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   // The season a query naming none means (./answers/season.ts), read before the readers that use it.
   await refreshSearchSeason();
   if (opts.inner || opts.intents === false || opts.rewrites) return readerAnswer(raw, opts);
-  const a = await typedAnswer(raw, opts);
+  // Informal short forms said in full first ("events happening rn"), in the query as typed (its quotes and operators
+  // kept), the answer keeping the query as typed.
+  const said = String(raw ?? ""), full = await inFull(said);
+  if (full !== said) {
+    const b = await searchAnswer(full, opts);
+    return carryOutcome(b, { ...b, q: cleanQuery(raw) });
+  }
+  const a = await numberedAnswer(raw, opts);
   // Then its spelling (./spelling.ts): a misspelled query is read again corrected, and the better answer kept. Never
   // a quoted phrase, which asks for exactly those words.
   if (opts.spell === false || String(raw ?? "").includes('"')) return onPage(raw, a, opts);
@@ -178,10 +188,33 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   return onPage(raw, await spelled(cleanQuery(raw), a, (q) => searchAnswer(asked ? `${q}?` : q, { ...opts, spell: false })), opts);
 }
 
+/** `q` with its informal short forms said in full (./query/lexicon.ts INFORMAL), never a word of a team's name or,
+ *  beside its other words, an event's. */
+async function inFull(q: string): Promise<string> {
+  if (!INFORMAL.some(([f]) => new RegExp(`(?:^|[^\\p{L}\\p{N}])${f}(?![\\p{L}\\p{N}])`, "iu").test(q))) return q;
+  const [{ byName, list }, events] = await Promise.all([teamNames(), eventNames()]);
+  // As far as the longest team's or event's name runs, in words.
+  longestName ??= Math.max(4, ...list.map(([n]) => n.split(" ").length), ...events.map((n) => n.split(" ").length));
+  return informalQuery(q, (words, wider) => {
+    const k = nameKey(words);
+    return byName.has(k) || (wider && events.some((n) => ` ${n} `.includes(` ${k} `)));
+  }, longestName);
+}
+let longestName: number | undefined;
+
+let eventNameList: { at: number; list: string[] } | null = null;
+async function eventNames(): Promise<string[]> {
+  if (eventNameList && Date.now() - eventNameList.at < 10 * 60_000) return eventNameList.list;
+  const rows = await all<{ name: string }>("SELECT DISTINCT name FROM events WHERE name IS NOT NULL");
+  eventNameList = { at: Date.now(), list: rows.map((r) => nameKey(r.name)) };
+  longestName = undefined;
+  return eventNameList.list;
+}
+
 /** What the page adds to an answer (the dropdown's is never changed): a yes-or-no question's answer, else, for a
  *  question search can't answer yet, the sorry note. */
 async function onPage(raw: string, a: SearchAnswer, opts: AnswerOptions): Promise<SearchAnswer> {
-  if (!(opts.full ?? (opts.limit ?? 12) >= SEARCH_PAGE_LIMIT)) return a;
+  if (!(opts.full ?? (opts.limit ?? 12) >= SEARCH_PAGE_LIMIT) || opts.sorry === false) return a;
   return (await withVerdict(raw, a, opts)) ?? withSorry(raw, a, opts);
 }
 
@@ -200,10 +233,46 @@ async function withVerdict(raw: string, a: SearchAnswer, opts: AnswerOptions): P
 /** A question search can't answer yet: sorry, with what was read and the searches that do answer about it
  *  (./answers/sorry.ts). */
 async function withSorry(raw: string, a: SearchAnswer, opts: AnswerOptions): Promise<SearchAnswer> {
-  const sorry = await sorryFor(cleanQuery(raw), a, opts);
+  // Each suggestion run as the page runs it (with no sorry of its own, so never in a loop), kept only if it answers.
+  const answers = async (s: string) => {
+    const b = await searchAnswer(s, { ...opts, full: true, limit: SEARCH_PAGE_LIMIT, learn: false, sorry: false });
+    const empty = (b.card?.none && !b.card.lines.length) || (b.stat?.none && !b.stat.headline);
+    return b.step !== "recovery" && !(b.understood?.label ?? "").includes(FALLBACK_NOTE) && (!!b.hits.length || !!b.stat || !!b.card) && !empty;
+  };
+  const sorry = await sorryFor(cleanQuery(raw), a, { ...opts, answers });
   // A copy keeps the outcome failed-search reporting reads (./searchLayers.ts).
   return sorry ? carryOutcome(a, { ...a, sorry }) : a;
 }
+
+/** typedAnswer, with search's own nouns read in the other number when the query as typed reads nothing: its plurals
+ *  as singulars ("4215 upcoming events" is "4215 upcoming event"), else its singulars as plurals ("4215 season").
+ *  Singular and plural are one question. A query answered as typed is never read again, and the answer keeps the
+ *  query as typed. */
+async function numberedAnswer(raw: string, opts: AnswerOptions): Promise<SearchAnswer> {
+  let a = await typedAnswer(raw, opts);
+  if (String(raw ?? "").includes('"')) return a;
+  const asked = /\?\s*$/.test(String(raw ?? ""));
+  // A team's page opened at the section that answers ("4215 seasons": its history) answers more than the page alone,
+  // and a question read ("4215 opr") is a direct answer on both surfaces, whether or not its stat card was built.
+  const answers = (x: SearchAnswer) => (x.intent && !x.understood?.label.includes(FALLBACK_NOTE) ? Math.max(strength(x), 4) : strength(x))
+    + (x.hits[0]?.kind === "team" && x.hits[0].section && !x.understood?.label.includes(FALLBACK_NOTE) ? 0.5 : 0);
+  // Read again only when the query as typed found nothing, or only a team's page with no question read: decided by the
+  // intent read, never by the stat card the page builds and the dropdown doesn't, so both surfaces read it alike.
+  // Anything else it read ("which ultraviolet?", a team at an event it never played) is its answer.
+  const unread = (x: SearchAnswer) => strength(x) <= 2 || (!x.intent && !x.stat && !x.card && x.understood?.kind === "team" && x.step !== "closest");
+  // Then "states" as the championship it means for any place (owner): "nyc states", "romania states results", where
+  // no state championship is named so.
+  const q = cleanQuery(raw);
+  const champ = STATES_WORD.test(q) && !/\bunited states\b/i.test(q) ? q.replace(new RegExp(STATES_WORD.source, "gi"), "$1championship") : null;
+  for (const other of [numberQuery(q), numberQuery(q, true), champ]) {
+    if (!unread(a)) return a;
+    if (!other) continue;
+    const b = await typedAnswer(asked ? `${other}?` : other, opts);
+    if (answers(b) > answers(a)) a = carryOutcome(b, { ...b, q: a.q });
+  }
+  return a;
+}
+const STATES_WORD = /(^| )states(?= |$)/i;
 
 /** searchAnswer for the query as typed. */
 async function typedAnswer(raw: string, opts: AnswerOptions): Promise<SearchAnswer> {
@@ -307,6 +376,14 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
     return { ...a, q, understood: r.note ? { ...u, label: `${u.label} · ${r.note}` } : u };
   };
   if (rw && rw.q !== q && (rw.pre || /^who won worlds /.test(rw.q))) return rewritten(rw);
+  // An event's award asked any way round ("East Bergen inspire award winner", "who got inspire at …"): the award ask,
+  // before the stat answers read an award word as a team's name ("got", "Think-aBot-it").
+  const aw = opts.intents === false ? null : await awardQuery(q);
+  const awarded = aw ? readAsk(aw) : null;
+  if (awarded) {
+    const a = await askAnswer(q, awarded, { prefer, ask: (x) => searchAnswer(x, { ...opts, learn: false }) });
+    if (a) return a;
+  }
 
   // 0. What a word means ("how is opr calculated"), before the stat answers read a word of it as a team's name
   // ("CALculated Risk"); and the questions that name no team ("teams near me", "lowest opr in nj").
