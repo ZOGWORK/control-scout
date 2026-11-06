@@ -17,7 +17,7 @@ import { SEARCH_PALETTE, meaningOf } from "../../../lib/textTones";
 import { AnswerFrame, RelatedQuestions, TAP, repeats, statedSeason, useAnswerSeason, useTeamProfile } from "./TeamAnswer";
 import { rangeCaption } from "../../../shared/format";
 import { AnswerVideo, RowPlay, useRowPlays } from "./AnswerVideo";
-import { Cell, EventMarker, HeadlineValue, INK_BAR, MethodNote, TEAM_BAR, TEAM_TEXT, TEAM_SWATCH, swatchOf, type Swatch, RecordText, RichText, SeasonChip, better, columnMax, foldsOnPhone } from "./answerCells";
+import { Cell, EventMarker, HeadlineValue, INK_BAR, MethodNote, TEAM_BAR, TEAM_TEXT, AwardChip, TEAM_SWATCH, swatchOf, type Swatch, RecordText, RichText, SeasonChip, better, columnMax, foldsOnPhone } from "./answerCells";
 import { MatchBox, RankBadge, TeamChip } from "./MatchBox";
 import { CompareCard, comparisonOf } from "./CompareCard";
 import { ChanceBar } from "./ChanceBar";
@@ -331,18 +331,20 @@ function Table({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
             {b.rows.map((r, i) => {
               const win = vs ? better(String(r.cells[first.key] ?? ""), r.cells.a, r.cells.b) : null;
               return (
-                <tr key={i} className={cn("border-t border-border", r.strong && "font-semibold")} data-strong={r.strong ? "" : undefined}>
+                // A row that is an award (or a phase): a thick left bar in its colour, its name a filled chip.
+                <tr key={i} className={cn("border-t border-border", r.strong && "font-semibold")} data-strong={r.strong ? "" : undefined} data-meaning={meaningOf(String(r.cells[first.key] ?? "")) ?? undefined}>
                   {b.columns.map((c, j) => {
                     const v = r.cells[c.key];
                     const won = win === c.key;
                     return (
-                      <td key={c.key} className={cn("px-2.5 py-1.5 align-middle", c.num && "text-right tabular-nums", j === 0 ? "min-w-[4.5rem] md:min-w-[8rem]" : "whitespace-nowrap max-md:px-1.5", folded.includes(c) && "max-md:hidden", won && "font-bold text-foreground")} data-better={won ? "" : undefined}>
-                        {j === 0 && r.strong && <Trophy className="mr-1 inline size-3.5 align-[-2px] text-muted-foreground" aria-label="Best" />}
+                      <td key={c.key} className={cn("px-2.5 py-1.5 align-middle", c.num && "text-right tabular-nums", j === 0 && meaningOf(String(v ?? "")) && cn("border-l-[6px]", swatchOf(String(v)).edge), j === 0 ? "min-w-[4.5rem] md:min-w-[8rem]" : "whitespace-nowrap max-md:px-1.5", folded.includes(c) && "max-md:hidden", won && "font-bold text-foreground")} data-better={won ? "" : undefined}>
+                        {j === 0 && r.strong && <Trophy className="mr-1 inline size-3.5 align-[-2px] text-team-a" aria-label="Best" />}
                         {j === 0 && r.href
                           ? <Link to={r.href} className="text-foreground hover:text-accent-text hover:underline max-md:inline-flex max-md:min-h-[44px] max-md:items-center pointer-coarse:inline-flex pointer-coarse:min-h-[44px] pointer-coarse:items-center">{v ?? "–"}</Link>
+                          : j === 0 && c.key === "award" && v != null ? <AwardChip name={String(v)} />
                           : j === 0 ? (v ?? "–") : <Cell col={c} value={v} max={max.get(c.key)} />}
                         {j === 0 && first.key === "event" && !!r.type && <EventMarker type={r.type} chip />}
-                        {won && <Trophy className="ml-1 inline size-3 align-[-1px] text-muted-foreground" aria-label="Better" />}
+                        {won && <Trophy className="ml-1 inline size-3 align-[-1px] text-team-a" aria-label="Better" />}
                         {j === 0 && !!folded.length && (
                           <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] font-normal text-muted-foreground md:hidden" data-folded>
                             {folded.map((f) => r.cells[f.key] != null && <span key={f.key}>{f.key === "season" ? <SeasonChip text={String(r.cells[f.key])} /> : r.cells[f.key]}</span>)}
