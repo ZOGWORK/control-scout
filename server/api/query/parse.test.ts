@@ -218,3 +218,24 @@ describe("shared names in any order", () => {
     }
   });
 });
+
+describe("a name said as words", () => {
+  it("is the words after 'named' or 'called', however the question's asked, never the team that has the name", async () => {
+    for (const q of ["how many teams named ultraviolet", "how many teams are called Ultraviolet?", "number of teams named ultraviolet", "teams named ultraviolet",
+      "how many teams have the name ultraviolet", "how many teams named ultraviolet are there please"]) {
+      expect(await parse(q), q).toMatchObject({ intent: "teams-named", named: { words: "ultraviolet" }, teams: [], complete: true });
+    }
+    expect(await parse("how many teams are called hypnotic robotics")).toMatchObject({ intent: "teams-named", named: { words: "hypnotic robotics" }, teams: [] });
+  });
+  it("ends where a place or a season starts", async () => {
+    expect(await parse("teams named bad wolf from NJ in 2025-26")).toMatchObject({ named: { words: "bad wolf" }, place: { state: "NJ" }, time: { season: 2025 }, complete: true });
+  });
+  it("with nothing after it, is no name: the question stays the readers' it was", async () => {
+    expect(await parse("what is 4215 called")).toMatchObject({ teams: [{ number: 4215 }], complete: false });
+    expect((await parse("what is 4215 called")).named).toBeUndefined();
+  });
+  it("a count of teams in a place is its own intent; a name alone is still a team", async () => {
+    expect(await parse("how many teams from Oradell")).toMatchObject({ intent: "count-teams", place: { kind: "city" }, complete: true });
+    expect(await parse("ultraviolet")).toMatchObject({ intent: null, complete: false });
+  });
+});

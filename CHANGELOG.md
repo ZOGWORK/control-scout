@@ -17,6 +17,17 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 3.4.1 — 2026-11-06
 
+"How many teams are called …" counts every team with that name and lists them, however it's asked.
+
+### Highlights
+- [teams] "How many teams named …" counts and lists every team with that name
+- [teams] Asked as "called", "with the name" or "go by", it's the same answer
+- [teams] Add a place or a season to count only those teams
+- [teams] "How many teams from" a town lists that town's teams
+
+### Search
+- **Teams by name, counted.** "How many teams named …", "teams called …", "number of teams with the name …" read the words after "named" as a name, never as the one team that has it, and answer with the count and every team with that whole name, by number, with where each is from and its last season played; the count is always the list. A place ("… from NJ") or a season ("… in 2025-26") narrows it and is said on the card. No team with the name says so, with the names the words nearly spell or are part of and Browse all teams, never the no-match page.
+- **A town's teams counted.** "How many teams from" or "in" a town answers with the town's list of teams, its length the count. A state's or a country's count is unchanged.
 A championship's divisions branch off it as a tree, coloured by status, with each fact said once and yellow kept for the control you picked.
 
 ### Highlights

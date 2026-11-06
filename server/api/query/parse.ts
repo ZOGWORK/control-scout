@@ -55,6 +55,8 @@ export interface Parsed {
   unexplained: string[];
   /** No losses asked ("undefeated teams"). */
   undefeated?: boolean;
+  /** A name asked about as words ("teams named <name>"): the words, never read as a team. */
+  named?: { words: string; typed: string };
   /** Every word explained and an intent found. */
   complete: boolean;
 }
@@ -74,6 +76,8 @@ export interface ParseContext {
 type Tok = { w: string; typed: string; used: boolean; alliance?: boolean; side?: "red" | "blue" };
 /** The one-word filler phrases ("the", "a"): read before a name that starts with one. */
 const FILLER_WORDS = new Set(LEXICON.filter((e) => e.words.length === 1 && e.syms.every((x) => x.k === "filler")).map((e) => e.words[0]));
+/** The words that end a name asked about as words: a place or a time follows. */
+const NAME_ENDS = /^(?:from|in|at|near|based|located|during|out)$/;
 /** The kind words an event's name can end with. */
 const KIND_WORDS = new Set(["meet", "meets", "tournament", "tournaments", "event", "events", "competition", "competitions"]);
 /** The words before a number that make it a count ("top 5", "last 10") or a match's number ("match 3"). */
@@ -123,6 +127,21 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   };
   const lexAt = (i: number) => LEXICON.find((e) => e.words.every((w, j) => toks[i + j] && !toks[i + j].used && toks[i + j].w === w));
   const isLex = (w: string) => LEX_WORDS.has(w) || AWARD_ONE_WORD.has(w);
+
+  // 0. A name asked about as words ("how many teams named <name> from <place>"): the words after the phrase, up to a
+  // place's preposition and without the question's closing filler ("… are there"), are the name, never a team.
+  for (let i = 0; i < toks.length && !p.named; i++) {
+    const e = lexAt(i);
+    if (!e?.syms.some((s) => s.k === "named")) continue;
+    const from = i + e.words.length;
+    let to = from;
+    while (to < toks.length && !NAME_ENDS.test(toks[to].w)) to++;
+    while (to > from && FILLER_WORDS.has(toks[to - 1].w)) to--;
+    if (to === from) continue;
+    const span = toks.slice(from, to);
+    p.named = { words: span.map((t) => t.w).join(" "), typed: span.map((t) => t.typed).join(" ") };
+    span.forEach((t) => (t.used = true));
+  }
 
   // 1. Teams by their whole name, longest first: a name made only of search's own words ("The Best") isn't claimed,
   // so "best team" stays a question.
@@ -348,6 +367,7 @@ export function describe(p: Parsed): string[] {
   return [
     p.intent ? `Intent: ${p.intent.replace(/-/g, " ")}` : "",
     ...p.teams.map((t) => `Team ${t.number}${t.name ? ` ${t.name}` : ""}`),
+    p.named ? `Name: ${p.named.typed}` : "",
     p.event ? `Event: ${p.event.typed}` : "",
     p.worlds ? "FIRST Championship" : p.states ? "State championship" : "",
     p.place ? `${p.place.kind === "city" ? "From" : "In"} ${p.place.name}` : "",
