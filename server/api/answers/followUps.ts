@@ -71,11 +71,11 @@ const EVENT: Template[] = [
 ];
 const AWARD_AT: Template = T("awards", ["event", "award"], (s) => `Who won the ${s.award} Award at ${s.event}${IN(s)}?`, (s) => `${s.award} award at ${s.event}${AT(s)}`);
 const PLACE: Template[] = [
-  T("team", ["place"], (s) => `Who are the top teams in ${s.place}?`, (s) => `top teams in ${s.place}`),
-  T("team", ["place"], (s) => `Which team has the highest OPR in ${s.place}?`, (s) => `highest opr in ${s.place}`),
-  T("predict", ["place"], (s) => `Who has the highest rating in ${s.place}?`, (s) => `highest rated in ${s.place}`),
+  T("leaders", ["place"], (s) => `Who are the top teams in ${s.place}?`, (s) => `top teams in ${s.place}`),
+  T("leaders", ["place"], (s) => `Which team has the highest OPR in ${s.place}?`, (s) => `highest opr in ${s.place}`),
+  T("leaders", ["place"], (s) => `Who has the highest rating in ${s.place}?`, (s) => `highest rated in ${s.place}`),
   T("team", ["place"], (s) => `How many teams are in ${s.place}?`, (s) => `teams in ${s.place}`),
-  T("team", ["place"], (s) => `What is the highest score in ${s.place}?`, (s) => `highest score in ${s.place}`),
+  T("leaders", ["place"], (s) => `What is the highest score in ${s.place}?`, (s) => `highest score in ${s.place}`),
   T("events", ["place"], (s) => `What events are coming up in ${s.place}?`, (s) => `upcoming events in ${s.place}`),
   T("events", ["place"], (s) => `What events are this week in ${s.place}?`, (s) => `events this week in ${s.place}`),
   T("events", ["place"], (s) => `What events are in ${s.place}?`, (s) => `events in ${s.place}`),
@@ -85,13 +85,13 @@ const PLACE: Template[] = [
 const BOARDS: [string, string][] = [["Auto OPR", "auto opr"], ["TeleOp OPR", "teleop opr"], ["Endgame OPR", "endgame opr"], ["OPR", "opr"], ["prediction rating", "rated"]];
 const IN_PLACE = (s: Slots) => (s.place ? ` in ${s.place}` : "");
 const LEADERS: Template[] = BOARDS.map(([label, words]) =>
-  T(words === "rated" ? "predict" : "team", [], (s) => `Who has the best ${label}${IN_PLACE(s)}?`, (s) => (words === "rated" ? `highest rated teams${IN_PLACE(s)}` : `best ${words}${IN_PLACE(s)}`)));
+  T("leaders", [], (s) => `Who has the best ${label}${IN_PLACE(s)}?`, (s) => (words === "rated" ? `highest rated teams${IN_PLACE(s)}` : `best ${words}${IN_PLACE(s)}`)));
 
 // A search that names nothing (a list of upcoming events, a season's leaders): the season's starting points.
 const START: Template[] = [
-  T("team", [], () => "Who are the top teams?", () => "top teams"),
-  T("team", [], () => "Which team has the highest OPR?", () => "highest opr"),
-  T("team", [], () => "What is the highest score this season?", () => "highest score"),
+  T("leaders", [], () => "Who are the top teams?", () => "top teams"),
+  T("leaders", [], () => "Which team has the highest OPR?", () => "highest opr"),
+  T("leaders", [], () => "What is the highest score this season?", () => "highest score"),
   T("events", [], () => "What events are coming up?", () => "upcoming events"),
   T("events", [], () => "What events are this week?", () => "events this week"),
   T("events", [], () => "What events are happening today?", () => "live events"),

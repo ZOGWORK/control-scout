@@ -16,6 +16,7 @@ import { withTeamStats } from "./api/searchTeamStats.js";
 import { withEventParents } from "./api/searchEvents.js";
 import { teamHighlights } from "./api/answers/highlights.js";
 import { followUps, pageAnswer } from "./api/answers/followUps.js";
+import { relatedPage } from "./api/answers/relatedPage.js";
 import { refine } from "./api/searchBruno.js";
 import { brunoAnswer } from "./api/searchBrunoAnswer.js";
 import { SEARCH_PAGE_LIMIT } from "../src/shared/search.js";
@@ -407,6 +408,13 @@ export function createApp(opts: { dist?: string } = {}) {
     const follow = await followUps(q, await pageAnswer(q, SEARCH_PAGE_LIMIT, prefer), prefer);
     res.setHeader("Cache-Control", "public, max-age=60");
     return { q, ...follow };
+  }));
+
+  // The related searches page (/related-searches, server/api/answers/relatedPage.ts): the same follow-ups, grouped.
+  api.get("/search/related", limiter(30), h(async (req, res) => {
+    await ensureSearchIndex(rebuildSearch);
+    res.setHeader("Cache-Control", "public, max-age=60");
+    return relatedPage(String(req.query.q ?? ""), preferOf(req.query.prefer));
   }));
 
   // Step 3 of search's chain (server/api/searchBruno.ts): asked by the app after the first answer is on screen,

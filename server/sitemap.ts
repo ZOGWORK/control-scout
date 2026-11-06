@@ -18,7 +18,7 @@ import { isEnabled } from "./flags.js";
 // its links: /predict, an input form whose first HTML is a heading and a line. Never listed: /records and /support
 // (redirects), /supporters and /search (noindex), Compare (empty until teams are picked; a pair is a view of two team
 // pages) and any filter, sort or search variant (a ?query address).
-export const STATIC_PAGES = ["/", "/events", "/rankings", "/teams", "/matches", "/how-it-works/search", "/methodology", "/faq", ...Object.keys(PRERENDERED_PAGES)];
+export const STATIC_PAGES = ["/", "/events", "/rankings", "/teams", "/matches", "/how-it-works/search", "/related-searches", "/methodology", "/faq", ...Object.keys(PRERENDERED_PAGES)];
 export const CHUNK = 45_000; // under the 50,000-URL limit, and far under 50 MB
 
 interface Entry { loc: string; lastmod?: string }

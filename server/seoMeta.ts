@@ -36,6 +36,7 @@ import { isEnabled } from "./flags.js";
 import type { SearchCardLine, TrackRecord } from "../src/shared/api.js";
 import { ensureSearchIndex } from "./api/search.js";
 import { MAX_QUERY, searchAnswer } from "./api/searchAnswer.js";
+import { relatedPage } from "./api/answers/relatedPage.js";
 import { withTeamStats } from "./api/searchTeamStats.js";
 import { withEventParents } from "./api/searchEvents.js";
 import { recordIntent } from "./api/searchIntents.js";
@@ -638,6 +639,28 @@ async function searchMeta(raw: string): Promise<PageMeta> {
   };
 }
 
+/**
+ * /related-searches?q=…: a search's follow-ups, grouped (server/api/answers/relatedPage.ts), drawn whole as plain links
+ * with each one's line, so the first paint is the page. Indexed, each query at its own address; with no query (or
+ * one nothing follows from), the season's starting points.
+ */
+async function relatedMeta(raw: string): Promise<PageMeta> {
+  const q = raw.trim().slice(0, MAX_QUERY);
+  await ensureSearchIndex(rebuildSearch);
+  const r = await relatedPage(q);
+  const title = q ? `Related searches: ${q}` : "Popular FTC searches";
+  const body = (q && !r.found ? `<p>Nothing follows from “${esc(q)}” yet. These searches are good starting points.</p>` : "")
+    + (q ? `<p><a href="/search?q=${esc(encodeURIComponent(q))}">Back to the answer for “${esc(q)}”</a></p>` : "")
+    + r.groups.map((g) => `<h2>${esc(g.title)}</h2><ul>${g.items.map((x) => `<li><a href="/search?q=${esc(encodeURIComponent(x.q))}">${esc(x.q)}</a><br><small>${esc(x.preview)}</small></li>`).join("")}</ul>`).join("")
+    + `<p><a href="/search">Search any FTC team, event or match</a></p>`;
+  const n = r.groups.reduce((t, g) => t + g.items.length, 0);
+  return {
+    title, type: "website", bodyHtml: body,
+    ...(q ? { path: `/related-searches?q=${encodeURIComponent(q)}` } : {}),
+    description: fitDescription(q && r.found ? `${n} FTC searches related to “${q}” on Control Scout, each with its answer: team stats, records, awards and events.` : "Popular FTC searches on Control Scout, each with its answer: top teams, OPR leaders, upcoming events and the season's standout teams."),
+  };
+}
+
 /** The head values for a page path: the page's own, the home ones when it has none, or notFound for no such page. */
 export async function pageMeta(path: string, query: Record<string, unknown> = {}): Promise<PageMeta> {
   // A shared matchup reads its parameters as text (/predict?…red=…&blue=…, /events/…?match=…).
@@ -683,6 +706,7 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
     if (p === "/teams") return await teamsTableMeta(query);
     if (p === "/matches") return await matchesTableMeta(query);
     if (/^\/search$/i.test(p)) return await searchMeta(sp.get("q") ?? "");
+    if (/^\/related-searches$/i.test(p)) return await relatedMeta(sp.get("q") ?? "");
     if ((m = p.match(/^\/power-rankings(?:\/([^/]+))?$/i))) return await powerRankingsMeta(m[1] ?? null);
   } catch {
     // Database not ready: the generic values, never a 404 (the page may well exist).

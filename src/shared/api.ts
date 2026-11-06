@@ -206,7 +206,7 @@ export interface SearchVideo {
  *  directly, with a line from its answer. `family`: what it's about, the related searches page's groups. */
 export interface SearchFollowUp {
   q: string;
-  family: "team" | "compare" | "events" | "awards" | "predict";
+  family: "team" | "leaders" | "compare" | "events" | "awards" | "predict";
   /** The line, whole ("26-6-0 · 81% win rate in 32 matches"): `value` and then `rest`. */
   preview: string;
   value: string;
@@ -221,6 +221,9 @@ export type FollowUpTone =
   | { card: SearchCard["kind"] }
   | { verdict: "Yes" | "No" }
   | { count: true };
+/** GET /api/search/related (/related-searches): a search's follow-ups grouped by what they're about, two or more each.
+ *  `found` false: nothing follows from `q`, and the groups are the starting points. */
+export interface RelatedPageView { q: string; found: boolean; groups: { title: string; items: SearchFollowUp[] }[] }
 /** GET /api/search/follow: People also ask, Related searches, and the team's highlights search (`team`: whose). */
 export interface SearchFollowUps { ask: SearchFollowUp[]; related: SearchFollowUp[]; highlights?: SearchFollowUp & { team: number } }
 
