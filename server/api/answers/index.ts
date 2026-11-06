@@ -713,8 +713,11 @@ export async function twoTeamSearch(q: string, two: TwoTeamQuestion, resolve: Re
   }
   const title = `${TWO_TEAM_TITLES[two.id]}: ${whoOf(a)} vs ${whoOf(b)}`;
   // "Who wins" keeps what the asks gave it (Compare's hit first, Predict first among the pages), with the call as its card.
-  // Compare's own link leads a forecast and a side by side, as plain "12345 vs 67890" always opened it.
-  const lead = two.id === "predict" || two.id === "compare" ? (await versusAnswer(`${a.number} vs ${b.number}`, new Set(), scope.season))?.hits.find((h) => h.kind === "compare") : undefined;
+  // Compare's own link leads a forecast and a season side by side, as plain "12345 vs 67890" always opened it: on the
+  // card's season, the one named or else the one the card picks (every team played it).
+  const seasonCompare = two.id === "compare" && !s.at && !s.championship && !s.states;
+  const leadSeason = seasonCompare ? scope.season ?? (await compareSeason([a.number, b.number])) : scope.season;
+  const lead = two.id === "predict" || seasonCompare ? (await versusAnswer(`${a.number} vs ${b.number}`, new Set(), leadSeason))?.hits.find((h) => h.kind === "compare") : undefined;
   // Predict opens on the season the card's call is for.
   const predictSeasonOf = two.id === "predict" ? scope.season ?? (await predictionSeason(a.number, b.number)).season : null;
   const pages = predictSeasonOf != null ? [{ title: `Predict ${a.number} vs ${b.number}`, href: predictHref({ mode: "match", season: predictSeasonOf, red: [a.number], blue: [b.number] }) }, ...opts.pages] : opts.pages;
