@@ -207,7 +207,10 @@ export function once(a: StatAnswer): StatAnswer {
   const same = pct(c.p);
   const head = a.headline?.value === same ? a.headline : undefined;
   const note = [head?.sub, c.note].filter(Boolean).join(" · ");
+  // The tile saying the bar's own measure again ("Win", "Advance", by the bar's "to win …", "to advance …"), at the same
+  // value: once is enough.
+  const measure = new RegExp(`^${/^to (\w+)/i.exec(c.label)?.[1] ?? "win"}\\b`, "i");
   const blocks = a.blocks.map((x) => (x === c ? { ...c, ...(note ? { note } : {}) }
-    : x.kind === "kpis" ? { ...x, items: x.items.filter((i) => !(i.value === same && /^win\b/i.test(i.label))) } : x)).filter((x) => x.kind !== "kpis" || x.items.length);
+    : x.kind === "kpis" ? { ...x, items: x.items.filter((i) => !(i.value === same && measure.test(i.label))) } : x)).filter((x) => x.kind !== "kpis" || x.items.length);
   return { ...a, blocks, ...(head ? { headline: undefined } : {}) };
 }
