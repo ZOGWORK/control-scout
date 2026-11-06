@@ -7,8 +7,8 @@ import { rebuildSearch } from "../../stats/job";
 import { clearAllCaches } from "../../caches";
 import { searchAnswer } from "../searchAnswer";
 import { searchOutcome } from "../searchLayers";
-
-import { rewriteQuery } from "../searchCoverage";
+import { countAnswer, rewriteQuery } from "../searchCoverage";
+import { readEventQuery } from "../../../src/shared/searchEventQuery";
 import type { SearchAnswer } from "../../../src/shared/api";
 import type { StatAnswer } from "../../../src/shared/searchStat";
 
@@ -284,6 +284,40 @@ describe("who, what, where and the best, said more ways (3d, 3e)", () => {
   it("a team's division at Worlds asked as a question is its Worlds divisions", () => {
     expect(rewriteQuery("what division was 4215 in at worlds")).toMatchObject({ q: "4215 worlds division" });
     expect(rewriteQuery("which division did 4215 play in at worlds 2023-24")).toMatchObject({ q: "4215 worlds division 2023-24" });
+  });
+});
+
+describe("events and time words (3g)", () => {
+  it("this week's events, however it's asked", async () => {
+    for (const q of ["events this week", "what events are happening this week", "events happening this week", "what events are going on this week"]) {
+      expect(readEventQuery(q), q).toMatchObject({ kinds: ["event"], time: "this-week", words: [] });
+      expect((await ask(q)).understood?.label, q).toMatch(/^This week's events/);
+    }
+  });
+  it("the request's own words, before or after the place, are never a name or a venue", async () => {
+    expect(readEventQuery("events being held this week")).toMatchObject({ kinds: ["event"], time: "this-week", words: [], where: null });
+    expect(readEventQuery("what events in NJ are happening this week")).toMatchObject({ kinds: ["event"], time: "this-week", region: { state: "NJ" }, where: null, words: [] });
+    expect(readEventQuery("events in NJ taking place this week")).toMatchObject({ time: "this-week", region: { state: "NJ" }, where: null });
+    // A place's own name keeps every word.
+    expect(readEventQuery("events in University Place")?.where).toBe("University Place");
+    expect(readEventQuery("events in University Place taking place this week")).toMatchObject({ where: "University Place", time: "this-week" });
+    // A venue said after the place stays the venue.
+    expect(readEventQuery("events in NJ at river dell high school")?.where).toBe("river dell high school");
+  });
+  it("live, right now: today's events", async () => {
+    for (const q of ["live events", "events live now", "events going on today", "events happening now"]) {
+      expect(readEventQuery(q), q).toMatchObject({ kinds: ["event"], time: "today", words: [] });
+    }
+    // "Live" alone names no event: a team or a word, as before.
+    expect(readEventQuery("live")).toBeNull();
+  });
+  it("'number of' and 'count of' ask how many", async () => {
+    expect((await countAnswer("number of events in NJ in 2025-26"))?.understood?.label).toBe("How many events in New Jersey · 2025–26");
+    // "What's the" with its apostrophe too.
+    expect((await countAnswer("what's the number of events in NJ in 2025-26"))?.understood?.label).toBe("How many events in New Jersey · 2025–26");
+    for (const q of ["count of teams in NJ", "total number of teams in NJ", "what is the number of teams in NJ", "what's the number of teams in NJ"]) {
+      expect((await countAnswer(q))?.understood?.label, q).toBe((await countAnswer("how many teams in NJ"))?.understood?.label);
+    }
   });
 });
 
