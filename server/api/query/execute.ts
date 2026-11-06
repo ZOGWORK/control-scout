@@ -243,8 +243,10 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     const one = /\b(?:team|who)\b/.test(said) && !/\b(?:teams|sorted|ranked|order)\b/.test(said) && p.n == null && (!!p.place || stats.length === 1);
     const town = p.place?.kind === "city" ? p.place : null;
     // No stat said and the place alone ending the question ("best teams in romania", "best team in Oradell"): the place
-    // readers' own cards. Said any other way ("in Cluj-Napoca, Romania", "best Romanian teams"): its teams by OPR here.
-    if ((town || p.place?.kind === "country") && !stats.length && !p.undefeated && said.endsWith(` in ${normalise(p.place!.typed)}`)) return null;
+    // readers' own cards. Said any other way ("in Cluj-Napoca, Romania", "best Romanian teams", "leaderboard in
+    // Romania", which those readers don't take): its teams by OPR here.
+    const boardSaid = /\bleader ?boards?\b/.test(said);
+    if ((town || p.place?.kind === "country") && !stats.length && !p.undefeated && !boardSaid && said.endsWith(` in ${normalise(p.place!.typed)}`)) return null;
     const region: Region | null = town ? { key: `${town.country}:${town.state ?? ""}`, country: town.country, state: town.state ?? "", name: town.state ?? town.country } : regionOf(p);
     const b: LeaderboardQuestion = {
       kind: "top", stat: stats[0] ?? (p.undefeated ? "wins" : town || p.place?.kind === "country" ? "opr" : "rating"), ...(p.undefeated ? { undefeated: true } : {}), n: one ? 5 : Math.min(25, p.n ?? 10), region, city: null, town: town?.city ?? null, season: placeSeason(p, scope.season, opts),
