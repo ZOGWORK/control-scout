@@ -209,6 +209,9 @@ describe("one question, any phrasing, any team", () => {
       expect(s.title, q).toBe(`${q.split(" at ")[0]} at ${at}`);
       const block = s.blocks.find((b) => b.kind === "compare");
       expect(block?.kind === "compare" && block.rows.find((r) => r.label === "OPR")?.values, q).toEqual(values);
+      // Their matches together at that meet alone.
+      const links = s.blocks.find((b) => b.kind === "links");
+      expect(links?.kind === "links" && decodeURIComponent(links.items[0].href), q).toContain(`matches together at ${at.toLowerCase()} in 2025-26`);
     }
   });
   it("a name typed nearly right offers the spelling, whatever stood between its words", async () => {

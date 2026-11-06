@@ -866,10 +866,13 @@ async function compareAt(two: TwoTeamQuestion, a: AnswerTeam, b: AnswerTeam, sco
   const ranks = rows.map((e, i) => `${teams[i].number} ${e.rank != null ? `#${e.rank}` : "unranked"} (${recText(recs[i])})`);
   // Different divisions of one championship: the part of their names they share ("Romania Championship").
   const name = rows[0].code === rows[1].code ? (picks[0].events.length === pa.events.length ? pa.name : rows[0].name) : sharedName(rows[0].name, rows[1].name) ?? rows[0].name;
+  // Their matches together at the event compared (by its own name, without the divisions note), not every event the
+  // words named ("Lakeside League Meet": the AM meet both played, never the PM one too).
+  const there = `${name.replace(/\s*\([^)]*\)$/, "").toLowerCase()} in ${S}-${String((S + 1) % 100).padStart(2, "0")}`;
   return {
     ...base, title: `${a.number} vs ${b.number} at ${name}`, scope: [name, seasonLabel(S)],
     headline: crow[0] && rows.some((e) => e.opr != null) ? leadHeadline(teams, crow[0], [...ranks, decidedText(crow)], eventHref(S, rows[0].code)) : { value: ranks.join(" · "), label: `No OPR at ${name} on record` },
-    blocks: [block, { kind: "links", title: "Try it", items: [{ label: `${a.number} and ${b.number} matches together there`, href: `/search?q=${encodeURIComponent(`${a.number} and ${b.number} matches together at ${at}`)}` }] }],
+    blocks: [block, { kind: "links", title: "Try it", items: [{ label: `${a.number} and ${b.number} matches together there`, href: `/search?q=${encodeURIComponent(`${a.number} and ${b.number} matches together at ${there}`)}` }] }],
   };
 }
 
