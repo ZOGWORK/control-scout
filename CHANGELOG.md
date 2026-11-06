@@ -26,7 +26,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ### Search
 - **A team at Worlds.** A team and Worlds alone ("12345 at worlds", "12345 worlds", "show me 12345 at worlds 2025-26") answer with the team's results at the FIRST Championship: its record, its division and its matches, as a team and its state championship already did. A team with no Worlds matches is told it has none on record, never an empty page. A measure named with it ("worlds record", "opr at worlds") is still that measure.
-- **Whether a team went.** "Has 12345 been to worlds", "went to", "made it to", "qualified for" and "appearances" stay the question of its trips there, answered by its Worlds appearances, never its results. (#000)
+- **Whether a team went.** "Has 12345 been to worlds", "went to", "made it to", "qualified for" and "appearances" stay the question of its trips there, answered by its Worlds appearances, never its results. (#852)
 
 ## 3.4.7 — 2026-11-06
 
