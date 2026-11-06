@@ -40,7 +40,7 @@ import { refreshSearchSeason } from "./answers/season.js";
 import { FALLBACK_NOTE, carryOutcome, layeredAnswer } from "./searchLayers.js";
 import { spelled } from "./spelling.js";
 import { booleanAnswer } from "./searchBoolean.js";
-import { pipelineAnswer, pipelineReads } from "./query/execute.js";
+import { asksOfTeams, pipelineAnswer, pipelineReads } from "./query/execute.js";
 import { yesNoAnswer } from "./answers/yesNo.js";
 import { sorryFor } from "./answers/sorry.js";
 import { awardQuery, bottomAnswer, countAnswer, eventCodeAnswer, eventPageAnswer, explainAnswer, monthAnswer, nearMeAnswer, namedParts, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
@@ -354,9 +354,10 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
 
   // 0. A rules question ("Can robots descore … in autonomous?", "G402", "penalty for pinning"): the Rules quick
   // reference's matching entries, or a plain "no rule found". Never team names (./searchRules.ts).
-  // A season's best scores ("what was the highest scoring match this season?") stay that question's.
+  // A season's best scores ("what was the highest scoring match this season?") stay that question's, and a question
+  // about teams ("which team fouls the least in NJ", "12345 penalty points") is their numbers', never the rules.
   const rq = opts.intents === false || parseHighScore(q) ? null : readRuleQuery(q, opts.asked);
-  if (rq) return ruleAnswer(q, rq);
+  if (rq && !(await asksOfTeams(opts.typed ?? q, opts.now, prefer))) return ruleAnswer(q, rq);
 
   // 0a. The best scores of a season ("world record score bio buzz"), or of a team when one is named and found.
   const high = opts.intents === false ? null : parseHighScore(q);

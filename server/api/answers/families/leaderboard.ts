@@ -28,7 +28,11 @@ export const LEADERBOARD_MAX = 25;
 
 /** A stat a leaderboard ranks by: its stored column (or expression), its words, and the Teams page's sort key: only
  *  where that table shows the same number (its OPRs; its wins and averages count qualification matches only). */
-export interface BoardStat { id: string; label: string; sql: string; unit: string; teamsSort: string | null; digits: number; join?: string }
+export interface BoardStat { id: string; label: string; sql: string; unit: string; teamsSort: string | null; digits: number; join?: string;
+  /** Fewer is better (penalties): the top of the list is the most, never "the best". */
+  fewerBetter?: true;
+  /** What breaks a tie before wins: penalties' estimate is 0 for many teams, so the points their alliances gave away. */
+  tie?: string }
 export const BOARD_STATS: Record<string, BoardStat> = {
   opr: { id: "opr", label: "OPR", sql: "s.opr_np", unit: "", teamsSort: "totalPointsNpOpr", digits: 1 },
   auto: { id: "auto", label: "Auto OPR", sql: "s.opr_auto", unit: "", teamsSort: "autoPointsOpr", digits: 1 },
@@ -39,6 +43,8 @@ export const BOARD_STATS: Record<string, BoardStat> = {
   "avg-score": { id: "avg-score", label: "Average score", sql: "s.avg_np", unit: "", teamsSort: null, digits: 1 },
   rating: { id: "rating", label: "Prediction rating", sql: "s.rating_np", unit: "", teamsSort: null, digits: 1 },
   record: { id: "record", label: "Record", sql: "(1.0 * s.wins / NULLIF(s.wins + s.losses + s.ties, 0))", unit: "%", teamsSort: null, digits: 0 },
+  // The rating's share for penalty points given away a match, as the team page says it: fewest is best.
+  penalties: { id: "penalties", label: "Penalties a match", sql: "s.rating_pen", unit: "", teamsSort: null, digits: 1, fewerBetter: true, tie: "s.avg_pen" },
   reliability: { id: "reliability", label: "Reliability", sql: "r.idx", unit: "", teamsSort: null, digits: 0, join: "JOIN team_reliability r ON r.season = s.season AND r.code = '' AND r.team = s.team" },
 };
 
@@ -100,23 +106,23 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
   if (b.kind === "improved") return improvedAnswer(b, season, where, regionSql, regionArgs, chips, why);
   const st = b.stat;
   const rookie = b.kind === "rookie";
-  const ranked = `s.season = ? AND ${st.id === "rating" ? "s.rating_matches" : "s.matches"} >= ? AND ${st.sql} IS NOT NULL AND ${teamPageSql("s.team", "t.name")}${regionSql}${rookie ? " AND t.rookie_year = ?" : ""}${b.undefeated ? " AND s.losses = 0" : ""}`;
+  const ranked = `s.season = ? AND ${st.id === "rating" || st.id === "penalties" ? "s.rating_matches" : "s.matches"} >= ? AND ${st.sql} IS NOT NULL AND ${teamPageSql("s.team", "t.name")}${regionSql}${rookie ? " AND t.rookie_year = ?" : ""}${b.undefeated ? " AND s.losses = 0" : ""}`;
   const from = `team_season_stats s JOIN teams t ON t.number = s.team${st.join ? ` ${st.join}` : ""}`;
   const args = [season, RANKED_MIN_MATCHES, ...regionArgs, ...(rookie ? [season] : [])];
   const [rows, count] = await Promise.all([
     all<{ team: number; name: string | null; city: string | null; state: string | null; country: string | null; v: number | null; opr: number | null; auto: number | null; teleop: number | null; endgame: number | null; pen: number | null; wins: number; losses: number; ties: number; matches: number }>(
       `SELECT s.team, t.name, t.city, t.state, t.country, ${st.sql} v, s.opr_np opr, s.opr_auto auto, s.opr_teleop teleop, s.opr_endgame endgame, s.opr_pen pen, s.wins, s.losses, s.ties, s.matches
        FROM ${from} WHERE ${ranked}
-       ORDER BY v ${b.asc ? "ASC" : "DESC"}, ${st.id === "rating" ? "" : `s.wins ${b.asc ? "ASC" : "DESC"}, `}s.team ${b.asc ? "DESC" : "ASC"} LIMIT ?`, [...args, b.n]),
+       ORDER BY v ${b.asc ? "ASC" : "DESC"}, ${st.tie ? `${st.tie} ${b.asc ? "ASC" : "DESC"}, ` : ""}${st.id === "rating" ? "" : `s.wins ${b.asc ? "ASC" : "DESC"}, `}s.team ${b.asc ? "DESC" : "ASC"} LIMIT ?`, [...args, b.n]),
     get<{ n: number }>(`SELECT COUNT(*) n FROM ${from} WHERE ${ranked}`, args),
   ]);
-  const title = b.undefeated ? `Undefeated teams${where} by ${statWords(st)}` : rookie ? `Best rookie team${b.n > 1 ? "s" : ""}${where} by ${statWords(st)}` : b.asc ? `Lowest ${b.n > 1 ? `${b.n} teams` : "team"} by ${statWords(st)}${where}`
-    : b.best ? `Best team${where} by ${statWords(st)}` : `Top ${b.n} teams by ${statWords(st)}${where}`;
+  const title = b.undefeated ? `Undefeated teams${where} by ${statWords(st)}` : rookie ? `Best rookie team${b.n > 1 ? "s" : ""}${where} by ${statWords(st)}` : b.asc && b.best && st.fewerBetter ? `Team${where} with the fewest ${statWords(st)}` : b.asc ? `Lowest ${b.n > 1 ? `${b.n} teams` : "team"} by ${statWords(st)}${where}`
+    : b.best ? (st.fewerBetter ? `Team${where} with the most ${statWords(st)}` : `Best team${where} by ${statWords(st)}`) : `Top ${b.n} teams by ${statWords(st)}${where}`;
   // A link opens the same list or none: Rankings has no rookie filter and no lowest-first order, and neither page
   // takes a town or undefeated teams, so those get no link rather than one to a different list.
   const href = b.town || b.undefeated ? null : st.teamsSort ? teamsHref(season, st, b.region, rookie, !!b.asc)
     : st.id === "rating" && !rookie && !b.asc ? rankingsHref(season, b.region) : null;
-  const definition = `${b.undefeated ? "Undefeated: no losses in the season's matches (ties allowed). " : ""}${RANKED}${rookie ? ` A rookie team's rookie year is ${seasonLabel(season)}.` : ""}${st.id === "win-rate" ? " Win rate: wins over matches played, ties counted as played." : ""}${st.id === "record" ? " Record: wins-losses-ties, the best win rate first (wins over matches played, ties counted as played), then the most wins." : ""}${st.id === "reliability" ? " Reliability: the team page's index out of 100, from no-shows, disqualifications, near-zero matches and how steady its scoring is." : ""}${st.id === "rating" ? " The prediction rating is the engine's points-per-match strength; ranked once 3 matches are rated, as on Rankings." : ""}${st.id.includes("+") ? ` ${st.label}: each phase's OPR added, as the team page shows them.` : ""}${b.asc ? " Lowest first: the bottom of the ranked list, each team's place counted from the top." : ""}${why}`;
+  const definition = `${b.undefeated ? "Undefeated: no losses in the season's matches (ties allowed). " : ""}${RANKED}${rookie ? ` A rookie team's rookie year is ${seasonLabel(season)}.` : ""}${st.id === "win-rate" ? " Win rate: wins over matches played, ties counted as played." : ""}${st.id === "record" ? " Record: wins-losses-ties, the best win rate first (wins over matches played, ties counted as played), then the most wins." : ""}${st.id === "penalties" ? " Penalties a match: penalty points the robot alone gives away a match, its prediction rating's estimate as the team page shows it; a tie goes to the points its alliances gave away a match; ranked once 3 matches are rated." : ""}${st.id === "reliability" ? " Reliability: the team page's index out of 100, from no-shows, disqualifications, near-zero matches and how steady its scoring is." : ""}${st.id === "rating" ? " The prediction rating is the engine's points-per-match strength; ranked once 3 matches are rated, as on Rankings." : ""}${st.id.includes("+") ? ` ${st.label}: each phase's OPR added, as the team page shows them.` : ""}${b.asc ? " Lowest first: the bottom of the ranked list, each team's place counted from the top." : ""}${why}`;
   const total = Number(count?.n ?? 0);
   const base = { family: "leaderboard" as const, intent: rookie ? "best-rookie" : `top-${st.id}`, title: `${title} · ${seasonLabel(season)}`, scope: chips, definition, source: `From the ${seasonLabel(season)} season numbers of ${total.toLocaleString("en-US")} ranked ${rookie ? "rookie " : ""}team${total === 1 ? "" : "s"}${where}` };
   if (!rows.length) return { ...base, blocks: [], none: b.undefeated ? `No team${where} with ${RANKED_MIN_MATCHES}+ matches is undefeated in ${seasonLabel(season)}.` : `No ${rookie ? "rookie " : ""}team${where} has played ${RANKED_MIN_MATCHES}+ matches in ${seasonLabel(season)} yet.` };

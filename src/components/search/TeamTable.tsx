@@ -107,7 +107,8 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
                         : <span className="text-xs text-muted-foreground">{r.rank}</span>}
                     </td>
                     <td className="px-2 py-1.5 max-md:w-full max-md:max-w-0 max-md:px-1.5">
-                      <Link to={r.href} className="line-clamp-2 break-words font-medium text-foreground hover:text-accent-text hover:underline max-md:-my-[13px] max-md:py-[13px] md:block pointer-coarse:-my-[13px] pointer-coarse:py-[13px]"><span className="tabular-nums">{r.team}</span>{r.name && ` ${r.name}`}</Link>
+                      {/* The clamp on the text, not the link: the link's tap padding would show a third line over the town. */}
+                      <Link to={r.href} className="block font-medium text-foreground hover:text-accent-text hover:underline max-md:-my-[13px] max-md:py-[13px] pointer-coarse:-my-[13px] pointer-coarse:py-[13px]"><span className="line-clamp-2 break-words"><span className="tabular-nums">{r.team}</span>{r.name && ` ${r.name}`}</span></Link>
                       {r.location && <span className="block break-words text-[11px] text-muted-foreground">{r.location}</span>}
                     </td>
                     {table.asked && <td className="whitespace-nowrap px-2 py-1.5 text-right font-medium tabular-nums text-foreground" data-asked>{r.asked?.display ?? "–"}</td>}

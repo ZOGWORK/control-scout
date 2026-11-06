@@ -23,11 +23,48 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 - [fixes] "Who won" a division shows its playoff champions, never "no results"
 - [teams] The champions are team chips in the colour they played the final in
 - [fixes] "This year" before the event is held shows last season's, said so
+- [fixes] "<Event> inspire award winner", in any word order, names the winner
 
 ### Search
 - **Who won an event.** "Who won", "winner of", "champions of" and "who took" an event lead with its playoff champions, the alliance that won its final, as team chips in the colour they played it in, the same champions as its Playoffs tab. A division's awards are posted on its championship, so its answer lists the championship's awards below; "no results yet" is said only when there's neither a playoff result nor an award.
 - **A championship and its divisions.** A championship's answer leads with its finals' champions, then each division's winners and its Inspire Award.
-- **"This year" before it's held.** "Who won <event> this year" before this season's event is decided (or set up) says so, then shows its latest finished season's winners, labelled. (#928)
+- **"This year" before it's held.** "Who won <event> this year" before this season's event is decided (or set up) says so, then shows its latest finished season's winners, labelled.
+- **An event's award, asked any way round.** "East Bergen conference inspire award winner", "inspire winner at …", "who got inspire at …" and "<event> inspire" all name the award's winner, for every judged award, Judges' Choice and Dean's List. A recurring event shows its latest one with the award given, its season said, and a newer one not held yet said too.
+- **Suggestions that answer.** "Sorry, I can't answer that yet" offers a search only after running it and finding an answer.
+- **No empty space on phones.** The space under "How FTC One Search works" on a results page is kept only while the Compare bar is up. (#928)
+
+## 3.6.6 — 2026-11-06
+
+More ways of asking for a place's top teams find the leaderboard: "Romania leaderboard", "highest rated teams", "by rating, not OPR".
+
+### Highlights
+- [rankings] "Romania leaderboard" lists a country's top teams
+- [rankings] "Highest rated teams in …" ranks by prediction rating
+- [rankings] "By rating, not OPR" ranks by rating alone
+- [rankings] "Top 10 … with their records" keeps the record column
+
+### Search
+- **A country's leaderboard.** "Romania leaderboard 2025-26" lists the country's top teams by OPR. A state's leaderboard ("New Jersey leaderboard by record") is unchanged.
+- **Highest rated.** "Highest rated teams in …" and "top rated" rank by the prediction rating.
+- **A stat not to go by.** "Top 5 teams in Romania by rating, not OPR" ranks by the rating alone; "not" drops only a stat, so "matches 12345 did not win" keeps its win.
+- **Records beside.** "Top 10 teams in New Jersey by OPR, with their records" is the OPR list, whose rows always show the record.
+- **Points in a match.** "Most points in a match in Texas" is the highest-scoring match there. (#865)
+
+## 3.6.5 — 2026-11-06
+
+Penalty questions about teams ("which team fouls the least in New Jersey") answer with the teams' numbers, never the rules card.
+
+### Highlights
+- [rankings] "Which team fouls the least in New Jersey" ranks teams by penalties
+- [rankings] "Gives away the most penalty points" lists teams, most first
+- [teams] A team's penalty points at an event, in total, when asked so
+- [fixes] Rules questions still open the rules quick reference
+
+### Search
+- **Teams ranked by penalties.** "Which team fouls the least in New Jersey", "which NJ team gives away the most penalty points per match": the teams of the place ranked by penalties a match (penalty points given away), the prediction rating's estimate for the robot alone that the team page shows, most or fewest first. One team asked for is titled "with the most", never "best". The match with the most penalty points ("most penalties in NJ") stays the match finder's.
+- **Never the rules card for a team.** A penalty question naming a team, or asking which team in a place, is a stats question: it no longer opens the Rules quick reference. "Penalty for pinning" and every other rules question still do.
+- **Totals at an event.** "How many penalty points did 12345 give away at an event, total" leads with the total there, the per-match figure under it. "Give away", "gives away" and "fouled" read as penalties.
+- **Team names in ranked lists.** On a phone, a long team name cut to two lines no longer shows a third line over the town under it. (#853)
 
 ## 3.6.4 — 2026-11-06
 

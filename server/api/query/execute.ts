@@ -8,7 +8,7 @@ import type { StatAnswer } from "../../../src/shared/searchStat.js";
 import type { Region } from "../../../src/shared/regions.js";
 import { dateRange, seasonLabel } from "../../../src/shared/format.js";
 import { get } from "../../db.js";
-import { intentDefaults, scopeFits, type IntentId, type LeaderboardQuestion, type ReadScope, type StatQuestion, type TwoTeamId } from "../answers/read.js";
+import { intentDefaults, readLeaderboard, scopeFits, type IntentId, type LeaderboardQuestion, type ReadScope, type StatQuestion, type TwoTeamId } from "../answers/read.js";
 import { allianceForecast, predictionSeasonOf } from "../answers/families/predict.js";
 import { isLegacy } from "../../data/seasons.js";
 import { predictHref } from "../../../src/shared/predictUrl.js";
@@ -50,6 +50,13 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
   }
   // How the query was read, slot by slot: the card states the filters it applied.
   return { ...a, intent: { ...(a.intent ?? { kind: `pipeline-${p.intent}`, pattern: p.intent, met: true, understood: [] }), understood: describe(p) } };
+}
+
+/** Whether `q` asks about teams: one named, or which team in a place ("which team in New Jersey fouls the least").
+ *  A rules question never does. */
+export async function asksOfTeams(q: string, now?: number, prefer?: ReadonlySet<string>): Promise<boolean> {
+  const p = await parseQuery(q, await parseContext(now, prefer));
+  return p.teams.length > 0 || (!!p.place && /\b(?:teams?|who|whose)\b/i.test(q));
 }
 
 /** Whether the pipeline reads `q` completely (an intent it answers, every word explained). */
@@ -117,7 +124,7 @@ const ANSWERED = new Set<PipelineIntent>([...TEAM_INTENTS, ...(Object.keys(TWO_T
 /** The leaderboard's stat for a metric said ("by opr"); the prediction rating when none is. */
 const BOARD_STAT: Partial<Record<string, string>> = {
   "metric:opr": "opr", "metric:rating": "rating", "metric:winrate": "win-rate", "metric:auto": "auto", "metric:teleop": "teleop",
-  "metric:endgame": "endgame", "metric:record": "record", "metric:win": "wins", "metric:reliability": "reliability",
+  "metric:endgame": "endgame", "metric:record": "record", "metric:win": "wins", "metric:reliability": "reliability", "metric:penalty": "penalties",
 };
 
 async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer | null> {
@@ -148,6 +155,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     // A count said ("top 3 scores") applies only where the answer lists that many; elsewhere it's left to search
     // rather than answered with a different number of rows.
     if (p.n != null && !COUNTED.has(id)) return null;
+    // A season's penalty total is its own reader's ("12345 total penalties"); here only an event's.
+    if (id === "penalties" && (p.symbols.includes("agg:sum") || p.symbols.includes("agg:count")) && !p.symbols.includes("per:match") && !scope.at) return null;
     const team = p.teams[0];
     // "12345 at worlds in 2026": the championship held that year (2025–26), as the readers take a year there.
     const held = id === "results" && scope.championship && scope.year && scope.season != null;
@@ -164,7 +173,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
       count: p.agg === "count", noTeam: false, core: String(team.number),
       ...(p.award && (id === "awards" || id === "total-awards") ? { award: p.award } : {}),
       ...(AWARD_LISTS.has(id) && (p.agg === "first" || p.agg === "last") ? { pick: p.agg === "first" ? "first" : "latest" } : {}),
-      ...(id === "penalties" ? { variant: p.symbols.includes("per:event") ? "per-event" : p.symbols.includes("per:rate") ? "rate" : null } : {}),
+      // "How many penalty points", "in total": the total first; "per match" said with it is the per-match figure.
+      ...(id === "penalties" ? { variant: p.symbols.includes("per:event") ? "per-event" : p.symbols.includes("per:rate") ? "rate" : p.symbols.includes("per:match") ? null : p.symbols.includes("agg:sum") || p.symbols.includes("agg:count") ? "total" : null } : {}),
       ...(id === "record" && p.symbols.includes("per:event") ? { variant: "per-event" as const } : {}),
     };
     const a = await statAnswerOf(p.q, it, opts.resolve, opts);
@@ -297,6 +307,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     // The search box keeps the asks' own short card; the page draws the list.
     if (!opts.full) return null;
     if (p.event || p.worlds || p.states || p.level || p.alliance || scope.window || scope.ever) return null;
+    // A "leaderboard" the leaderboard reader reads (a state's, by a stat) is its own; a country's is answered here.
+    if (/\bleader ?boards?\b/.test(said) && readLeaderboard(p.q)) return null;
     let stats = [...new Set(p.symbols.map((s) => BOARD_STAT[s]).filter((s): s is string => !!s && !!BOARD_STATS[s]))];
     // "Auto OPR" is the auto phase's OPR; a record beside another stat is the column every row shows.
     if (stats.some((s) => s === "auto" || s === "teleop" || s === "endgame")) stats = stats.filter((s) => s !== "opr");
@@ -307,17 +319,28 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     const one = /\b(?:team|who)\b/.test(said) && !/\b(?:teams|sorted|ranked|order)\b/.test(said) && p.n == null && (!!p.place || stats.length === 1);
     const town = p.place?.kind === "city" ? p.place : null;
     // No stat said and the place alone ending the question ("best teams in romania", "best team in Oradell"): the place
-    // readers' own cards. Said any other way ("in Cluj-Napoca, Romania", "best Romanian teams"): its teams by OPR here.
-    if ((town || p.place?.kind === "country") && !stats.length && !p.undefeated && said.endsWith(` in ${normalise(p.place!.typed)}`)) return null;
+    // readers' own cards. Said any other way ("in Cluj-Napoca, Romania", "best Romanian teams", "leaderboard in
+    // Romania", which those readers don't take): its teams by OPR here.
+    const boardSaid = /\bleader ?boards?\b/.test(said);
+    if ((town || p.place?.kind === "country") && !stats.length && !p.undefeated && !boardSaid && said.endsWith(` in ${normalise(p.place!.typed)}`)) return null;
+    // Fewer is better for penalties: "best" and "cleanest" are the fewest, "worst" the most; "most" and "fewest" as said.
+    const goodWord = !!stats[0] && !!BOARD_STATS[stats[0]].fewerBetter && /\b(?:best|better|cleanest|worst|weakest)\b/.test(said);
     const region: Region | null = town ? { key: `${town.country}:${town.state ?? ""}`, country: town.country, state: town.state ?? "", name: town.state ?? town.country } : regionOf(p);
     const b: LeaderboardQuestion = {
       kind: "top", stat: stats[0] ?? (p.undefeated ? "wins" : town || p.place?.kind === "country" ? "opr" : "rating"), ...(p.undefeated ? { undefeated: true } : {}), n: one ? 5 : Math.min(25, p.n ?? 10), region, city: null, town: town?.city ?? null, season: placeSeason(p, scope.season, opts),
-      ...(one ? { best: true } : {}), ...(p.agg === "min" ? { asc: true } : {}),
+      ...(one ? { best: true } : {}), ...((p.agg === "min") !== goodWord ? { asc: true } : {}),
     };
-    const a = await boardSearch(p.q, b, opts);
+    // A stat said not to go by is never the one ranked by (a default included): with no other stat said, left unanswered.
+    if ((p.notMetrics ?? []).some((s) => BOARD_STAT[s] === b.stat)) return null;
+    // A stat said not to go by is named on the card, never silently dropped.
+    const board = async (q: LeaderboardQuestion) => {
+      const a = await boardSearch(p.q, q, opts);
+      return p.notStats?.length && a?.stat ? { ...a, stat: { ...a.stat, scope: [...a.stat.scope, ...p.notStats.map((w) => `Not by ${w}`)] } } : a;
+    };
+    const a = await board(b);
     // No season said, or "this season": the current one, then the one before when nobody has played enough yet.
     if (scope.season != null || !(p.time == null || (p.time.kind === "season" && p.time.relative === "this"))) return a;
-    return relaxed(a, defaultSteps(b.season!, town ? ` in ${town.city}` : region ? ` in ${region.name}` : "", b.undefeated ? "undefeated teams" : b.kind === "top" ? "ranked teams" : "teams"), (season) => boardSearch(p.q, { ...b, season }, opts));
+    return relaxed(a, defaultSteps(b.season!, town ? ` in ${town.city}` : region ? ` in ${region.name}` : "", b.undefeated ? "undefeated teams" : b.kind === "top" ? "ranked teams" : "teams"), (season) => board({ ...b, season }));
   }
   return null;
 }

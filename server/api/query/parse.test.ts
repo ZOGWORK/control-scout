@@ -303,6 +303,22 @@ describe("a name said as words", () => {
   });
 });
 
+describe("leaderboards said other ways", () => {
+  it("a place's leaderboard, the highest rated, a stat not to go by, records beside", async () => {
+    expect(await parse("Romania leaderboard 2025-26")).toMatchObject({ intent: "leaderboard", place: { kind: "country" }, complete: true });
+    expect(await parse("highest rated teams in Romania in 2025-26")).toMatchObject({ intent: "leaderboard", complete: true });
+    expect((await parse("highest rated teams in Romania")).symbols).toContain("metric:rating");
+    const not = await parse("top 5 teams in Romania by rating, not OPR");
+    expect(not).toMatchObject({ intent: "leaderboard", n: 5, complete: true });
+    expect(not.symbols).not.toContain("metric:opr");
+    expect(not.notStats).toEqual(["OPR"]);
+    expect(await parse("top 10 teams in New Jersey by OPR, with their records")).toMatchObject({ intent: "leaderboard", complete: true });
+    expect(await parse("most points in a match in New Jersey")).toMatchObject({ intent: "top-matches", complete: true });
+  });
+  it("'not' drops a stat only: a win or a loss said with it stays", async () => {
+    expect((await parse("matches 4215 did not win")).symbols).toContain("metric:win");
+  });
+});
 describe("when, said with 'time' or as a verb", () => {
   it("the last or first time a team played is its last or first match, never a team named 'Time'", async () => {
     for (const q of ["when was the last time 4215 played", "4215 last played when", "when did 4215 last play"]) expect(await parse(q), q).toMatchObject({ intent: "recent-match", teams: [{ number: 4215 }], complete: true });
