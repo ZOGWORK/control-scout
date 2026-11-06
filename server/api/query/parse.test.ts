@@ -302,3 +302,13 @@ describe("a name said as words", () => {
     expect(await parse("ultraviolet")).toMatchObject({ intent: null, complete: false });
   });
 });
+
+describe("when, said with 'time' or as a verb", () => {
+  it("the last or first time a team played is its last or first match, never a team named 'Time'", async () => {
+    for (const q of ["when was the last time 4215 played", "4215 last played when", "when did 4215 last play"]) expect(await parse(q), q).toMatchObject({ intent: "recent-match", teams: [{ number: 4215 }], complete: true });
+    for (const q of ["when did 4215 first play", "the first time 4215 played a match"]) expect(await parse(q), q).toMatchObject({ intent: "first-match", teams: [{ number: 4215 }], complete: true });
+  });
+  it("a match's number is never read as the last one played", async () => {
+    expect(await parse("when did 4215 last play match 12")).toMatchObject({ complete: false });
+  });
+});

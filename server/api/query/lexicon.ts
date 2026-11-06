@@ -64,6 +64,10 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["last|latest|most recent|recent|newest|previous|final|current|so far", { k: "agg", v: "last" }],
   ["closest|tightest|narrowest|nail biter|nailbiter", { k: "agg", v: "closest" }],
   ["next|upcoming|coming up", { k: "agg", v: "next" }],
+  // "The last time", "the first time", "next time": when, said with "time" ("when was the last time they played").
+  ["last time|the last time|most recent time|latest time|last time ever", { k: "agg", v: "last" }],
+  ["first time|the first time|very first time|first time ever|first ever", { k: "agg", v: "first" }],
+  ["next time|the next time", { k: "agg", v: "next" }],
   // Metrics.
   // "Total points" is two words read apart: a sum ("total") of scores ("points").
   ["score|scores|scored|scoring|points|point|pts", { k: "metric", v: "score" }],
@@ -121,7 +125,7 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["vs actual|versus actual|vs the actual|compared to actual|vs what happened|vs reality|vs result|vs results|vs the result|actual|actually happened|what happened|before and after|before vs after|before or after|right or wrong|get it right|got it right|was it right|were they right|was it accurate|how accurate|accurate|accuracy|way off|or was it way off|or way off|or was it off|or not|how far off|hit or miss", { k: "review" }],
   ["advance|advances|advancing|advancement|advancements|advance to the finals|make the finals|making the finals|go through|goes through|get through|gets through", { k: "advance" }],
   // Two teams.
-  ["vs|v|versus|against|facing|face|faced|play|played|playing|vs.", { k: "vs" }],
+  ["vs|v|versus|against|facing|face|faced|play|played|playing|plays|vs.", { k: "vs" }],
   ["and|&|plus|with|alongside", { k: "and" }],
   ["together|in common|shared|share|both|both played|jointly|same match|same matches", { k: "together" }],
   ["same alliance|same side|as partners|on the same alliance|teamed up|teamed", { k: "same-side" }],
