@@ -77,6 +77,15 @@ describe("StatAnswerCard, a team's OPR", () => {
     expect(c.querySelector('[data-block="bars"] [style*="width"]')).toBeNull();
     expect(c.querySelectorAll("th[data-phase]")).toHaveLength(0);
   });
+  it("each team keeps its own hue: a team's name is never read as an award, and team B's values are team B's", () => {
+    const teams = [{ number: 7149, name: "Control Freaks" }, { number: 16461, name: "Infinite Turtles" }];
+    const c = draw({ ...opr, family: "two-team", intent: "predict", team: undefined, teams, headline: undefined, blocks: [
+      { kind: "kpis", items: [{ label: "Control Freaks (7149)", value: "140" }, { label: "Infinite Turtles (16461)", value: "120" }] },
+      { kind: "bars", title: "Predicted score", groups: [{ label: "x", items: [{ label: "7149", value: 150, tone: "a" }, { label: "16461", value: 130, tone: "b" }] }] },
+    ] } as StatAnswer);
+    expect([...c.querySelectorAll("[data-kpi] [class*=border-l-team]")].map((t) => t.className.match(/border-l-(team-[abc])/)?.[1])).toEqual(["team-a", "team-b"]);
+    expect([...c.querySelectorAll("[data-bar-value]")].map((t) => t.className.match(/border-l-(team-[abc])/)?.[1])).toEqual(["team-a", "team-b"]);
+  });
   it("two teams' tiles for one phase both show, each naming its team", () => {
     const c = draw({ ...opr, family: "two-team", intent: "phase-vs", blocks: [{ kind: "kpis", items: [
       { label: "Hypnotic Robotics (4215)", value: "28.3", phase: "auto", rank: 880, of: 8308 },

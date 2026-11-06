@@ -162,8 +162,9 @@ function Block({ b: block, team, teams, said, hue }: { b: StatBlock; team?: Stat
             {order.map(({ k, s }, j) => {
               const [icon, tone] = kpiLook(k.label, k.tone);
               const right = order.length === 2 && j === 1;
-              // A tile about one team in that team's hue; one about both in its meaning's colour, else team A's.
-              const sw = swatchOf(k.label, s < 0 ? 0 : s);
+              // A tile about one team in that team's hue (its name never read as an award or a phase: "Control Freaks");
+              // one about both in its meaning's colour, else team A's.
+              const sw = s >= 0 ? TEAM_SWATCH[Math.min(s, 2)] : swatchOf(k.label);
               const value = <span className={sw.text}>{k.value}</span>;
               const tile = <StatTile tone={tone} icon={icon} label={k.label} value={value} hint={k.sub} chip={sw.fill} className={cn(PAINT, sw.edge, sw.tint, right && "items-end text-right")} />;
               const phase = meaningOf(k.label) ?? undefined;
@@ -471,6 +472,8 @@ function Series({ b }: { b: Extract<StatBlock, { kind: "series" }> }) {
 function Bars({ b }: { b: Extract<StatBlock, { kind: "bars" }> }) {
   // One group's values are small tiles (a phase's in the team page's colour for it); several groups a compact table, a row each.
   const fmt = (v: number | null) => (v == null ? "–" : `${Number.isInteger(v) ? v : v.toFixed(1)}${b.unit === "%" ? "%" : ""}`);
+  // A team's value (tone a, b, c: a prediction's two teams) in that team's hue; the rest by what the label means.
+  const sw = (i: { label: string; tone?: string }): Swatch => (i.tone && i.tone !== "d" ? TEAM_SWATCH["abc".indexOf(i.tone)] : swatchOf(i.label));
   if (b.groups.length === 1) {
     const g = b.groups[0];
     return (
@@ -478,9 +481,9 @@ function Bars({ b }: { b: Extract<StatBlock, { kind: "bars" }> }) {
         <figcaption className={H3}>{b.title}</figcaption>
         <dl className={cn("grid gap-2", g.items.length <= 3 ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4")}>
           {g.items.map((i) => (
-            <div key={i.label} className={cn("rounded-lg border px-3 py-2", PAINT, swatchOf(i.label).edge, swatchOf(i.label).tint)} data-bar-value={i.label} data-phase={meaningOf(i.label) ?? undefined}>
-              <dt className={cn("text-xs font-semibold", swatchOf(i.label).text)}>{i.label}</dt>
-              <dd className={cn("font-display text-xl font-semibold tabular-nums", swatchOf(i.label).text)}>{fmt(i.value)}</dd>
+            <div key={i.label} className={cn("rounded-lg border px-3 py-2", PAINT, sw(i).edge, sw(i).tint)} data-bar-value={i.label} data-phase={(!i.tone && meaningOf(i.label)) || undefined}>
+              <dt className={cn("text-xs font-semibold", sw(i).text)}>{i.label}</dt>
+              <dd className={cn("font-display text-xl font-semibold tabular-nums", sw(i).text)}>{fmt(i.value)}</dd>
             </div>
           ))}
         </dl>
