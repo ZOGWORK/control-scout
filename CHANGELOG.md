@@ -27,7 +27,7 @@ An event can be searched by its initials: "MTI highlights" finds the Multination
 ### Search
 - **Events by their initials.** Each event is found by its initials, the first letters of its name's main words ("MTI" for Multinational Tech Invitational, skipping "of", "the" and "and"), and by a short form its name gives in brackets. A name typed in full still comes first, a team named the same is the team's, and when several events share the initials the latest one held is chosen (then the one with the most teams) and named in the answer.
 - **A past event, no season said.** An event named with no season, held only in past seasons, is read in its latest season ("Multinational Tech Invitational highlights" is its 2025–26 highlights), for highlights, recaps, winners and results.
-- **An off-season event's highlights.** Highlights and match videos of an off-season event named are its own matches; one with no video says "No recording for this event — stats only." (#1010)
+- **An off-season event's highlights.** Highlights and match videos of an off-season event named are its own matches; one with no video says "No recording for this event — stats only." (#1006)
 
 ## 3.6.8 — 2026-11-06
 
