@@ -302,8 +302,12 @@ describe("a win or a loss said with a team's match question is a filter", () => 
     // The fixture's 4215 has lost once: that one, said as one.
     expect(last.headline?.label).toBe("in the last 1 loss, oldest to newest L");
     expect((await stat("longest losing streak for 4215")).title).toMatch(/^Longest losing streak/);
-    // No outcome said: every match, as before.
-    expect((await stat("4215 last match")).title).toMatch(/^Most recent match/);
+    // No outcome said: every match, as before. The headline's match is printed once: the list is the ones before it.
+    const recent = await stat("4215 last match");
+    expect(recent.title).toMatch(/^Most recent match/);
+    const before = recent.blocks[0];
+    expect(before?.title).toMatch(/^The (\d+ )?match(es)? before$/);
+    expect(JSON.stringify(before)).not.toContain(JSON.stringify(recent.headline?.href));
   });
   it("losing to someone is the opponents that beat the team; winning a match, its wins", async () => {
     for (const q of ["who did 4215 lose to the most times", "teams 4215 lost to most often"]) expect((await stat(q)).title, q).toMatch(/^Teams lost to most often/);

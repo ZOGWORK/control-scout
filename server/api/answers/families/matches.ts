@@ -174,12 +174,13 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
       const m = id === "first-match" ? xs[0] : xs[xs.length - 1];
       const title = id === "first-match" ? `First ${noun}${where}` : `Most recent ${noun}${where}`;
       if (!m) return { ...base, family: "superlative", intent: id, title, blocks: [], definition: RESULT_RULE, none: none(opts.outcome === "W" ? "wins" : opts.outcome === "L" ? "losses" : "matches") };
-      const near = id === "first-match" ? xs.slice(0, 5) : newestFirst(xs).slice(0, 5);
-      const plural = opts.outcome === "W" ? "wins" : opts.outcome === "L" ? "losses" : "matches";
+      // The headline's match is printed once: the list is the next few after it.
+      const near = (id === "first-match" ? xs : newestFirst(xs)).slice(1, 5);
+      const plural = near.length === 1 ? noun : opts.outcome === "W" ? "wins" : opts.outcome === "L" ? "losses" : "matches";
       return {
         ...base, family: "superlative", intent: id, title,
         headline: { value: `${m.result === "W" ? "Won" : m.result === "L" ? "Lost" : "Tied"} ${m.own}–${m.opp}`, label: `${m.label} at ${m.event}`, sub: [seasonLabel(m.season), row(m).date].filter(Boolean).join(" · "), href: row(m).href },
-        blocks: [matchesBlock(id === "first-match" ? `First ${plural}` : `Latest ${plural}`, near)], definition: RESULT_RULE,
+        blocks: near.length ? [matchesBlock(id === "first-match" ? `The next ${near.length === 1 ? "" : `${near.length} `}${plural}` : `The ${near.length === 1 ? "" : `${near.length} `}${plural} before`, near)] : [], definition: RESULT_RULE,
       };
     }
 
