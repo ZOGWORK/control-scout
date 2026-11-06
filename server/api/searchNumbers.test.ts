@@ -5,7 +5,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../db";
 import { rebuildSearch } from "../stats/job";
 import { searchAnswer } from "./searchAnswer";
-import { numberQuery } from "./spelling";
+import { numberQuery, ownWords } from "./spelling";
 
 const S = 2025;
 const day = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
@@ -57,6 +57,20 @@ describe("singular, plural and a typo are one question", () => {
     }
     expect(failing).toEqual([]);
   });
+  // Greptile on #973: the dropdown builds no stat cards, so it is matched by what it read (the intent, card or section).
+  it("the dropdown reads every form the same way too", async () => {
+    const drop = async (q: string) => {
+      const a = await searchAnswer(q, { limit: 15, learn: false });
+      if (a.step === "recovery") return null;
+      return a.intent?.kind ?? (a.card ? `card:${a.card.kind}` : a.hits[0]?.kind === "team" && a.hits[0].section ? `section:${a.hits[0].section}` : null);
+    };
+    const failing: string[] = [];
+    for (const [n] of TEAMS) for (const forms of WORDS) {
+      const got = await Promise.all(forms.map((w) => drop(`${n} ${w}`)));
+      if (got.some((g) => g == null) || new Set(got).size > 1) failing.push(`${forms.map((w) => `${n} ${w}`).join(" | ")} → ${got.join(" | ")}`);
+    }
+    expect(failing).toEqual([]);
+  });
   it("the owner's queries: the upcoming events listed, the typo corrected and answered", async () => {
     for (const q of ["4215 upcoming event", "4215 upcoming events", "4215 upcoming evntd", "4215 upcomming events"]) {
       const a = await ask(q);
@@ -77,5 +91,14 @@ describe("singular, plural and a typo are one question", () => {
     expect(numberQuery("who won nj championship", true)).toBeNull();
     // A question's own plain words are never nouns ("how", "the", "last").
     expect(numberQuery("how has the last event gone", true)).toBe("how has the last events gone");
+  });
+  it("each pair is one singular and one plural, -ies and -es too, and no made-up word is a spelling target", () => {
+    expect(numberQuery("4215 penalties")).toBe("4215 penalty");
+    expect(numberQuery("4215 penalty", true)).toBe("4215 penalties");
+    expect(numberQuery("4215 matches")).toBe("4215 match");
+    expect(numberQuery("4215 match", true)).toBe("4215 matches");
+    expect(numberQuery("4215 penalties", true)).toBeNull();
+    expect(numberQuery("4215 matches", true)).toBeNull();
+    for (const w of ["penaltieses", "matcheses", "serieses"]) expect(ownWords().has(w), w).toBe(false);
   });
 });

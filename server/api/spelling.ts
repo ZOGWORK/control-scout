@@ -230,8 +230,11 @@ function numberPairs(): Map<string, string> {
     ...[...EVENT_NAME_WORDS].filter((w) => !thing.has(w))]);
   const many = (w: string) => (/(?:s|x|z|ch|sh)$/.test(w) ? `${w}es` : /[^aeiou]y$/.test(w) ? `${w.slice(0, -1)}ies` : `${w}s`);
   pairs = new Map();
+  // A word that is already another noun's plural ("penalties", "matches") is that pair's, never paired again
+  // ("penaltieses").
+  const plurals = new Set([...nouns].map(many));
   for (const w of nouns) {
-    if (/(?:ed|est|ly)$/.test(w) || (w.endsWith("s") && nouns.has(w.slice(0, -1)))) continue;
+    if (/(?:ed|est|ly)$/.test(w) || plurals.has(w) || (w.endsWith("s") && nouns.has(w.slice(0, -1)))) continue;
     const p = many(w);
     // A short word's plural only when search knows it ("opr", "oprs"; never "won", "wons").
     if (named.has(w) || named.has(p) || PLURALS[w] || (w.length < 4 && !nouns.has(p) && !kinds.has(p))) continue;

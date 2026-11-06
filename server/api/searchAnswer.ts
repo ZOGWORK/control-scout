@@ -213,13 +213,14 @@ async function numberedAnswer(raw: string, opts: AnswerOptions): Promise<SearchA
   let a = await typedAnswer(raw, opts);
   if (String(raw ?? "").includes('"')) return a;
   const asked = /\?\s*$/.test(String(raw ?? ""));
-  // A team's page opened at the section that answers ("4215 seasons": its history) answers more than the page alone.
-  const answers = (x: SearchAnswer) => strength(x) + (x.hits[0]?.kind === "team" && x.hits[0].section && !x.understood?.label.includes(FALLBACK_NOTE) ? 0.5 : 0);
-  // Read again only when the query as typed found nothing, or only a team's page; the dropdown builds no stat answers,
-  // so there only when it found nothing. Anything else it read ("which ultraviolet?", a team at an event it never
-  // played) is its answer.
-  const page = opts.full ?? (opts.limit ?? 12) >= SEARCH_PAGE_LIMIT;
-  const unread = (x: SearchAnswer) => strength(x) <= 2 || (page && !x.stat && !x.card && x.understood?.kind === "team" && x.step !== "closest");
+  // A team's page opened at the section that answers ("4215 seasons": its history) answers more than the page alone,
+  // and a question read ("4215 opr") is a direct answer on both surfaces, whether or not its stat card was built.
+  const answers = (x: SearchAnswer) => (x.intent && !x.understood?.label.includes(FALLBACK_NOTE) ? Math.max(strength(x), 4) : strength(x))
+    + (x.hits[0]?.kind === "team" && x.hits[0].section && !x.understood?.label.includes(FALLBACK_NOTE) ? 0.5 : 0);
+  // Read again only when the query as typed found nothing, or only a team's page with no question read: decided by the
+  // intent read, never by the stat card the page builds and the dropdown doesn't, so both surfaces read it alike.
+  // Anything else it read ("which ultraviolet?", a team at an event it never played) is its answer.
+  const unread = (x: SearchAnswer) => strength(x) <= 2 || (!x.intent && !x.stat && !x.card && x.understood?.kind === "team" && x.step !== "closest");
   for (const many of [false, true]) {
     if (!unread(a)) return a;
     const other = numberQuery(cleanQuery(raw), many);
