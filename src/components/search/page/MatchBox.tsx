@@ -1,12 +1,14 @@
 // One match in a search answer, as a box (every list of matches search shows: a season's top scores, a team's best
 // and latest matches, two teams' meetings): its place in the list as a podium badge, the match and its event, then a
 // scoreboard, the red alliance over the blue, each with its teams as chips and its score big in its colour (the loser
-// muted, the winner marked), and the listed alliance's points by phase as small neutral tiles (the search results
-// guide: red and blue mark alliances, no other hue). Drawn from the row the server sends; nothing is fetched or worked out beyond adding the numbers up.
+// muted, the winner marked), and the listed alliance's points by phase as small tiles in the team page's colour for
+// each phase (the owner's call over the guide's "hue means team": Auto blue, TeleOp green, Endgame purple, penalties red). Drawn from the row the server sends; nothing is fetched or worked out beyond adding the numbers up.
 import { Link } from "react-router-dom";
 import type { StatLink, StatMatchRow } from "../../../shared/searchStat";
 import { PODIUM_CHIP } from "../../../lib/textTones";
 import { cn } from "../../cn";
+import { PHASE_TEXT, PHASE_TONE } from "../../oprCards";
+import { TONES } from "../../StatTile";
 import { EventMarker, PODIUM } from "./answerCells";
 import { TAP } from "./TeamAnswer";
 import { RowPlay } from "./AnswerVideo";
@@ -19,13 +21,14 @@ export function RankBadge({ rank }: { rank: number }) {
   return <span className={cn("inline-flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-bold tabular-nums", tone ? PODIUM_CHIP[rank] : "bg-text-base/[0.07] text-muted-foreground")} data-rank-badge={rank}>{rank}</span>;
 }
 
-/** A team as a chip in its alliance's colour: the number bold, the name muted (cut on narrow boxes). */
+/** A team as a chip in its alliance's colour: the number bold, the name muted (cut on narrow boxes). The chip never
+ *  shrinks below its number (a 5-digit team stays whole inside its border); only the name gives way. */
 export function TeamChip({ t, side, self }: { t: StatLink; side: "red" | "blue"; self?: boolean }) {
   const [num, ...rest] = t.label.split(" ");
   return (
-    <Link to={t.href} title={t.label} className={cn("inline-flex min-h-7 min-w-0 max-w-full items-center gap-1 rounded-md border px-1.5 text-xs hover:underline", TAP,
+    <Link to={t.href} title={t.label} className={cn("inline-flex min-h-7 max-w-full shrink-0 items-center gap-1 rounded-md border px-1.5 text-xs hover:underline", TAP,
       side === "red" ? "border-red-alliance/30 bg-red-alliance/10" : "border-blue-alliance/30 bg-blue-alliance/10", self && "ring-1 ring-foreground/40")} data-team-chip={num}>
-      <b className={cn("font-semibold tabular-nums", side === "red" ? "text-red-alliance-ink" : "text-blue-alliance-text")}>{num}</b>
+      <b className={cn("shrink-0 font-semibold tabular-nums", side === "red" ? "text-red-alliance-ink" : "text-blue-alliance-text")}>{num}</b>
       {rest.length > 0 && <span className="truncate text-muted-foreground">{rest.join(" ")}</span>}
     </Link>
   );
@@ -49,7 +52,7 @@ export function MatchBox({ r, team, atEvent }: { r: StatMatchRow; team?: Who; at
   const winner = r.result === "T" ? null : r.result === "W" ? r.alliance : other;
   const phases = r.phases && PHASES.filter(([k]) => r.phases![k] != null);
   return (
-    <li className="flex h-full min-w-0 flex-col gap-2.5 rounded-xl border border-border bg-card p-3" data-match-box={r.label}>
+    <li className="@container flex h-full min-w-0 flex-col gap-2.5 rounded-xl border border-border bg-card p-3" data-match-box={r.label}>
       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
         {r.rank != null && <RankBadge rank={r.rank} />}
         {r.note && <span className="rounded-md border border-border bg-muted/50 px-1.5 py-0.5 text-[11px] font-semibold text-foreground" data-note>{r.note}</span>}
@@ -63,7 +66,9 @@ export function MatchBox({ r, team, atEvent }: { r: StatMatchRow; team?: Who; at
         </span>
         <RowPlay href={r.href} label={`${r.label} · ${r.event.label}`} className="-my-1 -mr-1 ml-auto" />
       </div>
-      <div className="grid min-w-0 flex-1 gap-2.5 sm:grid-cols-[minmax(0,1fr)_auto]">
+      {/* The phase tiles beside the scoreboard only where the box is wide enough for both (its own width, not the
+          screen's: two boxes side by side are narrow); else under it, in one row. */}
+      <div className="grid min-w-0 flex-1 gap-2.5 @md:grid-cols-[minmax(0,1fr)_auto]">
         <div className="grid gap-1.5" data-scoreboard>
           {(["red", "blue"] as const).map((s) => {
             const won = winner === s, lost = winner != null && !won;
@@ -86,13 +91,13 @@ export function MatchBox({ r, team, atEvent }: { r: StatMatchRow; team?: Who; at
           })}
         </div>
         {!!phases?.length && (
-          <dl className="grid grid-cols-4 gap-1 self-center sm:w-44 sm:grid-cols-2" aria-label={`${r.alliance === "red" ? "Red" : "Blue"} alliance's points by phase`} data-phases>
+          <dl className="grid grid-cols-4 gap-1 self-center @md:w-44 @md:grid-cols-2" aria-label={`${r.alliance === "red" ? "Red" : "Blue"} alliance's points by phase`} data-phases>
             {phases.map(([k, label]) => (
-              // The period a list ranks by: a stronger border and bold label (no hue).
-              <div key={k} className={cn("rounded-md border bg-muted/30 px-1.5 py-1", r.ranked === k ? "border-foreground/60" : "border-border")} data-phase={k} data-ranked={r.ranked === k ? "" : undefined}>
+              // Each phase in its team page colour; the period a list ranks by gets a ring and a bold label.
+              <div key={k} className={cn("min-w-0 rounded-md border px-1.5 py-1", TONES[PHASE_TONE[k]].box, r.ranked === k && "ring-1 ring-foreground/50")} data-phase={k} data-ranked={r.ranked === k ? "" : undefined}>
                 {/* TeleOp as FIRST reports it: with the endgame where the season counts it so. */}
                 <dt className={cn("truncate text-[10px] leading-tight", r.ranked === k ? "font-semibold text-foreground" : "text-muted-foreground")}>{k === "teleop" && r.phases!.teleopWithEndgame ? "TeleOp + end" : label}</dt>
-                <dd className="font-semibold tabular-nums text-foreground">{r.phases![k]}</dd>
+                <dd className={cn("font-semibold tabular-nums", PHASE_TEXT(k))}>{r.phases![k]}</dd>
               </div>
             ))}
           </dl>

@@ -22,6 +22,9 @@ const ALLIANCE = /^(red|blue)-alliance(-text|-ink)?$/;
 const GOLD = /^(accent|accent-[a-z]+|amber|yellow|warning|warning-text)$/;
 // A video control: its red play mark, and white or black over the picture.
 const PLAY = /^(video|video-fill|white|black)$/;
+// A phase's tile (Auto, TeleOp, Endgame, penalties, ranking points) in the team page's colour for it: the owner's call
+// (11-05) over "hue means team", on `[data-phase]` tiles only, and not counted among the card's team hues.
+const PHASE = /^(info|success|violet|rose|accent|accent-text)$/;
 const META = [/read as/i, /\bdebug\b/i, /\bTODO\b/, /\braw\b/i, /undefined/, /\bNaN\b/, /\[object/, /\bnull\b/, /\[relaxed/i];
 
 /** A class's colour family ("team-a", "sky", "foreground"), or null when it isn't a colour class. Resting state only. */
@@ -75,6 +78,7 @@ export function auditAnswer(card: HTMLElement, { names = [] as string[], contras
       if (TEAM.test(f) || ALLIANCE.test(f)) { hues.add(f.replace(/-(text|ink)$/, "")); continue; }
       if (GOLD.test(f) && el.closest("[data-primary-cta]")) continue;
       if (PLAY.test(f) && el.closest("[data-answer-video], [data-video-control]")) continue;
+      if (PHASE.test(f) && el.closest("[data-phase]")) continue;
       problems.push(`${GOLD.test(f) ? "gold" : "hue"} on data: ${c} (${el.tagName.toLowerCase()} "${(el.textContent ?? "").trim().slice(0, 30)}")`);
     }
     for (const attr of ["fill", "stroke", "color"]) {
