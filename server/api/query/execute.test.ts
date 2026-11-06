@@ -170,6 +170,14 @@ describe("one question, any phrasing, any team", () => {
       expect(s.headline?.value, q).toBe("2");
     }
   });
+  it("two alliances of two: the match's call for that lineup, red first, by number or name", async () => {
+    for (const q of ["predict 4215 6980 vs 24033 17713 in 2025-26", "hypnotic robotics and bad wolf vs alphatronic and delta force who wins"]) {
+      const s = await stat(q);
+      expect(s, q).toMatchObject({ family: "two-team", intent: "alliance-predict", title: "Prediction: 4215 & 6980 vs 24033 & 17713 in 2025–26" });
+      // No ratings stored here: said so, never a made-up call.
+      expect(s.none, q).toMatch(/^No 2025–26 prediction rating for /);
+    }
+  });
   it("a name typed nearly right offers the spelling, whatever stood between its words", async () => {
     const a = await ask("hypnotc-robotics highest score");
     expect(a.stat?.team?.number).toBe(4215);

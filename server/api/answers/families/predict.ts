@@ -33,11 +33,65 @@ interface RatingRow { team: number; rating_np: number | null; rating_sd: number 
  *  else the latest predicted season both have one in (said so), else the latest completed one (its card says what's
  *  missing). */
 export async function predictionSeason(a: number, b: number): Promise<{ season: number; why: string }> {
+  return predictionSeasonOf([a, b]);
+}
+
+/** predictionSeason for any lineup: the season every team has a rating in. */
+export async function predictionSeasonOf(teams: number[]): Promise<{ season: number; why: string }> {
   const def = searchSeason();
-  const rows = await all<{ season: number; n: number }>(`SELECT season, COUNT(*) n FROM team_season_stats WHERE team IN (?, ?) AND rating_np IS NOT NULL AND season >= ? GROUP BY season HAVING COUNT(*) = 2 ORDER BY season DESC`, [a, b, FIRST_PREDICT_SEASON]);
-  const both = rows.map((r) => Number(r.season));
-  if (both.includes(def) || !both.length) return { season: def, why: searchSeasonWhy(def) };
-  return { season: both[0], why: `The season is ${seasonLabel(both[0])}, the latest season both teams have a prediction rating in.` };
+  const rows = await all<{ season: number; n: number }>(`SELECT season, COUNT(*) n FROM team_season_stats WHERE team IN (${teams.map(() => "?").join(", ")}) AND rating_np IS NOT NULL AND season >= ? GROUP BY season HAVING COUNT(*) = ? ORDER BY season DESC`, [...teams, FIRST_PREDICT_SEASON, teams.length]);
+  const every = rows.map((r) => Number(r.season));
+  if (every.includes(def) || !every.length) return { season: def, why: searchSeasonWhy(def) };
+  return { season: every[0], why: `The season is ${seasonLabel(every[0])}, the latest season ${teams.length === 2 ? "both teams have" : `all ${teams.length} teams have`} a prediction rating in.` };
+}
+
+const ALLIANCE_RULE = "The engine's call for a qualification match between the two alliances named, as Predict makes it for the same lineup: each alliance's expected score (without penalties, margin-calibrated), the win chance and the predicted margin, from each team's prediction rating (points per match ± its uncertainty) as their team pages show it.";
+
+/** "predict 12345 23456 vs 34567 45678": two alliances of two, the engine's call for that qualification match. */
+export async function allianceForecast(red: AnswerTeam[], blue: AnswerTeam[], season: number, why?: string): Promise<StatAnswer> {
+  const S = seasonLabel(season), side = (ts: AnswerTeam[]) => ts.map((t) => t.number).join(" & ");
+  const R = side(red), B = side(blue), all4 = [...red, ...blue];
+  const href = predictHref({ mode: "match", season, red: red.map((t) => t.number), blue: blue.map((t) => t.number) });
+  const base = { family: "two-team" as const, intent: "alliance-predict", title: `Prediction: ${R} vs ${B} in ${S}`, team: red[0], teams: all4, scope: [S, "Qualification match"], definition: `${ALLIANCE_RULE}${why ? ` ${why}` : ""}`, source: `From the engine's ${S} prediction ratings` };
+  const links: StatBlock = { kind: "links", title: "Try it", items: isLegacy(season) ? [] : [{ label: `Open in Predict: ${R} vs ${B}`, href }] };
+  if (isLegacy(season)) return { ...base, blocks: [], none: `Predictions start with 2023–24: ${S} has no prediction ratings.` };
+  const rows = await all<RatingRow>(`SELECT team, rating_np, rating_sd, rating_rank FROM team_season_stats WHERE season = ? AND team IN (${all4.map(() => "?").join(", ")})`, [season, ...all4.map((t) => t.number)]);
+  const of = (t: AnswerTeam) => rows.find((r) => Number(r.team) === t.number);
+  const missing = all4.filter((t) => of(t)?.rating_np == null).map(whoOf);
+  if (missing.length) return { ...base, blocks: [links], none: `No ${S} prediction rating for ${missing.join(" or ")} yet.` };
+  const off = !(await isEnabled("livePredictions").catch(() => false));
+  const f = off ? null : readyForecaster(season);
+  const nums = (ts: AnswerTeam[]) => ts.map((t) => t.number);
+  const x = f ? (await f).explain(season, nums(red), nums(blue), "qual", undefined, await recentRecords(season, nums(all4))) : null;
+  const ratings: StatBlock = { kind: "table", title: "Prediction ratings", columns: [{ key: "team", label: "Team" }, { key: "side", label: "Alliance" }, { key: "rating", label: "Rating", num: true }, { key: "rank", label: "Rank" }],
+    rows: all4.map((t) => ({ cells: { team: whoOf(t), side: red.includes(t) ? "Red" : "Blue", rating: `${num1(of(t)!.rating_np)} ±${Math.round(of(t)!.rating_sd ?? 0)}`, rank: of(t)!.rating_rank ? `#${of(t)!.rating_rank}` : "–" }, href: teamHref(t.number, season) })) };
+  if (!x) {
+    // No call to show: the ratings, said plainly, never a made-up score.
+    const sum = (ts: AnswerTeam[]) => ts.reduce((n, t) => n + Number(of(t)!.rating_np), 0), gap = sum(red) - sum(blue);
+    return { ...base, headline: { value: `${gap >= 0 ? R : B} rated higher`, label: `by ${num1(Math.abs(gap))} points per match together`, sub: off ? "Live predictions are switched off just now." : "The engine's ratings are still loading: Predict shows the call." }, blocks: [ratings, links] };
+  }
+  const pa = x.winProbA, sa = x.predictedScoreA, sb = x.predictedScoreB, margin = sa - sb;
+  const even = Math.abs(pa - 0.5) < 0.005;
+  return {
+    ...base,
+    headline: {
+      value: even ? "Even" : `${pa >= 0.5 ? R : B} favoured`,
+      label: `${pct(Math.max(pa, 1 - pa))} to win · predicted ${Math.round(sa)}–${Math.round(sb)}`,
+      sub: `Predicted margin ${margin === 0 ? "0" : `${margin > 0 ? R : B} by ${Math.abs(Math.round(margin))}`} points`,
+      href,
+    },
+    blocks: [
+      { kind: "kpis", items: [
+        { label: `${R} win chance`, value: pct(pa), ...(pa > 0.5 ? { tone: "good" as const } : {}) },
+        { label: `${B} win chance`, value: pct(1 - pa), ...(pa < 0.5 ? { tone: "good" as const } : {}) },
+        { label: "Predicted margin", value: `${Math.abs(Math.round(margin))} pts`, sub: margin === 0 ? "Level" : `${margin > 0 ? R : B} ahead` },
+        { label: "Confidence", value: x.confidence.tier[0].toUpperCase() + x.confidence.tier.slice(1), sub: x.confidence.reason },
+      ] },
+      { kind: "bars", title: "Predicted score", unit: "pts", groups: [{ label: "Qualification match", items: [{ label: R, value: Math.round(sa), tone: "a" }, { label: B, value: Math.round(sb), tone: "b" }] }] },
+      ratings,
+      links,
+    ],
+  };
 }
 
 /** "12345 vs 67890 prediction", "who wins", "predicted score", "expected margin", "win probability". */

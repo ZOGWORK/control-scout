@@ -20,12 +20,15 @@ export type PipelineIntent =
   | "top-matches" | "leaderboard"
   // A scope's standout matches, or one team's (./highlights.ts).
   | "highlights"
+  // Four teams, two on each alliance: a match's call ("predict a b vs c d").
+  | "alliance-predict"
   // No team: matches found by a measure (./matchFind.ts).
   | "low-matches" | "close-matches" | "lopsided-matches" | "penalty-matches" | "upset-matches" | "comeback-matches";
 
 export interface IntentRule {
   id: PipelineIntent;
-  teams: 0 | 1 | 2;
+  /** Teams named: 0, 1 or 2; 4 is two alliances of two, either side of a "vs". */
+  teams: 0 | 1 | 2 | 4;
   /** Symbols the rule needs ("agg:max", "metric:score", "predict"). */
   all: string[];
   /** Symbols it takes in when present. */
@@ -49,7 +52,7 @@ const OUTCOMES = ["metric:win", "metric:loss", "outcome:W", "outcome:L"];
 const BOARD_METRICS = ["metric:opr", "metric:rating", "metric:winrate", "metric:auto", "metric:teleop", "metric:endgame", "metric:reliability"];
 /** What a leaderboard takes in: its stats, a record beside them (every row shows it), "by". */
 const BOARD_OPT = ["thing:team", ...BOARD_METRICS, "metric:record", "metric:win", "prep:by", "list"];
-const R = (id: PipelineIntent, teams: 0 | 1 | 2, all: string[], opt: string[] = [], more: Partial<IntentRule> = {}): IntentRule => ({ id, teams, all, opt, ...more });
+const R = (id: PipelineIntent, teams: 0 | 1 | 2 | 4, all: string[], opt: string[] = [], more: Partial<IntentRule> = {}): IntentRule => ({ id, teams, all, opt, ...more });
 
 /** Every rule. Order breaks a tie between rules that explain the same symbols. */
 export const INTENTS: IntentRule[] = [
@@ -133,6 +136,8 @@ export const INTENTS: IntentRule[] = [
   R("team-opr", 1, ["metric:opr"], ["agg:last"], { noEvent: true }),
   R("team-rating", 1, ["metric:rating"], ["agg:last"], { noEvent: true }),
   R("team-predict", 1, ["predict"], ["metric:win", "metric:record", "metric:score", "metric:rank", "thing:event", "thing:match", "agg:next", "metric:playoffs"]),
+  // Two alliances of two: a match's call. "Vs" between them is enough, with no other word.
+  R("alliance-predict", 4, ["vs"], ["predict", "and", "compare", "metric:win", "metric:score", "metric:margin", "thing:match", "per:match"]),
   // Two teams.
   R("two-predict", 2, ["predict"], ["vs", "and", "compare", "metric:win", "metric:score", "metric:margin", "thing:match"]),
   // Either alliance: "on the same alliance" (partners only) isn't a filter the shared list takes, so it stays unexplained.
@@ -187,7 +192,7 @@ export function pickIntent(symbols: Set<string>, teams: number, opts: { event: b
   const asked = [...symbols].filter((s) => !SLOT_SYMBOLS.test(s) || s === "level:playoff" || s === "level:qual");
   let best: { rule: IntentRule; score: number; unexplained: string[] } | null = null;
   for (const rule of INTENTS) {
-    if (rule.teams !== Math.min(teams, 2) || (teams > 2)) continue;
+    if (rule.teams === 4 ? teams !== 4 : rule.teams !== Math.min(teams, 2) || teams > 2) continue;
     if (rule.event && !atEvent) continue;
     if (rule.noEvent && opts.event) continue;
     if (rule.noMatchNo && opts.matchNo) continue;
