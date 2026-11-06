@@ -102,7 +102,7 @@ export function meaningOf(label: string): Meaning | null {
   if (/\bauto(nomous)?\b/.test(l)) return "auto";
   if (/teleop|driver/.test(l)) return "teleop";
   if (/endgame/.test(l)) return "endgame";
-  if (/\bpen(alt(y|ies))?\b|\bpen\.|fouls?/.test(l)) return "pen";
+  if (/\bpen(alt(y|ies))?\b|\bpen\.|fouls?/.test(l) && !/\b(without|before|no|excluding)\s+pen/.test(l)) return "pen";
   if (/\brp\b|ranking points?/.test(l)) return "rp";
   if (/^live\b/.test(l)) return "live";
   if (/^upcoming\b/.test(l)) return "upcoming";

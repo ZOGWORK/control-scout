@@ -2,10 +2,12 @@
 // list of problems (empty is a pass):
 //   - lie factor: every bar is `[data-bar]` with its `data-value` and `data-scale`, drawn from zero, its length within
 //     5% of value / scale (an unmarked bar is a problem, so no bar escapes the check);
-//   - hue means team: data takes only the team tokens and, where they mark an alliance, red and blue; no status,
-//     phase, palette or gold colour on data (gold only on the marked primary action, a video's red, white and black
-//     only on the player or a marked video control);
-//     at most 3 hues on a card; a card about one team in that team's hue, team A, and no other team's;
+//   - colour (the owner's brief, 11-06, over the guide's "hue means team"): data takes search's one palette (lib/
+//     textTones SEARCH_PALETTE: each meaning its own family), the team tokens, and red and blue where they mark an
+//     alliance; nothing else, no gold (yellow is ranking points' alone; gold only on the marked primary action, a
+//     video's red, white and black only on the player or a marked video control); no two meanings sharing a hue on
+//     a card (team B's orange beside the Winning Alliance's, team C's green beside TeleOp's); a card about one team
+//     in team A, never B or C; and no data visual (a bar, a line, a tile, a pill, a chip) all grey;
 //   - print once: each team name once, and no heading, headline, context or scope line said twice; a scope note (a
 //     relaxed time, "No 2026–27 matches yet …; showing 2025–26") nowhere else on the card, its method included;
 //   - no meta or debug text, no number glued to a word in a heading;
@@ -13,18 +15,22 @@
 //     tint from the card in blended in, in Light, Dim, Dark and Midnight.
 import { contrast as ratio, over, toHex, type RGBA } from "../../../lib/contrast";
 import { utility, value, type Theme } from "../../../lib/themeTokens.testkit";
+import { SEARCH_PALETTE } from "../../../lib/textTones";
 
 const THEMES: Theme[] = ["light", "dim", "dark", "midnight"];
 const NEUTRAL = new Set(["foreground", "muted", "muted-foreground", "background", "card", "card-foreground", "border", "line", "primary", "secondary",
-  "input", "ring", "popover", "popover-foreground", "elevated", "transparent", "current", "inherit", "text-base", "text-muted", "scrollbar", "scrollbar-hover"]);
+  "input", "ring", "popover", "popover-foreground", "elevated", "transparent", "current", "inherit", "white", "black", "text-base", "text-muted", "scrollbar", "scrollbar-hover"]);
 const TEAM = /^team-[abc]$/;
 const ALLIANCE = /^(red|blue)-alliance(-text|-ink)?$/;
 const GOLD = /^(accent|accent-[a-z]+|amber|yellow|warning|warning-text)$/;
 // A video control: its red play mark, and white or black over the picture.
 const PLAY = /^(video|video-fill|white|black)$/;
-// A phase's tile (Auto, TeleOp, Endgame, penalties, ranking points) in the team page's colour for it: the owner's call
-// (11-05) over "hue means team", on `[data-phase]` tiles only, and not counted among the card's team hues.
-const PHASE = /^(info|success|violet|rose|accent|accent-text)$/;
+// Search's palette: one family per meaning (an award, a phase, a status).
+const PALETTE = new Set<string>(Object.values(SEARCH_PALETTE).map((s) => s.family));
+// Hues a reader can't tell apart, two meanings each: never both on one card.
+const ALIKE: [string, string][] = [["team-b", "orange"], ["team-c", "emerald"], ["team-c", "teal"], ["team-a", "cyan"]];
+// Every data visual: none may be all grey.
+const VISUAL = "[data-bar], [data-kpi], [data-phase], [data-rank-pill], [data-rank-badge], [data-award], [data-pill], [data-bar-value], [data-node], [data-block=series] polyline, [data-timeline] polyline";
 const META = [/read as/i, /\bdebug\b/i, /\bTODO\b/, /\braw\b/i, /undefined/, /\bNaN\b/, /\[object/, /\bnull\b/, /\[relaxed/i];
 
 /** A class's colour family ("team-a", "sky", "foreground"), or null when it isn't a colour class. Resting state only. */
@@ -32,7 +38,7 @@ function colourOf(cls: string): string | null {
   const util = cls.slice(cls.lastIndexOf(":") + 1);
   const variant = cls.includes(":") ? cls.slice(0, cls.lastIndexOf(":")) : "";
   if (variant && variant !== "dark" && !variant.startsWith("max-") && !/^(sm|md|lg|xl)$/.test(variant)) return null;
-  const m = /^!?(?:text|bg|border|border-[trblxy]|ring|fill|stroke|from|to|via|decoration|outline|divide)-([a-z]+(?:-[a-z]+)*?)(?:-\d{2,3})?(?:\/(?:\d+|\[[\d.%]+\]))?$/.exec(util);
+  const m = /^!?(?:text|bg|border-[trblxy]|border|ring|fill|stroke|from|to|via|decoration|outline|divide)-([a-z]+(?:-[a-z]+)*?)(?:-\d{2,3})?(?:\/(?:\d+|\[[\d.%]+\]))?$/.exec(util);
   // Sizes and styles share the prefixes (text-sm, border-t, ring-inset, text-right): not colours.
   if (!m || /^(x|y|t|b|l|r|s|e|solid|dashed|dotted|double|none|collapse|separate|xs|sm|base|lg|xl|left|right|center|justify|start|end|wrap|nowrap|balance|pretty|clip|ellipsis|inset|offset|opacity)$/.test(m[1])) return null;
   return m[1];
@@ -78,7 +84,7 @@ export function auditAnswer(card: HTMLElement, { names = [] as string[], contras
       if (TEAM.test(f) || ALLIANCE.test(f)) { hues.add(f.replace(/-(text|ink)$/, "")); continue; }
       if (GOLD.test(f) && el.closest("[data-primary-cta]")) continue;
       if (PLAY.test(f) && el.closest("[data-answer-video], [data-video-control]")) continue;
-      if (PHASE.test(f) && el.closest("[data-phase]")) continue;
+      if (PALETTE.has(f)) { hues.add(f); continue; }
       problems.push(`${GOLD.test(f) ? "gold" : "hue"} on data: ${c} (${el.tagName.toLowerCase()} "${(el.textContent ?? "").trim().slice(0, 30)}")`);
     }
     for (const attr of ["fill", "stroke", "color"]) {
@@ -91,7 +97,9 @@ export function auditAnswer(card: HTMLElement, { names = [] as string[], contras
       if (!/var\(--color-(foreground|muted-foreground|border|team-[abc]|(red|blue)-alliance)\)/.test(v!)) problems.push(`hue on data: style ${v}`);
     }
   }
-  if (hues.size > 3) problems.push(`${hues.size} hues: ${[...hues].join(", ")}`);
+  for (const [x, y] of ALIKE) if (hues.has(x) && hues.has(y)) problems.push(`two meanings in one hue: ${x} and ${y}`);
+  const coloured = (el: Element) => [el, ...el.querySelectorAll("*")].some((e) => (e.getAttribute("class") ?? "").split(/\s+/).some((c) => { const f = colourOf(c); return !!f && !NEUTRAL.has(f); }));
+  for (const el of card.querySelectorAll(VISUAL)) if (!coloured(el)) problems.push(`grey data visual: ${el.tagName.toLowerCase()} "${(el.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 30)}"`);
   if (one) for (const h of hues) if (/^team-[bc]$/.test(h)) problems.push(`one team's card in ${h}`);
 
   // Print once.

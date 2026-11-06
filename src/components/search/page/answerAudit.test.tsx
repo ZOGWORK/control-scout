@@ -136,14 +136,18 @@ describe("the audit catches what it's for", () => {
     expect(bad(`<div data-bar data-value="0" data-scale="100" class="bg-team-a" style="width:100%"></div>`)).toEqual(["bar for 0 drawn 100%"]);
     expect(bad(`<div data-bar data-value="" data-scale="100" class="bg-team-a" style="width:40%"></div>`)).toEqual([expect.stringContaining("bar without value/scale")]);
   });
-  it("a hue on data, gold on data, more than 3 hues", () => {
+  it("a hue off the palette, gold on data, two meanings in one hue, a grey data visual", () => {
     expect(bad(`<span class="text-sky-600">Auto</span>`)).toEqual(expect.arrayContaining([expect.stringContaining("hue on data: text-sky-600")]));
     expect(bad(`<b class="text-accent-text">1st</b>`)).toEqual(expect.arrayContaining([expect.stringContaining("gold on data")]));
     expect(bad(`<a data-primary-cta class="bg-accent text-accent-ink">Open in Predict</a>`)).toEqual([]);
     // Only the marked primary action and the video's own controls take those colours, not any button or link.
     expect(bad(`<button class="bg-accent text-accent-ink">Open</button>`)).toEqual(expect.arrayContaining([expect.stringContaining("gold on data: bg-accent")]));
     expect(bad(`<a href="/teams/1" class="text-video">1</a>`)).toEqual(expect.arrayContaining([expect.stringContaining("hue on data: text-video")]));
-    expect(bad(`<i class="bg-team-a"></i><i class="bg-team-b"></i><i class="bg-team-c"></i><i class="bg-red-alliance"></i>`)).toEqual(["4 hues: team-a, team-b, team-c, red-alliance"]);
+    // Search's palette is data's colour: an award, a phase, a status in its own family; the teams and alliances in theirs.
+    expect(bad(`<i class="bg-team-a"></i><i class="bg-team-b"></i><i class="bg-team-c"></i><i class="bg-red-alliance"></i><b class="bg-fuchsia-700 text-white">Inspire</b>`)).toEqual([]);
+    expect(bad(`<i class="bg-team-b"></i><b class="bg-orange-700 text-white">Winning Alliance</b>`)).toEqual(["two meanings in one hue: team-b and orange"]);
+    expect(bad(`<div data-kpi><b class="text-foreground">142.5</b></div>`)).toEqual(['grey data visual: div "142.5"']);
+    expect(bad(`<div data-kpi class="border-l-team-a"><b class="text-team-a">142.5</b></div>`)).toEqual([]);
     const one = document.createElement("div"); one.innerHTML = `<b class="text-team-a">142.5</b><i class="bg-team-b"></i>`;
     expect(auditAnswer(one, { one: true })).toEqual(["one team's card in team-b"]);
   });
