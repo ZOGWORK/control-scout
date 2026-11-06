@@ -25,7 +25,7 @@ On the related searches page, the team group is titled with its team: "About 421
 - [fixes] A group about two teams keeps its plain title
 
 ### Search
-- **The team, named.** The related searches page titles its team group with the team's number and name, the popular searches too (the team they're about), whenever every search in it is about that one team; a group about two teams ("4215 vs 6980") keeps "About this team".
+- **The team, named.** The related searches page titles its team group with the team's number and name, the popular searches too (the team they're about), whenever every search in it is about that one team; a group about two teams ("4215 vs 6980") keeps "About this team". (#1023)
 
 ## 3.7.6 — 2026-11-06
 
