@@ -64,6 +64,31 @@ describe("slots", () => {
     const p = await parse("predicted chances of 4215 east bergen conference");
     expect(p).toMatchObject({ intent: "team-predict", complete: true, teams: [{ number: 4215 }], event: { words: "east bergen conference" }, time: null });
   });
+  it("reads two alliances of two either side of a vs, any wording, as a match's call", async () => {
+    for (const q of [
+      "predict 4215 6980 vs 24033 23268", "4215 and 6980 vs 24033 and 23268 who wins", "custom matchup 4215 6980 vs 24033 23268",
+      "predict a match with 4215 6980 vs 24033 23268", "4215 6980 versus 24033 23268 predicted score in 2025-26",
+    ]) {
+      const p = await parse(q);
+      expect(p, q).toMatchObject({ intent: "alliance-predict", complete: true });
+      expect(p.teams.filter((t) => t.at < p.vsAt!).map((t) => t.number), q).toEqual([4215, 6980]);
+      expect(p.teams.filter((t) => t.at > p.vsAt!).map((t) => t.number), q).toEqual([24033, 23268]);
+    }
+    // Three or five teams are no two alliances of two; two teams stay the two-team call.
+    expect((await parse("4215 6980 vs 24033")).intent).not.toBe("alliance-predict");
+    expect((await parse("4215 vs 6980 matchup")).intent).toBe("two-predict");
+  });
+  it("reads a forecast held up against what happened as the forecast at the event (its card shows both)", async () => {
+    for (const q of [
+      "4215 last prediction for east bergen conference", "show me 4215's predictions before and after east bergen conference",
+      "4215 predicted rank at nj championship vs actual rank", "did the prediction for 4215 at east bergen conference get it right, or was it way off",
+      "4215 predicted vs actual at nj championship", "how accurate was the prediction for 4215 at nj championship",
+    ]) {
+      expect(await parse(q), q).toMatchObject({ intent: "team-predict", complete: true, teams: [{ number: 4215 }], event: { words: expect.stringMatching(/east bergen conference|nj championship/) } });
+    }
+    // Held up against what happened is the forecast's word alone: never another answer's.
+    expect((await parse("4215 record or not")).complete).toBe(false);
+  });
   it("reads shared matches for two teams", async () => {
     for (const q of ["4215 and 6980 matches together", "matches 4215 6980 shared", "shared matches of 6980 with 4215", "4215 6980 in common matches please"]) {
       const p = await parse(q);
@@ -163,6 +188,32 @@ describe("time", () => {
     expect(t("2025")).toMatchObject({ kind: "season", season: 2025, year: 2025 });
     expect(t("last season")).toMatchObject({ kind: "season", relative: "last" });
     expect(t("of all time")).toMatchObject({ kind: "ever" });
+  });
+  it("takes \"this season\" in with a season said outright, wherever it stands", () => {
+    expect(readTime("biggest upset in nj this season in 2025-26", "2026-11-04")).toEqual({ time: expect.objectContaining({ kind: "season", season: 2025 }), rest: "biggest upset in nj" });
+    // A bare year beside it is the season named too, whichever comes first.
+    expect(readTime("4215 record this season in 2025", "2026-11-04")).toEqual({ time: expect.objectContaining({ kind: "season", season: 2025, year: 2025 }), rest: "4215 record" });
+    expect(readTime("4215 record in 2025 this season", "2026-11-04")).toEqual({ time: expect.objectContaining({ kind: "season", season: 2025, year: 2025 }), rest: "4215 record" });
+    // A year the parser keeps for a team is left alone: "this season" stands.
+    expect(readTime("2025 record this season", "2026-11-04", () => false)).toEqual({ time: expect.objectContaining({ kind: "season", relative: "this" }), rest: "2025 record" });
+  });
+  it("a team numbered like a year beside \"this season\" stays the team", async () => {
+    for (const q of ["this season 2024 record", "2024 record this season", "2024 this season record"]) {
+      expect(await parse(q), q).toMatchObject({ teams: [{ number: 2024 }], time: { relative: "this" }, complete: true });
+    }
+    // With another team named, or a number no team has, the bare year is the season.
+    expect(await parse("4215 record this season 2025")).toMatchObject({ teams: [{ number: 4215 }], time: { season: 2025, year: 2025 }, complete: true });
+    expect(await parse("4215 record this season 2026")).toMatchObject({ teams: [{ number: 4215 }], time: { season: 2026 } });
+    expect(await parse("2024 record this season 2025")).toMatchObject({ teams: [{ number: 2024 }], time: { season: 2025 } });
+    // Joined to another team by "vs" or "and", it's one of the teams compared.
+    for (const q of ["2024 vs 4215 opr this season", "4215 vs 2024 opr", "2024 and 4215 opr this season"]) {
+      expect((await parse(q)).teams.map((t) => t.number).sort(), q).toEqual([2024, 4215]);
+    }
+    expect(await parse("2024 vs 4215 opr in 2025")).toMatchObject({ time: { season: 2025 } });
+    expect(readTime("this season 12345 opr in 2025-26", "2026-11-04")).toMatchObject({ time: { season: 2025 }, rest: "12345 opr" });
+    expect(readTime("12345 opr this season", "2026-11-04").time).toMatchObject({ relative: "this" });
+    // "Last season" beside a season named is a second season (a comparison): left for the parse to leave unread.
+    expect(readTime("12345 record in 2025-26 vs last season", "2026-11-04").rest).toContain("last season");
   });
   it("names the season a date is in", () => {
     expect(seasonOfDate("2026-09-01")).toBe(2026);

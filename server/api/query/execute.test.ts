@@ -242,6 +242,52 @@ describe("one question, any phrasing, any team", () => {
       expect(links?.kind === "links" && decodeURIComponent(links.items[0].href), q).toContain(`matches together at ${at.toLowerCase()} in 2025-26`);
     }
   });
+  it("a team's matches in a season: the record, then every match, for any team and any phrasing", async () => {
+    for (const [t, value, n] of [["4215", "1-1-0", 2], ["delta force", "1-1-0", 2], ["10809", "2-1-0", 3]] as const) {
+      for (const q of [`${t} matches in 2025-26`, `show me ${t} matches 2025-26`, `2025-26 matches for ${t}`, `${t} matches`]) {
+        const s = await stat(q);
+        expect({ q, intent: s.intent, value: s.headline?.value }).toEqual({ q, intent: "season-matches", value });
+        const rows = s.blocks.find((b) => b.kind === "matches");
+        expect(rows?.kind === "matches" && rows.rows.length, q).toBe(n);
+      }
+    }
+    // A season with none: said so for that season, never another season's matches.
+    expect((await stat("4215 matches in 2023-24")).none).toMatch(/No matches in 2023–24/);
+    // Worlds or a state championship stays the event readers' results card.
+    expect((await ask("4215 matches at worlds in 2025-26")).stat?.intent).not.toBe("season-matches");
+    // One match asked for by its number is never the season's list.
+    expect((await ask("4215 match 2")).stat?.intent).not.toBe("season-matches");
+  });
+  it("a season of more matches than a list's usual cap lists every one", async () => {
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (30030, 'Granite Bots', 'Concord', 'VT', 'USA'), (30031, 'Maple Bots', 'Barre', 'VT', 'USA')");
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, 'USVTQ1', 'Green Mountain Qualifier', 'Qualifier', 'Town', 'VT', 'USA', '2026-02-14', '2026-02-14', 't')");
+    for (let i = 1; i <= 32; i++) {
+      await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'USVTQ1', 'qual', 0, ?, ?, '2026-02-14T10:00:00Z', 1, 60, 60, 40, 40, 't')", [500 + i, `Q${i}`]);
+      await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'USVTQ1', 'qual', 0, ?, 30030, 'red', 1), (2025, 'USVTQ1', 'qual', 0, ?, 30031, 'blue', 1)", [500 + i, 500 + i]);
+    }
+    await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'USVTQ1', 30030, 1), (2025, 'USVTQ1', 30031, 2)");
+    await rebuildSearch();
+    clearAllCaches();
+    const s = await stat("30030 matches in 2025-26");
+    expect(s.headline?.value).toBe("32-0-0");
+    const rows = s.blocks.find((b) => b.kind === "matches");
+    expect(rows?.kind === "matches" && rows.rows.length).toBe(32);
+    expect(rows?.kind === "matches" && rows.more).toBeFalsy();
+  });
+  it("two alliances of two: the match's call for that lineup, red first, by number or name", async () => {
+    for (const q of ["predict 4215 6980 vs 24033 17713 in 2025-26", "hypnotic robotics and bad wolf vs alphatronic and delta force who wins"]) {
+      const s = await stat(q);
+      expect(s, q).toMatchObject({ family: "two-team", intent: "alliance-predict", title: "Prediction: 4215 & 6980 vs 24033 & 17713 in 2025–26" });
+      // No ratings stored here: said so, never a made-up call.
+      expect(s.none, q).toMatch(/^No 2025–26 prediction rating for /);
+    }
+    // "Last season" is the season before; the dropdown (no card) still opens Predict on the lineup.
+    expect((await stat("predict 4215 6980 vs 24033 17713 last season")).title).toBe("Prediction: 4215 & 6980 vs 24033 & 17713 in 2024–25");
+    const short = await searchAnswer("predict 4215 6980 vs 24033 17713 in 2025-26", { limit: 12, now: NOW });
+    expect(short.pages[0]).toMatchObject({ href: "/predict?mode=match&season=2025&red=4215,6980&blue=24033,17713" });
+    // A match number it can't answer for is never dropped from the question.
+    expect((await ask("predict 4215 6980 vs 24033 17713 match 12")).stat?.intent).not.toBe("alliance-predict");
+  });
   it("a name typed nearly right offers the spelling, whatever stood between its words", async () => {
     const a = await ask("hypnotc-robotics highest score");
     expect(a.stat?.team?.number).toBe(4215);
@@ -403,6 +449,12 @@ describe("a win or a loss said with a team's match question is a filter", () => 
 });
 
 describe("forecasts", () => {
+  it("held up against the result, any wording; a count it can't apply is left to the other readers", async () => {
+    for (const q of ["4215 last prediction for garden qualifier", "4215 predicted vs actual at garden qualifier", "did the prediction for 4215 at garden qualifier get it right"]) {
+      expect((await stat(q)).title, q).toBe("Prediction vs result at Garden Qualifier");
+    }
+    expect((await ask("4215 last 3 predictions at garden qualifier")).stat?.title).not.toBe("Prediction vs result at Garden Qualifier");
+  });
   it("a team at a named event: before and after side by side, Predict open on it", async () => {
     for (const q of ["predicted chances of 4215 garden qualifier", "4215 garden qualifier prediction", "garden qualifier forecast for hypnotic robotics"]) {
       const a = await ask(q);
