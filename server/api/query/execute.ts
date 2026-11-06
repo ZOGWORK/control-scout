@@ -255,7 +255,8 @@ const STATES_KIND = { types: ["Championship"], label: "State championships" };
  *  match type, a window or everywhere. With no season said, the current one, then the latest with matches in the scope,
  *  said in the chip. The search box keeps a link to the answer page. */
 async function highlights(p: Parsed, scope: ReadScope, opts: PipelineOptions): Promise<SearchAnswer | null> {
-  if (!opts.full || p.alliance || scope.ever || p.place?.kind === "city") return null;
+  // A count of none ("top 0 highlights") lists nothing to show.
+  if (!opts.full || p.alliance || scope.ever || p.place?.kind === "city" || (p.n != null && p.n < 1)) return null;
   const answer = (stat: StatAnswer, season: number, hits: SearchAnswer["hits"] = []): SearchAnswer => ({
     q: p.q, hits, pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season }, stat,
     intent: { kind: `stat-${stat.intent}`, pattern: `${p.teams.length ? "[team] " : ""}highlights${p.event ? " [event]" : p.worlds ? " [worlds]" : p.states ? " [states]" : ""}${p.place ? " [place]" : ""}${scope.window ? " [window]" : ""}`, met: true, understood: [] },

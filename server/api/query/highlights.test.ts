@@ -196,6 +196,7 @@ describe("a team's highlights", () => {
     expect(s.title).toBe("Highlights at New Jersey Championship - Parkway Division, 2024–25");
     expect((await stat("4215 highlights at worlds 2025")).title).toBe("Highlights at Worlds · Ross Division, 2024–25");
     expect(rows(await stat("top 2 4215 highlights at worlds"))).toHaveLength(2);
+    expect((await ask("4215 top 0 highlights")).stat?.intent).not.toBe("team-highlights");
   });
 
   it("a team that didn't play the event named: said so, with its own events, never another team's matches", async () => {
