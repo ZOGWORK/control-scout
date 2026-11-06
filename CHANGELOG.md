@@ -51,7 +51,7 @@ A forecast asked against what happened answers with the event's forecast card.
 - [fixes] These questions no longer stop at the team card
 
 ### Search
-- **Prediction against the result, any wording.** A team's forecast at an event held up against what happened ("4215 predicted rank at nj championship vs actual rank", "show me 4215's predictions before and after east bergen", "4215 last prediction for east bergen", "did the prediction for 4215 at east bergen get it right, or was it way off") answers with the forecast card for that event, which already shows the prediction beside the result. The words that hold a forecast up against the result are one entry in the search lexicon, and only the forecast takes them. (#000)
+- **Prediction against the result, any wording.** A team's forecast at an event held up against what happened ("4215 predicted rank at nj championship vs actual rank", "show me 4215's predictions before and after east bergen", "4215 last prediction for east bergen", "did the prediction for 4215 at east bergen get it right, or was it way off") answers with the forecast card for that event, which already shows the prediction beside the result. The words that hold a forecast up against the result are one entry in the search lexicon, and only the forecast takes them. (#828)
 
 ## 3.4.2 — 2026-11-06
 
