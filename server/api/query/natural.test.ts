@@ -70,11 +70,6 @@ beforeAll(async () => {
   for (const [t, a, sur] of [[30004, "red", 1], [30005, "blue", 0]] as const) await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field, surrogate) VALUES (2025, 'USNJQ1', 'qual', 0, 900, ?, ?, 1, ?)", [t, a, sur]);
   await run("UPDATE teams SET home_region = 'USNJ' WHERE state = 'NJ'");
   await run("INSERT INTO awards (season, code, team, type, name, placement) VALUES (2025, 'USNJCMP', 7149, 'Inspire', 'Inspire Award', 1), (2025, 'USNJCMP', 7149, 'Winner', 'Winning Alliance', 1), (2025, 'FTCCMP1', 9848, 'Inspire', 'Inspire Award 2nd Place', 2), (2025, 'USNJQ1', 6980, 'Winner', 'Leadership Award', 1), (2025, 'USNJQ1', 30003, 'Inspire', 'Inspire Award', 1)");
-  // 20245 played only in 2024–25: a season named leaves it out.
-  await match(2024, "USMIQ1", 100, 50, [20245], [24033]);
-  await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) SELECT season, code, team, 50, 1 FROM event_teams");
-  await run("UPDATE teams SET rookie_year = 2019 WHERE number = 4215");
-
   // An older season's match, 4215's highest score of all (a loss, so this season's numbers stay as they are).
   await match(2024, "USMIQ1", 190, 200, [4215], [20245]);
   await run("INSERT OR IGNORE INTO team_seasons (season, team) VALUES (2024, 4215), (2024, 20245)");
@@ -253,6 +248,8 @@ describe("yes or no, with the evidence (3c)", () => {
   it("only a yes-or-no question: a count or a list stays what it was", async () => {
     expect((await ask("how many times has 7149 been to worlds")).stat?.intent ?? "").not.toMatch(/^yes-no/);
     expect((await ask("7149 awards")).stat?.intent ?? "").not.toMatch(/^yes-no/);
+  });
+});
 
 describe("who, what, where and the best, said more ways (3d, 3e)", () => {
   it("who beat a team: the teams it lost to, however it's asked", async () => {
