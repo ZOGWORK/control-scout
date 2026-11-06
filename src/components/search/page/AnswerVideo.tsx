@@ -77,9 +77,18 @@ export function useRowPlays(hrefs: (string | undefined)[]): boolean {
 /** A listed match's clip, the card's own video's match included (a video grid draws a picture for each), and playing
  *  it in the app's video dialog, as a row's button does. */
 export function useClip(href: string): { v: SearchVideoItem | undefined; play: (label: string) => void } {
+  const { clip, play } = useClips();
+  const v = clip(href);
+  return { v, play: (label) => { if (v) play(v, label); } };
+}
+
+/** Every listed match's clip by its link (a video page filters its tiles by them), and playing one in the dialog. */
+export function useClips(): { clip: (href: string) => SearchVideoItem | undefined; play: (v: SearchVideoItem, label: string) => void } {
   const { video, rowPlayed } = useContext(Video);
-  const v = video?.rows?.[href] ?? (video?.mainRow === href ? video.main : undefined);
-  return { v, play: (label) => { if (v) { rowPlayed(); playMatchVideo({ videoId: v.videoId, t: v.t, label }); } } };
+  return {
+    clip: (href) => video?.rows?.[href] ?? (video?.mainRow === href ? video.main : undefined),
+    play: (v, label) => { rowPlayed(); playMatchVideo({ videoId: v.videoId, t: v.t, label }); },
+  };
 }
 
 /** Whether the answer has any video at all (its own, or a listed match's clip). */

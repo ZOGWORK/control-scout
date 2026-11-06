@@ -170,6 +170,18 @@ describe("answerVideo: an answer about a team plays one of its own matches", () 
   });
 });
 
+describe("answerVideo: a video page", () => {
+  it("each tile's clip, and each event's own stream from its start (none for an event with no stream)", async () => {
+    const tile = (code: string, key: string, label: string) => ({ label, href: href(code, key), level: "qual" as const, red: [], blue: [], redScore: 1, blueScore: 0 });
+    const v = await answerVideo(stat({ blocks: [{ kind: "videos", title: "Every match", tiles: [tile("USMACMP", "qual:0:12", "Q12"), tile("FTCCMP1EDIS", "playoff:2:1", "M2")],
+      streams: [{ label: "MA", href: href("USMACMP") }, { label: "NJ", href: href("USNJCMP") }] }] }), NOW);
+    expect(v?.rows?.[href("USMACMP", "qual:0:12")]).toMatchObject({ kind: "recording", match: "Q12" });
+    expect(v?.rows?.[href("FTCCMP1EDIS", "playoff:2:1")]).toMatchObject({ kind: "match", videoId: "4elyC6MxtEY" });
+    expect(v?.rows?.[href("USMACMP")]).toEqual({ videoId: "xnQFL9T27fY", t: 0, kind: "stream" });
+    expect(v?.rows?.[href("USNJCMP")]).toBeUndefined();
+  });
+});
+
 describe("refOfHref and mainRef", () => {
   it("reads only an answer's own event and match links", () => {
     expect(refOfHref("/events/2025/USMACMP?match=qual:0:12")).toEqual({ season: 2025, code: "USMACMP", key: "qual:0:12" });

@@ -8,7 +8,7 @@ import { rebuildSearch } from "../../stats/job";
 import { clearAllCaches } from "../../caches";
 import { searchAnswer } from "../searchAnswer";
 import { answerVideo } from "../answers/video";
-import type { StatAnswer, StatMatchRow } from "../../../src/shared/searchStat";
+import type { StatAnswer, StatBlock, StatMatchRow } from "../../../src/shared/searchStat";
 
 // Wednesday 2026-03-18: the current season is 2025–26, whose Worlds (in April) hasn't been played.
 const NOW = Date.parse("2026-03-18T12:00:00Z");
@@ -138,10 +138,34 @@ describe("highlights over a scope", () => {
     expect(codeOf(rows(s)[0])).toBe("USCAQ1");
   });
 
-  it("other ways of saying it read the same: best matches, top moments, a recap, the videos, a replay, a stream", async () => {
-    for (const q of ["top moments at worlds", "best matches at worlds", "worlds recap", "worlds videos", "watch worlds", "worlds replay", "worlds vods", "worlds stream"]) {
+  it("other ways of saying it read the same: best matches, top moments", async () => {
+    for (const q of ["top moments at worlds", "best matches at worlds", "best worlds videos"]) {
       expect((await stat(q)).title, q).toBe("Highlights at Worlds, 2024–25");
     }
+  });
+
+  it("highlights: the standout matches, then every match's video and each event's stream", async () => {
+    const s = await stat("worlds jackson division highlights");
+    expect(s.blocks.map((b) => b.kind)).toEqual(["matches", "videos"]);
+    const v = s.blocks[1] as Extract<StatBlock, { kind: "videos" }>;
+    expect(v.tiles.map((t) => [t.label, t.red, t.blue, t.redScore, t.blueScore, t.level])).toEqual([["Q16", [7149], [23268], 520, 300, "qual"], ["Q17", [23268], [7149], 301, 300, "qual"]]);
+    expect(v.streams).toEqual([{ label: "Worlds · Jackson Division", href: "/events/2024/FTCCMP1JACK" }]);
+    // No line of its own when nothing has a video: the highlights say so.
+    expect(v.empty).toBeUndefined();
+  });
+
+  it("a recap, the videos, a replay, a stream: a video page, every match first, led by the latest playoff match", async () => {
+    for (const q of ["worlds recap", "worlds videos", "watch worlds", "worlds replay", "worlds vods", "worlds stream"]) {
+      const s = await stat(q);
+      expect(s.title, q).toBe("Match videos at Worlds, 2024–25");
+      expect(s.blocks.map((b) => b.kind), q).toEqual(["videos"]);
+      expect(s.headline?.label, q).toBe("Latest playoff match: F1 at Worlds finals");
+    }
+    const v = (await stat("worlds recap")).blocks[0] as Extract<StatBlock, { kind: "videos" }>;
+    // Across divisions: each tile says its event; the divisions before the finals they feed.
+    expect(v.tiles.map((t) => `${t.event} ${t.label}`)).toEqual(["Worlds · Jackson Division Q16", "Worlds · Jackson Division Q17", "Worlds · Ross Division Q3", "Worlds · Ross Division M1", "Worlds finals F1"]);
+    expect(v.streams?.map((l) => l.label)).toEqual(["Worlds · Jackson Division", "Worlds · Ross Division", "Worlds finals"]);
+    expect(v.empty?.text).toBe("No match videos at Worlds in 2024–25 yet.");
   });
 
   it("a calendar year with Worlds is the Worlds held that year", async () => {
@@ -197,6 +221,19 @@ describe("a team's highlights", () => {
     expect((await stat("4215 highlights at worlds 2025")).title).toBe("Highlights at Worlds · Ross Division, 2024–25");
     expect(rows(await stat("top 2 4215 highlights at worlds"))).toHaveLength(2);
     expect((await ask("4215 top 0 highlights")).stat?.intent).not.toBe("team-highlights");
+  });
+
+  it("a team's videos: every match it played there, its own events' streams", async () => {
+    const s = await stat("4215 videos at worlds");
+    expect(s.title).toBe("Match videos at Worlds · Ross Division, 2024–25");
+    expect(s.blocks.map((b) => b.kind)).toEqual(["videos"]);
+    const v = s.blocks[0] as Extract<StatBlock, { kind: "videos" }>;
+    expect(v.tiles.map((t) => [t.label, t.red, t.blue])).toEqual([["Q3", [4215], [6980]], ["M1", [4215], [6980]], ["F1", [4215], [7149]]]);
+    expect(v.empty).toMatchObject({ href: "/teams/4215?season=2024" });
+  });
+
+  it("a team's highlights: its standout matches first, then every match's video", async () => {
+    expect((await stat("4215 highlights at worlds")).blocks.map((b) => b.kind)).toEqual(["matches", "videos"]);
   });
 
   it("a team that didn't play the event named: said so, with its own events, never another team's matches", async () => {

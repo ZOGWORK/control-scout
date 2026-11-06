@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.4.5 — 2026-11-06
+
+A video page for any event, division or team: every match's video, the event's stream and a filter.
+
+### Highlights
+- [history] "Jackson division recap" lists every match with a video, ready to play
+- [history] Each event's full stream sits beside its matches
+- [history] Filter a video page by qualifications or playoffs
+- [history] Highlights now list every match's video after the standouts
+
+### Search
+- **A video page.** "Recap", "replay", "videos", "watch", "stream" or "VOD" with an event, a division, Worlds, a place, a season or a team ("jackson division recap", "watch worlds", "4215 videos at worlds") lists every match with a video in the events' order: its label, both alliances' teams and the score in their colours, a tap playing it in the app's video dialog; each event's full stream first; a qualifications/playoffs filter; the first 24, then "Show all". The card plays the latest playoff match (a team's latest playoff win). A scope of more than 200 matches lists its playoffs and says so. Nothing with a video: one line and a link to the event or the team. (#PR)
+- **Highlights, then every match.** A highlights answer ("worlds highlights jackson division", "<team> highlights at worlds") keeps its standout matches first and lists every match's video and the stream under them.
+
 ## 3.4.4 — 2026-11-06
 
 A count question about a team's name is no longer answered with that team's highlights.
