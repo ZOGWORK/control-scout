@@ -164,6 +164,11 @@ describe("time", () => {
   });
   it("takes \"this season\" in with a season said outright, wherever it stands", () => {
     expect(readTime("biggest upset in nj this season in 2025-26", "2026-11-04")).toEqual({ time: expect.objectContaining({ kind: "season", season: 2025 }), rest: "biggest upset in nj" });
+    // A bare year beside it is the season named too, whichever comes first.
+    expect(readTime("4215 record this season in 2025", "2026-11-04")).toEqual({ time: expect.objectContaining({ kind: "season", season: 2025, year: 2025 }), rest: "4215 record" });
+    expect(readTime("4215 record in 2025 this season", "2026-11-04")).toEqual({ time: expect.objectContaining({ kind: "season", season: 2025, year: 2025 }), rest: "4215 record" });
+    // A year the parser keeps for a team is left alone: "this season" stands.
+    expect(readTime("2025 record this season", "2026-11-04", () => false)).toEqual({ time: expect.objectContaining({ kind: "season", relative: "this" }), rest: "2025 record" });
     expect(readTime("this season 12345 opr in 2025-26", "2026-11-04")).toMatchObject({ time: { season: 2025 }, rest: "12345 opr" });
     expect(readTime("12345 opr this season", "2026-11-04").time).toMatchObject({ relative: "this" });
     // "Last season" beside a season named is a second season (a comparison): left for the parse to leave unread.
