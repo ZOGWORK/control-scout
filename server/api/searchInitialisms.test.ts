@@ -8,6 +8,7 @@ import { searchAnswer } from "./searchAnswer";
 import { eventInitialisms } from "./query/initialisms";
 import { parseContext } from "./query/context";
 import { eventsNamed } from "./query/highlights";
+import { followUps } from "./answers/followUps";
 
 const S = CURRENT_SEASON - 1;
 const ask = (q: string) => searchAnswer(q, { limit: 25, full: true, learn: false });
@@ -95,6 +96,15 @@ describe("an event by its initialism", () => {
     expect([...new Set((await eventsNamed("mti", ["Qualifier"])).map((e) => e.code))]).toEqual(["USMDMTQ"]);
     await run("DELETE FROM events WHERE code = 'USMDMTQ'");
     await rebuildSearch();
+  });
+  // Live 3.7.3: "mti recap" offered "Who won Mti?". Initials typed in lower case are said in capitals.
+  it("people also ask says the initials in capitals, however they were typed", async () => {
+    for (const q of ["mti recap", "MTI highlights"]) {
+      const f = await followUps(q, await ask(q));
+      const said = [...f.ask.map((x) => x.q), ...f.related.map((x) => x.q)].filter((x) => /\bmti\b/i.test(x));
+      expect(said.length, q).toBeGreaterThan(0);
+      expect(said.filter((x) => !/\bMTI\b/.test(x)), q).toEqual([]);
+    }
   });
   it("a two-letter initialism finds its event too", async () => {
     expect(await (await parseContext()).isEvent("fr")).toBe(true);
