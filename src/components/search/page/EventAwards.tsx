@@ -6,9 +6,8 @@ import { Link } from "react-router-dom";
 import { ArrowRight, Award, Medal, Trophy } from "lucide-react";
 import type { SearchCard, SearchCardAward } from "../../../shared/api";
 import { awardLabel, seasonLabel } from "../../../shared/format";
-import { Button } from "../../ui/button";
 import { cn } from "../../cn";
-import { AnswerFrame, PART, TAP, repeats } from "./TeamAnswer";
+import { AnswerFrame, PART, SECONDARY, TAP, repeats } from "./TeamAnswer";
 import { AnswerVideo } from "./AnswerVideo";
 
 /** Each place told by its step's height, its icon and its label, never a colour (on a search card hue means team). */
@@ -61,9 +60,7 @@ export function EventAwardsAnswer({ card, heading }: { card: SearchCard; heading
       )}
       {ev && (
         <div className="mt-5">
-          <Button asChild variant="secondary" className={cn(TAP, "h-auto whitespace-normal py-2 text-left")}>
-            <Link to={awardsHref(ev)} data-awards-page>Awards page for {ev.name}<ArrowRight aria-hidden /></Link>
-          </Button>
+          <Link to={awardsHref(ev)} className={cn(SECONDARY, TAP)} data-awards-page data-secondary>Awards page for {ev.name}<ArrowRight className="size-4 shrink-0" aria-hidden /></Link>
         </div>
       )}
     </AnswerFrame>

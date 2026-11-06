@@ -97,6 +97,10 @@ describe("search results page", () => {
     expect(container.querySelector('[data-result="team"]')).toBeNull();
     expect(container.querySelector('[data-section="team"]')).toBeNull();
     expect(frame.innerHTML).not.toMatch(/(border|bg)-accent/);
+    // The results column is 720px at most, centred; the team page link a text link (one primary action per page).
+    expect(container.querySelector("[data-results-column]")!.className).toMatch(/\bmx-auto\b.*\bmax-w-\[720px\]/);
+    expect(frame.querySelector("[data-secondary]")!.className).toContain("underline");
+    expect(container.querySelectorAll("[data-primary-cta]").length).toBeLessThanOrEqual(1);
     expect(within(frame as HTMLElement).getByRole("link", { name: /4215 record/ }).getAttribute("href")).toBe("/search?q=4215%20record");
   });
 

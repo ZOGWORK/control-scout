@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.3.2 — 2026-11-05
+
+Search answers sit in one readable column, the page footer stays at the bottom of the screen, and each page has one main button.
+
+### Highlights
+- [appearance] Search answers in one column, easy to read across
+- [appearance] A short search page's footer sits at the bottom, not mid-page
+- [appearance] One main button per page; other actions are plain links
+
+### Search
+- **One column.** Search results and answers sit in a centred column at most 720px wide on a wide screen (a side panel, when a question has one, beside it), so a card's numbers and their labels stay a short glance apart instead of stretching across the whole window.
+- **The footer at the bottom.** A search page with one short answer grows to fill the screen, so the footer sits at the bottom of the window as on every other page, never floating under the card.
+- **One main action.** "Full team page" on an answer and "Awards page for …" under an event's awards are underlined text links (as is a compare card's "View comparison"), so a comparison's "Open in Predict" is the only button on the page.
+
 ## 3.3.1 — 2026-11-05
 
 Search answers say each fact once: the number you asked for, its context, then what's new, with how it's counted one tap away.
