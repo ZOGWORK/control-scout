@@ -5,13 +5,13 @@
 // is listed once, under the first reason it meets; the same shape as a team's highlights (../answers/highlights.ts).
 // The scope is the match finder's filters (./matchFind.ts where), resolved to its events first so its matches, teams
 // and saved calls are read by their keys.
-import type { StatAnswer, StatMatchRow } from "../../../src/shared/searchStat.js";
+import type { StatAnswer, StatBlock, StatLink, StatMatchRow, VideoTile } from "../../../src/shared/searchStat.js";
 import { seasonLabel } from "../../../src/shared/format.js";
 import { all, get } from "../../db.js";
 import { registerCache } from "../../caches.js";
 import { search } from "../search.js";
 import { eventFit } from "../answers/index.js";
-import { shortEvent, teamLinks } from "../answers/matchSet.js";
+import { eventHref, matchHref, shortEvent, teamLinks } from "../answers/matchSet.js";
 import { COLS, allianceRow, lineups, type Row } from "../answers/families/topMatches.js";
 import { OFFICIAL_TYPES } from "../answers/clauses.js";
 import { DOUBLE_ELIM_FROM } from "../../../src/shared/bracketOdds.js";
@@ -26,7 +26,15 @@ export interface HighlightFind extends MatchScope {
   eventName?: Map<number, { name: string; when: string | null; where: string | null }>;
   /** A count asked for ("top 3 highlights"): at most that many. */
   n?: number;
+  /** A video page asked for ("recap", "videos", "watch"): every match's video first, led by the latest playoff match;
+   *  else the highlights, every match's video after them. */
+  videos?: boolean;
 }
+
+/** Most matches a video page lists: a scope with more lists its playoff matches, and with more still none (its
+ *  highlights stand alone). Most events whose own stream it offers. */
+export const GALLERY = 200;
+const STREAMS = 8;
 
 type Pick = Row & { side: "red" | "blue" };
 /** A scope's match with its place in the event order and the engine's saved call (live, else replayed). */
@@ -184,7 +192,8 @@ async function workOut(f0: HighlightFind): Promise<StatAnswer> {
   const count = Number((await get<{ n: number }>(`SELECT COUNT(*) n ${FROM} WHERE ${w.sql}`, w.args))?.n ?? 0);
   const whole = count <= READ_WHOLE;
   let picks: { r: Pick; note: string }[];
-  if (whole) picks = pickAll(await readWhole(w, events));
+  let scored: Scored[] | null = null;
+  if (whole) picks = pickAll(scored = await readWhole(w, events));
   else {
     const reasons = REASONS.filter((r) => r.sql);
     const picked = await Promise.all(reasons.map((r) => all<Pick>(`SELECT ${COLS}, ${r.sql!.side} side ${FROM} WHERE ${w.sql}${r.sql!.only ? ` AND ${r.sql!.only}` : ""}
@@ -209,17 +218,52 @@ async function workOut(f0: HighlightFind): Promise<StatAnswer> {
     source: `From ${count.toLocaleString("en-US")} played match${count === 1 ? "" : "es"}${where2}`,
   };
   if (!picks.length) return { ...base, blocks: [], none: `No played matches at official events${where2} yet.` };
-  // The picks' teams, in one read of those matches.
-  const ups = await lineups(picks.map((x) => x.r));
+  const gallery = await galleryOf(whole ? scored : null, events, f.videos ? `No match videos${where2} yet.` : null, ev ? f.eventName : undefined);
+  // A video page leads with the scope's latest playoff match (a recap ends on the final, whatever reason it was
+  // listed under), highlights with the best score.
+  const last = f.videos ? (scored?.filter((r) => r.level === "playoff").at(-1) ?? picks.find((p) => p.note === "Latest playoff match")?.r) : undefined;
+  const lead = last ? { r: { ...last, side: winnerOf(last) } as Pick, note: "Latest playoff match" } : picks[0];
+  // The picks' teams (and the lead's), in one read of those matches.
+  const ups = await lineups([...picks.map((x) => x.r), lead.r]);
   const links = await teamLinks([...ups.values()].flat());
   const named = (r: Row, side: string) => (ups.get(`${key(r)}|${side}`) ?? []).map((t) => links.get(t)!).filter(Boolean);
   const rows: StatMatchRow[] = picks.map(({ r, note }) => ({ ...allianceRow(r, r.side, named), note }));
-  const top = picks[0].r, best = rows[0];
+  const top = lead.r, best = allianceRow(top, top.side, named);
+  const standout: StatBlock = { kind: "matches", title: `${picks.length} standout ${picks.length === 1 ? "match" : "matches"}`, rows };
   return {
-    ...base,
-    headline: { value: `${best.ownNp ?? best.own} points`, label: `Best score: ${top.label} at ${shortEvent(top.name, top.type)}`, href: best.href, type: top.type,
+    ...base, ...(f.videos ? { title: `Match videos${at ? ` ${at}` : ""}, ${S}` } : {}),
+    headline: { value: `${best.ownNp ?? best.own} points`, label: `${lead.note}: ${top.label} at ${shortEvent(top.name, top.type)}`, href: best.href, type: top.type,
       sub: `${best.ownNp != null && best.own !== best.ownNp ? `${best.own} with penalties · ` : ""}${best.alliance === "red" ? "Red" : "Blue"} ${best.result === "W" ? "won" : best.result === "L" ? "lost" : "tied"} ${best.own}–${best.opp}`,
       teams: best.partners, alliance: best.alliance },
-    blocks: [{ kind: "matches", title: `${picks.length} standout ${picks.length === 1 ? "match" : "matches"}`, rows }],
+    // A scope too big to list keeps its standout matches, the gallery saying why it lists none.
+    blocks: f.videos && gallery.kind === "videos" && gallery.tiles.length ? [gallery] : [standout, gallery],
   };
+}
+
+/** A video page's list: the scope's matches in the events' order (read whole), each with both alliances' team
+ *  numbers, and each event's stream. A scope with more than GALLERY matches lists its playoffs, more still none. */
+async function galleryOf(xs: Scored[] | null, events: { season: number; code: string }[] | undefined, empty: string | null,
+  named?: HighlightFind["eventName"]): Promise<StatBlock> {
+  const playoffs = xs?.filter((r) => r.level === "playoff") ?? [];
+  const listed = !xs ? [] : xs.length <= GALLERY ? xs : playoffs.length <= GALLERY ? playoffs : [];
+  const more = !xs || listed.length < xs.length ? (listed.length ? `Playoff matches only: ${xs!.length.toLocaleString("en-US")} matches in all.` : "Too many matches to list here; open an event for each match's video.") : undefined;
+  const sides = new Map<string, number[]>();
+  if (listed.length) {
+    const p = byEvent([...new Map(listed.map((r) => [`${r.season}|${r.code}`, r])).values()], "x");
+    const ts = await all<{ season: number; code: string; level: string; series: number; number: number; alliance: string; team: number }>(
+      `SELECT x.season, x.code, x.level, x.series, x.number, x.alliance, x.team FROM match_teams x WHERE x.on_field = 1 AND ${p.sql} ORDER BY x.station, x.team`, p.args);
+    for (const t of ts) { const k = `${key(t)}|${t.alliance}`; sides.set(k, [...(sides.get(k) ?? []), Number(t.team)]); }
+  }
+  const several = new Set(listed.map((r) => `${r.season}|${r.code}`)).size > 1;
+  const tiles: VideoTile[] = listed.map((r) => ({
+    label: r.label, href: matchHref(r), level: r.level === "playoff" ? "playoff" : "qual", red: sides.get(`${key(r)}|red`) ?? [], blue: sides.get(`${key(r)}|blue`) ?? [],
+    redScore: n(r.red_total), blueScore: n(r.blue_total), ...(several ? { event: shortEvent(r.name, r.type) } : {}), date: (r.time ?? r.start)?.slice(0, 10) ?? null,
+  }));
+  // Each event's own stream: the listed matches' events, else the scope's.
+  const at = listed.length ? listed : xs ?? [];
+  const streams: StatLink[] = [...new Map(at.map((r) => [`${r.season}|${r.code}`, { label: shortEvent(r.name, r.type), href: eventHref(r.season, r.code) }])).values()].slice(0, STREAMS);
+  const first = events?.[0];
+  return { kind: "videos", title: "Every match", tiles, ...(streams.length ? { streams } : {}), ...(more ? { more } : {}),
+    // Nothing with a video says so only when every match was listed; a list cut short says why instead.
+    ...(empty && !more ? { empty: { text: empty, ...(named && first ? { href: eventHref(first.season, first.code) } : {}) } } : {}) };
 }
