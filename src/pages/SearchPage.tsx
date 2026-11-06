@@ -45,6 +45,7 @@ import { BOOT_HITS } from "../lib/searchBoot";
 import { useTitle, useMeta, useCurrentSeason, useMediaQuery } from "../lib/meta";
 import { useApi, qs } from "../lib/api";
 import { cn } from "../components/cn";
+import { Verdict } from "../components/search/page/Verdict";
 
 const RESULT_KINDS = new Set(["place", "team", "event", "match"]);
 
@@ -229,6 +230,8 @@ export default function SearchPage() {
               )}
               {/* The team was found but not the answer: what search can answer about it, one tap each. */}
               {!!ax?.suggest?.length && <RelatedQuestions queries={ax.suggest} title="Search can answer these about them" className="mb-5" />}
+              {/* A yes-or-no question's answer, first: above the summary and the card that proves it. */}
+              {answer?.verdict && <Verdict v={answer.verdict} />}
               {(events >= 2 || choices.seasons.length > 1 || filtersOn) && <div className="mb-4"><SearchFilters f={filters} seasons={choices.seasons} types={choices.types} counts={events ? counts : undefined} asked={askedTime} onChange={setFilters} /></div>}
               {/* Desktop: results left (at most 720px, narrower before the panel gets under 20rem), at most one panel
                   right, chosen by the query: a versus query's

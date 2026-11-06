@@ -37,10 +37,11 @@ import { parseQuestion, questionAnswer } from "./searchQuestions.js";
 import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
 import { statAnswer } from "./answers/index.js";
 import { refreshSearchSeason } from "./answers/season.js";
-import { layeredAnswer } from "./searchLayers.js";
+import { carryOutcome, layeredAnswer } from "./searchLayers.js";
 import { spelled } from "./spelling.js";
 import { booleanAnswer } from "./searchBoolean.js";
 import { pipelineAnswer, pipelineReads } from "./query/execute.js";
+import { yesNoAnswer } from "./answers/yesNo.js";
 import { bottomAnswer, countAnswer, eventCodeAnswer, eventPageAnswer, explainAnswer, monthAnswer, nearMeAnswer, namedParts, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
 
 /** The longest query read: a full question ("did the prediction for 12345 at the state championship get it right, or
@@ -173,7 +174,20 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   // a quoted phrase, which asks for exactly those words.
   if (opts.spell === false || String(raw ?? "").includes('"')) return a;
   const asked = /\?\s*$/.test(String(raw ?? ""));
-  return spelled(cleanQuery(raw), a, (q) => searchAnswer(asked ? `${q}?` : q, { ...opts, spell: false }));
+  return withVerdict(raw, await spelled(cleanQuery(raw), a, (q) => searchAnswer(asked ? `${q}?` : q, { ...opts, spell: false })), opts);
+}
+
+/** A yes-or-no question on the page ("has 12345 ever been to worlds", "did 12345 ever lose to 67890"): the answer
+ *  above the card that answered it, which is kept as it was; the evidence card of its own (./answers/yesNo.ts) when
+ *  nothing did. The dropdown's answer is never changed. */
+async function withVerdict(raw: string, a: SearchAnswer, opts: AnswerOptions): Promise<SearchAnswer> {
+  if (!(opts.full ?? (opts.limit ?? 12) >= SEARCH_PAGE_LIMIT)) return a;
+  const q = cleanQuery(raw);
+  const yn = await yesNoAnswer(q, { full: true, pages: pagesFor(q), now: opts.now, prefer: opts.prefer, resolve: (core) => searchAnswer(core, { ...opts, intents: false, learn: false }) });
+  if (!yn) return a;
+  const answered = (!!a.stat || !!a.card) && a.step !== "recovery" && !/isn't answered/.test(a.understood?.label ?? "");
+  // A copy keeps the outcome failed-search reporting reads (./searchLayers.ts).
+  return answered ? carryOutcome(a, { ...a, verdict: yn.verdict }) : { ...yn, q: a.q };
 }
 
 /** searchAnswer for the query as typed. */

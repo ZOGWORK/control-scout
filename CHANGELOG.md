@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.5.8 — 2026-11-06
+
+"Has a team ever …?" is answered yes or no first, in a big coloured word, with the card that proves it underneath.
+
+### Highlights
+- [teams] "Has … ever been to Worlds?" answers Yes or No first
+- [teams] "Did … ever beat …?" says yes or no, with their meetings underneath
+- [teams] "Did … play at <event>?" says yes or no, with the events
+- [teams] "Has … ever won Inspire?" says yes or no above the awards
+
+### Search
+- **Yes or no, said every way.** "Has <team> ever …", "did <team> ever …", "was <team> at …" and "did <team> make it to …" are read as one yes-or-no question about Worlds, a state championship, an event in a season, a kind of event, an award, an event won, or beating or losing to another team. The answer is the word Yes (green) or No (slate), with a sentence saying it, above the card that answered the question before, unchanged; when nothing answered it, the card is the evidence: the meetings, the awards or the events played. Only official events count. A no is an answer, never the no-match page. (#873)
+
 ## 3.5.7 — 2026-11-06
 
 A team's wins and losses by event, side by side.
