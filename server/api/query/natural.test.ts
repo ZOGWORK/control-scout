@@ -60,8 +60,11 @@ beforeAll(async () => {
   await run("INSERT INTO events (season, code, name, type, region, city, state, country, start, end, source) VALUES (2025, 'USNJLT', 'Meadow League Tournament', 'LeagueTournament', 'USNJ', 'Town', 'NJ', 'USA', '2026-02-01', '2026-02-01', 't')");
   await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'USNJLT', 'playoff', 1, 1, 'M1', '2026-02-01T10:00:00Z', 1, 120, 120, 110, 110, 't')");
   for (const [t, a] of [[30008, "red"], [30007, "blue"]] as const) await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'USNJLT', 'playoff', 1, 1, ?, ?, 1)", [t, a]);
+  // Two Worlds divisions: 30001 played in Edison only.
+  await run("INSERT INTO events (season, code, name, type, division_code, region, city, state, country, start, end, source) VALUES (2025, 'FTCCMP1EDIS', 'Edison Division', 'FIRSTChampionship', 'FTCCMP1', 'CMP', 'Houston', 'TX', 'USA', '2026-04-20', '2026-04-20', 't'), (2025, 'FTCCMP1FRAN', 'Franklin Division', 'FIRSTChampionship', 'FTCCMP1', 'CMP', 'Houston', 'TX', 'USA', '2026-04-20', '2026-04-20', 't')");
+  await match(2025, "FTCCMP1EDIS", 150, 140, [30001], [30002]);
   await run("UPDATE teams SET home_region = 'USNJ' WHERE state = 'NJ'");
-  await run("INSERT INTO awards (season, code, team, type, name, placement) VALUES (2025, 'USNJCMP', 7149, 'Inspire', 'Inspire Award', 1), (2025, 'USNJCMP', 7149, 'Winner', 'Winning Alliance', 1), (2025, 'FTCCMP1', 9848, 'Inspire', 'Inspire Award 2nd Place', 2), (2025, 'USNJQ1', 6980, 'Winner', 'Leadership Award', 1)");
+  await run("INSERT INTO awards (season, code, team, type, name, placement) VALUES (2025, 'USNJCMP', 7149, 'Inspire', 'Inspire Award', 1), (2025, 'USNJCMP', 7149, 'Winner', 'Winning Alliance', 1), (2025, 'FTCCMP1', 9848, 'Inspire', 'Inspire Award 2nd Place', 2), (2025, 'USNJQ1', 6980, 'Winner', 'Leadership Award', 1), (2025, 'USNJQ1', 30003, 'Inspire', 'Inspire Award', 1)");
   // 20245 played only in 2024–25: a season named leaves it out.
   await match(2024, "USMIQ1", 100, 50, [20245], [24033]);
   await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) SELECT season, code, team, 50, 1 FROM event_teams");
@@ -221,6 +224,15 @@ describe("yes or no, with the evidence (3c)", () => {
     expect(await yn("did 30008 play at meadow league tournament in 2025-26")).toMatchObject({ answer: "Yes", rows: ["Meadow League Tournament"] });
     expect(await yn("did 4215 ever play at a qualifier")).toMatchObject({ kind: "yes-no-attended", answer: "Yes" });
     expect(await yn("has 23268 ever been to a league tournament")).toMatchObject({ kind: "yes-no-attended", answer: "No" });
+  });
+  it("a division named is that division alone; its championship takes every division", async () => {
+    expect(await yn("did 30001 play at edison division in 2025-26")).toMatchObject({ answer: "Yes" });
+    expect(await yn("did 30001 play at franklin division in 2025-26")).toMatchObject({ answer: "No" });
+  });
+  it("the Winning Alliance award asked by name is that award; an event won also counts a 1st-place Inspire", async () => {
+    expect(await yn("has 30003 ever won the winning alliance award")).toMatchObject({ answer: "No" });
+    expect(await yn("has 30003 ever won an event")).toMatchObject({ answer: "Yes" });
+    expect(await yn("has 7149 ever won the winning alliance award")).toMatchObject({ answer: "Yes" });
   });
   it("only a yes-or-no question: a count or a list stays what it was", async () => {
     expect((await ask("how many times has 7149 been to worlds")).stat?.intent ?? "").not.toMatch(/^yes-no/);

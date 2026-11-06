@@ -60,7 +60,9 @@ async function scopeOf(p: Parsed): Promise<EventScope | null | undefined> {
     if (!evs.length) return undefined;
     const main = [...evs].sort((a, b) => b.season - a.season || Number(a.division != null) - Number(b.division != null))[0];
     const name = shortEvent(main.name, main.type);
-    return { label: `${name}${said}`, codes: new Set(evs.flatMap((e) => [e.code, ...(e.division ? [e.division] : [])])), ...when };
+    // The events named, each by its own code: a championship named takes its divisions (inScope), a division named
+    // is that division alone.
+    return { label: `${name}${said}`, codes: new Set(evs.map((e) => e.code)), ...when };
   }
   if (p.eventKind) {
     const k = eventKindOf(p.eventKind);
@@ -113,8 +115,9 @@ async function attended(t: Team, s: EventScope): Promise<StatAnswer> {
   };
 }
 
-/** "Has <team> won <award>" (or "won a championship": its Winning Alliance at that kind of event). */
-async function wonAward(t: Team, award: string | null, s: EventScope | null): Promise<StatAnswer> {
+/** "Has <team> won <award>", or an event won (`eventWin`: "won a championship", its Winning Alliance or 1st-place
+ *  Inspire there). The Winning Alliance award asked by name is that award alone. */
+async function wonAward(t: Team, award: string | null, s: EventScope | null, eventWin = false): Promise<StatAnswer> {
   const home = (await get<{ r: string | null }>("SELECT home_region r FROM teams WHERE number = ?", [t.number]))?.r ?? null;
   // A judged award is won at 1st place (2nd and 3rd are placings); an alliance award at any slot. FIRST stores its
   // Leadership Award as a Winner too: never an event won.
@@ -122,11 +125,12 @@ async function wonAward(t: Team, award: string | null, s: EventScope | null): Pr
     `SELECT e.season, e.code, e.name, e.type, e.division_code, e.start, e.end, e.region, NULL wins, NULL losses, NULL ties, a.type atype, a.name aname, a.placement
      FROM awards a JOIN events e ON e.season = a.season AND e.code = a.code WHERE a.team = ? AND ${OFFICIAL}${award ? " AND a.type = ?" : ""}
        AND (a.type IN ('Winner', 'Finalist') OR a.placement = 1) AND NOT (a.type = 'Winner' AND COALESCE(a.name, '') LIKE '%Leadership%')
-       ${award === "Winner" ? "OR (a.team = ? AND a.type = 'Inspire' AND a.placement = 1 AND " + OFFICIAL + ")" : ""}
-     ORDER BY e.start DESC, e.code`, [t.number, ...(award ? [award] : []), ...(award === "Winner" ? [t.number] : [])])).filter((e) => !s || inScope(s, home)(e));
+       ${eventWin ? "OR (a.team = ? AND a.type = 'Inspire' AND a.placement = 1 AND " + OFFICIAL + ")" : ""}
+     ORDER BY e.start DESC, e.code`, [t.number, ...(award ? [award] : []), ...(eventWin ? [t.number] : [])])).filter((e) => !s || inScope(s, home)(e));
   // An event won is said as the event ("won a championship", "won New Jersey Championship"); an award, with where.
-  const what = award === "Winner" ? `won ${!s || s.bare ? "an event" : s.kind ? `a ${s.label}` : s.label}` : award ? `won the ${award.replace(/([a-z])([A-Z])/g, "$1 $2")} Award` : "won an award";
-  const where = s && (award !== "Winner" || s.bare) ? ` ${at(s)}` : "";
+  const what = eventWin ? `won ${!s || s.bare ? "an event" : s.kind ? `a ${s.label}` : s.label}` : award === "Winner" ? "won the Winning Alliance award"
+    : award ? `won the ${award.replace(/([a-z])([A-Z])/g, "$1 $2")} Award` : "won an award";
+  const where = s && (!eventWin || s.bare) ? ` ${at(s)}` : "";
   const ok = rows.length > 0;
   return {
     family: "awards", intent: "yes-no-award", title: `${who(t)} ${what}${where}`, team: t, scope: [s?.season != null ? seasonLabel(s.season) : "All seasons"],
@@ -176,7 +180,7 @@ export async function yesNoAnswer(q: string, opts: { full: boolean; pages: Searc
     stat = await wonAward(t[0], p.award, scope);
   } else if (t.length === 1 && sym.has("metric:win") && (scope && !scope.bare ? !!p.eventKind || !!p.event : sym.has("thing:event")) && [...sym].every((x) => x === "metric:win" || x === "thing:event")) {
     // An event won: "won a championship", "won an event", "won <event>".
-    stat = await wonAward(t[0], "Winner", scope);
+    stat = await wonAward(t[0], "Winner", scope, true);
   } else if (t.length === 1 && scope && !scope.bare && !sym.size) {
     stat = await attended(t[0], scope);
   }
