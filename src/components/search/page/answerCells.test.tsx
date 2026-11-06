@@ -114,12 +114,12 @@ describe("match box", () => {
     expect(sides[0].querySelector("b.font-display")!.className).toContain("text-muted-foreground");
     expect(c.querySelector("[data-rank-badge]")!.className).toContain("bg-muted");
   });
-  it("the listed score's phases as neutral tiles: no phase hue, red and blue only on the alliances", () => {
+  it("the listed score's phases as tiles in the team page's phase colours, red and blue only on the alliances", () => {
     const c = html(<ul><MatchBox r={m} /></ul>);
     const tiles = [...c.querySelectorAll("[data-phases] > div")];
     expect(tiles.map((t) => t.textContent)).toEqual(["Auto80", "TeleOp256", "Endgame80", "Pen given0"]);
-    for (const t of tiles) expect(t.className).toContain("border-border");
-    expect(c.innerHTML).not.toMatch(/(text|bg|border)-(success|info|sky|emerald|violet|rose|teal)/);
+    expect(tiles.map((t) => t.className.split(" ").find((x) => x.startsWith("border-") && x.includes("/30")))).toEqual(["border-info/30", "border-success/30", "border-violet-500/30", "border-rose-500/30"]);
+    expect(c.querySelector("[data-scoreboard]")!.innerHTML).not.toMatch(/(text|bg|border)-(success|info|sky|emerald|violet|rose|teal)/);
   });
   it("a row's own team (a list across several teams) goes first on its alliance, with no card team", () => {
     const c = html(<ul><MatchBox r={{ ...m, alliance: "red", self: { label: "6980 Bad Wolf", href: "/teams/6980" }, partners: [{ label: "4215 Hypnotic Robotics", href: "/teams/4215" }] }} /></ul>);
