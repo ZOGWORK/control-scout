@@ -27,7 +27,7 @@ function seasonOf(p: Parsed): number | null | undefined {
 
 /** The answer for a parse with a name said as words, or null when it holds a slot a list of names doesn't take. */
 export async function teamsNamedSearch(p: Parsed, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
-  if (!p.named || p.teams.length || p.event || p.worlds || p.states || p.level || p.alliance || p.award || p.n != null) return null;
+  if (!p.named || p.teams.length || p.event || p.eventKind || p.worlds || p.states || p.level || p.alliance || p.award || p.n != null) return null;
   const season = seasonOf(p);
   if (season === undefined) return null;
   const idx = await names();

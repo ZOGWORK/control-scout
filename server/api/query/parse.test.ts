@@ -22,6 +22,8 @@ const TEAMS = [
   { number: 30007, name: "Lanternfih", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
   { number: 30008, name: "s", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
   { number: 30009, name: "Mitspe Yam/מצפה ים", city: "Town", state: null, country: "Israel", lastPlayed: 2026 },
+  { number: 30010, name: "Powerplay Pioneers", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
+  { number: 30011, name: "March Madness", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
 ];
 const EVENTS = ["east bergen conference", "new jersey championship", "nj championship", "turnpike division"];
 const ctx: ParseContext = {
@@ -229,6 +231,16 @@ describe("a name said as words", () => {
   });
   it("ends where a place or a season starts", async () => {
     expect(await parse("teams named bad wolf from NJ in 2025-26")).toMatchObject({ named: { words: "bad wolf" }, place: { state: "NJ" }, time: { season: 2025 }, complete: true });
+    expect(await parse("teams named ultraviolet last season")).toMatchObject({ named: { words: "ultraviolet" }, time: { relative: "last" }, complete: true });
+  });
+  it("a stored name keeps its time words; the closing filler is left off, a phrase of it too", async () => {
+    // A game's or a month's word inside a stored name is the name, never a time.
+    expect(await parse("how many teams named powerplay pioneers")).toMatchObject({ named: { words: "powerplay pioneers" }, time: null });
+    expect(await parse("teams called march madness in 2025-26")).toMatchObject({ named: { words: "march madness" }, time: { season: 2025 } });
+    for (const q of ["teams named ultraviolet thank you", "how many teams named ultraviolet are there thank you"]) {
+      expect(await parse(q), q).toMatchObject({ named: { words: "ultraviolet" }, complete: true });
+    }
+    expect((await parse("teams named nobody here thank you")).named?.words).toBe("nobody");
   });
   it("with nothing after it, is no name: the question stays the readers' it was", async () => {
     expect(await parse("what is 4215 called")).toMatchObject({ teams: [{ number: 4215 }], complete: false });

@@ -104,6 +104,11 @@ describe("count teams by name (3a)", () => {
     expect(there.none).toBe("No team is named bad wolf in Romania.");
     expect(there.blocks).toContainEqual({ kind: "related", title: "Did you mean", queries: ["teams named bad wolf"] });
   });
+  it("never every team with the name for an event filter it doesn't take", async () => {
+    for (const q of ["how many teams named ultraviolet at qualifiers", "teams named ultraviolet at league meets"]) {
+      expect((await ask(q)).stat?.intent, q).not.toBe("teams-named");
+    }
+  });
 });
 
 describe("count teams by place (3a)", () => {
