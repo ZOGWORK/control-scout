@@ -18,7 +18,7 @@ import { RANKED_MIN_MATCHES } from "../../../../src/shared/rankings.js";
 import { teamPageSql } from "../../../../src/shared/teamPages.js";
 import { get } from "../../../db.js";
 import { inScope, scopeChips, scopePhrase, type Scope } from "../clauses.js";
-import { eventHref, matchRow, shortEvent, teamLinks, type TeamMatch } from "../matchSet.js";
+import { eventHref, matchRow, teamLinks, type TeamMatch } from "../matchSet.js";
 import type { IntentId } from "../read.js";
 
 export interface AnswerTeam { number: number; name: string | null }
@@ -447,7 +447,7 @@ function perEventTable(ms: TeamMatch[], team: number): StatBlock {
     columns: [{ key: "event", label: "Event" }, ...(seasons ? [{ key: "season", label: "Season" }] : []), { key: "wins", label: "Wins", num: true }, { key: "losses", label: "Losses", num: true }, ...(ties ? [{ key: "ties", label: "Ties", num: true }] : [])],
     rows: [...evs.values()].map((xs) => {
       const r = record(xs);
-      return { cells: { event: shortEvent(xs[0].event, xs[0].type ?? null), season: seasonLabel(xs[0].season), wins: r.wins, losses: r.losses, ties: r.ties }, href: eventHref(xs[0].season, xs[0].code, team) };
+      return { cells: { event: xs[0].event, season: seasonLabel(xs[0].season), wins: r.wins, losses: r.losses, ties: r.ties }, href: eventHref(xs[0].season, xs[0].code, team) };
     }),
   };
 }

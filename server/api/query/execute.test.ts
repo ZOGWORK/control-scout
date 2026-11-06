@@ -181,6 +181,18 @@ describe("one question, any phrasing, any team", () => {
     // Across seasons, each row says its season (one event name is held every year).
     const ever = (await stat("4215 record by event ever")).blocks.find((b) => "title" in b && b.title === "Wins and losses by event");
     expect(ever?.kind === "table" && ever.columns.map((c) => c.key)).toEqual(expect.arrayContaining(["event", "wins", "losses"]));
+    // A Worlds division is named once, as every match row names it.
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (30060, 'Division Bots', 'Town', 'VT', 'USA')");
+    await run("INSERT INTO team_seasons (season, team) VALUES (2025, 30060)");
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, 'FTCCMP1EDX', 'FIRST Championship - Edison Division', 'FIRSTChampionship', 'Town', 'TX', 'USA', '2026-03-12', '2026-03-12', 't')");
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'FTCCMP1EDX', 'qual', 0, 1, 'Q1', '2026-03-12T10:00:00Z', 1, 100, 100, 50, 50, 't')");
+    await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'FTCCMP1EDX', 'qual', 0, 1, 30060, 'red', 1)");
+    await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'FTCCMP1EDX', 30060, 1)");
+    clearAllCaches();
+    const div = (await stat("30060 record by event in 2025-26")).blocks.find((b) => "title" in b && b.title === "Wins and losses by event");
+    const name = div?.kind === "table" ? String(div.rows[0].cells.event) : "";
+    expect(name).toMatch(/Edison/);
+    expect(name).not.toMatch(/Worlds · Worlds/);
   });
   it("a team's forecast at Worlds or states is its own championship's, any wording", async () => {
     await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, division_code, source) VALUES (2025, 'FTCCMP1OHM', 'FIRST Championship - Ohm Division', 'FIRSTChampionship', 'Town', 'TX', 'USA', '2026-04-29', '2026-04-29', 'FTCCMP1', 't')");
