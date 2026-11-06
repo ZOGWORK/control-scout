@@ -12,6 +12,7 @@ import { parseContext } from "../query/context";
 import { failureOf, outcomeTrace } from "../../searchFailures";
 import { clearAllCaches } from "../../caches";
 import { answerKey, candidates, followUps, pageAnswer, previewOf, ASK_MAX, RELATED_MAX } from "./followUps";
+import type { SearchAnswer } from "../../../src/shared/api";
 
 const TEAMS = [4215, 6980, 7149] as const;
 
@@ -27,6 +28,8 @@ beforeAll(async () => {
   for (const [t, rank, opr] of [[4215, 1, 101.6], [6980, 2, 46.9], [7149, 3, 115.3], [207, 4, 60]] as const) {
     await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'USNJQ1', ?, ?)", [t, rank]);
     await run("INSERT INTO team_event_stats (season, code, team, opr_np, opr_auto, opr_teleop, opr_endgame, matches) VALUES (2025, 'USNJQ1', ?, ?, 30, 60, 10, 3)", [t, opr]);
+    // The season's numbers the boards rank by, each a little different so every board has its own order.
+    await run("INSERT INTO team_season_stats (season, team, opr_np, opr_auto, opr_teleop, opr_endgame, rank_np, ranked_teams, matches, wins, losses, ties) VALUES (2025, ?, ?, ?, ?, ?, ?, 4, 3, 2, 1, 0)", [t, opr, opr / 4, opr / 2, opr / 8, rank]);
   }
   const games: [number, number, number[], number[]][] = [[150, 90, [4215, 207], [6980, 7149]], [80, 120, [4215, 6980], [7149, 207]], [200, 100, [7149, 4215], [6980, 207]]];
   for (const [i, [red, blue, reds, blues]] of games.entries()) {
@@ -86,6 +89,21 @@ describe("people also ask", () => {
     const ask = (await followUps(q, a)).ask;
     expect(ask.length).toBeGreaterThan(0);
     for (const x of ask) expect(theirs.has(await what(x.q)), x.q).toBe(false);
+  });
+
+  it("offers a board's neighbours as related searches, in the season asked", async () => {
+    const { ask, related } = await both("best auto opr");
+    expect(ask.map((x) => x.q).filter((x) => /^Who has the best/.test(x))).toEqual([]);
+    expect(related.map((x) => x.q)).toEqual(expect.arrayContaining(["best teleop opr", "best endgame opr"]));
+    const q = "best auto opr in 2025-26";
+    const cs = candidates(await parseQuery(q, await parseContext()), await pageAnswer(q, 25, new Set()));
+    expect(cs.map((x) => x.short)).toContain("best teleop opr in 2025-26");
+    expect(cs.map((x) => x.q)).toContain("Who has the best TeleOp OPR in 2025-26?");
+  });
+
+  it("knows one board by its measure, place and season, whatever its title", () => {
+    const board = (title: string) => ({ stat: { family: "leaderboard", intent: "top-opr", title, scope: ["New Jersey", "2025–26"] } }) as unknown as SearchAnswer;
+    expect(answerKey(board("Best team in New Jersey by OPR · 2025–26"))).toBe(answerKey(board("Top 10 teams by OPR in New Jersey · 2025–26")));
   });
 
   it("says a season the query typed with its preposition once", async () => {
