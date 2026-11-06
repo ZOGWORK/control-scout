@@ -66,6 +66,20 @@ export type OprPhase = "np" | "auto" | "teleop" | "endgame";
 /** Wins, losses and ties. */
 export type StatRecord = { wins: number; losses: number; ties: number };
 
+/** A match on a video page (a "videos" block): its label, both alliances' team numbers and scores, its level for the
+ *  page's filter, and its event and day when the page spans several events. */
+export interface VideoTile {
+  label: string;
+  href: string;
+  level: "qual" | "playoff";
+  red: number[];
+  blue: number[];
+  redScore: number;
+  blueScore: number;
+  event?: string;
+  date?: string | null;
+}
+
 export type StatBlock =
   /** Big numbers side by side ("312 points", "14 wins"). Items with a `phase` are a team's season OPR and its parts, drawn
    *  as the team page's OPR tiles (its colours, its rank line and bar from `rank` and `of`; a match's phase points have no
@@ -77,6 +91,9 @@ export type StatBlock =
       split?: { quals: StatRecord; playoffs: StatRecord } }
   /** Matches, best first or newest first as `title` says. */
   | { kind: "matches"; title: string; rows: StatMatchRow[]; more?: string }
+  /** A video page (src/components/search/page/VideoGallery.tsx): every listed match that has a video, in the events'
+   *  order, and each event's own stream (its link). `empty`: what to say, and where to look, when none has one (none: nothing drawn). */
+  | { kind: "videos"; title: string; tiles: VideoTile[]; streams?: StatLink[]; more?: string; empty?: { text: string; href?: string } }
   /** Rows of named columns; a row may link (its first cell is the link text). A row about one event may carry its
    *  `type` (FIRST's event type, "Qualifier"): its name then gets the Events cards' type colour. */
   | { kind: "table"; title: string; columns: { key: string; label: string; num?: boolean }[]; rows: { cells: Record<string, string | number | null>; href?: string; strong?: boolean; type?: string | null;

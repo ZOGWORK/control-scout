@@ -15,6 +15,34 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.4.6 — 2026-11-06
+
+Search answers are in bold colour: every award, scoring phase and team has its own colour, the same on every card.
+
+### Highlights
+- [appearance] Inspire, alliance and judged awards each in their own colour
+- [appearance] Auto blue, TeleOp green, Endgame purple, penalties red on every card
+- [appearance] Thick coloured bars, filled chips, coloured numbers, no grey
+
+### Search
+- **One palette.** Every search answer uses one set of colours, one per meaning, never shared. Auto is blue, TeleOp green, Endgame purple, penalties red and ranking points yellow. Inspire is magenta, Winning Alliance orange, Finalist Alliance pink, judged awards teal and performance awards indigo. Live, Upcoming and Finished each have one too. Anything without a meaning of its own (a team's numbers, bars, lines and ranks) takes the team's colour.
+- **Bolder.** Tiles get a thick left bar in their colour and a filled icon, and their number is in the colour too. Award rows and chips are filled, phase tiles in match boxes are solid, and the event awards podium is in the award's colour. The leaderboard's phase columns and section headings are coloured, and each highlights video tile's reason is a filled chip with a matching edge (Best Auto in Auto's blue, the rest in the team's colour). Every text and fill clears 4.5:1 in every theme.
+- **Checked on every card.** Each card type is tested so that nothing outside the palette is used, no two meanings share a colour, and no bar, line, tile, pill or chip is left grey. (#794)
+
+## 3.4.5 — 2026-11-06
+
+A video page for any event, division or team: every match's video, the event's stream and a filter.
+
+### Highlights
+- [history] "Jackson division recap" lists every match with a video, ready to play
+- [history] Each event's full stream sits beside its matches
+- [history] Filter a video page by qualifications or playoffs
+- [history] Highlights now list every match's video after the standouts
+
+### Search
+- **A video page.** "Recap", "replay", "videos", "watch", "stream" or "VOD" with an event, a division, Worlds, a place, a season or a team ("jackson division recap", "watch worlds", "4215 videos at worlds") lists every match with a video in the events' order: its label, both alliances' teams and the score in their colours, a tap playing it in the app's video dialog; each event's full stream first; a qualifications/playoffs filter; the first 24, then "Show all". The card plays the latest playoff match (a team's latest playoff win). A scope of more than 200 matches lists its playoffs and says so. Nothing with a video: one line and a link to the event or the team. (#827)
+- **Highlights, then every match.** A highlights answer ("worlds highlights jackson division", "<team> highlights at worlds") keeps its standout matches first and lists every match's video and the stream under them.
+
 ## 3.4.4 — 2026-11-06
 
 A count question about a team's name is no longer answered with that team's highlights.
@@ -40,18 +68,6 @@ Search answers are in bold colour: every award, scoring phase and team has its o
 - **One palette.** Every search answer uses one set of colours, one per meaning, never shared. Auto is blue, TeleOp green, Endgame purple, penalties red and ranking points yellow. Inspire is magenta, Winning Alliance orange, Finalist Alliance pink, judged awards teal and performance awards indigo. Live, Upcoming and Finished each have one too. Anything without a meaning of its own (a team's numbers, bars, lines and ranks) takes the team's colour.
 - **Bolder.** Tiles get a thick left bar in their colour and a filled icon, and their number is in the colour too. Award rows and chips are filled, phase tiles in match boxes are solid, and the event awards podium is in the award's colour. The leaderboard's phase columns and section headings are coloured, and each highlights video tile's reason is a filled chip with a matching edge (Best Auto in Auto's blue, the rest in the team's colour). Every text and fill clears 4.5:1 in every theme.
 - **Checked on every card.** Each card type is tested so that nothing outside the palette is used, no two meanings share a colour, and no bar, line, tile, pill or chip is left grey. (#794)
-
-## 3.4.3 — 2026-11-06
-
-Search predicts a full match: two alliances of two.
-
-### Highlights
-- [predict] "Predict 12345 23456 vs 34567 45678" gives the match's call
-- [predict] Win chance, predicted score and margin for each alliance
-- [predict] "Custom matchup" and "who wins" phrasings read the same
-
-### Search
-- **Two alliances of two.** Four teams with "vs" between the pairs ("predict 12345 23456 vs 34567 45678", "12345 and 23456 vs 34567 and 45678 who wins", "custom matchup …", by number or name) answer with the engine's call for that qualification match, as Predict makes it: each alliance's win chance, predicted score and margin, the confidence, each team's rating, and Predict opened on the same lineup. The season is the one named, else the latest every team has a rating in. Before, the card compared only the first team of each side. (#834)
 
 ## 3.4.2 — 2026-11-06
 

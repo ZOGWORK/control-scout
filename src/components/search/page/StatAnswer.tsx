@@ -22,6 +22,7 @@ import { MatchBox, RankBadge, TeamChip } from "./MatchBox";
 import { CompareCard, comparisonOf } from "./CompareCard";
 import { ChanceBar } from "./ChanceBar";
 import { HighlightGrid, isHighlights } from "./HighlightGrid";
+import { VideoGallery } from "./VideoGallery";
 
 // Section headers in the team hue (the owner's brief: coloured section headers).
 const H3 = "mb-1.5 text-xs font-semibold text-team-a";
@@ -232,6 +233,8 @@ function Block({ b: block, team, teams, said, hue }: { b: StatBlock; team?: Stat
         </div>
       );
     }
+    case "videos":
+      return <VideoGallery b={b} />;
     case "table":
       return b.rows.some((r) => r.teams) ? <MatchTable b={b} /> : <Table b={b} />;
     case "leaderboard":

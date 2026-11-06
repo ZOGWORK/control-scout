@@ -1,0 +1,590 @@
+[
+ {
+  "n": "1",
+  "q": "4215 matches at states",
+  "nov4": "FAIL",
+  "nov4Note": "\"At an event\" TEAMS card only, Event OPR 111.5, rank #3, ranking score 1.60, New Jersey 3/17/24 State Championship Tournament - Turnpike Division, no match list",
+  "expect": "event"
+ },
+ {
+  "n": "2",
+  "q": "4215 and 6980 matches together at NJ championship",
+  "nov4": "INVALID QUERY, NOT A FAIL",
+  "nov4Note": "Correct answer: No matches together at NJ championship, because 6980 was not at the NJ Championship. 6980's 2025–26 events were East Bergen League Tournament, P3-6 Meet, P2-8 Meet, and P1-4 PM Meet only, no NJ Championship. Search must show a clear no-matches card saying that, with 4215's Parkway Division event named, not a fallback and not an invented match list. Presentation required: No-matches card, team names, event name, and the reason 6980 was not there, plus a link to 4215's NJ Championship matches and to 6980's actual events.",
+  "expect": "invalid"
+ },
+ {
+  "n": "3",
+  "q": "top 5 NJ teams by auto opr who also won inspire",
+  "nov4": "FAIL",
+  "nov4Note": "fallback only",
+  "expect": "leaderboard"
+ },
+ {
+  "n": "4",
+  "q": "4215 vs 6980 at worlds who scored higher",
+  "nov4": "FAIL ON PRESENTATION, EXPECTED NONE FOR HEAD-TO-HEAD",
+  "nov4Note": "Correct answer: No head-to-head at worlds, because 6980 has no worlds appearances. Search must say that clearly, with 4215's worlds record shown separately, not a Compare card saying 'No season numbers yet' and not a winner. Presentation required: No head-to-head card, plus 4215 worlds card with record and scores, and 6980 worlds card stating no worlds appearances.",
+  "expect": "invalid"
+ },
+ {
+  "n": "5",
+  "q": "what was 4215's opr at their first event this season compared to last season",
+  "nov4": "FAIL",
+  "nov4Note": "team hit only, \"Which event? None of its events matches\"",
+  "expect": "opr"
+ },
+ {
+  "n": "6",
+  "q": "teams from Oradell with opr over 100",
+  "nov4": "FAIL",
+  "nov4Note": "fallback only",
+  "expect": "leaderboard"
+ },
+ {
+  "n": "7",
+  "q": "4215 matches where they lost by less than 10 points",
+  "nov4": "FAIL",
+  "nov4Note": "\"isn't answered directly yet\", team hit only",
+  "expect": "team-match"
+ },
+ {
+  "n": "8",
+  "q": "4215 awards and record in 2025-26 combined",
+  "nov4": "FAIL",
+  "nov4Note": "\"isn't answered directly yet\", team card shows 26-6-0 and OPR 101.6 but no awards answered",
+  "expect": "awards|record"
+ },
+ {
+  "n": "9",
+  "q": "who won inspire at East Bergen League Tournament 2026",
+  "nov4": "PASS ON DATA, FAIL ON PRESENTATION",
+  "nov4Note": "Data correct: Inspire Award, winner 4215 Hypnotic Robotics, East Bergen Conference Northern League Tournament, Feb 21, 2026, from FIRST's award list, with 207 Critical Mass 2nd and 13617 Bectobots 3rd. Presentation fails: No podium, no awards page, just a purple Bruno AI card plus a gold box saying the same thing twice, and the Bruno AI card does not say 'Bruno AI from Control Point'. Required presentation: Podium, 1st 4215, 2nd 207, 3rd 13617, plus full awards list for that event and a link to the event awards page.",
+  "expect": "awards"
+ },
+ {
+  "n": "10",
+  "q": "4215 partners at NJ championship who had opr over 80",
+  "nov4": "FAIL",
+  "nov4Note": "\"isn't answered directly yet\", team hit only",
+  "expect": "partners"
+ },
+ {
+  "n": "11",
+  "q": "did 4215 ever beat a team ranked top 10 worldwide",
+  "nov4": "FAIL",
+  "nov4Note": "fallback only",
+  "expect": "h2h|record"
+ },
+ {
+  "n": "12",
+  "q": "4215's best event by rank and worst event by opr in same season",
+  "nov4": "FAIL",
+  "nov4Note": "\"No matches found\", closest-matches links",
+  "expect": "event|opr"
+ },
+ {
+  "n": "13",
+  "q": "hypnotic robotics opr rn",
+  "nov4": "PASS",
+  "nov4Note": "OPR 101.6, #612 of 8,308, top 8%, Auto 28.3, TeleOp 73.4, Endgame 6.7, per-event OPRs listed",
+  "expect": "opr"
+ },
+ {
+  "n": "14",
+  "q": "where is bad wolf from and what is their record",
+  "nov4": "FAIL",
+  "nov4Note": "fallback only",
+  "expect": "fact|record"
+ },
+ {
+  "n": "15",
+  "q": "4215 matches at states in 2024",
+  "nov4": "FAIL",
+  "nov4Note": "team hit only, \"None of its events matches 'state championship in'\"",
+  "expect": "event"
+ },
+ {
+  "n": "16",
+  "q": "teams in NJ that went to worlds in 2025 and their opr",
+  "nov4": "FAIL",
+  "nov4Note": "fallback only",
+  "expect": "leaderboard"
+ },
+ {
+  "n": "17",
+  "q": "4215 vs 6980 vs 33950 which has highest reliability",
+  "nov4": "FAIL",
+  "nov4Note": "Compare card only, \"No season numbers yet\", no reliability answer",
+  "expect": "compare"
+ },
+ {
+  "n": "18",
+  "q": "what is 4215's average score when they win versus when they lose",
+  "nov4": "FAIL",
+  "nov4Note": "misread as 4215 vs 10760, Raiders of the Lost Bot, Compare card, no answer",
+  "expect": "record|average"
+ },
+ {
+  "n": "19",
+  "q": "4215's record in playoffs at NJ championship",
+  "nov4": "FAIL",
+  "nov4Note": "fallback only",
+  "expect": "record"
+ },
+ {
+  "n": "20",
+  "q": "show me 4215's matches at the March 15 2026 NJ championship",
+  "nov4": "FAIL",
+  "nov4Note": "team hit, \"None of its events matches 'the March 15 NJ championship'\"",
+  "expect": "event"
+ },
+ {
+  "n": "21",
+  "q": "4215 opr if you exclude their worst event",
+  "nov4": "FAIL",
+  "nov4Note": "\"isn't answered directly yet\", team hit only",
+  "expect": "opr"
+ },
+ {
+  "n": "22",
+  "q": "hypnotik robotics opr",
+  "nov4": "PASS",
+  "nov4Note": "\"Did you mean 'Hypnotic Robotics opr'?\", then OPR card 101.6, #612 of 8,308",
+  "expect": "opr"
+ },
+ {
+  "n": "23",
+  "q": "4215 and 6980 opr",
+  "nov4": "PASS",
+  "nov4Note": "side-by-side OPR card, 101.6 vs 46.9, +54.7, #612 vs #2669 of 8,308, phase breakdowns both teams",
+  "expect": "compare"
+ },
+ {
+  "n": "24",
+  "q": "4215 not 6980 record",
+  "nov4": "PASS",
+  "nov4Note": "record card respecting \"not\", 26-6-0, 81% in 32 matches, world rank #102 of 8,308",
+  "expect": "record"
+ },
+ {
+  "n": "25",
+  "q": "4215 matches at NJ championship",
+  "nov4": "PASS",
+  "nov4Note": "Results at New Jersey Championship - Parkway Division, 5-3-0 in 8 matches, #6 of 24, OPR 101.6, all 8 matches listed, full name",
+  "expect": "event"
+ },
+ {
+  "n": "26",
+  "q": "4215 matches at league tournament",
+  "nov4": "PASS",
+  "nov4Note": "Results at East Bergen Conference Northern League Tournament, 8-0-0, #1 of 21, OPR 84.4, 8 matches listed",
+  "expect": "event"
+ },
+ {
+  "n": "27",
+  "q": "6980 matches at states",
+  "nov4": "FAIL",
+  "nov4Note": "TEAMS card only, \"None of its events matches 'state championship'\"",
+  "expect": "event"
+ },
+ {
+  "n": "28",
+  "q": "4215 matches at East Bergen League Tournament",
+  "nov4": "PASS",
+  "nov4Note": "8-0-0, #1 of 21, OPR 84.4",
+  "expect": "event"
+ },
+ {
+  "n": "29",
+  "q": "4215 matches at P3-6 meet",
+  "nov4": "PASS",
+  "nov4Note": "4-1-0 at P3-6 Northern League Meet, OPR 58.2, 5 matches listed",
+  "expect": "event"
+ },
+ {
+  "n": "30",
+  "q": "6980 matches at P2-8 meet",
+  "nov4": "PASS",
+  "nov4Note": "5-0-0 at P2-8 Northern League Meet, OPR 44.9, 5 matches listed",
+  "expect": "event"
+ },
+ {
+  "n": "31",
+  "q": "33950 matches at Essex Conference",
+  "nov4": "PASS",
+  "nov4Note": "Results at Essex Conference Northeast Edge, 3-2-0, #14 of 17, OPR 42.2, Feb 28 2026, 5 matches listed",
+  "expect": "event"
+ },
+ {
+  "n": "32",
+  "q": "7149 matches at worlds Ross division",
+  "nov4": "FAIL",
+  "nov4Note": "\"At an event\" TEAMS card only, Ross Division, Event OPR 115.3, rank #19, ranking score 3.20, no match list",
+  "expect": "event"
+ },
+ {
+  "n": "33",
+  "q": "4215 matches at states in 2025",
+  "nov4": "FAIL",
+  "nov4Note": "team card only, \"None of its events matches 'state championship in'\"",
+  "expect": "event"
+ },
+ {
+  "n": "34",
+  "q": "4215 matches at states in 2026",
+  "nov4": "FAIL",
+  "nov4Note": "team card only, no match list",
+  "expect": "event"
+ },
+ {
+  "n": "35",
+  "q": "4215 playoff matches at states",
+  "nov4": "PASS",
+  "nov4Note": "Playoff matches at state championships, 16 matches, 9-7-0, full list, untruncated names",
+  "expect": "record|event"
+ },
+ {
+  "n": "36",
+  "q": "4215 quals matches at states",
+  "nov4": "PASS",
+  "nov4Note": "Qualification matches at state championships, 20 quals, 15-5-0 of 36 matches at state championships, full list",
+  "expect": "record|event"
+ },
+ {
+  "n": "37",
+  "q": "4215 matches they won at states",
+  "nov4": "FAIL",
+  "nov4Note": "\"At an event\" TEAMS card only, 3/17/24 State Championship, Event OPR 111.5, rank #3, ranking score 1.60, no match list",
+  "expect": "record|event"
+ },
+ {
+  "n": "38",
+  "q": "4215 matches they lost at states",
+  "nov4": "PASS",
+  "nov4Note": "Losses at state championships, 12 of 36 matches, full match list, untruncated names",
+  "expect": "record|event"
+ },
+ {
+  "n": "39",
+  "q": "6980 matches at East Bergen tournament",
+  "nov4": "PASS",
+  "nov4Note": "Results at East Bergen Conference Northern League Tournament, 3-5-0, #5 of 21, OPR 45.0, 8 matches listed",
+  "expect": "event"
+ },
+ {
+  "n": "40",
+  "q": "4215 matches at championship Parkway division",
+  "nov4": "PASS",
+  "nov4Note": "Results at New Jersey Championship - Parkway Division, 5-3-0, #6 of 24, OPR 101.6, 8 matches listed",
+  "expect": "event"
+ },
+ {
+  "n": "41",
+  "q": "4215 matches at championship Turnpike division",
+  "nov4": "PASS",
+  "nov4Note": "Results at New Jersey Championship - Turnpike Division, 4-4-0, #7 of 24, OPR 117.3, 2024–25, 8 matches listed",
+  "expect": "event"
+ },
+ {
+  "n": "42",
+  "q": "4215 matches at league meets this season",
+  "nov4": "FAIL",
+  "nov4Note": "team hit only, \"None of its events matches 'league meet'\", mostly empty page",
+  "expect": "event"
+ },
+ {
+  "n": "43",
+  "q": "4215 matches at their last event",
+  "nov4": "FAIL",
+  "nov4Note": "\"Most recent event\" card only, NJ Championship Parkway, #6 of 24, OPR 101.6, 5-3-0, no match list",
+  "expect": "event"
+ },
+ {
+  "n": "44",
+  "q": "4215 matches at their first event this season",
+  "nov4": "FAIL",
+  "nov4Note": "team hit only, \"None of its events matches 'their first event'\", mostly empty page, stranded footer",
+  "expect": "event"
+ },
+ {
+  "n": "45",
+  "q": "4215 at states",
+  "nov4": "FAIL",
+  "nov4Note": "\"At an event\" TEAMS card only, 3/17/24 State Championship - Turnpike Division, Event OPR 111.5, rank #3, ranking score 1.60, no matches, record, or rank at states",
+  "expect": "event"
+ },
+ {
+  "n": "46",
+  "q": "4215 states record",
+  "nov4": "PASS",
+  "nov4Note": "Record at state championships, 24-12-0, 67% in 36 matches, by-season table: 2025–26 5-3-0, 2024–25 4-4-0, 2023–24 7-2-0, 2022–23 8-3-0",
+  "expect": "record"
+ },
+ {
+  "n": "47",
+  "q": "4215 states opr",
+  "nov4": "FAIL",
+  "nov4Note": "\"isn't answered directly yet, read as 4215 with states or opr: say which\", team hit",
+  "expect": "opr|event"
+ },
+ {
+  "n": "48",
+  "q": "4215 states rank",
+  "nov4": "FAIL",
+  "nov4Note": "same disambiguation, team hit",
+  "expect": "event|rank"
+ },
+ {
+  "n": "49",
+  "q": "6980 at states",
+  "nov4": "PASS",
+  "nov4Note": "State championships for Bad Wolf (6980), \"No state championships found in Bad Wolf's recorded event history\", correct direct answer",
+  "expect": "event"
+ },
+ {
+  "n": "50",
+  "q": "4215 state championship matches",
+  "nov4": "FAIL",
+  "nov4Note": "\"isn't answered directly yet, read as 4215 with states or matches: say which\", team hit",
+  "expect": "event"
+ },
+ {
+  "n": "51",
+  "q": "4215 New Jersey state championship matches",
+  "nov4": "FAIL",
+  "nov4Note": "same disambiguation, team hit, mostly empty page, stranded footer",
+  "expect": "event"
+ },
+ {
+  "n": "52",
+  "q": "4215 states 2024 matches",
+  "nov4": "FAIL",
+  "nov4Note": "\"isn't answered directly yet\", team hit",
+  "expect": "event"
+ },
+ {
+  "n": "53",
+  "q": "4215 states 2025 matches",
+  "nov4": "FAIL",
+  "nov4Note": "\"isn't answered directly yet\", team hit",
+  "expect": "event"
+ },
+ {
+  "n": "54",
+  "q": "4215 states 2026 matches",
+  "nov4": "FAIL",
+  "nov4Note": "\"isn't answered directly yet\", team hit",
+  "expect": "event"
+ },
+ {
+  "n": "55",
+  "q": "7149 matches at states",
+  "nov4": "FAIL",
+  "nov4Note": "\"At an event\" TEAMS card only, New Jersey 3/17/24 State Championship Tournament - Turnpike Division, Event OPR 123.5, rank #6, ranking score 1.20, no match list",
+  "expect": "event"
+ },
+ {
+  "n": "56",
+  "q": "33950 matches at states",
+  "nov4": "FAIL",
+  "nov4Note": "team card only, \"None of its events matches 'state championship'\", mostly empty page, stranded footer",
+  "expect": "event"
+ },
+ {
+  "n": "57",
+  "q": "what did 4215 do at states",
+  "nov4": "PASS",
+  "nov4Note": "State championships for Hypnotic Robotics (4215), 4 total appearances, 4 consecutive, best division rank #1 in 2022–23, win rate 75.0% in quals at 15-5-0, Turnpike most frequent at 3 times, division-rank-by-season chart, 4 season cards with full names including New Jersey Championship, Hillsborough Township, Mar 15, 2026",
+  "expect": "event"
+ },
+ {
+  "n": "58",
+  "q": "4215 states wins and losses",
+  "nov4": "FAIL",
+  "nov4Note": "\"isn't answered directly yet, read as 4215 with states or record: say which\", team hit",
+  "expect": "record"
+ },
+ {
+  "n": "59",
+  "q": "4215 state championship record",
+  "nov4": "PASS",
+  "nov4Note": "Record at state championships, 24-12-0, 67% in 36 matches, by-season table",
+  "expect": "record"
+ },
+ {
+  "n": "60",
+  "q": "4215 state championship opr",
+  "nov4": "FAIL",
+  "nov4Note": "\"isn't answered directly yet, read as 4215 with states or opr: say which\", team hit",
+  "expect": "opr|event"
+ },
+ {
+  "n": "61",
+  "q": "4215 state championship rank",
+  "nov4": "FAIL",
+  "nov4Note": "\"isn't answered directly yet, read as 4215 with states or rank: say which\", team hit",
+  "expect": "event|rank"
+ },
+ {
+  "n": "P1",
+  "q": "predicted chances of 4215 east bergen conference",
+  "nov4": "(not run Nov 4)",
+  "nov4Note": "Expected: Before/after card, East Bergen Conference Northern League Tournament, before prediction vs after rank 1, 8-0-0, Inspire, Winning Alliance, Open in Predict button.",
+  "expect": "predict"
+ },
+ {
+  "n": "P2",
+  "q": "4215 advancement odds at NJ championship Parkway",
+  "nov4": "(not run Nov 4)",
+  "nov4Note": "Expected: Advancement odds card, before NJ Championship Parkway, Mar 15, 2026, vs after rank 6, 5-3-0, OPR 101.6, Open in Predict.",
+  "expect": "predict"
+ },
+ {
+  "n": "P3",
+  "q": "4215 predicted rank at NJ championship vs actual rank",
+  "nov4": "(not run Nov 4)",
+  "nov4Note": "Expected: Before predicted rank vs after rank 6 of 24, table, not just actual rank.",
+  "expect": "predict"
+ },
+ {
+  "n": "P4",
+  "q": "4215 vs 6980 who is predicted to win",
+  "nov4": "(not run Nov 4)",
+  "nov4Note": "Expected: Predicted winner, predicted scores, win odds bar, Open in Predict, with both teams' ratings stated.",
+  "expect": "predict"
+ },
+ {
+  "n": "P5",
+  "q": "predict 4215 vs 7149 match",
+  "nov4": "(not run Nov 4)",
+  "nov4Note": "Expected: Predicted winner, scores, odds, Open in Predict to customize.",
+  "expect": "predict"
+ },
+ {
+  "n": "P6",
+  "q": "custom matchup 4215 7149 vs 23268 14450",
+  "nov4": "(not run Nov 4)",
+  "nov4Note": "Expected: Predicted winner, scores, odds, alliances as given, Open in Predict to edit alliances.",
+  "expect": "predict"
+ },
+ {
+  "n": "P7",
+  "q": "7149 predicted chances at NJ championship Turnpike",
+  "nov4": "(not run Nov 4)",
+  "nov4Note": "Expected: Before/after card, Turnpike, rank 3, 8-0-0, Winning Alliance, vs before prediction.",
+  "expect": "predict"
+ },
+ {
+  "n": "P8",
+  "q": "23268 predicted chances at NJ championship Turnpike",
+  "nov4": "(not run Nov 4)",
+  "nov4Note": "Expected: Before/after card, Turnpike, rank 1, 8-0-0, OPR 146.5, vs before prediction. Turnpike only, not Parkway.",
+  "expect": "predict"
+ },
+ {
+  "n": "P9",
+  "q": "14450 predicted chances at NJ championship Parkway",
+  "nov4": "(not run Nov 4)",
+  "nov4Note": "Expected: Before/after card, Parkway, rank 9, 6-2-0, OPR 87.1, vs before prediction.",
+  "expect": "predict"
+ },
+ {
+  "n": "P10",
+  "q": "17713 predicted chances at Romania championship VLAICU",
+  "nov4": "(not run Nov 4)",
+  "nov4Note": "Expected: Before/after card, Romania Championship VLAICU, Mar 13–15, 2026, rank 15, 6-4-0, OPR 172.8, vs before prediction, never NJ.",
+  "expect": "predict"
+ },
+ {
+  "n": "P11",
+  "q": "17965 predicted chances at Romania championship VLAICU",
+  "nov4": "(not run Nov 4)",
+  "nov4Note": "Expected: Before/after card, VLAICU, rank 14, 4-2-0, OPR 120.2, vs before prediction, never NJ.",
+  "expect": "predict"
+ },
+ {
+  "n": "P12",
+  "q": "24033 Alphatronic predicted chances at Romania championship",
+  "nov4": "(not run Nov 4)",
+  "nov4Note": "Expected: Before/after card, Romania Championship, Mar 13–15, 2026, Bucharest, vs before prediction, never NJ, checked against /teams/24033.",
+  "expect": "predict"
+ },
+ {
+  "n": "P13",
+  "q": "4215 predicted score at East Bergen conference",
+  "nov4": "(not run Nov 4)",
+  "nov4Note": "Expected: Predicted score card, before event, plus actual average alliance score after, 140.1 season average, check team page.",
+  "expect": "predict"
+ },
+ {
+  "n": "P14",
+  "q": "4215 last prediction for conference",
+  "nov4": "(not run Nov 4)",
+  "nov4Note": "Expected: Last conference prediction, East Bergen Conference Northern League Tournament, before and after, with date, predicted vs actual, Open in Predict.",
+  "expect": "predict"
+ },
+ {
+  "n": "P15",
+  "q": "7149 vs 23268 predicted winner at NJ championship",
+  "nov4": "(not run Nov 4)",
+  "nov4Note": "Expected: Predicted winner, scores, odds, both Turnpike teams, Open in Predict.",
+  "expect": "predict"
+ },
+ {
+  "n": "P16",
+  "q": "4215 prediction settings",
+  "nov4": "(not run Nov 4)",
+  "nov4Note": "Expected: Card linking to Settings, prediction settings visible and customizable there, not a settings editor in search, not \"isn't answered directly yet\".",
+  "expect": "settings|predict"
+ },
+ {
+  "n": "P17",
+  "q": "show me 4215's predictions before and after East Bergen",
+  "nov4": "(not run Nov 4)",
+  "nov4Note": "Expected: Before/after table, predicted vs actual, with accuracy stated, was the prediction right or wrong, by how much.",
+  "expect": "predict"
+ },
+ {
+  "n": "P18",
+  "q": "6980 predicted chances at East Bergen tournament",
+  "nov4": "(not run Nov 4)",
+  "nov4Note": "Expected: Before/after card, East Bergen, rank 5, 3-5-0, vs before prediction, not NJ Championship, 6980 was not at NJ Championship.",
+  "expect": "predict"
+ },
+ {
+  "n": "P19",
+  "q": "33950 predicted chances at Essex Conference",
+  "nov4": "(not run Nov 4)",
+  "nov4Note": "Expected: Before/after card, Essex Conference Northeast Edge, rank 14, 3-2-0, vs before prediction, not NJ Championship.",
+  "expect": "predict"
+ },
+ {
+  "n": "P20",
+  "q": "predict a match with 4215 6980 vs 33950 7149",
+  "nov4": "(not run Nov 4)",
+  "nov4Note": "Expected: Custom matchup prediction, winner, scores, odds, Open in Predict to customize, alliances as given.",
+  "expect": "predict"
+ },
+ {
+  "n": "P21",
+  "q": "predicted chances of 4215 east bergen conference 2025",
+  "nov4": "(not run Nov 4)",
+  "nov4Note": "Expected: That specific 2025 event, with its own before/after, stated season and date, not latest.",
+  "expect": "predict"
+ },
+ {
+  "n": "P22",
+  "q": "predicted chances of 4215 east bergen conference 2024",
+  "nov4": "(not run Nov 4)",
+  "nov4Note": "Expected: That specific 2024 event, with its own before/after, stated season and date, not latest.",
+  "expect": "predict"
+ },
+ {
+  "n": "P23",
+  "q": "predicted chances of 4215 east bergen conference 2027",
+  "nov4": "(not run Nov 4)",
+  "nov4Note": "Expected: Specific 2027 card, no East Bergen event yet in 2026–27, no prediction yet, do not show 2025–26 latest as 2027, do not invent future prediction, link to Predict, latest past only as clearly labeled past reference.",
+  "expect": "predict"
+ }
+]
