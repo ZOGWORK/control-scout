@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { contrast, over, parseColor, toHex, type RGBA } from "./contrast";
 import { TEXT_SWAPPED, css, measure, utility, value, type Theme } from "./themeTokens.testkit";
-import { CHART_LEGEND_TEXT, SEARCH_PALETTE, TEAM_FILL, EVENT_FILTER_COUNT, PODIUM_CHIP, EVENT_STATUS_SOLID, EVENT_STATUS_TONE, VIDEO_TONE, EVENT_TYPE_CHIP_FILL, EVENT_TYPE_TONE, PROFILE_PERCENTILE_TEXT, RECORDS_CAP_NOTE_TONE, ROSTER_CHIP_TONE } from "./textTones";
+import { CHART_LEGEND_TEXT, GLANCE_TONE, SEARCH_PALETTE, TEAM_FILL, EVENT_FILTER_COUNT, PODIUM_CHIP, EVENT_STATUS_SOLID, EVENT_STATUS_TONE, VIDEO_TONE, EVENT_TYPE_CHIP_FILL, EVENT_TYPE_TONE, PROFILE_PERCENTILE_TEXT, RECORDS_CAP_NOTE_TONE, ROSTER_CHIP_TONE } from "./textTones";
 import { TONE_CLASS } from "./records/describe";
 import { badgeVariants } from "../components/ui/basic";
 import { buttonVariants } from "../components/ui/button";
@@ -91,6 +91,13 @@ describe("text tones reach WCAG AA in every theme", () => {
         // A bar or a left edge is a graphic: 3:1 against the card.
         const card = value(theme, "--color-card"), bar = utility(theme, sw.bar, "bg")!;
         expect(contrast(over(bar, card), card), `${k} bar`).toBeGreaterThanOrEqual(LARGE);
+      }
+    });
+    it(`a team card's season-at-a-glance numbers reach AA and their bars 3:1 on the card (${theme})`, () => {
+      const card = value(theme, "--color-card");
+      for (const [k, t] of Object.entries(GLANCE_TONE)) {
+        expect(measure(theme, t.text).ratio, `${k} ${t.text}: ${measure(theme, t.text).pair}`).toBeGreaterThanOrEqual(AA);
+        if ("bar" in t) expect(contrast(over(utility(theme, t.bar, "bg")!, card), card), `${k} bar`).toBeGreaterThanOrEqual(LARGE);
       }
     });
     it(`search podium place chips (${theme})`, () => {

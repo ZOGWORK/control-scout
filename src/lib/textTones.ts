@@ -111,7 +111,7 @@ export type Meaning = keyof typeof SEARCH_PALETTE;
  *  number in its own colour (the owner, 11-06: colour on the text, not the block). OPR yellow, the prediction rating
  *  purple, a record's wins green and losses red, events blue. Only on those tiles (the audit lets them by there). */
 export const GLANCE_TONE = {
-  opr: { text: "text-yellow-700 dark:text-yellow-400", bar: "bg-yellow-500 dark:bg-yellow-400" },
+  opr: { text: "text-yellow-700 dark:text-yellow-400", bar: "bg-yellow-700 dark:bg-yellow-400" },
   rating: { text: "text-purple-700 dark:text-purple-400" },
   win: { text: "text-green-700 dark:text-green-400", bar: "bg-green-600 dark:bg-green-500" },
   loss: { text: "text-red-700 dark:text-red-400", bar: "bg-red-600 dark:bg-red-500" },
