@@ -21,6 +21,18 @@ const WEEKDAY = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "
 const at = (d: string) => new Date(`${d}T00:00:00Z`);
 const addDays = (d: string, n: number) => { const x = at(d); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
 
+/** Each event's status as its section reads it (a family's members all take the family's), by "season:CODE": the one
+ *  rule the sections, the time tabs and their counts share (./results.ts keeps). Status is read on the same day as
+ *  the cards' (UTC unless the server says); only the date headings use the viewer's own day. */
+export function eventStatuses(hits: SearchHit[]): Map<string, FamilyStatus> {
+  const out = new Map<string, FamilyStatus>();
+  for (const g of eventGroups(hits)) {
+    const s = groupStatus(g);
+    for (const h of g.kind === "family" ? [...g.family.divisions, ...(g.family.finals ? [g.family.finals] : [])] : g.hits) out.set(h.ref, s);
+  }
+  return out;
+}
+
 /** An event's or a family's status: an event under way with no end stored ("started") is live. */
 export function groupStatus(g: EventGroup, today?: string): FamilyStatus {
   if (g.kind === "family") return familyStatus(g.family, today);
@@ -47,7 +59,8 @@ export function dateSection(start: string | null, today: string): { key: string;
  *  sections. Every hit is in exactly one; counts are events. */
 export function eventSections(hits: SearchHit[], today: string): StatusSection[] {
   const by: Record<FamilyStatus, EventGroup[]> = { live: [], upcoming: [], finished: [] };
-  for (const g of eventGroups(hits)) by[groupStatus(g, today)].push(g);
+  // Status on the cards' own rule (eventStatuses), the viewer's day for the headings only.
+  for (const g of eventGroups(hits)) by[groupStatus(g)].push(g);
   // Soonest first (undated last) while live or to come; newest first once over. Stable: ties keep the server's order.
   const key = (g: EventGroup) => groupStart(g) ?? "9999";
   by.live.sort((a, b) => key(a).localeCompare(key(b)));

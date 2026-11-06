@@ -34,10 +34,10 @@ import { AppearancesAnswer, QualityBanner, StatBanner, Timeline } from "../compo
 import { appearanceStats, appearances, isQualityQuestion, hasNumbers, standing } from "../components/search/page/records";
 import { SearchFilters } from "../components/search/page/SearchFilters";
 import { openFamilies } from "../components/search/page/eventFamilies";
-import { eventSections, localDay } from "../components/search/page/eventSections";
+import { eventSections, eventStatuses, localDay } from "../components/search/page/eventSections";
 import { LiveDot } from "../components/EventChips";
 import { EventTree } from "../components/search/page/EventTree";
-import { answerTeams, anyFilter, askedWhen, filteredTitle, filterAlternatives, whenCounts, compareSeason, compareSides, compareTeams, filterChoices, cardTeamName, isCompare, isFuzzy, keeps, pageTitle, contextBadge, badgeUnder, readingOf, fuzzyWords, readFilters, teamParts, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
+import { answerTeams, anyFilter, askedWhen, filteredTitle, filterAlternatives, whenCounts, compareSeason, compareSides, compareTeams, filterChoices, cardTeamName, isCompare, isFuzzy, keeps, pageTitle, contextBadge, badgeUnder, readingOf, fuzzyWords, readFilters, teamParts, withFilters, type AnswerExtra, type PageFilters, type Statuses } from "../components/search/page/results";
 import { SEARCH_PAGE_LIMIT } from "../shared/search";
 import type { AnswerRow, AnswerSection } from "../shared/searchSections";
 import type { SearchHit, TeamSummary } from "../shared/api";
@@ -74,13 +74,15 @@ export default function SearchPage() {
   const compares = useMemo(() => hits.filter(isCompare), [hits]);
   // The teams the answer already shows get no card of their own under it (each team once), only a profile link.
   const named = useMemo(() => answerTeams(answer, compares), [answer, compares]);
-  const view = useMemo(() => shape(sections, filters, new Set(named)), [sections, filters.when, filters.season, filters.type, named]);
+  // One status per event, a family's for all of it: the sections, the filters and the tab counts all read it.
+  const statuses = useMemo(() => eventStatuses(hits), [hits]);
+  const view = useMemo(() => shape(sections, filters, new Set(named), statuses), [sections, filters.when, filters.season, filters.type, named, statuses]);
   const choices = useMemo(() => filterChoices(hits), [hits]);
   // Site pages a query names ("rules", "rankings") are an answer too.
   const found = sections.some((s) => (RESULT_KINDS.has(s.id) || s.id === "pages") && s.rows.some((r) => !isCompare(r.hit))) || compares.length > 0 || !!answer?.card || !!answer?.stat;
   const events = hits.filter((h) => h.kind === "event").length;
   const filtersOn = anyFilter(filters, askedTime);
-  const counts = useMemo(() => whenCounts(hits, filters), [hits, filters.when, filters.season, filters.type]);
+  const counts = useMemo(() => whenCounts(hits, filters, undefined, statuses), [hits, filters.when, filters.season, filters.type, statuses]);
 
   // The closest real results when nothing answers (./search/page/NoResults.tsx), drawn as full cards.
   const closest = useMemo(() => sections.find((s) => s.id === "closest")?.rows.filter((r) => !r.sub).map((r) => r.hit) ?? [], [sections]);
@@ -261,7 +263,7 @@ export default function SearchPage() {
                     <div className="rounded-xl border border-border bg-card px-4 py-3.5 text-sm" data-filtered-empty>
                       <p className="text-foreground">{emptyLine(filters, hits)}</p>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
-                        {filterAlternatives(hits, filters).map((a) => (
+                        {filterAlternatives(hits, filters, undefined, statuses).map((a) => (
                           <Button key={a.label} size="sm" variant="secondary" onClick={() => setFilters(a.f)} data-alternative>
                             Show {a.label}
                           </Button>
@@ -298,13 +300,13 @@ type ViewSection = Omit<AnswerSection, "id"> & { id: AnswerSection["id"] | "top"
 /** The sections as the page lists them: no Compare among the teams, the filters applied (a team's events go with
  *  it), and, when some teams only share a word with the query, the exact ones apart from them. A team the answer
  *  already names (`named`) is left out, with its events. */
-function shape(sections: AnswerSection[], f: PageFilters, named: Set<number>): ViewSection[] {
+function shape(sections: AnswerSection[], f: PageFilters, named: Set<number>, statuses: Statuses): ViewSection[] {
   const out: ViewSection[] = [];
   for (const s of sections) {
     let dropped = false;
     const rows = s.rows.filter((r) => {
       if (!r.sub) dropped = s.id === "team" && r.hit.kind === "team" && named.has(Number(r.hit.ref));
-      return !dropped && !isCompare(r.hit) && (r.sub || !RESULT_KINDS.has(s.id) || keeps(r.hit, f));
+      return !dropped && !isCompare(r.hit) && (r.sub || !RESULT_KINDS.has(s.id) || keeps(r.hit, f, undefined, statuses));
     });
     if (!rows.some((r) => !r.sub)) continue;
     if (s.id === "team" && rows.some((r) => !r.sub && isFuzzy(r.hit))) {

@@ -2,7 +2,7 @@
 // week after that), a family placed whole; every event in exactly one section, every count the events under it.
 import { describe, expect, it } from "vitest";
 import type { SearchEventInfo, SearchHit } from "../../../shared/api";
-import { dateSection, eventSections } from "./eventSections";
+import { dateSection, eventSections, eventStatuses } from "./eventSections";
 import { whenCounts } from "./results";
 
 // Friday 2026-11-06: this week runs Monday Nov 2 to Sunday Nov 8.
@@ -41,6 +41,13 @@ describe("eventSections", () => {
     const s = eventSections([...fam, ev("X", "2026-11-08", "upcoming")], TODAY);
     expect(s).toHaveLength(1);
     expect(s[0].dates.map((d) => [d.title, d.count, d.groups.map((g) => g.kind)])).toEqual([["Tomorrow, Nov 7, 2026", 3, ["family"]], ["Sun, Nov 8, 2026", 1, ["event"]]]);
+  });
+
+  it("Greptile on #805: a family with finished divisions and live finals is live as one, in the sections and every count", () => {
+    const fam = [ev("P", "2026-11-05", "live"), ev("PA", "2026-11-04", "finished", { parent: "P" }), ev("PB", "2026-11-04", "finished", { parent: "P" })];
+    expect(eventSections(fam, TODAY).map((x) => [x.title, x.count])).toEqual([["Live now", 3]]);
+    const statuses = eventStatuses(fam);
+    expect(whenCounts(fam, { when: "all", season: null, type: null }, TODAY, statuses)).toEqual({ all: 3, upcoming: 0, live: 3, past: 0 });
   });
 
   it("the time tabs count the same: Upcoming says its live ones apart", () => {
