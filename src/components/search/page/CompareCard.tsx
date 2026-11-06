@@ -4,13 +4,12 @@
 // maximum (printed), the value at the bar's end and the gap once, right-aligned; one footnote line with the method
 // behind an info button, one primary action. Hue means team only (--color-team-a/b/c): no phase colour, no winner
 // colour (the better value is bold), gold never on data.
-import { useId, useState } from "react";
 import { Link } from "react-router-dom";
-import { Info } from "lucide-react";
 import type { CompareRow, StatAnswer, StatBlock } from "../../../shared/searchStat";
 import { teamFill } from "../../../lib/textTones";
 import { cn } from "../../cn";
 import { buttonVariants } from "../../ui/button";
+import { MethodNote } from "./answerCells";
 
 type Compare = Extract<StatBlock, { kind: "compare" }>;
 type Who = { number: number; name: string | null };
@@ -35,8 +34,6 @@ export function CompareCard({ stat, b }: { stat: StatAnswer; b: Compare }) {
   const rest = links?.items.filter((l) => l !== primary) ?? [];
   const eyebrow = [...stat.scope, b.title].join(" · ");
   const title = teams.map((t) => `${t.number}${t.name ? ` ${t.name}` : ""}`).join(" — ");
-  const [open, setOpen] = useState(false);
-  const note = useId();
   return (
     <article aria-label={title} className="mb-5 rounded-2xl border border-border bg-card p-4 sm:p-6" data-answer-frame data-comparison data-stat-answer={stat.intent} data-family={stat.family}>
       <p className="text-xs text-muted-foreground" data-eyebrow>{eyebrow}</p>
@@ -62,22 +59,14 @@ export function CompareCard({ stat, b }: { stat: StatAnswer; b: Compare }) {
           </div>
         </>
       )}
-      <footer className="mt-5 border-t border-border pt-3" data-definition>
-        <p className="flex items-center gap-1 text-xs text-muted-foreground">
-          <span className="min-w-0 flex-1">{b.scale ? `Bars start at 0; each row's max is ${b.scale} · ` : ""}<span data-source>{stat.source}.</span></span>
-          <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-controls={note} aria-label="How this is counted"
-            className="inline-flex size-[44px] shrink-0 items-center justify-center rounded-md hover:bg-muted hover:text-foreground" data-method>
-            <Info className="size-4" aria-hidden />
-          </button>
-        </p>
-        <p id={note} hidden={!open} className="mt-1 text-xs text-muted-foreground" role="note">{stat.definition}</p>
+      <MethodNote lead={b.scale ? `Bars start at 0; each row's max is ${b.scale} · ` : ""} source={stat.source} definition={stat.definition}>
         {(primary || rest.length > 0) && (
           <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
             {primary && <Link to={primary.href} className={cn(buttonVariants(), "min-h-[44px]")} data-primary-cta>{primary.label}</Link>}
             {rest.map((l) => <Link key={l.href} to={l.href} className="inline-flex min-h-[44px] items-center font-medium text-foreground underline decoration-border underline-offset-2 hover:text-accent-text">{l.label}</Link>)}
           </p>
         )}
-      </footer>
+      </MethodNote>
     </article>
   );
 }

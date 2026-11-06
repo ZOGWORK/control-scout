@@ -2,12 +2,12 @@
 // Search's OPR answer drawn as the team page draws its OPR: a plain card, no band behind the number, and the phases as
 // the team page's OPR tiles (src/components/oprCards.ts) with the same rank line, neutral (the search results guide:
 // hue means team only).
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, fireEvent, render } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
 import type { StatAnswer } from "../../../shared/searchStat";
 import { TONES } from "../../StatTile";
-import { StatAnswerCard } from "./StatAnswer";
+import { StatAnswerCard, oneContext, saidBy } from "./StatAnswer";
 
 afterEach(cleanup);
 
@@ -25,11 +25,10 @@ const opr: StatAnswer = {
 const draw = (s: StatAnswer) => render(<MemoryRouter><StatAnswerCard stat={s} /></MemoryRouter>).container;
 
 describe("StatAnswerCard, a team's OPR", () => {
-  it("has the team page's tiles: its names and rank line, no phase hue", () => {
+  it("has the team page's tiles: its names and rank line, no phase hue; no tile for the headline's own number", () => {
     const c = draw(opr);
     const tiles = [...c.querySelectorAll("[data-opr-tiles] > div")];
     expect(tiles.map((t) => t.textContent)).toEqual([
-      "Total OPR101.6OPR #612 of 8,308 with an OPR · top 8%",
       "Autonomous28.3OPR #880 of 8,308 with an OPR · top 11%",
       "TeleOp73.4OPR #640 of 8,308 with an OPR · top 8%",
       "Endgame6.7OPR #5,013 of 8,308 with an OPR · top 61%",
@@ -43,7 +42,7 @@ describe("StatAnswerCard, a team's OPR", () => {
     const c = draw(opr);
     const h = c.querySelector("[data-headline]")!;
     expect(h.className).not.toMatch(/bg-accent/);
-    expect(h.textContent).toBe("101.6#612 of 8,308 worldwide · top 8%2025–26");
+    expect(h.textContent).toBe("101.6#612 of 8,308 worldwide"); // a rank or a percentile, not both; the season is in the scope
     expect(c.querySelector("[data-scope]")!.textContent).toBe("2025–26");
     expect(c.querySelector("[data-answer-frame]")!.className).not.toMatch(/accent/);
   });
@@ -99,5 +98,51 @@ describe("StatAnswerCard, a team's OPR", () => {
     expect(rows[1].textContent).toContain("9-7-0");
     expect(rows[1].textContent).toContain("56%");
     expect(c.querySelector("[data-block=series]")!.innerHTML).not.toContain("truncate");
+  });
+});
+
+describe("each fact printed once (the guide's §8)", () => {
+  it("a headline keeps a rank or a percentile, not both, and no season the scope shows", () => {
+    expect(oneContext("#612 of 8,308 worldwide · top 8%", "2025–26", ["2025–26"])).toEqual({ label: "#612 of 8,308 worldwide", sub: undefined });
+    expect(oneContext("Top 8% worldwide", "Hillsborough · 2025–26", ["2025–26"])).toEqual({ label: "Top 8% worldwide", sub: "Hillsborough" });
+  });
+  it("knows a number the card said, never a part of a bigger one", () => {
+    const said = saidBy({ ...opr, headline: { value: "26-6-0", label: "81% win rate in 32 matches" } });
+    expect(["81%", "2025–26", "26-6-0"].filter(said.has)).toEqual(["81%", "2025–26", "26-6-0"]);
+    expect(["8", "26", "2", "81", "32 matches"].filter(said.has)).toEqual(["32 matches"]);
+  });
+  it("a record: no tile or line restating the headline's win rate or the season", () => {
+    const c = draw({ ...opr, intent: "record", headline: { value: "26-6-0", label: "81% win rate in 32 matches" }, blocks: [
+      { kind: "kpis", items: [{ label: "Win rate", value: "81%" }, { label: "Season", value: "2025–26" }, { label: "World rank by win rate", value: "#102", sub: "of 8,308 teams" }] },
+      { kind: "record", title: "Wins, losses and ties", wins: 26, losses: 6, ties: 0 },
+    ] });
+    expect([...c.querySelectorAll("[data-kpi]")].map((k) => k.textContent)).toEqual(["World rank by win rate#102of 8,308 teams"]);
+    expect(c.querySelector("[data-block=record]")!.textContent).not.toContain("win rate");
+  });
+  it("matches all at one event: the event named once over the list, each box keeping its date", () => {
+    const m = (n: number) => ({ label: `Q${n}`, href: `/events/2025/USNJCMP?match=qual:0:${n}`, event: { label: "NJ Championship", href: "/events/2025/USNJCMP" }, season: "2025–26", date: "Mar 15, 2026",
+      alliance: "red" as const, own: 150, opp: 140, result: "W" as const, partners: [], opponents: [], type: "Championship" });
+    const c = draw({ ...opr, intent: "event-matches", headline: undefined, blocks: [{ kind: "matches", title: "Matches in order", rows: [m(1), m(2)] }] });
+    expect(c.querySelector("[data-block=matches] h3")!.textContent).toBe("Matches in order · NJ ChampionshipChampionship"); // its type as a chip; the season is in the scope
+    expect([...c.querySelectorAll("[data-match-box]")].map((b) => b.textContent).filter((t) => t!.includes("NJ Championship"))).toEqual([]);
+    expect(c.querySelector("[data-match-box]")!.textContent).toContain("Mar 15, 2026");
+  });
+  it("a tile of another thing with the same number stays (\"8 matches rated\" and Auto 8)", () => {
+    const c = draw({ ...opr, headline: { value: "71.2", label: "8 matches rated" }, blocks: [{ kind: "kpis", items: [{ label: "Auto", value: "8" }, { label: "TeleOp", value: "40" }] }] });
+    expect([...c.querySelectorAll("[data-kpi]")].map((k) => k.textContent)).toEqual(["Auto8", "TeleOp40"]);
+  });
+  it("a tile with more than the headline says (a rank, a count) stays", () => {
+    const c = draw({ ...opr, headline: { value: "28.3 vs 22.1", label: "Auto OPR" }, blocks: [{ kind: "kpis", items: [
+      { label: "4215 Auto", value: "28.3", sub: "#880 of 8,308" }, { label: "Season", value: "2025–26" }] }] });
+    expect([...c.querySelectorAll("[data-kpi]")].map((k) => k.textContent)).toEqual(["4215 Auto28.3#880 of 8,308"]);
+    expect([...draw(opr).querySelectorAll("[data-opr-tiles] > div")].length).toBe(3); // Total OPR: its number and rank both in the headline
+  });
+  it("the method behind an info button, one footnote line", () => {
+    const c = draw(opr);
+    const note = c.querySelector("[data-definition] [role=note]") as HTMLElement;
+    expect(note.hidden).toBe(true);
+    fireEvent.click(c.querySelector("[data-method]")!);
+    expect(note.hidden).toBe(false);
+    expect(c.querySelector("[data-definition]")!.textContent).not.toContain("How this is counted:");
   });
 });

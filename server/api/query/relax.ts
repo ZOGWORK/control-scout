@@ -58,17 +58,17 @@ function triedAll(first: SearchAnswer, steps: Relaxation[]): SearchAnswer {
   };
 }
 
-/** The answer, stating the steps: a chip, a sentence in its definition, and its heading. */
+/** The answer, stating the steps once: the chip (the card's context line). Its definition says why, never the note
+ *  again, and the heading is the question's own (the guide's §8, each fact printed once). */
 function said(a: SearchAnswer, steps: Relaxation[], first: SearchAnswer): SearchAnswer {
   const from = steps[0].from, to = steps[steps.length - 1].to;
   const note = steps.find((s) => s.note)?.note;
   const chip = note ?? `Relaxed: ${from} → ${to}`;
-  const why = note ? `${note}: no season was named, so the current one was read first, and it has none yet. Every other filter is as asked.`
+  const why = note ? "No season was named, so the current one was read first, and it has none yet. Every other filter is as asked."
     : `Nothing matched ${from}${first.stat?.none ? ` (${first.stat.none.replace(/\.$/, "")})` : ""}, so the time filter was relaxed in order: ${steps.map((s) => `${s.from} → ${s.to}`).join(", then ")}. Every other filter is as asked.`;
   const stat = a.stat ? { ...a.stat, scope: [chip, ...a.stat.scope], definition: `${why} ${a.stat.definition}` } : a.stat;
-  const label = `${a.understood?.label ?? stat?.title ?? ""} · ${note?.replace(/; showing .*$/, "") ?? `relaxed from ${from} to ${to}`}`;
   return {
-    ...a, stat, understood: { ...(a.understood ?? { kind: "question" }), label },
+    ...a, stat, understood: a.understood ?? { kind: "question", label: stat?.title ?? "" },
     ...(a.intent ? { intent: { ...a.intent, pattern: `${a.intent.pattern} [relaxed:${steps.map((s) => s.filter).join(">")}]` } } : {}),
   };
 }
