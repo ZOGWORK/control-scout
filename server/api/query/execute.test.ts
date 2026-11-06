@@ -179,7 +179,7 @@ describe("one question, any phrasing, any team", () => {
     // Without "by event", the record alone.
     expect((await stat("4215 wins vs losses in 2025-26")).blocks.some((b) => "title" in b && b.title === "Wins and losses by event")).toBe(false);
     // Across seasons, each row says its season (one event name is held every year).
-    const ever = (await stat("4215 record by event ever")).blocks.find((b) => b.title === "Wins and losses by event");
+    const ever = (await stat("4215 record by event ever")).blocks.find((b) => "title" in b && b.title === "Wins and losses by event");
     expect(ever?.kind === "table" && ever.columns.map((c) => c.key)).toEqual(expect.arrayContaining(["event", "wins", "losses"]));
   });
   it("a name typed nearly right offers the spelling, whatever stood between its words", async () => {
