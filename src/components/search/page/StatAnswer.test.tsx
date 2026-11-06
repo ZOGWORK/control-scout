@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { StatAnswer } from "../../../shared/searchStat";
 import { TONES } from "../../StatTile";
 import { StatAnswerCard, oneContext, saidBy } from "./StatAnswer";
+import { phaseOfLabel } from "../../oprCards";
 
 afterEach(cleanup);
 
@@ -25,7 +26,7 @@ const opr: StatAnswer = {
 const draw = (s: StatAnswer) => render(<MemoryRouter><StatAnswerCard stat={s} /></MemoryRouter>).container;
 
 describe("StatAnswerCard, a team's OPR", () => {
-  it("has the team page's tiles: its names and rank line, no phase hue; no tile for the headline's own number", () => {
+  it("has the team page's tiles: its names, rank line and phase colours; no tile for the headline's own number", () => {
     const c = draw(opr);
     const tiles = [...c.querySelectorAll("[data-opr-tiles] > div")];
     expect(tiles.map((t) => t.textContent)).toEqual([
@@ -33,10 +34,9 @@ describe("StatAnswerCard, a team's OPR", () => {
       "TeleOp73.4OPR #640 of 8,308 with an OPR · top 8%",
       "Endgame6.7OPR #5,013 of 8,308 with an OPR · top 61%",
     ]);
-    for (const t of tiles) {
-      expect(t.className).toContain(TONES.neutral.box.split(" ")[0]);
-      expect(t.innerHTML).not.toMatch(/(text|bg|border)-(accent|info|success|violet)/);
-    }
+    // Auto blue, TeleOp green, Endgame purple, as on the team page (the owner's call over "hue means team").
+    expect(tiles.map((t) => t.getAttribute("data-phase"))).toEqual(["auto", "teleop", "endgame"]);
+    for (const [t, tone] of tiles.map((t, i) => [t, (["sky", "emerald", "violet"] as const)[i]] as const)) expect(t.firstElementChild!.className).toContain(TONES[tone].box.split(" ")[0]);
   });
   it("puts no band behind the number, and keeps its rank, season and chip", () => {
     const c = draw(opr);
@@ -64,15 +64,16 @@ describe("StatAnswerCard, a team's OPR", () => {
     const c = render(<MemoryRouter><StatAnswerCard stat={opr} heading="Hypnotic Robotics (4215) · OPR in 2025–26" /></MemoryRouter>).container;
     expect(c.querySelector("[data-answer-title]")!.className).toContain("sr-only");
   });
-  it("phase values (no bars) and phase columns, neutral", () => {
+  it("phase values (no bars) in the team page's phase colours; phase columns neutral", () => {
     const c = draw({ ...opr, intent: "phase", blocks: [
       { kind: "bars", title: "Phases", groups: [{ label: "x", items: [{ label: "Auto", value: 20 }, { label: "TeleOp", value: 60 }, { label: "Endgame", value: 10 }] }] },
       { kind: "table", title: "By event", columns: [{ key: "e", label: "Event" }, { key: "a", label: "Auto", num: true }, { key: "t", label: "TeleOp", num: true }, { key: "g", label: "Endgame", num: true }], rows: [{ cells: { e: "Q", a: "1", t: "2", g: "3" } }] },
     ] } as StatAnswer);
-    // One team's phase values are small tiles with no hue of their own (phase is the label, not a colour).
+    // One team's phase values are small tiles, each in the team page's colour for its phase (the owner's call).
     const tiles = [...c.querySelectorAll<HTMLElement>("[data-bar-value]")];
     expect(tiles.map((t) => t.textContent)).toEqual(["Auto20", "TeleOp60", "Endgame10"]);
-    for (const t of tiles) expect(t.className).toContain("border-border");
+    expect(tiles.map((t) => t.getAttribute("data-phase"))).toEqual(["auto", "teleop", "endgame"]);
+    expect(tiles.map((t) => t.className.includes("border-info/30") || t.className.includes("border-success/30") || t.className.includes("border-violet-500/30"))).toEqual([true, true, true]);
     expect(c.querySelector('[data-block="bars"] [style*="width"]')).toBeNull();
     expect(c.querySelectorAll("th[data-phase]")).toHaveLength(0);
   });
@@ -118,6 +119,14 @@ describe("each fact printed once (the guide's §8)", () => {
     ] });
     expect([...c.querySelectorAll("[data-kpi]")].map((k) => k.textContent)).toEqual(["World rank by win rate#102of 8,308 teams"]);
     expect(c.querySelector("[data-block=record]")!.textContent).not.toContain("win rate");
+    // One team's record headline: its wins in the team's hue (the record's own ink would otherwise hide it).
+    expect(c.querySelector("[data-headline] [data-record-text] b")!.className).toContain("text-team-a");
+  });
+  it("a score without penalties is a score, not the penalty phase", () => {
+    expect(phaseOfLabel("Without penalties")).toBeNull();
+    expect(phaseOfLabel("Score before penalties")).toBeNull();
+    expect(phaseOfLabel("Pen given")).toBe("pen");
+    expect(phaseOfLabel("Penalties")).toBe("pen");
   });
   it("matches all at one event: the event named once over the list, each box keeping its date", () => {
     const m = (n: number) => ({ label: `Q${n}`, href: `/events/2025/USNJCMP?match=qual:0:${n}`, event: { label: "NJ Championship", href: "/events/2025/USNJCMP" }, season: "2025–26", date: "Mar 15, 2026",

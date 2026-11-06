@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.3.8 — 2026-11-05
+## 3.3.9 — 2026-11-06
 
 A championship split in divisions is one result a season, with its divisions under it, and every count on the page matches the cards shown.
 
@@ -29,6 +29,21 @@ A championship split in divisions is one result a season, with its divisions und
 - **Divisions under their event.** Any event split in divisions (the FIRST Championship, New Jersey's, Romania's, any other) is one block a season: the event's name, season with its game ("2025–26 DECODE season"), dates, place, venue and status once, a link to the Events list on that season and event, then each division and the finals. The grouping comes from each division's own event code in the data, never a name (#790).
 - **One count.** The page lists 25 results with an event and its divisions counted as one, so "first championship" lists all 28 of its events where it listed 25 and said "28 in all". A list still longer than a page says how many of all are listed ("the newest 24 of 30 listed"), the same number the tabs and the events heading show.
 - **Year and filters together.** A year named with "in" ("first championship in 2025") is the championship held that year, the 2024–25 season's. A season picked from the list, or Upcoming or Past, rewrites the heading for what's left ("FIRST Championship (Worlds) events, 2024–25"), and stays in the address.
+
+## 3.3.8 — 2026-11-05
+
+Cards about one team are in that team's colour again, scoring phases take the team page's colours, and team numbers in match boxes no longer spill out of their chips.
+
+### Highlights
+- [appearance] One team's numbers, bars and chart are in its colour
+- [appearance] A Worlds card's latest trip and division-rank line in colour
+- [appearance] Auto blue, TeleOp green, Endgame purple, penalties red, as on team pages
+- [fixes] 4- and 5-digit team numbers fit inside their chips in match boxes
+
+### Search
+- **One team's colour.** A card about one team (its Worlds or states trips, how good it is, its record, OPR, highlights and facts) draws its headline number, tiles, bars, division-rank line and dots, latest trip, game names, award chips and pills in team A's colour, the colour that team has when search compares it. The latest trip's dot is larger and filled. Cards about two or three teams keep a colour per team, and cards about no team stay neutral. No gold, at most three colours, and every number clears 4.5:1 in every theme. (#789)
+- **Phase colours.** Match boxes, OPR tiles and phase values show each scoring phase in the team page's colour: Auto blue, TeleOp green, Endgame purple, penalties red, and total and ranking points yellow.
+- **Team chips fit.** A match box's team chip never gets narrower than its number, so a 4- or 5-digit team stays inside its border, and only the name is shortened. The phase tiles sit beside the scores only when the box itself is wide enough (two boxes side by side are narrow); otherwise they go underneath.
 
 ## 3.3.7 — 2026-11-05
 

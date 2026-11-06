@@ -16,6 +16,10 @@ export const PODIUM: Record<number, true> = { 1: true, 2: true, 3: true };
 
 /** A data bar's ink where no team is meant (one team's numbers, a table column): neutral, never a hue. */
 export const INK_BAR = "bg-foreground/55";
+/** A card about one team: that team's hue (team A, the colour a team has wherever search compares it) on its numbers,
+ *  bars and marks, the one hue on the card (the search results guide: hue means team; a card without a team stays ink). */
+export const TEAM_BAR = "bg-team-a";
+export const TEAM_TEXT = "text-team-a";
 
 const RANK = /^(Ranked\s+)?#?(\d[\d,]*)(?:\s+of\s+(\d[\d,]*))?(.*)$/;
 const RECORD = /^(\d{1,4})-(\d{1,4})-(\d{1,4})(.*)$/;
@@ -40,12 +44,13 @@ export function RankPill({ text, className }: { text: string; className?: string
 }
 
 /** "5-3-0" with the wins in bold (no win or loss hue: red and blue are alliances); anything after it muted. */
-export function RecordText({ text, className }: { text: string; className?: string }) {
+/** `win`: the wins' colour (ink, or one team's hue on its own card). */
+export function RecordText({ text, className, win = "text-foreground" }: { text: string; className?: string; win?: string }) {
   const m = RECORD.exec(text.trim());
   if (!m) return <>{text}</>;
   return (
     <span className={cn("whitespace-nowrap tabular-nums", className)} aria-label={`${m[1]} wins, ${m[2]} losses, ${m[3]} ties${m[4]}`} data-record-text>
-      <span aria-hidden><b className="font-semibold text-foreground">{m[1]}</b><span className="text-muted-foreground">-{m[2]}-{m[3]}</span></span>
+      <span aria-hidden><b className={cn("font-semibold", win)}>{m[1]}</b><span className="text-muted-foreground">-{m[2]}-{m[3]}</span></span>
       {m[4] && <span aria-hidden className="text-muted-foreground">{m[4]}</span>}
     </span>
   );
@@ -127,8 +132,9 @@ export function RichText({ text }: { text: string }) {
 }
 
 /** A headline's value in the foreground: a record with its wins bold, a podium rank with a medal. No hue. */
-export function HeadlineValue({ value }: { value: string }) {
-  if (RECORD.test(value) && !RECORD.exec(value)![4].trim()) return <RecordText text={value} />;
+/** `win`: a record's wins colour (one team's hue on its own card). */
+export function HeadlineValue({ value, win }: { value: string; win?: string }) {
+  if (RECORD.test(value) && !RECORD.exec(value)![4].trim()) return <RecordText text={value} win={win} />;
   const res = /^(Won|Lost|Tied)\b(.*)$/.exec(value);
   if (res) return <><span>{res[1]}</span>{res[2]}</>;
   const rank = /^#(\d+)\b/.exec(value);

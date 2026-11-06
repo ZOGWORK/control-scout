@@ -116,11 +116,15 @@ const NAMES: Record<keyof typeof CARDS, string[]> = {
   "Worlds summary (stat banner, timeline)": [], "how good is a team (quality banner)": [],
 };
 
+/** Cards about one team: drawn in its hue, team A (the owner: "What happened to color"), never ink alone. */
+const ONE = new Set<keyof typeof CARDS>(["team record", "stat tiles, OPR by phase", "team highlights (labelled match boxes)", "team facts", "Worlds trips", "Worlds summary (stat banner, timeline)", "how good is a team (quality banner)"]);
+
 describe("every answer card passes the guide's checks (§11)", () => {
   for (const [name, make] of Object.entries(CARDS)) {
     // Joined, so a failure lists every problem.
-    it(name, () => expect(auditAnswer(make(), { names: NAMES[name] }).join("\n")).toBe(""));
+    it(name, () => expect(auditAnswer(make(), { names: NAMES[name], one: ONE.has(name) }).join("\n")).toBe(""));
   }
+  for (const name of ONE) it(`${name}: in the team's hue`, () => expect(CARDS[name]().querySelector("[class*='team-a']")).not.toBeNull());
 });
 
 describe("the audit catches what it's for", () => {
@@ -140,6 +144,8 @@ describe("the audit catches what it's for", () => {
     expect(bad(`<button class="bg-accent text-accent-ink">Open</button>`)).toEqual(expect.arrayContaining([expect.stringContaining("gold on data: bg-accent")]));
     expect(bad(`<a href="/teams/1" class="text-video">1</a>`)).toEqual(expect.arrayContaining([expect.stringContaining("hue on data: text-video")]));
     expect(bad(`<i class="bg-team-a"></i><i class="bg-team-b"></i><i class="bg-team-c"></i><i class="bg-red-alliance"></i>`)).toEqual(["4 hues: team-a, team-b, team-c, red-alliance"]);
+    const one = document.createElement("div"); one.innerHTML = `<b class="text-team-a">142.5</b><i class="bg-team-b"></i>`;
+    expect(auditAnswer(one, { one: true })).toEqual(["one team's card in team-b"]);
   });
   it("a line said twice, meta text, a glued heading, low contrast", () => {
     expect(bad(`<h3>Top OPR</h3><figcaption>Top OPR</figcaption>`)).toEqual(['said twice: "Top OPR"']);
