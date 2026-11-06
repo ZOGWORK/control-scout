@@ -212,6 +212,12 @@ describe("every card kind and block kind has its colour", () => {
     expect(headlineTone(h("19163 NIS 2", { family: "leaderboard" }))).toBe("text-team-a");
     expect(headlineTone(h("190 points", { family: "superlative" }))).toBe(SEARCH_PALETTE.count.text);
   });
+  it("a colour on the card itself counts: an amber card of plain words isn't grey", () => {
+    const d = document.createElement("article");
+    d.className = "border-l-[6px] border-l-amber-600 bg-amber-500/10";
+    d.innerHTML = `<p>578 teams registered</p>`;
+    expect(auditAnswer(d, { contrast: false })).toEqual([]);
+  });
   it("the old grey count card fails the audit", () => {
     const d = document.createElement("article");
     d.innerHTML = `<ul data-lines><li><span data-line-icon class="bg-muted text-muted-foreground"></span><span data-line-text class="text-foreground">578 teams registered</span></li></ul>`;

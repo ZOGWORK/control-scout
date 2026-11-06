@@ -80,7 +80,8 @@ export function auditAnswer(card: HTMLElement, { names = [] as string[], contras
 
   // Hue.
   const hues = new Set<string>();
-  for (const el of card.querySelectorAll<HTMLElement | SVGElement>("*")) {
+  // The card itself too: a colour set on it (a tinted article) is the card's.
+  for (const el of [card, ...card.querySelectorAll<HTMLElement | SVGElement>("*")]) {
     const cls = el.getAttribute("class") ?? "";
     for (const c of cls.split(/\s+/).filter(Boolean)) {
       const f = colourOf(c);
