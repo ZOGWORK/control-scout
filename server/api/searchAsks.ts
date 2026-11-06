@@ -319,7 +319,8 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
         [season, code, ask.award]);
       // An older season: that season's event, with its own dates and place, and the newer one said when it's still to
       // come or not posted ("The 2026–27 one (Nov 15, 2026) isn't held yet").
-      const [newer] = await all<{ season: number; start: string | null; end: string | null }>("SELECT season, start, end FROM events WHERE code = ? AND season > ? ORDER BY season DESC LIMIT 1", [code, season]);
+      // Only a newer one with no such award recorded: an older year asked, whose newer one has its winner, says nothing.
+      const [newer] = await all<{ season: number; start: string | null; end: string | null }>("SELECT season, start, end FROM events e WHERE e.code = ? AND e.season > ? AND NOT EXISTS (SELECT 1 FROM awards a WHERE a.season = e.season AND a.code = e.code AND a.type = ?) ORDER BY e.season DESC LIMIT 1", [code, season, ask.award]);
       const held = !!newer?.start && (newer.end ?? newer.start) < new Date().toISOString().slice(0, 10);
       const upcoming = newer?.start ? ` · The ${seasonLabel(Number(newer.season))} one (${dateRange(newer.start, newer.end)}) ${held ? "has no award posted yet" : "isn't held yet"}` : "";
       if (season !== Number(found)) ev = (await search(code, 5, opts.prefer, new Set(["event"]), season)).find((h) => h.kind === "event" && h.ref === `${season}:${code}`)

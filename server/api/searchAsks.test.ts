@@ -460,4 +460,16 @@ describe("who won a division (owner: \"who won nj turnpike division this year\" 
     await run("DELETE FROM events WHERE season = 2026 AND code = 'USVTCMP'");
     await rebuildSearch();
   });
+  // Greptile on #928: the note is for a newer one without the award, never one that has its winner.
+  it("an older year asked, its newer one already given the award: no note that it's missing", async () => {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2024, 'USVTCMP', 'Vermont Championship', 'Championship', 'Burlington', 'VT', 'USA', '2025-03-08', '2025-03-08', 't')");
+    await run("INSERT INTO awards (season, code, type, placement, team, name) VALUES (2024, 'USVTCMP', 'Inspire', 1, 4215, 'Inspire Award')");
+    await rebuildSearch();
+    const a = await askAnswer("who won inspire at vermont championship 2024-25", readAsk("who won inspire at vermont championship 2024-25")!, { prefer: new Set(), ask });
+    expect(a?.card?.lines.map((l) => l.text)).toEqual(["4215 Hypnotic Robotics"]);
+    expect(a?.understood?.label).toBe("Who won the Inspire Award at Vermont Championship (2024–25)");
+    await run("DELETE FROM awards WHERE season = 2024 AND code = 'USVTCMP'");
+    await run("DELETE FROM events WHERE season = 2024 AND code = 'USVTCMP'");
+    await rebuildSearch();
+  });
 });
