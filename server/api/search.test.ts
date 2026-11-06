@@ -270,3 +270,19 @@ describe("a match by its event's code, divisions and all (failed-search #527–#
     expect((await search("usnjcmppkwy m3", 5)).find((h) => h.kind === "match")?.ref).toBe("2025:USNJCMPPKWY:playoff:3:1");
   });
 });
+
+describe("search() remembered per index version", () => {
+  it("answers a repeat from memory, a copy each time, and sees a renamed team once the index is rebuilt", async () => {
+    const a = await search("hypnotic robotics", 5), b = await search("hypnotic robotics", 5);
+    expect(b).toEqual(a);
+    expect(b[0]).not.toBe(a[0]);
+    // A caller changing its copy never changes the next answer.
+    a[0].title = "changed";
+    expect((await search("hypnotic robotics", 5))[0].title).toBe("4215 | Hypnotic Robotics");
+    await run("UPDATE teams SET name = 'Hypnotic Robots' WHERE number = 4215");
+    await rebuildSearch();
+    expect((await search("hypnotic robots", 5))[0].title).toBe("4215 | Hypnotic Robots");
+    await run("UPDATE teams SET name = 'Hypnotic Robotics' WHERE number = 4215");
+    await rebuildSearch();
+  });
+});
