@@ -53,6 +53,7 @@ beforeAll(async () => {
   // 20245 played only in 2024–25: a season named leaves it out.
   await match(2024, "USMIQ1", 100, 50, [20245], [24033]);
   await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) SELECT season, code, team, 50, 1 FROM event_teams");
+  await run("UPDATE teams SET rookie_year = 2019 WHERE number = 4215");
   await rebuildSearch();
   clearAllCaches();
 });
@@ -120,6 +121,36 @@ describe("count teams by place (3a)", () => {
   it("never a town's whole list for a filter it doesn't take", async () => {
     for (const q of ["how many teams from Oradell at worlds", "how many teams from Oradell at states", "how many teams from Oradell in 2025-26"]) {
       expect((await ask(q)).stat?.intent, q).not.toBe("city-teams");
+    }
+  });
+});
+
+describe("when: the last, the first and the next time (3b)", () => {
+  it("the last time a team played: its most recent match, however it's asked", async () => {
+    const SAID = ["4215 last match", "when was the last time 4215 played", "when did 4215 last play", "what was 4215's most recent match",
+      "when was the last time hypnotic robotics played a match", "4215 last played when", "the last time 4215 played?"];
+    const first = card(await ask(SAID[0]));
+    expect(first).toMatchObject({ kind: "recent-match", title: "Most recent match" });
+    for (const q of SAID.slice(1)) expect(card(await ask(q)), q).toEqual(first);
+  });
+  it("the first time: its first match", async () => {
+    const SAID = ["when was 4215's first match", "when did 4215 first play", "4215 first ever match", "the first time 4215 played a match", "when did hypnotic robotics first play"];
+    const first = card(await ask(SAID[0]));
+    expect(first).toMatchObject({ kind: "first-match", title: "First match" });
+    for (const q of SAID.slice(1)) expect(card(await ask(q)), q).toEqual(first);
+  });
+  it("when a team started: its rookie year", async () => {
+    for (const q of ["4215 rookie year", "what year did 4215 start", "when did 4215 begin competing", "when did 4215 join ftc", "when was 4215 founded", "which year did hypnotic robotics start"]) {
+      const a = await ask(q);
+      expect(a.card, q).toMatchObject({ title: "Rookie year", team: { number: 4215 } });
+    }
+  });
+  it("the next time: its next match, and none said plainly, never its last one", async () => {
+    for (const q of ["when is 4215's next match", "when does 4215 play next", "the next time 4215 plays", "when will 4215 play again", "when is the next time hypnotic robotics plays"]) {
+      const a = await ask(q);
+      expect(a.card, q).toMatchObject({ kind: "next-match", team: { number: 4215 } });
+      expect(a.card?.lines, q).toEqual([]);
+      expect(a.card?.none, q).toMatch(/^No upcoming match/);
     }
   });
 });

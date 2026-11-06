@@ -911,7 +911,7 @@ type Fact = "school" | "place" | "rookie" | "website" | "sponsors" | "name" | "r
 const FACT_WORDS: [RegExp, Fact][] = [
   [/^(?:school|schools|organization|organisation|org|high school|(?:school|organization|organisation|org) name)$/, "school"],
   [/^(?:location|city|town|hometown|from|located|based|city (?:and|&) state|city state)$/, "place"],
-  [/^(?:rookie year|rookie season|founded|year founded|start|started)$/, "rookie"],
+  [/^(?:rookie year|rookie season|founded|year founded|start|started|begin|began|join|joined|get started|(?:begin|start|started) competing)$/, "rookie"],
   [/^(?:website|site|homepage)$/, "website"],
   [/^(?:sponsors?)$/, "sponsors"],
   [/^(?:name|team name|called)$/, "name"],
@@ -962,7 +962,8 @@ export async function teamFactAnswer(q: string, prefer: ReadonlySet<string>): Pr
   const said = /^where\s+(?:is|are)\s+(.+?)\s+(from|located|based)$/.exec(t)
     ?? /^what(?:'s| is| are)\s+(.+?)\s+(called)$/.exec(t)
     ?? new RegExp(`^(?:what(?:'s| is)\\s+)?(.+?)(?:'s)?\\s+(${FACT_PHRASES})$`).exec(t)
-    ?? /^when\s+(?:was|did)\s+(.+?)\s+(founded|start|started)$/.exec(t);
+    // When a team started, said any way: "what year did <team> start", "when did <team> begin competing", "… join ftc".
+    ?? /^(?:when|what year|which year|what season)\s+(?:was|did|were)\s+(.+?)\s+(founded|start|started|begin|began|join|joined|get started|(?:begin|start|started) competing)(?:\s+(?:in\s+)?ftc)?$/.exec(t);
   // [who, the fact's words]
   const m = named ? [named[1], "name"] : said ? [said[1], said[2]] : null;
   if (!m) return null;

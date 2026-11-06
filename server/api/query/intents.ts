@@ -77,6 +77,9 @@ export const INTENTS: IntentRule[] = [
   R("last-matches", 1, ["agg:last", "metric:loss"], ["thing:match", "per:match"], { n: true }),
   R("recent-match", 1, ["agg:last", "metric:win"], ["thing:match", "per:match"]),
   R("recent-match", 1, ["agg:last", "metric:loss"], ["thing:match", "per:match"]),
+  // Playing, said as a verb ("when did they last play", "the first time they played a match"): its last or first match.
+  R("recent-match", 1, ["agg:last", "vs"], ["thing:match", "per:match"], { noMatchNo: true }),
+  R("first-match", 1, ["agg:first", "vs"], ["thing:match", "per:match"], { noMatchNo: true }),
   // Its events and seasons.
   R("best-finish", 1, ["agg:max", "metric:rank"], ["thing:event"], { noEvent: true }),
   R("worst-finish", 1, ["agg:min", "metric:rank"], ["thing:event"], { noEvent: true }),
