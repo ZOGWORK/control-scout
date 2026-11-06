@@ -42,6 +42,10 @@ const label = (from: string, to: string) => {
   return from === to ? `on ${md(f)}, ${f.getUTCFullYear()}` : `${md(f)}–${md(t)}, ${t.getUTCFullYear()}`;
 };
 
+/** "This season": the words readTime reads as the current season. ("Last season" beside a season named is a second
+ *  season, a comparison, so it isn't taken in.) */
+const RELATIVE_SEASON = /\b(?:this|current|the\s+current)\s+(?:season|year)'?s?\b/;
+
 /** The window phrases, longest first: each is a SearchTime (src/shared/searchEventQuery.ts timeWindow) or a past one. */
 const WINDOWS: [RegExp, SearchTime | "last-week" | "last-weekend" | "last-month" | "yesterday", string][] = [
   [/\bthis\s+weekend\b/, "this-weekend", "this weekend"], [/\bnext\s+weekend\b/, "next-weekend", "next weekend"],
@@ -75,7 +79,15 @@ export interface TimeRead { time: TimeSlot | null; rest: string; unread?: string
 export function readTime(q: string, today: string, yearOk: (y: number) => boolean = () => true): TimeRead {
   let rest = ` ${q} `;
   const cut = (m: RegExpExecArray) => { rest = `${rest.slice(0, m.index)} ${rest.slice(m.index + m[0].length)}`; };
-  const out = (t: TimeSlot): TimeRead => ({ time: t, rest: rest.replace(/\s+/g, " ").trim() });
+  // A season said outright stands over "this season" said beside it ("this season in 2025-26"):
+  // the relative words only say it again, so they're taken in with it and the card states the season named.
+  const out = (t: TimeSlot): TimeRead => {
+    if (t.kind === "season" && t.season != null && !t.relative) {
+      const again = RELATIVE_SEASON.exec(rest);
+      if (again) cut(again);
+    }
+    return { time: t, rest: rest.replace(/\s+/g, " ").trim() };
+  };
   const known = (s: number) => SEASONS.some((x) => x.season === s);
 
   // A date: "on mar 15 2026", "march 15, 2026", "3/15/2026", "2026-03-15".

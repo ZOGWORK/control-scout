@@ -162,6 +162,13 @@ describe("time", () => {
     expect(t("last season")).toMatchObject({ kind: "season", relative: "last" });
     expect(t("of all time")).toMatchObject({ kind: "ever" });
   });
+  it("takes \"this season\" in with a season said outright, wherever it stands", () => {
+    expect(readTime("biggest upset in nj this season in 2025-26", "2026-11-04")).toEqual({ time: expect.objectContaining({ kind: "season", season: 2025 }), rest: "biggest upset in nj" });
+    expect(readTime("this season 12345 opr in 2025-26", "2026-11-04")).toMatchObject({ time: { season: 2025 }, rest: "12345 opr" });
+    expect(readTime("12345 opr this season", "2026-11-04").time).toMatchObject({ relative: "this" });
+    // "Last season" beside a season named is a second season (a comparison): left for the parse to leave unread.
+    expect(readTime("12345 record in 2025-26 vs last season", "2026-11-04").rest).toContain("last season");
+  });
   it("names the season a date is in", () => {
     expect(seasonOfDate("2026-09-01")).toBe(2026);
     expect(seasonOfDate("2026-08-31")).toBe(2025);
