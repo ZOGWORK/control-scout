@@ -465,8 +465,9 @@ export async function layeredAnswer(typed: string, reader: Run): Promise<SearchA
   const normalized = strip.q.toLowerCase();
   const done = (a: SearchAnswer, won: LayerId | null, x: Extracted, result?: OutcomeResult, filler: string[] = []): SearchAnswer => {
     // A forbidden word an answer read past ("12345 today opr", with or without filler) is named, never silently
-    // dropped. The reading line quotes the query, so only what the answer itself says counts as naming it.
-    const own = `${(a.understood?.label ?? "").split(" · read as ")[0]} ${a.stat?.title ?? ""} ${a.card?.headline ?? ""} ${a.card?.none ?? ""}`.toLowerCase();
+    // dropped. The reading line quotes the query, so only what the answer itself says counts as naming it: its card's
+    // chips too ("Relaxed: this week → 2025–26" names "this week", said there once).
+    const own = `${(a.understood?.label ?? "").split(" · read as ")[0]} ${a.stat?.title ?? ""} ${(a.stat?.scope ?? []).join(" ")} ${a.card?.headline ?? ""} ${a.card?.none ?? ""}`.toLowerCase();
     // An answer can name the word its own way: "when did hypnotic last play" is its "Most recent match". A long
     // question's rule reads its words itself ("when was the last time 12345 went worlds": the appearances, newest first).
     // A compound answer (./answers/compound.ts) reads every clause it joins ("… and their opr"), or isn't given.
