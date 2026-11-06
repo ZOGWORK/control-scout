@@ -26,7 +26,7 @@ Cards about one team are in that team's colour again, scoring phases take the te
 - [fixes] 4- and 5-digit team numbers fit inside their chips in match boxes
 
 ### Search
-- **One team's colour.** A card about one team (its Worlds or states trips, how good it is, its record, OPR, highlights and facts) draws its headline number, tiles, bars, division-rank line and dots, latest trip, game names, award chips and pills in team A's colour, the colour that team has when search compares it. The latest trip's dot is larger and filled. Cards about two or three teams keep a colour per team, and cards about no team stay neutral. No gold, at most three colours, and every number clears 4.5:1 in every theme. (#PRNUM)
+- **One team's colour.** A card about one team (its Worlds or states trips, how good it is, its record, OPR, highlights and facts) draws its headline number, tiles, bars, division-rank line and dots, latest trip, game names, award chips and pills in team A's colour, the colour that team has when search compares it. The latest trip's dot is larger and filled. Cards about two or three teams keep a colour per team, and cards about no team stay neutral. No gold, at most three colours, and every number clears 4.5:1 in every theme. (#789)
 - **Phase colours.** Match boxes, OPR tiles and phase values show each scoring phase in the team page's colour: Auto blue, TeleOp green, Endgame purple, penalties red, and total and ranking points yellow.
 - **Team chips fit.** A match box's team chip never gets narrower than its number, so a 4- or 5-digit team stays inside its border, and only the name is shortened. The phase tiles sit beside the scores only when the box itself is wide enough (two boxes side by side are narrow); otherwise they go underneath.
 
