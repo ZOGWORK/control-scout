@@ -33,7 +33,9 @@ export type Sym =
   | { k: "award"; v: string }
   | { k: "list" }
   | { k: "per"; v: "match" | "event" | "rate" }
-  | { k: "nopen" };
+  | { k: "nopen" }
+  /** No losses: "undefeated", "a perfect record". */
+  | { k: "undefeated" };
 
 /** Each entry: the phrases (`|`-separated, words separated by spaces) and the symbol they mean (or several: "margin of
  *  victory" is a margin of wins only). Longer phrases win over shorter ones at the same place, so "win rate" is one
@@ -60,7 +62,7 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["lopsided|most lopsided|one sided|blowout|blowouts|biggest blowout|mismatch|mismatches|rout|routs|beatdown", [{ k: "agg", v: "max" }, { k: "metric", v: "margin" }]],
   ["upset|upsets|underdog|underdogs|giant killing|giant killer|shock win|shock result|surprise win|surprise result", { k: "metric", v: "upset" }],
   ["comeback|comebacks|come back|came back|comeback win|comeback wins|rallied|rally", { k: "metric", v: "comeback" }],
-  ["record|w-l-t|w l t|wlt|win loss|win-loss|win loss record|win loss tie|wins and losses|win/loss", { k: "metric", v: "record" }],
+  ["record|records|w-l-t|w l t|wlt|win loss|win-loss|win loss record|win loss tie|wins and losses|win/loss", { k: "metric", v: "record" }],
   ["win|wins|won|victory|victories|beat|beaten|defeated", { k: "metric", v: "win" }],
   ["loss|losses|lost|defeat|defeats", { k: "metric", v: "loss" }],
   ["tie|ties|tied|draw|draws", { k: "metric", v: "tie" }],
@@ -82,7 +84,7 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["ranking points|rp|rps", { k: "metric", v: "rp" }],
   ["range|score range|spread of scores", { k: "metric", v: "range" }],
   ["consistency|consistent|score consistency", { k: "metric", v: "consistency" }],
-  ["reliability|reliable|dependability|dependable", { k: "metric", v: "reliability" }],
+  ["reliability|reliable|dependability|dependable|reliability score|reliability index", { k: "metric", v: "reliability" }],
   // What is counted or listed.
   ["match|matches|game|games|round|rounds|qualification match", { k: "thing", v: "match" }],
   ["event|events|competition|competitions|comp|comps|tournament|tournaments|meet|meets", { k: "thing", v: "event" }],
@@ -96,6 +98,8 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["blue|blue alliance|blue side|on blue|as blue", { k: "alliance", v: "blue" }],
   // Everywhere, said: no place filter (never the FIRST Championship).
   ["in the world|worldwide|world wide|globally|across the world|around the world|all over the world|internationally|anywhere|in ftc", { k: "filler" }],
+  // Asides and slang around a question: never part of it, nor a team's name ("just curious" is no team called Curious).
+  ["only|just|just curious|curious|out of curiosity|wondering|i wonder|i was wondering|honestly|be honest|lol|lmao|bruh|da|ur|ya|yall|kinda|sorta|gonna|wanna|nah|or nah|right now|these days|lately|by now", { k: "filler" }],
   ["worlds|world|world championship|world championships|world champs|first championship|first champs|championship of the world|cmp|houston championship|houston", { k: "worlds" }],
   ["states|state|state championship|state championships|state champs|state finals|regionals|regional championship|regional", { k: "states" }],
   // Forecasts.
@@ -109,6 +113,8 @@ const TABLE: [string, Sym | Sym[]][] = [
   // Wins and losses as an outcome ("closest win", "biggest loss").
   ["winning", { k: "outcome", v: "W" }],
   ["losing", { k: "outcome", v: "L" }],
+  // No losses.
+  ["undefeated|unbeaten|perfect record|a perfect record|perfect season|no losses|zero losses|without a loss|never lost|not lost|havent lost|hasnt lost", { k: "undefeated" }],
   // Penalty points left out.
   ["without penalties|no penalties|excluding penalties|minus penalties|penalty free|np|non penalty", { k: "nopen" }],
   // Prepositions that say which slot follows.

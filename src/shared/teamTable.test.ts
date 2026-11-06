@@ -63,4 +63,13 @@ describe("teamTableOfLeaderboard", () => {
     expect(t).toMatchObject({ by: "rank", asked: { label: "Win rate" } });
     expect(t.rows[0].asked).toEqual({ value: 0.65, display: "65%" });
   });
+
+  it("a lowest-first list opens lowest first on its own column, never a second copy of it", () => {
+    const t = teamTableOfLeaderboard("teleop", "TeleOp OPR", [], false, true);
+    expect(t).toMatchObject({ by: "dc", dir: "asc" });
+    expect(t.asked).toBeUndefined();
+    // A list by its places ("rank", counted from the top) opens from the bottom place up.
+    expect(teamTableOfLeaderboard("win-rate", "Win rate", [], false, true).dir).toBe("desc");
+    expect(teamTableOfLeaderboard("win-rate", "Win rate", [], false, false).dir).toBeUndefined();
+  });
 });
