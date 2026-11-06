@@ -123,9 +123,15 @@ describe("each fact printed once (the guide's §8)", () => {
     const m = (n: number) => ({ label: `Q${n}`, href: `/events/2025/USNJCMP?match=qual:0:${n}`, event: { label: "NJ Championship", href: "/events/2025/USNJCMP" }, season: "2025–26", date: "Mar 15, 2026",
       alliance: "red" as const, own: 150, opp: 140, result: "W" as const, partners: [], opponents: [], type: "Championship" });
     const c = draw({ ...opr, intent: "event-matches", headline: undefined, blocks: [{ kind: "matches", title: "Matches in order", rows: [m(1), m(2)] }] });
-    expect(c.querySelector("[data-block=matches] h3")!.textContent).toBe("Matches in order · NJ Championship");
+    expect(c.querySelector("[data-block=matches] h3")!.textContent).toBe("Matches in order · NJ ChampionshipChampionship"); // its type as a chip; the season is in the scope
     expect([...c.querySelectorAll("[data-match-box]")].map((b) => b.textContent).filter((t) => t!.includes("NJ Championship"))).toEqual([]);
     expect(c.querySelector("[data-match-box]")!.textContent).toContain("Mar 15, 2026");
+  });
+  it("a tile with more than the headline says (a rank, a count) stays", () => {
+    const c = draw({ ...opr, headline: { value: "28.3 vs 22.1", label: "Auto OPR" }, blocks: [{ kind: "kpis", items: [
+      { label: "4215 Auto", value: "28.3", sub: "#880 of 8,308" }, { label: "Season", value: "2025–26" }] }] });
+    expect([...c.querySelectorAll("[data-kpi]")].map((k) => k.textContent)).toEqual(["4215 Auto28.3#880 of 8,308"]);
+    expect([...draw(opr).querySelectorAll("[data-opr-tiles] > div")].length).toBe(3); // Total OPR: its number and rank both in the headline
   });
   it("the method behind an info button, one footnote line", () => {
     const c = draw(opr);

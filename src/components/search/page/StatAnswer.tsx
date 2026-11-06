@@ -128,9 +128,13 @@ function teamOf(label: string, teams: { number: number }[]): number {
 }
 
 function Block({ b: block, team, teams, said }: { b: StatBlock; team?: StatAnswer["team"]; teams?: { number: number; name: string | null }[]; said?: Said }) {
-  // A tile that says again what the headline or scope says (the headline's number, its win rate, the season): left out.
+  // A tile that says nothing the headline or scope doesn't (its number, and its line and rank too: the headline's
+  // number, its win rate, the season): left out. A tile with anything more (a rank, a count) stays.
+  const fmt = (n: number) => n.toLocaleString("en-US");
+  const told = (k: Extract<StatBlock, { kind: "kpis" }>["items"][number]) => !!said && said.has(String(k.value)) && (!k.sub || said.has(k.sub))
+    && (k.rank == null || said.has(`#${fmt(k.rank)}${k.of != null ? ` of ${fmt(k.of)}` : ""}`));
   const b: StatBlock = block.kind === "kpis" && said && !(teams && teams.length > 1)
-    ? { ...block, items: block.items.filter((k) => !said.has(String(k.value))) } : block;
+    ? { ...block, items: block.items.filter((k) => !told(k)) } : block;
   switch (b.kind) {
     case "kpis": {
       if (!b.items.length) return null;
@@ -195,7 +199,12 @@ function Block({ b: block, team, teams, said }: { b: StatBlock; team?: StatAnswe
       const ev = b.rows.length > 1 && b.rows.every((r) => r.event.href === b.rows[0].event.href && r.season === b.rows[0].season) ? b.rows[0] : null;
       return (
         <div data-block="matches">
-          <h3 className={H3}>{b.title}{ev && !said?.has(ev.event.label) && <> · <Link to={ev.event.href} className="text-foreground/90 hover:text-accent-text hover:underline">{ev.event.label}</Link></>}</h3>
+          <h3 className={H3}>
+            {b.title}
+            {ev && !said?.has(ev.event.label) && <> · <Link to={ev.event.href} className="text-foreground/90 hover:text-accent-text hover:underline">{ev.event.label}</Link></>}
+            {ev && !!ev.type && <EventMarker type={ev.type} chip />}
+            {ev && !said?.has(ev.season) && <> · {ev.season}</>}
+          </h3>
           <ul className={cn("grid gap-3", b.rows.length > 1 && "lg:grid-cols-2")}>{b.rows.map((r) => <MatchBox key={`${r.href}|${r.alliance}`} r={r} team={team ?? undefined} atEvent={!!ev} />)}</ul>
           {b.more && <p className="mt-1 text-[11px] text-muted-foreground">{b.more}</p>}
         </div>
