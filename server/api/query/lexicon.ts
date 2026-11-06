@@ -201,3 +201,36 @@ export const EVENT_NAME_WORDS = new Set([
   "invitational", "scrimmage", "premier", "division", "regional", "showcase", "classic", "open", "cup", "challenge", "super",
   "kickoff", "interleague", "event", "competition", "festival", "series", "district", "tourney",
 ]);
+
+/** Informal and short forms of time and other words, said in full before anything reads the query ("events happening
+ *  rn" is "events happening right now"). Longer phrases first; each replaces whole words only, never inside a team's
+ *  name (informalQuery). A new short form is one more row here. */
+export const INFORMAL: [string, string][] = [
+  ["rn rn", "right now"], ["rn", "right now"], ["atm", "right now"], ["rightnow", "right now"],
+  ["tdy", "today"], ["2day", "today"],
+  ["tmrw", "tomorrow"], ["tmr", "tomorrow"], ["tmrow", "tomorrow"], ["2moro", "tomorrow"],
+  ["yday", "yesterday"], ["yest", "yesterday"],
+  ["wknd", "weekend"],
+  ["nxt wk", "next week"], ["nxt week", "next week"], ["next wk", "next week"], ["lst wk", "last week"], ["last wk", "last week"], ["nxt", "next"],
+  ["szn", "season"],
+  ["ur", "your"], ["u", "you"],
+];
+
+/** `q` with each INFORMAL form said in full: whole words, any case, and never a word of a name `named` knows (a team
+ *  named "RN Robotics" keeps it). `named` is asked of each run of up to four words holding a form; `wider`, whether the
+ *  run holds more than the form (an event's name with the word in it). */
+export function informalQuery(q: string, named: (words: string, wider: boolean) => boolean): string {
+  let ws = q.split(" ");
+  for (const [from, to] of INFORMAL) {
+    const f = from.split(" ");
+    for (let i = 0; i + f.length <= ws.length; i++) {
+      if (ws.slice(i, i + f.length).map((w) => w.toLowerCase()).join(" ") !== from) continue;
+      let inName = false;
+      for (let a = Math.max(0, i - 3); a <= i; a++) for (let b = i + f.length; b <= Math.min(ws.length, a + 4); b++) inName ||= named(ws.slice(a, b).join(" "), b - a > f.length);
+      if (inName) continue;
+      ws = [...ws.slice(0, i), ...to.split(" "), ...ws.slice(i + f.length)];
+      i += to.split(" ").length - 1;
+    }
+  }
+  return ws.join(" ");
+}

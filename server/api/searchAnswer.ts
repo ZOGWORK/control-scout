@@ -37,7 +37,8 @@ import { parseQuestion, questionAnswer } from "./searchQuestions.js";
 import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
 import { statAnswer } from "./answers/index.js";
 import { refreshSearchSeason } from "./answers/season.js";
-import { FALLBACK_NOTE, carryOutcome, layeredAnswer } from "./searchLayers.js";
+import { FALLBACK_NOTE, carryOutcome, layeredAnswer, nameKey, teamNames } from "./searchLayers.js";
+import { INFORMAL, informalQuery } from "./query/lexicon.js";
 import { numberQuery, spelled, strength } from "./spelling.js";
 import { booleanAnswer } from "./searchBoolean.js";
 import { asksOfTeams, pipelineAnswer, pipelineReads } from "./query/execute.js";
@@ -170,12 +171,37 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   // The season a query naming none means (./answers/season.ts), read before the readers that use it.
   await refreshSearchSeason();
   if (opts.inner || opts.intents === false || opts.rewrites) return readerAnswer(raw, opts);
+  // Informal short forms said in full first ("events happening rn"), the answer keeping the query as typed.
+  const typed = cleanQuery(raw), full = await inFull(typed);
+  if (full !== typed) {
+    const b = await searchAnswer(/\?\s*$/.test(String(raw ?? "")) ? `${full}?` : full, opts);
+    return carryOutcome(b, { ...b, q: typed });
+  }
   const a = await numberedAnswer(raw, opts);
   // Then its spelling (./spelling.ts): a misspelled query is read again corrected, and the better answer kept. Never
   // a quoted phrase, which asks for exactly those words.
   if (opts.spell === false || String(raw ?? "").includes('"')) return onPage(raw, a, opts);
   const asked = /\?\s*$/.test(String(raw ?? ""));
   return onPage(raw, await spelled(cleanQuery(raw), a, (q) => searchAnswer(asked ? `${q}?` : q, { ...opts, spell: false })), opts);
+}
+
+/** `q` with its informal short forms said in full (./query/lexicon.ts INFORMAL), never a word of a team's name or,
+ *  beside its other words, an event's. */
+async function inFull(q: string): Promise<string> {
+  if (!INFORMAL.some(([f]) => new RegExp(`(?:^| )${f}(?= |$)`, "i").test(q))) return q;
+  const [{ byName }, events] = await Promise.all([teamNames(), eventNames()]);
+  return informalQuery(q, (words, wider) => {
+    const k = nameKey(words);
+    return byName.has(k) || (wider && events.some((n) => ` ${n} `.includes(` ${k} `)));
+  });
+}
+
+let eventNameList: { at: number; list: string[] } | null = null;
+async function eventNames(): Promise<string[]> {
+  if (eventNameList && Date.now() - eventNameList.at < 10 * 60_000) return eventNameList.list;
+  const rows = await all<{ name: string }>("SELECT DISTINCT name FROM events WHERE name IS NOT NULL");
+  eventNameList = { at: Date.now(), list: rows.map((r) => nameKey(r.name)) };
+  return eventNameList.list;
 }
 
 /** What the page adds to an answer (the dropdown's is never changed): a yes-or-no question's answer, else, for a
@@ -221,15 +247,19 @@ async function numberedAnswer(raw: string, opts: AnswerOptions): Promise<SearchA
   // intent read, never by the stat card the page builds and the dropdown doesn't, so both surfaces read it alike.
   // Anything else it read ("which ultraviolet?", a team at an event it never played) is its answer.
   const unread = (x: SearchAnswer) => strength(x) <= 2 || (!x.intent && !x.stat && !x.card && x.understood?.kind === "team" && x.step !== "closest");
-  for (const many of [false, true]) {
+  // Then "states" as the championship it means for any place (owner): "nyc states", "romania states results", where
+  // no state championship is named so.
+  const q = cleanQuery(raw);
+  const champ = STATES_WORD.test(q) && !/\bunited states\b/i.test(q) ? q.replace(new RegExp(STATES_WORD.source, "gi"), "$1championship") : null;
+  for (const other of [numberQuery(q), numberQuery(q, true), champ]) {
     if (!unread(a)) return a;
-    const other = numberQuery(cleanQuery(raw), many);
     if (!other) continue;
     const b = await typedAnswer(asked ? `${other}?` : other, opts);
     if (answers(b) > answers(a)) a = carryOutcome(b, { ...b, q: a.q });
   }
   return a;
 }
+const STATES_WORD = /(^| )states(?= |$)/i;
 
 /** searchAnswer for the query as typed. */
 async function typedAnswer(raw: string, opts: AnswerOptions): Promise<SearchAnswer> {
