@@ -104,7 +104,7 @@ interface Row { season: number; code: string; level: string; series: number; num
 /** The filters the match finder and a scope's highlights (./highlights.ts) take. `events`: these events only (a
  *  division is an event of its own: ./highlights.ts scopeEvents lists them). */
 export type MatchScope = Pick<MatchFind, "season" | "window" | "region" | "level" | "finals" | "decided" | "kind"> & { events?: { season: number; code: string }[];
-  /** `events` are the ones the query named: theirs are the matches, whatever kind of event (an off-season one too). */
+  /** `events` were named by the query and one isn't official (an off-season event): theirs are the matches all the same. */
   named?: boolean };
 
 /** The matches' filters as SQL over m and e; `upTo`, every season up to the scope's (its latest with matches). */

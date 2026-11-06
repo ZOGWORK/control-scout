@@ -20,7 +20,7 @@ import { defaultSteps, isEmpty, relaxed, windowSteps } from "./relax.js";
 import { eventsNamed, heldInYear, highlightsAnswer, latestPlayed, type HighlightFind } from "./highlights.js";
 import { teamHighlights, type TeamHighlightScope } from "../answers/highlights.js";
 import { shortEvent } from "../answers/matchSet.js";
-import { CHAMPIONSHIP_TYPE, STATES_TYPE } from "../answers/clauses.js";
+import { CHAMPIONSHIP_TYPE, OFFICIAL_TYPES, STATES_TYPE } from "../answers/clauses.js";
 import { eventKindOf, matchFindAnswer, type MatchFind, type MatchMeasure } from "./matchFind.js";
 import { seasonOfDate } from "./time.js";
 import { searchToday } from "../searchEvents.js";
@@ -401,7 +401,9 @@ async function highlights(p: Parsed, scope: ReadScope, opts: PipelineOptions): P
   const f: HighlightFind = {
     season: heldIn ?? lastHeld ?? placeSeason(p, scope.season, opts), region, level: p.level, finals: p.finals, kind: evs ? null : kind, ...(scope.window ? { window: scope.window } : {}), ...(p.n != null ? { n: p.n } : {}), ...(videos ? { videos } : {}),
     ...(evs ? {
-      events: evs.map((e) => ({ season: e.season, code: e.code })), named: true,
+      events: evs.map((e) => ({ season: e.season, code: e.code })),
+      // An off-season event named ("MTI"): its own matches, though highlights are otherwise official events only.
+      ...(evs.some((e) => !(OFFICIAL_TYPES as readonly string[]).includes(e.type ?? "")) ? { named: true } : {}),
       eventName: new Map([...byMain!].reverse().map((e) => [e.season, { name: shortEvent(e.name, e.type), when: dateRange(e.start, e.end) || null, where: [e.city, e.state].filter(Boolean).join(", ") || null }])),
     } : {}),
     at: [kind && !evs ? `at ${kind === WORLDS_KIND ? kind.label : kind.label.toLowerCase()}` : "", region ? `in ${region.name}` : ""].filter(Boolean).join(" "),
