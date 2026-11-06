@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.6.7 — 2026-11-06
+
+The Playoffs tab draws a double-elimination bracket as a real bracket: upper and lower lanes, rounds left to right, lines to each winner's next match, the finals on the right.
+
+### Highlights
+- [predict] Double-elimination brackets draw as a bracket, with lines between matches
+- [predict] Each match shows both scores on their own alliance's row, the winner marked
+- [predict] The grand final and the if-needed final sit side by side with the bracket
+
+### Playoffs
+- **A real bracket.** The upper bracket sits over the lower bracket, each round in its own column, and a line runs from every match to the one its winner plays next. The grand final and the if-needed final sit together on the right. 4-, 6- and 8-alliance brackets all draw this way; on a phone the bracket scrolls sideways.
+- **Scores on the rows.** Each match shows the two alliances with their own score, the winner with a trophy; an open match shows its favourite and confidence.
+
 ## 3.6.6 — 2026-11-06
 
 More ways of asking for a place's top teams find the leaderboard: "Romania leaderboard", "highest rated teams", "by rating, not OPR".
