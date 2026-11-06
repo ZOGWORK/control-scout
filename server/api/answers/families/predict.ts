@@ -52,7 +52,7 @@ export async function allianceForecast(red: AnswerTeam[], blue: AnswerTeam[], se
   const S = seasonLabel(season), side = (ts: AnswerTeam[]) => ts.map((t) => t.number).join(" & ");
   const R = side(red), B = side(blue), all4 = [...red, ...blue];
   const href = predictHref({ mode: "match", season, red: red.map((t) => t.number), blue: blue.map((t) => t.number) });
-  const base = { family: "two-team" as const, intent: "alliance-predict", title: `Prediction: ${R} vs ${B} in ${S}`, team: red[0], teams: all4, scope: [S, "Qualification match"], definition: `${ALLIANCE_RULE}${why ? ` ${why}` : ""}`, source: `From the engine's ${S} prediction ratings` };
+  const base = { family: "two-team" as const, intent: "alliance-predict", title: `Prediction: ${R} vs ${B} in ${S}`, team: red[0], teams: all4, split: red.length, scope: [S, "Qualification match"], definition: `${ALLIANCE_RULE}${why ? ` ${why}` : ""}`, source: `From the engine's ${S} prediction ratings` };
   const links: StatBlock = { kind: "links", title: "Try it", items: isLegacy(season) ? [] : [{ label: `Open in Predict: ${R} vs ${B}`, href }] };
   if (isLegacy(season)) return { ...base, blocks: [], none: `Predictions start with 2023–24: ${S} has no prediction ratings.` };
   const rows = await all<RatingRow>(`SELECT team, rating_np, rating_sd, rating_rank FROM team_season_stats WHERE season = ? AND team IN (${all4.map(() => "?").join(", ")})`, [season, ...all4.map((t) => t.number)]);

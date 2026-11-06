@@ -72,7 +72,7 @@ function OneCard({ stat, heading }: { stat: StatAnswer; heading?: string }) {
     </p>
   );
   return (
-    <AnswerFrame teams={teams} profile={profile} season={stated} title={stat.title} hideTitle={repeats(heading, stat.title)} sub={scope || undefined}
+    <AnswerFrame teams={teams} split={stat.split} profile={profile} season={stated} title={stat.title} hideTitle={repeats(heading, stat.title)} sub={scope || undefined}
       data={{ "data-stat-answer": stat.intent, "data-family": stat.family }}>
       {stat.headline && <Headline h={{ ...stat.headline, ...oneContext(stat.headline.label, stat.headline.sub, stat.scope) }} hue={one} />}
       <AnswerVideo />

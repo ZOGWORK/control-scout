@@ -140,6 +140,8 @@ export interface StatAnswer {
   team?: { number: number; name: string | null };
   /** Every team the answer is about, when it's more than `team` (a two-team answer's both sides, `team` first). */
   teams?: { number: number; name: string | null }[];
+  /** Two alliances: how many of `teams` are the first side (the rest the second), drawn as two sides of the "vs". */
+  split?: number;
   /** What the answer covers, as chips ("FIRST Championship events", "All seasons"). */
   scope: string[];
   /** The one number the question asks for, read first. */
