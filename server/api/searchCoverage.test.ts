@@ -115,11 +115,16 @@ describe("answers on their own", () => {
   it("a country's best teams, by OPR", async () => {
     const a = await ask("best teams in romania");
     expect(a.card?.lines.map((l) => l.text)).toEqual(["14270 Quantum Robotics"]);
+    // A country by its people's word: its teams by OPR on the answer page.
+    const word = await searchAnswer("best romanian teams", { limit: 25, learn: false, full: true });
+    expect(word.stat?.title).toMatch(/^Top 10 teams by OPR in Romania · /);
     // The number asked for: the USA has three ranked teams here.
     expect((await teamListAnswer("top 2 teams in usa"))?.card?.lines.map((l) => l.text)).toEqual(["23268 Ultraviolet", "6980 Bad Wolf"]);
   });
   it("undefeated teams and the highest win rate", async () => {
-    expect((await ask("undefeated teams")).card?.lines.map((l) => l.text)).toEqual(["6980 Bad Wolf"]);
+    // Undefeated is a leaderboard filter the pipeline applies (server/api/query/): no losses, the most wins first.
+    const u = (await ask("undefeated teams")).stat?.blocks[0];
+    expect(u?.kind === "leaderboard" ? u.rows.map((r) => r.team.label) : u).toEqual(["6980 Bad Wolf"]);
     const w = await ask("teams with the highest win rate");
     // The link opens the season the numbers are from.
     expect(w.card?.lines[0]).toMatchObject({ text: "6980 Bad Wolf", results: ["#1", "100% wins", "20-0-0", "OPR 130.0"], href: `/teams/6980?season=${S}` });
@@ -257,7 +262,6 @@ describe("a list of teams as a table", () => {
     const w = (await ask("teams with the highest win rate")).card!.table!;
     expect(w).toMatchObject({ by: "rank", asked: { label: "Win rate" } });
     expect(w.rows[0]).toMatchObject({ team: 6980, asked: { display: "100%" } });
-    expect((await ask("undefeated teams")).card!.table!.rows.map((r) => r.team)).toEqual([6980]);
     expect((await ask("best teams in romania")).card!.table!.rows[0]).toMatchObject({ team: 14270, dc: 100 });
   });
   it("a single team's answer keeps its card, with no table", async () => {
@@ -351,14 +355,15 @@ describe("wrong answers from the 92-query probe (11-03)", () => {
     }
   });
   it("the bottom of a list: said plainly, with the full ranking linked", async () => {
-    const a = await ask("lowest opr new jersey");
+    // "Lowest" and "worst" are the pipeline's own list, lowest first (server/api/query/execute.test.ts); "bottom" is this card.
+    const a = await ask("bottom opr new jersey");
     expect(a.card).toMatchObject({ kind: "info", title: "Search lists teams from the top, not the bottom" });
     // The stat asked, lowest first: OPR on the Teams page's season table, never Rankings (which is by prediction rating).
     expect(a.card?.lines[0]).toMatchObject({ text: "Every ranked team in New Jersey by OPR, lowest first" });
     expect(a.card?.lines[0].href).toMatch(/^\/teams\?view=season&.*sort=totalPointsNpOpr.*&dir=asc$/);
-    expect((await ask("lowest auto opr")).card?.lines[0].href).toMatch(/sort=autoPointsOpr.*&dir=asc$/);
+    expect((await ask("bottom auto opr")).card?.lines[0].href).toMatch(/sort=autoPointsOpr.*&dir=asc$/);
     // "Worst teams" is the prediction rating's, as "top teams" is: Rankings, said to be by that rating.
-    const w = await ask("worst teams");
+    const w = await ask("bottom teams");
     expect(w.card?.title).toBe("Search lists teams from the top, not the bottom");
     expect(w.card?.lines[0]).toMatchObject({ text: "Every ranked team, by prediction rating", href: expect.stringMatching(/^\/rankings\?season=/) });
     expect((await ask("4215 lowest score")).card?.title).not.toBe("Search lists teams from the top, not the bottom");

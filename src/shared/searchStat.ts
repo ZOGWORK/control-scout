@@ -93,7 +93,9 @@ export type StatBlock =
    *  endgame split stacked in it. `note`: the season, how many teams are ranked and by what. */
   | { kind: "leaderboard"; title: string; stat: { id: string; label: string; unit?: string }; note: string; rows: LeaderboardRow[]; more?: StatLink;
       /** The season's TeleOp OPR includes the endgame, as FIRST reports it (server/data/seasons.ts, teleopAsReported). */
-      teleopWithEndgame?: boolean }
+      teleopWithEndgame?: boolean;
+      /** The lowest first: drawn in the list's own order, never re-sorted highest first. */
+      lowest?: boolean }
   /** Two or more teams compared (server/api/answers/compareBlock.ts): a row per metric, Total first and then by the
    *  gap, each on its own scale from zero. `scale`: what each row's max is, for the footnote ("100", "the 2025–26 high, rounded up"). */
   | { kind: "compare"; title: string; teams: StatLink[]; rows: CompareRow[]; scale?: string }

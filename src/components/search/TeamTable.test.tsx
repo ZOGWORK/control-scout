@@ -48,6 +48,15 @@ describe("TeamTable", () => {
     expect(container.querySelector("[data-sort-key]")?.getAttribute("data-sort-key")).toBe("opr");
     expect(container.querySelector('th[aria-sort="descending"]')?.textContent).toMatch(/OPR/);
   });
+  it("a new answer in its place opens in its own order, lowest first when asked", () => {
+    const view = draw();
+    expect(teams(view.container)).toEqual([100, 200, 300, 400]);
+    view.rerender(<MemoryRouter><TeamTable table={{ ...TABLE, dir: "asc" }} label="Teams in New Jersey" /></MemoryRouter>);
+    expect(teams(view.container)).toEqual([400, 300, 200, 100]);
+    // A list by its places, lowest first: from the bottom place up.
+    view.rerender(<MemoryRouter><TeamTable table={{ ...TABLE, by: "rank", dir: "desc" }} label="Teams in New Jersey" /></MemoryRouter>);
+    expect(teams(view.container)).toEqual([400, 300, 200, 100]);
+  });
   it("re-sorts by a phase OPR, by record, and back", () => {
     const { container } = draw();
     const click = (k: string) => fireEvent.click(container.querySelector(`button[data-sort="${k}"]`)!);

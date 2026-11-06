@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.3.0 — 2026-11-05
+## 3.3.1 — 2026-11-05
 
 Search answers say each fact once: the number you asked for, its context, then what's new, with how it's counted one tap away.
 
@@ -30,6 +30,19 @@ Search answers say each fact once: the number you asked for, its context, then w
 - **How it's counted, one tap away.** Every answer's method is behind an info button beside one footnote line, as on comparisons, instead of a paragraph in the card.
 - **A ranking shows what it ranks by.** A list of teams ranked by Auto, TeleOp or Endgame shows that column on a phone instead of the total OPR.
 - **No highlights for an unanswered question.** A question about a team that search can't answer yet ("will 4215 win the NJ championship") says so with its suggested searches, without the team's highlights under it (#772).
+
+## 3.3.0 — 2026-11-05
+
+Lists of teams answer however they're asked: the lowest first, a town, a whole country, undefeated teams.
+
+### Highlights
+- [rankings] "Who has the highest auto OPR in NJ" lists the teams
+- [rankings] "Worst teleop OPR in Romania" lists the lowest first
+- [rankings] "Best team in Cluj-Napoca, Romania" lists that town's teams
+- [rankings] "Any team with a perfect record" lists undefeated teams
+
+### Search
+- **Leaderboards said any way.** A list of teams by a season stat reads with or without "team", lowest first ("worst", "lowest", "sorted lowest to highest"), for a whole country, a town with its state or country after it, a country by its people's word ("Romanian teams"), a count at the end ("top 3") and undefeated teams. A lowest-first list keeps each team's place counted from the top and opens the Teams page sorted the same way. "Just curious", "only" and other asides are never read as a team's name. (#773)
 
 ## 3.2.9 — 2026-11-05
 

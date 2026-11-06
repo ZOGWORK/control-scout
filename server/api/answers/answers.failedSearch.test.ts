@@ -234,10 +234,10 @@ describe("leaderboard sorts in plain words", () => {
     const rows = (b: StatAnswer) => (b.blocks.find((x) => x.kind === "leaderboard") as { rows: { team: { label: string }; value: number; rank: number }[] }).rows;
     expect(rows(top).slice(0, 3).map((r) => r.team.label)).toEqual(["10809 Crow Force", "20265 Heart of RoBots", "23268 Ultraviolet"]);
     const low = await ask("best auto sorted lowest to highest");
-    expect(low.title).toBe("Bottom 10 teams by Auto OPR worldwide, lowest first · 2025–26");
+    expect(low.title).toBe("Lowest 10 teams by Auto OPR worldwide · 2025–26");
     expect(rows(low).map((r) => r.value).slice(0, 3)).toEqual([5, 10, 25]);
     expect(rows(low)[0].rank).toBe(7);
-    expect((low.blocks.find((x) => x.kind === "leaderboard") as { more?: { href: string } }).more?.href).toMatch(/&dir=asc$/);
+    expect((low.blocks.find((x) => x.kind === "leaderboard") as { more?: { href: string } }).more?.href).toMatch(/&dir=asc(&|$)/);
     expect(rows(await ask("teleop ranked"))[0].team.label).toBe("7149 ENFORCERS");
     expect(rows(await ask("endgame ranked"))[0].team.label).toBe("30030 Exodus");
   });

@@ -210,13 +210,28 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   if (!p.teams.length && intent === "leaderboard") {
     // The search box keeps the asks' own short card; the page draws the list.
     if (!opts.full) return null;
-    if (p.event || p.worlds || p.states || p.level || p.alliance || scope.window || scope.ever || (p.place && p.place.kind !== "region")) return null;
-    const stats = p.symbols.map((s) => BOARD_STAT[s]).filter((s): s is string => !!s && !!BOARD_STATS[s]);
+    if (p.event || p.worlds || p.states || p.level || p.alliance || scope.window || scope.ever) return null;
+    let stats = [...new Set(p.symbols.map((s) => BOARD_STAT[s]).filter((s): s is string => !!s && !!BOARD_STATS[s]))];
+    // "Auto OPR" is the auto phase's OPR; a record beside another stat is the column every row shows.
+    if (stats.some((s) => s === "auto" || s === "teleop" || s === "endgame")) stats = stats.filter((s) => s !== "opr");
+    if (stats.length > 1) stats = stats.filter((s) => s !== "record" && s !== "wins");
     if (stats.length > 1) return null;
-    // "The best team in NJ by OPR": one team, the next few under it; with no place or stat named, the top 10.
-    const one = /\bteam\b/.test(said) && !/\bteams\b/.test(said) && p.n == null && !!p.place && stats.length === 1;
-    const b: LeaderboardQuestion = { kind: "top", stat: stats[0] ?? "rating", n: one ? 5 : Math.min(25, p.n ?? 10), region: regionOf(p), city: null, season: scope.season, ...(one ? { best: true } : {}) };
-    return boardSearch(p.q, b, opts);
+    // "The best team in NJ by OPR": one team, the next few under it; with no place or stat named, or a sort asked
+    // for ("best team sorted by auto"), the top 10.
+    const one = /\b(?:team|who)\b/.test(said) && !/\b(?:teams|sorted|ranked|order)\b/.test(said) && p.n == null && (!!p.place || stats.length === 1);
+    const town = p.place?.kind === "city" ? p.place : null;
+    // No stat said and the place alone ending the question ("best teams in romania", "best team in Oradell"): the place
+    // readers' own cards. Said any other way ("in Cluj-Napoca, Romania", "best Romanian teams"): its teams by OPR here.
+    if ((town || p.place?.kind === "country") && !stats.length && !p.undefeated && said.endsWith(` in ${normalise(p.place!.typed)}`)) return null;
+    const region: Region | null = town ? { key: `${town.country}:${town.state ?? ""}`, country: town.country, state: town.state ?? "", name: town.state ?? town.country } : regionOf(p);
+    const b: LeaderboardQuestion = {
+      kind: "top", stat: stats[0] ?? (p.undefeated ? "wins" : town || p.place?.kind === "country" ? "opr" : "rating"), ...(p.undefeated ? { undefeated: true } : {}), n: one ? 5 : Math.min(25, p.n ?? 10), region, city: null, town: town?.city ?? null, season: placeSeason(p, scope.season, opts),
+      ...(one ? { best: true } : {}), ...(p.agg === "min" ? { asc: true } : {}),
+    };
+    const a = await boardSearch(p.q, b, opts);
+    // No season said, or "this season": the current one, then the one before when nobody has played enough yet.
+    if (scope.season != null || !(p.time == null || (p.time.kind === "season" && p.time.relative === "this"))) return a;
+    return relaxed(a, defaultSteps(b.season!, town ? ` in ${town.city}` : region ? ` in ${region.name}` : "", b.undefeated ? "undefeated teams" : b.kind === "top" ? "ranked teams" : "teams"), (season) => boardSearch(p.q, { ...b, season }, opts));
   }
   return null;
 }
@@ -234,8 +249,8 @@ function readScopeOf(p: Parsed): ReadScope | null {
   } else if (t?.kind === "ever") s.ever = true;
   if (p.place) {
     // A town names where a team is from, which a team's own question already knows: only events in a region or a
-    // country are a filter.
-    if (p.place.kind === "city") return null;
+    // country are a filter. A leaderboard's town is the teams from it.
+    if (p.place.kind === "city") return p.intent === "leaderboard" ? s : null;
     if (p.place.kind === "region") s.place = regionOf(p);
     else s.area = { country: p.place.country, state: null, name: p.place.name };
   }
