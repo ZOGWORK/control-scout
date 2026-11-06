@@ -149,7 +149,7 @@ const answerKey = (a: SearchAnswer) => `${a.stat?.intent ?? a.card?.kind ?? a.un
  *  own line. Only the first CHECK_MAX candidates are run: fewer questions, never a slower page. */
 export async function followUps(q: string, a: SearchAnswer, prefer: ReadonlySet<string> = new Set()): Promise<SearchFollowUp[]> {
   const p = await parseQuery(q, await parseContext(Date.now(), prefer));
-  const seen = new Set([answerKey(a), ...(a.suggest ?? []), ...(a.sorry?.suggest ?? [])].map((x) => x.toLowerCase()));
+  const seen = new Set([answerKey(a).toLowerCase()]);
   const tried = candidates(p, a).slice(0, CHECK_MAX);
   const answers = await Promise.all(tried.map((c) => pageAnswer(c.q, SEARCH_PAGE_LIMIT, prefer).catch(() => null)));
   const out: SearchFollowUp[] = [];
