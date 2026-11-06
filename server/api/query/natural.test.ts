@@ -337,6 +337,11 @@ describe("sorry, with what was read (§4)", () => {
   it("placeholder registrations never share a name", async () => {
     expect((await ask("what is off-season demo team's favorite color")).sorry ?? null).toBeNull();
   });
+  it("a yes-or-no question gets its yes or no, never the sorry", async () => {
+    const a = await ask("has 6980 ever been to worlds");
+    expect(a.verdict?.answer).toBe("No");
+    expect(a.sorry).toBeUndefined();
+  });
   it("a quoted name gets the sorry too", async () => {
     expect((await ask('"Hypnotic Robotics" favorite color')).sorry?.understood.join(" ") ?? "").toContain("4215");
   });
