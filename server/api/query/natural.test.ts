@@ -140,7 +140,7 @@ describe("when: the last, the first and the next time (3b)", () => {
     for (const q of SAID.slice(1)) expect(card(await ask(q)), q).toEqual(first);
   });
   it("when a team started: its rookie year", async () => {
-    for (const q of ["4215 rookie year", "what year did 4215 start", "when did 4215 begin competing", "when did 4215 join ftc", "when was 4215 founded", "which year did hypnotic robotics start"]) {
+    for (const q of ["4215 rookie year", "what year did 4215 start", "when did 4215 begin competing", "when did 4215 join ftc", "when was 4215 founded", "which year did hypnotic robotics start", "which season was 4215 founded", "what season did 4215 start"]) {
       const a = await ask(q);
       expect(a.card, q).toMatchObject({ title: "Rookie year", team: { number: 4215 } });
     }
