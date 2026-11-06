@@ -37,7 +37,7 @@ import { parseQuestion, questionAnswer } from "./searchQuestions.js";
 import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
 import { statAnswer } from "./answers/index.js";
 import { refreshSearchSeason } from "./answers/season.js";
-import { layeredAnswer } from "./searchLayers.js";
+import { carryOutcome, layeredAnswer } from "./searchLayers.js";
 import { spelled } from "./spelling.js";
 import { booleanAnswer } from "./searchBoolean.js";
 import { pipelineAnswer, pipelineReads } from "./query/execute.js";
@@ -180,7 +180,8 @@ async function withVerdict(raw: string, a: SearchAnswer, opts: AnswerOptions): P
   const yn = await yesNoAnswer(q, { full: true, pages: pagesFor(q), now: opts.now, prefer: opts.prefer, resolve: (core) => searchAnswer(core, { ...opts, intents: false, learn: false }) });
   if (!yn) return a;
   const answered = (!!a.stat || !!a.card) && a.step !== "recovery" && !/isn't answered/.test(a.understood?.label ?? "");
-  return answered ? { ...a, verdict: yn.verdict } : { ...yn, q: a.q };
+  // A copy keeps the outcome failed-search reporting reads (./searchLayers.ts).
+  return answered ? carryOutcome(a, { ...a, verdict: yn.verdict }) : { ...yn, q: a.q };
 }
 
 /** searchAnswer for the query as typed. */

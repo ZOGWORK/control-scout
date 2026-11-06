@@ -6,6 +6,7 @@ import { migrate, openDb, run, setDb } from "../../db";
 import { rebuildSearch } from "../../stats/job";
 import { clearAllCaches } from "../../caches";
 import { searchAnswer } from "../searchAnswer";
+import { searchOutcome } from "../searchLayers";
 import type { SearchAnswer } from "../../../src/shared/api";
 import type { StatAnswer } from "../../../src/shared/searchStat";
 
@@ -147,6 +148,8 @@ describe("yes or no, with the evidence (3c)", () => {
     const { verdict, ...rest } = await ask(SAID[0]);
     expect(verdict).toBeTruthy();
     expect(rest.card?.kind).toBe("worlds");
+    // Failed-search reporting still reads the answer's outcome.
+    expect(searchOutcome(await ask(SAID[0]))?.result).toBe("answered");
   });
   it("no is an answer, never the no-match page", async () => {
     const a = await ask("has 6980 ever been to worlds");
