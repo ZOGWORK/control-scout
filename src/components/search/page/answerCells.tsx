@@ -165,15 +165,16 @@ export function HeadlineValue({ value, win }: { value: string; win?: string }) {
 }
 
 /** One of a card line's small stat pills ("Ranked #1", "6-0-0 in quals", "OPR 50.0", "Red alliance", an award): a
- *  rank as its pill, an alliance in its colour (red and blue mark alliances), an award with its icon; the rest plain. */
+ *  rank as its pill, an alliance in its colour (red and blue mark alliances), an award a filled chip in its kind's
+ *  colour; the rest on the team hue's wash (nothing grey for data). */
 export function ResultPill({ text }: { text: string }) {
   const box = "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-semibold tabular-nums";
   if (/^(Ranked\s+)?#\d/.test(text)) return <RankPill text={text} />;
-  if (RECORD.test(text)) return <span className={cn(box, "border-border bg-muted/50")}><RecordText text={text} /></span>;
+  if (RECORD.test(text)) return <span className={cn(box, "border-team-a/50 bg-card")} data-pill><RecordText text={text} win={TEAM_TEXT} /></span>;
   if (/^red\b/i.test(text)) return <span className={cn(box, "border-red-alliance/30 bg-red-alliance/10 text-red-alliance-text")}>{text}</span>;
   if (/^blue\b/i.test(text)) return <span className={cn(box, "border-blue-alliance/30 bg-blue-alliance/10 text-blue-alliance-text")}>{text}</span>;
-  if (/\b(award|alliance|winner|finalist|inspire|think|connect|innovate|control|motivate|design|reach|sustain)\b/i.test(text)) return <span className={cn(box, "border-border bg-muted/50 text-foreground")}><Award className="size-3 text-muted-foreground" aria-hidden />{text}</span>;
-  return <span className={cn(box, "border-border bg-muted/50 text-foreground")}>{text}</span>;
+  if (/\b(award|alliance|winner|finalist|inspire|think|connect|innovate|control|motivate|design|reach|sustain)\b/i.test(text)) return <AwardChip name={text} className="py-0.5" />;
+  return <span className={cn(box, "border-team-a/50 bg-card text-foreground")} data-pill>{text}</span>;
 }
 
 /** Which of two teams' numbers in a row is the better one ("a", "b", or null on a tie or a word): the higher, but
