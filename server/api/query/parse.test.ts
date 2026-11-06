@@ -62,6 +62,17 @@ describe("slots", () => {
     const p = await parse("predicted chances of 4215 east bergen conference");
     expect(p).toMatchObject({ intent: "team-predict", complete: true, teams: [{ number: 4215 }], event: { words: "east bergen conference" }, time: null });
   });
+  it("reads a forecast held up against what happened as the forecast at the event (its card shows both)", async () => {
+    for (const q of [
+      "4215 last prediction for east bergen conference", "show me 4215's predictions before and after east bergen conference",
+      "4215 predicted rank at nj championship vs actual rank", "did the prediction for 4215 at east bergen conference get it right, or was it way off",
+      "4215 predicted vs actual at nj championship", "how accurate was the prediction for 4215 at nj championship",
+    ]) {
+      expect(await parse(q), q).toMatchObject({ intent: "team-predict", complete: true, teams: [{ number: 4215 }], event: { words: expect.stringMatching(/east bergen conference|nj championship/) } });
+    }
+    // Held up against what happened is the forecast's word alone: never another answer's.
+    expect((await parse("4215 record or not")).complete).toBe(false);
+  });
   it("reads shared matches for two teams", async () => {
     for (const q of ["4215 and 6980 matches together", "matches 4215 6980 shared", "shared matches of 6980 with 4215", "4215 6980 in common matches please"]) {
       const p = await parse(q);

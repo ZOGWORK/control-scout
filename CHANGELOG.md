@@ -41,6 +41,18 @@ Search answers are in bold colour: every award, scoring phase and team has its o
 - **Bolder.** Tiles get a thick left bar in their colour and a filled icon, and their number is in the colour too. Award rows and chips are filled, phase tiles in match boxes are solid, and the event awards podium is in the award's colour. The leaderboard's phase columns and section headings are coloured, and each highlights video tile's reason is a filled chip with a matching edge (Best Auto in Auto's blue, the rest in the team's colour). Every text and fill clears 4.5:1 in every theme.
 - **Checked on every card.** Each card type is tested so that nothing outside the palette is used, no two meanings share a colour, and no bar, line, tile, pill or chip is left grey. (#794)
 
+## 3.4.3 — 2026-11-06
+
+A forecast asked against what happened answers with the event's forecast card.
+
+### Highlights
+- [predict] "Was the prediction right" at an event shows prediction and result
+- [predict] "Before and after", "vs actual" and "last prediction" all read the same
+- [fixes] These questions no longer stop at the team card
+
+### Search
+- **Prediction against the result, any wording.** A team's forecast at an event held up against what happened ("4215 predicted rank at nj championship vs actual rank", "show me 4215's predictions before and after east bergen", "4215 last prediction for east bergen", "did the prediction for 4215 at east bergen get it right, or was it way off") answers with the forecast card for that event, which already shows the prediction beside the result. The words that hold a forecast up against the result are one entry in the search lexicon, and only the forecast takes them. (#000)
+
 ## 3.4.2 — 2026-11-06
 
 Highlights as a grid of match videos; a team's card plays the team's own match.
