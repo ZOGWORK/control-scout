@@ -15,7 +15,7 @@ import { MAX_QUERY, cleanQuery, learnQuery, searchAnswer } from "./api/searchAns
 import { withTeamStats } from "./api/searchTeamStats.js";
 import { withEventParents } from "./api/searchEvents.js";
 import { teamHighlights } from "./api/answers/highlights.js";
-import { keptAnswer } from "./api/searchReads.js";
+import { followUps, pageAnswer } from "./api/answers/followUps.js";
 import { refine } from "./api/searchBruno.js";
 import { brunoAnswer } from "./api/searchBrunoAnswer.js";
 import { SEARCH_PAGE_LIMIT } from "../src/shared/search.js";
@@ -371,7 +371,7 @@ export function createApp(opts: { dist?: string } = {}) {
       const q = String(req.query.q ?? "");
       // The same query asked again within a minute (a retry, another visitor) is the answer already worked out
       // (server/api/searchReads.ts).
-      const ans = await keptAnswer(JSON.stringify([q, limit, [...prefer].sort()]), () => searchAnswer(q, { limit, prefer }));
+      const ans = await pageAnswer(q, limit, prefer);
       // How it was read (server/api/searchLayers.ts), taken from the answer object itself, before it's copied.
       const trace = outcomeTrace(ans);
       const at = Date.now();
@@ -396,6 +396,17 @@ export function createApp(opts: { dist?: string } = {}) {
       return { ...full, hits, ...(video ? { video } : {}) };
     }
     return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, MAX_QUERY), limit, prefer, kinds) };
+  }));
+
+  // People also ask (server/api/answers/followUps.ts): asked by /search after its answer is on screen, never on the
+  // answer's path. Each question is one search answers directly, checked by running it (the answer kept for its tap).
+  api.get("/search/follow", limiter(30), h(async (req, res) => {
+    await ensureSearchIndex(rebuildSearch);
+    const q = String(req.query.q ?? "");
+    const prefer = preferOf(req.query.prefer);
+    const ask = await followUps(q, await pageAnswer(q, SEARCH_PAGE_LIMIT, prefer), prefer);
+    res.setHeader("Cache-Control", "public, max-age=60");
+    return { q, ask };
   }));
 
   // Step 3 of search's chain (server/api/searchBruno.ts): asked by the app after the first answer is on screen,

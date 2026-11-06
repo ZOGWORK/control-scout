@@ -75,6 +75,28 @@ function seasonWord(t: string, typos = false): { season: string; rest: string; g
   return y && (Number(y[1]) + 1) % 100 === Number(y[2]) ? { season: `${y[1]}-${y[2]}`, rest: cut(y), game: false } : null;
 }
 
+/** An award word, as typed: the judged awards, Judges' Choice and Dean's List. */
+const AWARD_WORD = /(?:^| )(inspire|think|innovate|design|motivate|connect|control|reach|sustain|compass|promote|judges(?:'|’)?(?: choice)?|deans?(?:'|’)?(?:s)? list)(?= |$)/g;
+
+/** An event's award asked any way round ("East Bergen inspire award winner", "who got inspire at nj states", "nj states
+ *  inspire"): "who won <award> at <event>", the award ask's own words (the query itself when already said so), when the
+ *  rest names an event; or null. The award
+ *  word is kept wherever it sits, and the rest must be an event, never a team ("Got Milk inspire" stays the team's). */
+export async function awardQuery(q: string): Promise<string | null> {
+  const t = squash(q.toLowerCase().replace(/[?!.,]/g, " "));
+  const found = [...t.matchAll(AWARD_WORD)];
+  if (found.length !== 1 || /\b\d{1,6}\b/.test(t.replace(/\b(?:19|20)\d\d\b/g, ""))) return null;
+  const award = found[0][1].replace(/['’]/g, "").replace(/^deans?s? list$/, "deans list");
+  const rest = squash(t.replace(AWARD_WORD, " ")
+    .replace(/^(?:who|which teams?|what teams?)(?: (?:won|got|received|took|wins|gets|was given|were given))? /, "")
+    .replace(/(?:^| )(?:the|awards?|winners?|winner list|recipients?|winning teams?|won|went to|goes to|who)(?= |$)/g, " "))
+    .replace(/^(?:at|in|from|of|for) /, "").replace(/ (?:at|in|from|of|for)$/, "").replace(/^(?:at|in|from|of|for|the) /, "");
+  if (!rest) return null;
+  const e = readEventQuery(rest);
+  const event = (e && !e.words.length && (e.kinds.length || e.region)) || await (await parseContext()).isEvent(rest);
+  return event ? `who won ${award} at ${rest}` : null;
+}
+
 /** A query said another way that the readers already answer, and why; or null. `q` is cleaned, any case. `pre`: tried
  *  before the stat answers, whose readers would take the original the wrong way ("have 12345 and 67890 played each other"
  *  read "67890 played each other" as a team's name). */

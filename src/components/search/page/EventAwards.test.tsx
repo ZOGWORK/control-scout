@@ -50,4 +50,19 @@ describe("award-at-event answer", () => {
     expect(old.querySelector("[data-lines]")!.textContent).toContain("207 Critical Mass");
     expect(old.querySelector("[data-awards-page]")).toBeNull();
   });
+  it("a who-won card leads with its champions as team chips in their final's colour, never their lines again", () => {
+    const champions: SearchCard["champions"] = [
+      { label: "Champions", href: "/events/2025/USNJCMPTRPK", teams: [{ label: "23268 Ultraviolet", href: "/teams/23268" }, { label: "7149 ENFORCERS", href: "/teams/7149" }], alliance: "red", number: 1 },
+      { label: "Parkway Division winners", href: "/events/2025/USNJCMPPKWY", teams: [{ label: "4215 Hypnotic Robotics", href: "/teams/4215" }] },
+    ];
+    const c = draw({ ...card, award: undefined, champions, lines: [{ text: "23268 Ultraviolet", results: ["Champions"], href: "/teams/23268" }] });
+    const boxes = [...c.querySelectorAll("[data-champions] [data-champion]")];
+    expect(boxes.map((b) => b.querySelector("a")!.textContent!.trim())).toEqual(["Champions · Alliance 1", "Parkway Division winners"]);
+    expect([...boxes[0].querySelectorAll("[data-team-chip]")].map((x) => x.getAttribute("data-team-chip"))).toEqual(["23268", "7149"]);
+    expect(boxes[0].querySelector("[data-team-chip]")!.className).toContain("red-alliance");
+    // No final stored (the award alone): a neutral chip.
+    expect(boxes[1].querySelector("[data-team-chip]")!.className).not.toMatch(/red-alliance|blue-alliance/);
+    expect(c.querySelector("[data-lines]")).toBeNull();
+    expect(c.querySelector("[data-none]")).toBeNull();
+  });
 });
