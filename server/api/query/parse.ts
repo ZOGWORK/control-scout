@@ -45,6 +45,8 @@ export interface Parsed {
   /** Penalty points left out of scores ("without penalties"): read, and an intent that can't apply it leaves the parse
    *  incomplete. */
   noPenalties: boolean;
+  /** Where the first "vs" stands (a word's index, as a team's `at`): two alliances are the teams either side of it. */
+  vsAt?: number;
   /** Every intent symbol read ("agg:max", "metric:score"). */
   symbols: string[];
   intent: PipelineIntent | null;
@@ -138,7 +140,11 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   const words0 = q.split(" ");
   const teamNums = words0.filter((w, i) => /^\d{1,5}$/.test(w) && !COUNT_BEFORE.test(words0[i - 1] ?? "") && !MATCH_BEFORE.test(words0[i - 1] ?? "") && !!ctx.names.team(Number(w))).map(Number);
   // A bare year is a season unless it's the only team number and a team has it ("2024 record", "2024 last 5 matches").
-  const yearOk = (y: number) => teamNums.some((n) => n !== y) || !ctx.names.team(y) || new RegExp(`\\b(?:in|during|for|season|from)\\s+(?:the\\s+)?${y}\\b`).test(q);
+  // "Season 2024" names the season, but "this season 2024 record" is the team after "this season".
+  // A team's number joined to another by "vs" or "and" is one of the teams compared, not a year.
+  const said = (y: number) => new RegExp(`\\b(?:in|during|for|from|(?<!\\b(?:this|current)\\s)season)\\s+(?:the\\s+)?${y}\\b`).test(q);
+  const paired = (y: number) => new RegExp(`\\b${y}\\s+(?:vs\\.?|v|versus|against|and|&)\\s|\\s(?:vs\\.?|v|versus|against|and|&)\\s+${y}\\b`).test(` ${q} `);
+  const yearOk = (y: number) => said(y) || (!(ctx.names.team(y) && paired(y)) && (teamNums.some((n) => n !== y) || !ctx.names.team(y)));
   // A stored name asked about as words keeps its words from the time reader ("Powerplay Robotics", "March Madness").
   const timeOnly = (w: string[]) => { const r = readTime(w.join(" "), ctx.today, yearOk); return !!r.time && allFiller(r.rest.split(" ").filter(Boolean)); };
   const at0 = keptName(words0, ctx, timeOnly);
@@ -261,6 +267,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       else if (s.k === "nopen") p.noPenalties = true;
       else if (s.k === "undefeated") p.undefeated = true;
       else if (s.k === "agg" && !p.agg) p.agg = s.v;
+      else if (s.k === "vs" && p.vsAt == null) p.vsAt = i;
       const k = symKey(s);
       if (k && s.k !== "award") symbols.add(k);
     }

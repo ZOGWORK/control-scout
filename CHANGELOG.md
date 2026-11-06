@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.5.3 — 2026-11-06
+## 3.5.4 — 2026-11-06
 
 Long questions are read whole.
 
@@ -26,6 +26,80 @@ Long questions are read whole.
 
 ### Search
 - **Long questions read whole.** Search read only the first 80 characters, cut inside a word, so a long question lost its end: "… or was it way off in 2025-26" became "… in 2025-2", and the season (or the event, or the last team) went missing. A question is now read up to 160 characters; past that it's cut at the last whole word, never inside one. The names list reads the same length. (#838)
+
+## 3.5.3 — 2026-11-06
+
+"12345 vs 67890", with no event, answers with both teams' season numbers side by side, however it's asked.
+
+### Highlights
+- [teams] "12345 vs 67890" puts both teams' season numbers side by side
+- [teams] "Who is better, 12345 or 67890" gives the same side-by-side card
+- [teams] Two teams at Worlds use the latest Worlds either one went to
+- [teams] A team never at Worlds is told so, with the other's results
+
+### Search
+- **Two teams side by side.** "12345 vs 67890", "12345 versus 67890", "compare 12345 and 67890", "who is better, 12345 or 67890": the season's numbers of both teams in one card (OPR and its phases, the prediction rating, ranks and records), with Compare's own page first among the links. The numbers are printed once: the head-to-head panel that used to repeat them under it is left out when the card shows them. "12345 or 67890" alone is still a search for either team, and a name two teams share still asks which one.
+- **At Worlds or states with no season said.** Two teams compared at Worlds when neither went this season use the newest Worlds either went to. One that has never been there is told so plainly, with the other team's own results linked. (#875)
+
+## 3.5.2 — 2026-11-06
+
+Two teams compared at an event show each team's numbers there.
+
+### Highlights
+- [teams] "12345 vs 67890 at an event" compares the two teams' numbers there
+- [teams] OPR, rank and record at the event, side by side
+- [fixes] When only one of them was there, the card says which
+
+### Search
+- **Two teams at an event, side by side.** A comparison with an event named ("7149 vs 23268 at nj championship 2025-26", their Worlds, their states) answers with each team's row there: OPR at the event and by phase, qualification rank and record (a championship's division and finals as one), the leader as the headline. When only one of them played it, or each played a different event the words name, the card says so and offers each team's own results. A comparison with no event keeps Compare's card. (#825)
+
+## 3.5.1 — 2026-11-06
+
+A team's matches in a season are an answer of their own: the record, quals and playoffs apart, then every match.
+
+### Highlights
+- [fixes] A team's matches in a season are listed, newest first
+- [fixes] The record on top, with quals and playoffs apart
+- [fixes] A season with no matches says so for that season
+
+### Search
+- **A team's matches in a season.** "17670 matches in 2026-27", "show me gearview matches 2025-26" or a team's number and "matches" answer with the team's record in that season (its latest, when none is named), quals and playoffs apart, and every match below it, newest first. Before, only the team's card came back. A place or a window said narrows it ("gearview matches in New Jersey in 2024-25"). Matches at Worlds or at a state championship stay that event's results card, with its division, rank and OPR. A season with no matches says so for that season, never another season's matches. (#813)
+
+## 3.5.0 — 2026-11-06
+
+Search predicts a full match: two alliances of two.
+
+### Highlights
+- [predict] "Predict 12345 23456 vs 34567 45678" gives the match's call
+- [predict] Win chance, predicted score and margin for each alliance
+- [predict] "Custom matchup" and "who wins" phrasings read the same
+
+### Search
+- **Two alliances of two.** Four teams with "vs" between the pairs ("predict 12345 23456 vs 34567 45678", "12345 and 23456 vs 34567 and 45678 who wins", "custom matchup …", by number or name) answer with the engine's call for that qualification match, as Predict makes it: each alliance's win chance, predicted score and margin, the confidence, each team's rating, and Predict opened on the same lineup. The season is the one named, else the latest every team has a rating in. Before, the card compared only the first team of each side. (#834)
+
+## 3.4.9 — 2026-11-06
+
+A forecast asked against what happened answers with the event's forecast card.
+
+### Highlights
+- [predict] "Was the prediction right" at an event shows prediction and result
+- [predict] "Before and after", "vs actual" and "last prediction" all read the same
+- [fixes] These questions no longer stop at the team card
+
+### Search
+- **Prediction against the result, any wording.** A team's forecast at an event held up against what happened ("4215 predicted rank at nj championship vs actual rank", "show me 4215's predictions before and after east bergen", "4215 last prediction for east bergen", "did the prediction for 4215 at east bergen get it right, or was it way off") answers with the forecast card for that event, which already shows the prediction beside the result. The words that hold a forecast up against the result are one entry in the search lexicon, and only the forecast takes them. (#828)
+
+## 3.4.8 — 2026-11-06
+
+A question that names its season and also says "this season" is answered for the season it named.
+
+### Highlights
+- [fixes] "This season in 2025-26" answers for 2025–26 instead of nothing
+- [fixes] The card names the season the question named
+- [fixes] Works in any word order, for any team, place or match question
+
+### Search
+- **"This season" beside a season named.** A question that names a season and also says "this season" ("biggest upset in NJ this season in 2025-26", "this season 4215 record in 2025-26") had the extra words left over, so nothing answered it. Now the season named stands, the card says it, and the words saying it again are read with it. "Last season" next to a named season is a second season (a comparison), so it is never read as the same one. (#811)
 
 ## 3.4.7 — 2026-11-06
 
