@@ -30,6 +30,19 @@ A championship split in divisions is one result a season, with its divisions und
 - **One count.** The page lists 25 results with an event and its divisions counted as one, so "first championship" lists all 28 of its events where it listed 25 and said "28 in all". A list still longer than a page says how many of all are listed ("the newest 24 of 30 listed"), the same number the tabs and the events heading show.
 - **Year and filters together.** A year named with "in" ("first championship in 2025") is the championship held that year, the 2024–25 season's. A season picked from the list, or Upcoming or Past, rewrites the heading for what's left ("FIRST Championship (Worlds) events, 2024–25"), and stays in the address.
 
+## 3.3.7 — 2026-11-05
+
+Long search questions answer faster: a word looked up once is remembered for the rest of the answer.
+
+### Highlights
+- [speed] Long questions answer up to 7 times faster
+- [speed] "Top NJ team vs top Romania team" answers in under a second
+- [speed] Award-filtered team lists read each team's awards directly
+
+### Search
+- **A word looked up once.** One answer asks for the same team or word many times (each reader and layer asks again), and a word that finds nothing used to scan every name each time. Search now remembers each lookup for a minute, until the search index is rebuilt. Of the 19 held-out questions that took over a second, 11 now take under one, and the slowest went from 6.8 s to 2.0 s, with every answer unchanged. (#779)
+- **Award lists by index.** A list of teams that won an award reads each team's own awards, never every award that season for each team.
+
 ## 3.3.6 — 2026-11-05
 
 Every kind of search answer is checked on a 390 px phone: nothing runs off the screen, and every link and button is big enough to tap.
