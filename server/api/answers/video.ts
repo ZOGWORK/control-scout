@@ -3,7 +3,9 @@
 // so no family or parser says anything about video. The same sources as the event page: FIRST's own video of a match
 // (matches.video), else its second in the event's recording (server/videos/recordings.ts withClips), else the event's
 // recording or live stream from its start. One read of the events' played matches for the whole answer, whatever
-// its number of rows; the recordings are the cached season maps.
+// its number of rows; the recordings are the cached season maps. An answer about a team (or its highlights) plays one of
+// the team's own listed matches before the event's recording: the recording from its start shows whatever was on
+// then (another team's match, an award), so it's the fallback only when no listed match has a clip.
 import { all } from "../../db.js";
 import { seasonRecordings, withClips, type Recording } from "../../videos/recordings.js";
 import { linkStart } from "../../../src/shared/recording.js";
@@ -77,7 +79,21 @@ export function rowRefs(a: SearchAnswer): (VideoRef & { href: string })[] {
   return [...out.values()];
 }
 
-interface PlayedRow { season: number; code: string; level: string; series: number; number: number; label: string; time: string | null; video: string | null; timezone: string | null }
+/** An answer about one team (its stat answer's team, or a link to an event for it) or a list of highlights. */
+function aboutTeam(a: SearchAnswer): boolean {
+  if (a.stat?.team) return true;
+  if (/[?&]team=\d+/.test(a.stat?.headline?.href ?? "")) return true;
+  return !!a.stat?.blocks.some((b) => b.kind === "matches" && b.rows.length > 0 && b.rows.every((r) => r.note));
+}
+
+/** The team an answer is about: its stat answer's team, else the one its headline's event link is for. */
+function teamOf(a: SearchAnswer): number | null {
+  const n = a.stat?.team?.number ?? Number(/[?&]team=(\d+)/.exec(a.stat?.headline?.href ?? "")?.[1] ?? NaN);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** `own`: the team's alliance's points without penalties, when the answer is about a team at the event (else null). */
+interface PlayedRow { season: number; code: string; level: string; series: number; number: number; label: string; time: string | null; video: string | null; timezone: string | null; own?: number | null }
 
 /** The answer's video, or undefined when the site has none for it. */
 export async function answerVideo(a: SearchAnswer, now = Date.now()): Promise<SearchVideo | undefined> {
@@ -92,12 +108,17 @@ export async function answerVideo(a: SearchAnswer, now = Date.now()): Promise<Se
     const m = await seasonRecordings(s).catch(() => new Map<string, Recording>());
     for (const e of events.values()) if (e.season === s && m.has(e.code)) recs.set(evKey(e), m.get(e.code)!);
   }));
+  // An answer about a team at one event with no match of its own ("<team> opr at worlds"): the team's matches there,
+  // its points on each, so the card plays its best one with a clip, never the recording from its start.
+  const team = aboutTeam(a) ? teamOf(a) : null;
+  const teamAt = team != null && main && !main.key && recs.has(evKey(main)) ? main : null;
   // The events' played matches, all in one read: a match's clip needs its event's whole span (timingTrusted).
-  const asked = [...events.values()].filter((e) => rows.some((r) => evKey(r) === evKey(e)) || (main?.key && evKey(main) === evKey(e)));
+  const asked = [...events.values()].filter((e) => rows.some((r) => evKey(r) === evKey(e)) || (main && evKey(main) === evKey(e) && (main.key || teamAt)));
   const played = asked.length ? await all<PlayedRow>(
-    `SELECT m.season, m.code, m.level, m.series, m.number, m.label, m.time, m.video, e.timezone FROM matches m
-     JOIN events e ON e.season = m.season AND e.code = m.code
-     WHERE m.played = 1 AND (${asked.map(() => "(m.season = ? AND m.code = ?)").join(" OR ")})`, asked.flatMap((e) => [e.season, e.code])) : [];
+    `SELECT m.season, m.code, m.level, m.series, m.number, m.label, m.time, m.video, e.timezone${teamAt ? ", CASE t.alliance WHEN 'red' THEN m.red_np WHEN 'blue' THEN m.blue_np END own" : ""} FROM matches m
+     JOIN events e ON e.season = m.season AND e.code = m.code${teamAt ? `
+     LEFT JOIN match_teams t ON t.season = m.season AND t.code = m.code AND t.level = m.level AND t.series = m.series AND t.number = m.number AND t.team = ? AND t.on_field = 1` : ""}
+     WHERE m.played = 1 AND (${asked.map(() => "(m.season = ? AND m.code = ?)").join(" OR ")})`, [...(teamAt ? [team!] : []), ...asked.flatMap((e) => [e.season, e.code])]) : [];
   const byEvent = new Map<string, PlayedRow[]>();
   for (const r of played) { const k = `${r.season}:${r.code}`; (byEvent.get(k) ?? byEvent.set(k, []).get(k)!).push(r); }
   const items = new Map<string, SearchVideoItem>();
@@ -115,12 +136,27 @@ export async function answerVideo(a: SearchAnswer, now = Date.now()): Promise<Se
     }
   }
   const out: SearchVideo = {};
+  let mainHref = main?.key ? `${evKey(main)}:${main.key}` : null;
   if (main) {
     const rec = recs.get(evKey(main));
-    out.main = (main.key ? items.get(`${evKey(main)}:${main.key}`) : undefined)
-      ?? (rec ? { videoId: rec.videoId, t: 0, kind: "stream", ...(rec.meta?.live ? { live: true } : {}) } : undefined);
+    out.main = mainHref ? items.get(mainHref) : undefined;
+    if (!out.main && aboutTeam(a)) {
+      // The team's first listed match with a clip (a team's highlights: its best one).
+      const first = rows.find((r) => items.has(`${evKey(r)}:${r.key}`));
+      if (first) { mainHref = `${evKey(first)}:${first.key}`; out.main = items.get(mainHref); }
+    }
+    if (!out.main && teamAt) {
+      const theirs = played.filter((r) => r.own != null && `${r.season}:${r.code}` === evKey(teamAt)).sort((x, y) => Number(y.own) - Number(x.own));
+      const best = theirs.find((r) => items.has(`${evKey(teamAt)}:${r.level}:${r.series}:${r.number}`));
+      if (best) out.main = items.get(`${evKey(teamAt)}:${best.level}:${best.series}:${best.number}`);
+    }
+    out.main ??= rec ? { videoId: rec.videoId, t: 0, kind: "stream", ...(rec.meta?.live ? { live: true } : {}) } : undefined;
   }
-  const mainHref = main?.key ? `${evKey(main)}:${main.key}` : null;
+  // The listed match the main video is (not the event's recording standing in for it).
+  if (out.main && out.main.kind !== "stream" && mainHref) {
+    const row = rows.find((r) => `${evKey(r)}:${r.key}` === mainHref);
+    if (row) out.mainRow = row.href;
+  }
   for (const r of rows) {
     const k = `${evKey(r)}:${r.key}`;
     // The match the card already plays gets no button of its own.
