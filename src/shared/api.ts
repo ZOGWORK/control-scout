@@ -192,6 +192,8 @@ export interface SearchVideo {
   main?: SearchVideoItem;
   /** Listed matches with a clip (match or recording), by the row's href (StatMatchRow.href, a table row's href). */
   rows?: Record<string, SearchVideoItem>;
+  /** The listed match the main video is (its row's href), so a video grid's tile for it plays the same clip. */
+  mainRow?: string;
 }
 
 /** A question's answer (server/api/searchQuestions.ts): each line a real record, linked to where it's shown. */

@@ -6,11 +6,12 @@
 // already returned; nothing is typed in or guessed.
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, Award, CalendarDays, Flag, MapPin } from "lucide-react";
+import { ArrowRight, CalendarDays, Flag, MapPin } from "lucide-react";
 import { seasonLabel } from "../../../lib/format";
 import { smoothBehavior } from "../../../lib/pageScroll";
 import { cn } from "../../cn";
-import { TEAM_BAR, TEAM_TEXT } from "./answerCells";
+import { SEARCH_PALETTE } from "../../../lib/textTones";
+import { AwardChip, TEAM_BAR, TEAM_TEXT } from "./answerCells";
 import type { Appearance, Stat, Standing } from "./records";
 import { AnswerFrame, useAnswerSeason, useTeamProfile } from "./TeamAnswer";
 
@@ -135,12 +136,10 @@ export function QualityBanner({ s }: { s: Standing }) {
 }
 
 const PILL = "inline-flex items-baseline gap-1 rounded-md px-1.5 py-0.5 text-[11px]";
-/** A trip's numbers, awards and "Played the finals" as pills, each told by its label or icon. The card is one team's,
- *  so its pills take that team's hue (a tint, the number and award icon in the hue); never rank violet, record green
- *  or award gold (the search results guide: hue means team). */
+/** A trip's numbers as pills in the team's hue (a tint, the number in the hue), its awards as chips filled in their
+ *  kind's colour (answerCells AwardChip), "Played the finals" in the Winning Alliance's. */
 const NUM_PILL = cn(PILL, "bg-team-a/10 text-foreground");
-const AWARD_CHIP = cn("inline-flex items-center gap-1 rounded-md border border-team-a/40 bg-team-a/10 px-1.5 py-0.5 text-[11px] font-medium text-foreground");
-const FINALS_CHIP = cn(PILL, "items-center border border-border font-medium text-foreground");
+const FINALS_CHIP = cn(PILL, "items-center font-semibold", SEARCH_PALETTE.finalist.fill);
 
 /** One championship trip as a card: its division as the title, the event, place and season as badges, its numbers
  *  as pills. The whole card opens the event on the team; the timeline's nodes land here. */
@@ -161,7 +160,7 @@ export function AppearanceCard({ a, marked }: { a: Appearance; marked?: "first" 
         {a.opr != null && <span className={NUM_PILL} data-pill="opr"><span className="text-muted-foreground">OPR</span><b className={cn("tabular-nums", TEAM_TEXT)}>{a.opr.toFixed(1)}</b></span>}
         {a.more.map((m) => (m === "Played the finals"
           ? <span key={m} className={FINALS_CHIP}>{m}</span>
-          : <span key={m} className={AWARD_CHIP} data-award><Award className={cn("size-3", TEAM_TEXT)} aria-hidden />{m}</span>))}
+          : <AwardChip key={m} name={m} />))}
       </p>
       {a.href && <span className="mt-2.5 inline-flex items-center gap-1 text-xs font-semibold text-foreground group-hover:text-accent-text group-hover:underline max-sm:hidden" data-cta>View event<ArrowRight className="size-3.5" aria-hidden /></span>}
     </>

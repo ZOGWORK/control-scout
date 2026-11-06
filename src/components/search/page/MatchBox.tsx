@@ -1,14 +1,13 @@
 // One match in a search answer, as a box (every list of matches search shows: a season's top scores, a team's best
 // and latest matches, two teams' meetings): its place in the list as a podium badge, the match and its event, then a
 // scoreboard, the red alliance over the blue, each with its teams as chips and its score big in its colour (the loser
-// muted, the winner marked), and the listed alliance's points by phase as small tiles in the team page's colour for
-// each phase (the owner's call over the guide's "hue means team": Auto blue, TeleOp green, Endgame purple, penalties red). Drawn from the row the server sends; nothing is fetched or worked out beyond adding the numbers up.
+// muted, the winner marked), and the listed alliance's points by phase as tiles filled in search's palette colour for
+// each phase (lib/textTones SEARCH_PALETTE: Auto blue, TeleOp green, Endgame purple, penalties red), white on them. Drawn from the row the server sends; nothing is fetched or worked out beyond adding the numbers up.
 import { Link } from "react-router-dom";
 import type { StatLink, StatMatchRow } from "../../../shared/searchStat";
 import { PODIUM_CHIP } from "../../../lib/textTones";
 import { cn } from "../../cn";
-import { PHASE_TEXT, PHASE_TONE } from "../../oprCards";
-import { TONES } from "../../StatTile";
+import { SEARCH_PALETTE } from "../../../lib/textTones";
 import { EventMarker, PODIUM } from "./answerCells";
 import { TAP } from "./TeamAnswer";
 import { RowPlay } from "./AnswerVideo";
@@ -36,8 +35,9 @@ export function TeamChip({ t, side, self }: { t: StatLink; side: "red" | "blue";
 
 const PHASES: ["auto" | "teleop" | "endgame" | "pen", string][] = [["auto", "Auto"], ["teleop", "TeleOp"], ["endgame", "Endgame"], ["pen", "Pen given"]];
 
-/** `atEvent`: every box in the list is at this event, named once over it; the box keeps only its date. */
-export function MatchBox({ r, team, atEvent }: { r: StatMatchRow; team?: Who; atEvent?: boolean }) {
+/** `atEvent`: every box in the list is at this event, named once over it; the box keeps only its date. `noPlay`: the
+ *  box sits under its own picture (a video grid's tile), which plays it. */
+export function MatchBox({ r, team, atEvent, noPlay }: { r: StatMatchRow; team?: Who; atEvent?: boolean; noPlay?: boolean }) {
   const other = r.alliance === "red" ? "blue" : "red";
   // A team's own row lists its partners without it: the team goes first on its own alliance (the row's own team, else
   // the card's). The card's team is named in the card's header, so its chip is the number alone (each name once).
@@ -64,7 +64,7 @@ export function MatchBox({ r, team, atEvent }: { r: StatMatchRow; team?: Who; at
             {` · ${r.season}`}{r.date ? ` · ${r.date}` : ""}
           </>}
         </span>
-        <RowPlay href={r.href} label={`${r.label} · ${r.event.label}`} className="-my-1 -mr-1 ml-auto" />
+        {!noPlay && <RowPlay href={r.href} label={`${r.label} · ${r.event.label}`} className="-my-1 -mr-1 ml-auto" />}
       </div>
       {/* The phase tiles beside the scoreboard only where the box is wide enough for both (its own width, not the
           screen's: two boxes side by side are narrow); else under it, in one row. */}
@@ -93,11 +93,11 @@ export function MatchBox({ r, team, atEvent }: { r: StatMatchRow; team?: Who; at
         {!!phases?.length && (
           <dl className="grid grid-cols-4 gap-1 self-center @md:w-44 @md:grid-cols-2" aria-label={`${r.alliance === "red" ? "Red" : "Blue"} alliance's points by phase`} data-phases>
             {phases.map(([k, label]) => (
-              // Each phase in its team page colour; the period a list ranks by gets a ring and a bold label.
-              <div key={k} className={cn("min-w-0 rounded-md border px-1.5 py-1", TONES[PHASE_TONE[k]].box, r.ranked === k && "ring-1 ring-foreground/50")} data-phase={k} data-ranked={r.ranked === k ? "" : undefined}>
+              // Each phase filled in its colour; the period a list ranks by gets a ring and a bold label.
+              <div key={k} className={cn("min-w-0 rounded-md px-1.5 py-1", SEARCH_PALETTE[k].fill, r.ranked === k && "ring-2 ring-foreground")} data-phase={k} data-ranked={r.ranked === k ? "" : undefined}>
                 {/* TeleOp as FIRST reports it: with the endgame where the season counts it so. */}
-                <dt className={cn("truncate text-[10px] leading-tight", r.ranked === k ? "font-semibold text-foreground" : "text-muted-foreground")}>{k === "teleop" && r.phases!.teleopWithEndgame ? "TeleOp + end" : label}</dt>
-                <dd className={cn("font-semibold tabular-nums", PHASE_TEXT(k))}>{r.phases![k]}</dd>
+                <dt className={cn("truncate text-[10px] leading-tight", r.ranked === k ? "font-bold" : "font-medium")}>{k === "teleop" && r.phases!.teleopWithEndgame ? "TeleOp + end" : label}</dt>
+                <dd className="font-semibold tabular-nums">{r.phases![k]}</dd>
               </div>
             ))}
           </dl>
