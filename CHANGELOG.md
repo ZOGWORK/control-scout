@@ -27,7 +27,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 ### Search
 - **Who won an event.** "Who won", "winner of", "champions of" and "who took" an event lead with its playoff champions, the alliance that won its final, as team chips in the colour they played it in, the same champions as its Playoffs tab. A division's awards are posted on its championship, so its answer lists the championship's awards below; "no results yet" is said only when there's neither a playoff result nor an award.
 - **A championship and its divisions.** A championship's answer leads with its finals' champions, then each division's winners and its Inspire Award.
-- **"This year" before it's held.** "Who won <event> this year" before this season's event is decided (or set up) says so, then shows its latest finished season's winners, labelled.
+- **"This year" before it's held.** "Who won <event> this year" before this season's event is decided (or set up) says so, then shows its latest finished season's winners, labelled. (#928)
 
 ## 3.6.4 — 2026-11-06
 
