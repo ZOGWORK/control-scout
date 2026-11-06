@@ -1,0 +1,302 @@
+[
+ {
+  "n": 1,
+  "q": "23268 and enforcers opr",
+  "check": "side-by-side OPR, Total / Auto / TeleOp / Endgame bars, 2025–26. Check: one header only, no \"read as 23268 vs 7149 opr\", bars scaled per metric, winner +42.7 printed.",
+  "expect": "compare"
+ },
+ {
+  "n": 2,
+  "q": "4215 vs 7149 opr in 2025-26",
+  "check": "same shape, different teams, check bars are not just yellow vs blue with no scale.",
+  "expect": "compare"
+ },
+ {
+  "n": 3,
+  "q": "14450 vs 17713 rating in 2025-26",
+  "check": "rating, not OPR, with auto / TeleOp / endgame components, Romania team 17713 gets Romania events, not NJ.",
+  "expect": "compare"
+ },
+ {
+  "n": 4,
+  "q": "17670 opr right now in 2026-27",
+  "check": "17670 played in 2026–27, 6-0-0, check latest season is used, not 2025–26.",
+  "expect": "opr"
+ },
+ {
+  "n": 5,
+  "q": "21229 vs 19564 opr in 2026-27",
+  "check": "top 2026–27 teams, check rank #1 / #2 context is shown.",
+  "expect": "compare"
+ },
+ {
+  "n": 6,
+  "q": "4215 and 6980 record in 2025-26",
+  "check": "compare records, quals vs playoffs split, not just OPR.",
+  "expect": "compare|record"
+ },
+ {
+  "n": 7,
+  "q": "7149 vs 23268 at NJ championship in 2025-26",
+  "check": "both played NJ Championship, Turnpike vs Parkway, check per-division results are not mixed.",
+  "expect": "compare|event"
+ },
+ {
+  "n": 8,
+  "q": "17965 vs 17713 at Romania championship in 2025-26",
+  "check": "Romanian compare, VLAICU Division, check no NJ results leak in.",
+  "expect": "compare|event"
+ },
+ {
+  "n": 9,
+  "q": "4215 opr by event in 2025-26",
+  "check": "OPR by event list / chart, Parkway 108.9, East Bergen 105.7, P3-6 96.1, P1-4 92.2, check trend is visual, not just a list.",
+  "expect": "trend"
+ },
+ {
+  "n": 10,
+  "q": "6980 opr vs 4215 opr over time in 2025-26",
+  "check": "time trend, event by event, check the line / bars show change, not a single number.",
+  "expect": "trend|compare"
+ },
+ {
+  "n": 11,
+  "q": "4215 record in 2025-26",
+  "check": "26-6-0, 81%, quals 22-4-0, playoffs 4-2-0, check table, not just a headline.",
+  "expect": "record"
+ },
+ {
+  "n": 12,
+  "q": "23268 matches at NJ championship in 2025-26",
+  "check": "10-0-0, Turnpike #1, check full match list, with penalty scores spaced correctly, \"171 (181 with penalties) – 167\", not \"171(181with penalties)–167\".",
+  "expect": "event"
+ },
+ {
+  "n": 13,
+  "q": "7149 matches at worlds in 2025-26",
+  "check": "Ross Division, 6-4-0, check match list, not just a team card.",
+  "expect": "event"
+ },
+ {
+  "n": 14,
+  "q": "14450 matches at worlds in 2025-26",
+  "check": "Lovelace Division, 5-5-0, check it is not confused with NJ Championship.",
+  "expect": "event"
+ },
+ {
+  "n": 15,
+  "q": "4215 highest scoring match in 2025-26",
+  "check": "single match, score, event, date, alliance partners, check it is visual, not a text line.",
+  "expect": "team-match"
+ },
+ {
+  "n": 16,
+  "q": "4215 closest match in 2025-26",
+  "check": "smallest margin, check margin is shown, not just a win.",
+  "expect": "team-match"
+ },
+ {
+  "n": 17,
+  "q": "17670 matches this season in 2026-27",
+  "check": "6-0-0, check latest matches are listed, with dates.",
+  "expect": "team-match|event|record|when-last"
+ },
+ {
+  "n": 18,
+  "q": "207 matches at East Bergen in 2025-26",
+  "check": "207 played East Bergen, check event-specific match list.",
+  "expect": "event"
+ },
+ {
+  "n": 19,
+  "q": "4215 wins vs losses by event in 2025-26",
+  "check": "per-event win/loss bars, check grammar is \"1 loss\", not \"1 losses\".",
+  "expect": "record|trend"
+ },
+ {
+  "n": 20,
+  "q": "7149 record at NJ championship in 2025-26",
+  "check": "Turnpike 8-0-0, plus playoffs 2-0-0, check quals vs playoffs are split, not added together silently.",
+  "expect": "record|event"
+ },
+ {
+  "n": 21,
+  "q": "who won inspire at East Bergen Conference Northern League Tournament in 2025-26",
+  "check": "podium: 1st 4215, 2nd 207, 3rd 13617, plus full awards list, plus link to event awards page. Check podium is visual, 1st centre/higher.",
+  "expect": "awards"
+ },
+ {
+  "n": 22,
+  "q": "awards 4215 has won in 2025-26",
+  "check": "11 awards total, check \"By award\" label is full \"Winning Alliance\", not \"Winning Allia...\", and chart is not truncated.",
+  "expect": "awards"
+ },
+ {
+  "n": 23,
+  "q": "awards 7149 has won in 2025-26",
+  "check": "34 awards, check list is complete, not just top 3.",
+  "expect": "awards"
+ },
+ {
+  "n": 24,
+  "q": "who won inspire at Romania championship in 2025-26",
+  "check": "Romanian awards, check it is not NJ Inspire.",
+  "expect": "awards"
+ },
+ {
+  "n": 25,
+  "q": "24033 awards in 2025-26",
+  "check": "Alphatronic, Cluj-Napoca, Romania, Romania North League Tournament Inspire + Winning Alliance Captain, check team-specific awards.",
+  "expect": "awards"
+ },
+ {
+  "n": 26,
+  "q": "14450 awards at worlds in 2025-26",
+  "check": "Lovelace, check awards are event-specific.",
+  "expect": "awards"
+ },
+ {
+  "n": 27,
+  "q": "best award 4215 has won",
+  "check": "check it answers with a specific award, event, and date, not a list dump.",
+  "expect": "awards"
+ },
+ {
+  "n": 28,
+  "q": "how many inspire awards has 7149 won",
+  "check": "count, with seasons, check number matches team page.",
+  "expect": "awards|count"
+ },
+ {
+  "n": 29,
+  "q": "4215 awards by season",
+  "check": "2025–26, 2024–25, 2023–24, 2022–23, check a visual by-season breakdown.",
+  "expect": "awards"
+ },
+ {
+  "n": 30,
+  "q": "who won control award at NJ championship Turnpike in 2025-26",
+  "check": "specific award + division, check it does not return the wrong division.",
+  "expect": "awards"
+ },
+ {
+  "n": 31,
+  "q": "predicted chances of 4215 east bergen conference in 2025-26",
+  "check": "MUST answer now, with win odds bar, predicted score, before/after, and Open in Predict. This was \"This isn't answered directly yet\" in the Nov 4 audit.",
+  "expect": "predict"
+ },
+ {
+  "n": 32,
+  "q": "predict 4215 vs 6980 in 2025-26",
+  "check": "custom matchup, winner, scores, odds, check it is not just an OPR compare.",
+  "expect": "predict"
+ },
+ {
+  "n": 33,
+  "q": "predict 23268 vs 7149 in 2025-26",
+  "check": "custom matchup, check odds bar and predicted score are visual, with factors.",
+  "expect": "predict"
+ },
+ {
+  "n": 34,
+  "q": "4215 last prediction for East Bergen in 2025-26",
+  "check": "before vs after table, predicted vs actual, accuracy, check it shows both sides.",
+  "expect": "predict"
+ },
+ {
+  "n": 35,
+  "q": "7149 advancement odds at NJ championship in 2025-26",
+  "check": "advancement odds, check it is a bar / gauge, not a text line.",
+  "expect": "predict"
+ },
+ {
+  "n": 36,
+  "q": "23268 advancement odds at worlds in 2025-26",
+  "check": "Lovelace, check odds are for that event, not NJ.",
+  "expect": "predict"
+ },
+ {
+  "n": 37,
+  "q": "predicted chances of 17670 this season in 2026-27",
+  "check": "2026–27 team, check it uses current season, not 2025–26.",
+  "expect": "predict"
+ },
+ {
+  "n": 38,
+  "q": "predict 4215 7149 vs 23268 14450 in 2025-26",
+  "check": "2v2 custom matchup, check both alliances are shown, with a winner.",
+  "expect": "predict"
+ },
+ {
+  "n": 39,
+  "q": "4215 vs 6980 at worlds who scored higher in 2025-26",
+  "check": "INVALID head-to-head, 6980 has no Worlds appearances, correct answer is a clear no-matches card, not a winner. Check it does not invent a head-to-head.",
+  "expect": "invalid"
+ },
+ {
+  "n": 40,
+  "q": "4215 and 6980 matches together at NJ championship in 2025-26",
+  "check": "INVALID, 6980 was not at NJ Championship in 2025–26, correct answer is a clear no-matches card, with links to 4215's Parkway matches and 6980's actual events, not a failure.",
+  "expect": "invalid"
+ },
+ {
+  "n": 41,
+  "q": "top teams in NJ in 2025-26",
+  "check": "leaderboard, dense table, OPR bars, top-3 badges, check it is a table, not a text list.",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 42,
+  "q": "top teams in Romania in 2025-26",
+  "check": "leaderboard, Romanian teams only, check no NJ teams leak in.",
+  "expect": "leaderboard"
+ },
+ {
+  "n": 43,
+  "q": "highest scoring match in California this week",
+  "check": "place + time, check it applies California and this week as filters itself, with a date.",
+  "expect": "match-find"
+ },
+ {
+  "n": 44,
+  "q": "lowest scoring match in Texas last week",
+  "check": "place + time + aggregation, check it is not just a generic list.",
+  "expect": "match-find"
+ },
+ {
+  "n": 45,
+  "q": "biggest upset in NJ this season in 2025-26",
+  "check": "upset, check margin and expected vs actual are shown.",
+  "expect": "match-find"
+ },
+ {
+  "n": 46,
+  "q": "4215 matches at states in 2025-26",
+  "check": "\"states\" for an NJ team = NJ Championship, Parkway, Mar 15, 2026, check full championship card + by-season table, not a disambiguation page.",
+  "expect": "event"
+ },
+ {
+  "n": 47,
+  "q": "24033 matches at Romania championship in 2025-26",
+  "check": "Romanian \"states\", check it is Romania Championship, never NJ.",
+  "expect": "event"
+ },
+ {
+  "n": 48,
+  "q": "4215 opr rn pls",
+  "check": "colloquial / typo, check Did you mean / Showing results for, and that it still answers with the OPR card.",
+  "expect": "opr"
+ },
+ {
+  "n": 49,
+  "q": "hypnotik robotics opr in 2025-26",
+  "check": "misspelling, check Did you mean works, with a tappable correction, and best match still shown.",
+  "expect": "opr"
+ },
+ {
+  "n": 50,
+  "q": "14450 rating going up or down lately in 2025-26, event by event",
+  "check": "trend, check it is 2025–26 only, 14450 has no 2026–27 matches, expected Rising, with a visual trend, not a single number.",
+  "expect": "trend"
+ }
+]
