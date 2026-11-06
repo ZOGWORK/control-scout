@@ -44,10 +44,12 @@ describe("template cache", () => {
 });
 
 describe("waiting for a template", () => {
-  it("the stop-waiting timer is cleared when the form goes, never firing after it", () => {
+  it("the stop-waiting timer is cleared when the form goes, never firing after it", async () => {
+    // A request still out when the form goes, settled at the end so no other test shares it.
+    let settle = () => {};
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve) => { settle = () => resolve(new Response(JSON.stringify({ template: tpl(1, 1, "x") }), { status: 200 })); })));
     vi.useFakeTimers();
     try {
-      vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => {})));
       const { unmount } = renderHook(() => useWorkspaceTemplate("901", 2025));
       expect(vi.getTimerCount()).toBeGreaterThan(0);
       unmount();
@@ -55,5 +57,9 @@ describe("waiting for a template", () => {
     } finally {
       vi.useRealTimers();
     }
+    settle();
+    await fetchWorkspaceTemplate("901", 2025);
+    // Its in-flight entry goes on the turn after it settles.
+    await new Promise((r) => setTimeout(r, 0));
   });
 });
