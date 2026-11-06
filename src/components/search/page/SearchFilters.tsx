@@ -42,7 +42,7 @@ export function SearchFilters({ f, seasons, types, counts, asked = "all", onChan
         </Select>
       )}
       {anyFilter(f, asked) && (
-        <button type="button" onClick={() => onChange({ when: asked, season: null, type: null })} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-accent-text hover:underline max-md:min-h-[44px] pointer-coarse:min-h-[44px]">
+        <button type="button" onClick={() => onChange({ when: asked, season: null, type: null })} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-foreground hover:underline max-md:min-h-[44px] pointer-coarse:min-h-[44px]">
           <X className="size-3.5" aria-hidden />Clear filters
         </button>
       )}
