@@ -401,7 +401,8 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
         headline: { value: recText(r), label: `in ${ms.length} match${ms.length === 1 ? "" : "es"}${where}` },
         blocks: [
           { kind: "record", title: "Wins, losses and ties", ...r, ...(quals.length && playoffs.length ? { split: { quals: record(quals), playoffs: record(playoffs) } } : {}) },
-          matchesBlock("Newest first", newestFirst(ms)),
+          // Every match: a season is a few dozen at most, and the list is the answer.
+          { kind: "matches", title: "Newest first", rows: newestFirst(ms).map(row) },
         ],
         definition: RESULT_RULE,
       };

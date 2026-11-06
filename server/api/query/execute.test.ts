@@ -183,6 +183,24 @@ describe("one question, any phrasing, any team", () => {
     expect((await stat("4215 matches in 2023-24")).none).toMatch(/No matches in 2023–24/);
     // Worlds or a state championship stays the event readers' results card.
     expect((await ask("4215 matches at worlds in 2025-26")).stat?.intent).not.toBe("season-matches");
+    // One match asked for by its number is never the season's list.
+    expect((await ask("4215 match 2")).stat?.intent).not.toBe("season-matches");
+  });
+  it("a season of more matches than a list's usual cap lists every one", async () => {
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (30030, 'Granite Bots', 'Concord', 'VT', 'USA'), (30031, 'Maple Bots', 'Barre', 'VT', 'USA')");
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, 'USVTQ1', 'Green Mountain Qualifier', 'Qualifier', 'Town', 'VT', 'USA', '2026-02-14', '2026-02-14', 't')");
+    for (let i = 1; i <= 32; i++) {
+      await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'USVTQ1', 'qual', 0, ?, ?, '2026-02-14T10:00:00Z', 1, 60, 60, 40, 40, 't')", [500 + i, `Q${i}`]);
+      await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'USVTQ1', 'qual', 0, ?, 30030, 'red', 1), (2025, 'USVTQ1', 'qual', 0, ?, 30031, 'blue', 1)", [500 + i, 500 + i]);
+    }
+    await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'USVTQ1', 30030, 1), (2025, 'USVTQ1', 30031, 2)");
+    await rebuildSearch();
+    clearAllCaches();
+    const s = await stat("30030 matches in 2025-26");
+    expect(s.headline?.value).toBe("32-0-0");
+    const rows = s.blocks.find((b) => b.kind === "matches");
+    expect(rows?.kind === "matches" && rows.rows.length).toBe(32);
+    expect(rows?.kind === "matches" && rows.more).toBeFalsy();
   });
   it("a name typed nearly right offers the spelling, whatever stood between its words", async () => {
     const a = await ask("hypnotc-robotics highest score");
