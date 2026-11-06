@@ -152,13 +152,18 @@ export function withFilters(p: URLSearchParams, f: PageFilters, asked: When = "a
   return next;
 }
 
+/** Each event's status as the page sections it (./eventSections.ts eventStatuses: an event split in divisions takes
+ *  its family's), by "season:CODE"; filters and counts read the same, so the tabs agree with the sections. */
+export type Statuses = ReadonlyMap<string, EventStatus>;
+
 /** Whether a hit stays under the filters. Time and type describe events, so they narrow events only; a season
  *  narrows events and matches. Teams and places always stay. Never reorders: the kept hits keep the server's order. */
-export function keeps(h: SearchHit, f: PageFilters, today = todayIso()): boolean {
+export function keeps(h: SearchHit, f: PageFilters, today = todayIso(), statuses?: Statuses): boolean {
   if (h.kind === "event") {
     const e = eventFacts(h, today);
-    if (f.when === "upcoming" && e.status === "finished") return false;
-    if (f.when === "past" && e.status !== "finished") return false;
+    const status = statuses?.get(h.ref) ?? e.status;
+    if (f.when === "upcoming" && status === "finished") return false;
+    if (f.when === "past" && status !== "finished") return false;
     if (f.type && e.type !== f.type) return false;
     if (f.season != null && h.season !== f.season) return false;
     return true;
@@ -168,18 +173,21 @@ export function keeps(h: SearchHit, f: PageFilters, today = todayIso()): boolean
 }
 
 /** How many events each time tab would show with the other filters as they are (a tab with none is plain before
- *  it's picked). */
-export function whenCounts(hits: SearchHit[], f: PageFilters, today = todayIso()): Record<When, number> {
+ *  it's picked). The Upcoming tab lists the live ones too, in a section of their own: `upcoming` counts the ones to
+ *  come and `live` the ones under way, so its count matches its Upcoming section. */
+export function whenCounts(hits: SearchHit[], f: PageFilters, today = todayIso(), statuses?: Statuses): Record<When, number> & { live: number } {
   const ev = hits.filter((h) => h.kind === "event");
-  const n = (when: When) => ev.filter((h) => keeps(h, { ...f, when }, today)).length;
-  return { all: n("all"), upcoming: n("upcoming"), past: n("past") };
+  const n = (when: When) => ev.filter((h) => keeps(h, { ...f, when }, today, statuses)).length;
+  const live = ev.filter((h) => keeps(h, { ...f, when: "upcoming" }, today, statuses) && (statuses?.get(h.ref) ?? eventFacts(h, today).status) !== "upcoming").length;
+  return { all: n("all"), upcoming: n("upcoming") - live, past: n("past"), live };
 }
 
 /** What a filtered page with nothing left can switch to instead, nearest first: the other time tab, then every season,
  *  then every event type, each named with how many events it would show ("2 upcoming"); none that would show none. */
-export function filterAlternatives(hits: SearchHit[], f: PageFilters, today = todayIso()): { label: string; f: PageFilters }[] {
+export function filterAlternatives(hits: SearchHit[], f: PageFilters, today = todayIso(), statusesFor?: (g: PageFilters) => Statuses): { label: string; f: PageFilters }[] {
   const ev = hits.filter((h) => h.kind === "event");
-  const count = (g: PageFilters) => ev.filter((h) => keeps(h, g, today)).length;
+  // Each choice counted with its own statuses (a family's status depends on which of it the choice keeps).
+  const count = (g: PageFilters) => { const st = statusesFor?.(g); return ev.filter((h) => keeps(h, g, today, st)).length; };
   const out: { label: string; f: PageFilters }[] = [];
   const add = (g: PageFilters, say: (n: number) => string) => { const n = count(g); if (n) out.push({ label: say(n), f: g }); };
   if (f.when !== "all") { const other: When = f.when === "past" ? "upcoming" : "past"; add({ ...f, when: other }, (n) => `${n} ${other}`); }

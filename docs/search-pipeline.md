@@ -177,6 +177,23 @@ chip: "No 2026–27 matches yet at Worlds; showing 2025–26". A calendar year w
 read from the seasons either side too. A count ("top 3 highlights") lists at most that many. A match's number ("q16 video") is that match, never the
 highlights.
 
+## Natural questions
+
+A layer over the pipeline, never a rewrite of it (owner brief, 2026-11-06): one question asked every way a person
+would say it (a question or a statement, any word order, filler, "please", a name or a number) gives the same card
+with the same numbers. Each family is a phrase in the lexicon, a rule and, when no family answered it, a small answer
+of its own; every question that answered before answers the same (`server/api/query/natural.test.ts`). Its questions
+are the held-out set `natural`. Shipped one family per PR:
+
+- **Count teams by name** (`server/api/answers/teamsNamed.ts`): "named", "called", "with the name", "go by" and
+  "known as" make the words after them a name, read as words up to a place's preposition, never as the team that has
+  it. The count is the list: every team with that whole name, by number, with where it's from and its last season
+  played. A season said narrows to the teams that played it, a place to the teams from it, both said on the card. None
+  says so, with the names the words nearly spell or are part of, and Browse all teams. A town's teams counted ("how
+  many teams from <town>") is the town's list; a region's or a country's count stays search's own.
+- Next: when (last, next, first), yes or no ("has … ever"), who/what/where, superlatives and comparisons said more
+  ways, events and time words, and a "Sorry, I can't answer that yet" state with the questions that do answer.
+
 ## Leaderboards
 
 The pipeline's leaderboard (`execute.ts`, over `answers/families/leaderboard.ts`) reads a list of teams however it's

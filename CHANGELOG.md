@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.4.6 — 2026-11-06
+## 3.5.3 — 2026-11-06
 
 Long questions are read whole.
 
@@ -26,6 +26,34 @@ Long questions are read whole.
 
 ### Search
 - **Long questions read whole.** Search read only the first 80 characters, cut inside a word, so a long question lost its end: "… or was it way off in 2025-26" became "… in 2025-2", and the season (or the event, or the last team) went missing. A question is now read up to 160 characters; past that it's cut at the last whole word, never inside one. The names list reads the same length. (#838)
+
+## 3.4.7 — 2026-11-06
+
+Search lists events by status, then by date: what's live now first, then what's coming day by day, then what's over.
+
+### Highlights
+- [fixes] Live events first, under a solid rose header
+- [fixes] Upcoming events, cyan, grouped by day this week, then by week
+- [fixes] Finished events come last, newest first, under a lime header
+- [fixes] Every heading and tab counts the events under it
+
+### Search
+- **Status, then date.** A search's events sit in sections: Live now (by start), Upcoming (soonest first: Today, Tomorrow or the weekday for this week, then "Week of …"), and Finished (newest first, sectioned the same way). Each heading says how many events are under it, and an event split in divisions sits whole in its section as its tree. Nothing names an event, a date or a type: any list works.
+- **Counts that match.** The Upcoming tab counts the events to come and says its live ones apart ("Upcoming 23 · 2 live"), as its sections do; All is the three together (#805).
+
+## 3.4.6 — 2026-11-06
+
+"How many teams are called …" counts every team with that name and lists them, however it's asked.
+
+### Highlights
+- [teams] "How many teams named …" counts and lists every team with that name
+- [teams] Asked as "called", "with the name" or "go by", it's the same answer
+- [teams] Add a place or a season to count only those teams
+- [teams] "How many teams from" a town lists that town's teams
+
+### Search
+- **Teams by name, counted.** "How many teams named …", "teams called …", "number of teams with the name …" read the words after "named" as a name, never as the one team that has it, and answer with the count and every team with that whole name, by number, with where each is from and its last season played; the count is always the list. A place ("… from NJ") or a season ("… in 2025-26") narrows it and is said on the card. No team with the name says so, with the names the words nearly spell or are part of and Browse all teams, never the no-match page.
+- **A town's teams counted.** "How many teams from" or "in" a town answers with the town's list of teams, its length the count. A state's or a country's count is unchanged. (#804)
 
 ## 3.4.5 — 2026-11-06
 
