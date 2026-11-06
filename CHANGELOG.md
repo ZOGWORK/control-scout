@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.4.9 — 2026-11-06
+
+A forecast asked against what happened answers with the event's forecast card.
+
+### Highlights
+- [predict] "Was the prediction right" at an event shows prediction and result
+- [predict] "Before and after", "vs actual" and "last prediction" all read the same
+- [fixes] These questions no longer stop at the team card
+
+### Search
+- **Prediction against the result, any wording.** A team's forecast at an event held up against what happened ("4215 predicted rank at nj championship vs actual rank", "show me 4215's predictions before and after east bergen", "4215 last prediction for east bergen", "did the prediction for 4215 at east bergen get it right, or was it way off") answers with the forecast card for that event, which already shows the prediction beside the result. The words that hold a forecast up against the result are one entry in the search lexicon, and only the forecast takes them. (#828)
+
 ## 3.4.8 — 2026-11-06
 
 A question that names its season and also says "this season" is answered for the season it named.
