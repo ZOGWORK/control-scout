@@ -190,6 +190,27 @@ describe("one question, any phrasing, any team", () => {
     expect((await stat("4215 vs 6980 at garden qualifier in 2026")).scope).toEqual(["Garden Qualifier", "2025–26"]);
     expect((await ask("4215 vs 6980 at garden qualifier in 2024")).stat?.intent).not.toBe("compare");
   });
+  it("two meets by one name (AM and PM): both teams' numbers from the meet they both played", async () => {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, 'USMELAM', 'Lakeside AM League Meet', 'LeagueMeet', 'Town', 'ME', 'USA', '2026-02-21', '2026-02-21', 't'), (2025, 'USMELPM', 'Lakeside PM League Meet', 'LeagueMeet', 'Town', 'ME', 'USA', '2026-02-21', '2026-02-21', 't')");
+    let n = 700;
+    const meet = async (code: string, red: number, blue: number) => {
+      n++;
+      await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, ?, 'qual', 0, ?, ?, '2026-02-21T10:00:00Z', 1, 90, 90, 60, 60, 't')", [code, n, `Q${n}`]);
+      await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, ?, 'qual', 0, ?, ?, 'red', 1), (2025, ?, 'qual', 0, ?, ?, 'blue', 1)", [code, n, red, code, n, blue]);
+    };
+    await meet("USMELAM", 30010, 30011);
+    await meet("USMELPM", 30010, 30012);
+    await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'USMELAM', 30010, 1), (2025, 'USMELAM', 30011, 2), (2025, 'USMELPM', 30010, 1), (2025, 'USMELPM', 30012, 2)");
+    await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (2025, 'USMELAM', 30010, 40, 1), (2025, 'USMELAM', 30011, 30, 1), (2025, 'USMELPM', 30010, 70, 1), (2025, 'USMELPM', 30012, 20, 1)");
+    await rebuildSearch();
+    clearAllCaches();
+    for (const [q, at, values] of [["30010 vs 30011 at lakeside league meet", "Lakeside AM League Meet", ["40.0", "30.0"]], ["30010 vs 30012 at lakeside league meet", "Lakeside PM League Meet", ["70.0", "20.0"]]] as const) {
+      const s = await stat(q);
+      expect(s.title, q).toBe(`${q.split(" at ")[0]} at ${at}`);
+      const block = s.blocks.find((b) => b.kind === "compare");
+      expect(block?.kind === "compare" && block.rows.find((r) => r.label === "OPR")?.values, q).toEqual(values);
+    }
+  });
   it("a name typed nearly right offers the spelling, whatever stood between its words", async () => {
     const a = await ask("hypnotc-robotics highest score");
     expect(a.stat?.team?.number).toBe(4215);

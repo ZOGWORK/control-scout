@@ -841,7 +841,16 @@ async function compareAt(two: TwoTeamQuestion, a: AnswerTeam, b: AnswerTeam, sco
     return { ...base, title: `${a.number} vs ${b.number}, ${seasonLabel(S)}`, scope: [pa.name, pb.name, seasonLabel(S)], blocks: [related([[a, pa], [b, pb]])],
       none: `${whoOf(a)} played ${pa.name} and ${whoOf(b)} played ${pb.name} in ${seasonLabel(S)}: not the same event, so there is no side by side there.` };
   }
-  const teams = [a, b], rows = [pa.primary, pb.primary], picks = [pa, pb];
+  // One event for both: the first team's own when both played it, else the first both played (an AM and a PM meet
+  // by one name are two events: one team's PM numbers never stand beside the other's AM ones). Each team's rows are
+  // that event's alone (its division and finals for a championship), its division leading.
+  const key = (e: TeamEvent) => e.division ?? e.code;
+  const shared = [key(pa.primary), ...pa.events.map(key)].find((k) => fb.has(k))!;
+  const own = (p: TeamEventPick) => {
+    const evs = p.events.filter((e) => key(e) === shared);
+    return { events: evs, primary: evs.find((e) => e.division != null) ?? evs[0] };
+  };
+  const teams = [a, b], picks = [own(pa), own(pb)], rows = picks.map((p) => p.primary);
   const recs = picks.map((p) => p.events.reduce((r, e) => (e.record ? { wins: r.wins + e.record.wins, losses: r.losses + e.record.losses, ties: r.ties + e.record.ties } : r), { wins: 0, losses: 0, ties: 0 }));
   const recText = (r: { wins: number; losses: number; ties: number }) => `${r.wins}-${r.losses}-${r.ties}`;
   const scale = await seasonScale(S, ["opr_np", "opr_auto", "opr_teleop", "opr_endgame"]);
@@ -856,10 +865,10 @@ async function compareAt(two: TwoTeamQuestion, a: AnswerTeam, b: AnswerTeam, sco
   const crow = block.kind === "compare" ? block.rows : [];
   const ranks = rows.map((e, i) => `${teams[i].number} ${e.rank != null ? `#${e.rank}` : "unranked"} (${recText(recs[i])})`);
   // Different divisions of one championship: the part of their names they share ("Romania Championship").
-  const name = pa.primary.code === pb.primary.code ? pa.name : sharedName(pa.primary.name, pb.primary.name) ?? pa.name;
+  const name = rows[0].code === rows[1].code ? (picks[0].events.length === pa.events.length ? pa.name : rows[0].name) : sharedName(rows[0].name, rows[1].name) ?? rows[0].name;
   return {
     ...base, title: `${a.number} vs ${b.number} at ${name}`, scope: [name, seasonLabel(S)],
-    headline: crow[0] && rows.some((e) => e.opr != null) ? leadHeadline(teams, crow[0], [...ranks, decidedText(crow)], eventHref(S, pa.primary.code)) : { value: ranks.join(" · "), label: `No OPR at ${name} on record` },
+    headline: crow[0] && rows.some((e) => e.opr != null) ? leadHeadline(teams, crow[0], [...ranks, decidedText(crow)], eventHref(S, rows[0].code)) : { value: ranks.join(" · "), label: `No OPR at ${name} on record` },
     blocks: [block, { kind: "links", title: "Try it", items: [{ label: `${a.number} and ${b.number} matches together there`, href: `/search?q=${encodeURIComponent(`${a.number} and ${b.number} matches together at ${at}`)}` }] }],
   };
 }
