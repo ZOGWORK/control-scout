@@ -272,7 +272,7 @@ describe("the outcome failed-search reporting reads", () => {
 
 describe("loneTeamHit: a team's highlights answer only a search for the team alone", () => {
   it("the team by number or name, with a season or the word team: its highlights", async () => {
-    for (const q of ["4215", "hypnotic robotics", "bad wolf", "4215 2024-25", "team 6980", "hypnotic robotics team"]) {
+    for (const q of ["4215", "hypnotic robotics", "bad wolf", "4215 2024-25", "team 6980", "hypnotic robotics team", "bad wolf rn", "kindly hypnotic robotics"]) {
       expect(loneTeamHit(await ask(q))?.kind, q).toBe("team");
     }
   });
@@ -291,6 +291,9 @@ describe("loneTeamHit: a team's highlights answer only a search for the team alo
     expect(loneTeamHit(read())).toBe(hit);
     expect(loneTeamHit(read("4215"))).toBe(hit);
     expect(loneTeamHit(read("4215 2024-25"))).toBe(hit);
+    // A filler word dropped, the name left: the team alone.
+    expect(loneTeamHit(read("Hypnotic Robotics"))).toBe(hit);
+    expect(loneTeamHit(read("hypnotic robotics team"))).toBe(hit);
     expect(loneTeamHit(read("4215 how many"))).toBeUndefined();
     expect(loneTeamHit(read("4215 count"))).toBeUndefined();
   });
