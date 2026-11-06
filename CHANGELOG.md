@@ -20,7 +20,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 "Who won <event> this year" is this season's event again, or the latest one held with a result, never an older one whose name fits the words better.
 
 ### Highlights
-- [fixes] "Who won nj turnpike division this year" names this season's winners again
+- [fixes] "Who won nj turnpike division this year" is this season's again
 - [fixes] With no season said, the latest event held with a result answers
 - [fixes] An older season answers only when it's asked for
 
