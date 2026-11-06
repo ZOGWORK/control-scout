@@ -396,10 +396,12 @@ async function highlights(p: Parsed, scope: ReadScope, opts: PipelineOptions): P
       definition: "The team's standout matches of the season asked: its best score, biggest win, latest playoff win, best Auto and closest win.", source: `Matches on record in ${S}`,
       none: `${t.name ?? `Team ${t.number}`} (${t.number}) has no played matches in ${S}.` }, said, hits);
   }
+  // An event named with no season said is its latest held, never the current season it isn't in.
+  const lastHeld = evs && !p.time ? Math.max(...evs.map((e) => e.season)) : null;
   const f: HighlightFind = {
-    season: heldIn ?? placeSeason(p, scope.season, opts), region, level: p.level, finals: p.finals, kind: evs ? null : kind, ...(scope.window ? { window: scope.window } : {}), ...(p.n != null ? { n: p.n } : {}), ...(videos ? { videos } : {}),
+    season: heldIn ?? lastHeld ?? placeSeason(p, scope.season, opts), region, level: p.level, finals: p.finals, kind: evs ? null : kind, ...(scope.window ? { window: scope.window } : {}), ...(p.n != null ? { n: p.n } : {}), ...(videos ? { videos } : {}),
     ...(evs ? {
-      events: evs.map((e) => ({ season: e.season, code: e.code })),
+      events: evs.map((e) => ({ season: e.season, code: e.code })), named: true,
       eventName: new Map([...byMain!].reverse().map((e) => [e.season, { name: shortEvent(e.name, e.type), when: dateRange(e.start, e.end) || null, where: [e.city, e.state].filter(Boolean).join(", ") || null }])),
     } : {}),
     at: [kind && !evs ? `at ${kind === WORLDS_KIND ? kind.label : kind.label.toLowerCase()}` : "", region ? `in ${region.name}` : ""].filter(Boolean).join(" "),

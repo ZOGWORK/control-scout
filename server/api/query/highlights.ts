@@ -10,7 +10,7 @@ import { seasonLabel } from "../../../src/shared/format.js";
 import { all, get } from "../../db.js";
 import { registerCache } from "../../caches.js";
 import { search } from "../search.js";
-import { eventFit } from "../answers/index.js";
+import { INITIALISM_FIT, eventFit } from "../answers/index.js";
 import { eventHref, matchHref, shortEvent, teamLinks } from "../answers/matchSet.js";
 import { COLS, allianceRow, lineups, type Row } from "../answers/families/topMatches.js";
 import { OFFICIAL_TYPES } from "../answers/clauses.js";
@@ -82,6 +82,14 @@ export async function eventsNamed(words: string, types: readonly string[] | null
   const rows = await all<{ season: number; code: string; name: string; type: string | null; division_code: string | null; start: string | null; end: string | null; city: string | null; state: string | null }>(
     `SELECT season, code, name, type, division_code, start, end, city, state FROM events WHERE code IN (${codes.map(() => "?").join(", ")})`, codes);
   const fits = rows.map((e) => ({ e, fit: eventFit(words, e.name, e.code) })).filter(({ e, fit }) => fit >= EVENT_FIT && (!types || types.includes(e.type ?? "")));
+  // An initialism several events share ("mti"): one of them, the latest held, then the one with the most teams.
+  const shared = fits.filter(({ fit }) => fit === INITIALISM_FIT);
+  if (shared.length && shared.length === fits.length && new Set(shared.map(({ e }) => e.code)).size > 1) {
+    const sizes = await all<{ season: number; code: string; n: number }>(`SELECT season, code, COUNT(*) n FROM event_teams WHERE code IN (${codes.map(() => "?").join(", ")}) GROUP BY season, code`, codes);
+    const size = (e: { season: number; code: string }) => Number(sizes.find((r) => Number(r.season) === Number(e.season) && r.code === e.code)?.n ?? 0);
+    const pick = [...shared].sort((a, b) => Number(b.e.season) - Number(a.e.season) || size(b.e) - size(a.e))[0].e.code;
+    fits.splice(0, fits.length, ...shared.filter(({ e }) => e.code === pick));
+  }
   const best = new Map<number, number>();
   for (const { e, fit } of fits) best.set(Number(e.season), Math.max(best.get(Number(e.season)) ?? 0, fit));
   return fits.filter(({ e, fit }) => fit === best.get(Number(e.season)))
@@ -134,8 +142,8 @@ function byEvent(events: { season: number; code: string }[], alias: string) {
   };
 }
 
-const DEFINITION = (at: string, S: string, upset: boolean) =>
-  `The standout matches${at ? ` ${at}` : ""} in ${S}: the best score (an alliance's points without penalties), the biggest margin, the latest playoff match, the best Auto, the closest finish (the smallest winning margin)${upset ? " and the biggest upset (a favourite's loss: the losing alliance had over a 50% predicted chance before the match)" : ""}, each match once. Only played matches at official events held in person, with both alliances' points on record. A match with a video plays here.`;
+const DEFINITION = (at: string, S: string, upset: boolean, named = false) =>
+  `The standout matches${at ? ` ${at}` : ""} in ${S}: the best score (an alliance's points without penalties), the biggest margin, the latest playoff match, the best Auto, the closest finish (the smallest winning margin)${upset ? " and the biggest upset (a favourite's loss: the losing alliance had over a 50% predicted chance before the match)" : ""}, each match once. Only played matches ${named ? "at the event named" : "at official events"} held in person, with both alliances' points on record. A match with a video plays here.`;
 
 /** Each reason's pick, each match once. */
 function pickAll(xs: Scored[]): { r: Pick; note: string }[] {
@@ -210,15 +218,15 @@ async function workOut(f0: HighlightFind): Promise<StatAnswer> {
   const ev = f.eventName?.get(f.season);
   const at = ev ? `at ${ev.name}` : f.at;
   // The event's name is the title's; its dates and place are the chips'.
-  const scope = [S, ...(ev ? [...(ev.when ? [ev.when] : []), ...(ev.where ? [ev.where] : [])] : []), ...f.chips, "Official events"];
+  const scope = [S, ...(ev ? [...(ev.when ? [ev.when] : []), ...(ev.where ? [ev.where] : [])] : []), ...f.chips, ...(f.named ? [] : ["Official events"])];
   const where2 = `${at ? ` ${at}` : ""}${f.window ? ` ${f.window.label}` : ` in ${S}`}`;
   const base = {
     family: "superlative" as const, intent: "scope-highlights", title: `Highlights${at ? ` ${at}` : ""}, ${S}`, scope,
-    definition: DEFINITION(at, S, whole),
+    definition: DEFINITION(at, S, whole, !!f.named),
     source: `From ${count.toLocaleString("en-US")} played match${count === 1 ? "" : "es"}${where2}`,
   };
-  if (!picks.length) return { ...base, blocks: [], none: `No played matches at official events${where2} yet.` };
-  const gallery = await galleryOf(whole ? scored : null, events, f.videos ? `No match videos${where2} yet.` : null, ev ? f.eventName : undefined);
+  if (!picks.length) return { ...base, blocks: [], none: `No played matches${f.named ? "" : " at official events"}${where2} yet.` };
+  const gallery = await galleryOf(whole ? scored : null, events, f.videos ? (f.named && ev ? "No recording for this event — stats only." : `No match videos${where2} yet.`) : null, ev ? f.eventName : undefined);
   // A video page leads with the scope's latest playoff match (a recap ends on the final, whatever reason it was
   // listed under), highlights with the best score.
   const last = f.videos ? (scored?.filter((r) => r.level === "playoff").at(-1) ?? picks.find((p) => p.note === "Latest playoff match")?.r) : undefined;

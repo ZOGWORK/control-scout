@@ -6,6 +6,7 @@ import { registerCache } from "../../caches.js";
 import { countryOf, countryOfDemonym } from "../../../src/shared/countries.js";
 import { regionOf, regionPartOf } from "../../../src/shared/searchEventQuery.js";
 import { edits, nearRegion } from "../../../src/shared/regions.js";
+import { eventInitialisms } from "./initialisms.js";
 
 export interface TeamName { number: number; name: string | null; country: string | null; state: string | null; city: string | null; lastPlayed: number | null }
 /** A place: a region (a state or province), a whole country, or a town (with the region it's in). */
@@ -57,7 +58,8 @@ export function buildNames(teams: Row[], places: { city: string | null; state: s
     (towns.get(k) ?? towns.set(k, new Map()).get(k)!).set(where, { country: p.country, state: p.state, city: p.city! });
   }
   const stems = new Set<string>();
-  for (const p of places) for (const w of fold(`${p.name ?? ""} ${p.code ?? ""}`).split(" ")) if (w.length >= 3) stems.add(w.slice(0, 3));
+  // An event's initialisms too ("mti"), which the search index holds with its name (./initialisms.ts).
+  for (const p of places) for (const w of [...fold(`${p.name ?? ""} ${p.code ?? ""}`).split(" "), ...eventInitialisms(p.name ?? "")]) if (w.length >= 3) stems.add(w.slice(0, 3));
   const countries = new Map<string, string>();
   for (const p of [...teams, ...places]) if (p.country) countries.set(fold(p.country), p.country);
   return {
