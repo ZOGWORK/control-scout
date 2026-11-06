@@ -137,6 +137,15 @@ describe("the phone's top bar and tab bar", () => {
     expect(screen.queryAllByRole("link", { name: "Rules" })).toEqual([]);
   });
 
+  it("a short page, a search answer too, has its footer at the bottom of the screen: the page grows, the footer follows", () => {
+    for (const at of ["/search?q=4215", "/events"]) {
+      const { container, unmount } = shell(at);
+      // The page's own content, in the page frame (a flex column, the footer after it: mocked here).
+      const page = [...container.querySelectorAll("#main div")].find((d) => d.className.includes("min-w-0") && d.parentElement!.className.includes("flex-col"))!;
+      expect(page.className, at).toMatch(/\bflex-1\b/);
+      unmount();
+    }
+  });
   it("the logo in the top bar goes home", () => {
     shell();
     const home = within(screen.getByRole("banner")).getByRole("link", { name: "Control Scout home" });

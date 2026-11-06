@@ -6,6 +6,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SearchAnswer, SearchHit, TeamSummary } from "../shared/api";
+import type { StatAnswer } from "../shared/searchStat";
 
 const state = vi.hoisted(() => ({ answer: undefined as SearchAnswer | undefined, stale: false }));
 vi.mock("../components/search/SearchBox", async (orig) => ({
@@ -84,6 +85,22 @@ describe("search results page", () => {
     expect([...header.querySelectorAll("a")].map((a) => [a.getAttribute("aria-label"), a.getAttribute("href")])).toEqual([["Hypnotic Robotics (4215)", "/teams/4215"], ["Bad Wolf (6980)", "/teams/6980"]]);
   });
 
+  it("a comparison's \"Open in Predict\" is the page's one primary action; its other links are text", () => {
+    const stat: StatAnswer = {
+      family: "two-team", intent: "opr-vs", title: "OPR: 23268 vs 7149 in 2025–26", team: { number: 23268, name: "Ultraviolet" }, teams: [{ number: 23268, name: "Ultraviolet" }, { number: 7149, name: "ENFORCERS" }], scope: ["2025–26"],
+      headline: { value: "23268 leads 157.9 – 115.3", label: "+42.6" },
+      blocks: [
+        { kind: "compare", title: "OPR", teams: [{ label: "23268", href: "/teams/23268" }, { label: "7149", href: "/teams/7149" }], rows: [{ label: "Total", values: ["157.9", "115.3"], nums: [157.9, 115.3], max: 250, best: 0, gap: "+42.6", diff: 42.6 }] },
+        { kind: "links", title: "Try it", items: [{ label: "Open in Predict", href: "/predict?x" }, { label: "Compare side by side", href: "/compare?teams=7149,23268" }] },
+      ],
+      definition: "From each team's stored season numbers.", source: "From both teams' 2025–26 season numbers",
+    };
+    state.answer = answer([team(23268, "Ultraviolet", "Hackettstown, NJ"), team(7149, "ENFORCERS", "Egg Harbor Township, NJ")], { stat });
+    const { container } = show("/search?q=23268%20vs%207149%20opr");
+    const ctas = [...container.querySelectorAll("[data-primary-cta]")];
+    expect(ctas.map((c) => c.textContent)).toEqual(["Open in Predict"]);
+    expect(within(container).getByRole("link", { name: "Compare side by side" }).className).toContain("underline");
+  });
   it("a fact answer is one card in the team page's look: the team's header, the fact once, no TEAMS card, no gold", () => {
     const card = { kind: "info" as const, title: "Where they're from", team: { number: 4215, name: "Hypnotic Robotics" }, facts: [{ label: "Where they're from", values: ["Oradell, NJ, USA"] }],
       related: ["4215 record"], lines: [{ text: "Oradell, NJ, USA", href: "/teams/4215" }] };
@@ -97,6 +114,9 @@ describe("search results page", () => {
     expect(container.querySelector('[data-result="team"]')).toBeNull();
     expect(container.querySelector('[data-section="team"]')).toBeNull();
     expect(frame.innerHTML).not.toMatch(/(border|bg)-accent/);
+    // The results column is 720px at most, centred; the team page link a text link (one primary action per page).
+    expect(container.querySelector("[data-results-column]")!.className).toMatch(/\bmx-auto\b.*\bmax-w-\[720px\]/);
+    expect(frame.querySelector("[data-secondary]")!.className).toContain("underline");
     expect(within(frame as HTMLElement).getByRole("link", { name: /4215 record/ }).getAttribute("href")).toBe("/search?q=4215%20record");
   });
 

@@ -157,7 +157,9 @@ export default function SearchPage() {
   // while going on to the one page a submitted query names.
   if (query && !error && ((busy && (stale || !found)) || leaving)) return <SearchSkeleton query={query} top={phone ? <PhoneSearchBar query={query} /> : null} />;
   return (
-    <div className="w-full max-w-6xl pt-4 sm:pt-8">
+    // One results column, 640–720px and centred (the search results guide's §9: a line the eye can follow across a
+    // card); a page with a side panel keeps that column and puts the panel beside it.
+    <div className={cn("w-full pt-4 sm:pt-8", panel ? "max-w-6xl" : "mx-auto max-w-[720px]")} data-results-column={panel ? "with-panel" : ""}>
       {/* The feature's name sits above the title; the title names what was found, the badge what the query was read as.
           The query itself lives in the top bar (refine there): the page never repeats it. */}
       {/* Phones: the query in a bar that stays under the top bar, then a short header ("Results: …"), no eyebrow. */}
@@ -210,11 +212,12 @@ export default function SearchPage() {
               {/* The team was found but not the answer: what search can answer about it, one tap each. */}
               {!!ax?.suggest?.length && <RelatedQuestions queries={ax.suggest} title="Search can answer these about them" className="mb-5" />}
               {(events >= 2 || choices.seasons.length > 1 || filtersOn) && <div className="mb-4"><SearchFilters f={filters} seasons={choices.seasons} types={choices.types} counts={events ? counts : undefined} asked={askedTime} onChange={setFilters} /></div>}
-              {/* Desktop: results left (65%), at most one panel right (35%), chosen by the query: a versus query's
+              {/* Desktop: results left (at most 720px, narrower before the panel gets under 20rem), at most one panel
+                  right, chosen by the query: a versus query's
                   head-to-head; else a question's summary (timeline, stats or standing) with the team's pages. With
                   both, the head-to-head keeps the column and the summary goes below the results. Phone: one column,
                   the summary first (H1, badge, summary, cards). */}
-              <div className={cn(panel && "lg:grid lg:grid-cols-[minmax(0,65fr)_minmax(0,35fr)] lg:items-start lg:gap-6")} data-layout={panel ?? "single"}>
+              <div className={cn(panel && "lg:grid lg:grid-cols-[minmax(0,720px)_minmax(20rem,1fr)] lg:items-start lg:gap-6")} data-layout={panel ?? "single"}>
                 {panel === "summary" && (
                   <aside aria-label="Summary" className="mb-4 space-y-3 lg:sticky lg:top-[calc(var(--header-h)+1rem)] lg:col-start-2 lg:row-start-1" data-panel="summary">
                     {summary}

@@ -169,7 +169,7 @@ export function CompareCard({ h, summaries, onOpen, preview }: { h: SearchHit; s
         </span>
       ) : <span className="mt-2 block break-words font-display text-lg font-semibold text-foreground">{h.title}</span>}
       {nums.length > 2 && <span className="mt-2 block text-sm text-foreground/90">{nums.slice(2).map((n) => `${sides.find((x) => x.number === n)?.name ?? summaries.get(n)?.s.name ?? "Team"} (${n})`).join(", ")}</span>}
-      <span className="mt-4 inline-flex min-h-9 items-center gap-1 rounded-lg border border-border bg-secondary px-3 text-sm font-medium text-foreground max-md:min-h-[44px]" data-cta>View comparison<ArrowRight className="size-4" aria-hidden /></span>
+      <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-foreground underline decoration-border underline-offset-2 max-md:min-h-[44px]" data-cta>View comparison<ArrowRight className="size-4" aria-hidden /></span>
     </Link>
   );
 }

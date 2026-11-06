@@ -342,9 +342,9 @@ export function Shell({ children }: { children: ReactNode }) {
                 {bare ? children : (
                 <m.div key={loc.pathname} initial={firstPage.current ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18, ease: "easeOut" }} className={PAGE_FRAME}>
                   <NoDataNotice />
-                  {/* The page grows to fill the screen, so a short page still has its footer at the bottom. Search
-                      results don't: a short answer's footer follows it, not a long empty gap. */}
-                  <div className={cn("min-w-0", !/^\/search\/?$/i.test(loc.pathname) && "flex-1")}>{children}</div>
+                  {/* The page grows to fill the screen, so a short page (a one-card search answer too) has its footer
+                      at the bottom of the screen, never floating mid-page (the search results guide's §9). */}
+                  <div className="min-w-0 flex-1">{children}</div>
                   <SiteFooter />
                 </m.div>
                 )}
