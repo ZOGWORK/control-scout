@@ -1,11 +1,12 @@
 // The Playoffs tab's bracket predictor (src/shared/bracketOdds.ts): championship odds and the danger match per
 // alliance, and a card per series with its call. Every alliance keeps one colour across the tab, so a card's
 // "A3" and the odds row's Alliance 3 read as the same thing at a glance.
-import type { ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Crown, Swords, Trophy } from "lucide-react";
 import type { BracketAllianceOdds, BracketOdds, BracketSeriesView, BracketSlotView, MatchView } from "../shared/api";
 import { BRACKET_ACCURACY } from "../shared/bracketAccuracy";
 import { oddsPct, seasonLabel } from "../lib/format";
+import { bracketLayout, type BracketLayout } from "../lib/bracketLayout";
 import { ConfidenceBadge, TierMark } from "./predict";
 import { cn } from "./cn";
 import { PredictionBasis } from "./PredictionBasis";
@@ -158,16 +159,136 @@ export function SeriesCard({ s, matches, final }: { s: BracketSeriesView; matche
   );
 }
 
-/** The bracket's heading, its tier and the series cards. */
-export function BracketSeries({ bracket, bySeries }: { bracket: BracketOdds; bySeries: Map<number, MatchView[]> }) {
+/** The event's alliances by number, their teams captain first: names each row's teams and puts a score on its own row. */
+export type Roster = Map<number, number[]>;
+
+/** A side's score in a single-match series, once played (a posted match may list either alliance as red). */
+function sideScore(alliance: number | null, matches: MatchView[], roster: Roster | undefined): number | null {
+  const m = matches.filter((x) => x.played && x.red.score && x.blue.score).at(-1);
+  const own = alliance != null ? roster?.get(alliance) : undefined;
+  if (!m || !own) return null;
+  const on = (side: MatchView["red"]) => side.teams.some((t) => own.includes(t.number));
+  return on(m.red) ? m.red.score!.total : on(m.blue) ? m.blue.score!.total : null;
+}
+
+function TreeSide({ slot, s, wins, score, teams }: { slot: BracketSlotView; s: BracketSeriesView; wins: number; score: number | null; teams: number[] }) {
+  const won = s.winner != null && slot.alliance === s.winner, lost = s.winner != null && !won;
+  return (
+    <div className={cn("flex min-h-7 items-center gap-1.5 px-2", won && "font-semibold")}>
+      {slot.alliance != null ? <>
+        <AllianceChip alliance={slot.alliance} muted={lost} />
+        {teams.length > 0 && <span className={cn("min-w-0 font-mono text-xs leading-tight tabular-nums", lost ? "text-muted-foreground" : "text-foreground")}>{teams.join(" ")}</span>}
+      </> : (
+        <span className="truncate text-xs text-muted-foreground">
+          {slot.source}
+          {slot.likely && <> · likely <AllianceChip alliance={slot.likely.alliance} className="px-1 py-0 text-[11px]" /> {oddsPct(slot.likely.p)}</>}
+        </span>
+      )}
+      <span className="ml-auto flex items-center gap-1 text-sm tabular-nums">
+        {won && <Trophy className="size-3.5 text-accent" aria-label="Winner" />}
+        {s.bestOf === 1 ? score != null && <span className={cn(lost && "text-muted-foreground")}>{score}</span> : slot.alliance != null && <span>{wins}</span>}
+      </span>
+    </div>
+  );
+}
+
+/** One series as a node of the tree: two sides, the winner marked, and the call while it's open. */
+function TreeNode({ s, matches, roster }: { s: BracketSeriesView; matches: MatchView[]; roster?: Roster }) {
+  const teams = (a: number | null) => (a != null ? roster?.get(a) ?? [] : []);
+  const named = s.stage !== "Upper bracket" && s.stage !== "Lower bracket";
+  return (
+    <div data-series={s.index} className={cn("w-52 rounded-lg border border-border bg-card text-sm", s.stage === "Grand final" && "border-accent/50", s.skipped && "border-dashed bg-transparent")}>
+      <p className="flex items-center gap-1 border-b border-border px-2 py-1 text-[11px] font-medium text-muted-foreground">
+        <span className="text-foreground">{s.label}</span>{named && <> · {s.stage}</>}
+      </p>
+      <div className="py-0.5">
+        <TreeSide slot={s.red} s={s} wins={s.wins[0]} score={sideScore(s.red.alliance, matches, roster)} teams={teams(s.red.alliance)} />
+        <TreeSide slot={s.blue} s={s} wins={s.wins[1]} score={sideScore(s.blue.alliance, matches, roster)} teams={teams(s.blue.alliance)} />
+      </div>
+      {s.winner == null && (s.skipped || s.pending || s.call || s.likely) && (
+        <div className="border-t border-border px-2 py-1 text-[11px] text-muted-foreground">
+          {s.skipped ? "Not needed" : s.pending ? "Only if the lower alliance wins" : s.call ? (
+            <span className="flex items-center gap-1"><AllianceChip alliance={s.call.alliance} className="px-1 py-0 text-[11px]" /> <span className="font-semibold text-foreground tabular-nums">{oddsPct(s.call.p)}</span> <TierMark tier={s.call.tier} className="ml-auto text-[11px]" /></span>
+          ) : s.likely && <span className="flex items-center gap-1">Likeliest <AllianceChip alliance={s.likely.alliance} className="px-1 py-0 text-[11px]" /> {oddsPct(s.likely.p)}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Lines from each series to the one its winner plays next, measured off the drawn nodes. */
+function useEdges(layout: BracketLayout) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [paths, setPaths] = useState<{ key: string; d: string }[]>([]);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const draw = () => {
+      const box = el.getBoundingClientRect();
+      const at = (i: number) => el.querySelector(`[data-series="${i}"]`)?.getBoundingClientRect();
+      setPaths(layout.edges.flatMap(([from, to]) => {
+        const a = at(from), b = at(to);
+        if (!a || !b || !a.width || !b.width) return [];
+        // A step to the next column; the if-needed replay sits under the grand final, so a short drop.
+        if (b.left <= a.right) {
+          const x = a.left + a.width / 2 - box.left;
+          return [{ key: `${from}-${to}`, d: `M${x} ${a.bottom - box.top}V${b.top - box.top}` }];
+        }
+        const x1 = a.right - box.left, y1 = a.top + a.height / 2 - box.top, x2 = b.left - box.left, y2 = b.top + b.height / 2 - box.top;
+        const mid = x2 - 12;
+        return [{ key: `${from}-${to}`, d: `M${x1} ${y1}H${mid}V${y2}H${x2}` }];
+      }));
+    };
+    draw();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(draw);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [layout]);
+  return { ref, paths };
+}
+
+/** The double-elimination bracket drawn as a tree: upper lane over lower lane, rounds left to right, finals on the right. */
+function BracketTree({ bracket, layout, bySeries, roster }: { bracket: BracketOdds; layout: BracketLayout; bySeries: Map<number, MatchView[]>; roster?: Roster }) {
+  const { ref, paths } = useEdges(layout);
+  const byIndex = new Map(bracket.series.map((s) => [s.index, s]));
+  const rounds = Math.max(layout.upper.length, layout.lower.length);
+  const node = (i: number) => {
+    const s = byIndex.get(i)!;
+    return <TreeNode key={i} s={s} matches={bySeries.get(s.series) ?? []} roster={roster} />;
+  };
+  const lane = (cols: number[][], row: number) => Array.from({ length: rounds }, (_, c) => (
+    <div key={c} className="flex flex-col justify-around gap-3" style={{ gridColumn: c + 1, gridRow: row }}>{(cols[c] ?? []).map(node)}</div>
+  ));
+  const label = "text-xs font-medium text-muted-foreground";
+  return (
+    <div className="-mx-1 overflow-x-auto px-1 pb-2" data-testid="bracket-tree">
+      <div ref={ref} className="relative grid w-max gap-x-6 gap-y-2" style={{ gridTemplateColumns: `repeat(${rounds + 1}, 13rem)` }}>
+        <svg className="pointer-events-none absolute inset-0 size-full overflow-visible text-border" aria-hidden>
+          {paths.map((p) => <path key={p.key} d={p.d} fill="none" stroke="currentColor" strokeWidth={1.5} />)}
+        </svg>
+        <p className={label} style={{ gridColumn: `1 / span ${rounds}`, gridRow: 1 }}>Upper bracket</p>
+        {lane(layout.upper, 2)}
+        <p className={cn(label, "mt-4")} style={{ gridColumn: `1 / span ${rounds}`, gridRow: 3 }}>Lower bracket</p>
+        {lane(layout.lower, 4)}
+        <p className={label} style={{ gridColumn: rounds + 1, gridRow: 1 }}>Finals</p>
+        <div className="flex flex-col justify-center gap-6" style={{ gridColumn: rounds + 1, gridRow: "2 / span 3" }}>{layout.final.map(node)}</div>
+      </div>
+    </div>
+  );
+}
+
+/** The bracket's heading, its tier and the series: a tree for a double-elimination bracket, cards otherwise. */
+export function BracketSeries({ bracket, bySeries, roster }: { bracket: BracketOdds; bySeries: Map<number, MatchView[]>; roster?: Roster }) {
   const last = bracket.series.filter((s) => !s.ifNeeded).at(-1)?.index;
+  const layout = bracket.format === "double" ? bracketLayout(bracket.series) : null;
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <h3 className="text-base font-semibold">{FORMAT_TITLE[bracket.format]}</h3>
       </div>
       {bracket.note && <p className="mb-3 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">{bracket.note}</p>}
-      {bracket.series.length ? (
+      {layout ? <BracketTree bracket={bracket} layout={layout} bySeries={bySeries} roster={roster} /> : bracket.series.length ? (
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {bracket.series.map((s) => <SeriesCard key={s.index} s={s} matches={bySeries.get(s.series) ?? []} final={s.index === last && bracket.format !== "unknown"} />)}
         </div>

@@ -5,7 +5,7 @@ import type { ConfidenceTier, Factor, FactorSheet, Forecast, Partners, TeamStren
 
 export type { ConfidenceTier, Factor, Forecast, Partners, TeamStrength };
 import type { BracketOdds } from "./bracketOdds";
-import type { StatAnswer } from "./searchStat";
+import type { StatAnswer, StatLink } from "./searchStat";
 import type { TeamTable } from "./teamTable";
 export type { BracketOdds, BracketSeriesView, BracketAllianceOdds, BracketSlotView } from "./bracketOdds";
 
@@ -260,7 +260,11 @@ export interface SearchCard {
   award?: string;
   /** Every award the event gave, in the event page's order (its Awards tab), so the answer lists them all. */
   awards?: SearchCardAward[];
+  /** "Who won <event>": its playoff champions by the winning-alliance rule (server/api/answers/families/winners.ts),
+   *  the event's own first, then each division's; `alliance`, the colour they played their final in. */
+  champions?: SearchCardChampion[];
 }
+export interface SearchCardChampion { label: string; href: string; teams: StatLink[]; alliance?: "red" | "blue"; number?: number }
 /** One award an event gave, as its Awards tab lists it: `name` as FIRST names it ("Inspire Award 2nd Place"). */
 export interface SearchCardAward { type: string; placement: number; team: number; teamName: string | null; name: string | null }
 /** One listing fact: its name, its values exactly as FIRST lists them (none: not in the listing), and a note. */
