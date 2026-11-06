@@ -11,7 +11,7 @@ import { hasFirst } from "./env.js";
 import { siteMeta } from "./api/meta.js";
 import { CURRENT_SEASON, SEASONS, SEASON_NUMBERS, isLegacy, seasonInfo } from "./data/seasons.js";
 import { ensureSearchIndex, search } from "./api/search.js";
-import { cleanQuery, learnQuery, searchAnswer } from "./api/searchAnswer.js";
+import { MAX_QUERY, cleanQuery, learnQuery, searchAnswer } from "./api/searchAnswer.js";
 import { withTeamStats } from "./api/searchTeamStats.js";
 import { withEventParents } from "./api/searchEvents.js";
 import { teamHighlights } from "./api/answers/highlights.js";
@@ -395,7 +395,7 @@ export function createApp(opts: { dist?: string } = {}) {
       const [hits, video] = await Promise.all([withEventParents(full.hits).then(withTeamStats), answerVideo(full).catch(() => undefined)]);
       return { ...full, hits, ...(video ? { video } : {}) };
     }
-    return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, 80), limit, prefer, kinds) };
+    return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, MAX_QUERY), limit, prefer, kinds) };
   }));
 
   // Step 3 of search's chain (server/api/searchBruno.ts): asked by the app after the first answer is on screen,

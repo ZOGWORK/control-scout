@@ -163,6 +163,9 @@ export interface SearchAnswer {
   card?: SearchCard;
   /** A stat question's answer ("4215 highest score in worlds"), as blocks /search draws: src/shared/searchStat.ts. */
   stat?: StatAnswer;
+  /** A yes-or-no question's answer ("has 12345 ever been to worlds"): drawn first, above the card that proves it
+   *  (server/api/answers/yesNo.ts). */
+  verdict?: { answer: "Yes" | "No"; label: string };
   /** A question search can't answer yet (server/api/answers/sorry.ts): what it was read as, and searches that do
    *  answer about it. The page says sorry once, with these. */
   sorry?: { understood: string[]; suggest: string[] };
