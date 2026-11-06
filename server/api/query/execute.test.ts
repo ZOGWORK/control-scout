@@ -170,6 +170,20 @@ describe("one question, any phrasing, any team", () => {
       expect(s.headline?.value, q).toBe("2");
     }
   });
+  it("a team's matches in a season: the record, then every match, for any team and any phrasing", async () => {
+    for (const [t, value, n] of [["4215", "1-1-0", 2], ["delta force", "1-1-0", 2], ["10809", "2-1-0", 3]] as const) {
+      for (const q of [`${t} matches in 2025-26`, `show me ${t} matches 2025-26`, `2025-26 matches for ${t}`, `${t} matches`]) {
+        const s = await stat(q);
+        expect({ q, intent: s.intent, value: s.headline?.value }).toEqual({ q, intent: "season-matches", value });
+        const rows = s.blocks.find((b) => b.kind === "matches");
+        expect(rows?.kind === "matches" && rows.rows.length, q).toBe(n);
+      }
+    }
+    // A season with none: said so for that season, never another season's matches.
+    expect((await stat("4215 matches in 2023-24")).none).toMatch(/No matches in 2023–24/);
+    // Worlds or a state championship stays the event readers' results card.
+    expect((await ask("4215 matches at worlds in 2025-26")).stat?.intent).not.toBe("season-matches");
+  });
   it("a name typed nearly right offers the spelling, whatever stood between its words", async () => {
     const a = await ask("hypnotc-robotics highest score");
     expect(a.stat?.team?.number).toBe(4215);

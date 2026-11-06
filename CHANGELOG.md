@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.4.3 — 2026-11-06
+
+A team's matches in a season are an answer of their own: the record, quals and playoffs apart, then every match.
+
+### Highlights
+- [fixes] A team's matches in a season are listed, newest first
+- [fixes] The record on top, with quals and playoffs apart
+- [fixes] A season with no matches says so for that season
+
+### Search
+- **A team's matches in a season.** "17670 matches in 2026-27", "show me gearview matches 2025-26" or a team's number and "matches" answer with the team's record in that season (its latest, when none is named), quals and playoffs apart, and every match below it, newest first. Before, only the team's card came back. A place or a window said narrows it ("gearview matches in New Jersey in 2024-25"). Matches at Worlds or at a state championship stay that event's results card, with its division, rank and OPR. A season with no matches says so for that season, never another season's matches. (#PR)
+
 ## 3.4.2 — 2026-11-06
 
 Highlights as a grid of match videos; a team's card plays the team's own match.

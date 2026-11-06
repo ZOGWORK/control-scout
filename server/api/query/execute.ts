@@ -66,7 +66,7 @@ const TEAM_INTENTS = new Set<PipelineIntent>([
   "record", "win-percent", "average-score", "median-score", "average-margin", "total-points", "total-matches", "total-events", "seasons-count",
   "current-streak", "longest-streak", "highest-auto", "highest-teleop", "highest-endgame", "most-penalties", "penalties", "score-range",
   "score-consistency", "awards", "total-awards", "results", "event-rank", "event-opr", "best-partner", "partners", "opponents", "playoff-matches",
-  "qual-matches", "match-lookup", "avg-penalties", "lost-to-most",
+  "qual-matches", "match-lookup", "avg-penalties", "lost-to-most", "season-matches",
 ]);
 const TWO_TEAM: Partial<Record<PipelineIntent, TwoTeamId>> = {
   "head-to-head": "head-to-head", "shared-matches": "shared-matches", "h2h-wins": "h2h-wins", "opr-vs": "opr-vs", "rating-vs": "rating-vs",
@@ -110,6 +110,9 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // So is a kind of event by its type words alone ("at a league meet").
   if (p.eventKind && (p.teams.length || !(FIND[intent] || intent === "top-matches" || intent === "highlights"))) return null;
   const said = normalise(p.q);
+  // A team's matches at Worlds or at its state championship are that event's results card (the division, its rank and
+  // OPR there), which search's event readers give: the plain list is for a season, a window or a place.
+  if (intent === "season-matches" && (p.worlds || p.states)) return null;
   if (p.teams.length === 1 && TEAM_INTENTS.has(intent)) {
     // An award with an answer of its own: Inspire (its places) and Finalist finishes. The first or latest Finalist
     // award is the award list's, filtered to Finalist, which takes the pick (Finalist finishes only counts them).

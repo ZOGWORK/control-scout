@@ -391,6 +391,22 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
       return { ...base, source: sourceOf(xs), family: "aggregate", intent: id, title, headline: { value: String(xs.length), label: `${title.toLowerCase().replace(where.toLowerCase(), "")}${id === "playoff-matches" || id === "qual-matches" ? ` · ${recText(r)}` : ""}`, sub: `of ${ms.length} matches${where}` }, blocks, definition: def };
     }
 
+    // Every match in the scope (a season, a window, a place): the record, quals and playoffs apart, then the list.
+    case "season-matches": {
+      const title = `Matches${where}`;
+      if (!ms.length) return { ...base, family: "aggregate", intent: id, title, blocks: [], definition: RESULT_RULE, none: none("matches") };
+      const r = record(ms), quals = ms.filter((m) => m.level === "qual"), playoffs = ms.filter((m) => m.level === "playoff");
+      return {
+        ...base, family: "aggregate", intent: id, title,
+        headline: { value: recText(r), label: `in ${ms.length} match${ms.length === 1 ? "" : "es"}${where}` },
+        blocks: [
+          { kind: "record", title: "Wins, losses and ties", ...r, ...(quals.length && playoffs.length ? { split: { quals: record(quals), playoffs: record(playoffs) } } : {}) },
+          matchesBlock("Newest first", newestFirst(ms)),
+        ],
+        definition: RESULT_RULE,
+      };
+    }
+
     case "playoff-appearances": {
       const evs = new Map<string, TeamMatch[]>();
       for (const m of ms) if (m.level === "playoff") evs.set(`${m.season}|${m.code}`, [...(evs.get(`${m.season}|${m.code}`) ?? []), m]);
