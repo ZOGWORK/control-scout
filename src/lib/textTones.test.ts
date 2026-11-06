@@ -5,15 +5,25 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { contrast, over, parseColor, toHex, type RGBA } from "./contrast";
 import { TEXT_SWAPPED, css, measure, utility, value, type Theme } from "./themeTokens.testkit";
-import { CHART_LEGEND_TEXT, TEAM_FILL, EVENT_FILTER_COUNT, PODIUM_CHIP, EVENT_STATUS_SOLID, EVENT_STATUS_TONE, VIDEO_TONE, EVENT_TYPE_CHIP_FILL, EVENT_TYPE_TONE, PROFILE_PERCENTILE_TEXT, RECORDS_CAP_NOTE_TONE, ROSTER_CHIP_TONE } from "./textTones";
+import { CHART_LEGEND_TEXT, SEARCH_PALETTE, TEAM_FILL, EVENT_FILTER_COUNT, PODIUM_CHIP, EVENT_STATUS_SOLID, EVENT_STATUS_TONE, VIDEO_TONE, EVENT_TYPE_CHIP_FILL, EVENT_TYPE_TONE, PROFILE_PERCENTILE_TEXT, RECORDS_CAP_NOTE_TONE, ROSTER_CHIP_TONE } from "./textTones";
 import { TONE_CLASS } from "./records/describe";
 import { badgeVariants } from "../components/ui/basic";
 import { buttonVariants } from "../components/ui/button";
 import { ALLIANCE_HUES } from "../components/PlayoffBracket";
-import { TEAM_TEXT } from "../components/search/page/answerCells";
+import { TEAM_SWATCH, TEAM_TEXT } from "../components/search/page/answerCells";
 
 const THEMES: Theme[] = ["light", "dim", "dark", "midnight"];
 const AA = 4.5, LARGE = 3;
+
+describe("search's palette", () => {
+  it("gives every meaning its own colour family, none shared with another meaning or a team", () => {
+    const families = Object.values(SEARCH_PALETTE).map((s) => s.family);
+    expect(new Set(families).size).toBe(families.length);
+    for (const f of families) expect(f).not.toMatch(/^team-/);
+    // Yellow is ranking points' alone (no gold on other data).
+    expect(Object.entries(SEARCH_PALETTE).filter(([, s]) => /yellow|amber/.test(s.family)).map(([k]) => k)).toEqual(["rp"]);
+  });
+});
 
 describe("text tones reach WCAG AA in every theme", () => {
   it("the `dark:` variant covers Dim and Midnight, so measuring them with dark's `dark:` classes is right", () => {
@@ -68,6 +78,18 @@ describe("text tones reach WCAG AA in every theme", () => {
     });
     it(`one team's numbers in its hue, team A, as text on the card and on its pills' 10% tint (${theme})`, () => {
       for (const cls of [TEAM_TEXT, `bg-team-a/10 ${TEAM_TEXT}`]) expect(measure(theme, cls).ratio, measure(theme, cls).pair).toBeGreaterThanOrEqual(AA);
+    });
+    it(`each team's numbers on its own tint, and a rank pill's whole text on its podium fill, reach AA (${theme})`, () => {
+      for (const sw of TEAM_SWATCH) for (const cls of [sw.text, `${sw.tint} ${sw.text}`]) expect(measure(theme, cls).ratio, `${cls}: ${measure(theme, cls).pair}`).toBeGreaterThanOrEqual(AA);
+      for (const cls of Object.values(PODIUM_CHIP)) expect(measure(theme, cls).ratio, `${cls}: ${measure(theme, cls).pair}`).toBeGreaterThanOrEqual(AA);
+    });
+    it(`search's palette: every meaning's fill (its text on it) and its text on the card reach AA (${theme})`, () => {
+      for (const [k, sw] of Object.entries(SEARCH_PALETTE)) {
+        for (const cls of [sw.fill, sw.text]) expect(measure(theme, cls).ratio, `${k} ${cls}: ${measure(theme, cls).pair}`).toBeGreaterThanOrEqual(AA);
+        // A bar or a left edge is a graphic: 3:1 against the card.
+        const card = value(theme, "--color-card"), bar = utility(theme, sw.bar, "bg")!;
+        expect(contrast(over(bar, card), card), `${k} bar`).toBeGreaterThanOrEqual(LARGE);
+      }
     });
     it(`search podium place chips (${theme})`, () => {
       for (const [k, cls] of Object.entries(PODIUM_CHIP)) expect(measure(theme, cls).ratio, `${k}: ${measure(theme, cls).pair}`).toBeGreaterThanOrEqual(AA);

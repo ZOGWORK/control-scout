@@ -26,9 +26,9 @@ const latest: StatAnswer = {
 };
 
 describe("answer cells", () => {
-  it("a rank is a neutral pill, a medal on the top three", () => {
+  it("a rank is a pill in the team hue, filled with a medal on the top three", () => {
     const one = html(<RankPill text="#1 of 21" />).querySelector("[data-rank-pill]")!;
-    expect(one.className).toContain("bg-muted");
+    expect(one.className).toContain("bg-team-a");
     expect(one.className).not.toMatch(/success|info|orange/);
     expect(one.querySelector("svg")).toBeTruthy();
     expect(one.textContent).toBe("#1 of 21");
@@ -112,13 +112,13 @@ describe("match box", () => {
     expect(sides[1].querySelector("b.font-display")!.textContent).toBe("416");
     expect(sides[1].textContent).toContain("428 with penalties");
     expect(sides[0].querySelector("b.font-display")!.className).toContain("text-muted-foreground");
-    expect(c.querySelector("[data-rank-badge]")!.className).toContain("bg-muted");
+    expect(c.querySelector("[data-rank-badge]")!.className).toContain("bg-team-a");
   });
-  it("the listed score's phases as tiles in the team page's phase colours, red and blue only on the alliances", () => {
+  it("the listed score's phases as tiles filled in the palette's phase colours, red and blue only on the alliances", () => {
     const c = html(<ul><MatchBox r={m} /></ul>);
     const tiles = [...c.querySelectorAll("[data-phases] > div")];
     expect(tiles.map((t) => t.textContent)).toEqual(["Auto80", "TeleOp256", "Endgame80", "Pen given0"]);
-    expect(tiles.map((t) => t.className.split(" ").find((x) => x.startsWith("border-") && x.includes("/30")))).toEqual(["border-info/30", "border-success/30", "border-violet-500/30", "border-rose-500/30"]);
+    expect(tiles.map((t) => t.className.split(" ").find((x) => /^bg-[a-z]+-\d+$/.test(x)))).toEqual(["bg-blue-600", "bg-emerald-700", "bg-violet-600", "bg-red-700"]);
     expect(c.querySelector("[data-scoreboard]")!.innerHTML).not.toMatch(/(text|bg|border)-(success|info|sky|emerald|violet|rose|teal)/);
   });
   it("a row's own team (a list across several teams) goes first on its alliance, with no card team", () => {
@@ -140,10 +140,10 @@ describe("combined scores", () => {
     // The loser muted, not a faded alliance colour (that falls under 4.5:1).
     expect(c.querySelector("[data-match-row] [aria-label^=Red] > span:last-child")!.className).toBe("text-muted-foreground");
     expect([...c.querySelectorAll("[data-match-row] [data-team-chip]")].map((t) => t.getAttribute("data-team-chip"))).toEqual(["1", "2"]);
-    // The combined bar from zero, in neutral ink.
+    // The combined bar from zero, in the team hue (no data visual is grey).
     const bar = c.querySelector<HTMLElement>("[data-combined] [data-bar]")!;
     expect(bar.style.width).toBe("100%");
-    expect(bar.className).toContain("bg-foreground/55");
+    expect(bar.className).toContain("bg-team-a");
   });
 });
 

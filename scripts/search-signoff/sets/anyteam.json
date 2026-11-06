@@ -1,0 +1,17 @@
+[
+ {"intent": "conference record", "expect": "record|event", "a": {"team": 4215, "q": "4215 record at East Bergen conference in 2025-26"}, "b": {"team": 6980, "q": "6980 record at East Bergen conference in 2025-26"}},
+ {"intent": "OPR in a season", "expect": "opr", "a": {"team": 4215, "q": "4215 opr in 2025-26"}, "b": {"team": 24033, "q": "24033 opr in 2025-26"}},
+ {"intent": "awards in a season", "expect": "awards", "a": {"team": 4215, "q": "4215 awards in 2025-26"}, "b": {"team": 7149, "q": "7149 awards in 2025-26"}},
+ {"intent": "worlds record (data decides)", "expect": "event|worlds", "a": {"team": 4215, "q": "4215 at worlds"}, "b": {"team": 6980, "q": "6980 at worlds", "invalid": true}},
+ {"intent": "states = own championship", "expect": "event", "a": {"team": 4215, "q": "4215 matches at states in 2025-26"}, "b": {"team": 24033, "q": "24033 matches at states in 2025-26", "region": "Romania"}},
+ {"intent": "states = own championship (Romania)", "expect": "event", "a": {"team": 17713, "q": "17713 matches at states in 2025-26", "region": "Romania"}, "b": {"team": 17965, "q": "17965 matches at states in 2025-26", "region": "Romania"}},
+ {"intent": "record in a season", "expect": "record", "a": {"team": 4215, "q": "4215 record in 2025-26"}, "b": {"team": 17670, "q": "17670 record in 2026-27"}},
+ {"intent": "highest scoring match", "expect": "team-match", "a": {"team": 4215, "q": "4215 highest scoring match in 2025-26"}, "b": {"team": 19120, "q": "19120 highest scoring match in 2025-26"}},
+ {"intent": "prediction at an event", "expect": "predict", "a": {"team": 4215, "q": "predicted chances of 4215 at east bergen conference in 2025-26"}, "b": {"team": 6980, "q": "predicted chances of 6980 at east bergen conference in 2025-26"}},
+ {"intent": "matches at a named event", "expect": "event", "a": {"team": 4215, "q": "4215 matches at East Bergen League Tournament in 2025-26"}, "b": {"team": 33950, "q": "33950 matches at Essex Conference in 2025-26"}},
+ {"intent": "rating trend", "expect": "trend", "a": {"team": 14450, "q": "14450 rating trend in 2025-26"}, "b": {"team": 17965, "q": "17965 rating trend in 2025-26"}},
+ {"intent": "inspire count", "expect": "awards|count", "a": {"team": 7149, "q": "how many inspire awards has 7149 won"}, "b": {"team": 24033, "q": "how many inspire awards has 24033 won"}},
+ {"intent": "location", "expect": "fact", "a": {"team": 4215, "q": "where is 4215 from"}, "b": {"team": 24033, "q": "where is 24033 from"}},
+ {"intent": "closest match", "expect": "team-match", "a": {"team": 4215, "q": "4215 closest match in 2025-26"}, "b": {"team": 21229, "q": "21229 closest match in 2026-27"}},
+ {"intent": "two-team OPR compare", "expect": "compare", "a": {"team": 4215, "q": "4215 vs 7149 opr in 2025-26"}, "b": {"team": 17713, "q": "17713 vs 17965 opr in 2025-26"}}
+]
