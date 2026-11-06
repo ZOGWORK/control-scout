@@ -19,7 +19,7 @@ import type { SearchAnswer, SearchHit, SearchRecovery, SearchUnderstood } from "
 import { SEARCH_BROWSE, SEARCH_FILLER, SEARCH_PAGE_LIMIT, SEARCH_TOPICS, firstCards, TOPIC_LABEL, VERSUS, cardWho, onlyPageWords, pagesFor, showingLine } from "../../src/shared/search.js";
 import { conversationQuery, isQuestionForm, nameWords, onlyCommonWords, singularize } from "../../src/shared/searchQuery.js";
 import { readEventQuery, regionOf } from "../../src/shared/searchEventQuery.js";
-import { eventSetAnswer } from "./searchEvents.js";
+import { eventSetAnswer, withEventParents, withWholeFamilies } from "./searchEvents.js";
 import { versusAnswer } from "./searchCompare.js";
 import { ruleAnswer } from "./searchRules.js";
 import { askAnswer, readAsk } from "./searchAsks.js";
@@ -203,9 +203,9 @@ export async function readerAnswer(raw: string, opts: AnswerOptions): Promise<Se
   // The page words as typed ("records" stays a page word); links the answer added itself (a region's rankings) stay.
   const own = (p: { href: string }) => !pagesFor(read).some((x) => x.href === p.href);
   const out = read === typed ? a : { ...a, q: typed, pages: [...a.pages.filter(own), ...pagesFor(typed).filter((p) => !a.pages.some((x) => x.href === p.href && own(x)))] };
-  // The page's cut counts cards (an event with its divisions is one: firstCards); a shorter list (the dropdown) is
-  // the page's first rows.
-  return { ...out, hits: shown >= SEARCH_PAGE_LIMIT ? firstCards(out.hits, shown) : out.hits.slice(0, shown), understood: out.understood ?? understoodOf(out) };
+  // The page's cut counts cards (an event with its divisions is one: firstCards), each family whole (a names list may
+  // hold part of one); a shorter list (the dropdown) is the page's first rows.
+  return { ...out, hits: shown >= SEARCH_PAGE_LIMIT ? firstCards(await withWholeFamilies(out.hits, opts.now), shown) : await withEventParents(out.hits.slice(0, shown)), understood: out.understood ?? understoodOf(out) };
 }
 
 /** What an answer understood the query as, in words (SearchUnderstood): never a result's title for a set of results. */

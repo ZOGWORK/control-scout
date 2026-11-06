@@ -6,7 +6,7 @@ import { migrate, openDb, run, setDb } from "../db";
 import { rebuildSearch } from "../stats/job";
 import { CURRENT_SEASON, gameOf } from "../data/seasons";
 import { searchAnswer } from "./searchAnswer";
-import { withEventParents } from "./searchEvents";
+import { withEventParents, withWholeFamilies } from "./searchEvents";
 import { SEARCH_PAGE_LIMIT, familyKey } from "../../src/shared/search";
 
 const S = CURRENT_SEASON;
@@ -72,5 +72,19 @@ describe("an event split in divisions", () => {
     expect(hits.map((h) => h.parent)).toEqual(["USXXCMP", undefined, undefined]);
     // Every event names its season's game, so seasons read apart by name.
     expect(hits.map((h) => h.game)).toEqual([gameOf(S - 1), gameOf(S - 1), undefined]);
+  });
+});
+
+describe("Greptile on #790", () => {
+  it("a list holding part of a family gets the rest right after it; a lone event or division stays alone", async () => {
+    const hit = (code: string, title: string) => ({ kind: "event" as const, ref: `${S - 1}:${code}`, title, subtitle: "", season: S - 1 });
+    const part = await withWholeFamilies([hit("WCMPAL", "World Championship - Alpha Division"), hit("WCMPBR", "World Championship - Bravo Division"), hit("USXXCMPE", "Xland Championship - East Division")]);
+    expect(part.map((h) => h.ref.split(":")[1])).toEqual(["WCMPAL", "WCMPBR", "WCMP", "WCMPCH", "USXXCMPE"]);
+    expect(part.every((h) => h.game === gameOf(S - 1))).toBe(true);
+  });
+
+  it("a bounded window keeps the server's own heading (no parts to rewrite it from)", async () => {
+    expect((await ask("first championship")).understood?.scope).toBeDefined();
+    expect((await ask("events this week")).understood?.scope).toBeUndefined();
   });
 });

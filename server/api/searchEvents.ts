@@ -15,7 +15,7 @@
 import type { SearchAnswer, SearchEventInfo, SearchHit, SearchUnderstood } from "../../src/shared/api.js";
 import { eventSetLabel, eventSetSpan, eventTypesOf, timeWindow, type EventQuery } from "../../src/shared/searchEventQuery.js";
 import { STOPWORDS } from "../../src/shared/searchQuery.js";
-import { SEARCH_BROWSE, SEARCH_PAGE_LIMIT, firstCards, pagesFor } from "../../src/shared/search.js";
+import { SEARCH_BROWSE, SEARCH_PAGE_LIMIT, familyKey, firstCards, pagesFor } from "../../src/shared/search.js";
 import { eventStatus, localDate } from "../../src/shared/eventDay.js";
 import { seasonLabel } from "../../src/shared/format.js";
 import { wordScore, words } from "./fuzzy.js";
@@ -125,6 +125,35 @@ export async function withEventParents(hits: SearchHit[]): Promise<SearchHit[]> 
     const parent = h.parent ?? of.get(h.ref), game = gameOf(h.season);
     return { ...h, ...(parent ? { parent } : {}), ...(game ? { game } : {}) };
   });
+}
+
+/** The hits with each family listed in part made whole (an event split in divisions: its finals and every division), the
+ *  missing members right after the last one listed, each hit with its parent and game (withEventParents). A list cut
+ *  by raw hits (names matched, a layer's) can hold part of one; the page's cut (firstCards) then keeps or drops it
+ *  whole. */
+export async function withWholeFamilies(hits: SearchHit[], now = Date.now()): Promise<SearchHit[]> {
+  const out = await withEventParents(hits);
+  // Only a family the list already shows (2+ of it): a lone event or division ("edison division") stays as found.
+  const listed = new Map<string, number>();
+  for (const h of out) listed.set(familyKey(h), (listed.get(familyKey(h)) ?? 0) + 1);
+  const fams = new Map<string, { season: number; code: string }>();
+  for (const h of out) if (h.kind === "event" && h.season != null && listed.get(familyKey(h))! >= 2) fams.set(familyKey(h), { season: h.season, code: h.parent ?? h.ref.split(":")[1] });
+  if (!fams.size) return out;
+  const rows = await all<Row>(
+    `SELECT season, code, name, type, division_code, venue, city, state, country, start, end, timezone FROM events WHERE ${[...fams.values()].map(() => "(season = ? AND (code = ? OR division_code = ?))").join(" OR ")} ORDER BY season, code`,
+    [...fams.values()].flatMap((f) => [f.season, f.code, f.code]));
+  const have = new Set(out.map((h) => `${h.kind}:${h.ref}`));
+  const missing = new Map<string, SearchHit[]>();
+  for (const r of rows) {
+    const h = eventHit(r, now);
+    if (have.has(`event:${h.ref}`)) continue;
+    const k = familyKey(h);
+    missing.set(k, [...(missing.get(k) ?? []), h]);
+  }
+  if (!missing.size) return out;
+  const last = new Map<string, number>();
+  out.forEach((h, i) => last.set(familyKey(h), i));
+  return withEventParents(out.flatMap((h, i) => (last.get(familyKey(h)) === i ? [h, ...(missing.get(familyKey(h)) ?? [])] : [h])));
 }
 
 /** Upcoming soonest first, then past most recent first: the two never interleave (brief Requirement 9). */
@@ -273,8 +302,9 @@ export async function eventSetAnswer(q: string, e: EventQuery, opts: { now?: num
   const rows = await rowsFor(e, now);
   if (rows.length) {
     const where = whereAsStored(e, rows);
-    const scope = { subject: eventSetLabel({ ...e, time: null, season: null, year: null, allSeasons: false }, { seasonLabel, where }), span: eventSetSpan(e, seasonLabel) };
-    return done(rows, { ...base, label: label({ where }) + gaps(e, rows), scope }, { where });
+    // A bounded window ("this week") stays in the heading: the page's tabs only stand in for upcoming and past.
+    const scope = e.time && e.time !== "upcoming" && e.time !== "past" ? undefined : { subject: eventSetLabel({ ...e, time: null, season: null, year: null, allSeasons: false }, { seasonLabel, where }), span: eventSetSpan(e, seasonLabel) };
+    return done(rows, { ...base, label: label({ where }) + gaps(e, rows), ...(scope ? { scope } : {}) }, { where });
   }
   // Nothing matched: the closest honest set, labelled as such. The time goes first (the venue asked for stays), then
   // the venue or city.
