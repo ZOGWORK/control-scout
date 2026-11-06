@@ -20,6 +20,7 @@ import { Cell, EventMarker, HeadlineValue, INK_BAR, MethodNote, TEAM_BAR, TEAM_T
 import { MatchBox, RankBadge, TeamChip } from "./MatchBox";
 import { CompareCard, comparisonOf } from "./CompareCard";
 import { ChanceBar } from "./ChanceBar";
+import { HighlightGrid, isHighlights } from "./HighlightGrid";
 
 const H3 = "mb-1.5 text-xs font-semibold text-muted-foreground";
 
@@ -215,7 +216,9 @@ function Block({ b: block, team, teams, said, hue }: { b: StatBlock; team?: Stat
             {ev && !!ev.type && <EventMarker type={ev.type} chip />}
             {ev && !said?.has(ev.season) && <> · {ev.season}</>}
           </h3>
-          <ul className={cn("grid gap-3", b.rows.length > 1 && "lg:grid-cols-2")}>{b.rows.map((r) => <MatchBox key={`${r.href}|${r.alliance}`} r={r} team={team ?? undefined} atEvent={!!ev} />)}</ul>
+          {/* Highlights (every match saying why it's listed): a video grid, the reason each tile's label. */}
+          {isHighlights(b) ? <HighlightGrid b={b} team={team} hue={hue} atEvent={!!ev} />
+            : <ul className={cn("grid gap-3", b.rows.length > 1 && "lg:grid-cols-2")}>{b.rows.map((r) => <MatchBox key={`${r.href}|${r.alliance}`} r={r} team={team ?? undefined} atEvent={!!ev} />)}</ul>}
           {b.more && <p className="mt-1 text-[11px] text-muted-foreground">{b.more}</p>}
         </div>
       );

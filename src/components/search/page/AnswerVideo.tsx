@@ -50,7 +50,9 @@ function Player({ v, className }: { v: SearchVideoItem; className?: string }) {
           <iframe className="absolute inset-0 size-full" src={src} title={caption} allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen" referrerPolicy="strict-origin-when-cross-origin" />
         ) : (
           <button type="button" onClick={() => setOn(true)} className="group absolute inset-0 grid place-items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60" aria-label={`Play: ${caption}`} data-video-facade>
-            <img src={thumbnailUrl(v.videoId)} alt="" loading="lazy" decoding="async" onError={(e) => { e.currentTarget.hidden = true; }} className="absolute inset-0 size-full object-cover opacity-80 transition-opacity group-hover:opacity-100 motion-reduce:transition-none" />
+            {/* A match's own video shows its picture; a recording's picture is whatever was on the field then (another
+                team's match, an award), so a recording plays from black with its caption under it. */}
+            {v.kind === "match" && <img src={thumbnailUrl(v.videoId)} alt="" loading="lazy" decoding="async" onError={(e) => { e.currentTarget.hidden = true; }} className="absolute inset-0 size-full object-cover opacity-80 transition-opacity group-hover:opacity-100 motion-reduce:transition-none" />}
             {/* Neutral, not YouTube's red: on a search card hue means team and red marks the red alliance (the results guide). */}
             <span className="relative grid size-16 place-items-center rounded-full bg-black/75 text-white shadow-lg ring-1 ring-white/40"><Play className="size-7 translate-x-0.5 fill-current" aria-hidden /></span>
           </button>
@@ -70,6 +72,20 @@ function Player({ v, className }: { v: SearchVideoItem; className?: string }) {
 export function useRowPlays(hrefs: (string | undefined)[]): boolean {
   const rows = useContext(Video).video?.rows;
   return !!rows && hrefs.some((h) => h && rows[h]);
+}
+
+/** A listed match's clip, the card's own video's match included (a video grid draws a picture for each), and playing
+ *  it in the app's video dialog, as a row's button does. */
+export function useClip(href: string): { v: SearchVideoItem | undefined; play: (label: string) => void } {
+  const { video, rowPlayed } = useContext(Video);
+  const v = video?.rows?.[href] ?? (video?.mainRow === href ? video.main : undefined);
+  return { v, play: (label) => { if (v) { rowPlayed(); playMatchVideo({ videoId: v.videoId, t: v.t, label }); } } };
+}
+
+/** Whether the answer has any video at all (its own, or a listed match's clip). */
+export function useAnyVideo(): boolean {
+  const v = useContext(Video).video;
+  return !!v?.main || !!(v?.rows && Object.keys(v.rows).length);
 }
 
 /** A listed match's play button, when it has a clip: it plays in the app's video dialog. `label` names the match in it. */
