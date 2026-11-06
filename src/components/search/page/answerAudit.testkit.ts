@@ -7,7 +7,8 @@
 //     alliance; nothing else, no gold (yellow is ranking points' alone; gold only on the marked primary action, a
 //     video's red, white and black only on the player or a marked video control); no two meanings sharing a hue on
 //     a card (team B's orange beside the Winning Alliance's, team C's green beside TeleOp's); a card about one team
-//     in team A, never B or C; and no data visual (a bar, a line, a tile, a pill, a chip) all grey;
+//     in team A, never B or C; no data visual (a bar, a line, a tile, a pill, a chip, a line's icon or words) all
+//     grey; and no card without a single hue (the count card that shipped all grey, 3.6.5);
 //   - print once: each team name once, and no heading, headline, context or scope line said twice; a scope note (a
 //     relaxed time, "No 2026–27 matches yet …; showing 2025–26") nowhere else on the card, its method included;
 //   - no meta or debug text, no number glued to a word in a heading;
@@ -22,15 +23,17 @@ const NEUTRAL = new Set(["foreground", "muted", "muted-foreground", "background"
   "input", "ring", "popover", "popover-foreground", "elevated", "transparent", "current", "inherit", "white", "black", "text-base", "text-muted", "scrollbar", "scrollbar-hover"]);
 const TEAM = /^team-[abc](-text)?$/;
 const ALLIANCE = /^(red|blue)-alliance(-text|-ink)?$/;
-const GOLD = /^(accent|accent-[a-z]+|amber|yellow|warning|warning-text)$/;
+// Amber is the palette's Count (a how-many's number), checked with it.
+const GOLD = /^(accent|accent-[a-z]+|yellow|warning|warning-text)$/;
 // A video control: its red play mark, and white or black over the picture.
 const PLAY = /^(video|video-fill|white|black)$/;
 // Search's palette: one family per meaning (an award, a phase, a status).
 const PALETTE = new Set<string>(Object.values(SEARCH_PALETTE).map((s) => s.family));
 // Hues a reader can't tell apart, two meanings each: never both on one card.
-const ALIKE: [string, string][] = [["team-b", "orange"], ["team-c", "emerald"], ["team-c", "teal"], ["team-a", "cyan"]];
+const ALIKE: [string, string][] = [["team-b", "orange"], ["team-c", "emerald"], ["team-c", "teal"], ["team-a", "cyan"], ["team-a", "sky"], ["sky", "cyan"], ["sky", "blue"],
+  ["amber", "yellow"], ["amber", "orange"], ["team-b", "amber"]];
 // Every data visual: none may be all grey.
-const VISUAL = "[data-bar], [data-kpi], [data-phase], [data-rank-pill], [data-rank-badge], [data-award], [data-pill], [data-bar-value], [data-node], [data-block=series] polyline, [data-timeline] polyline";
+const VISUAL = "[data-bar], [data-kpi], [data-phase], [data-rank-pill], [data-rank-badge], [data-award], [data-pill], [data-bar-value], [data-node], [data-block=series] polyline, [data-timeline] polyline, [data-line-icon], [data-line-text], [data-none]";
 const META = [/read as/i, /\bdebug\b/i, /\bTODO\b/, /\braw\b/i, /undefined/, /\bNaN\b/, /\[object/, /\bnull\b/, /\[relaxed/i];
 
 /** A class's colour family ("team-a", "sky", "foreground"), or null when it isn't a colour class. Resting state only. */
@@ -53,8 +56,9 @@ function texts(el: Element): string[] {
 }
 
 /** The rendered card's problems against the guide. `names`: team names that must be printed exactly once. `one`: the
- *  card is about one team, so team A is its only hue (B and C mean a second and third team). */
-export function auditAnswer(card: HTMLElement, { names = [] as string[], contrast = true, one = false } = {}): string[] {
+ *  card is about one team, so team A is its only hue (B and C mean a second and third team). `whole`: a whole card,
+ *  which must have a hue somewhere (off for a fragment). */
+export function auditAnswer(card: HTMLElement, { names = [] as string[], contrast = true, one = false, whole = true } = {}): string[] {
   const problems: string[] = [];
   const text = card.textContent ?? "";
 
@@ -76,7 +80,11 @@ export function auditAnswer(card: HTMLElement, { names = [] as string[], contras
 
   // Hue.
   const hues = new Set<string>();
-  for (const el of card.querySelectorAll<HTMLElement | SVGElement>("*")) {
+  // The card itself too: a colour set on it (a tinted article) is the card's.
+  for (const el of [card, ...card.querySelectorAll<HTMLElement | SVGElement>("*")]) {
+    // A team card's season-at-a-glance tiles keep their own number colours (textTones GLANCE_TONE, the owner's ask);
+    // their contrast is still checked below.
+    if (el.closest("[data-season-tiles]")) continue;
     const cls = el.getAttribute("class") ?? "";
     for (const c of cls.split(/\s+/).filter(Boolean)) {
       const f = colourOf(c);
@@ -101,6 +109,7 @@ export function auditAnswer(card: HTMLElement, { names = [] as string[], contras
   const coloured = (el: Element) => [el, ...el.querySelectorAll("*")].some((e) => (e.getAttribute("class") ?? "").split(/\s+/).some((c) => { const f = colourOf(c); return !!f && !NEUTRAL.has(f); }));
   for (const el of card.querySelectorAll(VISUAL)) if (!coloured(el)) problems.push(`grey data visual: ${el.tagName.toLowerCase()} "${(el.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 30)}"`);
   if (one) for (const h of hues) if (/^team-[bc]$/.test(h)) problems.push(`one team's card in ${h}`);
+  if (whole && !hues.size) problems.push("grey card: no palette or team colour anywhere");
 
   // Print once.
   for (const n of names) { const k = text.split(n).length - 1; if (k !== 1) problems.push(`${n} printed ${k} times`); }
