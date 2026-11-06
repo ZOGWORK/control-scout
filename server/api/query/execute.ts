@@ -55,7 +55,9 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
 /** Whether the pipeline reads `q` completely (an intent it answers, every word explained). */
 export async function pipelineReads(q: string, now?: number, prefer?: ReadonlySet<string>): Promise<boolean> {
   const p = await parseQuery(q, await parseContext(now, prefer));
-  return p.complete && !!p.intent && ANSWERED.has(p.intent) && (p.intent !== "team-predict" || !!p.event) && (p.intent !== "count-teams" || townCount(p));
+  // A comparison is the pipeline's only at an event (or Worlds, or states): "12345 or 67890" stays the boolean reader's.
+  return p.complete && !!p.intent && ANSWERED.has(p.intent) && (p.intent !== "team-predict" || !!p.event) && (p.intent !== "count-teams" || townCount(p))
+    && (p.intent !== "compare" || !!p.event || p.worlds || p.states);
 }
 
 /** A count of teams the pipeline answers: a town's, with no time, event, championship, match type, side or award said
@@ -79,7 +81,7 @@ const TEAM_INTENTS = new Set<PipelineIntent>([
 ]);
 const TWO_TEAM: Partial<Record<PipelineIntent, TwoTeamId>> = {
   "head-to-head": "head-to-head", "shared-matches": "shared-matches", "h2h-wins": "h2h-wins", "opr-vs": "opr-vs", "rating-vs": "rating-vs",
-  "awards-vs": "awards-vs", "two-predict": "predict",
+  "awards-vs": "awards-vs", "two-predict": "predict", compare: "compare",
 };
 /** The two-team answers read from the matches the teams met in: the only ones an event, a match type or a side applies to. */
 const MEETINGS = new Set<TwoTeamId>(["head-to-head", "h2h-wins", "shared-matches"]);
@@ -203,6 +205,12 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   }
   if (p.teams.length === 2 && TWO_TEAM[intent]) {
     const id = TWO_TEAM[intent]!;
+    // Compared at an event (or their Worlds, their states): each team's numbers there. Compared with no event is
+    // left to search (Compare's own card).
+    if (id === "compare") {
+      if (!(scope.at || scope.championship || scope.states) || scope.level || scope.alliance || scope.window || scope.place || scope.area) return null;
+      return twoTeamSearch(p.q, { id, scope, a: String(p.teams[0].number), b: String(p.teams[1].number) }, opts.resolve, opts);
+    }
     // Season side-by-sides (OPR, rating, awards, a forecast) read whole seasons: only the meetings take an event, a
     // place, a window, a match type or a side.
     if (!MEETINGS.has(id) && (scope.at || scope.championship || scope.states || scope.level || scope.alliance || scope.window || scope.place || scope.area)) return null;

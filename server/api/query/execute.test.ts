@@ -170,6 +170,50 @@ describe("one question, any phrasing, any team", () => {
       expect(s.headline?.value, q).toBe("2");
     }
   });
+  it("two teams compared at an event: each one's numbers there, any order, by number or name", async () => {
+    for (const q of ["4215 vs 6980 at garden qualifier", "bad wolf vs hypnotic robotics at the garden qualifier", "24033 vs delta force at romania championship"]) {
+      const s = await stat(q);
+      expect(s, q).toMatchObject({ family: "two-team", intent: "compare", title: expect.stringMatching(/ at (Garden Qualifier|Romania Championship)$/) });
+      const rows = s.blocks.find((b) => b.kind === "compare");
+      expect(rows && rows.kind === "compare" ? rows.rows.map((r) => r.label) : [], q).toEqual(expect.arrayContaining(["OPR", "Rank", "Record"]));
+      expect(s.headline?.value, q).toBeTruthy();
+    }
+    // One of them wasn't there: said, never the other event's numbers.
+    const away = await stat("4215 vs 10809 at golden qualifier");
+    expect(away.none).toMatch(/^Hypnotic Robotics \(4215\) has no matches at Golden Qualifier/);
+    // Each follow-up asks again of the season shown, never the event's newest edition.
+    const related = away.blocks.find((b) => b.kind === "related");
+    expect(related?.kind === "related" ? related.queries : []).toEqual(["4215 results at golden qualifier in 2025-26", "10809 results at golden qualifier in 2025-26"]);
+    // "This season" is the first team's latest season: the same card as the season named.
+    expect((await stat("4215 vs 6980 at garden qualifier this season")).scope).toEqual(["Garden Qualifier", "2025–26"]);
+    // A calendar year is the edition held that year; a year it wasn't held in has none.
+    expect((await stat("4215 vs 6980 at garden qualifier in 2026")).scope).toEqual(["Garden Qualifier", "2025–26"]);
+    expect((await ask("4215 vs 6980 at garden qualifier in 2024")).stat?.intent).not.toBe("compare");
+  });
+  it("two meets by one name (AM and PM): both teams' numbers from the meet they both played", async () => {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, 'USMELAM', 'Lakeside AM League Meet', 'LeagueMeet', 'Town', 'ME', 'USA', '2026-02-21', '2026-02-21', 't'), (2025, 'USMELPM', 'Lakeside PM League Meet', 'LeagueMeet', 'Town', 'ME', 'USA', '2026-02-21', '2026-02-21', 't')");
+    let n = 700;
+    const meet = async (code: string, red: number, blue: number) => {
+      n++;
+      await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, ?, 'qual', 0, ?, ?, '2026-02-21T10:00:00Z', 1, 90, 90, 60, 60, 't')", [code, n, `Q${n}`]);
+      await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, ?, 'qual', 0, ?, ?, 'red', 1), (2025, ?, 'qual', 0, ?, ?, 'blue', 1)", [code, n, red, code, n, blue]);
+    };
+    await meet("USMELAM", 30010, 30011);
+    await meet("USMELPM", 30010, 30012);
+    await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'USMELAM', 30010, 1), (2025, 'USMELAM', 30011, 2), (2025, 'USMELPM', 30010, 1), (2025, 'USMELPM', 30012, 2)");
+    await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (2025, 'USMELAM', 30010, 40, 1), (2025, 'USMELAM', 30011, 30, 1), (2025, 'USMELPM', 30010, 70, 1), (2025, 'USMELPM', 30012, 20, 1)");
+    await rebuildSearch();
+    clearAllCaches();
+    for (const [q, at, values] of [["30010 vs 30011 at lakeside league meet", "Lakeside AM League Meet", ["40.0", "30.0"]], ["30010 vs 30012 at lakeside league meet", "Lakeside PM League Meet", ["70.0", "20.0"]]] as const) {
+      const s = await stat(q);
+      expect(s.title, q).toBe(`${q.split(" at ")[0]} at ${at}`);
+      const block = s.blocks.find((b) => b.kind === "compare");
+      expect(block?.kind === "compare" && block.rows.find((r) => r.label === "OPR")?.values, q).toEqual(values);
+      // Their matches together at that meet alone.
+      const links = s.blocks.find((b) => b.kind === "links");
+      expect(links?.kind === "links" && decodeURIComponent(links.items[0].href), q).toContain(`matches together at ${at.toLowerCase()} in 2025-26`);
+    }
+  });
   it("a team's matches in a season: the record, then every match, for any team and any phrasing", async () => {
     for (const [t, value, n] of [["4215", "1-1-0", 2], ["delta force", "1-1-0", 2], ["10809", "2-1-0", 3]] as const) {
       for (const q of [`${t} matches in 2025-26`, `show me ${t} matches 2025-26`, `2025-26 matches for ${t}`, `${t} matches`]) {
