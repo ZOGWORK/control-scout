@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.3.4 — 2026-11-05
+## 3.3.5 — 2026-11-05
 
 Every kind of search answer is checked on a 390 px phone: nothing runs off the screen, and every link and button is big enough to tap.
 
@@ -27,6 +27,18 @@ Every kind of search answer is checked on a 390 px phone: nothing runs off the s
 ### Search
 - **Checked at 390 px.** A new check (`npm run phone-proof`) opens one search for every kind of answer card on a 390 × 844 phone and fails on sideways scrolling, anything past the screen's edge, a link or button under 24 × 24 px, two that overlap, a team number cut off, or more than one main button; it saves a phone shot of each.
 - **Bigger taps.** A match's name in a match box ("Q1", "M2") is at least 44 px wide on a phone; a line chart's points are 24 px; the leaderboard's "#" sort is 24 px wide; and the video's "Open on YouTube", each match's play button and the search list's rows are 44 px on a phone (they were 44 px only where the text size is 16 px) (#778).
+
+## 3.3.4 — 2026-11-05
+
+A match question with a time that had to be widened no longer says the time was left out.
+
+### Highlights
+- [fixes] "Top match in Ohio this week" keeps "this week" read
+- [fixes] A widened time is named once, in the card's chip
+- [fixes] Every other word left out is still said to be
+
+### Search
+- **Widened time, read.** When a match question's week or month has nothing yet and the card widens it, the chip ("Relaxed: this week → 2025–26") counts as naming the time, so the heading no longer adds that the time isn't part of the answer. (#777)
 
 ## 3.3.3 — 2026-11-05
 
