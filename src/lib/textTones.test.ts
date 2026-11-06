@@ -20,8 +20,8 @@ describe("search's palette", () => {
     const families = Object.values(SEARCH_PALETTE).map((s) => s.family);
     expect(new Set(families).size).toBe(families.length);
     for (const f of families) expect(f).not.toMatch(/^team-/);
-    // Yellow is ranking points' alone (no gold on other data).
-    expect(Object.entries(SEARCH_PALETTE).filter(([, s]) => /yellow|amber/.test(s.family)).map(([k]) => k)).toEqual(["rp"]);
+    // Yellow is ranking points' alone, amber a count's (no other gold on data).
+    expect(Object.entries(SEARCH_PALETTE).filter(([, s]) => /yellow|amber/.test(s.family)).map(([k]) => k)).toEqual(["rp", "count"]);
   });
 });
 

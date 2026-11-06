@@ -3,11 +3,13 @@
 // means team, no gold data marks, at most 3 hues, print once, no meta text, no glued headings, 4.5:1 text in every
 // theme. A new card type gets a fixture here.
 import { cleanup, render } from "@testing-library/react";
+import { readFileSync } from "node:fs";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SearchCard, SearchVideo, TeamProfile } from "../../../shared/api";
-import type { StatAnswer, StatMatchRow } from "../../../shared/searchStat";
+import type { StatAnswer, StatBlock, StatMatchRow } from "../../../shared/searchStat";
+import { SEARCH_PALETTE } from "../../../lib/textTones";
 import type { Appearance } from "./records";
 
 // A team's page data, loaded (the card's team header, season tiles and events draw with it).
@@ -25,7 +27,7 @@ vi.mock("../../../lib/api", async (orig) => ({ ...(await orig<typeof import("../
 vi.mock("../../../lib/meta", async (orig) => ({ ...(await orig<typeof import("../../../lib/meta")>()), useCurrentSeason: () => 2025 }));
 const { StatAnswerCard } = await import("./StatAnswer");
 const { EventAwardsAnswer } = await import("./EventAwards");
-const { FactCard } = await import("./FactCard");
+const { CARD_MEANING, FactCard } = await import("./FactCard");
 const { AppearancesAnswer, QualityBanner, StatBanner, Timeline } = await import("./Summary");
 const { AnswerVideoProvider } = await import("./AnswerVideo");
 const { auditAnswer } = await import("./answerAudit.testkit");
@@ -141,8 +143,73 @@ describe("every answer card passes the guide's checks (§11)", () => {
   for (const name of ONE) it(`${name}: in the team's hue`, () => expect(CARDS[name]().querySelector("[class*='team-a']")).not.toBeNull());
 });
 
+// Every card kind the API returns (SearchCard["kind"]) and every stat block kind (StatBlock["kind"]), drawn on its own:
+// the Record types fail `npm run lint` when a kind is added without one, and the source check below fails the test
+// run. Each must pass the audit, colour included: no grey card, no grey line icon or line text (the all-grey "578
+// teams registered in Canada" count card, 3.6.5).
+const TEAM = { number: 4215, name: "Hypnotic Robotics" };
+const LINE = { text: "New Jersey Championship", detail: "Mar 7–8, 2026 · Hillsborough, NJ", href: "/events/2025/USNJCMP" };
+const KIND_CARDS: Record<SearchCard["kind"], SearchCard> = {
+  worlds: { kind: "worlds", title: "Worlds appearances", team: TEAM, lines: [], none: "No Worlds appearances found in recorded event history", closest: [{ ...LINE, results: ["Ranked #2 of 40", "9-1-0", "Inspire Award"] }] },
+  states: { kind: "states", title: "State championships", team: TEAM, count: 3, lines: [{ ...LINE, results: ["Ranked #2 of 40", "9-1-0"] }] },
+  wins: { kind: "wins", title: "Event wins", team: TEAM, lines: [{ text: "Winning Alliance Captain", detail: "New Jersey Championship · 2025–26" }] },
+  awards: { kind: "awards", title: "Awards", team: TEAM, lines: [{ text: "Inspire Award", detail: "New Jersey Championship · 2025–26" }, { text: "Think Award", detail: "Bergen Qualifier · 2024–25" }] },
+  "next-event": { kind: "next-event", title: "Next event", team: TEAM, lines: [LINE] },
+  "next-match": { kind: "next-match", title: "Next match", team: TEAM, lines: [], none: "No upcoming match is scheduled yet", closest: [LINE] },
+  "high-scores": { kind: "high-scores", title: "Highest scores in 2025–26", lines: [{ text: "290 points", detail: "Q10 at New Jersey Championship", href: "/events/2025/USNJCMP?match=qual:0:10" }] },
+  rule: { kind: "rule", title: "Rules quick reference", lines: [{ text: "G301 Don't delay the match", detail: "A drive team may not delay the start of a match", href: "/rules" }] },
+  leaderboard: { kind: "leaderboard", title: "Teams in California by OPR", lines: [{ text: "23268 Ultraviolet", detail: "OPR 157.9", href: "/teams/23268" }] },
+  "event-awards": { kind: "event-awards", title: "Inspire Award · NJ Championship · 2025–26", lines: [], award: "Inspire", event: { season: 2025, code: "USNJCMP", name: "NJ Championship" },
+    awards: [{ type: "Inspire", placement: 1, team: 30439, teamName: "Cool Name", name: "Inspire Award" }] },
+  info: { kind: "info", title: "How many teams in Canada · 2026–27", lines: [{ text: "578 teams registered in Canada in 2026–27", detail: "Registrations for the season, played or not", href: "/teams?season=2026&view=listed&country=CA" }] },
+};
+const drawKind = (c: SearchCard) => draw(c.kind === "event-awards" ? <EventAwardsAnswer card={c} /> : <FactCard card={c} />);
+const S = (blocks: StatAnswer["blocks"], over: Partial<StatAnswer> = {}) => card({ ...base, family: "stat", intent: "x", title: "4215 in 2025–26", team: TEAM, headline: { value: "142.5", label: "OPR" }, blocks, ...over });
+const BLOCK_CARDS: Record<StatBlock["kind"], () => HTMLElement> = {
+  kpis: CARDS["stat tiles, OPR by phase"], record: CARDS["team record"], matches: CARDS["single match"], videos: CARDS["video page (every match, a stream, the filter)"],
+  table: CARDS["event result (table)"], series: CARDS["over time (series)"], bars: CARDS.bars, leaderboard: CARDS.leaderboard, compare: CARDS.comparison,
+  links: () => S([{ kind: "links", title: "Open", items: [{ label: "NJ Championship", href: "/events/2025/USNJCMP" }] }]),
+  related: () => S([{ kind: "related", title: "Did you mean", queries: ["4215 record"] }], { team: undefined, headline: { value: "0 teams", label: "named robot" }, family: "aggregate" }),
+  chance: () => S([{ kind: "chance", label: "Win chance", p: 0.62, who: "4215 wins NJ Championship", action: { label: "Open in Predict", href: "/predict" } }]),
+};
+
+describe("every card kind and block kind has its colour", () => {
+  // The kinds as the shared types spell them, so a kind added there with no fixture here fails even without tsc.
+  const src = readFileSync("src/shared/api.ts", "utf8");
+  const union = (re: RegExp, text: string) => [...(re.exec(text)?.[1] ?? "").matchAll(/"([\w-]+)"/g)].map((m) => m[1]).sort();
+  it("a fixture for every SearchCard kind", () => expect(Object.keys(KIND_CARDS).sort()).toEqual(union(/interface SearchCard \{\s*kind: ([^;]+);/, src)));
+  it("a fixture for every StatBlock kind", () => {
+    const stat = readFileSync("src/shared/searchStat.ts", "utf8");
+    expect(Object.keys(BLOCK_CARDS).sort()).toEqual([...stat.matchAll(/\|\s*\{\s*kind: "([\w-]+)"/g)].map((m) => m[1]).sort());
+  });
+  it("every card kind has a colour of its own (FactCard CARD_MEANING)", () => expect(Object.keys(CARD_MEANING).sort()).toEqual(Object.keys(KIND_CARDS).sort()));
+  for (const [kind, c] of Object.entries(KIND_CARDS)) {
+    it(`card ${kind}`, () => expect(auditAnswer(drawKind(c), { one: !!c.team }).join("\n")).toBe(""));
+  }
+  for (const [kind, make] of Object.entries(BLOCK_CARDS)) {
+    it(`block ${kind}`, () => expect(auditAnswer(make()).join("\n")).toBe(""));
+  }
+  it("a how-many card's number and sentence in Count's amber, its icon a filled chip, a thick bar", () => {
+    const el = drawKind(KIND_CARDS.info);
+    expect(el.querySelector("[data-kpi]")!.textContent).toBe("578");
+    expect(el.querySelector("[data-line-text]")!.className).toContain(SEARCH_PALETTE.count.text);
+    expect(el.querySelector("[data-line-icon]")!.className).toContain(SEARCH_PALETTE.count.fill);
+    expect(el.querySelector("[data-lines] a")!.className).toContain("border-l-[6px]");
+  });
+  it("a definition reads in Reference's sky, a rule too", () => {
+    const def = drawKind({ kind: "info", title: "OPR: what it is", lines: [{ text: "OPR estimates each robot's average contribution", href: "/methodology#opr" }] });
+    expect(def.querySelector("[data-line-text]")!.className).toContain(SEARCH_PALETTE.reference.text);
+    expect(drawKind(KIND_CARDS.rule).querySelector("[data-line-text]")!.className).toContain(SEARCH_PALETTE.reference.text);
+  });
+  it("the old grey count card fails the audit", () => {
+    const d = document.createElement("article");
+    d.innerHTML = `<ul data-lines><li><span data-line-icon class="bg-muted text-muted-foreground"></span><span data-line-text class="text-foreground">578 teams registered</span></li></ul>`;
+    expect(auditAnswer(d, { contrast: false })).toEqual(['grey data visual: span ""', 'grey data visual: span "578 teams registered"', "grey card: no palette or team colour anywhere"]);
+  });
+});
+
 describe("the audit catches what it's for", () => {
-  const bad = (html: string) => { const d = document.createElement("div"); d.innerHTML = html; return auditAnswer(d); };
+  const bad = (html: string) => { const d = document.createElement("div"); d.innerHTML = html; return auditAnswer(d, { whole: false }); };
   it("an unmarked bar, a bar not to scale, a bar not from zero", () => {
     expect(bad(`<div class="bg-foreground/50" style="width:40%"></div>`)).toEqual([expect.stringContaining("unmarked bar")]);
     expect(bad(`<div data-bar data-value="50" data-scale="100" class="bg-team-a" style="width:70%"></div>`)).toEqual([expect.stringContaining("lie factor 1.40")]);
@@ -151,7 +218,7 @@ describe("the audit catches what it's for", () => {
     expect(bad(`<div data-bar data-value="" data-scale="100" class="bg-team-a" style="width:40%"></div>`)).toEqual([expect.stringContaining("bar without value/scale")]);
   });
   it("a hue off the palette, gold on data, two meanings in one hue, a grey data visual", () => {
-    expect(bad(`<span class="text-sky-600">Auto</span>`)).toEqual(expect.arrayContaining([expect.stringContaining("hue on data: text-sky-600")]));
+    expect(bad(`<span class="text-purple-600">Auto</span>`)).toEqual(expect.arrayContaining([expect.stringContaining("hue on data: text-purple-600")]));
     expect(bad(`<b class="text-accent-text">1st</b>`)).toEqual(expect.arrayContaining([expect.stringContaining("gold on data")]));
     expect(bad(`<a data-primary-cta class="bg-accent text-accent-ink">Open in Predict</a>`)).toEqual([]);
     // Only the marked primary action and the video's own controls take those colours, not any button or link.
@@ -163,7 +230,7 @@ describe("the audit catches what it's for", () => {
     expect(bad(`<div data-kpi><b class="text-foreground">142.5</b></div>`)).toEqual(['grey data visual: div "142.5"']);
     expect(bad(`<div data-kpi class="border-l-team-a"><b class="text-team-a">142.5</b></div>`)).toEqual([]);
     const one = document.createElement("div"); one.innerHTML = `<b class="text-team-a">142.5</b><i class="bg-team-b"></i>`;
-    expect(auditAnswer(one, { one: true })).toEqual(["one team's card in team-b"]);
+    expect(auditAnswer(one, { one: true, whole: false })).toEqual(["one team's card in team-b"]);
   });
   it("a line said twice, meta text, a glued heading, low contrast", () => {
     expect(bad(`<h3>Top OPR</h3><figcaption>Top OPR</figcaption>`)).toEqual(['said twice: "Top OPR"']);
