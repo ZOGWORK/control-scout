@@ -28,7 +28,7 @@ A championship's divisions branch off it as a tree, coloured by status, with eac
 ### Search
 - **A tree.** An event split in divisions shows the event on the left (on a phone, on top): its name, season and game, dates, place, venue, type and status. Its divisions and finals branch off it on the right, stacked and indented under it on a phone, joined by one line. A division is its name, its own pages (Matches, Rankings, Teams, Playoffs) and its status only when it differs. The newest finished season and any upcoming or live one start open; older ones open with a tap and still count.
 - **Colour that means something.** Status is the colour: a solid chip, the block's thick bar and the connecting line, red for Live, blue for Upcoming, green for Finished, each at AA contrast. Yellow is only the time tab you picked: event cards drop the yellow type bar, label and "View event" cue (the card is already its link), and the page's heading and links are plain.
-- **No season tabs.** Events that share a name across seasons are a card each, and the season filter picks one.
+- **No season tabs.** Events that share a name across seasons are a card each, and the season filter picks one (#796).
 
 ## 3.3.9 — 2026-11-06
 
