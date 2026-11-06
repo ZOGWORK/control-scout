@@ -55,7 +55,7 @@ const WORD_CODES = new Set(["in", "or", "me", "hi", "ok", "oh", "la", "ma", "pa"
 /** Words that frame a request for events, never part of an event's name ("show me all meets in NJ"). */
 const FRAME_WORDS = new Set(["next", "many", "much", "there", "all", "any", "list", "show", "me", "find", "get", "give", "see", "every", "some",
   // "What events are happening this week", "events going on today", "events taking place in NJ".
-  "happening", "going", "on", "taking", "place", "held", "running", "scheduled"]);
+  "happening", "going", "on", "taking", "place", "being", "held", "running", "scheduled"]);
 const PLACE_MARKERS = new Set(["in", "at", "near", "from", "around", "within", "across"]);
 
 /** What an event-set query asks for (every part optional). */
@@ -156,7 +156,11 @@ export function readEventQuery(raw: string): EventQuery | null {
       for (; n >= 1; n--) if ((r = regionOf(full.slice(0, n)))) break;
       // A near miss of a place's full name ("meets in new jersy"), when the query names a kind of event.
       if (!r && !region && kinds.length) for (n = Math.min(full.length, 4); n >= 1; n--) if ((r = nearRegion(full.slice(0, n).join(" ")))) { regionTyped = full.slice(0, n).join(" ").toLowerCase(); break; }
-      const tail = (k: number) => full.slice(k).filter((x) => !STOPWORDS.has(x.toLowerCase()));
+      // The request's own words after the place go too ("events in NJ are happening this week").
+      let end = full.length;
+      const frame = (w: string) => STOPWORDS.has(w) || FRAME_WORDS.has(w) || QUESTION_WORDS.has(w);
+      while (end > 0 && frame(full[end - 1].toLowerCase())) end--;
+      const tail = (k: number) => full.slice(k, Math.max(k, end)).filter((x) => !STOPWORDS.has(x.toLowerCase()));
       if (r && !region) { region = r; if (tail(n).length) where.push(tail(n).join(" ")); } else if (tail(0).length) where.push(tail(0).join(" "));
       i = j;
     } else words.push(rest[i++]);

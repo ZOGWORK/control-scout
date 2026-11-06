@@ -133,6 +133,13 @@ describe("events and time words (3g)", () => {
       expect((await ask(q)).understood?.label, q).toMatch(/^This week's events/);
     }
   });
+  it("the request's own words, before or after the place, are never a name or a venue", async () => {
+    expect(readEventQuery("events being held this week")).toMatchObject({ kinds: ["event"], time: "this-week", words: [], where: null });
+    expect(readEventQuery("what events in NJ are happening this week")).toMatchObject({ kinds: ["event"], time: "this-week", region: { state: "NJ" }, where: null, words: [] });
+    expect(readEventQuery("events in NJ taking place this week")).toMatchObject({ time: "this-week", region: { state: "NJ" }, where: null });
+    // A venue said after the place stays the venue.
+    expect(readEventQuery("events in NJ at river dell high school")?.where).toBe("river dell high school");
+  });
   it("live, right now: today's events", async () => {
     for (const q of ["live events", "events live now", "events going on today", "events happening now"]) {
       expect(readEventQuery(q), q).toMatchObject({ kinds: ["event"], time: "today", words: [] });
@@ -142,7 +149,9 @@ describe("events and time words (3g)", () => {
   });
   it("'number of' and 'count of' ask how many", async () => {
     expect((await countAnswer("number of events in NJ in 2025-26"))?.understood?.label).toBe("How many events in New Jersey · 2025–26");
-    for (const q of ["count of teams in NJ", "total number of teams in NJ", "what is the number of teams in NJ"]) {
+    // "What's the" with its apostrophe too.
+    expect((await countAnswer("what's the number of events in NJ in 2025-26"))?.understood?.label).toBe("How many events in New Jersey · 2025–26");
+    for (const q of ["count of teams in NJ", "total number of teams in NJ", "what is the number of teams in NJ", "what's the number of teams in NJ"]) {
       expect((await countAnswer(q))?.understood?.label, q).toBe((await countAnswer("how many teams in NJ"))?.understood?.label);
     }
   });
