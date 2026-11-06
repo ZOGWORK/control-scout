@@ -26,7 +26,8 @@ describe("bracketLayout", () => {
   it("lays an 8-alliance bracket out, the lower lane a round longer", () => {
     const l = bracketLayout(series(8))!;
     expect(l.upper).toEqual([[1, 2, 3, 4], [7, 8], [11]]);
-    expect(l.lower).toEqual([[5, 6], [9, 10], [12], [13]]);
+    // M5's winner plays M10 and M6's plays M9: M10 goes on top so the lines don't cross.
+    expect(l.lower).toEqual([[5, 6], [10, 9], [12], [13]]);
     expect(l.final).toEqual([14, 15]);
   });
 

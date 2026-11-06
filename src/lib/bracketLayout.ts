@@ -53,7 +53,16 @@ export function bracketLayout(series: BracketSeriesView[]): BracketLayout | null
   const columns = (l: BracketLane) => {
     const out: number[][] = [];
     for (const s of series) if (lane.get(s.index) === l) (out[round.get(s.index)!] ??= []).push(s.index);
-    return out.map((c) => c.sort((a, b) => a - b));
+    // The first round in match order; each later one in the order of the matches feeding it, so lines don't cross
+    // (8 alliances: M5's winner plays M10 and M6's plays M9, so M10 sits above M9).
+    out[0]?.sort((a, b) => a - b);
+    for (let c = 1; c < out.length; c++) {
+      const prev = out[c - 1];
+      if (!out[c] || !prev) continue;
+      const at = (i: number) => Math.min(...feeds(byIndex.get(i)!).map((f) => prev.indexOf(f)).filter((p) => p >= 0), Infinity);
+      out[c].sort((a, b) => at(a) - at(b) || a - b);
+    }
+    return out;
   };
   const upper = columns("upper"), lower = columns("lower");
   if (!upper.length || !lower.length || !finals.length || [...upper, ...lower].some((c) => !c)) return null;
