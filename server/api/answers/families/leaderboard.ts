@@ -116,7 +116,7 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
        ORDER BY v ${b.asc ? "ASC" : "DESC"}, ${st.tie ? `${st.tie} ${b.asc ? "ASC" : "DESC"}, ` : ""}${st.id === "rating" ? "" : `s.wins ${b.asc ? "ASC" : "DESC"}, `}s.team ${b.asc ? "DESC" : "ASC"} LIMIT ?`, [...args, b.n]),
     get<{ n: number }>(`SELECT COUNT(*) n FROM ${from} WHERE ${ranked}`, args),
   ]);
-  const title = b.undefeated ? `Undefeated teams${where} by ${statWords(st)}` : rookie ? `Best rookie team${b.n > 1 ? "s" : ""}${where} by ${statWords(st)}` : b.asc ? `Lowest ${b.n > 1 ? `${b.n} teams` : "team"} by ${statWords(st)}${where}`
+  const title = b.undefeated ? `Undefeated teams${where} by ${statWords(st)}` : rookie ? `Best rookie team${b.n > 1 ? "s" : ""}${where} by ${statWords(st)}` : b.asc && b.best && st.fewerBetter ? `Team${where} with the fewest ${statWords(st)}` : b.asc ? `Lowest ${b.n > 1 ? `${b.n} teams` : "team"} by ${statWords(st)}${where}`
     : b.best ? (st.fewerBetter ? `Team${where} with the most ${statWords(st)}` : `Best team${where} by ${statWords(st)}`) : `Top ${b.n} teams by ${statWords(st)}${where}`;
   // A link opens the same list or none: Rankings has no rookie filter and no lowest-first order, and neither page
   // takes a town or undefeated teams, so those get no link rather than one to a different list.

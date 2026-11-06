@@ -319,10 +319,12 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     // No stat said and the place alone ending the question ("best teams in romania", "best team in Oradell"): the place
     // readers' own cards. Said any other way ("in Cluj-Napoca, Romania", "best Romanian teams"): its teams by OPR here.
     if ((town || p.place?.kind === "country") && !stats.length && !p.undefeated && said.endsWith(` in ${normalise(p.place!.typed)}`)) return null;
+    // Fewer is better for penalties: "best" and "cleanest" are the fewest, "worst" the most; "most" and "fewest" as said.
+    const goodWord = !!stats[0] && !!BOARD_STATS[stats[0]].fewerBetter && /\b(?:best|better|cleanest|worst|weakest)\b/.test(said);
     const region: Region | null = town ? { key: `${town.country}:${town.state ?? ""}`, country: town.country, state: town.state ?? "", name: town.state ?? town.country } : regionOf(p);
     const b: LeaderboardQuestion = {
       kind: "top", stat: stats[0] ?? (p.undefeated ? "wins" : town || p.place?.kind === "country" ? "opr" : "rating"), ...(p.undefeated ? { undefeated: true } : {}), n: one ? 5 : Math.min(25, p.n ?? 10), region, city: null, town: town?.city ?? null, season: placeSeason(p, scope.season, opts),
-      ...(one ? { best: true } : {}), ...(p.agg === "min" ? { asc: true } : {}),
+      ...(one ? { best: true } : {}), ...((p.agg === "min") !== goodWord ? { asc: true } : {}),
     };
     const a = await boardSearch(p.q, b, opts);
     // No season said, or "this season": the current one, then the one before when nobody has played enough yet.
