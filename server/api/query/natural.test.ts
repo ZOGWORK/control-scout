@@ -29,6 +29,8 @@ beforeAll(async () => {
     [9848, "GearView", "Dallas", "TX", "USA"], [24033, "Alphatronic", "Cluj-Napoca", "CJ", "Romania"],
     // Names ending in a question's filler or holding a place's preposition; a name with punctuation; a placeholder.
     [30001, "Robots R Us", "Town", "OH", "USA"], [30002, "Lost In Space", "Town", "OH", "USA"], [30003, "O'Brien Robotics", "Town", "OH", "USA"],
+    [30004, "Ultraviolet Bots", "Town", "OH", "USA"], [30005, "Ultraviolet Bots", "Town", "OH", "USA"], [30006, "Ultraviolet Bots", "Town", "OH", "USA"],
+    [30007, "Ultraviolet Bots", "Town", "OH", "USA"], [30008, "Ultraviolet Beams", "Town", "OH", "USA"],
     [99950, "Off-Season Demo Team", "Town", "OH", "USA"], [99951, "Off-Season Demo Team", "Town", "OH", "USA"],
   ];
   for (const [n, name, city, state, country] of teams) {
@@ -95,7 +97,7 @@ describe("count teams by name (3a)", () => {
     expect(a.pages[0]).toEqual({ title: "Browse all teams", href: "/teams" });
     // The names the words are part of, and the name anywhere when a place narrowed it to none.
     const part = (await ask("how many teams named ultraviolet b")).stat as StatAnswer;
-    expect(part.blocks).toContainEqual({ kind: "related", title: "Did you mean", queries: ["Ultraviolet Bots"] });
+    expect(part.blocks).toContainEqual({ kind: "related", title: "Did you mean", queries: ["Ultraviolet Bots", "Ultraviolet Beams"] });
     // Spelled as the name search folds it: no apostrophe.
     expect(((await ask("how many teams named obrien r")).stat as StatAnswer).blocks).toContainEqual({ kind: "related", title: "Did you mean", queries: ["O'Brien Robotics"] });
     const there = (await ask("how many teams named bad wolf in Romania")).stat as StatAnswer;

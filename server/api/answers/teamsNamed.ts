@@ -61,8 +61,9 @@ export async function teamsNamedSearch(p: Parsed, opts: { full: boolean; pages: 
     const near = nt && hasTeamPage(nt.number, nt.name) ? nt.name : null;
     // Compared folded, as the whole-name lookup is (accents and punctuation aside).
     const words = fold(p.named.words);
-    const part = (await all<{ name: string }>(`SELECT name FROM teams t WHERE name IS NOT NULL AND ${teamPageSql("t.number", "t.name")} ORDER BY number`))
-      .map((r) => r.name.trim()).filter((n) => fold(n).includes(words) && fold(n) !== words).slice(0, 4);
+    // Each name once before the four are taken: teams sharing one name never crowd out the others.
+    const part = [...new Set((await all<{ name: string }>(`SELECT name FROM teams t WHERE name IS NOT NULL AND ${teamPageSql("t.number", "t.name")} ORDER BY number`))
+      .map((r) => r.name.trim()).filter((n) => fold(n).includes(words) && fold(n) !== words))].slice(0, 4);
     const wider = (place || season != null) && named.length ? [`teams named ${p.named.typed}`] : [];
     const queries = [...new Set([...wider, ...(near ? [`teams named ${near}`] : []), ...part])].slice(0, 4);
     if (queries.length) blocks.push({ kind: "related", title: "Did you mean", queries });
