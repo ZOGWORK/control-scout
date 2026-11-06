@@ -29,6 +29,23 @@ A word typed in the plural, or with a slip in it, is the same question as the wo
 - **Slips in search words.** A search word (an intent word, never a name) typed with one slip onto a neighbouring key besides one other edit ("evntd" for "events") is corrected, with "Did you mean". Swapped letters ("raitngs") and plurals of search words ("rakns" for "ranks") are corrected too. Place names are known words, so "Texas" is never "teams".
 - **A team's upcoming events.** "12345 upcoming events" lists every upcoming event the team is registered for, the next first, titled "Upcoming events" when there are several.
 
+## 3.6.6 — 2026-11-06
+
+More ways of asking for a place's top teams find the leaderboard: "Romania leaderboard", "highest rated teams", "by rating, not OPR".
+
+### Highlights
+- [rankings] "Romania leaderboard" lists a country's top teams
+- [rankings] "Highest rated teams in …" ranks by prediction rating
+- [rankings] "By rating, not OPR" ranks by rating alone
+- [rankings] "Top 10 … with their records" keeps the record column
+
+### Search
+- **A country's leaderboard.** "Romania leaderboard 2025-26" lists the country's top teams by OPR. A state's leaderboard ("New Jersey leaderboard by record") is unchanged.
+- **Highest rated.** "Highest rated teams in …" and "top rated" rank by the prediction rating.
+- **A stat not to go by.** "Top 5 teams in Romania by rating, not OPR" ranks by the rating alone; "not" drops only a stat, so "matches 12345 did not win" keeps its win.
+- **Records beside.** "Top 10 teams in New Jersey by OPR, with their records" is the OPR list, whose rows always show the record.
+- **Points in a match.** "Most points in a match in Texas" is the highest-scoring match there. (#865)
+
 ## 3.6.5 — 2026-11-06
 
 Penalty questions about teams ("which team fouls the least in New Jersey") answer with the teams' numbers, never the rules card.

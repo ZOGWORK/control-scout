@@ -49,6 +49,10 @@ export interface Parsed {
   vsAt?: number;
   /** Every intent symbol read ("agg:max", "metric:score"). */
   symbols: string[];
+  /** The stats said not to go by ("not OPR"), as typed: the card says it left them out. */
+  notStats?: string[];
+  /** The same stats as symbols ("metric:opr"): a default never ranks by one of them. */
+  notMetrics?: string[];
   intent: PipelineIntent | null;
   rule: IntentRule | null;
   /** Words nothing explained: a parse with any is incomplete, and left to search's other readers. */
@@ -80,6 +84,8 @@ type Tok = { w: string; typed: string; used: boolean; alliance?: boolean; side?:
 const FILLER_WORDS = new Set(LEXICON.filter((e) => e.words.length === 1 && e.syms.every((x) => x.k === "filler")).map((e) => e.words[0]));
 /** Every filler phrase, one word or more ("the", "thank you"). */
 const FILLER_PHRASES = LEXICON.filter((e) => e.syms.every((x) => x.k === "filler")).map((e) => e.words);
+/** The stats a list can be ranked by, which "not" before one drops ("by rating, not OPR"). */
+const NOT_STATS = new Set<string>(["opr", "rating", "winrate", "auto", "teleop", "endgame", "reliability", "penalty"]);
 /** True when `words` are filler phrases end to end ("are there", "thank you"); none at all is too. */
 function allFiller(words: string[]): boolean {
   const ok = [true, ...words.map(() => false)];
@@ -255,6 +261,8 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     const e = lexAt(i);
     if (!e) continue;
     e.words.forEach((_, j) => (toks[i + j].used = true));
+    // A stat said not to go by ("by rating, not OPR"): dropped with its "not". Stats only: "did not win" keeps its win.
+    if (i > 0 && !toks[i - 1].used && toks[i - 1].w === "not" && e.syms.every((s) => s.k === "metric" && NOT_STATS.has(s.v))) { toks[i - 1].used = true; (p.notStats ??= []).push(e.words.map((_, j) => toks[i + j].typed).join(" ")); (p.notMetrics ??= []).push(...e.syms.map((s) => `metric:${s.k === "metric" ? s.v : ""}`)); continue; }
     // A colour read as an alliance can start a team's name typed nearly right ("blue megalodns"): step 4 may take it back.
     if (e.words.length === 1 && e.syms.length === 1 && e.syms[0].k === "alliance") toks[i].alliance = true;
     for (const s of e.syms) {

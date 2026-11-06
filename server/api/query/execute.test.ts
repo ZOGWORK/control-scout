@@ -656,3 +656,14 @@ describe("review fixes", () => {
     expect(each, JSON.stringify(s.blocks.map((b) => b.kind))).toBeTruthy();
   });
 });
+
+describe("a stat said not to go by (Greptile on #865)", () => {
+  it("is never the one ranked by, a place's default included", async () => {
+    await run("INSERT OR REPLACE INTO team_season_stats (season, team, opr_np, rating_np, matches, rating_matches, wins, losses, ties) VALUES (2025, 24033, 80, 70, 10, 10, 6, 4, 0), (2025, 17713, 60, 75, 10, 10, 5, 5, 0)");
+    for (const q of ["Romania leaderboard, not OPR", "best teams in Romania not by OPR"]) expect((await ask(q)).stat?.intent ?? "", q).not.toBe("top-opr");
+    // A stat said beside it is the one ranked by, and the card says which was left out.
+    const by = await stat("top 5 teams in Romania by rating, not OPR");
+    expect(by).toMatchObject({ intent: "top-rating" });
+    expect(by.scope).toContain("Not by OPR");
+  });
+});
