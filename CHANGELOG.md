@@ -26,7 +26,7 @@ Under a search's answer, "People also ask": the next questions search answers di
 
 ### Search
 - **People also ask.** Under the answer, up to six questions about the same team, event, place or season ("What is its record?", "Who won the Think Award there?"), closed until tapped. Each opens to one line from that question's own answer and "See the full answer", which runs it as a search.
-- **Never a dead end.** Every question is run as a search before it's shown, and only one with a direct answer is asked: never one that would say sorry, guess or list names. The questions come from what the search read, never from a list of teams or events.
+- **Never a dead end.** Every question is run as a search before it's shown, and only one with a direct answer is asked: never one that would say sorry, guess or list names. The questions come from what the search read, never from a list of teams or events. (#1002)
 
 ## 3.6.6 — 2026-11-06
 
