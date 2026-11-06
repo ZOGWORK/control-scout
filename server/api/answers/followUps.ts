@@ -4,7 +4,7 @@
 // is a direct one: never a sorry, a fallback, a weak guess or a list of names. Its preview is that answer's own
 // headline, so the numbers are the ones the linked page shows. No team, event or year is written here: the words come
 // from the query as typed, the answer and the lexicon.
-import type { SearchAnswer, SearchFollowUp } from "../../../src/shared/api.js";
+import type { SearchAnswer, SearchFollowUp, SearchFollowUps } from "../../../src/shared/api.js";
 import { SEARCH_PAGE_LIMIT } from "../../../src/shared/search.js";
 import { normalise, parseQuery, type Parsed } from "../query/parse.js";
 import { parseContext } from "../query/context.js";
@@ -21,69 +21,84 @@ export const pageAnswer = (q: string, limit: number, prefer: ReadonlySet<string>
   keptAnswer(JSON.stringify([q, limit, [...prefer].sort()]), () => searchAnswer(q, { limit, prefer }));
 
 /** At most this many questions are shown, and this many candidates run to find them. */
-export const ASK_MAX = 6;
+export const ASK_MAX = 6, RELATED_MAX = 8;
 const CHECK_MAX = 16;
 /** At most this many of the searches the page already offers are read, to leave out questions that repeat them. */
 const SHOWN_MAX = 8;
 
 type Slots = { t?: number; u?: number; event?: string; place?: string; when?: string; award?: string };
-type Template = { family: Family; ask: (s: Required<Slots>) => string; needs: (keyof Slots)[]; when?: boolean };
-const T = (family: Family, needs: (keyof Slots)[], ask: Template["ask"], when = false): Template => ({ family, needs, ask, when });
+type Template = { family: Family; needs: (keyof Slots)[]; ask: (s: Required<Slots>) => string; short: (s: Required<Slots>) => string; when?: boolean; chip?: boolean };
+/** A follow-up two ways: a question (People also ask) and the search's short form (Related searches). */
+const T = (family: Family, needs: (keyof Slots)[], ask: Template["ask"], short: Template["short"], when = false): Template => ({ family, needs, ask, short, when });
 /** The words a time is typed with that already say how it's placed ("in <season>", "last season", "this year"). */
 const PLACED = /^(?:in|during|for|from|at|of|this|last|next|the|current|previous|past)\b/i;
 /** " in <time>" when the query said one and the question is about one season: "in" only when the time typed doesn't
  *  already say how it's placed ("… in <season>", "… last season"). */
 const IN = (s: Slots) => (!s.when ? "" : PLACED.test(s.when) ? ` ${s.when}` : ` in ${s.when}`);
+const AT = (s: Slots) => (s.when ? ` ${s.when}` : "");
 
 // In the order they're offered: the questions nearest a search about a team first (its numbers, record and rating),
 // then its awards, matches and events. Each says the time the query said, when it's a season's question.
 const TEAM: Template[] = [
-  T("team", ["t"], (s) => `What is ${s.t}'s OPR${IN(s)}?`, true),
-  T("team", ["t"], (s) => `What is ${s.t}'s record${IN(s)}?`, true),
-  T("predict", ["t"], (s) => `What is ${s.t}'s rating${IN(s)}?`, true),
-  T("awards", ["t"], (s) => `What awards has ${s.t} won?`),
-  T("team", ["t"], (s) => `When did ${s.t} last play?`),
-  T("events", ["t"], (s) => `How many events has ${s.t} played?`),
-  T("team", ["t"], (s) => `What is ${s.t}'s highest score${IN(s)}?`, true),
-  T("team", ["t"], (s) => `Who is ${s.t}'s best alliance partner?`),
-  T("events", ["t"], (s) => `Has ${s.t} been to Worlds?`),
-  T("team", ["t"], (s) => `What is ${s.t}'s win rate${IN(s)}?`, true),
-  T("team", ["t"], (s) => `What is ${s.t}'s average score${IN(s)}?`, true),
-  T("team", ["t"], (s) => `Is ${s.t}'s OPR going up?`),
-  T("team", ["t"], (s) => `What is ${s.t}'s longest win streak?`),
-  T("team", ["t"], (s) => `How many matches has ${s.t} played?`),
-  T("events", ["t"], (s) => `When is ${s.t}'s next event?`),
+  T("team", ["t"], (s) => `What is ${s.t}'s OPR${IN(s)}?`, (s) => `${s.t} opr${AT(s)}`, true),
+  T("team", ["t"], (s) => `What is ${s.t}'s record${IN(s)}?`, (s) => `${s.t} record${AT(s)}`, true),
+  T("predict", ["t"], (s) => `What is ${s.t}'s rating${IN(s)}?`, (s) => `${s.t} rating${AT(s)}`, true),
+  T("awards", ["t"], (s) => `What awards has ${s.t} won?`, (s) => `${s.t} awards`),
+  T("team", ["t"], (s) => `When did ${s.t} last play?`, (s) => `${s.t} last match`),
+  T("events", ["t"], (s) => `How many events has ${s.t} played?`, (s) => `${s.t} events played`),
+  T("team", ["t"], (s) => `What is ${s.t}'s highest score${IN(s)}?`, (s) => `${s.t} highest score${AT(s)}`, true),
+  T("team", ["t"], (s) => `Who is ${s.t}'s best alliance partner?`, (s) => `${s.t} best alliance partner`),
+  T("events", ["t"], (s) => `Has ${s.t} been to Worlds?`, (s) => `${s.t} worlds appearances`),
+  T("team", ["t"], (s) => `What is ${s.t}'s win rate${IN(s)}?`, (s) => `${s.t} win rate${AT(s)}`, true),
+  T("team", ["t"], (s) => `What is ${s.t}'s average score${IN(s)}?`, (s) => `${s.t} average score${AT(s)}`, true),
+  T("team", ["t"], (s) => `Is ${s.t}'s OPR going up?`, (s) => `${s.t} opr trend`),
+  T("team", ["t"], (s) => `What is ${s.t}'s longest win streak?`, (s) => `${s.t} longest win streak`),
+  T("team", ["t"], (s) => `How many matches has ${s.t} played?`, (s) => `${s.t} total matches`),
+  T("events", ["t"], (s) => `When is ${s.t}'s next event?`, (s) => `${s.t} next event`),
+  T("team", ["t"], (s) => `What was ${s.t}'s biggest win?`, (s) => `${s.t} biggest win`),
+  T("events", ["t"], (s) => `What was ${s.t}'s best finish?`, (s) => `${s.t} best finish`),
+  T("team", ["t"], (s) => `What was ${s.t}'s best season?`, (s) => `${s.t} best season`),
+  T("team", ["t"], (s) => `What is ${s.t}'s current streak?`, (s) => `${s.t} current streak`),
+  T("events", ["t"], (s) => `What was ${s.t}'s first event?`, (s) => `${s.t} first event`),
 ];
 const TWO: Template[] = [
-  T("compare", ["t", "u"], (s) => `Who has the higher OPR, ${s.t} or ${s.u}?`),
-  T("predict", ["t", "u"], (s) => `Who would win, ${s.t} or ${s.u}?`),
-  T("compare", ["t", "u"], (s) => `Who has the better record, ${s.t} or ${s.u}?`),
-  T("compare", ["t", "u"], (s) => `How has ${s.t} done against ${s.u}?`),
+  T("compare", ["t", "u"], (s) => `Who has the higher OPR, ${s.t} or ${s.u}?`, (s) => `${s.t} vs ${s.u} opr`),
+  T("predict", ["t", "u"], (s) => `Who would win, ${s.t} or ${s.u}?`, (s) => `${s.t} vs ${s.u} prediction`),
+  T("compare", ["t", "u"], (s) => `Who has the better record, ${s.t} or ${s.u}?`, (s) => `${s.t} vs ${s.u} record`),
+  T("compare", ["t", "u"], (s) => `How has ${s.t} done against ${s.u}?`, (s) => `${s.t} vs ${s.u} head to head`),
 ];
 const EVENT: Template[] = [
-  T("events", ["event"], (s) => `Who won ${s.event}${IN(s)}?`),
-  T("events", ["event"], (s) => `What were the best matches at ${s.event}${IN(s)}?`),
-  T("events", ["event"], (s) => `Which teams played at ${s.event}${IN(s)}?`),
+  T("events", ["event"], (s) => `Who won ${s.event}${IN(s)}?`, (s) => `who won ${s.event}${AT(s)}`),
+  T("events", ["event"], (s) => `What were the best matches at ${s.event}${IN(s)}?`, (s) => `${s.event}${AT(s)} highlights`),
+  T("events", ["event"], (s) => `Which teams played at ${s.event}${IN(s)}?`, (s) => `teams at ${s.event}${AT(s)}`),
 ];
-const AWARD_AT: Template = T("awards", ["event", "award"], (s) => `Who won the ${s.award} Award at ${s.event}${IN(s)}?`);
+const AWARD_AT: Template = T("awards", ["event", "award"], (s) => `Who won the ${s.award} Award at ${s.event}${IN(s)}?`, (s) => `${s.award} award at ${s.event}${AT(s)}`);
 const PLACE: Template[] = [
-  T("team", ["place"], (s) => `Who are the top teams in ${s.place}?`),
-  T("team", ["place"], (s) => `Which team has the highest OPR in ${s.place}?`),
-  T("predict", ["place"], (s) => `Who has the highest rating in ${s.place}?`),
-  T("team", ["place"], (s) => `How many teams are in ${s.place}?`),
-  T("team", ["place"], (s) => `What is the highest score in ${s.place}?`),
-  T("events", ["place"], (s) => `What events are coming up in ${s.place}?`),
-  T("events", ["place"], (s) => `What events are this week in ${s.place}?`),
-  T("events", ["place"], (s) => `What events are in ${s.place}?`),
+  T("team", ["place"], (s) => `Who are the top teams in ${s.place}?`, (s) => `top teams in ${s.place}`),
+  T("team", ["place"], (s) => `Which team has the highest OPR in ${s.place}?`, (s) => `highest opr in ${s.place}`),
+  T("predict", ["place"], (s) => `Who has the highest rating in ${s.place}?`, (s) => `highest rated in ${s.place}`),
+  T("team", ["place"], (s) => `How many teams are in ${s.place}?`, (s) => `teams in ${s.place}`),
+  T("team", ["place"], (s) => `What is the highest score in ${s.place}?`, (s) => `highest score in ${s.place}`),
+  T("events", ["place"], (s) => `What events are coming up in ${s.place}?`, (s) => `upcoming events in ${s.place}`),
+  T("events", ["place"], (s) => `What events are this week in ${s.place}?`, (s) => `events this week in ${s.place}`),
+  T("events", ["place"], (s) => `What events are in ${s.place}?`, (s) => `events in ${s.place}`),
 ];
+// A leaderboard's neighbours: the same teams ranked by each other number a board ranks by, in the place and season the
+// board was asked for, the board itself left out by its answer. They're Related searches' chips, never questions: one
+// tap from one board to the next.
+const BOARDS: [string, string][] = [["Auto OPR", "auto opr"], ["TeleOp OPR", "teleop opr"], ["Endgame OPR", "endgame opr"], ["OPR", "opr"], ["prediction rating", "rated"]];
+const IN_PLACE = (s: Slots) => (s.place ? ` in ${s.place}` : "");
+const LEADERS: Template[] = BOARDS.map(([label, words]) =>
+  ({ ...T(words === "rated" ? "predict" : "team", [], (s) => `Who has the best ${label}${IN_PLACE(s)}${IN(s)}?`, (s) => `${words === "rated" ? "highest rated teams" : `best ${words}`}${IN_PLACE(s)}${AT(s)}`), chip: true }));
+
 // A search that names nothing (a list of upcoming events, a season's leaders): the season's starting points.
 const START: Template[] = [
-  T("team", [], () => "Who are the top teams?"),
-  T("team", [], () => "Which team has the highest OPR?"),
-  T("team", [], () => "What is the highest score this season?"),
-  T("events", [], () => "What events are coming up?"),
-  T("events", [], () => "What events are this week?"),
-  T("events", [], () => "What events are happening today?"),
+  T("team", [], () => "Who are the top teams?", () => "top teams"),
+  T("team", [], () => "Which team has the highest OPR?", () => "highest opr"),
+  T("team", [], () => "What is the highest score this season?", () => "highest score"),
+  T("events", [], () => "What events are coming up?", () => "upcoming events"),
+  T("events", [], () => "What events are this week?", () => "events this week"),
+  T("events", [], () => "What events are happening today?", () => "live events"),
 ];
 
 /** The Worlds phrases the lexicon reads, longest first ("first championship" before "first"). */
@@ -91,13 +106,18 @@ const WORLDS = LEXICON.filter((e) => e.syms.some((x) => x.k === "worlds")).map((
 /** The awards a question can name in one word ("Think"), in the lexicon's order. */
 const AWARDS = AWARD_WORDS.map(([, type]) => type).filter((type) => /^[A-Z][a-z]+$/.test(type));
 
+/** A follow-up as a question and as the search's short form. */
+export type Candidate = { q: string; short: string; family: Family; chip?: boolean };
+
 /** The team an answer is about when the query named none ("who won inspire at …": the winner). */
 function answerTeam(a: SearchAnswer): number | undefined {
-  return a.stat?.team?.number ?? a.stat?.teams?.[0]?.number ?? a.card?.team?.number ?? a.card?.awards?.[0]?.team;
+  // A leaderboard's team is its first row, the headline's link.
+  const led = /^\/teams\/(\d+)(?:[?#]|$)/.exec(a.stat?.headline?.href ?? "");
+  return a.stat?.team?.number ?? a.stat?.teams?.[0]?.number ?? a.card?.team?.number ?? a.card?.awards?.[0]?.team ?? (led ? Number(led[1]) : undefined);
 }
 
 /** The candidates for a query read as `p` with answer `a`, in the order they're offered. */
-export function candidates(p: Parsed, a: SearchAnswer): { q: string; family: Family }[] {
+export function candidates(p: Parsed, a: SearchAnswer, team = answerTeam(a)): Candidate[] {
   const n = normalise(p.q);
   const worlds = p.worlds ? WORLDS.find((w) => ` ${n} `.includes(` ${w} `)) : undefined;
   const said = p.event?.typed ?? worlds;
@@ -105,7 +125,7 @@ export function candidates(p: Parsed, a: SearchAnswer): { q: string; family: Fam
   const event = said && said === said.toLowerCase() ? said.replace(/(?<![\p{L}\p{N}'])\p{L}/gu, (c) => c.toUpperCase()) : said;
   const teams = p.teams.map((t) => t.number);
   const s: Slots = {
-    t: teams[0] ?? answerTeam(a), u: teams[1], event, place: p.place?.name,
+    t: teams[0] ?? team, u: teams[1], event, place: p.place?.name,
     // A season said (a year, a season's two years): a window ("this week") or every season is no season's question.
     when: p.time?.kind === "season" ? p.time.typed : undefined,
     award: p.award ?? undefined,
@@ -114,10 +134,14 @@ export function candidates(p: Parsed, a: SearchAnswer): { q: string; family: Fam
   const teamWhen = event ? undefined : s.when;
   const fill = (list: Template[], slots: Slots) => list
     .filter((x) => x.needs.every((k) => slots[k] != null))
-    .map((x) => ({ q: x.ask({ ...(slots as Required<Slots>), when: (x.needs.includes("t") ? (x.when ? teamWhen : undefined) : slots.when) ?? "" }), family: x.family }));
+    .map((x) => {
+      const filled = { ...(slots as Required<Slots>), when: (x.needs.includes("t") ? (x.when ? teamWhen : undefined) : slots.when) ?? "" };
+      return { q: x.ask(filled), short: x.short(filled), family: x.family, ...(x.chip ? { chip: true } : {}) };
+    });
   const [award1, ...awards] = event ? AWARDS.filter((x) => x !== s.award).slice(0, 4).flatMap((award) => fill([AWARD_AT], { ...s, award })) : [];
   const out = [
     ...(s.u != null ? fill(TWO, s) : []),
+    ...(p.intent === "leaderboard" ? fill(LEADERS, s) : []),
     ...(event ? fill(EVENT, s) : []),
     ...(award1 ? [award1] : []),
     ...(s.place ? fill(PLACE, s) : []),
@@ -125,9 +149,9 @@ export function candidates(p: Parsed, a: SearchAnswer): { q: string; family: Fam
     // The second team's own, after the first's; an event's other awards after its winner's questions.
     ...(s.u != null ? fill(TEAM, { ...s, t: s.u }) : []),
     ...awards,
-    ...(s.t == null && !event && !s.place ? fill(START, s) : []),
+    ...(s.t == null && !event && !s.place && p.intent !== "leaderboard" ? fill(START, s) : []),
   ];
-  return out.filter((x) => normalise(x.q) !== n);
+  return out.filter((x) => normalise(x.q) !== n && normalise(x.short) !== n);
 }
 
 type Line = Pick<SearchFollowUp, "value" | "rest" | "tone">;
@@ -151,7 +175,12 @@ export function lineOf(a: SearchAnswer): Line | null {
     return first?.text ? { value: first.text, rest: first.detail ?? "", tone: { card: c.kind } } : null;
   }
   const u = a.understood;
-  if (u?.kind === "events" && u.total) return { value: `${u.total.toLocaleString("en-US")} event${u.total === 1 ? "" : "s"}`, rest: u.label, tone: { count: true } };
+  // As many events as its page lists (and its tabs count), never more than the page will show.
+  const listed = a.hits.filter((h) => h.kind === "event").length;
+  if (u?.kind === "events" && u.total && listed) {
+    const n = Math.min(u.total, listed);
+    return { value: `${n.toLocaleString("en-US")} event${n === 1 ? "" : "s"}`, rest: u.label, tone: { count: true } };
+  }
   return null;
 }
 
@@ -161,29 +190,63 @@ export function previewOf(a: SearchAnswer): string | null {
   return l && [l.value, l.rest].filter(Boolean).join(" · ");
 }
 
+/** The words a board's title says only how it's worded ("Best team …", "Top 10 teams …"): its direction ("Lowest"),
+ *  measure, filters, place and season are the rest. */
+const BOARD_WORDING = new Set(["best", "top", "team", "teams", "in", "by", "the"]);
 /** What an answer answers: two candidates with the same are one question asked twice, and one with the search's own is
- *  the search again. */
-export const answerKey = (a: SearchAnswer) => `${a.stat?.intent ?? a.card?.kind ?? a.understood?.kind}|${a.stat?.title ?? a.card?.title ?? a.understood?.label}`;
+ *  the search again. A board is the words of its title that aren't wording, in any order: "Best team in New Jersey by
+ *  OPR" and "Top 10 teams by OPR in New Jersey" are one board, "Lowest 10 teams by OPR" another. */
+export const answerKey = (a: SearchAnswer) => {
+  if (a.stat?.family === "leaderboard") {
+    const words = a.stat.title.toLowerCase().split(/[^\p{L}\p{N}–-]+/u).filter((w) => w && !BOARD_WORDING.has(w) && !/^\d+$/.test(w));
+    return `${a.stat.intent}|${[...new Set(words)].sort().join(" ")}`;
+  }
+  return `${a.stat?.intent ?? a.card?.kind ?? a.understood?.kind}|${a.stat?.title ?? a.card?.title ?? a.understood?.label}`;
+};
 
-/** People also ask for `q` (its own answer `a`): up to ASK_MAX questions search answers directly, each with its answer's
- *  own line. Only the first CHECK_MAX candidates are run: fewer questions, never a slower page. */
-export async function followUps(q: string, a: SearchAnswer, prefer: ReadonlySet<string> = new Set()): Promise<SearchFollowUp[]> {
+/** The follow-ups for `q` (its own answer `a`): People also ask, up to ASK_MAX questions, and Related searches, up to
+ *  RELATED_MAX short searches about what the questions didn't cover. Each is one search answers directly, with its
+ *  answer's own line; none answers what another, the search itself or one the page already offers does. Only the
+ *  first CHECK_MAX candidates are run for each: fewer follow-ups, never a slower page. */
+export async function followUps(q: string, a: SearchAnswer, prefer: ReadonlySet<string> = new Set()): Promise<SearchFollowUps> {
   const p = await parseQuery(q, await parseContext(Date.now(), prefer));
   // The searches the page already offers (a sorry note's, a team fallback's, the answer's own related ones): asked
   // again in other words, they'd be offered twice. Their answers, kept the same way, say what they answer.
   const shown = [...new Set([...(a.suggest ?? []), ...(a.sorry?.suggest ?? []), ...(a.stat?.blocks ?? []).flatMap((b) => (b.kind === "related" ? b.queries : []))])].slice(0, SHOWN_MAX);
-  const tried = candidates(p, a).slice(0, CHECK_MAX);
-  const ask = (x: string) => pageAnswer(x, SEARCH_PAGE_LIMIT, prefer).catch(() => null);
-  const [answers, offered] = await Promise.all([Promise.all(tried.map((c) => ask(c.q))), Promise.all(shown.map(ask))]);
+  const all = candidates(p, a);
+  const run = (x: string) => pageAnswer(x, SEARCH_PAGE_LIMIT, prefer).catch(() => null);
+  const [offered, asked] = await Promise.all([Promise.all(shown.map(run)), pick(all.filter((c) => !c.chip).slice(0, CHECK_MAX).map((c) => ({ ...c, run: c.q })), run)]);
   const seen = new Set([a, ...offered].flatMap((x) => (x ? [answerKey(x).toLowerCase()] : [])));
-  const out: SearchFollowUp[] = [];
-  tried.forEach((c, i) => {
-    const ans = answers[i];
-    const line = ans && !failureOf(c.q, ans, outcomeTrace(ans)) ? lineOf(ans) : null;
-    const key = ans && answerKey(ans).toLowerCase();
-    if (!line || !key || seen.has(key) || out.length >= ASK_MAX) return;
-    seen.add(key);
-    out.push({ ...c, ...line, preview: [line.value, line.rest].filter(Boolean).join(" · ") });
-  });
+  const ask = fresh(asked, seen, ASK_MAX);
+  // What the questions didn't take, as short searches: never a question's answer again. A search about no team ("who
+  // won <event>", "upcoming events") goes on to the team its questions' answers are about (the winner, the leader).
+  const taken = new Set(ask.map((x) => x.q));
+  const team = p.teams.length || answerTeam(a) != null ? undefined : ask.find((x) => x.team != null)?.team;
+  const more = team != null ? candidates(p, a, team).filter((c) => !all.some((x) => x.q === c.q)) : [];
+  const rest = [...all.filter((c) => !taken.has(c.q)), ...more].slice(0, CHECK_MAX).map((c) => ({ ...c, run: c.short }));
+  // The team's standout matches, beside the answer on a wide screen: the team asked about, else the one it's about.
+  // Run beside the related searches; a related search still comes first to an answer they share.
+  const about = p.teams[0]?.number ?? answerTeam(a) ?? team;
+  const [picked, lit] = await Promise.all([pick(rest, run), about != null ? pick([{ q: "", short: "", family: "team" as const, run: `${about} highlights` }], run) : []]);
+  const related = fresh(picked, seen, RELATED_MAX);
+  const [best] = fresh(lit, seen, 1);
+  const view = (x: Omit<SearchFollowUp, "q"> & { run: string }): SearchFollowUp => ({ q: x.run, family: x.family, preview: x.preview, value: x.value, rest: x.rest, tone: x.tone });
+  return { ask: ask.map(view), related: related.map(view), ...(best ? { highlights: { ...view(best), team: about! } } : {}) };
+}
+
+/** The first `max` of `xs` whose answers none before them (nor `seen`) gives, each added to `seen`. */
+function fresh<X extends { key: string }>(xs: X[], seen: Set<string>, max: number): X[] {
+  const out: X[] = [];
+  for (const x of xs) if (out.length < max && !seen.has(x.key)) { seen.add(x.key); out.push(x); }
   return out;
+}
+
+/** The candidates (each run as `run`) whose answer is a direct one, in order, each with its preview and answer key. */
+async function pick<C extends Candidate & { run: string }>(cs: C[], run: (q: string) => Promise<SearchAnswer | null>) {
+  const answers = await Promise.all(cs.map((c) => run(c.run)));
+  return cs.flatMap((c, i) => {
+    const ans = answers[i];
+    const line = ans && !failureOf(c.run, ans, outcomeTrace(ans)) ? lineOf(ans) : null;
+    return ans && line ? [{ ...c, ...line, preview: [line.value, line.rest].filter(Boolean).join(" · "), key: answerKey(ans).toLowerCase(), team: answerTeam(ans) }] : [];
+  });
 }

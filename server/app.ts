@@ -398,15 +398,15 @@ export function createApp(opts: { dist?: string } = {}) {
     return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, MAX_QUERY), limit, prefer, kinds) };
   }));
 
-  // People also ask (server/api/answers/followUps.ts): asked by /search after its answer is on screen, never on the
-  // answer's path. Each question is one search answers directly, checked by running it (the answer kept for its tap).
+  // People also ask and Related searches (server/api/answers/followUps.ts): asked by /search after its answer is on
+  // screen, never on the answer's path. Each is a search answered directly, checked by running it (kept for its tap).
   api.get("/search/follow", limiter(30), h(async (req, res) => {
     await ensureSearchIndex(rebuildSearch);
     const q = String(req.query.q ?? "");
     const prefer = preferOf(req.query.prefer);
-    const ask = await followUps(q, await pageAnswer(q, SEARCH_PAGE_LIMIT, prefer), prefer);
+    const follow = await followUps(q, await pageAnswer(q, SEARCH_PAGE_LIMIT, prefer), prefer);
     res.setHeader("Cache-Control", "public, max-age=60");
-    return { q, ask };
+    return { q, ...follow };
   }));
 
   // Step 3 of search's chain (server/api/searchBruno.ts): asked by the app after the first answer is on screen,

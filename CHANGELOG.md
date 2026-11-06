@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.7.4 — 2026-11-06
+## 3.7.5 — 2026-11-06
 
 A place's name beside "states" or "championship" is that place's championship: "romania states results" is the Romania Championship's results, never a team with Romania in its name.
 
@@ -26,6 +26,22 @@ A place's name beside "states" or "championship" is that place's championship: "
 
 ### Search
 - **A place beside states or championship.** A country, state or province named beside "states" or "championship" ("romania states", "canada states results", "germany states results") reads as that place's championship, never as a team whose name has the place in it. A team's number, or a team's whole name when it is just a country's name, still reads the team. (#1016)
+
+## 3.7.4 — 2026-11-06
+
+On a wide screen, a search's answer sits on the left and its follow-ups beside it: the team's highlights, People also ask and Related searches.
+
+### Highlights
+- [home] Related searches: short searches about the same team, event or place
+- [home] On a wide screen, the follow-ups sit beside the answer
+- [home] A team's highlights, one tap from its answer
+- [fixes] Every related search lands on a direct answer
+
+### Search
+- **Related searches.** Up to eight short searches ("4215 win rate", "best teleop opr") about what People also ask didn't cover, one chip each, one per line on a phone. Each is run as a search first, and only one with a direct answer is shown; none repeats a question or the search itself.
+- **Beside the answer.** On a desktop the answer takes the left column and the follow-ups the right: the team's highlights, People also ask and Related searches. Phones keep one column, the related searches at the end.
+- **A leaderboard's neighbours.** "Best auto OPR" offers the same teams by TeleOp, Endgame, OPR and rating; a search about no team ("upcoming events", "who won <event>") goes on to the team its answers are about.
+- **A count as its page shows it.** A follow-up about a list of events ("What events are this week?") says as many events as the page it opens lists, never the larger total behind it. (#1009)
 
 ## 3.7.3 — 2026-11-06
 

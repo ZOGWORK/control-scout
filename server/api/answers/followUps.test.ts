@@ -11,7 +11,8 @@ import { parseQuery } from "../query/parse";
 import { parseContext } from "../query/context";
 import { failureOf, outcomeTrace } from "../../searchFailures";
 import { clearAllCaches } from "../../caches";
-import { answerKey, candidates, followUps, pageAnswer, previewOf, ASK_MAX } from "./followUps";
+import { answerKey, candidates, followUps, lineOf, pageAnswer, previewOf, ASK_MAX, RELATED_MAX } from "./followUps";
+import type { SearchAnswer } from "../../../src/shared/api";
 
 const TEAMS = [4215, 6980, 7149] as const;
 
@@ -27,6 +28,8 @@ beforeAll(async () => {
   for (const [t, rank, opr] of [[4215, 1, 101.6], [6980, 2, 46.9], [7149, 3, 115.3], [207, 4, 60]] as const) {
     await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'USNJQ1', ?, ?)", [t, rank]);
     await run("INSERT INTO team_event_stats (season, code, team, opr_np, opr_auto, opr_teleop, opr_endgame, matches) VALUES (2025, 'USNJQ1', ?, ?, 30, 60, 10, 3)", [t, opr]);
+    // The season's numbers the boards rank by, each a little different so every board has its own order.
+    await run("INSERT INTO team_season_stats (season, team, opr_np, opr_auto, opr_teleop, opr_endgame, rank_np, ranked_teams, matches, wins, losses, ties) VALUES (2025, ?, ?, ?, ?, ?, ?, 4, 3, 2, 1, 0)", [t, opr, opr / 4, opr / 2, opr / 8, rank]);
   }
   const games: [number, number, number[], number[]][] = [[150, 90, [4215, 207], [6980, 7149]], [80, 120, [4215, 6980], [7149, 207]], [200, 100, [7149, 4215], [6980, 207]]];
   for (const [i, [red, blue, reds, blues]] of games.entries()) {
@@ -40,25 +43,34 @@ beforeAll(async () => {
   await rebuildSearch();
 });
 
-const asked = async (q: string) => followUps(q, await pageAnswer(q, 25, new Set()));
+const both = async (q: string) => followUps(q, await pageAnswer(q, 25, new Set()));
+const asked = async (q: string) => (await both(q)).ask;
 
 describe("people also ask", () => {
-  it.each(TEAMS)("asks only questions search answers directly, for %i", async (t) => {
+  it.each(TEAMS)("offers only searches answered directly, for %i", async (t) => {
     const q = `${t} record`;
-    const ask = await asked(q);
+    const { ask, related } = await both(q);
     expect(ask.length).toBeGreaterThan(0);
     expect(ask.length).toBeLessThanOrEqual(ASK_MAX);
-    // Never the search itself, never one question twice.
-    expect(ask.map((x) => x.q.toLowerCase())).not.toContain(q);
-    expect(new Set(ask.map((x) => x.q)).size).toBe(ask.length);
+    expect(related.length).toBeGreaterThan(0);
+    expect(related.length).toBeLessThanOrEqual(RELATED_MAX);
+    // Never the search itself, never one twice, never a question again as a related search.
+    const all = [...ask, ...related];
+    expect(all.map((x) => x.q.toLowerCase())).not.toContain(q);
+    expect(new Set(all.map((x) => x.q.toLowerCase())).size).toBe(all.length);
     clearAllCaches();
-    for (const x of ask) {
+    const keys = new Set<string>();
+    for (const x of all) {
       const a = await searchAnswer(x.q, { limit: 25 });
       expect(failureOf(x.q, a, outcomeTrace(a)), x.q).toBeNull();
       expect(a.sorry, x.q).toBeUndefined();
-      // The line shown is the answer's own.
+      // The line shown is the answer's own, and no two answer the same.
       expect(previewOf(a), x.q).toBe(x.preview);
+      expect(keys.has(answerKey(a)), x.q).toBe(false);
+      keys.add(answerKey(a));
     }
+    // Related searches are the short form: no question marks.
+    expect(related.every((x) => !x.q.includes("?"))).toBe(true);
   });
 
   it("leaves out a question with no answer for this team", async () => {
@@ -74,9 +86,34 @@ describe("people also ask", () => {
     expect(offered.length).toBeGreaterThan(0);
     const what = async (x: string) => answerKey(await pageAnswer(x, 25, new Set()));
     const theirs = new Set(await Promise.all(offered.map(what)));
-    const ask = await followUps(q, a);
+    const ask = (await followUps(q, a)).ask;
     expect(ask.length).toBeGreaterThan(0);
     for (const x of ask) expect(theirs.has(await what(x.q)), x.q).toBe(false);
+  });
+
+  it("offers a board's neighbours as related searches, in the season asked", async () => {
+    const { ask, related } = await both("best auto opr");
+    expect(ask.map((x) => x.q).filter((x) => /^Who has the best/.test(x))).toEqual([]);
+    expect(related.map((x) => x.q)).toEqual(expect.arrayContaining(["best teleop opr", "best endgame opr"]));
+    const q = "best auto opr in 2025-26";
+    const cs = candidates(await parseQuery(q, await parseContext()), await pageAnswer(q, 25, new Set()));
+    expect(cs.map((x) => x.short)).toContain("best teleop opr in 2025-26");
+    expect(cs.map((x) => x.q)).toContain("Who has the best TeleOp OPR in 2025-26?");
+  });
+
+  it("counts the events its page lists, never more", () => {
+    const events = (total: number, listed: number) => ({ q: "", hits: Array.from({ length: listed }, (_, i) => ({ kind: "event", ref: String(i), title: "" })), pages: [], understood: { kind: "events", label: "This week's events", total } }) as unknown as SearchAnswer;
+    expect(lineOf(events(86, 25))?.value).toBe("25 events");
+    expect(lineOf(events(9, 9))?.value).toBe("9 events");
+    expect(lineOf(events(4, 0))).toBeNull();
+  });
+
+  it("knows one board by its title's words, whatever their wording, and its other end as another", () => {
+    const board = (title: string) => ({ stat: { family: "leaderboard", intent: "top-opr", title, scope: ["New Jersey", "2025–26"] } }) as unknown as SearchAnswer;
+    expect(answerKey(board("Best team in New Jersey by OPR · 2025–26"))).toBe(answerKey(board("Top 10 teams by OPR in New Jersey · 2025–26")));
+    // Its other end, or a list of fewer teams, is another board.
+    expect(answerKey(board("Lowest 10 teams by OPR in New Jersey · 2025–26"))).not.toBe(answerKey(board("Top 10 teams by OPR in New Jersey · 2025–26")));
+    expect(answerKey(board("Top 10 rookies by OPR in New Jersey · 2025–26"))).not.toBe(answerKey(board("Top 10 teams by OPR in New Jersey · 2025–26")));
   });
 
   it("says a season the query typed with its preposition once", async () => {
