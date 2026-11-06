@@ -21,7 +21,7 @@ A team's rating or OPR trend, asked any way, shows the trend card.
 
 ### Highlights
 - [teams] "Is the rating going up or down" shows the rating after each event
-- [teams] "OPR at each event", "event by event" and "over the season" read the same
+- [teams] "OPR at each event", "event by event", "over the season" read alike
 - [teams] The trend's season is the one you name, else the team's latest
 
 ### Search
