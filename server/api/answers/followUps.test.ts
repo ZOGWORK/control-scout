@@ -108,9 +108,12 @@ describe("people also ask", () => {
     expect(lineOf(events(4, 0))).toBeNull();
   });
 
-  it("knows one board by its measure, place and season, whatever its title", () => {
+  it("knows one board by its title's words, whatever their wording, and its other end as another", () => {
     const board = (title: string) => ({ stat: { family: "leaderboard", intent: "top-opr", title, scope: ["New Jersey", "2025–26"] } }) as unknown as SearchAnswer;
     expect(answerKey(board("Best team in New Jersey by OPR · 2025–26"))).toBe(answerKey(board("Top 10 teams by OPR in New Jersey · 2025–26")));
+    // Its other end, or a list of fewer teams, is another board.
+    expect(answerKey(board("Lowest 10 teams by OPR in New Jersey · 2025–26"))).not.toBe(answerKey(board("Top 10 teams by OPR in New Jersey · 2025–26")));
+    expect(answerKey(board("Top 10 rookies by OPR in New Jersey · 2025–26"))).not.toBe(answerKey(board("Top 10 teams by OPR in New Jersey · 2025–26")));
   });
 
   it("says a season the query typed with its preposition once", async () => {

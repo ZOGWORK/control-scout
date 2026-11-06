@@ -190,11 +190,19 @@ export function previewOf(a: SearchAnswer): string | null {
   return l && [l.value, l.rest].filter(Boolean).join(" · ");
 }
 
+/** The words a board's title says only how it's worded ("Best team …", "Top 10 teams …"): its direction ("Lowest"),
+ *  measure, filters, place and season are the rest. */
+const BOARD_WORDING = new Set(["best", "top", "team", "teams", "in", "by", "the"]);
 /** What an answer answers: two candidates with the same are one question asked twice, and one with the search's own is
- *  the search again. A board is its measure, place and season, whatever its title ("Best team …", "Top 10 teams …"). */
-export const answerKey = (a: SearchAnswer) => a.stat?.family === "leaderboard" && a.stat.scope
-  ? `${a.stat.intent}|${a.stat.scope.join("|")}`
-  : `${a.stat?.intent ?? a.card?.kind ?? a.understood?.kind}|${a.stat?.title ?? a.card?.title ?? a.understood?.label}`;
+ *  the search again. A board is the words of its title that aren't wording, in any order: "Best team in New Jersey by
+ *  OPR" and "Top 10 teams by OPR in New Jersey" are one board, "Lowest 10 teams by OPR" another. */
+export const answerKey = (a: SearchAnswer) => {
+  if (a.stat?.family === "leaderboard") {
+    const words = a.stat.title.toLowerCase().split(/[^\p{L}\p{N}–-]+/u).filter((w) => w && !BOARD_WORDING.has(w) && !/^\d+$/.test(w));
+    return `${a.stat.intent}|${[...new Set(words)].sort().join(" ")}`;
+  }
+  return `${a.stat?.intent ?? a.card?.kind ?? a.understood?.kind}|${a.stat?.title ?? a.card?.title ?? a.understood?.label}`;
+};
 
 /** The follow-ups for `q` (its own answer `a`): People also ask, up to ASK_MAX questions, and Related searches, up to
  *  RELATED_MAX short searches about what the questions didn't cover. Each is one search answers directly, with its
