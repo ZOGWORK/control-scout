@@ -83,6 +83,8 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["win a match|won a match|win a game|won a game|win any match|won any match|win any matches|won any matches", [{ k: "metric", v: "win" }, { k: "thing", v: "match" }]],
   // Losing to someone: the opponents that beat the team.
   ["lose to|lost to|loses to|losing to|lost against|beaten by|defeated by|beat by", [{ k: "metric", v: "opponent" }, { k: "outcome", v: "L" }]],
+  // The same asked about the other side: "who beat <team>" is the teams that beat it.
+  ["who beat|who has beaten|who have beaten|who beats|who defeated|who has defeated|who knocked out|who eliminated", [{ k: "metric", v: "opponent" }, { k: "outcome", v: "L" }]],
   ["tie|ties|tied|draw|draws", { k: "metric", v: "tie" }],
   ["win rate|win percentage|win pct|win %|win%|winning percentage|winning rate", { k: "metric", v: "winrate" }],
   ["opr|offensive power rating|offense rating|offensive rating", { k: "metric", v: "opr" }],
