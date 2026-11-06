@@ -25,7 +25,7 @@ A team's matches in a season are an answer of their own: the record, quals and p
 - [fixes] A season with no matches says so for that season
 
 ### Search
-- **A team's matches in a season.** "17670 matches in 2026-27", "show me gearview matches 2025-26" or a team's number and "matches" answer with the team's record in that season (its latest, when none is named), quals and playoffs apart, and every match below it, newest first. Before, only the team's card came back. A place or a window said narrows it ("gearview matches in New Jersey in 2024-25"). Matches at Worlds or at a state championship stay that event's results card, with its division, rank and OPR. A season with no matches says so for that season, never another season's matches. (#PR)
+- **A team's matches in a season.** "17670 matches in 2026-27", "show me gearview matches 2025-26" or a team's number and "matches" answer with the team's record in that season (its latest, when none is named), quals and playoffs apart, and every match below it, newest first. Before, only the team's card came back. A place or a window said narrows it ("gearview matches in New Jersey in 2024-25"). Matches at Worlds or at a state championship stay that event's results card, with its division, rank and OPR. A season with no matches says so for that season, never another season's matches. (#813)
 
 ## 3.4.2 — 2026-11-06
 
