@@ -26,7 +26,7 @@ A video page for any event, division or team: every match's video, the event's s
 - [history] Highlights now list every match's video after the standouts
 
 ### Search
-- **A video page.** "Recap", "replay", "videos", "watch", "stream" or "VOD" with an event, a division, Worlds, a place, a season or a team ("jackson division recap", "watch worlds", "4215 videos at worlds") lists every match with a video in the events' order: its label, both alliances' teams and the score in their colours, a tap playing it in the app's video dialog; each event's full stream first; a qualifications/playoffs filter; the first 24, then "Show all". The card plays the latest playoff match (a team's latest playoff win). A scope of more than 200 matches lists its playoffs and says so. Nothing with a video: one line and a link to the event or the team. (#PR)
+- **A video page.** "Recap", "replay", "videos", "watch", "stream" or "VOD" with an event, a division, Worlds, a place, a season or a team ("jackson division recap", "watch worlds", "4215 videos at worlds") lists every match with a video in the events' order: its label, both alliances' teams and the score in their colours, a tap playing it in the app's video dialog; each event's full stream first; a qualifications/playoffs filter; the first 24, then "Show all". The card plays the latest playoff match (a team's latest playoff win). A scope of more than 200 matches lists its playoffs and says so. Nothing with a video: one line and a link to the event or the team. (#827)
 - **Highlights, then every match.** A highlights answer ("worlds highlights jackson division", "<team> highlights at worlds") keeps its standout matches first and lists every match's video and the stream under them.
 
 ## 3.4.4 — 2026-11-06
