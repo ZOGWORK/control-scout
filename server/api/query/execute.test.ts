@@ -443,6 +443,25 @@ describe("review fixes", () => {
     expect(a.intent?.understood?.[0]).toMatch(/^Intent:/);
     expect(a.stat?.intent).not.toBe("finalist-finishes");
   });
+  it("a team at Worlds alone is its results there, however it's asked; a measure named is still that measure", async () => {
+    for (const n of [30040, 30041]) {
+      await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, 'Town', 'VT', 'USA')", [n, `Worlds Bots ${n}`]);
+      await run("INSERT INTO team_seasons (season, team) VALUES (2025, ?)", [n]);
+    }
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, 'FTCCMP1VT', 'FIRST Championship Test Division', 'FIRSTChampionship', 'Town', 'TX', 'USA', '2026-03-10', '2026-03-10', 't')");
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'FTCCMP1VT', 'qual', 0, 1, 'Q1', '2026-03-10T10:00:00Z', 1, 200, 200, 150, 150, 't')");
+    for (const [t, a] of [[30040, "red"], [30041, "blue"]] as const) {
+      await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'FTCCMP1VT', 'qual', 0, 1, ?, ?, 1)", [t, a]);
+      await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'FTCCMP1VT', ?, 1)", [t]);
+    }
+    clearAllCaches();
+    for (const q of ["30040 at worlds", "30040 worlds", "show me 30040 at worlds 2025-26"]) {
+      const a = await ask(q);
+      expect(a.stat?.intent, q).toBe("results");
+      expect(a.stat?.title, q).toMatch(/at Worlds/);
+    }
+    expect((await ask("30040 worlds record")).stat?.intent).toBe("record");
+  });
   it("a week across the season's start keeps each season's points apart", async () => {
     const ev = (season: number, code: string, start: string) =>
       run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, ?, ?, 'Qualifier', 'Town', 'NJ', 'USA', ?, ?, 't')", [season, code, `${code} Qualifier`, start, start]);

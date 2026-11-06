@@ -122,8 +122,9 @@ export const INTENTS: IntentRule[] = [
   R("results", 1, ["thing:match"], ["list", "metric:score", "metric:record"], { event: true }),
   R("event-rank", 1, ["metric:rank"], [], { event: true }),
   R("event-opr", 1, ["metric:opr"], [], { event: true }),
-  // A state championship alone ("12345 states"): the team's results there.
+  // A state championship or Worlds alone ("12345 states", "12345 at worlds"): the team's results there.
   R("results", 1, ["states"], ["list"]),
+  R("results", 1, ["worlds"], ["list"]),
   // Partners and opponents.
   R("best-partner", 1, ["agg:max", "metric:partner"], ["thing:team"]),
   R("partners", 1, ["metric:partner"], ["list", "thing:team"]),
