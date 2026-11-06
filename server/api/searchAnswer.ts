@@ -37,10 +37,11 @@ import { parseQuestion, questionAnswer } from "./searchQuestions.js";
 import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
 import { statAnswer } from "./answers/index.js";
 import { refreshSearchSeason } from "./answers/season.js";
-import { layeredAnswer } from "./searchLayers.js";
+import { carryOutcome, layeredAnswer } from "./searchLayers.js";
 import { spelled } from "./spelling.js";
 import { booleanAnswer } from "./searchBoolean.js";
 import { pipelineAnswer, pipelineReads } from "./query/execute.js";
+import { sorryFor } from "./answers/sorry.js";
 import { bottomAnswer, countAnswer, eventCodeAnswer, eventPageAnswer, explainAnswer, monthAnswer, nearMeAnswer, namedParts, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
 
 export const MAX_QUERY = 80;
@@ -167,7 +168,16 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   // a quoted phrase, which asks for exactly those words.
   if (opts.spell === false || String(raw ?? "").includes('"')) return a;
   const asked = /\?\s*$/.test(String(raw ?? ""));
-  return spelled(cleanQuery(raw), a, (q) => searchAnswer(asked ? `${q}?` : q, { ...opts, spell: false }));
+  return withSorry(raw, await spelled(cleanQuery(raw), a, (q) => searchAnswer(asked ? `${q}?` : q, { ...opts, spell: false })), opts);
+}
+
+/** A question search can't answer yet, on the page: sorry, with what was read and the searches that do answer about
+ *  it (./answers/sorry.ts). The dropdown's answer is never changed. */
+async function withSorry(raw: string, a: SearchAnswer, opts: AnswerOptions): Promise<SearchAnswer> {
+  if (!(opts.full ?? (opts.limit ?? 12) >= SEARCH_PAGE_LIMIT)) return a;
+  const sorry = await sorryFor(cleanQuery(raw), a, opts);
+  // A copy keeps the outcome failed-search reporting reads (./searchLayers.ts).
+  return sorry ? carryOutcome(a, { ...a, sorry }) : a;
 }
 
 /** searchAnswer for the query as typed. */

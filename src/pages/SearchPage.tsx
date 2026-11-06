@@ -21,7 +21,7 @@ import { useSubmittedSearch } from "../components/search/direct";
 import { SearchSkeleton } from "../components/search/SearchSkeleton";
 import { AnswerNotesView, useSearchHits, useSections } from "../components/search/SearchBox";
 import { CompareCard, EventCard, HeadToHead, ResultRow, TeamCard, teamSeasons, type SeasonSummary } from "../components/search/page/ResultCards";
-import { NoResults } from "../components/search/page/NoResults";
+import { NoResults, SorryNote } from "../components/search/page/NoResults";
 import { StatAnswerCard } from "../components/search/page/StatAnswer";
 import { AnswerVideo, AnswerVideoProvider } from "../components/search/page/AnswerVideo";
 import { comparisonOf } from "../components/search/page/CompareCard";
@@ -180,7 +180,7 @@ export default function SearchPage() {
       {/* The accent is the selected control's alone on this page (the active time tab): the eyebrow is plain. */}
       <p className="text-xs font-semibold text-muted-foreground max-md:hidden" data-eyebrow>FTC One Search</p>
       <h1 className="mt-1 font-display text-xl font-semibold tracking-tight text-foreground max-md:mt-0 md:text-2xl lg:text-3xl">
-        {!query ? "Search" : found ? <>{phone && "Results: "}{shownTitle}</> : busy || error ? "Search results" : "No matches found"}
+        {!query ? "Search" : ax?.sorry && !busy && !error ? "Sorry — I can't answer that yet" : found ? <>{phone && "Results: "}{shownTitle}</> : busy || error ? "Search results" : "No matches found"}
       </h1>
       {badge && (
         <p className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-muted/50 px-2.5 py-1 text-xs font-medium text-foreground" data-context-badge>
@@ -208,7 +208,7 @@ export default function SearchPage() {
                   <NoResults
                     query={query} onOpen={open}
                     understood={readingOf(ax) ? [readingOf(ax)!] : notes.understood}
-                    closest={closest} summaries={summaries}
+                    closest={closest} summaries={summaries} sorry={ax?.sorry}
                   />
                 </>
               )
@@ -224,7 +224,8 @@ export default function SearchPage() {
                 </p>
               )}
               {/* The team was found but not the answer: what search can answer about it, one tap each. */}
-              {!!ax?.suggest?.length && <RelatedQuestions queries={ax.suggest} title="Search can answer these about them" className="mb-5" />}
+              {ax?.sorry ? <SorryNote sorry={ax.sorry} className="mb-5" />
+                : !!ax?.suggest?.length && <RelatedQuestions queries={ax.suggest} title="Search can answer these about them" className="mb-5" />}
               {(events >= 2 || choices.seasons.length > 1 || filtersOn) && <div className="mb-4"><SearchFilters f={filters} seasons={choices.seasons} types={choices.types} counts={events ? counts : undefined} asked={askedTime} onChange={setFilters} /></div>}
               {/* Desktop: results left (at most 720px, narrower before the panel gets under 20rem), at most one panel
                   right, chosen by the query: a versus query's

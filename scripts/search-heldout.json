@@ -2733,5 +2733,25 @@
 "set": "natural",
 "n": 14,
 "q": "number of teams in Texas"
+},
+{
+"set": "natural",
+"n": 15,
+"q": "what is 6980's favorite food"
+},
+{
+"set": "natural",
+"n": 16,
+"q": "how much does 4215's robot weigh"
+},
+{
+"set": "natural",
+"n": 17,
+"q": "what sensors does 7149 use"
+},
+{
+"set": "natural",
+"n": 18,
+"q": "what is the mascot of 6980"
 }
 ]
