@@ -170,6 +170,20 @@ describe("one question, any phrasing, any team", () => {
       expect(s.headline?.value, q).toBe("2");
     }
   });
+  it("a team's forecast at Worlds or states is its own championship's, any wording", async () => {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, division_code, source) VALUES (2025, 'FTCCMP1OHM', 'FIRST Championship - Ohm Division', 'FIRSTChampionship', 'Town', 'TX', 'USA', '2026-04-29', '2026-04-29', 'FTCCMP1', 't')");
+    await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'FTCCMP1OHM', 24033, 3), (2025, 'FTCCMP1', 24033, 2)");
+    clearAllCaches();
+    for (const q of ["24033 advancement odds at worlds in 2025-26", "alphatronic chance to advance at worlds", "odds 24033 advances at worlds 2026", "24033 prediction at worlds"]) {
+      const s = await stat(q);
+      // The division, where the team's forecast is made; never another event's.
+      expect(s, q).toMatchObject({ intent: "pipeline-team-predict-event", title: "Prediction vs result at Worlds · Ohm Division" });
+    }
+    // Never listed at Worlds: left to the other readers, never another event's forecast.
+    expect((await ask("4215 advancement odds at worlds in 2025-26")).stat?.intent).not.toBe("pipeline-team-predict-event");
+    // "Romania championship" is its state championship.
+    expect((await stat("24033 prediction at states in 2025-26")).title).toBe("Prediction vs result at Romania Championship");
+  });
   it("two teams compared at an event: each one's numbers there, any order, by number or name", async () => {
     for (const q of ["4215 vs 6980 at garden qualifier", "bad wolf vs hypnotic robotics at the garden qualifier", "24033 vs delta force at romania championship"]) {
       const s = await stat(q);

@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.5.5 — 2026-11-06
+
+A team's forecast at Worlds or states is for its own division there.
+
+### Highlights
+- [predict] "Advancement odds at worlds" shows the team's own Worlds division
+- [predict] "At states" means the team's own state championship
+- [predict] An event still to come shows the chance to advance when you ask for it
+
+### Search
+- **Forecast at a team's Worlds or states.** "23268 advancement odds at worlds in 2025-26", "chance to advance at worlds", "odds 23268 advances at worlds 2026" and "prediction at states" answer with the prediction-vs-result card for the team's own division at that season's Worlds (or its own state championship): the event the team is listed at, never another one. Advancement wording ("advance", "advancement", "make the finals", "go through") is one entry in the search lexicon, taken only by forecasts. For an event still to come, an advancement question shows the chance to advance rather than the chance to win. (#839)
+
 ## 3.5.4 — 2026-11-06
 
 Long questions are read whole.
