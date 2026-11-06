@@ -28,7 +28,7 @@ if (out.startsWith(resolve(process.cwd()))) { console.error("Refusing to write i
 
 /** One search per kind of answer card (src/components/search/page/answerAudit.test.tsx draws the same kinds), with
  *  the mark that card draws: missing (no data loaded, a changed answer), the case fails rather than passes empty. */
-const CARDS: { name: string; q: string; expect: string }[] = [
+const CARDS: { name: string; q: string; expect: string; needs?: string }[] = [
   { name: "comparison", q: "23268 vs 7149 opr", expect: "[data-comparison]" },
   { name: "top matches", q: "highest scoring matches 2025", expect: "[data-stat-answer] [data-block=matches]" },
   { name: "single match", q: "4215 best match", expect: "[data-stat-answer] [data-match-box]" },
@@ -40,6 +40,9 @@ const CARDS: { name: string; q: string; expect: string }[] = [
   { name: "team highlights", q: "4215", expect: "[data-stat-answer=team-highlights]" },
   { name: "event awards", q: "inspire award nj championship", expect: "[data-event-awards]" },
   { name: "bars (a team's awards)", q: "how many awards has 4215 won", expect: "[data-block=bars]" },
+  { name: "table (a team's events)", q: "4215 events 2025", expect: "[data-block=table]" },
+  // Drawn only while the team has a match still to play: in data without one, reported as not checked (never a pass).
+  { name: "prediction (a chance)", q: "4215 chance to win an event", expect: "[data-block=chance]", needs: "match still to play" },
   { name: "team facts", q: "where is 4215 from", expect: "[data-card-kind]" },
   { name: "worlds trips", q: "4215 worlds appearances", expect: "[data-section=records]" },
   // Plain results with a panel (no answer card): the summary panel and the team's result card are what's checked.
@@ -122,9 +125,10 @@ async function proveOne(page: Page, c: (typeof CARDS)[number]) {
   await page.waitForTimeout(800);
   const at = new URL(page.url()).pathname;
   const m = at === "/search" ? await page.evaluate(measure, c.expect) : { failures: [`left /search for ${at}`], notes: [], card: false };
+  if (!m.card && c.needs && at === "/search") return { ...c, failures: [], notes: [], skipped: `not checked: this data has no ${c.needs}`, shot: null };
   const file = join(out, `${c.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.png`);
   await page.screenshot({ path: file, fullPage: true });
-  return { ...c, ...m, shot: file };
+  return { ...c, failures: m.failures, notes: m.notes, skipped: null as string | null, shot: file as string | null };
 }
 
 async function main() {
@@ -141,11 +145,12 @@ async function main() {
   for (const c of CARDS.filter((x) => !only || x.name.includes(only))) {
     const r = await proveOne(page, c);
     results.push(r);
-    console.log(`${r.failures.length ? "✗" : "✓"} ${r.name} ("${r.q}")${r.notes.length ? ` · ${r.notes.length} target(s) under 44px` : ""}`);
+    console.log(`${r.skipped ? "–" : r.failures.length ? "✗" : "✓"} ${r.name} ("${r.q}")${r.skipped ? ` · ${r.skipped}` : r.notes.length ? ` · ${r.notes.length} target(s) under 44px` : ""}`);
     for (const f of r.failures) console.log(`    ${f}`);
   }
   writeFileSync(join(out, "proof.json"), JSON.stringify(results, null, 2));
-  console.log(`\n${results.filter((r) => !r.failures.length).length}/${results.length} cards pass at 390px · shots and proof.json in ${out}`);
+  const checked = results.filter((r) => !r.skipped), skipped = results.length - checked.length;
+  console.log(`\n${checked.filter((r) => !r.failures.length).length}/${checked.length} cards pass at 390px${skipped ? ` (${skipped} not checked: no data for them)` : ""} · shots and proof.json in ${out}`);
   await browser.close();
   return results.some((r) => r.failures.length) ? 1 : 0;
 }
