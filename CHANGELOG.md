@@ -26,9 +26,10 @@ Penalty questions about teams ("which team fouls the least in New Jersey") answe
 - [fixes] Rules questions still open the rules quick reference
 
 ### Search
-- **Teams ranked by penalties.** "Which team fouls the least in New Jersey", "which NJ team gives away the most penalty points per match": the teams of the place ranked by penalty points given away a match, the prediction rating's estimate for the robot alone that the team page shows, most or fewest first. One team asked for is titled "with the most", never "best". The match with the most penalty points ("most penalties in NJ") stays the match finder's.
+- **Teams ranked by penalties.** "Which team fouls the least in New Jersey", "which NJ team gives away the most penalty points per match": the teams of the place ranked by penalties a match (penalty points given away), the prediction rating's estimate for the robot alone that the team page shows, most or fewest first. One team asked for is titled "with the most", never "best". The match with the most penalty points ("most penalties in NJ") stays the match finder's.
 - **Never the rules card for a team.** A penalty question naming a team, or asking which team in a place, is a stats question: it no longer opens the Rules quick reference. "Penalty for pinning" and every other rules question still do.
-- **Totals at an event.** "How many penalty points did 12345 give away at an event, total" leads with the total there, the per-match figure under it. "Give away", "gives away" and "fouled" read as penalties. (#853)
+- **Totals at an event.** "How many penalty points did 12345 give away at an event, total" leads with the total there, the per-match figure under it. "Give away", "gives away" and "fouled" read as penalties.
+- **Team names in ranked lists.** On a phone, a long team name cut to two lines no longer shows a third line over the town under it. (#853)
 
 ## 3.4.7 — 2026-11-06
 

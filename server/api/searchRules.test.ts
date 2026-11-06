@@ -150,7 +150,7 @@ describe("a penalty question about teams is their numbers, never the rules", () 
     expect(least.card?.kind).not.toBe("rule");
     expect(least.stat).toMatchObject({ family: "leaderboard", intent: "top-penalties" });
     const most = await searchAnswer("which Texas team gives away the most penalty points per match", { limit: 25, full: true });
-    expect(most.stat?.title).toMatch(/^Team in Texas with the most penalty points given away a match/);
+    expect(most.stat?.title).toMatch(/^Team in Texas with the most penalties a match/);
     // The match with the most penalty points stays the match finder's, and a rule asked about stays the rules'.
     expect((await searchAnswer("most penalties in Texas", { limit: 25, full: true })).stat?.family).not.toBe("leaderboard");
     expect((await searchAnswer("penalty for pinning")).card?.kind).toBe("rule");
