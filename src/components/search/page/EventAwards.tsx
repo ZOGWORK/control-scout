@@ -7,6 +7,10 @@ import { ArrowRight, Award, Medal, Trophy } from "lucide-react";
 import type { SearchCard, SearchCardAward } from "../../../shared/api";
 import { awardLabel, seasonLabel } from "../../../shared/format";
 import { cn } from "../../cn";
+import { SEARCH_PALETTE, meaningOf } from "../../../lib/textTones";
+
+/** An award's colour in search's palette (Inspire, an alliance place, a judged award): the same on every card. */
+const tone = (name: string) => SEARCH_PALETTE[meaningOf(name) ?? "judged"];
 import { AnswerFrame, PART, SECONDARY, TAP, repeats } from "./TeamAnswer";
 import { AnswerVideo } from "./AnswerVideo";
 
@@ -77,12 +81,12 @@ function Podium({ places, season }: { places: SearchCardAward[]; season?: number
         return (
           <li key={a.placement} className={cn("flex min-w-0 flex-col items-center text-center", "row-start-1", a.placement === 1 ? "col-start-2" : a.placement === 2 ? "col-start-1" : "col-start-3")} data-place={a.placement}>
             <Link to={`/teams/${a.team}${season ? `?season=${season}` : ""}`} className={cn("group flex w-full min-w-0 flex-col items-center rounded-xl px-1 py-2 hover:bg-muted/50", TAP)}>
-              <span className={cn("grid place-items-center rounded-full bg-muted text-foreground", a.placement === 1 ? "size-12" : "size-10")}><Icon className={a.placement === 1 ? "size-6" : "size-5"} aria-hidden /></span>
+              <span className={cn("grid place-items-center rounded-full", tone(nameOf(a)).fill, a.placement === 1 ? "size-12" : "size-10")}><Icon className={a.placement === 1 ? "size-6" : "size-5"} aria-hidden /></span>
               <span className={cn("mt-2 font-display font-semibold tabular-nums text-foreground group-hover:underline", a.placement === 1 ? "text-3xl max-sm:text-2xl" : "text-2xl max-sm:text-xl")}>{a.team}</span>
               <span className="w-full break-words text-sm font-medium leading-snug text-foreground">{a.teamName ?? `Team ${a.team}`}</span>
-              <span className="mt-0.5 w-full break-words text-xs text-muted-foreground">{nameOf(a)}</span>
+              <span className={cn("mt-0.5 w-full break-words text-xs font-semibold", tone(nameOf(a)).text)}>{nameOf(a)}</span>
             </Link>
-            <span className={cn("mt-2 flex w-full items-start justify-center rounded-t-xl border border-b-0 pt-2 font-display text-lg font-semibold border-border bg-muted/40 text-foreground", p.height)} aria-hidden>{p.label}</span>
+            <span className={cn("mt-2 flex w-full items-start justify-center rounded-t-xl pt-2 font-display text-lg font-semibold", tone(nameOf(a)).fill, p.height)} aria-hidden>{p.label}</span>
           </li>
         );
       })}
@@ -93,13 +97,14 @@ function Podium({ places, season }: { places: SearchCardAward[]; season?: number
 function AwardRow({ name, team, href, asked }: { name: string; team: string; href?: string; asked?: boolean }) {
   const body = (
     <>
-      <span className={cn("grid size-8 shrink-0 place-items-center rounded-lg", asked ? "bg-foreground text-background" : "bg-muted text-muted-foreground")}><Award className="size-4" aria-hidden /></span>
+      <span className={cn("grid size-8 shrink-0 place-items-center rounded-lg", tone(name).fill, asked && "ring-2 ring-foreground")}><Award className="size-4" aria-hidden /></span>
       <span className="min-w-0 flex-1">
-        <span className="block break-words text-sm font-medium text-foreground">{name}</span>
+        <span className={cn("block break-words text-sm font-semibold", tone(name).text)}>{name}</span>
         <span className="block break-words text-sm text-muted-foreground group-hover:text-foreground">{team}</span>
       </span>
     </>
   );
-  const cls = "group flex min-h-[44px] items-center gap-3 rounded-xl border border-border bg-card p-3";
+  // A thick left bar and a wash in the award's colour: Inspire, an alliance place and a judged award told apart at a glance.
+  const cls = cn("group flex min-h-[44px] items-center gap-3 rounded-xl border border-l-[6px] border-border p-3", tone(name).edge, tone(name).tint);
   return href ? <Link to={href} className={cn(cls, "hover:bg-muted/50")}>{body}</Link> : <div className={cls}>{body}</div>;
 }
