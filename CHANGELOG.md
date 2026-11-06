@@ -26,11 +26,11 @@ More ways of asking for a place's top teams find the leaderboard: "Romania leade
 - [rankings] "Top 10 … with their records" keeps the record column
 
 ### Search
-- **A country's leaderboard.** "Romania leaderboard 2025-26" lists the country's top teams, as "Romania top teams" does. A state's leaderboard ("New Jersey leaderboard by record") is unchanged.
+- **A country's leaderboard.** "Romania leaderboard 2025-26" lists the country's top teams by OPR. A state's leaderboard ("New Jersey leaderboard by record") is unchanged.
 - **Highest rated.** "Highest rated teams in …" and "top rated" rank by the prediction rating.
 - **A stat not to go by.** "Top 5 teams in Romania by rating, not OPR" ranks by the rating alone; "not" drops only a stat, so "matches 12345 did not win" keeps its win.
 - **Records beside.** "Top 10 teams in New Jersey by OPR, with their records" is the OPR list, whose rows always show the record.
-- **Points in a match.** "Most points in a match in Texas" is the highest-scoring match there. (#000)
+- **Points in a match.** "Most points in a match in Texas" is the highest-scoring match there. (#865)
 
 ## 3.4.7 — 2026-11-06
 
