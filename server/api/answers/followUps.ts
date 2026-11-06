@@ -231,7 +231,7 @@ export async function followUps(q: string, a: SearchAnswer, prefer: ReadonlySet<
   const related = fresh(picked, seen, RELATED_MAX);
   const [best] = fresh(lit, seen, 1);
   const view = (x: Omit<SearchFollowUp, "q"> & { run: string }): SearchFollowUp => ({ q: x.run, family: x.family, preview: x.preview, value: x.value, rest: x.rest, tone: x.tone });
-  return { ask: ask.map(view), related: related.map(view), ...(best ? { highlights: { ...view(best), team: about! } } : {}) };
+  return { ask: ask.map(view), related: related.map(view), ...(best ? { highlights: { ...view(best), team: about! } } : {}), ...(about != null ? { about } : {}) };
 }
 
 /** The first `max` of `xs` whose answers none before them (nor `seen`) gives, each added to `seen`. */

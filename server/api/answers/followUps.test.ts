@@ -11,7 +11,7 @@ import { parseQuery } from "../query/parse";
 import { parseContext } from "../query/context";
 import { failureOf, outcomeTrace } from "../../searchFailures";
 import { clearAllCaches } from "../../caches";
-import { relatedPage, grouped } from "./relatedPage";
+import { relatedPage, grouped, teamTitle } from "./relatedPage";
 import { pageMeta } from "../../seoMeta";
 import { canonicalQuery } from "../../../src/lib/meta";
 import { RELATED_QUERY_MAX, relatedApiPath } from "../../../src/shared/search";
@@ -174,6 +174,20 @@ describe("the related searches page", () => {
         expect(previewOf(a), x.q).toBe(x.preview);
       }
     }
+  });
+
+  it("titles the team group with the team it's about, never one of two", async () => {
+    const titles = async (q: string) => (await relatedPage(q)).groups.map((g) => g.title);
+    expect(await titles("4215 record")).toContain("About 4215 Hypnotic Robotics");
+    expect(await titles("6980 record")).toContain("About 6980 Bad Wolf");
+    // The starting points' team group is the team they're about (the season's leader), named too.
+    const start = (await titles("")).filter((t) => t.startsWith("About "));
+    expect(start).toHaveLength(1);
+    expect(start.every((t) => /^About \d+ \S/.test(t))).toBe(true);
+    // Searches about two teams: no one team to name.
+    expect(await teamTitle(4215, [item("4215 record", "team"), item("6980 record", "team")])).toBeUndefined();
+    expect(await teamTitle(421, [item("4215 record", "team")])).toBeUndefined();
+    expect(await teamTitle(4215, [item("4215 record", "team"), item("top teams", "leaders")])).toBe("About 4215 Hypnotic Robotics");
   });
 
   it("lists a plain team search's own follow-ups, as /search does beside it", async () => {
