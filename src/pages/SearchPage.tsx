@@ -388,7 +388,7 @@ function EventResults({ hits, statuses, twoCol, onOpen }: { hits: SearchHit[]; s
               same as the trees' bars and chips; the words and order say it without the colour. */}
           <h3 className={cn("mb-3 flex items-center gap-2 rounded-lg px-3 py-2 font-display text-base font-bold", SEARCH_PALETTE[s.status].fill)} data-section-tone={s.status}>
             {s.status === "live" && <span aria-hidden className="size-2 shrink-0 animate-pulse rounded-full bg-white motion-reduce:animate-none" data-live-dot />}
-            {s.title}<span className="sr-only">, </span><span className="rounded-full bg-white/20 px-2 text-sm tabular-nums" data-section-count>{s.count}</span>
+            {s.title}<span className="sr-only">, </span><span className="rounded-full bg-black/25 px-2 text-sm tabular-nums" data-section-count>{s.count}</span>
           </h3>
           <div className="space-y-5">
             {s.dates.map((d) => (

@@ -159,6 +159,8 @@ describe("search results page", () => {
     expect([...container.querySelectorAll("[data-status-section] > h3")].map((h) => h.textContent)).toEqual(["Upcoming, 2", "Finished, 1"]);
     // Each status heading in its own palette colour (lib/textTones SEARCH_PALETTE), the trees' colour.
     for (const h of container.querySelectorAll<HTMLElement>("[data-section-tone]")) expect(h.className).toContain(SEARCH_PALETTE[h.dataset.sectionTone as "upcoming" | "finished"].fill);
+    // Its count on a darker pill, so the white number keeps at least the bare fill's contrast (never a lighter one).
+    for (const c of container.querySelectorAll("[data-section-count]")) expect(c.className).toContain("bg-black/25");
     // Each time tab says how many events it holds before it's picked.
     expect(screen.getAllByRole("radio").map((r) => r.getAttribute("aria-label"))).toEqual(["All, 3 events", "Upcoming, 2 events", "Past, 1 event"]);
     fireEvent.click(screen.getByRole("radio", { name: /^Upcoming/ }));
