@@ -11,7 +11,7 @@
 // - Each entry records the template id and version it was made with
 //   (ScoutEntry.templateId/templateVersion); an entry made with an older version
 //   renders with that version's fields, fetched once and kept (versions never change).
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "./api";
 import { templateFor, type ScoutEntry, type ScoutSpace } from "./scouting";
 import { parseWorkspaceTemplateId, workspaceTemplateId, type ScoutTemplate, type TemplateKind, type WorkspaceTemplate } from "../shared/scoutTemplate";
@@ -81,6 +81,8 @@ export function useWorkspaceTemplate(space: ScoutSpace, season: number): { templ
   const [state, setState] = useState<{ key: string; template: WorkspaceTemplate | null; status: TemplateStatus }>(() => initial(space, season));
   const key = `${space ?? ""}:${season}`;
   const cur = state.key === key ? state : initial(space, season);
+  // The one stop-waiting timer: a new fetch replaces it, and it never fires after the form is gone.
+  const wait = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refresh = useCallback(() => {
     if (space == null) return;
     fetchWorkspaceTemplate(space, season)
@@ -88,7 +90,8 @@ export function useWorkspaceTemplate(space: ScoutSpace, season: number): { templ
       .catch(() => setState((s) => (s.key === key ? { ...s, status: "offline" } : s)));
     // Venue Wi-Fi can look online yet stall: after TEMPLATE_WAIT_MS stop waiting (a form held for a first
     // template opens with the built-in fields); a late answer still arrives and is used from then on.
-    setTimeout(() => setState((s) => (s.key === key && s.status === "loading" ? { ...s, status: "offline" } : s)), TEMPLATE_WAIT_MS);
+    if (wait.current) clearTimeout(wait.current);
+    wait.current = setTimeout(() => setState((s) => (s.key === key && s.status === "loading" ? { ...s, status: "offline" } : s)), TEMPLATE_WAIT_MS);
   }, [space, season, key]);
   useEffect(() => {
     setState(initial(space, season));
@@ -99,7 +102,11 @@ export function useWorkspaceTemplate(space: ScoutSpace, season: number): { templ
       if (c?.space === space && (c.season == null || c.season === season)) refresh();
     };
     window.addEventListener(TEMPLATE_CHANGED, changed);
-    return () => window.removeEventListener(TEMPLATE_CHANGED, changed);
+    return () => {
+      window.removeEventListener(TEMPLATE_CHANGED, changed);
+      if (wait.current) clearTimeout(wait.current);
+      wait.current = null;
+    };
   }, [space, season, refresh]);
   return { template: cur.template, status: cur.status, refresh };
 }

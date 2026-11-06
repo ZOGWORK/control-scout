@@ -42,6 +42,8 @@ describe("text tones reach WCAG AA in every theme", () => {
         expect(contrast(over(bar, card), card), `${k} bar`).toBeGreaterThanOrEqual(LARGE);
       }
     });
+    it(`a yes-or-no answer's word (${theme})`, () => {
+    });
     it(`event type labels on the card (${theme})`, () => {
       for (const [k, t] of Object.entries(EVENT_TYPE_TONE)) expect(measure(theme, t.text).ratio, `${k}: ${measure(theme, t.text).pair}`).toBeGreaterThanOrEqual(AA);
     });

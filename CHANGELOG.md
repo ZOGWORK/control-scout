@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.5.8 — 2026-11-06
+## 3.6.3 — 2026-11-06
 
 "12345 at worlds" answers with the team's results there, as "12345 states" does for its state championship.
 
@@ -27,6 +27,179 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 ### Search
 - **A team at Worlds.** A team and Worlds alone ("12345 at worlds", "12345 worlds", "show me 12345 at worlds 2025-26") answer with the team's results at the FIRST Championship: its record, its division and its matches, as a team and its state championship already did. A team with no Worlds matches is told it has none on record, never an empty page. A measure named with it ("worlds record", "opr at worlds") is still that measure.
 - **Whether a team went.** "Has 12345 been to worlds", "went to", "made it to", "qualified for" and "appearances" stay the question of its trips there, answered by its Worlds appearances, never its results. (#852)
+
+## 3.6.2 — 2026-11-06
+
+"What events are happening right now?" and "number of teams in …" are answered however they're asked.
+
+### Highlights
+- [live] "Events happening now", "going on now" or "live" lists today's events
+- [live] "Events taking place this week" lists this week's events
+- [teams] "Number of teams in …" and "total number of teams" count like "how many"
+
+### Search
+- **Events and time words, said more ways.** "Happening now", "going on now", "on right now", "live now", "live" and "currently" read as today; "taking place", "being held", "running" and "scheduled" are read as part of an events question, never as a name. "Number of", "count of", "total number of" and "what's the total" count like "how many". (#876)
+
+## 3.6.1 — 2026-11-06
+
+A team's rating or OPR trend, asked any way, shows the trend card.
+
+### Highlights
+- [teams] "Is the rating going up or down" shows the rating after each event
+- [teams] "OPR at each event", "event by event", "over the season" read alike
+- [teams] The trend's season is the one you name, else the team's latest
+
+### Search
+- **Trends, said any way.** A team's prediction rating or OPR asked as a trend ("12345 rating going up or down lately in 2025-26", "is 12345's rating improving", "rating after each event", "12345 opr at each event", "opr event by event in 2024-25", "opr trend over the season") answers with the trend card already used for "rating trend" and "opr history": the number after each event, rising or falling, in the season named (else the team's latest). The trend words are one entry in the search lexicon; the plain "12345 opr" stays the plain number. (#851)
+
+## 3.6.0 — 2026-11-06
+
+More ways to ask who, what and where get the same answer: who beat a team, a team's region or school asked first, its Worlds division, its best match ever.
+
+### Highlights
+- [teams] "Who beat …?" lists the teams that beat them
+- [teams] "What region is … in?" and "what school is … from?" answer the fact
+- [teams] "What Worlds division was … in?" answers the division
+- [teams] "…'s best match ever" shows its highest score of all time
+
+### Search
+- **Who, what, where and the best, said more ways.** "Who beat <team>", "who has beaten" and "who eliminated" give the teams that beat it; "what region / school / city is <team> in" answers the fact asked first; "what Worlds division was <team> in" answers the division; "<team>'s best match ever" or "of all time" gives its highest score ever (and "worst" its lowest). (#874)
+
+## 3.5.9 — 2026-11-06
+
+A Scout form closed while it waits for its workspace's template no longer leaves a timer running behind it.
+
+### Highlights
+- [scout] Closing a Scout form while its template loads leaves nothing running
+- [scout] A template asked for again restarts its wait, never stacking timers
+- [fixes] A test that failed now and then on CI is steady again
+
+### Scout
+- **The template wait is cleared.** A new-entry form waits up to 6 seconds for a workspace template it has never seen, then opens with the built-in fields. That timer is now cleared when the form closes, and a second fetch replaces the first's timer instead of adding one. Before, a closed form's timer still fired, which on CI showed as an occasional "window is not defined" error after the Scout templates tests. (#869)
+
+## 3.5.8 — 2026-11-06
+
+"Has a team ever …?" is answered yes or no first, in a big coloured word, with the card that proves it underneath.
+
+### Highlights
+- [teams] "Has … ever been to Worlds?" answers Yes or No first
+- [teams] "Did … ever beat …?" says yes or no, with their meetings underneath
+- [teams] "Did … play at <event>?" says yes or no, with the events
+- [teams] "Has … ever won Inspire?" says yes or no above the awards
+
+### Search
+- **Yes or no, said every way.** "Has <team> ever …", "did <team> ever …", "was <team> at …" and "did <team> make it to …" are read as one yes-or-no question about Worlds, a state championship, an event in a season, a kind of event, an award, an event won, or beating or losing to another team. The answer is the word Yes (green) or No (slate), with a sentence saying it, above the card that answered the question before, unchanged; when nothing answered it, the card is the evidence: the meetings, the awards or the events played. Only official events count. A no is an answer, never the no-match page. (#873)
+
+## 3.5.7 — 2026-11-06
+
+A team's wins and losses by event, side by side.
+
+### Highlights
+- [teams] "Wins vs losses by event" shows each event's wins and losses
+- [teams] "Record by event" and "per event" read the same
+- [fixes] "Wins vs losses" is a team's record, never a match against another team
+
+### Search
+- **Wins and losses by event.** "12345 wins vs losses by event in 2025-26", "12345 record by event", "wins and losses per event" answer with the team's record card and a row for each event (its wins and losses, ties when there are any, and its season when the answer spans several), oldest first, each linked to the event. "Wins vs losses" said without an event split is the record alone. Before, "vs" there was read as a second team. (#850)
+
+## 3.5.6 — 2026-11-06
+
+"When did a team last play?" is answered however it's asked: the last, the first and the next time, and when it started.
+
+### Highlights
+- [teams] "When was the last time … played" shows that team's most recent match
+- [teams] "When did … first play" shows its first match
+- [teams] "When does … play next" shows its next match, or says there's none yet
+- [teams] "What year did … start" shows its rookie year
+
+### Search
+- **When, said every way.** "When was the last time <team> played", "when did <team> last play", "<team>'s most recent match" and "<team> last played when" give the most recent match card; "the first time", "first ever" and "very first" give the first match; "the next time <team> plays" and "when will <team> play again" give the next match, saying plainly when none is scheduled. "When did <team> begin competing", "join FTC" or "get started", and "which season was <team> founded", give the rookie year. (#872)
+
+## 3.5.5 — 2026-11-06
+
+A team's forecast at Worlds or states is for its own division there.
+
+### Highlights
+- [predict] "Advancement odds at worlds" shows the team's own Worlds division
+- [predict] "At states" means the team's own state championship
+- [predict] An event still to come shows the chance to advance when you ask for it
+
+### Search
+- **Forecast at a team's Worlds or states.** "23268 advancement odds at worlds in 2025-26", "chance to advance at worlds", "odds 23268 advances at worlds 2026" and "prediction at states" answer with the prediction-vs-result card for the team's own division at that season's Worlds (or its own state championship): the event the team is listed at, never another one. Advancement wording ("advance", "advancement", "make the finals", "go through") is one entry in the search lexicon, taken only by forecasts. For an event still to come, an advancement question shows the chance to advance rather than the chance to win. (#839)
+
+## 3.5.4 — 2026-11-06
+
+Long questions are read whole.
+
+### Highlights
+- [fixes] A full question up to 160 characters is read to its last word
+- [fixes] A season at the end of a long question is no longer cut off
+- [fixes] Past the limit, the query is cut at a whole word
+
+### Search
+- **Long questions read whole.** Search read only the first 80 characters, cut inside a word, so a long question lost its end: "… or was it way off in 2025-26" became "… in 2025-2", and the season (or the event, or the last team) went missing. A question is now read up to 160 characters; past that it's cut at the last whole word, never inside one. The names list reads the same length. (#838)
+
+## 3.5.3 — 2026-11-06
+
+"12345 vs 67890", with no event, answers with both teams' season numbers side by side, however it's asked.
+
+### Highlights
+- [teams] "12345 vs 67890" puts both teams' season numbers side by side
+- [teams] "Who is better, 12345 or 67890" gives the same side-by-side card
+- [teams] Two teams at Worlds use the latest Worlds either one went to
+- [teams] A team never at Worlds is told so, with the other's results
+
+### Search
+- **Two teams side by side.** "12345 vs 67890", "12345 versus 67890", "compare 12345 and 67890", "who is better, 12345 or 67890": the season's numbers of both teams in one card (OPR and its phases, the prediction rating, ranks and records), with Compare's own page first among the links. The numbers are printed once: the head-to-head panel that used to repeat them under it is left out when the card shows them. "12345 or 67890" alone is still a search for either team, and a name two teams share still asks which one.
+- **At Worlds or states with no season said.** Two teams compared at Worlds when neither went this season use the newest Worlds either went to. One that has never been there is told so plainly, with the other team's own results linked. (#875)
+
+## 3.5.2 — 2026-11-06
+
+Two teams compared at an event show each team's numbers there.
+
+### Highlights
+- [teams] "12345 vs 67890 at an event" compares the two teams' numbers there
+- [teams] OPR, rank and record at the event, side by side
+- [fixes] When only one of them was there, the card says which
+
+### Search
+- **Two teams at an event, side by side.** A comparison with an event named ("7149 vs 23268 at nj championship 2025-26", their Worlds, their states) answers with each team's row there: OPR at the event and by phase, qualification rank and record (a championship's division and finals as one), the leader as the headline. When only one of them played it, or each played a different event the words name, the card says so and offers each team's own results. A comparison with no event keeps Compare's card. (#825)
+
+## 3.5.1 — 2026-11-06
+
+A team's matches in a season are an answer of their own: the record, quals and playoffs apart, then every match.
+
+### Highlights
+- [fixes] A team's matches in a season are listed, newest first
+- [fixes] The record on top, with quals and playoffs apart
+- [fixes] A season with no matches says so for that season
+
+### Search
+- **A team's matches in a season.** "17670 matches in 2026-27", "show me gearview matches 2025-26" or a team's number and "matches" answer with the team's record in that season (its latest, when none is named), quals and playoffs apart, and every match below it, newest first. Before, only the team's card came back. A place or a window said narrows it ("gearview matches in New Jersey in 2024-25"). Matches at Worlds or at a state championship stay that event's results card, with its division, rank and OPR. A season with no matches says so for that season, never another season's matches. (#813)
+
+## 3.5.0 — 2026-11-06
+
+Search predicts a full match: two alliances of two.
+
+### Highlights
+- [predict] "Predict 12345 23456 vs 34567 45678" gives the match's call
+- [predict] Win chance, predicted score and margin for each alliance
+- [predict] "Custom matchup" and "who wins" phrasings read the same
+
+### Search
+- **Two alliances of two.** Four teams with "vs" between the pairs ("predict 12345 23456 vs 34567 45678", "12345 and 23456 vs 34567 and 45678 who wins", "custom matchup …", by number or name) answer with the engine's call for that qualification match, as Predict makes it: each alliance's win chance, predicted score and margin, the confidence, each team's rating, and Predict opened on the same lineup. The season is the one named, else the latest every team has a rating in. Before, the card compared only the first team of each side. (#834)
+
+## 3.4.9 — 2026-11-06
+
+A forecast asked against what happened answers with the event's forecast card.
+
+### Highlights
+- [predict] "Was the prediction right" at an event shows prediction and result
+- [predict] "Before and after", "vs actual" and "last prediction" all read the same
+- [fixes] These questions no longer stop at the team card
+
+### Search
+- **Prediction against the result, any wording.** A team's forecast at an event held up against what happened ("4215 predicted rank at nj championship vs actual rank", "show me 4215's predictions before and after east bergen", "4215 last prediction for east bergen", "did the prediction for 4215 at east bergen get it right, or was it way off") answers with the forecast card for that event, which already shows the prediction beside the result. The words that hold a forecast up against the result are one entry in the search lexicon, and only the forecast takes them. (#828)
 
 ## 3.4.8 — 2026-11-06
 
