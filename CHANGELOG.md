@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.2.9 — 2026-11-05
+## 3.3.0 — 2026-11-05
 
 Search answers say each fact once: the number you asked for, its context, then what's new, with how it's counted one tap away.
 
@@ -30,6 +30,21 @@ Search answers say each fact once: the number you asked for, its context, then w
 - **How it's counted, one tap away.** Every answer's method is behind an info button beside one footnote line, as on comparisons, instead of a paragraph in the card.
 - **A ranking shows what it ranks by.** A list of teams ranked by Auto, TeleOp or Endgame shows that column on a phone instead of the total OPR.
 - **No highlights for an unanswered question.** A question about a team that search can't answer yet ("will 4215 win the NJ championship") says so with its suggested searches, without the team's highlights under it (#772).
+
+## 3.2.9 — 2026-11-05
+
+Search finds matches by what made them stand out: the closest, the most lopsided, the biggest upset or comeback.
+
+### Highlights
+- [fixes] "Closest match in Romania last month" answers with the match
+- [fixes] "Biggest upset in New Jersey" and "best comeback in Michigan" work
+- [fixes] Filter by quals, playoffs, finals or league meets in any match question
+- [fixes] No season said reads this season, or says it's showing last season
+
+### Search
+- **Match finder.** Questions about matches with no team named ("lowest scoring match in Texas last week", "most lopsided match in Ohio", "match with the most penalty points in New Jersey", "closest finals match in California last year", "highest scoring match at a league meet") are answered with the match and every filter on the card. One match asked for is the headline, with the next few in a table under it. Matches asked for ("closest matches") are one ranked table. Each match is printed once. Upsets and comebacks are worked out by a rule printed on the card under "How this is counted". An upset is only a favourite's loss, and the finals include a double-elimination bracket's grand final. (#769)
+- **Season.** A question about a place or everyone with no season said reads the current season (the highest score too), and when that has none of what was asked yet it shows last season and says so. "Last season" is the one before the current one.
+- **Everywhere.** "In the world", "worldwide" and "globally" mean every place, never the FIRST Championship.
 
 ## 3.2.8 — 2026-11-05
 

@@ -6,7 +6,9 @@
 export type Agg = "max" | "min" | "mean" | "median" | "sum" | "count" | "first" | "last" | "closest" | "next";
 export type Metric =
   | "score" | "margin" | "record" | "win" | "loss" | "tie" | "winrate" | "opr" | "rating" | "rank" | "award" | "penalty"
-  | "auto" | "teleop" | "endgame" | "streak" | "partner" | "opponent" | "rp" | "range" | "consistency" | "reliability" | "playoffs";
+  | "auto" | "teleop" | "endgame" | "streak" | "partner" | "opponent" | "rp" | "range" | "consistency" | "reliability" | "playoffs"
+  // Derived from a match's numbers by a rule the card prints (./matchFind.ts).
+  | "upset" | "comeback";
 export type Thing = "match" | "event" | "season" | "team";
 
 export type Sym =
@@ -15,6 +17,8 @@ export type Sym =
   | { k: "metric"; v: Metric }
   | { k: "thing"; v: Thing }
   | { k: "level"; v: "qual" | "playoff" }
+  /** The finals only, of the playoffs. */
+  | { k: "finals" }
   | { k: "alliance"; v: "red" | "blue" }
   | { k: "worlds" }
   | { k: "states" }
@@ -51,7 +55,11 @@ const TABLE: [string, Sym | Sym[]][] = [
   // Metrics.
   // "Total points" is two words read apart: a sum ("total") of scores ("points").
   ["score|scores|scored|scoring|points|point|pts", { k: "metric", v: "score" }],
-  ["margin|margin of victory|point differential|differential|point diff|spread|blowout|blowouts", { k: "metric", v: "margin" }],
+  ["margin|margin of victory|point differential|differential|point diff|spread|gap|score gap|point gap|points gap|difference in score", { k: "metric", v: "margin" }],
+  // The biggest margin, said as one word.
+  ["lopsided|most lopsided|one sided|blowout|blowouts|biggest blowout|mismatch|mismatches|rout|routs|beatdown", [{ k: "agg", v: "max" }, { k: "metric", v: "margin" }]],
+  ["upset|upsets|underdog|underdogs|giant killing|giant killer|shock win|shock result|surprise win|surprise result", { k: "metric", v: "upset" }],
+  ["comeback|comebacks|come back|came back|comeback win|comeback wins|rallied|rally", { k: "metric", v: "comeback" }],
   ["record|w-l-t|w l t|wlt|win loss|win-loss|win loss record|win loss tie|wins and losses|win/loss", { k: "metric", v: "record" }],
   ["win|wins|won|victory|victories|beat|beaten|defeated", { k: "metric", v: "win" }],
   ["loss|losses|lost|defeat|defeats", { k: "metric", v: "loss" }],
@@ -81,10 +89,13 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["season|seasons|year|years", { k: "thing", v: "season" }],
   ["team|teams|robot|robots", { k: "thing", v: "team" }],
   // Scope words.
-  ["playoff|playoffs|elim|elims|elimination|eliminations|bracket|finals|semifinals|semis", { k: "level", v: "playoff" }],
+  ["finals|grand final|grand finals|finals match|finals matches|final match|final matches|championship match|championship final", [{ k: "level", v: "playoff" }, { k: "finals" }]],
+  ["playoff|playoffs|elim|elims|elimination|eliminations|bracket|semifinals|semis", { k: "level", v: "playoff" }],
   ["qual|quals|qualification|qualifications|qualifying|qualis", { k: "level", v: "qual" }],
   ["red|red alliance|red side|on red|as red", { k: "alliance", v: "red" }],
   ["blue|blue alliance|blue side|on blue|as blue", { k: "alliance", v: "blue" }],
+  // Everywhere, said: no place filter (never the FIRST Championship).
+  ["in the world|worldwide|world wide|globally|across the world|around the world|all over the world|internationally|anywhere|in ftc", { k: "filler" }],
   ["worlds|world|world championship|world championships|world champs|first championship|first champs|championship of the world|cmp|houston championship|houston", { k: "worlds" }],
   ["states|state|state championship|state championships|state champs|state finals|regionals|regional championship|regional", { k: "states" }],
   // Forecasts.

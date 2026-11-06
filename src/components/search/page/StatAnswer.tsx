@@ -298,7 +298,8 @@ function Table({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
   const plays = useRowPlays(b.rows.map((r) => r.href));
   return (
     <div data-block="table">
-      <h3 className={H3}>{b.title}</h3>
+      {/* A table that is the whole answer has no heading of its own: the card's title already says it. */}
+      {b.title && <h3 className={H3}>{b.title}</h3>}
       <div className="overflow-x-auto rounded-lg border border-border">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-left text-[11px] text-muted-foreground">
