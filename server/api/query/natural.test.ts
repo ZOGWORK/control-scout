@@ -137,6 +137,9 @@ describe("sorry, with what was read (§4)", () => {
     for (const n of ["22457", "30004", "30005", "30006", "30007"]) expect(said).not.toContain(n);
     expect(a.sorry).toEqual({ understood: ["ultraviolet bots: 5 teams share the name"], suggest: ["teams named ultraviolet bots"] });
   });
+  it("placeholder registrations never share a name", async () => {
+    expect((await ask("what is off-season demo team's favorite color")).sorry ?? null).toBeNull();
+  });
   it("a quoted name gets the sorry too", async () => {
     expect((await ask('"Hypnotic Robotics" favorite color')).sorry?.understood.join(" ") ?? "").toContain("4215");
   });

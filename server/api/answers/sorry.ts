@@ -18,8 +18,11 @@ export async function sorryFor(q: string, a: SearchAnswer, opts: { now?: number;
   // A placeholder registration ("Off-Season Demo Team") is no team to suggest anything about, and a name several teams
   // share that nothing picked (no rule) is none of them: said as the shared name, never as one team.
   // As typed, without a possessive ("ultraviolet bots' …").
-  const shared = p0.teams.filter((t) => t.candidates && !t.rule).map((t) => ({ ...t, typed: t.typed.replace(/['’]s?$/, "") }));
-  const p = { ...p0, teams: p0.teams.filter((t) => hasTeamPage(t.number, t.name) && !(t.candidates && !t.rule)) };
+  // Only teams with a page share it: one left is that team, none is no team.
+  const open = (t: (typeof p0.teams)[number]) => (t.candidates ?? [t.number]).filter((n) => hasTeamPage(n, t.name));
+  const unpicked = (t: (typeof p0.teams)[number]) => !!t.candidates && !t.rule && open(t).length > 1;
+  const shared = p0.teams.filter(unpicked).map((t) => ({ ...t, typed: t.typed.replace(/['’]s?$/, ""), candidates: open(t) }));
+  const p = { ...p0, teams: p0.teams.filter((t) => !unpicked(t) && open(t).length).map((t) => (t.candidates && !t.rule ? { ...t, number: open(t)[0] } : t)) };
   const read = [...describe(p).filter((x) => !x.startsWith("Intent: ")), ...shared.map((t) => `${t.typed}: ${t.candidates!.length} teams share the name`)];
   const team = p.teams[0]?.number ?? (fallback && !shared.length ? Number(a.hits.find((h) => h.kind === "team")?.ref ?? NaN) : NaN);
   if (!read.length && Number.isNaN(team)) return null;
