@@ -30,8 +30,11 @@ type Slots = { t?: number; u?: number; event?: string; place?: string; when?: st
 type Template = { family: Family; needs: (keyof Slots)[]; ask: (s: Required<Slots>) => string; short: (s: Required<Slots>) => string; when?: boolean };
 /** A follow-up two ways: a question (People also ask) and the search's short form (Related searches). */
 const T = (family: Family, needs: (keyof Slots)[], ask: Template["ask"], short: Template["short"], when = false): Template => ({ family, needs, ask, short, when });
-/** " in <time>" when the query said one and the question is about one season; " <time>" for the short form. */
-const IN = (s: Slots) => (s.when ? ` in ${s.when}` : "");
+/** The words a time is typed with that already say how it's placed ("in <season>", "last season", "this year"). */
+const PLACED = /^(?:in|during|for|from|at|of|this|last|next|the|current|previous|past)\b/i;
+/** " in <time>" when the query said one and the question is about one season: "in" only when the time typed doesn't
+ *  already say how it's placed ("… in <season>", "… last season"). */
+const IN = (s: Slots) => (!s.when ? "" : PLACED.test(s.when) ? ` ${s.when}` : ` in ${s.when}`);
 const AT = (s: Slots) => (s.when ? ` ${s.when}` : "");
 
 // In the order they're offered: the questions nearest a search about a team first (its numbers, record and rating),

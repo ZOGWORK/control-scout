@@ -54,6 +54,9 @@ beforeAll(async () => {
   await rebuildSearch();
 });
 
+/** A winning-alliance headline's teams: its chips (the final stored), else its value (the award alone). */
+const winners = (h: { value: string; teams?: { label: string }[] } | undefined) => h?.teams?.map((t) => t.label).join(", ") ?? h?.value;
+
 describe("what's read", () => {
   it("an event scope, a match number, a count, and a team-less winning alliance", () => {
     expect(readStatQuestion("4215 rank at New Jersey Championship")).toMatchObject({ id: "event-rank", core: "4215", scope: { at: "new jersey championship" } });
@@ -85,7 +88,7 @@ describe("one team at one event", () => {
 describe("awards", () => {
   it("event wins: 1st place and Inspire, each labelled; a 2nd place Inspire is no win", async () => {
     const a = await searchAnswer("Has 4215 ever won an event", { limit: 25 });
-    expect(a.stat!.headline).toMatchObject({ value: "1 win", label: "0 1st-place finishes · 1 Inspire Award" });
+    expect(winners(a.stat!.headline)).toEqual("1 win"); expect(a.stat!.headline).toMatchObject({ label: "0 1st-place finishes · 1 Inspire Award" });
     const t = a.stat!.blocks.find((b) => b.kind === "table");
     expect(t && t.kind === "table" && t.rows.map((r) => r.cells.award)).toEqual(["Inspire Award"]);
     await run("INSERT INTO teams (number, name) VALUES (1234, 'Newcomers')");
@@ -112,11 +115,11 @@ describe("awards", () => {
 describe("winning alliances", () => {
   it("an event's: the final match's winners with their whole alliance", async () => {
     const a = await searchAnswer("New Jersey Championship Parkway Division winning alliance", { limit: 25 });
-    expect(a.stat!.headline).toMatchObject({ value: "23268 Ultraviolet, 7149 ENFORCERS, 207 Critical Mass" });
+    expect(winners(a.stat!.headline)).toEqual("23268 Ultraviolet, 7149 ENFORCERS, 207 Critical Mass");
   });
   it("the season's championship: the finals decide, never the award list; a division not played says so", async () => {
     const a = await searchAnswer("ftc decode winning alliance", { limit: 25 });
-    expect(a.stat!.headline).toMatchObject({ value: "23268 Ultraviolet, 7149 ENFORCERS" });
+    expect(winners(a.stat!.headline)).toEqual("23268 Ultraviolet, 7149 ENFORCERS");
     const divs = a.stat!.blocks.find((b) => b.kind === "table");
     expect(divs && divs.kind === "table" && divs.rows.map((r) => [r.cells.division, r.cells.alliance])).toEqual([
       ["Worlds · Edison Division", "6980 Bad Wolf, 207 Critical Mass, 4215 Hypnotic Robotics"],
@@ -133,7 +136,7 @@ describe("winning alliances", () => {
   it("a season with no championship results says so, then the latest finished season's champions below it", async () => {
     const a = await searchAnswer("into the deep winning alliance", { limit: 25 });
     expect(a.stat!.none).toBe("No championship results yet for INTO THE DEEP (2024–25). Below: the latest finished season's champions, DECODE (2025–26).");
-    expect(a.stat!.headline).toMatchObject({ value: "23268 Ultraviolet, 7149 ENFORCERS" });
+    expect(winners(a.stat!.headline)).toEqual("23268 Ultraviolet, 7149 ENFORCERS");
     const t = await searchAnswer("who won worlds this year", { limit: 25 });
     expect(t.stat!.none).toBe("No championship results yet for BIOBUZZ (2026–27). Below: the latest finished season's champions, DECODE (2025–26).");
   });
@@ -142,7 +145,7 @@ describe("winning alliances", () => {
       expect(readStatQuestion(q), q).toMatchObject({ id: "winning-alliance", noTeam: true, core: "" });
     }
     for (const q of ["decode winner", "who won worlds", "world champions", "who won worlds last year"]) {
-      expect((await searchAnswer(q, { limit: 25 })).stat!.headline, q).toMatchObject({ value: "23268 Ultraviolet, 7149 ENFORCERS" });
+      expect(winners((await searchAnswer(q, { limit: 25 })).stat!.headline), q).toEqual("23268 Ultraviolet, 7149 ENFORCERS");
     }
     expect((await searchAnswer("who won worlds last year", { limit: 25 })).stat!.definition).toContain('"Last year" is DECODE (2025–26), the latest whose championship has finished.');
     // An award's winner, or a team, is never read as a season's champions.
@@ -159,7 +162,8 @@ describe("winning alliances", () => {
     expect((await searchAnswer("who won 2026 nj states", { limit: 25 })).understood!.label).toMatch(/2025–26 winning alliance$/);
     expect((await searchAnswer("who won 2025 nj states", { limit: 25 })).stat).toBeUndefined();
     // "This year" is the current season (2026–27 here, not played): never last season's winners as this year's.
-    expect((await searchAnswer("who won nj states this year", { limit: 25 })).stat?.headline).toBeUndefined();
+    // Said so, with the latest finished one below, labelled.
+    expect((await searchAnswer("who won nj states this year", { limit: 25 })).stat?.none).toMatch(/has no 2026–27 event on record yet\. Below: the latest one finished, 2025–26\.$/);
   });
   it('"last season" outside a championship question is the season before the latest completed one', () => {
     expect(readTwoTeam("4215 vs 6980 head to head last season")).toMatchObject({ id: "head-to-head", scope: { season: 2024, lastYear: true } });
@@ -265,7 +269,7 @@ describe("what Greptile found", () => {
   });
   it("a Worlds division named: that division's winners", async () => {
     const a = await searchAnswer("FIRST Championship - Edison Division winning alliance", { limit: 25 });
-    expect(a.stat!.headline).toMatchObject({ value: "6980 Bad Wolf, 207 Critical Mass, 4215 Hypnotic Robotics" });
+    expect(winners(a.stat!.headline)).toEqual("6980 Bad Wolf, 207 Critical Mass, 4215 Hypnotic Robotics");
   });
   it("a final still going (one win of a best of three, the event not over) crowns no one", async () => {
     await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, 'USNJLIVE', 'Live Qualifier', 'Qualifier', 'Edison', 'NJ', 'USA', '2099-01-01', '2099-01-01', 't')");
@@ -286,7 +290,7 @@ describe("what Greptile found", () => {
     clearAllCaches(); // the team's matches are cached
     await rebuildSearch();
     const a = await searchAnswer("4215 score in match 7 at New Jersey Championship", { limit: 25 });
-    expect(a.stat!.headline).toMatchObject({ value: expect.stringContaining("111") });
+    expect(winners(a.stat!.headline)).toEqual(expect.stringContaining("111"));
   });
   it("an older season of an event that came back is still found by its season", async () => {
     await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2024, 'USNJCMP', 'New Jersey Championship', 'Championship', 'Union', 'NJ', 'USA', '2025-03-15', '2025-03-15', 't')");
@@ -294,7 +298,7 @@ describe("what Greptile found", () => {
     for (const n of [1, 2]) for (const [t, al] of [[6980, "red"], [207, "red"], [4215, "blue"], [7149, "blue"]] as const) await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2024, 'USNJCMP', 'playoff', 0, ?, ?, ?, 1)", [n, t, al]);
     await rebuildSearch();
     const a = await searchAnswer("New Jersey Championship winning alliance 2024-25", { limit: 25 });
-    expect(a.stat!.headline).toMatchObject({ value: expect.stringContaining("6980 Bad Wolf") });
+    expect(winners(a.stat!.headline)).toEqual(expect.stringContaining("6980 Bad Wolf"));
     expect(a.stat!.scope).toContain("2024–25");
   });
   it("a Worlds answer ends with related questions, never the one just asked", async () => {
@@ -310,7 +314,7 @@ describe("what Greptile found", () => {
     }
     await rebuildSearch();
     const a = await searchAnswer("Classic Qualifier winning alliance", { limit: 25 });
-    expect(a.stat!.headline).toMatchObject({ value: "207 Critical Mass, 4215 Hypnotic Robotics", sub: "F1 120–80 · F2 130–90" });
+    expect(winners(a.stat!.headline)).toEqual("207 Critical Mass, 4215 Hypnotic Robotics"); expect(a.stat!.headline).toMatchObject({ sub: "F1 120–80 · F2 130–90" });
   });
 });
 
@@ -381,7 +385,7 @@ describe("events, awards and Worlds history (260-query list)", () => {
   });
   it("the winning alliance at a team's last event; 'championship' alone is the FIRST Championship", async () => {
     const a = await searchAnswer("winning alliance at 7149's last event", { limit: 25 });
-    expect(a.stat!.headline).toMatchObject({ value: "23268 Ultraviolet, 7149 ENFORCERS, 207 Critical Mass", label: "Won New Jersey Championship - Parkway Division" });
+    expect(winners(a.stat!.headline)).toEqual("23268 Ultraviolet, 7149 ENFORCERS, 207 Critical Mass"); expect(a.stat!.headline).toMatchObject({ label: "Won New Jersey Championship - Parkway Division" });
     const champs = (await searchAnswer("ftc decode winning alliance", { limit: 25 })).stat!.headline;
     expect((await searchAnswer("decode championship winning alliance", { limit: 25 })).stat!.headline).toEqual(champs);
   });

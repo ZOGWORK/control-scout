@@ -10,8 +10,10 @@ import { FALLBACK_NOTE } from "../searchLayers.js";
 import { teamSuggestions } from "../searchCoverage.js";
 import { hasTeamPage } from "../../../src/shared/teamPages.js";
 
-/** The sorry note for an answer that didn't answer `q`, or null when it did, or when nothing in it was read. */
-export async function sorryFor(q: string, a: SearchAnswer, opts: { now?: number; prefer?: ReadonlySet<string> } = {}): Promise<SearchAnswer["sorry"] | null> {
+/** The sorry note for an answer that didn't answer `q`, or null when it did, or when nothing in it was read.
+ *  `answers`: whether a search answers, so a suggestion is offered only when it was run and answered (owner: never a
+ *  chip that leads to another sorry). */
+export async function sorryFor(q: string, a: SearchAnswer, opts: { now?: number; prefer?: ReadonlySet<string>; answers?: (q: string) => Promise<boolean> } = {}): Promise<SearchAnswer["sorry"] | null> {
   const fallback = (a.understood?.label ?? "").includes(FALLBACK_NOTE);
   if (!fallback && !(a.step === "recovery" && !a.stat && !a.card)) return null;
   const p0 = await parseQuery(q, await parseContext(opts.now, opts.prefer));
@@ -38,5 +40,6 @@ export async function sorryFor(q: string, a: SearchAnswer, opts: { now?: number;
     : p.named ? [p.named.typed]
     : [];
   if (!read.length && !Number.isNaN(team)) read.push(`Team ${team}`);
-  return { understood: read, suggest: suggest.slice(0, 4) };
+  const checked = opts.answers ? await Promise.all(suggest.slice(0, 6).map(async (x) => ((await opts.answers!(x)) ? x : null))) : suggest;
+  return { understood: read, suggest: checked.filter((x): x is string => !!x).slice(0, 4) };
 }

@@ -7,6 +7,7 @@ import { rebuildSearch } from "../../stats/job";
 import { clearAllCaches } from "../../caches";
 import { searchAnswer } from "../searchAnswer";
 import { searchOutcome } from "../searchLayers";
+import { sorryFor } from "../answers/sorry";
 import { countAnswer, rewriteQuery } from "../searchCoverage";
 import { readEventQuery } from "../../../src/shared/searchEventQuery";
 import type { SearchAnswer } from "../../../src/shared/api";
@@ -350,6 +351,19 @@ describe("sorry, with what was read (§4)", () => {
     expect((await ask("ultraviolet")).sorry).toBeUndefined();
     expect((await ask("99950 favorite color")).sorry?.understood.join(" ") ?? "").not.toContain("99950");
     expect((await searchAnswer("what is 4215's favorite color", { limit: 8, now: NOW })).sorry).toBeUndefined();
+  });
+  // Owner: a suggestion chip led to another sorry.
+  it("every suggestion offered answers when tapped, and one that doesn't is never offered", async () => {
+    for (const q of ["what is 4215's favorite color", "what is ultraviolet bots' favorite color"]) {
+      const a = await ask(q);
+      for (const s of a.sorry?.suggest ?? []) {
+        const b = await ask(s);
+        expect(b.step, `${q} → ${s}`).not.toBe("recovery");
+        expect(b.sorry, `${q} → ${s}`).toBeUndefined();
+      }
+    }
+    const a = await ask("what is 4215's favorite color");
+    expect((await sorryFor("what is 4215's favorite color", { ...a, sorry: undefined }, { now: NOW, answers: async () => false }))?.suggest).toEqual([]);
   });
 });
 
