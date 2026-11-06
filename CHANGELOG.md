@@ -27,6 +27,19 @@ A team's rating or OPR trend, asked any way, shows the trend card.
 ### Search
 - **Trends, said any way.** A team's prediction rating or OPR asked as a trend ("12345 rating going up or down lately in 2025-26", "is 12345's rating improving", "rating after each event", "12345 opr at each event", "opr event by event in 2024-25", "opr trend over the season") answers with the trend card already used for "rating trend" and "opr history": the number after each event, rising or falling, in the season named (else the team's latest). The trend words are one entry in the search lexicon; the plain "12345 opr" stays the plain number. (#851)
 
+## 3.6.0 — 2026-11-06
+
+More ways to ask who, what and where get the same answer: who beat a team, a team's region or school asked first, its Worlds division, its best match ever.
+
+### Highlights
+- [teams] "Who beat …?" lists the teams that beat them
+- [teams] "What region is … in?" and "what school is … from?" answer the fact
+- [teams] "What Worlds division was … in?" answers the division
+- [teams] "…'s best match ever" shows its highest score of all time
+
+### Search
+- **Who, what, where and the best, said more ways.** "Who beat <team>", "who has beaten" and "who eliminated" give the teams that beat it; "what region / school / city is <team> in" answers the fact asked first; "what Worlds division was <team> in" answers the division; "<team>'s best match ever" or "of all time" gives its highest score ever (and "worst" its lowest). (#874)
+
 ## 3.5.9 — 2026-11-06
 
 A Scout form closed while it waits for its workspace's template no longer leaves a timer running behind it.

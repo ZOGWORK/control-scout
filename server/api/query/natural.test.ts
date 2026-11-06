@@ -7,6 +7,8 @@ import { rebuildSearch } from "../../stats/job";
 import { clearAllCaches } from "../../caches";
 import { searchAnswer } from "../searchAnswer";
 import { searchOutcome } from "../searchLayers";
+
+import { rewriteQuery } from "../searchCoverage";
 import type { SearchAnswer } from "../../../src/shared/api";
 import type { StatAnswer } from "../../../src/shared/searchStat";
 
@@ -68,10 +70,13 @@ beforeAll(async () => {
   for (const [t, a, sur] of [[30004, "red", 1], [30005, "blue", 0]] as const) await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field, surrogate) VALUES (2025, 'USNJQ1', 'qual', 0, 900, ?, ?, 1, ?)", [t, a, sur]);
   await run("UPDATE teams SET home_region = 'USNJ' WHERE state = 'NJ'");
   await run("INSERT INTO awards (season, code, team, type, name, placement) VALUES (2025, 'USNJCMP', 7149, 'Inspire', 'Inspire Award', 1), (2025, 'USNJCMP', 7149, 'Winner', 'Winning Alliance', 1), (2025, 'FTCCMP1', 9848, 'Inspire', 'Inspire Award 2nd Place', 2), (2025, 'USNJQ1', 6980, 'Winner', 'Leadership Award', 1), (2025, 'USNJQ1', 30003, 'Inspire', 'Inspire Award', 1)");
+  // An older season's match, 4215's highest score of all (a loss, so this season's numbers stay as they are).
+  await match(2024, "USMIQ1", 190, 200, [4215], [20245]);
+  await run("INSERT OR IGNORE INTO team_seasons (season, team) VALUES (2024, 4215), (2024, 20245)");
   // 20245 played only in 2024–25: a season named leaves it out.
   await match(2024, "USMIQ1", 100, 50, [20245], [24033]);
   await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) SELECT season, code, team, 50, 1 FROM event_teams");
-  await run("UPDATE teams SET rookie_year = 2019 WHERE number = 4215");
+  await run("UPDATE teams SET rookie_year = 2019, school = 'Oradell Public School' WHERE number = 4215");
   await rebuildSearch();
   clearAllCaches();
 });
@@ -243,6 +248,42 @@ describe("yes or no, with the evidence (3c)", () => {
   it("only a yes-or-no question: a count or a list stays what it was", async () => {
     expect((await ask("how many times has 7149 been to worlds")).stat?.intent ?? "").not.toMatch(/^yes-no/);
     expect((await ask("7149 awards")).stat?.intent ?? "").not.toMatch(/^yes-no/);
+  });
+});
+
+describe("who, what, where and the best, said more ways (3d, 3e)", () => {
+  it("who beat a team: the teams it lost to, however it's asked", async () => {
+    const SAID = ["who did 6980 lose to", "who beat 6980", "who has beaten 6980", "who beat bad wolf", "who defeated 6980?"];
+    const first = card(await ask(SAID[0]));
+    expect(first).toMatchObject({ kind: "lost-to-most" });
+    for (const q of SAID.slice(1)) expect(card(await ask(q)), q).toEqual(first);
+  });
+  it("a team's fact asked with the fact first", async () => {
+    for (const [q, title] of [["what school is 4215 from", "School"], ["which school does 4215 go to", "School"], ["what region is 4215 in", "Region"], ["which region is hypnotic robotics in", "Region"], ["4215 region", "Region"]]) {
+      expect((await ask(q)).card, q).toMatchObject({ title, team: { number: 4215 } });
+    }
+  });
+  it("the best match, ever or not: the highest score", async () => {
+    const SAID = ["what was 4215's best score", "4215 highest scoring match", "4215 best match", "4215 best match ever", "4215 best game of all time"];
+    const first = card(await ask(SAID[0]));
+    expect(first).toMatchObject({ kind: "highest-score", headline: "170 points" });
+    for (const q of SAID.slice(1)) expect(card(await ask(q)).headline, q).toBe("170 points");
+  });
+  it("ever: every season's own best (or worst) below the latest season's, an older higher score included", async () => {
+    /** Each season's row of the "each season" table: season, score, event. */
+    const seasons = async (q: string) => (await ask(q)).stat!.blocks.flatMap((b) => (b.kind === "table" ? b.rows.map((r) => [r.cells.season, r.cells.score, r.cells.event]) : []));
+    for (const q of ["4215 best match ever", "4215 best game of all time"]) {
+      expect(await seasons(q), q).toEqual(await seasons("4215 highest score ever"));
+      expect(await seasons(q), q).toContainEqual(["2024–25", 190, "Lakes Qualifier"]);
+    }
+    for (const q of ["4215 worst match ever", "4215 worst game of all time"]) {
+      expect(card(await ask(q)), q).toMatchObject({ kind: "lowest-score", headline: "80 points" });
+      expect(await seasons(q), q).toEqual(await seasons("4215 lowest score ever"));
+    }
+  });
+  it("a team's division at Worlds asked as a question is its Worlds divisions", () => {
+    expect(rewriteQuery("what division was 4215 in at worlds")).toMatchObject({ q: "4215 worlds division" });
+    expect(rewriteQuery("which division did 4215 play in at worlds 2023-24")).toMatchObject({ q: "4215 worlds division 2023-24" });
   });
 });
 
