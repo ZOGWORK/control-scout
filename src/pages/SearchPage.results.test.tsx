@@ -278,19 +278,34 @@ describe("search results page", () => {
     expect(screen.getByRole("combobox", { name: "Season" })).toBeTruthy();
   });
 
-  it("never dead-ends: says what search covers, what was understood, labeled closest matches and places to go", () => {
+  it("never dead-ends (results guide §8): what's missing in one sentence, the closest as full cards, searches that answer, places to go", () => {
     state.answer = answer([], { step: "recovery", recovery: { understood: ["Events in New Jersey", "at Nonexistent High School"], closest: [team(4215, "Hypnotic Robotics", "Oradell, NJ")], browse: [] } });
     const { container } = show("/search?q=meets%20at%20Nonexistent%20High%20School%20in%20New%20Jersey");
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("No matches found");
     // The query is in the top bar: the heading never repeats it.
     expect(screen.getByRole("heading", { level: 1 }).textContent).not.toContain("Nonexistent");
-    expect(container.textContent).toContain("FTC One Search covers teams, events, matches and places");
-    expect(container.querySelector("[data-understood]")!.textContent).toContain("Events in New Jersey");
-    expect(screen.getByRole("region", { name: "Closest matches" }).textContent).toContain("not an exact match");
+    expect(container.textContent).toContain("Search has no answer for “meets at Nonexistent High School in New Jersey”; these are the closest real results.");
+    // What it was understood as stays off the page (§7): an attribute only.
+    expect(container.querySelector("[data-understood]")!.getAttribute("data-understood")).toContain("Events in New Jersey");
+    expect(container.querySelector("[data-no-results]")!.textContent).not.toMatch(/understood|read as/i);
+    const near = screen.getByRole("region", { name: "Closest results" });
+    expect(near.querySelector('[data-result="team"]')).not.toBeNull();
+    // A closest team is a full card: its season numbers, as in the results list, asked for with the rest.
+    expect(near.textContent).toContain("12-3-0");
+    expect(paths.some((p) => p?.includes("/api/teams-summary") && p.includes("4215"))).toBe(true);
+    expect(container.textContent).toContain("4215 record");
     expect(screen.getByRole("link", { name: /Browse all events/ }).getAttribute("href")).toBe("/events");
     // No example searches here: the top bar's dropdown offers those.
     expect(container.querySelectorAll("[data-example]")).toHaveLength(0);
     expect(container.textContent).not.toMatch(/Here's what we found/);
+  });
+  it("a closest team that opens a season asked for shows that season's numbers, never another's", () => {
+    state.answer = answer([], { step: "recovery", recovery: { understood: ["4215"], closest: [{ ...team(4215, "Hypnotic Robotics", "Oradell, NJ"), linkSeason: 2023 }], browse: [] } });
+    paths.length = 0;
+    show("/search?q=hypnotic%20robots%202023-24%20trombone");
+    const asked = paths.filter((p) => p?.includes("/api/teams-summary"));
+    expect(asked.length).toBeGreaterThan(0);
+    expect(asked.every((p) => p!.includes("season=2023"))).toBe(true);
   });
 
   it("shows the server's fallback under its own label, never as the answer", () => {
