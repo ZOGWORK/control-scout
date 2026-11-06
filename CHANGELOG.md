@@ -25,7 +25,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 - [teams] "Number of teams in …" and "total number of teams" count like "how many"
 
 ### Search
-- **Events and time words, said more ways.** "Happening now", "going on now", "on right now", "live now", "live" and "currently" read as today; "taking place", "being held", "running" and "scheduled" are read as part of an events question, never as a name. "Number of", "count of", "total number of" and "what's the total" count like "how many". (#PR)
+- **Events and time words, said more ways.** "Happening now", "going on now", "on right now", "live now", "live" and "currently" read as today; "taking place", "being held", "running" and "scheduled" are read as part of an events question, never as a name. "Number of", "count of", "total number of" and "what's the total" count like "how many". (#876)
 
 ## 3.4.8 — 2026-11-06
 
