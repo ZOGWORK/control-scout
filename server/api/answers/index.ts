@@ -38,6 +38,7 @@ import { penaltyTotalAnswer, trendAnswer } from "./families/trends.js";
 import { nextEventPrediction, pairPrediction, predictTitle, predictionSeason } from "./families/predict.js";
 import { awardsSideBySide, compareAnswer, compareSeason, headToHead, neverPlayedAnswer, opponentsAnswer, partnerListAnswer, phaseSideBySide, reliabilitySideBySide, seasonSideBySide } from "./families/twoTeam.js";
 import { sharedMatchList } from "../searchBoolean.js";
+import { compareBlock, decidedText, leadHeadline, seasonScale, winShare } from "./compareBlock.js";
 import { winnersAnswer, worldsFollowUps } from "./families/winners.js";
 import { eventHref, shortEvent, teamMatches } from "./matchSet.js";
 import { readCompound } from "./compound.js";
@@ -721,6 +722,11 @@ export async function twoTeamSearch(q: string, two: TwoTeamQuestion, resolve: Re
     intent: { kind: `stat-${two.id}`, pattern: `[team] ${two.id} [team]${scope.season != null ? " [season]" : ""}`, met: true, understood: [`Teams ${whoOf(a)} and ${whoOf(b)}`, TWO_TEAM_TITLES[two.id]] },
   };
   if (!opts.full) return answer;
+  // Compared at an event named (or their Worlds or states): each team's numbers there, side by side.
+  if (two.id === "compare" && (s.at || s.championship || s.states)) {
+    const stat = await compareAt(two, a, b, scope);
+    return stat ? { ...answer, understood: { kind: "question", label: stat.title }, stat } : null;
+  }
   // Their meetings at an event or a venue named: the events of it both played, else why there are none.
   const at = s.at ? await meetingsAt(two, a, b, scope) : null;
   if (s.at && !at) return null;
@@ -787,6 +793,68 @@ async function meetingsAt(two: TwoTeamQuestion, a: AnswerTeam, b: AnswerTeam, sc
   const S = Number(named.season), name = shortEvent(named.name, named.type ?? null);
   return base(`Neither ${whoOf(a)} nor ${whoOf(b)} played at ${name} in ${seasonLabel(S)}, so there are no matches together there.`, [name, seasonLabel(S)],
     [...ea, ...eb].filter((e) => e.season === S && officialClause()(e)).slice(-6).map((e) => `${ea.includes(e) ? a.number : b.number} matches at ${e.name.toLowerCase()}`));
+}
+
+/** The words two event names start with, up to a separator ("Romania Championship - A Division", "… - B Division":
+ *  "Romania Championship"), or null when they share none. */
+function sharedName(x: string, y: string): string | null {
+  const wx = x.split(/\s+/), wy = y.split(/\s+/);
+  let n = 0;
+  while (n < wx.length && n < wy.length && wx[n] === wy[n]) n++;
+  const head = wx.slice(0, n).join(" ").replace(/[\s:–·-]+$/, "").trim();
+  return head || null;
+}
+
+/** The rule a side by side at an event states. */
+const AT_EVENT_RULE = "Each team's numbers at the event, as its team page lists them: qualification rank (out of the teams ranked there), OPR there without penalties and by phase, and its record there (playoffs included; a championship's division and finals as one).";
+
+/** "12345 vs 67890 at nj championship": each team's row at the event named (its division and finals for a
+ *  championship), side by side. The same event for both, in the season the first one found was in; when only one
+ *  team (or neither) was there, or they played different events the words name, the card says so. Null: the words
+ *  name no event of either team's. */
+async function compareAt(two: TwoTeamQuestion, a: AnswerTeam, b: AnswerTeam, scope: Scope): Promise<StatAnswer | null> {
+  const s = two.scope;
+  const [ea, eb] = (await Promise.all([teamEventSet(a.number), teamEventSet(b.number)])).map((x) => x.events.filter(played));
+  const season = s.year ? null : s.season;
+  const first = teamPick(ea, s, season) ?? teamPick(eb, s, season);
+  if (!first) return null;
+  const S = first.primary.season, again = { ...s, year: false, season: S };
+  const pa = teamPick(ea, again, S), pb = teamPick(eb, again, S);
+  const base = { family: "two-team" as const, intent: "compare", team: a, teams: [a, b], definition: AT_EVENT_RULE, source: "From each team's event rows" };
+  const related = (picks: [AnswerTeam, TeamEventPick | null][]) => ({ kind: "related" as const, title: "Each team's own", queries: picks.map(([t, p]) => `${t.number} results at ${(p ?? first).name.toLowerCase()}`) });
+  if (!pa || !pb) {
+    const here = (pa ?? pb)!, away = pa ? b : a;
+    return { ...base, title: `${a.number} vs ${b.number} at ${here.name}`, scope: [here.name, seasonLabel(S)], blocks: [related([[a, pa], [b, pb]])],
+      none: `${whoOf(away)} has no matches at ${here.name} in ${seasonLabel(S)} on record, so there is nothing to compare there.` };
+  }
+  // A championship's division and finals are one event: two teams in different divisions still played it.
+  const fam = (p: TeamEventPick) => new Set(p.events.map((e) => e.division ?? e.code));
+  const fb = fam(pb);
+  if (![...fam(pa)].some((c) => fb.has(c))) {
+    return { ...base, title: `${a.number} vs ${b.number}, ${seasonLabel(S)}`, scope: [pa.name, pb.name, seasonLabel(S)], blocks: [related([[a, pa], [b, pb]])],
+      none: `${whoOf(a)} played ${pa.name} and ${whoOf(b)} played ${pb.name} in ${seasonLabel(S)}: not the same event, so there is no side by side there.` };
+  }
+  const teams = [a, b], rows = [pa.primary, pb.primary], picks = [pa, pb];
+  const recs = picks.map((p) => p.events.reduce((r, e) => (e.record ? { wins: r.wins + e.record.wins, losses: r.losses + e.record.losses, ties: r.ties + e.record.ties } : r), { wins: 0, losses: 0, ties: 0 }));
+  const recText = (r: { wins: number; losses: number; ties: number }) => `${r.wins}-${r.losses}-${r.ties}`;
+  const scale = await seasonScale(S, ["opr_np", "opr_auto", "opr_teleop", "opr_endgame"]);
+  const block = compareBlock("At the event", teams, [
+    { label: "OPR", total: true, values: rows.map((e) => e.opr), max: scale.opr_np, better: "higher" },
+    { label: "Auto", values: rows.map((e) => e.auto), max: scale.opr_auto, better: "higher" },
+    { label: "TeleOp", values: rows.map((e) => e.teleop), max: scale.opr_teleop, better: "higher" },
+    { label: "Endgame", values: rows.map((e) => e.endgame), max: scale.opr_endgame, better: "higher" },
+    { label: "Rank", values: rows.map((e) => e.rank), show: (v, i) => (v == null ? "–" : `#${v}${rows[i].of ? ` of ${rows[i].of}` : ""}`), gap: (d) => `${Math.abs(d)} place${Math.abs(d) === 1 ? "" : "s"}`, better: "lower" },
+    { label: "Record", values: recs.map(winShare), show: (_, i) => recText(recs[i]), gap: () => "", better: "higher" },
+  ], S);
+  const crow = block.kind === "compare" ? block.rows : [];
+  const ranks = rows.map((e, i) => `${teams[i].number} ${e.rank != null ? `#${e.rank}` : "unranked"} (${recText(recs[i])})`);
+  // Different divisions of one championship: the part of their names they share ("Romania Championship").
+  const name = pa.primary.code === pb.primary.code ? pa.name : sharedName(pa.primary.name, pb.primary.name) ?? pa.name;
+  return {
+    ...base, title: `${a.number} vs ${b.number} at ${name}`, scope: [name, seasonLabel(S)],
+    headline: crow[0] && rows.some((e) => e.opr != null) ? leadHeadline(teams, crow[0], [...ranks, decidedText(crow)], eventHref(S, pa.primary.code)) : { value: ranks.join(" · "), label: `No OPR at ${name} on record` },
+    blocks: [block, { kind: "links", title: "Try it", items: [{ label: `${a.number} and ${b.number} matches together there`, href: `/search?q=${encodeURIComponent(`${a.number} and ${b.number} matches together at ${s.at ?? (s.championship ? "worlds" : "states")}`)}` }] }],
+  };
 }
 
 /** A venue the words name ("river dell high", "river dell high schook"), among the venues of either team's events:

@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.4.3 — 2026-11-06
+
+Two teams compared at an event show each team's numbers there.
+
+### Highlights
+- [teams] "12345 vs 67890 at an event" compares the two teams' numbers there
+- [teams] OPR, rank and record at the event, side by side
+- [fixes] When only one of them was there, the card says which
+
+### Search
+- **Two teams at an event, side by side.** A comparison with an event named ("7149 vs 23268 at nj championship 2025-26", their Worlds, their states) answers with each team's row there: OPR at the event and by phase, qualification rank and record (a championship's division and finals as one), the leader as the headline. When only one of them played it, or each played a different event the words name, the card says so and offers each team's own results. A comparison with no event keeps Compare's card. (#000)
+
 ## 3.4.2 — 2026-11-06
 
 Highlights as a grid of match videos; a team's card plays the team's own match.

@@ -170,6 +170,17 @@ describe("one question, any phrasing, any team", () => {
       expect(s.headline?.value, q).toBe("2");
     }
   });
+  it("two teams compared at an event: each one's numbers there, any order, by number or name", async () => {
+    for (const q of ["4215 vs 6980 at garden qualifier", "bad wolf vs hypnotic robotics at the garden qualifier", "24033 vs delta force at romania championship"]) {
+      const s = await stat(q);
+      expect(s, q).toMatchObject({ family: "two-team", intent: "compare", title: expect.stringMatching(/ at (Garden Qualifier|Romania Championship)$/) });
+      const rows = s.blocks.find((b) => b.kind === "compare");
+      expect(rows && rows.kind === "compare" ? rows.rows.map((r) => r.label) : [], q).toEqual(expect.arrayContaining(["OPR", "Rank", "Record"]));
+      expect(s.headline?.value, q).toBeTruthy();
+    }
+    // One of them wasn't there: said, never the other event's numbers.
+    expect((await stat("4215 vs 10809 at golden qualifier")).none).toMatch(/^Hypnotic Robotics \(4215\) has no matches at Golden Qualifier/);
+  });
   it("a name typed nearly right offers the spelling, whatever stood between its words", async () => {
     const a = await ask("hypnotc-robotics highest score");
     expect(a.stat?.team?.number).toBe(4215);
