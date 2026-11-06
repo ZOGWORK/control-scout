@@ -29,8 +29,11 @@ const SHOWN_MAX = 8;
 type Slots = { t?: number; u?: number; event?: string; place?: string; when?: string; award?: string };
 type Template = { family: Family; ask: (s: Required<Slots>) => string; needs: (keyof Slots)[]; when?: boolean };
 const T = (family: Family, needs: (keyof Slots)[], ask: Template["ask"], when = false): Template => ({ family, needs, ask, when });
-/** " in <time>" when the query said one and the question is about one season. */
-const IN = (s: Slots) => (s.when ? ` in ${s.when}` : "");
+/** The words a time is typed with that already say how it's placed ("in <season>", "last season", "this year"). */
+const PLACED = /^(?:in|during|for|from|at|of|this|last|next|the|current|previous|past)\b/i;
+/** " in <time>" when the query said one and the question is about one season: "in" only when the time typed doesn't
+ *  already say how it's placed ("… in <season>", "… last season"). */
+const IN = (s: Slots) => (!s.when ? "" : PLACED.test(s.when) ? ` ${s.when}` : ` in ${s.when}`);
 
 // In the order they're offered: the questions nearest a search about a team first (its numbers, record and rating),
 // then its awards, matches and events. Each says the time the query said, when it's a season's question.
@@ -104,8 +107,7 @@ export function candidates(p: Parsed, a: SearchAnswer): { q: string; family: Fam
   const s: Slots = {
     t: teams[0] ?? answerTeam(a), u: teams[1], event, place: p.place?.name,
     // A season said (a year, a season's two years): a window ("this week") or every season is no season's question.
-    // Its own words without the preposition typed before them: the questions put "in" back, once.
-    when: p.time?.kind === "season" ? p.time.typed.replace(/^(?:(?:in|during|for|from|of|the)\s+)+/i, "") || undefined : undefined,
+    when: p.time?.kind === "season" ? p.time.typed : undefined,
     award: p.award ?? undefined,
   };
   // An event's time is the event's ("<event> <year>"), never a season of the team's questions.

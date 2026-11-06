@@ -83,6 +83,9 @@ describe("people also ask", () => {
     const q = "4215 record in 2025-26";
     const qs = candidates(await parseQuery(q, await parseContext()), await pageAnswer(q, 25, new Set())).map((x) => x.q);
     expect(qs).toContain("What is 4215's OPR in 2025-26?");
+    const last = candidates(await parseQuery("4215 record last season", await parseContext()), await pageAnswer("4215 record last season", 25, new Set())).map((x) => x.q);
+    expect(last).toContain("What is 4215's OPR last season?");
+    expect(last.filter((x) => /\bin (?:last|this)\b/i.test(x))).toEqual([]);
     expect(qs.filter((x) => /\bin in\b/i.test(x))).toEqual([]);
   });
 
