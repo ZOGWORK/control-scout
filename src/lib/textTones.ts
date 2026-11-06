@@ -14,11 +14,12 @@ export const EVENT_STATUS_TONE = {
 /** Event status at full strength, where status is what a block is about (search's championship tree,
  *  components/search/page/EventTree.tsx): a solid chip (`chip`, white on a deep fill, AA), the block's thick bar and the
  *  dot on its divisions count (`bar`), the tree's connector and nodes (`line`, `tick`), and a node's tinted icon
- *  chip (`tint`, `icon`, a graphic: 3:1). Same hues as EVENT_STATUS_TONE. */
+ *  chip (`tint`, `icon`, a graphic: 3:1). The status families of search's palette (SEARCH_PALETTE live, upcoming,
+ *  finished: rose, cyan, lime), so a status never shares a colour with a phase, a team or an award on a search card. */
 export const EVENT_STATUS_SOLID = {
-  live: { chip: "bg-red-700 text-white", bar: "bg-red-600", line: "border-red-600", tick: "before:bg-red-600", tint: "bg-red-600/12", icon: "text-red-700 dark:text-red-400" },
-  upcoming: { chip: "bg-sky-700 text-white", bar: "bg-sky-600", line: "border-sky-600", tick: "before:bg-sky-600", tint: "bg-sky-600/12", icon: "text-sky-700 dark:text-sky-400" },
-  finished: { chip: "bg-emerald-700 text-white", bar: "bg-emerald-600", line: "border-emerald-600", tick: "before:bg-emerald-600", tint: "bg-emerald-600/12", icon: "text-emerald-700 dark:text-emerald-400" },
+  live: { chip: "bg-rose-700 text-white", bar: "bg-rose-600", line: "border-rose-600", tick: "before:bg-rose-600", tint: "bg-rose-600/12", icon: "text-rose-700 dark:text-rose-400" },
+  upcoming: { chip: "bg-cyan-700 text-white", bar: "bg-cyan-700 dark:bg-cyan-500", line: "border-cyan-700 dark:border-cyan-500", tick: "before:bg-cyan-700 dark:before:bg-cyan-500", tint: "bg-cyan-600/12", icon: "text-cyan-700 dark:text-cyan-400" },
+  finished: { chip: "bg-lime-700 text-white", bar: "bg-lime-700 dark:bg-lime-500", line: "border-lime-700 dark:border-lime-500", tick: "before:bg-lime-700 dark:before:bg-lime-500", tint: "bg-lime-600/12", icon: "text-lime-700 dark:text-lime-400" },
 } as const;
 
 /** Video and recordings (Has a recording, Clips, a match's Watch chip): the one video red, as text or on its own tint. */
@@ -62,10 +63,60 @@ export const CHART_LEGEND_TEXT = "[&_.recharts-legend-item-text]:!text-foregroun
 export const TEAM_FILL = ["bg-team-a", "bg-team-b", "bg-team-c"] as const;
 export const teamFill = (i: number) => TEAM_FILL[i] ?? "bg-foreground/50";
 
-/** A place's chip in search lists (rank pills, the leaderboard's top three, match boxes): neutral, bold, no hue (hue
- *  means team only); the medal icon beside it says podium. */
+/** A place's chip in search lists (rank pills, the leaderboard's top three, match boxes): filled in the team hue, the
+ *  medal icon beside it saying podium (never gold: yellow is ranking points'). */
 export const PODIUM_CHIP: Record<number, string> = {
-  1: "bg-muted text-foreground ring-1 ring-border",
-  2: "bg-muted text-foreground ring-1 ring-border",
-  3: "bg-muted text-foreground ring-1 ring-border",
+  1: "bg-team-a text-background",
+  2: "bg-team-a text-background",
+  3: "bg-team-a text-background",
 };
+
+/** Search answers' one palette (the owner's brief, 11-06: colour is the first signal, exaggerated, the same meaning the
+ *  same colour on every card, no two meanings sharing a hue). Each meaning has its own Tailwind family and:
+ *  `fill` a saturated chip or tile head with text on it (white, or black on yellow), `text` the colour as text on the
+ *  card (a deep shade on Light, a bright one on dark themes), `bar` a graphic fill, `edge` a thick left bar's colour,
+ *  `tint` a pale wash behind a tile. textTones.test.ts holds every fill and text to 4.5:1 in every theme and every
+ *  family to one meaning. Teams keep their own tokens (team A, B, C: --color-team-*). RP is the only yellow, and only
+ *  as a fill, its text a black-on-yellow chip (no light yellow text on dark). */
+// Literal class names (Tailwind only generates classes it can see written out).
+export const SEARCH_PALETTE = {
+  // Scoring phases.
+  auto: { family: "blue", label: "Auto", fill: "bg-blue-600 text-white", text: "text-blue-700 dark:text-blue-400", bar: "bg-blue-600 dark:bg-blue-500", edge: "border-l-blue-600 dark:border-l-blue-500", tint: "bg-blue-500/10", stroke: "stroke-blue-600 dark:stroke-blue-500" },
+  teleop: { family: "emerald", label: "TeleOp", fill: "bg-emerald-700 text-white", text: "text-emerald-700 dark:text-emerald-400", bar: "bg-emerald-700 dark:bg-emerald-500", edge: "border-l-emerald-700 dark:border-l-emerald-500", tint: "bg-emerald-500/10", stroke: "stroke-emerald-700 dark:stroke-emerald-500" },
+  endgame: { family: "violet", label: "Endgame", fill: "bg-violet-600 text-white", text: "text-violet-700 dark:text-violet-400", bar: "bg-violet-600 dark:bg-violet-500", edge: "border-l-violet-600 dark:border-l-violet-500", tint: "bg-violet-500/10", stroke: "stroke-violet-600 dark:stroke-violet-500" },
+  pen: { family: "red", label: "Penalties", fill: "bg-red-700 text-white", text: "text-red-700 dark:text-red-400", bar: "bg-red-700 dark:bg-red-500", edge: "border-l-red-700 dark:border-l-red-500", tint: "bg-red-500/10", stroke: "stroke-red-700 dark:stroke-red-500" },
+  rp: { family: "yellow", label: "Ranking points", fill: "bg-yellow-400 text-black", text: "rounded bg-yellow-400 px-1 text-black", bar: "bg-yellow-700 dark:bg-yellow-400", edge: "border-l-yellow-700 dark:border-l-yellow-400", tint: "bg-yellow-500/10", stroke: "stroke-yellow-700 dark:stroke-yellow-400" },
+  // Awards: the Inspire, the alliances' places, the other judged and performance awards.
+  inspire: { family: "fuchsia", label: "Inspire", fill: "bg-fuchsia-700 text-white", text: "text-fuchsia-700 dark:text-fuchsia-400", bar: "bg-fuchsia-700 dark:bg-fuchsia-500", edge: "border-l-fuchsia-700 dark:border-l-fuchsia-500", tint: "bg-fuchsia-500/10", stroke: "stroke-fuchsia-700 dark:stroke-fuchsia-500" },
+  winning: { family: "orange", label: "Winning Alliance", fill: "bg-orange-700 text-white", text: "text-orange-700 dark:text-orange-400", bar: "bg-orange-700 dark:bg-orange-500", edge: "border-l-orange-700 dark:border-l-orange-500", tint: "bg-orange-500/10", stroke: "stroke-orange-700 dark:stroke-orange-500" },
+  finalist: { family: "pink", label: "Finalist Alliance", fill: "bg-pink-700 text-white", text: "text-pink-700 dark:text-pink-400", bar: "bg-pink-700 dark:bg-pink-500", edge: "border-l-pink-700 dark:border-l-pink-500", tint: "bg-pink-500/10", stroke: "stroke-pink-700 dark:stroke-pink-500" },
+  judged: { family: "teal", label: "Judged award", fill: "bg-teal-700 text-white", text: "text-teal-700 dark:text-teal-400", bar: "bg-teal-700 dark:bg-teal-500", edge: "border-l-teal-700 dark:border-l-teal-500", tint: "bg-teal-500/10", stroke: "stroke-teal-700 dark:stroke-teal-500" },
+  performance: { family: "indigo", label: "Performance award", fill: "bg-indigo-600 text-white", text: "text-indigo-700 dark:text-indigo-400", bar: "bg-indigo-600 dark:bg-indigo-500", edge: "border-l-indigo-600 dark:border-l-indigo-500", tint: "bg-indigo-500/10", stroke: "stroke-indigo-600 dark:stroke-indigo-500" },
+  // An event's status.
+  live: { family: "rose", label: "Live", fill: "bg-rose-700 text-white", text: "text-rose-700 dark:text-rose-400", bar: "bg-rose-700 dark:bg-rose-500", edge: "border-l-rose-700 dark:border-l-rose-500", tint: "bg-rose-500/10", stroke: "stroke-rose-700 dark:stroke-rose-500" },
+  upcoming: { family: "cyan", label: "Upcoming", fill: "bg-cyan-700 text-white", text: "text-cyan-700 dark:text-cyan-400", bar: "bg-cyan-700 dark:bg-cyan-500", edge: "border-l-cyan-700 dark:border-l-cyan-500", tint: "bg-cyan-500/10", stroke: "stroke-cyan-700 dark:stroke-cyan-500" },
+  finished: { family: "lime", label: "Finished", fill: "bg-lime-700 text-white", text: "text-lime-700 dark:text-lime-400", bar: "bg-lime-700 dark:bg-lime-500", edge: "border-l-lime-700 dark:border-l-lime-500", tint: "bg-lime-500/10", stroke: "stroke-lime-700 dark:stroke-lime-500" },
+} as const;
+export type Meaning = keyof typeof SEARCH_PALETTE;
+
+/** The meaning a label names, read the same way on every card: a phase ("Auto", "TeleOp + end", "Pen given", "Avg
+ *  RP"), an award ("Inspire Award 2nd Place", "1st place (Winning Alliance)", "Think"), a status. Null: none (the
+ *  card's team hue then). */
+export function meaningOf(label: string): Meaning | null {
+  const l = label.toLowerCase();
+  if (/inspire/.test(l)) return "inspire";
+  if (/winning alliance|winner/.test(l)) return "winning";
+  if (/finalist/.test(l)) return "finalist";
+  if (/\b(think|connect|innovate|design|motivate|control|reach|sustain|judges|dean|compass|promote|team spirit)\b/.test(l)) return "judged";
+  if (/\bjudged\b/.test(l)) return "judged";
+  if (/\bperformance\b/.test(l)) return "performance";
+  if (/\bauto(nomous)?\b/.test(l)) return "auto";
+  if (/teleop|driver/.test(l)) return "teleop";
+  if (/endgame/.test(l)) return "endgame";
+  if (/\bpen(alt(y|ies))?\b|\bpen\.|fouls?/.test(l) && !/\b(without|before|no|excluding)\s+pen/.test(l)) return "pen";
+  if (/\brp\b|ranking points?/.test(l)) return "rp";
+  if (/^live\b/.test(l)) return "live";
+  if (/^upcoming\b/.test(l)) return "upcoming";
+  if (/^(finished|final|done)\b/.test(l)) return "finished";
+  return null;
+}
