@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.4.9 — 2026-11-06
+
+"What events are happening right now?" and "number of teams in …" are answered however they're asked.
+
+### Highlights
+- [live] "Events happening now", "going on right now" or "live" lists today's events
+- [live] "Events taking place this week" lists this week's events
+- [teams] "Number of teams in …" and "total number of teams" count like "how many"
+
+### Search
+- **Events and time words, said more ways.** "Happening now", "going on now", "on right now", "live now", "live" and "currently" read as today; "taking place", "being held", "running" and "scheduled" are read as part of an events question, never as a name. "Number of", "count of", "total number of" and "what's the total" count like "how many". (#PR)
+
 ## 3.4.8 — 2026-11-06
 
 A question that names its season and also says "this season" is answered for the season it named.
