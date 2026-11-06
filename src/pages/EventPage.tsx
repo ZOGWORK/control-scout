@@ -739,7 +739,7 @@ function Playoffs({ d }: { d: EventDetail }) {
         </div>
         {bracket && <BracketAccuracyNote />}
       </div>
-      {bracket ? <BracketSeries bracket={bracket} bySeries={bySeries} /> : <LegacyBracket d={d} bySeries={bySeries} />}
+      {bracket ? <BracketSeries bracket={bracket} bySeries={bySeries} roster={new Map(al.map((a) => [a.number, [a.captain, a.pick1, a.pick2, a.backup].filter((t): t is number => t != null)]))} /> : <LegacyBracket d={d} bySeries={bySeries} />}
       <MatchList matches={playoff} empty="No playoff matches yet." />
     </div>
   );
