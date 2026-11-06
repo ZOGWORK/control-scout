@@ -11,7 +11,7 @@ import type { AnswerTeam } from "./families/matches.js";
 import { dateRange, seasonLabel } from "../../../src/shared/format.js";
 import { edits, findRegions, regionLabel } from "../../../src/shared/regions.js";
 import { eventTypeLabel } from "../../../src/shared/labels.js";
-import { CURRENT_SEASON } from "../../data/seasons.js";
+import { CURRENT_SEASON, SEASON_NUMBERS } from "../../data/seasons.js";
 import { searchSeason, searchSeasonWhy } from "./season.js";
 import { teamNameOf } from "../../../src/shared/teamTitle.js";
 import { teamPageSql } from "../../../src/shared/teamPages.js";
@@ -660,6 +660,24 @@ async function namedEvent(it: StatQuestion, season: number | null) {
   return it.scope.states ? null : findEvent(it.core, season);
 }
 
+/** The event the words name in the latest season, `from` down, where it has a result (a played playoff match or a
+ *  posted award, its own or a division's): with no season said, or "this year" before this season's is held. Never an older one only because
+ *  its name fits the words better (owner: "who won nj turnpike division this year" read the 2022–23 division). */
+async function latestWithResult(it: StatQuestion, from: number) {
+  for (const s of [...SEASON_NUMBERS].filter((x) => x <= from).sort((a, b) => b - a)) {
+    const e = await namedEvent(it, s);
+    if (!e || Number(e.season) !== s) continue;
+    const done = await get<{ x: number }>(
+      // The event's own, or a division's when it's a championship split in divisions (as winnersAnswer reads them).
+      `SELECT 1 x WHERE EXISTS (SELECT 1 FROM matches m WHERE m.season = ? AND m.level = 'playoff' AND m.played = 1
+         AND (m.code = ? OR m.code IN (SELECT d.code FROM events d WHERE d.season = ? AND d.division_code = ?)))
+       OR EXISTS (SELECT 1 FROM awards a WHERE a.season = ? AND (a.code = ? OR a.code IN (SELECT d.code FROM events d WHERE d.season = ? AND d.division_code = ?)))`,
+      [s, e.code, s, e.code, s, e.code, s, e.code]);
+    if (done) return e;
+  }
+  return null;
+}
+
 /** "winning alliance at 12345's last event": the team's latest event with a match it played (a division, when it played
  *  in one), in the season asked for when one is, or null when `words` aren't a team and "last event". */
 async function teamsLastEvent(words: string, season: number | null) {
@@ -679,11 +697,25 @@ async function winnersSearch(q: string, it: StatQuestion, opts: { full: boolean;
   // As the asks' "who won" reads them: a bare year is when the event was held ("who won 2025 nj states": 2024–25),
   // "last year" the latest finished championship.
   const asked = it.scope.lastYear ? null : it.scope.latest && it.scope.season == null ? CURRENT_SEASON : it.scope.year && it.scope.season != null ? it.scope.season - 1 : it.scope.season;
-  const named = championship ? null : (await teamsLastEvent(core, asked)) ?? await namedEvent(it, asked);
+  // No season said: the latest one held with a result; a season said is that season's, whatever fits better elsewhere.
+  const unsaid = asked == null && !it.scope.lastYear;
+  let named = championship ? null : (await teamsLastEvent(core, asked)) ?? (unsaid ? (await latestWithResult(it, CURRENT_SEASON)) ?? await namedEvent(it, null) : await namedEvent(it, asked));
+  // "This year" naming an event not on this season's calendar yet (a division FIRST hasn't set up): its latest one, said so.
+  let before = !championship && !named && it.scope.latest && it.scope.season == null ? asked : null;
+  if (before != null) {
+    named = (await latestWithResult(it, before - 1)) ?? await namedEvent(it, null);
+    // On this season's calendar, not held yet (the same event, or a place's states of the same type there): that event,
+    // whose answer says it isn't decided, never "no event on record".
+    const scheduled = named ? await get<any>(
+      `SELECT e.season, e.code, e.name, e.type, e.start, e.end, e.division_code division FROM events e JOIN events n ON n.season = ? AND n.code = ?
+       WHERE e.season = ? AND (e.code = n.code OR (? AND e.type = n.type AND e.state IS n.state AND e.country IS n.country AND e.division_code IS NULL))
+       ORDER BY e.code = n.code DESC, length(e.code), e.code LIMIT 1`, [named.season, named.code, before, it.scope.states ? 1 : 0]) : null;
+    if (scheduled) { named = scheduled; before = null; }
+  }
   if (!championship && !named) return null;
   // A winner word alone ("east bergen conference winner") answers only for an event its words name outright.
   if (it.bare && named && eventFit(core, named.name) < 0.75) return null;
-  const stat = opts.full ? await winnersAnswer(core, named?.season ?? asked, championship, async () => named, { latest: it.scope.latest, lastYear: it.scope.lastYear }) : null;
+  const stat = opts.full ? await winnersAnswer(core, named?.season ?? asked, championship, async () => named, { latest: it.scope.latest, lastYear: it.scope.lastYear, ...(before != null ? { before } : {}) }) : null;
   if (opts.full && !stat) return null;
   const season = named?.season ?? asked;
   const label = named ? `${shortEvent(named.name, named.type)} · Winning alliance` : `${season != null ? `${seasonLabel(season)} ` : ""}FIRST Championship · Winning alliances`;

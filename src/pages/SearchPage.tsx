@@ -46,6 +46,7 @@ import { useTitle, useMeta, useCurrentSeason, useMediaQuery } from "../lib/meta"
 import { useApi, qs } from "../lib/api";
 import { cn } from "../components/cn";
 import { Verdict } from "../components/search/page/Verdict";
+import { PeopleAlsoAsk } from "../components/search/page/PeopleAlsoAsk";
 
 const RESULT_KINDS = new Set(["place", "team", "event", "match"]);
 
@@ -259,6 +260,8 @@ export default function SearchPage() {
                     : answer?.card && <FactCard card={answer.card} heading={title ?? undefined} season={hits.find((h) => h.kind === "team" && !isCompare(h) && Number(h.ref) === answer.card!.team?.number)?.linkSeason} />}
                   {/* A match or event searched by name (no answer card): its video above the results (./search/page/AnswerVideo.tsx). */}
                   {!answer?.stat && !answer?.card && <AnswerVideo className="mb-5 mt-0 max-sm:mx-0" />}
+                  {/* The next questions search answers directly, under the answer (./search/page/PeopleAlsoAsk.tsx). */}
+                  <PeopleAlsoAsk q={query} prefer={prefer} ready={!busy && !stale} />
                   {!!compares.length && (
                     <section aria-label="Compare" className="mb-5" data-section="compare">
                       <h2 className="mb-1.5 text-xs font-semibold text-muted-foreground">Compare</h2>
@@ -298,8 +301,11 @@ export default function SearchPage() {
         </>
       )}
       </div>
-      <p className="mt-10 border-t border-border pt-4 text-sm text-muted-foreground max-md:mb-20">
-        <Link to="/how-it-works/search" className="inline-flex items-center font-medium text-foreground underline-offset-2 hover:underline max-md:min-h-[44px] pointer-coarse:min-h-[44px]">How FTC One Search works</Link>
+      {/* One line, never a heading over nothing (owner: it read as an empty section); room under it for the phone's
+          Compare bar only while the bar is up, since the page already clears the tab bar. */}
+      <p className={`mt-8 text-sm text-muted-foreground ${phone && picks.length ? "mb-20" : ""}`}>
+        What you can ask, and how it's read:{" "}
+        <Link to="/how-it-works/search" className="inline-flex items-center font-medium text-foreground underline underline-offset-2 max-md:min-h-[44px] pointer-coarse:min-h-[44px]">How FTC One Search works</Link>
       </p>
     </div>
   );

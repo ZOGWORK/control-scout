@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.6.9 — 2026-11-06
+## 3.7.3 — 2026-11-06
 
 An event can be searched by its initials: "MTI highlights" finds the Multinational Tech Invitational, and an event held only in past seasons is read in its latest one.
 
@@ -28,6 +28,66 @@ An event can be searched by its initials: "MTI highlights" finds the Multination
 - **Events by their initials.** Each event is found by its initials, the first letters of its name's main words ("MTI" for Multinational Tech Invitational, skipping "of", "the" and "and"), and by a short form its name gives in brackets. A name typed in full still comes first, a team named the same is the team's, and when several events share the initials the latest one held is chosen (then the one with the most teams) and named in the answer.
 - **A past event, no season said.** An event named with no season, held only in past seasons, is read in its latest season ("Multinational Tech Invitational highlights" is its 2025–26 highlights), for highlights, recaps, winners and results.
 - **An off-season event's highlights.** Highlights and match videos of an off-season event named are its own matches; one with no video says "No recording for this event — stats only." (#1006)
+
+## 3.7.2 — 2026-11-06
+
+A word typed in the plural, or with a slip in it, is the same question as the word itself: "4215 upcoming events" and "4215 upcoming evntd" answer like "4215 upcoming event".
+
+### Highlights
+- [fixes] "Upcoming events" and "upcoming event" give the same answer
+- [fixes] A slip in a search word is corrected and answered ("evntd")
+- [teams] A team's upcoming events are all listed, the next first
+- [live] "Events happening rn", "tmrw" and "this wknd" read as the words in full
+
+### Search
+- **One question in either number.** A search word typed in the plural or the singular ("events", "oprs", "ratings", "predictions", "wins", "seasons") is the same question. A query that reads nothing in the number typed is read again in the other one, and keeps the answer only when that reading answers more. A word naming an event ("states", "worlds", "championship") keeps its number, and a team's or an event's name is never changed.
+- **Slips in search words.** A search word (an intent word, never a name) typed with one slip onto a neighbouring key besides one other edit ("evntd" for "events") is corrected, with "Did you mean". Swapped letters ("raitngs") and plurals of search words ("rakns" for "ranks") are corrected too. Place names are known words, so "Texas" is never "teams".
+- **A team's upcoming events.** "12345 upcoming events" lists every upcoming event the team is registered for, the next first, titled "Upcoming events" when there are several.
+- **Short forms.** Informal short forms are read as the words in full before anything else: "rn" and "atm" (right now), "tdy" (today), "tmrw" (tomorrow), "yday" (yesterday), "wknd" (weekend), "nxt wk" (next week), "lst wk" (last week), "szn" (season), "ur" and "u". Only a standalone word is read so, never a word of a team's or an event's name, and the query stays as typed.
+- **"States" for any place.** "<place> states" is that place's championship for every question ("nyc states highlights", "romania states results"), even where the championship isn't named a state championship. (#973)
+
+## 3.7.1 — 2026-11-06
+
+Under a search's answer, "People also ask": the next questions search answers directly, each opening to its answer's line and a link that runs it.
+
+### Highlights
+- [home] "People also ask" under a search's answer
+- [home] Each question opens to its answer, numbers included
+- [fixes] Only questions search answers directly are asked
+
+### Search
+- **People also ask.** Under the answer, up to six questions about the same team, event, place or season ("What is its record?", "Who won the Think Award there?"), closed until tapped. Each opens to one line from that question's own answer and "See the full answer", which runs it as a search.
+- **Never a dead end.** Every question is run as a search before it's shown, and only one with a direct answer is asked: never one that would say sorry, guess or list names. The questions come from what the search read, never from a list of teams or events. (#1002)
+
+## 3.7.0 — 2026-11-06
+
+"Who won <event> this year" is this season's event again, or the latest one held with a result, never an older one whose name fits the words better.
+
+### Highlights
+- [fixes] "Who won nj turnpike division this year" is this season's again
+- [fixes] With no season said, the latest event held with a result answers
+- [fixes] An older season answers only when it's asked for
+
+### Search
+- **The season asked, then the latest held.** "Who won <event> this year" (or "this season") is that season's event; before it's held, the latest season whose event has a result (a played playoff match or a posted award), said so. With no season said, the latest event held with a result answers. An older season answers only when it's asked for ("2022-23"), never because its name fits the words better. (#1007)
+
+## 3.6.9 — 2026-11-06
+
+"Who won <event>" leads with the playoff champions, for a division too, where FIRST posts no awards of its own.
+
+### Highlights
+- [fixes] "Who won" a division shows its playoff champions, never "no results"
+- [teams] The champions are team chips in the colour they played the final in
+- [fixes] "This year" before the event is held shows last season's, said so
+- [fixes] "<Event> inspire award winner", in any word order, names the winner
+
+### Search
+- **Who won an event.** "Who won", "winner of", "champions of" and "who took" an event lead with its playoff champions, the alliance that won its final, as team chips in the colour they played it in, the same champions as its Playoffs tab. A division's awards are posted on its championship, so its answer lists the championship's awards below; "no results yet" is said only when there's neither a playoff result nor an award.
+- **A championship and its divisions.** A championship's answer leads with its finals' champions, then each division's winners and its Inspire Award.
+- **"This year" before it's held.** "Who won <event> this year" before this season's event is decided (or set up) says so, then shows its latest finished season's winners, labelled.
+- **An event's award, asked any way round.** "East Bergen conference inspire award winner", "inspire winner at …", "who got inspire at …" and "<event> inspire" all name the award's winner, for every judged award, Judges' Choice and Dean's List. A recurring event shows its latest one with the award given, its season said, and a newer one not held yet said too.
+- **Suggestions that answer.** "Sorry, I can't answer that yet" offers a search only after running it and finding an answer.
+- **No empty space on phones.** The space under "How FTC One Search works" on a results page is kept only while the Compare bar is up. (#928)
 
 ## 3.6.8 — 2026-11-06
 

@@ -5,7 +5,7 @@ import type { ConfidenceTier, Factor, FactorSheet, Forecast, Partners, TeamStren
 
 export type { ConfidenceTier, Factor, Forecast, Partners, TeamStrength };
 import type { BracketOdds } from "./bracketOdds";
-import type { StatAnswer } from "./searchStat";
+import type { StatAnswer, StatLink } from "./searchStat";
 import type { TeamTable } from "./teamTable";
 export type { BracketOdds, BracketSeriesView, BracketAllianceOdds, BracketSlotView } from "./bracketOdds";
 
@@ -202,6 +202,26 @@ export interface SearchVideo {
   mainRow?: string;
 }
 
+/** A next question after a search (server/api/answers/followUps.ts, GET /api/search/follow): one search answers
+ *  directly, with a line from its answer. `family`: what it's about, the related searches page's groups. */
+export interface SearchFollowUp {
+  q: string;
+  family: "team" | "compare" | "events" | "awards" | "predict";
+  /** The line, whole ("26-6-0 · 81% win rate in 32 matches"): `value` and then `rest`. */
+  preview: string;
+  value: string;
+  rest: string;
+  /** What `value` is, so the page colours it as its answer's own card does. */
+  tone: FollowUpTone;
+}
+/** A follow-up's number: a stat answer's headline (its intent, family, alliances split and teams, as StatAnswer has
+ *  them), a card's first line (its kind), a yes or a no, or a count of events. */
+export type FollowUpTone =
+  | { stat: Pick<StatAnswer, "intent" | "family" | "split"> & { teams: number[] } }
+  | { card: SearchCard["kind"] }
+  | { verdict: "Yes" | "No" }
+  | { count: true };
+
 /** A question's answer (server/api/searchQuestions.ts): each line a real record, linked to where it's shown. */
 export interface SearchCard {
   kind: "worlds" | "states" | "wins" | "awards" | "next-event" | "next-match" | "high-scores" | "rule" | "leaderboard" | "event-awards" | "info";
@@ -240,7 +260,11 @@ export interface SearchCard {
   award?: string;
   /** Every award the event gave, in the event page's order (its Awards tab), so the answer lists them all. */
   awards?: SearchCardAward[];
+  /** "Who won <event>": its playoff champions by the winning-alliance rule (server/api/answers/families/winners.ts),
+   *  the event's own first, then each division's; `alliance`, the colour they played their final in. */
+  champions?: SearchCardChampion[];
 }
+export interface SearchCardChampion { label: string; href: string; teams: StatLink[]; alliance?: "red" | "blue"; number?: number }
 /** One award an event gave, as its Awards tab lists it: `name` as FIRST names it ("Inspire Award 2nd Place"). */
 export interface SearchCardAward { type: string; placement: number; team: number; teamName: string | null; name: string | null }
 /** One listing fact: its name, its values exactly as FIRST lists them (none: not in the listing), and a note. */

@@ -617,7 +617,8 @@ async function searchMeta(raw: string): Promise<PageMeta> {
   const kpis = s?.blocks.flatMap((b) => (b.kind === "kpis" ? b.items : [])) ?? [];
   const stat = s ? `<section aria-label="${esc(s.title)}"><h2>${esc(s.title)}</h2>`
     + (s.none ? `<p>${esc(s.none)}</p>` : "")
-    + (s.headline ? `<p><b>${linked(s.headline.value, s.headline.href)}</b> · ${esc(s.headline.label)}${s.headline.sub ? `<br><small>${esc(s.headline.sub)}</small>` : ""}</p>` : "")
+    // Its teams as chips on the page (an alliance's): named here as links.
+    + (s.headline ? `<p><b>${linked(s.headline.value, s.headline.href)}</b> · ${esc(s.headline.label)}${s.headline.teams?.length ? `: ${s.headline.teams.map((t) => linked(t.label, t.href)).join(", ")}` : ""}${s.headline.sub ? `<br><small>${esc(s.headline.sub)}</small>` : ""}</p>` : "")
     + (kpis.length ? `<p>${kpis.map((k) => `${esc(k.label)}: <b>${linked(k.value, k.href)}</b>`).join(" · ")}</p>` : "")
     // A leaderboard's teams, every row, as the app's table has them; its "View more detail" link under it.
     + s.blocks.map((b) => (b.kind === "leaderboard" ? `<h3>${esc(b.title)}</h3><p><small>${esc(b.note)}</small></p>${teamTableHtml(teamTableOfLeaderboard(b.stat.id, b.stat.label, b.rows, b.teleopWithEndgame), b.title)}${b.more ? `<p><a href="${esc(b.more.href)}">${esc(b.more.label)}</a></p>` : ""}` : "")).join("")
