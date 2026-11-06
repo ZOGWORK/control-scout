@@ -4,7 +4,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../db";
 import { rebuildSearch } from "../stats/job";
-import { CURRENT_SEASON } from "../data/seasons";
+import { CURRENT_SEASON, gameOf } from "../data/seasons";
 import { searchAnswer } from "./searchAnswer";
 import { withEventParents } from "./searchEvents";
 import { SEARCH_PAGE_LIMIT, familyKey } from "../../src/shared/search";
@@ -70,5 +70,7 @@ describe("an event split in divisions", () => {
       { kind: "team", ref: "4215", title: "4215 Hypnotic Robotics", subtitle: "", season: S },
     ]);
     expect(hits.map((h) => h.parent)).toEqual(["USXXCMP", undefined, undefined]);
+    // Every event names its season's game, so seasons read apart by name.
+    expect(hits.map((h) => h.game)).toEqual([gameOf(S - 1), gameOf(S - 1), undefined]);
   });
 });

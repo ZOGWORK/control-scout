@@ -107,7 +107,7 @@ export function EventFamilyCard({ f, onOpen }: { f: EventFamily; onOpen: (h: Sea
   const e = eventFacts(f.finals ?? f.divisions[0]);
   const n = f.divisions.length;
   return (
-    <section aria-label={`${f.name}, ${seasonLabel(f.season)}`} data-event-family={f.key} className="rounded-xl border border-border bg-card p-4 sm:col-span-full">
+    <section aria-label={`${f.name}, ${seasonLabel(f.season)}${f.game ? ` ${f.game}` : ""}`} data-event-family={f.key} className="rounded-xl border border-border bg-card p-4 sm:col-span-full">
       <div className="flex flex-wrap items-center gap-2 text-xs">
         {e.status === "started"
           ? <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-foreground/80" data-event-chip="status">Started</span>
@@ -116,7 +116,7 @@ export function EventFamilyCard({ f, onOpen }: { f: EventFamily; onOpen: (h: Sea
       </div>
       <Link to={familyHref(f)} className="mt-2 block font-medium leading-snug text-foreground hover:underline max-md:min-h-[44px] max-md:content-center" data-family-link>{f.name}</Link>
       <p className="mt-1 text-sm text-muted-foreground">
-        {seasonLabel(f.season)} season · {e.start ? `held ${dateRange(e.start, e.end)}` : "date to be announced"}{e.place ? ` · ${e.place}` : ""}
+        {seasonLabel(f.season)}{f.game ? ` ${f.game}` : ""} season · {e.start ? `held ${dateRange(e.start, e.end)}` : "date to be announced"}{e.place ? ` · ${e.place}` : ""}
       </p>
       {e.venue && <p className="mt-0.5 flex items-start gap-1.5 text-xs text-muted-foreground"><MapPin className="mt-px size-3.5 shrink-0" aria-hidden /><span className="min-w-0 break-words">{e.venue}</span></p>}
       <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3" data-family-members>

@@ -433,7 +433,7 @@ describe("search results page, Phase 2 cards", () => {
 
   it("an event's divisions under it, one family a season; the season filter leaves one, and the heading says which", () => {
     const fam = (season: number, divs: string[]) => [ev("FTCCMP1", "FIRST Championship - FIRST Tech Challenge", `${season + 1}-04-20`, season),
-      ...divs.map((d) => ({ ...ev(`FTCCMP1${d.slice(0, 4).toUpperCase()}`, `FIRST Championship - FIRST Tech Challenge - ${d} Division`, `${season + 1}-04-20`, season), parent: "FTCCMP1" }))];
+      ...divs.map((d) => ({ ...ev(`FTCCMP1${d.slice(0, 4).toUpperCase()}`, `FIRST Championship - FIRST Tech Challenge - ${d} Division`, `${season + 1}-04-20`, season), parent: "FTCCMP1" }))].map((h) => ({ ...h, game: season === 2025 ? "DECODE" : "INTO THE DEEP" }));
     const hits = [...fam(2025, ["Edison", "Franklin", "Ross"]), ...fam(2024, ["Jemison", "Ochoa"])];
     state.answer = answer(hits, { understood: { kind: "events", label: "FIRST Championship (Worlds) events, every season", scope: { subject: "FIRST Championship (Worlds) events", span: ", every season" }, total: hits.length } } as Partial<SearchAnswer>);
     const { container } = show("/search?q=first%20championship");
@@ -442,6 +442,9 @@ describe("search results page, Phase 2 cards", () => {
     expect([...families[0].querySelectorAll('[data-result="event"] > a')].map((a) => a.textContent)).toEqual(["Edison Division", "Franklin Division", "Ross Division", "Finals"]);
     expect(families[0].querySelector("[data-family-link]")!.getAttribute("href")).toBe("/events?season=2025&q=FTCCMP1");
     expect(families[0].querySelector("[data-family-count]")!.textContent).toBe("3 divisions");
+    // Seasons read apart by their game, not only their years.
+    expect(families[0].textContent).toContain("2025–26 DECODE season");
+    expect(families[1].textContent).toContain("2024–25 INTO THE DEEP season");
     expect(container.querySelector("[data-season-tabs]")).toBeNull();
     // Every event is counted once, the same on the tab and the section.
     expect(screen.getByRole("radio", { name: "All, 7 events" })).toBeTruthy();
@@ -449,6 +452,7 @@ describe("search results page, Phase 2 cards", () => {
     const again = show("/search?q=first%20championship&season=2024").container;
     expect(again.querySelectorAll("[data-event-family]")).toHaveLength(1);
     expect(again.querySelector("h1")!.textContent).toBe("FIRST Championship (Worlds) events, 2024–25");
+    expect(again.querySelector("[data-context-badge]")).toBeNull();
     expect(screen.getByRole("radio", { name: "All, 3 events" })).toBeTruthy();
   });
 

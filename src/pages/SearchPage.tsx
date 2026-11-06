@@ -128,14 +128,16 @@ export default function SearchPage() {
   // A comparison card names its teams in its own title: the heading keeps the numbers only, so each name shows once
   // (the search results guide).
   // A set of events the filters narrow says what's left ("…, 2024–25"), as the tabs and cards count it.
-  const title = found ? (answer?.stat && comparisonOf(answer.stat) ? answer.stat.title : filteredTitle(ax, filters, askedTime) ?? pageTitle(ax, hits, isQualityQuestion(query))) : null;
+  const narrowed = filteredTitle(ax, filters, askedTime);
+  const title = found ? (answer?.stat && comparisonOf(answer.stat) ? answer.stat.title : narrowed ?? pageTitle(ax, hits, isQualityQuestion(query))) : null;
   // A question card's heading names its team in bold ("Where **Hypnotic Robotics (4215)** is from").
   const strong = title && ax?.card?.team ? cardTeamName(ax.card.team) : null;
   const shownTitle = strong && title!.includes(strong)
     ? <span className="font-medium">{title!.slice(0, title!.indexOf(strong))}<strong className="font-bold" data-title-team>{strong}</strong>{title!.slice(title!.indexOf(strong) + strong.length)}</span>
     : title;
   // A comparison says what it compares in its own card: no reading badge repeating the teams.
-  const badge = !found || !ax || (answer?.stat && comparisonOf(answer.stat)) ? null : badgeUnder(title!, contextBadge({ ...ax, hits }, notes.understood));
+  // Nor does a heading the filters rewrote: the server's reading is of the whole set, which the page no longer shows.
+  const badge = !found || !ax || narrowed || (answer?.stat && comparisonOf(answer.stat)) ? null : badgeUnder(title!, contextBadge({ ...ax, hits }, notes.understood));
   const open = (h: SearchHit) => logPick(h);
   // Phase 2 summary: a championship question's records as a timeline and stats; "how good is X" as X's standing.
   const apps = useMemo(() => appearances(answer?.card), [answer?.card]);

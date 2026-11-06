@@ -7,8 +7,8 @@ import { familyKey } from "../../../shared/search";
 import { eventName } from "./records";
 
 /** One event's family in one season: the event itself (its finals, when listed) and its divisions, in the server's
- *  order. `code`: the parent event's code, `name`: its name (the finals' own, else the divisions' shared part). */
-export interface EventFamily { key: string; season: number; code: string; name: string; finals: SearchHit | null; divisions: SearchHit[] }
+ *  order. `game`: the season's game, as the server names it; `code`: the parent event's code, `name`: its name (the finals' own, else the divisions' shared part). */
+export interface EventFamily { key: string; season: number; game: string | null; code: string; name: string; finals: SearchHit | null; divisions: SearchHit[] }
 
 export type EventGroup = { kind: "family"; family: EventFamily } | { kind: "event"; hits: SearchHit[] };
 
@@ -28,7 +28,7 @@ export function eventGroups(hits: SearchHit[]): EventGroup[] {
     if (g.length >= 2 && divisions.length && g[0].season != null) {
       const finals = g.find((h) => h.parent == null) ?? null;
       const code = divisions[0].parent!;
-      out.push({ kind: "family", family: { key, season: g[0].season, code, name: finals ? finals.title : familyName(divisions[0]), finals, divisions } });
+      out.push({ kind: "family", family: { key, season: g[0].season, game: g[0].game ?? null, code, name: finals ? finals.title : familyName(divisions[0]), finals, divisions } });
       continue;
     }
     for (const h of g) {

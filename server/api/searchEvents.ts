@@ -21,7 +21,7 @@ import { seasonLabel } from "../../src/shared/format.js";
 import { wordScore, words } from "./fuzzy.js";
 import { all, get } from "../db.js";
 import { searchRead } from "./searchReads.js";
-import { CURRENT_SEASON, SEASON_NUMBERS } from "../data/seasons.js";
+import { CURRENT_SEASON, SEASON_NUMBERS, gameOf } from "../data/seasons.js";
 import { edits, type Region } from "../../src/shared/regions.js";
 
 interface Row { season: number; code: string; name: string; type: string | null; division_code?: string | null; venue: string | null; city: string | null; state: string | null; country: string | null; start: string | null; end: string | null; timezone: string | null }
@@ -112,16 +112,19 @@ export function eventHit(r: Row, now = Date.now()): SearchHit {
   return { kind: "event", ref: `${r.season}:${r.code}`, title: r.name, subtitle: [r.code, r.start, placeOf(r)].filter(Boolean).join(" · "), season: Number(r.season), event, match: "exact", ...(r.division_code ? { parent: r.division_code } : {}) };
 }
 
-/** Each event hit that is a division with its event's code (SearchHit.parent), from the events table: hits read from
- *  names (the search index) don't carry it. One read for the whole answer. */
+/** Each event hit with its season's game (SearchHit.game), and each division with its event's code (SearchHit.parent)
+ *  from the events table: hits read from names (the search index) don't carry it. One read for the whole answer. */
 export async function withEventParents(hits: SearchHit[]): Promise<SearchHit[]> {
   const ask = hits.filter((h) => h.kind === "event" && h.parent == null && h.season != null);
-  if (!ask.length) return hits;
-  const rows = await all<{ season: number; code: string; division_code: string }>(
+  const rows = ask.length ? await all<{ season: number; code: string; division_code: string }>(
     `SELECT season, code, division_code FROM events WHERE division_code IS NOT NULL AND (${ask.map(() => "(season = ? AND code = ?)").join(" OR ")})`,
-    ask.flatMap((h) => [h.season!, h.ref.split(":")[1]]));
+    ask.flatMap((h) => [h.season!, h.ref.split(":")[1]])) : [];
   const of = new Map(rows.map((r) => [`${r.season}:${r.code}`, r.division_code]));
-  return hits.map((h) => (h.kind === "event" && h.parent == null && of.has(h.ref) ? { ...h, parent: of.get(h.ref)! } : h));
+  return hits.map((h) => {
+    if (h.kind !== "event" || h.season == null) return h;
+    const parent = h.parent ?? of.get(h.ref), game = gameOf(h.season);
+    return { ...h, ...(parent ? { parent } : {}), ...(game ? { game } : {}) };
+  });
 }
 
 /** Upcoming soonest first, then past most recent first: the two never interleave (brief Requirement 9). */

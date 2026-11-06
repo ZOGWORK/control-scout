@@ -60,6 +60,8 @@ export interface SearchHit {
   /** A division's event: the code of the event it is a division of, in the same season (events.division_code). The
    *  page lists an event's divisions under it (src/shared/search.ts familyKey). Absent for any other hit. */
   parent?: string;
+  /** An event's season's game ("DECODE"), so seasons read apart by name, not only by years. Event hits only. */
+  game?: string;
   /** How the hit matched: "exact" (every word typed names it) or "fuzzy" (a typo, a part of a word, or only its
    *  school, city or venue matched). Fuzzy hits come after exact ones and are listed apart ("Other teams matching …"). */
   match?: "exact" | "fuzzy";
