@@ -22,7 +22,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 ### Highlights
 - [teams] "Has … ever been to Worlds?" answers Yes or No first
 - [teams] "Did … ever beat …?" says yes or no, with their meetings underneath
-- [teams] "Did … play at <event> in <season>?" says yes or no, with where they played instead
+- [teams] "Did … play at <event>?" says yes or no, with the events
 - [teams] "Has … ever won Inspire?" says yes or no above the awards
 
 ### Search

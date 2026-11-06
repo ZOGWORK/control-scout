@@ -18,8 +18,9 @@ import { searchSeason } from "./season.js";
 /** How a yes-or-no question opens, or "ever" anywhere in it ("4215 ever at worlds"). Never a question word first. */
 const FRAME = /^(?:has|have|had|did|does|do|was|were|is|are)\s|\bever\b/;
 const ASKS = /^(?:how|when|who|whom|what|which|where|why)\b/;
-/** The verbs around "been to", "go to", "make it to": the question's frame, never a name. */
-const VERBS = /^(?:go|goes|went|gone|get|got|make|made|it|compete|competes|competed|attend|attends|attended|appear|appeared|qualify|qualified|reach|reached|advance|advanced|been|visit|visited)$/;
+/** The verbs around "been to", "go to", "make it to": the question's frame, never a name ("ever" too, left over when a
+ *  season is also said). */
+const VERBS = /^(?:ever|go|goes|went|gone|get|got|make|made|it|compete|competes|competed|attend|attends|attended|appear|appeared|qualify|qualified|reach|reached|advance|advanced|been|visit|visited)$/;
 
 type Team = { number: number; name: string | null };
 const who = (t: Team) => `${t.name ?? `Team ${t.number}`} (${t.number})`;
@@ -29,7 +30,11 @@ const yes = (v: boolean) => (v ? "Yes" : "No");
  *  of event; the season said narrows it. Null when the question names none of these. */
 interface EventScope { label: string; types?: readonly string[]; codes?: Set<string>; ownRegion?: boolean; season: number | null; year: number | null;
   /** A kind of event ("a championship"), not one event. */
-  kind?: boolean }
+  kind?: boolean;
+  /** Only a time ("in 2024–25"): its label is said as it is, never "at …". */
+  bare?: boolean }
+/** Where a scope is said after a verb: "at Worlds", or a time alone ("in 2024–25"). */
+const at = (s: EventScope) => (s.bare ? s.label : `at ${s.label}`);
 /** Official events only, as every answer counts them: an off-season event's matches and awards are never the record. */
 const OFFICIAL = `e.type IN (${OFFICIAL_TYPES.map((t) => `'${t}'`).join(", ")})`;
 
@@ -61,15 +66,20 @@ async function scopeOf(p: Parsed): Promise<EventScope | null | undefined> {
     const k = eventKindOf(p.eventKind);
     return k ? { label: `${k.label.toLowerCase().replace(/s$/, "")}${said}`, types: k.types, kind: true, ...when } : undefined;
   }
-  return null;
+  // A season or a year said alone still narrows the answer ("has <team> won inspire in 2024-25").
+  return said ? { label: said.trim(), bare: true, ...when } : null;
 }
 
 interface EventRow { season: number; code: string; name: string; type: string | null; division_code: string | null; start: string | null; end: string | null; region: string | null; wins: number | null; losses: number | null; ties: number | null }
 
-/** The events `team` played a match at, newest first. */
+/** The events `team` played a match at, newest first: a qualification match on its record, or any match it was on the
+ *  field for (a championship's finals hold playoffs only). */
 async function playedAt(team: number): Promise<EventRow[]> {
+  const onField = [...new Set((await teamMatches(team)).filter((m) => m.onField).map((m) => `${m.season}|${m.code}`))];
   return all<EventRow>(`SELECT e.season, e.code, e.name, e.type, e.division_code, e.start, e.end, e.region, s.wins, s.losses, s.ties
-    FROM team_event_stats s JOIN events e ON e.season = s.season AND e.code = s.code WHERE s.team = ? AND s.matches > 0 AND ${OFFICIAL} ORDER BY e.start DESC, e.code`, [team]);
+    FROM events e LEFT JOIN team_event_stats s ON s.season = e.season AND s.code = e.code AND s.team = ?
+    WHERE ${OFFICIAL} AND (s.matches > 0${onField.length ? ` OR (e.season || '|' || e.code) IN (${onField.map(() => "?").join(", ")})` : ""})
+    ORDER BY e.start DESC, e.code`, [team, ...onField]);
 }
 
 const inScope = (s: EventScope, home: string | null) => (e: EventRow) =>
@@ -96,7 +106,7 @@ async function attended(t: Team, s: EventScope): Promise<StatAnswer> {
   const instead = events.filter((e) => e.season === latest).slice(0, 8);
   return {
     family: "event", intent: "yes-no-attended", title: `${who(t)} at ${s.label}`, team: t, scope: [s.season != null ? seasonLabel(s.season) : s.year != null ? String(s.year) : "All seasons"],
-    headline: { value: yes(ok), label: ok ? `${who(t)} played at ${s.label}${s.season == null && s.year == null && trips > 1 ? `: ${trips} seasons` : ""}` : `${who(t)} has never played at ${s.label}` },
+    headline: { value: yes(ok), label: ok ? `${who(t)} played ${at(s)}${s.season == null && s.year == null && trips > 1 ? `: ${trips} seasons` : ""}` : `${who(t)} has never played ${at(s)}` },
     blocks: ok ? [eventTable("Where they played", rows, t.number)] : instead.length ? [eventTable(`The events they played${latest != null ? ` in ${seasonLabel(latest)}` : ""}`, instead, t.number)] : [],
     definition: "Played: the team was on the field for at least one match there. A championship's division counts as the championship.",
     source: `From ${events.length} ${events.length === 1 ? "event" : "events"} on record`,
@@ -115,8 +125,8 @@ async function wonAward(t: Team, award: string | null, s: EventScope | null): Pr
        ${award === "Winner" ? "OR (a.team = ? AND a.type = 'Inspire' AND a.placement = 1 AND " + OFFICIAL + ")" : ""}
      ORDER BY e.start DESC, e.code`, [t.number, ...(award ? [award] : []), ...(award === "Winner" ? [t.number] : [])])).filter((e) => !s || inScope(s, home)(e));
   // An event won is said as the event ("won a championship", "won New Jersey Championship"); an award, with where.
-  const what = award === "Winner" ? `won ${!s ? "an event" : s.kind ? `a ${s.label}` : s.label}` : award ? `won the ${award.replace(/([a-z])([A-Z])/g, "$1 $2")} Award` : "won an award";
-  const where = s && award !== "Winner" ? ` at ${s.label}` : "";
+  const what = award === "Winner" ? `won ${!s || s.bare ? "an event" : s.kind ? `a ${s.label}` : s.label}` : award ? `won the ${award.replace(/([a-z])([A-Z])/g, "$1 $2")} Award` : "won an award";
+  const where = s && (award !== "Winner" || s.bare) ? ` ${at(s)}` : "";
   const ok = rows.length > 0;
   return {
     family: "awards", intent: "yes-no-award", title: `${who(t)} ${what}${where}`, team: t, scope: [s?.season != null ? seasonLabel(s.season) : "All seasons"],
@@ -136,7 +146,7 @@ async function beaten(a: Team, b: Team, outcome: "W" | "L", s: EventScope | null
   const hit = met.filter((m) => m.result === outcome);
   const links = await teamLinks(met.flatMap((m) => [...m.partners, ...m.opponents]));
   const verb = outcome === "L" ? `lost to ${who(b)}` : `beaten ${who(b)}`;
-  const where = s ? ` at ${s.label}` : "";
+  const where = s ? ` ${at(s)}` : "";
   const ok = hit.length > 0;
   const wins = met.filter((m) => m.result === "W").length, losses = met.filter((m) => m.result === "L").length, ties = met.length - wins - losses;
   return {
@@ -164,10 +174,10 @@ export async function yesNoAnswer(q: string, opts: { full: boolean; pages: Searc
     stat = await beaten(t[0], t[1], sym.has("outcome:L") || sym.has("metric:loss") ? "L" : "W", scope);
   } else if (t.length === 1 && (p.award || sym.has("metric:award")) && [...sym].every((x) => /^metric:(?:award|win)$/.test(x))) {
     stat = await wonAward(t[0], p.award, scope);
-  } else if (t.length === 1 && sym.has("metric:win") && (scope ? !!p.eventKind || !!p.event : sym.has("thing:event")) && [...sym].every((x) => x === "metric:win" || x === "thing:event")) {
+  } else if (t.length === 1 && sym.has("metric:win") && (scope && !scope.bare ? !!p.eventKind || !!p.event : sym.has("thing:event")) && [...sym].every((x) => x === "metric:win" || x === "thing:event")) {
     // An event won: "won a championship", "won an event", "won <event>".
     stat = await wonAward(t[0], "Winner", scope);
-  } else if (t.length === 1 && scope && !p.eventKind && !sym.size) {
+  } else if (t.length === 1 && scope && !scope.bare && !sym.size) {
     stat = await attended(t[0], scope);
   }
   if (!stat) return null;

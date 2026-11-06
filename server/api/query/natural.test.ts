@@ -56,6 +56,10 @@ beforeAll(async () => {
   await match(2025, "USNJCMP", 200, 100, [7149], [23268]);
   await match(2025, "FTCCMP1", 210, 190, [7149], [9848]);
   await match(2025, "USNJOFF", 50, 300, [7149], [23268]);
+  // A league tournament 30008 played in the playoffs only (no qualification match on its record).
+  await run("INSERT INTO events (season, code, name, type, region, city, state, country, start, end, source) VALUES (2025, 'USNJLT', 'Meadow League Tournament', 'LeagueTournament', 'USNJ', 'Town', 'NJ', 'USA', '2026-02-01', '2026-02-01', 't')");
+  await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'USNJLT', 'playoff', 1, 1, 'M1', '2026-02-01T10:00:00Z', 1, 120, 120, 110, 110, 't')");
+  for (const [t, a] of [[30008, "red"], [30007, "blue"]] as const) await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'USNJLT', 'playoff', 1, 1, ?, ?, 1)", [t, a]);
   await run("UPDATE teams SET home_region = 'USNJ' WHERE state = 'NJ'");
   await run("INSERT INTO awards (season, code, team, type, name, placement) VALUES (2025, 'USNJCMP', 7149, 'Inspire', 'Inspire Award', 1), (2025, 'USNJCMP', 7149, 'Winner', 'Winning Alliance', 1), (2025, 'FTCCMP1', 9848, 'Inspire', 'Inspire Award 2nd Place', 2), (2025, 'USNJQ1', 6980, 'Winner', 'Leadership Award', 1)");
   // 20245 played only in 2024–25: a season named leaves it out.
@@ -175,6 +179,17 @@ describe("yes or no, with the evidence (3c)", () => {
       expect(await yn(q), q).toMatchObject({ answer: "No", label: "Enforcers (7149) has never lost to Ultraviolet (23268) · 1 meeting: 7149 1-0-0" });
     }
     expect(await yn("did 7149 ever beat 23268")).toMatchObject({ answer: "Yes" });
+  });
+  it("a season said alone narrows the answer", async () => {
+    expect(await yn("has 7149 won inspire in 2025-26")).toMatchObject({ answer: "Yes" });
+    expect(await yn("has 7149 won inspire in 2024-25")).toMatchObject({ answer: "No", label: "Enforcers (7149) has never won the Inspire Award in 2024–25" });
+    expect(await yn("did 7149 ever beat 23268 in 2024-25")).toMatchObject({ answer: "No" });
+    expect(await yn("did 7149 ever beat 23268 in 2025-26")).toMatchObject({ answer: "Yes" });
+  });
+  it("played: any match on the field, a playoff only too; and a kind of event", async () => {
+    expect(await yn("did 30008 play at meadow league tournament in 2025-26")).toMatchObject({ answer: "Yes", rows: ["Meadow League Tournament"] });
+    expect(await yn("did 4215 ever play at a qualifier")).toMatchObject({ kind: "yes-no-attended", answer: "Yes" });
+    expect(await yn("has 23268 ever been to a league tournament")).toMatchObject({ kind: "yes-no-attended", answer: "No" });
   });
   it("only a yes-or-no question: a count or a list stays what it was", async () => {
     expect((await ask("how many times has 7149 been to worlds")).stat?.intent ?? "").not.toMatch(/^yes-no/);
