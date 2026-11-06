@@ -23,11 +23,14 @@ A word typed in the plural, or with a slip in it, is the same question as the wo
 - [fixes] "Upcoming events" and "upcoming event" give the same answer
 - [fixes] A slip in a search word is corrected and answered ("evntd")
 - [teams] A team's upcoming events are all listed, the next first
+- [live] "Events happening rn", "tmrw" and "this wknd" read as the words in full
 
 ### Search
 - **One question in either number.** A search word typed in the plural or the singular ("events", "oprs", "ratings", "predictions", "wins", "seasons") is the same question. A query that reads nothing in the number typed is read again in the other one, and keeps the answer only when that reading answers more. A word naming an event ("states", "worlds", "championship") keeps its number, and a team's or an event's name is never changed.
 - **Slips in search words.** A search word (an intent word, never a name) typed with one slip onto a neighbouring key besides one other edit ("evntd" for "events") is corrected, with "Did you mean". Swapped letters ("raitngs") and plurals of search words ("rakns" for "ranks") are corrected too. Place names are known words, so "Texas" is never "teams".
-- **A team's upcoming events.** "12345 upcoming events" lists every upcoming event the team is registered for, the next first, titled "Upcoming events" when there are several. (#973)
+- **A team's upcoming events.** "12345 upcoming events" lists every upcoming event the team is registered for, the next first, titled "Upcoming events" when there are several.
+- **Short forms.** Informal short forms are read as the words in full before anything else: "rn" and "atm" (right now), "tdy" (today), "tmrw" (tomorrow), "yday" (yesterday), "wknd" (weekend), "nxt wk" (next week), "lst wk" (last week), "szn" (season), "ur" and "u". Only a standalone word is read so, never a word of a team's or an event's name, and the query stays as typed.
+- **"States" for any place.** "<place> states" is that place's championship for every question ("nyc states highlights", "romania states results"), even where the championship isn't named a state championship. (#973)
 
 ## 3.6.6 — 2026-11-06
 
