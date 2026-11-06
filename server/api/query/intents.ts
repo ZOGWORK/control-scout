@@ -132,8 +132,9 @@ export const INTENTS: IntentRule[] = [
   R("results", 1, ["thing:match"], ["list", "metric:score", "metric:record"], { event: true }),
   R("event-rank", 1, ["metric:rank"], [], { event: true }),
   R("event-opr", 1, ["metric:opr"], [], { event: true }),
-  // A state championship alone ("12345 states"): the team's results there.
+  // A state championship or Worlds alone ("12345 states", "12345 at worlds"): the team's results there.
   R("results", 1, ["states"], ["list"]),
+  R("results", 1, ["worlds"], ["list"]),
   // Its matches, no measure asked ("12345 matches in 2025-26"): every one in the scope. After the rules above (a tie goes to the first), so a
   // measure, an outcome, a match type or an event said ("12345 matches at states") still picks its own answer.
   R("season-matches", 1, ["thing:match"], ["list"], { noEvent: true, noMatchNo: true }),

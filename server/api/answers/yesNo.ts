@@ -170,7 +170,8 @@ export async function yesNoAnswer(q: string, opts: { full: boolean; pages: Searc
   if (!FRAME.test(n) || ASKS.test(n)) return null;
   const p = await parseQuery(q, await parseContext(opts.now, opts.prefer));
   if (p.leftover.some((w) => !VERBS.test(w.toLowerCase())) || p.n != null || p.matchNumber != null || p.level || p.alliance || p.finals || p.place) return null;
-  const sym = new Set(p.symbols.filter((x) => !/^(?:prep|vs)(?::|$)|^(?:worlds|states)$/.test(x)));
+  // "Been to", "went to", "made it to" (metric:appearance) are the question's frame, as its verbs are.
+  const sym = new Set(p.symbols.filter((x) => !/^(?:prep|vs)(?::|$)|^(?:worlds|states|metric:appearance)$/.test(x)));
   const scope = await scopeOf(p);
   if (scope === undefined) return null;
   const t = p.teams.map((x) => ({ number: x.number, name: x.name }));

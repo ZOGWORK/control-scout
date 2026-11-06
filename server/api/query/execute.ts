@@ -149,8 +149,11 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     // rather than answered with a different number of rows.
     if (p.n != null && !COUNTED.has(id)) return null;
     const team = p.teams[0];
+    // "12345 at worlds in 2026": the championship held that year (2025–26), as the readers take a year there.
+    const held = id === "results" && scope.championship && scope.year && scope.season != null;
+    if (held) { scope.season! -= 1; scope.year = false; }
     // A season or a year with no events on record yet (a future year): said so, never the latest instead.
-    const future = await noEventsYet(p, team.number, id, opts);
+    const future = held ? null : await noEventsYet(p, team.number, id, opts);
     if (future) return future(opts);
     const named = scope.season != null || scope.latest || scope.ever || scope.championship || scope.states || !!scope.at || !!scope.window;
     const outcome = p.symbols.includes("outcome:L") || (p.symbols.includes("metric:loss") && intent !== "losses") ? "L" : p.symbols.includes("outcome:W") || (p.symbols.includes("metric:win") && OUTCOME_IDS.has(intent) && intent !== "average-margin") ? "W" : null;

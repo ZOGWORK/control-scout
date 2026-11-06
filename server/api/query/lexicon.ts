@@ -7,6 +7,8 @@ export type Agg = "max" | "min" | "mean" | "median" | "sum" | "count" | "first" 
 export type Metric =
   | "score" | "margin" | "record" | "win" | "loss" | "tie" | "winrate" | "opr" | "rating" | "rank" | "award" | "penalty"
   | "auto" | "teleop" | "endgame" | "streak" | "partner" | "opponent" | "rp" | "range" | "consistency" | "reliability" | "playoffs"
+  // Whether or how often a team went somewhere: a question no pipeline rule takes.
+  | "appearance"
   // Derived from a match's numbers by a rule the card prints (./matchFind.ts).
   | "upset" | "comeback";
 export type Thing = "match" | "event" | "season" | "team";
@@ -107,6 +109,9 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["range|score range|spread of scores", { k: "metric", v: "range" }],
   ["consistency|consistent|score consistency", { k: "metric", v: "consistency" }],
   ["reliability|reliable|dependability|dependable|reliability score|reliability index", { k: "metric", v: "reliability" }],
+  // Whether or how often a team went somewhere ("has 12345 been to worlds"): its appearances, a question no rule takes,
+  // so it's left to the readers that count trips, never the results there.
+  ["been to|been at|gone to|went to|go to|made it to|make it to|qualified for|qualify for|qualified to|attended|competed at|appearance|appearances", { k: "metric", v: "appearance" }],
   // What is counted or listed.
   ["match|matches|game|games|round|rounds|qualification match", { k: "thing", v: "match" }],
   ["event|events|competition|competitions|comp|comps|tournament|tournaments|meet|meets", { k: "thing", v: "event" }],

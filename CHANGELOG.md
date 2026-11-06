@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.6.3 — 2026-11-06
+
+"12345 at worlds" answers with the team's results there, as "12345 states" does for its state championship.
+
+### Highlights
+- [teams] "12345 at worlds" shows the team's Worlds results
+- [teams] A team with no Worlds matches is told so plainly
+- [teams] "Has 12345 been to worlds" still counts its trips there
+
+### Search
+- **A team at Worlds.** A team and Worlds alone ("12345 at worlds", "12345 worlds", "show me 12345 at worlds 2025-26") answer with the team's results at the FIRST Championship: its record, its division and its matches, as a team and its state championship already did. A team with no Worlds matches is told it has none on record, never an empty page. A measure named with it ("worlds record", "opr at worlds") is still that measure.
+- **Whether a team went.** "Has 12345 been to worlds", "went to", "made it to", "qualified for" and "appearances" stay the question of its trips there, answered by its Worlds appearances, never its results. (#852)
+
 ## 3.6.2 — 2026-11-06
 
 "What events are happening right now?" and "number of teams in …" are answered however they're asked.
