@@ -28,6 +28,18 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 ### Search
 - **When, said every way.** "When was the last time <team> played", "when did <team> last play", "<team>'s most recent match" and "<team> last played when" give the most recent match card; "the first time", "first ever" and "very first" give the first match; "the next time <team> plays" and "when will <team> play again" give the next match, saying plainly when none is scheduled. "When did <team> begin competing", "join FTC" or "get started", and "which season was <team> founded", give the rookie year. (#872)
 
+## 3.5.5 — 2026-11-06
+
+A team's forecast at Worlds or states is for its own division there.
+
+### Highlights
+- [predict] "Advancement odds at worlds" shows the team's own Worlds division
+- [predict] "At states" means the team's own state championship
+- [predict] An event still to come shows the chance to advance when you ask for it
+
+### Search
+- **Forecast at a team's Worlds or states.** "23268 advancement odds at worlds in 2025-26", "chance to advance at worlds", "odds 23268 advances at worlds 2026" and "prediction at states" answer with the prediction-vs-result card for the team's own division at that season's Worlds (or its own state championship): the event the team is listed at, never another one. Advancement wording ("advance", "advancement", "make the finals", "go through") is one entry in the search lexicon, taken only by forecasts. For an event still to come, an advancement question shows the chance to advance rather than the chance to win. (#839)
+
 ## 3.5.4 — 2026-11-06
 
 Long questions are read whole.

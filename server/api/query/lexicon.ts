@@ -23,6 +23,8 @@ export type Sym =
   | { k: "worlds" }
   | { k: "states" }
   | { k: "predict" }
+  /** Going through: from a division to the finals, from an event to the next level ("advancement odds"). */
+  | { k: "advance" }
   /** A forecast held up against what happened: "vs actual", "before and after", "did it get it right". */
   | { k: "review" }
   | { k: "vs" }
@@ -121,6 +123,7 @@ const TABLE: [string, Sym | Sym[]][] = [
   // Forecasts.
   ["prediction|predictions|predicted|predict|forecast|forecasts|projected|projection|expected|expect|chance|chances|odds|probability|likely|likelihood|favourite|favorite|favored|favoured|who wins|who will win|who would win|matchup|matchups|match up|custom matchup|custom match|hypothetical matchup|hypothetical match", { k: "predict" }],
   ["vs actual|versus actual|vs the actual|compared to actual|vs what happened|vs reality|vs result|vs results|vs the result|actual|actually happened|what happened|before and after|before vs after|before or after|right or wrong|get it right|got it right|was it right|were they right|was it accurate|how accurate|accurate|accuracy|way off|or was it way off|or way off|or was it off|or not|how far off|hit or miss", { k: "review" }],
+  ["advance|advances|advancing|advancement|advancements|advance to the finals|make the finals|making the finals|go through|goes through|get through|gets through", { k: "advance" }],
   // Two teams.
   ["vs|v|versus|against|facing|face|faced|play|played|playing|plays|vs.", { k: "vs" }],
   ["and|&|plus|with|alongside", { k: "and" }],
