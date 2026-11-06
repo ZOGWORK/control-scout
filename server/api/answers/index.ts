@@ -819,7 +819,9 @@ async function compareAt(two: TwoTeamQuestion, a: AnswerTeam, b: AnswerTeam, sco
   // "This season": the first team's latest season with an official event played, as the meetings read it.
   const official = officialClause(), mine = ea.filter(official);
   const season = s.year ? null : s.season ?? (s.latest && mine.length ? Math.max(...mine.map((e) => e.season)) : null);
-  const first = teamPick(ea, { ...s, season }, season) ?? teamPick(eb, { ...s, season }, season);
+  // A calendar year ("in 2025") stays in the scope: it picks the edition held that year.
+  const pickScope = s.year ? s : { ...s, season };
+  const first = teamPick(ea, pickScope, season) ?? teamPick(eb, pickScope, season);
   if (!first) return null;
   const S = first.primary.season, again = { ...s, year: false, season: S };
   const pa = teamPick(ea, again, S), pb = teamPick(eb, again, S);

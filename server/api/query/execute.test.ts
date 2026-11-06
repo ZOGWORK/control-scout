@@ -186,6 +186,9 @@ describe("one question, any phrasing, any team", () => {
     expect(related?.kind === "related" ? related.queries : []).toEqual(["4215 results at golden qualifier in 2025-26", "10809 results at golden qualifier in 2025-26"]);
     // "This season" is the first team's latest season: the same card as the season named.
     expect((await stat("4215 vs 6980 at garden qualifier this season")).scope).toEqual(["Garden Qualifier", "2025–26"]);
+    // A calendar year is the edition held that year; a year it wasn't held in has none.
+    expect((await stat("4215 vs 6980 at garden qualifier in 2026")).scope).toEqual(["Garden Qualifier", "2025–26"]);
+    expect((await ask("4215 vs 6980 at garden qualifier in 2024")).stat?.intent).not.toBe("compare");
   });
   it("a name typed nearly right offers the spelling, whatever stood between its words", async () => {
     const a = await ask("hypnotc-robotics highest score");
