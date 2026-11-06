@@ -20,8 +20,8 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 An event can be searched by its initials: "MTI highlights" finds the Multinational Tech Invitational, and an event held only in past seasons is read in its latest one.
 
 ### Highlights
-- [fixes] "MTI highlights" finds the Multinational Tech Invitational by its initials
-- [fixes] A past event named alone shows its latest season, never an empty current one
+- [fixes] "MTI highlights" finds the Multinational Tech Invitational
+- [fixes] A past event named alone shows its latest season, not an empty one
 - [fixes] An off-season event's own highlights and match videos
 
 ### Search
