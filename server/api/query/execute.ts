@@ -22,6 +22,7 @@ import { eventKindOf, matchFindAnswer, type MatchFind, type MatchMeasure } from 
 import { seasonOfDate } from "./time.js";
 import { searchToday } from "../searchEvents.js";
 import { eventFor, forecastAt, teamEventOfType } from "./forecast.js";
+import { teamsNamedSearch } from "../answers/teamsNamed.js";
 import { describe, normalise, parseQuery, type Parsed } from "./parse.js";
 import { parseContext } from "./context.js";
 import type { PipelineIntent } from "./intents.js";
@@ -51,8 +52,13 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
 /** Whether the pipeline reads `q` completely (an intent it answers, every word explained). */
 export async function pipelineReads(q: string, now?: number, prefer?: ReadonlySet<string>): Promise<boolean> {
   const p = await parseQuery(q, await parseContext(now, prefer));
-  return p.complete && !!p.intent && ANSWERED.has(p.intent) && (p.intent !== "team-predict" || !!p.event || p.worlds || p.states);
+  return p.complete && !!p.intent && ANSWERED.has(p.intent) && (p.intent !== "team-predict" || !!p.event || p.worlds || p.states) && (p.intent !== "count-teams" || townCount(p));
 }
+
+/** A count of teams the pipeline answers: a town's, with no time, event, championship, match type, side or award said
+ *  (its list is every team from the town, which none of those narrow). */
+const townCount = (p: Parsed) => p.place?.kind === "city" && !p.time && !p.teams.length && !p.event && !p.eventKind && !p.worlds && !p.states
+  && !p.level && !p.finals && !p.alliance && !p.award && p.n == null && !p.undefeated && !p.noPenalties;
 
 /** The answers that list as many rows as a count said ("12345 last 3 matches"). */
 const COUNTED = new Set<IntentId>(["last-matches"]);
@@ -93,7 +99,7 @@ function placeSeason(p: Parsed, said: number | null | undefined, opts: PipelineO
 }
 /** The answers a win or a loss said with them narrows ("closest loss", "first win", "longest losing streak"). */
 const OUTCOME_IDS = new Set(["closest-match", "current-streak", "average-margin", "first-match", "recent-match", "last-matches", "longest-streak"]);
-const ANSWERED = new Set<PipelineIntent>([...TEAM_INTENTS, ...(Object.keys(TWO_TEAM) as PipelineIntent[]), ...(Object.keys(FIND) as PipelineIntent[]), "top-matches", "leaderboard", "team-predict", "highlights"]);
+const ANSWERED = new Set<PipelineIntent>([...TEAM_INTENTS, ...(Object.keys(TWO_TEAM) as PipelineIntent[]), ...(Object.keys(FIND) as PipelineIntent[]), "top-matches", "leaderboard", "team-predict", "highlights", "teams-named", "count-teams"]);
 /** The leaderboard's stat for a metric said ("by opr"); the prediction rating when none is. */
 const BOARD_STAT: Partial<Record<string, string>> = {
   "metric:opr": "opr", "metric:rating": "rating", "metric:winrate": "win-rate", "metric:auto": "auto", "metric:teleop": "teleop",
@@ -102,6 +108,10 @@ const BOARD_STAT: Partial<Record<string, string>> = {
 
 async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer | null> {
   const intent = p.intent!;
+  if (intent === "teams-named") return teamsNamedSearch(p, opts);
+  // A town's teams counted ("how many teams from <town>"): the town's list, its length the count. A region's or a
+  // country's count is search's own (../searchCoverage.ts countAnswer).
+  if (intent === "count-teams") return townCount(p) ? boardSearch(p.q, { kind: "city", stat: "opr", n: 25, region: null, city: p.place!.city, season: null }, opts) : null;
   const scope = readScopeOf(p);
   if (!scope) return null;
   // The finals are a filter only the match finder applies: anything else would answer for every playoff match.

@@ -42,6 +42,10 @@ const label = (from: string, to: string) => {
   return from === to ? `on ${md(f)}, ${f.getUTCFullYear()}` : `${md(f)}–${md(t)}, ${t.getUTCFullYear()}`;
 };
 
+/** "This season": the words readTime reads as the current season. ("Last season" beside a season named is a second
+ *  season, a comparison, so it isn't taken in.) */
+const RELATIVE_SEASON = /\b(?:this|current|the\s+current)\s+(?:season|year)'?s?\b/;
+
 /** The window phrases, longest first: each is a SearchTime (src/shared/searchEventQuery.ts timeWindow) or a past one. */
 const WINDOWS: [RegExp, SearchTime | "last-week" | "last-weekend" | "last-month" | "yesterday", string][] = [
   [/\bthis\s+weekend\b/, "this-weekend", "this weekend"], [/\bnext\s+weekend\b/, "next-weekend", "next weekend"],
@@ -75,8 +79,28 @@ export interface TimeRead { time: TimeSlot | null; rest: string; unread?: string
 export function readTime(q: string, today: string, yearOk: (y: number) => boolean = () => true): TimeRead {
   let rest = ` ${q} `;
   const cut = (m: RegExpExecArray) => { rest = `${rest.slice(0, m.index)} ${rest.slice(m.index + m[0].length)}`; };
-  const out = (t: TimeSlot): TimeRead => ({ time: t, rest: rest.replace(/\s+/g, " ").trim() });
+  // A season said outright stands over "this season" said beside it ("this season in 2025-26"):
+  // the relative words only say it again, so they're taken in with it and the card states the season named.
+  const out = (t: TimeSlot): TimeRead => {
+    if (t.kind === "season" && t.season != null && !t.relative) {
+      const again = RELATIVE_SEASON.exec(rest);
+      if (again) cut(again);
+    }
+    return { time: t, rest: rest.replace(/\s+/g, " ").trim() };
+  };
   const known = (s: number) => SEASONS.some((x) => x.season === s);
+  // A bare year: its season ("2025": 2025–26), a future year included (the executor says when it has no events yet).
+  // One after "in" or "during" first; a number after "team" is always the team ("team 2024 record in 2025"). The first
+  // number that can be a year is ("2024 record 2025": team 2024's record in 2025–26).
+  const bareYear = (): TimeRead | null => {
+    const fits = (x: RegExpExecArray) => yearOk(Number(x[1]));
+    const y4 = [...rest.matchAll(/\b(?:in|during|for|from|of)\s+(?:the\s+)?(20[1-3]\d)(?:\s+season)?\b/g)].find(fits)
+      ?? [...rest.matchAll(/(?<!\bteam\s)\b(20[1-3]\d)(?:\s+season)?\b/g)].find(fits);
+    if (!y4) return null;
+    const y = Number(y4[1]);
+    cut(y4);
+    return out({ kind: "season", season: y, year: y, label: known(y) ? `in ${SEASONS.find((s) => s.season === y)!.label}` : `in ${y}–${String((y + 1) % 100).padStart(2, "0")}`, typed: y4[0].trim() });
+  };
 
   // A date: "on mar 15 2026", "march 15, 2026", "3/15/2026", "2026-03-15".
   let m = /\b(?:on\s+)?([a-z]{3,9}\.?)\s+(\d{1,2})(?:st|nd|rd|th)?\s*,?\s+(20\d\d)\b/.exec(rest);
@@ -123,18 +147,15 @@ export function readTime(q: string, today: string, yearOk: (y: number) => boolea
   }
   // This season, last season (relative: the executor reads them against the default season).
   m = /\b(?:this|current|the\s+current)\s+(?:season|year)'?s?\b|\bthis\s+year'?s?\b/.exec(rest);
-  if (m) { cut(m); return out({ kind: "season", season: null, relative: "this", label: "this season", typed: m[0].trim() }); }
+  if (m) {
+    cut(m);
+    // A year said beside it ("this season in 2025") is the season named; "this season" only says it again.
+    return bareYear() ?? out({ kind: "season", season: null, relative: "this", label: "this season", typed: m[0].trim() });
+  }
   m = /\b(?:last|previous|past|prior)\s+(?:season|year)'?s?\b/.exec(rest);
   if (m) { cut(m); return out({ kind: "season", season: null, relative: "last", label: "last season", typed: m[0].trim() }); }
   // Every season.
   m = /\b(?:ever|all[\s-]*time|of\s+all[\s-]*time|in\s+history|all\s+seasons|every\s+season|career|overall)\b/.exec(rest);
   if (m) { cut(m); return out({ kind: "ever", season: null, label: "all seasons", typed: m[0].trim() }); }
-  // A bare year: its season ("2025": 2025–26), a future year included (the executor says when it has no events yet).
-  // One after "in" or "during" first; a number after "team" is always the team ("team 2024 record in 2025").
-  m = /\b(?:in|during|for|from|of)\s+(?:the\s+)?(20[1-3]\d)(?:\s+season)?\b/.exec(rest) ?? /(?<!\bteam\s)\b(20[1-3]\d)(?:\s+season)?\b/.exec(rest);
-  if (m && yearOk(Number(m[1]))) {
-    const y = Number(m[1]);
-    cut(m); return out({ kind: "season", season: y, year: y, label: known(y) ? `in ${SEASONS.find((s) => s.season === y)!.label}` : `in ${y}–${String((y + 1) % 100).padStart(2, "0")}`, typed: m[0].trim() });
-  }
-  return { time: null, rest: rest.replace(/\s+/g, " ").trim() };
+  return bareYear() ?? { time: null, rest: rest.replace(/\s+/g, " ").trim() };
 }
