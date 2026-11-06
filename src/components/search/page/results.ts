@@ -6,6 +6,7 @@ import type { SearchHit } from "../../../shared/api";
 import { isCompare, type AnswerExtra } from "../../../shared/searchPage";
 export { badgeUnder, cardTeamName, contextBadge, isCompare, pageTitle, readingOf, teamParts, type AnswerExtra } from "../../../shared/searchPage";
 import { hitHref } from "../../../shared/search";
+import { seasonLabel } from "../../../lib/format";
 import { eventTypeLabel } from "../../../shared/labels";
 
 /** "started": begun, and without its last day we can't say whether it's still on (the server sent only its first). */
@@ -125,6 +126,16 @@ export function readFilters(p: URLSearchParams, asked: When = "all"): PageFilter
   const w = p.get("when");
   const s = Number(p.get("season"));
   return { when: w === "all" || w === "upcoming" || w === "past" ? w : asked, season: Number.isInteger(s) && s > 2000 ? s : null, type: p.get("type") || null };
+}
+
+/** The heading for a set of events these filters narrow: the server's own reading said for what's left ("FIRST
+ *  Championship (Worlds) events, 2024–25", "Past championships in New Jersey, every season"), so the heading, the
+ *  tabs and the cards agree. Null when the filters narrow nothing or the server sent no parts (its label stands). */
+export function filteredTitle(a: AnswerExtra | undefined, f: PageFilters, asked: When = "all"): string | null {
+  const scope = a?.understood?.kind === "events" ? a.understood.scope : undefined;
+  if (!scope || !anyFilter(f, asked)) return null;
+  const what = f.when === "all" ? scope.subject : `${f.when === "upcoming" ? "Upcoming" : "Past"} ${/^[A-Z][a-z]/.test(scope.subject) ? scope.subject.charAt(0).toLowerCase() + scope.subject.slice(1) : scope.subject}`;
+  return `${what}${f.season != null ? `, ${seasonLabel(f.season)}` : scope.span}`;
 }
 
 /** Whether the filters narrow the results past what the query asked (its own time tab is no filter). */

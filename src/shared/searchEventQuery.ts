@@ -214,9 +214,12 @@ export function eventSetLabel(e: EventQuery, opts: { where?: { text: string; cit
   const words = e.words.length ? ` matching "${e.words.join(" ")}"` : "";
   const place = e.region ? ` in ${e.region.name}${e.regionTyped ? ` (from "${e.regionTyped}")` : ""}` : "";
   const where = e.where && !drop.has("where") ? (opts.where ? ` ${opts.where.city ? "in" : "at"} ${opts.where.text}` : ` at ${titleCase(e.where)}`) : "";
-  const when = e.season != null ? `, ${opts.seasonLabel ? opts.seasonLabel(e.season) : e.season}` : e.year != null ? ` held in ${e.year}` : e.allSeasons ? ", every season" : "";
-  return `${what}${words}${place}${where}${when}`;
+  return `${what}${words}${place}${where}${eventSetSpan(e, opts.seasonLabel)}`;
 }
+
+/** The time a set's label ends on: ", 2024–25", " held in 2025", ", every season", or nothing (this season's). */
+export const eventSetSpan = (e: Pick<EventQuery, "season" | "year" | "allSeasons">, seasonLabel?: (s: number) => string): string =>
+  e.season != null ? `, ${seasonLabel ? seasonLabel(e.season) : e.season}` : e.year != null ? ` held in ${e.year}` : e.allSeasons ? ", every season" : "";
 
 /**
  * The date window a time word means, from `today` (YYYY-MM-DD, the UTC date). Null bounds are open; an event is in
