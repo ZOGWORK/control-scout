@@ -12,7 +12,7 @@ import { StatTile, type Tone } from "../../StatTile";
 import { TeamTable } from "../TeamTable";
 import { cn } from "../../cn";
 import { AnswerVideo } from "./AnswerVideo";
-import { ResultPill, RichText } from "./answerCells";
+import { ResultPill, RichText, TEAM_BAR, TEAM_TEXT } from "./answerCells";
 import { AnswerFrame, PART, RelatedQuestions, SeasonEvents, SeasonTiles, TAP, repeats, statedSeason, useAnswerSeason, useTeamProfile } from "./TeamAnswer";
 
 /** What a card is, as its subtitle: which records it read. */
@@ -116,7 +116,7 @@ function FactTiles({ facts }: { facts: SearchCardFact[] }) {
           <div key={f.label} data-fact={f.label} className="min-w-0">
             <StatTile tone={tone} icon={icon}
               label={<>{f.label}{many ? ` · ${f.values.length}` : ""}</>}
-              value={<span className="block break-words text-2xl leading-snug">{many
+              value={<span className={cn("block break-words text-2xl leading-snug", TEAM_TEXT)}>{many
                 ? f.values.map((v) => <span key={v} className="block border-t border-border/60 py-1 text-lg first:border-t-0 first:pt-0">{v}</span>)
                 : <FactValue f={f} />}</span>}
               hint={f.detail} />
@@ -128,8 +128,8 @@ function FactTiles({ facts }: { facts: SearchCardFact[] }) {
 }
 
 /** Where a team is from, drawn as a place: a map-like grid with a pin, the place big, and its parts (city, state or
- *  province, country) as FIRST lists them, each its own chip. Decorative drawing only: the place is the text. Neutral
- *  ink (the search results guide: hue means team only). */
+ *  province, country) as FIRST lists them, each its own chip. Decorative drawing only: the place is the text. The pin and
+ *  the place in the team's hue (the search results guide: hue means team, and this card is one team's). */
 function LocationTile({ f }: { f: SearchCardFact }) {
   const v = f.values[0] ?? "";
   const parts = v.split(",").map((x) => x.trim()).filter(Boolean);
@@ -146,11 +146,11 @@ function LocationTile({ f }: { f: SearchCardFact }) {
         <circle cx="150" cy="56" r="18" fill="none" stroke="currentColor" strokeWidth="1.5" />
       </svg>
       <span className="flex items-center gap-2 text-sm leading-tight text-muted-foreground">
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground"><MapPin className="size-4" aria-hidden /></span>{f.label}
+        <span className={cn("flex size-7 shrink-0 items-center justify-center rounded-lg bg-muted", TEAM_TEXT)}><MapPin className="size-4" aria-hidden /></span>{f.label}
       </span>
       <span className="mt-3 flex items-center gap-3">
-        <span className="grid size-12 shrink-0 place-items-center rounded-full bg-foreground text-background shadow-sm" aria-hidden><MapPin className="size-6" /></span>
-        <span className="min-w-0 break-words font-display text-3xl font-semibold leading-tight text-foreground max-sm:text-2xl">{v || <span className="text-base font-normal text-muted-foreground">Not in FIRST's listing</span>}</span>
+        <span className={cn("grid size-12 shrink-0 place-items-center rounded-full text-background shadow-sm", TEAM_BAR)} aria-hidden><MapPin className="size-6" /></span>
+        <span className={cn("min-w-0 break-words font-display text-3xl font-semibold leading-tight max-sm:text-2xl", TEAM_TEXT)}>{v || <span className="text-base font-normal text-muted-foreground">Not in FIRST's listing</span>}</span>
       </span>
       {parts.length > 1 && (
         <span className="mt-3 flex flex-wrap gap-1.5" data-location-parts>

@@ -16,6 +16,10 @@ export const PODIUM: Record<number, true> = { 1: true, 2: true, 3: true };
 
 /** A data bar's ink where no team is meant (one team's numbers, a table column): neutral, never a hue. */
 export const INK_BAR = "bg-foreground/55";
+/** A card about one team: that team's hue (team A, the colour a team has wherever search compares it) on its numbers,
+ *  bars and marks, the one hue on the card (the search results guide: hue means team; a card without a team stays ink). */
+export const TEAM_BAR = "bg-team-a";
+export const TEAM_TEXT = "text-team-a";
 
 const RANK = /^(Ranked\s+)?#?(\d[\d,]*)(?:\s+of\s+(\d[\d,]*))?(.*)$/;
 const RECORD = /^(\d{1,4})-(\d{1,4})-(\d{1,4})(.*)$/;
