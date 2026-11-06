@@ -216,19 +216,27 @@ export const INFORMAL: [string, string][] = [
   ["ur", "your"], ["u", "you"],
 ];
 
+/** A word without the punctuation around it (`"rn"`, "rn?"): what a form is matched on, the rest kept as typed. */
+const core = (w: string) => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
+const edges = (w: string) => { const c = core(w); const at = c ? w.indexOf(c) : w.length; return [w.slice(0, at), w.slice(at + c.length)]; };
+
 /** `q` with each INFORMAL form said in full: whole words, any case, and never a word of a name `named` knows (a team
  *  named "RN Robotics" keeps it). `named` is asked of each run of up to four words holding a form; `wider`, whether the
- *  run holds more than the form (an event's name with the word in it). */
+ *  run holds more than the form (an event's name with the word in it). Quotes and operators around a form stay as typed
+ *  (`"Raider Robotics" rn|tmrw`). */
 export function informalQuery(q: string, named: (words: string, wider: boolean) => boolean): string {
   let ws = q.split(" ");
   for (const [from, to] of INFORMAL) {
     const f = from.split(" ");
     for (let i = 0; i + f.length <= ws.length; i++) {
-      if (ws.slice(i, i + f.length).map((w) => w.toLowerCase()).join(" ") !== from) continue;
+      if (ws.slice(i, i + f.length).map((w) => core(w).toLowerCase()).join(" ") !== from) continue;
       let inName = false;
-      for (let a = Math.max(0, i - 3); a <= i; a++) for (let b = i + f.length; b <= Math.min(ws.length, a + 4); b++) inName ||= named(ws.slice(a, b).join(" "), b - a > f.length);
+      for (let a = Math.max(0, i - 3); a <= i; a++) for (let b = i + f.length; b <= Math.min(ws.length, a + 4); b++) inName ||= named(ws.slice(a, b).map(core).join(" "), b - a > f.length);
       if (inName) continue;
-      ws = [...ws.slice(0, i), ...to.split(" "), ...ws.slice(i + f.length)];
+      const said = to.split(" ");
+      said[0] = edges(ws[i])[0] + said[0];
+      said[said.length - 1] += edges(ws[i + f.length - 1])[1];
+      ws = [...ws.slice(0, i), ...said, ...ws.slice(i + f.length)];
       i += to.split(" ").length - 1;
     }
   }

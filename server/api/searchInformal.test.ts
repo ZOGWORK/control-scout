@@ -70,4 +70,12 @@ describe("informal and short forms are their full words", () => {
     expect((await ask("RN Robotics")).hits[0]?.ref).toBe("31337");
     expect((await ask("rn robotics events")).hits[0]?.ref).toBe("31337");
   });
+  // Greptile on #973: the expansion keeps the query's quotes and operators, so a quoted name stays exact.
+  it("quotes, operators and punctuation around a form stay as typed", async () => {
+    expect(informalQuery('"Hypnotic Robotics" rn?', () => false)).toBe('"Hypnotic Robotics" right now?');
+    expect(informalQuery("4215 | 7149 events tmrw", () => false)).toBe("4215 | 7149 events tomorrow");
+    const a = await ask('"Hypnotic Robotics" rn');
+    expect(a.q).toBe("Hypnotic Robotics rn");
+    expect(a.hits.filter((h) => h.kind === "team").map((h) => h.ref)).toEqual(["4215"]);
+  });
 });

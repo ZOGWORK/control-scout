@@ -171,11 +171,12 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   // The season a query naming none means (./answers/season.ts), read before the readers that use it.
   await refreshSearchSeason();
   if (opts.inner || opts.intents === false || opts.rewrites) return readerAnswer(raw, opts);
-  // Informal short forms said in full first ("events happening rn"), the answer keeping the query as typed.
-  const typed = cleanQuery(raw), full = await inFull(typed);
-  if (full !== typed) {
-    const b = await searchAnswer(/\?\s*$/.test(String(raw ?? "")) ? `${full}?` : full, opts);
-    return carryOutcome(b, { ...b, q: typed });
+  // Informal short forms said in full first ("events happening rn"), in the query as typed (its quotes and operators
+  // kept), the answer keeping the query as typed.
+  const said = String(raw ?? ""), full = await inFull(said);
+  if (full !== said) {
+    const b = await searchAnswer(full, opts);
+    return carryOutcome(b, { ...b, q: cleanQuery(raw) });
   }
   const a = await numberedAnswer(raw, opts);
   // Then its spelling (./spelling.ts): a misspelled query is read again corrected, and the better answer kept. Never
@@ -188,7 +189,7 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
 /** `q` with its informal short forms said in full (./query/lexicon.ts INFORMAL), never a word of a team's name or,
  *  beside its other words, an event's. */
 async function inFull(q: string): Promise<string> {
-  if (!INFORMAL.some(([f]) => new RegExp(`(?:^| )${f}(?= |$)`, "i").test(q))) return q;
+  if (!INFORMAL.some(([f]) => new RegExp(`(?:^|[^\\p{L}\\p{N}])${f}(?![\\p{L}\\p{N}])`, "iu").test(q))) return q;
   const [{ byName }, events] = await Promise.all([teamNames(), eventNames()]);
   return informalQuery(q, (words, wider) => {
     const k = nameKey(words);
