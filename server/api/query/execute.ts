@@ -183,7 +183,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   if (intent === "alliance-predict") {
     const red = p.teams.filter((t) => p.vsAt != null && t.at < p.vsAt), blue = p.teams.filter((t) => p.vsAt != null && t.at > p.vsAt);
     if (red.length !== 2 || blue.length !== 2 || p.event || p.worlds || p.states || scope.place || scope.area || scope.window || scope.level || scope.alliance) return null;
-    if (scope.ever) return null;
+    // A match number the matchup can't answer for ("… match 12") is left to search, never dropped.
+    if (scope.ever || p.matchNumber != null) return null;
     // The season the scope read ("in 2024-25", "last season"); "this season" or none, the latest every team is rated in.
     const pick = scope.season != null ? { season: scope.season, why: undefined } : await predictionSeasonOf(p.teams.map((t) => t.number));
     const team = (t: (typeof red)[number]) => ({ number: t.number, name: t.name });
