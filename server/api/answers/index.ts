@@ -42,7 +42,7 @@ import { compareBlock, decidedText, leadHeadline, seasonScale, winShare } from "
 import { winnersAnswer, worldsFollowUps } from "./families/winners.js";
 import { eventHref, shortEvent, teamMatches } from "./matchSet.js";
 import { readCompound } from "./compound.js";
-import { eventInitialisms } from "../query/initialisms.js";
+import { eventInitialisms, initialismEvent } from "../query/initialisms.js";
 import { compoundSearch } from "./compoundSearch.js";
 import { THEIR_FIRST, THEIR_LAST, readLeaderboard, readStatQuestion, readTeamSet, readTwoTeam, type LeaderboardQuestion, type TeamSetQuestion, type IntentId, type StatQuestion, type TwoTeamId, type TwoTeamQuestion } from "./read.js";
 
@@ -652,6 +652,9 @@ const FACT_TITLES: Record<FactQuestion["id"], string> = {
  *  finds with a played playoff. */
 async function namedEvent(it: StatQuestion, season: number | null) {
   const words = [it.core, it.scope.states ? "states" : "", season != null ? seasonLabel(season) : ""].filter(Boolean).join(" ");
+  // An initialism several events share ("who won mti"): the one every reader picks.
+  const ini = await initialismEvent(it.core, (e) => season == null || e.season === season);
+  if (ini) return (await get<any>("SELECT season, code, name, type, start, end, division_code division FROM events WHERE season = ? AND code = ?", [ini.season, ini.code])) ?? null;
   const won = await eventWon(words, new Set());
   if (won) return (await get<any>("SELECT season, code, name, type, start, end, division_code division FROM events WHERE season = ? AND code = ?", [won.season, won.code])) ?? null;
   return it.scope.states ? null : findEvent(it.core, season);

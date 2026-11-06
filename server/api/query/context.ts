@@ -5,7 +5,6 @@ import { search } from "../search.js";
 import { searchToday } from "../searchEvents.js";
 import { eventFit } from "../answers/index.js";
 import { EVENT_NAME_WORDS } from "./lexicon.js";
-import { eventInitialisms } from "./initialisms.js";
 import { names } from "./names.js";
 import type { ParseContext } from "./parse.js";
 
@@ -41,18 +40,19 @@ export async function parseContext(now = Date.now(), prefer: ReadonlySet<string>
   };
 
   async function isEvent(words: string): Promise<boolean> {
+    // One word an event's initialism is (two letters too: "fr"), when no team is named so.
+    if (!words.includes(" ") && idx.initialism(words).length && !idx.teamsNamed(words).length) return true;
     if (words.length < 3) return false;
     const ws = words.split(" ");
     // No word starts the way any event's words do: no event search.
     if (!ws.some((w) => w.length >= 3 && idx.eventStem(w))) return false;
     const hits = await search(words, 5, new Set(), EVENT);
-    // One plain word names an event only as its code ("usnjcmp") or its initialism ("mti", ./initialisms.ts) when no
-    // team is named so: a word inside an event's name ("Alphatronic" in "DecodeRA: Alphatronic Version") is a team's or
-    // a place's first.
+    // One plain word names an event only as its code ("usnjcmp") or its initialism (above): a word inside an event's
+    // name ("Alphatronic" in "DecodeRA: Alphatronic Version") is a team's or a place's first.
     // Event words alone ("league", "league meets") are a kind of event, read by the answers' own event kinds
     // (server/api/answers/index.ts EVENT_KINDS), never one event by name.
     if (ws.every((w) => EVENT_NAME_WORDS.has(w) || KINDS.test(w))) return ws.length > 1 && EVENT_KIND_PHRASE.test(words);
-    if (ws.length === 1) return hits.some((h) => h.kind === "event" && (h.ref.split(":")[1]?.toLowerCase() === words || (!idx.teamsNamed(words).length && eventInitialisms(h.title).includes(words))));
+    if (ws.length === 1) return hits.some((h) => h.kind === "event" && h.ref.split(":")[1]?.toLowerCase() === words);
     return hits.some((h) => h.kind === "event" && eventFit(words, h.title, h.ref.split(":")[1] ?? "") >= EVENT_FIT);
   }
 }

@@ -18,14 +18,18 @@ beforeAll(async () => {
   for (const n of [4215, 6980, 23268, 7149, 5000, 5001]) await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, 'Laurel', 'MD', 'USA')", [n, `Team ${n}`]);
   await run("INSERT INTO teams (number, name, city, state, country) VALUES (9999, 'BOB', 'Laurel', 'MD', 'USA')");
   // One event code, renamed between seasons (both are "MTI"); another event sharing the initialism, an older one.
-  const events: [number, string, string, number[]][] = [
+  // [season, code, name, teams, held (month-day of the year after the season starts)]
+  const events: [number, string, string, number[], string?][] = [
     [S - 1, "USMDMTI", "Maryland Tech Invitational", [4215, 6980, 23268, 7149]],
     [S, "USMDMTI", "Multinational Tech Invitational", [4215, 6980, 23268, 7149]],
     [S - 1, "USCOMTI", "Mountain Tech Invitational", [5000, 5001, 4215, 6980]],
     [S, "USMDBOB", "Battle of the Bay", [5000, 5001, 23268, 7149]],
+    // The same initialism in the same season, bigger but held earlier: the later one is "the latest held".
+    [S, "USMWMTI", "Midwest Tech Invitational", [4215, 6980, 23268, 7149, 5000, 5001], "03-01"],
+    [S, "USMDFR", "Festival of the Robots", [5000, 5001, 4215, 6980]],
   ];
-  for (const [season, code, name, teams] of events) {
-    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, ?, ?, 'OffSeason', 'Laurel', 'MD', 'USA', ?, ?, 't')", [season, code, name, `${season + 1}-06-27`, `${season + 1}-06-29`]);
+  for (const [season, code, name, teams, held = "06-27"] of events) {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, ?, ?, 'OffSeason', 'Laurel', 'MD', 'USA', ?, ?, 't')", [season, code, name, `${season + 1}-${held}`, `${season + 1}-${held}`]);
     for (const t of teams) await run("INSERT INTO event_teams (season, code, team) VALUES (?, ?, ?)", [season, code, t]);
     await run("INSERT INTO alliances (season, code, number, captain, pick1) VALUES (?, ?, 1, ?, ?), (?, ?, 2, ?, ?)", [season, code, teams[0], teams[1], season, code, teams[2], teams[3]]);
     for (const [level, series, n, label] of [["qual", 0, 1, "Q1"], ["playoff", 6, 1, "F1"], ["playoff", 6, 2, "F2"]] as const) {
@@ -57,9 +61,22 @@ describe("an event by its initialism", () => {
     expect((await ask("MTI highlights")).stat?.title).toMatch(/^Highlights at Multinational Tech Invitational, /);
     expect((await ask("MTI results")).hits.map((h) => h.ref)).toContain(`${S}:USMDMTI`);
   });
-  it("several events sharing it: the latest held, said by name", async () => {
+  it("several events sharing it: the latest held (its season, then its date), said by name", async () => {
     const a = await ask("mti highlights");
+    expect(a.stat?.title).toMatch(/^Highlights at Multinational Tech Invitational, /);
     expect(JSON.stringify(a)).not.toContain("Mountain Tech Invitational");
+    expect(JSON.stringify(a)).not.toContain("Midwest Tech Invitational");
+  });
+  // Greptile on #1006: a year asked narrows the events before one is chosen.
+  it("a year asked: chosen among the events held that year", async () => {
+    const a = await ask(`mti highlights ${S}`);
+    expect(a.step).not.toBe("recovery");
+    expect(a.stat?.title).toMatch(/Tech Invitational, /);
+    expect(a.stat?.title).not.toContain("Multinational");
+  });
+  it("a two-letter initialism finds its event too", async () => {
+    expect(await (await parseContext()).isEvent("fr")).toBe(true);
+    expect((await ask("fr highlights")).stat?.title).toMatch(/^Highlights at Festival of the Robots, /);
   });
   it("a team named so is the team's, never the event's", async () => {
     expect(await (await parseContext()).isEvent("bob")).toBe(false);

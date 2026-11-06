@@ -16,6 +16,8 @@ import { COLS, allianceRow, lineups, type Row } from "../answers/families/topMat
 import { OFFICIAL_TYPES } from "../answers/clauses.js";
 import { DOUBLE_ELIM_FROM } from "../../../src/shared/bracketOdds.js";
 import { EVENT_FIT } from "./context.js";
+import { names } from "./names.js";
+import { initialismEvent } from "./initialisms.js";
 import { FROM, MARGIN, NP, where, type MatchScope } from "./matchFind.js";
 
 export interface HighlightFind extends MatchScope {
@@ -74,20 +76,20 @@ const key = (r: { season: number; code: string; level: string; series: number; n
 /** A division before the finals it feeds, then the event's own order: qualifications, playoffs, a classic final last. */
 const ORDER = `e.start, COALESCE(e.division_code, e.code), e.division_code IS NULL, m.code, m.level = 'playoff', ${FINAL_LAST}, m.series, m.number`;
 
-/** The events `words` name (FIRST's `types` only, when given): in each season, the ones that fit them best. */
-export async function eventsNamed(words: string, types: readonly string[] | null): Promise<{ season: number; code: string; name: string; type: string | null; division: string | null; start: string | null; end: string | null; city: string | null; state: string | null }[]> {
+/** The events `words` name (FIRST's `types` only, when given, and only those `when` keeps: a year asked): in each
+ *  season, the ones that fit them best. */
+export async function eventsNamed(words: string, types: readonly string[] | null, when?: (e: { season: number; start: string | null }) => boolean): Promise<{ season: number; code: string; name: string; type: string | null; division: string | null; start: string | null; end: string | null; city: string | null; state: string | null }[]> {
   const hits = (await search(words, 25, new Set(), new Set(["event"]))).filter((h) => h.kind === "event" && eventFit(words, h.title, h.ref.split(":")[1] ?? "") >= EVENT_FIT);
-  const codes = [...new Set(hits.map((h) => h.ref.split(":")[1]))];
+  // An initialism's events by the names index, which a search for a short word may rank below others.
+  const codes = [...new Set([...hits.map((h) => h.ref.split(":")[1]), ...(await names()).initialism(words)])];
   if (!codes.length) return [];
   const rows = await all<{ season: number; code: string; name: string; type: string | null; division_code: string | null; start: string | null; end: string | null; city: string | null; state: string | null }>(
     `SELECT season, code, name, type, division_code, start, end, city, state FROM events WHERE code IN (${codes.map(() => "?").join(", ")})`, codes);
-  const fits = rows.map((e) => ({ e, fit: eventFit(words, e.name, e.code) })).filter(({ e, fit }) => fit >= EVENT_FIT && (!types || types.includes(e.type ?? "")));
-  // An initialism several events share ("mti"): one of them, the latest held, then the one with the most teams.
+  const fits = rows.map((e) => ({ e, fit: eventFit(words, e.name, e.code) })).filter(({ e, fit }) => fit >= EVENT_FIT && (!types || types.includes(e.type ?? "")) && (!when || when({ season: Number(e.season), start: e.start ?? null })));
+  // An initialism several events share ("mti"): the one initialismEvent picks, in each season it was held.
   const shared = fits.filter(({ fit }) => fit === INITIALISM_FIT);
   if (shared.length && shared.length === fits.length && new Set(shared.map(({ e }) => e.code)).size > 1) {
-    const sizes = await all<{ season: number; code: string; n: number }>(`SELECT season, code, COUNT(*) n FROM event_teams WHERE code IN (${codes.map(() => "?").join(", ")}) GROUP BY season, code`, codes);
-    const size = (e: { season: number; code: string }) => Number(sizes.find((r) => Number(r.season) === Number(e.season) && r.code === e.code)?.n ?? 0);
-    const pick = [...shared].sort((a, b) => Number(b.e.season) - Number(a.e.season) || size(b.e) - size(a.e))[0].e.code;
+    const pick = (await initialismEvent(words, when))?.code;
     fits.splice(0, fits.length, ...shared.filter(({ e }) => e.code === pick));
   }
   const best = new Map<number, number>();

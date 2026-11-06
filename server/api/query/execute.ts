@@ -364,11 +364,11 @@ async function highlights(p: Parsed, scope: ReadScope, opts: PipelineOptions): P
   const videos = !p.symbols.includes("highlights") && !p.symbols.includes("agg:max");
   const kind = p.worlds ? WORLDS_KIND : p.states ? STATES_KIND : p.eventKind ? eventKindOf(p.eventKind) : null;
   if (p.eventKind && !kind) return null;
-  const named = p.event ? await eventsNamed(normalise(p.event.words), kind?.types ?? null) : null;
-  if (named && !named.length) return null;
   // A calendar year said with an event, Worlds or a state championship ("nj championship 2025", "worlds 2025") is the
-  // one held that year; a season ("2024-25"), that season's.
+  // one held that year; a season ("2024-25"), that season's. An event is chosen among those held that year.
   const year = p.time?.kind === "season" && p.time.year != null && !p.time.relative ? p.time.year : null;
+  const named = p.event ? await eventsNamed(normalise(p.event.words), kind?.types ?? null, year != null ? (e) => (e.start ?? "").startsWith(String(year)) : undefined) : null;
+  if (named && !named.length) return null;
   const evs = named && year != null ? named.filter((e) => (e.start ?? "").startsWith(String(year))) : named;
   if (evs && !evs.length) return null;
   const region = regionOf(p);
