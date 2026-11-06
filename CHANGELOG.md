@@ -30,6 +30,18 @@ Prediction questions answer in the card, with the chance on a 0–100% bar, and 
 - **No answer.** One sentence says what's missing; the closest teams and events follow as full cards, with searches that answer about them.
 - **How it works.** The search page's explainer covers reading a question in any order, the season rule, widening in a stated order and worked-out measures.
 
+## 3.3.4 — 2026-11-05
+
+A match question with a time that had to be widened no longer says the time was left out.
+
+### Highlights
+- [fixes] "Top match in Ohio this week" keeps "this week" read
+- [fixes] A widened time is named once, in the card's chip
+- [fixes] Every other word left out is still said to be
+
+### Search
+- **Widened time, read.** When a match question's week or month has nothing yet and the card widens it, the chip ("Relaxed: this week → 2025–26") counts as naming the time, so the heading no longer adds that the time isn't part of the answer. (#777)
+
 ## 3.3.3 — 2026-11-05
 
 Search answers sit in one readable column, the page footer stays at the bottom of the screen, and each page has one main button.
