@@ -413,35 +413,43 @@ describe("search results page, Phase 2 cards", () => {
     expect(target.dataset.highlight).toBe("on");
   });
 
-  it("event cards: one link over the card, quick links beside it (never inside), season tabs for a name held in several seasons", () => {
+  it("event cards: one link over the card, quick links beside it (never inside); a name held in several seasons is a card a season, no season tabs", () => {
     state.answer = answer([ev("A", "Ohio State Championship", "2020-02-11", 2019), ev("B", "Ohio State Championship", "2021-02-11", 2020)]);
     const { container } = show("/search?q=x");
     const cards = container.querySelectorAll('[data-result="event"]');
-    expect(cards).toHaveLength(1);
+    expect(cards).toHaveLength(2);
     for (const a of container.querySelectorAll("a")) expect(a.querySelector("a, button")).toBeNull();
     expect(within(cards[0] as HTMLElement).getByRole("link", { name: "Teams" }).getAttribute("href")).toBe("/events/2019/A?tab=teams");
-    fireEvent.click(screen.getByRole("button", { name: "2020–21", pressed: false }));
-    expect(within(cards[0] as HTMLElement).getByRole("link", { name: "Ohio State Championship" }).getAttribute("href")).toBe("/events/2020/B");
-  });
-
-  it("groups a championship division across years by its own name", () => {
-    state.answer = answer([ev("A", "2024 FIRST Championship - Edison Division", "2024-04-17", 2023), ev("B", "FIRST Championship - FIRST Tech Challenge - Edison Division", "2025-04-16", 2024)]);
-    const { container } = show("/search?q=edison%20division");
-    expect(container.querySelectorAll('[data-result="event"]')).toHaveLength(1);
-    expect([...container.querySelectorAll("[data-season-tabs] button")].map((t) => t.textContent)).toEqual(["2023–24", "2024–25"]);
+    expect(within(cards[1] as HTMLElement).getByRole("link", { name: "Ohio State Championship" }).getAttribute("href")).toBe("/events/2020/B");
+    // One link to the event's page (the card's own): no "View event" cue repeating it, and no season tabs.
+    expect(container.querySelector("[data-season-tabs], [data-cta]")).toBeNull();
   });
 
   it("an event's divisions under it, one family a season; the season filter leaves one, and the heading says which", () => {
     const fam = (season: number, divs: string[]) => [ev("FTCCMP1", "FIRST Championship - FIRST Tech Challenge", `${season + 1}-04-20`, season),
-      ...divs.map((d) => ({ ...ev(`FTCCMP1${d.slice(0, 4).toUpperCase()}`, `FIRST Championship - FIRST Tech Challenge - ${d} Division`, `${season + 1}-04-20`, season), parent: "FTCCMP1" }))].map((h) => ({ ...h, game: season === 2025 ? "DECODE" : "INTO THE DEEP" }));
+      ...divs.map((d) => ({ ...ev(`FTCCMP1${d.slice(0, 4).toUpperCase()}`, `FIRST Championship - FIRST Tech Challenge - ${d} Division`, `${season + 1}-04-20`, season), parent: "FTCCMP1" }))].map((h) => ({ ...h, game: season === 2025 ? "DECODE" : "INTO THE DEEP", ...(h.parent && season === 2025 && !h.ref.endsWith("EDIS") ? { eventTeams: 60 } : {}) }));
     const hits = [...fam(2025, ["Edison", "Franklin", "Ross"]), ...fam(2024, ["Jemison", "Ochoa"])];
     state.answer = answer(hits, { understood: { kind: "events", label: "FIRST Championship (Worlds) events, every season", scope: { subject: "FIRST Championship (Worlds) events", span: ", every season" }, total: hits.length } } as Partial<SearchAnswer>);
     const { container } = show("/search?q=first%20championship");
     const families = container.querySelectorAll("[data-event-family]");
     expect(families).toHaveLength(2);
-    expect([...families[0].querySelectorAll('[data-result="event"] > a')].map((a) => a.textContent)).toEqual(["Edison Division", "Franklin Division", "Ross Division", "Finals"]);
+    expect([...families[0].querySelectorAll('[data-division] a:not([href*="?tab"])')].map((a) => a.textContent)).toEqual(["Edison Division", "Franklin Division", "Ross Division", "Finals"]);
+    // Each fact once, on the event: place, venue and dates never on a division; status once (they all agree).
+    expect(families[0].textContent!.split("Oradell").length - 1).toBe(1);
+    expect(families[0].querySelectorAll("[data-division]")[0].textContent).toBe("Edison DivisionMatchesRankingsTeamsPlayoffs");
+    // A division's teams, and the total on the event, where the data lists them.
+    expect(families[0].querySelector("[data-family-count]")!.textContent).toContain("· 120 teams");
+    expect(families[0].querySelectorAll('[data-event-chip="status"]')).toHaveLength(1);
+    // The type only where the name doesn't already say it.
+    expect(families[0].querySelector("[data-family-type]")).toBeNull();
+    // The accent is the selected control's alone: none in the tree.
+    expect(container.querySelectorAll('[data-event-family] [class*="accent"]')).toHaveLength(0);
     expect(families[0].querySelector("[data-family-link]")!.getAttribute("href")).toBe("/events?season=2025&q=FTCCMP1");
-    expect(families[0].querySelector("[data-family-count]")!.textContent).toBe("3 divisions");
+    expect(families[0].querySelector("[data-family-count]")!.textContent).toBe("3 divisions and finals · 120 teams");
+    // The newest finished season opens; an older one shows its event only, its divisions a tap away (still counted).
+    expect(families[1].querySelectorAll("[data-division]")).toHaveLength(0);
+    fireEvent.click(families[1].querySelector("[data-family-count]")!);
+    expect(families[1].querySelectorAll("[data-division]")).toHaveLength(3);
     // Seasons read apart by their game, not only their years.
     expect(families[0].textContent).toContain("2025–26 DECODE season");
     expect(families[1].textContent).toContain("2024–25 INTO THE DEEP season");

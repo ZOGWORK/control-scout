@@ -62,6 +62,8 @@ export interface SearchHit {
   parent?: string;
   /** An event's season's game ("DECODE"), so seasons read apart by name, not only by years. Event hits only. */
   game?: string;
+  /** How many teams an event lists (its roster as stored), where it lists any. Event hits only. */
+  eventTeams?: number;
   /** How the hit matched: "exact" (every word typed names it) or "fuzzy" (a typo, a part of a word, or only its
    *  school, city or venue matched). Fuzzy hits come after exact ones and are listed apart ("Other teams matching …"). */
   match?: "exact" | "fuzzy";

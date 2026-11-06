@@ -11,6 +11,17 @@ export const EVENT_STATUS_TONE = {
   finished: "bg-emerald-400/15 text-success",
 } as const;
 
+/** Event status at full strength, where status is what a block is about (search's championship tree,
+ *  components/search/page/EventTree.tsx): a solid chip (`chip`, white on a deep fill, AA), the block's thick bar and the
+ *  dot on its divisions count (`bar`), the tree's connector and nodes (`line`, `tick`), and a node's tinted icon
+ *  chip (`tint`, `icon`, a graphic: 3:1). The status families of search's palette (SEARCH_PALETTE live, upcoming,
+ *  finished: rose, cyan, lime), so a status never shares a colour with a phase, a team or an award on a search card. */
+export const EVENT_STATUS_SOLID = {
+  live: { chip: "bg-rose-700 text-white", bar: "bg-rose-600", line: "border-rose-600", tick: "before:bg-rose-600", tint: "bg-rose-600/12", icon: "text-rose-700 dark:text-rose-400" },
+  upcoming: { chip: "bg-cyan-700 text-white", bar: "bg-cyan-700 dark:bg-cyan-500", line: "border-cyan-700 dark:border-cyan-500", tick: "before:bg-cyan-700 dark:before:bg-cyan-500", tint: "bg-cyan-600/12", icon: "text-cyan-700 dark:text-cyan-400" },
+  finished: { chip: "bg-lime-700 text-white", bar: "bg-lime-700 dark:bg-lime-500", line: "border-lime-700 dark:border-lime-500", tick: "before:bg-lime-700 dark:before:bg-lime-500", tint: "bg-lime-600/12", icon: "text-lime-700 dark:text-lime-400" },
+} as const;
+
 /** Video and recordings (Has a recording, Clips, a match's Watch chip): the one video red, as text or on its own tint. */
 export const VIDEO_TONE = { text: "text-video", chip: "bg-video/12 text-video" } as const;
 

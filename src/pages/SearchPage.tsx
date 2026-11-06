@@ -20,7 +20,7 @@ import { EventAwardsAnswer } from "../components/search/page/EventAwards";
 import { useSubmittedSearch } from "../components/search/direct";
 import { SearchSkeleton } from "../components/search/SearchSkeleton";
 import { AnswerNotesView, useSearchHits, useSections } from "../components/search/SearchBox";
-import { CompareCard, EventCard, EventFamilyCard, HeadToHead, ResultRow, TeamCard, teamSeasons, type SeasonSummary } from "../components/search/page/ResultCards";
+import { CompareCard, EventCard, HeadToHead, ResultRow, TeamCard, teamSeasons, type SeasonSummary } from "../components/search/page/ResultCards";
 import { NoResults } from "../components/search/page/NoResults";
 import { StatAnswerCard } from "../components/search/page/StatAnswer";
 import { AnswerVideo, AnswerVideoProvider } from "../components/search/page/AnswerVideo";
@@ -33,7 +33,8 @@ import { CompareBar, CompareSheet, togglePick } from "../components/search/page/
 import { AppearancesAnswer, QualityBanner, StatBanner, Timeline } from "../components/search/page/Summary";
 import { appearanceStats, appearances, isQualityQuestion, hasNumbers, standing } from "../components/search/page/records";
 import { SearchFilters } from "../components/search/page/SearchFilters";
-import { eventGroups } from "../components/search/page/eventFamilies";
+import { eventGroups, openFamilies } from "../components/search/page/eventFamilies";
+import { EventTree } from "../components/search/page/EventTree";
 import { answerTeams, anyFilter, askedWhen, filteredTitle, filterAlternatives, whenCounts, compareSeason, compareSides, compareTeams, filterChoices, cardTeamName, isCompare, isFuzzy, keeps, pageTitle, contextBadge, badgeUnder, readingOf, fuzzyWords, readFilters, teamParts, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
 import { SEARCH_PAGE_LIMIT } from "../shared/search";
 import type { AnswerRow, AnswerSection } from "../shared/searchSections";
@@ -170,7 +171,8 @@ export default function SearchPage() {
           The query itself lives in the top bar (refine there): the page never repeats it. */}
       {/* Phones: the query in a bar that stays under the top bar, then a short header ("Results: …"), no eyebrow. */}
       {phone && <PhoneSearchBar query={query} />}
-      <p className="text-xs font-semibold text-accent-text max-md:hidden" data-eyebrow>FTC One Search</p>
+      {/* The accent is the selected control's alone on this page (the active time tab): the eyebrow is plain. */}
+      <p className="text-xs font-semibold text-muted-foreground max-md:hidden" data-eyebrow>FTC One Search</p>
       <h1 className="mt-1 font-display text-xl font-semibold tracking-tight text-foreground max-md:mt-0 md:text-2xl lg:text-3xl">
         {!query ? "Search" : found ? <>{phone && "Results: "}{shownTitle}</> : busy || error ? "Search results" : "No matches found"}
       </h1>
@@ -262,7 +264,7 @@ export default function SearchPage() {
                             Show {a.label}
                           </Button>
                         ))}
-                        <button type="button" onClick={() => setFilters({ when: askedTime, season: null, type: null })} className="text-sm font-medium text-accent-text hover:underline">Clear filters</button>
+                        <button type="button" onClick={() => setFilters({ when: askedTime, season: null, type: null })} className="text-sm font-medium text-foreground underline-offset-2 hover:underline">Clear filters</button>
                       </div>
                     </div>
                   )}
@@ -283,7 +285,7 @@ export default function SearchPage() {
       )}
       </div>
       <p className="mt-10 border-t border-border pt-4 text-sm text-muted-foreground max-md:mb-20">
-        <Link to="/how-it-works/search" className="inline-flex items-center font-medium text-accent-text hover:underline max-md:min-h-[44px] pointer-coarse:min-h-[44px]">How FTC One Search works</Link>
+        <Link to="/how-it-works/search" className="inline-flex items-center font-medium text-foreground underline-offset-2 hover:underline max-md:min-h-[44px] pointer-coarse:min-h-[44px]">How FTC One Search works</Link>
       </p>
     </div>
   );
@@ -332,7 +334,7 @@ function ResultSection({ s, summaries, covered, picks, onPick, fuzzyWord, twoCol
         {s.id !== "pages" && s.id !== "browse" && <span className="rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-foreground/80">{count}</span>}
       </h2>
       {s.id === "event" ? (
-        <div className={cn("grid gap-3 sm:grid-cols-2", twoCol ? "2xl:grid-cols-3" : "xl:grid-cols-3")}>{eventGroups(s.rows.map((r) => r.hit)).map((g) => (g.kind === "family" ? <EventFamilyCard key={g.family.key} f={g.family} onOpen={onOpen} /> : <EventCard key={g.hits[0].ref} h={g.hits[0]} seasons={g.hits} onOpen={onOpen} />))}</div>
+        <EventResults hits={s.rows.map((r) => r.hit)} twoCol={twoCol} onOpen={onOpen} />
       ) : teamish ? (
         <div className="space-y-2">
           {teamGroups.map(({ head, subs }) => (
@@ -361,6 +363,20 @@ function ResultSection({ s, summaries, covered, picks, onPick, fuzzyWord, twoCol
         </ul>
       )}
     </section>
+  );
+}
+
+/** The events, grouped before any card is drawn (../components/search/page/eventFamilies.ts): an event split in
+ *  divisions as a tree a season, full width; any other event a card in the grid. */
+function EventResults({ hits, twoCol, onOpen }: { hits: SearchHit[]; twoCol: boolean; onOpen: (h: SearchHit) => void }) {
+  const groups = useMemo(() => eventGroups(hits), [hits]);
+  const open = useMemo(() => openFamilies(groups), [groups]);
+  return (
+    <div className={cn("grid gap-3 sm:grid-cols-2", twoCol ? "2xl:grid-cols-3" : "xl:grid-cols-3")}>
+      {groups.map((g) => (g.kind === "family"
+        ? <EventTree key={g.family.key} f={g.family} open={open.has(g.family.key)} onOpen={onOpen} />
+        : <EventCard key={g.hits[0].ref} h={g.hits[0]} onOpen={onOpen} />))}
+    </div>
   );
 }
 

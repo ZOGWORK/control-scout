@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.4.1 — 2026-11-06
+## 3.4.2 — 2026-11-06
 
 Search answers are in bold colour: every award, scoring phase and team has its own colour, the same on every card.
 
@@ -28,6 +28,21 @@ Search answers are in bold colour: every award, scoring phase and team has its o
 - **One palette.** Every search answer uses one set of colours, one per meaning, never shared. Auto is blue, TeleOp green, Endgame purple, penalties red and ranking points yellow. Inspire is magenta, Winning Alliance orange, Finalist Alliance pink, judged awards teal and performance awards indigo. Live, Upcoming and Finished each have one too. Anything without a meaning of its own (a team's numbers, bars, lines and ranks) takes the team's colour.
 - **Bolder.** Tiles get a thick left bar in their colour and a filled icon, and their number is in the colour too. Award rows and chips are filled, phase tiles in match boxes are solid, and the event awards podium is in the award's colour. The leaderboard's phase columns and section headings are coloured. Every text and fill clears 4.5:1 in every theme.
 - **Checked on every card.** Each card type is tested so that nothing outside the palette is used, no two meanings share a colour, and no bar, line, tile, pill or chip is left grey. (#794)
+
+## 3.4.1 — 2026-11-06
+
+A championship's divisions branch off it as a tree, coloured by status, with each fact said once and yellow kept for the control you picked.
+
+### Highlights
+- [fixes] Divisions branch off their championship, stacked on phones
+- [appearance] Status in colour: red Live, blue Upcoming, green Finished
+- [fixes] Place, venue, dates and type said once, on the championship
+- [fixes] Each division shows its team count, and the championship shows the total
+
+### Search
+- **A tree.** An event split in divisions shows the event on the left (on a phone, on top), with a status-coloured trophy badge as the tree's root: its name, season and game, dates (from its first division's start to its finals' end), place, venue, type, status and how many teams in all. Its divisions branch off one line on the right (on a phone, stacked and indented under it), each a node on the line, with the finals last and tinted, where the divisions meet. A division is its name, how many teams it has, its own pages (Matches, Rankings, Teams, Playoffs) and its status only when it differs. The newest finished season and any upcoming or live one start open; older ones open with a tap and still count.
+- **Colour that means something.** Status is the colour: a solid chip, the block's thick bar and the connecting line, red for Live, blue for Upcoming, green for Finished, each at AA contrast. Yellow is only the time tab you picked: event cards drop the yellow type bar, label and "View event" cue (the card is already its link), and the page's heading and links are plain.
+- **No season tabs.** Events that share a name across seasons are a card each, and the season filter picks one (#796).
 
 ## 3.4.0 — 2026-11-06
 
