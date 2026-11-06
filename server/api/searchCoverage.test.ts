@@ -115,6 +115,9 @@ describe("answers on their own", () => {
   it("a country's best teams, by OPR", async () => {
     const a = await ask("best teams in romania");
     expect(a.card?.lines.map((l) => l.text)).toEqual(["14270 Quantum Robotics"]);
+    // A country by its people's word: its teams by OPR on the answer page.
+    const word = await searchAnswer("best romanian teams", { limit: 25, learn: false, full: true });
+    expect(word.stat?.title).toMatch(/^Top 10 teams by OPR in Romania · /);
     // The number asked for: the USA has three ranked teams here.
     expect((await teamListAnswer("top 2 teams in usa"))?.card?.lines.map((l) => l.text)).toEqual(["23268 Ultraviolet", "6980 Bad Wolf"]);
   });

@@ -31,8 +31,12 @@ export function phaseSegments(withEndgame = false) {
 type Sort = { key: TeamSortKey; dir: "asc" | "desc" };
 
 export function TeamTable({ table, label }: { table: Table; label: string }) {
-  const [sort, setSort] = useState<Sort>({ key: table.by, dir: table.dir ?? firstDir(table.by) });
+  const opening = (): Sort => ({ key: table.by, dir: table.dir ?? firstDir(table.by) });
+  const [sort, setSort] = useState<Sort>(opening);
   const [open, setOpen] = useState<ReadonlySet<number>>(new Set());
+  // A new answer in the same place (the page keeps the last one up while the next loads) opens in its own order.
+  const [shown, setShown] = useState(table);
+  if (shown !== table) { setShown(table); setSort(opening()); setOpen(new Set()); }
   const id = useId();
   const rows = useMemo(() => sortTeamRows(table.rows, sort.key, sort.dir), [table.rows, sort]);
   const phases = hasPhases(table.rows);

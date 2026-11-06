@@ -95,6 +95,8 @@ describe("leaderboards", () => {
     expect(more?.href).toContain("dir=asc");
     expect((await searchAnswer("top 5 teams in Oradell, NJ by opr in 2025-26", { limit: 25, full: true })).stat?.blocks[0]).not.toHaveProperty("more");
     expect((await board("best team in Oradell, NJ, by opr in 2025-26")).rows).toEqual(["4215 Hypnotic Robotics", "6980 Bad Wolf"]);
+    // No stat said: a town with its state after it, lists its teams by OPR (a country by its people's word: server/api/searchCoverage.test.ts).
+    expect((await board("best team in Oradell, NJ in 2025-26")).st.title).toBe("Best team in Oradell by OPR · 2025–26");
     expect((await board("which teams have the best opr in new jersey in 2025-26, top 2")).rows).toEqual(["23268 Ultraviolet", "4215 Hypnotic Robotics"]);
     expect((await board("is there any team with a perfect record in new jersey")).st).toMatchObject({ title: "Undefeated teams in New Jersey by wins · 2026–27", headline: { value: "30000 Early Bird" } });
   });

@@ -101,8 +101,8 @@ const TEAM_IN_HREF = /^\/teams\/(\d+)/;
 export function teamTableOfLeaderboard(statId: string, statLabel: string, rows: readonly LeaderboardRow[], teleopWithEndgame = false, lowest = false): TeamTable {
   const by: TeamTable["by"] = ({ opr: "opr", auto: "auto", teleop: "dc", endgame: "endgame" } as Record<string, TeamTable["by"]>)[statId] ?? "rank";
   return {
-    // A lowest-first list opens lowest first by its own column ("rank" is the list's order already).
-    by, ...(lowest && by !== "rank" ? { dir: "asc" as const } : {}),
+    // A lowest-first list opens lowest first: its own column ascending, or its places (counted from the top) descending.
+    by, ...(lowest ? { dir: by === "rank" ? "desc" as const : "asc" as const } : {}),
     ...(by === "rank" ? { asked: { label: statLabel } } : {}),
     ...(teleopWithEndgame ? { teleopWithEndgame: true } : {}),
     rows: rows.map((r) => {
