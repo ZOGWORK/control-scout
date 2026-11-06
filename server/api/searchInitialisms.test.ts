@@ -74,6 +74,16 @@ describe("an event by its initialism", () => {
     expect(a.stat?.title).toMatch(/Tech Invitational, /);
     expect(a.stat?.title).not.toContain("Multinational");
   });
+  // Greptile on #1006: next season's event already listed is never "the latest held" for its winners.
+  it("next season's one listed, not held yet: the winners are the latest one played", async () => {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'USMDMTI', 'Multinational Tech Invitational', 'OffSeason', 'Laurel', 'MD', 'USA', '2099-06-27', '2099-06-29', 't')", [S + 1]);
+    await rebuildSearch();
+    const a = await ask("who won MTI");
+    expect(a.understood?.season).toBe(S);
+    expect(a.stat?.headline).toBeDefined();
+    await run("DELETE FROM events WHERE season = ? AND code = 'USMDMTI'", [S + 1]);
+    await rebuildSearch();
+  });
   it("a two-letter initialism finds its event too", async () => {
     expect(await (await parseContext()).isEvent("fr")).toBe(true);
     expect((await ask("fr highlights")).stat?.title).toMatch(/^Highlights at Festival of the Robots, /);

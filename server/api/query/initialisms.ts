@@ -22,9 +22,10 @@ export function eventInitialisms(name: string): string[] {
 }
 
 /** The one event `word` is the initialism of, when several share it ("mti"): the latest held (its season, then its
- *  date), then the one with the most teams, among those `when` keeps (a season or year asked). Null when the word is no
+ *  date), then the one with the most teams, among those `when` keeps (a season or year asked); one already held before
+ *  one only listed. Null when the word is no
  *  event's initialism, or a team's name. Every reader that resolves an event by its initialism picks with this. */
-export async function initialismEvent(word: string, when?: (e: { season: number; start: string | null }) => boolean): Promise<{ season: number; code: string } | null> {
+export async function initialismEvent(word: string, when?: (e: { season: number; start: string | null }) => boolean, now = Date.now()): Promise<{ season: number; code: string } | null> {
   const w = word.trim().toLowerCase();
   if (!w || /\s/.test(w)) return null;
   const idx = await names();
@@ -34,6 +35,9 @@ export async function initialismEvent(word: string, when?: (e: { season: number;
     `SELECT e.season, e.code, e.name, e.start, (SELECT COUNT(*) FROM event_teams t WHERE t.season = e.season AND t.code = e.code) n
      FROM events e WHERE e.code IN (${codes.map(() => "?").join(", ")})`, codes);
   const fit = rows.map((r) => ({ ...r, season: Number(r.season), n: Number(r.n) })).filter((r) => eventInitialisms(r.name).includes(w) && (!when || when(r)));
-  fit.sort((a, b) => b.season - a.season || String(b.start ?? "").localeCompare(String(a.start ?? "")) || b.n - a.n);
+  // Held already before listed only ("who won mti" with next season's on the calendar is the latest one played).
+  const today = new Date(now).toISOString().slice(0, 10);
+  const held = (r: { start: string | null }) => (r.start != null && r.start <= today ? 1 : 0);
+  fit.sort((a, b) => held(b) - held(a) || b.season - a.season || String(b.start ?? "").localeCompare(String(a.start ?? "")) || b.n - a.n);
   return fit[0] ? { season: fit[0].season, code: fit[0].code } : null;
 }
