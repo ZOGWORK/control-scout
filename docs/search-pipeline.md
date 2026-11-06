@@ -141,6 +141,32 @@ comebacks yet…". The plain highest score (no measure, no match type) follows t
 before the season today is in. A window ("this week") relaxes as everywhere else; a year said is never relaxed. "In
 the world", "worldwide" and "globally" mean every place.
 
+## Highlights
+
+`server/api/query/highlights.ts`: "highlights" (or "highlight reel", "top moments", "best moments", "best matches",
+"standout matches") and the video words ("recap", "replay", "videos", "clips", "watch", "stream", "VOD") with whatever
+scope the query names: an event and its divisions ("nj championship highlights"), one division ("jackson division
+highlights"), Worlds, a state championship, a place, a kind of event, a match type, a window, a season, or everywhere.
+Its standout matches of one season, each listed once under the first reason it meets, in this order: best score (an
+alliance's points without penalties), biggest margin, latest playoff match (the bracket's last: a classic final, numbered 0, last), best Auto, closest finish
+(the smallest winning margin), biggest upset (the match finder's rule, read only for a scope read whole). Each row is
+the alliance its reason is about, labelled with it, so the answer's video gives each its clip.
+
+The scope is resolved to its event codes first, so its matches, teams and saved calls are read by their keys (an event
+answers in under 100 ms); a scope of up to 4,000 matches is read whole and picked in code, a bigger one asks each
+reason's best of SQL. Answers are kept ten minutes, cleared when matches sync.
+
+With a team (by number or name, in any order) it's the team's own highlights (`server/api/answers/highlights.ts`
+teamHighlights): its season, or its matches at an event named, Worlds or a state championship, never padded from
+other events, the event said once in the title. A team with no played match there gets a card saying so, with its own
+events of the season. A place narrows a state championship ("<team> highlights at nj states").
+
+No season said reads the season today is in, then the latest season with matches in that scope, said once in the
+chip: "No 2026–27 matches yet at Worlds; showing 2025–26". A calendar year with an event, Worlds or a state championship
+("nj championship 2025", "worlds 2025") is the one held that year. A window relaxes as everywhere else, its events
+read from the seasons either side too. A count ("top 3 highlights") lists at most that many. A match's number ("q16 video") is that match, never the
+highlights.
+
 ## Leaderboards
 
 The pipeline's leaderboard (`execute.ts`, over `answers/families/leaderboard.ts`) reads a list of teams however it's

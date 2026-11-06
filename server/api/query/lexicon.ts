@@ -35,7 +35,11 @@ export type Sym =
   | { k: "per"; v: "match" | "event" | "rate" }
   | { k: "nopen" }
   /** No losses: "undefeated", "a perfect record". */
-  | { k: "undefeated" };
+  | { k: "undefeated" }
+  /** A scope's or a team's standout matches: "worlds highlights". */
+  | { k: "highlights" }
+  /** Its match videos: "jackson division recap", "<team> videos" (read as its highlights). */
+  | { k: "videos" };
 
 /** Each entry: the phrases (`|`-separated, words separated by spaces) and the symbol they mean (or several: "margin of
  *  victory" is a margin of wins only). Longer phrases win over shorter ones at the same place, so "win rate" is one
@@ -119,6 +123,9 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["losing", { k: "outcome", v: "L" }],
   // No losses.
   ["undefeated|unbeaten|perfect record|a perfect record|perfect season|no losses|zero losses|without a loss|never lost|not lost|havent lost|hasnt lost", { k: "undefeated" }],
+  // Standout matches, each with why it's one.
+  ["highlights|highlight|highlight reel|highlight reels|top moments|best moments|best matches|best games|standout matches|standout moments|best plays|top plays", { k: "highlights" }],
+  ["recap|recaps|replay|replays|video|videos|clip|clips|watch|watch back|rewatch|stream|streams|livestream|live stream|vod|vods|footage|match videos|match video|youtube", { k: "videos" }],
   // Penalty points left out.
   ["without penalties|no penalties|excluding penalties|minus penalties|penalty free|np|non penalty", { k: "nopen" }],
   // Prepositions that say which slot follows.

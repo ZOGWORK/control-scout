@@ -30,10 +30,11 @@ export function windowSteps(window: { label: string; from?: string; to?: string 
   return steps;
 }
 
-/** No time said: the current season, then (when it has nothing yet) the one before, `where` the place it's about and
- *  `what` what it has none of yet ("matches" when nothing is played there, "undefeated teams" when only that is). */
-export function defaultSteps(season: number, where: string, what = "matches"): { step: Relaxation; season: number }[] {
-  return [{ step: { filter: "default", from: seasonLabel(season), to: seasonLabel(season - 1), note: `No ${seasonLabel(season)} ${what} yet${where}; showing ${seasonLabel(season - 1)}` }, season: season - 1 }];
+/** No time said: the current season, then (when it has nothing yet) the one before, or `to`, the latest with any
+ *  (a scope's highlights); `where` the place it's about and `what` what it has none of yet ("matches" when nothing is
+ *  played there, "undefeated teams" when only that is). */
+export function defaultSteps(season: number, where: string, what = "matches", to = season - 1): { step: Relaxation; season: number }[] {
+  return [{ step: { filter: "default", from: seasonLabel(season), to: seasonLabel(to), note: `No ${seasonLabel(season)} ${what} yet${where}; showing ${seasonLabel(to)}` }, season: to }];
 }
 
 /** Runs `attempt` with each step in turn until one finds something; the answer says every step it took. */
