@@ -9,6 +9,9 @@ import type { Region } from "../../../src/shared/regions.js";
 import { dateRange, seasonLabel } from "../../../src/shared/format.js";
 import { get } from "../../db.js";
 import { intentDefaults, scopeFits, type IntentId, type LeaderboardQuestion, type ReadScope, type StatQuestion, type TwoTeamId } from "../answers/read.js";
+import { allianceForecast, predictionSeasonOf } from "../answers/families/predict.js";
+import { isLegacy } from "../../data/seasons.js";
+import { predictHref } from "../../../src/shared/predictUrl.js";
 import { boardSearch, statAnswerOf, topSearch, twoTeamSearch, type Resolve } from "../answers/index.js";
 import { searchSeason } from "../answers/season.js";
 import { BOARD_STATS } from "../answers/families/leaderboard.js";
@@ -52,7 +55,9 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
 /** Whether the pipeline reads `q` completely (an intent it answers, every word explained). */
 export async function pipelineReads(q: string, now?: number, prefer?: ReadonlySet<string>): Promise<boolean> {
   const p = await parseQuery(q, await parseContext(now, prefer));
-  return p.complete && !!p.intent && ANSWERED.has(p.intent) && (p.intent !== "team-predict" || !!p.event || p.worlds || p.states) && (p.intent !== "count-teams" || townCount(p));
+  // A comparison is the pipeline's only at an event (or Worlds, or states): "12345 or 67890" stays the boolean reader's.
+  return p.complete && !!p.intent && ANSWERED.has(p.intent) && (p.intent !== "team-predict" || !!p.event || p.worlds || p.states) && (p.intent !== "count-teams" || townCount(p))
+    && (p.intent !== "compare" || !!p.event || p.worlds || p.states);
 }
 
 /** A count of teams the pipeline answers: a town's, with no time, event, championship, match type, side or award said
@@ -65,6 +70,8 @@ const COUNTED = new Set<IntentId>(["last-matches"]);
 /** The award answers that take "first" and "latest" ("12345 latest Inspire award"). */
 const AWARD_LISTS = new Set<IntentId>(["awards", "total-awards", "inspire-awards"]);
 
+/** Words that ask for two teams side by side, beside "or" alone ("12345 or 67890" is a search for either). */
+const COMPARE_SAID = /\b(?:compare|comparison|compared|side by side|better|stronger)\b/;
 /** The intents that are a stat answer's own (server/api/answers/read.ts IntentId), by the same name. */
 const TEAM_INTENTS = new Set<PipelineIntent>([
   "highest-score", "lowest-score", "biggest-win", "biggest-loss", "closest-match", "first-match", "recent-match", "last-matches", "best-finish",
@@ -72,11 +79,11 @@ const TEAM_INTENTS = new Set<PipelineIntent>([
   "record", "win-percent", "average-score", "median-score", "average-margin", "total-points", "total-matches", "total-events", "seasons-count",
   "current-streak", "longest-streak", "highest-auto", "highest-teleop", "highest-endgame", "most-penalties", "penalties", "score-range",
   "score-consistency", "awards", "total-awards", "results", "event-rank", "event-opr", "best-partner", "partners", "opponents", "playoff-matches",
-  "qual-matches", "match-lookup", "avg-penalties", "lost-to-most",
+  "qual-matches", "match-lookup", "avg-penalties", "lost-to-most", "season-matches",
 ]);
 const TWO_TEAM: Partial<Record<PipelineIntent, TwoTeamId>> = {
   "head-to-head": "head-to-head", "shared-matches": "shared-matches", "h2h-wins": "h2h-wins", "opr-vs": "opr-vs", "rating-vs": "rating-vs",
-  "awards-vs": "awards-vs", "two-predict": "predict",
+  "awards-vs": "awards-vs", "two-predict": "predict", compare: "compare",
 };
 /** The two-team answers read from the matches the teams met in: the only ones an event, a match type or a side applies to. */
 const MEETINGS = new Set<TwoTeamId>(["head-to-head", "h2h-wins", "shared-matches"]);
@@ -99,7 +106,7 @@ function placeSeason(p: Parsed, said: number | null | undefined, opts: PipelineO
 }
 /** The answers a win or a loss said with them narrows ("closest loss", "first win", "longest losing streak"). */
 const OUTCOME_IDS = new Set(["closest-match", "current-streak", "average-margin", "first-match", "recent-match", "last-matches", "longest-streak"]);
-const ANSWERED = new Set<PipelineIntent>([...TEAM_INTENTS, ...(Object.keys(TWO_TEAM) as PipelineIntent[]), ...(Object.keys(FIND) as PipelineIntent[]), "top-matches", "leaderboard", "team-predict", "highlights", "teams-named", "count-teams"]);
+const ANSWERED = new Set<PipelineIntent>([...TEAM_INTENTS, ...(Object.keys(TWO_TEAM) as PipelineIntent[]), ...(Object.keys(FIND) as PipelineIntent[]), "top-matches", "leaderboard", "team-predict", "highlights", "teams-named", "count-teams", "alliance-predict"]);
 /** The leaderboard's stat for a metric said ("by opr"); the prediction rating when none is. */
 const BOARD_STAT: Partial<Record<string, string>> = {
   "metric:opr": "opr", "metric:rating": "rating", "metric:winrate": "win-rate", "metric:auto": "auto", "metric:teleop": "teleop",
@@ -120,6 +127,9 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // So is a kind of event by its type words alone ("at a league meet").
   if (p.eventKind && (p.teams.length || !(FIND[intent] || intent === "top-matches" || intent === "highlights"))) return null;
   const said = normalise(p.q);
+  // A team's matches at Worlds or at its state championship are that event's results card (the division, its rank and
+  // OPR there), which search's event readers give: the plain list is for a season, a window or a place.
+  if (intent === "season-matches" && (p.worlds || p.states)) return null;
   if (p.teams.length === 1 && TEAM_INTENTS.has(intent)) {
     // An award with an answer of its own: Inspire (its places) and Finalist finishes. The first or latest Finalist
     // award is the award list's, filtered to Finalist, which takes the pick (Finalist finishes only counts them).
@@ -158,7 +168,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // One team's Worlds or state championship ("advancement odds at worlds") is its own division there.
   const ownChampionship = intent === "team-predict" && !p.event && p.teams.length === 1 && (p.worlds || p.states);
   if ((intent === "team-predict" || intent === "two-predict") && (p.event || ownChampionship)) {
-    if (scope.level || scope.alliance || scope.place || scope.area || scope.window || (p.event && (p.worlds || p.states))) return null;
+    // The card lists every forecast at the event: a count asked ("last 3 predictions") is left to the other readers.
+    if (scope.level || scope.alliance || scope.place || scope.area || scope.window || (p.event && (p.worlds || p.states)) || p.n != null) return null;
     // A calendar year ("2025") is the event held that year; a season or a game named ("2025-26", "decode") its season.
     const year = p.time?.kind === "season" && p.time.year != null ? p.time.year : null;
     const season = p.time?.kind === "season" && p.time.year == null && !p.time.relative && p.time.season != null ? p.time.season : null;
@@ -177,8 +188,39 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
       intent: { kind: `stat-${stat.intent}`, pattern: `${p.teams.map(() => "[team]").join(" ")} predict ${p.event ? "[event]" : p.worlds ? "[worlds]" : "[states]"}`, met: true, understood: [] },
     };
   }
+  // Two alliances of two, one either side of the "vs": the engine's call for that match, in the season said (else the
+  // latest every team has a rating in). A match has no event, place or window to filter by.
+  if (intent === "alliance-predict") {
+    const red = p.teams.filter((t) => p.vsAt != null && t.at < p.vsAt), blue = p.teams.filter((t) => p.vsAt != null && t.at > p.vsAt);
+    if (red.length !== 2 || blue.length !== 2 || p.event || p.worlds || p.states || scope.place || scope.area || scope.window || scope.level || scope.alliance) return null;
+    // A match number the matchup can't answer for ("… match 12") is left to search, never dropped.
+    if (scope.ever || p.matchNumber != null) return null;
+    // The season the scope read ("in 2024-25", "last season"); "this season" or none, the latest every team is rated in.
+    const pick = scope.season != null ? { season: scope.season, why: undefined } : await predictionSeasonOf(p.teams.map((t) => t.number));
+    const team = (t: (typeof red)[number]) => ({ number: t.number, name: t.name });
+    const stat = await allianceForecast(red.map(team), blue.map(team), pick.season, pick.why);
+    const hits = (await Promise.all(p.teams.map(async (t) => (await opts.resolve(String(t.number))).hits.find((h) => h.kind === "team" && h.ref === String(t.number))))).filter((h): h is NonNullable<typeof h> => !!h);
+    return {
+      q: p.q, hits: hits.map((h) => ({ ...h, facts: undefined, events: undefined })), step: "deterministic", weak: false,
+      // Predict on this lineup, first among the pages: the dropdown (no card) opens it too.
+      pages: isLegacy(pick.season) ? opts.pages : [{ title: `Predict ${red.map((t) => t.number).join(" & ")} vs ${blue.map((t) => t.number).join(" & ")}`, href: predictHref({ mode: "match", season: pick.season, red: red.map((t) => t.number), blue: blue.map((t) => t.number) }) }, ...opts.pages],
+      understood: { kind: "question", label: stat.title, season: pick.season }, ...(opts.full ? { stat } : {}),
+      intent: { kind: `stat-${stat.intent}`, pattern: "[team] [team] vs [team] [team] predict", met: true, understood: [] },
+    };
+  }
   if (p.teams.length === 2 && TWO_TEAM[intent]) {
     const id = TWO_TEAM[intent]!;
+    // Compared at an event (or their Worlds, their states): each team's numbers there. With no event, the season's
+    // numbers side by side ("12345 vs 67890", "who is better, 12345 or 67890"); a lone "or" is the boolean reader's.
+    if (id === "compare") {
+      if (scope.level || scope.alliance || scope.window || scope.place || scope.area) return null;
+      if (!(scope.at || scope.championship || scope.states)) {
+        if (!p.symbols.includes("vs") && !COMPARE_SAID.test(said)) return null;
+        // A name several teams share is Compare's to ask about ("Which 'twins'?"), never settled here.
+        if (p.teams.some((t) => t.candidates)) return null;
+      }
+      return twoTeamSearch(p.q, { id, scope, a: String(p.teams[0].number), b: String(p.teams[1].number) }, opts.resolve, opts);
+    }
     // Season side-by-sides (OPR, rating, awards, a forecast) read whole seasons: only the meetings take an event, a
     // place, a window, a match type or a side.
     if (!MEETINGS.has(id) && (scope.at || scope.championship || scope.states || scope.level || scope.alliance || scope.window || scope.place || scope.area)) return null;
