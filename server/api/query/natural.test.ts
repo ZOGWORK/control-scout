@@ -137,6 +137,9 @@ describe("events and time words (3g)", () => {
     expect(readEventQuery("events being held this week")).toMatchObject({ kinds: ["event"], time: "this-week", words: [], where: null });
     expect(readEventQuery("what events in NJ are happening this week")).toMatchObject({ kinds: ["event"], time: "this-week", region: { state: "NJ" }, where: null, words: [] });
     expect(readEventQuery("events in NJ taking place this week")).toMatchObject({ time: "this-week", region: { state: "NJ" }, where: null });
+    // A place's own name keeps every word.
+    expect(readEventQuery("events in University Place")?.where).toBe("University Place");
+    expect(readEventQuery("events in University Place taking place this week")).toMatchObject({ where: "University Place", time: "this-week" });
     // A venue said after the place stays the venue.
     expect(readEventQuery("events in NJ at river dell high school")?.where).toBe("river dell high school");
   });
