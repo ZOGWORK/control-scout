@@ -10,6 +10,8 @@ import { dateRange, seasonLabel } from "../../../src/shared/format.js";
 import { get } from "../../db.js";
 import { intentDefaults, scopeFits, type IntentId, type LeaderboardQuestion, type ReadScope, type StatQuestion, type TwoTeamId } from "../answers/read.js";
 import { allianceForecast, predictionSeasonOf } from "../answers/families/predict.js";
+import { isLegacy } from "../../data/seasons.js";
+import { predictHref } from "../../../src/shared/predictUrl.js";
 import { boardSearch, statAnswerOf, topSearch, twoTeamSearch, type Resolve } from "../answers/index.js";
 import { searchSeason } from "../answers/season.js";
 import { BOARD_STATS } from "../answers/families/leaderboard.js";
@@ -170,13 +172,16 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   if (intent === "alliance-predict") {
     const red = p.teams.filter((t) => p.vsAt != null && t.at < p.vsAt), blue = p.teams.filter((t) => p.vsAt != null && t.at > p.vsAt);
     if (red.length !== 2 || blue.length !== 2 || p.event || p.worlds || p.states || scope.place || scope.area || scope.window || scope.level || scope.alliance) return null;
-    if (p.time && (p.time.kind !== "season" || (p.time.season == null && p.time.relative !== "this"))) return null;
-    const pick = p.time?.season != null ? { season: p.time.season, why: undefined } : await predictionSeasonOf(p.teams.map((t) => t.number));
+    if (scope.ever) return null;
+    // The season the scope read ("in 2024-25", "last season"); "this season" or none, the latest every team is rated in.
+    const pick = scope.season != null ? { season: scope.season, why: undefined } : await predictionSeasonOf(p.teams.map((t) => t.number));
     const team = (t: (typeof red)[number]) => ({ number: t.number, name: t.name });
     const stat = await allianceForecast(red.map(team), blue.map(team), pick.season, pick.why);
     const hits = (await Promise.all(p.teams.map(async (t) => (await opts.resolve(String(t.number))).hits.find((h) => h.kind === "team" && h.ref === String(t.number))))).filter((h): h is NonNullable<typeof h> => !!h);
     return {
-      q: p.q, hits: hits.map((h) => ({ ...h, facts: undefined, events: undefined })), pages: opts.pages, step: "deterministic", weak: false,
+      q: p.q, hits: hits.map((h) => ({ ...h, facts: undefined, events: undefined })), step: "deterministic", weak: false,
+      // Predict on this lineup, first among the pages: the dropdown (no card) opens it too.
+      pages: isLegacy(pick.season) ? opts.pages : [{ title: `Predict ${red.map((t) => t.number).join(" & ")} vs ${blue.map((t) => t.number).join(" & ")}`, href: predictHref({ mode: "match", season: pick.season, red: red.map((t) => t.number), blue: blue.map((t) => t.number) }) }, ...opts.pages],
       understood: { kind: "question", label: stat.title, season: pick.season }, ...(opts.full ? { stat } : {}),
       intent: { kind: `stat-${stat.intent}`, pattern: "[team] [team] vs [team] [team] predict", met: true, understood: [] },
     };
