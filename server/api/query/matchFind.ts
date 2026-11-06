@@ -54,8 +54,8 @@ const KIND_LABEL: Record<string, string> = {
 
 /** Each measure: its value per match (SQL over m, e), the order, and how it reads. */
 interface Measure { value: string; order: "ASC" | "DESC"; title: string; plural: string; column: string; rule: string; show: (v: number) => string }
-const NP = "MAX(m.red_np, m.blue_np)";
-const MARGIN = "ABS(m.red_total - m.blue_total)";
+export const NP = "MAX(m.red_np, m.blue_np)";
+export const MARGIN = "ABS(m.red_total - m.blue_total)";
 /** The losing alliance's chance before the match: the engine's call saved live, else its replayed one. */
 const CHANCE = (side: "red" | "blue") => {
   const p = (kind: string) => `(SELECT p.p_red FROM predictions p WHERE p.kind = '${kind}' AND p.season = m.season AND p.code = m.code AND p.level = m.level AND p.series = m.series AND p.number = m.number)`;
@@ -101,11 +101,15 @@ const FINAL = (() => {
 
 interface Row { season: number; code: string; level: string; series: number; number: number; label: string; time: string | null; name: string; type: string | null; start: string | null; red_total: number; blue_total: number; v: number }
 
-/** The matches' filters as SQL over m and e. */
-function where(f: MatchFind) {
+/** The filters the match finder and a scope's highlights (./highlights.ts) take. `events`: these events only (a
+ *  division is an event of its own: ./highlights.ts scopeEvents lists them). */
+export type MatchScope = Pick<MatchFind, "season" | "window" | "region" | "level" | "finals" | "decided" | "kind"> & { events?: { season: number; code: string }[] };
+
+/** The matches' filters as SQL over m and e; `upTo`, every season up to the scope's (its latest with matches). */
+export function where(f: MatchScope, upTo = false) {
   const types = f.kind?.types ?? [...OFFICIAL_TYPES];
   // A date window is its own range: a week across the season's start (Aug 31 to Sep 6) holds both seasons' matches.
-  const sql = [`${f.window ? "" : "m.season = ? AND "}m.played = 1 AND m.red_np IS NOT NULL AND m.blue_np IS NOT NULL AND m.red_total IS NOT NULL AND m.blue_total IS NOT NULL
+  const sql = [`${f.window ? "" : `m.season ${upTo ? "<=" : "="} ? AND `}m.played = 1 AND m.red_np IS NOT NULL AND m.blue_np IS NOT NULL AND m.red_total IS NOT NULL AND m.blue_total IS NOT NULL
     AND COALESCE(e.remote, 0) = 0 AND e.type IN (${types.map(() => "?").join(", ")})`];
   const args: (string | number)[] = [...(f.window ? [] : [f.season]), ...types];
   if (f.region) { sql.push(f.region.state ? "e.country = ? AND e.state = ?" : "e.country = ?"); args.push(f.region.country, ...(f.region.state ? [f.region.state] : [])); }
@@ -113,10 +117,17 @@ function where(f: MatchFind) {
   if (f.level) { sql.push("m.level = ?"); args.push(f.level); }
   if (f.finals) sql.push(FINAL);
   if (f.decided) sql.push("m.red_total <> m.blue_total");
+  if (f.events) {
+    // By season, as the matches' key reads them.
+    const by = new Map<number, string[]>();
+    for (const e of f.events) by.set(e.season, [...(by.get(e.season) ?? []), e.code]);
+    sql.push(by.size ? `(${[...by].map(([, cs]) => `(m.season = ? AND m.code IN (${cs.map(() => "?").join(", ")}))`).join(" OR ")})` : "0");
+    args.push(...[...by].flatMap(([s, cs]) => [s, ...cs]));
+  }
   return { sql: sql.join(" AND "), args };
 }
 
-const FROM = "FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code";
+export const FROM = "FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code";
 
 /** The answer: the first match by the measure, the next few under it, every filter on the card. */
 export async function matchFindAnswer(f: MatchFind): Promise<StatAnswer> {

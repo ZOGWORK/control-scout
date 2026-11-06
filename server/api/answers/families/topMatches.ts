@@ -82,9 +82,9 @@ export function readTopMatches(raw: string): TopMatchesQuestion | null {
   return { season, game: hs.game, ever: ever && season == null, region, event: event || null, phase: ph ? phaseOf(ph[1]) : null, noPenalties: !!noPen };
 }
 
-interface Row { season: number; code: string; level: string; series: number; number: number; label: string; time: string | null; name: string; type: string | null; start: string | null; end: string | null; red_total: number | null; red_np: number | null; blue_total: number | null; blue_np: number | null;
+export interface Row { season: number; code: string; level: string; series: number; number: number; label: string; time: string | null; name: string; type: string | null; start: string | null; end: string | null; red_total: number | null; red_np: number | null; blue_total: number | null; blue_np: number | null;
   red_auto: number | null; red_teleop: number | null; red_endgame: number | null; red_pen: number | null; blue_auto: number | null; blue_teleop: number | null; blue_endgame: number | null; blue_pen: number | null; breakdown: number | null }
-const COLS = "m.season, m.code, m.level, m.series, m.number, m.label, m.time, e.name, e.type, e.start, e.end, m.red_total, m.red_np, m.blue_total, m.blue_np, m.red_auto, m.red_teleop, m.red_endgame, m.red_pen, m.blue_auto, m.blue_teleop, m.blue_endgame, m.blue_pen, m.breakdown";
+export const COLS = "m.season, m.code, m.level, m.series, m.number, m.label, m.time, e.name, e.type, e.start, e.end, m.red_total, m.red_np, m.blue_total, m.blue_np, m.red_auto, m.red_teleop, m.red_endgame, m.red_pen, m.blue_auto, m.blue_teleop, m.blue_endgame, m.blue_pen, m.breakdown";
 /** An alliance's ranked points: one period's ("auto"), else its points without penalties (its total where none are kept). */
 /** TeleOp as FIRST reports it (and the team page shows it): with the endgame from 2024–25 on. */
 const scoreSql = (s: "red" | "blue", phase: Phase | null, season: number) =>
@@ -144,7 +144,7 @@ async function topOf(season: number, region: Region | null, event: { season: num
 }
 
 /** Each listed match's teams that played, by match and colour. */
-async function lineups(rows: Row[]) {
+export async function lineups(rows: Row[]) {
   const out = new Map<string, number[]>();
   if (!rows.length) return out;
   const ts = await all<{ season: number; code: string; level: string; series: number; number: number; alliance: string; team: number }>(
@@ -153,12 +153,23 @@ async function lineups(rows: Row[]) {
   for (const t of ts) { const k = `${t.season}|${t.code}|${t.level}|${t.series}|${t.number}|${t.alliance}`; out.set(k, [...(out.get(k) ?? []), Number(t.team)]); }
   return out;
 }
-const keyOf = (r: Row, side: string) => `${r.season}|${r.code}|${r.level}|${r.series}|${r.number}|${side}`;
+export const keyOf = (r: Row, side: string) => `${r.season}|${r.code}|${r.level}|${r.series}|${r.number}|${side}`;
 
 const RULE = "An alliance score is the alliance's own points without penalties (fouls the other alliance committed aren't its points), the score with penalties beside it; a combined score is both alliances' points without penalties. Only official events count (qualifiers, league play, championships, premier events), never scrimmages or off-season events.";
 
 // 2020–21 and 2021–22 took penalties off the alliance's own score instead.
 const RULE_OWN = RULE.replace("the alliance's own points without penalties (fouls the other alliance committed aren't its points), the score with penalties beside it", "the alliance's points before its own penalties (in this season penalties came off the alliance's own score), the score after them beside it");
+
+/** A match as one alliance's row (its points first, the other's beside them), both alliances' teams named. */
+export function allianceRow(r: Row, side: "red" | "blue", named: (r: Row, side: string) => StatMatchRow["partners"]): StatMatchRow {
+  const other = side === "red" ? "blue" : "red";
+  const own = Number(side === "red" ? r.red_total : r.blue_total) || 0, opp = Number(side === "red" ? r.blue_total : r.red_total) || 0;
+  return {
+    label: r.label, href: matchHref(r), event: { label: shortEvent(r.name, r.type), href: eventHref(r.season, r.code) }, season: seasonLabel(r.season),
+    date: dateRange((r.time ?? r.start)?.slice(0, 10) ?? null) || null, alliance: side, own, opp, ownNp: np(r, side), oppNp: np(r, other), result: own > opp ? "W" : own < opp ? "L" : "T",
+    partners: named(r, side), opponents: named(r, other), type: r.type, phases: phasesOf(r, side),
+  };
+}
 
 /** The answer. Null when the event named isn't found. */
 export async function topMatchesAnswer(t: TopMatchesQuestion, findEvent: (words: string, season: number | null) => Promise<{ season: number; code: string; name: string; type: string | null } | null>): Promise<StatAnswer | null> {
@@ -188,15 +199,7 @@ export async function topMatchesAnswer(t: TopMatchesQuestion, findEvent: (words:
     source: `From ${top.count.toLocaleString("en-US")} played match${top.count === 1 ? "" : "es"} at official events, ${scopeWords}`,
   };
   if (!top.alliances.length) return { ...base, blocks: [], none: `No played matches at official events${place ? ` in ${place}` : ""}${t.window ? ` ${t.window.label}` : ` in ${seasonLabel(season)}`} yet.` };
-  const row = (r: Row & { side: "red" | "blue" }, i: number): StatMatchRow => {
-    const other = r.side === "red" ? "blue" : "red";
-    const own = Number(r.side === "red" ? r.red_total : r.blue_total) || 0, opp = Number(r.side === "red" ? r.blue_total : r.red_total) || 0;
-    return {
-      label: r.label, href: matchHref(r), event: { label: shortEvent(r.name, r.type), href: eventHref(r.season, r.code) }, season: seasonLabel(r.season),
-      date: dateRange((r.time ?? r.start)?.slice(0, 10) ?? null) || null, alliance: r.side, own, opp, ownNp: np(r, r.side), oppNp: np(r, other), result: own > opp ? "W" : own < opp ? "L" : "T",
-      partners: named(r, r.side), opponents: named(r, other), type: r.type, phases: phasesOf(r, r.side), rank: i + 1, ...(phase ? { ranked: phase } : {}),
-    };
-  };
+  const row = (r: Row & { side: "red" | "blue" }, i: number): StatMatchRow => ({ ...allianceRow(r, r.side, named), rank: i + 1, ...(phase ? { ranked: phase } : {}) });
   const best = top.alliances[0];
   // One list per question, a match box each (no bar chart repeating it): the alliance scores, then the combined.
   // One match asked for: that match, both alliances and their teams, and nothing else.
