@@ -49,18 +49,22 @@ export function familyStatus(f: EventFamily, today?: string): FamilyStatus {
   return all.some((s) => s === "live" || s === "started") ? "live" : all.some((s) => s === "upcoming") ? "upcoming" : "finished";
 }
 
-/** The families whose divisions show at first: every live or upcoming one, and the newest finished one (the list is
- *  newest first, so the first finished). The rest open with a tap; none leaves the count. */
+/** The families whose divisions show at first: every live or upcoming one, and every finished one of the newest
+ *  season with one finished. The rest open with a tap; none leaves the count. */
 export function openFamilies(groups: EventGroup[], today?: string): Set<string> {
-  const open = new Set<string>();
-  let finished = false;
-  for (const g of groups) {
-    if (g.kind !== "family") continue;
-    const s = familyStatus(g.family, today);
-    if (s !== "finished") open.add(g.family.key);
-    else if (!finished) { finished = true; open.add(g.family.key); }
-  }
-  return open;
+  const fams = groups.flatMap((g) => (g.kind === "family" ? [{ f: g.family, s: familyStatus(g.family, today) }] : []));
+  const newest = Math.max(...fams.filter((x) => x.s === "finished").map((x) => x.f.season));
+  return new Set(fams.filter((x) => x.s !== "finished" || x.f.season === newest).map((x) => x.f.key));
+}
+
+/** A family's dates, from all of it: its first member's start to its last one's end (a division can start before
+ *  the finals). Null start: none dated. */
+export function familyDates(f: EventFamily): { start: string | null; end: string | null } {
+  const ds = [...f.divisions, ...(f.finals ? [f.finals] : [])].map((h) => eventFacts(h)).filter((e) => e.start);
+  if (!ds.length) return { start: null, end: null };
+  const start = ds.map((e) => e.start!).sort()[0];
+  const end = ds.map((e) => e.end ?? e.start!).sort().at(-1)!;
+  return { start, end: end === start ? null : end };
 }
 
 /** The family's members as listed under it: its divisions, then its finals (labelled "Finals"). */

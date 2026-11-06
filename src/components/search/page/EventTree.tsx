@@ -14,7 +14,7 @@ import { dateRange, seasonLabel } from "../../../lib/format";
 import { cn } from "../../cn";
 import { quickLinks } from "./ResultCards";
 import { eventFacts } from "./results";
-import { familyHref, familyMembers, familyStatus, type EventFamily, type FamilyStatus } from "./eventFamilies";
+import { familyDates, familyHref, familyMembers, familyStatus, type EventFamily, type FamilyStatus } from "./eventFamilies";
 
 const SAY: Record<FamilyStatus, string> = { live: "Live", upcoming: "Upcoming", finished: "Finished" };
 /** A hit's status as the tree colours it: an event under way with no end date stored ("started") is live. */
@@ -32,6 +32,7 @@ export function EventTree({ f, open: first, onOpen }: { f: EventFamily; open: bo
   const status = familyStatus(f);
   const tone = EVENT_STATUS_SOLID[status];
   const head = eventFacts(f.finals ?? f.divisions[0]);
+  const when = familyDates(f);
   const n = f.divisions.length;
   const season = `${seasonLabel(f.season)}${f.game ? ` ${f.game}` : ""}`;
   // The type, unless the event's name already says it ("FIRST Championship - …" is a FIRST Championship): once.
@@ -48,7 +49,7 @@ export function EventTree({ f, open: first, onOpen }: { f: EventFamily; open: bo
           </div>
           <Link to={familyHref(f)} className="mt-1 flex min-h-[44px] items-center font-semibold leading-snug text-foreground hover:underline" data-family-link>{f.name}</Link>
           <p className="text-sm font-medium text-foreground" data-family-season>{season} season</p>
-          <p className="mt-0.5 text-sm text-muted-foreground">{head.start ? `Held ${dateRange(head.start, head.end)}` : "Date to be announced"}{head.place ? ` · ${head.place}` : ""}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">{when.start ? `Held ${dateRange(when.start, when.end)}` : "Date to be announced"}{head.place ? ` · ${head.place}` : ""}</p>
           {head.venue && <p className="mt-0.5 flex items-start gap-1.5 text-xs text-muted-foreground"><MapPin className="mt-px size-3.5 shrink-0" aria-hidden /><span className="min-w-0 break-words">{head.venue}</span></p>}
           <button type="button" aria-expanded={open} aria-controls={id} onClick={() => setOpen((o) => !o)}
             className="mt-1 inline-flex min-h-[44px] items-center gap-2 text-sm font-semibold text-foreground hover:underline" data-family-count>

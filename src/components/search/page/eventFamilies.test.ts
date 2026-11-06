@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 import type { SearchHit } from "../../../shared/api";
 import { firstCards, familyKey } from "../../../shared/search";
-import { eventGroups, familyHref, familyMembers, familyStatus, openFamilies } from "./eventFamilies";
+import { eventGroups, familyDates, familyHref, familyMembers, familyStatus, openFamilies } from "./eventFamilies";
 import { filteredTitle, type AnswerExtra } from "./results";
 
 const ev = (season: number, code: string, title: string, parent?: string): SearchHit =>
@@ -51,6 +51,17 @@ describe("eventGroups", () => {
     const fs = groups.map((x) => (x.kind === "family" ? x.family : null)!);
     expect(fs.map((f) => familyStatus(f, "2026-11-06"))).toEqual(["upcoming", "finished", "finished"]);
     expect([...openFamilies(groups, "2026-11-06")]).toEqual([fs[0].key, fs[1].key]);
+  });
+
+  it("Greptile on #796: every family of the newest finished season opens, and a family's dates span all of it", () => {
+    const at = (season: number, code: string, start: string, parent?: string) => ({ ...ev(season, code, parent ? `${parent} Championship - ${code} Division` : `${code} Championship`, parent), subtitle: `${code} · ${start} · Somewhere` });
+    const groups = eventGroups([at(2025, "A", "2026-03-03"), at(2025, "AN", "2026-03-02", "A"), at(2025, "AS", "2026-03-02", "A"),
+      at(2025, "B", "2026-03-10"), at(2025, "BN", "2026-03-10", "B"), at(2025, "BS", "2026-03-10", "B"),
+      at(2024, "A", "2025-03-03"), at(2024, "AN", "2025-03-03", "A"), at(2024, "AS", "2025-03-03", "A")]);
+    const fs = groups.map((x) => (x.kind === "family" ? x.family : null)!);
+    expect([...openFamilies(groups, "2026-11-06")]).toEqual([fs[0].key, fs[1].key]);
+    expect(familyDates(fs[0])).toEqual({ start: "2026-03-02", end: "2026-03-03" });
+    expect(familyDates(fs[1])).toEqual({ start: "2026-03-10", end: null });
   });
 });
 
