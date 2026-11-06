@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.4.0 — 2026-11-06
+## 3.4.1 — 2026-11-06
 
 A championship's divisions branch off it as a tree, coloured by status, with each fact said once and yellow kept for the control you picked.
 
@@ -29,6 +29,20 @@ A championship's divisions branch off it as a tree, coloured by status, with eac
 - **A tree.** An event split in divisions shows the event on the left (on a phone, on top), with a status-coloured trophy badge as the tree's root: its name, season and game, dates (from its first division's start to its finals' end), place, venue, type, status and how many teams in all. Its divisions branch off one line on the right (on a phone, stacked and indented under it), each a node on the line, with the finals last and tinted, where the divisions meet. A division is its name, how many teams it has, its own pages (Matches, Rankings, Teams, Playoffs) and its status only when it differs. The newest finished season and any upcoming or live one start open; older ones open with a tap and still count.
 - **Colour that means something.** Status is the colour: a solid chip, the block's thick bar and the connecting line, red for Live, blue for Upcoming, green for Finished, each at AA contrast. Yellow is only the time tab you picked: event cards drop the yellow type bar, label and "View event" cue (the card is already its link), and the page's heading and links are plain.
 - **No season tabs.** Events that share a name across seasons are a card each, and the season filter picks one (#796).
+
+## 3.4.0 — 2026-11-06
+
+"Highlights" answers for any event, division, region, season or team, with each match's video.
+
+### Highlights
+- [history] "Worlds highlights jackson division" shows that division's best matches
+- [history] "gearview highlights at worlds": a team's best matches at one event
+- [history] Recap, replay, videos, watch and best matches read as highlights
+- [history] A team that wasn't at the event is told so, with its own events
+
+### Search
+- **Highlights over any scope.** "Highlights" (or "recap", "replay", "videos", "clips", "watch", "stream", "VOD", "best matches", "top moments") with an event and its divisions, one division, Worlds, a state championship, a place, a kind of event, a match type, a window or a season lists that scope's best score, biggest margin, latest playoff match, best Auto, closest finish and biggest upset, each match once with its reason and its video; the best one plays on the card. With no season said it reads the latest season with matches there and says so once ("No 2026–27 matches yet at Worlds; showing 2025–26"); a calendar year with an event is the one held that year. The event's dates and place are its chips. (#795)
+- **A team's highlights at an event.** A team by number or name with "highlights" and an event, Worlds or a state championship ("gearview highlights at worlds", "best matches 4215 at worlds") lists its standout matches there only, never padded from other events, the event said once in the title. A team with no played match there gets a card saying so, with its own events of the season, never the closest results.
 
 ## 3.3.9 — 2026-11-06
 
