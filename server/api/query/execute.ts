@@ -159,7 +159,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // call (the engine's, with Predict open on it); one team's next match or event is left to the readers that know
   // which ("predicted score next match", "predicted wins at their next event").
   if ((intent === "team-predict" || intent === "two-predict") && p.event) {
-    if (scope.level || scope.alliance || scope.place || scope.area || scope.window || p.worlds || p.states) return null;
+    // The card lists every forecast at the event: a count asked ("last 3 predictions") is left to the other readers.
+    if (scope.level || scope.alliance || scope.place || scope.area || scope.window || p.worlds || p.states || p.n != null) return null;
     // A calendar year ("2025") is the event held that year; a season or a game named ("2025-26", "decode") its season.
     const year = p.time?.kind === "season" && p.time.year != null ? p.time.year : null;
     const season = p.time?.kind === "season" && p.time.year == null && !p.time.relative && p.time.season != null ? p.time.season : null;

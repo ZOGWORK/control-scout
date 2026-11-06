@@ -343,6 +343,12 @@ describe("a win or a loss said with a team's match question is a filter", () => 
 });
 
 describe("forecasts", () => {
+  it("held up against the result, any wording; a count it can't apply is left to the other readers", async () => {
+    for (const q of ["4215 last prediction for garden qualifier", "4215 predicted vs actual at garden qualifier", "did the prediction for 4215 at garden qualifier get it right"]) {
+      expect((await stat(q)).title, q).toBe("Prediction vs result at Garden Qualifier");
+    }
+    expect((await ask("4215 last 3 predictions at garden qualifier")).stat?.title).not.toBe("Prediction vs result at Garden Qualifier");
+  });
   it("a team at a named event: before and after side by side, Predict open on it", async () => {
     for (const q of ["predicted chances of 4215 garden qualifier", "4215 garden qualifier prediction", "garden qualifier forecast for hypnotic robotics"]) {
       const a = await ask(q);

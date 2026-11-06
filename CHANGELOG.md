@@ -27,6 +27,30 @@ Search predicts a full match: two alliances of two.
 ### Search
 - **Two alliances of two.** Four teams with "vs" between the pairs ("predict 12345 23456 vs 34567 45678", "12345 and 23456 vs 34567 and 45678 who wins", "custom matchup …", by number or name) answer with the engine's call for that qualification match, as Predict makes it: each alliance's win chance, predicted score and margin, the confidence, each team's rating, and Predict opened on the same lineup. The season is the one named, else the latest every team has a rating in. Before, the card compared only the first team of each side. (#834)
 
+## 3.4.9 — 2026-11-06
+
+A forecast asked against what happened answers with the event's forecast card.
+
+### Highlights
+- [predict] "Was the prediction right" at an event shows prediction and result
+- [predict] "Before and after", "vs actual" and "last prediction" all read the same
+- [fixes] These questions no longer stop at the team card
+
+### Search
+- **Prediction against the result, any wording.** A team's forecast at an event held up against what happened ("4215 predicted rank at nj championship vs actual rank", "show me 4215's predictions before and after east bergen", "4215 last prediction for east bergen", "did the prediction for 4215 at east bergen get it right, or was it way off") answers with the forecast card for that event, which already shows the prediction beside the result. The words that hold a forecast up against the result are one entry in the search lexicon, and only the forecast takes them. (#828)
+
+## 3.4.8 — 2026-11-06
+
+A question that names its season and also says "this season" is answered for the season it named.
+
+### Highlights
+- [fixes] "This season in 2025-26" answers for 2025–26 instead of nothing
+- [fixes] The card names the season the question named
+- [fixes] Works in any word order, for any team, place or match question
+
+### Search
+- **"This season" beside a season named.** A question that names a season and also says "this season" ("biggest upset in NJ this season in 2025-26", "this season 4215 record in 2025-26") had the extra words left over, so nothing answered it. Now the season named stands, the card says it, and the words saying it again are read with it. "Last season" next to a named season is a second season (a comparison), so it is never read as the same one. (#811)
+
 ## 3.4.7 — 2026-11-06
 
 Search lists events by status, then by date: what's live now first, then what's coming day by day, then what's over.
