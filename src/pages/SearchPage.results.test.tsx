@@ -181,6 +181,19 @@ describe("search results page", () => {
     expect(screen.getByRole("radio", { name: "Upcoming, 1 event and 1 live now" })).toBeTruthy();
   });
 
+  it("Greptile on #805: a family's status is chosen after the type filter, the same for the tabs and the sections", () => {
+    const info = (type: string, status: "live" | "finished") => ({ start: "2026-01-01", end: status === "live" ? "2099-01-01" : "2026-01-02", type, venue: null, status });
+    state.answer = answer([
+      { ...ev("P", "Big Championship", "2026-01-01", 2025), event: info("Premier", "live") },
+      { ...ev("PA", "Big Championship - East Division", "2026-01-01", 2025), parent: "P", event: info("Championship", "finished") },
+      { ...ev("PB", "Big Championship - West Division", "2026-01-01", 2025), parent: "P", event: info("Championship", "finished") },
+    ]);
+    const { container } = show("/search?q=big%20championship&type=Championship");
+    expect([...container.querySelectorAll("[data-status-section]")].map((x) => x.getAttribute("data-status-section"))).toEqual(["finished"]);
+    expect(screen.getByRole("radio", { name: "Past, 2 events" })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: "Upcoming, 0 events" })).toBeTruthy();
+  });
+
   it("the time tab follows the query: 'upcoming meets' opens on Upcoming, highlighted, and a pick of All is kept in the address", () => {
     const understood = { kind: "events" as const, label: "Upcoming meets in New Jersey", time: "upcoming" as const };
     state.answer = answer([ev("A", "Next Meet", "2099-11-17"), ev("C", "Later Meet", "2099-12-01")], { understood });

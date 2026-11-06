@@ -33,7 +33,7 @@ import { CompareBar, CompareSheet, togglePick } from "../components/search/page/
 import { AppearancesAnswer, QualityBanner, StatBanner, Timeline } from "../components/search/page/Summary";
 import { appearanceStats, appearances, isQualityQuestion, hasNumbers, standing } from "../components/search/page/records";
 import { SearchFilters } from "../components/search/page/SearchFilters";
-import { openFamilies } from "../components/search/page/eventFamilies";
+import { openFamilies, type FamilyStatus } from "../components/search/page/eventFamilies";
 import { eventSections, eventStatuses, localDay } from "../components/search/page/eventSections";
 import { LiveDot } from "../components/EventChips";
 import { EventTree } from "../components/search/page/EventTree";
@@ -74,8 +74,9 @@ export default function SearchPage() {
   const compares = useMemo(() => hits.filter(isCompare), [hits]);
   // The teams the answer already shows get no card of their own under it (each team once), only a profile link.
   const named = useMemo(() => answerTeams(answer, compares), [answer, compares]);
-  // One status per event, a family's for all of it: the sections, the filters and the tab counts all read it.
-  const statuses = useMemo(() => eventStatuses(hits), [hits]);
+  // One status per event, a family's for all of it, chosen among the events the season and type filters keep: the
+  // sections, the time filter and the tab counts all read it.
+  const statuses = useMemo(() => eventStatuses(hits.filter((h) => keeps(h, { ...filters, when: "all" }))), [hits, filters.season, filters.type]);
   const view = useMemo(() => shape(sections, filters, new Set(named), statuses), [sections, filters.when, filters.season, filters.type, named, statuses]);
   const choices = useMemo(() => filterChoices(hits), [hits]);
   // Site pages a query names ("rules", "rankings") are an answer too.
@@ -257,7 +258,7 @@ export default function SearchPage() {
                   )}
                   {/* Phones: a versus query's side-by-side numbers under its Compare (desktop has them beside it). */}
                   {h2h && <div className="mb-5 lg:hidden"><HeadToHead h={h2h} now={now.data?.teams} before={asked == null ? before.data?.teams : undefined} season={base} /></div>}
-                  {view.map((s) => <ResultSection key={s.id} s={s} summaries={summaries} covered={covered} picks={picks} onPick={pick} fuzzyWord={fuzzyWords(hits) ?? undefined} twoCol={!!panel} onOpen={open} />)}
+                  {view.map((s) => <ResultSection key={s.id} s={s} statuses={statuses} summaries={summaries} covered={covered} picks={picks} onPick={pick} fuzzyWord={fuzzyWords(hits) ?? undefined} twoCol={!!panel} onOpen={open} />)}
                   {filtersOn && !view.some((s) => RESULT_KINDS.has(s.id) || s.id === "top" || s.id === "fuzzy") && (
                     // Never a dead end: what's empty, said plainly, and each choice that isn't, one tap away.
                     <div className="rounded-xl border border-border bg-card px-4 py-3.5 text-sm" data-filtered-empty>
@@ -322,7 +323,7 @@ function shape(sections: AnswerSection[], f: PageFilters, named: Set<number>, st
   return out;
 }
 
-function ResultSection({ s, summaries, covered, picks, onPick, fuzzyWord, twoCol, onOpen }: { s: ViewSection; summaries: Map<number, SeasonSummary>; covered: number | null; picks: number[]; onPick: (team: number) => void; fuzzyWord?: string; twoCol: boolean; onOpen: (h: SearchHit) => void }) {
+function ResultSection({ s, statuses, summaries, covered, picks, onPick, fuzzyWord, twoCol, onOpen }: { s: ViewSection; statuses: Statuses; summaries: Map<number, SeasonSummary>; covered: number | null; picks: number[]; onPick: (team: number) => void; fuzzyWord?: string; twoCol: boolean; onOpen: (h: SearchHit) => void }) {
   const phone = useMediaQuery("(max-width: 767px)");
   const current = useCurrentSeason();
   const count = s.rows.filter((r) => !r.sub).length;
@@ -338,7 +339,7 @@ function ResultSection({ s, summaries, covered, picks, onPick, fuzzyWord, twoCol
         {s.id !== "pages" && s.id !== "browse" && <span className="rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-foreground/80">{count}</span>}
       </h2>
       {s.id === "event" ? (
-        <EventResults hits={s.rows.map((r) => r.hit)} twoCol={twoCol} onOpen={onOpen} />
+        <EventResults hits={s.rows.map((r) => r.hit)} statuses={statuses} twoCol={twoCol} onOpen={onOpen} />
       ) : teamish ? (
         <div className="space-y-2">
           {teamGroups.map(({ head, subs }) => (
@@ -374,8 +375,8 @@ function ResultSection({ s, summaries, covered, picks, onPick, fuzzyWord, twoCol
  *  (../components/search/page/eventSections.ts), then an event split in divisions as a tree a season, full width
  *  (../components/search/page/eventFamilies.ts), any other event a card in the grid. Every heading says how many
  *  events are under it. */
-function EventResults({ hits, twoCol, onOpen }: { hits: SearchHit[]; twoCol: boolean; onOpen: (h: SearchHit) => void }) {
-  const sections = useMemo(() => eventSections(hits, localDay()), [hits]);
+function EventResults({ hits, statuses, twoCol, onOpen }: { hits: SearchHit[]; statuses: Statuses; twoCol: boolean; onOpen: (h: SearchHit) => void }) {
+  const sections = useMemo(() => eventSections(hits, localDay(), statuses as ReadonlyMap<string, FamilyStatus>), [hits, statuses]);
   const open = useMemo(() => openFamilies(sections.flatMap((s) => s.dates.flatMap((d) => d.groups))), [sections]);
   const grid = cn("grid gap-3 sm:grid-cols-2", twoCol ? "2xl:grid-cols-3" : "xl:grid-cols-3");
   return (

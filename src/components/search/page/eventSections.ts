@@ -39,6 +39,7 @@ export function groupStatus(g: EventGroup, today?: string): FamilyStatus {
   const s = eventFacts(g.hits[0], today).status;
   return s === "started" ? "live" : s;
 }
+const firstOf = (g: EventGroup) => (g.kind === "family" ? g.family.divisions[0] : g.hits[0]);
 const groupStart = (g: EventGroup) => (g.kind === "family" ? familyDates(g.family).start : eventFacts(g.hits[0]).start);
 /** How many events a group holds: the count every heading and tab says (a family is its finals and divisions). */
 export const groupSize = (g: EventGroup) => (g.kind === "family" ? g.family.divisions.length + (g.family.finals ? 1 : 0) : g.hits.length);
@@ -57,10 +58,11 @@ export function dateSection(start: string | null, today: string): { key: string;
 
 /** The hits as status sections (only those with events, in the order Live now, Upcoming, Finished), each in date
  *  sections. Every hit is in exactly one; counts are events. */
-export function eventSections(hits: SearchHit[], today: string): StatusSection[] {
+export function eventSections(hits: SearchHit[], today: string, statuses?: ReadonlyMap<string, FamilyStatus>): StatusSection[] {
   const by: Record<FamilyStatus, EventGroup[]> = { live: [], upcoming: [], finished: [] };
-  // Status on the cards' own rule (eventStatuses), the viewer's day for the headings only.
-  for (const g of eventGroups(hits)) by[groupStatus(g)].push(g);
+  // Status on the cards' own rule (eventStatuses, the page's own when it passes them), the viewer's day for the
+  // headings only.
+  for (const g of eventGroups(hits)) by[statuses?.get(firstOf(g).ref) ?? groupStatus(g)].push(g);
   // Soonest first (undated last) while live or to come; newest first once over. Stable: ties keep the server's order.
   const key = (g: EventGroup) => groupStart(g) ?? "9999";
   by.live.sort((a, b) => key(a).localeCompare(key(b)));
