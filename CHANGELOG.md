@@ -31,6 +31,37 @@ On a wide screen, a search's answer sits on the left and its follow-ups beside i
 - **A leaderboard's neighbours.** "Best auto OPR" offers the same teams by TeleOp, Endgame, OPR and rating; a search about no team ("upcoming events", "who won <event>") goes on to the team its answers are about.
 - **A count as its page shows it.** A follow-up about a list of events ("What events are this week?") says as many events as the page it opens lists, never the larger total behind it. (#1009)
 
+## 3.7.3 — 2026-11-06
+
+An event can be searched by its initials: "MTI highlights" finds the Multinational Tech Invitational, and an event held only in past seasons is read in its latest one.
+
+### Highlights
+- [fixes] "MTI highlights" finds the Multinational Tech Invitational
+- [fixes] A past event named alone shows its latest season, not an empty one
+- [fixes] An off-season event's own highlights and match videos
+
+### Search
+- **Events by their initials.** Each event is found by its initials, the first letters of its name's main words ("MTI" for Multinational Tech Invitational, skipping "of", "the" and "and"), and by a short form its name gives in brackets. A name typed in full still comes first, a team named the same is the team's, and when several events share the initials the latest one held is chosen (then the one with the most teams) and named in the answer.
+- **A past event, no season said.** An event named with no season, held only in past seasons, is read in its latest season ("Multinational Tech Invitational highlights" is its 2025–26 highlights), for highlights, recaps, winners and results.
+- **An off-season event's highlights.** Highlights and match videos of an off-season event named are its own matches; one with no video says "No recording for this event — stats only." (#1006)
+
+## 3.7.2 — 2026-11-06
+
+A word typed in the plural, or with a slip in it, is the same question as the word itself: "4215 upcoming events" and "4215 upcoming evntd" answer like "4215 upcoming event".
+
+### Highlights
+- [fixes] "Upcoming events" and "upcoming event" give the same answer
+- [fixes] A slip in a search word is corrected and answered ("evntd")
+- [teams] A team's upcoming events are all listed, the next first
+- [live] "Events happening rn", "tmrw" and "this wknd" read as the words in full
+
+### Search
+- **One question in either number.** A search word typed in the plural or the singular ("events", "oprs", "ratings", "predictions", "wins", "seasons") is the same question. A query that reads nothing in the number typed is read again in the other one, and keeps the answer only when that reading answers more. A word naming an event ("states", "worlds", "championship") keeps its number, and a team's or an event's name is never changed.
+- **Slips in search words.** A search word (an intent word, never a name) typed with one slip onto a neighbouring key besides one other edit ("evntd" for "events") is corrected, with "Did you mean". Swapped letters ("raitngs") and plurals of search words ("rakns" for "ranks") are corrected too. Place names are known words, so "Texas" is never "teams".
+- **A team's upcoming events.** "12345 upcoming events" lists every upcoming event the team is registered for, the next first, titled "Upcoming events" when there are several.
+- **Short forms.** Informal short forms are read as the words in full before anything else: "rn" and "atm" (right now), "tdy" (today), "tmrw" (tomorrow), "yday" (yesterday), "wknd" (weekend), "nxt wk" (next week), "lst wk" (last week), "szn" (season), "ur" and "u". Only a standalone word is read so, never a word of a team's or an event's name, and the query stays as typed.
+- **"States" for any place.** "<place> states" is that place's championship for every question ("nyc states highlights", "romania states results"), even where the championship isn't named a state championship. (#973)
+
 ## 3.7.1 — 2026-11-06
 
 Under a search's answer, "People also ask": the next questions search answers directly, each opening to its answer's line and a link that runs it.

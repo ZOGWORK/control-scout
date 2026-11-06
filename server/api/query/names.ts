@@ -6,6 +6,7 @@ import { registerCache } from "../../caches.js";
 import { countryOf, countryOfDemonym } from "../../../src/shared/countries.js";
 import { regionOf, regionPartOf } from "../../../src/shared/searchEventQuery.js";
 import { edits, nearRegion } from "../../../src/shared/regions.js";
+import { eventInitialisms } from "./initialisms.js";
 
 export interface TeamName { number: number; name: string | null; country: string | null; state: string | null; city: string | null; lastPlayed: number | null }
 /** A place: a region (a state or province), a whole country, or a town (with the region it's in). */
@@ -26,6 +27,9 @@ export interface Names {
   /** Whether a word starts the way some word of an event's name or code does (its first three letters): words that
    *  share no start with any event can't name one, so the event search is skipped for them. */
   eventStem(word: string): boolean;
+  /** The codes of the events one word is the initialism of ("mti", "fr": ./initialisms.ts), looked up whole, so a
+   *  two-letter one needs no search; none when it's no event's. */
+  initialism(word: string): string[];
 }
 
 /** Lower case, accents and punctuation dropped, single spaces: how names are compared. */
@@ -57,7 +61,12 @@ export function buildNames(teams: Row[], places: { city: string | null; state: s
     (towns.get(k) ?? towns.set(k, new Map()).get(k)!).set(where, { country: p.country, state: p.state, city: p.city! });
   }
   const stems = new Set<string>();
-  for (const p of places) for (const w of fold(`${p.name ?? ""} ${p.code ?? ""}`).split(" ")) if (w.length >= 3) stems.add(w.slice(0, 3));
+  // An event's initialisms too ("mti"), which the search index holds with its name (./initialisms.ts).
+  const initials = new Map<string, Set<string>>();
+  for (const p of places) {
+    for (const w of [...fold(`${p.name ?? ""} ${p.code ?? ""}`).split(" "), ...eventInitialisms(p.name ?? "")]) if (w.length >= 3) stems.add(w.slice(0, 3));
+    if (p.code) for (const i of eventInitialisms(p.name ?? "")) (initials.get(i) ?? initials.set(i, new Set()).get(i)!).add(p.code);
+  }
   const countries = new Map<string, string>();
   for (const p of [...teams, ...places]) if (p.country) countries.set(fold(p.country), p.country);
   return {
@@ -82,6 +91,7 @@ export function buildNames(teams: Row[], places: { city: string | null; state: s
     },
     longest,
     eventStem: (w) => stems.has(fold(w).slice(0, 3)),
+    initialism: (w) => [...(initials.get(fold(w)) ?? [])],
     place(w, typed) {
       const f = fold(w);
       if (!f) return null;
