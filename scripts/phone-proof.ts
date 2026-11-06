@@ -26,40 +26,56 @@ const light = args.includes("--light");
 const out = resolve(opt("out") ?? join(tmpdir(), "control-scout-phone-proof", new Date().toISOString().replace(/[:.]/g, "-")));
 if (out.startsWith(resolve(process.cwd()))) { console.error("Refusing to write inside the repository — use --out outside it."); process.exit(1); }
 
-/** One search per kind of answer card (src/components/search/page/answerAudit.test.tsx draws the same kinds). */
-const CARDS: { name: string; q: string }[] = [
-  { name: "comparison", q: "23268 vs 7149 opr" },
-  { name: "top matches", q: "highest scoring matches 2025" },
-  { name: "single match", q: "4215 best match" },
-  { name: "leaderboard (by a phase)", q: "best auto in nj" },
-  { name: "team record", q: "4215 record" },
-  { name: "single stat (OPR tiles)", q: "4215 opr" },
-  { name: "matches at an event", q: "4215 matches at nj championship" },
-  { name: "over time (series)", q: "4215 opr by event" },
-  { name: "team highlights", q: "4215" },
-  { name: "event awards", q: "inspire award nj championship" },
-  { name: "team facts", q: "where is 4215 from" },
-  { name: "worlds trips", q: "4215 worlds appearances" },
-  { name: "how good is a team", q: "how good is 4215" },
-  { name: "no direct answer", q: "will 4215 win nj championship" },
+/** One search per kind of answer card (src/components/search/page/answerAudit.test.tsx draws the same kinds), with
+ *  the mark that card draws: missing (no data loaded, a changed answer), the case fails rather than passes empty. */
+const CARDS: { name: string; q: string; expect: string }[] = [
+  { name: "comparison", q: "23268 vs 7149 opr", expect: "[data-comparison]" },
+  { name: "top matches", q: "highest scoring matches 2025", expect: "[data-stat-answer] [data-block=matches]" },
+  { name: "single match", q: "4215 best match", expect: "[data-stat-answer] [data-match-box]" },
+  { name: "leaderboard (by a phase)", q: "best auto in nj", expect: "[data-block=leaderboard]" },
+  { name: "team record", q: "4215 record", expect: "[data-block=record]" },
+  { name: "single stat (OPR tiles)", q: "4215 opr", expect: "[data-opr-tiles]" },
+  { name: "matches at an event", q: "4215 matches at nj championship", expect: "[data-block=matches]" },
+  { name: "over time (series)", q: "4215 opr by event", expect: "[data-block=series]" },
+  { name: "team highlights", q: "4215", expect: "[data-stat-answer=team-highlights]" },
+  { name: "event awards", q: "inspire award nj championship", expect: "[data-event-awards]" },
+  { name: "team facts", q: "where is 4215 from", expect: "[data-card-kind]" },
+  { name: "worlds trips", q: "4215 worlds appearances", expect: "[data-section=records]" },
+  // Plain results with a panel (no answer card): the summary panel and the team's result card are what's checked.
+  { name: "how good is a team", q: "how good is 4215", expect: "[data-panel=summary]" },
+  // An unanswered question about a team: its suggested searches and the team's result.
+  { name: "no direct answer", q: "will 4215 win nj championship", expect: "[data-block=related]" },
 ];
 const only = opt("only");
 
 /** What the page shows that breaks a 390 px rule, measured in the page. */
-function measure(): { failures: string[]; notes: string[]; card: boolean } {
+function measure(expect: string): { failures: string[]; notes: string[]; card: boolean } {
   const failures: string[] = [], notes: string[] = [];
   const vw = document.documentElement.clientWidth;
   if (document.documentElement.scrollWidth > vw + 1) failures.push(`page scrolls sideways: ${document.documentElement.scrollWidth}px wide on a ${vw}px screen`);
-  const card = document.querySelector<HTMLElement>("[data-answer-frame]") ?? document.querySelector<HTMLElement>("main [aria-live]");
-  if (!card) return { failures: [...failures, "no answer card"], notes, card: false };
+  const mark = document.querySelector(expect);
+  if (!mark) return { failures: [...failures, `no ${expect} on the page: the answer this case is for isn't there`], notes, card: false };
+  // Its card, or for plain results (no card) the whole results region.
+  const card = mark.closest<HTMLElement>("[data-answer-frame]") ?? mark.closest<HTMLElement>("main [aria-live]") ?? document.querySelector<HTMLElement>("main")!;
   const label = (el: Element) => `${el.tagName.toLowerCase()} "${(el.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 32)}"`;
   const shown = (el: Element) => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el); return r.width > 0 && r.height > 0 && s.visibility !== "hidden" && s.display !== "none"; };
-  // Inside a box of its own that scrolls or clips sideways (a wide table): that box is what must fit, not its rows.
-  const boxed = (el: Element) => { for (let p = el.parentElement; p && p !== card; p = p.parentElement) { const o = getComputedStyle(p).overflowX; if (o === "auto" || o === "scroll" || o === "hidden" || o === "clip") return true; } return false; };
+  // Inside a box that scrolls sideways (a wide table): that box is what must fit, not its rows. Inside one that clips
+  // (overflow hidden): it must fit in that box, or it's cut off. Text cut on purpose (an ellipsis) is its own box.
+  const within = (el: Element): { scrolls: boolean; clip: DOMRect | null } => {
+    for (let p = el.parentElement; p && p !== card.parentElement; p = p.parentElement) {
+      const o = getComputedStyle(p).overflowX;
+      if (o === "auto" || o === "scroll") return { scrolls: true, clip: null };
+      if ((o === "hidden" || o === "clip") && p !== card) return { scrolls: false, clip: p.getBoundingClientRect() };
+    }
+    return { scrolls: false, clip: null };
+  };
   for (const el of card.querySelectorAll("*")) {
-    if (!shown(el) || boxed(el)) continue;
+    if (!shown(el)) continue;
+    const w = within(el);
+    if (w.scrolls) continue;
     const r = el.getBoundingClientRect();
     if (r.right > vw + 1 || r.left < -1) { failures.push(`past the screen's edge (${Math.round(r.left)}–${Math.round(r.right)}px): ${label(el)}`); break; }
+    if (w.clip && (r.right > w.clip.right + 1 || r.left < w.clip.left - 1)) { failures.push(`cut off by its box (${Math.round(r.left)}–${Math.round(r.right)}px in ${Math.round(w.clip.left)}–${Math.round(w.clip.right)}px): ${label(el)}`); break; }
   }
   // A link inside a run of text (WCAG 2.5.8's inline exception): the line's height is its target.
   const inline = (el: HTMLElement) => getComputedStyle(el).display === "inline" && !!el.parentElement && /\S/.test([...el.parentElement.childNodes].filter((n) => n !== el).map((n) => n.textContent ?? "").join(""));
@@ -96,7 +112,7 @@ async function proveOne(page: Page, c: (typeof CARDS)[number]) {
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(800);
   const at = new URL(page.url()).pathname;
-  const m = at === "/search" ? await page.evaluate(measure) : { failures: [`left /search for ${at}`], notes: [], card: false };
+  const m = at === "/search" ? await page.evaluate(measure, c.expect) : { failures: [`left /search for ${at}`], notes: [], card: false };
   const file = join(out, `${c.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.png`);
   await page.screenshot({ path: file, fullPage: true });
   return { ...c, ...m, shot: file };
