@@ -51,7 +51,9 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
 /** Whether the pipeline reads `q` completely (an intent it answers, every word explained). */
 export async function pipelineReads(q: string, now?: number, prefer?: ReadonlySet<string>): Promise<boolean> {
   const p = await parseQuery(q, await parseContext(now, prefer));
-  return p.complete && !!p.intent && ANSWERED.has(p.intent) && (p.intent !== "team-predict" || !!p.event);
+  // A comparison is the pipeline's only at an event (or Worlds, or states): "12345 or 67890" stays the boolean reader's.
+  return p.complete && !!p.intent && ANSWERED.has(p.intent) && (p.intent !== "team-predict" || !!p.event)
+    && (p.intent !== "compare" || !!p.event || p.worlds || p.states);
 }
 
 /** The answers that list as many rows as a count said ("12345 last 3 matches"). */
