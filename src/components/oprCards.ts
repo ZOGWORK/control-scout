@@ -13,10 +13,11 @@ export const PHASE_TONE: Record<string, Tone> = { ...OPR_TONE, pen: "rose", rp: 
 /** A phase's number in its colour on its own tinted tile: the tone's text, one step darker for penalties on Light
  *  (rose 600 is 4.15:1 on its tint; rose 700 clears 4.5:1). */
 export const PHASE_TEXT = (k: string) => (k === "pen" ? "text-rose-700 dark:text-rose-400" : TONES[PHASE_TONE[k] ?? "neutral"].text);
-/** The phase a tile's label names ("Auto", "TeleOp + end", "Pen given", "Avg RP"), or null. */
+/** The phase a tile's label names ("Auto", "TeleOp + end", "Pen given", "Avg RP"), or null. A score said without or
+ *  before penalties ("Without penalties") is a total, not the penalty points. */
 export function phaseOfLabel(label: string): string | null {
   return /\bauto/i.test(label) ? "auto" : /teleop/i.test(label) ? "teleop" : /endgame/i.test(label) ? "endgame"
-    : /\bpen(alt|\.|\b)/i.test(label) ? "pen" : /\bRP\b|ranking points?/i.test(label) ? "rp" : null;
+    : /\bpen(alt|\.|\b)/i.test(label) && !/\b(without|before|no|excluding)\s+pen/i.test(label) ? "pen" : /\bRP\b|ranking points?/i.test(label) ? "rp" : null;
 }
 
 /** A tile's rank line, as the team page words it: "OPR #612 of 8,308 with an OPR · top 8%". */

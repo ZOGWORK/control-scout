@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { StatAnswer } from "../../../shared/searchStat";
 import { TONES } from "../../StatTile";
 import { StatAnswerCard, oneContext, saidBy } from "./StatAnswer";
+import { phaseOfLabel } from "../../oprCards";
 
 afterEach(cleanup);
 
@@ -118,6 +119,14 @@ describe("each fact printed once (the guide's §8)", () => {
     ] });
     expect([...c.querySelectorAll("[data-kpi]")].map((k) => k.textContent)).toEqual(["World rank by win rate#102of 8,308 teams"]);
     expect(c.querySelector("[data-block=record]")!.textContent).not.toContain("win rate");
+    // One team's record headline: its wins in the team's hue (the record's own ink would otherwise hide it).
+    expect(c.querySelector("[data-headline] [data-record-text] b")!.className).toContain("text-team-a");
+  });
+  it("a score without penalties is a score, not the penalty phase", () => {
+    expect(phaseOfLabel("Without penalties")).toBeNull();
+    expect(phaseOfLabel("Score before penalties")).toBeNull();
+    expect(phaseOfLabel("Pen given")).toBe("pen");
+    expect(phaseOfLabel("Penalties")).toBe("pen");
   });
   it("matches all at one event: the event named once over the list, each box keeping its date", () => {
     const m = (n: number) => ({ label: `Q${n}`, href: `/events/2025/USNJCMP?match=qual:0:${n}`, event: { label: "NJ Championship", href: "/events/2025/USNJCMP" }, season: "2025–26", date: "Mar 15, 2026",

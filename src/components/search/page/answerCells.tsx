@@ -153,8 +153,9 @@ export function RichText({ text }: { text: string }) {
 }
 
 /** A headline's value in the foreground: a record with its wins bold, a podium rank with a medal. No hue. */
-export function HeadlineValue({ value }: { value: string }) {
-  if (RECORD.test(value) && !RECORD.exec(value)![4].trim()) return <RecordText text={value} />;
+/** `win`: a record's wins colour (one team's hue on its own card). */
+export function HeadlineValue({ value, win }: { value: string; win?: string }) {
+  if (RECORD.test(value) && !RECORD.exec(value)![4].trim()) return <RecordText text={value} win={win} />;
   const res = /^(Won|Lost|Tied)\b(.*)$/.exec(value);
   if (res) return <><span>{res[1]}</span>{res[2]}</>;
   const rank = /^#(\d+)\b/.exec(value);
