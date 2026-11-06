@@ -27,6 +27,22 @@ Under a search's answer, "People also ask": the next questions search answers di
 ### Search
 - **People also ask.** Under the answer, up to six questions about the same team, event, place or season ("What is its record?", "Who won the Think Award there?"), closed until tapped. Each opens to one line from that question's own answer and "See the full answer", which runs it as a search.
 - **Never a dead end.** Every question is run as a search before it's shown, and only one with a direct answer is asked: never one that would say sorry, guess or list names. The questions come from what the search read, never from a list of teams or events. (#1002)
+## 3.6.7 — 2026-11-06
+
+Every search answer is in colour now: a how-many answer's number in bold amber, definitions and rules in sky, "nothing found" and "can't answer" in slate, each with a filled icon chip and a thick bar.
+
+### Highlights
+- [appearance] "How many teams in Canada" shows its number big, in bold amber
+- [appearance] Definitions, rules and "did you mean" read in sky blue
+- [appearance] "Nothing found" and "Sorry" notes get a slate bar and chip
+- [appearance] A season's top score, a winning alliance and a win chance lead in colour
+
+### Search
+- **No grey answer cards.** The count and general answer card ("578 teams registered in Canada in 2026–27") had a grey icon and grey words: each line is now a card of its own colour, its icon a filled chip, a thick bar down its left, and a count's number big in amber. Definitions ("what is OPR") and the rules card are sky; a team's next event or match, its listing facts and where it's from are in the team's colour; the season-at-a-glance tiles stay plain with each number in its own colour (OPR yellow, prediction rating purple, a record's wins green and losses red, events blue); award lines in their award's colour; record and stat pills on the team hue.
+- **Two new colours in the one palette.** Count (amber, the owner's mock) and Reference (sky) join the search palette. Yellow stays ranking points' alone; amber and yellow, sky and team A's blue never share a card.
+- **Headlines in colour.** A card about no team leads in its meaning's colour (a winning alliance in orange, a season's "190 points" in amber); a two-team headline that names one ("7149 favoured", "7149 leads 2-1") in that team's colour; a win chance's number and bar in the team's colour.
+- **Nothing found, sorry and no match.** "No upcoming match is scheduled", "Sorry — I can't answer that yet" and "Search has no answer" are slate with a filled chip and a thick bar; "Did you mean" is a sky note.
+- **A new kind can't ship grey.** The answer card audit now draws every card kind and every block kind the API has, and fails a card with no colour anywhere, or a grey line icon or line text. (#959)
 
 ## 3.6.6 — 2026-11-06
 

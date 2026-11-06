@@ -3,11 +3,17 @@
 // places to browse, so the page is never an empty shell. What the query was understood as is kept off the page (§7):
 // it travels as a data attribute only.
 import { Link } from "react-router-dom";
-import { CalendarDays, Shield } from "lucide-react";
+import { CalendarDays, CircleSlash, SearchX, Shield } from "lucide-react";
 import type { SearchAnswer, SearchHit } from "../../../shared/api";
 import { EventCard, TeamCard, type SeasonSummary } from "./ResultCards";
 import { RelatedQuestions } from "./TeamAnswer";
 import { seasonLabel } from "../../../shared/format";
+import { SEARCH_PALETTE } from "../../../lib/textTones";
+import { cn } from "../../cn";
+
+/** No answer is the answer "no" (search's palette): No's slate as a thick bar on its wash, a filled chip, the words bold. */
+const NO_BOX = cn("flex items-start gap-3 rounded-xl border border-l-[6px] border-border px-4 py-3", SEARCH_PALETTE.no.edge, SEARCH_PALETTE.no.tint);
+const NO_CHIP = cn("grid size-8 shrink-0 place-items-center rounded-lg", SEARCH_PALETTE.no.fill);
 
 /** Searches that answer about the closest results: a team's record and OPR, an event's winners in the card's own
  *  season (an event's name is reused year to year). At most four. */
@@ -26,7 +32,10 @@ export function SorryNote({ sorry, className }: { sorry: NonNullable<SearchAnswe
   return (
     <div className={className} data-sorry>
       {!!sorry.understood.length && (
-        <p className="text-sm text-foreground"><span className="font-semibold">I read:</span> {sorry.understood.join(" · ")}</p>
+        <p className={cn(NO_BOX, "text-sm text-foreground")}>
+          <span className={NO_CHIP} aria-hidden><CircleSlash className="size-4" /></span>
+          <span className="mt-1.5"><span className="font-semibold">I read:</span> {sorry.understood.join(" · ")}</span>
+        </p>
       )}
       <RelatedQuestions queries={sorry.suggest} title="Searches that answer about them" className="mt-3" />
     </div>
@@ -49,8 +58,9 @@ export function NoResults({ query, understood, closest, summaries, onOpen, sorry
   return (
     <div className="space-y-5" data-no-results data-understood={understood.map((u) => u.replace(/^Understood:\s*/, "")).join(" · ") || undefined}>
       {sorry ? <SorryNote sorry={sorry} /> : (
-        <p className="text-sm text-foreground">
-          Search has no answer for “{query}”{cards.length ? "; these are the closest real results." : ". Try a team number, a team or event name, or a place."}
+        <p className={cn(NO_BOX, "text-sm text-foreground")} data-no-answer>
+          <span className={NO_CHIP} aria-hidden><SearchX className="size-4" /></span>
+          <span className="mt-1.5"><span className="font-semibold">Search has no answer for “{query}”</span>{cards.length ? "; these are the closest real results." : ". Try a team number, a team or event name, or a place."}</span>
         </p>
       )}
       {!!cards.length && (
