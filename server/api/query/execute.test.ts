@@ -170,6 +170,15 @@ describe("one question, any phrasing, any team", () => {
       expect(s.headline?.value, q).toBe("2");
     }
   });
+  it("wins vs losses, said any way, is the record; by event, each event's wins and losses", async () => {
+    for (const q of ["4215 wins vs losses by event in 2025-26", "4215 record by event in 2025-26", "hypnotic robotics wins and losses per event", "4215 record each event"]) {
+      const s = await stat(q);
+      expect(s, q).toMatchObject({ intent: "record", headline: { value: "1-1-0" } });
+      expect(s.blocks.find((b) => b.kind === "bars"), q).toMatchObject({ title: "Wins and losses by event", groups: [{ label: "Garden Qualifier", items: [{ label: "Wins", value: 1 }, { label: "Losses", value: 1 }] }] });
+    }
+    // Without "by event", the record alone.
+    expect((await stat("4215 wins vs losses in 2025-26")).blocks.some((b) => b.kind === "bars")).toBe(false);
+  });
   it("a name typed nearly right offers the spelling, whatever stood between its words", async () => {
     const a = await ask("hypnotc-robotics highest score");
     expect(a.stat?.team?.number).toBe(4215);

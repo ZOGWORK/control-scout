@@ -18,7 +18,7 @@ import { RANKED_MIN_MATCHES } from "../../../../src/shared/rankings.js";
 import { teamPageSql } from "../../../../src/shared/teamPages.js";
 import { get } from "../../../db.js";
 import { inScope, scopeChips, scopePhrase, type Scope } from "../clauses.js";
-import { eventHref, matchRow, teamLinks, type TeamMatch } from "../matchSet.js";
+import { eventHref, matchRow, shortEvent, teamLinks, type TeamMatch } from "../matchSet.js";
 import type { IntentId } from "../read.js";
 
 export interface AnswerTeam { number: number; name: string | null }
@@ -83,7 +83,7 @@ export function counts(id: IntentId, m: TeamMatch): boolean {
 }
 
 /** The answer for a match-set intent, or null when `id` isn't one of these families' match intents. */
-export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch[], scope: Scope, opts: { leadEvent?: boolean; n?: number | null; outcome?: "W" | "L" | null }): Promise<StatAnswer | null> {
+export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch[], scope: Scope, opts: { leadEvent?: boolean; n?: number | null; outcome?: "W" | "L" | null; perEvent?: boolean }): Promise<StatAnswer | null> {
   const ms = pool(id, all, scope);
   const who = whoOf(team), where = scopePhrase(scope);
   const base = { team, scope: scopeChips(scope), source: sourceOf(ms) };
@@ -216,6 +216,8 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
             : listed ? [] : [{ label: "World rank by win rate", value: "Not ranked", sub: `under ${RANKED_MIN_MATCHES} matches` }]),
         ] });
       }
+      // "By event": each event's wins and losses side by side, oldest first (no hue: on a search card colour means a team).
+      if (id === "record" && opts.perEvent) blocks.push(perEventBars(ms));
       if (seasons.length > 1 || id !== "record") blocks.push(seasonTable(ms));
       if (scope.championship) blocks.push(eventTable(ms, "Worlds events"));
       const headline = id === "wins-count" ? { value: `${r.wins} win${r.wins === 1 ? "" : "s"}`, label: `in ${ms.length} match${ms.length === 1 ? "" : "es"}${where}`, sub: seasonsText(seasons) }
@@ -417,6 +419,20 @@ const rate = (r: { wins: number; losses: number; ties: number }) => { const n = 
 export const seasonsText = (ss: number[]) => (ss.length === 1 ? seasonLabel(ss[0]) : `${ss.length} seasons: ${ss.map(seasonLabel).join(", ")}`);
 
 /** Per event: its record (newest first), each a link to the event on the team. */
+/** Wins and losses (and ties, when any) at each event, oldest first: a "by event" record. */
+function perEventBars(ms: TeamMatch[]): StatBlock {
+  const evs = new Map<string, TeamMatch[]>();
+  for (const m of ms) evs.set(`${m.season}|${m.code}`, [...(evs.get(`${m.season}|${m.code}`) ?? []), m]);
+  const ties = ms.some((m) => m.result === "T");
+  return {
+    kind: "bars", title: "Wins and losses by event", unit: "matches",
+    groups: [...evs.values()].map((xs) => {
+      const r = record(xs);
+      return { label: shortEvent(xs[0].event, xs[0].type ?? null), items: [{ label: "Wins", value: r.wins }, { label: "Losses", value: r.losses }, ...(ties ? [{ label: "Ties", value: r.ties }] : [])] };
+    }),
+  };
+}
+
 export function eventTable(ms: TeamMatch[], title: string): StatBlock {
   const evs = new Map<string, TeamMatch[]>();
   for (const m of ms) evs.set(`${m.season}|${m.code}`, [...(evs.get(`${m.season}|${m.code}`) ?? []), m]);
