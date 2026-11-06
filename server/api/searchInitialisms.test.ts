@@ -7,6 +7,7 @@ import { CURRENT_SEASON } from "../data/seasons";
 import { searchAnswer } from "./searchAnswer";
 import { eventInitialisms } from "./query/initialisms";
 import { parseContext } from "./query/context";
+import { eventsNamed } from "./query/highlights";
 
 const S = CURRENT_SEASON - 1;
 const ask = (q: string) => searchAnswer(q, { limit: 25, full: true, learn: false });
@@ -82,6 +83,17 @@ describe("an event by its initialism", () => {
     expect(a.understood?.season).toBe(S);
     expect(a.stat?.headline).toBeDefined();
     await run("DELETE FROM events WHERE season = ? AND code = 'USMDMTI'", [S + 1]);
+    await rebuildSearch();
+  });
+  // Greptile on #1006: the event chosen is one of the kinds asked, never a later one of another kind sharing it.
+  it("kinds asked: chosen among the events of those kinds", async () => {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'USMDMTQ', 'Metro Tech Invitational', 'Qualifier', 'Laurel', 'MD', 'USA', ?, ?, 't')", [S, `${S + 1}-07-15`, `${S + 1}-07-15`]);
+    await rebuildSearch();
+    const named = await eventsNamed("mti", ["OffSeason"]);
+    expect([...new Set(named.map((e) => e.code))]).toEqual(["USMDMTI"]);
+    expect(named.every((e) => e.season === S || e.season === S - 1)).toBe(true);
+    expect([...new Set((await eventsNamed("mti", ["Qualifier"])).map((e) => e.code))]).toEqual(["USMDMTQ"]);
+    await run("DELETE FROM events WHERE code = 'USMDMTQ'");
     await rebuildSearch();
   });
   it("a two-letter initialism finds its event too", async () => {

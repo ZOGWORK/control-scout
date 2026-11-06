@@ -86,10 +86,12 @@ export async function eventsNamed(words: string, types: readonly string[] | null
   const rows = await all<{ season: number; code: string; name: string; type: string | null; division_code: string | null; start: string | null; end: string | null; city: string | null; state: string | null }>(
     `SELECT season, code, name, type, division_code, start, end, city, state FROM events WHERE code IN (${codes.map(() => "?").join(", ")})`, codes);
   const fits = rows.map((e) => ({ e, fit: eventFit(words, e.name, e.code) })).filter(({ e, fit }) => fit >= EVENT_FIT && (!types || types.includes(e.type ?? "")) && (!when || when({ season: Number(e.season), start: e.start ?? null })));
-  // An initialism several events share ("mti"): the one initialismEvent picks, in each season it was held.
+  // An initialism several events share ("mti"): the one initialismEvent picks among these (the kinds and year asked),
+  // in each season it was held.
   const shared = fits.filter(({ fit }) => fit === INITIALISM_FIT);
   if (shared.length && shared.length === fits.length && new Set(shared.map(({ e }) => e.code)).size > 1) {
-    const pick = (await initialismEvent(words, when))?.code;
+    const among = new Set(shared.map(({ e }) => `${e.season}|${e.code}`));
+    const pick = (await initialismEvent(words, (e) => among.has(`${e.season}|${e.code}`)))?.code;
     fits.splice(0, fits.length, ...shared.filter(({ e }) => e.code === pick));
   }
   const best = new Map<number, number>();

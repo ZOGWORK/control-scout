@@ -25,7 +25,7 @@ export function eventInitialisms(name: string): string[] {
  *  date), then the one with the most teams, among those `when` keeps (a season or year asked); one already held before
  *  one only listed. Null when the word is no
  *  event's initialism, or a team's name. Every reader that resolves an event by its initialism picks with this. */
-export async function initialismEvent(word: string, when?: (e: { season: number; start: string | null }) => boolean, now = Date.now()): Promise<{ season: number; code: string } | null> {
+export async function initialismEvent(word: string, when?: (e: { season: number; code: string; start: string | null }) => boolean, now = Date.now()): Promise<{ season: number; code: string } | null> {
   const w = word.trim().toLowerCase();
   if (!w || /\s/.test(w)) return null;
   const idx = await names();
