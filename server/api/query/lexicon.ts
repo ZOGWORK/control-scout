@@ -80,7 +80,9 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["lopsided|most lopsided|one sided|blowout|blowouts|biggest blowout|mismatch|mismatches|rout|routs|beatdown", [{ k: "agg", v: "max" }, { k: "metric", v: "margin" }]],
   ["upset|upsets|underdog|underdogs|giant killing|giant killer|shock win|shock result|surprise win|surprise result", { k: "metric", v: "upset" }],
   ["comeback|comebacks|come back|came back|comeback win|comeback wins|rallied|rally", { k: "metric", v: "comeback" }],
-  ["record|records|w-l-t|w l t|wlt|win loss|win-loss|win loss record|win loss tie|wins and losses|win/loss", { k: "metric", v: "record" }],
+  // A place's leaderboard ("Romania leaderboard"): its top teams.
+  ["leaderboard|leaderboards|leader board", [{ k: "agg", v: "max" }, { k: "thing", v: "team" }]],
+  ["with their records|with their record|with records|and their records|record|records|w-l-t|w l t|wlt|win loss|win-loss|win loss record|win loss tie|wins and losses|win/loss", { k: "metric", v: "record" }],
   ["win|wins|won|victory|victories|beat|beaten|defeated", { k: "metric", v: "win" }],
   ["loss|losses|lost|lose|loses|defeat|defeats", { k: "metric", v: "loss" }],
   // Winning a match, as a question ("did they ever win a match"): its wins.
@@ -92,7 +94,8 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["tie|ties|tied|draw|draws", { k: "metric", v: "tie" }],
   ["win rate|win percentage|win pct|win %|win%|winning percentage|winning rate", { k: "metric", v: "winrate" }],
   ["opr|offensive power rating|offense rating|offensive rating", { k: "metric", v: "opr" }],
-  ["rating|prediction rating|strength|power rating|elo", { k: "metric", v: "rating" }],
+  // "Highest rated", "top-rated": the prediction rating.
+  ["rating|rated|prediction rating|strength|power rating|elo", { k: "metric", v: "rating" }],
   ["rank|ranking|ranked|placement|place|placed|finish|finished|standing|standings|seed|seeded|position", { k: "metric", v: "rank" }],
   ["award|awards|trophy|trophies|honors|honours|banners", { k: "metric", v: "award" }],
   // Penalty points are given away ("which team gives away the most").

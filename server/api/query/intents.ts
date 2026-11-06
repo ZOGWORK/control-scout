@@ -174,7 +174,7 @@ export const INTENTS: IntentRule[] = [
   R("compare", 2, ["compare"], ["vs", "and"]),
   R("compare", 2, ["vs"], []),
   // No team: the best matches anywhere, and ranked lists of teams.
-  R("top-matches", 0, ["agg:max", "metric:score"], ["thing:match", "nopen"]),
+  R("top-matches", 0, ["agg:max", "metric:score"], ["thing:match", "per:match", "nopen"]),
   R("top-matches", 0, ["agg:max", "thing:match"], ["metric:score", "nopen"]),
   // Matches by a measure ("and" is "with": "the match with the most penalty points").
   R("low-matches", 0, ["agg:min", "metric:score"], ["thing:match", "nopen", "and"]),

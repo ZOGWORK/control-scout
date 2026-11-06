@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.6.6 — 2026-11-06
+## 3.6.7 — 2026-11-06
 
 Every search answer is in colour now: a how-many answer's number in bold amber, definitions and rules in sky, "nothing found" and "can't answer" in slate, each with a filled icon chip and a thick bar.
 
@@ -31,6 +31,23 @@ Every search answer is in colour now: a how-many answer's number in bold amber, 
 - **Headlines in colour.** A card about no team leads in its meaning's colour (a winning alliance in orange, a season's "190 points" in amber); a two-team headline that names one ("7149 favoured", "7149 leads 2-1") in that team's colour; a win chance's number and bar in the team's colour.
 - **Nothing found, sorry and no match.** "No upcoming match is scheduled", "Sorry — I can't answer that yet" and "Search has no answer" are slate with a filled chip and a thick bar; "Did you mean" is a sky note.
 - **A new kind can't ship grey.** The answer card audit now draws every card kind and every block kind the API has, and fails a card with no colour anywhere, or a grey line icon or line text. (#959)
+
+## 3.6.6 — 2026-11-06
+
+More ways of asking for a place's top teams find the leaderboard: "Romania leaderboard", "highest rated teams", "by rating, not OPR".
+
+### Highlights
+- [rankings] "Romania leaderboard" lists a country's top teams
+- [rankings] "Highest rated teams in …" ranks by prediction rating
+- [rankings] "By rating, not OPR" ranks by rating alone
+- [rankings] "Top 10 … with their records" keeps the record column
+
+### Search
+- **A country's leaderboard.** "Romania leaderboard 2025-26" lists the country's top teams by OPR. A state's leaderboard ("New Jersey leaderboard by record") is unchanged.
+- **Highest rated.** "Highest rated teams in …" and "top rated" rank by the prediction rating.
+- **A stat not to go by.** "Top 5 teams in Romania by rating, not OPR" ranks by the rating alone; "not" drops only a stat, so "matches 12345 did not win" keeps its win.
+- **Records beside.** "Top 10 teams in New Jersey by OPR, with their records" is the OPR list, whose rows always show the record.
+- **Points in a match.** "Most points in a match in Texas" is the highest-scoring match there. (#865)
 
 ## 3.6.5 — 2026-11-06
 
