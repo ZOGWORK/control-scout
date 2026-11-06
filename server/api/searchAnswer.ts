@@ -192,18 +192,22 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
  *  beside its other words, an event's. */
 async function inFull(q: string): Promise<string> {
   if (!INFORMAL.some(([f]) => new RegExp(`(?:^|[^\\p{L}\\p{N}])${f}(?![\\p{L}\\p{N}])`, "iu").test(q))) return q;
-  const [{ byName }, events] = await Promise.all([teamNames(), eventNames()]);
+  const [{ byName, list }, events] = await Promise.all([teamNames(), eventNames()]);
+  // As far as the longest team's or event's name runs, in words.
+  longestName ??= Math.max(4, ...list.map(([n]) => n.split(" ").length), ...events.map((n) => n.split(" ").length));
   return informalQuery(q, (words, wider) => {
     const k = nameKey(words);
     return byName.has(k) || (wider && events.some((n) => ` ${n} `.includes(` ${k} `)));
-  });
+  }, longestName);
 }
+let longestName: number | undefined;
 
 let eventNameList: { at: number; list: string[] } | null = null;
 async function eventNames(): Promise<string[]> {
   if (eventNameList && Date.now() - eventNameList.at < 10 * 60_000) return eventNameList.list;
   const rows = await all<{ name: string }>("SELECT DISTINCT name FROM events WHERE name IS NOT NULL");
   eventNameList = { at: Date.now(), list: rows.map((r) => nameKey(r.name)) };
+  longestName = undefined;
   return eventNameList.list;
 }
 

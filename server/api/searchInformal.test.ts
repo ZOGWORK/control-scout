@@ -10,7 +10,7 @@ import { informalQuery } from "./query/lexicon";
 const S = 2026;
 const day = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
 const ask = (q: string) => searchAnswer(q, { limit: 25, full: true, learn: false });
-const TEAMS: [number, string, string][] = [[4215, "Hypnotic Robotics", "NJ"], [7149, "ENFORCERS", "TX"], [23268, "Ultraviolet", "NJ"], [31337, "RN Robotics", "MI"]];
+const TEAMS: [number, string, string][] = [[4215, "Hypnotic Robotics", "NJ"], [7149, "ENFORCERS", "TX"], [23268, "Ultraviolet", "NJ"], [31337, "RN Robotics", "MI"], [31338, "Oradell RN High School Robotics Team", "NJ"]];
 
 beforeAll(async () => {
   const c = openDb(":memory:");
@@ -70,6 +70,17 @@ describe("informal and short forms are their full words", () => {
     expect((await ask("RN Robotics")).hits[0]?.ref).toBe("31337");
     expect((await ask("rn robotics events")).hits[0]?.ref).toBe("31337");
   });
+  // Greptile on #973: a long name holding a form keeps it whole, and a form is a word however it's spaced.
+  it("a name of five words or more keeps its form, and tabs or line breaks are spaces", async () => {
+    const long = (w: string, wider: boolean) => wider && "oradell rn high school robotics team".includes(w.toLowerCase());
+    expect(informalQuery("Oradell RN High School Robotics Team events", long, 6)).toBe("Oradell RN High School Robotics Team events");
+    expect((await ask("Oradell RN High School Robotics Team")).hits[0]?.ref).toBe("31338");
+    expect(JSON.stringify(await ask("oradell rn high school robotics team events"))).toContain("31338");
+    expect(JSON.stringify(await ask("oradell rn high school robotics team events"))).not.toContain("right now");
+    expect(informalQuery("events\ttmrw", () => false)).toBe("events tomorrow");
+    expect(informalQuery("events\nhappening  rn", () => false)).toBe("events happening right now");
+    expect(reading(await ask("events\ttmrw"))).toBe(reading(await ask("events tomorrow")));
+  });
   // Greptile on #973: the expansion keeps the query's quotes and operators, so a quoted name stays exact.
   it("quotes, operators and punctuation around a form stay as typed", async () => {
     expect(informalQuery('"Hypnotic Robotics" rn?', () => false)).toBe('"Hypnotic Robotics" right now?');
@@ -77,7 +88,7 @@ describe("informal and short forms are their full words", () => {
     // Inside quotes, nothing is said another way; outside them, it still is.
     expect(informalQuery('"RN" robotics events rn', () => false)).toBe('"RN" robotics events right now');
     expect(informalQuery('"rn robotics" tmrw', () => false)).toBe('"rn robotics" tomorrow');
-    expect((await ask('"RN" Robotics')).hits.filter((h) => h.kind === "team").map((h) => h.ref)).toEqual(["31337"]);
+    expect((await ask('"RN" Robotics')).hits.filter((h) => h.kind === "team").map((h) => h.ref)).toContain("31337");
     const a = await ask('"Hypnotic Robotics" rn');
     expect(a.q).toBe("Hypnotic Robotics rn");
     expect(a.hits.filter((h) => h.kind === "team").map((h) => h.ref)).toEqual(["4215"]);
