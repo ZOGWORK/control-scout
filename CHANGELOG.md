@@ -20,7 +20,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 "What events are happening right now?" and "number of teams in …" are answered however they're asked.
 
 ### Highlights
-- [live] "Events happening now", "going on right now" or "live" lists today's events
+- [live] "Events happening now", "going on now" or "live" lists today's events
 - [live] "Events taking place this week" lists this week's events
 - [teams] "Number of teams in …" and "total number of teams" count like "how many"
 
