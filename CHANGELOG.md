@@ -26,7 +26,7 @@ Every kind of search answer is checked on a 390 px phone: nothing runs off the s
 
 ### Search
 - **Checked at 390 px.** A new check (`npm run phone-proof`) opens one search for every kind of answer card on a 390 × 844 phone and fails on sideways scrolling, anything past the screen's edge, a link or button under 24 × 24 px, two that overlap, a team number cut off, or more than one main button; it saves a phone shot of each.
-- **Bigger taps.** A match's name in a match box ("Q1", "M2") is at least 44 px wide on a phone; a line chart's points are 24 px; the leaderboard's "#" sort is 24 px wide; and the video's "Open on YouTube", each match's play button and the search list's rows are 44 px on a phone (they were 44 px only where the text size is 16 px) (#PRNUM).
+- **Bigger taps.** A match's name in a match box ("Q1", "M2") is at least 44 px wide on a phone; a line chart's points are 24 px; the leaderboard's "#" sort is 24 px wide; and the video's "Open on YouTube", each match's play button and the search list's rows are 44 px on a phone (they were 44 px only where the text size is 16 px) (#778).
 
 ## 3.3.3 — 2026-11-05
 
