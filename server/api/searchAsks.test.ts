@@ -5,7 +5,8 @@ import { migrate, openDb, run, setDb } from "../db";
 import { rebuildSearch } from "../stats/job";
 import { searchSeason } from "./answers/season";
 import { searchAnswer } from "./searchAnswer";
-import { eventWon, readAsk, type Stat } from "./searchAsks";
+import { askAnswer, eventWon, readAsk, type Stat } from "./searchAsks";
+import { readStatQuestion } from "./answers/read";
 import { withTeamStats } from "./searchTeamStats";
 import { parseQuestion } from "./searchQuestions";
 import { CURRENT_SEASON } from "../data/seasons";
@@ -353,5 +354,68 @@ describe("who won: a Leadership Award stored as a Winner isn't a winner (Worlds 
     await rebuildSearch();
     const a = await ask("who won DE states");
     expect(a.stat?.headline?.value).toContain("4215");
+  });
+});
+
+describe("who won a division (owner: \"who won nj turnpike division this year\" read no results)", () => {
+  // The Vermont Championship: a North Division with its playoffs played and no awards (FIRST posts a division's awards
+  // on its championship), a South Division not played, the finals between the division winners, and a qualifier not
+  // held yet.
+  beforeAll(async () => {
+    await run(`INSERT INTO events (season, code, name, type, division_code, city, state, country, start, end, source) VALUES
+      (?, 'USVTCMP', 'Vermont Championship', 'Championship', NULL, 'Burlington', 'VT', 'USA', '2026-03-07', '2026-03-07', 't'),
+      (?, 'USVTCMPN', 'Vermont Championship - North Division', 'Championship', 'USVTCMP', 'Burlington', 'VT', 'USA', '2026-03-07', '2026-03-07', 't'),
+      (?, 'USVTCMPS', 'Vermont Championship - South Division', 'Championship', 'USVTCMP', 'Burlington', 'VT', 'USA', '2026-03-07', '2026-03-07', 't'),
+      (?, 'USVTMAPLE', 'Vermont Maple Qualifier', 'Qualifier', NULL, 'Stowe', 'VT', 'USA', '2027-01-10', '2027-01-10', 't')`, [S, S, S, S]);
+    await run("INSERT INTO alliances (season, code, number, captain, pick1) VALUES (?, 'USVTCMPN', 1, 23268, 6980), (?, 'USVTCMPN', 2, 4215, 14270), (?, 'USVTCMP', 1, 23268, 6980), (?, 'USVTCMP', 2, 20265, 4215)", [S, S, S, S]);
+    const final = async (code: string, n: number, red: number[], blue: number[], r: number, b: number) => {
+      await run("INSERT INTO matches (season, code, level, series, number, label, played, red_total, red_np, blue_total, blue_np, source) VALUES (?, ?, 'playoff', 6, ?, ?, 1, ?, ?, ?, ?, 't')", [S, code, n, `F${n}`, r, r, b, b]);
+      for (const [t, al] of [...red.map((t) => [t, "red"]), ...blue.map((t) => [t, "blue"])]) await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance) VALUES (?, ?, 'playoff', 6, ?, ?, ?)", [S, code, n, t, al]);
+    };
+    for (const n of [1, 2]) await final("USVTCMPN", n, [23268, 6980], [4215, 14270], 150, 100);
+    for (const n of [1, 2]) await final("USVTCMP", n, [20265, 4215], [23268, 6980], 90, 160);
+    await run("INSERT INTO awards (season, code, type, placement, team, name) VALUES (?, 'USVTCMP', 'Inspire', 1, 20265, 'Inspire Award'), (?, 'USVTCMP', 'Think', 1, 4215, 'Think Award')", [S, S]);
+    await rebuildSearch();
+  });
+  const card = async (q: string) => (await askAnswer(q, readAsk(q)!, { prefer: new Set(), ask }))?.card;
+  const chips = (h: { teams?: { label: string }[] } | undefined) => h?.teams?.map((t) => t.label);
+  it("reads every way of asking it", () => {
+    for (const q of ["who won vermont championship north division", "winner of vermont championship north division", "champions of vermont championship north division", "who took vermont championship north division", "who were the champions of vermont championship north division"]) {
+      expect(readAsk(q), q).toEqual({ kind: "event-won", event: "vermont championship north division" });
+      expect(readStatQuestion(q)?.id, q).toBe("winning-alliance");
+    }
+    // A measure taken is never an event's winners.
+    expect(readAsk("who took the most penalties at vermont championship")).toBeNull();
+    expect(readStatQuestion("who took the most penalties at vermont championship")?.id).not.toBe("winning-alliance");
+  });
+  it("a division with its playoffs and no awards: its champions first, the championship's awards below", async () => {
+    const c = await card("who won vermont championship north division");
+    expect(c?.none).toBeUndefined();
+    expect(c?.champions).toEqual([{ label: "Champions", href: "/events/2025/USVTCMPN", teams: [{ label: "23268 Ultraviolet", href: expect.any(String) }, { label: "6980 Bad Wolf", href: expect.any(String) }], alliance: "red", number: 1 }]);
+    expect(c?.event).toEqual({ season: S, code: "USVTCMP", name: "Vermont Championship" });
+    expect(c?.awards?.map((a) => a.type)).toEqual(["Inspire", "Think"]);
+    for (const q of ["who won vermont championship north division", "champions of vermont championship north division", "who took vermont championship north division"]) {
+      const a = await ask(q);
+      expect(a.stat?.headline, q).toMatchObject({ value: "Alliance 1", alliance: "red" });
+      expect(chips(a.stat?.headline), q).toEqual(["23268 Ultraviolet", "6980 Bad Wolf"]);
+    }
+  });
+  it("the championship: its finals' champions, then each division's winners, and its Inspire Award", async () => {
+    const c = await card("who won the vermont championship");
+    expect(c?.champions?.map((x) => [x.label, x.number, chips(x)])).toEqual([["Champions", undefined, ["23268 Ultraviolet", "6980 Bad Wolf"]], ["North Division winners", 1, ["23268 Ultraviolet", "6980 Bad Wolf"]]]);
+    const a = await ask("who won the vermont championship");
+    expect(a.stat?.headline).toMatchObject({ value: "Champions", alliance: "blue" });
+    expect(a.stat?.blocks.find((b) => b.kind === "links" && b.title === "Inspire Award")).toMatchObject({ items: [{ label: "20265 Heart of RoBots" }] });
+  });
+  it("\"this year\" before the event's season: said so, its latest one finished below", async () => {
+    const a = await ask("who won vermont championship north division this year");
+    expect(a.stat?.none).toBe("Vermont Championship - North Division has no 2026–27 event on record yet. Below: the latest one finished, 2025–26.");
+    expect(chips(a.stat?.headline)).toEqual(["23268 Ultraviolet", "6980 Bad Wolf"]);
+  });
+  it("an event not held yet has no winners, never another event's", async () => {
+    expect(await card("who won vermont maple qualifier")).toBeUndefined();
+    const a = await ask("who won vermont maple qualifier");
+    expect(a.stat?.headline).toBeUndefined();
+    expect(JSON.stringify(a)).not.toContain("23268");
   });
 });

@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.6.7 — 2026-11-06
+
+"Who won <event>" leads with the playoff champions, for a division too, where FIRST posts no awards of its own.
+
+### Highlights
+- [fixes] "Who won" a division shows its playoff champions, never "no results"
+- [teams] The champions are team chips in the colour they played the final in
+- [fixes] "This year" before the event is held shows last season's, said so
+
+### Search
+- **Who won an event.** "Who won", "winner of", "champions of" and "who took" an event lead with its playoff champions, the alliance that won its final, as team chips in the colour they played it in, the same champions as its Playoffs tab. A division's awards are posted on its championship, so its answer lists the championship's awards below; "no results yet" is said only when there's neither a playoff result nor an award.
+- **A championship and its divisions.** A championship's answer leads with its finals' champions, then each division's winners and its Inspire Award.
+- **"This year" before it's held.** "Who won <event> this year" before this season's event is decided (or set up) says so, then shows its latest finished season's winners, labelled.
+
 ## 3.6.4 — 2026-11-06
 
 A question search can't answer yet now says "Sorry — I can't answer that yet", shows what it understood, and offers searches that do answer.

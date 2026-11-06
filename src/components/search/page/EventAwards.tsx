@@ -1,9 +1,9 @@
 // An award-at-event answer on /search ("who won inspire at East Bergen League Tournament 2026", server/api/searchAsks.ts
-// "award" and "event-won"): the asked award's places as a podium (1st in the centre and higher, 2nd and 3rd beside
-// it), then every award the event gave, as its Awards tab lists them, and a link to that tab. Only what the card
+// "award" and "event-won"): a "who won" question's playoff champions first; the asked award's places as a podium (1st in
+// the centre and higher, 2nd and 3rd beside it), then every award the event gave, as its Awards tab lists them, and a link to that tab. Only what the card
 // carries is drawn: an older server's card (no `awards`) keeps its lines.
 import { Link } from "react-router-dom";
-import { ArrowRight, Award, Medal, Trophy } from "lucide-react";
+import { ArrowRight, Award, Crown, Medal, Trophy } from "lucide-react";
 import type { SearchCard, SearchCardAward } from "../../../shared/api";
 import { awardLabel, seasonLabel } from "../../../shared/format";
 import { cn } from "../../cn";
@@ -13,6 +13,7 @@ import { SEARCH_PALETTE, meaningOf } from "../../../lib/textTones";
 const tone = (name: string) => SEARCH_PALETTE[meaningOf(name) ?? "judged"];
 import { AnswerFrame, PART, SECONDARY, TAP, repeats } from "./TeamAnswer";
 import { AnswerVideo } from "./AnswerVideo";
+import { TeamChip } from "./MatchBox";
 
 /** Each place told by its step's height, its icon and its label, never a colour (on a search card hue means team). */
 const PLACE: Record<number, { height: string; label: string }> = {
@@ -38,10 +39,11 @@ export function EventAwardsAnswer({ card, heading }: { card: SearchCard; heading
       sub={ev ? `${ev.name} · ${seasonLabel(ev.season)} · from FIRST's award list for the event` : "From FIRST's award list for the event"}
       data={{ "data-card-kind": card.kind, "data-event-awards": "" }}>
       {card.none && <p className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm text-foreground" data-none>{card.none}</p>}
+      {!!card.champions?.length && <Champions champions={card.champions} />}
       {shown && <Podium places={podium} season={ev?.season} />}
       <AnswerVideo />
       {/* An older server's card (no award list): its lines, as before. */}
-      {!awards.length && !!card.lines.length && (
+      {!awards.length && !card.champions?.length && !!card.lines.length && (
         <ul className="grid gap-2 sm:grid-cols-2" data-lines>
           {card.lines.map((l) => (
             <li key={l.text}>
@@ -68,6 +70,22 @@ export function EventAwardsAnswer({ card, heading }: { card: SearchCard; heading
         </div>
       )}
     </AnswerFrame>
+  );
+}
+
+/** "Who won <event>": its playoff champions first, each alliance's teams as chips in the colour they played the final in. */
+function Champions({ champions }: { champions: NonNullable<SearchCard["champions"]> }) {
+  return (
+    <section aria-label="Champions" className="mb-5 grid gap-3 sm:grid-cols-2" data-champions>
+      {champions.map((c) => (
+        <div key={c.href} className="rounded-xl border border-accent/60 bg-accent/[0.06] p-3" data-champion>
+          <Link to={c.href} className={cn("flex items-center gap-1.5 font-display text-base font-semibold text-accent-text hover:underline", TAP)}>
+            <Crown className="size-4 shrink-0" aria-hidden /> {c.label}{c.number != null ? ` · Alliance ${c.number}` : ""}
+          </Link>
+          <p className="mt-2 flex flex-wrap gap-1">{c.teams.map((t) => <TeamChip key={t.href} t={t} side={c.alliance} />)}</p>
+        </div>
+      ))}
+    </section>
   );
 }
 

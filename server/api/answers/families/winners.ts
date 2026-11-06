@@ -7,6 +7,7 @@
 // Worlds follow-ups every Worlds answer ends with: the season's championship events as buttons, from the data, and the
 // related Worlds questions.
 import type { StatAnswer, StatBlock, StatMatchRow } from "../../../../src/shared/searchStat.js";
+import type { SearchCardChampion } from "../../../../src/shared/api.js";
 import { dateRange, seasonLabel } from "../../../../src/shared/format.js";
 import { all, get } from "../../../db.js";
 import { CURRENT_SEASON, SEASONS, gameOf as gameOfSeason } from "../../../data/seasons.js";
@@ -38,12 +39,13 @@ async function finishedChampionships(): Promise<number[]> {
 
 /** Which season's championship a question means when it names none: "this year" is the current season; "last year",
  *  or no season at all, the latest one finished. */
-export interface WhichSeason { latest?: boolean; lastYear?: boolean }
+/** `before`: the season "this year" asked for, when the event has none on record yet (the latest one is answered). */
+export interface WhichSeason { latest?: boolean; lastYear?: boolean; before?: number }
 
 /** One event's winners, with its final matches: the alliance that won the last match of the event's last playoff
  *  series (its finals), its whole roster from alliance selection; with no final match stored, the Winning Alliance
  *  award. Null when neither is in the data (not played yet), or its final isn't decided yet. */
-async function winnersOf(e: Ev): Promise<{ teams: number[]; finals: StatMatchRow[]; from: "finals" | "award" } | null> {
+async function winnersOf(e: Ev): Promise<{ teams: number[]; finals: StatMatchRow[]; from: "finals" | "award"; alliance: number | null } | null> {
   // The final is series 0 when the bracket stores one (classic brackets, and some others), else the last series.
   const last = await get<{ s: number | null }>("SELECT CASE WHEN MIN(series) = 0 THEN 0 ELSE MAX(series) END s FROM matches WHERE season = ? AND code = ? AND level = 'playoff' AND played = 1", [e.season, e.code]);
   const ms = last?.s == null ? [] : await all<any>(
@@ -52,7 +54,7 @@ async function winnersOf(e: Ev): Promise<{ teams: number[]; finals: StatMatchRow
             (SELECT GROUP_CONCAT(team) FROM match_teams x WHERE x.season = m.season AND x.code = m.code AND x.level = m.level AND x.series = m.series AND x.number = m.number AND x.alliance = 'blue') blue
      FROM matches m WHERE m.season = ? AND m.code = ? AND m.level = 'playoff' AND m.series = ? AND m.played = 1 ORDER BY m.number`, [e.season, e.code, last.s]);
   const nums = (s: string | null) => String(s ?? "").split(",").filter(Boolean).map(Number);
-  let teams: number[] = [], from: "finals" | "award" = "finals";
+  let teams: number[] = [], from: "finals" | "award" = "finals", alliance: number | null = null;
   // The final is decided once an alliance has won two of its matches (a best-of-three), or the event is over and one
   // alliance won more. Mid-event, the latest played series may be a semifinal or a final still going: never a champion.
   const redWins = ms.filter((m) => Number(m.red_total) > Number(m.blue_total)).length, blueWins = ms.filter((m) => Number(m.blue_total) > Number(m.red_total)).length;
@@ -64,9 +66,10 @@ async function winnersOf(e: Ev): Promise<{ teams: number[]; finals: StatMatchRow
     const colour = redWins > blueWins ? "red" : "blue";
     const won = [...new Set(ms.flatMap((m) => nums(m[colour])))];
     // The alliance's whole roster (a team sitting the final out is still on it).
-    const roster = await all<any>("SELECT captain, pick1, pick2, backup FROM alliances WHERE season = ? AND code = ?", [e.season, e.code]);
-    const mine = roster.map((a) => [a.captain, a.pick1, a.pick2, a.backup].filter((t) => t != null).map(Number)).find((ts) => won.some((t) => ts.includes(t)));
-    teams = mine ?? won;
+    const roster = await all<any>("SELECT number, captain, pick1, pick2, backup FROM alliances WHERE season = ? AND code = ?", [e.season, e.code]);
+    const mine = roster.map((a) => ({ n: Number(a.number), ts: [a.captain, a.pick1, a.pick2, a.backup].filter((t) => t != null).map(Number) })).find((a) => won.some((t) => a.ts.includes(t)));
+    teams = mine?.ts ?? won;
+    alliance = mine?.n ?? null;
   } else {
     from = "award";
     teams = [...new Set((await all<{ team: number }>("SELECT team FROM awards WHERE season = ? AND code = ? AND type = 'Winner' AND COALESCE(name, '') NOT LIKE '%Leadership%' ORDER BY placement", [e.season, e.code])).map((w) => Number(w.team)))];
@@ -86,7 +89,26 @@ async function winnersOf(e: Ev): Promise<{ teams: number[]; finals: StatMatchRow
       partners: (side === "red" ? red : blue).map(link), opponents: (side === "red" ? blue : red).map(link),
     };
   });
-  return { teams, finals, from };
+  return { teams, finals, from, alliance };
+}
+
+/** An event's champions by winnersOf's rules, then each of its divisions' (the asks' "who won" card). */
+export async function eventChampions(season: number, code: string): Promise<SearchCardChampion[]> {
+  const e = await get<Ev>(`SELECT ${evCols} FROM events WHERE season = ? AND code = ?`, [season, code]);
+  if (!e) return [];
+  const divisions = await all<Ev>(`SELECT ${evCols} FROM events WHERE season = ? AND division_code = ? ORDER BY name`, [season, code]);
+  const out: SearchCardChampion[] = [];
+  for (const x of [e, ...divisions]) {
+    const w = await winnersOf(x);
+    if (!w) continue;
+    const links = await teamLinks(w.teams);
+    out.push({
+      label: x === e ? "Champions" : `${x.name.split(/\s+-\s+/).pop()} winners`, href: eventHref(x.season, x.code), teams: w.teams.map((t) => links.get(t)!).filter(Boolean),
+      // A finals between division winners numbers its alliances its own way: no number said for it.
+      ...(w.finals.length ? { alliance: w.finals[0].alliance } : {}), ...(w.alliance != null && !(x === e && divisions.length) ? { number: w.alliance } : {}),
+    });
+  }
+  return out;
 }
 
 /** Whether `team` is on the event's winning alliance, by winnersOf's rules (a decided final, else the award). */
@@ -155,10 +177,20 @@ export async function winnersAnswer(core: string, season: number | null, champio
   const card = worlds ? `The champions and each division's winners` : divisions.length ? "The winners and each division's winning alliance" : "The winners and their final matches";
   const base = { family: "event" as const, intent: "winning-alliance", title: card, heading: title, scope: [worlds ? "FIRST Championship (Worlds)" : shortEvent(parent.name, parent.type), seasonLabel(parent.season)], definition: `${RULE} The Inspire Award shown is the event's 1st-place Inspire Award.${why}`, source: `From the published awards and playoff matches of ${1 + divisions.length} event${divisions.length ? "s" : ""}, ${dateRange(parent.start, parent.end)}` };
   if (!decided && worlds && !core) return notYet(parent.season, findEvent, why);
+  // "This year" before the event is decided this season: said so, then its latest finished season's winners below.
+  if (!decided && !worlds && which.latest) {
+    const before = await all<Ev>(`SELECT ${evCols} FROM events WHERE code = ? AND season < ? AND COALESCE(end, start) < ? ORDER BY season DESC LIMIT 3`, [parent.code, parent.season, new Date().toISOString().slice(0, 10)]);
+    for (const e of before.filter((x) => fuzzyScore(parent!.name, x.name) >= 0.75)) {
+      const below = await winnersAnswer(core, e.season, false, async () => e);
+      if (below && !below.none) return { ...below, none: `${shortEvent(parent.name, parent.type)} ${seasonLabel(parent.season)} isn't decided yet${parent.start ? ` (${dateRange(parent.start, parent.end)})` : ""}. Below: the latest one finished, ${seasonLabel(e.season)}.` };
+    }
+  }
   if (!decided) return { ...base, blocks, none: worlds ? `No championship results yet for ${gameOf(parent.season)}: no winning alliance is published.` : `No winning alliance is published for ${shortEvent(parent.name, parent.type)} yet.` };
   return {
     ...base, blocks,
-    ...(top ? { headline: { value: alliance(top.teams), label: worlds ? `${seasonLabel(parent.season)} FIRST Championship winners (the finals between the division winners)` : `Won ${shortEvent(parent.name, parent.type)}`, sub: top.finals.map((f) => `${f.label} ${f.own}–${f.opp}`).join(" · ") || undefined, href: eventHref(parent.season, parent.code) } } : {}),
+    ...(which.before != null && parent.season < which.before ? { none: `${shortEvent(parent.name, parent.type)} has no ${seasonLabel(which.before)} event on record yet. Below: the latest one finished, ${seasonLabel(parent.season)}.` } : {}),
+    // The winners as team chips in the colour they played the final in; from the award alone, their names.
+    ...(top ? { headline: { value: top.finals.length ? (top.alliance != null && !divisions.length ? `Alliance ${top.alliance}` : "Champions") : alliance(top.teams), ...(top.finals.length ? { teams: top.teams.map((t) => links.get(t)!).filter(Boolean), alliance: top.finals[0].alliance } : {}), label: worlds ? `${seasonLabel(parent.season)} FIRST Championship winners (the finals between the division winners)` : `Won ${shortEvent(parent.name, parent.type)}`, sub: top.finals.map((f) => `${f.label} ${f.own}–${f.opp}`).join(" · ") || undefined, href: eventHref(parent.season, parent.code) } } : {}),
   };
 }
 

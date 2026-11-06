@@ -76,9 +76,9 @@ const AWARD_TYPES: [RegExp, string][] = [
 ];
 /** In order: the longer, more specific phrases first ("longest win streak" before "win streak"). */
 const RULES: IntentRule[] = [
-  // A season's or an event's winners: "winning alliance", "who won …", and "winner(s)"/"champion(s)" (those two only
+  // A season's or an event's winners: "winning alliance", "who won …", "who took …", and "winner(s)"/"champion(s)" (those two only
   // with Worlds or a season named: "decode winner", "into the deep champions", "worlds winners 2025").
-  { id: "winning-alliance", family: "event", season: "all", noTeam: true, re: /\bwinning\s+alliances?\b|\bwho\s+won\b|\b(?:world\s+)?(?:champions?|winners?)\b|\bwinning(?=\s*$)/ },
+  { id: "winning-alliance", family: "event", season: "all", noTeam: true, re: /\bwinning\s+alliances?\b|\bwho\s+won\b|\bwho\s+took\s+(?!(?:the\s+)?(?:most|fewest|least|highest|lowest|best|worst|first|last|top|longest|biggest|more|fewer)\b)|\b(?:world\s+)?(?:champions?|winners?)\b|\bwinning(?=\s*$)/ },
   { id: "opr-by-season", family: "trend", season: "all", re: /\bopr\s+(?:by|per|each|every|over\s+the)\s+seasons?\b|\bseason(?:al)?\s+opr\b/ },
   { id: "record-by-season", family: "trend", season: "all", re: /\b(?:record|w-l-t|win[\s-]loss(?:[\s-]tie)?)\s+(?:by|per|each|every)\s+season\b|\bseason\s+by\s+season\s+record\b/ },
   // "Late season form versus early season form", "against top teams", "against rookie teams": groups of matches, never
