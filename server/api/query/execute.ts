@@ -49,6 +49,13 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
   return { ...a, intent: { ...(a.intent ?? { kind: `pipeline-${p.intent}`, pattern: p.intent, met: true, understood: [] }), understood: describe(p) } };
 }
 
+/** Whether `q` asks about teams: one named, or which team in a place ("which team in New Jersey fouls the least").
+ *  A rules question never does. */
+export async function asksOfTeams(q: string, now?: number, prefer?: ReadonlySet<string>): Promise<boolean> {
+  const p = await parseQuery(q, await parseContext(now, prefer));
+  return p.teams.length > 0 || (!!p.place && /\b(?:teams?|who|whose)\b/i.test(q));
+}
+
 /** Whether the pipeline reads `q` completely (an intent it answers, every word explained). */
 export async function pipelineReads(q: string, now?: number, prefer?: ReadonlySet<string>): Promise<boolean> {
   const p = await parseQuery(q, await parseContext(now, prefer));
@@ -103,7 +110,7 @@ const ANSWERED = new Set<PipelineIntent>([...TEAM_INTENTS, ...(Object.keys(TWO_T
 /** The leaderboard's stat for a metric said ("by opr"); the prediction rating when none is. */
 const BOARD_STAT: Partial<Record<string, string>> = {
   "metric:opr": "opr", "metric:rating": "rating", "metric:winrate": "win-rate", "metric:auto": "auto", "metric:teleop": "teleop",
-  "metric:endgame": "endgame", "metric:record": "record", "metric:win": "wins", "metric:reliability": "reliability",
+  "metric:endgame": "endgame", "metric:record": "record", "metric:win": "wins", "metric:reliability": "reliability", "metric:penalty": "penalties",
 };
 
 async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer | null> {
@@ -131,6 +138,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     // A count said ("top 3 scores") applies only where the answer lists that many; elsewhere it's left to search
     // rather than answered with a different number of rows.
     if (p.n != null && !COUNTED.has(id)) return null;
+    // A season's penalty total is its own reader's ("12345 total penalties"); here only an event's.
+    if (id === "penalties" && (p.symbols.includes("agg:sum") || p.symbols.includes("agg:count")) && !scope.at) return null;
     const team = p.teams[0];
     // A season or a year with no events on record yet (a future year): said so, never the latest instead.
     const future = await noEventsYet(p, team.number, id, opts);
@@ -144,7 +153,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
       count: p.agg === "count", noTeam: false, core: String(team.number),
       ...(p.award && (id === "awards" || id === "total-awards") ? { award: p.award } : {}),
       ...(AWARD_LISTS.has(id) && (p.agg === "first" || p.agg === "last") ? { pick: p.agg === "first" ? "first" : "latest" } : {}),
-      ...(id === "penalties" ? { variant: p.symbols.includes("per:event") ? "per-event" : p.symbols.includes("per:rate") ? "rate" : null } : {}),
+      // "How many penalty points", "in total": the total first.
+      ...(id === "penalties" ? { variant: p.symbols.includes("per:event") ? "per-event" : p.symbols.includes("per:rate") ? "rate" : p.symbols.includes("agg:sum") || p.symbols.includes("agg:count") ? "total" : null } : {}),
     };
     const a = await statAnswerOf(p.q, it, opts.resolve, opts);
     // Nothing in the window asked ("this week"): its season, then the season before, said on the card.

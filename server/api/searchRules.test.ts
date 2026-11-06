@@ -141,3 +141,21 @@ describe("a short keyword is a whole word (live check of #437)", () => {
     expect(a.card?.lines.map((l) => l.text.split(" · ")[0])).not.toContain("R603");
   });
 });
+
+describe("a penalty question about teams is their numbers, never the rules", () => {
+  it("which team fouls the most or the least in a place: the teams by penalty points given away a match", async () => {
+    let pen = 1;
+    for (const [n] of CAN_TEAMS) await run("INSERT INTO team_season_stats (season, team, opr_np, rating_np, rating_pen, matches, rating_matches, wins, losses, ties) VALUES (?, ?, 50, 50, ?, 10, 10, 5, 5, 0)", [S, n, pen++]);
+    const least = await searchAnswer("which team fouls the least in Texas", { limit: 25, full: true });
+    expect(least.card?.kind).not.toBe("rule");
+    expect(least.stat).toMatchObject({ family: "leaderboard", intent: "top-penalties" });
+    const most = await searchAnswer("which Texas team gives away the most penalty points per match", { limit: 25, full: true });
+    expect(most.stat?.title).toMatch(/^Team in Texas with the most penalty points given away a match/);
+    // The match with the most penalty points stays the match finder's, and a rule asked about stays the rules'.
+    expect((await searchAnswer("most penalties in Texas", { limit: 25, full: true })).stat?.family).not.toBe("leaderboard");
+    expect((await searchAnswer("penalty for pinning")).card?.kind).toBe("rule");
+  });
+  it("a team named is that team's penalty points, never the rules", async () => {
+    expect((await searchAnswer("how many penalty points did 29548 give away in total", { limit: 25, full: true })).card?.kind).not.toBe("rule");
+  });
+});

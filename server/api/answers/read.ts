@@ -233,7 +233,7 @@ export interface StatQuestion {
   schedule?: boolean;
   /** "penalties per event", "penalty rate": which figure leads a penalties answer; "at least 200": a limit that
    *  includes itself. */
-  variant?: "per-event" | "rate" | "at-least" | null;
+  variant?: "per-event" | "rate" | "at-least" | "total" | null;
   /** No team: what's left (an event's name, or "" for the season's championship). */
   noTeam: boolean;
   /** No "at": the event may be named anywhere in `core` beside the team ("what rank did 4215 get in the east bergen
