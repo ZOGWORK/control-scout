@@ -23,6 +23,10 @@ export type Sym =
   | { k: "worlds" }
   | { k: "states" }
   | { k: "predict" }
+  /** Going through: from a division to the finals, from an event to the next level ("advancement odds"). */
+  | { k: "advance" }
+  /** A forecast held up against what happened: "vs actual", "before and after", "did it get it right". */
+  | { k: "review" }
   | { k: "vs" }
   | { k: "and" }
   | { k: "together" }
@@ -60,6 +64,10 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["last|latest|most recent|recent|newest|previous|final|current|so far", { k: "agg", v: "last" }],
   ["closest|tightest|narrowest|nail biter|nailbiter", { k: "agg", v: "closest" }],
   ["next|upcoming|coming up", { k: "agg", v: "next" }],
+  // "The last time", "the first time", "next time": when, said with "time" ("when was the last time they played").
+  ["last time|the last time|most recent time|latest time|last time ever", { k: "agg", v: "last" }],
+  ["first time|the first time|very first time|first time ever|first ever", { k: "agg", v: "first" }],
+  ["next time|the next time", { k: "agg", v: "next" }],
   // Metrics.
   // "Total points" is two words read apart: a sum ("total") of scores ("points").
   ["score|scores|scored|scoring|points|point|pts", { k: "metric", v: "score" }],
@@ -113,13 +121,16 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["worlds|world|world championship|world championships|world champs|first championship|first champs|championship of the world|cmp|houston championship|houston", { k: "worlds" }],
   ["states|state|state championship|state championships|state champs|state finals|regionals|regional championship|regional", { k: "states" }],
   // Forecasts.
-  ["prediction|predictions|predicted|predict|forecast|forecasts|projected|projection|expected|expect|chance|chances|odds|probability|likely|likelihood|favourite|favorite|favored|favoured|who wins|who will win|who would win", { k: "predict" }],
+  ["prediction|predictions|predicted|predict|forecast|forecasts|projected|projection|expected|expect|chance|chances|odds|probability|likely|likelihood|favourite|favorite|favored|favoured|who wins|who will win|who would win|matchup|matchups|match up|custom matchup|custom match|hypothetical matchup|hypothetical match", { k: "predict" }],
+  ["vs actual|versus actual|vs the actual|compared to actual|vs what happened|vs reality|vs result|vs results|vs the result|actual|actually happened|what happened|before and after|before vs after|before or after|right or wrong|get it right|got it right|was it right|were they right|was it accurate|how accurate|accurate|accuracy|way off|or was it way off|or way off|or was it off|or not|how far off|hit or miss", { k: "review" }],
+  ["advance|advances|advancing|advancement|advancements|advance to the finals|make the finals|making the finals|go through|goes through|get through|gets through", { k: "advance" }],
   // Two teams.
-  ["vs|v|versus|against|facing|face|faced|play|played|playing|vs.", { k: "vs" }],
+  ["vs|v|versus|against|facing|face|faced|play|played|playing|plays|vs.", { k: "vs" }],
   ["and|&|plus|with|alongside", { k: "and" }],
   ["together|in common|shared|share|both|both played|jointly|same match|same matches", { k: "together" }],
   ["same alliance|same side|as partners|on the same alliance|teamed up|teamed", { k: "same-side" }],
-  ["compare|comparison|compared|side by side|or", { k: "compare" }],
+  // "Who is better, 12345 or 67890": the two side by side.
+  ["compare|comparison|compared|side by side|or|better|stronger|who is better|which is better|whos better|who's better", { k: "compare" }],
   // Wins and losses as an outcome ("closest win", "biggest loss").
   ["winning", { k: "outcome", v: "W" }],
   ["losing", { k: "outcome", v: "L" }],

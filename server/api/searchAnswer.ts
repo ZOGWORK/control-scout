@@ -44,7 +44,9 @@ import { pipelineAnswer, pipelineReads } from "./query/execute.js";
 import { yesNoAnswer } from "./answers/yesNo.js";
 import { bottomAnswer, countAnswer, eventCodeAnswer, eventPageAnswer, explainAnswer, monthAnswer, nearMeAnswer, namedParts, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
 
-export const MAX_QUERY = 80;
+/** The longest query read: a full question ("did the prediction for 12345 at the state championship get it right, or
+ *  was it way off") fits. Longer is cut at a word, never inside one. */
+export const MAX_QUERY = 160;
 /** A top result scoring under this against what was typed is a correction ("did you mean"), not a match. */
 export const WEAK_SCORE = 0.9;
 
@@ -71,9 +73,13 @@ export interface AnswerOptions {
   full?: boolean;
 }
 
-/** The query as search reads it: punctuation that never means anything dropped, spaces folded, at most MAX_QUERY. */
+/** The query as search reads it: punctuation that never means anything dropped, spaces folded, at most MAX_QUERY
+ *  (cut at the last whole word: a word cut in two, "2025-2", would be read as another). */
 export function cleanQuery(raw: string): string {
-  return String(raw ?? "").replace(/[!?,;"<>(){}[\]|\\^*`~=+]/g, " ").replace(/\s+/g, " ").trim().slice(0, MAX_QUERY).trim();
+  const q = String(raw ?? "").replace(/[!?,;"<>(){}[\]|\\^*`~=+]/g, " ").replace(/\s+/g, " ").trim();
+  if (q.length <= MAX_QUERY) return q;
+  const cut = q.slice(0, MAX_QUERY);
+  return (q[MAX_QUERY] === " " ? cut : cut.replace(/\s+\S*$/, "")).trim() || cut;
 }
 
 const SHORT_FORMS: Record<string, string> = { champs: "championship", champ: "championship", cmp: "championship", quals: "qualifier", worlds: "first championship", states: "state championship" };

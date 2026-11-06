@@ -64,6 +64,31 @@ describe("slots", () => {
     const p = await parse("predicted chances of 4215 east bergen conference");
     expect(p).toMatchObject({ intent: "team-predict", complete: true, teams: [{ number: 4215 }], event: { words: "east bergen conference" }, time: null });
   });
+  it("reads two alliances of two either side of a vs, any wording, as a match's call", async () => {
+    for (const q of [
+      "predict 4215 6980 vs 24033 23268", "4215 and 6980 vs 24033 and 23268 who wins", "custom matchup 4215 6980 vs 24033 23268",
+      "predict a match with 4215 6980 vs 24033 23268", "4215 6980 versus 24033 23268 predicted score in 2025-26",
+    ]) {
+      const p = await parse(q);
+      expect(p, q).toMatchObject({ intent: "alliance-predict", complete: true });
+      expect(p.teams.filter((t) => t.at < p.vsAt!).map((t) => t.number), q).toEqual([4215, 6980]);
+      expect(p.teams.filter((t) => t.at > p.vsAt!).map((t) => t.number), q).toEqual([24033, 23268]);
+    }
+    // Three or five teams are no two alliances of two; two teams stay the two-team call.
+    expect((await parse("4215 6980 vs 24033")).intent).not.toBe("alliance-predict");
+    expect((await parse("4215 vs 6980 matchup")).intent).toBe("two-predict");
+  });
+  it("reads a forecast held up against what happened as the forecast at the event (its card shows both)", async () => {
+    for (const q of [
+      "4215 last prediction for east bergen conference", "show me 4215's predictions before and after east bergen conference",
+      "4215 predicted rank at nj championship vs actual rank", "did the prediction for 4215 at east bergen conference get it right, or was it way off",
+      "4215 predicted vs actual at nj championship", "how accurate was the prediction for 4215 at nj championship",
+    ]) {
+      expect(await parse(q), q).toMatchObject({ intent: "team-predict", complete: true, teams: [{ number: 4215 }], event: { words: expect.stringMatching(/east bergen conference|nj championship/) } });
+    }
+    // Held up against what happened is the forecast's word alone: never another answer's.
+    expect((await parse("4215 record or not")).complete).toBe(false);
+  });
   it("reads shared matches for two teams", async () => {
     for (const q of ["4215 and 6980 matches together", "matches 4215 6980 shared", "shared matches of 6980 with 4215", "4215 6980 in common matches please"]) {
       const p = await parse(q);
@@ -275,5 +300,15 @@ describe("a name said as words", () => {
   it("a count of teams in a place is its own intent; a name alone is still a team", async () => {
     expect(await parse("how many teams from Oradell")).toMatchObject({ intent: "count-teams", place: { kind: "city" }, complete: true });
     expect(await parse("ultraviolet")).toMatchObject({ intent: null, complete: false });
+  });
+});
+
+describe("when, said with 'time' or as a verb", () => {
+  it("the last or first time a team played is its last or first match, never a team named 'Time'", async () => {
+    for (const q of ["when was the last time 4215 played", "4215 last played when", "when did 4215 last play"]) expect(await parse(q), q).toMatchObject({ intent: "recent-match", teams: [{ number: 4215 }], complete: true });
+    for (const q of ["when did 4215 first play", "the first time 4215 played a match"]) expect(await parse(q), q).toMatchObject({ intent: "first-match", teams: [{ number: 4215 }], complete: true });
+  });
+  it("a match's number is never read as the last one played", async () => {
+    expect(await parse("when did 4215 last play match 12")).toMatchObject({ complete: false });
   });
 });

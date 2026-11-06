@@ -2737,51 +2737,116 @@
 {
 "set": "natural",
 "n": 15,
-"q": "has 4215 ever been to worlds"
+"q": "when was the last time 4215 played"
 },
 {
 "set": "natural",
 "n": 16,
-"q": "did 4215 ever go to worlds"
+"q": "when did 4215 last play"
 },
 {
 "set": "natural",
 "n": 17,
-"q": "has gearview ever won inspire"
+"q": "4215 last match"
 },
 {
 "set": "natural",
 "n": 18,
-"q": "did 4215 play at NJ championship in 2025-26"
+"q": "what was 4215's most recent match"
 },
 {
 "set": "natural",
 "n": 19,
-"q": "has 7149 ever lost to 23268"
+"q": "when is 4215's next match"
 },
 {
 "set": "natural",
 "n": 20,
-"q": "did 7149 ever lose to 23268"
+"q": "when does 4215 play next"
 },
 {
 "set": "natural",
 "n": 21,
-"q": "4215 ever at worlds"
+"q": "4215 next event"
 },
 {
 "set": "natural",
 "n": 22,
-"q": "was 4215 at NJ championship in 2025-26"
+"q": "when was 4215's first match"
 },
 {
 "set": "natural",
 "n": 23,
-"q": "has 4215 ever won a championship"
+"q": "what year did 4215 start"
 },
 {
 "set": "natural",
 "n": 24,
+"q": "4215 last played when"
+},
+{
+"set": "natural",
+"n": 25,
+"q": "when did 4215 first play"
+},
+{
+"set": "natural",
+"n": 26,
+"q": "when did 4215 begin competing"
+},
+{
+"set": "natural",
+"n": 27,
+"q": "when was the last time gearview played a match"
+},
+{
+"set": "natural",
+"n": 28,
+"q": "has 4215 ever been to worlds"
+},
+{
+"set": "natural",
+"n": 29,
+"q": "did 4215 ever go to worlds"
+},
+{
+"set": "natural",
+"n": 30,
+"q": "has gearview ever won inspire"
+},
+{
+"set": "natural",
+"n": 31,
+"q": "did 4215 play at NJ championship in 2025-26"
+},
+{
+"set": "natural",
+"n": 32,
+"q": "has 7149 ever lost to 23268"
+},
+{
+"set": "natural",
+"n": 33,
+"q": "did 7149 ever lose to 23268"
+},
+{
+"set": "natural",
+"n": 34,
+"q": "4215 ever at worlds"
+},
+{
+"set": "natural",
+"n": 35,
+"q": "was 4215 at NJ championship in 2025-26"
+},
+{
+"set": "natural",
+"n": 36,
+"q": "has 4215 ever won a championship"
+},
+{
+"set": "natural",
+"n": 37,
 "q": "did 4215 ever beat 6980"
 }
 ]
