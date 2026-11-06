@@ -26,7 +26,7 @@ Prediction questions answer in the card, with the chance on a 0–100% bar, and 
 - [fixes] How FTC One Search works describes the search as it is now
 
 ### Search
-- **Prediction answers.** A team's prediction at a named event leads with its chance (the next match's, else the average over the matches played, else the event's) as a number and a bar on a 0–100% scale. The next match shows its predicted score with its ranges, only when the season has a rated match. Open in Predict is the card's one action, and expected wins print once. (#PR)
+- **Prediction answers.** A team's prediction at a named event leads with its chance (the next match's, else the average over the matches played, else the event's) as a number and a bar on a 0–100% scale. The next match shows its predicted score with its ranges, only when the season has a rated match. Open in Predict is the card's one action, and expected wins print once. (#776)
 - **No answer.** One sentence says what's missing; the closest teams and events follow as full cards, with searches that answer about them.
 - **How it works.** The search page's explainer covers reading a question in any order, the season rule, widening in a stated order and worked-out measures.
 
