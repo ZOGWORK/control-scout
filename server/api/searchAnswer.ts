@@ -166,7 +166,7 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   const a = await typedAnswer(raw, opts);
   // Then its spelling (./spelling.ts): a misspelled query is read again corrected, and the better answer kept. Never
   // a quoted phrase, which asks for exactly those words.
-  if (opts.spell === false || String(raw ?? "").includes('"')) return a;
+  if (opts.spell === false || String(raw ?? "").includes('"')) return withSorry(raw, a, opts);
   const asked = /\?\s*$/.test(String(raw ?? ""));
   return withSorry(raw, await spelled(cleanQuery(raw), a, (q) => searchAnswer(asked ? `${q}?` : q, { ...opts, spell: false })), opts);
 }
