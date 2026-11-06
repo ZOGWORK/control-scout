@@ -88,3 +88,14 @@ describe("Greptile on #790", () => {
     expect((await ask("events this week")).understood?.scope).toBeUndefined();
   });
 });
+
+describe("Greptile on #790, round 2", () => {
+  it("a set narrowed by dates is never filled in: a family member outside the window stays out", async () => {
+    // Two divisions on one day, their finals the next: "today" lists the divisions only.
+    await run("INSERT INTO events (season, code, name, type, division_code, venue, city, state, country, start, end, source) VALUES (?, 'USYYCMP', 'Yland Championship', 'Championship', NULL, 'Hall', 'Austin', 'TX', 'USA', '2026-11-03', '2026-11-03', 'test')", [S]);
+    for (const d of ["N", "S"]) await run("INSERT INTO events (season, code, name, type, division_code, venue, city, state, country, start, end, source) VALUES (?, ?, ?, 'Championship', 'USYYCMP', 'Hall', 'Austin', 'TX', 'USA', '2026-11-02', '2026-11-02', 'test')", [S, `USYYCMP${d}`, `Yland Championship - ${d} Division`]);
+    const a = await ask("championships today");
+    expect(a.understood?.kind).toBe("events");
+    expect(events(a).map((h) => h.ref.split(":")[1]).sort()).toEqual(["USYYCMPN", "USYYCMPS"]);
+  });
+});

@@ -129,8 +129,8 @@ export async function withEventParents(hits: SearchHit[]): Promise<SearchHit[]> 
 
 /** The hits with each family listed in part made whole (an event split in divisions: its finals and every division), the
  *  missing members right after the last one listed, each hit with its parent and game (withEventParents). A list cut
- *  by raw hits (names matched, a layer's) can hold part of one; the page's cut (firstCards) then keeps or drops it
- *  whole. */
+ *  by raw hits (names matched) can hold part of one; the page's cut (firstCards) then keeps or drops it whole. Never
+ *  for a filtered set: its filters, not a limit, left the others out. */
 export async function withWholeFamilies(hits: SearchHit[], now = Date.now()): Promise<SearchHit[]> {
   const out = await withEventParents(hits);
   // Only a family the list already shows (2+ of it): a lone event or division ("edison division") stays as found.
