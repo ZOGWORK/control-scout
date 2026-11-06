@@ -26,7 +26,7 @@ More ways to ask who, what and where get the same answer: who beat a team, a tea
 - [teams] "…'s best match ever" shows its highest score of all time
 
 ### Search
-- **Who, what, where and the best, said more ways.** "Who beat <team>", "who has beaten" and "who eliminated" give the teams that beat it; "what region / school / city is <team> in" answers the fact asked first; "what Worlds division was <team> in" answers the division; "<team>'s best match ever" or "of all time" gives its highest score ever (and "worst" its lowest). (#PR)
+- **Who, what, where and the best, said more ways.** "Who beat <team>", "who has beaten" and "who eliminated" give the teams that beat it; "what region / school / city is <team> in" answers the fact asked first; "what Worlds division was <team> in" answers the division; "<team>'s best match ever" or "of all time" gives its highest score ever (and "worst" its lowest). (#874)
 
 ## 3.4.8 — 2026-11-06
 
