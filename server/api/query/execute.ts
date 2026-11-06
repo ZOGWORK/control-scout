@@ -67,6 +67,8 @@ const COUNTED = new Set<IntentId>(["last-matches"]);
 /** The award answers that take "first" and "latest" ("12345 latest Inspire award"). */
 const AWARD_LISTS = new Set<IntentId>(["awards", "total-awards", "inspire-awards"]);
 
+/** Words that ask for two teams side by side, beside "or" alone ("12345 or 67890" is a search for either). */
+const COMPARE_SAID = /\b(?:compare|comparison|compared|side by side|better|stronger)\b/;
 /** The intents that are a stat answer's own (server/api/answers/read.ts IntentId), by the same name. */
 const TEAM_INTENTS = new Set<PipelineIntent>([
   "highest-score", "lowest-score", "biggest-win", "biggest-loss", "closest-match", "first-match", "recent-match", "last-matches", "best-finish",
@@ -178,10 +180,15 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   }
   if (p.teams.length === 2 && TWO_TEAM[intent]) {
     const id = TWO_TEAM[intent]!;
-    // Compared at an event (or their Worlds, their states): each team's numbers there. Compared with no event is
-    // left to search (Compare's own card).
+    // Compared at an event (or their Worlds, their states): each team's numbers there. With no event, the season's
+    // numbers side by side ("12345 vs 67890", "who is better, 12345 or 67890"); a lone "or" is the boolean reader's.
     if (id === "compare") {
-      if (!(scope.at || scope.championship || scope.states) || scope.level || scope.alliance || scope.window || scope.place || scope.area) return null;
+      if (scope.level || scope.alliance || scope.window || scope.place || scope.area) return null;
+      if (!(scope.at || scope.championship || scope.states)) {
+        if (!p.symbols.includes("vs") && !COMPARE_SAID.test(said)) return null;
+        // A name several teams share is Compare's to ask about ("Which 'twins'?"), never settled here.
+        if (p.teams.some((t) => t.candidates)) return null;
+      }
       return twoTeamSearch(p.q, { id, scope, a: String(p.teams[0].number), b: String(p.teams[1].number) }, opts.resolve, opts);
     }
     // Season side-by-sides (OPR, rating, awards, a forecast) read whole seasons: only the meetings take an event, a

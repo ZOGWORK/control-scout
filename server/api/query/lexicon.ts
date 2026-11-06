@@ -119,7 +119,8 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["and|&|plus|with|alongside", { k: "and" }],
   ["together|in common|shared|share|both|both played|jointly|same match|same matches", { k: "together" }],
   ["same alliance|same side|as partners|on the same alliance|teamed up|teamed", { k: "same-side" }],
-  ["compare|comparison|compared|side by side|or", { k: "compare" }],
+  // "Who is better, 12345 or 67890": the two side by side.
+  ["compare|comparison|compared|side by side|or|better|stronger|who is better|which is better|whos better|who's better", { k: "compare" }],
   // Wins and losses as an outcome ("closest win", "biggest loss").
   ["winning", { k: "outcome", v: "W" }],
   ["losing", { k: "outcome", v: "L" }],

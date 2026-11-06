@@ -713,7 +713,8 @@ export async function twoTeamSearch(q: string, two: TwoTeamQuestion, resolve: Re
   }
   const title = `${TWO_TEAM_TITLES[two.id]}: ${whoOf(a)} vs ${whoOf(b)}`;
   // "Who wins" keeps what the asks gave it (Compare's hit first, Predict first among the pages), with the call as its card.
-  const lead = two.id === "predict" ? (await versusAnswer(`${a.number} vs ${b.number}`, new Set(), scope.season))?.hits.find((h) => h.kind === "compare") : undefined;
+  // Compare's own link leads a forecast and a side by side, as plain "12345 vs 67890" always opened it.
+  const lead = two.id === "predict" || two.id === "compare" ? (await versusAnswer(`${a.number} vs ${b.number}`, new Set(), scope.season))?.hits.find((h) => h.kind === "compare") : undefined;
   // Predict opens on the season the card's call is for.
   const predictSeasonOf = two.id === "predict" ? scope.season ?? (await predictionSeason(a.number, b.number)).season : null;
   const pages = predictSeasonOf != null ? [{ title: `Predict ${a.number} vs ${b.number}`, href: predictHref({ mode: "match", season: predictSeasonOf, red: [a.number], blue: [b.number] }) }, ...opts.pages] : opts.pages;
@@ -821,7 +822,15 @@ async function compareAt(two: TwoTeamQuestion, a: AnswerTeam, b: AnswerTeam, sco
   const season = s.year ? null : s.season ?? (s.latest && mine.length ? Math.max(...mine.map((e) => e.season)) : null);
   // A calendar year ("in 2025") stays in the scope: it picks the edition held that year.
   const pickScope = s.year ? s : { ...s, season };
-  const first = teamPick(ea, pickScope, season) ?? teamPick(eb, pickScope, season);
+  let first = teamPick(ea, pickScope, season) ?? teamPick(eb, pickScope, season);
+  // Worlds or states with no season said, and neither team there this season: the newest one either went to.
+  const type = s.championship ? CHAMPIONSHIP_TYPE : s.states ? STATES_TYPE : null;
+  const went = (evs: TeamEvent[]) => evs.filter((e) => e.type === type);
+  if (!first && type && season == null && !s.year) {
+    const seasons = [...went(ea), ...went(eb)].map((e) => e.season);
+    const last = seasons.length ? Math.max(...seasons) : null;
+    if (last != null) first = teamPick(ea, { ...s, season: last }, last) ?? teamPick(eb, { ...s, season: last }, last);
+  }
   if (!first) return null;
   const S = first.primary.season, again = { ...s, year: false, season: S };
   const pa = teamPick(ea, again, S), pb = teamPick(eb, again, S);
@@ -832,7 +841,9 @@ async function compareAt(two: TwoTeamQuestion, a: AnswerTeam, b: AnswerTeam, sco
   if (!pa || !pb) {
     const here = (pa ?? pb)!, away = pa ? b : a;
     return { ...base, title: `${a.number} vs ${b.number} at ${here.name}`, scope: [here.name, seasonLabel(S)], blocks: [related([[a, pa], [b, pb]])],
-      none: `${whoOf(away)} has no matches at ${here.name} in ${seasonLabel(S)} on record, so there is nothing to compare there.` };
+      none: type && !went(pa ? eb : ea).length
+        ? `${whoOf(away)} has no ${type === CHAMPIONSHIP_TYPE ? "Worlds" : "state championship"} matches on record in any season, so there is nothing to compare there. ${whoOf(pa ? a : b)}'s own results there are linked below.`
+        : `${whoOf(away)} has no matches at ${here.name} in ${seasonLabel(S)} on record, so there is nothing to compare there.` };
   }
   // A championship's division and finals are one event: two teams in different divisions still played it.
   const fam = (p: TeamEventPick) => new Set(p.events.map((e) => e.division ?? e.code));
