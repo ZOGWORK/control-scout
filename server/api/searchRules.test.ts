@@ -146,7 +146,11 @@ describe("a penalty question about teams is their numbers, never the rules", () 
   it("which team fouls the most or the least in a place: the teams by penalty points given away a match", async () => {
     let pen = 1;
     for (const [n] of CAN_TEAMS) await run("INSERT INTO team_season_stats (season, team, opr_np, rating_np, rating_pen, matches, rating_matches, wins, losses, ties) VALUES (?, ?, 50, 50, ?, 10, 10, 5, 5, 0)", [S, n, pen++]);
+    // A team whose estimate rests on fewer rated matches than the cutoff (no-shows aren't rated) isn't ranked.
+    await run("UPDATE team_season_stats SET rating_pen = 0, rating_matches = 1 WHERE season = ? AND team = ?", [S, CAN_TEAMS[5][0]]);
     const least = await searchAnswer("which team fouls the least in Texas", { limit: 25, full: true });
+    const rows = least.stat?.blocks.find((b) => b.kind === "leaderboard");
+    expect(rows?.kind === "leaderboard" && rows.rows.map((r) => r.team.label)).not.toContain(`${CAN_TEAMS[5][0]} ${CAN_TEAMS[5][1]}`);
     expect(least.card?.kind).not.toBe("rule");
     expect(least.stat).toMatchObject({ family: "leaderboard", intent: "top-penalties" });
     const most = await searchAnswer("which Texas team gives away the most penalty points per match", { limit: 25, full: true });

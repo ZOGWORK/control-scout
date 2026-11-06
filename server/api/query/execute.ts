@@ -139,7 +139,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     // rather than answered with a different number of rows.
     if (p.n != null && !COUNTED.has(id)) return null;
     // A season's penalty total is its own reader's ("12345 total penalties"); here only an event's.
-    if (id === "penalties" && (p.symbols.includes("agg:sum") || p.symbols.includes("agg:count")) && !scope.at) return null;
+    if (id === "penalties" && (p.symbols.includes("agg:sum") || p.symbols.includes("agg:count")) && !p.symbols.includes("per:match") && !scope.at) return null;
     const team = p.teams[0];
     // A season or a year with no events on record yet (a future year): said so, never the latest instead.
     const future = await noEventsYet(p, team.number, id, opts);
@@ -153,8 +153,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
       count: p.agg === "count", noTeam: false, core: String(team.number),
       ...(p.award && (id === "awards" || id === "total-awards") ? { award: p.award } : {}),
       ...(AWARD_LISTS.has(id) && (p.agg === "first" || p.agg === "last") ? { pick: p.agg === "first" ? "first" : "latest" } : {}),
-      // "How many penalty points", "in total": the total first.
-      ...(id === "penalties" ? { variant: p.symbols.includes("per:event") ? "per-event" : p.symbols.includes("per:rate") ? "rate" : p.symbols.includes("agg:sum") || p.symbols.includes("agg:count") ? "total" : null } : {}),
+      // "How many penalty points", "in total": the total first; "per match" said with it is the per-match figure.
+      ...(id === "penalties" ? { variant: p.symbols.includes("per:event") ? "per-event" : p.symbols.includes("per:rate") ? "rate" : p.symbols.includes("per:match") ? null : p.symbols.includes("agg:sum") || p.symbols.includes("agg:count") ? "total" : null } : {}),
     };
     const a = await statAnswerOf(p.q, it, opts.resolve, opts);
     // Nothing in the window asked ("this week"): its season, then the season before, said on the card.
