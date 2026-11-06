@@ -7,7 +7,7 @@ import { migrate, openDb, run, setDb } from "../db";
 import { rebuildSearch } from "../stats/job";
 import { searchAnswer } from "./searchAnswer";
 import { FILLER, FORBIDDEN, INTENTS, PARAPHRASES, WEAK_SIGNALS } from "./searchCatalog";
-import { extract, paraphrase, searchKey, searchOutcome, setLayersForTest, stripFiller, tokens, traceOf } from "./searchLayers";
+import { extract, loneTeamHit, paraphrase, searchKey, searchOutcome, setLayersForTest, stripFiller, tokens, traceOf } from "./searchLayers";
 import { PARAPHRASE_SETS } from "./searchLayers.sets";
 
 const ask = (q: string) => searchAnswer(q, { limit: 25, learn: false });
@@ -267,5 +267,31 @@ describe("the outcome failed-search reporting reads", () => {
     const env = process.env.VITEST;
     delete process.env.VITEST;
     try { expect(() => setLayersForTest({ template: false })).toThrow(/tests only/); } finally { process.env.VITEST = env; }
+  });
+});
+
+describe("loneTeamHit: a team's highlights answer only a search for the team alone", () => {
+  it("the team by number or name, with a season or the word team: its highlights", async () => {
+    for (const q of ["4215", "hypnotic robotics", "bad wolf", "4215 2024-25", "team 6980", "hypnotic robotics team"]) {
+      expect(loneTeamHit(await ask(q))?.kind, q).toBe("team");
+    }
+  });
+
+  it("a count question about the name is never its highlights, however it's put (held out: only the first was reported)", async () => {
+    for (const q of ["how many teams named bad wolf", "how many teams named hypnotic robotics", "how many teams are called bad wolf", "how many teams have the name hypnotic robotics",
+      "count of teams named bad wolf", "number of teams named hypnotic robotics", "how many bad wolf teams are there", "how many times has bad wolf been used as a team name"]) {
+      const a = await ask(q);
+      expect(loneTeamHit(a), `${q} → ${JSON.stringify(a.understood)}`).toBeUndefined();
+    }
+  });
+
+  it("the words a layer read besides the team decide, not the layer: a number and a season are the team alone", () => {
+    const hit = { kind: "team" as const, ref: "4215", title: "4215 | Hypnotic Robotics" };
+    const read = (showing?: string): SearchAnswer => ({ q: "q", hits: [hit] as SearchAnswer["hits"], pages: [], step: "deterministic", weak: false, understood: { kind: "team", label: "Hypnotic Robotics (4215)", ...(showing ? { showing } : {}) } });
+    expect(loneTeamHit(read())).toBe(hit);
+    expect(loneTeamHit(read("4215"))).toBe(hit);
+    expect(loneTeamHit(read("4215 2024-25"))).toBe(hit);
+    expect(loneTeamHit(read("4215 how many"))).toBeUndefined();
+    expect(loneTeamHit(read("4215 count"))).toBeUndefined();
   });
 });

@@ -20,7 +20,7 @@ import { refine } from "./api/searchBruno.js";
 import { brunoAnswer } from "./api/searchBrunoAnswer.js";
 import { SEARCH_PAGE_LIMIT } from "../src/shared/search.js";
 import { teamParts } from "../src/shared/searchPage.js";
-import { FALLBACK_NOTE } from "./api/searchLayers.js";
+import { loneTeamHit } from "./api/searchLayers.js";
 
 /** A search's preferred teams and events (?prefer=team:4215,event:2025:USNJCMP), the visitor's own: ranked first. */
 const preferOf = (raw: unknown) => new Set(String(raw ?? "").split(",").filter((k) => /^(team:\d{1,6}|event:\d{4}:[A-Z0-9_-]{2,24})$/i.test(k)).slice(0, 100));
@@ -387,11 +387,8 @@ export function createApp(opts: { dist?: string } = {}) {
       // A search for one team alone ("4215") on the results page: the team's highlights as its answer
       // (server/api/answers/highlights.ts), its matches' videos with it. Never in the header's short list, and never for
       // a topic about the team (a section, facts, an event pick). A season asked for ("4215 2024-25") is the one shown.
-      const one = ans.hits.filter((x) => x.kind === "team");
-      // Nor for a question about the team search couldn't answer ("will 4215 win …"): that answer says so, with its taps.
-      const lone = ans.understood?.kind === "team" && !ans.understood.label.includes(FALLBACK_NOTE) && !ans.suggest?.length
-        && !ans.stat && !ans.card && limit >= SEARCH_PAGE_LIMIT && one.length === 1
-        && !one[0].section && !one[0].href && !one[0].atEvent && !one[0].facts?.length && !one[0].events?.length ? one[0] : undefined;
+      // Nor for a question about the team search couldn't answer ("will 4215 win …", "how many teams named …").
+      const lone = limit >= SEARCH_PAGE_LIMIT ? loneTeamHit(ans) : undefined;
       const highlights = lone ? await teamHighlights({ number: Number(lone.ref), name: teamParts(lone.title)?.name ?? null }, lone.linkSeason).catch(() => null) : null;
       const full = highlights ? { ...ans, stat: highlights } : ans;
       // Its video (server/api/answers/video.ts): one read for the whole answer, beside the team rows'.
