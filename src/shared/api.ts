@@ -163,6 +163,9 @@ export interface SearchAnswer {
   card?: SearchCard;
   /** A stat question's answer ("4215 highest score in worlds"), as blocks /search draws: src/shared/searchStat.ts. */
   stat?: StatAnswer;
+  /** A yes-or-no question's answer ("has 12345 ever been to worlds"): drawn first, above the card that proves it
+   *  (server/api/answers/yesNo.ts). */
+  verdict?: { answer: "Yes" | "No"; label: string };
   /** What the query was understood as (always set by the server's answer). */
   understood?: SearchUnderstood;
   /** A team found but its question not answered directly: two or three questions search does answer about it, each

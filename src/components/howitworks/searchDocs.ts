@@ -9,7 +9,7 @@ export const SEARCH_STEPS: { title: string; body: string; example: string; detai
     title: "Tidy the words",
     body: "Punctuation goes, spaces fold, case and accents are ignored.",
     example: "Meets this weekend!",
-    detail: "Punctuation is dropped and spaces are folded; the query is cut at 80 characters. Case and accents are ignored, except for two-letter state codes that are also English words: \"OR\" is Oregon, \"or\" is just a word.",
+    detail: "Punctuation is dropped and spaces are folded; a query is read up to 160 characters, cut at a whole word. Case and accents are ignored, except for two-letter state codes that are also English words: \"OR\" is Oregon, \"or\" is just a word.",
   },
   {
     title: "Read it in any order",

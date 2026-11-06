@@ -372,6 +372,22 @@ describe("search results page", () => {
     expect(card.textContent).toContain("23268UltravioletHackettstown, NJ");
   });
 
+  it("numbers print once: a side-by-side answer card takes the head-to-head panel's place; a Compare link alone keeps it", () => {
+    const hit = { kind: "compare" as SearchHit["kind"], ref: "4215,23268", title: "4215 | Hypnotic Robotics vs 23268 | Ultraviolet", subtitle: "", season: 2025, href: "/compare?teams=4215,23268",
+      compare: { teams: [{ number: 4215, name: "Hypnotic Robotics", place: "Oradell, NJ" }, { number: 23268, name: "Ultraviolet", place: "Hackettstown, NJ" }] } } as SearchHit;
+    state.answer = answer([hit]);
+    expect(show("/search?q=x").container.querySelector("[data-head-to-head]")).not.toBeNull();
+    cleanup();
+    const stat: StatAnswer = {
+      family: "two-team", intent: "compare", title: "4215 vs 23268, 2025–26", team: { number: 4215, name: "Hypnotic Robotics" }, teams: [{ number: 4215, name: "Hypnotic Robotics" }, { number: 23268, name: "Ultraviolet" }], scope: ["2025–26"],
+      headline: { value: "23268 leads 157.9 – 101.6", label: "+56.3" },
+      blocks: [{ kind: "compare", title: "Season numbers", teams: [{ label: "4215", href: "/teams/4215" }, { label: "23268", href: "/teams/23268" }], rows: [{ label: "OPR", values: ["101.6", "157.9"], nums: [101.6, 157.9], max: 250, best: 1, gap: "+56.3", diff: 56.3 }] }],
+      definition: "", source: "",
+    };
+    state.answer = answer([hit], { stat });
+    expect(show("/search?q=4215%20vs%2023268").container.querySelector("[data-head-to-head]")).toBeNull();
+  });
+
   it("titles the page by what was found, with no badge that repeats it and no second search box", () => {
     const compare: SearchHit = { kind: "team", ref: "4215", title: "4215 Hypnotic Robotics vs 6980 Bad Wolf", subtitle: "", season: 2025, href: "/compare?teams=4215,6980" };
     state.answer = answer([compare, team(4215, "Hypnotic Robotics", "Oradell, NJ")]);
