@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.6.7 — 2026-11-06
+## 3.6.8 — 2026-11-06
 
 "Who won <event>" leads with the playoff champions, for a division too, where FIRST posts no awards of its own.
 
@@ -32,6 +32,23 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 - **An event's award, asked any way round.** "East Bergen conference inspire award winner", "inspire winner at …", "who got inspire at …" and "<event> inspire" all name the award's winner, for every judged award, Judges' Choice and Dean's List. A recurring event shows its latest one with the award given, its season said, and a newer one not held yet said too.
 - **Suggestions that answer.** "Sorry, I can't answer that yet" offers a search only after running it and finding an answer.
 - **No empty space on phones.** The space under "How FTC One Search works" on a results page is kept only while the Compare bar is up. (#928)
+
+## 3.6.7 — 2026-11-06
+
+Every search answer is in colour now: a how-many answer's number in bold amber, definitions and rules in sky, "nothing found" and "can't answer" in slate, each with a filled icon chip and a thick bar.
+
+### Highlights
+- [appearance] "How many teams in Canada" shows its number big, in bold amber
+- [appearance] Definitions, rules and "did you mean" read in sky blue
+- [appearance] "Nothing found" and "Sorry" notes get a slate bar and chip
+- [appearance] A season's top score, a winning alliance and a win chance lead in colour
+
+### Search
+- **No grey answer cards.** The count and general answer card ("578 teams registered in Canada in 2026–27") had a grey icon and grey words: each line is now a card of its own colour, its icon a filled chip, a thick bar down its left, and a count's number big in amber. Definitions ("what is OPR") and the rules card are sky; a team's next event or match, its listing facts and where it's from are in the team's colour; the season-at-a-glance tiles stay plain with each number in its own colour (OPR yellow, prediction rating purple, a record's wins green and losses red, events blue); award lines in their award's colour; record and stat pills on the team hue.
+- **Two new colours in the one palette.** Count (amber, the owner's mock) and Reference (sky) join the search palette. Yellow stays ranking points' alone; amber and yellow, sky and team A's blue never share a card.
+- **Headlines in colour.** A card about no team leads in its meaning's colour (a winning alliance in orange, a season's "190 points" in amber); a two-team headline that names one ("7149 favoured", "7149 leads 2-1") in that team's colour; a win chance's number and bar in the team's colour.
+- **Nothing found, sorry and no match.** "No upcoming match is scheduled", "Sorry — I can't answer that yet" and "Search has no answer" are slate with a filled chip and a thick bar; "Did you mean" is a sky note.
+- **A new kind can't ship grey.** The answer card audit now draws every card kind and every block kind the API has, and fails a card with no colour anywhere, or a grey line icon or line text. (#959)
 
 ## 3.6.6 — 2026-11-06
 
