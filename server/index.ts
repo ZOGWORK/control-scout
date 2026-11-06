@@ -78,9 +78,10 @@ await migrate();
 // rebuilt here, once, not on a visitor's search; its names and typo index after it, since a rebuild resets them.
 const indexed = ensureSearchIndex(rebuildSearch);
 const afterIndex = () => indexed.catch(() => { /* its own step says it failed */ });
+// The current season's ratings, so the first prediction is fast: in the background, never held for (about 20 s cold,
+// and only predictions need them; held for, every queued search would wait on them).
+const rated = warmUp([["ratings", () => forecasterFor(CURRENT_SEASON)]], log, Infinity, Date.now, "warm (background)");
 const warming = await warmUp([
-  // The current season's ratings, so the first prediction is fast.
-  ["ratings", () => forecasterFor(CURRENT_SEASON)],
   // The track record (every scored prediction: about a second and a half cold), then the match report's flag
   // cutoffs (two scans of a season) for this season and last.
   ["track record and report cutoffs", () => warmTrackRecord().then(() => seasonCutoffs(CURRENT_SEASON)).then(() => seasonCutoffs(CURRENT_SEASON - 1))],
@@ -90,7 +91,7 @@ const warming = await warmUp([
   ["spelling and typo index", () => afterIndex().then(() => warmSpelling()).then(() => warmTypoIndex())],
   ["search names", () => afterIndex().then(() => warmNames())],
 ], log);
-void warming.settled.then(() => { warm = true; });
+void Promise.all([warming.settled, rated.then((r) => r.settled)]).then(() => { warm = true; });
 ready = true;
 if (socket) http = server.listen(socket, listening("the systemd socket"));
 log("ready");

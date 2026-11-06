@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.7.8 — 2026-11-06
+
+After an update, the site answers from a warmed-up server: no more minutes of slow pages while a new version settles in.
+
+### Highlights
+- [speed] No slow minutes after an update
+- [speed] The server warms search before it answers
+- [speed] The first data refresh waits until visitors are served
+
+### Speed
+- **Warm before answering.** A new server builds search's index (rebuilt once when the code that builds it changed), its names, spelling and typo index, and the track record before it takes requests, for at most 20 seconds (well under the proxy's 60). Ratings build in the background. Each step's time is logged, then the total.
+- **The first refresh later.** The first data refresh after a restart runs at 10 minutes instead of 1, and the regular schedule waits for it, so a stats run and search rebuild no longer land on a just-updated server's first minutes.
+- **Live means warm.** An update counts as live once the new server says it's ready and warm.
+
 ## 3.7.6 — 2026-11-06
 
 A page of a search's related searches, grouped by what they're about, each with its answer's line: /related-searches.

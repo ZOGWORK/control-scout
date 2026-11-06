@@ -17,27 +17,28 @@ export type WarmStep = [name: string, run: () => Promise<unknown>];
 const secs = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
 
 /** Runs every step at once (each a chain of its own) and waits for all of them, or `cap` ms, whichever is first.
- *  Logs each step's time (or its failure), then the total. A failure is logged and never stops the others. Resolves
- *  with whether every step finished in time, and `settled`: when every step has, in time or not. */
-export async function warmUp(steps: WarmStep[], log: (m: string) => void, cap = WARM_CAP_MS, now = () => Date.now()): Promise<{ inTime: boolean; settled: Promise<void> }> {
+ *  Logs each step's time (or its failure), then the total, each line starting `label`. A failure is logged and never
+ *  stops the others. Resolves with whether every step finished in time, and `settled`: when every step has. */
+export async function warmUp(steps: WarmStep[], log: (m: string) => void, cap = WARM_CAP_MS, now = () => Date.now(), label = "warm"): Promise<{ inTime: boolean; settled: Promise<void> }> {
   const t0 = now();
   const all = Promise.allSettled(steps.map(async ([name, run]) => {
     const t = now();
     try {
       await run();
-      log(`warm: ${name} ${secs(now() - t)}`);
+      log(`${label}: ${name} ${secs(now() - t)}`);
     } catch (e) {
-      log(`warm: ${name} failed after ${secs(now() - t)}: ${(e as Error).message}`);
+      log(`${label}: ${name} failed after ${secs(now() - t)}: ${(e as Error).message}`);
     }
   }));
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const done = await Promise.race([all.then(() => true), new Promise<false>((r) => { timer = setTimeout(() => r(false), cap); })]);
+  // No cap (Infinity): wait for all. (setTimeout would fire at once for it.)
+  const done = await Promise.race([all.then(() => true), ...(Number.isFinite(cap) ? [new Promise<false>((r) => { timer = setTimeout(() => r(false), cap); })] : [])]);
   clearTimeout(timer);
   const settled = all.then(() => undefined);
-  if (done) log(`warm in ${secs(now() - t0)}`);
+  if (done) log(`${label} in ${secs(now() - t0)}`);
   else {
-    log(`warm: still going after ${secs(cap)}, answering anyway (the rest goes on in the background)`);
-    void settled.then(() => log(`warm in ${secs(now() - t0)} (after answering)`));
+    log(`${label}: still going after ${secs(cap)}, answering anyway (the rest goes on in the background)`);
+    void settled.then(() => log(`${label} in ${secs(now() - t0)} (after answering)`));
   }
   return { inTime: done, settled };
 }
