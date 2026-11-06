@@ -25,7 +25,7 @@ vi.mock("../../../lib/api", async (orig) => ({ ...(await orig<typeof import("../
   return { data: m ? profile(+m[1], +m[2]) : undefined, error: null, loading: false };
 } }));
 vi.mock("../../../lib/meta", async (orig) => ({ ...(await orig<typeof import("../../../lib/meta")>()), useCurrentSeason: () => 2025 }));
-const { StatAnswerCard } = await import("./StatAnswer");
+const { StatAnswerCard, headlineTone } = await import("./StatAnswer");
 const { EventAwardsAnswer } = await import("./EventAwards");
 const { CARD_MEANING, FactCard } = await import("./FactCard");
 const { AppearancesAnswer, QualityBanner, StatBanner, Timeline } = await import("./Summary");
@@ -200,6 +200,17 @@ describe("every card kind and block kind has its colour", () => {
     const def = drawKind({ kind: "info", title: "OPR: what it is", lines: [{ text: "OPR estimates each robot's average contribution", href: "/methodology#opr" }] });
     expect(def.querySelector("[data-line-text]")!.className).toContain(SEARCH_PALETTE.reference.text);
     expect(drawKind(KIND_CARDS.rule).querySelector("[data-line-text]")!.className).toContain(SEARCH_PALETTE.reference.text);
+  });
+  it("a headline in its colour: the team it leads with, its alliance's side, a winning alliance, a ranked list's top team, a count", () => {
+    const h = (value: string, over: Partial<StatAnswer> = {}) => ({ intent: "x", family: "stat" as const, headline: { value, label: "" }, ...over });
+    const two = [{ number: 4215 }, { number: 7149 }], four = [...two, { number: 23268 }, { number: 6980 }];
+    expect(headlineTone(h("7149 favoured"), two)).toBe("text-team-b-text");
+    expect(headlineTone(h("23268 & 6980 favoured", { split: 2 }), four)).toBe("text-team-b-text");
+    expect(headlineTone(h("4215 & 7149 favoured", { split: 2 }), four)).toBe("text-team-a");
+    expect(headlineTone(h("Even"), two)).toBe("text-foreground");
+    expect(headlineTone(h("30030 Exodus", { intent: "winning-alliance", family: "event" }))).toBe(SEARCH_PALETTE.winning.text);
+    expect(headlineTone(h("19163 NIS 2", { family: "leaderboard" }))).toBe("text-team-a");
+    expect(headlineTone(h("190 points", { family: "superlative" }))).toBe(SEARCH_PALETTE.count.text);
   });
   it("the old grey count card fails the audit", () => {
     const d = document.createElement("article");

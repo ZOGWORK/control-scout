@@ -92,15 +92,19 @@ function OneCard({ stat, heading }: { stat: StatAnswer; heading?: string }) {
 }
 
 /** The headline number's colour (nothing grey for data): one team's card in its hue; a headline that leads with one of
- *  the teams ("7149 favoured", "7149 leads 2-1") in that team's; a card about no team in its meaning (a winning
- *  alliance's orange), else Count's amber (a season's "190 points"). Ink only for a several-team line naming none. */
-export function headlineTone(stat: Pick<StatAnswer, "intent" | "headline">, teams?: { number: number }[]): string {
+ *  the teams ("7149 favoured", "7149 leads 2-1") in that team's, or its alliance's (`split`: the first side team A's,
+ *  the other team B's, as the header draws them); a card about no team in its meaning (a winning alliance's orange), a
+ *  ranked list's top team in team A's, else Count's amber (a season's "190 points"). Ink only for a several-team line
+ *  naming none. */
+export function headlineTone(stat: Pick<StatAnswer, "intent" | "headline" | "family" | "split">, teams?: { number: number }[]): string {
   if (teams?.length === 1) return TEAM_TEXT;
   const v = stat.headline?.value ?? "";
   if (teams?.length) {
     const i = teams.findIndex((t) => new RegExp(`^${t.number}\\b`).test(v));
-    return i >= 0 && i < 3 ? TEAM_SWATCH[i].text : "text-foreground";
+    const side = i < 0 ? -1 : stat.split ? (i < stat.split ? 0 : 1) : i;
+    return side >= 0 && side < 3 ? TEAM_SWATCH[side].text : "text-foreground";
   }
+  if (stat.family === "leaderboard") return TEAM_TEXT;
   const m = /winning/.test(stat.intent) ? "winning" : meaningOf(stat.headline?.label ?? "");
   return SEARCH_PALETTE[m ?? "count"].text;
 }
