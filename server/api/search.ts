@@ -103,9 +103,12 @@ export async function search(q: string, limit = 12, prefer: ReadonlySet<string> 
     if (memo.size >= SEARCH_MEMO_MAX) memo.delete(memo.keys().next().value!);
     m = { at: Date.now(), hits: searchOnce(q, limit, prefer, kinds, season, asked) };
     memo.set(key, m);
-    m.hits.catch(() => memo.delete(key));
+    // A failed lookup forgets itself only: never a newer one saved under the same key meanwhile.
+    const hits = m.hits;
+    hits.catch(() => { if (memo.get(key)?.hits === hits) memo.delete(key); });
   }
-  return (await m.hits).map((h) => ({ ...h }));
+  // Each caller its own copy, facts and events included: a change to one never reaches the next answer.
+  return structuredClone(await m.hits);
 }
 
 /** search() by its arguments, for one search index version: one answer looks the same words up many times (each

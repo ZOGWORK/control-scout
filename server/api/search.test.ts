@@ -273,16 +273,26 @@ describe("a match by its event's code, divisions and all (failed-search #527–#
 
 describe("search() remembered per index version", () => {
   it("answers a repeat from memory, a copy each time, and sees a renamed team once the index is rebuilt", async () => {
-    const a = await search("hypnotic robotics", 5), b = await search("hypnotic robotics", 5);
+    // A season's numbers for 4215, so its hit carries facts.
+    await run("INSERT OR REPLACE INTO team_season_stats (season, team, matches, wins, losses, ties, opr_np) VALUES (2026, 4215, 5, 4, 1, 0, 101.5)");
+    await rebuildSearch();
+    const a = await search("4215 opr", 5), b = await search("4215 opr", 5);
     expect(b).toEqual(a);
     expect(b[0]).not.toBe(a[0]);
-    // A caller changing its copy never changes the next answer.
+    expect(a[0].facts?.[0]).toMatchObject({ label: "OPR", value: "101.5" });
+    // A caller changing its copy, its facts included, never changes the next answer.
     a[0].title = "changed";
-    expect((await search("hypnotic robotics", 5))[0].title).toBe("4215 | Hypnotic Robotics");
+    a[0].facts![0].value = "0";
+    a[0].facts!.splice(1);
+    const again = (await search("4215 opr", 5))[0];
+    expect(again.title).toBe("4215 | Hypnotic Robotics");
+    expect(again.facts).toEqual(b[0].facts);
+    expect(again.facts?.[0].value).toBe("101.5");
     await run("UPDATE teams SET name = 'Hypnotic Robots' WHERE number = 4215");
     await rebuildSearch();
     expect((await search("hypnotic robots", 5))[0].title).toBe("4215 | Hypnotic Robots");
     await run("UPDATE teams SET name = 'Hypnotic Robotics' WHERE number = 4215");
+    await run("DELETE FROM team_season_stats WHERE season = 2026 AND team = 4215");
     await rebuildSearch();
   });
 });
