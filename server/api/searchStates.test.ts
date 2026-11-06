@@ -15,7 +15,12 @@ const CHAMPS: [string, string, string, string, string, [number, number], [number
   ["texas", "USTXCMP", "Texas State Championship", "TX", "USA", [7000, 7001], [7002, 7003]],
   ["michigan", "USMICMP", "Michigan State Championship", "MI", "USA", [8000, 8001], [8002, 8003]],
   ["romania", "ROCMP", "Romania National Championship", null as unknown as string, "Romania", [14270, 9000], [9001, 9002]],
+  ["germany", "DECMP", "Germany Championship", null as unknown as string, "Germany", [10183, 9100], [9101, 9102]],
+  ["canada", "CACMP", "FIRST Canada Championship", null as unknown as string, "Canada", [19555, 9200], [9201, 9202]],
 ];
+// Teams with a place in their name, playing at that place's championship (owner, 2026-11-06: "romania states results"
+// read the "2025 FTC Romania Team"), and one named just a country, which has no championship here.
+const NAMED: Record<number, string> = { 14270: "2025 FTC Romania Team (identity management)", 10183: "F.R.O.G. Frog Robots Of Germany", 19555: "FIRST Canada 51 - Wikwemikong", 7000: "Texas Torque" };
 
 beforeAll(async () => {
   const c = openDb(":memory:");
@@ -25,7 +30,7 @@ beforeAll(async () => {
     const city = code === "USNYNYCMP" ? "New York" : "Town";
     await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, ?, ?, 'Championship', ?, ?, ?, '2026-03-14', '2026-03-14', 't')", [S, code, name, city, state, country]);
     for (const n of [...red, ...blue]) {
-      await run("INSERT OR IGNORE INTO teams (number, name, city, state, country) VALUES (?, ?, ?, ?, ?)", [n, `Team ${n}`, city, state, country]);
+      await run("INSERT OR IGNORE INTO teams (number, name, city, state, country) VALUES (?, ?, ?, ?, ?)", [n, NAMED[n] ?? `Team ${n}`, city, state, country]);
       await run("INSERT OR IGNORE INTO team_seasons (season, team) VALUES (?, ?)", [S, n]);
       await run("INSERT INTO event_teams (season, code, team) VALUES (?, ?, ?)", [S, code, n]);
     }
@@ -35,6 +40,7 @@ beforeAll(async () => {
       for (const [t, al] of [...red.map((t) => [t, "red"]), ...blue.map((t) => [t, "blue"])]) await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance) VALUES (?, ?, 'playoff', 6, ?, ?, ?)", [S, code, n, t, al]);
     }
   }
+  await run("INSERT INTO teams (number, name, city, state, country) VALUES (9300, 'Mexico', 'Monterrey', 'NL', 'Mexico')");
   await rebuildSearch();
 });
 
@@ -49,6 +55,17 @@ describe("\"<place> states\" is \"<place> championship\"", () => {
       if (reading(a) == null || reading(a) !== reading(b)) failing.push(`${q.replace("{p}", `${place} states`)} → ${reading(a)} | ${reading(b)}`);
     }
     expect(failing).toEqual([]);
+  });
+  // Owner, 2026-11-06: a place's name beside states or championship is the place, never a team with it in its name.
+  it("a place's name is the place's championship, never a team with the place in its name", async () => {
+    for (const q of ["romania states results", "romania states", "romania states matches", "canada states results", "germany states results", "texas states results"]) {
+      const a = await ask(q);
+      expect(a.understood?.label ?? "", q).not.toMatch(/\(\d+\)/);
+      expect(a.hits.map((h) => h.kind), q).not.toContain("team");
+    }
+    // A team's number or its whole name still reads the team.
+    expect((await ask("14270 states")).hits[0]?.ref).toBe("14270");
+    expect((await ask("mexico states")).hits[0]?.ref).toBe("9300");
   });
   it("the winners are the place's own champions", async () => {
     for (const [place, , , , , red] of CHAMPS) {

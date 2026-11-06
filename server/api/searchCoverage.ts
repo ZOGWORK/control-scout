@@ -101,9 +101,15 @@ export async function awardQuery(q: string): Promise<string | null> {
  *  before the stat answers, whose readers would take the original the wrong way ("have 12345 and 67890 played each other"
  *  read "67890 played each other" as a team's name). */
 /** The direction-and-region words in `q` that name something stored ("East Brunswick", a town; "North Texas
- *  Championship", an event): rewriteQuery keeps them as typed. Nothing to look up unless a direction word is there. */
+ *  Championship", an event), and a country's name that is also a team's whole name: rewriteQuery keeps them as typed.
+ *  Nothing to look up unless a direction word or a country is there. */
 export async function namedParts(q: string): Promise<Set<string>> {
   const ws = squash(q.toLowerCase()).split(" "), out = new Set<string>();
+  const countries = [3, 2, 1].flatMap((len) => ws.map((_, i) => ws.slice(i, i + len)).filter((p) => p.length === len && countryOf(p.join(" "))).map((p) => p.join(" ")));
+  if (countries.length) {
+    const idx = await names();
+    for (const c of countries) if (idx.teamsNamed(c).length) out.add(c);
+  }
   if (!ws.some((w) => regionPartOf([w, "jersey"]))) return out;
   const [idx, ctx] = await Promise.all([names(), parseContext()]);
   for (let i = 0; i + 1 < ws.length; i++) {
@@ -258,8 +264,10 @@ export function rewriteQuery(q: string, named: ReadonlySet<string> = new Set()):
   if ((m = /^(?:the\s+)?inspire(?: award)? (?:winners?|winner list)(?: (?:in|from|at))? (.+)$/.exec(t)) && regionOf(m[1].split(" "))) {
     return { q: `who won inspire at ${m[1]} states`, note: `the Inspire Award at the ${regionOf(m[1].split(" "))!.name} championship` };
   }
-  // A team's Worlds or states history, asked with no verb: "12345 worlds", "bad wolf states history".
+  // A team's Worlds or states history, asked with no verb: "12345 worlds", "bad wolf states history". A place's name is
+  // the place's championship ("romania states"), not a team with the place in its name, unless a team is named just that.
   if ((m = /^(.+?)\s+(worlds|states|state championships?|first championship)(?:\s+(?:history|appearances|record|results))?$/.exec(t)) && !regionOf(m[1].split(" ")) && !readEventQuery(squash(q))?.region
+    && (!countryOf(m[1]) || named.has(m[1]))
     && !/\b(?:meets?|events?|teams?|top|best|who|when|where|q|quals?|qualification|match(?:es)?|finals?|semis?|playoffs?|rankings?|awards?|will|did|does|do|can|has|have|advance|qualify|go|went|make|to|at|in|for)\b|\bq\d/.test(m[1])
     // "all state championships" lists them; "the bad wolf worlds" is still Bad Wolf's.
     && !/^(?:all|every|list|show)(?:\s|$)/.test(m[1]) && !/^(?:the|a|an)$/.test(m[1])) {
