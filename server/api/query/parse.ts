@@ -53,6 +53,8 @@ export interface Parsed {
   leftover: string[];
   /** Symbols no intent explained. */
   unexplained: string[];
+  /** No losses asked ("undefeated teams"). */
+  undefeated?: boolean;
   /** Every word explained and an intent found. */
   complete: boolean;
 }
@@ -154,7 +156,8 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     if (!/^\d{1,5}$/.test(t.w)) continue;
     const n = Number(t.w), prev = toks[i - 1]?.w, next = toks[i + 1]?.w;
     if (prev && MATCH_BEFORE.test(prev) && n <= 400) { p.matchNumber = n; t.used = true; toks[i - 1].used = true; symbols.add("thing:match"); if (prev !== "match" && prev !== "game") p.level = "qual"; continue; }
-    if (prev && COUNT_BEFORE.test(prev) && n <= 50 && next && !ctx.names.team(Number(next))) { p.n = n; t.used = true; continue; }
+    // "Top 5 teams", and "top 3" ending the query.
+    if (prev && COUNT_BEFORE.test(prev) && n <= 50 && (next ? !ctx.names.team(Number(next)) : !p.teams.length)) { p.n = n; t.used = true; continue; }
     const team = ctx.names.team(n);
     if (team) {
       if (!p.teams.some((x) => x.number === n)) p.teams.push({ number: n, name: team.name, typed: t.typed, via: "number", at: i });
@@ -194,6 +197,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       else if (s.k === "states") p.states = true;
       else if (s.k === "award") { p.award = s.v; symbols.add("metric:award"); }
       else if (s.k === "nopen") p.noPenalties = true;
+      else if (s.k === "undefeated") p.undefeated = true;
       else if (s.k === "agg" && !p.agg) p.agg = s.v;
       const k = symKey(s);
       if (k && s.k !== "award") symbols.add(k);
@@ -220,6 +224,8 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     const hasEventWord = toks.slice(from, to + 1).some((t) => EVENT_NAME_WORDS.has(t.w));
     const place = !hasEventWord ? ctx.names.place(words(), typed()) : null;
     if (place && !p.place) { p.place = { ...place, typed: typed() }; toks.slice(from, to + 1).forEach((t) => (t.used = true)); continue; }
+    // The region or country a town named is in, said after it ("Cluj-Napoca, Romania", "Oradell, NJ"): the same place.
+    if (place && p.place && within(p.place, place)) { toks.slice(from, to + 1).forEach((t) => (t.used = true)); continue; }
     // One event: a second one named ("at nj championship at northern division") is left unexplained, never dropped.
     if (!p.event && await ctx.isEvent(words())) {
       // The event words the lexicon read beside it ("northern league meet": "meet") stay in its name when the name
@@ -303,6 +309,12 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   if (pick && p.award && pick.rule.id === "awards-vs") pick.unexplained.push(`award:${p.award}`);
   p.complete = !!pick && !pick.unexplained.length && !p.leftover.length;
   return p;
+}
+
+/** Whether `inner` lies in `outer` (a town in its region or country, a region in its country). */
+function within(inner: Place, outer: Place): boolean {
+  if (inner.country !== outer.country || outer.kind === "city") return false;
+  return outer.kind === "country" ? inner.kind !== "country" : inner.kind === "city" && inner.state === outer.state;
 }
 
 /** One of the teams sharing a name, by the rules Compare uses (server/api/searchCompare.ts): the visitor's own team,

@@ -74,6 +74,23 @@ for (const [code, numeric, name, ...aliases] of TABLE) {
   for (const label of [name, ...aliases]) BY_KEY.set(countryKey(label), c);
 }
 
+/** A country by the word for its people or things ("Romanian teams", "a Canadian event"). */
+const DEMONYMS: [string, string][] = [
+  ["american", "US"], ["canadian", "CA"], ["mexican", "MX"], ["british", "GB"], ["romanian", "RO"], ["chinese", "CN"], ["australian", "AU"],
+  ["brazilian", "BR"], ["turkish", "TR"], ["french", "FR"], ["vietnamese", "VN"], ["israeli", "IL"], ["korean", "KR"], ["south african", "ZA"],
+  ["thai", "TH"], ["dutch", "NL"], ["italian", "IT"], ["taiwanese", "TW"], ["jamaican", "JM"], ["lithuanian", "LT"], ["indonesian", "ID"],
+  ["new zealander", "NZ"], ["moldovan", "MD"], ["greek", "GR"], ["cypriot", "CY"], ["nigerian", "NG"], ["ukrainian", "UA"], ["german", "DE"],
+  ["malaysian", "MY"], ["qatari", "QA"], ["argentinian", "AR"], ["argentine", "AR"], ["emirati", "AE"], ["japanese", "JP"], ["saudi", "SA"],
+  ["moroccan", "MA"], ["polish", "PL"], ["colombian", "CO"], ["hungarian", "HU"], ["spanish", "ES"], ["ghanaian", "GH"], ["dominican", "DO"],
+  ["czech", "CZ"], ["filipino", "PH"], ["peruvian", "PE"], ["egyptian", "EG"], ["kazakh", "KZ"], ["kazakhstani", "KZ"], ["indian", "IN"],
+  ["singaporean", "SG"], ["swiss", "CH"], ["portuguese", "PT"], ["pakistani", "PK"], ["norwegian", "NO"], ["irish", "IE"], ["chilean", "CL"],
+  ["kenyan", "KE"], ["swedish", "SE"], ["danish", "DK"], ["finnish", "FI"], ["bulgarian", "BG"], ["serbian", "RS"], ["croatian", "HR"],
+];
+const BY_DEMONYM = new Map(DEMONYMS.map(([w, code]) => [w, BY_CODE.get(code)!]));
+
+/** The country these words name as its people's word ("romanian"), or null. */
+export const countryOfDemonym = (words: string): Country | null => BY_DEMONYM.get(words.toLowerCase().trim()) ?? null;
+
 /** The country a directory label names, or null (blank, "Independent", unknown). */
 export function countryOf(label: string | null | undefined): Country | null {
   if (label == null) return null;

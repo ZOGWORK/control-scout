@@ -452,7 +452,7 @@ function Bars({ b }: { b: Extract<StatBlock, { kind: "bars" }> }) {
 /** A leaderboard: the asked stat's teams as the search's one team table (../TeamTable.tsx), sorted by the stat asked
  *  (the list's own order when it isn't an OPR), with its note above and the small "View more detail" link under it. */
 function Leaderboard({ b }: { b: Extract<StatBlock, { kind: "leaderboard" }> }) {
-  const table = useMemo(() => teamTableOfLeaderboard(b.stat.id, b.stat.label, b.rows, b.teleopWithEndgame), [b]);
+  const table = useMemo(() => teamTableOfLeaderboard(b.stat.id, b.stat.label, b.rows, b.teleopWithEndgame, b.lowest), [b]);
   return (
     <figure data-block="leaderboard">
       <figcaption className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">

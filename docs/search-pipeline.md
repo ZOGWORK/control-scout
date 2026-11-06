@@ -141,6 +141,18 @@ comebacks yet…". The plain highest score (no measure, no match type) follows t
 before the season today is in. A window ("this week") relaxes as everywhere else; a year said is never relaxed. "In
 the world", "worldwide" and "globally" mean every place.
 
+## Leaderboards
+
+The pipeline's leaderboard (`execute.ts`, over `answers/families/leaderboard.ts`) reads a list of teams however it's
+said: with or without "team" ("who has the highest auto OPR in NJ"), the highest or the lowest first ("worst teleop
+OPR in Romania"), a whole country, a town with its region after it ("best team in Cluj-Napoca, Romania, by OPR",
+"Oradell, NJ"), a country by its people's word ("Romanian teams", `src/shared/countries.ts`), a count at the end
+("…, top 3") and undefeated ("a perfect record", "no losses": no losses that season, the most wins first). "Auto OPR"
+is the auto phase's OPR, and a record beside another stat is the column every row already shows. Asides ("just
+curious", "only", "da") are filler and never a team's name. No season said follows the same rule as the match finder:
+the current season once a team is ranked in it, else the one before, said ("No 2026–27 ranked teams yet in Romania;
+showing 2025–26").
+
 ## Held-out sets
 
 `npm run search:heldout` (`scripts/search-heldout.ts`) asks the questions people wrote for search and that search was

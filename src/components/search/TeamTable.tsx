@@ -31,7 +31,7 @@ export function phaseSegments(withEndgame = false) {
 type Sort = { key: TeamSortKey; dir: "asc" | "desc" };
 
 export function TeamTable({ table, label }: { table: Table; label: string }) {
-  const [sort, setSort] = useState<Sort>({ key: table.by, dir: firstDir(table.by) });
+  const [sort, setSort] = useState<Sort>({ key: table.by, dir: table.dir ?? firstDir(table.by) });
   const [open, setOpen] = useState<ReadonlySet<number>>(new Set());
   const id = useId();
   const rows = useMemo(() => sortTeamRows(table.rows, sort.key, sort.dir), [table.rows, sort]);
