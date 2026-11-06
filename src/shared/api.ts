@@ -166,6 +166,9 @@ export interface SearchAnswer {
   /** A yes-or-no question's answer ("has 12345 ever been to worlds"): drawn first, above the card that proves it
    *  (server/api/answers/yesNo.ts). */
   verdict?: { answer: "Yes" | "No"; label: string };
+  /** A question search can't answer yet (server/api/answers/sorry.ts): what it was read as, and searches that do
+   *  answer about it. The page says sorry once, with these. */
+  sorry?: { understood: string[]; suggest: string[] };
   /** What the query was understood as (always set by the server's answer). */
   understood?: SearchUnderstood;
   /** A team found but its question not answered directly: two or three questions search does answer about it, each

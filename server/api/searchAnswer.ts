@@ -42,6 +42,7 @@ import { spelled } from "./spelling.js";
 import { booleanAnswer } from "./searchBoolean.js";
 import { pipelineAnswer, pipelineReads } from "./query/execute.js";
 import { yesNoAnswer } from "./answers/yesNo.js";
+import { sorryFor } from "./answers/sorry.js";
 import { bottomAnswer, countAnswer, eventCodeAnswer, eventPageAnswer, explainAnswer, monthAnswer, nearMeAnswer, namedParts, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
 
 /** The longest query read: a full question ("did the prediction for 12345 at the state championship get it right, or
@@ -172,22 +173,36 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   const a = await typedAnswer(raw, opts);
   // Then its spelling (./spelling.ts): a misspelled query is read again corrected, and the better answer kept. Never
   // a quoted phrase, which asks for exactly those words.
-  if (opts.spell === false || String(raw ?? "").includes('"')) return a;
+  if (opts.spell === false || String(raw ?? "").includes('"')) return onPage(raw, a, opts);
   const asked = /\?\s*$/.test(String(raw ?? ""));
-  return withVerdict(raw, await spelled(cleanQuery(raw), a, (q) => searchAnswer(asked ? `${q}?` : q, { ...opts, spell: false })), opts);
+  return onPage(raw, await spelled(cleanQuery(raw), a, (q) => searchAnswer(asked ? `${q}?` : q, { ...opts, spell: false })), opts);
+}
+
+/** What the page adds to an answer (the dropdown's is never changed): a yes-or-no question's answer, else, for a
+ *  question search can't answer yet, the sorry note. */
+async function onPage(raw: string, a: SearchAnswer, opts: AnswerOptions): Promise<SearchAnswer> {
+  if (!(opts.full ?? (opts.limit ?? 12) >= SEARCH_PAGE_LIMIT)) return a;
+  return (await withVerdict(raw, a, opts)) ?? withSorry(raw, a, opts);
 }
 
 /** A yes-or-no question on the page ("has 12345 ever been to worlds", "did 12345 ever lose to 67890"): the answer
  *  above the card that answered it, which is kept as it was; the evidence card of its own (./answers/yesNo.ts) when
- *  nothing did. The dropdown's answer is never changed. */
-async function withVerdict(raw: string, a: SearchAnswer, opts: AnswerOptions): Promise<SearchAnswer> {
-  if (!(opts.full ?? (opts.limit ?? 12) >= SEARCH_PAGE_LIMIT)) return a;
+ *  nothing did. Null when it isn't one. */
+async function withVerdict(raw: string, a: SearchAnswer, opts: AnswerOptions): Promise<SearchAnswer | null> {
   const q = cleanQuery(raw);
   const yn = await yesNoAnswer(q, { full: true, pages: pagesFor(q), now: opts.now, prefer: opts.prefer, resolve: (core) => searchAnswer(core, { ...opts, intents: false, learn: false }) });
-  if (!yn) return a;
+  if (!yn) return null;
   const answered = (!!a.stat || !!a.card) && a.step !== "recovery" && !/isn't answered/.test(a.understood?.label ?? "");
   // A copy keeps the outcome failed-search reporting reads (./searchLayers.ts).
   return answered ? carryOutcome(a, { ...a, verdict: yn.verdict }) : { ...yn, q: a.q };
+}
+
+/** A question search can't answer yet: sorry, with what was read and the searches that do answer about it
+ *  (./answers/sorry.ts). */
+async function withSorry(raw: string, a: SearchAnswer, opts: AnswerOptions): Promise<SearchAnswer> {
+  const sorry = await sorryFor(cleanQuery(raw), a, opts);
+  // A copy keeps the outcome failed-search reporting reads (./searchLayers.ts).
+  return sorry ? carryOutcome(a, { ...a, sorry }) : a;
 }
 
 /** searchAnswer for the query as typed. */

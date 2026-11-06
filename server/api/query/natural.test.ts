@@ -321,6 +321,38 @@ describe("events and time words (3g)", () => {
   });
 });
 
+describe("sorry, with what was read (§4)", () => {
+  it("a team asked about something search can't answer yet: the team read, and its own searches to tap", async () => {
+    const a = await ask("what is 4215's favorite color");
+    expect(a.sorry?.understood.join(" ")).toContain("4215");
+    expect(a.sorry?.suggest.length).toBeGreaterThan(0);
+    expect(a.sorry?.suggest.every((x) => x.includes("4215"))).toBe(true);
+  });
+  it("a name several teams share is said as the name, never as one of them", async () => {
+    const a = await ask("what is ultraviolet bots' favorite color");
+    const said = JSON.stringify(a.sorry ?? {});
+    for (const n of ["22457", "30004", "30005", "30006", "30007"]) expect(said).not.toContain(n);
+    expect(a.sorry).toEqual({ understood: ["ultraviolet bots: 5 teams share the name"], suggest: ["teams named ultraviolet bots"] });
+  });
+  it("placeholder registrations never share a name", async () => {
+    expect((await ask("what is off-season demo team's favorite color")).sorry ?? null).toBeNull();
+  });
+  it("a yes-or-no question gets its yes or no, never the sorry", async () => {
+    const a = await ask("has 6980 ever been to worlds");
+    expect(a.verdict?.answer).toBe("No");
+    expect(a.sorry).toBeUndefined();
+  });
+  it("a quoted name gets the sorry too", async () => {
+    expect((await ask('"Hypnotic Robotics" favorite color')).sorry?.understood.join(" ") ?? "").toContain("4215");
+  });
+  it("never on an answer, on a placeholder team, or in the dropdown", async () => {
+    expect((await ask("4215 record")).sorry).toBeUndefined();
+    expect((await ask("ultraviolet")).sorry).toBeUndefined();
+    expect((await ask("99950 favorite color")).sorry?.understood.join(" ") ?? "").not.toContain("99950");
+    expect((await searchAnswer("what is 4215's favorite color", { limit: 8, now: NOW })).sorry).toBeUndefined();
+  });
+});
+
 describe("what answered before answers the same (§5)", () => {
   it("a team's counts, stats and lists", async () => {
     expect(card(await ask("how many matches has 4215 won"))).toMatchObject({ kind: "wins-count", headline: "2 wins" });
