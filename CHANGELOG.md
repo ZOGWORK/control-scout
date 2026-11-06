@@ -27,7 +27,7 @@ A word typed in the plural, or with a slip in it, is the same question as the wo
 ### Search
 - **One question in either number.** A search word typed in the plural or the singular ("events", "oprs", "ratings", "predictions", "wins", "seasons") is the same question. A query that reads nothing in the number typed is read again in the other one, and keeps the answer only when that reading answers more. A word naming an event ("states", "worlds", "championship") keeps its number, and a team's or an event's name is never changed.
 - **Slips in search words.** A search word (an intent word, never a name) typed with one slip onto a neighbouring key besides one other edit ("evntd" for "events") is corrected, with "Did you mean". Swapped letters ("raitngs") and plurals of search words ("rakns" for "ranks") are corrected too. Place names are known words, so "Texas" is never "teams".
-- **A team's upcoming events.** "12345 upcoming events" lists every upcoming event the team is registered for, the next first, titled "Upcoming events" when there are several.
+- **A team's upcoming events.** "12345 upcoming events" lists every upcoming event the team is registered for, the next first, titled "Upcoming events" when there are several. (#973)
 
 ## 3.6.6 — 2026-11-06
 
