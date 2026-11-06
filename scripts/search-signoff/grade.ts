@@ -70,10 +70,12 @@ const PLACES: [RegExp, string[]][] = [
 
 /** Every season a question names ("2025-26", "in 2024, versus 2025"), each as the labels a card may say it with. */
 export function seasonsAsked(q: string): string[][] {
+  // A season said with "not" before it ("in 2024, not 2025") is the one the question excludes: never required.
   const out: string[][] = [];
-  const rest = q.replace(/\b(20\d\d)\s*[-–]\s*(\d\d)\b/g, (_, a: string, b: string) => { out.push([`${a}-${b}`]); return " "; });
-  for (const y of rest.matchAll(/\b(20[12]\d)\b/g)) {
-    const n = +y[1];
+  const rest = q.replace(/(\bnot\s+)?\b(20\d\d)\s*[-–]\s*(\d\d)\b/gi, (_, not: string | undefined, a: string, b: string) => { if (!not) out.push([`${a}-${b}`]); return " "; });
+  for (const y of rest.matchAll(/(\bnot\s+)?\b(20[12]\d)\b/gi)) {
+    if (y[1]) continue;
+    const n = +y[2];
     out.push([`${n - 1}-${String(n % 100).padStart(2, "0")}`, `${n}-${String((n + 1) % 100).padStart(2, "0")}`, String(n)]);
   }
   return out;

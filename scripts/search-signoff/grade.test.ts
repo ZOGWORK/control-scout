@@ -60,6 +60,9 @@ describe("helpers", () => {
     expect(seasonsAsked("4215 matches at states in 2024")).toEqual([["2023-24", "2024-25", "2024"]]);
     expect(seasonsAsked("how many NJ teams went to worlds in 2024, versus 2025").map((s) => s[2])).toEqual(["2024", "2025"]);
     expect(seasonsAsked("4215 record")).toEqual([]);
+    // The season a question rules out is never one the card must state.
+    expect(seasonsAsked("what did 4215 do in 2024, not 2025, at states").map((s) => s[2])).toEqual(["2024"]);
+    expect(seasonsAsked("23268's record in 2024-25, not 2025-26")).toEqual([["2024-25"]]);
   });
   it("works out windows from today", () => {
     const d = (n: number) => new Date(n).toISOString().slice(0, 10);
