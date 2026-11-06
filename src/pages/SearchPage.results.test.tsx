@@ -2,6 +2,7 @@
 // The /search page's results: a Compare is its own card above the teams (never counted as one), team cards carry
 // their season numbers, events are blocks with date and status, no card shows a web address, the filters narrow
 // the results in the address and clear back to all of them, and nothing found is never a bare dead end.
+import { SEARCH_PALETTE } from "../lib/textTones";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -155,7 +156,9 @@ describe("search results page", () => {
     const titles = () => [...container.querySelectorAll('[data-result="event"]')].map((e) => e.querySelector("a.line-clamp-2")?.textContent);
     // In sections: upcoming (soonest first) above finished.
     expect(titles()).toEqual(["Next Meet", "Later Meet", "Old Meet"]);
-    expect([...container.querySelectorAll("[data-status-section] > h3")].map((h) => h.textContent)).toEqual(["Upcoming· 2", "Finished· 1"]);
+    expect([...container.querySelectorAll("[data-status-section] > h3")].map((h) => h.textContent)).toEqual(["Upcoming, 2", "Finished, 1"]);
+    // Each status heading in its own palette colour (lib/textTones SEARCH_PALETTE), the trees' colour.
+    for (const h of container.querySelectorAll<HTMLElement>("[data-section-tone]")) expect(h.className).toContain(SEARCH_PALETTE[h.dataset.sectionTone as "upcoming" | "finished"].fill);
     // Each time tab says how many events it holds before it's picked.
     expect(screen.getAllByRole("radio").map((r) => r.getAttribute("aria-label"))).toEqual(["All, 3 events", "Upcoming, 2 events", "Past, 1 event"]);
     fireEvent.click(screen.getByRole("radio", { name: /^Upcoming/ }));

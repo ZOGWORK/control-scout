@@ -35,7 +35,7 @@ import { appearanceStats, appearances, isQualityQuestion, hasNumbers, standing }
 import { SearchFilters } from "../components/search/page/SearchFilters";
 import { openFamilies, type FamilyStatus } from "../components/search/page/eventFamilies";
 import { eventSections, eventStatuses, localDay } from "../components/search/page/eventSections";
-import { LiveDot } from "../components/EventChips";
+import { SEARCH_PALETTE } from "../lib/textTones";
 import { EventTree } from "../components/search/page/EventTree";
 import { answerTeams, anyFilter, askedWhen, filteredTitle, filterAlternatives, whenCounts, compareSeason, compareSides, compareTeams, filterChoices, cardTeamName, isCompare, isFuzzy, keeps, pageTitle, contextBadge, badgeUnder, readingOf, fuzzyWords, readFilters, teamParts, withFilters, type AnswerExtra, type PageFilters, type Statuses } from "../components/search/page/results";
 import { SEARCH_PAGE_LIMIT } from "../shared/search";
@@ -384,15 +384,18 @@ function EventResults({ hits, statuses, twoCol, onOpen }: { hits: SearchHit[]; s
     <div className="space-y-8 max-sm:space-y-6" data-event-sections>
       {sections.map((s) => (
         <section key={s.status} aria-label={`${s.title}, ${s.count} ${s.count === 1 ? "event" : "events"}`} data-status-section={s.status}>
-          <h3 className="mb-3 flex items-center gap-2 border-b border-border pb-2 font-display text-base font-semibold text-foreground">
-            {s.status === "live" && <LiveDot />}{s.title}<span className="tabular-nums text-muted-foreground" data-section-count>· {s.count}</span>
+          {/* The status in its palette colour (lib/textTones SEARCH_PALETTE: live rose, upcoming cyan, finished lime), the
+              same as the trees' bars and chips; the words and order say it without the colour. */}
+          <h3 className={cn("mb-3 flex items-center gap-2 rounded-lg px-3 py-2 font-display text-base font-bold", SEARCH_PALETTE[s.status].fill)} data-section-tone={s.status}>
+            {s.status === "live" && <span aria-hidden className="size-2 shrink-0 animate-pulse rounded-full bg-white motion-reduce:animate-none" data-live-dot />}
+            {s.title}<span className="sr-only">, </span><span className="rounded-full bg-white/20 px-2 text-sm tabular-nums" data-section-count>{s.count}</span>
           </h3>
           <div className="space-y-5">
             {s.dates.map((d) => (
               <div key={d.key} data-date-section={d.key}>
                 {d.title && (
-                  <h4 className="mb-2 flex min-w-0 items-baseline gap-1.5 text-sm font-medium text-foreground">
-                    <span className="truncate">{d.title}</span><span className="shrink-0 tabular-nums text-muted-foreground">· {d.count}</span>
+                  <h4 className={cn("mb-2 flex min-w-0 items-baseline gap-1.5 border-l-4 pl-2 text-sm font-semibold text-foreground", SEARCH_PALETTE[s.status].edge)}>
+                    <span className="truncate">{d.title}</span><span className={cn("shrink-0 tabular-nums", SEARCH_PALETTE[s.status].text)}>· {d.count}</span>
                   </h4>
                 )}
                 <div className={grid}>
