@@ -180,7 +180,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // A trend: the reader's own card for the team and the season (said, or the team's latest), whatever the words were.
   const trend = TREND_ASK[intent];
   if (trend && p.teams.length === 1) {
-    if (scope.at || scope.championship || scope.states || scope.level || scope.alliance || scope.window || scope.place || scope.area || scope.ever) return null;
+    // The reader draws the whole season: a count it can't apply ("last 2 events") is left to search.
+    if (p.n != null || scope.at || scope.championship || scope.states || scope.level || scope.alliance || scope.window || scope.place || scope.area || scope.ever) return null;
     const asked = `${p.teams[0].number} ${trend.ask}${scope.season != null ? ` in ${seasonLabel(scope.season)}` : ""}`;
     const a = await statAnswer(asked, opts.resolve, { full: opts.full, pages: opts.pages });
     if (!a || a.intent?.kind !== `stat-${trend.intent}`) return null;

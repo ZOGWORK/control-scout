@@ -179,6 +179,8 @@ describe("one question, any phrasing, any team", () => {
     }
     // The plain number stays the plain number.
     expect((await ask("4215 opr")).stat?.intent).not.toBe("opr-history");
+    // A count the trend card can't apply is never the whole season's card under "Limit: 2".
+    expect((await ask("4215 opr trend last 2 events")).stat?.intent).not.toBe("opr-history");
   });
   it("a name typed nearly right offers the spelling, whatever stood between its words", async () => {
     const a = await ask("hypnotc-robotics highest score");
