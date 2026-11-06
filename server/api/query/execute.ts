@@ -12,7 +12,7 @@ import { intentDefaults, scopeFits, type IntentId, type LeaderboardQuestion, typ
 import { allianceForecast, predictionSeasonOf } from "../answers/families/predict.js";
 import { isLegacy } from "../../data/seasons.js";
 import { predictHref } from "../../../src/shared/predictUrl.js";
-import { boardSearch, statAnswerOf, topSearch, twoTeamSearch, type Resolve } from "../answers/index.js";
+import { boardSearch, statAnswer, statAnswerOf, topSearch, twoTeamSearch, type Resolve } from "../answers/index.js";
 import { searchSeason } from "../answers/season.js";
 import { BOARD_STATS } from "../answers/families/leaderboard.js";
 import type { TopMatchesQuestion } from "../answers/families/topMatches.js";
@@ -70,6 +70,13 @@ const COUNTED = new Set<IntentId>(["last-matches"]);
 /** The award answers that take "first" and "latest" ("12345 latest Inspire award"). */
 const AWARD_LISTS = new Set<IntentId>(["awards", "total-awards", "inspire-awards"]);
 
+/** A team's trend, asked of the reader that draws it in its own words ("12345 rating trend in 2025–26"), and the answer
+ *  it has to give: any other is left to search. */
+const TREND_ASK: Partial<Record<PipelineIntent, { ask: string; intent: string }>> = {
+  "rating-trend": { ask: "rating trend", intent: "rating-trend" },
+  "opr-trend": { ask: "opr history", intent: "opr-history" },
+};
+
 /** Words that ask for two teams side by side, beside "or" alone ("12345 or 67890" is a search for either). */
 const COMPARE_SAID = /\b(?:compare|comparison|compared|side by side|better|stronger)\b/;
 /** The intents that are a stat answer's own (server/api/answers/read.ts IntentId), by the same name. */
@@ -106,7 +113,7 @@ function placeSeason(p: Parsed, said: number | null | undefined, opts: PipelineO
 }
 /** The answers a win or a loss said with them narrows ("closest loss", "first win", "longest losing streak"). */
 const OUTCOME_IDS = new Set(["closest-match", "current-streak", "average-margin", "first-match", "recent-match", "last-matches", "longest-streak"]);
-const ANSWERED = new Set<PipelineIntent>([...TEAM_INTENTS, ...(Object.keys(TWO_TEAM) as PipelineIntent[]), ...(Object.keys(FIND) as PipelineIntent[]), "top-matches", "leaderboard", "team-predict", "highlights", "teams-named", "count-teams", "alliance-predict"]);
+const ANSWERED = new Set<PipelineIntent>([...TEAM_INTENTS, ...(Object.keys(TWO_TEAM) as PipelineIntent[]), ...(Object.keys(FIND) as PipelineIntent[]), "top-matches", "leaderboard", "team-predict", "highlights", "teams-named", "count-teams", "alliance-predict", ...(Object.keys(TREND_ASK) as PipelineIntent[])]);
 /** The leaderboard's stat for a metric said ("by opr"); the prediction rating when none is. */
 const BOARD_STAT: Partial<Record<string, string>> = {
   "metric:opr": "opr", "metric:rating": "rating", "metric:winrate": "win-rate", "metric:auto": "auto", "metric:teleop": "teleop",
@@ -226,6 +233,16 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     // place, a window, a match type or a side.
     if (!MEETINGS.has(id) && (scope.at || scope.championship || scope.states || scope.level || scope.alliance || scope.window || scope.place || scope.area)) return null;
     return twoTeamSearch(p.q, { id, scope, a: String(p.teams[0].number), b: String(p.teams[1].number) }, opts.resolve, opts);
+  }
+  // A trend: the reader's own card for the team and the season (said, or the team's latest), whatever the words were.
+  const trend = TREND_ASK[intent];
+  if (trend && p.teams.length === 1) {
+    // The reader draws the whole season: a count it can't apply ("last 2 events") is left to search.
+    if (p.n != null || scope.at || scope.championship || scope.states || scope.level || scope.alliance || scope.window || scope.place || scope.area || scope.ever) return null;
+    const asked = `${p.teams[0].number} ${trend.ask}${scope.season != null ? ` in ${seasonLabel(scope.season)}` : ""}`;
+    const a = await statAnswer(asked, opts.resolve, { full: opts.full, pages: opts.pages });
+    if (!a || a.intent?.kind !== `stat-${trend.intent}`) return null;
+    return { ...a, q: p.q };
   }
   if (intent === "highlights") return highlights(p, scope, opts);
   // Matches by a measure, or the best ones with a filter the season records don't take (a match type, a kind of
