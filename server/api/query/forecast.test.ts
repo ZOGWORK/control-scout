@@ -19,6 +19,13 @@ describe("once", () => {
     const tiles = a.blocks[1].kind === "kpis" ? a.blocks[1].items.map((i) => i.label) : [];
     expect(tiles).toEqual(["Make the playoffs", "Advance"]);
   });
+  it("a bar of the chance to advance drops the Advance tile of the same figure, and keeps the win tile", () => {
+    const a = once({ ...card("33%"), blocks: [
+      { kind: "chance", p: 0.33, who: "12345", label: "to advance, before it starts" },
+      { kind: "kpis", items: [{ label: "Win the event", value: "33%" }, { label: "Advance", value: "33%" }] },
+    ] });
+    expect(a.blocks[1].kind === "kpis" ? a.blocks[1].items.map((i) => i.label) : []).toEqual(["Win the event"]);
+  });
   it("a headline of another figure stays", () => {
     expect(once(card("5.7 → 7 wins")).headline?.value).toBe("5.7 → 7 wins");
   });

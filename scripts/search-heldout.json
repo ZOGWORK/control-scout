@@ -2733,5 +2733,70 @@
 "set": "natural",
 "n": 14,
 "q": "number of teams in Texas"
+},
+{
+"set": "natural",
+"n": 15,
+"q": "when was the last time 4215 played"
+},
+{
+"set": "natural",
+"n": 16,
+"q": "when did 4215 last play"
+},
+{
+"set": "natural",
+"n": 17,
+"q": "4215 last match"
+},
+{
+"set": "natural",
+"n": 18,
+"q": "what was 4215's most recent match"
+},
+{
+"set": "natural",
+"n": 19,
+"q": "when is 4215's next match"
+},
+{
+"set": "natural",
+"n": 20,
+"q": "when does 4215 play next"
+},
+{
+"set": "natural",
+"n": 21,
+"q": "4215 next event"
+},
+{
+"set": "natural",
+"n": 22,
+"q": "when was 4215's first match"
+},
+{
+"set": "natural",
+"n": 23,
+"q": "what year did 4215 start"
+},
+{
+"set": "natural",
+"n": 24,
+"q": "4215 last played when"
+},
+{
+"set": "natural",
+"n": 25,
+"q": "when did 4215 first play"
+},
+{
+"set": "natural",
+"n": 26,
+"q": "when did 4215 begin competing"
+},
+{
+"set": "natural",
+"n": 27,
+"q": "when was the last time gearview played a match"
 }
 ]
