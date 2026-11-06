@@ -330,6 +330,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
       kind: "top", stat: stats[0] ?? (p.undefeated ? "wins" : town || p.place?.kind === "country" ? "opr" : "rating"), ...(p.undefeated ? { undefeated: true } : {}), n: one ? 5 : Math.min(25, p.n ?? 10), region, city: null, town: town?.city ?? null, season: placeSeason(p, scope.season, opts),
       ...(one ? { best: true } : {}), ...((p.agg === "min") !== goodWord ? { asc: true } : {}),
     };
+    // A stat said not to go by is never the one ranked by (a default included): with no other stat said, left unanswered.
+    if ((p.notMetrics ?? []).some((s) => BOARD_STAT[s] === b.stat)) return null;
     // A stat said not to go by is named on the card, never silently dropped.
     const board = async (q: LeaderboardQuestion) => {
       const a = await boardSearch(p.q, q, opts);
