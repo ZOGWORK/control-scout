@@ -13,7 +13,7 @@ export type PipelineIntent =
   | "total-matches" | "total-events" | "seasons-count" | "current-streak" | "longest-streak" | "highest-auto" | "highest-teleop" | "highest-endgame"
   | "most-penalties" | "penalties" | "score-range" | "score-consistency" | "awards" | "total-awards" | "results" | "event-rank" | "event-opr"
   | "best-partner" | "partners" | "opponents" | "team-opr" | "team-rating" | "team-predict" | "playoff-matches" | "qual-matches"
-  | "match-lookup" | "avg-penalties" | "inspire-awards" | "finalist-finishes" | "lost-to-most"
+  | "match-lookup" | "avg-penalties" | "inspire-awards" | "finalist-finishes" | "lost-to-most" | "season-matches"
   // Two teams.
   | "head-to-head" | "shared-matches" | "two-predict" | "opr-vs" | "rating-vs" | "compare" | "h2h-wins" | "awards-vs"
   // No team.
@@ -127,6 +127,9 @@ export const INTENTS: IntentRule[] = [
   R("event-opr", 1, ["metric:opr"], [], { event: true }),
   // A state championship alone ("12345 states"): the team's results there.
   R("results", 1, ["states"], ["list"]),
+  // Its matches, no measure asked ("12345 matches in 2025-26"): every one in the scope. After the rules above (a tie goes to the first), so a
+  // measure, an outcome, a match type or an event said ("12345 matches at states") still picks its own answer.
+  R("season-matches", 1, ["thing:match"], ["list"], { noEvent: true, noMatchNo: true }),
   // Partners and opponents.
   R("best-partner", 1, ["agg:max", "metric:partner"], ["thing:team"]),
   R("partners", 1, ["metric:partner"], ["list", "thing:team"]),
