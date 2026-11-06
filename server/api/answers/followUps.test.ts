@@ -79,6 +79,13 @@ describe("people also ask", () => {
     for (const x of ask) expect(theirs.has(await what(x.q)), x.q).toBe(false);
   });
 
+  it("says a season the query typed with its preposition once", async () => {
+    const q = "4215 record in 2025-26";
+    const qs = candidates(await parseQuery(q, await parseContext()), await pageAnswer(q, 25, new Set())).map((x) => x.q);
+    expect(qs).toContain("What is 4215's OPR in 2025-26?");
+    expect(qs.filter((x) => /\bin in\b/i.test(x))).toEqual([]);
+  });
+
   it("asks the same questions of any team", async () => {
     const shape = async (t: number) => {
       const q = `${t} record`;

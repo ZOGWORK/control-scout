@@ -104,7 +104,8 @@ export function candidates(p: Parsed, a: SearchAnswer): { q: string; family: Fam
   const s: Slots = {
     t: teams[0] ?? answerTeam(a), u: teams[1], event, place: p.place?.name,
     // A season said (a year, a season's two years): a window ("this week") or every season is no season's question.
-    when: p.time?.kind === "season" ? p.time.typed : undefined,
+    // Its own words without the preposition typed before them: the questions put "in" back, once.
+    when: p.time?.kind === "season" ? p.time.typed.replace(/^(?:(?:in|during|for|from|of|the)\s+)+/i, "") || undefined : undefined,
     award: p.award ?? undefined,
   };
   // An event's time is the event's ("<event> <year>"), never a season of the team's questions.
