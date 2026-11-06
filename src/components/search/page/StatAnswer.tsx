@@ -25,7 +25,7 @@ const H3 = "mb-1.5 text-xs font-semibold text-muted-foreground";
 /** What the card has already said, read off its scope and headline: a block below says none of it again (the guide's
  *  §8, each fact printed once). `has(x)` is true for a number or a phrase it states. */
 export function saidBy(stat: StatAnswer) {
-  const text = [...stat.scope, stat.headline?.value, stat.headline?.label, stat.headline?.sub].filter(Boolean).join(" · ");
+  const text = [stat.title, ...stat.scope, stat.headline?.value, stat.headline?.label, stat.headline?.sub].filter(Boolean).join(" · ");
   const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return { text, has: (x: string) => !!x.trim() && new RegExp(`(^|[^\\w.,#–-])${esc(x.trim())}(?![\\w.,%–-])`, "i").test(text) };
 }
@@ -131,7 +131,9 @@ function Block({ b: block, team, teams, said }: { b: StatBlock; team?: StatAnswe
   // A tile that says nothing the headline or scope doesn't (its number, and its line and rank too: the headline's
   // number, its win rate, the season): left out. A tile with anything more (a rank, a count) stays.
   const fmt = (n: number) => n.toLocaleString("en-US");
-  const told = (k: Extract<StatBlock, { kind: "kpis" }>["items"][number]) => !!said && said.has(String(k.value)) && (!k.sub || said.has(k.sub))
+  // The same number of the same thing: its value and what it measures (its label, or a season the scope shows).
+  const told = (k: Extract<StatBlock, { kind: "kpis" }>["items"][number]) => !!said && said.has(String(k.value))
+    && (said.has(k.label) || statedSeason(String(k.value)) != null) && (!k.sub || said.has(k.sub))
     && (k.rank == null || said.has(`#${fmt(k.rank)}${k.of != null ? ` of ${fmt(k.of)}` : ""}`));
   const b: StatBlock = block.kind === "kpis" && said && !(teams && teams.length > 1)
     ? { ...block, items: block.items.filter((k) => !told(k)) } : block;
@@ -201,7 +203,7 @@ function Block({ b: block, team, teams, said }: { b: StatBlock; team?: StatAnswe
         <div data-block="matches">
           <h3 className={H3}>
             {b.title}
-            {ev && !said?.has(ev.event.label) && <> · <Link to={ev.event.href} className="text-foreground/90 hover:text-accent-text hover:underline">{ev.event.label}</Link></>}
+            {ev && <> · <Link to={ev.event.href} className="text-foreground/90 hover:text-accent-text hover:underline">{ev.event.label}</Link></>}
             {ev && !!ev.type && <EventMarker type={ev.type} chip />}
             {ev && !said?.has(ev.season) && <> · {ev.season}</>}
           </h3>

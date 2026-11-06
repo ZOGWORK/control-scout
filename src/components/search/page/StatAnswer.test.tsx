@@ -127,6 +127,10 @@ describe("each fact printed once (the guide's §8)", () => {
     expect([...c.querySelectorAll("[data-match-box]")].map((b) => b.textContent).filter((t) => t!.includes("NJ Championship"))).toEqual([]);
     expect(c.querySelector("[data-match-box]")!.textContent).toContain("Mar 15, 2026");
   });
+  it("a tile of another thing with the same number stays (\"8 matches rated\" and Auto 8)", () => {
+    const c = draw({ ...opr, headline: { value: "71.2", label: "8 matches rated" }, blocks: [{ kind: "kpis", items: [{ label: "Auto", value: "8" }, { label: "TeleOp", value: "40" }] }] });
+    expect([...c.querySelectorAll("[data-kpi]")].map((k) => k.textContent)).toEqual(["Auto8", "TeleOp40"]);
+  });
   it("a tile with more than the headline says (a rank, a count) stays", () => {
     const c = draw({ ...opr, headline: { value: "28.3 vs 22.1", label: "Auto OPR" }, blocks: [{ kind: "kpis", items: [
       { label: "4215 Auto", value: "28.3", sub: "#880 of 8,308" }, { label: "Season", value: "2025–26" }] }] });
