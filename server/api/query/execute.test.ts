@@ -460,6 +460,8 @@ describe("review fixes", () => {
       expect(a.stat?.intent, q).toBe("results");
       expect(a.stat?.title, q).toMatch(/at Worlds/);
     }
+    // A calendar year is the championship held that year: 2026's is the 2025–26 season's.
+    expect((await ask("30040 at worlds in 2026")).stat).toMatchObject({ intent: "results", title: expect.stringContaining("2025–26") });
     expect((await ask("30040 worlds record")).stat?.intent).toBe("record");
   });
   it("a week across the season's start keeps each season's points apart", async () => {

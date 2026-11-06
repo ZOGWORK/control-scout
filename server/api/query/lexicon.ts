@@ -7,6 +7,8 @@ export type Agg = "max" | "min" | "mean" | "median" | "sum" | "count" | "first" 
 export type Metric =
   | "score" | "margin" | "record" | "win" | "loss" | "tie" | "winrate" | "opr" | "rating" | "rank" | "award" | "penalty"
   | "auto" | "teleop" | "endgame" | "streak" | "partner" | "opponent" | "rp" | "range" | "consistency" | "reliability" | "playoffs"
+  // Whether or how often a team went somewhere: a question no pipeline rule takes.
+  | "appearance"
   // Derived from a match's numbers by a rule the card prints (./matchFind.ts).
   | "upset" | "comeback";
 export type Thing = "match" | "event" | "season" | "team";
