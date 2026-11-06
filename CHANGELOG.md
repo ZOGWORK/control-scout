@@ -28,7 +28,7 @@ On a wide screen, a search's answer sits on the left and its follow-ups beside i
 ### Search
 - **Related searches.** Up to eight short searches ("4215 win rate", "best teleop opr") about what People also ask didn't cover, one chip each, one per line on a phone. Each is run as a search first, and only one with a direct answer is shown; none repeats a question or the search itself.
 - **Beside the answer.** On a desktop the answer takes the left column and the follow-ups the right: the team's highlights, People also ask and Related searches. Phones keep one column, the related searches at the end.
-- **A leaderboard's neighbours.** "Best auto OPR" offers the same teams by TeleOp, Endgame, OPR and rating; a search about no team ("upcoming events", "who won <event>") goes on to the team its answers are about.
+- **A leaderboard's neighbours.** "Best auto OPR" offers the same teams by TeleOp, Endgame, OPR and rating; a search about no team ("upcoming events", "who won <event>") goes on to the team its answers are about. (#1009)
 
 ## 3.7.1 — 2026-11-06
 
