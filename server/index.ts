@@ -22,7 +22,9 @@ import { forecasterFor, refreshForecasters } from "./predict/engine.js";
 import { CURRENT_SEASON } from "./data/seasons.js";
 import { warmTrackRecord } from "./api/accuracy.js";
 import { warmSpelling } from "./api/spelling.js";
-import { warmTypoIndex } from "./api/search.js";
+import { ensureSearchIndex, warmTypoIndex } from "./api/search.js";
+import { rebuildSearch } from "./stats/job.js";
+import { STARTUP_CYCLE_MS, warmUp } from "./warm.js";
 import { names as warmNames } from "./api/query/names.js";
 import { seasonCutoffs } from "./api/matchReport.js";
 import { installShippedPacks, restoreSnapshotIfEmpty } from "./data/snapshot.js";
@@ -60,29 +62,38 @@ process.once("SIGTERM", () => { closeAllStreams(); closeInboxStreams(); closePro
 // On the way out, failed searches still in memory (settling or buffered) are written to the table too.
 drainOnSigterm(() => http, log, 10_000, () => Promise.all([inboxSettled(), flushSearchFailures(Date.now(), true).catch(() => 0)]));
 let ready = false;
+// Every warm-up step done (server/warm.ts): `ready` waits for them only up to WARM_CAP_MS; this says when the rest are.
+let warm = false;
 const app = createApp();
-const server = createServer(app, () => ({ ok: true, engine: ENGINE_VERSION, release: RELEASE, ready }), () => ready);
+const server = createServer(app, () => ({ ok: true, engine: ENGINE_VERSION, release: RELEASE, ready, warm }), () => ready);
 const listening = (where: string) => () => log(`Control Scout listening on ${where}${env.production ? "" : " (dev)"}`);
 if (!socket) http = server.listen(env.port, listening(`:${env.port}`));
 log(`data: ${await restoreSnapshotIfEmpty().catch((e) => `snapshot restore failed: ${(e as Error).message}`)}`);
 log(`packs: ${(() => { try { return installShippedPacks(packsDir()); } catch (e) { return `shipped packs failed: ${(e as Error).message}`; } })()}`);
 await openReplicaIfRemote(log);
 await migrate();
+
+// Warm before answering (server/warm.ts): built on a cold process while a deploy's queued requests poured in, these
+// held its event loop for minutes. Search's index first when the code that builds it changed (SEARCH_INDEX_SCHEMA):
+// rebuilt here, once, not on a visitor's search; its names and typo index after it, since a rebuild resets them.
+const indexed = ensureSearchIndex(rebuildSearch);
+const afterIndex = () => indexed.catch(() => { /* its own step says it failed */ });
+const warming = await warmUp([
+  // The current season's ratings, so the first prediction is fast.
+  ["ratings", () => forecasterFor(CURRENT_SEASON)],
+  // The track record (every scored prediction: about a second and a half cold), then the match report's flag
+  // cutoffs (two scans of a season) for this season and last.
+  ["track record and report cutoffs", () => warmTrackRecord().then(() => seasonCutoffs(CURRENT_SEASON)).then(() => seasonCutoffs(CURRENT_SEASON - 1))],
+  ["search index", () => indexed],
+  // Search's spelling vocabulary (every team, event and place word: about a second cold), then its typo index (every
+  // name's words, numbered: about a second cold), and the names it reads queries with.
+  ["spelling and typo index", () => afterIndex().then(() => warmSpelling()).then(() => warmTypoIndex())],
+  ["search names", () => afterIndex().then(() => warmNames())],
+], log);
+void warming.settled.then(() => { warm = true; });
 ready = true;
 if (socket) http = server.listen(socket, listening("the systemd socket"));
 log("ready");
-
-// Warm the current season's ratings so the first prediction is fast.
-forecasterFor(CURRENT_SEASON).then(() => log("ratings ready")).catch((e) => log(`ratings not ready: ${(e as Error).message}`));
-// And the track record (every scored prediction: about a second and a half cold).
-warmTrackRecord().then(() => log("track record ready")).catch((e) => log(`track record not ready: ${(e as Error).message}`))
-  // Then the match report's flag cutoffs (two scans of a season) for this season and last, so a first report doesn't wait for them.
-  .then(() => seasonCutoffs(CURRENT_SEASON)).then(() => seasonCutoffs(CURRENT_SEASON - 1)).catch(() => { /* built on the first report instead */ });
-// And search's spelling vocabulary (every team, event and place word: about a second cold).
-warmSpelling().then(() => log("spelling ready")).catch((e) => log(`spelling not ready: ${(e as Error).message}`))
-  // Then search's typo index (every name's words, numbered: about a second cold), so a deploy's first typo doesn't wait.
-  .then(() => warmTypoIndex()).then(() => log("typo index ready")).catch((e) => log(`typo index not ready: ${(e as Error).message}`));
-warmNames().then(() => log("search names ready")).catch((e) => log(`search names not ready: ${(e as Error).message}`));
 // After a sync (often in a child process) the data version moves: rebuild the
 // ratings in use and the track record right away, in the background, so no
 // visitor's request is the one that waits for them (pages keep the previous
@@ -130,7 +141,10 @@ async function eventDay(): Promise<boolean> {
 const configuredMinutes = Number(process.env.EVENT_DAY_SYNC_MINUTES);
 const eventDayMinutes = Number.isFinite(configuredMinutes) && configuredMinutes >= 1 ? configuredMinutes : (childCycle() ? 15 : 60);
 let last = 0;
+// Set when the startup cycle runs: the schedule below never starts one (or a backfill) before it.
+let started = false;
 setInterval(async () => {
+  if (!started) return;
   const gap = (await eventDay().catch(() => false)) ? eventDayMinutes * 60_000 : 24 * 3600_000;
   if (Date.now() - last >= gap) { last = Date.now(); cycle(gap < 864e5 ? `every ${eventDayMinutes} min, event day` : "daily"); }
   // 2019–2022 not fetched yet: back-to-back cycles through the quiet hours (one season each) until done,
@@ -208,5 +222,7 @@ if (!process.env.CS_NO_SCHEDULER) {
 startLiveSync(log);
 // Monte Carlo projections of live and upcoming events, re-run when their results move (server/projections/job.ts).
 startProjections(log);
-// First cycle shortly after boot (not at boot: let the server answer first).
-setTimeout(() => { last = Date.now(); cycle("startup"); }, 60_000).unref();
+// First cycle STARTUP_CYCLE_MS after boot, not at once: a deploy's first minutes are for answering. Run at a minute, its
+// stats and search rebuild kept a just-restarted server slow for minutes. Nothing the deploy changed waits for it:
+// search's index is rebuilt in the warm-up when its code changed (above). The regular schedule waits for it too.
+setTimeout(() => { started = true; last = Date.now(); cycle("startup"); }, STARTUP_CYCLE_MS).unref();
