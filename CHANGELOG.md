@@ -25,7 +25,7 @@ Long questions are read whole.
 - [fixes] Past the limit, the query is cut at a whole word
 
 ### Search
-- **Long questions read whole.** Search read only the first 80 characters, cut inside a word, so a long question lost its end: "… or was it way off in 2025-26" became "… in 2025-2", and the season (or the event, or the last team) went missing. A question is now read up to 160 characters; past that it's cut at the last whole word, never inside one. The names list reads the same length. (#000)
+- **Long questions read whole.** Search read only the first 80 characters, cut inside a word, so a long question lost its end: "… or was it way off in 2025-26" became "… in 2025-2", and the season (or the event, or the last team) went missing. A question is now read up to 160 characters; past that it's cut at the last whole word, never inside one. The names list reads the same length. (#838)
 
 ## 3.4.5 — 2026-11-06
 
