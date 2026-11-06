@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.7.0 — 2026-11-06
+## 3.7.1 — 2026-11-06
 
 Under a search's answer, "People also ask": the next questions search answers directly, each opening to its answer's line and a link that runs it.
 
@@ -27,6 +27,19 @@ Under a search's answer, "People also ask": the next questions search answers di
 ### Search
 - **People also ask.** Under the answer, up to six questions about the same team, event, place or season ("What is its record?", "Who won the Think Award there?"), closed until tapped. Each opens to one line from that question's own answer and "See the full answer", which runs it as a search.
 - **Never a dead end.** Every question is run as a search before it's shown, and only one with a direct answer is asked: never one that would say sorry, guess or list names. The questions come from what the search read, never from a list of teams or events. (#1002)
+
+## 3.7.0 — 2026-11-06
+
+"Who won <event> this year" is this season's event again, or the latest one held with a result, never an older one whose name fits the words better.
+
+### Highlights
+- [fixes] "Who won nj turnpike division this year" is this season's again
+- [fixes] With no season said, the latest event held with a result answers
+- [fixes] An older season answers only when it's asked for
+
+### Search
+- **The season asked, then the latest held.** "Who won <event> this year" (or "this season") is that season's event; before it's held, the latest season whose event has a result (a played playoff match or a posted award), said so. With no season said, the latest event held with a result answers. An older season answers only when it's asked for ("2022-23"), never because its name fits the words better. (#1007)
+
 ## 3.6.9 — 2026-11-06
 
 "Who won <event>" leads with the playoff champions, for a division too, where FIRST posts no awards of its own.
