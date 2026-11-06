@@ -20,6 +20,13 @@ const heads = (c: HTMLElement) => [...c.querySelectorAll("thead th")].filter((th
 const teams = (c: HTMLElement) => [...c.querySelectorAll("[data-team-row]")].map((r) => Number(r.getAttribute("data-team-row")));
 
 describe("TeamTable", () => {
+  it("ranked by a phase (\"best auto\"): on a phone that phase is the column shown, not the OPR", () => {
+    const { container } = draw({ ...TABLE, by: "auto" });
+    const phone = (k: string) => !container.querySelector(`[data-sort="${k}"]`)!.closest("th")!.className.includes("max-md:hidden");
+    expect(["opr", "auto", "dc", "endgame"].filter(phone)).toEqual(["auto"]);
+    const { container: opr } = draw();
+    expect(opr.querySelector('[data-sort="opr"]')!.closest("th")!.className).not.toContain("max-md:hidden");
+  });
   it("draws a row per team with every column, OPR first", () => {
     const { container } = draw();
     expect(heads(container)).toEqual(["#", "Team", "OPR", "Auto", "DC", "Endgame", "Pen", "W-L-T"]);
