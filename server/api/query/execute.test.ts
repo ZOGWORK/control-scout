@@ -289,6 +289,32 @@ describe("the match finder: matches by a measure, every filter applied and state
   });
 });
 
+describe("a win or a loss said with a team's match question is a filter", () => {
+  it("the most recent loss, the first win, the last losses and the longest losing streak", async () => {
+    const lost = await stat("when did 4215 last lose a match");
+    expect(lost.title).toMatch(/^Most recent loss/);
+    expect(lost.headline?.value).toMatch(/^Lost /);
+    const won = await stat("4215 first win");
+    expect(won.title).toMatch(/^First win/);
+    expect(won.headline?.value).toMatch(/^Won /);
+    const last = await stat("4215 last 2 losses");
+    expect(last.title).toMatch(/^Last 2 losses/);
+    // The fixture's 4215 has lost once: that one, said as one.
+    expect(last.headline?.label).toBe("in the last 1 loss, oldest to newest L");
+    expect((await stat("longest losing streak for 4215")).title).toMatch(/^Longest losing streak/);
+    // No outcome said: every match, as before.
+    expect((await stat("4215 last match")).title).toMatch(/^Most recent match/);
+  });
+  it("losing to someone is the opponents that beat the team; winning a match, its wins", async () => {
+    for (const q of ["who did 4215 lose to the most times", "teams 4215 lost to most often"]) expect((await stat(q)).title, q).toMatch(/^Teams lost to most often/);
+    // A count of them is another question: never answered with the one that beat it most.
+    expect((await ask("how many teams has 4215 lost to")).stat?.title ?? "").not.toMatch(/^Teams lost to most often/);
+    expect((await stat("did 4215 ever win a match")).title).toMatch(/^Match wins/);
+    // "Most often" is how often, never the best: the partners list, not the best partner.
+    expect((await stat("4215 partners most often")).title).toMatch(/^Alliance partners/);
+  });
+});
+
 describe("forecasts", () => {
   it("a team at a named event: before and after side by side, Predict open on it", async () => {
     for (const q of ["predicted chances of 4215 garden qualifier", "4215 garden qualifier prediction", "garden qualifier forecast for hypnotic robotics"]) {

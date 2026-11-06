@@ -13,7 +13,7 @@ export type PipelineIntent =
   | "total-matches" | "total-events" | "seasons-count" | "current-streak" | "longest-streak" | "highest-auto" | "highest-teleop" | "highest-endgame"
   | "most-penalties" | "penalties" | "score-range" | "score-consistency" | "awards" | "total-awards" | "results" | "event-rank" | "event-opr"
   | "best-partner" | "partners" | "opponents" | "team-opr" | "team-rating" | "team-predict" | "playoff-matches" | "qual-matches"
-  | "match-lookup" | "avg-penalties" | "inspire-awards" | "finalist-finishes"
+  | "match-lookup" | "avg-penalties" | "inspire-awards" | "finalist-finishes" | "lost-to-most"
   // Two teams.
   | "head-to-head" | "shared-matches" | "two-predict" | "opr-vs" | "rating-vs" | "compare" | "h2h-wins" | "awards-vs"
   // No team.
@@ -39,6 +39,8 @@ export interface IntentRule {
 }
 
 const SCORE_LIKE = ["metric:score", "thing:match", "thing:event"];
+/** A win or a loss, as a filter on a team's matches. */
+const OUTCOMES = ["metric:win", "metric:loss", "outcome:W", "outcome:L"];
 /** The season numbers a leaderboard ranks teams by. */
 const BOARD_METRICS = ["metric:opr", "metric:rating", "metric:winrate", "metric:auto", "metric:teleop", "metric:endgame", "metric:reliability"];
 /** What a leaderboard takes in: its stats, a record beside them (every row shows it), "by". */
@@ -59,9 +61,16 @@ export const INTENTS: IntentRule[] = [
   R("highest-teleop", 1, ["agg:max", "metric:teleop"], SCORE_LIKE),
   R("highest-endgame", 1, ["agg:max", "metric:endgame"], SCORE_LIKE),
   R("most-penalties", 1, ["agg:max", "metric:penalty"], SCORE_LIKE),
-  R("first-match", 1, ["agg:first", "thing:match"], ["agg:max"]),
-  R("last-matches", 1, ["agg:last", "thing:match"], ["metric:score"], { n: true }),
-  R("recent-match", 1, ["agg:last", "thing:match"], ["metric:score"]),
+  // A win or a loss said with them is a filter: "first win", "when did they last lose a match", "last 5 losses".
+  R("first-match", 1, ["agg:first", "thing:match"], ["agg:max", ...OUTCOMES]),
+  R("last-matches", 1, ["agg:last", "thing:match"], ["metric:score", ...OUTCOMES], { n: true }),
+  R("recent-match", 1, ["agg:last", "thing:match"], ["metric:score", ...OUTCOMES]),
+  R("first-match", 1, ["agg:first", "metric:win"], ["thing:match", "per:match"]),
+  R("first-match", 1, ["agg:first", "metric:loss"], ["thing:match", "per:match"]),
+  R("last-matches", 1, ["agg:last", "metric:win"], ["thing:match", "per:match"], { n: true }),
+  R("last-matches", 1, ["agg:last", "metric:loss"], ["thing:match", "per:match"], { n: true }),
+  R("recent-match", 1, ["agg:last", "metric:win"], ["thing:match", "per:match"]),
+  R("recent-match", 1, ["agg:last", "metric:loss"], ["thing:match", "per:match"]),
   // Its events and seasons.
   R("best-finish", 1, ["agg:max", "metric:rank"], ["thing:event"], { noEvent: true }),
   R("worst-finish", 1, ["agg:min", "metric:rank"], ["thing:event"], { noEvent: true }),
@@ -73,6 +82,8 @@ export const INTENTS: IntentRule[] = [
   R("first-season", 1, ["agg:first", "thing:season"], [], { noEvent: true }),
   // Counts, means and records over its matches.
   R("wins-count", 1, ["agg:count", "metric:win"], ["thing:match"]),
+  // "Did 12345 ever win a match": its wins, none said as none.
+  R("wins-count", 1, ["metric:win", "thing:match"], []),
   R("losses", 1, ["metric:loss"], ["agg:count", "thing:match"]),
   R("ties-count", 1, ["metric:tie"], ["agg:count", "thing:match"]),
   R("record", 1, ["metric:record"], ["metric:win", "metric:loss", "metric:tie", "thing:match"]),
@@ -88,7 +99,7 @@ export const INTENTS: IntentRule[] = [
   R("total-events", 1, ["agg:count", "thing:event"], ["agg:sum"], { noEvent: true }),
   R("total-events", 1, ["agg:sum", "thing:event"], [], { noEvent: true }),
   R("seasons-count", 1, ["agg:count", "thing:season"], [], { noEvent: true }),
-  R("longest-streak", 1, ["agg:max", "metric:streak"], ["metric:win", "outcome:W"]),
+  R("longest-streak", 1, ["agg:max", "metric:streak"], OUTCOMES),
   R("current-streak", 1, ["metric:streak"], ["agg:last", "metric:win", "metric:loss", "outcome:W", "outcome:L"]),
   R("avg-penalties", 1, ["agg:mean", "metric:penalty"], ["thing:match"]),
   R("penalties", 1, ["metric:penalty"], ["thing:match", "per:match", "per:event", "per:rate", "agg:mean"]),
@@ -97,8 +108,8 @@ export const INTENTS: IntentRule[] = [
   R("playoff-matches", 1, ["level:playoff", "thing:match"], ["list"], { noEvent: true }),
   R("qual-matches", 1, ["level:qual", "thing:match"], ["list"], { noEvent: true }),
   // Awards.
-  R("total-awards", 1, ["agg:count", "metric:award"], ["agg:sum", "metric:win"]),
-  R("total-awards", 1, ["agg:sum", "metric:award"], ["metric:win"]),
+  R("total-awards", 1, ["agg:count", "metric:award"], ["agg:sum", "metric:win", "list"]),
+  R("total-awards", 1, ["agg:sum", "metric:award"], ["metric:win", "list"]),
   R("awards", 1, ["metric:award"], ["list", "agg:first", "agg:last", "metric:win"]),
   // At one event.
   R("match-lookup", 1, ["thing:match"], ["metric:score", "metric:record", "metric:win", "metric:loss"], { event: true, matchNo: true }),
@@ -111,6 +122,9 @@ export const INTENTS: IntentRule[] = [
   R("best-partner", 1, ["agg:max", "metric:partner"], ["thing:team"]),
   R("partners", 1, ["metric:partner"], ["list", "thing:team"]),
   R("opponents", 1, ["metric:opponent"], ["list", "thing:team"]),
+  // "Who did 12345 lose to the most": the opponents that beat it, most often first.
+  // A count ("how many teams has it lost to") is a different answer: left unexplained.
+  R("lost-to-most", 1, ["metric:opponent", "outcome:L"], ["agg:max", "thing:team", "thing:match", "per:match", "list"]),
   // The team's own numbers: its OPR, its rating, its forecast.
   R("team-opr", 1, ["metric:opr"], ["agg:last"], { noEvent: true }),
   R("team-rating", 1, ["metric:rating"], ["agg:last"], { noEvent: true }),

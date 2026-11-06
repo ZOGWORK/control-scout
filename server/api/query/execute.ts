@@ -62,7 +62,7 @@ const TEAM_INTENTS = new Set<PipelineIntent>([
   "record", "win-percent", "average-score", "median-score", "average-margin", "total-points", "total-matches", "total-events", "seasons-count",
   "current-streak", "longest-streak", "highest-auto", "highest-teleop", "highest-endgame", "most-penalties", "penalties", "score-range",
   "score-consistency", "awards", "total-awards", "results", "event-rank", "event-opr", "best-partner", "partners", "opponents", "playoff-matches",
-  "qual-matches", "match-lookup", "avg-penalties",
+  "qual-matches", "match-lookup", "avg-penalties", "lost-to-most",
 ]);
 const TWO_TEAM: Partial<Record<PipelineIntent, TwoTeamId>> = {
   "head-to-head": "head-to-head", "shared-matches": "shared-matches", "h2h-wins": "h2h-wins", "opr-vs": "opr-vs", "rating-vs": "rating-vs",
@@ -87,6 +87,8 @@ function placeSeason(p: Parsed, said: number | null | undefined, opts: PipelineO
   if (p.time?.kind === "season" && p.time.relative === "last") return current - 1;
   return said ?? current;
 }
+/** The answers a win or a loss said with them narrows ("closest loss", "first win", "longest losing streak"). */
+const OUTCOME_IDS = new Set(["closest-match", "current-streak", "average-margin", "first-match", "recent-match", "last-matches", "longest-streak"]);
 const ANSWERED = new Set<PipelineIntent>([...TEAM_INTENTS, ...(Object.keys(TWO_TEAM) as PipelineIntent[]), ...(Object.keys(FIND) as PipelineIntent[]), "top-matches", "leaderboard", "team-predict"]);
 /** The leaderboard's stat for a metric said ("by opr"); the prediction rating when none is. */
 const BOARD_STAT: Partial<Record<string, string>> = {
@@ -119,11 +121,11 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     const future = await noEventsYet(p, team.number, id, opts);
     if (future) return future(opts);
     const named = scope.season != null || scope.latest || scope.ever || scope.championship || scope.states || !!scope.at || !!scope.window;
-    const outcome = p.symbols.includes("outcome:L") || (p.symbols.includes("metric:loss") && intent !== "losses") ? "L" : p.symbols.includes("outcome:W") || (p.symbols.includes("metric:win") && intent === "closest-match") ? "W" : null;
+    const outcome = p.symbols.includes("outcome:L") || (p.symbols.includes("metric:loss") && intent !== "losses") ? "L" : p.symbols.includes("outcome:W") || (p.symbols.includes("metric:win") && OUTCOME_IDS.has(intent) && intent !== "average-margin") ? "W" : null;
     const it: StatQuestion = {
       id, family: d.family, defaultSeason: d.alone && !named ? d.alone : d.season, scope,
       leadEvent: id === "highest-score" && p.symbols.includes("thing:event"),
-      n: id === "match-lookup" ? p.matchNumber : p.n ?? (id === "last-matches" ? 5 : null), outcome: ["closest-match", "current-streak", "average-margin"].includes(id) ? outcome : null,
+      n: id === "match-lookup" ? p.matchNumber : p.n ?? (id === "last-matches" ? 5 : null), outcome: OUTCOME_IDS.has(id) ? outcome : null,
       count: p.agg === "count", noTeam: false, core: String(team.number),
       ...(p.award && (id === "awards" || id === "total-awards") ? { award: p.award } : {}),
       ...(AWARD_LISTS.has(id) && (p.agg === "first" || p.agg === "last") ? { pick: p.agg === "first" ? "first" : "latest" } : {}),
