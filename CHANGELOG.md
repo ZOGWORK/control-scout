@@ -30,7 +30,7 @@ Every search answer is in colour now: a how-many answer's number in bold amber, 
 - **Two new colours in the one palette.** Count (amber, the owner's mock) and Reference (sky) join the search palette. Yellow stays ranking points' alone; amber and yellow, sky and team A's blue never share a card.
 - **Headlines in colour.** A card about no team leads in its meaning's colour (a winning alliance in orange, a season's "190 points" in amber); a two-team headline that names one ("7149 favoured", "7149 leads 2-1") in that team's colour; a win chance's number and bar in the team's colour.
 - **Nothing found, sorry and no match.** "No upcoming match is scheduled", "Sorry — I can't answer that yet" and "Search has no answer" are slate with a filled chip and a thick bar; "Did you mean" is a sky note.
-- **A new kind can't ship grey.** The answer card audit now draws every card kind and every block kind the API has, and fails a card with no colour anywhere, or a grey line icon or line text.
+- **A new kind can't ship grey.** The answer card audit now draws every card kind and every block kind the API has, and fails a card with no colour anywhere, or a grey line icon or line text. (#959)
 
 ## 3.6.5 — 2026-11-06
 
