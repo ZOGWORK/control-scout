@@ -27,7 +27,7 @@ Search answers are in bold colour: every award, scoring phase and team has its o
 ### Search
 - **One palette.** Every search answer uses one set of colours, one per meaning, never shared. Auto is blue, TeleOp green, Endgame purple, penalties red and ranking points yellow. Inspire is magenta, Winning Alliance orange, Finalist Alliance pink, judged awards teal and performance awards indigo. Live, Upcoming and Finished each have one too. Anything without a meaning of its own (a team's numbers, bars, lines and ranks) takes the team's colour.
 - **Bolder.** Tiles get a thick left bar in their colour and a filled icon, and their number is in the colour too. Award rows and chips are filled, phase tiles in match boxes are solid, and the event awards podium is in the award's colour. The leaderboard's phase columns and section headings are coloured. Every text and fill clears 4.5:1 in every theme.
-- **Checked on every card.** Each card type is tested so that nothing outside the palette is used, no two meanings share a colour, and no bar, line, tile, pill or chip is left grey. (#PRNUM)
+- **Checked on every card.** Each card type is tested so that nothing outside the palette is used, no two meanings share a colour, and no bar, line, tile, pill or chip is left grey. (#794)
 
 ## 3.3.8 — 2026-11-05
 
