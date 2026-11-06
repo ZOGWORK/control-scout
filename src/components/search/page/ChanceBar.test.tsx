@@ -16,9 +16,9 @@ describe("ChanceBar", () => {
     expect(container.textContent).toContain("100%");
     expect(container.textContent).toContain("Predicted 138 ±14 – 92 ±12");
     expect(getAllByRole("link").map((l) => l.textContent)).toEqual(["Open in Predict"]);
-    // The bar is the chance hue on a neutral track, never volt (the accent): volt is the primary button's alone.
+    // The bar is the team hue (--color-chance is team A) on a neutral track, never volt (the accent): volt is the primary button's alone.
     const bar = container.querySelector("[role=img]")!;
-    expect(bar.querySelector("[data-chance-fill]")?.className).toContain("--color-chance");
+    expect(bar.querySelector("[data-chance-fill]")?.className).toContain("bg-team-a");
     expect(bar.outerHTML).not.toMatch(/accent/);
   });
   it("keeps a chance outside 0–1 on the scale", () => {
