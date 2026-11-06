@@ -28,6 +28,18 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 ### Search
 - **Yes or no, said every way.** "Has <team> ever …", "did <team> ever …", "was <team> at …" and "did <team> make it to …" are read as one yes-or-no question about Worlds, a state championship, an event in a season, a kind of event, an award, an event won, or beating or losing to another team. The answer is the word Yes (green) or No (slate), with a sentence saying it, above the card that answered the question before, unchanged; when nothing answered it, the card is the evidence: the meetings, the awards or the events played. Only official events count. A no is an answer, never the no-match page. (#873)
 
+## 3.5.7 — 2026-11-06
+
+A team's wins and losses by event, side by side.
+
+### Highlights
+- [teams] "Wins vs losses by event" shows each event's wins and losses
+- [teams] "Record by event" and "per event" read the same
+- [fixes] "Wins vs losses" is a team's record, never a match against another team
+
+### Search
+- **Wins and losses by event.** "12345 wins vs losses by event in 2025-26", "12345 record by event", "wins and losses per event" answer with the team's record card and a row for each event (its wins and losses, ties when there are any, and its season when the answer spans several), oldest first, each linked to the event. "Wins vs losses" said without an event split is the record alone. Before, "vs" there was read as a second team. (#850)
+
 ## 3.5.6 — 2026-11-06
 
 "When did a team last play?" is answered however it's asked: the last, the first and the next time, and when it started.
