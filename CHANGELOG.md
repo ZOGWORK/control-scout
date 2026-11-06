@@ -26,7 +26,7 @@ Lists of teams answer however they're asked: the lowest first, a town, a whole c
 - [rankings] "Any team with a perfect record" lists undefeated teams
 
 ### Search
-- **Leaderboards said any way.** A list of teams by a season stat reads with or without "team", lowest first ("worst", "lowest", "sorted lowest to highest"), for a whole country, a town with its state or country after it, a country by its people's word ("Romanian teams"), a count at the end ("top 3") and undefeated teams. A lowest-first list keeps each team's place counted from the top and opens the Teams page sorted the same way. "Just curious", "only" and other asides are never read as a team's name. (#PR)
+- **Leaderboards said any way.** A list of teams by a season stat reads with or without "team", lowest first ("worst", "lowest", "sorted lowest to highest"), for a whole country, a town with its state or country after it, a country by its people's word ("Romanian teams"), a count at the end ("top 3") and undefeated teams. A lowest-first list keeps each team's place counted from the top and opens the Teams page sorted the same way. "Just curious", "only" and other asides are never read as a team's name. (#773)
 
 ## 3.2.9 — 2026-11-05
 
