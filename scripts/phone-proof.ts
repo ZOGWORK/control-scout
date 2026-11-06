@@ -39,6 +39,7 @@ const CARDS: { name: string; q: string; expect: string }[] = [
   { name: "over time (series)", q: "4215 opr by event", expect: "[data-block=series]" },
   { name: "team highlights", q: "4215", expect: "[data-stat-answer=team-highlights]" },
   { name: "event awards", q: "inspire award nj championship", expect: "[data-event-awards]" },
+  { name: "bars (a team's awards)", q: "how many awards has 4215 won", expect: "[data-block=bars]" },
   { name: "team facts", q: "where is 4215 from", expect: "[data-card-kind]" },
   { name: "worlds trips", q: "4215 worlds appearances", expect: "[data-section=records]" },
   // Plain results with a panel (no answer card): the summary panel and the team's result card are what's checked.
@@ -80,8 +81,16 @@ function measure(expect: string): { failures: string[]; notes: string[]; card: b
   // A link inside a run of text (WCAG 2.5.8's inline exception): the line's height is its target.
   const inline = (el: HTMLElement) => getComputedStyle(el).display === "inline" && !!el.parentElement && /\S/.test([...el.parentElement.childNodes].filter((n) => n !== el).map((n) => n.textContent ?? "").join(""));
   const targets = [...card.querySelectorAll<HTMLElement>("a[href], button, summary, [role=button], input, select")].filter(shown);
-  // A link stretched over its card (an ::after across the positioned card): the card is what's tapped.
-  const box = (el: HTMLElement) => (getComputedStyle(el, "::after").position === "absolute" && el.offsetParent ? el.offsetParent : el).getBoundingClientRect();
+  // What's tapped: a link stretched over its card (an ::after on the card's edges) is the card; a control whose
+  // ::after grows its target round it (tap-44: centred, at least 44px) is that grown box; else the control itself.
+  const stretched = (el: HTMLElement) => { const a = getComputedStyle(el, "::after"); return a.position === "absolute" && a.transform === "none" && a.left === "0px" && a.top === "0px" && !!el.offsetParent; };
+  const box = (el: HTMLElement): DOMRect => {
+    if (stretched(el)) return el.offsetParent!.getBoundingClientRect();
+    const r = el.getBoundingClientRect(), a = getComputedStyle(el, "::after");
+    if (a.position !== "absolute" || a.transform === "none") return r;
+    const w = Math.max(r.width, parseFloat(a.width) || 0), h = Math.max(r.height, parseFloat(a.height) || 0);
+    return new DOMRect(r.left + r.width / 2 - w / 2, r.top + r.height / 2 - h / 2, w, h);
+  };
   for (const el of targets) {
     if (inline(el)) continue;
     const r = box(el);
@@ -90,9 +99,9 @@ function measure(expect: string): { failures: string[]; notes: string[]; card: b
   }
   // Two targets touching: under 8px apart, neither inline, side by side or stacked.
   for (let i = 0; i < targets.length; i++) for (let j = i + 1; j < targets.length; j++) {
-    const a = targets[i].getBoundingClientRect(), b = targets[j].getBoundingClientRect();
     if (targets[i].contains(targets[j]) || targets[j].contains(targets[i]) || inline(targets[i]) || inline(targets[j])) continue;
-    if (getComputedStyle(targets[i], "::after").position === "absolute" || getComputedStyle(targets[j], "::after").position === "absolute") continue; // a card's own link under its buttons
+    if (stretched(targets[i]) || stretched(targets[j])) continue; // a card's own link, under the buttons on it
+    const a = box(targets[i]), b = box(targets[j]);
     const overlap = a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
     if (overlap) failures.push(`tap targets overlap: ${label(targets[i])} and ${label(targets[j])}`);
   }
