@@ -202,6 +202,26 @@ export interface SearchVideo {
   mainRow?: string;
 }
 
+/** A next question after a search (server/api/answers/followUps.ts, GET /api/search/follow): one search answers
+ *  directly, with a line from its answer. `family`: what it's about, the related searches page's groups. */
+export interface SearchFollowUp {
+  q: string;
+  family: "team" | "compare" | "events" | "awards" | "predict";
+  /** The line, whole ("26-6-0 · 81% win rate in 32 matches"): `value` and then `rest`. */
+  preview: string;
+  value: string;
+  rest: string;
+  /** What `value` is, so the page colours it as its answer's own card does. */
+  tone: FollowUpTone;
+}
+/** A follow-up's number: a stat answer's headline (its intent, family, alliances split and teams, as StatAnswer has
+ *  them), a card's first line (its kind), a yes or a no, or a count of events. */
+export type FollowUpTone =
+  | { stat: Pick<StatAnswer, "intent" | "family" | "split"> & { teams: number[] } }
+  | { card: SearchCard["kind"] }
+  | { verdict: "Yes" | "No" }
+  | { count: true };
+
 /** A question's answer (server/api/searchQuestions.ts): each line a real record, linked to where it's shown. */
 export interface SearchCard {
   kind: "worlds" | "states" | "wins" | "awards" | "next-event" | "next-match" | "high-scores" | "rule" | "leaderboard" | "event-awards" | "info";
