@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.4.9 — 2026-11-06
+
+"When did a team last play?" is answered however it's asked: the last, the first and the next time, and when it started.
+
+### Highlights
+- [teams] "When was the last time … played" shows that team's most recent match
+- [teams] "When did … first play" shows its first match
+- [teams] "When does … play next" shows its next match, or says there's none yet
+- [teams] "What year did … start" shows its rookie year
+
+### Search
+- **When, said every way.** "When was the last time <team> played", "when did <team> last play", "<team>'s most recent match" and "<team> last played when" give the most recent match card; "the first time", "first ever" and "very first" give the first match; "the next time <team> plays" and "when will <team> play again" give the next match, saying plainly when none is scheduled. "When did <team> begin competing", "join FTC" or "get started", and "which season was <team> founded", give the rookie year. (#PR)
+
 ## 3.4.8 — 2026-11-06
 
 A question that names its season and also says "this season" is answered for the season it named.
