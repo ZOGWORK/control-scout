@@ -161,6 +161,11 @@ teamHighlights): its season, or its matches at an event named, Worlds or a state
 other events, the event said once in the title. A team with no played match there gets a card saying so, with its own
 events of the season. A place narrows a state championship ("<team> highlights at nj states").
 
+On the card the matches are a video grid (`src/components/search/page/HighlightGrid.tsx`): a tile per match, its
+reason the tile's label, a tap playing its clip in the video dialog. An answer about a team plays its own match on the
+card (`server/api/answers/video.ts`), the event's recording from its start only when none of its matches has a clip;
+an event with no video at all says "No recording for this event — stats only." once.
+
 No season said reads the season today is in, then the latest season with matches in that scope, said once in the
 chip: "No 2026–27 matches yet at Worlds; showing 2025–26". A calendar year with an event, Worlds or a state championship
 ("nj championship 2025", "worlds 2025") is the one held that year. A window relaxes as everywhere else, its events

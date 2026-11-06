@@ -29,15 +29,21 @@ const video: SearchVideo = {
 const draw = (v?: SearchVideo) => render(<MemoryRouter><AnswerVideoProvider video={v}><StatAnswerCard stat={stat} /></AnswerVideoProvider></MemoryRouter>).container;
 
 describe("AnswerVideo", () => {
-  it("is a picture and a play button until clicked; the click loads the player at the match's second", () => {
+  it("is a play button until clicked; the click loads the player at the match's second", () => {
     const c = draw(video);
     expect(c.querySelector("iframe")).toBeNull();
-    expect(c.querySelector("[data-answer-video] img")?.getAttribute("src")).toBe("https://i.ytimg.com/vi/xnQFL9T27fY/hqdefault.jpg");
+    // A recording's picture is whatever was on the field then (another match, an award): none, its caption instead.
+    expect(c.querySelector("[data-answer-video] img")).toBeNull();
     expect(c.querySelector("[data-video-caption]")?.textContent).toBe("M10 in the event's recording, from 9:12:32");
     fireEvent.click(c.querySelector("[data-video-facade]")!);
     const src = new URL(c.querySelector("iframe")!.getAttribute("src")!);
     expect(src.origin + src.pathname).toBe("https://www.youtube-nocookie.com/embed/xnQFL9T27fY");
     expect(src.searchParams.get("start")).toBe("33152");
+  });
+
+  it("a match's own video shows its picture", () => {
+    const c = draw({ main: { videoId: "ruupjlPEQns", t: 0, kind: "match", match: "M10" } });
+    expect(c.querySelector("[data-answer-video] img")?.getAttribute("src")).toBe("https://i.ytimg.com/vi/ruupjlPEQns/hqdefault.jpg");
   });
 
   it("one player only: the other listed matches get play buttons that open the video dialog", () => {
