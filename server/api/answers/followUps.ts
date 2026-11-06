@@ -175,7 +175,12 @@ export function lineOf(a: SearchAnswer): Line | null {
     return first?.text ? { value: first.text, rest: first.detail ?? "", tone: { card: c.kind } } : null;
   }
   const u = a.understood;
-  if (u?.kind === "events" && u.total) return { value: `${u.total.toLocaleString("en-US")} event${u.total === 1 ? "" : "s"}`, rest: u.label, tone: { count: true } };
+  // As many events as its page lists (and its tabs count), never more than the page will show.
+  const listed = a.hits.filter((h) => h.kind === "event").length;
+  if (u?.kind === "events" && u.total && listed) {
+    const n = Math.min(u.total, listed);
+    return { value: `${n.toLocaleString("en-US")} event${n === 1 ? "" : "s"}`, rest: u.label, tone: { count: true } };
+  }
   return null;
 }
 

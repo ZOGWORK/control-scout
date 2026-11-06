@@ -11,7 +11,7 @@ import { parseQuery } from "../query/parse";
 import { parseContext } from "../query/context";
 import { failureOf, outcomeTrace } from "../../searchFailures";
 import { clearAllCaches } from "../../caches";
-import { answerKey, candidates, followUps, pageAnswer, previewOf, ASK_MAX, RELATED_MAX } from "./followUps";
+import { answerKey, candidates, followUps, lineOf, pageAnswer, previewOf, ASK_MAX, RELATED_MAX } from "./followUps";
 import type { SearchAnswer } from "../../../src/shared/api";
 
 const TEAMS = [4215, 6980, 7149] as const;
@@ -99,6 +99,13 @@ describe("people also ask", () => {
     const cs = candidates(await parseQuery(q, await parseContext()), await pageAnswer(q, 25, new Set()));
     expect(cs.map((x) => x.short)).toContain("best teleop opr in 2025-26");
     expect(cs.map((x) => x.q)).toContain("Who has the best TeleOp OPR in 2025-26?");
+  });
+
+  it("counts the events its page lists, never more", () => {
+    const events = (total: number, listed: number) => ({ q: "", hits: Array.from({ length: listed }, (_, i) => ({ kind: "event", ref: String(i), title: "" })), pages: [], understood: { kind: "events", label: "This week's events", total } }) as unknown as SearchAnswer;
+    expect(lineOf(events(86, 25))?.value).toBe("25 events");
+    expect(lineOf(events(9, 9))?.value).toBe("9 events");
+    expect(lineOf(events(4, 0))).toBeNull();
   });
 
   it("knows one board by its measure, place and season, whatever its title", () => {
