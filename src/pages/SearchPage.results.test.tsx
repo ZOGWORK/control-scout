@@ -299,6 +299,14 @@ describe("search results page", () => {
     expect(container.querySelectorAll("[data-example]")).toHaveLength(0);
     expect(container.textContent).not.toMatch(/Here's what we found/);
   });
+  it("a closest team that opens a season asked for shows that season's numbers, never another's", () => {
+    state.answer = answer([], { step: "recovery", recovery: { understood: ["4215"], closest: [{ ...team(4215, "Hypnotic Robotics", "Oradell, NJ"), linkSeason: 2023 }], browse: [] } });
+    paths.length = 0;
+    show("/search?q=hypnotic%20robots%202023-24%20trombone");
+    const asked = paths.filter((p) => p?.includes("/api/teams-summary"));
+    expect(asked.length).toBeGreaterThan(0);
+    expect(asked.every((p) => p!.includes("season=2023"))).toBe(true);
+  });
 
   it("shows the server's fallback under its own label, never as the answer", () => {
     state.answer = { ...answer([ev("USNJNEM6", "P2-8 Northeast League Meet", "2099-12-13")]), understood: { label: "League meets in New Jersey at River Dell High School", fallback: "No league meets at River Dell High School in New Jersey — showing all league meets in New Jersey instead" } } as SearchAnswer;

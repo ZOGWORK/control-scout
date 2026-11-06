@@ -89,7 +89,9 @@ export default function SearchPage() {
   // shows that season, like the page it opens. Otherwise: this season, and early in it (most teams have no numbers
   // yet) last season's, labelled with it. A team hit asking for yet another season gets no badges (never another's).
   const h2h = compares.find((c) => compareTeams(c).length >= 2);
-  const asked = (h2h ? compareSeason(h2h) : null) ?? hits.find((h) => h.kind === "team" && h.linkSeason != null)?.linkSeason ?? null;
+  // The closest results when nothing answers count too: a card opening a season shows that season's numbers.
+  const listed = useMemo(() => [...hits, ...closest], [hits, closest]);
+  const asked = (h2h ? compareSeason(h2h) : null) ?? listed.find((h) => h.kind === "team" && h.linkSeason != null)?.linkSeason ?? null;
   const base = asked ?? season;
   const sumPath = (s: number) => (teamNums.length ? `/api/teams-summary${qs({ season: s, teams: teamNums.join(",") })}` : null);
   const now = useApi<{ teams: TeamSummary[] }>(sumPath(base));
@@ -118,9 +120,9 @@ export default function SearchPage() {
   }, [hits, compares]);
   const summaries = useMemo(() => {
     const m = teamSeasons(now.data?.teams, asked == null ? before.data?.teams : undefined, base);
-    for (const h of hits) if (h.kind === "team" && h.linkSeason != null && h.linkSeason !== base) m.delete(Number(h.ref));
+    for (const h of listed) if (h.kind === "team" && h.linkSeason != null && h.linkSeason !== base) m.delete(Number(h.ref));
     return m;
-  }, [now.data, before.data, base, asked, hits]);
+  }, [now.data, before.data, base, asked, listed]);
   // One line for what the query was read as (the server's reading, else the top result's subject and what it opens on).
   // A comparison card names its teams in its own title: the heading keeps the numbers only, so each name shows once
   // (the search results guide).
