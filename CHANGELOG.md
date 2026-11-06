@@ -25,7 +25,7 @@ Long search questions answer faster: a word looked up once is remembered for the
 - [speed] Award-filtered team lists read each team's awards directly
 
 ### Search
-- **A word looked up once.** One answer asks for the same team or word many times (each reader and layer asks again), and a word that finds nothing used to scan every name each time. Search now remembers each lookup for a minute, until the search index is rebuilt. Of the 19 held-out questions that took over a second, 11 now take under one, and the slowest went from 6.8 s to 2.0 s, with every answer unchanged. (#PR)
+- **A word looked up once.** One answer asks for the same team or word many times (each reader and layer asks again), and a word that finds nothing used to scan every name each time. Search now remembers each lookup for a minute, until the search index is rebuilt. Of the 19 held-out questions that took over a second, 11 now take under one, and the slowest went from 6.8 s to 2.0 s, with every answer unchanged. (#779)
 - **Award lists by index.** A list of teams that won an award reads each team's own awards, never every award that season for each team.
 
 ## 3.3.5 — 2026-11-05
