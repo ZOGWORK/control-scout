@@ -18,7 +18,7 @@ import { RANKED_MIN_MATCHES, parsePlaces } from "../../src/shared/rankings.js";
 import { predictHref } from "../../src/shared/predictUrl.js";
 import { cleanTeamName } from "../../src/shared/teamTitle.js";
 import type { Region } from "../../src/shared/regions.js";
-import { possessive, seasonLabel } from "../../src/shared/format.js";
+import { dateRange, possessive, seasonLabel } from "../../src/shared/format.js";
 import { teamPageSql } from "../../src/shared/teamPages.js";
 import { CURRENT_SEASON, FIRST_PREDICT_SEASON, isLegacy } from "../data/seasons.js";
 import { all } from "../db.js";
@@ -29,6 +29,7 @@ import { fuzzyScore } from "./fuzzy.js";
 import { PHASE_COLS, tableOf } from "./teamTableRows.js";
 import { eventHit, localTodays } from "./searchEvents.js";
 import { namedTeam, versusAnswer } from "./searchCompare.js";
+import { eventChampions } from "./answers/families/winners.js";
 
 export type Stat = "opr" | "auto" | "teleop" | "endgame" | "wins";
 export type Ask =
@@ -51,6 +52,8 @@ const AWARDS: Record<string, string> = {
   connect: "Connect", control: "Control", motivate: "Motivate", compass: "Compass", judges: "JudgesChoice", "judges choice": "JudgesChoice",
   "deans list": "DeansList", "dean's list": "DeansList",
 };
+/** An award type's name in words, where FIRST's type isn't one ("JudgesChoice"). */
+const AWARD_NAME: Record<string, string> = { JudgesChoice: "Judges' Choice", DeansList: "Dean's List" };
 
 /** A region named by the words `s` (all of them), or null. */
 const regionWords = (s: string): Region | null => regionOf(s.trim().replace(/^(?:the )?(?:state of )?/i, "").split(/\s+/).filter(Boolean));
@@ -113,8 +116,9 @@ export function readAsk(q: string): Ask | null {
     if (Object.hasOwn(AWARDS, w)) return { kind: "award", award: AWARDS[w], event: m[2] };
   }
   // Who won an event ("who won nj states", "winners of the New Jersey Championship"): never "won" as a name word.
-  m = /^(?:who (?:won|was the winner of|were the winners of)|winners? of) (?:the )?(.+)$/.exec(t);
-  if (m && !Object.hasOwn(AWARDS, m[1].replace(/['’]/g, "").replace(/ award$/, ""))) return { kind: "event-won", event: m[1].split(" ").map((w) => cased.get(w) ?? w).join(" ") };
+  m = /^(?:who (?:won|took|was the winner of|were the winners of|were the champions of|was the champion of)|winners? of|champions? of) (?:the )?(.+)$/.exec(t);
+  // "Who took the most penalties" is a measure, never an event.
+  if (m && !/^(?:most|fewest|least|highest|lowest|best|worst|first|last|top|longest|biggest|more|fewer)\b/.test(m[1]) && !Object.hasOwn(AWARDS, m[1].replace(/['’]/g, "").replace(/ award$/, ""))) return { kind: "event-won", event: m[1].split(" ").map((w) => cased.get(w) ?? w).join(" ") };
   return null;
 }
 
@@ -313,16 +317,21 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
       const rows = await all<any>(
         "SELECT a.placement, a.team, a.name award, t.name FROM awards a LEFT JOIN teams t ON t.number = a.team WHERE a.season = ? AND a.code = ? AND a.type = ? ORDER BY a.placement, a.team",
         [season, code, ask.award]);
-      // An older season: that season's event, with its own dates and place.
+      // An older season: that season's event, with its own dates and place, and the newer one said when it's still to
+      // come or not posted ("The 2026–27 one (Nov 15, 2026) isn't held yet").
+      // Only a newer one with no such award recorded: an older year asked, whose newer one has its winner, says nothing.
+      const [newer] = await all<{ season: number; start: string | null; end: string | null }>("SELECT season, start, end FROM events e WHERE e.code = ? AND e.season > ? AND NOT EXISTS (SELECT 1 FROM awards a WHERE a.season = e.season AND a.code = e.code AND a.type = ?) ORDER BY e.season DESC LIMIT 1", [code, season, ask.award]);
+      const held = !!newer?.start && (newer.end ?? newer.start) < new Date().toISOString().slice(0, 10);
+      const upcoming = newer?.start ? ` · The ${seasonLabel(Number(newer.season))} one (${dateRange(newer.start, newer.end)}) ${held ? "has no award posted yet" : "isn't held yet"}` : "";
       if (season !== Number(found)) ev = (await search(code, 5, opts.prefer, new Set(["event"]), season)).find((h) => h.kind === "event" && h.ref === `${season}:${code}`)
         ?? { ...ev, ref: `${season}:${code}`, season, subtitle: seasonLabel(season) };
       const place = (p: number) => (p === 1 ? "Winner" : `${p}${p === 2 ? "nd" : p === 3 ? "rd" : "th"} place`);
       const lines = rows.map((r) => teamLine(Number(r.team), r.name, [place(Number(r.placement))], r.award ?? undefined));
-      const award = rows[0]?.award ?? `${ask.award} Award`;
+      const award = rows[0]?.award ?? `${AWARD_NAME[ask.award] ?? ask.award} Award`;
       return answer(q, {
         hits: [{ ...ev, section: "awards" }], pages: pagesFor(q),
         card: { kind: "event-awards", title: `${award} · ${ev.title} · ${seasonLabel(season)}`, lines, award: ask.award, ...(await eventAwards(season, code, ev.title)), ...(lines.length ? {} : { none: `No ${award} recorded at ${ev.title} in any season on record.` }) },
-        understood: { kind: "question", label: `Who won the ${award} at ${ev.title} (${seasonLabel(season)})`, season },
+        understood: { kind: "question", label: `Who won the ${award} at ${ev.title} (${seasonLabel(season)})${upcoming}`, season },
       });
     }
 
@@ -335,13 +344,24 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
         `SELECT a.type, a.placement, a.team, a.name award, t.name FROM awards a LEFT JOIN teams t ON t.number = a.team
          WHERE a.season = ? AND a.code = ? AND ((a.type = 'Winner' AND COALESCE(a.name, '') NOT LIKE '%Leadership%') OR (a.type = 'Inspire' AND a.placement = 1)) ORDER BY a.type = 'Inspire', substr(a.name, 1, instr(a.name, 'Winning')), a.placement, a.team`,
         [won.season, won.code]);
-      const lines = rows.map((r) => teamLine(Number(r.team), r.name, [String(r.award ?? (r.type === "Inspire" ? "Inspire Award" : "Winning Alliance")).replace(/<[^>]+>/g, "")]));
+      // The playoff champions first (the Playoffs tab's), by the winning-alliance rule: they're the answer even where
+      // FIRST posts no awards (a division's are on its championship).
+      const champions = await eventChampions(won.season, won.code);
+      const lines = rows.length ? rows.map((r) => teamLine(Number(r.team), r.name, [String(r.award ?? (r.type === "Inspire" ? "Inspire Award" : "Winning Alliance")).replace(/<[^>]+>/g, "")]))
+        : champions.flatMap((c) => c.teams.map((t) => ({ text: t.label, href: t.href, results: [c.label] })));
       // The event row as event sets show it (its dates, place and status).
-      const [row] = await all<any>("SELECT season, code, name, type, venue, city, state, country, start, end, timezone FROM events WHERE season = ? AND code = ?", [won.season, won.code]);
+      const [row] = await all<any>("SELECT season, code, name, type, division_code, venue, city, state, country, start, end, timezone FROM events WHERE season = ? AND code = ?", [won.season, won.code]);
       const ev = eventHit(row);
+      // The event's awards, else (a division) its championship's, where FIRST posts them.
+      let awards = await eventAwards(won.season, won.code, won.name);
+      if (!awards.awards?.length && row?.division_code) {
+        const [parent] = await all<{ name: string }>("SELECT name FROM events WHERE season = ? AND code = ?", [won.season, row.division_code]);
+        if (parent) awards = await eventAwards(won.season, row.division_code, parent.name);
+      }
+      const none = !lines.length && !champions.length && !awards.awards?.length;
       return answer(q, {
         hits: [{ ...ev, section: "playoffs" }], pages: pagesFor(q),
-        card: { kind: "event-awards", title: `Who won · ${won.name} · ${seasonLabel(won.season)}`, lines, ...(await eventAwards(won.season, won.code, won.name)), ...(lines.length ? {} : { none: `No results are recorded for ${won.name} (${seasonLabel(won.season)}) yet.` }) },
+        card: { kind: "event-awards", title: `Who won · ${won.name} · ${seasonLabel(won.season)}`, lines, ...awards, ...(champions.length ? { champions } : {}), ...(none ? { none: `No results are recorded for ${won.name} (${seasonLabel(won.season)}) yet.` } : {}) },
         understood: { kind: "question", label: `Who won ${won.name} (${seasonLabel(won.season)}): the winning alliance and the Inspire Award`, season: won.season },
       });
     }

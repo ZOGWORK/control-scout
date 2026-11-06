@@ -15,6 +15,24 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.6.9 — 2026-11-06
+
+"Who won <event>" leads with the playoff champions, for a division too, where FIRST posts no awards of its own.
+
+### Highlights
+- [fixes] "Who won" a division shows its playoff champions, never "no results"
+- [teams] The champions are team chips in the colour they played the final in
+- [fixes] "This year" before the event is held shows last season's, said so
+- [fixes] "<Event> inspire award winner", in any word order, names the winner
+
+### Search
+- **Who won an event.** "Who won", "winner of", "champions of" and "who took" an event lead with its playoff champions, the alliance that won its final, as team chips in the colour they played it in, the same champions as its Playoffs tab. A division's awards are posted on its championship, so its answer lists the championship's awards below; "no results yet" is said only when there's neither a playoff result nor an award.
+- **A championship and its divisions.** A championship's answer leads with its finals' champions, then each division's winners and its Inspire Award.
+- **"This year" before it's held.** "Who won <event> this year" before this season's event is decided (or set up) says so, then shows its latest finished season's winners, labelled.
+- **An event's award, asked any way round.** "East Bergen conference inspire award winner", "inspire winner at …", "who got inspire at …" and "<event> inspire" all name the award's winner, for every judged award, Judges' Choice and Dean's List. A recurring event shows its latest one with the award given, its season said, and a newer one not held yet said too.
+- **Suggestions that answer.** "Sorry, I can't answer that yet" offers a search only after running it and finding an answer.
+- **No empty space on phones.** The space under "How FTC One Search works" on a results page is kept only while the Compare bar is up. (#928)
+
 ## 3.6.8 — 2026-11-06
 
 The Playoffs tab draws a double-elimination bracket as a real bracket: upper and lower lanes, rounds left to right, lines to each winner's next match, the finals on the right.
