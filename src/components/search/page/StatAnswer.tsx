@@ -91,7 +91,7 @@ function Headline({ h, hue }: { h: NonNullable<StatAnswer["headline"]>; hue?: bo
   const sub = h.sub && season != null ? h.sub.split(" · ").filter((x) => x !== seasonLabel(season)).join(" · ") : h.sub;
   const body = (
     <>
-      <p className={cn("break-words font-display text-4xl font-semibold leading-tight tabular-nums group-hover:text-accent-text", hue ? TEAM_TEXT : "text-foreground")}><HeadlineValue value={h.value} /></p>
+      <p className={cn("break-words font-display text-4xl font-semibold leading-tight tabular-nums group-hover:text-accent-text", hue ? TEAM_TEXT : "text-foreground")}><HeadlineValue value={h.value} win={hue ? TEAM_TEXT : undefined} /></p>
       <p className="mt-1 text-sm text-foreground"><RichText text={h.label} /></p>
       {sub && <p className="mt-0.5 text-xs text-muted-foreground"><RichText text={sub} /></p>}
       {ev && (h.type || season != null) && (
