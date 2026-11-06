@@ -16,6 +16,7 @@ import { cn } from "../../cn";
 import { RecordText, better } from "./answerCells";
 import { compareSides, compareTeams, eventFacts, teamParts } from "./results";
 import { eventName } from "./records";
+import { familyHref, familyMembers, type EventFamily } from "./eventFamilies";
 
 /** "View event →": where the card goes, as part of the card's own link. */
 function Cta({ children }: { children: string }) {
@@ -55,12 +56,13 @@ function quickLinks(h: SearchHit, status: string): { label: string; tab: string 
 /** An event as a block: status, type and teams up top, a short title (a division's own name, its championship as a
  *  badge), date and place, then its own pages. The title's link covers the whole card (one link, no nesting); the
  *  quick links sit above it. Events that share a name across seasons are one card with a tab per season. */
-export function EventCard({ h, onOpen, seasons }: { h: SearchHit; onOpen: (h: SearchHit) => void; seasons?: SearchHit[] }) {
+export function EventCard({ h, onOpen, seasons, name }: { h: SearchHit; onOpen: (h: SearchHit) => void; seasons?: SearchHit[]; name?: string }) {
   const [pick, setPick] = useState(h.ref);
   const cur = seasons?.find((x) => x.ref === pick) ?? h;
   const e = eventFacts(cur);
   const tone = EVENT_TYPE_TONE[e.type ?? ""];
-  const { title, badges } = eventName(cur.title);
+  const own = eventName(cur.title);
+  const title = name ?? own.title, badges = own.badges;
   const [s, c] = cur.ref.split(":");
   return (
     <div data-result="event" className="lift group relative flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card p-4 pl-5 max-sm:py-3">
@@ -95,6 +97,32 @@ export function EventCard({ h, onOpen, seasons }: { h: SearchHit; onOpen: (h: Se
         <Link to={hitHref(cur)} onClick={() => onOpen(cur)} tabIndex={-1} aria-hidden className="ml-auto max-sm:hidden"><Cta>View event</Cta></Link>
       </nav>
     </div>
+  );
+}
+
+/** An event split in divisions, in one season (./eventFamilies.ts): the event once (status, how many divisions, its
+ *  name, season, dates, place and venue), its name a link to the Events list on that season and event, then a card
+ *  per division and one for its finals. Spans the whole events grid. */
+export function EventFamilyCard({ f, onOpen }: { f: EventFamily; onOpen: (h: SearchHit) => void }) {
+  const e = eventFacts(f.finals ?? f.divisions[0]);
+  const n = f.divisions.length;
+  return (
+    <section aria-label={`${f.name}, ${seasonLabel(f.season)}`} data-event-family={f.key} className="rounded-xl border border-border bg-card p-4 sm:col-span-full">
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        {e.status === "started"
+          ? <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-foreground/80" data-event-chip="status">Started</span>
+          : <EventStatusChip status={e.status} className="px-2 py-0.5" />}
+        <span className="text-muted-foreground" data-family-count>{n} {n === 1 ? "division" : "divisions"}</span>
+      </div>
+      <Link to={familyHref(f)} className="mt-2 block font-medium leading-snug text-foreground hover:underline max-md:min-h-[44px] max-md:content-center" data-family-link>{f.name}</Link>
+      <p className="mt-1 text-sm text-muted-foreground">
+        {seasonLabel(f.season)} season · {e.start ? `held ${dateRange(e.start, e.end)}` : "date to be announced"}{e.place ? ` · ${e.place}` : ""}
+      </p>
+      {e.venue && <p className="mt-0.5 flex items-start gap-1.5 text-xs text-muted-foreground"><MapPin className="mt-px size-3.5 shrink-0" aria-hidden /><span className="min-w-0 break-words">{e.venue}</span></p>}
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3" data-family-members>
+        {familyMembers(f).map((m) => <EventCard key={m.hit.ref} h={m.hit} name={m.label} onOpen={onOpen} />)}
+      </div>
+    </section>
   );
 }
 

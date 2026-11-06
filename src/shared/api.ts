@@ -57,6 +57,9 @@ export interface SearchHit {
   compare?: SearchCompare;
   /** An event's dates, type, venue and status (from its stored dates, as on the Events list): event hits only. */
   event?: SearchEventInfo;
+  /** A division's event: the code of the event it is a division of, in the same season (events.division_code). The
+   *  page lists an event's divisions under it (src/shared/search.ts familyKey). Absent for any other hit. */
+  parent?: string;
   /** How the hit matched: "exact" (every word typed names it) or "fuzzy" (a typo, a part of a word, or only its
    *  school, city or venue matched). Fuzzy hits come after exact ones and are listed apart ("Other teams matching …"). */
   match?: "exact" | "fuzzy";
@@ -110,7 +113,11 @@ export interface SearchUnderstood {
   season?: number;
   /** Events: FIRST types the event words mean ("meets" → LeagueMeet); none for "events". */
   eventTypes?: string[];
-  /** Events: how many matched in all (the hits are capped at the page's limit). */
+  /** Events: the label in parts, so a page narrowing the set says what's left ("FIRST Championship (Worlds) events" +
+   *  ", 2024–25"): `subject` without the time asked for or the span, `span` the label's own (eventSetSpan). */
+  scope?: { subject: string; span: string };
+  /** Events: how many matched in all (the hits are capped at the page's limit, a whole event with its divisions at a
+   *  time). */
   total?: number;
   /** The hits are a labelled fallback, not the answer: "No league meets at X in New Jersey — showing all league meets
    *  in New Jersey instead". Show it above the list. */

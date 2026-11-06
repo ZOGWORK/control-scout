@@ -37,6 +37,7 @@ import type { SearchCardLine, TrackRecord } from "../src/shared/api.js";
 import { ensureSearchIndex } from "./api/search.js";
 import { searchAnswer } from "./api/searchAnswer.js";
 import { withTeamStats } from "./api/searchTeamStats.js";
+import { withEventParents } from "./api/searchEvents.js";
 import { recordIntent } from "./api/searchIntents.js";
 import { answerSections } from "../src/shared/searchSections.js";
 import { rebuildSearch } from "./stats/job.js";
@@ -592,7 +593,7 @@ async function searchMeta(raw: string): Promise<PageMeta> {
   await ensureSearchIndex(rebuildSearch);
   const found = await searchAnswer(q, { limit: SEARCH_PAGE_LIMIT });
   // As /api/search sends it: team rows with their season numbers, so the app starts from the same answer.
-  const answer = { ...found, hits: await withTeamStats(found.hits) };
+  const answer = { ...found, hits: await withTeamStats(await withEventParents(found.hits)) };
   // A visit here is a whole query (the address bar's, or a shared link): its intent counts, never as it's typed.
   await recordIntent(answer.intent).catch(() => {});
   const { sections, notes } = answerSections(answer);
