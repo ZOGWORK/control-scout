@@ -96,6 +96,15 @@ const CARDS: Record<string, () => HTMLElement> = {
     headline: { value: "290 points", label: "Best score: Q10 at NJ Championship", sub: "300 with penalties · Red won 300–200", href: match(0).href, type: "Championship", teams: [T(4215, "Hypnotic Robotics")], alliance: "red" },
     blocks: [{ kind: "matches", title: "3 standout matches", rows: [{ ...match(0, { rank: undefined }), note: "Best score" }, { ...match(1, { rank: undefined, alliance: "blue" }), note: "Biggest margin" },
       { ...match(2, { rank: undefined, label: "F1" }), note: "Latest playoff match" }] }] }),
+  "video page (every match, a stream, the filter)": () => draw(<AnswerVideoProvider video={{ rows: {
+      "/events/2025/FTCCMP1JACK?match=qual:0:1": { videoId: "abcdefghijk", t: 0, kind: "match", match: "Q1" },
+      "/events/2025/FTCCMP1JACK?match=playoff:1:1": { videoId: "xnQFL9T27fY", t: 900, kind: "recording", match: "M1" },
+      "/events/2025/FTCCMP1JACK": { videoId: "xnQFL9T27fY", t: 0, kind: "stream" } } } satisfies SearchVideo}>
+    <StatAnswerCard stat={{ ...base, family: "superlative", intent: "scope-highlights", title: "Match videos at Worlds · Jackson Division, 2025–26", scope: ["2025–26"],
+      headline: { value: "290 points", label: "Latest playoff match: M1 at Worlds · Jackson Division", href: "/events/2025/FTCCMP1JACK?match=playoff:1:1" },
+      blocks: [{ kind: "videos", title: "Every match", streams: [{ label: "Worlds · Jackson Division", href: "/events/2025/FTCCMP1JACK" }],
+        tiles: [{ label: "Q1", href: "/events/2025/FTCCMP1JACK?match=qual:0:1", level: "qual", red: [4215, 6980], blue: [7149, 23268], redScore: 300, blueScore: 200, date: "2026-04-30" },
+          { label: "M1", href: "/events/2025/FTCCMP1JACK?match=playoff:1:1", level: "playoff", red: [4215, 6980], blue: [7149, 23268], redScore: 250, blueScore: 260, date: "2026-05-01" }] }] }} /></AnswerVideoProvider>),
   "event awards": () => draw(<EventAwardsAnswer card={{ kind: "event-awards", title: "Inspire Award · NJ Championship · 2025–26", lines: [], award: "Inspire", event: { season: 2025, code: "USNJCMP", name: "NJ Championship" },
     awards: [{ type: "Inspire", placement: 1, team: 30439, teamName: "Cool Name", name: "Inspire Award" }, { type: "Inspire", placement: 2, team: 207, teamName: "Critical Mass", name: "Inspire Award 2nd Place" },
       { type: "Inspire", placement: 3, team: 13617, teamName: "Bectobots", name: "Inspire Award 3rd Place" }, { type: "Think", placement: 1, team: 6980, teamName: "Bad Wolf", name: "Think Award" }] } satisfies SearchCard} />),
@@ -114,7 +123,7 @@ const NAMES: Record<keyof typeof CARDS, string[]> = {
   leaderboard: ["Ultraviolet", "ENFORCERS"],
   "team record": [], "stat tiles, OPR by phase": [], "event result (table)": [], "over time (series)": [], bars: [], "prediction at an event (#752)": [],
   "relaxed window chip (#749)": [], "match video (AnswerVideo)": [], "no season said, the one before shown (relax note)": [],
-  "team highlights (labelled match boxes)": [], "scope highlights (labelled match boxes, no team)": [],
+  "team highlights (labelled match boxes)": [], "scope highlights (labelled match boxes, no team)": [], "video page (every match, a stream, the filter)": [],
   "event awards": ["Cool Name", "Critical Mass", "Bectobots", "Bad Wolf"],
   "team facts": ["Hypnotic Robotics"],
   "Worlds trips": ["Hypnotic Robotics"],
@@ -141,14 +150,18 @@ describe("the audit catches what it's for", () => {
     expect(bad(`<div data-bar data-value="0" data-scale="100" class="bg-team-a" style="width:100%"></div>`)).toEqual(["bar for 0 drawn 100%"]);
     expect(bad(`<div data-bar data-value="" data-scale="100" class="bg-team-a" style="width:40%"></div>`)).toEqual([expect.stringContaining("bar without value/scale")]);
   });
-  it("a hue on data, gold on data, more than 3 hues", () => {
+  it("a hue off the palette, gold on data, two meanings in one hue, a grey data visual", () => {
     expect(bad(`<span class="text-sky-600">Auto</span>`)).toEqual(expect.arrayContaining([expect.stringContaining("hue on data: text-sky-600")]));
     expect(bad(`<b class="text-accent-text">1st</b>`)).toEqual(expect.arrayContaining([expect.stringContaining("gold on data")]));
     expect(bad(`<a data-primary-cta class="bg-accent text-accent-ink">Open in Predict</a>`)).toEqual([]);
     // Only the marked primary action and the video's own controls take those colours, not any button or link.
     expect(bad(`<button class="bg-accent text-accent-ink">Open</button>`)).toEqual(expect.arrayContaining([expect.stringContaining("gold on data: bg-accent")]));
     expect(bad(`<a href="/teams/1" class="text-video">1</a>`)).toEqual(expect.arrayContaining([expect.stringContaining("hue on data: text-video")]));
-    expect(bad(`<i class="bg-team-a"></i><i class="bg-team-b"></i><i class="bg-team-c"></i><i class="bg-red-alliance"></i>`)).toEqual(["4 hues: team-a, team-b, team-c, red-alliance"]);
+    // Search's palette is data's colour: an award, a phase, a status in its own family; the teams and alliances in theirs.
+    expect(bad(`<i class="bg-team-a"></i><i class="bg-team-b"></i><i class="bg-team-c"></i><i class="bg-red-alliance"></i><b class="bg-fuchsia-700 text-white">Inspire</b>`)).toEqual([]);
+    expect(bad(`<i class="bg-team-b"></i><b class="bg-orange-700 text-white">Winning Alliance</b>`)).toEqual(["two meanings in one hue: team-b and orange"]);
+    expect(bad(`<div data-kpi><b class="text-foreground">142.5</b></div>`)).toEqual(['grey data visual: div "142.5"']);
+    expect(bad(`<div data-kpi class="border-l-team-a"><b class="text-team-a">142.5</b></div>`)).toEqual([]);
     const one = document.createElement("div"); one.innerHTML = `<b class="text-team-a">142.5</b><i class="bg-team-b"></i>`;
     expect(auditAnswer(one, { one: true })).toEqual(["one team's card in team-b"]);
   });

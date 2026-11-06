@@ -406,6 +406,22 @@ export async function stripFiller(q: string): Promise<{ q: string; dropped: stri
 // What an answer is, for the layers and for reporting.
 
 export const FALLBACK_NOTE = "isn't answered directly yet";
+
+/** The one team a search is for, when the query was read as that team alone ("4215", "gearview", "4215 2024-25"):
+ *  the results page then answers with its highlights (server/app.ts). Never a topic about the team (a section, facts,
+ *  an event pick), a question search couldn't answer, nor one a layer read as the team and more ("how many teams
+ *  named gearview", read as "9848 how many"): the words left besides its number, its name and a season ask something else. */
+export function loneTeamHit(ans: SearchAnswer): SearchAnswer["hits"][number] | undefined {
+  const one = ans.hits.filter((x) => x.kind === "team");
+  if (ans.understood?.kind !== "team" || ans.understood.label.includes(FALLBACK_NOTE) || ans.suggest?.length || ans.stat || ans.card || one.length !== 1) return undefined;
+  const t = one[0];
+  if (t.section || t.href || t.atEvent || t.facts?.length || t.events?.length) return undefined;
+  // Its number, its name's words (a filler word dropped: "bad wolf rn" read as "bad wolf"), "team" and a season are it.
+  const name = new Set(t.title.replace(/^\d+\s*\|\s*/, "").toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
+  const more = (ans.understood.showing ?? "").toLowerCase().split(/\s+/)
+    .filter((w) => w && w !== t.ref && w !== "team" && !name.has(w) && !/^\d{4}(?:[-–]\d{2,4})?$/.test(w));
+  return more.length ? undefined : t;
+}
 /** The key failures aggregate under: Layer 0, lowercased, spaces folded, FILLER taken out (never inside a team's full
  *  name). Every other character stays, so a reporter's placeholders ("[email]") come through as they went in. */
 export async function searchKey(q: string): Promise<string> {
