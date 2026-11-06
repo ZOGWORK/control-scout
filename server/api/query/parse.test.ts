@@ -22,6 +22,8 @@ const TEAMS = [
   { number: 30007, name: "Lanternfih", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
   { number: 30008, name: "s", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
   { number: 30009, name: "Mitspe Yam/מצפה ים", city: "Town", state: null, country: "Israel", lastPlayed: 2026 },
+  { number: 30010, name: "Powerplay Pioneers", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
+  { number: 30011, name: "March Madness", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
 ];
 const EVENTS = ["east bergen conference", "new jersey championship", "nj championship", "turnpike division"];
 const ctx: ParseContext = {
@@ -162,6 +164,32 @@ describe("time", () => {
     expect(t("last season")).toMatchObject({ kind: "season", relative: "last" });
     expect(t("of all time")).toMatchObject({ kind: "ever" });
   });
+  it("takes \"this season\" in with a season said outright, wherever it stands", () => {
+    expect(readTime("biggest upset in nj this season in 2025-26", "2026-11-04")).toEqual({ time: expect.objectContaining({ kind: "season", season: 2025 }), rest: "biggest upset in nj" });
+    // A bare year beside it is the season named too, whichever comes first.
+    expect(readTime("4215 record this season in 2025", "2026-11-04")).toEqual({ time: expect.objectContaining({ kind: "season", season: 2025, year: 2025 }), rest: "4215 record" });
+    expect(readTime("4215 record in 2025 this season", "2026-11-04")).toEqual({ time: expect.objectContaining({ kind: "season", season: 2025, year: 2025 }), rest: "4215 record" });
+    // A year the parser keeps for a team is left alone: "this season" stands.
+    expect(readTime("2025 record this season", "2026-11-04", () => false)).toEqual({ time: expect.objectContaining({ kind: "season", relative: "this" }), rest: "2025 record" });
+  });
+  it("a team numbered like a year beside \"this season\" stays the team", async () => {
+    for (const q of ["this season 2024 record", "2024 record this season", "2024 this season record"]) {
+      expect(await parse(q), q).toMatchObject({ teams: [{ number: 2024 }], time: { relative: "this" }, complete: true });
+    }
+    // With another team named, or a number no team has, the bare year is the season.
+    expect(await parse("4215 record this season 2025")).toMatchObject({ teams: [{ number: 4215 }], time: { season: 2025, year: 2025 }, complete: true });
+    expect(await parse("4215 record this season 2026")).toMatchObject({ teams: [{ number: 4215 }], time: { season: 2026 } });
+    expect(await parse("2024 record this season 2025")).toMatchObject({ teams: [{ number: 2024 }], time: { season: 2025 } });
+    // Joined to another team by "vs" or "and", it's one of the teams compared.
+    for (const q of ["2024 vs 4215 opr this season", "4215 vs 2024 opr", "2024 and 4215 opr this season"]) {
+      expect((await parse(q)).teams.map((t) => t.number).sort(), q).toEqual([2024, 4215]);
+    }
+    expect(await parse("2024 vs 4215 opr in 2025")).toMatchObject({ time: { season: 2025 } });
+    expect(readTime("this season 12345 opr in 2025-26", "2026-11-04")).toMatchObject({ time: { season: 2025 }, rest: "12345 opr" });
+    expect(readTime("12345 opr this season", "2026-11-04").time).toMatchObject({ relative: "this" });
+    // "Last season" beside a season named is a second season (a comparison): left for the parse to leave unread.
+    expect(readTime("12345 record in 2025-26 vs last season", "2026-11-04").rest).toContain("last season");
+  });
   it("names the season a date is in", () => {
     expect(seasonOfDate("2026-09-01")).toBe(2026);
     expect(seasonOfDate("2026-08-31")).toBe(2025);
@@ -216,5 +244,36 @@ describe("shared names in any order", () => {
       const p = await parseQuery(q, { ...ctx, names });
       expect(p.teams.map((t) => t.number).sort(), q).toEqual([30001, 30003]);
     }
+  });
+});
+
+describe("a name said as words", () => {
+  it("is the words after 'named' or 'called', however the question's asked, never the team that has the name", async () => {
+    for (const q of ["how many teams named ultraviolet", "how many teams are called Ultraviolet?", "number of teams named ultraviolet", "teams named ultraviolet",
+      "how many teams have the name ultraviolet", "how many teams named ultraviolet are there please"]) {
+      expect(await parse(q), q).toMatchObject({ intent: "teams-named", named: { words: "ultraviolet" }, teams: [], complete: true });
+    }
+    expect(await parse("how many teams are called hypnotic robotics")).toMatchObject({ intent: "teams-named", named: { words: "hypnotic robotics" }, teams: [] });
+  });
+  it("ends where a place or a season starts", async () => {
+    expect(await parse("teams named bad wolf from NJ in 2025-26")).toMatchObject({ named: { words: "bad wolf" }, place: { state: "NJ" }, time: { season: 2025 }, complete: true });
+    expect(await parse("teams named ultraviolet last season")).toMatchObject({ named: { words: "ultraviolet" }, time: { relative: "last" }, complete: true });
+  });
+  it("a stored name keeps its time words; the closing filler is left off, a phrase of it too", async () => {
+    // A game's or a month's word inside a stored name is the name, never a time.
+    expect(await parse("how many teams named powerplay pioneers")).toMatchObject({ named: { words: "powerplay pioneers" }, time: null });
+    expect(await parse("teams called march madness in 2025-26")).toMatchObject({ named: { words: "march madness" }, time: { season: 2025 } });
+    for (const q of ["teams named ultraviolet thank you", "how many teams named ultraviolet are there thank you"]) {
+      expect(await parse(q), q).toMatchObject({ named: { words: "ultraviolet" }, complete: true });
+    }
+    expect((await parse("teams named nobody here thank you")).named?.words).toBe("nobody");
+  });
+  it("with nothing after it, is no name: the question stays the readers' it was", async () => {
+    expect(await parse("what is 4215 called")).toMatchObject({ teams: [{ number: 4215 }], complete: false });
+    expect((await parse("what is 4215 called")).named).toBeUndefined();
+  });
+  it("a count of teams in a place is its own intent; a name alone is still a team", async () => {
+    expect(await parse("how many teams from Oradell")).toMatchObject({ intent: "count-teams", place: { kind: "city" }, complete: true });
+    expect(await parse("ultraviolet")).toMatchObject({ intent: null, complete: false });
   });
 });
