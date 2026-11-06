@@ -20,7 +20,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 Search lists events by status, then by date: what's live now first, then what's coming day by day, then what's over.
 
 ### Highlights
-- [fixes] Live events get their own section at the top, a solid rose header
+- [fixes] Live events first, under a solid rose header
 - [fixes] Upcoming events, cyan, grouped by day this week, then by week
 - [fixes] Finished events come last, newest first, under a lime header
 - [fixes] Every heading and tab counts the events under it
