@@ -75,7 +75,7 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
           <thead className="bg-muted/50 text-left text-[11px] text-muted-foreground">
             <tr>
               <th scope="col" aria-sort={sort.key === "rank" ? "ascending" : "none"} className={cn(th, "w-8 text-right")}>
-                <button type="button" onClick={() => setSort({ key: "rank", dir: "asc" })} title="The list's own order" data-sort="rank" className={cn("rounded hover:text-foreground max-md:min-h-[44px] max-md:min-w-6 pointer-coarse:min-h-[44px]", sort.key === "rank" && "text-foreground")}>#</button>
+                <button type="button" onClick={() => setSort({ key: "rank", dir: "asc" })} title="The list's own order" data-sort="rank" className={cn("rounded hover:text-foreground max-md:min-h-[44px] max-md:min-w-[24px] pointer-coarse:min-h-[44px]", sort.key === "rank" && "text-foreground")}>#</button>
               </th>
               <th scope="col" className={th}>Team</th>
               {table.asked && sortTh("asked", table.asked.label, "max-md:whitespace-normal max-md:leading-tight", table.asked.label)}

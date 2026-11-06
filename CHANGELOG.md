@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.3.4 — 2026-11-05
+
+Every kind of search answer is checked on a 390 px phone: nothing runs off the screen, and every link and button is big enough to tap.
+
+### Highlights
+- [appearance] Match names in search answers are easier to tap on a phone
+- [appearance] A line chart's points are bigger tap targets
+- [appearance] Video buttons and the search list are full 44 px taps on phones
+
+### Search
+- **Checked at 390 px.** A new check (`npm run phone-proof`) opens one search for every kind of answer card on a 390 × 844 phone and fails on sideways scrolling, anything past the screen's edge, a link or button under 24 × 24 px, two that overlap, a team number cut off, or more than one main button; it saves a phone shot of each.
+- **Bigger taps.** A match's name in a match box ("Q1", "M2") is at least 44 px wide on a phone; a line chart's points are 24 px; the leaderboard's "#" sort is 24 px wide; and the video's "Open on YouTube", each match's play button and the search list's rows are 44 px on a phone (they were 44 px only where the text size is 16 px) (#PRNUM).
+
 ## 3.3.3 — 2026-11-05
 
 Search answers sit in one readable column, the page footer stays at the bottom of the screen, and each page has one main button.
