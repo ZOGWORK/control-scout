@@ -25,7 +25,7 @@ A team's wins and losses by event, side by side.
 - [fixes] "Wins vs losses" is a team's record, never a match against another team
 
 ### Search
-- **Wins and losses by event.** "12345 wins vs losses by event in 2025-26", "12345 record by event", "wins and losses per event" answer with the team's record card and a bar pair for each event (wins and losses, ties when there are any), oldest first, with no hue: on a search card colour belongs to teams. "Wins vs losses" said without an event split is the record alone. Before, "vs" there was read as a second team. (#000)
+- **Wins and losses by event.** "12345 wins vs losses by event in 2025-26", "12345 record by event", "wins and losses per event" answer with the team's record card and a bar pair for each event (wins and losses, ties when there are any), oldest first, with no hue: on a search card colour belongs to teams. "Wins vs losses" said without an event split is the record alone. Before, "vs" there was read as a second team. (#850)
 
 ## 3.4.5 — 2026-11-06
 
