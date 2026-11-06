@@ -39,6 +39,7 @@ beforeAll(async () => {
   await ev(2025, "FTCCMP1", CMP, "FIRSTChampionship", "2026-04-29", "TX");
   await ev(2025, "FTCCMP1JACK", `${CMP} - Jackson Division`, "FIRSTChampionship", "2026-04-27", "TX", "FTCCMP1");
   await ev(2025, "USNJQ1", "Garden Qualifier", "Qualifier", "2026-01-10", "NJ");
+  await ev(2025, "USTXQ1", "Lone Star Qualifier", "Qualifier", "2026-02-07", "TX");
   let n = 0;
   const match = async (season: number, code: string, level: "qual" | "playoff", series: number, label: string, day: string, red: [number, number, number], blue: [number, number, number], reds: number[], blues: number[], video: string | null = null) => {
     n++;
@@ -64,6 +65,12 @@ beforeAll(async () => {
   // New Jersey 2025–26.
   await match(2025, "USNJQ1", "qual", 0, "Q1", "2026-01-10", [180, 175, 30], [120, 120, 25], [4215], [6980]);
   await match(2025, "USNJQ1", "qual", 0, "Q2", "2026-01-10", [130, 130, 35], [129, 125, 20], [6980], [4215]);
+  // Texas 2025–26: a double-elimination bracket numbered from 0, its opening match series 0, the final series 5.
+  // Its qualifications take the best score and the biggest margin, so the latest playoff match is the bracket's to say.
+  await match(2025, "USTXQ1", "qual", 0, "Q1", "2026-02-07", [200, 200, 50], [150, 150, 5], [7149], [23268]);
+  await match(2025, "USTXQ1", "qual", 0, "Q2", "2026-02-07", [100, 100, 10], [20, 20, 5], [7149], [23268]);
+  await match(2025, "USTXQ1", "playoff", 0, "M1", "2026-02-07", [90, 90, 10], [80, 80, 10], [7149], [23268]);
+  await match(2025, "USTXQ1", "playoff", 5, "M6", "2026-02-07", [95, 95, 10], [70, 70, 10], [7149], [23268]);
   await rebuildSearch();
   clearAllCaches();
 });
@@ -137,6 +144,21 @@ describe("highlights over a scope", () => {
     }
   });
 
+  it("a calendar year with Worlds is the Worlds held that year", async () => {
+    const s = await stat("worlds highlights 2025");
+    expect(s.title).toBe("Highlights at Worlds, 2024–25");
+    expect(s.scope.some((c) => /^No /.test(c))).toBe(false);
+  });
+
+  it("a count asked for: at most that many", async () => {
+    expect(rows(await stat("top 2 highlights at worlds")).map((r) => r.note)).toEqual(["Best score", "Biggest margin"]);
+  });
+
+  it("a double-elimination bracket numbered from 0: its last match is the latest, never the opening one", async () => {
+    const s = await stat("texas highlights");
+    expect(rows(s).find((r) => r.note === "Latest playoff match")?.label).toBe("M6");
+  });
+
   it("a match's number is that match, never the highlights", async () => {
     expect((await ask("jackson division q16 video")).stat?.intent).not.toBe("scope-highlights");
   });
@@ -166,6 +188,14 @@ describe("a team's highlights", () => {
       expect(rows(s).every((r) => /^FTCCMP1/.test(codeOf(r))), q).toBe(true);
       expect(rows(s).length, q).toBeLessThanOrEqual(3);
     }
+  });
+
+  it("at a state championship in a place, or at the Worlds held in a year", async () => {
+    const s = await stat("4215 highlights at nj states");
+    expect(s.intent).toBe("team-highlights");
+    expect(s.title).toBe("Highlights at New Jersey Championship - Parkway Division, 2024–25");
+    expect((await stat("4215 highlights at worlds 2025")).title).toBe("Highlights at Worlds · Ross Division, 2024–25");
+    expect(rows(await stat("top 2 4215 highlights at worlds"))).toHaveLength(2);
   });
 
   it("a team that didn't play the event named: said so, with its own events, never another team's matches", async () => {

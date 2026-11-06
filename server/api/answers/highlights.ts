@@ -34,9 +34,9 @@ function best(xs: TeamMatch[], by: (m: TeamMatch) => number): TeamMatch | undefi
 }
 
 /** The highlights answer for `asked` (a season the search named) or else the team's latest season with matches, at
- *  `at` when an event is named; null when it has no played match in that season, or (an event named) the card saying
+ *  `at` when an event is named, at most `n` of them when a count is asked; null when it has no played match in that season, or (an event named) the card saying
  *  it has none there, with its events. */
-export async function teamHighlights(team: { number: number; name: string | null }, asked?: number, at?: TeamHighlightScope): Promise<StatAnswer | null> {
+export async function teamHighlights(team: { number: number; name: string | null }, asked?: number, at?: TeamHighlightScope, n?: number): Promise<StatAnswer | null> {
   const all = (await teamMatches(team.number)).filter((m) => m.onField && (asked == null || m.season === asked) && (!at || at.has(m)));
   if (!all.length) return at ? notThere(team, asked, at) : null;
   const season = Math.max(...all.map((m) => m.season));
@@ -47,6 +47,8 @@ export async function teamHighlights(team: { number: number; name: string | null
     const m = r.pick(xs);
     if (m && !seen.has(key(m))) { seen.add(key(m)); picks.push({ m, note: r.note }); }
   }
+  // A count asked for ("top 3 highlights"): at most that many.
+  if (n != null) picks.splice(n);
   const links = await teamLinks(picks.flatMap(({ m }) => [...m.partners, ...m.opponents]));
   const rows: StatMatchRow[] = picks.map(({ m, note }) => ({ ...matchRow(m, links, team.number), note }));
   const top = picks[0].m;

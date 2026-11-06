@@ -12,8 +12,9 @@ import { registerCache } from "../../caches.js";
 import { search } from "../search.js";
 import { eventFit } from "../answers/index.js";
 import { shortEvent, teamLinks } from "../answers/matchSet.js";
-import { COLS, allianceRow, type Row } from "../answers/families/topMatches.js";
+import { COLS, allianceRow, lineups, type Row } from "../answers/families/topMatches.js";
 import { OFFICIAL_TYPES } from "../answers/clauses.js";
+import { DOUBLE_ELIM_FROM } from "../../../src/shared/bracketOdds.js";
 import { EVENT_FIT } from "./context.js";
 import { FROM, MARGIN, NP, where, type MatchScope } from "./matchFind.js";
 
@@ -23,6 +24,8 @@ export interface HighlightFind extends MatchScope {
   chips: string[];
   /** An event named: its name, dates and place as the season held it, for each season it's held. */
   eventName?: Map<number, { name: string; when: string | null; where: string | null }>;
+  /** A count asked for ("top 3 highlights"): at most that many. */
+  n?: number;
 }
 
 type Pick = Row & { side: "red" | "blue" };
@@ -42,13 +45,15 @@ const upsetOf = (r: Scored) => (r.p_red == null || !decided(r) ? null : winnerOf
  *  a few, so the next one stands in for a match an earlier reason already listed. The upset (the match finder's rule, a
  *  favourite's loss) reads the saved calls, so only a scope read whole takes it. */
 const WINNER = "CASE WHEN m.blue_total > m.red_total THEN 'blue' ELSE 'red' END";
+/** A classic bracket's final (series 0, played last); a double-elimination bracket numbered from 0 opens with it. */
+const FINAL_LAST = `(m.level = 'playoff' AND m.series = 0 AND m.season < ${DOUBLE_ELIM_FROM})`;
 const REASONS: { note: string; value: (r: Scored) => number | null; side: (r: Row) => "red" | "blue"; sql?: { side: string; order: string; only?: string } }[] = [
   { note: "Best score", value: npOf, side: (r) => (n(r.blue_np) > n(r.red_np) ? "blue" : "red"),
     sql: { side: "CASE WHEN m.blue_np > m.red_np THEN 'blue' ELSE 'red' END", order: `${NP} DESC` } },
   { note: "Biggest margin", value: (r) => (decided(r) ? margin(r) : null), side: winnerOf, sql: { side: WINNER, order: `${MARGIN} DESC`, only: "m.red_total <> m.blue_total" } },
-  // The last one played: a division's playoffs before the finals they feed, the final (series 0) last.
+  // The last one played: a division's playoffs before the finals they feed, a classic bracket's final last.
   { note: "Latest playoff match", value: (r) => (r.level === "playoff" ? r.at : null), side: winnerOf,
-    sql: { side: WINNER, order: "e.start DESC, e.division_code IS NULL DESC, m.series = 0 DESC, m.series DESC, m.number DESC", only: "m.level = 'playoff'" } },
+    sql: { side: WINNER, order: `e.start DESC, e.division_code IS NULL DESC, ${FINAL_LAST} DESC, m.series DESC, m.number DESC`, only: "m.level = 'playoff'" } },
   { note: "Best Auto", value: (r) => (r.red_auto == null || r.blue_auto == null ? null : Math.max(n(r.red_auto), n(r.blue_auto))), side: (r) => (n(r.blue_auto) > n(r.red_auto) ? "blue" : "red"),
     sql: { side: "CASE WHEN m.blue_auto > m.red_auto THEN 'blue' ELSE 'red' END", order: "MAX(m.red_auto, m.blue_auto) DESC", only: "m.red_auto IS NOT NULL AND m.blue_auto IS NOT NULL" } },
   { note: "Closest finish", value: (r) => (decided(r) ? -margin(r) : null), side: winnerOf, sql: { side: WINNER, order: `${MARGIN} ASC`, only: "m.red_total <> m.blue_total" } },
@@ -58,8 +63,8 @@ const REASONS: { note: string; value: (r: Scored) => number | null; side: (r: Ro
 const READ_WHOLE = 4000;
 
 const key = (r: { season: number; code: string; level: string; series: number; number: number }) => `${r.season}|${r.code}|${r.level}|${r.series}|${r.number}`;
-/** A division before the finals it feeds, then the event's own order: qualifications, playoffs, the final last. */
-const ORDER = "e.start, COALESCE(e.division_code, e.code), e.division_code IS NULL, m.code, m.level = 'playoff', m.level = 'playoff' AND m.series = 0, m.series, m.number";
+/** A division before the finals it feeds, then the event's own order: qualifications, playoffs, a classic final last. */
+const ORDER = `e.start, COALESCE(e.division_code, e.code), e.division_code IS NULL, m.code, m.level = 'playoff', ${FINAL_LAST}, m.series, m.number`;
 
 /** The events `words` name (FIRST's `types` only, when given): in each season, the ones that fit them best. */
 export async function eventsNamed(words: string, types: readonly string[] | null): Promise<{ season: number; code: string; name: string; type: string | null; division: string | null; start: string | null; end: string | null; city: string | null; state: string | null }[]> {
@@ -75,8 +80,18 @@ export async function eventsNamed(words: string, types: readonly string[] | null
     .map(({ e }) => ({ season: Number(e.season), code: e.code, name: e.name, type: e.type ?? null, division: e.division_code ?? null, start: e.start ?? null, end: e.end ?? null, city: e.city ?? null, state: e.state ?? null }));
 }
 
+/** The seasons whose `types` events (in `region`, when given) were held in the calendar `year` ("worlds 2025": the
+ *  2024–25 Worlds), latest first. */
+export async function heldInYear(types: readonly string[], year: number, region: MatchScope["region"]): Promise<number[]> {
+  const sql = [`type IN (${types.map(() => "?").join(", ")}) AND substr(start, 1, 4) = ?`];
+  const args: (string | number)[] = [...types, String(year)];
+  if (region) { sql.push(region.state ? "country = ? AND state = ?" : "country = ?"); args.push(region.country, ...(region.state ? [region.state] : [])); }
+  return (await all<{ season: number }>(`SELECT DISTINCT season FROM events WHERE ${sql.join(" AND ")} ORDER BY season DESC`, args)).map((r) => Number(r.season));
+}
+
 /** The scope's events, by code, so its matches, teams and calls are read by their key: the events named and their
- *  divisions, else the season's events in its place or of its kind. Everywhere (no place, kind or event): undefined. */
+ *  divisions, else the season's events in its place or of its kind (a date window's, the seasons either side too, as
+ *  a week across September holds both). Everywhere (no place, kind or event): undefined. */
 export async function scopeEvents(f: MatchScope, upTo = false): Promise<{ season: number; code: string }[] | undefined> {
   if (f.events) {
     if (!f.events.length) return [];
@@ -86,8 +101,8 @@ export async function scopeEvents(f: MatchScope, upTo = false): Promise<{ season
   }
   if (!f.region && !f.kind) return undefined;
   const types = f.kind?.types ?? [...OFFICIAL_TYPES];
-  const sql = [`e.season ${upTo ? "<=" : "="} ? AND COALESCE(e.remote, 0) = 0 AND e.type IN (${types.map(() => "?").join(", ")})`];
-  const args: (string | number)[] = [f.season, ...types];
+  const sql = [`${f.window && !upTo ? "e.season BETWEEN ? AND ?" : `e.season ${upTo ? "<=" : "="} ?`} AND COALESCE(e.remote, 0) = 0 AND e.type IN (${types.map(() => "?").join(", ")})`];
+  const args: (string | number)[] = [...(f.window && !upTo ? [f.season - 1, f.season + 1] : [f.season]), ...types];
   if (f.region) { sql.push(f.region.state ? "e.country = ? AND e.state = ?" : "e.country = ?"); args.push(f.region.country, ...(f.region.state ? [f.region.state] : [])); }
   const rows = await all<{ season: number; code: string }>(`SELECT e.season, e.code FROM events e WHERE ${sql.join(" AND ")}`, args);
   return rows.map((r) => ({ season: Number(r.season), code: r.code }));
@@ -109,16 +124,6 @@ function byEvent(events: { season: number; code: string }[], alias: string) {
     sql: by.size ? `(${[...by].map(([, cs]) => `(${alias}.season = ? AND ${alias}.code IN (${[...cs].map(() => "?").join(", ")}))`).join(" OR ")})` : "0",
     args: [...by].flatMap(([s, cs]) => [s, ...cs]),
   };
-}
-
-/** The on-field teams of these events' matches, by match and colour, in one read. */
-async function lineups(events: { season: number; code: string }[]) {
-  const w = byEvent(events, "x");
-  const ts = await all<{ season: number; code: string; level: string; series: number; number: number; alliance: string; team: number }>(
-    `SELECT x.season, x.code, x.level, x.series, x.number, x.alliance, x.team FROM match_teams x WHERE x.on_field = 1 AND ${w.sql} ORDER BY x.station, x.team`, w.args);
-  const out = new Map<string, number[]>();
-  for (const t of ts) { const k = `${key(t)}|${t.alliance}`; out.set(k, [...(out.get(k) ?? []), Number(t.team)]); }
-  return out;
 }
 
 const DEFINITION = (at: string, S: string, upset: boolean) =>
@@ -191,6 +196,7 @@ async function workOut(f0: HighlightFind): Promise<StatAnswer> {
       if (r) { seen.add(key(r)); picks.push({ r, note: reason.note }); }
     });
   }
+  if (f.n != null) picks = picks.slice(0, f.n);
   const S = seasonLabel(f.season);
   const ev = f.eventName?.get(f.season);
   const at = ev ? `at ${ev.name}` : f.at;
@@ -203,7 +209,7 @@ async function workOut(f0: HighlightFind): Promise<StatAnswer> {
     source: `From ${count.toLocaleString("en-US")} played match${count === 1 ? "" : "es"}${where2}`,
   };
   if (!picks.length) return { ...base, blocks: [], none: `No played matches at official events${where2} yet.` };
-  // The picks' teams, in one read of their events.
+  // The picks' teams, in one read of those matches.
   const ups = await lineups(picks.map((x) => x.r));
   const links = await teamLinks([...ups.values()].flat());
   const named = (r: Row, side: string) => (ups.get(`${key(r)}|${side}`) ?? []).map((t) => links.get(t)!).filter(Boolean);

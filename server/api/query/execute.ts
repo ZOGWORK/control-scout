@@ -14,7 +14,7 @@ import { searchSeason } from "../answers/season.js";
 import { BOARD_STATS } from "../answers/families/leaderboard.js";
 import type { TopMatchesQuestion } from "../answers/families/topMatches.js";
 import { defaultSteps, isEmpty, relaxed, windowSteps } from "./relax.js";
-import { eventsNamed, highlightsAnswer, latestPlayed, type HighlightFind } from "./highlights.js";
+import { eventsNamed, heldInYear, highlightsAnswer, latestPlayed, type HighlightFind } from "./highlights.js";
 import { teamHighlights, type TeamHighlightScope } from "../answers/highlights.js";
 import { shortEvent } from "../answers/matchSet.js";
 import { CHAMPIONSHIP_TYPE } from "../answers/clauses.js";
@@ -264,22 +264,27 @@ async function highlights(p: Parsed, scope: ReadScope, opts: PipelineOptions): P
   if (p.eventKind && !kind) return null;
   const named = p.event ? await eventsNamed(normalise(p.event.words), kind?.types ?? null) : null;
   if (named && !named.length) return null;
-  // A calendar year said with an event ("nj championship 2025") is the one held that year; a season, that season's.
+  // A calendar year said with an event, Worlds or a state championship ("nj championship 2025", "worlds 2025") is the
+  // one held that year; a season ("2024-25"), that season's.
   const year = p.time?.kind === "season" && p.time.year != null && !p.time.relative ? p.time.year : null;
   const evs = named && year != null ? named.filter((e) => (e.start ?? "").startsWith(String(year))) : named;
   if (evs && !evs.length) return null;
-  const heldIn = evs && year != null ? Math.max(...evs.map((e) => e.season)) : null;
+  const region = regionOf(p);
+  const held = year == null ? null : evs ? evs.map((e) => e.season) : p.worlds || p.states ? await heldInYear(kind!.types, year, p.states ? region : null) : null;
+  if (held && !held.length) return null;
+  const heldIn = held ? Math.max(...held) : null;
   // Its name as each season held it: the main event's when a division fits as well.
   const byMain = evs ? [...evs].sort((a, b) => b.season - a.season || Number(a.division != null) - Number(b.division != null)) : null;
   if (p.teams.length) {
     // A team's own: a season, or its matches at an event named, Worlds or a state championship.
-    if (p.teams.length > 1 || scope.place || scope.area || scope.window || scope.level || p.finals || p.eventKind) return null;
+    // A place only narrows a state championship ("<team> highlights at nj states").
+    if (p.teams.length > 1 || (scope.place && !(p.states && region)) || scope.area || scope.window || scope.level || p.finals || p.eventKind) return null;
     const t = p.teams[0];
     const said = heldIn ?? (p.time ? placeSeason(p, scope.season, opts) : null);
     const at: TeamHighlightScope | undefined = evs ? { has: (m) => evs.some((e) => e.season === m.season && (e.code === m.code || e.code === m.division)), label: shortEvent(byMain![0].name, byMain![0].type) }
       : p.worlds ? { has: (m) => m.type === CHAMPIONSHIP_TYPE, label: "the FIRST Championship" }
-      : p.states ? { has: (m) => STATES_KIND.types.includes(m.type ?? ""), label: "a state championship" } : undefined;
-    const stat = await teamHighlights({ number: t.number, name: t.name }, said ?? undefined, at);
+      : p.states ? { has: (m) => STATES_KIND.types.includes(m.type ?? "") && (!region || (m.country === region.country && (!region.state || m.state === region.state))), label: region ? `the ${region.name} championship` : "a state championship" } : undefined;
+    const stat = await teamHighlights({ number: t.number, name: t.name }, said ?? undefined, at, p.n ?? undefined);
     const hit = (await opts.resolve(String(t.number))).hits.find((h) => h.kind === "team" && h.ref === String(t.number));
     const hits = hit ? [{ ...hit, facts: undefined, events: undefined }] : [];
     if (stat) return answer(stat, Number(/^\d{4}/.exec(stat.scope[0] ?? "")?.[0] ?? said ?? searchSeason()), hits);
@@ -289,9 +294,8 @@ async function highlights(p: Parsed, scope: ReadScope, opts: PipelineOptions): P
       definition: "The team's standout matches of the season asked: its best score, biggest win, latest playoff win, best Auto and closest win.", source: `Matches on record in ${S}`,
       none: `${t.name ?? `Team ${t.number}`} (${t.number}) has no played matches in ${S}.` }, said, hits);
   }
-  const region = regionOf(p);
   const f: HighlightFind = {
-    season: heldIn ?? placeSeason(p, scope.season, opts), region, level: p.level, finals: p.finals, kind: evs ? null : kind, ...(scope.window ? { window: scope.window } : {}),
+    season: heldIn ?? placeSeason(p, scope.season, opts), region, level: p.level, finals: p.finals, kind: evs ? null : kind, ...(scope.window ? { window: scope.window } : {}), ...(p.n != null ? { n: p.n } : {}),
     ...(evs ? {
       events: evs.map((e) => ({ season: e.season, code: e.code })),
       eventName: new Map([...byMain!].reverse().map((e) => [e.season, { name: shortEvent(e.name, e.type), when: dateRange(e.start, e.end) || null, where: [e.city, e.state].filter(Boolean).join(", ") || null }])),
