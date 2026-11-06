@@ -54,6 +54,10 @@ export function parseQuestion(q: string): ParsedQuestion | null {
   // Only when "play next" ends the question: "when does 12345 play next season" asks about a season.
   const playNext = /\b(?:when\s+(?:does|do|will|is)\s+)?(.+?)\s+(?:play(?:ing)?|plays?)\s+next\s*$/i.exec(q);
   if (playNext) { const core = coreOf(playNext[1]); return core ? { kind: "next-match", core, year: null } : null; }
+  // "the next time 12345 plays", "when will 12345 play again": the same, with "next time" or "again" said.
+  const playAgain = /^(?:when\s+(?:is|will be)\s+)?(?:the\s+)?next\s+time\s+(.+?)\s+(?:play(?:s|ing)?|competes?|competing)\s*$/i.exec(q)
+    ?? /^when\s+(?:does|do|will|is)\s+(.+?)\s+(?:play(?:ing)?|plays?|compet(?:e|es|ing))\s+again\s*$/i.exec(q);
+  if (playAgain) { const core = coreOf(playAgain[1]); return core ? { kind: "next-match", core, year: null } : null; }
   const next = /\bnext\s+(match|game|event|competition|tournament|meet)\b/i.exec(q);
   if (next) {
     const core = coreOf(q.replace(next[0], " "));

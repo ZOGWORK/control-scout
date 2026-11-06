@@ -6,6 +6,7 @@ import { migrate, openDb, run, setDb } from "../../db";
 import { rebuildSearch } from "../../stats/job";
 import { clearAllCaches } from "../../caches";
 import { searchAnswer } from "../searchAnswer";
+import { searchOutcome } from "../searchLayers";
 import { countAnswer, rewriteQuery } from "../searchCoverage";
 import { readEventQuery } from "../../../src/shared/searchEventQuery";
 import type { SearchAnswer } from "../../../src/shared/api";
@@ -52,9 +53,30 @@ beforeAll(async () => {
   await match(2025, "USNJQ1", 150, 90, [4215, 23268], [6980]);
   await match(2025, "USNJQ1", 80, 120, [4215], [6980, 7149]);
   await match(2025, "USNJQ1", 170, 60, [4215], [9848]);
+  // 7149 at its state championship and at Worlds, and beaten by 23268 only at an off-season event (never on the record).
+  await run("INSERT INTO events (season, code, name, type, region, city, state, country, start, end, source) VALUES (2025, 'USNJCMP', 'New Jersey Championship', 'Championship', 'USNJ', 'Town', 'NJ', 'USA', '2026-03-01', '2026-03-01', 't'), (2025, 'FTCCMP1', 'FIRST Championship', 'FIRSTChampionship', 'CMP', 'Houston', 'TX', 'USA', '2026-04-20', '2026-04-20', 't'), (2025, 'USNJOFF', 'Summer Scrimmage', 'OffSeason', 'USNJ', 'Town', 'NJ', 'USA', '2026-06-01', '2026-06-01', 't')");
+  await match(2025, "USNJCMP", 200, 100, [7149], [23268]);
+  await match(2025, "FTCCMP1", 210, 190, [7149], [9848]);
+  await match(2025, "USNJOFF", 50, 300, [7149], [23268]);
+  // A league tournament 30008 played in the playoffs only (no qualification match on its record).
+  await run("INSERT INTO events (season, code, name, type, region, city, state, country, start, end, source) VALUES (2025, 'USNJLT', 'Meadow League Tournament', 'LeagueTournament', 'USNJ', 'Town', 'NJ', 'USA', '2026-02-01', '2026-02-01', 't')");
+  await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'USNJLT', 'playoff', 1, 1, 'M1', '2026-02-01T10:00:00Z', 1, 120, 120, 110, 110, 't')");
+  for (const [t, a] of [[30008, "red"], [30007, "blue"]] as const) await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'USNJLT', 'playoff', 1, 1, ?, ?, 1)", [t, a]);
+  // Two Worlds divisions: 30001 played in Edison only.
+  await run("INSERT INTO events (season, code, name, type, division_code, region, city, state, country, start, end, source) VALUES (2025, 'FTCCMP1EDIS', 'Edison Division', 'FIRSTChampionship', 'FTCCMP1', 'CMP', 'Houston', 'TX', 'USA', '2026-04-20', '2026-04-20', 't'), (2025, 'FTCCMP1FRAN', 'Franklin Division', 'FIRSTChampionship', 'FTCCMP1', 'CMP', 'Houston', 'TX', 'USA', '2026-04-20', '2026-04-20', 't')");
+  await match(2025, "FTCCMP1EDIS", 150, 140, [30001], [30002]);
+  // 30004's only win over 30005, as a surrogate: never on its record.
+  await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'USNJQ1', 'qual', 0, 900, 'Q900', '2026-01-10T12:00:00Z', 1, 100, 100, 50, 50, 't')");
+  for (const [t, a, sur] of [[30004, "red", 1], [30005, "blue", 0]] as const) await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field, surrogate) VALUES (2025, 'USNJQ1', 'qual', 0, 900, ?, ?, 1, ?)", [t, a, sur]);
+  await run("UPDATE teams SET home_region = 'USNJ' WHERE state = 'NJ'");
+  await run("INSERT INTO awards (season, code, team, type, name, placement) VALUES (2025, 'USNJCMP', 7149, 'Inspire', 'Inspire Award', 1), (2025, 'USNJCMP', 7149, 'Winner', 'Winning Alliance', 1), (2025, 'FTCCMP1', 9848, 'Inspire', 'Inspire Award 2nd Place', 2), (2025, 'USNJQ1', 6980, 'Winner', 'Leadership Award', 1), (2025, 'USNJQ1', 30003, 'Inspire', 'Inspire Award', 1)");
+  // An older season's match, 4215's highest score of all (a loss, so this season's numbers stay as they are).
+  await match(2024, "USMIQ1", 190, 200, [4215], [20245]);
+  await run("INSERT OR IGNORE INTO team_seasons (season, team) VALUES (2024, 4215), (2024, 20245)");
   // 20245 played only in 2024–25: a season named leaves it out.
   await match(2024, "USMIQ1", 100, 50, [20245], [24033]);
   await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) SELECT season, code, team, 50, 1 FROM event_teams");
+  await run("UPDATE teams SET rookie_year = 2019, school = 'Oradell Public School' WHERE number = 4215");
   await rebuildSearch();
   clearAllCaches();
 });
@@ -123,6 +145,145 @@ describe("count teams by place (3a)", () => {
     for (const q of ["how many teams from Oradell at worlds", "how many teams from Oradell at states", "how many teams from Oradell in 2025-26"]) {
       expect((await ask(q)).stat?.intent, q).not.toBe("city-teams");
     }
+  });
+});
+
+describe("when: the last, the first and the next time (3b)", () => {
+  it("the last time a team played: its most recent match, however it's asked", async () => {
+    const SAID = ["4215 last match", "when was the last time 4215 played", "when did 4215 last play", "what was 4215's most recent match",
+      "when was the last time hypnotic robotics played a match", "4215 last played when", "the last time 4215 played?"];
+    const first = card(await ask(SAID[0]));
+    expect(first).toMatchObject({ kind: "recent-match", title: "Most recent match" });
+    for (const q of SAID.slice(1)) expect(card(await ask(q)), q).toEqual(first);
+  });
+  it("the first time: its first match", async () => {
+    const SAID = ["when was 4215's first match", "when did 4215 first play", "4215 first ever match", "the first time 4215 played a match", "when did hypnotic robotics first play"];
+    const first = card(await ask(SAID[0]));
+    expect(first).toMatchObject({ kind: "first-match", title: "First match" });
+    for (const q of SAID.slice(1)) expect(card(await ask(q)), q).toEqual(first);
+  });
+  it("when a team started: its rookie year", async () => {
+    for (const q of ["4215 rookie year", "what year did 4215 start", "when did 4215 begin competing", "when did 4215 join ftc", "when was 4215 founded", "which year did hypnotic robotics start", "which season was 4215 founded", "what season did 4215 start"]) {
+      const a = await ask(q);
+      expect(a.card, q).toMatchObject({ title: "Rookie year", team: { number: 4215 } });
+    }
+  });
+  it("the next time: its next match, and none said plainly, never its last one", async () => {
+    for (const q of ["when is 4215's next match", "when does 4215 play next", "the next time 4215 plays", "when will 4215 play again", "when is the next time hypnotic robotics plays"]) {
+      const a = await ask(q);
+      expect(a.card, q).toMatchObject({ kind: "next-match", team: { number: 4215 } });
+      expect(a.card?.lines, q).toEqual([]);
+      expect(a.card?.none, q).toMatch(/^No upcoming match/);
+    }
+  });
+});
+
+describe("yes or no, with the evidence (3c)", () => {
+  /** The yes or no, and the card under it: its kind and its rows (a stat's table or matches, a card's lines). */
+  const yn = async (q: string) => {
+    const a = await ask(q);
+    const rows = a.stat ? a.stat.blocks.flatMap((b) => (b.kind === "table" ? b.rows.map((r) => String(Object.values(r.cells)[0])) : b.kind === "matches" ? b.rows.map((r) => r.label) : [])) : a.card?.lines.map((l) => l.text);
+    return { kind: a.stat?.intent ?? a.card?.kind, answer: a.verdict?.answer, label: a.verdict?.label, rows };
+  };
+  it("been to Worlds: yes, above the card that answered it before, however it's asked", async () => {
+    const SAID = ["has 7149 ever been to worlds", "did 7149 ever go to worlds", "has enforcers ever been to worlds?", "did 7149 make it to worlds"];
+    const first = await yn(SAID[0]);
+    expect(first).toMatchObject({ kind: "worlds", answer: "Yes", label: "Enforcers (7149) played at Worlds" });
+    for (const q of SAID.slice(1)) expect(await yn(q), q).toEqual(first);
+    // The card is the one the question gave before, unchanged; only the yes or no is added.
+    const { verdict, ...rest } = await ask(SAID[0]);
+    expect(verdict).toBeTruthy();
+    expect(rest.card?.kind).toBe("worlds");
+    // Failed-search reporting still reads the answer's outcome.
+    expect(searchOutcome(await ask(SAID[0]))?.result).toBe("answered");
+  });
+  it("no is an answer, never the no-match page", async () => {
+    const a = await ask("has 6980 ever been to worlds");
+    expect(a.step).toBe("deterministic");
+    expect(a.verdict).toEqual({ answer: "No", label: "Bad Wolf (6980) has never played at Worlds" });
+  });
+  it("an event in a season, and a team's own state championship: its own card of where, or of what it played instead", async () => {
+    for (const q of ["did 7149 play at NJ championship in 2025-26", "was 7149 at NJ championship in 2025-26", "did 7149 compete at new jersey championship in 2025-26", "did 7149 go to NJ championship in 2025-26"]) {
+      expect(await yn(q), q).toMatchObject({ answer: "Yes", label: "Enforcers (7149) played at New Jersey Championship in 2025–26" });
+    }
+    expect(await yn("was 7149 at NJ championship in 2025-26")).toMatchObject({ kind: "yes-no-attended", rows: ["New Jersey Championship"] });
+    expect(await yn("was 4215 at NJ championship in 2025-26")).toMatchObject({ kind: "yes-no-attended", answer: "No", rows: ["Garden Qualifier"] });
+    expect((await yn("did 7149 make it to states")).answer).toBe("Yes");
+  });
+  it("an award won: 1st place only, and an event won never a Leadership Award", async () => {
+    expect(await yn("has 7149 ever won inspire")).toMatchObject({ answer: "Yes", label: "Enforcers (7149) won the Inspire Award: 1 time" });
+    expect(await yn("has gearview ever won inspire")).toMatchObject({ answer: "No" });
+    expect(await yn("has 7149 ever won a championship")).toMatchObject({ answer: "Yes", kind: "yes-no-award", rows: ["Winning Alliance", "Inspire Award"] });
+    expect(await yn("has 6980 ever won an event")).toMatchObject({ answer: "No" });
+  });
+  it("lost to or beaten another team: official meetings only, either way it's asked", async () => {
+    for (const q of ["has 7149 ever lost to 23268", "did 7149 ever lose to 23268", "has 7149 ever been beaten by 23268"]) {
+      expect(await yn(q), q).toMatchObject({ answer: "No", label: "Enforcers (7149) has never lost to Ultraviolet (23268) · 1 meeting: 7149 1-0-0" });
+    }
+    expect(await yn("did 7149 ever beat 23268")).toMatchObject({ answer: "Yes" });
+  });
+  it("a season said alone narrows the answer", async () => {
+    expect(await yn("has 7149 won inspire in 2025-26")).toMatchObject({ answer: "Yes" });
+    expect(await yn("has 7149 won inspire in 2024-25")).toMatchObject({ answer: "No", label: "Enforcers (7149) has never won the Inspire Award in 2024–25" });
+    expect(await yn("did 7149 ever beat 23268 in 2024-25")).toMatchObject({ answer: "No" });
+    expect(await yn("did 7149 ever beat 23268 in 2025-26")).toMatchObject({ answer: "Yes" });
+  });
+  it("played: any match on the field, a playoff only too; and a kind of event", async () => {
+    expect(await yn("did 30008 play at meadow league tournament in 2025-26")).toMatchObject({ answer: "Yes", rows: ["Meadow League Tournament"] });
+    expect(await yn("did 4215 ever play at a qualifier")).toMatchObject({ kind: "yes-no-attended", answer: "Yes" });
+    expect(await yn("has 23268 ever been to a league tournament")).toMatchObject({ kind: "yes-no-attended", answer: "No" });
+  });
+  it("a division named is that division alone; its championship takes every division", async () => {
+    expect(await yn("did 30001 play at edison division in 2025-26")).toMatchObject({ answer: "Yes" });
+    expect(await yn("did 30001 play at franklin division in 2025-26")).toMatchObject({ answer: "No" });
+  });
+  it("the Winning Alliance award asked by name is that award; an event won also counts a 1st-place Inspire", async () => {
+    expect(await yn("has 30003 ever won the winning alliance award")).toMatchObject({ answer: "No" });
+    expect(await yn("has 30003 ever won an event")).toMatchObject({ answer: "Yes" });
+    expect(await yn("has 7149 ever won the winning alliance award")).toMatchObject({ answer: "Yes" });
+  });
+  it("a win as a surrogate is never a win on the record", async () => {
+    expect(await yn("did 30004 ever beat 30005")).toMatchObject({ answer: "No" });
+  });
+  it("only a yes-or-no question: a count or a list stays what it was", async () => {
+    expect((await ask("how many times has 7149 been to worlds")).stat?.intent ?? "").not.toMatch(/^yes-no/);
+    expect((await ask("7149 awards")).stat?.intent ?? "").not.toMatch(/^yes-no/);
+  });
+});
+
+describe("who, what, where and the best, said more ways (3d, 3e)", () => {
+  it("who beat a team: the teams it lost to, however it's asked", async () => {
+    const SAID = ["who did 6980 lose to", "who beat 6980", "who has beaten 6980", "who beat bad wolf", "who defeated 6980?"];
+    const first = card(await ask(SAID[0]));
+    expect(first).toMatchObject({ kind: "lost-to-most" });
+    for (const q of SAID.slice(1)) expect(card(await ask(q)), q).toEqual(first);
+  });
+  it("a team's fact asked with the fact first", async () => {
+    for (const [q, title] of [["what school is 4215 from", "School"], ["which school does 4215 go to", "School"], ["what region is 4215 in", "Region"], ["which region is hypnotic robotics in", "Region"], ["4215 region", "Region"]]) {
+      expect((await ask(q)).card, q).toMatchObject({ title, team: { number: 4215 } });
+    }
+  });
+  it("the best match, ever or not: the highest score", async () => {
+    const SAID = ["what was 4215's best score", "4215 highest scoring match", "4215 best match", "4215 best match ever", "4215 best game of all time"];
+    const first = card(await ask(SAID[0]));
+    expect(first).toMatchObject({ kind: "highest-score", headline: "170 points" });
+    for (const q of SAID.slice(1)) expect(card(await ask(q)).headline, q).toBe("170 points");
+  });
+  it("ever: every season's own best (or worst) below the latest season's, an older higher score included", async () => {
+    /** Each season's row of the "each season" table: season, score, event. */
+    const seasons = async (q: string) => (await ask(q)).stat!.blocks.flatMap((b) => (b.kind === "table" ? b.rows.map((r) => [r.cells.season, r.cells.score, r.cells.event]) : []));
+    for (const q of ["4215 best match ever", "4215 best game of all time"]) {
+      expect(await seasons(q), q).toEqual(await seasons("4215 highest score ever"));
+      expect(await seasons(q), q).toContainEqual(["2024–25", 190, "Lakes Qualifier"]);
+    }
+    for (const q of ["4215 worst match ever", "4215 worst game of all time"]) {
+      expect(card(await ask(q)), q).toMatchObject({ kind: "lowest-score", headline: "80 points" });
+      expect(await seasons(q), q).toEqual(await seasons("4215 lowest score ever"));
+    }
+  });
+  it("a team's division at Worlds asked as a question is its Worlds divisions", () => {
+    expect(rewriteQuery("what division was 4215 in at worlds")).toMatchObject({ q: "4215 worlds division" });
+    expect(rewriteQuery("which division did 4215 play in at worlds 2023-24")).toMatchObject({ q: "4215 worlds division 2023-24" });
   });
 });
 
