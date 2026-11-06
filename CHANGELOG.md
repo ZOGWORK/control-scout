@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.5.9 — 2026-11-06
+
+A Scout form closed while it waits for its workspace's template no longer leaves a timer running behind it.
+
+### Highlights
+- [scout] Closing a Scout form while its template loads leaves nothing running
+- [scout] A template asked for again restarts its wait, never stacking timers
+- [fixes] A test that failed now and then on CI is steady again
+
+### Scout
+- **The template wait is cleared.** A new-entry form waits up to 6 seconds for a workspace template it has never seen, then opens with the built-in fields. That timer is now cleared when the form closes, and a second fetch replaces the first's timer instead of adding one. Before, a closed form's timer still fired, which on CI showed as an occasional "window is not defined" error after the Scout templates tests. (#869)
+
 ## 3.5.8 — 2026-11-06
 
 "Has a team ever …?" is answered yes or no first, in a big coloured word, with the card that proves it underneath.
