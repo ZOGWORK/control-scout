@@ -9,6 +9,21 @@ export const SEARCH_GROUPS: [SearchHit["kind"], string][] = [["compare", "Compar
  *  (firstCards). */
 export const SEARCH_PAGE_LIMIT = 25;
 
+/** The longest query search reads (server/api/searchAnswer.ts MAX_QUERY): the related searches page's too. */
+export const RELATED_QUERY_MAX = 160;
+/** The query a related searches page is about: as typed, trimmed, to the length search reads. */
+export const relatedQuery = (q: string) => q.trim().slice(0, RELATED_QUERY_MAX).trim();
+/** That page's own address's query (its canonical URL's, server and app alike): "?q=…", or none with no query. */
+export const relatedSearch = (q: string) => (relatedQuery(q) ? `?q=${encodeURIComponent(relatedQuery(q))}` : "");
+/** The API path the page asks (and its first paint carries): with the visitor's preferred teams when they have any. */
+export const relatedApiPath = (q: string, prefer = "") => {
+  const p = new URLSearchParams();
+  if (relatedQuery(q)) p.set("q", relatedQuery(q));
+  if (prefer) p.set("prefer", prefer);
+  const s = p.toString();
+  return `/api/search/related${s ? `?${s}` : ""}`;
+};
+
 /** The card a hit is listed on: an event's divisions share their event's (season and parent code), so a
  *  championship's finals and divisions are one card; any other hit is its own. */
 export const familyKey = (h: Pick<SearchHit, "kind" | "ref" | "season" | "parent">): string =>

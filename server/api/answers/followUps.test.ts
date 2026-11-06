@@ -11,8 +11,13 @@ import { parseQuery } from "../query/parse";
 import { parseContext } from "../query/context";
 import { failureOf, outcomeTrace } from "../../searchFailures";
 import { clearAllCaches } from "../../caches";
+import { relatedPage, grouped } from "./relatedPage";
+import { pageMeta } from "../../seoMeta";
+import { canonicalQuery } from "../../../src/lib/meta";
+import { RELATED_QUERY_MAX, relatedApiPath } from "../../../src/shared/search";
+import { MAX_QUERY } from "../searchAnswer";
+import type { SearchAnswer, SearchFollowUp } from "../../../src/shared/api";
 import { answerKey, candidates, followUps, lineOf, pageAnswer, previewOf, ASK_MAX, RELATED_MAX } from "./followUps";
-import type { SearchAnswer } from "../../../src/shared/api";
 
 const TEAMS = [4215, 6980, 7149] as const;
 
@@ -140,5 +145,65 @@ describe("people also ask", () => {
     const src = readFileSync(join(__dirname, "followUps.ts"), "utf8");
     expect(src.match(/\b\d{3,}\b/g)).toBeNull();
     expect(src).not.toMatch(/garden state|hypnotic|bad wolf|enforcers|critical mass/i);
+  });
+});
+
+describe("the related searches page", () => {
+  const item = (q: string, family: SearchFollowUp["family"]): SearchFollowUp => ({ q, family, preview: q, value: q, rest: "", tone: { count: true } });
+
+  it("heads a group only when it has two or more, and leaves no search out", () => {
+    const g = grouped([item("a", "team"), item("b", "team"), item("c", "awards"), item("d", "predict")]);
+    expect(g.map((x) => [x.title, x.items.map((i) => i.q)])).toEqual([["About this team", ["a", "b"]], ["More searches", ["c", "d"]]]);
+    // One left over joins the biggest group: never a heading over one link.
+    expect(grouped([item("a", "team"), item("b", "team"), item("c", "awards")]).map((x) => x.items.length)).toEqual([3]);
+    // One search alone, with no group to join: listed, with no heading.
+    expect(grouped([item("a", "awards")])).toEqual([{ title: "", items: [item("a", "awards")] }]);
+    expect(grouped([])).toEqual([]);
+  });
+
+  it("lists only searches answered directly, grouped, for any team", async () => {
+    for (const t of TEAMS) {
+      const r = await relatedPage(`${t} record`);
+      expect(r.found).toBe(true);
+      expect(r.groups.every((g) => g.items.length >= 2)).toBe(true);
+      const all = r.groups.flatMap((g) => g.items);
+      expect(new Set(all.map((x) => x.q)).size).toBe(all.length);
+      for (const x of all) {
+        const a = await pageAnswer(x.q, 25, new Set());
+        expect(failureOf(x.q, a, outcomeTrace(a)), x.q).toBeNull();
+        expect(previewOf(a), x.q).toBe(x.preview);
+      }
+    }
+  });
+
+  it("lists a plain team search's own follow-ups, as /search does beside it", async () => {
+    const r = await relatedPage("4215");
+    expect(r.found).toBe(true);
+    expect(r.groups.flatMap((g) => g.items).some((x) => x.q.includes("4215"))).toBe(true);
+  });
+
+  it("gives the starting points with no search, or one nothing follows from", async () => {
+    for (const q of ["", "qqzx vvblorp"]) {
+      const r = await relatedPage(q);
+      expect(r.found).toBe(false);
+      // This fixture has no season's leaders: whatever is listed is still in groups of two or more.
+      expect(r.groups.every((g) => g.items.length >= 2)).toBe(true);
+      expect((await pageMeta("/related-searches", { q })).bodyHtml).toContain('href="/search"');
+    }
+  });
+
+  it("is drawn whole in the first paint, at its own address", async () => {
+    const m = await pageMeta("/related-searches", { q: "4215 record" });
+    expect(m.title).toBe("Related searches: 4215 record");
+    expect(m.path).toBe("/related-searches?q=4215%20record");
+    // The app's own canonical keeps the same address, and it starts from the lists drawn here.
+    expect(canonicalQuery("/related-searches", "?q=+4215+record+&utm_source=x")).toBe("?q=4215%20record");
+    expect(Object.keys(m.pageData ?? {})).toEqual([relatedApiPath("4215 record")]);
+    expect(m.pageData?.[relatedApiPath("4215 record")]).toEqual(await relatedPage("4215 record"));
+    expect(RELATED_QUERY_MAX).toBe(MAX_QUERY);
+    expect(m.description.length).toBeGreaterThanOrEqual(120);
+    expect(m.bodyHtml).toContain("<h2>");
+    expect(m.bodyHtml).toContain(`href="/search?q=${encodeURIComponent("What awards has 4215 won?")}"`);
+    expect((await pageMeta("/related-searches")).title).toBe("Popular FTC searches");
   });
 });

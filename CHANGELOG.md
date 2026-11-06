@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.7.6 — 2026-11-06
+
+A page of a search's related searches, grouped by what they're about, each with its answer's line: /related-searches.
+
+### Highlights
+- [home] "See all related searches" opens a page of them, grouped
+- [home] Each related search shows its answer's number
+- [home] With no search, the season's popular starting points
+
+### Search
+- **Related searches page.** `/related-searches?q=…` lists every search that follows from one: about the team, top teams, events, awards, predictions and more, a group only with two or more. Each is a link to the live search with one line from its answer. Only searches with a direct answer are listed.
+- **Popular searches.** With no query, or one nothing follows from, the page lists the season's starting points the same way, and search itself is always one tap away. The page is drawn whole by the server and is in the sitemap. (#1017)
+
 ## 3.7.5 — 2026-11-06
 
 A place's name beside "states" or "championship" is that place's championship: "romania states results" is the Romania Championship's results, never a team with Romania in its name.

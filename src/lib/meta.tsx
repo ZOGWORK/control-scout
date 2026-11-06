@@ -1,4 +1,5 @@
 // Site metadata (seasons, current season, data freshness) loaded once.
+import { relatedSearch } from "../shared/search";
 import { siteTitle } from "../shared/teamTitle";
 import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useLocation } from "react-router-dom";
@@ -98,6 +99,8 @@ export function useNotFoundHead() {
  *  none. A page past the last, which only the server can clamp, is put right by the page itself
  *  (RankingsPage rewrites its URL to the view the API answered with). */
 export function canonicalQuery(pathname: string, search: string): string {
+  // A related searches page is its search's own (server/seoMeta.ts relatedMeta: the same "?q=…").
+  if (/^\/related-searches\/?$/i.test(pathname)) return relatedSearch(new URLSearchParams(search).get("q") ?? "");
   if (!/^\/rankings\/?$/i.test(pathname)) return "";
   const sp = new URLSearchParams(search), q = new URLSearchParams();
   const season = sp.get("season"), week = sp.get("week"), page = Number(sp.get("page"));

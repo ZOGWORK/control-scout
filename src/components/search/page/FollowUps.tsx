@@ -65,7 +65,7 @@ export function PeopleAlsoAsk({ ask, className }: { ask: SearchFollowUp[]; class
 }
 
 /** Short searches, one chip each: wrapped on a wide screen, one per line on a phone (none hidden off the side). */
-export function RelatedSearches({ related, className }: { related: SearchFollowUp[]; className?: string }) {
+export function RelatedSearches({ related, seeAll, className }: { related: SearchFollowUp[]; seeAll?: string; className?: string }) {
   if (!related.length) return null;
   return (
     <nav aria-label="Related searches" className={className} data-block="related-searches">
@@ -79,6 +79,7 @@ export function RelatedSearches({ related, className }: { related: SearchFollowU
           </li>
         ))}
       </ul>
+      {seeAll && <Link to={`/related-searches?q=${encodeURIComponent(seeAll)}`} className="mt-2 inline-flex min-h-[44px] items-center text-sm font-medium text-foreground underline underline-offset-2 hover:no-underline" data-see-all>See all related searches →</Link>}
     </nav>
   );
 }
@@ -98,13 +99,13 @@ export function TeamHighlights({ h, className }: { h: SearchFollowUps["highlight
 }
 
 /** All three, for the column beside the answer. */
-export function FollowUpsRail({ f }: { f: SearchFollowUps }) {
+export function FollowUpsRail({ f, q }: { f: SearchFollowUps; q?: string }) {
   if (!f.ask.length && !f.related.length && !f.highlights) return null;
   return (
     <div className="space-y-5" data-rail="follow-ups">
       <TeamHighlights h={f.highlights} />
       <PeopleAlsoAsk ask={f.ask} />
-      <RelatedSearches related={f.related} />
+      <RelatedSearches related={f.related} seeAll={q} />
     </div>
   );
 }

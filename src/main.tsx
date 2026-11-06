@@ -83,12 +83,13 @@ const PAGES = {
   EventDisplayPage: lazyPage(() => import("./pages/EventDisplayPage")),
   DigestUnsubscribedPage: lazyPage(() => import("./pages/DigestUnsubscribedPage")),
   SearchPage: lazyPage(() => import("./pages/SearchPage")),
+  RelatedSearchesPage: lazyPage(() => import("./pages/RelatedSearchesPage")),
   BundlePage: lazyPage(() => import("./pages/BundlePage")),
   NotFound: lazyPage(() => import("./pages/NotFound")),
 } satisfies Record<PageModule, unknown>;
 // Dev only: one piece of the Scout redesign at a time, for screenshots (the import is dropped from production builds).
 const ScoutPreviewPage = import.meta.env.DEV ? lazy(() => import("./pages/ScoutPreviewPage")) : () => null;
-const { TeamPage, EventsPage, RecordsPage, RankingsPage, EventPage, PredictPage, ComparePage, MyTeamPage, MyTeamsPage, ShortlistPage, ScoutPage, DownloadPage, SettingsPage, MethodologyPage, SearchDocsPage, PrivacyPage, TermsPage, ContactPage, DonatePage, SupportersPage, FaqPage, RulesPage, MatchReportPage, PowerRankingsPage, EventDisplayPage, DigestUnsubscribedPage, BundlePage, SearchPage, NotFound } = PAGES;
+const { TeamPage, EventsPage, RecordsPage, RankingsPage, EventPage, PredictPage, ComparePage, MyTeamPage, MyTeamsPage, ShortlistPage, ScoutPage, DownloadPage, SettingsPage, MethodologyPage, SearchDocsPage, PrivacyPage, TermsPage, ContactPage, DonatePage, SupportersPage, FaqPage, RulesPage, MatchReportPage, PowerRankingsPage, EventDisplayPage, DigestUnsubscribedPage, BundlePage, SearchPage, RelatedSearchesPage, NotFound } = PAGES;
 const BundlePicklistPage = named(() => import("./pages/BundlePage"), "BundlePicklistPage");
 
 // Offline: the service worker precaches the app so it opens with no signal.
@@ -193,6 +194,7 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
                   <Route path="/digest/unsubscribed" element={<DigestUnsubscribedPage />} />
                   {/* Where the browser's address-bar search lands (/opensearch.xml): the same results as the header's box. */}
                   <Route path="/search" element={<SearchPage />} />
+                  <Route path="/related-searches" element={<RelatedSearchesPage />} />
                   {/* Owners only; everyone else (and the server, for everyone) sees the not-found page. */}
                   <Route path="/owner" element={<OwnerRoute notFound={<NotFound />} />} />
                   <Route path="*" element={<NotFound />} />

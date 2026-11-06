@@ -39,6 +39,18 @@ type Answered = { q: string; hits: SearchHit[]; answer?: SearchAnswer; /** Fetch
  *  is on, asks him after the answer is on screen (never before: his reading can't slow the first results).
  *  `initial`: results already on screen (the server's, on /search), shown while the first request refreshes them. */
 /** `refine`: off where Bruno AI's suggestion isn't shown (the /search page), so he's never asked for nothing. */
+/** The visitor's preferred teams and events (their team, the ones they follow or saved), as search is asked with them:
+ *  a name several teams share reads as theirs. */
+export function usePreferKey(): string {
+  const { state } = usePersonal();
+  return useMemo(() => [...new Set([
+    ...(state.myTeam ? [`team:${state.myTeam}`] : []),
+    ...state.tracked.teams.map((t) => `team:${t}`),
+    ...state.bookmarks.map((t) => `team:${t}`),
+    ...state.tracked.events.map((e) => `event:${e}`),
+  ])].slice(0, 100).join(","), [state.myTeam, state.tracked, state.bookmarks]);
+}
+
 export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?: { q: string; hits: SearchHit[] } | null, refine = true) {
   // Results remember the query they answer, so a pick can never come from a previous query.
   const [res, setRes] = useState<Answered>(() => (initial ? { q: initial.q, hits: initial.hits, answer: isAnswer(initial) ? initial : undefined } : { q: "", hits: [] }));
@@ -54,13 +66,7 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
   // The query last asked about (null before the first): only a changed one, typed, waits for the pause.
   const lastQ = useRef<string | null>(null);
   const brunoOn = useServerFlag("brunoSearch");
-  const { state } = usePersonal();
-  const prefer = useMemo(() => [...new Set([
-    ...(state.myTeam ? [`team:${state.myTeam}`] : []),
-    ...state.tracked.teams.map((t) => `team:${t}`),
-    ...state.bookmarks.map((t) => `team:${t}`),
-    ...state.tracked.events.map((e) => `event:${e}`),
-  ])].slice(0, 100).join(","), [state.myTeam, state.tracked, state.bookmarks]);
+  const prefer = usePreferKey();
   const kindKey = kinds?.join(",") ?? "";
   useEffect(() => {
     const query = q.trim();
