@@ -166,6 +166,11 @@ reason the tile's label, a tap playing its clip in the video dialog. An answer a
 card (`server/api/answers/video.ts`), the event's recording from its start only when none of its matches has a clip;
 an event with no video at all says "No recording for this event — stats only." once.
 
+The video words alone ("recap", "replay", "videos", "watch", "stream", "VOD") make it a video page (a "videos" block,
+`src/components/search/page/VideoGallery.tsx`): every match in the scope with a video in the events' order (more than
+200: its playoffs; more still: none), each event's own stream, a qualifications/playoffs filter, led by the latest
+playoff match. "Highlights" or "best" keep the standout matches first, every match's video under them.
+
 No season said reads the season today is in, then the latest season with matches in that scope, said once in the
 chip: "No 2026–27 matches yet at Worlds; showing 2025–26". A calendar year with an event, Worlds or a state championship
 ("nj championship 2025", "worlds 2025") is the one held that year. A window relaxes as everywhere else, its events

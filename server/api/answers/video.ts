@@ -16,8 +16,9 @@ import type { MatchView, SearchAnswer, SearchVideo, SearchVideoItem } from "../.
 /** A match or an event an answer links to. */
 export interface VideoRef { season: number; code: string; key?: string }
 
-/** Most rows an answer's play buttons are read for, and most events in one read. */
+/** Most rows an answer's play buttons are read for (a video page's tiles: more), and most events in one read. */
 const MAX_ROWS = 60;
+const MAX_TILES = 220;
 const MAX_EVENTS = 30;
 
 /** An answer's link to an event or one of its matches → which; anything else null. */
@@ -65,25 +66,34 @@ export function mainRef(a: SearchAnswer): VideoRef | null {
   return null;
 }
 
-/** Every match a stat answer lists (its match rows, a table's rows that link to a match), first seen first. */
+/** Every match a stat answer lists (its match rows, a table's rows that link to a match, a video page's tiles), first
+ *  seen first. */
 export function rowRefs(a: SearchAnswer): (VideoRef & { href: string })[] {
   const out = new Map<string, VideoRef & { href: string }>();
-  const add = (href: string | undefined) => {
+  const add = (href: string | undefined, max = MAX_ROWS) => {
     const r = href && !out.has(href) ? refOfHref(href) : null;
-    if (r?.key && out.size < MAX_ROWS) out.set(href!, { ...r, href: href! });
+    if (r?.key && out.size < max) out.set(href!, { ...r, href: href! });
   };
   for (const b of a.stat?.blocks ?? []) {
     if (b.kind === "matches") for (const r of b.rows) add(r.href);
     else if (b.kind === "table") for (const r of b.rows) add(r.href);
+    else if (b.kind === "videos") for (const t of b.tiles) add(t.href, MAX_TILES);
   }
   return [...out.values()];
 }
 
-/** An answer about one team (its stat answer's team, or a link to an event for it) or a list of highlights. */
+/** The events whose own stream a video page offers (its links to them). */
+function streamRefs(a: SearchAnswer): (VideoRef & { href: string })[] {
+  return (a.stat?.blocks ?? []).flatMap((b) => (b.kind === "videos" ? b.streams ?? [] : []))
+    .flatMap((l) => { const r = refOfHref(l.href); return r && !r.key ? [{ ...r, href: l.href }] : []; });
+}
+
+/** An answer about one team (its stat answer's team, or a link to an event for it), a list of highlights or a video page. */
 function aboutTeam(a: SearchAnswer): boolean {
   if (a.stat?.team) return true;
   if (/[?&]team=\d+/.test(a.stat?.headline?.href ?? "")) return true;
-  return !!a.stat?.blocks.some((b) => b.kind === "matches" && b.rows.length > 0 && b.rows.every((r) => r.note));
+  // A list of highlights, or a video page: its own matches stand in before the event's recording too.
+  return !!a.stat?.blocks.some((b) => (b.kind === "matches" && b.rows.length > 0 && b.rows.every((r) => r.note)) || (b.kind === "videos" && b.tiles.length > 0));
 }
 
 /** The team an answer is about: its stat answer's team, else the one its headline's event link is for. */
@@ -99,8 +109,9 @@ interface PlayedRow { season: number; code: string; level: string; series: numbe
 export async function answerVideo(a: SearchAnswer, now = Date.now()): Promise<SearchVideo | undefined> {
   const main = mainRef(a);
   const rows = rowRefs(a);
+  const streams = streamRefs(a);
   const events = new Map<string, VideoRef>();
-  for (const r of [...(main ? [main] : []), ...rows]) if (events.size < MAX_EVENTS || events.has(evKey(r))) events.set(evKey(r), r);
+  for (const r of [...(main ? [main] : []), ...rows, ...streams]) if (events.size < MAX_EVENTS || events.has(evKey(r))) events.set(evKey(r), r);
   if (!events.size) return undefined;
   const seasons = [...new Set([...events.values()].map((e) => e.season))];
   const recs = new Map<string, Recording>();
@@ -162,6 +173,11 @@ export async function answerVideo(a: SearchAnswer, now = Date.now()): Promise<Se
     // The match the card already plays gets no button of its own.
     const item = k === mainHref ? undefined : items.get(k);
     if (item) (out.rows ??= {})[r.href] = item;
+  }
+  // A video page's streams: each event's recording or live stream, from its start.
+  for (const s of streams) {
+    const rec = recs.get(evKey(s));
+    if (rec) (out.rows ??= {})[s.href] = { videoId: rec.videoId, t: 0, kind: "stream", ...(rec.meta?.live ? { live: true } : {}) };
   }
   if (!out.main) delete out.main;
   return out.main || out.rows ? out : undefined;
