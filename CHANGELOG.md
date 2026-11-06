@@ -29,6 +29,19 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 - **Highlights over any scope.** "Highlights" (or "recap", "replay", "videos", "clips", "watch", "stream", "VOD", "best matches", "top moments") with an event and its divisions, one division, Worlds, a state championship, a place, a kind of event, a match type, a window or a season lists that scope's best score, biggest margin, latest playoff match, best Auto, closest finish and biggest upset, each match once with its reason and its video; the best one plays on the card. With no season said it reads the latest season with matches there and says so once ("No 2026–27 matches yet at Worlds; showing 2025–26"); a calendar year with an event is the one held that year. The event's dates and place are its chips. (#795)
 - **A team's highlights at an event.** A team by number or name with "highlights" and an event, Worlds or a state championship ("gearview highlights at worlds", "best matches 4215 at worlds") lists its standout matches there only, never padded from other events, the event said once in the title. A team with no played match there gets a card saying so, with its own events of the season, never the closest results.
 
+A championship split in divisions is one result a season, with its divisions under it, and every count on the page matches the cards shown.
+
+### Highlights
+- [fixes] A championship's divisions are listed under it, one block a season
+- [fixes] Every FIRST Championship season is listed, not the newest 25 events
+- [fixes] "first championship in 2025" shows the championship held in 2025
+- [fixes] Picking a season or Upcoming/Past changes the heading to match
+
+### Search
+- **Divisions under their event.** Any event split in divisions (the FIRST Championship, New Jersey's, Romania's, any other) is one block a season: the event's name, season with its game ("2025–26 DECODE season"), dates, place, venue and status once, a link to the Events list on that season and event, then each division and the finals. The grouping comes from each division's own event code in the data, never a name (#790).
+- **One count.** The page lists 25 results with an event and its divisions counted as one, so "first championship" lists all 28 of its events where it listed 25 and said "28 in all". A list still longer than a page says how many of all are listed ("the newest 24 of 30 listed"), the same number the tabs and the events heading show.
+- **Year and filters together.** A year named with "in" ("first championship in 2025") is the championship held that year, the 2024–25 season's. A season picked from the list, or Upcoming or Past, rewrites the heading for what's left ("FIRST Championship (Worlds) events, 2024–25"), and stays in the address.
+
 ## 3.3.8 — 2026-11-05
 
 Cards about one team are in that team's colour again, scoring phases take the team page's colours, and team numbers in match boxes no longer spill out of their chips.

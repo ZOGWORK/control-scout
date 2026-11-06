@@ -13,6 +13,7 @@ import { CURRENT_SEASON, SEASONS, SEASON_NUMBERS, isLegacy, seasonInfo } from ".
 import { ensureSearchIndex, search } from "./api/search.js";
 import { cleanQuery, learnQuery, searchAnswer } from "./api/searchAnswer.js";
 import { withTeamStats } from "./api/searchTeamStats.js";
+import { withEventParents } from "./api/searchEvents.js";
 import { teamHighlights } from "./api/answers/highlights.js";
 import { keptAnswer } from "./api/searchReads.js";
 import { refine } from "./api/searchBruno.js";
@@ -394,7 +395,7 @@ export function createApp(opts: { dist?: string } = {}) {
       const highlights = lone ? await teamHighlights({ number: Number(lone.ref), name: teamParts(lone.title)?.name ?? null }, lone.linkSeason).catch(() => null) : null;
       const full = highlights ? { ...ans, stat: highlights } : ans;
       // Its video (server/api/answers/video.ts): one read for the whole answer, beside the team rows'.
-      const [hits, video] = await Promise.all([withTeamStats(full.hits), answerVideo(full).catch(() => undefined)]);
+      const [hits, video] = await Promise.all([withEventParents(full.hits).then(withTeamStats), answerVideo(full).catch(() => undefined)]);
       return { ...full, hits, ...(video ? { video } : {}) };
     }
     return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, 80), limit, prefer, kinds) };

@@ -569,11 +569,11 @@ export async function bottomAnswer(q: string): Promise<SearchAnswer | null> {
   });
 }
 
-/** "where is worlds", "when is worlds", "worlds 2026", "worlds divisions", "first championship": the FIRST
+/** "where is worlds", "when is worlds", "worlds 2026", "first championship in 2025", "worlds divisions": the FIRST
  *  Championship's events (newest season first, or the season or year named). Null when it isn't that. */
 export async function worldsAnswer(q: string, now?: number): Promise<SearchAnswer | null> {
   const t = squash(q.toLowerCase().replace(/[?]/g, ""));
-  const worlds = /^(?:(?:where|when)(?:'s| is| are| was| were| will)?\s+(?:the\s+)?(?:next\s+)?|(?:list|show)\s+(?:me\s+)?(?:the\s+)?)?(?:ftc\s+)?(?:worlds|world championships?|first championships?|ftc championships?|first world championships?)(?:\s+(?:divisions?|(20\d\d)(?:\s*[-–/]\s*(\d\d))?|(this|last|next) (year|season)))*(?:\s+be)?$/.exec(t);
+  const worlds = /^(?:(?:where|when)(?:'s| is| are| was| were| will)?\s+(?:the\s+)?(?:next\s+)?|(?:list|show)\s+(?:me\s+)?(?:the\s+)?)?(?:ftc\s+)?(?:worlds|world championships?|first championships?|ftc championships?|first world championships?)(?:\s+(?:divisions?|(?:(?:in|of|from)\s+)?(20\d\d)(?:\s*[-–/]\s*(\d\d))?|(this|last|next) (year|season)))*(?:\s+be)?$/.exec(t);
   // "State championships", "all state championships", "championships this season": every championship of the season.
   // "state championship" too, as search singularizes it. Said with "state", a state's own (never Worlds).
   const states = /^(?:all\s+(?:the\s+)?)?(state\s+|regional\s+)?(?:championships?|champs)(?:\s+(this|last|next) (?:year|season))?$/.exec(t);
