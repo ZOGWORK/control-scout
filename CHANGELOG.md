@@ -25,7 +25,7 @@ Two teams compared at an event show each team's numbers there.
 - [fixes] When only one of them was there, the card says which
 
 ### Search
-- **Two teams at an event, side by side.** A comparison with an event named ("7149 vs 23268 at nj championship 2025-26", their Worlds, their states) answers with each team's row there: OPR at the event and by phase, qualification rank and record (a championship's division and finals as one), the leader as the headline. When only one of them played it, or each played a different event the words name, the card says so and offers each team's own results. A comparison with no event keeps Compare's card. (#000)
+- **Two teams at an event, side by side.** A comparison with an event named ("7149 vs 23268 at nj championship 2025-26", their Worlds, their states) answers with each team's row there: OPR at the event and by phase, qualification rank and record (a championship's division and finals as one), the leader as the headline. When only one of them played it, or each played a different event the words name, the card says so and offers each team's own results. A comparison with no event keeps Compare's card. (#825)
 
 ## 3.4.2 — 2026-11-06
 
