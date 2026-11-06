@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.3.4 — 2026-11-05
+
+A match question with a time that had to be widened no longer says the time was left out.
+
+### Highlights
+- [fixes] "Highest scoring match in California this week" no longer says "this week" isn't part of the answer
+- [fixes] A widened time is named once, in the card's chip
+- [fixes] Every other word left out is still said to be
+
+### Search
+- **Widened time, read.** When a match question's week or month has nothing yet and the card widens it, the chip ("Relaxed: this week → 2025–26") counts as naming the time, so the heading no longer adds that the time isn't part of the answer. (#PR)
+
 ## 3.3.2 — 2026-11-05
 
 Questions about a team's wins and losses answer with the matches asked for: the last loss, the first win, the longest losing streak, the teams it lost to.
