@@ -179,7 +179,13 @@ describe("one question, any phrasing, any team", () => {
       expect(s.headline?.value, q).toBeTruthy();
     }
     // One of them wasn't there: said, never the other event's numbers.
-    expect((await stat("4215 vs 10809 at golden qualifier")).none).toMatch(/^Hypnotic Robotics \(4215\) has no matches at Golden Qualifier/);
+    const away = await stat("4215 vs 10809 at golden qualifier");
+    expect(away.none).toMatch(/^Hypnotic Robotics \(4215\) has no matches at Golden Qualifier/);
+    // Each follow-up asks again of the season shown, never the event's newest edition.
+    const related = away.blocks.find((b) => b.kind === "related");
+    expect(related?.kind === "related" ? related.queries : []).toEqual(["4215 results at golden qualifier in 2025-26", "10809 results at golden qualifier in 2025-26"]);
+    // "This season" is the first team's latest season: the same card as the season named.
+    expect((await stat("4215 vs 6980 at garden qualifier this season")).scope).toEqual(["Garden Qualifier", "2025–26"]);
   });
   it("a name typed nearly right offers the spelling, whatever stood between its words", async () => {
     const a = await ask("hypnotc-robotics highest score");

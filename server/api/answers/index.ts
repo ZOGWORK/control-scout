@@ -168,7 +168,8 @@ function teamPick(evs: TeamEvent[], s: StatQuestion["scope"], season: number | n
   if (kind) return newest(evs.filter((e) => inSeason(e) && e.type === kind[1] && played(e)), (x) => `its ${seasonLabel(x)} ${kind[2]}`);
   if (at) return pickTeamEvent(evs, at, inSeason);
   if (s.states) return newest(evs.filter((e) => inSeason(e) && e.type === STATES_TYPE && played(e) && (!s.place || (e.country === s.place.country && e.state === s.place.state))));
-  if (s.championship) return newest(evs.filter((e) => e.season === searchSeason() && e.type === CHAMPIONSHIP_TYPE && played(e)));
+  // Worlds: the season or year named, else the current search season's.
+  if (s.championship) return newest(evs.filter((e) => (season != null || held != null ? inSeason(e) : e.season === searchSeason()) && e.type === CHAMPIONSHIP_TYPE && played(e)));
   return null;
 }
 
@@ -815,13 +816,17 @@ const AT_EVENT_RULE = "Each team's numbers at the event, as its team page lists 
 async function compareAt(two: TwoTeamQuestion, a: AnswerTeam, b: AnswerTeam, scope: Scope): Promise<StatAnswer | null> {
   const s = two.scope;
   const [ea, eb] = (await Promise.all([teamEventSet(a.number), teamEventSet(b.number)])).map((x) => x.events.filter(played));
-  const season = s.year ? null : s.season;
-  const first = teamPick(ea, s, season) ?? teamPick(eb, s, season);
+  // "This season": the first team's latest season with an official event played, as the meetings read it.
+  const official = officialClause(), mine = ea.filter(official);
+  const season = s.year ? null : s.season ?? (s.latest && mine.length ? Math.max(...mine.map((e) => e.season)) : null);
+  const first = teamPick(ea, { ...s, season }, season) ?? teamPick(eb, { ...s, season }, season);
   if (!first) return null;
   const S = first.primary.season, again = { ...s, year: false, season: S };
   const pa = teamPick(ea, again, S), pb = teamPick(eb, again, S);
   const base = { family: "two-team" as const, intent: "compare", team: a, teams: [a, b], definition: AT_EVENT_RULE, source: "From each team's event rows" };
-  const related = (picks: [AnswerTeam, TeamEventPick | null][]) => ({ kind: "related" as const, title: "Each team's own", queries: picks.map(([t, p]) => `${t.number} results at ${(p ?? first).name.toLowerCase()}`) });
+  // Follow-ups ask again of the season shown ("… at nj championship in 2025-26"), never the event's newest edition.
+  const at = `${s.at ?? (s.championship ? "worlds" : "states")} in ${S}-${String((S + 1) % 100).padStart(2, "0")}`;
+  const related = (picks: [AnswerTeam, TeamEventPick | null][]) => ({ kind: "related" as const, title: "Each team's own", queries: picks.map(([t]) => `${t.number} results at ${at}`) });
   if (!pa || !pb) {
     const here = (pa ?? pb)!, away = pa ? b : a;
     return { ...base, title: `${a.number} vs ${b.number} at ${here.name}`, scope: [here.name, seasonLabel(S)], blocks: [related([[a, pa], [b, pb]])],
@@ -853,7 +858,7 @@ async function compareAt(two: TwoTeamQuestion, a: AnswerTeam, b: AnswerTeam, sco
   return {
     ...base, title: `${a.number} vs ${b.number} at ${name}`, scope: [name, seasonLabel(S)],
     headline: crow[0] && rows.some((e) => e.opr != null) ? leadHeadline(teams, crow[0], [...ranks, decidedText(crow)], eventHref(S, pa.primary.code)) : { value: ranks.join(" · "), label: `No OPR at ${name} on record` },
-    blocks: [block, { kind: "links", title: "Try it", items: [{ label: `${a.number} and ${b.number} matches together there`, href: `/search?q=${encodeURIComponent(`${a.number} and ${b.number} matches together at ${s.at ?? (s.championship ? "worlds" : "states")}`)}` }] }],
+    blocks: [block, { kind: "links", title: "Try it", items: [{ label: `${a.number} and ${b.number} matches together there`, href: `/search?q=${encodeURIComponent(`${a.number} and ${b.number} matches together at ${at}`)}` }] }],
   };
 }
 
