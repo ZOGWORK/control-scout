@@ -190,6 +190,34 @@ describe("one question, any phrasing, any team", () => {
     expect((await stat("4215 vs 6980 at garden qualifier in 2026")).scope).toEqual(["Garden Qualifier", "2025–26"]);
     expect((await ask("4215 vs 6980 at garden qualifier in 2024")).stat?.intent).not.toBe("compare");
   });
+  it("two teams with no event: the season's numbers side by side, however it's asked; 'or' alone stays a search", async () => {
+    await run("INSERT OR REPLACE INTO team_season_stats (season, team, opr_np, opr_auto, opr_teleop, opr_endgame, rating_np, matches, rating_matches, wins, losses, ties) VALUES (2025, 4215, 90, 20, 60, 10, 85, 10, 10, 7, 3, 0), (2025, 6980, 70, 15, 45, 10, 66, 10, 10, 5, 5, 0)");
+    clearAllCaches();
+    for (const q of ["4215 vs 6980", "4215 versus 6980", "compare 4215 and 6980", "4215 or 6980 who is better", "who is better 4215 or 6980"]) {
+      const s = await stat(q);
+      expect(s, q).toMatchObject({ family: "two-team", intent: "compare", title: expect.stringMatching(/^4215 vs 6980, /) });
+      expect(s.headline?.value, q).toBeTruthy();
+    }
+    // Compare's own link leads, on the card's season.
+    expect((await ask("4215 vs 6980")).hits[0]).toMatchObject({ kind: "compare", href: expect.stringMatching(/[?&]season=2025\b/) });
+    expect((await ask("4215 or 6980")).stat?.intent).not.toBe("compare");
+  });
+  it("at Worlds with no season said: the newest one either went to; one never there is said so", async () => {
+    for (const n of [30050, 30051]) {
+      await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, 'Town', 'VT', 'USA')", [n, `Compare Bots ${n}`]);
+      await run("INSERT INTO team_seasons (season, team) VALUES (2024, ?), (2025, ?)", [n, n]);
+    }
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2024, 'FTCCMP1VTX', 'FIRST Championship Past Division', 'FIRSTChampionship', 'Town', 'TX', 'USA', '2025-04-16', '2025-04-16', 't')");
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2024, 'FTCCMP1VTX', 'qual', 0, 1, 'Q1', '2025-04-16T10:00:00Z', 1, 120, 120, 80, 80, 't')");
+    await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2024, 'FTCCMP1VTX', 'qual', 0, 1, 30050, 'red', 1), (2024, 'FTCCMP1VTX', 'qual', 0, 1, 17713, 'blue', 1)");
+    await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2024, 'FTCCMP1VTX', 30050, 1), (2024, 'FTCCMP1VTX', 17713, 2)");
+    clearAllCaches();
+    for (const q of ["30050 vs 30051 at worlds", "30051 vs 30050 at worlds"]) {
+      const s = await stat(q);
+      expect(s, q).toMatchObject({ intent: "compare", none: expect.stringMatching(/\(30051\) has no Worlds matches on record in any season/) });
+      expect(s.scope, q).toContain("2024–25");
+    }
+  });
   it("two meets by one name (AM and PM): both teams' numbers from the meet they both played", async () => {
     await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, 'USMELAM', 'Lakeside AM League Meet', 'LeagueMeet', 'Town', 'ME', 'USA', '2026-02-21', '2026-02-21', 't'), (2025, 'USMELPM', 'Lakeside PM League Meet', 'LeagueMeet', 'Town', 'ME', 'USA', '2026-02-21', '2026-02-21', 't')");
     let n = 700;
