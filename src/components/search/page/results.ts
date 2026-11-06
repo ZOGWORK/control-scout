@@ -184,9 +184,10 @@ export function whenCounts(hits: SearchHit[], f: PageFilters, today = todayIso()
 
 /** What a filtered page with nothing left can switch to instead, nearest first: the other time tab, then every season,
  *  then every event type, each named with how many events it would show ("2 upcoming"); none that would show none. */
-export function filterAlternatives(hits: SearchHit[], f: PageFilters, today = todayIso(), statuses?: Statuses): { label: string; f: PageFilters }[] {
+export function filterAlternatives(hits: SearchHit[], f: PageFilters, today = todayIso(), statusesFor?: (g: PageFilters) => Statuses): { label: string; f: PageFilters }[] {
   const ev = hits.filter((h) => h.kind === "event");
-  const count = (g: PageFilters) => ev.filter((h) => keeps(h, g, today, statuses)).length;
+  // Each choice counted with its own statuses (a family's status depends on which of it the choice keeps).
+  const count = (g: PageFilters) => { const st = statusesFor?.(g); return ev.filter((h) => keeps(h, g, today, st)).length; };
   const out: { label: string; f: PageFilters }[] = [];
   const add = (g: PageFilters, say: (n: number) => string) => { const n = count(g); if (n) out.push({ label: say(n), f: g }); };
   if (f.when !== "all") { const other: When = f.when === "past" ? "upcoming" : "past"; add({ ...f, when: other }, (n) => `${n} ${other}`); }

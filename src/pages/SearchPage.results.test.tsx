@@ -192,6 +192,10 @@ describe("search results page", () => {
     expect([...container.querySelectorAll("[data-status-section]")].map((x) => x.getAttribute("data-status-section"))).toEqual(["finished"]);
     expect(screen.getByRole("radio", { name: "Past, 2 events" })).toBeTruthy();
     expect(screen.getByRole("radio", { name: "Upcoming, 0 events" })).toBeTruthy();
+    // An empty choice offers only what its own statuses would show: the finals alone are live, so no past ones.
+    cleanup();
+    const empty = show("/search?q=big%20championship&type=Premier&when=past").container;
+    expect([...empty.querySelectorAll("[data-alternative]")].map((b) => b.textContent)).toEqual(["Show 1 upcoming"]);
   });
 
   it("the time tab follows the query: 'upcoming meets' opens on Upcoming, highlighted, and a pick of All is kept in the address", () => {

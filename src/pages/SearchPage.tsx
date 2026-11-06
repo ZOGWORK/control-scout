@@ -76,7 +76,8 @@ export default function SearchPage() {
   const named = useMemo(() => answerTeams(answer, compares), [answer, compares]);
   // One status per event, a family's for all of it, chosen among the events the season and type filters keep: the
   // sections, the time filter and the tab counts all read it.
-  const statuses = useMemo(() => eventStatuses(hits.filter((h) => keeps(h, { ...filters, when: "all" }))), [hits, filters.season, filters.type]);
+  const statusesFor = (f: PageFilters) => eventStatuses(hits.filter((h) => keeps(h, { ...f, when: "all" })));
+  const statuses = useMemo(() => statusesFor(filters), [hits, filters.season, filters.type]);
   const view = useMemo(() => shape(sections, filters, new Set(named), statuses), [sections, filters.when, filters.season, filters.type, named, statuses]);
   const choices = useMemo(() => filterChoices(hits), [hits]);
   // Site pages a query names ("rules", "rankings") are an answer too.
@@ -264,7 +265,7 @@ export default function SearchPage() {
                     <div className="rounded-xl border border-border bg-card px-4 py-3.5 text-sm" data-filtered-empty>
                       <p className="text-foreground">{emptyLine(filters, hits)}</p>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
-                        {filterAlternatives(hits, filters, undefined, statuses).map((a) => (
+                        {filterAlternatives(hits, filters, undefined, statusesFor).map((a) => (
                           <Button key={a.label} size="sm" variant="secondary" onClick={() => setFilters(a.f)} data-alternative>
                             Show {a.label}
                           </Button>
