@@ -25,7 +25,7 @@ Highlights as a grid of match videos; a team's card plays the team's own match.
 - [history] An event with no recording still lists its matches, stats only
 
 ### Search
-- **Highlights as a video grid.** A highlights answer (a team's or a scope's) is a grid of tiles, one per match, its reason ("Best score", "Closest win") as the tile's label over the match's video and its match box; a tap plays it in the app's video dialog, one video at a time. A match's own video shows its picture; a second in the event's recording shows its time, never the recording's picture (whatever was on the field then). A match with no clip keeps its tile with "No video"; when none has a video, one line says "No recording for this event — stats only." (#PR)
+- **Highlights as a video grid.** A highlights answer (a team's or a scope's) is a grid of tiles, one per match, its reason ("Best score", "Closest win") as the tile's label over the match's video and its match box; a tap plays it in the app's video dialog, one video at a time. A match's own video shows its picture; a second in the event's recording shows its time, never the recording's picture (whatever was on the field then). A match with no clip keeps its tile with "No video"; when none has a video, one line says "No recording for this event — stats only." (#803)
 - **A team's card plays the team's match.** An answer about a team ("gearview opr at worlds", a team's highlights) plays its own listed match, else its best-scoring match at the event with a clip; the event's recording from its start is the fallback only when none has one.
 
 ## 3.4.0 — 2026-11-06
