@@ -672,8 +672,17 @@ async function winnersSearch(q: string, it: StatQuestion, opts: { full: boolean;
   const asked = it.scope.lastYear ? null : it.scope.latest && it.scope.season == null ? CURRENT_SEASON : it.scope.year && it.scope.season != null ? it.scope.season - 1 : it.scope.season;
   let named = championship ? null : (await teamsLastEvent(core, asked)) ?? await namedEvent(it, asked);
   // "This year" naming an event not on this season's calendar yet (a division FIRST hasn't set up): its latest one, said so.
-  const before = !championship && !named && it.scope.latest && it.scope.season == null ? asked : null;
-  if (before != null) named = await namedEvent(it, null);
+  let before = !championship && !named && it.scope.latest && it.scope.season == null ? asked : null;
+  if (before != null) {
+    named = await namedEvent(it, null);
+    // On this season's calendar, not held yet (the same event, or a place's states of the same type there): that event,
+    // whose answer says it isn't decided, never "no event on record".
+    const scheduled = named ? await get<any>(
+      `SELECT e.season, e.code, e.name, e.type, e.start, e.end, e.division_code division FROM events e JOIN events n ON n.season = ? AND n.code = ?
+       WHERE e.season = ? AND (e.code = n.code OR (? AND e.type = n.type AND e.state IS n.state AND e.country IS n.country AND e.division_code IS NULL))
+       ORDER BY e.code = n.code DESC, length(e.code), e.code LIMIT 1`, [named.season, named.code, before, it.scope.states ? 1 : 0]) : null;
+    if (scheduled) { named = scheduled; before = null; }
+  }
   if (!championship && !named) return null;
   // A winner word alone ("east bergen conference winner") answers only for an event its words name outright.
   if (it.bare && named && eventFit(core, named.name) < 0.75) return null;

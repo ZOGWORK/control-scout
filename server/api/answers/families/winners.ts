@@ -158,11 +158,18 @@ export async function winnersAnswer(core: string, season: number | null, champio
     rows.push({ cells: { division: shortEvent(d.name, d.type), alliance: w ? w.teams.map((t) => dl.get(t)?.label ?? String(t)).join(", ") : "Not decided in the data yet", final: w?.finals.map((f) => `${f.label} ${f.own}–${f.opp}`).join(", ") || "–" }, href: eventHref(d.season, d.code) });
   }
   if (rows.length) blocks.push({ kind: "table", title: worlds ? "Each division's winning alliance" : "Each division's winning alliance", columns: [{ key: "division", label: "Division" }, { key: "alliance", label: "Winning alliance" }, { key: "final", label: "Finals" }], rows });
-  // The event's Inspire Award winner beside its winners (FIRST's award for the event's top team overall).
-  const inspire = await all<{ team: number }>("SELECT team FROM awards WHERE season = ? AND code = ? AND type = 'Inspire' AND placement = 1", [parent.season, parent.code]);
+  // The event's Inspire Award winner beside its winners (FIRST's award for the event's top team overall); a division's
+  // awards are posted on its championship, so a division with none of its own takes that event's, and links its list.
+  const own = await get<{ n: number }>("SELECT COUNT(*) n FROM awards WHERE season = ? AND code = ?", [parent.season, parent.code]);
+  const champ = !Number(own?.n) && parent.division ? await get<Ev>(`SELECT ${evCols} FROM events WHERE season = ? AND code = ?`, [parent.season, parent.division]) : null;
+  const from = champ ?? parent;
+  const inspire = await all<{ team: number }>("SELECT team FROM awards WHERE season = ? AND code = ? AND type = 'Inspire' AND placement = 1", [from.season, from.code]);
   if (inspire.length) {
     const il = await teamLinks(inspire.map((r) => Number(r.team)));
-    blocks.push({ kind: "links", title: "Inspire Award", items: inspire.map((r) => ({ ...il.get(Number(r.team))!, sub: "1st-place Inspire" })) });
+    blocks.push({ kind: "links", title: champ ? `Inspire Award · ${shortEvent(champ.name, champ.type)}` : "Inspire Award", items: inspire.map((r) => ({ ...il.get(Number(r.team))!, sub: "1st-place Inspire" })) });
+  }
+  if (champ && Number((await get<{ n: number }>("SELECT COUNT(*) n FROM awards WHERE season = ? AND code = ?", [champ.season, champ.code]))?.n)) {
+    blocks.push({ kind: "links", title: "Awards", items: [{ label: `Every award at ${shortEvent(champ.name, champ.type)}`, href: `${eventHref(champ.season, champ.code)}?tab=awards`, sub: "posted on the championship" }] });
   }
   blocks.push(...(await otherSeasons(parent, worlds)));
   if (worlds) {
@@ -175,7 +182,7 @@ export async function winnersAnswer(core: string, season: number | null, champio
   }
   // The page is headed by `title`; the card says what it holds, so the two never read the same.
   const card = worlds ? `The champions and each division's winners` : divisions.length ? "The winners and each division's winning alliance" : "The winners and their final matches";
-  const base = { family: "event" as const, intent: "winning-alliance", title: card, heading: title, scope: [worlds ? "FIRST Championship (Worlds)" : shortEvent(parent.name, parent.type), seasonLabel(parent.season)], definition: `${RULE} The Inspire Award shown is the event's 1st-place Inspire Award.${why}`, source: `From the published awards and playoff matches of ${1 + divisions.length} event${divisions.length ? "s" : ""}, ${dateRange(parent.start, parent.end)}` };
+  const base = { family: "event" as const, intent: "winning-alliance", title: card, heading: title, scope: [worlds ? "FIRST Championship (Worlds)" : shortEvent(parent.name, parent.type), seasonLabel(parent.season)], definition: `${RULE} The Inspire Award shown is the ${champ ? "championship's (a division's awards are posted there)" : "event's"} 1st-place Inspire Award.${why}`, source: `From the published awards and playoff matches of ${1 + divisions.length} event${divisions.length ? "s" : ""}, ${dateRange(parent.start, parent.end)}` };
   if (!decided && worlds && !core) return notYet(parent.season, findEvent, why);
   // "This year" before the event is decided this season: said so, then its latest finished season's winners below.
   if (!decided && !worlds && which.latest) {

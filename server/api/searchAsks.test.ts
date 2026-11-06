@@ -7,6 +7,7 @@ import { searchSeason } from "./answers/season";
 import { searchAnswer } from "./searchAnswer";
 import { askAnswer, eventWon, readAsk, type Stat } from "./searchAsks";
 import { readStatQuestion } from "./answers/read";
+import { pageMeta } from "../seoMeta";
 import { withTeamStats } from "./searchTeamStats";
 import { parseQuestion } from "./searchQuestions";
 import { CURRENT_SEASON } from "../data/seasons";
@@ -411,6 +412,20 @@ describe("who won a division (owner: \"who won nj turnpike division this year\" 
     const a = await ask("who won vermont championship north division this year");
     expect(a.stat?.none).toBe("Vermont Championship - North Division has no 2026–27 event on record yet. Below: the latest one finished, 2025–26.");
     expect(chips(a.stat?.headline)).toEqual(["23268 Ultraviolet", "6980 Bad Wolf"]);
+  });
+  it("on the page the division's answer lists its championship's Inspire Award and links its awards", async () => {
+    const a = await ask("who won vermont championship north division");
+    expect(a.stat?.blocks.find((b) => b.kind === "links" && b.title === "Inspire Award · Vermont Championship")).toMatchObject({ items: [{ label: "20265 Heart of RoBots" }] });
+    expect(a.stat?.blocks.find((b) => b.kind === "links" && b.title === "Awards")).toMatchObject({ items: [{ href: "/events/2025/USVTCMP?tab=awards" }] });
+    // The first HTML names the champions too, the chips' teams beside their alliance.
+    expect((await pageMeta("/search", { q: "who won vermont championship north division" })).bodyHtml).toMatch(/Alliance 1<\/a><\/b>.*23268 Ultraviolet.*6980 Bad Wolf/s);
+  });
+  it("\"this year\" with this season's event scheduled, not held: said it isn't decided, never that it's missing", async () => {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2026, 'USVTCMP', 'Vermont Championship', 'Championship', 'Burlington', 'VT', 'USA', '2027-03-06', '2027-03-06', 't')");
+    const a = await ask("who won vermont championship this year");
+    expect(a.stat?.none).toBe("Vermont Championship 2026–27 isn't decided yet (Mar 6, 2027). Below: the latest one finished, 2025–26.");
+    expect(a.stat?.headline).toMatchObject({ value: "Champions" });
+    await run("DELETE FROM events WHERE season = 2026 AND code = 'USVTCMP'");
   });
   it("an event not held yet has no winners, never another event's", async () => {
     expect(await card("who won vermont maple qualifier")).toBeUndefined();
