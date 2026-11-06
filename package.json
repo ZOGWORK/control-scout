@@ -42,6 +42,7 @@
     "schedule:eval": "tsx scripts/schedule-difficulty-eval.ts",
     "bracket:replay": "tsx scripts/bracket-replay.ts",
     "shots": "tsx scripts/shots.ts",
+    "phone-proof": "tsx scripts/phone-proof.ts",
     "audit": "tsx scripts/audit.ts",
     "audit:flows": "tsx scripts/audit-flows.ts",
     "a11y": "tsx scripts/a11y.ts",

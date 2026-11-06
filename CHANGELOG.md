@@ -28,6 +28,19 @@ Long search questions answer faster: a word looked up once is remembered for the
 - **A word looked up once.** One answer asks for the same team or word many times (each reader and layer asks again), and a word that finds nothing used to scan every name each time. Search now remembers each lookup for a minute, until the search index is rebuilt. Of the 19 held-out questions that took over a second, 11 now take under one, and the slowest went from 6.8 s to 2.0 s, with every answer unchanged. (#779)
 - **Award lists by index.** A list of teams that won an award reads each team's own awards, never every award that season for each team.
 
+## 3.3.6 — 2026-11-05
+
+Every kind of search answer is checked on a 390 px phone: nothing runs off the screen, and every link and button is big enough to tap.
+
+### Highlights
+- [appearance] Match names in search answers are easier to tap on a phone
+- [appearance] A line chart's points are bigger tap targets
+- [appearance] Video buttons and the search list are full 44 px taps on phones
+
+### Search
+- **Checked at 390 px.** A new check (`npm run phone-proof`) opens one search for every kind of answer card on a 390 × 844 phone and fails on sideways scrolling, anything past the screen's edge, a link or button under 24 × 24 px, two that overlap, a team number cut off, or more than one main button; it saves a phone shot of each.
+- **Bigger taps.** A match's name in a match box ("Q1", "M2") is at least 44 px wide on a phone; a line chart's points are 24 px; the leaderboard's "#" sort is 24 px wide; and the video's "Open on YouTube", each match's play button and the search list's rows are 44 px on a phone (they were 44 px only where the text size is 16 px) (#778).
+
 ## 3.3.5 — 2026-11-05
 
 Prediction questions answer in the card, with the chance on a 0–100% bar, and a search nothing answers shows the closest real results.
