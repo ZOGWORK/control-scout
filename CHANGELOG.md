@@ -20,7 +20,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 A match question with a time that had to be widened no longer says the time was left out.
 
 ### Highlights
-- [fixes] "Highest scoring match in California this week" no longer says "this week" isn't part of the answer
+- [fixes] "Top match in Ohio this week" keeps "this week" read
 - [fixes] A widened time is named once, in the card's chip
 - [fixes] Every other word left out is still said to be
 
