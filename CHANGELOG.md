@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.3.7 — 2026-11-05
+
+Long search questions answer faster: a word looked up once is remembered for the rest of the answer.
+
+### Highlights
+- [speed] Long questions answer up to 7 times faster
+- [speed] "Top NJ team vs top Romania team" answers in under a second
+- [speed] Award-filtered team lists read each team's awards directly
+
+### Search
+- **A word looked up once.** One answer asks for the same team or word many times (each reader and layer asks again), and a word that finds nothing used to scan every name each time. Search now remembers each lookup for a minute, until the search index is rebuilt. Of the 19 held-out questions that took over a second, 11 now take under one, and the slowest went from 6.8 s to 2.0 s, with every answer unchanged. (#PR)
+- **Award lists by index.** A list of teams that won an award reads each team's own awards, never every award that season for each team.
+
 ## 3.3.5 — 2026-11-05
 
 Prediction questions answer in the card, with the chance on a 0–100% bar, and a search nothing answers shows the closest real results.
