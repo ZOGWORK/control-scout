@@ -111,7 +111,7 @@ export async function answerVideo(a: SearchAnswer, now = Date.now()): Promise<Se
   // An answer about a team at one event with no match of its own ("<team> opr at worlds"): the team's matches there,
   // its points on each, so the card plays its best one with a clip, never the recording from its start.
   const team = aboutTeam(a) ? teamOf(a) : null;
-  const teamAt = team != null && main && !main.key && recs.has(evKey(main)) ? main : null;
+  const teamAt = team != null && main && !main.key ? main : null;
   // The events' played matches, all in one read: a match's clip needs its event's whole span (timingTrusted).
   const asked = [...events.values()].filter((e) => rows.some((r) => evKey(r) === evKey(e)) || (main && evKey(main) === evKey(e) && (main.key || teamAt)));
   const played = asked.length ? await all<PlayedRow>(

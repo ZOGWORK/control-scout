@@ -158,6 +158,13 @@ describe("answerVideo: an answer about a team plays one of its own matches", () 
     expect((await answerVideo(stat({ team: { number: 6980, name: null }, headline: { value: "x", label: "x", href: "/events/2025/USMACMP?team=6980" } }), NOW))?.main).toEqual({ videoId: "xnQFL9T27fY", t: 0, kind: "stream" });
   });
 
+  it("about the team at an event with FIRST's own videos and no recording: its match's video", async () => {
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, video, source) VALUES (2025, 'USNJCMP', 'qual', 0, 5, 'Q5', '2026-03-14T10:00:00', 1, 90, 90, 80, 80, 'https://www.youtube.com/watch?v=njq5njq5njq', 't')");
+    await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'USNJCMP', 'qual', 0, 5, 5555, 'red', 1)");
+    const opr = stat({ team: { number: 5555, name: null }, headline: { value: "40.1", label: "x", href: "/events/2025/USNJCMP?team=5555" } });
+    expect((await answerVideo(opr, NOW))?.main).toEqual({ videoId: "njq5njq5njq", t: 0, kind: "match", match: "Q5" });
+  });
+
   it("an event with no recording and no match video: no video at all", async () => {
     expect(await answerVideo(theirs([row("USNJCMP", "qual:0:1", "Q1")]), NOW)).toBeUndefined();
   });
