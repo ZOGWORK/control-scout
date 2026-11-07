@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.8.2 — 2026-11-07
+## 3.8.3 — 2026-11-07
 
 Two teams are read in more ways: "have 4215 and 207 played each other", "the OPR gap between 7149 and 23268", "is 4215 better than 7149 at endgame" and "if 4215 played 7149, who would win" each get their side-by-side answer.
 
@@ -26,6 +26,19 @@ Two teams are read in more ways: "have 4215 and 207 played each other", "the OPR
 
 ### Search
 - **Two teams, more ways to ask.** Played each other (or faced, met, one another), the OPR or rating gap between two teams, better or worse than another team at a phase, and "if A played B, who would win" or "predict A vs B" each read as the two teams' answer. (#1030)
+
+## 3.8.2 — 2026-11-07
+
+Every button and link in a search answer is big enough to tap on a phone, and a list of top teams keeps each team's name readable.
+
+### Highlights
+- [fixes] Every tap target in a search answer is at least 44px each way
+- [fixes] Top-teams lists on phones show each team's full name
+- [fixes] A team's record moves into its row's details on narrow screens
+
+### Search
+- **Tap targets.** Team chips, match links, sort headers, event links, chart points, the compare headline and "Open in Predict" are all at least 44px wide and tall on phones and touch screens. One shared rule covers them, so new controls get it too.
+- **Top teams on phones.** A list ranked by a number of its own (prediction rating, win rate) shows that number and the OPR on a phone. The record moves into the row's details, so each team's name has the room to be read. (#1025)
 
 ## 3.8.1 — 2026-11-07
 

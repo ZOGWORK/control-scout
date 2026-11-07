@@ -14,12 +14,11 @@ import type { TeamEventRow, TeamProfile } from "../../../shared/api";
 import { Meter, StatTile, rankPc } from "../../StatTile";
 import { Badge } from "../../ui/basic";
 import { cn } from "../../cn";
-import { EventMarker, RankPill, RecordText } from "./answerCells";
+import { EventMarker, RankPill, RecordText, TAP } from "./answerCells";
 import { GLANCE_TONE as G } from "../../../lib/textTones";
 import { teamFill } from "../../../lib/textTones";
 
-/** The touch rule every search control keeps: 44px tall on phones and touch screens. */
-export const TAP = "max-md:min-h-[44px] pointer-coarse:min-h-[44px]";
+export { TAP };
 /** A secondary action on an answer: underlined text, gold only on hover; the page's one primary action is the button. */
 export const SECONDARY = "inline-flex items-center gap-1 text-sm font-medium text-foreground underline decoration-border underline-offset-2 hover:text-accent-text";
 

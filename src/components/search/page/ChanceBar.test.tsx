@@ -16,6 +16,8 @@ describe("ChanceBar", () => {
     expect(container.textContent).toContain("100%");
     expect(container.textContent).toContain("Predicted 138 ±14 – 92 ±12");
     expect(getAllByRole("link").map((l) => l.textContent)).toEqual(["Open in Predict"]);
+    // Sign-off visual pass, 390 px: the action was 35px tall. A touch target is 44px each way (answerCells TAP).
+    expect(container.querySelector("[data-primary-cta]")!.className).toMatch(/max-md:min-h-\[44px\].*max-md:min-w-\[44px\]/);
     // The bar is the team hue (--color-chance is team A) on a neutral track, never volt (the accent): volt is the primary button's alone.
     const bar = container.querySelector("[role=img]")!;
     expect(bar.querySelector("[data-chance-fill]")?.className).toContain("bg-team-a");

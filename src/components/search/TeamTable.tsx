@@ -7,7 +7,7 @@ import { Link } from "react-router-dom";
 import { ArrowDown, ArrowUp, ChevronDown } from "lucide-react";
 import { firstDir, hasPhases, phaseNote, sortTeamRows, teamColumns, type TeamSortKey, type TeamTable as Table, type TeamTableRow } from "../../shared/teamTable";
 import { cn } from "../cn";
-import { INK_BAR, RecordText } from "./page/answerCells";
+import { INK_BAR, RecordText, TAP } from "./page/answerCells";
 import { PODIUM_CHIP, SEARCH_PALETTE } from "../../lib/textTones";
 
 // Each phase column in search's palette colour for it, header and numbers (the same colours as every other card).
@@ -58,7 +58,7 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
     const on = sort.key === k;
     return (
       <th key={k} scope="col" aria-sort={on ? (sort.dir === "asc" ? "ascending" : "descending") : "none"} className={cn(th, "text-right", className)}>
-        <button type="button" onClick={() => onSort(k)} title={title ?? def(k)} data-sort={k} className={cn("inline-flex flex-row-reverse items-center gap-0.5 rounded hover:text-foreground max-md:min-h-[44px] pointer-coarse:min-h-[44px]", on && "text-foreground")}>
+        <button type="button" onClick={() => onSort(k)} title={title ?? def(k)} data-sort={k} className={cn("inline-flex flex-row-reverse items-center justify-center gap-0.5 rounded hover:text-foreground", TAP, on && "text-foreground")}>
           {children}{on ? (sort.dir === "asc" ? <ArrowUp className="size-3" aria-hidden /> : <ArrowDown className="size-3" aria-hidden />) : <span className="size-3" aria-hidden />}
         </button>
       </th>
@@ -70,6 +70,9 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
   // A list ranked by a phase ("best auto"): on a phone that phase's column is the number shown, not the OPR (§8).
   const byPhase = phases && (table.by === "auto" || table.by === "dc" || table.by === "endgame");
   const onPhone = (k: TeamSortKey) => (byPhase && k === table.by ? "" : "max-md:hidden");
+  // A list ranked by a number of its own (the asked column) keeps a phone's row to that number and the OPR: the record
+  // moves into the row's phases, so the team's name has the room to be read (never cut to a few letters).
+  const recordAside = !!table.asked && phases;
 
   return (
     <figure data-team-table data-sort-key={sort.key} data-sort-dir={sort.dir}>
@@ -78,7 +81,7 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
           <thead className="bg-muted/50 text-left text-[11px] text-muted-foreground">
             <tr>
               <th scope="col" aria-sort={sort.key === "rank" ? "ascending" : "none"} className={cn(th, "w-8 text-right")}>
-                <button type="button" onClick={() => setSort({ key: "rank", dir: "asc" })} title="The list's own order" data-sort="rank" className={cn("rounded hover:text-foreground max-md:min-h-[44px] max-md:min-w-[24px] pointer-coarse:min-h-[44px]", sort.key === "rank" && "text-foreground")}>#</button>
+                <button type="button" onClick={() => setSort({ key: "rank", dir: "asc" })} title="The list's own order" data-sort="rank" className={cn("rounded hover:text-foreground", TAP, sort.key === "rank" && "text-foreground")}>#</button>
               </th>
               <th scope="col" className={th}>Team</th>
               {table.asked && sortTh("asked", table.asked.label, "max-md:whitespace-normal max-md:leading-tight", table.asked.label)}
@@ -89,7 +92,7 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
                 {sortTh("endgame", "Endgame", cn(onPhone("endgame"), "font-semibold", P.endgame.text))}
                 {sortTh("pen", "Pen", cn("max-md:hidden font-semibold", P.pen.text))}
               </>}
-              {sortTh("record", "W-L-T")}
+              {sortTh("record", "W-L-T", recordAside ? "max-md:hidden" : undefined)}
               {phases && <th scope="col" className="w-8 md:hidden"><span className="sr-only">Phases</span></th>}
             </tr>
           </thead>
@@ -108,7 +111,7 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
                     </td>
                     <td className="px-2 py-1.5 max-md:w-full max-md:max-w-0 max-md:px-1.5">
                       {/* The clamp on the text, not the link: the link's tap padding would show a third line over the town. */}
-                      <Link to={r.href} className="block font-medium text-foreground hover:text-accent-text hover:underline max-md:-my-[13px] max-md:py-[13px] pointer-coarse:-my-[13px] pointer-coarse:py-[13px]"><span className="line-clamp-2 break-words"><span className="tabular-nums">{r.team}</span>{r.name && ` ${r.name}`}</span></Link>
+                      <Link to={r.href} className="block font-medium text-foreground hover:text-accent-text hover:underline max-md:min-w-[44px] pointer-coarse:min-w-[44px] max-md:-my-[13px] max-md:py-[13px] pointer-coarse:-my-[13px] pointer-coarse:py-[13px]"><span className="line-clamp-2 break-words"><span className="tabular-nums">{r.team}</span>{r.name && ` ${r.name}`}</span></Link>
                       {r.location && <span className="block break-words text-[11px] text-muted-foreground">{r.location}</span>}
                     </td>
                     {table.asked && <td className="whitespace-nowrap px-2 py-1.5 text-right font-medium tabular-nums text-foreground" data-asked>{r.asked?.display ?? "–"}</td>}
@@ -123,7 +126,7 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
                       <td className={cn("px-2 py-1.5 text-right font-medium tabular-nums", P.endgame.text, onPhone("endgame"))} data-phase="endgame">{oneDp(r.endgame)}</td>
                       <td className={cn("px-2 py-1.5 text-right font-medium tabular-nums max-md:hidden", P.pen.text)} data-phase="pen">{oneDp(r.pen)}</td>
                     </>}
-                    <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums"><RecordText text={record(r)} /></td>
+                    <td className={cn("whitespace-nowrap px-2 py-1.5 text-right tabular-nums", recordAside && "max-md:hidden")}><RecordText text={record(r)} /></td>
                     {phases && (
                       <td className="py-1 pr-1 md:hidden">
                         <button type="button" onClick={() => toggle(r.team)} aria-expanded={isOpen} aria-controls={more} aria-label={`${isOpen ? "Hide" : "Show"} phases for ${name}`} data-expand={r.team}
@@ -136,13 +139,19 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
                   {phases && (
                     <tr id={more} hidden={!isOpen} className="md:hidden" data-phases-row={r.team}>
                       <td colSpan={cols} className="px-3 pb-2.5 pt-0.5">
-                        <dl className="grid grid-cols-4 gap-1 text-[11px]">
+                        <dl className={cn("grid gap-1 text-[11px]", recordAside ? "grid-cols-5" : "grid-cols-4")}>
                           {segments.map((p) => (
                             <div key={p.key}>
                               <dt className="text-muted-foreground">{p.key === "pen" ? "Pen" : p.label}</dt>
                               <dd className="font-medium tabular-nums text-foreground">{oneDp(r[p.key])}</dd>
                             </div>
                           ))}
+                          {recordAside && (
+                            <div data-phone-record>
+                              <dt className="text-muted-foreground">W-L-T</dt>
+                              <dd className="font-medium tabular-nums text-foreground"><RecordText text={record(r)} /></dd>
+                            </div>
+                          )}
                         </dl>
                       </td>
                     </tr>

@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 import type { StatBlock } from "../../../shared/searchStat";
 import { buttonVariants } from "../../ui/button";
 import { cn } from "../../cn";
-import { TEAM_BAR, TEAM_TEXT } from "./answerCells";
+import { TAP, TEAM_BAR, TEAM_TEXT } from "./answerCells";
 
 export function ChanceBar({ b }: { b: Extract<StatBlock, { kind: "chance" }> }) {
   const pc = Math.round(100 * Math.min(1, Math.max(0, b.p)));
@@ -20,7 +20,7 @@ export function ChanceBar({ b }: { b: Extract<StatBlock, { kind: "chance" }> }) 
         <span aria-hidden>100%</span>
       </div>
       {b.note && <p className="mt-2 text-sm tabular-nums">{b.note}</p>}
-      {b.action && <Link to={b.action.href} className={cn(buttonVariants(), "mt-3")} data-primary-cta>{b.action.label}</Link>}
+      {b.action && <Link to={b.action.href} className={cn(buttonVariants(), "mt-3", TAP)} data-primary-cta>{b.action.label}</Link>}
     </section>
   );
 }
