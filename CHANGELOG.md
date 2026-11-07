@@ -25,7 +25,7 @@ The rookie leaderboard lists from the bottom when asked, with the stat said befo
 - [rankings] The lowest-first rookie list links its Teams view
 
 ### Search
-- **Rookies from the bottom.** "Lowest", "worst" or "weakest" before the rookies lists them lowest first, ranked from the top as every lowest-first board is, and titled so ("Lowest rookie teams in New Jersey by OPR"). The stat can be said before "rookies" ("lowest opr rookies") or after the place ("in texas by auto opr"); two stats at once are no one board. (#PR)
+- **Rookies from the bottom.** "Lowest", "worst" or "weakest" before the rookies lists them lowest first, ranked from the top as every lowest-first board is, and titled so ("Lowest rookie teams in New Jersey by OPR"). The stat can be said before "rookies" ("lowest opr rookies") or after the place ("in texas by auto opr"); two stats at once are no one board. (#1085)
 
 ## 3.8.8 — 2026-11-07
 
