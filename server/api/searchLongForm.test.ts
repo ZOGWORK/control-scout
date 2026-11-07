@@ -205,6 +205,21 @@ describe("long, conversational queries", () => {
     expect(w.understood?.label).not.toMatch(/isn't part of this answer/);
   });
 
+  it("reads a yes-or-no listing question with the team as its number and name, or its name alone (Greptile on #1095)", async () => {
+    for (const [long, short, team] of [
+      ["is 6980 bad wolf a rookie team or a veteran", "6980 rookie year", 6980],
+      ["is critical mass really from new jersey or not", "where is 207 from", 207],
+      ["does ultraviolet have any sponsors listed", "23268 sponsors", 23268],
+    ] as const) {
+      const s = await ask(short), a = await ask(long);
+      expect(what(a), long).toBe(what(s));
+      expect(a.understood?.label, long).toContain(`(${team})`);
+      const d = await drop(long);
+      expect(d.card?.kind ?? d.intent?.kind, long).toBe((await drop(short)).card?.kind ?? (await drop(short)).intent?.kind);
+      expect(d.understood?.label, long).toContain(`(${team})`);
+    }
+  });
+
   it("reads a yes-or-no listing question only when it asks for the listing", () => {
     expect(longForm("is 4215 in the finals")).not.toBe("where is 4215 from");
     expect(longForm("is 4215 a good team or not")).not.toBe("4215 rookie year");
