@@ -37,5 +37,8 @@ describe("three teams with the phases named", () => {
     expect(readTeamSet("compare 6980, 4215 and 7149 by auto and endgame")).toMatchObject({ teams: [6980, 4215, 7149] });
     expect(readTeamSet("compare 6980 4215 7149 in teleop, together")).toMatchObject({ teams: [6980, 4215, 7149] });
     expect(readTeamSet("compare 6980, 4215 and 7149 all at once")).toMatchObject({ teams: [6980, 4215, 7149] });
+    // A season said after the phases is still read; an event never is.
+    expect(readTeamSet("compare 6980, 4215 and 7149 by auto and endgame in 2024-25")).toMatchObject({ teams: [6980, 4215, 7149], season: 2024 });
+    expect(readTeamSet("compare 6980, 4215 and 7149 on teleop at worlds")).toBeNull();
   });
 });

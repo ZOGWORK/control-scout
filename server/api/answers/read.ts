@@ -460,10 +460,10 @@ export function readTeamSet(raw: string): TeamSetQuestion | null {
   // A bare year in a list of numbers is a team ("12345 67890 2024 compare"); a season is written as one ("2024-25") or
   // named as one ("in 2024", "during 2024").
   const q = ` ${raw.toLowerCase().replace(/[?!,&]/g, " ").replace(/#/g, "")} `.replace(/\s+/g, " ").replace(/(?<!\b(?:in|during|for|from|season|year) )\b(20\d\d)\b(?!\s*[-–/]\s*\d)/g, "n$1");
-  // The phases named after the teams ("on auto, teleop and endgame, all at once") are rows the card already shows;
-  // "at once" is no event.
-  const { scope, rest: said } = readScope(q.replace(new RegExp(String.raw` (?:on|in|by|for|at) ${PHASE}(?:(?: and)? ${PHASE})*(?= (?:all )?(?:at once|together) $| $)`), " ")
-    .replace(/ (?:all )?(?:at once|together) $/, " "));
+  // The phases named after the teams ("on auto, teleop and endgame, all at once", "by auto in 2024-25") are rows the
+  // card already shows, wherever they stand; "at once" is no event.
+  const { scope, rest: said } = readScope(q.replace(new RegExp(String.raw` (?:on|in|by|for|at) ${PHASE}(?:(?: and)? ${PHASE})*(?= )`, "g"), " ")
+    .replace(/ (?:all )?(?:at once|together)(?= )/g, " "));
   if (scope.at || scope.championship || scope.states || scope.level || scope.alliance) return null;
   const rest = said.replace(/\bn(20\d\d)\b/g, "$1");
   const m = /^(?:compare )?((?:\d{1,5}(?: (?:vs\.?|versus|and|or))? ){2,3}\d{1,5})(?: (?:compare|comparison|compared|side by side|stats))?$/.exec(rest);
