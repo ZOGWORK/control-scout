@@ -41,7 +41,8 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
   // read again with their numbers, the card saying which team each phrase was.
   let tops: Awaited<ReturnType<typeof topTeamsSaid>> = null;
   if (!p.complete || !p.intent) {
-    tops = await topTeamsSaid(q, ctx);
+    // The season the question names picks each place's leader too ("in 2024-25, the top NJ team vs …").
+    tops = await topTeamsSaid(q, ctx, p.time?.kind === "season" && p.time.season != null ? p.time.season : undefined);
     const again = tops ? await parseQuery(tops.q, ctx) : null;
     if (!again?.complete || !again.intent || again.teams.length !== 2 || !TWO_TEAM[again.intent]) return null;
     p = { ...again, q };
@@ -49,7 +50,7 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
   if (!p.intent) return null;
   let a = await execute(p, opts);
   if (!a) return null;
-  if (tops && a.understood) a = { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${topTeamsNote(tops.said)}` } };
+  if (tops && a.understood) a = { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${topTeamsNote(tops.said, tops.season)}` } };
   // Part of a region ("north jersey") is read as all of it, and the card says so.
   if (p.place?.part && a.understood) a = { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${p.place.part.replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase())} isn't a separate region: all of ${p.place.name}` } };
   // A team's name typed nearly right: answered for that team, with the spelling to search for.

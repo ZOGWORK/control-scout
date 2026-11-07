@@ -41,6 +41,10 @@ describe("a place's top team, said as one of two teams", () => {
     expect(a.understood?.label).toContain("The top Ohio team by prediction rating");
     expect(a.understood?.label).toContain("is Lake Erie Robotics (30002), and the top Romania team by prediction rating");
     expect(a.understood?.label).toContain("is Quantum Robotics (14270)");
+    // Both "team in" phrases, or that one first: one phrase never runs into the next.
+    for (const q of ["who would win between the best team in ohio and the top team in romania", "predict the top team in ohio vs the top romania team"]) {
+      expect((await ask(q)).stat, q).toMatchObject({ intent: "predict", teams: [{ number: 30002 }, { number: 14270 }] });
+    }
     // One phrase beside a team named.
     expect((await ask("predict the strongest new jersey team vs 24033")).stat).toMatchObject({ intent: "predict", teams: [{ number: 23268 }, { number: 24033 }] });
   });
@@ -48,6 +52,16 @@ describe("a place's top team, said as one of two teams", () => {
     expect((await ask("top teams in new jersey")).stat?.intent).toBe("top-rating");
     expect((await ask("who would win between the top texas team and 4215")).stat?.intent).not.toBe("predict");
     expect((await ask("who would win between the top robot team and 4215")).understood?.label ?? "").not.toMatch(/top .* team by prediction rating/);
+  });
+  it("a season named picks each place's leader in it; part of a region is read as all of it, said so", async () => {
+    // 2024-25: Ohio's leader was Buckeye Bots, ranked then.
+    await run("INSERT INTO team_seasons (season, team) VALUES (?, 30001), (?, 14270)", [S - 1, S - 1]);
+    await run("INSERT INTO team_season_stats (season, team, rating_np, rating_sd, rating_rank, rating_matches, matches, wins, losses, ties) VALUES (?, 30001, 200, 3, 1, 10, 10, 5, 5, 0), (?, 14270, 150, 3, 2, 10, 10, 5, 5, 0)", [S - 1, S - 1]);
+    clearAllCaches();
+    const a = await ask(`predict the top ohio team vs 14270 in ${S - 1}-${String(S % 100).padStart(2, "0")}`);
+    expect(a.stat).toMatchObject({ intent: "predict", teams: [{ number: 30001 }, { number: 14270 }] });
+    expect(a.understood?.label).toContain(`The top Ohio team by prediction rating in ${S - 1}–${String(S % 100).padStart(2, "0")} is Buckeye Bots (30001)`);
+    expect((await ask("predict the top north jersey team vs 14270")).understood?.label).toContain("(North Jersey isn't a separate region: all of New Jersey)");
   });
   it("'in a match between' two teams is their match's call", async () => {
     expect((await ask("who would win in a match between 4215 and 14270")).stat?.intent).toBe("predict");
