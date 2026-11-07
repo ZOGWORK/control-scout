@@ -152,6 +152,9 @@ describe("team facts", () => {
     // A team number that reads as a year keeps the month's own year (Greptile on #1084).
     expect(readTeamFact("2023 events in march 2025")).toMatchObject({ id: "events-season", core: "2023", season: 2024, month: 2 });
     expect(readTeamFact("2023 events in october 2025")).toMatchObject({ core: "2023", season: 2025, month: 9 });
+    expect(readTeamFact("2024 events in march 2024")).toMatchObject({ id: "events-season", core: "2024", season: 2023, month: 2 });
+    // A team number that isn't a year reads the same month and year.
+    expect(readTeamFact("4215 events in march 2024")).toMatchObject({ id: "events-season", core: "4215", season: 2023, month: 2 });
     // The month with the season said apart keeps the month (Greptile on #1084).
     expect((await stat("19564 events in march in 2025-26")).headline).toMatchObject({ value: "1 event" });
     expect(readTeamFact("19564 events in march in 2025-26")).toMatchObject({ season: 2025, month: 2 });
