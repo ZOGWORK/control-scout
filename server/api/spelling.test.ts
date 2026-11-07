@@ -5,7 +5,7 @@ import { migrate, openDb, run, setDb } from "../db";
 import { rebuildSearch } from "../stats/job";
 import { CURRENT_SEASON } from "../data/seasons";
 import { searchAnswer } from "./searchAnswer";
-import { buildVocab, correctQuery, correctWord, strength } from "./spelling";
+import { buildVocab, correctQuery, correctWord, looseWord, splitWord, strength } from "./spelling";
 import type { SearchAnswer } from "../../src/shared/api";
 
 const S = CURRENT_SEASON;
@@ -37,6 +37,39 @@ beforeAll(async () => {
   }
   for (const [n] of teams) await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (?, 'USNJBQ', ?, 50, 5)", [S, n]);
   await rebuildSearch();
+});
+
+describe("intent words typed wrong", () => {
+  // A small vocabulary of its own: a team's name with a word one letter from "match", and a division's name seen often.
+  const v = buildVocab([{ name: "Math Magnets", city: "Paramus", state: "NJ" }],
+    Array.from({ length: 6 }, (_, i) => ({ code: `X${i}`, name: `FIRST Championship - Jackson Division ${i}`, city: "Houston", state: "TX" })));
+  it("corrects a letter added inside one, which no ending makes", () => {
+    expect(correctWord("lastest", v)?.word).toBe("latest");
+    // A real form of a known word stays as typed.
+    expect(correctWord("scouting", v)).toBeNull();
+  });
+  it("reads six letters jumbled, all of them kept, and a common name's word the same way", () => {
+    expect(correctWord("lastet", v)?.word).toBe("latest");
+    expect(correctWord("jacosn", v)?.word).toBe("jackson");
+  });
+  it("takes the fewer plain edits between two as close by typing", () => {
+    expect(correctWord("lasetest", v)?.word).toBe("latest");
+  });
+  it("reads two of search's own words typed as one, either misspelled", () => {
+    expect(splitWord("latestmatches", v)?.word).toBe("latest matches");
+    expect(splitWord("lasetestmatches", v)?.word).toBe("latest matches");
+    expect(splitWord("jackson", v)).toBeNull();
+    expect(splitWord("robotics", v)).toBeNull();
+  });
+  it("corrects the parser's own words", () => {
+    expect(correctWord("highlishts", v)?.word).toBe("highlights");
+  });
+  it("as a last try, reads a name's word or a short word as the own word it is a slip from", () => {
+    expect(looseWord("math", v)?.word).toBe("match");
+    expect(looseWord("wom", v)?.word).toBe("won");
+    expect(looseWord("match", v)).toBeNull();
+    expect(looseWord("zzq", v)).toBeNull();
+  });
 });
 
 describe("correctQuery", () => {
