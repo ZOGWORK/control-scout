@@ -105,9 +105,8 @@ async function finalSeries(team: number): Promise<Set<string>> {
   const rows = await all<{ season: number; code: string; series: string; alliances: number }>(
     `SELECT m.season, m.code, GROUP_CONCAT(DISTINCT m.series) series,
             (SELECT COUNT(*) FROM alliances a WHERE a.season = m.season AND a.code = m.code) alliances
-     FROM matches m
-     WHERE m.level = 'playoff' AND m.played = 1
-       AND EXISTS (SELECT 1 FROM match_teams x WHERE x.season = m.season AND x.code = m.code AND x.level = 'playoff' AND x.team = ?)
+     FROM (SELECT DISTINCT season, code FROM match_teams WHERE team = ? AND level = 'playoff') t
+     JOIN matches m ON m.season = t.season AND m.code = t.code AND m.level = 'playoff' AND m.played = 1
      GROUP BY m.season, m.code`, [team]);
   const out = new Set<string>();
   for (const r of rows) {
