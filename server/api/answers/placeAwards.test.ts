@@ -56,6 +56,14 @@ beforeAll(async () => {
   await aw(S - 1, "CAONQ1", "Inspire", 1, 22222, "Inspire Award");
   await aw(S - 1, "CAONQ2", "Inspire", 1, 22222, "Inspire Award");
   await aw(S - 1, "CAONQ2", "Think", 1, 33333, "Think Award");
+  // Worlds: a division's playoffs, then the finals between the division winners (the Championship's own event).
+  await run("INSERT INTO events (season, code, name, type, division_code, city, state, country, start, end, source) VALUES (?, 'FTCCMP1EDI', 'FIRST Championship - Edison Division', 'FIRSTChampionship', 'FTCCMP1', 'Houston', 'TX', 'USA', ?, ?, 't')", [S, `${S + 1}-04-19`, `${S + 1}-04-19`]);
+  const playoff = async (code: string, n: number, red: number[], blue: number[], r: number, b: number) => {
+    await run("INSERT INTO matches (season, code, level, series, number, label, played, red_total, red_np, blue_total, blue_np, source) VALUES (?, ?, 'playoff', 0, ?, ?, 1, ?, ?, ?, ?, 't')", [S, code, n, `F${n}`, r, r, b, b]);
+    for (const [t, al] of [...red.map((x) => [x, "red"]), ...blue.map((x) => [x, "blue"])]) await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance) VALUES (?, ?, 'playoff', 0, ?, ?, ?)", [S, code, n, t, al]);
+  };
+  await playoff("FTCCMP1EDI", 1, [22222, 20265], [11111, 4215], 150, 100);
+  await playoff("FTCCMP1", 1, [22222, 20265], [33333, 44444], 90, 160);
   await rebuildSearch();
 });
 
@@ -112,6 +120,20 @@ describe("a place's award winners", () => {
     expect(no.headline?.value).toBe("No");
   });
 
+  // Failed search "did any Romanian team make worlds finals last year": a place's teams in Worlds' playoffs.
+  it("answers whether a place's teams reached the Worlds finals, or played in Worlds' playoffs", async () => {
+    const ask = await readPlaceAwards("has any Canadian team reached the worlds finals");
+    expect(ask).toMatchObject({ place: { kind: "country" }, stage: "finals", mode: "any", season: null });
+    const yes = await placeAwardsAnswer(ask!);
+    expect(yes.headline).toMatchObject({ value: "Yes", label: "2 teams" });
+    expect(rows(yes).map((r) => [r.team, r.won])).toEqual([["22222 Maple Gears", "No"], ["33333 Northern Bolts", "Yes"]]);
+    const tx = await placeAwardsAnswer((await readPlaceAwards("Texas teams in the playoffs at worlds this season"))!);
+    expect(tx.headline?.value).toBe("2 teams");
+    expect((await placeAwardsAnswer((await readPlaceAwards("did any Ohio team make worlds finals"))!)).headline?.value).toBe("No");
+    // "Last year" at Worlds is the latest Championship that has finished, as the winners answer reads it.
+    expect(await readPlaceAwards("did any Ontario team win Connect at worlds last year")).toMatchObject({ season: S, worlds: true });
+    expect(await readPlaceAwards("worlds finals")).toBeNull();
+  });
   // Greptile on #1100.
   it("keeps the default season, saying none were won, with older seasons to ask", async () => {
     const a = await searchAnswer("Ontario Think winners", { limit: 25, learn: false, full: true });

@@ -41,9 +41,11 @@ export interface PlaceAwardsAsk {
   types: string[];
   /** A season said: its number; "this season" is the latest completed one, "last" the one before. */
   season: number | null;
-  /** "This season" said with nothing on record yet: the newest season with awards is shown, said so. */
+  /** How the season was said: the answer offers other seasons only when none was. */
   seasonSaid: "this" | "last" | "named" | null;
   worlds: boolean;
+  /** "Did any … team make worlds finals": the stage of the FIRST Championship's playoffs reached, not an award. */
+  stage?: "finals" | "playoffs";
   mode: "list" | "most" | "rarest" | "any" | "same-event";
   by: keyof typeof BY | null;
 }
@@ -61,19 +63,25 @@ export async function readPlaceAwards(q: string): Promise<PlaceAwardsAsk | null>
   const sm = cut(/\s(?:in\s+|for\s+|during\s+)?(?:the\s+)?(?:(this|current|last|previous|past)\s+(?:season|year)|(20\d\d)\s*[-–/]\s*(\d\d))(?=\s)/);
   const seasonSaid = !sm ? null : sm[2] ? "named" : /^(?:this|current)$/.test(sm[1]) ? "this" : "last";
   if (sm?.[2] && (Number(sm[2]) + 1) % 100 !== Number(sm[3])) return null;
-  // "This season" is search's own (the latest completed one, ../season.ts), "last season" the one before it.
-  const season = !sm ? null : sm[2] ? Number(sm[2]) : searchSeason() - (seasonSaid === "this" ? 0 : 1);
-  const worlds = !!cut(/\s(?:at|in)\s+(?:the\s+)?(?:worlds|world\s+championships?|first\s+championship)(?=\s)/);
+  // Worlds' playoffs reached: "make worlds finals", "reach the playoffs at worlds".
+  const WORLDS = String.raw`(?:the\s+)?(?:worlds|world\s+championships?|first\s+championship)`, REACH = String.raw`(?:make|made|makes|reach|reached|get\s+to|got\s+to|play\s+in|played\s+in|in|at)`;
+  const st = cut(new RegExp(String.raw`\s${REACH}\s+${WORLDS}\s+(finals?|playoffs?)(?=\s)`)) ?? cut(new RegExp(String.raw`\s${REACH}\s+(?:the\s+)?(finals?|playoffs?)\s+(?:at|in)\s+${WORLDS}(?=\s)`));
+  const stage = st ? (/^final/.test(st[1]) ? "finals" : "playoffs") : undefined;
+  const worlds = !!stage || !!cut(new RegExp(String.raw`\s(?:at|in)\s+${WORLDS}(?=\s)`));
+  // "This season" is search's own (the latest completed one, ../season.ts), "last season" the one before it. At
+  // Worlds "last year" is the latest Championship that has finished, as the winners answer reads it (that same season).
+  const season = !sm ? null : sm[2] ? Number(sm[2]) : searchSeason() - (seasonSaid === "this" || worlds ? 0 : 1);
   const byM = cut(/\s(?:by|on|ranked\s+by|sorted\s+by)\s+(auto|teleop|endgame|opr|rating)(?:\s+opr)?(?=\s)/);
   const types: string[] = [];
   for (const [re, type] of AWARDS) if (cut(re) && !types.includes(type)) types.push(type);
+  if (stage && types.length) return null;
   const most = /\bmost\b/.test(t), rarest = /\b(?:rarest|least\s+common)\b/.test(t);
   const any = /^\s*(?:did|has|have|were|was)\s+(?:any|a)\b/.test(t);
   const same = /\bsame\s+(?:event|tournament|competition)\b/.test(t);
-  // An award ask: a winner word, "awards", or the most or rarest of them.
-  if (!/\b(?:winners?|won|win|got|received|recipients?|awards)\b/.test(t) && !most && !rarest) return null;
-  if (!types.length && !/\bawards?\b/.test(t)) return null;
-  const mode = same ? "same-event" : rarest ? "rarest" : most ? "most" : any ? "any" : "list";
+  // An award ask: a winner word, "awards", or the most or rarest of them; or a stage of Worlds' playoffs reached.
+  if (!stage && !/\b(?:winners?|won|win|got|received|recipients?|awards)\b/.test(t) && !most && !rarest) return null;
+  if (!stage && !types.length && !/\bawards?\b/.test(t)) return null;
+  const mode = stage ? (any ? "any" : "list") : same ? "same-event" : rarest ? "rarest" : most ? "most" : any ? "any" : "list";
   if (mode === "same-event" && types.length < 2) return null;
   if (mode === "rarest" && types.length) return null;
   // The most awards of any kind is the count leaderboard's ("which team has the most awards in NJ", ./leaderboard.ts).
@@ -102,7 +110,8 @@ export async function readPlaceAwards(q: string): Promise<PlaceAwardsAsk | null>
     }
     if (!place || idx.teamsNamed(left).length) return null;
   } else if (mode !== "same-event") return null;
-  return { place, types, season, seasonSaid, worlds, mode, by: (byM?.[1] as keyof typeof BY) ?? null };
+  if (stage && (!place || byM)) return null;
+  return { place, types, season, seasonSaid, worlds, mode, by: (byM?.[1] as keyof typeof BY) ?? null, ...(stage ? { stage } : {}) };
 }
 
 interface Row { season: number; code: string; event: string; etype: string | null; start: string | null; type: string; placement: number; team: number; team_name: string | null; award: string | null; city: string | null; state: string | null }
@@ -120,8 +129,39 @@ function placeSql(p: Place | null): { sql: string; args: (string | null)[] } {
   return { sql: "t.country = ?", args: [p.country] };
 }
 
+/** The place's teams that played in Worlds' playoffs: its finals (the Championship's own event, between the division
+ *  winners) or any division's playoffs. */
+async function stageAnswer(ask: PlaceAwardsAsk): Promise<StatAnswer> {
+  const where = placeSql(ask.place);
+  const season = ask.season;
+  const rows = await all<{ season: number; code: string; event: string; etype: string | null; team: number; team_name: string | null; won: number }>(
+    `SELECT e.season, e.code, e.name event, e.type etype, mt.team, t.name team_name,
+            MAX(CASE WHEN (mt.alliance = 'red' AND m.red_total > m.blue_total) OR (mt.alliance = 'blue' AND m.blue_total > m.red_total) THEN 1 ELSE 0 END) won
+     FROM matches m JOIN match_teams mt ON mt.season = m.season AND mt.code = m.code AND mt.level = m.level AND mt.series = m.series AND mt.number = m.number
+     JOIN events e ON e.season = m.season AND e.code = m.code JOIN teams t ON t.number = mt.team
+     WHERE e.type = ? AND m.level = 'playoff' AND m.played = 1${ask.stage === "finals" ? " AND e.division_code IS NULL" : ""} AND ${where.sql}${season != null ? " AND e.season = ?" : ""}
+     GROUP BY e.season, e.code, mt.team ORDER BY e.season DESC, e.code, mt.team`,
+    [CHAMPIONSHIP_TYPE, ...where.args, ...(season != null ? [season] : [])]);
+  const place = ask.place!.name;
+  const what = ask.stage === "finals" ? "the Worlds finals" : "the playoffs at Worlds";
+  const when = season == null ? "any season" : seasonLabel(season);
+  const title = ask.mode === "any" ? `Did any team from ${place} make ${what}, ${when}?` : `Teams from ${place} in ${what}, ${when}`;
+  const definition = `${ask.stage === "finals" ? "The Worlds finals: the playoff matches of the FIRST Championship's own event, between its divisions' winners." : "The playoffs at Worlds: any FIRST Championship division's playoff matches, or its finals."} A team's place is its home on FIRST's listing. From the stored matches.`;
+  const base = { family: "awards" as const, intent: "place-worlds-stage", title, definition, scope: [place, "FIRST Championship", season == null ? "All seasons" : seasonLabel(season)], source: `From ${count(rows.length, "team")} in the stored playoff matches` };
+  const teams = new Set(rows.map((r) => r.team)).size;
+  if (!rows.length) return { ...base, blocks: [], ...(ask.mode === "any" ? { headline: { value: "No", label: `no team from ${place} played in ${what} in ${when}` } } : { none: `No team from ${place} played in ${what} in ${when} in the stored matches.` }) };
+  const block: StatBlock = {
+    kind: "table", title: "Each team, newest first",
+    columns: [{ key: "team", label: "Team" }, { key: "event", label: "Event" }, ...(season == null ? [{ key: "season", label: "Season" }] : []), { key: "won", label: "Won a match" }],
+    rows: rows.slice(0, 50).map((r) => ({ cells: { team: `${r.team}${r.team_name ? ` ${r.team_name}` : ""}`, event: shortEvent(r.event, r.etype), season: seasonLabel(Number(r.season)), won: Number(r.won) ? "Yes" : "No" }, href: eventHref(Number(r.season), r.code, Number(r.team)) })),
+    ...(rows.length > 50 ? { more: `Showing 50 of ${rows.length}` } : {}),
+  };
+  return { ...base, headline: ask.mode === "any" ? { value: "Yes", label: count(teams, "team") } : { value: count(teams, "team"), label: `from ${place} in ${what}` }, blocks: [block] };
+}
+
 /** The answer for a place's award winners. */
 export async function placeAwardsAnswer(ask: PlaceAwardsAsk): Promise<StatAnswer> {
+  if (ask.stage) return stageAnswer(ask);
   const where = placeSql(ask.place);
   // A judged award is won at 1st place, unless every award is listed (each place said as such).
   const won = ask.types.length || ask.mode !== "list" ? " AND (a.type IN ('Winner', 'Finalist') OR a.placement = 1)" : "";

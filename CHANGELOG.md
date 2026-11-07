@@ -17,7 +17,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 3.8.9 — 2026-11-07
 
-A place's award winners are answered: a state's, a country's or a town's teams and the awards they won, the most, the rarest, and whether any won at Worlds.
+A place's award winners are answered: a state's, a country's or a town's teams and the awards they won, the most, the rarest, and whether any won at Worlds or made its finals.
 
 ### Highlights
 - [fixes] "Michigan Inspire winners" lists that state's winners
@@ -26,7 +26,7 @@ A place's award winners are answered: a state's, a country's or a town's teams a
 - [fixes] "rarest award a NJ team won this season" names the award
 
 ### Search
-- **A place's award winners.** The teams from a state, a country (or its people's word) or a town, and the awards they won, newest first or by a stat ("by auto"): the most won, the rarest one (given fewest times anywhere that season), two awards won at one event, and yes or no at Worlds. (#1100)
+- **A place's award winners.** The teams from a state, a country (or its people's word) or a town, and the awards they won, newest first or by a stat ("by auto"): the most won, the rarest one (given fewest times anywhere that season), two awards won at one event, and yes or no at Worlds, for an award or for reaching its finals or playoffs. At Worlds, "last year" is the latest Championship that has finished. (#1100)
 
 
 ## 3.8.8 — 2026-11-07
