@@ -86,6 +86,14 @@ export function cleanQuery(raw: string): string {
   return (q[MAX_QUERY] === " " ? cut : cut.replace(/\s+\S*$/, "")).trim() || cut;
 }
 
+/** `q` without a comma clause that only says what isn't asked: "not just …"/"not only …" (more than that is wanted), or
+ *  "not" and a season ("not 2025", "not this season": the season said beside it is the one). Any other "not" clause
+ *  ("…, not rookies") is a filter and stays. */
+export function withoutContrast(q: string): string {
+  const SEASON = String.raw`(?:(?:the |this |last |next |that )?(?:season|year)|20\d\d(?:\s*[-–/]\s*\d{2,4})?)`;
+  return q.replace(new RegExp(String.raw`\s*,\s*not\s+(?:(?:just|only)\s+[^,]*?|${SEASON})\s*(?=,|[?.!]*\s*$)`, "gi"), "");
+}
+
 const SHORT_FORMS: Record<string, string> = { champs: "championship", champ: "championship", cmp: "championship", quals: "qualifier", worlds: "first championship", states: "state championship" };
 const MATCH_WORDS = /\b(q|qual|m|match|f|final)\s*-?\s*\d{1,3}\b/i;
 const expandShortForms = (q: string) => (MATCH_WORDS.test(q) ? q : q.split(" ").map((w) => SHORT_FORMS[w.toLowerCase()] ?? w).join(" "));
@@ -175,6 +183,12 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   if (opts.inner || opts.intents === false || opts.rewrites) return readerAnswer(raw, opts);
   // Informal short forms said in full first ("events happening rn"), in the query as typed (its quotes and operators
   // kept), the answer keeping the query as typed.
+  // A clause saying what isn't asked ("…, not just one number", "in 2024-25, not this season") goes; the rest is the ask.
+  const plain = withoutContrast(String(raw ?? ""));
+  if (plain !== String(raw ?? "")) {
+    const b = await searchAnswer(plain, opts);
+    return carryOutcome(b, { ...b, q: cleanQuery(raw) });
+  }
   const said = String(raw ?? ""), full = await inFull(said);
   if (full !== said) {
     const b = await searchAnswer(full, opts);
