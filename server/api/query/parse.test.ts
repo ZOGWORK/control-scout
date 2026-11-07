@@ -122,6 +122,8 @@ describe("slots", () => {
     const k = await parse("the king's school nj latest");
     expect(k.teams).toMatchObject([{ number: 30013 }]);
     expect(k.place).toBeNull();
+    // A time typed between them keeps the place where the matches were.
+    expect((await parse("ultraviolet in 2025-26 new jersey record")).place).toMatchObject({ name: "New Jersey" });
     // Said with a preposition, the place still picks the team and stays where its matches were.
     expect((await parse("ultraviolet record in new jersey")).place).toMatchObject({ name: "New Jersey" });
   });

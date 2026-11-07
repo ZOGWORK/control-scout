@@ -79,7 +79,8 @@ export interface ParseContext {
   prefer?: ReadonlySet<string>;
 }
 
-type Tok = { w: string; typed: string; used: boolean; alliance?: boolean; side?: "red" | "blue" };
+/** `at`: the word as typed it came from (its place among the words typed, before any time was read out). */
+type Tok = { w: string; typed: string; at: number; used: boolean; alliance?: boolean; side?: "red" | "blue" };
 /** The one-word filler phrases ("the", "a"): read before a name that starts with one. */
 const FILLER_WORDS = new Set(LEXICON.filter((e) => e.words.length === 1 && e.syms.every((x) => x.k === "filler")).map((e) => e.words[0]));
 /** Every filler phrase, one word or more ("the", "thank you"). */
@@ -167,7 +168,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   const toks: Tok[] = rest.split(" ").filter(Boolean).map((w) => {
     const k = typedWords.findIndex((t, i) => i >= at && fold(t) === w);
     if (k >= 0) at = k + 1;
-    return { w, typed: k >= 0 ? typedWords[k] : w, used: false };
+    return { w, typed: k >= 0 ? typedWords[k] : w, at: k >= 0 ? k : at, used: false };
   });
   const symbols = new Set<string>();
   const p: Parsed = {
@@ -382,8 +383,12 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   }
   // A place typed right after a shared name that it told apart ("ultraviolet nj") said which team, not where its
   // matches were; one said with a preposition ("record in new jersey", "at nj states") stays the matches' place.
-  // The name's words end where the place's begin, counted in the parser's own words (a possessive already dropped).
-  const rightAfter = (t: TeamSlot) => placeFrom >= 0 && t.at + t.typed.split(/\s+/).length === placeFrom;
+  // The name's last word is the word typed just before the place's first, counted in the words as typed (a time read
+  // out between them still stands between them; a possessive dropped from the name still counts as its word).
+  const rightAfter = (t: TeamSlot) => {
+    const last = toks[t.at + t.typed.split(/\s+/).length - 1];
+    return placeFrom >= 0 && !!last && last.at + 1 === toks[placeFrom].at;
+  };
   if (p.place && p.teams.some((t) => t.rule === `the one in ${p.place!.name}` && rightAfter(t))) p.place = null;
   p.leftover = toks.filter((t) => !t.used).map((t) => t.typed);
   if (unread) p.leftover.unshift(unread);
