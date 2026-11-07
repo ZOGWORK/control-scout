@@ -7,6 +7,11 @@
 
 /** A team as a long question names it: its number (with "team" or "#" before it), or the words of its name. */
 const T = String.raw`(?:the\s+)?(?:team\s+)?#?(\d{1,6}|[a-z][a-z0-9 .&'-]*?)`;
+/** What may follow a rank question: a season or a place only ("in 2025-26", "last season", "in new jersey"), so a team's
+ *  name is never cut short and "at worlds" isn't a rank. */
+const NEAR_TAIL = String.raw`(?:\s+(?:in|during|for|this|last|from)\s.*)?`;
+/** A rank question naming another number than OPR ("in rating", "in auto") isn't the OPR list's. */
+const OPR_ONLY = String.raw`(?!.*\b(?:ratings?|elo|predict(?:ed|ion)?|auto(?:nomous)?|tele-?op|driver|end\s?game|scores?|points|wins?|record|awards?|penalt(?:y|ies)|reliab(?:le|ility)|np)\b)`;
 const WORLDS = String.raw`(?:the\s+)?(?:worlds|world\s+championships?|first\s+championship|championship)`;
 /** The verbs a question puts between a team and an event ("went to", "made it to", "qualified for", "competed at"). */
 const STATES = String.raw`(?:the\s+)?(?:states|state\s+championships?|state\s+champs?|state\s+finals?)`;
@@ -55,6 +60,10 @@ const RULES: [RegExp, (m: RegExpExecArray) => string][] = [
   // Predictions for the team's next event.
   [new RegExp(String.raw`^how\s+many\s+(?:matches\s+)?(?:wins|matches)\s+(?:is|will)\s+${T}\s+(?:predicted|expected|projected|going)\s+to\s+(?:get|win|have)(?:\s+at\s+(?:their|its|the)\s+next\s+(?:event|meet|competition))?(.*)$`), (m) => `${m[1]} predicted wins at their next event${m[2]}`],
   [new RegExp(String.raw`^what\s+(?:are|is)\s+${T}\s+(?:chances?|odds)\s+(?:of|to)\s+(?:advancing|advance|making\s+it|qualifying|qualify|going)\s+(?:to|for)\s+${WORLDS}(.*)$`), (m) => `${m[1]} chance to advance to worlds${m[2]}`],
+  // The teams around a team's world rank ("who is ranked just above and just below 12345 worldwide", "teams ranked
+  // near 12345"): its OPR rank, whose card lists them.
+  [new RegExp(String.raw`^${OPR_ONLY}(?:who|which\s+teams?|what\s+teams?)\s+(?:is|are|was|were)\s+(?:ranked\s+)?(?:just\s+|right\s+|directly\s+|immediately\s+)?(?:above|below|ahead\s+of|behind)(?:\s+and\s+(?:just\s+|right\s+|directly\s+|immediately\s+)?(?:above|below|ahead\s+of|behind))?\s+${T}(?:\s+(?:worldwide|globally|in\s+the\s+world(?:\s+rankings?)?|in\s+the\s+rankings?))?(${NEAR_TAIL})$`), (m) => `${m[1]} opr rank${m[2]}`],
+  [new RegExp(String.raw`^${OPR_ONLY}(?:(?:who|which\s+teams?|what\s+teams?)\s+(?:is|are)\s+|teams?\s+)(?:ranked\s+)?(?:near|around|close\s+to|next\s+to)\s+${T}(?:\s+(?:worldwide|globally|in\s+the\s+world(?:\s+rankings?)?|in\s+the\s+rankings?))?(${NEAR_TAIL})$`), (m) => `${m[1]} opr rank${m[2]}`],
   // Their events, OPR over time, rank.
   [new RegExp(String.raw`^(?:what|which)\s+(?:events?|meets?|competitions?|tournaments?)\s+(?:has|have|did|does)\s+${T}\s+(?:go(?:ne)?\s+to|went\s+to|compete(?:d)?\s+(?:at|in)|attend(?:ed)?|play(?:ed)?\s+(?:at|in))(.*)$`), (m) => `events ${m[1]} went to${m[2]}`],
   [new RegExp(String.raw`^how\s+(?:has|did|have)\s+${T}\s+opr\s+(?:changed|change|grown|grow|improved|improve|gone|developed)(?:\s+(?:over|across|through)\s+(?:the\s+)?(?:seasons|years))?(.*)$`), (m) => `${m[1]} opr trend over seasons${m[2]}`],

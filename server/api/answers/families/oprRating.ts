@@ -293,6 +293,14 @@ export async function oprRatingAnswer(f: OprRatingQuestion, team: Team, deps: Op
     const blocks: StatBlock[] = [];
     if (f.id === "rank") blocks.push(rankKpis(st!, await ratingPop(season), null, null));
     blocks.push(...(card?.blocks ?? []).filter((x) => x.kind === "kpis"));
+    // Its place on the world OPR list: the teams just above and below it ("who is ranked just above 12345").
+    if (f.id === "rank" || f.id === "opr-rank") {
+      const near = await all<{ team: number; name: string | null; opr: number; rank: number }>(
+        `SELECT s.team, t.name, s.opr_np opr, s.rank_np rank FROM team_season_stats s LEFT JOIN teams t ON t.number = s.team
+         WHERE s.season = ? AND s.rank_np BETWEEN ? AND ? AND s.opr_np IS NOT NULL ORDER BY s.rank_np, s.team`, [season, Math.max(1, rank - 2), rank + 2]);
+      if (near.length > 1) blocks.push({ kind: "table", title: "Nearby worldwide by OPR", columns: [{ key: "rank", label: "#", num: true }, { key: "team", label: "Team" }, { key: "opr", label: "OPR", num: true }],
+        rows: near.map((x) => ({ cells: { rank: Number(x.rank), team: `${x.team} ${x.name ?? ""}`.trim(), opr: num(Number(x.opr)) }, href: teamHref(Number(x.team), season), strong: Number(x.team) === team.number })) });
+    }
     const at = `#${n(rank)} of ${n(of)}`;
     const headline = f.id === "percentile"
       ? { value: `Top ${t}%`, label: `worldwide by OPR: ${at} · ${ordinal(pctl)} percentile`, sub: `OPR ${num(o.value)} · ${S}` }

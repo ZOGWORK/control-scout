@@ -199,6 +199,15 @@ describe("long, conversational queries", () => {
     expect(w.understood?.label).not.toMatch(/isn't part of this answer/);
   });
 
+  it("reads the teams around a team's rank as its OPR rank, keeping a season or a place and the whole name", () => {
+    expect(longForm("who is directly ahead of 6980 in the world this season")).toBe("6980 opr rank this season");
+    expect(longForm("who is right behind bad wolf in new jersey")).toBe("bad wolf opr rank in new jersey");
+    expect(longForm("teams close to critical mass")).toBe("critical mass opr rank");
+    // Worlds isn't a rank list, and another number's ranking is never read as the OPR list (Greptile on #1110).
+    expect(longForm("who is ranked above 6980 at worlds")).toBeNull();
+    for (const q of ["who is ranked above 6980 in rating", "who is right below bad wolf in auto this season", "teams ranked near 6980 in prediction rating"]) expect(longForm(q) ?? "", q).not.toMatch(/opr rank/);
+  });
+
   it("keeps a \"like\" that compares (Greptile on #655)", () => {
     expect(longForm("what is like the opr for 4215")).toBe("4215 opr");
     expect(longForm("what is the opr of teams like 4215") ?? "").not.toMatch(/teams 4215/);
