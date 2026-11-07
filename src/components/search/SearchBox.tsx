@@ -164,9 +164,10 @@ export function AnswerNotesView({ notes, refining, className, query, onDidYouMea
   if (notes.didYouMean) {
     const fix = notes.didYouMean;
     // Kept off the field's focus (as the rows are), so a tap in the header's list lands before it closes.
+    // Inline in the sentence, as a link in running text (exempt from the 44px tap size, WCAG 2.5.8).
     const said = onDidYouMean
       ? <button type="button" data-did-you-mean-link onMouseDown={(e) => e.preventDefault()} onClick={() => onDidYouMean(fix)}
-        className={cn("font-semibold underline decoration-current/40 underline-offset-2 hover:decoration-current", SEARCH_PALETTE.reference.text)}>{fix}</button>
+        className={cn("inline font-semibold underline decoration-current/40 underline-offset-2 hover:decoration-current", SEARCH_PALETTE.reference.text)}>{fix}</button>
       : <b className={cn("font-semibold", SEARCH_PALETTE.reference.text)}>{fix}</b>;
     // In Reference's sky (search's palette: a pointer to what to read), a thick bar on its wash.
     lines.push(<span className={cn("inline-block rounded-md border-l-4 px-2 py-1 text-foreground", SEARCH_PALETTE.reference.edge, SEARCH_PALETTE.reference.tint)} data-did-you-mean>Did you mean: {said}{notes.corrected === false ? "" : <>. Showing results for that{query ? <>, not “{query}”</> : ""}.</>}</span>);
