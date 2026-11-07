@@ -149,6 +149,9 @@ describe("team facts", () => {
     // A month is the events list's filter only: any other answer would drop it.
     expect(readTeamFact("19564 opr in march 2026")).toBeNull();
     expect(readTeamFact("19564 events in march 2026")).toMatchObject({ id: "events-season", season: 2025, month: 2 });
+    // A team number that reads as a year keeps the month's own year (Greptile on #1084).
+    expect(readTeamFact("2023 events in march 2025")).toMatchObject({ id: "events-season", core: "2023", season: 2024, month: 2 });
+    expect(readTeamFact("2023 events in october 2025")).toMatchObject({ core: "2023", season: 2025, month: 9 });
     // The month with the season said apart keeps the month (Greptile on #1084).
     expect((await stat("19564 events in march in 2025-26")).headline).toMatchObject({ value: "1 event" });
     expect(readTeamFact("19564 events in march in 2025-26")).toMatchObject({ season: 2025, month: 2 });

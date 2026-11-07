@@ -126,7 +126,8 @@ export function readTeamFact(raw: string): FactQuestion | null {
     const core = (/^\s*what\b/.test(q) ? rest.replace(/\s(?:mean|means|stand for)\s*$/, " ") : rest).replace(/\b(?:what|whats|what's|is|are|the|of|for|team|ftc|does|did|has|have|its|their)\b/g, " ").replace(/\s+/g, " ").trim();
     // A bare year with nothing else naming a team is the team's number ("2024 reliability").
     const more = { ...(country ? { country } : {}), ...(r.id === "events-season" || r.id === "events-place" ? listed : {}), ...(mo ? { month } : {}) };
-    if (!core && scope.year && scope.season != null) return { id: r.id, core: String(scope.season), season: null, region, world, event, ...more };
+    // The month's own year stays its season ("2024 events in march 2024"): the bare year was the team's.
+    if (!core && scope.year && scope.season != null) return { id: r.id, core: String(scope.season), season: mo ? (monthSeason ?? searchSeason()) : null, region, world, event, ...more };
     if (!core) return null;
     return { id: r.id, core, season: scope.season, region, world, event, ...more };
   }
