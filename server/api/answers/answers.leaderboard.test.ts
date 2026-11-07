@@ -56,6 +56,11 @@ describe("what's read", () => {
     expect(readLeaderboard("which team has the most vibes")).toBeNull();
     expect(readLeaderboard("most match in nj")).toMatchObject({ stat: "matches", region: { key: "USA:NJ" } });
     expect(readLeaderboard("best match in nj")).toBeNull();
+    // Greptile on #1040: "won" keeps its meaning, as typed or read as one.
+    expect(readLeaderboard("which team won the most matches in NJ")).toMatchObject({ stat: "wins", region: { key: "USA:NJ" } });
+    expect(readLeaderboard("which team won the most match in NJ")).toMatchObject({ stat: "wins" });
+    expect(readLeaderboard("team that won the most events")).toBeNull();
+    expect(readLeaderboard("which team won the most awards")).toMatchObject({ stat: "awards" });
     // Greptile on #1040: counted at some events only is a count the board can't make.
     expect(readLeaderboard("which team played the most matches at New Jersey events")).toBeNull();
     expect(readLeaderboard("most awards at out of state events")).toBeNull();
