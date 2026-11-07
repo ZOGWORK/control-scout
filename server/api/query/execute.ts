@@ -120,7 +120,7 @@ function placeSeason(p: Parsed, said: number | null | undefined, opts: PipelineO
 }
 /** The answers a win or a loss said with them narrows ("closest loss", "first win", "longest losing streak"). */
 const OUTCOME_IDS = new Set(["closest-match", "current-streak", "average-margin", "first-match", "recent-match", "last-matches", "longest-streak"]);
-const ANSWERED = new Set<PipelineIntent>([...TEAM_INTENTS, ...(Object.keys(TWO_TEAM) as PipelineIntent[]), ...(Object.keys(FIND) as PipelineIntent[]), "top-matches", "leaderboard", "team-predict", "highlights", "teams-named", "count-teams", "alliance-predict", ...(Object.keys(TREND_ASK) as PipelineIntent[])]);
+const ANSWERED = new Set<PipelineIntent>([...TEAM_INTENTS, ...(Object.keys(TWO_TEAM) as PipelineIntent[]), ...(Object.keys(FIND) as PipelineIntent[]), "top-matches", "leaderboard", "team-predict", "highlights", "teams-named", "count-teams", "alliance-predict", "swap-predict", ...(Object.keys(TREND_ASK) as PipelineIntent[])]);
 /** The leaderboard's stat for a metric said ("by opr"); the prediction rating when none is. */
 const BOARD_STAT: Partial<Record<string, string>> = {
   "metric:opr": "opr", "metric:rating": "rating", "metric:winrate": "win-rate", "metric:auto": "auto", "metric:teleop": "teleop",
@@ -209,6 +209,23 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
       step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season: found.ev.season }, ...(opts.full ? { stat } : {}),
       intent: { kind: `stat-${stat.intent}`, pattern: `${p.teams.map(() => "[team]").join(" ")} predict ${p.event ? "[event]" : p.worlds ? "[worlds]" : "[states]"}`, met: true, understood: [] },
     };
+  }
+  // One team swapped for another: on an alliance, the predicted score moves by the gap between the two teams' ratings
+  // (a rating is the points a team adds a match), so the answer is those two side by side, the partner kept as is.
+  // The first team after the swap word goes out and the next comes in ("swap A for B", "replace A with B"); any other
+  // team is the partner.
+  if (intent === "swap-predict") {
+    if (scope.level || scope.alliance || scope.place || scope.area || scope.window || scope.at || scope.championship || scope.states) return null;
+    const at = said.search(/\b(?:swap|swaps|swapped|swapping|switch|replace|replaces|replaced|replacing|substitute|substituted|substituting|sub|trade|traded|trading)\b/);
+    const pos = (t: (typeof p.teams)[number]) => said.indexOf(normalise(t.typed));
+    const after = p.teams.filter((t) => pos(t) > at).sort((a, b) => pos(a) - pos(b));
+    if (at < 0 || after.length < 2) return null;
+    const [out, inn] = after;
+    const partner = p.teams.find((t) => t !== out && t !== inn) ?? null;
+    const a = await twoTeamSearch(p.q, { id: "predict", scope, a: String(out.number), b: String(inn.number) }, opts.resolve, opts);
+    if (!a?.understood) return a;
+    const who = (t: (typeof p.teams)[number]) => `${t.name ?? `Team ${t.number}`} (${t.number})`;
+    return { ...a, understood: { ...a.understood, label: `Swapping ${who(out)} for ${who(inn)}${partner ? ` beside ${who(partner)}` : ""}: the alliance's predicted score moves by the gap in their ratings` } };
   }
   // Two alliances of two, one either side of the "vs": the engine's call for that match, in the season said (else the
   // latest every team has a rating in). A match has no event, place or window to filter by.

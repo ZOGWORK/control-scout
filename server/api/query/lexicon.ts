@@ -34,6 +34,8 @@ export type Sym =
   /** Said of what's to come ("will 12345 win ..."): a forecast, only beside a win and an event named. */
   | { k: "future" }
   | { k: "vs" }
+  /** One team put in another's place ("swap 12345 for 23456", "replace 12345 with 23456"). */
+  | { k: "swap" }
   | { k: "and" }
   | { k: "together" }
   | { k: "same-side" }
@@ -143,7 +145,9 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["advance|advances|advancing|advancement|advancements|advance to the finals|make the finals|making the finals|go through|goes through|get through|gets through", { k: "advance" }],
   // Two teams.
   ["vs|v|versus|against|facing|face|faced|play|played|playing|plays|vs.", { k: "vs" }],
-  ["and|&|plus|with|alongside", { k: "and" }],
+  ["swap|swaps|swapped|swapping|swap out|switch out|replace|replaces|replaced|replacing|substitute|substituted|substituting|sub out|sub in|trade|traded|trading|if i swap|if we swap|what if i swap|what if we swap|if i replace|if we replace|if i switch|if we switch|if i sub|if we sub|if i substitute|if we substitute", { k: "swap" }],
+  ["odds change|change the odds|chances change|change the chances|how do the odds change|how would the odds change|how do the chances change|how does that change|how would that change|how does it change|how would it change", { k: "predict" }],
+  ["and|&|plus|with|alongside|beside", { k: "and" }],
   ["together|in common|shared|share|both|both played|jointly|same match|same matches", { k: "together" }],
   ["same alliance|same side|as partners|on the same alliance|teamed up|teamed", { k: "same-side" }],
   // "Who is better, 12345 or 67890": the two side by side.

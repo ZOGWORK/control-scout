@@ -119,6 +119,14 @@ describe("the answers", () => {
       expect(a.stat!.blocks[0], q).toMatchObject({ kind: "kpis", items: [{ value: expect.stringMatching(/^(98\.0|50\.3) ±3$/) }, { value: expect.stringMatching(/^(98\.0|50\.3) ±3$/) }] });
     }
   });
+  it("a team swapped for another: the two side by side, which goes out and which comes in said", async () => {
+    const a = await ask("what if we replace 6980 with 4215 alongside 207, how would the odds change");
+    expect(a.stat).toMatchObject({ intent: "predict", headline: { value: "4215 rated higher", label: "by 47.7 points per match" } });
+    expect(a.understood!.label).toBe("Swapping Bad Wolf (6980) for Hypnotic Robotics (4215) beside Critical Mass (207): the alliance's predicted score moves by the gap in their ratings");
+    // The partner may come first; the order after the swap word decides who goes out.
+    expect((await ask("beside 207, trading 4215 for 6980")).understood!.label).toMatch(/^Swapping Hypnotic Robotics \(4215\) for Bad Wolf \(6980\) beside Critical Mass \(207\)/);
+    expect((await ask("swapping 4215 out for 6980")).understood!.label).toMatch(/^Swapping Hypnotic Robotics \(4215\) for Bad Wolf \(6980\):/);
+  });
   it("81: wins in the meetings only", async () => {
     const a = await ask("4215 wins against 6980");
     expect(a.stat!.headline).toMatchObject({ value: "3 wins", label: "for 4215 in 4 meetings with 6980 (3-1-0)" });
