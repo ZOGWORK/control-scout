@@ -155,6 +155,10 @@ describe("team facts", () => {
     // "Did … play at any event in <place>" isn't read as a played list: the place's list holds upcoming events too.
     expect(longForm("did 19564 play at any event in romania") ?? "").not.toMatch(/events played/);
     expect(longForm("did 19564 play at any event in june 2026")).toBe("19564 events played in june 2026");
+    // Every month form the fact reader reads (Greptile on #1084).
+    expect(longForm("did 19564 play at any event in the month of june")).toBe("19564 events played in the month of june");
+    expect(longForm("did 19564 play at any event in june last season")).toBe("19564 events played in june last season");
+    expect((await stat("did the marvels play at any event in the month of january in 2025-26")).headline).toMatchObject({ value: "2 events" });
   });
   it("OPR against the world's, a state's and an event's division's average", async () => {
     // Worldwide: the team page's own world rank, and the average over the teams that rank counts, stated.
