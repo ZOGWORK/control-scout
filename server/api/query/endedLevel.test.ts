@@ -27,6 +27,21 @@ describe("a match that ended level", () => {
     expect(await parse("6980 matches that ended in a tie")).toMatchObject({ intent: "ties-count", complete: true });
   });
 
+  it("any ending said either side of an or, and tie-break hyphenated", async () => {
+    expect(endedLevel("6980 games that went to sudden death or a tie")).toBe("6980 games that tied");
+    for (const q of ["did 6980 have any games go to a Tie-Break", "6980 games that went to sudden death or a tie"]) {
+      expect(await parse(q), q).toMatchObject({ intent: "ties-count", complete: true });
+    }
+  });
+
+  it("a state after it keeps its capitals", async () => {
+    expect((await parse("6980 games that ended in a tie in IN")).place).toMatchObject({ kind: "region", state: "IN" });
+  });
+
+  it("a match's number with it is left to search", async () => {
+    expect(await parse("did 6980 play match 4 that went to overtime")).not.toMatchObject({ intent: "ties-count", complete: true });
+  });
+
   it("a team named Overtime is still that team", async () => {
     expect(await parse("overtime record")).toMatchObject({ intent: "record", teams: [{ number: 30020 }] });
     expect(await parse("6980 vs overtime")).toMatchObject({ teams: [{ number: 6980 }, { number: 30020 }] });

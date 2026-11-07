@@ -143,13 +143,18 @@ function keptName(words: string[], ctx: ParseContext, timeOnly: (w: string[]) =>
 
 /** A match that "went to a tiebreak, or overtime" ended level: said as "tied". Only after a verb saying how it ended, so
  *  a team named Overtime is still that team anywhere else. */
-const LEVEL_END = /\b(?:went|go|goes|gone|going|ended|end|ends|came down|come down|decided) (?:to|in|by) (?:a |an )?(?:tiebreak|tiebreaker|tie breaker|overtime|sudden death|tie)s?(?: or (?:a |an )?(?:tiebreak|tiebreaker|tie breaker|overtime|sudden death)s?)?(?= |$)/g;
+const LEVEL = "(?:a |an )?(?:tiebreak|tiebreaker|tie break|tie breaker|overtime|sudden death|tie)s?";
+const LEVEL_SRC = `\\b(?:went|go|goes|gone|going|ended|end|ends|came down|come down|decided) (?:to|in|by) ${LEVEL}(?: or ${LEVEL})?(?= |$)`;
+const LEVEL_END = new RegExp(LEVEL_SRC, "g");
 export const endedLevel = (q: string) => q.replace(LEVEL_END, "tied");
+/** The same, on the words as typed (any case, "tie-break"), so the typed words stay in step with the read ones: a
+ *  state's capitals ("IN") are found again after it. */
+const LEVEL_END_TYPED = new RegExp(LEVEL_SRC.replace(/ /g, "[\\s-]+"), "gi");
 
 /** Parses `raw`. */
 export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed> {
   const q = endedLevel(normalise(raw));
-  const typedWords = raw.replace(/[?!,;:()"]/g, " ").split(/\s+/).filter(Boolean);
+  const typedWords = raw.replace(/[?!,;:()"]/g, " ").replace(LEVEL_END_TYPED, "tied").split(/\s+/).filter(Boolean);
   // The other team numbers typed: a limit ("last 5") or a match's number ("match 3") is never a team.
   const words0 = q.split(" ");
   const teamNums = words0.filter((w, i) => /^\d{1,5}$/.test(w) && !COUNT_BEFORE.test(words0[i - 1] ?? "") && !MATCH_BEFORE.test(words0[i - 1] ?? "") && !!ctx.names.team(Number(w))).map(Number);
