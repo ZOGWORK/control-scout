@@ -3,7 +3,19 @@
 What changed in Control Scout, newest first. The prediction engine has its own
 changelog in `packages/predict-engine/CHANGELOG.md`.
 
-Each release opens with a `### 3.8.8 — 2026-11-07
+Each release opens with a `### Highlights` block: 3 to 5 short lines a visitor
+would notice, each starting with a `[tag]` that picks its icon (home, predict,
+teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
+picklist, history, fixes, appearance). What's new shows them first; the groups below are
+the full release notes, one click away.
+
+Releases count 1.1, 1.2, 1.3 …, the last number being the step inside one:
+after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
+(Releases before 1.3.7 were renumbered from the old 1.5.0 … 1.37.0; the old
+fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
+1.1.9.1–2.)
+
+## 3.8.8 — 2026-11-07
 
 A team's next event asked about as a forecast, and "will <team> win <event>", answer with the engine's own projection for that event.
 
@@ -15,18 +27,6 @@ A team's next event asked about as a forecast, and "will <team> win <event>", an
 ### Search
 - **Next event, said as a forecast.** "Next event prediction", "next meet forecast" and "prediction for their next event" read as the stored projection for the team's next event, led by its chance to win it. (#1072)
 - **"Will" with a win and an event.** "Will <team> win <event>", "… win states" and "… win worlds" are the forecast at that event; "will" with no event or no win ("will <team> advance", "when will <team> play next") keeps its own answer. (#1072)
-
-## Highlights` block: 3 to 5 short lines a visitor
-would notice, each starting with a `[tag]` that picks its icon (home, predict,
-teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
-picklist, history, fixes, appearance). What's new shows them first; the groups below are
-the full release notes, one click away.
-
-Releases count 1.1, 1.2, 1.3 …, the last number being the step inside one:
-after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
-(Releases before 1.3.7 were renumbered from the old 1.5.0 … 1.37.0; the old
-fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
-1.1.9.1–2.)
 
 ## 3.8.7 — 2026-11-07
 
