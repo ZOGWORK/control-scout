@@ -182,7 +182,7 @@ async function listSearch(q: string, c: Extract<CompoundQuestion, { kind: "list"
  *  the page. */
 async function listPairSearch(q: string, c: Extract<CompoundQuestion, { kind: "list-pair" }>, opts: Opts): Promise<SearchAnswer | null> {
   const [a, b] = c.lists;
-  const label = `How many: ${listTitle(a, null)} against ${seasonLabel(b.season!)}`;
+  const label = `How many: ${listTitle(a, a.city ? a.city.replace(/\b\w/g, (x) => x.toUpperCase()) : null)} against ${seasonLabel(b.season!)}`;
   const answer: SearchAnswer = {
     q, hits: [], pages: opts.pages, step: "deterministic", weak: false,
     understood: { kind: "question", label, ...(a.region ? { place: { key: a.region.key, name: a.region.name } } : {}) },

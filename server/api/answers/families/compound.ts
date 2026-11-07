@@ -205,10 +205,10 @@ export async function listPairAnswer(a: ListQuestion, b: ListQuestion): Promise<
   const [na, nb] = [count(x), count(y)];
   const d = nb - na;
   const place = listPlace(a, x.scope[0] && a.city ? x.scope[0] : null);
-  const what = `How many ${a.n ? `of the top ${a.n} teams` : "teams"} ${place}${a.award ? (a.award.type === "Winner" ? " on a winning alliance" : ` that won the ${a.award.label}`) : ""}`;
+  const what = `How many teams ${place}${a.award ? (a.award.type === "Winner" ? " on a winning alliance" : ` that won the ${a.award.label}`) : ""}`;
   const title = `${what}: ${name(a, sa)} against ${name(b, sb)}`;
-  // Each season's own list under its count, titled by the season.
-  const list = (st: StatAnswer, c: ListQuestion, s: number): StatBlock[] => st.blocks.slice(0, 1).map((blk) => ({ ...blk, title: `${name(c, s)}: ${"title" in blk ? blk.title : ""}` } as StatBlock));
+  // Each season's own blocks under its count (its list, and any stat asked beside it), titled by the season.
+  const list = (st: StatAnswer, c: ListQuestion, s: number): StatBlock[] => st.blocks.map((blk) => ({ ...blk, title: `${name(c, s)}: ${"title" in blk ? blk.title : ""}` } as StatBlock));
   return {
     family: "leaderboard", intent: "filtered-list-pair", title, // The first list's chips without its own season and Worlds year (each season's is on its count), then both seasons.
     scope: [...x.scope.filter((s) => s !== seasonLabel(sa) && !s.startsWith("Went to Worlds (")), ...(a.worlds ? ["Went to Worlds"] : []), seasonLabel(sa), seasonLabel(sb)],

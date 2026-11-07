@@ -238,8 +238,18 @@ describe("how many teams a list holds", () => {
     const k = a.stat!.blocks[0] as any;
     expect(k.items.map((i: any) => i.value)).toEqual(["4 teams", "4 teams"]);
     // Each season's own list under it.
-    expect(a.stat!.blocks.slice(1).map((b: any) => b.rows.map((r: any) => r.team.label.split(" ")[0]))).toEqual([["23268", "7149", "207", "6980"], ["23268", "7149", "4215", "33950"]]);
+    expect(a.stat!.blocks.filter((b) => b.kind === "leaderboard").map((b: any) => b.rows.map((r: any) => r.team.label.split(" ")[0]))).toEqual([["23268", "7149", "207", "6980"], ["23268", "7149", "4215", "33950"]]);
     const one = await ask(`how many NJ teams went to worlds in ${S + 1}`);
     expect(one.stat?.headline?.value).toBe("4 teams");
+    // Greptile on #1094: a "top N" said with a count counts every team; a stat asked beside the list stays, each season's.
+    expect(readCompound("how many top 2 NJ teams went to worlds in 2024 versus 2025")).toMatchObject({ kind: "list-pair", lists: [{ n: null }, { n: null }] });
+    const top = await ask(`how many top 2 NJ teams went to worlds in ${S} versus ${S + 1}`);
+    expect(top.stat?.headline?.value).toBe("4 vs 4");
+    const rel = await ask(`how many NJ teams and their reliability went to worlds in ${S} versus ${S + 1}`);
+    expect(rel.stat!.blocks.map((b: any) => b.title).filter((t: string) => /Reliability/.test(t))).toEqual([expect.stringMatching(new RegExp(`^Worlds ${S + 1} \\(`))]);
+  });
+  it("a town's pair is previewed as the town's, in the search box", async () => {
+    const a = await searchAnswer(`how many teams from Oradell with opr over 100 in ${S} versus ${S + 1}`, { limit: 8 });
+    expect(a.pages[0]?.title).toMatch(/^How many: Teams from Oradell /);
   });
 });

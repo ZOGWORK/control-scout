@@ -225,10 +225,11 @@ export function readCompound(raw: string): CompoundQuestion | null {
     const pair = new RegExp(String.raw`^(.+?\s)${YEAR}\s+(?:versus|vs\.?|v|compared\s+(?:to|with)|against)\s+(?:in\s+)?${YEAR}$`).exec(count[1]);
     if (pair) {
       const a = readList(`${pair[1]}${pair[2]}`), b = readList(`${pair[1]}${pair[3]}`);
-      return a?.kind === "list" && b?.kind === "list" && a.season != null && b.season != null && a.season !== b.season ? { kind: "list-pair", lists: [a, b] } : null;
+      // A count is of every team on the list: a "top N" said with it limits nothing counted (Greptile on #1094).
+      return a?.kind === "list" && b?.kind === "list" && a.season != null && b.season != null && a.season !== b.season ? { kind: "list-pair", lists: [{ ...a, n: null }, { ...b, n: null }] } : null;
     }
     const one = readList(count[1]);
-    if (one) return one;
+    if (one?.kind === "list") return { ...one, n: null };
   }
   return readList(q);
 }
