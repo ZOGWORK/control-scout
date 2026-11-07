@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.0.4 — 2026-11-07
+
+People also ask and Related searches stay on what you searched: an FTC word is never read as a town, and only the team your search is about gets its highlights.
+
+### Highlights
+- [fixes] "What is an alliance" no longer asks about Alliance, Nebraska
+- [fixes] Highlights and related searches only for the team you searched
+- [fixes] "High Point" and other two-word places still get their questions
+
+### Search
+- **Follow-ups use only what the search named.** A place or event typed as one FTC word on its own ("alliance", "auto") is the word, so no follow-up question names it; names of two or more words ("High Point") still are. Highlights and team searches beside an answer are for the team the search is about, never a team that only a suggested question's answer named; a search about no team shows neither. (#1137)
+
 ## 4.0.3 — 2026-11-07
 
 A team's own events asked in plain words get their answer: its last or first event and how it did there, its events in a country such as Romania, how many it played, and "what is my <team> event".
