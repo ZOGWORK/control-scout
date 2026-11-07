@@ -5,6 +5,7 @@
 import { AWARD_ONE_WORD, EVENT_NAME_WORDS, LEXICON, type Agg, type Sym } from "./lexicon.js";
 import { pickIntent, type IntentRule, type PipelineIntent } from "./intents.js";
 import { readTime, type TimeSlot } from "./time.js";
+import type { ScoreCond } from "./matchFind.js";
 import { fold, type Names, type Place, type TeamName } from "./names.js";
 import { EVENT_TYPES } from "../../../src/shared/searchEventQuery.js";
 
@@ -63,6 +64,8 @@ export interface Parsed {
   undefeated?: boolean;
   /** A name asked about as words ("teams named <name>"): the words, never read as a team. */
   named?: { words: string; typed: string };
+  /** A score an alliance had to reach ("where the losing alliance scored over 200"): the match finder's filter. */
+  scoreCond?: ScoreCond;
   /** Every word explained and an intent found. */
   complete: boolean;
 }
@@ -142,8 +145,22 @@ function keptName(words: string[], ctx: ParseContext, timeOnly: (w: string[]) =>
 }
 
 /** Parses `raw`. */
+/** "Where the losing alliance scored over 200", "both alliances scored over 250", "each alliance had at least 150
+ *  points": whose score, the comparison and the number, and the query without them. */
+const SIDE: Record<string, ScoreCond["side"]> = { losing: "losing", losers: "losing", winning: "winning", winners: "winning", both: "both", each: "both", either: "either", one: "either" };
+const OP: [RegExp, ScoreCond["op"]][] = [[/^(?:over|more than|above)$/, ">"], [/^at least$/, ">="], [/^(?:under|less than|below|fewer than)$/, "<"], [/^at most$/, "<="]];
+const COND_RE = /(?:^| )(?:(?:where|with|in which|when|that|and) )?(?:the )?(losing|losers|winning|winners|both|each|either|one) (?:of the )?(?:alliances?|sides?)(?: each)? (?:scored|scores|score|had|got|put up|reached|hit|with) (over|more than|above|at least|under|less than|below|fewer than|at most) (\d{1,4})(?: points?| pts)?(?= |$)/;
+export function scoreCondOf(q: string): { cond: ScoreCond; rest: string } | null {
+  const m = COND_RE.exec(q);
+  if (!m) return null;
+  const op = OP.find(([re]) => re.test(m[2]))![1];
+  return { cond: { side: SIDE[m[1]], op, n: Number(m[3]) }, rest: `${q.slice(0, m.index)} ${q.slice(m.index + m[0].length)}`.replace(/\s+/g, " ").trim() };
+}
+
 export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed> {
-  const q = normalise(raw);
+  // A score an alliance had to reach is read off first: its number is never a team.
+  const cond = scoreCondOf(normalise(raw));
+  const q = cond ? cond.rest : normalise(raw);
   const typedWords = raw.replace(/[?!,;:()"]/g, " ").split(/\s+/).filter(Boolean);
   // The other team numbers typed: a limit ("last 5") or a match's number ("match 3") is never a team.
   const words0 = q.split(" ");
@@ -169,10 +186,11 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     if (k >= 0) at = k + 1;
     return { w, typed: k >= 0 ? typedWords[k] : w, used: false };
   });
-  const symbols = new Set<string>();
+  const symbols = new Set<string>(cond ? ["cond"] : []);
   const p: Parsed = {
     q: raw, teams: [], event: null, place: null, time, level: null, finals: false, eventKind: null, alliance: null, worlds: false, states: false, award: null, agg: null,
     n: null, matchNumber: null, noPenalties: false, symbols: [], intent: null, rule: null, leftover: [], unexplained: [], complete: false,
+    ...(cond ? { scoreCond: cond.cond } : {}),
   };
   const lexAt = (i: number) => LEXICON.find((e) => e.words.every((w, j) => toks[i + j] && !toks[i + j].used && toks[i + j].w === w));
   const isLex = (w: string) => LEX_WORDS.has(w) || AWARD_ONE_WORD.has(w);
