@@ -206,6 +206,8 @@ describe("answers", () => {
   it("51: the rating after each event, ending on the team page's; 64: the best season rating, its event named", async () => {
     const t = await ask("4215 rating trend");
     expect(t.headline).toMatchObject({ value: "98 ± 3.2", label: "latest rating, after New Jersey Championship - Parkway Division · Rising from 60.5 after P1-4 PM Northern League Meet" });
+    // Asked as a choice ("rising or falling"), the same trend (sign-off held-out paraphrase).
+    expect((await ask("is 4215's rating rising or falling")).headline).toMatchObject({ value: "98 ± 3.2" });
     expect(t.blocks.find((b) => b.kind === "series")).toMatchObject({ points: [{ y: 60.5 }, { y: 88.2 }, { y: 98 }] });
     // An event whose Monday snapshot was pruned (older than the retention window) is a gap, never a later week's rating.
     await run("DELETE FROM ranking_snapshots WHERE week = '2025-11-10'");
