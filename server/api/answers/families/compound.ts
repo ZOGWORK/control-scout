@@ -210,9 +210,10 @@ export async function listPairAnswer(a: ListQuestion, b: ListQuestion): Promise<
   // Each season's own list under its count, titled by the season.
   const list = (st: StatAnswer, c: ListQuestion, s: number): StatBlock[] => st.blocks.slice(0, 1).map((blk) => ({ ...blk, title: `${name(c, s)}: ${"title" in blk ? blk.title : ""}` } as StatBlock));
   return {
-    family: "leaderboard", intent: "filtered-list-pair", title, scope: [...x.scope.filter((s) => s !== seasonLabel(sa)), seasonLabel(sa), seasonLabel(sb)],
+    family: "leaderboard", intent: "filtered-list-pair", title, // The first list's chips without its own season and Worlds year (each season's is on its count), then both seasons.
+    scope: [...x.scope.filter((s) => s !== seasonLabel(sa) && !s.startsWith("Went to Worlds (")), ...(a.worlds ? ["Went to Worlds"] : []), seasonLabel(sa), seasonLabel(sb)],
     definition: `${x.definition} Counted in each season asked: every team on the list that season.`.replace(searchSeasonWhy(sa), ""),
-    source: `${x.source}; ${y.source}`,
+    source: `Each season's ranked teams ${place}: ${plural(na, "team")} on the list in ${seasonLabel(sa)}, ${plural(nb, "team")} in ${seasonLabel(sb)}`,
     headline: { value: `${na} vs ${nb}`, label: `${what.replace(/^How many /, "")}, ${name(a, sa)} against ${name(b, sb)}`, sub: d === 0 ? "The same number both seasons" : `${d > 0 ? "+" : "−"}${Math.abs(d)} in ${name(b, sb)}` },
     blocks: [
       { kind: "kpis", items: [{ label: name(a, sa), value: plural(na, "team") }, { label: name(b, sb), value: plural(nb, "team"), sub: d === 0 ? "same" : `${d > 0 ? "+" : "−"}${Math.abs(d)}`, ...(d ? { tone: d > 0 ? "good" as const : "bad" as const } : {}) }] },
