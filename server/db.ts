@@ -1893,6 +1893,19 @@ CREATE INDEX awards_team_type ON awards (team, season, type, placement, name);
 ALTER TABLE search_failures ADD COLUMN missed TEXT NOT NULL DEFAULT '{}';
 `,
   },
+  {
+    version: 74,
+    name: "league meets keep only their own teams",
+    sql: `
+-- FIRST's /rankings for a league meet is the whole league's running standing, and the event bundle stored it as the
+-- meet's teams (2026 USNJNEM2 the day before: 33 teams, FIRST lists 13). Bundles now take the team list from FIRST's
+-- participant list (sources/first.ts firstEventBundle); this drops what the old ones stored. A meet's teams are the
+-- ones scheduled there; a meet with no schedule keeps none, and its registrations stand in until its next fetch.
+DELETE FROM event_teams
+ WHERE EXISTS (SELECT 1 FROM events e WHERE e.season = event_teams.season AND e.code = event_teams.code AND e.type = 'LeagueMeet')
+   AND NOT EXISTS (SELECT 1 FROM match_teams m WHERE m.season = event_teams.season AND m.code = event_teams.code AND m.team = event_teams.team);
+`,
+  },
 ];
 
 export type Db = Client;

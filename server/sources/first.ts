@@ -209,7 +209,8 @@ export async function firstEventBundle(meta: EventRow): Promise<EventBundle> {
   // Remote events (2020–2022): every team plays alone under the same match
   // numbers, so the keys collide; keep the event, rankings and awards only.
   const solo = <T,>(f: () => Promise<T>) => (meta.remote ? Promise.resolve(null) : f());
-  const [schedQ, schedP, results, scoresQ, scoresP, rankings, alliances, awards, advancement, advPoints] = await Promise.all([
+  const league = meta.type === "LeagueMeet";
+  const [schedQ, schedP, results, scoresQ, scoresP, rankings, alliances, awards, advancement, advPoints, participants] = await Promise.all([
     solo(() => firstGet<any>(`/${season}/schedule/${c}?tournamentLevel=qual`)),
     solo(() => firstGet<any>(`/${season}/schedule/${c}?tournamentLevel=playoff`)),
     solo(() => firstGet<any>(`/${season}/matches/${c}`)),
@@ -222,6 +223,9 @@ export async function firstEventBundle(meta: EventRow): Promise<EventBundle> {
     firstGet<any>(`/${season}/advancement/${c}`, season <= 2022),
     // Official advancement points (2025–26 on). Optional: a failure here never costs the event its results.
     season >= 2025 ? firstGet<any>(`/${season}/advancement/${c}/points`).catch(() => undefined) : Promise.resolve(undefined),
+    // The event's teams (FIRST's "Match Participants"). At a league meet /rankings is the whole league's running
+    // standing, so without this list the meet can't be told apart from its league: the read must succeed there.
+    firstEventTeams(season, code).catch((e) => { if (league) throw e; return null; }),
   ]);
 
   // Score breakdowns by match key.
@@ -290,13 +294,18 @@ export async function firstEventBundle(meta: EventRow): Promise<EventBundle> {
   }
   const matches = [...byKey.values()].sort((a, b) => (a.level === b.level ? 0 : a.level === "qual" ? -1 : 1) || a.series - b.series || a.number - b.number);
 
-  const entries: EntryRow[] = (rankings?.rankings ?? []).filter((r: any) => r?.teamNumber).map((r: any) => ({
+  // FIRST's participant list decides who is at the event: rankings only add each one's standing. Without a list
+  // (not published yet), a league meet's rankings say nothing about who comes, so only its schedule does.
+  const listed = participants?.length ? new Set(participants.map((t) => t.number)) : null;
+  const entries: EntryRow[] = (league && !listed ? [] : rankings?.rankings ?? []).filter((r: any) => r?.teamNumber && (!listed || listed.has(r.teamNumber))).map((r: any) => ({
     team: r.teamNumber, rank: num(r.rank), rp: num(r.sortOrder1), tbp: num(r.sortOrder2), wins: num(r.wins), losses: num(r.losses), ties: num(r.ties),
     qualPlayed: num(r.matchesPlayed), dq: num(r.dq),
   }));
-  // Teams that are scheduled but not (yet) ranked still belong to the event.
+  // Listed or scheduled teams that are not (yet) ranked still belong to the event.
   const seen = new Set(entries.map((e) => e.team));
-  for (const m of matches) for (const t of [...m.red, ...m.blue]) if (!seen.has(t.team)) { seen.add(t.team); entries.push({ team: t.team, rank: null, rp: null, tbp: null, wins: null, losses: null, ties: null, qualPlayed: null, dq: null }); }
+  const unranked = (team: number): EntryRow => ({ team, rank: null, rp: null, tbp: null, wins: null, losses: null, ties: null, qualPlayed: null, dq: null });
+  for (const t of participants ?? []) if (!seen.has(t.number)) { seen.add(t.number); entries.push(unranked(t.number)); }
+  for (const m of matches) for (const t of [...m.red, ...m.blue]) if (!seen.has(t.team)) { seen.add(t.team); entries.push(unranked(t.team)); }
 
   const allianceRows: AllianceRow[] = (alliances?.alliances ?? []).filter((a: any) => a?.number).map((a: any) => ({
     number: a.number, name: str(a.name), captain: num(a.captain?.teamNumber ?? a.captain), pick1: num(a.round1?.teamNumber ?? a.round1),
@@ -318,7 +327,7 @@ export async function firstEventBundle(meta: EventRow): Promise<EventBundle> {
     };
   }
 
-  return { event: meta, teams: [], detail: { entries, matches, alliances: allianceRows, awards: awardRows, advancement: adv, advancementPoints: advancementPointRows(advPoints) } };
+  return { event: meta, teams: participants ?? [], detail: { entries, matches, alliances: allianceRows, awards: awardRows, advancement: adv, advancementPoints: advancementPointRows(advPoints) } };
 }
 
 /**

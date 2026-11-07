@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.8.5 — 2026-11-07
+
+A league meet's page lists the teams FIRST lists for that meet, not every team in its league. The day before a meet, FIRST's rankings for it are the league's running standing, and Control Scout had been taking them as the meet's team list (P1-5 AM Northeast League Meet: 33 teams shown, FIRST lists 13).
+
+### Highlights
+- [fixes] League meets list only the teams FIRST lists for that meet
+- [fixes] Past league meets keep only the teams that played there
+- [teams] A team's page no longer shows its league's other meets as its own
+
+### Data
+- **Event teams from FIRST's participant list.** Every FIRST fetch of an event also reads its team list (`/teams?eventCode=`), and that list decides who is at the event; rankings only add each team's standing, and scheduled teams always count. A league meet whose list FIRST hasn't published shows no teams from its league's standing, and one whose list can't be read falls back to FTC Scout, like any failed FIRST read. Each fetch replaces the stored list whole.
+- **Stored league meets repaired.** Migration 74 drops the teams stored at a league meet that weren't scheduled there (about 19,000 rows over 2023–24 to 2025–26); an upcoming meet's list comes back from FIRST on its next fetch, with FIRST's registrations standing in until then.
+
 ## 3.8.4 — 2026-11-07
 
 The search sign-off grader counts a season's matches as a record answer: "17670 matches this season" answers with its W-L-T record and every match, dated.
