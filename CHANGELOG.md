@@ -26,7 +26,7 @@ A team's record, wins and scores in the finals only are answered, and a match to
 
 ### Search
 - **The finals, by bracket.** "In the finals", "finals record" and "finals matches only" filter a team's own match rows (record, win rate, scores, margins, streaks) to its events' finals: a classic bracket's final (series 0), and since 2024–25 a double-elimination bracket's grand final and its if-needed replay, read from the event's alliance count and posted series. A state's finals stay its state championship, "make the finals" stays its own question, and a number from season rows (OPR, rank) isn't filtered. Before, the finals were read only by the match finder, and a team's question about them went unanswered.
-- **A match by its margin.** "The match where <team> lost (won) by a lot / by the most / so badly" reads as that team's biggest loss (win), whose card names the match and its score. (#PRNUM)
+- **A match by its margin.** "The match where <team> lost (won) by a lot / by the most / so badly" reads as that team's biggest loss (win), whose card names the match and its score. (#1103)
 
 ## 3.9.0 — 2026-11-07
 
