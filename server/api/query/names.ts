@@ -51,6 +51,9 @@ export function buildNames(teams: Row[], places: { city: string | null; state: s
     if (!byName.has(k)) (byLength.get(k.length) ?? byLength.set(k.length, []).get(k.length)!).push(k);
     (byName.get(k) ?? byName.set(k, []).get(k)!).push(tn);
     longest = Math.max(longest, k.split(" ").length);
+    // The name as a query reads it, its possessive "'s" dropped ("The King's School" → "the king school"), too.
+    const said = fold((t.name ?? "").replace(/(?<=[\p{L}\p{N}])['’]s\b/gu, ""));
+    if (said && said !== k && !byName.get(said)?.includes(tn)) (byName.get(said) ?? byName.set(said, []).get(said)!).push(tn);
   }
   // A town is known with the region (or country) it's in; the same town name in two regions stays ambiguous.
   const towns = new Map<string, Map<string, { country: string; state: string | null; city: string }>>();
