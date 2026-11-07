@@ -16,5 +16,7 @@ describe("withoutContrast", () => {
   });
   it("keeps a \"not\" that filters, and a \"not\" with no comma", () => {
     for (const q of ["teams in Ohio, not rookies", "top 5 teams by rating, not OPR", "teams not at worlds", "6980 matches not just quals"]) expect(withoutContrast(q)).toBe(q);
+    // Greptile on #1031: a quoted phrase asks for exactly its words, comma clause and all.
+    for (const q of ['"Raider Robotics, not just Gold"', 'teams named "Gears, not only Bolts", not just in Ohio']) expect(withoutContrast(q)).toBe(q);
   });
 });
