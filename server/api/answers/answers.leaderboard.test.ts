@@ -130,3 +130,31 @@ describe("the lists", () => {
     expect((await searchAnswer("teams in atlantis", { limit: 25 })).stat).toBeUndefined();
   });
 });
+
+// Failed searches #976 #934 #799, in their own words: boards over every season.
+describe("every season counted", () => {
+  it("reads the most seasons, the oldest still active and a count 'ever'", () => {
+    expect(readLeaderboard("which team has played the most seasons, ever")).toMatchObject({ kind: "career", stat: "seasons", region: null });
+    expect(readLeaderboard("which team played the most seasons")).toMatchObject({ kind: "career", stat: "seasons" });
+    expect(readLeaderboard("whats the oldest team still active in New Jersey, by rookie year")).toMatchObject({ kind: "oldest", region: { key: "USA:NJ" } });
+    expect(readLeaderboard("which team in New Jersey has the most awards, ever")).toMatchObject({ kind: "career", stat: "awards", region: { key: "USA:NJ" } });
+    // Without "ever" a count is the season's board, as before.
+    expect(readLeaderboard("which team in New Jersey has the most awards")).toMatchObject({ kind: "top", stat: "awards" });
+  });
+  it("answers from every season on record", async () => {
+    const s = await searchAnswer("which team has played the most seasons, ever", { limit: 25, full: true });
+    // 4215: rookie year 2010 to its latest season with a match (2025), both counted.
+    expect(s.stat).toMatchObject({ intent: "career-seasons", headline: { value: "4215 Hypnotic Robotics", label: "Seasons played 16, rookie year 2010 · Oradell" } });
+    const o = await searchAnswer("whats the oldest team still active in New Jersey, by rookie year", { limit: 25, full: true });
+    expect(o.stat).toMatchObject({ intent: "oldest-active", title: "Oldest teams still active in New Jersey, by rookie year" });
+    const ob = o.stat!.blocks[0];
+    if (ob.kind !== "leaderboard") throw new Error(ob.kind);
+    expect(ob.rows.slice(0, 3).map((r) => r.display)).toEqual(["2010", "2013", "2017"]);
+    await run("INSERT INTO awards (season, code, type, placement, team) VALUES (2024, 'A1', 'Think', 1, 6980), (2025, 'A2', 'Inspire', 1, 6980), (2025, 'A3', 'Think', 1, 4215)");
+    try {
+      const a = await searchAnswer("which team in New Jersey has the most awards, ever", { limit: 25, full: true });
+      // 6980: the 2 awards an earlier case gave it this season, and these 2 across two seasons.
+      expect(a.stat).toMatchObject({ intent: "career-awards", headline: { value: "6980 Bad Wolf", label: expect.stringMatching(/^Awards won 4,/) } });
+    } finally { await run("DELETE FROM awards WHERE code IN ('A1', 'A2', 'A3')"); }
+  });
+});
