@@ -47,6 +47,8 @@ export interface Parsed {
   noPenalties: boolean;
   /** Where the first "vs" stands (a word's index, as a team's `at`): two alliances are the teams either side of it. */
   vsAt?: number;
+  /** Where the swap word is ("swap 12345 for 23456"), as a team's `at`. */
+  swapAt?: number;
   /** Every intent symbol read ("agg:max", "metric:score"). */
   symbols: string[];
   /** The stats said not to go by ("not OPR"), as typed: the card says it left them out. */
@@ -97,6 +99,8 @@ const NAME_MARK = "namedname";
 const NAMED_PHRASES = LEXICON.filter((e) => e.syms.some((x) => x.k === "named")).map((e) => e.words);
 /** The words that end a name asked about as words: a place or a time follows. */
 const NAME_ENDS = /^(?:from|in|at|near|based|located|during|out)$/;
+/** The words that swap one team for another (the lexicon's "swap"), as a pattern. */
+const SWAP_WORDS = "swap|swaps|swapped|swapping|switch|replace|replaces|replaced|replacing|substitute|substituted|substituting|sub|trade|traded|trading";
 /** The kind words an event's name can end with. */
 const KIND_WORDS = new Set(["meet", "meets", "tournament", "tournaments", "event", "events", "competition", "competitions"]);
 /** The words before a number that make it a count ("top 5", "last 10") or a match's number ("match 3"). */
@@ -153,7 +157,9 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   // A team's number joined to another by "vs" or "and" is one of the teams compared, not a year.
   const said = (y: number) => new RegExp(`\\b(?:in|during|for|from|(?<!\\b(?:this|current)\\s)season)\\s+(?:the\\s+)?${y}\\b`).test(q);
   const paired = (y: number) => new RegExp(`\\b${y}\\s+(?:vs\\.?|v|versus|against|and|&)\\s|\\s(?:vs\\.?|v|versus|against|and|&)\\s+${y}\\b`).test(` ${q} `);
-  const yearOk = (y: number) => said(y) || (!(ctx.names.team(y) && paired(y)) && (teamNums.some((n) => n !== y) || !ctx.names.team(y)));
+  // A team's number swapped out or in ("swap 2024 for 4215", "replace 4215 with 2024") is a team, never a year.
+  const swapped = (y: number) => new RegExp(`\\b(?:${SWAP_WORDS})\\s+(?:out\\s+)?(?:\\d{1,5}\\s+(?:out\\s+)?(?:for|with)\\s+)?${y}\\b`).test(q);
+  const yearOk = (y: number) => !(swapped(y) && ctx.names.team(y)) && (said(y) || (!(ctx.names.team(y) && paired(y)) && (teamNums.some((n) => n !== y) || !ctx.names.team(y))));
   // A stored name asked about as words keeps its words from the time reader ("Powerplay Robotics", "March Madness").
   const timeOnly = (w: string[]) => { const r = readTime(w.join(" "), ctx.today, yearOk); return !!r.time && allFiller(r.rest.split(" ").filter(Boolean)); };
   const at0 = keptName(words0, ctx, timeOnly);
@@ -279,6 +285,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       else if (s.k === "undefeated") p.undefeated = true;
       else if (s.k === "agg" && !p.agg) p.agg = s.v;
       else if (s.k === "vs" && p.vsAt == null) p.vsAt = i;
+      else if (s.k === "swap" && p.swapAt == null) p.swapAt = i;
       const k = symKey(s);
       if (k && s.k !== "award") symbols.add(k);
     }

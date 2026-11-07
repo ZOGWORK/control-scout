@@ -77,6 +77,11 @@ describe("slots", () => {
     for (const q of ["what if we replace 6980 with 24033 alongside 23268", "swapping 23268 out for 4215", "trade 4215 for 24033 beside 6980, how would the odds change"]) {
       expect(await parse(q), q).toMatchObject({ intent: "swap-predict", complete: true });
     }
+    // A team's number swapped out or in is a team, never a season, whichever side it's on.
+    for (const q of ["trade 2024 for 23268 beside 6980", "replace 23268 with 2024 alongside 6980"]) {
+      expect(await parse(q), q).toMatchObject({ intent: "swap-predict", time: null });
+      expect((await parse(q)).teams.map((t) => t.number).sort(), q).toEqual([2024, 23268, 6980].sort());
+    }
   });
   it("reads two alliances of two either side of a vs, any wording, as a match's call", async () => {
     for (const q of [

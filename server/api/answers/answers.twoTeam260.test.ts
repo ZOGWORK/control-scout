@@ -126,6 +126,10 @@ describe("the answers", () => {
     // The partner may come first; the order after the swap word decides who goes out.
     expect((await ask("beside 207, trading 4215 for 6980")).understood!.label).toMatch(/^Swapping Hypnotic Robotics \(4215\) for Bad Wolf \(6980\) beside Critical Mass \(207\)/);
     expect((await ask("swapping 4215 out for 6980")).understood!.label).toMatch(/^Swapping Hypnotic Robotics \(4215\) for Bad Wolf \(6980\):/);
+    // Names where they were read, one inside another or not.
+    expect((await ask("trade hypnotic robotics for bad wolf beside critical mass")).understood!.label).toMatch(/^Swapping Hypnotic Robotics \(4215\) for Bad Wolf \(6980\) beside Critical Mass \(207\)/);
+    // A match number the swap can't answer for is left to search.
+    expect((await ask("swap 4215 for 6980 in match 3 with 207")).stat?.intent).not.toBe("predict");
   });
   it("81: wins in the meetings only", async () => {
     const a = await ask("4215 wins against 6980");

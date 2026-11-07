@@ -215,11 +215,10 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // The first team after the swap word goes out and the next comes in ("swap A for B", "replace A with B"); any other
   // team is the partner.
   if (intent === "swap-predict") {
-    if (scope.level || scope.alliance || scope.place || scope.area || scope.window || scope.at || scope.championship || scope.states) return null;
-    const at = said.search(/\b(?:swap|swaps|swapped|swapping|switch|replace|replaces|replaced|replacing|substitute|substituted|substituting|sub|trade|traded|trading)\b/);
-    const pos = (t: (typeof p.teams)[number]) => said.indexOf(normalise(t.typed));
-    const after = p.teams.filter((t) => pos(t) > at).sort((a, b) => pos(a) - pos(b));
-    if (at < 0 || after.length < 2) return null;
+    if (scope.level || scope.alliance || scope.place || scope.area || scope.window || scope.at || scope.championship || scope.states || p.matchNumber != null) return null;
+    // Each team where it was read, never its name searched for again (a name inside another's: "Robotics").
+    const after = p.swapAt == null ? [] : p.teams.filter((t) => t.at > p.swapAt!).sort((a, b) => a.at - b.at);
+    if (after.length < 2) return null;
     const [out, inn] = after;
     const partner = p.teams.find((t) => t !== out && t !== inn) ?? null;
     const a = await twoTeamSearch(p.q, { id: "predict", scope, a: String(out.number), b: String(inn.number) }, opts.resolve, opts);
