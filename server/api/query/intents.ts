@@ -163,6 +163,8 @@ export const INTENTS: IntentRule[] = [
   R("alliance-predict", 4, ["vs"], ["predict", "and", "compare", "metric:win", "metric:score", "metric:margin", "thing:match", "per:match"]),
   // Two teams.
   R("two-predict", 2, ["predict"], ["vs", "and", "compare", "metric:win", "metric:score", "metric:margin", "thing:match"]),
+  // Supposed: "if 12345 played 23456", "what if they faced each other".
+  R("two-predict", 2, ["hypo", "vs"], ["predict", "metric:win", "metric:score", "metric:margin", "thing:match"]),
   // Either alliance: "on the same alliance" (partners only) isn't a filter the shared list takes, so it stays unexplained.
   R("shared-matches", 2, ["together"], ["vs", "and", "thing:match", "list"]),
   R("shared-matches", 2, ["and", "thing:match"], ["list"]),
