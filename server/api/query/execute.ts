@@ -191,7 +191,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // Reaching Worlds or states ("chance of making worlds next year"): the chance to advance from the team's next
   // event, the stored projection's, as "chance to advance to worlds" reads; never a forecast made at Worlds itself.
   if (intent === "team-predict" && p.reach && !p.event && p.teams.length === 1) {
-    if (scope.level || scope.alliance || scope.place || scope.area || scope.window || scope.at) return null;
+    // The projection is the next event's as things stand: a season, a day or all time said asks for another answer.
+    if (scope.level || scope.alliance || scope.place || scope.area || scope.window || scope.at || p.time) return null;
     const a = await statAnswer(`${p.teams[0].number} chance to advance to ${p.worlds ? "worlds" : "states"}`, opts.resolve, { full: opts.full, pages: opts.pages });
     return a && a.intent?.kind === "stat-advance-chance" ? { ...a, q: p.q } : null;
   }

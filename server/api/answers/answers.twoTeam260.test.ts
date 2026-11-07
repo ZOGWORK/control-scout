@@ -210,6 +210,9 @@ describe("the answers", () => {
       expect((await ask(q)).stat, q).toMatchObject({ intent: "advance-chance", headline: { value: "33%", label: "to advance from Northeast League Meet (2 slots)" } });
     }
     expect((await ask("6980 odds of reaching worlds next year")).stat!.none).toMatch(/^No upcoming event is published for Bad Wolf \(6980\)/);
+    // "As of now" is filler; a season said asks for something the next event's projection isn't.
+    expect((await ask("4215 odds of reaching worlds as of now")).stat).toMatchObject({ intent: "advance-chance", headline: { value: "33%" } });
+    expect((await ask(`4215 odds of reaching worlds in ${S - 1}-${String(S % 100).padStart(2, "0")}`)).stat?.intent).not.toBe("advance-chance");
     // A forecast made at Worlds is still its own ("advance at worlds"): the division's before and after.
     expect((await ask("4215 chance to advance at worlds")).stat?.intent).not.toBe("advance-chance");
     // The forecast's switch off: the event page shows no odds, and nor does search.
