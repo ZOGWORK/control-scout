@@ -151,6 +151,12 @@ const PAIRS: [string, string][] = [
   ["what are 4215's chances of advancing to worlds", "4215 chance to advance to worlds"],
   ["who should 4215 pick as their alliance partner please", "who should 4215 pick as an alliance partner"],
   ["please show me 4215's reliability", "4215 reliability"],
+  // A team's own listing, asked yes or no.
+  ["is 4215 a new team or a veteran one", "4215 rookie year"],
+  ["is 4215 a first-year team", "4215 rookie year"],
+  ["is team 4215 really based in minnesota or not", "where is 4215 from"],
+  ["did 4215 list a school", "4215 school"],
+  ["does 4215 have a sponsor on record", "4215 sponsors"],
 ];
 
 describe("long, conversational queries", () => {
@@ -197,6 +203,12 @@ describe("long, conversational queries", () => {
     const w = await ask("when was the last time 4215 went worlds");
     expect(w.card).toMatchObject({ kind: "worlds", headline: expect.stringMatching(/^Last went to Worlds in /) });
     expect(w.understood?.label).not.toMatch(/isn't part of this answer/);
+  });
+
+  it("reads a yes-or-no listing question only when it asks for the listing", () => {
+    expect(longForm("is 4215 in the finals")).not.toBe("where is 4215 from");
+    expect(longForm("is 4215 a good team or not")).not.toBe("4215 rookie year");
+    expect(longForm("does 4215 have any wins at worlds")).toBeNull();
   });
 
   it("keeps a \"like\" that compares (Greptile on #655)", () => {
