@@ -174,6 +174,8 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     q: raw, teams: [], event: null, place: null, time, level: null, finals: false, eventKind: null, alliance: null, worlds: false, states: false, award: null, agg: null,
     n: null, matchNumber: null, noPenalties: false, symbols: [], intent: null, rule: null, leftover: [], unexplained: [], complete: false,
   };
+  // Where the place read starts, in the parser's words: a place typed right after a shared name picks the team.
+  let placeFrom = -1;
   const lexAt = (i: number) => LEXICON.find((e) => e.words.every((w, j) => toks[i + j] && !toks[i + j].used && toks[i + j].w === w));
   const isLex = (w: string) => LEX_WORDS.has(w) || AWARD_ONE_WORD.has(w);
 
@@ -257,7 +259,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       if (code && !/^(?:in|from|at)$/.test(toks[i - 1]?.w ?? "")) continue;
       if (!code && span.every((t) => isLex(t.w))) continue;
       const pl = ctx.names.place(span.map((t) => t.w).join(" "), span.map((t) => t.typed).join(" "));
-      if (pl) { p.place = { ...pl, typed: span.map((t) => t.typed).join(" ") }; span.forEach((t) => (t.used = true)); }
+      if (pl) { p.place = { ...pl, typed: span.map((t) => t.typed).join(" ") }; placeFrom = i; span.forEach((t) => (t.used = true)); }
     }
   }
 
@@ -306,7 +308,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     const typed = () => toks.slice(from, to + 1).map((t) => t.typed).join(" ");
     const hasEventWord = toks.slice(from, to + 1).some((t) => EVENT_NAME_WORDS.has(t.w));
     const place = !hasEventWord ? ctx.names.place(words(), typed()) : null;
-    if (place && !p.place) { p.place = { ...place, typed: typed() }; toks.slice(from, to + 1).forEach((t) => (t.used = true)); continue; }
+    if (place && !p.place) { p.place = { ...place, typed: typed() }; placeFrom = from; toks.slice(from, to + 1).forEach((t) => (t.used = true)); continue; }
     // The region or country a town named is in, said after it ("Cluj-Napoca, Romania", "Oradell, NJ"): the same place.
     if (place && p.place && within(p.place, place)) { toks.slice(from, to + 1).forEach((t) => (t.used = true)); continue; }
     // One event: a second one named ("at nj championship at northern division") is left unexplained, never dropped.
@@ -328,7 +330,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     if (hasEventWord && !p.place) {
       const bare = toks.slice(from, to + 1).filter((t) => !EVENT_NAME_WORDS.has(t.w));
       const pl = bare.length ? ctx.names.place(bare.map((t) => t.w).join(" "), bare.map((t) => t.typed).join(" ")) : null;
-      if (pl) { p.place = { ...pl, typed: bare.map((t) => t.typed).join(" ") }; toks.slice(from, to + 1).forEach((t) => (t.used = true)); symbols.add("thing:event"); continue; }
+      if (pl) { p.place = { ...pl, typed: bare.map((t) => t.typed).join(" ") }; placeFrom = from; toks.slice(from, to + 1).forEach((t) => (t.used = true)); symbols.add("thing:event"); continue; }
     }
     // A kind of event by its type words alone ("league", with "meet" the lexicon read beside it; "qualifiers"): every
     // word one of FIRST's event types, never an event's name (read above).
@@ -380,7 +382,8 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   }
   // A place typed right after a shared name that it told apart ("ultraviolet nj") said which team, not where its
   // matches were; one said with a preposition ("record in new jersey", "at nj states") stays the matches' place.
-  const rightAfter = (t: TeamSlot) => !!p.place && new RegExp(`(?:^| )${fold(t.typed)} ${fold(p.place.typed)}(?: |$)`).test(fold(raw));
+  // The name's words end where the place's begin, counted in the parser's own words (a possessive already dropped).
+  const rightAfter = (t: TeamSlot) => placeFrom >= 0 && t.at + t.typed.split(/\s+/).length === placeFrom;
   if (p.place && p.teams.some((t) => t.rule === `the one in ${p.place!.name}` && rightAfter(t))) p.place = null;
   p.leftover = toks.filter((t) => !t.used).map((t) => t.typed);
   if (unread) p.leftover.unshift(unread);

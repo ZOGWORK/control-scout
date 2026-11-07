@@ -24,6 +24,8 @@ const TEAMS = [
   { number: 30009, name: "Mitspe Yam/מצפה ים", city: "Town", state: null, country: "Israel", lastPlayed: 2026 },
   { number: 30010, name: "Powerplay Pioneers", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
   { number: 30011, name: "March Madness", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
+  { number: 30012, name: "The King's School", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
+  { number: 30013, name: "The King's School", city: "Newark", state: "NJ", country: "USA", lastPlayed: 2026 },
 ];
 const EVENTS = ["east bergen conference", "new jersey championship", "nj championship", "turnpike division"];
 const ctx: ParseContext = {
@@ -116,6 +118,10 @@ describe("slots", () => {
       expect(p.complete, q).toBe(true);
     }
     expect(await parse("ultraviolet latest")).toMatchObject({ intent: "recent-match", complete: false });
+    // A possessive in the name ("The King's School nj") still reads the place as right after it.
+    const k = await parse("the king's school nj latest");
+    expect(k.teams).toMatchObject([{ number: 30013 }]);
+    expect(k.place).toBeNull();
     // Said with a preposition, the place still picks the team and stays where its matches were.
     expect((await parse("ultraviolet record in new jersey")).place).toMatchObject({ name: "New Jersey" });
   });
