@@ -5,6 +5,8 @@
 import type { StatFamily } from "../../../src/shared/searchStat.js";
 import { SEASONS } from "../../data/seasons.js";
 import { searchSeason } from "./season.js";
+import { readTime } from "../query/time.js";
+import { searchToday } from "../searchEvents.js";
 import { findRegions, nearRegion, type Region } from "../../../src/shared/regions.js";
 
 export type IntentId =
@@ -471,6 +473,8 @@ export interface LeaderboardQuestion {
   undefeated?: boolean;
   /** A town in the region: its teams only. */
   town?: string | null;
+  /** A date window said with a count ("this week"): the count is of the matches played in it. */
+  window?: { from: string; to: string; label: string };
 }
 
 const BOARD_STAT_WORDS: [string, RegExp][] = [
@@ -541,11 +545,27 @@ export function readLeaderboard(raw: string): LeaderboardQuestion | null {
   // match" (matches played), and a verb said before it is its own ("attended the most event").
   // Counted at some events only ("at New Jersey events", "out of state") or on one day is a count the board (season
   // totals) can't make: none.
-  if (!scope.place && !scope.outOfState && !scope.day && (m = new RegExp(`^(?:(?:which|what) )?(?:${TEAMS} )?(?:(?:in|from) (.+?) )?(?:(?:that|who) )?(?:(has|have|had|with|won|played|plays|attended|got) )?(?:the )?most (.+?)${PLACE}$`).exec(rest))) {
-    const counted = boardStat(m[3]) ?? boardStat(`${m[3]} ${m[2] === "attended" ? "attended" : "played"}`), region = place(m[1] ?? m[4]);
+  // A date window said with it ("this week", "last month") counts the matches played in the window instead; "worldwide"
+  // adds nothing. Said "by any team" ("most matches played by any team this season, top 5"), the same board.
+  const timed = /\b(?:(?:this|last|past|next)\s+(?:week(?:end)?|month)|today|yesterday)\b/.test(rest) ? readTime(rest, searchToday()) : null;
+  const win = timed?.time?.kind === "window" && timed.time.from && timed.time.to ? { from: timed.time.from, to: timed.time.to, label: timed.time.label } : null;
+  const counts = ` ${win ? timed!.rest : rest} `.replace(/\b(?:worldwide|world ?wide|globally|in the world)\b/g, " ").replace(/\s+/g, " ").trim();
+  const countBoard = (verb: string | undefined, said: string, where: string | undefined, many: string | undefined): LeaderboardQuestion | null => {
+    const counted = boardStat(said) ?? boardStat(`${said} ${verb === "attended" ? "attended" : "played"}`), region = place(where);
     // "Won the most matches" is the wins board; "won the most events" is no board here (never events played).
-    const stat = m[2] !== "won" || counted === "awards" ? counted : counted === "matches" ? "wins" : null;
-    if ((stat === "matches" || stat === "events" || stat === "awards" || (stat === "wins" && counted === "matches")) && region !== false) return { kind: "top", stat, n: 10, region, city: null, season: scope.season, best: true };
+    const stat = verb !== "won" || counted === "awards" ? counted : counted === "matches" ? "wins" : null;
+    if (!(stat === "matches" || stat === "events" || stat === "awards" || (stat === "wins" && counted === "matches")) || region === false) return null;
+    // Awards have no date of their own to count in a window.
+    if (win && stat === "awards") return null;
+    return { kind: "top", stat, n: many ? n(many, 10) : 10, region, city: null, season: scope.season, ...(many ? {} : { best: true }), ...(win ? { window: win } : {}) };
+  };
+  if (!scope.place && !scope.outOfState && !scope.day && (m = new RegExp(`^(?:(?:which|what) )?(?:${TEAMS} )?(?:(?:in|from) (.+?) )?(?:(?:that|who) )?(?:(has|have|had|with|won|played|plays|attended|got) )?(?:the )?most (.+?)${PLACE}$`).exec(counts))) {
+    const b = countBoard(m[2], m[3], m[1] ?? m[4], undefined);
+    if (b) return b;
+  }
+  if (!scope.place && !scope.outOfState && !scope.day && (m = new RegExp(`^(?:the )?(?:top (\\d{1,2}) )?most (.+?) (?:(played|won|attended) )?by (?:any|a|one|a single|each|every) ${TEAMS}(?: (?:in|from) (.+?))?(?: top (\\d{1,2}))?$`).exec(counts))) {
+    const b = countBoard(m[3], m[2], m[4], m[1] ?? m[5]);
+    if (b) return b;
   }
   // "most improved team in new jersey"
   if ((m = new RegExp(`^(?:the )?(?:top (\\d{1,2}) )?most improved ${TEAMS}${PLACE}$`).exec(rest))) {

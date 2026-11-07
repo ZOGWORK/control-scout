@@ -1,7 +1,7 @@
 // Leaderboard answers (server/api/answers/families/leaderboard.ts) on a small fixture database: the top N teams by a
 // stored season number in one state, rookies, the most improved by OPR standing, and a city's teams, each with the
 // link to the same list on the Teams page. A team under 3 matches, or in another state, is never ranked.
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { migrate, openDb, run, setDb } from "../../db";
 import { rebuildSearch } from "../../stats/job";
 import { searchAnswer } from "../searchAnswer";
@@ -128,5 +128,38 @@ describe("the lists", () => {
     expect(c.understood?.label).toBe("Teams in Oradell");
     expect(c.stat!.headline).toMatchObject({ value: "2 teams" });
     expect((await searchAnswer("teams in atlantis", { limit: 25 })).stat).toBeUndefined();
+  });
+});
+
+// Failed searches #880 #887, in their own words: a count's board in a date window, and said "by any team … top N".
+describe("a count's board in a window", () => {
+  afterEach(() => { vi.useRealTimers(); });
+  const day = (d: string) => vi.useFakeTimers({ toFake: ["Date"] }).setSystemTime(new Date(`${d}T15:00:00Z`));
+  it("reads the window and the 'by any team' shape", () => {
+    day("2026-03-12");
+    expect(readLeaderboard("which team played the most matches this week")).toMatchObject({ kind: "top", stat: "matches", best: true, window: { from: expect.stringMatching(/^2026-03-/), to: expect.stringMatching(/^2026-03-/) } });
+    expect(readLeaderboard("which team played the most matches this week, worldwide")).toMatchObject({ stat: "matches", region: null, window: {} });
+    expect(readLeaderboard("most matches played by any team this season, worldwide, top 5")).toMatchObject({ kind: "top", stat: "matches", n: 5, region: null });
+    expect(readLeaderboard("most matches played by any team this season, worldwide, top 5")).not.toHaveProperty("best");
+    // Awards have no date to count in a window.
+    expect(readLeaderboard("which team has the most awards this week")).toBeNull();
+  });
+  it("counts each team's played matches in the window, else the latest week with matches", async () => {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, 'WQ1', 'Window Qualifier', 'Qualifier', 'Trenton', 'NJ', 'USA', '2026-03-10', '2026-03-10', 't')");
+    const m = async (n: number, red: number[], blue: number[], rs: number, bs: number) => {
+      await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, blue_total, source) VALUES (2025, 'WQ1', 'qual', 0, ?, ?, '2026-03-10T14:00:00Z', 1, ?, ?, 't')", [n, `Q${n}`, rs, bs]);
+      for (const [t, a] of [...red.map((t) => [t, "red"]), ...blue.map((t) => [t, "blue"])]) await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance) VALUES (2025, 'WQ1', 'qual', 0, ?, ?, ?)", [n, t, a]);
+    };
+    await m(1, [4215, 6980], [23268, 31814], 100, 80);
+    await m(2, [4215, 23268], [6980, 31814], 90, 95);
+    await m(3, [4215, 31814], [6980, 9999], 70, 60);
+    day("2026-03-12");
+    const a = await searchAnswer("which team played the most matches this week", { limit: 25, full: true });
+    expect(a.stat).toMatchObject({ title: "Team worldwide with the most matches played this week", headline: { value: "4215 Hypnotic Robotics", label: "Matches played 3, 2-1-0 · Oradell" } });
+    // None this week: the latest week with matches, said so.
+    day("2026-03-25");
+    const b = await searchAnswer("which team played the most matches this week", { limit: 25, full: true });
+    expect(b.stat?.headline?.value).toBe("4215 Hypnotic Robotics");
+    expect(b.stat?.scope[0]).toBe("No matches this week yet worldwide; showing 2026-03-04 to 2026-03-10");
   });
 });
