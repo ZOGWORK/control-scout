@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.8.8 — 2026-11-07
+## 4.0.0 — 2026-11-07
 
 A list of teams with filters is answered however the filters are said: "Houston teams, OPR 90+", "teams in Romania with at least 30 matches and a win rate over 70 percent", "teams with OPR over 120 who did not make worlds".
 
@@ -27,6 +27,161 @@ A list of teams with filters is answered however the filters are said: "Houston 
 
 ### Search
 - **Team lists, filters said any way.** A threshold needs no "with" ("Oradell teams, OPR over 100"), a stat with a bare number is at least it ("OPR 90", "OPR 90+"), "percent" is a unit, and a count of matches or wins is a filter ("at least 30 matches", "that played 20+ matches"). Every threshold said is applied and named on the card; "a leaderboard for teams …", "list them all" and "worldwide" read too. Worlds made, or not made ("did not make worlds"), rookies ("started as a rookie this year") and an award named before the teams ("Texas Inspire teams") are filters of their own. (#1075)
+
+## 3.9.9 — 2026-11-07
+
+A word's explainer that comes with a team's numbers sits inside the same card, so the answer reads as one card.
+
+### Highlights
+- [fixes] "How is OPR calculated, with 4215": one card, numbers then meaning
+- [fixes] A team's stat and what it means are no longer two cards
+- [fixes] The explainer's title isn't repeated under the page's heading
+
+### Search
+- **One answer card.** When a team's stat answer comes with a word's explainer ("what does ranking score mean, for 14450 at …", "why did 4215's rating go down even though they won"), the explainer's lines are drawn inside the stat's card, after its numbers, in the definition card's own look. (#1129)
+
+## 3.9.8 — 2026-11-07
+
+The LIVE panel shows nothing about matches until the day's first score is out, then times every match from the field.
+
+### Highlights
+- [live] Before the first score: just "Waiting for Q1's score"
+- [live] After it, your next match and countdown appear on their own
+- [fixes] Schedules posted as 1:35 AM read as 1:35 PM
+
+### Live
+- **Nothing until the first score.** Before the day's first match is scored, the LIVE panel names no match, time or lineup (it read as if that match were on now), only "Waiting for Q1's score"; the phone's chip says "Waiting for Q1". Once the score is out, your next match and its countdown show up by themselves, timed from the field's real pace.
+- **Schedules with a wrong clock.** When the field runs hours off the posted times (a mistyped schedule), the countdown keeps the schedule's gaps and drops its clock, and doesn't claim the event runs "12 hours behind".
+
+### Fixes
+- **12-hour slips in FIRST's schedule.** A posted start before 6 AM is read as the afternoon (the P1-5 PM Northeast League Meet was posted from 1:35 AM). (#1128)
+
+## 3.9.7 — 2026-11-07
+
+Questions about what a word means are answered however they're framed, two words at once, or with a team's own numbers.
+
+### Highlights
+- [fixes] "teleop explained" says what auto, TeleOp and endgame are
+- [fixes] "difference between OPR and rating" shows both, side by side
+- [fixes] "how is OPR calculated, with 4215" shows its numbers too
+- [fixes] "what is the game this season" names the season's game
+
+### Search
+- **What a word means, asked any way.** Framing such as "explained", "in plain words" or "for a beginner" is set aside; "the difference between" two words gives each one's lines; a word asked for one team ("what does ranking score mean, for 14450 at …", "why did 4215's rating go down even though they won") gives that team's own stat with the word's explainer under it; and "the game this season" or "last season" names that season's game. (#1065)
+
+## 3.9.6 — 2026-11-07
+
+How right the engine's predictions were is a question search answers: a team's most unpredictable matches, the calls that missed by more than a number of points, and the season's most accurate predictions.
+
+### Highlights
+- [predict] "Most unpredictable match" lists where predictions missed
+- [predict] "Wrong by more than 50 points" keeps only those matches
+- [predict] "Most accurate prediction this season" finds the closest calls
+
+### Search
+- **Predictions against results.** A match's miss is how far the saved call's margin (live, else its replay) was from the final one, penalties included, as the accuracy page measures it. "<team>'s most unpredictable match", "where the prediction was most wrong" and "biggest prediction misses in <place>" rank furthest off first; "most accurate prediction" ranks closest first.
+- **A floor in points.** "More than 50 points", "over 100 pts" is a number of points, never a team, and keeps only the misses over it. (#1077)
+
+## 3.9.5 — 2026-11-07
+
+A team's TeleOp, Auto or Endgame OPR and its reliability can be asked as a trend, event by event, and "how has <team> changed from last season" shows its OPR change.
+
+### Highlights
+- [fixes] "Is 14450's teleop improving" shows TeleOp OPR by event
+- [fixes] "7149 reliability trend, event by event" shows each event
+- [fixes] "How has 17713 changed from last season" shows its OPR change
+
+### Search
+- **Phase and reliability trends.** "<team> teleop trend", "is <team>'s auto improving", "<team> endgame over time" and "<team> reliability by event" each answer with that number at every event of the season, rising or falling against the event before, read from the rows the team page shows (a phase's OPR, the reliability index per event). "How has <team> changed (or improved) from last season to this season", "since last season" and "between two seasons" read as its OPR change. (#1074)
+
+## 3.9.4 — 2026-11-07
+
+A team's quality asked in plain words gets its season's OPR, rank and record: "is 23268 actually that good or just hype", "can u tell me if bad wolf is good, be honest" and "whats up with ultraviolet, are they cracked" no longer end on the bare team card or no match.
+
+### Highlights
+- [fixes] "Is 23268 actually that good or just hype" shows its numbers
+- [fixes] "Can u tell me if bad wolf is good" shows OPR, rank, record
+- [fixes] "Did hypnotic robotics choke at states" shows its states results
+
+### Search
+- **Plain-language team questions.** "Is <team> actually that good", "can you tell me if <team> is good", "whats up with <team>, are they cracked" and "how good is <team> really" read as "how good is <team>", the season said kept; "did <team> choke (or flop, or do well) at <event>" reads as how it did there; "show me <team> in 2023, if they played then" is that season. Asides such as "or just hype", "or nah", "be honest" and "like in plain numbers" are left out. (#1057)
+
+## 3.9.3 — 2026-11-07
+
+An event's award asked with its season, a short name or a place ("… inspire 2025-26", "in nj cham this year", "who got 2nd place …") is answered.
+
+### Highlights
+- [fixes] "<event> inspire 2025-26" names that season's award
+- [fixes] "who won inspire in nj cham this year" finds the event
+- [fixes] "who got 2nd place Inspire at …" lists that place first
+- [fixes] "… inspire last year" is the season before this one
+
+### Search
+- **An event's award, any season, any place.** A season said anywhere in an award ask (a game, "2025-26", "last year") is the event's season, never its name, and "2nd place" puts that place first, said in the answer. (#1071)
+
+
+## 3.9.2 — 2026-11-07
+
+The live countdown waits for the day's first result, then runs on the field's real pace.
+
+### Highlights
+- [live] No countdown until the day's first match has a score
+- [live] Then the timer follows the field: late or early, never behind
+- [live] Shows which match should be on the field now
+
+### Live
+- **No timer off the posted plan.** Before the day's first match has a result, the LIVE panel, the phone's countdown chip and the pit display show what's up next and its scheduled time, with no countdown: events rarely start on time.
+- **Calibrated on real starts.** Once results come in, the next match is due one cycle after the latest match really started, and everything after it moves by the same amount up to the next break (lunch absorbs a late start). It uses the shorter of the posted cycle and the one the field is really running, and a match with no score yet can't have started more than 8 minutes ago, so the timer errs early, never late. Breaks come from the posted schedule: each match now keeps its posted start beside its real one. The panel says how far behind or ahead the field runs and which match should be on the field now. (#1109)
+
+## 3.9.1 — 2026-11-07
+
+A team's next event asked about as a forecast, and "will <team> win <event>", answer with the engine's own projection for that event.
+
+### Highlights
+- [predict] "<team> next event prediction" shows its chance to win it
+- [predict] "Will <team> win <event>" shows the forecast there
+- [predict] "Will <team> win states" and "win worlds" read their own event
+
+### Search
+- **Next event, said as a forecast.** "Next event prediction", "next meet forecast" and "prediction for their next event" read as the stored projection for the team's next event, led by its chance to win it.
+- **"Will" with a win and an event.** "Will <team> win <event>", "… win states" and "… win worlds" are the forecast at that event; "will" with no event or no win ("will <team> advance", "when will <team> play next") keeps its own answer. (#1072)
+
+## 3.9.0 — 2026-11-07
+
+On an event day before the schedule is out, the LIVE box says it's waiting for the schedule. It no longer says your teams are done, and it names only your teams that are at the event.
+
+### Highlights
+- [live] Before the schedule: "Waiting for the schedule", never "done for now"
+- [live] Only your teams at this event are named
+- [live] A team the posted schedule leaves out isn't called done
+
+### Live
+- **LIVE box without a schedule.** With no matches posted, the box's title is "Waiting for the schedule". Your tracked or assigned teams at the event are listed as "Your teams here: …", and their countdown starts when the schedule is out. If none of them is at the event, there's no team line. "Your teams are done for now" and "No more scheduled matches for …" now need a posted schedule, and they name only teams that are in it. A team at the event that the posted schedule leaves out reads "Not in the posted schedule". Every event works the same way: the teams named are the event's own list or its schedule. The event stays Live on its day: FIRST shows it as in progress, and live mode keeps the page checking for the schedule. (#1089)
+
+## 3.8.9 — 2026-11-07
+
+A league meet's page lists the teams FIRST lists for that meet, not every team in its league. The day before a meet, FIRST's rankings for it are the league's running standing, and Control Scout had been taking them as the meet's team list (P1-5 AM Northeast League Meet: 33 teams shown, FIRST lists 13).
+
+### Highlights
+- [fixes] League meets list only the teams FIRST lists for that meet
+- [fixes] Past league meets keep only the teams that played there
+- [teams] A team's page no longer shows its league's other meets as its own
+
+### Data
+- **Event teams from FIRST's participant list.** Every FIRST fetch of an event also reads its team list (`/teams?eventCode=`), and that list decides who is at the event; rankings only add each team's standing, and scheduled teams always count. A list FIRST files for both sessions of an AM/PM pair stays the pair's (shown for both sessions, as before), never one session's teams. A league meet whose list FIRST hasn't published shows no teams from its league's standing, and one whose list can't be read falls back to FTC Scout, like any failed FIRST read. Each fetch replaces the stored list whole, and FIRST's own list replaces the stored registrations too, so a list FIRST emptied stays empty.
+- **Stored league meets repaired.** Migration 74 drops the teams stored at a league meet that weren't scheduled there (about 19,000 rows over 2023–24 to 2025–26; remote meets, which never have matches, are left alone); an upcoming meet's list comes back from FIRST on its next fetch, with FIRST's registrations standing in until then. (#1041)
+
+## 3.8.8 — 2026-11-07
+
+A trend asked as a choice ("is its rating rising or falling", "getting better or worse at penalties") answers with the trend, and penalties asked as a trend show each event.
+
+### Highlights
+- [fixes] "Is the rating rising or falling" shows the rating trend
+- [fixes] "Getting better or worse at penalties" shows each event
+- [fixes] "Better or worse than" another team stays a comparison
+
+### Search
+- **Trends asked as a choice.** "Rising or falling", "getting better or worse" and "improving or flat" read as a trend; a team's penalties asked as a trend give the per-event figure. (#1043)
 
 ## 3.8.7 — 2026-11-07
 

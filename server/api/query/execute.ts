@@ -82,6 +82,10 @@ const AWARD_LISTS = new Set<IntentId>(["awards", "total-awards", "inspire-awards
 const TREND_ASK: Partial<Record<PipelineIntent, { ask: string; intent: string }>> = {
   "rating-trend": { ask: "rating trend", intent: "rating-trend" },
   "opr-trend": { ask: "opr history", intent: "opr-history" },
+  "auto-trend": { ask: "auto opr history", intent: "auto-history" },
+  "teleop-trend": { ask: "teleop opr history", intent: "teleop-history" },
+  "endgame-trend": { ask: "endgame opr history", intent: "endgame-history" },
+  "reliability-trend": { ask: "reliability history", intent: "reliability-history" },
 };
 
 /** Words that ask for two teams side by side, beside "or" alone ("12345 or 67890" is a search for either). */
@@ -105,11 +109,14 @@ const MEETINGS = new Set<TwoTeamId>(["head-to-head", "h2h-wins", "shared-matches
 /** The match finder's measure for each intent that asks for one (./matchFind.ts). */
 const FIND: Partial<Record<PipelineIntent, MatchMeasure>> = {
   "low-matches": "low", "close-matches": "closest", "lopsided-matches": "lopsided", "penalty-matches": "penalties", "upset-matches": "upset", "comeback-matches": "comeback",
+  "miss-matches": "miss", "accurate-matches": "accurate",
 };
+/** The match finder's measures one team's matches take ("<team>'s most unpredictable match"). */
+const TEAM_FIND = new Set<MatchMeasure>(["miss", "accurate"]);
 /** The matches a measure finds, in a sentence ("no 2026–27 upsets yet"). */
 const MATCH_NOUN: Record<MatchMeasure, string> = {
   high: "scored matches", low: "scored matches", closest: "decided matches", lopsided: "decided matches", penalties: "matches with penalty points",
-  upset: "upsets", comeback: "comebacks",
+  upset: "upsets", comeback: "comebacks", miss: "matches with a saved prediction", accurate: "matches with a saved prediction",
 };
 /** A place's or the world's season (docs/search-pipeline.md, "Seasons"): the one said, else the current one (today's);
  *  "last season" is the one before the current one. A team's own season stays the latest it played (readScopeOf). */
@@ -173,8 +180,9 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
       count: p.agg === "count", noTeam: false, core: String(team.number),
       ...(p.award && (id === "awards" || id === "total-awards") ? { award: p.award } : {}),
       ...(AWARD_LISTS.has(id) && (p.agg === "first" || p.agg === "last") ? { pick: p.agg === "first" ? "first" : "latest" } : {}),
-      // "How many penalty points", "in total": the total first; "per match" said with it is the per-match figure.
-      ...(id === "penalties" ? { variant: p.symbols.includes("per:event") ? "per-event" : p.symbols.includes("per:rate") ? "rate" : p.symbols.includes("per:match") ? null : p.symbols.includes("agg:sum") || p.symbols.includes("agg:count") ? "total" : null } : {}),
+      // "How many penalty points", "in total": the total first; "per match" said with it is the per-match figure; a trend
+      // with no measure said ("getting better or worse at penalties") is the per-event one.
+      ...(id === "penalties" ? { variant: p.symbols.includes("per:event") ? "per-event" : p.symbols.includes("per:rate") ? "rate" : p.symbols.includes("per:match") ? null : p.symbols.includes("agg:sum") || p.symbols.includes("agg:count") ? "total" : p.symbols.includes("trend") ? "per-event" : null } : {}),
       ...(id === "record" && p.symbols.includes("per:event") ? { variant: "per-event" as const } : {}),
     };
     const a = await statAnswerOf(p.q, it, opts.resolve, opts);
@@ -261,14 +269,16 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // Matches by a measure, or the best ones with a filter the season records don't take (a match type, a kind of
   // event): the match finder.
   const kind = p.event ? eventKindOf(normalise(p.event.words)) : p.eventKind ? eventKindOf(p.eventKind) : null;
-  if (!p.teams.length && (FIND[intent] || (intent === "top-matches" && (p.level || p.finals || kind)))) {
+  const teamFind = p.teams.length === 1 && TEAM_FIND.has(FIND[intent]!);
+  if ((!p.teams.length || teamFind) && (FIND[intent] || (intent === "top-matches" && (p.level || p.finals || kind)))) {
     if (((p.event || p.eventKind) && !kind) || p.worlds || p.states || p.alliance || scope.ever || (p.place && p.place.kind === "city")) return null;
-    const plural = /\b(?:matches|games|scores|upsets|comebacks|blowouts|routs|mismatches|underdogs|wins|losses)\b/.test(said);
+    const plural = /\b(?:matches|games|scores|upsets|comebacks|blowouts|routs|mismatches|underdogs|wins|losses|predictions|misses)\b/.test(said);
     const f: MatchFind = {
       // The current season is the one today is in.
       measure: FIND[intent] ?? "high", season: placeSeason(p, scope.season, opts), region: regionOf(p), level: p.level, finals: p.finals, kind,
       ...(["metric:win", "metric:loss", "outcome:W", "outcome:L"].some((s) => p.symbols.includes(s)) ? { decided: true } : {}),
       ...(scope.window ? { window: scope.window } : {}), n: p.n ?? (plural ? 10 : 5), ...(plural || p.n != null ? { list: true } : {}),
+      ...(teamFind ? { team: { number: p.teams[0].number, name: p.teams[0].name } } : {}), ...(p.over != null ? { over: p.over } : {}),
     };
     const card = async (g: MatchFind): Promise<SearchAnswer> => {
       const stat = await matchFindAnswer(g);

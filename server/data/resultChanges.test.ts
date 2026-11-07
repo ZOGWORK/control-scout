@@ -11,6 +11,7 @@ import { bundleStatements, type EventBundle, type MatchRow, type MatchTeam } fro
 import { RESULT_CHANGES_PER_EVENT, diffMatches, readStored, resultChangesIo, writeEventBundle } from "./resultChanges";
 import type { ResultChangesView } from "../../src/shared/api";
 import { syncEvent } from "../sync";
+import { matchViews } from "../api/matches";
 
 const S = CURRENT_SEASON;
 
@@ -376,6 +377,11 @@ describe("through the sync (FIRST feed stubbed)", () => {
     feed({ red: 100, q2Field: "2" });
     expect(await syncEvent(meta)).toBe("first");
     expect(await all("SELECT number, field, breakdown FROM matches WHERE code = 'EV' ORDER BY number")).toEqual([{ number: 1, field: "1", breakdown: 0 }, { number: 2, field: "2", breakdown: null }]);
+    // A played match's time is its real start; its posted start stays beside it (the live countdown's breaks).
+    expect(await all("SELECT number, time, scheduled FROM matches WHERE code = 'EV' ORDER BY number")).toEqual([
+      { number: 1, time: "2026-11-07T09:01:12", scheduled: "2026-11-07T09:00:00" }, { number: 2, time: "2026-11-07T09:07:00", scheduled: "2026-11-07T09:07:00" }]);
+    const views = await matchViews({ season: meta.season, code: "EV" });
+    expect(views.map((m) => [m.label, "scheduledAt" in m])).toEqual([["Q1", true], ["Q2", false]]); // only where it differs from the real start
     await syncEvent(meta); // same answers
     expect(await changes()).toEqual([]);
     feed({ red: 95, q2Field: "1" });
