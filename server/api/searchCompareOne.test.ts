@@ -28,7 +28,7 @@ beforeAll(async () => {
 
 describe("Compare asked for one team", () => {
   it("opens Compare with the team in it and suggests its closest-rated rivals in its state", async () => {
-    for (const q of ["compare hypnotic robotics", "4215 compare", "vs 4215"]) {
+    for (const q of ["compare hypnotic robotics", "4215 compare", "4215 comparison"]) {
       const a = await ask(q);
       expect(a.hits[0], q).toMatchObject({ kind: "compare", href: "/compare?teams=4215" });
       expect(a.understood, q).toMatchObject({ kind: "compare" });

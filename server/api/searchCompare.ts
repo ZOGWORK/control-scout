@@ -180,10 +180,10 @@ export async function versusAnswer(q: string, prefer: ReadonlySet<string>, seaso
   return { q, hits: [top, ...shown.map((t) => teamHit(t, teamRows))], pages: pagesFor(q), step: "deterministic", weak: false, understood: { kind: "compare", label } };
 }
 
-/** "compare 7149", "7149 compare": one team, Compare asked for. A comparison needs a second team, so: Compare opened
+/** "compare 7149", "7149 compare": one team, Compare asked for (the word itself: a bare "vs 7149" is a versus with a side missing). A comparison needs a second team, so: Compare opened
  *  with this one in it, to add others to, and two or three comparisons from its own numbers (`suggest`), each a search
  *  that answers. Null when it isn't one team alone (two named, "compare 7149 and 6980", is the versus's). */
-const COMPARE_ONE = /^(?:compare|comparison|versus|vs\.?)\s+(.+)$|^(.+?)\s+(?:compare|comparison|compared|versus|vs\.?)$/i;
+const COMPARE_ONE = /^(?:compare|comparison)\s+(.+)$|^(.+?)\s+(?:compare|comparison|compared)$/i;
 export async function compareOneAnswer(q: string, prefer: ReadonlySet<string>, season: number | null): Promise<SearchAnswer | null> {
   const m = COMPARE_ONE.exec(q.trim());
   const typed = (m?.[1] ?? m?.[2] ?? "").trim();

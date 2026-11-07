@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.9.3 — 2026-11-07
+
+Compare asked for one team opens Compare with it, and suggests its closest rivals.
+
+### Highlights
+- [teams] "Compare" and one team opens Compare with that team in it
+- [teams] Its closest-rated rivals nearby, each one tap to compare
+- [fixes] A season named carries into each suggested comparison
+
+### Search
+- **Compare one team.** "Compare" and a single team (by number or name) opens Compare with that team in it, ready for more, and suggests the two or three teams rated closest to it in its state (else its country) as comparisons that each answer. (#1120)
+
 ## 3.9.2 — 2026-11-07
 
 The live countdown waits for the day's first result, then runs on the field's real pace.
