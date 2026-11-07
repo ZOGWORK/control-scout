@@ -18,6 +18,7 @@ describe("a sort said as an order", () => {
     expect(await parse("show me the games from last week, top first")).toMatchObject({ intent: "top-matches", agg: "max", complete: true });
     expect(await parse("matches in new jersey this month highest scores first")).toMatchObject({ intent: "top-matches", complete: true });
     expect(await parse("matches this week lowest scoring first")).toMatchObject({ intent: "low-matches", complete: true });
+    expect(await parse("games in new jersey last week, lowest first")).toMatchObject({ intent: "low-matches", complete: true });
     // A team's first match is still its first.
     expect(await parse("4215 first match")).toMatchObject({ intent: "first-match", complete: true });
   });
