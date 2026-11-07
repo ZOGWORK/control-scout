@@ -291,14 +291,15 @@ export async function eventSetAnswer(q: string, e: EventQuery, opts: { now?: num
   // `room` cards after the link (every answer is cut to SEARCH_PAGE_LIMIT cards, an event with its divisions as one:
   // firstCards), so more than that says how many are listed.
   const room = SEARCH_PAGE_LIMIT - (inPlace ? 1 : 0);
-  const placeFor = (rows: Row[], listed: number, o: Parameters<typeof eventSetLabel>[1]) => (e.region ? placeHitOf(e.region, inPlace, { n: rows.length, listed, label: lower(eventSetLabel({ ...e, region: null }, { seasonLabel, ...o })) }) : null);
-  const done = (rows: Row[], understood: SearchUnderstood, o: Parameters<typeof eventSetLabel>[1] = {}): SearchAnswer => {
+  const placeFor = (rows: Row[], listed: number, o: Parameters<typeof eventSetLabel>[1], set: EventQuery) => (set.region ? placeHitOf(set.region, inPlace, { n: rows.length, listed, label: lower(eventSetLabel({ ...set, region: null }, { seasonLabel, ...o })) }) : null);
+  // `set`: the set the rows are, when not the one asked (the place's events of every kind, its kind held never).
+  const done = (rows: Row[], understood: SearchUnderstood, o: Parameters<typeof eventSetLabel>[1] = {}, set: EventQuery = e): SearchAnswer => {
     const events = firstCards(rows.map((r) => eventHit(r, now)), room);
     // Every season but more than a page holds: the newest first, how many of them are listed (what the events
     // heading and the All tab count), and the full list one click away.
     const more = e.allSeasons && events.length < rows.length;
     return {
-      q, hits: [...[placeFor(rows, events.length, o)].filter((h): h is SearchHit => !!h), ...events, ...(opts.others ?? [])],
+      q, hits: [...[placeFor(rows, events.length, o, set)].filter((h): h is SearchHit => !!h), ...events, ...(opts.others ?? [])],
       pages: more && e.region ? [{ title: `Championships in ${e.region.name}, each season: Events`, href: `/events?region=${encodeURIComponent(e.region.key)}&type=Championship` }, ...pagesFor(q)] : pagesFor(q),
       step: "deterministic", weak: false,
       understood: { ...understood, ...(more ? { label: `${understood.label}, the newest ${events.length} of ${rows.length} listed (the full list is on Events)` } : {}), total: rows.length },
@@ -323,6 +324,16 @@ export async function eventSetAnswer(q: string, e: EventQuery, opts: { now?: num
     const fb = await rowsFor(e, now, { where: d.includes("where"), time: d.includes("time") });
     const shown = { drop: d, where: d.includes("where") ? null : whereAsStored(e, fb) };
     if (fb.length) return done(fb, { ...base, ...(d.includes("where") ? { season: e.season ?? (e.year == null && !e.allSeasons ? CURRENT_SEASON : undefined) } : {}), label: asked, fallback: `No ${lower(asked)} in the data — showing ${lower(label(shown))} instead` }, shown);
+  }
+  // A kind of event the place has never held, in any season on record ("meets in <a state with no leagues>"): that is
+  // the answer, said plainly, with the place's events of the season asked (this one when none) listed instead.
+  if (e.region && e.kinds.length && !e.words.length && !e.where && !(await rowsFor({ ...e, time: null, season: null, year: null, allSeasons: true }, now)).length) {
+    const instead = await rowsFor({ ...e, kinds: [] }, now, { time: true });
+    const kind = lower(eventSetLabel({ ...e, region: null, time: null, season: null, year: null, allSeasons: false }, { seasonLabel }));
+    if (instead.length) {
+      const { eventTypes: _, ...anyKind } = base;
+      return done(instead, { ...anyKind, label: asked, fallback: `${e.region.name} has held no ${kind} in any season on record — showing its events instead` }, {}, { ...e, kinds: [] });
+    }
   }
   // Still nothing. A year named is never swapped for another: say so, with other years' events as closest matches.
   const otherYears = e.year != null || e.season != null ? (await rowsFor(e, now, { year: true })).slice(0, 10) : [];
