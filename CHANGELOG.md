@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.8.9 — 2026-11-07
+
+How right the engine's predictions were is a question search answers: a team's most unpredictable matches, the calls that missed by more than a number of points, and the season's most accurate predictions.
+
+### Highlights
+- [predict] "Most unpredictable match" lists where predictions missed
+- [predict] "Wrong by more than 50 points" keeps only those matches
+- [predict] "Most accurate prediction this season" finds the closest calls
+
+### Search
+- **Predictions against results.** A match's miss is how far the saved call's margin (live, else its replay) was from the real one, without penalties. "<team>'s most unpredictable match", "where the prediction was most wrong" and "biggest prediction misses in <place>" rank furthest off first; "most accurate prediction" ranks closest first. (#1077)
+- **A floor in points.** "More than 50 points", "over 100 pts" is a number of points, never a team, and keeps only the misses over it. (#1077)
+
 ## 3.8.8 — 2026-11-07
 
 A trend asked as a choice ("is its rating rising or falling", "getting better or worse at penalties") answers with the trend, and penalties asked as a trend show each event.
