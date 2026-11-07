@@ -25,7 +25,7 @@ A question about "my" or "our" team ("what is my 4215 next event", "our 6980 rec
 - [fixes] An intent word typed wrong after "my <team>" still answers
 
 ### Search
-- **Whose team it is.** "my" or "our" before a team's number says whose team it is, never part of what's asked, so a long question about it reads the way the same question about the team does. (#PR)
+- **Whose team it is.** "my" or "our" before a team's number says whose team it is, never part of what's asked, so a long question about it reads the way the same question about the team does. (#1123)
 
 ## 3.9.3 — 2026-11-07
 
