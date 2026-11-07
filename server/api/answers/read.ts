@@ -673,11 +673,12 @@ export function readStatQuestion(raw: string): StatQuestion | null {
       // An award's winner ("who won inspire at nj states", "12345 inspire winner") is the awards' own question; "winner"
       // and "champion" alone name a season's winners only with Worlds or a season ("12345 champion" is a team).
       if (AWARD_WORDS.test(q)) continue;
-      // A team's number left over ("12345 worlds winner") is a question about that team; with nothing else said
-      // ("12345 champion") it's the team's event wins.
+      // A team's number left over ("12345 worlds winner") is a question about that team; with no event or season
+      // said ("12345 champion", "12345 champion at New Jersey events") it's the team's event wins, read again with
+      // every other word kept, so a place stays a filter and a scope the wins can't take leaves it unanswered.
       if (/(?:^|\s)\d{1,5}(?:\s|$)/.test(rest)) {
-        const scoped = scope.championship || scope.states || scope.season != null || scope.lastYear || scope.latest || scope.at;
-        if (!scoped && /^\s*\d{1,5}\s*$/.test(rest)) return readStatQuestion(`${rest.trim()} event wins`);
+        const scoped = scope.championship || scope.states || scope.season != null || scope.year || scope.lastYear || scope.latest || scope.at;
+        if (!scoped && /^\s*\d{1,5}\s*$/.test(rest)) return readStatQuestion(q.replace(m[0], " event wins "));
         continue;
       }
       // Else an event named outright ("east bergen conference winner"): `bare`, checked once the event is looked up.

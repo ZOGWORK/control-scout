@@ -115,6 +115,10 @@ describe("awards", () => {
     expect((await searchAnswer("Ultraviolet champions", { limit: 25, full: true })).stat!.headline).toMatchObject({ label: "2 1st-place finishes · 0 Inspire Awards" });
     expect((await searchAnswer("4215 inspire winner", { limit: 25, full: true })).intent?.kind).toBe("stat-inspire-awards");
     expect(readStatQuestion("207 winner")).toMatchObject({ id: "event-wins", core: "207" });
+    // Greptile on #1101: a place said stays a filter; a scope the wins can't take leaves it unanswered.
+    expect(readStatQuestion("207 champion at New Jersey events")).toMatchObject({ id: "event-wins", core: "207", scope: { place: expect.anything() } });
+    expect(readStatQuestion("207 champion at out-of-state events")).toMatchObject({ id: "event-wins", scope: { outOfState: true } });
+    expect(readStatQuestion("207 champion on red")).toBeNull();
     // A season or a place said with the number stays the team's other answers ("12345 worlds winner": its Worlds results).
     expect((await searchAnswer("6980 worlds winner", { limit: 25, full: true })).intent?.kind).not.toBe("stat-event-wins");
   });
