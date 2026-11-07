@@ -25,7 +25,7 @@ Matches asked for in order ("highest scoring first"), "what happened last weeken
 - [fixes] "Finished events" lists events that are over
 
 ### Search
-- **Order, said in words.** "Highest scoring first", "top first", "lowest first" read as the sort they ask for, never as a team's first match; "what happened" with a time or a place and no team reads as that scope's highlights; finished, completed and ended events are past events. (#1073)
+- **Order, said in words.** "Highest scoring first", "top first", "lowest first" read as the sort they ask for, never as a team's first match; "what happened" with a time or a place and no team reads as that scope's highlights; matches in a time window with no measure said ("matches from yesterday") list that window's best first; finished, completed and ended events are past events. (#1073)
 
 ## 3.8.7 — 2026-11-07
 

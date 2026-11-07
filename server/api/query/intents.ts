@@ -176,6 +176,8 @@ export const INTENTS: IntentRule[] = [
   // No team: the best matches anywhere, and ranked lists of teams.
   R("top-matches", 0, ["agg:max", "metric:score"], ["thing:match", "per:match", "nopen"]),
   R("top-matches", 0, ["agg:max", "thing:match"], ["metric:score", "nopen"]),
+  // Matches in a window, no measure said ("matches from yesterday"): the window's best first (./execute.ts needs the window).
+  R("top-matches", 0, ["thing:match"], ["list"], { noEvent: true, noMatchNo: true }),
   // Matches by a measure ("and" is "with": "the match with the most penalty points").
   R("low-matches", 0, ["agg:min", "metric:score"], ["thing:match", "nopen", "and"]),
   R("low-matches", 0, ["agg:min", "thing:match"], ["metric:score", "nopen", "and"]),

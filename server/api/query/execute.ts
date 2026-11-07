@@ -293,6 +293,9 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     if (counted && BOARD_STATS[counted.stat]?.count) return boardSearch(p.q, counted, opts);
   }
   if (!p.teams.length && intent === "top-matches") {
+    // Matches with no measure said are a window's only ("matches from yesterday"), listed best first; "matches" alone
+    // or a place's are left to search.
+    if (!p.symbols.includes("agg:max") && !scope.window) return null;
     if (p.event || p.worlds || p.states || p.level || p.alliance || (p.place && p.place.kind === "city")) return null;
     // "The highest-scoring match": one match; "matches", "scores", "top 5", or no match said ("highest score in
     // decode"): a list.
