@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 import { ArrowRight, BarChart3, CalendarDays, Hash, Info, Medal, Sparkles, Target, Trophy, type LucideIcon } from "lucide-react";
 import { eventTypeLabel } from "../../../shared/labels";
 import { seasonLabel } from "../../../shared/format";
-import { useMemo } from "react";
+import { Fragment, useMemo } from "react";
 import type { StatAnswer, StatBlock, StatLink, StatRecord } from "../../../shared/searchStat";
 import { teamTableOfLeaderboard } from "../../../shared/teamTable";
 import { TeamTable } from "../TeamTable";
@@ -474,9 +474,15 @@ function Series({ b }: { b: Extract<StatBlock, { kind: "series" }> }) {
           const dot = <span className={cn("block rounded-full border-2 border-team-a", last ? "size-4 bg-team-a" : "size-3 bg-card")} />;
           const style = { left: `${x(p.i)}%`, top: `${y(p.y)}%` };
           const label = `${p.x}: ${p.y}${b.unit ? ` ${b.unit}` : ""}${p.note ? ` (${p.note})` : ""}`;
+          const mark = (cls: string) => <span key={`m${p.i}`} style={style} title={label} aria-label={label} role="img" className={cn("absolute size-[24px] -translate-x-1/2 -translate-y-1/2 items-center justify-center", cls)}>{dot}</span>;
+          // A point is a link for a mouse only. On a phone or touch screen neighbouring points can sit closer than a
+          // finger (44px), so a tap could open the wrong match: there the list below, a full row per point, is the way in.
           return p.href
-            ? <Link key={p.i} to={p.href} style={style} title={label} aria-label={label} className={cn("absolute flex size-[24px] -translate-x-1/2 -translate-y-1/2 items-center justify-center hover:[&>span]:bg-accent", TAP)}>{dot}</Link>
-            : <span key={p.i} style={style} title={label} aria-label={label} role="img" className="absolute flex size-[24px] -translate-x-1/2 -translate-y-1/2 items-center justify-center">{dot}</span>;
+            ? <Fragment key={p.i}>
+                <Link to={p.href} style={style} title={label} aria-label={label} className="absolute flex size-[24px] -translate-x-1/2 -translate-y-1/2 items-center justify-center hover:[&>span]:bg-accent max-md:hidden pointer-coarse:hidden">{dot}</Link>
+                {mark("hidden max-md:flex pointer-coarse:flex")}
+              </Fragment>
+            : mark("flex");
         })}
       </div>
       {/* Every event's full name is in the list below: no cut-off names under the line. */}
