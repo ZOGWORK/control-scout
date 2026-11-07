@@ -25,7 +25,7 @@ Search answers a team's own listing asked as a yes-or-no question. "Is 23786 Mak
 - [teams] "Does <team> have sponsors" shows the team's sponsors
 
 ### Search
-- **Listing questions, yes or no.** A question about a team's rookie season, home or listed sponsors, school or website, typed as "is …" or "does … have …", reads as that fact's own question, so its card answers with the year, place or names. A place question needs "from", "based in" or "located in", so "is 4215 in the finals" stays a results question. (#PRNUM)
+- **Listing questions, yes or no.** A question about a team's rookie season, home or listed sponsors, school or website, typed as "is …" or "does … have …", reads as that fact's own question, so its card answers with the year, place or names. A place question needs "from", "based in" or "located in", so "is 4215 in the finals" stays a results question. (#1095)
 
 ## 3.9.0 — 2026-11-07
 
