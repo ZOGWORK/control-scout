@@ -140,6 +140,8 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["advance|advances|advancing|advancement|advancements|advance to the finals|make the finals|making the finals|go through|goes through|get through|gets through", { k: "advance" }],
   // Two teams.
   ["vs|v|versus|against|facing|face|faced|play|played|playing|plays|vs.", { k: "vs" }],
+  // "Between A and B": the two teams, whatever the question asks of them.
+  ["between", { k: "filler" }],
   ["and|&|plus|with|alongside", { k: "and" }],
   ["together|in common|shared|share|both|both played|jointly|same match|same matches", { k: "together" }],
   ["same alliance|same side|as partners|on the same alliance|teamed up|teamed", { k: "same-side" }],
