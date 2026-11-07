@@ -207,6 +207,10 @@ describe("penalties", () => {
     expect(k && k.kind === "kpis" && k.items.find((i) => i.label === "Robot's own share")?.value).toBe("~8.4");
     expect((await stat("4215 penalty rate"))?.headline).toMatchObject({ value: "38%" });
     expect((await stat("4215 average penalties per event"))?.headline).toMatchObject({ value: "13.3" });
+    // A trend asked of penalties is the per-event figure (sign-off Set A, held out: other words, no season said).
+    for (const q of ["is 4215 getting better or worse at penalties", "4215 penalties trend"]) expect((await stat(q))?.headline, q).toMatchObject({ value: "13.3" });
+    // "Better or worse than" another team stays a comparison, never a trend.
+    expect((await searchAnswer("is 4215 better or worse than 6980", { limit: 25, full: true })).intent?.kind).not.toMatch(/penalt|trend/);
     expect(await stat("4215 penalties in playoffs")).toMatchObject({ title: "Penalty points given away in playoffs in 2025–26", headline: { value: "0.0" } });
     expect(await stat("4215 penalties at worlds")).toMatchObject({ title: "Penalty points given away at Worlds", headline: { value: "5.0", sub: expect.stringContaining("Worlds · Edison Division") } });
   });
