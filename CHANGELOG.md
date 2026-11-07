@@ -17,6 +17,18 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 3.9.6 — 2026-11-07
 
+Search lists the matches a low-ranked team won against a top-ranked one.
+
+### Highlights
+- [rankings] "A team ranked below 1000 beat a top 100 team" lists those matches
+- [rankings] The biggest rank gap first, every team with its world rank
+- [fixes] Asked the other way round, "lost to", it answers too
+
+### Search
+- **Rank upsets.** "Matches where a team ranked below N beat a team ranked top M" (or "… lost to …") lists the season's decided matches at official events where the winning alliance had a team past the first line and the losing alliance one inside the second, by world rating rank, biggest gap first. (#1126)
+
+## 3.9.6 — 2026-11-07
+
 How right the engine's predictions were is a question search answers: a team's most unpredictable matches, the calls that missed by more than a number of points, and the season's most accurate predictions.
 
 ### Highlights
