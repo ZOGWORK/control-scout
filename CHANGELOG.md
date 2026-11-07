@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.9.2 — 2026-11-07
+
+A team is found by the part of its name that is its own: without "Team" or "Robotics" around it, with its words typed apart, or with its last word made plural. A name two teams share reads as the one that played most recently, as the question reader already does.
+
+### Highlights
+- [teams] Find a team without "Team" or "Robotics" in its name
+- [teams] A name typed with a space inside it still finds the team
+- [fixes] Facts like a rookie year answer for a name two teams share
+- [fixes] "<name> stuff, like everything" lists the team
+
+### Search
+- **A team called by its name's own part.** The query parser, the word layer and the last-stop name reader read a team from its name without the words that only say it is a team, from its name typed with a space inside a word, or with its last word made plural, when no team's whole name is the words. A team that has not played yet, named so, is the answer rather than a closest match. A name several teams share is read as the one that played most recently, when only one did. "Stuff", "everything", "like" and "info" after a name are not part of it. (#PRNUM)
+
 ## 3.9.1 — 2026-11-07
 
 A team's next event asked about as a forecast, and "will <team> win <event>", answer with the engine's own projection for that event.
