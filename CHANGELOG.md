@@ -23,9 +23,10 @@ The best teams at one event, Worlds or a state's championship are a leaderboard 
 - [rankings] "Best teams at <event>" ranks the teams there
 - [rankings] By OPR at the event once it's played
 - [rankings] Before it's played, by the OPR each team brings
+- [rankings] "NJ teams at Worlds" lists the teams from a place
 
 ### Search
-- **The best teams at an event.** An event named, Worlds or a state's championship beside "best teams" or "top teams" is the board of the teams on its list (its divisions' too). Once played, it ranks them by each team's OPR there with its record there; before, by the season OPR each team brings (else the season before's), said on the card. No season said reads the latest held with teams listed, a newer one with none yet named on the card. A count ("top 5 teams at …") and a year ("worlds 2025") are read; another stat is left to search. (#1102)
+- **The best teams at an event.** An event named, Worlds or a state's championship beside "best teams" or "top teams" is the board of the teams on its list (its divisions' too). Once played, it ranks them by each team's OPR there with its record there; before, by the season OPR each team brings (else the season before's), said on the card. No season said reads the latest held with teams listed, a newer one with none yet named on the card. A count ("top 5 teams at …") and a year ("worlds 2025") are read; another stat is left to search. "Teams at" an event or Worlds lists the teams there too, and a place said with Worlds or an event named keeps the teams from there ("nj teams at worlds"). "Should I watch" asks for the best, and a state with only a championship word after it is its state championship ("nj champs"). (#1102)
 
 ## 3.9.0 — 2026-11-07
 

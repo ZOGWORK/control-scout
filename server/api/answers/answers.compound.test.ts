@@ -253,4 +253,22 @@ describe("the best teams at an event", () => {
     expect(rows(await ask(`best teams at worlds ${S + 1}`))).toEqual([["4215", "60.0"]]);
     expect((await ask("best teams at nj states")).stat?.title).toMatch(/^Best teams at New Jersey Championship by OPR there/);
   });
+  it("reads a state with a championship word as its championship, and the ones worth watching as the best", async () => {
+    for (const q of ["teams worth watching at the nj championship", "which teams should we watch at new jersey champs"]) {
+      expect((await ask(q)).stat?.title, q).toMatch(/^Best teams at New Jersey Championship by OPR there/);
+    }
+  });
+  it("lists only the teams from a place said with Worlds", async () => {
+    await run("INSERT INTO event_teams (season, code, team) VALUES (?, 'FTCCMP1EDIS', 1111)", [S]);
+    await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (?, 'FTCCMP1EDIS', 1111, 300, 2)", [S]);
+    try {
+      expect(rows(await ask(`best teams at worlds ${S + 1}`))).toEqual([["1111", "300.0"], ["4215", "60.0"]]);
+      const nj = await ask(`new jersey teams at worlds ${S + 1}`);
+      expect(nj.stat?.title).toMatch(/^New Jersey teams at Worlds \d+ by OPR there/);
+      expect(rows(nj)).toEqual([["4215", "60.0"]]);
+      expect(rows(await ask(`texas teams at worlds ${S + 1}`))).toEqual([["1111", "300.0"]]);
+    } finally {
+      await run("DELETE FROM team_event_stats WHERE code = 'FTCCMP1EDIS' AND team = 1111"); await run("DELETE FROM event_teams WHERE code = 'FTCCMP1EDIS' AND team = 1111");
+    }
+  });
 });

@@ -79,7 +79,8 @@ export interface BoardQuestion { kind: BoardKind; stat: BoardStat; n: number; re
   /** A town within the region ("best team in Cluj-Napoca, Romania, by OPR"): the teams from it. */
   town?: string | null;
   /** One event's teams, its divisions' too ("east bergen conference best teams", "top teams at nj states"). */
-  event?: { season: number; code: string; codes: string[]; name: string } }
+  /** `home`: the teams from that place only ("nj teams at worlds"). */
+  event?: { season: number; code: string; codes: string[]; name: string; home?: Region | null } }
 
 /** A stat's name inside a sentence ("by win rate", "by OPR"). */
 export const statWords = (st: BoardStat) => (/OPR/.test(st.label) ? st.label : st.label.toLowerCase());
@@ -163,6 +164,7 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
  *  (its best division's), with its record there. Before: by the season OPR each team brings, else the season before's
  *  when none has one yet; said on the card which. */
 async function eventBoardAnswer(b: BoardQuestion, ev: NonNullable<BoardQuestion["event"]>): Promise<StatAnswer> {
+  const home = ev.home ?? null;
   const inList = ev.codes.map(() => "?").join(", ");
   const rows = await all<{ team: number; name: string | null; city: string | null; state: string | null; country: string | null; eo: number | null;
     so: number | null; sw: number | null; sl: number | null; st: number | null; po: number | null }>(
@@ -172,8 +174,8 @@ async function eventBoardAnswer(b: BoardQuestion, ev: NonNullable<BoardQuestion[
      LEFT JOIN team_event_stats x ON x.season = et.season AND x.code = et.code AND x.team = et.team
      LEFT JOIN team_season_stats s ON s.season = e.season AND s.team = et.team
      LEFT JOIN team_season_stats p ON p.season = e.season - 1 AND p.team = et.team
-     WHERE e.season = ? AND (e.code IN (${inList}) OR e.division_code IN (${inList})) AND ${teamPageSql("et.team", "t.name")}
-     GROUP BY et.team`, [ev.season, ...ev.codes, ...ev.codes]);
+     WHERE e.season = ? AND (e.code IN (${inList}) OR e.division_code IN (${inList})) AND ${teamPageSql("et.team", "t.name")}${home ? ` AND t.country = ?${home.state ? " AND t.state = ?" : ""}` : ""}
+     GROUP BY et.team`, [ev.season, ...ev.codes, ...ev.codes, ...(home ? [home.country, ...(home.state ? [home.state] : [])] : [])]);
   // Records there by the official rule (playoffs and qualification no-shows counted), summed over its divisions.
   const there = new Map<number, { wins: number; losses: number; ties: number }>();
   for (const r of await all<{ team: number; wins: number; losses: number; ties: number }>(
@@ -188,13 +190,13 @@ async function eventBoardAnswer(b: BoardQuestion, ev: NonNullable<BoardQuestion[
   const ranked = rows.filter((r) => v(r) != null).sort((x, y) => Number(v(y)) - Number(v(x)) || Number(x.team) - Number(y.team));
   const shown = ranked.slice(0, b.n);
   const rec = (r: (typeof rows)[number]) => (mode === "event" ? there.get(Number(r.team)) ?? { wins: 0, losses: 0, ties: 0 } : { wins: Number(r.sw ?? 0), losses: Number(r.sl ?? 0), ties: Number(r.st ?? 0) });
-  const title = `Best teams at ${ev.name} by ${by}`;
+  const title = `${home ? `${home.name} teams` : "Best teams"} at ${ev.name} by ${by}`;
   const base = {
-    family: "leaderboard" as const, intent: "event-best", title: `${title} · ${S}`, scope: [ev.name, S, `By ${by}`],
-    definition: `The ${rows.length} team${rows.length === 1 ? "" : "s"} on the event's list (its divisions' too). ${mode === "event" ? "Ranked by each team's OPR at the event (its best division's), without penalties, as the event page shows it; the record is its matches there, playoffs included." : mode === "season" ? `The event's matches aren't played yet: ranked by the ${S} OPR each team brings, as its team page shows it; the record is its ${S} season's.` : `Neither the event's matches nor any ${S} OPR are on record yet: ranked by each team's ${P} OPR.`} A team with no such OPR isn't ranked.`,
+    family: "leaderboard" as const, intent: "event-best", title: `${title} · ${S}`, scope: [ev.name, ...(home ? [`From ${home.name}`] : []), S, `By ${by}`],
+    definition: `The ${rows.length} team${rows.length === 1 ? "" : "s"}${home ? ` from ${home.name}` : ""} on the event's list (its divisions' too). ${mode === "event" ? "Ranked by each team's OPR at the event (its best division's), without penalties, as the event page shows it; the record is its matches there, playoffs included." : mode === "season" ? `The event's matches aren't played yet: ranked by the ${S} OPR each team brings, as its team page shows it; the record is its ${S} season's.` : `Neither the event's matches nor any ${S} OPR are on record yet: ranked by each team's ${P} OPR.`} A team with no such OPR isn't ranked.`,
     source: `${ranked.length} of ${rows.length} teams at ${ev.name} with ${mode === "event" ? "an OPR there" : `a ${mode === "season" ? S : P} OPR`}`,
   };
-  if (!shown.length) return { ...base, blocks: [], none: rows.length ? `None of the ${rows.length} teams at ${ev.name} has ${mode === "before" ? `a ${P}` : "an"} OPR on record yet.` : `No teams are listed for ${ev.name} in ${S} yet.` };
+  if (!shown.length) return { ...base, blocks: [], none: rows.length ? `None of the ${rows.length} teams at ${ev.name} has ${mode === "before" ? `a ${P}` : "an"} OPR on record yet.` : `No teams${home ? ` from ${home.name}` : ""} are listed for ${ev.name} in ${S}${home ? "" : " yet"}.` };
   const top = shown[0];
   const fmt1 = (x: number | null) => (x == null ? "–" : (Math.round(x * 10) / 10).toFixed(1));
   return {

@@ -325,7 +325,13 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     if (hasEventWord && !p.place) {
       const bare = toks.slice(from, to + 1).filter((t) => !EVENT_NAME_WORDS.has(t.w));
       const pl = bare.length ? ctx.names.place(bare.map((t) => t.w).join(" "), bare.map((t) => t.typed).join(" ")) : null;
-      if (pl) { p.place = { ...pl, typed: bare.map((t) => t.typed).join(" ") }; toks.slice(from, to + 1).forEach((t) => (t.used = true)); symbols.add("thing:event"); continue; }
+      // A state with only a championship word after it is its state championship ("nj champs", "texas championship").
+      const champ = toks.slice(from, to + 1).every((t) => !EVENT_NAME_WORDS.has(t.w) || /^(?:championships?|champs)$/.test(t.w));
+      if (pl) {
+        p.place = { ...pl, typed: bare.map((t) => t.typed).join(" ") }; toks.slice(from, to + 1).forEach((t) => (t.used = true));
+        if (champ && pl.kind === "region") { p.states = true; symbols.add("states"); } else symbols.add("thing:event");
+        continue;
+      }
     }
     // A kind of event by its type words alone ("league", with "meet" the lexicon read beside it; "qualifiers"): every
     // word one of FIRST's event types, never an event's name (read above).

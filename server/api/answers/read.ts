@@ -472,7 +472,7 @@ export interface LeaderboardQuestion {
   /** A town in the region: its teams only. */
   town?: string | null;
   /** One event's teams (its divisions' too): the board of the teams there. */
-  event?: { season: number; code: string; codes: string[]; name: string };
+  event?: { season: number; code: string; codes: string[]; name: string; home?: Region | null };
 }
 
 const BOARD_STAT_WORDS: [string, RegExp][] = [

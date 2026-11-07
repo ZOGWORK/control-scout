@@ -59,6 +59,8 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["margin of defeat|losing margin|margin of loss|defeat margin", [{ k: "metric", v: "margin" }, { k: "outcome", v: "L" }]],
   // Aggregations.
   ["highest|high|best|top|max|maximum|biggest|largest|greatest|most|record high|peak|strongest|winningest|career high|personal best|longest|most times|the most times", { k: "agg", v: "max" }],
+  // The ones worth watching are the best: "what team should i watch at nj states".
+  ["should i watch|should we watch|worth watching|to keep an eye on|should i keep an eye on", { k: "agg", v: "max" }],
   ["lowest|low|worst|min|minimum|smallest|fewest|least|weakest", { k: "agg", v: "min" }],
   ["average|avg|mean|typical|on average", { k: "agg", v: "mean" }],
   ["median", { k: "agg", v: "median" }],

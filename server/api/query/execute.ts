@@ -361,14 +361,17 @@ async function eventBoard(p: Parsed, scope: ReadScope, said: string, opts: Pipel
   if (p.symbols.some((s) => BOARD_STAT[s] && BOARD_STAT[s] !== "opr") || p.place?.kind === "city") return null;
   // The best first by OPR only: the lowest first, undefeated teams alone or OPR said not to go by are left to search.
   if (p.agg === "min" || p.undefeated || (p.notMetrics ?? []).some((s) => !BOARD_STAT[s] || BOARD_STAT[s] === "opr")) return null;
+  // A place said with a state championship is the event's ("nj states"); with Worlds or an event named, the teams'
+  // home ("nj teams at worlds"): only the teams from there are listed.
   const region = regionOf(p);
   if (p.states && !region) return null;
+  const home = p.states ? null : region;
   const year = p.time?.kind === "season" && p.time.year != null && !p.time.relative ? p.time.year : null;
   const types = p.worlds ? [CHAMPIONSHIP_TYPE] : p.states ? [STATES_TYPE] : null;
   const evs = p.event ? await eventsNamed(normalise(p.event.words), types, year != null ? (e) => (e.start ?? "").startsWith(String(year)) : undefined)
     : (await all<{ season: number; code: string; name: string; type: string | null; division: string | null; start: string | null }>(
-      `SELECT season, code, name, type, division_code division, start FROM events WHERE type = ?${region ? " AND country = ?" : ""}${region?.state ? " AND state = ?" : ""}`,
-      [types![0], ...(region ? [region.country] : []), ...(region?.state ? [region.state] : [])])).map((e) => ({ ...e, season: Number(e.season) }))
+      `SELECT season, code, name, type, division_code division, start FROM events WHERE type = ?${p.states ? ` AND country = ?${region!.state ? " AND state = ?" : ""}` : ""}`,
+      [types![0], ...(p.states ? [region!.country, ...(region!.state ? [region!.state] : [])] : [])])).map((e) => ({ ...e, season: Number(e.season) }))
       .filter((e) => year == null || (e.start ?? "").startsWith(String(year)));
   // The events matched themselves: a division named is that division alone; a parent named brings its divisions in
   // (eventBoardAnswer takes each code's children).
@@ -390,7 +393,7 @@ async function eventBoard(p: Parsed, scope: ReadScope, said: string, opts: Pipel
   const { main, codes } = at(season);
   const name = p.worlds ? `Worlds ${season + 1}` : shortEvent(main.name, main.type);
   const one = p.n == null && /\b(?:team|who)\b/.test(said) && !/\bteams\b/.test(said);
-  const a = await boardSearch(p.q, { kind: "top", stat: "opr", n: Math.min(25, p.n ?? (one ? 5 : 10)), region: null, city: null, season, event: { season, code: main.code, codes, name } }, opts);
+  const a = await boardSearch(p.q, { kind: "top", stat: "opr", n: Math.min(25, p.n ?? (one ? 5 : 10)), region: null, city: null, season, event: { season, code: main.code, codes, name, home } }, opts);
   if (!a?.stat || skipped == null || skipped === season) return a;
   const note = `No teams listed for the ${seasonLabel(skipped)} event yet; showing ${seasonLabel(season)}`;
   return { ...a, stat: { ...a.stat, scope: [note, ...a.stat.scope], definition: `${a.stat.definition} ${note}: no season was named, so the latest was read first.` } };
