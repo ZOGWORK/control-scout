@@ -26,13 +26,15 @@ export type PipelineIntent =
   | "rating-trend" | "opr-trend"
   // Four teams, two on each alliance: a match's call ("predict a b vs c d").
   | "alliance-predict"
+  // One team swapped for another, beside a partner or not: what the swap does to the alliance's call.
+  | "swap-predict"
   // No team: matches found by a measure (./matchFind.ts).
   | "low-matches" | "close-matches" | "lopsided-matches" | "penalty-matches" | "upset-matches" | "comeback-matches";
 
 export interface IntentRule {
   id: PipelineIntent;
   /** Teams named: 0, 1 or 2; 4 is two alliances of two, either side of a "vs". */
-  teams: 0 | 1 | 2 | 4;
+  teams: 0 | 1 | 2 | 3 | 4;
   /** Symbols the rule needs ("agg:max", "metric:score", "predict"). */
   all: string[];
   /** Symbols it takes in when present. */
@@ -57,7 +59,7 @@ const BOARD_METRICS = ["metric:opr", "metric:rating", "metric:winrate", "metric:
 /** What a leaderboard takes in: its stats, a record beside them (every row shows it), "by". */
 // Penalties only beside "team" ("which team fouls the least"): the most penalties alone are the matches with the most.
 const BOARD_OPT = ["thing:team", ...BOARD_METRICS, "metric:penalty", "per:match", "metric:record", "metric:win", "prep:by", "list"];
-const R = (id: PipelineIntent, teams: 0 | 1 | 2 | 4, all: string[], opt: string[] = [], more: Partial<IntentRule> = {}): IntentRule => ({ id, teams, all, opt, ...more });
+const R = (id: PipelineIntent, teams: 0 | 1 | 2 | 3 | 4, all: string[], opt: string[] = [], more: Partial<IntentRule> = {}): IntentRule => ({ id, teams, all, opt, ...more });
 
 /** Every rule. Order breaks a tie between rules that explain the same symbols. */
 export const INTENTS: IntentRule[] = [
@@ -159,6 +161,9 @@ export const INTENTS: IntentRule[] = [
   // "Will 12345 win <event>": the forecast at the event named (or its states, or Worlds).
   R("team-predict", 1, ["future", "metric:win"], ["thing:event"], { event: true }),
   R("team-predict", 1, ["future", "metric:win", "worlds"], ["thing:event"]),
+  // One team swapped for another ("swap 12345 for 23456"), beside a partner ("in a match with 34567") or not.
+  R("swap-predict", 2, ["swap"], ["predict", "prep:for", "and", "per:match", "thing:match", "metric:win", "metric:score", "compare"]),
+  R("swap-predict", 3, ["swap"], ["predict", "prep:for", "prep:in", "and", "per:match", "thing:match", "metric:win", "metric:score", "compare"]),
   // Two alliances of two: a match's call. "Vs" between them is enough, with no other word.
   R("alliance-predict", 4, ["vs"], ["predict", "and", "compare", "metric:win", "metric:score", "metric:margin", "thing:match", "per:match"]),
   // Two teams.
@@ -218,7 +223,7 @@ export function pickIntent(symbols: Set<string>, teams: number, opts: { event: b
   const asked = [...symbols].filter((s) => !SLOT_SYMBOLS.test(s) || s === "level:playoff" || s === "level:qual");
   let best: { rule: IntentRule; score: number; unexplained: string[] } | null = null;
   for (const rule of INTENTS) {
-    if (rule.teams === 4 ? teams !== 4 : rule.teams !== Math.min(teams, 2) || teams > 2) continue;
+    if (rule.teams === 4 || rule.teams === 3 ? teams !== rule.teams : rule.teams !== Math.min(teams, 2) || teams > 2) continue;
     if (rule.event && !atEvent) continue;
     if (rule.noEvent && opts.event) continue;
     if (rule.noMatchNo && opts.matchNo) continue;
