@@ -25,7 +25,7 @@ Search answers who is ranked just above and just below a team. "Who is ranked ju
 - [rankings] "Teams ranked near <team>" works for a season or a place too
 
 ### Search
-- **The teams around a team's rank.** "Who is (ranked) (just, right, directly) above / below / ahead of / behind <team> (worldwide, in the world rankings)" and "teams ranked near (around, close to) <team>" read as the team's OPR rank, keeping a season ("in 2025-26", "last season") or a place ("in new jersey"). The world OPR rank answer now lists the two teams above and below it on the season's world OPR list, as a place's rank already listed its own. "At worlds" isn't read as a rank question. (#PRNUM)
+- **The teams around a team's rank.** "Who is (ranked) (just, right, directly) above / below / ahead of / behind <team> (worldwide, in the world rankings)" and "teams ranked near (around, close to) <team>" read as the team's OPR rank, keeping a season ("in 2025-26", "last season") or a place ("in new jersey"). The world OPR rank answer now lists the two teams above and below it on the season's world OPR list, as a place's rank already listed its own. "At worlds" isn't read as a rank question. (#1110)
 
 ## 3.9.1 — 2026-11-07
 
