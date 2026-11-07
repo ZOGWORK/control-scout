@@ -258,3 +258,17 @@ describe("AM/PM sessions", () => {
     expect((await eventDetail(S, "A_PM"))!.field.map((f) => f.team)).toEqual([2]);
   });
 });
+
+describe("migration 75", () => {
+  it("keeps each event's latest stored registrations read as its last check", async () => {
+    const c = openDb("file::memory:");
+    setDb(c);
+    const v = (await import("../db")).MIGRATIONS.find((m) => m.name === "when an event's team list was last read from FIRST")!.version;
+    await migrate(c, v - 1);
+    for (const code of ["READ", "NEVER"]) await run("INSERT INTO events (season, code, name, type, start, end, source, synced_at) VALUES (?, ?, 'E', 'Qualifier', '2026-11-01', '2026-11-01', 'first', 'x')", [S, code]);
+    await run("INSERT INTO event_registrations (season, code, team, fetched_at) VALUES (?, 'READ', 1, '2026-10-30T00:00:00Z'), (?, 'READ', 2, '2026-10-31T00:00:00Z')", [S, S]);
+    await migrate(c, v);
+    expect(await all<any>("SELECT code, teams_checked_at FROM events ORDER BY code")).toEqual([{ code: "NEVER", teams_checked_at: null }, { code: "READ", teams_checked_at: "2026-10-31T00:00:00Z" }]);
+    c.close();
+  });
+});

@@ -1900,6 +1900,9 @@ ALTER TABLE search_failures ADD COLUMN missed TEXT NOT NULL DEFAULT '{}';
 -- The registrations read (data/registrations.ts) sets it on every good read of the event, an empty list included; a
 -- failed read leaves it. With detail_synced_at (the full fetch), the event page's "last synced" (api/events.ts).
 ALTER TABLE events ADD COLUMN teams_checked_at TEXT;
+-- Events read before this column: their latest stored registrations read stands.
+UPDATE events SET teams_checked_at = (SELECT MAX(r.fetched_at) FROM event_registrations r WHERE r.season = events.season AND r.code = events.code)
+ WHERE EXISTS (SELECT 1 FROM event_registrations r WHERE r.season = events.season AND r.code = events.code);
 `,
   },
 ];
