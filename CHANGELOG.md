@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.9.2 — 2026-11-07
+
+A match that "went to a tiebreak, or overtime" is read as a tie.
+
+### Highlights
+- [fixes] "Did 17965 ever play a match that went to tiebreak" answers
+- [fixes] Overtime and sudden death are read as a tie too
+- [fixes] A team named Overtime is still found by its name
+
+### Search
+- **Tiebreaks and overtime.** A match that went to, ended in or was decided by a tiebreak, overtime or sudden death is read as a tie, so the team's ties answer it; the word alone still finds a team named after it. (#1117)
+
 ## 3.9.1 — 2026-11-07
 
 A team's next event asked about as a forecast, and "will <team> win <event>", answer with the engine's own projection for that event.
