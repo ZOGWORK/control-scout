@@ -25,7 +25,7 @@ One award counted: the teams with the most of one award, such as Inspire or Thin
 - [rankings] In a state or a whole country
 
 ### Search
-- **One award counted.** "Most inspire awards in Romania", "which team has the most think awards in New Jersey" and the like rank the teams by that award alone that season (every place, 1st, 2nd and 3rd), only teams with at least one, in a state or a whole country. "The most awards" with no award named is every award, as before. (#PR)
+- **One award counted.** "Most inspire awards in Romania", "which team has the most think awards in New Jersey" and the like rank the teams by that award alone that season (every place, 1st, 2nd and 3rd), only teams with at least one, in a state or a whole country. "The most awards" with no award named is every award, as before. (#1127)
 
 ## 3.9.6 — 2026-11-07
 
