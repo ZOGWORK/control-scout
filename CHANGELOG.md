@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.7.7 — 2026-11-06
+## 3.7.8 — 2026-11-06
 
 On the related searches page, the team group is titled with its team: "About 4215 Hypnotic Robotics".
 
@@ -26,6 +26,18 @@ On the related searches page, the team group is titled with its team: "About 421
 
 ### Search
 - **The team, named.** The related searches page titles its team group with the team's number and name, the popular searches too (the team they're about), whenever every search in it is about that one team; a group about two teams ("4215 vs 6980") keeps "About this team". (#1023)
+
+## 3.7.7 — 2026-11-06
+
+An event's initials typed in lower case are said in capitals in the questions that follow a search: "mti recap" offers "Who won MTI?", not "Who won Mti?".
+
+### Highlights
+- [fixes] "Who won MTI?" in capitals, however "mti" was typed
+- [fixes] Related searches say an event's initials the same way
+- [fixes] A full event name typed in lower case is still title case
+
+### Search
+- **Initials in capitals.** People also ask and related searches say an event named by its initials ("mti", "fr") in capitals; a name typed in full and in lower case is still put in title case. (#1022)
 
 ## 3.7.6 — 2026-11-06
 
