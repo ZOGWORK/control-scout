@@ -35,7 +35,7 @@ import { rerank } from "./searchLearn.js";
 import { intentAnswer, parseIntent } from "./searchIntents.js";
 import { parseQuestion, questionAnswer } from "./searchQuestions.js";
 import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
-import { statAnswer } from "./answers/index.js";
+import { eventVersusSearch, statAnswer } from "./answers/index.js";
 import { refreshSearchSeason } from "./answers/season.js";
 import { FALLBACK_NOTE, carryOutcome, layeredAnswer, nameKey, teamNames } from "./searchLayers.js";
 import { INFORMAL, informalQuery } from "./query/lexicon.js";
@@ -510,6 +510,9 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   // 2. Teams side by side (in a season, when one is named).
   // Only a season written as one ("2024-25") counts here: a bare 2000–2099 is as likely a team ("2024 vs 12345").
   const vsSeason = /(?:^|\s)20\d\d\s*[-–/]\s*\d\d(?=\s|$)/.test(q) ? seasonOf(q) : { season: null, rest: q };
+  // Events named on every side ("Romania Championship vs NJ Championship"): the events side by side.
+  const evs = opts.intents === false ? null : await eventVersusSearch(vsSeason.rest, vsSeason.season ?? opts.season ?? null, { full: !!opts.full, pages: pagesFor(q) });
+  if (evs) return evs;
   const vs = await versusAnswer(vsSeason.rest, prefer, vsSeason.season ?? opts.season ?? null);
   if (vs) return vs;
 
