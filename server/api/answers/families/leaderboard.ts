@@ -205,10 +205,10 @@ async function steadyAnswer(b: BoardQuestion, season: number, where: string, reg
   const swing = (r: (typeof rows)[number]) => `±${Math.round((100 * Math.sqrt(Math.max(0, Number(r.var)))) / Number(r.m))}%`;
   const base = {
     family: "leaderboard" as const, intent: "steady-opr", title: `Most stable OPR${where}: the fewest ups and downs · ${S}`, scope: chips,
-    definition: `Stable: the smallest swing in OPR from event to event, the standard deviation of the team's event OPRs (without penalties, as its team page shows them) as a share of their average; teams with an OPR at ${STEADY_MIN_EVENTS} or more events.${why}`,
+    definition: `Stable: the smallest swing in OPR from event to event, the standard deviation of the team's event OPRs (without penalties, as its team page shows them) as a share of their average; teams with an OPR at ${STEADY_MIN_EVENTS} or more events and an average above 0 (a share of an average at or below 0 means nothing).${why}`,
     source: `From the event OPRs of ${total.toLocaleString("en-US")} team${total === 1 ? "" : "s"}${where} with ${STEADY_MIN_EVENTS}+ events in ${S}`,
   };
-  if (!rows.length) return { ...base, blocks: [], none: `No team${where} has an OPR at ${STEADY_MIN_EVENTS} or more events in ${S}.` };
+  if (!rows.length) return { ...base, blocks: [], none: `No team${where} has an OPR at ${STEADY_MIN_EVENTS} or more events, averaging above 0, in ${S}.` };
   const top = rows[0];
   return {
     ...base,
@@ -242,7 +242,8 @@ async function phasesAnswer(b: BoardQuestion, season: number, where: string, reg
     definition: `Strongest in every phase: ranked by the team's weakest phase, its lowest worldwide OPR rank among ${phases}, so a team strong in one phase alone doesn't lead; the overall OPR rank breaks a tie. ${RANKED}${why}`,
     source: `From the ${S} season numbers of ${total.toLocaleString("en-US")} ranked team${total === 1 ? "" : "s"}${where}`,
   };
-  if (!rows.length) return { ...base, blocks: [], none: `No team${where} has played ${RANKED_MIN_MATCHES}+ matches in ${S} yet.` };
+  // Phase ranks are worked out with the season's numbers, so a team can have its matches before it has them.
+  if (!rows.length) return { ...base, blocks: [], none: `No team${where} has phase OPR ranks for ${S} yet: they come with ${RANKED_MIN_MATCHES}+ matches and the season's numbers worked out.` };
   const top = rows[0];
   const r1 = (x: number | null) => (x == null ? "–" : `#${Number(x).toLocaleString("en-US")}`);
   return {
