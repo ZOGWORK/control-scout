@@ -19,7 +19,7 @@ import type { SearchAnswer, SearchHit, SearchRecovery, SearchUnderstood } from "
 import { SEARCH_BROWSE, SEARCH_FILLER, SEARCH_PAGE_LIMIT, SEARCH_TOPICS, firstCards, TOPIC_LABEL, VERSUS, cardWho, onlyPageWords, pagesFor, showingLine } from "../../src/shared/search.js";
 import { conversationQuery, isQuestionForm, nameWords, onlyCommonWords, singularize } from "../../src/shared/searchQuery.js";
 import { readEventQuery, regionOf } from "../../src/shared/searchEventQuery.js";
-import { eventSetAnswer, withEventParents, withWholeFamilies } from "./searchEvents.js";
+import { eventHit, eventSetAnswer, withEventParents, withWholeFamilies } from "./searchEvents.js";
 import { versusAnswer } from "./searchCompare.js";
 import { ruleAnswer } from "./searchRules.js";
 import { askAnswer, readAsk } from "./searchAsks.js";
@@ -545,8 +545,12 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
     byWords = hits.length > 0;
   }
 
-  // A season in the query: its events first, and teams open on it.
+  // A season in the query: its events first, and teams open on it. An event held every season under one code (the
+  // search index lists its newest) is that season's, when it was held then.
   if (season != null) {
+    const again = hits.filter((h) => h.kind === "event" && h.season !== season).map((h) => h.ref.split(":")[1]);
+    const held = again.length ? await all<Parameters<typeof eventHit>[0]>(`SELECT season, code, name, type, division_code, venue, city, state, country, start, end, timezone FROM events WHERE season = ? AND code IN (${again.map(() => "?").join(",")})`, [season, ...again]) : [];
+    hits = hits.map((h) => { const r = h.kind === "event" ? held.find((x) => x.code === h.ref.split(":")[1]) : undefined; return r ? { ...eventHit(r, opts.now), match: h.match } : h; });
     hits = [...hits.filter((h) => h.kind !== "event" || h.season === season), ...hits.filter((h) => h.kind === "event" && h.season !== season)]
       .map((h) => (h.kind === "team" ? { ...h, linkSeason: season, subtitle: [seasonLabel(season), h.subtitle].filter(Boolean).join(" · ") } : h));
   }
