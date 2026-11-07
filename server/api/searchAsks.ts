@@ -62,7 +62,7 @@ export type Ask =
 /** Words for a forecast, in a question about Predict itself. */
 const FORECAST_WORDS = /\b(?:predict|predicts|predicted|prediction|predictions|forecasts?|odds|win (?:probabilit(?:y|ies)|chances?)|who (?:would|will) win)\b/;
 /** A lineup someone makes up, or changes. */
-const OWN_LINEUP = /\b(?:teams? (?:i|you|we) (?:pick|choose|select|want)|(?:my|our) own teams|any teams|custom (?:match(?:up)?|lineup|alliances?)|hypothetical|(?:change|switch) (?:the |an |my |our )?(?:alliances?|teams?|lineup|partners?)|swap(?:ping)? (?:the )?(?:teams?|partners?)|(?:has ?n['’]?t|has not|have ?n['’]?t|have not|not) (?:happened|been played|played)(?: yet)?)\b/;
+const OWN_LINEUP = /\b(?:teams? (?:i|you|we) (?:pick|choose|select|want)|(?:my|our) own teams|any teams|custom (?:match(?:up)?|lineup|alliances?)|hypothetical|(?:chang(?:e|ing)|switch(?:ing)?|swap(?:ping)?) (?:the |an |my |our )?(?:alliances?|teams?|lineup|partners?)|(?:has ?n['’]?t|has not|have ?n['’]?t|have not|not) (?:happened|been played|played)(?: yet)?)\b/;
 /** A supposition's opener: "if I", "what if we", "suppose you". */
 const HYPO_CHANGE = /\b(?:what if|if|suppose|supposing|when) (?:i|we|you)\b/g;
 /** Which partner is best, asked of no team in particular. */

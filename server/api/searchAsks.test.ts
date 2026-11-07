@@ -132,8 +132,8 @@ describe("test 16: each intent returns its stated surface", () => {
     expect(readAsk("can i filter 4215 predictions")?.kind).not.toBe("predict-filter");
   });
   it("a lineup changed in a supposition, with no forecast word: Custom matchup, or which partner is best in it", async () => {
-    for (const q of ["what if we switch the alliance", "suppose you change our partners"]) expect(readAsk(q), q).toEqual({ kind: "predict-lineup", say: "change" });
-    for (const q of ["who's the strongest partner if we swap teams", "which team would make the best alliance partner if i switch the alliance"]) {
+    for (const q of ["what if we switch the alliance", "suppose you change our partners", "what if we swap our alliance"]) expect(readAsk(q), q).toEqual({ kind: "predict-lineup", say: "change" });
+    for (const q of ["who's the strongest partner if we swap teams", "which team would make the best alliance partner if i switch the alliance", "who is the best partner if you swap the alliances"]) {
       expect(readAsk(q), q).toEqual({ kind: "predict-lineup", say: "partner" });
     }
     // Through the whole search, whatever it rewrites first ("teams" read as "team").

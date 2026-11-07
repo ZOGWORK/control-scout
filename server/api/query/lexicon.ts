@@ -91,7 +91,7 @@ const TABLE: [string, Sym | Sym[]][] = [
   // A place's leaderboard ("Romania leaderboard"): its top teams.
   ["leaderboard|leaderboards|leader board", [{ k: "agg", v: "max" }, { k: "thing", v: "team" }]],
   ["with their records|with their record|with records|and their records|record|records|w-l-t|w l t|wlt|win loss|win-loss|win loss record|win loss tie|wins and losses|win/loss", { k: "metric", v: "record" }],
-  ["win|wins|won|victory|victories|beat|beats|beaten|defeat|defeats|defeated", { k: "metric", v: "win" }],
+  ["win|wins|won|victory|victories|beat|beats|beaten|defeated", { k: "metric", v: "win" }],
   ["loss|losses|lost|lose|loses|defeat|defeats", { k: "metric", v: "loss" }],
   // Winning a match, as a question ("did they ever win a match"): its wins.
   ["win a match|won a match|win a game|won a game|win any match|won any match|win any matches|won any matches", [{ k: "metric", v: "win" }, { k: "thing", v: "match" }]],

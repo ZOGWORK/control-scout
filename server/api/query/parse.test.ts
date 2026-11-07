@@ -103,7 +103,7 @@ describe("slots", () => {
     expect((await parse("4215 vs 6980 matchup")).intent).toBe("two-predict");
   });
   it("reads 'will / would A beat B' as the call for a match between them, in any wording of the win", async () => {
-    for (const q of ["would 6980 beat 4215", "is 24033 going to defeat 23268", "will 4215 win against 6980?"]) {
+    for (const q of ["would 6980 beat 4215", "is 24033 going to defeat 23268", "will 4215 win against 6980?", "will 23268 lose against 24033"]) {
       const p = await parse(q);
       expect(p.intent, q).toBe("two-predict");
       expect(p.complete, q).toBe(true);
@@ -111,6 +111,10 @@ describe("slots", () => {
     }
     // One team: no match between two, so it's left alone here.
     expect((await parse("would 4215 win")).intent).not.toBe("two-predict");
+    // "Defeats" asked as a count stays the team's losses.
+    const lost = await parse("how many defeats does 6980 have");
+    expect(lost.symbols).toContain("metric:loss");
+    expect(lost.symbols).not.toContain("metric:win");
   });
   it("reads a forecast held up against what happened as the forecast at the event (its card shows both)", async () => {
     for (const q of [
