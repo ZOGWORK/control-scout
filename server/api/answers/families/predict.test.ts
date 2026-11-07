@@ -11,7 +11,7 @@ vi.mock("../../../predict/engine.js", () => ({
 }));
 vi.mock("../../../flags.js", () => ({ isEnabled: async () => true }));
 
-const { allianceForecast } = await import("./predict");
+const { allianceForecast, lineupScore } = await import("./predict");
 const red = [{ number: 101, name: "Red One" }, { number: 102, name: "Red Two" }];
 const blue = [{ number: 201, name: "Blue One" }, { number: 202, name: "Blue Two" }];
 
@@ -53,5 +53,27 @@ describe("allianceForecast", () => {
   it("a team with no rating that season is named", async () => {
     const s = await allianceForecast(red, [blue[0], { number: 999, name: "Unrated" }], 2025);
     expect(s.none).toBe("No 2025–26 prediction rating for Unrated (999) yet.");
+  });
+});
+
+describe("lineupScore", () => {
+  // The engine's strengths and what each pair loses sharing tasks: 101 & 201 overlap most, so they come last.
+  const np: Record<number, number> = { 101: 90, 102: 80, 201: 120 };
+  const lost: Record<string, number> = { "101,102": 10, "101,201": 60, "102,201": 20 };
+  beforeEach(() => {
+    explain.mockReset().mockImplementation((_s: number, a: number[]) => ({
+      teamsA: a.map((t) => ({ np: np[t] })), overlapA: { auto: lost[a.join(",")], teleop: 0, endgame: 0 }, scorePlusMinusA: 14,
+    }));
+  });
+  it("each pair as the engine expects it, less what the two lose sharing tasks, the highest first", async () => {
+    const s = await lineupScore([red[0], red[1], blue[0]], 2025);
+    expect(s.headline).toMatchObject({ value: "180 points", label: "predicted for the best pair, 102 & 201: an alliance fields two teams a match", sub: expect.stringMatching(/^±14 · a qualification match, without penalties$/) });
+    const pairs = s.blocks.find((b) => b.kind === "table" && b.title === "Each pair on the field");
+    expect(pairs && pairs.kind === "table" && pairs.rows.map((r) => [r.cells.pair, r.cells.score])).toEqual([["102 & 201", "180 ±14"], ["101 & 102", "160 ±14"], ["101 & 201", "150 ±14"]]);
+  });
+  it("no forecaster ready: the ratings added, said so", async () => {
+    ready = false;
+    const s = await lineupScore([red[0], red[1]], 2025);
+    expect(s.headline).toMatchObject({ value: "170 points", sub: expect.stringMatching(/the ratings added, with no overlap discount$/) });
   });
 });

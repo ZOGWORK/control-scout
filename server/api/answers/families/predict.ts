@@ -47,7 +47,7 @@ export async function predictionSeasonOf(teams: number[]): Promise<{ season: num
 
 const ALLIANCE_RULE = "The engine's call for a qualification match between the two alliances named, as Predict makes it for the same lineup: each alliance's expected score (without penalties, margin-calibrated), the win chance and the predicted margin, from each team's prediction rating (points per match ± its uncertainty) as their team pages show it.";
 
-const LINEUP_RULE = "An alliance's predicted score from the engine's prediction ratings: each team's rating is the points it adds to its alliance in a qualification match (without penalties), so an alliance's is its teams' ratings added, ± their uncertainties combined. An alliance fields two teams a match: with three named, each pair is shown, the highest first.";
+const LINEUP_RULE = "An alliance's predicted score in a qualification match, as Predict makes it: each robot's strength (the points it adds, without penalties) added, less what two robots lose sharing the same tasks, ± the engine's stated range. An alliance fields two teams a match: with three named, each pair is shown, the highest first.";
 
 /** "predicted score if 12345, 23456 and 34567 were on the same alliance": the teams' ratings added, each pair's when
  *  three are named (an alliance fields two a match), the highest first. */
@@ -61,8 +61,18 @@ export async function lineupScore(teams: AnswerTeam[], season: number, why?: str
   const missing = teams.filter((t) => of(t)?.rating_np == null).map(whoOf);
   if (missing.length) return { ...base, blocks: [], none: `No ${S} prediction rating for ${missing.join(" or ")} yet.` };
   const pairs = teams.length > 2 ? teams.flatMap((a, i) => teams.slice(i + 1).map((b) => [a, b])) : [teams];
-  const scored = pairs.map((ps) => ({ ps, mean: ps.reduce((n, t) => n + Number(of(t)!.rating_np), 0), sd: Math.sqrt(ps.reduce((n, t) => n + Number(of(t)!.rating_sd ?? 0) ** 2, 0)) }))
-    .sort((a, b) => b.mean - a.mean);
+  // The engine's own expectation for the pair, as Predict makes it: its robots' strengths less what they lose sharing
+  // the same tasks (overlap), ± its stated range. With no forecaster ready, the ratings added, said so.
+  const off = !(await isEnabled("livePredictions").catch(() => false));
+  const f = off ? null : await readyForecaster(season);
+  const nums = (ts: AnswerTeam[]) => ts.map((t) => t.number);
+  const records = f ? await recentRecords(season, nums(teams)) : null;
+  const scored = pairs.map((ps) => {
+    const x = f ? f.explain(season, nums(ps), nums(ps), "qual", undefined, records!) : null;
+    if (!x) return { ps, mean: ps.reduce((n, t) => n + Number(of(t)!.rating_np), 0), sd: Math.sqrt(ps.reduce((n, t) => n + Number(of(t)!.rating_sd ?? 0) ** 2, 0)) };
+    const lost = x.overlapA.auto + x.overlapA.teleop + x.overlapA.endgame;
+    return { ps, mean: x.teamsA.reduce((n, t) => n + t.np, 0) - lost, sd: x.scorePlusMinusA };
+  }).sort((a, b) => b.mean - a.mean);
   const top = scored[0];
   const ratings: StatBlock = { kind: "table", title: "Prediction ratings", columns: [{ key: "team", label: "Team" }, { key: "rating", label: "Rating", num: true }, { key: "rank", label: "Rank" }],
     rows: teams.map((t) => ({ cells: { team: whoOf(t), rating: `${num1(of(t)!.rating_np)} ±${Math.round(of(t)!.rating_sd ?? 0)}`, rank: of(t)!.rating_rank ? `#${of(t)!.rating_rank}` : "–" }, href: teamHref(t.number, season) })) };
@@ -73,7 +83,7 @@ export async function lineupScore(teams: AnswerTeam[], season: number, why?: str
     headline: {
       value: `${Math.round(top.mean)} points`,
       label: teams.length > 2 ? `predicted for the best pair, ${label(top.ps)}: an alliance fields two teams a match` : `predicted for ${label(top.ps)} together`,
-      sub: `±${Math.round(top.sd)} · a qualification match, without penalties`,
+      sub: `±${Math.round(top.sd)} · a qualification match, without penalties${f ? "" : off ? " · live predictions are off: the ratings added, with no overlap discount" : " · the engine is still loading: the ratings added, with no overlap discount"}`,
     },
     blocks: [...each, ratings],
   };

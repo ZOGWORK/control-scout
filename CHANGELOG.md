@@ -25,7 +25,7 @@ Two or three teams said to share an alliance answer with its predicted score.
 - [predict] Two teams show their predicted score together
 
 ### Search
-- **Teams on one alliance.** "Predicted score if <team>, <team> and <team> were on the same alliance", "… as partners", "… teamed up": the teams' prediction ratings added, ± their uncertainties combined. An alliance fields two teams a match, so three named show each pair, the highest first. (#1119)
+- **Teams on one alliance.** "Predicted score if <team>, <team> and <team> were on the same alliance", "… as partners", "… teamed up": the engine's expectation as Predict makes it: the robots' strengths added, less what two robots lose sharing the same tasks. An alliance fields two teams a match, so three named show each pair, the highest first. (#1119)
 
 ## 3.9.2 — 2026-11-07
 

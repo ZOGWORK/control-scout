@@ -74,9 +74,11 @@ describe("slots", () => {
     }
   });
   it("reads two or three teams said to share an alliance as its predicted score", async () => {
-    for (const q of ["if 4215, 6980 and 24033 were teamed up what's the predicted score", "23268 and 6980 on the same alliance predicted score"]) {
+    for (const q of ["if 4215, 6980 and 24033 were teamed up what's the predicted score", "23268 and 6980 on the same alliance predicted score", "predicted score for 24033 and 6980 as partners in a match"]) {
       expect(await parse(q), q).toMatchObject({ intent: "lineup-score", complete: true });
     }
+    // Matches with no forecast word: the shared matches' question, never a score.
+    expect((await parse("23268 and 6980 same alliance matches")).intent).not.toBe("lineup-score");
   });
   it("reads two alliances of two either side of a vs, any wording, as a match's call", async () => {
     for (const q of [

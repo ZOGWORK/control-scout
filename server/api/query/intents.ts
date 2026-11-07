@@ -164,6 +164,10 @@ export const INTENTS: IntentRule[] = [
   // Two or three teams on one alliance, said so: the alliance's predicted score.
   R("lineup-score", 2, ["same-side"], ["predict", "metric:score", "and", "hypo"]),
   R("lineup-score", 3, ["same-side"], ["predict", "metric:score", "and", "hypo"]),
+  // "In a match" beside a forecast word ("predicted score for 12345 and 23456 as partners in a match"); with none it
+  // stays the shared matches' question ("12345 and 23456 same alliance matches").
+  ...([2, 3] as const).flatMap((n) => (["predict", "hypo"] as const).map((cue) =>
+    R("lineup-score", n, ["same-side", cue], ["predict", "metric:score", "and", "hypo", "thing:match", "per:match", "prep:in"]))),
   // Two alliances of two: a match's call. "Vs" between them is enough, with no other word.
   R("alliance-predict", 4, ["vs"], ["predict", "and", "compare", "metric:win", "metric:score", "metric:margin", "thing:match", "per:match"]),
   // Two teams.
