@@ -35,6 +35,8 @@ describe("a team's name typed whole, punctuation and all", () => {
     expect(normalise("UK 488 - The King's School- Barrel Botz record")).toBe("uk 488 the king school barrel botz record");
     // A dash inside a word or between numbers stays what it is.
     expect(normalise("Cluj-Napoca 2024-25")).toBe("cluj napoca 2024-25");
+    // Greptile on #1028: a season said with a spaced dash is still the season, never a lone number left over.
+    expect(normalise("highest score in 2024 - 25")).toBe("highest score in 2024-25");
   });
   it("its number beside it, or the name alone, reads the team's own record", async () => {
     for (const q of ["24325 UK 488 - The King's School- Barrel Botz's w l t", "UK 488 - The King's School- Barrel Botz record", "what is largest score UK 488 - The King's School- Barrel Botz 24325", "what's avg pts of 24325 UK 488 - The King's School- Barrel Botz?"]) {

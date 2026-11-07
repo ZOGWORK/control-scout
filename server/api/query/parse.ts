@@ -119,8 +119,9 @@ export function normalise(q: string): string {
     .replace(/[’‘`]/g, "'").replace(/\bwhat's\b/g, "what is").replace(/\bwho's\b/g, "who is").replace(/\bhow's\b/g, "how is")
     .replace(/([\p{L}\p{N}])'s\b/gu, "$1").replace(/s'(?=\s)/g, "s").replace(/#(?=\d)/g, " ")
     .replace(/(?<=[a-z])-(?=[a-z])/g, " ").replace(/[?!,;:()"[\]{}]/g, " ").replace(/\.(?=\s|$)/g, " ")
-    // A dash on its own or ending a word is punctuation ("UK 488 - The King's School- Barrel Botz"), never a word.
-    .replace(/(?<=\s)-+(?=\s)/g, " ").replace(/(?<=[\p{L}\p{N}])-+(?=\s)/gu, "")
+    // A dash on its own or ending a word is punctuation ("UK 488 - The King's School- Barrel Botz"), never a word; one
+    // between two numbers joins them ("2024 - 25" is the season 2024-25).
+    .replace(/(?<=\d)\s+-+\s+(?=\d)/g, "-").replace(/(?<=\s)-+(?=\s)/g, " ").replace(/(?<=[\p{L}\p{N}])-+(?=\s)/gu, "")
     .replace(/\s+/g, " ").trim();
 }
 
