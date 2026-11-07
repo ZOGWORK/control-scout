@@ -220,3 +220,21 @@ describe("compound answers", () => {
     expect((a.stat?.blocks[0] as any).items.find((i: any) => /Season OPR/.test(i.label))?.value).toBe("101.6");
   });
 });
+
+// Failed search #974, in its own words and the other way round: the best teams at one event, Worlds or a state's
+// championship, by each team's OPR there.
+describe("the best teams at an event", () => {
+  const rows = (a: Awaited<ReturnType<typeof ask>>) => (a.stat?.blocks.find((b) => b.kind === "leaderboard") as any)?.rows.map((r: any) => [r.team.label.split(" ")[0], r.display]) ?? [];
+  it("ranks an event's teams (its divisions' too) by their OPR there", async () => {
+    for (const q of ["new jersey championship best teams", "top teams at the new jersey championship"]) {
+      const a = await ask(q);
+      expect(a.stat, q).toMatchObject({ intent: "event-best", title: `Best teams at New Jersey Championship by OPR there · ${S}–${String(S + 1).slice(2)}` });
+      // 207, 4215 and 6980 have an OPR in its Parkway division; the rest played there with none, so aren't ranked.
+      expect(rows(a), q).toEqual([["207", "114.0"], ["4215", "101.0"], ["6980", "46.0"]]);
+    }
+  });
+  it("reads Worlds and a state's championship as their events", async () => {
+    expect(rows(await ask(`best teams at worlds ${S + 1}`))).toEqual([["4215", "60.0"]]);
+    expect((await ask("best teams at nj states")).stat?.title).toMatch(/^Best teams at New Jersey Championship by OPR there/);
+  });
+});

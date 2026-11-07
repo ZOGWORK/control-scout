@@ -7,7 +7,7 @@ import type { SearchAnswer, SearchPageLink } from "../../../src/shared/api.js";
 import type { StatAnswer } from "../../../src/shared/searchStat.js";
 import type { Region } from "../../../src/shared/regions.js";
 import { dateRange, seasonLabel } from "../../../src/shared/format.js";
-import { get } from "../../db.js";
+import { all, get } from "../../db.js";
 import { intentDefaults, readLeaderboard, scopeFits, type IntentId, type LeaderboardQuestion, type ReadScope, type StatQuestion, type TwoTeamId } from "../answers/read.js";
 import { allianceForecast, predictionSeasonOf } from "../answers/families/predict.js";
 import { isLegacy } from "../../data/seasons.js";
@@ -313,6 +313,9 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   if (!p.teams.length && intent === "leaderboard") {
     // The search box keeps the asks' own short card; the page draws the list.
     if (!opts.full) return null;
+    // The teams at one event, Worlds or a state championship ("east bergen conference best teams", "top teams at nj
+    // states"): that event's board.
+    if ((p.event || p.worlds || p.states) && !p.level && !p.alliance && !p.finals && !p.eventKind && !scope.window && !scope.ever) return eventBoard(p, scope, said, opts);
     if (p.event || p.worlds || p.states || p.level || p.alliance || scope.window || scope.ever) return null;
     // A "leaderboard" the leaderboard reader reads (a state's, by a stat) is its own; a country's is answered here.
     if (/\bleader ?boards?\b/.test(said) && readLeaderboard(p.q)) return null;
@@ -350,6 +353,43 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     return relaxed(a, defaultSteps(b.season!, town ? ` in ${town.city}` : region ? ` in ${region.name}` : "", b.undefeated ? "undefeated teams" : b.kind === "top" ? "ranked teams" : "teams"), (season) => board({ ...b, season }));
   }
   return null;
+}
+
+/** The board of the teams at one event named, Worlds or the place's state championship: the season said (a year: the
+ *  one held then), else the latest held. OPR only: another stat said is left to search. */
+async function eventBoard(p: Parsed, scope: ReadScope, said: string, opts: PipelineOptions): Promise<SearchAnswer | null> {
+  if (p.symbols.some((s) => BOARD_STAT[s] && BOARD_STAT[s] !== "opr") || p.place?.kind === "city") return null;
+  const region = regionOf(p);
+  if (p.states && !region) return null;
+  const year = p.time?.kind === "season" && p.time.year != null && !p.time.relative ? p.time.year : null;
+  const types = p.worlds ? [CHAMPIONSHIP_TYPE] : p.states ? [STATES_TYPE] : null;
+  const evs = p.event ? await eventsNamed(normalise(p.event.words), types, year != null ? (e) => (e.start ?? "").startsWith(String(year)) : undefined)
+    : (await all<{ season: number; code: string; name: string; type: string | null; division: string | null; start: string | null }>(
+      `SELECT season, code, name, type, division_code division, start FROM events WHERE type = ?${region ? " AND country = ?" : ""}${region?.state ? " AND state = ?" : ""}`,
+      [types![0], ...(region ? [region.country] : []), ...(region?.state ? [region.state] : [])])).map((e) => ({ ...e, season: Number(e.season) }))
+      .filter((e) => year == null || (e.start ?? "").startsWith(String(year)));
+  const at = (season: number) => {
+    const inSeason = evs.filter((e) => e.season === season);
+    const main = inSeason.find((e) => !e.division) ?? inSeason[0];
+    return { main, codes: [...new Set(inSeason.map((e) => e.division ?? e.code))] };
+  };
+  const listed = async (season: number) => { const { codes } = at(season); return !!(await get<{ n: number }>(`SELECT 1 n FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code WHERE et.season = ? AND (e.code IN (${codes.map(() => "?").join(", ")}) OR e.division_code IN (${codes.map(() => "?").join(", ")})) LIMIT 1`, [season, ...codes, ...codes])); };
+  // A season said, or the one held the year said; else the latest held up to the current season whose teams are listed,
+  // a newer one with none listed yet said on the card.
+  const current = seasonOfDate(searchToday(opts.now));
+  const seasons = [...new Set(evs.map((e) => e.season))].filter((s) => s <= current).sort((x, y) => y - x);
+  let season: number | null = null, skipped: number | null = null;
+  if (year == null && scope.season != null) season = seasons.includes(scope.season) ? scope.season : null;
+  else for (const s of seasons) { if (await listed(s)) { season = s; break; } skipped ??= s; }
+  if (season == null) season = year == null && scope.season != null ? null : seasons[0] ?? null;
+  if (season == null) return null;
+  const { main, codes } = at(season);
+  const name = p.worlds ? `Worlds ${season + 1}` : shortEvent(main.name, main.type);
+  const one = p.n == null && /\b(?:team|who)\b/.test(said) && !/\bteams\b/.test(said);
+  const a = await boardSearch(p.q, { kind: "top", stat: "opr", n: Math.min(25, p.n ?? (one ? 5 : 10)), region: null, city: null, season, event: { season, code: main.division ?? main.code, codes, name } }, opts);
+  if (!a?.stat || skipped == null || skipped === season) return a;
+  const note = `No teams listed for the ${seasonLabel(skipped)} event yet; showing ${seasonLabel(season)}`;
+  return { ...a, stat: { ...a.stat, scope: [note, ...a.stat.scope], definition: `${a.stat.definition} ${note}: no season was named, so the latest was read first.` } };
 }
 
 /** A Worlds or a state championship said, as the kind of event it filters to. */
