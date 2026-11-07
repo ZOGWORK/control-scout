@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.8.1 — 2026-11-07
+
+A slip in a team's name that starts with "Team" or "The" is corrected out loud: "team sealth record" is Team Stealth's record, with "Did you mean team stealth record".
+
+### Highlights
+- [fixes] "team sealth record" says "Did you mean team stealth record"
+- [fixes] "team 14471" is always team 14471, never a name like it
+- [fixes] The right spelling of a name gets no correction note
+
+### Search
+- **Did you mean, for names starting with Team or The.** A name read back with its "team" or "the" and corrected says the correction for the whole question; a team's number after "team" stays that team. (#1029)
+
 ## 3.8.0 — 2026-11-06
 
 After an update, the site answers from a warmed-up server: no more minutes of slow pages while a new version settles in.
