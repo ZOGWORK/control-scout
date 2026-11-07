@@ -51,7 +51,10 @@ describe("who to pick at an event", () => {
     const next = a.blocks.find((b) => b.kind === "table");
     expect(next && next.kind === "table" && next.rows.map((r) => r.cells.team)).toEqual(["ENFORCERS (7149)", "Critical Mass (207)"]);
     const links = a.blocks.find((b) => b.kind === "links");
-    expect(links && links.kind === "links" && links.items[0]).toEqual({ label: "Open the pick helper", href: `/scout?tab=picks&pevent=USNJQ2&season=${S}` });
+    // The helper opens on the same view: this team, the posted alliances as they are.
+    expect(links && links.kind === "links" && links.items[0]).toEqual({ label: "Open the pick helper", href: `/scout?tab=picks&pevent=USNJQ2&season=${S}&pteam=4215` });
+    // What a partner costs is shown beside what it adds: Critical Mass gives away the most penalty points.
+    expect(next && next.kind === "table" && next.rows[1].cells.adds).toMatch(/; Few fouls -\d+$/);
   });
   it("no event named: the team's next event, said so; a stat named gets its own column", async () => {
     const a = await stat("show me teams that complement 4215's weak endgame");
@@ -62,9 +65,19 @@ describe("who to pick at an event", () => {
   });
   it("selection over: the suggestions as it opened, beside who the team picked", async () => {
     const a = await stat("best second pick for 4215 at garden qualifier");
-    expect(a.headline!.sub).toMatch(/^As selection opened · /);
+    expect(a.headline!.sub).toMatch(/^Every team free, on today's ratings · /);
     const picked = a.blocks.find((b) => b.kind === "links" && b.title === "Picked at the event");
     expect(picked && picked.kind === "links" && picked.items.map((i) => i.label)).toEqual(["Ultraviolet (23268)"]);
+    // The helper opens with posted alliances off, as this answer reads them.
+    const links = a.blocks.find((b) => b.kind === "links" && b.title === "Open");
+    expect(links && links.kind === "links" && links.items[0].href).toBe(`/scout?tab=picks&pevent=USNJQ1&season=${S}&pteam=4215&pposted=0`);
+    // A team no one picked: selection is over all the same, every team free.
+    const unpicked = await stat("who should 207 pick at garden qualifier");
+    expect(unpicked.headline!.sub).toMatch(/^Every team free, on today's ratings · /);
+    expect(unpicked.blocks.some((b) => b.kind === "links" && /picked/i.test(b.title ?? ""))).toBe(false);
+  });
+  it("a year named with no event: only that year's events, else left to search", async () => {
+    expect((await stat("teams that complement 4215's weak endgame in 2019"))?.intent).not.toBe("pick-partners");
   });
   it("a team not on the event's list is said so, never another event's suggestions", async () => {
     expect((await stat("who should 23268 pick at northeast league meet")).none).toMatch(/isn't on Northeast League Meet's team list/);

@@ -241,7 +241,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     const t = p.teams[0], team = { number: t.number, name: t.name };
     const found = p.event ? await eventFor(p.event.words, [t.number], year, season)
       : p.worlds || p.states ? await teamEventOfType(t.number, p.worlds ? CHAMPIONSHIP_TYPE : STATES_TYPE, season, year)
-      : await teamPickEvent(t.number, opts.now ?? Date.now(), season);
+      : await teamPickEvent(t.number, opts.now ?? Date.now(), season, year);
     if (!found) return null;
     const why = p.event || p.worlds || p.states ? undefined : `No event was named: this is ${t.number}'s ${"next" in found && found.next ? "next" : "latest"} event.`;
     const focus = (["auto", "teleop", "endgame"] as const).find((x) => p.symbols.includes(`metric:${x}`)) ?? null;
