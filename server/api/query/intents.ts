@@ -162,8 +162,8 @@ export const INTENTS: IntentRule[] = [
   R("team-predict", 1, ["future", "metric:win"], ["thing:event"], { event: true }),
   R("team-predict", 1, ["future", "metric:win", "worlds"], ["thing:event"]),
   // Two or three teams on one alliance, said so: the alliance's predicted score.
-  R("lineup-score", 2, ["same-side"], ["predict", "metric:score", "and", "hypo", "thing:match", "per:match"]),
-  R("lineup-score", 3, ["same-side"], ["predict", "metric:score", "and", "hypo", "thing:match", "per:match"]),
+  R("lineup-score", 2, ["same-side"], ["predict", "metric:score", "and", "hypo"]),
+  R("lineup-score", 3, ["same-side"], ["predict", "metric:score", "and", "hypo"]),
   // Two alliances of two: a match's call. "Vs" between them is enough, with no other word.
   R("alliance-predict", 4, ["vs"], ["predict", "and", "compare", "metric:win", "metric:score", "metric:margin", "thing:match", "per:match"]),
   // Two teams.
