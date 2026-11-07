@@ -82,6 +82,9 @@ describe("one word of a named team's own event", () => {
     expect(p.teams.map((t) => t.number)).toEqual([7149]);
     expect(p.event).toMatchObject({ typed: "riverside" });
   });
+  it("said before a team typed nearly right, is read once that team is found", async () => {
+    expect((await parse("bayview forecast for enforcrs")).event).toMatchObject({ typed: "bayview" });
+  });
   it("is read once a name several teams share is settled", async () => {
     expect((await parse("gearheads prediction at riverside", ["team:31002"])).event).toMatchObject({ typed: "riverside" });
     expect((await parse("gearheads prediction at riverside", ["team:31001"])).event).toBeNull();

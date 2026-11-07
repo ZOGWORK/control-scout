@@ -409,6 +409,14 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     if (name) p.event = { ...p.event, words: name };
     else { p.event = null; own.used = false; }
   }
+  // A word said before any team was found ("<word> forecast for <team typed nearly right>"): tried again now every
+  // team is, among the settled teams' own events.
+  if (!p.event && p.teams.length && !p.teams.some((t) => t.candidates && !t.rule)) {
+    for (const [i, one] of toks.entries()) {
+      if (one.used || one === own || toks[i - 1]?.used === false || toks[i + 1]?.used === false) continue;
+      if (await ownEventWord(one)) break;
+    }
+  }
   p.leftover = toks.filter((t) => !t.used).map((t) => t.typed);
   if (unread) p.leftover.unshift(unread);
   if (p.teams.some((t) => t.candidates && !t.rule)) p.leftover.push(...p.teams.filter((t) => t.candidates && !t.rule).map((t) => t.typed));
