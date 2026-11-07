@@ -169,7 +169,7 @@ async function windowCountAnswer(b: BoardQuestion, w: { from: string; to: string
     `SELECT MAX(substr(COALESCE(m.time, e.start), 1, 10)) d FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code
      JOIN match_teams mt ON mt.season = m.season AND mt.code = m.code AND mt.level = m.level AND mt.series = m.series AND mt.number = m.number
      JOIN teams t ON t.number = mt.team
-     WHERE e.type IN (${OFFICIAL_TYPES.map(() => "?").join(", ")}) AND m.played = 1 AND mt.on_field = 1 AND substr(COALESCE(m.time, e.start), 1, 10) < ?${regionSql}`, [...OFFICIAL_TYPES, w.from, ...regionArgs]);
+     WHERE e.type IN (${OFFICIAL_TYPES.map(() => "?").join(", ")}) AND m.played = 1 AND mt.on_field = 1 AND ${teamPageSql("mt.team", "t.name")} AND substr(COALESCE(m.time, e.start), 1, 10) < ?${regionSql}`, [...OFFICIAL_TYPES, w.from, ...regionArgs]);
   if (!last?.d) return a;
   const end = new Date(`${last.d}T00:00:00Z`), start = new Date(end.getTime() - 6 * 864e5);
   const before = { from: start.toISOString().slice(0, 10), to: last.d, label: "in the latest week with matches" };
@@ -181,7 +181,7 @@ async function windowCountAnswer(b: BoardQuestion, w: { from: string; to: string
 
 async function windowCount(b: BoardQuestion, w: { from: string; to: string; label: string }, where: string, regionSql: string, regionArgs: string[]): Promise<StatAnswer> {
   const st = b.stat;
-  const v = st.id === "wins" ? "SUM(won)" : st.id === "events" ? "COUNT(DISTINCT season || ':' || code)" : "COUNT(*)";
+  const v = st.id === "wins" ? "SUM(won)" : st.id === "events" ? "COUNT(DISTINCT p.season || ':' || p.code)" : "COUNT(*)";
   // Each row's OPR beside the count: the team's stored OPR in the season of the window's last day.
   const season = seasonOfDate(w.to);
   const rows = await all<{ team: number; name: string | null; city: string | null; state: string | null; country: string | null; v: number; wins: number; losses: number; ties: number; opr: number | null }>(
@@ -208,11 +208,11 @@ async function windowCount(b: BoardQuestion, w: { from: string; to: string; labe
   const top = rows[0];
   return {
     ...base,
-    headline: { value: `${top.team} ${top.name ?? ""}`.trim(), label: `${label} ${Number(top.v)}, ${record(top)}${top.city ? ` · ${top.city}` : ""}`, sub: `${when.replace(/^./, (c) => c.toUpperCase())}${where}`, href: teamHref(Number(top.team)) },
+    headline: { value: `${top.team} ${top.name ?? ""}`.trim(), label: `${label} ${Number(top.v)}, ${record(top)}${top.city ? ` · ${top.city}` : ""}`, sub: `${when.replace(/^./, (c) => c.toUpperCase())}${where}`, href: teamHref(Number(top.team), season) },
     blocks: [{
       kind: "leaderboard", title: `Top ${rows.length} by ${label.toLowerCase()}`, stat: { id: st.id, label },
       note: `${when} · ${w.from} to ${w.to}${where}`,
-      rows: rows.map((r, i) => ({ rank: i + 1, team: { label: `${r.team} ${r.name ?? ""}`.trim(), href: teamHref(Number(r.team)) },
+      rows: rows.map((r, i) => ({ rank: i + 1, team: { label: `${r.team} ${r.name ?? ""}`.trim(), href: teamHref(Number(r.team), season) },
         location: [r.city, r.state, r.country && r.country !== "USA" ? r.country : null].filter(Boolean).join(", ") || null,
         record: record(r), opr: r.opr == null ? null : Number(r.opr), value: Number(r.v), display: String(Number(r.v)), parts: null })),
     }],

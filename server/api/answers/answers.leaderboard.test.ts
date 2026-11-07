@@ -161,5 +161,12 @@ describe("a count's board in a window", () => {
     const b = await searchAnswer("which team played the most matches this week", { limit: 25, full: true });
     expect(b.stat?.headline?.value).toBe("4215 Hypnotic Robotics");
     expect(b.stat?.scope[0]).toBe("No matches this week yet worldwide; showing 2026-03-04 to 2026-03-10");
+    // Greptile on #1098: events and wins in a window, titled with it; links keep the board's season.
+    day("2026-03-12");
+    const e = await searchAnswer("which team attended the most events this week", { limit: 25, full: true });
+    expect(e.stat).toMatchObject({ intent: "top-events-window", headline: { value: "4215 Hypnotic Robotics", label: "Events played 1, 2-1-0 · Oradell", href: expect.stringContaining("season=2025") } });
+    const w = await searchAnswer("which team won the most matches this week", { limit: 25, full: true });
+    expect(w.stat?.intent).toBe("top-wins-window");
+    expect(w.understood?.label).toBe("Team with the most wins this week");
   });
 });
