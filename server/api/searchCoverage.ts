@@ -83,7 +83,18 @@ const AWARD_WORD = /(?:^| )(inspire|think|innovate|design|motivate|connect|contr
  *  rest names an event; or null. The award
  *  word is kept wherever it sits, and the rest must be an event, never a team ("Got Milk inspire" stays the team's). */
 export async function awardQuery(q: string): Promise<string | null> {
-  const t = squash(q.toLowerCase().replace(/[?!.,]/g, " "));
+  let t = squash(q.toLowerCase().replace(/[?!.,]/g, " "));
+  // A season said anywhere ("… inspire 2025-26", "… in decode", "… last year") is the event's season, never its name:
+  // "last year" is the season before the current one; "this year" is the newest, as with no season said.
+  const g = seasonWord(t);
+  const rel = g ? null : new RegExp(`(?:^|\\s)(?:in\\s+|for\\s+|during\\s+)?(?:the\\s+)?${SEASON_WORDS}(?=\\s|$)`).exec(t);
+  const season = g ? g.season : rel && /^(?:last|previous)/.test(rel[1]) ? `${CURRENT_SEASON - 1}-${String(CURRENT_SEASON % 100).padStart(2, "0")}` : rel && /\d/.test(rel[1]) ? rel[1].replace(/\s+/g, "") : "";
+  if (g) t = g.rest;
+  else if (rel) t = squash(t.slice(0, rel.index) + " " + t.slice(rel.index + rel[0].length));
+  // A place asked ("who got 2nd place inspire at …"): the award's places are all listed, that one first.
+  const pm = /(?:^| )(?:(1st|2nd|3rd)(?: place)?|(first|second|third) place)(?= |$)/.exec(t);
+  const place = pm ? (pm[1] ? Number(pm[1][0]) : ["first", "second", "third"].indexOf(pm[2]) + 1) : null;
+  if (pm) t = squash(t.slice(0, pm.index) + " " + t.slice(pm.index + pm[0].length));
   const found = [...t.matchAll(AWARD_WORD)];
   if (found.length !== 1 || /\b\d{1,6}\b/.test(t.replace(/\b(?:19|20)\d\d\b/g, ""))) return null;
   const award = found[0][1].replace(/['’]/g, "").replace(/^deans?s? list$/, "deans list");
@@ -94,7 +105,7 @@ export async function awardQuery(q: string): Promise<string | null> {
   if (!rest) return null;
   const e = readEventQuery(rest);
   const event = (e && !e.words.length && (e.kinds.length || e.region)) || await (await parseContext()).isEvent(rest);
-  return event ? `who won ${award} at ${rest}` : null;
+  return event ? squash(`who won ${place ? `${["", "1st", "2nd", "3rd"][place]} place ` : ""}${award} at ${rest} ${season}`) : null;
 }
 
 /** A query said another way that the readers already answer, and why; or null. `q` is cleaned, any case. `pre`: tried

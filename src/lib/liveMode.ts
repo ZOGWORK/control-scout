@@ -11,6 +11,8 @@
 //      showed, as the Scout page resolves it), open or done,
 //   3. my tracked teams (the personal store's tracked.teams).
 // None at this event: the panel counts down to the event's next match instead and says so.
+// Countdowns run on the field's real pace (pace()): none before the day's first result, then the posted
+// schedule shifted by how late or early the field really runs, erring early, never late.
 //
 // Refresh cadence: while live, the event is fetched every LIVE_POLL_MS (half the server's fast-lane
 // interval, clamped to 20–30 s: the lane checks FIRST about every 60 s, so a new score shows within
@@ -63,6 +65,10 @@ export function relevantTeams(i: RelevantInput): Map<number, RelevantReason> {
   return out;
 }
 
+// Schedule order: quals before playoffs, then series and number (never the API's order, which puts
+// matches without a time first, e.g. an unscheduled playoff ahead of the quals still to play).
+const stage = (a: MatchView, b: MatchView) => (a.level === b.level ? 0 : a.level === "qual" ? -1 : 1) || a.series - b.series || a.number - b.number;
+
 const teamsOf = (m: MatchView) => [...m.red.teams, ...m.blue.teams].map((t) => t.number);
 
 /**
@@ -75,13 +81,87 @@ export function nextMatch(matches: MatchView[], teams: ReadonlySet<number> | Rea
   const left = matches.filter((m) => !m.played && (!teams || teamsOf(m).some((t) => teams.has(t))));
   if (!left.length) return null;
   const at = (m: MatchView) => (m.startsAt ? Date.parse(m.startsAt) : NaN);
-  // Schedule order: quals before playoffs, then series and number (never the API's order, which puts
-  // matches without a time first, e.g. an unscheduled playoff ahead of the quals still to play).
-  const stage = (a: MatchView, b: MatchView) => (a.level === b.level ? 0 : a.level === "qual" ? -1 : 1) || a.series - b.series || a.number - b.number;
   // Times decide only when every candidate has one (a missing time can't be placed).
   const timed = left.every((m) => Number.isFinite(at(m)));
   left.sort((a, b) => (timed ? at(a) - at(b) : 0) || stage(a, b));
   return left[0];
+}
+
+/** Played matches this long before the next match's posted start count as the same playing day. */
+const SAME_DAY_MS = 12 * 3600_000;
+/**
+ * The longest a match runs before FIRST posts its score (start, 2:30 of play, scoring and review), plus the
+ * server's 60 s check. A match with no score this long after it would have started hasn't started yet.
+ */
+export const MAX_POST_LAG_MS = 8 * 60_000;
+/** The match cycle when the schedule gives none (FTC qualification cycles are 5–8 min). */
+const DEFAULT_CYCLE_MS = 5 * 60_000;
+/** A posted gap this many cycles long is a break (lunch, alliance selection): breaks absorb a late start. */
+const BREAK_CYCLES = 2.5;
+/**
+ * The most a field runs ahead of its posted schedule. The next match posted further than this past one
+ * cycle after the latest real start has a break before it; anything less is the field running early.
+ */
+const MAX_EARLY_MS = 20 * 60_000;
+
+export interface Pace {
+  /** Each unplayed timed match's estimated start (ms), by match key. Empty while waiting for the opener. */
+  est: ReadonlyMap<string, number>;
+  /** The day's opening match while it has no result: nothing is estimated (or counted down) until it does. */
+  opener: MatchView | null;
+  /** The match that should be on the field now, by the estimate. */
+  onField: MatchView | null;
+  /** How far the next match runs behind (+) or ahead (−) of the posted schedule, ms. */
+  shift: number;
+}
+
+const median = (xs: number[]) => (xs.length ? [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] : NaN);
+
+/**
+ * When the matches still to play should start, calibrated on the field's real pace (no countdown off the
+ * posted plan alone: events rarely start on time).
+ *
+ * Until the day's first match has a result nothing is estimated (`opener`). After that, a played match's
+ * time is its real start (FIRST's actualStartTime), so the next match should start one cycle after the
+ * latest real start, and every later match moves by the same amount, up to the next break (a break
+ * absorbs a late start, so after one the posted time holds unless the field runs early).
+ *
+ * Never late: the cycle is the shorter of the posted one and the one the field is really running, and a
+ * match still without a score can't have started more than MAX_POST_LAG_MS ago, so the estimate never
+ * sits further back than that (a long wait for the next score pushes everything after it).
+ */
+export function pace(matches: MatchView[], now: number): Pace {
+  const at = (m: MatchView) => (m.startsAt ? Date.parse(m.startsAt) : NaN);
+  const order = [...matches].sort(stage);
+  const rest = order.filter((m) => !m.played && Number.isFinite(at(m)));
+  if (!rest.length) return { est: new Map(), opener: null, onField: null, shift: 0 };
+  const n1 = rest[0];
+  const s1 = at(n1);
+  const playedToday = order.filter((m) => m.played && Number.isFinite(at(m)) && at(m) > s1 - SAME_DAY_MS).sort((a, b) => at(a) - at(b));
+  const today = playedToday.map(at);
+  if (!today.length) return { est: new Map(), opener: nextMatch(matches, null), onField: null, shift: 0 };
+  // The posted cycle: the usual gap, never a break's (the shortest gap sets what counts as one).
+  const gaps = rest.slice(1).map((m, i) => at(m) - at(rest[i])).filter((g) => g > 0);
+  const posted = median(gaps.filter((g) => g <= BREAK_CYCLES * Math.min(...gaps)));
+  const real = median(today.slice(1).map((t, i) => t - today[i]).filter((g) => g > 0 && g < BREAK_CYCLES * (posted || DEFAULT_CYCLE_MS)));
+  const cycle = Math.min(Number.isFinite(posted) ? posted : DEFAULT_CYCLE_MS, Number.isFinite(real) ? real : Infinity);
+  const isBreak = (gap: number) => gap > BREAK_CYCLES * cycle;
+  const lastStart = today[today.length - 1];
+  // A break before the next match: from the posted schedule when the last played match kept its posted start
+  // (scheduledAt); without it (older data, other sources), a posted start well past anything an early-running
+  // field would reach.
+  const lastPosted = Date.parse(playedToday[playedToday.length - 1].scheduledAt ?? "");
+  const breakFirst = Number.isFinite(lastPosted) ? isBreak(s1 - lastPosted) : s1 - (lastStart + cycle) > MAX_EARLY_MS;
+  // After a break the posted start holds; else one cycle after the latest real start. Either way it hasn't
+  // started more than MAX_POST_LAG_MS ago (there'd be a score).
+  const first = Math.max(breakFirst ? s1 : lastStart + cycle, now - MAX_POST_LAG_MS);
+  let shift = first - s1;
+  const est = new Map<string, number>();
+  rest.forEach((m, i) => {
+    if (i && isBreak(at(m) - at(rest[i - 1]))) shift = Math.min(shift, 0);
+    est.set(m.key, i ? at(m) + shift : first);
+  });
+  return { est, opener: null, onField: first <= now ? n1 : null, shift: first - s1 };
 }
 
 /** What the countdown says: "4:05" (under an hour), "1 h 05 min", or null once the start has passed. */

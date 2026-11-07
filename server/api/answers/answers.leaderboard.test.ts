@@ -44,9 +44,48 @@ describe("what's read", () => {
     expect(readLeaderboard("top teams by vibes in nj")).toBeNull();
     expect(readLeaderboard("top 10 teams by opr in narnia")).toBeNull();
   });
+  it("a count's board: the most matches, events or awards, said any way round", () => {
+    expect(readLeaderboard("which team has the most awards in NJ")).toMatchObject({ kind: "top", stat: "awards", best: true, region: { key: "USA:NJ" } });
+    expect(readLeaderboard("which team in Texas has the most awards")).toMatchObject({ stat: "awards", region: { key: "USA:TX" } });
+    expect(readLeaderboard("team that played the most matches this season")).toMatchObject({ stat: "matches", best: true, region: null });
+    // Search reads a plural as one ("most match played"): its verb keeps it a count.
+    expect(readLeaderboard("which team played the most match")).toMatchObject({ stat: "matches" });
+    expect(readLeaderboard("most events attended in new jersey")).toMatchObject({ stat: "events", region: { key: "USA:NJ" } });
+    expect(readLeaderboard("top 5 teams by matches played")).toMatchObject({ stat: "matches", n: 5 });
+    // "Most" with a stat that isn't a count is the stat's own board; right after "most", a count read as one is a count.
+    expect(readLeaderboard("which team has the most vibes")).toBeNull();
+    // Greptile on #1040: a day said is a count the season totals can't make.
+    expect(readLeaderboard("most awards on April 12 2026 in Ohio")).toBeNull();
+    expect(readLeaderboard("most match in nj")).toMatchObject({ stat: "matches", region: { key: "USA:NJ" } });
+    expect(readLeaderboard("best match in nj")).toBeNull();
+    // Greptile on #1040: "won" keeps its meaning, as typed or read as one.
+    expect(readLeaderboard("which team won the most matches in NJ")).toMatchObject({ stat: "wins", region: { key: "USA:NJ" } });
+    expect(readLeaderboard("which team won the most match in NJ")).toMatchObject({ stat: "wins" });
+    expect(readLeaderboard("team that won the most events")).toBeNull();
+    expect(readLeaderboard("which team won the most awards")).toMatchObject({ stat: "awards" });
+    // Greptile on #1040: counted at some events only is a count the board can't make.
+    expect(readLeaderboard("which team played the most matches at New Jersey events")).toBeNull();
+    expect(readLeaderboard("most awards at out of state events")).toBeNull();
+  });
 });
 
 describe("the lists", () => {
+  it("a count's board: the team with the most matches played, or awards won, in a state", async () => {
+    const m = await searchAnswer("which team played the most matches in NJ", { limit: 25, full: true });
+    expect(m.stat).toMatchObject({ family: "leaderboard", title: "Team in New Jersey with the most matches played · 2025–26", headline: { value: "23268 Ultraviolet" } });
+    // Never the highest-scoring matches.
+    expect(m.intent?.kind).toBe("stat-leaderboard-top");
+    // Greptile on #1040: with no verb, as typed ("matches", "events"), it's still the count's board.
+    for (const [q, title] of [["which team has the most matches in NJ", "Team in New Jersey with the most matches played · 2025–26"], ["most events in New Jersey", "Team in New Jersey with the most events played · 2025–26"]]) {
+      expect((await searchAnswer(q, { limit: 25, full: true })).stat?.title, q).toBe(title);
+    }
+    for (const [code, team] of [["NJQ1", 6980], ["NJQ1", 4215], ["NJQ2", 6980]] as const) await run("INSERT INTO awards (season, code, type, placement, team) VALUES (2025, ?, 'Think', ?, ?)", [code, team === 4215 ? 2 : 1, team]);
+    const a = await searchAnswer("most awards in New Jersey", { limit: 25, full: true });
+    expect(a.stat).toMatchObject({ title: "Team in New Jersey with the most awards won · 2025–26", headline: { value: "6980 Bad Wolf" } });
+    const t = a.stat!.blocks[0];
+    if (t.kind !== "leaderboard") throw new Error(t.kind);
+    expect(t.rows.slice(0, 2).map((r) => [r.team.label, r.display])).toEqual([["6980 Bad Wolf", "2"], ["4215 Hypnotic Robotics", "1"]]);
+  });
   it("top N by OPR in a state: ranked rows, 3 matches or more, the Teams page link", async () => {
     const a = await searchAnswer("Top 10 teams by OPR in NJ", { limit: 25 });
     expect(a.stat).toMatchObject({ family: "leaderboard", title: "Top 10 teams by OPR in New Jersey · 2025–26", headline: { value: "23268 Ultraviolet" } });
