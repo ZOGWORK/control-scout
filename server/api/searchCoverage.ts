@@ -569,7 +569,7 @@ const EXPLAINING = new AsyncLocalStorage<boolean>();
 /** A word's explanation for one team ("how is OPR calculated, show me with 4215 as an example", "what does ranking
  *  score mean, for 14450 at NJ Championship Parkway", "why did 4215's rating go down even though they won"): the team's
  *  own numbers (its stat answer, as "4215 opr" gives it), with the word's explainer under them; or null. */
-export async function explainTeamAnswer(q: string, ask: (q: string) => Promise<SearchAnswer>): Promise<SearchAnswer | null> {
+export async function explainTeamAnswer(q: string, ask: (q: string, full?: boolean) => Promise<SearchAnswer>): Promise<SearchAnswer | null> {
   // The team's own question, asked from here, is never explained again (a team named "CALculated Risk" keeps its words).
   if (EXPLAINING.getStore()) return null;
   // Sentence punctuation only: a season's "2024/25" or "2024–25" keeps its separator.
@@ -589,10 +589,11 @@ export async function explainTeamAnswer(q: string, ask: (q: string) => Promise<S
   }
   if (!rest.length) return null;
   const moved = /^why\b/.test(t) && /\b(?:up|down|drop|dropped|fall|fell|rise|rose|change|changed)\b/.test(t);
-  const of = (stat: string) => EXPLAINING.run(true, () => ask([rest[0], stat, ...rest.slice(1)].join(" ")));
-  // A change with nothing on record to show it ("no weekly ratings are kept"): the team's own number instead.
-  let a = await of(moved && e.change ? e.change : e.stat!);
-  if (moved && e.change && a.stat?.none) a = await of(e.stat!);
+  const of = (stat: string, full?: boolean) => EXPLAINING.run(true, () => ask([rest[0], stat, ...rest.slice(1)].join(" "), full));
+  // A change with nothing on record to show it ("no weekly ratings are kept"): the team's own number instead. Decided
+  // on the page's answer (the dropdown's has no `stat`), so both show the same one.
+  const change = moved && e.change && !(await of(e.change, true)).stat?.none;
+  const a = await of(change ? e.change! : e.stat!);
   // A team's stat answer, read the same in the dropdown (no `stat` worked out there) and on the page.
   if (a.weak || !a.intent?.kind.startsWith("stat-") || a.hits[0]?.kind !== "team") return null;
   const lines = moved && e.why ? [...e.why, ...e.lines] : e.lines;

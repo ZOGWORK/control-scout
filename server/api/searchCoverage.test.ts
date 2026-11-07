@@ -565,6 +565,11 @@ describe("explain questions, asked any way", () => {
     const quick = await explainTeamAnswer("what does opr mean for 4215, step by step", (x) => searchAnswer(x, { limit: 15, learn: false }));
     expect(quick?.hits[0]).toMatchObject({ kind: "team", ref: "4215" });
     expect(quick?.card?.title).toBe("OPR: what it is and how it's worked out");
+    // A change with nothing on record falls back the same in the dropdown as on the page: one answer, one heading.
+    const [page, drop] = await Promise.all([ask("why did 6980 rating drop after they won"), searchAnswer("why did 6980 rating drop after they won", { limit: 15, learn: false })]);
+    expect(drop.intent?.kind).toBe(page.intent?.kind);
+    expect(drop.hits[0]).toMatchObject({ kind: "team", ref: "6980" });
+    expect(drop.card?.title).toBe(page.card?.title);
     // No meaning asked, or no team named: not this answer.
     for (const q of ["4215 mean opr", "what is 4215's opr", "how is opr calculated", "what does opr mean for teams"]) expect(await explainTeamAnswer(q, ask), q).toBeNull();
     // Punctuation is set aside, and a team question is never sent back here as a meaning question.
