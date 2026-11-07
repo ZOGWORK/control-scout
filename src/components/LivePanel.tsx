@@ -91,7 +91,13 @@ export function LivePanel({ d, target, refresh, track }: { d: EventDetail; targe
   const countdown = Number.isFinite(left) ? formatCountdown(left) : null;
   const clock = any ? venueClock(any, e.timezone) : null;
   const every = Math.round(pollInterval(d) / 1000);
-  const title = mine ? "Up next for you" : atEvent.size ? "Your teams are done for now" : "Next match";
+  // My teams here (the event's own list or its schedule) split by the posted schedule: with none posted nobody is
+  // done, and a team the schedule leaves out isn't done either.
+  const scheduled = d.matches.length > 0;
+  const inSchedule = new Set(d.matches.flatMap((m) => [...m.red.teams, ...m.blue.teams].map((t) => t.number)));
+  const done = scheduled ? [...atEvent.keys()].filter((t) => inSchedule.has(t)) : [];
+  const unscheduled = [...atEvent.keys()].filter((t) => !inSchedule.has(t));
+  const title = mine ? "Up next for you" : !scheduled ? "Waiting for the schedule" : done.length ? "Your teams are done for now" : "Next match";
 
   return (
     <section aria-labelledby="live-now" className="mt-4 rounded-xl border border-destructive/35 bg-destructive/[0.06] p-3 sm:p-4" data-live-panel>
@@ -141,11 +147,17 @@ export function LivePanel({ d, target, refresh, track }: { d: EventDetail; targe
           <LivestreamButton watch={{ url: e.livestream, stream: !!e.stream, finished: e.status === "finished" }} className="max-sm:h-10 max-sm:flex-1" />
           {track && <TrackEventButton track={track} className="max-sm:h-10 max-sm:flex-1" />}
         </div>
-        {!mine && (atEvent.size ? (
-          <p className="mt-2 text-xs text-muted-foreground">No more scheduled matches for {[...atEvent.keys()].join(", ")}{any ? ", so this is the event's next match" : ""}.</p>
-        ) : (
+        {!mine && done.length > 0 && (
+          <p className="mt-2 text-xs text-muted-foreground" data-live-done>No more scheduled matches for {done.join(", ")}{any ? ", so this is the event's next match" : ""}.</p>
+        )}
+        {unscheduled.length > 0 && (
+          <p className="mt-2 text-xs text-muted-foreground" data-live-waiting>
+            {scheduled ? `Not in the posted schedule: ${unscheduled.join(", ")}.` : `Your teams here: ${unscheduled.join(", ")}. Their countdown starts when the schedule is out.`}
+          </p>
+        )}
+        {!mine && !atEvent.size && (
           <p className="mt-2 text-xs text-muted-foreground">Set <Link to="/settings" className="underline underline-offset-2 hover:text-foreground">your team</Link> or track a team here to count down to its matches.</p>
-        ))}
+        )}
       </div>
 
       <p className="mt-3 text-[11px] text-muted-foreground">

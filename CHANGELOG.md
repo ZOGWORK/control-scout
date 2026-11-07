@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.9.0 — 2026-11-07
+
+On an event day before the schedule is out, the LIVE box says it's waiting for the schedule. It no longer says your teams are done, and it names only your teams that are at the event.
+
+### Highlights
+- [live] Before the schedule: "Waiting for the schedule", never "done for now"
+- [live] Only your teams at this event are named
+- [live] A team the posted schedule leaves out isn't called done
+
+### Live
+- **LIVE box without a schedule.** With no matches posted, the box's title is "Waiting for the schedule". Your tracked or assigned teams at the event are listed as "Your teams here: …", and their countdown starts when the schedule is out. If none of them is at the event, there's no team line. "Your teams are done for now" and "No more scheduled matches for …" now need a posted schedule, and they name only teams that are in it. A team at the event that the posted schedule leaves out reads "Not in the posted schedule". Every event works the same way: the teams named are the event's own list or its schedule. The event stays Live on its day: FIRST shows it as in progress, and live mode keeps the page checking for the schedule. (#1089)
+
 ## 3.8.9 — 2026-11-07
 
 A league meet's page lists the teams FIRST lists for that meet, not every team in its league. The day before a meet, FIRST's rankings for it are the league's running standing, and Control Scout had been taking them as the meet's team list (P1-5 AM Northeast League Meet: 33 teams shown, FIRST lists 13).
