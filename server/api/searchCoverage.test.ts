@@ -545,4 +545,17 @@ describe("explain questions, asked any way", () => {
     expect(await explainTeamAnswer("what does opr mean?! for... teams", once)).toBeNull();
     expect(sent).toEqual(["4215 opr", "teams opr"]);
   });
+  it("a word for one team: a season keeps its separator, a team's name keeps its words, nothing comes back here", async () => {
+    await run("INSERT OR IGNORE INTO teams (number, name, city, state, country) VALUES (30628, 'CALculated Risk', 'Austin', 'TX', 'USA')");
+    await rebuildSearch();
+    const sent: string[] = [];
+    const spy = async (x: string) => { sent.push(x); return ask(x); };
+    await explainTeamAnswer("explain 4215 opr in 2024/25.", spy);
+    await explainTeamAnswer("explain opr for CALculated Risk", spy);
+    expect(sent).toEqual(["4215 opr in 2024/25", "calculated risk opr"]);
+    // An answer that asks back into this helper gets nothing from it: one question out, never a loop.
+    let inner: unknown = "unset";
+    await explainTeamAnswer("explain opr for CALculated Risk", async (x) => { inner = await explainTeamAnswer(`explain ${x}`, ask); return ask(x); });
+    expect(inner).toBeNull();
+  });
 });

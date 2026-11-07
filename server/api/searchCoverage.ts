@@ -12,6 +12,7 @@
 //   Worlds     "where is worlds", "worlds 2026", "worlds divisions"             → the FIRST Championship's events
 //   an event's page  "nj states rankings", "match 12 at nj states"             → that event's tab or match
 //   a team, kept     "12345 alliance partners", "bad wolf robotics"             → the team, never "no results"
+import { AsyncLocalStorage } from "node:async_hooks";
 import type { SearchAnswer, SearchCardFact, SearchCardLine, SearchHit, SearchSection } from "../../src/shared/api.js";
 import type { TeamTable } from "../../src/shared/teamTable.js";
 import { PHASE_COLS, tableOf, tableRow } from "./teamTableRows.js";
@@ -511,21 +512,33 @@ const FRAME_WORDS = new Set("what whats what's does do did is are how why mean m
 /** "what does … mean", "… calculated", "explain …", "why …": a question asking what a word means. */
 const ASKS_MEANING = /\bwhat (?:does|do|did)\b.*\bmean\b|\b(?:meaning|calculated|calculate|computed|worked out|explain|explained|explanation)\b|^why\b/;
 
+/** Set while explainTeamAnswer asks for a team's own numbers, so that question isn't explained in turn. */
+const EXPLAINING = new AsyncLocalStorage<boolean>();
+
 /** A word's explanation for one team ("how is OPR calculated, show me with 4215 as an example", "what does ranking
  *  score mean, for 14450 at NJ Championship Parkway", "why did 4215's rating go down even though they won"): the team's
  *  own numbers (its stat answer, as "4215 opr" gives it), with the word's explainer under them; or null. */
 export async function explainTeamAnswer(q: string, ask: (q: string) => Promise<SearchAnswer>): Promise<SearchAnswer | null> {
-  const t = squash(q.toLowerCase().replace(/[^\p{L}\p{N}\s'’-]/gu, " ").replace(/(\d)['’]s\b/g, "$1"));
+  // The team's own question, asked from here, is never explained again (a team named "CALculated Risk" keeps its words).
+  if (EXPLAINING.getStore()) return null;
+  // Sentence punctuation only: a season's "2024/25" or "2024–25" keeps its separator.
+  const t = squash(q.toLowerCase().replace(/[?,!;:"“”()]|\.+(?=\s|$)/g, " ").replace(/(\d)['’]s\b/g, "$1"));
   // "Mean" alone can be an average ("4215 mean opr"): only "what does … mean" asks what a word means.
   if (!ASKS_MEANING.test(t)) return null;
   const e = EXPLAINS.find((x) => x.term && x.stat && x.term.test(t));
   if (!e) return null;
-  const rest = t.replace(e.term!, " ").split(" ").filter((w) => w && !FRAME_WORDS.has(w));
+  const ws = t.replace(e.term!, " ").split(" ").filter(Boolean);
+  // A team's whole name, two words or more, stays together, frame words in it included ("calculated risk").
+  const idx = await names(), rest: string[] = [];
+  for (let i = 0; i < ws.length;) {
+    let len = Math.min(idx.longest, ws.length - i);
+    while (len > 1 && !(ws.slice(i, i + len).some((w) => !FRAME_WORDS.has(w)) && idx.teamsNamed(ws.slice(i, i + len).join(" ")).length)) len--;
+    if (len > 1 || !FRAME_WORDS.has(ws[i])) rest.push(ws.slice(i, i + len).join(" "));
+    i += len;
+  }
   if (!rest.length) return null;
   const moved = /^why\b/.test(t) && /\b(?:up|down|drop|dropped|fall|fell|rise|rose|change|changed)\b/.test(t);
-  // The team's own question must not ask for a meaning again, or it would come back here.
-  if (ASKS_MEANING.test(rest.join(" "))) return null;
-  const of = (stat: string) => ask([rest[0], stat, ...rest.slice(1)].join(" "));
+  const of = (stat: string) => EXPLAINING.run(true, () => ask([rest[0], stat, ...rest.slice(1)].join(" ")));
   // A change with nothing on record to show it ("no weekly ratings are kept"): the team's own number instead.
   let a = await of(moved && e.change ? e.change : e.stat!);
   if (moved && e.change && a.stat?.none) a = await of(e.stat!);
