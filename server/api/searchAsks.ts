@@ -105,7 +105,9 @@ export function readAsk(q: string): Ask | null {
     if (/\b(?:filter|filtered|filtering|sort|sorted|narrow|narrowed)\b/.test(t)) return { kind: "predict-filter" };
   }
   let d = /\bpredictions?\b.*\b(today|tomorrow)(?:['’]?s)?\b.*\b(?:matches|match|games)\b|\b(today|tomorrow)(?:['’]?s)?\b.*\b(?:matches|match|games)\b.*\bpredictions?\b/.exec(t);
-  if (d && !/\d/.test(t)) return { kind: "predict-day", day: (d[1] ?? d[2]) as "today" | "tomorrow" };
+  // The day's predictions everywhere: a place or an event named with it ("in New Jersey", "at worlds") asks for a
+  // filter this list doesn't apply, so it's left to the readers that do.
+  if (d && !/\d/.test(t) && !/\b(?:in|at|from|near|around|within)\s+\S/.test(t)) return { kind: "predict-day", day: (d[1] ?? d[2]) as "today" | "tomorrow" };
   d = /^(.+?) (?:prediction|predictions|predict|forecast) (?:settings|options|page|tool|view)$/.exec(t);
   if (d) return { kind: "predict-team", team: d[1] };
   // Leaderboards: the world's ("best team", "what is the best FTC team right now") or a place's.
