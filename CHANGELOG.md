@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.0.1 — 2026-11-07
+
+The rookie leaderboard lists from the bottom when asked, with the stat said before "rookies" or after the place: "lowest opr rookies in new jersey", "worst rookie teams in texas by auto opr".
+
+### Highlights
+- [rankings] "Lowest opr rookies in New Jersey" lists them
+- [rankings] Rookie lists read a stat said before or after
+- [rankings] The lowest-first rookie list links its Teams view
+
+### Search
+- **Rookies from the bottom.** "Lowest", "worst" or "weakest" before the rookies lists them lowest first, ranked from the top as every lowest-first board is, and titled so ("Lowest rookie teams in New Jersey by OPR"). The stat can be said before "rookies" ("lowest opr rookies") or after the place ("in texas by auto opr"); two stats at once are no one board. (#1085)
+
 ## 4.0.0 — 2026-11-07
 
 A list of teams with filters is answered however the filters are said: "Houston teams, OPR 90+", "teams in Romania with at least 30 matches and a win rate over 70 percent", "teams with OPR over 120 who did not make worlds".

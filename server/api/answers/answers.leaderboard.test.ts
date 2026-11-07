@@ -112,6 +112,29 @@ describe("the lists", () => {
     // No Teams page list asks the same question (a climb from last season): no link.
     expect(i.stat!.more).toBeUndefined();
   });
+  // Failed search #1012, in its own words: rookies from the bottom, a stat said before "rookies" or after the place.
+  it("the lowest rookies, the stat said anywhere", async () => {
+    expect(readLeaderboard("lowest opr rookies in new jersey")).toMatchObject({ kind: "rookie", stat: "opr", asc: true, region: { key: "USA:NJ" } });
+    expect(readLeaderboard("worst rookie teams in texas by auto opr")).toMatchObject({ kind: "rookie", stat: "auto", asc: true, region: { key: "USA:TX" } });
+    expect(readLeaderboard("top 5 rookies in nj")).toMatchObject({ kind: "rookie", stat: "opr", n: 5 });
+    expect(readLeaderboard("top 5 rookies in nj")).not.toHaveProperty("asc");
+    // Two stats said is no one board.
+    expect(readLeaderboard("lowest opr rookies in nj by auto")).toBeNull();
+    // A second ranked rookie with a lower OPR (Greptile on #1085): the lowest leads, each ranked from the top.
+    await run("INSERT INTO teams (number, name, city, state, country, rookie_year) VALUES (31999, 'Low Rookie', 'Trenton', 'NJ', 'USA', 2025)");
+    await run("INSERT INTO team_season_stats (season, team, opr_np, opr_auto, wins, losses, ties, matches, rank_np, ranked_teams, rating_np, rating_matches) VALUES (2025, 31999, 12.5, 2, 1, 9, 0, 10, 8000, 8375, 12.5, 10)");
+    try {
+      const r = await searchAnswer("lowest opr rookies in new jersey", { limit: 25 });
+      expect(r.stat).toMatchObject({ title: "Lowest rookie teams in New Jersey by OPR · 2025–26", headline: { value: "31999 Low Rookie", sub: "Lowest of 2 ranked in New Jersey" } });
+      const rb = r.stat!.blocks[0];
+      if (rb.kind !== "leaderboard") throw new Error(rb.kind);
+      expect(rb.rows.map((x) => [x.rank, x.team.label, x.display])).toEqual([[2, "31999 Low Rookie", "12.5"], [1, "31814 Quantum Core", "117.2"]]);
+      expect(rb.more!.href).toContain("dir=asc");
+    } finally {
+      await run("DELETE FROM team_season_stats WHERE team = 31999");
+      await run("DELETE FROM teams WHERE number = 31999");
+    }
+  });
   it("a rookie rating list has no Rankings link (Rankings can't keep the rookie filter)", async () => {
     const r = await searchAnswer("best rookie team by rating in New Jersey", { limit: 25 });
     const rb = r.stat?.blocks[0];
