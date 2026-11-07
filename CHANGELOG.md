@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.7.8 — 2026-11-06
+
+A team's full name is read however it's punctuated: "UK 488 - The King's School- Barrel Botz record" is that team's record, and "team sealth record" finds Team Stealth.
+
+### Highlights
+- [fixes] A team named with dashes or a possessive is read in full
+- [fixes] A name starting with "Team" or "The" keeps that word
+- [fixes] A slip in such a name still finds the right team
+
+### Search
+- **Names with their own punctuation.** A dash on its own or ending a word is punctuation, and a possessive in a team's name ("King's") matches however it's typed, so a name typed in full reads the team, with its number or without. (#1028)
+- **Names starting with Team or The.** A question's own words ("team", "the") are put back when, with them, the words are a team's name or one slip from it: "team sealth record" is Team Stealth's record. (#1028)
+
 ## 3.7.7 — 2026-11-06
 
 An event's initials typed in lower case are said in capitals in the questions that follow a search: "mti recap" offers "Who won MTI?", not "Who won Mti?".
