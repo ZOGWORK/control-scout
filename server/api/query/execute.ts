@@ -26,6 +26,7 @@ import { seasonOfDate } from "./time.js";
 import { searchToday } from "../searchEvents.js";
 import { eventFor, forecastAt, teamEventOfType } from "./forecast.js";
 import { teamsNamedSearch } from "../answers/teamsNamed.js";
+import { pickAnswer, teamPickEvent } from "../answers/families/pick.js";
 import { describe, normalise, parseQuery, type Parsed } from "./parse.js";
 import { parseContext } from "./context.js";
 import type { PipelineIntent } from "./intents.js";
@@ -120,7 +121,7 @@ function placeSeason(p: Parsed, said: number | null | undefined, opts: PipelineO
 }
 /** The answers a win or a loss said with them narrows ("closest loss", "first win", "longest losing streak"). */
 const OUTCOME_IDS = new Set(["closest-match", "current-streak", "average-margin", "first-match", "recent-match", "last-matches", "longest-streak"]);
-const ANSWERED = new Set<PipelineIntent>([...TEAM_INTENTS, ...(Object.keys(TWO_TEAM) as PipelineIntent[]), ...(Object.keys(FIND) as PipelineIntent[]), "top-matches", "leaderboard", "team-predict", "highlights", "teams-named", "count-teams", "alliance-predict", ...(Object.keys(TREND_ASK) as PipelineIntent[])]);
+const ANSWERED = new Set<PipelineIntent>([...TEAM_INTENTS, ...(Object.keys(TWO_TEAM) as PipelineIntent[]), ...(Object.keys(FIND) as PipelineIntent[]), "top-matches", "leaderboard", "team-predict", "highlights", "teams-named", "count-teams", "alliance-predict", "pick-partners", ...(Object.keys(TREND_ASK) as PipelineIntent[])]);
 /** The leaderboard's stat for a metric said ("by opr"); the prediction rating when none is. */
 const BOARD_STAT: Partial<Record<string, string>> = {
   "metric:opr": "opr", "metric:rating": "rating", "metric:winrate": "win-rate", "metric:auto": "auto", "metric:teleop": "teleop",
@@ -228,6 +229,28 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
       pages: isLegacy(pick.season) ? opts.pages : [{ title: `Predict ${red.map((t) => t.number).join(" & ")} vs ${blue.map((t) => t.number).join(" & ")}`, href: predictHref({ mode: "match", season: pick.season, red: red.map((t) => t.number), blue: blue.map((t) => t.number) }) }, ...opts.pages],
       understood: { kind: "question", label: stat.title, season: pick.season }, ...(opts.full ? { stat } : {}),
       intent: { kind: `stat-${stat.intent}`, pattern: "[team] [team] vs [team] [team] predict", met: true, understood: [] },
+    };
+  }
+  // Who one team should pick at an event: the pick helper on that event's teams. The event named (its Worlds or state
+  // championship division), else the team's next event, else its latest; a stat said is what the helper weighs.
+  if (intent === "pick-partners") {
+    if (p.teams.length !== 1 || scope.level || scope.alliance || scope.place || scope.area || scope.window || p.n != null || (p.event && (p.worlds || p.states))) return null;
+    const year = p.time?.kind === "season" && p.time.year != null ? p.time.year : null;
+    const season = p.time?.kind === "season" && p.time.year == null && !p.time.relative && p.time.season != null ? p.time.season : null;
+    if (p.time && year == null && season == null) return null;
+    const t = p.teams[0], team = { number: t.number, name: t.name };
+    const found = p.event ? await eventFor(p.event.words, [t.number], year, season)
+      : p.worlds || p.states ? await teamEventOfType(t.number, p.worlds ? CHAMPIONSHIP_TYPE : STATES_TYPE, season, year)
+      : await teamPickEvent(t.number, opts.now ?? Date.now(), season);
+    if (!found) return null;
+    const why = p.event || p.worlds || p.states ? undefined : `No event was named: this is ${t.number}'s ${"next" in found && found.next ? "next" : "latest"} event.`;
+    const focus = (["auto", "teleop", "endgame"] as const).find((x) => p.symbols.includes(`metric:${x}`)) ?? null;
+    const stat = await pickAnswer(team, found.ev, why, focus);
+    const hit = (await opts.resolve(String(t.number))).hits.find((h) => h.kind === "team" && h.ref === String(t.number));
+    return {
+      q: p.q, hits: hit ? [{ ...hit, facts: undefined, events: undefined }] : [], pages: opts.pages, step: "deterministic", weak: false,
+      understood: { kind: "question", label: stat.title, season: found.ev.season }, ...(opts.full ? { stat } : {}),
+      intent: { kind: `stat-${stat.intent}`, pattern: `[team] pick ${p.event ? "[event]" : p.worlds ? "[worlds]" : p.states ? "[states]" : "[next event]"}`, met: true, understood: [] },
     };
   }
   if (p.teams.length === 2 && TWO_TEAM[intent]) {

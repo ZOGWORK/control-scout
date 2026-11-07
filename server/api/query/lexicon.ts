@@ -31,6 +31,10 @@ export type Sym =
   | { k: "advance" }
   /** A forecast held up against what happened: "vs actual", "before and after", "did it get it right". */
   | { k: "review" }
+  /** Choosing a partner at an event: "who should 12345 pick", "best second pick", "teams that complement 12345". */
+  | { k: "pick" }
+  /** What a partner should make up for: "weak endgame", "lacking auto". Only a pick takes it. */
+  | { k: "gap" }
   | { k: "vs" }
   | { k: "and" }
   | { k: "together" }
@@ -137,6 +141,10 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["prediction|predictions|predicted|predict|forecast|forecasts|projected|projection|expected|expect|chance|chances|odds|probability|likely|likelihood|favourite|favorite|favored|favoured|who wins|who will win|who would win|matchup|matchups|match up|custom matchup|custom match|hypothetical matchup|hypothetical match", { k: "predict" }],
   ["trend|trends|trending|over time|progression|rising or falling|falling or rising|getting better or worse|improving or flat|improving or not|improving or declining|going up or down|going up|going down|up or down|improving|getting better|getting worse|rising|falling|event by event|over the season|across the season|through the season|week by week|after each event", { k: "trend" }],
   ["vs actual|versus actual|vs the actual|compared to actual|vs what happened|vs reality|vs result|vs results|vs the result|actual|actually happened|what happened|before and after|before vs after|before or after|right or wrong|get it right|got it right|was it right|were they right|was it accurate|how accurate|accurate|accuracy|way off|or was it way off|or way off|or was it off|or not|how far off|hit or miss", { k: "review" }],
+  ["pick|picks|pick first|first pick|second pick|third pick|draft|complement|complements|complementing|complementary|would be best|would be the best|would fit best|best fit|fits best|fill the gap|fills the gap|fill their gap|fill its gap", { k: "pick" }],
+  ["weak|weakness|weaknesses|weaker|lacking|lacks", { k: "gap" }],
+  ["should|shall", { k: "filler" }],
+  ["based on|based off", { k: "prep", v: "by" }],
   ["advance|advances|advancing|advancement|advancements|advance to the finals|make the finals|making the finals|go through|goes through|get through|gets through", { k: "advance" }],
   // Two teams.
   ["vs|v|versus|against|facing|face|faced|play|played|playing|plays|vs.", { k: "vs" }],
