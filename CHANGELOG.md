@@ -26,7 +26,7 @@ Search reads its own words when they are typed wrong, run together or short: a l
 - [fixes] A team name with "latest" after it shows its newest match
 
 ### Search
-- **Intent words typed wrong.** Every word the query parser reads is a word spelling knows; a letter added inside a word is corrected rather than read as an ending; six-letter words jumbled (and a common word of the data's, like a division's name) are corrected; between two as close, the fewer plain edits wins; two of search's own words typed as one are split; and a query that finds nothing tries a name's word or a three-letter word as the question word it is one slip from, kept only when that reading answers. Each shows "Did you mean". A team's name followed by a place picks the team in that place without narrowing its matches to the place, and "latest" beside a team is its most recent match. (#PRNUM)
+- **Intent words typed wrong.** Every word the query parser reads is a word spelling knows; a letter added inside a word is corrected rather than read as an ending; six-letter words jumbled (and a common word of the data's, like a division's name) are corrected; between two as close, the fewer plain edits wins; two of search's own words typed as one are split; and a query that finds nothing tries a name's word or a three-letter word as the question word it is one slip from, kept only when that reading answers. Each shows "Did you mean". A team's name followed by a place picks the team in that place without narrowing its matches to the place, and "latest" beside a team is its most recent match. (#1076)
 
 ## 3.8.8 — 2026-11-07
 
