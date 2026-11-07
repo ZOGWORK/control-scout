@@ -130,10 +130,13 @@ function readList(q: string): CompoundQuestion | null {
   const LEAD = String.raw`(?:(?:with|who\s+had|that\s+had|who\s+have|that\s+have|who\s+has|that\s+has|having|whose)\s+)?`;
   const AMOUNT = String.raw`${NUM}(?![\d.]|\s*[-–/]\s*\d)(?:\s*(\+|%|percent|per\s+cent)(?!\w))?`;
   for (let k = 0; k < 3; k++) {
-    const t = take(new RegExp(String.raw`\b${LEAD}(?:an?\s+)?${STAT}\s+(?:of\s+|is\s+|was\s+)?(?:${OP}\s+)?${AMOUNT}`));
-    if (t) {
+    const T = new RegExp(String.raw`\b${LEAD}(?:an?\s+)?${STAT}\s+(?:of\s+|is\s+|was\s+)?(?:${OP}\s+)?${AMOUNT}`);
+    const seen = T.exec(rest);
+    // A year after a stat with no comparison ("by opr 2025") is the season's words, left for seasonWords.
+    if (seen && !(!seen[2] && !seen[4] && /^(?:19|20)\d\d$/.test(seen[3]))) {
+      const t = take(T)!;
       const stat = statOf(t[1]);
-      if (!stat || (!t[2] && !t[4] && /^(?:19|20)\d\d$/.test(t[3]))) return null;
+      if (!stat) return null;
       thresholds.push({ stat, op: t[2] ? opOf(t[2]) : "ge", value: Number(t[3]) });
       continue;
     }
@@ -143,7 +146,7 @@ function readList(q: string): CompoundQuestion | null {
     if (!c[1] && !c[2] && !c[4]) return null;
     thresholds.push({ stat: /^w/.test(c[5]) ? "wins" : "matches", op: c[2] ? opOf(c[2]) : "ge", value: Number(c[3]) });
   }
-  const out = take(new RegExp(String.raw`\b(?:and|with|plus|showing)\s+(?:their|its|the)\s+${STAT}(?:\s+(?:and|&)\s+${STAT})?\s*$`));
+  const out = take(new RegExp(String.raw`\b(?:and|with|plus|showing)\s+(?:their|its|the)\s+${STAT}(?:\s+(?:and|&)\s+${STAT})?(?:\s*¦)*\s*$`));
   // Rookies alone are the rookie leaderboard's ("best rookie team in new jersey"): a list here needs another filter.
   if (!award && !ws && !thresholds.length) return null;
   // The words that joined a clause go with it; "list them all" and "worldwide" add nothing.
@@ -152,7 +155,7 @@ function readList(q: string): CompoundQuestion | null {
   const sw = seasonWords(rest);
   if (sw.ever) return null;
   rest = sw.rest;
-  const m = /^(?:show(?: me)?|list|which|what|find|get|are there(?: any)?)?\s*(?:(?:the )?(?:leaderboard|rankings?|list|standings) (?:for|of) )?(?:all |any |an? )?(?:the )?(?:(?:top|best|highest(?: ranked)?|strongest)(?: (\d{1,2}))? )?(?:(.+?) )?(?:ftc )?(?:teams?|robots?)(?: (?:by|for|on|ranked by|sorted by) (.+?))?(?: (?:in|from|based in) (.+?))?(?: (?:by|ranked by|sorted by) (.+?))?$/.exec(squash(rest));
+  const m = /^(?:show(?: me)?|list|which|what|find|get|are there(?: any)?)?\s*(?:(?:the |an? )?(?:leaderboard|rankings?|list|standings) (?:for|of) )?(?:all |any |an? )?(?:the )?(?:(?:top|best|highest(?: ranked)?|strongest)(?: (\d{1,2}))? )?(?:(.+?) )?(?:ftc )?(?:teams?|robots?)(?: (?:by|for|on|ranked by|sorted by) (.+?))?(?: (?:in|from|based in) (.+?))?(?: (?:by|ranked by|sorted by) (.+?))?$/.exec(squash(rest));
   if (!m) return null;
   const stat = m[3] ?? m[5] ? statOf(m[3] ?? m[5]) : null;
   if ((m[3] ?? m[5]) && !stat) return null;

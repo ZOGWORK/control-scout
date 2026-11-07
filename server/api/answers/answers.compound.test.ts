@@ -232,6 +232,11 @@ describe("a team list's filters, however they're said", () => {
       thresholds: [{ stat: "win-rate", op: "gt", value: 70 }, { stat: "matches", op: "ge", value: 30 }] });
     expect(readCompound("leaderboard for teams that played at least 20 matches, by win rate, worldwide")).toMatchObject({ kind: "list", stat: "win-rate", region: null, country: null, city: null,
       thresholds: [{ stat: "matches", op: "ge", value: 20 }] });
+    expect(readCompound("a leaderboard for teams that played at least 20 matches, by win rate, worldwide")).toMatchObject({ kind: "list", stat: "win-rate", city: null, thresholds: [{ stat: "matches", op: "ge", value: 20 }] });
+    // Greptile on #1075: a list still shows what's asked beside it, wherever the threshold is said, and a year after a
+    // stat is the season.
+    expect(readCompound("teams from Oradell and their rating with opr over 100")).toMatchObject({ kind: "list", city: "oradell", outputs: ["rating"], thresholds: [{ stat: "opr", op: "gt", value: 100 }] });
+    expect(readCompound("teams from Oradell with opr over 100 by opr 2025")).toMatchObject({ kind: "list", city: "oradell", stat: "opr", season: 2025, thresholds: [{ stat: "opr", op: "gt", value: 100 }] });
     // A year is never a threshold, nor a count with no comparison or verb.
     expect(readCompound("top 10 teams by opr 2025")).toBeNull();
     expect(readCompound("10 teams in nj")).toBeNull();
