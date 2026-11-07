@@ -18,6 +18,7 @@ beforeAll(async () => {
   const teams: [number, string, string, string, string, number][] = [
     [20265, "Heart of RoBots", "Austin", "TX", "USA", 80], [11111, "Lone Star Bots", "Houston", "TX", "USA", 30],
     [22222, "Maple Gears", "Toronto", "ON", "Canada", 20], [33333, "Northern Bolts", "Ottawa", "ON", "Canada", 10], [4215, "Hypnotic Robotics", "Oradell", "NJ", "USA", 40],
+    [44444, "Hoosier Bots", "Indianapolis", "IN", "USA", 15], [55555, "Prairie Gears", "Springfield", "IL", "USA", 12], [66666, "Show Me Bots", "Springfield", "MO", "USA", 11],
   ];
   for (const [n, name, city, state, country, auto] of teams) {
     await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, ?, ?, ?)", [n, name, city, state, country]);
@@ -29,6 +30,8 @@ beforeAll(async () => {
   await ev(S, "USTXCMP", "Texas Championship", "Championship", "Austin", "TX", "USA", `${S + 1}-03-01`);
   await ev(S, "CAONQ1", "Ontario Qualifier", "Qualifier", "Toronto", "ON", "Canada", `${S}-12-01`);
   await ev(S, "FTCCMP1", "FIRST Championship", "FIRSTChampionship", "Houston", "TX", "USA", `${S + 1}-04-20`);
+  await ev(S, "USTXQ1", "Texas Qualifier", "Qualifier", "Dallas", "TX", "USA", `${S}-11-15`);
+  await ev(S, "USINQ1", "Indiana Qualifier", "Qualifier", "Indianapolis", "IN", "USA", `${S}-11-22`);
   await ev(S - 1, "CAONQ1", "Ontario Qualifier", "Qualifier", "Toronto", "ON", "Canada", `${S - 1}-12-01`);
   await ev(S - 1, "CAONQ2", "Ontario Qualifier 2", "Qualifier", "Ottawa", "ON", "Canada", `${S - 1}-12-08`);
   const aw = (season: number, code: string, type: string, placement: number, team: number, name: string) =>
@@ -46,6 +49,10 @@ beforeAll(async () => {
   await aw(S, "CAONQ1", "Winner", 3, 33333, "FIRST Leadership Award");
   await aw(S, "FTCCMP1", "Connect", 1, 33333, "Connect Award");
   await aw(S, "FTCCMP1", "Inspire", 1, 4215, "Inspire Award");
+  await aw(S, "USTXQ1", "Inspire", 1, 11111, "Inspire Award");
+  await aw(S, "USTXQ1", "Winner", 1, 11111, "Winning Alliance - Captain");
+  await aw(S, "USINQ1", "JudgesChoice", 1, 44444, "Judges' Choice Award");
+  await aw(S, "USINQ1", "Motivate", 1, 55555, "Motivate Award");
   await aw(S - 1, "CAONQ1", "Inspire", 1, 22222, "Inspire Award");
   await aw(S - 1, "CAONQ2", "Inspire", 1, 22222, "Inspire Award");
   await aw(S - 1, "CAONQ2", "Think", 1, 33333, "Think Award");
@@ -68,7 +75,7 @@ describe("a place's award winners", () => {
 
   it("orders the winners by a stat that season", async () => {
     const s = await placeAwardsAnswer((await readPlaceAwards("texas winning alliance winners by auto"))!);
-    expect(rows(s).map((r) => [r.team, r.stat])).toEqual([["20265 Heart of RoBots", "80"], ["11111 Lone Star Bots", "30"]]);
+    expect(rows(s).map((r) => [r.team, r.stat])).toEqual([["20265 Heart of RoBots", "80"], ["11111 Lone Star Bots", "30"], ["11111 Lone Star Bots", "30"]]);
   });
 
   it("lists every award a town's teams won, the town said with its country, a season in words", async () => {
@@ -92,7 +99,9 @@ describe("a place's award winners", () => {
 
   it("finds teams that won two awards at one event", async () => {
     const s = await placeAwardsAnswer((await readPlaceAwards("Texas teams that won both Winning Alliance and Inspire at the same tournament"))!);
-    expect(rows(s).map((r) => r.team)).toEqual(["11111 Lone Star Bots"]);
+    // One team, at two events: one team, both events listed (Greptile on #1100).
+    expect(rows(s).map((r) => r.team)).toEqual(["11111 Lone Star Bots", "11111 Lone Star Bots"]);
+    expect(s.headline?.value).toBe("1 team");
   });
 
   it("answers whether any of a place's teams won an award at worlds", async () => {
@@ -103,6 +112,22 @@ describe("a place's award winners", () => {
     expect(no.headline?.value).toBe("No");
   });
 
+  // Greptile on #1100.
+  it("keeps the default season, saying none were won, with older seasons to ask", async () => {
+    const a = await searchAnswer("Ontario Think winners", { limit: 25, learn: false, full: true });
+    expect(a.stat?.none).toBe(`No Think Award won by teams from Ontario in ${a.stat?.scope.at(-1)} in the published awards.`);
+    expect(a.stat?.blocks.find((b) => b.kind === "related")).toMatchObject({ queries: [`Ontario Think winners ${S - 1}-${String(S % 100).padStart(2, "0")}`, expect.any(String)] });
+  });
+  it("counts only 1st place toward the rarest award", async () => {
+    const s = await placeAwardsAnswer((await readPlaceAwards("the rarest award a Texas team won"))!);
+    expect(s.headline?.value).toBe("Think Award");
+    expect(rows(s).find((r) => r.award === "Think Award")).toMatchObject({ given: 1, won: 1 });
+  });
+  it("reads a state's code typed in capitals that is also a word, the award's own spelling, and a shared town's name", async () => {
+    expect(await readPlaceAwards("IN Judges' Choice winners")).toMatchObject({ place: { kind: "region", state: "IN" }, types: ["JudgesChoice"] });
+    expect(await readPlaceAwards("in judges choice winners")).toBeNull();
+    expect(await readPlaceAwards("Springfield IL Motivate winners")).toMatchObject({ place: { kind: "city", city: "Springfield", state: "IL" } });
+  });
   it("leaves a team's, an event's and an award-less ask alone", async () => {
     // The most awards of any kind is the count leaderboard's.
     expect(await readPlaceAwards("which team has the most awards in Texas")).toBeNull();

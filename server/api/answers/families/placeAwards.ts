@@ -15,6 +15,7 @@ import { awardLabel, num, seasonLabel } from "../../../../src/shared/format.js";
 import { all } from "../../../db.js";
 import { searchSeason } from "../season.js";
 import { names, type Place } from "../../query/names.js";
+import { regionOf } from "../../../../src/shared/searchEventQuery.js";
 import { CHAMPIONSHIP_TYPE } from "../clauses.js";
 import { eventHref, shortEvent } from "../matchSet.js";
 
@@ -22,7 +23,7 @@ import { eventHref, shortEvent } from "../matchSet.js";
 const AWARDS: [RegExp, string][] = [
   [/\binspire\b/, "Inspire"], [/\bthink\b/, "Think"], [/\binnovate\b/, "Innovate"], [/\bdesign\b/, "Design"], [/\bmotivate\b/, "Motivate"],
   [/\bconnect\b/, "Connect"], [/\bcontrol\b/, "Control"], [/\breach\b/, "Reach"], [/\bsustain\b/, "Sustain"], [/\bpromote\b/, "Promote"],
-  [/\bcompass\b/, "Compass"], [/\bjudges?\s+choice\b/, "JudgesChoice"], [/\bdeans?\s+list\b/, "DeansList"],
+  [/\bcompass\b/, "Compass"], [/\bjudges?['’]?\s+choice\b/, "JudgesChoice"], [/\bdeans?\s+list\b/, "DeansList"],
   [/\bwinning\s+alliances?\b/, "Winner"], [/\bfinalist(?:\s+alliances?)?\b/, "Finalist"],
 ];
 const ALLIANCE = new Set(["Winner", "Finalist"]);
@@ -52,6 +53,9 @@ export async function readPlaceAwards(q: string): Promise<PlaceAwardsAsk | null>
   const typed = q.replace(/[?!.,;:]/g, " ").replace(/\s+/g, " ").trim();
   let t = ` ${typed.toLowerCase().replace(/['’]s\b/g, "")} `;
   if (/\d{1,6}(?!\d*\s*[-–/]\s*\d)/.test(t.replace(/\b20\d\d\s*[-–/]\s*\d\d\b/g, " "))) return null;
+  // A state's code typed in capitals that's also a word ("IN", "OR"): kept as the place, never read as one.
+  const codes = new Map<string, string>();
+  t = ` ${t.trim().split(" ").map((w, i) => { const x = typed.split(" ")[i]; if (!/^[A-Z]{2}$/.test(x ?? "") || !regionOf([x])) return w; const k = `stcode${codes.size}x`; codes.set(k, x); return k; }).join(" ")} `;
   const cut = (re: RegExp) => { const m = re.exec(t); if (m) t = `${t.slice(0, m.index)} ${t.slice(m.index + m[0].length)} `; return m; };
   // The season.
   const sm = cut(/\s(?:in\s+|for\s+|during\s+)?(?:the\s+)?(?:(this|current|last|previous|past)\s+(?:season|year)|(20\d\d)\s*[-–/]\s*(\d\d))(?=\s)/);
@@ -75,7 +79,7 @@ export async function readPlaceAwards(q: string): Promise<PlaceAwardsAsk | null>
   // The most awards of any kind is the count leaderboard's ("which team has the most awards in NJ", ./leaderboard.ts).
   if (mode === "most" && !types.length) return null;
   // What's left is the place, the place's teams' word ("Romanian", "NJ teams") or a town and its country.
-  const left = t.replace(FRAME, " ").replace(/\s+/g, " ").trim();
+  const left = t.replace(FRAME, " ").replace(/\s+/g, " ").trim().split(" ").map((w) => codes.get(w) ?? w).join(" ");
   let place: Place | null = null;
   if (left) {
     const idx = await names();
@@ -84,8 +88,17 @@ export async function readPlaceAwards(q: string): Promise<PlaceAwardsAsk | null>
     // A town said with its state or country ("Cluj-Napoca Romania", "Edison NJ"): the town, when it's in that place.
     const ws = left.split(" ");
     for (let k = 1; !place && k <= 2 && k < ws.length; k++) {
-      const town = idx.place(ws.slice(0, -k).join(" ")), within = idx.place(ws.slice(-k).join(" "), typedOf(ws.slice(-k).join(" ")));
-      if (town?.kind === "city" && within && within.kind !== "city" && town.country === within.country && (within.kind === "country" || town.state === within.state)) place = town;
+      const name = ws.slice(0, -k).join(" "), within = idx.place(ws.slice(-k).join(" "), typedOf(ws.slice(-k).join(" ")));
+      if (!within || within.kind === "city") continue;
+      const town = idx.place(name);
+      if (town?.kind === "city" && town.country === within.country && (within.kind === "country" || town.state === within.state)) place = town;
+      // A town some other place shares its name with ("Springfield IL"): the one in the place said.
+      else if (!town) {
+        const [one, two] = await all<{ city: string; state: string | null; country: string }>(
+          `SELECT DISTINCT city, state, country FROM teams WHERE lower(city) = ? AND country = ?${within.kind === "region" ? " AND state = ?" : ""} LIMIT 2`,
+          [name, within.country, ...(within.kind === "region" ? [within.state] : [])]);
+        if (one && !two) place = { kind: "city", country: one.country, state: one.state, city: one.city, name: one.city };
+      }
     }
     if (!place || idx.teamsNamed(left).length) return null;
   } else if (mode !== "same-event") return null;
@@ -110,8 +123,8 @@ function placeSql(p: Place | null): { sql: string; args: (string | null)[] } {
 /** The answer for a place's award winners. */
 export async function placeAwardsAnswer(ask: PlaceAwardsAsk): Promise<StatAnswer> {
   const where = placeSql(ask.place);
-  // A judged award is won at 1st place, unless every award is asked (each place listed as such).
-  const won = ask.types.length || ask.mode === "most" || ask.mode === "same-event" ? " AND (a.type IN ('Winner', 'Finalist') OR a.placement = 1)" : "";
+  // A judged award is won at 1st place, unless every award is listed (each place said as such).
+  const won = ask.types.length || ask.mode !== "list" ? " AND (a.type IN ('Winner', 'Finalist') OR a.placement = 1)" : "";
   const typeSql = ask.types.length ? ` AND a.type IN (${ask.types.map(() => "?").join(", ")})` : "";
   const rows = (await all<any>(
     `SELECT a.season, a.code, e.name event, e.type etype, e.start, a.type, a.placement, a.team, t.name team_name, a.name award, t.city, t.state
@@ -124,23 +137,16 @@ export async function placeAwardsAnswer(ask: PlaceAwardsAsk): Promise<StatAnswer
   const what = ask.types.length ? ask.types.map(awardName).join(" and ") : "awards";
   const whats = ask.types.length ? ask.types.map(awardsName).join(" and ") : "awards";
   const at = ask.worlds ? " at the FIRST Championship" : "";
-  // The season: the one said; "this season" with nothing on record, the newest with awards (said so). "Most" and
-  // "any" with none said count every season; any other ask, search's default season, else the newest with awards.
-  const seasons = [...new Set(rows.map((r) => r.season))];
-  const allSeasons = ask.season == null && (ask.mode === "most" || ask.mode === "any");
-  let season = allSeasons ? null : ask.season ?? (seasons.includes(searchSeason()) ? searchSeason() : seasons[0] ?? searchSeason());
-  let note = "";
-  if (ask.seasonSaid === "this" && season != null && !seasons.includes(season) && seasons[0] != null) {
-    note = `${seasonLabel(season)} has none on record yet: the latest season, ${seasonLabel(seasons[0])}, below.`;
-    season = seasons[0];
-  }
+  // The season: the one said, else search's default (the latest completed one, ../season.ts), never another one
+  // quietly; "most" and "any" with none said count every season.
+  const season = ask.season == null && (ask.mode === "most" || ask.mode === "any") ? null : ask.season ?? searchSeason();
   const inScope = season == null ? rows : rows.filter((r) => r.season === season);
   const when = season == null ? "every season" : seasonLabel(season);
   const scope = [ask.place?.name ?? "Every team", ...(ask.worlds ? ["FIRST Championship"] : []), season == null ? "All seasons" : seasonLabel(season)];
   const base = { family: "awards" as const, intent: "place-awards", scope, source: `From ${count(inScope.length, "award record")} in the events' published awards` };
   const rule = `${ALLIANCE.has(ask.types[0] ?? "") || !ask.types.length ? "A Winning or Finalist Alliance award counts for each of its teams. " : ""}A judged award is won at 1st place${ask.types.length ? "" : " (2nd and 3rd place are listed as such)"}. A team's place is its home on FIRST's listing. From the events' published awards.`;
   const title = ask.types.length ? `${ask.place ? `${ask.place.name} ` : ""}${what} winners${at}` : `Awards won by ${whose}${at}`;
-  const none = (s: string) => ({ ...base, title, blocks: [], definition: rule, none: note ? `${note} ${s}` : s });
+  const none = (s: string) => ({ ...base, title, blocks: [], definition: rule, none: s });
   const ev = (r: Row) => shortEvent(r.event, r.etype);
   const table = (xs: Row[], heading: string, extra?: { key: string; label: string; value: (r: Row) => string | number | null }): StatBlock => ({
     kind: "table", title: heading,
@@ -158,7 +164,7 @@ export async function placeAwardsAnswer(ask: PlaceAwardsAsk): Promise<StatAnswer
     if (!hits.length) return { ...none(`No team won ${what} at one event${at} in ${when}.`), title: t2 };
     return {
       ...base, title: t2,
-      headline: { value: count(hits.length, "team"), label: `won ${what} at one event`, sub: note || `${when}, newest first` },
+      headline: { value: count(new Set(hits.map((r) => r.team)).size, "team"), label: `won ${what} at one event`, sub: `${when}, newest first` },
       blocks: [{ kind: "table", title: "Each team and event", columns: [{ key: "team", label: "Team" }, { key: "event", label: "Event" }, { key: "date", label: "Date" }],
         rows: hits.slice(0, 50).map((r) => ({ cells: { team: teamLabel(r), event: ev(r), date: r.start ?? "" }, href: eventHref(r.season, r.code, r.team), strong: true })), ...(hits.length > 50 ? { more: `Showing 50 of ${hits.length}` } : {}) }],
       definition: `Both awards at one event: the team won each award named there. ${rule}`,
@@ -178,7 +184,7 @@ export async function placeAwardsAnswer(ask: PlaceAwardsAsk): Promise<StatAnswer
     const top = ranked.filter((x) => x.n === ranked[0].n);
     return {
       ...base, title: t2,
-      headline: { value: top.map((x) => teamLabel(x.r)).join(", "), label: `${count(ranked[0].n, ask.types.length === 1 ? awardName(ask.types[0]) : "award", ask.types.length === 1 ? awardsName(ask.types[0]) : "awards")}${top.length > 1 ? " each, tied" : ""}`, href: `/teams/${top[0].r.team}`, sub: note || undefined },
+      headline: { value: top.map((x) => teamLabel(x.r)).join(", "), label: `${count(ranked[0].n, ask.types.length === 1 ? awardName(ask.types[0]) : "award", ask.types.length === 1 ? awardsName(ask.types[0]) : "awards")}${top.length > 1 ? " each, tied" : ""}`, href: `/teams/${top[0].r.team}` },
       blocks: [{ kind: "table", title: `${who} by ${whats} won`, columns: [{ key: "team", label: "Team" }, { key: "home", label: "Home" }, { key: "n", label: "Won", num: true }],
         rows: ranked.slice(0, 25).map((x) => ({ cells: { team: teamLabel(x.r), home: [x.r.city, x.r.state].filter(Boolean).join(", "), n: x.n }, href: `/teams/${x.r.team}`, strong: x.n === ranked[0].n })) }],
       definition: `Most won: each team's ${what}, an alliance award once per event. ${rule}`,
@@ -189,19 +195,19 @@ export async function placeAwardsAnswer(ask: PlaceAwardsAsk): Promise<StatAnswer
     if (!inScope.length) return { ...none(`No awards won by ${whose}${at} in ${when}.`), title: `The rarest award ${whose} won, ${when}` };
     const types = [...new Set(inScope.map((r) => r.type))];
     const given = new Map((await all<{ type: string; n: number }>(
-      `SELECT a.type, COUNT(DISTINCT a.code || '|' || a.placement) n FROM awards a WHERE a.season = ? AND a.type IN (${types.map(() => "?").join(", ")}) AND NOT (a.type = 'Winner' AND COALESCE(a.name, '') LIKE '%Leadership%') GROUP BY a.type`,
+      `SELECT a.type, COUNT(DISTINCT a.code) n FROM awards a WHERE a.season = ? AND a.type IN (${types.map(() => "?").join(", ")}) AND (a.type IN ('Winner', 'Finalist') OR a.placement = 1) AND NOT (a.type = 'Winner' AND COALESCE(a.name, '') LIKE '%Leadership%') GROUP BY a.type`,
       [season, ...types])).map((x) => [x.type, Number(x.n)]));
     const order = types.sort((a, b) => (given.get(a) ?? 0) - (given.get(b) ?? 0) || a.localeCompare(b));
     const rarest = order[0], xs = inScope.filter((r) => r.type === rarest);
     return {
       ...base, title: `The rarest award ${whose} won, ${when}`,
-      headline: { value: awardName(rarest), label: `given ${count(given.get(rarest) ?? 0, "time")} anywhere in ${when}`, sub: note || `won by ${[...new Set(xs.map(teamLabel))].join(", ")}` },
+      headline: { value: awardName(rarest), label: `given ${count(given.get(rarest) ?? 0, "time")} anywhere in ${when}`, sub: `won by ${[...new Set(xs.map(teamLabel))].join(", ")}` },
       blocks: [
         { kind: "table", title: "Each award they won, rarest first", columns: [{ key: "award", label: "Award" }, { key: "given", label: "Given anywhere", num: true }, { key: "won", label: `Won by ${who}`, num: true }],
           rows: order.map((ty) => ({ cells: { award: awardName(ty), given: given.get(ty) ?? 0, won: inScope.filter((r) => r.type === ty).length }, strong: ty === rarest })) },
         table(xs, `${awardName(rarest)}: ${who}`),
       ],
-      definition: `Rarest: the award given the fewest times that season across every event (each event and place once). ${rule}`,
+      definition: `Rarest: the award given the fewest times that season across every event (its 1st place, once per event). ${rule}`,
     };
   }
   // A list, or whether any won: newest first, or by a board stat that season.
@@ -218,12 +224,12 @@ export async function placeAwardsAnswer(ask: PlaceAwardsAsk): Promise<StatAnswer
   if (ask.mode === "any") {
     const t2 = `Did any team${ask.place ? ` from ${ask.place.name}` : ""} win ${ask.types.length === 1 ? `the ${what}` : what}${at} in ${when}?`;
     if (!xs.length) return { ...base, title: t2, headline: { value: "No", label: `no ${what} won by ${whose}${at} in ${when}` }, blocks: [], definition: rule };
-    return { ...base, title: t2, headline: { value: "Yes", label: `${count(teams, "team")}, ${count(xs.length, "award")}`, sub: note || undefined }, blocks: [table(xs, "Each one, newest first", extra)], definition: rule };
+    return { ...base, title: t2, headline: { value: "Yes", label: `${count(teams, "team")}, ${count(xs.length, "award")}` }, blocks: [table(xs, "Each one, newest first", extra)], definition: rule };
   }
   if (!xs.length) return none(`No ${what} won by ${whose}${at} in ${when} in the published awards.`);
   return {
     ...base, title: `${title}, ${when}`,
-    headline: { value: count(xs.length, ask.types.length === 1 ? awardName(ask.types[0]) : "award", ask.types.length === 1 ? awardsName(ask.types[0]) : "awards"), label: `won by ${count(teams, "team")} from ${ask.place?.name ?? "anywhere"}${at}`, sub: note || (ask.by ? `By ${BY[ask.by].label} that season` : "Newest first") },
+    headline: { value: count(xs.length, ask.types.length === 1 ? awardName(ask.types[0]) : "award", ask.types.length === 1 ? awardsName(ask.types[0]) : "awards"), label: `won by ${count(teams, "team")} from ${ask.place?.name ?? "anywhere"}${at}`, sub: (ask.by ? `By ${BY[ask.by].label} that season` : "Newest first") },
     blocks: [table(xs, ask.by ? `By ${BY[ask.by].label}` : "Newest first", extra)],
     definition: rule,
   };
