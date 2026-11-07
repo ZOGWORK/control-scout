@@ -285,7 +285,8 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   }
   // One-word awards beside an award word: "design award", "12345 think awards".
   if (symbols.has("metric:award")) {
-    for (const t of toks) if (!t.used && AWARD_ONE_WORD.has(t.w)) { p.award = AWARD_ONE_WORD.get(t.w)!; t.used = true; }
+    // A winner word beside an award named ("12345 inspire winner") is winning that award, never the Winning Alliance.
+    for (const t of toks) if (!t.used && AWARD_ONE_WORD.has(t.w)) { const v = AWARD_ONE_WORD.get(t.w)!; if (!(v === "Winner" && p.award)) p.award = v; t.used = true; }
   }
 
   // 4. The words left, in runs: an event's name, a place, or a team's name typed nearly right.

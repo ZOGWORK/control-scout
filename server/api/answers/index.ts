@@ -373,7 +373,12 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
     const f = readTeamFact(q);
     return f ? factSearch(q, f, resolve, opts) : null;
   }
-  if (it.noTeam) return winnersSearch(q, it, opts);
+  if (it.noTeam) {
+    const won = await winnersSearch(q, it, opts);
+    // A winner word beside a name that's no event's ("<team> champion", "<team> winner"): that team's event wins.
+    if (won || !it.bare) return won;
+    return statAnswerOf(q, { ...it, id: "event-wins", family: "awards", noTeam: false, bare: false }, resolve, opts);
+  }
   return statAnswerOf(q, it, resolve, opts);
 }
 

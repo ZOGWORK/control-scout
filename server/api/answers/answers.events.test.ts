@@ -104,6 +104,20 @@ describe("awards", () => {
     const inspire = w.stat!.blocks.find((b) => b.kind === "links" && b.title === "Inspire Award");
     if (inspire && inspire.kind === "links") for (const i of inspire.items) expect(i.sub).toBe("1st-place Inspire");
   });
+  // Failed searches "<team> champion", "<team> winner": a winner word beside a team (its name or its number), with no
+  // event of that name, is the team's event wins; beside an award named, winning that award. Held out: other teams,
+  // words and awards.
+  it("a team's name or number with a winner word: its event wins; with an award named, that award", async () => {
+    for (const q of ["Ultraviolet champions", "critical mass winners", "207 champion"]) {
+      const a = await searchAnswer(q, { limit: 25, full: true });
+      expect(a.intent?.kind, q).toBe("stat-event-wins");
+    }
+    expect((await searchAnswer("Ultraviolet champions", { limit: 25, full: true })).stat!.headline).toMatchObject({ label: "2 1st-place finishes · 0 Inspire Awards" });
+    expect((await searchAnswer("4215 inspire winner", { limit: 25, full: true })).intent?.kind).toBe("stat-inspire-awards");
+    expect(readStatQuestion("207 winner")).toMatchObject({ id: "event-wins", core: "207" });
+    // A season or a place said with the number stays the team's other answers ("12345 worlds winner": its Worlds results).
+    expect((await searchAnswer("6980 worlds winner", { limit: 25, full: true })).intent?.kind).not.toBe("stat-event-wins");
+  });
   it("counts and the judged/performance split", async () => {
     expect((await searchAnswer("4215 Inspire awards count", { limit: 25 })).stat!.headline).toMatchObject({ value: "1 Inspire Award", label: "plus 1 2nd- or 3rd-place Inspire" });
     expect((await searchAnswer("4215 finalist finishes", { limit: 25 })).stat!.headline).toMatchObject({ value: "1 finalist finish" });

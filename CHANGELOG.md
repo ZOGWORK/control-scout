@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.9.1 — 2026-11-07
+
+A team's name or number with "champion" or "winner" answers with its event wins, and "<team> inspire winner" with its Inspire Awards.
+
+### Highlights
+- [fixes] "<team> champion" lists the team's event wins
+- [fixes] "<team> winner" by name or number, the same answer
+- [fixes] "<team> inspire winner" is its Inspire Awards
+
+### Search
+- **A team's wins, asked as a title.** A winner word beside a team (its name, or its number with nothing else) is its event wins once no event goes by that name; beside an award named, it's winning that award, never the Winning Alliance. (#PR)
+
+
 ## 3.9.0 — 2026-11-07
 
 On an event day before the schedule is out, the LIVE box says it's waiting for the schedule. It no longer says your teams are done, and it names only your teams that are at the event.
