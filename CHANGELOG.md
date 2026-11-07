@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.0.7 — 2026-11-07
+
+"The best in New Jersey" with no "teams" word, and short words for now, read as the region's top teams this season.
+
+### Highlights
+- [rankings] "Best in <state>" with no "teams" word answers
+- [rankings] "rn", "atm" and "at the moment" read as this season
+- [rankings] Same card as "best teams in <state>"
+
+### Search
+- **The best in a place.** "Best in New Jersey", "top 5 in Texas" and "the strongest in Ontario" give that region's top teams this season, the same card as "best teams in New Jersey". Only a region counts after "in", so "best in show" stays a name search. "rn", "atm" and "at the moment" read as this season, like "right now". (#1156)
+
 ## 4.0.6 — 2026-11-07
 
 Search answers a team's own listing asked as a yes-or-no question. "Is 23786 MakEMinds a rookie team or old" shows the team's rookie year, "is delta force actually from romania or what" shows where it's from, and "does 23268 have any sponsors listed on their team page" shows its sponsors, instead of the bare team card.
