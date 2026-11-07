@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.8.8 — 2026-11-07
+
+Matches asked for in order ("highest scoring first"), "what happened last weekend" and finished events each get their answer.
+
+### Highlights
+- [fixes] "Matches from yesterday, highest scoring first" lists the top scores
+- [fixes] "What happened last weekend" shows that weekend's highlights
+- [fixes] "Finished events" lists events that are over
+
+### Search
+- **Order, said in words.** "Highest scoring first", "top first", "lowest first" read as the sort they ask for, never as a team's first match; "what happened" with a time or a place and no team reads as that scope's highlights; finished, completed and ended events are past events. (#1073)
+
 ## 3.8.7 — 2026-11-07
 
 Asked for the team with the most matches, events or awards, search answers with that count's leaderboard, its leader first: "which team in New Jersey has the most awards", "most matches played in Ohio".
