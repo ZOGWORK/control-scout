@@ -379,16 +379,21 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
 
 /** `core` with the words typed just before it that a question's frame drops ("team", "the", "ftc") put back, when
  *  with them it's a team's name or one slip from just one ("team sealth" is Team Stealth, not a team named "Stealth…"). */
-async function withLead(q: string, core: string): Promise<string> {
+async function withLead(q: string, core: string): Promise<{ core: string; near?: string }> {
   const esc = core.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const m = esc && new RegExp(`(?:^|\\s)((?:(?:the|team|ftc)\\s+)+)${esc}(?=\\s|$)`).exec(q.toLowerCase());
-  if (!m) return core;
+  // A team's number ("team 14471") or a name of its own stands as it is.
+  if (!m || /^\d+$/.test(core.trim())) return { core };
   const idx = await names();
+  const own = idx.teamsNamed(core).length > 0;
   for (let lead = m[1].trim().split(/\s+/); lead.length; lead = lead.slice(1)) {
     const named = `${lead.join(" ")} ${core.trim()}`;
-    if (idx.teamsNamed(named).length || idx.nearTeam(named)) return named;
+    if (idx.teamsNamed(named).length) return { core: named };
+    // One slip from a name: read as that name, and said so ("Did you mean team stealth record").
+    const near = own ? null : idx.nearTeam(named);
+    if (near?.name) return { core: near.name.toLowerCase(), near: named };
   }
-  return core;
+  return { core };
 }
 
 /** Whether `core` is a place's name alone: a country, or a state or province. */
@@ -397,7 +402,8 @@ const placeNamed = (core: string) => !/\d/.test(core) && (!!countryOf(core) || !
 /** The answer to a stat question already read (by ./read.ts, or by the search pipeline from its slots), or null when
  *  its team isn't found. */
 export async function statAnswerOf(q: string, it0: StatQuestion, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
-  const it = { ...it0, core: await withLead(q, it0.core) };
+  const lead = await withLead(q, it0.core);
+  const it = { ...it0, core: lead.core };
   // A place's name beside states or a championship is the place's championship ("romania states results"), never a team
   // with the place in its name: a team there only by its number or its whole name.
   if ((it.scope.states || it.scope.championship || /\bchampionships?\b/i.test(q)) && placeNamed(it.core) && !(await names()).teamsNamed(it.core).length) return null;
@@ -423,11 +429,13 @@ export async function statAnswerOf(q: string, it0: StatQuestion, resolve: Resolv
   const linkSeason = scope.season ?? scope.event?.season;
   const hit: SearchHit = { ...top, section, ...(linkSeason != null ? { linkSeason } : {}), facts: undefined, events: undefined };
   // A team found by a correction ("hypnotc") keeps search's warning, said for the whole question.
-  const guessed = base.step === "did-you-mean";
   const said = q.toLowerCase();
+  // A name put back with its lead word and corrected (withLead): the correction is said for the whole question.
+  const fixed = lead.near && said.includes(lead.near) ? said.replace(lead.near, it.core) : undefined;
+  const guessed = base.step === "did-you-mean" || !!fixed;
   const answer: SearchAnswer = {
     q, hits: [hit, ...base.hits.slice(1).filter((h) => !(h.kind === "team" && h.ref === top.ref))], pages: opts.pages, step: guessed ? "did-you-mean" : "deterministic", weak: guessed && base.weak,
-    ...(guessed && base.didYouMean ? { didYouMean: said.includes(it.core) ? said.replace(it.core, base.didYouMean) : base.didYouMean } : {}),
+    ...(fixed ? { didYouMean: fixed } : guessed && base.didYouMean ? { didYouMean: said.includes(it.core) ? said.replace(it.core, base.didYouMean) : base.didYouMean } : {}),
     understood: { kind: "question", label, ...(linkSeason != null ? { season: linkSeason } : {}) },
     intent: { kind: `stat-${it.id}`, pattern: `[team] ${it.id}${scope.event ? " [event]" : ""}${it.scope.championship ? " [worlds]" : ""}${scope.season != null ? " [season]" : ""}`, met: true, understood: [`Team ${whoOf(team)}`, title] },
   };
