@@ -25,7 +25,7 @@ How right the engine's predictions were is a question search answers: a team's m
 - [predict] "Most accurate prediction this season" finds the closest calls
 
 ### Search
-- **Predictions against results.** A match's miss is how far the saved call's margin (live, else its replay) was from the real one, without penalties. "<team>'s most unpredictable match", "where the prediction was most wrong" and "biggest prediction misses in <place>" rank furthest off first; "most accurate prediction" ranks closest first.
+- **Predictions against results.** A match's miss is how far the saved call's margin (live, else its replay) was from the final one, penalties included, as the accuracy page measures it. "<team>'s most unpredictable match", "where the prediction was most wrong" and "biggest prediction misses in <place>" rank furthest off first; "most accurate prediction" ranks closest first.
 - **A floor in points.** "More than 50 points", "over 100 pts" is a number of points, never a team, and keeps only the misses over it. (#1077)
 
 ## 3.9.5 — 2026-11-07

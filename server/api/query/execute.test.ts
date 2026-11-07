@@ -424,6 +424,12 @@ describe("the match finder: matches by a measure, every filter applied and state
     await run("DELETE FROM predictions WHERE kind = 'late'");
     // Everyone's: the closest call first.
     expect(await stat("most accurate prediction in new jersey")).toMatchObject({ intent: "find-accurate", headline: { value: "Off by 20 points", label: expect.stringMatching(/^Q1 /) } });
+    // Like with like, as the accuracy page measures it: the predicted scores carry expected penalties, so the final
+    // scores, penalties included, are what they're held to. 40 penalty points to red in Q1 make it 190–90 against a
+    // 140–100 call: off by 60, now the furthest.
+    await run("UPDATE matches SET red_total = red_total + 40 WHERE season = 2025 AND code = 'USNJQ1' AND number = 1");
+    expect((await stat("4215 biggest prediction miss")).headline).toMatchObject({ value: "Off by 60 points", label: expect.stringMatching(/^Q1 /) });
+    await run("UPDATE matches SET red_total = red_total - 40 WHERE season = 2025 AND code = 'USNJQ1' AND number = 1");
   });
   it("the highest score with no season said: the current one, then the one before, as every place answer", async () => {
     const a = await ask("highest score in new jersey", Date.parse("2026-11-04T12:00:00Z"));

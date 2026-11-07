@@ -66,11 +66,13 @@ const CHANCE = (side: "red" | "blue") => {
   const red = `COALESCE(${p("live")}, ${p("backtest")})`;
   return side === "red" ? red : `(1 - ${red})`;
 };
-/** How far the engine's predicted margin (red less blue, without penalties) was from the real one: its call saved live
- *  before the match, else its replay with only earlier matches; a call with no score basis is left out. */
+/** How far the engine's predicted margin (red less blue) was from the real one, like with like as the ledger's accuracy
+ *  figures measure it (./accuracy.ts callMargin): the predicted scores carry the penalties each side is expected to
+ *  draw, so the real margin is the final scores', penalties included. Its call saved live before the match, else its
+ *  replay with only earlier matches; a call with no score basis is left out. */
 const MISS = `ABS((SELECT p.red_mean - p.blue_mean FROM predictions p WHERE p.season = m.season AND p.code = m.code AND p.level = m.level AND p.series = m.series AND p.number = m.number
-  AND p.kind IN ('live', 'backtest') AND p.no_score_basis = 0 ORDER BY p.kind = 'live' DESC LIMIT 1) - (m.red_np - m.blue_np))`;
-const MISS_RULE = "a prediction's miss is how far the engine's predicted margin (red less blue, without penalties) was from the real margin without penalties: the call saved before the match, else its replay with only earlier matches";
+  AND p.kind IN ('live', 'backtest') AND p.no_score_basis = 0 ORDER BY p.kind = 'live' DESC LIMIT 1) - (m.red_total - m.blue_total))`;
+const MISS_RULE = "a prediction's miss is how far the engine's predicted margin (red less blue, with the penalties each side was expected to draw) was from the final margin, penalties included, as the accuracy page measures it: the call saved before the match, else its replay with only earlier matches";
 /** An alliance's summed season prediction ratings (the upset rule's fallback when no call was saved). */
 const RATING = (side: "red" | "blue") => `(SELECT SUM(s.rating_np) FROM match_teams x JOIN team_season_stats s ON s.season = x.season AND s.team = x.team
   WHERE x.season = m.season AND x.code = m.code AND x.level = m.level AND x.series = m.series AND x.number = m.number AND x.alliance = '${side}' AND x.on_field = 1)`;
