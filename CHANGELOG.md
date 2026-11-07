@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.8.6 — 2026-11-07
+
+A question ending with what it is not asking ("…, not just one number", "in 2024-25, not this season") is answered for what it is asking.
+
+### Highlights
+- [fixes] "…, not just one number" no longer stops an answer
+- [fixes] "in 2024-25, not this season" reads 2024-25
+- [fixes] "teams in Ohio, not rookies" keeps its filter
+
+### Search
+- **What isn't asked, left out.** A comma clause "not just …", "not only …" or "not" and a season goes, and the rest of the question is answered; any other "not" clause is a filter and stays. (#1031)
+
 ## 3.8.5 — 2026-11-07
 
 Two teams are read in more ways: "have 4215 and 207 played each other", "the OPR gap between 7149 and 23268", "is 4215 better than 7149 at endgame" and "if 4215 played 7149, who would win" each get their side-by-side answer.
