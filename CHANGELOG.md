@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.9.2 — 2026-11-07
+
+A margin can be asked exactly: "which match did 8902 lose by 1 point".
+
+### Highlights
+- [fixes] "Which match did 8902 lose by 1 point" lists those matches
+- [fixes] None at that margin shows the closest one instead
+- [fixes] The number in "by 1 point" is never read as a team
+
+### Search
+- **A margin said exactly.** "Lose, lost, won or beat … by N points" lists the team's matches decided by exactly that margin, latest first; with none, the card says so and gives the closest such result. (#1112)
+
 ## 3.9.1 — 2026-11-07
 
 A team's next event asked about as a forecast, and "will <team> win <event>", answer with the engine's own projection for that event.

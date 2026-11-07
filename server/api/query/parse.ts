@@ -63,6 +63,8 @@ export interface Parsed {
   undefeated?: boolean;
   /** A name asked about as words ("teams named <name>"): the words, never read as a team. */
   named?: { words: string; typed: string };
+  /** A margin said exactly ("lost by 1 point", "won by 10"): the team's matches decided by it. */
+  margin?: number;
   /** Every word explained and an intent found. */
   complete: boolean;
 }
@@ -141,9 +143,18 @@ function keptName(words: string[], ctx: ParseContext, timeOnly: (w: string[]) =>
   return null;
 }
 
+/** "Lose by 1 point", "won by exactly 10 points": the margin, and the query without "by …" (its verb stays, saying
+ *  win or loss). Its number is never a team. */
+const MARGIN_RE = /(?<=\b(?:lose|lost|loses|losing|win|won|wins|winning|beat|beaten|decided)(?: \S+){0,2}) by (?:exactly |just |only )?(\d{1,3}) (?:points?|pts)(?= |$)/;
+export function marginOf(q: string): { margin: number; rest: string } | null {
+  const m = MARGIN_RE.exec(q);
+  return m ? { margin: Number(m[1]), rest: `${q.slice(0, m.index)} ${q.slice(m.index + m[0].length)}`.replace(/\s+/g, " ").trim() } : null;
+}
+
 /** Parses `raw`. */
 export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed> {
-  const q = normalise(raw);
+  const by = marginOf(normalise(raw));
+  const q = by ? by.rest : normalise(raw);
   const typedWords = raw.replace(/[?!,;:()"]/g, " ").split(/\s+/).filter(Boolean);
   // The other team numbers typed: a limit ("last 5") or a match's number ("match 3") is never a team.
   const words0 = q.split(" ");
@@ -169,10 +180,11 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     if (k >= 0) at = k + 1;
     return { w, typed: k >= 0 ? typedWords[k] : w, used: false };
   });
-  const symbols = new Set<string>();
+  const symbols = new Set<string>(by ? ["margin:exact"] : []);
   const p: Parsed = {
     q: raw, teams: [], event: null, place: null, time, level: null, finals: false, eventKind: null, alliance: null, worlds: false, states: false, award: null, agg: null,
     n: null, matchNumber: null, noPenalties: false, symbols: [], intent: null, rule: null, leftover: [], unexplained: [], complete: false,
+    ...(by ? { margin: by.margin } : {}),
   };
   const lexAt = (i: number) => LEXICON.find((e) => e.words.every((w, j) => toks[i + j] && !toks[i + j].used && toks[i + j].w === w));
   const isLex = (w: string) => LEX_WORDS.has(w) || AWARD_ONE_WORD.has(w);

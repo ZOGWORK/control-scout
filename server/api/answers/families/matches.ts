@@ -83,7 +83,7 @@ export function counts(id: IntentId, m: TeamMatch): boolean {
 }
 
 /** The answer for a match-set intent, or null when `id` isn't one of these families' match intents. */
-export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch[], scope: Scope, opts: { leadEvent?: boolean; n?: number | null; outcome?: "W" | "L" | null; perEvent?: boolean }): Promise<StatAnswer | null> {
+export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch[], scope: Scope, opts: { leadEvent?: boolean; n?: number | null; outcome?: "W" | "L" | null; perEvent?: boolean; margin?: number }): Promise<StatAnswer | null> {
   const ms = pool(id, all, scope);
   const who = whoOf(team), where = scopePhrase(scope);
   const base = { team, scope: scopeChips(scope), source: sourceOf(ms) };
@@ -147,6 +147,26 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
         : id === "biggest-loss" ? ms.filter((m) => m.result === "L").sort((a, b) => margin(a) - margin(b))
         : ms.filter((m) => !opts.outcome || m.result === opts.outcome).sort((a, b) => Math.abs(margin(a)) - Math.abs(margin(b)) || String(b.date).localeCompare(String(a.date)));
       const closest = opts.outcome === "W" ? "Closest win" : opts.outcome === "L" ? "Closest loss" : "Closest match";
+      // A margin said exactly ("lost by 1 point"): the matches decided by it, latest first; none, and the closest is said.
+      if (id === "closest-match" && opts.margin != null) {
+        const by = opts.margin, pts = `${by} point${by === 1 ? "" : "s"}`;
+        const verb = opts.outcome === "W" ? "Won" : opts.outcome === "L" ? "Lost" : "Decided";
+        const hits = xs.filter((m) => Math.abs(margin(m)) === by).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+        const title = `${verb} by ${pts}${where}`;
+        const def = `Margin: the gap between the two alliances' official scores, penalties included; only matches decided by exactly ${pts}${opts.outcome ? ` that ${who} ${opts.outcome === "W" ? "won" : "lost"}` : ""}, the latest first. ${RESULT_RULE}`;
+        if (!hits.length) {
+          const near = xs[0];
+          const noun = opts.outcome === "W" ? "win" : opts.outcome === "L" ? "loss" : "match";
+          return { ...base, family: "superlative", intent: id, title, blocks: near ? [matchesBlock(opts.outcome === "W" ? "Closest wins" : opts.outcome === "L" ? "Closest losses" : "Closest matches", xs.slice(0, 5))] : [], definition: def,
+            none: near ? `${who} has no ${noun} by exactly ${pts}${where}. Its closest ${noun} was by ${Math.abs(margin(near))}: ${near.own}–${near.opp} in ${near.label} at ${near.event}.` : none(opts.outcome === "W" ? "wins" : opts.outcome === "L" ? "losses" : "matches") };
+        }
+        const top = hits[0];
+        return {
+          ...base, family: "superlative", intent: id, title,
+          headline: { value: `${hits.length} match${hits.length === 1 ? "" : "es"}`, label: `Latest: ${top.own}–${top.opp} in ${top.label} at ${top.event}`, sub: [seasonLabel(top.season), row(top).date].filter(Boolean).join(" · "), href: row(top).href },
+          blocks: [matchesBlock(`${verb} by ${pts}`, hits.slice(0, 10))], definition: def,
+        };
+      }
       const title = id === "biggest-win" ? `Biggest win${where}` : id === "biggest-loss" ? `Biggest loss${where}` : `${closest}${where}`;
       // A biggest margin is points too: one season's, each season's listed below (a closest gap compares fine).
       const { xs: pick, note } = id === "closest-match" ? { xs, note: "" } : latestOnly(xs);

@@ -170,7 +170,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
       id, family: d.family, defaultSeason: d.alone && !named ? d.alone : d.season, scope,
       leadEvent: id === "highest-score" && p.symbols.includes("thing:event"),
       n: id === "match-lookup" ? p.matchNumber : p.n ?? (id === "last-matches" ? 5 : null), outcome: OUTCOME_IDS.has(id) ? outcome : null,
-      count: p.agg === "count", noTeam: false, core: String(team.number),
+      count: p.agg === "count", noTeam: false, core: String(team.number), ...(p.margin != null && id === "closest-match" ? { margin: p.margin } : {}),
       ...(p.award && (id === "awards" || id === "total-awards") ? { award: p.award } : {}),
       ...(AWARD_LISTS.has(id) && (p.agg === "first" || p.agg === "last") ? { pick: p.agg === "first" ? "first" : "latest" } : {}),
       // "How many penalty points", "in total": the total first; "per match" said with it is the per-match figure; a trend

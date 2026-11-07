@@ -225,6 +225,8 @@ export interface StatQuestion {
   n: number | null;
   /** "closest win", "current losing streak": the result asked about (null: any). */
   outcome: "W" | "L" | null;
+  /** "lost by 1 point": the matches decided by exactly this margin (a closest-match question). */
+  margin?: number;
   /** "how many inspire awards", "event wins count": a count, not the list. */
   count: boolean;
   /** "12345 design award", "12345 winning alliance awards": the one award asked about (its awards.type). */
