@@ -2,7 +2,9 @@
 // whole league's running standing (2026 USNJNEM2 the day before: 33 ranked, 13 listed).
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { firstEventBundle } from "./first";
-import { MIGRATIONS, all, migrate, openDb, run, setDb } from "../db";
+import { MIGRATIONS, all, migrate, openDb, run, setDb, writeBatch } from "../db";
+import { bundleStatements } from "../data/bundle";
+import { ROSTER } from "../data/registrations";
 import type { EventRow } from "../data/bundle";
 
 const META: EventRow = {
@@ -83,6 +85,38 @@ describe("an event's teams in the FIRST bundle", () => {
   it("elsewhere the list still decides: a ranked team FIRST doesn't list is not at the event", async () => {
     stubFirst([4215, 6980]);
     expect((await firstEventBundle({ ...META, type: "Qualifier" })).detail!.entries.map((e) => e.team)).toEqual([4215, 6980]);
+  });
+});
+
+describe("the stored list after a FIRST fetch", () => {
+  afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+  const roster = async () => (await all<{ team: number }>(`SELECT team FROM ${ROSTER} r WHERE season = 2026 AND code = 'USNJNEM2' ORDER BY team`)).map((r) => Number(r.team));
+
+  it("replaces the registrations too: a list FIRST emptied stays empty, never the older one", async () => {
+    const c = openDb("file::memory:");
+    setDb(c);
+    await migrate(c);
+    stubFirst([4215, 6980]);
+    await writeBatch(bundleStatements(await firstEventBundle(META)));
+    expect(await roster()).toEqual([4215, 6980]);
+    // An older registrations read (before the meet's first fetch) is replaced, not kept.
+    await run("INSERT INTO event_registrations (season, code, team, fetched_at) VALUES (2026, 'USNJNEM2', 207, 'x')");
+    stubFirst([]);
+    await writeBatch(bundleStatements(await firstEventBundle(META)));
+    expect(await roster()).toEqual([]);
+    c.close();
+  });
+
+  it("leaves an AM/PM pair's shared list as it is", async () => {
+    const c = openDb("file::memory:");
+    setDb(c);
+    await migrate(c);
+    await run("INSERT INTO events (season, code, name, type, start, end, source, synced_at) VALUES (2026, 'USNJNEM2', 'M', 'LeagueMeet', '2026-11-07', '2026-11-07', 'first', 'x')");
+    await run("INSERT INTO event_registrations (season, code, team, fetched_at, shared) VALUES (2026, 'USNJNEM2', 4215, 'x', 1)");
+    stubFirst([4215], [], { USNJNEM3: [] });
+    await writeBatch(bundleStatements(await firstEventBundle(META, { pair: "USNJNEM3" })));
+    expect(await all("SELECT team, shared FROM event_registrations")).toEqual([{ team: 4215, shared: 1 }]);
+    c.close();
   });
 });
 

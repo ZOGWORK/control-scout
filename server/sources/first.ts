@@ -335,7 +335,7 @@ export async function firstEventBundle(meta: EventRow, o: { pair?: string } = {}
     };
   }
 
-  return { event: meta, teams: participants ?? [], detail: { entries, matches, alliances: allianceRows, awards: awardRows, advancement: adv, advancementPoints: advancementPointRows(advPoints) } };
+  return { event: meta, teams: participants ?? [], registrations: own?.map((t) => t.number), detail: { entries, matches, alliances: allianceRows, awards: awardRows, advancement: adv, advancementPoints: advancementPointRows(advPoints) } };
 }
 
 /**
