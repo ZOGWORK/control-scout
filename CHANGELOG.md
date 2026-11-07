@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.8.7 — 2026-11-07
+
+A team's quality asked in plain words gets its season's OPR, rank and record: "is 23268 actually that good or just hype", "can u tell me if bad wolf is good, be honest" and "whats up with ultraviolet, are they cracked" no longer end on the bare team card or no match.
+
+### Highlights
+- [fixes] "Is 23268 actually that good or just hype" shows its numbers
+- [fixes] "Can u tell me if bad wolf is good" shows OPR, rank, record
+- [fixes] "Did hypnotic robotics choke at states" shows its states results
+
+### Search
+- **Plain-language team questions.** "Is <team> actually that good", "can you tell me if <team> is good", "whats up with <team>, are they cracked" and "how good is <team> really" read as "how good is <team>", the season said kept; "did <team> choke (or flop, or do well) at <event>" reads as how it did there; "show me <team> in 2023, if they played then" is that season. Asides such as "or just hype", "or nah", "be honest" and "like in plain numbers" are left out. (#PR)
+
 ## 3.8.6 — 2026-11-07
 
 A question ending with what it is not asking ("…, not just one number", "in 2024-25, not this season") is answered for what it is asking.
