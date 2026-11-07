@@ -117,6 +117,35 @@ describe("test 16: each intent returns its stated surface", () => {
     expect(a.card!.awards!.filter((x) => x.type === "Inspire").map((x) => [x.placement, x.team])).toEqual([[1, 23268], [2, 4215]]);
     expect(a.card!.awards![0].type).toBe("Inspire");
   });
+  it("Predict itself: a lineup of your own is Custom matchup, picking predictions out is Scheduled matches", async () => {
+    for (const q of ["can i see the odds for teams i choose", "do the predicted scores change if i swap the teams", "who would win a hypothetical match"]) {
+      expect(readAsk(q), q).toEqual({ kind: "predict-lineup" });
+    }
+    const lineup = await ask("can i get a prediction for a match that has not been played yet");
+    expect(lineup.pages[0]).toEqual({ title: "Predict: Custom matchup", href: "/predict?mode=match" });
+    expect(lineup.understood?.label).toMatch(/^Yes: Predict's Custom matchup takes any teams/);
+    expect(readAsk("how do i sort predictions by team")).toEqual({ kind: "predict-filter" });
+    const filter = await ask("is there a way to filter the forecasts by event");
+    expect(filter.pages[0]).toEqual({ title: "Predict: Scheduled matches", href: "/predict?mode=scheduled" });
+    expect(filter.understood?.label).toMatch(/not by date/);
+    // A team named is that team's question, never Predict's help.
+    expect(readAsk("can i filter 4215 predictions")?.kind).not.toBe("predict-filter");
+  });
+  it("a team's predictions page: its matches in Predict; a day's calls: that day's events", async () => {
+    const team = await ask("ultraviolet prediction settings");
+    expect(team.hits[0]).toMatchObject({ kind: "team", ref: "23268" });
+    expect(team.pages[0]).toEqual({ title: "Predict Ultraviolet's matches", href: "/predict?mode=scheduled&for=team:23268" });
+    expect(readAsk("predictions for todays matches")).toEqual({ kind: "predict-day", day: "today" });
+    const none = await ask("tomorrow's matches predictions");
+    expect(none.understood?.label).toMatch(/^Tomorrow \(.+\): no event has matches then/);
+    const day = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'USNJQ9', 'Garden Qualifier', 'Qualifier', 'Union', 'NJ', 'USA', ?, ?, 't')", [CURRENT_SEASON, day, day]);
+    const one = await ask("show me predictions for tomorrows matches");
+    expect(one.understood?.label).toMatch(/^Tomorrow \(.+\): 1 event with matches/);
+    expect(one.hits[0]).toMatchObject({ kind: "event", ref: `${CURRENT_SEASON}:USNJQ9` });
+    expect(one.pages[0]).toEqual({ title: "Predict: Garden Qualifier", href: `/predict?mode=scheduled&for=event:${CURRENT_SEASON}:USNJQ9` });
+    await run("DELETE FROM events WHERE code = 'USNJQ9'");
+  });
   it("how are predictions calculated: the methodology page in the Pages group", async () => {
     const a = await ask("how are predictions calculated");
     expect(a.pages[0]).toEqual({ title: "How predictions are calculated", href: "/methodology" });
