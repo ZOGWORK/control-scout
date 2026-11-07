@@ -46,7 +46,7 @@ const evRank = (e: TeamEvent) => (e.rank != null ? `#${e.rank}${e.of ? ` of ${e.
 const listPlace = (c: ListQuestion, city: string | null) => (c.region ? `in ${c.region.name}` : c.country ? `in ${c.country.name}` : city ? `from ${city}` : "worldwide");
 /** A count a list filters by: the season's matches played or wins, as the team page counts them. */
 const COUNTS: Record<string, BoardStat> = {
-  matches: { id: "matches", label: "Matches played", sql: "s.matches", unit: "", teamsSort: null, digits: 0 },
+  matches: BOARD_STATS.matches,
   wins: { ...BOARD_STATS.wins, label: "Wins" },
 };
 const listStat = (id: string): BoardStat => COUNTS[id] ?? BOARD_STATS[id];

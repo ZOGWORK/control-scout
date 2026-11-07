@@ -144,7 +144,8 @@ function readList(q: string): CompoundQuestion | null {
     thresholds.push({ stat: /^w/.test(c[5]) ? "wins" : "matches", op: c[2] ? opOf(c[2]) : "ge", value: Number(c[3]) });
   }
   const out = take(new RegExp(String.raw`\b(?:and|with|plus|showing)\s+(?:their|its|the)\s+${STAT}(?:\s+(?:and|&)\s+${STAT})?\s*$`));
-  if (!award && !ws && !thresholds.length && !rookie) return null;
+  // Rookies alone are the rookie leaderboard's ("best rookie team in new jersey"): a list here needs another filter.
+  if (!award && !ws && !thresholds.length) return null;
   // The words that joined a clause go with it; "list them all" and "worldwide" add nothing.
   rest = rest.replace(/(?:\b(?:and|but|who|that|which|also|already)\s+)*¦(?:\s+(?:and|but)\b)*/g, " ")
     .replace(/\b(?:list|show)\s+(?:them|all\s+of\s+them)(?:\s+all)?\s*$|\b(?:worldwide|world\s+wide|globally|in\s+the\s+world)\b/g, " ");

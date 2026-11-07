@@ -235,6 +235,8 @@ describe("a team list's filters, however they're said", () => {
     // A year is never a threshold, nor a count with no comparison or verb.
     expect(readCompound("top 10 teams by opr 2025")).toBeNull();
     expect(readCompound("10 teams in nj")).toBeNull();
+    // Rookies alone stay the rookie leaderboard's.
+    expect(readCompound("Best rookie team in New Jersey")).toBeNull();
   });
   it("reads Worlds gone to or not, rookies and an award named before the teams", () => {
     expect(readCompound("teams with OPR over 120 who did NOT make worlds")).toMatchObject({ kind: "list", worlds: false, noWorlds: true, thresholds: [{ stat: "opr", op: "gt", value: 120 }] });
