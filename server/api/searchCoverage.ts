@@ -661,7 +661,8 @@ export async function eventPageAnswer(q: string, prefer: ReadonlySet<string>, no
   rest = rest.replace(/\bdiv(?:i?si?|is)on\b/g, "division");
   const worlds = /^(?:the\s+)?(?:worlds|first championship|world championships?)$/.test(rest);
   const ev: EventQuery | null = worlds ? { kinds: ["worlds"], time: null, year: null, season: null, region: null, where: null, words: [], allSeasons: true } : readEventQuery(rest);
-  const set = ev ? await eventSetAnswer(rest, ev, { now }) : null;
+  // One of the kind asked: never another kind listed in its place.
+  const set = ev ? await eventSetAnswer(rest, ev, { now, sameKind: true }) : null;
   const today = new Date(now ?? Date.now()).toISOString().slice(0, 10);
   // An event by its own name ("jackson division q12", "worlds jackson division q12"), when the words name a kind of
   // event and the event readers found none: search's events by name.

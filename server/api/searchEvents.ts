@@ -276,7 +276,8 @@ const singular = (label: string) => label.replace(/\b(meet|event|tournament|cham
 
 /** The answer for an event set (`q`: the query as typed). `others`: hits to list after the events (a bare region's
  *  teams). */
-export async function eventSetAnswer(q: string, e: EventQuery, opts: { now?: number; others?: SearchHit[] } = {}): Promise<SearchAnswer> {
+/** `sameKind`: never list other kinds of event in place of the kind asked (a caller that opens one of the events). */
+export async function eventSetAnswer(q: string, e: EventQuery, opts: { now?: number; others?: SearchHit[]; sameKind?: boolean } = {}): Promise<SearchAnswer> {
   const now = opts.now ?? Date.now(), today = searchToday(now);
   const label = (o: Parameters<typeof eventSetLabel>[1] = {}) => eventSetLabel(e, { seasonLabel, ...o });
   const window = e.time ? timeWindow(e.time, today) : null;
@@ -297,10 +298,14 @@ export async function eventSetAnswer(q: string, e: EventQuery, opts: { now?: num
     const events = firstCards(rows.map((r) => eventHit(r, now)), room);
     // Every season but more than a page holds: the newest first, how many of them are listed (what the events
     // heading and the All tab count), and the full list one click away.
-    const more = e.allSeasons && events.length < rows.length;
+    // The full list is of the set the rows are: another kind's events when the kind asked was never held.
+    const more = set.allSeasons && events.length < rows.length;
+    const full = !set.region ? null : set.kinds.length
+      ? { title: `Championships in ${set.region.name}, each season: Events`, href: `/events?region=${encodeURIComponent(set.region.key)}&type=Championship` }
+      : { title: `Events in ${set.region.name}, each season: Events`, href: `/events?region=${encodeURIComponent(set.region.key)}` };
     return {
       q, hits: [...[placeFor(rows, events.length, o, set)].filter((h): h is SearchHit => !!h), ...events, ...(opts.others ?? [])],
-      pages: more && e.region ? [{ title: `Championships in ${e.region.name}, each season: Events`, href: `/events?region=${encodeURIComponent(e.region.key)}&type=Championship` }, ...pagesFor(q)] : pagesFor(q),
+      pages: more && full ? [full, ...pagesFor(q)] : pagesFor(q),
       step: "deterministic", weak: false,
       understood: { ...understood, ...(more ? { label: `${understood.label}, the newest ${events.length} of ${rows.length} listed (the full list is on Events)` } : {}), total: rows.length },
     };
@@ -327,12 +332,19 @@ export async function eventSetAnswer(q: string, e: EventQuery, opts: { now?: num
   }
   // A kind of event the place has never held, in any season on record ("meets in <a state with no leagues>"): that is
   // the answer, said plainly, with the place's events of the season asked (this one when none) listed instead.
-  if (e.region && e.kinds.length && !e.words.length && !e.where && !(await rowsFor({ ...e, time: null, season: null, year: null, allSeasons: true }, now)).length) {
-    const instead = await rowsFor({ ...e, kinds: [] }, now, { time: true });
+  if (!opts.sameKind && e.region && e.kinds.length && !e.words.length && !e.where && !(await rowsFor({ ...e, time: null, season: null, year: null, allSeasons: true }, now)).length) {
+    // Its events of the time asked ("upcoming"), else of any date, said so; the place's link counts the set listed.
+    const anyKindSet: EventQuery = { ...e, kinds: [] };
+    const timed = e.time ? await rowsFor(anyKindSet, now) : [];
+    const instead = timed.length ? timed : await rowsFor(anyKindSet, now, { time: true });
+    const set: EventQuery = timed.length || !e.time ? anyKindSet : { ...anyKindSet, time: null };
     const kind = lower(eventSetLabel({ ...e, region: null, time: null, season: null, year: null, allSeasons: false }, { seasonLabel }));
     if (instead.length) {
+      // Dates dropped: the heading drops them too.
       const { eventTypes: _, ...anyKind } = base;
-      return done(instead, { ...anyKind, label: asked, fallback: `${e.region.name} has held no ${kind} in any season on record — showing its events instead` }, {}, { ...e, kinds: [] });
+      const { time: _t, window: _w, ...anyDate } = anyKind;
+      const dates = e.time && !set.time ? " of any date" : "";
+      return done(instead, { ...(set.time ? anyKind : anyDate), label: asked, fallback: `${e.region.name} has held no ${kind} in any season on record — showing its events${dates} instead` }, {}, set);
     }
   }
   // Still nothing. A year named is never swapped for another: say so, with other years' events as closest matches.

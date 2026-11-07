@@ -37,6 +37,17 @@ describe("a kind of event a place has never held", () => {
       expect(a.hits.find((h) => h.kind === "place")?.subtitle ?? "", q).not.toMatch(/meets/);
     }
   });
+  it("says when the dates asked were dropped too", async () => {
+    // Every fixture event is held 1 December, so on 2 December none is upcoming.
+    const a = await searchAnswer("upcoming meets in Vermont", { learn: false, limit: 40, full: true, now: Date.parse(`${S}-12-02T12:00:00Z`) });
+    expect(a.understood?.fallback).toMatch(/showing its events of any date instead$/);
+    expect(a.understood?.time).toBeUndefined();
+    expect(a.hits.filter((h) => h.kind === "event").length).toBe(2);
+  });
+  it("never opens another kind's page in place of the kind asked", async () => {
+    const a = await ask("meets in Vermont rankings");
+    expect(a.hits.some((h) => h.kind === "event" && h.section === "rankings")).toBe(false);
+  });
   it("leaves a place that holds the kind as it was", async () => {
     expect((await ask("meets in New Hampshire")).hits.some((h) => h.ref === `${S}:USNHM1`)).toBe(true);
     // Held in an earlier season only: not "never", so this season's none is not reworded.
