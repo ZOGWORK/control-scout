@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.9.9 — 2026-11-07
+
+A word's explainer that comes with a team's numbers sits inside the same card, so the answer reads as one card.
+
+### Highlights
+- [fixes] "How is OPR calculated, with 4215": one card, numbers then meaning
+- [fixes] A team's stat and what it means are no longer two cards
+- [fixes] The explainer's title isn't repeated under the page's heading
+
+### Search
+- **One answer card.** When a team's stat answer comes with a word's explainer ("what does ranking score mean, for 14450 at …", "why did 4215's rating go down even though they won"), the explainer's lines are drawn inside the stat's card, after its numbers, in the definition card's own look. (#1129)
+
 ## 3.9.8 — 2026-11-07
 
 The LIVE panel shows nothing about matches until the day's first score is out, then times every match from the field.
