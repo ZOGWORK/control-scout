@@ -9,6 +9,11 @@ describe("grade", () => {
     const r = stat({ family: "aggregate", intent: "record", title: "Record in 2025–26", scope: ["2025–26"], headline: { value: "26-6-0" } });
     expect(grade("4215 record in 2025-26", "record", r)).toMatchObject({ verdict: "pass" });
   });
+  // C17: "17670 matches this season" is the season's record (6-0-0) with its matches listed, newest first.
+  it("a season's matches are a record answer", () => {
+    const r = stat({ family: "aggregate", intent: "season-matches", title: "Matches in 2026–27", scope: ["2026–27"], headline: { value: "6-0-0" } });
+    expect(grade("17670 matches this season in 2026-27", "team-match|event|record|when-last", r)).toMatchObject({ verdict: "pass" });
+  });
   it("names the pattern when there is no answer card", () => {
     expect(grade("x", "record", { step: "deterministic", understood: { kind: "team", label: "Team · This isn't answered directly yet" } }).pattern).toBe("team card only (not answered yet)");
     expect(grade("x", "record", { step: "recovery", understood: { kind: "names" } }).pattern).toBe("fallback only");
