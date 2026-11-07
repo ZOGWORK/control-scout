@@ -456,7 +456,7 @@ export function readTeamSet(raw: string): TeamSetQuestion | null {
 /** Family 7: a ranked list ("top 10 teams by OPR in NJ", "best rookie team in New Jersey", "most improved team in
  *  New Jersey") or a city's teams ("teams in Oradell"). */
 export interface LeaderboardQuestion {
-  kind: "top" | "rookie" | "improved" | "city" | "city-best";
+  kind: "top" | "rookie" | "improved" | "gain" | "city" | "city-best";
   /** BOARD_STATS key (families/leaderboard.ts). */
   stat: string;
   n: number;
@@ -546,6 +546,17 @@ export function readLeaderboard(raw: string): LeaderboardQuestion | null {
     // "Won the most matches" is the wins board; "won the most events" is no board here (never events played).
     const stat = m[2] !== "won" || counted === "awards" ? counted : counted === "matches" ? "wins" : null;
     if ((stat === "matches" || stat === "events" || stat === "awards" || (stat === "wins" && counted === "matches")) && region !== false) return { kind: "top", stat, n: 10, region, city: null, season: scope.season, best: true };
+  }
+  // "most improved teams in nj by opr gain", "which nj team improved their opr the most between their first and last
+  // event": the OPR gained within the season, its first event's to its last's.
+  const GAIN = "(?: (?:between|from) (?:its |their |the )?first (?:event )?(?:and|to) (?:its |their |the )?last events?| (?:across|over|during|through|in) the season)?";
+  if ((m = new RegExp(`^(?:the )?(?:top (\\d{1,2}) )?(?:most improved|fastest (?:growing|improving)) ${TEAMS}(?: (?:in|from) (.+?))? by opr (?:gain|growth|improvement)${GAIN}$`).exec(rest))) {
+    const region = place(m[2]);
+    if (region !== false) return { kind: "gain", stat: "opr", n: n(m[1], 10), region, city: null, season: scope.season };
+  }
+  if ((m = new RegExp(`^(?:(?:which|what) )?(?:(.+?) )?(team|teams|robots?|ftc teams?)(?: (?:in|from) (.+?))? (?:(?:has|have) )?(?:(?:improved|grew|raised|increased) (?:its |their |the )?opr (?:the )?most|gained the most opr)${GAIN}$`).exec(rest)) && !(m[1] && m[3])) {
+    const region = place(m[1] ?? m[3]);
+    if (region !== false) return { kind: "gain", stat: "opr", n: m[2] === "team" ? 5 : 10, region, city: null, season: scope.season, ...(m[2] === "team" ? { best: true } : {}) };
   }
   // "most improved team in new jersey"
   if ((m = new RegExp(`^(?:the )?(?:top (\\d{1,2}) )?most improved ${TEAMS}${PLACE}$`).exec(rest))) {
