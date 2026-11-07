@@ -49,6 +49,10 @@ describe("reading", () => {
     expect(readAsk("top teams in new jersey")).toMatchObject({ kind: "leaderboard", region: { key: "USA:NJ" } });
     expect(readAsk("nj rankings")).toMatchObject({ kind: "leaderboard" });
     expect(readAsk("best team in nj")).toMatchObject({ kind: "leaderboard" });
+    // The team word unsaid before a place, and short words for "this season".
+    for (const q of ["top in texas atm", "the strongest in GA right now", "best from ohio rn", "top 5 in new jersey currently"])
+      expect(readAsk(q), q).toMatchObject({ kind: "leaderboard", region: { key: expect.stringMatching(/^USA:/) } });
+    for (const q of ["best in show", "best in class", "top of the hour"]) expect(readAsk(q), q).toBeNull();
     expect(readAsk("highest opr")).toEqual({ kind: "stat", stat: "opr", region: null });
     expect(readAsk("best auto team")).toEqual({ kind: "stat", stat: "auto", region: null });
     expect(readAsk("who has the most wins")).toEqual({ kind: "stat", stat: "wins", region: null });
@@ -76,7 +80,7 @@ describe("test 16: each intent returns its stated surface", () => {
     expect(a.card!.none).toMatch(/No upcoming match is scheduled/);
   });
   it("top teams in New Jersey (and NJ rankings, best team in NJ): the region's ranking, linked", async () => {
-    for (const q of ["top teams in New Jersey", "NJ rankings", "best team in NJ"]) {
+    for (const q of ["top teams in New Jersey", "NJ rankings", "best team in NJ", "the strongest in New Jersey atm"]) {
       const a = await ask(q);
       expect(teams(a), q).toEqual(["23268 Ultraviolet", "4215 Hypnotic Robotics", "6980 Bad Wolf"]);
       expect(hrefs(a)[0], q).toBe("/rankings?season=2025&region=USA%3ANJ");
