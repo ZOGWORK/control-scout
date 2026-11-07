@@ -25,7 +25,7 @@ A team's next event asked about as a forecast, and "will <team> win <event>", an
 - [predict] "Will <team> win states" and "win worlds" read their own event
 
 ### Search
-- **Next event, said as a forecast.** "Next event prediction", "next meet forecast" and "prediction for their next event" read as the stored projection for the team's next event, led by its chance to win it. (#1072)
+- **Next event, said as a forecast.** "Next event prediction", "next meet forecast" and "prediction for their next event" read as the stored projection for the team's next event, led by its chance to win it.
 - **"Will" with a win and an event.** "Will <team> win <event>", "… win states" and "… win worlds" are the forecast at that event; "will" with no event or no win ("will <team> advance", "when will <team> play next") keeps its own answer. (#1072)
 
 ## 3.9.0 — 2026-11-07
