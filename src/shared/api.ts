@@ -502,6 +502,8 @@ export interface MatchView {
   time: string | null;
   /** The real instant (UTC ISO) when the event's time zone is known. */
   startsAt: string | null;
+  /** A played match's posted start (UTC ISO), when it differs from `startsAt` (then its real start). */
+  scheduledAt?: string | null;
   played: boolean;
   red: AllianceScore;
   blue: AllianceScore;
