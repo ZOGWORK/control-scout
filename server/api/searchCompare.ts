@@ -190,9 +190,11 @@ export async function compareOneAnswer(q: string, prefer: ReadonlySet<string>, s
   if (!typed || VERSUS.test(` ${typed} `) || /(?:^|\s)(?:and|with|to|&)(?:\s|$)|,/i.test(typed)) return null;
   // A bare year after the team ("compare 4215 2024") is its season, as it is after a team elsewhere in search.
   let season = season0;
+  // Only while the words before it name a team themselves: "team 2024" is the team numbered 2024.
   const yr = season == null ? /^(.+?)\s+(?:in\s+)?(20\d\d)$/i.exec(typed) : null;
-  if (yr) { season = Number(yr[2]); typed = yr[1]; }
-  const side = await readSide(typed, prefer);
+  const before = yr && !/^(?:the\s+)?(?:ftc\s+)?(?:team|robot|#|no\.?|number)$/i.test(yr[1].trim()) ? await readSide(yr[1], prefer) : null;
+  if (before?.team) { season = Number(yr![2]); typed = yr![1]; }
+  const side = before?.team ? before : await readSide(typed, prefer);
   if (!side.team) return null;
   const t = side.team;
   const resolved = side.rule ? [{ typed, number: t.number, rule: side.rule, candidates: side.candidates }] : [];

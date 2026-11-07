@@ -25,6 +25,10 @@ beforeAll(async () => {
     await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (2025, 'X', ?, 50, 5)", [n]);
     await run("INSERT INTO team_season_stats (season, team, rating_np, rating_matches, matches) VALUES (2025, ?, ?, ?, ?)", [n, rating, rm, rm]);
   }
+  // A team numbered like a year, unrated (never a rival).
+  await run("INSERT INTO teams (number, name, city, state, country) VALUES (2024, 'Year Numbered', 'Town', 'NJ', 'USA')");
+  await run("INSERT INTO team_seasons (season, team) VALUES (2025, 2024)");
+  await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (2025, 'X', 2024, 50, 5)");
   // An earlier season, rated differently: a season named picks its rivals there.
   for (const [n, rating] of [[4215, 60], [6980, 20], [8004, 58]]) {
     await run("INSERT INTO team_seasons (season, team) VALUES (2024, ?)", [n]);
@@ -54,6 +58,10 @@ describe("Compare asked for one team", () => {
     expect(a.suggest).toEqual(["4215 vs 8004 2024-25", "4215 vs 6980 2024-25"]);
     // "Last season" is read by the season reader around this one (today is in 2026–27): its rivals kept.
     expect((await ask("compare 4215 last season")).suggest).toEqual(["4215 vs 8000 2025-26", "4215 vs 6980 2025-26", "4215 vs 8004 2025-26"]);
+  });
+
+  it("a team numbered like a year, said as a team, is that team", async () => {
+    expect((await ask("compare team 2024")).hits[0]).toMatchObject({ kind: "compare", href: "/compare?teams=2024" });
   });
 
   it("two teams named stay the versus's", async () => {
