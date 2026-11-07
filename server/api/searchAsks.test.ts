@@ -140,8 +140,12 @@ describe("test 16: each intent returns its stated surface", () => {
     for (const q of ["predictions for tomorrow's matches in ohio", "today's matches at the state championship predictions", "predictions for tomorrow's playoff matches", "show me predictions for today's matches for hypnotic robotics"]) expect(readAsk(q)?.kind, q).not.toBe("predict-day");
     expect(readAsk("show me the forecasts for all of tomorrow's matches")).toEqual({ kind: "predict-day", day: "tomorrow" });
     expect(readAsk("what are the predictions for tomorrow's matches")).toEqual({ kind: "predict-day", day: "tomorrow" });
+    // A closing "if any (are scheduled)" narrows nothing, with or without the filler retry's cut.
+    for (const q of ["give me all forecasts for today's matches, if there are any", "show me all predictions for tomorrow's matches are scheduled"]) expect(readAsk(q)?.kind, q).toBe("predict-day");
     const none = await ask("tomorrow's matches predictions");
     expect(none.understood?.label).toMatch(/^Tomorrow \(.+\): no event has matches then/);
+    // End to end, through the query cleaning and the filler retry: the same day answer.
+    expect((await ask("show me all predictions for tomorrow's matches, if any are scheduled")).understood?.label).toMatch(/^Tomorrow \(.+\): no event has matches then/);
     const day = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
     await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'USNJQ9', 'Garden Qualifier', 'Qualifier', 'Union', 'NJ', 'USA', ?, ?, 't')", [CURRENT_SEASON, day, day]);
     // A workshop plays no matches: never counted. An event with no schedule posted yet has no predictions yet.

@@ -106,10 +106,11 @@ export function readAsk(q: string): Ask | null {
   }
   // The day's predictions everywhere, said with nothing else: any other scope ("in New Jersey", "at worlds", "playoff",
   // a team) asks for a filter this list doesn't apply, so the whole question must be the day and its matches, and
-  // anything more is left to the readers that do.
+  // anything more is left to the readers that do. A closing "if any (are scheduled)" narrows nothing.
   const lead = String.raw`(?:(?:what are|what're|show me|show|give me|see|list)\s+)?(?:all\s+)?(?:the\s+)?`;
   const day = String.raw`(today|tomorrow)(?:['’]?s)?\s+(?:matches|match|games)`;
-  let d = new RegExp(String.raw`^${lead}(?:predictions?|forecasts?)\s+(?:for|of|on)\s+(?:all\s+(?:of\s+)?)?(?:the\s+)?${day}$|^${lead}${day}\s+(?:predictions?|forecasts?)$`).exec(t);
+  const close = String.raw`(?:,?\s+if\s+(?:there\s+(?:are|is)\s+)?any)?(?:,?\s+(?:are|is)\s+(?:scheduled|planned|happening|on))?[?.!]?`;
+  let d = new RegExp(String.raw`^${lead}(?:predictions?|forecasts?)\s+(?:for|of|on)\s+(?:all\s+(?:of\s+)?)?(?:the\s+)?${day}${close}$|^${lead}${day}\s+(?:predictions?|forecasts?)${close}$`).exec(t);
   if (d) return { kind: "predict-day", day: (d[1] ?? d[2]) as "today" | "tomorrow" };
   d = /^(.+?) (?:prediction|predictions|predict|forecast) (?:settings|options|page|tool|view)$/.exec(t);
   if (d) return { kind: "predict-team", team: d[1] };
