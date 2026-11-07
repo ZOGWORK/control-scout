@@ -7,7 +7,8 @@ import { teamPageSql } from "../../../src/shared/teamPages.js";
 import { seasonLabel } from "../../../src/shared/format.js";
 import { get } from "../../db.js";
 import { searchSeason } from "../answers/season.js";
-import { parseQuery, type ParseContext } from "./parse.js";
+import { normalise, type ParseContext } from "./parse.js";
+import type { Place } from "./names.js";
 
 /** A place's words: never the word "team", so one phrase never runs into the next ("the top team in ohio vs the top
  *  romania team" is two phrases). */
@@ -17,14 +18,15 @@ const END = String.raw`(?=\s+(?:and|vs\.?|versus|against|or|in|at|with|on)\b|[,?
 /** "(the) top / best / strongest / number one <place> team", or "… team in / from <place>" (tried first: its place
  *  runs on to the longest words that are one place, as `placeAfter` reads them). */
 const TOP_TEAM = new RegExp(String.raw`\b(?:the\s+)?(?:top|best|strongest|number\s+one|no\s*1|highest[\s-]rated)\s+(?:(?:ranked|rated)\s+)?(?:team\s+(?:in|from|of)\s+(?=\p{L})|(?<before>${PLACE})\s+team${END})`, "giu");
-const ENDS = new RegExp(END, "gu");
+const ENDS = new RegExp(END, "giu");
 
-type Place = NonNullable<Awaited<ReturnType<typeof parseQuery>>["place"]>;
-/** The words are one place and nothing else: a region or a country, never a town. */
+/** The words are one place and nothing else: a region or a country, never a town. Read as the place index reads them,
+ *  with the words as typed, so a region code that is also a word ("OR", "IN", "ME") counts when typed in capitals, as
+ *  it does after "in" anywhere else. */
 async function wholePlace(words: string, ctx: ParseContext): Promise<Place | null> {
   if (!words || /\bteams?\b/iu.test(words)) return null;
-  const pl = (await parseQuery(words, ctx)).place;
-  return pl && pl.kind !== "city" && pl.typed.toLowerCase() === words.toLowerCase() ? pl : null;
+  const pl = ctx.names.place(normalise(words), words);
+  return pl && pl.kind !== "city" ? pl : null;
 }
 
 /** The place said after "team in": the longest words up to a phrase end that are one place, so a joining word inside
