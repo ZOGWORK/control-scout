@@ -166,7 +166,7 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
 async function eventBoardAnswer(b: BoardQuestion, ev: NonNullable<BoardQuestion["event"]>): Promise<StatAnswer> {
   const home = ev.home ?? null;
   const inList = ev.codes.map(() => "?").join(", ");
-  const rows = await all<{ team: number; name: string | null; city: string | null; state: string | null; country: string | null; eo: number | null;
+  const everyone = await all<{ team: number; name: string | null; city: string | null; state: string | null; country: string | null; eo: number | null;
     so: number | null; sw: number | null; sl: number | null; st: number | null; po: number | null }>(
     `SELECT et.team, t.name, t.city, t.state, t.country, MAX(x.opr_np) eo,
             MAX(s.opr_np) so, MAX(s.wins) sw, MAX(s.losses) sl, MAX(s.ties) st, MAX(p.opr_np) po
@@ -174,8 +174,11 @@ async function eventBoardAnswer(b: BoardQuestion, ev: NonNullable<BoardQuestion[
      LEFT JOIN team_event_stats x ON x.season = et.season AND x.code = et.code AND x.team = et.team
      LEFT JOIN team_season_stats s ON s.season = e.season AND s.team = et.team
      LEFT JOIN team_season_stats p ON p.season = e.season - 1 AND p.team = et.team
-     WHERE e.season = ? AND (e.code IN (${inList}) OR e.division_code IN (${inList})) AND ${teamPageSql("et.team", "t.name")}${home ? ` AND t.country = ?${home.state ? " AND t.state = ?" : ""}` : ""}
-     GROUP BY et.team`, [ev.season, ...ev.codes, ...ev.codes, ...(home ? [home.country, ...(home.state ? [home.state] : [])] : [])]);
+     WHERE e.season = ? AND (e.code IN (${inList}) OR e.division_code IN (${inList})) AND ${teamPageSql("et.team", "t.name")}
+     GROUP BY et.team`, [ev.season, ...ev.codes, ...ev.codes]);
+  // A place said keeps the teams from there; how they're ranked is the whole event's (played or not), so a played event
+  // whose teams from there have no OPR there never reads as unplayed.
+  const rows = home ? everyone.filter((r) => r.country === home.country && (!home.state || r.state === home.state)) : everyone;
   // Records there by the official rule (playoffs and qualification no-shows counted), summed over its divisions.
   const there = new Map<number, { wins: number; losses: number; ties: number }>();
   for (const r of await all<{ team: number; wins: number; losses: number; ties: number }>(
@@ -184,7 +187,7 @@ async function eventBoardAnswer(b: BoardQuestion, ev: NonNullable<BoardQuestion[
     there.set(Number(r.team), { wins: o.wins + Number(r.wins), losses: o.losses + Number(r.losses), ties: o.ties + Number(r.ties) });
   }
   const S = seasonLabel(ev.season), P = seasonLabel(ev.season - 1);
-  const mode = rows.some((r) => r.eo != null) ? "event" : rows.some((r) => r.so != null) ? "season" : "before";
+  const mode = everyone.some((r) => r.eo != null) ? "event" : everyone.some((r) => r.so != null) ? "season" : "before";
   const by = mode === "event" ? "OPR there" : mode === "season" ? `${S} OPR` : `${P} OPR`;
   const v = (r: (typeof rows)[number]) => (mode === "event" ? r.eo : mode === "season" ? r.so : r.po);
   const ranked = rows.filter((r) => v(r) != null).sort((x, y) => Number(v(y)) - Number(v(x)) || Number(x.team) - Number(y.team));

@@ -267,6 +267,11 @@ describe("the best teams at an event", () => {
       expect(nj.stat?.title).toMatch(/^New Jersey teams at Worlds \d+ by OPR there/);
       expect(rows(nj)).toEqual([["4215", "60.0"]]);
       expect(rows(await ask(`texas teams at worlds ${S + 1}`))).toEqual([["1111", "300.0"]]);
+      // Played: a place whose teams have no OPR there is ranked by the event's own numbers, so none is ranked.
+      await run("DELETE FROM team_event_stats WHERE code = 'FTCCMP1EDIS' AND team = 1111");
+      const tx = await ask(`texas teams at worlds ${S + 1}`);
+      expect(tx.stat?.title).toMatch(/^Texas teams at Worlds \d+ by OPR there/);
+      expect(rows(tx)).toEqual([]);
     } finally {
       await run("DELETE FROM team_event_stats WHERE code = 'FTCCMP1EDIS' AND team = 1111"); await run("DELETE FROM event_teams WHERE code = 'FTCCMP1EDIS' AND team = 1111");
     }
