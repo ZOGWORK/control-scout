@@ -24,6 +24,7 @@ beforeAll(async () => {
     [14270, "Quantum Robotics", null, "Romania", 180, 12], [24033, "Alphatronic", null, "Romania", 110, 9],
     // A country whose name has "and" in it.
     [31001, "Island Engineers", null, "Trinidad and Tobago", 130, 9], [31002, "Port of Spain Robotics", null, "Trinidad and Tobago", 90, 9],
+    [31003, "Wadadli Bots", null, "Antigua and Barbuda", 100, 9], [31004, "Sarajevo Circuits", null, "Bosnia and Herzegovina", 105, 9],
   ];
   for (const [n, name, state, country, rating, rm] of teams) {
     await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, 'Town', ?, ?)", [n, name, state, country]);
@@ -61,7 +62,13 @@ describe("a place's top team, said as one of two teams", () => {
       expect((a.stat?.teams ?? []).map((t: { number: number }) => t.number).sort(), q).toEqual([14270, 31001]);
       expect(a.understood?.label, q).toMatch(/[Tt]he top Trinidad and Tobago team by prediction rating in .+ is Island Engineers \(31001\)/);
     }
+    // Other countries named with "and", in both "team in" phrases at once.
+    const ab = await ask("who would win between the best team in antigua and barbuda and the top team from bosnia and herzegovina");
+    expect(ab.stat?.intent).toBe("predict");
+    expect((ab.stat?.teams ?? []).map((t: { number: number }) => t.number).sort()).toEqual([31003, 31004]);
+    // "And" after a place still joins two teams.
     expect((await ask("who would win between the top team in ohio and 14270")).stat).toMatchObject({ intent: "predict", teams: [{ number: 30002 }, { number: 14270 }] });
+    expect((await ask("predict the best team in romania and the top team in ohio")).stat?.teams?.map((t: { number: number }) => t.number).sort()).toEqual([14270, 30002]);
   });
   it("leaves alone a leaderboard, a place with no ranked team, and words that aren't a place", async () => {
     expect((await ask("top teams in new jersey")).stat?.intent).toBe("top-rating");
