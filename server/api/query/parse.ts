@@ -141,9 +141,14 @@ function keptName(words: string[], ctx: ParseContext, timeOnly: (w: string[]) =>
   return null;
 }
 
+/** A match that "went to a tiebreak, or overtime" ended level: said as "tied". Only after a verb saying how it ended, so
+ *  a team named Overtime is still that team anywhere else. */
+const LEVEL_END = /\b(?:went|go|goes|gone|going|ended|end|ends|came down|come down|decided) (?:to|in|by) (?:a |an )?(?:tiebreak|tiebreaker|tie breaker|overtime|sudden death|tie)s?(?: or (?:a |an )?(?:tiebreak|tiebreaker|tie breaker|overtime|sudden death)s?)?(?= |$)/g;
+export const endedLevel = (q: string) => q.replace(LEVEL_END, "tied");
+
 /** Parses `raw`. */
 export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed> {
-  const q = normalise(raw);
+  const q = endedLevel(normalise(raw));
   const typedWords = raw.replace(/[?!,;:()"]/g, " ").split(/\s+/).filter(Boolean);
   // The other team numbers typed: a limit ("last 5") or a match's number ("match 3") is never a team.
   const words0 = q.split(" ");
