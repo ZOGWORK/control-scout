@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.9.2 — 2026-11-07
+## 3.9.3 — 2026-11-07
 
 Questions about what a word means are answered however they're framed, two words at once, or with a team's own numbers.
 
@@ -27,6 +27,19 @@ Questions about what a word means are answered however they're framed, two words
 
 ### Search
 - **What a word means, asked any way.** Framing such as "explained", "in plain words" or "for a beginner" is set aside; "the difference between" two words gives each one's lines; a word asked for one team ("what does ranking score mean, for 14450 at …", "why did 4215's rating go down even though they won") gives that team's own stat with the word's explainer under it; and "the game this season" or "last season" names that season's game. (#1065)
+
+## 3.9.2 — 2026-11-07
+
+The live countdown waits for the day's first result, then runs on the field's real pace.
+
+### Highlights
+- [live] No countdown until the day's first match has a score
+- [live] Then the timer follows the field: late or early, never behind
+- [live] Shows which match should be on the field now
+
+### Live
+- **No timer off the posted plan.** Before the day's first match has a result, the LIVE panel, the phone's countdown chip and the pit display show what's up next and its scheduled time, with no countdown: events rarely start on time.
+- **Calibrated on real starts.** Once results come in, the next match is due one cycle after the latest match really started, and everything after it moves by the same amount up to the next break (lunch absorbs a late start). It uses the shorter of the posted cycle and the one the field is really running, and a match with no score yet can't have started more than 8 minutes ago, so the timer errs early, never late. Breaks come from the posted schedule: each match now keeps its posted start beside its real one. The panel says how far behind or ahead the field runs and which match should be on the field now. (#1109)
 
 ## 3.9.1 — 2026-11-07
 
