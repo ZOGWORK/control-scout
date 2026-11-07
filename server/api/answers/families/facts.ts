@@ -212,10 +212,12 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
   }
 
   if (f.id === "events-season") {
-    // "Events played": those with a played match only, never the season's upcoming ones.
-    const evs = (await teamEvents(season, team.number)).filter((e) => !f.played || (e.played ?? 0) > 0);
+    // "Events played": those the team was on the field at (its record, or surrogate matches off it) or a remote event's
+    // matches FIRST counts, never the season's upcoming ones.
+    const playedAt = (e: { played: number | null; onField: boolean; qualPlayed: number | null }) => (e.played ?? 0) > 0 || e.onField || (e.qualPlayed ?? 0) > 0;
+    const evs = (await teamEvents(season, team.number)).filter((e) => !f.played || playedAt(e));
     const what = f.played ? "Events played" : "Events";
-    const b = base("events-season", `${what} in ${S}`, [S], `Every event the team is listed for that season${f.played ? " with a match played" : ""}, oldest first, with its rank, record and OPR there.`, `From ${possessive(who(team))} ${S} events`);
+    const b = base("events-season", `${what} in ${S}`, [S], `Every event the team is listed for that season${f.played ? " that it played (on the field, or a remote event's matches)" : ""}, oldest first, with its rank, record and OPR there.`, `From ${possessive(who(team))} ${S} events`);
     if (!evs.length) return { ...b, none: `${who(team)} has no events${f.played ? " played" : ""} in ${S}.` };
     return { ...b, headline: { value: `${evs.length} event${evs.length === 1 ? "" : "s"}`, label: S },
       blocks: [{ kind: "table", title: `${what} in ${S}`, columns: [{ key: "event", label: "Event" }, { key: "date", label: "Date" }, { key: "rank", label: "Rank", num: true }, { key: "record", label: "W-L-T" }, { key: "opr", label: "OPR", num: true }],

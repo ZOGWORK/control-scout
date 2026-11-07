@@ -51,6 +51,13 @@ beforeAll(async () => {
   await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'ROCMP', 'qual', 0, 1, 19564, 'red', 1)");
   await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, 'ROFUT', 'Cluj Invitational', 'Qualifier', 'Cluj', 'CJ', 'Romania', '2099-02-01', '2099-02-01', 't')");
   await run("INSERT INTO event_teams (season, code, team) VALUES (2025, 'ROFUT', 19564)");
+  // Played too, with no win-loss record: an event it played only as a surrogate, and a remote one (FIRST's match count).
+  await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, 'MDSUR', 'Chisinau Qualifier', 'Qualifier', 'Chisinau', 'C', 'Moldova', '2026-01-10', '2026-01-10', 't')");
+  await run("INSERT INTO event_teams (season, code, team) VALUES (2025, 'MDSUR', 19564)");
+  await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'MDSUR', 'qual', 0, 1, 'Q1', '2026-01-10T10:00:00Z', 1, 70, 70, 50, 50, 't')");
+  await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field, surrogate) VALUES (2025, 'MDSUR', 'qual', 0, 1, 19564, 'red', 1, 1)");
+  await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, remote, source) VALUES (2025, 'MDREM', 'Moldova Remote Qualifier', 'Qualifier', 'Chisinau', 'C', 'Moldova', '2026-01-20', '2026-01-20', 1, 't')");
+  await run("INSERT INTO event_teams (season, code, team, rank, qual_played) VALUES (2025, 'MDREM', 19564, 3, 5)");
   await rebuildSearch();
 });
 
@@ -119,9 +126,12 @@ describe("team facts", () => {
     expect(readTeamFact("2024 events in romania")).toMatchObject({ id: "events-place", core: "2024", country: { code: "RO" } });
   });
   it("events played: never the season's upcoming ones (Greptile on #1084)", async () => {
-    expect((await searchAnswer("19564 events in 2025-26", { limit: 25 })).stat!.headline).toMatchObject({ value: "2 events" });
+    expect((await searchAnswer("19564 events in 2025-26", { limit: 25 })).stat!.headline).toMatchObject({ value: "4 events" });
     const s = (await searchAnswer("how many events did the marvels play in 2025-26 and which was their best by rank", { limit: 25 })).stat!;
-    expect(s).toMatchObject({ title: "Events played in 2025–26", headline: { value: "1 event" } });
+    // Its record's event, a surrogate-only one and a remote one count; the upcoming one doesn't (Greptile on #1084).
+    expect(s).toMatchObject({ title: "Events played in 2025–26", headline: { value: "3 events" } });
+    const names = s.blocks.flatMap((b) => (b.kind === "table" ? b.rows.map((r) => String(r.cells.event)) : []));
+    expect(names).not.toContain("Cluj Invitational");
   });
   it("OPR against the world's, a state's and an event's division's average", async () => {
     // Worldwide: the team page's own world rank, and the average over the teams that rank counts, stated.
