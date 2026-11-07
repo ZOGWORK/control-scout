@@ -3,7 +3,20 @@
 What changed in Control Scout, newest first. The prediction engine has its own
 changelog in `packages/predict-engine/CHANGELOG.md`.
 
-Each release opens with a `### Highlights` block: 3 to 5 short lines a visitor
+Each release opens with a `### 3.8.8 — 2026-11-07
+
+A team's next event asked about as a forecast, and "will <team> win <event>", answer with the engine's own projection for that event.
+
+### Highlights
+- [predict] "<team> next event prediction" shows its chance to win it
+- [predict] "Will <team> win <event>" shows the forecast there
+- [predict] "Will <team> win states" and "win worlds" read their own event
+
+### Search
+- **Next event, said as a forecast.** "Next event prediction", "next meet forecast" and "prediction for their next event" read as the stored projection for the team's next event, led by its chance to win it. (#1072)
+- **"Will" with a win and an event.** "Will <team> win <event>", "… win states" and "… win worlds" are the forecast at that event; "will" with no event or no win ("will <team> advance", "when will <team> play next") keeps its own answer. (#1072)
+
+## Highlights` block: 3 to 5 short lines a visitor
 would notice, each starting with a `[tag]` that picks its icon (home, predict,
 teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
 picklist, history, fixes, appearance). What's new shows them first; the groups below are
