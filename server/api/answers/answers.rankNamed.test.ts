@@ -19,3 +19,19 @@ describe("teams named, ranked by a stat", () => {
     expect(readLeaderboard("top 10 teams by opr in nj")).not.toHaveProperty("teams");
   });
 });
+
+describe("what the season totals can and can't answer", () => {
+  it("a bare year in the list is a team; a season is named as one", () => {
+    expect(readLeaderboard("rank teams by opr: 2024, 6980, 4215")).toMatchObject({ teams: [2024, 6980, 4215], season: null });
+    expect(readLeaderboard("rank teams by opr in 2024: 6980, 4215")).toMatchObject({ teams: [6980, 4215], season: 2024 });
+  });
+  it("penalties (fewest first) and phases added are stats too", () => {
+    expect(readLeaderboard("rank these teams by penalties: 6980, 4215")).toMatchObject({ stat: "penalties", asc: true, teams: [6980, 4215] });
+    expect(readLeaderboard("rank teams by auto and endgame: 6980, 4215")).toMatchObject({ stat: "auto+endgame" });
+  });
+  it("a place, an event, a day or a match type the totals can't honour is never dropped", () => {
+    expect(readLeaderboard("rank teams by wins at out of state events: 6980, 4215")).toBeNull();
+    expect(readLeaderboard("rank teams by opr at worlds: 6980, 4215")).toBeNull();
+    expect(readLeaderboard("rank teams by opr in playoffs: 6980, 4215")).toBeNull();
+  });
+});

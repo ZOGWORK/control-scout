@@ -497,20 +497,33 @@ const regionOf = (s: string): Region | null => { const rs = findRegions(s); retu
 const TEAMS = "(?:teams?|robots?|ftc teams?)";
 const PLACE = "(?: (?:in|from) (.+))?";
 
+/** "Rank these nj teams by reliability: 12345, 67890, 33950", "12345 67890 33950 ranked by opr": the teams named, by the
+ *  stat, among themselves; undefined when the query isn't one, null when it is but the season totals can't answer it (a
+ *  place, a window, a day, an event or a match type said). A word or two before "teams" ("these nj") says no more than
+ *  the numbers do. A bare year in the list is a team ("2024, 6980"); a season is named as one ("in 2024-25"). */
+function namedBoard(q: string): LeaderboardQuestion | null | undefined {
+  const said = q.replace(/:/g, " ").replace(/(?<!\b(?:in|during|for|from|season|year) )\b(20\d\d)\b(?!\s*[-–/]\s*\d)/g, "n$1");
+  const { scope, rest: r } = readScope(said);
+  const rest = r.replace(/\bn(20\d\d)\b/g, "$1");
+  const m = new RegExp(String.raw`^(?:(?:rank|sort|order|list|put)(?: these| the| those| my| our)?(?: \D+?)?(?: ${TEAMS})? (?:by|on|in order of|according to) (\D+?) ((?:\d{1,5} (?:and )?)+\d{1,5})|(?:${TEAMS} )?((?:\d{1,5} (?:and )?)+\d{1,5}) (?:ranked|sorted|ordered|in order) (?:by|on) (\D+?))$`).exec(rest);
+  if (!m) return undefined;
+  if (scope.championship || scope.states || scope.level || scope.alliance || scope.at || scope.ever || scope.place || scope.area || scope.outOfState || scope.day || scope.window) return null;
+  const words = (m[1] ?? m[4]).trim();
+  // Any stat a board ranks by, phases added ("auto and endgame"), or penalty points (fewest first).
+  const stat = sortStat(words) ?? (/^(?:penalties|penalty points|fouls)(?: given(?: away)?)?$/.test(words) ? "penalties" : null);
+  const teams = [...new Set((m[2] ?? m[3]).split(" ").filter((w) => /^\d+$/.test(w)).map(Number))];
+  if (!stat || teams.length < 2 || teams.length > 25) return null;
+  return { kind: "top", stat, n: teams.length, region: null, city: null, season: scope.season, teams, ...(stat === "penalties" ? { asc: true } : {}) };
+}
+
 export function readLeaderboard(raw: string): LeaderboardQuestion | null {
   // "overall OPR" is the stat's name, not an every-season scope.
   const q = ` ${raw.toLowerCase().replace(/['’]s\b/g, "").replace(/[?!,.]/g, " ")} `.replace(/\s+/g, " ").replace(/\b(?:overall|total) opr\b/g, "opr");
-  const { scope, rest } = readScope(q.replace(/:/g, " "));
+  const named = namedBoard(q);
+  if (named !== undefined) return named;
+  const { scope, rest } = readScope(q);
   if (scope.championship || scope.states || scope.level || scope.alliance || scope.at || scope.ever) return null;
   const n = (s: string | undefined, def: number) => Math.min(25, Math.max(1, s ? Number(s) : def));
-  // "Rank these nj teams by reliability: 12345, 67890, 33950", "12345 67890 33950 ranked by opr": the teams named, by
-  // the stat, among themselves. A word or two before "teams" ("these nj") says no more than the numbers do.
-  const named = new RegExp(String.raw`^(?:(?:rank|sort|order|list|put)(?: these| the| those| my| our)?(?: \D+?)?(?: ${TEAMS})? (?:by|on|in order of|according to) (\D+?) ((?:\d{1,5} (?:and )?)+\d{1,5})|(?:${TEAMS} )?((?:\d{1,5} (?:and )?)+\d{1,5}) (?:ranked|sorted|ordered|in order) (?:by|on) (\D+?))$`).exec(rest);
-  if (named) {
-    const stat = boardStat(named[1] ?? named[4]);
-    const teams = [...new Set((named[2] ?? named[3]).split(" ").filter((w) => /^\d+$/.test(w)).map(Number))];
-    if (stat && teams.length >= 2 && teams.length <= 25) return { kind: "top", stat, n: teams.length, region: null, city: null, season: scope.season, teams };
-  }
   const place = (s: string | undefined): Region | null | false => (s ? regionOf(s) ?? false : null);
   let m: RegExpExecArray | null;
   // "top 10 teams by opr in nj", "best teams by win rate in new jersey"
