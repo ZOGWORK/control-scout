@@ -44,9 +44,33 @@ describe("what's read", () => {
     expect(readLeaderboard("top teams by vibes in nj")).toBeNull();
     expect(readLeaderboard("top 10 teams by opr in narnia")).toBeNull();
   });
+  it("a count's board: the most matches, events or awards, said any way round", () => {
+    expect(readLeaderboard("which team has the most awards in NJ")).toMatchObject({ kind: "top", stat: "awards", best: true, region: { key: "USA:NJ" } });
+    expect(readLeaderboard("which team in Texas has the most awards")).toMatchObject({ stat: "awards", region: { key: "USA:TX" } });
+    expect(readLeaderboard("team that played the most matches this season")).toMatchObject({ stat: "matches", best: true, region: null });
+    // Search reads a plural as one ("most match played"): its verb keeps it a count.
+    expect(readLeaderboard("which team played the most match")).toMatchObject({ stat: "matches" });
+    expect(readLeaderboard("most events attended in new jersey")).toMatchObject({ stat: "events", region: { key: "USA:NJ" } });
+    expect(readLeaderboard("top 5 teams by matches played")).toMatchObject({ stat: "matches", n: 5 });
+    // "Most" with a stat that isn't a count is the stat's own board; "most match" alone isn't one.
+    expect(readLeaderboard("which team has the most vibes")).toBeNull();
+    expect(readLeaderboard("most match in nj")).toBeNull();
+  });
 });
 
 describe("the lists", () => {
+  it("a count's board: the team with the most matches played, or awards won, in a state", async () => {
+    const m = await searchAnswer("which team played the most matches in NJ", { limit: 25, full: true });
+    expect(m.stat).toMatchObject({ family: "leaderboard", title: "Team in New Jersey with the most matches played · 2025–26", headline: { value: "23268 Ultraviolet" } });
+    // Never the highest-scoring matches.
+    expect(m.intent?.kind).toBe("stat-leaderboard-top");
+    for (const [code, team] of [["NJQ1", 6980], ["NJQ1", 4215], ["NJQ2", 6980]] as const) await run("INSERT INTO awards (season, code, type, placement, team) VALUES (2025, ?, 'Think', ?, ?)", [code, team === 4215 ? 2 : 1, team]);
+    const a = await searchAnswer("most awards in New Jersey", { limit: 25, full: true });
+    expect(a.stat).toMatchObject({ title: "Team in New Jersey with the most awards won · 2025–26", headline: { value: "6980 Bad Wolf" } });
+    const t = a.stat!.blocks[0];
+    if (t.kind !== "leaderboard") throw new Error(t.kind);
+    expect(t.rows.slice(0, 2).map((r) => [r.team.label, r.display])).toEqual([["6980 Bad Wolf", "2"], ["4215 Hypnotic Robotics", "1"]]);
+  });
   it("top N by OPR in a state: ranked rows, 3 matches or more, the Teams page link", async () => {
     const a = await searchAnswer("Top 10 teams by OPR in NJ", { limit: 25 });
     expect(a.stat).toMatchObject({ family: "leaderboard", title: "Top 10 teams by OPR in New Jersey · 2025–26", headline: { value: "23268 Ultraviolet" } });
