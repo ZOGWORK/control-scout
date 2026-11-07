@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.7.9 — 2026-11-06
+
+On the related searches page, the team group is titled with its team: "About 4215 Hypnotic Robotics".
+
+### Highlights
+- [home] Related searches name the team they're about
+- [home] Popular searches name the season's leading team
+- [fixes] A group about two teams keeps its plain title
+
+### Search
+- **The team, named.** The related searches page titles its team group with the team's number and name, the popular searches too (the team they're about), whenever every search in it is about that one team; a group about two teams ("4215 vs 6980") keeps "About this team". (#1023)
+
 ## 3.7.8 — 2026-11-06
 
 A team's full name is read however it's punctuated: "UK 488 - The King's School- Barrel Botz record" is that team's record, and "team sealth record" finds Team Stealth.

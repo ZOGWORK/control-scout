@@ -4,6 +4,7 @@
 // season's starting points: the searches that follow from no search at all, the same way.
 import type { RelatedPageView, SearchAnswer, SearchFollowUp } from "../../../src/shared/api.js";
 import { SEARCH_PAGE_LIMIT, relatedQuery } from "../../../src/shared/search.js";
+import { get } from "../../db.js";
 import { followUps, lineOf, pageAnswer } from "./followUps.js";
 
 type RelatedGroup = RelatedPageView["groups"][number];
@@ -28,19 +29,33 @@ export function grouped(items: SearchFollowUp[]): RelatedGroup[] {
 
 const EMPTY: SearchAnswer = { q: "", hits: [], pages: [], step: "deterministic", weak: false };
 
+/** The team group's title for team `n`: its number and name, when every search in the group as grouped (a lone
+ *  leftover joins it) is about it (each says its number); a group about two teams (a "vs" search's), or with a broader
+ *  search in it ("top teams"), stays "About this team". */
+export async function teamTitle(n: number, items: SearchFollowUp[]): Promise<string | undefined> {
+  const said = new RegExp(`(?<![\\d])${n}(?![\\d])`);
+  if (!items.length || !items.every((x) => said.test(x.q))) return undefined;
+  const row = await get<{ name: string | null }>("SELECT name FROM teams WHERE number = ?", [n]);
+  return `About ${n}${row?.name ? ` ${row.name}` : ""}`;
+}
+
 /** Everything that follows from `q` (its answer's highlights, questions and related searches), or the starting
  *  points when nothing does. */
 export async function relatedPage(raw: string, prefer: ReadonlySet<string> = new Set()): Promise<RelatedPageView> {
   const q = relatedQuery(raw);
+  // Grouped, the team group titled with the team it's about (the starting points' too: the season's leader).
   const all = async (x: string, a: SearchAnswer) => {
     const f = await followUps(x, a, prefer);
-    return [...(f.highlights ? [f.highlights] : []), ...f.ask, ...f.related];
+    const groups = grouped([...(f.highlights ? [f.highlights] : []), ...f.ask, ...f.related]);
+    const team = groups.find((g) => g.title === TITLES.team);
+    const title = team && f.about != null ? await teamTitle(f.about, team.items) : undefined;
+    return title ? groups.map((g) => (g === team ? { ...g, title } : g)) : groups;
   };
   // The search's own follow-ups, the same /search shows beside it, for any search that found something: an answer, a
   // sorry about something it read, or results (a plain team search's). One that found nothing gets the starting
   // points, said so (the follow-ups /search offers under nothing found are those same starting points).
   const a = q ? await pageAnswer(q, SEARCH_PAGE_LIMIT, prefer) : null;
-  const groups = a && (lineOf(a) || a.sorry || a.hits.length) ? grouped(await all(q, a)) : [];
+  const groups = a && (lineOf(a) || a.sorry || a.hits.length) ? await all(q, a) : [];
   if (groups.length) return { q, found: true, groups };
-  return { q, found: false, groups: grouped(await all("", EMPTY)) };
+  return { q, found: false, groups: await all("", EMPTY) };
 }
