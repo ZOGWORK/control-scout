@@ -492,6 +492,15 @@ describe("who won a division (owner: \"who won nj turnpike division this year\" 
     expect(p.card?.place).toBe(2);
     // No such place given: every place listed, and said so.
     expect((await ask("who got 3rd place think at vermont championship 2024-25")).understood?.label).toBe("Who got 3rd place for the Think Award at Vermont Championship (2024–25) · No 3rd place recorded");
+    // "cham" is "champ" cut short: the state's newest championship, never an older event whose name has it.
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2020, 'USVTHYB', 'VT FTC Vermont State Championship HYBRID', 'Championship', 'Burlington', 'VT', 'USA', '2021-03-06', '2021-03-06', 't')");
+    await run("INSERT INTO awards (season, code, type, placement, team, name) VALUES (2020, 'USVTHYB', 'Think', 1, 6980, 'Think Award')");
+    await rebuildSearch();
+    const cham = await ask("who won think in vt cham this year");
+    expect(cham.card?.event).toMatchObject({ code: "USVTCMP" });
+    expect(cham.card?.event?.season).not.toBe(2020);
+    await run("DELETE FROM awards WHERE season = 2020 AND code = 'USVTHYB'");
+    await run("DELETE FROM events WHERE season = 2020 AND code = 'USVTHYB'");
     await run("DELETE FROM awards WHERE season = 2024 AND code = 'USVTCMP'");
     await run("DELETE FROM events WHERE season = 2024 AND code = 'USVTCMP'");
     await rebuildSearch();

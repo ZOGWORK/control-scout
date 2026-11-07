@@ -125,6 +125,8 @@ describe("place typos and 'states' (owner report)", () => {
     for (const q of ["nj states", "NJ state champs", "new jersey champs"]) expect(readEventQuery(q), q).toMatchObject({ region: { key: "USA:NJ" }, words: [], allSeasons: true });
     expect(readEventQuery("nj states")?.kinds).toEqual(["states"]); // the state's own championship
     expect(readEventQuery("NJ state champs")?.kinds).toEqual(["championship"]);
+    // Failed search "Who won inspire in nj cham this year": "cham" is "champ" cut short.
+    expect(readEventQuery("ohio cham")).toMatchObject({ kinds: ["championship"], region: { key: "USA:OH" }, words: [] });
   });
   it("never guesses: no event word, a code, or two places as close", () => {
     expect(readEventQuery("new jesey")).toBeNull();
