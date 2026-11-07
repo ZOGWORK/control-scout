@@ -113,8 +113,8 @@ import { r2 } from "./scout/r2.js";
 import { fakeR2Router } from "./scout/fakeR2.js";
 import { liteRouter, liteSwitch } from "./lite/routes.js";
 import { openSearchRoute } from "./openSearch.js";
-import { storedEventCode } from "./eventCodes.js";
-import { isEventCodeParam } from "../src/shared/eventCode.js";
+import { latestEventSeason, storedEventCode } from "./eventCodes.js";
+import { eventPath, isEventCodeParam } from "../src/shared/eventCode.js";
 import type { EventRefreshResult, ForecastView, MatchExplanationView, Meta, SearchHit, MatchView } from "../src/shared/api.js";
 
 export class HttpError extends Error { constructor(readonly status: number, message: string) { super(message); } }
@@ -938,6 +938,12 @@ export function createApp(opts: { dist?: string } = {}) {
   api.use("/reports/search-failures", searchFailuresRouter((q) => searchAnswer(q, { limit: 12, learn: false })));
   api.use("/owner", ownerRouter());
 
+  // An event code without its season → the newest season's event (the app's /events/:code route; the page's own load gets a 301 below).
+  api.get("/event-code/:raw", h(async (req) => {
+    const hit = isEventCodeParam(String(req.params.raw)) ? await latestEventSeason(String(req.params.raw)) : null;
+    if (!hit) throw new HttpError(404, `No event ${req.params.raw}`);
+    return hit;
+  }));
   api.use((_req, res) => { res.status(404).json({ error: "Not found" }); });
   // Content-Security-Policy violation reports (server/securityHeaders.ts), ahead of the API's own routes and 404.
   app.use(CSP_REPORT_PATH, cspReportRouter());
@@ -960,6 +966,19 @@ export function createApp(opts: { dist?: string } = {}) {
   app.get("/support", (req, res) => {
     const q = req.originalUrl.indexOf("?");
     res.redirect(301, `/donate${q >= 0 ? req.originalUrl.slice(q) : ""}`);
+  });
+  // An event's address without its season (/events/USNJNEM2): 301 to the newest season's page, query kept. An unknown
+  // code goes on to the 404; /events/2026 (a season, no code) is never read as a code.
+  app.get("/events/:code", (req, res, next) => {
+    const raw = req.params.code;
+    if (/^\d{4}$/.test(raw) || !isEventCodeParam(raw)) { next(); return; }
+    latestEventSeason(raw).then((hit) => {
+      if (!hit) { next(); return; }
+      const q = req.originalUrl.indexOf("?");
+      // Codes come back each season: browsers recheck after an hour rather than keep last season's page forever.
+      res.setHeader("Cache-Control", "public, max-age=3600");
+      res.redirect(301, `${eventPath(hit.season, hit.code)}${q >= 0 ? req.originalUrl.slice(q) : ""}`);
+    }, next);
   });
   // IndexNow's key file, /<key>.txt (server/indexNow.ts): any other name goes on to the 404.
   app.get(/^\/[A-Za-z0-9-]{8,128}\.txt$/, indexNowKeyRoute);

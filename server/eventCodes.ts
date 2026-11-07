@@ -16,3 +16,15 @@ export async function storedEventCode(season: number, raw: string): Promise<stri
     ?? await get<{ code: string }>("SELECT code FROM events WHERE season = ? AND code = ? COLLATE NOCASE LIMIT 1", [season, up]);
   return hit?.code ?? up;
 }
+
+/**
+ * The newest season holding an event under `raw` (any case), with its code as stored: for an address that leaves
+ * the season out (/events/USNJNEM2). Codes come back season after season, so the newest is the one meant. Null:
+ * no event has that code.
+ */
+export async function latestEventSeason(raw: string): Promise<{ season: number; code: string } | null> {
+  const up = canonicalEventCode(raw);
+  const hit = (await get<{ season: number; code: string }>("SELECT season, code FROM events WHERE code IN (?, ?) ORDER BY season DESC LIMIT 1", [up, raw]))
+    ?? await get<{ season: number; code: string }>("SELECT season, code FROM events WHERE code = ? COLLATE NOCASE ORDER BY season DESC LIMIT 1", [up]);
+  return hit ? { season: Number(hit.season), code: String(hit.code) } : null;
+}
