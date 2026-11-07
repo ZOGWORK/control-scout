@@ -49,6 +49,13 @@ describe("displayModel", () => {
     expect(m.countdown?.match.number).toBe(4);
   });
 
+  it("an untimed match ahead of the one on the field stays in Up next", () => {
+    const ms = [q(1, -11, [120, 80]), q(2, -4, [70, 90]), q(3, null), q(4, 3), q(5, 10)];
+    const m = displayModel(detail(ms), T0 + 4 * 60_000);
+    expect(m.now).toMatchObject({ kind: "on-field", match: { number: 4 } });
+    expect(m.upNext.map((x) => x.number)).toEqual([3, 5]);
+  });
+
   it("running late: the countdown moves by how late the last match really started", () => {
     const late = matches().map((x) => (x.number === 2 ? { ...x, startsAt: min(-1) } : x)); // Q2 started 3 min late
     const m = displayModel(detail(late), T0);

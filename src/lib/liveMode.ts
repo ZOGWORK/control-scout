@@ -98,6 +98,11 @@ export const MAX_POST_LAG_MS = 8 * 60_000;
 const DEFAULT_CYCLE_MS = 5 * 60_000;
 /** A posted gap this many cycles long is a break (lunch, alliance selection): breaks absorb a late start. */
 const BREAK_CYCLES = 2.5;
+/**
+ * The most a field runs ahead of its posted schedule. The next match posted further than this past one
+ * cycle after the latest real start has a break before it; anything less is the field running early.
+ */
+const MAX_EARLY_MS = 20 * 60_000;
 
 export interface Pace {
   /** Each unplayed timed match's estimated start (ms), by match key. Empty while waiting for the opener. */
@@ -134,14 +139,18 @@ export function pace(matches: MatchView[], now: number): Pace {
   const s1 = at(n1);
   const today = order.filter((m) => m.played && Number.isFinite(at(m)) && at(m) > s1 - SAME_DAY_MS).map(at).sort((a, b) => a - b);
   if (!today.length) return { est: new Map(), opener: nextMatch(matches, null), onField: null, shift: 0 };
-  const posted = median(rest.slice(1).map((m, i) => at(m) - at(rest[i])).filter((g) => g > 0));
+  // The posted cycle: the usual gap, never a break's (the shortest gap sets what counts as one).
+  const gaps = rest.slice(1).map((m, i) => at(m) - at(rest[i])).filter((g) => g > 0);
+  const posted = median(gaps.filter((g) => g <= BREAK_CYCLES * Math.min(...gaps)));
   const real = median(today.slice(1).map((t, i) => t - today[i]).filter((g) => g > 0 && g < BREAK_CYCLES * (posted || DEFAULT_CYCLE_MS)));
   const cycle = Math.min(Number.isFinite(posted) ? posted : DEFAULT_CYCLE_MS, Number.isFinite(real) ? real : Infinity);
   const isBreak = (gap: number) => gap > BREAK_CYCLES * cycle;
   const lastStart = today[today.length - 1];
   // After a break the posted start holds; else one cycle after the latest real start. Either way it hasn't
   // started more than MAX_POST_LAG_MS ago (there'd be a score).
-  const first = Math.max(isBreak(s1 - lastStart) ? s1 : lastStart + cycle, now - MAX_POST_LAG_MS);
+  // The played matches' posted times are gone (replaced by their real starts), so a break before the next
+  // match shows only as a posted start well past anything an early-running field would reach.
+  const first = Math.max(s1 - (lastStart + cycle) > MAX_EARLY_MS ? s1 : lastStart + cycle, now - MAX_POST_LAG_MS);
   let shift = first - s1;
   const est = new Map<string, number>();
   rest.forEach((m, i) => {

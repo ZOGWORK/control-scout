@@ -104,7 +104,8 @@ export function displayModel(d: EventDetail, now: number, highlight: ReadonlySet
   const onField = paced ? p.onField : first && Number.isFinite(at(first)) && at(first) <= now ? first : null;
   const last = lastPlayed(d.matches);
   const nowPanel = onField ? { match: onField, kind: "on-field" as const } : last ? { match: last, kind: "result" as const } : null;
-  const queue = onField ? left.slice(1) : left;
+  // By key: the paced on-field match needn't be the first unplayed one (an untimed match can sit ahead of it).
+  const queue = onField ? left.filter((m) => m.key !== onField.key) : left;
   const upNext = queue.slice(0, UP_NEXT);
   const mineMatch = highlight.size ? nextMatch(left, highlight) : null;
   const mine = mineMatch && mineMatch.key !== onField?.key && mineMatch.key !== upNext[0]?.key ? mineMatch : null;

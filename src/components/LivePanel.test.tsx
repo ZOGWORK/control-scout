@@ -146,7 +146,7 @@ describe("LivePanel", () => {
     const played = MATCHES.map((m) => (m.number === 14 ? { ...m, played: true, startsAt: at(-6) } : m.number === 15 ? { ...m, played: true, startsAt: at(-1) } : m));
     rerender(<MemoryRouter><TooltipProvider><Panel d={detail(played)} /></TooltipProvider></MemoryRouter>);
     expect(screen.getAllByText("Q16").length).toBeGreaterThan(0);
-    expect(screen.getByRole("timer").textContent).toBe("in22:00");
+    expect(screen.getByRole("timer").textContent).toBe("in4:00");
   });
 
   it("says when my teams are done", () => {

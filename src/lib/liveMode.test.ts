@@ -257,6 +257,20 @@ describe("pace: countdowns on the field's real pace", () => {
     expect(p.onField?.label).toBe("Q2");
     expect(est(p, 3)).toBe(39);
   });
+  it("a lunch late in a short schedule doesn't set the cycle", () => {
+    const short = [match(1, [1, 2], [3, 4], { played: true, startsAt: t(0) }), match(2, [5, 6], [7, 8], { startsAt: t(7) }),
+      match(3, [1, 3], [2, 4], { startsAt: t(14) }), match(4, [5, 7], [6, 8], { startsAt: t(90) })];
+    const p = pace(short, T + 60_000);
+    expect([est(p, 2), est(p, 3), est(p, 4)]).toEqual([7, 14, 90]);
+  });
+  it("a field running early isn't taken for a break", () => {
+    // Q1–Q4 really started 0, 5, 10, 15 against 7-min posted cycles: Q5 (posted 28) is due at 20, not 28.
+    const p = pace(sched({ 1: 0, 2: 5, 3: 10, 4: 15 }), T + 18 * 60_000);
+    expect(est(p, 5)).toBe(20);
+  });
+  it("lunch with the field on time: the posted restart holds", () => {
+    expect(est(pace(sched({ 1: 0, 2: 7, 3: 14, 4: 21, 5: 28 }), T + 30 * 60_000), 6)).toBe(90);
+  });
   it("a new day waits again: yesterday's results don't count", () => {
     const ms = [match(1, [1, 2], [3, 4], { played: true, startsAt: t(-24 * 60) }), match(2, [5, 6], [7, 8], { startsAt: t(0) })];
     expect(pace(ms, T).opener?.label).toBe("Q2");
