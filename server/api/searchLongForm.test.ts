@@ -99,6 +99,8 @@ const PAIRS: [string, string][] = [
   ["how has 4215's opr changed over the seasons", "4215 opr trend over seasons"],
   // Worlds trips counted, and the division with its rank (failed-search #913/#929, #870/#1001; held out).
   ["the number of times bad wolf has gone to the world championship", "bad wolf worlds appearances"],
+  // The verb after a team's number too (Greptile on #1087).
+  ["number of times 6980 has been to worlds", "6980 worlds appearances"],
   ["which division was 6980 in at the first championship and how was their record there", "6980 worlds divisions"],
   ["where does 4215 rank in opr worldwide", "4215 opr rank worldwide"],
   // The stat named stays the stat asked about (Greptile on #655).
@@ -182,6 +184,9 @@ describe("long, conversational queries", () => {
     expect(longForm("what was 4215's record in 2024-25")).toBe("4215 record in 2024-25");
     // A season after a Worlds question: Worlds divisions, which takes one (the appearances card is every season's).
     expect(longForm("when was the last time 4215 went to worlds in 2025-26")).toBe("4215 worlds divisions in 2025-26");
+    // A count of trips, the verb before or after the team, never part of its name (Greptile on #1087).
+    for (const [q, out] of [["number of times 4215 has gone to worlds", "4215 worlds appearances"], ["number of times 4215 went to worlds", "4215 worlds appearances"],
+      ["the number of times bad wolf has gone to worlds", "bad wolf worlds appearances"], ["count of times that hypnotic robotics have been to worlds", "hypnotic robotics worlds appearances"]]) expect(longForm(q), q).toBe(out);
     const label = `${S}-${String(S + 1).slice(2)}`;
     for (const q of [`did 4215 go to worlds in ${label}`, `has 4215 been to worlds in ${label}?`]) {
       const a = await ask(q);

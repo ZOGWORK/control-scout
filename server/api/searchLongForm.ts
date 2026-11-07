@@ -32,7 +32,7 @@ const CLOSERS = /\s+(?:please|pls|for\s+me|thanks|thank\s+you|right\s+now|curren
  *  captured groups; the scope words after them (a season, a place) are kept by `tail`. */
 const RULES: [RegExp, (m: RegExpExecArray) => string][] = [
   // Worlds and states: when (the first or the last time), how often, whether, which divisions, how far.
-  [new RegExp(String.raw`^(?:when\s+(?:was|is)\s+(?:the\s+)?(last|latest|most\s+recent|first|earliest)\s+time|when\s+did|how\s+many\s+times\s+(?:has|have|did)|(?:the\s+)?(?:number|count)\s+of\s+times(?:\s+(?:that\s+)?(?:has|have|did))?|how\s+often\s+(?:has|have|did)|(?:has|have|did)|was)\s+${T}\s+(?:ever\s+)?(?:(first|last)\s+)?${GO}\s+(?:(${WORLDS})|(${STATES}))(.*)$`), (m) => {
+  [new RegExp(String.raw`^(?:when\s+(?:was|is)\s+(?:the\s+)?(last|latest|most\s+recent|first|earliest)\s+time|when\s+did|how\s+many\s+times\s+(?:has|have|did)|(?:the\s+)?(?:number|count)\s+of\s+times(?:\s+that)?(?:\s+(?:has|have|did))?|how\s+often\s+(?:has|have|did)|(?:has|have|did)|was)\s+${T}\s+(?:(?:has|have|had|did)\s+)?(?:ever\s+)?(?:(first|last)\s+)?${GO}\s+(?:(${WORLDS})|(${STATES}))(.*)$`), (m) => {
     const kind = m[4] ? "worlds" : "states", which = m[1] ?? m[3], tail = m[6];
     // A season or place after a Worlds question ("… in 2024-25") is read by Worlds divisions, which takes a scope; the
     // appearances card is every season's, with the first or last trip as its headline.
