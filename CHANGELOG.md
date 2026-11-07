@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.0.6 — 2026-11-07
+
+Asking whether one team will beat another gets the match's call, and asking what happens if you change an alliance points you to the part of Predict that does it.
+
+### Highlights
+- [predict] "Will 4215 beat 7149" predicts their match
+- [predict] "If I change the alliance" opens Custom matchup
+- [predict] "Best partner if I change the alliance" says how to try each
+
+### Search
+- **"Will A beat B."** "Will", "would" or "going to" with a win word ("beat", "defeat", "win against") between two teams is the call for a match between them.
+- **A lineup changed, supposed.** "If (what if, suppose) I change, switch or swap the alliance, teams or partners", with no team named, is Predict's Custom matchup; asked with "who is the best partner", it says how to try each partner there. (#1153)
+
 ## 4.0.5 — 2026-11-07
 
 A team's Worlds questions asked in plain words get their answers: "number of times <team> went to worlds", "<team> world championship matches 2025-26", and "what division was <team> in at worlds, and what was their rank there".
