@@ -200,6 +200,17 @@ function FactValue({ f }: { f: SearchCardFact }) {
 /** A card's records, a row each, in the line's colour (lineSwatch): a thick bar down its left on a wash of it, its icon
  *  a filled chip, what it is in bold in the colour (a link where it opens something; a count's number big), when and
  *  where under it, how it went as small stat pills. */
+/** A word's explainer drawn inside another answer's card (a team's stat with what the stat means under it): its
+ *  title as a part heading, its lines as a definition card's, so the page keeps one answer card. */
+export function ExplainerLines({ card }: { card: Pick<SearchCard, "title" | "lines" | "kind"> }) {
+  return (
+    <section aria-label={card.title} className="mt-5" data-explainer>
+      <h3 className={PART}>{card.title}</h3>
+      <Lines lines={card.lines} kind={card.kind} icon={ICON[card.kind] ?? Info} />
+    </section>
+  );
+}
+
 function Lines({ lines, kind, icon: Icon }: { lines: SearchCardLine[]; kind: SearchCard["kind"]; icon?: LucideIcon }) {
   return (
     <ul className="space-y-2" data-lines>

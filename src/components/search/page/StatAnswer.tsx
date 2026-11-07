@@ -5,8 +5,9 @@ import { Link } from "react-router-dom";
 import { ArrowRight, BarChart3, CalendarDays, Hash, Info, Medal, Sparkles, Target, Trophy, type LucideIcon } from "lucide-react";
 import { eventTypeLabel } from "../../../shared/labels";
 import { seasonLabel } from "../../../shared/format";
-import { Fragment, useMemo } from "react";
+import { Fragment, useMemo, type ReactNode } from "react";
 import type { StatAnswer, StatBlock, StatLink, StatRecord } from "../../../shared/searchStat";
+import type { SearchCard } from "../../../shared/api";
 import { teamTableOfLeaderboard } from "../../../shared/teamTable";
 import { TeamTable } from "../TeamTable";
 import { cn } from "../../cn";
@@ -20,6 +21,7 @@ import { AnswerVideo, RowPlay, useRowPlays } from "./AnswerVideo";
 import { Cell, EventMarker, HeadlineValue, INK_BAR, MethodNote, TEAM_BAR, TEAM_TEXT, AwardChip, TEAM_SWATCH, swatchOf, type Swatch, RecordText, RichText, SeasonChip, better, columnMax, foldsOnPhone } from "./answerCells";
 import { MatchBox, RankBadge, TeamChip } from "./MatchBox";
 import { CompareCard, comparisonOf } from "./CompareCard";
+import { ExplainerLines } from "./FactCard";
 import { ChanceBar } from "./ChanceBar";
 import { HighlightGrid, isHighlights } from "./HighlightGrid";
 import { VideoGallery } from "./VideoGallery";
@@ -49,17 +51,19 @@ export function oneContext(label: string, sub: string | undefined, scope: string
   return { label: lab, sub: rest || undefined };
 }
 
-export function StatAnswerCard({ stat, heading }: { stat: StatAnswer; heading?: string }) {
+/** `explain`: a word's explainer that came with the answer ("how is OPR calculated, with 4215"), drawn inside its card. */
+export function StatAnswerCard({ stat, heading, explain }: { stat: StatAnswer; heading?: string; explain?: SearchCard }) {
   // One card in the team page's treatment (./TeamAnswer.tsx): the team (or both teams) up top with the season the
   // answer states, then the answer's title and what it covers, the number asked for big and bold with no band
   // behind it, and its blocks. No hue on data (the search results guide): tiles, bars and marks are neutral.
   // A comparison of teams: its own card, each fact said once (./CompareCard.tsx).
   const cmp = comparisonOf(stat);
-  if (cmp) return <CompareCard stat={stat} b={cmp} />;
-  return <OneCard stat={stat} heading={heading} />;
+  const extra = explain && <ExplainerLines card={explain} />;
+  if (cmp) return <CompareCard stat={stat} b={cmp} extra={extra} />;
+  return <OneCard stat={stat} heading={heading} extra={extra} />;
 }
 
-function OneCard({ stat, heading }: { stat: StatAnswer; heading?: string }) {
+function OneCard({ stat, heading, extra }: { stat: StatAnswer; heading?: string; extra?: ReactNode }) {
   const teams = stat.teams && stat.teams.length > 1 ? stat.teams : stat.team ? [stat.team] : undefined;
   const stated = statedSeason(stat.title, ...stat.scope);
   const season = useAnswerSeason(stated);
@@ -84,6 +88,7 @@ function OneCard({ stat, heading }: { stat: StatAnswer; heading?: string }) {
         </p>
       )}
       <div className="mt-4 space-y-5">{stat.blocks.map((b, i) => <Block key={`${b.kind}-${i}`} b={b} team={stat.team} teams={teams} said={said} hue={one} />)}</div>
+      {extra}
       <MethodNote source={stat.source} definition={stat.definition}>
         {stat.more && <p><Link to={stat.more.href} className="inline-flex items-center text-xs font-medium text-foreground underline decoration-border underline-offset-2 hover:text-accent-text max-md:min-h-[44px] pointer-coarse:min-h-[44px]" data-more>{stat.more.label}</Link></p>}
       </MethodNote>
