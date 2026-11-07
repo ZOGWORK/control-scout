@@ -25,7 +25,7 @@ A climb in rank: the teams that went from one OPR rank or below to the top of an
 - [rankings] In a place too: "which NJ teams rose from rank 500"
 
 ### Search
-- **A climb in rank.** "Teams that improved from rank 1000+ to the top 100 in one season", "which NJ teams climbed from rank 500 to the top 50" and the like read as the most improved board, kept to the teams ranked at or below the first number worldwide by OPR the season before and at or above the second this season. A fall ("from rank 10 to rank 100") is never read as a climb. The most improved table shows each climb as one column of ranks ("#6283 → #77"), so it fits a phone, and People also ask never names a place the card answered without. (#PR)
+- **A climb in rank.** "Teams that improved from rank 1000+ to the top 100 in one season", "which NJ teams climbed from rank 500 to the top 50" and the like read as the most improved board, kept to the teams ranked at or below the first number worldwide by OPR the season before and at or above the second this season. A fall ("from rank 10 to rank 100") is never read as a climb. The most improved table shows each climb as one column of ranks ("#6283 → #77"), so it fits a phone, and People also ask never names a place the card answered without. (#1121)
 
 ## 3.9.2 — 2026-11-07
 
