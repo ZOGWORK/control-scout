@@ -23,6 +23,7 @@ import { reportedTeleopIncludesEndgame } from "../../../data/seasons.js";
 import { teamHref } from "../matchSet.js";
 import { seasonOfDate } from "../../query/time.js";
 import { searchToday } from "../../searchEvents.js";
+import { OFFICIAL_TYPES } from "../clauses.js";
 
 export const LEADERBOARD_MAX = 25;
 
@@ -168,7 +169,7 @@ async function windowCountAnswer(b: BoardQuestion, w: { from: string; to: string
     `SELECT MAX(substr(COALESCE(m.time, e.start), 1, 10)) d FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code
      JOIN match_teams mt ON mt.season = m.season AND mt.code = m.code AND mt.level = m.level AND mt.series = m.series AND mt.number = m.number
      JOIN teams t ON t.number = mt.team
-     WHERE m.played = 1 AND mt.on_field = 1 AND substr(COALESCE(m.time, e.start), 1, 10) < ?${regionSql}`, [w.from, ...regionArgs]);
+     WHERE e.type IN (${OFFICIAL_TYPES.map(() => "?").join(", ")}) AND m.played = 1 AND mt.on_field = 1 AND substr(COALESCE(m.time, e.start), 1, 10) < ?${regionSql}`, [...OFFICIAL_TYPES, w.from, ...regionArgs]);
   if (!last?.d) return a;
   const end = new Date(`${last.d}T00:00:00Z`), start = new Date(end.getTime() - 6 * 864e5);
   const before = { from: start.toISOString().slice(0, 10), to: last.d, label: "in the latest week with matches" };
@@ -181,24 +182,26 @@ async function windowCountAnswer(b: BoardQuestion, w: { from: string; to: string
 async function windowCount(b: BoardQuestion, w: { from: string; to: string; label: string }, where: string, regionSql: string, regionArgs: string[]): Promise<StatAnswer> {
   const st = b.stat;
   const v = st.id === "wins" ? "SUM(won)" : st.id === "events" ? "COUNT(DISTINCT season || ':' || code)" : "COUNT(*)";
-  const rows = await all<{ team: number; name: string | null; city: string | null; state: string | null; country: string | null; v: number; wins: number; losses: number; ties: number }>(
+  // Each row's OPR beside the count: the team's stored OPR in the season of the window's last day.
+  const season = seasonOfDate(w.to);
+  const rows = await all<{ team: number; name: string | null; city: string | null; state: string | null; country: string | null; v: number; wins: number; losses: number; ties: number; opr: number | null }>(
     `WITH played AS (
        SELECT mt.team, m.season, m.code,
               CASE WHEN (mt.alliance = 'red' AND m.red_total > m.blue_total) OR (mt.alliance = 'blue' AND m.blue_total > m.red_total) THEN 1 ELSE 0 END won,
               CASE WHEN (mt.alliance = 'red' AND m.red_total < m.blue_total) OR (mt.alliance = 'blue' AND m.blue_total < m.red_total) THEN 1 ELSE 0 END lost
        FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code
        JOIN match_teams mt ON mt.season = m.season AND mt.code = m.code AND mt.level = m.level AND mt.series = m.series AND mt.number = m.number
-       WHERE m.played = 1 AND mt.on_field = 1 AND substr(COALESCE(m.time, e.start), 1, 10) BETWEEN ? AND ?)
-     SELECT p.team, t.name, t.city, t.state, t.country, ${v} v, SUM(won) wins, SUM(lost) losses, COUNT(*) - SUM(won) - SUM(lost) ties
-     FROM played p JOIN teams t ON t.number = p.team
+       WHERE e.type IN (${OFFICIAL_TYPES.map(() => "?").join(", ")}) AND m.played = 1 AND mt.on_field = 1 AND substr(COALESCE(m.time, e.start), 1, 10) BETWEEN ? AND ?)
+     SELECT p.team, t.name, t.city, t.state, t.country, ${v} v, SUM(won) wins, SUM(lost) losses, COUNT(*) - SUM(won) - SUM(lost) ties, MAX(s.opr_np) opr
+     FROM played p JOIN teams t ON t.number = p.team LEFT JOIN team_season_stats s ON s.season = ? AND s.team = p.team
      WHERE ${teamPageSql("p.team", "t.name")}${regionSql}
-     GROUP BY p.team ORDER BY v DESC, wins DESC, p.team LIMIT ?`, [w.from, w.to, ...regionArgs, b.n]);
+     GROUP BY p.team ORDER BY v DESC, wins DESC, p.team LIMIT ?`, [...OFFICIAL_TYPES, w.from, w.to, season, ...regionArgs, b.n]);
   const label = st.id === "wins" ? "Wins" : st.id === "events" ? "Events played" : "Matches played";
   const when = w.label;
   const title = b.best ? `Team${where} with the most ${label.toLowerCase()} ${when}` : `Top ${b.n} teams${where} by ${label.toLowerCase()} ${when}`;
   const base = {
     family: "leaderboard" as const, intent: `top-${st.id}-window`, title, scope: [b.region?.name ?? "Worldwide", when.replace(/^./, (c) => c.toUpperCase()), `${w.from} to ${w.to}`],
-    definition: `${label} ${when} (${w.from} to ${w.to}): every played match on record in those days, a match by its own date, else its event's first day; a team counts once it was on the field.${st.id === "wins" ? " A win: its alliance's official score, penalties included, above the other's." : ""}${st.id === "events" ? " Events played: the events of those matches." : ""}`,
+    definition: `${label} ${when} (${w.from} to ${w.to}): every played match at an official event in those days, a match by its own date, else its event's first day; a team counts once it was on the field. OPR: the team's stored ${seasonLabel(season)} OPR.${st.id === "wins" ? " A win: its alliance's official score, penalties included, above the other's." : ""}${st.id === "events" ? " Events played: the events of those matches." : ""}`,
     source: `From the matches played ${when}`,
   };
   if (!rows.length) return { ...base, blocks: [], none: `No matches on record${where} ${when} (${w.from} to ${w.to}).` };
@@ -211,7 +214,7 @@ async function windowCount(b: BoardQuestion, w: { from: string; to: string; labe
       note: `${when} · ${w.from} to ${w.to}${where}`,
       rows: rows.map((r, i) => ({ rank: i + 1, team: { label: `${r.team} ${r.name ?? ""}`.trim(), href: teamHref(Number(r.team)) },
         location: [r.city, r.state, r.country && r.country !== "USA" ? r.country : null].filter(Boolean).join(", ") || null,
-        record: record(r), opr: null, value: Number(r.v), display: String(Number(r.v)), parts: null })),
+        record: record(r), opr: r.opr == null ? null : Number(r.opr), value: Number(r.v), display: String(Number(r.v)), parts: null })),
     }],
   };
 }
