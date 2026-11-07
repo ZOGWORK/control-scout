@@ -536,5 +536,13 @@ describe("explain questions, asked any way", () => {
     expect(quick?.card?.title).toBe("OPR: what it is and how it's worked out");
     // No meaning asked, or no team named: not this answer.
     for (const q of ["4215 mean opr", "what is 4215's opr", "how is opr calculated", "what does opr mean for teams"]) expect(await explainTeamAnswer(q, ask), q).toBeNull();
+    // Punctuation is set aside, and a team question is never sent back here as a meaning question.
+    const sent: string[] = [];
+    const once = (x: string) => { sent.push(x); return ask(x); };
+    expect((await explainTeamAnswer("explain 4215's opr calculated.", once))?.card?.title).toMatch(/OPR/);
+    expect(sent).toEqual(["4215 opr"]);
+    expect(await explainTeamAnswer("explain opr calculated.", once)).toBeNull();
+    expect(await explainTeamAnswer("what does opr mean?! for... teams", once)).toBeNull();
+    expect(sent).toEqual(["4215 opr", "teams opr"]);
   });
 });

@@ -508,18 +508,23 @@ function unframed(t: string): string {
 /** The words of a "what does X mean / how is X calculated / why did X go down" frame, which name no team or event. */
 const FRAME_WORDS = new Set("what whats what's does do did is are how why mean means meaning calculated calculate computed worked work out explain explained explanation it me show with as an a example step by for plain simple words beginner go goes went down up drop dropped fall fell even though although after when they won win lost still despite so this that please".split(" "));
 
+/** "what does … mean", "… calculated", "explain …", "why …": a question asking what a word means. */
+const ASKS_MEANING = /\bwhat (?:does|do|did)\b.*\bmean\b|\b(?:meaning|calculated|calculate|computed|worked out|explain|explained|explanation)\b|^why\b/;
+
 /** A word's explanation for one team ("how is OPR calculated, show me with 4215 as an example", "what does ranking
  *  score mean, for 14450 at NJ Championship Parkway", "why did 4215's rating go down even though they won"): the team's
  *  own numbers (its stat answer, as "4215 opr" gives it), with the word's explainer under them; or null. */
 export async function explainTeamAnswer(q: string, ask: (q: string) => Promise<SearchAnswer>): Promise<SearchAnswer | null> {
-  const t = squash(q.toLowerCase().replace(/[?,]/g, " ").replace(/(\d)['’]s\b/g, "$1"));
+  const t = squash(q.toLowerCase().replace(/[^\p{L}\p{N}\s'’-]/gu, " ").replace(/(\d)['’]s\b/g, "$1"));
   // "Mean" alone can be an average ("4215 mean opr"): only "what does … mean" asks what a word means.
-  if (!/\bwhat (?:does|do|did)\b.*\bmean\b|\b(?:meaning|calculated|calculate|computed|worked out|explain|explained|explanation)\b|^why\b/.test(t)) return null;
+  if (!ASKS_MEANING.test(t)) return null;
   const e = EXPLAINS.find((x) => x.term && x.stat && x.term.test(t));
   if (!e) return null;
   const rest = t.replace(e.term!, " ").split(" ").filter((w) => w && !FRAME_WORDS.has(w));
   if (!rest.length) return null;
   const moved = /^why\b/.test(t) && /\b(?:up|down|drop|dropped|fall|fell|rise|rose|change|changed)\b/.test(t);
+  // The team's own question must not ask for a meaning again, or it would come back here.
+  if (ASKS_MEANING.test(rest.join(" "))) return null;
   const of = (stat: string) => ask([rest[0], stat, ...rest.slice(1)].join(" "));
   // A change with nothing on record to show it ("no weekly ratings are kept"): the team's own number instead.
   let a = await of(moved && e.change ? e.change : e.stat!);
