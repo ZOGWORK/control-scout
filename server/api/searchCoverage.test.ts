@@ -108,6 +108,11 @@ describe("rewrites: said the way a reader answers", () => {
       expect(a.hits[0], q).toMatchObject({ kind: "team", ref: q.includes("23268") ? "23268" : "6980" });
       expect(a.hits[0].facts?.map((f) => f.label), q).toEqual(expect.arrayContaining(["OPR", "Record"]));
     }
+    // A past season said with the question is that season's numbers, never the latest's (fixture: 90 OPR, 12-8 then).
+    const past = await ask(`is 23268 actually that good or just hype, in ${S - 1}-${String(S % 100).padStart(2, "0")}`);
+    const facts = Object.fromEntries((past.hits[0].facts ?? []).map((f) => [f.label, f.value]));
+    expect(past.hits[0]).toMatchObject({ ref: "23268", linkSeason: S - 1 });
+    expect(facts).toMatchObject({ OPR: "90.0", Record: "12-8-0", Season: seasonLabel(S - 1) });
   });
 });
 
