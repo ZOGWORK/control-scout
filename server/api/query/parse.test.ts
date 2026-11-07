@@ -73,6 +73,11 @@ describe("slots", () => {
       expect((await parse(q)).complete, q).toBe(false);
     }
   });
+  it("reads two or three teams said to share an alliance as its predicted score", async () => {
+    for (const q of ["if 4215, 6980 and 24033 were teamed up what's the predicted score", "23268 and 6980 on the same alliance predicted score"]) {
+      expect(await parse(q), q).toMatchObject({ intent: "lineup-score", complete: true });
+    }
+  });
   it("reads two alliances of two either side of a vs, any wording, as a match's call", async () => {
     for (const q of [
       "predict 4215 6980 vs 24033 23268", "4215 and 6980 vs 24033 and 23268 who wins", "custom matchup 4215 6980 vs 24033 23268",

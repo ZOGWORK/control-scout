@@ -9,7 +9,7 @@ import type { Region } from "../../../src/shared/regions.js";
 import { dateRange, seasonLabel } from "../../../src/shared/format.js";
 import { get } from "../../db.js";
 import { intentDefaults, readLeaderboard, scopeFits, type IntentId, type LeaderboardQuestion, type ReadScope, type StatQuestion, type TwoTeamId } from "../answers/read.js";
-import { allianceForecast, predictionSeasonOf } from "../answers/families/predict.js";
+import { allianceForecast, lineupScore, predictionSeasonOf } from "../answers/families/predict.js";
 import { isLegacy } from "../../data/seasons.js";
 import { predictHref } from "../../../src/shared/predictUrl.js";
 import { boardSearch, statAnswer, statAnswerOf, topSearch, twoTeamSearch, type Resolve } from "../answers/index.js";
@@ -120,7 +120,7 @@ function placeSeason(p: Parsed, said: number | null | undefined, opts: PipelineO
 }
 /** The answers a win or a loss said with them narrows ("closest loss", "first win", "longest losing streak"). */
 const OUTCOME_IDS = new Set(["closest-match", "current-streak", "average-margin", "first-match", "recent-match", "last-matches", "longest-streak"]);
-const ANSWERED = new Set<PipelineIntent>([...TEAM_INTENTS, ...(Object.keys(TWO_TEAM) as PipelineIntent[]), ...(Object.keys(FIND) as PipelineIntent[]), "top-matches", "leaderboard", "team-predict", "highlights", "teams-named", "count-teams", "alliance-predict", ...(Object.keys(TREND_ASK) as PipelineIntent[])]);
+const ANSWERED = new Set<PipelineIntent>([...TEAM_INTENTS, ...(Object.keys(TWO_TEAM) as PipelineIntent[]), ...(Object.keys(FIND) as PipelineIntent[]), "top-matches", "leaderboard", "team-predict", "highlights", "teams-named", "count-teams", "alliance-predict", "lineup-score", ...(Object.keys(TREND_ASK) as PipelineIntent[])]);
 /** The leaderboard's stat for a metric said ("by opr"); the prediction rating when none is. */
 const BOARD_STAT: Partial<Record<string, string>> = {
   "metric:opr": "opr", "metric:rating": "rating", "metric:winrate": "win-rate", "metric:auto": "auto", "metric:teleop": "teleop",
@@ -212,6 +212,19 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   }
   // Two alliances of two, one either side of the "vs": the engine's call for that match, in the season said (else the
   // latest every team has a rating in). A match has no event, place or window to filter by.
+  // Two or three teams on one alliance: its predicted score, in the season said, else the latest every team has a
+  // rating in.
+  if (intent === "lineup-score") {
+    if (p.event || p.worlds || p.states || scope.place || scope.area || scope.window || scope.level || scope.alliance || scope.ever || p.matchNumber != null) return null;
+    const pick = scope.season != null ? { season: scope.season, why: undefined } : await predictionSeasonOf(p.teams.map((t) => t.number));
+    const stat = await lineupScore(p.teams.map((t) => ({ number: t.number, name: t.name })), pick.season, pick.why);
+    const hits = (await Promise.all(p.teams.map(async (t) => (await opts.resolve(String(t.number))).hits.find((h) => h.kind === "team" && h.ref === String(t.number))))).filter((h): h is NonNullable<typeof h> => !!h);
+    return {
+      q: p.q, hits: hits.map((h) => ({ ...h, facts: undefined, events: undefined })), step: "deterministic", weak: false, pages: opts.pages,
+      understood: { kind: "question", label: stat.title, season: pick.season }, ...(opts.full ? { stat } : {}),
+      intent: { kind: `stat-${stat.intent}`, pattern: `${p.teams.map(() => "[team]").join(" ")} same alliance score`, met: true, understood: [] },
+    };
+  }
   if (intent === "alliance-predict") {
     const red = p.teams.filter((t) => p.vsAt != null && t.at < p.vsAt), blue = p.teams.filter((t) => p.vsAt != null && t.at > p.vsAt);
     if (red.length !== 2 || blue.length !== 2 || p.event || p.worlds || p.states || scope.place || scope.area || scope.window || scope.level || scope.alliance) return null;

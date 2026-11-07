@@ -119,6 +119,15 @@ describe("the answers", () => {
       expect(a.stat!.blocks[0], q).toMatchObject({ kind: "kpis", items: [{ value: expect.stringMatching(/^(98\.0|50\.3) ±3$/) }, { value: expect.stringMatching(/^(98\.0|50\.3) ±3$/) }] });
     }
   });
+  it("two or three teams on one alliance: their ratings added, each pair when three are named", async () => {
+    const three = await ask("if 207, 6980 and 33950 were teamed up, what's the predicted score");
+    expect(three.stat).toMatchObject({ intent: "lineup-score", headline: { value: "160 points", label: "predicted for the best pair, 207 & 6980: an alliance fields two teams a match", sub: expect.stringMatching(/^±5 · /) } });
+    const pairs = three.stat!.blocks.find((b) => b.kind === "table" && b.title === "Each pair on the field");
+    expect(pairs && pairs.kind === "table" && pairs.rows.map((r) => r.cells.pair)).toEqual(["207 & 6980", "207 & 33950", "6980 & 33950"]);
+    const two = await ask("predicted score with 23268 and 4215 as partners");
+    expect(two.stat).toMatchObject({ intent: "lineup-score", headline: { value: "248 points", label: "predicted for 23268 & 4215 together" } });
+    expect(two.stat!.blocks.some((b) => b.kind === "table" && b.title === "Each pair on the field")).toBe(false);
+  });
   it("81: wins in the meetings only", async () => {
     const a = await ask("4215 wins against 6980");
     expect(a.stat!.headline).toMatchObject({ value: "3 wins", label: "for 4215 in 4 meetings with 6980 (3-1-0)" });

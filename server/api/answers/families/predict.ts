@@ -47,6 +47,38 @@ export async function predictionSeasonOf(teams: number[]): Promise<{ season: num
 
 const ALLIANCE_RULE = "The engine's call for a qualification match between the two alliances named, as Predict makes it for the same lineup: each alliance's expected score (without penalties, margin-calibrated), the win chance and the predicted margin, from each team's prediction rating (points per match ± its uncertainty) as their team pages show it.";
 
+const LINEUP_RULE = "An alliance's predicted score from the engine's prediction ratings: each team's rating is the points it adds to its alliance in a qualification match (without penalties), so an alliance's is its teams' ratings added, ± their uncertainties combined. An alliance fields two teams a match: with three named, each pair is shown, the highest first.";
+
+/** "predicted score if 12345, 23456 and 34567 were on the same alliance": the teams' ratings added, each pair's when
+ *  three are named (an alliance fields two a match), the highest first. */
+export async function lineupScore(teams: AnswerTeam[], season: number, why?: string): Promise<StatAnswer> {
+  const S = seasonLabel(season), label = (ts: AnswerTeam[]) => ts.map((t) => t.number).join(" & ");
+  const base = { family: "two-team" as const, intent: "lineup-score", title: `Predicted score: ${label(teams)} on one alliance, ${S}`, team: teams[0], teams, scope: [S, "Qualification match"],
+    definition: `${LINEUP_RULE}${why ? ` ${why}` : ""}`, source: `From the engine's ${S} prediction ratings` };
+  if (isLegacy(season)) return { ...base, blocks: [], none: `Predictions start with 2023–24: ${S} has no prediction ratings.` };
+  const rows = await all<RatingRow>(`SELECT team, rating_np, rating_sd, rating_rank FROM team_season_stats WHERE season = ? AND team IN (${teams.map(() => "?").join(", ")})`, [season, ...teams.map((t) => t.number)]);
+  const of = (t: AnswerTeam) => rows.find((r) => Number(r.team) === t.number);
+  const missing = teams.filter((t) => of(t)?.rating_np == null).map(whoOf);
+  if (missing.length) return { ...base, blocks: [], none: `No ${S} prediction rating for ${missing.join(" or ")} yet.` };
+  const pairs = teams.length > 2 ? teams.flatMap((a, i) => teams.slice(i + 1).map((b) => [a, b])) : [teams];
+  const scored = pairs.map((ps) => ({ ps, mean: ps.reduce((n, t) => n + Number(of(t)!.rating_np), 0), sd: Math.sqrt(ps.reduce((n, t) => n + Number(of(t)!.rating_sd ?? 0) ** 2, 0)) }))
+    .sort((a, b) => b.mean - a.mean);
+  const top = scored[0];
+  const ratings: StatBlock = { kind: "table", title: "Prediction ratings", columns: [{ key: "team", label: "Team" }, { key: "rating", label: "Rating", num: true }, { key: "rank", label: "Rank" }],
+    rows: teams.map((t) => ({ cells: { team: whoOf(t), rating: `${num1(of(t)!.rating_np)} ±${Math.round(of(t)!.rating_sd ?? 0)}`, rank: of(t)!.rating_rank ? `#${of(t)!.rating_rank}` : "–" }, href: teamHref(t.number, season) })) };
+  const each: StatBlock[] = teams.length > 2 ? [{ kind: "table", title: "Each pair on the field", columns: [{ key: "pair", label: "Pair" }, { key: "score", label: "Predicted score", num: true }],
+    rows: scored.map((x) => ({ cells: { pair: label(x.ps), score: `${Math.round(x.mean)} ±${Math.round(x.sd)}` } })) }] : [];
+  return {
+    ...base,
+    headline: {
+      value: `${Math.round(top.mean)} points`,
+      label: teams.length > 2 ? `predicted for the best pair, ${label(top.ps)}: an alliance fields two teams a match` : `predicted for ${label(top.ps)} together`,
+      sub: `±${Math.round(top.sd)} · a qualification match, without penalties`,
+    },
+    blocks: [...each, ratings],
+  };
+}
+
 /** "predict 12345 23456 vs 34567 45678": two alliances of two, the engine's call for that qualification match. */
 export async function allianceForecast(red: AnswerTeam[], blue: AnswerTeam[], season: number, why?: string): Promise<StatAnswer> {
   const S = seasonLabel(season), side = (ts: AnswerTeam[]) => ts.map((t) => t.number).join(" & ");
