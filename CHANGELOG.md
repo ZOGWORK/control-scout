@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.8.7 — 2026-11-07
+## 3.9.2 — 2026-11-07
 
 Questions about what a word means are answered however they're framed, two words at once, or with a team's own numbers.
 
@@ -27,6 +27,68 @@ Questions about what a word means are answered however they're framed, two words
 
 ### Search
 - **What a word means, asked any way.** Framing such as "explained", "in plain words" or "for a beginner" is set aside; "the difference between" two words gives each one's lines; a word asked for one team ("what does ranking score mean, for 14450 at …", "why did 4215's rating go down even though they won") gives that team's own stat with the word's explainer under it; and "the game this season" or "last season" names that season's game. (#1065)
+
+## 3.9.1 — 2026-11-07
+
+A team's next event asked about as a forecast, and "will <team> win <event>", answer with the engine's own projection for that event.
+
+### Highlights
+- [predict] "<team> next event prediction" shows its chance to win it
+- [predict] "Will <team> win <event>" shows the forecast there
+- [predict] "Will <team> win states" and "win worlds" read their own event
+
+### Search
+- **Next event, said as a forecast.** "Next event prediction", "next meet forecast" and "prediction for their next event" read as the stored projection for the team's next event, led by its chance to win it.
+- **"Will" with a win and an event.** "Will <team> win <event>", "… win states" and "… win worlds" are the forecast at that event; "will" with no event or no win ("will <team> advance", "when will <team> play next") keeps its own answer. (#1072)
+
+## 3.9.0 — 2026-11-07
+
+On an event day before the schedule is out, the LIVE box says it's waiting for the schedule. It no longer says your teams are done, and it names only your teams that are at the event.
+
+### Highlights
+- [live] Before the schedule: "Waiting for the schedule", never "done for now"
+- [live] Only your teams at this event are named
+- [live] A team the posted schedule leaves out isn't called done
+
+### Live
+- **LIVE box without a schedule.** With no matches posted, the box's title is "Waiting for the schedule". Your tracked or assigned teams at the event are listed as "Your teams here: …", and their countdown starts when the schedule is out. If none of them is at the event, there's no team line. "Your teams are done for now" and "No more scheduled matches for …" now need a posted schedule, and they name only teams that are in it. A team at the event that the posted schedule leaves out reads "Not in the posted schedule". Every event works the same way: the teams named are the event's own list or its schedule. The event stays Live on its day: FIRST shows it as in progress, and live mode keeps the page checking for the schedule. (#1089)
+
+## 3.8.9 — 2026-11-07
+
+A league meet's page lists the teams FIRST lists for that meet, not every team in its league. The day before a meet, FIRST's rankings for it are the league's running standing, and Control Scout had been taking them as the meet's team list (P1-5 AM Northeast League Meet: 33 teams shown, FIRST lists 13).
+
+### Highlights
+- [fixes] League meets list only the teams FIRST lists for that meet
+- [fixes] Past league meets keep only the teams that played there
+- [teams] A team's page no longer shows its league's other meets as its own
+
+### Data
+- **Event teams from FIRST's participant list.** Every FIRST fetch of an event also reads its team list (`/teams?eventCode=`), and that list decides who is at the event; rankings only add each team's standing, and scheduled teams always count. A list FIRST files for both sessions of an AM/PM pair stays the pair's (shown for both sessions, as before), never one session's teams. A league meet whose list FIRST hasn't published shows no teams from its league's standing, and one whose list can't be read falls back to FTC Scout, like any failed FIRST read. Each fetch replaces the stored list whole, and FIRST's own list replaces the stored registrations too, so a list FIRST emptied stays empty.
+- **Stored league meets repaired.** Migration 74 drops the teams stored at a league meet that weren't scheduled there (about 19,000 rows over 2023–24 to 2025–26; remote meets, which never have matches, are left alone); an upcoming meet's list comes back from FIRST on its next fetch, with FIRST's registrations standing in until then. (#1041)
+
+## 3.8.8 — 2026-11-07
+
+A trend asked as a choice ("is its rating rising or falling", "getting better or worse at penalties") answers with the trend, and penalties asked as a trend show each event.
+
+### Highlights
+- [fixes] "Is the rating rising or falling" shows the rating trend
+- [fixes] "Getting better or worse at penalties" shows each event
+- [fixes] "Better or worse than" another team stays a comparison
+
+### Search
+- **Trends asked as a choice.** "Rising or falling", "getting better or worse" and "improving or flat" read as a trend; a team's penalties asked as a trend give the per-event figure. (#1043)
+
+## 3.8.7 — 2026-11-07
+
+Asked for the team with the most matches, events or awards, search answers with that count's leaderboard, its leader first: "which team in New Jersey has the most awards", "most matches played in Ohio".
+
+### Highlights
+- [rankings] "Which team has the most awards in NJ" ranks by awards won
+- [rankings] "Most matches played" ranks teams, not scores
+- [rankings] Events played is a leaderboard of its own too
+
+### Search
+- **Leaderboards by a count.** Matches played, events played and awards won are leaderboard stats, their leader "the team with the most". "Which team has the most awards", "team that played the most matches" and "top 5 teams by matches played" read as these boards, never the highest-scoring matches or the rating board. (#1040)
 
 ## 3.8.6 — 2026-11-07
 

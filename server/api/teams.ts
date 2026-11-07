@@ -85,8 +85,8 @@ export async function seasonStats(season: number, team: number): Promise<TeamSea
 }
 
 /**
- * SQL: the event_teams row `et` is an event the team took part in. League rosters list every league team at
- * every meet: once an event has results, it counts only if this team was on the field in a played match
+ * SQL: the event_teams row `et` is an event the team took part in. Once an event has results, it counts only
+ * if this team was on the field in a played match
  * (scheduled no-shows don't count). An event with no results yet (upcoming, or a remote one) counts as listed.
  */
 export const ATTENDED = `(NOT EXISTS (SELECT 1 FROM matches m WHERE m.season = et.season AND m.code = et.code AND m.played = 1)

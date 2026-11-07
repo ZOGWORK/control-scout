@@ -128,6 +128,48 @@ describe("LivePanel", () => {
     expect(screen.getByText(/No more scheduled matches for 1, so this is the event's next match/)).toBeTruthy();
   });
 
+  it("with no schedule posted, nobody is done: it waits for the schedule and names only my teams at the event", () => {
+    // Tracked 4215 and 19477 are at the meet; 207 and 31255 are in the league, not at this meet.
+    personal.tracked.teams = [4215, 207, 19477, 31255];
+    const d = { ...detail([]), field: [4215, 6980, 19477].map((team) => ({ team })) } as EventDetail;
+    const { container } = show(d);
+    expect(screen.getByText("Waiting for the schedule")).toBeTruthy();
+    expect(screen.queryByText(/done for now/)).toBeNull();
+    expect(screen.queryByText(/No more scheduled matches/)).toBeNull();
+    expect(screen.getByText(/No schedule published yet/)).toBeTruthy();
+    expect(container.querySelector("[data-live-waiting]")!.textContent).toBe("Your teams here: 4215, 19477. Their countdown starts when the schedule is out.");
+  });
+
+  it("with no schedule and none of my teams at the event, no team line at all", () => {
+    personal.tracked.teams = [207, 31255];
+    const { container } = show({ ...detail([]), field: [4215, 6980].map((team) => ({ team })) } as EventDetail);
+    expect(container.querySelector("[data-live-waiting], [data-live-done]")).toBeNull();
+    expect(screen.queryByText(/207|31255/)).toBeNull();
+  });
+
+  it("a schedule with my team still to play counts down to it, never 'done'", () => {
+    personal.tracked.teams = [1, 18360];
+    show(detail(MATCHES));
+    expect(screen.getByText("Up next for you")).toBeTruthy();
+    expect(screen.queryByText(/done for now/)).toBeNull();
+  });
+
+  it("a team at the event the posted schedule leaves out isn't 'done'", () => {
+    personal.tracked.teams = [1, 4242];
+    const d = detail(MATCHES);
+    const { container } = show({ ...d, field: [...d.field, { team: 4242 }] } as EventDetail);
+    expect(container.querySelector("[data-live-done]")!.textContent).toMatch(/^No more scheduled matches for 1,/);
+    expect(container.querySelector("[data-live-waiting]")!.textContent).toBe("Not in the posted schedule: 4242.");
+  });
+
+  it("names a team the schedule leaves out next to another team's countdown", () => {
+    personal.tracked.teams = [18360, 4242];
+    const d = detail(MATCHES);
+    const { container } = show({ ...d, field: [...d.field, { team: 4242 }] } as EventDetail);
+    expect(screen.getByText("Up next for you")).toBeTruthy();
+    expect(container.querySelector("[data-live-waiting]")!.textContent).toBe("Not in the posted schedule: 4242.");
+  });
+
   it("leaves no timer running once it's gone (the event ended)", () => {
     personal.tracked.teams = [18360];
     const { unmount } = show(detail(MATCHES));
