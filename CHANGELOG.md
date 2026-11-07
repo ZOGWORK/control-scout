@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.9.3 — 2026-11-07
+
+Two or three teams said to share an alliance answer with its predicted score.
+
+### Highlights
+- [predict] "If <team>, <team> and <team> were on the same alliance"
+- [predict] Three teams named show each pair, the best one first
+- [predict] Two teams show their predicted score together
+
+### Search
+- **Teams on one alliance.** "Predicted score if <team>, <team> and <team> were on the same alliance", "… as partners", "… teamed up": the teams' prediction ratings added, ± their uncertainties combined. An alliance fields two teams a match, so three named show each pair, the highest first. (#1119)
+
 ## 3.9.2 — 2026-11-07
 
 The live countdown waits for the day's first result, then runs on the field's real pace.
