@@ -33,6 +33,8 @@ describe("a kind of event a place has never held", () => {
       expect(a.step, q).toBe("deterministic");
       expect(a.understood?.fallback, q).toMatch(/^Vermont has held no .*meets in any season on record/);
       expect(a.hits.filter((h) => h.kind === "event").map((h) => h.ref).sort(), q).toEqual([`${S}:USVTQ1`, `${S}:USVTS1`]);
+      // The place's link counts them as what they are, events.
+      expect(a.hits.find((h) => h.kind === "place")?.subtitle ?? "", q).not.toMatch(/meets/);
     }
   });
   it("leaves a place that holds the kind as it was", async () => {
