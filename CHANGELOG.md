@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.8.5 — 2026-11-07
+
+A trend asked as a choice ("is its rating rising or falling", "getting better or worse at penalties") answers with the trend, and penalties asked as a trend show each event.
+
+### Highlights
+- [fixes] "Is the rating rising or falling" shows the rating trend
+- [fixes] "Getting better or worse at penalties" shows each event
+- [fixes] "Better or worse than" another team stays a comparison
+
+### Search
+- **Trends asked as a choice.** "Rising or falling", "getting better or worse" and "improving or flat" read as a trend; a team's penalties asked as a trend give the per-event figure. (#1043)
+
 ## 3.8.4 — 2026-11-07
 
 The search sign-off grader counts a season's matches as a record answer: "17670 matches this season" answers with its W-L-T record and every match, dated.
