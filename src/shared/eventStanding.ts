@@ -9,8 +9,8 @@ export function eventStanding(r: Pick<FieldRow, "rank" | "wins" | "losses" | "ti
   return { rank: r.rank, wins: r.wins, losses: r.losses, ties: r.ties };
 }
 
-/** The teams that were at this league meet (a counted match here), or the whole field anywhere else. FIRST's
- *  league standing lists every team in the league, so before a meet's first counted match the field stays whole. */
+/** The teams that were at this league meet (a counted match here), or the whole field anywhere else. The field is
+ *  FIRST's participant list for the meet (sources/first.ts), so before its first counted match it stays whole. */
 export function eventRoster<T extends Pick<FieldRow, "meet">>(field: T[]): T[] {
   const here = field.filter((r) => r.meet);
   return here.length ? here : field;
