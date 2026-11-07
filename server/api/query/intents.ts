@@ -195,6 +195,8 @@ export const INTENTS: IntentRule[] = [
     R("highlights", n, ["highlights"], ["videos", "thing:match", "list", "agg:max"], { noMatchNo: true }),
     R("highlights", n, ["videos"], ["thing:match", "thing:event", "list", "agg:max", "agg:last"], { noMatchNo: true }),
   ]),
+  // "What happened last weekend", with no team: the scope's standout matches (one team's is the forecast's review).
+  R("highlights", 0, ["review"], ["highlights", "thing:match", "list", "agg:max"], { noMatchNo: true }),
   // The teams with a name, counted and listed: "how many teams named …", "teams called …".
   R("teams-named", 0, ["named"], ["agg:count", "thing:team", "list"]),
   R("count-teams", 0, ["agg:count", "thing:team"], ["list"], { noEvent: true }),

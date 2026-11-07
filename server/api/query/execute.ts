@@ -366,8 +366,9 @@ async function highlights(p: Parsed, scope: ReadScope, opts: PipelineOptions): P
     q: p.q, hits, pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season }, stat,
     intent: { kind: `stat-${stat.intent}`, pattern: `${p.teams.length ? "[team] " : ""}highlights${p.event ? " [event]" : p.worlds ? " [worlds]" : p.states ? " [states]" : ""}${p.place ? " [place]" : ""}${scope.window ? " [window]" : ""}`, met: true, understood: [] },
   });
-  // Video words alone ("recap", "videos", "watch"): a video page; "highlights" or "best": the standout matches first.
-  const videos = !p.symbols.includes("highlights") && !p.symbols.includes("agg:max");
+  // Video words alone ("recap", "videos", "watch"): a video page; "highlights", "best" or "what happened": the
+  // standout matches first.
+  const videos = p.symbols.includes("videos") && !p.symbols.includes("highlights") && !p.symbols.includes("agg:max");
   const kind = p.worlds ? WORLDS_KIND : p.states ? STATES_KIND : p.eventKind ? eventKindOf(p.eventKind) : null;
   if (p.eventKind && !kind) return null;
   // A calendar year said with an event, Worlds or a state championship ("nj championship 2025", "worlds 2025") is the

@@ -67,6 +67,11 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["first|earliest|debut|very first|opening|initial", { k: "agg", v: "first" }],
   ["last|latest|most recent|recent|newest|previous|final|current|so far", { k: "agg", v: "last" }],
   ["closest|tightest|narrowest|nail biter|nailbiter", { k: "agg", v: "closest" }],
+  // A sort said as an order ("highest scoring first", "lowest first"): the highest or lowest, never a first match.
+  ["highest first|best first|top first|most first|biggest first", { k: "agg", v: "max" }],
+  ["lowest first|worst first|fewest first|least first|smallest first", { k: "agg", v: "min" }],
+  ["highest scoring first|highest scores first|top scoring first|top scores first", [{ k: "agg", v: "max" }, { k: "metric", v: "score" }]],
+  ["lowest scoring first|lowest scores first", [{ k: "agg", v: "min" }, { k: "metric", v: "score" }]],
   ["next|upcoming|coming up", { k: "agg", v: "next" }],
   // "The last time", "the first time", "next time": when, said with "time" ("when was the last time they played").
   ["last time|the last time|most recent time|latest time|last time ever", { k: "agg", v: "last" }],
