@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.9.1 — 2026-11-07
+
+Match searches can set a score an alliance had to reach: "where the losing alliance scored over 200", "both alliances scored over 250".
+
+### Highlights
+- [fixes] "Losing alliance scored over 200" lists those matches
+- [fixes] "Both alliances scored over 250" works at an event too
+- [fixes] The card says the condition back in words
+
+### Search
+- **A score to reach.** "Where the losing, winning, both or either alliance scored over, under or at least N" filters the match list by that alliance's final score, in a place, a time window or at an event named; the number is never read as a team. (#1096)
+
 ## 3.9.0 — 2026-11-07
 
 On an event day before the schedule is out, the LIVE box says it's waiting for the schedule. It no longer says your teams are done, and it names only your teams that are at the event.
