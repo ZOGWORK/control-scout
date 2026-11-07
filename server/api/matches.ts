@@ -35,7 +35,7 @@ export async function matchViews(f: MatchFilter, opts: { predictUnplayed?: boole
   const args: (string | number)[] = [f.season];
   if (f.code) { where.push("m.code = ?"); args.push(f.code); }
   if (f.team) { where.push("(m.code, m.level, m.series, m.number) IN (SELECT code, level, series, number FROM match_teams WHERE team = ? AND season = ?)"); args.push(f.team, f.season); }
-  const rows = await all<any>(`SELECT m.code, m.level, m.series, m.number, m.label, m.time, m.played, m.video,
+  const rows = await all<any>(`SELECT m.code, m.level, m.series, m.number, m.label, m.time, m.scheduled, m.played, m.video,
     m.red_total, m.red_np, m.red_auto, m.red_teleop, m.red_endgame, m.red_pen, m.red_tips, m.blue_total, m.blue_np, m.blue_auto, m.blue_teleop, m.blue_endgame, m.blue_pen, m.blue_tips,
     e.timezone FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE ${where.join(" AND ")} ORDER BY m.time, m.code, m.level DESC, m.series, m.number`, args);
   if (!rows.length) return [];
@@ -107,7 +107,9 @@ export async function matchViews(f: MatchFilter, opts: { predictUnplayed?: boole
     }
     out.push({
       season: f.season, code: r.code, key, level: r.level, series: Number(r.series), number: Number(r.number), label: r.label, time: r.time,
-      startsAt: ((ms) => (ms == null ? null : new Date(ms).toISOString()))(localToUtcMs(r.time, r.timezone)), played: !!r.played,
+      startsAt: ((ms) => (ms == null ? null : new Date(ms).toISOString()))(localToUtcMs(r.time, r.timezone)),
+      ...(r.scheduled && r.scheduled !== r.time ? { scheduledAt: ((ms) => (ms == null ? null : new Date(ms).toISOString()))(localToUtcMs(r.scheduled, r.timezone)) } : {}),
+      played: !!r.played,
       red: { teams: l.red, score: r.played ? score(r, "red") : null },
       blue: { teams: l.blue, score: r.played ? score(r, "blue") : null },
       video: r.video ?? null,

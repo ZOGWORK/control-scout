@@ -177,8 +177,9 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
       count: p.agg === "count", noTeam: false, core: String(team.number),
       ...(p.award && (id === "awards" || id === "total-awards") ? { award: p.award } : {}),
       ...(AWARD_LISTS.has(id) && (p.agg === "first" || p.agg === "last") ? { pick: p.agg === "first" ? "first" : "latest" } : {}),
-      // "How many penalty points", "in total": the total first; "per match" said with it is the per-match figure.
-      ...(id === "penalties" ? { variant: p.symbols.includes("per:event") ? "per-event" : p.symbols.includes("per:rate") ? "rate" : p.symbols.includes("per:match") ? null : p.symbols.includes("agg:sum") || p.symbols.includes("agg:count") ? "total" : null } : {}),
+      // "How many penalty points", "in total": the total first; "per match" said with it is the per-match figure; a trend
+      // with no measure said ("getting better or worse at penalties") is the per-event one.
+      ...(id === "penalties" ? { variant: p.symbols.includes("per:event") ? "per-event" : p.symbols.includes("per:rate") ? "rate" : p.symbols.includes("per:match") ? null : p.symbols.includes("agg:sum") || p.symbols.includes("agg:count") ? "total" : p.symbols.includes("trend") ? "per-event" : null } : {}),
       ...(id === "record" && p.symbols.includes("per:event") ? { variant: "per-event" as const } : {}),
     };
     const a = await statAnswerOf(p.q, it, opts.resolve, opts);
@@ -289,6 +290,12 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     const played = !/^From 0 /.test(a.stat?.source ?? "");
     if (!p.time || (p.time.kind === "season" && p.time.relative === "this")) return relaxed(a, defaultSteps(f.season, where, played ? MATCH_NOUN[f.measure] : "matches"), (season) => card({ ...f, season }));
     return a;
+  }
+  // A count's board ("the most matches played", "most awards in nj"): answered as the leaderboard reader reads it, never
+  // the highest-scoring matches or the rating's board. Read here, as typed: the readers after this see "matches" as one.
+  if (!p.teams.length && (intent === "top-matches" || intent === "leaderboard")) {
+    const counted = readLeaderboard(p.q);
+    if (counted && BOARD_STATS[counted.stat]?.count) return boardSearch(p.q, counted, opts);
   }
   if (!p.teams.length && intent === "top-matches") {
     if (p.event || p.worlds || p.states || p.level || p.alliance || (p.place && p.place.kind === "city")) return null;

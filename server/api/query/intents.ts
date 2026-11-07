@@ -121,7 +121,8 @@ export const INTENTS: IntentRule[] = [
   R("longest-streak", 1, ["agg:max", "metric:streak"], OUTCOMES),
   R("current-streak", 1, ["metric:streak"], ["agg:last", "metric:win", "metric:loss", "outcome:W", "outcome:L"]),
   R("avg-penalties", 1, ["agg:mean", "metric:penalty"], ["thing:match"]),
-  R("penalties", 1, ["metric:penalty"], ["thing:match", "per:match", "per:event", "per:rate", "agg:mean", "agg:count", "agg:sum"]),
+  // Its card is per event: "penalties trend", "getting better or worse at penalties" read it too.
+  R("penalties", 1, ["metric:penalty"], ["thing:match", "per:match", "per:event", "per:rate", "agg:mean", "agg:count", "agg:sum", "trend", "prep:at"]),
   R("score-range", 1, ["metric:range"], ["metric:score"]),
   R("score-consistency", 1, ["metric:consistency"], ["metric:score"]),
   R("playoff-matches", 1, ["level:playoff", "thing:match"], ["list"], { noEvent: true }),
@@ -161,6 +162,9 @@ export const INTENTS: IntentRule[] = [
   R("team-opr", 1, ["metric:opr"], ["agg:last"], { noEvent: true }),
   R("team-rating", 1, ["metric:rating"], ["agg:last"], { noEvent: true }),
   R("team-predict", 1, ["predict"], ["metric:win", "metric:record", "metric:score", "metric:rank", "thing:event", "thing:match", "agg:next", "metric:playoffs", "review", "agg:last", "advance"]),
+  // "Will 12345 win <event>": the forecast at the event named (or its states, or Worlds).
+  R("team-predict", 1, ["future", "metric:win"], ["thing:event"], { event: true }),
+  R("team-predict", 1, ["future", "metric:win", "worlds"], ["thing:event"]),
   // Two alliances of two: a match's call. "Vs" between them is enough, with no other word.
   R("alliance-predict", 4, ["vs"], ["predict", "and", "compare", "metric:win", "metric:score", "metric:margin", "thing:match", "per:match"]),
   // Two teams.

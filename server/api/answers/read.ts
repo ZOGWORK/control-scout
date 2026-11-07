@@ -121,7 +121,7 @@ const RULES: IntentRule[] = [
   { id: "playoff-chance", family: "stat", season: "all", re: /\b(?:predicted|projected|expected|likely)\s+to\s+make\s+(?:the\s+)?(?:playoffs?|eliminations?|elims?)(?:\s+(?:at|in)\s+(?:their|its|the)\s+next\s+(?:event|competition|meet))?\b|\b(?:playoffs?|elimination)\s+(?:chances?|odds|probability)\b|\bchances?\s+(?:to|of)\s+mak(?:e|ing)\s+(?:the\s+)?playoffs?\b/ },
   { id: "advance-chance", family: "stat", season: "all", re: /\badvancement\s+(?:chances?|odds|probability)\b|\bchances?\s+(?:to|of)\s+(?:advance|advancing|qualify|qualifying)(?:\s+to\s+(?:the\s+)?(?:worlds?|first\s+championship|states|state\s+championship))?\b|\b(?:odds|probability)\s+(?:to|of)\s+(?:advance|advancing)\b/ },
   // "Predicted chances of 4215 at …": the projection's chances, led by the chance to win the event.
-  { id: "event-win-chance", family: "stat", season: "all", re: /\bchances?\s+(?:to|of)\s+win(?:ning)?\s+(?:an?|the|their|its)\s+(?:next\s+)?(?:event|competition|meet|tournament)\b|\bevent\s+win\s+(?:chances?|odds|probability)\b|\b(?:predicted|projected|forecast)\s+(?:chances?|odds|probabilit(?:y|ies))(?:\s+(?:of|for))?\b/ },
+  { id: "event-win-chance", family: "stat", season: "all", re: /\bchances?\s+(?:to|of)\s+win(?:ning)?\s+(?:an?|the|their|its)\s+(?:next\s+)?(?:event|competition|meet|tournament)\b|\bevent\s+win\s+(?:chances?|odds|probability)\b|\b(?:predicted|projected|forecast)\s+(?:chances?|odds|probabilit(?:y|ies))(?:\s+(?:of|for))?\b|\bnext\s+(?:event|competition|meet|tournament)(?:'s|s)?\s+(?:predictions?|forecasts?|projections?|odds|chances?)\b|\b(?:predictions?|forecasts?|projections?)\s+(?:for|at|of)\s+(?:their|its|the)\s+next\s+(?:event|competition|meet|tournament)\b/ },
   { id: "toughest-opponent", family: "two-team", season: "all", re: /\b(?:toughest|hardest|strongest|worst)\s+(?:opponents?|rivals?|matchups?)\b|\bnemesis\b/ },
   { id: "most-played-opponent", family: "two-team", season: "all", re: /\bmost\s+(?:played|common|frequent|faced|often\s+(?:played|faced))\s+(?:opponents?|rivals?)\b|\bopponents?\s+(?:faced|played|met)\s+(?:the\s+)?most\b|\bbiggest\s+rival\b/ },
   { id: "frequent-partner", family: "two-team", season: "all", re: /\bmost\s+(?:frequent|common|often|played\s+with)\s+(?:alliance\s+)?partners?\b|\bfrequent\s+(?:alliance\s+)?partners?\b|\bpartnered\s+(?:with\s+)?(?:the\s+)?most\b/ },
@@ -192,6 +192,8 @@ const RULES: IntentRule[] = [
 
 export interface ReadScope {
   season: number | null;
+  /** A day was said ("on March 15 2026"): read here only as its season. */
+  day?: boolean;
   /** "this season": the team's latest season with matches. */
   latest: boolean;
   /** "ever", "all time", "career": every season, said so. */
@@ -294,7 +296,7 @@ export function readScope(q: string): { scope: ReadScope; rest: string } {
   }
   // A date names its season ("the March 15 2026 NJ championship": 2025–26, the season of a spring event).
   const date = take(/\b(?:on\s+)?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?,?\s+(20\d\d)\b/);
-  if (date) scope.season = Number(date[2]) - (MONTHS.indexOf(date[1]) >= 8 ? 0 : 1);
+  if (date) { scope.season = Number(date[2]) - (MONTHS.indexOf(date[1]) >= 8 ? 0 : 1); scope.day = true; }
   // A season: "2024-25" / "2024–25", a game's name ("into the deep"), "this season", "ever".
   const label = take(/\b(?:in\s+|during\s+)?(20\d\d)\s*[-–/]\s*(\d\d)\b/);
   if (label && (Number(label[1]) + 1) % 100 === Number(label[2])) scope.season = Number(label[1]);
@@ -488,6 +490,10 @@ const BOARD_STAT_WORDS: [string, RegExp][] = [
   ["rating", /^(?:prediction |predicted )?(?:rating|strength)$/],
   ["record", /^(?:(?:win[- ]loss(?:[- ]tie)? )?record|w-l-t)$/],
   ["reliability", /^(?:reliability|reliable|dependability)(?: index| score)?$/],
+  // Singular when search has read the plural as one ("most match played"), only with its verb.
+  ["matches", /^(?:(?:matches|games)(?: played)?|(?:match|game) played)$/],
+  ["events", /^(?:(?:events|competitions|meets)(?: played| attended)?|(?:event|competition|meet) (?:played|attended))$/],
+  ["awards", /^awards?(?: won)?$/],
 ];
 const boardStat = (s: string) => BOARD_STAT_WORDS.find(([, re]) => re.test(s.trim()))?.[0] ?? null;
 /** A place's words as one region (a name, its start, a code, or one near miss), or null. */
@@ -535,6 +541,17 @@ export function readLeaderboard(raw: string): LeaderboardQuestion | null {
   if ((m = new RegExp(`^(?:the )?(?:best|top|strongest|highest ranked)(?: (\\d{1,2}))? rookies?(?: ${TEAMS})?(?: by (.+?))?${PLACE}$`).exec(rest))) {
     const stat = m[2] ? boardStat(m[2]) : "opr", region = place(m[3]);
     if (stat && region !== false) return { kind: "rookie", stat, n: n(m[1], 10), region, city: null, season: scope.season };
+  }
+  // "which team has the most awards in nj", "team that played the most matches", "most events played in ohio": a
+  // count's board, its leader first. Right after "most" a count needs no verb: search reads "most matches" as "most
+  // match" (matches played), and a verb said before it is its own ("attended the most event").
+  // Counted at some events only ("at New Jersey events", "out of state") or on one day is a count the board (season
+  // totals) can't make: none.
+  if (!scope.place && !scope.outOfState && !scope.day && (m = new RegExp(`^(?:(?:which|what) )?(?:${TEAMS} )?(?:(?:in|from) (.+?) )?(?:(?:that|who) )?(?:(has|have|had|with|won|played|plays|attended|got) )?(?:the )?most (.+?)${PLACE}$`).exec(rest))) {
+    const counted = boardStat(m[3]) ?? boardStat(`${m[3]} ${m[2] === "attended" ? "attended" : "played"}`), region = place(m[1] ?? m[4]);
+    // "Won the most matches" is the wins board; "won the most events" is no board here (never events played).
+    const stat = m[2] !== "won" || counted === "awards" ? counted : counted === "matches" ? "wins" : null;
+    if ((stat === "matches" || stat === "events" || stat === "awards" || (stat === "wins" && counted === "matches")) && region !== false) return { kind: "top", stat, n: 10, region, city: null, season: scope.season, best: true };
   }
   // "most improved team in new jersey"
   if ((m = new RegExp(`^(?:the )?(?:top (\\d{1,2}) )?most improved ${TEAMS}${PLACE}$`).exec(rest))) {
