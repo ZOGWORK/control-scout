@@ -15,18 +15,33 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.8.7 — 2026-11-07
+## 3.8.9 — 2026-11-07
 
 A league meet's page lists the teams FIRST lists for that meet, not every team in its league. The day before a meet, FIRST's rankings for it are the league's running standing, and Control Scout had been taking them as the meet's team list (P1-5 AM Northeast League Meet: 33 teams shown, FIRST lists 13).
 
-### Highlights
-- [fixes] League meets list only the teams FIRST lists for that meet
-- [fixes] Past league meets keep only the teams that played there
-- [teams] A team's page no longer shows its league's other meets as its own
+### 3.8.8 — 2026-11-07
 
-### Data
-- **Event teams from FIRST's participant list.** Every FIRST fetch of an event also reads its team list (`/teams?eventCode=`), and that list decides who is at the event; rankings only add each team's standing, and scheduled teams always count. A list FIRST files for both sessions of an AM/PM pair stays the pair's (shown for both sessions, as before), never one session's teams. A league meet whose list FIRST hasn't published shows no teams from its league's standing, and one whose list can't be read falls back to FTC Scout, like any failed FIRST read. Each fetch replaces the stored list whole, and FIRST's own list replaces the stored registrations too, so a list FIRST emptied stays empty.
-- **Stored league meets repaired.** Migration 74 drops the teams stored at a league meet that weren't scheduled there (about 19,000 rows over 2023–24 to 2025–26; remote meets, which never have matches, are left alone); an upcoming meet's list comes back from FIRST on its next fetch, with FIRST's registrations standing in until then. (#1041)
+A trend asked as a choice ("is its rating rising or falling", "getting better or worse at penalties") answers with the trend, and penalties asked as a trend show each event.
+
+### Highlights
+- [fixes] "Is the rating rising or falling" shows the rating trend
+- [fixes] "Getting better or worse at penalties" shows each event
+- [fixes] "Better or worse than" another team stays a comparison
+
+### Search
+- **Trends asked as a choice.** "Rising or falling", "getting better or worse" and "improving or flat" read as a trend; a team's penalties asked as a trend give the per-event figure. (#1043)
+
+## 3.8.7 — 2026-11-07
+
+Asked for the team with the most matches, events or awards, search answers with that count's leaderboard, its leader first: "which team in New Jersey has the most awards", "most matches played in Ohio".
+
+### Highlights
+- [rankings] "Which team has the most awards in NJ" ranks by awards won
+- [rankings] "Most matches played" ranks teams, not scores
+- [rankings] Events played is a leaderboard of its own too
+
+### Search
+- **Leaderboards by a count.** Matches played, events played and awards won are leaderboard stats, their leader "the team with the most". "Which team has the most awards", "team that played the most matches" and "top 5 teams by matches played" read as these boards, never the highest-scoring matches or the rating board. (#1040)
 
 ## 3.8.6 — 2026-11-07
 
