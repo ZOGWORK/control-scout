@@ -26,6 +26,8 @@ export type PipelineIntent =
   | "rating-trend" | "opr-trend"
   // Four teams, two on each alliance: a match's call ("predict a b vs c d").
   | "alliance-predict"
+  // One team's pick at an event: the pick helper's suggestions (../answers/families/pick.ts).
+  | "pick-partners"
   // No team: matches found by a measure (./matchFind.ts).
   | "low-matches" | "close-matches" | "lopsided-matches" | "penalty-matches" | "upset-matches" | "comeback-matches";
 
@@ -156,6 +158,8 @@ export const INTENTS: IntentRule[] = [
   R("team-opr", 1, ["metric:opr"], ["agg:last"], { noEvent: true }),
   R("team-rating", 1, ["metric:rating"], ["agg:last"], { noEvent: true }),
   R("team-predict", 1, ["predict"], ["metric:win", "metric:record", "metric:score", "metric:rank", "thing:event", "thing:match", "agg:next", "metric:playoffs", "review", "agg:last", "advance"]),
+  // Who to pick at an event, by Scout's pick helper: the axes said ("by complementing their auto") are what it weighs.
+  R("pick-partners", 1, ["pick"], ["metric:partner", "agg:max", "agg:first", "predict", "metric:win", "metric:opr", "metric:rating", "metric:auto", "metric:teleop", "metric:endgame", "and", "thing:team", "gap", "list", "per:match"], { noMatchNo: true }),
   // Two alliances of two: a match's call. "Vs" between them is enough, with no other word.
   R("alliance-predict", 4, ["vs"], ["predict", "and", "compare", "metric:win", "metric:score", "metric:margin", "thing:match", "per:match"]),
   // Two teams.
