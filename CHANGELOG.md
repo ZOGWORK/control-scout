@@ -24,7 +24,7 @@ A kind of event a place has never held, such as league meets asked for in a stat
 - [fixes] No more "no events match" for a kind a state never runs
 
 ### Search
-- **A kind of event a place has never held.** When a place's events of the kind asked are none in every season on record, the answer says so ("<place> has held no meets in any season on record") and lists the place's events of the season asked, every kind. A kind held there in an earlier season keeps its own wording. (#PRNUM)
+- **A kind of event a place has never held.** When a place's events of the kind asked are none in every season on record, the answer says so ("<place> has held no meets in any season on record") and lists the place's events of the season asked, every kind. A kind held there in an earlier season keeps its own wording. (#1118)
 
 ## 3.9.2 — 2026-11-07
 
