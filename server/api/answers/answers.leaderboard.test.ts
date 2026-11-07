@@ -112,6 +112,19 @@ describe("the lists", () => {
     // No Teams page list asks the same question (a climb from last season): no link.
     expect(i.stat!.more).toBeUndefined();
   });
+  // Failed search #1012, in its own words: rookies from the bottom, a stat said before "rookies" or after the place.
+  it("the lowest rookies, the stat said anywhere", async () => {
+    expect(readLeaderboard("lowest opr rookies in new jersey")).toMatchObject({ kind: "rookie", stat: "opr", asc: true, region: { key: "USA:NJ" } });
+    expect(readLeaderboard("worst rookie teams in texas by auto opr")).toMatchObject({ kind: "rookie", stat: "auto", asc: true, region: { key: "USA:TX" } });
+    expect(readLeaderboard("top 5 rookies in nj")).toMatchObject({ kind: "rookie", stat: "opr", n: 5 });
+    expect(readLeaderboard("top 5 rookies in nj")).not.toHaveProperty("asc");
+    // Two stats said is no one board.
+    expect(readLeaderboard("lowest opr rookies in nj by auto")).toBeNull();
+    const r = await searchAnswer("lowest opr rookies in new jersey", { limit: 25 });
+    expect(r.stat).toMatchObject({ title: "Lowest rookie teams in New Jersey by OPR · 2025–26", headline: { value: "31814 Quantum Core", sub: "Lowest of 1 ranked in New Jersey" } });
+    const rb = r.stat!.blocks[0];
+    expect(rb.kind === "leaderboard" && rb.more!.href).toContain("dir=asc");
+  });
   it("a rookie rating list has no Rankings link (Rankings can't keep the rookie filter)", async () => {
     const r = await searchAnswer("best rookie team by rating in New Jersey", { limit: 25 });
     const rb = r.stat?.blocks[0];
