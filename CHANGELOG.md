@@ -26,7 +26,7 @@ Questions about what a word means are answered however they're framed, two words
 - [fixes] "what is the game this season" names the season's game
 
 ### Search
-- **What a word means, asked any way.** Framing such as "explained", "in plain words" or "for a beginner" is set aside; "the difference between" two words gives each one's lines; a word asked for one team ("what does ranking score mean, for 14450 at …", "why did 4215's rating go down even though they won") gives that team's own stat with the word's explainer under it; and "the game this season" or "last season" names that season's game. (#PRNUM)
+- **What a word means, asked any way.** Framing such as "explained", "in plain words" or "for a beginner" is set aside; "the difference between" two words gives each one's lines; a word asked for one team ("what does ranking score mean, for 14450 at …", "why did 4215's rating go down even though they won") gives that team's own stat with the word's explainer under it; and "the game this season" or "last season" names that season's game. (#1065)
 
 ## 3.8.6 — 2026-11-07
 
