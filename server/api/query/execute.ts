@@ -173,8 +173,9 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
       count: p.agg === "count", noTeam: false, core: String(team.number),
       ...(p.award && (id === "awards" || id === "total-awards") ? { award: p.award } : {}),
       ...(AWARD_LISTS.has(id) && (p.agg === "first" || p.agg === "last") ? { pick: p.agg === "first" ? "first" : "latest" } : {}),
-      // "How many penalty points", "in total": the total first; "per match" said with it is the per-match figure.
-      ...(id === "penalties" ? { variant: p.symbols.includes("per:event") ? "per-event" : p.symbols.includes("per:rate") ? "rate" : p.symbols.includes("per:match") ? null : p.symbols.includes("agg:sum") || p.symbols.includes("agg:count") ? "total" : null } : {}),
+      // "How many penalty points", "in total": the total first; "per match" said with it is the per-match figure; a trend
+      // with no measure said ("getting better or worse at penalties") is the per-event one.
+      ...(id === "penalties" ? { variant: p.symbols.includes("per:event") ? "per-event" : p.symbols.includes("per:rate") ? "rate" : p.symbols.includes("per:match") ? null : p.symbols.includes("agg:sum") || p.symbols.includes("agg:count") ? "total" : p.symbols.includes("trend") ? "per-event" : null } : {}),
       ...(id === "record" && p.symbols.includes("per:event") ? { variant: "per-event" as const } : {}),
     };
     const a = await statAnswerOf(p.q, it, opts.resolve, opts);
