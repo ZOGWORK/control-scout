@@ -22,6 +22,7 @@ People also ask and Related searches stay on what you searched: an FTC word is n
 ### Highlights
 - [fixes] "What is an alliance" no longer asks about Alliance, Nebraska
 - [fixes] Highlights and related searches only for the team you searched
+- [fixes] "High Point" and other two-word places still get their questions
 
 ### Search
 - **Follow-ups use only what the search named.** A place or event typed as one FTC word on its own ("alliance", "auto") is the word, so no follow-up question names it; names of two or more words ("High Point") still are. Highlights and team searches beside an answer are for the team the search is about, never a team that only a suggested question's answer named; a search about no team shows neither. (#1137)
