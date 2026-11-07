@@ -471,6 +471,9 @@ export interface LeaderboardQuestion {
   undefeated?: boolean;
   /** A town in the region: its teams only. */
   town?: string | null;
+  /** "improved from rank 1000+ to the top 100": the most improved, only those from that OPR rank or below the season
+   *  before to that rank or better. */
+  climb?: { from: number; to: number };
 }
 
 const BOARD_STAT_WORDS: [string, RegExp][] = [
@@ -546,6 +549,12 @@ export function readLeaderboard(raw: string): LeaderboardQuestion | null {
     // "Won the most matches" is the wins board; "won the most events" is no board here (never events played).
     const stat = m[2] !== "won" || counted === "awards" ? counted : counted === "matches" ? "wins" : null;
     if ((stat === "matches" || stat === "events" || stat === "awards" || (stat === "wins" && counted === "matches")) && region !== false) return { kind: "top", stat, n: 10, region, city: null, season: scope.season, best: true };
+  }
+  // "teams that improved from rank 1000+ to top 100 in one season", "which nj teams climbed from rank 500 to the top 50":
+  // the most improved, only the teams that made that climb in worldwide OPR rank.
+  if ((m = new RegExp(`^(?:(?:which|what) )?(?:(.+?) )?${TEAMS}(?: (?:in|from) (.+?))? (?:that |who )?(?:improved|climbed|rose|jumped|moved up|went) from (?:(?:an? )?(?:opr )?rank(?:ed)? |#)?(\\d{1,5})\\+?(?: or (?:lower|worse|below))? to (?:the )?(?:top |rank |#)?(\\d{1,5})(?: (?:in )?(?:one|a single|a) season)?$`).exec(rest))) {
+    const from = Number(m[3]), to = Number(m[4]), region = m[1] && m[2] ? false : place(m[1] ?? m[2]);
+    if (to < from && region !== false) return { kind: "improved", stat: "opr", n: 25, region, city: null, season: scope.season, climb: { from, to } };
   }
   // "most improved team in new jersey"
   if ((m = new RegExp(`^(?:the )?(?:top (\\d{1,2}) )?most improved ${TEAMS}${PLACE}$`).exec(rest))) {

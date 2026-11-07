@@ -76,7 +76,9 @@ export interface BoardQuestion { kind: BoardKind; stat: BoardStat; n: number; re
   /** Teams with no losses that season only ("undefeated teams", "a perfect record"). */
   undefeated?: boolean;
   /** A town within the region ("best team in Cluj-Napoca, Romania, by OPR"): the teams from it. */
-  town?: string | null }
+  town?: string | null;
+  /** Only the teams from this worldwide OPR rank or below the season before to this rank or better. */
+  climb?: { from: number; to: number } }
 
 /** A stat's name inside a sentence ("by win rate", "by OPR"). */
 export const statWords = (st: BoardStat) => (/OPR/.test(st.label) ? st.label : st.label.toLowerCase());
@@ -160,17 +162,19 @@ async function improvedAnswer(b: BoardQuestion, season: number, where: string, r
     `SELECT s.team, t.name, s.rank_np r1, s.ranked_teams n1, p.rank_np r0, p.ranked_teams n0, s.opr_np o1, p.opr_np o0
      FROM team_season_stats s JOIN team_season_stats p ON p.team = s.team AND p.season = s.season - 1 JOIN teams t ON t.number = s.team
      WHERE s.season = ? AND s.matches >= ? AND p.matches >= ? AND s.rank_np IS NOT NULL AND p.rank_np IS NOT NULL AND s.ranked_teams > 0 AND p.ranked_teams > 0
-       AND ${teamPageSql("s.team", "t.name")}${regionSql}
+       AND ${teamPageSql("s.team", "t.name")}${regionSql}${b.climb ? " AND p.rank_np >= ? AND s.rank_np <= ?" : ""}
      ORDER BY (1.0 * p.rank_np / p.ranked_teams) - (1.0 * s.rank_np / s.ranked_teams) DESC, s.team LIMIT ?`,
-    [season, RANKED_MIN_MATCHES, RANKED_MIN_MATCHES, ...regionArgs, b.n]);
+    [season, RANKED_MIN_MATCHES, RANKED_MIN_MATCHES, ...regionArgs, ...(b.climb ? [b.climb.from, b.climb.to] : []), b.n]);
   const share = (r: number, n: number) => `top ${Math.max(1, Math.ceil((100 * r) / n))}%`;
-  const title = `Most improved team${b.n > 1 ? "s" : ""}${where}`;
+  const c = b.climb;
+  const climb = c ? `from OPR rank ${c.from.toLocaleString("en-US")}+ to the top ${c.to.toLocaleString("en-US")}` : "";
+  const title = c ? `Teams${where} that climbed ${climb}` : `Most improved team${b.n > 1 ? "s" : ""}${where}`;
   const base = {
     family: "leaderboard" as const, intent: "most-improved", title: `${title} · ${seasonLabel(season)}`, scope: chips,
-    definition: `Most improved: the biggest climb in worldwide OPR standing (OPR rank as a share of all ranked teams) from ${seasonLabel(season - 1)} to ${seasonLabel(season)}. OPR in points isn't compared, since every season is a different game. ${RANKED}${why}`,
+    definition: `Most improved: the biggest climb in worldwide OPR standing (OPR rank as a share of all ranked teams) from ${seasonLabel(season - 1)} to ${seasonLabel(season)}. OPR in points isn't compared, since every season is a different game.${c ? ` Only teams ranked #${c.from.toLocaleString("en-US")} or below worldwide in ${seasonLabel(season - 1)} and #${c.to.toLocaleString("en-US")} or better in ${seasonLabel(season)}.` : ""} ${RANKED}${why}`,
     source: `From the ${seasonLabel(season - 1)} and ${seasonLabel(season)} season numbers`,
   };
-  if (!rows.length) return { ...base, blocks: [], none: `No team${where} has ${RANKED_MIN_MATCHES}+ matches in both ${seasonLabel(season - 1)} and ${seasonLabel(season)}.` };
+  if (!rows.length) return { ...base, blocks: [], none: c ? `No team${where} climbed ${climb} from ${seasonLabel(season - 1)} to ${seasonLabel(season)}.` : `No team${where} has ${RANKED_MIN_MATCHES}+ matches in both ${seasonLabel(season - 1)} and ${seasonLabel(season)}.` };
   const top = rows[0];
   return {
     ...base,

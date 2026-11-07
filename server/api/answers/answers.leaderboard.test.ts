@@ -130,3 +130,22 @@ describe("the lists", () => {
     expect((await searchAnswer("teams in atlantis", { limit: 25 })).stat).toBeUndefined();
   });
 });
+
+describe("a climb in rank from one season to the next", () => {
+  it("reads the ranks said, the lower first", () => {
+    expect(readLeaderboard("teams who jumped from #800 to the top 10 in a single season")).toMatchObject({ kind: "improved", climb: { from: 800, to: 10 }, region: null });
+    expect(readLeaderboard("which nj teams rose from rank 2000 or worse to the top 100")).toMatchObject({ kind: "improved", climb: { from: 2000, to: 100 }, region: { key: "USA:NJ" } });
+    // A fall is no climb.
+    expect(readLeaderboard("teams that went from rank 10 to rank 100")?.climb).toBeUndefined();
+  });
+  it("keeps only the teams that made the climb in worldwide OPR rank", async () => {
+    // 23268: #6000 → #30. 6980 (#3000 → #2700) and 4215 (#100 → #600) didn't make it.
+    const a = await searchAnswer("which teams climbed from rank 5000 to the top 50 in 2025-26", { limit: 25, full: true });
+    expect(a.stat).toMatchObject({ intent: "most-improved", title: "Teams worldwide that climbed from OPR rank 5,000+ to the top 50 · 2025–26", headline: { value: "23268 Ultraviolet" } });
+    const t = a.stat!.blocks[0];
+    if (t.kind !== "table") throw new Error(t.kind);
+    expect(t.rows.map((r) => r.cells.team)).toEqual(["23268 Ultraviolet"]);
+    const none = await searchAnswer("which nj teams climbed from rank 7000 to the top 50 in 2025-26", { limit: 25, full: true });
+    expect(none.stat?.none).toBe("No team in New Jersey climbed from OPR rank 7,000+ to the top 50 from 2024–25 to 2025–26.");
+  });
+});
