@@ -16,8 +16,8 @@ export function TeamsSource({ d, provisional, now = Date.now() }: { d: EventDeta
     : d.field.length || d.sharedSessions ? "FIRST Events API" : "FIRST Events API · no teams published yet";
   return (
     <p className="mt-3 text-[11px] text-muted-foreground" data-teams-source>
-      Source: {source} · {provisional ? "read" : d.field.length ? "last synced" : "last checked"}{" "}
-      <time dateTime={at ?? undefined} title={at ? new Date(at).toLocaleString() : undefined}>{ago(at)}</time>
+      Source: {source} · {at ? <>{provisional ? "read" : d.field.length ? "last synced" : "last checked"}{" "}
+        <time dateTime={at} title={new Date(at).toLocaleString()}>{ago(at)}</time></> : "not synced yet"}
       {stale && <span className="text-warning"> · may be out of date</span>}
     </p>
   );

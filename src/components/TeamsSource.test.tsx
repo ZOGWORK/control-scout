@@ -47,7 +47,7 @@ describe("TeamsSource", () => {
 
   it("an old read on an event that isn't over is out of date; a finished event's isn't", () => {
     expect(line(detail({ field: 13, synced: DAYS_AGO }))).toMatch(/may be out of date/);
-    expect(line(detail({ field: 13, synced: null }))).toMatch(/never · may be out of date/);
+    expect(line(detail({ field: 13, synced: null }))).toMatch(/not synced yet · may be out of date/);
     expect(line(detail({ field: 13, synced: DAYS_AGO, status: "finished" }))).not.toMatch(/out of date/);
   });
 });

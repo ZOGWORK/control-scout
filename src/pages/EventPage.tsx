@@ -635,7 +635,7 @@ function TeamsGrid({ field: all, season, team, predictable, registered, syncedAt
   const list = [...field]
     .filter((t) => !f || `${t.team} ${t.name ?? ""} ${t.city ?? ""} ${t.state ?? ""}`.toLowerCase().includes(f))
     .sort((a, b) => a.team - b.team);
-  if (!field.length) return <EmptyState icon={Users} title="No teams published for this event yet" description={`FIRST hasn't published this event's team list. Last checked ${ago(syncedAt)}; it appears here once FIRST publishes it.`} />;
+  if (!field.length) return <EmptyState icon={Users} title="No teams published for this event yet" description={`FIRST hasn't published this event's team list${syncedAt ? ` (last checked ${ago(syncedAt)})` : ""}. It appears here once FIRST publishes it.`} />;
   return (
     <div className="space-y-4">
       {/* Before rankings or a schedule: FIRST's registered teams, which can still change until the event. */}
