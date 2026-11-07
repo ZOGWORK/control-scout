@@ -112,6 +112,13 @@ describe("StatAnswerCard, a team's OPR", () => {
     expect(rows[1].textContent).toContain("9-7-0");
     expect(rows[1].textContent).toContain("56%");
     expect(c.querySelector("[data-block=series]")!.innerHTML).not.toContain("truncate");
+    // Greptile on #1025: a chart point is a link for a mouse only; on a phone or touch screen neighbouring points can
+    // sit closer than a finger, so there it's a mark and the list below (a full row each, 44px) is the way in.
+    const series = c.querySelector("[data-block=series]")!;
+    const point = series.querySelector('.relative a[href="/events/2025/USNJNOLT2?team=4215"]')!;
+    expect(point.className).toMatch(/max-md:hidden.*pointer-coarse:hidden/);
+    expect(series.querySelectorAll('.relative [role=img].max-md\\:flex')).toHaveLength(1);
+    expect(series.querySelector('[data-series-values] a[href="/events/2025/USNJNOLT2?team=4215"]')!.className).toContain("max-md:min-h-[44px]");
   });
 });
 
