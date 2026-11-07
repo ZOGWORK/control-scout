@@ -76,7 +76,7 @@ export interface ParseContext {
   /** Whether these words name a stored event (any season), and the team numbers' event when one is given. */
   isEvent: (words: string) => Promise<boolean>;
   /** The code of the latest event of `teams` (in `season`, when given) with `word` in its name as a whole word, or
-   *  null: one word names an event only among the named teams' own ("4215 at conference"). */
+   *  null: one word names an event only among the named teams' own ("<team> at <one word>"). */
   teamEvent?: (word: string, teams: number[], season: number | null) => Promise<string | null>;
   /** The team a near miss of a name means ("hypnotc robotics"), or null. */
   nearTeam?: (words: string) => Promise<TeamName | null>;
@@ -326,7 +326,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       if (!toks.some((t) => !span(x, y).includes(t) && KIND_WORDS.has(t.w))) symbols.delete("thing:event");
       continue;
     }
-    // One word of a named team's own event's name ("4215 last prediction for conference"): that event, its latest.
+    // One word of a named team's own event's name ("<team> last prediction for <word>"): that event, its latest.
     // Never a kind of event's word ("league", "qualifiers": read below) or a word of its own kind ("meet").
     const one = toks[from];
     if (!p.event && from === to && p.teams.length && ctx.teamEvent && one.w.length >= 3 && !KIND_WORDS.has(one.w)
