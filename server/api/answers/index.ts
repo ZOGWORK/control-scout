@@ -23,7 +23,7 @@ import { eventHit } from "../searchEvents.js";
 import { namedTeam, versusAnswer } from "../searchCompare.js";
 import { predictHref } from "../../../src/shared/predictUrl.js";
 import { CHAMPIONSHIP_TYPE, STATES_TYPE, inScope, officialClause, scopeChips, scopePhrase, type Scope } from "./clauses.js";
-import { teamEventSet, type TeamEvent } from "./eventSet.js";
+import { reliabilityEvents, teamEventSet, type TeamEvent } from "./eventSet.js";
 import { awardsAnswer, awardsTitle } from "./families/awards.js";
 import { championshipMatchesAnswer, eventScopeAnswer } from "./families/eventScope.js";
 import { eventAnswer } from "./families/events.js";
@@ -541,6 +541,8 @@ const worldsSeason = (s: StatAnswer): number | null => {
 async function build(it: StatQuestion, team: { number: number; name: string | null }, scope: Scope): Promise<StatAnswer | null> {
   if (AWARD_INTENTS.has(it.id)) return awardsAnswer(it.id, team, scope, { count: it.count, award: it.award, pick: it.pick });
   if (it.id === "total-penalties") return penaltyTotalAnswer(team, await teamEventSet(team.number), scope);
+  // Reliability is read from its own rows: an event the team was listed for but never took the field at counts.
+  if (it.id === "reliability-history") return trendAnswer(it.id, team, { ...(await teamEventSet(team.number)), events: await reliabilityEvents(team.number) }, scope);
   if (TREND_INTENTS.has(it.id)) return trendAnswer(it.id, team, await teamEventSet(team.number), scope);
   if (EVENT_INTENTS.has(it.id)) return eventAnswer(it.id, team, await teamEventSet(team.number), scope, { byRecord: it.byRecord, schedule: it.schedule });
   // A forecast is for one event: the one named, else the team's next; a place or Worlds isn't one event.

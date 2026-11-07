@@ -100,6 +100,8 @@ const PAIRS: [string, string][] = [
   // The team changed between two seasons (failed-search #879, held out): its OPR's change.
   ["how has hypnotic robotics improved since last season", "hypnotic robotics opr change since last season"],
   ["how did 4215 change between 2023-24 and 2024-25", "4215 opr change between 2023-24 and 2024-25"],
+  // "From last season" alone runs to this season (Greptile on #1074).
+  ["how has bad wolf changed from last season", "bad wolf opr change from last season to this season"],
   ["where does 4215 rank in opr worldwide", "4215 opr rank worldwide"],
   // The stat named stays the stat asked about (Greptile on #655).
   ["can you tell me where does 4215 rank in rating", "4215 rating rank"],

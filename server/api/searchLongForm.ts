@@ -59,8 +59,9 @@ const RULES: [RegExp, (m: RegExpExecArray) => string][] = [
   [new RegExp(String.raw`^(?:what|which)\s+(?:events?|meets?|competitions?|tournaments?)\s+(?:has|have|did|does)\s+${T}\s+(?:go(?:ne)?\s+to|went\s+to|compete(?:d)?\s+(?:at|in)|attend(?:ed)?|play(?:ed)?\s+(?:at|in))(.*)$`), (m) => `events ${m[1]} went to${m[2]}`],
   [new RegExp(String.raw`^how\s+(?:has|did|have)\s+${T}\s+opr\s+(?:changed|change|grown|grow|improved|improve|gone|developed)(?:\s+(?:over|across|through)\s+(?:the\s+)?(?:seasons|years))?(.*)$`), (m) => `${m[1]} opr trend over seasons${m[2]}`],
   // The team itself changed between two seasons ("how has 12345 changed from last season to this season"): its OPR's
-  // change, set against its world standing each season (answers/families/seasonChange.ts).
-  [new RegExp(String.raw`^how\s+(?:has|have|did)\s+${T}\s+(?:changed|change|improved|improve|grown|grow|developed|progressed)\s+((?:from|since|between)\s+.+)$`), (m) => `${m[1]} opr change ${m[2]}`],
+  // change, set against its world standing each season (answers/families/seasonChange.ts). "From last season" alone
+  // runs to this season, as "since" does.
+  [new RegExp(String.raw`^how\s+(?:has|have|did)\s+${T}\s+(?:changed|change|improved|improve|grown|grow|developed|progressed)\s+((?:from|since|between)\s+.+)$`), (m) => `${m[1]} opr change ${m[2]}${/^from\s/.test(m[2]) && !/\sto\s/.test(m[2]) ? " to this season" : ""}`],
   // "Where does 12345 rank": OPR, unless the question names the stat ("in rating", "by auto opr").
   [new RegExp(String.raw`^where\s+(?:does|did|do)\s+${T}\s+rank(?:\s+(?:in|by|for|on)\s+(?:the\s+)?((?:(?:auto|teleop|endgame|penalty)\s+)?opr|(?:prediction\s+)?rating|reliability))?(.*)$`), (m) => {
     const stat = m[2] ? (/rating/.test(m[2]) ? "rating" : m[2]) : "opr";

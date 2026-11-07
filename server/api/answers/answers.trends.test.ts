@@ -28,6 +28,10 @@ beforeAll(async () => {
     await run(`INSERT INTO team_reliability (season, code, team, matches, no_shows, dqs, near_zero, contrib_n, recent_matches, recent_no_shows, recent_near_zero, idx, computed_at)
       VALUES (2025, ?, 4215, 5, 0, 0, 0, 5, 5, 0, 0, ?, 't')`, [code, idx]);
   }
+  // An event it was listed for but never took the field at: no event row of its own, only its reliability (all no-shows).
+  await ev(2025, "USNJSQ", "Super Qualifier", "Qualifier", "2026-03-20");
+  await run(`INSERT INTO team_reliability (season, code, team, matches, no_shows, dqs, near_zero, contrib_n, recent_matches, recent_no_shows, recent_near_zero, idx, computed_at)
+    VALUES (2025, 'USNJSQ', 4215, 5, 5, 0, 0, 0, 5, 5, 0, 20, 't')`);
   await run("INSERT INTO team_season_stats (season, team, opr_np, rank_np, ranked_teams, events, matches, wins, losses, ties) VALUES (2024, 4215, 144.8, 370, 7608, 1, 12, 7, 5, 0), (2025, 4215, 101.6, 616, 8375, 2, 14, 10, 4, 0)");
   await rebuildSearch();
 });
@@ -96,8 +100,10 @@ describe("a phase's OPR and reliability by event", () => {
     expect(s && s.kind === "series" && s.points.map((p) => [p.x, p.y])).toEqual([["Qualifier Two", 30], ["New Jersey Championship", 45]]);
     for (const q of ["4215 reliability over the season", "how reliable has 4215 been event by event"]) {
       const r = await searchAnswer(q, { limit: 25 });
-      expect(r.stat, q).toMatchObject({ intent: "reliability-history", title: "Reliability by event in 2025–26", headline: { value: "64" } });
-      expect(r.stat!.headline!.label, q).toContain("Falling");
+      // The latest is the event of no-shows only: it counts, never hidden behind an older one (Greptile on #1074).
+      expect(r.stat, q).toMatchObject({ intent: "reliability-history", title: "Reliability by event in 2025–26", headline: { value: "20", label: "Reliability at Super Qualifier · Falling" } });
+      const rs = r.stat!.blocks.find((b) => b.kind === "series");
+      expect(rs && rs.kind === "series" && rs.points.map((p) => [p.x, p.y]), q).toEqual([["Qualifier Two", 70], ["New Jersey Championship", 64], ["Super Qualifier", 20]]);
     }
   });
 });
