@@ -253,7 +253,7 @@ export async function firstEventBundle(meta: EventRow, o: { pair?: string } = {}
     const series = m.series ?? 0;
     const row: MatchRow = {
       level, series, number: m.matchNumber, label: matchLabel(level, series, m.matchNumber), description: str(m.description),
-      time: str(m.startTime), played: false, red: teamsOf(m.teams, "red"), blue: teamsOf(m.teams, "blue"), redScore: null, blueScore: null,
+      time: str(m.startTime), scheduled: str(m.startTime), played: false, red: teamsOf(m.teams, "red"), blue: teamsOf(m.teams, "blue"), redScore: null, blueScore: null,
       field: str(m.field == null ? null : String(m.field)),
     };
     byKey.set(matchKey(row), row);
@@ -279,7 +279,7 @@ export async function firstEventBundle(meta: EventRow, o: { pair?: string } = {}
     const played = !!(m.postResultTime || m.actualStartTime) && redScore != null && blueScore != null;
     byKey.set(key, {
       level, series, number: m.matchNumber, label: matchLabel(level, series, m.matchNumber), description: str(m.description) ?? prev?.description ?? null,
-      time: str(m.actualStartTime) ?? prev?.time ?? null, played,
+      time: str(m.actualStartTime) ?? prev?.time ?? null, scheduled: prev?.scheduled ?? null, played,
       red: fixField(keepSur(red.length ? red : prev?.red ?? [], prev?.red)), blue: fixField(keepSur(blue.length ? blue : prev?.blue ?? [], prev?.blue)),
       redScore: played ? redScore : null, blueScore: played ? blueScore : null, video: str(m.videoURL),
       // The field is only on the schedule (the results feed has none).

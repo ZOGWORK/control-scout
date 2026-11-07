@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.9.2 — 2026-11-07
+
+The live countdown waits for the day's first result, then runs on the field's real pace.
+
+### Highlights
+- [live] No countdown until the day's first match has a score
+- [live] Then the timer follows the field: late or early, never behind
+- [live] Shows which match should be on the field now
+
+### Live
+- **No timer off the posted plan.** Before the day's first match has a result, the LIVE panel, the phone's countdown chip and the pit display show what's up next and its scheduled time, with no countdown: events rarely start on time.
+- **Calibrated on real starts.** Once results come in, the next match is due one cycle after the latest match really started, and everything after it moves by the same amount up to the next break (lunch absorbs a late start). It uses the shorter of the posted cycle and the one the field is really running, and a match with no score yet can't have started more than 8 minutes ago, so the timer errs early, never late. Breaks come from the posted schedule: each match now keeps its posted start beside its real one. The panel says how far behind or ahead the field runs and which match should be on the field now. (#1109)
+
 ## 3.9.1 — 2026-11-07
 
 A team's next event asked about as a forecast, and "will <team> win <event>", answer with the engine's own projection for that event.
