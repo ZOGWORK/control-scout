@@ -84,7 +84,7 @@ describe("reading compound questions", () => {
   it("reads each of the file's wordings into its clauses", () => {
     expect(readCompound("top 5 NJ team by auto opr who also won inspire")).toMatchObject({ kind: "list", n: 5, stat: "auto", region: { state: "NJ" }, award: { type: "Inspire" } });
     expect(readCompound("what was 4215's opr at their first event this season compared to last season")).toMatchObject({ kind: "event-pair", core: "4215", which: "first", seasons: [S, S - 1] });
-    expect(readCompound("team from Oradell with opr over 100")).toMatchObject({ kind: "list", city: "oradell", threshold: { stat: "opr", op: "gt", value: 100 } });
+    expect(readCompound("team from Oradell with opr over 100")).toMatchObject({ kind: "list", city: "oradell", thresholds: [{ stat: "opr", op: "gt", value: 100 }] });
     expect(readCompound("4215 match where they lost by less than 10 points")).toMatchObject({ kind: "margin", core: "4215", result: "L", margin: { op: "lt", value: 10 } });
     expect(readCompound("4215 awards and record in 2025-26 combined")).toMatchObject({ kind: "combined", core: "4215", parts: ["awards", "record"], when: { season: 2025 } });
     expect(readCompound("4215 partners at NJ championship who had opr over 80")).toMatchObject({ kind: "side-threshold", side: "partners", at: "nj championship", threshold: { op: "gt", value: 80 } });
@@ -218,5 +218,48 @@ describe("compound answers", () => {
     const a = await ask("4215 opr if you exclude their worst event");
     expect(a.stat?.headline).toMatchObject({ value: "83.7", sub: expect.stringMatching(/^75\.3 with all 4 events · worst event Northern League Meet 1 \(50\.0\)/) });
     expect((a.stat?.blocks[0] as any).items.find((i: any) => /Season OPR/.test(i.label))?.value).toBe("101.6");
+  });
+});
+
+// Failed searches (#745 #747 #748 #767 #858 #866 #885 #927 #933 #1033), in their own words: a list's filters said any
+// way, each applied.
+describe("a team list's filters, however they're said", () => {
+  const rows = (a: Awaited<ReturnType<typeof ask>>) => (a.stat?.blocks.find((b) => b.kind === "leaderboard") as any)?.rows.map((r: any) => r.team.label) ?? [];
+  it("reads a threshold with no 'with', a bare number as at least it, and several at once", () => {
+    expect(readCompound("Oradell teams, OPR over 100")).toMatchObject({ kind: "list", city: "oradell", thresholds: [{ stat: "opr", op: "gt", value: 100 }] });
+    for (const q of ["Houston teams, OPR 90", "Houston teams, OPR 90+"]) expect(readCompound(q), q).toMatchObject({ kind: "list", city: "houston", thresholds: [{ stat: "opr", op: "ge", value: 90 }] });
+    expect(readCompound("teams in Romania with at least 30 matches and a win rate over 70 percent")).toMatchObject({ kind: "list", country: { code: "RO" }, city: null,
+      thresholds: [{ stat: "win-rate", op: "gt", value: 70 }, { stat: "matches", op: "ge", value: 30 }] });
+    expect(readCompound("leaderboard for teams that played at least 20 matches, by win rate, worldwide")).toMatchObject({ kind: "list", stat: "win-rate", region: null, country: null, city: null,
+      thresholds: [{ stat: "matches", op: "ge", value: 20 }] });
+    // A year is never a threshold, nor a count with no comparison or verb.
+    expect(readCompound("top 10 teams by opr 2025")).toBeNull();
+    expect(readCompound("10 teams in nj")).toBeNull();
+  });
+  it("reads Worlds gone to or not, rookies and an award named before the teams", () => {
+    expect(readCompound("teams with OPR over 120 who did NOT make worlds")).toMatchObject({ kind: "list", worlds: false, noWorlds: true, thresholds: [{ stat: "opr", op: "gt", value: 120 }] });
+    expect(readCompound("which NJ teams made worlds in 2025-26, list them all")).toMatchObject({ kind: "list", region: { state: "NJ" }, worlds: true, season: 2025, thresholds: [] });
+    expect(readCompound("show me a team that started as a rookie this year and already made worlds")).toMatchObject({ kind: "list", rookie: true, worlds: true, region: null, city: null });
+    expect(readCompound("Top 3 Texas Inspire teams")).toMatchObject({ kind: "list", n: 3, region: { state: "TX" }, award: { type: "Inspire" } });
+  });
+  it("answers each filter, applied", async () => {
+    expect(rows(await ask("Oradell teams, OPR over 100"))).toEqual(["207 Critical Mass", "4215 Hypnotic Robotics"]);
+    // 23268 has the highest OPR but went to Worlds.
+    const nw = await ask("teams with OPR over 120 who did NOT make worlds");
+    expect(rows(nw)).toEqual(["1111 Lone Star"]);
+    expect(nw.stat?.scope).toEqual(expect.arrayContaining([`Didn't go to Worlds (FIRST Championship ${S + 1})`, "OPR over 120"]));
+    expect(rows(await ask(`which NJ teams made worlds in ${S}-${String(S + 1).slice(2)}, list them all`))).toEqual(["23268 Ultraviolet", "7149 ENFORCERS", "4215 Hypnotic Robotics", "33950 First Street Kids"]);
+    const two = await ask("teams in New Jersey with at least 7 matches and a win rate over 50 percent");
+    expect(new Set(rows(two))).toEqual(new Set(["4215 Hypnotic Robotics", "7149 ENFORCERS", "23268 Ultraviolet"]));
+    expect(two.stat?.title).toBe(`Teams in New Jersey with win rate over 50% and at least 7 matches played, by win rate · ${S}–${String(S + 1).slice(2)}`);
+    expect(rows(await ask("Top 3 Texas Inspire teams"))).toEqual(["1111 Lone Star"]);
+  });
+  it("lists rookies only", async () => {
+    await run("UPDATE teams SET rookie_year = ? WHERE number = 33950", [S]);
+    try {
+      const a = await ask("show me a team that started as a rookie this year and already made worlds");
+      expect(rows(a)).toEqual(["33950 First Street Kids"]);
+      expect(a.stat?.headline?.value).toBe("1 rookie team");
+    } finally { await run("UPDATE teams SET rookie_year = NULL WHERE number = 33950"); clearAllCaches(); }
   });
 });
