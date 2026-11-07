@@ -25,7 +25,7 @@ Steady boards: the most stable OPR from event to event, and the teams strongest 
 - [rankings] "Most consistent across all phases" by the weakest phase
 
 ### Search
-- **Steady boards.** "Which team has the most stable OPR, least ups and downs" ranks teams by the smallest swing in their event OPRs in the season (the standard deviation as a share of their average, teams with an OPR at 3 or more events). "Which NJ team is most consistent across all phases" ranks by each team's weakest phase OPR rank worldwide (auto, teleop and endgame; auto and teleop where teleop includes endgame), so a team strong in one phase alone doesn't lead. Counted at some events only, or on a day, is left to search. (#PR)
+- **Steady boards.** "Which team has the most stable OPR, least ups and downs" ranks teams by the smallest swing in their event OPRs in the season (the standard deviation as a share of their average, teams with an OPR at 3 or more events). "Which NJ team is most consistent across all phases" ranks by each team's weakest phase OPR rank worldwide (auto, teleop and endgame; auto and teleop where teleop includes endgame), so a team strong in one phase alone doesn't lead. Counted at some events only, or on a day, is left to search. (#1124)
 
 ## 3.9.3 — 2026-11-07
 
