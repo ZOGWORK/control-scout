@@ -98,6 +98,8 @@ describe("reading the 260 list's two-team questions", () => {
     expect(readStatQuestion("who should 4215 pick as an alliance partner")).toMatchObject({ id: "pick-partner", core: "4215" });
     expect(id("4215 predicted wins at their next event")).toBe("next-event-wins");
     expect(id("4215 chance to win an event")).toBe("event-win-chance");
+    // The next event's forecast, said as a noun: the stored projection, led by the chance to win it.
+    for (const q of ["6980 next meet forecast", "23268 next competition projections", "7149 forecast for their next tournament"]) expect(id(q), q).toBe("event-win-chance");
     expect(id("4215 chance to advance to worlds")).toBe("advance-chance");
     expect(id("4215 advancement chances")).toBe("advance-chance");
     expect(id("4215 predicted to make playoffs at their next event")).toBe("playoff-chance");

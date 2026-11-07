@@ -31,6 +31,8 @@ export type Sym =
   | { k: "advance" }
   /** A forecast held up against what happened: "vs actual", "before and after", "did it get it right". */
   | { k: "review" }
+  /** Said of what's to come ("will 12345 win ..."): a forecast, only beside a win and an event named. */
+  | { k: "future" }
   | { k: "vs" }
   | { k: "and" }
   | { k: "together" }
@@ -137,6 +139,7 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["prediction|predictions|predicted|predict|forecast|forecasts|projected|projection|expected|expect|chance|chances|odds|probability|likely|likelihood|favourite|favorite|favored|favoured|who wins|who will win|who would win|matchup|matchups|match up|custom matchup|custom match|hypothetical matchup|hypothetical match", { k: "predict" }],
   ["trend|trends|trending|over time|progression|going up or down|going up|going down|up or down|improving|getting better|getting worse|rising|falling|event by event|over the season|across the season|through the season|week by week|after each event", { k: "trend" }],
   ["vs actual|versus actual|vs the actual|compared to actual|vs what happened|vs reality|vs result|vs results|vs the result|actual|actually happened|what happened|before and after|before vs after|before or after|right or wrong|get it right|got it right|was it right|were they right|was it accurate|how accurate|accurate|accuracy|way off|or was it way off|or way off|or was it off|or not|how far off|hit or miss", { k: "review" }],
+  ["will", { k: "future" }],
   ["advance|advances|advancing|advancement|advancements|advance to the finals|make the finals|making the finals|go through|goes through|get through|gets through", { k: "advance" }],
   // Two teams.
   ["vs|v|versus|against|facing|face|faced|play|played|playing|plays|vs.", { k: "vs" }],
