@@ -7,6 +7,8 @@
 
 /** A team as a long question names it: its number (with "team" or "#" before it), or the words of its name. */
 const T = String.raw`(?:the\s+)?(?:team\s+)?#?(\d{1,6}|[a-z][a-z0-9 .&'-]*?)`;
+/** A team as its number with its name after it ("24033 alphatronic"), or as `T` names it. */
+const TN = String.raw`(?:the\s+)?(?:team\s+)?#?(\d{1,6}(?:\s+[a-z][a-z0-9 .&'-]*?)?|[a-z][a-z0-9 .&'-]*?)`;
 const WORLDS = String.raw`(?:the\s+)?(?:worlds|world\s+championships?|first\s+championship|championship)`;
 /** The verbs a question puts between a team and an event ("went to", "made it to", "qualified for", "competed at"). */
 const STATES = String.raw`(?:the\s+)?(?:states|state\s+championships?|state\s+champs?|state\s+finals?)`;
@@ -55,6 +57,12 @@ const RULES: [RegExp, (m: RegExpExecArray) => string][] = [
   // Predictions for the team's next event.
   [new RegExp(String.raw`^how\s+many\s+(?:matches\s+)?(?:wins|matches)\s+(?:is|will)\s+${T}\s+(?:predicted|expected|projected|going)\s+to\s+(?:get|win|have)(?:\s+at\s+(?:their|its|the)\s+next\s+(?:event|meet|competition))?(.*)$`), (m) => `${m[1]} predicted wins at their next event${m[2]}`],
   [new RegExp(String.raw`^what\s+(?:are|is)\s+${T}\s+(?:chances?|odds)\s+(?:of|to)\s+(?:advancing|advance|making\s+it|qualifying|qualify|going)\s+(?:to|for)\s+${WORLDS}(.*)$`), (m) => `${m[1]} chance to advance to worlds${m[2]}`],
+  // A team's own listing asked as a yes-or-no question: its rookie season ("is 12345 a rookie team or old"), where it's
+  // from ("is 12345 actually from romania or what"), its sponsors, school or website ("does 12345 have any sponsors
+  // listed on their team page"). The fact's card answers it, with the place or year itself.
+  [new RegExp(String.raw`^(?:is|are)\s+${TN}\s+(?:an?\s+)?(?:rookies?|new|first[\s-]year|veteran|old)(?:\s+(?:team|teams|one))?(?:\s+or\s+(?:an?\s+)?(?:an?\s+)?(?:old|older|new|veteran|established|experienced|rookie)(?:\s+(?:team|one))?)?(?:\s+or\s+not)?$`), (m) => `${m[1]} rookie year`],
+  [new RegExp(String.raw`^(?:is|are)\s+${TN}\s+(?:really\s+)?(?:from|based\s+in|located\s+in)\s+(?:the\s+)?[a-z][a-z .'-]*?(?:\s+or\s+(?:what|not))?$`), (m) => `where is ${m[1]} from`],
+  [new RegExp(String.raw`^(?:does|do|did)\s+${TN}\s+(?:have|has|list)\s+(?:any\s+|an?\s+)?(sponsors?|school|website|site)(?:\s+(?:listed|named|on\s+record))?(?:\s+on\s+(?:their|its|the)\s+(?:team\s+)?page)?$`), (m) => `${m[1]} ${m[2] === "site" ? "website" : m[2].replace(/^sponsor$/, "sponsors")}`],
   // Their events, OPR over time, rank.
   [new RegExp(String.raw`^(?:what|which)\s+(?:events?|meets?|competitions?|tournaments?)\s+(?:has|have|did|does)\s+${T}\s+(?:go(?:ne)?\s+to|went\s+to|compete(?:d)?\s+(?:at|in)|attend(?:ed)?|play(?:ed)?\s+(?:at|in))(.*)$`), (m) => `events ${m[1]} went to${m[2]}`],
   [new RegExp(String.raw`^how\s+(?:has|did|have)\s+${T}\s+opr\s+(?:changed|change|grown|grow|improved|improve|gone|developed)(?:\s+(?:over|across|through)\s+(?:the\s+)?(?:seasons|years))?(.*)$`), (m) => `${m[1]} opr trend over seasons${m[2]}`],
