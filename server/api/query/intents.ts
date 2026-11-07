@@ -189,8 +189,9 @@ export const INTENTS: IntentRule[] = [
   // Predictions against results, everyone's or one team's: furthest off first, or closest first ("most accurate").
   // A floor in points ("wrong by more than 50 points") is the misses' own.
   ...([0, 1] as const).flatMap((n) => [
-    R("accurate-matches", n, ["metric:miss", "agg:min"], ["predict", "thing:match", "thing:team", "vs", "list", "per:match"]),
-    R("miss-matches", n, ["metric:miss"], ["agg:max", "predict", "thing:match", "thing:team", "vs", "list", "per:match", "metric:score", "over"]),
+    // A match's number is never a filter they apply: "<team> prediction miss in match 2" is left to search.
+    R("accurate-matches", n, ["metric:miss", "agg:min"], ["predict", "thing:match", "thing:team", "vs", "list", "per:match"], { noMatchNo: true }),
+    R("miss-matches", n, ["metric:miss"], ["agg:max", "predict", "thing:match", "thing:team", "vs", "list", "per:match", "metric:score", "over"], { noMatchNo: true }),
   ]),
   R("comeback-matches", 0, ["metric:comeback"], ["agg:max", "thing:match", "metric:win", "and"]),
   ...["agg:max", "agg:min"].flatMap((agg) => [

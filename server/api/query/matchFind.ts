@@ -35,8 +35,8 @@ export interface MatchFind {
   list?: boolean;
   /** One team's matches only (the prediction measures: "<team>'s most unpredictable match"). */
   team?: { number: number; name: string | null };
-  /** Only matches whose value is over this ("missed by more than 50 points"). */
-  over?: number;
+  /** Only matches whose value is over this ("missed by more than 50 points"), or this or more ("at least 50 points"). */
+  over?: { n: number; atLeast: boolean };
 }
 
 /** A kind of event said by its words alone ("league meet", "qualifiers"): its FIRST types, or null. */
@@ -69,7 +69,7 @@ const CHANCE = (side: "red" | "blue") => {
 /** How far the engine's predicted margin (red less blue, without penalties) was from the real one: its call saved live
  *  before the match, else its replay with only earlier matches; a call with no score basis is left out. */
 const MISS = `ABS((SELECT p.red_mean - p.blue_mean FROM predictions p WHERE p.season = m.season AND p.code = m.code AND p.level = m.level AND p.series = m.series AND p.number = m.number
-  AND p.no_score_basis = 0 ORDER BY p.kind = 'live' DESC LIMIT 1) - (m.red_np - m.blue_np))`;
+  AND p.kind IN ('live', 'backtest') AND p.no_score_basis = 0 ORDER BY p.kind = 'live' DESC LIMIT 1) - (m.red_np - m.blue_np))`;
 const MISS_RULE = "a prediction's miss is how far the engine's predicted margin (red less blue, without penalties) was from the real margin without penalties: the call saved before the match, else its replay with only earlier matches";
 /** An alliance's summed season prediction ratings (the upset rule's fallback when no call was saved). */
 const RATING = (side: "red" | "blue") => `(SELECT SUM(s.rating_np) FROM match_teams x JOIN team_season_stats s ON s.season = x.season AND s.team = x.team
@@ -153,7 +153,7 @@ export async function matchFindAnswer(f: MatchFind): Promise<StatAnswer> {
   const ranked = async (value: string) => {
     const [rows, count] = await Promise.all([
       all<Row>(`SELECT m.season, m.code, m.level, m.series, m.number, m.label, m.time, e.name, e.type, e.start, m.red_total, m.blue_total, ${value} v
-        ${FROM} WHERE ${w.sql} AND ${value} IS NOT NULL${f.over != null ? ` AND ${value} > ?` : ""} ORDER BY v ${ms.order}, ${NP} DESC, e.start, m.code, m.label LIMIT ?`, [...w.args, ...(f.over != null ? [f.over] : []), f.n]),
+        ${FROM} WHERE ${w.sql} AND ${value} IS NOT NULL${f.over ? ` AND ${value} ${f.over.atLeast ? ">=" : ">"} ?` : ""} ORDER BY v ${ms.order}, ${NP} DESC, e.start, m.code, m.label LIMIT ?`, [...w.args, ...(f.over ? [f.over.n] : []), f.n]),
       get<{ n: number }>(`SELECT COUNT(*) n ${FROM} WHERE ${w.sql}`, w.args),
     ]);
     return { rows, count: Number(count?.n ?? 0) };
@@ -172,7 +172,7 @@ export async function matchFindAnswer(f: MatchFind): Promise<StatAnswer> {
   const place = f.region?.name ?? null;
   const filters = [f.finals ? "finals" : f.level === "qual" ? "qualification" : f.level === "playoff" ? "playoff" : null].filter(Boolean)[0];
   const who = f.team ? (f.team.name ? `${f.team.name} (${f.team.number})` : `Team ${f.team.number}`) : null;
-  const over = f.over != null ? `Off by more than ${f.over} points` : null;
+  const over = f.over ? `Off by ${f.over.atLeast ? `${f.over.n} points or more` : `more than ${f.over.n} points`}` : null;
   const typed = [who ? `for ${who}` : null, f.kind ? `at ${f.kind.label.toLowerCase()}` : null, place ? `in ${place}` : null, f.window ? f.window.label : null].filter(Boolean).join(" ");
   // A list asked for is titled as one ("Biggest upsets in California"), its table under no heading of its own.
   const head = over ? `Predictions ${over.toLowerCase()}` : f.list ? ms.plural : ms.title;
@@ -183,7 +183,7 @@ export async function matchFindAnswer(f: MatchFind): Promise<StatAnswer> {
   const where2 = `${who ? ` with ${who}` : ""}${place ? ` in ${place}` : ""}${f.kind ? ` at ${f.kind.label.toLowerCase()}` : ""}${f.window ? ` ${f.window.label}` : ` in ${seasonLabel(f.season)}`}`;
   const base = { family: "superlative" as const, intent: `find-${f.measure}`, title, scope, definition, ...(f.team ? { team: f.team } : {}), source: `From ${count.toLocaleString("en-US")} played match${count === 1 ? "" : "es"}${where2}` };
   if (!rows.length) {
-    const none = count && over ? `No prediction for the ${count.toLocaleString("en-US")} played match${count === 1 ? "" : "es"}${where2} was off by more than ${f.over} points.`
+    const none = count && over ? `No prediction for the ${count.toLocaleString("en-US")} played match${count === 1 ? "" : "es"}${where2} was off by ${f.over!.atLeast ? `${f.over!.n} points or more` : `more than ${f.over!.n} points`}.`
       : count ? `None of the ${count.toLocaleString("en-US")} played match${count === 1 ? "" : "es"}${where2} is one: ${rule.replace(/;.*$/, "")}.` : `No played matches at official events${filters ? ` (${filters})` : ""}${where2} yet.`;
     return { ...base, blocks: [], none };
   }

@@ -412,6 +412,16 @@ describe("the match finder: matches by a measure, every filter applied and state
     expect(over.title).toMatch(/^Predictions off by more than 30 points/);
     expect(over.scope).toContain("Off by more than 30 points");
     expect((await stat("6980 matches the prediction missed by more than 90 points")).none).toMatch(/off by more than 90 points/);
+    // "At least" counts the number itself: Q2's miss is exactly 50.
+    const least = await stat("6980 matches the prediction missed by at least 50 points");
+    const kept50 = least.blocks.find((b) => b.kind === "table");
+    expect(kept50 && kept50.kind === "table" && kept50.rows.map((r) => r.cells.match)).toEqual(["Q2"]);
+    expect(least.scope).toContain("Off by 50 points or more");
+    expect((await stat("6980 matches the prediction missed by more than 50 points")).none).toBeDefined();
+    // A call logged after the match began is no prediction: never ranked.
+    await run("INSERT INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, engine_version, predicted_at) VALUES ('late', 2025, 'USNJQ1', 'qual', 0, 1, '[4215,6980]', '[10809]', 0.1, 0, 300, 'low', 't', '2026-01-10')");
+    expect((await stat("4215 biggest prediction miss")).headline?.value).toBe("Off by 50 points");
+    await run("DELETE FROM predictions WHERE kind = 'late'");
     // Everyone's: the closest call first.
     expect(await stat("most accurate prediction in new jersey")).toMatchObject({ intent: "find-accurate", headline: { value: "Off by 20 points", label: expect.stringMatching(/^Q1 /) } });
   });

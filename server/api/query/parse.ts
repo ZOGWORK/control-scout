@@ -45,8 +45,9 @@ export interface Parsed {
   /** Penalty points left out of scores ("without penalties"): read, and an intent that can't apply it leaves the parse
    *  incomplete. */
   noPenalties: boolean;
-  /** A floor in points ("more than 50 points", "over 100 pts"): only a rule that takes "over" applies it. */
-  over?: number;
+  /** A floor in points ("more than 50 points", "at least 30 pts", that number counting): only a rule that takes "over"
+   *  applies it. */
+  over?: { n: number; atLeast: boolean };
   /** Where the first "vs" stands (a word's index, as a team's `at`): two alliances are the teams either side of it. */
   vsAt?: number;
   /** Every intent symbol read ("agg:max", "metric:score"). */
@@ -104,7 +105,9 @@ const KIND_WORDS = new Set(["meet", "meets", "tournament", "tournaments", "event
 /** The words before a number that make it a count ("top 5", "last 10") or a match's number ("match 3"). */
 const COUNT_BEFORE = /^(?:top|last|first|best|latest|past|recent|bottom|worst|highest|lowest)$/;
 const MATCH_BEFORE = /^(?:match|qual|q|game|qualification)$/;
-const OVER_BEFORE = /^(?:than|over|above|least|exceeding|beyond)$/;
+/** A floor in points ("more than 50 points", "at least 30 pts"): read before the team and time readers, so its number is
+ *  never a team or a season. */
+const FLOOR = /(?:^| )(more than|greater than|over|above|exceeding|beyond|at least) (\d{1,5}) (?:points?|pts)(?= |$)/;
 /** Every word of a lexicon phrase: a team's name beside one ("bad wolf offensive power rating") still ends there. */
 const LEX_WORDS = new Set(LEXICON.flatMap((e) => e.words));
 
@@ -146,7 +149,9 @@ function keptName(words: string[], ctx: ParseContext, timeOnly: (w: string[]) =>
 
 /** Parses `raw`. */
 export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed> {
-  const q = normalise(raw);
+  const q0 = normalise(raw);
+  const fl = FLOOR.exec(q0);
+  const q = fl ? `${q0.slice(0, fl.index)} ${q0.slice(fl.index + fl[0].length)}`.replace(/\s+/g, " ").trim() : q0;
   const typedWords = raw.replace(/[?!,;:()"]/g, " ").split(/\s+/).filter(Boolean);
   // The other team numbers typed: a limit ("last 5") or a match's number ("match 3") is never a team.
   const words0 = q.split(" ");
@@ -176,6 +181,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   const p: Parsed = {
     q: raw, teams: [], event: null, place: null, time, level: null, finals: false, eventKind: null, alliance: null, worlds: false, states: false, award: null, agg: null,
     n: null, matchNumber: null, noPenalties: false, symbols: [], intent: null, rule: null, leftover: [], unexplained: [], complete: false,
+    ...(fl ? { over: { n: Number(fl[2]), atLeast: fl[1] === "at least" } } : {}),
   };
   const lexAt = (i: number) => LEXICON.find((e) => e.words.every((w, j) => toks[i + j] && !toks[i + j].used && toks[i + j].w === w));
   const isLex = (w: string) => LEX_WORDS.has(w) || AWARD_ONE_WORD.has(w);
@@ -235,12 +241,6 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     if (qm) { p.matchNumber = Number(qm[1]); if (/^q/.test(t.w)) p.level = "qual"; t.used = true; symbols.add("thing:match"); continue; }
     if (!/^\d{1,5}$/.test(t.w)) continue;
     const n = Number(t.w), prev = toks[i - 1]?.w, next = toks[i + 1]?.w;
-    // "More than 50 points", "over 100 pts", "at least 30 points": a number of points, never a team.
-    if (prev && OVER_BEFORE.test(prev) && next && /^(?:points?|pts)$/.test(next)) {
-      p.over = n; t.used = true; toks[i - 1].used = true; toks[i + 1].used = true;
-      if (/^(?:than|least)$/.test(prev) && /^(?:more|at|greater)$/.test(toks[i - 2]?.w ?? "")) toks[i - 2].used = true;
-      continue;
-    }
     if (prev && MATCH_BEFORE.test(prev) && n <= 400) { p.matchNumber = n; t.used = true; toks[i - 1].used = true; symbols.add("thing:match"); if (prev !== "match" && prev !== "game") p.level = "qual"; continue; }
     // "Top 5 teams", and "top 3" ending the query.
     if (prev && COUNT_BEFORE.test(prev) && n <= 50 && (next ? !ctx.names.team(Number(next)) : !p.teams.length)) { p.n = n; t.used = true; continue; }
