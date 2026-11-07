@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.0.6 — 2026-11-07
+
+Search answers a team's own listing asked as a yes-or-no question. "Is 23786 MakEMinds a rookie team or old" shows the team's rookie year, "is delta force actually from romania or what" shows where it's from, and "does 23268 have any sponsors listed on their team page" shows its sponsors, instead of the bare team card.
+
+### Highlights
+- [teams] "Is <team> a rookie team or old" shows its rookie year
+- [teams] "Is <team> from <place>" shows where the team is from
+- [teams] "Does <team> have sponsors" shows the team's sponsors
+
+### Search
+- **Listing questions, yes or no.** A question about a team's rookie season, home or listed sponsors, school or website, typed as "is …" or "does … have …", reads as that fact's own question, so its card answers with the year, place or names. A place question needs "from", "based in" or "located in", so "is 4215 in the finals" stays a results question. (#1095)
+
 ## 4.0.5 — 2026-11-07
 
 A team's Worlds questions asked in plain words get their answers: "number of times <team> went to worlds", "<team> world championship matches 2025-26", and "what division was <team> in at worlds, and what was their rank there".
