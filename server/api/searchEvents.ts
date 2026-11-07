@@ -324,6 +324,16 @@ export async function eventSetAnswer(q: string, e: EventQuery, opts: { now?: num
     const shown = { drop: d, where: d.includes("where") ? null : whereAsStored(e, fb) };
     if (fb.length) return done(fb, { ...base, ...(d.includes("where") ? { season: e.season ?? (e.year == null && !e.allSeasons ? CURRENT_SEASON : undefined) } : {}), label: asked, fallback: `No ${lower(asked)} in the data — showing ${lower(label(shown))} instead` }, shown);
   }
+  // A kind of event the place has never held, in any season on record ("meets in <a state with no leagues>"): that is
+  // the answer, said plainly, with the place's events of the season asked (this one when none) listed instead.
+  if (e.region && e.kinds.length && !e.words.length && !e.where && !(await rowsFor({ ...e, time: null, season: null, year: null, allSeasons: true }, now)).length) {
+    const instead = await rowsFor({ ...e, kinds: [] }, now, { time: true });
+    const kind = lower(eventSetLabel({ ...e, region: null, time: null, season: null, year: null, allSeasons: false }, { seasonLabel }));
+    if (instead.length) {
+      const { eventTypes: _, ...anyKind } = base;
+      return done(instead, { ...anyKind, label: asked, fallback: `${e.region.name} has held no ${kind} in any season on record — showing its events instead` });
+    }
+  }
   // Still nothing. A year named is never swapped for another: say so, with other years' events as closest matches.
   const otherYears = e.year != null || e.season != null ? (await rowsFor(e, now, { year: true })).slice(0, 10) : [];
   const none = e.year != null ? `No events held in ${e.year} match` : e.season != null ? `No ${seasonLabel(e.season)} events match` : "No events match";
