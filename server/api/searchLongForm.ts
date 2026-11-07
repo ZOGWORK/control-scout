@@ -34,7 +34,7 @@ const CLOSERS = /\s+(?:please|pls|for\s+me|thanks|thank\s+you|right\s+now|curren
  *  captured groups; the scope words after them (a season, a place) are kept by `tail`. */
 const RULES: [RegExp, (m: RegExpExecArray) => string][] = [
   // Worlds and states: when (the first or the last time), how often, whether, which divisions, how far.
-  [new RegExp(String.raw`^(?:when\s+(?:was|is)\s+(?:the\s+)?(last|latest|most\s+recent|first|earliest)\s+time|when\s+did|how\s+many\s+times\s+(?:has|have|did)|how\s+often\s+(?:has|have|did)|(?:has|have|did)|was)\s+${T}\s+(?:ever\s+)?(?:(first|last)\s+)?${GO}\s+(?:(${WORLDS})|(${STATES}))(.*)$`), (m) => {
+  [new RegExp(String.raw`^(?:when\s+(?:was|is)\s+(?:the\s+)?(last|latest|most\s+recent|first|earliest)\s+time|when\s+did|how\s+many\s+times\s+(?:has|have|did)|(?:the\s+)?(?:number|count)\s+of\s+times(?:\s+that)?(?:\s+(?:has|have|did))?|how\s+often\s+(?:has|have|did)|(?:has|have|did)|was)\s+${T}\s+(?:(?:has|have|had|did)\s+)?(?:ever\s+)?(?:(first|last)\s+)?${GO}\s+(?:(${WORLDS})|(${STATES}))(.*)$`), (m) => {
     const kind = m[4] ? "worlds" : "states", which = m[1] ?? m[3], tail = m[6];
     // A season or place after a Worlds question ("… in 2024-25") is read by Worlds divisions, which takes a scope; the
     // appearances card is every season's, with the first or last trip as its headline.
@@ -42,6 +42,9 @@ const RULES: [RegExp, (m: RegExpExecArray) => string][] = [
     return `${m[2]} ${which ? `${/^(?:first|earliest)/.test(which) ? "first" : "last"} ` : ""}${kind} appearances${tail}`;
   }],
   [new RegExp(String.raw`^(?:which|what)\s+(?:worlds\s+)?divisions?\s+(?:has|have|did)\s+${T}\s+(?:ever\s+)?(?:played|play|been|competed?)\s+(?:in\s+)?(?:at\s+)?${WORLDS}(.*)$`), (m) => `${m[1]} worlds divisions${m[2]}`],
+  // "What division was 12345 in at worlds, and what was their rank there": its Worlds divisions, each with its rank and
+  // record there.
+  [new RegExp(String.raw`^(?:which|what)\s+(?:worlds\s+)?divisions?\s+(?:is|was|were|are)\s+${T}\s+(?:in\s+)?(?:at|for)\s+${WORLDS}(.*?)(?:,?\s+and\s+(?:what|how)\s+(?:was|were|is)\s+(?:their|its)\s+(?:rank|ranking|place|placement|finish|record|seed)(?:\s+(?:there|in\s+it))?)?$`), (m) => `${m[1]} worlds divisions${m[2]}`],
   [new RegExp(String.raw`^(?:what\s+(?:is|was)\s+|how\s+(?:far|well)\s+did\s+)${T}\s+(?:best\s+finish|go|do)\s+(?:at|in)\s+${WORLDS}(.*)$`), (m) => `${m[1]} worlds best finish${m[2]}`],
   // Partners and opponents.
   [new RegExp(String.raw`^who\s+(?:did|has|have|does)\s+${T}\s+(?:play(?:ed)?|team(?:ed)?\s+up|partner(?:ed)?|been\s+(?:on\s+)?an?\s+alliance)\s+with\s+(?:the\s+)?most(?:\s+often)?(.*)$`), (m) => `${m[1]} most common alliance partner${m[2]}`],
@@ -57,6 +60,12 @@ const RULES: [RegExp, (m: RegExpExecArray) => string][] = [
   // Predictions for the team's next event.
   [new RegExp(String.raw`^how\s+many\s+(?:matches\s+)?(?:wins|matches)\s+(?:is|will)\s+${T}\s+(?:predicted|expected|projected|going)\s+to\s+(?:get|win|have)(?:\s+at\s+(?:their|its|the)\s+next\s+(?:event|meet|competition))?(.*)$`), (m) => `${m[1]} predicted wins at their next event${m[2]}`],
   [new RegExp(String.raw`^what\s+(?:are|is)\s+${T}\s+(?:chances?|odds)\s+(?:of|to)\s+(?:advancing|advance|making\s+it|qualifying|qualify|going)\s+(?:to|for)\s+${WORLDS}(.*)$`), (m) => `${m[1]} chance to advance to worlds${m[2]}`],
+  // A team's own listing asked as a yes-or-no question: its rookie season ("is 12345 a rookie team or old"), where it's
+  // from ("is 12345 actually from romania or what"), its sponsors, school or website ("does 12345 have any sponsors
+  // listed on their team page"). The fact's card answers it, with the place or year itself.
+  [new RegExp(String.raw`^(?:is|are)\s+${TN}\s+(?:an?\s+)?(?:rookies?|new|first[\s-]year|veteran|old)(?:\s+(?:team|teams|one))?(?:\s+or\s+(?:an?\s+)?(?:an?\s+)?(?:old|older|new|veteran|established|experienced|rookie)(?:\s+(?:team|one))?)?(?:\s+or\s+not)?$`), (m) => `${m[1]} rookie year`],
+  [new RegExp(String.raw`^(?:is|are)\s+${TN}\s+(?:really\s+)?(?:from|based\s+in|located\s+in)\s+(?:the\s+)?[a-z][a-z .'-]*?(?:\s+or\s+(?:what|not))?$`), (m) => `where is ${m[1]} from`],
+  [new RegExp(String.raw`^(?:does|do|did)\s+${TN}\s+(?:have|has|list)\s+(?:any\s+|an?\s+)?(sponsors?|school|website|site)(?:\s+(?:listed|named|on\s+record))?(?:\s+on\s+(?:their|its|the)\s+(?:team\s+)?page)?$`), (m) => `${m[1]} ${m[2] === "site" ? "website" : m[2].replace(/^sponsor$/, "sponsors")}`],
   // Their events, OPR over time, rank.
   // One of the team's own events by when it was, and how it did there ("what was the last event 12345 played, and how
   // did they do", "what was 12345's first event this season, and what was their OPR there"): that event's answer.

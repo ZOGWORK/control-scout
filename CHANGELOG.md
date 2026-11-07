@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 4.0.4 — 2026-11-07
+## 4.0.7 — 2026-11-07
 
 A place's top team can stand in for a team number in a two-team question: "who would win between the top NJ team and the top Romania team" answers for those two teams, and says which they are.
 
@@ -27,6 +27,42 @@ A place's top team can stand in for a team number in a two-team question: "who w
 ### Search
 - **A place's top team, as one of two.** "The top / best / strongest <place> team" or "… team in <place>" is that place's first team on its prediction-rating board, as "top teams in <place>" ranks them, read into the two-team question; the question line says which team each phrase was.
 - **"Between."** "Who would win in a match between A and B" is the match's call, and "matches between A and B" their shared matches. (#1097)
+
+## 4.0.6 — 2026-11-07
+
+Search answers a team's own listing asked as a yes-or-no question. "Is 23786 MakEMinds a rookie team or old" shows the team's rookie year, "is delta force actually from romania or what" shows where it's from, and "does 23268 have any sponsors listed on their team page" shows its sponsors, instead of the bare team card.
+
+### Highlights
+- [teams] "Is <team> a rookie team or old" shows its rookie year
+- [teams] "Is <team> from <place>" shows where the team is from
+- [teams] "Does <team> have sponsors" shows the team's sponsors
+
+### Search
+- **Listing questions, yes or no.** A question about a team's rookie season, home or listed sponsors, school or website, typed as "is …" or "does … have …", reads as that fact's own question, so its card answers with the year, place or names. A place question needs "from", "based in" or "located in", so "is 4215 in the finals" stays a results question. (#1095)
+
+## 4.0.5 — 2026-11-07
+
+A team's Worlds questions asked in plain words get their answers: "number of times <team> went to worlds", "<team> world championship matches 2025-26", and "what division was <team> in at worlds, and what was their rank there".
+
+### Highlights
+- [fixes] "Number of times 4215 went to worlds" shows its appearances
+- [fixes] "7149 world championship matches 2025-26" shows the matches
+- [fixes] "What division was 9848 in at worlds" shows divisions, ranks
+
+### Search
+- **Worlds in plain words.** "World championship" (and "world champs") is read as one name, Worlds, so "<team> world championship matches <season>" is its matches there rather than an event called "championship". "Number of times <team> went (or has gone) to worlds" reads as its Worlds appearances, and "what division was <team> in at worlds, and what was their rank (record) there" as its Worlds divisions, each with its rank and record. (#1087)
+
+## 4.0.4 — 2026-11-07
+
+People also ask and Related searches stay on what you searched: an FTC word is never read as a town, and only the team your search is about gets its highlights.
+
+### Highlights
+- [fixes] "What is an alliance" no longer asks about Alliance, Nebraska
+- [fixes] Highlights and related searches only for the team you searched
+- [fixes] "High Point" and other two-word places still get their questions
+
+### Search
+- **Follow-ups use only what the search named.** A place or event typed as one FTC word on its own ("alliance", "auto") is the word, so no follow-up question names it; names of two or more words ("High Point") still are. Highlights and team searches beside an answer are for the team the search is about, never a team that only a suggested question's answer named; a search about no team shows neither. (#1137)
 
 ## 4.0.3 — 2026-11-07
 
