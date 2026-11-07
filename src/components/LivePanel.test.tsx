@@ -162,6 +162,14 @@ describe("LivePanel", () => {
     expect(container.querySelector("[data-live-waiting]")!.textContent).toBe("Not in the posted schedule: 4242.");
   });
 
+  it("names a team the schedule leaves out next to another team's countdown", () => {
+    personal.tracked.teams = [18360, 4242];
+    const d = detail(MATCHES);
+    const { container } = show({ ...d, field: [...d.field, { team: 4242 }] } as EventDetail);
+    expect(screen.getByText("Up next for you")).toBeTruthy();
+    expect(container.querySelector("[data-live-waiting]")!.textContent).toBe("Not in the posted schedule: 4242.");
+  });
+
   it("leaves no timer running once it's gone (the event ended)", () => {
     personal.tracked.teams = [18360];
     const { unmount } = show(detail(MATCHES));

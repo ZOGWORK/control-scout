@@ -150,7 +150,7 @@ export function LivePanel({ d, target, refresh, track }: { d: EventDetail; targe
         {!mine && done.length > 0 && (
           <p className="mt-2 text-xs text-muted-foreground" data-live-done>No more scheduled matches for {done.join(", ")}{any ? ", so this is the event's next match" : ""}.</p>
         )}
-        {!mine && unscheduled.length > 0 && (
+        {unscheduled.length > 0 && (
           <p className="mt-2 text-xs text-muted-foreground" data-live-waiting>
             {scheduled ? `Not in the posted schedule: ${unscheduled.join(", ")}.` : `Your teams here: ${unscheduled.join(", ")}. Their countdown starts when the schedule is out.`}
           </p>
