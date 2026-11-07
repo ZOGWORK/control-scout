@@ -378,8 +378,10 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       if (pick.rule) { Object.assign(t, pick); more = true; }
     }
   }
-  // A place that told a shared name's teams apart ("ultraviolet nj") said which team, not where its matches were.
-  if (p.place && p.teams.some((t) => t.rule === `the one in ${p.place!.name}`)) p.place = null;
+  // A place typed right after a shared name that it told apart ("ultraviolet nj") said which team, not where its
+  // matches were; one said with a preposition ("record in new jersey", "at nj states") stays the matches' place.
+  const rightAfter = (t: TeamSlot) => !!p.place && new RegExp(`(?:^| )${fold(t.typed)} ${fold(p.place.typed)}(?: |$)`).test(fold(raw));
+  if (p.place && p.teams.some((t) => t.rule === `the one in ${p.place!.name}` && rightAfter(t))) p.place = null;
   p.leftover = toks.filter((t) => !t.used).map((t) => t.typed);
   if (unread) p.leftover.unshift(unread);
   if (p.teams.some((t) => t.candidates && !t.rule)) p.leftover.push(...p.teams.filter((t) => t.candidates && !t.rule).map((t) => t.typed));

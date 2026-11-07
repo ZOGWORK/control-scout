@@ -116,6 +116,8 @@ describe("slots", () => {
       expect(p.complete, q).toBe(true);
     }
     expect(await parse("ultraviolet latest")).toMatchObject({ intent: "recent-match", complete: false });
+    // Said with a preposition, the place still picks the team and stays where its matches were.
+    expect((await parse("ultraviolet record in new jersey")).place).toMatchObject({ name: "New Jersey" });
   });
   it("reads a bare year as a season beside a team, and as a team alone", async () => {
     expect((await parse("4215 record 2027")).time).toMatchObject({ kind: "season", season: 2027, year: 2027 });

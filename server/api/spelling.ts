@@ -332,11 +332,15 @@ export function correctWord(w: string, v: Vocab, last = false): WordFix | null {
   return { word: top.word, own: top.own > 0 && !found.some((b) => b.d === top.d && !b.own) };
 }
 
+/** The words the query parser reads as something (filler aside): "highlights", "latest". */
+const PARSER_WORDS = new Set(LEXICON.filter((e) => e.syms.some((x) => x.k !== "filler")).flatMap((e) => e.words));
+
 /** Two of search's own words typed as one ("latestmatches"), either of them misspelled ("lasetestmatches"): both,
  *  apart, when only one split reads so (the fewest fixes), else null. */
 export function splitWord(w: string, v: Vocab): WordFix | null {
   if (w.length < 7 || v.keep.has(w) || v.count.has(w)) return null;
-  const part = (x: string) => (v.own.get(x) === 2 ? { word: x, fixed: 0 } : ((f) => (f?.own && v.own.get(f.word) === 2 ? { word: f.word, fixed: 1 } : null))(correctWord(x, v)));
+  const asked = (x: string) => v.own.get(x) === 2 || PARSER_WORDS.has(x);
+  const part = (x: string) => (asked(x) ? { word: x, fixed: 0 } : ((f) => (f?.own && asked(f.word) ? { word: f.word, fixed: 1 } : null))(correctWord(x, v)));
   let best: { word: string; fixed: number }[] = [];
   for (let i = 3; i <= w.length - 3; i++) {
     const a = part(w.slice(0, i)), b = a && part(w.slice(i));

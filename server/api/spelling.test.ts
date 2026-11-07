@@ -58,6 +58,8 @@ describe("intent words typed wrong", () => {
   it("reads two of search's own words typed as one, either misspelled", () => {
     expect(splitWord("latestmatches", v)?.word).toBe("latest matches");
     expect(splitWord("lasetestmatches", v)?.word).toBe("latest matches");
+    // A word of search's own beside one only the query parser reads.
+    expect(splitWord("latesthighlights", v)?.word).toBe("latest highlights");
     expect(splitWord("jackson", v)).toBeNull();
     expect(splitWord("robotics", v)).toBeNull();
   });
