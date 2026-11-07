@@ -606,7 +606,7 @@ export function readTwoTeam(raw: string): TwoTeamQuestion | null {
   // A bare year is a season, unless that leaves a side empty: then it's a team's number ("12345 vs 2024 head to head").
   for (const yearIsTeam of [false, true]) {
     // "better at auto" ("better than 67890 at auto") names a phase, not an event called Auto.
-    const said = q.replace(new RegExp(String.raw`\b(better|stronger|best|worse|weaker)((?: than \S+(?: \S+){0,3})?) at ${PHASE}\b`, "g"), "$1$2 in $3");
+    const said = q.replace(new RegExp(String.raw`\b(better|stronger|best|worse|weaker)((?: than .+?)?) at ${PHASE}\b`, "g"), "$1$2 in $3");
     const { scope, rest } = readScope(yearIsTeam ? said.replace(/\b(20\d\d)\b(?!\s*[-–/]\s*\d)/g, "n$1") : said);
     // "at <event>" is read for their meetings only (an event or a venue); else left to search.
     const side = (s: string) => squash(s.replace(/\b(?:team|teams|the|ftc)\b/g, " ").replace(/\bn(20\d\d)\b/g, "$1"));

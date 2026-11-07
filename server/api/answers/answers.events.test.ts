@@ -196,6 +196,8 @@ describe("two teams", () => {
     expect(readTwoTeam("rating difference between 4215 and 6980")).toMatchObject({ id: "rating-vs", a: "4215", b: "6980" });
     expect(readTwoTeam("is 4215 worse than 6980 at auto, or better")).toMatchObject({ id: "phase-vs", a: "4215", b: "6980", phase: "auto" });
     expect(readTwoTeam("is 4215 better than 6980 at Edison")).toBeNull();
+    // Greptile on #1030: a team named in many words after "than" still leaves its phase a phase.
+    expect(readTwoTeam("is 6980 better than FTC team 4215 Hypnotic Robotics at auto")).toMatchObject({ id: "phase-vs", a: "6980", b: "4215 hypnotic robotics", phase: "auto" });
     expect(readTwoTeam("if 4215 faced 6980 today, who would win")).toMatchObject({ id: "predict", a: "4215", b: "6980" });
     expect(readTwoTeam("predict 4215 vs 6980, head to head")).toMatchObject({ id: "predict", a: "4215", b: "6980" });
     expect(readStatQuestion("4215 most played opponent")).toMatchObject({ id: "most-played-opponent", core: "4215" });
