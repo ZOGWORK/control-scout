@@ -157,7 +157,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   // A team's number joined to another by "vs" or "and" is one of the teams compared, not a year.
   const said = (y: number) => new RegExp(`\\b(?:in|during|for|from|(?<!\\b(?:this|current)\\s)season)\\s+(?:the\\s+)?${y}\\b`).test(q);
   const paired = (y: number) => new RegExp(`\\b${y}\\s+(?:vs\\.?|v|versus|against|and|&)\\s|\\s(?:vs\\.?|v|versus|against|and|&)\\s+${y}\\b`).test(` ${q} `);
-  // A team's number swapped out or in ("swap 2024 for 4215", "replace 4215 with 2024") is a team, never a year.
+  // A team's number swapped out or in ("swap <team> for <team>", "replace <team> with <team>", a number like a year) is a team, never a year.
   const swapped = (y: number) => new RegExp(`\\b(?:${SWAP_WORDS})\\s+(?:out\\s+)?(?:\\d{1,5}\\s+(?:out\\s+)?(?:for|with)\\s+)?${y}\\b`).test(q);
   const yearOk = (y: number) => !(swapped(y) && ctx.names.team(y)) && (said(y) || (!(ctx.names.team(y) && paired(y)) && (teamNums.some((n) => n !== y) || !ctx.names.team(y))));
   // A stored name asked about as words keeps its words from the time reader ("Powerplay Robotics", "March Madness").
