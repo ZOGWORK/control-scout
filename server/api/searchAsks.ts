@@ -43,7 +43,7 @@ export type Ask =
   | { kind: "predict-versus"; rest: string }
   | { kind: "event-winner"; event: string }
   | { kind: "advance"; team: string }
-  | { kind: "award"; award: string; event: string }
+  | { kind: "award"; award: string; event: string; place?: number }
   | { kind: "event-won"; event: string }
   | { kind: "how" }
   /** How to get a call for any lineup, or whether it updates as the lineup changes: Predict's Custom matchup. */
@@ -136,10 +136,11 @@ export function readAsk(q: string): Ask | null {
     ?? /^what does (.+?) need to (?:advance|qualify)(?: to .+)?$/.exec(t) ?? /^(.+?) (?:advancement|advancement odds|chances? to advance)$/.exec(t);
   if (m) return { kind: "advance", team: m[1] };
   // An event's award.
-  m = /^who (?:won|got|received|took) (?:the )?(.+?)(?: award)? at (?:the )?(.+)$/.exec(t);
+  // A place asked ("who won 2nd place inspire at …"): every place listed, that one first.
+  m = /^who (?:won|got|received|took) (?:the )?(?:([123])(?:st|nd|rd) place )?(.+?)(?: award)? at (?:the )?(.+)$/.exec(t);
   if (m) {
-    const w = m[1].replace(/['’]/g, ""); // "Judges' Choice", "Judges’ Choice"
-    if (Object.hasOwn(AWARDS, w)) return { kind: "award", award: AWARDS[w], event: m[2] };
+    const w = m[2].replace(/['’]/g, ""); // "Judges' Choice", "Judges’ Choice"
+    if (Object.hasOwn(AWARDS, w)) return { kind: "award", award: AWARDS[w], event: m[3], ...(m[1] ? { place: Number(m[1]) } : {}) };
   }
   // Who won an event ("who won nj states", "winners of the New Jersey Championship"): never "won" as a name word.
   m = /^(?:who (?:won|took|was the winner of|were the winners of|were the champions of|was the champion of)|winners? of|champions? of) (?:the )?(.+)$/.exec(t);
@@ -391,12 +392,13 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
       if (season !== Number(found)) ev = (await search(code, 5, opts.prefer, new Set(["event"]), season)).find((h) => h.kind === "event" && h.ref === `${season}:${code}`)
         ?? { ...ev, ref: `${season}:${code}`, season, subtitle: seasonLabel(season) };
       const place = (p: number) => (p === 1 ? "Winner" : `${p}${p === 2 ? "nd" : p === 3 ? "rd" : "th"} place`);
-      const lines = rows.map((r) => teamLine(Number(r.team), r.name, [place(Number(r.placement))], r.award ?? undefined));
+      const asked = ask.place != null ? rows.filter((r) => Number(r.placement) === ask.place) : [];
+      const lines = [...asked, ...rows.filter((r) => !asked.includes(r))].map((r) => teamLine(Number(r.team), r.name, [place(Number(r.placement))], r.award ?? undefined));
       const award = rows[0]?.award ?? `${AWARD_NAME[ask.award] ?? ask.award} Award`;
       return answer(q, {
         hits: [{ ...ev, section: "awards" }], pages: pagesFor(q),
-        card: { kind: "event-awards", title: `${award} · ${ev.title} · ${seasonLabel(season)}`, lines, award: ask.award, ...(await eventAwards(season, code, ev.title)), ...(lines.length ? {} : { none: `No ${award} recorded at ${ev.title} in any season on record.` }) },
-        understood: { kind: "question", label: `Who won the ${award} at ${ev.title} (${seasonLabel(season)})${upcoming}`, season },
+        card: { kind: "event-awards", title: `${award} · ${ev.title} · ${seasonLabel(season)}`, lines, award: ask.award, ...(ask.place != null ? { place: ask.place } : {}), ...(await eventAwards(season, code, ev.title)), ...(lines.length ? {} : { none: `No ${award} recorded at ${ev.title} in any season on record.` }) },
+        understood: { kind: "question", label: `${ask.place != null && ask.place > 1 ? `Who got ${place(ask.place)} for the` : "Who won the"} ${award} at ${ev.title} (${seasonLabel(season)})${upcoming}${ask.place != null && rows.length && !asked.length ? ` · No ${place(ask.place)} recorded` : ""}`, season },
       });
     }
 

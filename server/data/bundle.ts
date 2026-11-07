@@ -70,6 +70,8 @@ export interface MatchRow {
   label: string;
   description: string | null;
   time: string | null;
+  /** The posted start (FIRST's schedule startTime), kept once `time` becomes the real start. */
+  scheduled?: string | null;
   played: boolean;
   red: MatchTeam[];
   blue: MatchTeam[];
@@ -95,6 +97,9 @@ export interface EventBundle {
   event: EventRow;
   /** Team metadata seen while fetching (merged into `teams`, never blanking known fields). */
   teams: TeamRow[];
+  /** FIRST's own team list for the event, read with the detail: replaces its stored registrations (data/registrations.ts),
+   *  so a list FIRST emptied stays empty. Undefined: not read, or the list was an AM/PM pair's (kept as it is). */
+  registrations?: number[];
   /** Null = detail not fetched (event-list-only refresh): keep existing detail rows. */
   detail: {
     entries: EntryRow[];
@@ -173,6 +178,10 @@ export function bundleStatements(b: EventBundle): InStatement[] {
   if (!b.detail) return s;
   const k = [e.season, e.code];
   for (const t of ["event_teams", "matches", "match_teams", "alliances", "awards"]) s.push({ sql: `DELETE FROM ${t} WHERE season = ? AND code = ?`, args: k });
+  if (b.registrations) {
+    s.push({ sql: "DELETE FROM event_registrations WHERE season = ? AND code = ?", args: k });
+    for (const t of b.registrations) s.push({ sql: "INSERT OR REPLACE INTO event_registrations (season, code, team, fetched_at) VALUES (?, ?, ?, ?)", args: [...k, t, now()] });
+  }
   // Every writer that replaces an event's matches moves its result-change guard (data/resultChanges.ts), so a
   // diff read before this write is never applied after it.
   s.push({ sql: "UPDATE result_watch SET rev = rev + 1 WHERE season = ? AND code = ?", args: k });
@@ -185,10 +194,10 @@ export function bundleStatements(b: EventBundle): InStatement[] {
     s.push({
       sql: `INSERT OR REPLACE INTO matches (season, code, level, series, number, label, description, time, played,
               red_total, red_np, red_auto, red_teleop, red_endgame, red_pen, red_bonus, red_tips,
-              blue_total, blue_np, blue_auto, blue_teleop, blue_endgame, blue_pen, blue_bonus, blue_tips, video, source, field, breakdown, red_detail, blue_detail)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              blue_total, blue_np, blue_auto, blue_teleop, blue_endgame, blue_pen, blue_bonus, blue_tips, video, source, field, breakdown, red_detail, blue_detail, scheduled)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [...k, m.level, m.series, m.number, m.label, m.description, m.time, m.played ? 1 : 0, ...sc(m.redScore), ...sc(m.blueScore), m.video ?? null, e.source, m.field ?? null, m.played ? (m.breakdown === false ? 0 : 1) : null,
-        ...[m.redDetail, m.blueDetail].map((x) => (m.played && x ? JSON.stringify(x) : null))],
+        ...[m.redDetail, m.blueDetail].map((x) => (m.played && x ? JSON.stringify(x) : null)), m.scheduled ?? null],
     });
     for (const [alliance, ts] of [["red", m.red], ["blue", m.blue]] as const) {
       for (const t of ts) {
