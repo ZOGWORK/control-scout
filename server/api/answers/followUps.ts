@@ -106,7 +106,8 @@ const START: Template[] = [
 const WORLDS = LEXICON.filter((e) => e.syms.some((x) => x.k === "worlds")).map((e) => e.words.join(" ")).sort((a, b) => b.length - a.length);
 /** FTC's own words (every word of the lexicon's phrases: "alliance", "auto", "worlds"). A place or event typed as one
  *  of them alone ("if I change the alliance": Alliance, Nebraska) is the word, not the place: no follow-up names it. A
- *  name of two or more words ("High Point", "New Jersey") was meant. */
+ *  name of two or more words ("High Point", "New Jersey") was meant, and so was a state or country, read only from its
+ *  own names and codes ("in IN": Indiana): only a town or an event can be a word too. */
 const FTC_WORDS = new Set(LEXICON.flatMap((e) => e.words));
 const meant = (typed: string | undefined) => !!typed && (/\s/.test(typed.trim()) || !FTC_WORDS.has(normalise(typed)));
 
@@ -132,7 +133,7 @@ export function candidates(p: Parsed, a: SearchAnswer, team = answerTeam(a)): Ca
   const event = said && said === said.toLowerCase() ? said.replace(/(?<![\p{L}\p{N}'])\p{L}/gu, (c) => c.toUpperCase()) : said;
   const teams = p.teams.map((t) => t.number);
   const s: Slots = {
-    t: teams[0] ?? team, u: teams[1], event, place: meant(p.place?.typed) ? p.place?.name : undefined,
+    t: teams[0] ?? team, u: teams[1], event, place: p.place && (p.place.kind !== "city" || meant(p.place.typed)) ? p.place.name : undefined,
     // A season said (a year, a season's two years): a window ("this week") or every season is no season's question.
     when: p.time?.kind === "season" ? p.time.typed : undefined,
     award: p.award ?? undefined,

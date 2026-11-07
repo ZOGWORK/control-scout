@@ -132,6 +132,9 @@ describe("people also ask", () => {
     // A name of two words, or one that isn't FTC's own, is the place.
     expect(candidates(place("High Point", "high point"), a).some((c) => c.q.includes("in High Point"))).toBe(true);
     expect(candidates(place("Oradell", "oradell"), a).some((c) => c.q.includes("in Oradell"))).toBe(true);
+    // A state code that is also a word ("IN", "OR"), read by the parser, is the state.
+    const q2 = "best auto opr in IN";
+    expect(candidates(await parseQuery(q2, await parseContext()), await pageAnswer(q2, 25, new Set())).some((c) => c.q.includes("Indiana"))).toBe(true);
   });
 
   it("offers only what the search is about: never a team only a question's answer named", async () => {
