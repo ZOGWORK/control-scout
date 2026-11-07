@@ -20,7 +20,7 @@ beforeAll(async () => {
   // [number, name, rookie year, last season played (null: none yet)]
   const teams: [number, string, number, number | null][] = [
     [7001, "Team Squidward", 2015, S], [7002, "Hullabaloo Robotics", 2018, S], [7003, "Zapbot Junior", 2025, null],
-    [7004, "Zapbot", 2019, S], [7005, "Quasartron", 2017, S], [7006, "Quasartron", 2020, S - 1],
+    [7004, "Zapbot", 2019, S], [7005, "Quasartron", 2017, S], [7006, "Quasartron", 2020, S - 1], [7007, "Team Quix", 2016, S],
   ];
   for (const [n, name, rookie, last] of teams) {
     await run("INSERT INTO teams (number, name, city, state, country, rookie_year) VALUES (?, ?, 'Paramus', 'NJ', 'USA', ?)", [n, name, rookie]);
@@ -66,7 +66,16 @@ describe("a team called by its name's own part", () => {
     expect(a.step).toBe("deterministic");
     expect(a.hits.slice(0, 2).map((h) => h.ref).sort()).toEqual(["7005", "7006"]);
   });
-  it("reads a name two teams share as the one that played most recently in a fact", async () => {
+  it("reads a name two teams share as the visitor's own team, else the one that played most recently, in a fact", async () => {
     expect(await top("rookie year for quasartron")).toBe("7005");
+    const mine = await searchAnswer("rookie year for quasartron", { learn: false, limit: 40, full: true, prefer: new Set(["team:7006"]) });
+    expect(mine.hits[0]?.ref).toBe("7006");
+  });
+  it("reads a four-letter name's own part, too short for a name's start", async () => {
+    expect(await top("rookie year of quix")).toBe("7007");
+  });
+  it("keeps the season named on a team called by its name's own part", async () => {
+    const a = await ask(`zapbot juniors ${S}-${String((S + 1) % 100).padStart(2, "0")}`);
+    expect(a.hits[0]).toMatchObject({ ref: "7003", linkSeason: S });
   });
 });

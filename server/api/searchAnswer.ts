@@ -298,11 +298,11 @@ async function typedAnswer(raw: string, opts: AnswerOptions): Promise<SearchAnsw
   // A question the search pipeline reads completely ("12345 and 67890 matches together") is its answer, whatever
   // operator words it holds: "and" there joins two teams of one question, not two searches.
   const operators = /["&|-]|\b(?:and|or|not)\b/i.test(String(raw ?? ""));
-  if (operators && !String(raw ?? "").includes('"') && opts.intents !== false && (await pipelineReads(cleanQuery(raw), opts.now, opts.prefer))) return layeredAnswer(cleanQuery(raw), reader);
+  if (operators && !String(raw ?? "").includes('"') && opts.intents !== false && (await pipelineReads(cleanQuery(raw), opts.now, opts.prefer))) return layeredAnswer(cleanQuery(raw), reader, opts.prefer);
   const bool = operators ? await booleanAnswer(String(raw ?? ""), reader, opts.full ?? (opts.limit ?? 12) >= SEARCH_PAGE_LIMIT) : null;
   // Cut to the caller's limit like every other answer (a quoted name adds the teams named exactly that).
   if (bool) return { ...bool, hits: bool.hits.slice(0, opts.limit ?? 12) };
-  return layeredAnswer(cleanQuery(raw), reader);
+  return layeredAnswer(cleanQuery(raw), reader, opts.prefer);
 }
 
 /** A team number typed against the next word ("23268matches at nj championship"): the two words apart. Three letters
@@ -568,7 +568,9 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   // A near match to a team that never played (a test registration, a typo'd sign-up) is a closest match, not a result,
   // unless the words call it by its name's own part ("<name> juniors" for "<Name> Junior").
   const called = !exact && hits[0].kind === "team" ? await calledTeams(rest, prefer) : [];
-  if (called.some((h) => h.ref === hits[0].ref)) return answer(q, { hits: [...called, ...hits.filter((h) => !called.some((c) => c.ref === h.ref))].slice(0, limit), step: "deterministic" });
+  // The hits already listed keep what the season named gave them (its link, its label).
+  const listed = called.map((c) => hits.find((h) => h.kind === "team" && h.ref === c.ref) ?? c);
+  if (called.some((h) => h.ref === hits[0].ref)) return answer(q, { hits: [...listed, ...hits.filter((h) => !called.some((c) => c.ref === h.ref))].slice(0, limit), step: "deterministic" });
   if (!exact && hits[0].kind === "team" && !hits[0].href && !(await played(hits[0].ref))) {
     return recovery(q, [`No exact match for "${q}"`], uniq(hits).slice(0, 5));
   }
