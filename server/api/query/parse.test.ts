@@ -108,6 +108,15 @@ describe("slots", () => {
     expect((await parse("ultraviolet opr")).complete).toBe(false);
     expect((await parse("ultraviolet vs hypnotic robotics")).teams.map((t) => t.number)).toEqual([23268, 4215]);
   });
+  it("reads a place typed right after a shared name as which team, never where its matches were", async () => {
+    for (const q of ["ultraviolet nj latest", "ultraviolet nj highlights", "ultraviolet new jersey latest"]) {
+      const p = await parse(q);
+      expect(p.teams, q).toMatchObject([{ number: 23268, rule: "the one in New Jersey" }]);
+      expect(p.place, q).toBeNull();
+      expect(p.complete, q).toBe(true);
+    }
+    expect(await parse("ultraviolet latest")).toMatchObject({ intent: "recent-match", complete: false });
+  });
   it("reads a bare year as a season beside a team, and as a team alone", async () => {
     expect((await parse("4215 record 2027")).time).toMatchObject({ kind: "season", season: 2027, year: 2027 });
     expect((await parse("2024 record")).teams.map((t) => t.number)).toEqual([2024]);

@@ -210,9 +210,12 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       // After "in" or "from", a place's name is the place ("teams from Texas"), whatever team shares it.
       if (/^(?:in|from|at|near)$/.test(toks[i - 1]?.w ?? "") && ctx.names.place(span.map((t) => t.w).join(" "), span.map((t) => t.typed).join(" "))) continue;
       // A one-word name covers its whole run of unknown words: "robotics" alone isn't the team in "hypnotc robotics".
-      // A longer name is specific enough beside another ("hypnotic robotics bad wolf").
+      // A longer name is specific enough beside another ("hypnotic robotics bad wolf"), and a place beside it is a
+      // place ("ultraviolet nj").
       const loose = (t: Tok | undefined) => !!t && !t.used && !isLex(t.w) && !/^\d+$/.test(t.w);
-      if (len === 1 && (loose(toks[i - 1]) || loose(toks[i + len]))) continue;
+      const placeAt = (a: number, b: number) => a >= 0 && b <= toks.length && toks.slice(a, b).every((t) => !t.used) && !!ctx.names.place(toks.slice(a, b).map((t) => t.w).join(" "), toks.slice(a, b).map((t) => t.typed).join(" "));
+      const placed = (k: number, dir: 1 | -1) => [1, 2, 3].some((n) => (dir > 0 ? placeAt(k, k + n) : placeAt(k - n + 1, k + 1)));
+      if (len === 1 && ((loose(toks[i - 1]) && !placed(i - 1, -1)) || (loose(toks[i + len]) && !placed(i + len, 1)))) continue;
       const named = ctx.names.teamsNamed(span.map((t) => t.w).join(" "));
       if (!named.length) continue;
       // A number typed beside its own name ("12345 hypnotic robotics") is one team.
@@ -375,6 +378,8 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       if (pick.rule) { Object.assign(t, pick); more = true; }
     }
   }
+  // A place that told a shared name's teams apart ("ultraviolet nj") said which team, not where its matches were.
+  if (p.place && p.teams.some((t) => t.rule === `the one in ${p.place!.name}`)) p.place = null;
   p.leftover = toks.filter((t) => !t.used).map((t) => t.typed);
   if (unread) p.leftover.unshift(unread);
   if (p.teams.some((t) => t.candidates && !t.rule)) p.leftover.push(...p.teams.filter((t) => t.candidates && !t.rule).map((t) => t.typed));
