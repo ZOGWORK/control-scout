@@ -25,7 +25,7 @@ Boards over every season: the team that has played the most seasons, the oldest 
 - [rankings] "Most awards ever" counts every season
 
 ### Search
-- **Career boards.** "Ever", "of all time" or "in history" said with the team with the most matches, events, wins or awards counts every season on record, not one. "The most seasons" (from FIRST's rookie year to the team's latest season with a match) and "the oldest team still active" (a match in either of the two latest seasons, the earliest rookie year first) are boards of their own, in a place or worldwide. A rookie year before FTC's first season is a directory slip and never counted. (#PR)
+- **Career boards.** "Ever", "of all time" or "in history" said with the team with the most matches, events, wins or awards counts every season on record, not one. "The most seasons" (from FIRST's rookie year to the team's latest season with a match) and "the oldest team still active" (a match in either of the two latest seasons, the earliest rookie year first) are boards of their own, in a place or worldwide. A rookie year before FTC's first season is a directory slip and never counted. (#1111)
 
 ## 3.9.1 — 2026-11-07
 
