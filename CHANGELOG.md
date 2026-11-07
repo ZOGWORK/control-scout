@@ -15,6 +15,22 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.9.8 — 2026-11-07
+
+The LIVE panel shows nothing about matches until the day's first score is out, then times every match from the field.
+
+### Highlights
+- [live] Before the first score: just "Waiting for Q1's score"
+- [live] After it, your next match and countdown appear on their own
+- [fixes] Schedules posted as 1:35 AM read as 1:35 PM
+
+### Live
+- **Nothing until the first score.** Before the day's first match is scored, the LIVE panel names no match, time or lineup (it read as if that match were on now), only "Waiting for Q1's score"; the phone's chip says "Waiting for Q1". Once the score is out, your next match and its countdown show up by themselves, timed from the field's real pace.
+- **Schedules with a wrong clock.** When the field runs hours off the posted times (a mistyped schedule), the countdown keeps the schedule's gaps and drops its clock, and doesn't claim the event runs "12 hours behind".
+
+### Fixes
+- **12-hour slips in FIRST's schedule.** A posted start before 6 AM is read as the afternoon (the P1-5 PM Northeast League Meet was posted from 1:35 AM). (#1128)
+
 ## 3.9.7 — 2026-11-07
 
 Questions about what a word means are answered however they're framed, two words at once, or with a team's own numbers.

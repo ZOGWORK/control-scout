@@ -39,3 +39,15 @@ describe("firstTeams(season)", () => {
     expect((await firstTeams(2023)).map((t) => t.number)).toEqual([4215, 999999, 99999]);
   });
 });
+
+describe("postedStart: a 12-hour slip in FIRST's schedule", () => {
+  it("reads a posted start before 6 AM as the afternoon, and leaves the rest alone", async () => {
+    const { postedStart } = await import("./first");
+    expect(postedStart("2026-11-07T01:35:00")).toBe("2026-11-07T13:35:00");
+    expect(postedStart("2026-11-07T05:59:00")).toBe("2026-11-07T17:59:00");
+    expect(postedStart("2026-11-07T09:45:00")).toBe("2026-11-07T09:45:00");
+    expect(postedStart("2026-11-07T13:35:00")).toBe("2026-11-07T13:35:00");
+    expect(postedStart("")).toBeNull();
+    expect(postedStart(null)).toBeNull();
+  });
+});
