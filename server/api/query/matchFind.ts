@@ -16,6 +16,24 @@ import { matchHref, shortEvent, teamLinks } from "../answers/matchSet.js";
 
 export type MatchMeasure = "high" | "low" | "closest" | "lopsided" | "penalties" | "upset" | "comeback";
 
+/** A score an alliance had to reach ("where the losing alliance scored over 200", "both alliances scored over 250"):
+ *  `side` is whose final score (penalties included, as the result was decided) is held to it. The losing or winning
+ *  alliance's needs a decided match. Both alliances over a number is the lower score over it, under one the higher
+ *  score under it; either alliance the other way round. */
+export interface ScoreCond { side: "losing" | "winning" | "both" | "either"; op: ">" | ">=" | "<" | "<="; n: number }
+const LOW = "MIN(m.red_total, m.blue_total)", HIGH = "MAX(m.red_total, m.blue_total)";
+/** The score a condition holds to its number. */
+export function condValue(c: ScoreCond): string {
+  const upper = c.op === "<" || c.op === "<=";
+  return c.side === "losing" ? LOW : c.side === "winning" ? HIGH : (c.side === "both") === upper ? HIGH : LOW;
+}
+const OP_WORDS: Record<ScoreCond["op"], string> = { ">": "over", ">=": "at least", "<": "under", "<=": "at most" };
+/** The condition in words: "the losing alliance scored over 200". */
+export function condWords(c: ScoreCond): string {
+  const who = c.side === "both" ? "both alliances" : c.side === "either" ? "an alliance" : `the ${c.side} alliance`;
+  return `${who} scored ${OP_WORDS[c.op]} ${c.n}`;
+}
+
 export interface MatchFind {
   measure: MatchMeasure;
   season: number;
@@ -33,6 +51,11 @@ export interface MatchFind {
   /** A list asked for ("closest matches", "top 5"): the ranked table alone. Else the first is the headline and the
    *  rest a table after it. */
   list?: boolean;
+  /** These events only (one named with a score to reach), official or not. */
+  events?: { season: number; code: string; name?: string }[];
+  named?: boolean;
+  /** A score an alliance had to reach. */
+  cond?: ScoreCond;
 }
 
 /** A kind of event said by its words alone ("league meet", "qualifiers"): its FIRST types, or null. */
@@ -103,7 +126,7 @@ interface Row { season: number; code: string; level: string; series: number; num
 
 /** The filters the match finder and a scope's highlights (./highlights.ts) take. `events`: these events only (a
  *  division is an event of its own: ./highlights.ts scopeEvents lists them). */
-export type MatchScope = Pick<MatchFind, "season" | "window" | "region" | "level" | "finals" | "decided" | "kind"> & { events?: { season: number; code: string }[];
+export type MatchScope = Pick<MatchFind, "season" | "window" | "region" | "level" | "finals" | "decided" | "kind" | "cond"> & { events?: { season: number; code: string }[];
   /** `events` were named by the query and one isn't official (an off-season event): theirs are the matches all the same. */
   named?: boolean };
 
@@ -118,7 +141,8 @@ export function where(f: MatchScope, upTo = false) {
   if (f.window) { sql.push("substr(COALESCE(m.time, e.start), 1, 10) BETWEEN ? AND ?"); args.push(f.window.from, f.window.to); }
   if (f.level) { sql.push("m.level = ?"); args.push(f.level); }
   if (f.finals) sql.push(FINAL);
-  if (f.decided) sql.push("m.red_total <> m.blue_total");
+  if (f.decided || f.cond?.side === "losing" || f.cond?.side === "winning") sql.push("m.red_total <> m.blue_total");
+  if (f.cond) { sql.push(`${condValue(f.cond)} ${f.cond.op} ?`); args.push(f.cond.n); }
   if (f.events) {
     // By season, as the matches' key reads them.
     const by = new Map<number, string[]>();
@@ -156,17 +180,21 @@ export async function matchFindAnswer(f: MatchFind): Promise<StatAnswer> {
   }
   const place = f.region?.name ?? null;
   const filters = [f.finals ? "finals" : f.level === "qual" ? "qualification" : f.level === "playoff" ? "playoff" : null].filter(Boolean)[0];
-  const typed = [f.kind ? `at ${f.kind.label.toLowerCase()}` : null, place ? `in ${place}` : null, f.window ? f.window.label : null].filter(Boolean).join(" ");
+  // An event named: its name in the card's season, as that season held it.
+  const eventName = f.events?.find((e) => e.season === f.season && e.name)?.name ?? null;
+  const typed = [eventName ? `at ${eventName}` : null, f.kind ? `at ${f.kind.label.toLowerCase()}` : null, place ? `in ${place}` : null, f.window ? f.window.label : null, f.cond ? `where ${condWords(f.cond)}` : null].filter(Boolean).join(" ");
   // A list asked for is titled as one ("Biggest upsets in California"), its table under no heading of its own.
   const head = f.list ? ms.plural : ms.title;
   const title = `${(filters ? `${head.replace(/match/, `${filters} match`)}` : head)}${typed ? ` ${typed}` : ""}, ${seasonLabel(f.season)}`;
   const scope = [seasonLabel(f.season), ...(place ? [place] : []), ...(f.window ? [f.window.label.replace(/^./, (c) => c.toUpperCase())] : []),
-    ...(f.finals ? ["Finals"] : f.level === "qual" ? ["Qualification matches"] : f.level === "playoff" ? ["Playoff matches"] : []), ...(f.kind ? [f.kind.label] : []), ...(f.decided ? ["No ties"] : []), "Official events"];
-  const definition = `${rule.replace(/^./, (c) => c.toUpperCase())} Only played matches at official events held in person, with both alliances' points on record.`;
-  const where2 = `${place ? ` in ${place}` : ""}${f.kind ? ` at ${f.kind.label.toLowerCase()}` : ""}${f.window ? ` ${f.window.label}` : ` in ${seasonLabel(f.season)}`}`;
+    ...(f.finals ? ["Finals"] : f.level === "qual" ? ["Qualification matches"] : f.level === "playoff" ? ["Playoff matches"] : []), ...(f.kind ? [f.kind.label] : []), ...(f.cond ? [condWords(f.cond).replace(/^./, (c) => c.toUpperCase())] : []), ...(f.decided ? ["No ties"] : []), ...(f.named ? [] : ["Official events"])];
+  // An off-season event named is its own matches: never called official.
+  const at = f.named ? "at the event named" : "at official events";
+  const definition = `${rule.replace(/^./, (c) => c.toUpperCase())} Only played matches ${at} held in person, with both alliances' points on record.`;
+  const where2 = `${place ? ` in ${place}` : ""}${f.kind ? ` at ${f.kind.label.toLowerCase()}` : ""}${f.window ? ` ${f.window.label}` : ` in ${seasonLabel(f.season)}`}${f.cond ? ` where ${condWords(f.cond)}` : ""}`;
   const base = { family: "superlative" as const, intent: `find-${f.measure}`, title, scope, definition, source: `From ${count.toLocaleString("en-US")} played match${count === 1 ? "" : "es"}${where2}` };
   if (!rows.length) {
-    const none = count ? `None of the ${count.toLocaleString("en-US")} played match${count === 1 ? "" : "es"}${where2} is one: ${rule.replace(/;.*$/, "")}.` : `No played matches at official events${filters ? ` (${filters})` : ""}${where2} yet.`;
+    const none = count ? `None of the ${count.toLocaleString("en-US")} played match${count === 1 ? "" : "es"}${where2} is one: ${rule.replace(/;.*$/, "")}.` : `No played matches${f.named ? "" : " at official events"}${filters ? ` (${filters})` : ""}${where2} yet.`;
     return { ...base, blocks: [], none };
   }
   const ups = await all<{ season: number; code: string; level: string; series: number; number: number; alliance: string; team: number }>(
