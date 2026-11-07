@@ -17,7 +17,9 @@ export interface TeamSlot {
   at: number;
 }
 /** An event named by its words: the executor finds it, by the season rule (latest, or the year said). */
-export interface EventSlot { words: string; typed: string }
+export interface EventSlot { words: string; typed: string;
+  /** Read from one word of a named team's own events: their latest with it in its name (ParseContext.teamEvent). */
+  latest?: true }
 export interface EventFound { season: number; code: string; name: string }
 
 export interface Parsed {
@@ -73,6 +75,9 @@ export interface ParseContext {
   today: string;
   /** Whether these words name a stored event (any season), and the team numbers' event when one is given. */
   isEvent: (words: string) => Promise<boolean>;
+  /** The code of the latest event of `teams` (in `season`, when given) with `word` in its name as a whole word, or
+   *  null: one word names an event only among the named teams' own ("4215 at conference"). */
+  teamEvent?: (word: string, teams: number[], season: number | null) => Promise<string | null>;
   /** The team a near miss of a name means ("hypnotc robotics"), or null. */
   nearTeam?: (words: string) => Promise<TeamName | null>;
   /** The visitor's own teams ("team:12345"), first when several share a name. */
@@ -320,6 +325,19 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       span(x, y).forEach((t) => (t.used = true));
       if (!toks.some((t) => !span(x, y).includes(t) && KIND_WORDS.has(t.w))) symbols.delete("thing:event");
       continue;
+    }
+    // One word of a named team's own event's name ("4215 last prediction for conference"): that event, its latest.
+    // Never a kind of event's word ("league", "qualifiers": read below) or a word of its own kind ("meet").
+    const one = toks[from];
+    if (!p.event && from === to && p.teams.length && ctx.teamEvent && one.w.length >= 3 && !KIND_WORDS.has(one.w)
+      && !EVENT_TYPES[one.w.replace(/s$/, "")] && !EVENT_TYPES[one.w]) {
+      const code = await ctx.teamEvent(one.w, p.teams.map((t) => t.number), p.time?.season ?? null);
+      if (code) {
+        p.event = { words: code.toLowerCase(), typed: one.typed, latest: true };
+        one.used = true;
+        if (!toks.some((t) => t !== one && KIND_WORDS.has(t.w))) symbols.delete("thing:event");
+        continue;
+      }
     }
     // A place with an event word after it, read as both: "California events".
     if (hasEventWord && !p.place) {

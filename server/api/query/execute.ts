@@ -206,7 +206,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     const predictLink = stat.blocks.flatMap((b) => (b.kind === "links" ? b.items : b.kind === "chance" && b.action ? [b.action] : [])).find((l) => l.label.startsWith("Open in Predict"));
     return {
       q: p.q, hits: hits.map((h) => ({ ...h, facts: undefined, events: undefined })), pages: predictLink && !(opts.full && inCard) ? [{ title: predictLink.label, href: predictLink.href }, ...opts.pages] : opts.pages,
-      step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season: found.ev.season }, ...(opts.full ? { stat } : {}),
+      step: "deterministic", weak: false, understood: { kind: "question", label: p.event?.latest ? `${stat.title} · the latest event with "${p.event.typed}" in its name` : stat.title, season: found.ev.season }, ...(opts.full ? { stat } : {}),
       intent: { kind: `stat-${stat.intent}`, pattern: `${p.teams.map(() => "[team]").join(" ")} predict ${p.event ? "[event]" : p.worlds ? "[worlds]" : "[states]"}`, met: true, understood: [] },
     };
   }
