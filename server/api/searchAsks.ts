@@ -22,6 +22,7 @@ import { predictHref } from "../../src/shared/predictUrl.js";
 import { cleanTeamName } from "../../src/shared/teamTitle.js";
 import type { Region } from "../../src/shared/regions.js";
 import { dateRange, possessive, seasonLabel } from "../../src/shared/format.js";
+import { localDate } from "../../src/shared/eventDay.js";
 import { teamPageSql } from "../../src/shared/teamPages.js";
 import { CURRENT_SEASON, FIRST_PREDICT_SEASON, isLegacy } from "../data/seasons.js";
 import { all } from "../db.js";
@@ -264,20 +265,32 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
 
     case "predict-day": {
       const now = Date.now(), day = searchToday(now + (ask.day === "tomorrow" ? 864e5 : 0));
-      // Events that play matches (never a kickoff or a workshop), the ones with their match schedule posted first: only
-      // those have predictions to show yet.
-      const rows = await all<any>(
-        `SELECT season, code, name, type, venue, city, state, country, start, end, timezone, division_code,
-           EXISTS (SELECT 1 FROM matches m WHERE m.season = e.season AND m.code = e.code) scheduled FROM events e
+      // Events held that day that play matches (never a kickoff or a workshop), each read by its own posted matches: some
+      // on that day where it's held (its time zone), a schedule with no match times yet (said apart: the day can't be
+      // told), or none posted yet. An event whose posted matches all fall on other days (inspection that day, matches
+      // the next) has none that day and is left out.
+      const held = await all<any>(
+        `SELECT season, code, name, type, venue, city, state, country, start, end, timezone, division_code FROM events e
          WHERE start <= ? AND COALESCE(end, start) >= ? AND COALESCE(remote, 0) = 0 AND (type IS NULL OR type NOT IN (${NO_MATCH_TYPES.map(() => "?").join(", ")}))
-         ORDER BY scheduled DESC, start, name LIMIT 12`, [day, day, ...NO_MATCH_TYPES]);
+         ORDER BY start, name LIMIT 200`, [day, day, ...NO_MATCH_TYPES]);
+      const times = held.length ? await all<{ season: number; code: string; time: string | null }>(
+        `SELECT DISTINCT season, code, time FROM matches WHERE ${held.map(() => "(season = ? AND code = ?)").join(" OR ")}`, held.flatMap((r) => [r.season, r.code])) : [];
+      const dayOf = (r: any, t: string) => { const ms = Date.parse(t); return Number.isNaN(ms) ? null : (r.timezone && localDate(ms, r.timezone)) || new Date(ms).toISOString().slice(0, 10); };
+      const RANK = { day: 0, untimed: 1, unposted: 2 } as const;
+      const classed = held.map((r) => {
+        const own = times.filter((m) => Number(m.season) === Number(r.season) && m.code === r.code);
+        const kind = !own.length ? "unposted" : own.some((m) => m.time && dayOf(r, m.time) === day) ? "day" : own.some((m) => !m.time) ? "untimed" : "other";
+        return { r, kind };
+      }).filter((x): x is { r: any; kind: keyof typeof RANK } => x.kind !== "other").sort((a, b) => RANK[a.kind] - RANK[b.kind]).slice(0, 12);
+      const rows = classed.map((x) => x.r);
       const when = `${ask.day === "tomorrow" ? "Tomorrow" : "Today"} (${dateRange(day, day)})`;
       if (!rows.length) return answer(q, { hits: [], pages: withPage(q, [{ title: "Predict: Scheduled matches", href: predictHref({ mode: "scheduled" }) }]), understood: { kind: "question", label: `${when}: no event has matches then, so there are no predictions for that day` } });
-      const posted = rows.filter((r) => Number(r.scheduled));
-      const pages = posted.slice(0, 3).map((r) => ({ title: `Predict: ${r.name}`, href: predictHref({ mode: "scheduled", pick: { kind: "event", season: Number(r.season), code: r.code } }) }));
+      const count = (k: keyof typeof RANK) => classed.filter((x) => x.kind === k).length;
+      const onDay = count("day"), untimed = count("untimed");
+      const pages = classed.filter((x) => x.kind !== "unposted").slice(0, 3).map(({ r }) => ({ title: `Predict: ${r.name}`, href: predictHref({ mode: "scheduled", pick: { kind: "event", season: Number(r.season), code: r.code } }) }));
       const n = (k: number) => `${k === 12 ? "12 or more" : k} event${k === 1 ? "" : "s"}`;
-      const label = posted.length === rows.length ? `${n(rows.length)} with matches; each one's predictions are in Predict`
-        : posted.length ? `${n(rows.length)}, ${posted.length} with a match schedule posted: their predictions are in Predict`
+      const label = onDay === rows.length ? `${n(rows.length)} with matches; each one's predictions are in Predict`
+        : onDay || untimed ? `${n(rows.length)}${onDay ? `, ${onDay} with matches that day` : ""}${untimed ? `, ${untimed} with a schedule posted but no match times yet` : ""}: their predictions are in Predict`
         : `${n(rows.length)}, none with a match schedule posted yet, so no predictions yet`;
       return answer(q, { hits: rows.map((r) => eventHit(r, now)), pages: pages.length ? withPage(q, pages) : pagesFor(q), understood: { kind: "question", label: `${when}: ${label}` } });
     }

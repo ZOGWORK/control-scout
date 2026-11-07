@@ -132,6 +132,9 @@ describe("test 16: each intent returns its stated surface", () => {
     expect(readAsk("can i filter 4215 predictions")?.kind).not.toBe("predict-filter");
   });
   it("a team's predictions page: its matches in Predict; a day's calls: that day's events", async () => {
+    // A name is read only for a team that has played: this test's own played row, whatever ran before it.
+    await run("INSERT OR IGNORE INTO team_event_stats (season, code, team, opr_np, matches) VALUES (?, 'UVPLAYED', 23268, 50, 5)", [S]);
+    await rebuildSearch();
     const team = await ask("ultraviolet prediction settings");
     expect(team.hits[0]).toMatchObject({ kind: "team", ref: "23268" });
     expect(team.pages[0]).toEqual({ title: "Predict Ultraviolet's matches", href: "/predict?mode=scheduled&for=team:23268" });
@@ -158,8 +161,19 @@ describe("test 16: each intent returns its stated surface", () => {
     expect(one.understood?.label).toMatch(/^Tomorrow \(.+\): 1 event with matches/);
     expect(one.hits[0]).toMatchObject({ kind: "event", ref: `${CURRENT_SEASON}:USNJQ9` });
     expect(one.pages[0]).toEqual({ title: "Predict: Garden Qualifier", href: `/predict?mode=scheduled&for=event:${CURRENT_SEASON}:USNJQ9` });
-    await run("DELETE FROM matches WHERE code = 'USNJQ9'");
-    await run("DELETE FROM events WHERE code IN ('USNJQ9', 'USNJW9')");
+    // A two-day event whose matches are all the day after (inspection tomorrow): no matches tomorrow, left out. One with
+    // a schedule but no match times yet: kept, said apart. A match late tomorrow evening in California is past midnight
+    // UTC, but tomorrow where it's held: counted.
+    const next = new Date(Date.now() + 2 * 864e5).toISOString().slice(0, 10);
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, timezone, source) VALUES (?, 'USPAT2', 'Two Day Tournament', 'Qualifier', 'Erie', 'PA', 'USA', ?, ?, 'America/New_York', 't'), (?, 'USOHU1', 'Untimed Qualifier', 'Qualifier', 'Akron', 'OH', 'USA', ?, ?, NULL, 't'), (?, 'USCAL1', 'Late Night Qualifier', 'Qualifier', 'Fresno', 'CA', 'USA', ?, ?, 'America/Los_Angeles', 't')",
+      [CURRENT_SEASON, day, next, CURRENT_SEASON, day, day, CURRENT_SEASON, day, day]);
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, source) VALUES (?, 'USPAT2', 'qual', 0, 1, 'Q1', ?, 0, 't'), (?, 'USOHU1', 'qual', 0, 1, 'Q1', NULL, 0, 't'), (?, 'USCAL1', 'qual', 0, 1, 'Q1', ?, 0, 't')",
+      [CURRENT_SEASON, `${next}T15:00:00Z`, CURRENT_SEASON, CURRENT_SEASON, `${next}T04:00:00Z`]);
+    const mixed = await ask("show me predictions for tomorrows matches");
+    expect(mixed.hits.map((h) => h.ref)).toEqual([`${CURRENT_SEASON}:USNJQ9`, `${CURRENT_SEASON}:USCAL1`, `${CURRENT_SEASON}:USOHU1`]);
+    expect(mixed.understood?.label).toMatch(/^Tomorrow \(.+\): 3 events, 2 with matches that day, 1 with a schedule posted but no match times yet: their predictions are in Predict$/);
+    await run("DELETE FROM matches WHERE code IN ('USNJQ9', 'USPAT2', 'USOHU1', 'USCAL1')");
+    await run("DELETE FROM events WHERE code IN ('USNJQ9', 'USNJW9', 'USPAT2', 'USOHU1', 'USCAL1')");
   });
   it("how are predictions calculated: the methodology page in the Pages group", async () => {
     const a = await ask("how are predictions calculated");
