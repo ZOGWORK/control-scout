@@ -7,6 +7,7 @@ import type { StatAnswer, StatBlock } from "../../../../src/shared/searchStat.js
 import type { Region } from "../../../../src/shared/regions.js";
 import { dateRange, num, possessive, seasonLabel } from "../../../../src/shared/format.js";
 import { regionOf } from "../../../../src/shared/searchEventQuery.js";
+import { countryOf } from "../../../../src/shared/countries.js";
 import { RANKED_MIN_MATCHES } from "../../../../src/shared/rankings.js";
 import { scheduleRankText, scheduleWord } from "../../../../src/shared/scheduleDifficulty.js";
 import { all, get } from "../../../db.js";
@@ -27,6 +28,8 @@ export interface FactQuestion {
   season: number | null;
   /** "events in New Jersey", "OPR vs New Jersey average". */
   region: Region | null;
+  /** "events in Romania": a whole country (events-place), by its code. */
+  country?: { code: string; name: string };
   /** "OPR vs world average". */
   world: boolean;
   /** "OPR vs New Jersey Championship average": the event's words. */
@@ -65,7 +68,7 @@ export function readTeamFact(raw: string): FactQuestion | null {
     // The fact's own words go; the season, if named, is read from what's left ("12345 events in 2025-26").
     const { scope, rest } = readScope(q.replace(m[0], " "));
     if (scope.championship || scope.states || scope.level || scope.alliance || scope.at || scope.ever) return null;
-    let region: Region | null = null, world = false, event: string | null = null;
+    let region: Region | null = null, world = false, event: string | null = null, country: FactQuestion["country"];
     if (r.id === "opr-vs-average") {
       if (/^(?:world(?:wide)?|global|everyone|all\s+teams|the\s+world)$/.test(what)) world = true;
       else if (!(region = regionOf(what.split(" ")))) event = what;
@@ -74,10 +77,16 @@ export function readTeamFact(raw: string): FactQuestion | null {
       // "events in 2025-26" names a season, not a place.
       const s = readScope(` events in ${what} `);
       if (s.scope.season != null && !s.rest.replace(/\bevents?\b/, "").trim()) { const core = rest.trim(); return core ? { id: "events-season", core, season: s.scope.season, region: null, world: false, event: null } : null; }
-      // "events in New Jersey 2024-25": the place, and the season read off it.
-      const place = s.scope.season != null ? s.rest.replace(/\bevents?\s+in\b/, "").trim() : what;
-      if (!(region = regionOf(place.split(" ")))) return null;
-      if (s.scope.season != null) scope.season ??= s.scope.season;
+      // "events in New Jersey 2024-25", "events in Romania this year": the place, and the season read off it ("this
+      // year" is the default season, as every team answer reads it).
+      const said = s.scope.season ?? (s.scope.latest ? searchSeason() : null);
+      const place = said != null ? s.rest.replace(/\bevents?\s+in\b/, "").trim() : what;
+      region = regionOf(place.split(" "));
+      // A whole country ("Romania"): its events, every state or province of it.
+      const c = region ? null : countryOf(place);
+      if (!region && !c) return null;
+      if (said != null) scope.season ??= said;
+      if (c) country = { code: c.code, name: c.name };
     }
     // "12345 events" alone is the count, another answer's: the season list needs a season. A question about them
     // ("when is 12345's next event", "what events did 12345 win in 2024") is the asks' own.
@@ -90,7 +99,7 @@ export function readTeamFact(raw: string): FactQuestion | null {
     // A bare year with nothing else naming a team is the team's number ("2024 reliability").
     if (!core && scope.year && scope.season != null) return { id: r.id, core: String(scope.season), season: null, region, world, event };
     if (!core) return null;
-    return { id: r.id, core, season: scope.season, region, world, event };
+    return { id: r.id, core, season: scope.season, region, world, event, ...(country ? { country } : {}) };
   }
   return null;
 }
@@ -199,9 +208,12 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
   }
 
   if (f.id === "events-place") {
-    const r = f.region!;
-    const evs = await all<any>(`SELECT e.season, e.code, e.name, e.type, e.start, e.end, et.rank FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
-      WHERE et.team = ? AND e.country = ? AND e.state = ?${f.season != null ? " AND e.season = ?" : ""} AND ${ATTENDED} ORDER BY e.start DESC, e.code`, [team.number, r.country, r.state, ...(f.season != null ? [f.season] : [])]);
+    const r = f.region ?? { name: f.country!.name };
+    // A state or province by its stored codes; a whole country by its code, whatever label FIRST stored for it.
+    const sql = `SELECT e.season, e.code, e.name, e.type, e.start, e.end, e.country, et.rank FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
+      WHERE et.team = ?${f.region ? " AND e.country = ? AND e.state = ?" : ""}${f.season != null ? " AND e.season = ?" : ""} AND ${ATTENDED} ORDER BY e.start DESC, e.code`;
+    const evs = (await all<any>(sql, [team.number, ...(f.region ? [f.region.country, f.region.state] : []), ...(f.season != null ? [f.season] : [])]))
+      .filter((e) => f.region || countryOf(e.country)?.code === f.country!.code);
     const in_ = f.season != null ? ` in ${seasonLabel(f.season)}` : "";
     const b = base("events-place", `Events in ${r.name}${in_}`, [r.name, f.season != null ? seasonLabel(f.season) : "All seasons"], `Every event in ${r.name} the team is listed for${in_ || ", every season"}, newest first.`, `From ${possessive(who(team))} events`);
     if (!evs.length) return { ...b, none: `${who(team)} has no events in ${r.name}${in_} on record.` };

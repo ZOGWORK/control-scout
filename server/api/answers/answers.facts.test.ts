@@ -43,6 +43,9 @@ beforeAll(async () => {
     await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (?, ?, 'qual', 0, 3, ?, 'red', 1)", [season, code, t]);
   }
   await run("INSERT INTO team_season_stats (season, team, opr_np, matches, wins, losses, ties) VALUES (2025, 9999, 300, 2, 2, 0, 0)");
+  // An event abroad, in a country stored by FIRST's own label and a county's code (failed-search #823).
+  await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, 'ROCMP', 'Romania National Championship', 'Championship', 'Bucharest', 'B', 'Romania', '2026-03-01', '2026-03-01', 't')");
+  await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'ROCMP', 19564, 4)");
   await rebuildSearch();
 });
 
@@ -92,6 +95,18 @@ describe("team facts", () => {
     // A season named keeps to it.
     const n = (await searchAnswer("4215 events in New Jersey 2024-25", { limit: 25 })).stat!;
     expect(n).toMatchObject({ title: "Events in New Jersey in 2024–25", none: expect.stringContaining("no events in New Jersey in 2024–25") });
+  });
+  // Failed-search #823, held out: another team, other words. A whole country is every state or province of it.
+  it("events in a country, asked as a question", async () => {
+    expect(readTeamFact("19564 events in romania")).toMatchObject({ id: "events-place", region: null, country: { code: "RO" } });
+    for (const q of ["19564 events in Romania", "which events did the marvels compete in romania this season, in date order"]) {
+      const s = (await searchAnswer(q, { limit: 25 })).stat;
+      expect(s, q).toMatchObject({ intent: "events-place", headline: { value: "1 event" } });
+      const t = s!.blocks.find((b) => b.kind === "table");
+      expect(t && t.kind === "table" && t.rows.map((r) => r.cells.event), q).toEqual(["Romania National Championship"]);
+    }
+    // Its events at home aren't a country's.
+    expect((await searchAnswer("4215 events in romania", { limit: 25 })).stat).toMatchObject({ none: expect.stringContaining("no events in Romania") });
   });
   it("OPR against the world's, a state's and an event's division's average", async () => {
     // Worldwide: the team page's own world rank, and the average over the teams that rank counts, stated.
