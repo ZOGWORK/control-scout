@@ -100,7 +100,8 @@ export const INTENTS: IntentRule[] = [
   // "Did 12345 ever win a match": its wins, none said as none.
   R("wins-count", 1, ["metric:win", "thing:match"], [], { noMatchNo: true }),
   R("losses", 1, ["metric:loss"], ["agg:count", "thing:match"]),
-  R("ties-count", 1, ["metric:tie"], ["agg:count", "thing:match"]),
+  // "Did they ever play a match that tied": playing, said as a verb, is the matches counted.
+  R("ties-count", 1, ["metric:tie"], ["agg:count", "thing:match", "per:match", "vs"]),
   R("record", 1, ["metric:record"], ["metric:win", "metric:loss", "metric:tie", "thing:match", "per:event"]),
   // "Wins vs losses", "wins and losses": the record, as said.
   R("record", 1, ["metric:win", "metric:loss"], ["vs", "and", "compare", "metric:tie", "thing:match", "per:event"]),
