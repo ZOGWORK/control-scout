@@ -39,12 +39,14 @@ export async function parseContext(now = Date.now(), prefer: ReadonlySet<string>
       p.catch(() => seen.delete(words));
       return p;
     },
-    async teamEvent(word, teams, season) {
-      const evs = await all<{ code: string; name: string | null }>(
-        `SELECT DISTINCT e.code, e.name, e.start FROM ${ROSTER} r JOIN events e ON e.season = r.season AND e.code = r.code
-         WHERE r.team IN (${teams.map(() => "?").join(", ")}) AND (? IS NULL OR e.season = ?) ORDER BY e.start DESC`,
-        [...teams, season, season]);
-      return evs.find((e) => fold(e.name ?? "").split(" ").includes(word))?.code ?? null;
+    async teamEvent(word, teams, { season, year }) {
+      const evs = await all<{ name: string | null }>(
+        `SELECT DISTINCT e.name, e.start FROM ${ROSTER} r JOIN events e ON e.season = r.season AND e.code = r.code
+         WHERE r.team IN (${teams.map(() => "?").join(", ")}) AND (? IS NULL OR e.season = ?) AND (? IS NULL OR e.start LIKE ?) ORDER BY e.start DESC`,
+        [...teams, season, season, year, year == null ? null : `${year}%`]);
+      // Its whole name, which the readers find it by (a code can carry another name in another season).
+      const name = evs.map((e) => fold(e.name ?? "")).find((n) => n.split(" ").includes(word));
+      return name ?? null;
     },
   };
 

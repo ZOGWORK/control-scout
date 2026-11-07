@@ -75,9 +75,9 @@ export interface ParseContext {
   today: string;
   /** Whether these words name a stored event (any season), and the team numbers' event when one is given. */
   isEvent: (words: string) => Promise<boolean>;
-  /** The code of the latest event of `teams` (in `season`, when given) with `word` in its name as a whole word, or
-   *  null: one word names an event only among the named teams' own ("<team> at <one word>"). */
-  teamEvent?: (word: string, teams: number[], season: number | null) => Promise<string | null>;
+  /** The name (folded) of the latest event of `teams` (in the season or held in the calendar year given) with `word`
+   *  in its name as a whole word, or null: one word names an event only among the named teams' own. */
+  teamEvent?: (word: string, teams: number[], when: { season: number | null; year: number | null }) => Promise<string | null>;
   /** The team a near miss of a name means ("hypnotc robotics"), or null. */
   nearTeam?: (words: string) => Promise<TeamName | null>;
   /** The visitor's own teams ("team:12345"), first when several share a name. */
@@ -326,19 +326,6 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       if (!toks.some((t) => !span(x, y).includes(t) && KIND_WORDS.has(t.w))) symbols.delete("thing:event");
       continue;
     }
-    // One word of a named team's own event's name ("<team> last prediction for <word>"): that event, its latest.
-    // Never a kind of event's word ("league", "qualifiers": read below) or a word of its own kind ("meet").
-    const one = toks[from];
-    if (!p.event && from === to && p.teams.length && ctx.teamEvent && one.w.length >= 3 && !KIND_WORDS.has(one.w)
-      && !EVENT_TYPES[one.w.replace(/s$/, "")] && !EVENT_TYPES[one.w]) {
-      const code = await ctx.teamEvent(one.w, p.teams.map((t) => t.number), p.time?.season ?? null);
-      if (code) {
-        p.event = { words: code.toLowerCase(), typed: one.typed, latest: true };
-        one.used = true;
-        if (!toks.some((t) => t !== one && KIND_WORDS.has(t.w))) symbols.delete("thing:event");
-        continue;
-      }
-    }
     // A place with an event word after it, read as both: "California events".
     if (hasEventWord && !p.place) {
       const bare = toks.slice(from, to + 1).filter((t) => !EVENT_NAME_WORDS.has(t.w));
@@ -391,6 +378,23 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       if (!t.candidates || t.rule) continue;
       const pick = pickShared(t, p, ctx);
       if (pick.rule) { Object.assign(t, pick); more = true; }
+    }
+  }
+  // One word left on its own, of a named team's own event's name ("<team> last prediction for <word>"): that event,
+  // its latest (in the season or the year said), once every team is settled. Never a kind of event's word ("league",
+  // "qualifiers": read above) or a word of its own kind ("meet").
+  if (!p.event && p.teams.length && ctx.teamEvent && !p.teams.some((t) => t.candidates && !t.rule)) {
+    const t = p.time;
+    const when = { season: t?.kind === "season" && t.year == null ? t.season : t?.kind === "window" ? t.season : null, year: t?.kind === "season" ? t.year ?? null : null };
+    for (const [i, one] of toks.entries()) {
+      if (one.used || toks[i - 1]?.used === false || toks[i + 1]?.used === false) continue;
+      if (one.w.length < 3 || KIND_WORDS.has(one.w) || EVENT_TYPES[one.w.replace(/s$/, "")] || EVENT_TYPES[one.w]) continue;
+      const name = await ctx.teamEvent(one.w, p.teams.map((x) => x.number), when);
+      if (!name) continue;
+      p.event = { words: name, typed: one.typed, latest: true };
+      one.used = true;
+      if (!toks.some((x) => x !== one && KIND_WORDS.has(x.w))) symbols.delete("thing:event");
+      break;
     }
   }
   p.leftover = toks.filter((t) => !t.used).map((t) => t.typed);
