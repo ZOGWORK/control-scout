@@ -30,6 +30,19 @@ A league meet's page lists the teams FIRST lists for that meet, not every team i
 
 ## 3.8.8 — 2026-11-07
 
+Two teams are read with the stat asked first ("who has the higher OPR, A or B"), a forecast asked as a question ("will A beat B") and penalties side by side.
+
+### Highlights
+- [fixes] "Who has the higher OPR, 4215 or 7149" compares their OPRs
+- [fixes] "Will 4215 beat 7149" shows the predicted winner
+- [fixes] "Who has better penalties, 207 or 8902" compares fouls given
+- [fixes] Three teams compared "on auto, teleop and endgame" get the card
+
+### Search
+- **Two teams, the stat asked first.** "Who has the higher OPR, rating or reliability, A or B", "who scored more, A or B", "will A beat B" and "predicted winner A vs B" each read as the two teams' answer; a new penalties side by side compares the penalty points each team gives away a match, fewer being better; three teams compared with the phases named are the compare card. (#1088)
+
+## 3.8.8 — 2026-11-07
+
 A trend asked as a choice ("is its rating rising or falling", "getting better or worse at penalties") answers with the trend, and penalties asked as a trend show each event.
 
 ### Highlights
