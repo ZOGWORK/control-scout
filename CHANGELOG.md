@@ -26,7 +26,7 @@ A team is found by the part of its name that is its own: without "Team" or "Robo
 - [fixes] "<name> stuff, like everything" lists the team
 
 ### Search
-- **A team called by its name's own part.** The query parser, the word layer and the last-stop name reader read a team from its name without the words that only say it is a team, from its name typed with a space inside a word, or with its last word made plural, when no team's whole name is the words. A team that has not played yet, named so, is the answer rather than a closest match. A name several teams share is read as the one that played most recently, when only one did. "Stuff", "everything", "like" and "info" after a name are not part of it. (#PRNUM)
+- **A team called by its name's own part.** The query parser, the word layer and the last-stop name reader read a team from its name without the words that only say it is a team, from its name typed with a space inside a word, or with its last word made plural, when no team's whole name is the words. A team that has not played yet, named so, is the answer rather than a closest match. A name several teams share is read as the one that played most recently, when only one did. "Stuff", "everything", "like" and "info" after a name are not part of it. (#1105)
 
 ## 3.9.1 — 2026-11-07
 
