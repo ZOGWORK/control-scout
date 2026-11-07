@@ -7,6 +7,8 @@
 
 /** A team as a long question names it: its number (with "team" or "#" before it), or the words of its name. */
 const T = String.raw`(?:the\s+)?(?:team\s+)?#?(\d{1,6}|[a-z][a-z0-9 .&'-]*?)`;
+/** A team as its number with its name after it ("24033 alphatronic"), or as `T` names it. */
+const TN = String.raw`(?:the\s+)?(?:team\s+)?#?(\d{1,6}(?:\s+[a-z][a-z0-9 .&'-]*?)?|[a-z][a-z0-9 .&'-]*?)`;
 const WORLDS = String.raw`(?:the\s+)?(?:worlds|world\s+championships?|first\s+championship|championship)`;
 /** The verbs a question puts between a team and an event ("went to", "made it to", "qualified for", "competed at"). */
 const STATES = String.raw`(?:the\s+)?(?:states|state\s+championships?|state\s+champs?|state\s+finals?)`;
@@ -56,8 +58,26 @@ const RULES: [RegExp, (m: RegExpExecArray) => string][] = [
   [new RegExp(String.raw`^how\s+many\s+(?:matches\s+)?(?:wins|matches)\s+(?:is|will)\s+${T}\s+(?:predicted|expected|projected|going)\s+to\s+(?:get|win|have)(?:\s+at\s+(?:their|its|the)\s+next\s+(?:event|meet|competition))?(.*)$`), (m) => `${m[1]} predicted wins at their next event${m[2]}`],
   [new RegExp(String.raw`^what\s+(?:are|is)\s+${T}\s+(?:chances?|odds)\s+(?:of|to)\s+(?:advancing|advance|making\s+it|qualifying|qualify|going)\s+(?:to|for)\s+${WORLDS}(.*)$`), (m) => `${m[1]} chance to advance to worlds${m[2]}`],
   // Their events, OPR over time, rank.
+  // One of the team's own events by when it was, and how it did there ("what was the last event 12345 played, and how
+  // did they do", "what was 12345's first event this season, and what was their OPR there"): that event's answer.
+  [new RegExp(String.raw`^what\s+(?:was|is)\s+(?:the\s+)?(last|latest|most\s+recent|first|earliest)\s+(?:event|competition|tournament|meet)\s+${TN}\s+(?:played(?:\s+(?:at|in))?|went\s+to|attended|competed\s+(?:at|in)|was\s+at)(.*?)(?:,?\s+and\s+how\s+did\s+(?:they|it)\s+do(?:\s+there)?)?$`), (m) => `${m[2]} results at their ${which(m[1])} event${m[3]}`],
+  [new RegExp(String.raw`^what\s+(?:was|is)\s+${TN}\s+(last|latest|most\s+recent|first|earliest)\s+(?:event|competition|tournament|meet)(.*?),?\s+and\s+(?:what|how)\s+(?:was|is)\s+(?:their|its)\s+(opr|rank|ranking|record)(?:\s+there|\s+at\s+it)?$`), (m) => `${m[1]} ${m[4] === "ranking" ? "rank" : m[4]} at their ${which(m[2])} event${m[3]}`],
+  // Its events in a place, or how many and the best of them: its events list (each with its rank), the scope kept.
+  [new RegExp(String.raw`^(?:what|which)\s+(?:events?|meets?|competitions?|tournaments?)\s+(?:has|have|did|does)\s+${TN}\s+(?:play(?:ed)?|compete(?:d)?|go\s+to|went\s+to|attend(?:ed)?)\s+in\s+(.+)$`), (m) => `${m[1]} events in ${m[2]}`],
+  // "Did 12345 play at any event in June": the events it played that month (the list says none if so). A month only:
+  // the events-played filter is the season list's, never a place's (Greptile on #1084).
+  [new RegExp(String.raw`^(?:did|has|have)\s+${TN}\s+(?:play(?:ed)?|compete(?:d)?)\s+(?:at|in)\s+(?:any|an)\s+(?:events?|competitions?|meets?|tournaments?)\s+((?:in|during)\s+(?:the\s+month\s+of\s+)?(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:\s+20\d\d)?(?:\s+(?:in|during|for|this|last)\s+.+)?)$`), (m) => `${m[1]} events played ${m[2]}`],
+  // "12345 events and best finish in 2025-26": the season's events, whose headline names the best finish.
+  [new RegExp(String.raw`^${TN}\s+(?:events?|meets?|competitions?)\s+and\s+(?:their\s+|its\s+|the\s+)?best\s+(?:finish|event|rank(?:ing)?|placement|result)(\s+(?:in|during|for|this|last)\s.*)$`), (m) => `${m[1]} events${m[2]}`],
+  [new RegExp(String.raw`^how\s+many\s+(?:events?|meets?|competitions?|tournaments?)\s+(?:has|have|did)\s+${TN}\s+(?:play(?:ed)?(?:\s+in)?|compete(?:d)?(?:\s+in)?|attend(?:ed)?|go\s+to|been\s+to)(.*?),?\s+and\s+which\s+(?:was|were|is)\s+(?:their|its)\s+best(?:\s+(?:one|event|finish))?(?:\s+by\s+(?:rank|finish|placement))?$`), (m) => `${m[1]} events played${m[2]}`],
+  // "What is my 12345 (upcoming) event": the team's own, its next.
+  [/^(?:what|which|when)\s+(?:is|are|was)\s+my\s+(?:team\s+)?#?(\d{1,6})(?:\s+(?:next|upcoming))?\s+(?:event|events|competition|meet)$/, (m) => `${m[1]} next event`],
   [new RegExp(String.raw`^(?:what|which)\s+(?:events?|meets?|competitions?|tournaments?)\s+(?:has|have|did|does)\s+${T}\s+(?:go(?:ne)?\s+to|went\s+to|compete(?:d)?\s+(?:at|in)|attend(?:ed)?|play(?:ed)?\s+(?:at|in))(.*)$`), (m) => `events ${m[1]} went to${m[2]}`],
   [new RegExp(String.raw`^how\s+(?:has|did|have)\s+${T}\s+opr\s+(?:changed|change|grown|grow|improved|improve|gone|developed)(?:\s+(?:over|across|through)\s+(?:the\s+)?(?:seasons|years))?(.*)$`), (m) => `${m[1]} opr trend over seasons${m[2]}`],
+  // The team itself changed between two seasons ("how has 12345 changed from last season to this season"): its OPR's
+  // change, set against its world standing each season (answers/families/seasonChange.ts). "From last season" alone
+  // runs to this season, as "since" does.
+  [new RegExp(String.raw`^how\s+(?:has|have|did)\s+${T}\s+(?:changed|change|improved|improve|grown|grow|developed|progressed)\s+((?:from|since|between)\s+.+)$`), (m) => `${m[1]} opr change ${m[2]}${/^from\s/.test(m[2]) && !/\sto\s/.test(m[2]) ? " to this season" : ""}`],
   // "Where does 12345 rank": OPR, unless the question names the stat ("in rating", "by auto opr").
   [new RegExp(String.raw`^where\s+(?:does|did|do)\s+${T}\s+rank(?:\s+(?:in|by|for|on)\s+(?:the\s+)?((?:(?:auto|teleop|endgame|penalty)\s+)?opr|(?:prediction\s+)?rating|reliability))?(.*)$`), (m) => {
     const stat = m[2] ? (/rating/.test(m[2]) ? "rating" : m[2]) : "opr";
@@ -71,6 +91,7 @@ const RULES: [RegExp, (m: RegExpExecArray) => string][] = [
   [/^(?:what|which)\s+(?:is|was|are|were)\s+(?:the\s+)?(?:team\s+)?#?(\d{1,6})\s+(.+)$/, (m) => `${m[1]} ${m[2]}`],
 ];
 
+const which = (w: string) => (/^(?:first|earliest)$/.test(w) ? "first" : "last");
 const phase = (p: string) => (/^auto/.test(p) ? "auto" : /^tele|^driver/.test(p) ? "teleop" : "endgame");
 
 /** The long query said the short way, or null when it isn't a long phrasing this knows (nothing would change). */

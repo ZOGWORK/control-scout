@@ -97,6 +97,20 @@ const PAIRS: [string, string][] = [
   ["i want to know 4215's opr at worlds", "4215 opr at worlds"],
   ["what is the highest opr 4215 has ever had", "4215 highest opr ever"],
   ["how has 4215's opr changed over the seasons", "4215 opr trend over seasons"],
+  // A team's own events by when they were, how many and where (failed-search #711/#824/#1036, #832, #823, #831,
+  // #732–#734; held out: other teams and words).
+  ["what was the most recent competition bad wolf attended and how did they do there", "bad wolf results at their last event"],
+  ["what was the first meet 4215 played in 2024-25", "4215 results at their first event in 2024-25"],
+  ["what was 6980's last event and what was their rank there", "6980 rank at their last event"],
+  ["what was hypnotic robotics' earliest tournament in 2024-25 and how was their record", "hypnotic robotics record at their first event in 2024-25"],
+  ["which tournaments did 6980 bad wolf compete in new jersey last season in date order", "6980 bad wolf events in new jersey last season in date order"],
+  ["how many meets did 6980 attend this season and which was their best one", "6980 events played this season"],
+  ["when is my 6980 next event", "6980 next event"],
+  // The team changed between two seasons (failed-search #879, held out): its OPR's change.
+  ["how has hypnotic robotics improved since last season", "hypnotic robotics opr change since last season"],
+  ["how did 4215 change between 2023-24 and 2024-25", "4215 opr change between 2023-24 and 2024-25"],
+  // "From last season" alone runs to this season (Greptile on #1074).
+  ["how has bad wolf changed from last season", "bad wolf opr change from last season to this season"],
   ["where does 4215 rank in opr worldwide", "4215 opr rank worldwide"],
   // The stat named stays the stat asked about (Greptile on #655).
   ["can you tell me where does 4215 rank in rating", "4215 rating rank"],
