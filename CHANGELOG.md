@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.9.1 — 2026-11-07
+
+Teams named can be ranked by one stat: "rank these teams by reliability: 4215, 7149, 23268".
+
+### Highlights
+- [fixes] "Rank these teams by reliability: …" ranks the teams named
+- [fixes] Works with any board stat: OPR, phases, rating, win rate
+- [fixes] A named team too new to rank is listed as not ranked
+
+### Search
+- **Teams named, ranked.** "Rank, sort or order these teams by <stat>: A, B, C" and "A, B and C ranked by <stat>" give a leaderboard of those teams only, ranked among themselves; a named team with too few matches is said as not ranked. (#1104)
+
 ## 3.9.0 — 2026-11-07
 
 On an event day before the schedule is out, the LIVE box says it's waiting for the schedule. It no longer says your teams are done, and it names only your teams that are at the event.
