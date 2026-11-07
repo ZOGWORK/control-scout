@@ -201,16 +201,18 @@ export function totalsOnly(season: number, final: unknown, ownFoul: unknown, opp
  * FIRST answers "not published yet" with 200 + empty lists (and 404 for an
  * unknown event), so any other failure is real: it propagates, the caller
  * falls back to FTC Scout, and if that fails too the stored event is left
- * untouched — a partial bundle never replaces good data.
+ * untouched — a partial bundle never replaces good data. `pair`: the other session's code when the event is
+ * one session of an AM/PM pair (data/registrations.ts sessionPairs).
  */
-export async function firstEventBundle(meta: EventRow): Promise<EventBundle> {
+export async function firstEventBundle(meta: EventRow, o: { pair?: string } = {}): Promise<EventBundle> {
   const { season, code } = meta;
   const c = encodeURIComponent(code);
   // Remote events (2020–2022): every team plays alone under the same match
   // numbers, so the keys collide; keep the event, rankings and awards only.
   const solo = <T,>(f: () => Promise<T>) => (meta.remote ? Promise.resolve(null) : f());
   const league = meta.type === "LeagueMeet";
-  const [schedQ, schedP, results, scoresQ, scoresP, rankings, alliances, awards, advancement, advPoints, participants] = await Promise.all([
+  const teamList = (code: string) => firstEventTeams(season, code).catch((e) => { if (league) throw e; return null; });
+  const [schedQ, schedP, results, scoresQ, scoresP, rankings, alliances, awards, advancement, advPoints, participants, pairTeams] = await Promise.all([
     solo(() => firstGet<any>(`/${season}/schedule/${c}?tournamentLevel=qual`)),
     solo(() => firstGet<any>(`/${season}/schedule/${c}?tournamentLevel=playoff`)),
     solo(() => firstGet<any>(`/${season}/matches/${c}`)),
@@ -225,7 +227,8 @@ export async function firstEventBundle(meta: EventRow): Promise<EventBundle> {
     season >= 2025 ? firstGet<any>(`/${season}/advancement/${c}/points`).catch(() => undefined) : Promise.resolve(undefined),
     // The event's teams (FIRST's "Match Participants"). At a league meet /rankings is the whole league's running
     // standing, so without this list the meet can't be told apart from its league: the read must succeed there.
-    firstEventTeams(season, code).catch((e) => { if (league) throw e; return null; }),
+    teamList(code),
+    o.pair ? teamList(o.pair) : Promise.resolve(null),
   ]);
 
   // Score breakdowns by match key.
@@ -296,7 +299,12 @@ export async function firstEventBundle(meta: EventRow): Promise<EventBundle> {
 
   // FIRST's participant list decides who is at the event: rankings only add each one's standing. Without a list
   // (not published yet), a league meet's rankings say nothing about who comes, so only its schedule does.
-  const listed = participants?.length ? new Set(participants.map((t) => t.number)) : null;
+  // A list FIRST files for both sessions of an AM/PM pair (the other session's is empty, or the same) is everyone
+  // registered for the pair, not this session's teams: it stays in event_registrations (marked shared) instead.
+  const key = (ts: TeamRow[] | null) => (ts ?? []).map((t) => t.number).sort((x, y) => x - y).join(",");
+  const shared = !!o.pair && !!participants?.length && (!pairTeams?.length || key(pairTeams) === key(participants));
+  const own = shared ? null : participants;
+  const listed = own?.length ? new Set(own.map((t) => t.number)) : null;
   const entries: EntryRow[] = (league && !listed ? [] : rankings?.rankings ?? []).filter((r: any) => r?.teamNumber && (!listed || listed.has(r.teamNumber))).map((r: any) => ({
     team: r.teamNumber, rank: num(r.rank), rp: num(r.sortOrder1), tbp: num(r.sortOrder2), wins: num(r.wins), losses: num(r.losses), ties: num(r.ties),
     qualPlayed: num(r.matchesPlayed), dq: num(r.dq),
@@ -304,7 +312,7 @@ export async function firstEventBundle(meta: EventRow): Promise<EventBundle> {
   // Listed or scheduled teams that are not (yet) ranked still belong to the event.
   const seen = new Set(entries.map((e) => e.team));
   const unranked = (team: number): EntryRow => ({ team, rank: null, rp: null, tbp: null, wins: null, losses: null, ties: null, qualPlayed: null, dq: null });
-  for (const t of participants ?? []) if (!seen.has(t.number)) { seen.add(t.number); entries.push(unranked(t.number)); }
+  for (const t of own ?? []) if (!seen.has(t.number)) { seen.add(t.number); entries.push(unranked(t.number)); }
   for (const m of matches) for (const t of [...m.red, ...m.blue]) if (!seen.has(t.team)) { seen.add(t.team); entries.push(unranked(t.team)); }
 
   const allianceRows: AllianceRow[] = (alliances?.alliances ?? []).filter((a: any) => a?.number).map((a: any) => ({

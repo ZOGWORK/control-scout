@@ -1901,8 +1901,9 @@ ALTER TABLE search_failures ADD COLUMN missed TEXT NOT NULL DEFAULT '{}';
 -- meet's teams (2026 USNJNEM2 the day before: 33 teams, FIRST lists 13). Bundles now take the team list from FIRST's
 -- participant list (sources/first.ts firstEventBundle); this drops what the old ones stored. A meet's teams are the
 -- ones scheduled there; a meet with no schedule keeps none, and its registrations stand in until its next fetch.
+-- Remote meets (2020–2022) are left alone: they keep rankings and no matches, by design.
 DELETE FROM event_teams
- WHERE EXISTS (SELECT 1 FROM events e WHERE e.season = event_teams.season AND e.code = event_teams.code AND e.type = 'LeagueMeet')
+ WHERE EXISTS (SELECT 1 FROM events e WHERE e.season = event_teams.season AND e.code = event_teams.code AND e.type = 'LeagueMeet' AND e.remote = 0)
    AND NOT EXISTS (SELECT 1 FROM match_teams m WHERE m.season = event_teams.season AND m.code = event_teams.code AND m.team = event_teams.team);
 `,
   },
