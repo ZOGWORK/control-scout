@@ -456,7 +456,7 @@ export function readTeamSet(raw: string): TeamSetQuestion | null {
 /** Family 7: a ranked list ("top 10 teams by OPR in NJ", "best rookie team in New Jersey", "most improved team in
  *  New Jersey") or a city's teams ("teams in Oradell"). */
 export interface LeaderboardQuestion {
-  kind: "top" | "rookie" | "improved" | "city" | "city-best";
+  kind: "top" | "rookie" | "improved" | "steady" | "phases" | "city" | "city-best";
   /** BOARD_STATS key (families/leaderboard.ts). */
   stat: string;
   n: number;
@@ -546,6 +546,19 @@ export function readLeaderboard(raw: string): LeaderboardQuestion | null {
     // "Won the most matches" is the wins board; "won the most events" is no board here (never events played).
     const stat = m[2] !== "won" || counted === "awards" ? counted : counted === "matches" ? "wins" : null;
     if ((stat === "matches" || stat === "events" || stat === "awards" || (stat === "wins" && counted === "matches")) && region !== false) return { kind: "top", stat, n: 10, region, city: null, season: scope.season, best: true };
+  }
+  // "which team has the most stable opr, least ups and downs": the steadiest OPR from event to event. "Which nj team is
+  // most consistent across all phases": the best weakest phase. Counted at some events only, or on a day, is neither.
+  const who = `^(?:(?:which|what) )?(?:(.+?) )?${TEAMS}(?: (?:in|from) (.+?))?`;
+  if (!scope.place && !scope.outOfState && !scope.day && !scope.window
+    && (m = new RegExp(`${who} (?:has|have|had|with) (?:the )?(?:most (?:stable|steady|consistent)|steadiest|least (?:variable|volatile)) opr(?: (?:and |with )?(?:the )?(?:least|fewest) ups and downs)?$`).exec(rest)) && !(m[1] && m[2])) {
+    const region = place(m[1] ?? m[2]);
+    if (region !== false) return { kind: "steady", stat: "opr", n: 10, region, city: null, season: scope.season };
+  }
+  if (!scope.place && !scope.outOfState && !scope.day && !scope.window
+    && (m = new RegExp(`${who} (?:is|are) (?:the )?(?:most (?:consistent|balanced|well rounded)|best balanced|strongest) (?:across|in) (?:all|every|each) (?:of the )?(?:three )?phases?(?: not (?:just )?(?:the )?highest opr)?$`).exec(rest)) && !(m[1] && m[2])) {
+    const region = place(m[1] ?? m[2]);
+    if (region !== false) return { kind: "phases", stat: "opr", n: 10, region, city: null, season: scope.season };
   }
   // "most improved team in new jersey"
   if ((m = new RegExp(`^(?:the )?(?:top (\\d{1,2}) )?most improved ${TEAMS}${PLACE}$`).exec(rest))) {

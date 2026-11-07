@@ -130,3 +130,42 @@ describe("the lists", () => {
     expect((await searchAnswer("teams in atlantis", { limit: 25 })).stat).toBeUndefined();
   });
 });
+
+describe("steady boards", () => {
+  it("reads a stable OPR and strength in every phase, never at some events only", () => {
+    expect(readLeaderboard("what teams in texas have the steadiest opr")).toMatchObject({ kind: "steady", region: { key: "USA:TX" } });
+    expect(readLeaderboard("which team has the least volatile opr with the fewest ups and downs")).toMatchObject({ kind: "steady", region: null });
+    expect(readLeaderboard("which texas teams are the best balanced across every phase")).toMatchObject({ kind: "phases", region: { key: "USA:TX" } });
+    expect(readLeaderboard("which team has the most stable opr at new jersey events")?.kind).not.toBe("steady");
+  });
+  it("ranks the smallest swing in event OPR, 3+ events", async () => {
+    const ev = (code: string, start: string) => run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, ?, ?, 'Qualifier', 'Edison', 'NJ', 'USA', ?, ?, 't')", [code, `Meet ${code}`, start, start]);
+    await ev("H1", "2025-11-01"); await ev("H2", "2026-01-10"); await ev("H3", "2026-02-01");
+    // 4215: 98–102 (±2%); 6980: 20–60 (±41%); 23268: two events only.
+    for (const [code, team, opr] of [["H1", 4215, 100], ["H2", 4215, 102], ["H3", 4215, 98], ["H1", 6980, 20], ["H2", 6980, 60], ["H3", 6980, 40], ["H1", 23268, 150], ["H2", 23268, 160]] as const) {
+      await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (2025, ?, ?, ?, 5)", [code, team, opr]);
+    }
+    try {
+      const a = await searchAnswer("which new jersey team has the most consistent opr in 2025-26", { limit: 25, full: true });
+      expect(a.stat).toMatchObject({ intent: "steady-opr", title: "Most stable OPR in New Jersey: the fewest ups and downs · 2025–26", headline: { value: "4215 Hypnotic Robotics", label: "OPR 100.0 on average, ±2% over 3 events · Oradell" } });
+      const t = a.stat!.blocks[0];
+      if (t.kind !== "table") throw new Error(t.kind);
+      expect(t.rows.map((r) => [r.cells.team, r.cells.swing])).toEqual([["4215 Hypnotic Robotics", "±2%"], ["6980 Bad Wolf", "±41%"]]);
+    } finally {
+      await run("DELETE FROM team_event_stats WHERE code IN ('H1', 'H2', 'H3')"); await run("DELETE FROM events WHERE code IN ('H1', 'H2', 'H3')");
+    }
+  });
+  it("ranks by the weakest phase, so one strong phase alone doesn't lead", async () => {
+    // 2025's teleop includes endgame: auto and teleop are the phases. 23268 is #5 in auto but #900 in teleop.
+    for (const [team, ra, rt] of [[4215, 50, 60], [23268, 5, 900], [31814, 100, 120]] as const) {
+      await run("UPDATE team_season_stats SET rank_auto = ?, rank_teleop = ? WHERE season = 2025 AND team = ?", [ra, rt, team]);
+    }
+    try {
+      const a = await searchAnswer("which nj team is the most well rounded in all phases in 2025-26", { limit: 25, full: true });
+      expect(a.stat).toMatchObject({ intent: "every-phase", headline: { value: "4215 Hypnotic Robotics", label: "Weakest phase #60 worldwide · Oradell" } });
+      const t = a.stat!.blocks[0];
+      if (t.kind !== "table") throw new Error(t.kind);
+      expect(t.rows.map((r) => [r.cells.team, r.cells.worst])).toEqual([["4215 Hypnotic Robotics", "#60"], ["31814 Quantum Core", "#120"], ["23268 Ultraviolet", "#900"]]);
+    } finally { await run("UPDATE team_season_stats SET rank_auto = NULL, rank_teleop = NULL WHERE season = 2025"); }
+  });
+});

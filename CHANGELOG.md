@@ -17,6 +17,18 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 3.9.3 — 2026-11-07
 
+Steady boards: the most stable OPR from event to event, and the teams strongest in every phase, in a place or worldwide.
+
+### Highlights
+- [rankings] "Which team has the most stable OPR" answers
+- [rankings] The smallest swing in OPR over 3+ events
+- [rankings] "Most consistent across all phases" by the weakest phase
+
+### Search
+- **Steady boards.** "Which team has the most stable OPR, least ups and downs" ranks teams by the smallest swing in their event OPRs in the season (the standard deviation as a share of their average, teams with an OPR at 3 or more events). "Which NJ team is most consistent across all phases" ranks by each team's weakest phase OPR rank worldwide (auto, teleop and endgame; auto and teleop where teleop includes endgame), so a team strong in one phase alone doesn't lead. Counted at some events only, or on a day, is left to search. (#PR)
+
+## 3.9.3 — 2026-11-07
+
 An event's award asked with its season, a short name or a place ("… inspire 2025-26", "in nj cham this year", "who got 2nd place …") is answered.
 
 ### Highlights
