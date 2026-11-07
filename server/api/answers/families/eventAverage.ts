@@ -89,8 +89,9 @@ export async function eventAverageAnswer(qn: EventAverageQuestion, find: (words:
       sub: evs.map((e, i) => `${e.name} ${one(rows[i].avg)}`).join(" · "),
     } } : { none: `${evs.filter((_, i) => !rows[i].matches).map(label).join(" and ")} ha${evs.filter((_, i) => !rows[i].matches).length > 1 ? "ve" : "s"} no played matches on record yet.` }),
     blocks: [
-      { kind: "table", title: "Side by side", columns: [{ key: "event", label: "Event" }, { key: "avg", label: "Average", num: true }, { key: "np", label: "Without penalties", num: true }, { key: "high", label: "Highest", num: true }, { key: "matches", label: "Matches", num: true }],
-        rows: evs.map((e, i) => ({ cells: { event: label(e), avg: one(rows[i].avg), np: one(rows[i].np), high: rows[i].high, matches: rows[i].matches }, href: eventHref(e.season, e.code), strong: lead === i })) },
+      // Four short columns, so a phone shows them all (each event's season is in the scope chips above).
+      { kind: "table", title: "Side by side", columns: [{ key: "event", label: "Event" }, { key: "avg", label: "Average", num: true }, { key: "np", label: "No pen.", num: true }, { key: "matches", label: "Matches", num: true }],
+        rows: evs.map((e, i) => ({ cells: { event: e.name, avg: one(rows[i].avg), np: one(rows[i].np), matches: rows[i].matches }, href: eventHref(e.season, e.code), strong: lead === i })) },
     ],
   };
 }
