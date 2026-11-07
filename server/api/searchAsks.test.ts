@@ -472,4 +472,27 @@ describe("who won a division (owner: \"who won nj turnpike division this year\" 
     await run("DELETE FROM events WHERE season = 2024 AND code = 'USVTCMP'");
     await rebuildSearch();
   });
+  // Failed searches (awards and winners): a season said in words or as one, a short name, and a place asked.
+  // Held out: another event, award, season and place than the reports'.
+  it("an event's award with its season said anywhere, and a place asked: that season, that place first", async () => {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2024, 'USVTCMP', 'Vermont Championship', 'Championship', 'Burlington', 'VT', 'USA', '2025-03-08', '2025-03-08', 't')");
+    await run("INSERT INTO awards (season, code, type, placement, team, name) VALUES (2024, 'USVTCMP', 'Think', 1, 4215, 'Think Award'), (2024, 'USVTCMP', 'Think', 2, 6980, 'Think Award 2nd Place')");
+    await rebuildSearch();
+    const prev = `${CURRENT_SEASON - 1}-${String(CURRENT_SEASON % 100).padStart(2, "0")}`;
+    expect(await awardQuery("Vermont Championship think 2024-25")).toBe("who won think at vermont championship 2024-25");
+    expect(await awardQuery("who won think in vermont championship last year?")).toBe(`who won think at vermont championship ${prev}`);
+    expect(await awardQuery("who got think at vermont championship this season")).toBe("who won think at vermont championship");
+    expect(await awardQuery("who got second place think at vermont championship 2024-25")).toBe("who won 2nd place think at vermont championship 2024-25");
+    const a = await ask("Vermont Championship think 2024-25");
+    expect(a.card?.lines.map((l) => l.text)).toEqual(["4215 Hypnotic Robotics", "6980 Bad Wolf"]);
+    expect(a.understood?.label).toBe("Who won the Think Award at Vermont Championship (2024–25)");
+    const p = await ask("who got second place think at vermont championship 2024-25");
+    expect(p.card?.lines.map((l) => l.text)).toEqual(["6980 Bad Wolf", "4215 Hypnotic Robotics"]);
+    expect(p.understood?.label).toBe("Who got 2nd place for the Think Award at Vermont Championship (2024–25)");
+    // No such place given: every place listed, and said so.
+    expect((await ask("who got 3rd place think at vermont championship 2024-25")).understood?.label).toBe("Who got 3rd place for the Think Award at Vermont Championship (2024–25) · No 3rd place recorded");
+    await run("DELETE FROM awards WHERE season = 2024 AND code = 'USVTCMP'");
+    await run("DELETE FROM events WHERE season = 2024 AND code = 'USVTCMP'");
+    await rebuildSearch();
+  });
 });

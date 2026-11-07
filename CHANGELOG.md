@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.8.8 — 2026-11-07
+
+An event's award asked with its season, a short name or a place ("… inspire 2025-26", "in nj cham this year", "who got 2nd place …") is answered.
+
+### Highlights
+- [fixes] "<event> inspire 2025-26" names that season's award
+- [fixes] "who won inspire in nj cham this year" finds the event
+- [fixes] "who got 2nd place Inspire at …" lists that place first
+- [fixes] "… inspire last year" is the season before this one
+
+### Search
+- **An event's award, any season, any place.** A season said anywhere in an award ask (a game, "2025-26", "last year") is the event's season, never its name, and "2nd place" puts that place first, said in the answer. (#PR)
+
+
 ## 3.8.7 — 2026-11-07
 
 Asked for the team with the most matches, events or awards, search answers with that count's leaderboard, its leader first: "which team in New Jersey has the most awards", "most matches played in Ohio".
