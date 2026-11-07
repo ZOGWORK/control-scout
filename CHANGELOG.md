@@ -26,7 +26,7 @@ An event's award asked with its season, a short name or a place ("… inspire 20
 - [fixes] "… inspire last year" is the season before this one
 
 ### Search
-- **An event's award, any season, any place.** A season said anywhere in an award ask (a game, "2025-26", "last year") is the event's season, never its name, and "2nd place" puts that place first, said in the answer. (#PR)
+- **An event's award, any season, any place.** A season said anywhere in an award ask (a game, "2025-26", "last year") is the event's season, never its name, and "2nd place" puts that place first, said in the answer. (#1071)
 
 
 ## 3.8.7 — 2026-11-07
