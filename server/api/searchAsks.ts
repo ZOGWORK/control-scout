@@ -22,7 +22,7 @@ import { predictHref } from "../../src/shared/predictUrl.js";
 import { cleanTeamName } from "../../src/shared/teamTitle.js";
 import type { Region } from "../../src/shared/regions.js";
 import { dateRange, possessive, seasonLabel } from "../../src/shared/format.js";
-import { localDate } from "../../src/shared/eventDay.js";
+import { matchDay } from "../../src/shared/coinFlips.js";
 import { teamPageSql } from "../../src/shared/teamPages.js";
 import { CURRENT_SEASON, FIRST_PREDICT_SEASON, isLegacy } from "../data/seasons.js";
 import { all } from "../db.js";
@@ -275,7 +275,8 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
          ORDER BY start, name LIMIT 200`, [day, day, ...NO_MATCH_TYPES]);
       const times = held.length ? await all<{ season: number; code: string; time: string | null }>(
         `SELECT DISTINCT season, code, time FROM matches WHERE ${held.map(() => "(season = ? AND code = ?)").join(" OR ")}`, held.flatMap((r) => [r.season, r.code])) : [];
-      const dayOf = (r: any, t: string) => { const ms = Date.parse(t); return Number.isNaN(ms) ? null : (r.timezone && localDate(ms, r.timezone)) || new Date(ms).toISOString().slice(0, 10); };
+      // A venue's wall time (no zone, as FIRST writes them) is its own date; an instant is read in the venue's zone.
+      const dayOf = (r: any, t: string) => matchDay(t, null, r.timezone ?? "UTC");
       const RANK = { day: 0, untimed: 1, unposted: 2 } as const;
       const classed = held.map((r) => {
         const own = times.filter((m) => Number(m.season) === Number(r.season) && m.code === r.code);

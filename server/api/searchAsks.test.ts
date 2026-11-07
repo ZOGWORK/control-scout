@@ -169,11 +169,15 @@ describe("test 16: each intent returns its stated surface", () => {
       [CURRENT_SEASON, day, next, CURRENT_SEASON, day, day, CURRENT_SEASON, day, day]);
     await run("INSERT INTO matches (season, code, level, series, number, label, time, played, source) VALUES (?, 'USPAT2', 'qual', 0, 1, 'Q1', ?, 0, 't'), (?, 'USOHU1', 'qual', 0, 1, 'Q1', NULL, 0, 't'), (?, 'USCAL1', 'qual', 0, 1, 'Q1', ?, 0, 't')",
       [CURRENT_SEASON, `${next}T15:00:00Z`, CURRENT_SEASON, CURRENT_SEASON, `${next}T04:00:00Z`]);
+    // A venue's wall time (no zone, as FIRST writes them) is its own date, never read again in another zone: an
+    // afternoon match in Brisbane stays tomorrow there.
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, timezone, source) VALUES (?, 'AUBNE1', 'Brisbane Qualifier', 'Qualifier', 'Brisbane', 'QLD', 'Australia', ?, ?, 'Australia/Brisbane', 't')", [CURRENT_SEASON, day, day]);
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, source) VALUES (?, 'AUBNE1', 'qual', 0, 1, 'Q1', ?, 0, 't')", [CURRENT_SEASON, `${day}T15:00:00`]);
     const mixed = await ask("show me predictions for tomorrows matches");
-    expect(mixed.hits.map((h) => h.ref)).toEqual([`${CURRENT_SEASON}:USNJQ9`, `${CURRENT_SEASON}:USCAL1`, `${CURRENT_SEASON}:USOHU1`]);
-    expect(mixed.understood?.label).toMatch(/^Tomorrow \(.+\): 3 events, 2 with matches that day, 1 with a schedule posted but no match times yet: their predictions are in Predict$/);
-    await run("DELETE FROM matches WHERE code IN ('USNJQ9', 'USPAT2', 'USOHU1', 'USCAL1')");
-    await run("DELETE FROM events WHERE code IN ('USNJQ9', 'USNJW9', 'USPAT2', 'USOHU1', 'USCAL1')");
+    expect(mixed.hits.map((h) => h.ref)).toEqual([`${CURRENT_SEASON}:AUBNE1`, `${CURRENT_SEASON}:USNJQ9`, `${CURRENT_SEASON}:USCAL1`, `${CURRENT_SEASON}:USOHU1`]);
+    expect(mixed.understood?.label).toMatch(/^Tomorrow \(.+\): 4 events, 3 with matches that day, 1 with a schedule posted but no match times yet: their predictions are in Predict$/);
+    await run("DELETE FROM matches WHERE code IN ('USNJQ9', 'USPAT2', 'USOHU1', 'USCAL1', 'AUBNE1')");
+    await run("DELETE FROM events WHERE code IN ('USNJQ9', 'USNJW9', 'USPAT2', 'USOHU1', 'USCAL1', 'AUBNE1')");
   });
   it("how are predictions calculated: the methodology page in the Pages group", async () => {
     const a = await ask("how are predictions calculated");
