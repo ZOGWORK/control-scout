@@ -303,7 +303,8 @@ async function rankUpsetSearch(q: string, ru: RankUpsetQuestion, opts: { full: b
   const stat = opts.full ? await rankUpsetAnswer(ru) : null;
   const label = stat?.title ?? `Matches a team ranked below ${ru.below.toLocaleString("en-US")} beat a top-${ru.top.toLocaleString("en-US")} team`;
   return {
-    q, hits: [], pages: opts.pages, step: "deterministic", weak: false,
+    // The search box: a link to the answer page.
+    q, hits: [], pages: stat ? opts.pages : [{ title: label, href: `/search?q=${encodeURIComponent(q)}` }, ...opts.pages], step: "deterministic", weak: false,
     understood: { kind: "question", label, ...(ru.season != null ? { season: ru.season } : {}) },
     intent: { kind: "stat-rank-upsets", pattern: `team ranked below [n] beat team ranked top [n]${ru.season != null ? " [season]" : ""}`, met: true, understood: [label] },
     ...(stat ? { stat } : {}),
