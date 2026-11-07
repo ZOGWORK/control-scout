@@ -24,7 +24,7 @@ import { warmTrackRecord } from "./api/accuracy.js";
 import { warmSpelling } from "./api/spelling.js";
 import { ensureSearchIndex, warmTypoIndex } from "./api/search.js";
 import { rebuildSearch } from "./stats/job.js";
-import { STARTUP_CYCLE_MS, warmUp } from "./warm.js";
+import { scheduleCycles, warmUp } from "./warm.js";
 import { names as warmNames } from "./api/query/names.js";
 import { seasonCutoffs } from "./api/matchReport.js";
 import { installShippedPacks, restoreSnapshotIfEmpty } from "./data/snapshot.js";
@@ -141,17 +141,9 @@ async function eventDay(): Promise<boolean> {
 // The same test cycle() uses: the child process needs a local database file.
 const configuredMinutes = Number(process.env.EVENT_DAY_SYNC_MINUTES);
 const eventDayMinutes = Number.isFinite(configuredMinutes) && configuredMinutes >= 1 ? configuredMinutes : (childCycle() ? 15 : 60);
-let last = 0;
-// Set when the startup cycle runs: the schedule below never starts one (or a backfill) before it.
-let started = false;
-setInterval(async () => {
-  if (!started) return;
-  const gap = (await eventDay().catch(() => false)) ? eventDayMinutes * 60_000 : 24 * 3600_000;
-  if (Date.now() - last >= gap) { last = Date.now(); cycle(gap < 864e5 ? `every ${eventDayMinutes} min, event day` : "daily"); }
-  // 2019–2022 not fetched yet: back-to-back cycles through the quiet hours (one season each) until done,
-  // whenever the server happened to start and whatever the regular schedule.
-  else if (await backfillDue().catch(() => false)) cycle("backfill");
-}, Math.min(5, eventDayMinutes) * 60_000).unref();
+// The first cycle STARTUP_CYCLE_MS after boot, then the regular schedule, which never starts one before it
+// (server/warm.ts scheduleCycles).
+scheduleCycles({ cycle, eventDay, backfillDue, eventDayMinutes });
 // Entry photos (docs/r2-photos.md): every 15 min release uploads that never finished; once a day (after
 // 08:00 UTC, one server only) expire photos of events that ended over 2 days ago, total the bucket and
 // check the free-tier guardrails. Nothing without R2 configured; off with the rest of the schedule.
@@ -223,7 +215,4 @@ if (!process.env.CS_NO_SCHEDULER) {
 startLiveSync(log);
 // Monte Carlo projections of live and upcoming events, re-run when their results move (server/projections/job.ts).
 startProjections(log);
-// First cycle STARTUP_CYCLE_MS after boot, not at once: a deploy's first minutes are for answering. Run at a minute, its
-// stats and search rebuild kept a just-restarted server slow for minutes. Nothing the deploy changed waits for it:
-// search's index is rebuilt in the warm-up when its code changed (above). The regular schedule waits for it too.
-setTimeout(() => { started = true; last = Date.now(); cycle("startup"); }, STARTUP_CYCLE_MS).unref();
+

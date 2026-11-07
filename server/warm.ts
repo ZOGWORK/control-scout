@@ -42,3 +42,27 @@ export async function warmUp(steps: WarmStep[], log: (m: string) => void, cap = 
   }
   return { inTime: done, settled };
 }
+
+/** The data cycle's schedule: the first cycle (`startup`) `startupMs` after boot, not at once, since a deploy's first
+ *  minutes are for answering (run at a minute, its stats and search rebuild kept a just-restarted server slow for
+ *  minutes; nothing the deploy changed waits for it: search's index is rebuilt in the warm-up when its code changed).
+ *  Then every `min(5, eventDayMinutes)` minutes: a cycle when one is due (every `eventDayMinutes` on an event day, else
+ *  daily), else a backfill cycle while 2019–2022 aren't fetched yet (back to back through the quiet hours, one season
+ *  each). Neither starts before the startup cycle has. Returns a stop. */
+export function scheduleCycles(o: { cycle: (reason: string) => void; eventDay: () => Promise<boolean>; backfillDue: () => Promise<boolean>; eventDayMinutes: number; startupMs?: number }): () => void {
+  let last = 0;
+  let tick: ReturnType<typeof setInterval> | undefined;
+  // The regular ticks start with the startup cycle, their first one a tick's length after it.
+  const first = setTimeout(() => {
+    last = Date.now();
+    o.cycle("startup");
+    tick = setInterval(async () => {
+      const gap = (await o.eventDay().catch(() => false)) ? o.eventDayMinutes * 60_000 : 24 * 3600_000;
+      if (Date.now() - last >= gap) { last = Date.now(); o.cycle(gap < 864e5 ? `every ${o.eventDayMinutes} min, event day` : "daily"); }
+      else if (await o.backfillDue().catch(() => false)) o.cycle("backfill");
+    }, Math.min(5, o.eventDayMinutes) * 60_000);
+    tick.unref?.();
+  }, o.startupMs ?? STARTUP_CYCLE_MS);
+  first.unref?.();
+  return () => { clearTimeout(first); clearInterval(tick); };
+}
