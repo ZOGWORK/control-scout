@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.7.8 — 2026-11-06
+## 3.7.9 — 2026-11-06
 
 On the related searches page, the team group is titled with its team: "About 4215 Hypnotic Robotics".
 
@@ -26,6 +26,19 @@ On the related searches page, the team group is titled with its team: "About 421
 
 ### Search
 - **The team, named.** The related searches page titles its team group with the team's number and name, the popular searches too (the team they're about), whenever every search in it is about that one team; a group about two teams ("4215 vs 6980") keeps "About this team". (#1023)
+
+## 3.7.8 — 2026-11-06
+
+A team's full name is read however it's punctuated: "UK 488 - The King's School- Barrel Botz record" is that team's record, and "team sealth record" finds Team Stealth.
+
+### Highlights
+- [fixes] A team named with dashes or a possessive is read in full
+- [fixes] A name starting with "Team" or "The" keeps that word
+- [fixes] A slip in such a name still finds the right team
+
+### Search
+- **Names with their own punctuation.** A dash on its own or ending a word is punctuation, and a possessive in a team's name ("King's") matches however it's typed, so a name typed in full reads the team, with its number or without.
+- **Names starting with Team or The.** A question's own words ("team", "the") are put back when, with them, the words are a team's name or one slip from it: "team sealth record" is Team Stealth's record. (#1028)
 
 ## 3.7.7 — 2026-11-06
 
