@@ -10,10 +10,11 @@ const NOW = Date.parse("2026-11-06T22:00:00Z");
 const HOUR_AGO = new Date(NOW - 3600_000).toISOString();
 const DAYS_AGO = new Date(NOW - 3 * 86400_000).toISOString();
 
-const detail = (o: { source?: string; field?: number; status?: string; synced?: string | null; shared?: boolean; provisionalAt?: string }): EventDetail => ({
+const detail = (o: { source?: string; field?: number; status?: string; synced?: string | null; shared?: boolean; provisionalAt?: string; registered?: boolean }): EventDetail => ({
   event: { source: o.source ?? "first", status: o.status ?? "upcoming" },
   field: Array.from({ length: o.field ?? 0 }, (_, i) => ({ team: i + 1 }) as FieldRow),
-  teamsSyncedAt: o.synced ?? null,
+  ...("synced" in o ? { teamsSyncedAt: o.synced } : {}),
+  registered: o.registered ? { fetchedAt: HOUR_AGO } : null,
   sharedSessions: o.shared ? { fetchedAt: HOUR_AGO, other: { code: "X", name: "X" }, teams: [] } : null,
   provisional: o.provisionalAt ? { fetchedAt: o.provisionalAt } : null,
 }) as unknown as EventDetail;
@@ -43,6 +44,13 @@ describe("TeamsSource", () => {
 
   it("FTC Scout's list when FIRST couldn't serve the event", () => {
     expect(line(detail({ source: "ftc-scout", field: 10, synced: HOUR_AGO }))).toMatch(/^Source: FTC Scout/);
+    // FIRST's registrations shown on an event last fetched from FTC Scout are still FIRST's.
+    expect(line(detail({ source: "ftc-scout", field: 10, synced: HOUR_AGO, registered: true }))).toMatch(/^Source: FIRST Events API · last synced/);
+  });
+
+  it("saved data or an older server (no time sent): the source alone, never 'not synced'", () => {
+    const t = line(detail({ field: 13 }));
+    expect(t).toBe("Source: FIRST Events API");
   });
 
   it("an old read on an event that isn't over is out of date; a finished event's isn't", () => {

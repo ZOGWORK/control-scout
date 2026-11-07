@@ -25,7 +25,7 @@ An event page says where its team list comes from and when it was last read: FIR
 - [fixes] No teams published yet is said plainly, with when it was checked
 
 ### Event pages
-- **Source line.** Under the event header: "Source: FIRST Events API · last synced 2 h ago" for FIRST's list, "FTC New Jersey · provisional, FIRST has not published teams yet" while that list is shown, "FTC Scout (FIRST couldn't serve this event)" when it is the fallback, or "FIRST Events API · no teams published yet · last checked …". A list on an event that isn't over and hasn't been read for 36 hours says it may be out of date. The time is the server's last read of the event from FIRST, its full fetch or its registrations (`teamsSyncedAt`).
+- **Source line.** Under the event header: "Source: FIRST Events API · last synced 2 h ago" for FIRST's list, "FTC New Jersey · provisional, FIRST has not published teams yet" while that list is shown, "FTC Scout (FIRST couldn't serve this event)" when it is the fallback, or "FIRST Events API · no teams published yet · last checked …". A list on an event that isn't over and hasn't been read for 36 hours says it may be out of date. The time is the server's last good read of the event's team list from FIRST: its full fetch, or its registrations read (migration 75 `events.teams_checked_at`, set on every good read, an empty list included; a failed read leaves it). Saved data with no time shows the source alone.
 - **Empty Teams tab.** "No teams published for this event yet", with when FIRST was last checked. (#1044)
 
 ## 3.8.4 — 2026-11-07

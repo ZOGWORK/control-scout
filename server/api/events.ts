@@ -4,7 +4,7 @@ import { all, get, kvGet } from "../db.js";
 import { eventTypeLabel, isLegacy } from "../data/seasons.js";
 import type { EventDetail, EventSummary, FieldRow, MatchView, ProvisionalInfo, SharedSessions } from "../../src/shared/api.js";
 import { provisionalFor } from "../data/provisional.js";
-import { REGISTRATIONS_AHEAD_DAYS, ROSTER, sessionPairs } from "../data/registrations.js";
+import { ROSTER, sessionPairs } from "../data/registrations.js";
 import { matchViews } from "./matches.js";
 import { dataVersion, liveForecaster, liveVersion } from "../predict/engine.js";
 import { registerCache } from "../caches.js";
@@ -28,7 +28,7 @@ function summary(r: any): EventSummary {
 }
 
 const SUMMARY_SQL = `SELECT e.season, e.code, e.name, e.type, e.division_code, e.region, e.venue, e.city, e.state, e.country, e.start, e.end, e.timezone, e.remote,
-  e.address, e.website, e.livestream, e.source, e.detail_synced_at, e.live_checked_at,
+  e.address, e.website, e.livestream, e.source, e.detail_synced_at, e.teams_checked_at, e.live_checked_at,
   COALESCE(NULLIF((SELECT COUNT(*) FROM event_teams t WHERE t.season = e.season AND t.code = e.code), 0),
     (SELECT COUNT(*) FROM event_registrations r WHERE r.season = e.season AND r.code = e.code AND r.shared = 0)) teams,
   (SELECT COUNT(*) FROM matches m WHERE m.season = e.season AND m.code = e.code AND m.played = 1) played,
@@ -146,26 +146,11 @@ export async function eventDetail(season: number, code: string): Promise<EventDe
     // A stopgap until FIRST posts the event: once it has a team list (its registrations count) or a schedule, FIRST's data is all that shows.
     provisional: field.length || matches.length ? null : await provisional(season, code),
     sharedSessions: field.length || matches.length ? null : await sharedSessions(season, code, r.start),
-    teamsSyncedAt: await teamsSyncedAt(season, code, r.detail_synced_at),
+    // The last successful read of its team list from FIRST: a full fetch, or a registrations read (data/registrations.ts).
+    teamsSyncedAt: latest(r.detail_synced_at, r.teams_checked_at),
     // Ratings read as the forecast and the projections read them; the qualification draw as posted (no-shows included).
     scheduleDifficulty: f ? eventScheduleDifficulty(f, input, { posted: postedQuals(matches), over: eventOver(r) }) : null,
   };
-}
-
-/** When the event's team list was last read from FIRST: its last full fetch, or its last registrations read
- *  (data/registrations.ts, which reads every upcoming event without a team list, including the ones FIRST has no
- *  list for yet: those leave no row, so the pass's own time counts while the event is in its window). */
-async function teamsSyncedAt(season: number, code: string, detail: string | null): Promise<string | null> {
-  const [row, pass] = await Promise.all([
-    get<{ at: string | null }>("SELECT MAX(fetched_at) at FROM event_registrations WHERE season = ? AND code = ?", [season, code]),
-    kvGet<string>(`sync:registrations:${season}`),
-  ]);
-  // The pass read this event if it was in the pass's window with no team list (registrations.ts syncRegistrations).
-  const passDay = pass && Number.isFinite(Date.parse(pass)) ? pass.slice(0, 10) : null;
-  const read = passDay && (await get<{ n: number }>(`SELECT COUNT(*) n FROM events e WHERE e.season = ? AND e.code = ? AND COALESCE(e.end, e.start) >= ? AND e.start <= ?
-      AND NOT EXISTS (SELECT 1 FROM event_teams t WHERE t.season = e.season AND t.code = e.code)`,
-    [season, code, passDay, new Date(Date.parse(pass!) + REGISTRATIONS_AHEAD_DAYS * 864e5).toISOString().slice(0, 10)]))?.n;
-  return [detail, row?.at ?? null, read ? pass : null].reduce<string | null>((a, b) => latest(a, b), null);
 }
 
 /** FIRST's registrations for this event's AM/PM pair, when it files them for both sessions together. */

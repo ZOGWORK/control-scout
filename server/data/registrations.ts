@@ -125,6 +125,8 @@ export async function syncRegistrations(season: number, o: { force?: boolean; no
   for (const { code, teams } of reads) {
     if (!teams) continue;
     fresh.set(code, teams.map((t) => t.number));
+    // A good read, empty or not: the event page's "last checked" (api/events.ts). Failed reads never move it.
+    s.push({ sql: "UPDATE events SET teams_checked_at = ? WHERE season = ? AND code = ?", args: [at, season, code] });
     s.push({ sql: "DELETE FROM event_registrations WHERE season = ? AND code = ?", args: [season, code] });
     s.push(...teamStatements(teams, isLegacy(season)));
     for (const t of teams) {

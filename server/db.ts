@@ -1893,6 +1893,15 @@ CREATE INDEX awards_team_type ON awards (team, season, type, placement, name);
 ALTER TABLE search_failures ADD COLUMN missed TEXT NOT NULL DEFAULT '{}';
 `,
   },
+  {
+    version: 75,
+    name: "when an event's team list was last read from FIRST",
+    sql: `
+-- The registrations read (data/registrations.ts) sets it on every good read of the event, an empty list included; a
+-- failed read leaves it. With detail_synced_at (the full fetch), the event page's "last synced" (api/events.ts).
+ALTER TABLE events ADD COLUMN teams_checked_at TEXT;
+`,
+  },
 ];
 
 export type Db = Client;

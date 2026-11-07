@@ -9,15 +9,18 @@ export const STALE_SYNC_MS = 36 * 3600_000;
 
 export function TeamsSource({ d, provisional, now = Date.now() }: { d: EventDetail; provisional: boolean; now?: number }) {
   const e = d.event;
-  const at = provisional ? d.provisional?.fetchedAt ?? null : d.teamsSyncedAt ?? null;
-  const stale = e.status !== "finished" && (!at || now - Date.parse(at) > STALE_SYNC_MS);
+  // Absent (saved data, an older server): the time isn't known, which is not the same as never synced.
+  const at = provisional ? d.provisional?.fetchedAt : d.teamsSyncedAt;
+  const known = at !== undefined;
+  const stale = known && e.status !== "finished" && (!at || now - Date.parse(at) > STALE_SYNC_MS);
+  // FIRST's registrations are FIRST's list whatever the event's last full fetch came from.
   const source = provisional ? "FTC New Jersey · provisional, FIRST has not published teams yet"
-    : e.source === "ftc-scout" && d.field.length ? "FTC Scout (FIRST couldn't serve this event)"
+    : e.source === "ftc-scout" && d.field.length && !d.registered ? "FTC Scout (FIRST couldn't serve this event)"
     : d.field.length || d.sharedSessions ? "FIRST Events API" : "FIRST Events API · no teams published yet";
   return (
     <p className="mt-3 text-[11px] text-muted-foreground" data-teams-source>
-      Source: {source} · {at ? <>{provisional ? "read" : d.field.length ? "last synced" : "last checked"}{" "}
-        <time dateTime={at} title={new Date(at).toLocaleString()}>{ago(at)}</time></> : "not synced yet"}
+      Source: {source}
+      {known && <> · {at ? <>{provisional ? "read" : d.field.length ? "last synced" : "last checked"} <time dateTime={at} title={new Date(at).toLocaleString()}>{ago(at)}</time></> : "not synced yet"}</>}
       {stale && <span className="text-warning"> · may be out of date</span>}
     </p>
   );

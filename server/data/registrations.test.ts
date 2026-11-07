@@ -109,14 +109,18 @@ describe("syncRegistrations", () => {
 });
 
 describe("event page", () => {
-  it("says when the team list was last read from FIRST, also while FIRST has none", async () => {
+  it("says when the team list was last read from FIRST without error, also while FIRST has none", async () => {
     await event("SOON", "2026-10-31");
     await event("LATER", "2026-12-31");
     first({ SOON: [] });
     await syncRegistrations(S, { now: NOW });
-    // FIRST has no list for SOON yet: the pass that read it still counts; LATER was outside the pass's window.
+    // FIRST has no list for SOON yet: the good read still counts; LATER was never read.
     expect((await eventDetail(S, "SOON"))!.teamsSyncedAt).toBe(NOW.toISOString());
     expect((await eventDetail(S, "LATER"))!.teamsSyncedAt).toBeNull();
+    // A failed read later doesn't move it.
+    first({ SOON: 400 });
+    await syncRegistrations(S, { now: new Date(NOW.getTime() + 7 * 3600_000) });
+    expect((await eventDetail(S, "SOON"))!.teamsSyncedAt).toBe(NOW.toISOString());
     // A full fetch since is the newer read.
     await run("UPDATE events SET detail_synced_at = ? WHERE season = ? AND code = 'SOON'", ["2026-10-28T09:00:00.000Z", S]);
     expect((await eventDetail(S, "SOON"))!.teamsSyncedAt).toBe("2026-10-28T09:00:00.000Z");
