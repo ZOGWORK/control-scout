@@ -97,6 +97,9 @@ const PAIRS: [string, string][] = [
   ["i want to know 4215's opr at worlds", "4215 opr at worlds"],
   ["what is the highest opr 4215 has ever had", "4215 highest opr ever"],
   ["how has 4215's opr changed over the seasons", "4215 opr trend over seasons"],
+  // Worlds trips counted, and the division with its rank (failed-search #913/#929, #870/#1001; held out).
+  ["the number of times bad wolf has gone to the world championship", "bad wolf worlds appearances"],
+  ["which division was 6980 in at the first championship and how was their record there", "6980 worlds divisions"],
   ["where does 4215 rank in opr worldwide", "4215 opr rank worldwide"],
   // The stat named stays the stat asked about (Greptile on #655).
   ["can you tell me where does 4215 rank in rating", "4215 rating rank"],

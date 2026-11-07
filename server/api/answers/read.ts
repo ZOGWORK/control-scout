@@ -249,7 +249,8 @@ export interface StatQuestion {
   core: string;
 }
 
-const WORLDS = /\b(?:(?:at|in|during|from)\s+)?(?:the\s+)?(?:worlds?|world\s+champ(?:ionships?|s)?|first\s+champ(?:ionships?|s)?|houston\s+champ(?:ionships?|s)?|championship\s+divisions?)\b/;
+// The longer names first: "world championship" is one name, never "world" and an event called "championship".
+const WORLDS = /\b(?:(?:at|in|during|from)\s+)?(?:the\s+)?(?:world\s+champ(?:ionships?|s)?|first\s+champ(?:ionships?|s)?|houston\s+champ(?:ionships?|s)?|championship\s+divisions?|worlds?)\b/;
 const STATES = /\b(?:(?:at|in|during)\s+)?(?:the\s+)?(?:states|state\s+champ(?:ionships?|s)?|state\s+finals?)\b/;
 const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 // The question's own words: never part of a team's name here.
