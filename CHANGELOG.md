@@ -25,7 +25,7 @@ On an event day before the schedule is out, the LIVE box says it's waiting for t
 - [live] A team the posted schedule leaves out isn't called done
 
 ### Live
-- **LIVE box without a schedule.** With no matches posted, the box's title is "Waiting for the schedule". Your tracked or assigned teams at the event are listed as "Your teams here: …", and their countdown starts when the schedule is out. If none of them is at the event, there's no team line. "Your teams are done for now" and "No more scheduled matches for …" now need a posted schedule, and they name only teams that are in it. A team at the event that the posted schedule leaves out reads "Not in the posted schedule". Every event works the same way: the teams named are the event's own list or its schedule. The event stays Live on its day: FIRST shows it as in progress, and live mode keeps the page checking for the schedule. (#PR)
+- **LIVE box without a schedule.** With no matches posted, the box's title is "Waiting for the schedule". Your tracked or assigned teams at the event are listed as "Your teams here: …", and their countdown starts when the schedule is out. If none of them is at the event, there's no team line. "Your teams are done for now" and "No more scheduled matches for …" now need a posted schedule, and they name only teams that are in it. A team at the event that the posted schedule leaves out reads "Not in the posted schedule". Every event works the same way: the teams named are the event's own list or its schedule. The event stays Live on its day: FIRST shows it as in progress, and live mode keeps the page checking for the schedule. (#1089)
 
 ## 3.8.9 — 2026-11-07
 
