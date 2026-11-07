@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.9.2 — 2026-11-07
+
+One word of a named team's own event's name now reads as that event.
+
+### Highlights
+- [search] "<team> prediction for <one word>" finds that team's event
+- [search] The latest such event, or the one in the season named
+- [search] The card says which event the one word was read as
+
+### Search
+- **One word of a team's own event.** With a team named, one word of the name of an event it was listed at ("4215 last prediction for conference") reads as its latest such event, or the one in the season named, and the card says so. With no team, or a kind of event's word ("qualifiers"), nothing changes. (#1106)
+
 ## 3.9.1 — 2026-11-07
 
 A team's next event asked about as a forecast, and "will <team> win <event>", answer with the engine's own projection for that event.
