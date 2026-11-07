@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.8.5 — 2026-11-07
+## 3.8.7 — 2026-11-07
 
 A league meet's page lists the teams FIRST lists for that meet, not every team in its league. The day before a meet, FIRST's rankings for it are the league's running standing, and Control Scout had been taking them as the meet's team list (P1-5 AM Northeast League Meet: 33 teams shown, FIRST lists 13).
 
@@ -27,6 +27,30 @@ A league meet's page lists the teams FIRST lists for that meet, not every team i
 ### Data
 - **Event teams from FIRST's participant list.** Every FIRST fetch of an event also reads its team list (`/teams?eventCode=`), and that list decides who is at the event; rankings only add each team's standing, and scheduled teams always count. A list FIRST files for both sessions of an AM/PM pair stays the pair's (shown for both sessions, as before), never one session's teams. A league meet whose list FIRST hasn't published shows no teams from its league's standing, and one whose list can't be read falls back to FTC Scout, like any failed FIRST read. Each fetch replaces the stored list whole.
 - **Stored league meets repaired.** Migration 74 drops the teams stored at a league meet that weren't scheduled there (about 19,000 rows over 2023–24 to 2025–26; remote meets, which never have matches, are left alone); an upcoming meet's list comes back from FIRST on its next fetch, with FIRST's registrations standing in until then. (#1041)
+
+## 3.8.6 — 2026-11-07
+
+A question ending with what it is not asking ("…, not just one number", "in 2024-25, not this season") is answered for what it is asking.
+
+### Highlights
+- [fixes] "…, not just one number" no longer stops an answer
+- [fixes] "in 2024-25, not this season" reads 2024-25
+- [fixes] "teams in Ohio, not rookies" keeps its filter
+
+### Search
+- **What isn't asked, left out.** A comma clause "not just …", "not only …" or "not" and a season goes, and the rest of the question is answered; any other "not" clause is a filter and stays. (#1031)
+
+## 3.8.5 — 2026-11-07
+
+Two teams are read in more ways: "have 4215 and 207 played each other", "the OPR gap between 7149 and 23268", "is 4215 better than 7149 at endgame" and "if 4215 played 7149, who would win" each get their side-by-side answer.
+
+### Highlights
+- [fixes] "Have 4215 and 207 played each other" shows their meetings
+- [fixes] "OPR gap between 7149 and 23268" shows both OPRs
+- [fixes] "Is 4215 better than 7149 at endgame" compares endgame
+
+### Search
+- **Two teams, more ways to ask.** Played each other (or faced, met, one another), the OPR or rating gap between two teams, better or worse than another team at a phase, and "if A played B, who would win" or "predict A vs B" each read as the two teams' answer. (#1030)
 
 ## 3.8.4 — 2026-11-07
 
