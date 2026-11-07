@@ -85,6 +85,35 @@ describe("rewrites: said the way a reader answers", () => {
     expect(rewriteQuery("best teleop in the world")?.q).toBe("best teleop");
     expect(rewriteQuery("top ranked team")?.q).toBe("top teams");
   });
+  // Failed-search #797, #798, #1039, #920, #922, #882, #878: the issues' own words.
+  it("a team's quality or a showing asked in plain words, with its asides", () => {
+    const cases: [string, string][] = [
+      ["how good is 7149 really, like in plain numbers, in 2025-26", "how good is 7149 in 2025-26"],
+      ["is 23268 actually that good or just hype, in 2025-26", "how good is 23268 in 2025-26"],
+      ["is 23268 actually that good or just hype", "how good is 23268"],
+      ["whats up with ultraviolet, are they cracked", "how good is ultraviolet"],
+      ["can u tell me if bad wolf is good", "how good is bad wolf"],
+      ["can u tell me if bad wolf is good, be honest", "how good is bad wolf"],
+      ["did hypnotic robotics choke at states or nah", "how did hypnotic robotics do at states"],
+      ["show me 7149 in 2023, if they played then", "7149 in 2023"],
+    ];
+    for (const [q, out] of cases) expect(rewriteQuery(q), q).toMatchObject({ q: out, pre: true });
+    // Anything after the quality word, two teams, an event or a game's name is another question.
+    for (const q of ["is 4215 good at auto", "is 4215 better than 6980", "whats up with decode", "whats up with nj states", "how good is 4215"]) expect(rewriteQuery(q)?.q ?? "", q).not.toMatch(/^how good is/);
+  });
+  it("a team's quality in plain words gets its season's numbers", async () => {
+    for (const q of ["is 23268 actually that good or just hype", "can u tell me if bad wolf is good, be honest"]) {
+      const a = await ask(q);
+      expect(a.step, q).toBe("deterministic");
+      expect(a.hits[0], q).toMatchObject({ kind: "team", ref: q.includes("23268") ? "23268" : "6980" });
+      expect(a.hits[0].facts?.map((f) => f.label), q).toEqual(expect.arrayContaining(["OPR", "Record"]));
+    }
+    // A past season said with the question is that season's numbers, never the latest's (fixture: 90 OPR, 12-8 then).
+    const past = await ask(`is 23268 actually that good or just hype, in ${S - 1}-${String(S % 100).padStart(2, "0")}`);
+    const facts = Object.fromEntries((past.hits[0].facts ?? []).map((f) => [f.label, f.value]));
+    expect(past.hits[0]).toMatchObject({ ref: "23268", linkSeason: S - 1 });
+    expect(facts).toMatchObject({ OPR: "90.0", Record: "12-8-0", Season: seasonLabel(S - 1) });
+  });
 });
 
 describe("answers on their own", () => {

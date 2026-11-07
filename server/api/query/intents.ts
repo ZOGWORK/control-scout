@@ -24,6 +24,8 @@ export type PipelineIntent =
   | "teams-named" | "count-teams"
   // A team's number over a season, event by event (the readers' trend cards).
   | "rating-trend" | "opr-trend"
+  // A phase's OPR or the reliability index over a season, event by event.
+  | "auto-trend" | "teleop-trend" | "endgame-trend" | "reliability-trend"
   // Four teams, two on each alliance: a match's call ("predict a b vs c d").
   | "alliance-predict"
   // No team: matches found by a measure (./matchFind.ts).
@@ -155,9 +157,16 @@ export const INTENTS: IntentRule[] = [
   R("rating-trend", 1, ["metric:rating", "per:event"], ["thing:event", "list", "agg:last"], { noEvent: true }),
   R("opr-trend", 1, ["metric:opr", "trend"], ["per:event", "thing:event", "list", "agg:last"], { noEvent: true }),
   R("opr-trend", 1, ["metric:opr", "per:event"], ["thing:event", "list", "agg:last"], { noEvent: true }),
+  ...([["auto-trend", "metric:auto"], ["teleop-trend", "metric:teleop"], ["endgame-trend", "metric:endgame"], ["reliability-trend", "metric:reliability"]] as const).flatMap(([id, m]) => [
+    R(id, 1, [m, "trend"], ["metric:opr", "per:event", "thing:event", "list", "agg:last"], { noEvent: true }),
+    R(id, 1, [m, "per:event"], ["metric:opr", "thing:event", "list", "agg:last"], { noEvent: true }),
+  ]),
   R("team-opr", 1, ["metric:opr"], ["agg:last"], { noEvent: true }),
   R("team-rating", 1, ["metric:rating"], ["agg:last"], { noEvent: true }),
   R("team-predict", 1, ["predict"], ["metric:win", "metric:record", "metric:score", "metric:rank", "thing:event", "thing:match", "agg:next", "metric:playoffs", "review", "agg:last", "advance"]),
+  // "Will 12345 win <event>": the forecast at the event named (or its states, or Worlds).
+  R("team-predict", 1, ["future", "metric:win"], ["thing:event"], { event: true }),
+  R("team-predict", 1, ["future", "metric:win", "worlds"], ["thing:event"]),
   // Two alliances of two: a match's call. "Vs" between them is enough, with no other word.
   R("alliance-predict", 4, ["vs"], ["predict", "and", "compare", "metric:win", "metric:score", "metric:margin", "thing:match", "per:match"]),
   // Two teams.

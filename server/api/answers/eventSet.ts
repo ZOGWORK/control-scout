@@ -21,6 +21,24 @@ export interface TeamEvent {
   avgScore: number | null; avgPen: number | null; wins: number | null; losses: number | null; ties: number | null; rp: number | null;
   /** The record the team page's events list shows there: every counted match, playoffs included (eventRecord.ts). */
   record: { wins: number; losses: number; ties: number } | null;
+  /** Its reliability index there (0–100), only on reliabilityEvents' rows. */
+  reliability?: number | null;
+}
+
+/** The team's events with a reliability row (team_reliability, one per event), oldest first: an event where it missed
+ *  every qualification match counts too (its no-shows are what the index counts), so `matches` is the qualification
+ *  matches it was listed for, not those it took the field in. */
+export async function reliabilityEvents(team: number): Promise<TeamEvent[]> {
+  const rows = await all<any>(
+    `SELECT r.season, r.code, r.matches, r.idx, e.name, e.type, e.start, e.end, e.city, e.state, e.country, e.division_code
+     FROM team_reliability r JOIN events e ON e.season = r.season AND e.code = r.code
+     WHERE r.team = ? AND r.code <> '' ORDER BY e.start, e.code`, [team]);
+  return rows.map((r) => ({
+    season: Number(r.season), code: r.code, name: shortEvent(r.name, r.type ?? null), type: r.type ?? null, start: r.start ?? null, end: r.end ?? null,
+    city: r.city ?? null, state: r.state ?? null, country: r.country ?? null, division: r.division_code ?? null,
+    rank: null, of: null, opr: null, auto: null, teleop: null, endgame: null, matches: Number(r.matches) || 0,
+    avgScore: null, avgPen: null, wins: null, losses: null, ties: null, rp: null, record: null, reliability: num(r.idx),
+  }));
 }
 
 export interface TeamSeason {
