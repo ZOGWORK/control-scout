@@ -405,8 +405,8 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   const said = opts.intents === false ? null : explainAnswer(q) ?? nearMeAnswer(q) ?? (await bottomAnswer(q));
   if (said) return said;
   // A word's meaning for one team ("how is OPR calculated, with 4215 as an example"): the team's numbers and the word's.
-  // `full`: the page's answer, whatever this surface shows (the explainer decides on it).
-  const meant = opts.intents === false ? null : await explainTeamAnswer(q, (x, full) => searchAnswer(x, full ? { ...opts, learn: false, full: true, limit: Math.max(opts.limit ?? 0, SEARCH_PAGE_LIMIT) } : { ...opts, learn: false }));
+  // `full` asks for the page's answer, whatever this surface shows: the explainer decides on it.
+  const meant = opts.intents === false ? null : await explainTeamAnswer(q, (x, full) => searchAnswer(x, full ? { ...opts, learn: false, full: true, limit: Math.max(opts.limit ?? 0, SEARCH_PAGE_LIMIT) } : { ...opts, learn: false }), (opts.full ?? (opts.limit ?? 12) >= SEARCH_PAGE_LIMIT));
   if (meant) return meant;
 
   // 0. A stat question about a team ("12345 highest score in worlds", "12345 worlds record"): ./answers/index.ts.

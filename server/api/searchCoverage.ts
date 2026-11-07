@@ -569,7 +569,7 @@ const EXPLAINING = new AsyncLocalStorage<boolean>();
 /** A word's explanation for one team ("how is OPR calculated, show me with 4215 as an example", "what does ranking
  *  score mean, for 14450 at NJ Championship Parkway", "why did 4215's rating go down even though they won"): the team's
  *  own numbers (its stat answer, as "4215 opr" gives it), with the word's explainer under them; or null. */
-export async function explainTeamAnswer(q: string, ask: (q: string, full?: boolean) => Promise<SearchAnswer>): Promise<SearchAnswer | null> {
+export async function explainTeamAnswer(q: string, ask: (q: string, full?: boolean) => Promise<SearchAnswer>, full = false): Promise<SearchAnswer | null> {
   // The team's own question, asked from here, is never explained again (a team named "CALculated Risk" keeps its words).
   if (EXPLAINING.getStore()) return null;
   // Sentence punctuation only: a season's "2024/25" or "2024–25" keeps its separator.
@@ -590,15 +590,19 @@ export async function explainTeamAnswer(q: string, ask: (q: string, full?: boole
   if (!rest.length) return null;
   const moved = /^why\b/.test(t) && /\b(?:up|down|drop|dropped|fall|fell|rise|rose|change|changed)\b/.test(t);
   const of = (stat: string, full?: boolean) => EXPLAINING.run(true, () => ask([rest[0], stat, ...rest.slice(1)].join(" "), full));
-  // A change with nothing on record to show it ("no weekly ratings are kept"): the team's own number instead. Decided
-  // on the page's answer (the dropdown's has no `stat`), so both show the same one.
-  const change = moved && e.change && !(await of(e.change, true)).stat?.none;
-  const a = await of(change ? e.change! : e.stat!);
-  // A team's stat answer, read the same in the dropdown (no `stat` worked out there) and on the page.
-  if (a.weak || !a.intent?.kind.startsWith("stat-") || a.hits[0]?.kind !== "team") return null;
+  // Every choice here is made on the page's answer (the dropdown's has no `stat`, and the page may add its own note),
+  // so the dropdown and the page show the same one. A change with nothing on record to show it ("no weekly ratings
+  // are kept"): the team's own number instead.
+  let whole = await of(moved && e.change ? e.change : e.stat!, true);
+  const stat = moved && e.change && !whole.stat?.none ? e.change : e.stat!;
+  if (stat !== (moved && e.change ? e.change : e.stat)) whole = await of(stat, true);
+  // A team's stat answer, or not this one.
+  if (whole.weak || !whole.intent?.kind.startsWith("stat-") || whole.hits[0]?.kind !== "team") return null;
+  const a = full ? whole : await of(stat);
+  if (a.hits[0]?.kind !== "team") return null;
   const lines = moved && e.why ? [...e.why, ...e.lines] : e.lines;
-  const label = `${a.understood?.label ?? a.hits[0].title} · ${e.label.split(":")[0]} explained`;
-  return { ...a, q, card: { kind: "info", title: e.label, lines }, pages: [...e.pages, ...(a.pages ?? []).filter((p) => !e.pages.some((x) => x.href === p.href))], understood: { ...(a.understood ?? { kind: "question" }), label } };
+  const label = `${whole.understood?.label ?? whole.hits[0].title} · ${e.label.split(":")[0]} explained`;
+  return { ...a, q, card: { kind: "info", title: e.label, lines }, pages: [...e.pages, ...(a.pages ?? []).filter((p) => !e.pages.some((x) => x.href === p.href))], understood: { ...(whole.understood ?? { kind: "question" }), label } };
 }
 
 /** The season a game's name means ("DECODE" → 2025–26), from the season list. */

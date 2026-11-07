@@ -544,25 +544,25 @@ describe("explain questions, asked any way", () => {
     expect(explainAnswer("current ftc game")?.card?.title).toContain(seasonLabel(CURRENT_SEASON));
   });
   it("a word for one team: the team's own stat, with the word's explainer under it", async () => {
-    const a = await explainTeamAnswer("what does opr mean for 4215, step by step", ask);
+    const a = await explainTeamAnswer("what does opr mean for 4215, step by step", ask, true);
     expect(a?.stat?.team?.number).toBe(4215);
     expect(a?.stat?.headline?.value).toBe("101.6");
     expect(a?.card?.title).toBe("OPR: what it is and how it's worked out");
     // The question asked of the stat answers, and a "why did it drop" asks the rating's change.
     const asked: string[] = [];
     const spy = async (x: string) => { asked.push(x); return ask(x); };
-    await explainTeamAnswer("explain how 6980's rating is worked out", spy);
-    await explainTeamAnswer("why did 6980 rating drop after they won", spy);
-    await explainTeamAnswer("ranking points meaning for 6980 at the FIRST Championship", spy);
+    await explainTeamAnswer("explain how 6980's rating is worked out", spy, true);
+    await explainTeamAnswer("why did 6980 rating drop after they won", spy, true);
+    await explainTeamAnswer("ranking points meaning for 6980 at the FIRST Championship", spy, true);
     // The fixture keeps no weekly ratings, so the change falls back to the season rating.
     expect(asked).toEqual(["6980 rating", "6980 rating change", "6980 rating", "6980 rank at the first championship"]);
-    const why = await explainTeamAnswer("why did 6980 rating drop after they won", ask);
+    const why = await explainTeamAnswer("why did 6980 rating drop after they won", ask, true);
     expect(why?.card?.lines[0].text).toMatch(/not on who won/);
     // No weekly ratings kept to show the change: the team's own season rating, never an empty panel.
     expect(why?.stat?.none).toBeUndefined();
     expect(why?.stat?.team?.number).toBe(6980);
     // The dropdown (no `stat` worked out) reads it the same: the team found, the explainer under it.
-    const quick = await explainTeamAnswer("what does opr mean for 4215, step by step", (x) => searchAnswer(x, { limit: 15, learn: false }));
+    const quick = await explainTeamAnswer("what does opr mean for 4215, step by step", (x, full) => searchAnswer(x, full ? { limit: 25, full: true, learn: false } : { limit: 15, learn: false }));
     expect(quick?.hits[0]).toMatchObject({ kind: "team", ref: "4215" });
     expect(quick?.card?.title).toBe("OPR: what it is and how it's worked out");
     // A change with nothing on record falls back the same in the dropdown as on the page: one answer, one heading.
@@ -570,15 +570,20 @@ describe("explain questions, asked any way", () => {
     expect(drop.intent?.kind).toBe(page.intent?.kind);
     expect(drop.hits[0]).toMatchObject({ kind: "team", ref: "6980" });
     expect(drop.card?.title).toBe(page.card?.title);
+    expect(drop.understood?.label).toBe(page.understood?.label);
+    // The dropdown decides on the page's answers, then shows its own of the same question.
+    const both: [string, boolean][] = [];
+    await explainTeamAnswer("why did 6980 rating drop after they won", (x, full) => { both.push([x, !!full]); return searchAnswer(x, full ? { limit: 25, full: true, learn: false } : { limit: 15, learn: false }); });
+    expect(both).toEqual([["6980 rating change", true], ["6980 rating", true], ["6980 rating", false]]);
     // No meaning asked, or no team named: not this answer.
-    for (const q of ["4215 mean opr", "what is 4215's opr", "how is opr calculated", "what does opr mean for teams"]) expect(await explainTeamAnswer(q, ask), q).toBeNull();
+    for (const q of ["4215 mean opr", "what is 4215's opr", "how is opr calculated", "what does opr mean for teams"]) expect(await explainTeamAnswer(q, ask, true), q).toBeNull();
     // Punctuation is set aside, and a team question is never sent back here as a meaning question.
     const sent: string[] = [];
     const once = (x: string) => { sent.push(x); return ask(x); };
-    expect((await explainTeamAnswer("explain 4215's opr calculated.", once))?.card?.title).toMatch(/OPR/);
+    expect((await explainTeamAnswer("explain 4215's opr calculated.", once, true))?.card?.title).toMatch(/OPR/);
     expect(sent).toEqual(["4215 opr"]);
-    expect(await explainTeamAnswer("explain opr calculated.", once)).toBeNull();
-    expect(await explainTeamAnswer("what does opr mean?! for... teams", once)).toBeNull();
+    expect(await explainTeamAnswer("explain opr calculated.", once, true)).toBeNull();
+    expect(await explainTeamAnswer("what does opr mean?! for... teams", once, true)).toBeNull();
     expect(sent).toEqual(["4215 opr", "teams opr"]);
   });
   it("a word for one team: a season keeps its separator, a team's name keeps its words, nothing comes back here", async () => {
@@ -586,12 +591,12 @@ describe("explain questions, asked any way", () => {
     await rebuildSearch();
     const sent: string[] = [];
     const spy = async (x: string) => { sent.push(x); return ask(x); };
-    await explainTeamAnswer("explain 4215 opr in 2024/25.", spy);
-    await explainTeamAnswer("explain opr for CALculated Risk", spy);
+    await explainTeamAnswer("explain 4215 opr in 2024/25.", spy, true);
+    await explainTeamAnswer("explain opr for CALculated Risk", spy, true);
     expect(sent).toEqual(["4215 opr in 2024/25", "calculated risk opr"]);
     // An answer that asks back into this helper gets nothing from it: one question out, never a loop.
     let inner: unknown = "unset";
-    await explainTeamAnswer("explain opr for CALculated Risk", async (x) => { inner = await explainTeamAnswer(`explain ${x}`, ask); return ask(x); });
+    await explainTeamAnswer("explain opr for CALculated Risk", async (x) => { inner = await explainTeamAnswer(`explain ${x}`, ask, true); return ask(x); }, true);
     expect(inner).toBeNull();
   });
 });
