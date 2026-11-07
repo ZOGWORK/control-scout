@@ -56,7 +56,9 @@ interface IntentRule {
 
 const MATCHES = "(?:matches|match|games?)";
 /** Opponents as a group ("against top teams", "vs rookie teams") and a season's halves: read before any team's name. */
-const GROUP_TOP = /\b(?:against|vs\.?|versus|facing)\s+(?:the\s+)?(?:top|best|strong(?:est)?|elite|good|better|highest[\s-]rated|top[\s-]rated|high[\s-]rated|top[\s-]ranked)\s+(?:teams?|opponents?|alliances?|competition)\b/;
+// "Against top teams", or a world rank said as a number ("against teams ranked top 10 worldwide", "vs the top 25"):
+// that number is the answer's cut (StatQuestion.n).
+const GROUP_TOP = /\b(?:against|vs\.?|versus|facing)\s+(?:the\s+)?(?:(?:top|best|strong(?:est)?|elite|good|better|highest[\s-]rated|top[\s-]rated|high[\s-]rated|top[\s-]ranked)\s+(?:teams?|opponents?|alliances?|competition)|(?:(?:teams?|opponents?)\s+(?:(?:that|who)\s+(?:are|were)\s+)?(?:ranked\s+)?(?:in\s+)?(?:the\s+)?)?top\s+(\d{1,4})(?:\s+(?:ranked\s+)?(?:teams?|opponents?))?(?:\s+(?:worldwide|globally|in\s+the\s+world(?:\s+rankings?)?|in\s+the\s+rankings?))?)\b/;
 const GROUP_ROOKIE = /\b(?:against|vs\.?|versus|facing)\s+(?:the\s+)?(?:rookies?|rookie\s+(?:teams?|opponents?)|new\s+teams?|first[\s-]year\s+teams?)\b/;
 const HALF = String.raw`(?:early|late|first[\s-]half|second[\s-]half)(?:\s+(?:of\s+the\s+)?season)?(?:\s+(?:form|results?|performance|record))?`;
 const EARLY_LATE = new RegExp(String.raw`\b${HALF}\s+(?:vs\.?|versus|against|and|or|compared\s+(?:to|with))\s+${HALF}\b|\b(?:early|late)\s+(?:vs\.?|versus|and)\s+(?:early|late)\s+season\b`);
@@ -717,7 +719,8 @@ export function readStatQuestion(raw: string): StatQuestion | null {
     // records with no team stay searchHighScores.ts's.
     // "q12", "qual 12": a qualification match only, never a playoff match with that number.
     if (r.id === "match-lookup" && /\bq(?:ual(?:ification)?)?\s*\d/.test(m[0])) scope.level = "qual";
-    const n = r.id === "last-matches" ? Math.min(20, Math.max(1, Number(m[1]))) : r.id === "match-lookup" ? Number(m[1] ?? m[2]) : r.id === "scores-over" ? Number(m[1]) : null;
+    const n = r.id === "last-matches" ? Math.min(20, Math.max(1, Number(m[1]))) : r.id === "match-lookup" ? Number(m[1] ?? m[2]) : r.id === "scores-over" ? Number(m[1])
+      : r.id === "vs-top" && m[1] ? Math.max(1, Number(m[1])) : null;
     const variant = r.id === "penalties" ? (/\bper\s+event\b/.test(q) ? "per-event" : /\brate\b/.test(q) ? "rate" : null)
       : r.id === "scores-over" && /\bat\s+least\b/.test(m[0]) ? "at-least" : null;
     // "average winning margin", "margin of victory on average": wins only; "average losing margin": losses only.
