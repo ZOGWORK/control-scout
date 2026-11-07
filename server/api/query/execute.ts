@@ -28,16 +28,29 @@ import { eventFor, forecastAt, teamEventOfType } from "./forecast.js";
 import { teamsNamedSearch } from "../answers/teamsNamed.js";
 import { describe, normalise, parseQuery, type Parsed } from "./parse.js";
 import { parseContext } from "./context.js";
+import { topTeamsNote, topTeamsSaid } from "./topTeams.js";
 import type { PipelineIntent } from "./intents.js";
 
 export interface PipelineOptions { full: boolean; pages: SearchPageLink[]; resolve: Resolve; now?: number; prefer?: ReadonlySet<string> }
 
 /** The pipeline's answer for `q`, or null when it leaves the query to search's other readers. */
 export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<SearchAnswer | null> {
-  const p = await parseQuery(q, await parseContext(opts.now, opts.prefer));
-  if (!p.complete || !p.intent) return null;
+  const ctx = await parseContext(opts.now, opts.prefer);
+  let p = await parseQuery(q, ctx);
+  // A place's top team said where a team would be ("the top NJ team vs the top Romania team"): two teams compared,
+  // read again with their numbers, the card saying which team each phrase was.
+  let tops: Awaited<ReturnType<typeof topTeamsSaid>> = null;
+  if (!p.complete || !p.intent) {
+    // The season the question names picks each place's leader too ("in 2024-25, the top NJ team vs …").
+    tops = await topTeamsSaid(q, ctx, p.time?.kind === "season" && p.time.season != null ? p.time.season : undefined);
+    const again = tops ? await parseQuery(tops.q, ctx) : null;
+    if (!again?.complete || !again.intent || again.teams.length !== 2 || !TWO_TEAM[again.intent]) return null;
+    p = { ...again, q };
+  }
+  if (!p.intent) return null;
   let a = await execute(p, opts);
   if (!a) return null;
+  if (tops && a.understood) a = { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${topTeamsNote(tops.said, tops.season)}` } };
   // Part of a region ("north jersey") is read as all of it, and the card says so.
   if (p.place?.part && a.understood) a = { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${p.place.part.replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase())} isn't a separate region: all of ${p.place.name}` } };
   // A team's name typed nearly right: answered for that team, with the spelling to search for.

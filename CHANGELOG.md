@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 4.0.7 — 2026-11-07
+## 4.0.8 — 2026-11-07
 
 A place's award winners are answered: a state's, a country's or a town's teams and the awards they won, the most, the rarest, and whether any won at Worlds or made its finals.
 
@@ -28,6 +28,19 @@ A place's award winners are answered: a state's, a country's or a town's teams a
 ### Search
 - **A place's award winners.** The teams from a state, a country (or its people's word) or a town, and the awards they won, newest first or by a stat ("by auto"): the most won, the rarest one (given fewest times anywhere that season), two awards won at one event, and yes or no at Worlds, for an award or for reaching its finals or playoffs. At Worlds, "last year" is the latest Championship that has finished. (#1100)
 
+
+## 4.0.7 — 2026-11-07
+
+A place's top team can stand in for a team number in a two-team question: "who would win between the top NJ team and the top Romania team" answers for those two teams, and says which they are.
+
+### Highlights
+- [predict] "Top NJ team vs top Romania team" predicts those two teams
+- [predict] The answer says which team each "top team" was read as
+- [predict] "Who would win in a match between A and B" gets the call
+
+### Search
+- **A place's top team, as one of two.** "The top / best / strongest <place> team" or "… team in <place>" is that place's first team on its prediction-rating board, as "top teams in <place>" ranks them, read into the two-team question; the question line says which team each phrase was.
+- **"Between."** "Who would win in a match between A and B" is the match's call, and "matches between A and B" their shared matches. (#1097)
 
 ## 4.0.6 — 2026-11-07
 
