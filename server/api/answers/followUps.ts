@@ -125,8 +125,12 @@ export function candidates(p: Parsed, a: SearchAnswer, team = answerTeam(a)): Ca
   // As typed, or in title case when typed all in lower case ("north league meet" → "North League Meet").
   const event = said && said === said.toLowerCase() ? said.replace(/(?<![\p{L}\p{N}'])\p{L}/gu, (c) => c.toUpperCase()) : said;
   const teams = p.teams.map((t) => t.number);
+  // A place read from the words that a card answered without ("… in one season" read as a town named One) is never
+  // asked about: a card's place is on its title or chips.
+  const shown = a.stat ? `${a.stat.title} ${a.stat.scope.join(" ")}`.toLowerCase() : null;
+  const place = p.place && (shown == null || shown.includes(p.place.name.toLowerCase())) ? p.place.name : undefined;
   const s: Slots = {
-    t: teams[0] ?? team, u: teams[1], event, place: p.place?.name,
+    t: teams[0] ?? team, u: teams[1], event, place,
     // A season said (a year, a season's two years): a window ("this week") or every season is no season's question.
     when: p.time?.kind === "season" ? p.time.typed : undefined,
     award: p.award ?? undefined,
