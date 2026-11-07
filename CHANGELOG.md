@@ -17,6 +17,18 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 3.8.8 — 2026-11-07
 
+The rookie leaderboard lists from the bottom when asked, with the stat said before "rookies" or after the place: "lowest opr rookies in new jersey", "worst rookie teams in texas by auto opr".
+
+### Highlights
+- [rankings] "Lowest opr rookies in New Jersey" lists them
+- [rankings] Rookie lists read a stat said before or after
+- [rankings] The lowest-first rookie list links its Teams view
+
+### Search
+- **Rookies from the bottom.** "Lowest", "worst" or "weakest" before the rookies lists them lowest first, ranked from the top as every lowest-first board is, and titled so ("Lowest rookie teams in New Jersey by OPR"). The stat can be said before "rookies" ("lowest opr rookies") or after the place ("in texas by auto opr"); two stats at once are no one board. (#PR)
+
+## 3.8.8 — 2026-11-07
+
 A trend asked as a choice ("is its rating rising or falling", "getting better or worse at penalties") answers with the trend, and penalties asked as a trend show each event.
 
 ### Highlights
