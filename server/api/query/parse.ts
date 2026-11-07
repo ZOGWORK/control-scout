@@ -387,7 +387,9 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   // The awards side-by-side counts every award: one award named ("12345 vs 67890 inspire awards") is left to the
   // readers that count that award alone.
   if (pick && p.award && pick.rule.id === "awards-vs") pick.unexplained.push(`award:${p.award}`);
-  p.complete = !!pick && !pick.unexplained.length && !p.leftover.length;
+  // Worlds' highlights are its divisions' matches: "worlds division highlights" asks for the same.
+  if (pick?.rule.id === "highlights" && p.worlds && !p.event) p.leftover = p.leftover.filter((w) => !/^divisions?$/i.test(w));
+  p.complete =!!pick && !pick.unexplained.length && !p.leftover.length;
   return p;
 }
 

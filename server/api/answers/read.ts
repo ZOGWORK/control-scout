@@ -78,7 +78,7 @@ const AWARD_TYPES: [RegExp, string][] = [
 const RULES: IntentRule[] = [
   // A season's or an event's winners: "winning alliance", "who won …", "who took …", and "winner(s)"/"champion(s)" (those two only
   // with Worlds or a season named: "decode winner", "into the deep champions", "worlds winners 2025").
-  { id: "winning-alliance", family: "event", season: "all", noTeam: true, re: /\bwinning\s+alliances?\b|\bwho\s+won\b|\bwho\s+took\s+(?!(?:the\s+)?(?:most|fewest|least|highest|lowest|best|worst|first|last|top|longest|biggest|more|fewer)\b)|\b(?:world\s+)?(?:champions?|winners?)\b|\bwinning(?=\s*$)/ },
+  { id: "winning-alliance", family: "event", season: "all", noTeam: true, re: /\bwinning\s+alliances?\b|\bwho\s+won\b|\bwho\s+took\s+(?!(?:the\s+)?(?:most|fewest|least|highest|lowest|best|worst|first|last|top|longest|biggest|more|fewer)\b)|\b(?:world\s+)?(?:champions?|winners?)\b|\bwinning(?=\s*$)|(?<=\b(?:division|championship|tournament|invitational|qualifier|premier|cup)(?:\s+\S+)?\s+)finals?(?:\s+match(?:es)?)?(?:\s+20\d\d(?:[-–]\d\d)?)?\s*$/ },
   { id: "opr-by-season", family: "trend", season: "all", re: /\bopr\s+(?:by|per|each|every|over\s+the)\s+seasons?\b|\bseason(?:al)?\s+opr\b/ },
   { id: "record-by-season", family: "trend", season: "all", re: /\b(?:record|w-l-t|win[\s-]loss(?:[\s-]tie)?)\s+(?:by|per|each|every)\s+season\b|\bseason\s+by\s+season\s+record\b/ },
   // "Late season form versus early season form", "against top teams", "against rookie teams": groups of matches, never
@@ -727,7 +727,7 @@ export function readStatQuestion(raw: string): StatQuestion | null {
     // A team-less question: what's left names an event (or nothing: the season's championship).
     // Chosen once the scope is final: a bare year can still turn out to be the team ("2024 record").
     const defaultOf = () => (r.alone && !namesSeasons(scope) ? r.alone : r.season);
-    if (r.noTeam) return { id: r.id, family: r.family, defaultSeason: defaultOf(), scope, leadEvent, n, outcome, count, noTeam: true, ...(bare ? { bare } : {}), core: squash(rest.replace(/\b(?:ftc|first|tech|challenge|the|who|won|what|which|was|is|of|in|for|world|winners?|champions?|winning|alliances?)\b/g, " ").replace(/^[\s-]+|[\s-]+$/g, "")) || (scope.at ?? "") };
+    if (r.noTeam) return { id: r.id, family: r.family, defaultSeason: defaultOf(), scope, leadEvent, n, outcome, count, noTeam: true, ...(bare ? { bare } : {}), core: squash(rest.replace(/\b(?:ftc|first|tech|challenge|the|who|won|what|which|was|is|of|in|for|world|winners?|champions?|winning|alliances?|finals?|match(?:es)?)\b/g, " ").replace(/^[\s-]+|[\s-]+$/g, "")) || (scope.at ?? "") };
     // One award named, and only the newest or the earliest: their words never name the team.
     let left = rest, award: string | undefined, pick: "first" | "latest" | undefined;
     if (r.id === "awards" || r.id === "total-awards" || r.id === "inspire-awards") {

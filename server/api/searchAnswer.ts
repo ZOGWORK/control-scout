@@ -279,7 +279,9 @@ async function numberedAnswer(raw: string, opts: AnswerOptions): Promise<SearchA
   // no state championship is named so.
   const q = cleanQuery(raw);
   const champ = STATES_WORD.test(q) && !/\bunited states\b/i.test(q) ? q.replace(new RegExp(STATES_WORD.source, "gi"), "$1championship") : null;
-  for (const other of [numberQuery(q), numberQuery(q, true), champ]) {
+  // Then a division called by its own name alone ("<name> <game>"): "<name> division", when an event's division is
+  // named so and the query names none.
+  for (const other of [numberQuery(q), numberQuery(q, true), champ, await divisionQuery(q)]) {
     if (!unread(a)) return a;
     if (!other) continue;
     const b = await typedAnswer(asked ? `${other}?` : other, opts);
@@ -288,6 +290,16 @@ async function numberedAnswer(raw: string, opts: AnswerOptions): Promise<SearchA
   return a;
 }
 const STATES_WORD = /(^| )states(?= |$)/i;
+
+/** `q` with "division" after its first word that names an event's division ("<name> Division" in a stored event's
+ *  name), or null when it names none, already says "division", or is that word alone (a town, a team's name). */
+export async function divisionQuery(q: string): Promise<string | null> {
+  if (/\bdivisions?\b/i.test(q) ||!/\s/.test(q.trim())) return null;
+  const named = new Set((await eventNames()).flatMap((n) => [...n.matchAll(/(?:^| )(\p{L}{3,}) division(?= |$)/gu)].map((m) => m[1])));
+  const ws = q.split(/\s+/);
+  const i = ws.findIndex((w) => named.has(nameKey(w)));
+  return i < 0 ? null : [...ws.slice(0, i + 1), "division", ...ws.slice(i + 1)].join(" ");
+}
 
 /** searchAnswer for the query as typed. */
 async function typedAnswer(raw: string, opts: AnswerOptions): Promise<SearchAnswer> {
