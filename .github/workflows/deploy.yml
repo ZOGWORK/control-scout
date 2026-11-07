@@ -90,7 +90,8 @@ jobs:
           while [ "$(date +%s)" -lt "$deadline" ]; do
             body=$(curl -fsS --max-time 10 "$SITE/api/health" || true)
             rel=$(echo "$body" | jq -r '.release // empty' 2>/dev/null)
-            if [ -n "$rel" ] && [ "$(echo "$body" | jq -r '.ready' 2>/dev/null)" = "true" ] && contains "$rel"; then
+            # Warm too (server/warm.ts): every boot warm-up done. A release from before it has no "warm", which counts as warm.
+            if [ -n "$rel" ] && [ "$(echo "$body" | jq -r '.ready' 2>/dev/null)" = "true" ] && [ "$(echo "$body" | jq -r '.warm != false' 2>/dev/null)" = "true" ] && contains "$rel"; then
               echo "Live: $body"
               exit 0
             fi

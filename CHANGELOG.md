@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.7.8 — 2026-11-06
+## 3.8.1 — 2026-11-06
 
 Every button and link in a search answer is big enough to tap on a phone, and a list of top teams keeps each team's name readable.
 
@@ -27,6 +27,45 @@ Every button and link in a search answer is big enough to tap on a phone, and a 
 ### Search
 - **Tap targets.** Team chips, match links, sort headers, event links, chart points, the compare headline and "Open in Predict" are all at least 44px wide and tall on phones and touch screens. One shared rule covers them, so new controls get it too.
 - **Top teams on phones.** A list ranked by a number of its own (prediction rating, win rate) shows that number and the OPR on a phone. The record moves into the row's details, so each team's name has the room to be read. (#1025)
+
+## 3.8.0 — 2026-11-06
+
+After an update, the site answers from a warmed-up server: no more minutes of slow pages while a new version settles in.
+
+### Highlights
+- [speed] No slow minutes after an update
+- [speed] The server warms search before it answers
+- [speed] The first data refresh waits until visitors are served
+
+### Speed
+- **Warm before answering.** A new server builds search's index (rebuilt once when the code that builds it changed), its names, spelling and typo index, and the track record before it takes requests, for at most 20 seconds (well under the proxy's 60). Ratings build in the background. Each step's time is logged, then the total.
+- **The first refresh later.** The first data refresh after a restart runs at 10 minutes instead of 1, and the regular schedule waits for it, so a stats run and search rebuild no longer land on a just-updated server's first minutes.
+- **Live means warm.** An update counts as live once the new server says it's ready and warm. (#1024)
+
+## 3.7.9 — 2026-11-06
+
+On the related searches page, the team group is titled with its team: "About 4215 Hypnotic Robotics".
+
+### Highlights
+- [home] Related searches name the team they're about
+- [home] Popular searches name the season's leading team
+- [fixes] A group about two teams keeps its plain title
+
+### Search
+- **The team, named.** The related searches page titles its team group with the team's number and name, the popular searches too (the team they're about), whenever every search in it is about that one team; a group about two teams ("4215 vs 6980") keeps "About this team". (#1023)
+
+## 3.7.8 — 2026-11-06
+
+A team's full name is read however it's punctuated: "UK 488 - The King's School- Barrel Botz record" is that team's record, and "team sealth record" finds Team Stealth.
+
+### Highlights
+- [fixes] A team named with dashes or a possessive is read in full
+- [fixes] A name starting with "Team" or "The" keeps that word
+- [fixes] A slip in such a name still finds the right team
+
+### Search
+- **Names with their own punctuation.** A dash on its own or ending a word is punctuation, and a possessive in a team's name ("King's") matches however it's typed, so a name typed in full reads the team, with its number or without.
+- **Names starting with Team or The.** A question's own words ("team", "the") are put back when, with them, the words are a team's name or one slip from it: "team sealth record" is Team Stealth's record. (#1028)
 
 ## 3.7.7 — 2026-11-06
 

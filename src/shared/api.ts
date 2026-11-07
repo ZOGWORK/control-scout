@@ -225,7 +225,8 @@ export type FollowUpTone =
  *  `found` false: nothing follows from `q`, and the groups are the starting points. */
 export interface RelatedPageView { q: string; found: boolean; groups: { title: string; items: SearchFollowUp[] }[] }
 /** GET /api/search/follow: People also ask, Related searches, and the team's highlights search (`team`: whose). */
-export interface SearchFollowUps { ask: SearchFollowUp[]; related: SearchFollowUp[]; highlights?: SearchFollowUp & { team: number } }
+/** `about`: the team the follow-ups are about, when there's one (the team asked about, else the one its answer is). */
+export interface SearchFollowUps { ask: SearchFollowUp[]; related: SearchFollowUp[]; highlights?: SearchFollowUp & { team: number }; about?: number }
 
 /** A question's answer (server/api/searchQuestions.ts): each line a real record, linked to where it's shown. */
 export interface SearchCard {
