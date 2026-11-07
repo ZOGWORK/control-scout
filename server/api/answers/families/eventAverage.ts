@@ -89,10 +89,6 @@ export async function eventAverageAnswer(qn: EventAverageQuestion, find: (words:
       sub: evs.map((e, i) => `${e.name} ${one(rows[i].avg)}`).join(" · "),
     } } : { none: `${evs.filter((_, i) => !rows[i].matches).map(label).join(" and ")} ha${evs.filter((_, i) => !rows[i].matches).length > 1 ? "ve" : "s"} no played matches on record yet.` }),
     blocks: [
-      { kind: "bars", title: "Average alliance score", unit: "points", groups: [
-        { label: "With penalties", items: evs.map((e, i) => ({ label: e.name, value: rows[i].avg == null ? null : Number(rows[i].avg!.toFixed(1)), tone: (i ? "b" : "a") as "a" | "b" })) },
-        { label: "Without penalties", items: evs.map((e, i) => ({ label: e.name, value: rows[i].np == null ? null : Number(rows[i].np!.toFixed(1)), tone: (i ? "b" : "a") as "a" | "b" })) },
-      ] },
       { kind: "table", title: "Side by side", columns: [{ key: "event", label: "Event" }, { key: "avg", label: "Average", num: true }, { key: "np", label: "Without penalties", num: true }, { key: "high", label: "Highest", num: true }, { key: "matches", label: "Matches", num: true }],
         rows: evs.map((e, i) => ({ cells: { event: label(e), avg: one(rows[i].avg), np: one(rows[i].np), high: rows[i].high, matches: rows[i].matches }, href: eventHref(e.season, e.code), strong: lead === i })) },
     ],
