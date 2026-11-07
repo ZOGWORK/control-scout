@@ -88,6 +88,19 @@ describe("who to pick at an event", () => {
     // The one team still free: no one already on an alliance.
     expect(a.headline!.value).toBe("Gearbox (24033)");
   });
+  it("selection read as over by the event's own date, where it's held", async () => {
+    // Its last day was yesterday in UTC terms but is still today at the venue, 11 hours behind: still under way.
+    const now = Date.parse(`${day(0)}T09:00:00Z`);
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, timezone, source) VALUES (?, 'USHIQ1', 'Aloha Qualifier', 'Qualifier', 'Honolulu', 'HI', 'USA', ?, ?, 'Pacific/Honolulu', 't')", [S, new Date(now - 864e5).toISOString().slice(0, 10), new Date(now - 864e5).toISOString().slice(0, 10)]);
+    await run("INSERT INTO event_teams (season, code, team) VALUES (?, 'USHIQ1', 6980), (?, 'USHIQ1', 23268), (?, 'USHIQ1', 7149), (?, 'USHIQ1', 207), (?, 'USHIQ1', 33950), (?, 'USHIQ1', 24033)", [S, S, S, S, S, S]);
+    await run("INSERT INTO alliances (season, code, number, captain, pick1) VALUES (?, 'USHIQ1', 1, 23268, 7149), (?, 'USHIQ1', 2, 6980, 33950)", [S, S]);
+    clearAllCaches();
+    const { pickAnswer } = await import("./families/pick");
+    const ev = { season: S, code: "USHIQ1", name: "Aloha Qualifier", type: "Qualifier", start: null, end: new Date(now - 864e5).toISOString().slice(0, 10) };
+    const a = await pickAnswer({ number: 207, name: "Critical Mass" }, ev, undefined, null, now);
+    expect(a.headline!.sub).not.toMatch(/^Every team free/);
+    expect(a.headline!.value).toBe("Gearbox (24033)");
+  });
   it("a team not on the event's list is said so, never another event's suggestions", async () => {
     expect((await stat("who should 23268 pick at northeast league meet")).none).toMatch(/isn't on Northeast League Meet's team list/);
   });

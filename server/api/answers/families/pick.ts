@@ -11,6 +11,7 @@ import { ROSTER } from "../../../data/registrations.js";
 import { pickHelperQuery } from "../../../../src/shared/scoutSections.js";
 import { dateRange, seasonLabel } from "../../../../src/shared/format.js";
 import { isLegacy } from "../../../data/seasons.js";
+import { eventToday } from "../../../../src/shared/eventDay.js";
 import { pickRatings } from "../../pickRatings.js";
 import { eventHref, shortEvent, teamHref } from "../matchSet.js";
 import { whoOf, type AnswerTeam } from "./matches.js";
@@ -38,9 +39,11 @@ export async function teamPickEvent(team: number, now: number, season: number | 
 
 /** The pick helper's suggestions for `team` at `ev`. `why`: how the event was chosen, when the query named none.
  *  `focus`: a stat the question names ("complementing their auto"), each suggestion's change on it shown beside. */
-/** Whether `ev`'s alliance selection is over by a sign of its own: playoff matches on record, or its last day gone. */
+/** Whether `ev`'s alliance selection is over by a sign of its own: playoff matches on record, or its last day gone
+ *  where it's held (its venue's date, eventToday; with no time zone known, only once no time zone is still on it). */
 async function selectionOver(ev: PickEvent, now: number): Promise<boolean> {
-  if ((ev.end ?? ev.start ?? "9999") < new Date(now).toISOString().slice(0, 10)) return true;
+  const row = await get<{ timezone: string | null }>("SELECT timezone FROM events WHERE season = ? AND code = ?", [ev.season, ev.code]);
+  if ((ev.end ?? ev.start ?? "9999") < eventToday(now, row?.timezone).from) return true;
   return !!(await get("SELECT 1 FROM matches WHERE season = ? AND code = ? AND level = 'playoff' LIMIT 1", [ev.season, ev.code]));
 }
 
