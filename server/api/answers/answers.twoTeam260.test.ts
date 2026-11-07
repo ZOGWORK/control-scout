@@ -5,6 +5,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../../db";
 import { rebuildSearch } from "../../stats/job";
 import { CURRENT_SEASON } from "../../data/seasons";
+import { seasonLabel } from "../../../src/shared/format";
 import { setFlag } from "../../flags";
 import { searchAnswer } from "../searchAnswer";
 import { refreshSearchSeason, resetSearchSeason } from "./season";
@@ -125,7 +126,7 @@ describe("the answers", () => {
       expect(a.stat, q).toMatchObject({ intent: "predict", headline: { value: "4215 rated higher", label: "by 47.7 points per match" } });
       expect(a.understood!.label, q).not.toMatch(/isn't part of this answer/);
     }
-    expect((await ask("imagine 6980 against 4215 tomorrow")).understood!.label).toContain("tomorrow: an upcoming match, called on today's ratings");
+    expect((await ask("imagine 6980 against 4215 tomorrow")).understood!.label).toContain(`tomorrow: an upcoming match, called on ${seasonLabel(S)} ratings`);
     // A day gone by isn't to come: never this call.
     expect((await ask("suppose 4215 played 6980 last week")).stat?.intent).not.toBe("predict");
   });

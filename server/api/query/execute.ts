@@ -232,7 +232,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   }
   if (p.teams.length === 2 && TWO_TEAM[intent]) {
     const id = TWO_TEAM[intent]!;
-    // A match still to come ("if 12345 played 23456 tomorrow") is called on today's ratings: a window from today on
+    // A match still to come ("if 12345 played 23456 tomorrow") is called on the ratings as they stand: a window from today on
     // filters nothing there, so the forecast reads the latest season both teams have a rating in, as with none said.
     const upcoming = id === "predict" && scope.window && scope.window.from >= searchToday(opts.now) ? scope.window.label : null;
     if (upcoming) { delete scope.window; scope.season = null; }
@@ -251,8 +251,10 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     // place, a window, a match type or a side.
     if (!MEETINGS.has(id) && (scope.at || scope.championship || scope.states || scope.level || scope.alliance || scope.window || scope.place || scope.area)) return null;
     const a = await twoTeamSearch(p.q, { id, scope, a: String(p.teams[0].number), b: String(p.teams[1].number) }, opts.resolve, opts);
-    // The day said is said back as what it was read as.
-    return a && upcoming && a.understood ? { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${upcoming}: an upcoming match, called on today's ratings` } } : a;
+    // The day said is said back as what it was read as, with the season whose ratings make the call.
+    if (!a || !upcoming || !a.understood) return a;
+    const used = (await predictionSeasonOf(p.teams.map((t) => t.number))).season;
+    return { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${upcoming}: an upcoming match, called on ${seasonLabel(used)} ratings` } };
   }
   // A trend: the reader's own card for the team and the season (said, or the team's latest), whatever the words were.
   const trend = TREND_ASK[intent];
