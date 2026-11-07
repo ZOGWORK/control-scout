@@ -26,7 +26,7 @@ The live countdown waits for the day's first result, then runs on the field's re
 
 ### Live
 - **No timer off the posted plan.** Before the day's first match has a result, the LIVE panel, the phone's countdown chip and the pit display show what's up next and its scheduled time, with no countdown: events rarely start on time.
-- **Calibrated on real starts.** Once results come in, the next match is due one cycle after the latest match really started, and everything after it moves by the same amount up to the next break (lunch absorbs a late start). It uses the shorter of the posted cycle and the one the field is really running, and a match with no score yet can't have started more than 8 minutes ago, so the timer errs early, never late. The panel says how far behind or ahead the field runs and which match should be on the field now.
+- **Calibrated on real starts.** Once results come in, the next match is due one cycle after the latest match really started, and everything after it moves by the same amount up to the next break (lunch absorbs a late start). It uses the shorter of the posted cycle and the one the field is really running, and a match with no score yet can't have started more than 8 minutes ago, so the timer errs early, never late. The panel says how far behind or ahead the field runs and which match should be on the field now. (#1109)
 
 ## 3.9.1 — 2026-11-07
 
