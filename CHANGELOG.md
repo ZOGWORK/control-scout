@@ -25,7 +25,7 @@ The team with the most matches, wins or events can be asked for a few days ("whi
 - [rankings] "Most matches played by any team, top 5" reads
 
 ### Search
-- **Count boards in a window, said any way.** "This week", "last week", "this month", "today" said with the team with the most matches, wins or events counts that team's played matches in those days from the match rows (a match by its own date, else its event's first day), its record there beside it; awards have no date and get no window board. With none in the window yet, the latest seven days with a match are shown, said on the card. "Most matches played by any team …, top 5" is the same board, the count asked; "worldwide" adds nothing. (#PR)
+- **Count boards in a window, said any way.** "This week", "last week", "this month", "today" said with the team with the most matches, wins or events counts that team's played matches in those days from the match rows (a match by its own date, else its event's first day), its record there beside it; awards have no date and get no window board. With none in the window yet, the latest seven days with a match are shown, said on the card. "Most matches played by any team …, top 5" is the same board, the count asked; "worldwide" adds nothing. (#1098)
 
 ## 3.8.9 — 2026-11-07
 
