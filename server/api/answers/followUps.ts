@@ -104,6 +104,12 @@ const START: Template[] = [
 
 /** The Worlds phrases the lexicon reads, longest first ("first championship" before "first"). */
 const WORLDS = LEXICON.filter((e) => e.syms.some((x) => x.k === "worlds")).map((e) => e.words.join(" ")).sort((a, b) => b.length - a.length);
+/** FTC's own words (every word of the lexicon's phrases: "alliance", "auto", "worlds"). A place or event typed as one
+ *  of them alone ("if I change the alliance": Alliance, Nebraska) is the word, not the place: no follow-up names it. A
+ *  name of two or more words ("High Point", "New Jersey") was meant. */
+const FTC_WORDS = new Set(LEXICON.flatMap((e) => e.words));
+const meant = (typed: string | undefined) => !!typed && (/\s/.test(typed.trim()) || !FTC_WORDS.has(normalise(typed)));
+
 /** The awards a question can name in one word ("Think"), in the lexicon's order. */
 const AWARDS = AWARD_WORDS.map(([, type]) => type).filter((type) => /^[A-Z][a-z]+$/.test(type));
 
@@ -121,12 +127,12 @@ function answerTeam(a: SearchAnswer): number | undefined {
 export function candidates(p: Parsed, a: SearchAnswer, team = answerTeam(a)): Candidate[] {
   const n = normalise(p.q);
   const worlds = p.worlds ? WORLDS.find((w) => ` ${n} `.includes(` ${w} `)) : undefined;
-  const said = p.event?.typed ?? worlds;
+  const said = (meant(p.event?.typed) ? p.event?.typed : undefined) ?? worlds;
   // As typed, or in title case when typed all in lower case ("north league meet" → "North League Meet").
   const event = said && said === said.toLowerCase() ? said.replace(/(?<![\p{L}\p{N}'])\p{L}/gu, (c) => c.toUpperCase()) : said;
   const teams = p.teams.map((t) => t.number);
   const s: Slots = {
-    t: teams[0] ?? team, u: teams[1], event, place: p.place?.name,
+    t: teams[0] ?? team, u: teams[1], event, place: meant(p.place?.typed) ? p.place?.name : undefined,
     // A season said (a year, a season's two years): a window ("this week") or every season is no season's question.
     when: p.time?.kind === "season" ? p.time.typed : undefined,
     award: p.award ?? undefined,
@@ -226,15 +232,15 @@ export async function followUps(q: string, a: SearchAnswer, prefer: ReadonlySet<
   const [offered, asked] = await Promise.all([Promise.all(shown.map(run)), pick(all.filter((c) => !c.chip).slice(0, CHECK_MAX).map((c) => ({ ...c, run: c.q })), run)]);
   const seen = new Set([a, ...offered].flatMap((x) => (x ? [answerKey(x).toLowerCase()] : [])));
   const ask = fresh(asked, seen, ASK_MAX);
-  // What the questions didn't take, as short searches: never a question's answer again. A search about no team ("who
-  // won <event>", "upcoming events") goes on to the team its questions' answers are about (the winner, the leader).
+  // What the questions didn't take, as short searches: never a question's answer again. Only about what the search
+  // itself is about (its teams, the team its answer is about): never a team that only a question's answer named (a
+  // leaderboard's first, from "top teams" asked under "upcoming events").
   const taken = new Set(ask.map((x) => x.q));
-  const team = p.teams.length || answerTeam(a) != null ? undefined : ask.find((x) => x.team != null)?.team;
-  const more = team != null ? candidates(p, a, team).filter((c) => !all.some((x) => x.q === c.q)) : [];
-  const rest = [...all.filter((c) => !taken.has(c.q)), ...more].slice(0, CHECK_MAX).map((c) => ({ ...c, run: c.short }));
-  // The team's standout matches, beside the answer on a wide screen: the team asked about, else the one it's about.
-  // Run beside the related searches; a related search still comes first to an answer they share.
-  const about = p.teams[0]?.number ?? answerTeam(a) ?? team;
+  const rest = all.filter((c) => !taken.has(c.q)).slice(0, CHECK_MAX).map((c) => ({ ...c, run: c.short }));
+  // The team's standout matches, beside the answer on a wide screen: the team asked about, else the one its answer is
+  // about; none for a search about no team. Run beside the related searches; a related search still comes first to an
+  // answer they share.
+  const about = p.teams[0]?.number ?? answerTeam(a);
   const [picked, lit] = await Promise.all([pick(rest, run), about != null ? pick([{ q: "", short: "", family: "team" as const, run: `${about} highlights` }], run) : []]);
   const related = fresh(picked, seen, RELATED_MAX);
   const [best] = fresh(lit, seen, 1);
@@ -255,6 +261,6 @@ async function pick<C extends Candidate & { run: string }>(cs: C[], run: (q: str
   return cs.flatMap((c, i) => {
     const ans = answers[i];
     const line = ans && !failureOf(c.run, ans, outcomeTrace(ans)) ? lineOf(ans) : null;
-    return ans && line ? [{ ...c, ...line, preview: [line.value, line.rest].filter(Boolean).join(" · "), key: answerKey(ans).toLowerCase(), team: answerTeam(ans) }] : [];
+    return ans && line ? [{ ...c, ...line, preview: [line.value, line.rest].filter(Boolean).join(" · "), key: answerKey(ans).toLowerCase() }] : [];
   });
 }

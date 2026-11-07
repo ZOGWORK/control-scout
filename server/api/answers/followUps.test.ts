@@ -121,6 +121,28 @@ describe("people also ask", () => {
     expect(answerKey(board("Top 10 rookies by OPR in New Jersey · 2025–26"))).not.toBe(answerKey(board("Top 10 teams by OPR in New Jersey · 2025–26")));
   });
 
+  it("never reads one FTC word as the place or event it also names", async () => {
+    const q = "4215 record";
+    const p = await parseQuery(q, await parseContext());
+    const a = await pageAnswer(q, 25, new Set());
+    // "if I change the alliance": the word read as Alliance, Nebraska.
+    const place = (name: string, typed: string) => ({ ...p, place: { kind: "city", country: "USA", state: "NE", city: name, name, typed } }) as typeof p;
+    expect(candidates(place("Alliance", "alliance"), a).filter((c) => /Alliance/.test(c.q))).toEqual([]);
+    expect(candidates({ ...p, event: { typed: "auto" } } as typeof p, a).filter((c) => /\bAuto\b/.test(c.q))).toEqual([]);
+    // A name of two words, or one that isn't FTC's own, is the place.
+    expect(candidates(place("High Point", "high point"), a).some((c) => c.q.includes("in High Point"))).toBe(true);
+    expect(candidates(place("Oradell", "oradell"), a).some((c) => c.q.includes("in Oradell"))).toBe(true);
+  });
+
+  it("offers only what the search is about: never a team only a question's answer named", async () => {
+    // A search about no team: the questions' answers name the season's leaders, but nothing follows about them.
+    const f = await both("upcoming events");
+    expect(f.highlights).toBeUndefined();
+    expect([...f.ask, ...f.related].filter((x) => /\b\d{3,}\b/.test(x.q))).toEqual([]);
+    // A search about a team keeps that team's.
+    expect((await both("4215 record")).related.every((x) => /\b4215\b/.test(x.q) || x.family !== "team")).toBe(true);
+  });
+
   it("says a season the query typed with its preposition once", async () => {
     const q = "4215 record in 2025-26";
     const qs = candidates(await parseQuery(q, await parseContext()), await pageAnswer(q, 25, new Set())).map((x) => x.q);
@@ -180,10 +202,8 @@ describe("the related searches page", () => {
     const titles = async (q: string) => (await relatedPage(q)).groups.map((g) => g.title);
     expect(await titles("4215 record")).toContain("About 4215 Hypnotic Robotics");
     expect(await titles("6980 record")).toContain("About 6980 Bad Wolf");
-    // The starting points' team group is the team they're about (the season's leader), named too.
-    const start = (await titles("")).filter((t) => t.startsWith("About "));
-    expect(start).toHaveLength(1);
-    expect(start.every((t) => /^About \d+ \S/.test(t))).toBe(true);
+    // The starting points are about no team: no team group to name (none is taken from a question's answer).
+    expect((await titles("")).filter((t) => t.startsWith("About "))).toEqual([]);
     // Searches about two teams: no one team to name.
     expect(await teamTitle(4215, [item("4215 record", "team"), item("6980 record", "team")])).toBeUndefined();
     expect(await teamTitle(421, [item("4215 record", "team")])).toBeUndefined();
