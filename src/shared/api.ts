@@ -264,6 +264,8 @@ export interface SearchCard {
   event?: { season: number; code: string; name: string };
   /** The award asked about ("Inspire", FIRST's award type): its places draw as a podium. */
   award?: string;
+  /** The place asked ("who got 2nd place Inspire at …"): marked on the podium. */
+  place?: number;
   /** Every award the event gave, in the event page's order (its Awards tab), so the answer lists them all. */
   awards?: SearchCardAward[];
   /** "Who won <event>": its playoff champions by the winning-alliance rule (server/api/answers/families/winners.ts),

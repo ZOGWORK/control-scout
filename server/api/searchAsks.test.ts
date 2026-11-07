@@ -489,6 +489,7 @@ describe("who won a division (owner: \"who won nj turnpike division this year\" 
     const p = await ask("who got second place think at vermont championship 2024-25");
     expect(p.card?.lines.map((l) => l.text)).toEqual(["6980 Bad Wolf", "4215 Hypnotic Robotics"]);
     expect(p.understood?.label).toBe("Who got 2nd place for the Think Award at Vermont Championship (2024–25)");
+    expect(p.card?.place).toBe(2);
     // No such place given: every place listed, and said so.
     expect((await ask("who got 3rd place think at vermont championship 2024-25")).understood?.label).toBe("Who got 3rd place for the Think Award at Vermont Championship (2024–25) · No 3rd place recorded");
     await run("DELETE FROM awards WHERE season = 2024 AND code = 'USVTCMP'");
