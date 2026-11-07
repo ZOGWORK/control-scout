@@ -25,7 +25,7 @@ A team's quality asked in plain words gets its season's OPR, rank and record: "i
 - [fixes] "Did hypnotic robotics choke at states" shows its states results
 
 ### Search
-- **Plain-language team questions.** "Is <team> actually that good", "can you tell me if <team> is good", "whats up with <team>, are they cracked" and "how good is <team> really" read as "how good is <team>", the season said kept; "did <team> choke (or flop, or do well) at <event>" reads as how it did there; "show me <team> in 2023, if they played then" is that season. Asides such as "or just hype", "or nah", "be honest" and "like in plain numbers" are left out. (#PR)
+- **Plain-language team questions.** "Is <team> actually that good", "can you tell me if <team> is good", "whats up with <team>, are they cracked" and "how good is <team> really" read as "how good is <team>", the season said kept; "did <team> choke (or flop, or do well) at <event>" reads as how it did there; "show me <team> in 2023, if they played then" is that season. Asides such as "or just hype", "or nah", "be honest" and "like in plain numbers" are left out. (#1057)
 
 ## 3.8.6 — 2026-11-07
 
