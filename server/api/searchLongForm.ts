@@ -80,6 +80,8 @@ export function longForm(raw: string): string | null {
   t = t.replace(/(\d)'s\b/g, "$1").replace(/(\w)'s\s/g, "$1 ").replace(/(\w)s'\s/g, "$1s ");
   t = t.trim();
   const start = t;
+  // "my 12345", "our team 12345": whose team it is, never part of what's asked.
+  t = t.replace(/\b(?:my|our)\s+(?=(?:team\s+)?#?\d{1,6}\b)/g, "").trim();
   // Inner fillers go once, before the wrappers are read ("what is like the opr for 12345" → "what is the opr for 12345").
   for (let n = ` ${t} `.replace(FILLERS, ""); n !== ` ${t} `; n = ` ${t} `.replace(FILLERS, "")) t = n.trim();
   for (let changed = true; changed;) {
