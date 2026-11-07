@@ -133,6 +133,22 @@ describe("team facts", () => {
     const names = s.blocks.flatMap((b) => (b.kind === "table" ? b.rows.map((r) => String(r.cells.event)) : []));
     expect(names).not.toContain("Cluj Invitational");
   });
+  it("a season's events in one month, and the best finish named (failed-search #1079, #829, #1091)", async () => {
+    const stat = async (q: string) => (await searchAnswer(q, { limit: 25 })).stat!;
+    const rows = (s: Awaited<ReturnType<typeof stat>>) => s.blocks.flatMap((b) => (b.kind === "table" ? b.rows.map((r) => String(r.cells.event)) : []));
+    // January 2026 is 2025–26's: the surrogate-only qualifier and the remote one.
+    const jan = await stat("19564 events during january 2026");
+    expect(jan).toMatchObject({ title: "Events in January 2026 (2025–26)", headline: { value: "2 events" } });
+    expect(rows(jan).sort()).toEqual(["Chisinau Qualifier", "Moldova Remote Qualifier"]);
+    expect((await stat("did the marvels play at any event in january 2026")).headline).toMatchObject({ value: "2 events" });
+    expect((await stat("what events did the marvels play in march 2026")).headline).toMatchObject({ value: "1 event", sub: "Best finish #4 at Romania National Championship" });
+    expect((await stat("19564 events in may 2026")).none).toContain("no events in May 2026 (2025–26)");
+    // The best finish of the season's events: the remote qualifier's #3, ahead of the championship's #4.
+    expect((await stat("19564 events and best finish in 2025-26")).headline).toMatchObject({ value: "4 events", sub: "Best finish #3 at Moldova Remote Qualifier" });
+    // A month is the events list's filter only: any other answer would drop it.
+    expect(readTeamFact("19564 opr in march 2026")).toBeNull();
+    expect(readTeamFact("19564 events in march 2026")).toMatchObject({ id: "events-season", season: 2025, month: 2 });
+  });
   it("OPR against the world's, a state's and an event's division's average", async () => {
     // Worldwide: the team page's own world rank, and the average over the teams that rank counts, stated.
     expect((await searchAnswer("4215 OPR vs world average", { limit: 25 })).stat!.headline).toMatchObject({ value: "−14.6", sub: expect.stringMatching(/^#616 of 3 by OPR · .* · world average 116\.2 across 3 teams$/) });

@@ -38,7 +38,15 @@ export interface FactQuestion {
   played?: boolean;
   /** "in date order", "oldest first": a place's events listed oldest first (they're newest first otherwise). */
   oldestFirst?: boolean;
+  /** "events in March": a season's events with a day in that month (0-based), its year the season's. */
+  month?: number;
 }
+
+const MONTH_NAMES = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+/** "In March", "during june 2026": a month, the year optional ("May" only after "in" or "during", as it's a word too). */
+const MONTH = /\s(?:in|during)\s+(?:the\s+month\s+of\s+)?(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:\s+(20\d\d))?(?=\s)/;
+/** A month's calendar year in a season (Sep–Dec its first year, Jan–Aug its second). */
+const monthYear = (season: number, month: number) => (month >= 8 ? season : season + 1);
 
 /** "In (date / chronological) order", "oldest first": how a list of events is asked to run. */
 const OLDEST_FIRST = /\s(?:in\s+(?:date\s+|chronological\s+)?order|oldest\s+first|chronologically)(?=\s)/;
@@ -70,7 +78,12 @@ export function readTeamFact(raw: string): FactQuestion | null {
   const typed = ` ${raw.toLowerCase().replace(/['’]s\b/g, "").replace(/[?!,]/g, " ")} `.replace(/\s+/g, " ");
   // How an events list is asked for: its words go, the list keeps them (FactQuestion.played, .oldestFirst).
   const listed = { ...(/\bevents?\s+played\b/.test(typed) ? { played: true } : {}), ...(OLDEST_FIRST.test(typed) ? { oldestFirst: true } : {}) };
-  const q = typed.replace(OLDEST_FIRST, " ").replace(/\b(events?)\s+played\b/, "$1");
+  // A month said ("12345 events in March", "in june 2026"): its season is the year's, else the default season (the
+  // latest completed one, so the month has happened).
+  const mo = MONTH.exec(typed);
+  const month = mo ? MONTH_NAMES.findIndex((n) => n.startsWith(mo[1].slice(0, 3))) : -1;
+  const monthSeason = mo?.[2] ? Number(mo[2]) - (month >= 8 ? 0 : 1) : null;
+  const q = (mo ? typed.replace(mo[0], " ") : typed).replace(OLDEST_FIRST, " ").replace(/\b(events?)\s+played\b/, "$1");
   for (const r of RULES) {
     const m = r.re.exec(q);
     if (!m) continue;
@@ -101,6 +114,9 @@ export function readTeamFact(raw: string): FactQuestion | null {
     // "12345 events" alone is the count, another answer's: the season list needs a season. A question about them
     // ("when is 12345's next event", "what events did 12345 win in 2024") is the asks' own.
     // "This season" is the default season, as the team's other answers read it ("12345 events played this season").
+    // A month is a filter on a season's events only: any other answer would drop it.
+    if (mo && r.id !== "events-season") return null;
+    if (mo) scope.season ??= monthSeason ?? searchSeason();
     if (r.id === "events-season" && scope.season == null && scope.latest) scope.season = searchSeason();
     if (r.id === "events-season" && scope.season == null) return null;
     if ((r.id === "events-season" || r.id === "events-place") && /\b(?:when|next|win|won|did|does|what|which|how|where|awards?|upcoming)\b/.test(q)) return null;
@@ -109,7 +125,7 @@ export function readTeamFact(raw: string): FactQuestion | null {
     // "what does 12345's reliability score mean": the question's own words, never part of the team's name.
     const core = (/^\s*what\b/.test(q) ? rest.replace(/\s(?:mean|means|stand for)\s*$/, " ") : rest).replace(/\b(?:what|whats|what's|is|are|the|of|for|team|ftc|does|did|has|have|its|their)\b/g, " ").replace(/\s+/g, " ").trim();
     // A bare year with nothing else naming a team is the team's number ("2024 reliability").
-    const more = { ...(country ? { country } : {}), ...(r.id === "events-season" || r.id === "events-place" ? listed : {}) };
+    const more = { ...(country ? { country } : {}), ...(r.id === "events-season" || r.id === "events-place" ? listed : {}), ...(mo ? { month } : {}) };
     if (!core && scope.year && scope.season != null) return { id: r.id, core: String(scope.season), season: null, region, world, event, ...more };
     if (!core) return null;
     return { id: r.id, core, season: scope.season, region, world, event, ...more };
@@ -215,12 +231,18 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
     // "Events played": those the team was on the field at (its record, or surrogate matches off it) or a remote event's
     // matches FIRST counts, never the season's upcoming ones.
     const playedAt = (e: { played: number | null; onField: boolean; qualPlayed: number | null }) => (e.played ?? 0) > 0 || e.onField || (e.qualPlayed ?? 0) > 0;
-    const evs = (await teamEvents(season, team.number)).filter((e) => !f.played || playedAt(e));
+    // A month: the events with a day in it ("in March" of 2025–26 is March 2026).
+    const mon = f.month == null ? null : { from: `${monthYear(season, f.month)}-${String(f.month + 1).padStart(2, "0")}-01`, name: `${MONTH_NAMES[f.month][0].toUpperCase()}${MONTH_NAMES[f.month].slice(1)} ${monthYear(season, f.month)}` };
+    const inMonth = (e: { start: string | null; end: string | null }) => !mon || (!!e.start && e.start.slice(0, 7) <= mon.from.slice(0, 7) && (e.end ?? e.start).slice(0, 7) >= mon.from.slice(0, 7));
+    const evs = (await teamEvents(season, team.number)).filter((e) => (!f.played || playedAt(e)) && inMonth(e));
     const what = f.played ? "Events played" : "Events";
-    const b = base("events-season", `${what} in ${S}`, [S], `Every event the team is listed for that season${f.played ? " that it played (on the field, or a remote event's matches)" : ""}, oldest first, with its rank, record and OPR there.`, `From ${possessive(who(team))} ${S} events`);
-    if (!evs.length) return { ...b, none: `${who(team)} has no events${f.played ? " played" : ""} in ${S}.` };
-    return { ...b, headline: { value: `${evs.length} event${evs.length === 1 ? "" : "s"}`, label: S },
-      blocks: [{ kind: "table", title: `${what} in ${S}`, columns: [{ key: "event", label: "Event" }, { key: "date", label: "Date" }, { key: "rank", label: "Rank", num: true }, { key: "record", label: "W-L-T" }, { key: "opr", label: "OPR", num: true }],
+    const when = mon ? `${mon.name} (${S})` : S;
+    const b = base("events-season", `${what} in ${when}`, mon ? [mon.name, S] : [S], `Every event the team is listed for ${mon ? `with a day in ${mon.name}, of the ${S} season` : "that season"}${f.played ? " that it played (on the field, or a remote event's matches)" : ""}, oldest first, with its rank, record and OPR there.`, `From ${possessive(who(team))} ${S} events`);
+    if (!evs.length) return { ...b, none: `${who(team)} has no events${f.played ? " played" : ""} in ${when}.` };
+    // The best finish among them: the best rank, its event named.
+    const best = evs.filter((e) => e.rank != null).sort((x, y) => Number(x.rank) - Number(y.rank))[0];
+    return { ...b, headline: { value: `${evs.length} event${evs.length === 1 ? "" : "s"}`, label: when, ...(best ? { sub: `Best finish #${best.rank} at ${shortEvent(best.name, best.type)}` } : {}) },
+      blocks: [{ kind: "table", title: `${what} in ${when}`, columns: [{ key: "event", label: "Event" }, { key: "date", label: "Date" }, { key: "rank", label: "Rank", num: true }, { key: "record", label: "W-L-T" }, { key: "opr", label: "OPR", num: true }],
         rows: evs.map((e) => ({ cells: { event: shortEvent(e.name, e.type), date: dateRange(e.start, e.end) ?? "–", rank: e.rank ?? "–", record: e.wins == null ? "–" : `${e.wins}-${e.losses}-${e.ties}`, opr: dp(e.opr.np) }, href: eventHref(season, e.code, team.number) })) }] };
   }
 

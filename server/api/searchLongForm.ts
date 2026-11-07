@@ -64,6 +64,10 @@ const RULES: [RegExp, (m: RegExpExecArray) => string][] = [
   [new RegExp(String.raw`^what\s+(?:was|is)\s+${TN}\s+(last|latest|most\s+recent|first|earliest)\s+(?:event|competition|tournament|meet)(.*?),?\s+and\s+(?:what|how)\s+(?:was|is)\s+(?:their|its)\s+(opr|rank|ranking|record)(?:\s+there|\s+at\s+it)?$`), (m) => `${m[1]} ${m[4] === "ranking" ? "rank" : m[4]} at their ${which(m[2])} event${m[3]}`],
   // Its events in a place, or how many and the best of them: its events list (each with its rank), the scope kept.
   [new RegExp(String.raw`^(?:what|which)\s+(?:events?|meets?|competitions?|tournaments?)\s+(?:has|have|did|does)\s+${TN}\s+(?:play(?:ed)?|compete(?:d)?|go\s+to|went\s+to|attend(?:ed)?)\s+in\s+(.+)$`), (m) => `${m[1]} events in ${m[2]}`],
+  // "Did 12345 play at any event in June": the events it played then, a month or a place (the list says none if so).
+  [new RegExp(String.raw`^(?:did|has|have)\s+${TN}\s+(?:play(?:ed)?|compete(?:d)?)\s+(?:at|in)\s+(?:any|an)\s+(?:events?|competitions?|meets?|tournaments?)\s+((?:in|during)\s+.+)$`), (m) => `${m[1]} events played ${m[2]}`],
+  // "12345 events and best finish in 2025-26": the season's events, whose headline names the best finish.
+  [new RegExp(String.raw`^${TN}\s+(?:events?|meets?|competitions?)\s+and\s+(?:their\s+|its\s+|the\s+)?best\s+(?:finish|event|rank(?:ing)?|placement|result)(\s+(?:in|during|for|this|last)\s.*)$`), (m) => `${m[1]} events${m[2]}`],
   [new RegExp(String.raw`^how\s+many\s+(?:events?|meets?|competitions?|tournaments?)\s+(?:has|have|did)\s+${TN}\s+(?:play(?:ed)?(?:\s+in)?|compete(?:d)?(?:\s+in)?|attend(?:ed)?|go\s+to|been\s+to)(.*?),?\s+and\s+which\s+(?:was|were|is)\s+(?:their|its)\s+best(?:\s+(?:one|event|finish))?(?:\s+by\s+(?:rank|finish|placement))?$`), (m) => `${m[1]} events played${m[2]}`],
   // "What is my 12345 (upcoming) event": the team's own, its next.
   [/^(?:what|which|when)\s+(?:is|are|was)\s+my\s+(?:team\s+)?#?(\d{1,6})(?:\s+(?:next|upcoming))?\s+(?:event|events|competition|meet)$/, (m) => `${m[1]} next event`],
