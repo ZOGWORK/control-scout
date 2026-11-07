@@ -162,13 +162,16 @@ export function pace(matches: MatchView[], now: number): Pace {
   // field would reach.
   const lastPosted = Date.parse(playedToday[playedToday.length - 1].scheduledAt ?? "");
   const breakFirst = Number.isFinite(lastPosted) ? isBreak(s1 - lastPosted) : s1 - (lastStart + cycle) > MAX_EARLY_MS;
-  // After a break the posted start holds; else one cycle after the latest real start. Either way it hasn't
-  // started more than MAX_POST_LAG_MS ago (there'd be a score).
-  const first = Math.max(breakFirst ? s1 : lastStart + cycle, now - MAX_POST_LAG_MS);
-  let shift = first - s1;
   // Posted clock times hours off the real field are a mistyped schedule: keep their gaps, not their clock (a
-  // break then doesn't snap back to a posted time that never was).
-  const clockOk = Math.abs(shift) <= MAX_PLAUSIBLE_SHIFT_MS;
+  // break then doesn't snap back to a posted time that never was). Judged on the latest played match's own
+  // posted start where it kept one, before any break is placed; else on the next match's offset.
+  const lastOff = lastStart - lastPosted;
+  const clockOk = Number.isFinite(lastOff) ? Math.abs(lastOff) <= MAX_PLAUSIBLE_SHIFT_MS : Math.abs(lastStart + cycle - s1) <= MAX_PLAUSIBLE_SHIFT_MS;
+  // After a break the posted start holds (moved by the clock's error when the clock is wrong); else one cycle
+  // after the latest real start. Either way it hasn't started more than MAX_POST_LAG_MS ago (there'd be a score).
+  const afterBreak = clockOk || !Number.isFinite(lastOff) ? s1 : s1 + lastOff;
+  const first = Math.max(breakFirst ? afterBreak : lastStart + cycle, now - MAX_POST_LAG_MS);
+  let shift = first - s1;
   const est = new Map<string, number>();
   rest.forEach((m, i) => {
     if (i && clockOk && isBreak(at(m) - at(rest[i - 1]))) shift = Math.min(shift, 0);

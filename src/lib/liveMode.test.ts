@@ -301,4 +301,14 @@ describe("pace: countdowns on the field's real pace", () => {
     expect(p.clockOk).toBe(false);
     expect([est(p, 2), est(p, 3), est(p, 6)]).toEqual([7, 14, 90]); // lunch keeps the shift: no snap back 12 h
   });
+  it("a wrong clock with lunch right after the latest score: the break's gap holds", () => {
+    // Q5 posted 28 but really started 12 h later (at 28); Q6 posted 90 after lunch: due at 90, not during lunch.
+    const ms = [0, 7, 14, 21, 28, 90].map((s, i) => {
+      const n = i + 1;
+      return n <= 5 ? match(n, [n], [n + 10], { played: true, startsAt: t(s), scheduledAt: t(s - 720) }) : match(n, [n], [n + 10], { startsAt: t(s - 720) });
+    });
+    const p = pace(ms, T + 30 * 60_000);
+    expect(p.clockOk).toBe(false);
+    expect(est(p, 6)).toBe(90);
+  });
 });
