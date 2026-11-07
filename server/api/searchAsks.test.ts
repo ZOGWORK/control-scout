@@ -117,6 +117,68 @@ describe("test 16: each intent returns its stated surface", () => {
     expect(a.card!.awards!.filter((x) => x.type === "Inspire").map((x) => [x.placement, x.team])).toEqual([[1, 23268], [2, 4215]]);
     expect(a.card!.awards![0].type).toBe("Inspire");
   });
+  it("Predict itself: a lineup of your own is Custom matchup, picking predictions out is Scheduled matches", async () => {
+    for (const q of ["can i see the odds for teams i choose", "do the predicted scores change if i swap the teams", "who would win a hypothetical match"]) {
+      expect(readAsk(q), q).toEqual({ kind: "predict-lineup" });
+    }
+    const lineup = await ask("can i get a prediction for a match that has not been played yet");
+    expect(lineup.pages[0]).toEqual({ title: "Predict: Custom matchup", href: "/predict?mode=match" });
+    expect(lineup.understood?.label).toMatch(/^Yes: Predict's Custom matchup takes any teams on each alliance\. After changing them, press Predict this match/);
+    expect(readAsk("how do i sort predictions by team")).toEqual({ kind: "predict-filter" });
+    const filter = await ask("is there a way to filter the forecasts by event");
+    expect(filter.pages[0]).toEqual({ title: "Predict: Scheduled matches", href: "/predict?mode=scheduled" });
+    expect(filter.understood?.label).toMatch(/not by date/);
+    // A team named is that team's question, never Predict's help.
+    expect(readAsk("can i filter 4215 predictions")?.kind).not.toBe("predict-filter");
+  });
+  it("a team's predictions page: its matches in Predict; a day's calls: that day's events", async () => {
+    // A name is read only for a team that has played: this test's own played row, whatever ran before it.
+    await run("INSERT OR IGNORE INTO team_event_stats (season, code, team, opr_np, matches) VALUES (?, 'UVPLAYED', 23268, 50, 5)", [S]);
+    await rebuildSearch();
+    const team = await ask("ultraviolet prediction settings");
+    expect(team.hits[0]).toMatchObject({ kind: "team", ref: "23268" });
+    expect(team.pages[0]).toEqual({ title: "Predict Ultraviolet's matches", href: "/predict?mode=scheduled&for=team:23268" });
+    expect(readAsk("predictions for todays matches")).toEqual({ kind: "predict-day", day: "today" });
+    // A place or an event named with the day asks for a filter this list doesn't apply: left to other readers.
+    for (const q of ["predictions for tomorrow's matches in ohio", "today's matches at the state championship predictions", "predictions for tomorrow's playoff matches", "show me predictions for today's matches for hypnotic robotics"]) expect(readAsk(q)?.kind, q).not.toBe("predict-day");
+    expect(readAsk("show me the forecasts for all of tomorrow's matches")).toEqual({ kind: "predict-day", day: "tomorrow" });
+    expect(readAsk("what are the predictions for tomorrow's matches")).toEqual({ kind: "predict-day", day: "tomorrow" });
+    // A closing "if any (are scheduled)" narrows nothing, with or without the filler retry's cut.
+    for (const q of ["give me all forecasts for today's matches, if there are any", "show me all predictions for tomorrow's matches are scheduled"]) expect(readAsk(q)?.kind, q).toBe("predict-day");
+    const none = await ask("tomorrow's matches predictions");
+    expect(none.understood?.label).toMatch(/^Tomorrow \(.+\): no event has matches then/);
+    // End to end, through the query cleaning and the filler retry: the same day answer.
+    expect((await ask("show me all predictions for tomorrow's matches, if any are scheduled")).understood?.label).toMatch(/^Tomorrow \(.+\): no event has matches then/);
+    const day = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'USNJQ9', 'Garden Qualifier', 'Qualifier', 'Union', 'NJ', 'USA', ?, ?, 't')", [CURRENT_SEASON, day, day]);
+    // A workshop plays no matches: never counted. An event with no schedule posted yet has no predictions yet.
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'USNJW9', 'Build Workshop', 'Workshop', 'Union', 'NJ', 'USA', ?, ?, 't')", [CURRENT_SEASON, day, day]);
+    const early = await ask("show me predictions for tomorrows matches");
+    expect(early.understood?.label).toMatch(/^Tomorrow \(.+\): 1 event, none with a match schedule posted yet/);
+    expect(early.hits.map((h) => h.ref)).toEqual([`${CURRENT_SEASON}:USNJQ9`]);
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, source) VALUES (?, 'USNJQ9', 'qual', 0, 1, 'Q1', ?, 0, 't')", [CURRENT_SEASON, `${day}T14:00:00Z`]);
+    const one = await ask("show me predictions for tomorrows matches");
+    expect(one.understood?.label).toMatch(/^Tomorrow \(.+\): 1 event with matches/);
+    expect(one.hits[0]).toMatchObject({ kind: "event", ref: `${CURRENT_SEASON}:USNJQ9` });
+    expect(one.pages[0]).toEqual({ title: "Predict: Garden Qualifier", href: `/predict?mode=scheduled&for=event:${CURRENT_SEASON}:USNJQ9` });
+    // A two-day event whose matches are all the day after (inspection tomorrow): no matches tomorrow, left out. One with
+    // a schedule but no match times yet: kept, said apart. A match late tomorrow evening in California is past midnight
+    // UTC, but tomorrow where it's held: counted.
+    const next = new Date(Date.now() + 2 * 864e5).toISOString().slice(0, 10);
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, timezone, source) VALUES (?, 'USPAT2', 'Two Day Tournament', 'Qualifier', 'Erie', 'PA', 'USA', ?, ?, 'America/New_York', 't'), (?, 'USOHU1', 'Untimed Qualifier', 'Qualifier', 'Akron', 'OH', 'USA', ?, ?, NULL, 't'), (?, 'USCAL1', 'Late Night Qualifier', 'Qualifier', 'Fresno', 'CA', 'USA', ?, ?, 'America/Los_Angeles', 't')",
+      [CURRENT_SEASON, day, next, CURRENT_SEASON, day, day, CURRENT_SEASON, day, day]);
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, source) VALUES (?, 'USPAT2', 'qual', 0, 1, 'Q1', ?, 0, 't'), (?, 'USOHU1', 'qual', 0, 1, 'Q1', NULL, 0, 't'), (?, 'USCAL1', 'qual', 0, 1, 'Q1', ?, 0, 't')",
+      [CURRENT_SEASON, `${next}T15:00:00Z`, CURRENT_SEASON, CURRENT_SEASON, `${next}T04:00:00Z`]);
+    // A venue's wall time (no zone, as FIRST writes them) is its own date, never read again in another zone: an
+    // afternoon match in Brisbane stays tomorrow there.
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, timezone, source) VALUES (?, 'AUBNE1', 'Brisbane Qualifier', 'Qualifier', 'Brisbane', 'QLD', 'Australia', ?, ?, 'Australia/Brisbane', 't')", [CURRENT_SEASON, day, day]);
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, source) VALUES (?, 'AUBNE1', 'qual', 0, 1, 'Q1', ?, 0, 't')", [CURRENT_SEASON, `${day}T15:00:00`]);
+    const mixed = await ask("show me predictions for tomorrows matches");
+    expect(mixed.hits.map((h) => h.ref)).toEqual([`${CURRENT_SEASON}:AUBNE1`, `${CURRENT_SEASON}:USNJQ9`, `${CURRENT_SEASON}:USCAL1`, `${CURRENT_SEASON}:USOHU1`]);
+    expect(mixed.understood?.label).toMatch(/^Tomorrow \(.+\): 4 events, 3 with matches that day, 1 with a schedule posted but no match times yet: their predictions are in Predict$/);
+    await run("DELETE FROM matches WHERE code IN ('USNJQ9', 'USPAT2', 'USOHU1', 'USCAL1', 'AUBNE1')");
+    await run("DELETE FROM events WHERE code IN ('USNJQ9', 'USNJW9', 'USPAT2', 'USOHU1', 'USCAL1', 'AUBNE1')");
+  });
   it("how are predictions calculated: the methodology page in the Pages group", async () => {
     const a = await ask("how are predictions calculated");
     expect(a.pages[0]).toEqual({ title: "How predictions are calculated", href: "/methodology" });
@@ -468,6 +530,30 @@ describe("who won a division (owner: \"who won nj turnpike division this year\" 
     const a = await askAnswer("who won inspire at vermont championship 2024-25", readAsk("who won inspire at vermont championship 2024-25")!, { prefer: new Set(), ask });
     expect(a?.card?.lines.map((l) => l.text)).toEqual(["4215 Hypnotic Robotics"]);
     expect(a?.understood?.label).toBe("Who won the Inspire Award at Vermont Championship (2024–25)");
+    await run("DELETE FROM awards WHERE season = 2024 AND code = 'USVTCMP'");
+    await run("DELETE FROM events WHERE season = 2024 AND code = 'USVTCMP'");
+    await rebuildSearch();
+  });
+  // Failed searches (awards and winners): a season said in words or as one, a short name, and a place asked.
+  // Held out: another event, award, season and place than the reports'.
+  it("an event's award with its season said anywhere, and a place asked: that season, that place first", async () => {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2024, 'USVTCMP', 'Vermont Championship', 'Championship', 'Burlington', 'VT', 'USA', '2025-03-08', '2025-03-08', 't')");
+    await run("INSERT INTO awards (season, code, type, placement, team, name) VALUES (2024, 'USVTCMP', 'Think', 1, 4215, 'Think Award'), (2024, 'USVTCMP', 'Think', 2, 6980, 'Think Award 2nd Place')");
+    await rebuildSearch();
+    const prev = `${CURRENT_SEASON - 1}-${String(CURRENT_SEASON % 100).padStart(2, "0")}`;
+    expect(await awardQuery("Vermont Championship think 2024-25")).toBe("who won think at vermont championship 2024-25");
+    expect(await awardQuery("who won think in vermont championship last year?")).toBe(`who won think at vermont championship ${prev}`);
+    expect(await awardQuery("who got think at vermont championship this season")).toBe("who won think at vermont championship");
+    expect(await awardQuery("who got second place think at vermont championship 2024-25")).toBe("who won 2nd place think at vermont championship 2024-25");
+    const a = await ask("Vermont Championship think 2024-25");
+    expect(a.card?.lines.map((l) => l.text)).toEqual(["4215 Hypnotic Robotics", "6980 Bad Wolf"]);
+    expect(a.understood?.label).toBe("Who won the Think Award at Vermont Championship (2024–25)");
+    const p = await ask("who got second place think at vermont championship 2024-25");
+    expect(p.card?.lines.map((l) => l.text)).toEqual(["6980 Bad Wolf", "4215 Hypnotic Robotics"]);
+    expect(p.understood?.label).toBe("Who got 2nd place for the Think Award at Vermont Championship (2024–25)");
+    expect(p.card?.place).toBe(2);
+    // No such place given: every place listed, and said so.
+    expect((await ask("who got 3rd place think at vermont championship 2024-25")).understood?.label).toBe("Who got 3rd place for the Think Award at Vermont Championship (2024–25) · No 3rd place recorded");
     await run("DELETE FROM awards WHERE season = 2024 AND code = 'USVTCMP'");
     await run("DELETE FROM events WHERE season = 2024 AND code = 'USVTCMP'");
     await rebuildSearch();
