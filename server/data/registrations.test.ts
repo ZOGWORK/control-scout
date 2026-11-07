@@ -109,6 +109,19 @@ describe("syncRegistrations", () => {
 });
 
 describe("event page", () => {
+  it("says when the team list was last read from FIRST, also while FIRST has none", async () => {
+    await event("SOON", "2026-10-31");
+    await event("LATER", "2026-12-31");
+    first({ SOON: [] });
+    await syncRegistrations(S, { now: NOW });
+    // FIRST has no list for SOON yet: the pass that read it still counts; LATER was outside the pass's window.
+    expect((await eventDetail(S, "SOON"))!.teamsSyncedAt).toBe(NOW.toISOString());
+    expect((await eventDetail(S, "LATER"))!.teamsSyncedAt).toBeNull();
+    // A full fetch since is the newer read.
+    await run("UPDATE events SET detail_synced_at = ? WHERE season = ? AND code = 'SOON'", ["2026-10-28T09:00:00.000Z", S]);
+    expect((await eventDetail(S, "SOON"))!.teamsSyncedAt).toBe("2026-10-28T09:00:00.000Z");
+  });
+
   it("shows the registered teams as the field, counted, and marked as registrations", async () => {
     await event("SOON", "2026-10-31");
     first({ SOON: [team(3944, "Team Mercury"), team(8421, "Tigers")] });

@@ -50,6 +50,7 @@ import { HeaderActions } from "../components/EventActions";
 import { EventStatusChip, EventTypeChip, LiveDot } from "../components/EventChips";
 import { WatchLive } from "../components/WatchLive";
 import { isLiveMode, nextMatch, useEventPoll } from "../lib/liveMode";
+import { TeamsSource } from "../components/TeamsSource";
 import { ago, agoSeconds, awardLabel, dateRange, num, place, seasonLabel } from "../lib/format";
 import { scrollToElement, smoothBehavior } from "../lib/pageScroll";
 import { eventTab } from "../lib/eventTab";
@@ -166,7 +167,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
           <Luggage className="size-4 text-accent" aria-hidden />Event-day bundle
         </Link>
       )}
-      <p className="mt-3 text-[11px] text-muted-foreground">Source: {e.source === "first" ? "FIRST Events API" : "FTC Scout"}</p>
+      <TeamsSource d={d} provisional={!!provisionalTeams} />
     </>
   );
   // Before FIRST's list: the regional site's registered teams (the waitlist isn't counted). For one session of an
@@ -287,7 +288,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
         <TabsContent value="teams" className="mt-5 max-sm:mt-4">
           {provisionalTeams ? <ProvisionalTeams p={provisionalTeams} season={e.season} team={teamParam} />
             : shared ? <SharedSessionTeams s={shared} season={e.season} team={teamParam} />
-            : <TeamsGrid field={d.field} season={e.season} team={teamParam} predictable={predictable} registered={d.registered ?? null} />}
+            : <TeamsGrid field={d.field} season={e.season} team={teamParam} predictable={predictable} registered={d.registered ?? null} syncedAt={d.teamsSyncedAt} />}
         </TabsContent>
         <TabsContent value="playoffs" className="mt-5 max-sm:mt-4"><Playoffs d={d} /></TabsContent>
         <TabsContent value="awards" className="mt-5 max-sm:mt-4"><Awards d={d} nameOf={nameOf} /></TabsContent>
@@ -627,14 +628,14 @@ function RankingTable({ field, season, team, code, schedule }: { field: FieldRow
 
 /** Teams (N): everyone registered, as cards — rank, OPR and rating at a glance, searchable. At a league meet:
  *  the teams at this meet, with the meet's own rank and record (src/shared/eventStanding.ts). */
-function TeamsGrid({ field: all, season, team, predictable, registered }: { field: FieldRow[]; season: number; team: number | null; predictable: boolean; registered: EventDetail["registered"] }) {
+function TeamsGrid({ field: all, season, team, predictable, registered, syncedAt }: { field: FieldRow[]; season: number; team: number | null; predictable: boolean; registered: EventDetail["registered"]; syncedAt?: string | null }) {
   const field = eventRoster(all).map((t) => ({ ...t, ...eventStanding(t) }));
   const [q, setQ] = useState("");
   const f = q.trim().toLowerCase();
   const list = [...field]
     .filter((t) => !f || `${t.team} ${t.name ?? ""} ${t.city ?? ""} ${t.state ?? ""}`.toLowerCase().includes(f))
     .sort((a, b) => a.team - b.team);
-  if (!field.length) return <EmptyState icon={Users} title="No teams registered yet" description="The team list appears once FIRST publishes it." />;
+  if (!field.length) return <EmptyState icon={Users} title="No teams published for this event yet" description={`FIRST hasn't published this event's team list. Last checked ${ago(syncedAt)}; it appears here once FIRST publishes it.`} />;
   return (
     <div className="space-y-4">
       {/* Before rankings or a schedule: FIRST's registered teams, which can still change until the event. */}

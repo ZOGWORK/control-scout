@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.8.7 — 2026-11-07
+
+An event page says where its team list comes from and when it was last read: FIRST's list, FTC New Jersey's provisional one before FIRST publishes, or that FIRST has published no teams yet.
+
+### Highlights
+- [teams] Event pages say where their team list comes from
+- [teams] "Last synced" time on every event's team list
+- [fixes] No teams published yet is said plainly, with when it was checked
+
+### Event pages
+- **Source line.** Under the event header: "Source: FIRST Events API · last synced 2 h ago" for FIRST's list, "FTC New Jersey · provisional, FIRST has not published teams yet" while that list is shown, "FTC Scout (FIRST couldn't serve this event)" when it is the fallback, or "FIRST Events API · no teams published yet · last checked …". A list on an event that isn't over and hasn't been read for 36 hours says it may be out of date. The time is the server's last read of the event from FIRST, its full fetch or its registrations (`teamsSyncedAt`).
+- **Empty Teams tab.** "No teams published for this event yet", with when FIRST was last checked. (#PR)
+
 ## 3.8.4 — 2026-11-07
 
 The search sign-off grader counts a season's matches as a record answer: "17670 matches this season" answers with its W-L-T record and every match, dated.
