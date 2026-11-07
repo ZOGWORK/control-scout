@@ -260,6 +260,9 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   if (intent === "highlights") return highlights(p, scope, opts);
   // Matches by a measure, or the best ones with a filter the season records don't take (a match type, a kind of
   // event): the match finder.
+  // Matches with no measure said are a window's only ("matches from yesterday"), listed best first; "matches" alone,
+  // a place's or a match type's ("playoff matches in NJ") are left to search.
+  if (intent === "top-matches" && !p.teams.length && !p.symbols.includes("agg:max") && !scope.window) return null;
   const kind = p.event ? eventKindOf(normalise(p.event.words)) : p.eventKind ? eventKindOf(p.eventKind) : null;
   if (!p.teams.length && (FIND[intent] || (intent === "top-matches" && (p.level || p.finals || kind)))) {
     if (((p.event || p.eventKind) && !kind) || p.worlds || p.states || p.alliance || scope.ever || (p.place && p.place.kind === "city")) return null;
@@ -293,9 +296,6 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     if (counted && BOARD_STATS[counted.stat]?.count) return boardSearch(p.q, counted, opts);
   }
   if (!p.teams.length && intent === "top-matches") {
-    // Matches with no measure said are a window's only ("matches from yesterday"), listed best first; "matches" alone
-    // or a place's are left to search.
-    if (!p.symbols.includes("agg:max") && !scope.window) return null;
     if (p.event || p.worlds || p.states || p.level || p.alliance || (p.place && p.place.kind === "city")) return null;
     // "The highest-scoring match": one match; "matches", "scores", "top 5", or no match said ("highest score in
     // decode"): a list.
