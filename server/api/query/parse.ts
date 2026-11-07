@@ -293,6 +293,27 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     for (const t of toks) if (!t.used && AWARD_ONE_WORD.has(t.w)) { p.award = AWARD_ONE_WORD.get(t.w)!; t.used = true; }
   }
 
+  // One word left on its own, of a named team's own event's name ("<team> last prediction for <word>"): that event,
+  // its latest (in the season or the year said), once every team is settled. Never a kind of event's word ("league",
+  // "qualifiers": read below) or a word of its own kind ("meet"). Tried before a near miss of a team's name, so a team
+  // named nearly so ("Rivertide" for "riverside") never takes a named team's own event word. A name several teams share
+  // reads every one of them's events here, and the event is checked again once the name is settled (below).
+  const when = (() => {
+    const t = p.time;
+    return { season: t?.kind === "season" && t.year == null ? t.season : t?.kind === "window" ? t.season : null, year: t?.kind === "season" ? t.year ?? null : null };
+  })();
+  let ownWord: Tok | null = null;
+  const ownEventWord = async (one: Tok): Promise<boolean> => {
+    if (p.event || !p.teams.length || !ctx.teamEvent || one.w.length < 3 || KIND_WORDS.has(one.w) || EVENT_TYPES[one.w.replace(/s$/, "")] || EVENT_TYPES[one.w]) return false;
+    const name = await ctx.teamEvent(one.w, p.teams.flatMap((x) => (x.candidates && !x.rule ? x.candidates : [x.number])), when);
+    if (!name) return false;
+    p.event = { words: name, typed: one.typed, latest: true };
+    one.used = true;
+    ownWord = one;
+    if (!toks.some((x) => x !== one && KIND_WORDS.has(x.w))) symbols.delete("thing:event");
+    return true;
+  };
+
   // 4. The words left, in runs: an event's name, a place, or a team's name typed nearly right.
   const runs: { from: number; to: number }[] = [];
   for (let i = 0; i < toks.length; i++) {
@@ -350,6 +371,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     // read as filler ("the roocats": The Robocats) or a colour read as an alliance, so the words just before the run are
     // tried with it first; a colour taken into the name is no longer an alliance, and the alliance is the one the
     // phrases outside the name said ("on red blue lanternfsh": red).
+    if (from === to && await ownEventWord(toks[from])) continue;
     if (!ctx.nearTeam || words().length < 3 || /^\d+$/.test(words())) continue;
     for (const k of [2, 1, 0]) {
       const start = from - k;
@@ -380,22 +402,12 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       if (pick.rule) { Object.assign(t, pick); more = true; }
     }
   }
-  // One word left on its own, of a named team's own event's name ("<team> last prediction for <word>"): that event,
-  // its latest (in the season or the year said), once every team is settled. Never a kind of event's word ("league",
-  // "qualifiers": read above) or a word of its own kind ("meet").
-  if (!p.event && p.teams.length && ctx.teamEvent && !p.teams.some((t) => t.candidates && !t.rule)) {
-    const t = p.time;
-    const when = { season: t?.kind === "season" && t.year == null ? t.season : t?.kind === "window" ? t.season : null, year: t?.kind === "season" ? t.year ?? null : null };
-    for (const [i, one] of toks.entries()) {
-      if (one.used || toks[i - 1]?.used === false || toks[i + 1]?.used === false) continue;
-      if (one.w.length < 3 || KIND_WORDS.has(one.w) || EVENT_TYPES[one.w.replace(/s$/, "")] || EVENT_TYPES[one.w]) continue;
-      const name = await ctx.teamEvent(one.w, p.teams.map((x) => x.number), when);
-      if (!name) continue;
-      p.event = { words: name, typed: one.typed, latest: true };
-      one.used = true;
-      if (!toks.some((x) => x !== one && KIND_WORDS.has(x.w))) symbols.delete("thing:event");
-      break;
-    }
+  // The one-word event, checked again among the teams as settled: none of theirs, and the word is left unread.
+  const own = ownWord as Tok | null;
+  if (own && p.event?.latest && ctx.teamEvent && !p.teams.some((t) => t.candidates && !t.rule)) {
+    const name = await ctx.teamEvent(own.w, p.teams.map((t) => t.number), when);
+    if (name) p.event = { ...p.event, words: name };
+    else { p.event = null; own.used = false; }
   }
   p.leftover = toks.filter((t) => !t.used).map((t) => t.typed);
   if (unread) p.leftover.unshift(unread);

@@ -18,7 +18,7 @@ beforeAll(async () => {
   setDb(c);
   await migrate(c);
   // Two teams named Gearheads: only 31002 was at Riverside.
-  for (const [n, name] of [[7149, "ENFORCERS"], [23268, "Ultraviolet"], [6980, "Bad Wolf"], [31001, "Gearheads"], [31002, "Gearheads"]] as const) {
+  for (const [n, name] of [[7149, "ENFORCERS"], [23268, "Ultraviolet"], [6980, "Bad Wolf"], [31001, "Gearheads"], [31002, "Gearheads"], [31003, "Rivertide"]] as const) {
     await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, 'Oradell', 'NJ', 'USA')", [n, name]);
     for (const s of [S - 1, S]) await run("INSERT INTO team_seasons (season, team) VALUES (?, ?)", [s, n]);
   }
@@ -76,6 +76,11 @@ describe("one word of a named team's own event", () => {
     const a = await ask("7149 forecast at bayview");
     expect(a.stat).toMatchObject({ intent: "pipeline-team-predict-event", title: "Prediction vs result at Bayview Scrimmage Cup" });
     expect(a.understood!.season).toBe(S - 1);
+  });
+  it("comes before a team named nearly the same word", async () => {
+    const p = await parse("7149 prediction at riverside");
+    expect(p.teams.map((t) => t.number)).toEqual([7149]);
+    expect(p.event).toMatchObject({ typed: "riverside" });
   });
   it("is read once a name several teams share is settled", async () => {
     expect((await parse("gearheads prediction at riverside", ["team:31002"])).event).toMatchObject({ typed: "riverside" });
