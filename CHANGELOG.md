@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.9.6 — 2026-11-07
+
+Questions about what a word means are answered however they're framed, two words at once, or with a team's own numbers.
+
+### Highlights
+- [fixes] "teleop explained" says what auto, TeleOp and endgame are
+- [fixes] "difference between OPR and rating" shows both, side by side
+- [fixes] "how is OPR calculated, with 4215" shows its numbers too
+- [fixes] "what is the game this season" names the season's game
+
+### Search
+- **What a word means, asked any way.** Framing such as "explained", "in plain words" or "for a beginner" is set aside; "the difference between" two words gives each one's lines; a word asked for one team ("what does ranking score mean, for 14450 at …", "why did 4215's rating go down even though they won") gives that team's own stat with the word's explainer under it; and "the game this season" or "last season" names that season's game. (#1065)
+
 ## 3.9.5 — 2026-11-07
 
 A team's TeleOp, Auto or Endgame OPR and its reliability can be asked as a trend, event by event, and "how has <team> changed from last season" shows its OPR change.
