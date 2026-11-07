@@ -22,6 +22,8 @@ beforeAll(async () => {
     // The highest rating in Ohio, on too few matches to be ranked: never its top team.
     [30001, "Buckeye Bots", "OH", "USA", 300, 2], [30002, "Lake Erie Robotics", "OH", "USA", 120, 8],
     [14270, "Quantum Robotics", null, "Romania", 180, 12], [24033, "Alphatronic", null, "Romania", 110, 9],
+    // A country whose name has "and" in it.
+    [31001, "Island Engineers", null, "Trinidad and Tobago", 130, 9], [31002, "Port of Spain Robotics", null, "Trinidad and Tobago", 90, 9],
   ];
   for (const [n, name, state, country, rating, rm] of teams) {
     await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, 'Town', ?, ?)", [n, name, state, country]);
@@ -47,6 +49,19 @@ describe("a place's top team, said as one of two teams", () => {
     }
     // One phrase beside a team named.
     expect((await ask("predict the strongest new jersey team vs 24033")).stat).toMatchObject({ intent: "predict", teams: [{ number: 23268 }, { number: 24033 }] });
+  });
+  it("a place whose own name holds 'and' is read whole, in any position, while 'and' after a place still joins", async () => {
+    for (const q of [
+      "predict the best team from trinidad and tobago against the top team in romania",
+      "who would win between the top team in romania and the strongest team in trinidad and tobago",
+      "predict the top trinidad and tobago team vs 14270",
+    ]) {
+      const a = await ask(q);
+      expect(a.stat?.intent, q).toBe("predict");
+      expect((a.stat?.teams ?? []).map((t: { number: number }) => t.number).sort(), q).toEqual([14270, 31001]);
+      expect(a.understood?.label, q).toMatch(/[Tt]he top Trinidad and Tobago team by prediction rating in .+ is Island Engineers \(31001\)/);
+    }
+    expect((await ask("who would win between the top team in ohio and 14270")).stat).toMatchObject({ intent: "predict", teams: [{ number: 30002 }, { number: 14270 }] });
   });
   it("leaves alone a leaderboard, a place with no ranked team, and words that aren't a place", async () => {
     expect((await ask("top teams in new jersey")).stat?.intent).toBe("top-rating");
