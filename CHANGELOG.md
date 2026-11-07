@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.9.1 — 2026-11-07
+
+A team's next event asked about as a forecast, and "will <team> win <event>", answer with the engine's own projection for that event.
+
+### Highlights
+- [predict] "<team> next event prediction" shows its chance to win it
+- [predict] "Will <team> win <event>" shows the forecast there
+- [predict] "Will <team> win states" and "win worlds" read their own event
+
+### Search
+- **Next event, said as a forecast.** "Next event prediction", "next meet forecast" and "prediction for their next event" read as the stored projection for the team's next event, led by its chance to win it.
+- **"Will" with a win and an event.** "Will <team> win <event>", "… win states" and "… win worlds" are the forecast at that event; "will" with no event or no win ("will <team> advance", "when will <team> play next") keeps its own answer. (#1072)
+
 ## 3.9.0 — 2026-11-07
 
 On an event day before the schedule is out, the LIVE box says it's waiting for the schedule. It no longer says your teams are done, and it names only your teams that are at the event.

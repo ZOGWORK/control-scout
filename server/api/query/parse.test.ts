@@ -64,6 +64,15 @@ describe("slots", () => {
     const p = await parse("predicted chances of 4215 east bergen conference");
     expect(p).toMatchObject({ intent: "team-predict", complete: true, teams: [{ number: 4215 }], event: { words: "east bergen conference" }, time: null });
   });
+  it("reads 'will <team> win <event>' as the forecast at that event; 'will' alone asks nothing", async () => {
+    for (const q of ["will 6980 win the east bergen conference", "will hypnotic robotics win at nj championship", "will 23268 win states", "will 24033 win worlds"]) {
+      expect(await parse(q), q).toMatchObject({ intent: "team-predict", complete: true });
+    }
+    // No event named, or no win asked: never this forecast.
+    for (const q of ["will 6980 win their next match", "when will 4215 play next", "will 4215 advance to worlds"]) {
+      expect((await parse(q)).complete, q).toBe(false);
+    }
+  });
   it("reads two alliances of two either side of a vs, any wording, as a match's call", async () => {
     for (const q of [
       "predict 4215 6980 vs 24033 23268", "4215 and 6980 vs 24033 and 23268 who wins", "custom matchup 4215 6980 vs 24033 23268",
