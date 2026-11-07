@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.9.0 — 2026-11-07
+
+Who a team should pick at an event is a question search answers, with Scout's pick helper on that event's teams: the partner that fills the team's gaps first.
+
+### Highlights
+- [picklist] "Who should <team> pick at <event>" ranks the event's teams
+- [picklist] "Teams that complement <team>'s weak endgame" shows endgame
+- [picklist] After selection, the suggestions beside who was picked
+
+### Search
+- **Who to pick.** "Who should <team> pick at <event>", "best second pick for <team> at worlds", "which alliance partner would be best for <team> at <event>" and "teams that complement <team>'s weak endgame" are the pick helper's suggestions at that event (its Worlds or state championship division; none named, the team's next event, else its latest), the partner covering the most of its radar first. A stat named gets its own column; once selection is over, the suggestions as it opened sit beside the partners actually picked. (#1093)
+
 ## 3.8.9 — 2026-11-07
 
 A league meet's page lists the teams FIRST lists for that meet, not every team in its league. The day before a meet, FIRST's rankings for it are the league's running standing, and Control Scout had been taking them as the meet's team list (P1-5 AM Northeast League Meet: 33 teams shown, FIRST lists 13).
