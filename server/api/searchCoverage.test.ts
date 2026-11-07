@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { get, migrate, openDb, run, setDb } from "../db";
 import { rebuildSearch } from "../stats/job";
 import { searchAnswer } from "./searchAnswer";
-import { explainAnswer, placeTeamsAnswer, rewriteQuery, teamListAnswer } from "./searchCoverage";
+import { explainAnswer, explainTeamAnswer, placeTeamsAnswer, rewriteQuery, teamListAnswer } from "./searchCoverage";
 import { CURRENT_SEASON } from "../data/seasons";
 import { pageMeta } from "../seoMeta";
 import { seasonLabel } from "../../src/shared/format";
@@ -487,5 +487,46 @@ describe("failed-search issues (11-04)", () => {
     }
     // A misspelled game with "$" left on it is read by position, never as a pattern (Greptile on #536).
     expect(() => rewriteQuery("jackson division decode$")).not.toThrow();
+  });
+});
+
+// What a word means, asked with framing, two words at once, a team's own numbers, or the season's game (failed-search
+// issues 792, 910, 966, 911, 957, 997). Each phrasing here is held out: none is an issue's own words.
+describe("explain questions, asked any way", () => {
+  it("a word with framing round it: \"explained\", \"in simple terms\", \"for beginners\"", () => {
+    for (const q of ["autonomous explained", "endgame explained simply", "explain teleop to me", "what is driver controlled, in simple terms", "opr explained for beginners"])
+      expect(explainAnswer(q)?.card?.kind, q).toBe("info");
+    expect(explainAnswer("auto explained")?.card?.title).toBe("A match's periods: auto, TeleOp and endgame");
+    expect(explainAnswer("auto explained")?.card?.lines.map((l) => l.text).join(" ")).toMatch(/2-minute driver-controlled/);
+    expect(explainAnswer("4215 explained")).toBeNull();
+  });
+  it("two words compared: each one's own lines", () => {
+    const a = explainAnswer("what is the difference between the rating and OPR?");
+    expect(a?.card?.title).toBe("The prediction rating and OPR: the difference");
+    expect(a?.card?.lines.map((l) => l.href)).toEqual(["/methodology#rating", "/methodology#rating", "/methodology#opr", "/methodology#opr"]);
+    expect(explainAnswer("how is opr different from reliability, explained simply")?.card?.title).toMatch(/^OPR and the reliability index/);
+    expect(explainAnswer("difference between opr and 4215")).toBeNull();
+  });
+  it("the season's game, by \"this season\" or \"last season\"", () => {
+    expect(explainAnswer("what is this season's game")?.card?.title).toContain(`the ${seasonLabel(CURRENT_SEASON)} FTC game`);
+    expect(explainAnswer("what was the game last season")?.card?.title).toBe(`${explainAnswer("what was the game last season")?.card?.title.split(":")[0]}: the ${seasonLabel(CURRENT_SEASON - 1)} FTC game`);
+    expect(explainAnswer("current ftc game")?.card?.title).toContain(seasonLabel(CURRENT_SEASON));
+  });
+  it("a word for one team: the team's own stat, with the word's explainer under it", async () => {
+    const a = await explainTeamAnswer("what does opr mean for 4215, step by step", ask);
+    expect(a?.stat?.team?.number).toBe(4215);
+    expect(a?.stat?.headline?.value).toBe("101.6");
+    expect(a?.card?.title).toBe("OPR: what it is and how it's worked out");
+    // The question asked of the stat answers, and a "why did it drop" asks the rating's change.
+    const asked: string[] = [];
+    const spy = async (x: string) => { asked.push(x); return ask(x); };
+    await explainTeamAnswer("explain how 6980's rating is worked out", spy);
+    await explainTeamAnswer("why did 6980 rating drop after they won", spy);
+    await explainTeamAnswer("ranking points meaning for 6980 at the FIRST Championship", spy);
+    expect(asked).toEqual(["6980 rating", "6980 rating change", "6980 rank at the first championship"]);
+    const why = await explainTeamAnswer("why did 6980 rating drop after they won", ask);
+    expect(why?.card?.lines[0].text).toMatch(/not on who won/);
+    // No meaning asked, or no team named: not this answer.
+    for (const q of ["4215 mean opr", "what is 4215's opr", "how is opr calculated", "what does opr mean for teams"]) expect(await explainTeamAnswer(q, ask), q).toBeNull();
   });
 });
