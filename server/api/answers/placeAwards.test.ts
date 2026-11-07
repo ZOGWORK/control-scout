@@ -132,6 +132,13 @@ describe("a place's award winners", () => {
     expect((await placeAwardsAnswer((await readPlaceAwards("did any Ohio team make worlds finals"))!)).headline?.value).toBe("No");
     // "Last year" at Worlds is the latest Championship that has finished, as the winners answer reads it.
     expect(await readPlaceAwards("did any Ontario team win Connect at worlds last year")).toMatchObject({ season: S, worlds: true });
+    // Greptile on #1100: "last season" keeps its meaning at Worlds; a list is one season; a team that sat out won nothing.
+    expect(await readPlaceAwards("did any Ontario team win Connect at worlds last season")).toMatchObject({ season: S - 1 });
+    expect(tx.scope.at(-1)).not.toBe("All seasons");
+    await run("UPDATE match_teams SET on_field = 0 WHERE code = 'FTCCMP1' AND team = 33333");
+    expect(rows(yes).length).toBe(2);
+    expect(rows(await placeAwardsAnswer(ask!)).map((r) => [r.team, r.won])).toEqual([["22222 Maple Gears", "No"], ["33333 Northern Bolts", "No"]]);
+    await run("UPDATE match_teams SET on_field = 1 WHERE code = 'FTCCMP1' AND team = 33333");
     expect(await readPlaceAwards("worlds finals")).toBeNull();
   });
   // Greptile on #1100.

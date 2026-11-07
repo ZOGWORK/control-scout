@@ -69,8 +69,9 @@ export async function readPlaceAwards(q: string): Promise<PlaceAwardsAsk | null>
   const stage = st ? (/^final/.test(st[1]) ? "finals" : "playoffs") : undefined;
   const worlds = !!stage || !!cut(new RegExp(String.raw`\s(?:at|in)\s+${WORLDS}(?=\s)`));
   // "This season" is search's own (the latest completed one, ../season.ts), "last season" the one before it. At
-  // Worlds "last year" is the latest Championship that has finished, as the winners answer reads it (that same season).
-  const season = !sm ? null : sm[2] ? Number(sm[2]) : searchSeason() - (seasonSaid === "this" || worlds ? 0 : 1);
+  // Worlds "last year" is the latest Championship that has finished, as the winners answer reads it (that same season);
+  // "last season" keeps its meaning everywhere.
+  const season = !sm ? null : sm[2] ? Number(sm[2]) : searchSeason() - (seasonSaid === "this" || (worlds && /\byear$/.test(sm[0])) ? 0 : 1);
   const byM = cut(/\s(?:by|on|ranked\s+by|sorted\s+by)\s+(auto|teleop|endgame|opr|rating)(?:\s+opr)?(?=\s)/);
   const types: string[] = [];
   for (const [re, type] of AWARDS) if (cut(re) && !types.includes(type)) types.push(type);
@@ -133,10 +134,11 @@ function placeSql(p: Place | null): { sql: string; args: (string | null)[] } {
  *  winners) or any division's playoffs. */
 async function stageAnswer(ask: PlaceAwardsAsk): Promise<StatAnswer> {
   const where = placeSql(ask.place);
-  const season = ask.season;
+  // As with awards: a list is one season (the one said, else the latest completed one); "any" with none said, every season.
+  const season = ask.season ?? (ask.mode === "any" ? null : searchSeason());
   const rows = await all<{ season: number; code: string; event: string; etype: string | null; team: number; team_name: string | null; won: number }>(
     `SELECT e.season, e.code, e.name event, e.type etype, mt.team, t.name team_name,
-            MAX(CASE WHEN (mt.alliance = 'red' AND m.red_total > m.blue_total) OR (mt.alliance = 'blue' AND m.blue_total > m.red_total) THEN 1 ELSE 0 END) won
+            MAX(CASE WHEN mt.on_field = 1 AND ((mt.alliance = 'red' AND m.red_total > m.blue_total) OR (mt.alliance = 'blue' AND m.blue_total > m.red_total)) THEN 1 ELSE 0 END) won
      FROM matches m JOIN match_teams mt ON mt.season = m.season AND mt.code = m.code AND mt.level = m.level AND mt.series = m.series AND mt.number = m.number
      JOIN events e ON e.season = m.season AND e.code = m.code JOIN teams t ON t.number = mt.team
      WHERE e.type = ? AND m.level = 'playoff' AND m.played = 1${ask.stage === "finals" ? " AND e.division_code IS NULL" : ""} AND ${where.sql}${season != null ? " AND e.season = ?" : ""}
