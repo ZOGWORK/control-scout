@@ -524,9 +524,10 @@ export async function explainTeamAnswer(q: string, ask: (q: string) => Promise<S
   // A change with nothing on record to show it ("no weekly ratings are kept"): the team's own number instead.
   let a = await of(moved && e.change ? e.change : e.stat!);
   if (moved && e.change && a.stat?.none) a = await of(e.stat!);
-  if (a.weak || !a.stat?.team) return null;
+  // A team's stat answer, read the same in the dropdown (no `stat` worked out there) and on the page.
+  if (a.weak || !a.intent?.kind.startsWith("stat-") || a.hits[0]?.kind !== "team") return null;
   const lines = moved && e.why ? [...e.why, ...e.lines] : e.lines;
-  const label = `${a.understood?.label ?? a.stat.title} · ${e.label.split(":")[0]} explained`;
+  const label = `${a.understood?.label ?? a.hits[0].title} · ${e.label.split(":")[0]} explained`;
   return { ...a, q, card: { kind: "info", title: e.label, lines }, pages: [...e.pages, ...(a.pages ?? []).filter((p) => !e.pages.some((x) => x.href === p.href))], understood: { ...(a.understood ?? { kind: "question" }), label } };
 }
 

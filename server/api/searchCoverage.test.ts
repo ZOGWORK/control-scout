@@ -530,6 +530,10 @@ describe("explain questions, asked any way", () => {
     // No weekly ratings kept to show the change: the team's own season rating, never an empty panel.
     expect(why?.stat?.none).toBeUndefined();
     expect(why?.stat?.team?.number).toBe(6980);
+    // The dropdown (no `stat` worked out) reads it the same: the team found, the explainer under it.
+    const quick = await explainTeamAnswer("what does opr mean for 4215, step by step", (x) => searchAnswer(x, { limit: 15, learn: false }));
+    expect(quick?.hits[0]).toMatchObject({ kind: "team", ref: "4215" });
+    expect(quick?.card?.title).toBe("OPR: what it is and how it's worked out");
     // No meaning asked, or no team named: not this answer.
     for (const q of ["4215 mean opr", "what is 4215's opr", "how is opr calculated", "what does opr mean for teams"]) expect(await explainTeamAnswer(q, ask), q).toBeNull();
   });
