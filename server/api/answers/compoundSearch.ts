@@ -13,7 +13,7 @@ import { teamEventSet, type TeamEvent } from "./eventSet.js";
 import { teamMatches } from "./matchSet.js";
 import { searchSeason } from "./season.js";
 import { awardsAnswer } from "./families/awards.js";
-import { beatTopAnswer, combinedAnswer, eventPairAnswer, eventPicksAnswer, listAnswer, listTitle, marginAnswer, oprExcludingAnswer, reliabilitySetAnswer, sideThresholdAnswer, winLossAverageAnswer } from "./families/compound.js";
+import { beatTopAnswer, combinedAnswer, eventPairAnswer, eventPicksAnswer, listAnswer, listPairAnswer, listTitle, marginAnswer, oprExcludingAnswer, reliabilitySetAnswer, sideThresholdAnswer, winLossAverageAnswer } from "./families/compound.js";
 import { matchAnswer, whoOf, type AnswerTeam } from "./families/matches.js";
 import { compareAnswer } from "./families/twoTeam.js";
 import type { Resolve } from "./index.js";
@@ -27,7 +27,7 @@ export interface CompoundDeps {
 }
 type Opts = { full: boolean; pages: SearchPageLink[] };
 
-const TITLES: Record<Exclude<CompoundQuestion["kind"], "list" | "set-best">, string> = {
+const TITLES: Record<Exclude<CompoundQuestion["kind"], "list" | "list-pair" | "set-best">, string> = {
   "event-pair": "OPR at their first event, two seasons", margin: "Matches by margin", combined: "Two answers", "side-threshold": "Partners by OPR",
   "beat-top": "Wins against top-ranked teams", "event-picks": "Best and worst events", "win-loss-average": "Average score in wins and losses", "opr-excluding": "OPR without one event",
 };
@@ -76,6 +76,7 @@ function noEventAnswer(q: string, words: string, team: AnswerTeam, top: SearchHi
 
 export async function compoundSearch(q: string, c: CompoundQuestion, resolve: Resolve, opts: Opts, deps: CompoundDeps): Promise<SearchAnswer | null> {
   if (c.kind === "list") return listSearch(q, c, opts);
+  if (c.kind === "list-pair") return listPairSearch(q, c, opts);
   if (c.kind === "set-best") return setSearch(q, c, resolve, opts);
   const base = await resolve(c.core);
   const top = base.step !== "recovery" ? base.hits[0] : undefined;
@@ -174,6 +175,21 @@ async function listSearch(q: string, c: Extract<CompoundQuestion, { kind: "list"
   };
   if (!opts.full) return { ...answer, pages: [{ title: label, href: `/search?q=${encodeURIComponent(q)}` }, ...opts.pages] };
   const stat = await listAnswer(c);
+  return stat ? { ...answer, understood: { ...answer.understood!, label: stat.title }, stat } : null;
+}
+
+/** "How many NJ teams went to worlds in 2024 versus 2025": one list in two seasons, counted; the search box links to
+ *  the page. */
+async function listPairSearch(q: string, c: Extract<CompoundQuestion, { kind: "list-pair" }>, opts: Opts): Promise<SearchAnswer | null> {
+  const [a, b] = c.lists;
+  const label = `How many: ${listTitle(a, null)} against ${seasonLabel(b.season!)}`;
+  const answer: SearchAnswer = {
+    q, hits: [], pages: opts.pages, step: "deterministic", weak: false,
+    understood: { kind: "question", label, ...(a.region ? { place: { key: a.region.key, name: a.region.name } } : {}) },
+    intent: { kind: "stat-compound-list-pair", pattern: `how many teams${a.region ? " [place]" : a.city ? " [city]" : ""}${a.award ? " [award]" : ""}${a.worlds ? " [worlds]" : ""} [season] vs [season]`, met: true, understood: [label] },
+  };
+  if (!opts.full) return { ...answer, pages: [{ title: label, href: `/search?q=${encodeURIComponent(q)}` }, ...opts.pages] };
+  const stat = await listPairAnswer(a, b);
   return stat ? { ...answer, understood: { ...answer.understood!, label: stat.title }, stat } : null;
 }
 

@@ -192,6 +192,35 @@ export async function listAnswer(c: ListQuestion): Promise<StatAnswer | null> {
   };
 }
 
+/** One list in two seasons, counted side by side ("how many NJ teams went to worlds in 2024 versus 2025"): each
+ *  season's list as listAnswer answers it, its length the count. */
+export async function listPairAnswer(a: ListQuestion, b: ListQuestion): Promise<StatAnswer | null> {
+  const [x, y] = await Promise.all([listAnswer(a), listAnswer(b)]);
+  if (!x || !y) return null;
+  const sa = a.season!, sb = b.season!;
+  // A Worlds list's season is named by the championship's year, as asked ("Worlds 2024 (2023–24)").
+  const name = (c: ListQuestion, s: number) => (c.worlds ? `Worlds ${s + 1} (${seasonLabel(s)})` : seasonLabel(s));
+  // listAnswer's headline is the list's count ("8 teams"); none passing has no headline.
+  const count = (st: StatAnswer) => (st.headline ? Number(/^\d[\d,]*/.exec(st.headline.value)?.[0].replace(/,/g, "") ?? 0) : 0);
+  const [na, nb] = [count(x), count(y)];
+  const d = nb - na;
+  const place = listPlace(a, x.scope[0] && a.city ? x.scope[0] : null);
+  const what = `How many ${a.n ? `of the top ${a.n} teams` : "teams"} ${place}${a.award ? (a.award.type === "Winner" ? " on a winning alliance" : ` that won the ${a.award.label}`) : ""}`;
+  const title = `${what}: ${name(a, sa)} against ${name(b, sb)}`;
+  // Each season's own list under its count, titled by the season.
+  const list = (st: StatAnswer, c: ListQuestion, s: number): StatBlock[] => st.blocks.slice(0, 1).map((blk) => ({ ...blk, title: `${name(c, s)}: ${"title" in blk ? blk.title : ""}` } as StatBlock));
+  return {
+    family: "leaderboard", intent: "filtered-list-pair", title, scope: [...x.scope.filter((s) => s !== seasonLabel(sa)), seasonLabel(sa), seasonLabel(sb)],
+    definition: `${x.definition} Counted in each season asked: every team on the list that season.`.replace(searchSeasonWhy(sa), ""),
+    source: `${x.source}; ${y.source}`,
+    headline: { value: `${na} vs ${nb}`, label: `${what.replace(/^How many /, "")}, ${name(a, sa)} against ${name(b, sb)}`, sub: d === 0 ? "The same number both seasons" : `${d > 0 ? "+" : "−"}${Math.abs(d)} in ${name(b, sb)}` },
+    blocks: [
+      { kind: "kpis", items: [{ label: name(a, sa), value: plural(na, "team") }, { label: name(b, sb), value: plural(nb, "team"), sub: d === 0 ? "same" : `${d > 0 ? "+" : "−"}${Math.abs(d)}`, ...(d ? { tone: d > 0 ? "good" as const : "bad" as const } : {}) }] },
+      ...list(x, a, sa), ...list(y, b, sb),
+    ],
+  };
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // One team: two answers on one card, its events picked or averaged, its matches filtered.
 
