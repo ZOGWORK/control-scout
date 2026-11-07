@@ -72,6 +72,28 @@ describe("PullToRefresh", () => {
     expect(reload).not.toHaveBeenCalled();
   });
 
+  it("follows a rotation across the phone width: off when wide, on once narrow, off again", () => {
+    let on = ["display-mode: standalone", "pointer: coarse"]; // installed, but wider than a phone
+    const listeners = new Set<() => void>();
+    window.matchMedia = ((q: string) => ({
+      matches: on.some((m) => q.includes(m)), media: q,
+      addEventListener: (_: string, f: () => void) => listeners.add(f), removeEventListener: (_: string, f: () => void) => listeners.delete(f),
+    })) as unknown as typeof window.matchMedia;
+    const rotate = (next: string[]) => { on = next; act(() => { for (const f of [...listeners]) f(); }); };
+    const reload = vi.fn();
+    const { container } = render(<PullToRefresh reload={reload} />);
+    expect(pull(400, true).some((m) => m.defaultPrevented)).toBe(false);
+    touch("touchend", null);
+    rotate([...on, "max-width: 1024px"]);
+    expect(pull(400, true).every((m) => m.defaultPrevented)).toBe(true);
+    expect(container.querySelector("[data-pull-refresh]")).not.toBeNull();
+    rotate(["display-mode: standalone", "pointer: coarse"]); // turned back mid-pull: the icon goes, nothing reloads
+    expect(container.querySelector("[data-pull-refresh]")).toBeNull();
+    touch("touchend", null);
+    act(() => { vi.runAllTimers(); });
+    expect(reload).not.toHaveBeenCalled();
+  });
+
   it("does nothing in a phone browser tab (the browser has its own) or on desktop", () => {
     for (const on of [["pointer: coarse", "max-width: 1024px"], ["display-mode: standalone"]]) {
       media(on);

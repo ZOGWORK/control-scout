@@ -56,8 +56,9 @@ export function pullMove(s: PullState, x: number, y: number, atTop: boolean): { 
     // Sideways, or up (an ordinary scroll), or the page has moved off the top: the browser's.
     if (Math.abs(dx) >= Math.abs(dy) || dy <= 0 || !atTop) return { state: { ...IDLE, phase: "ignored" }, prevent: false };
   }
-  // Back up past where it started: the reader is scrolling, not pulling.
-  if (dy <= 0) return { state: { ...s, phase: "pulling", distance: 0 }, prevent: false };
+  // Back up past where it started: the reader is scrolling, not pulling. Over for this touch, so a later
+  // move down (the page may have scrolled meanwhile) can't bring the reload back.
+  if (dy <= 0) return { state: { ...IDLE, phase: "ignored" }, prevent: false };
   return { state: { ...s, phase: "pulling", distance: pullDistance(dy) }, prevent: true };
 }
 
@@ -93,6 +94,9 @@ export const PULL_DEMO_KEY = "cs-pull-demo";
 function pullDemo(win: Window): boolean {
   try { return win.localStorage.getItem(PULL_DEMO_KEY) === "1"; } catch { return false; }
 }
+
+/** The media queries pullToRefreshEnabled reads, to listen for a change (a rotation, a fold, installing). */
+export const PULL_MEDIA = ["(pointer: coarse)", "(max-width: 1024px)", "(display-mode: standalone)", "(display-mode: fullscreen)", "(display-mode: minimal-ui)"];
 
 /** Pull-to-refresh is on: the installed app, on a touch phone. Never in a browser tab, never on desktop. */
 export function pullToRefreshEnabled(win: Window = window): boolean {

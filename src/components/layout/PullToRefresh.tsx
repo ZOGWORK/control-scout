@@ -8,20 +8,28 @@
 import { useEffect, useRef, useState } from "react";
 import { RotateCw } from "lucide-react";
 import { cn } from "../cn";
-import { IDLE, PULL_MAX, PULL_THRESHOLD, pageAtTop, pullBlocked, pullEnd, pullMove, pullStart, pullToRefreshEnabled, type PullState } from "../../lib/pullToRefresh";
+import { IDLE, PULL_MAX, PULL_MEDIA, PULL_THRESHOLD, pageAtTop, pullBlocked, pullEnd, pullMove, pullStart, pullToRefreshEnabled, type PullState } from "../../lib/pullToRefresh";
 
 const reducedMotion = () => { try { return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true; } catch { return false; } };
 
 export function PullToRefresh({ reload = () => window.location.reload() }: { reload?: () => void }) {
-  const [enabled] = useState(() => pullToRefreshEnabled());
+  const [enabled, setEnabled] = useState(() => pullToRefreshEnabled());
   const [distance, setDistance] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const state = useRef<PullState>(IDLE);
   const reloadRef = useRef(reload);
   reloadRef.current = reload;
 
+  // A rotation or a fold can cross the phone width: follow the media queries, not just the first read.
   useEffect(() => {
-    if (!enabled) return;
+    const lists = PULL_MEDIA.map((q) => window.matchMedia?.(q)).filter((l): l is MediaQueryList => !!l?.addEventListener);
+    const update = () => setEnabled(pullToRefreshEnabled());
+    for (const l of lists) l.addEventListener("change", update);
+    return () => { for (const l of lists) l.removeEventListener("change", update); };
+  }, []);
+
+  useEffect(() => {
+    if (!enabled) { state.current = IDLE; setDistance(0); return; }
     let busy = false;
     const set = (s: PullState) => { state.current = s; setDistance(s.distance); };
     const onStart = (e: TouchEvent) => {

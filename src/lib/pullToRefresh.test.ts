@@ -71,8 +71,16 @@ describe("pull gesture", () => {
 
   it("dragging back above the start lets the page scroll and cancels the reload", () => {
     const { s, prevented } = drag(true, [200, 150], [[200, 150 + FAR], [200, 140]]);
+    expect(s.phase).toBe("ignored");
     expect(s.distance).toBe(0);
     expect(prevented).toEqual([true, false]);
+    expect(pullEnd(s)).toBe(false);
+  });
+
+  it("stays cancelled for the rest of the touch: coming back down after backing out doesn't reload", () => {
+    const { s, prevented } = drag(true, [200, 150], [[200, 150 + FAR], [200, 140], [200, 150 + FAR]]);
+    expect(s.phase).toBe("ignored");
+    expect(prevented).toEqual([true, false, false]);
     expect(pullEnd(s)).toBe(false);
   });
 
