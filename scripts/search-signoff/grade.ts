@@ -18,7 +18,8 @@ export type Live = {
 export const KINDS: Record<string, RegExp> = {
   "match-find": /^superlative:(find-|season-top|highest|lowest|top-matches)/,
   "team-match": /^superlative:|^aggregate:(wins-by|losses-by|scores-over)|head-to-head|recent-match|first-match/,
-  record: /^aggregate:(record|wins|losses|qual|playoff|longest-streak|win-percent|current-streak)|boolean|record|win-rate/,
+  // A season's matches ("17670 matches this season") are its record, headline W-L-T, with every match listed.
+  record: /^aggregate:(record|wins|losses|qual|playoff|longest-streak|win-percent|current-streak|season-matches)|boolean|record|win-rate/,
   opr: /:opr|opr-|event-opr/,
   rating: /:rating|rating-/,
   rank: /rank|percentile|neighbo/,
