@@ -203,8 +203,9 @@ describe("long, conversational queries", () => {
     expect(longForm("who is directly ahead of 6980 in the world this season")).toBe("6980 opr rank this season");
     expect(longForm("who is right behind bad wolf in new jersey")).toBe("bad wolf opr rank in new jersey");
     expect(longForm("teams close to critical mass")).toBe("critical mass opr rank");
-    // Worlds isn't a rank list.
+    // Worlds isn't a rank list, and another number's ranking is never read as the OPR list (Greptile on #1110).
     expect(longForm("who is ranked above 6980 at worlds")).toBeNull();
+    for (const q of ["who is ranked above 6980 in rating", "who is right below bad wolf in auto this season", "teams ranked near 6980 in prediction rating"]) expect(longForm(q) ?? "", q).not.toMatch(/opr rank/);
   });
 
   it("keeps a \"like\" that compares (Greptile on #655)", () => {
