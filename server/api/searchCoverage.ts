@@ -520,7 +520,10 @@ export async function explainTeamAnswer(q: string, ask: (q: string) => Promise<S
   const rest = t.replace(e.term!, " ").split(" ").filter((w) => w && !FRAME_WORDS.has(w));
   if (!rest.length) return null;
   const moved = /^why\b/.test(t) && /\b(?:up|down|drop|dropped|fall|fell|rise|rose|change|changed)\b/.test(t);
-  const a = await ask([rest[0], moved && e.change ? e.change : e.stat, ...rest.slice(1)].join(" "));
+  const of = (stat: string) => ask([rest[0], stat, ...rest.slice(1)].join(" "));
+  // A change with nothing on record to show it ("no weekly ratings are kept"): the team's own number instead.
+  let a = await of(moved && e.change ? e.change : e.stat!);
+  if (moved && e.change && a.stat?.none) a = await of(e.stat!);
   if (a.weak || !a.stat?.team) return null;
   const lines = moved && e.why ? [...e.why, ...e.lines] : e.lines;
   const label = `${a.understood?.label ?? a.stat.title} · ${e.label.split(":")[0]} explained`;

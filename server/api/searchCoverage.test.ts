@@ -523,9 +523,13 @@ describe("explain questions, asked any way", () => {
     await explainTeamAnswer("explain how 6980's rating is worked out", spy);
     await explainTeamAnswer("why did 6980 rating drop after they won", spy);
     await explainTeamAnswer("ranking points meaning for 6980 at the FIRST Championship", spy);
-    expect(asked).toEqual(["6980 rating", "6980 rating change", "6980 rank at the first championship"]);
+    // The fixture keeps no weekly ratings, so the change falls back to the season rating.
+    expect(asked).toEqual(["6980 rating", "6980 rating change", "6980 rating", "6980 rank at the first championship"]);
     const why = await explainTeamAnswer("why did 6980 rating drop after they won", ask);
     expect(why?.card?.lines[0].text).toMatch(/not on who won/);
+    // No weekly ratings kept to show the change: the team's own season rating, never an empty panel.
+    expect(why?.stat?.none).toBeUndefined();
+    expect(why?.stat?.team?.number).toBe(6980);
     // No meaning asked, or no team named: not this answer.
     for (const q of ["4215 mean opr", "what is 4215's opr", "how is opr calculated", "what does opr mean for teams"]) expect(await explainTeamAnswer(q, ask), q).toBeNull();
   });
