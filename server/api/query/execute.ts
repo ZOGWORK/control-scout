@@ -21,6 +21,7 @@ import { eventsNamed, heldInYear, highlightsAnswer, latestPlayed, type Highlight
 import { teamHighlights, type TeamHighlightScope } from "../answers/highlights.js";
 import { shortEvent } from "../answers/matchSet.js";
 import { CHAMPIONSHIP_TYPE, OFFICIAL_TYPES, STATES_TYPE } from "../answers/clauses.js";
+import { AWARD_WORDS } from "./lexicon.js";
 import { eventKindOf, matchFindAnswer, type MatchFind, type MatchMeasure } from "./matchFind.js";
 import { seasonOfDate } from "./time.js";
 import { searchToday } from "../searchEvents.js";
@@ -132,6 +133,7 @@ const ANSWERED = new Set<PipelineIntent>([...TEAM_INTENTS, ...(Object.keys(TWO_T
 const BOARD_STAT: Partial<Record<string, string>> = {
   "metric:opr": "opr", "metric:rating": "rating", "metric:winrate": "win-rate", "metric:auto": "auto", "metric:teleop": "teleop",
   "metric:endgame": "endgame", "metric:record": "record", "metric:win": "wins", "metric:reliability": "reliability", "metric:penalty": "penalties",
+  "metric:award": "awards",
 };
 
 async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer | null> {
@@ -345,6 +347,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     const b: LeaderboardQuestion = {
       kind: "top", stat: stats[0] ?? (p.undefeated ? "wins" : town || p.place?.kind === "country" ? "opr" : "rating"), ...(p.undefeated ? { undefeated: true } : {}), n: one ? 5 : Math.min(25, p.n ?? 10), region, city: null, town: town?.city ?? null, season: placeSeason(p, scope.season, opts),
       ...(one ? { best: true } : {}), ...((p.agg === "min") !== goodWord ? { asc: true } : {}),
+      // One award said ("the most inspire awards"): its board alone, named as people say it.
+      ...(stats[0] === "awards" && p.award ? { award: { type: p.award, name: (AWARD_WORDS.find(([, t]) => t === p.award)?.[0].split("|")[0] ?? p.award).replace(/\b\w/g, (c) => c.toUpperCase()) } } : {}),
     };
     // A stat said not to go by is never the one ranked by (a default included): with no other stat said, left unanswered.
     if ((p.notMetrics ?? []).some((s) => BOARD_STAT[s] === b.stat)) return null;

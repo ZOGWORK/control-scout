@@ -220,3 +220,16 @@ describe("compound answers", () => {
     expect((a.stat?.blocks[0] as any).items.find((i: any) => /Season OPR/.test(i.label))?.value).toBe("101.6");
   });
 });
+
+describe("the most of one award in a place", () => {
+  const teams = (a: Awaited<ReturnType<typeof ask>>) => (a.stat?.blocks.find((b) => b.kind === "leaderboard") as any)?.rows.map((r: any) => r.team.label.split(" ")[0]) ?? [];
+  const season = `${S}-${String(S + 1).slice(2)}`;
+  it("counts that award alone, every place", async () => {
+    const tx = await ask(`which teams won the most inspire awards in texas in ${season}`);
+    expect(tx.stat).toMatchObject({ intent: "top-awards", title: `Teams in Texas with the most Inspire awards · ${S}–${String(S + 1).slice(2)}`, headline: { value: "1111 Lone Star" } });
+    // 6980's 2nd place Inspire counts; 4215's Winner award doesn't.
+    expect(teams(await ask(`most inspire awards in new jersey ${season}`)).sort()).toEqual(["207", "4215", "6980"]);
+    expect((await ask(`most inspire awards in new jersey ${season}`)).stat?.definition).toMatch(/Inspire awards: every Inspire award .* every place/);
+    expect((await ask(`most compass awards in texas ${season}`)).stat?.none).toBe(`No ranked team in Texas won a Compass award in ${S}–${String(S + 1).slice(2)}.`);
+  });
+});

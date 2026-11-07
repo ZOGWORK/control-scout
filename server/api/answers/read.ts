@@ -477,6 +477,8 @@ export interface LeaderboardQuestion {
   undefeated?: boolean;
   /** A town in the region: its teams only. */
   town?: string | null;
+  /** The awards board kept to one award ("the most inspire awards in romania"): its awards.type and its name. */
+  award?: { type: string; name: string };
 }
 
 const BOARD_STAT_WORDS: [string, RegExp][] = [

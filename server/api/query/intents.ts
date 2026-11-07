@@ -207,6 +207,8 @@ export const INTENTS: IntentRule[] = [
     R("leaderboard", 0, [agg, "thing:team"], BOARD_OPT),
     // A team stat asked about everyone, with no "team": "who has the highest auto OPR in NJ".
     ...BOARD_METRICS.map((m) => R("leaderboard", 0, [agg, m], BOARD_OPT)),
+    // The most awards, or of one award, in a place: "most inspire awards in romania".
+    R("leaderboard", 0, [agg, "metric:award"], BOARD_OPT),
   ]),
   // Standout matches: a scope's ("worlds highlights", "new jersey highlights 2024-25"), or one team's ("<team> best
   // matches at worlds"); its match videos ("jackson division recap", "watch <team>") are its highlights too.
