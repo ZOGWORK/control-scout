@@ -25,7 +25,7 @@ A team's TeleOp, Auto or Endgame OPR and its reliability can be asked as a trend
 - [fixes] "How has 17713 changed from last season" shows its OPR change
 
 ### Search
-- **Phase and reliability trends.** "<team> teleop trend", "is <team>'s auto improving", "<team> endgame over time" and "<team> reliability by event" each answer with that number at every event of the season, rising or falling against the event before, read from the rows the team page shows (a phase's OPR, the reliability index per event). "How has <team> changed (or improved) from last season to this season", "since last season" and "between two seasons" read as its OPR change. (#PR)
+- **Phase and reliability trends.** "<team> teleop trend", "is <team>'s auto improving", "<team> endgame over time" and "<team> reliability by event" each answer with that number at every event of the season, rising or falling against the event before, read from the rows the team page shows (a phase's OPR, the reliability index per event). "How has <team> changed (or improved) from last season to this season", "since last season" and "between two seasons" read as its OPR change. (#1074)
 
 ## 3.8.6 — 2026-11-07
 
