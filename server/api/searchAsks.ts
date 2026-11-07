@@ -104,10 +104,13 @@ export function readAsk(q: string): Ask | null {
     if (OWN_LINEUP.test(t)) return { kind: "predict-lineup" };
     if (/\b(?:filter|filtered|filtering|sort|sorted|narrow|narrowed)\b/.test(t)) return { kind: "predict-filter" };
   }
-  let d = /\bpredictions?\b.*\b(today|tomorrow)(?:['’]?s)?\b.*\b(?:matches|match|games)\b|\b(today|tomorrow)(?:['’]?s)?\b.*\b(?:matches|match|games)\b.*\bpredictions?\b/.exec(t);
-  // The day's predictions everywhere: a place or an event named with it ("in New Jersey", "at worlds") asks for a
-  // filter this list doesn't apply, so it's left to the readers that do.
-  if (d && !/\d/.test(t) && !/\b(?:in|at|from|near|around|within)\s+\S/.test(t)) return { kind: "predict-day", day: (d[1] ?? d[2]) as "today" | "tomorrow" };
+  // The day's predictions everywhere, said with nothing else: any other scope ("in New Jersey", "at worlds", "playoff",
+  // a team) asks for a filter this list doesn't apply, so the whole question must be the day and its matches, and
+  // anything more is left to the readers that do.
+  const lead = String.raw`(?:(?:what are|what're|show me|show|give me|see|list)\s+)?(?:all\s+)?(?:the\s+)?`;
+  const day = String.raw`(today|tomorrow)(?:['’]?s)?\s+(?:matches|match|games)`;
+  let d = new RegExp(String.raw`^${lead}(?:predictions?|forecasts?)\s+(?:for|of|on)\s+(?:all\s+(?:of\s+)?)?(?:the\s+)?${day}$|^${lead}${day}\s+(?:predictions?|forecasts?)$`).exec(t);
+  if (d) return { kind: "predict-day", day: (d[1] ?? d[2]) as "today" | "tomorrow" };
   d = /^(.+?) (?:prediction|predictions|predict|forecast) (?:settings|options|page|tool|view)$/.exec(t);
   if (d) return { kind: "predict-team", team: d[1] };
   // Leaderboards: the world's ("best team", "what is the best FTC team right now") or a place's.

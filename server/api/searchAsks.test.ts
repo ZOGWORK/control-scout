@@ -137,7 +137,9 @@ describe("test 16: each intent returns its stated surface", () => {
     expect(team.pages[0]).toEqual({ title: "Predict Ultraviolet's matches", href: "/predict?mode=scheduled&for=team:23268" });
     expect(readAsk("predictions for todays matches")).toEqual({ kind: "predict-day", day: "today" });
     // A place or an event named with the day asks for a filter this list doesn't apply: left to other readers.
-    for (const q of ["predictions for tomorrow's matches in ohio", "today's matches at the state championship predictions"]) expect(readAsk(q)?.kind, q).not.toBe("predict-day");
+    for (const q of ["predictions for tomorrow's matches in ohio", "today's matches at the state championship predictions", "predictions for tomorrow's playoff matches", "show me predictions for today's matches for hypnotic robotics"]) expect(readAsk(q)?.kind, q).not.toBe("predict-day");
+    expect(readAsk("show me the forecasts for all of tomorrow's matches")).toEqual({ kind: "predict-day", day: "tomorrow" });
+    expect(readAsk("what are the predictions for tomorrow's matches")).toEqual({ kind: "predict-day", day: "tomorrow" });
     const none = await ask("tomorrow's matches predictions");
     expect(none.understood?.label).toMatch(/^Tomorrow \(.+\): no event has matches then/);
     const day = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
