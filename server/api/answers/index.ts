@@ -34,6 +34,7 @@ import { changeAnswer, readChange, type ChangeQuestion } from "./families/season
 import { MATCH_STAT_IDS, matchStatAnswer } from "./families/matchStats.js";
 import { BOARD_STATS, LEADERBOARD_MAX, boardStatFor, leaderboardAnswer, statWords } from "./families/leaderboard.js";
 import { everTopMatches, readTopMatches, topMatchesAnswer, type TopMatchesQuestion } from "./families/topMatches.js";
+import { eventAverageAnswer, readEventAverage, type EventAverageQuestion } from "./families/eventAverage.js";
 import { penaltyTotalAnswer, trendAnswer } from "./families/trends.js";
 import { nextEventPrediction, pairPrediction, predictTitle, predictionSeason } from "./families/predict.js";
 import { awardsSideBySide, compareAnswer, compareSeason, headToHead, neverPlayedAnswer, opponentsAnswer, partnerListAnswer, phaseSideBySide, reliabilitySideBySide, seasonSideBySide } from "./families/twoTeam.js";
@@ -296,6 +297,19 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
   return scope;
 }
 
+/** An event's average match score, or two events' side by side (./families/eventAverage.ts). Null when an event
+ *  isn't found: the question is then left to search. */
+async function eventAverageSearch(q: string, ea: EventAverageQuestion, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+  const stat = await eventAverageAnswer(ea, (words, season) => findEvent(words, season, { anyPlayed: true, closest: true }));
+  if (!stat) return null;
+  return {
+    q, hits: [], pages: opts.pages, step: "deterministic", weak: false,
+    understood: { kind: "question", label: stat.title, ...(ea.season != null ? { season: ea.season } : {}) },
+    intent: { kind: `stat-${stat.intent}`, pattern: `average match score [event]${ea.events.length > 1 ? " vs [event]" : ""}${ea.season != null ? " [season]" : ""}`, met: true, understood: [stat.title] },
+    ...(opts.full ? { stat } : {}),
+  };
+}
+
 /** An event by name for a team-less question (its newest season, or the season named). */
 async function findEvent(words: string, season: number | null, opts: { anyPlayed?: boolean; closest?: boolean } = {}) {
   const hits = (await search(words, 8, new Set(), new Set(["event"]), season)).filter((h) => h.kind === "event");
@@ -345,6 +359,12 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   // A season's highest-scoring matches before a leaderboard ("highest scoring matches at <event>" names no city).
   const tm = readTopMatches(q);
   if (tm) return topSearch(q, tm, opts);
+  // An event's average match score, or two events' side by side.
+  const ea = readEventAverage(q);
+  if (ea) {
+    const a = await eventAverageSearch(q, ea, opts);
+    if (a) return a;
+  }
   // The asks' leaderboards are drawn here on the page; the dropdown keeps the asks' own short card.
   const board = readLeaderboard(q) ?? (opts.full ? boardOfAsk(q) : null);
   if (board) return boardSearch(q, board, opts);
