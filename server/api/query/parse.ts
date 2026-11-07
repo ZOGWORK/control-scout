@@ -61,6 +61,8 @@ export interface Parsed {
   unexplained: string[];
   /** No losses asked ("undefeated teams"). */
   undefeated?: boolean;
+  /** Reaching Worlds or states said beside a forecast ("chance of making worlds"): the chance to advance there. */
+  reach?: true;
   /** A name asked about as words ("teams named <name>"): the words, never read as a team. */
   named?: { words: string; typed: string };
   /** Every word explained and an intent found. */
@@ -97,6 +99,9 @@ const NAME_MARK = "namedname";
 const NAMED_PHRASES = LEXICON.filter((e) => e.syms.some((x) => x.k === "named")).map((e) => e.words);
 /** The words that end a name asked about as words: a place or a time follows. */
 const NAME_ENDS = /^(?:from|in|at|near|based|located|during|out)$/;
+/** Words that say reaching a place ("making worlds", "qualifying for worlds"), and the words that name Worlds. */
+const REACH = new Set(["make", "makes", "making", "reach", "reaches", "reaching", "qualify", "qualifies", "qualifying", "get", "gets", "getting"]);
+const WORLDS_WORDS = new Set(["worlds", "world", "cmp", "houston", "championship", "championships", "champs", "states", "state"]);
 /** The kind words an event's name can end with. */
 const KIND_WORDS = new Set(["meet", "meets", "tournament", "tournaments", "event", "events", "competition", "competitions"]);
 /** The words before a number that make it a count ("top 5", "last 10") or a match's number ("match 3"). */
@@ -281,6 +286,20 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       else if (s.k === "vs" && p.vsAt == null) p.vsAt = i;
       const k = symKey(s);
       if (k && s.k !== "award") symbols.add(k);
+    }
+  }
+  // Reaching Worlds said beside a forecast ("chance of making worlds", "odds of qualifying for worlds"): the chance to
+  // advance there, never a count of appearances or qualification matches.
+  if (symbols.has("predict") && (p.worlds || p.states)) {
+    const reach = toks.filter((t, i) => REACH.has(t.w) && toks.slice(i + 1, i + 4).some((x) => WORLDS_WORDS.has(x.w)));
+    if (reach.length) {
+      reach.forEach((t) => (t.used = true));
+      p.reach = true;
+      symbols.add("advance");
+      // "Next year", "next season": the way there starts at the team's next event.
+      if (symbols.has("agg:next")) symbols.delete("thing:season");
+      symbols.delete("metric:appearance");
+      if (p.level === "qual" && reach.some((t) => t.w.startsWith("qualif"))) { p.level = null; symbols.delete("level:qual"); }
     }
   }
   // One-word awards beside an award word: "design award", "12345 think awards".

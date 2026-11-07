@@ -132,7 +132,7 @@ const TABLE: [string, Sym | Sym[]][] = [
   // Everywhere, said: no place filter (never the FIRST Championship).
   ["in the world|worldwide|world wide|globally|across the world|around the world|all over the world|internationally|anywhere|in ftc", { k: "filler" }],
   // Asides and slang around a question: never part of it, nor a team's name ("just curious" is no team called Curious).
-  ["only|just|just curious|curious|out of curiosity|wondering|i wonder|i was wondering|honestly|be honest|lol|lmao|bruh|da|ur|ya|yall|kinda|sorta|gonna|wanna|nah|or nah|right now|these days|lately|by now|if any|if there is one|if there are any|often|frequently", { k: "filler" }],
+  ["only|just|just curious|curious|out of curiosity|wondering|i wonder|i was wondering|honestly|be honest|lol|lmao|bruh|da|ur|ya|yall|kinda|sorta|gonna|wanna|nah|or nah|right now|based on now|based on today|as of now|as of today|as things stand|as it stands|these days|lately|by now|if any|if there is one|if there are any|often|frequently", { k: "filler" }],
   ["worlds|world|world championship|world championships|world champs|first championship|first champs|championship of the world|cmp|houston championship|houston", { k: "worlds" }],
   ["states|state|state championship|state championships|state champs|state finals|regionals|regional championship|regional", { k: "states" }],
   // Forecasts.

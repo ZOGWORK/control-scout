@@ -205,6 +205,13 @@ describe("the answers", () => {
     expect(will.stat).toMatchObject({ intent: "pipeline-team-predict-event", team: { number: 4215 }, headline: { value: "22%", label: "to win Northeast League Meet" } });
     const past = await ask("will 6980 win new jersey qualifier");
     expect(past.stat).toMatchObject({ intent: "pipeline-team-predict-event", team: { number: 6980 }, title: "Prediction vs result at New Jersey Qualifier" });
+    // Reaching Worlds or states said beside a forecast: the advancement chance at the next event, any wording.
+    for (const q of ["4215 odds of reaching worlds", "what are 4215's chances of getting to states next season", "4215 chance of qualifying for worlds as it stands"]) {
+      expect((await ask(q)).stat, q).toMatchObject({ intent: "advance-chance", headline: { value: "33%", label: "to advance from Northeast League Meet (2 slots)" } });
+    }
+    expect((await ask("6980 odds of reaching worlds next year")).stat!.none).toMatch(/^No upcoming event is published for Bad Wolf \(6980\)/);
+    // A forecast made at Worlds is still its own ("advance at worlds"): the division's before and after.
+    expect((await ask("4215 chance to advance at worlds")).stat?.intent).not.toBe("advance-chance");
     // The forecast's switch off: the event page shows no odds, and nor does search.
     await setFlag("advancementOdds", false, "test");
     const off = await ask("4215 chance to win an event");
