@@ -7,6 +7,7 @@ import { rebuildSearch } from "../../stats/job";
 import { searchAnswer } from "../searchAnswer";
 import { readTwoTeam } from "./read";
 import { readTeamFact } from "./families/facts";
+import { longForm } from "../searchLongForm";
 import { seasonStats } from "../teams";
 import { num } from "../../../src/shared/format";
 import type { StatBlock } from "../../../src/shared/searchStat";
@@ -148,6 +149,12 @@ describe("team facts", () => {
     // A month is the events list's filter only: any other answer would drop it.
     expect(readTeamFact("19564 opr in march 2026")).toBeNull();
     expect(readTeamFact("19564 events in march 2026")).toMatchObject({ id: "events-season", season: 2025, month: 2 });
+    // The month with the season said apart keeps the month (Greptile on #1084).
+    expect((await stat("19564 events in march in 2025-26")).headline).toMatchObject({ value: "1 event" });
+    expect(readTeamFact("19564 events in march in 2025-26")).toMatchObject({ season: 2025, month: 2 });
+    // "Did … play at any event in <place>" isn't read as a played list: the place's list holds upcoming events too.
+    expect(longForm("did 19564 play at any event in romania") ?? "").not.toMatch(/events played/);
+    expect(longForm("did 19564 play at any event in june 2026")).toBe("19564 events played in june 2026");
   });
   it("OPR against the world's, a state's and an event's division's average", async () => {
     // Worldwide: the team page's own world rank, and the average over the teams that rank counts, stated.

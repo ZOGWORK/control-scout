@@ -99,7 +99,7 @@ export function readTeamFact(raw: string): FactQuestion | null {
     if (r.id === "events-place") {
       // "events in 2025-26" names a season, not a place.
       const s = readScope(` events in ${what} `);
-      if (s.scope.season != null && !s.rest.replace(/\bevents?\b/, "").trim()) { const core = rest.trim(); return core ? { id: "events-season", core, season: s.scope.season, region: null, world: false, event: null, ...listed } : null; }
+      if (s.scope.season != null && !s.rest.replace(/\bevents?\b/, "").trim()) { const core = rest.trim(); return core ? { id: "events-season", core, season: s.scope.season, region: null, world: false, event: null, ...listed, ...(mo ? { month } : {}) } : null; }
       // "events in New Jersey 2024-25", "events in Romania this year": the place, and the season read off it ("this
       // year" is the default season, as every team answer reads it).
       const said = s.scope.season ?? (s.scope.latest ? searchSeason() : null);
