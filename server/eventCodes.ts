@@ -23,8 +23,8 @@ export async function storedEventCode(season: number, raw: string): Promise<stri
  * no event has that code.
  */
 export async function latestEventSeason(raw: string): Promise<{ season: number; code: string } | null> {
-  const up = canonicalEventCode(raw);
-  const hit = (await get<{ season: number; code: string }>("SELECT season, code FROM events WHERE code IN (?, ?) ORDER BY season DESC LIMIT 1", [up, raw]))
-    ?? await get<{ season: number; code: string }>("SELECT season, code FROM events WHERE code = ? COLLATE NOCASE ORDER BY season DESC LIMIT 1", [up]);
+  // Every spelling at once (a code's case can differ between seasons); as written too, for a code SQLite can't fold.
+  const hit = await get<{ season: number; code: string }>("SELECT season, code FROM events WHERE code = ? COLLATE NOCASE OR code = ? ORDER BY season DESC LIMIT 1",
+    [canonicalEventCode(raw), raw]);
   return hit ? { season: Number(hit.season), code: String(hit.code) } : null;
 }

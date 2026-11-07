@@ -24,7 +24,7 @@ An event's address without its season, like /events/USNJNEM2, opens the event's 
 - [share] Short event links work when typed or shared
 
 ### Fixes
-- **Event addresses without a season.** `/events/<code>` is a 301 to `/events/<season>/<code>` for the newest season holding that code, query kept, in any case; an unknown code is still the 404 page. The app's own route does the same through `/api/event-code/<code>`, so the service worker's app shell redirects too. (#1042)
+- **Event addresses without a season.** `/events/<code>` is a 301 to `/events/<season>/<code>` for the newest season holding that code, query kept, in any case; an unknown code is still the 404 page. The app's own route does the same through `/api/event-code/<code>`, so the service worker's app shell redirects too; a failed lookup there offers a retry instead of saying the event doesn't exist. (#1042)
 
 ## 3.8.4 — 2026-11-07
 
