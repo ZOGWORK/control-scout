@@ -25,7 +25,7 @@ Questions about Predict itself get a straight answer and the right part of Predi
 - [predict] "Predictions for tomorrow's matches" lists that day's events
 
 ### Search
-- **Predict, asked about.** A lineup of your own ("teams I pick", "does it update if I change the alliance", "a match that hasn't happened yet") is Custom matchup; filtering or sorting predictions is Scheduled matches, by team or event, not by date; "<team> prediction settings" is that team's matches in Predict. (#1086)
+- **Predict, asked about.** A lineup of your own ("teams I pick", "does it update if I change the alliance", "a match that hasn't happened yet") is Custom matchup; filtering or sorting predictions is Scheduled matches, by team or event, not by date; "<team> prediction settings" is that team's matches in Predict.
 - **A day's predictions.** "Predictions for today's / tomorrow's matches" lists that day's events, each one's matches in Predict, or says no event has matches then. (#1086)
 
 ## 3.8.8 — 2026-11-07
