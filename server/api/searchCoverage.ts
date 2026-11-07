@@ -84,7 +84,18 @@ const AWARD_WORD = /(?:^| )(inspire|think|innovate|design|motivate|connect|contr
  *  rest names an event; or null. The award
  *  word is kept wherever it sits, and the rest must be an event, never a team ("Got Milk inspire" stays the team's). */
 export async function awardQuery(q: string): Promise<string | null> {
-  const t = squash(q.toLowerCase().replace(/[?!.,]/g, " "));
+  let t = squash(q.toLowerCase().replace(/[?!.,]/g, " "));
+  // A season said anywhere ("… inspire 2025-26", "… in decode", "… last year") is the event's season, never its name:
+  // "last year" is the season before the current one; "this year" is the newest, as with no season said.
+  const g = seasonWord(t);
+  const rel = g ? null : new RegExp(`(?:^|\\s)(?:in\\s+|for\\s+|during\\s+)?(?:the\\s+)?${SEASON_WORDS}(?=\\s|$)`).exec(t);
+  const season = g ? g.season : rel && /^(?:last|previous)/.test(rel[1]) ? `${CURRENT_SEASON - 1}-${String(CURRENT_SEASON % 100).padStart(2, "0")}` : rel && /\d/.test(rel[1]) ? rel[1].replace(/\s+/g, "") : "";
+  if (g) t = g.rest;
+  else if (rel) t = squash(t.slice(0, rel.index) + " " + t.slice(rel.index + rel[0].length));
+  // A place asked ("who got 2nd place inspire at …"): the award's places are all listed, that one first.
+  const pm = /(?:^| )(?:(1st|2nd|3rd)(?: place)?|(first|second|third) place)(?= |$)/.exec(t);
+  const place = pm ? (pm[1] ? Number(pm[1][0]) : ["first", "second", "third"].indexOf(pm[2]) + 1) : null;
+  if (pm) t = squash(t.slice(0, pm.index) + " " + t.slice(pm.index + pm[0].length));
   const found = [...t.matchAll(AWARD_WORD)];
   if (found.length !== 1 || /\b\d{1,6}\b/.test(t.replace(/\b(?:19|20)\d\d\b/g, ""))) return null;
   const award = found[0][1].replace(/['’]/g, "").replace(/^deans?s? list$/, "deans list");
@@ -95,7 +106,7 @@ export async function awardQuery(q: string): Promise<string | null> {
   if (!rest) return null;
   const e = readEventQuery(rest);
   const event = (e && !e.words.length && (e.kinds.length || e.region)) || await (await parseContext()).isEvent(rest);
-  return event ? `who won ${award} at ${rest}` : null;
+  return event ? squash(`who won ${place ? `${["", "1st", "2nd", "3rd"][place]} place ` : ""}${award} at ${rest} ${season}`) : null;
 }
 
 /** A query said another way that the readers already answer, and why; or null. `q` is cleaned, any case. `pre`: tried
@@ -183,6 +194,9 @@ export function rewriteQuery(q: string, named: ReadonlySet<string> = new Set()):
   if ((m = /^(?:all\s+)?(?:the\s+)?(?:ftc\s+)?(events?|meets?|competitions?|tournaments?)(?:\s+(?:this|ths|tis|thsi|current)(?:\s+(?:season|year))?)?$/.exec(t))) {
     return { q: `${m[1].replace(/s?$/, "s")} in ${seasonLabel(CURRENT_SEASON).replace("–", "-")}`, pre: true };
   }
+  // A team's quality or a showing at an event asked in plain words: its season's numbers, or its results there.
+  const plain = plainTeamQuestion(t);
+  if (plain) return { q: plain, pre: true };
   // A question opened with filler ("so like what was 12345 last game"): the question.
   if ((m = /^(?:(?:so|like|um+|uh+|ok|okay|hey|yo|bro)\s+)+((?:what|who|when|where|how|which|is|are|did|does|has|have)\b.+|\d{1,6}\b.+)$/.exec(t))) return { q: m[1], pre: true };
   // A team's matches "in" an event, said as "at" ("12345 matches in worlds").
@@ -305,6 +319,43 @@ export function rewriteQuery(q: string, named: ReadonlySet<string> = new Set()):
       if (part) return { q: [...ws.slice(0, i), part.region.name.toLowerCase(), ...ws.slice(i + len)].join(" "), note: `${titleCase(part.part)} isn't a separate region: all of ${part.region.name}` };
     }
   }
+  return null;
+}
+
+/** Words that say a team is good, said any way ("any good", "actually that good", "cracked"). */
+const QUALITY = String.raw`(?:(?:any|really|actually|that|so|even|truly)\s+)*(?:good|strong|decent|competitive|cracked|elite|legit|any\s+good)`;
+/** Asides around a plain question, never part of it: "or just hype", "be honest", "like in plain numbers", "or nah". */
+const ASIDE = /(?:\s+(?:or\s+(?:just\s+)?(?:hype|hyped|overrated|not|nah|what)|be\s+honest|honestly|for\s+real|really|actually|lol|(?:like\s+)?in\s+plain\s+(?:numbers|words|english|terms)|if\s+(?:they|it)\s+(?:played|competed|were\s+around|was\s+around)(?:\s+(?:then|that\s+(?:year|season)))?))+$/;
+/** How a showing at an event is said in slang ("choke", "flop", "do well"). */
+const SHOWING = String.raw`(?:choke|choked|flop|flopped|bomb|bombed|tank|tanked|struggle|struggled|do\s+(?:well|badly|bad|good|ok|okay|alright)|perform(?:\s+well)?)`;
+
+/** A one-team question in plain words, said the way the readers read it, or null:
+ *    "is 12345 actually that good or just hype, in 2025-26", "can you tell me if bad wolf is good, be honest",
+ *    "whats up with bad wolf, are they cracked", "how good is 12345 really"  → "how good is 12345 [in 2025-26]"
+ *    "did bad wolf choke at states or nah"                                     → "how did bad wolf do at states"
+ *    "show me 12345 in 2023, if they played then"                              → "12345 in 2023"
+ *  The team is whatever the frame leaves; a frame with anything after the quality word ("good at auto") isn't one. */
+export function plainTeamQuestion(t: string): string | null {
+  const s = squash(t.replace(/[,?!.]+/g, " "));
+  // The season said, kept as said.
+  const sm = new RegExp(`\\s+(?:in\\s+|for\\s+|during\\s+)?${SEASON_WORDS}(?=\\s|$)`).exec(s) ?? /\s+(?:in|during)\s+(20\d\d)(?=\s|$)/.exec(s);
+  const when = sm ? ` in ${sm[1]}` : "";
+  const bare = sm ? squash(s.replace(sm[0], " ")) : s;
+  const core = bare.replace(ASIDE, "");
+  let m: RegExpExecArray | null;
+  // Never two teams, an event or a game's season ("whats up with decode").
+  const team = (w: string) => (/\b(?:than|vs\.?|versus|or|and|at|in)\b/.test(w) || EVENT_WORDS.test(w) || gameSeason(w) ? null : w);
+  if ((m = new RegExp(`^(?:can|could|would)\\s+(?:you|u)\\s+tell\\s+me\\s+(?:if|whether)\\s+(.+?)\\s+(?:is|are)\\s+${QUALITY}$`).exec(core))
+    || (m = new RegExp(`^(?:is|are)\\s+(.+?)\\s+${QUALITY}$`).exec(core))
+    || (m = new RegExp(`^(?:what'?s|what\\s+is|whats)\\s+up\\s+with\\s+(.+?)(?:\\s+(?:are|is)\\s+(?:they|it|them)(?:\\s+${QUALITY})?)?$`).exec(core))
+    // "How good is" with an aside after it: the aside goes ("how good is 12345" alone is already read as it is).
+    || (core !== bare && (m = /^how\s+(?:good|strong)\s+(?:is|are)\s+(.+)$/.exec(core)))) {
+    const who = team(m[1]);
+    return who ? `how good is ${who}${when}` : null;
+  }
+  if ((m = new RegExp(`^did\\s+(.+?)\\s+${SHOWING}\\s+at\\s+(.+)$`).exec(core)) && team(m[1])) return `how did ${m[1]} do at ${m[2]}${when}`;
+  // A team and a season, with "if they played then" after it: the team's season.
+  if (core !== bare && sm && (m = /^(?:show\s+me\s+)?(\d{1,6})$/.exec(core))) return `${m[1]}${when}`;
   return null;
 }
 

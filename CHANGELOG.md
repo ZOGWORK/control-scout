@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.9.3 — 2026-11-07
+## 3.9.6 — 2026-11-07
 
 Questions about what a word means are answered however they're framed, two words at once, or with a team's own numbers.
 
@@ -27,6 +27,44 @@ Questions about what a word means are answered however they're framed, two words
 
 ### Search
 - **What a word means, asked any way.** Framing such as "explained", "in plain words" or "for a beginner" is set aside; "the difference between" two words gives each one's lines; a word asked for one team ("what does ranking score mean, for 14450 at …", "why did 4215's rating go down even though they won") gives that team's own stat with the word's explainer under it; and "the game this season" or "last season" names that season's game. (#1065)
+
+## 3.9.5 — 2026-11-07
+
+A team's TeleOp, Auto or Endgame OPR and its reliability can be asked as a trend, event by event, and "how has <team> changed from last season" shows its OPR change.
+
+### Highlights
+- [fixes] "Is 14450's teleop improving" shows TeleOp OPR by event
+- [fixes] "7149 reliability trend, event by event" shows each event
+- [fixes] "How has 17713 changed from last season" shows its OPR change
+
+### Search
+- **Phase and reliability trends.** "<team> teleop trend", "is <team>'s auto improving", "<team> endgame over time" and "<team> reliability by event" each answer with that number at every event of the season, rising or falling against the event before, read from the rows the team page shows (a phase's OPR, the reliability index per event). "How has <team> changed (or improved) from last season to this season", "since last season" and "between two seasons" read as its OPR change. (#1074)
+
+## 3.9.4 — 2026-11-07
+
+A team's quality asked in plain words gets its season's OPR, rank and record: "is 23268 actually that good or just hype", "can u tell me if bad wolf is good, be honest" and "whats up with ultraviolet, are they cracked" no longer end on the bare team card or no match.
+
+### Highlights
+- [fixes] "Is 23268 actually that good or just hype" shows its numbers
+- [fixes] "Can u tell me if bad wolf is good" shows OPR, rank, record
+- [fixes] "Did hypnotic robotics choke at states" shows its states results
+
+### Search
+- **Plain-language team questions.** "Is <team> actually that good", "can you tell me if <team> is good", "whats up with <team>, are they cracked" and "how good is <team> really" read as "how good is <team>", the season said kept; "did <team> choke (or flop, or do well) at <event>" reads as how it did there; "show me <team> in 2023, if they played then" is that season. Asides such as "or just hype", "or nah", "be honest" and "like in plain numbers" are left out. (#1057)
+
+## 3.9.3 — 2026-11-07
+
+An event's award asked with its season, a short name or a place ("… inspire 2025-26", "in nj cham this year", "who got 2nd place …") is answered.
+
+### Highlights
+- [fixes] "<event> inspire 2025-26" names that season's award
+- [fixes] "who won inspire in nj cham this year" finds the event
+- [fixes] "who got 2nd place Inspire at …" lists that place first
+- [fixes] "… inspire last year" is the season before this one
+
+### Search
+- **An event's award, any season, any place.** A season said anywhere in an award ask (a game, "2025-26", "last year") is the event's season, never its name, and "2nd place" puts that place first, said in the answer. (#1071)
+
 
 ## 3.9.2 — 2026-11-07
 

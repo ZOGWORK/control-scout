@@ -33,6 +33,7 @@ export type IntentId =
   | "next-event-wins" | "event-win-chance" | "advance-chance" | "playoff-chance"
   // Family 2: one number over the team's events or seasons.
   | "opr-history" | "opr-by-season" | "record-by-season" | "win-rate" | "avg-penalties" | "avg-score-by-event" | "ranking-points"
+  | "auto-history" | "teleop-history" | "endgame-history" | "reliability-history"
   // Family 4 again: a season's penalty points.
   | "total-penalties";
 
@@ -87,6 +88,11 @@ const RULES: IntentRule[] = [
   { id: "vs-top", family: "aggregate", season: "latest", re: GROUP_TOP },
   { id: "vs-rookies", family: "aggregate", season: "latest", re: GROUP_ROOKIE },
   { id: "easiest-opponent", family: "aggregate", season: "latest", re: /\b(?:easiest|weakest|lowest[\s-]rated)\s+(?:opponents?|matchups?|rivals?)\b/ },
+  // A phase's OPR or the reliability index, event by event: before the OPR's own ("auto opr history").
+  { id: "auto-history", family: "trend", season: "all", re: /\bauto(?:nomous)?(?:\s+opr)?\s+(?:history|trend|over\s+time|by\s+event|progression)\b/ },
+  { id: "teleop-history", family: "trend", season: "all", re: /\b(?:tele[\s-]?op|driver[\s-]controlled)(?:\s+opr)?\s+(?:history|trend|over\s+time|by\s+event|progression)\b/ },
+  { id: "endgame-history", family: "trend", season: "all", re: /\bend[\s-]?game(?:\s+opr)?\s+(?:history|trend|over\s+time|by\s+event|progression)\b/ },
+  { id: "reliability-history", family: "trend", season: "all", re: /\breliab(?:ility|le)\s+(?:history|trend|over\s+time|by\s+event|progression)\b/ },
   { id: "opr-history", family: "trend", season: "all", re: /\bopr\s+(?:history|trend|over\s+time|by\s+event|progression|graph|chart)\b|\bimprovement\s+trend\b/ },
   { id: "avg-score-by-event", family: "trend", season: "all", re: /\b(?:average|avg|mean)\s+(?:alliance\s+)?score\s+(?:by|per|each|at\s+each)\s+event\b/ },
   { id: "total-penalties", family: "aggregate", season: "all", re: /\btotal\s+penalt(?:y|ies)(?:\s+points)?\b|\bpenalt(?:y|ies)\s+total\b/ },
