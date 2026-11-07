@@ -213,7 +213,8 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       // A longer name is specific enough beside another ("hypnotic robotics bad wolf").
       const loose = (t: Tok | undefined) => !!t && !t.used && !isLex(t.w) && !/^\d+$/.test(t.w);
       if (len === 1 && (loose(toks[i - 1]) || loose(toks[i + len]))) continue;
-      const named = ctx.names.teamsNamed(span.map((t) => t.w).join(" "));
+      const said = span.map((t) => t.w).join(" ");
+      const named = ctx.names.teamsNamed(said).length ? ctx.names.teamsNamed(said) : ctx.names.teamsCalled(said);
       if (!named.length) continue;
       // A number typed beside its own name ("12345 hypnotic robotics") is one team.
       if (!named.some((n) => p.teams.some((t) => t.number === n.number))) {

@@ -17,6 +17,7 @@ import { SEASONS } from "../data/seasons.js";
 import { all, get } from "../db.js";
 import { normalize } from "./fuzzy.js";
 import { longForm } from "./searchLongForm.js";
+import { names as pipelineNames } from "./query/names.js";
 import { AWARDS, FILLER, FORBIDDEN, type Found, INTENTS, type Intent, LEADER_STAT_WORDS, PARAPHRASES, PHASES, PRECEDENCE, SCAFFOLD, WEAK_SIGNALS } from "./searchCatalog.js";
 
 export type LayerId = "normalize" | "template" | "longform" | "keyword" | "paraphrase" | "filler" | "scope" | "fallback";
@@ -123,7 +124,8 @@ export async function teamExists(n: string): Promise<boolean> {
 }
 
 /** The teams a run of words names: its full name exactly, or failing that one team whose name starts with those whole
- *  words ("hypnotic" for Hypnotic Robotics, 5+ letters). Several teams of one name are all returned (never one picked). */
+ *  words ("hypnotic" for Hypnotic Robotics, 5+ letters), or the teams it calls by their name's own part ("calamari" for
+ *  Team Calamari: ./query/names.ts teamsCalled). Several teams of one name are all returned (never one picked). */
 export async function teamsNamed(ws: string[]): Promise<string[]> {
   const n = ws.join(" ");
   if (!n || /^\d+$/.test(n)) return [];
@@ -133,7 +135,17 @@ export async function teamsNamed(ws: string[]): Promise<string[]> {
   // A one-word start of a name needs 6+ letters ("hypnotic"), so a common word ("total") isn't read as a team.
   if (n.replace(/\s/g, "").length < (ws.length > 1 ? 5 : 6)) return [];
   const pre = list.filter(([name]) => name === n || name.startsWith(`${n} `));
-  return pre.length === 1 ? [pre[0][1]] : [];
+  if (pre.length === 1) return [pre[0][1]];
+  return pre.length ? [] : (await pipelineNames()).teamsCalled(n).map((t) => String(t.number));
+}
+
+/** Of the teams sharing a name, the one that played most recently, when only one did (the parser's rule,
+ *  ./query/parse.ts pickShared); else null and the name stays several teams'. */
+async function newestOf(teams: string[]): Promise<string | null> {
+  const idx = await pipelineNames();
+  const last = teams.map((n) => idx.team(Number(n))?.lastPlayed ?? -1);
+  const top = Math.max(...last);
+  return top >= 0 && last.filter((s) => s === top).length === 1 ? teams[last.indexOf(top)] : null;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -259,6 +271,8 @@ export async function extract(q: string): Promise<Extracted> {
       hit = await teamsNamed(span.map((t) => t.w));
       if (hit.length) { used = { from, to }; break; }
     }
+    const newest = hit.length > 1 ? await newestOf(hit) : null;
+    if (newest) hit = [newest];
     if (hit.length === 1) {
       named.push(hit[0]);
       // Words taken into the name are the name's own, not filler or an intent.
