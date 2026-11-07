@@ -20,7 +20,7 @@ beforeAll(async () => {
   // Rating components (points a match): 4215 strong in auto and TeleOp with a weak endgame; 6980 an endgame team.
   const teams: [number, string, number, number, number, number][] = [
     [4215, "Hypnotic Robotics", 40, 60, 5, 2], [6980, "Bad Wolf", 10, 30, 40, 1], [23268, "Ultraviolet", 45, 70, 10, 3],
-    [7149, "ENFORCERS", 20, 40, 20, 2], [207, "Critical Mass", 5, 10, 5, 6],
+    [7149, "ENFORCERS", 20, 40, 20, 2], [207, "Critical Mass", 5, 10, 5, 6], [33950, "First Street Kids", 15, 25, 30, 2], [24033, "Gearbox", 25, 35, 25, 2],
   ];
   for (const [n, name, auto, teleop, endgame, pen] of teams) {
     await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, 'Oradell', 'NJ', 'USA')", [n, name]);
@@ -36,6 +36,9 @@ beforeAll(async () => {
   await ev("USNJQ1", "Garden Qualifier", day(-20), [4215, 6980, 23268, 7149, 207]);
   await run("INSERT INTO alliances (season, code, number, captain, pick1) VALUES (?, 'USNJQ1', 1, 23268, 4215), (?, 'USNJQ1', 2, 6980, 7149)", [S, S]);
   await ev("USNJQ2", "Northeast League Meet", day(5), [4215, 6980, 7149, 207]);
+  // Today, selection under way: every captain and first pick posted, second picks still to come, no playoffs yet.
+  await ev("USNJQ3", "Liberty Qualifier", day(0), [6980, 23268, 7149, 207, 33950, 24033]);
+  await run("INSERT INTO alliances (season, code, number, captain, pick1) VALUES (?, 'USNJQ3', 1, 23268, 7149), (?, 'USNJQ3', 2, 6980, 33950)", [S, S]);
   await rebuildSearch();
   resetSearchSeason();
   await refreshSearchSeason();
@@ -78,6 +81,12 @@ describe("who to pick at an event", () => {
   });
   it("a year named with no event: only that year's events, else left to search", async () => {
     expect((await stat("teams that complement 4215's weak endgame in 2019"))?.intent).not.toBe("pick-partners");
+  });
+  it("a team on no alliance mid-selection: only teams still free, never selection read as over", async () => {
+    const a = await stat("who should 207 pick at liberty qualifier");
+    expect(a.headline!.sub).not.toMatch(/^Every team free/);
+    // The one team still free: no one already on an alliance.
+    expect(a.headline!.value).toBe("Gearbox (24033)");
   });
   it("a team not on the event's list is said so, never another event's suggestions", async () => {
     expect((await stat("who should 23268 pick at northeast league meet")).none).toMatch(/isn't on Northeast League Meet's team list/);

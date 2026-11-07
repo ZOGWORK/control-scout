@@ -6,7 +6,7 @@
 // but the helper's own sums, the same the Pick helper page shows.
 import type { StatAnswer, StatBlock } from "../../../../src/shared/searchStat.js";
 import { PICK_AXIS_LABEL, alliancePicked, allianceOf, pts, suggestPartners, type PickAxis, type PickGain } from "../../../../src/shared/pickRadar.js";
-import { all } from "../../../db.js";
+import { all, get } from "../../../db.js";
 import { ROSTER } from "../../../data/registrations.js";
 import { pickHelperQuery } from "../../../../src/shared/scoutSections.js";
 import { dateRange, seasonLabel } from "../../../../src/shared/format.js";
@@ -38,7 +38,13 @@ export async function teamPickEvent(team: number, now: number, season: number | 
 
 /** The pick helper's suggestions for `team` at `ev`. `why`: how the event was chosen, when the query named none.
  *  `focus`: a stat the question names ("complementing their auto"), each suggestion's change on it shown beside. */
-export async function pickAnswer(team: AnswerTeam, ev: PickEvent, why?: string, focus: PickAxis | null = null): Promise<StatAnswer> {
+/** Whether `ev`'s alliance selection is over by a sign of its own: playoff matches on record, or its last day gone. */
+async function selectionOver(ev: PickEvent, now: number): Promise<boolean> {
+  if ((ev.end ?? ev.start ?? "9999") < new Date(now).toISOString().slice(0, 10)) return true;
+  return !!(await get("SELECT 1 FROM matches WHERE season = ? AND code = ? AND level = 'playoff' LIMIT 1", [ev.season, ev.code]));
+}
+
+export async function pickAnswer(team: AnswerTeam, ev: PickEvent, why?: string, focus: PickAxis | null = null, now = Date.now()): Promise<StatAnswer> {
   const S = seasonLabel(Number(ev.season)), name = shortEvent(ev.name, ev.type), when = dateRange(ev.start, ev.end);
   // The helper opened on the same view: this team, and posted alliances ignored when the answer ignores them.
   const helperAt = (fresh: boolean) => { const sp = pickHelperQuery(Number(ev.season), ev.code); sp.set("pteam", String(team.number)); if (fresh) sp.set("pposted", "0"); return `/scout?${sp}`; };
@@ -54,10 +60,11 @@ export async function pickAnswer(team: AnswerTeam, ev: PickEvent, why?: string, 
     return { ...base, blocks: [links], none: `${whoOf(team)} ${listed ? "has no engine rating yet" : `isn't on ${ev.name}'s team list`}, so the pick helper has nothing to pair.` };
   }
   // Selection under way, the team on an alliance with a place free: its picks so far are the alliance, and only a team
-  // still free can join it. Selection over (the team's alliance full, or every alliance posted without it): every team
+  // still free can join it. Selection over (the team's alliance full; for a team on none, playoffs on record or the
+  // event's last day gone, never the posted alliances alone, which can't tell a second pick still to come): every team
   // free, on the ratings as they stand now (the helper keeps no ratings from before selection), beside who it picked.
   const own = allianceOf(r.alliances, team.number);
-  const done = own ? own.length >= r.size : r.alliances.length > 0 && r.alliances.every((a) => [a.captain, a.pick1, ...(r.size > 2 ? [a.pick2] : [])].every((t) => t != null));
+  const done = own ? own.length >= r.size : r.alliances.length > 0 && await selectionOver(ev, now);
   const members = done ? [team.number] : own ?? [team.number];
   const s = suggestPartners({ teams: r.teams, members, unavailable: done ? [] : alliancePicked(r.alliances), size: r.size });
   if (!s.suggestions.length) return { ...base, blocks: [links], none: `No team at ${name} is left to pick.` };

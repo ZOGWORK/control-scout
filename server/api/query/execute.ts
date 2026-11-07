@@ -245,7 +245,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     if (!found) return null;
     const why = p.event || p.worlds || p.states ? undefined : `No event was named: this is ${t.number}'s ${"next" in found && found.next ? "next" : "latest"} event.`;
     const focus = (["auto", "teleop", "endgame"] as const).find((x) => p.symbols.includes(`metric:${x}`)) ?? null;
-    const stat = await pickAnswer(team, found.ev, why, focus);
+    const stat = await pickAnswer(team, found.ev, why, focus, opts.now);
     const hit = (await opts.resolve(String(t.number))).hits.find((h) => h.kind === "team" && h.ref === String(t.number));
     return {
       q: p.q, hits: hit ? [{ ...hit, facts: undefined, events: undefined }] : [], pages: opts.pages, step: "deterministic", weak: false,
