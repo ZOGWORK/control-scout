@@ -19,7 +19,7 @@ import type { SearchAnswer, SearchHit, SearchRecovery, SearchUnderstood } from "
 import { SEARCH_BROWSE, SEARCH_FILLER, SEARCH_PAGE_LIMIT, SEARCH_TOPICS, firstCards, TOPIC_LABEL, VERSUS, cardWho, onlyPageWords, pagesFor, showingLine } from "../../src/shared/search.js";
 import { conversationQuery, isQuestionForm, nameWords, onlyCommonWords, singularize } from "../../src/shared/searchQuery.js";
 import { readEventQuery, regionOf } from "../../src/shared/searchEventQuery.js";
-import { eventSetAnswer, withEventParents, withWholeFamilies } from "./searchEvents.js";
+import { eventHit, eventSetAnswer, withEventParents, withWholeFamilies } from "./searchEvents.js";
 import { versusAnswer } from "./searchCompare.js";
 import { ruleAnswer } from "./searchRules.js";
 import { askAnswer, readAsk } from "./searchAsks.js";
@@ -279,7 +279,9 @@ async function numberedAnswer(raw: string, opts: AnswerOptions): Promise<SearchA
   // no state championship is named so.
   const q = cleanQuery(raw);
   const champ = STATES_WORD.test(q) && !/\bunited states\b/i.test(q) ? q.replace(new RegExp(STATES_WORD.source, "gi"), "$1championship") : null;
-  for (const other of [numberQuery(q), numberQuery(q, true), champ]) {
+  // Then a division called by its own name alone ("<name> <game>"): "<name> division", when an event's division is
+  // named so and the query names none.
+  for (const other of [numberQuery(q), numberQuery(q, true), champ, await divisionQuery(q)]) {
     if (!unread(a)) return a;
     if (!other) continue;
     const b = await typedAnswer(asked ? `${other}?` : other, opts);
@@ -288,6 +290,16 @@ async function numberedAnswer(raw: string, opts: AnswerOptions): Promise<SearchA
   return a;
 }
 const STATES_WORD = /(^| )states(?= |$)/i;
+
+/** `q` with "division" after its first word that names an event's division ("<name> Division" in a stored event's
+ *  name), or null when it names none, already says "division", or is that word alone (a town, a team's name). */
+export async function divisionQuery(q: string): Promise<string | null> {
+  if (/\bdivisions?\b/i.test(q) ||!/\s/.test(q.trim())) return null;
+  const named = new Set((await eventNames()).flatMap((n) => [...n.matchAll(/(?:^| )(\p{L}{3,}) division(?= |$)/gu)].map((m) => m[1])));
+  const ws = q.split(/\s+/);
+  const i = ws.findIndex((w) => named.has(nameKey(w)));
+  return i < 0 ? null : [...ws.slice(0, i + 1), "division", ...ws.slice(i + 1)].join(" ");
+}
 
 /** searchAnswer for the query as typed. */
 async function typedAnswer(raw: string, opts: AnswerOptions): Promise<SearchAnswer> {
@@ -533,8 +545,12 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
     byWords = hits.length > 0;
   }
 
-  // A season in the query: its events first, and teams open on it.
+  // A season in the query: its events first, and teams open on it. An event held every season under one code (the
+  // search index lists its newest) is that season's, when it was held then.
   if (season != null) {
+    const again = hits.filter((h) => h.kind === "event" && h.season !== season).map((h) => h.ref.split(":")[1]);
+    const held = again.length ? await all<Parameters<typeof eventHit>[0]>(`SELECT season, code, name, type, division_code, venue, city, state, country, start, end, timezone FROM events WHERE season = ? AND code IN (${again.map(() => "?").join(",")})`, [season, ...again]) : [];
+    hits = hits.map((h) => { const r = h.kind === "event" ? held.find((x) => x.code === h.ref.split(":")[1]) : undefined; return r ? { ...eventHit(r, opts.now), match: h.match } : h; });
     hits = [...hits.filter((h) => h.kind !== "event" || h.season === season), ...hits.filter((h) => h.kind === "event" && h.season !== season)]
       .map((h) => (h.kind === "team" ? { ...h, linkSeason: season, subtitle: [seasonLabel(season), h.subtitle].filter(Boolean).join(" · ") } : h));
   }

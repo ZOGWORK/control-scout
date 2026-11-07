@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.9.3 — 2026-11-07
+
+An event asked about in short reads as meant: a division's or a championship's finals show who won it and the final matches, a division called by its own name beside a game or a year is that division, and Worlds' highlights said with "division" are Worlds' highlights.
+
+### Highlights
+- [fixes] "<division> finals" shows the winners and their final matches
+- [fixes] A division named without "division" beside a game finds it
+- [fixes] Worlds division highlights show the Worlds highlights
+
+### Search
+- **Event phrases.** "Finals" (or "final", "final matches", a season after it) after a division's, a championship's, a tournament's, an invitational's, a qualifier's, a premier's or a cup's name reads as who won it, the season or game typed between kept. A word that names a stored event's division ("<name> Division"), typed with another word and no "division", is read again as that division when the query as typed found nothing, and a season named (a game's name too) makes an event held every season under one code that season's event. "Division" or "divisions" beside Worlds in a highlights question is Worlds' highlights. (#1114)
+
 ## 3.9.1 — 2026-11-07
 
 A team's next event asked about as a forecast, and "will <team> win <event>", answer with the engine's own projection for that event.
