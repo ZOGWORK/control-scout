@@ -25,7 +25,7 @@ A team's name or number with "champion" or "winner" answers with its event wins,
 - [fixes] "<team> inspire winner" is its Inspire Awards
 
 ### Search
-- **A team's wins, asked as a title.** A winner word beside a team (its name, or its number with nothing else) is its event wins once no event goes by that name; beside an award named, it's winning that award, never the Winning Alliance. (#PR)
+- **A team's wins, asked as a title.** A winner word beside a team (its name, or its number with nothing else) is its event wins once no event goes by that name; beside an award named, it's winning that award, never the Winning Alliance. (#1101)
 
 
 ## 3.9.0 — 2026-11-07
