@@ -111,11 +111,39 @@ describe("LivePanel", () => {
     expect(screen.getByRole("button", { name: /Q15 is up next/ })).toBeTruthy();
   });
 
+  it("before the day's first match has a result: no countdown, says it starts after that match", () => {
+    personal.tracked.teams = [18360];
+    const notYet = MATCHES.map((m) => ({ ...m, played: false, startsAt: m.startsAt && at(Number((Date.parse(m.startsAt) - NOW) / 60_000) + 30) }));
+    const { rerender } = show(detail(notYet));
+    expect(screen.queryByRole("timer")).toBeNull();
+    expect(screen.getByText(/Matches haven't started yet\. The countdown starts once Q13 has a result\./)).toBeTruthy();
+    expect(screen.getByText(/Scheduled 10:42/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Q15 is up next/ })).toBeTruthy();
+    // Q13 scored: the timer runs.
+    const scored = notYet.map((m) => (m.number === 13 ? { ...m, played: true } : m));
+    rerender(<MemoryRouter><TooltipProvider><Panel d={detail(scored)} /></TooltipProvider></MemoryRouter>);
+    expect(screen.getByRole("timer").textContent).toBe("in42:00");
+  });
+
+  it("after the first result, runs on the field's pace: late, early, and what's on the field", () => {
+    personal.tracked.teams = [18360];
+    const late = MATCHES.map((m) => (m.number === 13 ? { ...m, startsAt: at(-2) } : m)); // Q13 started 6 min late
+    const { rerender } = show(detail(late));
+    expect(screen.getByRole("timer").textContent).toBe("in18:00");
+    expect(screen.getByText("Running 6 min behind schedule.")).toBeTruthy();
+    expect(screen.getByText(/About 10:18/)).toBeTruthy();
+    const early = MATCHES.map((m) => (m.number === 13 ? { ...m, startsAt: at(-15) } : m)); // Q14 should be on by now
+    rerender(<MemoryRouter><TooltipProvider><Panel d={detail(early)} /></TooltipProvider></MemoryRouter>);
+    expect(screen.getByRole("timer").textContent).toBe("in5:00");
+    expect(screen.getByText(/should be on the field now\. Running 7 min ahead of schedule\./)).toBeTruthy();
+  });
+
   it("moves on when new data says the match was played", () => {
     personal.tracked.teams = [18360, 555];
     const { rerender } = show(detail(MATCHES));
     expect(screen.getByRole("timer").textContent).toBe("in12:00");
-    const played = MATCHES.map((m) => (m.number === 15 ? { ...m, played: true } : m));
+    // Q14 and Q15 scored (real starts 6 and 1 min ago): Q16 one cycle after Q15's real start.
+    const played = MATCHES.map((m) => (m.number === 14 ? { ...m, played: true, startsAt: at(-6) } : m.number === 15 ? { ...m, played: true, startsAt: at(-1) } : m));
     rerender(<MemoryRouter><TooltipProvider><Panel d={detail(played)} /></TooltipProvider></MemoryRouter>);
     expect(screen.getAllByText("Q16").length).toBeGreaterThan(0);
     expect(screen.getByRole("timer").textContent).toBe("in22:00");

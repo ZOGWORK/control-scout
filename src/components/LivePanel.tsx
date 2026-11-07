@@ -12,7 +12,7 @@ import { usePersonal } from "../lib/personal";
 import { useFlag } from "../lib/flags";
 import { readRememberedSpace, resolveScoutSpace, workspacesOf } from "../lib/scoutSpace";
 import { useAssignments } from "../lib/assignments";
-import { countdownWords, formatCountdown, nextMatch, pollInterval, REASON_LABEL, relevantTeams, venueClock, type RelevantReason } from "../lib/liveMode";
+import { countdownWords, formatCountdown, nextMatch, pace, pollInterval, REASON_LABEL, relevantTeams, venueClock, type RelevantReason } from "../lib/liveMode";
 import { agoSeconds, oddsPct } from "../lib/format";
 import { Button } from "./ui/button";
 import { TierMark, WinBar } from "./predict";
@@ -50,6 +50,8 @@ export interface LiveTarget {
   mine: MatchView | null;
   /** What the countdown shows: `mine`, else the event's next match. */
   next: MatchView | null;
+  /** The event's matches, for the countdown's pace (lib/liveMode.ts pace()). */
+  matches: MatchView[];
 }
 
 /** What the LIVE panel counts down to (lib/liveMode.ts has the rules). `on`: live mode (else nothing is fetched). */
@@ -64,7 +66,7 @@ export function useLiveTarget(d: EventDetail, on: boolean): LiveTarget {
   }, [reasons, d.field, d.matches]);
   return useMemo(() => {
     const mine = teams.size ? nextMatch(d.matches, teams) : null;
-    return { teams, mine, next: mine ?? nextMatch(d.matches, null) };
+    return { teams, mine, next: mine ?? nextMatch(d.matches, null), matches: d.matches };
   }, [teams, d.matches]);
 }
 
@@ -85,11 +87,17 @@ export function LivePanel({ d, target, refresh, track }: { d: EventDetail; targe
   const e = d.event;
   const live = d.live!;
   const { teams: atEvent, mine, next: any } = target;
-  const at = any?.startsAt ? Date.parse(any.startsAt) : NaN;
-  const now = useSecondClock(Number.isFinite(at) || !!live.checkedAt);
+  const now = useSecondClock(!!any?.startsAt || !!live.checkedAt);
+  // The countdown runs on the field's real pace: nothing before the day's first result, then the posted
+  // schedule moved by how late (or early) the field runs.
+  const p = useMemo(() => pace(target.matches, now), [target.matches, now]);
+  const { opener } = p;
+  const at = any ? p.est.get(any.key) ?? NaN : NaN;
   const left = Number.isFinite(at) ? at - now : NaN;
   const countdown = Number.isFinite(left) ? formatCountdown(left) : null;
-  const clock = any ? venueClock(any, e.timezone) : null;
+  const clock = any ? venueClock(Number.isFinite(at) ? { startsAt: new Date(at).toISOString(), time: null } : any, e.timezone) : null;
+  const late = Math.round(p.shift / 60_000);
+  const onField = p.onField && p.onField.key !== any?.key ? p.onField : null;
   const every = Math.round(pollInterval(d) / 1000);
   // My teams here (the event's own list or its schedule) split by the posted schedule: with none posted nobody is
   // done, and a team the schedule leaves out isn't done either.
@@ -125,11 +133,18 @@ export function LivePanel({ d, target, refresh, track }: { d: EventDetail; targe
                   <span className="mr-1.5 text-base font-medium text-muted-foreground">in</span>{countdown}
                 </span>
               ) : Number.isFinite(left) ? (
-                <span className="text-base font-semibold text-foreground">Due now</span>
+                <span className="text-base font-semibold text-foreground">{p.onField?.key === any.key ? "On the field now" : "Due now"}</span>
               ) : null}
-              {clock && <span className="text-xs text-muted-foreground">{Number.isFinite(at) ? `${clock} venue time` : `Scheduled ${clock}`}</span>}
+              {clock && <span className="text-xs text-muted-foreground">{Number.isFinite(at) ? `About ${clock} venue time` : `Scheduled ${clock}`}</span>}
             </div>
-            {!Number.isFinite(at) && <p className="mt-0.5 text-xs text-muted-foreground">{any.time ? "No time zone for this event, so no countdown." : "No start time published for this match."}</p>}
+            {opener ? (
+              <p className="mt-0.5 text-xs text-muted-foreground" data-live-awaiting>Matches haven't started yet. The countdown starts once {opener.label} has a result.</p>
+            ) : Number.isFinite(at) ? (
+              <p className="mt-0.5 text-xs text-muted-foreground" data-live-pace>
+                {onField && <><span className="font-semibold text-foreground">{onField.label}</span> should be on the field now. </>}
+                {Math.abs(late) >= 1 ? `Running ${Math.abs(late)} min ${late > 0 ? "behind" : "ahead of"} schedule.` : "Running on schedule."}
+              </p>
+            ) : <p className="mt-0.5 text-xs text-muted-foreground">{any.time ? "No time zone for this event, so no countdown." : "No start time published for this match."}</p>}
             <Lineup m={any} reasons={atEvent} />
             <Call m={any} />
           </>
@@ -210,8 +225,9 @@ function Call({ m }: { m: MatchView }) {
 /** The phone's sticky bar while live: the countdown, one tap back to the panel. */
 export function LiveCountdownChip({ target, onClick }: { target: LiveTarget; onClick: () => void }) {
   const m = target.next;
-  const at = m?.startsAt ? Date.parse(m.startsAt) : NaN;
-  const now = useSecondClock(Number.isFinite(at));
+  const now = useSecondClock(!!m?.startsAt);
+  const p = useMemo(() => pace(target.matches, now), [target.matches, now]);
+  const at = m ? p.est.get(m.key) ?? NaN : NaN;
   const cd = Number.isFinite(at) ? formatCountdown(at - now) : null;
   return (
     <Button variant="destructive" onClick={onClick} aria-label={m ? `${m.label} ${cd ? `starts in ${countdownWords(at - now)}` : Number.isFinite(at) ? "is due now" : "is up next"}. Show the live panel` : "Show the live panel"}>

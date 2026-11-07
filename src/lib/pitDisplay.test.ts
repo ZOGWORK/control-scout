@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EventDetail, FieldRow, MatchView } from "../shared/api";
-import { displayModel, LATE_MS, progress, verdict, winners } from "./pitDisplay";
+import { displayModel, progress, verdict, winners } from "./pitDisplay";
 import { isBareRoute, pageModule, pageTitle } from "../shared/routes";
 
 const T0 = Date.parse("2026-10-24T15:00:00Z");
@@ -31,7 +31,8 @@ function detail(matches: MatchView[], over: Partial<EventDetail["event"]> = {}, 
 }
 
 describe("displayModel", () => {
-  const matches = () => [q(1, -20, [120, 80]), q(2, -10, [70, 90]), q(3, 3), q(4, 10), q(5, 17), q(6, 24)];
+  // Played matches carry their real start; the posted cycle is 7 min and the field runs on time.
+  const matches = () => [q(1, -11, [120, 80]), q(2, -4, [70, 90]), q(3, 3), q(4, 10), q(5, 17), q(6, 24)];
 
   it("between matches: the last result, the next three, and a countdown to the next start", () => {
     const m = displayModel(detail(matches()), T0);
@@ -48,16 +49,18 @@ describe("displayModel", () => {
     expect(m.countdown?.match.number).toBe(4);
   });
 
-  it("behind schedule (a match well past its start), no timer: just what's up next", () => {
-    const m = displayModel(detail(matches()), T0 + 3 * 60_000 + LATE_MS + 1);
-    expect(m.countdown).toMatchObject({ match: { number: 4 }, start: null });
+  it("running late: the countdown moves by how late the last match really started", () => {
+    const late = matches().map((x) => (x.number === 2 ? { ...x, startsAt: min(-1) } : x)); // Q2 started 3 min late
+    const m = displayModel(detail(late), T0);
+    expect(m.now).toMatchObject({ kind: "result", match: { number: 2 } });
+    expect(m.countdown).toEqual({ match: expect.objectContaining({ number: 3 }), start: Date.parse(min(6)) });
   });
 
-  it("before the event: the first three and a countdown to the first match; no schedule says so", () => {
+  it("before the event: the first three, no timer until the first match has a result; no schedule says so", () => {
     const m = displayModel(detail([q(1, 30), q(2, 37), q(3, 44), q(4, 51)], { status: "upcoming" }), T0);
     expect(m.now).toBeNull();
     expect(m.upNext.map((x) => x.number)).toEqual([1, 2, 3]);
-    expect(m.countdown?.start).toBe(Date.parse(min(30)));
+    expect(m.countdown).toMatchObject({ match: { number: 1 }, start: null });
     expect(displayModel(detail([], { status: "upcoming" }), T0)).toMatchObject({ noSchedule: true, now: null, countdown: null, upNext: [] });
   });
 
