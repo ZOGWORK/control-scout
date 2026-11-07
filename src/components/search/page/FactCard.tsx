@@ -201,11 +201,12 @@ function FactValue({ f }: { f: SearchCardFact }) {
  *  a filled chip, what it is in bold in the colour (a link where it opens something; a count's number big), when and
  *  where under it, how it went as small stat pills. */
 /** A word's explainer drawn inside another answer's card (a team's stat with what the stat means under it): its
- *  title as a part heading, its lines as a definition card's, so the page keeps one answer card. */
-export function ExplainerLines({ card }: { card: Pick<SearchCard, "title" | "lines" | "kind"> }) {
+ *  title as a part heading (none when the page's heading already says it), its lines as a definition card's, so the
+ *  page keeps one answer card. */
+export function ExplainerLines({ card, heading }: { card: Pick<SearchCard, "title" | "lines" | "kind">; heading?: string }) {
   return (
     <section aria-label={card.title} className="mt-5" data-explainer>
-      <h3 className={PART}>{card.title}</h3>
+      {!repeats(heading, card.title) && <h3 className={PART}>{card.title}</h3>}
       <Lines lines={card.lines} kind={card.kind} icon={ICON[card.kind] ?? Info} />
     </section>
   );

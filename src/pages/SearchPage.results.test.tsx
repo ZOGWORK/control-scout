@@ -123,12 +123,15 @@ describe("search results page", () => {
 
   it("a team's stat with a word's explainer is one answer card: the stat, then the explainer inside it", () => {
     const stat: StatAnswer = { family: "stat", intent: "opr", title: "OPR in 2025–26", team: { number: 4215, name: "Hypnotic Robotics" }, scope: ["2025–26"],
-      headline: { value: "101.6", label: "#612 of 8,308 worldwide" }, blocks: [] };
+      headline: { value: "101.6", label: "#612 of 8,308 worldwide" }, blocks: [], definition: "OPR: …", source: "From 4215's 2025–26 season numbers" };
     const card = { kind: "info" as const, title: "OPR: what it is and how it's worked out", lines: [{ text: "OPR estimates each robot's average contribution to its alliance's score", href: "/methodology#opr" }] };
     state.answer = answer([team(4215, "Hypnotic Robotics", "Oradell, NJ, USA")], { stat, card });
     const { container } = show("/search?q=how%20is%20opr%20calculated%2C%20with%204215");
     expect(container.querySelectorAll("[data-answer-frame]")).toHaveLength(1);
-    expect(container.querySelector("[data-answer-frame][data-stat-answer] [data-explainer] h3")!.textContent).toBe(card.title);
+    const ex = container.querySelector("[data-answer-frame][data-stat-answer] [data-explainer]")!;
+    expect(ex.querySelector("[data-line-text]")!.textContent).toBe(card.lines[0].text);
+    // Its title is the page's heading already: not said twice.
+    expect(ex.querySelector("h3")).toBeNull();
   });
 
   it("shows team badges only from real numbers, and no card shows a web address or nests a control", () => {

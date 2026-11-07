@@ -58,7 +58,7 @@ export function StatAnswerCard({ stat, heading, explain }: { stat: StatAnswer; h
   // behind it, and its blocks. No hue on data (the search results guide): tiles, bars and marks are neutral.
   // A comparison of teams: its own card, each fact said once (./CompareCard.tsx).
   const cmp = comparisonOf(stat);
-  const extra = explain && <ExplainerLines card={explain} />;
+  const extra = explain && <ExplainerLines card={explain} heading={heading} />;
   if (cmp) return <CompareCard stat={stat} b={cmp} extra={extra} />;
   return <OneCard stat={stat} heading={heading} extra={extra} />;
 }
