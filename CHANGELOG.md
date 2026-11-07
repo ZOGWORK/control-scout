@@ -20,7 +20,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 Search lists the matches a low-ranked team won against a top-ranked one.
 
 ### Highlights
-- [rankings] "A team ranked below 1000 beat a team ranked top 100" lists those matches
+- [rankings] "A team ranked below 1000 beat a team ranked top 100" lists them
 - [rankings] The biggest rank gap first, every team with its world rank
 - [fixes] Asked the other way round, "lost to", it answers too
 
