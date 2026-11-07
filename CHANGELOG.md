@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 4.0.4 — 2026-11-07
+## 4.0.5 — 2026-11-07
 
 A team's Worlds questions asked in plain words get their answers: "number of times <team> went to worlds", "<team> world championship matches 2025-26", and "what division was <team> in at worlds, and what was their rank there".
 
@@ -26,6 +26,18 @@ A team's Worlds questions asked in plain words get their answers: "number of tim
 
 ### Search
 - **Worlds in plain words.** "World championship" (and "world champs") is read as one name, Worlds, so "<team> world championship matches <season>" is its matches there rather than an event called "championship". "Number of times <team> went (or has gone) to worlds" reads as its Worlds appearances, and "what division was <team> in at worlds, and what was their rank (record) there" as its Worlds divisions, each with its rank and record. (#1087)
+
+## 4.0.4 — 2026-11-07
+
+People also ask and Related searches stay on what you searched: an FTC word is never read as a town, and only the team your search is about gets its highlights.
+
+### Highlights
+- [fixes] "What is an alliance" no longer asks about Alliance, Nebraska
+- [fixes] Highlights and related searches only for the team you searched
+- [fixes] "High Point" and other two-word places still get their questions
+
+### Search
+- **Follow-ups use only what the search named.** A place or event typed as one FTC word on its own ("alliance", "auto") is the word, so no follow-up question names it; names of two or more words ("High Point") still are. Highlights and team searches beside an answer are for the team the search is about, never a team that only a suggested question's answer named; a search about no team shows neither. (#1137)
 
 ## 4.0.3 — 2026-11-07
 
