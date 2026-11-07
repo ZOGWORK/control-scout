@@ -57,6 +57,13 @@ describe("a team's name typed whole, punctuation and all", () => {
       const a = await ask(q);
       expect(a.stat?.team?.number ?? Number(a.hits[0]?.ref), q).toBe(21536);
     }
+    // The slip is said: "Did you mean team stealth record"; the name spelled right says nothing.
+    expect((await ask("team sealth record")).didYouMean).toBe("team stealth record");
+    expect((await ask("team stealth record")).didYouMean).toBeUndefined();
+    // "team" before a number is the frame's word, never part of a name one slip from it.
+    const byNumber = await ask("show me typical scores of team 5000");
+    expect(byNumber.stat?.team?.number ?? Number(byNumber.hits[0]?.ref)).toBe(5000);
+    expect(byNumber.didYouMean).toBeUndefined();
     // A team named without it is still read as itself.
     const own = await ask("stealth panther robotics ftc record");
     expect(own.stat?.team?.number ?? Number(own.hits[0]?.ref), JSON.stringify(own.understood)).toBe(16309);

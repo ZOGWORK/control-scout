@@ -37,7 +37,7 @@ function setUp(opts: { team?: number | null; picks?: number[] | null; rules?: bo
 }
 
 const mount = () => render(<MemoryRouter initialEntries={["/bundle/2025/USCABLM1"]}><Routes><Route path="/bundle/:season/:code" element={<BundlePage />} /></Routes></MemoryRouter>);
-afterEach(() => { cleanup(); localStorage.clear(); h.myTeam = null; });
+afterEach(() => { cleanup(); localStorage.clear(); h.myTeam = null; vi.useRealTimers(); });
 
 describe("BundlePage", () => {
   it("with no team set, shows every match (never an empty card asking to pick one)", () => {
@@ -65,12 +65,25 @@ describe("BundlePage", () => {
   });
 
   it("says times in 12-hour form with a short zone, never the raw IANA name", () => {
+    // The clock frozen at a local noon: saved 10 minutes before, the same day, so the time alone.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 10, 6, 12, 0));
     setUp();
     mount();
     expect(screen.getByText("1:40 PM")).toBeTruthy();
     expect(screen.getByText(/^Times in (PT|PST|PDT)$/)).toBeTruthy();
     expect(document.body.textContent).not.toMatch(/America\/Los_Angeles/);
-    expect(document.querySelector("[data-snapshot-banner]")?.textContent).toMatch(/Saved \d{1,2}:\d{2} (AM|PM)/);
+    expect(document.querySelector("[data-snapshot-banner]")?.textContent).toMatch(/Saved 11:50 AM/);
+  });
+
+  // CI near midnight (Nov 6, 2026): "Saved Nov 6, 11:54 PM" failed the time-only form. Saved before midnight and read
+  // after it, the date comes first; still 12-hour.
+  it("a snapshot saved on another day says its date before the time", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 10, 7, 0, 4));
+    setUp();
+    mount();
+    expect(document.querySelector("[data-snapshot-banner]")?.textContent).toMatch(/Saved Nov 6, 11:54 PM/);
   });
 
   it("hides an empty pick list", () => {
