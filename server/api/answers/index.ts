@@ -34,6 +34,7 @@ import { changeAnswer, readChange, type ChangeQuestion } from "./families/season
 import { MATCH_STAT_IDS, matchStatAnswer } from "./families/matchStats.js";
 import { BOARD_STATS, LEADERBOARD_MAX, boardStatFor, leaderboardAnswer, statWords } from "./families/leaderboard.js";
 import { everTopMatches, readTopMatches, topMatchesAnswer, type TopMatchesQuestion } from "./families/topMatches.js";
+import { rankUpsetAnswer, readRankUpset, type RankUpsetQuestion } from "./families/rankUpset.js";
 import { penaltyTotalAnswer, trendAnswer } from "./families/trends.js";
 import { nextEventPrediction, pairPrediction, predictTitle, predictionSeason } from "./families/predict.js";
 import { awardsSideBySide, compareAnswer, compareSeason, headToHead, neverPlayedAnswer, opponentsAnswer, partnerListAnswer, phaseSideBySide, reliabilitySideBySide, seasonSideBySide } from "./families/twoTeam.js";
@@ -296,6 +297,19 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
   return scope;
 }
 
+/** Matches a team ranked below one line beat a team ranked inside another (./families/rankUpset.ts). */
+async function rankUpsetSearch(q: string, ru: RankUpsetQuestion, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+  // The search box reads it too (its link opens the page); only the page draws the matches.
+  const stat = opts.full ? await rankUpsetAnswer(ru) : null;
+  const label = stat?.title ?? `Matches a team ranked below ${ru.below.toLocaleString("en-US")} beat a top-${ru.top.toLocaleString("en-US")} team`;
+  return {
+    q, hits: [], pages: opts.pages, step: "deterministic", weak: false,
+    understood: { kind: "question", label, ...(ru.season != null ? { season: ru.season } : {}) },
+    intent: { kind: "stat-rank-upsets", pattern: `team ranked below [n] beat team ranked top [n]${ru.season != null ? " [season]" : ""}`, met: true, understood: [label] },
+    ...(stat ? { stat } : {}),
+  };
+}
+
 /** An event by name for a team-less question (its newest season, or the season named). */
 async function findEvent(words: string, season: number | null, opts: { anyPlayed?: boolean; closest?: boolean } = {}) {
   const hits = (await search(words, 8, new Set(), new Set(["event"]), season)).filter((h) => h.kind === "event");
@@ -336,6 +350,9 @@ async function findEvent(words: string, season: number | null, opts: { anyPlayed
 
 /** The answer for `q`, or null when it isn't a stat question or its team isn't found. */
 export async function statAnswer(q: string, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+  // Matches a low-ranked team won against a high-ranked one: before a leaderboard reads "ranked top 100" as one.
+  const ru = readRankUpset(q);
+  if (ru) return rankUpsetSearch(q, ru, opts);
   // A compound question (filters joined, or two answers at once) before any single reader takes part of it.
   const comp = readCompound(q);
   if (comp) {
