@@ -19,6 +19,11 @@ export const METRICS: Partial<Record<IntentId, Metric>> = {
   "win-rate": { label: "Win rate", unit: "%", digits: 0, get: rateOf, rule: "Win rate at each event: wins over the qualification matches it played there (ties count as played), as the team page's trend shows." },
   "avg-penalties": { label: "Penalty points given", lowerIsBetter: true, digits: 1, get: (e) => e.avgPen, rule: "Penalty points given: the average penalty points the team's alliance gave the other alliance per qualification match at each event (the alliance's fouls, shared by its teams), as the team page's trend shows. Lower is better." },
   "avg-score-by-event": { label: "Average alliance score", digits: 1, get: (e) => e.avgScore, rule: "Average alliance score at each event: the team's alliance's average official score per qualification match there, penalties included, as the team page's trend shows." },
+  // A phase's OPR and the reliability index, event by event (the event rows the team page reads).
+  "auto-history": { label: "Auto OPR", digits: 1, get: (e) => e.auto, rule: "Auto OPR at each event: the points the team adds to its alliance's Auto score there, as its team page shows." },
+  "teleop-history": { label: "TeleOp OPR", digits: 1, get: (e) => e.teleop, rule: "TeleOp OPR at each event: the points the team adds to its alliance's TeleOp score there, as its team page shows." },
+  "endgame-history": { label: "Endgame OPR", digits: 1, get: (e) => e.endgame, rule: "Endgame OPR at each event: the points the team adds to its alliance's Endgame score there, as its team page shows." },
+  "reliability-history": { label: "Reliability", digits: 0, get: (e) => e.reliability, rule: "Reliability at each event (0–100, higher = more dependable), from public match data only: no-shows, disqualifications, near-zero matches, how much its contribution swings, the penalty points it gives away and how far its scores land from the engine's calls, against the season's field." },
   "ranking-points": { label: "Ranking points", digits: 2, get: (e) => e.rp, rule: "Ranking points at each event: the team's ranking score in the event's official rankings (league meets have none of their own: their rankings are the league's running standing)." },
 };
 

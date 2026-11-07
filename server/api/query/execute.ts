@@ -82,6 +82,10 @@ const AWARD_LISTS = new Set<IntentId>(["awards", "total-awards", "inspire-awards
 const TREND_ASK: Partial<Record<PipelineIntent, { ask: string; intent: string }>> = {
   "rating-trend": { ask: "rating trend", intent: "rating-trend" },
   "opr-trend": { ask: "opr history", intent: "opr-history" },
+  "auto-trend": { ask: "auto opr history", intent: "auto-history" },
+  "teleop-trend": { ask: "teleop opr history", intent: "teleop-history" },
+  "endgame-trend": { ask: "endgame opr history", intent: "endgame-history" },
+  "reliability-trend": { ask: "reliability history", intent: "reliability-history" },
 };
 
 /** Words that ask for two teams side by side, beside "or" alone ("12345 or 67890" is a search for either). */

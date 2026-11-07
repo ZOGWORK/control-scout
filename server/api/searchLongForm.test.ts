@@ -97,6 +97,9 @@ const PAIRS: [string, string][] = [
   ["i want to know 4215's opr at worlds", "4215 opr at worlds"],
   ["what is the highest opr 4215 has ever had", "4215 highest opr ever"],
   ["how has 4215's opr changed over the seasons", "4215 opr trend over seasons"],
+  // The team changed between two seasons (failed-search #879, held out): its OPR's change.
+  ["how has hypnotic robotics improved since last season", "hypnotic robotics opr change since last season"],
+  ["how did 4215 change between 2023-24 and 2024-25", "4215 opr change between 2023-24 and 2024-25"],
   ["where does 4215 rank in opr worldwide", "4215 opr rank worldwide"],
   // The stat named stays the stat asked about (Greptile on #655).
   ["can you tell me where does 4215 rank in rating", "4215 rating rank"],

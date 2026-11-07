@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.8.7 — 2026-11-07
+
+A team's TeleOp, Auto or Endgame OPR and its reliability can be asked as a trend, event by event, and "how has <team> changed from last season" shows its OPR change.
+
+### Highlights
+- [fixes] "Is 14450's teleop improving" shows TeleOp OPR by event
+- [fixes] "7149 reliability trend, event by event" shows each event
+- [fixes] "How has 17713 changed from last season" shows its OPR change
+
+### Search
+- **Phase and reliability trends.** "<team> teleop trend", "is <team>'s auto improving", "<team> endgame over time" and "<team> reliability by event" each answer with that number at every event of the season, rising or falling against the event before, read from the rows the team page shows (a phase's OPR, the reliability index per event). "How has <team> changed (or improved) from last season to this season", "since last season" and "between two seasons" read as its OPR change. (#PR)
+
 ## 3.8.6 — 2026-11-07
 
 A question ending with what it is not asking ("…, not just one number", "in 2024-25, not this season") is answered for what it is asking.
