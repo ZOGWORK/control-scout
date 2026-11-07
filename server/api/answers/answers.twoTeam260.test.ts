@@ -98,6 +98,8 @@ describe("reading the 260 list's two-team questions", () => {
     expect(readStatQuestion("who should 4215 pick as an alliance partner")).toMatchObject({ id: "pick-partner", core: "4215" });
     expect(id("4215 predicted wins at their next event")).toBe("next-event-wins");
     expect(id("4215 chance to win an event")).toBe("event-win-chance");
+    // The next event's forecast, said as a noun: the stored projection, led by the chance to win it.
+    for (const q of ["6980 next meet forecast", "23268 next competition projections", "7149 forecast for their next tournament"]) expect(id(q), q).toBe("event-win-chance");
     expect(id("4215 chance to advance to worlds")).toBe("advance-chance");
     expect(id("4215 advancement chances")).toBe("advance-chance");
     expect(id("4215 predicted to make playoffs at their next event")).toBe("playoff-chance");
@@ -193,6 +195,16 @@ describe("the answers", () => {
     expect(none.stat!.headline).toMatchObject({ value: "Not published yet" });
     expect(none.stat!.none).toMatch(/hasn't published a projection for Northeast League Meet yet/);
     expect((await ask("6980 chance to advance to worlds")).stat!.none).toMatch(/^No upcoming event is published for Bad Wolf \(6980\)/);
+    // The forecast said as a noun ("next meet forecast"): the same card, end to end, any team.
+    const noun = await ask("4215 next meet forecast");
+    expect(noun.stat).toMatchObject({ intent: "event-win-chance", team: { number: 4215 }, headline: { value: "22%", label: "to win Northeast League Meet" } });
+    expect((await ask("33950 projection for their next competition")).stat!.headline).toMatchObject({ value: "Not published yet" });
+    expect((await ask("6980 next tournament odds")).stat!.none).toMatch(/^No upcoming event is published for Bad Wolf \(6980\)/);
+    // "Will <team> win <event>": the forecast at that event, before it starts (the stored chance) or after (before and after).
+    const will = await ask("will hypnotic robotics win the northeast league meet");
+    expect(will.stat).toMatchObject({ intent: "pipeline-team-predict-event", team: { number: 4215 }, headline: { value: "22%", label: "to win Northeast League Meet" } });
+    const past = await ask("will 6980 win new jersey qualifier");
+    expect(past.stat).toMatchObject({ intent: "pipeline-team-predict-event", team: { number: 6980 }, title: "Prediction vs result at New Jersey Qualifier" });
     // The forecast's switch off: the event page shows no odds, and nor does search.
     await setFlag("advancementOdds", false, "test");
     const off = await ask("4215 chance to win an event");
