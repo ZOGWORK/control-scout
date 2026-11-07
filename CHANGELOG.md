@@ -25,7 +25,7 @@ A team's own events asked in plain words get their answer: its last or first eve
 - [fixes] "What is my 4215 upcoming event" shows its next event
 
 ### Search
-- **A team's events in plain words.** "What was the last (or first) event <team> played, and how did they do" reads as its results at that event; "what was <team>'s first event this season, and what was their OPR (rank, record) there" as that number there; "what events did <team> play in <place>" and "how many events did <team> play in <season>, and which was their best" as its events list (each with its rank); "what is my <team> (upcoming) event" as its next event. "In order" at the end is left out: every list is in date order. A team's events in a whole country ("in Romania") are every state or province of it, matched by the country's code, and "this year" with a place is the default season. (#1084)
+- **A team's events in plain words.** "What was the last (or first) event <team> played, and how did they do" reads as its results at that event; "what was <team>'s first event this season, and what was their OPR (rank, record) there" as that number there; "what events did <team> play in <place>" and "how many events did <team> play in <season>, and which was their best" as its events list (each with its rank); "what is my <team> (upcoming) event" as its next event. "In (date) order" lists a place's events oldest first, and "how many … played" counts the events with a match played, never the upcoming ones. A team's events in a whole country ("in Romania") are every state or province of it, matched by the country's code, and "this year" with a place is the default season. (#1084)
 
 ## 3.8.8 — 2026-11-07
 

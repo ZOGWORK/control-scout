@@ -46,6 +46,11 @@ beforeAll(async () => {
   // An event abroad, in a country stored by FIRST's own label and a county's code (failed-search #823).
   await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, 'ROCMP', 'Romania National Championship', 'Championship', 'Bucharest', 'B', 'Romania', '2026-03-01', '2026-03-01', 't')");
   await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'ROCMP', 19564, 4)");
+  // A played match there, and an upcoming event the team is already listed for (Greptile on #1084).
+  await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'ROCMP', 'qual', 0, 1, 'Q1', '2026-03-01T10:00:00Z', 1, 80, 80, 60, 60, 't')");
+  await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'ROCMP', 'qual', 0, 1, 19564, 'red', 1)");
+  await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, 'ROFUT', 'Cluj Invitational', 'Qualifier', 'Cluj', 'CJ', 'Romania', '2099-02-01', '2099-02-01', 't')");
+  await run("INSERT INTO event_teams (season, code, team) VALUES (2025, 'ROFUT', 19564)");
   await rebuildSearch();
 });
 
@@ -99,14 +104,24 @@ describe("team facts", () => {
   // Failed-search #823, held out: another team, other words. A whole country is every state or province of it.
   it("events in a country, asked as a question", async () => {
     expect(readTeamFact("19564 events in romania")).toMatchObject({ id: "events-place", region: null, country: { code: "RO" } });
-    for (const q of ["19564 events in Romania", "which events did the marvels compete in romania this season, in date order"]) {
+    const rows = async (q: string) => {
       const s = (await searchAnswer(q, { limit: 25 })).stat;
-      expect(s, q).toMatchObject({ intent: "events-place", headline: { value: "1 event" } });
+      expect(s, q).toMatchObject({ headline: { value: expect.stringMatching(/^\d+ events?$/) } });
       const t = s!.blocks.find((b) => b.kind === "table");
-      expect(t && t.kind === "table" && t.rows.map((r) => r.cells.event), q).toEqual(["Romania National Championship"]);
-    }
+      return t && t.kind === "table" ? t.rows.map((r) => r.cells.event) : null;
+    };
+    // Newest first, unless the order asked is the date's (Greptile on #1084: it's kept, never dropped).
+    expect(await rows("19564 events in Romania")).toEqual(["Cluj Invitational", "Romania National Championship"]);
+    expect(await rows("which events did the marvels compete in romania this season, in date order")).toEqual(["Romania National Championship", "Cluj Invitational"]);
     // Its events at home aren't a country's.
     expect((await searchAnswer("4215 events in romania", { limit: 25 })).stat).toMatchObject({ none: expect.stringContaining("no events in Romania") });
+    // A bare year is the team's number there too, and keeps the country (Greptile on #1084: it threw).
+    expect(readTeamFact("2024 events in romania")).toMatchObject({ id: "events-place", core: "2024", country: { code: "RO" } });
+  });
+  it("events played: never the season's upcoming ones (Greptile on #1084)", async () => {
+    expect((await searchAnswer("19564 events in 2025-26", { limit: 25 })).stat!.headline).toMatchObject({ value: "2 events" });
+    const s = (await searchAnswer("how many events did the marvels play in 2025-26 and which was their best by rank", { limit: 25 })).stat!;
+    expect(s).toMatchObject({ title: "Events played in 2025–26", headline: { value: "1 event" } });
   });
   it("OPR against the world's, a state's and an event's division's average", async () => {
     // Worldwide: the team page's own world rank, and the average over the teams that rank counts, stated.

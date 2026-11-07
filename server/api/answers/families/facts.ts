@@ -34,7 +34,14 @@ export interface FactQuestion {
   world: boolean;
   /** "OPR vs New Jersey Championship average": the event's words. */
   event: string | null;
+  /** "events played in 2025-26": only the events with a played match (the season's list holds upcoming ones too). */
+  played?: boolean;
+  /** "in date order", "oldest first": a place's events listed oldest first (they're newest first otherwise). */
+  oldestFirst?: boolean;
 }
+
+/** "In (date / chronological) order", "oldest first": how a list of events is asked to run. */
+const OLDEST_FIRST = /\s(?:in\s+(?:date\s+|chronological\s+)?order|oldest\s+first|chronologically)(?=\s)/;
 
 const PHASE = { "auto-opr": ["auto", "Auto OPR"], "teleop-opr": ["teleop", "TeleOp OPR"], "endgame-opr": ["endgame", "Endgame OPR"] } as const;
 
@@ -60,7 +67,10 @@ const RULES: { id: FactId; re: RegExp }[] = [
 
 /** The fact `raw` asks about one team, or null. */
 export function readTeamFact(raw: string): FactQuestion | null {
-  const q = ` ${raw.toLowerCase().replace(/['’]s\b/g, "").replace(/[?!,]/g, " ")} `.replace(/\s+/g, " ");
+  const typed = ` ${raw.toLowerCase().replace(/['’]s\b/g, "").replace(/[?!,]/g, " ")} `.replace(/\s+/g, " ");
+  // How an events list is asked for: its words go, the list keeps them (FactQuestion.played, .oldestFirst).
+  const listed = { ...(/\bevents?\s+played\b/.test(typed) ? { played: true } : {}), ...(OLDEST_FIRST.test(typed) ? { oldestFirst: true } : {}) };
+  const q = typed.replace(OLDEST_FIRST, " ").replace(/\b(events?)\s+played\b/, "$1");
   for (const r of RULES) {
     const m = r.re.exec(q);
     if (!m) continue;
@@ -76,7 +86,7 @@ export function readTeamFact(raw: string): FactQuestion | null {
     if (r.id === "events-place") {
       // "events in 2025-26" names a season, not a place.
       const s = readScope(` events in ${what} `);
-      if (s.scope.season != null && !s.rest.replace(/\bevents?\b/, "").trim()) { const core = rest.trim(); return core ? { id: "events-season", core, season: s.scope.season, region: null, world: false, event: null } : null; }
+      if (s.scope.season != null && !s.rest.replace(/\bevents?\b/, "").trim()) { const core = rest.trim(); return core ? { id: "events-season", core, season: s.scope.season, region: null, world: false, event: null, ...listed } : null; }
       // "events in New Jersey 2024-25", "events in Romania this year": the place, and the season read off it ("this
       // year" is the default season, as every team answer reads it).
       const said = s.scope.season ?? (s.scope.latest ? searchSeason() : null);
@@ -90,6 +100,8 @@ export function readTeamFact(raw: string): FactQuestion | null {
     }
     // "12345 events" alone is the count, another answer's: the season list needs a season. A question about them
     // ("when is 12345's next event", "what events did 12345 win in 2024") is the asks' own.
+    // "This season" is the default season, as the team's other answers read it ("12345 events played this season").
+    if (r.id === "events-season" && scope.season == null && scope.latest) scope.season = searchSeason();
     if (r.id === "events-season" && scope.season == null) return null;
     if ((r.id === "events-season" || r.id === "events-place") && /\b(?:when|next|win|won|did|does|what|which|how|where|awards?|upcoming)\b/.test(q)) return null;
     // "past events in michigan", "recent events in nj": a time, not a team ("past" isn't PastaBots), the event sets' own.
@@ -97,9 +109,10 @@ export function readTeamFact(raw: string): FactQuestion | null {
     // "what does 12345's reliability score mean": the question's own words, never part of the team's name.
     const core = (/^\s*what\b/.test(q) ? rest.replace(/\s(?:mean|means|stand for)\s*$/, " ") : rest).replace(/\b(?:what|whats|what's|is|are|the|of|for|team|ftc|does|did|has|have|its|their)\b/g, " ").replace(/\s+/g, " ").trim();
     // A bare year with nothing else naming a team is the team's number ("2024 reliability").
-    if (!core && scope.year && scope.season != null) return { id: r.id, core: String(scope.season), season: null, region, world, event };
+    const more = { ...(country ? { country } : {}), ...(r.id === "events-season" || r.id === "events-place" ? listed : {}) };
+    if (!core && scope.year && scope.season != null) return { id: r.id, core: String(scope.season), season: null, region, world, event, ...more };
     if (!core) return null;
-    return { id: r.id, core, season: scope.season, region, world, event, ...(country ? { country } : {}) };
+    return { id: r.id, core, season: scope.season, region, world, event, ...more };
   }
   return null;
 }
@@ -199,23 +212,27 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
   }
 
   if (f.id === "events-season") {
-    const evs = await teamEvents(season, team.number);
-    const b = base("events-season", `Events in ${S}`, [S], "Every event the team is listed for that season, oldest first, with its rank, record and OPR there.", `From ${possessive(who(team))} ${S} events`);
-    if (!evs.length) return { ...b, none: `${who(team)} has no events in ${S}.` };
+    // "Events played": those with a played match only, never the season's upcoming ones.
+    const evs = (await teamEvents(season, team.number)).filter((e) => !f.played || (e.played ?? 0) > 0);
+    const what = f.played ? "Events played" : "Events";
+    const b = base("events-season", `${what} in ${S}`, [S], `Every event the team is listed for that season${f.played ? " with a match played" : ""}, oldest first, with its rank, record and OPR there.`, `From ${possessive(who(team))} ${S} events`);
+    if (!evs.length) return { ...b, none: `${who(team)} has no events${f.played ? " played" : ""} in ${S}.` };
     return { ...b, headline: { value: `${evs.length} event${evs.length === 1 ? "" : "s"}`, label: S },
-      blocks: [{ kind: "table", title: `Events in ${S}`, columns: [{ key: "event", label: "Event" }, { key: "date", label: "Date" }, { key: "rank", label: "Rank", num: true }, { key: "record", label: "W-L-T" }, { key: "opr", label: "OPR", num: true }],
+      blocks: [{ kind: "table", title: `${what} in ${S}`, columns: [{ key: "event", label: "Event" }, { key: "date", label: "Date" }, { key: "rank", label: "Rank", num: true }, { key: "record", label: "W-L-T" }, { key: "opr", label: "OPR", num: true }],
         rows: evs.map((e) => ({ cells: { event: shortEvent(e.name, e.type), date: dateRange(e.start, e.end) ?? "–", rank: e.rank ?? "–", record: e.wins == null ? "–" : `${e.wins}-${e.losses}-${e.ties}`, opr: dp(e.opr.np) }, href: eventHref(season, e.code, team.number) })) }] };
   }
 
   if (f.id === "events-place") {
-    const r = f.region ?? { name: f.country!.name };
+    const country = f.country;
+    if (!f.region && !country) return null;
+    const r = f.region ?? { name: country!.name };
     // A state or province by its stored codes; a whole country by its code, whatever label FIRST stored for it.
     const sql = `SELECT e.season, e.code, e.name, e.type, e.start, e.end, e.country, et.rank FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
-      WHERE et.team = ?${f.region ? " AND e.country = ? AND e.state = ?" : ""}${f.season != null ? " AND e.season = ?" : ""} AND ${ATTENDED} ORDER BY e.start DESC, e.code`;
+      WHERE et.team = ?${f.region ? " AND e.country = ? AND e.state = ?" : ""}${f.season != null ? " AND e.season = ?" : ""} AND ${ATTENDED} ORDER BY e.start ${f.oldestFirst ? "ASC" : "DESC"}, e.code`;
     const evs = (await all<any>(sql, [team.number, ...(f.region ? [f.region.country, f.region.state] : []), ...(f.season != null ? [f.season] : [])]))
-      .filter((e) => f.region || countryOf(e.country)?.code === f.country!.code);
+      .filter((e) => f.region || countryOf(e.country)?.code === country!.code);
     const in_ = f.season != null ? ` in ${seasonLabel(f.season)}` : "";
-    const b = base("events-place", `Events in ${r.name}${in_}`, [r.name, f.season != null ? seasonLabel(f.season) : "All seasons"], `Every event in ${r.name} the team is listed for${in_ || ", every season"}, newest first.`, `From ${possessive(who(team))} events`);
+    const b = base("events-place", `Events in ${r.name}${in_}`, [r.name, f.season != null ? seasonLabel(f.season) : "All seasons"], `Every event in ${r.name} the team is listed for${in_ || ", every season"}, ${f.oldestFirst ? "oldest" : "newest"} first.`, `From ${possessive(who(team))} events`);
     if (!evs.length) return { ...b, none: `${who(team)} has no events in ${r.name}${in_} on record.` };
     const seasons = new Set(evs.map((e) => Number(e.season)));
     return { ...b, headline: { value: `${evs.length} event${evs.length === 1 ? "" : "s"}`, label: `in ${r.name}, ${seasons.size} season${seasons.size === 1 ? "" : "s"}` },

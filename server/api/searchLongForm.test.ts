@@ -103,8 +103,8 @@ const PAIRS: [string, string][] = [
   ["what was the first meet 4215 played in 2024-25", "4215 results at their first event in 2024-25"],
   ["what was 6980's last event and what was their rank there", "6980 rank at their last event"],
   ["what was hypnotic robotics' earliest tournament in 2024-25 and how was their record", "hypnotic robotics record at their first event in 2024-25"],
-  ["which tournaments did 6980 bad wolf compete in new jersey last season in date order", "6980 bad wolf events in new jersey last season"],
-  ["how many meets did 6980 attend this season and which was their best one", "6980 events this season"],
+  ["which tournaments did 6980 bad wolf compete in new jersey last season in date order", "6980 bad wolf events in new jersey last season in date order"],
+  ["how many meets did 6980 attend this season and which was their best one", "6980 events played this season"],
   ["when is my 6980 next event", "6980 next event"],
   ["where does 4215 rank in opr worldwide", "4215 opr rank worldwide"],
   // The stat named stays the stat asked about (Greptile on #655).

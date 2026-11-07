@@ -28,8 +28,7 @@ const OPENERS = [
  *  team's number. */
 const FILLERS = /\s(?:um+|uh+|basically|actually|literally|kinda|kind\s+of|sort\s+of|(?<!\b(?:teams?|robots?|ones?|someone|something|anything|similar|look|looks|looked|feel|feels|would|do|does|did|i|you|we|they)\s)like(?!\s+(?:#?\d+|them|theirs|their|it|this|that|those|these|team|robot)\b))(?=\s)/g;
 /** Closing fillers: "please", "for me", "right now", "thanks". */
-// "In order": every list is in date order already.
-const CLOSERS = /,?\s+(?:please|pls|for\s+me|thanks|thank\s+you|right\s+now|currently|at\s+the\s+moment|in\s+(?:date\s+|chronological\s+)?order)$/;
+const CLOSERS = /\s+(?:please|pls|for\s+me|thanks|thank\s+you|right\s+now|currently|at\s+the\s+moment)$/;
 
 /** Whole-question rules, first match wins: what each long phrasing asks, said as its short form. `$n` are the
  *  captured groups; the scope words after them (a season, a place) are kept by `tail`. */
@@ -65,7 +64,7 @@ const RULES: [RegExp, (m: RegExpExecArray) => string][] = [
   [new RegExp(String.raw`^what\s+(?:was|is)\s+${TN}\s+(last|latest|most\s+recent|first|earliest)\s+(?:event|competition|tournament|meet)(.*?),?\s+and\s+(?:what|how)\s+(?:was|is)\s+(?:their|its)\s+(opr|rank|ranking|record)(?:\s+there|\s+at\s+it)?$`), (m) => `${m[1]} ${m[4] === "ranking" ? "rank" : m[4]} at their ${which(m[2])} event${m[3]}`],
   // Its events in a place, or how many and the best of them: its events list (each with its rank), the scope kept.
   [new RegExp(String.raw`^(?:what|which)\s+(?:events?|meets?|competitions?|tournaments?)\s+(?:has|have|did|does)\s+${TN}\s+(?:play(?:ed)?|compete(?:d)?|go\s+to|went\s+to|attend(?:ed)?)\s+in\s+(.+)$`), (m) => `${m[1]} events in ${m[2]}`],
-  [new RegExp(String.raw`^how\s+many\s+(?:events?|meets?|competitions?|tournaments?)\s+(?:has|have|did)\s+${TN}\s+(?:play(?:ed)?(?:\s+in)?|compete(?:d)?(?:\s+in)?|attend(?:ed)?|go\s+to|been\s+to)(.*?),?\s+and\s+which\s+(?:was|were|is)\s+(?:their|its)\s+best(?:\s+(?:one|event|finish))?(?:\s+by\s+(?:rank|finish|placement))?$`), (m) => `${m[1]} events${m[2]}`],
+  [new RegExp(String.raw`^how\s+many\s+(?:events?|meets?|competitions?|tournaments?)\s+(?:has|have|did)\s+${TN}\s+(?:play(?:ed)?(?:\s+in)?|compete(?:d)?(?:\s+in)?|attend(?:ed)?|go\s+to|been\s+to)(.*?),?\s+and\s+which\s+(?:was|were|is)\s+(?:their|its)\s+best(?:\s+(?:one|event|finish))?(?:\s+by\s+(?:rank|finish|placement))?$`), (m) => `${m[1]} events played${m[2]}`],
   // "What is my 12345 (upcoming) event": the team's own, its next.
   [/^(?:what|which|when)\s+(?:is|are|was)\s+my\s+(?:team\s+)?#?(\d{1,6})(?:\s+(?:next|upcoming))?\s+(?:event|events|competition|meet)$/, (m) => `${m[1]} next event`],
   [new RegExp(String.raw`^(?:what|which)\s+(?:events?|meets?|competitions?|tournaments?)\s+(?:has|have|did|does)\s+${T}\s+(?:go(?:ne)?\s+to|went\s+to|compete(?:d)?\s+(?:at|in)|attend(?:ed)?|play(?:ed)?\s+(?:at|in))(.*)$`), (m) => `events ${m[1]} went to${m[2]}`],
