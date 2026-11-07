@@ -52,9 +52,13 @@ describe("what's read", () => {
     expect(readLeaderboard("which team played the most match")).toMatchObject({ stat: "matches" });
     expect(readLeaderboard("most events attended in new jersey")).toMatchObject({ stat: "events", region: { key: "USA:NJ" } });
     expect(readLeaderboard("top 5 teams by matches played")).toMatchObject({ stat: "matches", n: 5 });
-    // "Most" with a stat that isn't a count is the stat's own board; "most match" alone isn't one.
+    // "Most" with a stat that isn't a count is the stat's own board; right after "most", a count read as one is a count.
     expect(readLeaderboard("which team has the most vibes")).toBeNull();
-    expect(readLeaderboard("most match in nj")).toBeNull();
+    expect(readLeaderboard("most match in nj")).toMatchObject({ stat: "matches", region: { key: "USA:NJ" } });
+    expect(readLeaderboard("best match in nj")).toBeNull();
+    // Greptile on #1040: counted at some events only is a count the board can't make.
+    expect(readLeaderboard("which team played the most matches at New Jersey events")).toBeNull();
+    expect(readLeaderboard("most awards at out of state events")).toBeNull();
   });
 });
 
@@ -64,6 +68,10 @@ describe("the lists", () => {
     expect(m.stat).toMatchObject({ family: "leaderboard", title: "Team in New Jersey with the most matches played · 2025–26", headline: { value: "23268 Ultraviolet" } });
     // Never the highest-scoring matches.
     expect(m.intent?.kind).toBe("stat-leaderboard-top");
+    // Greptile on #1040: with no verb, as typed ("matches", "events"), it's still the count's board.
+    for (const [q, title] of [["which team has the most matches in NJ", "Team in New Jersey with the most matches played · 2025–26"], ["most events in New Jersey", "Team in New Jersey with the most events played · 2025–26"]]) {
+      expect((await searchAnswer(q, { limit: 25, full: true })).stat?.title, q).toBe(title);
+    }
     for (const [code, team] of [["NJQ1", 6980], ["NJQ1", 4215], ["NJQ2", 6980]] as const) await run("INSERT INTO awards (season, code, type, placement, team) VALUES (2025, ?, 'Think', ?, ?)", [code, team === 4215 ? 2 : 1, team]);
     const a = await searchAnswer("most awards in New Jersey", { limit: 25, full: true });
     expect(a.stat).toMatchObject({ title: "Team in New Jersey with the most awards won · 2025–26", headline: { value: "6980 Bad Wolf" } });

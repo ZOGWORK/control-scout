@@ -524,10 +524,11 @@ export function readLeaderboard(raw: string): LeaderboardQuestion | null {
     if (stat && region !== false) return { kind: "rookie", stat, n: n(m[1], 10), region, city: null, season: scope.season };
   }
   // "which team has the most awards in nj", "team that played the most matches", "most events played in ohio": a
-  // count's board, its leader first. A verb said before the count is its own ("played the most match": matches played).
-  if ((m = new RegExp(`^(?:(?:which|what) )?(?:${TEAMS} )?(?:(?:in|from) (.+?) )?(?:(?:that|who) )?(?:(has|have|had|with|won|played|plays|attended|got) )?(?:the )?most (.+?)${PLACE}$`).exec(rest))) {
-    const verb = m[2] === "plays" ? "played" : m[2];
-    const stat = boardStat(m[3]) ?? (verb ? boardStat(`${m[3]} ${verb}`) : null), region = place(m[1] ?? m[4]);
+  // count's board, its leader first. Right after "most" a count needs no verb: search reads "most matches" as "most
+  // match" (matches played), and a verb said before it is its own ("attended the most event").
+  // Counted at some events only ("at New Jersey events", "out of state") is a count the board can't make: none.
+  if (!scope.place && !scope.outOfState && (m = new RegExp(`^(?:(?:which|what) )?(?:${TEAMS} )?(?:(?:in|from) (.+?) )?(?:(?:that|who) )?(?:(has|have|had|with|won|played|plays|attended|got) )?(?:the )?most (.+?)${PLACE}$`).exec(rest))) {
+    const stat = boardStat(m[3]) ?? boardStat(`${m[3]} ${m[2] === "attended" ? "attended" : "played"}`), region = place(m[1] ?? m[4]);
     if ((stat === "matches" || stat === "events" || stat === "awards") && region !== false) return { kind: "top", stat, n: 10, region, city: null, season: scope.season, best: true };
   }
   // "most improved team in new jersey"
