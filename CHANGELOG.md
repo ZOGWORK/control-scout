@@ -26,7 +26,7 @@ A list of teams with filters is answered however the filters are said: "Houston 
 - [rankings] "Top 3 Texas Inspire teams" lists Inspire winners
 
 ### Search
-- **Team lists, filters said any way.** A threshold needs no "with" ("Oradell teams, OPR over 100"), a stat with a bare number is at least it ("OPR 90", "OPR 90+"), "percent" is a unit, and a count of matches or wins is a filter ("at least 30 matches", "that played 20+ matches"). Every threshold said is applied and named on the card; "a leaderboard for teams …", "list them all" and "worldwide" read too. Worlds made, or not made ("did not make worlds"), rookies ("started as a rookie this year") and an award named before the teams ("Texas Inspire teams") are filters of their own. (#PR)
+- **Team lists, filters said any way.** A threshold needs no "with" ("Oradell teams, OPR over 100"), a stat with a bare number is at least it ("OPR 90", "OPR 90+"), "percent" is a unit, and a count of matches or wins is a filter ("at least 30 matches", "that played 20+ matches"). Every threshold said is applied and named on the card; "a leaderboard for teams …", "list them all" and "worldwide" read too. Worlds made, or not made ("did not make worlds"), rookies ("started as a rookie this year") and an award named before the teams ("Texas Inspire teams") are filters of their own. (#1075)
 
 ## 3.8.7 — 2026-11-07
 
