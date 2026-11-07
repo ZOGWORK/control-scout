@@ -135,6 +135,11 @@ describe("a climb in rank from one season to the next", () => {
   it("reads the ranks said, the lower first", () => {
     expect(readLeaderboard("teams who jumped from #800 to the top 10 in a single season")).toMatchObject({ kind: "improved", climb: { from: 800, to: 10 }, region: null });
     expect(readLeaderboard("which nj teams rose from rank 2000 or worse to the top 100")).toMatchObject({ kind: "improved", climb: { from: 2000, to: 100 }, region: { key: "USA:NJ" } });
+    // A rank that looks like a year is a rank; a thousands separator is one number.
+    expect(readLeaderboard("teams that climbed from rank 2024+ to the top 100")).toMatchObject({ climb: { from: 2024, to: 100 }, season: null });
+    expect(readLeaderboard("teams that climbed from rank 1,000+ to the top 100 in 2024-25")).toMatchObject({ climb: { from: 1000, to: 100 }, season: 2024 });
+    // Counted at some events only: no climb (the ranks are the season's).
+    expect(readLeaderboard("teams that climbed from rank 1000 to top 100 at new jersey events")?.climb).toBeUndefined();
     // A fall is no climb.
     expect(readLeaderboard("teams that went from rank 10 to rank 100")?.climb).toBeUndefined();
   });
