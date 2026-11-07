@@ -151,7 +151,9 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
       if (id === "closest-match" && opts.margin != null) {
         const by = opts.margin, pts = `${by} point${by === 1 ? "" : "s"}`;
         const verb = opts.outcome === "W" ? "Won" : opts.outcome === "L" ? "Lost" : "Decided";
-        const hits = xs.filter((m) => Math.abs(margin(m)) === by).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+        // Latest first: by date, then by the order the matches were played (an event's matches can share its first day).
+        const order = new Map(ms.map((m, i) => [m, i]));
+        const hits = xs.filter((m) => Math.abs(margin(m)) === by).sort((a, b) => String(b.date).localeCompare(String(a.date)) || order.get(b)! - order.get(a)!);
         const title = `${verb} by ${pts}${where}`;
         const def = `Margin: the gap between the two alliances' official scores, penalties included; only matches decided by exactly ${pts}${opts.outcome ? ` that ${who} ${opts.outcome === "W" ? "won" : "lost"}` : ""}, the latest first. ${RESULT_RULE}`;
         if (!hits.length) {
@@ -164,7 +166,7 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
         return {
           ...base, family: "superlative", intent: id, title,
           headline: { value: `${hits.length} match${hits.length === 1 ? "" : "es"}`, label: `Latest: ${top.own}–${top.opp} in ${top.label} at ${top.event}`, sub: [seasonLabel(top.season), row(top).date].filter(Boolean).join(" · "), href: row(top).href },
-          blocks: [matchesBlock(`${verb} by ${pts}`, hits.slice(0, 10))], definition: def,
+          blocks: [matchesBlock(`${verb} by ${pts}`, hits)], definition: def,
         };
       }
       const title = id === "biggest-win" ? `Biggest win${where}` : id === "biggest-loss" ? `Biggest loss${where}` : `${closest}${where}`;

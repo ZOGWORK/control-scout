@@ -70,7 +70,8 @@ export const INTENTS: IntentRule[] = [
   R("closest-match", 1, ["agg:closest"], ["thing:match", "metric:win", "metric:loss", "metric:margin", "metric:score", "outcome:W", "outcome:L"]),
   R("closest-match", 1, ["agg:min", "metric:margin"], ["thing:match", "metric:win", "metric:loss", "outcome:W", "outcome:L"]),
   // A margin said exactly ("which match did they lose by 1 point"): its matches decided by that, the closest beside.
-  R("closest-match", 1, ["margin:exact"], ["thing:match", "metric:win", "metric:loss", "outcome:W", "outcome:L", "list", "metric:score"]),
+  // A match's number with it ("did they win match 2 by 15") isn't a filter this answer takes: left to search.
+  R("closest-match", 1, ["margin:exact"], ["thing:match", "metric:win", "metric:loss", "outcome:W", "outcome:L", "list", "metric:score"], { noMatchNo: true }),
   R("highest-auto", 1, ["agg:max", "metric:auto"], SCORE_LIKE),
   R("highest-teleop", 1, ["agg:max", "metric:teleop"], SCORE_LIKE),
   R("highest-endgame", 1, ["agg:max", "metric:endgame"], SCORE_LIKE),

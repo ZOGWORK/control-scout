@@ -30,4 +30,16 @@ describe("a margin said exactly", () => {
     expect(await parse("did 6980 ever win a match by 15 points")).toMatchObject({ intent: "closest-match", teams: [{ number: 6980 }], margin: 15, complete: true });
     expect(await parse("6980 closest loss")).not.toHaveProperty("margin");
   });
+
+  it("beaten, said passively, is a loss", async () => {
+    expect(marginOf("matches 6980 was beaten by 15 points")).toEqual({ margin: 15, rest: "matches 6980 lost" });
+    const p = await parse("matches where 6980 got beaten by 2 points");
+    expect(p).toMatchObject({ intent: "closest-match", margin: 2, complete: true });
+    expect(p.symbols).toContain("metric:loss");
+    expect(p.symbols).not.toContain("metric:win");
+  });
+
+  it("a match's number with it is left to search", async () => {
+    expect(await parse("did 6980 win match 2 by 15 points")).toMatchObject({ complete: false });
+  });
 });

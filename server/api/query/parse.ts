@@ -148,7 +148,10 @@ function keptName(words: string[], ctx: ParseContext, timeOnly: (w: string[]) =>
 const MARGIN_RE = /(?<=\b(?:lose|lost|loses|losing|win|won|wins|winning|beat|beaten|decided)(?: \S+){0,2}) by (?:exactly |just |only )?(\d{1,3}) (?:points?|pts)(?= |$)/;
 export function marginOf(q: string): { margin: number; rest: string } | null {
   const m = MARGIN_RE.exec(q);
-  return m ? { margin: Number(m[1]), rest: `${q.slice(0, m.index)} ${q.slice(m.index + m[0].length)}`.replace(/\s+/g, " ").trim() } : null;
+  if (!m) return null;
+  // Beaten, said passively ("was beaten by 15 points"), is a loss: the verb that stays says so.
+  const before = q.slice(0, m.index).replace(/\b(?:was|were|got|get|gets|been|is|are) (?:beaten|beat|defeated)\b/, "lost");
+  return { margin: Number(m[1]), rest: `${before} ${q.slice(m.index + m[0].length)}`.replace(/\s+/g, " ").trim() };
 }
 
 /** Parses `raw`. */
