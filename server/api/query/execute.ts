@@ -352,6 +352,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     };
     // A stat said not to go by is never the one ranked by (a default included): with no other stat said, left unanswered.
     if ((p.notMetrics ?? []).some((s) => BOARD_STAT[s] === b.stat)) return null;
+    // The fewest of one award is no board here (it lists the teams with at least one): left to search.
+    if (b.award && b.asc) return null;
     // A stat said not to go by is named on the card, never silently dropped.
     const board = async (q: LeaderboardQuestion) => {
       const a = await boardSearch(p.q, q, opts);
@@ -360,7 +362,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     const a = await board(b);
     // No season said, or "this season": the current one, then the one before when nobody has played enough yet.
     if (scope.season != null || !(p.time == null || (p.time.kind === "season" && p.time.relative === "this"))) return a;
-    return relaxed(a, defaultSteps(b.season!, town ? ` in ${town.city}` : region ? ` in ${region.name}` : "", b.undefeated ? "undefeated teams" : b.kind === "top" ? "ranked teams" : "teams"), (season) => board({ ...b, season }));
+    return relaxed(a, defaultSteps(b.season!, town ? ` in ${town.city}` : region ? ` in ${region.name}` : "", b.award ? `${b.award.name} award winners` : b.undefeated ? "undefeated teams" : b.kind === "top" ? "ranked teams" : "teams"), (season) => board({ ...b, season }));
   }
   return null;
 }

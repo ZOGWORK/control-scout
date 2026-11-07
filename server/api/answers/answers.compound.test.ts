@@ -230,6 +230,9 @@ describe("the most of one award in a place", () => {
     // 6980's 2nd place Inspire counts; 4215's Winner award doesn't.
     expect(teams(await ask(`most inspire awards in new jersey ${season}`)).sort()).toEqual(["207", "4215", "6980"]);
     expect((await ask(`most inspire awards in new jersey ${season}`)).stat?.definition).toMatch(/Inspire awards: every Inspire award .* every place/);
+    // The fewest of one award is left to search; no season said falls back to the season before, saying why.
+    expect((await ask(`fewest inspire awards in texas ${season}`)).stat?.intent).not.toBe("top-awards");
+    expect((await ask("most inspire awards in texas")).stat?.scope[0]).toMatch(/Inspire award winners/);
     expect((await ask(`most compass awards in texas ${season}`)).stat?.none).toBe(`No ranked team in Texas won a Compass award in ${S}–${String(S + 1).slice(2)}.`);
   });
 });

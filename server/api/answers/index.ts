@@ -1050,7 +1050,7 @@ export async function boardSearch(q: string, b: LeaderboardQuestion, opts: { ful
   const st = boardStatFor(b.stat, b.season ?? searchSeason());
   if (!st) return null;
   const where = b.town ? ` in ${b.town}` : b.region ? ` in ${b.region.name}` : city ? ` in ${city.city}` : "";
-  const label = b.award ? `Team${b.n > 1 ? "s" : ""}${where} with the most ${b.award.name} awards` : b.kind === "city" ? `Teams${where}` : b.kind === "city-best" ? `Best team${where} by OPR` : b.undefeated ? `Undefeated teams${where}` : b.asc ? `Lowest ${b.n > 1 ? `${b.n} teams` : "team"} by ${statWords(st)}${where}` : b.best ? `Best team${where} by ${statWords(st)}` : b.kind === "rookie" ? `Best rookie teams${where}` : b.kind === "improved" ? `Most improved teams${where}` : `Top ${b.n} teams by ${statWords(st)}${where}`;
+  const label = b.award && !b.asc ? `Team${b.n > 1 ? "s" : ""}${where} with the most ${b.award.name} awards` : b.kind === "city" ? `Teams${where}` : b.kind === "city-best" ? `Best team${where} by OPR` : b.undefeated ? `Undefeated teams${where}` : b.asc ? `Lowest ${b.n > 1 ? `${b.n} teams` : "team"} by ${statWords(st)}${where}` : b.best ? `Best team${where} by ${statWords(st)}` : b.kind === "rookie" ? `Best rookie teams${where}` : b.kind === "improved" ? `Most improved teams${where}` : `Top ${b.n} teams by ${statWords(st)}${where}`;
   const answer: SearchAnswer = {
     q, hits: [], pages: opts.pages, step: "deterministic", weak: false,
     understood: { kind: "question", label, ...(b.season != null ? { season: b.season } : {}), ...(b.region ? { place: { key: b.region.key, name: b.region.name } } : {}) },
