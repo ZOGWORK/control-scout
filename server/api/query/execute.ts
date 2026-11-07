@@ -359,6 +359,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
  *  one held then), else the latest held. OPR only: another stat said is left to search. */
 async function eventBoard(p: Parsed, scope: ReadScope, said: string, opts: PipelineOptions): Promise<SearchAnswer | null> {
   if (p.symbols.some((s) => BOARD_STAT[s] && BOARD_STAT[s] !== "opr") || p.place?.kind === "city") return null;
+  // The best first by OPR only: the lowest first, undefeated teams alone or OPR said not to go by are left to search.
+  if (p.agg === "min" || p.undefeated || (p.notMetrics ?? []).some((s) => !BOARD_STAT[s] || BOARD_STAT[s] === "opr")) return null;
   const region = regionOf(p);
   if (p.states && !region) return null;
   const year = p.time?.kind === "season" && p.time.year != null && !p.time.relative ? p.time.year : null;
@@ -368,10 +370,12 @@ async function eventBoard(p: Parsed, scope: ReadScope, said: string, opts: Pipel
       `SELECT season, code, name, type, division_code division, start FROM events WHERE type = ?${region ? " AND country = ?" : ""}${region?.state ? " AND state = ?" : ""}`,
       [types![0], ...(region ? [region.country] : []), ...(region?.state ? [region.state] : [])])).map((e) => ({ ...e, season: Number(e.season) }))
       .filter((e) => year == null || (e.start ?? "").startsWith(String(year)));
+  // The events matched themselves: a division named is that division alone; a parent named brings its divisions in
+  // (eventBoardAnswer takes each code's children).
   const at = (season: number) => {
     const inSeason = evs.filter((e) => e.season === season);
     const main = inSeason.find((e) => !e.division) ?? inSeason[0];
-    return { main, codes: [...new Set(inSeason.map((e) => e.division ?? e.code))] };
+    return { main, codes: [...new Set(inSeason.map((e) => e.code))] };
   };
   const listed = async (season: number) => { const { codes } = at(season); return !!(await get<{ n: number }>(`SELECT 1 n FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code WHERE et.season = ? AND (e.code IN (${codes.map(() => "?").join(", ")}) OR e.division_code IN (${codes.map(() => "?").join(", ")})) LIMIT 1`, [season, ...codes, ...codes])); };
   // A season said, or the one held the year said; else the latest held up to the current season whose teams are listed,
@@ -386,7 +390,7 @@ async function eventBoard(p: Parsed, scope: ReadScope, said: string, opts: Pipel
   const { main, codes } = at(season);
   const name = p.worlds ? `Worlds ${season + 1}` : shortEvent(main.name, main.type);
   const one = p.n == null && /\b(?:team|who)\b/.test(said) && !/\bteams\b/.test(said);
-  const a = await boardSearch(p.q, { kind: "top", stat: "opr", n: Math.min(25, p.n ?? (one ? 5 : 10)), region: null, city: null, season, event: { season, code: main.division ?? main.code, codes, name } }, opts);
+  const a = await boardSearch(p.q, { kind: "top", stat: "opr", n: Math.min(25, p.n ?? (one ? 5 : 10)), region: null, city: null, season, event: { season, code: main.code, codes, name } }, opts);
   if (!a?.stat || skipped == null || skipped === season) return a;
   const note = `No teams listed for the ${seasonLabel(skipped)} event yet; showing ${seasonLabel(season)}`;
   return { ...a, stat: { ...a.stat, scope: [note, ...a.stat.scope], definition: `${a.stat.definition} ${note}: no season was named, so the latest was read first.` } };

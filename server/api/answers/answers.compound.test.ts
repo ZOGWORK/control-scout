@@ -231,6 +231,22 @@ describe("the best teams at an event", () => {
       expect(a.stat, q).toMatchObject({ intent: "event-best", title: `Best teams at New Jersey Championship by OPR there · ${S}–${String(S + 1).slice(2)}` });
       // 207, 4215 and 6980 have an OPR in its Parkway division; the rest played there with none, so aren't ranked.
       expect(rows(a), q).toEqual([["207", "114.0"], ["4215", "101.0"], ["6980", "46.0"]]);
+      // Records there by the official rule: every match played at the event.
+      const recs = (a.stat?.blocks.find((b) => b.kind === "leaderboard") as any).rows.map((r: any) => r.record);
+      expect(recs, q).toEqual(["2-0-0", "1-1-0", "0-2-0"]);
+    }
+  });
+  it("ranks one division named alone, linked to it", async () => {
+    // The fixture's Worlds has a division only: its board is that division's, never its parent's.
+    const a = await ask("top teams at the edison division");
+    expect(a.stat?.title).toMatch(/^Best teams at .*Edison.* by OPR there/);
+    expect(rows(a)).toEqual([["4215", "60.0"]]);
+    const more = (a.stat?.blocks.find((b) => b.kind === "leaderboard") as any).more;
+    expect(more.href).toContain("FTCCMP1EDIS");
+  });
+  it("leaves the lowest first, undefeated teams and OPR said not to go by to search", async () => {
+    for (const q of ["lowest opr teams at the new jersey championship", "undefeated teams at the new jersey championship", "best teams at the new jersey championship not by opr"]) {
+      expect((await ask(q)).stat?.intent, q).not.toBe("event-best");
     }
   });
   it("reads Worlds and a state's championship as their events", async () => {
