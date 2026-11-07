@@ -10,6 +10,9 @@
 //   event winners  "who won nj states", "who won the New Jersey Championship" → its newest finished one: the winning
 //                  alliance and the Inspire Award, from its results
 //   how it works   "how are predictions calculated"  → the methodology page, in the Pages group
+//   using Predict  "win probability for teams I pick", "does it update if I change the alliance" → Custom matchup;
+//                  "can I filter predictions by team" → Scheduled matches; "12345 prediction settings" → its matches there
+//   a day's calls  "predictions for tomorrow's matches" → that day's events, each one's matches in Predict
 // Only stats the data holds: OPR without penalties and its auto/teleop/endgame parts, and wins. Never an inferred one.
 import type { SearchAnswer, SearchCard, SearchCardAward, SearchCardLine, SearchHit, SearchPageLink } from "../../src/shared/api.js";
 import { pagesFor } from "../../src/shared/search.js";
@@ -19,6 +22,7 @@ import { predictHref } from "../../src/shared/predictUrl.js";
 import { cleanTeamName } from "../../src/shared/teamTitle.js";
 import type { Region } from "../../src/shared/regions.js";
 import { dateRange, possessive, seasonLabel } from "../../src/shared/format.js";
+import { matchDay } from "../../src/shared/coinFlips.js";
 import { teamPageSql } from "../../src/shared/teamPages.js";
 import { CURRENT_SEASON, FIRST_PREDICT_SEASON, isLegacy } from "../data/seasons.js";
 import { all } from "../db.js";
@@ -27,9 +31,10 @@ import { searchSeason } from "./answers/season.js";
 import { search } from "./search.js";
 import { fuzzyScore } from "./fuzzy.js";
 import { PHASE_COLS, tableOf } from "./teamTableRows.js";
-import { eventHit, localTodays } from "./searchEvents.js";
+import { eventHit, localTodays, searchToday } from "./searchEvents.js";
 import { namedTeam, versusAnswer } from "./searchCompare.js";
 import { eventChampions } from "./answers/families/winners.js";
+import { NO_MATCH_TYPES } from "./events.js";
 
 export type Stat = "opr" | "auto" | "teleop" | "endgame" | "wins";
 export type Ask =
@@ -41,7 +46,20 @@ export type Ask =
   | { kind: "advance"; team: string }
   | { kind: "award"; award: string; event: string; place?: number }
   | { kind: "event-won"; event: string }
-  | { kind: "how" };
+  | { kind: "how" }
+  /** How to get a call for any lineup, or whether it updates as the lineup changes: Predict's Custom matchup. */
+  | { kind: "predict-lineup" }
+  /** Which predictions can be picked out: Predict's Scheduled matches, by team or event. */
+  | { kind: "predict-filter" }
+  /** One team's predictions page ("12345 prediction settings"): its matches in Predict. */
+  | { kind: "predict-team"; team: string }
+  /** The calls for a day's matches: that day's events. */
+  | { kind: "predict-day"; day: "today" | "tomorrow" };
+
+/** Words for a forecast, in a question about Predict itself. */
+const FORECAST_WORDS = /\b(?:predict|predicts|predicted|prediction|predictions|forecasts?|odds|win (?:probabilit(?:y|ies)|chances?)|who (?:would|will) win)\b/;
+/** A lineup someone makes up, or changes. */
+const OWN_LINEUP = /\b(?:teams? (?:i|you|we) (?:pick|choose|select|want)|(?:my|our) own teams|any teams|custom (?:match(?:up)?|lineup|alliances?)|hypothetical|change (?:the |an |my |our )?(?:alliances?|teams|lineup|partners?)|swap(?:ping)? (?:the )?teams|(?:has ?n['’]?t|has not|have ?n['’]?t|have not|not) (?:happened|been played|played)(?: yet)?)\b/;
 
 const STAT_LABEL: Record<Stat, string> = { opr: "Highest OPR", auto: "Best auto (auto OPR)", teleop: "Best teleop (teleop OPR)", endgame: "Best endgame (endgame OPR)", wins: "Most wins" };
 const STAT_COLUMN: Record<Stat, string> = { opr: "s.opr_np", auto: "s.opr_auto", teleop: "s.opr_teleop", endgame: "s.opr_endgame", wins: "s.wins" };
@@ -82,6 +100,21 @@ export function readAsk(q: string): Ask | null {
   for (const w of q.trim().split(/\s+/)) if (!cased.has(w.toLowerCase()) || /^[A-Z]+$/.test(w)) cased.set(w.toLowerCase(), w);
   const regionIn = (s: string) => regionWords(s.split(" ").map((w) => cased.get(w) ?? w).join(" "));
   if (/^how (?:are|is|do|does) (?:the )?(?:predictions?|odds|win chances?|forecasts?)(?: (?:calculated|made|worked out|computed|work|working))?$|^how does (?:the )?(?:prediction|predict(?:ion)? engine|simulator) work$|^(?:prediction|predictions) (?:methodology|method)$/.test(t)) return { kind: "how" };
+  // Predict itself, asked about with no team named: a lineup of your own, or picking predictions out.
+  if (!/\d/.test(t) && FORECAST_WORDS.test(t)) {
+    if (OWN_LINEUP.test(t)) return { kind: "predict-lineup" };
+    if (/\b(?:filter|filtered|filtering|sort|sorted|narrow|narrowed)\b/.test(t)) return { kind: "predict-filter" };
+  }
+  // The day's predictions everywhere, said with nothing else: any other scope ("in New Jersey", "at worlds", "playoff",
+  // a team) asks for a filter this list doesn't apply, so the whole question must be the day and its matches, and
+  // anything more is left to the readers that do. A closing "if any (are scheduled)" narrows nothing.
+  const lead = String.raw`(?:(?:what are|what're|show me|show|give me|see|list)\s+)?(?:all\s+)?(?:the\s+)?`;
+  const day = String.raw`(today|tomorrow)(?:['’]?s)?\s+(?:matches|match|games)`;
+  const close = String.raw`(?:,?\s+if\s+(?:there\s+(?:are|is)\s+)?any)?(?:,?\s+(?:are|is)\s+(?:scheduled|planned|happening|on))?[?.!]?`;
+  let d = new RegExp(String.raw`^${lead}(?:predictions?|forecasts?)\s+(?:for|of|on)\s+(?:all\s+(?:of\s+)?)?(?:the\s+)?${day}${close}$|^${lead}${day}\s+(?:predictions?|forecasts?)${close}$`).exec(t);
+  if (d) return { kind: "predict-day", day: (d[1] ?? d[2]) as "today" | "tomorrow" };
+  d = /^(.+?) (?:prediction|predictions|predict|forecast) (?:settings|options|page|tool|view)$/.exec(t);
+  if (d) return { kind: "predict-team", team: d[1] };
   // Leaderboards: the world's ("best team", "what is the best FTC team right now") or a place's.
   const lw = leaderWords(t);
   if (/^(?:the )?(?:top|best|highest(?: |-)ranked|strongest|number one|no 1|1)(?: \d+)? (?:teams?|robots?)$/.test(lw.t) || (lw.opened && /^(?:best|top|strongest|number one)$/.test(lw.t))) return { kind: "leaderboard", region: null };
@@ -210,6 +243,58 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
   switch (ask.kind) {
     case "how":
       return answer(q, { hits: [], pages: withPage(q, [{ title: "How predictions are calculated", href: "/methodology" }]), understood: { kind: "question", label: "How predictions are calculated: the methodology page" } });
+
+    case "predict-lineup":
+      return answer(q, { hits: [], pages: withPage(q, [{ title: "Predict: Custom matchup", href: predictHref({ mode: "match" }) }]),
+        understood: { kind: "question", label: "Yes: Predict's Custom matchup takes any teams on each alliance. After changing them, press Predict this match for the new win chance and predicted score" } });
+
+    case "predict-filter":
+      return answer(q, { hits: [], pages: withPage(q, [{ title: "Predict: Scheduled matches", href: predictHref({ mode: "scheduled" }) }]),
+        understood: { kind: "question", label: "By team and by event, not by date: Predict's Scheduled matches lists the engine's calls for the team or event you pick, its matches in order" } });
+
+    case "predict-team": {
+      const named = await teamOf(ask.team, opts.prefer);
+      if (!named) return null;
+      if ("tied" in named) return whichAnswer(q, named);
+      const team = named.hit;
+      const name = cleanTeamName(Number(team.ref), team.title.replace(/^\d+\s*\|\s*/, "")) ?? team.ref;
+      const href = predictHref({ mode: "scheduled", pick: { kind: "team", team: Number(team.ref) } });
+      return answer(q, { hits: [team], pages: withPage(q, [{ title: `Predict ${possessive(name)} matches`, href }]),
+        understood: { kind: "question", label: `${name} (${team.ref}) · Predictions: their matches in Predict, each with the engine's call (there are no settings to change)` } });
+    }
+
+    case "predict-day": {
+      const now = Date.now(), day = searchToday(now + (ask.day === "tomorrow" ? 864e5 : 0));
+      // Events held that day that play matches (never a kickoff or a workshop), each read by its own posted matches: some
+      // on that day where it's held (its time zone), a schedule with no match times yet (said apart: the day can't be
+      // told), or none posted yet. An event whose posted matches all fall on other days (inspection that day, matches
+      // the next) has none that day and is left out.
+      const held = await all<any>(
+        `SELECT season, code, name, type, venue, city, state, country, start, end, timezone, division_code FROM events e
+         WHERE start <= ? AND COALESCE(end, start) >= ? AND COALESCE(remote, 0) = 0 AND (type IS NULL OR type NOT IN (${NO_MATCH_TYPES.map(() => "?").join(", ")}))
+         ORDER BY start, name LIMIT 200`, [day, day, ...NO_MATCH_TYPES]);
+      const times = held.length ? await all<{ season: number; code: string; time: string | null }>(
+        `SELECT DISTINCT season, code, time FROM matches WHERE ${held.map(() => "(season = ? AND code = ?)").join(" OR ")}`, held.flatMap((r) => [r.season, r.code])) : [];
+      // A venue's wall time (no zone, as FIRST writes them) is its own date; an instant is read in the venue's zone.
+      const dayOf = (r: any, t: string) => matchDay(t, null, r.timezone ?? "UTC");
+      const RANK = { day: 0, untimed: 1, unposted: 2 } as const;
+      const classed = held.map((r) => {
+        const own = times.filter((m) => Number(m.season) === Number(r.season) && m.code === r.code);
+        const kind = !own.length ? "unposted" : own.some((m) => m.time && dayOf(r, m.time) === day) ? "day" : own.some((m) => !m.time) ? "untimed" : "other";
+        return { r, kind };
+      }).filter((x): x is { r: any; kind: keyof typeof RANK } => x.kind !== "other").sort((a, b) => RANK[a.kind] - RANK[b.kind]).slice(0, 12);
+      const rows = classed.map((x) => x.r);
+      const when = `${ask.day === "tomorrow" ? "Tomorrow" : "Today"} (${dateRange(day, day)})`;
+      if (!rows.length) return answer(q, { hits: [], pages: withPage(q, [{ title: "Predict: Scheduled matches", href: predictHref({ mode: "scheduled" }) }]), understood: { kind: "question", label: `${when}: no event has matches then, so there are no predictions for that day` } });
+      const count = (k: keyof typeof RANK) => classed.filter((x) => x.kind === k).length;
+      const onDay = count("day"), untimed = count("untimed");
+      const pages = classed.filter((x) => x.kind !== "unposted").slice(0, 3).map(({ r }) => ({ title: `Predict: ${r.name}`, href: predictHref({ mode: "scheduled", pick: { kind: "event", season: Number(r.season), code: r.code } }) }));
+      const n = (k: number) => `${k === 12 ? "12 or more" : k} event${k === 1 ? "" : "s"}`;
+      const label = onDay === rows.length ? `${n(rows.length)} with matches; each one's predictions are in Predict`
+        : onDay || untimed ? `${n(rows.length)}${onDay ? `, ${onDay} with matches that day` : ""}${untimed ? `, ${untimed} with a schedule posted but no match times yet` : ""}: their predictions are in Predict`
+        : `${n(rows.length)}, none with a match schedule posted yet, so no predictions yet`;
+      return answer(q, { hits: rows.map((r) => eventHit(r, now)), pages: pages.length ? withPage(q, pages) : pagesFor(q), understood: { kind: "question", label: `${when}: ${label}` } });
+    }
 
     case "leaderboard": {
       const season = searchSeason();
