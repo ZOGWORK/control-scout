@@ -10,7 +10,7 @@ import { parseContext } from "./query/context";
 
 const S = 2025;
 const ask = (q: string) => searchAnswer(q, { limit: 25, full: true, learn: false });
-const TEAMS: [number, string][] = [[24325, "UK 488 - The King's School- Barrel Botz"], [21536, "Team Stealth"], [16309, "Stealth Panther Robotics FTC"], [5000, "Rivals"], [5001, "Others"]];
+const TEAMS: [number, string][] = [[24325, "UK 488 - The King's School- Barrel Botz"], [21536, "Team Stealth"], [16309, "Stealth Panther Robotics FTC"], [5000, "Rivals"], [5001, "Others"], [5002, "QUEEN'S GAMBIT"]];
 
 beforeAll(async () => {
   const c = openDb(":memory:");
@@ -46,6 +46,11 @@ describe("a team's name typed whole, punctuation and all", () => {
     const p = await parseQuery("24325 UK 488 - The King's School- Barrel Botz record", await parseContext());
     expect(p.complete).toBe(true);
     expect(p.teams.map((t) => t.number)).toEqual([24325]);
+    // Greptile on #1028: a possessive stored in capitals ("QUEEN'S") matches as typed, with no correction.
+    for (const q of ["QUEEN'S GAMBIT", "queen's gambit"]) {
+      const named = await parseQuery(`${q} record`, await parseContext());
+      expect(named.teams.map((t) => [t.number, t.via]), q).toEqual([[5002, "name"]]);
+    }
   });
   it("a name starting with a word questions drop (\"Team Stealth\") keeps it, spelled right or with a slip", async () => {
     for (const q of ["team stealth record", "team sealth record", "the record of team stealth"]) {
