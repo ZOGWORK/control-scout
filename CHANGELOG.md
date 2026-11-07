@@ -26,7 +26,7 @@ A team's full name is read however it's punctuated: "UK 488 - The King's School-
 
 ### Search
 - **Names with their own punctuation.** A dash on its own or ending a word is punctuation, and a possessive in a team's name ("King's") matches however it's typed, so a name typed in full reads the team, with its number or without.
-- **Names starting with Team or The.** A question's own words ("team", "the") are put back when, with them, the words are a team's name or one slip from it: "team sealth record" is Team Stealth's record. (#1028)
+- **Names starting with Team or The.** A question's own words ("team", "the") are put back when, with them, the words are a team's name or one slip from it: "team sealth record" is Team Stealth's record, with "Did you mean team stealth record". (#1028)
 
 ## 3.7.7 — 2026-11-06
 
