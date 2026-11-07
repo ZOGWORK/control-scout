@@ -26,7 +26,7 @@ A place's award winners are answered: a state's, a country's or a town's teams a
 - [fixes] "rarest award a NJ team won this season" names the award
 
 ### Search
-- **A place's award winners.** The teams from a state, a country (or its people's word) or a town, and the awards they won, newest first or by a stat ("by auto"): the most won, the rarest one (given fewest times anywhere that season), two awards won at one event, and yes or no at Worlds. (#PR)
+- **A place's award winners.** The teams from a state, a country (or its people's word) or a town, and the awards they won, newest first or by a stat ("by auto"): the most won, the rarest one (given fewest times anywhere that season), two awards won at one event, and yes or no at Worlds. (#1100)
 
 
 ## 3.8.8 — 2026-11-07
