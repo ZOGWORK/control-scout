@@ -184,10 +184,14 @@ export async function versusAnswer(q: string, prefer: ReadonlySet<string>, seaso
  *  with this one in it, to add others to, and two or three comparisons from its own numbers (`suggest`), each a search
  *  that answers. Null when it isn't one team alone (two named, "compare 7149 and 6980", is the versus's). */
 const COMPARE_ONE = /^(?:compare|comparison)\s+(.+)$|^(.+?)\s+(?:compare|comparison|compared)$/i;
-export async function compareOneAnswer(q: string, prefer: ReadonlySet<string>, season: number | null): Promise<SearchAnswer | null> {
+export async function compareOneAnswer(q: string, prefer: ReadonlySet<string>, season0: number | null): Promise<SearchAnswer | null> {
   const m = COMPARE_ONE.exec(q.trim());
-  const typed = (m?.[1] ?? m?.[2] ?? "").trim();
+  let typed = (m?.[1] ?? m?.[2] ?? "").trim();
   if (!typed || VERSUS.test(` ${typed} `) || /(?:^|\s)(?:and|with|to|&)(?:\s|$)|,/i.test(typed)) return null;
+  // A bare year after the team ("compare 4215 2024") is its season, as it is after a team elsewhere in search.
+  let season = season0;
+  const yr = season == null ? /^(.+?)\s+(?:in\s+)?(20\d\d)$/i.exec(typed) : null;
+  if (yr) { season = Number(yr[2]); typed = yr[1]; }
   const side = await readSide(typed, prefer);
   if (!side.team) return null;
   const t = side.team;
@@ -213,7 +217,7 @@ async function closestRated(t: TeamFacts, season: number | null): Promise<number
     season != null ? [t.number, season] : [t.number]);
   if (!own) return [];
   const near = (where: string, args: string[]) => all<{ team: number }>(`SELECT s.team FROM team_season_stats s JOIN teams x ON x.number = s.team
-    WHERE s.season = ? AND s.team <> ? AND s.rating_np IS NOT NULL AND s.rating_matches >= 3 AND ${where}
+    WHERE s.season = ? AND s.team <> ? AND s.rating_np IS NOT NULL AND s.rating_matches >= 3 AND ${teamPageSql("s.team", "x.name")} AND ${where}
     ORDER BY ABS(s.rating_np - ?), s.team LIMIT 3`, [own.season, t.number, ...args, own.rating]);
   const inState = t.state && t.country ? await near("x.state = ? AND x.country = ?", [t.state, t.country]) : [];
   const rows = inState.length >= 2 || !t.country ? inState : await near("x.country = ?", [t.country]);
