@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.8.3 — 2026-11-07
+## 3.8.5 — 2026-11-07
 
 Two teams are read in more ways: "have 4215 and 207 played each other", "the OPR gap between 7149 and 23268", "is 4215 better than 7149 at endgame" and "if 4215 played 7149, who would win" each get their side-by-side answer.
 
@@ -26,6 +26,30 @@ Two teams are read in more ways: "have 4215 and 207 played each other", "the OPR
 
 ### Search
 - **Two teams, more ways to ask.** Played each other (or faced, met, one another), the OPR or rating gap between two teams, better or worse than another team at a phase, and "if A played B, who would win" or "predict A vs B" each read as the two teams' answer. (#1030)
+
+## 3.8.4 — 2026-11-07
+
+The search sign-off grader counts a season's matches as a record answer: "17670 matches this season" answers with its W-L-T record and every match, dated.
+
+### Highlights
+- [report] Search sign-off grades a season's matches as a record
+- [report] Set C: 48 pass, 2 invalid-OK, 0 fail on the saved run
+- [report] No change to search itself: the grader only
+
+### Tools
+- **Sign-off grader.** The `record` kind in `scripts/search-signoff/grade.ts` also accepts a season's matches (`aggregate:season-matches`), whose headline is the W-L-T record; `grade.test.ts` covers it. (#1027)
+
+## 3.8.3 — 2026-11-07
+
+A card whose title only adds its own chips to the page heading no longer says it twice: "Top 10 teams by OPR in Romania" is read once.
+
+### Highlights
+- [fixes] A top-teams answer no longer repeats the page heading
+- [fixes] The season stays on the card as its own chip
+- [fixes] A title that says more than the heading still shows
+
+### Search
+- **One heading.** An answer card whose title is the page's heading plus its own chips ("Top 10 teams by OPR in Romania · 2025–26" with a 2025–26 chip) is for screen readers only, so the page reads its heading once. (#1026)
 
 ## 3.8.2 — 2026-11-07
 

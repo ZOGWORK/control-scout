@@ -52,7 +52,12 @@ export function useTeamProfile(team: number | null | undefined, season: number):
 
 /** The card's title says only what the page's heading already says ("Record in 2025–26" under "Hypnotic Robotics
  *  (4215) · Record in 2025–26"): then it's for screen readers only, so nothing reads twice. */
-export const repeats = (heading: string | null | undefined, title: string) => !!heading && !!title.trim() && heading.toLowerCase().includes(title.trim().toLowerCase());
+export const repeats = (heading: string | null | undefined, title: string, chips: readonly string[] = []) => {
+  // The title less what its chips say at its end ("Top 10 teams in New Jersey · 2025–26" with a 2025–26 chip).
+  let t = title.trim();
+  for (let i = t.lastIndexOf(" · "); i > 0 && chips.some((c) => c.trim().toLowerCase() === t.slice(i + 3).trim().toLowerCase()); i = t.lastIndexOf(" · ")) t = t.slice(0, i).trim();
+  return !!heading && !!t && heading.toLowerCase().includes(t.toLowerCase());
+};
 
 type Who = { number: number; name: string | null };
 
