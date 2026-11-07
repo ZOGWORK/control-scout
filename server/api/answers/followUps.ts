@@ -8,6 +8,7 @@ import type { SearchAnswer, SearchFollowUp, SearchFollowUps } from "../../../src
 import { SEARCH_PAGE_LIMIT } from "../../../src/shared/search.js";
 import { normalise, parseQuery, type Parsed } from "../query/parse.js";
 import { parseContext } from "../query/context.js";
+import { names } from "../query/names.js";
 import { AWARD_WORDS, LEXICON } from "../query/lexicon.js";
 import { keptAnswer } from "../searchReads.js";
 import { searchAnswer } from "../searchAnswer.js";
@@ -204,12 +205,19 @@ export const answerKey = (a: SearchAnswer) => {
   return `${a.stat?.intent ?? a.card?.kind ?? a.understood?.kind}|${a.stat?.title ?? a.card?.title ?? a.understood?.label}`;
 };
 
+/** An event named by its initials typed in lower case ("mti") is said in capitals ("Who won MTI?"), never title case. */
+export async function initialsUpper(p: Parsed): Promise<Parsed> {
+  const typed = p.event?.typed;
+  if (!typed || /\s/.test(typed) || typed !== typed.toLowerCase() || !(await names()).initialism(typed).length) return p;
+  return { ...p, event: { ...p.event!, typed: typed.toUpperCase() } };
+}
+
 /** The follow-ups for `q` (its own answer `a`): People also ask, up to ASK_MAX questions, and Related searches, up to
  *  RELATED_MAX short searches about what the questions didn't cover. Each is one search answers directly, with its
  *  answer's own line; none answers what another, the search itself or one the page already offers does. Only the
  *  first CHECK_MAX candidates are run for each: fewer follow-ups, never a slower page. */
 export async function followUps(q: string, a: SearchAnswer, prefer: ReadonlySet<string> = new Set()): Promise<SearchFollowUps> {
-  const p = await parseQuery(q, await parseContext(Date.now(), prefer));
+  const p = await initialsUpper(await parseQuery(q, await parseContext(Date.now(), prefer)));
   // The searches the page already offers (a sorry note's, a team fallback's, the answer's own related ones): asked
   // again in other words, they'd be offered twice. Their answers, kept the same way, say what they answer.
   const shown = [...new Set([...(a.suggest ?? []), ...(a.sorry?.suggest ?? []), ...(a.stat?.blocks ?? []).flatMap((b) => (b.kind === "related" ? b.queries : []))])].slice(0, SHOWN_MAX);
@@ -231,7 +239,7 @@ export async function followUps(q: string, a: SearchAnswer, prefer: ReadonlySet<
   const related = fresh(picked, seen, RELATED_MAX);
   const [best] = fresh(lit, seen, 1);
   const view = (x: Omit<SearchFollowUp, "q"> & { run: string }): SearchFollowUp => ({ q: x.run, family: x.family, preview: x.preview, value: x.value, rest: x.rest, tone: x.tone });
-  return { ask: ask.map(view), related: related.map(view), ...(best ? { highlights: { ...view(best), team: about! } } : {}) };
+  return { ask: ask.map(view), related: related.map(view), ...(best ? { highlights: { ...view(best), team: about! } } : {}), ...(about != null ? { about } : {}) };
 }
 
 /** The first `max` of `xs` whose answers none before them (nor `seen`) gives, each added to `seen`. */

@@ -377,12 +377,27 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   return statAnswerOf(q, it, resolve, opts);
 }
 
+/** `core` with the words typed just before it that a question's frame drops ("team", "the", "ftc") put back, when
+ *  with them it's a team's name or one slip from just one ("team sealth" is Team Stealth, not a team named "Stealth…"). */
+async function withLead(q: string, core: string): Promise<string> {
+  const esc = core.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const m = esc && new RegExp(`(?:^|\\s)((?:(?:the|team|ftc)\\s+)+)${esc}(?=\\s|$)`).exec(q.toLowerCase());
+  if (!m) return core;
+  const idx = await names();
+  for (let lead = m[1].trim().split(/\s+/); lead.length; lead = lead.slice(1)) {
+    const named = `${lead.join(" ")} ${core.trim()}`;
+    if (idx.teamsNamed(named).length || idx.nearTeam(named)) return named;
+  }
+  return core;
+}
+
 /** Whether `core` is a place's name alone: a country, or a state or province. */
 const placeNamed = (core: string) => !/\d/.test(core) && (!!countryOf(core) || !!regionOf(core.trim().split(/\s+/)));
 
 /** The answer to a stat question already read (by ./read.ts, or by the search pipeline from its slots), or null when
  *  its team isn't found. */
-export async function statAnswerOf(q: string, it: StatQuestion, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+export async function statAnswerOf(q: string, it0: StatQuestion, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+  const it = { ...it0, core: await withLead(q, it0.core) };
   // A place's name beside states or a championship is the place's championship ("romania states results"), never a team
   // with the place in its name: a team there only by its number or its whole name.
   if ((it.scope.states || it.scope.championship || /\bchampionships?\b/i.test(q)) && placeNamed(it.core) && !(await names()).teamsNamed(it.core).length) return null;
