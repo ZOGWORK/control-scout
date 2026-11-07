@@ -2,7 +2,7 @@
 // never a logged query's words.
 import { beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../../db";
-import { eventAverageAnswer, readEventAverage, type EventRow } from "./families/eventAverage";
+import { eventAverageAnswer, eventAverageTitle, eventsAsked, readEventAverage, type EventRow } from "./families/eventAverage";
 
 describe("reading it", () => {
   it("one event or two, the frame and a trailing side by side dropped", () => {
@@ -53,6 +53,13 @@ describe("the answer", () => {
     expect(a?.headline).toMatchObject({ value: "+50.0 points", label: "Texas Championship averages more per alliance" });
     const table = a?.blocks.find((b) => b.kind === "table");
     expect(table && table.kind === "table" && table.rows.map((r) => [r.cells.avg, r.cells.matches, r.strong])).toEqual([["100.0", 2, false], ["150.0", 2, true]]);
+  });
+
+  it("the search box's short answer names the events found, counting nothing", async () => {
+    const evs = await eventsAsked({ events: ["Ohio Championship", "Texas Championship"], season: null }, find);
+    expect(evs && eventAverageTitle(evs)).toBe("Average match score: Ohio Championship vs Texas Championship");
+    const one = await eventsAsked({ events: ["Ohio Championship", "ohio championship"], season: null }, find);
+    expect(one && eventAverageTitle(one)).toBe("Average match score at Ohio Championship, 2025–26");
   });
 
   it("an event not found leaves it to search", async () => {

@@ -34,7 +34,7 @@ import { changeAnswer, readChange, type ChangeQuestion } from "./families/season
 import { MATCH_STAT_IDS, matchStatAnswer } from "./families/matchStats.js";
 import { BOARD_STATS, LEADERBOARD_MAX, boardStatFor, leaderboardAnswer, statWords } from "./families/leaderboard.js";
 import { everTopMatches, readTopMatches, topMatchesAnswer, type TopMatchesQuestion } from "./families/topMatches.js";
-import { eventAverageAnswer, readEventAverage, type EventAverageQuestion } from "./families/eventAverage.js";
+import { eventAverageAnswer, eventAverageTitle, eventsAsked, readEventAverage, type EventAverageQuestion } from "./families/eventAverage.js";
 import { penaltyTotalAnswer, trendAnswer } from "./families/trends.js";
 import { nextEventPrediction, pairPrediction, predictTitle, predictionSeason } from "./families/predict.js";
 import { awardsSideBySide, compareAnswer, compareSeason, headToHead, neverPlayedAnswer, opponentsAnswer, partnerListAnswer, phaseSideBySide, reliabilitySideBySide, seasonSideBySide } from "./families/twoTeam.js";
@@ -300,14 +300,19 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
 /** An event's average match score, or two events' side by side (./families/eventAverage.ts). Null when an event
  *  isn't found: the question is then left to search. */
 async function eventAverageSearch(q: string, ea: EventAverageQuestion, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
-  const stat = await eventAverageAnswer(ea, (words, season) => findEvent(words, season, { anyPlayed: true, closest: true }));
+  const find = (words: string, season: number | null) => findEvent(words, season, { anyPlayed: true, closest: true });
+  const intent = (label: string) => ({ kind: `stat-event-average-score${ea.events.length > 1 ? "-vs" : ""}`, pattern: `average match score [event]${ea.events.length > 1 ? " vs [event]" : ""}${ea.season != null ? " [season]" : ""}`, met: true, understood: [label] });
+  const understood = (label: string) => ({ kind: "question" as const, label, ...(ea.season != null ? { season: ea.season } : {}) });
+  // The search box: the events found and a link to the answer page, nothing counted while typing.
+  if (!opts.full) {
+    const evs = await eventsAsked(ea, find);
+    if (!evs) return null;
+    const label = eventAverageTitle(evs);
+    return { q, hits: [], pages: [{ title: label, href: `/search?q=${encodeURIComponent(q)}` }, ...opts.pages], step: "deterministic", weak: false, understood: understood(label), intent: intent(label) };
+  }
+  const stat = await eventAverageAnswer(ea, find);
   if (!stat) return null;
-  return {
-    q, hits: [], pages: opts.pages, step: "deterministic", weak: false,
-    understood: { kind: "question", label: stat.title, ...(ea.season != null ? { season: ea.season } : {}) },
-    intent: { kind: `stat-${stat.intent}`, pattern: `average match score [event]${ea.events.length > 1 ? " vs [event]" : ""}${ea.season != null ? " [season]" : ""}`, met: true, understood: [stat.title] },
-    ...(opts.full ? { stat } : {}),
-  };
+  return { q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: understood(stat.title), intent: intent(stat.title), stat };
 }
 
 /** An event by name for a team-less question (its newest season, or the season named). */

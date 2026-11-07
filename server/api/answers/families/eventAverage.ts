@@ -51,7 +51,10 @@ const one = (x: number | null) => (x == null ? "—" : x.toFixed(1));
 
 /** The answer, each event found by `find` (its newest season with a played match, or the season named); null when an
  *  event isn't found. */
-export async function eventAverageAnswer(qn: EventAverageQuestion, find: (words: string, season: number | null) => Promise<EventRow | null>): Promise<StatAnswer | null> {
+export type FindEvent = (words: string, season: number | null) => Promise<EventRow | null>;
+
+/** The events asked about, each by `find`; null when one isn't found. The same event twice is one. */
+export async function eventsAsked(qn: EventAverageQuestion, find: FindEvent): Promise<EventRow[] | null> {
   const evs: EventRow[] = [];
   for (const w of qn.events) {
     // A state's code in the name ("NJ Championship"), as events are named: its full name ("New Jersey Championship").
@@ -60,8 +63,16 @@ export async function eventAverageAnswer(qn: EventAverageQuestion, find: (words:
     if (!e) return null;
     evs.push(e);
   }
-  // The same event twice ("NJ Championship vs New Jersey Championship") is one.
   if (evs.length === 2 && evs[0].season === evs[1].season && evs[0].code === evs[1].code) evs.pop();
+  return evs;
+}
+
+/** The title an answer about these events has. */
+export const eventAverageTitle = (evs: EventRow[]) => evs.length === 1 ? `Average match score at ${evs[0].name}, ${seasonLabel(evs[0].season)}` : `Average match score: ${evs.map((e) => e.name).join(" vs ")}`;
+
+export async function eventAverageAnswer(qn: EventAverageQuestion, find: FindEvent): Promise<StatAnswer | null> {
+  const evs = await eventsAsked(qn, find);
+  if (!evs) return null;
   const rows = await Promise.all(evs.map(averages));
   const label = (e: EventRow) => `${e.name}, ${seasonLabel(e.season)}`;
   const definition = "An event's average match score is the mean of each alliance's score (penalties included) over its played matches, its divisions' too; the non-penalty average leaves out points from the other alliance's fouls.";
@@ -70,7 +81,7 @@ export async function eventAverageAnswer(qn: EventAverageQuestion, find: (words:
   if (evs.length === 1) {
     const [e] = evs, [r] = rows;
     return {
-      family: "event", intent: "event-average-score", title: `Average match score at ${label(e)}`, scope, definition, source,
+      family: "event", intent: "event-average-score", title: eventAverageTitle(evs), scope, definition, source,
       ...(r.matches ? { headline: { value: `${one(r.avg)} points`, label: `Average alliance score at ${e.name}`, sub: `${one(r.np)} without penalties · ${r.matches} matches · ${seasonLabel(e.season)}`, href: eventHref(e.season, e.code), type: e.type } } : { none: `No played matches at ${label(e)} on record yet.` }),
       blocks: r.matches ? [{ kind: "kpis", items: [
         { label: "Average score", value: one(r.avg), tone: "accent" }, { label: "Without penalties", value: one(r.np) },
@@ -82,7 +93,7 @@ export async function eventAverageAnswer(qn: EventAverageQuestion, find: (words:
   const lead = a.avg != null && b.avg != null && a.avg !== b.avg ? (a.avg > b.avg ? 0 : 1) : null;
   const gap = lead == null ? null : Math.abs(a.avg! - b.avg!);
   return {
-    family: "event", intent: "event-average-score-vs", title: `Average match score: ${evs.map((e) => e.name).join(" vs ")}`, scope, definition, source,
+    family: "event", intent: "event-average-score-vs", title: eventAverageTitle(evs), scope, definition, source,
     ...(a.matches && b.matches ? { headline: {
       value: lead == null ? "Even" : `+${gap!.toFixed(1)} points`,
       label: lead == null ? "Both events average the same alliance score" : `${evs[lead].name} averages more per alliance`,
