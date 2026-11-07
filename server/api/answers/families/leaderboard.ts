@@ -177,8 +177,9 @@ async function careerAnswer(b: BoardQuestion, where: string, regionSql: string, 
   const c = CAREER[oldest ? "seasons" : b.stat.id];
   const span = await get<{ first: number | null; last: number | null }>("SELECT MIN(season) first, MAX(season) last FROM team_season_stats WHERE matches > 0");
   const first = Number(span?.first), last = Number(span?.last);
-  const rows = await all<{ team: number; name: string | null; city: string | null; state: string | null; country: string | null; rookie: number | null; v: number; wins: number; losses: number; ties: number; lastPlayed: number }>(
-    `SELECT s.team, t.name, t.city, t.state, t.country, t.rookie_year rookie, ${c.sql} v, SUM(s.wins) wins, SUM(s.losses) losses, SUM(s.ties) ties, MAX(CASE WHEN s.matches > 0 THEN s.season END) lastPlayed
+  const rows = await all<{ team: number; name: string | null; city: string | null; state: string | null; country: string | null; rookie: number | null; v: number; wins: number; losses: number; ties: number; lastPlayed: number; opr: number | null }>(
+    `SELECT s.team, t.name, t.city, t.state, t.country, t.rookie_year rookie, ${c.sql} v, SUM(s.wins) wins, SUM(s.losses) losses, SUM(s.ties) ties, MAX(CASE WHEN s.matches > 0 THEN s.season END) lastPlayed,
+            (SELECT x.opr_np FROM team_season_stats x WHERE x.team = s.team AND x.matches > 0 ORDER BY x.season DESC LIMIT 1) opr
      FROM team_season_stats s JOIN teams t ON t.number = s.team
      WHERE ${teamPageSql("s.team", "t.name")}${regionSql}${oldest || b.stat.id === "seasons" ? ` AND t.rookie_year >= ${FTC_FIRST_SEASON}` : ""}
      GROUP BY s.team${oldest ? " HAVING lastPlayed >= ?" : " HAVING v > 0"}
@@ -189,8 +190,8 @@ async function careerAnswer(b: BoardQuestion, where: string, regionSql: string, 
   const title = oldest ? `Oldest teams still active${where}, by rookie year` : `Team${where} with the most ${c.label.toLowerCase()}, every season`;
   const base = {
     family: "leaderboard" as const, intent: oldest ? "oldest-active" : `career-${b.stat.id}`, title, scope: [b.region?.name ?? "Worldwide", oldest ? `Active in ${active}` : `Every season on record (${S})`],
-    definition: oldest ? `Still active: a match on record in ${active}, the two latest seasons played. Oldest: the earliest rookie year, as FIRST lists it; a tie goes to the most seasons on record.`
-      : `${c.rule} Seasons on record here run ${S}.`,
+    definition: (oldest ? `Still active: a match on record in ${active}, the two latest seasons played. Oldest: the earliest rookie year, as FIRST lists it; a tie goes to the most seasons on record.`
+      : `${c.rule} Seasons on record here run ${S}.`) + " OPR: each team's in its latest season with a match.",
     source: oldest ? `Teams${where} with a match in ${active}` : `From every season on record${where} (${S})`,
   };
   if (!rows.length) return { ...base, blocks: [], none: `No team${where} has ${oldest ? `a match in ${active}` : `any ${c.label.toLowerCase()} on record`}.` };
@@ -205,7 +206,8 @@ async function careerAnswer(b: BoardQuestion, where: string, regionSql: string, 
       note: `${oldest ? `Active in ${active}` : `Every season on record, ${S}`}${where}`,
       rows: rows.map((r, i) => ({ rank: i + 1, team: { label: `${r.team} ${r.name ?? ""}`.trim(), href: teamHref(Number(r.team)) },
         location: [r.city, r.state, r.country && r.country !== "USA" ? r.country : null].filter(Boolean).join(", ") || null,
-        record: record(r), opr: null, value: oldest ? r.rookie : Number(r.v), display: shown(r), parts: null })),
+        // OPR: the team's latest season with a match, as its team page shows it.
+        record: record(r), opr: r.opr == null ? null : Number(r.opr), value: oldest ? r.rookie : Number(r.v), display: shown(r), parts: null })),
     }],
   };
 }
