@@ -17,7 +17,8 @@ import type { SearchAnswer, SearchCompareSide, SearchHit } from "../../src/share
 import { SEARCH_BROWSE, VERSUS, pagesFor } from "../../src/shared/search.js";
 import { cleanTeamName, searchTeamTitle, teamWords } from "../../src/shared/teamTitle.js";
 import { hasTeamPage, teamPageSql } from "../../src/shared/teamPages.js";
-import { all } from "../db.js";
+import { seasonLabel } from "../../src/shared/format.js";
+import { all, get } from "../db.js";
 import { normalize } from "./fuzzy.js";
 import { search, searchIntent } from "./search.js";
 
@@ -177,4 +178,44 @@ export async function versusAnswer(q: string, prefer: ReadonlySet<string>, seaso
   const top = compareHit(shown, q, season, resolved, extra);
   const label = `Compare: ${understoodTeams([...shown].sort((a, b) => a.number - b.number))}`;
   return { q, hits: [top, ...shown.map((t) => teamHit(t, teamRows))], pages: pagesFor(q), step: "deterministic", weak: false, understood: { kind: "compare", label } };
+}
+
+/** "compare 7149", "7149 compare": one team, Compare asked for. A comparison needs a second team, so: Compare opened
+ *  with this one in it, to add others to, and two or three comparisons from its own numbers (`suggest`), each a search
+ *  that answers. Null when it isn't one team alone (two named, "compare 7149 and 6980", is the versus's). */
+const COMPARE_ONE = /^(?:compare|comparison|versus|vs\.?)\s+(.+)$|^(.+?)\s+(?:compare|comparison|compared|versus|vs\.?)$/i;
+export async function compareOneAnswer(q: string, prefer: ReadonlySet<string>, season: number | null): Promise<SearchAnswer | null> {
+  const m = COMPARE_ONE.exec(q.trim());
+  const typed = (m?.[1] ?? m?.[2] ?? "").trim();
+  if (!typed || VERSUS.test(` ${typed} `) || /(?:^|\s)(?:and|with|to|&)(?:\s|$)|,/i.test(typed)) return null;
+  const side = await readSide(typed, prefer);
+  if (!side.team) return null;
+  const t = side.team;
+  const resolved = side.rule ? [{ typed, number: t.number, rule: side.rule, candidates: side.candidates }] : [];
+  const hit = compareHit([t], q, season, resolved);
+  const top = { ...hit, title: `Compare ${hit.title}`, subtitle: "Compare opens with them in it: add up to three teams" };
+  const teamRows = new Map<string, SearchHit>();
+  for (const h of await search(String(t.number), 1, prefer)) if (h.kind === "team") teamRows.set(h.ref, h);
+  const rivals = await closestRated(t, season);
+  return {
+    q, hits: [top, teamHit(t, teamRows)], pages: pagesFor(q), step: "deterministic", weak: false,
+    understood: { kind: "compare", label: `Compare: ${cleanTeamName(t.number, t.name) ?? "Team"} (${t.number})` },
+    // A season named stays with each comparison, so it compares the season its rivals were picked in.
+    ...(rivals.length ? { suggest: rivals.map((r) => `${t.number} vs ${r}${season != null ? ` ${seasonLabel(season).replace("–", "-")}` : ""}`) } : {}),
+  };
+}
+
+/** The teams rated nearest `t` in its state (its country when its state has too few), in the season asked or the
+ *  latest one it was rated in (3+ matches): its closest rivals, at most three. */
+async function closestRated(t: TeamFacts, season: number | null): Promise<number[]> {
+  const own = await get<{ season: number; rating: number }>(`SELECT season, rating_np rating FROM team_season_stats
+    WHERE team = ? AND rating_np IS NOT NULL AND rating_matches >= 3 ${season != null ? "AND season = ?" : ""} ORDER BY season DESC LIMIT 1`,
+    season != null ? [t.number, season] : [t.number]);
+  if (!own) return [];
+  const near = (where: string, args: string[]) => all<{ team: number }>(`SELECT s.team FROM team_season_stats s JOIN teams x ON x.number = s.team
+    WHERE s.season = ? AND s.team <> ? AND s.rating_np IS NOT NULL AND s.rating_matches >= 3 AND ${where}
+    ORDER BY ABS(s.rating_np - ?), s.team LIMIT 3`, [own.season, t.number, ...args, own.rating]);
+  const inState = t.state && t.country ? await near("x.state = ? AND x.country = ?", [t.state, t.country]) : [];
+  const rows = inState.length >= 2 || !t.country ? inState : await near("x.country = ?", [t.country]);
+  return rows.map((r) => Number(r.team));
 }
