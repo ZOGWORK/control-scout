@@ -25,7 +25,7 @@ A team's Worlds questions asked in plain words get their answers: "number of tim
 - [fixes] "What division was 9848 in at worlds" shows divisions, ranks
 
 ### Search
-- **Worlds in plain words.** "World championship" (and "world champs") is read as one name, Worlds, so "<team> world championship matches <season>" is its matches there rather than an event called "championship". "Number of times <team> went (or has gone) to worlds" reads as its Worlds appearances, and "what division was <team> in at worlds, and what was their rank (record) there" as its Worlds divisions, each with its rank and record. (#PR)
+- **Worlds in plain words.** "World championship" (and "world champs") is read as one name, Worlds, so "<team> world championship matches <season>" is its matches there rather than an event called "championship". "Number of times <team> went (or has gone) to worlds" reads as its Worlds appearances, and "what division was <team> in at worlds, and what was their rank (record) there" as its Worlds divisions, each with its rank and record. (#1087)
 
 ## 3.8.9 — 2026-11-07
 
