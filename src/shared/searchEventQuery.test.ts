@@ -127,6 +127,7 @@ describe("place typos and 'states' (owner report)", () => {
     expect(readEventQuery("NJ state champs")?.kinds).toEqual(["championship"]);
     // Failed search "Who won inspire in nj cham this year": "cham" is "champ" cut short.
     expect(readEventQuery("ohio cham")).toMatchObject({ kinds: ["championship"], region: { key: "USA:OH" }, words: [] });
+    expect(readEventQuery("past cham in NJ")).toMatchObject({ kinds: ["championship"], time: "past", words: [] });
   });
   it("never guesses: no event word, a code, or two places as close", () => {
     expect(readEventQuery("new jesey")).toBeNull();
