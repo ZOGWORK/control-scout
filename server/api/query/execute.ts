@@ -270,12 +270,13 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     const events = named && year != null ? named.filter((e) => (e.start ?? "").startsWith(String(year))) : named;
     if (events && !events.length) return null;
     if (((p.event || p.eventKind) && !kind && !events) || p.worlds || p.states || p.alliance || scope.ever || (p.place && p.place.kind === "city")) return null;
-    // None said: the latest edition already under way (one only scheduled has no matches yet).
-    const today = searchToday(opts.now), begun = events?.filter((e) => e.start != null && e.start.slice(0, 10) <= today) ?? [];
-    const eventSeason = events && (year != null || !p.time) ? Math.max(...(year == null && begun.length ? begun : events).map((e) => e.season)) : null;
     // Its name as each season held it: the main event's, never a division's.
     const mainFirst = events ? [...events].sort((x, y) => Number(x.division != null) - Number(y.division != null)) : [];
     const eventKeys = events ? (await scopeEvents({ season: 0, region: null, level: null, finals: false, kind: null, events })) ?? [] : null;
+    // None said: the latest edition with a match played, its divisions' counted (one only scheduled has none yet).
+    const playedIn = eventKeys?.length && year == null && !p.time ? await get<{ s: number | null }>(
+      `SELECT MAX(m.season) s FROM matches m WHERE m.played = 1 AND (${eventKeys.map(() => "(m.season = ? AND m.code = ?)").join(" OR ")})`, eventKeys.flatMap((k) => [k.season, k.code])) : null;
+    const eventSeason = events && (year != null || !p.time) ? (playedIn?.s != null ? Number(playedIn.s) : Math.max(...events.map((e) => e.season))) : null;
     const plural = /\b(?:matches|games|scores|upsets|comebacks|blowouts|routs|mismatches|underdogs|wins|losses)\b/.test(said);
     const f: MatchFind = {
       // The current season is the one today is in.
