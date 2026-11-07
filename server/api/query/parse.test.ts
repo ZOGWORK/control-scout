@@ -352,3 +352,15 @@ describe("when, said with 'time' or as a verb", () => {
     expect(await parse("when did 4215 last play match 12")).toMatchObject({ complete: false });
   });
 });
+
+describe("a schedule, and a state by its short name (failed-search #1152; held out: other teams, states and words)", () => {
+  it("a team's schedule is its matches, in a state said short or in full", async () => {
+    expect(await parse("bad wolf cali schedule")).toMatchObject({ intent: "season-matches", complete: true, teams: [{ number: 6980 }], place: { name: "California" } });
+    expect(await parse("6980 match schedule in massachusetts")).toMatchObject({ intent: "season-matches", complete: true, place: { name: "Massachusetts" } });
+    expect(await parse("23268 schedules this season")).toMatchObject({ intent: "season-matches", complete: true, teams: [{ number: 23268 }] });
+  });
+  it("a short name is a state only as a whole word, and never inside a team's name", async () => {
+    expect((await parse("bad wolf massa schedule")).place).toBeNull();
+    expect(await parse("teams in mass")).toMatchObject({ place: { name: "Massachusetts" } });
+  });
+});
