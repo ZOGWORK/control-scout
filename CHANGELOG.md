@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.7.8 — 2026-11-06
+
+A card whose title only adds its own chips to the page heading no longer says it twice: "Top 10 teams by OPR in Romania" is read once.
+
+### Highlights
+- [fixes] A top-teams answer no longer repeats the page heading
+- [fixes] The season stays on the card as its own chip
+- [fixes] A title that says more than the heading still shows
+
+### Search
+- **One heading.** An answer card whose title is the page's heading plus its own chips ("Top 10 teams by OPR in Romania · 2025–26" with a 2025–26 chip) is for screen readers only, so the page reads its heading once. (#1026)
+
 ## 3.7.7 — 2026-11-06
 
 An event's initials typed in lower case are said in capitals in the questions that follow a search: "mti recap" offers "Who won MTI?", not "Who won Mti?".
