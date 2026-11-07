@@ -471,6 +471,8 @@ export interface LeaderboardQuestion {
   undefeated?: boolean;
   /** A town in the region: its teams only. */
   town?: string | null;
+  /** The teams named ("rank these teams by reliability: 12345, 67890, 33950"): those only, ranked among themselves. */
+  teams?: number[];
 }
 
 const BOARD_STAT_WORDS: [string, RegExp][] = [
@@ -498,9 +500,17 @@ const PLACE = "(?: (?:in|from) (.+))?";
 export function readLeaderboard(raw: string): LeaderboardQuestion | null {
   // "overall OPR" is the stat's name, not an every-season scope.
   const q = ` ${raw.toLowerCase().replace(/['’]s\b/g, "").replace(/[?!,.]/g, " ")} `.replace(/\s+/g, " ").replace(/\b(?:overall|total) opr\b/g, "opr");
-  const { scope, rest } = readScope(q);
+  const { scope, rest } = readScope(q.replace(/:/g, " "));
   if (scope.championship || scope.states || scope.level || scope.alliance || scope.at || scope.ever) return null;
   const n = (s: string | undefined, def: number) => Math.min(25, Math.max(1, s ? Number(s) : def));
+  // "Rank these nj teams by reliability: 12345, 67890, 33950", "12345 67890 33950 ranked by opr": the teams named, by
+  // the stat, among themselves. A word or two before "teams" ("these nj") says no more than the numbers do.
+  const named = new RegExp(String.raw`^(?:(?:rank|sort|order|list|put)(?: these| the| those| my| our)?(?: \D+?)?(?: ${TEAMS})? (?:by|on|in order of|according to) (\D+?) ((?:\d{1,5} (?:and )?)+\d{1,5})|(?:${TEAMS} )?((?:\d{1,5} (?:and )?)+\d{1,5}) (?:ranked|sorted|ordered|in order) (?:by|on) (\D+?))$`).exec(rest);
+  if (named) {
+    const stat = boardStat(named[1] ?? named[4]);
+    const teams = [...new Set((named[2] ?? named[3]).split(" ").filter((w) => /^\d+$/.test(w)).map(Number))];
+    if (stat && teams.length >= 2 && teams.length <= 25) return { kind: "top", stat, n: teams.length, region: null, city: null, season: scope.season, teams };
+  }
   const place = (s: string | undefined): Region | null | false => (s ? regionOf(s) ?? false : null);
   let m: RegExpExecArray | null;
   // "top 10 teams by opr in nj", "best teams by win rate in new jersey"
