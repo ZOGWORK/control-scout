@@ -162,8 +162,11 @@ describe("did you mean", () => {
     await act(async () => { vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS + 5); });
     await reply(/q=4215%20recrod/, answer("4215 recrod", { step: "did-you-mean", didYouMean: "4215 record", hits: [t("4215", "Hypnotic Robotics")] }));
     // From the keyboard too: focus on the link, then Enter (a click), and the field has focus back.
-    (document.querySelector("[data-did-you-mean-link]") as HTMLButtonElement).focus();
-    fireEvent.click(document.querySelector("[data-did-you-mean-link]")!);
+    const link = document.querySelector("[data-did-you-mean-link]") as HTMLAnchorElement;
+    // A link to the corrected search, so a new tab opens it too.
+    expect(link.getAttribute("href")).toBe("/search?q=4215%20record");
+    link.focus();
+    fireEvent.click(link);
     expect((input as HTMLInputElement).value).toBe("4215 record");
     expect(document.activeElement).toBe(input);
   });

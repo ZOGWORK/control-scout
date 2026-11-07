@@ -64,6 +64,17 @@ describe("StatAnswerCard, a team's OPR", () => {
     const c = render(<MemoryRouter><StatAnswerCard stat={opr} heading="Hypnotic Robotics (4215) · OPR in 2025–26" /></MemoryRouter>).container;
     expect(c.querySelector("[data-answer-title]")!.className).toContain("sr-only");
   });
+  // Sign-off visual pass (C41/C42): "Top 10 teams by OPR in Romania · 2025–26" under the heading "Top 10 teams by OPR in
+  // Romania" read twice; the season it adds is its chip.
+  it("a title that is the heading plus what its chips say is for screen readers only too", () => {
+    const board = { ...opr, family: "leaderboard", intent: "top-opr", team: undefined, title: "Top 10 teams by OPR in Romania · 2025–26", scope: ["Romania", "2025–26"] } as StatAnswer;
+    const c = render(<MemoryRouter><StatAnswerCard stat={board} heading="Top 10 teams by OPR in Romania" /></MemoryRouter>).container;
+    expect(c.querySelector("[data-answer-title]")!.className).toContain("sr-only");
+    expect(c.querySelector("[data-scope]")!.textContent).toContain("2025–26");
+    // A title saying more than its chips and the heading still shows.
+    const more = render(<MemoryRouter><StatAnswerCard stat={{ ...board, title: "Top 10 teams by OPR in Romania, with awards · 2025–26" }} heading="Top 10 teams by OPR in Romania" /></MemoryRouter>).container;
+    expect(more.querySelector("[data-answer-title]")!.className).not.toContain("sr-only");
+  });
   it("phase values (no bars) in the team page's phase colours; phase columns neutral", () => {
     const c = draw({ ...opr, intent: "phase", blocks: [
       { kind: "bars", title: "Phases", groups: [{ label: "x", items: [{ label: "Auto", value: 20 }, { label: "TeleOp", value: 60 }, { label: "Endgame", value: 10 }] }] },
@@ -112,6 +123,13 @@ describe("StatAnswerCard, a team's OPR", () => {
     expect(rows[1].textContent).toContain("9-7-0");
     expect(rows[1].textContent).toContain("56%");
     expect(c.querySelector("[data-block=series]")!.innerHTML).not.toContain("truncate");
+    // Greptile on #1025: a chart point is a link for a mouse only; on a phone or touch screen neighbouring points can
+    // sit closer than a finger, so there it's a mark and the list below (a full row each, 44px) is the way in.
+    const series = c.querySelector("[data-block=series]")!;
+    const point = series.querySelector('.relative a[href="/events/2025/USNJNOLT2?team=4215"]')!;
+    expect(point.className).toMatch(/max-md:hidden.*pointer-coarse:hidden/);
+    expect(series.querySelectorAll('.relative [role=img].max-md\\:flex')).toHaveLength(1);
+    expect(series.querySelector('[data-series-values] a[href="/events/2025/USNJNOLT2?team=4215"]')!.className).toContain("max-md:min-h-[44px]");
   });
 });
 

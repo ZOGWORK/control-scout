@@ -20,6 +20,19 @@ const heads = (c: HTMLElement) => [...c.querySelectorAll("thead th")].filter((th
 const teams = (c: HTMLElement) => [...c.querySelectorAll("[data-team-row]")].map((r) => Number(r.getAttribute("data-team-row")));
 
 describe("TeamTable", () => {
+  // Sign-off visual pass, 390 px: "top teams in NJ" cut each team to a few letters ("Ultra…") beside four numbers.
+  it("ranked by an asked number: on a phone the record moves into the row's phases, and every control is 44px", () => {
+    const t: Table = { by: "asked", asked: { label: "Prediction rating" }, rows: TABLE.rows.map((r) => ({ ...r, asked: { value: r.opr, display: String(r.opr) } })) };
+    const { container } = draw(t);
+    expect(container.querySelector('[data-sort="record"]')!.closest("th")!.className).toContain("max-md:hidden");
+    expect(container.querySelector('[data-team-row="100"] td:has([aria-label="8 wins, 2 losses, 0 ties"])')!.className).toContain("max-md:hidden");
+    expect(container.querySelector('[data-phases-row="100"] [data-phone-record]')!.textContent).toContain("8-2-0");
+    for (const b of container.querySelectorAll("thead button")) expect(b.className, b.textContent ?? "").toMatch(/max-md:min-h-\[44px\].*max-md:min-w-\[44px\]/);
+    // A list in its own order keeps the record where it was.
+    const { container: own } = draw();
+    expect(own.querySelector('[data-sort="record"]')!.closest("th")!.className).not.toContain("max-md:hidden");
+    expect(own.querySelector("[data-phone-record]")).toBeNull();
+  });
   it("ranked by a phase (\"best auto\"): on a phone that phase is the column shown, not the OPR", () => {
     const { container } = draw({ ...TABLE, by: "auto" });
     const phone = (k: string) => !container.querySelector(`[data-sort="${k}"]`)!.closest("th")!.className.includes("max-md:hidden");

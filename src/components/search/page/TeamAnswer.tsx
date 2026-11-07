@@ -14,12 +14,11 @@ import type { TeamEventRow, TeamProfile } from "../../../shared/api";
 import { Meter, StatTile, rankPc } from "../../StatTile";
 import { Badge } from "../../ui/basic";
 import { cn } from "../../cn";
-import { EventMarker, RankPill, RecordText } from "./answerCells";
+import { EventMarker, RankPill, RecordText, TAP } from "./answerCells";
 import { GLANCE_TONE as G } from "../../../lib/textTones";
 import { teamFill } from "../../../lib/textTones";
 
-/** The touch rule every search control keeps: 44px tall on phones and touch screens. */
-export const TAP = "max-md:min-h-[44px] pointer-coarse:min-h-[44px]";
+export { TAP };
 /** A secondary action on an answer: underlined text, gold only on hover; the page's one primary action is the button. */
 export const SECONDARY = "inline-flex items-center gap-1 text-sm font-medium text-foreground underline decoration-border underline-offset-2 hover:text-accent-text";
 
@@ -53,7 +52,12 @@ export function useTeamProfile(team: number | null | undefined, season: number):
 
 /** The card's title says only what the page's heading already says ("Record in 2025–26" under "Hypnotic Robotics
  *  (4215) · Record in 2025–26"): then it's for screen readers only, so nothing reads twice. */
-export const repeats = (heading: string | null | undefined, title: string) => !!heading && !!title.trim() && heading.toLowerCase().includes(title.trim().toLowerCase());
+export const repeats = (heading: string | null | undefined, title: string, chips: readonly string[] = []) => {
+  // The title less what its chips say at its end ("Top 10 teams in New Jersey · 2025–26" with a 2025–26 chip).
+  let t = title.trim();
+  for (let i = t.lastIndexOf(" · "); i > 0 && chips.some((c) => c.trim().toLowerCase() === t.slice(i + 3).trim().toLowerCase()); i = t.lastIndexOf(" · ")) t = t.slice(0, i).trim();
+  return !!heading && !!t && heading.toLowerCase().includes(t.toLowerCase());
+};
 
 type Who = { number: number; name: string | null };
 
