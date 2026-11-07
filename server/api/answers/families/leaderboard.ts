@@ -216,8 +216,8 @@ async function gainAnswer(b: BoardQuestion, season: number, where: string, regio
     headline: { value: `${top.team} ${top.name ?? ""}`.trim(), label: `${gain(top)} OPR: ${f1(top.o0)} → ${f1(top.o1)} over ${top.k} events${top.city ? ` · ${top.city}` : ""}`, sub: `${top.n0} → ${top.n1}`, href: teamHref(Number(top.team), season) },
     blocks: [{
       kind: "table", title: "Most OPR gained",
-      columns: [{ key: "rank", label: "#", num: true }, { key: "team", label: "Team" }, { key: "first", label: "First event", num: true }, { key: "last", label: "Last event", num: true }, { key: "gain", label: "Gained", num: true }],
-      rows: rows.map((r, i) => ({ cells: { rank: i + 1, team: `${r.team} ${r.name ?? ""}`.trim(), first: f1(r.o0), last: f1(r.o1), gain: gain(r) }, href: teamHref(Number(r.team), season), strong: i === 0 })),
+      columns: [{ key: "rank", label: "#", num: true }, { key: "team", label: "Team" }, { key: "gain", label: "Gained", num: true }, { key: "span", label: "First → last event", num: true }],
+      rows: rows.map((r, i) => ({ cells: { rank: i + 1, team: `${r.team} ${r.name ?? ""}`.trim(), gain: gain(r), span: `${f1(r.o0)} → ${f1(r.o1)}` }, href: teamHref(Number(r.team), season), strong: i === 0 })),
     }],
   };
 }
