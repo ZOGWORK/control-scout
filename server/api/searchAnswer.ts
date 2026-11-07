@@ -44,7 +44,7 @@ import { booleanAnswer } from "./searchBoolean.js";
 import { asksOfTeams, pipelineAnswer, pipelineReads } from "./query/execute.js";
 import { yesNoAnswer } from "./answers/yesNo.js";
 import { sorryFor } from "./answers/sorry.js";
-import { awardQuery, bottomAnswer, countAnswer, eventCodeAnswer, eventPageAnswer, explainAnswer, monthAnswer, nearMeAnswer, namedParts, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
+import { awardQuery, bottomAnswer, calledTeams, countAnswer, eventCodeAnswer, eventPageAnswer, explainAnswer, monthAnswer, nearMeAnswer, namedParts, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
 
 /** The longest query read: a full question ("did the prediction for 12345 at the state championship get it right, or
  *  was it way off") fits. Longer is cut at a word, never inside one. */
@@ -565,7 +565,10 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   // Only a site page's word ("rankings", "rules") that near-matches names ("Iron Hawkings"): the page is the answer,
   // not a guess at a team. A name beside it ("hipnotic rankings") keeps its corrected results.
   if (score < WEAK_SCORE && onlyPageWords(opts.typed ?? q)) return answer(q, { hits: [], step: "deterministic", understood: pageUnderstood(opts.typed ?? q) });
-  // A near match to a team that never played (a test registration, a typo'd sign-up) is a closest match, not a result.
+  // A near match to a team that never played (a test registration, a typo'd sign-up) is a closest match, not a result,
+  // unless the words call it by its name's own part ("<name> juniors" for "<Name> Junior").
+  const called = !exact && hits[0].kind === "team" ? await calledTeams(rest, prefer) : [];
+  if (called.some((h) => h.ref === hits[0].ref)) return answer(q, { hits: [...called, ...hits.filter((h) => !called.some((c) => c.ref === h.ref))].slice(0, limit), step: "deterministic" });
   if (!exact && hits[0].kind === "team" && !hits[0].href && !(await played(hits[0].ref))) {
     return recovery(q, [`No exact match for "${q}"`], uniq(hits).slice(0, 5));
   }
