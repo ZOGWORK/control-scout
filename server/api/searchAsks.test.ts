@@ -123,7 +123,7 @@ describe("test 16: each intent returns its stated surface", () => {
     }
     const lineup = await ask("can i get a prediction for a match that has not been played yet");
     expect(lineup.pages[0]).toEqual({ title: "Predict: Custom matchup", href: "/predict?mode=match" });
-    expect(lineup.understood?.label).toMatch(/^Yes: Predict's Custom matchup takes any teams/);
+    expect(lineup.understood?.label).toMatch(/^Yes: Predict's Custom matchup takes any teams on each alliance\. After changing them, press Predict this match/);
     expect(readAsk("how do i sort predictions by team")).toEqual({ kind: "predict-filter" });
     const filter = await ask("is there a way to filter the forecasts by event");
     expect(filter.pages[0]).toEqual({ title: "Predict: Scheduled matches", href: "/predict?mode=scheduled" });
@@ -140,11 +140,18 @@ describe("test 16: each intent returns its stated surface", () => {
     expect(none.understood?.label).toMatch(/^Tomorrow \(.+\): no event has matches then/);
     const day = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
     await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'USNJQ9', 'Garden Qualifier', 'Qualifier', 'Union', 'NJ', 'USA', ?, ?, 't')", [CURRENT_SEASON, day, day]);
+    // A workshop plays no matches: never counted. An event with no schedule posted yet has no predictions yet.
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'USNJW9', 'Build Workshop', 'Workshop', 'Union', 'NJ', 'USA', ?, ?, 't')", [CURRENT_SEASON, day, day]);
+    const early = await ask("show me predictions for tomorrows matches");
+    expect(early.understood?.label).toMatch(/^Tomorrow \(.+\): 1 event, none with a match schedule posted yet/);
+    expect(early.hits.map((h) => h.ref)).toEqual([`${CURRENT_SEASON}:USNJQ9`]);
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, source) VALUES (?, 'USNJQ9', 'qual', 0, 1, 'Q1', ?, 0, 't')", [CURRENT_SEASON, `${day}T14:00:00Z`]);
     const one = await ask("show me predictions for tomorrows matches");
     expect(one.understood?.label).toMatch(/^Tomorrow \(.+\): 1 event with matches/);
     expect(one.hits[0]).toMatchObject({ kind: "event", ref: `${CURRENT_SEASON}:USNJQ9` });
     expect(one.pages[0]).toEqual({ title: "Predict: Garden Qualifier", href: `/predict?mode=scheduled&for=event:${CURRENT_SEASON}:USNJQ9` });
-    await run("DELETE FROM events WHERE code = 'USNJQ9'");
+    await run("DELETE FROM matches WHERE code = 'USNJQ9'");
+    await run("DELETE FROM events WHERE code IN ('USNJQ9', 'USNJW9')");
   });
   it("how are predictions calculated: the methodology page in the Pages group", async () => {
     const a = await ask("how are predictions calculated");

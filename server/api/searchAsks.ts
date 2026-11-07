@@ -33,6 +33,7 @@ import { PHASE_COLS, tableOf } from "./teamTableRows.js";
 import { eventHit, localTodays, searchToday } from "./searchEvents.js";
 import { namedTeam, versusAnswer } from "./searchCompare.js";
 import { eventChampions } from "./answers/families/winners.js";
+import { NO_MATCH_TYPES } from "./events.js";
 
 export type Stat = "opr" | "auto" | "teleop" | "endgame" | "wins";
 export type Ask =
@@ -237,7 +238,7 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
 
     case "predict-lineup":
       return answer(q, { hits: [], pages: withPage(q, [{ title: "Predict: Custom matchup", href: predictHref({ mode: "match" }) }]),
-        understood: { kind: "question", label: "Yes: Predict's Custom matchup takes any teams on each alliance, and the win chance and predicted score update as you change them" } });
+        understood: { kind: "question", label: "Yes: Predict's Custom matchup takes any teams on each alliance. After changing them, press Predict this match for the new win chance and predicted score" } });
 
     case "predict-filter":
       return answer(q, { hits: [], pages: withPage(q, [{ title: "Predict: Scheduled matches", href: predictHref({ mode: "scheduled" }) }]),
@@ -256,14 +257,22 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
 
     case "predict-day": {
       const now = Date.now(), day = searchToday(now + (ask.day === "tomorrow" ? 864e5 : 0));
+      // Events that play matches (never a kickoff or a workshop), the ones with their match schedule posted first: only
+      // those have predictions to show yet.
       const rows = await all<any>(
-        `SELECT season, code, name, type, venue, city, state, country, start, end, timezone, division_code FROM events
-         WHERE start <= ? AND COALESCE(end, start) >= ? AND COALESCE(remote, 0) = 0 ORDER BY start, name LIMIT 12`, [day, day]);
+        `SELECT season, code, name, type, venue, city, state, country, start, end, timezone, division_code,
+           EXISTS (SELECT 1 FROM matches m WHERE m.season = e.season AND m.code = e.code) scheduled FROM events e
+         WHERE start <= ? AND COALESCE(end, start) >= ? AND COALESCE(remote, 0) = 0 AND (type IS NULL OR type NOT IN (${NO_MATCH_TYPES.map(() => "?").join(", ")}))
+         ORDER BY scheduled DESC, start, name LIMIT 12`, [day, day, ...NO_MATCH_TYPES]);
       const when = `${ask.day === "tomorrow" ? "Tomorrow" : "Today"} (${dateRange(day, day)})`;
       if (!rows.length) return answer(q, { hits: [], pages: withPage(q, [{ title: "Predict: Scheduled matches", href: predictHref({ mode: "scheduled" }) }]), understood: { kind: "question", label: `${when}: no event has matches then, so there are no predictions for that day` } });
-      const pages = rows.slice(0, 3).map((r) => ({ title: `Predict: ${r.name}`, href: predictHref({ mode: "scheduled", pick: { kind: "event", season: Number(r.season), code: r.code } }) }));
-      return answer(q, { hits: rows.map((r) => eventHit(r, now)), pages: withPage(q, pages),
-        understood: { kind: "question", label: `${when}: ${rows.length === 12 ? "12 or more" : rows.length} event${rows.length === 1 ? "" : "s"} with matches; each one's predictions are in Predict` } });
+      const posted = rows.filter((r) => Number(r.scheduled));
+      const pages = posted.slice(0, 3).map((r) => ({ title: `Predict: ${r.name}`, href: predictHref({ mode: "scheduled", pick: { kind: "event", season: Number(r.season), code: r.code } }) }));
+      const n = (k: number) => `${k === 12 ? "12 or more" : k} event${k === 1 ? "" : "s"}`;
+      const label = posted.length === rows.length ? `${n(rows.length)} with matches; each one's predictions are in Predict`
+        : posted.length ? `${n(rows.length)}, ${posted.length} with a match schedule posted: their predictions are in Predict`
+        : `${n(rows.length)}, none with a match schedule posted yet, so no predictions yet`;
+      return answer(q, { hits: rows.map((r) => eventHit(r, now)), pages: pages.length ? withPage(q, pages) : pagesFor(q), understood: { kind: "question", label: `${when}: ${label}` } });
     }
 
     case "leaderboard": {
