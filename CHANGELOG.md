@@ -25,7 +25,7 @@ An event asked about in short reads as meant: a division's or a championship's f
 - [fixes] Worlds division highlights show the Worlds highlights
 
 ### Search
-- **Event phrases.** "Finals" (or "final", "final matches", a season after it) after a division's, a championship's, a tournament's, an invitational's, a qualifier's, a premier's or a cup's name reads as who won it, the season or game typed between kept. A word that names a stored event's division ("<name> Division"), typed with another word and no "division", is read again as that division when the query as typed found nothing. "Division" or "divisions" beside Worlds in a highlights question is Worlds' highlights. (#PRNUM)
+- **Event phrases.** "Finals" (or "final", "final matches", a season after it) after a division's, a championship's, a tournament's, an invitational's, a qualifier's, a premier's or a cup's name reads as who won it, the season or game typed between kept. A word that names a stored event's division ("<name> Division"), typed with another word and no "division", is read again as that division when the query as typed found nothing, and a season named (a game's name too) makes an event held every season under one code that season's event. "Division" or "divisions" beside Worlds in a highlights question is Worlds' highlights. (#PRNUM)
 
 ## 3.9.1 — 2026-11-07
 
