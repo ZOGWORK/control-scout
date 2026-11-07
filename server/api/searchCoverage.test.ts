@@ -535,6 +535,8 @@ describe("explain questions, asked any way", () => {
     expect(a?.card?.lines.map((l) => l.href)).toEqual(["/methodology#rating", "/methodology#rating", "/methodology#opr", "/methodology#opr"]);
     expect(explainAnswer("how is opr different from reliability, explained simply")?.card?.title).toMatch(/^OPR and the reliability index/);
     expect(explainAnswer("difference between opr and 4215")).toBeNull();
+    // Two words one explainer covers: that explainer, which sets them apart.
+    for (const q of ["difference between auto and teleop", "how is teleop different from endgame"]) expect(explainAnswer(q)?.card?.title, q).toBe("A match's periods: auto, TeleOp and endgame");
   });
   it("the season's game, by \"this season\" or \"last season\"", () => {
     expect(explainAnswer("what is this season's game")?.card?.title).toContain(`the ${seasonLabel(CURRENT_SEASON)} FTC game`);

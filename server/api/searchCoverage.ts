@@ -614,7 +614,9 @@ export function explainAnswer(q: string): SearchAnswer | null {
   const d = /^(?:what(?:'s| is| are)|whats)?\s*(?:the\s+)?differences?\s+between\s+(?:an?\s+|the\s+)?(.+?)\s+and\s+(?:an?\s+|the\s+)?(.+)$/.exec(t)
     ?? /^how (?:is|are|does|do)\s+(?:an?\s+|the\s+)?(.+?)\s+differ(?:ent)?\s+from\s+(?:an?\s+|the\s+)?(.+)$/.exec(t);
   const [a, b] = d ? [explainerOf(d[1]), explainerOf(d[2])] : [];
-  if (a && b && a !== b) {
+  // Two words one explainer covers ("auto and teleop", both periods of a match): that explainer, which sets them apart.
+  if (a && a === b) return said(a);
+  if (a && b) {
     const title = `${a.label.split(":")[0]} and ${b.label.split(":")[0].replace(/^The /, "the ")}: the difference`;
     return said(a, title, [...a.lines.slice(0, 2), ...b.lines.slice(0, 2)], [...a.pages, ...b.pages.filter((p) => !a.pages.some((x) => x.href === p.href))]);
   }
