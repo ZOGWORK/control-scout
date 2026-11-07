@@ -25,7 +25,7 @@ A place's top team can stand in for a team number in a two-team question: "who w
 - [predict] "Who would win in a match between A and B" gets the call
 
 ### Search
-- **A place's top team, as one of two.** "The top / best / strongest <place> team" or "… team in <place>" is that place's first team on its prediction-rating board, as "top teams in <place>" ranks them, read into the two-team question; the question line says which team each phrase was. (#1097)
+- **A place's top team, as one of two.** "The top / best / strongest <place> team" or "… team in <place>" is that place's first team on its prediction-rating board, as "top teams in <place>" ranks them, read into the two-team question; the question line says which team each phrase was.
 - **"Between."** "Who would win in a match between A and B" is the match's call, and "matches between A and B" their shared matches. (#1097)
 
 ## 3.9.0 — 2026-11-07
