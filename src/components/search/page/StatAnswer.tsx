@@ -241,7 +241,7 @@ function Block({ b: block, team, teams, said, hue }: { b: StatBlock; team?: Stat
         <div data-block="matches">
           <h3 className={H3}>
             {b.title}
-            {ev && <> · <Link to={ev.event.href} className="text-foreground/90 hover:text-accent-text hover:underline">{ev.event.label}</Link></>}
+            {ev && <> · <Link to={ev.event.href} className={cn("inline-flex items-center text-foreground/90 hover:text-accent-text hover:underline", TAP)}>{ev.event.label}</Link></>}
             {ev && !!ev.type && <EventMarker type={ev.type} chip />}
             {ev && !said?.has(ev.season) && <> · {ev.season}</>}
           </h3>
@@ -366,7 +366,7 @@ function Table({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
                       <td key={c.key} className={cn("px-2.5 py-1.5 align-middle", c.num && "text-right tabular-nums", j === 0 && meaningOf(String(v ?? "")) && cn("border-l-[6px]", swatchOf(String(v)).edge), j === 0 ? "min-w-[4.5rem] md:min-w-[8rem]" : "whitespace-nowrap max-md:px-1.5", folded.includes(c) && "max-md:hidden", won && "font-bold text-foreground")} data-better={won ? "" : undefined}>
                         {j === 0 && r.strong && <Trophy className="mr-1 inline size-3.5 align-[-2px] text-team-a" aria-label="Best" />}
                         {j === 0 && r.href
-                          ? <Link to={r.href} className="text-foreground hover:text-accent-text hover:underline max-md:inline-flex max-md:min-h-[44px] max-md:items-center pointer-coarse:inline-flex pointer-coarse:min-h-[44px] pointer-coarse:items-center">{c.key === "award" && v != null ? <AwardChip name={String(v)} /> : (v ?? "–")}</Link>
+                          ? <Link to={r.href} className={cn("text-foreground hover:text-accent-text hover:underline max-md:inline-flex max-md:items-center pointer-coarse:inline-flex pointer-coarse:items-center", TAP)}>{c.key === "award" && v != null ? <AwardChip name={String(v)} /> : (v ?? "–")}</Link>
                           : j === 0 && c.key === "award" && v != null ? <AwardChip name={String(v)} />
                           : j === 0 ? (v ?? "–") : <Cell col={c} value={v} max={max.get(c.key)} />}
                         {j === 0 && first.key === "event" && !!r.type && <EventMarker type={r.type} chip />}
@@ -475,7 +475,7 @@ function Series({ b }: { b: Extract<StatBlock, { kind: "series" }> }) {
           const style = { left: `${x(p.i)}%`, top: `${y(p.y)}%` };
           const label = `${p.x}: ${p.y}${b.unit ? ` ${b.unit}` : ""}${p.note ? ` (${p.note})` : ""}`;
           return p.href
-            ? <Link key={p.i} to={p.href} style={style} title={label} aria-label={label} className="absolute flex size-[24px] -translate-x-1/2 -translate-y-1/2 items-center justify-center hover:[&>span]:bg-accent">{dot}</Link>
+            ? <Link key={p.i} to={p.href} style={style} title={label} aria-label={label} className={cn("absolute flex size-[24px] -translate-x-1/2 -translate-y-1/2 items-center justify-center hover:[&>span]:bg-accent", TAP)}>{dot}</Link>
             : <span key={p.i} style={style} title={label} aria-label={label} role="img" className="absolute flex size-[24px] -translate-x-1/2 -translate-y-1/2 items-center justify-center">{dot}</span>;
         })}
       </div>

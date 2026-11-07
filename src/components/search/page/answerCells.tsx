@@ -11,6 +11,10 @@ import { Badge } from "../../ui/basic";
 import { Meter } from "../../StatTile";
 import { cn } from "../../cn";
 
+/** The touch rule every search control keeps: at least 44px each way on phones and touch screens (a link in running
+ *  text is exempt, WCAG 2.5.8). */
+export const TAP = "max-md:min-h-[44px] max-md:min-w-[44px] pointer-coarse:min-h-[44px] pointer-coarse:min-w-[44px]";
+
 /** The places that get a medal: the top three, filled in the team hue. */
 export const PODIUM: Record<number, true> = { 1: true, 2: true, 3: true };
 
