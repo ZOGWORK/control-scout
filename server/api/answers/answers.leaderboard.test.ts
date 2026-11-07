@@ -134,7 +134,10 @@ describe("the lists", () => {
 describe("OPR gained within a season", () => {
   it("reads the gain, said any way, apart from the climb in standing", () => {
     expect(readLeaderboard("top 3 most improved teams in texas by opr growth")).toMatchObject({ kind: "gain", stat: "opr", n: 3, region: { key: "USA:TX" } });
-    expect(readLeaderboard("which texas team raised its opr the most from its first to its last event")).toMatchObject({ kind: "gain", best: true, region: { key: "USA:TX" } });
+    expect(readLeaderboard("which texas team raised its opr the most from its first to its last event")).toMatchObject({ kind: "gain", n: 10, region: { key: "USA:TX" } });
+    // Counted at some events only, or on a day: no gain board (it counts every event of the season).
+    expect(readLeaderboard("which teams gained the most opr at new jersey events")?.kind).not.toBe("gain");
+    expect(readLeaderboard("which teams gained the most opr out of state")?.kind).not.toBe("gain");
     expect(readLeaderboard("what teams in nj gained the most opr across the season")).toMatchObject({ kind: "gain", region: { key: "USA:NJ" } });
     expect(readLeaderboard("most improved teams in texas")).toMatchObject({ kind: "improved" });
   });
@@ -151,6 +154,12 @@ describe("OPR gained within a season", () => {
       const t = b.stat!.blocks[0];
       if (t.kind !== "table") throw new Error(t.kind);
       expect(t.rows.map((r) => [r.cells.team, r.cells.gain])).toEqual([["6980 Bad Wolf", "+50.0"], ["4215 Hypnotic Robotics", "+30.0"]]);
+      // Asked of "teams" or "team" through search, the same whole board.
+      for (const q of ["what teams in nj gained the most opr across the season in 2025-26", "which nj team improved its opr the most in 2025-26"]) {
+        const c = await searchAnswer(q, { limit: 25, full: true });
+        expect(c.stat?.title, q).toBe("Most OPR gained in New Jersey between first and last event · 2025–26");
+        expect((c.stat!.blocks[0] as { rows: unknown[] }).rows, q).toHaveLength(2);
+      }
     } finally {
       await run("DELETE FROM team_event_stats WHERE code IN ('G1', 'G2', 'G3')"); await run("DELETE FROM events WHERE code IN ('G1', 'G2', 'G3')");
     }

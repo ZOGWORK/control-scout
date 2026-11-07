@@ -203,7 +203,7 @@ async function gainAnswer(b: BoardQuestion, season: number, where: string, regio
   const S = seasonLabel(season), total = Number(count?.n ?? 0);
   const f1 = (x: number) => (Math.round(x * 10) / 10).toFixed(1);
   const gain = (r: (typeof rows)[number]) => { const g = Number(r.o1) - Number(r.o0); return `${g >= 0 ? "+" : "−"}${f1(Math.abs(g))}`; };
-  const title = b.best ? `Team${where} that gained the most OPR` : `Most OPR gained${where}`;
+  const title = `Most OPR gained${where}`;
   const base = {
     family: "leaderboard" as const, intent: "opr-gain", title: `${title} between first and last event · ${S}`, scope: chips,
     definition: `OPR gained: the OPR at the team's last event of ${S} (without penalties, as its team page shows it) less its OPR at its first, by date; teams with an OPR at 2 or more events.${why}`,
