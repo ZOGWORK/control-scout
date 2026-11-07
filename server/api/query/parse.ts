@@ -45,6 +45,8 @@ export interface Parsed {
   /** Penalty points left out of scores ("without penalties"): read, and an intent that can't apply it leaves the parse
    *  incomplete. */
   noPenalties: boolean;
+  /** A floor in points ("more than 50 points", "over 100 pts"): only a rule that takes "over" applies it. */
+  over?: number;
   /** Where the first "vs" stands (a word's index, as a team's `at`): two alliances are the teams either side of it. */
   vsAt?: number;
   /** Every intent symbol read ("agg:max", "metric:score"). */
@@ -102,6 +104,7 @@ const KIND_WORDS = new Set(["meet", "meets", "tournament", "tournaments", "event
 /** The words before a number that make it a count ("top 5", "last 10") or a match's number ("match 3"). */
 const COUNT_BEFORE = /^(?:top|last|first|best|latest|past|recent|bottom|worst|highest|lowest)$/;
 const MATCH_BEFORE = /^(?:match|qual|q|game|qualification)$/;
+const OVER_BEFORE = /^(?:than|over|above|least|exceeding|beyond)$/;
 /** Every word of a lexicon phrase: a team's name beside one ("bad wolf offensive power rating") still ends there. */
 const LEX_WORDS = new Set(LEXICON.flatMap((e) => e.words));
 
@@ -232,6 +235,12 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     if (qm) { p.matchNumber = Number(qm[1]); if (/^q/.test(t.w)) p.level = "qual"; t.used = true; symbols.add("thing:match"); continue; }
     if (!/^\d{1,5}$/.test(t.w)) continue;
     const n = Number(t.w), prev = toks[i - 1]?.w, next = toks[i + 1]?.w;
+    // "More than 50 points", "over 100 pts", "at least 30 points": a number of points, never a team.
+    if (prev && OVER_BEFORE.test(prev) && next && /^(?:points?|pts)$/.test(next)) {
+      p.over = n; t.used = true; toks[i - 1].used = true; toks[i + 1].used = true;
+      if (/^(?:than|least)$/.test(prev) && /^(?:more|at|greater)$/.test(toks[i - 2]?.w ?? "")) toks[i - 2].used = true;
+      continue;
+    }
     if (prev && MATCH_BEFORE.test(prev) && n <= 400) { p.matchNumber = n; t.used = true; toks[i - 1].used = true; symbols.add("thing:match"); if (prev !== "match" && prev !== "game") p.level = "qual"; continue; }
     // "Top 5 teams", and "top 3" ending the query.
     if (prev && COUNT_BEFORE.test(prev) && n <= 50 && (next ? !ctx.names.team(Number(next)) : !p.teams.length)) { p.n = n; t.used = true; continue; }
@@ -384,6 +393,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   // "Without penalties" is a slot only the rules that list it take (the season's best matches); anywhere else the
   // parse is left incomplete rather than answered with penalties in.
   if (pick && p.noPenalties && !(pick.rule.opt ?? []).includes("nopen")) pick.unexplained.push("nopen");
+  if (pick && p.over != null && !(pick.rule.opt ?? []).includes("over")) pick.unexplained.push("over");
   // The awards side-by-side counts every award: one award named ("12345 vs 67890 inspire awards") is left to the
   // readers that count that award alone.
   if (pick && p.award && pick.rule.id === "awards-vs") pick.unexplained.push(`award:${p.award}`);

@@ -27,7 +27,9 @@ export type PipelineIntent =
   // Four teams, two on each alliance: a match's call ("predict a b vs c d").
   | "alliance-predict"
   // No team: matches found by a measure (./matchFind.ts).
-  | "low-matches" | "close-matches" | "lopsided-matches" | "penalty-matches" | "upset-matches" | "comeback-matches";
+  | "low-matches" | "close-matches" | "lopsided-matches" | "penalty-matches" | "upset-matches" | "comeback-matches"
+  // A team's or everyone's matches by how far the saved prediction was off (./matchFind.ts).
+  | "miss-matches" | "accurate-matches";
 
 export interface IntentRule {
   id: PipelineIntent;
@@ -184,6 +186,12 @@ export const INTENTS: IntentRule[] = [
   R("lopsided-matches", 0, ["agg:max", "metric:margin"], ["thing:match", "metric:win", "metric:score", "outcome:W", "and"]),
   R("penalty-matches", 0, ["agg:max", "metric:penalty"], ["thing:match", "metric:score", "and"]),
   R("upset-matches", 0, ["metric:upset"], ["agg:max", "thing:match", "metric:win", "metric:margin", "metric:score", "and"]),
+  // Predictions against results, everyone's or one team's: furthest off first, or closest first ("most accurate").
+  // A floor in points ("wrong by more than 50 points") is the misses' own.
+  ...([0, 1] as const).flatMap((n) => [
+    R("accurate-matches", n, ["metric:miss", "agg:min"], ["predict", "thing:match", "thing:team", "vs", "list", "per:match"]),
+    R("miss-matches", n, ["metric:miss"], ["agg:max", "predict", "thing:match", "thing:team", "vs", "list", "per:match", "metric:score", "over"]),
+  ]),
   R("comeback-matches", 0, ["metric:comeback"], ["agg:max", "thing:match", "metric:win", "and"]),
   ...["agg:max", "agg:min"].flatMap((agg) => [
     R("leaderboard", 0, [agg, "thing:team"], BOARD_OPT),

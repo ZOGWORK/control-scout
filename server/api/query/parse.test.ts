@@ -64,6 +64,16 @@ describe("slots", () => {
     const p = await parse("predicted chances of 4215 east bergen conference");
     expect(p).toMatchObject({ intent: "team-predict", complete: true, teams: [{ number: 4215 }], event: { words: "east bergen conference" }, time: null });
   });
+  it("reads a prediction's miss, a team's or everyone's, and a floor in points never as a team", async () => {
+    expect(await parse("6980 most unpredictable matches")).toMatchObject({ intent: "miss-matches", complete: true, teams: [{ number: 6980 }] });
+    expect(await parse("which match was the prediction most wrong in new jersey")).toMatchObject({ intent: "miss-matches", complete: true, teams: [] });
+    expect(await parse("hypnotic robotics most accurate predictions")).toMatchObject({ intent: "accurate-matches", complete: true, teams: [{ number: 4215 }] });
+    // 6980 is a team too: "more than 6980 points" is a number of points all the same.
+    expect(await parse("4215 predictions off by more than 6980 points")).toMatchObject({ intent: "miss-matches", complete: true, over: 6980, teams: [{ number: 4215 }] });
+    // A floor nothing else applies leaves the parse incomplete; "accurate" alone is a forecast's review.
+    expect((await parse("4215 matches over 200 points")).complete).toBe(false);
+    expect((await parse("how accurate was the prediction for 4215 at nj championship")).intent).toBe("team-predict");
+  });
   it("reads two alliances of two either side of a vs, any wording, as a match's call", async () => {
     for (const q of [
       "predict 4215 6980 vs 24033 23268", "4215 and 6980 vs 24033 and 23268 who wins", "custom matchup 4215 6980 vs 24033 23268",

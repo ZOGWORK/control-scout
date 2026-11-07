@@ -397,6 +397,24 @@ describe("the match finder: matches by a measure, every filter applied and state
     // "Last season" is the one before the current one, for a place as for the world.
     expect((await ask("biggest upset in new jersey last season", Date.parse("2026-11-04T12:00:00Z"))).stat?.scope[0]).toBe("2025–26");
   });
+  it("predictions against results: one team's or everyone's, furthest off or closest, the live call before its replay", async () => {
+    // Q2: called 110–100 live (replayed 90–120), finished 80–120: off by 50 on the live call. Q1: 140–100, finished 150–90: off by 20.
+    const one = await stat("4215 biggest prediction miss");
+    expect(one).toMatchObject({ intent: "find-miss", team: { number: 4215 }, headline: { value: "Off by 50 points", label: expect.stringMatching(/^Q2 /) } });
+    expect(one.title).toContain("Hypnotic Robotics (4215)");
+    const list = await stat("6980 least predictable matches");
+    const rows = list.blocks.find((b) => b.kind === "table");
+    expect(rows && rows.kind === "table" && rows.rows.map((r) => r.cells.value)).toEqual(["Off by 50 points", "Off by 20 points"]);
+    // A floor in points keeps only the matches over it, printed in the title and the scope.
+    const over = await stat("6980 matches the prediction missed by more than 30 points");
+    const kept = over.blocks.find((b) => b.kind === "table");
+    expect(kept && kept.kind === "table" && kept.rows.map((r) => r.cells.match)).toEqual(["Q2"]);
+    expect(over.title).toMatch(/^Predictions off by more than 30 points/);
+    expect(over.scope).toContain("Off by more than 30 points");
+    expect((await stat("6980 matches the prediction missed by more than 90 points")).none).toMatch(/off by more than 90 points/);
+    // Everyone's: the closest call first.
+    expect(await stat("most accurate prediction in new jersey")).toMatchObject({ intent: "find-accurate", headline: { value: "Off by 20 points", label: expect.stringMatching(/^Q1 /) } });
+  });
   it("the highest score with no season said: the current one, then the one before, as every place answer", async () => {
     const a = await ask("highest score in new jersey", Date.parse("2026-11-04T12:00:00Z"));
     expect(a.stat?.scope).toContain("No 2026–27 scored matches yet in New Jersey; showing 2025–26");
