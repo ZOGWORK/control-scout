@@ -29,7 +29,7 @@ The LIVE panel shows nothing about matches until the day's first score is out, t
 - **Schedules with a wrong clock.** When the field runs hours off the posted times (a mistyped schedule), the countdown keeps the schedule's gaps and drops its clock, and doesn't claim the event runs "12 hours behind".
 
 ### Fixes
-- **12-hour slips in FIRST's schedule.** A posted start before 6 AM is read as the afternoon (the P1-5 PM Northeast League Meet was posted from 1:35 AM). (#PR)
+- **12-hour slips in FIRST's schedule.** A posted start before 6 AM is read as the afternoon (the P1-5 PM Northeast League Meet was posted from 1:35 AM). (#1128)
 
 ## 3.9.7 — 2026-11-07
 
