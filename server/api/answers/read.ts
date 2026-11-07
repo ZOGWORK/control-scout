@@ -456,8 +456,9 @@ export function readTeamSet(raw: string): TeamSetQuestion | null {
 /** Family 7: a ranked list ("top 10 teams by OPR in NJ", "best rookie team in New Jersey", "most improved team in
  *  New Jersey") or a city's teams ("teams in Oradell"). */
 export interface LeaderboardQuestion {
-  kind: "top" | "rookie" | "improved" | "city" | "city-best";
-  /** BOARD_STATS key (families/leaderboard.ts). */
+  kind: "top" | "rookie" | "improved" | "city" | "city-best" | "career" | "oldest";
+  /** BOARD_STATS key (families/leaderboard.ts); a career board's count ("matches", "events", "wins", "awards",
+   *  "seasons"). */
   stat: string;
   n: number;
   region: Region | null;
@@ -499,6 +500,12 @@ export function readLeaderboard(raw: string): LeaderboardQuestion | null {
   // "overall OPR" is the stat's name, not an every-season scope.
   const q = ` ${raw.toLowerCase().replace(/['’]s\b/g, "").replace(/[?!,.]/g, " ")} `.replace(/\s+/g, " ").replace(/\b(?:overall|total) opr\b/g, "opr");
   const { scope, rest } = readScope(q);
+  // Every season counted ("most awards ever", "most seasons played", "oldest team still active"): a career board.
+  if (!scope.championship && !scope.states && !scope.level && !scope.alliance && !scope.at && !scope.place && !scope.outOfState && scope.season == null && !scope.day
+    && (scope.ever || /\b(?:seasons|oldest)\b/.test(rest))) {
+    const c = readCareer(rest);
+    if (c) return c;
+  }
   if (scope.championship || scope.states || scope.level || scope.alliance || scope.at || scope.ever) return null;
   const n = (s: string | undefined, def: number) => Math.min(25, Math.max(1, s ? Number(s) : def));
   const place = (s: string | undefined): Region | null | false => (s ? regionOf(s) ?? false : null);
@@ -564,6 +571,29 @@ export function readLeaderboard(raw: string): LeaderboardQuestion | null {
   const sorted = scope.outOfState ? null : readSorted(rest);
   if (!sorted || (sorted.region && scope.place)) return null;
   return { kind: "top", ...sorted, n: 10, region: sorted.region ?? scope.place ?? null, city: null, season: scope.season };
+}
+
+/** A career board, every season on record: "which team in new jersey has the most awards (ever)", "which team has
+ *  played the most seasons", "the oldest team still active in new jersey (by rookie year)". */
+function readCareer(rest: string): LeaderboardQuestion | null {
+  const t = rest.replace(/^(?:(?:what|which|who)(?: is|s)? )?(?:the )?/, "").replace(/\b(?:worldwide|world ?wide|globally|in the world|of all time|all[- ]time|in history)\b/g, " ").replace(/\s+/g, " ").trim();
+  const place = (s: string | undefined): Region | null | false => (s ? regionOf(s) ?? false : null);
+  let m: RegExpExecArray | null;
+  // "the oldest team still active in new jersey by rookie year": active teams (a match in one of the two latest seasons
+  // played), the earliest rookie year first.
+  if ((m = new RegExp(`^oldest (?:active |still active )?${TEAMS}(?: (?:that is |that's |who is |which is )?(?:still )?(?:active|playing|competing|around))?(?: (?:in|from) (.+?))?(?: by rookie year)?$`).exec(t))) {
+    const region = place(m[1]);
+    if (region !== false) return { kind: "oldest", stat: "seasons", n: 10, region, city: null, season: null, best: true };
+  }
+  // "(which) team (in nj) has the most awards", "team that played the most seasons", "most matches played in ohio".
+  if ((m = new RegExp(`^(?:${TEAMS} )?(?:(?:in|from) (.+?) )?(?:(?:that|who) )?(?:(?:has|have|had) (?=\\w+ the most|\\w+ most))?(?:(has|have|had|with|won|played|plays|attended|got) )?(?:the )?most (.+?)(?: (?:in|from) (.+))?$`).exec(t))) {
+    const said = m[3].trim();
+    const counted = /^seasons?(?: played)?$/.test(said) ? "seasons" : boardStat(said) ?? boardStat(`${said} ${m[2] === "attended" ? "attended" : "played"}`);
+    const stat = m[2] === "won" ? (counted === "matches" ? "wins" : counted === "awards" ? "awards" : null) : counted;
+    const region = place(m[1] ?? m[4]);
+    if (stat && ["matches", "events", "wins", "awards", "seasons"].includes(stat) && region !== false) return { kind: "career", stat, n: 10, region, city: null, season: null, best: true };
+  }
+  return null;
 }
 
 const LOW_WORDS = "worst|lowest|weakest", LOW = `(?:${LOW_WORDS})`;

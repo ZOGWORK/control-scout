@@ -17,6 +17,18 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 3.9.1 — 2026-11-07
 
+Boards over every season: the team that has played the most seasons, the oldest teams still active, and the most awards, matches, events or wins ever.
+
+### Highlights
+- [rankings] "Which team has played the most seasons" answers
+- [rankings] "Oldest team still active in New Jersey" by rookie year
+- [rankings] "Most awards ever" counts every season
+
+### Search
+- **Career boards.** "Ever", "of all time" or "in history" said with the team with the most matches, events, wins or awards counts every season on record, not one. "The most seasons" (from FIRST's rookie year to the team's latest season with a match) and "the oldest team still active" (a match in either of the two latest seasons, the earliest rookie year first) are boards of their own, in a place or worldwide. A rookie year before FTC's first season is a directory slip and never counted. (#PR)
+
+## 3.9.1 — 2026-11-07
+
 A team's next event asked about as a forecast, and "will <team> win <event>", answer with the engine's own projection for that event.
 
 ### Highlights

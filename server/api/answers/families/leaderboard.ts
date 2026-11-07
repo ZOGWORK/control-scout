@@ -51,6 +51,8 @@ export const BOARD_STATS: Record<string, BoardStat> = {
   matches: { count: true, id: "matches", label: "Matches played", sql: "s.matches", unit: "", teamsSort: null, digits: 0 },
   events: { count: true, id: "events", label: "Events played", sql: "s.events", unit: "", teamsSort: null, digits: 0 },
   awards: { count: true, id: "awards", label: "Awards won", sql: "(SELECT COUNT(*) FROM awards a WHERE a.season = s.season AND a.team = s.team)", unit: "", teamsSort: null, digits: 0 },
+  // Every season's count (career boards, careerAnswer): seasons with a match on record.
+  seasons: { count: true, id: "seasons", label: "Seasons played", sql: "s.matches", unit: "", teamsSort: null, digits: 0 },
   reliability: { id: "reliability", label: "Reliability", sql: "r.idx", unit: "", teamsSort: null, digits: 0, join: "JOIN team_reliability r ON r.season = s.season AND r.code = '' AND r.team = s.team" },
 };
 
@@ -68,7 +70,7 @@ export function boardStatFor(id: string, season: number): BoardStat | undefined 
   return { id: parts.join("+"), label: `${parts.map((x) => PHASE_LABEL[x]).join(" + ")} OPR`, sql: `(${parts.map((x) => BOARD_STATS[x].sql).join(" + ")})`, unit: "", teamsSort: null, digits: 1 };
 }
 
-export type BoardKind = "top" | "rookie" | "improved" | "city" | "city-best";
+export type BoardKind = "top" | "rookie" | "improved" | "city" | "city-best" | "career" | "oldest";
 /** `best`: "best team in New Jersey by OPR", one team asked for: titled so, the next few listed under it. */
 export interface BoardQuestion { kind: BoardKind; stat: BoardStat; n: number; region: Region | null; city: string | null; season: number | null; seasonWhy?: string; best?: boolean;
   /** The bottom of the list, lowest first ("sorted lowest to highest", "worst teleop OPR in Romania"). */
@@ -110,6 +112,7 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
   const regionArgs = [...(b.region ? [b.region.country, ...(b.region.state ? [b.region.state] : [])] : []), ...(b.town ? [b.town] : [])];
   const chips = [...(b.town ? [b.town] : []), b.region?.name ?? "Worldwide", seasonLabel(season)];
   if (b.kind === "improved") return improvedAnswer(b, season, where, regionSql, regionArgs, chips, why);
+  if (b.kind === "career" || b.kind === "oldest") return careerAnswer(b, where, regionSql, regionArgs);
   const st = b.stat;
   const rookie = b.kind === "rookie";
   const ranked = `s.season = ? AND ${st.id === "rating" || st.id === "penalties" ? "s.rating_matches" : "s.matches"} >= ? AND ${st.sql} IS NOT NULL AND ${teamPageSql("s.team", "t.name")}${regionSql}${rookie ? " AND t.rookie_year = ?" : ""}${b.undefeated ? " AND s.losses = 0" : ""}`;
@@ -152,6 +155,58 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
     ...base,
     headline: { value: `${top.team} ${top.name ?? ""}`.trim(), label: `${st.id === "record" ? `Record ${record(top)}` : `${st.label} ${fmt(top.v, st)}, ${record(top)}`}${top.city ? ` · ${top.city}` : ""}`, sub: b.asc ? `Lowest of ${total.toLocaleString("en-US")} ranked${where}` : b.best ? `#1 of ${total.toLocaleString("en-US")} ranked${where}` : `#1 of ${rows.length} shown`, href: teamHref(Number(top.team), season) },
     blocks: [board],
+  };
+}
+
+/** FTC's first season (2005–06): a rookie year listed before it is a directory slip, never a team's start. */
+const FTC_FIRST_SEASON = 2005;
+const CAREER: Record<string, { label: string; sql: string; rule: string }> = {
+  matches: { label: "Matches played", sql: "SUM(s.matches)", rule: "Matches played: every season's matches on record, as each team page counts them." },
+  events: { label: "Events played", sql: "SUM(s.events)", rule: "Events played: every season's events on record, as each team page counts them." },
+  wins: { label: "Wins", sql: "SUM(s.wins)", rule: "Wins: every season's match wins on record." },
+  awards: { label: "Awards won", sql: "(SELECT COUNT(*) FROM awards a WHERE a.team = s.team)", rule: "Awards won: every award an event gave the team, every season on record, as its team page lists them." },
+  // Match rows are stored for recent seasons only, so a team's seasons run from FIRST's rookie year to its latest season
+  // with a match.
+  seasons: { label: "Seasons played", sql: "MAX(CASE WHEN s.matches > 0 THEN s.season END) - t.rookie_year + 1", rule: "Seasons played: from the team's rookie year, as FIRST lists it, to its latest season with a match on record, both counted." },
+};
+
+/** Every season counted: the team with the most matches, events, wins, awards or seasons on record; or the oldest
+ *  teams still active (a match in the latest season played), the earliest rookie year first. */
+async function careerAnswer(b: BoardQuestion, where: string, regionSql: string, regionArgs: string[]): Promise<StatAnswer> {
+  const oldest = b.kind === "oldest";
+  const c = CAREER[oldest ? "seasons" : b.stat.id];
+  const span = await get<{ first: number | null; last: number | null }>("SELECT MIN(season) first, MAX(season) last FROM team_season_stats WHERE matches > 0");
+  const first = Number(span?.first), last = Number(span?.last);
+  const rows = await all<{ team: number; name: string | null; city: string | null; state: string | null; country: string | null; rookie: number | null; v: number; wins: number; losses: number; ties: number; lastPlayed: number }>(
+    `SELECT s.team, t.name, t.city, t.state, t.country, t.rookie_year rookie, ${c.sql} v, SUM(s.wins) wins, SUM(s.losses) losses, SUM(s.ties) ties, MAX(CASE WHEN s.matches > 0 THEN s.season END) lastPlayed
+     FROM team_season_stats s JOIN teams t ON t.number = s.team
+     WHERE ${teamPageSql("s.team", "t.name")}${regionSql}${oldest || b.stat.id === "seasons" ? ` AND t.rookie_year >= ${FTC_FIRST_SEASON}` : ""}
+     GROUP BY s.team${oldest ? " HAVING lastPlayed >= ?" : " HAVING v > 0"}
+     ORDER BY ${oldest ? "t.rookie_year ASC, v DESC" : "v DESC, wins DESC"}, s.team LIMIT ?`, [...regionArgs, ...(oldest ? [last - 1] : []), b.n]);
+  const S = `${seasonLabel(first)} to ${seasonLabel(last)}`;
+  // Still active: a match in the latest season played or the one before (a new season's first weeks have few).
+  const active = `${seasonLabel(last - 1)} or ${seasonLabel(last)}`;
+  const title = oldest ? `Oldest teams still active${where}, by rookie year` : `Team${where} with the most ${c.label.toLowerCase()}, every season`;
+  const base = {
+    family: "leaderboard" as const, intent: oldest ? "oldest-active" : `career-${b.stat.id}`, title, scope: [b.region?.name ?? "Worldwide", oldest ? `Active in ${active}` : `Every season on record (${S})`],
+    definition: oldest ? `Still active: a match on record in ${active}, the two latest seasons played. Oldest: the earliest rookie year, as FIRST lists it; a tie goes to the most seasons on record.`
+      : `${c.rule} Seasons on record here run ${S}.`,
+    source: oldest ? `Teams${where} with a match in ${active}` : `From every season on record${where} (${S})`,
+  };
+  if (!rows.length) return { ...base, blocks: [], none: `No team${where} has ${oldest ? `a match in ${active}` : `any ${c.label.toLowerCase()} on record`}.` };
+  const top = rows[0];
+  const shown = (r: (typeof rows)[number]) => (oldest ? String(r.rookie ?? "–") : String(Number(r.v)));
+  return {
+    ...base,
+    headline: { value: `${top.team} ${top.name ?? ""}`.trim(), label: oldest ? `Rookie year ${top.rookie}, ${Number(top.v)} seasons played${top.city ? ` · ${top.city}` : ""}` : `${c.label} ${Number(top.v)}${b.stat.id === "seasons" && top.rookie ? `, rookie year ${top.rookie}` : `, ${record(top)}`}${top.city ? ` · ${top.city}` : ""}`,
+      sub: oldest ? `Active in ${active}${where}` : `#1 of every team${where}, every season on record`, href: teamHref(Number(top.team)) },
+    blocks: [{
+      kind: "leaderboard", title: `Top ${rows.length} by ${oldest ? "rookie year" : c.label.toLowerCase()}`, stat: { id: oldest ? "rookie-year" : b.stat.id, label: oldest ? "Rookie year" : c.label },
+      note: `${oldest ? `Active in ${active}` : `Every season on record, ${S}`}${where}`,
+      rows: rows.map((r, i) => ({ rank: i + 1, team: { label: `${r.team} ${r.name ?? ""}`.trim(), href: teamHref(Number(r.team)) },
+        location: [r.city, r.state, r.country && r.country !== "USA" ? r.country : null].filter(Boolean).join(", ") || null,
+        record: record(r), opr: null, value: oldest ? r.rookie : Number(r.v), display: shown(r), parts: null })),
+    }],
   };
 }
 
