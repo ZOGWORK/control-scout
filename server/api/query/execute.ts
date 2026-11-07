@@ -287,6 +287,12 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     if (!p.time || (p.time.kind === "season" && p.time.relative === "this")) return relaxed(a, defaultSteps(f.season, where, played ? MATCH_NOUN[f.measure] : "matches"), (season) => card({ ...f, season }));
     return a;
   }
+  // A count's board ("the most matches played", "most awards in nj"): answered as the leaderboard reader reads it, never
+  // the highest-scoring matches or the rating's board. Read here, as typed: the readers after this see "matches" as one.
+  if (!p.teams.length && (intent === "top-matches" || intent === "leaderboard")) {
+    const counted = readLeaderboard(p.q);
+    if (counted && BOARD_STATS[counted.stat]?.count) return boardSearch(p.q, counted, opts);
+  }
   if (!p.teams.length && intent === "top-matches") {
     if (p.event || p.worlds || p.states || p.level || p.alliance || (p.place && p.place.kind === "city")) return null;
     // "The highest-scoring match": one match; "matches", "scores", "top 5", or no match said ("highest score in

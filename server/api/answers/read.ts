@@ -186,6 +186,8 @@ const RULES: IntentRule[] = [
 
 export interface ReadScope {
   season: number | null;
+  /** A day was said ("on March 15 2026"): read here only as its season. */
+  day?: boolean;
   /** "this season": the team's latest season with matches. */
   latest: boolean;
   /** "ever", "all time", "career": every season, said so. */
@@ -288,7 +290,7 @@ export function readScope(q: string): { scope: ReadScope; rest: string } {
   }
   // A date names its season ("the March 15 2026 NJ championship": 2025–26, the season of a spring event).
   const date = take(/\b(?:on\s+)?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?,?\s+(20\d\d)\b/);
-  if (date) scope.season = Number(date[2]) - (MONTHS.indexOf(date[1]) >= 8 ? 0 : 1);
+  if (date) { scope.season = Number(date[2]) - (MONTHS.indexOf(date[1]) >= 8 ? 0 : 1); scope.day = true; }
   // A season: "2024-25" / "2024–25", a game's name ("into the deep"), "this season", "ever".
   const label = take(/\b(?:in\s+|during\s+)?(20\d\d)\s*[-–/]\s*(\d\d)\b/);
   if (label && (Number(label[1]) + 1) % 100 === Number(label[2])) scope.season = Number(label[1]);
@@ -379,6 +381,9 @@ const TWO_TEAM: { id: TwoTeamId; re: RegExp; atOnly?: boolean }[] = [
   // against 67890": the engine's call for the two of them (families/predict.ts).
   { id: "predict", re: new RegExp(String.raw`^(.+?) (?:${VS}|or) (.+?) (?:prediction|predicted (?:score|winner|result|margin)|forecast|who (?:wins|will win|would win|is favou?red)|favou?rite)$`) },
   { id: "predict", re: new RegExp(String.raw`^(?:who (?:wins|will win|would win)|prediction(?: for)?) (.+?) (?:${VS}|or) (.+)$`) },
+  // "predict 12345 vs 67890, head to head", "if 12345 played 67890 tomorrow, who would win and by how much".
+  { id: "predict", re: new RegExp(String.raw`^predict(?:ion)?(?: for| of)? (.+?) (?:${VS}|or) (.+?)(?: ${H2H})?$`) },
+  { id: "predict", re: /^if (.+?) (?:played|plays|faced|faces|met|meets|went against|were to play) (.+?)(?: tomorrow| today| next (?:week|time))? who (?:would|will) win(?: and by how much)?$/ },
   { id: "predict", re: new RegExp(String.raw`^(.+?) (?:predicted|expected|projected) (?:score|margin|result|points) (?:${VS}|over) (.+)$`) },
   // "12345 wins against 67890": the meetings' wins.
   { id: "h2h-wins", re: new RegExp(String.raw`^(.+?) (?:wins|victories) (?:${VS}|over) (.+)$`) },
@@ -391,6 +396,8 @@ const TWO_TEAM: { id: TwoTeamId; re: RegExp; atOnly?: boolean }[] = [
   { id: "head-to-head", re: new RegExp(String.raw`^(.+?) (?:${VS}|and|or) (.+?) (?:${WHO} )?(?:scored|scores|scoring) (?:higher|more|the most)$`) },
   // "12345 versus 67890 who is better at auto", "who is better at endgame 12345 or 67890".
   { id: "phase-vs", re: new RegExp(String.raw`^(.+?) (?:${VS}|or) (.+?) (?:${WHO} )?(?:better|stronger|best) (?:at|in) ${PHASE}$`) },
+  // "is 12345 better than 67890 at endgame, or worse".
+  { id: "phase-vs", re: new RegExp(String.raw`^(?:is|was|are) (.+?) (?:better|stronger|worse|weaker) than (.+?) (?:at|in) ${PHASE}(?: or (?:worse|better|not))?$`) },
   { id: "phase-vs", re: new RegExp(String.raw`^${WHO} (?:better|stronger) (?:at|in) ${PHASE} (.+?) (?:${VS}|or) (.+)$`) },
   { id: "phase-vs", re: new RegExp(String.raw`^(.+?) ${PHASE} (?:${VS}|compared to|or) (.+)$`) },
   // "12345 versus 67890 who has higher reliability".
@@ -405,8 +412,14 @@ const TWO_TEAM: { id: TwoTeamId; re: RegExp; atOnly?: boolean }[] = [
   { id: "head-to-head", re: new RegExp(String.raw`^(.+?) (?:${VS}|and) (.+?) ${H2H}(?: record| matches| results| history)?$`) },
   { id: "head-to-head", re: new RegExp(String.raw`^${H2H}(?: record| matches| results| history)?(?: of| for| between)? (.+?) (?:${VS}|and) (.+)$`) },
   { id: "head-to-head", re: new RegExp(String.raw`^(.+?) ${H2H}(?: record)? (?:${VS}|with) (.+)$`) },
+  // "how many times have 12345 and 67890 played each other, total": their meetings (never a team called "each other").
+  { id: "head-to-head", re: /^(?:how (?:many times|often) )?(?:has|have|did) (.+?) and (.+?) (?:ever )?(?:played|faced|met|play|face|meet)(?: against)? (?:each other|one another)(?: in total| total| before)?$/ },
+  { id: "head-to-head", re: /^(.+?) and (.+?) (?:have )?(?:played|faced|met)(?: against)? (?:each other|one another)$/ },
   { id: "head-to-head", re: /^(?:has|have|did) (.+?) (?:ever )?(?:played|faced|met|beaten|beat|lost to)(?: against)? (.+?)(?: before)?$/ },
   { id: "head-to-head", re: new RegExp(String.raw`^(.+?) (?:record|results?|matches|match|games?) (?:against|${VS}) (.+)$`) },
+  // "the opr gap between 12345 and 67890", "rating difference between 12345 and 67890".
+  { id: "opr-vs", re: /^(?:what(?: is|s)? )?(?:the )?opr (?:gap|difference) (?:between|of|for) (.+?) and (.+)$/ },
+  { id: "rating-vs", re: /^(?:what(?: is|s)? )?(?:the )?(?:prediction )?(?:rating|strength) (?:gap|difference) (?:between|of|for) (.+?) and (.+)$/ },
   { id: "opr-vs", re: new RegExp(String.raw`^(.+?) opr (?:${VS}|compared to|or) (.+)$`) },
   { id: "opr-vs", re: new RegExp(String.raw`^(.+?) ${VS} (.+?) opr$`) },
   { id: "rating-vs", re: new RegExp(String.raw`^(.+?) (?:prediction )?(?:rating|strength) (?:${VS}|compared to|or) (.+)$`) },
@@ -471,6 +484,10 @@ const BOARD_STAT_WORDS: [string, RegExp][] = [
   ["rating", /^(?:prediction |predicted )?(?:rating|strength)$/],
   ["record", /^(?:(?:win[- ]loss(?:[- ]tie)? )?record|w-l-t)$/],
   ["reliability", /^(?:reliability|reliable|dependability)(?: index| score)?$/],
+  // Singular when search has read the plural as one ("most match played"), only with its verb.
+  ["matches", /^(?:(?:matches|games)(?: played)?|(?:match|game) played)$/],
+  ["events", /^(?:(?:events|competitions|meets)(?: played| attended)?|(?:event|competition|meet) (?:played|attended))$/],
+  ["awards", /^awards?(?: won)?$/],
 ];
 const boardStat = (s: string) => BOARD_STAT_WORDS.find(([, re]) => re.test(s.trim()))?.[0] ?? null;
 /** A place's words as one region (a name, its start, a code, or one near miss), or null. */
@@ -518,6 +535,17 @@ export function readLeaderboard(raw: string): LeaderboardQuestion | null {
   if ((m = new RegExp(`^(?:the )?(?:best|top|strongest|highest ranked)(?: (\\d{1,2}))? rookies?(?: ${TEAMS})?(?: by (.+?))?${PLACE}$`).exec(rest))) {
     const stat = m[2] ? boardStat(m[2]) : "opr", region = place(m[3]);
     if (stat && region !== false) return { kind: "rookie", stat, n: n(m[1], 10), region, city: null, season: scope.season };
+  }
+  // "which team has the most awards in nj", "team that played the most matches", "most events played in ohio": a
+  // count's board, its leader first. Right after "most" a count needs no verb: search reads "most matches" as "most
+  // match" (matches played), and a verb said before it is its own ("attended the most event").
+  // Counted at some events only ("at New Jersey events", "out of state") or on one day is a count the board (season
+  // totals) can't make: none.
+  if (!scope.place && !scope.outOfState && !scope.day && (m = new RegExp(`^(?:(?:which|what) )?(?:${TEAMS} )?(?:(?:in|from) (.+?) )?(?:(?:that|who) )?(?:(has|have|had|with|won|played|plays|attended|got) )?(?:the )?most (.+?)${PLACE}$`).exec(rest))) {
+    const counted = boardStat(m[3]) ?? boardStat(`${m[3]} ${m[2] === "attended" ? "attended" : "played"}`), region = place(m[1] ?? m[4]);
+    // "Won the most matches" is the wins board; "won the most events" is no board here (never events played).
+    const stat = m[2] !== "won" || counted === "awards" ? counted : counted === "matches" ? "wins" : null;
+    if ((stat === "matches" || stat === "events" || stat === "awards" || (stat === "wins" && counted === "matches")) && region !== false) return { kind: "top", stat, n: 10, region, city: null, season: scope.season, best: true };
   }
   // "most improved team in new jersey"
   if ((m = new RegExp(`^(?:the )?(?:top (\\d{1,2}) )?most improved ${TEAMS}${PLACE}$`).exec(rest))) {
@@ -594,8 +622,8 @@ export function readTwoTeam(raw: string): TwoTeamQuestion | null {
   if (/\b(?:red\s+(?:vs\.?|versus|v\.?|and|or)\s+blue|blue\s+(?:vs\.?|versus|v\.?|and|or)\s+red)\b/.test(q)) return null;
   // A bare year is a season, unless that leaves a side empty: then it's a team's number ("12345 vs 2024 head to head").
   for (const yearIsTeam of [false, true]) {
-    // "better at auto" names a phase, not an event called Auto.
-    const said = q.replace(new RegExp(String.raw`\b(better|stronger|best) at ${PHASE}\b`, "g"), "$1 in $2");
+    // "better at auto" ("better than 67890 at auto") names a phase, not an event called Auto.
+    const said = q.replace(new RegExp(String.raw`\b(better|stronger|best|worse|weaker)((?: than .+?)?) at ${PHASE}\b`, "g"), "$1$2 in $3");
     const { scope, rest } = readScope(yearIsTeam ? said.replace(/\b(20\d\d)\b(?!\s*[-–/]\s*\d)/g, "n$1") : said);
     // "at <event>" is read for their meetings only (an event or a venue); else left to search.
     const side = (s: string) => squash(s.replace(/\b(?:team|teams|the|ftc)\b/g, " ").replace(/\bn(20\d\d)\b/g, "$1"));
