@@ -18,11 +18,15 @@ export type MatchMeasure = "high" | "low" | "closest" | "lopsided" | "penalties"
 
 /** A score an alliance had to reach ("where the losing alliance scored over 200", "both alliances scored over 250"):
  *  `side` is whose final score (penalties included, as the result was decided) is held to it. The losing or winning
- *  alliance's needs a decided match; both alliances' is the lower score, either's the higher. */
+ *  alliance's needs a decided match. Both alliances over a number is the lower score over it, under one the higher
+ *  score under it; either alliance the other way round. */
 export interface ScoreCond { side: "losing" | "winning" | "both" | "either"; op: ">" | ">=" | "<" | "<="; n: number }
-const COND_VALUE: Record<ScoreCond["side"], string> = {
-  losing: "MIN(m.red_total, m.blue_total)", winning: "MAX(m.red_total, m.blue_total)", both: "MIN(m.red_total, m.blue_total)", either: "MAX(m.red_total, m.blue_total)",
-};
+const LOW = "MIN(m.red_total, m.blue_total)", HIGH = "MAX(m.red_total, m.blue_total)";
+/** The score a condition holds to its number. */
+export function condValue(c: ScoreCond): string {
+  const upper = c.op === "<" || c.op === "<=";
+  return c.side === "losing" ? LOW : c.side === "winning" ? HIGH : (c.side === "both") === upper ? HIGH : LOW;
+}
 const OP_WORDS: Record<ScoreCond["op"], string> = { ">": "over", ">=": "at least", "<": "under", "<=": "at most" };
 /** The condition in words: "the losing alliance scored over 200". */
 export function condWords(c: ScoreCond): string {
@@ -138,7 +142,7 @@ export function where(f: MatchScope, upTo = false) {
   if (f.level) { sql.push("m.level = ?"); args.push(f.level); }
   if (f.finals) sql.push(FINAL);
   if (f.decided || f.cond?.side === "losing" || f.cond?.side === "winning") sql.push("m.red_total <> m.blue_total");
-  if (f.cond) { sql.push(`${COND_VALUE[f.cond.side]} ${f.cond.op} ?`); args.push(f.cond.n); }
+  if (f.cond) { sql.push(`${condValue(f.cond)} ${f.cond.op} ?`); args.push(f.cond.n); }
   if (f.events) {
     // By season, as the matches' key reads them.
     const by = new Map<number, string[]>();
@@ -183,12 +187,14 @@ export async function matchFindAnswer(f: MatchFind): Promise<StatAnswer> {
   const head = f.list ? ms.plural : ms.title;
   const title = `${(filters ? `${head.replace(/match/, `${filters} match`)}` : head)}${typed ? ` ${typed}` : ""}, ${seasonLabel(f.season)}`;
   const scope = [seasonLabel(f.season), ...(place ? [place] : []), ...(f.window ? [f.window.label.replace(/^./, (c) => c.toUpperCase())] : []),
-    ...(f.finals ? ["Finals"] : f.level === "qual" ? ["Qualification matches"] : f.level === "playoff" ? ["Playoff matches"] : []), ...(f.kind ? [f.kind.label] : []), ...(f.cond ? [condWords(f.cond).replace(/^./, (c) => c.toUpperCase())] : []), ...(f.decided ? ["No ties"] : []), "Official events"];
-  const definition = `${rule.replace(/^./, (c) => c.toUpperCase())} Only played matches at official events held in person, with both alliances' points on record.`;
+    ...(f.finals ? ["Finals"] : f.level === "qual" ? ["Qualification matches"] : f.level === "playoff" ? ["Playoff matches"] : []), ...(f.kind ? [f.kind.label] : []), ...(f.cond ? [condWords(f.cond).replace(/^./, (c) => c.toUpperCase())] : []), ...(f.decided ? ["No ties"] : []), ...(f.named ? [] : ["Official events"])];
+  // An off-season event named is its own matches: never called official.
+  const at = f.named ? "at the event named" : "at official events";
+  const definition = `${rule.replace(/^./, (c) => c.toUpperCase())} Only played matches ${at} held in person, with both alliances' points on record.`;
   const where2 = `${place ? ` in ${place}` : ""}${f.kind ? ` at ${f.kind.label.toLowerCase()}` : ""}${f.window ? ` ${f.window.label}` : ` in ${seasonLabel(f.season)}`}${f.cond ? ` where ${condWords(f.cond)}` : ""}`;
   const base = { family: "superlative" as const, intent: `find-${f.measure}`, title, scope, definition, source: `From ${count.toLocaleString("en-US")} played match${count === 1 ? "" : "es"}${where2}` };
   if (!rows.length) {
-    const none = count ? `None of the ${count.toLocaleString("en-US")} played match${count === 1 ? "" : "es"}${where2} is one: ${rule.replace(/;.*$/, "")}.` : `No played matches at official events${filters ? ` (${filters})` : ""}${where2} yet.`;
+    const none = count ? `None of the ${count.toLocaleString("en-US")} played match${count === 1 ? "" : "es"}${where2} is one: ${rule.replace(/;.*$/, "")}.` : `No played matches${f.named ? "" : " at official events"}${filters ? ` (${filters})` : ""}${where2} yet.`;
     return { ...base, blocks: [], none };
   }
   const ups = await all<{ season: number; code: string; level: string; series: number; number: number; alliance: string; team: number }>(
