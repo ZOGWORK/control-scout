@@ -537,10 +537,13 @@ export function readLeaderboard(raw: string): LeaderboardQuestion | null {
     const region = place(m[2]);
     if (region !== false) return { kind: "top", stat: "rating", n: n(m[1], 10), region, city: null, season: scope.season };
   }
-  // "best rookie team in new jersey", "top 5 rookies in nj"
-  if ((m = new RegExp(`^(?:the )?(?:best|top|strongest|highest ranked)(?: (\\d{1,2}))? rookies?(?: ${TEAMS})?(?: by (.+?))?${PLACE}$`).exec(rest))) {
-    const stat = m[2] ? boardStat(m[2]) : "opr", region = place(m[3]);
-    if (stat && region !== false) return { kind: "rookie", stat, n: n(m[1], 10), region, city: null, season: scope.season };
+  // "best rookie team in new jersey", "top 5 rookies in nj", "lowest opr rookies in new jersey": a stat before
+  // "rookies" or after "by"; the lowest first when asked.
+  if ((m = new RegExp(`^(?:the )?(best|top|strongest|highest ranked|${LOW_WORDS})(?: (\\d{1,2}))?(?: (.+?))? rookies?(?: ${TEAMS})?(?: by (.+?))?(?: (?:in|from) (.+?))?(?: by (.+?))?$`).exec(rest)) && [m[3], m[4], m[6]].filter(Boolean).length < 2) {
+    const said = m[3] ?? m[4] ?? m[6];
+    const stat = said ? boardStat(said) : "opr", region = place(m[5]);
+    const asc = new RegExp(`^${LOW}$`).test(m[1]);
+    if (stat && region !== false) return { kind: "rookie", stat, n: n(m[2], 10), region, city: null, season: scope.season, ...(asc ? { asc: true } : {}) };
   }
   // "which team has the most awards in nj", "team that played the most matches", "most events played in ohio": a
   // count's board, its leader first. Right after "most" a count needs no verb: search reads "most matches" as "most

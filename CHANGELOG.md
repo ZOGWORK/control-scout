@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.9.9 — 2026-11-07
+## 4.0.2 — 2026-11-07
 
 Questions about Predict itself get a straight answer and the right part of Predict: a match of your own, picking predictions out, a team's predictions, and a day's calls.
 
@@ -27,6 +27,43 @@ Questions about Predict itself get a straight answer and the right part of Predi
 ### Search
 - **Predict, asked about.** A lineup of your own ("teams I pick", "does it update if I change the alliance", "a match that hasn't happened yet") is Custom matchup; filtering or sorting predictions is Scheduled matches, by team or event, not by date; "<team> prediction settings" is that team's matches in Predict.
 - **A day's predictions.** "Predictions for today's / tomorrow's matches" lists that day's events, each one's matches in Predict, or says no event has matches then. (#1086)
+
+## 4.0.1 — 2026-11-07
+
+The rookie leaderboard lists from the bottom when asked, with the stat said before "rookies" or after the place: "lowest opr rookies in new jersey", "worst rookie teams in texas by auto opr".
+
+### Highlights
+- [rankings] "Lowest opr rookies in New Jersey" lists them
+- [rankings] Rookie lists read a stat said before or after
+- [rankings] The lowest-first rookie list links its Teams view
+
+### Search
+- **Rookies from the bottom.** "Lowest", "worst" or "weakest" before the rookies lists them lowest first, ranked from the top as every lowest-first board is, and titled so ("Lowest rookie teams in New Jersey by OPR"). The stat can be said before "rookies" ("lowest opr rookies") or after the place ("in texas by auto opr"); two stats at once are no one board. (#1085)
+
+## 4.0.0 — 2026-11-07
+
+A list of teams with filters is answered however the filters are said: "Houston teams, OPR 90+", "teams in Romania with at least 30 matches and a win rate over 70 percent", "teams with OPR over 120 who did not make worlds".
+
+### Highlights
+- [rankings] "Oradell teams, OPR over 100" lists those teams
+- [rankings] Several filters at once, match counts too
+- [rankings] "Did not make worlds" and rookie teams filter a list
+- [rankings] "Top 3 Texas Inspire teams" lists Inspire winners
+
+### Search
+- **Team lists, filters said any way.** A threshold needs no "with" ("Oradell teams, OPR over 100"), a stat with a bare number is at least it ("OPR 90", "OPR 90+"), "percent" is a unit, and a count of matches or wins is a filter ("at least 30 matches", "that played 20+ matches"). Every threshold said is applied and named on the card; "a leaderboard for teams …", "list them all" and "worldwide" read too. Worlds made, or not made ("did not make worlds"), rookies ("started as a rookie this year") and an award named before the teams ("Texas Inspire teams") are filters of their own. (#1075)
+
+## 3.9.9 — 2026-11-07
+
+A word's explainer that comes with a team's numbers sits inside the same card, so the answer reads as one card.
+
+### Highlights
+- [fixes] "How is OPR calculated, with 4215": one card, numbers then meaning
+- [fixes] A team's stat and what it means are no longer two cards
+- [fixes] The explainer's title isn't repeated under the page's heading
+
+### Search
+- **One answer card.** When a team's stat answer comes with a word's explainer ("what does ranking score mean, for 14450 at …", "why did 4215's rating go down even though they won"), the explainer's lines are drawn inside the stat's card, after its numbers, in the definition card's own look. (#1129)
 
 ## 3.9.8 — 2026-11-07
 
