@@ -15,7 +15,7 @@ import type { SearchAnswer } from "../../src/shared/api.js";
 import { regionOf } from "../../src/shared/searchEventQuery.js";
 import { SEASONS } from "../data/seasons.js";
 import { all, get } from "../db.js";
-import { normalize } from "./fuzzy.js";
+import { joinThousands, normalize } from "./fuzzy.js";
 import { longForm } from "./searchLongForm.js";
 import { AWARDS, FILLER, FORBIDDEN, type Found, INTENTS, type Intent, LEADER_STAT_WORDS, PARAPHRASES, PHASES, PRECEDENCE, SCAFFOLD, WEAK_SIGNALS } from "./searchCatalog.js";
 
@@ -85,7 +85,7 @@ const SEASON_TOKEN = /^(20\d\d)[-–/](\d\d(?:\d\d)?)$/;
  *  "2024–25") kept whole. */
 export function tokens(q: string): string[] {
   const out: string[] = [];
-  for (const piece of q.replace(/(\d)\s*[-–/]\s*(\d\d(?:\d\d)?)(?=\s|$)/g, "$1-$2").replace(/[’']s(?=\s|$)/gi, "").split(/\s+/)) {
+  for (const piece of joinThousands(q).replace(/(\d)\s*[-–/]\s*(\d\d(?:\d\d)?)(?=\s|$)/g, "$1-$2").replace(/[’']s(?=\s|$)/gi, "").split(/\s+/)) {
     if (SEASON_TOKEN.test(piece)) out.push(piece.replace(/[–/]/, "-"));
     else if (piece === "&") out.push("&");
     else if (/^\d+%$/.test(piece) || piece === "%") out.push(...normalize(piece).split(" ").filter(Boolean), "%");

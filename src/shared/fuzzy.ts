@@ -10,7 +10,10 @@ export function normalize(s: string): string {
   return s.normalize("NFKD").replace(/\p{M}+/gu, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 }
 
-export const words = (s: string) => normalize(s).split(" ").filter(Boolean);
+/** A number written with thousands separators ("1,000", "12,345,678") as one number: never a team and a leftover. */
+export const joinThousands = (s: string) => s.replace(/(?<![\p{L}\p{N},.])\d{1,3}(?:,\d{3})+(?![\p{L}\p{N}]|,\d)/gu, (m) => m.replace(/,/g, ""));
+
+export const words = (s: string) =>normalize(s).split(" ").filter(Boolean);
 
 /** Distinct 3-letter chunks of the normalised text (spaces included, like FTS5's trigram tokenizer). */
 export function trigrams(s: string): string[] {

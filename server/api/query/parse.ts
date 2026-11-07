@@ -7,6 +7,7 @@ import { pickIntent, type IntentRule, type PipelineIntent } from "./intents.js";
 import { readTime, type TimeSlot } from "./time.js";
 import { fold, type Names, type Place, type TeamName } from "./names.js";
 import { EVENT_TYPES } from "../../../src/shared/searchEventQuery.js";
+import { joinThousands } from "../../../src/shared/fuzzy.js";
 
 export interface TeamSlot {
   number: number; name: string | null; typed: string; via: "number" | "name" | "near";
@@ -121,7 +122,7 @@ const symKey = (s: Sym): string | null => {
 
 /** Lower case, accents off, possessives and punctuation dropped; "highest-scoring" is two words, "2024-25" one. */
 export function normalise(q: string): string {
-  return ` ${q.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase()} `
+  return ` ${joinThousands(q).normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase()} `
     .replace(/[’‘`]/g, "'").replace(/\bwhat's\b/g, "what is").replace(/\bwho's\b/g, "who is").replace(/\bhow's\b/g, "how is")
     .replace(/([\p{L}\p{N}])'s\b/gu, "$1").replace(/s'(?=\s)/g, "s").replace(/#(?=\d)/g, " ")
     .replace(/(?<=[a-z])-(?=[a-z])/g, " ").replace(/[?!,;:()"[\]{}]/g, " ").replace(/\.(?=\s|$)/g, " ")

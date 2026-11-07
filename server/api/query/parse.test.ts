@@ -352,3 +352,20 @@ describe("when, said with 'time' or as a verb", () => {
     expect(await parse("when did 4215 last play match 12")).toMatchObject({ complete: false });
   });
 });
+
+describe("a number written with thousands separators", () => {
+  // Teams 1 and 12 exist here, so "1,000" or "12,500" read apart would name them.
+  const small: ParseContext = { ...ctx, names: buildNames([...TEAMS, { number: 1, name: "First Ones", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 }, { number: 12, name: "Dozen", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 }], []) };
+  it("is one number, never a team and a leftover", async () => {
+    for (const [q, n] of [["teams with opr over 1,000", "1000"], ["matches above 12,500 points", "12500"], ["1,234,567 points", "1234567"]] as const) {
+      const p = await parseQuery(q, small);
+      expect(p.teams, q).toEqual([]);
+      // Never split into a piece left over ("000", "500").
+      expect(p.leftover.some((w) => n.endsWith(w) && w !== n), q).toBe(false);
+    }
+  });
+  it("leaves commas between team numbers and in dates as they were", async () => {
+    expect((await parseQuery("1, 12 and 4215", small)).teams.map((t) => t.number)).toEqual([1, 12, 4215]);
+    expect((await parseQuery("4215 record on march 1, 2026", small)).teams.map((t) => t.number)).toEqual([4215]);
+  });
+});

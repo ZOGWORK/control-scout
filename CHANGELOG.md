@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.0.6 — 2026-11-07
+
+A number written with thousands separators ("1,000", "12,500") is read as one number, never as a team.
+
+### Highlights
+- [fixes] "opr over 1,000" reads one thousand, never team 1
+- [fixes] "12,500 points" is one number, with no stray "500"
+- [fixes] Commas between team numbers still list each team
+
+### Search
+- **Thousands separators.** A number written with thousands separators is read as one number by the query parser and the layer tokeniser, never as a team and a leftover "000". Commas between team numbers ("1, 12 and 4215") and in dates stay as they were. (#PR)
+
 ## 4.0.5 — 2026-11-07
 
 A team's Worlds questions asked in plain words get their answers: "number of times <team> went to worlds", "<team> world championship matches 2025-26", and "what division was <team> in at worlds, and what was their rank there".
