@@ -26,7 +26,7 @@ A league meet's page lists the teams FIRST lists for that meet, not every team i
 
 ### Data
 - **Event teams from FIRST's participant list.** Every FIRST fetch of an event also reads its team list (`/teams?eventCode=`), and that list decides who is at the event; rankings only add each team's standing, and scheduled teams always count. A league meet whose list FIRST hasn't published shows no teams from its league's standing, and one whose list can't be read falls back to FTC Scout, like any failed FIRST read. Each fetch replaces the stored list whole.
-- **Stored league meets repaired.** Migration 74 drops the teams stored at a league meet that weren't scheduled there (about 19,000 rows over 2023–24 to 2025–26); an upcoming meet's list comes back from FIRST on its next fetch, with FIRST's registrations standing in until then.
+- **Stored league meets repaired.** Migration 74 drops the teams stored at a league meet that weren't scheduled there (about 19,000 rows over 2023–24 to 2025–26); an upcoming meet's list comes back from FIRST on its next fetch, with FIRST's registrations standing in until then. (#1041)
 
 ## 3.8.4 — 2026-11-07
 
