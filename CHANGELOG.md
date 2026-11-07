@@ -17,6 +17,19 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 3.9.0 — 2026-11-07
 
+A place's top team can stand in for a team number in a two-team question: "who would win between the top NJ team and the top Romania team" answers for those two teams, and says which they are.
+
+### Highlights
+- [predict] "Top NJ team vs top Romania team" predicts those two teams
+- [predict] The answer says which team each "top team" was read as
+- [predict] "Who would win in a match between A and B" gets the call
+
+### Search
+- **A place's top team, as one of two.** "The top / best / strongest <place> team" or "… team in <place>" is that place's first team on its prediction-rating board, as "top teams in <place>" ranks them, read into the two-team question; the question line says which team each phrase was. (#1097)
+- **"Between."** "Who would win in a match between A and B" is the match's call, and "matches between A and B" their shared matches. (#1097)
+
+## 3.9.0 — 2026-11-07
+
 On an event day before the schedule is out, the LIVE box says it's waiting for the schedule. It no longer says your teams are done, and it names only your teams that are at the event.
 
 ### Highlights
