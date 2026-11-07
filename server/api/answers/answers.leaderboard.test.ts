@@ -54,6 +54,8 @@ describe("what's read", () => {
     expect(readLeaderboard("top 5 teams by matches played")).toMatchObject({ stat: "matches", n: 5 });
     // "Most" with a stat that isn't a count is the stat's own board; right after "most", a count read as one is a count.
     expect(readLeaderboard("which team has the most vibes")).toBeNull();
+    // Greptile on #1040: a day said is a count the season totals can't make.
+    expect(readLeaderboard("most awards on April 12 2026 in Ohio")).toBeNull();
     expect(readLeaderboard("most match in nj")).toMatchObject({ stat: "matches", region: { key: "USA:NJ" } });
     expect(readLeaderboard("best match in nj")).toBeNull();
     // Greptile on #1040: "won" keeps its meaning, as typed or read as one.

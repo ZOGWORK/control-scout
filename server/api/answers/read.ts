@@ -186,6 +186,8 @@ const RULES: IntentRule[] = [
 
 export interface ReadScope {
   season: number | null;
+  /** A day was said ("on March 15 2026"): read here only as its season. */
+  day?: boolean;
   /** "this season": the team's latest season with matches. */
   latest: boolean;
   /** "ever", "all time", "career": every season, said so. */
@@ -288,7 +290,7 @@ export function readScope(q: string): { scope: ReadScope; rest: string } {
   }
   // A date names its season ("the March 15 2026 NJ championship": 2025–26, the season of a spring event).
   const date = take(/\b(?:on\s+)?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?,?\s+(20\d\d)\b/);
-  if (date) scope.season = Number(date[2]) - (MONTHS.indexOf(date[1]) >= 8 ? 0 : 1);
+  if (date) { scope.season = Number(date[2]) - (MONTHS.indexOf(date[1]) >= 8 ? 0 : 1); scope.day = true; }
   // A season: "2024-25" / "2024–25", a game's name ("into the deep"), "this season", "ever".
   const label = take(/\b(?:in\s+|during\s+)?(20\d\d)\s*[-–/]\s*(\d\d)\b/);
   if (label && (Number(label[1]) + 1) % 100 === Number(label[2])) scope.season = Number(label[1]);
@@ -537,8 +539,9 @@ export function readLeaderboard(raw: string): LeaderboardQuestion | null {
   // "which team has the most awards in nj", "team that played the most matches", "most events played in ohio": a
   // count's board, its leader first. Right after "most" a count needs no verb: search reads "most matches" as "most
   // match" (matches played), and a verb said before it is its own ("attended the most event").
-  // Counted at some events only ("at New Jersey events", "out of state") is a count the board can't make: none.
-  if (!scope.place && !scope.outOfState && (m = new RegExp(`^(?:(?:which|what) )?(?:${TEAMS} )?(?:(?:in|from) (.+?) )?(?:(?:that|who) )?(?:(has|have|had|with|won|played|plays|attended|got) )?(?:the )?most (.+?)${PLACE}$`).exec(rest))) {
+  // Counted at some events only ("at New Jersey events", "out of state") or on one day is a count the board (season
+  // totals) can't make: none.
+  if (!scope.place && !scope.outOfState && !scope.day && (m = new RegExp(`^(?:(?:which|what) )?(?:${TEAMS} )?(?:(?:in|from) (.+?) )?(?:(?:that|who) )?(?:(has|have|had|with|won|played|plays|attended|got) )?(?:the )?most (.+?)${PLACE}$`).exec(rest))) {
     const counted = boardStat(m[3]) ?? boardStat(`${m[3]} ${m[2] === "attended" ? "attended" : "played"}`), region = place(m[1] ?? m[4]);
     // "Won the most matches" is the wins board; "won the most events" is no board here (never events played).
     const stat = m[2] !== "won" || counted === "awards" ? counted : counted === "matches" ? "wins" : null;
