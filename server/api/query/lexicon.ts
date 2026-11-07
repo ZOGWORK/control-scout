@@ -10,7 +10,9 @@ export type Metric =
   // Whether or how often a team went somewhere: a question no pipeline rule takes.
   | "appearance"
   // Derived from a match's numbers by a rule the card prints (./matchFind.ts).
-  | "upset" | "comeback";
+  | "upset" | "comeback"
+  // How far a match's saved prediction was from what happened (./matchFind.ts).
+  | "miss";
 export type Thing = "match" | "event" | "season" | "team";
 
 export type Sym =
@@ -80,6 +82,10 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["margin|margin of victory|point differential|differential|point diff|spread|gap|score gap|point gap|points gap|difference in score", { k: "metric", v: "margin" }],
   // The biggest margin, said as one word.
   ["lopsided|most lopsided|one sided|blowout|blowouts|biggest blowout|mismatch|mismatches|rout|routs|beatdown", [{ k: "agg", v: "max" }, { k: "metric", v: "margin" }]],
+  // A prediction against what happened: how far off ("most unpredictable match", "where the prediction was wrong"), or
+  // how close ("the most accurate prediction"). "Accurate" alone asks whether one forecast was right (review).
+  ["unpredictable|least predictable|unpredicted|was wrong|were wrong|was most wrong|were most wrong|most wrong|predicted wrong|prediction miss|prediction misses|biggest miss|biggest misses|prediction error|prediction errors|missed by|off by|furthest off|farthest off", { k: "metric", v: "miss" }],
+  ["most accurate|most accurately|least wrong|best predicted|closest prediction|closest predictions|most accurate prediction|most accurate predictions", [{ k: "metric", v: "miss" }, { k: "agg", v: "min" }]],
   ["upset|upsets|underdog|underdogs|giant killing|giant killer|shock win|shock result|surprise win|surprise result", { k: "metric", v: "upset" }],
   ["comeback|comebacks|come back|came back|comeback win|comeback wins|rallied|rally", { k: "metric", v: "comeback" }],
   // A place's leaderboard ("Romania leaderboard"): its top teams.
