@@ -182,7 +182,7 @@ async function improvedAnswer(b: BoardQuestion, season: number, where: string, r
     blocks: [{
       kind: "table", title: "Biggest climbs",
       // Numbers only, so a phone shows the climb beside the team; the shares are on the headline.
-      columns: [{ key: "rank", label: "#", num: true }, { key: "team", label: "Team" }, { key: "climb", label: `OPR rank, ${seasonLabel(season - 1)} → ${seasonLabel(season)}`, num: true }, { key: "opr", label: "OPR now", num: true }],
+      columns: [{ key: "rank", label: "#", num: true }, { key: "team", label: "Team" }, { key: "climb", label: "OPR rank", num: true }, { key: "opr", label: "OPR now", num: true }],
       rows: rows.map((r, i) => ({ cells: { rank: i + 1, team: `${r.team} ${r.name ?? ""}`.trim(), climb: `#${r.r0} → #${r.r1}`, opr: r.o1 == null ? "–" : (Math.round(r.o1 * 10) / 10).toFixed(1) }, href: teamHref(Number(r.team), season), strong: i === 0 })),
     }],
   };
