@@ -281,8 +281,10 @@ async function numberedAnswer(raw: string, opts: AnswerOptions): Promise<SearchA
   const champ = STATES_WORD.test(q) && !/\bunited states\b/i.test(q) ? q.replace(new RegExp(STATES_WORD.source, "gi"), "$1championship") : null;
   // Then a division called by its own name alone ("<name> <game>"): "<name> division", when an event's division is
   // named so and the query names none.
-  for (const other of [numberQuery(q), numberQuery(q, true), champ, await divisionQuery(q)]) {
+  // Each reading worked out only when the ones before it left the query unread.
+  for (const next of [() => numberQuery(q), () => numberQuery(q, true), () => champ, () => divisionQuery(q)]) {
     if (!unread(a)) return a;
+    const other = await next();
     if (!other) continue;
     const b = await typedAnswer(asked ? `${other}?` : other, opts);
     if (answers(b) > answers(a)) a = carryOutcome(b, { ...b, q: a.q });
@@ -294,11 +296,19 @@ const STATES_WORD = /(^| )states(?= |$)/i;
 /** `q` with "division" after its first word that names an event's division ("<name> Division" in a stored event's
  *  name), or null when it names none, already says "division", or is that word alone (a town, a team's name). */
 export async function divisionQuery(q: string): Promise<string | null> {
-  if (/\bdivisions?\b/i.test(q) ||!/\s/.test(q.trim())) return null;
-  const named = new Set((await eventNames()).flatMap((n) => [...n.matchAll(/(?:^| )(\p{L}{3,}) division(?= |$)/gu)].map((m) => m[1])));
+  if (/\bdivisions?\b/i.test(q) || !/\s/.test(q.trim())) return null;
+  const named = await divisionNames();
   const ws = q.split(/\s+/);
   const i = ws.findIndex((w) => named.has(nameKey(w)));
   return i < 0 ? null : [...ws.slice(0, i + 1), "division", ...ws.slice(i + 1)].join(" ");
+}
+
+/** The words that name a stored event's division ("<name> Division"), worked out once per read of the event names. */
+let divisionSet: { list: string[]; set: Set<string> } | null = null;
+async function divisionNames(): Promise<Set<string>> {
+  const list = await eventNames();
+  if (divisionSet?.list !== list) divisionSet = { list, set: new Set(list.flatMap((n) => [...n.matchAll(/(?:^| )(\p{L}{3,}) division(?= |$)/gu)].map((m) => m[1]))) };
+  return divisionSet.set;
 }
 
 /** searchAnswer for the query as typed. */
@@ -550,7 +560,11 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   if (season != null) {
     const again = hits.filter((h) => h.kind === "event" && h.season !== season).map((h) => h.ref.split(":")[1]);
     const held = again.length ? await all<Parameters<typeof eventHit>[0]>(`SELECT season, code, name, type, division_code, venue, city, state, country, start, end, timezone FROM events WHERE season = ? AND code IN (${again.map(() => "?").join(",")})`, [season, ...again]) : [];
-    hits = hits.map((h) => { const r = h.kind === "event" ? held.find((x) => x.code === h.ref.split(":")[1]) : undefined; return r ? { ...eventHit(r, opts.now), match: h.match } : h; });
+    // The same event only when its name then still has every word asked that the newer one has (a code reused for
+    // another event names something else).
+    const asked = words(nameWords(rest));
+    const same = (h: SearchHit, name: string | null) => asked.filter((w) => words(h.title).includes(w)).every((w) => words(name ?? "").includes(w));
+    hits = hits.map((h) => { const r = h.kind === "event" ? held.find((x) => x.code === h.ref.split(":")[1] && same(h, x.name)) : undefined; return r ? { ...eventHit(r, opts.now), match: h.match } : h; });
     hits = [...hits.filter((h) => h.kind !== "event" || h.season === season), ...hits.filter((h) => h.kind === "event" && h.season !== season)]
       .map((h) => (h.kind === "team" ? { ...h, linkSeason: season, subtitle: [seasonLabel(season), h.subtitle].filter(Boolean).join(" · ") } : h));
   }

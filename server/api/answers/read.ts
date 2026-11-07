@@ -74,11 +74,16 @@ const AWARD_TYPES: [RegExp, string][] = [
   [/\bdesign\b/, "Design"], [/\bmotivate\b/, "Motivate"], [/\bthink\b/, "Think"], [/\bconnect\b/, "Connect"], [/\binnovate\b/, "Innovate"],
   [/\bcontrol\b/, "Control"], [/\breach\b/, "Reach"], [/\bsustain\b/, "Sustain"], [/\bcompass\b/, "Compass"], [/\bvolunteer\b/, "Volunteer"],
 ];
+/** Every season's game name as typed ("into the deep"), and a season written as one ("2023-24"): what may stand beside
+ *  an event's finals. */
+const GAME_NAMES = SEASONS.map((s) => s.game.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, String.raw`\s+`)).join("|");
+const SEASON_SAID = String.raw`20\d\d(?:[-–]\d\d)?`;
 /** In order: the longer, more specific phrases first ("longest win streak" before "win streak"). */
 const RULES: IntentRule[] = [
   // A season's or an event's winners: "winning alliance", "who won …", "who took …", and "winner(s)"/"champion(s)" (those two only
   // with Worlds or a season named: "decode winner", "into the deep champions", "worlds winners 2025").
-  { id: "winning-alliance", family: "event", season: "all", noTeam: true, re: /\bwinning\s+alliances?\b|\bwho\s+won\b|\bwho\s+took\s+(?!(?:the\s+)?(?:most|fewest|least|highest|lowest|best|worst|first|last|top|longest|biggest|more|fewer)\b)|\b(?:world\s+)?(?:champions?|winners?)\b|\bwinning(?=\s*$)|(?<=\b(?:division|championship|tournament|invitational|qualifier|premier|cup)(?:\s+\S+)?\s+)finals?(?:\s+match(?:es)?)?(?:\s+20\d\d(?:[-–]\d\d)?)?\s*$/ },
+  // "<division> finals": an event's finals, a game's name or a season between or after (left to the scope reader).
+  { id: "winning-alliance", family: "event", season: "all", noTeam: true, re: new RegExp(String.raw`\bwinning\s+alliances?\b|\bwho\s+won\b|\bwho\s+took\s+(?!(?:the\s+)?(?:most|fewest|least|highest|lowest|best|worst|first|last|top|longest|biggest|more|fewer)\b)|\b(?:world\s+)?(?:champions?|winners?)\b|\bwinning(?=\s*$)|(?<=\b(?:division|championship|tournament|invitational|qualifier|premier|cup)(?:\s+(?:${GAME_NAMES}|${SEASON_SAID}))?\s+)finals?(?:\s+match(?:es)?)?(?=(?:\s+(?:${GAME_NAMES}|${SEASON_SAID}))?\s*$)`) },
   { id: "opr-by-season", family: "trend", season: "all", re: /\bopr\s+(?:by|per|each|every|over\s+the)\s+seasons?\b|\bseason(?:al)?\s+opr\b/ },
   { id: "record-by-season", family: "trend", season: "all", re: /\b(?:record|w-l-t|win[\s-]loss(?:[\s-]tie)?)\s+(?:by|per|each|every)\s+season\b|\bseason\s+by\s+season\s+record\b/ },
   // "Late season form versus early season form", "against top teams", "against rookie teams": groups of matches, never
