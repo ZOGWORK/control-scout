@@ -137,7 +137,8 @@ export function pace(matches: MatchView[], now: number): Pace {
   if (!rest.length) return { est: new Map(), opener: null, onField: null, shift: 0 };
   const n1 = rest[0];
   const s1 = at(n1);
-  const today = order.filter((m) => m.played && Number.isFinite(at(m)) && at(m) > s1 - SAME_DAY_MS).map(at).sort((a, b) => a - b);
+  const playedToday = order.filter((m) => m.played && Number.isFinite(at(m)) && at(m) > s1 - SAME_DAY_MS).sort((a, b) => at(a) - at(b));
+  const today = playedToday.map(at);
   if (!today.length) return { est: new Map(), opener: nextMatch(matches, null), onField: null, shift: 0 };
   // The posted cycle: the usual gap, never a break's (the shortest gap sets what counts as one).
   const gaps = rest.slice(1).map((m, i) => at(m) - at(rest[i])).filter((g) => g > 0);
@@ -146,11 +147,14 @@ export function pace(matches: MatchView[], now: number): Pace {
   const cycle = Math.min(Number.isFinite(posted) ? posted : DEFAULT_CYCLE_MS, Number.isFinite(real) ? real : Infinity);
   const isBreak = (gap: number) => gap > BREAK_CYCLES * cycle;
   const lastStart = today[today.length - 1];
+  // A break before the next match: from the posted schedule when the last played match kept its posted start
+  // (scheduledAt); without it (older data, other sources), a posted start well past anything an early-running
+  // field would reach.
+  const lastPosted = Date.parse(playedToday[playedToday.length - 1].scheduledAt ?? "");
+  const breakFirst = Number.isFinite(lastPosted) ? isBreak(s1 - lastPosted) : s1 - (lastStart + cycle) > MAX_EARLY_MS;
   // After a break the posted start holds; else one cycle after the latest real start. Either way it hasn't
   // started more than MAX_POST_LAG_MS ago (there'd be a score).
-  // The played matches' posted times are gone (replaced by their real starts), so a break before the next
-  // match shows only as a posted start well past anything an early-running field would reach.
-  const first = Math.max(s1 - (lastStart + cycle) > MAX_EARLY_MS ? s1 : lastStart + cycle, now - MAX_POST_LAG_MS);
+  const first = Math.max(breakFirst ? s1 : lastStart + cycle, now - MAX_POST_LAG_MS);
   let shift = first - s1;
   const est = new Map<string, number>();
   rest.forEach((m, i) => {

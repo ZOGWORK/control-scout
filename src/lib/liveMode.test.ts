@@ -268,6 +268,18 @@ describe("pace: countdowns on the field's real pace", () => {
     const p = pace(sched({ 1: 0, 2: 5, 3: 10, 4: 15 }), T + 18 * 60_000);
     expect(est(p, 5)).toBe(20);
   });
+  it("with posted starts kept: a field 30 min early is early, and a lunch is a lunch", () => {
+    // Posted every 10 min; the field runs 5-min cycles, so Q6 (posted 50) really started at 25. Q7 (posted 60) is
+    // due at 30: the posted gap before it is 10, no break, however far ahead the field is.
+    const fast = [0, 10, 20, 30, 40, 50, 60, 70].map((s, i) => {
+      const n = i + 1;
+      return n <= 6 ? match(n, [n], [n + 10], { played: true, startsAt: t(5 * i), scheduledAt: t(s) }) : match(n, [n], [n + 10], { startsAt: t(s) });
+    });
+    expect(est(pace(fast, T + 27 * 60_000), 7)).toBe(30);
+    // Lunch: Q5 played (posted 28, real 40, 12 late); Q6 posted 90: a 62-min posted gap is a break.
+    const lunch = sched({ 1: 0, 2: 7, 3: 14, 4: 21 }).map((m) => (m.number === 5 ? { ...m, played: true, startsAt: t(40), scheduledAt: m.startsAt } : m));
+    expect(est(pace(lunch, T + 45 * 60_000), 6)).toBe(90);
+  });
   it("lunch with the field on time: the posted restart holds", () => {
     expect(est(pace(sched({ 1: 0, 2: 7, 3: 14, 4: 21, 5: 28 }), T + 30 * 60_000), 6)).toBe(90);
   });
