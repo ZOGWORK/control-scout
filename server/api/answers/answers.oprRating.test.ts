@@ -209,6 +209,16 @@ describe("answers", () => {
     // Asked as a choice ("rising or falling"), the same trend (sign-off held-out paraphrase).
     expect((await ask("is 4215's rating rising or falling")).headline).toMatchObject({ value: "98 ± 3.2" });
     expect(t.blocks.find((b) => b.kind === "series")).toMatchObject({ points: [{ y: 60.5 }, { y: 88.2 }, { y: 98 }] });
+    // Up and down: a peak in between the latest is well below (a tenth or more) is named beside the direction.
+    await run("UPDATE ranking_snapshots SET rating = 130 WHERE week = '2026-03-09'");
+    clearAllCaches();
+    expect((await ask("4215 rating trend")).headline?.label).toBe("latest rating, after New Jersey Championship - Parkway Division · Rising from 60.5 after P1-4 PM Northern League Meet, down from a 130 peak at East Bergen Conference Northern League Tournament");
+    // A dip under a tenth below the peak isn't one (98 is 6.7% under 105): the steady climb's wording, as above.
+    await run("UPDATE ranking_snapshots SET rating = 105 WHERE week = '2026-03-09'");
+    clearAllCaches();
+    expect((await ask("4215 rating trend")).headline?.label).not.toContain("peak");
+    await run("UPDATE ranking_snapshots SET rating = 88.2 WHERE week = '2026-03-09'");
+    clearAllCaches();
     // An event whose Monday snapshot was pruned (older than the retention window) is a gap, never a later week's rating.
     await run("DELETE FROM ranking_snapshots WHERE week = '2025-11-10'");
     const g = await ask("4215 rating trend");
