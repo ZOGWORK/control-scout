@@ -164,7 +164,7 @@ const CAREER: Record<string, { label: string; sql: string; rule: string }> = {
   matches: { label: "Matches played", sql: "SUM(s.matches)", rule: "Matches played: every season's matches on record, as each team page counts them." },
   events: { label: "Events played", sql: "SUM(s.events)", rule: "Events played: every season's events on record, as each team page counts them." },
   wins: { label: "Wins", sql: "SUM(s.wins)", rule: "Wins: every season's match wins on record." },
-  awards: { label: "Awards won", sql: "(SELECT COUNT(*) FROM awards a WHERE a.team = s.team)", rule: "Awards won: every award an event gave the team, every season on record, as its team page lists them." },
+  awards: { label: "Awards won", sql: "(SELECT COUNT(*) FROM awards a WHERE a.team = t.number)", rule: "Awards won: every award an event gave the team, every season on record, as its team page lists them." },
   // Match rows are stored for recent seasons only, so a team's seasons run from FIRST's rookie year to its latest season
   // with a match.
   seasons: { label: "Seasons played", sql: "MAX(CASE WHEN s.matches > 0 THEN s.season END) - t.rookie_year + 1", rule: "Seasons played: from the team's rookie year, as FIRST lists it, to its latest season with a match on record, both counted." },
@@ -178,12 +178,15 @@ async function careerAnswer(b: BoardQuestion, where: string, regionSql: string, 
   const span = await get<{ first: number | null; last: number | null }>("SELECT MIN(season) first, MAX(season) last FROM team_season_stats WHERE matches > 0");
   const first = Number(span?.first), last = Number(span?.last);
   const rows = await all<{ team: number; name: string | null; city: string | null; state: string | null; country: string | null; rookie: number | null; v: number; wins: number; losses: number; ties: number; lastPlayed: number; opr: number | null }>(
-    `SELECT s.team, t.name, t.city, t.state, t.country, t.rookie_year rookie, ${c.sql} v, SUM(s.wins) wins, SUM(s.losses) losses, SUM(s.ties) ties, MAX(CASE WHEN s.matches > 0 THEN s.season END) lastPlayed,
-            (SELECT x.opr_np FROM team_season_stats x WHERE x.team = s.team AND x.matches > 0 ORDER BY x.season DESC LIMIT 1) opr
-     FROM team_season_stats s JOIN teams t ON t.number = s.team
-     WHERE ${teamPageSql("s.team", "t.name")}${regionSql}${oldest || b.stat.id === "seasons" ? ` AND t.rookie_year >= ${FTC_FIRST_SEASON}` : ""}
-     GROUP BY s.team${oldest ? " HAVING lastPlayed >= ?" : " HAVING v > 0"}
-     ORDER BY ${oldest ? "t.rookie_year ASC, v DESC" : "v DESC, wins DESC"}, s.team LIMIT ?`, [...regionArgs, ...(oldest ? [last - 1] : []), b.n]);
+    // From every team, its season rows when it has any: a team whose awards come from events with no match rows here
+    // (remote ones) still counts its awards.
+    `SELECT t.number team, t.name, t.city, t.state, t.country, t.rookie_year rookie, ${c.sql} v, COALESCE(SUM(s.wins), 0) wins, COALESCE(SUM(s.losses), 0) losses, COALESCE(SUM(s.ties), 0) ties,
+            MAX(CASE WHEN s.matches > 0 THEN s.season END) lastPlayed,
+            (SELECT x.opr_np FROM team_season_stats x WHERE x.team = t.number AND x.matches > 0 ORDER BY x.season DESC LIMIT 1) opr
+     FROM teams t LEFT JOIN team_season_stats s ON s.team = t.number
+     WHERE ${teamPageSql("t.number", "t.name")}${regionSql}${oldest || b.stat.id === "seasons" ? ` AND t.rookie_year >= ${FTC_FIRST_SEASON}` : ""}
+     GROUP BY t.number${oldest ? " HAVING lastPlayed >= ?" : " HAVING v > 0"}
+     ORDER BY ${oldest ? "t.rookie_year ASC, v DESC" : "v DESC, wins DESC"}, t.number LIMIT ?`, [...regionArgs, ...(oldest ? [last - 1] : []), b.n]);
   const S = `${seasonLabel(first)} to ${seasonLabel(last)}`;
   // Still active: a match in the latest season played or the one before (a new season's first weeks have few).
   const active = `${seasonLabel(last - 1)} or ${seasonLabel(last)}`;

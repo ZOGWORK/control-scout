@@ -501,7 +501,9 @@ export function readLeaderboard(raw: string): LeaderboardQuestion | null {
   const q = ` ${raw.toLowerCase().replace(/['’]s\b/g, "").replace(/[?!,.]/g, " ")} `.replace(/\s+/g, " ").replace(/\b(?:overall|total) opr\b/g, "opr");
   const { scope, rest } = readScope(q);
   // Every season counted ("most awards ever", "most seasons played", "oldest team still active"): a career board.
+  // A season or a date said ("this season", "last year", "this week") is that season's board, never every season.
   if (!scope.championship && !scope.states && !scope.level && !scope.alliance && !scope.at && !scope.place && !scope.outOfState && scope.season == null && !scope.day
+    && !scope.latest && !scope.lastYear && !scope.window
     && (scope.ever || /\b(?:seasons|oldest)\b/.test(rest))) {
     const c = readCareer(rest);
     if (c) return c;

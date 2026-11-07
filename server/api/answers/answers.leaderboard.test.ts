@@ -138,6 +138,9 @@ describe("every season counted", () => {
     expect(readLeaderboard("which team played the most seasons")).toMatchObject({ kind: "career", stat: "seasons" });
     expect(readLeaderboard("whats the oldest team still active in New Jersey, by rookie year")).toMatchObject({ kind: "oldest", region: { key: "USA:NJ" } });
     expect(readLeaderboard("which team in New Jersey has the most awards, ever")).toMatchObject({ kind: "career", stat: "awards", region: { key: "USA:NJ" } });
+    // A season said is that season's: never every season.
+    expect(readLeaderboard("oldest team still active this season")?.kind).not.toBe("oldest");
+    expect(readLeaderboard("which team has played the most seasons this season")?.kind).not.toBe("career");
     // Without "ever" a count is the season's board, as before.
     expect(readLeaderboard("which team in New Jersey has the most awards")).toMatchObject({ kind: "top", stat: "awards" });
   });
@@ -150,11 +153,12 @@ describe("every season counted", () => {
     const ob = o.stat!.blocks[0];
     if (ob.kind !== "leaderboard") throw new Error(ob.kind);
     expect(ob.rows.slice(0, 3).map((r) => r.display)).toEqual(["2010", "2013", "2017"]);
-    await run("INSERT INTO awards (season, code, type, placement, team) VALUES (2024, 'A1', 'Think', 1, 6980), (2025, 'A2', 'Inspire', 1, 6980), (2025, 'A3', 'Think', 1, 4215)");
+    // 55555 has awards only (remote events keep no match rows here): counted all the same, its record 0-0-0.
+    await run("INSERT INTO teams (number, name, city, state, country, rookie_year) VALUES (55555, 'Remote Stars', 'Trenton', 'NJ', 'USA', 2020)");
+    await run(`INSERT INTO awards (season, code, type, placement, team) VALUES ${Array.from({ length: 9 }, (_, i) => `(${2021 + (i % 4)}, 'RA${i}', 'Think', 1, 55555)`).join(", ")}`);
     try {
       const a = await searchAnswer("which team in New Jersey has the most awards, ever", { limit: 25, full: true });
-      // 6980: the 2 awards an earlier case gave it this season, and these 2 across two seasons.
-      expect(a.stat).toMatchObject({ intent: "career-awards", headline: { value: "6980 Bad Wolf", label: expect.stringMatching(/^Awards won 4,/) } });
-    } finally { await run("DELETE FROM awards WHERE code IN ('A1', 'A2', 'A3')"); }
+      expect(a.stat).toMatchObject({ intent: "career-awards", headline: { value: "55555 Remote Stars", label: "Awards won 9, 0-0-0 · Trenton" } });
+    } finally { await run("DELETE FROM awards WHERE team = 55555"); await run("DELETE FROM teams WHERE number = 55555"); }
   });
 });
