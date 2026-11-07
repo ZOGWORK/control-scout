@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.0.3 — 2026-11-07
+
+A team's own events asked in plain words get their answer: its last or first event and how it did there, its events in a country such as Romania, how many it played, and "what is my <team> event".
+
+### Highlights
+- [fixes] "Last event 21229 played, and how did they do" shows it
+- [fixes] "What events did 24033 play in Romania" lists them
+- [fixes] "What is my 4215 upcoming event" shows its next event
+- [teams] "4215 events in March" lists that month's events
+
+### Search
+- **A team's events in plain words.** "What was the last (or first) event <team> played, and how did they do" reads as its results at that event; "what was <team>'s first event this season, and what was their OPR (rank, record) there" as that number there; "what events did <team> play in <place>" and "how many events did <team> play in <season>, and which was their best" as its events list (each with its rank); "what is my <team> (upcoming) event" as its next event. "In (date) order" lists a place's events oldest first, and "how many … played" counts the events the team played (surrogate-only and remote ones too), never the upcoming ones. A team's events in a whole country ("in Romania") are every state or province of it, matched by the country's code, and "this year" with a place is the default season.
+- **A month and the best finish.** "<team> events in March" (or "during june 2026", "did <team> play at any event in June") lists the season's events with a day in that month: the year's season when it's said, else the default season, so the month has happened. A month on any other answer is left to search rather than dropped. A season's events list names its best finish ("Best finish #3 at …"), and "<team> events and best finish in <season>" reads as that list. (#1084)
+
 ## 4.0.2 — 2026-11-07
 
 Questions about Predict itself get a straight answer and the right part of Predict: a match of your own, picking predictions out, a team's predictions, and a day's calls.
