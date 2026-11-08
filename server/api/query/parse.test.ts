@@ -41,6 +41,10 @@ describe("slots", () => {
       expect(p.teams[0].number, q).toBe(/20245/.test(q) ? 20245 : 23268);
       expect(p.teams[0].candidates, q).toBeUndefined();
     }
+    // Only the number beside the name: one across "vs" is its own team, and each side keeps its two.
+    const lineup = (await parse("predict 23268 4215 vs ultraviolet 20245 6980")).teams;
+    expect(lineup.map((t) => t.number).sort()).toEqual([20245, 23268, 4215, 6980].sort());
+    expect(lineup.find((t) => t.number === 20245)?.candidates).toBeUndefined();
     // A number that isn't one of the name's teams stays a second team.
     const two = (await parse("ultraviolet 4215")).teams;
     expect(two.map((t) => t.number)).toContain(4215);
