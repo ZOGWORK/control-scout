@@ -39,6 +39,12 @@ describe("an event's rank asked", () => {
     expect(rows[0].cells.event).toBe("M Event");
   });
 
+  it("a first event's skip names the first ranked event", () => {
+    const a = eventAnswer("first-event", team, set([ev("M", "2025-11-07", "LeagueMeet", null, null, 44), ev("A", "2026-02-01", "LeagueTournament", 14, 17, 42)]), { season: null }, { rank: true })!;
+    expect(a.headline).toMatchObject({ value: "#14 of 17", label: "A Event" });
+    expect(a.headline!.sub).toMatch(/has no rank of its own: a league meet's rank is the league's running standing\. First ranked event/);
+  });
+
   it("says so when no event has a rank", () => {
     const a = eventAnswer("first-event", team, set([ev("M", "2026-11-07", "LeagueMeet", null, null, 44)]), { season: null }, { rank: true })!;
     expect(a.title).toBe("First event rank");

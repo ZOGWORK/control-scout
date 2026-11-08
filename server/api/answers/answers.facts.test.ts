@@ -36,6 +36,10 @@ beforeAll(async () => {
   await ev("USNJBCLM2", "NJ Bergen League Meet 2", "LeagueMeet", "2025-12-10");
   await run("UPDATE events SET league = 'BCL' WHERE code IN ('USNJBCLM2', 'USNJBCLM3')");
   await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'USNJBCLM2', 31997, 1), (2025, 'USNJBCLM2', 31998, 3)");
+  // A later meet 4215 skipped, with a team new to the league: not in the standing 4215's meet 3 rank comes from.
+  await ev("USNJBCLM4", "NJ Bergen League Meet 4", "LeagueMeet", "2026-02-10");
+  await run("UPDATE events SET league = 'BCL' WHERE code = 'USNJBCLM4'");
+  await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'USNJBCLM4', 31996, 1)");
   await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (2025, 'USNJCMPPKWY', 4215, 110, 8), (2025, 'USNJCMPPKWY', 6980, 50, 8)");
   await run(`INSERT INTO team_reliability (season, code, team, matches, no_shows, dqs, near_zero, contrib_n, recent_matches, recent_no_shows, recent_near_zero,
     no_show_rate, dq_rate, near_zero_rate, swing, penalty_ratio, predictability_ratio, idx, computed_at) VALUES

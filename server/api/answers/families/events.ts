@@ -131,7 +131,7 @@ export function eventAnswer(id: IntentId, team: AnswerTeam, set: { events: TeamE
         const skipped = ranked !== e ? `${e.name} (${dateRange(e.start, e.end)}) has no rank of its own${e.type === "LeagueMeet" ? ": a league meet's rank is the league's running standing" : " posted yet"}. ` : "";
         return {
           ...base, family: "stat", intent: id, title: rankTitle, source: evSource, definition: def,
-          headline: { value: rankText(ranked), label: ranked.name, sub: [skipped ? `${skipped}Latest ranked event` : "", ranked.record ? `${evRec(ranked)} there` : "", seasonLabel(ranked.season), dateRange(ranked.start, ranked.end)].filter(Boolean).join(" · "), href: eventHref(ranked.season, ranked.code, team.number), type: ranked.type },
+          headline: { value: rankText(ranked), label: ranked.name, sub: [skipped ? `${skipped}${id === "first-event" ? "First" : "Latest"} ranked event` : "", ranked.record ? `${evRec(ranked)} there` : "", seasonLabel(ranked.season), dateRange(ranked.start, ranked.end)].filter(Boolean).join(" · "), href: eventHref(ranked.season, ranked.code, team.number), type: ranked.type },
           blocks: [rows],
         };
       }

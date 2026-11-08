@@ -28,8 +28,22 @@ Basic team searches answer what was asked: "<team> rank" gives its world rank, a
 ### Search
 - **A team's rank, asked plainly.** "<team> rank", "<team> ranking", "<team> standing" and "where does <team> rank" answer with its world rank by OPR and by prediction rating, as "<team> rank worldwide" does, instead of only the team's link. A place, an event, a league or a stat named still goes to that answer.
 - **Rank at an event, asked.** "<team> latest event ranking", "last event rank", "first event standing" lead with the team's qualification rank there instead of its OPR. A league meet has no rank of its own (its rank is the league's running standing), so the answer is the latest ranked event, and it says which meet it skipped and why. (#1175)
-- **League standing out of the league.** "<team> league rank" counts every team ranked in that league's meets this season, not only the teams at its latest meet, so a standing is never larger than its count.
+- **League standing out of the league.** "<team> league rank" counts every team ranked in that league's meets this season up to that meet's date, not only the teams at that meet, so a standing is never larger than its count.
 - **A shared name with its number.** When several teams share a name, typing one of their numbers beside it ("<name> <number> highlights") is that one team, in either order, instead of two teams and no answer.
+
+## 4.2.5 — 2026-11-08
+
+Two teams are read with the stat asked first ("who has the higher OPR, A or B"), a forecast asked as a question ("will A beat B") and penalties side by side.
+
+### Highlights
+- [fixes] "Who has the higher OPR, 4215 or 7149" compares their OPRs
+- [fixes] "Will 4215 beat 7149" shows the predicted winner
+- [fixes] "Who has better penalties, 207 or 8902" compares fouls given
+- [fixes] Three teams compared "on auto, teleop and endgame" get the card
+
+### Search
+- **Two teams, the stat asked first.** "Who has the higher OPR, rating or reliability, A or B", "who scored more, A or B", "will A beat B" and "predicted winner A vs B" each read as the two teams' answer; a new penalties side by side compares the penalty points each team gives away a match, fewer being better; three teams compared with the phases named are the compare card. (#1088)
+
 ## 4.2.4 — 2026-11-08
 
 Matches asked for in order ("highest scoring first"), "what happened last weekend" and finished events each get their answer.
