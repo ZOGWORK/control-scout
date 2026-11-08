@@ -428,7 +428,7 @@ async function highlights(p: Parsed, scope: ReadScope, opts: PipelineOptions): P
       : p.states ? { has: (m) => STATES_KIND.types.includes(m.type ?? "") && (!region || (m.country === region.country && (!region.state || m.state === region.state))), label: region ? `the ${region.name} championship` : "a state championship" } : undefined;
     // A time said ("in December", "this week"): its matches played on those days, in an event named too when one is.
     const w = scope.window;
-    const when: TeamHighlightScope | undefined = w ? { has: (m) => { const d = (m.date ?? "").slice(0, 10); return d >= w.from && d <= w.to && (!place || place.has(m)); }, label: place?.label ?? w.label, phrase: `${place ? `at ${place.label} ` : ""}${WHEN_WORD.test(w.label) ? w.label : `in ${w.label}`}` } : place;
+    const when: TeamHighlightScope | undefined = w ? { has: (m) => { const d = (m.date ?? "").slice(0, 10); return d >= w.from && d <= w.to && (!place || place.has(m)); }, label: place?.label ?? w.label, phrase: `${place ? `at ${place.label} ` : ""}${WHEN_WORD.test(w.label) ? w.label : `in ${w.label}`}`, ...(said != null ? { season: said } : {}) } : place;
     // A window is kept by its dates alone, never its first day's season: a week across the season's start (Aug 31 to
     // Sep 6) has matches of both, and the latest season with any is shown (each season's highlights stay apart).
     const stat = await teamHighlights({ number: t.number, name: t.name }, w ? undefined : said ?? undefined, when, p.n ?? undefined, videos ? "videos" : "highlights");

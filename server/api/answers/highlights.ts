@@ -13,8 +13,9 @@ import { teamEventSet } from "./eventSet.js";
 /** Where a team's highlights are read: its matches at an event named (or Worlds, or a state championship), and that
  *  place in words ("New Jersey Championship", "the FIRST Championship") for when it played none there. */
 /** Where (or when) a team's highlights are kept to: `has` keeps a match, `label` names the place. `phrase`, for a time
- *  rather than a place ("in December 2026"), is said in its place of "at <event>". */
-export interface TeamHighlightScope { has: (m: TeamMatch) => boolean; label: string; phrase?: string }
+ *  rather than a place ("in December 2026"), is said in its place of "at <event>"; `season`, the season it was asked in,
+ *  names the empty answer's season when its matches are kept by date alone. */
+export interface TeamHighlightScope { has: (m: TeamMatch) => boolean; label: string; phrase?: string; season?: number }
 
 const np = (m: TeamMatch) => m.ownNp ?? m.own;
 const margin = (m: TeamMatch) => m.own - m.opp;
@@ -90,15 +91,15 @@ function videoPage(xs: TeamMatch[], team: number, empty: string | null): StatBlo
  *  events in, when none was asked), never another team's matches or the closest results. */
 async function notThere(team: { number: number; name: string | null }, asked: number | undefined, at: TeamHighlightScope): Promise<StatAnswer> {
   const { events } = await teamEventSet(team.number);
-  const season = asked ?? (events.length ? Math.max(...events.map((e) => e.season)) : null);
+  const season = asked ?? at.season ?? (events.length ? Math.max(...events.map((e) => e.season)) : null);
   const S = season == null ? null : seasonLabel(season);
   const theirs = events.filter((e) => e.season === season).reverse();
   const who = `${team.name ?? `Team ${team.number}`} (${team.number})`;
   return {
-    family: "superlative", intent: "team-highlights", title: `No highlights ${at.phrase ?? `at ${at.label}`}${asked != null && S ? `, ${S}` : ""}`, team, scope: S ? [S] : [],
+    family: "superlative", intent: "team-highlights", title: `No highlights ${at.phrase ?? `at ${at.label}`}${(asked ?? at.season) != null && S ? `, ${S}` : ""}`, team, scope: S ? [S] : [],
     blocks: theirs.length ? [{ kind: "links", title: `Its ${S} events`, items: theirs.map((e) => ({ label: e.name, sub: dateRange(e.start, e.end) || undefined, href: eventHref(e.season, e.code, team.number) })) }] : [],
     definition: "A team's highlights at an event are its standout matches there: only matches its robot played in at that event, never padded from other events.",
     source: `From ${who}'s matches on record`,
-    none: `${who} has no played matches ${at.phrase ?? `at ${at.label}`}${asked != null && S ? ` in ${S}` : ""}.${theirs.length ? ` Its ${S} events are below.` : " It has no events on record."}`,
+    none: `${who} has no played matches ${at.phrase ?? `at ${at.label}`}${(asked ?? at.season) != null && S ? ` in ${S}` : ""}.${theirs.length ? ` Its ${S} events are below.` : " It has no events on record."}`,
   };
 }

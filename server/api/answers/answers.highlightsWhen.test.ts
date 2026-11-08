@@ -52,7 +52,9 @@ describe("a team's highlights in a time said", () => {
   });
   it("a month with nothing played, its year typed: said plainly, never another month's", async () => {
     const a = await ask("6980 highlights in january 2026");
-    expect(a.stat?.title).toMatch(/^No highlights in January 2026/);
+    // Its own season, though the team has a newer one (Greptile on #1168).
+    expect(a.stat?.title).toBe("No highlights in January 2026, 2025–26");
+    expect(a.stat?.none).not.toMatch(/2026–27/);
     expect(a.stat?.none).toMatch(/no played matches in January 2026/);
   });
   it("a month said against today with nothing played: its season's highlights, the step said on the card", async () => {
