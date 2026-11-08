@@ -6,6 +6,7 @@ import { registerCache } from "../../caches.js";
 import { countryOf, countryOfDemonym } from "../../../src/shared/countries.js";
 import { regionOf, regionPartOf } from "../../../src/shared/searchEventQuery.js";
 import { edits, nearRegion } from "../../../src/shared/regions.js";
+import { joinThousands } from "../../../src/shared/fuzzy.js";
 import { eventInitialisms } from "./initialisms.js";
 
 export interface TeamName { number: number; name: string | null; country: string | null; state: string | null; city: string | null; lastPlayed: number | null }
@@ -33,7 +34,7 @@ export interface Names {
 }
 
 /** Lower case, accents and punctuation dropped, single spaces: how names are compared. */
-export const fold = (s: string): string => s.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/['’]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+export const fold = (s: string): string => joinThousands(s).normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/['’]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
 
 interface Row { number: number; name: string | null; city: string | null; state: string | null; country: string | null; lastPlayed?: number | null }
 

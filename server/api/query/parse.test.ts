@@ -2,7 +2,8 @@
 // database: the same parse for every team, every place, every phrasing of one intent.
 import { describe, expect, it } from "vitest";
 import { buildNames } from "./names";
-import { parseQuery, type ParseContext } from "./parse";
+import { normalise, parseQuery, type ParseContext } from "./parse";
+import { tokens } from "../searchLayers";
 import { readTime, seasonOfDate } from "./time";
 
 const TEAMS = [
@@ -354,17 +355,24 @@ describe("when, said with 'time' or as a verb", () => {
 });
 
 describe("a number written with thousands separators", () => {
-  // Teams 1 and 12 exist here, so "1,000" or "12,500" read apart would name them.
-  const small: ParseContext = { ...ctx, names: buildNames([...TEAMS, { number: 1, name: "First Ones", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 }, { number: 12, name: "Dozen", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 }], []) };
-  it("is one number, never a team and a leftover", async () => {
-    for (const [q, n] of [["teams with opr over 1,000", "1000"], ["matches above 12,500 points", "12500"], ["1,234,567 points", "1234567"]] as const) {
-      const p = await parseQuery(q, small);
-      expect(p.teams, q).toEqual([]);
-      // Never split into a piece left over ("000", "500").
-      expect(p.leftover.some((w) => n.endsWith(w) && w !== n), q).toBe(false);
-    }
+  // Teams 1 and 12 exist here, so "1,000" or "12,500" read apart would name them; a stored name holds "10,000".
+  const small: ParseContext = { ...ctx, names: buildNames([...TEAMS, { number: 1, name: "First Ones", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 }, { number: 12, name: "Dozen", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 }, { number: 10000, name: "The Team of 10,000 Lakes", city: "Town", state: "MN", country: "USA", lastPlayed: 2026 }], []) };
+  it("is one number in both tokenisers", () => {
+    expect(normalise("teams with opr over 1,000")).toBe("teams with opr over 1000");
+    expect(normalise("1,234,567 points")).toBe("1234567 points");
+    expect(tokens("matches above 12,500 points")).toEqual(["matches", "above", "12500", "points"]);
+  });
+  it("is never a team and a leftover piece", async () => {
+    const p = await parseQuery("teams with opr over 1,000", small);
+    expect(p.teams).toEqual([]);
+    expect(p.leftover).toEqual(["1000"]);
+    expect((await parseQuery("1,234,567 points", small)).teams).toEqual([]);
+  });
+  it("still finds a stored name written with one", async () => {
+    expect((await parseQuery("the team of 10,000 lakes record", small)).teams.map((t) => t.number)).toEqual([10000]);
   });
   it("leaves commas between team numbers and in dates as they were", async () => {
+    expect(normalise("4215,6980")).toBe("4215 6980");
     expect((await parseQuery("1, 12 and 4215", small)).teams.map((t) => t.number)).toEqual([1, 12, 4215]);
     expect((await parseQuery("4215 record on march 1, 2026", small)).teams.map((t) => t.number)).toEqual([4215]);
   });

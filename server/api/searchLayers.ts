@@ -99,7 +99,7 @@ export function tokens(q: string): string[] {
 
 /** A name or a word as the word layers compare them: apostrophes dropped first ("Don't" is "dont", as typed either
  *  way), then accents, case and punctuation folded. */
-export const nameKey = (s: string) => normalize(s.replace(/[’']/g, ""));
+export const nameKey = (s: string) => normalize(joinThousands(s).replace(/[’']/g, ""));
 
 let names: { at: number; byName: Map<string, string[]>; list: [string, string][] } | null = null;
 export async function teamNames() {

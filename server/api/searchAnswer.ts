@@ -29,7 +29,7 @@ import { cleanTeamName, searchTeamTitle, teamNameOf, teamWords } from "../../src
 import { teamPageSql } from "../../src/shared/teamPages.js";
 import { CURRENT_SEASON } from "../data/seasons.js";
 import { all, get } from "../db.js";
-import { fuzzyScore, normalize, wordScore, words } from "./fuzzy.js";
+import { fuzzyScore, joinThousands, normalize, wordScore, words } from "./fuzzy.js";
 import { ftsQuery, search, searchIntent, teamAtEventAnswer } from "./search.js";
 import { rerank } from "./searchLearn.js";
 import { intentAnswer, parseIntent } from "./searchIntents.js";
@@ -80,7 +80,7 @@ export interface AnswerOptions {
 /** The query as search reads it: punctuation that never means anything dropped, spaces folded, at most MAX_QUERY
  *  (cut at the last whole word: a word cut in two, "2025-2", would be read as another). */
 export function cleanQuery(raw: string): string {
-  const q = String(raw ?? "").replace(/[!?,;"<>(){}[\]|\\^*`~=+]/g, " ").replace(/\s+/g, " ").trim();
+  const q = joinThousands(String(raw ?? "")).replace(/[!?,;"<>(){}[\]|\\^*`~=+]/g, " ").replace(/\s+/g, " ").trim();
   if (q.length <= MAX_QUERY) return q;
   const cut = q.slice(0, MAX_QUERY);
   return (q[MAX_QUERY] === " " ? cut : cut.replace(/\s+\S*$/, "")).trim() || cut;
