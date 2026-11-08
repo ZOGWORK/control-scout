@@ -44,7 +44,7 @@ describe("correctQuery", () => {
     const cases: [string, string][] = [
       ["hypnotc robotics", "hypnotic robotics"], ["hipnotic robotics", "hypnotic robotics"], ["bad wolff", "bad wolf"],
       ["enforcrs", "enforcers"], ["4215 oper", "4215 opr"], ["4215 recrod", "4215 record"], ["4215 awrds", "4215 awards"],
-      ["new jersey champinship", "new jersey championship"], ["bergen qualifer", "bergen qualifier"], ["new jersy", "new jersey"],
+      ["new jersey champinship", "new jersey championship"], ["bergen qualifer", "bergen qualifier"], ["new jersy", "new jersey"], ["4215 higlights", "4215 highlights"], ["4215 vidoes", "4215 videos"],
       ["oradel", "oradell"], ["4215 wrolds", "4215 worlds"], ["4215 playofs", "4215 playoffs"], ["4215 inspyre", "4215 inspire"],
     ];
     for (const [typed, fixed] of cases) expect((await correctQuery(typed))?.q, typed).toBe(fixed);
