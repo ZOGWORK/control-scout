@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 4.3.1 — 2026-11-08
+## 4.3.2 — 2026-11-08
 
 Search ranks a place's cities by their teams, lists the events over a size, and reads a town said with its state or country.
 
@@ -31,6 +31,18 @@ Search ranks a place's cities by their teams, lists the events over a size, and 
 - **A town and its state.** "Teams in Springfield IL", "teams in Springfield Missouri" and "teams in Bucharest Romania" list that town's teams only; a town abroad is named with its country.
 - **Asked another way.** "Where is this team 4215" shows where the team is from, "hypnotic robotics winner" and "4215 titles" list the events it won, and "how many NJ teams went to worlds in 2024" lists them with their count. A number of teams ("more than 40 teams") is never read as a team's number. "Rookie teams at the NJ championship" ranks the event's teams in their first season, and "which teams should I scout at NJ states" lists the ones worth watching. "Rookie year of calamari" (a fact before the team, its name without "Team") and "which team in New Jersey has the most awards, ever" answer, "4215 matches with more than 200 points" counts them, and "lose by 1 point" no longer reads team 1.
 - **The latest season with a value.** A team's ranking points (or another per-event number) with no season said reads the latest season that has one, and says so, while this season's rankings aren't posted yet. (#1181)
+
+## 4.3.1 — 2026-11-08
+
+Each team's colour key on a side-by-side card is a full-size tap target on a phone, even for a short team number.
+
+### Highlights
+- [fixes] A short team number's colour key is easy to tap on a phone
+- [fixes] Side-by-side cards keep their keys the same size
+- [fixes] Nothing changes on a wider screen
+
+### Search
+- **Team keys, easy to tap.** The colour key above a side-by-side card's bars ("207", "8902") is at least 44px wide on a phone as well as 44px tall, so a two- or three-digit team number isn't a narrow target; from tablet width up it sizes to its text as before. (#1176)
 
 ## 4.3.0 — 2026-11-08
 
