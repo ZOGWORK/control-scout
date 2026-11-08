@@ -155,9 +155,9 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   if (intent === "count-teams") return townCount(p) ? boardSearch(p.q, { kind: "city", stat: "opr", n: 25, region: null, city: p.place!.city, season: null }, opts) : null;
   const scope = readScopeOf(p);
   if (!scope) return null;
-  // The finals are a filter only the match finder applies: anything else would answer for every playoff match.
-  // (and a scope's highlights, read with the match finder's filters).
-  if (p.finals && (p.teams.length || !(FIND[intent] || intent === "top-matches" || intent === "highlights"))) return null;
+  // The finals are a filter the match finder applies (and a scope's highlights, read with its filters), and a team's
+  // answers from its own match rows (scopeFits): anything else would answer for every playoff match.
+  if (p.finals && !p.teams.length && !(FIND[intent] || intent === "top-matches" || intent === "highlights")) return null;
   // So is a kind of event by its type words alone ("at a league meet").
   if (p.eventKind && (p.teams.length || !(FIND[intent] || intent === "top-matches" || intent === "highlights"))) return null;
   const said = normalise(p.q);
@@ -456,7 +456,7 @@ async function highlights(p: Parsed, scope: ReadScope, opts: PipelineOptions): P
 
 /** The slots as the scope a stat answer reads (server/api/answers/read.ts ReadScope). Null: a slot no answer applies. */
 function readScopeOf(p: Parsed): ReadScope | null {
-  const s: ReadScope = { season: null, latest: false, ever: false, championship: p.worlds, states: p.states, level: p.level, alliance: p.alliance, at: p.event?.words ?? null };
+  const s: ReadScope = { season: null, latest: false, ever: false, championship: p.worlds, states: p.states, level: p.level, ...(p.finals ? { finals: true } : {}), alliance: p.alliance, at: p.event?.words ?? null };
   const t = p.time;
   if (t?.kind === "window") { s.season = t.season; s.window = { from: t.from!, to: t.to!, label: t.label }; }
   else if (t?.kind === "season") {
