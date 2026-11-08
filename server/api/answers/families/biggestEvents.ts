@@ -14,28 +14,33 @@ export interface BiggestEventsQuestion { e: EventQuery; n: number }
  *  the words over singular ("the most team"), so both. */
 const KIND = String.raw`(events?|competitions?|tournaments?|qualifiers?|meets?|championships?)`;
 const MOST_TEAMS = String.raw`the\s+most\s+teams?`;
-const ASKED = new RegExp(String.raw`\b(?:the\s+)?(?:biggest|largest)\s+${KIND}\b|\b(?:which|what)\s+${KIND}\s+(?:had|has|have|got)\s+${MOST_TEAMS}\b|\b${KIND}\s+with\s+${MOST_TEAMS}\b`);
-const THIS_SEASON = /\b(?:this|the\s+current)\s+(?:season|year)\b/;
+const ASKED = new RegExp(String.raw`\b(?:the\s+)?(?:biggest|largest)\s+${KIND}\b|\b(?:which|what)\s+${KIND}\s+(?:had|has|have|got)\s+${MOST_TEAMS}\b|\b${KIND}\s+with\s+${MOST_TEAMS}\b`, "i");
+const THIS_SEASON = /\b(?:this|the\s+current)\s+(?:season|year)\b/i;
+const COUNT = /\btop\s+(\d{1,2})\b/i;
 
-/** The question `raw` asks, or null. */
+/** The question `raw` asks, or null. The words keep their case as typed: a state code that is also a word ("IN", "OR")
+ *  is a place only in capitals, as event searches read it. */
 export function readBiggestEvents(raw: string): BiggestEventsQuestion | null {
-  let q = ` ${raw.toLowerCase().replace(/[?!.,]/g, " ")} `.replace(/\s+/g, " ");
+  let q = ` ${raw.replace(/[?!.,]/g, " ")} `.replace(/\s+/g, " ");
   const m = ASKED.exec(q);
   if (!m) return null;
   // The kind of event said inside the ask ("which qualifier had the most teams") stays to be read with the rest.
-  const kind = m[1] ?? m[2] ?? m[3];
+  const kind = (m[1] ?? m[2] ?? m[3]).toLowerCase();
   q = q.replace(m[0], ` ${kind} `);
+  // "Top 3 biggest events": how many, taken out before the place and season are read.
+  const said = COUNT.exec(q);
+  const n = said ? Math.min(25, Math.max(1, Number(said[1]))) : 10;
+  if (said) q = q.replace(said[0], " ");
   const thisSeason = THIS_SEASON.test(q);
   // "Ever", "of all time": every season, never only the default one.
-  const everRe = /\b(?:ever|of\s+all[\s-]+time|all[\s-]+time|in\s+(?:ftc\s+)?history)\b/;
+  const everRe = /\b(?:ever|of\s+all[\s-]+time|all[\s-]+time|in\s+(?:ftc\s+)?history)\b/i;
   const ever = everRe.test(q);
-  q = q.replace(THIS_SEASON, " ").replace(everRe, " ").replace(/\b(?:the|in|of|so\s+far)\b\s*$/, " ").replace(/\s+/g, " ").trim();
+  q = q.replace(THIS_SEASON, " ").replace(everRe, " ").replace(/\b(?:the|in|of|so\s+far)\b\s*$/i, " ").replace(/\s+/g, " ").trim();
   // The kind alone ("the biggest event"): every event of the season.
-  const bare = /^(?:the\s+)?(?:events?|competitions?|tournaments?|qualifiers?|meets?|championships?)$/.test(q);
+  const bare = /^(?:the\s+)?(?:events?|competitions?|tournaments?|qualifiers?|meets?|championships?)$/i.test(q);
   const e = bare ? { kinds: [kind.replace(/s$/, "")], time: null, year: null, season: null, region: null, where: null, words: [] } : readEventQuery(q);
   // Every word has to be read as the place, season or kind: a name left over is a search for that event.
   if (!e || e.words.length || e.where || e.time) return null;
-  const n = Math.min(25, Math.max(1, Number(/\btop\s+(\d{1,2})\b/.exec(raw.toLowerCase())?.[1] ?? 10)));
   if (ever && (e.season != null || e.year != null || thisSeason)) return null;
   return { e: { ...e, ...(thisSeason && e.season == null && e.year == null ? { season: CURRENT_SEASON } : {}), ...(ever ? { allSeasons: true } : {}) }, n };
 }

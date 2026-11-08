@@ -37,6 +37,9 @@ describe("events with the most teams", () => {
     expect(readBiggestEvents("biggest event ever in california")).toMatchObject({ e: { allSeasons: true, season: null } });
     expect(readBiggestEvents("largest qualifier of all time")).toMatchObject({ e: { allSeasons: true } });
     expect(readBiggestEvents("biggest event ever in 2024-25")).toBeNull();
+    // A state code that is also a word is the state in capitals; a count asked is kept and read past.
+    expect(readBiggestEvents("biggest events in IN 2025-26")).toMatchObject({ e: { region: { key: "USA:IN" }, season: 2025 } });
+    expect(readBiggestEvents("top 3 biggest events in california")).toMatchObject({ n: 3, e: { region: { key: "USA:CA" } } });
     expect(readBiggestEvents("events in california")).toBeNull();
   });
   it("ranks a place's events by their team lists, an event's divisions counted together", async () => {
