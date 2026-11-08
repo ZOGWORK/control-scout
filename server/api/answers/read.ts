@@ -554,16 +554,23 @@ const PLACE = "(?: (?:in|from) (.+))?";
 function namedBoard(q: string): LeaderboardQuestion | null | undefined {
   const said = q.replace(/:/g, " ").replace(/(?<!\b(?:in|during|for|from|season|year) )\b(20\d\d)\b(?!\s*[-–/]\s*\d)/g, "n$1");
   const { scope, rest: r } = readScope(said);
-  const rest = r.replace(/\bn(20\d\d)\b/g, "$1");
+  // An order said ("in ascending order", "highest to lowest"): read, never swallowed with the list's own words.
+  const d = new RegExp(String.raw`(?:^| )(${ASC}|${DESC})(?= |$)`).exec(r);
+  const dir = d ? (new RegExp(`^${ASC}$`).test(d[1]) ? "asc" : "desc") : null;
+  const rest = (d ? `${r.slice(0, d.index)} ${r.slice(d.index + d[0].length)}` : r).replace(/\s+/g, " ").trim().replace(/\bn(20\d\d)\b/g, "$1");
   const m = new RegExp(String.raw`^(?:(?:rank|sort|order|list|put)(?: these| the| those| my| our)?(?: \D+?)?(?: ${TEAMS})? (?:by|on|in order of|according to) (\D+?) ((?:\d{1,5} (?:and )?)+\d{1,5})|(?:${TEAMS} )?((?:\d{1,5} (?:and )?)+\d{1,5}) (?:ranked|sorted|ordered|in order) (?:by|on) (\D+?))$`).exec(rest);
   if (!m) return undefined;
   if (scope.championship || scope.states || scope.level || scope.alliance || scope.at || scope.ever || scope.place || scope.area || scope.outOfState || scope.day || scope.window) return null;
   const words = (m[1] ?? m[4]).trim();
   // Any stat a board ranks by, phases added ("auto and endgame"), or penalty points (fewest first).
-  const stat = sortStat(words) ?? (/^(?:penalties|penalty points|fouls)(?: given(?: away)?)?$/.test(words) ? "penalties" : null);
+  // Search says a plural's singular ("by match", "by event"): the counts' own words.
+  const stat = sortStat(words) ?? sortStat(words.replace(/\bmatch\b/g, "matches").replace(/\bevent\b/g, "events"))
+    ?? (/^(?:penalties|penalty points|fouls)(?: given(?: away)?)?$/.test(words) ? "penalties" : null);
   const teams = [...new Set((m[2] ?? m[3]).split(" ").filter((w) => /^\d+$/.test(w)).map(Number))];
   if (!stat || teams.length < 2 || teams.length > 25) return null;
-  return { kind: "top", stat, n: teams.length, region: null, city: null, season: scope.season, teams, ...(stat === "penalties" ? { asc: true } : {}) };
+  // Penalties go fewest first unless an order is said.
+  const asc = dir ? dir === "asc" : stat === "penalties";
+  return { kind: "top", stat, n: teams.length, region: null, city: null, season: scope.season, teams, ...(asc ? { asc: true } : {}) };
 }
 
 export function readLeaderboard(raw: string): LeaderboardQuestion | null {

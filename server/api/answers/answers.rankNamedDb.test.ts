@@ -53,6 +53,17 @@ describe("teams named, ranked by a stat", () => {
     expect(a.stat!.headline?.sub).not.toMatch(/Lowest/);
   });
 
+  it("counts by their singular, as search passes them, and an order said is kept", async () => {
+    for (const q of ["rank these teams by matches in 2025-26: 6980, 4215", "rank these teams by match in 2025-26: 6980, 4215"]) {
+      const a = await searchAnswer(q, { full: true, learn: false });
+      expect(rowsOf(a.stat!), q).toEqual(["4215 Hypnotic Robotics", "6980 Bad Wolf"]);
+    }
+    const up = await searchAnswer("put these teams in ascending order by opr in 2025-26: 4215, 6980", { full: true, learn: false });
+    expect(rowsOf(up.stat!)).toEqual(["6980 Bad Wolf", "4215 Hypnotic Robotics"]);
+    const most = await searchAnswer("sort these teams by penalties from highest to lowest in 2025-26: 6980, 4215", { full: true, learn: false });
+    expect(rowsOf(most.stat!)).toEqual(["4215 Hypnotic Robotics", "6980 Bad Wolf"]);
+  });
+
   it("none ranked says so", async () => {
     const a = await searchAnswer("sort these teams by opr in 2025-26: 9999, 7777", { full: true, learn: false });
     expect(a.stat!.none).toMatch(/None of the 2 teams named has a 2025–26 OPR yet/);
