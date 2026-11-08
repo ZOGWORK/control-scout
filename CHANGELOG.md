@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.2.5 — 2026-11-08
+
+Two teams are read with the stat asked first ("who has the higher OPR, A or B"), a forecast asked as a question ("will A beat B") and penalties side by side.
+
+### Highlights
+- [fixes] "Who has the higher OPR, 4215 or 7149" compares their OPRs
+- [fixes] "Will 4215 beat 7149" shows the predicted winner
+- [fixes] "Who has better penalties, 207 or 8902" compares fouls given
+- [fixes] Three teams compared "on auto, teleop and endgame" get the card
+
+### Search
+- **Two teams, the stat asked first.** "Who has the higher OPR, rating or reliability, A or B", "who scored more, A or B", "will A beat B" and "predicted winner A vs B" each read as the two teams' answer; a new penalties side by side compares the penalty points each team gives away a match, fewer being better; three teams compared with the phases named are the compare card. (#1088)
+
 ## 4.2.4 — 2026-11-08
 
 Matches asked for in order ("highest scoring first"), "what happened last weekend" and finished events each get their answer.
