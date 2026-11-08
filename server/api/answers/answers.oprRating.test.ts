@@ -73,6 +73,12 @@ beforeAll(async () => {
 describe("reading", () => {
   it("each phrasing's question, and the ones left to the other answers", () => {
     expect(readOprRating("4215 opr rank in New Jersey")).toMatchObject({ id: "opr-rank", core: "4215", region: { state: "NJ" } });
+    // A rank with nothing else named is the team's world rank, however it's said.
+    for (const q of ["4215 rank", "4215 ranking", "4215 standing", "where does 4215 rank", "rank 4215", "4215 rank 2024"]) {
+      expect(readOprRating(q), q).toMatchObject({ id: "rank", core: "4215", region: null });
+    }
+    // A stat, an event or a league named is another answer's.
+    for (const q of ["4215 rank at nj states", "4215 league rank", "4215 event rank", "4215 opr rank"]) expect(readOprRating(q)?.id, q).not.toBe("rank");
     expect(readOprRating("4215 rating in New Jersey")).toMatchObject({ id: "rating-rank", region: { state: "NJ" } });
     expect(readOprRating("4215 place on the New Jersey leaderboard")).toMatchObject({ id: "rank", region: { state: "NJ" } });
     expect(readOprRating("6980 auto opr versus teleop opr")).toMatchObject({ id: "phase-vs", core: "6980", phases: ["auto", "teleop"] });

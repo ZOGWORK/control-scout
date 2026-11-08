@@ -267,7 +267,10 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     if (prev && COUNT_BEFORE.test(prev) && n <= 50 && (next ? !ctx.names.team(Number(next)) : !p.teams.length)) { p.n = n; t.used = true; continue; }
     const team = ctx.names.team(n);
     if (team) {
-      if (!p.teams.some((x) => x.number === n)) p.teams.push({ number: n, name: team.name, typed: t.typed, via: "number", at: i });
+      // A name several teams share, with one of their numbers typed beside it ("<shared name> <number>"), is that team.
+      const shared = p.teams.find((x) => x.via === "name" && x.candidates?.includes(n));
+      if (shared) { shared.number = n; shared.name = team.name; delete shared.candidates; }
+      else if (!p.teams.some((x) => x.number === n)) p.teams.push({ number: n, name: team.name, typed: t.typed, via: "number", at: i });
       t.used = true;
       if (/^(?:team|ftc)$/.test(prev ?? "")) toks[i - 1].used = true;
     }

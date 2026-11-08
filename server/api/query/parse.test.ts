@@ -34,6 +34,18 @@ const ctx: ParseContext = {
 const parse = (q: string) => parseQuery(q, ctx);
 
 describe("slots", () => {
+  it("a name several teams share, typed with one of their numbers, is that one team in either order", async () => {
+    for (const q of ["ultraviolet 23268 highlights", "23268 ultraviolet highlights", "highlights of ultraviolet 23268", "ultraviolet 20245 record"]) {
+      const p = await parse(q);
+      expect(p.teams, q).toHaveLength(1);
+      expect(p.teams[0].number, q).toBe(/20245/.test(q) ? 20245 : 23268);
+      expect(p.teams[0].candidates, q).toBeUndefined();
+    }
+    // A number that isn't one of the name's teams stays a second team.
+    const two = (await parse("ultraviolet 4215")).teams;
+    expect(two.map((t) => t.number)).toContain(4215);
+    expect(two).toHaveLength(2);
+  });
   it("a name typed nearly right is that team, a leading 'the' included; never a guess between two", async () => {
     const near = { ...ctx, nearTeam: async (w: string) => ctx.names.nearTeam(w) };
     expect(await parseQuery("hypnotc robotics record", near)).toMatchObject({ teams: [{ number: 4215, via: "near" }], complete: true });

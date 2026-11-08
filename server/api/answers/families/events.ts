@@ -48,7 +48,7 @@ function seasonRows(ss: TeamSeason[], title: string, strong?: TeamSeason): StatB
 }
 
 /** The answer for an event or season intent, or null when `id` isn't one. */
-export function eventAnswer(id: IntentId, team: AnswerTeam, set: { events: TeamEvent[]; seasons: TeamSeason[] }, scope: Scope, opts: { byRecord?: boolean; schedule?: boolean } = {}): StatAnswer | null {
+export function eventAnswer(id: IntentId, team: AnswerTeam, set: { events: TeamEvent[]; seasons: TeamSeason[] }, scope: Scope, opts: { byRecord?: boolean; schedule?: boolean; rank?: boolean } = {}): StatAnswer | null {
   const keep = eventInScope(scope);
   // Events the team has played at or that have begun: a published roster for a coming event is never its latest.
   const today = new Date().toISOString().slice(0, 10);
@@ -118,7 +118,23 @@ export function eventAnswer(id: IntentId, team: AnswerTeam, set: { events: TeamE
     case "last-event": {
       const e = id === "first-event" ? evs[0] : evs[evs.length - 1];
       const title = `${id === "first-event" ? "First" : "Most recent"} event${where}`;
-      if (!e) return { ...base, family: "superlative", intent: id, title, blocks: [], definition: EVENT_RULE, source: evSource, none: none("events") };
+      if (!e) return { ...base, family: opts.rank ? "stat" : "superlative", intent: id, title: opts.rank ? `${id === "first-event" ? "First" : "Latest"} event rank${where}` : title, blocks: [], definition: EVENT_RULE, source: evSource, none: none("events") };
+      if (opts.rank) {
+        // The rank asked: the event's own; a league meet posts none of its own (its rank is the league's running
+        // standing), so the answer is the nearest event with a rank, said so.
+        const ordered = id === "first-event" ? evs : [...evs].reverse();
+        const ranked = ordered.find((x) => x.rank != null && x.type !== "LeagueMeet");
+        const rows = eventRows(ordered.slice(0, 5), team.number, id === "first-event" ? "First events" : "Latest events");
+        const rankTitle = `${id === "first-event" ? "First" : "Latest"} event rank${where}`;
+        const def = `${FINISH_BASE} ${EVENT_RULE}`;
+        if (!ranked) return { ...base, family: "stat", intent: id, title: rankTitle, blocks: [rows], definition: def, source: evSource, none: `${who} has no qualification rank posted at any event${where} yet.` };
+        const skipped = ranked !== e ? `${e.name} (${dateRange(e.start, e.end)}) has no rank of its own${e.type === "LeagueMeet" ? ": a league meet's rank is the league's running standing" : " posted yet"}. ` : "";
+        return {
+          ...base, family: "stat", intent: id, title: rankTitle, source: evSource, definition: def,
+          headline: { value: rankText(ranked), label: ranked.name, sub: [skipped ? `${skipped}Latest ranked event` : "", ranked.record ? `${evRec(ranked)} there` : "", seasonLabel(ranked.season), dateRange(ranked.start, ranked.end)].filter(Boolean).join(" · "), href: eventHref(ranked.season, ranked.code, team.number), type: ranked.type },
+          blocks: [rows],
+        };
+      }
       return {
         ...base, family: "superlative", intent: id, title, source: evSource, definition: EVENT_RULE,
         headline: { value: e.name, label: [e.rank != null ? `Ranked #${e.rank}${e.of ? ` of ${e.of}` : ""}` : "", e.opr != null ? `OPR ${opr(e.opr)}` : ""].filter(Boolean).join(" · ") || "No rank posted", sub: [seasonLabel(e.season), dateRange(e.start, e.end), place(e.city, e.state)].filter(Boolean).join(" · "), href: eventHref(e.season, e.code, team.number), type: e.type },
