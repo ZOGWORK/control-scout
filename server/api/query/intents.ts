@@ -162,8 +162,9 @@ export const INTENTS: IntentRule[] = [
   R("team-predict", 1, ["future", "metric:win"], ["thing:event"], { event: true }),
   R("team-predict", 1, ["future", "metric:win", "worlds"], ["thing:event"]),
   // One team swapped for another ("swap 12345 for 23456"), beside a partner ("in a match with 34567") or not.
-  R("swap-predict", 2, ["swap"], ["predict", "prep:for", "and", "per:match", "thing:match", "metric:win", "metric:score", "compare"]),
-  R("swap-predict", 3, ["swap"], ["predict", "prep:for", "prep:in", "and", "per:match", "thing:match", "metric:win", "metric:score", "compare"]),
+  // A supposition or a future said around it ("what if we switched …", "… would we win") asks the same.
+  R("swap-predict", 2, ["swap"], ["predict", "prep:for", "prep:by", "and", "per:match", "thing:match", "metric:win", "metric:score", "compare", "hypo", "future"]),
+  R("swap-predict", 3, ["swap"], ["predict", "prep:for", "prep:by", "prep:in", "and", "per:match", "thing:match", "metric:win", "metric:score", "compare", "hypo", "future"]),
   // Two alliances of two: a match's call. "Vs" between them is enough, with no other word.
   R("alliance-predict", 4, ["vs"], ["predict", "and", "compare", "metric:win", "metric:score", "metric:margin", "thing:match", "per:match"]),
   // Two teams.

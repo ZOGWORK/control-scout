@@ -74,7 +74,9 @@ describe("slots", () => {
     }
   });
   it("reads one team swapped for another, with a partner or not, as the swap's call", async () => {
-    for (const q of ["what if we replace 6980 with 24033 alongside 23268", "swapping 23268 out for 4215", "trade 4215 for 24033 beside 6980, how would the odds change"]) {
+    for (const q of ["what if we replace 6980 with 24033 alongside 23268", "swapping 23268 out for 4215", "trade 4215 for 24033 beside 6980, how would the odds change",
+      // Every verb the swap is said with, and "by" between the two.
+      "switch 6980 for 24033 with 23268", "sub 23268 for 4215", "replace 4215 by 24033 beside 6980", "with 6980, swap 23268 for 4215"]) {
       expect(await parse(q), q).toMatchObject({ intent: "swap-predict", complete: true });
     }
     // A team's number swapped out or in is a team, never a season, whichever side it's on.

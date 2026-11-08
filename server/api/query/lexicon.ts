@@ -145,7 +145,7 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["advance|advances|advancing|advancement|advancements|advance to the finals|make the finals|making the finals|go through|goes through|get through|gets through", { k: "advance" }],
   // Two teams.
   ["vs|v|versus|against|facing|face|faced|play|played|playing|plays|vs.", { k: "vs" }],
-  ["swap|swaps|swapped|swapping|swap out|switch out|replace|replaces|replaced|replacing|substitute|substituted|substituting|sub out|sub in|trade|traded|trading|if i swap|if we swap|what if i swap|what if we swap|if i replace|if we replace|if i switch|if we switch|if i sub|if we sub|if i substitute|if we substitute", { k: "swap" }],
+  ["swap|swaps|swapped|swapping|swap out|switch|switches|switched|switching|switch out|replace|replaces|replaced|replacing|substitute|substituted|substituting|sub|subs|subbed|subbing|sub out|sub in|trade|traded|trading|if i swap|if we swap|what if i swap|what if we swap|if i replace|if we replace|if i switch|if we switch|if i sub|if we sub|if i substitute|if we substitute", { k: "swap" }],
   ["odds change|change the odds|chances change|change the chances|how do the odds change|how would the odds change|how do the chances change|how does that change|how would that change|how does it change|how would it change", { k: "predict" }],
   ["and|&|plus|with|alongside|beside", { k: "and" }],
   ["together|in common|shared|share|both|both played|jointly|same match|same matches", { k: "together" }],
