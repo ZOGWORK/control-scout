@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.4.0 — 2026-11-08
+
+A number written with thousands separators ("1,000", "12,500") is read as one number, never as a team.
+
+### Highlights
+- [fixes] "opr over 1,000" reads one thousand, never team 1
+- [fixes] "12,500 points" is one number, with no stray "500"
+- [fixes] Commas between team numbers still list each team
+
+### Search
+- **Thousands separators.** A number written with thousands separators is one number everywhere search reads it (the query cleaner, the parser, the layers and name matching), never a team and a leftover "000". A name written that way ("1,000 Lakes") is found either way; the search index is rebuilt once for it. Commas between team numbers ("1, 12 and 4215") and in dates stay as they were. (#1157)
+
 ## 4.3.9 — 2026-11-08
 
 A team is found by the part of its name that is its own: without "Team" or "Robotics" around it, with its words typed apart, or with its last word made plural. A name two teams share reads as the one that played most recently, as the question reader already does.

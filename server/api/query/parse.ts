@@ -11,6 +11,7 @@ import { onlyTopicWords } from "../../../src/shared/searchQuery.js";
 
 /** A name as typed or stored, compared whole: lower case, any run of punctuation and spaces one space. */
 const wholeName = (n: string | null) => (n ?? "").toLowerCase().replace(/[^\p{L}\d]+/gu, " ").trim();
+import { joinThousands } from "../../../src/shared/fuzzy.js";
 
 export interface TeamSlot {
   number: number; name: string | null; typed: string; via: "number" | "name" | "near";
@@ -155,7 +156,7 @@ const symKey = (s: Sym): string | null => {
 
 /** Lower case, accents off, possessives and punctuation dropped; "highest-scoring" is two words, "2024-25" one. */
 export function normalise(q: string): string {
-  return ` ${q.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase()} `
+  return ` ${joinThousands(q).normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase()} `
     .replace(/[’‘`]/g, "'").replace(/\bwhat's\b/g, "what is").replace(/\bwho's\b/g, "who is").replace(/\bhow's\b/g, "how is")
     .replace(/([\p{L}\p{N}])'s\b/gu, "$1").replace(/s'(?=\s)/g, "s").replace(/#(?=\d)/g, " ")
     .replace(/(?<=[a-z])-(?=[a-z])/g, " ").replace(/[?!,;:()"[\]{}]/g, " ").replace(/\.(?=\s|$)/g, " ")

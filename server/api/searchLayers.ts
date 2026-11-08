@@ -15,7 +15,7 @@ import type { SearchAnswer } from "../../src/shared/api.js";
 import { regionOf } from "../../src/shared/searchEventQuery.js";
 import { SEASONS } from "../data/seasons.js";
 import { all, get } from "../db.js";
-import { normalize } from "./fuzzy.js";
+import { joinThousands, normalize } from "./fuzzy.js";
 import { onlyTopicWords } from "../../src/shared/searchQuery.js";
 
 /** A name compared whole: lower case, any run of punctuation and spaces one space. */
@@ -91,7 +91,7 @@ const SEASON_TOKEN = /^(20\d\d)[-–/](\d\d(?:\d\d)?)$/;
  *  "2024–25") kept whole. */
 export function tokens(q: string): string[] {
   const out: string[] = [];
-  for (const piece of q.replace(/(\d)\s*[-–/]\s*(\d\d(?:\d\d)?)(?=\s|$)/g, "$1-$2").replace(/[’']s(?=\s|$)/gi, "").split(/\s+/)) {
+  for (const piece of joinThousands(q).replace(/(\d)\s*[-–/]\s*(\d\d(?:\d\d)?)(?=\s|$)/g, "$1-$2").replace(/[’']s(?=\s|$)/gi, "").split(/\s+/)) {
     if (SEASON_TOKEN.test(piece)) out.push(piece.replace(/[–/]/, "-"));
     else if (piece === "&") out.push("&");
     else if (/^\d+%$/.test(piece) || piece === "%") out.push(...normalize(piece).split(" ").filter(Boolean), "%");
@@ -105,7 +105,7 @@ export function tokens(q: string): string[] {
 
 /** A name or a word as the word layers compare them: apostrophes dropped first ("Don't" is "dont", as typed either
  *  way), then accents, case and punctuation folded. */
-export const nameKey = (s: string) => normalize(s.replace(/[’']/g, ""));
+export const nameKey = (s: string) => normalize(joinThousands(s).replace(/[’']/g, ""));
 
 let names: { at: number; byName: Map<string, string[]>; list: [string, string][]; whole: Map<string, string> } | null = null;
 export async function teamNames() {
