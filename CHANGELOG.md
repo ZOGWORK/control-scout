@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.1.8 — 2026-11-08
+
+One question, one season: "best in New Jersey right now" and "best teams in New Jersey" now show the same season, whichever way they're asked.
+
+### Highlights
+- [rankings] "Right now" and "best teams in <place>" agree on the season
+- [rankings] The current season once anyone is ranked in it
+- [rankings] Until then the season before, said on the card
+
+### Search
+- **The same season, however it's asked.** Asked with no season, the search box's top-teams and stat cards and their full pages read the current season, then the season before while nobody is ranked in it yet, as the rest of search does. Before, some phrasings showed the last completed season while others showed the current one. (#1166)
+
 ## 4.1.7 — 2026-11-08
 
 A team whose name has dotted initials is found typed without the dots: "ice robotics highlights" answers for 11329 I.C.E. Robotics.

@@ -1,11 +1,12 @@
 // Questions routed to the view that answers them (server/api/searchAsks.ts): the FTC One Search brief's Requirement 11
 // and test 16. Every number is from the fixture; every link is a real route.
-import { beforeAll, describe, expect, it } from "vitest";
-import { migrate, openDb, run, setDb } from "../db";
+import { beforeAll, describe, expect, it, vi } from "vitest";
+import { kvSet, migrate, openDb, run, setDb } from "../db";
 import { rebuildSearch } from "../stats/job";
 import { searchSeason } from "./answers/season";
 import { searchAnswer } from "./searchAnswer";
-import { askAnswer, eventWon, readAsk, type Stat } from "./searchAsks";
+import { askAnswer, askSeason, eventWon, readAsk, type Stat } from "./searchAsks";
+import { seasonLabel } from "../../src/shared/format";
 import { readStatQuestion } from "./answers/read";
 import { pageMeta } from "../seoMeta";
 import { awardQuery } from "./searchCoverage";
@@ -575,5 +576,43 @@ describe("who won a division (owner: \"who won nj turnpike division this year\" 
     await run("DELETE FROM awards WHERE season = 2024 AND code = 'USVTCMP'");
     await run("DELETE FROM events WHERE season = 2024 AND code = 'USVTCMP'");
     await rebuildSearch();
+  });
+});
+
+describe("the season with none said: one question, one season, whichever reader answers", () => {
+  it("reads the current season once anyone is ranked in it, the season before until then", async () => {
+    // The season after the fixture's, whatever today is (Greptile on #1166): only the clock's date is faked.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(`${S + 1}-11-08T12:00:00Z`));
+    const now = askSeason();
+    expect(now).toBe(S + 1);
+    const qs = ["best in New Jersey at the moment", "the strongest in New Jersey rn", "best teams in New Jersey", "top teams in New Jersey"];
+    const seasonOf = (a: Awaited<ReturnType<typeof ask>>) => /· (\d{4}–\d{2})/.exec(a.stat?.title ?? a.card?.title ?? "")?.[1];
+    const read = async () => {
+      const out: string[] = [];
+      for (const q of qs) for (const full of [false, true]) out.push(`${q}${full ? " (page)" : ""}: ${seasonOf(await searchAnswer(q, { limit: 25, learn: false, full }))}`);
+      return out;
+    };
+    // Nobody ranked in the current season yet: every reader shows the one before, and says why.
+    expect(await read()).toEqual(qs.flatMap((q) => [`${q}: ${seasonLabel(S)}`, `${q} (page): ${seasonLabel(S)}`]));
+    // Each one says why: the card's chip, or the short card's own line.
+    const why = (a: Awaited<ReturnType<typeof ask>>) => [a.understood?.label ?? "", ...(a.stat?.scope ?? [])].join(" | ");
+    for (const q of qs) for (const full of [false, true])
+      expect(why(await searchAnswer(q, { limit: 25, learn: false, full })), `${q} ${full}`).toContain(`No ${seasonLabel(now)} ranked teams yet in New Jersey; showing ${seasonLabel(S)}`);
+    // Once a team is ranked in the current season, every reader shows it.
+    await run("INSERT OR IGNORE INTO team_seasons (season, team) VALUES (?, 6980)", [now]);
+    await run(`INSERT OR REPLACE INTO team_season_stats (season, team, opr_np, opr_auto, rank_np, ranked_teams, rating_np, rating_matches, matches, wins, losses, ties)
+      VALUES (?, 6980, 90, 30, 1, 1, 95, 10, 10, 8, 2, 0)`, [now]);
+    // New data, as a sync says it: the rankings' lists are kept by data version.
+    await kvSet("data:version", `season-test-${now}`);
+    try {
+      expect(await read()).toEqual(qs.flatMap((q) => [`${q}: ${seasonLabel(now)}`, `${q} (page): ${seasonLabel(now)}`]));
+      for (const q of qs) expect(why(await searchAnswer(q, { limit: 25, learn: false })), q).not.toContain("ranked teams yet");
+    } finally {
+      await run("DELETE FROM team_season_stats WHERE season = ?", [now]);
+      await run("DELETE FROM team_seasons WHERE season = ?", [now]);
+      await kvSet("data:version", `season-test-${now}-done`);
+      vi.useRealTimers();
+    }
   });
 });
