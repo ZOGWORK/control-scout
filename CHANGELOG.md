@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.4.2 — 2026-11-08
+
+The team with the most matches, wins or events can be asked for a few days ("which team played the most matches this week"), and said "by any team … top 5".
+
+### Highlights
+- [rankings] "Most matches played this week" counts the week's matches
+- [rankings] No matches yet this week shows the latest week, said
+- [rankings] "Most matches played by any team, top 5" reads
+
+### Search
+- **Count boards in a window, said any way.** "This week", "last week", "this month", "today" said with the team with the most matches, wins or events counts that team's played matches in those days from the match rows (a match by its own date, else its event's first day), its record there beside it; awards have no date and get no window board. With none in the window yet, the latest seven days with a match are shown, said on the card. "Most matches played by any team …, top 5" is the same board, the count asked; "worldwide" adds nothing. (#1098)
+
 ## 4.4.1 — 2026-11-08
 
 A question about "my" or "our" team ("what is my 4215 next event", "our 6980 record") is answered for that team.
