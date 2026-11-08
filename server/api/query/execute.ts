@@ -208,6 +208,14 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // call (the engine's, with Predict open on it); one team's next match or event is left to the readers that know
   // which ("predicted score next match", "predicted wins at their next event").
   // One team's Worlds or state championship ("advancement odds at worlds") is its own division there.
+  // Reaching Worlds or states ("chance of making worlds next year"): the chance to advance from the team's next
+  // event, the stored projection's, as "chance to advance to worlds" reads; never a forecast made at Worlds itself.
+  if (intent === "team-predict" && p.reach && !p.event && p.teams.length === 1) {
+    // The projection is the next event's as things stand: a season, a day or all time said asks for another answer.
+    if (scope.level || scope.alliance || scope.place || scope.area || scope.window || scope.at || p.time) return null;
+    const a = await statAnswer(`${p.teams[0].number} chance to advance to ${p.worlds ? "worlds" : "states"}`, opts.resolve, { full: opts.full, pages: opts.pages });
+    return a && a.intent?.kind === "stat-advance-chance" ? { ...a, q: p.q } : null;
+  }
   const ownChampionship = intent === "team-predict" && !p.event && p.teams.length === 1 && (p.worlds || p.states);
   if ((intent === "team-predict" || intent === "two-predict") && (p.event || ownChampionship)) {
     // The card lists every forecast at the event: a count asked ("last 3 predictions") is left to the other readers.
