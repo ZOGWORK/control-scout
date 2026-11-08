@@ -286,8 +286,8 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       if (!named.length) continue;
       // What a question asks about ("alliances", "inspire", "stats") names a team only typed as its whole name: "nj
       // states alliances" is never team Alliance, "most inspire awards" never team Inspires (onlyTopicWords).
-      const said = span.map((t) => t.typed).join(" ");
-      if (onlyTopicWords(said) && !named.some((n) => wholeName(n.name) === wholeName(said))) continue;
+      const typed = span.map((t) => t.typed).join(" ");
+      if (onlyTopicWords(typed) && !named.some((n) => wholeName(n.name) === wholeName(typed))) continue;
       // A number typed beside its own name ("12345 hypnotic robotics") is one team.
       if (!named.some((n) => p.teams.some((t) => t.number === n.number))) {
         p.teams.push({ number: named[0].number, name: named[0].name, typed: span.map((t) => t.typed).join(" "), via: "name", at: i, ...(named.length > 1 ? { candidates: named.map((n) => n.number) } : {}) });
