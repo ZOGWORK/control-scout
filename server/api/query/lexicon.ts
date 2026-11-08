@@ -42,6 +42,10 @@ export type Sym =
   /** A match that hasn't happened, supposed ("if 12345 played 23456"): a forecast, only beside two teams who meet. */
   | { k: "hypo" }
   | { k: "vs" }
+  /** One team put in another's place ("swap 12345 for 23456", "replace 12345 with 23456"). */
+  | { k: "swap" }
+  /** A swap said the other way round ("sub in 12345 for 23456"): the first team comes in, the next goes out. */
+  | { k: "swap-in" }
   | { k: "and" }
   | { k: "together" }
   | { k: "same-side" }
@@ -169,13 +173,16 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["should|shall", { k: "filler" }],
   ["based on|based off", { k: "prep", v: "by" }],
   ["will|would|going to", { k: "future" }],
-  ["if|what if|suppose|supposing|hypothetically|imagine|imagine if", { k: "hypo" }],
+  ["if|what if|what would happen if|what happens if|what will happen if|suppose|supposing|hypothetically|imagine|imagine if", { k: "hypo" }],
   ["advance|advances|advancing|advancement|advancements|advance to the finals|make the finals|making the finals|go through|goes through|get through|gets through", { k: "advance" }],
   // Two teams.
   ["vs|v|versus|against|facing|face|faced|play|played|playing|plays|vs.", { k: "vs" }],
+  ["swap|swaps|swapped|swapping|swap out|switch|switches|switched|switching|switch out|replace|replaces|replaced|replacing|substitute|substituted|substituting|sub|subs|subbed|subbing|sub out|trade|traded|trading|if i swap|if we swap|what if i swap|what if we swap|if i replace|if we replace|if i switch|if we switch|if i sub|if we sub|if i substitute|if we substitute", { k: "swap" }],
+  ["sub in|swap in|switch in|bring in|subbing in|swapping in|switching in|bringing in", [{ k: "swap" }, { k: "swap-in" }]],
+  ["odds change|change the odds|chances change|change the chances|how do the odds change|how would the odds change|how do the chances change|how does that change|how would that change|how does it change|how would it change", { k: "predict" }],
   // "Between A and B": the two teams, whatever the question asks of them.
   ["between", { k: "filler" }],
-  ["and|&|plus|with|alongside", { k: "and" }],
+  ["and|&|plus|with|alongside|beside|next to", { k: "and" }],
   ["together|in common|shared|share|both|both played|jointly|same match|same matches", { k: "together" }],
   ["same alliance|same side|as partners|on the same alliance|teamed up|teamed", { k: "same-side" }],
   // "Who is better, 12345 or 67890": the two side by side.
@@ -204,7 +211,7 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["per event|each event|every event|per competition|per tournament|by event", { k: "per", v: "event" }],
   ["rate", { k: "per", v: "rate" }],
   // Filler: the question's frame and conversation, never part of a name.
-  ["the|a|an|is|are|was|were|be|been|has|have|had|do|does|did|what|whats|which|who|whom|how|when|where|why|please|pls|plz|thanks|thank you|hey|hi|hello|yo|ok|okay|so|just|really|actually|basically|like|um|uh|rn|right now|at the moment|currently|now|today's|show|show me|tell|tell me|give|give me|get|find|lookup|look up|search|i want|i want to know|i wanna know|i need|can you|could you|would you|let me know|let me see|i'd like|id like|want|need|know|see|me|my|us|our|their|its|his|her|they|them|it|team's|teams'|ftc|first tech challenge|tech challenge|stat|stats|statistics|info|information|data|number|numbers|result|results|did they|ever had|on record|official|overall|all|any|some|there|here|that|this|these|those|than|then|to|on|into|about|up|out|off|over|under|ago|yet|still|also|too|much|many|good|well|very|quite|pretty|kind of|sort of|exactly|anyone|anybody|someone|somebody|got|get|gets|getting", { k: "filler" }],
+  ["the|a|an|is|are|was|were|be|been|has|have|had|do|does|did|what|whats|which|who|whom|how|when|where|why|please|pls|plz|thanks|thank you|hey|hi|hello|yo|ok|okay|so|just|really|actually|basically|like|um|uh|rn|right now|at the moment|currently|now|today's|show|show me|tell|tell me|give|give me|get|find|lookup|look up|search|i want|i want to know|i wanna know|i need|can you|could you|would you|let me know|let me see|i'd like|id like|want|need|know|see|me|my|us|our|we|i|you|their|its|his|her|they|them|it|team's|teams'|ftc|first tech challenge|tech challenge|stat|stats|statistics|info|information|data|number|numbers|result|results|did they|ever had|on record|official|overall|all|any|some|there|here|that|this|these|those|than|then|to|on|into|about|up|out|off|over|under|ago|yet|still|also|too|much|many|good|well|very|quite|pretty|kind of|sort of|exactly|anyone|anybody|someone|somebody|got|get|gets|getting", { k: "filler" }],
 ];
 
 /** The awards by the words people use (awards.type values). */

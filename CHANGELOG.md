@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.3.4 — 2026-11-08
+
+One team swapped for another on an alliance answers with what the swap does.
+
+### Highlights
+- [predict] "Swap <team> for <team>" shows the two teams side by side
+- [predict] "Replace", "trade" and "if I swap … in a match with" too
+- [predict] The card says who goes out, who comes in, and the partner
+
+### Search
+- **A team swapped for another.** "If I swap <team> for <team> in a match with <team>", "replace … with … beside …", "trade … for …": on an alliance the predicted score moves by the gap in the two teams' ratings, so the answer is their call side by side, labelled with who goes out, who comes in and the partner. Any verb of swapping ("switch", "sub", "substitute"), "what would happen if …", who is asking ("we", "you") and "next to" for beside read the same; "in" said with the first team ("sub in <team> for <team>") brings it in. Every season asked is left to search, as the call is one season's. (#1115)
+
 ## 4.3.3 — 2026-11-08
 
 Who a team should pick at an event is a question search answers, with Scout's pick helper on that event's teams: the partner that fills the team's gaps first.

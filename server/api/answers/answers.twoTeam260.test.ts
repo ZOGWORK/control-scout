@@ -120,6 +120,25 @@ describe("the answers", () => {
       expect(a.stat!.blocks[0], q).toMatchObject({ kind: "kpis", items: [{ value: expect.stringMatching(/^(98\.0|50\.3) ±3$/) }, { value: expect.stringMatching(/^(98\.0|50\.3) ±3$/) }] });
     }
   });
+  it("a team swapped for another: the two side by side, which goes out and which comes in said", async () => {
+    const a = await ask("what if we replace 6980 with 4215 alongside 207, how would the odds change");
+    expect(a.stat).toMatchObject({ intent: "predict", headline: { value: "4215 rated higher", label: "by 47.7 points per match" } });
+    expect(a.understood!.label).toBe("Swapping Bad Wolf (6980) for Hypnotic Robotics (4215) beside Critical Mass (207): the alliance's predicted score moves by the gap in their ratings");
+    // The partner may come first; the order after the swap word decides who goes out.
+    expect((await ask("beside 207, trading 4215 for 6980")).understood!.label).toMatch(/^Swapping Hypnotic Robotics \(4215\) for Bad Wolf \(6980\) beside Critical Mass \(207\)/);
+    expect((await ask("swapping 4215 out for 6980")).understood!.label).toMatch(/^Swapping Hypnotic Robotics \(4215\) for Bad Wolf \(6980\):/);
+    // Names where they were read, one inside another or not.
+    expect((await ask("trade hypnotic robotics for bad wolf beside critical mass")).understood!.label).toMatch(/^Swapping Hypnotic Robotics \(4215\) for Bad Wolf \(6980\) beside Critical Mass \(207\)/);
+    // A match number the swap can't answer for is left to search.
+    expect((await ask("swap 4215 for 6980 in match 3 with 207")).stat?.intent).not.toBe("predict");
+    // Said the other way round, the first team comes in: "in" before the teams or right after the first.
+    for (const q of ["sub in 4215 for 6980 beside 207", "sub 4215 in for 6980 next to 207", "switching in hypnotic robotics for bad wolf alongside critical mass"]) {
+      expect((await ask(q)).understood!.label, q).toMatch(/^Swapping Bad Wolf \(6980\) for Hypnotic Robotics \(4215\) beside Critical Mass \(207\)/);
+    }
+    expect((await ask("trade 6980 out for 4215 with 207")).understood!.label).toMatch(/^Swapping Bad Wolf \(6980\) for Hypnotic Robotics \(4215\)/);
+    // The call is one season's: every season asked is left to search, never narrowed to one.
+    for (const q of ["swap 4215 for 6980 beside 207 across all seasons", "replace 6980 with 4215 alongside 207 all time"]) expect((await ask(q)).stat?.intent, q).not.toBe("predict");
+  });
   it("a supposed meeting, now or on a day to come, is the same call on today's ratings, said so", async () => {
     for (const q of ["what if 6980 faced 4215", "suppose 4215 played 6980 next week", "imagine 6980 against 4215 tomorrow", "what if 4215 played 6980 this week", "if 6980 faced 4215, who would win"]) {
       const a = await ask(q);

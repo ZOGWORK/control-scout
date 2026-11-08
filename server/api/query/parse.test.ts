@@ -112,6 +112,20 @@ describe("slots", () => {
       expect((await parse(q)).complete, q).toBe(false);
     }
   });
+  it("reads one team swapped for another, with a partner or not, as the swap's call", async () => {
+    for (const q of ["what if we replace 6980 with 24033 alongside 23268", "swapping 23268 out for 4215", "trade 4215 for 24033 beside 6980, how would the odds change",
+      // Every verb the swap is said with, and "by" between the two.
+      "switch 6980 for 24033 with 23268", "sub 23268 for 4215", "replace 4215 by 24033 beside 6980", "with 6980, swap 23268 for 4215",
+      // Who is asking ("we", "I", "you"), a supposition however it opens, and "next to" for beside.
+      "what if we switched 4215 for 24033 beside 6980, would we win", "what would happen if i replaced 6980 with 23268 next to 4215", "what happens if you sub 24033 for 6980"]) {
+      expect(await parse(q), q).toMatchObject({ intent: "swap-predict", complete: true });
+    }
+    // A team's number swapped out or in is a team, never a season, whichever side it's on.
+    for (const q of ["trade 2024 for 23268 beside 6980", "replace 23268 with 2024 alongside 6980"]) {
+      expect(await parse(q), q).toMatchObject({ intent: "swap-predict", time: null });
+      expect((await parse(q)).teams.map((t) => t.number).sort(), q).toEqual([2024, 23268, 6980].sort());
+    }
+  });
   it("reads reaching Worlds or states beside a forecast as the chance to advance there", async () => {
     for (const q of ["4215 odds of reaching worlds", "what are 23268's chances of getting to states next season", "6980 chance of qualifying for worlds as it stands", "24033's chances of making regionals", "odds 4215 qualifies for the regional championship",
       "23268's odds of getting through to the state championship", "6980 chances of making it into the first championship"]) {

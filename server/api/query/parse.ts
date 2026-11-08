@@ -56,6 +56,8 @@ export interface Parsed {
   over?: { n: number; atLeast: boolean };
   /** Where the first "vs" stands (a word's index, as a team's `at`): two alliances are the teams either side of it. */
   vsAt?: number;
+  /** Where the swap word is ("swap 12345 for 23456"), as a team's `at`. */
+  swapAt?: number;
   /** Every intent symbol read ("agg:max", "metric:score"). */
   symbols: string[];
   /** The stats said not to go by ("not OPR"), as typed: the card says it left them out. */
@@ -113,6 +115,8 @@ const NAME_MARK = "namedname";
 const NAMED_PHRASES = LEXICON.filter((e) => e.syms.some((x) => x.k === "named")).map((e) => e.words);
 /** The words that end a name asked about as words: a place or a time follows. */
 const NAME_ENDS = /^(?:from|in|at|near|based|located|during|out)$/;
+/** The words that swap one team for another (the lexicon's "swap"), as a pattern. */
+const SWAP_WORDS = "swap|swaps|swapped|swapping|switch|switches|switched|switching|replace|replaces|replaced|replacing|substitute|substituted|substituting|sub|subs|subbed|subbing|trade|traded|trading";
 /** Words that say reaching a place ("making worlds", "qualifying for worlds"), and the words that name Worlds. */
 const REACH = new Set(["make", "makes", "making", "reach", "reaches", "reaching", "qualify", "qualifies", "qualifying", "get", "gets", "getting"]);
 const WORLDS_WORDS = new Set([
@@ -186,7 +190,9 @@ function yearReading(q: string, team: (n: number) => boolean): (y: number) => bo
   // A team's number joined to another by "vs" or "and" is one of the teams compared, not a year.
   const said = (y: number) => new RegExp(`\\b(?:in|during|for|from|(?<!\\b(?:this|current)\\s)season)\\s+(?:the\\s+)?${y}\\b`).test(q);
   const paired = (y: number) => new RegExp(`\\b${y}\\s+(?:vs\\.?|v|versus|against|and|&)\\s|\\s(?:vs\\.?|v|versus|against|and|&)\\s+${y}\\b`).test(` ${q} `);
-  return (y: number) => said(y) || (!(team(y) && paired(y)) && (teamNums.some((n) => n !== y) || !team(y)));
+  // A team's number swapped out or in ("swap <team> for <team>", "replace <team> with <team>", a number like a year) is a team, never a year.
+  const swapped = (y: number) => new RegExp(`\\b(?:${SWAP_WORDS})\\s+(?:(?:out|in)\\s+)?(?:\\d{1,5}\\s+(?:(?:out|in)\\s+)?(?:for|with|by)\\s+)?${y}\\b`).test(q);
+  return (y: number) => !(swapped(y) && team(y)) && (said(y) || (!(team(y) && paired(y)) && (teamNums.some((n) => n !== y) || !team(y))));
 }
 
 /** The time `q` (normalised words) says, as the parser reads it: a bare year by `yearReading`, and a stored name asked
@@ -340,6 +346,16 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     }
   }
 
+  // A swapped team said with "in" or "out" before "for" or "with" ("sub <team> in for <team>", "swap <team> out for
+  // <team>"): which way the swap goes, read before the lexicon so "in" is never a preposition there.
+  const swapSaid = new RegExp(`^(?:${SWAP_WORDS})$`);
+  if (toks.some((t) => !t.used && swapSaid.test(t.w))) {
+    for (const t of p.teams) {
+      const i = t.at + t.typed.split(" ").length, d = toks[i];
+      if (d && !d.used && /^(?:in|out)$/.test(d.w) && /^(?:for|with)$/.test(toks[i + 1]?.w ?? "")) { d.used = true; if (d.w === "in") symbols.add("swap-in"); }
+    }
+  }
+
   // 3. The lexicon, longest phrase first at each place.
   for (let i = 0; i < toks.length; i++) {
     if (toks[i].used) continue;
@@ -361,6 +377,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       else if (s.k === "undefeated") p.undefeated = true;
       else if (s.k === "agg" && !p.agg) p.agg = s.v;
       else if (s.k === "vs" && p.vsAt == null) p.vsAt = i;
+      else if (s.k === "swap" && p.swapAt == null) p.swapAt = i;
       const k = symKey(s);
       if (k && s.k !== "award") symbols.add(k);
     }
