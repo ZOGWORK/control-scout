@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.1.6 — 2026-11-08
+
+"My" and "our" in a search mean your team: "what is my next event" answers for My team, or asks you to pick one. A team's schedule in a state said short ("Hypnotic Robotics mass schedule") shows its matches there.
+
+### Highlights
+- [fixes] "What is my next event" answers for My team
+- [teams] With no My team set, search asks you to pick one
+- [fixes] "<team> schedule" shows matches still to play, then played
+- [fixes] "Mass" and "Cali" read as Massachusetts and California
+
+### Search
+- **My and our.** A search saying "my" or "our" with no team named ("what is my next event", "how did our team do") answers for My team on this device; with none set, it answers with a link to pick one rather than "no team matched". A team named after "my" ("my 4215 next event") is the one asked about. A team's "schedule" (or "match schedule") is its matches: those scheduled and still to play (at events not yet over, in the place asked) first, then the ones played, whose record counts the played ones only; and a region's other names ("Mass", "Cali") read as that region. (#1154)
+
 ## 4.1.5 — 2026-11-08
 
 A match two teams haven't played, supposed in words, answers with its forecast.
