@@ -1143,10 +1143,10 @@ export async function boardSearch(q: string, said: LeaderboardQuestion, opts: { 
 /** "<event> vs <event>" (2–4 events, ./families/eventVersus.ts): the events side by side. Null when it isn't one or an
  *  event isn't found: the versus is then the teams'. */
 /** `q` is the query less a season it named; `asked`, the query as typed, is what the answer page's link opens. */
-export async function eventVersusSearch(q: string, season: number | null, opts: { full: boolean; pages: SearchPageLink[]; asked?: string }): Promise<SearchAnswer | null> {
+export async function eventVersusSearch(q: string, season: number | null, opts: { full: boolean; pages: SearchPageLink[]; asked?: string; alias?: (w: string) => string }): Promise<SearchAnswer | null> {
   const sides = readEventVersus(q);
   if (!sides) return null;
-  const evs = await eventsNamed(sides, season, (words, s) => findEvent(words, s, { anyPlayed: true, closest: true }));
+  const evs = await eventsNamed(sides, season, (words, s) => findEvent(words, s, { anyPlayed: true, closest: true }), opts.alias);
   if (!evs) return null;
   const label = eventVersusTitle(evs);
   const base = {

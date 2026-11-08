@@ -23,13 +23,15 @@ export function readEventVersus(q: string): string[] | null {
   return sides.every((s) => EVENT_WORD.test(s) && !/\b\d{2,6}\b/.test(s.replace(/\b20\d\d\b/g, ""))) ? sides : null;
 }
 
-/** Each side's event, by `find`; null when one isn't found. The same event twice is one. */
-export async function eventsNamed(sides: string[], season: number | null, find: FindEvent): Promise<EventRow[] | null> {
+/** Each side's event, by `find`; null when one isn't found. The same event twice is one. `alias`: a side's short forms
+ *  said in full, as search reads them ("Worlds" is the FIRST Championship). */
+export async function eventsNamed(sides: string[], season: number | null, find: FindEvent, alias?: (w: string) => string): Promise<EventRow[] | null> {
   const evs: EventRow[] = [];
   for (const w of sides) {
     // A state's code in the name ("NJ Championship"), as events are named: its full name ("New Jersey Championship").
     const spelled = w.split(" ").map((x) => (x.length === 2 ? regionOf([x])?.name ?? x : x)).join(" ");
-    const e = (await find(w, season)) ?? (spelled !== w ? await find(spelled, season) : null);
+    let e: EventRow | null = null;
+    for (const words of [...new Set([w, spelled, ...(alias ? [alias(w), alias(spelled)] : [])])]) if ((e = await find(words, season))) break;
     if (!e) return null;
     if (!evs.some((x) => x.season === e.season && x.code === e.code)) evs.push(e);
   }
