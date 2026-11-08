@@ -11,7 +11,8 @@ describe("reading an event set", () => {
   });
   it("the same ask said short or long reads the same: a time word, and the request's own clause (owner, 11-08)", () => {
     for (const [short, long] of [["nj events yesterday", "events in nj that finished yesterday"], ["nj meets yesterday", "nj meets that ended yesterday"],
-      ["nj events today", "events in nj today"], ["nj events this week", "events in nj that are happening this week"]]) {
+      ["nj events today", "events in nj today"], ["nj events this week", "events in nj that are happening this week"],
+      ["nj past events", "nj events that finished"], ["nj past meets", "nj meets that happened"], ["nj meets yesterday", "nj meets that finished yesterday"]]) {
       expect(readEventQuery(long), long).toEqual(readEventQuery(short));
     }
     expect(readEventQuery("nj events yesterday")).toMatchObject({ time: "yesterday", region: { key: "USA:NJ" }, where: null, words: [] });

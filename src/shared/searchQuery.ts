@@ -70,7 +70,7 @@ export const onlyTopicWords = (q: string): boolean => {
  *  stays a name. Phrases are matched as whole words; longer ones first. */
 // "Live", "right now", "happening now" with an event word are today's events (events run a day or two: today is the
 // one under way). Longest first, so "live now" is one phrase.
-export const TIME_WORDS = ["today", "tomorrow", "yesterday", "this weekend", "next weekend", "this week", "next week", "this month", "next month", "upcoming", "coming up", "past", "recent", "previous", "latest", "finished", "completed", "ended",
+export const TIME_WORDS = ["today", "tomorrow", "yesterday", "this weekend", "next weekend", "this week", "next week", "this month", "next month", "upcoming", "coming up", "past", "recent", "previous", "latest", "finished", "completed", "ended", "happened",
   "happening now", "going on now", "on right now", "right now", "live now", "live", "currently", "now"];
 const ALWAYS_TIME = new Set(["today", "tomorrow", "yesterday", "this weekend", "next weekend", "this week", "next week", "this month", "next month", "upcoming", "coming up"]);
 

@@ -44,7 +44,7 @@ const EVENT_LABEL: Record<string, string> = {
 
 export type SearchTime = "today" | "tomorrow" | "yesterday" | "upcoming" | "past" | "this-weekend" | "next-weekend" | "this-week" | "next-week" | "this-month" | "next-month";
 const TIME_OF: Record<string, SearchTime> = {
-  today: "today", tomorrow: "tomorrow", yesterday: "yesterday", upcoming: "upcoming", "coming up": "upcoming", past: "past", recent: "past", previous: "past", latest: "past", finished: "past", completed: "past", ended: "past",
+  today: "today", tomorrow: "tomorrow", yesterday: "yesterday", upcoming: "upcoming", "coming up": "upcoming", past: "past", recent: "past", previous: "past", latest: "past", finished: "past", completed: "past", ended: "past", happened: "past",
   "this weekend": "this-weekend", "next weekend": "next-weekend", "this week": "this-week", "next week": "next-week",
   "this month": "this-month", "next month": "next-month",
   "happening now": "today", "going on now": "today", "on right now": "today", "right now": "today", "live now": "today", live: "today", currently: "today", now: "today",
@@ -119,7 +119,8 @@ export function readEventQuery(raw: string): EventQuery | null {
   const t = timePhrase(q);
   if (t) { time = TIME_OF[t.phrase] ?? null; q = t.rest; }
   // The request's own clause, once its time is read ("nj meets that ended yesterday"): never words of a name.
-  if (time) q = q.replace(/\s+(?:that|which)\s+(?:(?:are|is|were|was)\s+)?(?:happened|happening|finished|ended|started|took\s+place|taking\s+place|held|running|going\s+on)$/i, "").trim();
+  // With the verb read as the time itself ("nj events that finished", "nj meets that happened"), the "that" left.
+  if (time) q = q.replace(/\s+(?:that|which)(?:\s+(?:are|is|were|was))?(?:\s+(?:happened|happening|finished|ended|started|took\s+place|taking\s+place|held|running|going\s+on))?$/i, "").trim();
   // "Upcoming" beside a window still to come ("upcoming events this weekend") says nothing more: the window is it.
   if (time && time !== "upcoming" && time !== "past") q = q.replace(/(?:^|\s)(?:upcoming|coming up)(?=\s|$)/gi, " ").replace(/\s+/g, " ").trim();
   let year: number | null = null, season: number | null = null;
