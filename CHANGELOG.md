@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 4.2.8 — 2026-11-08
+## 4.2.9 — 2026-11-08
 
 Topic words are read as the topic, not as a team that happens to share the name, and a misspelled "highlights" or "videos" is corrected.
 
@@ -33,6 +33,18 @@ Topic words are read as the topic, not as a team that happens to share the name,
 - **Top teams this week.** "Top teams this week", "best teams in NJ last weekend": the teams that played at an event held then, ranked by their OPR at those events, with their record there.
 - **Biggest events.** "Which event had the most teams in California this season", "largest qualifiers in Texas" and "biggest event" rank a place's events by the teams on their lists, an event's divisions counted together; "highest auto matches" lists the matches with the most auto points; "biggest event ever" looks across every season, and "top 3 matches" lists three.
 - **A school's teams.** "How many teams at Clearview Regional High School" lists the teams FIRST lists at that school, as "teams in <town>" does for a town. (#1180)
+
+## 4.2.8 — 2026-11-08
+
+Search answers who is ranked just above and just below a team. "Who is ranked just above and just below 4215 worldwide in 2025-26" shows its world OPR rank, with the teams on either side of it.
+
+### Highlights
+- [rankings] A team's world OPR rank lists the teams just above and below
+- [rankings] "Who is ranked just above <team>" shows its neighbors
+- [rankings] "Teams ranked near <team>" works for a season or a place too
+
+### Search
+- **The teams around a team's rank.** "Who is (ranked) (just, right, directly) above / below / ahead of / behind <team> (worldwide, in the world rankings)" and "teams ranked near (around, close to) <team>" read as the team's OPR rank, keeping a season ("in 2025-26", "last season") or a place ("in new jersey"). The world OPR rank answer now lists the two teams above and below it on the season's world OPR list, as a place's rank already listed its own. "At worlds" isn't read as a rank question. (#1110)
 
 ## 4.2.7 — 2026-11-08
 
