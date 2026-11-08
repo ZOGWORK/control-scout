@@ -73,7 +73,7 @@ export function compareBlock(title: string, teams: AnswerTeam[], rows: CompareIn
   };
 }
 
-export type StatColumn = "opr_np" | "opr_auto" | "opr_teleop" | "opr_endgame" | "rating_np" | "rating_auto" | "rating_teleop" | "rating_endgame";
+export type StatColumn = "opr_np" | "opr_auto" | "opr_teleop" | "opr_endgame" | "rating_np" | "rating_auto" | "rating_teleop" | "rating_endgame" | "rating_pen" | "avg_pen";
 const cache = new Map<string, { at: number; v: Record<string, number | null> }>();
 
 /** Each stat's scale for a season: the highest any team reached that season, rounded up (niceMax). Fixed per

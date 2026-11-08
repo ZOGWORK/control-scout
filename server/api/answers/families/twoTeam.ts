@@ -269,6 +269,35 @@ export async function phaseSideBySide(phase: "auto" | "teleop" | "endgame", a: A
   };
 }
 
+const PEN_RULE = "Penalties a match: the penalty points the robot alone gives away a match, its prediction rating's estimate as each team page shows it (fewer is better); beside it, the points its alliances gave away a match. Rated once 3 matches are rated.";
+
+/** "Who has better penalties, 12345 or 67890": both teams' season penalty points given away a match, fewer named. */
+export async function penaltiesSideBySide(a: AnswerTeam, b: AnswerTeam, scope: Scope): Promise<StatAnswer> {
+  const s = await bothSeasons(a.number, b.number, scope.season);
+  const phrase = s.season != null ? ` in ${seasonLabel(s.season)}` : "";
+  const base = { family: "two-team" as const, intent: "penalties-vs", title: `Penalties: ${a.number} vs ${b.number}${phrase}`, team: a, teams: [a, b], scope: scopeChips({ ...scope, season: s.season }),
+    definition: `${PEN_RULE}${s.why ? ` ${s.why}` : ""}`, source: s.season != null ? `From both teams' ${seasonLabel(s.season)} matches` : "No season both teams played" };
+  if (s.season == null) return { ...base, blocks: [], none: `${whoOf(a)} and ${whoOf(b)} have no season they both played.` };
+  const rows = await all<{ team: number; rating_pen: number | null; avg_pen: number | null; rating_matches: number | null }>(
+    "SELECT team, rating_pen, avg_pen, rating_matches FROM team_season_stats WHERE season = ? AND team IN (?, ?)", [s.season, a.number, b.number]);
+  const of = (t: number) => rows.find((r) => Number(r.team) === t);
+  const ra = of(a.number), rb = of(b.number);
+  const rated = (r?: (typeof rows)[number]) => r?.rating_pen != null && Number(r.rating_matches ?? 0) >= 3;
+  if (!rated(ra) || !rated(rb)) return { ...base, blocks: [], none: `No ${seasonLabel(s.season)} penalty estimate for ${[!rated(ra) ? whoOf(a) : "", !rated(rb) ? whoOf(b) : ""].filter(Boolean).join(" and ")} yet.` };
+  const scale = await seasonScale(s.season, ["rating_pen", "avg_pen"]);
+  const fewer = (g: number) => `${g.toFixed(1)} fewer`;
+  const block = compareBlock("Penalty points given away a match", [a, b], [
+    { label: "Robot's own", total: true, values: [ra!.rating_pen, rb!.rating_pen], max: scale.rating_pen, better: "lower", gap: fewer },
+    { label: "Its alliances'", values: [ra!.avg_pen, rb!.avg_pen], max: scale.avg_pen, better: "lower", gap: fewer },
+  ], s.season, `the ${seasonLabel(s.season)} high, rounded up`);
+  const crow = block.kind === "compare" ? block.rows : [];
+  return {
+    ...base,
+    headline: leadHeadline([a, b], crow[0], ["fewer is better"], crow[0].best != null ? teamHref([a, b][crow[0].best].number, s.season) : undefined),
+    blocks: [block],
+  };
+}
+
 type Reliability = NonNullable<Awaited<ReturnType<typeof teamReliability>>>;
 /** Reliability's rows: the index on its own 0–100 scale, then the parts that count against a team (fewer is better),
  *  values only: four, so the card keeps five rows. */
