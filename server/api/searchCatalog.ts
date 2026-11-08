@@ -212,6 +212,8 @@ export const SCAFFOLD: string[] = [
   "have", "has", "had", "been", "get", "go", "went", "come", "comes", "came", "know", "me", "you", "your", "i", "we",
   // Connectors, consumed only as glue between the team, the intent and the scope.
   "of", "in", "for", "at", "the", "a", "an", "to", "on", "during", "with",
+  // Beside, as a place: never the time word "next".
+  "next to",
 ];
 
 /** Never filler, never ignored (a later layer may still answer, but never by dropping these). */
