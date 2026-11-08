@@ -25,7 +25,7 @@ A search answer's season can be switched in place: the season chip at the top ri
 - [share] The picked season stays in the link
 
 ### Search
-- **A season picker on every answer.** The season chip at the top right of an answer card ("2026–27" beside Full team page, or above a season's list) opens the seasons the answer's team has data for, or every season for a list, newest first with the game's name. Picking one asks the same search about that season, whether the season was the default or typed ("<team> DECODE highlights" can still switch to 2024–25), while the last answer stays on screen dimmed. The pick is in the address (`?in=2024`), so reload, Back and shared links keep it. (#PR)
+- **A season picker on every answer.** The season chip at the top right of an answer card ("2026–27" beside Full team page, or above a season's list) opens the seasons the answer's team has data for, or every season for a list, newest first with the game's name. Picking one asks the same search about that season, whether the season was the default or typed ("<team> DECODE highlights" can still switch to 2024–25), while the last answer stays on screen dimmed. The pick is in the address (`?in=2024`), so reload, Back and shared links keep it. (#1173)
 
 ## 4.2.3 — 2026-11-08
 
