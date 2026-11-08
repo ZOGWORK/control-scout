@@ -96,6 +96,8 @@ export function ownWords(): Map<string, 1 | 2> {
   const plain = [
     ...PLAIN_WORDS, ...SEARCH_FILLER, ...phraseWords(PARAPHRASES.flat()), ...phraseWords(FILLER), ...phraseWords(SCAFFOLD),
     ...phraseWords(CONVERSATIONAL.map((c) => c.words)), ...phraseWords(TIME_WORDS), ...QUESTION_WORDS, ...STOPWORDS,
+    // Every word the query parser reads ("highlights"), as plain words: kept, and reached within a plain edit.
+    ...LEXICON.flatMap((e) => e.words),
   ];
   const out = new Map<string, 1 | 2>();
   for (const w of plain.map(normalize).filter(Boolean)) out.set(w, 1);
@@ -181,6 +183,13 @@ function formOfKnown(w: string, keep: Set<string>): boolean {
   if (m[2] === "es" && keep.has(`${stem}s`) && !/(?:s|x|z|ch|sh|o)$/.test(stem)) return false;
   // "winning" → "win", "placed" → "place", "scouting" → "scout".
   return keep.has(stem) || keep.has(`${stem}e`) || (/(.)\1$/.test(stem) && keep.has(stem.slice(0, -1)));
+}
+
+/** `w` is `c` with one letter added before its last, where no ending goes ("lastest", "latest"). */
+function letterAdded(w: string, c: string): boolean {
+  if (w.length !== c.length + 1) return false;
+  for (let k = 0; k < w.length - 1; k++) if (w.slice(0, k) + w.slice(k + 1) === c) return true;
+  return false;
 }
 
 /** The same letters, give or take one ("appreacne", "appearance"): the letters one has and the other doesn't, counted
@@ -278,7 +287,10 @@ export interface WordFix { word: string; own: boolean }
  *  word, which may still be being typed. */
 export function correctWord(w: string, v: Vocab, last = false): WordFix | null {
   const max = allowedEdits(w.length);
-  if (!max || v.keep.has(w) || formOfKnown(w, v.keep)) return null;
+  if (!max || v.keep.has(w)) return null;
+  // A plain form of a known word ("winning") is left as typed, unless it is one of search's own words with a letter
+  // added inside it, which no ending makes ("lastest" is "latest", never "last" with "-est").
+  const form = formOfKnown(w, v.keep);
   const seen = v.count.get(w) ?? 0;
   const found: { word: string; d: number; own: number; slip: boolean; n: number }[] = [];
   const set = charSet(w);
@@ -302,13 +314,22 @@ export function correctWord(w: string, v: Vocab, last = false): WordFix | null {
   }
   // Else a long word typed with its letters jumbled ("appreacne" for "appearance"): one of search's own words with the
   // same first letter and the same letters, give or take one, in any order. Edits count each move, so they miss it.
-  if (!found.length && w.length >= 7) {
+  // A word of six letters too when its last letter is the word's as well ("lastet" for "latest"), and a common word of
+  // the data's ("jacosn" for "Jackson", a division seen five times or more) by the same rule.
+  if (!found.length && !form && w.length >= 6) {
     for (let len = w.length - 1; len <= w.length + 1; len++) {
-      for (const c of v.byLength.get(len) ?? []) if (c[0] === w[0] && v.own.get(c) === 2 && !pluralPair(c, w) && jumbled(w, c)) found.push({ word: c, d: max, own: 2, slip: false, n: v.count.get(c) ?? 0 });
+      for (const c of v.byLength.get(len) ?? []) {
+        const own = v.own.get(c) === 2 ? 2 : 0, n = v.count.get(c) ?? 0;
+        if (c[0] !== w[0] || (w.length < 7 && c.at(-1) !== w.at(-1)) || (!own && (n < 5 || v.own.has(c))) || pluralPair(c, w) || !jumbled(w, c)) continue;
+        // The same letters all used ("latest") before a word with one of them dropped ("least").
+        found.push({ word: c, d: max + (c.length === w.length ? 0 : 0.5), own, slip: false, n });
+      }
     }
   }
+  if (form) found.splice(0, found.length, ...found.filter((c) => c.own === 2 && letterAdded(w, c.word)));
   if (!found.length) return null;
-  found.sort((a, b) => a.d - b.d || b.own - a.own || Number(b.slip) - Number(a.slip) || b.n - a.n || (a.word < b.word ? -1 : 1));
+  // As close by typing, the fewer plain edits first ("lasetest" is "latest", two letters added, not "largest").
+  found.sort((a, b) => a.d - b.d || editDistance(w, a.word, 4) - editDistance(w, b.word, 4) || b.own - a.own || Number(b.slip) - Number(a.slip) || b.n - a.n || (a.word < b.word ? -1 : 1));
   const top = found[0];
   // The last word on its way to a team's name ("hypno" for "Hypnotic") is what search's prefix matching is for.
   if (last && !top.own && !top.word.startsWith(w) && v.teamWords.some((x) => x.length > w.length && x.startsWith(w))) return null;
@@ -320,24 +341,65 @@ export function correctWord(w: string, v: Vocab, last = false): WordFix | null {
   return { word: top.word, own: top.own > 0 && !found.some((b) => b.d === top.d && !b.own) };
 }
 
+/** The words the query parser reads as something (filler aside): "highlights", "latest". */
+const PARSER_WORDS = new Set(LEXICON.filter((e) => e.syms.some((x) => x.k !== "filler")).flatMap((e) => e.words));
+
+/** Two of search's own words typed as one ("latestmatches"), either of them misspelled ("lasetestmatches"): both,
+ *  apart, when only one split reads so (the fewest fixes), else null. */
+export function splitWord(w: string, v: Vocab): WordFix | null {
+  if (w.length < 7 || v.keep.has(w) || v.count.has(w)) return null;
+  const asked = (x: string) => v.own.get(x) === 2 || PARSER_WORDS.has(x);
+  const part = (x: string) => (asked(x) ? { word: x, fixed: 0 } : ((f) => (f?.own && asked(f.word) ? { word: f.word, fixed: 1 } : null))(correctWord(x, v)));
+  let best: { word: string; fixed: number }[] = [];
+  for (let i = 3; i <= w.length - 3; i++) {
+    const a = part(w.slice(0, i)), b = a && part(w.slice(i));
+    if (!a || !b) continue;
+    const s = { word: `${a.word} ${b.word}`, fixed: a.fixed + b.fixed };
+    // One of the two misspelled at most: both guessed ("sche" + "duled" as "site rules") is a long word not known here.
+    if (s.fixed > 1) continue;
+    if (!best.length || s.fixed < best[0].fixed) best = [s];
+    else if (s.fixed === best[0].fixed && s.word !== best[0].word) best.push(s);
+  }
+  return best.length === 1 ? { word: best[0].word, own: true } : null;
+}
+
+/** The last try for a query that found nothing (spelled): a word kept as typed only because a name has it ("math", a
+ *  word of one team's name) or because it is short ("wom"), read as the one of search's own words it is a slip from:
+ *  one letter added, dropped, changed or swapped (four letters or more), a neighbouring key (three). Null when none is,
+ *  or two are as close. */
+export function looseWord(w: string, v: Vocab): WordFix | null {
+  if (v.own.has(w)) return null;
+  const reach = w.length <= 3 ? 0.5 : 1;
+  let best = reach + 1, found: string[] = [];
+  for (let len = w.length - 1; len <= w.length + 1; len++) {
+    for (const c of v.byLength.get(len) ?? []) {
+      if (v.own.get(c) !== 2 || c.length < 3 || pluralPair(c, w)) continue;
+      const d = typoDistance(w, c);
+      if (d > reach) continue;
+      if (d < best) { best = d; found = [c]; } else if (d === best) found.push(c);
+    }
+  }
+  return found.length === 1 ? { word: found[0], own: true } : null;
+}
+
 /** A query with its misspelled words corrected, each in the case it was typed in ("Hypnotc" → "Hypnotic"), or null
  *  when nothing needs correcting, with each fix (typed, corrected; lower case). `own`: every fix is to one of search's own words ("oper" → "opr"), so it may be
  *  offered even when the query as typed found something. Only whole words of letters are read: numbers, codes and
  *  punctuation stay as typed. */
-export async function correctQuery(q: string): Promise<{ q: string; own: boolean; fixes: [string, string][] } | null> {
+export async function correctQuery(q: string, loose = false): Promise<{ q: string; own: boolean; fixes: [string, string][] } | null> {
   const parts = q.split(/(\s+)/);
-  if (!parts.some((p) => /^\p{L}{4,}$/u.test(p))) return null;
+  if (!parts.some((p) => (loose ? /^\p{L}{3,}$/u : /^\p{L}{4,}$/u).test(p))) return null;
   const v = await vocab();
   let own = true;
   const fixes: [string, string][] = [];
   let lastWord = parts.length - 1;
   while (lastWord > 0 && !parts[lastWord].trim()) lastWord--;
   const out = parts.map((p, i) => {
-    // Only a word of four letters or more, never one typed in capitals (an event code, an acronym).
-    if (!/^\p{L}{4,}$/u.test(p) || p === p.toUpperCase()) return p;
+    // Only a word of four letters or more (three, loose), never one typed in capitals (an event code, an acronym).
+    if (!(loose ? /^\p{L}{3,}$/u : /^\p{L}{4,}$/u).test(p) || p === p.toUpperCase()) return p;
     const lower = p.toLowerCase();
     if (normalize(p) !== lower) return p;
-    const fix = correctWord(lower, v, i === lastWord);
+    const fix = loose ? looseWord(lower, v) : correctWord(lower, v, i === lastWord) ?? splitWord(lower, v);
     if (!fix) return p;
     fixes.push([lower, fix.word]);
     own &&= fix.own;
@@ -386,10 +448,19 @@ export async function spelled(typed: string, a: SearchAnswer, run: (q: string) =
     if (strength(b) > was) return carryOutcome(b, { ...b, q: a.q, step: b.step === "deterministic" ? "did-you-mean" : b.step, didYouMean: b.step === "did-you-mean" && b.didYouMean ? b.didYouMean : cut });
   }
   const fix = await correctQuery(typed);
+  // Still nothing: the words kept as names or short read as search's own words they are a slip from ("math
+  // highlights", "who wom"), taken only when that reading answers.
+  const loosely = async (from: string): Promise<SearchAnswer | null> => {
+    const l = await correctQuery(from, true);
+    const c = l && await run(l.q);
+    return c && strength(c) >= 3 ? carryOutcome(c, { ...c, q: a.q, step: c.step === "deterministic" ? "did-you-mean" : c.step, didYouMean: l.q }) : null;
+  };
+  if (!fix) return (was <= 1 && await loosely(typed)) || a;
   // A query that matched what it asked can only be improved to a direct answer, which only a question word's fix makes.
-  if (!fix || (was >= 3 && !fix.own)) return a;
+  if (was >= 3 && !fix.own) return a;
   const b = await run(fix.q);
   const now = strength(b);
+  if (was <= 1 && now <= 1) { const l = await loosely(fix.q); if (l) return l; }
   const named = (x: SearchAnswer, i: 0 | 1) => fix.fixes.reduce((n, f) => n + naming(x, f[i]), 0);
   const better = now > was || (now === was && was > 0 && was < 3 && named(b, 1) > named(a, 0)) || (now === 0 && was === 0 && fix.own);
   // The name as search shows it ("Hypnotic Robotics"), when its own correction already said the same.

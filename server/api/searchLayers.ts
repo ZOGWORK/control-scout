@@ -15,12 +15,13 @@ import type { SearchAnswer } from "../../src/shared/api.js";
 import { regionOf } from "../../src/shared/searchEventQuery.js";
 import { SEASONS } from "../data/seasons.js";
 import { all, get } from "../db.js";
-import { normalize } from "./fuzzy.js";
+import { joinThousands, normalize } from "./fuzzy.js";
 import { onlyTopicWords } from "../../src/shared/searchQuery.js";
 
 /** A name compared whole: lower case, any run of punctuation and spaces one space. */
 const wholeName = (n: string) => n.toLowerCase().replace(/[^\p{L}\d]+/gu, " ").trim();
 import { longForm } from "./searchLongForm.js";
+import { names as pipelineNames } from "./query/names.js";
 import { AWARDS, FILLER, FORBIDDEN, type Found, INTENTS, type Intent, LEADER_STAT_WORDS, PARAPHRASES, PHASES, PRECEDENCE, SCAFFOLD, TAIL_FILLER, WEAK_SIGNALS } from "./searchCatalog.js";
 
 export type LayerId = "normalize" | "template" | "longform" | "keyword" | "paraphrase" | "filler" | "scope" | "fallback";
@@ -90,7 +91,7 @@ const SEASON_TOKEN = /^(20\d\d)[-–/](\d\d(?:\d\d)?)$/;
  *  "2024–25") kept whole. */
 export function tokens(q: string): string[] {
   const out: string[] = [];
-  for (const piece of q.replace(/(\d)\s*[-–/]\s*(\d\d(?:\d\d)?)(?=\s|$)/g, "$1-$2").replace(/[’']s(?=\s|$)/gi, "").split(/\s+/)) {
+  for (const piece of joinThousands(q).replace(/(\d)\s*[-–/]\s*(\d\d(?:\d\d)?)(?=\s|$)/g, "$1-$2").replace(/[’']s(?=\s|$)/gi, "").split(/\s+/)) {
     if (SEASON_TOKEN.test(piece)) out.push(piece.replace(/[–/]/, "-"));
     else if (piece === "&") out.push("&");
     else if (/^\d+%$/.test(piece) || piece === "%") out.push(...normalize(piece).split(" ").filter(Boolean), "%");
@@ -104,7 +105,7 @@ export function tokens(q: string): string[] {
 
 /** A name or a word as the word layers compare them: apostrophes dropped first ("Don't" is "dont", as typed either
  *  way), then accents, case and punctuation folded. */
-export const nameKey = (s: string) => normalize(s.replace(/[’']/g, ""));
+export const nameKey = (s: string) => normalize(joinThousands(s).replace(/[’']/g, ""));
 
 let names: { at: number; byName: Map<string, string[]>; list: [string, string][]; whole: Map<string, string> } | null = null;
 export async function teamNames() {
@@ -129,7 +130,8 @@ export async function teamExists(n: string): Promise<boolean> {
 }
 
 /** The teams a run of words names: its full name exactly, or failing that one team whose name starts with those whole
- *  words ("hypnotic" for Hypnotic Robotics, 5+ letters). Several teams of one name are all returned (never one picked). */
+ *  words ("hypnotic" for Hypnotic Robotics, 5+ letters), or the teams it calls by their name's own part ("calamari" for
+ *  Team Calamari: ./query/names.ts teamsCalled). Several teams of one name are all returned (never one picked). */
 export async function teamsNamed(ws: string[]): Promise<string[]> {
   const n = ws.join(" ");
   if (!n || /^\d+$/.test(n)) return [];
@@ -138,10 +140,24 @@ export async function teamsNamed(ws: string[]): Promise<string[]> {
   if (onlyTopicWords(n)) return (byName.get(n) ?? []).filter((x) => whole.get(x) === wholeName(n));
   const exact = byName.get(n);
   if (exact) return exact;
-  // A one-word start of a name needs 6+ letters ("hypnotic"), so a common word ("total") isn't read as a team.
-  if (n.replace(/\s/g, "").length < (ws.length > 1 ? 5 : 6)) return [];
-  const pre = list.filter(([name]) => name === n || name.startsWith(`${n} `));
-  return pre.length === 1 ? [pre[0][1]] : [];
+  // A one-word start of a name needs 6+ letters ("hypnotic"), so a common word ("total") isn't read as a team; a name's
+  // own part has its own floor (four letters).
+  const long = n.replace(/\s/g, "").length >= (ws.length > 1 ? 5 : 6);
+  const pre = long ? list.filter(([name]) => name === n || name.startsWith(`${n} `)) : [];
+  if (pre.length === 1) return [pre[0][1]];
+  return pre.length ? [] : (await pipelineNames()).teamsCalled(n).map((t) => String(t.number));
+}
+
+/** Of the teams sharing a name, the visitor's own team, else the one that played most recently, when only one did (the
+ *  parser's rules, ./query/parse.ts pickShared); else null and the name stays several teams'. */
+async function newestOf(all: string[], prefer: ReadonlySet<string>): Promise<string | null> {
+  const mine = all.filter((n) => prefer.has(`team:${n}`));
+  if (mine.length === 1) return mine[0];
+  const teams = mine.length ? mine : all;
+  const idx = await pipelineNames();
+  const last = teams.map((n) => idx.team(Number(n))?.lastPlayed ?? -1);
+  const top = Math.max(...last);
+  return top >= 0 && last.filter((s) => s === top).length === 1 ? teams[last.indexOf(top)] : null;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -225,7 +241,7 @@ export interface Extracted {
 }
 
 /** Layer 2: the team, intent and scope in a query, whatever their order. */
-export async function extract(q: string): Promise<Extracted> {
+export async function extract(q: string, prefer: ReadonlySet<string> = new Set()): Promise<Extracted> {
   const ts = tokens(q);
   const toks = label(ts);
   const found: Found = { teams: [], extra: new Set() };
@@ -267,6 +283,8 @@ export async function extract(q: string): Promise<Extracted> {
       hit = await teamsNamed(span.map((t) => t.w));
       if (hit.length) { used = { from, to }; break; }
     }
+    const newest = hit.length > 1 ? await newestOf(hit, prefer) : null;
+    if (newest) hit = [newest];
     if (hit.length === 1) {
       named.push(hit[0]);
       // Words taken into the name are the name's own, not filler or an intent.
@@ -485,13 +503,13 @@ function showing(a: SearchAnswer, typed: string, as: string): SearchAnswer {
 type Run = (q: string) => Promise<SearchAnswer>;
 
 /** The answer for a top-level query, through the layers. `run` is the existing reader path (Layer 1). */
-export async function layeredAnswer(typed: string, reader: Run): Promise<SearchAnswer> {
+export async function layeredAnswer(typed: string, reader: Run, prefer: ReadonlySet<string> = new Set()): Promise<SearchAnswer> {
   // A phrasing two layers reach ("what is endgame" is its own canonical form) is read once.
   const seen = new Map<string, Promise<SearchAnswer>>();
   const run: Run = (q) => { const k = q; if (!seen.has(k)) seen.set(k, reader(q)); return seen.get(k)!; };
   const layers: LayerId[] = ["normalize"];
   const q0 = normalizeQuery(typed);
-  const x0 = await extract(q0);
+  const x0 = await extract(q0, prefer);
   const asked = { team: x0.teams.length > 0 || !!x0.found.place || !!x0.found.event, intent: x0.intents.length > 0 || x0.weak.length > 0 || x0.found.extra.has("versus") };
   const strip = await stripFiller(q0);
   const normalized = strip.q.toLowerCase();
@@ -538,7 +556,7 @@ export async function layeredAnswer(typed: string, reader: Run): Promise<SearchA
     const lf = longForm(q0);
     if (!lf) return null;
     layers.push("longform");
-    const xl = await extract(lf);
+    const xl = await extract(lf, prefer);
     if (template) { const a = await run(lf); if (direct(a)) return done(showing(a, typed, lf), "longform", xl); }
     const kl = await keywordTry(lf, xl, "longform", xl.dropped);
     return kl && direct(kl) ? kl : null;
@@ -582,8 +600,8 @@ export async function layeredAnswer(typed: string, reader: Run): Promise<SearchA
   const p = paraphrase(q0);
   if (p.used.length) {
     layers.push("paraphrase");
-    if (template) { const a = await run(p.q); if (ok(a)) return done(showing(a, typed, p.q), "paraphrase", await extract(p.q)); }
-    const xp = await extract(p.q);
+    if (template) { const a = await run(p.q); if (ok(a)) return done(showing(a, typed, p.q), "paraphrase", await extract(p.q, prefer)); }
+    const xp = await extract(p.q, prefer);
     const kp = await keywordTry(p.q, xp, "paraphrase", xp.dropped);
     if (kp) return kp;
   }
@@ -591,13 +609,13 @@ export async function layeredAnswer(typed: string, reader: Run): Promise<SearchA
   const s = await stripFiller(p.used.length ? p.q : q0);
   if (s.dropped.length) {
     layers.push("filler");
-    if (template) { const a = await run(s.q); if (ok(a)) return done(showing(a, typed, s.q), "filler", await extract(s.q), "answered", s.dropped); }
-    const xs = await extract(s.q);
+    if (template) { const a = await run(s.q); if (ok(a)) return done(showing(a, typed, s.q), "filler", await extract(s.q, prefer), "answered", s.dropped); }
+    const xs = await extract(s.q, prefer);
     const ks = await keywordTry(s.q, xs, "filler", [...s.dropped, ...xs.dropped]);
     if (ks) return ks;
   }
   // Layer 5: a weak signal pointing at one intent.
-  const xw = p.used.length ? await extract(p.q) : x0;
+  const xw = p.used.length ? await extract(p.q, prefer) : x0;
   const weakIt = xw.weak.length === 1 ? INTENTS.find((i) => i.id === xw.weak[0])! : null;
   // Scope the weak word's intent can't take blocks it, as for a strong one ("12345 based 2024-25" isn't the listing).
   const fits = (it: Intent, f: Found) => (!f.season || it.scope.includes("season")) && (!f.place || it.scope.includes("place")) && (!f.event || it.scope.includes("event"));
