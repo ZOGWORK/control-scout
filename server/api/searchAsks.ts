@@ -27,11 +27,11 @@ import { teamPageSql } from "../../src/shared/teamPages.js";
 import { CURRENT_SEASON, FIRST_PREDICT_SEASON, isLegacy } from "../data/seasons.js";
 import { all } from "../db.js";
 import { rankings } from "./rankings.js";
-import { searchSeason } from "./answers/season.js";
 import { search } from "./search.js";
 import { fuzzyScore } from "./fuzzy.js";
 import { PHASE_COLS, tableOf } from "./teamTableRows.js";
 import { eventHit, localTodays, searchToday } from "./searchEvents.js";
+import { seasonOfDate } from "./query/time.js";
 import { namedTeam, versusAnswer } from "./searchCompare.js";
 import { eventChampions } from "./answers/families/winners.js";
 import { NO_MATCH_TYPES } from "./events.js";
@@ -48,7 +48,10 @@ export type Ask =
   | { kind: "event-won"; event: string }
   | { kind: "how" }
   /** How to get a call for any lineup, or whether it updates as the lineup changes: Predict's Custom matchup. */
-  | { kind: "predict-lineup" }
+  | { kind: "predict-lineup";
+      /** Said with no forecast word: "change", a lineup changed and nothing more asked; "partner", which partner is
+       *  best once it changes. Absent: a yes-or-no question about the forecast ("does the win chance update"). */
+      say?: "change" | "partner" }
   /** Which predictions can be picked out: Predict's Scheduled matches, by team or event. */
   | { kind: "predict-filter" }
   /** One team's predictions page ("12345 prediction settings"): its matches in Predict. */
@@ -59,7 +62,11 @@ export type Ask =
 /** Words for a forecast, in a question about Predict itself. */
 const FORECAST_WORDS = /\b(?:predict|predicts|predicted|prediction|predictions|forecasts?|odds|win (?:probabilit(?:y|ies)|chances?)|who (?:would|will) win)\b/;
 /** A lineup someone makes up, or changes. */
-const OWN_LINEUP = /\b(?:teams? (?:i|you|we) (?:pick|choose|select|want)|(?:my|our) own teams|any teams|custom (?:match(?:up)?|lineup|alliances?)|hypothetical|change (?:the |an |my |our )?(?:alliances?|teams|lineup|partners?)|swap(?:ping)? (?:the )?teams|(?:has ?n['’]?t|has not|have ?n['’]?t|have not|not) (?:happened|been played|played)(?: yet)?)\b/;
+const OWN_LINEUP = /\b(?:teams? (?:i|you|we) (?:pick|choose|select|want)|(?:my|our) own teams|any teams|custom (?:match(?:up)?|lineup|alliances?)|hypothetical|(?:chang(?:e|ing)|switch(?:ing)?|swap(?:ping)?) (?:the |an |my |our )?(?:alliances?|teams?|lineup|partners?)|(?:has ?n['’]?t|has not|have ?n['’]?t|have not|not) (?:happened|been played|played)(?: yet)?)\b/;
+/** A supposition's opener: "if I", "what if we", "suppose you". */
+const HYPO_CHANGE = /\b(?:what if|if|suppose|supposing|when) (?:i|we|you)\b/g;
+/** Which partner is best, asked of no team in particular. */
+const BEST_PARTNER = /^(?:(?:who|whos|who['’]s|which team|which)(?: is| has| would be| will be| makes| would make| is the)?\s+)?(?:the\s+)?(?:best|strongest|top)\s+(?:alliance\s+)?(?:partner|partners|pick|teammate)(?:\s+(?:be|is|would be))?$/;
 
 const STAT_LABEL: Record<Stat, string> = { opr: "Highest OPR", auto: "Best auto (auto OPR)", teleop: "Best teleop (teleop OPR)", endgame: "Best endgame (endgame OPR)", wins: "Most wins" };
 const STAT_COLUMN: Record<Stat, string> = { opr: "s.opr_np", auto: "s.opr_auto", teleop: "s.opr_teleop", endgame: "s.opr_endgame", wins: "s.wins" };
@@ -77,7 +84,7 @@ const AWARD_NAME: Record<string, string> = { JudgesChoice: "Judges' Choice", Dea
 const regionWords = (s: string): Region | null => regionOf(s.trim().replace(/^(?:the )?(?:state of )?/i, "").split(/\s+/).filter(Boolean));
 
 /** Words that only say "everyone, this season": a leaderboard's scope is the world's unless a place is named. */
-const SCOPE_WORDS = /(?:^| )(?:right now|currently|now|today|this season|this year|in the (?:whole )?world|of the world|worldwide|globally|overall|of all time|all time|of all|ever)(?= |$)/g;
+const SCOPE_WORDS = /(?:^| )(?:right now|rn|atm|at the moment|currently|now|today|this season|this year|in the (?:whole )?world|of the world|worldwide|globally|overall|of all time|all time|of all|ever)(?= |$)/g;
 
 /** "What is the best FTC team right now" → "best team", "best teleop in FTC in the world" → "best teleop": the opener,
  *  "FTC" and the scope words say nothing about which teams. */
@@ -92,6 +99,23 @@ function leaderWords(t: string): { t: string; opened: boolean } {
 /** The stat a word names: "auto"/"autonomous", "teleop"/"tele op"/"driver"/"driver controlled", "endgame", "opr", "wins". */
 const statOf = (w: string): Stat => (w = w.replace(/\s+/g, ""), w.startsWith("auto") ? "auto" : w.startsWith("tele") || w.startsWith("driver") ? "teleop" : w.startsWith("end") ? "endgame" : w === "wins" ? "wins" : "opr");
 
+/** The season an asked board reads with none said, as the query pipeline reads one (./query/execute.ts): the current
+ *  season, so "best in NJ right now" and "best teams in NJ" agree whichever reader answers. */
+export const askSeason = (now = Date.now()): number => seasonOfDate(searchToday(now));
+
+/** `read` for the current season, then the season before when the current one has nothing yet (the pipeline's own
+ *  step, ./query/relax.ts defaultSteps). */
+async function currentFirst<T>(read: (season: number) => Promise<T>, empty: (t: T) => boolean): Promise<{ season: number; got: T; skipped: number | null }> {
+  const season = askSeason();
+  const got = await read(season);
+  if (!empty(got)) return { season, got, skipped: null };
+  const before = await read(season - 1);
+  return empty(before) ? { season, got, skipped: null } : { season: season - 1, got: before, skipped: season };
+}
+/** Why an asked board shows the season before `skipped`, in the pipeline's own words (./query/relax.ts defaultSteps),
+ *  or "" when it shows the current one. */
+const fellBack = (skipped: number | null, where: string) => skipped == null ? "" : ` (No ${seasonLabel(skipped)} ranked teams yet${where}; showing ${seasonLabel(skipped - 1)})`;
+
 /** The question `q` asks of a view, or null. `q` is cleaned (no punctuation), any case. */
 export function readAsk(q: string): Ask | null {
   const t = q.trim().toLowerCase().replace(/\s+/g, " ");
@@ -104,6 +128,13 @@ export function readAsk(q: string): Ask | null {
   if (!/\d/.test(t) && FORECAST_WORDS.test(t)) {
     if (OWN_LINEUP.test(t)) return { kind: "predict-lineup" };
     if (/\b(?:filter|filtered|filtering|sort|sorted|narrow|narrowed)\b/.test(t)) return { kind: "predict-filter" };
+  }
+  // A lineup changed in a supposition, with no forecast word and no team ("if I change the alliance", "who's the best
+  // partner if we swap teams"): what Custom matchup is for. Anything else asked of it is left to the other readers.
+  if (!/\d/.test(t) && new RegExp(HYPO_CHANGE.source).test(t) && OWN_LINEUP.test(t)) {
+    const rest = t.replace(HYPO_CHANGE, " ").replace(OWN_LINEUP, " ").replace(/[?.!,]/g, " ").replace(/\s+/g, " ").trim();
+    if (!rest) return { kind: "predict-lineup", say: "change" };
+    if (BEST_PARTNER.test(rest)) return { kind: "predict-lineup", say: "partner" };
   }
   // The day's predictions everywhere, said with nothing else: any other scope ("in New Jersey", "at worlds", "playoff",
   // a team) asks for a filter this list doesn't apply, so the whole question must be the day and its matches, and
@@ -118,7 +149,8 @@ export function readAsk(q: string): Ask | null {
   // Leaderboards: the world's ("best team", "what is the best FTC team right now") or a place's.
   const lw = leaderWords(t);
   if (/^(?:the )?(?:top|best|highest(?: |-)ranked|strongest|number one|no 1|1)(?: \d+)? (?:teams?|robots?)$/.test(lw.t) || (lw.opened && /^(?:best|top|strongest|number one)$/.test(lw.t))) return { kind: "leaderboard", region: null };
-  let m = /^(?:the )?(?:top|best|highest(?: |-)ranked|strongest)(?: \d+)? (?:teams?|robots?)(?: in| from| of)? (.+)$/.exec(lw.t);
+  // "The best in NJ": the team word can go unsaid before a place, since only a team is "the best in" a region.
+  let m = /^(?:the )?(?:top|best|highest(?: |-)ranked|strongest)(?: \d+)?(?: (?:teams?|robots?)(?: in| from| of)?| in| from| of) (.+)$/.exec(lw.t);
   if (m) { const region = regionIn(m[1]); if (region) return { kind: "leaderboard", region }; }
   m = /^(.+?) (?:rankings?|standings|leaderboard|top teams|best teams?)$/.exec(lw.t);
   if (m) { const region = regionIn(m[1]); if (region) return { kind: "leaderboard", region }; }
@@ -246,7 +278,11 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
 
     case "predict-lineup":
       return answer(q, { hits: [], pages: withPage(q, [{ title: "Predict: Custom matchup", href: predictHref({ mode: "match" }) }]),
-        understood: { kind: "question", label: "Yes: Predict's Custom matchup takes any teams on each alliance. After changing them, press Predict this match for the new win chance and predicted score" } });
+        understood: { kind: "question", label: ask.say === "partner"
+          ? "Try each partner in Predict's Custom matchup: put your team and one partner on an alliance, press Predict this match, and the partner with the highest win chance is the best one for that lineup"
+          : ask.say === "change"
+            ? "Predict's Custom matchup takes any teams on each alliance: change them and press Predict this match for the new win chance and predicted score"
+            : "Yes: Predict's Custom matchup takes any teams on each alliance. After changing them, press Predict this match for the new win chance and predicted score" } });
 
     case "predict-filter":
       return answer(q, { hits: [], pages: withPage(q, [{ title: "Predict: Scheduled matches", href: predictHref({ mode: "scheduled" }) }]),
@@ -297,41 +333,39 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
     }
 
     case "leaderboard": {
-      const season = searchSeason();
       if (!ask.region) {
-        const r = await rankings({ season, week: null, places: [], page: 1 });
+        const { season, got: r, skipped } = await currentFirst((s) => rankings({ season: s, week: null, places: [], page: 1 }), (x) => !x.rows.length);
         const lines = r.rows.slice(0, 5).map((row) => teamLine(row.team, row.name, [`#${row.rank} worldwide`]));
         const title = `Top teams · ${seasonLabel(season)}`;
         return answer(q, {
           hits: [], pages: withPage(q, [{ title: `World rankings (${r.total} teams)`, href: `/rankings?season=${season}` }]),
           card: { kind: "leaderboard", title, lines, ...(lines.length ? {} : { none: `No ranked teams for ${seasonLabel(season)} yet.` }) },
-          understood: { kind: "question", label: `${title}: the world rankings`, season },
+          understood: { kind: "question", label: `${title}: the world rankings${fellBack(skipped, "")}`, season },
         });
       }
       const region = ask.region;
       const place = parsePlaces(region.key)?.[0];
       if (!place) return null;
-      const r = await rankings({ season, week: null, places: [place], page: 1 });
+      const { season, got: r, skipped } = await currentFirst((s) => rankings({ season: s, week: null, places: [place], page: 1 }), (x) => !x.rows.length);
       const lines = r.rows.slice(0, 5).map((row, i) => teamLine(row.team, row.name, [`#${i + 1} in ${region.name}`, `#${row.rank} worldwide`]));
       const href = `/rankings?season=${season}&region=${encodeURIComponent(ask.region.key)}`;
       const title = `Top teams in ${ask.region.name} · ${seasonLabel(season)}`;
       return answer(q, {
         hits: [], pages: withPage(q, [{ title: `${ask.region.name} rankings (${r.total} teams)`, href }]),
         card: { kind: "leaderboard", title, lines, ...(lines.length ? {} : { none: `No ranked teams in ${ask.region.name} for ${seasonLabel(season)} yet.` }) },
-        understood: { kind: "question", label: `${title}: the region's rankings`, place: { key: ask.region.key, name: ask.region.name }, season },
+        understood: { kind: "question", label: `${title}: the region's rankings${fellBack(skipped, ` in ${ask.region.name}`)}`, place: { key: ask.region.key, name: ask.region.name }, season },
       });
     }
 
     case "stat": {
-      const season = searchSeason();
       const where = ask.region ? " AND t.country = ? AND t.state = ?" : "";
       const col = STAT_COLUMN[ask.stat];
-      const rows = await all<any>(
+      const { season, got: rows, skipped } = await currentFirst((season) => all<any>(
         `SELECT s.team, t.name, t.city, t.state, t.country, s.opr_np, ${PHASE_COLS}, s.wins, s.losses, s.ties
          FROM team_season_stats s JOIN teams t ON t.number = s.team
          WHERE s.season = ? AND s.matches >= ? AND ${col} IS NOT NULL AND ${teamPageSql("s.team", "t.name")}${where}
          ORDER BY ${col} DESC${ask.stat === "wins" ? ", s.losses ASC" : ""}, s.team LIMIT 5`,
-        [season, RANKED_MIN_MATCHES, ...(ask.region ? [ask.region.country, ask.region.state] : [])]);
+        [season, RANKED_MIN_MATCHES, ...(ask.region ? [ask.region.country, ask.region.state] : [])]), (x) => !x.length);
       const value = (r: any) => ask.stat === "wins" ? `${r.wins}-${r.losses}-${r.ties}` : `${STAT_LABEL[ask.stat].replace(/^.*\((.+)\)$/, "$1").replace(/^Highest /, "")} ${fmt(r[col.slice(2)])}`;
       const lines = rows.map((r) => teamLine(Number(r.team), r.name, [value(r)], [r.city, r.state].filter(Boolean).join(", ")));
       const title = `${STAT_LABEL[ask.stat]}${ask.region ? ` in ${ask.region.name}` : ""} · ${seasonLabel(season)}`;
@@ -339,7 +373,7 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
         hits: [], pages: withPage(q, [{ title: "Rankings", href: `/rankings?season=${season}${ask.region ? `&region=${encodeURIComponent(ask.region.key)}` : ""}` }]),
         // The same teams as a table, sorted by the stat asked (most wins: the list's own order, its record a column).
         card: { kind: "leaderboard", title, lines, ...(lines.length ? { table: tableOf(rows, season, ({ opr: "opr", auto: "auto", teleop: "dc", endgame: "endgame", wins: "rank" } as const)[ask.stat]) } : { none: `No team has played ${RANKED_MIN_MATCHES}+ matches in ${seasonLabel(season)} yet.` }) },
-        understood: { kind: "question", label: `${title}${ask.stat === "wins" ? "" : ", without penalties"}`, season, ...(ask.region ? { place: { key: ask.region.key, name: ask.region.name } } : {}) },
+        understood: { kind: "question", label: `${title}${ask.stat === "wins" ? "" : ", without penalties"}${fellBack(skipped, ask.region ? ` in ${ask.region.name}` : "")}`, season, ...(ask.region ? { place: { key: ask.region.key, name: ask.region.name } } : {}) },
       });
     }
 

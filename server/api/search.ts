@@ -254,7 +254,8 @@ async function searchWords(q: string, limit: number, prefer: ReadonlySet<string>
     .filter((x) => x.s >= 0.6)
     // Your own teams/events win ties and near-ties, never beat a much better match.
     .map((x) => (prefer.has(`${x.c.kind}:${x.c.ref}`) ? { ...x, s: x.s + 0.1 } : x))
-    .sort((a, b) => b.s - a.s || b.c.weight - a.c.weight || (b.c.season ?? 0) - (a.c.season ?? 0) || a.c.title.localeCompare(b.c.title));
+    // On an equal score, the name spelled exactly as typed ("roborebels" is RoboRebels before Robo Rebels).
+    .sort((a, b) => b.s - a.s || asTyped(q, query, b.c.title) - asTyped(q, query, a.c.title) || b.c.weight - a.c.weight || (b.c.season ?? 0) - (a.c.season ?? 0) || a.c.title.localeCompare(b.c.title));
   for (const { c } of ranked) push({ kind: c.kind, ref: c.ref, title: c.title, subtitle: c.subtitle, season: c.season });
   // Short typos can share no trigram with the right word ("dirve" vs "drive"):
   // when the index didn't find enough, scan the names in memory (bounded edit
@@ -283,6 +284,13 @@ async function searchWords(q: string, limit: number, prefer: ReadonlySet<string>
   }
   return newestSeasons(out, query).slice(0, limit);
 }
+
+/** 2 when a hit's name is the query exactly as typed ("the king robotics" is The King Robotics), 1 when it's the query
+ *  with search's small words taken out (`cleaned`), else 0. Case aside; a team's "<number> | " before it left out. */
+const asTyped = (typed: string, cleaned: string, title: string) => {
+  const name = title.replace(/^\d+\s*\|\s*/, "").trim().toLowerCase();
+  return name === typed.trim().toLowerCase() ? 2 : name === cleaned.trim().toLowerCase() ? 1 : 0;
+};
 
 /** An event code comes back every season (USNJCMP 2023, 2024, …): keep its newest season unless a year was typed. */
 function newestSeasons(hits: SearchHit[], query: string): SearchHit[] {
@@ -400,9 +408,10 @@ export const warmTypoIndex = async (): Promise<void> => { await fuzzyIndex(); };
 /** What the search index holds and how (server/stats/job.ts rebuildSearch): raised when that changes, so a server
  *  running the new code rebuilds the index once instead of waiting for the next stats run.
  *  2: team titles as "18061 | Simply Complex" (number and name each once). 3: events' venues are searchable words.
- *  4: events' initialisms ("mti", ./query/initialisms.ts) are searchable words. 5: a name written with thousands
- *  separators ("1,000 Lakes") is searchable as one number too ("1000 lakes"). */
-export const SEARCH_INDEX_SCHEMA = 5;
+ *  4: events' initialisms ("mti", ./query/initialisms.ts) are searchable words. 5: a team name's dotted initials as the
+ *  word they spell ("I.C.E." as "ice", ./query/names.ts joinDotted).
+ *  6: a name written with thousands separators ("1,000 Lakes") is searchable as one number too ("1000 lakes"). */
+export const SEARCH_INDEX_SCHEMA = 6;
 
 /**
  * A database upgraded to migration 4 has an empty typo index until the next

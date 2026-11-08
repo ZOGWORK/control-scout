@@ -91,6 +91,8 @@ describe("reading compound questions", () => {
     expect(readCompound("did 4215 ever beat a team ranked top 10 worldwide")).toMatchObject({ kind: "beat-top", n: 10, by: "rating", when: { ever: true } });
     expect(readCompound("4215's best event by rank and worst event by opr in same season")).toMatchObject({ kind: "event-picks", picks: [{ pick: "best", by: "rank" }, { pick: "worst", by: "opr" }] });
     expect(readCompound("team in NJ that went to worlds in 2025 and their opr")).toMatchObject({ kind: "list", region: { state: "NJ" }, worlds: true, season: 2024, outputs: ["opr"] });
+    // "How many" before the teams asks for the same list, which leads with its count (failed-search #1062).
+    for (const q of ["how many NJ team went to worlds in 2025", "how many team in NJ went to worlds in 2025"]) expect(readCompound(q), q).toMatchObject({ kind: "list", region: { state: "NJ" }, worlds: true, season: 2024 });
     expect(readCompound("4215 vs 6980 vs 33950 which has highest reliability")).toMatchObject({ kind: "set-best", teams: [4215, 6980, 33950], stat: "reliability" });
     expect(readCompound("what is 4215's average score when they win versus when they lose")).toMatchObject({ kind: "win-loss-average", core: "4215" });
     expect(readCompound("4215 opr if you exclude their worst event")).toMatchObject({ kind: "opr-excluding", core: "4215", drop: "worst" });
@@ -218,6 +220,83 @@ describe("compound answers", () => {
     const a = await ask("4215 opr if you exclude their worst event");
     expect(a.stat?.headline).toMatchObject({ value: "83.7", sub: expect.stringMatching(/^75\.3 with all 4 events · worst event Northern League Meet 1 \(50\.0\)/) });
     expect((a.stat?.blocks[0] as any).items.find((i: any) => /Season OPR/.test(i.label))?.value).toBe("101.6");
+  });
+});
+
+// Failed search #974, in its own words and the other way round: the best teams at one event, Worlds or a state's
+// championship, by each team's OPR there.
+describe("the best teams at an event", () => {
+  const rows = (a: Awaited<ReturnType<typeof ask>>) => (a.stat?.blocks.find((b) => b.kind === "leaderboard") as any)?.rows.map((r: any) => [r.team.label.split(" ")[0], r.display]) ?? [];
+  it("ranks an event's teams (its divisions' too) by their OPR there", async () => {
+    for (const q of ["new jersey championship best teams", "top teams at the new jersey championship"]) {
+      const a = await ask(q);
+      expect(a.stat, q).toMatchObject({ intent: "event-best", title: `Best teams at New Jersey Championship by OPR there · ${S}–${String(S + 1).slice(2)}` });
+      // The page's heading is the card's title less its season, so the page says it once.
+      expect(a.understood?.label, q).toBe("Best teams at New Jersey Championship by OPR there");
+      // 207, 4215 and 6980 have an OPR in its Parkway division; the rest played there with none, so aren't ranked.
+      expect(rows(a), q).toEqual([["207", "114.0"], ["4215", "101.0"], ["6980", "46.0"]]);
+      // Records there by the official rule: every match played at the event.
+      const recs = (a.stat?.blocks.find((b) => b.kind === "leaderboard") as any).rows.map((r: any) => r.record);
+      expect(recs, q).toEqual(["2-0-0", "1-1-0", "0-2-0"]);
+    }
+  });
+  it("ranks one division named alone, linked to it", async () => {
+    // The fixture's Worlds has a division only: its board is that division's, never its parent's.
+    const a = await ask("top teams at the edison division");
+    expect(a.stat?.title).toMatch(/^Best teams at .*Edison.* by OPR there/);
+    expect(rows(a)).toEqual([["4215", "60.0"]]);
+    const more = (a.stat?.blocks.find((b) => b.kind === "leaderboard") as any).more;
+    expect(more.href).toContain("FTCCMP1EDIS");
+  });
+  it("leaves the lowest first, undefeated teams and OPR said not to go by to search", async () => {
+    for (const q of ["lowest opr teams at the new jersey championship", "undefeated teams at the new jersey championship", "best teams at the new jersey championship not by opr"]) {
+      expect((await ask(q)).stat?.intent, q).not.toBe("event-best");
+    }
+  });
+  it("lists an event's rookie teams, those in their first season (failed-search #995)", async () => {
+    await run("UPDATE teams SET rookie_year = ? WHERE number = 6980", [S]);
+    await run("UPDATE teams SET rookie_year = 2010 WHERE number IN (207, 4215)");
+    try {
+      for (const q of ["rookie teams at the new jersey championship", "top rookie teams at nj states", "first year teams at the new jersey championship"]) {
+        const a = await ask(q);
+        expect(a.stat?.title, q).toMatch(/^Rookie teams at New Jersey Championship by OPR there/);
+        expect(rows(a), q).toEqual([["6980", "46.0"]]);
+      }
+      // Rookies anywhere but an event aren't this board, never a board with the word dropped.
+      expect((await ask("top rookie teams by auto opr in texas")).stat?.intent).not.toBe("top-teams");
+    } finally {
+      await run("UPDATE teams SET rookie_year = NULL WHERE number IN (207, 4215, 6980)");
+    }
+  });
+  it("reads Worlds and a state's championship as their events", async () => {
+    expect(rows(await ask(`best teams at worlds ${S + 1}`))).toEqual([["4215", "60.0"]]);
+    expect((await ask("best teams at nj states")).stat?.title).toMatch(/^Best teams at New Jersey Championship by OPR there/);
+  });
+  it("reads a state with a championship word as its championship, and the ones worth watching as the best", async () => {
+    // Teams to scout are the ones worth watching, and an aside saying "the good ones" again is read past (#900, #921).
+    for (const q of ["teams worth watching at the nj championship", "which teams should we watch at new jersey champs", "who should we watch at the new jersey championship", "who to watch at nj states",
+      "what team should i watch at nj champs, like actually good ones", "whats a good team to scout for alliance selection at nj championship", "which teams should i scout at nj states"]) {
+      expect((await ask(q)).stat?.title, q).toMatch(/^Best teams at New Jersey Championship by OPR there/);
+    }
+  });
+  it("lists only the teams from a place said with Worlds", async () => {
+    await run("INSERT INTO event_teams (season, code, team) VALUES (?, 'FTCCMP1EDIS', 1111)", [S]);
+    await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (?, 'FTCCMP1EDIS', 1111, 300, 2)", [S]);
+    try {
+      expect(rows(await ask(`best teams at worlds ${S + 1}`))).toEqual([["1111", "300.0"], ["4215", "60.0"]]);
+      const nj = await ask(`new jersey teams at worlds ${S + 1}`);
+      expect(nj.stat?.title).toMatch(/^New Jersey teams at Worlds \d+ by OPR there/);
+      expect(nj.understood?.label).toBe(nj.stat?.title.replace(/ · [^·]+$/, ""));
+      expect(rows(nj)).toEqual([["4215", "60.0"]]);
+      expect(rows(await ask(`texas teams at worlds ${S + 1}`))).toEqual([["1111", "300.0"]]);
+      // Played: a place whose teams have no OPR there is ranked by the event's own numbers, so none is ranked.
+      await run("DELETE FROM team_event_stats WHERE code = 'FTCCMP1EDIS' AND team = 1111");
+      const tx = await ask(`texas teams at worlds ${S + 1}`);
+      expect(tx.stat?.title).toMatch(/^Texas teams at Worlds \d+ by OPR there/);
+      expect(rows(tx)).toEqual([]);
+    } finally {
+      await run("DELETE FROM team_event_stats WHERE code = 'FTCCMP1EDIS' AND team = 1111"); await run("DELETE FROM event_teams WHERE code = 'FTCCMP1EDIS' AND team = 1111");
+    }
   });
 });
 

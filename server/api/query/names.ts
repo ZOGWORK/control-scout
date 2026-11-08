@@ -36,6 +36,9 @@ export interface Names {
 /** Lower case, accents and punctuation dropped, single spaces: how names are compared. */
 export const fold = (s: string): string => joinThousands(s).normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/['’]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
 
+/** Initials written with dots joined into the word they spell: "I.C.E. Robotics" → "ICE Robotics". */
+export const joinDotted = (s: string): string => s.replace(/(?<![\p{L}\p{N}])(?:\p{L}\.){2,}(?:\p{L}(?![\p{L}\p{N}]))?/gu, (m) => m.replace(/\./g, ""));
+
 interface Row { number: number; name: string | null; city: string | null; state: string | null; country: string | null; lastPlayed?: number | null }
 
 /** The index for these rows (tests build one from fixtures). */
@@ -43,18 +46,26 @@ export function buildNames(teams: Row[], places: { city: string | null; state: s
   const byNumber = new Map<number, TeamName>(), byName = new Map<string, TeamName[]>();
   let longest = 1;
   /** Folded names by length, for the near-miss look-up. */
-  const byLength = new Map<number, string[]>();
+  const byLength = new Map<number, string[]>(), lengthed = new Set<string>();
   for (const t of teams) {
     const tn: TeamName = { number: Number(t.number), name: t.name, city: t.city, state: t.state, country: t.country, lastPlayed: t.lastPlayed == null ? null : Number(t.lastPlayed) };
     byNumber.set(tn.number, tn);
     const k = fold(t.name ?? "");
     if (!k) continue;
-    if (!byName.has(k)) (byLength.get(k.length) ?? byLength.set(k.length, []).get(k.length)!).push(k);
+    // byLength holds stored names only, tracked apart from byName (which holds the names as typed too): an alias
+    // read first must never keep another team's own name out of the near-miss look-up.
+    if (!lengthed.has(k)) { lengthed.add(k); (byLength.get(k.length) ?? byLength.set(k.length, []).get(k.length)!).push(k); }
     (byName.get(k) ?? byName.set(k, []).get(k)!).push(tn);
     longest = Math.max(longest, k.split(" ").length);
-    // The name as a query reads it, its possessive "'s" dropped ("The King's School" → "the king school"), too.
-    const said = fold((t.name ?? "").replace(/(?<=[\p{L}\p{N}])['’]s\b/giu, ""));
-    if (said && said !== k && !byName.get(said)?.includes(tn)) (byName.get(said) ?? byName.set(said, []).get(said)!).push(tn);
+    // The name as a query reads it, its possessive "'s" dropped ("The King's School" → "the king school"), too. And
+    // initials written with dots as the word they spell ("I.C.E. Robotics" is "ice robotics"), possessive dropped or not.
+    const plain = (t.name ?? "").replace(/(?<=[\p{L}\p{N}])['’]s\b/giu, "");
+    for (const said of [fold(plain), fold(joinDotted(t.name ?? "")), fold(joinDotted(plain))]) {
+      if (said && said !== k && !byName.get(said)?.includes(tn)) (byName.get(said) ?? byName.set(said, []).get(said)!).push(tn);
+    }
+    // The dotted name as its word is a name people type, so a near miss of it is looked up too ("ice robotcs").
+    const word = fold(joinDotted(t.name ?? ""));
+    if (word !== k && !lengthed.has(word)) { lengthed.add(word); (byLength.get(word.length) ?? byLength.set(word.length, []).get(word.length)!).push(word); }
   }
   // A town is known with the region (or country) it's in; the same town name in two regions stays ambiguous.
   const towns = new Map<string, Map<string, { country: string; state: string | null; city: string }>>();
@@ -90,7 +101,8 @@ export function buildNames(teams: Row[], places: { city: string | null; state: s
           if (d < best) { best = d; found = [k]; } else if (d === best) found.push(k);
         }
       }
-      const teams = found.length === 1 ? byName.get(found[0]) ?? [] : [];
+      // Spellings that tie may be one team's ("a b c robotics" and "abc robotics"): one team is the answer, two never.
+      const teams = [...new Set(found.flatMap((k) => byName.get(k) ?? []))];
       return teams.length === 1 ? teams[0] : null;
     },
     longest,

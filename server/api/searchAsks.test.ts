@@ -1,11 +1,12 @@
 // Questions routed to the view that answers them (server/api/searchAsks.ts): the FTC One Search brief's Requirement 11
 // and test 16. Every number is from the fixture; every link is a real route.
-import { beforeAll, describe, expect, it } from "vitest";
-import { migrate, openDb, run, setDb } from "../db";
+import { beforeAll, describe, expect, it, vi } from "vitest";
+import { kvSet, migrate, openDb, run, setDb } from "../db";
 import { rebuildSearch } from "../stats/job";
 import { searchSeason } from "./answers/season";
 import { searchAnswer } from "./searchAnswer";
-import { askAnswer, eventWon, readAsk, type Stat } from "./searchAsks";
+import { askAnswer, askSeason, eventWon, readAsk, type Stat } from "./searchAsks";
+import { seasonLabel } from "../../src/shared/format";
 import { readStatQuestion } from "./answers/read";
 import { pageMeta } from "../seoMeta";
 import { awardQuery } from "./searchCoverage";
@@ -49,6 +50,10 @@ describe("reading", () => {
     expect(readAsk("top teams in new jersey")).toMatchObject({ kind: "leaderboard", region: { key: "USA:NJ" } });
     expect(readAsk("nj rankings")).toMatchObject({ kind: "leaderboard" });
     expect(readAsk("best team in nj")).toMatchObject({ kind: "leaderboard" });
+    // The team word unsaid before a place, and short words for "this season".
+    for (const q of ["top in texas atm", "the strongest in GA right now", "best from ohio rn", "top 5 in new jersey currently"])
+      expect(readAsk(q), q).toMatchObject({ kind: "leaderboard", region: { key: expect.stringMatching(/^USA:/) } });
+    for (const q of ["best in show", "best in class", "top of the hour"]) expect(readAsk(q), q).toBeNull();
     expect(readAsk("highest opr")).toEqual({ kind: "stat", stat: "opr", region: null });
     expect(readAsk("best auto team")).toEqual({ kind: "stat", stat: "auto", region: null });
     expect(readAsk("who has the most wins")).toEqual({ kind: "stat", stat: "wins", region: null });
@@ -76,7 +81,7 @@ describe("test 16: each intent returns its stated surface", () => {
     expect(a.card!.none).toMatch(/No upcoming match is scheduled/);
   });
   it("top teams in New Jersey (and NJ rankings, best team in NJ): the region's ranking, linked", async () => {
-    for (const q of ["top teams in New Jersey", "NJ rankings", "best team in NJ"]) {
+    for (const q of ["top teams in New Jersey", "NJ rankings", "best team in NJ", "the strongest in New Jersey atm"]) {
       const a = await ask(q);
       expect(teams(a), q).toEqual(["23268 Ultraviolet", "4215 Hypnotic Robotics", "6980 Bad Wolf"]);
       expect(hrefs(a)[0], q).toBe("/rankings?season=2025&region=USA%3ANJ");
@@ -130,6 +135,20 @@ describe("test 16: each intent returns its stated surface", () => {
     expect(filter.understood?.label).toMatch(/not by date/);
     // A team named is that team's question, never Predict's help.
     expect(readAsk("can i filter 4215 predictions")?.kind).not.toBe("predict-filter");
+  });
+  it("a lineup changed in a supposition, with no forecast word: Custom matchup, or which partner is best in it", async () => {
+    for (const q of ["what if we switch the alliance", "suppose you change our partners", "what if we swap our alliance"]) expect(readAsk(q), q).toEqual({ kind: "predict-lineup", say: "change" });
+    for (const q of ["who's the strongest partner if we swap teams", "which team would make the best alliance partner if i switch the alliance", "who is the best partner if you swap the alliances"]) {
+      expect(readAsk(q), q).toEqual({ kind: "predict-lineup", say: "partner" });
+    }
+    // Through the whole search, whatever it rewrites first ("teams" read as "team").
+    const changed = await ask("What if I switch teams?");
+    expect(changed.pages[0]).toEqual({ title: "Predict: Custom matchup", href: "/predict?mode=match" });
+    expect(changed.understood?.label).toMatch(/^Predict's Custom matchup takes any teams on each alliance: change them/);
+    const partner = await ask("who would be the best partner if we change teams");
+    expect(partner.understood?.label).toMatch(/^Try each partner in Predict's Custom matchup/);
+    // Anything else asked, or a team named, is left to the other readers.
+    for (const q of ["if we change the alliance who scores most", "if we change teams does 4215 win"]) expect(readAsk(q)?.kind, q).not.toBe("predict-lineup");
   });
   it("a team's predictions page: its matches in Predict; a day's calls: that day's events", async () => {
     // A name is read only for a team that has played: this test's own played row, whatever ran before it.
@@ -335,6 +354,13 @@ describe("who won an event (owner: \"who won nj states\")", () => {
       expect(a.stat?.title, q).not.toBe(a.understood?.label);
       expect(a.stat?.headline?.value, q).toBe("23268 Ultraviolet, 6980 Bad Wolf");
       expect(a.stat?.blocks.find((b) => b.kind === "links" && b.title === "Inspire Award"), q).toMatchObject({ items: [{ label: "23268 Ultraviolet" }] });
+    }
+  });
+  it("an event's alliances, however said, are its Playoffs tab, never words of its name", async () => {
+    for (const q of ["nj states alliances", "nj states alliance selection", "alliance selection nj states", "nj states alliance captains"]) {
+      const a = await ask(q);
+      expect(a.understood?.label ?? "", q).toMatch(/^Playoffs · New Jersey Championship/);
+      expect(a.hits.find((h) => h.kind === "event"), q).toMatchObject({ section: "playoffs" });
     }
   });
   it("an event with no results recorded says so plainly", async () => {
@@ -557,5 +583,43 @@ describe("who won a division (owner: \"who won nj turnpike division this year\" 
     await run("DELETE FROM awards WHERE season = 2024 AND code = 'USVTCMP'");
     await run("DELETE FROM events WHERE season = 2024 AND code = 'USVTCMP'");
     await rebuildSearch();
+  });
+});
+
+describe("the season with none said: one question, one season, whichever reader answers", () => {
+  it("reads the current season once anyone is ranked in it, the season before until then", async () => {
+    // The season after the fixture's, whatever today is (Greptile on #1166): only the clock's date is faked.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(`${S + 1}-11-08T12:00:00Z`));
+    const now = askSeason();
+    expect(now).toBe(S + 1);
+    const qs = ["best in New Jersey at the moment", "the strongest in New Jersey rn", "best teams in New Jersey", "top teams in New Jersey"];
+    const seasonOf = (a: Awaited<ReturnType<typeof ask>>) => /· (\d{4}–\d{2})/.exec(a.stat?.title ?? a.card?.title ?? "")?.[1];
+    const read = async () => {
+      const out: string[] = [];
+      for (const q of qs) for (const full of [false, true]) out.push(`${q}${full ? " (page)" : ""}: ${seasonOf(await searchAnswer(q, { limit: 25, learn: false, full }))}`);
+      return out;
+    };
+    // Nobody ranked in the current season yet: every reader shows the one before, and says why.
+    expect(await read()).toEqual(qs.flatMap((q) => [`${q}: ${seasonLabel(S)}`, `${q} (page): ${seasonLabel(S)}`]));
+    // Each one says why: the card's chip, or the short card's own line.
+    const why = (a: Awaited<ReturnType<typeof ask>>) => [a.understood?.label ?? "", ...(a.stat?.scope ?? [])].join(" | ");
+    for (const q of qs) for (const full of [false, true])
+      expect(why(await searchAnswer(q, { limit: 25, learn: false, full })), `${q} ${full}`).toContain(`No ${seasonLabel(now)} ranked teams yet in New Jersey; showing ${seasonLabel(S)}`);
+    // Once a team is ranked in the current season, every reader shows it.
+    await run("INSERT OR IGNORE INTO team_seasons (season, team) VALUES (?, 6980)", [now]);
+    await run(`INSERT OR REPLACE INTO team_season_stats (season, team, opr_np, opr_auto, rank_np, ranked_teams, rating_np, rating_matches, matches, wins, losses, ties)
+      VALUES (?, 6980, 90, 30, 1, 1, 95, 10, 10, 8, 2, 0)`, [now]);
+    // New data, as a sync says it: the rankings' lists are kept by data version.
+    await kvSet("data:version", `season-test-${now}`);
+    try {
+      expect(await read()).toEqual(qs.flatMap((q) => [`${q}: ${seasonLabel(now)}`, `${q} (page): ${seasonLabel(now)}`]));
+      for (const q of qs) expect(why(await searchAnswer(q, { limit: 25, learn: false })), q).not.toContain("ranked teams yet");
+    } finally {
+      await run("DELETE FROM team_season_stats WHERE season = ?", [now]);
+      await run("DELETE FROM team_seasons WHERE season = ?", [now]);
+      await kvSet("data:version", `season-test-${now}-done`);
+      vi.useRealTimers();
+    }
   });
 });

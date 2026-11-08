@@ -20,6 +20,7 @@ import { EventAwardsAnswer } from "../components/search/page/EventAwards";
 import { useSubmittedSearch } from "../components/search/direct";
 import { SearchSkeleton } from "../components/search/SearchSkeleton";
 import { AnswerNotesView, useSearchHits, useSections } from "../components/search/SearchBox";
+import { SeasonPickContext, pickedSeason, type SeasonPick } from "../components/search/page/SeasonPick";
 import { CompareCard, EventCard, HeadToHead, ResultRow, TeamCard, teamSeasons, type SeasonSummary } from "../components/search/page/ResultCards";
 import { NoResults, SorryNote } from "../components/search/page/NoResults";
 import { StatAnswerCard } from "../components/search/page/StatAnswer";
@@ -54,7 +55,15 @@ export default function SearchPage() {
   const [params, setParams] = useSearchParams();
   const q = params.get("q") ?? "";
   const query = q.trim();
-  const { hits, answer, busy, error, retry, logPick, stale, prefer, searchNow, live } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, BOOT_HITS, false);
+  // The season picked on the answer's chip (?in=2024, ../components/search/page/SeasonPick.tsx): the same query asked
+  // about that season. A step Back undoes; the address shares it.
+  const held = useMeta()?.seasons.map((s) => s.season) ?? [];
+  const picked = pickedSeason(params.get("in"), held);
+  const { hits, answer, busy, error, retry, logPick, stale, reseason, prefer, searchNow, live } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, BOOT_HITS, false, picked);
+  const seasonPick = useMemo<SeasonPick>(() => ({
+    picked, pending: reseason,
+    pick: (s) => setParams((p) => { const next = new URLSearchParams(p); next.set("in", String(s)); return next; }),
+  }), [picked, reseason, setParams]);
   const { sections, notes } = useSections(hits, answer, null);
   const ax = answer as AnswerExtra | undefined;
   // The time tab follows the query ("upcoming meets …" opens on Upcoming); a pick of another is kept in the address.
@@ -179,15 +188,16 @@ export default function SearchPage() {
   // The follow-ups (./search/page/FollowUps.tsx), asked once the answer is on screen. A wide screen gives them their own
   // column beside the results, always there with an answer so the results never move when they arrive; a phone has
   // them in the one column, People also ask under the answer and the rest at the end.
-  const follow = useFollowUps(query, prefer, !busy && !stale);
+  const follow = useFollowUps(query, prefer, !busy && !stale, picked);
   const railed = wide && found;
   const side = !!panel || railed;
   // A search on its way (just submitted, or a new one run from here): its loading screen, never older results; and
   // while going on to the one page a submitted query names.
-  if (query && !error && ((busy && (stale || !found)) || leaving)) return <SearchSkeleton query={query} top={phone ? <PhoneSearchBar query={query} /> : null} />;
+  if (query && !error && ((busy && ((stale && !reseason) || !found)) || leaving)) return <SearchSkeleton query={query} top={phone ? <PhoneSearchBar query={query} /> : null} />;
   return (
     // One results column, 640–720px and centred (the search results guide's §9: a line the eye can follow across a
     // card); a page with a side panel keeps that column and puts the panel beside it.
+    <SeasonPickContext.Provider value={seasonPick}>
     <div className={cn("w-full pt-4 sm:pt-8", side ? "max-w-6xl" : "mx-auto max-w-[720px]")} data-results-column={side ? "with-panel" : ""}>
       {/* The feature's name sits above the title; the title names what was found, the badge what the query was read as.
           The query itself lives in the top bar (refine there): the page never repeats it. */}
@@ -262,7 +272,7 @@ export default function SearchPage() {
                       </aside>
                     )}
                     {panel === "versus" && shownH2h && <aside aria-label="Head-to-head" className="max-lg:hidden" data-panel="versus"><HeadToHead h={shownH2h} now={now.data?.teams} before={asked == null ? before.data?.teams : undefined} season={base} /></aside>}
-                    {railed && <FollowUpsRail f={follow} q={query} />}
+                    {railed && <FollowUpsRail f={follow} q={follow.asked ?? query} />}
                   </div>
                 )}
                 <div className="min-w-0 lg:col-start-1 lg:row-start-1">
@@ -307,7 +317,7 @@ export default function SearchPage() {
                   {panel === "versus" && summary}
                   {/* One column: the team's highlights and the related searches, after the results. */}
                   {!railed && <TeamHighlights h={follow.highlights} className="mt-5" />}
-                  {!railed && <RelatedSearches related={follow.related} seeAll={query} className="mt-5" />}
+                  {!railed && <RelatedSearches related={follow.related} seeAll={follow.asked ?? query} className="mt-5" />}
                 </div>
               </div>
             </div>
@@ -329,6 +339,7 @@ export default function SearchPage() {
         <Link to="/how-it-works/search" className="inline-flex items-center font-medium text-foreground underline underline-offset-2 max-md:min-h-[44px] pointer-coarse:min-h-[44px]">How FTC One Search works</Link>
       </p>
     </div>
+    </SeasonPickContext.Provider>
   );
 }
 
