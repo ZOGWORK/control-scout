@@ -5,6 +5,8 @@
 import type { StatFamily } from "../../../src/shared/searchStat.js";
 import { SEASONS } from "../../data/seasons.js";
 import { searchSeason } from "./season.js";
+import { readTime } from "../query/time.js";
+import { searchToday } from "../searchEvents.js";
 import { findRegions, nearRegion, type Region } from "../../../src/shared/regions.js";
 import { countryOf } from "../../../src/shared/countries.js";
 
@@ -500,7 +502,7 @@ export function readTeamSet(raw: string): TeamSetQuestion | null {
 /** Family 7: a ranked list ("top 10 teams by OPR in NJ", "best rookie team in New Jersey", "most improved team in
  *  New Jersey") or a city's teams ("teams in Oradell"). */
 export interface LeaderboardQuestion {
-  kind: "top" | "rookie" | "improved" | "city" | "city-best";
+  kind: "top" | "rookie" | "improved" | "gain" | "steady" | "phases" | "city" | "city-best";
   /** BOARD_STATS key (families/leaderboard.ts). */
   stat: string;
   n: number;
@@ -515,6 +517,8 @@ export interface LeaderboardQuestion {
   undefeated?: boolean;
   /** A town in the region: its teams only. */
   town?: string | null;
+  /** A date window said with a count ("this week"): the count is of the matches played in it. */
+  window?: { from: string; to: string; label: string };
   /** `city` is a school's name ("teams at Clearview Regional High School"): its teams. */
   school?: boolean;
   /** The state or country said with the town ("teams in Springfield IL"): the town's teams from there only. */
@@ -602,14 +606,60 @@ export function readLeaderboard(raw: string): LeaderboardQuestion | null {
   // match" (matches played), and a verb said before it is its own ("attended the most event").
   // Counted at some events only ("at New Jersey events", "out of state") or on one day is a count the board (season
   // totals) can't make: none.
-  if (!scope.place && !scope.outOfState && !scope.day && (m = new RegExp(`^(?:(?:which|what) )?(?:(?:the )?(?:(?!ftc )(.+?) )?${TEAMS} )?(?:(?:in|from) (.+?) )?(?:(?:that|who) )?(?:(?:has|have|had) )?(?:(has|have|had|with|won|played|plays|attended|got) )?(?:the )?most (.+?)${PLACE}$`).exec(rest))
-    && [m[1], m[2], m[5]].filter(Boolean).length < 2) {
-    // A place said before the team word ("nj teams") is the same place as one after it; anything else there is no board.
-    // "FTC teams" is the team word itself, never a place before "teams".
-    const counted = boardStat(m[4]) ?? boardStat(`${m[4]} ${m[3] === "attended" ? "attended" : "played"}`), region = place(m[1] ?? m[2] ?? m[5]);
+  // A date window said with it ("this week", "last month") counts the matches played in the window instead; "worldwide"
+  // adds nothing. Said "by any team" ("most matches played by any team this season, top 5"), the same board.
+  const timed = /\b(?:(?:this|last|past|next)\s+(?:week(?:end)?|month)|today|yesterday)\b/.test(rest) ? readTime(rest, searchToday()) : null;
+  const win = timed?.time?.kind === "window" && timed.time.from && timed.time.to ? { from: timed.time.from, to: timed.time.to, label: timed.time.label } : null;
+  const counts = ` ${win ? timed!.rest : rest} `.replace(/\b(?:worldwide|world ?wide|globally|in the world)\b/g, " ").replace(/\s+/g, " ").trim();
+  const countBoard = (verb: string | undefined, said: string, where: string | undefined, many: string | undefined): LeaderboardQuestion | null => {
+    const counted = boardStat(said) ?? boardStat(`${said} ${verb === "attended" ? "attended" : "played"}`), region = place(where);
     // "Won the most matches" is the wins board; "won the most events" is no board here (never events played).
-    const stat = m[3] !== "won" || counted === "awards" ? counted : counted === "matches" ? "wins" : null;
-    if ((stat === "matches" || stat === "events" || stat === "awards" || (stat === "wins" && counted === "matches")) && region !== false) return { kind: "top", stat, n: 10, region, city: null, season: scope.season, best: true };
+    const stat = verb !== "won" || counted === "awards" ? counted : counted === "matches" ? "wins" : null;
+    if (!(stat === "matches" || stat === "events" || stat === "awards" || (stat === "wins" && counted === "matches")) || region === false) return null;
+    // Awards have no date of their own to count in a window.
+    if (win && stat === "awards") return null;
+    return { kind: "top", stat, n: many ? n(many, 10) : 10, region, city: null, season: scope.season, ...(many ? {} : { best: true }), ...(win ? { window: win } : {}) };
+  };
+  // A place said before the team word ("nj teams") is the same place as one after it; anything else there is no board.
+  // "FTC teams" is the team word itself, never a place before "teams".
+  if (!scope.place && !scope.outOfState && !scope.day && (m = new RegExp(`^(?:(?:which|what) )?(?:(?:the )?(?:(?!ftc )(.+?) )?${TEAMS} )?(?:(?:in|from) (.+?) )?(?:(?:that|who) )?(?:(?:has|have|had) )?(?:(has|have|had|with|won|played|plays|attended|got) )?(?:the )?most (.+?)${PLACE}$`).exec(counts))
+    && [m[1], m[2], m[5]].filter(Boolean).length < 2) {
+    const b = countBoard(m[3], m[4], m[1] ?? m[2] ?? m[5], undefined);
+    if (b) return b;
+  }
+  if (!scope.place && !scope.outOfState && !scope.day && (m = new RegExp(`^(?:the )?(?:top (\\d{1,2}) )?most (.+?) (?:(played|won|attended) )?by (?:any|a|one|a single|each|every) ${TEAMS}(?: (?:in|from) (.+?))?(?: top (\\d{1,2}))?$`).exec(counts))) {
+    const b = countBoard(m[3], m[2], m[4], m[1] ?? m[5]);
+    if (b) return b;
+  }
+  // "which team has the most stable opr, least ups and downs": the steadiest OPR from event to event. "Which nj team is
+  // most consistent across all phases": the best weakest phase. Counted at some events only, or on a day, is neither.
+  // "FTC teams" is the team word itself, never a place before "teams" (as the count board reads it).
+  const who = `^(?:(?:which|what) )?(?:(?!ftc )(.+?) )?${TEAMS}(?: (?:in|from) (.+?))?`;
+  // "Worldwide" adds nothing (as the count board reads it).
+  const anywhere = rest.replace(/\b(?:worldwide|world ?wide|globally|in the world)\b/g, " ").replace(/\s+/g, " ").trim();
+  if (!scope.place && !scope.outOfState && !scope.day && !scope.window
+    && (m = new RegExp(`${who} (?:has|have|had|with) (?:the )?(?:most (?:stable|steady|consistent)|steadiest|least (?:variable|volatile)) opr(?: (?:and |with )?(?:the )?(?:least|fewest) ups and downs)?${PLACE}$`).exec(anywhere)) && [m[1], m[2], m[3]].filter(Boolean).length < 2) {
+    const region = place(m[1] ?? m[2] ?? m[3]);
+    if (region !== false) return { kind: "steady", stat: "opr", n: 10, region, city: null, season: scope.season };
+  }
+  if (!scope.place && !scope.outOfState && !scope.day && !scope.window
+    && (m = new RegExp(`${who} (?:is|are) (?:the )?(?:most (?:consistent|balanced|well rounded)|best balanced|strongest) (?:across|in) (?:all|every|each) (?:of the )?(?:three )?phases?(?: not (?:just )?(?:the )?highest opr)?${PLACE}$`).exec(anywhere)) && [m[1], m[2], m[3]].filter(Boolean).length < 2) {
+    const region = place(m[1] ?? m[2] ?? m[3]);
+    if (region !== false) return { kind: "phases", stat: "opr", n: 10, region, city: null, season: scope.season };
+  }
+  // "most improved teams in nj by opr gain", "which nj team improved their opr the most between their first and last
+  // event": the OPR gained within the season, its first event's to its last's.
+  // Counted at some events only ("at New Jersey events", "out of state") or in a date window is a gain this board (every
+  // event of the season) can't make: none. "Team" or "teams", the board is the same: search reads both as one.
+  const gainScope = !scope.place && !scope.outOfState && !scope.day && !scope.window;
+  const GAIN = "(?: (?:between|from) (?:its |their |the )?first (?:event )?(?:and|to) (?:its |their |the )?last events?| (?:across|over|during|through|in) the season)?";
+  if (gainScope && (m = new RegExp(`^(?:the )?(?:top (\\d{1,2}) )?(?:most improved|fastest (?:growing|improving)) ${TEAMS}(?: (?:in|from) (.+?))? by opr (?:gain|growth|improvement)${GAIN}$`).exec(rest))) {
+    const region = place(m[2]);
+    if (region !== false) return { kind: "gain", stat: "opr", n: n(m[1], 10), region, city: null, season: scope.season };
+  }
+  if (gainScope && (m = new RegExp(`^(?:(?:which|what) )?(?:(.+?) )?${TEAMS}(?: (?:in|from) (.+?))? (?:(?:has|have) )?(?:(?:improved|grew|raised|increased) (?:its |their |the )?opr (?:the )?most|gained the most opr)${GAIN}$`).exec(rest)) && !(m[1] && m[2])) {
+    const region = place(m[1] ?? m[2]);
+    if (region !== false) return { kind: "gain", stat: "opr", n: 10, region, city: null, season: scope.season };
   }
   // "most improved team in new jersey"
   if ((m = new RegExp(`^(?:the )?(?:top (\\d{1,2}) )?most improved ${TEAMS}${PLACE}$`).exec(rest))) {
