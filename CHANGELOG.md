@@ -29,7 +29,7 @@ Search ranks a place's cities by their teams, lists the events over a size, and 
 - **Cities by teams.** "Which city in Romania has the most FTC teams", "cities with the most teams in Texas" and "top 5 cities in Ontario by teams" rank a state's, a country's or the world's home cities by how many of their teams played in the newest season there, with every team the directory lists beside; each city opens its own team list.
 - **Events over a size.** "Events in Texas this season with more than 40 teams" (or "over", "at least", "40+") counts the events with that many teams on their lists and lists the biggest of them.
 - **A town and its state.** "Teams in Springfield IL", "teams in Springfield Missouri" and "teams in Bucharest Romania" list that town's teams only; a town abroad is named with its country.
-- **The latest season with a value.** A team's ranking points (or another per-event number) with no season said reads the latest season that has one, and says so, while this season's rankings aren't posted yet. (#PR)
+- **The latest season with a value.** A team's ranking points (or another per-event number) with no season said reads the latest season that has one, and says so, while this season's rankings aren't posted yet. (#1181)
 
 ## 4.2.9 — 2026-11-08
 
