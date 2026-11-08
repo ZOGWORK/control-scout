@@ -178,13 +178,19 @@ const CAREER: Record<string, { label: string; sql: string; rule: string }> = {
   seasons: { label: "Seasons played", sql: "MAX(CASE WHEN s.matches > 0 THEN s.season END) - t.rookie_year + 1", rule: "Seasons played: from the team's rookie year, as FIRST lists it, to its latest season with a match on record, both counted." },
 };
 
-/** Every season counted: the team with the most matches, events, wins, awards or seasons on record; or the oldest
+/** Every season counted: the team with the most matches, events, wins or seasons on record; or the oldest
  *  teams still active (a match in the latest season played), the earliest rookie year first. */
 async function careerAnswer(b: BoardQuestion, where: string, regionSql: string, regionArgs: string[]): Promise<StatAnswer> {
   const oldest = b.kind === "oldest";
   const c = CAREER[oldest ? "seasons" : b.stat.id];
   const span = await get<{ first: number | null; last: number | null }>("SELECT MIN(season) first, MAX(season) last FROM team_season_stats WHERE matches > 0");
-  const first = Number(span?.first), last = Number(span?.last);
+  const title = oldest ? `Oldest teams still active${where}, by rookie year` : `Team${where} with the most ${c.label.toLowerCase()}, every season`;
+  // No season with a match on record: no years to say, so none are made up.
+  if (span?.first == null || span?.last == null) {
+    return { family: "leaderboard", intent: oldest ? "oldest-active" : `career-${b.stat.id}`, title, scope: [b.region?.name ?? "Worldwide"], definition: oldest ? "Still active: a match on record in one of the two latest seasons played." : c.rule,
+      source: `Every season on record${where}`, blocks: [], none: `No team${where} has a match on record yet.` };
+  }
+  const first = Number(span.first), last = Number(span.last);
   const rows = await all<{ team: number; name: string | null; city: string | null; state: string | null; country: string | null; rookie: number | null; v: number; wins: number; losses: number; ties: number; lastPlayed: number; opr: number | null }>(
     // From every team, its season rows when it has any: a team whose awards come from events with no match rows here
     // (remote ones) still counts its awards.
@@ -198,7 +204,6 @@ async function careerAnswer(b: BoardQuestion, where: string, regionSql: string, 
   const S = `${seasonLabel(first)} to ${seasonLabel(last)}`;
   // Still active: a match in the latest season played or the one before (a new season's first weeks have few).
   const active = `${seasonLabel(last - 1)} or ${seasonLabel(last)}`;
-  const title = oldest ? `Oldest teams still active${where}, by rookie year` : `Team${where} with the most ${c.label.toLowerCase()}, every season`;
   const base = {
     family: "leaderboard" as const, intent: oldest ? "oldest-active" : `career-${b.stat.id}`, title, scope: [b.region?.name ?? "Worldwide", oldest ? `Active in ${active}` : `Every season on record (${S})`],
     definition: (oldest ? `Still active: a match on record in ${active}, the two latest seasons played. Oldest: the earliest rookie year, as FIRST lists it; a tie goes to the most seasons on record.`

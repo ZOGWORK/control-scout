@@ -7,8 +7,9 @@ import { rebuildSearch } from "../../stats/job";
 import { searchAnswer } from "../searchAnswer";
 import { readLeaderboard } from "./read";
 
+let fixture: ReturnType<typeof openDb>;
 beforeAll(async () => {
-  const c = openDb(":memory:");
+  const c = (fixture = openDb(":memory:"));
   setDb(c);
   await migrate(c);
   // number, name, city, state, rookie year, [2024: opr, rank], [2025: opr, auto, wins, losses, matches, rank]
@@ -247,6 +248,8 @@ describe("every season counted", () => {
     // A season said is that season's: never every season.
     expect(readLeaderboard("oldest team still active this season")?.kind).not.toBe("oldest");
     expect(readLeaderboard("which team has played the most seasons this season")?.kind).not.toBe("career");
+    // Two places said is no one place's board.
+    expect(readLeaderboard("team from ohio with the most matches played ever in california")?.kind).not.toBe("career");
     // Without "ever" a count is the season's board, as before.
     expect(readLeaderboard("which team in New Jersey has the most awards")).toMatchObject({ kind: "top", stat: "awards" });
   });
@@ -261,5 +264,21 @@ describe("every season counted", () => {
     expect(ob.rows.slice(0, 3).map((r) => r.display)).toEqual(["2010", "2013", "2017"]);
     // The most awards ever, worldwide or in a place, is the awards family's answer, every season counted.
     for (const q of ["which team in New Jersey has the most awards, ever", "which team has the most awards, ever"]) expect((await searchAnswer(q, { limit: 25, full: true })).stat?.intent, q).toBe("place-awards");
+  });
+  it("with no match on record, says so and names no years", async () => {
+    const empty = openDb(":memory:");
+    setDb(empty);
+    try {
+      await migrate(empty);
+      await run("INSERT INTO teams (number, name, city, state, country, rookie_year) VALUES (100, 'No Matches Yet', 'Camden', 'NJ', 'USA', 2015)");
+      await rebuildSearch();
+      for (const q of ["team with the most events attended ever", "oldest team still active"]) {
+        const a = (await searchAnswer(q, { limit: 25, full: true })).stat;
+        expect(a?.none, q).toMatch(/has a match on record yet/);
+        expect(JSON.stringify(a), q).not.toMatch(/NaN|\d{4}[–-]\d{2}/);
+      }
+    } finally {
+      setDb(fixture);
+    }
   });
 });

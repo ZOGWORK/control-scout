@@ -657,7 +657,8 @@ function readCareer(rest: string): LeaderboardQuestion | null {
     const said = m[3].trim();
     const counted = /^seasons?(?: played)?$/.test(said) ? "seasons" : boardStat(said) ?? boardStat(`${said} ${m[2] === "attended" ? "attended" : "played"}`);
     const stat = m[2] === "won" ? (counted === "matches" ? "wins" : null) : counted;
-    const region = place(m[1] ?? m[4]);
+    // A place said twice ("in nj … in texas") is no one place's board.
+    const region = m[1] && m[4] ? false : place(m[1] ?? m[4]);
     // The most awards ever is the awards family's (families/placeAwards.ts), worldwide or in a place.
     if (stat && ["matches", "events", "wins", "seasons"].includes(stat) && region !== false) return { kind: "career", stat, n: 10, region, city: null, season: null, best: true };
   }
