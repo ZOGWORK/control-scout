@@ -181,12 +181,13 @@ async function rowsFor(e: EventQuery, now: number, drop: { where?: boolean; time
   // A venue or city asked for with no year: every season ("meets at River Dell High School", past ones too).
   else if (e.year == null && e.season == null && !e.allSeasons && !(e.where && !drop.where)) { where.push("season = ?"); args.push(CURRENT_SEASON); }
   if (e.region) { where.push("country = ? AND state = ?"); args.push(e.region.country, e.region.state); }
-  // Bounded windows ("this weekend"): an event is in when any of its days is. "upcoming" and "past" are read on the
+  // Bounded windows ("this weekend"): an event is in when any of its days is (its last day, said as
+  // finished: "that ended yesterday" leaves out one still running). "upcoming" and "past" are read on the
   // event's own calendar, below.
   if (e.time && !drop.time && e.time !== "upcoming" && e.time !== "past") {
     const w = timeWindow(e.time, today);
     if (w.from) { where.push("COALESCE(end, start) >= ?"); args.push(w.from); }
-    if (w.to) { where.push("start <= ?"); args.push(w.to); }
+    if (w.to) { where.push(e.ended ? "COALESCE(end, start) <= ?" : "start <= ?"); args.push(w.to); }
   }
   // A copy: the rows read are shared (./searchReads.ts), and an every-season list is sorted in place below.
   let rows = [...(await searchRead<Row>(`SELECT season, code, name, type, division_code, venue, city, state, country, start, end, timezone FROM events WHERE ${where.join(" AND ")}`, args))];

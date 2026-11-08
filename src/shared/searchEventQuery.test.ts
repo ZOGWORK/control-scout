@@ -13,7 +13,10 @@ describe("reading an event set", () => {
     for (const [short, long] of [["nj events yesterday", "events in nj that finished yesterday"], ["nj meets yesterday", "nj meets that ended yesterday"],
       ["nj events today", "events in nj today"], ["nj events this week", "events in nj that are happening this week"],
       ["nj past events", "nj events that finished"], ["nj past meets", "nj meets that happened"], ["nj meets yesterday", "nj meets that finished yesterday"]]) {
-      expect(readEventQuery(long), long).toEqual(readEventQuery(short));
+      // The same set, but said as finished: the last day counts (a meet still running isn't one that ended).
+      const { ended, ...rest } = readEventQuery(long)!;
+      expect(rest, long).toEqual(readEventQuery(short));
+      expect(!!ended, long).toBe(/(?:finished|ended) yesterday$/.test(long));
     }
     expect(readEventQuery("nj events yesterday")).toMatchObject({ time: "yesterday", region: { key: "USA:NJ" }, where: null, words: [] });
     expect(timeWindow("yesterday", "2026-11-08")).toEqual({ from: "2026-11-07", to: "2026-11-07" });

@@ -79,6 +79,8 @@ export interface EventQuery {
   regionTyped?: string;
   /** Every season, newest first: a championship asked for with no year, season or time. */
   allSeasons?: boolean;
+  /** Said as finished ("that ended yesterday"): the event's last day is in the window, not just any of its days. */
+  ended?: boolean;
 }
 
 /** The region `ws` (whole words) names exactly, if any. A two-letter code that's also a word counts only in capitals. */
@@ -120,7 +122,8 @@ export function readEventQuery(raw: string): EventQuery | null {
   if (t) { time = TIME_OF[t.phrase] ?? null; q = t.rest; }
   // The request's own clause, once its time is read ("nj meets that ended yesterday"): never words of a name.
   // With the verb read as the time itself ("nj events that finished", "nj meets that happened"), the "that" left.
-  if (time) q = q.replace(/\s+(?:that|which)(?:\s+(?:are|is|were|was))?(?:\s+(?:happened|happening|finished|ended|started|took\s+place|taking\s+place|held|running|going\s+on))?$/i, "").trim();
+  let ended = false;
+  if (time) q = q.replace(/\s+(?:that|which)(?:\s+(?:are|is|were|was))?(?:\s+(happened|happening|finished|ended|completed|started|took\s+place|taking\s+place|held|running|going\s+on))?$/i, (_m, verb?: string) => { ended = !!verb && /^(?:finished|ended|completed)$/i.test(verb); return ""; }).trim();
   // "Upcoming" beside a window still to come ("upcoming events this weekend") says nothing more: the window is it.
   if (time && time !== "upcoming" && time !== "past") q = q.replace(/(?:^|\s)(?:upcoming|coming up)(?=\s|$)/gi, " ").replace(/\s+/g, " ").trim();
   let year: number | null = null, season: number | null = null;
@@ -196,7 +199,7 @@ export function readEventQuery(raw: string): EventQuery | null {
   // Championships (one a season) by the types the words mean: "championship events in NJ" is still championships.
   const types = eventTypesOf(ks);
   const allSeasons = !!types && types.every((t) => t === "Championship" || t === "FIRSTChampionship") && !time && year == null && season == null;
-  return { kinds: ks, time, year, season, region, where: where.join(" ") || null, words: named, ...(regionTyped ? { regionTyped } : {}), ...(allSeasons ? { allSeasons } : {}) };
+  return { kinds: ks, time, year, season, region, where: where.join(" ") || null, words: named, ...(regionTyped ? { regionTyped } : {}), ...(allSeasons ? { allSeasons } : {}), ...(ended ? { ended } : {}) };
 }
 
 const titleCase = (s: string) => s.replace(/(^|\s)(\p{L})/gu, (_, a: string, c: string) => a + c.toUpperCase());
