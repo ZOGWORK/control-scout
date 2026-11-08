@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.1.5 — 2026-11-08
+
+A match two teams haven't played, supposed in words, answers with its forecast.
+
+### Highlights
+- [predict] "If <team> played <team>" shows the match prediction
+- [predict] "What if", "suppose" and "imagine" read the same way
+- [predict] A day to come is called on the ratings used, said so
+
+### Search
+- **A supposed meeting.** "If <team> played <team>", "what if … faced …", "suppose … against …": the two teams' match call. A day still to come ("tomorrow", "next week") is called on the latest ratings both teams share, the card naming their season; a day gone by isn't read this way. (#1108)
+
 ## 4.1.4 — 2026-11-08
 
 A place said before the team word keeps a count's board: "which Texas teams have the most awards" ranks awards won, not the prediction rating.

@@ -88,6 +88,12 @@ describe("slots", () => {
       expect((await parse(q)).complete, q).toBe(false);
     }
   });
+  it("reads a supposed meeting of two teams as their match's call; a supposing word alone asks nothing", async () => {
+    for (const q of ["what if 6980 faced 23268", "suppose 24033 played 4215 next week", "imagine 23268 against 6980"]) {
+      expect(await parse(q), q).toMatchObject({ intent: "two-predict", complete: true });
+    }
+    for (const q of ["what if 4215 had a better auto", "if 6980 and 23268 teamed up"]) expect((await parse(q)).intent, q).not.toBe("two-predict");
+  });
   it("reads two alliances of two either side of a vs, any wording, as a match's call", async () => {
     for (const q of [
       "predict 4215 6980 vs 24033 23268", "4215 and 6980 vs 24033 and 23268 who wins", "custom matchup 4215 6980 vs 24033 23268",
