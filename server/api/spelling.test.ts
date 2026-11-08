@@ -62,6 +62,11 @@ describe("intent words typed wrong", () => {
     expect(splitWord("latesthighlights", v)?.word).toBe("latest highlights");
     expect(splitWord("jackson", v)).toBeNull();
     expect(splitWord("robotics", v)).toBeNull();
+    // Both halves guessed is a long word this vocabulary lacks, never two words read into it.
+    for (const w of ["scheduled", "underwater", "teamwork"]) {
+      const s = splitWord(w, v);
+      if (s) expect(s.word.split(" ").filter((x) => !w.includes(x)).length, w).toBeLessThanOrEqual(1);
+    }
   });
   it("corrects the parser's own words", () => {
     expect(correctWord("highlishts", v)?.word).toBe("highlights");

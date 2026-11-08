@@ -355,6 +355,8 @@ export function splitWord(w: string, v: Vocab): WordFix | null {
     const a = part(w.slice(0, i)), b = a && part(w.slice(i));
     if (!a || !b) continue;
     const s = { word: `${a.word} ${b.word}`, fixed: a.fixed + b.fixed };
+    // One of the two misspelled at most: both guessed ("sche" + "duled" as "site rules") is a long word not known here.
+    if (s.fixed > 1) continue;
     if (!best.length || s.fixed < best[0].fixed) best = [s];
     else if (s.fixed === best[0].fixed && s.word !== best[0].word) best.push(s);
   }
