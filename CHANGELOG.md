@@ -27,6 +27,18 @@ Search lists the matches a low-ranked team won against a top-ranked one.
 ### Search
 - **Rank upsets.** "Matches where a team ranked below N beat a team ranked top M" (or "… lost to …") lists the season's decided matches at official events where the winning alliance had a team past the first line and the losing alliance one inside the second, by world rating rank, biggest gap first. (#1126)
 
+## 4.4.1 — 2026-11-08
+
+A question about "my" or "our" team ("what is my 4215 next event", "our 6980 record") is answered for that team.
+
+### Highlights
+- [fixes] "what is my <team> upcoming event" shows its next event
+- [fixes] "our team <number> record" reads as that team's record
+- [fixes] An intent word typed wrong after "my <team>" still answers
+
+### Search
+- **Whose team it is.** "my" or "our" before a team's number says whose team it is, never part of what's asked, so a long question about it reads the way the same question about the team does. (#1123)
+
 ## 4.4.0 — 2026-11-08
 
 A number written with thousands separators ("1,000", "12,500") is read as one number, never as a team.
