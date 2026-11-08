@@ -441,6 +441,9 @@ describe("a schedule, and a state by its short name (failed-search #1152; held o
   it("a short name is a state only as a whole word, and never inside a team's name", async () => {
     expect((await parse("bad wolf massa schedule")).place).toBeNull();
     expect(await parse("teams in mass")).toMatchObject({ place: { name: "Massachusetts" } });
+  });
+});
+
 describe("a number written with thousands separators", () => {
   // Teams 1 and 12 exist here, so "1,000" or "12,500" read apart would name them; a stored name holds "10,000".
   const small: ParseContext = { ...ctx, names: buildNames([...TEAMS, { number: 1, name: "First Ones", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 }, { number: 12, name: "Dozen", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 }, { number: 10000, name: "The Team of 10,000 Lakes", city: "Town", state: "MN", country: "USA", lastPlayed: 2026 }], []) };
