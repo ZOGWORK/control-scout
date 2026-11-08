@@ -435,7 +435,7 @@ export async function rebuildSearch(log: Log = () => {}): Promise<void> {
     stmts.push({ sql: "INSERT INTO search (kind, ref, season, weight, title, subtitle, terms) VALUES ('team', ?, ?, ?, ?, ?, ?)", args: [String(t.number), t.last ?? null, weight, title, subtitle, `${t.number} ${t.name ?? ""} ${joinDotted(t.name ?? "")} ${t.school ?? ""} ${place} ${regionNames(t.state, t.country)}`] });
     // Typo-tolerant index: the name people type (team name + school).
     // Stored normalised, exactly like the query's chunks ("X-Drive" → "x drive").
-    if (t.name || t.school) stmts.push({ sql: "INSERT INTO search_fuzzy (kind, ref, season, weight, title, subtitle, name) VALUES ('team', ?, ?, ?, ?, ?, ?)", args: [String(t.number), t.last ?? null, weight, title, subtitle, normalize(`${t.name ?? ""} ${t.school ?? ""}`)] });
+    if (t.name || t.school) stmts.push({ sql: "INSERT INTO search_fuzzy (kind, ref, season, weight, title, subtitle, name) VALUES ('team', ?, ?, ?, ?, ?, ?)", args: [String(t.number), t.last ?? null, weight, title, subtitle, normalize(`${t.name ?? ""} ${joinDotted(t.name ?? "") !== (t.name ?? "") ? joinDotted(t.name ?? "") : ""} ${t.school ?? ""}`)] });
   }
   for (const e of events) {
     const place = [e.city, e.state, e.country].filter(Boolean).join(", ");
