@@ -70,7 +70,7 @@ export function boardStatFor(id: string, season: number): BoardStat | undefined 
   return { id: parts.join("+"), label: `${parts.map((x) => PHASE_LABEL[x]).join(" + ")} OPR`, sql: `(${parts.map((x) => BOARD_STATS[x].sql).join(" + ")})`, unit: "", teamsSort: null, digits: 1 };
 }
 
-export type BoardKind = "top" | "rookie" | "improved" | "gain" | "city" | "city-best";
+export type BoardKind = "top" | "rookie" | "improved" | "gain" | "steady" | "phases" | "city" | "city-best";
 /** `best`: "best team in New Jersey by OPR", one team asked for: titled so, the next few listed under it. */
 export interface BoardQuestion { kind: BoardKind; stat: BoardStat; n: number; region: Region | null; city: string | null; season: number | null; seasonWhy?: string; best?: boolean;
   /** `city` is a school's name: its teams. */
@@ -122,6 +122,8 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
   const regionArgs = [...(b.region ? [b.region.country, ...(b.region.state ? [b.region.state] : [])] : []), ...(b.town ? [b.town] : [])];
   const chips = [...(b.town ? [b.town] : []), b.region?.name ?? "Worldwide", seasonLabel(season)];
   if (b.kind === "improved") return improvedAnswer(b, season, where, regionSql, regionArgs, chips, why);
+  if (b.kind === "steady") return steadyAnswer(b, season, where, regionSql, regionArgs, chips, why);
+  if (b.kind === "phases") return phasesAnswer(b, season, where, regionSql, regionArgs, chips, why);
   if (b.kind === "gain") return gainAnswer(b, season, where, regionSql, regionArgs, chips, why);
   if (b.window) return windowCountAnswer(b, b.window, where, regionSql, regionArgs);
   const st = b.stat;
@@ -362,6 +364,79 @@ async function improvedAnswer(b: BoardQuestion, season: number, where: string, r
       kind: "table", title: "Biggest climbs",
       columns: [{ key: "rank", label: "#", num: true }, { key: "team", label: "Team" }, { key: "before", label: seasonLabel(season - 1) }, { key: "now", label: seasonLabel(season) }, { key: "opr", label: "OPR now", num: true }],
       rows: rows.map((r, i) => ({ cells: { rank: i + 1, team: `${r.team} ${r.name ?? ""}`.trim(), before: `#${r.r0} (${share(r.r0, r.n0)})`, now: `#${r.r1} (${share(r.r1, r.n1)})`, opr: r.o1 == null ? "–" : (Math.round(r.o1 * 10) / 10).toFixed(1) }, href: teamHref(Number(r.team), season), strong: i === 0 })),
+    }],
+  };
+}
+
+const STEADY_MIN_EVENTS = 3;
+const f1 = (x: number | null) => (x == null ? "–" : (Math.round(x * 10) / 10).toFixed(1));
+
+/** "Most stable OPR": the smallest swing in a team's OPR from event to event in the season (its event OPRs' standard
+ *  deviation as a share of their mean), teams with an OPR at 3+ events. */
+async function steadyAnswer(b: BoardQuestion, season: number, where: string, regionSql: string, regionArgs: string[], chips: string[], why: string): Promise<StatAnswer> {
+  const from = `team_event_stats x JOIN teams t ON t.number = x.team
+     WHERE x.season = ? AND x.matches > 0 AND x.opr_np IS NOT NULL AND ${teamPageSql("x.team", "t.name")}${regionSql}
+     GROUP BY x.team HAVING k >= ${STEADY_MIN_EVENTS} AND m > 0`;
+  const cols = "x.team, t.name, t.city, COUNT(*) k, AVG(x.opr_np) m, AVG(x.opr_np * x.opr_np) - AVG(x.opr_np) * AVG(x.opr_np) var, MIN(x.opr_np) lo, MAX(x.opr_np) hi";
+  const [rows, count] = await Promise.all([
+    all<{ team: number; name: string | null; city: string | null; k: number; m: number; var: number; lo: number; hi: number }>(
+      `SELECT ${cols} FROM ${from} ORDER BY var / (m * m) ASC, m DESC, x.team LIMIT ?`, [season, ...regionArgs, b.n]),
+    get<{ n: number }>(`SELECT COUNT(*) n FROM (SELECT ${cols} FROM ${from})`, [season, ...regionArgs]),
+  ]);
+  const S = seasonLabel(season), total = Number(count?.n ?? 0);
+  // A share of the team's own average OPR, so a strong team's swing in points isn't held against it.
+  const swing = (r: (typeof rows)[number]) => `±${Math.round((100 * Math.sqrt(Math.max(0, Number(r.var)))) / Number(r.m))}%`;
+  const base = {
+    family: "leaderboard" as const, intent: "steady-opr", title: `Most stable OPR${where}: the fewest ups and downs · ${S}`, scope: chips,
+    definition: `Stable: the smallest swing in OPR from event to event, the standard deviation of the team's event OPRs (without penalties, as its team page shows them) as a share of their average; teams with an OPR at ${STEADY_MIN_EVENTS} or more events and an average above 0 (a share of an average at or below 0 means nothing).${why}`,
+    source: `From the event OPRs of ${total.toLocaleString("en-US")} team${total === 1 ? "" : "s"}${where} with ${STEADY_MIN_EVENTS}+ events in ${S}`,
+  };
+  if (!rows.length) return { ...base, blocks: [], none: `No team${where} has an OPR at ${STEADY_MIN_EVENTS} or more events, averaging above 0, in ${S}.` };
+  const top = rows[0];
+  return {
+    ...base,
+    headline: { value: `${top.team} ${top.name ?? ""}`.trim(), label: `OPR ${f1(top.m)} on average, ${swing(top)} over ${top.k} events${top.city ? ` · ${top.city}` : ""}`, sub: `Every event between ${f1(top.lo)} and ${f1(top.hi)}`, href: teamHref(Number(top.team), season) },
+    blocks: [{
+      kind: "table", title: "Steadiest OPR",
+      columns: [{ key: "rank", label: "#", num: true }, { key: "team", label: "Team" }, { key: "swing", label: "Swing", num: true }, { key: "avg", label: "OPR avg", num: true }, { key: "range", label: "Low – high", num: true }],
+      rows: rows.map((r, i) => ({ cells: { rank: i + 1, team: `${r.team} ${r.name ?? ""}`.trim(), swing: swing(r), avg: f1(r.m), range: `${f1(r.lo)} – ${f1(r.hi)}` }, href: teamHref(Number(r.team), season), strong: i === 0 })),
+    }],
+  };
+}
+
+/** "Most consistent across all phases": strong in every phase, ranked by the team's weakest phase OPR rank worldwide
+ *  (auto, teleop and endgame; teleop alone where the season's teleop includes endgame), the overall OPR rank breaking
+ *  a tie. */
+async function phasesAnswer(b: BoardQuestion, season: number, where: string, regionSql: string, regionArgs: string[], chips: string[], why: string): Promise<StatAnswer> {
+  const withEnd = !reportedTeleopIncludesEndgame(season);
+  const worst = `MAX(s.rank_auto, s.rank_teleop${withEnd ? ", s.rank_endgame" : ""})`;
+  const ranked = `s.season = ? AND s.matches >= ? AND s.rank_auto IS NOT NULL AND s.rank_teleop IS NOT NULL${withEnd ? " AND s.rank_endgame IS NOT NULL" : ""} AND ${teamPageSql("s.team", "t.name")}${regionSql}`;
+  const args = [season, RANKED_MIN_MATCHES, ...regionArgs];
+  const [rows, count] = await Promise.all([
+    all<{ team: number; name: string | null; city: string | null; w: number; ra: number; rt: number; re: number | null; n: number; opr: number | null }>(
+      `SELECT s.team, t.name, t.city, ${worst} w, s.rank_auto ra, s.rank_teleop rt, s.rank_endgame re, s.ranked_teams n, s.opr_np opr
+       FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE ${ranked} ORDER BY w ASC, s.rank_np ASC, s.team LIMIT ?`, [...args, b.n]),
+    get<{ n: number }>(`SELECT COUNT(*) n FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE ${ranked}`, args),
+  ]);
+  const S = seasonLabel(season), total = Number(count?.n ?? 0);
+  const phases = withEnd ? "auto, teleop and endgame" : "auto and teleop (this season's teleop includes endgame)";
+  const base = {
+    family: "leaderboard" as const, intent: "every-phase", title: `Strongest in every phase${where} · ${S}`, scope: chips,
+    definition: `Strongest in every phase: ranked by the team's weakest phase, its lowest worldwide OPR rank among ${phases}, so a team strong in one phase alone doesn't lead; the overall OPR rank breaks a tie. ${RANKED}${why}`,
+    source: `From the ${S} season numbers of ${total.toLocaleString("en-US")} ranked team${total === 1 ? "" : "s"}${where}`,
+  };
+  // Phase ranks are worked out with the season's numbers, so a team can have its matches before it has them.
+  if (!rows.length) return { ...base, blocks: [], none: `No team${where} has phase OPR ranks for ${S} yet: they come with ${RANKED_MIN_MATCHES}+ matches and the season's numbers worked out.` };
+  const top = rows[0];
+  const r1 = (x: number | null) => (x == null ? "–" : `#${Number(x).toLocaleString("en-US")}`);
+  return {
+    ...base,
+    headline: { value: `${top.team} ${top.name ?? ""}`.trim(), label: `Weakest phase ${r1(top.w)} worldwide${top.city ? ` · ${top.city}` : ""}`, sub: `Auto ${r1(top.ra)} · teleop ${r1(top.rt)}${withEnd ? ` · endgame ${r1(top.re)}` : ""} of ${Number(top.n).toLocaleString("en-US")}`, href: teamHref(Number(top.team), season) },
+    blocks: [{
+      kind: "table", title: "Strongest in every phase",
+      columns: [{ key: "rank", label: "#", num: true }, { key: "team", label: "Team" }, { key: "worst", label: "Weakest", num: true }, { key: "auto", label: "Auto", num: true }, { key: "teleop", label: "Teleop", num: true },
+        ...(withEnd ? [{ key: "endgame", label: "Endgame", num: true }] : []), { key: "opr", label: "OPR", num: true }],
+      rows: rows.map((r, i) => ({ cells: { rank: i + 1, team: `${r.team} ${r.name ?? ""}`.trim(), worst: r1(r.w), auto: r1(r.ra), teleop: r1(r.rt), ...(withEnd ? { endgame: r1(r.re) } : {}), opr: f1(r.opr) }, href: teamHref(Number(r.team), season), strong: i === 0 })),
     }],
   };
 }

@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.4.5 — 2026-11-08
+
+Steady boards: the most stable OPR from event to event, and the teams strongest in every phase, in a place or worldwide.
+
+### Highlights
+- [rankings] "Which team has the most stable OPR" answers
+- [rankings] The smallest swing in OPR over 3+ events
+- [rankings] "Most consistent across all phases" by the weakest phase
+
+### Search
+- **Steady boards.** "Which team has the most stable OPR, least ups and downs" ranks teams by the smallest swing in their event OPRs in the season (the standard deviation as a share of their average, teams with an OPR at 3 or more events). "Which NJ team is most consistent across all phases" ranks by each team's weakest phase OPR rank worldwide (auto, teleop and endgame; auto and teleop where teleop includes endgame), so a team strong in one phase alone doesn't lead. Counted at some events only, or on a day, is left to search. (#1124)
+
 ## 4.4.4 — 2026-11-08
 
 OPR gained within a season: the teams whose OPR grew the most from their first event to their last, in a place or worldwide.
