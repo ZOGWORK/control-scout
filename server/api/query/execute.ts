@@ -131,6 +131,8 @@ const MATCH_NOUN: Record<MatchMeasure, string> = {
   high: "scored matches", low: "scored matches", closest: "decided matches", lopsided: "decided matches", penalties: "matches with penalty points",
   upset: "upsets", comeback: "comebacks", miss: "matches with a saved prediction", accurate: "matches with a saved prediction",
 };
+/** A time's label that already reads alone ("in March 2026", "this week", "on Mar 15, 2026", "today"). */
+const WHEN_WORD = /^(?:in|on|during|this|last|next|from|between|today|tonight|yesterday|tomorrow)\b/i;
 /** A place's or the world's season (docs/search-pipeline.md, "Seasons"): the one said, else the current one (today's);
  *  "last season" is the one before the current one. A team's own season stays the latest it played (readScopeOf). */
 function placeSeason(p: Parsed, said: number | null | undefined, opts: PipelineOptions): number {
@@ -473,16 +475,30 @@ async function highlights(p: Parsed, scope: ReadScope, opts: PipelineOptions): P
   if (p.teams.length) {
     // A team's own: a season, or its matches at an event named, Worlds or a state championship.
     // A place only narrows a state championship ("<team> highlights at nj states").
-    if (p.teams.length > 1 || (scope.place && !(p.states && region)) || scope.area || scope.window || scope.level || p.finals || p.eventKind) return null;
+    if (p.teams.length > 1 || (scope.place && !(p.states && region)) || scope.area || scope.level || p.finals || p.eventKind) return null;
     const t = p.teams[0];
     const said = heldIn ?? (p.time ? placeSeason(p, scope.season, opts) : null);
-    const at: TeamHighlightScope | undefined = evs ? { has: (m) => evs.some((e) => e.season === m.season && (e.code === m.code || e.code === m.division)), label: shortEvent(byMain![0].name, byMain![0].type) }
+    const place: TeamHighlightScope | undefined = evs ? { has: (m) => evs.some((e) => e.season === m.season && (e.code === m.code || e.code === m.division)), label: shortEvent(byMain![0].name, byMain![0].type) }
       : p.worlds ? { has: (m) => m.type === CHAMPIONSHIP_TYPE, label: "the FIRST Championship" }
       : p.states ? { has: (m) => STATES_KIND.types.includes(m.type ?? "") && (!region || (m.country === region.country && (!region.state || m.state === region.state))), label: region ? `the ${region.name} championship` : "a state championship" } : undefined;
-    const stat = await teamHighlights({ number: t.number, name: t.name }, said ?? undefined, at, p.n ?? undefined, videos ? "videos" : "highlights");
+    // A time said ("in December", "this week"): its matches played on those days, in an event named too when one is.
+    const w = scope.window;
+    const when: TeamHighlightScope | undefined = w ? { has: (m) => { const d = (m.date ?? "").slice(0, 10); return d >= w.from && d <= w.to && (!place || place.has(m)); }, label: place?.label ?? w.label, phrase: `${place ? `at ${place.label} ` : ""}${WHEN_WORD.test(w.label) ? w.label : `in ${w.label}`}`, ...(said != null ? { season: said } : {}) } : place;
+    // A window is kept by its dates alone, never its first day's season: a week across the season's start (Aug 31 to
+    // Sep 6) has matches of both, and the latest season with any is shown (each season's highlights stay apart).
+    const stat = await teamHighlights({ number: t.number, name: t.name }, w ? undefined : said ?? undefined, when, p.n ?? undefined, videos ? "videos" : "highlights");
     const hit = (await opts.resolve(String(t.number))).hits.find((h) => h.kind === "team" && h.ref === String(t.number));
     const hits = hit ? [{ ...hit, facts: undefined, events: undefined }] : [];
-    if (stat) return answer(stat, Number(/^\d{4}/.exec(stat.scope[0] ?? "")?.[0] ?? said ?? searchSeason()), hits);
+    const first = stat ? answer(stat, Number(/^\d{4}/.exec(stat.scope[0] ?? "")?.[0] ?? said ?? searchSeason()), hits) : null;
+    // Nothing in a time said against today ("in december", "this week"): its season, then the one before, said on the
+    // card, as every answer with a window relaxes it. A time with its year typed stays that time.
+    if (first && w && scope.season != null && p.time?.year == null) {
+      return relaxed(first, windowSteps(w, scope.season), async (s) => {
+        const r = await teamHighlights({ number: t.number, name: t.name }, s, place, p.n ?? undefined, videos ? "videos" : "highlights");
+        return r ? answer(r, s, hits) : null;
+      });
+    }
+    if (first) return first;
     if (said == null) return null;
     const S = seasonLabel(said);
     return answer({ family: "superlative", intent: "team-highlights", title: `Highlights, ${S}`, team: { number: t.number, name: t.name }, scope: [S], blocks: [],

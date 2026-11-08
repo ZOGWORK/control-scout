@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.2.2 — 2026-11-08
+
+A team's highlights read the time asked: "theseus highlights dec" and "<team> highlights in february 2026" answer, and a month with nothing played falls back to the season.
+
+### Highlights
+- [fixes] "<team> highlights in February 2026" shows that month's
+- [fixes] "Theseus highlights dec" reads "dec" as December
+- [teams] A month with nothing played shows the season instead
+
+### Search
+- **Highlights in a month.** A team's highlights with a time said ("in february 2026", "this week", "dec") are its standout matches played then, titled with the time ("Highlights in February 2026, 2025–26"). With nothing played then, a time said against today relaxes to its season, then the one before, as every answer with a window does, and says so on the card; a month typed with its year stays that month. A month's short form alone ("dec", "nov") is a month as the query's last word; "mar" and "may" stay words. (#1168)
+
 ## 4.2.1 — 2026-11-08
 
 The best teams at one event, Worlds or a state's championship are a leaderboard of the teams there: "east bergen conference best teams", "top teams at nj states".
