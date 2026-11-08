@@ -58,3 +58,17 @@ describe("the answer", () => {
     expect(a.none).toMatch(/^None of the 3 decided matches in 2025–26/);
   });
 });
+
+describe("with no world ranks on record", () => {
+  beforeAll(async () => {
+    const c = openDb(":memory:");
+    setDb(c);
+    await migrate(c);
+  });
+
+  it("says so, never a made-up season", async () => {
+    const a = await rankUpsetAnswer({ below: 1000, top: 100, season: null });
+    expect(a.none).toBe("No world ranks are on record yet.");
+    expect(JSON.stringify(a)).not.toMatch(/0–01|\b0-01\b/);
+  });
+});

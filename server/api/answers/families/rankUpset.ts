@@ -44,8 +44,14 @@ const LOSE = "CASE WHEN m.red_total > m.blue_total THEN 'blue' ELSE 'red' END";
 const RANK = (side: string, agg: "MAX" | "MIN") => `(SELECT ${agg}(s.rating_rank) FROM match_teams x JOIN team_season_stats s ON s.season = x.season AND s.team = x.team WHERE ${SAME("x")} AND x.alliance = ${side})`;
 
 export async function rankUpsetAnswer(qn: RankUpsetQuestion): Promise<StatAnswer> {
-  // No season said: the latest one with world ranks.
-  const season = qn.season ?? Number((await get<{ s: number }>("SELECT MAX(season) s FROM team_season_stats WHERE rating_rank IS NOT NULL"))?.s ?? 0);
+  // No season said: the latest one with world ranks; none at all, said so, never a made-up season.
+  const latest = qn.season ?? (await get<{ s: number | null }>("SELECT MAX(season) s FROM team_season_stats WHERE rating_rank IS NOT NULL"))?.s ?? null;
+  if (latest == null) {
+    return { family: "superlative", intent: "rank-upsets", title: `Matches a team ranked below ${qn.below.toLocaleString("en-US")} beat a top-${qn.top.toLocaleString("en-US")} team`,
+      scope: [`Winner: a team ranked below ${qn.below.toLocaleString("en-US")}`, `Loser: a team in the top ${qn.top.toLocaleString("en-US")}`, "Official events"],
+      definition: "Ranks are each team's world rank in a season by its prediction rating.", source: "From the teams' world ranks", blocks: [], none: "No world ranks are on record yet." };
+  }
+  const season = Number(latest);
   const where = `m.season = ? AND m.played = 1 AND m.red_total IS NOT NULL AND m.blue_total IS NOT NULL AND m.red_total <> m.blue_total
     AND COALESCE(e.remote, 0) = 0 AND e.type IN (${OFFICIAL_TYPES.map(() => "?").join(", ")})`;
   const args = [season, ...OFFICIAL_TYPES];
