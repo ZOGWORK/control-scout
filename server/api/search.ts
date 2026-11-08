@@ -409,8 +409,9 @@ export const warmTypoIndex = async (): Promise<void> => { await fuzzyIndex(); };
  *  running the new code rebuilds the index once instead of waiting for the next stats run.
  *  2: team titles as "18061 | Simply Complex" (number and name each once). 3: events' venues are searchable words.
  *  4: events' initialisms ("mti", ./query/initialisms.ts) are searchable words. 5: a team name's dotted initials as the
- *  word they spell ("I.C.E." as "ice", ./query/names.ts joinDotted). */
-export const SEARCH_INDEX_SCHEMA = 5;
+ *  word they spell ("I.C.E." as "ice", ./query/names.ts joinDotted).
+ *  6: a name written with thousands separators ("1,000 Lakes") is searchable as one number too ("1000 lakes"). */
+export const SEARCH_INDEX_SCHEMA = 6;
 
 /**
  * A database upgraded to migration 4 has an empty typo index until the next

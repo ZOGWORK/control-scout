@@ -27,6 +27,100 @@ Compare asked for one team opens Compare with it, and suggests its closest rival
 ### Search
 - **Compare one team.** "Compare" and a single team (by number or name) opens Compare with that team in it, ready for more, and suggests the two or three teams rated closest to it in its state (else its country) as comparisons that each answer. (#1120)
 
+## 4.4.1 — 2026-11-08
+
+A question about "my" or "our" team ("what is my 4215 next event", "our 6980 record") is answered for that team.
+
+### Highlights
+- [fixes] "what is my <team> upcoming event" shows its next event
+- [fixes] "our team <number> record" reads as that team's record
+- [fixes] An intent word typed wrong after "my <team>" still answers
+
+### Search
+- **Whose team it is.** "my" or "our" before a team's number says whose team it is, never part of what's asked, so a long question about it reads the way the same question about the team does. (#1123)
+
+## 4.4.0 — 2026-11-08
+
+A number written with thousands separators ("1,000", "12,500") is read as one number, never as a team.
+
+### Highlights
+- [fixes] "opr over 1,000" reads one thousand, never team 1
+- [fixes] "12,500 points" is one number, with no stray "500"
+- [fixes] Commas between team numbers still list each team
+
+### Search
+- **Thousands separators.** A number written with thousands separators is one number everywhere search reads it (the query cleaner, the parser, the layers and name matching), never a team and a leftover "000". A name written that way ("1,000 Lakes") is found either way; the search index is rebuilt once for it. Commas between team numbers ("1, 12 and 4215") and in dates stay as they were. (#1157)
+
+## 4.3.9 — 2026-11-08
+
+A team is found by the part of its name that is its own: without "Team" or "Robotics" around it, with its words typed apart, or with its last word made plural. A name two teams share reads as the one that played most recently, as the question reader already does.
+
+### Highlights
+- [teams] Find a team without "Team" or "Robotics" in its name
+- [teams] A name typed with a space inside it still finds the team
+- [fixes] Facts like a rookie year answer for a name two teams share
+- [fixes] "<name> stuff, like everything" lists the team
+
+### Search
+- **A team called by its name's own part.** The query parser, the word layer and the last-stop name reader read a team from its name without the words that only say it is a team, from its name typed with a space inside a word, or with its last word made plural, when no team's whole name is the words. A team that has not played yet, named so, is the answer rather than a closest match. A name several teams share is read as the one that played most recently, when only one did. "Stuff", "everything", "like" and "info" after a name are not part of it. (#1105)
+
+## 4.3.8 — 2026-11-08
+
+Search reads its own words when they are typed wrong, run together or short: a letter added inside a word, six letters jumbled, two words typed as one, and, when nothing else answers, a word one slip from a question word. A place typed right after a name several teams share picks the team.
+
+### Highlights
+- [fixes] Question words with a letter jumbled or added still answer
+- [fixes] Two words typed as one are read apart, with a Did you mean
+- [fixes] A place after a shared team name picks which team you meant
+- [fixes] A team name with "latest" after it shows its newest match
+
+### Search
+- **Intent words typed wrong.** Every word the query parser reads is a word spelling knows; a letter added inside a word is corrected rather than read as an ending; six-letter words jumbled (and a common word of the data's, like a division's name) are corrected; between two as close, the fewer plain edits wins; two of search's own words typed as one are split; and a query that finds nothing tries a name's word or a three-letter word as the question word it is one slip from, kept only when that reading answers. Each shows "Did you mean". A team's name followed by a place picks the team in that place without narrowing its matches to the place, and "latest" beside a team is its most recent match. (#1076)
+
+## 4.3.7 — 2026-11-08
+
+"cham" said for a championship ("who won inspire in nj cham") finds that place's newest championship.
+
+### Highlights
+- [fixes] "nj cham" is New Jersey's championship, its newest one
+- [fixes] "who won inspire in nj cham this year" names this season's
+- [fixes] "cham" after a place works like "champ" and "champs"
+
+### Search
+- **"cham" is "champ" cut short.** A place's "cham" is its newest championship, as "champ" and "champs" are, never an older event whose name has the word. (#1122)
+
+## 4.3.6 — 2026-11-08
+
+More plain searches answered: a team's highlights by part of its name, events said the way people say them, and a team's losses by a set margin.
+
+### Highlights
+- [fixes] "Hypnotic highlights" finds the team from part of its name
+- [fixes] "ultraviolet nj highlights" picks the team in that state
+- [fixes] "Jackson division finals" opens the division's playoffs
+- [fixes] "Which match did <team> lose by 1 point" lists those losses
+
+### Search
+- **A team's highlights by part of its name, or with its place.** "hypnotic highlights", "revAmped highlights" and "ultraviolet nj highlights" are that team's highlights. The words left over are looked up the way a team's stats look them up, and each has to start a word of the team's name. When teams share a name, the place said picks the one from there. (#1197)
+- **Now and yesterday.** "nj meets now" is today's events, as "right now" already was. "nj events yesterday" is yesterday's, and reads the same as "events in nj that finished yesterday".
+- **A season said any way.** "how many teams in nj 2025-2026", "… decode year" and "…, centerstage" read the same as "… 2025-26": the years written long, or the season's game, are that season.
+- **A team's matches at its latest meet.** "6980 matches at recent meet" and "6980 matches at their most recent meet" are its results at its latest event, never an event with those words in its name.
+- **A kind of event a place or name has none of.** "meets in Massachusetts" lists Massachusetts' events of every kind and says it has no meets. "bergen qualifier" lists the events named Bergen and says none is a qualifier.
+- **A division by its name and a game.** "edison centerstage" is the Edison Division in 2023–24. "jackson division finals" and "parkway division rankings" open that division's tab, the way a match number already did. A division named with a season it wasn't held in ("jackson division finals in centerstage") says so, with that season's divisions and the season it was held.
+- **Worlds' divisions.** "worlds division highlights" is every division at Worlds. "what division was <team> in at worlds" is the team's Worlds divisions, never its latest event with "division" in its name.
+- **Lost or won by N points.** "which match did <team> lose by 1 point" and "did <team> win by 10 points" list the matches decided by exactly that many points, newest first, and say so when there are none.
+
+## 4.3.5 — 2026-11-08
+
+A finished meet whose stream was a short link plays its recording on the page again.
+
+### Highlights
+- [live] A short-link stream (ftcwa.live/…) plays on the page after the meet
+- [fixes] Watch on a match starts the page's player at that match, not YouTube
+- [live] Only the meet's own broadcast is kept, checked against its dates
+
+### Fixes
+- **Short stream links after the meet.** A region's short link (ftcwa.live/…) was only followed on the meet's own dates, so a meet whose day passed before it was followed kept no video: Watch livestream and each match's Watch opened YouTube instead of playing on the page. For two weeks after a meet with no video, its link is followed again, and the video it leads to is kept only when YouTube says that broadcast started on the meet's own dates (a link already pointing at a later meet gives nothing). (#1210)
+
 ## 4.3.4 — 2026-11-08
 
 One team swapped for another on an alliance answers with what the swap does.

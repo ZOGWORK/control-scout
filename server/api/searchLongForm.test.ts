@@ -176,9 +176,21 @@ const PAIRS: [string, string][] = [
   ["is team 4215 really based in minnesota or not", "where is 4215 from"],
   ["did 4215 list a school", "4215 school"],
   ["does 4215 have a sponsor on record", "4215 sponsors"],
+  // Whose team it is ("my", "our") before its number.
+  ["what was our 6980 record this season", "6980 record this season"],
+  ["what is my team 4215 upcoming event", "4215 next event"],
+  // Its own event, whose team said: the next one, never the season's list.
+  ["what is my 4215 event", "4215 next event"],
+  ["which is our 6980 competition", "6980 next event"],
+  ["our 6980 upcoming event", "6980 next event"],
 ];
 
 describe("long, conversational queries", () => {
+  it("reads whose team it is before a mistyped intent word", async () => {
+    expect(longForm("what is our team #6980 opr")).toBe("6980 opr");
+    expect(what(await ask("what is my 6980 upcomming event"))).toBe(what(await ask("6980 next event")));
+  });
+
   it(`has ${PAIRS.length} phrasings, at least 40`, () => expect(PAIRS.length).toBeGreaterThanOrEqual(40));
 
   it.each(PAIRS)("%s → the answer to %s", async (long, short) => {
