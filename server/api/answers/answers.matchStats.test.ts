@@ -146,6 +146,7 @@ describe("records", () => {
     // A number of top teams: their world rank, that many or better (9999 is #1, 4215 itself #2: the same matches).
     const two = await stat("how has 4215 done versus the top 2 opponents");
     expect(two).toMatchObject({ intent: "vs-top", title: expect.stringContaining("Against top 2 teams"), headline: { value: "2-2-0" } });
+    expect((await searchAnswer("how has 4215 done versus the top 2 opponents", { limit: 25, full: true })).understood?.label).toContain("Against top 2 teams");
     expect(two?.definition).toContain("ranked 2 or better in the world");
     // Ranks 3 and better hold 6980 too: more matches than the top 2's.
     const three = await stat("4215 record facing the top 3 teams");
