@@ -70,6 +70,8 @@ export interface Parsed {
   unexplained: string[];
   /** No losses asked ("undefeated teams"). */
   undefeated?: boolean;
+  /** Rookie teams asked ("rookie teams", "first-year teams"): teams in their first season. */
+  rookie?: boolean;
   /** Reaching Worlds or states said beside a forecast ("chance of making worlds"): the chance to advance there. */
   reach?: true;
   /** A name asked about as words ("teams named <name>"): the words, never read as a team. */
@@ -249,6 +251,16 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     const span = toks.slice(from, to);
     p.named = { words: span.map((t) => t.w).join(" "), typed: span.map((t) => t.typed).join(" ") };
     span.forEach((t) => (t.used = true));
+  }
+
+  // 0b. Rookie teams ("rookie teams", "first-year teams", "first year teams"): the group, read before any name ("rookie
+  // year" is the team's own fact, never this). Only right before the teams word.
+  for (let i = 0; i < toks.length; i++) {
+    const two = toks[i].w === "first" && /^year$/.test(toks[i + 1]?.w ?? "");
+    const w = two ? 2 : /^(?:rookies?|first-year)$/.test(toks[i].w) ? 1 : 0;
+    if (!w || toks.slice(i, i + w).some((t) => t.used) || !/^teams?$/.test(toks[i + w]?.w ?? "")) continue;
+    p.rookie = true;
+    toks.slice(i, i + w).forEach((t) => (t.used = true));
   }
 
   // 1. Teams by their whole name, longest first: a name made only of search's own words ("The Best") isn't claimed,

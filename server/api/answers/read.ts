@@ -520,7 +520,7 @@ export interface LeaderboardQuestion {
   /** The state or country said with the town ("teams in Springfield IL"): the town's teams from there only. */
   cityIn?: Region;
   /** One event's teams (its divisions' too): the board of the teams there. */
-  event?: { season: number; code: string; codes: string[]; name: string; home?: Region | null };
+  event?: { season: number; code: string; codes: string[]; name: string; home?: Region | null; rookies?: boolean };
 }
 
 const BOARD_STAT_WORDS: [string, RegExp][] = [

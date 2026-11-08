@@ -253,6 +253,21 @@ describe("the best teams at an event", () => {
       expect((await ask(q)).stat?.intent, q).not.toBe("event-best");
     }
   });
+  it("lists an event's rookie teams, those in their first season (failed-search #995)", async () => {
+    await run("UPDATE teams SET rookie_year = ? WHERE number = 6980", [S]);
+    await run("UPDATE teams SET rookie_year = 2010 WHERE number IN (207, 4215)");
+    try {
+      for (const q of ["rookie teams at the new jersey championship", "top rookie teams at nj states", "first year teams at the new jersey championship"]) {
+        const a = await ask(q);
+        expect(a.stat?.title, q).toMatch(/^Rookie teams at New Jersey Championship by OPR there/);
+        expect(rows(a), q).toEqual([["6980", "46.0"]]);
+      }
+      // Rookies anywhere but an event aren't this board, never a board with the word dropped.
+      expect((await ask("top rookie teams by auto opr in texas")).stat?.intent).not.toBe("top-teams");
+    } finally {
+      await run("UPDATE teams SET rookie_year = NULL WHERE number IN (207, 4215, 6980)");
+    }
+  });
   it("reads Worlds and a state's championship as their events", async () => {
     expect(rows(await ask(`best teams at worlds ${S + 1}`))).toEqual([["4215", "60.0"]]);
     expect((await ask("best teams at nj states")).stat?.title).toMatch(/^Best teams at New Jersey Championship by OPR there/);

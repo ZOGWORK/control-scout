@@ -151,6 +151,8 @@ const BOARD_STAT: Partial<Record<string, string>> = {
 
 async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer | null> {
   const intent = p.intent!;
+  // Rookie teams are listed only at an event (its board keeps its rookies); anywhere else the word is never dropped.
+  if (p.rookie && !(intent === "leaderboard" && (p.event || p.worlds || p.states))) return null;
   if (intent === "teams-named") return teamsNamedSearch(p, opts);
   // A town's teams counted ("how many teams from <town>"): the town's list, its length the count. A region's or a
   // country's count is search's own (../searchCoverage.ts countAnswer).
@@ -437,7 +439,7 @@ async function eventBoard(p: Parsed, scope: ReadScope, said: string, opts: Pipel
   const { main, codes } = at(season);
   const name = p.worlds ? `Worlds ${season + 1}` : shortEvent(main.name, main.type);
   const one = p.n == null && /\b(?:team|who)\b/.test(said) && !/\bteams\b/.test(said);
-  const a = await boardSearch(p.q, { kind: "top", stat: "opr", n: Math.min(25, p.n ?? (one ? 5 : 10)), region: null, city: null, season, event: { season, code: main.code, codes, name, home } }, opts);
+  const a = await boardSearch(p.q, { kind: "top", stat: "opr", n: Math.min(25, p.n ?? (one ? 5 : 10)), region: null, city: null, season, event: { season, code: main.code, codes, name, home, ...(p.rookie ? { rookies: true } : {}) } }, opts);
   if (!a?.stat || skipped == null || skipped === season) return a;
   const note = `No teams listed for the ${seasonLabel(skipped)} event yet; showing ${seasonLabel(season)}`;
   return { ...a, stat: { ...a.stat, scope: [note, ...a.stat.scope], definition: `${a.stat.definition} ${note}: no season was named, so the latest was read first.` } };

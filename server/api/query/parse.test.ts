@@ -214,6 +214,10 @@ describe("slots", () => {
       expect((await parse(q)).teams, q).toEqual([]);
     expect((await parse("4215 teams up with")).teams).toMatchObject([{ number: 4215 }]);
   });
+  it("reads rookie teams as a group, only right before the teams word", async () => {
+    for (const q of ["rookie teams at nj states", "first year teams at nj states", "top rookies team at nj states"]) expect(await parse(q), q).toMatchObject({ rookie: true, leftover: [] });
+    expect((await parse("4215 rookie year")).rookie).toBeUndefined();
+  });
   it("reads a limit, a match number and a match type", async () => {
     expect(await parse("4215 last 5 matches")).toMatchObject({ intent: "last-matches", n: 5 });
     expect(await parse("top 5 teams by opr in nj")).toMatchObject({ intent: "leaderboard", n: 5, place: { state: "NJ" } });
