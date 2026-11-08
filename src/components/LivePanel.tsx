@@ -105,7 +105,7 @@ export function LivePanel({ d, target, refresh, track }: { d: EventDetail; targe
   const inSchedule = new Set(d.matches.flatMap((m) => [...m.red.teams, ...m.blue.teams].map((t) => t.number)));
   const done = scheduled ? [...atEvent.keys()].filter((t) => inSchedule.has(t)) : [];
   const unscheduled = [...atEvent.keys()].filter((t) => !inSchedule.has(t));
-  const title = mine ? "Up next for you" : !scheduled ? "Waiting for the schedule" : done.length ? "Your teams are done for now" : "Next match";
+  const title = opener ? `Waiting for ${opener.label}'s score` : mine ? "Up next for you" : !scheduled ? "Waiting for the schedule" : done.length ? "Your teams are done for now" : "Next match";
 
   return (
     <section aria-labelledby="live-now" className="mt-4 rounded-xl border border-destructive/35 bg-destructive/[0.06] p-3 sm:p-4" data-live-panel>
@@ -123,8 +123,14 @@ export function LivePanel({ d, target, refresh, track }: { d: EventDetail; targe
       </div>
 
       <div className="mt-3">
-        <p className="text-xs font-medium text-muted-foreground">{title}</p>
-        {any ? (
+        <p className={cn("text-xs font-medium text-muted-foreground", opener && "text-base font-semibold text-foreground")}>{title}</p>
+        {opener ? (
+          // Until the day's first score is out nothing has started as far as anyone can tell: no match, time or
+          // lineup, so nobody reads the next match as the one on the field.
+          <p className="mt-1 text-sm text-muted-foreground" data-live-awaiting>
+            Nothing has been scored yet. Once {opener.label}'s score is out, {atEvent.size ? "your next match" : "the next match"} and a countdown to it show here.
+          </p>
+        ) : any ? (
           <>
             <div className="mt-0.5 flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
               <span className="font-mono text-2xl font-bold">{any.label}</span>
@@ -137,12 +143,10 @@ export function LivePanel({ d, target, refresh, track }: { d: EventDetail; targe
               ) : null}
               {clock && <span className="text-xs text-muted-foreground">{Number.isFinite(at) ? `About ${clock} venue time` : `Scheduled ${clock}`}</span>}
             </div>
-            {opener ? (
-              <p className="mt-0.5 text-xs text-muted-foreground" data-live-awaiting>Matches haven't started yet. The countdown starts once {opener.label} has a result.</p>
-            ) : Number.isFinite(at) ? (
+            {Number.isFinite(at) ? (
               <p className="mt-0.5 text-xs text-muted-foreground" data-live-pace>
                 {onField && <><span className="font-semibold text-foreground">{onField.label}</span> should be on the field now. </>}
-                {Math.abs(late) >= 1 ? `Running ${Math.abs(late)} min ${late > 0 ? "behind" : "ahead of"} schedule.` : "Running on schedule."}
+                {!p.clockOk ? "Timed from the scores so far." : Math.abs(late) >= 1 ? `Running ${Math.abs(late)} min ${late > 0 ? "behind" : "ahead of"} schedule.` : "Running on schedule."}
               </p>
             ) : <p className="mt-0.5 text-xs text-muted-foreground">{any.time ? "No time zone for this event, so no countdown." : "No start time published for this match."}</p>}
             <Lineup m={any} reasons={atEvent} />
@@ -154,7 +158,7 @@ export function LivePanel({ d, target, refresh, track }: { d: EventDetail; targe
         {/* The panel's actions, together where the eye already is: the next match's scouting report (v1.6 Task 2),
             the stream and tracking. While live they appear only here; the header below drops its copies. */}
         <div className="mt-2.5 flex flex-wrap gap-2 empty:hidden" data-live-actions>
-          {any && (
+          {any && !opener && (
             <Button variant="secondary" size="sm" asChild className="max-sm:h-10 max-sm:basis-full">
               <Link to={matchReportHref(any)} data-live-report><ClipboardList /> Know your match</Link>
             </Button>
@@ -162,7 +166,7 @@ export function LivePanel({ d, target, refresh, track }: { d: EventDetail; targe
           <LivestreamButton watch={{ url: e.livestream, stream: !!e.stream, finished: e.status === "finished" }} className="max-sm:h-10 max-sm:flex-1" />
           {track && <TrackEventButton track={track} className="max-sm:h-10 max-sm:flex-1" />}
         </div>
-        {!mine && done.length > 0 && (
+        {!opener && !mine && done.length > 0 && (
           <p className="mt-2 text-xs text-muted-foreground" data-live-done>No more scheduled matches for {done.join(", ")}{any ? ", so this is the event's next match" : ""}.</p>
         )}
         {unscheduled.length > 0 && (
@@ -229,6 +233,14 @@ export function LiveCountdownChip({ target, onClick }: { target: LiveTarget; onC
   const p = useMemo(() => pace(target.matches, now), [target.matches, now]);
   const at = m ? p.est.get(m.key) ?? NaN : NaN;
   const cd = Number.isFinite(at) ? formatCountdown(at - now) : null;
+  if (p.opener) {
+    return (
+      <Button variant="destructive" onClick={onClick} aria-label={`Waiting for ${p.opener.label}'s score. Show the live panel`}>
+        <span aria-hidden className="size-2 rounded-full bg-current" />
+        Waiting for {p.opener.label}
+      </Button>
+    );
+  }
   return (
     <Button variant="destructive" onClick={onClick} aria-label={m ? `${m.label} ${cd ? `starts in ${countdownWords(at - now)}` : Number.isFinite(at) ? "is due now" : "is up next"}. Show the live panel` : "Show the live panel"}>
       <span aria-hidden className="size-2 rounded-full bg-current" />

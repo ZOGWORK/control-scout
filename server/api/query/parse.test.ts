@@ -24,6 +24,9 @@ const TEAMS = [
   { number: 30009, name: "Mitspe Yam/מצפה ים", city: "Town", state: null, country: "Israel", lastPlayed: 2026 },
   { number: 30010, name: "Powerplay Pioneers", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
   { number: 30011, name: "March Madness", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
+  // Teams named for what a question asks about: theirs only when typed as their whole name.
+  { number: 30012, name: "Alliance", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
+  { number: 30013, name: "Inspires", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
 ];
 const EVENTS = ["east bergen conference", "new jersey championship", "nj championship", "turnpike division"];
 const ctx: ParseContext = {
@@ -34,6 +37,27 @@ const ctx: ParseContext = {
 const parse = (q: string) => parseQuery(q, ctx);
 
 describe("slots", () => {
+  it("a word a question asks about names a team only typed as the team's whole name", async () => {
+    const near = { ...ctx, nearTeam: async (w: string) => ctx.names.nearTeam(w) };
+    for (const q of ["nj states alliances", "most inspire awards", "inspire award winners"]) expect((await parseQuery(q, near)).teams, q).toEqual([]);
+    expect((await parseQuery("inspires awards", near)).teams.map((t) => t.number)).toEqual([30013]);
+  });
+  it("a name several teams share, typed with one of their numbers, is that one team in either order", async () => {
+    for (const q of ["ultraviolet 23268 highlights", "23268 ultraviolet highlights", "highlights of ultraviolet 23268", "ultraviolet 20245 record"]) {
+      const p = await parse(q);
+      expect(p.teams, q).toHaveLength(1);
+      expect(p.teams[0].number, q).toBe(/20245/.test(q) ? 20245 : 23268);
+      expect(p.teams[0].candidates, q).toBeUndefined();
+    }
+    // Only the number beside the name: one across "vs" is its own team, and each side keeps its two.
+    const lineup = (await parse("predict 23268 4215 vs ultraviolet 20245 6980")).teams;
+    expect(lineup.map((t) => t.number).sort()).toEqual([20245, 23268, 4215, 6980].sort());
+    expect(lineup.find((t) => t.number === 20245)?.candidates).toBeUndefined();
+    // A number that isn't one of the name's teams stays a second team.
+    const two = (await parse("ultraviolet 4215")).teams;
+    expect(two.map((t) => t.number)).toContain(4215);
+    expect(two).toHaveLength(2);
+  });
   it("a name typed nearly right is that team, a leading 'the' included; never a guess between two", async () => {
     const near = { ...ctx, nearTeam: async (w: string) => ctx.names.nearTeam(w) };
     expect(await parseQuery("hypnotc robotics record", near)).toMatchObject({ teams: [{ number: 4215, via: "near" }], complete: true });
@@ -64,6 +88,21 @@ describe("slots", () => {
     const p = await parse("predicted chances of 4215 east bergen conference");
     expect(p).toMatchObject({ intent: "team-predict", complete: true, teams: [{ number: 4215 }], event: { words: "east bergen conference" }, time: null });
   });
+  it("reads a prediction's miss, a team's or everyone's, and a floor in points never as a team", async () => {
+    expect(await parse("6980 most unpredictable matches")).toMatchObject({ intent: "miss-matches", complete: true, teams: [{ number: 6980 }] });
+    expect(await parse("which match was the prediction most wrong in new jersey")).toMatchObject({ intent: "miss-matches", complete: true, teams: [] });
+    expect(await parse("hypnotic robotics most accurate predictions")).toMatchObject({ intent: "accurate-matches", complete: true, teams: [{ number: 4215 }] });
+    // 6980 is a team too: "more than 6980 points" is a number of points all the same, read before the team and season
+    // readers, so team 2024 stays a team and a floor of 2025 is never a season.
+    expect(await parse("4215 predictions off by more than 6980 points")).toMatchObject({ intent: "miss-matches", complete: true, over: { n: 6980, atLeast: false }, teams: [{ number: 4215 }] });
+    expect(await parse("2024 predictions off by more than 6980 points")).toMatchObject({ intent: "miss-matches", complete: true, time: null, teams: [{ number: 2024 }] });
+    expect(await parse("6980 predictions off by at least 2025 pts")).toMatchObject({ intent: "miss-matches", complete: true, time: null, over: { n: 2025, atLeast: true } });
+    // A match's number is no filter these apply.
+    expect((await parse("4215 prediction miss in match 2")).complete).toBe(false);
+    // A floor nothing else applies leaves the parse incomplete; "accurate" alone is a forecast's review.
+    expect((await parse("4215 matches over 200 points")).complete).toBe(false);
+    expect((await parse("how accurate was the prediction for 4215 at nj championship")).intent).toBe("team-predict");
+  });
   it("reads 'will <team> win <event>' as the forecast at that event; 'will' alone asks nothing", async () => {
     for (const q of ["will 6980 win the east bergen conference", "will hypnotic robotics win at nj championship", "will 23268 win states", "will 24033 win worlds"]) {
       expect(await parse(q), q).toMatchObject({ intent: "team-predict", complete: true });
@@ -72,6 +111,34 @@ describe("slots", () => {
     for (const q of ["will 6980 win their next match", "when will 4215 play next", "will 4215 advance to worlds"]) {
       expect((await parse(q)).complete, q).toBe(false);
     }
+  });
+  it("reads one team swapped for another, with a partner or not, as the swap's call", async () => {
+    for (const q of ["what if we replace 6980 with 24033 alongside 23268", "swapping 23268 out for 4215", "trade 4215 for 24033 beside 6980, how would the odds change",
+      // Every verb the swap is said with, and "by" between the two.
+      "switch 6980 for 24033 with 23268", "sub 23268 for 4215", "replace 4215 by 24033 beside 6980", "with 6980, swap 23268 for 4215",
+      // Who is asking ("we", "I", "you"), a supposition however it opens, and "next to" for beside.
+      "what if we switched 4215 for 24033 beside 6980, would we win", "what would happen if i replaced 6980 with 23268 next to 4215", "what happens if you sub 24033 for 6980"]) {
+      expect(await parse(q), q).toMatchObject({ intent: "swap-predict", complete: true });
+    }
+    // A team's number swapped out or in is a team, never a season, whichever side it's on.
+    for (const q of ["trade 2024 for 23268 beside 6980", "replace 23268 with 2024 alongside 6980"]) {
+      expect(await parse(q), q).toMatchObject({ intent: "swap-predict", time: null });
+      expect((await parse(q)).teams.map((t) => t.number).sort(), q).toEqual([2024, 23268, 6980].sort());
+    }
+  });
+  it("reads reaching Worlds or states beside a forecast as the chance to advance there", async () => {
+    for (const q of ["4215 odds of reaching worlds", "what are 23268's chances of getting to states next season", "6980 chance of qualifying for worlds as it stands", "24033's chances of making regionals", "odds 4215 qualifies for the regional championship",
+      "23268's odds of getting through to the state championship", "6980 chances of making it into the first championship"]) {
+      expect(await parse(q), q).toMatchObject({ intent: "team-predict", complete: true, reach: true, level: null });
+    }
+    // No forecast asked: a reach word is no chance.
+    expect((await parse("did 4215 make worlds")).reach).toBeUndefined();
+  });
+  it("reads a supposed meeting of two teams as their match's call; a supposing word alone asks nothing", async () => {
+    for (const q of ["what if 6980 faced 23268", "suppose 24033 played 4215 next week", "imagine 23268 against 6980"]) {
+      expect(await parse(q), q).toMatchObject({ intent: "two-predict", complete: true });
+    }
+    for (const q of ["what if 4215 had a better auto", "if 6980 and 23268 teamed up"]) expect((await parse(q)).intent, q).not.toBe("two-predict");
   });
   it("reads two alliances of two either side of a vs, any wording, as a match's call", async () => {
     for (const q of [
@@ -86,6 +153,20 @@ describe("slots", () => {
     // Three or five teams are no two alliances of two; two teams stay the two-team call.
     expect((await parse("4215 6980 vs 24033")).intent).not.toBe("alliance-predict");
     expect((await parse("4215 vs 6980 matchup")).intent).toBe("two-predict");
+  });
+  it("reads 'will / would A beat B' as the call for a match between them, in any wording of the win", async () => {
+    for (const q of ["would 6980 beat 4215", "is 24033 going to defeat 23268", "will 4215 win against 6980?", "will 23268 lose against 24033"]) {
+      const p = await parse(q);
+      expect(p.intent, q).toBe("two-predict");
+      expect(p.complete, q).toBe(true);
+      expect(p.teams.length, q).toBe(2);
+    }
+    // One team: no match between two, so it's left alone here.
+    expect((await parse("would 4215 win")).intent).not.toBe("two-predict");
+    // "Defeats" asked as a count stays the team's losses.
+    const lost = await parse("how many defeats does 6980 have");
+    expect(lost.symbols).toContain("metric:loss");
+    expect(lost.symbols).not.toContain("metric:win");
   });
   it("reads a forecast held up against what happened as the forecast at the event (its card shows both)", async () => {
     for (const q of [
@@ -140,6 +221,18 @@ describe("slots", () => {
   });
   it("a limit or a match number never makes a team's number a year", async () => {
     expect(await parse("2024 last 5 matches")).toMatchObject({ teams: [{ number: 2024 }], n: 5, time: null, intent: "last-matches" });
+  });
+  it("a size in teams is a count, never a team's number", async () => {
+    // A team numbered as the size exists, and still isn't read (failed-search #951's side panel showed "team 40").
+    for (const q of ["events in nj with more than 4215 teams", "events with at least 4215 teams", "events with 4215 or more teams", "events over 4215 teams"])
+      expect((await parse(q)).teams, q).toEqual([]);
+    expect((await parse("4215 teams up with")).teams).toMatchObject([{ number: 4215 }]);
+    // A number of points is a margin or a score, never a team (#861: "lose by 1 point" read team 1).
+    expect((await parse("which match did 4215 lose by 6980 points")).teams.map((t) => t.number)).toEqual([4215]);
+  });
+  it("reads rookie teams as a group, only right before the teams word", async () => {
+    for (const q of ["rookie teams at nj states", "first year teams at nj states", "top rookies team at nj states"]) expect(await parse(q), q).toMatchObject({ rookie: true, leftover: [] });
+    expect((await parse("4215 rookie year")).rookie).toBeUndefined();
   });
   it("reads a limit, a match number and a match type", async () => {
     expect(await parse("4215 last 5 matches")).toMatchObject({ intent: "last-matches", n: 5 });
@@ -335,5 +428,17 @@ describe("when, said with 'time' or as a verb", () => {
   });
   it("a match's number is never read as the last one played", async () => {
     expect(await parse("when did 4215 last play match 12")).toMatchObject({ complete: false });
+  });
+});
+
+describe("a schedule, and a state by its short name (failed-search #1152; held out: other teams, states and words)", () => {
+  it("a team's schedule is its matches, in a state said short or in full", async () => {
+    expect(await parse("bad wolf cali schedule")).toMatchObject({ intent: "season-matches", complete: true, teams: [{ number: 6980 }], place: { name: "California" } });
+    expect(await parse("6980 match schedule in massachusetts")).toMatchObject({ intent: "season-matches", complete: true, place: { name: "Massachusetts" } });
+    expect(await parse("23268 schedules this season")).toMatchObject({ intent: "season-matches", complete: true, teams: [{ number: 23268 }] });
+  });
+  it("a short name is a state only as a whole word, and never inside a team's name", async () => {
+    expect((await parse("bad wolf massa schedule")).place).toBeNull();
+    expect(await parse("teams in mass")).toMatchObject({ place: { name: "Massachusetts" } });
   });
 });

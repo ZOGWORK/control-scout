@@ -92,6 +92,13 @@ describe("comparison card (the guide's contract)", () => {
     // At most three hues; no status, phase, alliance or gold colour on the data.
     expect(c.querySelector("[data-block=compare]")!.innerHTML).not.toMatch(/(text|bg|border)-(success|danger|info|warning|accent|sky|emerald|violet|teal|orange|red|blue|amber|rose)/);
   });
+  it("each team's key is a 44px target on a phone, however short its number", () => {
+    const c = html({ ...VS, teams: [{ number: 31, name: "Short" }, { number: 7149, name: "ENFORCERS" }], blocks: [{ kind: "compare", title: "Fouls", teams: [{ label: "31", href: "/teams/31" }, { label: "7149", href: "/teams/7149" }],
+      rows: [{ label: "Fouls", values: ["5.8", "4.4"], nums: [5.8, 4.4], max: 45, best: 1, gap: "1.4 fewer", diff: 1.4 }] }] });
+    const keys = [...c.querySelectorAll<HTMLAnchorElement>("[data-team-key] a")];
+    expect(keys.map((k) => k.textContent)).toEqual(["31", "7149"]);
+    for (const k of keys) expect(k.className.split(" ")).toEqual(expect.arrayContaining(["min-h-[44px]", "min-w-[44px]"]));
+  });
   it("prints each fact once, with no meta text and one primary action", () => {
     const c = html(VS);
     const card = c.querySelector<HTMLElement>("[data-comparison]")!;

@@ -287,7 +287,28 @@ describe("pace: countdowns on the field's real pace", () => {
     const ms = [match(1, [1, 2], [3, 4], { played: true, startsAt: t(-24 * 60) }), match(2, [5, 6], [7, 8], { startsAt: t(0) })];
     expect(pace(ms, T).opener?.label).toBe("Q2");
   });
-  it("no times, nothing to pace", () => {
-    expect(pace([match(1, [1, 2], [3, 4]), match(2, [5, 6], [7, 8])], T)).toMatchObject({ opener: null, onField: null });
+  it("no times: still waits for the first score, then has nothing to pace", () => {
+    expect(pace([match(1, [1, 2], [3, 4]), match(2, [5, 6], [7, 8])], T).opener?.label).toBe("Q1");
+    expect(pace([match(1, [1, 2], [3, 4], { played: true }), match(2, [5, 6], [7, 8])], T)).toMatchObject({ opener: null, onField: null });
+  });
+  it("a schedule posted 12 hours off: its gaps, not its clock", () => {
+    // Posted 7 min apart from 12 h before the field really ran, lunch before Q6; Q1 really started at 0.
+    const off = [0, 7, 14, 21, 28, 90].map((s, i) => {
+      const n = i + 1;
+      return n === 1 ? match(n, [n], [n + 10], { played: true, startsAt: t(0), scheduledAt: t(-720) }) : match(n, [n], [n + 10], { startsAt: t(s - 720) });
+    });
+    const p = pace(off, T + 60_000);
+    expect(p.clockOk).toBe(false);
+    expect([est(p, 2), est(p, 3), est(p, 6)]).toEqual([7, 14, 90]); // lunch keeps the shift: no snap back 12 h
+  });
+  it("a wrong clock with lunch right after the latest score: the break's gap holds", () => {
+    // Q5 posted 28 but really started 12 h later (at 28); Q6 posted 90 after lunch: due at 90, not during lunch.
+    const ms = [0, 7, 14, 21, 28, 90].map((s, i) => {
+      const n = i + 1;
+      return n <= 5 ? match(n, [n], [n + 10], { played: true, startsAt: t(s), scheduledAt: t(s - 720) }) : match(n, [n], [n + 10], { startsAt: t(s - 720) });
+    });
+    const p = pace(ms, T + 30 * 60_000);
+    expect(p.clockOk).toBe(false);
+    expect(est(p, 6)).toBe(90);
   });
 });
