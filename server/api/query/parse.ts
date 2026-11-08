@@ -202,9 +202,12 @@ function yearReading(q: string, team: (n: number) => boolean): (y: number) => bo
  *  about as words ("teams named Powerplay Pioneers", "March Madness") never read as a time. `rest`: `q` without the
  *  time's words. Shared with the answer's season picker (server/api/answers/season.ts withSeason). */
 export function queryTime(q0: string, names: Names, today: string): TimeRead {
-  // A score threshold ("at least 2025 pts") is never a year: set aside first, as parseQuery does.
-  const fl = FLOOR.exec(q0);
-  const q = fl ? `${q0.slice(0, fl.index)} ${q0.slice(fl.index + fl[0].length)}`.replace(/\s+/g, " ").trim() : q0;
+  // A score threshold ("at least 2025 pts", "both alliances scored over 2025") is never a year: set aside first, as
+  // parseQuery does.
+  const c = scoreCondOf(q0);
+  const q1 = c ? c.rest : q0;
+  const fl = FLOOR.exec(q1);
+  const q = fl ? `${q1.slice(0, fl.index)} ${q1.slice(fl.index + fl[0].length)}`.replace(/\s+/g, " ").trim() : q1;
   const words0 = q.split(" ");
   const yearOk = yearReading(q, (n) => !!names.team(n));
   const timeOnly = (w: string[]) => { const r = readTime(w.join(" "), today, yearOk); return !!r.time && allFiller(r.rest.split(" ").filter(Boolean)); };

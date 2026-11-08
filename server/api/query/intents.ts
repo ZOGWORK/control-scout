@@ -208,7 +208,7 @@ export const INTENTS: IntentRule[] = [
   R("top-matches", 0, ["agg:max", "metric:score"], ["thing:match", "per:match", "nopen"]),
   R("top-matches", 0, ["agg:max", "thing:match"], ["metric:score", "nopen"]),
   // Matches where an alliance reached a score ("matches where the losing alliance scored over 200"): the highest first.
-  R("top-matches", 0, ["thing:match", "cond"], ["list", "agg:max", "metric:score"]),
+  R("top-matches", 0, ["thing:match", "cond"], ["list", "agg:max", "metric:score"], { noMatchNo: true }),
   // Matches in a window, no measure said ("matches from yesterday"): the window's best first (./execute.ts needs the window).
   R("top-matches", 0, ["thing:match"], ["list"], { noEvent: true, noMatchNo: true }),
   // Matches by a measure ("and" is "with": "the match with the most penalty points").

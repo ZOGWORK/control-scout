@@ -3,7 +3,7 @@
 // rewording of a logged query, never the logged words.
 import { describe, expect, it } from "vitest";
 import { buildNames } from "./names";
-import { parseQuery, scoreCondOf, type ParseContext } from "./parse";
+import { parseQuery, queryTime, scoreCondOf, type ParseContext } from "./parse";
 import { condValue, condWords } from "./matchFind";
 
 const ctx: ParseContext = {
@@ -34,6 +34,17 @@ describe("a match search with a score to reach", () => {
     expect(await parse("games in ohio last week where the losing side scored over 180")).toMatchObject({ intent: "top-matches", teams: [], scoreCond: { side: "losing", n: 180 }, place: { name: "Ohio" }, complete: true });
     expect(await parse("matches at ohio championship where each alliance scored over 180")).toMatchObject({ intent: "top-matches", teams: [], event: { words: "ohio championship" }, complete: true });
     expect(await parse("highest scoring matches where both alliances scored at least 180")).toMatchObject({ intent: "top-matches", complete: true });
+  });
+
+  it("a match's own number is never dropped for the list", async () => {
+    const p = await parse("match 12 at ohio championship where each alliance scored over 180");
+    expect(p.intent === "top-matches" && p.complete).toBe(false);
+  });
+
+  it("the number is never a year, for the season picker either", () => {
+    // 2030 is no team here: read as a year, a picked season would take the threshold out with it.
+    expect(queryTime("games where each alliance scored over 2030", ctx.names, ctx.today).time).toBeNull();
+    expect(queryTime("games in 2030 where each alliance scored over 180", ctx.names, ctx.today).time).toMatchObject({ kind: "season" });
   });
 });
 
