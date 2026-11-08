@@ -15,6 +15,8 @@ beforeAll(async () => {
     [1622, "Team Spyder", null, "San Diego"], [16000, "Gear Maniacs", null, "Boston"], [4215, "Hypnotic Robotics", null, "Ames"],
     [2222, "Robo-Raptors", null, "Leeds"], [3333, "机器人队", null, "Shenzhen"],
     [5555, "Drive Team", null, "Austin"],
+    // One name spelled two ways by two teams: the spelling typed comes first.
+    [41001, "Sky Hawks", null, "Reno"], [41002, "SkyHawks", null, "Reno"], [41003, "The King Robotics", null, "Reno"], [41004, "King Robotics", null, "Reno"],
   ];
   for (const [n, name, school, city] of teams) {
     await run("INSERT INTO teams (number, name, school, city) VALUES (?, ?, ?, ?)", [n, name, school, city]);
@@ -61,6 +63,14 @@ describe("search", () => {
     expect(refs).toContain("2026:USNJCMP");
     expect(refs).not.toContain("2025:USNJCMP");
   });
+  it("puts the name spelled exactly as typed first when two teams' names score the same", async () => {
+    expect((await search("skyhawks", 5)).filter((h) => h.kind === "team").map((h) => h.ref).slice(0, 2)).toEqual(["41002", "41001"]);
+    expect((await search("sky hawks", 5)).filter((h) => h.kind === "team")[0]?.ref).toBe("41001");
+    // A small word search drops ("the") is still the name typed: The King Robotics, not King Robotics.
+    expect((await search("the king robotics", 5)).filter((h) => h.kind === "team")[0]?.ref).toBe("41003");
+    expect((await search("king robotics", 5)).filter((h) => h.kind === "team")[0]?.ref).toBe("41004");
+  });
+
   it("tolerates typos in team names", async () => {
     expect((await titles("X Drvie"))[0]).toBe("16321 | X Drive");
     expect((await titles("cyber dragns"))[0]).toBe("10820 | Cyber Dragons");
@@ -130,6 +140,15 @@ describe("search", () => {
     expect((await search("new jersey", 12, new Set(), new Set(["event"]))).some((h) => h.kind === "place")).toBe(false);
     expect((await search("new jersey", 12, new Set(), new Set(["place"])))[0]).toMatchObject({ kind: "place", ref: "USA:NJ" });
     expect(await search("AUSYQ1 Q12", 5, new Set(), new Set(["team"]))).toEqual([]);
+  });
+  it("a name two teams share: the one that has played more matches first, whatever its number", async () => {
+    for (const n of [41011, 41012]) {
+      await run("INSERT INTO teams (number, name, city) VALUES (?, 'Solar Flare', 'Reno')", [n]);
+      await run("INSERT INTO team_seasons (season, team) VALUES (2026, ?)", [n]);
+    }
+    for (let k = 1; k <= 3; k++) await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance) VALUES (2025, 'AUSYQ1', 'qual', 0, ?, 41012, 'red')", [k]);
+    await rebuildSearch();
+    expect((await titles("solar flare")).slice(0, 2)).toEqual(["41012 | Solar Flare", "41011 | Solar Flare"]);
   });
   it("doesn't return far-off guesses", async () => {
     expect(await titles("garden state")).toEqual([]);

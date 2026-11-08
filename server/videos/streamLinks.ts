@@ -5,20 +5,27 @@
 // read: the hop that names a YouTube host ends it, and YouTube itself is never fetched. Every connection goes to
 // a public address checked at connect time, so a redirect (or a name resolving) to a private one is refused.
 // Once the event's dates are over its video stays: the same short link is pointed at the next meet's broadcast.
+// An event whose dates passed with no video kept (the link wasn't followed then, or led nowhere yet) is followed
+// again for LATE_DAYS after, and the video it leads to is kept only when YouTube says that broadcast started on
+// the event's own dates: a link already moved on to a later meet's broadcast gives that event nothing.
 import http from "node:http";
 import https from "node:https";
 import dns from "node:dns";
 import net from "node:net";
 import { all, run } from "../db.js";
-import { onEventDates } from "../../src/shared/eventDay.js";
+import { eventToday, onEventDates } from "../../src/shared/eventDay.js";
 import { isYouTubeHost } from "../../src/shared/stream.js";
 import { firstVideoId, forgetRecordings } from "./recordings.js";
+import { env } from "../env.js";
+import { fetchFromApi, fetchWatchPage, type WatchPageFacts } from "./youtube.js";
 
 const MAX_HOPS = 5;
 const TIMEOUT_MS = 8000;
 /** A link that led to a video is followed again after 15 minutes (a broadcast restarted under a new id); one that led nowhere, after 2 hours. */
 const AGAIN_FOUND_MS = 15 * 60_000;
 const AGAIN_NONE_MS = 2 * 3600_000;
+/** How long after an event's last date a link that gave it no video is still followed (its broadcast checked against its dates). */
+const LATE_DAYS = 14;
 /** Hosts whose links are the stream itself, never a redirect to YouTube. */
 const NOT_SHORT = /(^|\.)(twitch\.tv|facebook\.com|vimeo\.com)$/i;
 
@@ -113,13 +120,29 @@ function maybeShort(link: string): boolean {
   } catch { return false; }
 }
 
+/** One video's facts from YouTube (the Data API with the key, else the watch page). */
+export type Facts = (videoId: string) => Promise<WatchPageFacts>;
+const youtubeFacts: Facts = async (id) => {
+  const key = env.youtubeApiKey;
+  if (key) return (await fetchFromApi([id], key)).get(id) ?? { status: "error", start: null, end: null, length: null, live: false };
+  return fetchWatchPage(id);
+};
+
+/** Whether a video's broadcast started on the event's dates (at the venue): "error" when YouTube couldn't be read. */
+export async function broadcastOnDates(id: string, e: { start: string; end: string | null; timezone: string | null }, facts: Facts = youtubeFacts): Promise<boolean | "error"> {
+  const f = await facts(id);
+  if (f.status === "error") return "error";
+  const at = f.start ? Date.parse(f.start) : NaN;
+  return f.status === "ok" && Number.isFinite(at) && onEventDates({ start: e.start.slice(0, 10), end: (e.end ?? e.start).slice(0, 10), timezone: e.timezone }, at);
+}
+
 let busy = false;
 /**
  * Follow the short stream links of events on their dates today (at the venue), at most `max` a run. Returns how
  * many events' videos changed (found, replaced or lost). A failed request keeps what was found before. A video
  * an earlier event with the same link already keeps is last meet's broadcast, not yet replaced: never this one's.
  */
-export async function resolveStreamLinks(log: (s: string) => void, opts: { max?: number; hop?: Hop; now?: () => number } = {}): Promise<number> {
+export async function resolveStreamLinks(log: (s: string) => void, opts: { max?: number; hop?: Hop; now?: () => number; facts?: Facts } = {}): Promise<number> {
   if (busy) return 0;
   busy = true;
   try {
@@ -151,10 +174,55 @@ export async function resolveStreamLinks(log: (s: string) => void, opts: { max?:
          ON CONFLICT(season, code) DO UPDATE SET url = excluded.url, video_id = excluded.video_id, checked_at = excluded.checked_at`,
         [r.season, r.code, r.livestream, id, new Date(now).toISOString()]);
     }
+    changed += await resolveLate(now, opts);
     if (changed) forgetRecordings();
     if (changed) log(`recordings: ${changed} short stream link${changed === 1 ? "" : "s"} led somewhere new`);
     return changed;
   } finally {
     busy = false;
   }
+}
+
+/**
+ * Events whose dates ended in the last LATE_DAYS with no video kept for their link: followed again (every 2 hours,
+ * linkDue), and the video kept only when its broadcast started on the event's dates. Returns how many found one.
+ */
+async function resolveLate(now: number, opts: { max?: number; hop?: Hop; facts?: Facts }): Promise<number> {
+  const day = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+  const rows = await all<{ season: number; code: string; start: string; end: string | null; timezone: string | null; livestream: string; url: string | null; video_id: string | null; checked_at: string | null }>(
+    `SELECT e.season, e.code, e.start, e.end, e.timezone, e.livestream, l.url, l.video_id, l.checked_at FROM events e
+     LEFT JOIN event_stream_links l ON l.season = e.season AND l.code = e.code
+     WHERE e.livestream LIKE 'http%' AND (l.video_id IS NULL OR l.url != e.livestream)
+       AND substr(COALESCE(e.end, e.start), 1, 10) >= ? AND substr(e.start, 1, 10) <= ?
+     ORDER BY e.start DESC`, [day(now - (LATE_DAYS + 1) * 86_400_000), day(now)]);
+  const todo = rows.filter((r) => {
+    if (!maybeShort(r.livestream)) return false;
+    const last = (r.end ?? r.start).slice(0, 10);
+    // Dates over at the venue (today's events are the pass above's), and not longer ago than LATE_DAYS.
+    return last < eventToday(now, r.timezone).from && last >= day(now - LATE_DAYS * 86_400_000) && linkDue(r, r.livestream, now);
+  })
+    // Never tried first, then the longest since a try: a run of failing links can't hold every slot.
+    .sort((a, b) => (a.checked_at ?? "").localeCompare(b.checked_at ?? ""))
+    .slice(0, opts.max ?? 20);
+  let found = 0;
+  for (const r of todo) {
+    // A failed request (the link's or YouTube's) keeps no video but notes the try, so it waits its 2 hours (linkDue).
+    let id = await resolveShortLink(r.livestream, opts.hop);
+    if (id === "error") id = null;
+    if (id) {
+      const ok = await broadcastOnDates(id, r, opts.facts);
+      if (ok !== true) id = null;
+    }
+    if (id) {
+      // Another event already keeps this broadcast for the same link (back-to-back meets): theirs, not this one's.
+      const other = await all("SELECT 1 FROM event_stream_links WHERE video_id = ? AND url = ? AND NOT (season = ? AND code = ?) LIMIT 1", [id, r.livestream, r.season, r.code]);
+      if (other.length) id = null;
+    }
+    if (id) found++;
+    await run(
+      `INSERT INTO event_stream_links (season, code, url, video_id, checked_at) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(season, code) DO UPDATE SET url = excluded.url, video_id = excluded.video_id, checked_at = excluded.checked_at`,
+      [r.season, r.code, r.livestream, id, new Date(now).toISOString()]);
+  }
+  return found;
 }
