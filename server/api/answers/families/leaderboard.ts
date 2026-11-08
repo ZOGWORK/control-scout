@@ -53,6 +53,8 @@ export const BOARD_STATS: Record<string, BoardStat> = {
   matches: { count: true, id: "matches", label: "Matches played", sql: "s.matches", unit: "", teamsSort: null, digits: 0 },
   events: { count: true, id: "events", label: "Events played", sql: "s.events", unit: "", teamsSort: null, digits: 0 },
   awards: { count: true, id: "awards", label: "Awards won", sql: "(SELECT COUNT(*) FROM awards a WHERE a.season = s.season AND a.team = s.team)", unit: "", teamsSort: null, digits: 0 },
+  // Every season's count (career boards, careerAnswer): seasons with a match on record.
+  seasons: { count: true, id: "seasons", label: "Seasons played", sql: "s.matches", unit: "", teamsSort: null, digits: 0 },
   reliability: { id: "reliability", label: "Reliability", sql: "r.idx", unit: "", teamsSort: null, digits: 0, join: "JOIN team_reliability r ON r.season = s.season AND r.code = '' AND r.team = s.team" },
 };
 
@@ -70,7 +72,7 @@ export function boardStatFor(id: string, season: number): BoardStat | undefined 
   return { id: parts.join("+"), label: `${parts.map((x) => PHASE_LABEL[x]).join(" + ")} OPR`, sql: `(${parts.map((x) => BOARD_STATS[x].sql).join(" + ")})`, unit: "", teamsSort: null, digits: 1 };
 }
 
-export type BoardKind = "top" | "rookie" | "improved" | "gain" | "steady" | "phases" | "city" | "city-best";
+export type BoardKind = "top" | "rookie" | "improved" | "gain" | "steady" | "phases" | "city" | "city-best" | "career" | "oldest";
 /** `best`: "best team in New Jersey by OPR", one team asked for: titled so, the next few listed under it. */
 export interface BoardQuestion { kind: BoardKind; stat: BoardStat; n: number; region: Region | null; city: string | null; season: number | null; seasonWhy?: string; best?: boolean;
   /** `city` is a school's name: its teams. */
@@ -124,6 +126,7 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
   const regionArgs = [...(b.region ? [b.region.country, ...(b.region.state ? [b.region.state] : [])] : []), ...(b.town ? [b.town] : [])];
   const chips = [...(b.town ? [b.town] : []), b.region?.name ?? "Worldwide", seasonLabel(season)];
   if (b.kind === "improved") return improvedAnswer(b, season, where, regionSql, regionArgs, chips, why);
+  if (b.kind === "career" || b.kind === "oldest") return careerAnswer(b, where, regionSql, regionArgs);
   if (b.kind === "steady") return steadyAnswer(b, season, where, regionSql, regionArgs, chips, why);
   if (b.kind === "phases") return phasesAnswer(b, season, where, regionSql, regionArgs, chips, why);
   if (b.kind === "gain") return gainAnswer(b, season, where, regionSql, regionArgs, chips, why);
@@ -170,6 +173,68 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
     ...base,
     headline: { value: `${top.team} ${top.name ?? ""}`.trim(), label: `${st.id === "record" ? `Record ${record(top)}` : `${st.label} ${fmt(top.v, st)}, ${record(top)}`}${top.city ? ` · ${top.city}` : ""}`, sub: b.asc ? `Lowest of ${total.toLocaleString("en-US")} ranked${where}` : b.best ? `#1 of ${total.toLocaleString("en-US")} ranked${where}` : `#1 of ${rows.length} shown`, href: teamHref(Number(top.team), season) },
     blocks: [board],
+  };
+}
+
+/** FTC's first season (2005–06): a rookie year listed before it is a directory slip, never a team's start. */
+const FTC_FIRST_SEASON = 2005;
+const CAREER: Record<string, { label: string; sql: string; rule: string }> = {
+  matches: { label: "Matches played", sql: "SUM(s.matches)", rule: "Matches played: every season's matches on record, as each team page counts them." },
+  events: { label: "Events played", sql: "SUM(s.events)", rule: "Events played: every season's events on record, as each team page counts them." },
+  wins: { label: "Wins", sql: "SUM(s.wins)", rule: "Wins: every season's match wins on record." },
+  // Match rows are stored for recent seasons only, so a team's seasons run from FIRST's rookie year to its latest season
+  // with a match.
+  seasons: { label: "Seasons played", sql: "MAX(CASE WHEN s.matches > 0 THEN s.season END) - t.rookie_year + 1", rule: "Seasons played: from the team's rookie year, as FIRST lists it, to its latest season with a match on record, both counted." },
+};
+
+/** Every season counted: the team with the most matches, events, wins or seasons on record; or the oldest
+ *  teams still active (a match in the latest season played), the earliest rookie year first. */
+async function careerAnswer(b: BoardQuestion, where: string, regionSql: string, regionArgs: string[]): Promise<StatAnswer> {
+  const oldest = b.kind === "oldest";
+  const c = CAREER[oldest ? "seasons" : b.stat.id];
+  const span = await get<{ first: number | null; last: number | null }>("SELECT MIN(season) first, MAX(season) last FROM team_season_stats WHERE matches > 0");
+  const title = oldest ? `Oldest teams still active${where}, by rookie year` : `Team${where} with the most ${c.label.toLowerCase()}, every season`;
+  // No season with a match on record: no years to say, so none are made up.
+  if (span?.first == null || span?.last == null) {
+    return { family: "leaderboard", intent: oldest ? "oldest-active" : `career-${b.stat.id}`, title, scope: [b.region?.name ?? "Worldwide"], definition: oldest ? "Still active: a match on record in one of the two latest seasons played." : c.rule,
+      source: `Every season on record${where}`, blocks: [], none: `No team${where} has a match on record yet.` };
+  }
+  const first = Number(span.first), last = Number(span.last);
+  const rows = await all<{ team: number; name: string | null; city: string | null; state: string | null; country: string | null; rookie: number | null; v: number; wins: number; losses: number; ties: number; lastPlayed: number; opr: number | null }>(
+    // From every team, its season rows when it has any: a team whose awards come from events with no match rows here
+    // (remote ones) still counts its awards.
+    `SELECT t.number team, t.name, t.city, t.state, t.country, t.rookie_year rookie, ${c.sql} v, COALESCE(SUM(s.wins), 0) wins, COALESCE(SUM(s.losses), 0) losses, COALESCE(SUM(s.ties), 0) ties,
+            MAX(CASE WHEN s.matches > 0 THEN s.season END) lastPlayed,
+            (SELECT x.opr_np FROM team_season_stats x WHERE x.team = t.number AND x.matches > 0 ORDER BY x.season DESC LIMIT 1) opr
+     FROM teams t LEFT JOIN team_season_stats s ON s.team = t.number
+     WHERE ${teamPageSql("t.number", "t.name")}${regionSql}${oldest || b.stat.id === "seasons" ? ` AND t.rookie_year >= ${FTC_FIRST_SEASON}` : ""}
+     GROUP BY t.number${oldest ? " HAVING lastPlayed >= ?" : " HAVING v > 0"}
+     ORDER BY ${oldest ? "t.rookie_year ASC, v DESC" : "v DESC, wins DESC"}, t.number LIMIT ?`, [...regionArgs, ...(oldest ? [last - 1] : []), b.n]);
+  const S = `${seasonLabel(first)} to ${seasonLabel(last)}`;
+  // Still active: a match in the latest season played or the one before (a new season's first weeks have few).
+  const active = `${seasonLabel(last - 1)} or ${seasonLabel(last)}`;
+  const base = {
+    family: "leaderboard" as const, intent: oldest ? "oldest-active" : `career-${b.stat.id}`, title, scope: [b.region?.name ?? "Worldwide", oldest ? `Active in ${active}` : `Every season on record (${S})`],
+    definition: (oldest ? `Still active: a match on record in ${active}, the two latest seasons played. Oldest: the earliest rookie year, as FIRST lists it; a tie goes to the most seasons on record.`
+      : `${c.rule} Seasons on record here run ${S}.`) + " OPR: each team's in its latest season with a match.",
+    source: oldest ? `Teams${where} with a match in ${active}` : `From every season on record${where} (${S})`,
+  };
+  if (!rows.length) return { ...base, blocks: [], none: `No team${where} has ${oldest ? `a match in ${active}` : `any ${c.label.toLowerCase()} on record`}.` };
+  const top = rows[0];
+  const shown = (r: (typeof rows)[number]) => (oldest ? String(r.rookie ?? "–") : String(Number(r.v)));
+  return {
+    ...base,
+    headline: { value: `${top.team} ${top.name ?? ""}`.trim(), label: oldest ? `Rookie year ${top.rookie}, ${Number(top.v)} seasons played${top.city ? ` · ${top.city}` : ""}` : `${c.label} ${Number(top.v)}${b.stat.id === "seasons" && top.rookie ? `, rookie year ${top.rookie}` : `, ${record(top)}`}${top.city ? ` · ${top.city}` : ""}`,
+      sub: oldest ? `Active in ${active}${where}` : `#1 of every team${where}, every season on record`, href: teamHref(Number(top.team), top.lastPlayed) },
+    blocks: [{
+      kind: "leaderboard", title: `Top ${rows.length} by ${oldest ? "rookie year" : c.label.toLowerCase()}`, stat: { id: oldest ? "rookie-year" : b.stat.id, label: oldest ? "Rookie year" : c.label },
+      note: `${oldest ? `Active in ${active}` : `Every season on record, ${S}`}${where}`,
+      // A team link opens the season its OPR is from: its latest with a match.
+      rows: rows.map((r, i) => ({ rank: i + 1, team: { label: `${r.team} ${r.name ?? ""}`.trim(), href: teamHref(Number(r.team), r.lastPlayed) },
+        location: [r.city, r.state, r.country && r.country !== "USA" ? r.country : null].filter(Boolean).join(", ") || null,
+        // OPR: the team's latest season with a match, as its team page shows it.
+        record: record(r), opr: r.opr == null ? null : Number(r.opr), value: oldest ? r.rookie : Number(r.v), display: shown(r), parts: null })),
+    }],
   };
 }
 

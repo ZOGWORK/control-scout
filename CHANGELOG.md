@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.4.9 — 2026-11-08
+
+Boards over every season: the team that has played the most seasons, the oldest teams still active, and the most matches, events or wins ever.
+
+### Highlights
+- [rankings] "Which team has played the most seasons" answers
+- [rankings] "Oldest team still active in New Jersey" by rookie year
+- [rankings] "Most wins ever" counts every season
+
+### Search
+- **Career boards.** "Ever", "of all time" or "in history" said with the team with the most matches, events or wins counts every season on record, not one. "The most seasons" (from FIRST's rookie year to the team's latest season with a match) and "the oldest team still active" (a match in either of the two latest seasons, the earliest rookie year first) are boards of their own, in a place or worldwide. A rookie year before FTC's first season is a directory slip and never counted. (#1111)
+
 ## 4.4.8 — 2026-11-08
 
 Two events named side by side ("<event> vs <event>") are compared as events rather than read as two teams: how strong each field was, its best OPR, its high score and how many teams played.
