@@ -131,6 +131,15 @@ describe("search", () => {
     expect((await search("new jersey", 12, new Set(), new Set(["place"])))[0]).toMatchObject({ kind: "place", ref: "USA:NJ" });
     expect(await search("AUSYQ1 Q12", 5, new Set(), new Set(["team"]))).toEqual([]);
   });
+  it("a name two teams share: the one that has played more matches first, whatever its number", async () => {
+    for (const n of [41011, 41012]) {
+      await run("INSERT INTO teams (number, name, city) VALUES (?, 'Solar Flare', 'Reno')", [n]);
+      await run("INSERT INTO team_seasons (season, team) VALUES (2026, ?)", [n]);
+    }
+    for (let k = 1; k <= 3; k++) await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance) VALUES (2025, 'AUSYQ1', 'qual', 0, ?, 41012, 'red')", [k]);
+    await rebuildSearch();
+    expect((await titles("solar flare")).slice(0, 2)).toEqual(["41012 | Solar Flare", "41011 | Solar Flare"]);
+  });
   it("doesn't return far-off guesses", async () => {
     expect(await titles("garden state")).toEqual([]);
     expect(await titles("zzzzzz")).toEqual([]);

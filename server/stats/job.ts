@@ -424,14 +424,17 @@ export async function scoreLivePredictions(log: Log = () => {}): Promise<number>
 
 export async function rebuildSearch(log: Log = () => {}): Promise<void> {
   // Only teams with a page (src/shared/teamPages.ts): a hit must lead somewhere.
-  const teams = await all<any>(`SELECT t.number, t.name, t.school, t.city, t.state, t.country, MAX(s.season) last FROM teams t LEFT JOIN team_seasons s ON s.team = t.number
+  const teams = await all<any>(`SELECT t.number, t.name, t.school, t.city, t.state, t.country, MAX(s.season) last, mc.n played FROM teams t LEFT JOIN team_seasons s ON s.team = t.number
+    LEFT JOIN (SELECT team, COUNT(*) n FROM match_teams GROUP BY team) mc ON mc.team = t.number
     WHERE ${teamPageSql("t.number", "t.name")} GROUP BY t.number`);
   const events = await all<any>("SELECT season, code, name, venue, city, state, country, start, type FROM events");
   const stmts: InStatement[] = [{ sql: "DELETE FROM search", args: [] }, { sql: "DELETE FROM search_fuzzy", args: [] }];
   for (const t of teams) {
     const place = [t.city, t.state, t.country].filter(Boolean).join(", ");
     const title = searchTeamTitle(t.number, t.name), subtitle = [t.school, place].filter(Boolean).join(" · ");
-    const weight = t.last === CURRENT_SEASON ? 2 : 1;
+    // This season's teams first; among teams that match alike (a name several teams share), the one that has played
+    // more matches, the one people mean more often. The matches add under 1, so they never outweigh the season.
+    const weight = (t.last === CURRENT_SEASON ? 2 : 1) + Math.min(Number(t.played) || 0, 999) / 1000;
     stmts.push({ sql: "INSERT INTO search (kind, ref, season, weight, title, subtitle, terms) VALUES ('team', ?, ?, ?, ?, ?, ?)", args: [String(t.number), t.last ?? null, weight, title, subtitle, `${t.number} ${t.name ?? ""} ${joinDotted(t.name ?? "")} ${t.school ?? ""} ${place} ${regionNames(t.state, t.country)}`] });
     // Typo-tolerant index: the name people type (team name + school).
     // Stored normalised, exactly like the query's chunks ("X-Drive" → "x drive").
