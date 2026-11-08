@@ -4,6 +4,7 @@
 // maximum (printed), the value at the bar's end and the gap once, right-aligned; one footnote line with the method
 // behind an info button, one primary action. Hue means team only (--color-team-a/b/c): no phase colour, no winner
 // colour (the better value is bold), gold never on data.
+import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import type { CompareRow, StatAnswer, StatBlock } from "../../../shared/searchStat";
 import { teamFill } from "../../../lib/textTones";
@@ -26,7 +27,7 @@ export const barPc = (v: number | null | undefined, max: number) => (v == null |
 /** A row's maximum in its values' unit: a share (values in %) as a percentage, a count or score as itself. */
 const fmtMax = (n: number, values: string[]) => (values.some((v) => /%$/.test(v)) && n <= 1 ? `${Math.round(100 * n)}%` : Number.isInteger(n) ? n.toLocaleString("en-US") : n.toFixed(1));
 
-export function CompareCard({ stat, b }: { stat: StatAnswer; b: Compare }) {
+export function CompareCard({ stat, b, extra }: { stat: StatAnswer; b: Compare; extra?: ReactNode }) {
   const teams: Who[] = stat.teams ?? [];
   const h = stat.headline;
   const links = stat.blocks.find((x) => x.kind === "links") as Extract<StatBlock, { kind: "links" }> | undefined;
@@ -52,13 +53,14 @@ export function CompareCard({ stat, b }: { stat: StatAnswer; b: Compare }) {
         <>
           {/* Which hue is which team: sticky on a phone, so it stays in view down the rows (under the phone search bar). */}
           <p className="sticky top-[calc(var(--header-h,0px)+var(--phone-search-h,0px))] z-10 -mx-4 mt-4 flex flex-wrap gap-x-4 gap-y-1 border-b border-border bg-card px-4 py-2 text-sm font-medium tabular-nums text-foreground sm:static sm:mx-0 sm:border-0 sm:px-0 sm:py-0" data-team-key>
-            {teams.map((t, i) => <Link key={t.number} to={b.teams[i]?.href ?? `/teams/${t.number}`} className="inline-flex min-h-[44px] items-center gap-1.5 hover:underline sm:min-h-0"><span aria-hidden className={cn("size-3 rounded-sm", teamFill(i))} />{t.number}</Link>)}
+            {teams.map((t, i) => <Link key={t.number} to={b.teams[i]?.href ?? `/teams/${t.number}`} className="inline-flex min-h-[44px] min-w-[44px] items-center gap-1.5 hover:underline sm:min-h-0 sm:min-w-0"><span aria-hidden className={cn("size-3 rounded-sm", teamFill(i))} />{t.number}</Link>)}
           </p>
           <div className="mt-2 space-y-5" data-block="compare">
             {b.rows.map((r) => <Metric key={r.label} r={r} teams={teams} />)}
           </div>
         </>
       )}
+      {extra}
       <MethodNote lead={b.scale ? `Bars start at 0; each row's max is ${b.scale} · ` : ""} source={stat.source} definition={stat.definition}>
         {(primary || rest.length > 0) && (
           <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">

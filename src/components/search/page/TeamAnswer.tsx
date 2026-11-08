@@ -12,11 +12,11 @@ import { useCurrentSeason } from "../../../lib/meta";
 import { dateRange, num, place, rankPct, seasonLabel } from "../../../lib/format";
 import type { TeamEventRow, TeamProfile } from "../../../shared/api";
 import { Meter, StatTile, rankPc } from "../../StatTile";
-import { Badge } from "../../ui/basic";
 import { cn } from "../../cn";
 import { EventMarker, RankPill, RecordText, TAP } from "./answerCells";
 import { GLANCE_TONE as G } from "../../../lib/textTones";
 import { teamFill } from "../../../lib/textTones";
+import { AnswerSeason, useSeasonPick } from "./SeasonPick";
 
 export { TAP };
 /** A secondary action on an answer: underlined text, gold only on hover; the page's one primary action is the button. */
@@ -78,11 +78,14 @@ export function AnswerFrame({ teams, split, profile, season, title, hideTitle, s
   data?: Record<string, string | undefined>;
 }) {
   const shown = teams?.filter(Boolean) ?? [];
+  const pickable = !!useSeasonPick();
   return (
     <article aria-label={label ?? title} className="mb-5 overflow-hidden rounded-2xl border border-border bg-card" data-answer-frame {...data}>
       {shown.length === 1 ? <TeamHeader who={shown[0]} profile={profile} season={season} />
         : shown.length > 1 ? <TeamsHeader teams={shown} split={split} season={season} /> : null}
       <div className="p-4 sm:p-6">
+        {/* An answer about no team (a season's list): its season at the top right, where a team's header has it. */}
+        {!shown.length && season != null && pickable && <div className="mb-2 flex justify-end"><AnswerSeason season={season} /></div>}
         <div className={cn("min-w-0", (!hideTitle || sub) && "mb-4")}>
           <h2 className={cn("font-display text-lg font-semibold leading-snug text-foreground", hideTitle && "sr-only")} data-answer-title>{title}</h2>
           {sub && <div className="mt-1 text-sm text-muted-foreground" data-answer-sub>{sub}</div>}
@@ -115,7 +118,8 @@ function TeamHeader({ who, profile, season }: { who: Who; profile?: TeamProfile 
         )}
       </div>
       <div className="flex flex-col items-end gap-2 max-sm:w-full max-sm:flex-row max-sm:items-center max-sm:justify-between">
-        {season != null && <Badge variant="secondary" data-answer-season>{seasonLabel(season)}</Badge>}
+        {/* The team's seasons: none offered until they're read (nor when they couldn't be). */}
+        {season != null && <AnswerSeason season={season} seasons={profile?.seasons} waiting={!profile} />}
         {/* A secondary action: a text link, never a button (one primary action per page, the guide's §9). */}
         <Link to={`/teams/${who.number}${season != null ? `?season=${season}` : ""}`} className={cn(SECONDARY, TAP)} data-secondary>Full team page <ArrowRight className="size-4" aria-hidden /></Link>
       </div>
@@ -133,7 +137,7 @@ function TeamsHeader({ teams, split, season }: { teams: Who[]; split?: number; s
       <header className="border-b border-border p-4 sm:p-6" data-answer-teams data-answer-sides>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="sr-only">Alliances</span>
-          {season != null && <Badge variant="secondary" className="ml-auto" data-answer-season>{seasonLabel(season)}</Badge>}
+          {season != null && <AnswerSeason season={season} className="ml-auto" />}
         </div>
         <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
           {sides.map((side, i) => (
@@ -158,7 +162,7 @@ function TeamsHeader({ teams, split, season }: { teams: Who[]; split?: number; s
     <header className="border-b border-border p-4 sm:p-6" data-answer-teams>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="sr-only">Scouting profiles</span>
-        {season != null && <Badge variant="secondary" className="ml-auto" data-answer-season>{seasonLabel(season)}</Badge>}
+        {season != null && <AnswerSeason season={season} className="ml-auto" />}
       </div>
       <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
         {teams.slice(0, 2).map((t, i) => (

@@ -12,6 +12,8 @@
 // (goto: open another route of the same app in the same tab, e.g. after saving a season on /download;
 // scrollTo: bring an element to the top of the viewport, for a --viewport shot of one section;
 // hold: press the pointer on an element for ms, default 1600, e.g. a hold-to-confirm button;
+// pull: drag one finger down that many px from near the top of the page, in steps, as a phone would
+// (with --pull: the installed app's pull-to-refresh); release: false keeps the finger down for the shot;
 // upload: put local files into a file input, e.g. a photo to attach;
 // offline: true / false switches the network off or on, e.g. a venue with no signal: take the page online
 // first so the service worker caches the app, on a production build with --base);
@@ -19,6 +21,7 @@
 // --name <label> goes in the file name, to tell several states of one route apart.
 // --tour lets the first-run tour show (it's kept out of shots otherwise).
 // --install lets the add-to-home-screen nudge show, with a stand-in install offer.
+// --pull turns on the installed app's pull-to-refresh in the browser tab (cs-pull-demo), with --mobile.
 //
 // Handles the fiddly parts once: real servers (starts API + Vite if they
 // aren't running), 2x device scale, waiting until data has loaded (network
@@ -47,7 +50,7 @@ const COOKIE = (() => {
   if (!name || !rest.length) { console.error("--cookie-file: the file must hold name=value"); process.exit(1); }
   return { name, value: rest.join("=") };
 })();
-type Step = { click?: string; hold?: string; ms?: number; fill?: string; value?: string; type?: string; press?: string; wait?: number; waitFor?: string; reload?: boolean; upload?: string; files?: string[]; goto?: string; scrollTo?: string; offline?: boolean };
+type Step = { pull?: number; release?: boolean; click?: string; hold?: string; ms?: number; fill?: string; value?: string; type?: string; press?: string; wait?: number; waitFor?: string; reload?: boolean; upload?: string; files?: string[]; goto?: string; scrollTo?: string; offline?: boolean };
 const STEPS: Step[] = (() => {
   const f = opt("steps");
   if (!f) return [];
@@ -65,6 +68,7 @@ const LABEL = opt("name") ? `-${opt("name")!.replace(/[^\w-]+/g, "_")}` : "";
 async function runSteps(page: Page, slow: boolean) {
   for (const s of STEPS) {
     if (s.offline != null) await page.context().setOffline(s.offline);
+    else if (s.pull) await touchPull(page, s.pull, s.release !== false, slow);
     else if (s.click) await page.locator(s.click).first().click();
     else if (s.hold) { await page.locator(s.hold).first().hover(); await page.mouse.down(); await page.waitForTimeout(s.ms ?? 1600); await page.mouse.up(); }
     else if (s.fill) await page.locator(s.fill).first().fill(s.value ?? "");
@@ -82,6 +86,18 @@ async function runSteps(page: Page, slow: boolean) {
   }
   await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
   await page.waitForTimeout(600);
+}
+/** One finger dragged down `px` from near the top, through CDP so the page gets real touch events. */
+async function touchPull(page: Page, px: number, release: boolean, slow: boolean) {
+  const cdp = await page.context().newCDPSession(page);
+  const x = Math.round((page.viewportSize()?.width ?? 390) / 2), y0 = 140, n = 24;
+  const at = (y: number) => [{ x, y, id: 1 }];
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: at(y0) });
+  for (let i = 1; i <= n; i++) {
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: at(y0 + Math.round((px * i) / n)) });
+    await page.waitForTimeout(slow ? 40 : 16);
+  }
+  if (release) await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
 }
 const routes = args.filter((a, i) => !a.startsWith("--") && !VALUE_FLAGS.has(args[i - 1] ?? ""))
   .map((a) => a.replace(/\\/g, "/").replace(/^[A-Za-z]:\/.*?\/Git(?=\/|$)/, ""))
@@ -157,6 +173,7 @@ async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, 
         });`,
     });
   }
+  if (flag("pull")) await ctx.addInitScript(() => localStorage.setItem("cs-pull-demo", "1"));
   if (theme !== "dark") await ctx.addInitScript((t) => localStorage.setItem("cs-personal:settings", JSON.stringify({ value: { theme: t, density: "comfortable", notify: {} }, updatedAt: 1 })), theme);
   const page = await ctx.newPage();
   const errors: string[] = [];

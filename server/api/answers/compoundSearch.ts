@@ -171,7 +171,7 @@ async function listSearch(q: string, c: Extract<CompoundQuestion, { kind: "list"
   const answer: SearchAnswer = {
     q, hits: [], pages: opts.pages, step: "deterministic", weak: false,
     understood: { kind: "question", label, season: c.season ?? searchSeason(), ...(c.region ? { place: { key: c.region.key, name: c.region.name } } : {}) },
-    intent: { kind: "stat-compound-list", pattern: `teams${c.region ? " [place]" : c.city ? " [city]" : ""}${c.award ? " [award]" : ""}${c.worlds ? " [worlds]" : ""}${c.threshold ? " [threshold]" : ""}`, met: true, understood: [label] },
+    intent: { kind: "stat-compound-list", pattern: `teams${c.region ? " [place]" : c.city ? " [city]" : ""}${c.award ? " [award]" : ""}${c.worlds ? " [worlds]" : ""}${c.thresholds.length ? " [threshold]" : ""}${c.noWorlds ? " [not worlds]" : ""}${c.rookie ? " [rookie]" : ""}`, met: true, understood: [label] },
   };
   if (!opts.full) return { ...answer, pages: [{ title: label, href: `/search?q=${encodeURIComponent(q)}` }, ...opts.pages] };
   const stat = await listAnswer(c);
