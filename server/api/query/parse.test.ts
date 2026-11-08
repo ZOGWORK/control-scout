@@ -2,7 +2,8 @@
 // database: the same parse for every team, every place, every phrasing of one intent.
 import { describe, expect, it } from "vitest";
 import { buildNames } from "./names";
-import { parseQuery, type ParseContext } from "./parse";
+import { normalise, parseQuery, type ParseContext } from "./parse";
+import { tokens } from "../searchLayers";
 import { readTime, seasonOfDate } from "./time";
 
 const TEAMS = [
@@ -27,6 +28,8 @@ const TEAMS = [
   // Teams named for what a question asks about: theirs only when typed as their whole name.
   { number: 30012, name: "Alliance", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
   { number: 30013, name: "Inspires", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
+  { number: 30014, name: "The King's School", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
+  { number: 30015, name: "The King's School", city: "Newark", state: "NJ", country: "USA", lastPlayed: 2026 },
 ];
 const EVENTS = ["east bergen conference", "new jersey championship", "nj championship", "turnpike division"];
 const ctx: ParseContext = {
@@ -197,6 +200,23 @@ describe("slots", () => {
     // Two still tied: never guessed; the other team named breaks it by region.
     expect((await parse("ultraviolet opr")).complete).toBe(false);
     expect((await parse("ultraviolet vs hypnotic robotics")).teams.map((t) => t.number)).toEqual([23268, 4215]);
+  });
+  it("reads a place typed right after a shared name as which team, never where its matches were", async () => {
+    for (const q of ["ultraviolet nj latest", "ultraviolet nj highlights", "ultraviolet new jersey latest"]) {
+      const p = await parse(q);
+      expect(p.teams, q).toMatchObject([{ number: 23268, rule: "the one in New Jersey" }]);
+      expect(p.place, q).toBeNull();
+      expect(p.complete, q).toBe(true);
+    }
+    expect(await parse("ultraviolet latest")).toMatchObject({ intent: "recent-match", complete: false });
+    // A possessive in the name ("The King's School nj") still reads the place as right after it.
+    const k = await parse("the king's school nj latest");
+    expect(k.teams).toMatchObject([{ number: 30015 }]);
+    expect(k.place).toBeNull();
+    // A time typed between them keeps the place where the matches were.
+    expect((await parse("ultraviolet in 2025-26 new jersey record")).place).toMatchObject({ name: "New Jersey" });
+    // Said with a preposition, the place still picks the team and stays where its matches were.
+    expect((await parse("ultraviolet record in new jersey")).place).toMatchObject({ name: "New Jersey" });
   });
   it("reads a bare year as a season beside a team, and as a team alone", async () => {
     expect((await parse("4215 record 2027")).time).toMatchObject({ kind: "season", season: 2027, year: 2027 });
@@ -440,5 +460,29 @@ describe("a schedule, and a state by its short name (failed-search #1152; held o
   it("a short name is a state only as a whole word, and never inside a team's name", async () => {
     expect((await parse("bad wolf massa schedule")).place).toBeNull();
     expect(await parse("teams in mass")).toMatchObject({ place: { name: "Massachusetts" } });
+  });
+});
+
+describe("a number written with thousands separators", () => {
+  // Teams 1 and 12 exist here, so "1,000" or "12,500" read apart would name them; a stored name holds "10,000".
+  const small: ParseContext = { ...ctx, names: buildNames([...TEAMS, { number: 1, name: "First Ones", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 }, { number: 12, name: "Dozen", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 }, { number: 10000, name: "The Team of 10,000 Lakes", city: "Town", state: "MN", country: "USA", lastPlayed: 2026 }], []) };
+  it("is one number in both tokenisers", () => {
+    expect(normalise("teams with opr over 1,000")).toBe("teams with opr over 1000");
+    expect(normalise("1,234,567 points")).toBe("1234567 points");
+    expect(tokens("matches above 12,500 points")).toEqual(["matches", "above", "12500", "points"]);
+  });
+  it("is never a team and a leftover piece", async () => {
+    const p = await parseQuery("teams with opr over 1,000", small);
+    expect(p.teams).toEqual([]);
+    expect(p.leftover).toEqual(["1000"]);
+    expect((await parseQuery("1,234,567 points", small)).teams).toEqual([]);
+  });
+  it("still finds a stored name written with one", async () => {
+    expect((await parseQuery("the team of 10,000 lakes record", small)).teams.map((t) => t.number)).toEqual([10000]);
+  });
+  it("leaves commas between team numbers and in dates as they were", async () => {
+    expect(normalise("4215,6980")).toBe("4215 6980");
+    expect((await parseQuery("1, 12 and 4215", small)).teams.map((t) => t.number)).toEqual([1, 12, 4215]);
+    expect((await parseQuery("4215 record on march 1, 2026", small)).teams.map((t) => t.number)).toEqual([4215]);
   });
 });

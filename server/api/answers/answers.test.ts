@@ -148,6 +148,13 @@ describe("the answers", () => {
     expect((await searchAnswer("4215 closest win", { limit: 25 })).stat!.headline).toMatchObject({ value: "40 points", label: "100–60 in Q1 at New Jersey Qualifier" });
     expect((await searchAnswer("4215 closest loss", { limit: 25 })).stat!.headline).toMatchObject({ value: "30 points", label: "90–120 in Q2 at New Jersey Championship" });
   });
+  it("a margin said: the matches decided by exactly that many points (failed-search #861)", async () => {
+    const lost = (await searchAnswer("which match did 4215 lose by 30 points", { limit: 25 })).stat!;
+    expect(lost).toMatchObject({ title: "Losses by 30 points", headline: { value: "1 loss", label: "by exactly 30 points", sub: "Latest: 90–120 in Q2 at New Jersey Championship" } });
+    // The margin is the official totals' (the Worlds win of 260–200 without penalties is 275–200: 75).
+    expect((await searchAnswer("did 4215 win by 60 points", { limit: 25 })).stat!.headline).toMatchObject({ value: "1 win", label: "by exactly 60 points" });
+    expect((await searchAnswer("4215 lost by 1 point", { limit: 25 })).stat!.none).toMatch(/^No losses by exactly 1 point/);
+  });
   it("a result answer shows the official totals; a score answer the points without penalties", async () => {
     const win = await searchAnswer("4215 biggest win", { limit: 25 });
     const rows = win.stat!.blocks.flatMap((b) => (b.kind === "matches" ? b.rows : []));

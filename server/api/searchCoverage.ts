@@ -122,6 +122,11 @@ export async function namedParts(q: string): Promise<Set<string>> {
     const idx = await names();
     for (const c of countries) if (idx.teamsNamed(c).length) out.add(c);
   }
+  // A game's name beside a word that names an event with "division" after it ("edison centerstage": that season's
+  // Edison Division), marked so the rewrite reads the division.
+  const game = seasonWord(ws.join(" "));
+  if (game?.game && game.rest && !/\d/.test(game.rest) && !EVENT_WORDS.test(game.rest) && game.rest.split(" ").length <= 2
+    && (await (await parseContext()).isEvent(`${game.rest} division`))) out.add(`division:${game.rest}`);
   if (!ws.some((w) => regionPartOf([w, "jersey"]))) return out;
   const [idx, ctx] = await Promise.all([names(), parseContext()]);
   for (let i = 0; i + 1 < ws.length; i++) {
@@ -190,6 +195,7 @@ export function rewriteQuery(q: string, named: ReadonlySet<string> = new Set()):
   // further down) or a game named alone ("what is decode").
   const swt = sw ?? (EVENT_WORDS.test(t) && !/^\d{1,6}\b/.test(t) ? seasonWord(t, true) : null);
   if (swt && swt.game && !/^\d{1,6}\b/.test(t) && EVENT_WORDS.test(swt.rest)) return { q: `${swt.rest} ${swt.season}`, pre: true };
+  if (sw?.game && named.has(`division:${sw.rest}`)) return { q: `${sw.rest} division ${sw.season}`, pre: true };
   // "events", "events this season", "events ths": the season's events, never teams named "Event Horizon".
   if ((m = /^(?:all\s+)?(?:the\s+)?(?:ftc\s+)?(events?|meets?|competitions?|tournaments?)(?:\s+(?:this|ths|tis|thsi|current)(?:\s+(?:season|year))?)?$/.exec(t))) {
     return { q: `${m[1].replace(/s?$/, "s")} in ${seasonLabel(CURRENT_SEASON).replace("–", "-")}`, pre: true };
@@ -199,6 +205,10 @@ export function rewriteQuery(q: string, named: ReadonlySet<string> = new Set()):
   if (plain) return { q: plain, pre: true };
   // A question opened with filler ("so like what was 12345 last game"): the question.
   if ((m = /^(?:(?:so|like|um+|uh+|ok|okay|hey|yo|bro)\s+)+((?:what|who|when|where|how|which|is|are|did|does|has|have)\b.+|\d{1,6}\b.+)$/.exec(t))) return { q: m[1], pre: true };
+  // A team's matches at its latest event, said other ways ("<team> matches at their most recent meet", "<team> matches
+  // at recent meet"): its results there, as "<team> matches at their last event" reads, never an event so named.
+  if ((m = /^(.+?)\s+(?:matches|match|games?|results?|scores?)\s+(?:at|in|from)\s+(?:(?:their|thier|its|the)\s+)?(?:most\s+recent|latest|last|recent|newest)\s+(?:meet|event|competition)$/.exec(t))
+    && `${m[1]} matches at their last event` !== t) return { q: `${m[1]} matches at their last event`, pre: true };
   // A team's matches "in" an event, said as "at" ("12345 matches in worlds").
   if ((m = /^(\d{1,6})\s+(matches|match|games?|record)\s+in\s+(worlds|first championship|world championships?)$/.exec(t))) return { q: `${m[1]} ${m[2]} at worlds`, pre: true };
   // "When did hypnotic last play", "when did 12345 play last", "when did they last compete": the team's most recent match.
@@ -807,23 +817,43 @@ export async function eventPageAnswer(q: string, prefer: ReadonlySet<string>, no
   const ev: EventQuery | null = worlds ? { kinds: ["worlds"], time: null, year: null, season: null, region: null, where: null, words: [], allSeasons: true } : readEventQuery(rest);
   const set = ev ? await eventSetAnswer(rest, ev, { now }) : null;
   const today = new Date(now ?? Date.now()).toISOString().slice(0, 10);
-  // An event by its own name ("jackson division q12", "worlds jackson division q12"), when the words name a kind of
-  // event and the event readers found none: search's events by name.
+  // An event by its own name ("jackson division q12", "worlds jackson division q12", "jackson division finals"), when
+  // the words name a kind of event and the event readers found none: search's events by name.
   const read = set ? set.hits.filter((h) => h.kind === "event") : [];
   // A season named with it ("edison division q1 2025-26", "… decode") is that season's event, and not part of the name.
   const named = seasonWord(rest);
   const nameWords = named ? named.rest : rest;
   const inSeason = named ? Number(named.season.slice(0, 4)) : null;
-  const byName = !read.length && !!mm && EVENT_WORDS.test(nameWords) && !/\d/.test(nameWords);
+  const byName = !read.length && (!!mm || !!section) && EVENT_WORDS.test(nameWords) && !/\d/.test(nameWords);
   // Search lists each code once, from its newest season, undated; each is dated here by the season named, else the
   // newest season it has matches in (a code's next season is listed before it's played), so an unplayed season never
   // hides a played one.
   const events: SearchHit[] = byName ? [] : read;
+  // Events by the name that the season named didn't hold ("jackson division finals in centerstage": Worlds had no
+  // Jackson Division that season).
+  const elsewhere: string[] = [];
   if (byName) for (const h of (await search(nameWords.replace(/^(?:the\s+)?worlds\s+/, ""), 10, prefer, new Set(["event"]))).filter((x) => x.kind === "event")) {
     const c = h.ref.split(":")[1];
     const r = await get<{ season: number; start: string | null }>(`SELECT e.season, e.start FROM events e WHERE e.code = ?${inSeason != null ? " AND e.season = ?" : " AND EXISTS (SELECT 1 FROM matches m WHERE m.season = e.season AND m.code = e.code)"} ORDER BY e.season DESC LIMIT 1`, inSeason != null ? [c, inSeason] : [c]);
-    if (!r && inSeason != null) continue;
+    if (!r && inSeason != null) { elsewhere.push(c); continue; }
     events.push(r ? { ...h, ref: `${r.season}:${c}`, season: Number(r.season), event: { ...(h.event ?? {}), start: r.start ?? "" } as SearchHit["event"] } : h);
+  }
+  // None that season: said so, with the season it was held in, and the divisions its event had in the season named.
+  if (!events.length && elsewhere.length && inSeason != null) {
+    const cols = "season, code, name, type, division_code, venue, city, state, country, start, end, timezone";
+    const held = await get<any>(`SELECT ${cols} FROM events WHERE code = ? AND season <> ? ORDER BY abs(season - ?), season DESC LIMIT 1`, [elsewhere[0], inSeason, inSeason]);
+    if (held) {
+      const sec = (section?.[1] ?? "matches") as SearchSection;
+      const then = held.division_code
+        ? await all<any>(`SELECT ${cols} FROM events WHERE season = ? AND division_code = ? ORDER BY name`, [inSeason, held.division_code])
+        : [];
+      const name = String(held.name).replace(/^.* - /, "");
+      return answer(q, {
+        hits: [...then.map((r) => ({ ...eventHit(r, now), section: sec })), { ...eventHit(held, now), section: sec }],
+        pages: pagesFor(q),
+        understood: { kind: "names", label: `No ${name} in ${seasonLabel(inSeason)}: it was held in ${seasonLabel(Number(held.season))}${then.length ? `. ${seasonLabel(inSeason)}'s divisions: ${then.map((r) => String(r.name).replace(/^.* - /, "")).join(", ")}` : ""}` },
+      });
+    }
   }
   if (!events.length && !set) return null;
   // The event asked about: the latest that has started (its pages have something), else the next one.
@@ -872,8 +902,20 @@ export async function teamSuggestions(team: number, asked: string): Promise<stri
   return [...new Set(order.map((x) => x.q))].slice(0, 3);
 }
 
-/** Words that may trail a team's name without being part of it ("bad wolf robotics", "ultraviolet team nj"). */
-const NAME_TAIL = new Set(["robotics", "robot", "robots", "team", "teams", "ftc", "club", "the", "first", "tech", "challenge"]);
+/** Words that may trail a team's name without being part of it ("bad wolf robotics", "ultraviolet team nj", "<name>
+ *  stuff, like everything"). */
+const NAME_TAIL = new Set(["robotics", "robot", "robots", "team", "teams", "ftc", "club", "the", "first", "tech", "challenge", "stuff", "everything", "like", "info"]);
+
+/** The teams words call by their name's own part ("calamari" for Team Calamari, "rev amped", "litbot juniors":
+ *  ./query/names.ts teamsCalled), as search lists them. */
+export async function calledTeams(words: string, prefer: ReadonlySet<string>): Promise<SearchHit[]> {
+  const out: SearchHit[] = [];
+  for (const t of (await names()).teamsCalled(words)) {
+    const h = (await search(String(t.number), 5, prefer, new Set(["team"]))).find((x) => x.kind === "team" && x.ref === String(t.number));
+    if (h) out.push(h);
+  }
+  return out;
+}
 
 /** The last stop before "no results": a team number in the query that's a real team, or a team's name with
  *  trailing words that aren't part of it. The team, and what wasn't read, said plainly. Null when neither. */
@@ -908,10 +950,12 @@ export async function teamFallback(q: string, prefer: ReadonlySet<string>): Prom
     else if (r && !region) { region = r; end--; }
     else break;
   }
-  if (end === lower.length || end < 1) return null;
+  if (end < 1) return null;
   const name = ws.slice(0, end).join(" ");
-  const teams = (await search(name, 25, prefer, new Set(["team"]))).filter((h) => h.kind === "team");
-  const exact = teams.filter((h) => normalize(teamNameOf(h.title)) === normalize(name));
+  const teams = end === lower.length ? [] : (await search(name, 25, prefer, new Set(["team"]))).filter((h) => h.kind === "team");
+  // Its whole name, else its name's own part.
+  const whole = teams.filter((h) => normalize(teamNameOf(h.title)) === normalize(name));
+  const exact = whole.length ? whole : await calledTeams(name, prefer);
   const inRegion = region ? exact.filter((h) => new RegExp(`\\b${region!.state}\\b`).test(h.subtitle ?? "")) : exact;
   // A state named and no team of that name there: none, never another state's team said to be in it.
   const pick = inRegion;
