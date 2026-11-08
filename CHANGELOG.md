@@ -26,7 +26,7 @@ More plain searches answered: a team's highlights by part of its name, events sa
 - [fixes] "Which match did <team> lose by 1 point" lists those losses
 
 ### Search
-- **A team's highlights by part of its name, or with its place.** "hypnotic highlights", "revAmped highlights" and "ultraviolet nj highlights" are that team's highlights. The words left over are looked up the way a team's stats look them up, and each has to start a word of the team's name. When teams share a name, the place said picks the one from there.
+- **A team's highlights by part of its name, or with its place.** "hypnotic highlights", "revAmped highlights" and "ultraviolet nj highlights" are that team's highlights. The words left over are looked up the way a team's stats look them up, and each has to start a word of the team's name. When teams share a name, the place said picks the one from there. ([#1197](https://github.com/ZOGWORK/control-scout/pull/1197))
 - **Now.** "nj meets now" and "events now" are today's events, as "right now" already was.
 - **A kind of event a place or name has none of.** "meets in Massachusetts" lists Massachusetts' events of every kind and says it has no meets. "bergen qualifier" lists the events named Bergen and says none is a qualifier.
 - **A division by its name and a game.** "edison centerstage" is the Edison Division in 2023–24. "jackson division finals" and "parkway division rankings" open that division's tab, the way a match number already did.
