@@ -825,11 +825,31 @@ export async function eventPageAnswer(q: string, prefer: ReadonlySet<string>, no
   // newest season it has matches in (a code's next season is listed before it's played), so an unplayed season never
   // hides a played one.
   const events: SearchHit[] = byName ? [] : read;
+  // Events by the name that the season named didn't hold ("jackson division finals in centerstage": Worlds had no
+  // Jackson Division that season).
+  const elsewhere: string[] = [];
   if (byName) for (const h of (await search(nameWords.replace(/^(?:the\s+)?worlds\s+/, ""), 10, prefer, new Set(["event"]))).filter((x) => x.kind === "event")) {
     const c = h.ref.split(":")[1];
     const r = await get<{ season: number; start: string | null }>(`SELECT e.season, e.start FROM events e WHERE e.code = ?${inSeason != null ? " AND e.season = ?" : " AND EXISTS (SELECT 1 FROM matches m WHERE m.season = e.season AND m.code = e.code)"} ORDER BY e.season DESC LIMIT 1`, inSeason != null ? [c, inSeason] : [c]);
-    if (!r && inSeason != null) continue;
+    if (!r && inSeason != null) { elsewhere.push(c); continue; }
     events.push(r ? { ...h, ref: `${r.season}:${c}`, season: Number(r.season), event: { ...(h.event ?? {}), start: r.start ?? "" } as SearchHit["event"] } : h);
+  }
+  // None that season: said so, with the season it was held in, and the divisions its event had in the season named.
+  if (!events.length && elsewhere.length && inSeason != null) {
+    const cols = "season, code, name, type, division_code, venue, city, state, country, start, end, timezone";
+    const held = await get<any>(`SELECT ${cols} FROM events WHERE code = ? AND season <> ? ORDER BY abs(season - ?), season DESC LIMIT 1`, [elsewhere[0], inSeason, inSeason]);
+    if (held) {
+      const sec = (section?.[1] ?? "matches") as SearchSection;
+      const then = held.division_code
+        ? await all<any>(`SELECT ${cols} FROM events WHERE season = ? AND division_code = ? ORDER BY name`, [inSeason, held.division_code])
+        : [];
+      const name = String(held.name).replace(/^.* - /, "");
+      return answer(q, {
+        hits: [...then.map((r) => ({ ...eventHit(r, now), section: sec })), { ...eventHit(held, now), section: sec }],
+        pages: pagesFor(q),
+        understood: { kind: "names", label: `No ${name} in ${seasonLabel(inSeason)}: it was held in ${seasonLabel(Number(held.season))}${then.length ? `. ${seasonLabel(inSeason)}'s divisions: ${then.map((r) => String(r.name).replace(/^.* - /, "")).join(", ")}` : ""}` },
+      });
+    }
   }
   if (!events.length && !set) return null;
   // The event asked about: the latest that has started (its pages have something), else the next one.
