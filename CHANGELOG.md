@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.2.3 — 2026-11-08
+
+An event's best teams are headed once: the page heading is the card's own title, such as "Best teams at New Jersey Championship by OPR there".
+
+### Highlights
+- [rankings] An event's best teams say their title once
+- [rankings] The heading says what they're ranked by
+- [rankings] The same on phones and desktop
+
+### Search
+- **An event's board, headed once.** "Best teams at <event>", "<place> teams at Worlds" and the like take their card's title, less the season, as the page heading, and the card no longer repeats it underneath. (#1169)
+
 ## 4.2.2 — 2026-11-08
 
 A team's highlights read the time asked: "theseus highlights dec" and "<team> highlights in february 2026" answer, and a month with nothing played falls back to the season.

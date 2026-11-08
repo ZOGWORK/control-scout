@@ -1069,7 +1069,11 @@ export async function boardSearch(q: string, b: LeaderboardQuestion, opts: { ful
   // The search box gets a link to the answer page, never an empty answer.
   if (!opts.full) return { ...answer, pages: [{ title: label, href: `/search?q=${encodeURIComponent(q)}` }, ...opts.pages] };
   const stat = await leaderboardAnswer({ ...b, stat: st });
+  // An event's board is headed by its card's own title less its season (what it's ranked by is said there), so the
+  // page says it once: the card's title under a heading that holds it is hidden.
+  const heading = b.event ? stat.title.replace(/ · [^·]+$/, "") : null;
+  const read: SearchAnswer = heading ? { ...answer, understood: { ...answer.understood!, label: heading }, intent: { ...answer.intent!, understood: [heading] } } : answer;
   // The full list's page (Teams for an OPR list, Rankings for a rating list) leads the page links.
   const more = stat.blocks.find((x) => x.kind === "leaderboard")?.more;
-  return { ...answer, stat, pages: more ? [{ title: more.label.replace(/^View more detail on (?:the )?/, "").replace(/ \(.*\)$/, "").replace(/^./, (c) => c.toUpperCase()), href: more.href }, ...opts.pages.filter((p) => p.href !== more.href)] : opts.pages };
+  return { ...read, stat, pages: more ? [{ title: more.label.replace(/^View more detail on (?:the )?/, "").replace(/ \(.*\)$/, "").replace(/^./, (c) => c.toUpperCase()), href: more.href }, ...opts.pages.filter((p) => p.href !== more.href)] : opts.pages };
 }

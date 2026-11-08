@@ -229,6 +229,8 @@ describe("the best teams at an event", () => {
     for (const q of ["new jersey championship best teams", "top teams at the new jersey championship"]) {
       const a = await ask(q);
       expect(a.stat, q).toMatchObject({ intent: "event-best", title: `Best teams at New Jersey Championship by OPR there · ${S}–${String(S + 1).slice(2)}` });
+      // The page's heading is the card's title less its season, so the page says it once.
+      expect(a.understood?.label, q).toBe("Best teams at New Jersey Championship by OPR there");
       // 207, 4215 and 6980 have an OPR in its Parkway division; the rest played there with none, so aren't ranked.
       expect(rows(a), q).toEqual([["207", "114.0"], ["4215", "101.0"], ["6980", "46.0"]]);
       // Records there by the official rule: every match played at the event.
@@ -265,6 +267,7 @@ describe("the best teams at an event", () => {
       expect(rows(await ask(`best teams at worlds ${S + 1}`))).toEqual([["1111", "300.0"], ["4215", "60.0"]]);
       const nj = await ask(`new jersey teams at worlds ${S + 1}`);
       expect(nj.stat?.title).toMatch(/^New Jersey teams at Worlds \d+ by OPR there/);
+      expect(nj.understood?.label).toBe(nj.stat?.title.replace(/ · [^·]+$/, ""));
       expect(rows(nj)).toEqual([["4215", "60.0"]]);
       expect(rows(await ask(`texas teams at worlds ${S + 1}`))).toEqual([["1111", "300.0"]]);
       // Played: a place whose teams have no OPR there is ranked by the event's own numbers, so none is ranked.
