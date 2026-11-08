@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { StatAnswer } from "../../../shared/searchStat";
 import { TONES } from "../../StatTile";
 import { StatAnswerCard, oneContext, saidBy } from "./StatAnswer";
+import { SeasonPickContext } from "./SeasonPick";
 import { meaningOf } from "../../../lib/textTones";
 
 afterEach(cleanup);
@@ -70,6 +71,19 @@ describe("StatAnswerCard, a team's OPR", () => {
     expect(h.textContent).toContain("4215");
     expect(h.textContent).toContain("Hypnotic Robotics");
     expect(c.querySelector("[data-answer-season]")!.textContent).toBe("2025–26");
+  });
+  // Greptile on #1094: a card comparing two seasons offers no one season to pick (a pick would drop the other).
+  it("a card about two seasons side by side has no season picker, and keeps both season chips", () => {
+    const pair: StatAnswer = { family: "leaderboard", intent: "filtered-list-pair", title: "How many teams in New Jersey: Worlds 2024 (2023–24) against Worlds 2025 (2024–25)",
+      scope: ["New Jersey", "Went to Worlds", "2023–24", "2024–25"], headline: { value: "4 vs 4", label: "teams in New Jersey" }, blocks: [], definition: "", source: "" };
+    const ctx = { picked: null, pending: false, pick: () => {} };
+    const c = render(<MemoryRouter><SeasonPickContext.Provider value={ctx}><StatAnswerCard stat={pair} /></SeasonPickContext.Provider></MemoryRouter>).container;
+    expect(c.querySelector("[role=combobox]")).toBeNull();
+    expect([...c.querySelectorAll("[data-season-chip]")].map((x) => x.textContent)).toEqual(["2023–24", "2024–25"]);
+    // One season's card keeps its picker.
+    cleanup();
+    const one = render(<MemoryRouter><SeasonPickContext.Provider value={ctx}><StatAnswerCard stat={{ ...pair, title: "Teams in New Jersey · 2024–25", scope: ["New Jersey", "2024–25"] }} /></SeasonPickContext.Provider></MemoryRouter>).container;
+    expect(one.querySelector("[role=combobox]")).not.toBeNull();
   });
   it("a title the page heading already says is for screen readers only", () => {
     const c = render(<MemoryRouter><StatAnswerCard stat={opr} heading="Hypnotic Robotics (4215) · OPR in 2025–26" /></MemoryRouter>).container;
