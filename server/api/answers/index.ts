@@ -20,7 +20,7 @@ import { fuzzyScore } from "../fuzzy.js";
 import { search } from "../search.js";
 import { askSeason, eventWon, readAsk } from "../searchAsks.js";
 import { defaultSteps, relaxed } from "../query/relax.js";
-import { eventHit } from "../searchEvents.js";
+import { eventHit, searchToday } from "../searchEvents.js";
 import { namedTeam, versusAnswer } from "../searchCompare.js";
 import { predictHref } from "../../../src/shared/predictUrl.js";
 import { CHAMPIONSHIP_TYPE, STATES_TYPE, inScope, officialClause, scopeChips, scopePhrase, type Scope } from "./clauses.js";
@@ -33,7 +33,8 @@ import { OPR_RATING_TITLES, oprRatingAnswer, readOprRating, type OprRatingQuesti
 import { counts, matchAnswer, whoOf } from "./families/matches.js";
 import { changeAnswer, readChange, type ChangeQuestion } from "./families/seasonChange.js";
 import { MATCH_STAT_IDS, matchStatAnswer } from "./families/matchStats.js";
-import { BOARD_STATS, LEADERBOARD_MAX, boardStatFor, leaderboardAnswer, statWords } from "./families/leaderboard.js";
+import { BOARD_STATS, LEADERBOARD_MAX, boardStatFor, leaderboardAnswer, statWords, windowBoardAnswer } from "./families/leaderboard.js";
+import { readTime } from "../query/time.js";
 import { everTopMatches, readTopMatches, topMatchesAnswer, type TopMatchesQuestion } from "./families/topMatches.js";
 import { penaltyTotalAnswer, trendAnswer } from "./families/trends.js";
 import { nextEventPrediction, pairPrediction, predictTitle, predictionSeason } from "./families/predict.js";
@@ -335,6 +336,9 @@ async function findEvent(words: string, season: number | null, opts: { anyPlayed
   return (await row(Number(s), code)) ?? null;
 }
 
+/** "Top teams", "best 5 teams", "strongest teams": the words that ask for the best teams, with a time said or not. */
+const TOP_TEAMS_SAID = /\b(?:top|best|strongest)\s+(?:\d{1,2}\s+)?teams?\b/i;
+
 /** The answer for `q`, or null when it isn't a stat question or its team isn't found. */
 export async function statAnswer(q: string, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
   // A compound question (filters joined, or two answers at once) before any single reader takes part of it.
@@ -346,6 +350,17 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   // A season's highest-scoring matches before a leaderboard ("highest scoring matches at <event>" names no city).
   const tm = readTopMatches(q);
   if (tm) return topSearch(q, tm, opts);
+  // "Top teams this week", "best teams in NJ last weekend": the teams that played then, by their OPR at those events.
+  const win = TOP_TEAMS_SAID.test(q) ? readTime(q.toLowerCase(), searchToday()) : null;
+  if (win?.time?.kind === "window" && win.time.from && win.time.to) {
+    const rest = win.rest.replace(/[?!.,]/g, " ").replace(/\s+/g, " ").trim();
+    const ask = boardOfAsk(rest);
+    if (ask && ask.stat === BOARD_STATS.rating.id) {
+      const stat = opts.full ? await windowBoardAnswer({ from: win.time.from, to: win.time.to, label: win.time.label }, ask.region, ask.n) : null;
+      return { q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: stat?.title ?? `Top teams ${win.time.label}` },
+        intent: { kind: "stat-window-best", pattern: `top teams [window]${ask.region ? " [place]" : ""}`, met: true, understood: [`Top teams ${win.time.label}`] }, ...(stat ? { stat } : {}) };
+    }
+  }
   // The asks' leaderboards are drawn here on the page; the dropdown keeps the asks' own short card.
   const board = readLeaderboard(q);
   if (board) return boardSearch(q, board, opts);
