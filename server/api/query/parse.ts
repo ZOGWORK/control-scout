@@ -115,6 +115,12 @@ const WORLDS_WORDS = new Set([
   // The last word of their longer names ("the state championship", "world champs").
   "championship", "championships", "champs",
 ]);
+/** What may stand between a reach verb and the place: the lexicon's one-word filler ("it", "to", "the"), the
+ *  prepositions of going there ("for", "into", "in", "at", "through"), and "first" of "the FIRST Championship". */
+const REACH_BETWEEN = new Set([
+  ...LEXICON.filter((e) => e.words.length === 1 && e.syms.every((x) => x.k === "filler")).map((e) => e.words[0]),
+  "for", "into", "in", "at", "through", "first",
+]);
 /** The kind words an event's name can end with. */
 const KIND_WORDS = new Set(["meet", "meets", "tournament", "tournaments", "event", "events", "competition", "competitions"]);
 /** The words before a number that make it a count ("top 5", "last 10") or a match's number ("match 3"). */
@@ -310,9 +316,19 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   // Reaching Worlds said beside a forecast ("chance of making worlds", "odds of qualifying for worlds"): the chance to
   // advance there, never a count of appearances or qualification matches.
   if (symbols.has("predict") && (p.worlds || p.states)) {
-    const reach = toks.filter((t, i) => REACH.has(t.w) && toks.slice(i + 1, i + 4).some((x) => WORLDS_WORDS.has(x.w)));
+    // The verb, then any filler or preposition ("making it to the world championship"), then the place's name.
+    // The words in between are part of the reach, read with it.
+    const between: Tok[] = [];
+    const reach = toks.filter((t, i) => {
+      if (!REACH.has(t.w)) return false;
+      let j = i + 1;
+      while (j < toks.length && REACH_BETWEEN.has(toks[j].w)) j++;
+      if (j >= toks.length || !WORLDS_WORDS.has(toks[j].w)) return false;
+      between.push(...toks.slice(i + 1, j));
+      return true;
+    });
     if (reach.length) {
-      reach.forEach((t) => (t.used = true));
+      [...reach, ...between].forEach((t) => (t.used = true));
       p.reach = true;
       symbols.add("advance");
       // "Next year", "next season": the way there starts at the team's next event.
