@@ -1141,7 +1141,8 @@ export async function boardSearch(q: string, said: LeaderboardQuestion, opts: { 
 
 /** "<event> vs <event>" (2–4 events, ./families/eventVersus.ts): the events side by side. Null when it isn't one or an
  *  event isn't found: the versus is then the teams'. */
-export async function eventVersusSearch(q: string, season: number | null, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+/** `q` is the query less a season it named; `asked`, the query as typed, is what the answer page's link opens. */
+export async function eventVersusSearch(q: string, season: number | null, opts: { full: boolean; pages: SearchPageLink[]; asked?: string }): Promise<SearchAnswer | null> {
   const sides = readEventVersus(q);
   if (!sides) return null;
   const evs = await eventsNamed(sides, season, (words, s) => findEvent(words, s, { anyPlayed: true, closest: true }));
@@ -1153,6 +1154,6 @@ export async function eventVersusSearch(q: string, season: number | null, opts: 
     intent: { kind: "stat-event-versus", pattern: `[event] vs [event]${season != null ? " [season]" : ""}`, met: true, understood: [label] },
   };
   // The search box: the events found and a link to the answer page, nothing counted while typing.
-  if (!opts.full) return { ...base, pages: [{ title: label, href: `/search?q=${encodeURIComponent(q)}` }, ...opts.pages] };
+  if (!opts.full) return { ...base, pages: [{ title: label, href: `/search?q=${encodeURIComponent(opts.asked ?? q)}` }, ...opts.pages] };
   return { ...base, pages: opts.pages, stat: await eventVersusAnswer(evs) };
 }

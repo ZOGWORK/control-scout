@@ -3,6 +3,8 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../../db";
 import { eventVersusAnswer, eventVersusTitle, eventsNamed, readEventVersus, type EventRow } from "./families/eventVersus";
+import { rebuildSearch } from "../../stats/job";
+import { searchAnswer } from "../searchAnswer";
 
 describe("reading it", () => {
   it("every side an event, by a word only an event's name has", () => {
@@ -22,18 +24,22 @@ describe("reading it", () => {
 
 describe("the answer", () => {
   const ev = (code: string, name: string): EventRow => ({ season: 2025, code, name, type: "Championship", start: "2026-03-01", division: null });
-  const EVENTS: Record<string, EventRow> = { "ohio championship": ev("OH", "Ohio Championship"), "texas championship": ev("TX", "Texas Championship"), "empty championship": ev("EM", "Empty Championship") };
+  const EVENTS: Record<string, EventRow> = { "ohio championship": ev("OH", "Ohio Championship"), "texas championship": ev("TX", "Texas Championship"), "empty championship": ev("EM", "Empty Championship"),
+    "utah championship": { ...ev("UT", "Utah Championship"), season: 2024 } };
   const find = async (w: string) => EVENTS[w.toLowerCase()] ?? null;
 
   beforeAll(async () => {
     const c = openDb(":memory:");
     setDb(c);
     await migrate(c);
-    await run("INSERT INTO events (season, code, name, type, source) VALUES (2025, 'OH', 'Ohio Championship', 'Championship', 'test'), (2025, 'TX', 'Texas Championship', 'Championship', 'test'), (2025, 'TXD1', 'Texas Championship - Div 1', 'Championship', 'test'), (2025, 'EM', 'Empty Championship', 'Championship', 'test')");
+    await run("INSERT INTO events (season, code, name, type, source) VALUES (2025, 'OH', 'Ohio Championship', 'Championship', 'test'), (2025, 'TX', 'Texas Championship', 'Championship', 'test'), (2025, 'TXD1', 'Texas Championship - Div 1', 'Championship', 'test'), (2025, 'EM', 'Empty Championship', 'Championship', 'test'), (2024, 'UT', 'Utah Championship', 'Championship', 'test')");
     await run("UPDATE events SET division_code = 'TX' WHERE code = 'TXD1'");
     // code, team, OPR
     const ts: [string, number, number][] = [["OH", 1, 40], ["OH", 2, 60], ["TXD1", 3, 90], ["TXD1", 4, 70], ["TX", 3, 95]];
     for (const [code, team, opr] of ts) await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (2025, ?, ?, ?, 5)", [code, team, opr]);
+    // Another season's game, its points far higher.
+    await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (2024, 'UT', 5, 300, 5), (2024, 'UT', 6, 250, 5)");
+    await run("INSERT INTO matches (season, code, level, series, number, label, played, red_total, red_np, blue_total, blue_np, source) VALUES (2024, 'UT', 'qual', 0, 1, 'Q1', 1, 500, 480, 400, 400, 'test')");
     // A team that never played: not counted.
     await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (2025, 'OH', 9, 500, 0)");
     // code, number, red total, red np, blue total, blue np
@@ -41,6 +47,11 @@ describe("the answer", () => {
     for (const [code, n, rt, rn, bt, bn] of ms) {
       await run("INSERT INTO matches (season, code, level, series, number, label, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, ?, 'qual', 0, ?, ?, 1, ?, ?, ?, ?, 'test')", [code, n, `Q${n}`, rt, rn, bt, bn]);
     }
+    // A played playoff match with only its totals on record: no score without penalties to offer, so never the high.
+    await run("INSERT INTO matches (season, code, level, series, number, label, played, red_total, blue_total, source) VALUES (2025, 'OH', 'playoff', 1, 1, 'M1', 1, 300, 250, 'test')");
+    // On the field there: team 1 (with stats) and team 7, a playoff-only appearance with no stats row.
+    await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance) VALUES (2025, 'OH', 'qual', 0, 1, 1, 'red'), (2025, 'OH', 'playoff', 1, 1, 7, 'blue')");
+    await rebuildSearch();
   });
 
   it("each field's average OPR, best OPR, high score and teams, a division counted for its event", async () => {
@@ -51,7 +62,7 @@ describe("the answer", () => {
     expect(a.headline).toMatchObject({ value: "+32.5 OPR", label: "Texas Championship had the stronger field" });
     const table = a.blocks.find((b) => b.kind === "table");
     expect(table && table.kind === "table" && table.rows.map((r) => [r.cells.teams, r.cells.field, r.cells.top, r.cells.high, r.strong]))
-      .toEqual([[2, "50.0", "60.0", 110, false], [2, "82.5", "95.0", 180, true]]);
+      .toEqual([[3, "50.0", "60.0", 110, false], [2, "82.5", "95.0", 180, true]]);
     const kpis = a.blocks.find((b) => b.kind === "kpis");
     expect(kpis && kpis.kind === "kpis" && kpis.items.map((i) => i.href)).toEqual(["/teams/2?season=2025", "/teams/3?season=2025"]);
   });
@@ -61,6 +72,22 @@ describe("the answer", () => {
     expect(evs && eventVersusTitle(evs)).toBe("Compare events: Ohio Championship vs Texas Championship");
     expect(await eventsNamed(["Ohio Championship", "ohio championship"], null, find)).toBeNull();
     expect(await eventsNamed(["Ohio Championship", "Nowhere Championship"], null, find)).toBeNull();
+  });
+
+  it("events from different seasons are side by side, neither called stronger", async () => {
+    const a = await eventVersusAnswer((await eventsNamed(["Ohio Championship", "Utah Championship"], null, find))!);
+    expect(a.headline).toBeUndefined();
+    expect(a.none).toBeUndefined();
+    const table = a.blocks.find((b) => b.kind === "table");
+    expect(table && table.kind === "table" && table.rows.map((r) => [r.cells.field, r.strong])).toEqual([["50.0", false], ["275.0", false]]);
+    expect(a.definition).toMatch(/different seasons/);
+  });
+
+  it("the search box's link opens the query as asked, its season too", async () => {
+    const q = "Texas Championship versus Ohio Championship 2025-26";
+    const a = await searchAnswer(q, { limit: 10 });
+    expect(a.understood).toMatchObject({ label: "Compare events: Texas Championship vs Ohio Championship", season: 2025 });
+    expect(a.pages[0].href).toBe(`/search?q=${encodeURIComponent(q)}`);
   });
 
   it("an event with nothing played says so", async () => {

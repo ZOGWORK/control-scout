@@ -48,10 +48,18 @@ async function factsOf(e: EventRow): Promise<Facts> {
   const teams = await all<{ team: number; opr: number | null }>(`SELECT s.team, MAX(s.opr_np) opr FROM team_event_stats s JOIN events x ON x.season = s.season AND x.code = s.code
     WHERE ${scope} AND s.matches > 0 GROUP BY s.team`, args);
   const rated = teams.filter((t) => t.opr != null).sort((a, b) => Number(b.opr) - Number(a.opr) || a.team - b.team);
-  const m = await get<{ high: number | null; n: number }>(`SELECT MAX(MAX(COALESCE(m.red_np, m.red_total), COALESCE(m.blue_np, m.blue_total))) high, COUNT(*) n
-    FROM matches m JOIN events x ON x.season = m.season AND x.code = m.code WHERE ${scope.replace("s.season", "m.season")} AND m.played = 1`, args);
+  const mScope = scope.replace("s.season", "m.season");
+  // The high score is a score without penalties: a match with only its totals on record has none to offer.
+  const m = await get<{ high: number | null; n: number }>(`SELECT MAX(MAX(COALESCE(m.red_np, m.blue_np), COALESCE(m.blue_np, m.red_np))) high, COUNT(*) n
+    FROM matches m JOIN events x ON x.season = m.season AND x.code = m.code WHERE ${mScope} AND m.played = 1`, args);
+  // Every team that played: on the field in a played match (a playoff-only or surrogate appearance, a remote event with
+  // no stats rows) or with stats there.
+  const played = await get<{ n: number }>(`SELECT COUNT(*) n FROM (
+    SELECT t.team FROM match_teams t JOIN matches m ON m.season = t.season AND m.code = t.code AND m.level = t.level AND m.series = t.series AND m.number = t.number
+      JOIN events x ON x.season = m.season AND x.code = m.code WHERE ${mScope} AND m.played = 1 AND t.on_field = 1
+    UNION SELECT s.team FROM team_event_stats s JOIN events x ON x.season = s.season AND x.code = s.code WHERE ${scope} AND s.matches > 0)`, [...args, ...args]);
   return {
-    teams: teams.length,
+    teams: Number(played?.n ?? teams.length),
     field: rated.length ? rated.reduce((n, t) => n + Number(t.opr), 0) / rated.length : null,
     top: rated.length ? Number(rated[0].opr) : null, topTeam: rated.length ? Number(rated[0].team) : null,
     high: m?.high == null ? null : Number(m.high), matches: Number(m?.n ?? 0),
@@ -67,9 +75,10 @@ export async function eventVersusAnswer(evs: EventRow[]): Promise<StatAnswer> {
   const played = facts.filter((f) => f.matches > 0).length;
   // The strongest field: the highest average OPR (points it adds per match, penalties left out).
   const order = evs.map((_, i) => i).filter((i) => facts[i].field != null).sort((a, b) => facts[b].field! - facts[a].field!);
-  const lead = order.length >= 2 && facts[order[0]].field !== facts[order[1]].field ? order[0] : null;
+  // Events from different seasons play different games, scored on their own scales: side by side, no winner.
+  const lead = seasons.size === 1 && order.length >= 2 && facts[order[0]].field !== facts[order[1]].field ? order[0] : null;
   const definition = "Field strength is the average OPR (penalties left out) of the teams that played the event, its divisions' too; top OPR is its best team's, high score an alliance's best score without penalties."
-    + (seasons.size > 1 ? " These events are from different seasons, each its own game: their points aren't the same scale." : "");
+    + (seasons.size > 1 ? " These events are from different seasons, each its own game: their points aren't the same scale, so neither is called stronger." : "");
   return {
     family: "event", intent: "event-versus", title: eventVersusTitle(evs), scope, definition,
     source: `From ${facts.reduce((n, f) => n + f.matches, 0).toLocaleString("en-US")} played matches at ${evs.length} events`,
