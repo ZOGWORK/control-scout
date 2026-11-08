@@ -633,7 +633,8 @@ export function readLeaderboard(raw: string): LeaderboardQuestion | null {
   }
   // "which team has the most stable opr, least ups and downs": the steadiest OPR from event to event. "Which nj team is
   // most consistent across all phases": the best weakest phase. Counted at some events only, or on a day, is neither.
-  const who = `^(?:(?:which|what) )?(?:(.+?) )?${TEAMS}(?: (?:in|from) (.+?))?`;
+  // "FTC teams" is the team word itself, never a place before "teams" (as the count board reads it).
+  const who = `^(?:(?:which|what) )?(?:(?!ftc )(.+?) )?${TEAMS}(?: (?:in|from) (.+?))?`;
   if (!scope.place && !scope.outOfState && !scope.day && !scope.window
     && (m = new RegExp(`${who} (?:has|have|had|with) (?:the )?(?:most (?:stable|steady|consistent)|steadiest|least (?:variable|volatile)) opr(?: (?:and |with )?(?:the )?(?:least|fewest) ups and downs)?${PLACE}$`).exec(rest)) && [m[1], m[2], m[3]].filter(Boolean).length < 2) {
     const region = place(m[1] ?? m[2] ?? m[3]);

@@ -247,6 +247,9 @@ describe("steady boards", () => {
     expect(readLeaderboard("which team is the most balanced across all phases in texas")).toMatchObject({ kind: "phases", region: { key: "USA:TX" } });
     // Two places said: none.
     expect(readLeaderboard("which nj team has the steadiest opr in texas")?.kind).not.toBe("steady");
+    // Greptile on #1124: "FTC team" is the team word, not a place.
+    expect(readLeaderboard("what ftc team has the steadiest opr")).toMatchObject({ kind: "steady", region: null });
+    expect(readLeaderboard("which ohio ftc teams are the best balanced across every phase")).toMatchObject({ kind: "phases", region: { key: "USA:OH" } });
   });
   it("ranks the smallest swing in event OPR, 3+ events", async () => {
     const ev = (code: string, start: string) => run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, ?, ?, 'Qualifier', 'Edison', 'NJ', 'USA', ?, ?, 't')", [code, `Meet ${code}`, start, start]);
