@@ -30,10 +30,20 @@ beforeAll(async () => {
   await match("USNJQ7", 1, "2026-02-07T10:00:00Z", 140, 90);
   await match("USNJQ7", 2, "2026-02-07T11:00:00Z", 120, 100);
   await match("USNJQ8", 1, "2026-03-14T10:00:00Z", 210, 150);
+  // 2026-27 starts in a week across the season's start (Mon Aug 31 to Sun Sep 6, 2026): a match on Sep 2.
+  await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2026, 'USNJSCR', 'September Scrimmage', 'Qualifier', 'Town', 'NJ', 'USA', '2026-09-02', '2026-09-02', 't')");
+  await run(`INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source)
+       VALUES (2026, 'USNJSCR', 'qual', 0, 1, 'Q1', '2026-09-02T10:00:00Z', 1, 95, 95, 60, 60, 't')`);
+  for (const [t, side] of [[6980, "red"], [207, "red"], [9999, "blue"], [23268, "blue"]] as const) {
+    await run("INSERT INTO team_seasons (season, team) VALUES (2026, ?) ON CONFLICT DO NOTHING", [t]);
+    await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance) VALUES (2026, 'USNJSCR', 'qual', 0, 1, ?, ?)", [t, side]);
+  }
   await rebuildSearch();
 });
 
-const ask = (q: string) => searchAnswer(q, { learn: false, limit: 12, full: true });
+// A fixed day, so a month said against today reads the same every year: Sunday, November 8, 2026.
+const NOW = Date.parse("2026-11-08T15:00:00Z");
+const ask = (q: string, now = NOW) => searchAnswer(q, { learn: false, limit: 12, full: true, now });
 
 describe("a team's highlights in a time said", () => {
   it("a month with its year: that month's matches only, said in the title", async () => {
@@ -42,16 +52,26 @@ describe("a team's highlights in a time said", () => {
   });
   it("a month with nothing played, its year typed: said plainly, never another month's", async () => {
     const a = await ask("6980 highlights in january 2026");
-    expect(a.stat?.title).toBe("No highlights in January 2026, 2025–26");
+    expect(a.stat?.title).toMatch(/^No highlights in January 2026/);
     expect(a.stat?.none).toMatch(/no played matches in January 2026/);
   });
   it("a month said against today with nothing played: its season's highlights, the step said on the card", async () => {
     const a = await ask("bad wolf highlights in october");
-    expect(a.stat).toMatchObject({ title: "Highlights, 2025–26", headline: { value: "210 points" } });
-    expect(a.stat?.scope[0]).toMatch(/^Relaxed: in October \d{4} → /);
+    expect(a.stat).toMatchObject({ title: "Highlights, 2026–27", headline: { value: "95 points" } });
+    expect(a.stat?.scope[0]).toBe("Relaxed: in October 2026 → 2026–27");
+  });
+  it("a week across the season's start: its matches of the new season, kept by date (Greptile on #1168)", async () => {
+    const a = await ask("6980 highlights this week", Date.parse("2026-09-03T15:00:00Z"));
+    expect(a.stat).toMatchObject({ title: "Highlights this week, 2026–27", headline: { value: "95 points" } });
+    expect(a.stat?.scope[0]).not.toMatch(/^Relaxed/);
+  });
+  it("a day said reads as itself, never 'in today' (Greptile on #1168)", async () => {
+    const a = await ask("bad wolf highlights today");
+    expect(a.stat?.definition).toMatch(/no played matches today/);
+    expect(a.stat?.definition).not.toMatch(/in today/);
   });
   it("a month's short form alone is a month as the last word only; mar and may never alone", async () => {
-    const ctx = await parseContext();
+    const ctx = await parseContext(NOW);
     expect((await parseQuery("bad wolf highlights feb", ctx)).time).toMatchObject({ kind: "window", label: expect.stringMatching(/^in February/) });
     expect((await parseQuery("6980 record nov", ctx)).time).toMatchObject({ kind: "window" });
     expect((await parseQuery("bad wolf highlights mar", ctx)).time).toBeNull();

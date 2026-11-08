@@ -131,8 +131,8 @@ const MATCH_NOUN: Record<MatchMeasure, string> = {
   high: "scored matches", low: "scored matches", closest: "decided matches", lopsided: "decided matches", penalties: "matches with penalty points",
   upset: "upsets", comeback: "comebacks", miss: "matches with a saved prediction", accurate: "matches with a saved prediction",
 };
-/** A time's label that already starts with its own word ("in March 2026", "this week", "on Mar 15, 2026"). */
-const WHEN_WORD = /^(?:in|on|during|this|last|next|from|between)\b/i;
+/** A time's label that already reads alone ("in March 2026", "this week", "on Mar 15, 2026", "today"). */
+const WHEN_WORD = /^(?:in|on|during|this|last|next|from|between|today|tonight|yesterday|tomorrow)\b/i;
 /** A place's or the world's season (docs/search-pipeline.md, "Seasons"): the one said, else the current one (today's);
  *  "last season" is the one before the current one. A team's own season stays the latest it played (readScopeOf). */
 function placeSeason(p: Parsed, said: number | null | undefined, opts: PipelineOptions): number {
@@ -429,7 +429,9 @@ async function highlights(p: Parsed, scope: ReadScope, opts: PipelineOptions): P
     // A time said ("in December", "this week"): its matches played on those days, in an event named too when one is.
     const w = scope.window;
     const when: TeamHighlightScope | undefined = w ? { has: (m) => { const d = (m.date ?? "").slice(0, 10); return d >= w.from && d <= w.to && (!place || place.has(m)); }, label: place?.label ?? w.label, phrase: `${place ? `at ${place.label} ` : ""}${WHEN_WORD.test(w.label) ? w.label : `in ${w.label}`}` } : place;
-    const stat = await teamHighlights({ number: t.number, name: t.name }, said ?? undefined, when, p.n ?? undefined, videos ? "videos" : "highlights");
+    // A window is kept by its dates alone, never its first day's season: a week across the season's start (Aug 31 to
+    // Sep 6) has matches of both, and the latest season with any is shown (each season's highlights stay apart).
+    const stat = await teamHighlights({ number: t.number, name: t.name }, w ? undefined : said ?? undefined, when, p.n ?? undefined, videos ? "videos" : "highlights");
     const hit = (await opts.resolve(String(t.number))).hits.find((h) => h.kind === "team" && h.ref === String(t.number));
     const hits = hit ? [{ ...hit, facts: undefined, events: undefined }] : [];
     const first = stat ? answer(stat, Number(/^\d{4}/.exec(stat.scope[0] ?? "")?.[0] ?? said ?? searchSeason()), hits) : null;
