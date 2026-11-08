@@ -27,6 +27,18 @@ Teams named can be ranked by one stat: "rank these teams by reliability: 4215, 7
 ### Search
 - **Teams named, ranked.** "Rank, sort or order these teams by <stat>: A, B, C" and "A, B and C ranked by <stat>" give a leaderboard of those teams only, ranked among themselves; a named team with too few matches is said as not ranked. (#1104)
 
+## 4.4.1 — 2026-11-08
+
+A question about "my" or "our" team ("what is my 4215 next event", "our 6980 record") is answered for that team.
+
+### Highlights
+- [fixes] "what is my <team> upcoming event" shows its next event
+- [fixes] "our team <number> record" reads as that team's record
+- [fixes] An intent word typed wrong after "my <team>" still answers
+
+### Search
+- **Whose team it is.** "my" or "our" before a team's number says whose team it is, never part of what's asked, so a long question about it reads the way the same question about the team does. (#1123)
+
 ## 4.4.0 — 2026-11-08
 
 A number written with thousands separators ("1,000", "12,500") is read as one number, never as a team.
