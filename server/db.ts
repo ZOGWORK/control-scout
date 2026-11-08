@@ -1907,6 +1907,16 @@ DELETE FROM event_teams
    AND NOT EXISTS (SELECT 1 FROM match_teams m WHERE m.season = event_teams.season AND m.code = event_teams.code AND m.team = event_teams.team);
 `,
   },
+  {
+    version: 75,
+    name: "a match keeps its posted start",
+    sql: `
+-- time is the real start once a match is played (FIRST's actualStartTime), else the posted one. scheduled keeps the
+-- posted start (FIRST's schedule startTime) beside it, so the live countdown (src/lib/liveMode.ts pace()) can tell a
+-- break in the posted schedule from a field running early. Null for older rows and sources without a schedule.
+ALTER TABLE matches ADD COLUMN scheduled TEXT;
+`,
+  },
 ];
 
 export type Db = Client;

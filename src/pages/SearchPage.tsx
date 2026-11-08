@@ -155,6 +155,9 @@ export default function SearchPage() {
   const open = (h: SearchHit) => logPick(h);
   // Phase 2 summary: a championship question's records as a timeline and stats; "how good is X" as X's standing.
   const apps = useMemo(() => appearances(answer?.card), [answer?.card]);
+  // A stat answer with a word's explainer card (server/api/searchCoverage.ts explainTeamAnswer): the explainer goes inside
+  // the stat's card, so the page shows one answer card.
+  const inStat = !!answer?.stat && answer.card?.kind === "info";
   const topTeam = hits.find((h) => h.kind === "team" && !isCompare(h));
   const topSum = topTeam && isQualityQuestion(query) ? summaries.get(Number(topTeam.ref)) : undefined;
   const std = topSum && !answer?.card ? standing(topSum.s, topSum.season) : null;
@@ -265,14 +268,15 @@ export default function SearchPage() {
                 <div className="min-w-0 lg:col-start-1 lg:row-start-1">
                   {!panel && summary}
                   {/* A stat question's answer ("4215 highest score in worlds"): ./search/page/StatAnswer.tsx. */}
-                  {answer?.stat && <StatAnswerCard stat={answer.stat} heading={title ?? undefined} />}
+                  {/* A word's explainer with it ("how is OPR calculated, with 4215") is drawn inside its card: one answer card. */}
+                  {answer?.stat && <StatAnswerCard stat={answer.stat} heading={title ?? undefined} explain={inStat ? answer.card : undefined} />}
                   {/* A question's records: as cards the timeline jumps to (championships, newest first: a "when" question reads
                       from the latest), else the answer card as before. */}
                   {apps.length ? (
                     // Worlds or states trips: one card with the team up top, a record card per trip inside.
                     <AppearancesAnswer team={answer!.card!.team} title={answer!.card!.title} heading={title} headline={answer!.card!.headline} trip={answer!.card!.trip} apps={apps} />
                   ) : answer?.card?.kind === "event-awards" ? <EventAwardsAnswer card={answer.card} heading={title ?? undefined} />
-                    : answer?.card && <FactCard card={answer.card} heading={title ?? undefined} season={hits.find((h) => h.kind === "team" && !isCompare(h) && Number(h.ref) === answer.card!.team?.number)?.linkSeason} />}
+                    : answer?.card && !inStat && <FactCard card={answer.card} heading={title ?? undefined} season={hits.find((h) => h.kind === "team" && !isCompare(h) && Number(h.ref) === answer.card!.team?.number)?.linkSeason} />}
                   {/* A match or event searched by name (no answer card): its video above the results (./search/page/AnswerVideo.tsx). */}
                   {!answer?.stat && !answer?.card && <AnswerVideo className="mb-5 mt-0 max-sm:mx-0" />}
                   {/* One column: the next questions search answers directly, under the answer. */}
