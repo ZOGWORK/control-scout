@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.1.0 — 2026-11-07
+
+A team's record against a number of top teams ("<team> record against top 10 teams") is its record in matches against them, rather than a comparison of two teams.
+
+### Highlights
+- [teams] "6980 record against the top 25 teams" shows that record
+- [teams] Top N means a world rank of N or better that season
+- [fixes] "Against top 10 teams" is no longer read as a second team
+
+### Search
+- **Record against the top N.** "Against (versus, facing) the top <N> teams (opponents)" is the team's matches where the other alliance had a team ranked N or better in the world that season by prediction rating: the record, win rate and average score beside every other match, and the matches themselves. Without a number it stays the season's top tenth. (#PRNUM)
+
 ## 4.0.9 — 2026-11-08
 
 A team's record, wins and scores in the finals only are answered, and a match told by its margin is the team's biggest loss or win. "Whats 9848's record in finals matches only" shows the record in its finals matches, and "the score of that one match where 4215 lost by a lot" shows its biggest loss.
