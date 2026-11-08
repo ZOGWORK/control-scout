@@ -67,6 +67,8 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["highest|high|best|top|max|maximum|biggest|largest|greatest|most|record high|peak|strongest|winningest|career high|personal best|longest|most times|the most times", { k: "agg", v: "max" }],
   // The ones worth watching are the best: "what team should i watch at nj states".
   ["should i watch|should we watch|worth watching|to keep an eye on|should i keep an eye on", { k: "agg", v: "max" }],
+  // "Who" asked that way is the teams: "who should i watch at worlds".
+  ["who should i watch|who should we watch|who to watch|who is worth watching|who should i keep an eye on", [{ k: "thing", v: "team" }, { k: "agg", v: "max" }]],
   ["lowest|low|worst|min|minimum|smallest|fewest|least|weakest", { k: "agg", v: "min" }],
   ["average|avg|mean|typical|on average", { k: "agg", v: "mean" }],
   ["median", { k: "agg", v: "median" }],
