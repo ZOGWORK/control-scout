@@ -67,6 +67,17 @@ describe("what's read", () => {
     expect(readLeaderboard("which team played the most matches at New Jersey events")).toBeNull();
     expect(readLeaderboard("most awards at out of state events")).toBeNull();
   });
+  it("a count's board with the place before the team word, whatever the verb", () => {
+    expect(readLeaderboard("which texas teams have won the most awards")).toMatchObject({ stat: "awards", region: { key: "USA:TX" } });
+    expect(readLeaderboard("ohio teams with the most events")).toMatchObject({ stat: "events", region: { key: "USA:OH" } });
+    expect(readLeaderboard("the georgia team with most matches")).toMatchObject({ stat: "matches", region: { key: "USA:GA" } });
+    expect(readLeaderboard("which new jersey teams have played the most matches")).toMatchObject({ stat: "matches", region: { key: "USA:NJ" } });
+    expect(readLeaderboard("what michigan teams attended the most events")).toMatchObject({ stat: "events", region: { key: "USA:MI" } });
+    expect(readLeaderboard("which texas teams won the most matches")).toMatchObject({ stat: "wins", region: { key: "USA:TX" } });
+    // Only a place goes before the team word, and only one place is said.
+    expect(readLeaderboard("which rookie teams have the most awards")).toBeNull();
+    expect(readLeaderboard("texas teams with the most awards in ohio")).toBeNull();
+  });
 });
 
 describe("the lists", () => {
@@ -76,7 +87,9 @@ describe("the lists", () => {
     // Never the highest-scoring matches.
     expect(m.intent?.kind).toBe("stat-leaderboard-top");
     // Greptile on #1040: with no verb, as typed ("matches", "events"), it's still the count's board.
-    for (const [q, title] of [["which team has the most matches in NJ", "Team in New Jersey with the most matches played · 2025–26"], ["most events in New Jersey", "Team in New Jersey with the most events played · 2025–26"]]) {
+    for (const [q, title] of [["which team has the most matches in NJ", "Team in New Jersey with the most matches played · 2025–26"], ["most events in New Jersey", "Team in New Jersey with the most events played · 2025–26"],
+      // The place before the team word: the count's board, never the prediction rating's.
+      ["which New Jersey teams have attended the most events", "Team in New Jersey with the most events played · 2025–26"], ["NJ team with most matches", "Team in New Jersey with the most matches played · 2025–26"]]) {
       expect((await searchAnswer(q, { limit: 25, full: true })).stat?.title, q).toBe(title);
     }
     for (const [code, team] of [["NJQ1", 6980], ["NJQ1", 4215], ["NJQ2", 6980]] as const) await run("INSERT INTO awards (season, code, type, placement, team) VALUES (2025, ?, 'Think', ?, ?)", [code, team === 4215 ? 2 : 1, team]);
