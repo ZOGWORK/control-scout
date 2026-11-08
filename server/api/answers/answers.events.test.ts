@@ -398,6 +398,8 @@ describe("events, awards and Worlds history (260-query list)", () => {
     clearAllCaches();
     const d = await searchAnswer("championship divisions 4215 played in", { limit: 25 });
     expect(d.stat).toMatchObject({ title: "Worlds divisions", headline: { value: "1 appearance", label: "Edison Division 2025–26" } });
+    // "Division" with Worlds said is the team's Worlds division, never its latest event with a division in its name.
+    for (const q of ["what division was 4215 in at worlds", "4215 worlds division"]) expect((await searchAnswer(q, { limit: 25 })).stat, q).toMatchObject({ intent: "worlds-divisions" });
     expect((await searchAnswer("4215 worlds wins", { limit: 25 })).stat).toMatchObject({ intent: "wins-count", headline: { value: "1 win" } });
     const m = await searchAnswer("4215 matches at worlds in 2026", { limit: 25 });
     expect(m.stat).toMatchObject({ title: "Matches at Worlds in 2025–26", headline: { value: "1-0-0" } });

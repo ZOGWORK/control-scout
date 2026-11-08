@@ -9,6 +9,22 @@ describe("reading an event set", () => {
       expect(readEventQuery(q), q).toMatchObject({ kinds: ["meet"], region: { key: "USA:NJ" }, where: null, words: [], time: null });
     }
   });
+  it("the same ask said short or long reads the same: a time word, and the request's own clause (owner, 11-08)", () => {
+    for (const [short, long] of [["nj events yesterday", "events in nj that finished yesterday"], ["nj meets yesterday", "nj meets that ended yesterday"],
+      ["nj events today", "events in nj today"], ["nj events this week", "events in nj that are happening this week"],
+      ["nj past events", "nj events that finished"], ["nj past meets", "nj meets that happened"], ["nj meets yesterday", "nj meets that finished yesterday"]]) {
+      // The same set, but said as finished: the last day counts (a meet still running isn't one that ended).
+      const { ended, ...rest } = readEventQuery(long)!;
+      expect(rest, long).toEqual(readEventQuery(short));
+      expect(!!ended, long).toBe(/(?:finished|ended) yesterday$/.test(long));
+    }
+    expect(readEventQuery("nj events yesterday")).toMatchObject({ time: "yesterday", region: { key: "USA:NJ" }, where: null, words: [] });
+    expect(timeWindow("yesterday", "2026-11-08")).toEqual({ from: "2026-11-07", to: "2026-11-07" });
+  });
+  it("reads \"now\" as today, as \"right now\" is (failed-search #763)", () => {
+    for (const q of ["nj meets now", "meets in nj now", "events now"]) expect(readEventQuery(q)?.time, q).toBe("today");
+    expect(readEventQuery("nj meets now")).toMatchObject({ kinds: ["meet"], region: { key: "USA:NJ" }, words: [] });
+  });
   it("reads a city or venue after 'at' or 'in', beside the place", () => {
     expect(readEventQuery("meets in New Jersey at River dell high school")).toMatchObject({ region: { key: "USA:NJ" }, where: "River dell high school" });
     expect(readEventQuery("meets at Nonexistent High School in New Jersey")).toMatchObject({ region: { key: "USA:NJ" }, where: "Nonexistent High School" });
@@ -125,6 +141,9 @@ describe("place typos and 'states' (owner report)", () => {
     for (const q of ["nj states", "NJ state champs", "new jersey champs"]) expect(readEventQuery(q), q).toMatchObject({ region: { key: "USA:NJ" }, words: [], allSeasons: true });
     expect(readEventQuery("nj states")?.kinds).toEqual(["states"]); // the state's own championship
     expect(readEventQuery("NJ state champs")?.kinds).toEqual(["championship"]);
+    // Failed search "Who won inspire in nj cham this year": "cham" is "champ" cut short.
+    expect(readEventQuery("ohio cham")).toMatchObject({ kinds: ["championship"], region: { key: "USA:OH" }, words: [] });
+    expect(readEventQuery("past cham in NJ")).toMatchObject({ kinds: ["championship"], time: "past", words: [] });
   });
   it("never guesses: no event word, a code, or two places as close", () => {
     expect(readEventQuery("new jesey")).toBeNull();
