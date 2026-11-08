@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.2.4 — 2026-11-08
+
+A team's forecast at a place's state championship answers in any wording: "will <team> win the nj state championship" is its prediction at New Jersey's.
+
+### Highlights
+- [predict] "Will <team> win the NJ state championship" answers
+- [predict] A place said with states picks that state's event
+- [fixes] A state the team never played there gives no card
+
+### Search
+- **A team's own state championship, by place.** A team's forecast with a place and states said ("will <team> win the new jersey state championship", "is <team> going to win nj states") is its prediction at that place's state championship, the one it is listed at. The place used to stop the answer; a place whose championship the team never played is left to the other readers, never another state's event. (#PR)
+
 ## 4.2.3 — 2026-11-08
 
 An event's best teams are headed once: the page heading is the card's own title, such as "Best teams at New Jersey Championship by OPR there".

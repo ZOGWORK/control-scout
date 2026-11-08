@@ -219,6 +219,16 @@ describe("one question, any phrasing, any team", () => {
     expect((await ask("4215 advancement odds at worlds in 2025-26")).stat?.intent).not.toBe("pipeline-team-predict-event");
     // "Romania championship" is its state championship.
     expect((await stat("24033 prediction at states in 2025-26")).title).toBe("Prediction vs result at Romania Championship");
+    // A place said with states narrows it to that place's championship: the team's own there, else left to the others.
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, 'USNJCMPX', 'Garden State Finals', 'Championship', 'Town', 'NJ', 'USA', '2026-03-07', '2026-03-07', 't')");
+    await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'USNJCMPX', 4215, 4)");
+    clearAllCaches();
+    for (const q of ["will 4215 win the new jersey state championship", "is hypnotic robotics going to win NJ states"]) {
+      expect(await stat(q), q).toMatchObject({ intent: "pipeline-team-predict-event", title: "Prediction vs result at Garden State Finals" });
+    }
+    for (const q of ["will 4215 win the texas state championship", "will hypnotic robotics win pennsylvania states"]) {
+      expect((await ask(q)).stat?.intent, q).not.toBe("pipeline-team-predict-event");
+    }
   });
   it("two teams compared at an event: each one's numbers there, any order, by number or name", async () => {
     for (const q of ["4215 vs 6980 at garden qualifier", "bad wolf vs hypnotic robotics at the garden qualifier", "24033 vs delta force at romania championship"]) {

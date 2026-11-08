@@ -220,14 +220,16 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   }
   const ownChampionship = intent === "team-predict" && !p.event && p.teams.length === 1 && (p.worlds || p.states);
   if ((intent === "team-predict" || intent === "two-predict") && (p.event || ownChampionship)) {
+    // A place said with states narrows the team's own state championship ("will <team> win the nj state championship").
+    const region = ownChampionship ? statesRegion(p) : null;
     // The card lists every forecast at the event: a count asked ("last 3 predictions") is left to the other readers.
-    if (scope.level || scope.alliance || scope.place || scope.area || scope.window || (p.event && (p.worlds || p.states)) || p.n != null) return null;
+    if (scope.level || scope.alliance || (scope.place && !region) || scope.area || scope.window || (p.event && (p.worlds || p.states)) || p.n != null) return null;
     // A calendar year ("2025") is the event held that year; a season or a game named ("2025-26", "decode") its season.
     const year = p.time?.kind === "season" && p.time.year != null ? p.time.year : null;
     const season = p.time?.kind === "season" && p.time.year == null && !p.time.relative && p.time.season != null ? p.time.season : null;
     if (p.time && year == null && season == null) return null;
     const found = p.event ? await eventFor(p.event.words, p.teams.map((t) => t.number), year, season)
-      : await teamEventOfType(p.teams[0].number, p.worlds ? CHAMPIONSHIP_TYPE : STATES_TYPE, season, year);
+      : await teamEventOfType(p.teams[0].number, p.worlds ? CHAMPIONSHIP_TYPE : STATES_TYPE, season, year, region);
     if (!found) return null;
     const stat = await forecastAt(p.teams.map((t) => ({ number: t.number, name: t.name })), found.ev, found.listed, opts.now ?? Date.now(), { advance: p.symbols.includes("advance") });
     const hits = (await Promise.all(p.teams.map(async (t) => (await opts.resolve(String(t.number))).hits.find((h) => h.kind === "team" && h.ref === String(t.number))))).filter((h): h is NonNullable<typeof h> => !!h);
@@ -560,6 +562,12 @@ function regionOf(p: Parsed): Region | null {
   const pl = p.place;
   if (!pl || pl.kind === "city") return null;
   return { key: `${pl.country}:${pl.state ?? ""}`, country: pl.country, state: pl.state ?? "", name: pl.name };
+}
+
+/** The region a state championship is narrowed to: a place said with states ("nj states"), not with Worlds or an
+ *  event named, where the place reads as something else. Null: no place, or a town. */
+function statesRegion(p: Parsed): Region | null {
+  return p.states && !p.worlds && !p.event ? regionOf(p) : null;
 }
 
 /** A year or a season with no events stored for it yet (a future one): the card that says so, naming the latest
