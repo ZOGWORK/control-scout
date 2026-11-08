@@ -48,7 +48,10 @@ export type Ask =
   | { kind: "event-won"; event: string }
   | { kind: "how" }
   /** How to get a call for any lineup, or whether it updates as the lineup changes: Predict's Custom matchup. */
-  | { kind: "predict-lineup" }
+  | { kind: "predict-lineup";
+      /** Said with no forecast word: "change", a lineup changed and nothing more asked; "partner", which partner is
+       *  best once it changes. Absent: a yes-or-no question about the forecast ("does the win chance update"). */
+      say?: "change" | "partner" }
   /** Which predictions can be picked out: Predict's Scheduled matches, by team or event. */
   | { kind: "predict-filter" }
   /** One team's predictions page ("12345 prediction settings"): its matches in Predict. */
@@ -59,7 +62,11 @@ export type Ask =
 /** Words for a forecast, in a question about Predict itself. */
 const FORECAST_WORDS = /\b(?:predict|predicts|predicted|prediction|predictions|forecasts?|odds|win (?:probabilit(?:y|ies)|chances?)|who (?:would|will) win)\b/;
 /** A lineup someone makes up, or changes. */
-const OWN_LINEUP = /\b(?:teams? (?:i|you|we) (?:pick|choose|select|want)|(?:my|our) own teams|any teams|custom (?:match(?:up)?|lineup|alliances?)|hypothetical|change (?:the |an |my |our )?(?:alliances?|teams|lineup|partners?)|swap(?:ping)? (?:the )?teams|(?:has ?n['’]?t|has not|have ?n['’]?t|have not|not) (?:happened|been played|played)(?: yet)?)\b/;
+const OWN_LINEUP = /\b(?:teams? (?:i|you|we) (?:pick|choose|select|want)|(?:my|our) own teams|any teams|custom (?:match(?:up)?|lineup|alliances?)|hypothetical|(?:chang(?:e|ing)|switch(?:ing)?|swap(?:ping)?) (?:the |an |my |our )?(?:alliances?|teams?|lineup|partners?)|(?:has ?n['’]?t|has not|have ?n['’]?t|have not|not) (?:happened|been played|played)(?: yet)?)\b/;
+/** A supposition's opener: "if I", "what if we", "suppose you". */
+const HYPO_CHANGE = /\b(?:what if|if|suppose|supposing|when) (?:i|we|you)\b/g;
+/** Which partner is best, asked of no team in particular. */
+const BEST_PARTNER = /^(?:(?:who|whos|who['’]s|which team|which)(?: is| has| would be| will be| makes| would make| is the)?\s+)?(?:the\s+)?(?:best|strongest|top)\s+(?:alliance\s+)?(?:partner|partners|pick|teammate)(?:\s+(?:be|is|would be))?$/;
 
 const STAT_LABEL: Record<Stat, string> = { opr: "Highest OPR", auto: "Best auto (auto OPR)", teleop: "Best teleop (teleop OPR)", endgame: "Best endgame (endgame OPR)", wins: "Most wins" };
 const STAT_COLUMN: Record<Stat, string> = { opr: "s.opr_np", auto: "s.opr_auto", teleop: "s.opr_teleop", endgame: "s.opr_endgame", wins: "s.wins" };
@@ -77,7 +84,7 @@ const AWARD_NAME: Record<string, string> = { JudgesChoice: "Judges' Choice", Dea
 const regionWords = (s: string): Region | null => regionOf(s.trim().replace(/^(?:the )?(?:state of )?/i, "").split(/\s+/).filter(Boolean));
 
 /** Words that only say "everyone, this season": a leaderboard's scope is the world's unless a place is named. */
-const SCOPE_WORDS = /(?:^| )(?:right now|currently|now|today|this season|this year|in the (?:whole )?world|of the world|worldwide|globally|overall|of all time|all time|of all|ever)(?= |$)/g;
+const SCOPE_WORDS = /(?:^| )(?:right now|rn|atm|at the moment|currently|now|today|this season|this year|in the (?:whole )?world|of the world|worldwide|globally|overall|of all time|all time|of all|ever)(?= |$)/g;
 
 /** "What is the best FTC team right now" → "best team", "best teleop in FTC in the world" → "best teleop": the opener,
  *  "FTC" and the scope words say nothing about which teams. */
@@ -105,6 +112,13 @@ export function readAsk(q: string): Ask | null {
     if (OWN_LINEUP.test(t)) return { kind: "predict-lineup" };
     if (/\b(?:filter|filtered|filtering|sort|sorted|narrow|narrowed)\b/.test(t)) return { kind: "predict-filter" };
   }
+  // A lineup changed in a supposition, with no forecast word and no team ("if I change the alliance", "who's the best
+  // partner if we swap teams"): what Custom matchup is for. Anything else asked of it is left to the other readers.
+  if (!/\d/.test(t) && new RegExp(HYPO_CHANGE.source).test(t) && OWN_LINEUP.test(t)) {
+    const rest = t.replace(HYPO_CHANGE, " ").replace(OWN_LINEUP, " ").replace(/[?.!,]/g, " ").replace(/\s+/g, " ").trim();
+    if (!rest) return { kind: "predict-lineup", say: "change" };
+    if (BEST_PARTNER.test(rest)) return { kind: "predict-lineup", say: "partner" };
+  }
   // The day's predictions everywhere, said with nothing else: any other scope ("in New Jersey", "at worlds", "playoff",
   // a team) asks for a filter this list doesn't apply, so the whole question must be the day and its matches, and
   // anything more is left to the readers that do. A closing "if any (are scheduled)" narrows nothing.
@@ -118,7 +132,8 @@ export function readAsk(q: string): Ask | null {
   // Leaderboards: the world's ("best team", "what is the best FTC team right now") or a place's.
   const lw = leaderWords(t);
   if (/^(?:the )?(?:top|best|highest(?: |-)ranked|strongest|number one|no 1|1)(?: \d+)? (?:teams?|robots?)$/.test(lw.t) || (lw.opened && /^(?:best|top|strongest|number one)$/.test(lw.t))) return { kind: "leaderboard", region: null };
-  let m = /^(?:the )?(?:top|best|highest(?: |-)ranked|strongest)(?: \d+)? (?:teams?|robots?)(?: in| from| of)? (.+)$/.exec(lw.t);
+  // "The best in NJ": the team word can go unsaid before a place, since only a team is "the best in" a region.
+  let m = /^(?:the )?(?:top|best|highest(?: |-)ranked|strongest)(?: \d+)?(?: (?:teams?|robots?)(?: in| from| of)?| in| from| of) (.+)$/.exec(lw.t);
   if (m) { const region = regionIn(m[1]); if (region) return { kind: "leaderboard", region }; }
   m = /^(.+?) (?:rankings?|standings|leaderboard|top teams|best teams?)$/.exec(lw.t);
   if (m) { const region = regionIn(m[1]); if (region) return { kind: "leaderboard", region }; }
@@ -246,7 +261,11 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
 
     case "predict-lineup":
       return answer(q, { hits: [], pages: withPage(q, [{ title: "Predict: Custom matchup", href: predictHref({ mode: "match" }) }]),
-        understood: { kind: "question", label: "Yes: Predict's Custom matchup takes any teams on each alliance. After changing them, press Predict this match for the new win chance and predicted score" } });
+        understood: { kind: "question", label: ask.say === "partner"
+          ? "Try each partner in Predict's Custom matchup: put your team and one partner on an alliance, press Predict this match, and the partner with the highest win chance is the best one for that lineup"
+          : ask.say === "change"
+            ? "Predict's Custom matchup takes any teams on each alliance: change them and press Predict this match for the new win chance and predicted score"
+            : "Yes: Predict's Custom matchup takes any teams on each alliance. After changing them, press Predict this match for the new win chance and predicted score" } });
 
     case "predict-filter":
       return answer(q, { hits: [], pages: withPage(q, [{ title: "Predict: Scheduled matches", href: predictHref({ mode: "scheduled" }) }]),

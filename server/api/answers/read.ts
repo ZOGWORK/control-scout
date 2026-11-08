@@ -201,6 +201,8 @@ export interface ReadScope {
   championship: boolean;
   states: boolean;
   level: "qual" | "playoff" | null;
+  /** "in the finals": the playoffs' last series only (level is "playoff" too). */
+  finals?: boolean;
   alliance: "red" | "blue" | null;
   /** "at <something>" that isn't Worlds or states: an event (left to the event family). */
   at: string | null;
@@ -319,7 +321,10 @@ export function readScope(q: string): { scope: ReadScope; rest: string } {
   if (take(/\b(?:ever|all[\s-]+time|of\s+all\s+time|career|in\s+history|overall)\b/)) scope.ever = true;
   if (take(/\b(?:on|as|from)\s+(?:the\s+)?red(?:\s+alliance|\s+side)?\b|\bred\s+alliance\b/)) scope.alliance = "red";
   else if (take(/\b(?:on|as|from)\s+(?:the\s+)?blue(?:\s+alliance|\s+side)?\b|\bblue\s+alliance\b/)) scope.alliance = "blue";
-  if (take(/\b(?:in|during)\s+(?:the\s+)?(?:playoffs?|eliminations?|elims?)\b/)) scope.level = "playoff";
+  // The finals, the playoffs' last series ("record in finals matches only", "12345 finals record"); a state's finals
+  // were read as its state championship above.
+  if (take(/\b(?:in|during)\s+(?:the\s+)?(?:grand\s+)?finals?(?:\s+match(?:es)?)?(?:\s+only)?\b|(?<!\b(?:make|makes|made|making|reach|reaches|reached|reaching|to|into)\s+(?:the\s+)?)\b(?:grand\s+)?finals?(?:\s+match(?:es)?)?(?:\s+only)?\b(?!\s+(?:appearances?|odds|chances?|bracket|alliances?))/)) { scope.level = "playoff"; scope.finals = true; }
+  else if (take(/\b(?:in|during)\s+(?:the\s+)?(?:playoffs?|eliminations?|elims?)\b/)) scope.level = "playoff";
   else if (take(/\b(?:in|during)\s+(?:the\s+)?(?:qualifications?|quals?|qualifying)\b/)) scope.level = "qual";
   // The match type said before the intent ("12345 playoff record", "quals record this season"); never a match list's
   // own words ("playoff matches"), which their intents read.
@@ -351,6 +356,8 @@ const PLACE_IDS = new Set<IntentId>(["highest-score", "lowest-score", "biggest-w
  *  the question is left to search instead. The regex readers and the search pipeline both ask it. */
 export function scopeFits(id: IntentId, family: StatFamily, scope: ReadScope, opts: { place?: boolean } = {}): boolean {
   const matchLevel = !!(scope.level || scope.alliance);
+  // The finals are a filter on the team's own match rows, never on anything else.
+  if (scope.finals && !PLACE_IDS.has(id)) return false;
   if (SEASON_ROWS.has(id) && (scope.championship || scope.states || matchLevel || scope.at || scope.window)) return false;
   if (EVENT_ROWS.has(id) && matchLevel) return false;
   if (id === "never-played" && (scope.championship || scope.states || matchLevel || scope.ever || scope.at || scope.window)) return false;
@@ -546,15 +553,19 @@ export function readLeaderboard(raw: string): LeaderboardQuestion | null {
     const asc = new RegExp(`^${LOW}$`).test(m[1]);
     if (stat && region !== false) return { kind: "rookie", stat, n: n(m[2], 10), region, city: null, season: scope.season, ...(asc ? { asc: true } : {}) };
   }
-  // "which team has the most awards in nj", "team that played the most matches", "most events played in ohio": a
+  // "which team has the most awards in nj", "which nj teams have the most awards", "team that played the most matches",
+  // "most events played in ohio": a
   // count's board, its leader first. Right after "most" a count needs no verb: search reads "most matches" as "most
   // match" (matches played), and a verb said before it is its own ("attended the most event").
   // Counted at some events only ("at New Jersey events", "out of state") or on one day is a count the board (season
   // totals) can't make: none.
-  if (!scope.place && !scope.outOfState && !scope.day && (m = new RegExp(`^(?:(?:which|what) )?(?:${TEAMS} )?(?:(?:in|from) (.+?) )?(?:(?:that|who) )?(?:(has|have|had|with|won|played|plays|attended|got) )?(?:the )?most (.+?)${PLACE}$`).exec(rest))) {
-    const counted = boardStat(m[3]) ?? boardStat(`${m[3]} ${m[2] === "attended" ? "attended" : "played"}`), region = place(m[1] ?? m[4]);
+  if (!scope.place && !scope.outOfState && !scope.day && (m = new RegExp(`^(?:(?:which|what) )?(?:(?:the )?(?:(?!ftc )(.+?) )?${TEAMS} )?(?:(?:in|from) (.+?) )?(?:(?:that|who) )?(?:(?:has|have|had) )?(?:(has|have|had|with|won|played|plays|attended|got) )?(?:the )?most (.+?)${PLACE}$`).exec(rest))
+    && [m[1], m[2], m[5]].filter(Boolean).length < 2) {
+    // A place said before the team word ("nj teams") is the same place as one after it; anything else there is no board.
+    // "FTC teams" is the team word itself, never a place before "teams".
+    const counted = boardStat(m[4]) ?? boardStat(`${m[4]} ${m[3] === "attended" ? "attended" : "played"}`), region = place(m[1] ?? m[2] ?? m[5]);
     // "Won the most matches" is the wins board; "won the most events" is no board here (never events played).
-    const stat = m[2] !== "won" || counted === "awards" ? counted : counted === "matches" ? "wins" : null;
+    const stat = m[3] !== "won" || counted === "awards" ? counted : counted === "matches" ? "wins" : null;
     if ((stat === "matches" || stat === "events" || stat === "awards" || (stat === "wins" && counted === "matches")) && region !== false) return { kind: "top", stat, n: 10, region, city: null, season: scope.season, best: true };
   }
   // "most improved team in new jersey"

@@ -49,6 +49,10 @@ describe("reading", () => {
     expect(readAsk("top teams in new jersey")).toMatchObject({ kind: "leaderboard", region: { key: "USA:NJ" } });
     expect(readAsk("nj rankings")).toMatchObject({ kind: "leaderboard" });
     expect(readAsk("best team in nj")).toMatchObject({ kind: "leaderboard" });
+    // The team word unsaid before a place, and short words for "this season".
+    for (const q of ["top in texas atm", "the strongest in GA right now", "best from ohio rn", "top 5 in new jersey currently"])
+      expect(readAsk(q), q).toMatchObject({ kind: "leaderboard", region: { key: expect.stringMatching(/^USA:/) } });
+    for (const q of ["best in show", "best in class", "top of the hour"]) expect(readAsk(q), q).toBeNull();
     expect(readAsk("highest opr")).toEqual({ kind: "stat", stat: "opr", region: null });
     expect(readAsk("best auto team")).toEqual({ kind: "stat", stat: "auto", region: null });
     expect(readAsk("who has the most wins")).toEqual({ kind: "stat", stat: "wins", region: null });
@@ -76,7 +80,7 @@ describe("test 16: each intent returns its stated surface", () => {
     expect(a.card!.none).toMatch(/No upcoming match is scheduled/);
   });
   it("top teams in New Jersey (and NJ rankings, best team in NJ): the region's ranking, linked", async () => {
-    for (const q of ["top teams in New Jersey", "NJ rankings", "best team in NJ"]) {
+    for (const q of ["top teams in New Jersey", "NJ rankings", "best team in NJ", "the strongest in New Jersey atm"]) {
       const a = await ask(q);
       expect(teams(a), q).toEqual(["23268 Ultraviolet", "4215 Hypnotic Robotics", "6980 Bad Wolf"]);
       expect(hrefs(a)[0], q).toBe("/rankings?season=2025&region=USA%3ANJ");
@@ -130,6 +134,20 @@ describe("test 16: each intent returns its stated surface", () => {
     expect(filter.understood?.label).toMatch(/not by date/);
     // A team named is that team's question, never Predict's help.
     expect(readAsk("can i filter 4215 predictions")?.kind).not.toBe("predict-filter");
+  });
+  it("a lineup changed in a supposition, with no forecast word: Custom matchup, or which partner is best in it", async () => {
+    for (const q of ["what if we switch the alliance", "suppose you change our partners", "what if we swap our alliance"]) expect(readAsk(q), q).toEqual({ kind: "predict-lineup", say: "change" });
+    for (const q of ["who's the strongest partner if we swap teams", "which team would make the best alliance partner if i switch the alliance", "who is the best partner if you swap the alliances"]) {
+      expect(readAsk(q), q).toEqual({ kind: "predict-lineup", say: "partner" });
+    }
+    // Through the whole search, whatever it rewrites first ("teams" read as "team").
+    const changed = await ask("What if I switch teams?");
+    expect(changed.pages[0]).toEqual({ title: "Predict: Custom matchup", href: "/predict?mode=match" });
+    expect(changed.understood?.label).toMatch(/^Predict's Custom matchup takes any teams on each alliance: change them/);
+    const partner = await ask("who would be the best partner if we change teams");
+    expect(partner.understood?.label).toMatch(/^Try each partner in Predict's Custom matchup/);
+    // Anything else asked, or a team named, is left to the other readers.
+    for (const q of ["if we change the alliance who scores most", "if we change teams does 4215 win"]) expect(readAsk(q)?.kind, q).not.toBe("predict-lineup");
   });
   it("a team's predictions page: its matches in Predict; a day's calls: that day's events", async () => {
     // A name is read only for a team that has played: this test's own played row, whatever ran before it.
