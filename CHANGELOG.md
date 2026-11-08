@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.1.7 — 2026-11-08
+
+A team whose name has dotted initials is found typed without the dots: "ice robotics highlights" answers for 11329 I.C.E. Robotics.
+
+### Highlights
+- [fixes] "Ice robotics highlights" finds I.C.E. Robotics
+- [teams] Names with dotted initials match typed without dots
+- [fixes] "Ice robotics" lists I.C.E. Robotics first
+- [fixes] A stray short word at the end no longer blocks the answer
+
+### Search
+- **Dotted initials.** A team name's initials written with dots ("I.C.E.", "M.E.D.I.C.S.") also read as the word they spell, in the question reader and the search index alike, so the name typed without dots finds the team, its possessive dropped or not, and a near miss of it too. One-dot abbreviations ("St.", "Mr.") and numbers ("2.0") are unchanged. A query that finds nothing and ends in a stray word of up to four letters no word search or the data knows ("theseus highlights decd") is read without it, offered as "did you mean". (#1163)
+
 ## 4.1.6 — 2026-11-08
 
 "My" and "our" in a search mean your team: "what is my next event" answers for My team, or asks you to pick one. A team's schedule in a state said short ("Hypnotic Robotics mass schedule") shows its matches there.
