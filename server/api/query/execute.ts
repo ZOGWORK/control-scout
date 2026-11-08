@@ -300,6 +300,9 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   if (intent === "highlights") return highlights(p, scope, opts);
   // Matches by a measure, or the best ones with a filter the season records don't take (a match type, a kind of
   // event): the match finder.
+  // Matches with no measure said are a window's only ("matches from yesterday"), listed best first; "matches" alone,
+  // a place's or a match type's ("playoff matches in NJ") are left to search.
+  if (intent === "top-matches" && !p.teams.length && !p.symbols.includes("agg:max") && !scope.window) return null;
   const kind = p.event ? eventKindOf(normalise(p.event.words)) : p.eventKind ? eventKindOf(p.eventKind) : null;
   const teamFind = p.teams.length === 1 && TEAM_FIND.has(FIND[intent]!);
   if ((!p.teams.length || teamFind) && (FIND[intent] || (intent === "top-matches" && (p.level || p.finals || kind)))) {
@@ -455,8 +458,9 @@ async function highlights(p: Parsed, scope: ReadScope, opts: PipelineOptions): P
     q: p.q, hits, pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season }, stat,
     intent: { kind: `stat-${stat.intent}`, pattern: `${p.teams.length ? "[team] " : ""}highlights${p.event ? " [event]" : p.worlds ? " [worlds]" : p.states ? " [states]" : ""}${p.place ? " [place]" : ""}${scope.window ? " [window]" : ""}`, met: true, understood: [] },
   });
-  // Video words alone ("recap", "videos", "watch"): a video page; "highlights" or "best": the standout matches first.
-  const videos = !p.symbols.includes("highlights") && !p.symbols.includes("agg:max");
+  // Video words alone ("recap", "videos", "watch"): a video page; "highlights", "best" or "what happened": the
+  // standout matches first.
+  const videos = p.symbols.includes("videos") && !p.symbols.includes("highlights") && !p.symbols.includes("agg:max");
   const kind = p.worlds ? WORLDS_KIND : p.states ? STATES_KIND : p.eventKind ? eventKindOf(p.eventKind) : null;
   if (p.eventKind && !kind) return null;
   // A calendar year said with an event, Worlds or a state championship ("nj championship 2025", "worlds 2025") is the

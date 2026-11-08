@@ -37,7 +37,7 @@ import { BOARD_STATS, LEADERBOARD_MAX, boardStatFor, leaderboardAnswer, statWord
 import { everTopMatches, readTopMatches, topMatchesAnswer, type TopMatchesQuestion } from "./families/topMatches.js";
 import { penaltyTotalAnswer, trendAnswer } from "./families/trends.js";
 import { nextEventPrediction, pairPrediction, predictTitle, predictionSeason } from "./families/predict.js";
-import { awardsSideBySide, compareAnswer, compareSeason, headToHead, neverPlayedAnswer, opponentsAnswer, partnerListAnswer, phaseSideBySide, reliabilitySideBySide, seasonSideBySide } from "./families/twoTeam.js";
+import { awardsSideBySide, compareAnswer, compareSeason, headToHead, neverPlayedAnswer, opponentsAnswer, partnerListAnswer, penaltiesSideBySide, phaseSideBySide, reliabilitySideBySide, seasonSideBySide } from "./families/twoTeam.js";
 import { sharedMatchList } from "../searchBoolean.js";
 import { compareBlock, decidedText, leadHeadline, seasonScale, winShare } from "./compareBlock.js";
 import { winnersAnswer, worldsFollowUps } from "./families/winners.js";
@@ -76,7 +76,7 @@ const TITLES: Record<IntentId, string> = {
 };
 const TWO_TEAM_TITLES: Record<TwoTeamId, string> = {
   "head-to-head": "Head to head", "opr-vs": "OPR side by side", "rating-vs": "Prediction ratings side by side", "win-chance": "Win chance", "better-record": "Better record",
-  predict: "Prediction", "h2h-wins": "Wins against", "shared-matches": "Shared matches", compare: "Compare", "phase-vs": "Phase side by side", "reliability-vs": "Reliability side by side", "awards-vs": "Awards side by side",
+  predict: "Prediction", "h2h-wins": "Wins against", "shared-matches": "Shared matches", compare: "Compare", "phase-vs": "Phase side by side", "reliability-vs": "Reliability side by side", "awards-vs": "Awards side by side", "penalties-vs": "Penalties side by side",
 };
 /** Read from the matches the two teams met in ("this season" is the first team's latest season with matches). */
 const MEETING_IDS = new Set<TwoTeamId>(["head-to-head", "h2h-wins", "shared-matches"]);
@@ -1005,6 +1005,7 @@ async function twoTeamStat(two: TwoTeamQuestion, a: AnswerTeam, b: AnswerTeam, s
     case "compare": return compareAnswer([a, b], scope);
     case "phase-vs": return phaseSideBySide(two.phase ?? "auto", a, b, scope);
     case "reliability-vs": return reliabilitySideBySide(a, b, scope);
+    case "penalties-vs": return penaltiesSideBySide(a, b, scope);
     case "awards-vs": return awardsSideBySide(a, b, scope.season);
     case "predict": case "win-chance": {
       // A prediction is one season's ratings: the season named, else the latest completed one.
