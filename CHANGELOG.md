@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 4.1.8 — 2026-11-08
+## 4.2.2 — 2026-11-08
 
 A team's highlights read the time asked: "theseus highlights dec" and "<team> highlights in february 2026" answer, and a month with nothing played falls back to the season.
 
@@ -26,6 +26,55 @@ A team's highlights read the time asked: "theseus highlights dec" and "<team> hi
 
 ### Search
 - **Highlights in a month.** A team's highlights with a time said ("in february 2026", "this week", "dec") are its standout matches played then, titled with the time ("Highlights in February 2026, 2025–26"). With nothing played then, a time said against today relaxes to its season, then the one before, as every answer with a window does, and says so on the card; a month typed with its year stays that month. A month's short form alone ("dec", "nov") is a month as the query's last word; "mar" and "may" stay words. (#1168)
+
+## 4.2.1 — 2026-11-08
+
+The best teams at one event, Worlds or a state's championship are a leaderboard of the teams there: "east bergen conference best teams", "top teams at nj states".
+
+### Highlights
+- [rankings] "Best teams at <event>" ranks the teams there
+- [rankings] By OPR at the event once it's played
+- [rankings] Before it's played, by the OPR each team brings
+- [rankings] "NJ teams at Worlds" lists the teams from a place
+
+### Search
+- **The best teams at an event.** An event named, Worlds or a state's championship beside "best teams" or "top teams" is the board of the teams on its list (its divisions' too). Once played, it ranks them by each team's OPR there with its record there; before, by the season OPR each team brings (else the season before's), said on the card. No season said reads the latest held with teams listed, a newer one with none yet named on the card. A count ("top 5 teams at …") and a year ("worlds 2025") are read; another stat is left to search. "Teams at" an event or Worlds lists the teams there too, and a place said with Worlds or an event named keeps the teams from there ("nj teams at worlds"). "Should I watch" asks for the best, and a state with only a championship word after it is its state championship ("nj champs"). (#1102)
+
+## 4.2.0 — 2026-11-08
+
+A team's record against the world's top teams by a number is answered. "Whats 14450's record against teams ranked top 10 worldwide" shows its matches against an alliance with a top-10 team, beside the rest.
+
+### Highlights
+- [teams] "<team> record vs top 10" counts opponents in the world's top 10
+- [teams] Any cut works: "against the top 25 teams in the world"
+- [teams] "Against top teams" alone still means the season's top tenth
+
+### Search
+- **Against the top N.** "Against (teams ranked in) the top N (worldwide, in the world)" and "vs top N" read as the against-top-teams answer with N as the cut: matches where the other alliance had a team ranked in the world's top N by prediction rating that season, side by side with the others. Its title and definition say the cut. Before, the number was taken as a second team and the question fell to a Compare. (#1107)
+
+## 4.1.9 — 2026-11-08
+
+A team's chance of making Worlds or states, asked any way, answers with its advancement chance.
+
+### Highlights
+- [predict] "Chance of making worlds" shows the advancement chance
+- [predict] "Reaching", "getting to" and "qualifying for" read the same
+- [predict] "Next year" starts at the team's next event
+
+### Search
+- **Reaching Worlds or states.** "<team> chance of making worlds", "odds of reaching worlds", "chances of getting to states next season" and "qualifying for worlds as it stands" are the stored projection's advancement chance at the team's next event, as "chance to advance to worlds" is. A forecast made at Worlds itself ("advance at worlds") keeps its own answer. (#1113)
+
+## 4.1.8 — 2026-11-08
+
+One question, one season: "best in New Jersey right now" and "best teams in New Jersey" now show the same season, whichever way they're asked.
+
+### Highlights
+- [rankings] "Right now" and "best teams in <place>" agree on the season
+- [rankings] The current season once anyone is ranked in it
+- [rankings] Until then the season before, said on the card
+
+### Search
+- **The same season, however it's asked.** Asked with no season, the search box's top-teams and stat cards and their full pages read the current season, then the season before while nobody is ranked in it yet, as the rest of search does. Before, some phrasings showed the last completed season while others showed the current one. (#1166)
 
 ## 4.1.7 — 2026-11-08
 

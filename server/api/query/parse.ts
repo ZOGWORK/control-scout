@@ -66,6 +66,8 @@ export interface Parsed {
   unexplained: string[];
   /** No losses asked ("undefeated teams"). */
   undefeated?: boolean;
+  /** Reaching Worlds or states said beside a forecast ("chance of making worlds"): the chance to advance there. */
+  reach?: true;
   /** A name asked about as words ("teams named <name>"): the words, never read as a team. */
   named?: { words: string; typed: string };
   /** Every word explained and an intent found. */
@@ -105,6 +107,20 @@ const NAME_MARK = "namedname";
 const NAMED_PHRASES = LEXICON.filter((e) => e.syms.some((x) => x.k === "named")).map((e) => e.words);
 /** The words that end a name asked about as words: a place or a time follows. */
 const NAME_ENDS = /^(?:from|in|at|near|based|located|during|out)$/;
+/** Words that say reaching a place ("making worlds", "qualifying for worlds"), and the words that name Worlds. */
+const REACH = new Set(["make", "makes", "making", "reach", "reaches", "reaching", "qualify", "qualifies", "qualifying", "get", "gets", "getting"]);
+const WORLDS_WORDS = new Set([
+  // Every one-word name the lexicon reads as Worlds or states ("regionals" is states), so a new name is never missed here.
+  ...LEXICON.filter((e) => e.words.length === 1 && e.syms.some((x) => x.k === "worlds" || x.k === "states")).map((e) => e.words[0]),
+  // The last word of their longer names ("the state championship", "world champs").
+  "championship", "championships", "champs",
+]);
+/** What may stand between a reach verb and the place: the lexicon's one-word filler ("it", "to", "the"), the
+ *  prepositions of going there ("for", "into", "in", "at", "through"), and "first" of "the FIRST Championship". */
+const REACH_BETWEEN = new Set([
+  ...LEXICON.filter((e) => e.words.length === 1 && e.syms.every((x) => x.k === "filler")).map((e) => e.words[0]),
+  "for", "into", "in", "at", "through", "first",
+]);
 /** The kind words an event's name can end with. */
 const KIND_WORDS = new Set(["meet", "meets", "tournament", "tournaments", "event", "events", "competition", "competitions"]);
 /** The words before a number that make it a count ("top 5", "last 10") or a match's number ("match 3"). */
@@ -297,6 +313,30 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       if (k && s.k !== "award") symbols.add(k);
     }
   }
+  // Reaching Worlds said beside a forecast ("chance of making worlds", "odds of qualifying for worlds"): the chance to
+  // advance there, never a count of appearances or qualification matches.
+  if (symbols.has("predict") && (p.worlds || p.states)) {
+    // The verb, then any filler or preposition ("making it to the world championship"), then the place's name.
+    // The words in between are part of the reach, read with it.
+    const between: Tok[] = [];
+    const reach = toks.filter((t, i) => {
+      if (!REACH.has(t.w)) return false;
+      let j = i + 1;
+      while (j < toks.length && REACH_BETWEEN.has(toks[j].w)) j++;
+      if (j >= toks.length || !WORLDS_WORDS.has(toks[j].w)) return false;
+      between.push(...toks.slice(i + 1, j));
+      return true;
+    });
+    if (reach.length) {
+      [...reach, ...between].forEach((t) => (t.used = true));
+      p.reach = true;
+      symbols.add("advance");
+      // "Next year", "next season": the way there starts at the team's next event.
+      if (symbols.has("agg:next")) symbols.delete("thing:season");
+      symbols.delete("metric:appearance");
+      if (p.level === "qual" && reach.some((t) => t.w.startsWith("qualif"))) { p.level = null; symbols.delete("level:qual"); }
+    }
+  }
   // One-word awards beside an award word: "design award", "12345 think awards".
   if (symbols.has("metric:award")) {
     for (const t of toks) if (!t.used && AWARD_ONE_WORD.has(t.w)) { p.award = AWARD_ONE_WORD.get(t.w)!; t.used = true; }
@@ -362,7 +402,13 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     if (hasEventWord && !p.place) {
       const bare = toks.slice(from, to + 1).filter((t) => !EVENT_NAME_WORDS.has(t.w));
       const pl = bare.length ? ctx.names.place(bare.map((t) => t.w).join(" "), bare.map((t) => t.typed).join(" ")) : null;
-      if (pl) { p.place = { ...pl, typed: bare.map((t) => t.typed).join(" ") }; toks.slice(from, to + 1).forEach((t) => (t.used = true)); symbols.add("thing:event"); continue; }
+      // A state with only a championship word after it is its state championship ("nj champs", "texas championship").
+      const champ = toks.slice(from, to + 1).every((t) => !EVENT_NAME_WORDS.has(t.w) || /^(?:championships?|champs)$/.test(t.w));
+      if (pl) {
+        p.place = { ...pl, typed: bare.map((t) => t.typed).join(" ") }; toks.slice(from, to + 1).forEach((t) => (t.used = true));
+        if (champ && pl.kind === "region") { p.states = true; symbols.add("states"); } else symbols.add("thing:event");
+        continue;
+      }
     }
     // A kind of event by its type words alone ("league", with "meet" the lexicon read beside it; "qualifiers"): every
     // word one of FIRST's event types, never an event's name (read above).

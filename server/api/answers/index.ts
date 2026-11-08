@@ -18,7 +18,8 @@ import { teamPageSql } from "../../../src/shared/teamPages.js";
 import { all, get } from "../../db.js";
 import { fuzzyScore } from "../fuzzy.js";
 import { search } from "../search.js";
-import { eventWon, readAsk } from "../searchAsks.js";
+import { askSeason, eventWon, readAsk } from "../searchAsks.js";
+import { defaultSteps, relaxed } from "../query/relax.js";
 import { eventHit } from "../searchEvents.js";
 import { namedTeam, versusAnswer } from "../searchCompare.js";
 import { predictHref } from "../../../src/shared/predictUrl.js";
@@ -346,8 +347,16 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   const tm = readTopMatches(q);
   if (tm) return topSearch(q, tm, opts);
   // The asks' leaderboards are drawn here on the page; the dropdown keeps the asks' own short card.
-  const board = readLeaderboard(q) ?? (opts.full ? boardOfAsk(q) : null);
+  const board = readLeaderboard(q);
   if (board) return boardSearch(q, board, opts);
+  // An asked board reads the season as the pipeline does: the current one, then the one before when nobody is ranked
+  // there yet, said on the card.
+  const asked = opts.full ? boardOfAsk(q) : null;
+  if (asked) {
+    const season = askSeason();
+    const a = await boardSearch(q, { ...asked, season }, opts);
+    return relaxed(a, defaultSteps(season, asked.region ? ` in ${asked.region.name}` : "", "ranked teams"), (s) => boardSearch(q, { ...asked, season: s }, opts));
+  }
   // "How much did 12345's OPR improve from last season to this season", "12345 rating change this season".
   const change = readChange(q);
   if (change) return changeSearch(q, change, resolve, opts);
@@ -419,6 +428,7 @@ export async function statAnswerOf(q: string, it0: StatQuestion, resolve: Resolv
   const outcomeTitle = !it.outcome ? null : ({ "first-match": `First ${won}`, "recent-match": `Most recent ${won}`, "last-matches": `Last ${it.outcome === "W" ? "wins" : "losses"}`,
     "longest-streak": it.outcome === "L" ? "Longest losing streak" : null } as Partial<Record<IntentId, string | null>>)[it.id] ?? null;
   const name = outcomeTitle ? outcomeTitle : it.id === "average-margin" && it.outcome ? `Average ${it.outcome === "W" ? "winning" : "losing"} margin` : it.id === "scores-over" ? `Scores ${it.variant === "at-least" ? "of at least" : "over"} ${it.n}`
+    : it.id === "vs-top" && it.n != null ? `Against top-${it.n} teams`
     : it.id === "penalties" && it.variant ? (it.variant === "rate" ? "Penalty rate" : "Penalty points given away per event")
     : AWARD_INTENTS.has(it.id) ? awardsTitle(it.id, it) ?? TITLES[it.id] : it.byRecord ? (it.id === "best-finish" ? "Best event" : "Worst event") : it.schedule ? "Event schedule" : PREDICT_INTENTS.has(it.id) && scope.event ? predictTitle(it.id) : TITLES[it.id];
   const title = `${it.leadEvent ? "Event with the highest score" : name}${scopePhrase(it.id === "worlds-divisions" ? { ...scope, championship: false } : scope)}`;
@@ -1050,7 +1060,7 @@ export async function boardSearch(q: string, b: LeaderboardQuestion, opts: { ful
   const st = boardStatFor(b.stat, b.season ?? searchSeason());
   if (!st) return null;
   const where = b.town ? ` in ${b.town}` : b.region ? ` in ${b.region.name}` : city ? ` in ${city.city}` : "";
-  const label = b.kind === "city" ? `Teams${where}` : b.kind === "city-best" ? `Best team${where} by OPR` : b.undefeated ? `Undefeated teams${where}` : b.kind === "rookie" && b.asc ? `Lowest rookie teams${where} by ${statWords(st)}` : b.asc ? `Lowest ${b.n > 1 ? `${b.n} teams` : "team"} by ${statWords(st)}${where}` : b.best ? `Best team${where} by ${statWords(st)}` : b.kind === "rookie" ? `Best rookie teams${where}` : b.kind === "improved" ? `Most improved teams${where}` : `Top ${b.n} teams by ${statWords(st)}${where}`;
+  const label = b.event ? `${b.event.home ? `${b.event.home.name} teams` : "Best teams"} at ${b.event.name}` : b.kind === "city" ? `Teams${where}` : b.kind === "city-best" ? `Best team${where} by OPR` : b.undefeated ? `Undefeated teams${where}` : b.kind === "rookie" && b.asc ? `Lowest rookie teams${where} by ${statWords(st)}` : b.asc ? `Lowest ${b.n > 1 ? `${b.n} teams` : "team"} by ${statWords(st)}${where}` : b.best ? `Best team${where} by ${statWords(st)}` : b.kind === "rookie" ? `Best rookie teams${where}` : b.kind === "improved" ? `Most improved teams${where}` : `Top ${b.n} teams by ${statWords(st)}${where}`;
   const answer: SearchAnswer = {
     q, hits: [], pages: opts.pages, step: "deterministic", weak: false,
     understood: { kind: "question", label, ...(b.season != null ? { season: b.season } : {}), ...(b.region ? { place: { key: b.region.key, name: b.region.name } } : {}) },

@@ -65,6 +65,10 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["margin of defeat|losing margin|margin of loss|defeat margin", [{ k: "metric", v: "margin" }, { k: "outcome", v: "L" }]],
   // Aggregations.
   ["highest|high|best|top|max|maximum|biggest|largest|greatest|most|record high|peak|strongest|winningest|career high|personal best|longest|most times|the most times", { k: "agg", v: "max" }],
+  // The ones worth watching are the best: "what team should i watch at nj states".
+  ["should i watch|should we watch|worth watching|to keep an eye on|should i keep an eye on", { k: "agg", v: "max" }],
+  // "Who" asked that way is the teams: "who should i watch at worlds".
+  ["who should i watch|who should we watch|who to watch|who is worth watching|who should i keep an eye on", [{ k: "thing", v: "team" }, { k: "agg", v: "max" }]],
   ["lowest|low|worst|min|minimum|smallest|fewest|least|weakest", { k: "agg", v: "min" }],
   ["average|avg|mean|typical|on average", { k: "agg", v: "mean" }],
   ["median", { k: "agg", v: "median" }],
@@ -141,7 +145,7 @@ const TABLE: [string, Sym | Sym[]][] = [
   // Everywhere, said: no place filter (never the FIRST Championship).
   ["in the world|worldwide|world wide|globally|across the world|around the world|all over the world|internationally|anywhere|in ftc", { k: "filler" }],
   // Asides and slang around a question: never part of it, nor a team's name ("just curious" is no team called Curious).
-  ["only|just|just curious|curious|out of curiosity|wondering|i wonder|i was wondering|honestly|be honest|lol|lmao|bruh|da|ur|ya|yall|kinda|sorta|gonna|wanna|nah|or nah|right now|these days|lately|by now|if any|if there is one|if there are any|often|frequently", { k: "filler" }],
+  ["only|just|just curious|curious|out of curiosity|wondering|i wonder|i was wondering|honestly|be honest|lol|lmao|bruh|da|ur|ya|yall|kinda|sorta|gonna|wanna|nah|or nah|right now|based on now|as of now|as things stand|as it stands|these days|lately|by now|if any|if there is one|if there are any|often|frequently", { k: "filler" }],
   ["worlds|world|world championship|world championships|world champs|first championship|first champs|championship of the world|cmp|houston championship|houston", { k: "worlds" }],
   ["states|state|state championship|state championships|state champs|state finals|regionals|regional championship|regional", { k: "states" }],
   // Forecasts.

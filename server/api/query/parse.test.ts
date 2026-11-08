@@ -88,6 +88,14 @@ describe("slots", () => {
       expect((await parse(q)).complete, q).toBe(false);
     }
   });
+  it("reads reaching Worlds or states beside a forecast as the chance to advance there", async () => {
+    for (const q of ["4215 odds of reaching worlds", "what are 23268's chances of getting to states next season", "6980 chance of qualifying for worlds as it stands", "24033's chances of making regionals", "odds 4215 qualifies for the regional championship",
+      "23268's odds of getting through to the state championship", "6980 chances of making it into the first championship"]) {
+      expect(await parse(q), q).toMatchObject({ intent: "team-predict", complete: true, reach: true, level: null });
+    }
+    // No forecast asked: a reach word is no chance.
+    expect((await parse("did 4215 make worlds")).reach).toBeUndefined();
+  });
   it("reads a supposed meeting of two teams as their match's call; a supposing word alone asks nothing", async () => {
     for (const q of ["what if 6980 faced 23268", "suppose 24033 played 4215 next week", "imagine 23268 against 6980"]) {
       expect(await parse(q), q).toMatchObject({ intent: "two-predict", complete: true });

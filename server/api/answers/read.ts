@@ -57,12 +57,15 @@ interface IntentRule {
 
 const MATCHES = "(?:matches|match|games?)";
 /** Opponents as a group ("against top teams", "vs rookie teams") and a season's halves: read before any team's name. */
-const GROUP_TOP = /\b(?:against|vs\.?|versus|facing)\s+(?:the\s+)?(?:top|best|strong(?:est)?|elite|good|better|highest[\s-]rated|top[\s-]rated|high[\s-]rated|top[\s-]ranked)\s+(?:teams?|opponents?|alliances?|competition)\b/;
+// "Against top teams", or a world rank said as a number ("against teams ranked top 10 worldwide", "vs the top 25"):
+// that number is the answer's cut (StatQuestion.n).
+const TOP_N = String.raw`(?:(?:teams?|opponents?)\s+(?:(?:that|who)\s+(?:are|were)\s+)?(?:ranked\s+)?(?:in\s+)?(?:the\s+)?)?(?:the\s+)?top\s+(\d{1,4})(?:\s+(?:ranked\s+)?(?:teams?|opponents?))?(?:\s+(?:worldwide|globally|in\s+the\s+world(?:\s+rankings?)?|in\s+the\s+rankings?))?`;
+const GROUP_TOP = new RegExp(String.raw`\b(?:against|vs\.?|versus|facing)\s+(?:the\s+)?(?:(?:top|best|strong(?:est)?|elite|good|better|highest[\s-]rated|top[\s-]rated|high[\s-]rated|top[\s-]ranked)\s+(?:teams?|opponents?|alliances?|competition)|${TOP_N})\b`);
 const GROUP_ROOKIE = /\b(?:against|vs\.?|versus|facing)\s+(?:the\s+)?(?:rookies?|rookie\s+(?:teams?|opponents?)|new\s+teams?|first[\s-]year\s+teams?)\b/;
 const HALF = String.raw`(?:early|late|first[\s-]half|second[\s-]half)(?:\s+(?:of\s+the\s+)?season)?(?:\s+(?:form|results?|performance|record))?`;
 const EARLY_LATE = new RegExp(String.raw`\b${HALF}\s+(?:vs\.?|versus|against|and|or|compared\s+(?:to|with))\s+${HALF}\b|\b(?:early|late)\s+(?:vs\.?|versus|and)\s+(?:early|late)\s+season\b`);
 /** A side of a two-team question that's a group or a time, never a team: "top teams", "rookie teams", "early season". */
-export const NOT_A_TEAM = new RegExp(String.raw`^(?:the\s+)?(?:top|best|strong(?:est)?|elite|good|weak(?:er|est)?|better|worse|rookies?|rookie\s+teams?|new\s+teams?|highest[\s-]rated|top[\s-]rated|low(?:er)?[\s-]rated)(?:\s+(?:teams?|opponents?|alliances?|competition))?$|\b${HALF}$`);
+export const NOT_A_TEAM = new RegExp(String.raw`^(?:the\s+)?(?:top|best|strong(?:est)?|elite|good|weak(?:er|est)?|better|worse|rookies?|rookie\s+teams?|new\s+teams?|highest[\s-]rated|top[\s-]rated|low(?:er)?[\s-]rated)(?:\s+(?:teams?|opponents?|alliances?|competition))?$|^${TOP_N}$|\b${HALF}$`);
 /** The words some intents leave around the team ("12345 match with the most penalties", "12345 form in their last 5
  *  matches", "12345 performance against top teams"): never part of a team's name there. */
 const AROUND = /\b(?:with|where|when|they|them|trend|form|over|performance|recent|per|rate)\b/g;
@@ -485,6 +488,8 @@ export interface LeaderboardQuestion {
   undefeated?: boolean;
   /** A town in the region: its teams only. */
   town?: string | null;
+  /** One event's teams (its divisions' too): the board of the teams there. */
+  event?: { season: number; code: string; codes: string[]; name: string; home?: Region | null };
 }
 
 const BOARD_STAT_WORDS: [string, RegExp][] = [
@@ -738,7 +743,8 @@ export function readStatQuestion(raw: string): StatQuestion | null {
     // records with no team stay searchHighScores.ts's.
     // "q12", "qual 12": a qualification match only, never a playoff match with that number.
     if (r.id === "match-lookup" && /\bq(?:ual(?:ification)?)?\s*\d/.test(m[0])) scope.level = "qual";
-    const n = r.id === "last-matches" ? Math.min(20, Math.max(1, Number(m[1]))) : r.id === "match-lookup" ? Number(m[1] ?? m[2]) : r.id === "scores-over" ? Number(m[1]) : null;
+    const n = r.id === "last-matches" ? Math.min(20, Math.max(1, Number(m[1]))) : r.id === "match-lookup" ? Number(m[1] ?? m[2]) : r.id === "scores-over" ? Number(m[1])
+      : r.id === "vs-top" && m[1] ? Math.max(1, Number(m[1])) : null;
     const variant = r.id === "penalties" ? (/\bper\s+event\b/.test(q) ? "per-event" : /\brate\b/.test(q) ? "rate" : null)
       : r.id === "scores-over" && /\bat\s+least\b/.test(m[0]) ? "at-least" : null;
     // "average winning margin", "margin of victory on average": wins only; "average losing margin": losses only.
