@@ -708,7 +708,7 @@ describe("an event's matches with a score to reach", () => {
     const s = await stat("games at the Romania Championship where both sides scored over 130");
     expect(s.intent).toBe("find-high");
     expect(s.title).toMatch(/at Romania Championship where both alliances scored over 130/);
-    expect(s.blocks.flatMap((b) => ("rows" in b ? b.rows : []))).toHaveLength(1);
+    expect(s.blocks.reduce((n, b) => n + ("rows" in b ? b.rows.length : 0), 0)).toBe(1);
     expect(s.source).toMatch(/^From 1 played match /);
   });
 });
