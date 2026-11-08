@@ -28,6 +28,10 @@ export type PipelineIntent =
   | "auto-trend" | "teleop-trend" | "endgame-trend" | "reliability-trend"
   // Four teams, two on each alliance: a match's call ("predict a b vs c d").
   | "alliance-predict"
+  // One team swapped for another, beside a partner or not: what the swap does to the alliance's call.
+  | "swap-predict"
+  // One team's pick at an event: the pick helper's suggestions (../answers/families/pick.ts).
+  | "pick-partners"
   // No team: matches found by a measure (./matchFind.ts).
   | "low-matches" | "close-matches" | "lopsided-matches" | "penalty-matches" | "upset-matches" | "comeback-matches"
   // A team's or everyone's matches by how far the saved prediction was off (./matchFind.ts).
@@ -36,7 +40,7 @@ export type PipelineIntent =
 export interface IntentRule {
   id: PipelineIntent;
   /** Teams named: 0, 1 or 2; 4 is two alliances of two, either side of a "vs". */
-  teams: 0 | 1 | 2 | 4;
+  teams: 0 | 1 | 2 | 3 | 4;
   /** Symbols the rule needs ("agg:max", "metric:score", "predict"). */
   all: string[];
   /** Symbols it takes in when present. */
@@ -61,7 +65,7 @@ const BOARD_METRICS = ["metric:opr", "metric:rating", "metric:winrate", "metric:
 /** What a leaderboard takes in: its stats, a record beside them (every row shows it), "by". */
 // Penalties only beside "team" ("which team fouls the least"): the most penalties alone are the matches with the most.
 const BOARD_OPT = ["thing:team", ...BOARD_METRICS, "metric:penalty", "per:match", "metric:record", "metric:win", "prep:by", "list"];
-const R = (id: PipelineIntent, teams: 0 | 1 | 2 | 4, all: string[], opt: string[] = [], more: Partial<IntentRule> = {}): IntentRule => ({ id, teams, all, opt, ...more });
+const R = (id: PipelineIntent, teams: 0 | 1 | 2 | 3 | 4, all: string[], opt: string[] = [], more: Partial<IntentRule> = {}): IntentRule => ({ id, teams, all, opt, ...more });
 
 /** Every rule. Order breaks a tie between rules that explain the same symbols. */
 export const INTENTS: IntentRule[] = [
@@ -164,13 +168,28 @@ export const INTENTS: IntentRule[] = [
   R("team-opr", 1, ["metric:opr"], ["agg:last"], { noEvent: true }),
   R("team-rating", 1, ["metric:rating"], ["agg:last"], { noEvent: true }),
   R("team-predict", 1, ["predict"], ["metric:win", "metric:record", "metric:score", "metric:rank", "thing:event", "thing:match", "agg:next", "metric:playoffs", "review", "agg:last", "advance"]),
+  // Who to pick at an event, by Scout's pick helper: the axes said ("by complementing their auto") are what it weighs.
+  // "Would" or a supposition around it ("who would 12345 pick", "if 12345 is a captain, who should it pick") asks the same.
+  R("pick-partners", 1, ["pick"], ["metric:partner", "agg:max", "agg:first", "predict", "metric:win", "metric:opr", "metric:rating", "metric:auto", "metric:teleop", "metric:endgame", "and", "thing:team", "gap", "list", "per:match", "future", "hypo"], { noMatchNo: true }),
   // "Will 12345 win <event>": the forecast at the event named (or its states, or Worlds).
   R("team-predict", 1, ["future", "metric:win"], ["thing:event"], { event: true }),
   R("team-predict", 1, ["future", "metric:win", "worlds"], ["thing:event"]),
+  // One team swapped for another ("swap 12345 for 23456"), beside a partner ("in a match with 34567") or not.
+  // A supposition or a future said around it ("what if we switched …", "… would we win") asks the same.
+  R("swap-predict", 2, ["swap"], ["predict", "prep:for", "prep:by", "and", "per:match", "thing:match", "metric:win", "metric:score", "compare", "hypo", "future", "swap-in"]),
+  R("swap-predict", 3, ["swap"], ["predict", "prep:for", "prep:by", "prep:in", "and", "per:match", "thing:match", "metric:win", "metric:score", "compare", "hypo", "future", "swap-in"]),
   // Two alliances of two: a match's call. "Vs" between them is enough, with no other word.
   R("alliance-predict", 4, ["vs"], ["predict", "and", "compare", "metric:win", "metric:score", "metric:margin", "thing:match", "per:match"]),
   // Two teams.
-  R("two-predict", 2, ["predict"], ["vs", "and", "compare", "metric:win", "metric:score", "metric:margin", "thing:match"]),
+  // "In a match between them" is the one match's call.
+  R("two-predict", 2, ["predict"], ["vs", "and", "compare", "metric:win", "metric:score", "metric:margin", "thing:match", "per:match", "hypo", "future"]),
+  // Supposed: "if 12345 played 23456", "what if they faced each other", "… who would win".
+  R("two-predict", 2, ["hypo", "vs"], ["predict", "future", "metric:win", "metric:loss", "metric:score", "metric:margin", "thing:match", "per:match"]),
+  // "Will A beat B", "would A win against B": a match not yet played between them, so its call. "Defeat" is a loss as
+  // a noun ("how many defeats"), so the verb ("will A defeat B", "will A lose against B") reads as one: either way
+  // the question is who wins their match.
+  R("two-predict", 2, ["future", "metric:win"], ["vs", "and", "compare", "metric:score", "metric:margin", "thing:match", "per:match", "hypo"]),
+  R("two-predict", 2, ["future", "metric:loss"], ["vs", "and", "compare", "metric:score", "metric:margin", "thing:match", "per:match", "hypo"]),
   // Either alliance: "on the same alliance" (partners only) isn't a filter the shared list takes, so it stays unexplained.
   R("shared-matches", 2, ["together"], ["vs", "and", "thing:match", "list"]),
   R("shared-matches", 2, ["and", "thing:match"], ["list"]),
@@ -188,8 +207,11 @@ export const INTENTS: IntentRule[] = [
   // No team: the best matches anywhere, and ranked lists of teams.
   R("top-matches", 0, ["agg:max", "metric:score"], ["thing:match", "per:match", "nopen"]),
   R("top-matches", 0, ["agg:max", "thing:match"], ["metric:score", "nopen"]),
+  // Matches in a window, no measure said ("matches from yesterday"): the window's best first (./execute.ts needs the window).
+  R("top-matches", 0, ["thing:match"], ["list"], { noEvent: true, noMatchNo: true }),
   // Matches by a measure ("and" is "with": "the match with the most penalty points").
   R("low-matches", 0, ["agg:min", "metric:score"], ["thing:match", "nopen", "and"]),
+  R("low-matches", 0, ["agg:min", "thing:match"], ["metric:score", "nopen", "and"]),
   R("close-matches", 0, ["agg:closest"], ["thing:match", "metric:score", "metric:margin", "metric:win", "metric:loss", "outcome:W", "outcome:L", "and"]),
   R("close-matches", 0, ["agg:min", "metric:margin"], ["thing:match", "metric:win", "metric:loss", "metric:score", "outcome:W", "outcome:L", "and"]),
   R("lopsided-matches", 0, ["agg:max", "metric:margin"], ["thing:match", "metric:win", "metric:score", "outcome:W", "and"]),
@@ -214,6 +236,12 @@ export const INTENTS: IntentRule[] = [
     R("highlights", n, ["highlights"], ["videos", "thing:match", "list", "agg:max"], { noMatchNo: true }),
     R("highlights", n, ["videos"], ["thing:match", "thing:event", "list", "agg:max", "agg:last"], { noMatchNo: true }),
   ]),
+  // "What happened last weekend", with no team: the scope's standout matches (one team's is the forecast's review).
+  R("highlights", 0, ["review"], ["highlights", "thing:match", "list", "agg:max"], { noMatchNo: true }),
+  // The teams at an event, Worlds or a state championship ("nj teams at worlds", "teams at east bergen conference"):
+  // its board, best first.
+  R("leaderboard", 0, ["thing:team", "prep:at"], ["list"], { event: true }),
+  R("leaderboard", 0, ["thing:team", "prep:at", "worlds"], ["list"]),
   // The teams with a name, counted and listed: "how many teams named …", "teams called …".
   R("teams-named", 0, ["named"], ["agg:count", "thing:team", "list"]),
   R("count-teams", 0, ["agg:count", "thing:team"], ["list"], { noEvent: true }),
@@ -233,7 +261,7 @@ export function pickIntent(symbols: Set<string>, teams: number, opts: { event: b
   const asked = [...symbols].filter((s) => !SLOT_SYMBOLS.test(s) || s === "level:playoff" || s === "level:qual");
   let best: { rule: IntentRule; score: number; unexplained: string[] } | null = null;
   for (const rule of INTENTS) {
-    if (rule.teams === 4 ? teams !== 4 : rule.teams !== Math.min(teams, 2) || teams > 2) continue;
+    if (rule.teams === 4 || rule.teams === 3 ? teams !== rule.teams : rule.teams !== Math.min(teams, 2) || teams > 2) continue;
     if (rule.event && !atEvent) continue;
     if (rule.noEvent && opts.event) continue;
     if (rule.noMatchNo && opts.matchNo) continue;

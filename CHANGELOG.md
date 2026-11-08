@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 4.0.6 — 2026-11-07
+## NEXT — 2026-11-08
 
 Two events named side by side ("<event> vs <event>") are compared as events rather than read as two teams: how strong each field was, its best OPR, its high score and how many teams played.
 
@@ -26,6 +26,381 @@ Two events named side by side ("<event> vs <event>") are compared as events rath
 
 ### Search
 - **Events side by side.** "<event> vs <event>" (2 to 4 events, each named with a word only an event's name has: championship, qualifier, league meet, tournament…) answers with the events side by side: field strength (the average OPR of the teams that played, its divisions' too), top OPR and its team, high score without penalties, and the number of teams. A state's code in a name is spelled out ("NJ Championship" is New Jersey's), each event is its newest season with a played match unless a season is named, and events from different seasons are marked as different games. A team on any side keeps the teams' Compare. (#1158)
+
+## 4.3.4 — 2026-11-08
+
+One team swapped for another on an alliance answers with what the swap does.
+
+### Highlights
+- [predict] "Swap <team> for <team>" shows the two teams side by side
+- [predict] "Replace", "trade" and "if I swap … in a match with" too
+- [predict] The card says who goes out, who comes in, and the partner
+
+### Search
+- **A team swapped for another.** "If I swap <team> for <team> in a match with <team>", "replace … with … beside …", "trade … for …": on an alliance the predicted score moves by the gap in the two teams' ratings, so the answer is their call side by side, labelled with who goes out, who comes in and the partner. Any verb of swapping ("switch", "sub", "substitute"), "what would happen if …", who is asking ("we", "you") and "next to" for beside read the same; "in" said with the first team ("sub in <team> for <team>") brings it in. Every season asked is left to search, as the call is one season's. (#1115)
+
+## 4.3.3 — 2026-11-08
+
+Who a team should pick at an event is a question search answers, with Scout's pick helper on that event's teams: the partner that fills the team's gaps first.
+
+### Highlights
+- [picklist] "Who should <team> pick at <event>" ranks the event's teams
+- [picklist] "Teams that complement <team>'s weak endgame" shows endgame
+- [picklist] After selection, the suggestions beside who was picked
+
+### Search
+- **Who to pick.** "Who should <team> pick at <event>", "best second pick for <team> at worlds", "which alliance partner would be best for <team> at <event>" and "teams that complement <team>'s weak endgame" are the pick helper's suggestions at that event (its Worlds or state championship division; none named, the team's next event, else its latest), the partner covering the most of its radar first. A stat named gets its own column; once selection is over, the suggestions as it opened sit beside the partners actually picked. (#1093)
+
+## 4.3.2 — 2026-11-08
+
+Search ranks a place's cities by their teams, lists the events over a size, and reads a town said with its state or country.
+
+### Highlights
+- [rankings] "Which city in Romania has the most teams" ranks its cities
+- [fixes] "Events in Texas with more than 40 teams" lists them
+- [fixes] "Teams in Springfield IL" is that Springfield, not every one
+- [fixes] "4215 RP" shows last season while this one has none yet
+
+### Search
+- **Cities by teams.** "Which city in Romania has the most FTC teams", "cities with the most teams in Texas" and "top 5 cities in Ontario by teams" rank a state's, a country's or the world's home cities by how many of their teams played in the newest season there, with every team the directory lists beside; each city opens its own team list.
+- **Events over a size.** "Events in Texas this season with more than 40 teams" (or "over", "at least", "40+") counts the events with that many teams on their lists and lists the biggest of them.
+- **A town and its state.** "Teams in Springfield IL", "teams in Springfield Missouri" and "teams in Bucharest Romania" list that town's teams only; a town abroad is named with its country.
+- **Asked another way.** "Where is this team 4215" shows where the team is from, "hypnotic robotics winner" and "4215 titles" list the events it won, and "how many NJ teams went to worlds in 2024" lists them with their count. A number of teams ("more than 40 teams") is never read as a team's number. "Rookie teams at the NJ championship" ranks the event's teams in their first season, and "which teams should I scout at NJ states" lists the ones worth watching. "Rookie year of calamari" (a fact before the team, its name without "Team") and "which team in New Jersey has the most awards, ever" answer, "4215 matches with more than 200 points" counts them, and "lose by 1 point" no longer reads team 1.
+- **The latest season with a value.** A team's ranking points (or another per-event number) with no season said reads the latest season that has one, and says so, while this season's rankings aren't posted yet. (#1181)
+
+## 4.3.1 — 2026-11-08
+
+Each team's colour key on a side-by-side card is a full-size tap target on a phone, even for a short team number.
+
+### Highlights
+- [fixes] A short team number's colour key is easy to tap on a phone
+- [fixes] Side-by-side cards keep their keys the same size
+- [fixes] Nothing changes on a wider screen
+
+### Search
+- **Team keys, easy to tap.** The colour key above a side-by-side card's bars ("207", "8902") is at least 44px wide on a phone as well as 44px tall, so a two- or three-digit team number isn't a narrow target; from tablet width up it sizes to its text as before. (#1176)
+
+## 4.3.0 — 2026-11-08
+
+A search answer's season can be switched in place: the season chip at the top right of the card lists the seasons there's data for, and picking one shows the same answer for that season.
+
+### Highlights
+- [history] Switch a search answer to another season from its chip
+- [history] Only seasons with data for that team are listed
+- [share] The picked season stays in the link
+
+### Search
+- **A season picker on every answer.** The season chip at the top right of an answer card ("2026–27" beside Full team page, or above a season's list) opens the seasons the answer's team has data for, or every season for a list, newest first with the game's name. Picking one asks the same search about that season, whether the season was the default or typed ("<team> DECODE highlights" can still switch to 2024–25), while the last answer stays on screen dimmed. The pick is in the address (`?in=2024`), so reload, Back and shared links keep it, and People also ask follows it: two teams' OPR and record questions now say the season too. (#1173)
+
+## 4.2.9 — 2026-11-08
+
+Topic words are read as the topic, not as a team that happens to share the name, and a misspelled "highlights" or "videos" is corrected.
+
+### Highlights
+- [fixes] "NJ states alliances" shows the championship's alliances
+- [fixes] "Most Inspire Awards" lists the teams that won it most
+- [fixes] A team's highlights or videos open even with the word misspelled
+- [fixes] "4215 average OPR", "4215 RP" and "who has 4215 played with" answer
+- [rankings] "Top teams this week" ranks the teams that played this week
+
+### Search
+- **Topic words stay topics.** A phrase made only of topic words ("alliances", "inspire awards", "event results") reads as a team only when it is that team's whole name, so "nj states alliances" (or "alliance selection", "alliance captains") opens the championship's Playoffs tab and "most inspire awards" ranks the teams by Inspire Awards won, worldwide or in a region; "inspire" is no longer pluralized into a team name, and a misspelling of "highlights" or "videos" is corrected to that word.
+- **Plain team asks.** "Average OPR" is the OPR (already a per-match average), "RP" is ranking points, and "who has 4215 played with" (or "teamed up with") lists the alliance partners. A name several teams share puts the team that has played the most matches first, so "ultraviolet record" is the record of the Ultraviolet people mean most often.
+- **Said another way.** "The most points any team scored in a single match" and "the top 3 matches of all time, by total score" are the highest-scoring matches; "…, in order, with scores" at the end of a match list, and "on this site", are read past.
+- **Top teams this week.** "Top teams this week", "best teams in NJ last weekend": the teams that played at an event held then, ranked by their OPR at those events, with their record there.
+- **Biggest events.** "Which event had the most teams in California this season", "largest qualifiers in Texas" and "biggest event" rank a place's events by the teams on their lists, an event's divisions counted together; "highest auto matches" lists the matches with the most auto points; "biggest event ever" looks across every season, and "top 3 matches" lists three.
+- **A school's teams.** "How many teams at Clearview Regional High School" lists the teams FIRST lists at that school, as "teams in <town>" does for a town. (#1180)
+
+## 4.2.8 — 2026-11-08
+
+Search answers who is ranked just above and just below a team. "Who is ranked just above and just below 4215 worldwide in 2025-26" shows its world OPR rank, with the teams on either side of it.
+
+### Highlights
+- [rankings] A team's world OPR rank lists the teams just above and below
+- [rankings] "Who is ranked just above <team>" shows its neighbors
+- [rankings] "Teams ranked near <team>" works for a season or a place too
+
+### Search
+- **The teams around a team's rank.** "Who is (ranked) (just, right, directly) above / below / ahead of / behind <team> (worldwide, in the world rankings)" and "teams ranked near (around, close to) <team>" read as the team's OPR rank, keeping a season ("in 2025-26", "last season") or a place ("in new jersey"). The world OPR rank answer now lists the two teams above and below it on the season's world OPR list, as a place's rank already listed its own. "At worlds" isn't read as a rank question. (#1110)
+
+## 4.2.7 — 2026-11-08
+
+Three more basic searches answer what was asked: a country is never read as a town, a name spelled exactly as typed comes first, and "<team> vs <team> record" is their record against each other.
+
+### Highlights
+- [teams] "Teams in <country>" lists that country's teams
+- [teams] The team spelled as you typed comes first
+- [teams] "<team> vs <team> record" gives their head to head
+
+### Search
+- **A country is never a town.** "Teams in Romania", "best team in Canada" list that country's teams. Before, a team that gives its country as its home city made the answer that one team. (#1178)
+- **The spelling typed, first.** When two teams' names score the same ("RoboRebels" and "Robo Rebels"), the one spelled exactly as typed comes first in the results.
+- **"<team> vs <team> record".** Their record against each other, as "<team> record against <team>" gives. Each team's own season record is still "<team> and <team> record".
+
+## 4.2.6 — 2026-11-08
+
+Basic team searches answer what was asked: "<team> rank" gives its world rank, a team's latest event asked for its ranking leads with the rank, a league's standing counts the whole league, and a name two teams share works beside the number.
+
+### Highlights
+- [rankings] "<team> rank" answers with the team's world rank
+- [rankings] "Latest event ranking" answers with the rank there
+- [rankings] A league standing is out of the whole league
+- [teams] A team's name and number together are one team
+
+### Search
+- **A team's rank, asked plainly.** "<team> rank", "<team> ranking", "<team> standing" and "where does <team> rank" answer with its world rank by OPR and by prediction rating, as "<team> rank worldwide" does, instead of only the team's link. A place, an event, a league or a stat named still goes to that answer.
+- **Rank at an event, asked.** "<team> latest event ranking", "last event rank", "first event standing" lead with the team's qualification rank there instead of its OPR. A league meet has no rank of its own (its rank is the league's running standing), so the answer is the latest ranked event, and it says which meet it skipped and why. (#1175)
+- **League standing out of the league.** "<team> league rank" counts every team ranked in that league's meets this season up to that meet's date, not only the teams at that meet, so a standing is never larger than its count.
+- **A shared name with its number.** When several teams share a name, typing one of their numbers beside it ("<name> <number> highlights") is that one team, in either order, instead of two teams and no answer.
+
+## 4.2.5 — 2026-11-08
+
+Two teams are read with the stat asked first ("who has the higher OPR, A or B"), a forecast asked as a question ("will A beat B") and penalties side by side.
+
+### Highlights
+- [fixes] "Who has the higher OPR, 4215 or 7149" compares their OPRs
+- [fixes] "Will 4215 beat 7149" shows the predicted winner
+- [fixes] "Who has better penalties, 207 or 8902" compares fouls given
+- [fixes] Three teams compared "on auto, teleop and endgame" get the card
+
+### Search
+- **Two teams, the stat asked first.** "Who has the higher OPR, rating or reliability, A or B", "who scored more, A or B", "will A beat B" and "predicted winner A vs B" each read as the two teams' answer; a new penalties side by side compares the penalty points each team gives away a match, fewer being better; three teams compared with the phases named are the compare card. (#1088)
+
+## 4.2.4 — 2026-11-08
+
+Matches asked for in order ("highest scoring first"), "what happened last weekend" and finished events each get their answer.
+
+### Highlights
+- [fixes] "Matches from yesterday, highest scoring first" lists the top scores
+- [fixes] "What happened last weekend" shows that weekend's highlights
+- [fixes] "Finished events" lists events that are over
+
+### Search
+- **Order, said in words.** "Highest scoring first", "top first", "lowest first" read as the sort they ask for, never as a team's first match; "what happened" with a time or a place and no team reads as that scope's highlights; matches in a time window with no measure said ("matches from yesterday") list that window's best first; finished, completed and ended events are past events. (#1073)
+
+## 4.2.3 — 2026-11-08
+
+An event's best teams are headed once: the page heading is the card's own title, such as "Best teams at New Jersey Championship by OPR there".
+
+### Highlights
+- [rankings] An event's best teams say their title once
+- [rankings] The heading says what they're ranked by
+- [rankings] The same on phones and desktop
+
+### Search
+- **An event's board, headed once.** "Best teams at <event>", "<place> teams at Worlds" and the like take their card's title, less the season, as the page heading, and the card no longer repeats it underneath. (#1169)
+
+## 4.2.2 — 2026-11-08
+
+A team's highlights read the time asked: "theseus highlights dec" and "<team> highlights in february 2026" answer, and a month with nothing played falls back to the season.
+
+### Highlights
+- [fixes] "<team> highlights in February 2026" shows that month's
+- [fixes] "Theseus highlights dec" reads "dec" as December
+- [teams] A month with nothing played shows the season instead
+
+### Search
+- **Highlights in a month.** A team's highlights with a time said ("in february 2026", "this week", "dec") are its standout matches played then, titled with the time ("Highlights in February 2026, 2025–26"). With nothing played then, a time said against today relaxes to its season, then the one before, as every answer with a window does, and says so on the card; a month typed with its year stays that month. A month's short form alone ("dec", "nov") is a month as the query's last word; "mar" and "may" stay words. (#1168)
+
+## 4.2.1 — 2026-11-08
+
+The best teams at one event, Worlds or a state's championship are a leaderboard of the teams there: "east bergen conference best teams", "top teams at nj states".
+
+### Highlights
+- [rankings] "Best teams at <event>" ranks the teams there
+- [rankings] By OPR at the event once it's played
+- [rankings] Before it's played, by the OPR each team brings
+- [rankings] "NJ teams at Worlds" lists the teams from a place
+
+### Search
+- **The best teams at an event.** An event named, Worlds or a state's championship beside "best teams" or "top teams" is the board of the teams on its list (its divisions' too). Once played, it ranks them by each team's OPR there with its record there; before, by the season OPR each team brings (else the season before's), said on the card. No season said reads the latest held with teams listed, a newer one with none yet named on the card. A count ("top 5 teams at …") and a year ("worlds 2025") are read; another stat is left to search. "Teams at" an event or Worlds lists the teams there too, and a place said with Worlds or an event named keeps the teams from there ("nj teams at worlds"). "Should I watch" asks for the best, and a state with only a championship word after it is its state championship ("nj champs"). (#1102)
+
+## 4.2.0 — 2026-11-08
+
+A team's record against the world's top teams by a number is answered. "Whats 14450's record against teams ranked top 10 worldwide" shows its matches against an alliance with a top-10 team, beside the rest.
+
+### Highlights
+- [teams] "<team> record vs top 10" counts opponents in the world's top 10
+- [teams] Any cut works: "against the top 25 teams in the world"
+- [teams] "Against top teams" alone still means the season's top tenth
+
+### Search
+- **Against the top N.** "Against (teams ranked in) the top N (worldwide, in the world)" and "vs top N" read as the against-top-teams answer with N as the cut: matches where the other alliance had a team ranked in the world's top N by prediction rating that season, side by side with the others. Its title and definition say the cut. Before, the number was taken as a second team and the question fell to a Compare. (#1107)
+
+## 4.1.9 — 2026-11-08
+
+A team's chance of making Worlds or states, asked any way, answers with its advancement chance.
+
+### Highlights
+- [predict] "Chance of making worlds" shows the advancement chance
+- [predict] "Reaching", "getting to" and "qualifying for" read the same
+- [predict] "Next year" starts at the team's next event
+
+### Search
+- **Reaching Worlds or states.** "<team> chance of making worlds", "odds of reaching worlds", "chances of getting to states next season" and "qualifying for worlds as it stands" are the stored projection's advancement chance at the team's next event, as "chance to advance to worlds" is. A forecast made at Worlds itself ("advance at worlds") keeps its own answer. (#1113)
+
+## 4.1.8 — 2026-11-08
+
+One question, one season: "best in New Jersey right now" and "best teams in New Jersey" now show the same season, whichever way they're asked.
+
+### Highlights
+- [rankings] "Right now" and "best teams in <place>" agree on the season
+- [rankings] The current season once anyone is ranked in it
+- [rankings] Until then the season before, said on the card
+
+### Search
+- **The same season, however it's asked.** Asked with no season, the search box's top-teams and stat cards and their full pages read the current season, then the season before while nobody is ranked in it yet, as the rest of search does. Before, some phrasings showed the last completed season while others showed the current one. (#1166)
+
+## 4.1.7 — 2026-11-08
+
+A team whose name has dotted initials is found typed without the dots: "ice robotics highlights" answers for 11329 I.C.E. Robotics.
+
+### Highlights
+- [fixes] "Ice robotics highlights" finds I.C.E. Robotics
+- [teams] Names with dotted initials match typed without dots
+- [fixes] "Ice robotics" lists I.C.E. Robotics first
+- [fixes] A stray short word at the end no longer blocks the answer
+
+### Search
+- **Dotted initials.** A team name's initials written with dots ("I.C.E.", "M.E.D.I.C.S.") also read as the word they spell, in the question reader and the search index alike, so the name typed without dots finds the team, its possessive dropped or not, and a near miss of it too. One-dot abbreviations ("St.", "Mr.") and numbers ("2.0") are unchanged. A query that finds nothing and ends in a stray word of up to four letters no word search or the data knows ("theseus highlights decd") is read without it, offered as "did you mean". (#1163)
+
+## 4.1.6 — 2026-11-08
+
+"My" and "our" in a search mean your team: "what is my next event" answers for My team, or asks you to pick one. A team's schedule in a state said short ("Hypnotic Robotics mass schedule") shows its matches there.
+
+### Highlights
+- [fixes] "What is my next event" answers for My team
+- [teams] With no My team set, search asks you to pick one
+- [fixes] "<team> schedule" shows matches still to play, then played
+- [fixes] "Mass" and "Cali" read as Massachusetts and California
+
+### Search
+- **My and our.** A search saying "my" or "our" with no team named ("what is my next event", "how did our team do") answers for My team on this device; with none set, it answers with a link to pick one rather than "no team matched". A team named after "my" ("my 4215 next event") is the one asked about. A team's "schedule" (or "match schedule") is its matches: those scheduled and still to play (at events not yet over, in the place asked) first, then the ones played, whose record counts the played ones only; and a region's other names ("Mass", "Cali") read as that region. (#1154)
+
+## 4.1.5 — 2026-11-08
+
+A match two teams haven't played, supposed in words, answers with its forecast.
+
+### Highlights
+- [predict] "If <team> played <team>" shows the match prediction
+- [predict] "What if", "suppose" and "imagine" read the same way
+- [predict] A day to come is called on the ratings used, said so
+
+### Search
+- **A supposed meeting.** "If <team> played <team>", "what if … faced …", "suppose … against …": the two teams' match call. A day still to come ("tomorrow", "next week") is called on the latest ratings both teams share, the card naming their season; a day gone by isn't read this way. (#1108)
+
+## 4.1.4 — 2026-11-08
+
+A place said before the team word keeps a count's board: "which Texas teams have the most awards" ranks awards won, not the prediction rating.
+
+### Highlights
+- [rankings] "<Place> teams with the most awards" answers with awards
+- [rankings] Matches played and events attended said this way too
+- [rankings] "Have played", "have won" and "have attended" read as said
+
+### Search
+- **The most of a count, the place first.** "Which Texas teams have the most awards", "Ohio teams with the most events" and "the Georgia team with most matches" give that count's board, the same as "which team in Texas has the most awards", where before they gave the prediction rating's. "Have played" and "have attended" read as played and attended, and "won the most matches" stays the wins board. (#1161)
+
+## 4.1.3 — 2026-11-08
+
+One word of a named team's own event's name now reads as that event.
+
+### Highlights
+- [predict] "<team> prediction for <one word>" finds that team's event
+- [predict] The latest such event, or the one in the season named
+- [predict] The card says which event the one word was read as
+
+### Search
+- **One word of a team's own event.** With a team named, one word of the name of an event it was listed at ("<team> last prediction for <word>") reads as its latest such event, or the one in the season named, and the card says so. With no team, or a kind of event's word ("qualifiers"), nothing changes. (#1106)
+
+## 4.1.2 — 2026-11-08
+
+A place's award winners are answered: a state's, a country's or a town's teams and the awards they won, the most, the rarest, and whether any won at Worlds or made its finals.
+
+### Highlights
+- [fixes] "Michigan Inspire winners" lists that state's winners
+- [fixes] A country's teams ranked by Inspire Awards won
+- [fixes] "did any NJ team win Inspire at worlds" says yes or no
+- [fixes] "rarest award a NJ team won this season" names the award
+
+### Search
+- **A place's award winners.** The teams from a state, a country (or its people's word) or a town, and the awards they won, newest first or by a stat ("by auto"): the most won, the rarest one (given fewest times anywhere that season), two awards won at one event, and yes or no at Worlds, for an award or for reaching its finals or playoffs. At Worlds, "last year" is the latest Championship that has finished. (#1100)
+
+
+## 4.1.1 — 2026-11-08
+
+Asking whether one team will beat another gets the match's call, and asking what happens if you change an alliance points you to the part of Predict that does it.
+
+### Highlights
+- [predict] "Will 4215 beat 7149" predicts their match
+- [predict] "If I change the alliance" opens Custom matchup
+- [predict] "Best partner if I change the alliance" says how to try each
+
+### Search
+- **"Will A beat B."** "Will", "would" or "going to" with a win word ("beat", "defeat", "win against") between two teams is the call for a match between them.
+- **A lineup changed, supposed.** "If (what if, suppose) I change, switch or swap the alliance, teams or partners", with no team named, is Predict's Custom matchup; asked with "who is the best partner", it says how to try each partner there. (#1153)
+
+## 4.1.0 — 2026-11-08
+
+In the installed app on a phone, pull down from the top of any page to reload it. A round reload icon slides down under the top bar as you pull, turns yellow once letting go will reload, and spins while the page reloads.
+
+### Highlights
+- [appearance] Pull down from the top to reload, in the installed app on phones
+- [appearance] A reload icon follows the pull and turns yellow when ready
+- [appearance] Phone browser tabs keep their own pull-to-refresh
+
+### Phone app
+- **Pull to reload.** The installed app (added to the home screen) has no reload button, so pulling down from the very top of a page now reloads it: the whole page, so the data, a new release and the offline copy all come fresh. It only starts at the top of the page, with one finger, on a downward drag; a sideways swipe, a scroll, a list with its own scrollbar, a drag handle (reordering picks), or an open dialog or sheet are left alone, and letting go early does nothing. A phone's browser tab keeps its own pull-to-refresh, and desktop gets none. Under reduced motion the icon doesn't turn or spin. (#1159)
+
+## 4.0.9 — 2026-11-08
+
+A team's record, wins and scores in the finals only are answered, and a match told by its margin is the team's biggest loss or win. "Whats 9848's record in finals matches only" shows the record in its finals matches, and "the score of that one match where 4215 lost by a lot" shows its biggest loss.
+
+### Highlights
+- [teams] "<team> record in the finals" counts its finals matches only
+- [teams] Finals follow each bracket: grand final and replay since 2024
+- [teams] "The match where <team> lost by a lot" shows its biggest loss
+
+### Search
+- **The finals, by bracket.** "In the finals", "finals record" and "finals matches only" filter a team's own match rows (record, win rate, scores, margins, streaks) to its events' finals: a classic bracket's final (series 0), and since 2024–25 a double-elimination bracket's grand final and its if-needed replay, read from the event's alliance count and posted series. A state's finals stay its state championship, "make the finals" stays its own question, and a number from season rows (OPR, rank) isn't filtered. Before, the finals were read only by the match finder, and a team's question about them went unanswered.
+- **A match by its margin.** "The match where <team> lost (won) by a lot / by the most / so badly" reads as that team's biggest loss (win), whose card names the match and its score. (#1103)
+
+## 4.0.8 — 2026-11-07
+
+"The best in New Jersey" with no "teams" word, and short words for now, read as the region's top teams this season.
+
+### Highlights
+- [rankings] "Best in <state>" with no "teams" word answers
+- [rankings] "rn", "atm" and "at the moment" read as this season
+- [rankings] Same card as "best teams in <state>"
+
+### Search
+- **The best in a place.** "Best in New Jersey", "top 5 in Texas" and "the strongest in Ontario" give that region's top teams this season, the same card as "best teams in New Jersey". Only a region counts after "in", so "best in show" stays a name search. "rn", "atm" and "at the moment" read as this season, like "right now". (#1156)
+
+## 4.0.7 — 2026-11-07
+
+A place's top team can stand in for a team number in a two-team question: "who would win between the top NJ team and the top Romania team" answers for those two teams, and says which they are.
+
+### Highlights
+- [predict] "Top NJ team vs top Romania team" predicts those two teams
+- [predict] The answer says which team each "top team" was read as
+- [predict] "Who would win in a match between A and B" gets the call
+
+### Search
+- **A place's top team, as one of two.** "The top / best / strongest <place> team" or "… team in <place>" is that place's first team on its prediction-rating board, as "top teams in <place>" ranks them, read into the two-team question; the question line says which team each phrase was.
+- **"Between."** "Who would win in a match between A and B" is the match's call, and "matches between A and B" their shared matches. (#1097)
+
+## 4.0.6 — 2026-11-07
+
+Search answers a team's own listing asked as a yes-or-no question. "Is 23786 MakEMinds a rookie team or old" shows the team's rookie year, "is delta force actually from romania or what" shows where it's from, and "does 23268 have any sponsors listed on their team page" shows its sponsors, instead of the bare team card.
+
+### Highlights
+- [teams] "Is <team> a rookie team or old" shows its rookie year
+- [teams] "Is <team> from <place>" shows where the team is from
+- [teams] "Does <team> have sponsors" shows the team's sponsors
+
+### Search
+- **Listing questions, yes or no.** A question about a team's rookie season, home or listed sponsors, school or website, typed as "is …" or "does … have …", reads as that fact's own question, so its card answers with the year, place or names. A place question needs "from", "based in" or "located in", so "is 4215 in the finals" stays a results question. (#1095)
 
 ## 4.0.5 — 2026-11-07
 

@@ -47,12 +47,17 @@ export function trendAnswer(id: IntentId, team: AnswerTeam, set: { events: TeamE
   if (id === "opr-by-season" || id === "record-by-season") return seasonTrend(id, team, set.seasons);
   const metric = METRICS[id];
   if (!metric) return null;
-  const season = seasonOf(scope, set.events);
+  // With no season said, the latest season the measure has a value in: events played this season can
+  // still have none yet (no rankings posted), and an empty card then hides last season's answer.
+  const valued = scope.season == null
+    ? [...new Set(set.events.filter((e) => e.matches > 0 && metric.get(e) != null).map((e) => e.season))].sort((a, b) => b - a)[0]
+    : undefined;
+  const season = valued ?? seasonOf(scope, set.events);
   const sc: Scope = { ...scope, season };
   const evs = set.events.filter((e) => e.season === season && e.matches > 0);
   const pts = evs.map((e) => ({ e, y: metric.get(e) }));
   const title = `${metric.label} by event${season != null ? ` in ${seasonLabel(season)}` : ""}`;
-  const why = scope.season == null && season != null ? ` The season is ${seasonLabel(season)}, the team's latest with events played; each season is a different game, so a trend stays in one.` : "";
+  const why = scope.season == null && season != null ? ` The season is ${seasonLabel(season)}, the team's latest with ${valued != null ? `${metric.label.toLowerCase()} on record` : "events played"}; each season is a different game, so a trend stays in one.` : "";
   const base = { family: "trend" as const, intent: id, title, team, scope: scopeChips(sc), definition: `${metric.rule}${why}`, source: `From ${evs.length} event record${evs.length === 1 ? "" : "s"}${season != null ? `, ${seasonLabel(season)}` : ""}` };
   const known = pts.filter((p) => p.y != null) as { e: TeamEvent; y: number }[];
   if (!known.length) return { ...base, blocks: [], none: `No ${metric.label.toLowerCase()} by event${season != null ? ` in ${seasonLabel(season)}` : ""} for ${who} yet.` };
