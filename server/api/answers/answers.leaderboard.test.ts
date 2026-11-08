@@ -284,6 +284,9 @@ describe("steady boards", () => {
     expect(readLeaderboard("which nj team has the steadiest opr in texas")?.kind).not.toBe("steady");
     // Greptile on #1124: "FTC team" is the team word, not a place.
     expect(readLeaderboard("what ftc team has the steadiest opr")).toMatchObject({ kind: "steady", region: null });
+    // Greptile on #1124: "worldwide" adds nothing.
+    expect(readLeaderboard("which team has the least volatile opr worldwide")).toMatchObject({ kind: "steady", region: null });
+    expect(readLeaderboard("which teams are the most balanced across all phases globally")).toMatchObject({ kind: "phases", region: null });
     expect(readLeaderboard("which ohio ftc teams are the best balanced across every phase")).toMatchObject({ kind: "phases", region: { key: "USA:OH" } });
   });
   it("ranks the smallest swing in event OPR, 3+ events", async () => {

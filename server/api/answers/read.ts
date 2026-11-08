@@ -635,13 +635,15 @@ export function readLeaderboard(raw: string): LeaderboardQuestion | null {
   // most consistent across all phases": the best weakest phase. Counted at some events only, or on a day, is neither.
   // "FTC teams" is the team word itself, never a place before "teams" (as the count board reads it).
   const who = `^(?:(?:which|what) )?(?:(?!ftc )(.+?) )?${TEAMS}(?: (?:in|from) (.+?))?`;
+  // "Worldwide" adds nothing (as the count board reads it).
+  const anywhere = rest.replace(/\b(?:worldwide|world ?wide|globally|in the world)\b/g, " ").replace(/\s+/g, " ").trim();
   if (!scope.place && !scope.outOfState && !scope.day && !scope.window
-    && (m = new RegExp(`${who} (?:has|have|had|with) (?:the )?(?:most (?:stable|steady|consistent)|steadiest|least (?:variable|volatile)) opr(?: (?:and |with )?(?:the )?(?:least|fewest) ups and downs)?${PLACE}$`).exec(rest)) && [m[1], m[2], m[3]].filter(Boolean).length < 2) {
+    && (m = new RegExp(`${who} (?:has|have|had|with) (?:the )?(?:most (?:stable|steady|consistent)|steadiest|least (?:variable|volatile)) opr(?: (?:and |with )?(?:the )?(?:least|fewest) ups and downs)?${PLACE}$`).exec(anywhere)) && [m[1], m[2], m[3]].filter(Boolean).length < 2) {
     const region = place(m[1] ?? m[2] ?? m[3]);
     if (region !== false) return { kind: "steady", stat: "opr", n: 10, region, city: null, season: scope.season };
   }
   if (!scope.place && !scope.outOfState && !scope.day && !scope.window
-    && (m = new RegExp(`${who} (?:is|are) (?:the )?(?:most (?:consistent|balanced|well rounded)|best balanced|strongest) (?:across|in) (?:all|every|each) (?:of the )?(?:three )?phases?(?: not (?:just )?(?:the )?highest opr)?${PLACE}$`).exec(rest)) && [m[1], m[2], m[3]].filter(Boolean).length < 2) {
+    && (m = new RegExp(`${who} (?:is|are) (?:the )?(?:most (?:consistent|balanced|well rounded)|best balanced|strongest) (?:across|in) (?:all|every|each) (?:of the )?(?:three )?phases?(?: not (?:just )?(?:the )?highest opr)?${PLACE}$`).exec(anywhere)) && [m[1], m[2], m[3]].filter(Boolean).length < 2) {
     const region = place(m[1] ?? m[2] ?? m[3]);
     if (region !== false) return { kind: "phases", stat: "opr", n: 10, region, city: null, season: scope.season };
   }
