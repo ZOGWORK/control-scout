@@ -80,8 +80,9 @@ describe("one team at one event", () => {
     expect((await searchAnswer("4215 score in match 12 at New Jersey Championship", { limit: 25 })).stat!.headline).toMatchObject({ value: "Lost 80–120", label: "Q12 at New Jersey Championship - Parkway Division" });
     expect((await searchAnswer("4215 score in match 7 at New Jersey Championship", { limit: 25 })).stat!.none).toMatch(/didn't play a match 7/);
   });
-  it("an event the team never attended is left to search", async () => {
-    expect((await searchAnswer("4215 rank at Texas Championship", { limit: 25 })).stat).toBeUndefined();
+  it("a state's championship the team never attended says so", async () => {
+    // "Texas Championship" is Texas's state championship (a state with a championship word): 4215 never played one.
+    expect((await searchAnswer("4215 rank at Texas Championship", { limit: 25 })).stat?.none).toMatch(/^Hypnotic Robotics \(4215\) has no Texas state championships on record/);
   });
 });
 
@@ -94,6 +95,10 @@ describe("awards", () => {
     await run("INSERT INTO teams (number, name) VALUES (1234, 'Newcomers')");
     const n = await searchAnswer("1234 event wins", { limit: 25 });
     expect(n.stat!.none).toMatch(/^None found: no 1st-place finishes and no Inspire Awards/);
+    // A team's whole name with a winner word, or its titles, are its event wins (failed-search #1131); an event's name
+    // with one stays that event's winners.
+    for (const q of ["hypnotic robotics winner", "Hypnotic Robotics champion", "4215 titles"]) expect((await searchAnswer(q, { limit: 25 })).stat, q).toMatchObject({ intent: "event-wins", headline: { value: "1 win" } });
+    expect((await searchAnswer("new jersey championship winner", { limit: 25 })).stat?.intent).toBe("winning-alliance");
   });
   it("1st-place as an adjective, 1st place as a noun, the same everywhere (audit v2.8.9)", async () => {
     const a = await searchAnswer("Has 4215 ever won an event", { limit: 25 });
@@ -346,6 +351,10 @@ describe("events, awards and Worlds history (260-query list)", () => {
     expect(readStatQuestion("4215 event schedule this season")).toMatchObject({ id: "total-events", scope: { latest: true }, core: "4215" });
     // Search reads "matches" as "match": the championship held in 2025 is 2024–25's.
     expect(readStatQuestion("4215 match at worlds in 2025")).toMatchObject({ id: "results", scope: { championship: true, season: 2024 }, core: "4215" });
+    // "World championship" is one name, never "world" and an event called "championship" (failed-search #982/#1005,
+    // held out: another team and season).
+    for (const q of ["4215 world championship matches 2024-25", "4215 matches at the world championships in 2024-25"]) expect(readStatQuestion(q), q).toMatchObject({ id: "results", scope: { championship: true, season: 2024, at: null }, core: "4215" });
+    expect(readStatQuestion("4215 world champs record")).toMatchObject({ id: "record", scope: { championship: true }, core: "4215" });
     // "wins" and "match" alone, with nothing scoping them, are left as they were.
     expect(readStatQuestion("4215 wins")).toBeNull();
     expect(readStatQuestion("4215 match record")).toMatchObject({ id: "record" });
@@ -389,6 +398,8 @@ describe("events, awards and Worlds history (260-query list)", () => {
     clearAllCaches();
     const d = await searchAnswer("championship divisions 4215 played in", { limit: 25 });
     expect(d.stat).toMatchObject({ title: "Worlds divisions", headline: { value: "1 appearance", label: "Edison Division 2025–26" } });
+    // "Division" with Worlds said is the team's Worlds division, never its latest event with a division in its name.
+    for (const q of ["what division was 4215 in at worlds", "4215 worlds division"]) expect((await searchAnswer(q, { limit: 25 })).stat, q).toMatchObject({ intent: "worlds-divisions" });
     expect((await searchAnswer("4215 worlds wins", { limit: 25 })).stat).toMatchObject({ intent: "wins-count", headline: { value: "1 win" } });
     const m = await searchAnswer("4215 matches at worlds in 2026", { limit: 25 });
     expect(m.stat).toMatchObject({ title: "Matches at Worlds in 2025–26", headline: { value: "1-0-0" } });

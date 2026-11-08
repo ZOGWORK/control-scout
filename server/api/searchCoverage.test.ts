@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { get, migrate, openDb, run, setDb } from "../db";
 import { rebuildSearch } from "../stats/job";
 import { searchAnswer } from "./searchAnswer";
-import { explainAnswer, placeTeamsAnswer, rewriteQuery, teamListAnswer } from "./searchCoverage";
+import { explainAnswer, explainTeamAnswer, placeTeamsAnswer, rewriteQuery, teamListAnswer } from "./searchCoverage";
 import { CURRENT_SEASON } from "../data/seasons";
 import { pageMeta } from "../seoMeta";
 import { seasonLabel } from "../../src/shared/format";
@@ -333,6 +333,15 @@ describe("wrong answers from the 92-query probe (11-03)", () => {
     expect(rewriteQuery("nj states decode")).toMatchObject({ q: "nj states 2025-26", pre: true });
     expect(rewriteQuery("decode nj states")?.q).toBe("nj states 2025-26");
     expect(rewriteQuery("worlds edison division centerstage")?.q).toBe("worlds edison division 2023-24");
+    // A word that names an event with "division" after it, and a game (failed-search #787): that season's division.
+    expect(rewriteQuery("edison centerstage", new Set(["division:edison"]))).toMatchObject({ q: "edison division 2023-24", pre: true });
+    expect(rewriteQuery("edison centerstage")).toBeNull(); // no event by that name with "division": left to search
+    // A team's matches at its latest meet (owner's screenshots, 11-08): its latest event, never an event named so.
+    for (const q of ["6980 matches at recent meet", "6980 matches at their most recent meet", "bad wolf matches at the last event"])
+      expect(rewriteQuery(q), q).toMatchObject({ q: `${q.split(" matches")[0]} matches at their last event`, pre: true });
+    expect(rewriteQuery("4215 matches at their last event")).toBeNull(); // already read so
+    // A kind of event said keeps its limit: never the latest event of any kind (Greptile on #1197).
+    expect(rewriteQuery("6980 matches at their last qualifier")).toBeNull();
     expect(rewriteQuery("nj states into the deep")?.q).toBe("nj states 2024-25");
     expect(rewriteQuery("nj states highest score decode")?.q).toBe("highest score at new jersey championship 2025-26");
     expect(rewriteQuery("highest score at nj states 2024-25")?.q).toBe("highest score at new jersey championship 2024-25");
@@ -516,5 +525,87 @@ describe("failed-search issues (11-04)", () => {
     }
     // A misspelled game with "$" left on it is read by position, never as a pattern (Greptile on #536).
     expect(() => rewriteQuery("jackson division decode$")).not.toThrow();
+  });
+});
+
+// What a word means, asked with framing, two words at once, a team's own numbers, or the season's game (failed-search
+// issues 792, 910, 966, 911, 957, 997). Each phrasing here is held out: none is an issue's own words.
+describe("explain questions, asked any way", () => {
+  it("a word with framing round it: \"explained\", \"in simple terms\", \"for beginners\"", () => {
+    for (const q of ["autonomous explained", "endgame explained simply", "explain teleop to me", "what is driver controlled, in simple terms", "opr explained for beginners"])
+      expect(explainAnswer(q)?.card?.kind, q).toBe("info");
+    expect(explainAnswer("auto explained")?.card?.title).toBe("A match's periods: auto, TeleOp and endgame");
+    expect(explainAnswer("auto explained")?.card?.lines.map((l) => l.text).join(" ")).toMatch(/2-minute driver-controlled/);
+    expect(explainAnswer("4215 explained")).toBeNull();
+  });
+  it("two words compared: each one's own lines", () => {
+    const a = explainAnswer("what is the difference between the rating and OPR?");
+    expect(a?.card?.title).toBe("The prediction rating and OPR: the difference");
+    expect(a?.card?.lines.map((l) => l.href)).toEqual(["/methodology#rating", "/methodology#rating", "/methodology#opr", "/methodology#opr"]);
+    expect(explainAnswer("how is opr different from reliability, explained simply")?.card?.title).toMatch(/^OPR and the reliability index/);
+    expect(explainAnswer("difference between opr and 4215")).toBeNull();
+    // Two words one explainer covers: that explainer, which sets them apart.
+    for (const q of ["difference between auto and teleop", "how is teleop different from endgame"]) expect(explainAnswer(q)?.card?.title, q).toBe("A match's periods: auto, TeleOp and endgame");
+  });
+  it("the season's game, by \"this season\" or \"last season\"", () => {
+    expect(explainAnswer("what is this season's game")?.card?.title).toContain(`the ${seasonLabel(CURRENT_SEASON)} FTC game`);
+    expect(explainAnswer("what was the game last season")?.card?.title).toBe(`${explainAnswer("what was the game last season")?.card?.title.split(":")[0]}: the ${seasonLabel(CURRENT_SEASON - 1)} FTC game`);
+    expect(explainAnswer("current ftc game")?.card?.title).toContain(seasonLabel(CURRENT_SEASON));
+  });
+  it("a word for one team: the team's own stat, with the word's explainer under it", async () => {
+    const a = await explainTeamAnswer("what does opr mean for 4215, step by step", ask, true);
+    expect(a?.stat?.team?.number).toBe(4215);
+    expect(a?.stat?.headline?.value).toBe("101.6");
+    expect(a?.card?.title).toBe("OPR: what it is and how it's worked out");
+    // The question asked of the stat answers, and a "why did it drop" asks the rating's change.
+    const asked: string[] = [];
+    const spy = async (x: string) => { asked.push(x); return ask(x); };
+    await explainTeamAnswer("explain how 6980's rating is worked out", spy, true);
+    await explainTeamAnswer("why did 6980 rating drop after they won", spy, true);
+    await explainTeamAnswer("ranking points meaning for 6980 at the FIRST Championship", spy, true);
+    // The fixture keeps no weekly ratings, so the change falls back to the season rating.
+    expect(asked).toEqual(["6980 rating", "6980 rating change", "6980 rating", "6980 rank at the first championship"]);
+    const why = await explainTeamAnswer("why did 6980 rating drop after they won", ask, true);
+    expect(why?.card?.lines[0].text).toMatch(/not on who won/);
+    // No weekly ratings kept to show the change: the team's own season rating, never an empty panel.
+    expect(why?.stat?.none).toBeUndefined();
+    expect(why?.stat?.team?.number).toBe(6980);
+    // The dropdown (no `stat` worked out) reads it the same: the team found, the explainer under it.
+    const quick = await explainTeamAnswer("what does opr mean for 4215, step by step", (x, full) => searchAnswer(x, full ? { limit: 25, full: true, learn: false } : { limit: 15, learn: false }));
+    expect(quick?.hits[0]).toMatchObject({ kind: "team", ref: "4215" });
+    expect(quick?.card?.title).toBe("OPR: what it is and how it's worked out");
+    // A change with nothing on record falls back the same in the dropdown as on the page: one answer, one heading.
+    const [page, drop] = await Promise.all([ask("why did 6980 rating drop after they won"), searchAnswer("why did 6980 rating drop after they won", { limit: 15, learn: false })]);
+    expect(drop.intent?.kind).toBe(page.intent?.kind);
+    expect(drop.hits[0]).toMatchObject({ kind: "team", ref: "6980" });
+    expect(drop.card?.title).toBe(page.card?.title);
+    expect(drop.understood?.label).toBe(page.understood?.label);
+    // The dropdown decides on the page's answers, then shows its own of the same question.
+    const both: [string, boolean][] = [];
+    await explainTeamAnswer("why did 6980 rating drop after they won", (x, full) => { both.push([x, !!full]); return searchAnswer(x, full ? { limit: 25, full: true, learn: false } : { limit: 15, learn: false }); });
+    expect(both).toEqual([["6980 rating change", true], ["6980 rating", true], ["6980 rating", false]]);
+    // No meaning asked, or no team named: not this answer.
+    for (const q of ["4215 mean opr", "what is 4215's opr", "how is opr calculated", "what does opr mean for teams"]) expect(await explainTeamAnswer(q, ask, true), q).toBeNull();
+    // Punctuation is set aside, and a team question is never sent back here as a meaning question.
+    const sent: string[] = [];
+    const once = (x: string) => { sent.push(x); return ask(x); };
+    expect((await explainTeamAnswer("explain 4215's opr calculated.", once, true))?.card?.title).toMatch(/OPR/);
+    expect(sent).toEqual(["4215 opr"]);
+    expect(await explainTeamAnswer("explain opr calculated.", once, true)).toBeNull();
+    expect(await explainTeamAnswer("what does opr mean?! for... teams", once, true)).toBeNull();
+    expect(sent).toEqual(["4215 opr", "teams opr"]);
+  });
+  it("a word for one team: a season keeps its separator, a team's name keeps its words, nothing comes back here", async () => {
+    await run("INSERT OR IGNORE INTO teams (number, name, city, state, country) VALUES (30628, 'CALculated Risk', 'Austin', 'TX', 'USA')");
+    await rebuildSearch();
+    const sent: string[] = [];
+    const spy = async (x: string) => { sent.push(x); return ask(x); };
+    await explainTeamAnswer("explain 4215 opr in 2024/25.", spy, true);
+    await explainTeamAnswer("explain opr for CALculated Risk", spy, true);
+    expect(sent).toEqual(["4215 opr in 2024/25", "calculated risk opr"]);
+    // An answer that asks back into this helper gets nothing from it: one question out, never a loop.
+    let inner: unknown = "unset";
+    await explainTeamAnswer("explain opr for CALculated Risk", async (x) => { inner = await explainTeamAnswer(`explain ${x}`, ask, true); return ask(x); }, true);
+    expect(inner).toBeNull();
   });
 });

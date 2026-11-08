@@ -13,7 +13,7 @@ beforeAll(async () => {
   setDb(c);
   await migrate(c);
   await run("INSERT INTO teams (number, name, city, state, country, school, sponsors) VALUES (4215, 'Hypnotic Robotics', 'Oradell', 'NJ', 'USA', 'River Dell Regional High Sch', ?)", [JSON.stringify(["Gene Haas", "Unique Scaffolding Systems"])]);
-  for (const [n, name] of [[6980, "Bad Wolf"], [23268, "Ultraviolet"], [207, "Critical Mass"]] as const) await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, 'Oradell', 'NJ', 'USA')", [n, name]);
+  for (const [n, name] of [[6980, "Bad Wolf"], [23268, "Ultraviolet"], [207, "Critical Mass"], [10084, "Team Calamari"]] as const) await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, 'Oradell', 'NJ', 'USA')", [n, name]);
   for (const n of [4215, 6980, 23268, 207]) await run("INSERT INTO team_seasons (season, team) VALUES (2024, ?), (2025, ?)", [n, n]);
   const ev = (season: number, code: string, name: string, type: string, start: string) =>
     run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, ?, ?, ?, 'Oradell', 'NJ', 'USA', ?, ?, 't')", [season, code, name, type, start, start]);
@@ -130,6 +130,12 @@ describe("listing facts: one team card, each value apart, as stored", () => {
   it("where they're from: the location as one value", async () => {
     const a = await page("where is 4215 from");
     expect(a.card!.facts).toEqual([{ label: "Where they're from", values: ["Oradell, NJ, USA"] }]);
+    // Asked where a team is, nothing after it, is the same (failed-search #1131).
+    for (const q of ["where is this team 4215", "where is team 4215"]) expect((await page(q)).card?.facts, q).toEqual([{ label: "Where they're from", values: ["Oradell, NJ, USA"] }]);
+  });
+  it("the fact said before the team, and a name typed without its leading Team (failed-search #1013, #1014)", async () => {
+    expect((await page("school of hypnotic robotics")).card?.facts).toEqual([{ label: "School or organization", values: ["River Dell Regional High Sch"] }]);
+    for (const q of ["rookie year of calamari", "calamari rookie year", "the rookie year for team calamari"]) expect((await page(q)).card?.team, q).toMatchObject({ number: 10084 });
   });
   it("a fact FIRST's listing doesn't have: no values", async () => {
     expect((await page("6980 sponsors")).card!.facts).toEqual([{ label: "Sponsors", values: [] }]);

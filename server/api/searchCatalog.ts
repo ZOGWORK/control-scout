@@ -187,6 +187,18 @@ export const FILLER: string[] = [
   "if any", "if there is one", "if there are any",
   // A tag asking for a straight answer: it offers no second team, event or stat to choose ("or nah").
   "or nah", "or what", "be honest",
+  // Where the answer comes from: every answer is this site's.
+  "on this site", "on the site", "on this website", "on the website", "on this app", "on the app", "on here",
+];
+
+/** How an answer is to be shown, said at the end of a query ("207 matches at east bergen, in order, with scores"): every
+ *  match list is in order with its scores already. Only at the end: "matches with scores over 200" keeps its words. */
+export const TAIL_FILLER: string[] = [
+  "in order", "in chronological order", "in date order", "in time order", "with scores", "with the scores", "with their scores",
+  "with results", "with the results", "with their results", "with details", "with all the details",
+  // An aside that says again what "watch" or "best" asks ("…, like actually good ones").
+  "like actually good ones", "like the actually good ones", "like the good ones", "like good ones", "like the really good ones",
+  "actually good ones", "the actually good ones", "the good ones", "only the good ones", "the really good ones",
 ];
 
 /** Question and conversational scaffolding, read by the keyword layer around the team, intent and scope (never by
@@ -200,6 +212,8 @@ export const SCAFFOLD: string[] = [
   "have", "has", "had", "been", "get", "go", "went", "come", "comes", "came", "know", "me", "you", "your", "i", "we",
   // Connectors, consumed only as glue between the team, the intent and the scope.
   "of", "in", "for", "at", "the", "a", "an", "to", "on", "during", "with",
+  // Beside, as a place: never the time word "next".
+  "next to",
 ];
 
 /** Never filler, never ignored (a later layer may still answer, but never by dropping these). */

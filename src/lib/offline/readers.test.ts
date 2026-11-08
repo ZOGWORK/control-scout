@@ -181,6 +181,11 @@ describe("offline search (same hits as /api/search)", () => {
     expect(readSearch(dbs(), "999")[0]).toMatchObject({ ref: "999", season: 2024 });
   });
 
+  it("finds a name written with a thousands separator, typed either way", async () => {
+    const db = { season: 2025, db: wrap(await packDb(2025, { teams: [team(7, "1,000 Lakes", "Newark")] })) };
+    for (const q of ["1,000 lakes", "1000 lakes"]) expect(readSearch([db], q)[0], q).toMatchObject({ kind: "team", ref: "7" });
+  });
+
   it("matches names by prefix and with typos", () => {
     expect(readSearch(dbs(), "gear")[0]).toMatchObject({ kind: "team", ref: "100", title: "100 | Gearheads" });
     expect(readSearch(dbs(), "gaerheads")[0]).toMatchObject({ kind: "team", ref: "100" });

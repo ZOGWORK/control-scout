@@ -48,17 +48,34 @@ export const onlyCommonWords = (q: string): boolean => {
   return ws.length > 0 && ws.every((w) => COMMON_WORDS.has(w));
 };
 
+/** What a question asks about, never who: "nj states alliances", "most inspire awards" leave "alliances" and "most
+ *  inspire" once the question is read, and a team only loosely named so ("Alliance", "Inspires") isn't the one asked
+ *  about. A stat question's leftovers made only of these and COMMON_WORDS resolve to a team only when its whole name
+ *  is typed (onlyTopicWords). Plain search is unchanged: "inspire" still lists teams with Inspire in their names. */
+export const TOPIC_WORDS = new Set([
+  "alliance", "alliances", "award", "awards", "inspire", "event", "events", "world", "worlds", "state", "states", "championship",
+  "championships", "playoff", "playoffs", "final", "finals", "winner", "winners", "rank", "ranking", "rankings", "record", "records",
+  "opr", "rating", "ratings", "stat", "stats", "result", "results", "division", "divisions", "matches", "games", "qualifier",
+  "qualifiers", "league", "leagues", "meet", "meets", "season", "seasons", "partner", "partners", "auto", "teleop", "endgame",
+]);
+
+/** Whether every word of `q` is a topic or common word (TOPIC_WORDS, COMMON_WORDS): it names no team unless typed whole. */
+export const onlyTopicWords = (q: string): boolean => {
+  const ws = q.toLowerCase().split(/[^\p{L}\d]+/u).filter(Boolean);
+  return ws.length > 0 && ws.every((w) => TOPIC_WORDS.has(w) || COMMON_WORDS.has(w) || COMMON_WORDS.has(singularize(w)));
+};
+
 /** Words about when, never what: "upcoming meets in New Jersey" is New Jersey's meets from today on. "past",
  *  "recent", "previous" and "latest" are time words only beside an event word ("past meets"), so a name with one
  *  stays a name. Phrases are matched as whole words; longer ones first. */
 // "Live", "right now", "happening now" with an event word are today's events (events run a day or two: today is the
 // one under way). Longest first, so "live now" is one phrase.
-export const TIME_WORDS = ["today", "tomorrow", "this weekend", "next weekend", "this week", "next week", "this month", "next month", "upcoming", "coming up", "past", "recent", "previous", "latest",
-  "happening now", "going on now", "on right now", "right now", "live now", "live", "currently"];
-const ALWAYS_TIME = new Set(["today", "tomorrow", "this weekend", "next weekend", "this week", "next week", "this month", "next month", "upcoming", "coming up"]);
+export const TIME_WORDS = ["today", "tomorrow", "yesterday", "this weekend", "next weekend", "this week", "next week", "this month", "next month", "upcoming", "coming up", "past", "recent", "previous", "latest", "finished", "completed", "ended", "happened",
+  "happening now", "going on now", "on right now", "right now", "live now", "live", "currently", "now"];
+const ALWAYS_TIME = new Set(["today", "tomorrow", "yesterday", "this weekend", "next weekend", "this week", "next week", "this month", "next month", "upcoming", "coming up"]);
 
 /** The words that say a query asks for events ("meets in New Jersey"), singular (after singularize). */
-export const EVENT_WORDS = new Set(["meet", "event", "tournament", "championship", "qualifier", "scrimmage", "league", "competition", "premier", "kickoff", "comp", "champ", "champs"]);
+export const EVENT_WORDS = new Set(["meet", "event", "tournament", "championship", "qualifier", "scrimmage", "league", "competition", "premier", "kickoff", "comp", "champ", "champs", "cham"]);
 
 /** A question's own words: dropped from name matching when the query reads as a question (starts with one and has
  *  at least three words, or ended in "?"), so "can robots descore samples" never searches for teams named "Can". */
