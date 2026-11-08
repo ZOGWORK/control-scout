@@ -15,6 +15,24 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.3.4 — 2026-11-08
+
+More plain searches answered: a team's highlights by part of its name, events said the way people say them, and a team's losses by a set margin.
+
+### Highlights
+- [fixes] "Hypnotic highlights" finds the team from part of its name
+- [fixes] "ultraviolet nj highlights" picks the team in that state
+- [fixes] "Jackson division finals" opens the division's playoffs
+- [fixes] "Which match did <team> lose by 1 point" lists those losses
+
+### Search
+- **A team's highlights by part of its name, or with its place.** "hypnotic highlights", "revAmped highlights" and "ultraviolet nj highlights" are that team's highlights. The words left over are looked up the way a team's stats look them up, and each has to start a word of the team's name. When teams share a name, the place said picks the one from there.
+- **Now.** "nj meets now" and "events now" are today's events, as "right now" already was.
+- **A kind of event a place or name has none of.** "meets in Massachusetts" lists Massachusetts' events of every kind and says it has no meets. "bergen qualifier" lists the events named Bergen and says none is a qualifier.
+- **A division by its name and a game.** "edison centerstage" is the Edison Division in 2023–24. "jackson division finals" and "parkway division rankings" open that division's tab, the way a match number already did.
+- **Worlds' divisions.** "worlds division highlights" is every division at Worlds. "what division was <team> in at worlds" is the team's Worlds divisions, never its latest event with "division" in its name.
+- **Lost or won by N points.** "which match did <team> lose by 1 point" and "did <team> win by 10 points" list the matches decided by exactly that many points, newest first, and say so when there are none.
+
 ## 4.3.3 — 2026-11-08
 
 Who a team should pick at an event is a question search answers, with Scout's pick helper on that event's teams: the partner that fills the team's gaps first.

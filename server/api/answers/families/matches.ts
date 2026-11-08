@@ -159,15 +159,23 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
       const margin = (m: TeamMatch) => m.own - m.opp;
       const xs = id === "biggest-win" ? ms.filter((m) => m.result === "W").sort((a, b) => margin(b) - margin(a))
         : id === "biggest-loss" ? ms.filter((m) => m.result === "L").sort((a, b) => margin(a) - margin(b))
-        : ms.filter((m) => !opts.outcome || m.result === opts.outcome).sort((a, b) => Math.abs(margin(a)) - Math.abs(margin(b)) || String(b.date).localeCompare(String(a.date)));
-      const closest = opts.outcome === "W" ? "Closest win" : opts.outcome === "L" ? "Closest loss" : "Closest match";
+        : ms.filter((m) => (!opts.outcome || m.result === opts.outcome) && (opts.n == null || Math.abs(margin(m)) === opts.n))
+          .sort((a, b) => Math.abs(margin(a)) - Math.abs(margin(b)) || String(b.date).localeCompare(String(a.date)));
+      // A margin said ("which match did 12345 lose by 1 point"): the matches decided by exactly that many, newest first.
+      const by = id === "closest-match" && opts.n != null ? opts.n : null;
+      if (by != null) xs.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+      const pts = (n: number) => `${n} point${n === 1 ? "" : "s"}`;
+      const closest = by != null ? `${opts.outcome === "W" ? "Wins" : opts.outcome === "L" ? "Losses" : "Matches"} by ${pts(by)}`
+        : opts.outcome === "W" ? "Closest win" : opts.outcome === "L" ? "Closest loss" : "Closest match";
       const title = id === "biggest-win" ? `Biggest win${where}` : id === "biggest-loss" ? `Biggest loss${where}` : `${closest}${where}`;
       // A biggest margin is points too: one season's, each season's listed below (a closest gap compares fine).
       const { xs: pick, note } = id === "closest-match" ? { xs, note: "" } : latestOnly(xs);
       const top = pick[0];
-      const def = `${id === "closest-match" ? "Closest: the smallest gap between the two alliances' scores (a tie is 0); the latest first on equal gaps." : "Margin: the gap between the two alliances' official scores."} ${RESULT_RULE}${note}`;
-      if (!top) return { ...base, family: "superlative", intent: id, title, blocks: [], definition: def, none: none(id === "biggest-win" || opts.outcome === "W" ? "wins" : id === "biggest-loss" || opts.outcome === "L" ? "losses" : "matches") };
-      const list = id === "closest-match" ? (opts.outcome === "W" ? "Closest wins" : opts.outcome === "L" ? "Closest losses" : "Closest matches") : id === "biggest-win" ? "Biggest wins" : "Biggest losses";
+      const def = by != null ? `Decided by ${pts(by)}: the gap between the two alliances' official scores is exactly that; newest first. ${RESULT_RULE}`
+        : `${id === "closest-match" ? "Closest: the smallest gap between the two alliances' scores (a tie is 0); the latest first on equal gaps." : "Margin: the gap between the two alliances' official scores."} ${RESULT_RULE}${note}`;
+      const kindOf = id === "biggest-win" || opts.outcome === "W" ? "wins" : id === "biggest-loss" || opts.outcome === "L" ? "losses" : "matches";
+      if (!top) return { ...base, family: "superlative", intent: id, title, blocks: [], definition: def, none: none(by != null ? `${kindOf} by exactly ${pts(by)}` : kindOf) };
+      const list = by != null ? closest : id === "closest-match" ? (opts.outcome === "W" ? "Closest wins" : opts.outcome === "L" ? "Closest losses" : "Closest matches") : id === "biggest-win" ? "Biggest wins" : "Biggest losses";
       const blocks: StatBlock[] = [matchesBlock(`${list}${note ? `, ${seasonLabel(top.season)}` : ""}`, pick.slice(0, 5))];
       if (note) {
         const per = bySeason(xs).map(([s, ys]) => ({ s, m: ys[0] }));
@@ -175,7 +183,9 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
       }
       return {
         ...base, family: "superlative", intent: id, title,
-        headline: { value: `${Math.abs(margin(top))} point${Math.abs(margin(top)) === 1 ? "" : "s"}`, label: `${top.own}–${top.opp} in ${top.label} at ${top.event}`, sub: [seasonLabel(top.season), row(top).date].filter(Boolean).join(" · "), href: row(top).href },
+        headline: by != null
+          ? { value: `${xs.length} ${xs.length === 1 ? ({ wins: "win", losses: "loss", matches: "match" } as const)[kindOf] : kindOf}`, label: `by exactly ${pts(by)}`, sub: `Latest: ${top.own}–${top.opp} in ${top.label} at ${top.event}`, href: row(top).href }
+          : { value: `${Math.abs(margin(top))} point${Math.abs(margin(top)) === 1 ? "" : "s"}`, label: `${top.own}–${top.opp} in ${top.label} at ${top.event}`, sub: [seasonLabel(top.season), row(top).date].filter(Boolean).join(" · "), href: row(top).href },
         blocks, definition: def,
       };
     }

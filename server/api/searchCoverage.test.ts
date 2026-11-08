@@ -333,6 +333,9 @@ describe("wrong answers from the 92-query probe (11-03)", () => {
     expect(rewriteQuery("nj states decode")).toMatchObject({ q: "nj states 2025-26", pre: true });
     expect(rewriteQuery("decode nj states")?.q).toBe("nj states 2025-26");
     expect(rewriteQuery("worlds edison division centerstage")?.q).toBe("worlds edison division 2023-24");
+    // A word that names an event with "division" after it, and a game (failed-search #787): that season's division.
+    expect(rewriteQuery("edison centerstage", new Set(["division:edison"]))).toMatchObject({ q: "edison division 2023-24", pre: true });
+    expect(rewriteQuery("edison centerstage")).toBeNull(); // no event by that name with "division": left to search
     expect(rewriteQuery("nj states into the deep")?.q).toBe("nj states 2024-25");
     expect(rewriteQuery("nj states highest score decode")?.q).toBe("highest score at new jersey championship 2025-26");
     expect(rewriteQuery("highest score at nj states 2024-25")?.q).toBe("highest score at new jersey championship 2024-25");

@@ -324,6 +324,17 @@ export async function eventSetAnswer(q: string, e: EventQuery, opts: { now?: num
     const shown = { drop: d, where: d.includes("where") ? null : whereAsStored(e, fb) };
     if (fb.length) return done(fb, { ...base, ...(d.includes("where") ? { season: e.season ?? (e.year == null && !e.allSeasons ? CURRENT_SEASON : undefined) } : {}), label: asked, fallback: `No ${lower(asked)} in the data — showing ${lower(label(shown))} instead` }, shown);
   }
+  // A kind of event the place or name has none of ("meets in Massachusetts", whose events are qualifiers; "bergen
+  // qualifier", where only its tournaments are): its events of every kind, said so. The time and year asked stay.
+  if (e.kinds.length && (e.region || e.words.length)) {
+    const any: EventQuery = { ...e, kinds: [] };
+    const fb = await rowsFor(any, now);
+    if (fb.length) {
+      const where = whereAsStored(any, fb);
+      const { eventTypes: _kinds, ...wide } = base;
+      return done(fb, { ...wide, label: asked, fallback: `No ${lower(asked)} in the data — showing ${lower(eventSetLabel(any, { seasonLabel, where }))} instead` }, { where });
+    }
+  }
   // Still nothing. A year named is never swapped for another: say so, with other years' events as closest matches.
   const otherYears = e.year != null || e.season != null ? (await rowsFor(e, now, { year: true })).slice(0, 10) : [];
   const none = e.year != null ? `No events held in ${e.year} match` : e.season != null ? `No ${seasonLabel(e.season)} events match` : "No events match";

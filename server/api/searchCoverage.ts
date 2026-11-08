@@ -122,6 +122,11 @@ export async function namedParts(q: string): Promise<Set<string>> {
     const idx = await names();
     for (const c of countries) if (idx.teamsNamed(c).length) out.add(c);
   }
+  // A game's name beside a word that names an event with "division" after it ("edison centerstage": that season's
+  // Edison Division), marked so the rewrite reads the division.
+  const game = seasonWord(ws.join(" "));
+  if (game?.game && game.rest && !/\d/.test(game.rest) && !EVENT_WORDS.test(game.rest) && game.rest.split(" ").length <= 2
+    && (await (await parseContext()).isEvent(`${game.rest} division`))) out.add(`division:${game.rest}`);
   if (!ws.some((w) => regionPartOf([w, "jersey"]))) return out;
   const [idx, ctx] = await Promise.all([names(), parseContext()]);
   for (let i = 0; i + 1 < ws.length; i++) {
@@ -190,6 +195,7 @@ export function rewriteQuery(q: string, named: ReadonlySet<string> = new Set()):
   // further down) or a game named alone ("what is decode").
   const swt = sw ?? (EVENT_WORDS.test(t) && !/^\d{1,6}\b/.test(t) ? seasonWord(t, true) : null);
   if (swt && swt.game && !/^\d{1,6}\b/.test(t) && EVENT_WORDS.test(swt.rest)) return { q: `${swt.rest} ${swt.season}`, pre: true };
+  if (sw?.game && named.has(`division:${sw.rest}`)) return { q: `${sw.rest} division ${sw.season}`, pre: true };
   // "events", "events this season", "events ths": the season's events, never teams named "Event Horizon".
   if ((m = /^(?:all\s+)?(?:the\s+)?(?:ftc\s+)?(events?|meets?|competitions?|tournaments?)(?:\s+(?:this|ths|tis|thsi|current)(?:\s+(?:season|year))?)?$/.exec(t))) {
     return { q: `${m[1].replace(/s?$/, "s")} in ${seasonLabel(CURRENT_SEASON).replace("–", "-")}`, pre: true };
@@ -807,14 +813,14 @@ export async function eventPageAnswer(q: string, prefer: ReadonlySet<string>, no
   const ev: EventQuery | null = worlds ? { kinds: ["worlds"], time: null, year: null, season: null, region: null, where: null, words: [], allSeasons: true } : readEventQuery(rest);
   const set = ev ? await eventSetAnswer(rest, ev, { now }) : null;
   const today = new Date(now ?? Date.now()).toISOString().slice(0, 10);
-  // An event by its own name ("jackson division q12", "worlds jackson division q12"), when the words name a kind of
-  // event and the event readers found none: search's events by name.
+  // An event by its own name ("jackson division q12", "worlds jackson division q12", "jackson division finals"), when
+  // the words name a kind of event and the event readers found none: search's events by name.
   const read = set ? set.hits.filter((h) => h.kind === "event") : [];
   // A season named with it ("edison division q1 2025-26", "… decode") is that season's event, and not part of the name.
   const named = seasonWord(rest);
   const nameWords = named ? named.rest : rest;
   const inSeason = named ? Number(named.season.slice(0, 4)) : null;
-  const byName = !read.length && !!mm && EVENT_WORDS.test(nameWords) && !/\d/.test(nameWords);
+  const byName = !read.length && (!!mm || !!section) && EVENT_WORDS.test(nameWords) && !/\d/.test(nameWords);
   // Search lists each code once, from its newest season, undated; each is dated here by the season named, else the
   // newest season it has matches in (a code's next season is listed before it's played), so an unplayed season never
   // hides a played one.

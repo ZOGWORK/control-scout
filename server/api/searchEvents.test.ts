@@ -181,6 +181,11 @@ describe("Greptile on #434", () => {
     expect(refs((await ask("past meets in Texas")).hits)).toEqual(["USTXOLD"]);
     expect(refs((await ask("upcoming meets in Texas")).hits)).toContain("USTXTWO");
   });
+  it("a kind of event a place has none of: its events of every kind, said so (failed-search #763)", async () => {
+    const a = await ask("scrimmages in Texas");
+    expect(a.understood?.fallback).toBe("No scrimmages in Texas in the data — showing events in Texas instead");
+    expect(a.hits.filter((h) => h.kind === "event").length).toBeGreaterThan(0);
+  });
   it("league meets are meets, never league tournaments", async () => {
     expect(refs((await ask("league meets in New Jersey")).hits)).not.toContain("USNJLT");
     expect(refs((await ask("league events in New Jersey")).hits)).toContain("USNJLT");

@@ -9,6 +9,10 @@ describe("reading an event set", () => {
       expect(readEventQuery(q), q).toMatchObject({ kinds: ["meet"], region: { key: "USA:NJ" }, where: null, words: [], time: null });
     }
   });
+  it("reads \"now\" as today, as \"right now\" is (failed-search #763)", () => {
+    for (const q of ["nj meets now", "meets in nj now", "events now"]) expect(readEventQuery(q)?.time, q).toBe("today");
+    expect(readEventQuery("nj meets now")).toMatchObject({ kinds: ["meet"], region: { key: "USA:NJ" }, words: [] });
+  });
   it("reads a city or venue after 'at' or 'in', beside the place", () => {
     expect(readEventQuery("meets in New Jersey at River dell high school")).toMatchObject({ region: { key: "USA:NJ" }, where: "River dell high school" });
     expect(readEventQuery("meets at Nonexistent High School in New Jersey")).toMatchObject({ region: { key: "USA:NJ" }, where: "Nonexistent High School" });

@@ -17,7 +17,7 @@
 // the app asks /api/search/refine after these results are on screen (./searchBruno.ts).
 import type { SearchAnswer, SearchHit, SearchRecovery, SearchUnderstood } from "../../src/shared/api.js";
 import { SEARCH_BROWSE, SEARCH_FILLER, SEARCH_PAGE_LIMIT, SEARCH_TOPICS, firstCards, TOPIC_LABEL, VERSUS, cardWho, onlyPageWords, pagesFor, showingLine } from "../../src/shared/search.js";
-import { conversationQuery, isQuestionForm, nameWords, onlyCommonWords, onlyTopicWords, singularize } from "../../src/shared/searchQuery.js";
+import { conversationQuery, EVENT_WORDS, isQuestionForm, nameWords, onlyCommonWords, onlyTopicWords, singularize } from "../../src/shared/searchQuery.js";
 import { readEventQuery, regionOf } from "../../src/shared/searchEventQuery.js";
 import { eventSetAnswer, withEventParents, withWholeFamilies } from "./searchEvents.js";
 import { versusAnswer } from "./searchCompare.js";
@@ -562,6 +562,15 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
 
   // Word by word is never the answer: it's the closest matches, each naming the word it matched (brief Requirement 6).
   if (byWords) {
+    // An event's name said with a kind of event none of its events is ("bergen qualifier", where Bergen's events are
+    // league tournaments): the events by the name, the label saying the kind matched none of them.
+    const said = rest.split(/\s+/), kindless = said.filter((w) => !EVENT_WORDS.has(singularize(w).toLowerCase()));
+    if (kindless.length && kindless.length < said.length && !kindless.every((w) => /^\d+$/.test(w))) {
+      const named = kindless.join(" ");
+      const evs = (await search(named, limit, prefer, undefined, season)).filter((h) => h.kind === "event");
+      const kind = said.find((w) => !kindless.includes(w))!.toLowerCase();
+      if (evs.length) return answer(q, { hits: evs, step: "deterministic", understood: { kind: "names", label: `No ${singularize(kind)} named "${named}": events matching "${named}"` } });
+    }
     // A team the query names after all (a number in it, or a name with trailing words): the team, never "no results".
     const kept = opts.intents === false ? null : await teamFallback(rest, prefer);
     if (kept) return { ...kept, q };

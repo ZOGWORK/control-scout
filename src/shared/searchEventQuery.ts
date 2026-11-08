@@ -47,7 +47,7 @@ const TIME_OF: Record<string, SearchTime> = {
   today: "today", tomorrow: "tomorrow", upcoming: "upcoming", "coming up": "upcoming", past: "past", recent: "past", previous: "past", latest: "past", finished: "past", completed: "past", ended: "past",
   "this weekend": "this-weekend", "next weekend": "next-weekend", "this week": "this-week", "next week": "next-week",
   "this month": "this-month", "next month": "next-month",
-  "happening now": "today", "going on now": "today", "on right now": "today", "right now": "today", "live now": "today", live: "today", currently: "today",
+  "happening now": "today", "going on now": "today", "on right now": "today", "right now": "today", "live now": "today", live: "today", currently: "today", now: "today",
 };
 
 /** Two-letter state codes that are also everyday words ("in", "or", "me"): a code only when typed in capitals. */

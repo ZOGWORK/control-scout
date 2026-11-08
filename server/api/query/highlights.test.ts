@@ -21,7 +21,9 @@ beforeAll(async () => {
   const c = openDb(":memory:");
   setDb(c);
   await migrate(c);
-  const teams: [number, string, string][] = [[4215, "Hypnotic Robotics", "NJ"], [6980, "Bad Wolf", "NJ"], [10809, "Crow Force", "CA"], [5555, "Golden Bots", "CA"], [7149, "Enforcers", "TX"], [23268, "Ultraviolet", "TX"]];
+  const teams: [number, string, string][] = [[4215, "Hypnotic Robotics", "NJ"], [6980, "Bad Wolf", "NJ"], [10809, "Crow Force", "CA"], [5555, "Golden Bots", "CA"], [7149, "Enforcers", "TX"], [23268, "Ultraviolet", "TX"],
+    // A second team by the same name, elsewhere: named with its place, the one there.
+    [20245, "Ultraviolet", "MI"]];
   for (const [n, name, state] of teams) {
     await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, 'Town', ?, 'USA')", [n, name, state]);
     for (const s of [2024, 2025]) await run("INSERT INTO team_seasons (season, team) VALUES (?, ?)", [s, n]);
@@ -179,6 +181,10 @@ describe("highlights over a scope", () => {
     expect(s.scope.some((c) => /^No /.test(c))).toBe(false);
   });
 
+  it("Worlds' divisions said with no team are every division, as Worlds is (failed-search #844, #784)", async () => {
+    for (const q of ["worlds division highlights", "WORLDS divisions highlights"]) expect((await stat(q)).title, q).toBe("Highlights at Worlds, 2024–25");
+  });
+
   it("a count asked for: at most that many", async () => {
     expect(rows(await stat("top 2 highlights at worlds")).map((r) => r.note)).toEqual(["Best score", "Biggest margin"]);
   });
@@ -201,6 +207,16 @@ describe("a team's highlights", () => {
       expect(a.stat?.team?.number, q).toBe(4215);
       expect(a.stat?.title, q).toBe("Highlights, 2024–25");
     }
+  });
+
+  it("by part of its name, or by a name two teams share with the place said (failed-search #1003, #992)", async () => {
+    for (const [q, team] of [["hypnotic highlights 2024-25", 4215], ["Hypnotic videos 2024-25", 4215], ["ultraviolet texas highlights 2024-25", 23268], ["Ultraviolet tx highlights 2024-25", 23268]] as const) {
+      const a = await ask(q);
+      expect(a.stat?.intent, q).toBe("team-highlights");
+      expect(a.stat?.team?.number, q).toBe(team);
+    }
+    // A word that only starts no word of the team found is never read as that team.
+    expect((await ask("robotic stuff highlights 2024-25")).stat?.team).toBeUndefined();
   });
 
   it("at an event: only its matches there, never padded from other events; the event said once, in the title", async () => {
