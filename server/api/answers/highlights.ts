@@ -100,6 +100,6 @@ async function notThere(team: { number: number; name: string | null }, asked: nu
     blocks: theirs.length ? [{ kind: "links", title: `Its ${S} events`, items: theirs.map((e) => ({ label: e.name, sub: dateRange(e.start, e.end) || undefined, href: eventHref(e.season, e.code, team.number) })) }] : [],
     definition: "A team's highlights at an event are its standout matches there: only matches its robot played in at that event, never padded from other events.",
     source: `From ${who}'s matches on record`,
-    none: `${who} has no played matches ${at.phrase ?? `at ${at.label}`}${(asked ?? at.season) != null && S ? ` in ${S}` : ""}.${theirs.length ? ` Its ${S} events are below.` : " It has no events on record."}`,
+    none: `${who} has no played matches ${at.phrase ?? `at ${at.label}`}${(asked ?? at.season) != null && S ? ` in ${S}` : ""}.${theirs.length ? ` Its ${S} events are below.` : events.length && S ? ` It has no ${S} events on record.` : " It has no events on record."}`,
   };
 }

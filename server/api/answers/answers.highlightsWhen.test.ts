@@ -38,6 +38,8 @@ beforeAll(async () => {
     await run("INSERT INTO team_seasons (season, team) VALUES (2026, ?) ON CONFLICT DO NOTHING", [t]);
     await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance) VALUES (2026, 'USNJSCR', 'qual', 0, 1, ?, ?)", [t, side]);
   }
+  // Its events, as FIRST lists them (the empty answer names the season's, else says there are none).
+  for (const [s, code] of [[2025, "USNJQ7"], [2025, "USNJQ8"], [2026, "USNJSCR"]] as const) await run("INSERT INTO event_teams (season, code, team) VALUES (?, ?, 6980)", [s, code]);
   await rebuildSearch();
 });
 
@@ -66,6 +68,11 @@ describe("a team's highlights in a time said", () => {
     const a = await ask("6980 highlights this week", Date.parse("2026-09-03T15:00:00Z"));
     expect(a.stat).toMatchObject({ title: "Highlights this week, 2026–27", headline: { value: "95 points" } });
     expect(a.stat?.scope[0]).not.toMatch(/^Relaxed/);
+  });
+  it("a month of a season the team has no events in says that season, never no history (Greptile on #1168)", async () => {
+    const a = await ask("6980 highlights in march 2025");
+    expect(a.stat?.title).toBe("No highlights in March 2025, 2024–25");
+    expect(a.stat?.none).toMatch(/It has no 2024–25 events on record\.$/);
   });
   it("a day said reads as itself, never 'in today' (Greptile on #1168)", async () => {
     const a = await ask("bad wolf highlights today");
