@@ -49,6 +49,8 @@ describe("trends", () => {
     expect(readStatQuestion("4215 win rate at worlds")).toMatchObject({ id: "win-percent", scope: { championship: true } });
     expect(readStatQuestion("4215 average alliance score by event")).toMatchObject({ id: "avg-score-by-event" });
     expect(readStatQuestion("4215 ranking points")).toMatchObject({ id: "ranking-points" });
+    for (const q of ["4215 rp", "4215 rps"]) expect(readStatQuestion(q), q).toMatchObject({ id: "ranking-points" });
+    for (const q of ["who has 4215 played with", "who did 4215 play with", "who has 4215 teamed up with"]) expect(readStatQuestion(q), q).toMatchObject({ id: "partners" });
     // A scope a trend can't apply is left to search.
     expect(readStatQuestion("4215 opr history at worlds")).toBeNull();
     expect(readStatQuestion("2024 OPR by season")).toMatchObject({ id: "opr-by-season", core: "2024", scope: { season: null } });

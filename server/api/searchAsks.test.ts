@@ -356,6 +356,13 @@ describe("who won an event (owner: \"who won nj states\")", () => {
       expect(a.stat?.blocks.find((b) => b.kind === "links" && b.title === "Inspire Award"), q).toMatchObject({ items: [{ label: "23268 Ultraviolet" }] });
     }
   });
+  it("an event's alliances, however said, are its Playoffs tab, never words of its name", async () => {
+    for (const q of ["nj states alliances", "nj states alliance selection", "alliance selection nj states", "nj states alliance captains"]) {
+      const a = await ask(q);
+      expect(a.understood?.label ?? "", q).toMatch(/^Playoffs · New Jersey Championship/);
+      expect(a.hits.find((h) => h.kind === "event"), q).toMatchObject({ section: "playoffs" });
+    }
+  });
   it("an event with no results recorded says so plainly", async () => {
     await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'USNYCMP', 'New York Championship', 'Championship', 'Albany', 'NY', 'USA', '2026-03-01', '2026-03-01', 't')", [S]);
     const a = await ask("who won ny states");

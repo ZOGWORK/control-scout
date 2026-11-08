@@ -24,6 +24,9 @@ const TEAMS = [
   { number: 30009, name: "Mitspe Yam/מצפה ים", city: "Town", state: null, country: "Israel", lastPlayed: 2026 },
   { number: 30010, name: "Powerplay Pioneers", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
   { number: 30011, name: "March Madness", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
+  // Teams named for what a question asks about: theirs only when typed as their whole name.
+  { number: 30012, name: "Alliance", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
+  { number: 30013, name: "Inspires", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
 ];
 const EVENTS = ["east bergen conference", "new jersey championship", "nj championship", "turnpike division"];
 const ctx: ParseContext = {
@@ -34,6 +37,27 @@ const ctx: ParseContext = {
 const parse = (q: string) => parseQuery(q, ctx);
 
 describe("slots", () => {
+  it("a word a question asks about names a team only typed as the team's whole name", async () => {
+    const near = { ...ctx, nearTeam: async (w: string) => ctx.names.nearTeam(w) };
+    for (const q of ["nj states alliances", "most inspire awards", "inspire award winners"]) expect((await parseQuery(q, near)).teams, q).toEqual([]);
+    expect((await parseQuery("inspires awards", near)).teams.map((t) => t.number)).toEqual([30013]);
+  });
+  it("a name several teams share, typed with one of their numbers, is that one team in either order", async () => {
+    for (const q of ["ultraviolet 23268 highlights", "23268 ultraviolet highlights", "highlights of ultraviolet 23268", "ultraviolet 20245 record"]) {
+      const p = await parse(q);
+      expect(p.teams, q).toHaveLength(1);
+      expect(p.teams[0].number, q).toBe(/20245/.test(q) ? 20245 : 23268);
+      expect(p.teams[0].candidates, q).toBeUndefined();
+    }
+    // Only the number beside the name: one across "vs" is its own team, and each side keeps its two.
+    const lineup = (await parse("predict 23268 4215 vs ultraviolet 20245 6980")).teams;
+    expect(lineup.map((t) => t.number).sort()).toEqual([20245, 23268, 4215, 6980].sort());
+    expect(lineup.find((t) => t.number === 20245)?.candidates).toBeUndefined();
+    // A number that isn't one of the name's teams stays a second team.
+    const two = (await parse("ultraviolet 4215")).teams;
+    expect(two.map((t) => t.number)).toContain(4215);
+    expect(two).toHaveLength(2);
+  });
   it("a name typed nearly right is that team, a leading 'the' included; never a guess between two", async () => {
     const near = { ...ctx, nearTeam: async (w: string) => ctx.names.nearTeam(w) };
     expect(await parseQuery("hypnotc robotics record", near)).toMatchObject({ teams: [{ number: 4215, via: "near" }], complete: true });

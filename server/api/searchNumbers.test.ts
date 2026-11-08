@@ -89,6 +89,9 @@ describe("singular, plural and a typo are one question", () => {
     expect(numberQuery("4215 states")).toBeNull();
     expect(numberQuery("4215 worlds")).toBeNull();
     expect(numberQuery("who won nj championship", true)).toBeNull();
+    // An award's own name has no plural: "most inspire awards" never becomes "most inspires awards" (a team's name).
+    expect(numberQuery("most inspire awards", true) ?? "").not.toMatch(/inspires/);
+    expect(numberQuery("most think awards", true) ?? "").not.toMatch(/thinks/);
     // A question's own plain words are never nouns ("how", "the", "last").
     expect(numberQuery("how has the last event gone", true)).toBe("how has the last events gone");
   });

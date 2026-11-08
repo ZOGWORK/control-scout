@@ -4,9 +4,13 @@
 // ./time.ts, the intent from ./intents.ts. Nothing here names a team, an event or a place.
 import { AWARD_ONE_WORD, EVENT_NAME_WORDS, LEXICON, type Agg, type Sym } from "./lexicon.js";
 import { pickIntent, type IntentRule, type PipelineIntent } from "./intents.js";
-import { readTime, type TimeSlot } from "./time.js";
+import { readTime, type TimeRead, type TimeSlot } from "./time.js";
 import { fold, type Names, type Place, type TeamName } from "./names.js";
 import { EVENT_TYPES } from "../../../src/shared/searchEventQuery.js";
+import { onlyTopicWords } from "../../../src/shared/searchQuery.js";
+
+/** A name as typed or stored, compared whole: lower case, any run of punctuation and spaces one space. */
+const wholeName = (n: string | null) => (n ?? "").toLowerCase().replace(/[^\p{L}\d]+/gu, " ").trim();
 
 export interface TeamSlot {
   number: number; name: string | null; typed: string; via: "number" | "name" | "near";
@@ -154,7 +158,7 @@ export function normalise(q: string): string {
 
 /** The longest stored name after a phrase saying a name follows, ending where a place's preposition, the closing
  *  filler or a time (`timeOnly`) follows it, or null. */
-function keptName(words: string[], ctx: ParseContext, timeOnly: (w: string[]) => boolean): { from: number; to: number } | null {
+function keptName(words: string[], names: Names, timeOnly: (w: string[]) => boolean): { from: number; to: number } | null {
   for (let i = 0; i < words.length; i++) {
     const f = NAMED_PHRASES.find((n) => n.every((w, j) => words[i + j] === w));
     if (!f) continue;
@@ -162,35 +166,49 @@ function keptName(words: string[], ctx: ParseContext, timeOnly: (w: string[]) =>
     for (let to = words.length; to > from; to--) {
       const tail = words.slice(to);
       const ends = !tail.length || NAME_ENDS.test(tail[0]) || allFiller(tail) || timeOnly(tail);
-      if (ends && ctx.names.teamsNamed(words.slice(from, to).join(" ")).length) return { from, to };
+      if (ends && names.teamsNamed(words.slice(from, to).join(" ")).length) return { from, to };
     }
   }
   return null;
 }
 
-/** Parses `raw`. */
-export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed> {
-  const q0 = normalise(raw);
-  const fl = FLOOR.exec(q0);
-  const q = fl ? `${q0.slice(0, fl.index)} ${q0.slice(fl.index + fl[0].length)}`.replace(/\s+/g, " ").trim() : q0;
-  const typedWords = raw.replace(/[?!,;:()"]/g, " ").split(/\s+/).filter(Boolean);
+/** Whether a bare four-digit year in `q` (normalised words) is a season, given which numbers are teams' (`team`). */
+function yearReading(q: string, team: (n: number) => boolean): (y: number) => boolean {
   // The other team numbers typed: a limit ("last 5") or a match's number ("match 3") is never a team.
   const words0 = q.split(" ");
-  const teamNums = words0.filter((w, i) => /^\d{1,5}$/.test(w) && !COUNT_BEFORE.test(words0[i - 1] ?? "") && !MATCH_BEFORE.test(words0[i - 1] ?? "") && !!ctx.names.team(Number(w))).map(Number);
+  const teamNums = words0.filter((w, i) => /^\d{1,5}$/.test(w) && !COUNT_BEFORE.test(words0[i - 1] ?? "") && !MATCH_BEFORE.test(words0[i - 1] ?? "") && team(Number(w))).map(Number);
   // A bare year is a season unless it's the only team number and a team has it ("2024 record", "2024 last 5 matches").
   // "Season 2024" names the season, but "this season 2024 record" is the team after "this season".
   // A team's number joined to another by "vs" or "and" is one of the teams compared, not a year.
   const said = (y: number) => new RegExp(`\\b(?:in|during|for|from|(?<!\\b(?:this|current)\\s)season)\\s+(?:the\\s+)?${y}\\b`).test(q);
   const paired = (y: number) => new RegExp(`\\b${y}\\s+(?:vs\\.?|v|versus|against|and|&)\\s|\\s(?:vs\\.?|v|versus|against|and|&)\\s+${y}\\b`).test(` ${q} `);
-  const yearOk = (y: number) => said(y) || (!(ctx.names.team(y) && paired(y)) && (teamNums.some((n) => n !== y) || !ctx.names.team(y)));
-  // A stored name asked about as words keeps its words from the time reader ("Powerplay Robotics", "March Madness").
-  const timeOnly = (w: string[]) => { const r = readTime(w.join(" "), ctx.today, yearOk); return !!r.time && allFiller(r.rest.split(" ").filter(Boolean)); };
-  const at0 = keptName(words0, ctx, timeOnly);
+  return (y: number) => said(y) || (!(team(y) && paired(y)) && (teamNums.some((n) => n !== y) || !team(y)));
+}
+
+/** The time `q` (normalised words) says, as the parser reads it: a bare year by `yearReading`, and a stored name asked
+ *  about as words ("teams named Powerplay Pioneers", "March Madness") never read as a time. `rest`: `q` without the
+ *  time's words. Shared with the answer's season picker (server/api/answers/season.ts withSeason). */
+export function queryTime(q0: string, names: Names, today: string): TimeRead {
+  // A score threshold ("at least 2025 pts") is never a year: set aside first, as parseQuery does.
+  const fl = FLOOR.exec(q0);
+  const q = fl ? `${q0.slice(0, fl.index)} ${q0.slice(fl.index + fl[0].length)}`.replace(/\s+/g, " ").trim() : q0;
+  const words0 = q.split(" ");
+  const yearOk = yearReading(q, (n) => !!names.team(n));
+  const timeOnly = (w: string[]) => { const r = readTime(w.join(" "), today, yearOk); return !!r.time && allFiller(r.rest.split(" ").filter(Boolean)); };
+  const at0 = keptName(words0, names, timeOnly);
   // The name stands in as one word no time reads, then comes back whole.
   const kept = at0 && words0.slice(at0.from, at0.to).join(" ");
-  const read = readTime(at0 ? [...words0.slice(0, at0.from), NAME_MARK, ...words0.slice(at0.to)].join(" ") : q, ctx.today, yearOk);
-  const { time, unread } = read;
-  const rest = kept ? read.rest.replace(NAME_MARK, kept) : read.rest;
+  const read = readTime(at0 ? [...words0.slice(0, at0.from), NAME_MARK, ...words0.slice(at0.to)].join(" ") : q, today, yearOk);
+  return kept ? { ...read, rest: read.rest.replace(NAME_MARK, kept) } : read;
+}
+
+/** Parses `raw`. */
+export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed> {  const q0 = normalise(raw);
+  const fl = FLOOR.exec(q0);
+  const q = fl ? `${q0.slice(0, fl.index)} ${q0.slice(fl.index + fl[0].length)}`.replace(/\s+/g, " ").trim() : q0;
+  const typedWords = raw.replace(/[?!,;:()"]/g, " ").split(/\s+/).filter(Boolean);
+  const read = queryTime(q, ctx.names, ctx.today);
+  const { time, unread, rest } = read;
   // Each word with its own spelling as typed, matched in order ("in IN": the second is the state code).
   let at = 0;
   const toks: Tok[] = rest.split(" ").filter(Boolean).map((w) => {
@@ -245,6 +263,10 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       if (len === 1 && (loose(toks[i - 1]) || loose(toks[i + len]))) continue;
       const named = ctx.names.teamsNamed(span.map((t) => t.w).join(" "));
       if (!named.length) continue;
+      // What a question asks about ("alliances", "inspire", "stats") names a team only typed as its whole name: "nj
+      // states alliances" is never team Alliance, "most inspire awards" never team Inspires (onlyTopicWords).
+      const said = span.map((t) => t.typed).join(" ");
+      if (onlyTopicWords(said) && !named.some((n) => wholeName(n.name) === wholeName(said))) continue;
       // A number typed beside its own name ("12345 hypnotic robotics") is one team.
       if (!named.some((n) => p.teams.some((t) => t.number === n.number))) {
         p.teams.push({ number: named[0].number, name: named[0].name, typed: span.map((t) => t.typed).join(" "), via: "name", at: i, ...(named.length > 1 ? { candidates: named.map((n) => n.number) } : {}) });
@@ -267,7 +289,17 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     if (prev && COUNT_BEFORE.test(prev) && n <= 50 && (next ? !ctx.names.team(Number(next)) : !p.teams.length)) { p.n = n; t.used = true; continue; }
     const team = ctx.names.team(n);
     if (team) {
-      if (!p.teams.some((x) => x.number === n)) p.teams.push({ number: n, name: team.name, typed: t.typed, via: "number", at: i });
+      // A name several teams share, with one of their numbers typed right beside it ("<shared name> <number>", "<number>
+      // <shared name>", "team" or "ftc" between allowed), is that team. Only beside it: a number elsewhere is its own
+      // team, never pulled across "vs" or past another team.
+      const beside = (x: Parsed["teams"][number]) => {
+        if (x.at == null) return false;
+        const end = x.at + x.typed.split(/\s+/).length, gap = (k: number) => /^(?:team|ftc)$/.test(toks[k]?.w ?? "");
+        return i === end || (i === end + 1 && gap(end)) || i === x.at - 1 || (i === x.at - 2 && gap(x.at - 1));
+      };
+      const shared = p.teams.find((x) => x.via === "name" && x.candidates?.includes(n) && beside(x));
+      if (shared) { shared.number = n; shared.name = team.name; delete shared.candidates; }
+      else if (!p.teams.some((x) => x.number === n)) p.teams.push({ number: n, name: team.name, typed: t.typed, via: "number", at: i });
       t.used = true;
       if (/^(?:team|ftc)$/.test(prev ?? "")) toks[i - 1].used = true;
     }
@@ -434,6 +466,8 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       const start = from - k;
       if (start < 0 || toks.slice(start, from).some((t) => !FILLER_WORDS.has(t.w) && !t.alliance)) continue;
       const span = toks.slice(start, to + 1);
+      // What a question asks about is never a name typed nearly right ("inspire" is no typo of team Inspires).
+      if (onlyTopicWords(span.map((t) => t.typed).join(" "))) continue;
       const near = await ctx.nearTeam(span.map((t) => t.w).join(" "));
       if (!near || p.teams.some((t) => t.number === near.number)) continue;
       p.teams.push({ number: near.number, name: near.name, typed: span.map((t) => t.typed).join(" "), via: "near", at: start });
