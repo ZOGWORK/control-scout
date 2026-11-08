@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.3.8 — 2026-11-08
+
+Search reads its own words when they are typed wrong, run together or short: a letter added inside a word, six letters jumbled, two words typed as one, and, when nothing else answers, a word one slip from a question word. A place typed right after a name several teams share picks the team.
+
+### Highlights
+- [fixes] Question words with a letter jumbled or added still answer
+- [fixes] Two words typed as one are read apart, with a Did you mean
+- [fixes] A place after a shared team name picks which team you meant
+- [fixes] A team name with "latest" after it shows its newest match
+
+### Search
+- **Intent words typed wrong.** Every word the query parser reads is a word spelling knows; a letter added inside a word is corrected rather than read as an ending; six-letter words jumbled (and a common word of the data's, like a division's name) are corrected; between two as close, the fewer plain edits wins; two of search's own words typed as one are split; and a query that finds nothing tries a name's word or a three-letter word as the question word it is one slip from, kept only when that reading answers. Each shows "Did you mean". A team's name followed by a place picks the team in that place without narrowing its matches to the place, and "latest" beside a team is its most recent match. (#1076)
+
 ## 4.3.7 — 2026-11-08
 
 "cham" said for a championship ("who won inspire in nj cham") finds that place's newest championship.
