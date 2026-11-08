@@ -7,6 +7,7 @@ import { rebuildSearch } from "../../stats/job";
 import { searchAnswer } from "../searchAnswer";
 import { readTwoTeam } from "./read";
 import { readTeamFact } from "./families/facts";
+import { longForm } from "../searchLongForm";
 import { seasonStats } from "../teams";
 import { num } from "../../../src/shared/format";
 import type { StatBlock } from "../../../src/shared/searchStat";
@@ -31,6 +32,19 @@ beforeAll(async () => {
   for (const [t, code, rank] of [[4215, "USNJCMPPKWY", 2], [6980, "USNJCMPPKWY", 9], [4215, "USNJBCLM3", 2], [6980, "USNJBCLM3", 1]] as const) {
     await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, ?, ?, ?)", [code, t, rank]);
   }
+  // An earlier meet of the same league with teams that skipped meet 3: the league's standing counts them too.
+  await ev("USNJBCLM2", "NJ Bergen League Meet 2", "LeagueMeet", "2025-12-10");
+  await run("UPDATE events SET league = 'BCL' WHERE code IN ('USNJBCLM2', 'USNJBCLM3')");
+  await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'USNJBCLM2', 31997, 1), (2025, 'USNJBCLM2', 31998, 3)");
+  // A later meet 4215 skipped, with a team new to the league: not in the standing 4215's meet 3 rank comes from.
+  await ev("USNJBCLM4", "NJ Bergen League Meet 4", "LeagueMeet", "2026-02-10");
+  await run("UPDATE events SET league = 'BCL' WHERE code = 'USNJBCLM4'");
+  await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'USNJBCLM4', 31996, 1)");
+  // Another region's league with the same code, earlier: its teams aren't in New Jersey's BCL standing.
+  await ev("USCABCLM1", "California League Meet 1", "LeagueMeet", "2025-11-10");
+  await run("UPDATE events SET region = CASE WHEN code = 'USCABCLM1' THEN 'USCA' ELSE 'USNJ' END WHERE code LIKE 'US%BCLM%'");
+  await run("UPDATE events SET league = 'BCL' WHERE code = 'USCABCLM1'");
+  await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'USCABCLM1', 31995, 1), (2025, 'USCABCLM1', 31994, 2)");
   await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (2025, 'USNJCMPPKWY', 4215, 110, 8), (2025, 'USNJCMPPKWY', 6980, 50, 8)");
   await run(`INSERT INTO team_reliability (season, code, team, matches, no_shows, dqs, near_zero, contrib_n, recent_matches, recent_no_shows, recent_near_zero,
     no_show_rate, dq_rate, near_zero_rate, swing, penalty_ratio, predictability_ratio, idx, computed_at) VALUES
@@ -43,6 +57,21 @@ beforeAll(async () => {
     await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (?, ?, 'qual', 0, 3, ?, 'red', 1)", [season, code, t]);
   }
   await run("INSERT INTO team_season_stats (season, team, opr_np, matches, wins, losses, ties) VALUES (2025, 9999, 300, 2, 2, 0, 0)");
+  // An event abroad, in a country stored by FIRST's own label and a county's code (failed-search #823).
+  await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, 'ROCMP', 'Romania National Championship', 'Championship', 'Bucharest', 'B', 'Romania', '2026-03-01', '2026-03-01', 't')");
+  await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'ROCMP', 19564, 4)");
+  // A played match there, and an upcoming event the team is already listed for (Greptile on #1084).
+  await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'ROCMP', 'qual', 0, 1, 'Q1', '2026-03-01T10:00:00Z', 1, 80, 80, 60, 60, 't')");
+  await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'ROCMP', 'qual', 0, 1, 19564, 'red', 1)");
+  await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, 'ROFUT', 'Cluj Invitational', 'Qualifier', 'Cluj', 'CJ', 'Romania', '2099-02-01', '2099-02-01', 't')");
+  await run("INSERT INTO event_teams (season, code, team) VALUES (2025, 'ROFUT', 19564)");
+  // Played too, with no win-loss record: an event it played only as a surrogate, and a remote one (FIRST's match count).
+  await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, 'MDSUR', 'Chisinau Qualifier', 'Qualifier', 'Chisinau', 'C', 'Moldova', '2026-01-10', '2026-01-10', 't')");
+  await run("INSERT INTO event_teams (season, code, team) VALUES (2025, 'MDSUR', 19564)");
+  await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'MDSUR', 'qual', 0, 1, 'Q1', '2026-01-10T10:00:00Z', 1, 70, 70, 50, 50, 't')");
+  await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field, surrogate) VALUES (2025, 'MDSUR', 'qual', 0, 1, 19564, 'red', 1, 1)");
+  await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, remote, source) VALUES (2025, 'MDREM', 'Moldova Remote Qualifier', 'Qualifier', 'Chisinau', 'C', 'Moldova', '2026-01-20', '2026-01-20', 1, 't')");
+  await run("INSERT INTO event_teams (season, code, team, rank, qual_played) VALUES (2025, 'MDREM', 19564, 3, 5)");
   await rebuildSearch();
 });
 
@@ -50,6 +79,8 @@ describe("team facts", () => {
   it("what's read; a team against a field's average isn't two teams", () => {
     expect(readTeamFact("4215 auto opr")).toMatchObject({ id: "auto-opr", core: "4215" });
     expect(readTeamFact("4215 opr")).toMatchObject({ id: "opr", core: "4215" });
+    // OPR is already a per-match average (failed basic search): "average OPR" is the same number, the team left alone.
+    for (const q of ["4215 average opr", "4215 avg opr"]) expect(readTeamFact(q), q).toMatchObject({ id: "opr", core: "4215" });
     expect(readTeamFact("4215 event in 2025-26")).toMatchObject({ id: "events-season", season: 2025 });
     expect(readTeamFact("4215 events in new jersey")).toMatchObject({ id: "events-place", region: { state: "NJ" } });
     expect(readTeamFact("4215 opr vs world average")).toMatchObject({ id: "opr-vs-average", world: true });
@@ -93,6 +124,63 @@ describe("team facts", () => {
     const n = (await searchAnswer("4215 events in New Jersey 2024-25", { limit: 25 })).stat!;
     expect(n).toMatchObject({ title: "Events in New Jersey in 2024–25", none: expect.stringContaining("no events in New Jersey in 2024–25") });
   });
+  // Failed-search #823, held out: another team, other words. A whole country is every state or province of it.
+  it("events in a country, asked as a question", async () => {
+    expect(readTeamFact("19564 events in romania")).toMatchObject({ id: "events-place", region: null, country: { code: "RO" } });
+    const rows = async (q: string) => {
+      const s = (await searchAnswer(q, { limit: 25 })).stat;
+      expect(s, q).toMatchObject({ headline: { value: expect.stringMatching(/^\d+ events?$/) } });
+      const t = s!.blocks.find((b) => b.kind === "table");
+      return t && t.kind === "table" ? t.rows.map((r) => r.cells.event) : null;
+    };
+    // Newest first, unless the order asked is the date's (Greptile on #1084: it's kept, never dropped).
+    expect(await rows("19564 events in Romania")).toEqual(["Cluj Invitational", "Romania National Championship"]);
+    expect(await rows("which events did the marvels compete in romania this season, in date order")).toEqual(["Romania National Championship", "Cluj Invitational"]);
+    // Its events at home aren't a country's.
+    expect((await searchAnswer("4215 events in romania", { limit: 25 })).stat).toMatchObject({ none: expect.stringContaining("no events in Romania") });
+    // A bare year is the team's number there too, and keeps the country (Greptile on #1084: it threw).
+    expect(readTeamFact("2024 events in romania")).toMatchObject({ id: "events-place", core: "2024", country: { code: "RO" } });
+  });
+  it("events played: never the season's upcoming ones (Greptile on #1084)", async () => {
+    expect((await searchAnswer("19564 events in 2025-26", { limit: 25 })).stat!.headline).toMatchObject({ value: "4 events" });
+    const s = (await searchAnswer("how many events did the marvels play in 2025-26 and which was their best by rank", { limit: 25 })).stat!;
+    // Its record's event, a surrogate-only one and a remote one count; the upcoming one doesn't (Greptile on #1084).
+    expect(s).toMatchObject({ title: "Events played in 2025–26", headline: { value: "3 events" } });
+    const names = s.blocks.flatMap((b) => (b.kind === "table" ? b.rows.map((r) => String(r.cells.event)) : []));
+    expect(names).not.toContain("Cluj Invitational");
+  });
+  it("a season's events in one month, and the best finish named (failed-search #1079, #829, #1091)", async () => {
+    const stat = async (q: string) => (await searchAnswer(q, { limit: 25 })).stat!;
+    const rows = (s: Awaited<ReturnType<typeof stat>>) => s.blocks.flatMap((b) => (b.kind === "table" ? b.rows.map((r) => String(r.cells.event)) : []));
+    // January 2026 is 2025–26's: the surrogate-only qualifier and the remote one.
+    const jan = await stat("19564 events during january 2026");
+    expect(jan).toMatchObject({ title: "Events in January 2026 (2025–26)", headline: { value: "2 events" } });
+    expect(rows(jan).sort()).toEqual(["Chisinau Qualifier", "Moldova Remote Qualifier"]);
+    expect((await stat("did the marvels play at any event in january 2026")).headline).toMatchObject({ value: "2 events" });
+    expect((await stat("what events did the marvels play in march 2026")).headline).toMatchObject({ value: "1 event", sub: "Best finish #4 at Romania National Championship" });
+    expect((await stat("19564 events in may 2026")).none).toContain("no events in May 2026 (2025–26)");
+    // The best finish of the season's events: the remote qualifier's #3, ahead of the championship's #4.
+    expect((await stat("19564 events and best finish in 2025-26")).headline).toMatchObject({ value: "4 events", sub: "Best finish #3 at Moldova Remote Qualifier" });
+    // A month is the events list's filter only: any other answer would drop it.
+    expect(readTeamFact("19564 opr in march 2026")).toBeNull();
+    expect(readTeamFact("19564 events in march 2026")).toMatchObject({ id: "events-season", season: 2025, month: 2 });
+    // A team number that reads as a year keeps the month's own year (Greptile on #1084).
+    expect(readTeamFact("2023 events in march 2025")).toMatchObject({ id: "events-season", core: "2023", season: 2024, month: 2 });
+    expect(readTeamFact("2023 events in october 2025")).toMatchObject({ core: "2023", season: 2025, month: 9 });
+    expect(readTeamFact("2024 events in march 2024")).toMatchObject({ id: "events-season", core: "2024", season: 2023, month: 2 });
+    // A team number that isn't a year reads the same month and year.
+    expect(readTeamFact("4215 events in march 2024")).toMatchObject({ id: "events-season", core: "4215", season: 2023, month: 2 });
+    // The month with the season said apart keeps the month (Greptile on #1084).
+    expect((await stat("19564 events in march in 2025-26")).headline).toMatchObject({ value: "1 event" });
+    expect(readTeamFact("19564 events in march in 2025-26")).toMatchObject({ season: 2025, month: 2 });
+    // "Did … play at any event in <place>" isn't read as a played list: the place's list holds upcoming events too.
+    expect(longForm("did 19564 play at any event in romania") ?? "").not.toMatch(/events played/);
+    expect(longForm("did 19564 play at any event in june 2026")).toBe("19564 events played in june 2026");
+    // Every month form the fact reader reads (Greptile on #1084).
+    expect(longForm("did 19564 play at any event in the month of june")).toBe("19564 events played in the month of june");
+    expect(longForm("did 19564 play at any event in june last season")).toBe("19564 events played in june last season");
+    expect((await stat("did the marvels play at any event in the month of january in 2025-26")).headline).toMatchObject({ value: "2 events" });
+  });
   it("OPR against the world's, a state's and an event's division's average", async () => {
     // Worldwide: the team page's own world rank, and the average over the teams that rank counts, stated.
     expect((await searchAnswer("4215 OPR vs world average", { limit: 25 })).stat!.headline).toMatchObject({ value: "−14.6", sub: expect.stringMatching(/^#616 of 3 by OPR · .* · world average 116\.2 across 3 teams$/) });
@@ -104,7 +192,7 @@ describe("team facts", () => {
   });
   it("reliability, league standing, the next match; a question about the next match is the asks' own", async () => {
     expect((await searchAnswer("4215 reliability", { limit: 25 })).stat!.headline).toMatchObject({ value: "88", label: "out of 100 · field average 71" });
-    expect((await searchAnswer("4215 league rank", { limit: 25 })).stat!.headline).toMatchObject({ value: "#2 of 2", label: "League after NJ Bergen League Meet 3" });
+    expect((await searchAnswer("4215 league rank", { limit: 25 })).stat!.headline).toMatchObject({ value: "#2 of 4", label: "BCL league after NJ Bergen League Meet 3" });
     // An old event's match left unplayed is never "next"; a rookie's posted schedule is, with no season played.
     expect((await searchAnswer("4215 predicted score next match", { limit: 25 })).stat!.none).toContain("no upcoming match");
     expect((await searchAnswer("31000 predicted score next match", { limit: 25 })).stat!.headline).toMatchObject({ value: "Q3", label: expect.stringContaining("Future Qualifier") });
