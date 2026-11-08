@@ -75,7 +75,7 @@ export const TIME_WORDS = ["today", "tomorrow", "yesterday", "this weekend", "ne
 const ALWAYS_TIME = new Set(["today", "tomorrow", "yesterday", "this weekend", "next weekend", "this week", "next week", "this month", "next month", "upcoming", "coming up"]);
 
 /** The words that say a query asks for events ("meets in New Jersey"), singular (after singularize). */
-export const EVENT_WORDS = new Set(["meet", "event", "tournament", "championship", "qualifier", "scrimmage", "league", "competition", "premier", "kickoff", "comp", "champ", "champs"]);
+export const EVENT_WORDS = new Set(["meet", "event", "tournament", "championship", "qualifier", "scrimmage", "league", "competition", "premier", "kickoff", "comp", "champ", "champs", "cham"]);
 
 /** A question's own words: dropped from name matching when the query reads as a question (starts with one and has
  *  at least three words, or ended in "?"), so "can robots descore samples" never searches for teams named "Can". */

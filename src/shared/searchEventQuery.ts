@@ -28,6 +28,8 @@ export const EVENT_TYPES: Record<string, string[] | null> = {
   championship: ["Championship", "FIRSTChampionship"], qualifier: ["Qualifier", "SuperQualifier"],
   scrimmage: ["Scrimmage", "PracticeDay"], kickoff: ["Kickoff"], premier: ["Premier"],
   champ: ["Championship", "FIRSTChampionship"], champs: ["Championship", "FIRSTChampionship"],
+  // "cham" is "champ" cut short ("nj cham").
+  cham: ["Championship", "FIRSTChampionship"],
   // "states" ("nj states"): a state's own championship, never the FIRST Championship held there.
   states: ["Championship"],
   event: null, competition: null, comp: null,
@@ -37,7 +39,7 @@ export const EVENT_TYPES: Record<string, string[] | null> = {
 
 /** How an event word reads in a label, the word typed and no more ("Meets in New Jersey": never "League meets"). */
 const EVENT_LABEL: Record<string, string> = {
-  meet: "Meets", league: "League events", tournament: "Tournaments", championship: "Championships", champ: "Championships", champs: "Championships", states: "State championships",
+  meet: "Meets", league: "League events", tournament: "Tournaments", championship: "Championships", champ: "Championships", champs: "Championships", cham: "Championships", states: "State championships",
   qualifier: "Qualifiers", scrimmage: "Scrimmages", kickoff: "Kickoffs", premier: "Premier events",
   event: "Events", competition: "Events", comp: "Events", worlds: "FIRST Championship (Worlds) events",
 };
@@ -188,13 +190,13 @@ export function readEventQuery(raw: string): EventQuery | null {
   // "next" before an event word means upcoming ("when is the next meet in NJ"); a question's own words name nothing.
   if (!time && kinds.length && words.some((w) => /^next$/i.test(w))) time = "upcoming";
   if (statesOnly && !region) kinds.pop();
-  const named = words.filter((w) => { const l = w.toLowerCase(); return !STOPWORDS.has(l) && !QUESTION_WORDS.has(l) && !FRAME_WORDS.has(l) && !(region && /^(?:states?|champs?)$/i.test(w)); });
+  const named = words.filter((w) => { const l = w.toLowerCase(); return !STOPWORDS.has(l) && !QUESTION_WORDS.has(l) && !FRAME_WORDS.has(l) && !(region && /^(?:states?|champ?s?)$/i.test(w)); });
   // A question about the events ("who will win the NJ championship", "who won Inspire at …") or an action word
   // ("winner", "advance") asks something of them, read elsewhere: not the set of events itself.
   if (named.some((w) => ASKS.has(w.toLowerCase())) || (named.length && isQuestionForm(raw))) return null;
   const scoped = !!(time || year != null || season != null || region || where.length);
   if (!(kinds.length && scoped) && !(time && (region || where.length))) return null;
-  const ks = [...new Set(kinds.map((k) => (/^champs?$/i.test(k) ? "championship" : k.toLowerCase())))];
+  const ks = [...new Set(kinds.map((k) => (/^champ?s?$/i.test(k) ? "championship" : k.toLowerCase())))];
   // A specific kind with a generic one ("NJ states events") reads as the specific one.
   // Championships (one a season) by the types the words mean: "championship events in NJ" is still championships.
   const types = eventTypesOf(ks);

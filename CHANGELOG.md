@@ -27,6 +27,18 @@ Match searches can set a score an alliance had to reach: "where the losing allia
 ### Search
 - **A score to reach.** "Where the losing, winning, both or either alliance scored over, under or at least N" filters the match list by that alliance's final score, in a place, a time window or at an event named; the number is never read as a team. (#1096)
 
+## 4.3.7 — 2026-11-08
+
+"cham" said for a championship ("who won inspire in nj cham") finds that place's newest championship.
+
+### Highlights
+- [fixes] "nj cham" is New Jersey's championship, its newest one
+- [fixes] "who won inspire in nj cham this year" names this season's
+- [fixes] "cham" after a place works like "champ" and "champs"
+
+### Search
+- **"cham" is "champ" cut short.** A place's "cham" is its newest championship, as "champ" and "champs" are, never an older event whose name has the word. (#1122)
+
 ## 4.3.6 — 2026-11-08
 
 More plain searches answered: a team's highlights by part of its name, events said the way people say them, and a team's losses by a set margin.
