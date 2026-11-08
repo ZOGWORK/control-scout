@@ -108,8 +108,7 @@ export function readOprRating(raw: string): OprRatingQuestion | null {
     // A region is for a rank; "12345 rating in New Jersey" is its place on that region's ranking.
     if (region && !["opr-rank", "rating-rank", "rank", "opr-vs-team-average"].includes(id)) return null;
     if (world && region) return null;
-    // A rank with no stat named is a world or a place's rank; "12345 rating in 2024-25" is the rating card's.
-    if (id === "rank" && !world && !region) continue;
+    // A rank with no stat and no place named ("12345 rank", "<team> ranking") is its world rank, as "worldwide" says.
     if (id === "rating-rank" && !region && !/\b(?:rank|place|position|standing)/.test(m[0])) return null;
     const core = squash(words.replace(FILLER, " ").replace(/\b(?:highest|lowest|best|worst|average|vs|versus|compared|with|percent|top)\b/g, " "));
     if (!core) return null;
@@ -293,6 +292,14 @@ export async function oprRatingAnswer(f: OprRatingQuestion, team: Team, deps: Op
     const blocks: StatBlock[] = [];
     if (f.id === "rank") blocks.push(rankKpis(st!, await ratingPop(season), null, null));
     blocks.push(...(card?.blocks ?? []).filter((x) => x.kind === "kpis"));
+    // Its place on the world OPR list: the teams just above and below it ("who is ranked just above 12345").
+    if (f.id === "rank" || f.id === "opr-rank") {
+      const near = await all<{ team: number; name: string | null; opr: number; rank: number }>(
+        `SELECT s.team, t.name, s.opr_np opr, s.rank_np rank FROM team_season_stats s LEFT JOIN teams t ON t.number = s.team
+         WHERE s.season = ? AND s.rank_np BETWEEN ? AND ? AND s.opr_np IS NOT NULL ORDER BY s.rank_np, s.team`, [season, Math.max(1, rank - 2), rank + 2]);
+      if (near.length > 1) blocks.push({ kind: "table", title: "Nearby worldwide by OPR", columns: [{ key: "rank", label: "#", num: true }, { key: "team", label: "Team" }, { key: "opr", label: "OPR", num: true }],
+        rows: near.map((x) => ({ cells: { rank: Number(x.rank), team: `${x.team} ${x.name ?? ""}`.trim(), opr: num(Number(x.opr)) }, href: teamHref(Number(x.team), season), strong: Number(x.team) === team.number })) });
+    }
     const at = `#${n(rank)} of ${n(of)}`;
     const headline = f.id === "percentile"
       ? { value: `Top ${t}%`, label: `worldwide by OPR: ${at} · ${ordinal(pctl)} percentile`, sub: `OPR ${num(o.value)} · ${S}` }

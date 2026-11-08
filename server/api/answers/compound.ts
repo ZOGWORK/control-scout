@@ -12,15 +12,16 @@ import { searchSeason } from "./season.js";
 /** "over 100", "less than 10", "at least 3": a comparison with a number. */
 export interface Threshold { op: "gt" | "ge" | "lt" | "le"; value: number }
 /** A season stat a list filters, sorts or shows (families/leaderboard.ts BOARD_STATS keys). */
-export type ListStat = "opr" | "auto" | "teleop" | "endgame" | "rating" | "win-rate" | "record" | "reliability";
+export type ListStat = "opr" | "auto" | "teleop" | "endgame" | "rating" | "win-rate" | "record" | "reliability" | "matches" | "wins";
 
 /** The season words of a clause: one season, every season ("ever"), or none said. */
 export interface SeasonWords { season: number | null; ever: boolean; latest: boolean }
 
 export type CompoundQuestion =
-  /** Teams by place, filtered by an award won, a Worlds season or a stat threshold, sorted by a stat, top N. */
+  /** Teams by place, filtered by an award won, a Worlds season (gone to, or not), rookies or stat thresholds (each one
+   *  applied), sorted by a stat, top N. */
   | { kind: "list"; n: number | null; stat: ListStat | null; region: Region | null; country: { code: string; name: string } | null; city: string | null; season: number | null;
-      award: { type: string; label: string } | null; worlds: boolean; threshold: (Threshold & { stat: ListStat }) | null; outputs: ListStat[] }
+      award: { type: string; label: string } | null; worlds: boolean; noWorlds?: boolean; rookie?: boolean; thresholds: (Threshold & { stat: ListStat })[]; outputs: ListStat[] }
   /** One team's OPR at its first (or last) event of two seasons, side by side. */
   | { kind: "event-pair"; core: string; which: "first" | "last"; seasons: [number, number] }
   /** One team's matches it won or lost by a margin. */
@@ -89,6 +90,8 @@ const AWARDS: [RegExp, string, string][] = [
   [/^motivate$/, "Motivate", "Motivate Award"], [/^compass$/, "Compass", "Compass Award"], [/^judges?(?: choice)?$/, "JudgesChoice", "Judges' Choice Award"],
   [/^(?:an? )?(?:event|winning alliance|tournament)$/, "Winner", "Winning Alliance"],
 ];
+/** The judged awards by name alone, as said before "teams" ("Inspire teams"). */
+const JUDGED = String.raw`(inspire|think|innovate|design|reach|sustain|connect|control|motivate|compass)`;
 const AWARD = String.raw`(inspire|think|innovate|design|reach|sustain|connect|control|motivate|compass|judges?(?: choice)?|winning alliance|an? event|a tournament)`;
 
 /** A region named outright or by a near miss, else null (read.ts regionOf). */
@@ -96,25 +99,65 @@ const regionOf = (s: string): Region | null => { const rs = findRegions(s); retu
 
 /** "teams in NJ that went to worlds in 2025 and their opr", "top 5 NJ teams by auto opr who also won inspire", "teams
  *  from Oradell with opr over 100": a list of teams with at least one filter clause (an award, Worlds, a threshold). */
-function readList(q: string): CompoundQuestion | null {
+function readList(said: string): CompoundQuestion | null {
+  // "How many NJ teams went to worlds in 2024": the list, whose answer leads with how many there are.
+  const q = said.replace(/^(?:how many|the number of|number of)\s+(?=(?:\S+\s+){0,3}?(?:ftc\s+)?(?:teams?|robots?)\b)/, "");
   if (!/\b(?:teams?|robots?)\b/.test(q)) return null;
+  // Each clause read is cut out with a mark, so the words joining it to the rest ("and", "who") go with it.
   let rest = ` ${q} `;
-  const take = (re: RegExp) => { const m = re.exec(rest); if (m) rest = rest.replace(m[0], " "); return m; };
-  const WHO = String.raw`(?:(?:who|that|which)\s+)?(?:(?:also|have|has|had)\s+)*`;
+  const take = (re: RegExp) => { const m = re.exec(rest); if (m) rest = rest.replace(m[0], " ¦ "); return m; };
+  const WHO = String.raw`(?:(?:who|that|which)\s+)?(?:(?:also|have|has|had|already|still)\s+)*`;
   const aw = take(new RegExp(String.raw`\b${WHO}(?:won|win|received|earned|got)\s+(?:an?\s+|the\s+)?${AWARD}(?:\s+awards?)?\b`))
-    ?? take(new RegExp(String.raw`\b${AWARD}\s+(?:award\s+)?winners?\b`));
+    ?? take(new RegExp(String.raw`\b${AWARD}\s+(?:award\s+)?winners?\b`))
+    // An award's name before the teams ("Texas Inspire teams"): the teams that won it.
+    ?? take(new RegExp(String.raw`\b${JUDGED}(?:\s+awards?)?(?:\s+winning)?(?=\s+(?:ftc\s+)?(?:teams?|robots?)\b)`));
   const award = aw ? AWARDS.find(([re]) => re.test(aw[1]))! : null;
-  const wd = take(new RegExp(String.raw`\b${WHO}(?:went|go|gone|been|qualified|advanced|made it|competed|played|were|was)\s+(?:to|at|for|in)\s+(?:the\s+)?(?:worlds?|world championships?|first championship|houston)(?:\s+(?:in|during)?\s*(20\d\d)(?:\s*[-–/]\s*(\d\d))?)?\b`))
+  // Gone to Worlds, or not ("did not make worlds", "never went to worlds").
+  const NOT = String.raw`(?:did\s*n[o']?t|didnt|never|not|have\s*n[o']?t|has\s*n[o']?t|failed\s+to)\s+`;
+  const WENT = String.raw`(?:(?:went|go|gone|been|qualified|qualify|advanced|advance|made\s+it|make\s+it|competed|compete|played|play|were|was)\s+(?:to|at|for|in)|made|make|makes|reached|reach)`;
+  const WORLDS = String.raw`\s+(?:the\s+)?(?:worlds?|world championships?|first championship|houston)(?:\s+(?:in|during)?\s*(20\d\d)(?:\s*[-–/]\s*(\d\d))?)?\b`;
+  const nwd = take(new RegExp(String.raw`\b${WHO}${NOT}${WENT}${WORLDS}`));
+  const wd = nwd ? null : take(new RegExp(String.raw`\b${WHO}${WENT}${WORLDS}`))
     ?? take(/\b(?:worlds?|first championship)\s+(?:teams?|qualifiers?|attendees?)(?:\s+(?:in|during)?\s*(20\d\d)(?:\s*[-–/]\s*(\d\d))?)?\b/);
+  const ws = wd ?? nwd;
   // "Worlds in 2025" is the championship held in 2025 (the 2024–25 season); "worlds 2025-26" names its season.
-  const worldsSeason = wd?.[1] ? (wd[2] ? Number(wd[1]) : Number(wd[1]) - 1) : null;
-  const th = take(new RegExp(String.raw`\b(?:with|who\s+had|that\s+had|who\s+have|that\s+have|having|whose)\s+(?:an?\s+)?${STAT}\s+(?:of\s+|is\s+|was\s+)?${OP}\s+${NUM}%?`));
-  const out = take(new RegExp(String.raw`\b(?:and|with|plus|showing)\s+(?:their|its|the)\s+${STAT}(?:\s+(?:and|&)\s+${STAT})?\s*$`));
-  if (!award && !wd && !th) return null;
+  const worldsSeason = ws?.[1] ? (ws[2] ? Number(ws[1]) : Number(ws[1]) - 1) : null;
+  // Rookies: "rookie teams", "a team that started as a rookie this year".
+  const rookie = !!(take(/\b(?:(?:who|that)\s+)?(?:started|start|starting|began|begun)\s+(?:out\s+)?as\s+(?:an?\s+)?rookies?(?:\s+teams?)?\b/)
+    ?? take(/\b(?:rookie|first[\s-]year)(?=\s+(?:ftc\s+)?(?:teams?|robots?)\b)/));
+  // Thresholds, each applied: a stat against a number ("with OPR over 100", ", OPR 90+", "a win rate over 70 percent"),
+  // or a count of matches or wins ("with at least 30 matches", "that played 20+ matches"). A stat with a bare number
+  // and no comparison is at least that number; a year is never one ("by opr 2025").
+  const thresholds: (Threshold & { stat: ListStat })[] = [];
+  const LEAD = String.raw`(?:(?:with|who\s+had|that\s+had|who\s+have|that\s+have|who\s+has|that\s+has|having|whose)\s+)?`;
+  const AMOUNT = String.raw`${NUM}(?![\d.]|\s*[-–/]\s*\d)(?:\s*(\+|%|percent|per\s+cent)(?!\w))?`;
+  for (let k = 0; k < 3; k++) {
+    const T = new RegExp(String.raw`\b${LEAD}(?:an?\s+)?${STAT}\s+(?:of\s+|is\s+|was\s+)?(?:${OP}\s+)?${AMOUNT}`);
+    const seen = T.exec(rest);
+    // A year after a stat with no comparison ("by opr 2025") is the season's words, left for seasonWords.
+    if (seen && !(!seen[2] && !seen[4] && /^(?:19|20)\d\d$/.test(seen[3]))) {
+      const t = take(T)!;
+      const stat = statOf(t[1]);
+      if (!stat) return null;
+      thresholds.push({ stat, op: t[2] ? opOf(t[2]) : "ge", value: Number(t[3]) });
+      continue;
+    }
+    const c = take(new RegExp(String.raw`\b((?:with|having|who\s+(?:have|had|has)|that\s+(?:have|had|has)|(?:who\s+|that\s+)?(?:played|play|plays))\s+)?(?:${OP}\s+)?${NUM}(\+)?\s+(matches|match|games?|wins?)\b`));
+    if (!c) break;
+    // A count needs a comparison or a verb ("10 teams" never is one).
+    if (!c[1] && !c[2] && !c[4]) return null;
+    thresholds.push({ stat: /^w/.test(c[5]) ? "wins" : "matches", op: c[2] ? opOf(c[2]) : "ge", value: Number(c[3]) });
+  }
+  const out = take(new RegExp(String.raw`\b(?:and|with|plus|showing)\s+(?:their|its|the)\s+${STAT}(?:\s+(?:and|&)\s+${STAT})?(?:\s*¦)*\s*$`));
+  // Rookies alone are the rookie leaderboard's ("best rookie team in new jersey"): a list here needs another filter.
+  if (!award && !ws && !thresholds.length) return null;
+  // The words that joined a clause go with it; "list them all" and "worldwide" add nothing.
+  rest = rest.replace(/(?:\b(?:and|but|who|that|which|also|already)\s+)*¦(?:\s+(?:and|but)\b)*/g, " ")
+    .replace(/\b(?:list|show)\s+(?:them|all\s+of\s+them)(?:\s+all)?\s*$|\b(?:worldwide|world\s+wide|globally|in\s+the\s+world)\b/g, " ");
   const sw = seasonWords(rest);
   if (sw.ever) return null;
   rest = sw.rest;
-  const m = /^(?:show(?: me)?|list|which|what|find|get)?\s*(?:all )?(?:the )?(?:(?:top|best|highest(?: ranked)?|strongest)(?: (\d{1,2}))? )?(?:(.+?) )?(?:ftc )?(?:teams?|robots?)(?: (?:by|for|on|ranked by) (.+?))?(?: (?:in|from|based in) (.+?))?(?: (?:by|ranked by) (.+?))?$/.exec(squash(rest));
+  const m = /^(?:show(?: me)?|list|which|what|find|get|are there(?: any)?)?\s*(?:(?:the |an? )?(?:leaderboard|rankings?|list|standings) (?:for|of) )?(?:all |any |an? )?(?:the )?(?:(?:top|best|highest(?: ranked)?|strongest)(?: (\d{1,2}))? )?(?:(.+?) )?(?:ftc )?(?:teams?|robots?)(?: (?:by|for|on|ranked by|sorted by) (.+?))?(?: (?:in|from|based in) (.+?))?(?: (?:by|ranked by|sorted by) (.+?))?$/.exec(squash(rest));
   if (!m) return null;
   const stat = m[3] ?? m[5] ? statOf(m[3] ?? m[5]) : null;
   if ((m[3] ?? m[5]) && !stat) return null;
@@ -128,14 +171,12 @@ function readList(q: string): CompoundQuestion | null {
   const city = placeWords && !region && !country ? placeWords : null;
   if (city && !/^[a-z][a-z .'-]{1,40}$/.test(city)) return null;
   const outputs = out ? [out[1], out[2]].filter(Boolean).map((s) => statOf(s)).filter((s): s is ListStat => !!s) : [];
-  const tStat = th ? statOf(th[1]) : null;
-  if (th && !tStat) return null;
   return {
     kind: "list", n: m[1] ? Number(m[1]) : null, stat, region, country, city,
     // A Worlds season named wins; the season words otherwise (else the default season, said on the card).
     season: worldsSeason ?? sw.season,
-    award: award ? { type: award[1], label: award[2] } : null, worlds: !!wd,
-    threshold: th && tStat ? { stat: tStat, op: opOf(th[2]), value: Number(th[3]) } : null, outputs,
+    award: award ? { type: award[1], label: award[2] } : null, worlds: !!wd, ...(nwd ? { noWorlds: true } : {}), ...(rookie ? { rookie: true } : {}),
+    thresholds, outputs,
   };
 }
 

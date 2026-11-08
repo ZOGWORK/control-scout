@@ -16,8 +16,12 @@ import { regionOf } from "../../src/shared/searchEventQuery.js";
 import { SEASONS } from "../data/seasons.js";
 import { all, get } from "../db.js";
 import { normalize } from "./fuzzy.js";
+import { onlyTopicWords } from "../../src/shared/searchQuery.js";
+
+/** A name compared whole: lower case, any run of punctuation and spaces one space. */
+const wholeName = (n: string) => n.toLowerCase().replace(/[^\p{L}\d]+/gu, " ").trim();
 import { longForm } from "./searchLongForm.js";
-import { AWARDS, FILLER, FORBIDDEN, type Found, INTENTS, type Intent, LEADER_STAT_WORDS, PARAPHRASES, PHASES, PRECEDENCE, SCAFFOLD, WEAK_SIGNALS } from "./searchCatalog.js";
+import { AWARDS, FILLER, FORBIDDEN, type Found, INTENTS, type Intent, LEADER_STAT_WORDS, PARAPHRASES, PHASES, PRECEDENCE, SCAFFOLD, TAIL_FILLER, WEAK_SIGNALS } from "./searchCatalog.js";
 
 export type LayerId = "normalize" | "template" | "longform" | "keyword" | "paraphrase" | "filler" | "scope" | "fallback";
 export type OutcomeResult = "answered" | "no-match" | "team-fallback" | "weak" | "name-search-only" | "empty" | "ambiguous";
@@ -44,7 +48,8 @@ export interface SearchOutcome {
 
 const outcomes = new WeakMap<SearchAnswer, SearchOutcome>();
 /** A forbidden word an answer names in its own words, so it was read, not dropped. */
-const SAID_AS: Record<string, RegExp> = { last: /\b(?:latest|most recent)\b/, next: /\bupcoming\b/, and: /\s\+\s/ };
+// "More than 200" is said "over 200" ("Scores over 200"), "fewer than" as "under".
+const SAID_AS: Record<string, RegExp> = { last: /\b(?:latest|most recent)\b/, next: /\bupcoming\b/, and: /\s\+\s/, than: /\b(?:over|above|under|below|more than|fewer than|less than)\s+\d/ };
 
 const LAYER_NUMBER: Record<LayerId, string> = { normalize: "0", template: "1", longform: "1L", keyword: "2", paraphrase: "3", filler: "4", scope: "5", fallback: "6" };
 /** An outcome as failed-search reporting's trace reads it (server/searchFailures.ts SearchTrace): layers by number,
@@ -101,18 +106,19 @@ export function tokens(q: string): string[] {
  *  way), then accents, case and punctuation folded. */
 export const nameKey = (s: string) => normalize(s.replace(/[’']/g, ""));
 
-let names: { at: number; byName: Map<string, string[]>; list: [string, string][] } | null = null;
+let names: { at: number; byName: Map<string, string[]>; list: [string, string][]; whole: Map<string, string> } | null = null;
 export async function teamNames() {
   if (names && Date.now() - names.at < 10 * 60_000) return names;
   const rows = await all<{ number: number; name: string | null }>("SELECT number, name FROM teams WHERE name IS NOT NULL AND name <> ''");
-  const byName = new Map<string, string[]>(), list: [string, string][] = [];
+  const byName = new Map<string, string[]>(), list: [string, string][] = [], whole = new Map<string, string>();
   for (const r of rows) {
     const n = nameKey(r.name!);
     if (!n) continue;
     byName.set(n, [...(byName.get(n) ?? []), String(r.number)]);
     list.push([n, String(r.number)]);
+    whole.set(String(r.number), wholeName(r.name!));
   }
-  names = { at: Date.now(), byName, list };
+  names = { at: Date.now(), byName, list, whole };
   return names;
 }
 /** Forget the cached names (tests that write teams). */
@@ -127,7 +133,9 @@ export async function teamExists(n: string): Promise<boolean> {
 export async function teamsNamed(ws: string[]): Promise<string[]> {
   const n = ws.join(" ");
   if (!n || /^\d+$/.test(n)) return [];
-  const { byName, list } = await teamNames();
+  const { byName, list, whole } = await teamNames();
+  // What a question asks about ("alliances", "inspire") names a team only typed as its whole name (onlyTopicWords).
+  if (onlyTopicWords(n)) return (byName.get(n) ?? []).filter((x) => whole.get(x) === wholeName(n));
   const exact = byName.get(n);
   if (exact) return exact;
   // A one-word start of a name needs 6+ letters ("hypnotic"), so a common word ("total") isn't read as a team.
@@ -397,6 +405,14 @@ export async function stripFiller(q: string): Promise<{ q: string; dropped: stri
     const f = fill.find((p) => p.every((w, k) => low[i + k] === w && !keep.has(i + k)));
     if (f) { dropped.push(f.join(" ")); i += f.length; continue; }
     out.push(ws[i]); i++;
+  }
+  // How the answer is to be shown, at the end only (TAIL_FILLER), one phrase after another ("…, in order, with scores").
+  const tail = phrases(TAIL_FILLER).sort((a, b) => b.length - a.length);
+  for (let cut = true; cut;) {
+    cut = false;
+    const end = out.map((w) => nameKey(w));
+    const t = tail.find((p) => p.length < end.length && p.every((w, k) => end[end.length - p.length + k] === w));
+    if (t) { dropped.push(t.join(" ")); out.splice(out.length - t.length); cut = true; }
   }
   // A greeting or a softener alone is not a query: nothing is made from nothing.
   return out.length ? { q: out.join(" "), dropped } : { q, dropped: [] };

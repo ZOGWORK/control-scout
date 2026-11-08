@@ -175,6 +175,14 @@ describe("typos the spelling layer missed", () => {
       expect(a.card).toMatchObject({ title: "Worlds appearances", team: { number: t } });
     }
   });
+  it("a stray last word of four letters no word search knows is read without it (failed-search #1162; held out)", async () => {
+    for (const [t, name] of [[7149, "enforcers"], [23268, "ultraviolet"]] as const) {
+      const a = await full(`when did ${name} go to worlds pqzt`);
+      expect(a.step).toBe("did-you-mean");
+      expect(a.didYouMean).toBe(`when did ${name} go to worlds`);
+      expect(a.card).toMatchObject({ title: "Worlds appearances", team: { number: t } });
+    }
+  });
 });
 
 describe("a Worlds trip names its season's game", () => {

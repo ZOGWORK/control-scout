@@ -35,10 +35,11 @@ function Line({ x, className }: { x: SearchFollowUp; className?: string }) {
   );
 }
 
-/** The follow-ups for `q`, asked once `ready` (the answer on screen); none until then, and never another search's. */
-export function useFollowUps(q: string, prefer: string | undefined, ready: boolean): SearchFollowUps {
-  const { data } = useApi<SearchFollowUps & { q: string }>(ready && q ? `/api/search/follow${qs({ q, prefer })}` : null);
-  return data?.q === q ? data : NONE;
+/** The follow-ups for `q`, asked once `ready` (the answer on screen); none until then, and never another search's.
+ *  `season`: the answer's picked season (./SeasonPick.tsx), which they're asked about too. */
+export function useFollowUps(q: string, prefer: string | undefined, ready: boolean, season: number | null = null): SearchFollowUps {
+  const { data } = useApi<SearchFollowUps & { q: string; season?: number }>(ready && q ? `/api/search/follow${qs({ q, prefer, season: season ?? undefined })}` : null);
+  return data?.q === q && (data.season ?? null) === season ? data : NONE;
 }
 
 export function PeopleAlsoAsk({ ask, className }: { ask: SearchFollowUp[]; className?: string }) {

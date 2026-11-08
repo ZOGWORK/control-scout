@@ -7,7 +7,9 @@ import { onRecord } from "../../../src/shared/eventRecord.js";
 import type { StatLink, StatMatchRow } from "../../../src/shared/searchStat.js";
 import { dateRange, seasonLabel } from "../../../src/shared/format.js";
 import { CHAMPIONSHIP_TYPE } from "./clauses.js";
+import { eventToday } from "../../../src/shared/eventDay.js";
 import { reportedTeleopIncludesEndgame } from "../../data/seasons.js";
+import { bracketShape, DOUBLE_ELIM_FROM } from "../../../src/shared/bracketOdds.js";
 
 export interface TeamMatch {
   season: number; code: string; level: string; series: number; number: number; label: string;
@@ -27,6 +29,8 @@ export interface TeamMatch {
   counted: boolean;
   /** The team's robot was on the field (its alliance's score is one it helped make). */
   onField: boolean;
+  /** A match of its event's finals ([finalSeries]): "in the finals" answers count these only. */
+  final: boolean;
   result: "W" | "L" | "T";
   partners: number[]; opponents: number[];
 }
@@ -40,6 +44,30 @@ registerCache("Search answers: team matches", () => cache.clear());
  *  feeds, held the same day), then in the event's own match order
  *  (qualifications, then playoffs by bracket stage with the final, series 0, last), never by match time, which a played
  *  match may lack. */
+/** A match FIRST has scheduled for the team and not yet played, at an event that hasn't ended at its venue. */
+export interface UpcomingMatch {
+  season: number; code: string; level: string; series: number; number: number; label: string;
+  /** The match's scheduled time, else its event's first day. */
+  date: string | null;
+  event: string; type: string | null; country: string | null; state: string | null; alliance: "red" | "blue";
+}
+
+/** The team's scheduled matches still to play, soonest first: by event, then by time, untimed ones last (a schedule's rest: never on a record or a stat). Read
+ *  fresh: they change as the event plays them. */
+export async function upcomingMatches(team: number, now = Date.now()): Promise<UpcomingMatch[]> {
+  const from = new Date(now - 24 * 3600_000).toISOString().slice(0, 10);
+  const rows = await all<UpcomingMatch & { start: string | null; end: string | null; timezone: string | null }>(
+    `SELECT x.season, x.code, x.level, x.series, x.number, x.alliance, m.label, COALESCE(m.time, e.start) date, e.name event, e.type, e.country,
+            e.state, e.start, e.end, e.timezone
+     FROM match_teams x
+     JOIN matches m ON m.season = x.season AND m.code = x.code AND m.level = x.level AND m.series = x.series AND m.number = x.number
+     JOIN events e ON e.season = x.season AND e.code = x.code
+     WHERE x.team = ? AND m.played = 0 AND COALESCE(e.end, e.start) >= ? AND COALESCE(e.remote, 0) = 0
+     ORDER BY e.start, x.code, m.time IS NULL, m.time, x.level = 'playoff', x.series, x.number LIMIT 200`, [team, from]);
+  return rows.filter((r) => (r.end ?? r.start ?? "") >= eventToday(now, r.timezone).from)
+    .map(({ start: _s, end: _e, timezone: _t, ...r }) => ({ ...r, season: Number(r.season), series: Number(r.series), number: Number(r.number) }));
+}
+
 export function teamMatches(team: number): Promise<TeamMatch[]> {
   const hit = cache.get(team);
   if (hit && Date.now() - hit.at < TTL_MS) return hit.rows;
@@ -52,7 +80,7 @@ export function teamMatches(team: number): Promise<TeamMatch[]> {
 }
 
 async function load(team: number): Promise<TeamMatch[]> {
-  const [ms, others] = await Promise.all([
+  const [ms, others, finals] = await Promise.all([
     all<any>(
       `SELECT x.season, x.code, x.level, x.series, x.number, x.alliance, x.surrogate, x.on_field, m.label, COALESCE(m.time, e.start) date,
               m.red_total, m.blue_total, m.red_np, m.blue_np, m.red_auto, m.blue_auto, m.red_teleop, m.blue_teleop,
@@ -66,6 +94,7 @@ async function load(team: number): Promise<TeamMatch[]> {
       `SELECT y.season, y.code, y.level, y.series, y.number, y.team, y.alliance FROM match_teams x
        JOIN match_teams y ON y.season = x.season AND y.code = x.code AND y.level = x.level AND y.series = x.series AND y.number = x.number
        WHERE x.team = ? AND y.team <> x.team AND y.on_field = 1 ORDER BY y.station, y.team`, [team]),
+    finalSeries(team),
   ]);
   const key = (r: { season: number; code: string; level: string; series: number; number: number }) => `${r.season}|${r.code}|${r.level}|${r.series}|${r.number}`;
   const sides = new Map<string, { team: number; alliance: string }[]>();
@@ -85,11 +114,35 @@ async function load(team: number): Promise<TeamMatch[]> {
       ownPen: num(red ? r.red_pen : r.blue_pen), oppPen: num(red ? r.blue_pen : r.red_pen),
       counted: onRecord(r.level, { surrogate: !!Number(r.surrogate), onField: Number(r.on_field ?? 1) === 1 }),
       onField: Number(r.on_field ?? 1) === 1,
+      final: r.level === "playoff" && finals.has(`${r.season}|${r.code}|${r.series}`),
       result: own > opp ? "W" : own < opp ? "L" : "T",
       partners: around.filter((o) => o.alliance === r.alliance).map((o) => o.team),
       opponents: around.filter((o) => o.alliance !== r.alliance).map((o) => o.team),
     };
   });
+}
+
+/** The finals series ("season|code|series") at each event the team played playoffs at: a classic bracket's final
+ *  (series 0), a double-elimination bracket's grand final and its if-needed replay, by the bracket its alliance count
+ *  and posted series make (src/shared/bracketOdds.ts). A bracket that fits no known shape has no finals named. */
+const FINAL_STAGES = new Set(["Final", "Grand final", "Final (if needed)"]);
+async function finalSeries(team: number): Promise<Set<string>> {
+  const rows = await all<{ season: number; code: string; series: string; alliances: number }>(
+    `SELECT m.season, m.code, GROUP_CONCAT(DISTINCT m.series) series,
+            (SELECT COUNT(*) FROM alliances a WHERE a.season = m.season AND a.code = m.code) alliances
+     FROM (SELECT DISTINCT season, code FROM match_teams WHERE team = ? AND level = 'playoff') t
+     JOIN matches m ON m.season = t.season AND m.code = t.code AND m.level = 'playoff' AND m.played = 1
+     GROUP BY m.season, m.code`, [team]);
+  const out = new Set<string>();
+  for (const r of rows) {
+    const season = Number(r.season), posted = String(r.series ?? "").split(",").filter(Boolean).map(Number);
+    const shape = bracketShape(season, Number(r.alliances), posted);
+    const finals = shape ? shape.nodes.filter((n) => FINAL_STAGES.has(n.stage)).map((n) => n.series)
+      // No alliances posted: a classic bracket's final is still series 0.
+      : season < DOUBLE_ELIM_FROM ? [0] : [];
+    for (const x of finals) out.add(`${season}|${r.code}|${x}`);
+  }
+  return out;
 }
 
 /** An event's name as answers show it: a FIRST Championship's long name ("2024 FIRST Championship presented by BAE
