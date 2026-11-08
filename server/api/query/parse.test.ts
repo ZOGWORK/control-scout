@@ -27,6 +27,8 @@ const TEAMS = [
   // Teams named for what a question asks about: theirs only when typed as their whole name.
   { number: 30012, name: "Alliance", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
   { number: 30013, name: "Inspires", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
+  { number: 30014, name: "The King's School", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
+  { number: 30015, name: "The King's School", city: "Newark", state: "NJ", country: "USA", lastPlayed: 2026 },
 ];
 const EVENTS = ["east bergen conference", "new jersey championship", "nj championship", "turnpike division"];
 const ctx: ParseContext = {
@@ -197,6 +199,23 @@ describe("slots", () => {
     // Two still tied: never guessed; the other team named breaks it by region.
     expect((await parse("ultraviolet opr")).complete).toBe(false);
     expect((await parse("ultraviolet vs hypnotic robotics")).teams.map((t) => t.number)).toEqual([23268, 4215]);
+  });
+  it("reads a place typed right after a shared name as which team, never where its matches were", async () => {
+    for (const q of ["ultraviolet nj latest", "ultraviolet nj highlights", "ultraviolet new jersey latest"]) {
+      const p = await parse(q);
+      expect(p.teams, q).toMatchObject([{ number: 23268, rule: "the one in New Jersey" }]);
+      expect(p.place, q).toBeNull();
+      expect(p.complete, q).toBe(true);
+    }
+    expect(await parse("ultraviolet latest")).toMatchObject({ intent: "recent-match", complete: false });
+    // A possessive in the name ("The King's School nj") still reads the place as right after it.
+    const k = await parse("the king's school nj latest");
+    expect(k.teams).toMatchObject([{ number: 30015 }]);
+    expect(k.place).toBeNull();
+    // A time typed between them keeps the place where the matches were.
+    expect((await parse("ultraviolet in 2025-26 new jersey record")).place).toMatchObject({ name: "New Jersey" });
+    // Said with a preposition, the place still picks the team and stays where its matches were.
+    expect((await parse("ultraviolet record in new jersey")).place).toMatchObject({ name: "New Jersey" });
   });
   it("reads a bare year as a season beside a team, and as a team alone", async () => {
     expect((await parse("4215 record 2027")).time).toMatchObject({ kind: "season", season: 2027, year: 2027 });
