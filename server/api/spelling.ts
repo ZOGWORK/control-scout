@@ -405,14 +405,17 @@ export function bestFix(typed: string): string | null {
   return `${m[1]}best team`;
 }
 
-/** A query cut off mid-word ("when was the first time enforcers whe"): its last word, of three letters or fewer, is no
+/** A query cut off mid-word ("when was the first time enforcers whe") or ending in a stray word ("theseus highlights
+ *  decd"): its last word, of four letters or fewer, is no
  *  word search or the data knows. The query without it, or null. A trip question left without its trip ("when was the
  *  first time enforcers") is completed as the one asked about most, Worlds ("… went to worlds"). */
 export async function cutOff(typed: string): Promise<string | null> {
-  const m = /^(.*\S)\s+(\p{L}{1,3})$/u.exec(typed.trim());
+  const m = /^(.*\S)\s+(\p{L}{1,4})$/u.exec(typed.trim());
   if (!m) return null;
   const w = m[2].toLowerCase(), v = await vocab();
   if (v.keep.has(w) || v.count.has(w) || v.own.has(w)) return null;
+  // A four-letter word that is a known word mistyped ("oper" for "opr") is corrected, never dropped.
+  if (w.length === 4 && correctWord(w, v, true)) return null;
   const rest = m[1];
   return /^when (?:was|is) the (?:first|last|most recent) time \S/i.test(rest) && !/\b(?:worlds?|states?|championships?)\b/i.test(rest) ? `${rest} went to worlds` : rest;
 }
