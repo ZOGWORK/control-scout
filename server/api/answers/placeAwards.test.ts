@@ -74,6 +74,14 @@ const rows = (s: Awaited<ReturnType<typeof placeAwardsAnswer>>, i = 0) => {
 };
 
 describe("a place's award winners", () => {
+  it("the most of one award with no place said is every team's", async () => {
+    for (const q of ["most inspire awards", "teams with the most inspire awards", "which team has the most inspire awards"]) {
+      expect(await readPlaceAwards(q), q).toMatchObject({ place: null, types: ["Inspire"], mode: "most" });
+    }
+    // A list of winners still needs its place.
+    expect(await readPlaceAwards("inspire award winners")).toBeNull();
+  });
+
   it("lists a state's winners of one award, 1st place only, the default season", async () => {
     const ask = await readPlaceAwards("Texas Think winners");
     expect(ask).toMatchObject({ place: { kind: "region", state: "TX" }, types: ["Think"], mode: "list", season: null });

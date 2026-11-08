@@ -37,7 +37,7 @@ const BY: Record<string, { col: string; label: string }> = {
   opr: { col: "opr_np", label: "OPR" }, rating: { col: "rating_np", label: "Prediction rating" },
 };
 /** Words that frame the ask and name nothing. */
-const FRAME = /\b(?:who|which|what|that|whats|what's|is|are|was|were|the|a|an|any|did|do|does|has|have|had|ever|teams?|from|in|at|of|by|for|and|both|or|award|awards|winners?|won|win|wins|got|get|received|recipients?|been|there|all|list|every|same|event|tournament|competition|most|rarest|least|common|rare|times?|count|number|how|many|season|year|this|last)\b/g;
+const FRAME = /\b(?:who|which|what|that|whats|what's|is|are|was|were|the|a|an|any|did|do|does|has|have|had|ever|teams?|from|in|at|of|by|for|and|both|or|award|awards|winners?|won|win|wins|got|get|received|recipients?|been|there|all|list|every|same|event|tournament|competition|most|rarest|least|common|rare|times?|count|number|how|many|season|year|this|last|with)\b/g;
 
 export interface PlaceAwardsAsk {
   place: Place | null;
@@ -117,7 +117,8 @@ export async function readPlaceAwards(q: string): Promise<PlaceAwardsAsk | null>
       }
     }
     if (!place || idx.teamsNamed(left).length) return null;
-  } else if (mode !== "same-event") return null;
+    // The most of an award with no place said is every team's ("most inspire awards"); a list needs its place.
+  } else if (mode !== "same-event" && mode !== "most") return null;
   if (stage && (!place || byM)) return null;
   return { place, types, season, seasonSaid, worlds, mode, by: (byM?.[1] as keyof typeof BY) ?? null, ...(stage ? { stage } : {}) };
 }
