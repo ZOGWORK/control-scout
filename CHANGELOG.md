@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.3.1 — 2026-11-08
+
+Each team's colour key on a side-by-side card is a full-size tap target on a phone, even for a short team number.
+
+### Highlights
+- [fixes] A short team number's colour key is easy to tap on a phone
+- [fixes] Side-by-side cards keep their keys the same size
+- [fixes] Nothing changes on a wider screen
+
+### Search
+- **Team keys, easy to tap.** The colour key above a side-by-side card's bars ("207", "8902") is at least 44px wide on a phone as well as 44px tall, so a two- or three-digit team number isn't a narrow target; from tablet width up it sizes to its text as before. (#1176)
+
 ## 4.3.0 — 2026-11-08
 
 A search answer's season can be switched in place: the season chip at the top right of the card lists the seasons there's data for, and picking one shows the same answer for that season.
