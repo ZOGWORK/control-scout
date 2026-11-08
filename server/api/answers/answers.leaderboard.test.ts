@@ -37,6 +37,8 @@ describe("what's read", () => {
     expect(readLeaderboard("Best rookie team in New Jersey")).toMatchObject({ kind: "rookie", stat: "opr" });
     expect(readLeaderboard("Most improved team in New Jersey")).toMatchObject({ kind: "improved" });
     expect(readLeaderboard("Teams in Oradell")).toMatchObject({ kind: "city", city: "oradell" });
+    // A country is never a city, even one a team lists as its home city.
+    for (const q of ["teams in romania", "best team in romania", "teams from canada"]) expect(readLeaderboard(q)?.kind ?? "", q).not.toMatch(/^city/);
     expect(readLeaderboard("top teams by overall OPR in NJ")).toMatchObject({ kind: "top", stat: "opr", region: { key: "USA:NJ" } });
     expect(readLeaderboard("top 10 teams in NJ")).toMatchObject({ kind: "top", stat: "rating", n: 10, region: { key: "USA:NJ" } });
     expect(readLeaderboard("top teams in NJ")).toBeNull();
