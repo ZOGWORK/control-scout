@@ -25,7 +25,7 @@ Each team's colour key on a side-by-side card is a full-size tap target on a pho
 - [fixes] Nothing changes on a wider screen
 
 ### Search
-- **Team keys, easy to tap.** The colour key above a side-by-side card's bars ("207", "8902") is at least 44px wide on a phone as well as 44px tall, so a two- or three-digit team number isn't a narrow target; from tablet width up it sizes to its text as before. (#PRNUM)
+- **Team keys, easy to tap.** The colour key above a side-by-side card's bars ("207", "8902") is at least 44px wide on a phone as well as 44px tall, so a two- or three-digit team number isn't a narrow target; from tablet width up it sizes to its text as before. (#1176)
 
 ## 4.2.5 — 2026-11-08
 
