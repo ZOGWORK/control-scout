@@ -25,7 +25,7 @@ Topic words are read as the topic, not as a team that happens to share the name,
 - [fixes] "Theseus higlights" shows Theseus's highlights
 
 ### Search
-- **Topic words stay topics.** A phrase made only of topic words ("alliances", "inspire awards", "event results") reads as a team only when it is that team's whole name, so "nj states alliances" shows the championship's alliances and "most inspire awards" ranks the teams by Inspire Awards won, worldwide or in a region; "inspire" is no longer pluralized into a team name, and a misspelling of "highlights" or "videos" is corrected to that word. (#PR)
+- **Topic words stay topics.** A phrase made only of topic words ("alliances", "inspire awards", "event results") reads as a team only when it is that team's whole name, so "nj states alliances" shows the championship's alliances and "most inspire awards" ranks the teams by Inspire Awards won, worldwide or in a region; "inspire" is no longer pluralized into a team name, and a misspelling of "highlights" or "videos" is corrected to that word. (#1180)
 
 ## 4.2.5 — 2026-11-08
 
