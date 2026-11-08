@@ -845,7 +845,9 @@ export async function twoTeamSearch(q: string, two: TwoTeamQuestion, resolve: Re
   // card's season, the one named or else the one the card picks (every team played it).
   const seasonCompare = two.id === "compare" && !s.at && !s.championship && !s.states;
   const leadSeason = seasonCompare ? scope.season ?? (await compareSeason([a.number, b.number])) : scope.season;
-  const lead = two.id === "predict" || seasonCompare ? (await versusAnswer(`${a.number} vs ${b.number}`, new Set(), leadSeason))?.hits.find((h) => h.kind === "compare") : undefined;
+  // Awards side by side leads with Compare opened on its awards, as "… vs … awards" always opened it.
+  const lead = two.id === "predict" || seasonCompare || two.id === "awards-vs"
+    ? (await versusAnswer(`${a.number} vs ${b.number}${two.id === "awards-vs" ? " awards" : ""}`, new Set(), leadSeason))?.hits.find((h) => h.kind === "compare") : undefined;
   // Predict opens on the season the card's call is for.
   const predictSeasonOf = two.id === "predict" ? scope.season ?? (await predictionSeason(a.number, b.number)).season : null;
   const pages = predictSeasonOf != null ? [{ title: `Predict ${a.number} vs ${b.number}`, href: predictHref({ mode: "match", season: predictSeasonOf, red: [a.number], blue: [b.number] }) }, ...opts.pages] : opts.pages;

@@ -17,6 +17,9 @@ export interface Names {
   team(n: number): TeamName | undefined;
   /** Teams whose whole name is these words (folded). */
   teamsNamed(words: string): TeamName[];
+  /** The one team whose name starts with these whole words ("hypnotic": Hypnotic Robotics), when no other team's
+   *  name starts so and no team is named just this. Null otherwise, or for a start under five letters. */
+  teamStarting(words: string): TeamName | null;
   /** The one team whose name these words nearly spell ("the robcats": The Robocats): one letter off in a name of up
    *  to eight letters, two in a longer one, and no other name as close. Null when none is, or two are. */
   nearTeam(words: string): TeamName | null;
@@ -46,6 +49,8 @@ export function buildNames(teams: Row[], places: { city: string | null; state: s
   let longest = 1;
   /** Folded names by length, for the near-miss look-up. */
   const byLength = new Map<number, string[]>(), lengthed = new Set<string>();
+  /** Teams by the start of their name in whole words. */
+  const byStart = new Map<string, Set<TeamName>>();
   for (const t of teams) {
     const tn: TeamName = { number: Number(t.number), name: t.name, city: t.city, state: t.state, country: t.country, lastPlayed: t.lastPlayed == null ? null : Number(t.lastPlayed) };
     byNumber.set(tn.number, tn);
@@ -65,6 +70,12 @@ export function buildNames(teams: Row[], places: { city: string | null; state: s
     // The dotted name as its word is a name people type, so a near miss of it is looked up too ("ice robotcs").
     const word = fold(joinDotted(t.name ?? ""));
     if (word !== k && !lengthed.has(word)) { lengthed.add(word); (byLength.get(word.length) ?? byLength.set(word.length, []).get(word.length)!).push(word); }
+    // Every start of the name in whole words, short of the whole ("hypnotic" of "hypnotic robotics").
+    const ws = k.split(" ");
+    for (let n = 1; n < ws.length; n++) {
+      const s = ws.slice(0, n).join(" ");
+      (byStart.get(s) ?? byStart.set(s, new Set()).get(s)!).add(tn);
+    }
   }
   // A town is known with the region (or country) it's in; the same town name in two regions stays ambiguous.
   const towns = new Map<string, Map<string, { country: string; state: string | null; city: string }>>();
@@ -86,6 +97,10 @@ export function buildNames(teams: Row[], places: { city: string | null; state: s
   return {
     team: (n) => byNumber.get(n),
     teamsNamed: (w) => byName.get(fold(w)) ?? [],
+    teamStarting(w) {
+      const f = fold(w), s = byStart.get(f);
+      return f.replace(/\s/g, "").length >= 5 && !byName.has(f) && s?.size === 1 ? [...s][0] : null;
+    },
     nearTeam(w) {
       const f = fold(w);
       if (f.replace(/\s/g, "").length < 5 || byName.has(f)) return null;

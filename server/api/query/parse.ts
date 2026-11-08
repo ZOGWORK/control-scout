@@ -275,7 +275,13 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       // A longer name is specific enough beside another ("hypnotic robotics bad wolf").
       const loose = (t: Tok | undefined) => !!t && !t.used && !isLex(t.w) && !/^\d+$/.test(t.w);
       if (len === 1 && (loose(toks[i - 1]) || loose(toks[i + len]))) continue;
-      const named = ctx.names.teamsNamed(span.map((t) => t.w).join(" "));
+      let named = ctx.names.teamsNamed(span.map((t) => t.w).join(" "));
+      // The start of exactly one team's name stands for it ("hypnotic recent matches": Hypnotic Robotics), unless the
+      // words name a place or start an event's name ("garden qualifier").
+      if (!named.length) {
+        const one = ctx.names.teamStarting(span.map((t) => t.w).join(" "));
+        if (one && !ctx.names.place(span.map((t) => t.w).join(" "), span.map((t) => t.typed).join(" ")) && !EVENT_NAME_WORDS.has(toks[i + len]?.w ?? "")) named = [one];
+      }
       if (!named.length) continue;
       // What a question asks about ("alliances", "inspire", "stats") names a team only typed as its whole name: "nj
       // states alliances" is never team Alliance, "most inspire awards" never team Inspires (onlyTopicWords).

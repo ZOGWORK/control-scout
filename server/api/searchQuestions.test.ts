@@ -201,7 +201,7 @@ describe("versus and names", () => {
     for (const q of ["4215 vs 6980", "hypnotic robotics vs badwolf", "bad wolf versus hypnotic", "hypnotic vs bad wolf history"]) {
       expect(hitHref((await searchAnswer(q)).hits[0]), q).toBe("/compare?teams=4215,6980");
     }
-    expect(hitHref((await searchAnswer("hypnotic vs bad wolf awards")).hits[0])).toBe("/compare?teams=4215,6980#awards");
+    for (const q of ["hypnotic vs bad wolf awards", "hypnotic robotics vs bad wolf awards"]) expect(hitHref((await searchAnswer(q)).hits[0]), q).toBe("/compare?teams=4215,6980#awards");
     expect((await searchAnswer("badwolf")).hits[0].ref).toBe("6980");
   });
   it("a name matching only a never-played registration names no team: the recovery note, never a broken Compare", async () => {

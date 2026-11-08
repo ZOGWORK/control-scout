@@ -27,6 +27,9 @@ const TEAMS = [
   // Teams named for what a question asks about: theirs only when typed as their whole name.
   { number: 30012, name: "Alliance", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
   { number: 30013, name: "Inspires", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
+  { number: 30014, name: "Gearhead Gang", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
+  { number: 30015, name: "Quantum Leap", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
+  { number: 30016, name: "Quantum Bots", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
 ];
 const EVENTS = ["east bergen conference", "new jersey championship", "nj championship", "turnpike division"];
 const ctx: ParseContext = {
@@ -37,6 +40,12 @@ const ctx: ParseContext = {
 const parse = (q: string) => parseQuery(q, ctx);
 
 describe("slots", () => {
+  it("the start of exactly one team's name is that team; a start two names share, or a place, is never a guess", async () => {
+    for (const q of ["gearhead last 3 matches", "Gearhead opr", "most recent match of gearhead"]) expect((await parse(q)).teams.map((t) => t.number), q).toEqual([30014]);
+    // Two teams start "quantum"; a town's name is the town; a whole name is still its own team.
+    for (const q of ["quantum last matches", "santo domingo teams"]) expect((await parse(q)).teams, q).toEqual([]);
+    expect((await parse("delta last matches")).teams.map((t) => t.number)).toEqual([30005]);
+  });
   it("a word a question asks about names a team only typed as the team's whole name", async () => {
     const near = { ...ctx, nearTeam: async (w: string) => ctx.names.nearTeam(w) };
     for (const q of ["nj states alliances", "most inspire awards", "inspire award winners"]) expect((await parseQuery(q, near)).teams, q).toEqual([]);
