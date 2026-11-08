@@ -156,6 +156,15 @@ describe("people also ask", () => {
     expect(qs.filter((x) => /\bin in\b/i.test(x))).toEqual([]);
   });
 
+  it("never asks about a place the card answered without", async () => {
+    const q = "best teams in new jersey by opr";
+    const p = await parseQuery(q, await parseContext());
+    const a = await pageAnswer(q, 25, new Set());
+    expect(candidates(p, a).some((x) => /New Jersey/.test(x.q))).toBe(true);
+    // The same words read, but a card that names no place (as "… in one season" read as a town named One).
+    const away = { ...a, stat: { ...a.stat!, title: "Top teams worldwide", scope: ["Worldwide"] } };
+    expect(candidates(p, away).filter((x) => /New Jersey/.test(x.q))).toEqual([]);
+  });
   it("says the season in two teams' season questions, never in their head-to-head", async () => {
     const q = "4215 vs 6980 2024-25";
     const qs = candidates(await parseQuery(q, await parseContext()), await pageAnswer(q, 25, new Set())).map((x) => x.q);
