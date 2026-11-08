@@ -62,10 +62,12 @@ const TEAM: Template[] = [
   T("team", ["t"], (s) => `What is ${s.t}'s current streak?`, (s) => `${s.t} current streak`),
   T("events", ["t"], (s) => `What was ${s.t}'s first event?`, (s) => `${s.t} first event`),
 ];
+// A season's numbers (OPR, record) say the season the query said, as one team's do; a prediction and the
+// head-to-head are about every meeting, never one season's.
 const TWO: Template[] = [
-  T("compare", ["t", "u"], (s) => `Who has the higher OPR, ${s.t} or ${s.u}?`, (s) => `${s.t} vs ${s.u} opr`),
+  T("compare", ["t", "u"], (s) => `Who has the higher OPR${IN(s)}, ${s.t} or ${s.u}?`, (s) => `${s.t} vs ${s.u} opr${AT(s)}`, true),
   T("predict", ["t", "u"], (s) => `Who would win, ${s.t} or ${s.u}?`, (s) => `${s.t} vs ${s.u} prediction`),
-  T("compare", ["t", "u"], (s) => `Who has the better record, ${s.t} or ${s.u}?`, (s) => `${s.t} vs ${s.u} record`),
+  T("compare", ["t", "u"], (s) => `Who has the better record${IN(s)}, ${s.t} or ${s.u}?`, (s) => `${s.t} vs ${s.u} record${AT(s)}`, true),
   T("compare", ["t", "u"], (s) => `How has ${s.t} done against ${s.u}?`, (s) => `${s.t} vs ${s.u} head to head`),
 ];
 const EVENT: Template[] = [

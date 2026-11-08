@@ -50,6 +50,10 @@ describe("withSeason", () => {
     expect(await withSeason("22024 opr 2024", 2025, NOW)).toBe("22024 opr 2025–26");
   });
 
+  it("never takes a score threshold for a year", async () => {
+    expect(await withSeason("4215 predictions off by at least 2025 pts", 2024, NOW)).toBe("4215 predictions off by at least 2025 pts 2024–25");
+  });
+
   it("keeps a stored name asked about as words, a game's name in it included", async () => {
     expect(await withSeason("teams named powerplay pioneers in 2025-26", 2024, NOW)).toBe("teams named powerplay pioneers 2024–25");
   });

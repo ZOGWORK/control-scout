@@ -156,6 +156,14 @@ describe("people also ask", () => {
     expect(qs.filter((x) => /\bin in\b/i.test(x))).toEqual([]);
   });
 
+  it("says the season in two teams' season questions, never in their head-to-head", async () => {
+    const q = "4215 vs 6980 2024-25";
+    const qs = candidates(await parseQuery(q, await parseContext()), await pageAnswer(q, 25, new Set())).map((x) => x.q);
+    expect(qs).toContain("Who has the higher OPR in 2024-25, 4215 or 6980?");
+    expect(qs).toContain("Who has the better record in 2024-25, 4215 or 6980?");
+    expect(qs).toContain("How has 4215 done against 6980?");
+  });
+
   it("asks the same questions of any team", async () => {
     const shape = async (t: number) => {
       const q = `${t} record`;
