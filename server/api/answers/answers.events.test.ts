@@ -95,6 +95,10 @@ describe("awards", () => {
     await run("INSERT INTO teams (number, name) VALUES (1234, 'Newcomers')");
     const n = await searchAnswer("1234 event wins", { limit: 25 });
     expect(n.stat!.none).toMatch(/^None found: no 1st-place finishes and no Inspire Awards/);
+    // A team's whole name with a winner word, or its titles, are its event wins (failed-search #1131); an event's name
+    // with one stays that event's winners.
+    for (const q of ["hypnotic robotics winner", "Hypnotic Robotics champion", "4215 titles"]) expect((await searchAnswer(q, { limit: 25 })).stat, q).toMatchObject({ intent: "event-wins", headline: { value: "1 win" } });
+    expect((await searchAnswer("new jersey championship winner", { limit: 25 })).stat?.intent).toBe("winning-alliance");
   });
   it("1st-place as an adjective, 1st place as a noun, the same everywhere (audit v2.8.9)", async () => {
     const a = await searchAnswer("Has 4215 ever won an event", { limit: 25 });

@@ -33,7 +33,7 @@ export { hitHref } from "../../shared/search";
 /** How long typing must pause before results are asked for: nothing is searched letter by letter. Enter skips it. */
 export const SEARCH_DEBOUNCE_MS = 1000;
 
-type Answered = { q: string; hits: SearchHit[]; answer?: SearchAnswer; /** Fetched here (not the first paint's): only these stay on screen for a newer query. */ live?: boolean; /** Answered from data saved on this device (it may not know every team). */ saved?: boolean };
+type Answered = { q: string; /** The picked season it was asked with (useSearchHits season). */ season?: number | null; hits: SearchHit[]; answer?: SearchAnswer; /** Fetched here (not the first paint's): only these stay on screen for a newer query. */ live?: boolean; /** Answered from data saved on this device (it may not know every team). */ saved?: boolean };
 
 /** Debounced search; my team, tracked and shortlisted teams/events rank first among equal matches.
  *  Without `kinds` it asks for the whole answer (step, pages, recovery), and when that answer is weak and Bruno AI
@@ -52,7 +52,9 @@ export function usePreferKey(): string {
   ])].slice(0, 100).join(","), [state.myTeam, state.tracked, state.bookmarks]);
 }
 
-export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?: { q: string; hits: SearchHit[] } | null, refine = true) {
+/** `season`: the season the answer's picker chose (/search?in=), sent as ?season= (server/api/answers/season.ts
+ *  withSeason); results remember it with their query. */
+export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?: { q: string; hits: SearchHit[] } | null, refine = true, season: number | null = null) {
   // Results remember the query they answer, so a pick can never come from a previous query.
   const [res, setRes] = useState<Answered>(() => (initial ? { q: initial.q, hits: initial.hits, answer: isAnswer(initial) ? initial : undefined } : { q: "", hits: [] }));
   const [ai, setAi] = useState<{ q: string; answer: SearchAnswer | null } | null>(null);
@@ -86,12 +88,12 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
     const run = () => {
       waiting.current = null;
       // A box limited to some kinds asks the server for only those, so other kinds (often teams) can't crowd its own out.
-      apiFetch<{ hits: SearchHit[] }>(`/api/search?q=${encodeURIComponent(query)}&limit=${limit}${kindKey ? `&kinds=${encodeURIComponent(kindKey)}` : "&answer=1"}${prefer ? `&prefer=${encodeURIComponent(prefer)}` : ""}${!kindKey && myTeam && MINE.test(query) ? `&my=${myTeam}` : ""}`, { signal: ctrl.signal })
+      apiFetch<{ hits: SearchHit[] }>(`/api/search?q=${encodeURIComponent(query)}&limit=${limit}${kindKey ? `&kinds=${encodeURIComponent(kindKey)}` : "&answer=1"}${prefer ? `&prefer=${encodeURIComponent(prefer)}` : ""}${!kindKey && myTeam && MINE.test(query) ? `&my=${myTeam}` : ""}${!kindKey && season != null ? `&season=${season}` : ""}`, { signal: ctrl.signal })
         .then((r) => {
           if (id !== seq.current) return;
           // Offline (saved data) answers plain hits: the plain list, as before.
           const answer = !kindKey && isAnswer(r) ? r : undefined;
-          setRes({ q: query, hits: kindKey ? r.hits.filter((h) => kindKey.split(",").includes(h.kind)) : r.hits, answer, live: true, saved: offlineSource(r) != null });
+          setRes({ q: query, season, hits: kindKey ? r.hits.filter((h) => kindKey.split(",").includes(h.kind)) : r.hits, answer, live: true, saved: offlineSource(r) != null });
           setError(null);
           if (answer?.weak && brunoOn && refine) {
             setRefining(true);
@@ -102,18 +104,18 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
               .finally(() => { if (id === seq.current) setRefining(false); });
           }
         })
-        .catch((e) => { if (id === seq.current) { setRes({ q: query, hits: [] }); setError(e.message); } }) // the query is answered (with an error): the spinner stops
+        .catch((e) => { if (id === seq.current) { setRes({ q: query, season, hits: [] }); setError(e.message); } }) // the query is answered (with an error): the spinner stops
         .finally(() => { if (id === seq.current) setBusy(false); });
     };
     // Opening a page with its query, a retry or a change of preferred teams asks at once.
     const t = setTimeout(run, typed ? SEARCH_DEBOUNCE_MS : 0);
     waiting.current = { q: query, run: () => { clearTimeout(t); run(); } };
     return () => { clearTimeout(t); ctrl.abort(); waiting.current = null; };
-  }, [q, prefer, myTeam, kindKey, limit, brunoOn, refine, attempt]);
+  }, [q, prefer, myTeam, kindKey, limit, brunoOn, refine, attempt, season]);
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
   /** Enter: search this query now, without waiting for the typing pause. */
   const searchNow = useCallback(() => { if (waiting.current?.q === q.trim()) waiting.current.run(); }, [q]);
-  const current = res.q === q.trim();
+  const current = res.q === q.trim() && (res.season ?? null) === season;
   // While a newer query is on its way, the last answer stays on screen (dimmed, marked stale) instead of the list
   // emptying at every keystroke: typing never flickers to a bare "Searching…" between replies.
   const stale = !current && !!res.live && !!res.q && !!q.trim();
@@ -130,7 +132,9 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
     } catch { /* counting a click is never worth an error */ }
   }, [res, current]);
   return {
-    hits: shown ? res.hits : [], answer: shown ? res.answer : undefined, stale, saved: current && !!res.saved,
+    hits: shown ? res.hits : [], answer: shown ? res.answer : undefined, stale,
+    /** Stale only by its season: the same query asked about another (the answer's season picker). */
+    reseason: stale && res.q === q.trim(), saved: current && !!res.saved,
     ai: brunoOn && shown && ai?.q === res.q ? ai.answer : null, refining: brunoOn && current && refining,
     busy: busy || (!!q.trim() && !current), error: current ? error : null, retry, searchNow, logPick,
     /** What's shown answers this query, from this hook's own request (not `initial`'s hits). */

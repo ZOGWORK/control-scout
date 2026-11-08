@@ -99,7 +99,9 @@ const regionOf = (s: string): Region | null => { const rs = findRegions(s); retu
 
 /** "teams in NJ that went to worlds in 2025 and their opr", "top 5 NJ teams by auto opr who also won inspire", "teams
  *  from Oradell with opr over 100": a list of teams with at least one filter clause (an award, Worlds, a threshold). */
-function readList(q: string): CompoundQuestion | null {
+function readList(said: string): CompoundQuestion | null {
+  // "How many NJ teams went to worlds in 2024": the list, whose answer leads with how many there are.
+  const q = said.replace(/^(?:how many|the number of|number of)\s+(?=(?:\S+\s+){0,3}?(?:ftc\s+)?(?:teams?|robots?)\b)/, "");
   if (!/\b(?:teams?|robots?)\b/.test(q)) return null;
   // Each clause read is cut out with a mark, so the words joining it to the rest ("and", "who") go with it.
   let rest = ` ${q} `;

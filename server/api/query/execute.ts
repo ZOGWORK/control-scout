@@ -152,6 +152,8 @@ const BOARD_STAT: Partial<Record<string, string>> = {
 
 async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer | null> {
   const intent = p.intent!;
+  // Rookie teams are listed only at an event (its board keeps its rookies); anywhere else the word is never dropped.
+  if (p.rookie && !(intent === "leaderboard" && (p.event || p.worlds || p.states))) return null;
   if (intent === "teams-named") return teamsNamedSearch(p, opts);
   // A town's teams counted ("how many teams from <town>"): the town's list, its length the count. A region's or a
   // country's count is search's own (../searchCoverage.ts countAnswer).
@@ -325,6 +327,9 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   if (intent === "highlights") return highlights(p, scope, opts);
   // Matches by a measure, or the best ones with a filter the season records don't take (a match type, a kind of
   // event): the match finder.
+  // Matches with no measure said are a window's only ("matches from yesterday"), listed best first; "matches" alone,
+  // a place's or a match type's ("playoff matches in NJ") are left to search.
+  if (intent === "top-matches" && !p.teams.length && !p.symbols.includes("agg:max") && !scope.window) return null;
   const kind = p.event ? eventKindOf(normalise(p.event.words)) : p.eventKind ? eventKindOf(p.eventKind) : null;
   const teamFind = p.teams.length === 1 && TEAM_FIND.has(FIND[intent]!);
   if ((!p.teams.length || teamFind) && (FIND[intent] || (intent === "top-matches" && (p.level || p.finals || kind)))) {
@@ -459,7 +464,7 @@ async function eventBoard(p: Parsed, scope: ReadScope, said: string, opts: Pipel
   const { main, codes } = at(season);
   const name = p.worlds ? `Worlds ${season + 1}` : shortEvent(main.name, main.type);
   const one = p.n == null && /\b(?:team|who)\b/.test(said) && !/\bteams\b/.test(said);
-  const a = await boardSearch(p.q, { kind: "top", stat: "opr", n: Math.min(25, p.n ?? (one ? 5 : 10)), region: null, city: null, season, event: { season, code: main.code, codes, name, home } }, opts);
+  const a = await boardSearch(p.q, { kind: "top", stat: "opr", n: Math.min(25, p.n ?? (one ? 5 : 10)), region: null, city: null, season, event: { season, code: main.code, codes, name, home, ...(p.rookie ? { rookies: true } : {}) } }, opts);
   if (!a?.stat || skipped == null || skipped === season) return a;
   const note = `No teams listed for the ${seasonLabel(skipped)} event yet; showing ${seasonLabel(season)}`;
   return { ...a, stat: { ...a.stat, scope: [note, ...a.stat.scope], definition: `${a.stat.definition} ${note}: no season was named, so the latest was read first.` } };
@@ -480,8 +485,9 @@ async function highlights(p: Parsed, scope: ReadScope, opts: PipelineOptions): P
     q: p.q, hits, pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season }, stat,
     intent: { kind: `stat-${stat.intent}`, pattern: `${p.teams.length ? "[team] " : ""}highlights${p.event ? " [event]" : p.worlds ? " [worlds]" : p.states ? " [states]" : ""}${p.place ? " [place]" : ""}${scope.window ? " [window]" : ""}`, met: true, understood: [] },
   });
-  // Video words alone ("recap", "videos", "watch"): a video page; "highlights" or "best": the standout matches first.
-  const videos = !p.symbols.includes("highlights") && !p.symbols.includes("agg:max");
+  // Video words alone ("recap", "videos", "watch"): a video page; "highlights", "best" or "what happened": the
+  // standout matches first.
+  const videos = p.symbols.includes("videos") && !p.symbols.includes("highlights") && !p.symbols.includes("agg:max");
   const kind = p.worlds ? WORLDS_KIND : p.states ? STATES_KIND : p.eventKind ? eventKindOf(p.eventKind) : null;
   if (p.eventKind && !kind) return null;
   // A calendar year said with an event, Worlds or a state championship ("nj championship 2025", "worlds 2025") is the

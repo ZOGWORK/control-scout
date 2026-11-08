@@ -7,6 +7,12 @@
 
 /** A team as a long question names it: its number (with "team" or "#" before it), or the words of its name. */
 const T = String.raw`(?:the\s+)?(?:team\s+)?#?(\d{1,6}|[a-z][a-z0-9 .&'-]*?)`;
+/** What may follow a rank question: a season or a place only ("in 2025-26", "last season", "in new jersey"), so a team's
+ *  name is never cut short and "at worlds" isn't a rank. */
+const NEAR_TAIL = String.raw`(?:\s+(?:in|during|for|this|last|from)\s.*)?`;
+/** A rank question naming another number than OPR after the team ("in rating", "in auto") isn't the OPR list's; the
+ *  team's own name may hold one of these words ("Teleop Tigers"). */
+const OTHER_STAT = /\b(?:ratings?|elo|predict(?:ed|ion)?|auto(?:nomous)?|tele-?op|driver|end\s?game|scores?|points|wins?|record|awards?|penalt(?:y|ies)|reliab(?:le|ility)|np)\b/;
 /** A team as its number with its name after it ("24033 alphatronic"), or as `T` names it. */
 const TN = String.raw`(?:the\s+)?(?:team\s+)?#?(\d{1,6}(?:\s+[a-z][a-z0-9 .&'-]*?)?|[a-z][a-z0-9 .&'-]*?)`;
 const WORLDS = String.raw`(?:the\s+)?(?:worlds|world\s+championships?|first\s+championship|championship)`;
@@ -32,7 +38,8 @@ const CLOSERS = /\s+(?:please|pls|for\s+me|thanks|thank\s+you|right\s+now|curren
 
 /** Whole-question rules, first match wins: what each long phrasing asks, said as its short form. `$n` are the
  *  captured groups; the scope words after them (a season, a place) are kept by `tail`. */
-const RULES: [RegExp, (m: RegExpExecArray) => string][] = [
+/** Each rule: what it reads, and its short form (null: the rule declines, and the next one is tried). */
+const RULES: [RegExp, (m: RegExpExecArray) => string | null][] = [
   // Worlds and states: when (the first or the last time), how often, whether, which divisions, how far.
   [new RegExp(String.raw`^(?:when\s+(?:was|is)\s+(?:the\s+)?(last|latest|most\s+recent|first|earliest)\s+time|when\s+did|how\s+many\s+times\s+(?:has|have|did)|(?:the\s+)?(?:number|count)\s+of\s+times(?:\s+that)?(?:\s+(?:has|have|did))?|how\s+often\s+(?:has|have|did)|(?:has|have|did)|was)\s+${T}\s+(?:(?:has|have|had|did)\s+)?(?:ever\s+)?(?:(first|last)\s+)?${GO}\s+(?:(${WORLDS})|(${STATES}))(.*)$`), (m) => {
     const kind = m[4] ? "worlds" : "states", which = m[1] ?? m[3], tail = m[6];
@@ -64,6 +71,10 @@ const RULES: [RegExp, (m: RegExpExecArray) => string][] = [
   // Predictions for the team's next event.
   [new RegExp(String.raw`^how\s+many\s+(?:matches\s+)?(?:wins|matches)\s+(?:is|will)\s+${T}\s+(?:predicted|expected|projected|going)\s+to\s+(?:get|win|have)(?:\s+at\s+(?:their|its|the)\s+next\s+(?:event|meet|competition))?(.*)$`), (m) => `${m[1]} predicted wins at their next event${m[2]}`],
   [new RegExp(String.raw`^what\s+(?:are|is)\s+${T}\s+(?:chances?|odds)\s+(?:of|to)\s+(?:advancing|advance|making\s+it|qualifying|qualify|going)\s+(?:to|for)\s+${WORLDS}(.*)$`), (m) => `${m[1]} chance to advance to worlds${m[2]}`],
+  // The teams around a team's world rank ("who is ranked just above and just below 12345 worldwide", "teams ranked
+  // near 12345"): its OPR rank, whose card lists them.
+  [new RegExp(String.raw`^(?:who|which\s+teams?|what\s+teams?)\s+(?:is|are|was|were)\s+(?:ranked\s+)?(?:just\s+|right\s+|directly\s+|immediately\s+)?(?:above|below|ahead\s+of|behind)(?:\s+and\s+(?:just\s+|right\s+|directly\s+|immediately\s+)?(?:above|below|ahead\s+of|behind))?\s+${T}(?:\s+(?:worldwide|globally|in\s+the\s+world(?:\s+rankings?)?|in\s+the\s+rankings?))?(${NEAR_TAIL})$`), (m) => (OTHER_STAT.test(m[2]) ? null : `${m[1]} opr rank${m[2]}`)],
+  [new RegExp(String.raw`^(?:(?:who|which\s+teams?|what\s+teams?)\s+(?:is|are)\s+|teams?\s+)(?:ranked\s+)?(?:near|around|close\s+to|next\s+to)\s+${T}(?:\s+(?:worldwide|globally|in\s+the\s+world(?:\s+rankings?)?|in\s+the\s+rankings?))?(${NEAR_TAIL})$`), (m) => (OTHER_STAT.test(m[2]) ? null : `${m[1]} opr rank${m[2]}`)],
   // A team's own listing asked as a yes-or-no question: its rookie season ("is 12345 a rookie team or old"), where it's
   // from ("is 12345 actually from romania or what"), its sponsors, school or website ("does 12345 have any sponsors
   // listed on their team page"). The fact's card answers it, with the place or year itself.
@@ -124,7 +135,8 @@ export function longForm(raw: string): string | null {
   }
   for (const [re, to] of RULES) {
     const m = re.exec(t);
-    if (m) { t = to(m); break; }
+    const short = m ? to(m) : null;
+    if (short != null) { t = short; break; }
   }
   // A team number with "team" before it ("the team 12345", "team #12345") is that number.
   t = t.replace(/\b(?:the\s+)?team\s+#?(\d{1,6})\b/g, "$1").replace(/\s+/g, " ").trim();

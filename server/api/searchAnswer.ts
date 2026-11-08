@@ -17,7 +17,7 @@
 // the app asks /api/search/refine after these results are on screen (./searchBruno.ts).
 import type { SearchAnswer, SearchHit, SearchRecovery, SearchUnderstood } from "../../src/shared/api.js";
 import { SEARCH_BROWSE, SEARCH_FILLER, SEARCH_PAGE_LIMIT, SEARCH_TOPICS, firstCards, TOPIC_LABEL, VERSUS, cardWho, onlyPageWords, pagesFor, showingLine } from "../../src/shared/search.js";
-import { conversationQuery, isQuestionForm, nameWords, onlyCommonWords, singularize } from "../../src/shared/searchQuery.js";
+import { conversationQuery, isQuestionForm, nameWords, onlyCommonWords, onlyTopicWords, singularize } from "../../src/shared/searchQuery.js";
 import { readEventQuery, regionOf } from "../../src/shared/searchEventQuery.js";
 import { eventSetAnswer, withEventParents, withWholeFamilies } from "./searchEvents.js";
 import { versusAnswer } from "./searchCompare.js";
@@ -81,7 +81,8 @@ export interface AnswerOptions {
 /** The query as search reads it: punctuation that never means anything dropped, spaces folded, at most MAX_QUERY
  *  (cut at the last whole word: a word cut in two, "2025-2", would be read as another). */
 export function cleanQuery(raw: string): string {
-  const q = String(raw ?? "").replace(/[!?,;"<>(){}[\]|\\^*`~=+]/g, " ").replace(/\s+/g, " ").trim();
+  // "40+ teams" is "40 or more teams" (a size, as the events-over-a-size answer reads it), kept before "+" is cleaned.
+  const q = String(raw ?? "").replace(/(\d)\s*\+\s*(?=teams?\b)/gi, "$1 or more ").replace(/[!?,;"<>(){}[\]|\\^*`~=+]/g, " ").replace(/\s+/g, " ").trim();
   if (q.length <= MAX_QUERY) return q;
   const cut = q.slice(0, MAX_QUERY);
   return (q[MAX_QUERY] === " " ? cut : cut.replace(/\s+\S*$/, "")).trim() || cut;
@@ -239,7 +240,7 @@ async function onPage(raw: string, a: SearchAnswer, opts: AnswerOptions): Promis
  *  nothing did. Null when it isn't one. */
 async function withVerdict(raw: string, a: SearchAnswer, opts: AnswerOptions): Promise<SearchAnswer | null> {
   const q = cleanQuery(raw);
-  const yn = await yesNoAnswer(q, { full: true, pages: pagesFor(q), now: opts.now, prefer: opts.prefer, resolve: (core) => searchAnswer(core, { ...opts, intents: false, learn: false }) });
+  const yn = await yesNoAnswer(q, { full: true, pages: pagesFor(q), now: opts.now, prefer: opts.prefer, resolve: (core) => resolveCore(core, opts) });
   if (!yn) return null;
   const answered = (!!a.stat || !!a.card) && a.step !== "recovery" && !/isn't answered/.test(a.understood?.label ?? "");
   // A copy keeps the outcome failed-search reporting reads (./searchLayers.ts).
@@ -371,6 +372,18 @@ function markMatches(rest: string, hits: SearchHit[]): SearchHit[] {
   return [...marked.filter((h) => h.match !== "fuzzy"), ...marked.filter((h) => h.match === "fuzzy")];
 }
 
+/** A question's leftover words read as a team (`core`): search's answer for them alone. Common words alone ("without",
+ *  "team", "best") name no team (COMMON_WORDS), however many names hold them; topic words alone ("alliances", "most
+ *  inspire") name a team only typed as its whole name, so "nj states alliances" is never team Alliance and "most
+ *  inspire awards" never team Inspires (onlyTopicWords). */
+async function resolveCore(core: string, opts: AnswerOptions): Promise<SearchAnswer> {
+  if (onlyCommonWords(core)) return answer(core, { hits: [], step: "deterministic" });
+  const r = await searchAnswer(core, { ...opts, intents: false, learn: false });
+  if (!onlyTopicWords(core)) return r;
+  const whole = (t: string) => t.toLowerCase().replace(/[^\p{L}\d]+/gu, " ").trim();
+  return { ...r, hits: r.hits.filter((h) => h.kind !== "team" || whole(teamNameOf(h.title)) === whole(core)) };
+}
+
 async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswer> {
   const limit = opts.limit ?? 12, prefer = opts.prefer ?? new Set<string>();
   const q = read;
@@ -379,7 +392,7 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   // 0. The search pipeline (./query/, docs/search-pipeline.md): the query parsed into slots in any word order and run
   // as one structured question over the stored data. A query it can't read completely goes on to the readers below.
   // It reads the words as typed: plurals are its lexicon's to read, and a team's name keeps its own ("Robotics").
-  const piped = opts.intents === false ? null : await pipelineAnswer(opts.typed ?? q, { full: !!opts.full, pages: pagesFor(q), now: opts.now, prefer, resolve: (core) => searchAnswer(core, { ...opts, intents: false, learn: false }) });
+  const piped = opts.intents === false ? null : await pipelineAnswer(opts.typed ?? q, { full: !!opts.full, pages: pagesFor(q), now: opts.now, prefer, resolve: (core) => resolveCore(core, opts) });
   if (piped) return piped;
 
   // 0. A phrasing the readers below miss, said the way they read it ("compare 12345 and 67890" → "12345 vs 67890"):
@@ -415,8 +428,7 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   if (meant) return meant;
 
   // 0. A stat question about a team ("12345 highest score in worlds", "12345 worlds record"): ./answers/index.ts.
-  // Common words alone ("without", "team", "best") name no team (COMMON_WORDS), however many names hold them.
-  const resolve = (core: string): Promise<SearchAnswer> => (onlyCommonWords(core) ? Promise.resolve(answer(core, { hits: [], step: "deterministic" })) : searchAnswer(core, { ...opts, intents: false, learn: false }));
+  const resolve = (core: string) => resolveCore(core, opts);
   const stat = opts.intents === false ? null : await statAnswer(q, resolve, { full: !!opts.full, pages: pagesFor(q) });
   if (stat) return stat;
 
