@@ -84,7 +84,7 @@ const AWARD_NAME: Record<string, string> = { JudgesChoice: "Judges' Choice", Dea
 const regionWords = (s: string): Region | null => regionOf(s.trim().replace(/^(?:the )?(?:state of )?/i, "").split(/\s+/).filter(Boolean));
 
 /** Words that only say "everyone, this season": a leaderboard's scope is the world's unless a place is named. */
-const SCOPE_WORDS = /(?:^| )(?:right now|currently|now|today|this season|this year|in the (?:whole )?world|of the world|worldwide|globally|overall|of all time|all time|of all|ever)(?= |$)/g;
+const SCOPE_WORDS = /(?:^| )(?:right now|rn|atm|at the moment|currently|now|today|this season|this year|in the (?:whole )?world|of the world|worldwide|globally|overall|of all time|all time|of all|ever)(?= |$)/g;
 
 /** "What is the best FTC team right now" → "best team", "best teleop in FTC in the world" → "best teleop": the opener,
  *  "FTC" and the scope words say nothing about which teams. */
@@ -132,7 +132,8 @@ export function readAsk(q: string): Ask | null {
   // Leaderboards: the world's ("best team", "what is the best FTC team right now") or a place's.
   const lw = leaderWords(t);
   if (/^(?:the )?(?:top|best|highest(?: |-)ranked|strongest|number one|no 1|1)(?: \d+)? (?:teams?|robots?)$/.test(lw.t) || (lw.opened && /^(?:best|top|strongest|number one)$/.test(lw.t))) return { kind: "leaderboard", region: null };
-  let m = /^(?:the )?(?:top|best|highest(?: |-)ranked|strongest)(?: \d+)? (?:teams?|robots?)(?: in| from| of)? (.+)$/.exec(lw.t);
+  // "The best in NJ": the team word can go unsaid before a place, since only a team is "the best in" a region.
+  let m = /^(?:the )?(?:top|best|highest(?: |-)ranked|strongest)(?: \d+)?(?: (?:teams?|robots?)(?: in| from| of)?| in| from| of) (.+)$/.exec(lw.t);
   if (m) { const region = regionIn(m[1]); if (region) return { kind: "leaderboard", region }; }
   m = /^(.+?) (?:rankings?|standings|leaderboard|top teams|best teams?)$/.exec(lw.t);
   if (m) { const region = regionIn(m[1]); if (region) return { kind: "leaderboard", region }; }

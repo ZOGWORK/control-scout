@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 4.0.6 — 2026-11-07
+## 4.1.0 — 2026-11-08
 
 Asking whether one team will beat another gets the match's call, and asking what happens if you change an alliance points you to the part of Predict that does it.
 
@@ -27,6 +27,56 @@ Asking whether one team will beat another gets the match's call, and asking what
 ### Search
 - **"Will A beat B."** "Will", "would" or "going to" with a win word ("beat", "defeat", "win against") between two teams is the call for a match between them.
 - **A lineup changed, supposed.** "If (what if, suppose) I change, switch or swap the alliance, teams or partners", with no team named, is Predict's Custom matchup; asked with "who is the best partner", it says how to try each partner there. (#1153)
+
+## 4.0.9 — 2026-11-08
+
+A team's record, wins and scores in the finals only are answered, and a match told by its margin is the team's biggest loss or win. "Whats 9848's record in finals matches only" shows the record in its finals matches, and "the score of that one match where 4215 lost by a lot" shows its biggest loss.
+
+### Highlights
+- [teams] "<team> record in the finals" counts its finals matches only
+- [teams] Finals follow each bracket: grand final and replay since 2024
+- [teams] "The match where <team> lost by a lot" shows its biggest loss
+
+### Search
+- **The finals, by bracket.** "In the finals", "finals record" and "finals matches only" filter a team's own match rows (record, win rate, scores, margins, streaks) to its events' finals: a classic bracket's final (series 0), and since 2024–25 a double-elimination bracket's grand final and its if-needed replay, read from the event's alliance count and posted series. A state's finals stay its state championship, "make the finals" stays its own question, and a number from season rows (OPR, rank) isn't filtered. Before, the finals were read only by the match finder, and a team's question about them went unanswered.
+- **A match by its margin.** "The match where <team> lost (won) by a lot / by the most / so badly" reads as that team's biggest loss (win), whose card names the match and its score. (#1103)
+
+## 4.0.8 — 2026-11-07
+
+"The best in New Jersey" with no "teams" word, and short words for now, read as the region's top teams this season.
+
+### Highlights
+- [rankings] "Best in <state>" with no "teams" word answers
+- [rankings] "rn", "atm" and "at the moment" read as this season
+- [rankings] Same card as "best teams in <state>"
+
+### Search
+- **The best in a place.** "Best in New Jersey", "top 5 in Texas" and "the strongest in Ontario" give that region's top teams this season, the same card as "best teams in New Jersey". Only a region counts after "in", so "best in show" stays a name search. "rn", "atm" and "at the moment" read as this season, like "right now". (#1156)
+
+## 4.0.7 — 2026-11-07
+
+A place's top team can stand in for a team number in a two-team question: "who would win between the top NJ team and the top Romania team" answers for those two teams, and says which they are.
+
+### Highlights
+- [predict] "Top NJ team vs top Romania team" predicts those two teams
+- [predict] The answer says which team each "top team" was read as
+- [predict] "Who would win in a match between A and B" gets the call
+
+### Search
+- **A place's top team, as one of two.** "The top / best / strongest <place> team" or "… team in <place>" is that place's first team on its prediction-rating board, as "top teams in <place>" ranks them, read into the two-team question; the question line says which team each phrase was.
+- **"Between."** "Who would win in a match between A and B" is the match's call, and "matches between A and B" their shared matches. (#1097)
+
+## 4.0.6 — 2026-11-07
+
+Search answers a team's own listing asked as a yes-or-no question. "Is 23786 MakEMinds a rookie team or old" shows the team's rookie year, "is delta force actually from romania or what" shows where it's from, and "does 23268 have any sponsors listed on their team page" shows its sponsors, instead of the bare team card.
+
+### Highlights
+- [teams] "Is <team> a rookie team or old" shows its rookie year
+- [teams] "Is <team> from <place>" shows where the team is from
+- [teams] "Does <team> have sponsors" shows the team's sponsors
+
+### Search
+- **Listing questions, yes or no.** A question about a team's rookie season, home or listed sponsors, school or website, typed as "is …" or "does … have …", reads as that fact's own question, so its card answers with the year, place or names. A place question needs "from", "based in" or "located in", so "is 4215 in the finals" stays a results question. (#1095)
 
 ## 4.0.5 — 2026-11-07
 

@@ -46,6 +46,10 @@ const RULES: [RegExp, (m: RegExpExecArray) => string][] = [
   // record there.
   [new RegExp(String.raw`^(?:which|what)\s+(?:worlds\s+)?divisions?\s+(?:is|was|were|are)\s+${T}\s+(?:in\s+)?(?:at|for)\s+${WORLDS}(.*?)(?:,?\s+and\s+(?:what|how)\s+(?:was|were|is)\s+(?:their|its)\s+(?:rank|ranking|place|placement|finish|record|seed)(?:\s+(?:there|in\s+it))?)?$`), (m) => `${m[1]} worlds divisions${m[2]}`],
   [new RegExp(String.raw`^(?:what\s+(?:is|was)\s+|how\s+(?:far|well)\s+did\s+)${T}\s+(?:best\s+finish|go|do)\s+(?:at|in)\s+${WORLDS}(.*)$`), (m) => `${m[1]} worlds best finish${m[2]}`],
+  // A match told by its margin ("whats the score of that one match where 12345 lost by a lot"): the team's biggest loss
+  // or win, whose card names the match and its score.
+  [new RegExp(String.raw`^(?:(?:what|which)(?:\s+(?:is|was)|s)?\s+)?(?:the\s+)?(?:(?:final\s+)?score\s+(?:of|in|for)\s+)?(?:that|the)?\s*(?:one\s+)?(?:match|game)\s+(?:where|when|that|in\s+which)\s+${T}\s+(lost|won)\s+(?:by\s+(?:a\s+lot|a\s+ton|so\s+much|the\s+most|a\s+mile|miles|the\s+biggest\s+margin|a\s+huge\s+margin)|so\s+(?:badly|big))(.*)$`),
+    (m) => `${m[1]} ${/^won/.test(m[2]) ? "biggest win" : "biggest loss"}${m[3]}`],
   // Partners and opponents.
   [new RegExp(String.raw`^who\s+(?:did|has|have|does)\s+${T}\s+(?:play(?:ed)?|team(?:ed)?\s+up|partner(?:ed)?|been\s+(?:on\s+)?an?\s+alliance)\s+with\s+(?:the\s+)?most(?:\s+often)?(.*)$`), (m) => `${m[1]} most common alliance partner${m[2]}`],
   [new RegExp(String.raw`^who\s+(?:did|has|have|does)\s+${T}\s+(?:play(?:ed)?|face[ds]?|compete[ds]?)\s+against\s+(?:the\s+)?most(?:\s+often)?(.*)$`), (m) => `${m[1]} most common opponent${m[2]}`],
@@ -60,6 +64,12 @@ const RULES: [RegExp, (m: RegExpExecArray) => string][] = [
   // Predictions for the team's next event.
   [new RegExp(String.raw`^how\s+many\s+(?:matches\s+)?(?:wins|matches)\s+(?:is|will)\s+${T}\s+(?:predicted|expected|projected|going)\s+to\s+(?:get|win|have)(?:\s+at\s+(?:their|its|the)\s+next\s+(?:event|meet|competition))?(.*)$`), (m) => `${m[1]} predicted wins at their next event${m[2]}`],
   [new RegExp(String.raw`^what\s+(?:are|is)\s+${T}\s+(?:chances?|odds)\s+(?:of|to)\s+(?:advancing|advance|making\s+it|qualifying|qualify|going)\s+(?:to|for)\s+${WORLDS}(.*)$`), (m) => `${m[1]} chance to advance to worlds${m[2]}`],
+  // A team's own listing asked as a yes-or-no question: its rookie season ("is 12345 a rookie team or old"), where it's
+  // from ("is 12345 actually from romania or what"), its sponsors, school or website ("does 12345 have any sponsors
+  // listed on their team page"). The fact's card answers it, with the place or year itself.
+  [new RegExp(String.raw`^(?:is|are)\s+${TN}\s+(?:an?\s+)?(?:rookies?|new|first[\s-]year|veteran|old)(?:\s+(?:team|teams|one))?(?:\s+or\s+(?:an?\s+)?(?:an?\s+)?(?:old|older|new|veteran|established|experienced|rookie)(?:\s+(?:team|one))?)?(?:\s+or\s+not)?$`), (m) => `${m[1]} rookie year`],
+  [new RegExp(String.raw`^(?:is|are)\s+${TN}\s+(?:really\s+)?(?:from|based\s+in|located\s+in)\s+(?:the\s+)?[a-z][a-z .'-]*?(?:\s+or\s+(?:what|not))?$`), (m) => `where is ${m[1]} from`],
+  [new RegExp(String.raw`^(?:does|do|did)\s+${TN}\s+(?:have|has|list)\s+(?:any\s+|an?\s+)?(sponsors?|school|website|site)(?:\s+(?:listed|named|on\s+record))?(?:\s+on\s+(?:their|its|the)\s+(?:team\s+)?page)?$`), (m) => `${m[1]} ${m[2] === "site" ? "website" : m[2].replace(/^sponsor$/, "sponsors")}`],
   // Their events, OPR over time, rank.
   // One of the team's own events by when it was, and how it did there ("what was the last event 12345 played, and how
   // did they do", "what was 12345's first event this season, and what was their OPR there"): that event's answer.

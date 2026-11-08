@@ -28,16 +28,29 @@ import { eventFor, forecastAt, teamEventOfType } from "./forecast.js";
 import { teamsNamedSearch } from "../answers/teamsNamed.js";
 import { describe, normalise, parseQuery, type Parsed } from "./parse.js";
 import { parseContext } from "./context.js";
+import { topTeamsNote, topTeamsSaid } from "./topTeams.js";
 import type { PipelineIntent } from "./intents.js";
 
 export interface PipelineOptions { full: boolean; pages: SearchPageLink[]; resolve: Resolve; now?: number; prefer?: ReadonlySet<string> }
 
 /** The pipeline's answer for `q`, or null when it leaves the query to search's other readers. */
 export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<SearchAnswer | null> {
-  const p = await parseQuery(q, await parseContext(opts.now, opts.prefer));
-  if (!p.complete || !p.intent) return null;
+  const ctx = await parseContext(opts.now, opts.prefer);
+  let p = await parseQuery(q, ctx);
+  // A place's top team said where a team would be ("the top NJ team vs the top Romania team"): two teams compared,
+  // read again with their numbers, the card saying which team each phrase was.
+  let tops: Awaited<ReturnType<typeof topTeamsSaid>> = null;
+  if (!p.complete || !p.intent) {
+    // The season the question names picks each place's leader too ("in 2024-25, the top NJ team vs …").
+    tops = await topTeamsSaid(q, ctx, p.time?.kind === "season" && p.time.season != null ? p.time.season : undefined);
+    const again = tops ? await parseQuery(tops.q, ctx) : null;
+    if (!again?.complete || !again.intent || again.teams.length !== 2 || !TWO_TEAM[again.intent]) return null;
+    p = { ...again, q };
+  }
+  if (!p.intent) return null;
   let a = await execute(p, opts);
   if (!a) return null;
+  if (tops && a.understood) a = { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${topTeamsNote(tops.said, tops.season)}` } };
   // Part of a region ("north jersey") is read as all of it, and the card says so.
   if (p.place?.part && a.understood) a = { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${p.place.part.replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase())} isn't a separate region: all of ${p.place.name}` } };
   // A team's name typed nearly right: answered for that team, with the spelling to search for.
@@ -142,9 +155,9 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   if (intent === "count-teams") return townCount(p) ? boardSearch(p.q, { kind: "city", stat: "opr", n: 25, region: null, city: p.place!.city, season: null }, opts) : null;
   const scope = readScopeOf(p);
   if (!scope) return null;
-  // The finals are a filter only the match finder applies: anything else would answer for every playoff match.
-  // (and a scope's highlights, read with the match finder's filters).
-  if (p.finals && (p.teams.length || !(FIND[intent] || intent === "top-matches" || intent === "highlights"))) return null;
+  // The finals are a filter the match finder applies (and a scope's highlights, read with its filters), and a team's
+  // answers from its own match rows (scopeFits): anything else would answer for every playoff match.
+  if (p.finals && !p.teams.length && !(FIND[intent] || intent === "top-matches" || intent === "highlights")) return null;
   // So is a kind of event by its type words alone ("at a league meet").
   if (p.eventKind && (p.teams.length || !(FIND[intent] || intent === "top-matches" || intent === "highlights"))) return null;
   const said = normalise(p.q);
@@ -443,7 +456,7 @@ async function highlights(p: Parsed, scope: ReadScope, opts: PipelineOptions): P
 
 /** The slots as the scope a stat answer reads (server/api/answers/read.ts ReadScope). Null: a slot no answer applies. */
 function readScopeOf(p: Parsed): ReadScope | null {
-  const s: ReadScope = { season: null, latest: false, ever: false, championship: p.worlds, states: p.states, level: p.level, alliance: p.alliance, at: p.event?.words ?? null };
+  const s: ReadScope = { season: null, latest: false, ever: false, championship: p.worlds, states: p.states, level: p.level, ...(p.finals ? { finals: true } : {}), alliance: p.alliance, at: p.event?.words ?? null };
   const t = p.time;
   if (t?.kind === "window") { s.season = t.season; s.window = { from: t.from!, to: t.to!, label: t.label }; }
   else if (t?.kind === "season") {
