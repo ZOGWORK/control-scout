@@ -27,6 +27,18 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 ### Search
 - **A list counted, in one season or two.** "How many", "number of" or "count" before a list of teams (a place, Worlds, an award won, an OPR threshold) answers with the list, its length the headline. Two years or seasons after it ("in 2024 versus 2025", "2025-26 vs 2024-25") read the same list once with each: both counts side by side, the change, and each season's own list under it. A Worlds year is the championship held that year, so 2024 is the 2023–24 season, said on the card. (#1094)
 
+## 4.3.7 — 2026-11-08
+
+"cham" said for a championship ("who won inspire in nj cham") finds that place's newest championship.
+
+### Highlights
+- [fixes] "nj cham" is New Jersey's championship, its newest one
+- [fixes] "who won inspire in nj cham this year" names this season's
+- [fixes] "cham" after a place works like "champ" and "champs"
+
+### Search
+- **"cham" is "champ" cut short.** A place's "cham" is its newest championship, as "champ" and "champs" are, never an older event whose name has the word. (#1122)
+
 ## 4.3.6 — 2026-11-08
 
 More plain searches answered: a team's highlights by part of its name, events said the way people say them, and a team's losses by a set margin.
