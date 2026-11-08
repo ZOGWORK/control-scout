@@ -1,11 +1,12 @@
 // Questions routed to the view that answers them (server/api/searchAsks.ts): the FTC One Search brief's Requirement 11
 // and test 16. Every number is from the fixture; every link is a real route.
-import { beforeAll, describe, expect, it } from "vitest";
-import { migrate, openDb, run, setDb } from "../db";
+import { beforeAll, describe, expect, it, vi } from "vitest";
+import { kvSet, migrate, openDb, run, setDb } from "../db";
 import { rebuildSearch } from "../stats/job";
 import { searchSeason } from "./answers/season";
 import { searchAnswer } from "./searchAnswer";
-import { askAnswer, eventWon, readAsk, type Stat } from "./searchAsks";
+import { askAnswer, askSeason, eventWon, readAsk, type Stat } from "./searchAsks";
+import { seasonLabel } from "../../src/shared/format";
 import { readStatQuestion } from "./answers/read";
 import { pageMeta } from "../seoMeta";
 import { awardQuery } from "./searchCoverage";
@@ -49,6 +50,10 @@ describe("reading", () => {
     expect(readAsk("top teams in new jersey")).toMatchObject({ kind: "leaderboard", region: { key: "USA:NJ" } });
     expect(readAsk("nj rankings")).toMatchObject({ kind: "leaderboard" });
     expect(readAsk("best team in nj")).toMatchObject({ kind: "leaderboard" });
+    // The team word unsaid before a place, and short words for "this season".
+    for (const q of ["top in texas atm", "the strongest in GA right now", "best from ohio rn", "top 5 in new jersey currently"])
+      expect(readAsk(q), q).toMatchObject({ kind: "leaderboard", region: { key: expect.stringMatching(/^USA:/) } });
+    for (const q of ["best in show", "best in class", "top of the hour"]) expect(readAsk(q), q).toBeNull();
     expect(readAsk("highest opr")).toEqual({ kind: "stat", stat: "opr", region: null });
     expect(readAsk("best auto team")).toEqual({ kind: "stat", stat: "auto", region: null });
     expect(readAsk("who has the most wins")).toEqual({ kind: "stat", stat: "wins", region: null });
@@ -76,7 +81,7 @@ describe("test 16: each intent returns its stated surface", () => {
     expect(a.card!.none).toMatch(/No upcoming match is scheduled/);
   });
   it("top teams in New Jersey (and NJ rankings, best team in NJ): the region's ranking, linked", async () => {
-    for (const q of ["top teams in New Jersey", "NJ rankings", "best team in NJ"]) {
+    for (const q of ["top teams in New Jersey", "NJ rankings", "best team in NJ", "the strongest in New Jersey atm"]) {
       const a = await ask(q);
       expect(teams(a), q).toEqual(["23268 Ultraviolet", "4215 Hypnotic Robotics", "6980 Bad Wolf"]);
       expect(hrefs(a)[0], q).toBe("/rankings?season=2025&region=USA%3ANJ");
@@ -116,6 +121,82 @@ describe("test 16: each intent returns its stated surface", () => {
     expect(a.card).toMatchObject({ award: "Inspire", event: { season: 2025, code: "USNJCMP" } });
     expect(a.card!.awards!.filter((x) => x.type === "Inspire").map((x) => [x.placement, x.team])).toEqual([[1, 23268], [2, 4215]]);
     expect(a.card!.awards![0].type).toBe("Inspire");
+  });
+  it("Predict itself: a lineup of your own is Custom matchup, picking predictions out is Scheduled matches", async () => {
+    for (const q of ["can i see the odds for teams i choose", "do the predicted scores change if i swap the teams", "who would win a hypothetical match"]) {
+      expect(readAsk(q), q).toEqual({ kind: "predict-lineup" });
+    }
+    const lineup = await ask("can i get a prediction for a match that has not been played yet");
+    expect(lineup.pages[0]).toEqual({ title: "Predict: Custom matchup", href: "/predict?mode=match" });
+    expect(lineup.understood?.label).toMatch(/^Yes: Predict's Custom matchup takes any teams on each alliance\. After changing them, press Predict this match/);
+    expect(readAsk("how do i sort predictions by team")).toEqual({ kind: "predict-filter" });
+    const filter = await ask("is there a way to filter the forecasts by event");
+    expect(filter.pages[0]).toEqual({ title: "Predict: Scheduled matches", href: "/predict?mode=scheduled" });
+    expect(filter.understood?.label).toMatch(/not by date/);
+    // A team named is that team's question, never Predict's help.
+    expect(readAsk("can i filter 4215 predictions")?.kind).not.toBe("predict-filter");
+  });
+  it("a lineup changed in a supposition, with no forecast word: Custom matchup, or which partner is best in it", async () => {
+    for (const q of ["what if we switch the alliance", "suppose you change our partners", "what if we swap our alliance"]) expect(readAsk(q), q).toEqual({ kind: "predict-lineup", say: "change" });
+    for (const q of ["who's the strongest partner if we swap teams", "which team would make the best alliance partner if i switch the alliance", "who is the best partner if you swap the alliances"]) {
+      expect(readAsk(q), q).toEqual({ kind: "predict-lineup", say: "partner" });
+    }
+    // Through the whole search, whatever it rewrites first ("teams" read as "team").
+    const changed = await ask("What if I switch teams?");
+    expect(changed.pages[0]).toEqual({ title: "Predict: Custom matchup", href: "/predict?mode=match" });
+    expect(changed.understood?.label).toMatch(/^Predict's Custom matchup takes any teams on each alliance: change them/);
+    const partner = await ask("who would be the best partner if we change teams");
+    expect(partner.understood?.label).toMatch(/^Try each partner in Predict's Custom matchup/);
+    // Anything else asked, or a team named, is left to the other readers.
+    for (const q of ["if we change the alliance who scores most", "if we change teams does 4215 win"]) expect(readAsk(q)?.kind, q).not.toBe("predict-lineup");
+  });
+  it("a team's predictions page: its matches in Predict; a day's calls: that day's events", async () => {
+    // A name is read only for a team that has played: this test's own played row, whatever ran before it.
+    await run("INSERT OR IGNORE INTO team_event_stats (season, code, team, opr_np, matches) VALUES (?, 'UVPLAYED', 23268, 50, 5)", [S]);
+    await rebuildSearch();
+    const team = await ask("ultraviolet prediction settings");
+    expect(team.hits[0]).toMatchObject({ kind: "team", ref: "23268" });
+    expect(team.pages[0]).toEqual({ title: "Predict Ultraviolet's matches", href: "/predict?mode=scheduled&for=team:23268" });
+    expect(readAsk("predictions for todays matches")).toEqual({ kind: "predict-day", day: "today" });
+    // A place or an event named with the day asks for a filter this list doesn't apply: left to other readers.
+    for (const q of ["predictions for tomorrow's matches in ohio", "today's matches at the state championship predictions", "predictions for tomorrow's playoff matches", "show me predictions for today's matches for hypnotic robotics"]) expect(readAsk(q)?.kind, q).not.toBe("predict-day");
+    expect(readAsk("show me the forecasts for all of tomorrow's matches")).toEqual({ kind: "predict-day", day: "tomorrow" });
+    expect(readAsk("what are the predictions for tomorrow's matches")).toEqual({ kind: "predict-day", day: "tomorrow" });
+    // A closing "if any (are scheduled)" narrows nothing, with or without the filler retry's cut.
+    for (const q of ["give me all forecasts for today's matches, if there are any", "show me all predictions for tomorrow's matches are scheduled"]) expect(readAsk(q)?.kind, q).toBe("predict-day");
+    const none = await ask("tomorrow's matches predictions");
+    expect(none.understood?.label).toMatch(/^Tomorrow \(.+\): no event has matches then/);
+    // End to end, through the query cleaning and the filler retry: the same day answer.
+    expect((await ask("show me all predictions for tomorrow's matches, if any are scheduled")).understood?.label).toMatch(/^Tomorrow \(.+\): no event has matches then/);
+    const day = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'USNJQ9', 'Garden Qualifier', 'Qualifier', 'Union', 'NJ', 'USA', ?, ?, 't')", [CURRENT_SEASON, day, day]);
+    // A workshop plays no matches: never counted. An event with no schedule posted yet has no predictions yet.
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'USNJW9', 'Build Workshop', 'Workshop', 'Union', 'NJ', 'USA', ?, ?, 't')", [CURRENT_SEASON, day, day]);
+    const early = await ask("show me predictions for tomorrows matches");
+    expect(early.understood?.label).toMatch(/^Tomorrow \(.+\): 1 event, none with a match schedule posted yet/);
+    expect(early.hits.map((h) => h.ref)).toEqual([`${CURRENT_SEASON}:USNJQ9`]);
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, source) VALUES (?, 'USNJQ9', 'qual', 0, 1, 'Q1', ?, 0, 't')", [CURRENT_SEASON, `${day}T14:00:00Z`]);
+    const one = await ask("show me predictions for tomorrows matches");
+    expect(one.understood?.label).toMatch(/^Tomorrow \(.+\): 1 event with matches/);
+    expect(one.hits[0]).toMatchObject({ kind: "event", ref: `${CURRENT_SEASON}:USNJQ9` });
+    expect(one.pages[0]).toEqual({ title: "Predict: Garden Qualifier", href: `/predict?mode=scheduled&for=event:${CURRENT_SEASON}:USNJQ9` });
+    // A two-day event whose matches are all the day after (inspection tomorrow): no matches tomorrow, left out. One with
+    // a schedule but no match times yet: kept, said apart. A match late tomorrow evening in California is past midnight
+    // UTC, but tomorrow where it's held: counted.
+    const next = new Date(Date.now() + 2 * 864e5).toISOString().slice(0, 10);
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, timezone, source) VALUES (?, 'USPAT2', 'Two Day Tournament', 'Qualifier', 'Erie', 'PA', 'USA', ?, ?, 'America/New_York', 't'), (?, 'USOHU1', 'Untimed Qualifier', 'Qualifier', 'Akron', 'OH', 'USA', ?, ?, NULL, 't'), (?, 'USCAL1', 'Late Night Qualifier', 'Qualifier', 'Fresno', 'CA', 'USA', ?, ?, 'America/Los_Angeles', 't')",
+      [CURRENT_SEASON, day, next, CURRENT_SEASON, day, day, CURRENT_SEASON, day, day]);
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, source) VALUES (?, 'USPAT2', 'qual', 0, 1, 'Q1', ?, 0, 't'), (?, 'USOHU1', 'qual', 0, 1, 'Q1', NULL, 0, 't'), (?, 'USCAL1', 'qual', 0, 1, 'Q1', ?, 0, 't')",
+      [CURRENT_SEASON, `${next}T15:00:00Z`, CURRENT_SEASON, CURRENT_SEASON, `${next}T04:00:00Z`]);
+    // A venue's wall time (no zone, as FIRST writes them) is its own date, never read again in another zone: an
+    // afternoon match in Brisbane stays tomorrow there.
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, timezone, source) VALUES (?, 'AUBNE1', 'Brisbane Qualifier', 'Qualifier', 'Brisbane', 'QLD', 'Australia', ?, ?, 'Australia/Brisbane', 't')", [CURRENT_SEASON, day, day]);
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, source) VALUES (?, 'AUBNE1', 'qual', 0, 1, 'Q1', ?, 0, 't')", [CURRENT_SEASON, `${day}T15:00:00`]);
+    const mixed = await ask("show me predictions for tomorrows matches");
+    expect(mixed.hits.map((h) => h.ref)).toEqual([`${CURRENT_SEASON}:AUBNE1`, `${CURRENT_SEASON}:USNJQ9`, `${CURRENT_SEASON}:USCAL1`, `${CURRENT_SEASON}:USOHU1`]);
+    expect(mixed.understood?.label).toMatch(/^Tomorrow \(.+\): 4 events, 3 with matches that day, 1 with a schedule posted but no match times yet: their predictions are in Predict$/);
+    await run("DELETE FROM matches WHERE code IN ('USNJQ9', 'USPAT2', 'USOHU1', 'USCAL1', 'AUBNE1')");
+    await run("DELETE FROM events WHERE code IN ('USNJQ9', 'USNJW9', 'USPAT2', 'USOHU1', 'USCAL1', 'AUBNE1')");
   });
   it("how are predictions calculated: the methodology page in the Pages group", async () => {
     const a = await ask("how are predictions calculated");
@@ -273,6 +354,13 @@ describe("who won an event (owner: \"who won nj states\")", () => {
       expect(a.stat?.title, q).not.toBe(a.understood?.label);
       expect(a.stat?.headline?.value, q).toBe("23268 Ultraviolet, 6980 Bad Wolf");
       expect(a.stat?.blocks.find((b) => b.kind === "links" && b.title === "Inspire Award"), q).toMatchObject({ items: [{ label: "23268 Ultraviolet" }] });
+    }
+  });
+  it("an event's alliances, however said, are its Playoffs tab, never words of its name", async () => {
+    for (const q of ["nj states alliances", "nj states alliance selection", "alliance selection nj states", "nj states alliance captains"]) {
+      const a = await ask(q);
+      expect(a.understood?.label ?? "", q).toMatch(/^Playoffs · New Jersey Championship/);
+      expect(a.hits.find((h) => h.kind === "event"), q).toMatchObject({ section: "playoffs" });
     }
   });
   it("an event with no results recorded says so plainly", async () => {
@@ -495,5 +583,43 @@ describe("who won a division (owner: \"who won nj turnpike division this year\" 
     await run("DELETE FROM awards WHERE season = 2024 AND code = 'USVTCMP'");
     await run("DELETE FROM events WHERE season = 2024 AND code = 'USVTCMP'");
     await rebuildSearch();
+  });
+});
+
+describe("the season with none said: one question, one season, whichever reader answers", () => {
+  it("reads the current season once anyone is ranked in it, the season before until then", async () => {
+    // The season after the fixture's, whatever today is (Greptile on #1166): only the clock's date is faked.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(`${S + 1}-11-08T12:00:00Z`));
+    const now = askSeason();
+    expect(now).toBe(S + 1);
+    const qs = ["best in New Jersey at the moment", "the strongest in New Jersey rn", "best teams in New Jersey", "top teams in New Jersey"];
+    const seasonOf = (a: Awaited<ReturnType<typeof ask>>) => /· (\d{4}–\d{2})/.exec(a.stat?.title ?? a.card?.title ?? "")?.[1];
+    const read = async () => {
+      const out: string[] = [];
+      for (const q of qs) for (const full of [false, true]) out.push(`${q}${full ? " (page)" : ""}: ${seasonOf(await searchAnswer(q, { limit: 25, learn: false, full }))}`);
+      return out;
+    };
+    // Nobody ranked in the current season yet: every reader shows the one before, and says why.
+    expect(await read()).toEqual(qs.flatMap((q) => [`${q}: ${seasonLabel(S)}`, `${q} (page): ${seasonLabel(S)}`]));
+    // Each one says why: the card's chip, or the short card's own line.
+    const why = (a: Awaited<ReturnType<typeof ask>>) => [a.understood?.label ?? "", ...(a.stat?.scope ?? [])].join(" | ");
+    for (const q of qs) for (const full of [false, true])
+      expect(why(await searchAnswer(q, { limit: 25, learn: false, full })), `${q} ${full}`).toContain(`No ${seasonLabel(now)} ranked teams yet in New Jersey; showing ${seasonLabel(S)}`);
+    // Once a team is ranked in the current season, every reader shows it.
+    await run("INSERT OR IGNORE INTO team_seasons (season, team) VALUES (?, 6980)", [now]);
+    await run(`INSERT OR REPLACE INTO team_season_stats (season, team, opr_np, opr_auto, rank_np, ranked_teams, rating_np, rating_matches, matches, wins, losses, ties)
+      VALUES (?, 6980, 90, 30, 1, 1, 95, 10, 10, 8, 2, 0)`, [now]);
+    // New data, as a sync says it: the rankings' lists are kept by data version.
+    await kvSet("data:version", `season-test-${now}`);
+    try {
+      expect(await read()).toEqual(qs.flatMap((q) => [`${q}: ${seasonLabel(now)}`, `${q} (page): ${seasonLabel(now)}`]));
+      for (const q of qs) expect(why(await searchAnswer(q, { limit: 25, learn: false })), q).not.toContain("ranked teams yet");
+    } finally {
+      await run("DELETE FROM team_season_stats WHERE season = ?", [now]);
+      await run("DELETE FROM team_seasons WHERE season = ?", [now]);
+      await kvSet("data:version", `season-test-${now}-done`);
+      vi.useRealTimers();
+    }
   });
 });
