@@ -33,6 +33,7 @@ export type IntentId =
   | "next-event-wins" | "event-win-chance" | "advance-chance" | "playoff-chance"
   // Family 2: one number over the team's events or seasons.
   | "opr-history" | "opr-by-season" | "record-by-season" | "win-rate" | "avg-penalties" | "avg-score-by-event" | "ranking-points"
+  | "auto-history" | "teleop-history" | "endgame-history" | "reliability-history"
   // Family 4 again: a season's penalty points.
   | "total-penalties";
 
@@ -56,12 +57,15 @@ interface IntentRule {
 
 const MATCHES = "(?:matches|match|games?)";
 /** Opponents as a group ("against top teams", "vs rookie teams") and a season's halves: read before any team's name. */
-const GROUP_TOP = /\b(?:against|vs\.?|versus|facing)\s+(?:the\s+)?(?:top|best|strong(?:est)?|elite|good|better|highest[\s-]rated|top[\s-]rated|high[\s-]rated|top[\s-]ranked)\s+(?:teams?|opponents?|alliances?|competition)\b/;
+// "Against top teams", or a world rank said as a number ("against teams ranked top 10 worldwide", "vs the top 25"):
+// that number is the answer's cut (StatQuestion.n).
+const TOP_N = String.raw`(?:(?:teams?|opponents?)\s+(?:(?:that|who)\s+(?:are|were)\s+)?(?:ranked\s+)?(?:in\s+)?(?:the\s+)?)?(?:the\s+)?top\s+(\d{1,4})(?:\s+(?:ranked\s+)?(?:teams?|opponents?))?(?:\s+(?:worldwide|globally|in\s+the\s+world(?:\s+rankings?)?|in\s+the\s+rankings?))?`;
+const GROUP_TOP = new RegExp(String.raw`\b(?:against|vs\.?|versus|facing)\s+(?:the\s+)?(?:(?:top|best|strong(?:est)?|elite|good|better|highest[\s-]rated|top[\s-]rated|high[\s-]rated|top[\s-]ranked)\s+(?:teams?|opponents?|alliances?|competition)|${TOP_N})\b`);
 const GROUP_ROOKIE = /\b(?:against|vs\.?|versus|facing)\s+(?:the\s+)?(?:rookies?|rookie\s+(?:teams?|opponents?)|new\s+teams?|first[\s-]year\s+teams?)\b/;
 const HALF = String.raw`(?:early|late|first[\s-]half|second[\s-]half)(?:\s+(?:of\s+the\s+)?season)?(?:\s+(?:form|results?|performance|record))?`;
 const EARLY_LATE = new RegExp(String.raw`\b${HALF}\s+(?:vs\.?|versus|against|and|or|compared\s+(?:to|with))\s+${HALF}\b|\b(?:early|late)\s+(?:vs\.?|versus|and)\s+(?:early|late)\s+season\b`);
 /** A side of a two-team question that's a group or a time, never a team: "top teams", "rookie teams", "early season". */
-export const NOT_A_TEAM = new RegExp(String.raw`^(?:the\s+)?(?:top|best|strong(?:est)?|elite|good|weak(?:er|est)?|better|worse|rookies?|rookie\s+teams?|new\s+teams?|highest[\s-]rated|top[\s-]rated|low(?:er)?[\s-]rated)(?:\s+(?:teams?|opponents?|alliances?|competition))?$|\b${HALF}$`);
+export const NOT_A_TEAM = new RegExp(String.raw`^(?:the\s+)?(?:top|best|strong(?:est)?|elite|good|weak(?:er|est)?|better|worse|rookies?|rookie\s+teams?|new\s+teams?|highest[\s-]rated|top[\s-]rated|low(?:er)?[\s-]rated)(?:\s+(?:teams?|opponents?|alliances?|competition))?$|^${TOP_N}$|\b${HALF}$`);
 /** The words some intents leave around the team ("12345 match with the most penalties", "12345 form in their last 5
  *  matches", "12345 performance against top teams"): never part of a team's name there. */
 const AROUND = /\b(?:with|where|when|they|them|trend|form|over|performance|recent|per|rate)\b/g;
@@ -87,6 +91,11 @@ const RULES: IntentRule[] = [
   { id: "vs-top", family: "aggregate", season: "latest", re: GROUP_TOP },
   { id: "vs-rookies", family: "aggregate", season: "latest", re: GROUP_ROOKIE },
   { id: "easiest-opponent", family: "aggregate", season: "latest", re: /\b(?:easiest|weakest|lowest[\s-]rated)\s+(?:opponents?|matchups?|rivals?)\b/ },
+  // A phase's OPR or the reliability index, event by event: before the OPR's own ("auto opr history").
+  { id: "auto-history", family: "trend", season: "all", re: /\bauto(?:nomous)?(?:\s+opr)?\s+(?:history|trend|over\s+time|by\s+event|progression)\b/ },
+  { id: "teleop-history", family: "trend", season: "all", re: /\b(?:tele[\s-]?op|driver[\s-]controlled)(?:\s+opr)?\s+(?:history|trend|over\s+time|by\s+event|progression)\b/ },
+  { id: "endgame-history", family: "trend", season: "all", re: /\bend[\s-]?game(?:\s+opr)?\s+(?:history|trend|over\s+time|by\s+event|progression)\b/ },
+  { id: "reliability-history", family: "trend", season: "all", re: /\breliab(?:ility|le)\s+(?:history|trend|over\s+time|by\s+event|progression)\b/ },
   { id: "opr-history", family: "trend", season: "all", re: /\bopr\s+(?:history|trend|over\s+time|by\s+event|progression|graph|chart)\b|\bimprovement\s+trend\b/ },
   { id: "avg-score-by-event", family: "trend", season: "all", re: /\b(?:average|avg|mean)\s+(?:alliance\s+)?score\s+(?:by|per|each|at\s+each)\s+event\b/ },
   { id: "total-penalties", family: "aggregate", season: "all", re: /\btotal\s+penalt(?:y|ies)(?:\s+points)?\b|\bpenalt(?:y|ies)\s+total\b/ },
@@ -115,7 +124,7 @@ const RULES: IntentRule[] = [
   { id: "playoff-chance", family: "stat", season: "all", re: /\b(?:predicted|projected|expected|likely)\s+to\s+make\s+(?:the\s+)?(?:playoffs?|eliminations?|elims?)(?:\s+(?:at|in)\s+(?:their|its|the)\s+next\s+(?:event|competition|meet))?\b|\b(?:playoffs?|elimination)\s+(?:chances?|odds|probability)\b|\bchances?\s+(?:to|of)\s+mak(?:e|ing)\s+(?:the\s+)?playoffs?\b/ },
   { id: "advance-chance", family: "stat", season: "all", re: /\badvancement\s+(?:chances?|odds|probability)\b|\bchances?\s+(?:to|of)\s+(?:advance|advancing|qualify|qualifying)(?:\s+to\s+(?:the\s+)?(?:worlds?|first\s+championship|states|state\s+championship))?\b|\b(?:odds|probability)\s+(?:to|of)\s+(?:advance|advancing)\b/ },
   // "Predicted chances of 4215 at …": the projection's chances, led by the chance to win the event.
-  { id: "event-win-chance", family: "stat", season: "all", re: /\bchances?\s+(?:to|of)\s+win(?:ning)?\s+(?:an?|the|their|its)\s+(?:next\s+)?(?:event|competition|meet|tournament)\b|\bevent\s+win\s+(?:chances?|odds|probability)\b|\b(?:predicted|projected|forecast)\s+(?:chances?|odds|probabilit(?:y|ies))(?:\s+(?:of|for))?\b/ },
+  { id: "event-win-chance", family: "stat", season: "all", re: /\bchances?\s+(?:to|of)\s+win(?:ning)?\s+(?:an?|the|their|its)\s+(?:next\s+)?(?:event|competition|meet|tournament)\b|\bevent\s+win\s+(?:chances?|odds|probability)\b|\b(?:predicted|projected|forecast)\s+(?:chances?|odds|probabilit(?:y|ies))(?:\s+(?:of|for))?\b|\bnext\s+(?:event|competition|meet|tournament)(?:'s|s)?\s+(?:predictions?|forecasts?|projections?|odds|chances?)\b|\b(?:predictions?|forecasts?|projections?)\s+(?:for|at|of)\s+(?:their|its|the)\s+next\s+(?:event|competition|meet|tournament)\b/ },
   { id: "toughest-opponent", family: "two-team", season: "all", re: /\b(?:toughest|hardest|strongest|worst)\s+(?:opponents?|rivals?|matchups?)\b|\bnemesis\b/ },
   { id: "most-played-opponent", family: "two-team", season: "all", re: /\bmost\s+(?:played|common|frequent|faced|often\s+(?:played|faced))\s+(?:opponents?|rivals?)\b|\bopponents?\s+(?:faced|played|met)\s+(?:the\s+)?most\b|\bbiggest\s+rival\b/ },
   { id: "frequent-partner", family: "two-team", season: "all", re: /\bmost\s+(?:frequent|common|often|played\s+with)\s+(?:alliance\s+)?partners?\b|\bfrequent\s+(?:alliance\s+)?partners?\b|\bpartnered\s+(?:with\s+)?(?:the\s+)?most\b/ },
@@ -195,6 +204,8 @@ export interface ReadScope {
   championship: boolean;
   states: boolean;
   level: "qual" | "playoff" | null;
+  /** "in the finals": the playoffs' last series only (level is "playoff" too). */
+  finals?: boolean;
   alliance: "red" | "blue" | null;
   /** "at <something>" that isn't Worlds or states: an event (left to the event family). */
   at: string | null;
@@ -249,7 +260,8 @@ export interface StatQuestion {
   core: string;
 }
 
-const WORLDS = /\b(?:(?:at|in|during|from)\s+)?(?:the\s+)?(?:worlds?|world\s+champ(?:ionships?|s)?|first\s+champ(?:ionships?|s)?|houston\s+champ(?:ionships?|s)?|championship\s+divisions?)\b/;
+// The longer names first: "world championship" is one name, never "world" and an event called "championship".
+const WORLDS = /\b(?:(?:at|in|during|from)\s+)?(?:the\s+)?(?:world\s+champ(?:ionships?|s)?|first\s+champ(?:ionships?|s)?|houston\s+champ(?:ionships?|s)?|championship\s+divisions?|worlds?)\b/;
 const STATES = /\b(?:(?:at|in|during)\s+)?(?:the\s+)?(?:states|state\s+champ(?:ionships?|s)?|state\s+finals?)\b/;
 const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 // The question's own words: never part of a team's name here.
@@ -312,7 +324,10 @@ export function readScope(q: string): { scope: ReadScope; rest: string } {
   if (take(/\b(?:ever|all[\s-]+time|of\s+all\s+time|career|in\s+history|overall)\b/)) scope.ever = true;
   if (take(/\b(?:on|as|from)\s+(?:the\s+)?red(?:\s+alliance|\s+side)?\b|\bred\s+alliance\b/)) scope.alliance = "red";
   else if (take(/\b(?:on|as|from)\s+(?:the\s+)?blue(?:\s+alliance|\s+side)?\b|\bblue\s+alliance\b/)) scope.alliance = "blue";
-  if (take(/\b(?:in|during)\s+(?:the\s+)?(?:playoffs?|eliminations?|elims?)\b/)) scope.level = "playoff";
+  // The finals, the playoffs' last series ("record in finals matches only", "12345 finals record"); a state's finals
+  // were read as its state championship above.
+  if (take(/\b(?:in|during)\s+(?:the\s+)?(?:grand\s+)?finals?(?:\s+match(?:es)?)?(?:\s+only)?\b|(?<!\b(?:make|makes|made|making|reach|reaches|reached|reaching|to|into)\s+(?:the\s+)?)\b(?:grand\s+)?finals?(?:\s+match(?:es)?)?(?:\s+only)?\b(?!\s+(?:appearances?|odds|chances?|bracket|alliances?))/)) { scope.level = "playoff"; scope.finals = true; }
+  else if (take(/\b(?:in|during)\s+(?:the\s+)?(?:playoffs?|eliminations?|elims?)\b/)) scope.level = "playoff";
   else if (take(/\b(?:in|during)\s+(?:the\s+)?(?:qualifications?|quals?|qualifying)\b/)) scope.level = "qual";
   // The match type said before the intent ("12345 playoff record", "quals record this season"); never a match list's
   // own words ("playoff matches"), which their intents read.
@@ -344,6 +359,8 @@ const PLACE_IDS = new Set<IntentId>(["highest-score", "lowest-score", "biggest-w
  *  the question is left to search instead. The regex readers and the search pipeline both ask it. */
 export function scopeFits(id: IntentId, family: StatFamily, scope: ReadScope, opts: { place?: boolean } = {}): boolean {
   const matchLevel = !!(scope.level || scope.alliance);
+  // The finals are a filter on the team's own match rows, never on anything else.
+  if (scope.finals && !PLACE_IDS.has(id)) return false;
   if (SEASON_ROWS.has(id) && (scope.championship || scope.states || matchLevel || scope.at || scope.window)) return false;
   if (EVENT_ROWS.has(id) && matchLevel) return false;
   if (id === "never-played" && (scope.championship || scope.states || matchLevel || scope.ever || scope.at || scope.window)) return false;
@@ -533,20 +550,27 @@ export function readLeaderboard(raw: string): LeaderboardQuestion | null {
     const region = place(m[2]);
     if (region !== false) return { kind: "top", stat: "rating", n: n(m[1], 10), region, city: null, season: scope.season };
   }
-  // "best rookie team in new jersey", "top 5 rookies in nj"
-  if ((m = new RegExp(`^(?:the )?(?:best|top|strongest|highest ranked)(?: (\\d{1,2}))? rookies?(?: ${TEAMS})?(?: by (.+?))?${PLACE}$`).exec(rest))) {
-    const stat = m[2] ? boardStat(m[2]) : "opr", region = place(m[3]);
-    if (stat && region !== false) return { kind: "rookie", stat, n: n(m[1], 10), region, city: null, season: scope.season };
+  // "best rookie team in new jersey", "top 5 rookies in nj", "lowest opr rookies in new jersey": a stat before
+  // "rookies" or after "by"; the lowest first when asked.
+  if ((m = new RegExp(`^(?:the )?(best|top|strongest|highest ranked|${LOW_WORDS})(?: (\\d{1,2}))?(?: (.+?))? rookies?(?: ${TEAMS})?(?: by (.+?))?(?: (?:in|from) (.+?))?(?: by (.+?))?$`).exec(rest)) && [m[3], m[4], m[6]].filter(Boolean).length < 2) {
+    const said = m[3] ?? m[4] ?? m[6];
+    const stat = said ? boardStat(said) : "opr", region = place(m[5]);
+    const asc = new RegExp(`^${LOW}$`).test(m[1]);
+    if (stat && region !== false) return { kind: "rookie", stat, n: n(m[2], 10), region, city: null, season: scope.season, ...(asc ? { asc: true } : {}) };
   }
-  // "which team has the most awards in nj", "team that played the most matches", "most events played in ohio": a
+  // "which team has the most awards in nj", "which nj teams have the most awards", "team that played the most matches",
+  // "most events played in ohio": a
   // count's board, its leader first. Right after "most" a count needs no verb: search reads "most matches" as "most
   // match" (matches played), and a verb said before it is its own ("attended the most event").
   // Counted at some events only ("at New Jersey events", "out of state") or on one day is a count the board (season
   // totals) can't make: none.
-  if (!scope.place && !scope.outOfState && !scope.day && (m = new RegExp(`^(?:(?:which|what) )?(?:${TEAMS} )?(?:(?:in|from) (.+?) )?(?:(?:that|who) )?(?:(has|have|had|with|won|played|plays|attended|got) )?(?:the )?most (.+?)${PLACE}$`).exec(rest))) {
-    const counted = boardStat(m[3]) ?? boardStat(`${m[3]} ${m[2] === "attended" ? "attended" : "played"}`), region = place(m[1] ?? m[4]);
+  if (!scope.place && !scope.outOfState && !scope.day && (m = new RegExp(`^(?:(?:which|what) )?(?:(?:the )?(?:(?!ftc )(.+?) )?${TEAMS} )?(?:(?:in|from) (.+?) )?(?:(?:that|who) )?(?:(?:has|have|had) )?(?:(has|have|had|with|won|played|plays|attended|got) )?(?:the )?most (.+?)${PLACE}$`).exec(rest))
+    && [m[1], m[2], m[5]].filter(Boolean).length < 2) {
+    // A place said before the team word ("nj teams") is the same place as one after it; anything else there is no board.
+    // "FTC teams" is the team word itself, never a place before "teams".
+    const counted = boardStat(m[4]) ?? boardStat(`${m[4]} ${m[3] === "attended" ? "attended" : "played"}`), region = place(m[1] ?? m[2] ?? m[5]);
     // "Won the most matches" is the wins board; "won the most events" is no board here (never events played).
-    const stat = m[2] !== "won" || counted === "awards" ? counted : counted === "matches" ? "wins" : null;
+    const stat = m[3] !== "won" || counted === "awards" ? counted : counted === "matches" ? "wins" : null;
     if ((stat === "matches" || stat === "events" || stat === "awards" || (stat === "wins" && counted === "matches")) && region !== false) return { kind: "top", stat, n: 10, region, city: null, season: scope.season, best: true };
   }
   // "most improved team in new jersey"
@@ -719,7 +743,8 @@ export function readStatQuestion(raw: string): StatQuestion | null {
     // records with no team stay searchHighScores.ts's.
     // "q12", "qual 12": a qualification match only, never a playoff match with that number.
     if (r.id === "match-lookup" && /\bq(?:ual(?:ification)?)?\s*\d/.test(m[0])) scope.level = "qual";
-    const n = r.id === "last-matches" ? Math.min(20, Math.max(1, Number(m[1]))) : r.id === "match-lookup" ? Number(m[1] ?? m[2]) : r.id === "scores-over" ? Number(m[1]) : null;
+    const n = r.id === "last-matches" ? Math.min(20, Math.max(1, Number(m[1]))) : r.id === "match-lookup" ? Number(m[1] ?? m[2]) : r.id === "scores-over" ? Number(m[1])
+      : r.id === "vs-top" && m[1] ? Math.max(1, Number(m[1])) : null;
     const variant = r.id === "penalties" ? (/\bper\s+event\b/.test(q) ? "per-event" : /\brate\b/.test(q) ? "rate" : null)
       : r.id === "scores-over" && /\bat\s+least\b/.test(m[0]) ? "at-least" : null;
     // "average winning margin", "margin of victory on average": wins only; "average losing margin": losses only.
