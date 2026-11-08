@@ -117,6 +117,10 @@ describe("a season's highest scores, by its game", () => {
     for (const q of ["show me the top 3 matches of all time, by total score, in FTC history on this site", "the top 3 match of all time by total score in ftc history on this site"]) expect(readTopMatches(q), q).toMatchObject({ ever: true, region: null });
     // A team's own highest score stays the team's.
     expect(readTopMatches("4215 most points scored in a match")).toBeNull();
+    // "Highest auto matches" is the matches with the most auto points; the best auto teams stay a team board.
+    expect(readTopMatches("highest auto matches")).toMatchObject({ phase: "auto" });
+    expect(readTopMatches("top endgame matches in nj")).toMatchObject({ phase: "endgame", region: { key: "USA:NJ" } });
+    expect(readTopMatches("best auto teams")).toBeNull();
   });
   it("the failed search: DECODE's best alliance score without penalties, both alliances and its periods", async () => {
     const a = await full("what was the highest score in decode without penalties");

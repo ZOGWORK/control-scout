@@ -35,6 +35,7 @@ import { changeAnswer, readChange, type ChangeQuestion } from "./families/season
 import { MATCH_STAT_IDS, matchStatAnswer } from "./families/matchStats.js";
 import { BOARD_STATS, LEADERBOARD_MAX, boardStatFor, leaderboardAnswer, statWords, windowBoardAnswer } from "./families/leaderboard.js";
 import { readTime } from "../query/time.js";
+import { biggestEventsAnswer, readBiggestEvents } from "./families/biggestEvents.js";
 import { everTopMatches, readTopMatches, topMatchesAnswer, type TopMatchesQuestion } from "./families/topMatches.js";
 import { penaltyTotalAnswer, trendAnswer } from "./families/trends.js";
 import { nextEventPrediction, pairPrediction, predictTitle, predictionSeason } from "./families/predict.js";
@@ -350,6 +351,14 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   // A season's highest-scoring matches before a leaderboard ("highest scoring matches at <event>" names no city).
   const tm = readTopMatches(q);
   if (tm) return topSearch(q, tm, opts);
+  // "Which event had the most teams in California this season", "biggest qualifiers in Texas": events by team count.
+  const big = readBiggestEvents(q);
+  if (big) {
+    const stat = opts.full ? await biggestEventsAnswer(big, searchSeason()) : null;
+    const label = stat?.title ?? `Events with the most teams${big.e.region ? ` in ${big.e.region.name}` : ""}`;
+    return { q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label, ...(big.e.region ? { place: { key: big.e.region.key, name: big.e.region.name } } : {}) },
+      intent: { kind: "stat-biggest-events", pattern: `events with the most teams${big.e.region ? " [place]" : ""}`, met: true, understood: [label] }, ...(stat ? { stat } : {}) };
+  }
   // "Top teams this week", "best teams in NJ last weekend": the teams that played then, by their OPR at those events.
   const win = TOP_TEAMS_SAID.test(q) ? readTime(q.toLowerCase(), searchToday()) : null;
   if (win?.time?.kind === "window" && win.time.from && win.time.to) {

@@ -51,6 +51,8 @@ const SAID_OTHERWISE: [RegExp, string][] = [
   [/\b(?:the\s+)?(?:most|highest|top|max(?:imum)?)\s+points\s+(?:(?:any|an?|one)\s+(?:team|alliance)|anyone|anybody)?\s*(?:(?:has|have|ever|had)\s+)*(?:scored|got|put\s+up|made)\s+(?:in|during|for)\s+(?:a|one|any|a\s+single|one\s+single)\s+(?:match|game)\b/, " highest scores "],
   // Search may hand the words over singular ("top 3 match … by total score").
   [/\btop\s+(?:\d{1,2}\s+)?(?:match(?:es)?|games?)\b(.*?)\s*\bby\s+(?:total\s+|combined\s+|match\s+)?(?:scores?|points?)\b/, " highest scoring matches $1 "],
+  // "Highest auto matches": the matches with the most auto points, as "highest auto scores" reads.
+  [/\b(highest|top|best|biggest)\s+(auto(?:nomous)?|tele[\s-]?op|driver[\s-]controlled|end[\s-]?game)\s+(?:match(?:es)?|games?)\b/, " $1 $2 scores "],
   // "on this site", "in ftc history": where the answer comes from, nothing to filter.
   [/\b(?:on|in)\s+(?:this|the)\s+(?:site|website|app)s?\b/, " "],
   [/\bin\s+(?:ftc|first)\s+history\b/, " ever "],

@@ -30,7 +30,8 @@ Topic words are read as the topic, not as a team that happens to share the name,
 - **Topic words stay topics.** A phrase made only of topic words ("alliances", "inspire awards", "event results") reads as a team only when it is that team's whole name, so "nj states alliances" (or "alliance selection", "alliance captains") opens the championship's Playoffs tab and "most inspire awards" ranks the teams by Inspire Awards won, worldwide or in a region; "inspire" is no longer pluralized into a team name, and a misspelling of "highlights" or "videos" is corrected to that word.
 - **Plain team asks.** "Average OPR" is the OPR (already a per-match average), "RP" is ranking points, and "who has 4215 played with" (or "teamed up with") lists the alliance partners. A name several teams share puts the team that has played the most matches first, so "ultraviolet record" is the record of the Ultraviolet people mean most often.
 - **Said another way.** "The most points any team scored in a single match" and "the top 3 matches of all time, by total score" are the highest-scoring matches; "…, in order, with scores" at the end of a match list, and "on this site", are read past.
-- **Top teams this week.** "Top teams this week", "best teams in NJ last weekend": the teams that played at an event held then, ranked by their OPR at those events, with their record there. (#1180)
+- **Top teams this week.** "Top teams this week", "best teams in NJ last weekend": the teams that played at an event held then, ranked by their OPR at those events, with their record there.
+- **Biggest events.** "Which event had the most teams in California this season", "largest qualifiers in Texas" and "biggest event" rank a place's events by the teams on their lists, an event's divisions counted together; "highest auto matches" lists the matches with the most auto points. (#1180)
 
 ## 4.2.5 — 2026-11-08
 
