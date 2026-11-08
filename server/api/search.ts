@@ -255,7 +255,7 @@ async function searchWords(q: string, limit: number, prefer: ReadonlySet<string>
     // Your own teams/events win ties and near-ties, never beat a much better match.
     .map((x) => (prefer.has(`${x.c.kind}:${x.c.ref}`) ? { ...x, s: x.s + 0.1 } : x))
     // On an equal score, the name spelled exactly as typed ("roborebels" is RoboRebels before Robo Rebels).
-    .sort((a, b) => b.s - a.s || asTyped(query, b.c.title) - asTyped(query, a.c.title) || b.c.weight - a.c.weight || (b.c.season ?? 0) - (a.c.season ?? 0) || a.c.title.localeCompare(b.c.title));
+    .sort((a, b) => b.s - a.s || asTyped(q, query, b.c.title) - asTyped(q, query, a.c.title) || b.c.weight - a.c.weight || (b.c.season ?? 0) - (a.c.season ?? 0) || a.c.title.localeCompare(b.c.title));
   for (const { c } of ranked) push({ kind: c.kind, ref: c.ref, title: c.title, subtitle: c.subtitle, season: c.season });
   // Short typos can share no trigram with the right word ("dirve" vs "drive"):
   // when the index didn't find enough, scan the names in memory (bounded edit
@@ -285,8 +285,12 @@ async function searchWords(q: string, limit: number, prefer: ReadonlySet<string>
   return newestSeasons(out, query).slice(0, limit);
 }
 
-/** 1 when a hit's name is the query exactly as typed (case aside; a team's "<number> | " before it left out), else 0. */
-const asTyped = (query: string, title: string) => (title.replace(/^\d+\s*\|\s*/, "").trim().toLowerCase() === query.trim().toLowerCase() ? 1 : 0);
+/** 2 when a hit's name is the query exactly as typed ("the king robotics" is The King Robotics), 1 when it's the query
+ *  with search's small words taken out (`cleaned`), else 0. Case aside; a team's "<number> | " before it left out. */
+const asTyped = (typed: string, cleaned: string, title: string) => {
+  const name = title.replace(/^\d+\s*\|\s*/, "").trim().toLowerCase();
+  return name === typed.trim().toLowerCase() ? 2 : name === cleaned.trim().toLowerCase() ? 1 : 0;
+};
 
 /** An event code comes back every season (USNJCMP 2023, 2024, …): keep its newest season unless a year was typed. */
 function newestSeasons(hits: SearchHit[], query: string): SearchHit[] {

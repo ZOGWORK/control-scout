@@ -16,7 +16,7 @@ beforeAll(async () => {
     [2222, "Robo-Raptors", null, "Leeds"], [3333, "机器人队", null, "Shenzhen"],
     [5555, "Drive Team", null, "Austin"],
     // One name spelled two ways by two teams: the spelling typed comes first.
-    [41001, "Sky Hawks", null, "Reno"], [41002, "SkyHawks", null, "Reno"],
+    [41001, "Sky Hawks", null, "Reno"], [41002, "SkyHawks", null, "Reno"], [41003, "The King Robotics", null, "Reno"], [41004, "King Robotics", null, "Reno"],
   ];
   for (const [n, name, school, city] of teams) {
     await run("INSERT INTO teams (number, name, school, city) VALUES (?, ?, ?, ?)", [n, name, school, city]);
@@ -66,6 +66,9 @@ describe("search", () => {
   it("puts the name spelled exactly as typed first when two teams' names score the same", async () => {
     expect((await search("skyhawks", 5)).filter((h) => h.kind === "team").map((h) => h.ref).slice(0, 2)).toEqual(["41002", "41001"]);
     expect((await search("sky hawks", 5)).filter((h) => h.kind === "team")[0]?.ref).toBe("41001");
+    // A small word search drops ("the") is still the name typed: The King Robotics, not King Robotics.
+    expect((await search("the king robotics", 5)).filter((h) => h.kind === "team")[0]?.ref).toBe("41003");
+    expect((await search("king robotics", 5)).filter((h) => h.kind === "team")[0]?.ref).toBe("41004");
   });
 
   it("tolerates typos in team names", async () => {
