@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.1.2 — 2026-11-08
+
+A place's award winners are answered: a state's, a country's or a town's teams and the awards they won, the most, the rarest, and whether any won at Worlds or made its finals.
+
+### Highlights
+- [fixes] "Michigan Inspire winners" lists that state's winners
+- [fixes] A country's teams ranked by Inspire Awards won
+- [fixes] "did any NJ team win Inspire at worlds" says yes or no
+- [fixes] "rarest award a NJ team won this season" names the award
+
+### Search
+- **A place's award winners.** The teams from a state, a country (or its people's word) or a town, and the awards they won, newest first or by a stat ("by auto"): the most won, the rarest one (given fewest times anywhere that season), two awards won at one event, and yes or no at Worlds, for an award or for reaching its finals or playoffs. At Worlds, "last year" is the latest Championship that has finished. (#1100)
+
+
 ## 4.1.1 — 2026-11-08
 
 Asking whether one team will beat another gets the match's call, and asking what happens if you change an alliance points you to the part of Predict that does it.

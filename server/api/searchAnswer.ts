@@ -36,6 +36,7 @@ import { intentAnswer, parseIntent } from "./searchIntents.js";
 import { parseQuestion, questionAnswer } from "./searchQuestions.js";
 import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
 import { statAnswer } from "./answers/index.js";
+import { placeAwardsSearch, readPlaceAwards } from "./answers/families/placeAwards.js";
 import { refreshSearchSeason } from "./answers/season.js";
 import { FALLBACK_NOTE, carryOutcome, layeredAnswer, nameKey, teamNames } from "./searchLayers.js";
 import { INFORMAL, informalQuery } from "./query/lexicon.js";
@@ -399,6 +400,10 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
     const a = await askAnswer(q, awarded, { prefer, ask: (x) => searchAnswer(x, { ...opts, learn: false }) });
     if (a) return a;
   }
+  // A place's award winners ("Michigan Inspire winners", "awards won by teams from <town>", "did any <state> team win
+  // Inspire at worlds"), before the stat answers read the place or the award as a team's name.
+  const placeAwards = opts.intents === false ? null : await readPlaceAwards(q);
+  if (placeAwards) return placeAwardsSearch(q, placeAwards, pagesFor(q));
 
   // 0. What a word means ("how is opr calculated"), before the stat answers read a word of it as a team's name
   // ("CALculated Risk"); and the questions that name no team ("teams near me", "lowest opr in nj").
