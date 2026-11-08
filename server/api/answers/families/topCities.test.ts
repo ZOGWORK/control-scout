@@ -11,7 +11,7 @@ beforeAll(async () => {
   // number, city, state, country, played in 2025–26
   const teams: [number, string, string, string, boolean][] = [
     [101, "Bucharest", "B", "Romania", true], [102, "BUCHAREST", "B", "Romania", true], [103, "Bucharest", "B", "Romania", false],
-    [104, "Cluj-Napoca", "CJ", "Romania", true], [105, "Cluj-Napoca", "CJ", "Romania", true], [106, "Iasi", "IS", "Romania", false],
+    [104, "Cluj-Napoca", "CJ", "Romania", true], [105, "Cluj-Napoca", "CJ", "Romania", true], [106, "iasi", "IS", "Romania", false],
     [201, "Edison", "NJ", "USA", true], [202, "Oradell", "NJ", "USA", false], [203, "Atlanta", "GA", "USA", true],
   ];
   for (const [n, city, state, country, played] of teams) {

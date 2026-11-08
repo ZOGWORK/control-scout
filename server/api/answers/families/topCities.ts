@@ -72,8 +72,10 @@ export async function topCitiesAnswer(c: TopCitiesQuestion): Promise<StatAnswer 
   const where = r ? ` in ${r.name}` : " worldwide";
   // A city's name is said with its state, or its country when the place is wider than one country.
   const na = (x: { country: string | null }) => x.country === "USA" || x.country === "Canada";
+  // A name every team typed in lower case ("iasi") is shown capitalized; any other spelling is kept as FIRST lists it.
+  const cased = (c: string) => (c === c.toLowerCase() ? c.replace(/(^|[\s-])(\p{L})/gu, (_, a: string, b: string) => a + b.toUpperCase()) : c);
   const placeOf = (x: { city: string; state: string | null; country: string | null }) =>
-    [x.city, r?.state ? null : na(x) ? x.state : r ? null : x.country].filter(Boolean).join(", ");
+    [cased(x.city),r?.state ? null : na(x) ? x.state : r ? null : x.country].filter(Boolean).join(", ");
   const base = {
     family: "leaderboard" as const, intent: "top-cities", title: `Cities with the most teams${where}`, scope: [r?.name ?? "Worldwide"],
     definition: `A city's teams are the teams whose home city it is, as FIRST lists it in the team directory.${newest != null ? ` Cities are ranked by how many of them played in ${seasonLabel(newest)}, the newest season with matches here; "Listed" counts every team the directory has there, played lately or not.` : ""}`,
