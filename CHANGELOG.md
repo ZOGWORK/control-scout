@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.0.9 — 2026-11-08
+
+A team whose name has dotted initials is found typed without the dots: "ice robotics highlights" answers for 11329 I.C.E. Robotics.
+
+### Highlights
+- [fixes] "Ice robotics highlights" finds I.C.E. Robotics
+- [teams] Names with dotted initials match typed without dots
+- [fixes] "Ice robotics" lists I.C.E. Robotics first
+
+### Search
+- **Dotted initials.** A team name's initials written with dots ("I.C.E.", "M.E.D.I.C.S.") also read as the word they spell, in the question reader and the search index alike, so the name typed without dots finds the team. One-dot abbreviations ("St.", "Mr.") and numbers ("2.0") are unchanged. (#1163)
+
 ## 4.0.8 — 2026-11-07
 
 "The best in New Jersey" with no "teams" word, and short words for now, read as the region's top teams this season.
