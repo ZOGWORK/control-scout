@@ -143,6 +143,16 @@ describe("records", () => {
   it("against top-rated and rookie teams, never a compare with a team named so", async () => {
     const top = await stat("4215 performance against top teams");
     expect(top).toMatchObject({ intent: "vs-top", headline: { value: "2-2-0" } });
+    // A number of top teams: their world rank, that many or better (9999 is #1, 4215 itself #2: the same matches).
+    const two = await stat("how has 4215 done versus the top 2 opponents");
+    expect(two).toMatchObject({ intent: "vs-top", title: expect.stringContaining("Against top 2 teams"), headline: { value: "2-2-0" } });
+    expect(two?.definition).toContain("ranked 2 or better in the world");
+    // Ranks 3 and better hold 6980 too: more matches than the top 2's.
+    const three = await stat("4215 record facing the top 3 teams");
+    expect(three?.blocks.find((b) => b.kind === "table")).toMatchObject({ rows: [{ cells: { who: "With a top-3 opponent" } }, {}] });
+    expect(readStatQuestion("4215 performance against the top 50 teams")).toMatchObject({ id: "vs-top", core: "4215", n: 50 });
+    expect(readStatQuestion("4215 performance against the top teams")).toMatchObject({ id: "vs-top", n: null });
+    expect(readTwoTeam("4215 results vs top 50 teams")).toBeNull();
     expect((await stat("4215 performance against rookie teams"))?.headline).toMatchObject({ value: "2-0-1" });
     expect((await stat("4215 easiest opponent this season"))?.headline).toMatchObject({ value: "23268 Rookie Robots" });
     // Ratings are never compared across seasons: "ever" is the latest season's, said so.
