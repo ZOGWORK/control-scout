@@ -20,6 +20,7 @@ import { EventAwardsAnswer } from "../components/search/page/EventAwards";
 import { useSubmittedSearch } from "../components/search/direct";
 import { SearchSkeleton } from "../components/search/SearchSkeleton";
 import { AnswerNotesView, useSearchHits, useSections } from "../components/search/SearchBox";
+import { SeasonPickContext, pickedSeason, type SeasonPick } from "../components/search/page/SeasonPick";
 import { CompareCard, EventCard, HeadToHead, ResultRow, TeamCard, teamSeasons, type SeasonSummary } from "../components/search/page/ResultCards";
 import { NoResults, SorryNote } from "../components/search/page/NoResults";
 import { StatAnswerCard } from "../components/search/page/StatAnswer";
@@ -54,7 +55,15 @@ export default function SearchPage() {
   const [params, setParams] = useSearchParams();
   const q = params.get("q") ?? "";
   const query = q.trim();
-  const { hits, answer, busy, error, retry, logPick, stale, prefer, searchNow, live } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, BOOT_HITS, false);
+  // The season picked on the answer's chip (?in=2024, ../components/search/page/SeasonPick.tsx): the same query asked
+  // about that season. A step Back undoes; the address shares it.
+  const held = useMeta()?.seasons.map((s) => s.season) ?? [];
+  const picked = pickedSeason(params.get("in"), held);
+  const { hits, answer, busy, error, retry, logPick, stale, reseason, prefer, searchNow, live } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, BOOT_HITS, false, picked);
+  const seasonPick = useMemo<SeasonPick>(() => ({
+    picked, pending: reseason,
+    pick: (s) => setParams((p) => { const next = new URLSearchParams(p); next.set("in", String(s)); return next; }),
+  }), [picked, reseason, setParams]);
   const { sections, notes } = useSections(hits, answer, null);
   const ax = answer as AnswerExtra | undefined;
   // The time tab follows the query ("upcoming meets …" opens on Upcoming); a pick of another is kept in the address.
@@ -155,6 +164,9 @@ export default function SearchPage() {
   const open = (h: SearchHit) => logPick(h);
   // Phase 2 summary: a championship question's records as a timeline and stats; "how good is X" as X's standing.
   const apps = useMemo(() => appearances(answer?.card), [answer?.card]);
+  // A stat answer with a word's explainer card (server/api/searchCoverage.ts explainTeamAnswer): the explainer goes inside
+  // the stat's card, so the page shows one answer card.
+  const inStat = !!answer?.stat && answer.card?.kind === "info";
   const topTeam = hits.find((h) => h.kind === "team" && !isCompare(h));
   const topSum = topTeam && isQualityQuestion(query) ? summaries.get(Number(topTeam.ref)) : undefined;
   const std = topSum && !answer?.card ? standing(topSum.s, topSum.season) : null;
@@ -176,15 +188,16 @@ export default function SearchPage() {
   // The follow-ups (./search/page/FollowUps.tsx), asked once the answer is on screen. A wide screen gives them their own
   // column beside the results, always there with an answer so the results never move when they arrive; a phone has
   // them in the one column, People also ask under the answer and the rest at the end.
-  const follow = useFollowUps(query, prefer, !busy && !stale);
+  const follow = useFollowUps(query, prefer, !busy && !stale, picked);
   const railed = wide && found;
   const side = !!panel || railed;
   // A search on its way (just submitted, or a new one run from here): its loading screen, never older results; and
   // while going on to the one page a submitted query names.
-  if (query && !error && ((busy && (stale || !found)) || leaving)) return <SearchSkeleton query={query} top={phone ? <PhoneSearchBar query={query} /> : null} />;
+  if (query && !error && ((busy && ((stale && !reseason) || !found)) || leaving)) return <SearchSkeleton query={query} top={phone ? <PhoneSearchBar query={query} /> : null} />;
   return (
     // One results column, 640–720px and centred (the search results guide's §9: a line the eye can follow across a
     // card); a page with a side panel keeps that column and puts the panel beside it.
+    <SeasonPickContext.Provider value={seasonPick}>
     <div className={cn("w-full pt-4 sm:pt-8", side ? "max-w-6xl" : "mx-auto max-w-[720px]")} data-results-column={side ? "with-panel" : ""}>
       {/* The feature's name sits above the title; the title names what was found, the badge what the query was read as.
           The query itself lives in the top bar (refine there): the page never repeats it. */}
@@ -259,20 +272,21 @@ export default function SearchPage() {
                       </aside>
                     )}
                     {panel === "versus" && shownH2h && <aside aria-label="Head-to-head" className="max-lg:hidden" data-panel="versus"><HeadToHead h={shownH2h} now={now.data?.teams} before={asked == null ? before.data?.teams : undefined} season={base} /></aside>}
-                    {railed && <FollowUpsRail f={follow} q={query} />}
+                    {railed && <FollowUpsRail f={follow} q={follow.asked ?? query} />}
                   </div>
                 )}
                 <div className="min-w-0 lg:col-start-1 lg:row-start-1">
                   {!panel && summary}
                   {/* A stat question's answer ("4215 highest score in worlds"): ./search/page/StatAnswer.tsx. */}
-                  {answer?.stat && <StatAnswerCard stat={answer.stat} heading={title ?? undefined} />}
+                  {/* A word's explainer with it ("how is OPR calculated, with 4215") is drawn inside its card: one answer card. */}
+                  {answer?.stat && <StatAnswerCard stat={answer.stat} heading={title ?? undefined} explain={inStat ? answer.card : undefined} />}
                   {/* A question's records: as cards the timeline jumps to (championships, newest first: a "when" question reads
                       from the latest), else the answer card as before. */}
                   {apps.length ? (
                     // Worlds or states trips: one card with the team up top, a record card per trip inside.
                     <AppearancesAnswer team={answer!.card!.team} title={answer!.card!.title} heading={title} headline={answer!.card!.headline} trip={answer!.card!.trip} apps={apps} />
                   ) : answer?.card?.kind === "event-awards" ? <EventAwardsAnswer card={answer.card} heading={title ?? undefined} />
-                    : answer?.card && <FactCard card={answer.card} heading={title ?? undefined} season={hits.find((h) => h.kind === "team" && !isCompare(h) && Number(h.ref) === answer.card!.team?.number)?.linkSeason} />}
+                    : answer?.card && !inStat && <FactCard card={answer.card} heading={title ?? undefined} season={hits.find((h) => h.kind === "team" && !isCompare(h) && Number(h.ref) === answer.card!.team?.number)?.linkSeason} />}
                   {/* A match or event searched by name (no answer card): its video above the results (./search/page/AnswerVideo.tsx). */}
                   {!answer?.stat && !answer?.card && <AnswerVideo className="mb-5 mt-0 max-sm:mx-0" />}
                   {/* One column: the next questions search answers directly, under the answer. */}
@@ -303,7 +317,7 @@ export default function SearchPage() {
                   {panel === "versus" && summary}
                   {/* One column: the team's highlights and the related searches, after the results. */}
                   {!railed && <TeamHighlights h={follow.highlights} className="mt-5" />}
-                  {!railed && <RelatedSearches related={follow.related} seeAll={query} className="mt-5" />}
+                  {!railed && <RelatedSearches related={follow.related} seeAll={follow.asked ?? query} className="mt-5" />}
                 </div>
               </div>
             </div>
@@ -325,6 +339,7 @@ export default function SearchPage() {
         <Link to="/how-it-works/search" className="inline-flex items-center font-medium text-foreground underline underline-offset-2 max-md:min-h-[44px] pointer-coarse:min-h-[44px]">How FTC One Search works</Link>
       </p>
     </div>
+    </SeasonPickContext.Provider>
   );
 }
 

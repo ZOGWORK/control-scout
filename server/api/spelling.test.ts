@@ -5,7 +5,7 @@ import { migrate, openDb, run, setDb } from "../db";
 import { rebuildSearch } from "../stats/job";
 import { CURRENT_SEASON } from "../data/seasons";
 import { searchAnswer } from "./searchAnswer";
-import { buildVocab, correctQuery, correctWord, strength } from "./spelling";
+import { buildVocab, correctQuery, correctWord, looseWord, splitWord, strength } from "./spelling";
 import type { SearchAnswer } from "../../src/shared/api";
 
 const S = CURRENT_SEASON;
@@ -39,12 +39,52 @@ beforeAll(async () => {
   await rebuildSearch();
 });
 
+describe("intent words typed wrong", () => {
+  // A small vocabulary of its own: a team's name with a word one letter from "match", and a division's name seen often.
+  const v = buildVocab([{ name: "Math Magnets", city: "Paramus", state: "NJ" }],
+    Array.from({ length: 6 }, (_, i) => ({ code: `X${i}`, name: `FIRST Championship - Jackson Division ${i}`, city: "Houston", state: "TX" })));
+  it("corrects a letter added inside one, which no ending makes", () => {
+    expect(correctWord("lastest", v)?.word).toBe("latest");
+    // A real form of a known word stays as typed.
+    expect(correctWord("scouting", v)).toBeNull();
+  });
+  it("reads six letters jumbled, all of them kept, and a common name's word the same way", () => {
+    expect(correctWord("lastet", v)?.word).toBe("latest");
+    expect(correctWord("jacosn", v)?.word).toBe("jackson");
+  });
+  it("takes the fewer plain edits between two as close by typing", () => {
+    expect(correctWord("lasetest", v)?.word).toBe("latest");
+  });
+  it("reads two of search's own words typed as one, either misspelled", () => {
+    expect(splitWord("latestmatches", v)?.word).toBe("latest matches");
+    expect(splitWord("lasetestmatches", v)?.word).toBe("latest matches");
+    // A word of search's own beside one only the query parser reads.
+    expect(splitWord("latesthighlights", v)?.word).toBe("latest highlights");
+    expect(splitWord("jackson", v)).toBeNull();
+    expect(splitWord("robotics", v)).toBeNull();
+    // Both halves guessed is a long word this vocabulary lacks, never two words read into it.
+    for (const w of ["scheduled", "underwater", "teamwork"]) {
+      const s = splitWord(w, v);
+      if (s) expect(s.word.split(" ").filter((x) => !w.includes(x)).length, w).toBeLessThanOrEqual(1);
+    }
+  });
+  it("corrects the parser's own words", () => {
+    expect(correctWord("highlishts", v)?.word).toBe("highlights");
+  });
+  it("as a last try, reads a name's word or a short word as the own word it is a slip from", () => {
+    expect(looseWord("math", v)?.word).toBe("match");
+    expect(looseWord("wom", v)?.word).toBe("won");
+    expect(looseWord("match", v)).toBeNull();
+    expect(looseWord("zzq", v)).toBeNull();
+  });
+});
+
 describe("correctQuery", () => {
   it("corrects misspelled team names, stat words, event words and places", async () => {
     const cases: [string, string][] = [
       ["hypnotc robotics", "hypnotic robotics"], ["hipnotic robotics", "hypnotic robotics"], ["bad wolff", "bad wolf"],
       ["enforcrs", "enforcers"], ["4215 oper", "4215 opr"], ["4215 recrod", "4215 record"], ["4215 awrds", "4215 awards"],
-      ["new jersey champinship", "new jersey championship"], ["bergen qualifer", "bergen qualifier"], ["new jersy", "new jersey"],
+      ["new jersey champinship", "new jersey championship"], ["bergen qualifer", "bergen qualifier"], ["new jersy", "new jersey"], ["4215 higlights", "4215 highlights"], ["4215 vidoes", "4215 videos"],
       ["oradel", "oradell"], ["4215 wrolds", "4215 worlds"], ["4215 playofs", "4215 playoffs"], ["4215 inspyre", "4215 inspire"],
     ];
     for (const [typed, fixed] of cases) expect((await correctQuery(typed))?.q, typed).toBe(fixed);

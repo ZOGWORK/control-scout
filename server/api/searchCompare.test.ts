@@ -42,9 +42,11 @@ describe("Compare is its own kind", () => {
     expect(a.hits[0].compare?.teams).toEqual([{ number: 4215, name: "Hypnotic Robotics", place: "Oradell, NJ" }, { number: 23268, name: "Ultraviolet", place: "Hackettstown, NJ" }]);
   });
   it("trailing words never break the versus", async () => {
-    for (const [q, ref] of [["ultraviolet vs hypnotic history", "4215,23268"], ["4215 vs 6980 history", "4215,6980"], ["4215 vs 6980 record", "4215,6980"], ["hypnotic vs bad wolf stats", "4215,6980"]]) {
+    for (const [q, ref] of [["ultraviolet vs hypnotic history", "4215,23268"], ["4215 vs 6980 history", "4215,6980"], ["hypnotic vs bad wolf stats", "4215,6980"]]) {
       expect((await ask(q)).hits[0], q).toMatchObject({ kind: "compare", ref });
     }
+    // "A vs B record" is their record against each other, as "A record against B" is.
+    expect((await ask("4215 vs 6980 record")).stat?.intent).toBe("head-to-head");
   });
 });
 
