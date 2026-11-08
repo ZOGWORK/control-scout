@@ -13,7 +13,7 @@ import { CURRENT_SEASON, PREDICT_SEASONS, SEASON_NUMBERS, isLegacy } from "../da
 import { loadSeason, toEventRecord, type DbEvent } from "./load.js";
 import { localToUtcMs } from "../data/time.js";
 import { oprRows, solveOpr } from "./opr.js";
-import { normalize } from "../api/fuzzy.js";
+import { normalize, thousandsAlias } from "../api/fuzzy.js";
 import { forecasterFor } from "../predict/engine.js";
 import { regionNames } from "../../src/shared/regions.js";
 import { onRecord } from "../../src/shared/eventRecord.js";
@@ -435,7 +435,7 @@ export async function rebuildSearch(log: Log = () => {}): Promise<void> {
     // This season's teams first; among teams that match alike (a name several teams share), the one that has played
     // more matches, the one people mean more often. The matches add under 1, so they never outweigh the season.
     const weight = (t.last === CURRENT_SEASON ? 2 : 1) + Math.min(Number(t.played) || 0, 999) / 1000;
-    stmts.push({ sql: "INSERT INTO search (kind, ref, season, weight, title, subtitle, terms) VALUES ('team', ?, ?, ?, ?, ?, ?)", args: [String(t.number), t.last ?? null, weight, title, subtitle, `${t.number} ${t.name ?? ""} ${joinDotted(t.name ?? "")} ${t.school ?? ""} ${place} ${regionNames(t.state, t.country)}`] });
+    stmts.push({ sql: "INSERT INTO search (kind, ref, season, weight, title, subtitle, terms) VALUES ('team', ?, ?, ?, ?, ?, ?)", args: [String(t.number), t.last ?? null, weight, title, subtitle, `${t.number} ${t.name ?? ""} ${joinDotted(t.name ?? "")} ${thousandsAlias(t.name)} ${t.school ?? ""} ${place} ${regionNames(t.state, t.country)}`] });
     // Typo-tolerant index: the name people type (team name + school).
     // Stored normalised, exactly like the query's chunks ("X-Drive" → "x drive").
     if (t.name || t.school) stmts.push({ sql: "INSERT INTO search_fuzzy (kind, ref, season, weight, title, subtitle, name) VALUES ('team', ?, ?, ?, ?, ?, ?)", args: [String(t.number), t.last ?? null, weight, title, subtitle, normalize(`${t.name ?? ""} ${joinDotted(t.name ?? "") !== (t.name ?? "") ? joinDotted(t.name ?? "") : ""} ${t.school ?? ""}`)] });
@@ -443,7 +443,7 @@ export async function rebuildSearch(log: Log = () => {}): Promise<void> {
   for (const e of events) {
     const place = [e.city, e.state, e.country].filter(Boolean).join(", ");
     const subtitle = [e.code, e.start, place].filter(Boolean).join(" · "), weight = e.season === CURRENT_SEASON ? 2 : 1;
-    stmts.push({ sql: "INSERT INTO search (kind, ref, season, weight, title, subtitle, terms) VALUES ('event', ?, ?, ?, ?, ?, ?)", args: [`${e.season}:${e.code}`, e.season, weight, e.name, subtitle, `${e.code} ${e.name} ${eventInitialisms(e.name).join(" ")} ${e.venue ?? ""} ${place} ${regionNames(e.state, e.country)}`] });
+    stmts.push({ sql: "INSERT INTO search (kind, ref, season, weight, title, subtitle, terms) VALUES ('event', ?, ?, ?, ?, ?, ?)", args: [`${e.season}:${e.code}`, e.season, weight, e.name, subtitle, `${e.code} ${e.name} ${thousandsAlias(e.name)} ${eventInitialisms(e.name).join(" ")} ${e.venue ?? ""} ${place} ${regionNames(e.state, e.country)}`] });
     stmts.push({ sql: "INSERT INTO search_fuzzy (kind, ref, season, weight, title, subtitle, name) VALUES ('event', ?, ?, ?, ?, ?, ?)", args: [`${e.season}:${e.code}`, e.season, weight, e.name, subtitle, normalize(`${e.name} ${e.city ?? ""}`)] });
   }
   await writeBatch(stmts, 5000);

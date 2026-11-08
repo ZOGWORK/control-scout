@@ -6,7 +6,9 @@ import { registerCache } from "../../caches.js";
 import { countryOf, countryOfDemonym } from "../../../src/shared/countries.js";
 import { regionOf, regionPartOf } from "../../../src/shared/searchEventQuery.js";
 import { edits, nearRegion } from "../../../src/shared/regions.js";
+import { joinThousands } from "../../../src/shared/fuzzy.js";
 import { eventInitialisms } from "./initialisms.js";
+import { LEXICON } from "./lexicon.js";
 
 export interface TeamName { number: number; name: string | null; country: string | null; state: string | null; city: string | null; lastPlayed: number | null }
 /** A place: a region (a state or province), a whole country, or a town (with the region it's in). */
@@ -17,6 +19,10 @@ export interface Names {
   team(n: number): TeamName | undefined;
   /** Teams whose whole name is these words (folded). */
   teamsNamed(words: string): TeamName[];
+  /** Teams these words call by their name's own part, when no team's whole name is them: the name without the words
+   *  around it that only say it is a team ("calamari" for "Team Calamari", "revamped" for "RevAmped Robotics"), its
+   *  words typed apart ("rev amped") or its last word made plural ("litbot juniors"). */
+  teamsCalled(words: string): TeamName[];
   /** The one team whose name these words nearly spell ("the robcats": The Robocats): one letter off in a name of up
    *  to eight letters, two in a longer one, and no other name as close. Null when none is, or two are. */
   nearTeam(words: string): TeamName | null;
@@ -33,12 +39,27 @@ export interface Names {
 }
 
 /** Lower case, accents and punctuation dropped, single spaces: how names are compared. */
-export const fold = (s: string): string => s.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/['’]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+export const fold = (s: string): string => joinThousands(s).normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/['’]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
 
 /** Initials written with dots joined into the word they spell: "I.C.E. Robotics" → "ICE Robotics". */
 export const joinDotted = (s: string): string => s.replace(/(?<![\p{L}\p{N}])(?:\p{L}\.){2,}(?:\p{L}(?![\p{L}\p{N}]))?/gu, (m) => m.replace(/\./g, ""));
 
 interface Row { number: number; name: string | null; city: string | null; state: string | null; country: string | null; lastPlayed?: number | null }
+
+/** The words around a name that only say it is a team ("Team …", "… Robotics", "The …"): the lexicon's filler and its
+ *  word for a team, and "robotics", the word most teams' names end with. */
+const TEAM_WORDS = new Set(["robotics", ...LEXICON.filter((e) => e.words.length === 1 && e.syms.every((x) => x.k === "filler" || (x.k === "thing" && x.v === "team"))).map((e) => e.words[0])]);
+/** A name's own part: its words without those around them, or null when nothing distinctive is left (four letters
+ *  at least, not a number, not a word the lexicon reads). */
+function corePart(k: string): string | null {
+  const ws = k.split(" ");
+  let a = 0, b = ws.length;
+  while (a < b && TEAM_WORDS.has(ws[a])) a++;
+  while (b > a && TEAM_WORDS.has(ws[b - 1])) b--;
+  const core = ws.slice(a, b).join(" ");
+  if (core === k || core.replace(/\s/g, "").length < 4 || /^\d+$/.test(core) || LEXICON.some((e) => e.words.join(" ") === core)) return null;
+  return core;
+}
 
 /** The index for these rows (tests build one from fixtures). */
 export function buildNames(teams: Row[], places: { city: string | null; state: string | null; country: string | null; name?: string | null; code?: string | null }[]): Names {
@@ -66,6 +87,17 @@ export function buildNames(teams: Row[], places: { city: string | null; state: s
     const word = fold(joinDotted(t.name ?? ""));
     if (word !== k && !lengthed.has(word)) { lengthed.add(word); (byLength.get(word.length) ?? byLength.set(word.length, []).get(word.length)!).push(word); }
   }
+  // Each name's own part, and each name and part with its spaces taken out ("rev amped" is "RevAmped").
+  const byCore = new Map<string, TeamName[]>(), byJoined = new Map<string, TeamName[]>();
+  const put = (m: Map<string, TeamName[]>, k: string, t: TeamName) => { if (!m.get(k)?.includes(t)) (m.get(k) ?? m.set(k, []).get(k)!).push(t); };
+  for (const [k, ts] of byName) {
+    const core = corePart(k);
+    for (const t of ts) {
+      if (core) put(byCore, core, t);
+      put(byJoined, k.replace(/ /g, ""), t);
+      if (core) put(byJoined, core.replace(/ /g, ""), t);
+    }
+  }
   // A town is known with the region (or country) it's in; the same town name in two regions stays ambiguous.
   const towns = new Map<string, Map<string, { country: string; state: string | null; city: string }>>();
   for (const p of [...teams, ...places]) {
@@ -86,6 +118,12 @@ export function buildNames(teams: Row[], places: { city: string | null; state: s
   return {
     team: (n) => byNumber.get(n),
     teamsNamed: (w) => byName.get(fold(w)) ?? [],
+    teamsCalled(w) {
+      const f = fold(w);
+      if (!f || byName.has(f)) return [];
+      const plain = f.replace(/(?<=\p{L}{4})s$/u, "");
+      return byCore.get(f) ?? (plain !== f ? byName.get(plain) ?? byCore.get(plain) : undefined) ?? (f.includes(" ") ? byJoined.get(f.replace(/ /g, "")) : undefined) ?? [];
+    },
     nearTeam(w) {
       const f = fold(w);
       if (f.replace(/\s/g, "").length < 5 || byName.has(f)) return null;

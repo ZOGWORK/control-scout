@@ -27,6 +27,56 @@ Boards over every season: the team that has played the most seasons, the oldest 
 ### Search
 - **Career boards.** "Ever", "of all time" or "in history" said with the team with the most matches, events or wins counts every season on record, not one. "The most seasons" (from FIRST's rookie year to the team's latest season with a match) and "the oldest team still active" (a match in either of the two latest seasons, the earliest rookie year first) are boards of their own, in a place or worldwide. A rookie year before FTC's first season is a directory slip and never counted. (#1111)
 
+## 4.4.1 — 2026-11-08
+
+A question about "my" or "our" team ("what is my 4215 next event", "our 6980 record") is answered for that team.
+
+### Highlights
+- [fixes] "what is my <team> upcoming event" shows its next event
+- [fixes] "our team <number> record" reads as that team's record
+- [fixes] An intent word typed wrong after "my <team>" still answers
+
+### Search
+- **Whose team it is.** "my" or "our" before a team's number says whose team it is, never part of what's asked, so a long question about it reads the way the same question about the team does. (#1123)
+
+## 4.4.0 — 2026-11-08
+
+A number written with thousands separators ("1,000", "12,500") is read as one number, never as a team.
+
+### Highlights
+- [fixes] "opr over 1,000" reads one thousand, never team 1
+- [fixes] "12,500 points" is one number, with no stray "500"
+- [fixes] Commas between team numbers still list each team
+
+### Search
+- **Thousands separators.** A number written with thousands separators is one number everywhere search reads it (the query cleaner, the parser, the layers and name matching), never a team and a leftover "000". A name written that way ("1,000 Lakes") is found either way; the search index is rebuilt once for it. Commas between team numbers ("1, 12 and 4215") and in dates stay as they were. (#1157)
+
+## 4.3.9 — 2026-11-08
+
+A team is found by the part of its name that is its own: without "Team" or "Robotics" around it, with its words typed apart, or with its last word made plural. A name two teams share reads as the one that played most recently, as the question reader already does.
+
+### Highlights
+- [teams] Find a team without "Team" or "Robotics" in its name
+- [teams] A name typed with a space inside it still finds the team
+- [fixes] Facts like a rookie year answer for a name two teams share
+- [fixes] "<name> stuff, like everything" lists the team
+
+### Search
+- **A team called by its name's own part.** The query parser, the word layer and the last-stop name reader read a team from its name without the words that only say it is a team, from its name typed with a space inside a word, or with its last word made plural, when no team's whole name is the words. A team that has not played yet, named so, is the answer rather than a closest match. A name several teams share is read as the one that played most recently, when only one did. "Stuff", "everything", "like" and "info" after a name are not part of it. (#1105)
+
+## 4.3.8 — 2026-11-08
+
+Search reads its own words when they are typed wrong, run together or short: a letter added inside a word, six letters jumbled, two words typed as one, and, when nothing else answers, a word one slip from a question word. A place typed right after a name several teams share picks the team.
+
+### Highlights
+- [fixes] Question words with a letter jumbled or added still answer
+- [fixes] Two words typed as one are read apart, with a Did you mean
+- [fixes] A place after a shared team name picks which team you meant
+- [fixes] A team name with "latest" after it shows its newest match
+
+### Search
+- **Intent words typed wrong.** Every word the query parser reads is a word spelling knows; a letter added inside a word is corrected rather than read as an ending; six-letter words jumbled (and a common word of the data's, like a division's name) are corrected; between two as close, the fewer plain edits wins; two of search's own words typed as one are split; and a query that finds nothing tries a name's word or a three-letter word as the question word it is one slip from, kept only when that reading answers. Each shows "Did you mean". A team's name followed by a place picks the team in that place without narrowing its matches to the place, and "latest" beside a team is its most recent match. (#1076)
+
 ## 4.3.7 — 2026-11-08
 
 "cham" said for a championship ("who won inspire in nj cham") finds that place's newest championship.
