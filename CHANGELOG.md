@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.3.0 — 2026-11-08
+
+A search answer's season can be switched in place: the season chip at the top right of the card lists the seasons there's data for, and picking one shows the same answer for that season.
+
+### Highlights
+- [history] Switch a search answer to another season from its chip
+- [history] Only seasons with data for that team are listed
+- [share] The picked season stays in the link
+
+### Search
+- **A season picker on every answer.** The season chip at the top right of an answer card ("2026–27" beside Full team page, or above a season's list) opens the seasons the answer's team has data for, or every season for a list, newest first with the game's name. Picking one asks the same search about that season, whether the season was the default or typed ("<team> DECODE highlights" can still switch to 2024–25), while the last answer stays on screen dimmed. The pick is in the address (`?in=2024`), so reload, Back and shared links keep it, and People also ask follows it: two teams' OPR and record questions now say the season too. (#1173)
+
 ## 4.2.9 — 2026-11-08
 
 Topic words are read as the topic, not as a team that happens to share the name, and a misspelled "highlights" or "videos" is corrected.
