@@ -84,6 +84,8 @@ describe("slots", () => {
     // Matches with no forecast word: the shared matches' question, never a score; "together" alone stays that too.
     expect((await parse("23268 and 6980 same alliance matches")).intent).not.toBe("lineup-score");
     expect((await parse("23268 and 6980 together")).intent).not.toBe("lineup-score");
+    // One alliance said with no forecast, supposition or "would" is what happened, never a forecast.
+    for (const q of ["were 6980 and 24033 partners", "4215 and 23268 partnered", "24033 and 4215 on one alliance"]) expect((await parse(q)).intent, q).not.toBe("lineup-score");
   });
   it("reads two alliances of two either side of a vs, any wording, as a match's call", async () => {
     for (const q of [

@@ -161,13 +161,11 @@ export const INTENTS: IntentRule[] = [
   // "Will 12345 win <event>": the forecast at the event named (or its states, or Worlds).
   R("team-predict", 1, ["future", "metric:win"], ["thing:event"], { event: true }),
   R("team-predict", 1, ["future", "metric:win", "worlds"], ["thing:event"]),
-  // Two or three teams on one alliance, said so: the alliance's predicted score.
-  // "Would" said with it ("what would they score as partners") asks the same.
-  R("lineup-score", 2, ["same-side"], ["predict", "metric:score", "and", "hypo", "future", "prep:for"]),
-  R("lineup-score", 3, ["same-side"], ["predict", "metric:score", "and", "hypo", "future", "prep:for"]),
-  // "In a match" beside a forecast word ("predicted score for 12345 and 23456 as partners in a match"); with none it
-  // stays the shared matches' question ("12345 and 23456 same alliance matches").
-  ...([2, 3] as const).flatMap((n) => (["predict", "hypo"] as const).map((cue) =>
+  // Two or three teams on one alliance, said with a forecast, a supposition or "would": the alliance's predicted score
+  // ("if 12345 and 23456 were partners", "what would they score as partners"). Said with none ("have 12345 and 23456
+  // partnered?", "12345 and 23456 same alliance matches") it is what happened, left to the readers of their matches.
+  // "In a match" is taken in beside the cue ("predicted score for 12345 and 23456 as partners in a match").
+  ...([2, 3] as const).flatMap((n) => (["predict", "hypo", "future"] as const).map((cue) =>
     R("lineup-score", n, ["same-side", cue], ["predict", "metric:score", "and", "hypo", "future", "prep:for", "thing:match", "per:match", "prep:in"]))),
   // "Together" beside a forecast of a score ("predicted score for 12345 and 23456 together"): one alliance. Without
   // one, "together" stays the matches they shared.
