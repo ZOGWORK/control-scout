@@ -179,6 +179,9 @@ const PAIRS: [string, string][] = [
   // Whose team it is ("my", "our") before its number.
   ["what was our 6980 record this season", "6980 record this season"],
   ["what is my team 4215 upcoming event", "4215 next event"],
+  // Its own event, whose team said: the next one, never the season's list.
+  ["what is my 4215 event", "4215 next event"],
+  ["which is our 6980 competition", "6980 next event"],
   ["our 6980 upcoming event", "6980 next event"],
 ];
 

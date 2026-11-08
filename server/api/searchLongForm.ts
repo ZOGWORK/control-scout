@@ -21,6 +21,9 @@ const STATES = String.raw`(?:the\s+)?(?:states|state\s+championships?|state\s+ch
 const GO = String.raw`(?:went|gone|go|going|been|made\s+it|make\s+it|qualif(?:y|ied)|competed?|attend(?:ed)?|played|play|advanced?)(?:\s+(?:to|for|at|in))?`;
 const PHASE = String.raw`(auto(?:nomous)?|tele-?op|driver(?:\s+controlled)?|end\s?game)`;
 
+/** "What is my (our) 12345 (upcoming) event": whose team it says, and so the team's next event. */
+const OWN_NEXT = /^(?:what|which|when)\s+(?:is|are|was)\s+(?:my|our)\s+(?:team\s+)?#?(\d{1,6})(?:\s+(?:next|upcoming))?\s+(?:event|events|competition|meet)$/;
+
 /** Opening wrappers, longest first: they ask, they never name what's asked. */
 const OPENERS = [
   /^(?:hey|hi|so|ok(?:ay)?|um+|uh+)\s+/,
@@ -94,8 +97,8 @@ const RULES: [RegExp, (m: RegExpExecArray) => string | null][] = [
   // "12345 events and best finish in 2025-26": the season's events, whose headline names the best finish.
   [new RegExp(String.raw`^${TN}\s+(?:events?|meets?|competitions?)\s+and\s+(?:their\s+|its\s+|the\s+)?best\s+(?:finish|event|rank(?:ing)?|placement|result)(\s+(?:in|during|for|this|last)\s.*)$`), (m) => `${m[1]} events${m[2]}`],
   [new RegExp(String.raw`^how\s+many\s+(?:events?|meets?|competitions?|tournaments?)\s+(?:has|have|did)\s+${TN}\s+(?:play(?:ed)?(?:\s+in)?|compete(?:d)?(?:\s+in)?|attend(?:ed)?|go\s+to|been\s+to)(.*?),?\s+and\s+which\s+(?:was|were|is)\s+(?:their|its)\s+best(?:\s+(?:one|event|finish))?(?:\s+by\s+(?:rank|finish|placement))?$`), (m) => `${m[1]} events played${m[2]}`],
-  // "What is my 12345 (upcoming) event": the team's own, its next.
-  [/^(?:what|which|when)\s+(?:is|are|was)\s+my\s+(?:team\s+)?#?(\d{1,6})(?:\s+(?:next|upcoming))?\s+(?:event|events|competition|meet)$/, (m) => `${m[1]} next event`],
+  // "What is my (our) 12345 (upcoming) event": the team's own, its next.
+  [OWN_NEXT, (m) => `${m[1]} next event`],
   [new RegExp(String.raw`^(?:what|which)\s+(?:events?|meets?|competitions?|tournaments?)\s+(?:has|have|did|does)\s+${T}\s+(?:go(?:ne)?\s+to|went\s+to|compete(?:d)?\s+(?:at|in)|attend(?:ed)?|play(?:ed)?\s+(?:at|in))(.*)$`), (m) => `events ${m[1]} went to${m[2]}`],
   [new RegExp(String.raw`^how\s+(?:has|did|have)\s+${T}\s+opr\s+(?:changed|change|grown|grow|improved|improve|gone|developed)(?:\s+(?:over|across|through)\s+(?:the\s+)?(?:seasons|years))?(.*)$`), (m) => `${m[1]} opr trend over seasons${m[2]}`],
   // The team itself changed between two seasons ("how has 12345 changed from last season to this season"): its OPR's
@@ -125,8 +128,9 @@ export function longForm(raw: string): string | null {
   t = t.replace(/(\d)'s\b/g, "$1").replace(/(\w)'s\s/g, "$1 ").replace(/(\w)s'\s/g, "$1s ");
   t = t.trim();
   const start = t;
-  // "my 12345", "our team 12345": whose team it is, never part of what's asked.
-  t = t.replace(/\b(?:my|our)\s+(?=(?:team\s+)?#?\d{1,6}\b)/g, "").trim();
+  // "my 12345", "our team 12345": whose team it is, never part of what's asked; "what is my 12345 event" is its next
+  // event, read whole by its own rule (OWN_NEXT).
+  if (!OWN_NEXT.test(t)) t = t.replace(/\b(?:my|our)\s+(?=(?:team\s+)?#?\d{1,6}\b)/g, "").trim();
   // Inner fillers go once, before the wrappers are read ("what is like the opr for 12345" → "what is the opr for 12345").
   for (let n = ` ${t} `.replace(FILLERS, ""); n !== ` ${t} `; n = ` ${t} `.replace(FILLERS, "")) t = n.trim();
   for (let changed = true; changed;) {
