@@ -340,6 +340,8 @@ describe("wrong answers from the 92-query probe (11-03)", () => {
     for (const q of ["6980 matches at recent meet", "6980 matches at their most recent meet", "bad wolf matches at the last event"])
       expect(rewriteQuery(q), q).toMatchObject({ q: `${q.split(" matches")[0]} matches at their last event`, pre: true });
     expect(rewriteQuery("4215 matches at their last event")).toBeNull(); // already read so
+    // A kind of event said keeps its limit: never the latest event of any kind (Greptile on #1197).
+    expect(rewriteQuery("6980 matches at their last qualifier")).toBeNull();
     expect(rewriteQuery("nj states into the deep")?.q).toBe("nj states 2024-25");
     expect(rewriteQuery("nj states highest score decode")?.q).toBe("highest score at new jersey championship 2025-26");
     expect(rewriteQuery("highest score at nj states 2024-25")?.q).toBe("highest score at new jersey championship 2024-25");

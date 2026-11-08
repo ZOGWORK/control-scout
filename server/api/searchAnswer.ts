@@ -27,7 +27,7 @@ import { readRuleQuery } from "../../src/shared/searchRuleQuery.js";
 import { seasonLabel } from "../../src/shared/format.js";
 import { cleanTeamName, searchTeamTitle, teamNameOf, teamWords } from "../../src/shared/teamTitle.js";
 import { teamPageSql } from "../../src/shared/teamPages.js";
-import { CURRENT_SEASON } from "../data/seasons.js";
+import { CURRENT_SEASON, SEASONS } from "../data/seasons.js";
 import { all, get } from "../db.js";
 import { fuzzyScore, normalize, wordScore, words } from "./fuzzy.js";
 import { ftsQuery, search, searchIntent, teamAtEventAnswer } from "./search.js";
@@ -197,12 +197,43 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
     const b = await searchAnswer(full, opts);
     return carryOutcome(b, { ...b, q: cleanQuery(raw) });
   }
+  // A season written with both years ("2025-2026"): written as search reads one ("2025-26").
+  const years = said.replace(/\b(20\d\d)\s*[-–/]\s*(20\d\d)\b/g, (w, a: string, b: string) => (Number(b) === Number(a) + 1 ? `${a}-${b.slice(2)}` : w));
+  if (years !== said) {
+    const b = await searchAnswer(years, opts);
+    return carryOutcome(b, { ...b, q: cleanQuery(raw) });
+  }
   const a = await numberedAnswer(raw, opts);
+  // A season said by its game ("how many teams in nj decode year", "…, centerstage") and not answered as said: the
+  // same ask with the season's years, the way every reader reads a season. Only when the words as said found no
+  // answer, so a team or event named like a game keeps its own.
+  if (!a.stat && !a.card && (a.step === "recovery" || !a.hits.length)) {
+    const bySeason = seasonByGame(said);
+    if (bySeason !== said) {
+      const b = await searchAnswer(bySeason, opts);
+      if (b.stat || b.card) return carryOutcome(b, { ...b, q: cleanQuery(raw) });
+    }
+  }
   // Then its spelling (./spelling.ts): a misspelled query is read again corrected, and the better answer kept. Never
   // a quoted phrase, which asks for exactly those words.
   if (opts.spell === false || String(raw ?? "").includes('"')) return onPage(raw, a, opts);
   const asked = /\?\s*$/.test(String(raw ?? ""));
   return onPage(raw, await spelled(cleanQuery(raw), a, (q) => searchAnswer(asked ? `${q}?` : q, { ...opts, spell: false })), opts);
+}
+
+/** `q` with a game's name (and a "year" or "season" after it, an "in" or a comma before it) said as its season's years
+ *  ("in decode" → "2025-26"); `q` itself when it names no game or is the game alone. */
+export function seasonByGame(q: string): string {
+  for (const s of SEASONS) {
+    const g = [...s.game.toLowerCase().replace(/\s+/g, "")].join("\\s*");
+    const re = new RegExp(`(?:\\s*,\\s*|\\s+(?:in|during|for)\\s+(?:the\\s+)?|\\s+)${g}(?:\\s+(?:season|year))?(?=\\s|[?!.]|$)`, "i");
+    const m = re.exec(` ${q}`);
+    if (!m) continue;
+    const label = `${s.season}-${String((s.season + 1) % 100).padStart(2, "0")}`;
+    const out = ` ${q}`.replace(re, ` ${label}`).replace(/\s+/g, " ").trim();
+    return out === label ? q : out;
+  }
+  return q;
 }
 
 /** `q` with its informal short forms said in full (./query/lexicon.ts INFORMAL), never a word of a team's name or,

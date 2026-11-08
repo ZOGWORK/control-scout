@@ -207,7 +207,7 @@ export function rewriteQuery(q: string, named: ReadonlySet<string> = new Set()):
   if ((m = /^(?:(?:so|like|um+|uh+|ok|okay|hey|yo|bro)\s+)+((?:what|who|when|where|how|which|is|are|did|does|has|have)\b.+|\d{1,6}\b.+)$/.exec(t))) return { q: m[1], pre: true };
   // A team's matches at its latest event, said other ways ("<team> matches at their most recent meet", "<team> matches
   // at recent meet"): its results there, as "<team> matches at their last event" reads, never an event so named.
-  if ((m = /^(.+?)\s+(?:matches|match|games?|results?|scores?)\s+(?:at|in|from)\s+(?:(?:their|thier|its|the)\s+)?(?:most\s+recent|latest|last|recent|newest)\s+(?:meet|event|competition|tournament|qualifier)$/.exec(t))
+  if ((m = /^(.+?)\s+(?:matches|match|games?|results?|scores?)\s+(?:at|in|from)\s+(?:(?:their|thier|its|the)\s+)?(?:most\s+recent|latest|last|recent|newest)\s+(?:meet|event|competition)$/.exec(t))
     && `${m[1]} matches at their last event` !== t) return { q: `${m[1]} matches at their last event`, pre: true };
   // A team's matches "in" an event, said as "at" ("12345 matches in worlds").
   if ((m = /^(\d{1,6})\s+(matches|match|games?|record)\s+in\s+(worlds|first championship|world championships?)$/.exec(t))) return { q: `${m[1]} ${m[2]} at worlds`, pre: true };

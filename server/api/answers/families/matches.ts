@@ -163,7 +163,8 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
           .sort((a, b) => Math.abs(margin(a)) - Math.abs(margin(b)) || String(b.date).localeCompare(String(a.date)));
       // A margin said ("which match did 12345 lose by 1 point"): the matches decided by exactly that many, newest first.
       const by = id === "closest-match" && opts.n != null ? opts.n : null;
-      if (by != null) xs.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+      // Newest first; matches with no time of their own (dated by their event) keep their play order, reversed.
+      if (by != null) xs.reverse().sort((a, b) => String(b.date).localeCompare(String(a.date)));
       const pts = (n: number) => `${n} point${n === 1 ? "" : "s"}`;
       const closest = by != null ? `${opts.outcome === "W" ? "Wins" : opts.outcome === "L" ? "Losses" : "Matches"} by ${pts(by)}`
         : opts.outcome === "W" ? "Closest win" : opts.outcome === "L" ? "Closest loss" : "Closest match";
