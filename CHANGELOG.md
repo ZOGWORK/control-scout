@@ -27,6 +27,18 @@ A climb in rank: the teams that went from one OPR rank or below to the top of an
 ### Search
 - **A climb in rank.** "Teams that improved from rank 1000+ to the top 100 in one season", "which NJ teams climbed from rank 500 to the top 50" and the like read as the most improved board, kept to the teams ranked at or below the first number worldwide by OPR the season before and at or above the second this season. A fall ("from rank 10 to rank 100") is never read as a climb. The most improved table shows each climb as one column of ranks ("#6283 → #77"), so it fits a phone, and People also ask never names a place the card answered without. (#1121)
 
+## 4.4.2 — 2026-11-08
+
+The team with the most matches, wins or events can be asked for a few days ("which team played the most matches this week"), and said "by any team … top 5".
+
+### Highlights
+- [rankings] "Most matches played this week" counts the week's matches
+- [rankings] No matches yet this week shows the latest week, said
+- [rankings] "Most matches played by any team, top 5" reads
+
+### Search
+- **Count boards in a window, said any way.** "This week", "last week", "this month", "today" said with the team with the most matches, wins or events counts that team's played matches in those days from the match rows (a match by its own date, else its event's first day), its record there beside it; awards have no date and get no window board. With none in the window yet, the latest seven days with a match are shown, said on the card. "Most matches played by any team …, top 5" is the same board, the count asked; "worldwide" adds nothing. (#1098)
+
 ## 4.4.1 — 2026-11-08
 
 A question about "my" or "our" team ("what is my 4215 next event", "our 6980 record") is answered for that team.
