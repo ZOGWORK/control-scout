@@ -36,6 +36,7 @@ import { intentAnswer, parseIntent } from "./searchIntents.js";
 import { parseQuestion, questionAnswer } from "./searchQuestions.js";
 import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
 import { statAnswer } from "./answers/index.js";
+import { placeAwardsSearch, readPlaceAwards } from "./answers/families/placeAwards.js";
 import { refreshSearchSeason } from "./answers/season.js";
 import { FALLBACK_NOTE, carryOutcome, layeredAnswer, nameKey, teamNames } from "./searchLayers.js";
 import { INFORMAL, informalQuery } from "./query/lexicon.js";
@@ -44,7 +45,7 @@ import { booleanAnswer } from "./searchBoolean.js";
 import { asksOfTeams, pipelineAnswer, pipelineReads } from "./query/execute.js";
 import { yesNoAnswer } from "./answers/yesNo.js";
 import { sorryFor } from "./answers/sorry.js";
-import { awardQuery, bottomAnswer, countAnswer, eventCodeAnswer, eventPageAnswer, explainAnswer, monthAnswer, nearMeAnswer, namedParts, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
+import { awardQuery, bottomAnswer, countAnswer, eventCodeAnswer, eventPageAnswer, explainAnswer, explainTeamAnswer, monthAnswer, nearMeAnswer, namedParts, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
 
 /** The longest query read: a full question ("did the prediction for 12345 at the state championship get it right, or
  *  was it way off") fits. Longer is cut at a word, never inside one. */
@@ -399,11 +400,19 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
     const a = await askAnswer(q, awarded, { prefer, ask: (x) => searchAnswer(x, { ...opts, learn: false }) });
     if (a) return a;
   }
+  // A place's award winners ("Michigan Inspire winners", "awards won by teams from <town>", "did any <state> team win
+  // Inspire at worlds"), before the stat answers read the place or the award as a team's name.
+  const placeAwards = opts.intents === false ? null : await readPlaceAwards(q);
+  if (placeAwards) return placeAwardsSearch(q, placeAwards, pagesFor(q));
 
   // 0. What a word means ("how is opr calculated"), before the stat answers read a word of it as a team's name
   // ("CALculated Risk"); and the questions that name no team ("teams near me", "lowest opr in nj").
   const said = opts.intents === false ? null : explainAnswer(q) ?? nearMeAnswer(q) ?? (await bottomAnswer(q));
   if (said) return said;
+  // A word's meaning for one team ("how is OPR calculated, with 4215 as an example"): the team's numbers and the word's.
+  // `full` asks for the page's answer, whatever this surface shows: the explainer decides on it.
+  const meant = opts.intents === false ? null : await explainTeamAnswer(q, (x, full) => searchAnswer(x, full ? { ...opts, learn: false, full: true, limit: Math.max(opts.limit ?? 0, SEARCH_PAGE_LIMIT) } : { ...opts, learn: false }), (opts.full ?? (opts.limit ?? 12) >= SEARCH_PAGE_LIMIT));
+  if (meant) return meant;
 
   // 0. A stat question about a team ("12345 highest score in worlds", "12345 worlds record"): ./answers/index.ts.
   // Common words alone ("without", "team", "best") name no team (COMMON_WORDS), however many names hold them.

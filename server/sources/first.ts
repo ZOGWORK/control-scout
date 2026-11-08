@@ -91,6 +91,17 @@ export async function firstProbe(path: string, since: string | null): Promise<Fi
 }
 
 const str = (x: unknown) => (typeof x === "string" && x.trim() ? x.trim() : null);
+
+/**
+ * A posted start as FIRST gives it (event-local, no zone), with a 12-hour slip undone: no FTC match is scheduled
+ * between midnight and 6 AM, so "01:35" is 1:35 PM typed on a 12-hour clock (2026 USNJNEM3, the PM meet of an
+ * AM/PM pair, posted 01:35 onwards). Real starts (actualStartTime) come from the field's clock and are left alone.
+ */
+export function postedStart(x: unknown): string | null {
+  const t = str(x);
+  const m = t && /^(\d{4}-\d{2}-\d{2}T)(\d{2})(:.*)$/.exec(t);
+  return m && Number(m[2]) < 6 ? `${m[1]}${String(Number(m[2]) + 12).padStart(2, "0")}${m[3]}` : t;
+}
 const num = (x: unknown) => (typeof x === "number" && Number.isFinite(x) ? x : null);
 const day = (x: unknown) => (typeof x === "string" && x.length >= 10 ? x.slice(0, 10) : null);
 
@@ -253,7 +264,7 @@ export async function firstEventBundle(meta: EventRow, o: { pair?: string } = {}
     const series = m.series ?? 0;
     const row: MatchRow = {
       level, series, number: m.matchNumber, label: matchLabel(level, series, m.matchNumber), description: str(m.description),
-      time: str(m.startTime), played: false, red: teamsOf(m.teams, "red"), blue: teamsOf(m.teams, "blue"), redScore: null, blueScore: null,
+      time: postedStart(m.startTime), scheduled: postedStart(m.startTime), played: false, red: teamsOf(m.teams, "red"), blue: teamsOf(m.teams, "blue"), redScore: null, blueScore: null,
       field: str(m.field == null ? null : String(m.field)),
     };
     byKey.set(matchKey(row), row);
@@ -279,7 +290,7 @@ export async function firstEventBundle(meta: EventRow, o: { pair?: string } = {}
     const played = !!(m.postResultTime || m.actualStartTime) && redScore != null && blueScore != null;
     byKey.set(key, {
       level, series, number: m.matchNumber, label: matchLabel(level, series, m.matchNumber), description: str(m.description) ?? prev?.description ?? null,
-      time: str(m.actualStartTime) ?? prev?.time ?? null, played,
+      time: str(m.actualStartTime) ?? prev?.time ?? null, scheduled: prev?.scheduled ?? null, played,
       red: fixField(keepSur(red.length ? red : prev?.red ?? [], prev?.red)), blue: fixField(keepSur(blue.length ? blue : prev?.blue ?? [], prev?.blue)),
       redScore: played ? redScore : null, blueScore: played ? blueScore : null, video: str(m.videoURL),
       // The field is only on the schedule (the results feed has none).
