@@ -272,7 +272,7 @@ export default function SearchPage() {
                       </aside>
                     )}
                     {panel === "versus" && shownH2h && <aside aria-label="Head-to-head" className="max-lg:hidden" data-panel="versus"><HeadToHead h={shownH2h} now={now.data?.teams} before={asked == null ? before.data?.teams : undefined} season={base} /></aside>}
-                    {railed && <FollowUpsRail f={follow} q={query} />}
+                    {railed && <FollowUpsRail f={follow} q={follow.asked ?? query} />}
                   </div>
                 )}
                 <div className="min-w-0 lg:col-start-1 lg:row-start-1">
@@ -317,7 +317,7 @@ export default function SearchPage() {
                   {panel === "versus" && summary}
                   {/* One column: the team's highlights and the related searches, after the results. */}
                   {!railed && <TeamHighlights h={follow.highlights} className="mt-5" />}
-                  {!railed && <RelatedSearches related={follow.related} seeAll={query} className="mt-5" />}
+                  {!railed && <RelatedSearches related={follow.related} seeAll={follow.asked ?? query} className="mt-5" />}
                 </div>
               </div>
             </div>

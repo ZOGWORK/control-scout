@@ -15,7 +15,7 @@ beforeAll(async () => {
   for (const [season, start, end] of [[2024, "2025-04-16", "2025-04-19"], [2025, "2026-04-29", "2026-05-02"]] as const)
     await run("INSERT INTO events (season, code, name, type, start, end, source) VALUES (?, 'FTCCMP1', 'FIRST Championship', 'FIRSTChampionship', ?, ?, 'first')", [season, start, end]);
   // 2024 is a team's number too: never taken for a year unless said as a season.
-  for (const [n, name] of [[4215, "Hypnotic Robotics"], [2024, "Year Team"]] as const) {
+  for (const [n, name] of [[4215, "Hypnotic Robotics"], [2024, "Year Team"], [22024, "Five Digits"]] as const) {
     await run("INSERT INTO teams (number, name, city, state, country, rookie_year) VALUES (?, ?, 'Oradell', 'NJ', 'USA', 2010)", [n, name]);
     for (const [season, opr] of [[2024, 144.8], [2025, 101.6]] as const)
       await run("INSERT INTO team_season_stats (season, team, opr_np, rank_np, ranked_teams, wins, losses, ties, matches) VALUES (?, ?, ?, 10, 8000, 20, 5, 0, 25)", [season, n, opr]);
@@ -41,6 +41,12 @@ describe("withSeason", () => {
   it("never takes a team's number for a year, unless it's said as a season", async () => {
     expect(await withSeason("2024 opr", 2025, NOW)).toBe("2024 opr 2025–26");
     expect(await withSeason("4215 opr in 2024", 2025, NOW)).toBe("4215 opr 2025–26");
+    // "This season" before a team's number is the season; the number stays the team (as the parser reads it).
+    expect(await withSeason("this season 2024 record", 2025, NOW)).toBe("2024 record 2025–26");
+  });
+
+  it("takes out whole words only, never part of a team's number", async () => {
+    expect(await withSeason("22024 opr 2024", 2025, NOW)).toBe("22024 opr 2025–26");
   });
 
   it("keeps a date window, whose season is its own", async () => {

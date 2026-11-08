@@ -29,9 +29,10 @@ import { loneTeamHit } from "./api/searchLayers.js";
 /** A search's preferred teams and events (?prefer=team:4215,event:2025:USNJCMP), the visitor's own: ranked first. */
 /** ?season=2024 (the answer's season picker): the query asked about that season instead, whatever season it names
  *  (server/api/answers/season.ts withSeason). A season search holds no data for is ignored. */
+const pickedSeasonOf = (raw: unknown): number | null => { const s = Number(raw); return SEASON_NUMBERS.includes(s) ? s : null; };
 const pickedQuery = async (rawQ: unknown, rawSeason: unknown): Promise<string> => {
-  const q = String(rawQ ?? ""), s = Number(rawSeason);
-  return SEASON_NUMBERS.includes(s) && q.trim() ? withSeason(q.slice(0, MAX_QUERY), s) : q;
+  const q = String(rawQ ?? ""), s = pickedSeasonOf(rawSeason);
+  return s != null && q.trim() ? withSeason(q.slice(0, MAX_QUERY), s) : q;
 };
 const preferOf = (raw: unknown) => new Set(String(raw ?? "").split(",").filter((k) => /^(team:\d{1,6}|event:\d{4}:[A-Z0-9_-]{2,24})$/i.test(k)).slice(0, 100));
 import { recordClick } from "./api/searchLearn.js";
@@ -420,7 +421,9 @@ export function createApp(opts: { dist?: string } = {}) {
     const asked = await pickedQuery(q, req.query.season);
     const follow = await followUps(asked, await pageAnswer(asked, SEARCH_PAGE_LIMIT, prefer), prefer);
     res.setHeader("Cache-Control", "public, max-age=60");
-    return { q, ...(asked !== q ? { season: Number(req.query.season) } : {}), ...follow };
+    // Every valid pick is echoed (the app matches it), with the query as asked for the related searches page.
+    const season = q.trim() ? pickedSeasonOf(req.query.season) : null;
+    return { q, ...(season != null ? { season, asked } : {}), ...follow };
   }));
 
   // The related searches page (/related-searches, server/api/answers/relatedPage.ts): the same follow-ups, grouped.

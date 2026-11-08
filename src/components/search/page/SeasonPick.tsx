@@ -34,7 +34,7 @@ export function seasonChoices(shown: number, own: readonly number[] | null | und
 }
 
 /** The season chip: a picker on /search, the plain badge elsewhere. `seasons`: the subject's seasons, when known;
- *  `waiting`: they're still loading (it opens once they're in, so it never offers a season with no data). */
+ *  `waiting`: they're still loading or couldn't be read (it opens only once they're in, so it never offers a season with no data). */
 export function AnswerSeason({ season, seasons, waiting, className }: { season: number; seasons?: readonly number[] | null; waiting?: boolean; className?: string }) {
   const ctx = useSeasonPick();
   const meta = useMeta();

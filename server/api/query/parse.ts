@@ -168,21 +168,28 @@ function keptName(words: string[], ctx: ParseContext, timeOnly: (w: string[]) =>
   return null;
 }
 
+/** Whether a bare four-digit year in `q` (normalised words) is a season, given which numbers are teams' (`team`).
+ *  Shared with the answer's season picker (server/api/answers/season.ts withSeason). */
+export function yearReading(q: string, team: (n: number) => boolean): (y: number) => boolean {
+  // The other team numbers typed: a limit ("last 5") or a match's number ("match 3") is never a team.
+  const words0 = q.split(" ");
+  const teamNums = words0.filter((w, i) => /^\d{1,5}$/.test(w) && !COUNT_BEFORE.test(words0[i - 1] ?? "") && !MATCH_BEFORE.test(words0[i - 1] ?? "") && team(Number(w))).map(Number);
+  // A bare year is a season unless it's the only team number and a team has it ("2024 record", "2024 last 5 matches").
+  // "Season 2024" names the season, but "this season 2024 record" is the team after "this season".
+  // A team's number joined to another by "vs" or "and" is one of the teams compared, not a year.
+  const said = (y: number) => new RegExp(`\\b(?:in|during|for|from|(?<!\\b(?:this|current)\\s)season)\\s+(?:the\\s+)?${y}\\b`).test(q);
+  const paired = (y: number) => new RegExp(`\\b${y}\\s+(?:vs\\.?|v|versus|against|and|&)\\s|\\s(?:vs\\.?|v|versus|against|and|&)\\s+${y}\\b`).test(` ${q} `);
+  return (y: number) => said(y) || (!(team(y) && paired(y)) && (teamNums.some((n) => n !== y) || !team(y)));
+}
+
 /** Parses `raw`. */
 export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed> {
   const q0 = normalise(raw);
   const fl = FLOOR.exec(q0);
   const q = fl ? `${q0.slice(0, fl.index)} ${q0.slice(fl.index + fl[0].length)}`.replace(/\s+/g, " ").trim() : q0;
   const typedWords = raw.replace(/[?!,;:()"]/g, " ").split(/\s+/).filter(Boolean);
-  // The other team numbers typed: a limit ("last 5") or a match's number ("match 3") is never a team.
   const words0 = q.split(" ");
-  const teamNums = words0.filter((w, i) => /^\d{1,5}$/.test(w) && !COUNT_BEFORE.test(words0[i - 1] ?? "") && !MATCH_BEFORE.test(words0[i - 1] ?? "") && !!ctx.names.team(Number(w))).map(Number);
-  // A bare year is a season unless it's the only team number and a team has it ("2024 record", "2024 last 5 matches").
-  // "Season 2024" names the season, but "this season 2024 record" is the team after "this season".
-  // A team's number joined to another by "vs" or "and" is one of the teams compared, not a year.
-  const said = (y: number) => new RegExp(`\\b(?:in|during|for|from|(?<!\\b(?:this|current)\\s)season)\\s+(?:the\\s+)?${y}\\b`).test(q);
-  const paired = (y: number) => new RegExp(`\\b${y}\\s+(?:vs\\.?|v|versus|against|and|&)\\s|\\s(?:vs\\.?|v|versus|against|and|&)\\s+${y}\\b`).test(` ${q} `);
-  const yearOk = (y: number) => said(y) || (!(ctx.names.team(y) && paired(y)) && (teamNums.some((n) => n !== y) || !ctx.names.team(y)));
+  const yearOk = yearReading(q, (n) => !!ctx.names.team(n));
   // A stored name asked about as words keeps its words from the time reader ("Powerplay Robotics", "March Madness").
   const timeOnly = (w: string[]) => { const r = readTime(w.join(" "), ctx.today, yearOk); return !!r.time && allFiller(r.rest.split(" ").filter(Boolean)); };
   const at0 = keptName(words0, ctx, timeOnly);

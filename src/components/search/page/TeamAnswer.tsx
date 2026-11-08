@@ -118,7 +118,8 @@ function TeamHeader({ who, profile, season }: { who: Who; profile?: TeamProfile 
         )}
       </div>
       <div className="flex flex-col items-end gap-2 max-sm:w-full max-sm:flex-row max-sm:items-center max-sm:justify-between">
-        {season != null && <AnswerSeason season={season} seasons={profile?.seasons} waiting={profile === undefined} />}
+        {/* The team's seasons: none offered until they're read (nor when they couldn't be). */}
+        {season != null && <AnswerSeason season={season} seasons={profile?.seasons} waiting={!profile} />}
         {/* A secondary action: a text link, never a button (one primary action per page, the guide's §9). */}
         <Link to={`/teams/${who.number}${season != null ? `?season=${season}` : ""}`} className={cn(SECONDARY, TAP)} data-secondary>Full team page <ArrowRight className="size-4" aria-hidden /></Link>
       </div>
