@@ -27,6 +27,42 @@ Compare asked for one team opens Compare with it, and suggests its closest rival
 ### Search
 - **Compare one team.** "Compare" and a single team (by number or name) opens Compare with that team in it, ready for more, and suggests the two or three teams rated closest to it in its state (else its country) as comparisons that each answer. (#1120)
 
+## 4.4.4 — 2026-11-08
+
+OPR gained within a season: the teams whose OPR grew the most from their first event to their last, in a place or worldwide.
+
+### Highlights
+- [rankings] "Most improved teams in NJ by OPR gain" answers
+- [rankings] First event's OPR to the last's, 2+ events
+- [rankings] "Which team improved its OPR the most" reads
+
+### Search
+- **OPR gained.** "Most improved teams by OPR gain", "which team improved its OPR the most between its first and last event" and "gained the most OPR across the season" rank teams by their OPR at their last event of the season less their OPR at their first, by date (without penalties, as the team page shows them), teams with an OPR at 2 or more events, in a place or worldwide. "Most improved" alone stays the climb in standing from the season before. (#1116)
+
+## 4.4.3 — 2026-11-08
+
+"How many" before a list of teams counts it, and two years or seasons side by side compare: "how many NJ teams went to worlds in 2024, versus 2025".
+
+### Highlights
+- [rankings] "How many NJ teams went to worlds in 2024" counts them
+- [rankings] Two years side by side: "2024 versus 2025"
+- [rankings] Each year's list sits under its count
+
+### Search
+- **A list counted, in one season or two.** "How many", "number of" or "count" before a list of teams (a place, Worlds, an award won, an OPR threshold) answers with the list, its length the headline. Two years or seasons after it ("in 2024 versus 2025", "2025-26 vs 2024-25") read the same list once with each: both counts side by side, the change, and each season's own list under it. A Worlds year is the championship held that year, so 2024 is the 2023–24 season, said on the card. A card comparing two seasons offers no one season to pick. (#1094)
+
+## 4.4.2 — 2026-11-08
+
+The team with the most matches, wins or events can be asked for a few days ("which team played the most matches this week"), and said "by any team … top 5".
+
+### Highlights
+- [rankings] "Most matches played this week" counts the week's matches
+- [rankings] No matches yet this week shows the latest week, said
+- [rankings] "Most matches played by any team, top 5" reads
+
+### Search
+- **Count boards in a window, said any way.** "This week", "last week", "this month", "today" said with the team with the most matches, wins or events counts that team's played matches in those days from the match rows (a match by its own date, else its event's first day), its record there beside it; awards have no date and get no window board. With none in the window yet, the latest seven days with a match are shown, said on the card. "Most matches played by any team …, top 5" is the same board, the count asked; "worldwide" adds nothing. (#1098)
+
 ## 4.4.1 — 2026-11-08
 
 A question about "my" or "our" team ("what is my 4215 next event", "our 6980 record") is answered for that team.
