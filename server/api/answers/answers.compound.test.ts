@@ -249,6 +249,11 @@ describe("how many teams a list holds", () => {
     expect(top.stat?.headline?.value).toBe("4 vs 4");
     const rel = await ask(`how many NJ teams and their reliability went to worlds in ${S} versus ${S + 1}`);
     expect(rel.stat!.blocks.map((b: any) => b.title).filter((t: string) => /Reliability/.test(t))).toEqual([expect.stringMatching(new RegExp(`^Worlds ${S + 1} \\(`))]);
+    // Greptile on #1094: a list of teams that missed Worlds names each championship beside its count, not one on a chip.
+    const miss = await ask(`how many nj teams did not make worlds in ${S} versus ${S + 1}`);
+    expect(miss.stat?.intent).toBe("filtered-list-pair");
+    expect(miss.stat!.scope.filter((c) => /Worlds/.test(c))).toEqual(["Didn't go to Worlds"]);
+    expect((miss.stat!.blocks[0] as any).items.map((i: any) => i.label)).toEqual([`Worlds ${S} (${S - 1}–${String(S).slice(2)})`, `Worlds ${S + 1} (${S}–${String(S + 1).slice(2)})`]);
   });
   it("a town's pair is previewed as the town's, in the search box", async () => {
     const a = await searchAnswer(`how many teams from Oradell with opr over 100 in ${S} versus ${S + 1}`, { limit: 8 });

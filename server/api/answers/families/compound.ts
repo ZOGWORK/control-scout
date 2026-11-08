@@ -223,8 +223,8 @@ export async function listPairAnswer(a: ListQuestion, b: ListQuestion): Promise<
   const [x, y] = await Promise.all([listAnswer(a), listAnswer(b)]);
   if (!x || !y) return null;
   const sa = a.season!, sb = b.season!;
-  // A Worlds list's season is named by the championship's year, as asked ("Worlds 2024 (2023–24)").
-  const name = (c: ListQuestion, s: number) => (c.worlds ? `Worlds ${s + 1} (${seasonLabel(s)})` : seasonLabel(s));
+  // A Worlds list's season (went or didn't go) is named by the championship's year, as asked ("Worlds 2024 (2023–24)").
+  const name = (c: ListQuestion, s: number) => (c.worlds || c.noWorlds ? `Worlds ${s + 1} (${seasonLabel(s)})` : seasonLabel(s));
   // listAnswer's headline is the list's count ("8 teams"); none passing has no headline.
   const count = (st: StatAnswer) => (st.headline ? Number(/^\d[\d,]*/.exec(st.headline.value)?.[0].replace(/,/g, "") ?? 0) : 0);
   const [na, nb] = [count(x), count(y)];
@@ -236,7 +236,7 @@ export async function listPairAnswer(a: ListQuestion, b: ListQuestion): Promise<
   const list = (st: StatAnswer, c: ListQuestion, s: number): StatBlock[] => st.blocks.map((blk) => ({ ...blk, title: `${name(c, s)}: ${"title" in blk ? blk.title : ""}` } as StatBlock));
   return {
     family: "leaderboard", intent: "filtered-list-pair", title, // The first list's chips without its own season and Worlds year (each season's is on its count), then both seasons.
-    scope: [...x.scope.filter((s) => s !== seasonLabel(sa) && !s.startsWith("Went to Worlds (")), ...(a.worlds ? ["Went to Worlds"] : []), seasonLabel(sa), seasonLabel(sb)],
+    scope: [...x.scope.filter((s) => s !== seasonLabel(sa) && !s.startsWith("Went to Worlds (") && !s.startsWith("Didn't go to Worlds (")), ...(a.worlds ? ["Went to Worlds"] : a.noWorlds ? ["Didn't go to Worlds"] : []), seasonLabel(sa), seasonLabel(sb)],
     definition: `${x.definition} Counted in each season asked: every team on the list that season.`.replace(searchSeasonWhy(sa), ""),
     source: `Each season's ranked teams ${place}: ${plural(na, "team")} on the list in ${seasonLabel(sa)}, ${plural(nb, "team")} in ${seasonLabel(sb)}`,
     headline: { value: `${na} vs ${nb}`, label: `${what.replace(/^How many /, "")}, ${name(a, sa)} against ${name(b, sb)}`, sub: d === 0 ? "The same number both seasons" : `${d > 0 ? "+" : "−"}${Math.abs(d)} in ${name(b, sb)}` },
