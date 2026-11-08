@@ -46,6 +46,10 @@ const RULES: [RegExp, (m: RegExpExecArray) => string][] = [
   // record there.
   [new RegExp(String.raw`^(?:which|what)\s+(?:worlds\s+)?divisions?\s+(?:is|was|were|are)\s+${T}\s+(?:in\s+)?(?:at|for)\s+${WORLDS}(.*?)(?:,?\s+and\s+(?:what|how)\s+(?:was|were|is)\s+(?:their|its)\s+(?:rank|ranking|place|placement|finish|record|seed)(?:\s+(?:there|in\s+it))?)?$`), (m) => `${m[1]} worlds divisions${m[2]}`],
   [new RegExp(String.raw`^(?:what\s+(?:is|was)\s+|how\s+(?:far|well)\s+did\s+)${T}\s+(?:best\s+finish|go|do)\s+(?:at|in)\s+${WORLDS}(.*)$`), (m) => `${m[1]} worlds best finish${m[2]}`],
+  // A match told by its margin ("whats the score of that one match where 12345 lost by a lot"): the team's biggest loss
+  // or win, whose card names the match and its score.
+  [new RegExp(String.raw`^(?:(?:what|which)(?:\s+(?:is|was)|s)?\s+)?(?:the\s+)?(?:(?:final\s+)?score\s+(?:of|in|for)\s+)?(?:that|the)?\s*(?:one\s+)?(?:match|game)\s+(?:where|when|that|in\s+which)\s+${T}\s+(lost|won)\s+(?:by\s+(?:a\s+lot|a\s+ton|so\s+much|the\s+most|a\s+mile|miles|the\s+biggest\s+margin|a\s+huge\s+margin)|so\s+(?:badly|big))(.*)$`),
+    (m) => `${m[1]} ${/^won/.test(m[2]) ? "biggest win" : "biggest loss"}${m[3]}`],
   // Partners and opponents.
   [new RegExp(String.raw`^who\s+(?:did|has|have|does)\s+${T}\s+(?:play(?:ed)?|team(?:ed)?\s+up|partner(?:ed)?|been\s+(?:on\s+)?an?\s+alliance)\s+with\s+(?:the\s+)?most(?:\s+often)?(.*)$`), (m) => `${m[1]} most common alliance partner${m[2]}`],
   [new RegExp(String.raw`^who\s+(?:did|has|have|does)\s+${T}\s+(?:play(?:ed)?|face[ds]?|compete[ds]?)\s+against\s+(?:the\s+)?most(?:\s+often)?(.*)$`), (m) => `${m[1]} most common opponent${m[2]}`],
