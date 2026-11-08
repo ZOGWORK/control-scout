@@ -12,13 +12,27 @@
 //     record rule (src/shared/eventRecord.ts: playoffs included, a qualification surrogate match not).
 //   Blowout: a win by at least double the other alliance's score, and by 20 points or more.
 import type { StatAnswer, StatBlock } from "../../../../src/shared/searchStat.js";
-import { seasonLabel } from "../../../../src/shared/format.js";
+import { dateRange, matchDateTime, seasonLabel } from "../../../../src/shared/format.js";
 import { RECORD_RULE } from "../../../../src/shared/eventRecord.js";
 import { RANKED_MIN_MATCHES } from "../../../../src/shared/rankings.js";
 import { teamPageSql } from "../../../../src/shared/teamPages.js";
 import { get } from "../../../db.js";
 import { inScope, scopeChips, scopePhrase, type Scope } from "../clauses.js";
-import { eventHref, matchRow, teamLinks, type TeamMatch } from "../matchSet.js";
+import { eventHref, matchRow, teamLinks, upcomingMatches, type TeamMatch, type UpcomingMatch } from "../matchSet.js";
+
+/** Matches still to play, soonest first: each with its event, its time (else its event's day) and the team's alliance. */
+function upcomingBlock(xs: UpcomingMatch[], team: number): StatBlock {
+  return {
+    kind: "table", title: "Still to play",
+    columns: [{ key: "match", label: "Match" }, { key: "event", label: "Event" }, { key: "when", label: "When" }, { key: "alliance", label: "Alliance" }],
+    rows: xs.slice(0, UPCOMING_CAP).map((m) => ({
+      cells: { match: m.label, event: m.event, when: (m.date?.includes("T") ? matchDateTime(m.date) : dateRange(m.date, null)) || null, alliance: m.alliance === "red" ? "Red" : "Blue" },
+      href: `/events/${m.season}/${encodeURIComponent(m.code)}?match=${m.level}:${m.series}:${m.number}`, eventHref: eventHref(m.season, m.code, team),
+    })),
+    ...(xs.length > UPCOMING_CAP ? { more: `Showing ${UPCOMING_CAP} of ${xs.length}` } : {}),
+  };
+}
+const UPCOMING_CAP = 30;
 import type { IntentId } from "../read.js";
 
 export interface AnswerTeam { number: number; name: string | null }
@@ -145,15 +159,24 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
       const margin = (m: TeamMatch) => m.own - m.opp;
       const xs = id === "biggest-win" ? ms.filter((m) => m.result === "W").sort((a, b) => margin(b) - margin(a))
         : id === "biggest-loss" ? ms.filter((m) => m.result === "L").sort((a, b) => margin(a) - margin(b))
-        : ms.filter((m) => !opts.outcome || m.result === opts.outcome).sort((a, b) => Math.abs(margin(a)) - Math.abs(margin(b)) || String(b.date).localeCompare(String(a.date)));
-      const closest = opts.outcome === "W" ? "Closest win" : opts.outcome === "L" ? "Closest loss" : "Closest match";
+        : ms.filter((m) => (!opts.outcome || m.result === opts.outcome) && (opts.n == null || Math.abs(margin(m)) === opts.n))
+          .sort((a, b) => Math.abs(margin(a)) - Math.abs(margin(b)) || String(b.date).localeCompare(String(a.date)));
+      // A margin said ("which match did 12345 lose by 1 point"): the matches decided by exactly that many, newest first.
+      const by = id === "closest-match" && opts.n != null ? opts.n : null;
+      // Newest first; matches with no time of their own (dated by their event) keep their play order, reversed.
+      if (by != null) xs.reverse().sort((a, b) => String(b.date).localeCompare(String(a.date)));
+      const pts = (n: number) => `${n} point${n === 1 ? "" : "s"}`;
+      const closest = by != null ? `${opts.outcome === "W" ? "Wins" : opts.outcome === "L" ? "Losses" : "Matches"} by ${pts(by)}`
+        : opts.outcome === "W" ? "Closest win" : opts.outcome === "L" ? "Closest loss" : "Closest match";
       const title = id === "biggest-win" ? `Biggest win${where}` : id === "biggest-loss" ? `Biggest loss${where}` : `${closest}${where}`;
       // A biggest margin is points too: one season's, each season's listed below (a closest gap compares fine).
       const { xs: pick, note } = id === "closest-match" ? { xs, note: "" } : latestOnly(xs);
       const top = pick[0];
-      const def = `${id === "closest-match" ? "Closest: the smallest gap between the two alliances' scores (a tie is 0); the latest first on equal gaps." : "Margin: the gap between the two alliances' official scores."} ${RESULT_RULE}${note}`;
-      if (!top) return { ...base, family: "superlative", intent: id, title, blocks: [], definition: def, none: none(id === "biggest-win" || opts.outcome === "W" ? "wins" : id === "biggest-loss" || opts.outcome === "L" ? "losses" : "matches") };
-      const list = id === "closest-match" ? (opts.outcome === "W" ? "Closest wins" : opts.outcome === "L" ? "Closest losses" : "Closest matches") : id === "biggest-win" ? "Biggest wins" : "Biggest losses";
+      const def = by != null ? `Decided by ${pts(by)}: the gap between the two alliances' official scores is exactly that; newest first. ${RESULT_RULE}`
+        : `${id === "closest-match" ? "Closest: the smallest gap between the two alliances' scores (a tie is 0); the latest first on equal gaps." : "Margin: the gap between the two alliances' official scores."} ${RESULT_RULE}${note}`;
+      const kindOf = id === "biggest-win" || opts.outcome === "W" ? "wins" : id === "biggest-loss" || opts.outcome === "L" ? "losses" : "matches";
+      if (!top) return { ...base, family: "superlative", intent: id, title, blocks: [], definition: def, none: none(by != null ? `${kindOf} by exactly ${pts(by)}` : kindOf) };
+      const list = by != null ? closest : id === "closest-match" ? (opts.outcome === "W" ? "Closest wins" : opts.outcome === "L" ? "Closest losses" : "Closest matches") : id === "biggest-win" ? "Biggest wins" : "Biggest losses";
       const blocks: StatBlock[] = [matchesBlock(`${list}${note ? `, ${seasonLabel(top.season)}` : ""}`, pick.slice(0, 5))];
       if (note) {
         const per = bySeason(xs).map(([s, ys]) => ({ s, m: ys[0] }));
@@ -161,7 +184,9 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
       }
       return {
         ...base, family: "superlative", intent: id, title,
-        headline: { value: `${Math.abs(margin(top))} point${Math.abs(margin(top)) === 1 ? "" : "s"}`, label: `${top.own}–${top.opp} in ${top.label} at ${top.event}`, sub: [seasonLabel(top.season), row(top).date].filter(Boolean).join(" · "), href: row(top).href },
+        headline: by != null
+          ? { value: `${xs.length} ${xs.length === 1 ? ({ wins: "win", losses: "loss", matches: "match" } as const)[kindOf] : kindOf}`, label: `by exactly ${pts(by)}`, sub: `Latest: ${top.own}–${top.opp} in ${top.label} at ${top.event}`, href: row(top).href }
+          : { value: `${Math.abs(margin(top))} point${Math.abs(margin(top)) === 1 ? "" : "s"}`, label: `${top.own}–${top.opp} in ${top.label} at ${top.event}`, sub: [seasonLabel(top.season), row(top).date].filter(Boolean).join(" · "), href: row(top).href },
         blocks, definition: def,
       };
     }
@@ -396,13 +421,19 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
     // Every match in the scope (a season, a window, a place): the record, quals and playoffs apart, then the list.
     case "season-matches": {
       const title = `Matches${where}`;
-      if (!ms.length) return { ...base, family: "aggregate", intent: id, title, blocks: [], definition: RESULT_RULE, none: none("matches") };
+      // A schedule's rest: matches scheduled and not yet played, in the scope's places and events. A season named is
+      // kept; one left unsaid (or "this season", read as the last completed one: seasonWhy says so) is any season's, as
+      // only the current one has matches still to play.
+      const ahead = (await upcomingMatches(team.number)).filter(inScope({ ...scope, season: scope.seasonWhy ? null : scope.season }));
+      const toPlay = ahead.length ? [upcomingBlock(ahead, team.number)] : [];
+      if (!ms.length) return { ...base, family: "aggregate", intent: id, title, blocks: toPlay, definition: RESULT_RULE, ...(toPlay.length ? {} : { none: none("matches") }) };
       const r = record(ms), quals = ms.filter((m) => m.level === "qual"), playoffs = ms.filter((m) => m.level === "playoff");
       return {
         ...base, family: "aggregate", intent: id, title,
         headline: { value: recText(r), label: `in ${ms.length} match${ms.length === 1 ? "" : "es"}${where}` },
         blocks: [
           { kind: "record", title: "Wins, losses and ties", ...r, ...(quals.length && playoffs.length ? { split: { quals: record(quals), playoffs: record(playoffs) } } : {}) },
+          ...toPlay,
           // Every match: a season is a few dozen at most, and the list is the answer.
           { kind: "matches", title: "Newest first", rows: newestFirst(ms).map(row) },
         ],

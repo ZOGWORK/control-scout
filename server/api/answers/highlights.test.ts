@@ -13,7 +13,7 @@ let n = 0;
 const m = (over: Partial<TeamMatch>): TeamMatch => ({
   season: 2025, code: "USNJCMP", level: "qual", series: 0, number: ++n, label: `Q${n}`, date: "2026-03-07", event: "NJ Championship", type: "Championship",
   country: "USA", state: "NJ", division: null, alliance: "red", own: 150, opp: 140, ownNp: 150, oppNp: 140, ownAuto: 30, ownTeleop: 90, ownEndgame: 30,
-  ownPen: 0, oppPen: 0, counted: true, onField: true, result: "W", partners: [207], opponents: [6980, 16461], ...over,
+  ownPen: 0, oppPen: 0, counted: true, onField: true, final: false, result: "W", partners: [207], opponents: [6980, 16461], ...over,
 });
 const team = { number: 4215, name: "Hypnotic Robotics" };
 

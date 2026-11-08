@@ -97,6 +97,20 @@ const PAIRS: [string, string][] = [
   ["i want to know 4215's opr at worlds", "4215 opr at worlds"],
   ["what is the highest opr 4215 has ever had", "4215 highest opr ever"],
   ["how has 4215's opr changed over the seasons", "4215 opr trend over seasons"],
+  // Worlds trips counted, and the division with its rank (failed-search #913/#929, #870/#1001; held out).
+  ["the number of times bad wolf has gone to the world championship", "bad wolf worlds appearances"],
+  // The verb after a team's number too (Greptile on #1087).
+  ["number of times 6980 has been to worlds", "6980 worlds appearances"],
+  ["which division was 6980 in at the first championship and how was their record there", "6980 worlds divisions"],
+  // A team's own events by when they were, how many and where (failed-search #711/#824/#1036, #832, #823, #831,
+  // #732–#734; held out: other teams and words).
+  ["what was the most recent competition bad wolf attended and how did they do there", "bad wolf results at their last event"],
+  ["what was the first meet 4215 played in 2024-25", "4215 results at their first event in 2024-25"],
+  ["what was 6980's last event and what was their rank there", "6980 rank at their last event"],
+  ["what was hypnotic robotics' earliest tournament in 2024-25 and how was their record", "hypnotic robotics record at their first event in 2024-25"],
+  ["which tournaments did 6980 bad wolf compete in new jersey last season in date order", "6980 bad wolf events in new jersey last season in date order"],
+  ["how many meets did 6980 attend this season and which was their best one", "6980 events played this season"],
+  ["when is my 6980 next event", "6980 next event"],
   // The team changed between two seasons (failed-search #879, held out): its OPR's change.
   ["how has hypnotic robotics improved since last season", "hypnotic robotics opr change since last season"],
   ["how did 4215 change between 2023-24 and 2024-25", "4215 opr change between 2023-24 and 2024-25"],
@@ -156,6 +170,12 @@ const PAIRS: [string, string][] = [
   ["what are 4215's chances of advancing to worlds", "4215 chance to advance to worlds"],
   ["who should 4215 pick as their alliance partner please", "who should 4215 pick as an alliance partner"],
   ["please show me 4215's reliability", "4215 reliability"],
+  // A team's own listing, asked yes or no.
+  ["is 4215 a new team or a veteran one", "4215 rookie year"],
+  ["is 4215 a first-year team", "4215 rookie year"],
+  ["is team 4215 really based in minnesota or not", "where is 4215 from"],
+  ["did 4215 list a school", "4215 school"],
+  ["does 4215 have a sponsor on record", "4215 sponsors"],
 ];
 
 describe("long, conversational queries", () => {
@@ -184,6 +204,9 @@ describe("long, conversational queries", () => {
     expect(longForm("what was 4215's record in 2024-25")).toBe("4215 record in 2024-25");
     // A season after a Worlds question: Worlds divisions, which takes one (the appearances card is every season's).
     expect(longForm("when was the last time 4215 went to worlds in 2025-26")).toBe("4215 worlds divisions in 2025-26");
+    // A count of trips, the verb before or after the team, never part of its name (Greptile on #1087).
+    for (const [q, out] of [["number of times 4215 has gone to worlds", "4215 worlds appearances"], ["number of times 4215 went to worlds", "4215 worlds appearances"],
+      ["the number of times bad wolf has gone to worlds", "bad wolf worlds appearances"], ["count of times that hypnotic robotics have been to worlds", "hypnotic robotics worlds appearances"]]) expect(longForm(q), q).toBe(out);
     const label = `${S}-${String(S + 1).slice(2)}`;
     for (const q of [`did 4215 go to worlds in ${label}`, `has 4215 been to worlds in ${label}?`]) {
       const a = await ask(q);
@@ -202,6 +225,40 @@ describe("long, conversational queries", () => {
     const w = await ask("when was the last time 4215 went worlds");
     expect(w.card).toMatchObject({ kind: "worlds", headline: expect.stringMatching(/^Last went to Worlds in /) });
     expect(w.understood?.label).not.toMatch(/isn't part of this answer/);
+  });
+
+  it("reads the teams around a team's rank as its OPR rank, keeping a season or a place and the whole name", () => {
+    expect(longForm("who is directly ahead of 6980 in the world this season")).toBe("6980 opr rank this season");
+    expect(longForm("who is right behind bad wolf in new jersey")).toBe("bad wolf opr rank in new jersey");
+    expect(longForm("teams close to critical mass")).toBe("critical mass opr rank");
+    // Worlds isn't a rank list, and another number's ranking is never read as the OPR list (Greptile on #1110).
+    expect(longForm("who is ranked above 6980 at worlds")).toBeNull();
+    for (const q of ["who is ranked above 6980 in rating", "who is right below bad wolf in auto this season", "teams ranked near 6980 in prediction rating"]) expect(longForm(q) ?? "", q).not.toMatch(/opr rank/);
+    // A team named with one of those words is still the team asked about (Greptile on #1110).
+    expect(longForm("who is ranked just above record breakers worldwide")).toBe("record breakers opr rank");
+    expect(longForm("teams near teleop titans last season")).toBe("teleop titans opr rank last season");
+    expect(longForm("who is right behind auto pilots in nj in rating") ?? "").not.toMatch(/opr rank/);
+  });
+
+  it("reads a yes-or-no listing question with the team as its number and name, or its name alone (Greptile on #1095)", async () => {
+    for (const [long, short, team] of [
+      ["is 6980 bad wolf a rookie team or a veteran", "6980 rookie year", 6980],
+      ["is critical mass really from new jersey or not", "where is 207 from", 207],
+      ["does ultraviolet have any sponsors listed", "23268 sponsors", 23268],
+    ] as const) {
+      const s = await ask(short), a = await ask(long);
+      expect(what(a), long).toBe(what(s));
+      expect(a.understood?.label, long).toContain(`(${team})`);
+      const d = await drop(long);
+      expect(d.card?.kind ?? d.intent?.kind, long).toBe((await drop(short)).card?.kind ?? (await drop(short)).intent?.kind);
+      expect(d.understood?.label, long).toContain(`(${team})`);
+    }
+  });
+
+  it("reads a yes-or-no listing question only when it asks for the listing", () => {
+    expect(longForm("is 4215 in the finals")).not.toBe("where is 4215 from");
+    expect(longForm("is 4215 a good team or not")).not.toBe("4215 rookie year");
+    expect(longForm("does 4215 have any wins at worlds")).toBeNull();
   });
 
   it("keeps a \"like\" that compares (Greptile on #655)", () => {

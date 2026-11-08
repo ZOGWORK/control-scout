@@ -113,7 +113,15 @@ export interface Pace {
   onField: MatchView | null;
   /** How far the next match runs behind (+) or ahead (−) of the posted schedule, ms. */
   shift: number;
+  /**
+   * False when the posted clock times can't be right (the field runs hours off them, e.g. a 1:35 PM start
+   * posted as 1:35 AM): then only their gaps are used, and nobody is told it runs "12 hours behind".
+   */
+  clockOk: boolean;
 }
+
+/** A field this far off its posted times is following a mistyped schedule, not running late. */
+const MAX_PLAUSIBLE_SHIFT_MS = 3 * 3600_000;
 
 const median = (xs: number[]) => (xs.length ? [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] : NaN);
 
@@ -134,12 +142,14 @@ export function pace(matches: MatchView[], now: number): Pace {
   const at = (m: MatchView) => (m.startsAt ? Date.parse(m.startsAt) : NaN);
   const order = [...matches].sort(stage);
   const rest = order.filter((m) => !m.played && Number.isFinite(at(m)));
-  if (!rest.length) return { est: new Map(), opener: null, onField: null, shift: 0 };
+  // Nothing played yet (by any clock): wait for the first score, timed schedule or not.
+  const none = { est: new Map<string, number>(), opener: null, onField: null, shift: 0, clockOk: true };
+  if (!rest.length) return { ...none, opener: order.some((m) => m.played) ? null : nextMatch(matches, null) };
   const n1 = rest[0];
   const s1 = at(n1);
   const playedToday = order.filter((m) => m.played && Number.isFinite(at(m)) && at(m) > s1 - SAME_DAY_MS).sort((a, b) => at(a) - at(b));
   const today = playedToday.map(at);
-  if (!today.length) return { est: new Map(), opener: nextMatch(matches, null), onField: null, shift: 0 };
+  if (!today.length) return { ...none, opener: nextMatch(matches, null) };
   // The posted cycle: the usual gap, never a break's (the shortest gap sets what counts as one).
   const gaps = rest.slice(1).map((m, i) => at(m) - at(rest[i])).filter((g) => g > 0);
   const posted = median(gaps.filter((g) => g <= BREAK_CYCLES * Math.min(...gaps)));
@@ -152,16 +162,22 @@ export function pace(matches: MatchView[], now: number): Pace {
   // field would reach.
   const lastPosted = Date.parse(playedToday[playedToday.length - 1].scheduledAt ?? "");
   const breakFirst = Number.isFinite(lastPosted) ? isBreak(s1 - lastPosted) : s1 - (lastStart + cycle) > MAX_EARLY_MS;
-  // After a break the posted start holds; else one cycle after the latest real start. Either way it hasn't
-  // started more than MAX_POST_LAG_MS ago (there'd be a score).
-  const first = Math.max(breakFirst ? s1 : lastStart + cycle, now - MAX_POST_LAG_MS);
+  // Posted clock times hours off the real field are a mistyped schedule: keep their gaps, not their clock (a
+  // break then doesn't snap back to a posted time that never was). Judged on the latest played match's own
+  // posted start where it kept one, before any break is placed; else on the next match's offset.
+  const lastOff = lastStart - lastPosted;
+  const clockOk = Number.isFinite(lastOff) ? Math.abs(lastOff) <= MAX_PLAUSIBLE_SHIFT_MS : Math.abs(lastStart + cycle - s1) <= MAX_PLAUSIBLE_SHIFT_MS;
+  // After a break the posted start holds (moved by the clock's error when the clock is wrong); else one cycle
+  // after the latest real start. Either way it hasn't started more than MAX_POST_LAG_MS ago (there'd be a score).
+  const afterBreak = clockOk || !Number.isFinite(lastOff) ? s1 : s1 + lastOff;
+  const first = Math.max(breakFirst ? afterBreak : lastStart + cycle, now - MAX_POST_LAG_MS);
   let shift = first - s1;
   const est = new Map<string, number>();
   rest.forEach((m, i) => {
-    if (i && isBreak(at(m) - at(rest[i - 1]))) shift = Math.min(shift, 0);
+    if (i && clockOk && isBreak(at(m) - at(rest[i - 1]))) shift = Math.min(shift, 0);
     est.set(m.key, i ? at(m) + shift : first);
   });
-  return { est, opener: null, onField: first <= now ? n1 : null, shift: first - s1 };
+  return { est, opener: null, onField: first <= now ? n1 : null, shift: first - s1, clockOk };
 }
 
 /** What the countdown says: "4:05" (under an hour), "1 h 05 min", or null once the start has passed. */
