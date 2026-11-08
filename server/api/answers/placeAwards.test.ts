@@ -53,8 +53,7 @@ beforeAll(async () => {
   await aw(S, "USTXQ1", "Winner", 1, 11111, "Winning Alliance - Captain");
   await aw(S, "USINQ1", "JudgesChoice", 1, 44444, "Judges' Choice Award");
   await aw(S, "USINQ1", "Motivate", 1, 55555, "Motivate Award");
-  // A second Leadership Award, so it is given more often than Ontario's Promote.
-  await aw(S, "USINQ1", "Winner", 3, 55555, "FIRST Leadership Award");
+  await aw(S, "USINQ1", "Winner", 3, 55555, "FIRST Leadership Award"); // given more often than Ontario's Promote
   await aw(S - 1, "CAONQ1", "Inspire", 1, 22222, "Inspire Award");
   await aw(S - 1, "CAONQ2", "Inspire", 1, 22222, "Inspire Award");
   await aw(S - 1, "CAONQ2", "Think", 1, 33333, "Think Award");
@@ -103,9 +102,8 @@ describe("a place's award winners", () => {
   it("finds the rarest award a place's teams won: given fewest times anywhere that season", async () => {
     const s = await placeAwardsAnswer((await readPlaceAwards("rarest award an Ontario team won this season"))!);
     expect(s.headline?.value).toBe("Promote Award");
-    // FIRST's Leadership Award, stored as a Winner, is never a Winning Alliance.
+    // FIRST's Leadership Award, stored as a Winner: under its own name with every award, never a Winning Alliance.
     expect(rows(s).map((r) => r.award)).not.toContain("Winning Alliance");
-    // Greptile on #1100: listed under its own name with every award, never dropped; a Winning Alliance ask leaves it out.
     const all = await placeAwardsAnswer((await readPlaceAwards("awards won by teams from Ontario this season"))!);
     expect(rows(all).filter((r) => r.team === "33333 Northern Bolts").map((r) => r.award)).toContain("Leadership Award");
     expect(rows(all).map((r) => r.award)).not.toContain("Winning Alliance");
@@ -138,9 +136,8 @@ describe("a place's award winners", () => {
     const tx = await placeAwardsAnswer((await readPlaceAwards("Texas teams in the playoffs at worlds this season"))!);
     expect(tx.headline?.value).toBe("2 teams");
     expect((await placeAwardsAnswer((await readPlaceAwards("did any Ohio team make worlds finals"))!)).headline?.value).toBe("No");
-    // "Last year" at Worlds is the latest Championship that has finished, as the winners answer reads it.
+    // At Worlds "last year" is the latest Championship finished, "last season" the one before; a list is one season.
     expect(await readPlaceAwards("did any Ontario team win Connect at worlds last year")).toMatchObject({ season: S, worlds: true });
-    // Greptile on #1100: "last season" keeps its meaning at Worlds; a list is one season; a team that sat out won nothing.
     expect(await readPlaceAwards("did any Ontario team win Connect at worlds last season")).toMatchObject({ season: S - 1 });
     expect(tx.scope.at(-1)).not.toBe("All seasons");
     await run("UPDATE match_teams SET on_field = 0 WHERE code = 'FTCCMP1' AND team = 33333");
@@ -149,7 +146,6 @@ describe("a place's award winners", () => {
     await run("UPDATE match_teams SET on_field = 1 WHERE code = 'FTCCMP1' AND team = 33333");
     expect(await readPlaceAwards("worlds finals")).toBeNull();
   });
-  // Greptile on #1100.
   it("keeps the default season, saying none were won, with older seasons to ask", async () => {
     const a = await searchAnswer("Ontario Think winners", { limit: 25, learn: false, full: true });
     expect(a.stat?.none).toBe(`No Think Award won by teams from Ontario in ${a.stat?.scope.at(-1)} in the published awards.`);
@@ -161,6 +157,8 @@ describe("a place's award winners", () => {
     expect(rows(s).find((r) => r.award === "Think Award")).toMatchObject({ given: 1, won: 1 });
   });
   it("reads a state's code typed in capitals that is also a word, the award's own spelling, and a shared town's name", async () => {
+    expect(await readPlaceAwards("District of Columbia Think winners")).toMatchObject({ place: { kind: "region", state: "DC" }, types: ["Think"] });
+    expect(await readPlaceAwards("Think winners from Newfoundland and Labrador")).toMatchObject({ place: { kind: "region", state: "NL" } });
     expect(await readPlaceAwards("IN Judges' Choice winners")).toMatchObject({ place: { kind: "region", state: "IN" }, types: ["JudgesChoice"] });
     expect(await readPlaceAwards("in judges choice winners")).toBeNull();
     expect(await readPlaceAwards("Springfield IL Motivate winners")).toMatchObject({ place: { kind: "city", city: "Springfield", state: "IL" } });

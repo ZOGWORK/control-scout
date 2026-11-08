@@ -97,7 +97,10 @@ export async function readPlaceAwards(q: string): Promise<PlaceAwardsAsk | null>
   if (left) {
     const idx = await names();
     const typedOf = (w: string) => typed.split(" ").filter((x) => w.split(" ").includes(x.toLowerCase().replace(/['’]s$/, ""))).join(" ") || w;
-    place = idx.place(left, typedOf(left));
+    // A place's own small words kept ("District of Columbia", "Newfoundland and Labrador"): its first word to its last.
+    const tw = t.trim().split(" "), ix = tw.flatMap((w, i) => (w.replace(FRAME, "").trim() ? [i] : []));
+    const span = ix.length ? tw.slice(ix[0], ix[ix.length - 1] + 1).map((w) => codes.get(w) ?? w).join(" ") : "";
+    place = (span !== left && idx.place(span, typedOf(span))) || idx.place(left, typedOf(left));
     // A town said with its state or country ("Cluj-Napoca Romania", "Edison NJ"): the town, when it's in that place.
     const ws = left.split(" ");
     for (let k = 1; !place && k <= 2 && k < ws.length; k++) {
