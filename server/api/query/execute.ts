@@ -97,11 +97,14 @@ async function leftoverTeam(q: string, p: Parsed, resolve: Resolve): Promise<str
     return place.state ? home.includes(place.state.toLowerCase()) : home.includes(place.country.toLowerCase());
   };
   const teams = r.hits.filter((h) => h.kind === "team" && !h.href && named(h));
+  // A place that limits the event ("<name> highlights at nj states") stays the event's; only a place said with the
+  // name alone picks the team.
+  const place = p.place && !p.states && !p.worlds && !p.event ? p.place : null;
   // With no place, search's own first answer for the words (as a team's stats read them); with one, the team there.
-  const team = p.place ? teams.filter((h) => from(h, p.place!)) : r.hits[0] && teams.includes(r.hits[0]) ? [r.hits[0]] : [];
+  const team = place ? teams.filter((h) => from(h, place)) : r.hits[0] && teams.includes(r.hits[0]) ? [r.hits[0]] : [];
   if (team.length !== 1) return null;
   let out = q.replace(at, `$1${team[0].ref}`);
-  if (p.place) out = out.replace(wordsAt(p.place.typed.split(/\s+/)), "$1");
+  if (place) out = out.replace(wordsAt(place.typed.split(/\s+/)), "$1");
   return out.replace(/\s+/g, " ").trim();
 }
 

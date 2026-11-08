@@ -9,6 +9,14 @@ describe("reading an event set", () => {
       expect(readEventQuery(q), q).toMatchObject({ kinds: ["meet"], region: { key: "USA:NJ" }, where: null, words: [], time: null });
     }
   });
+  it("the same ask said short or long reads the same: a time word, and the request's own clause (owner, 11-08)", () => {
+    for (const [short, long] of [["nj events yesterday", "events in nj that finished yesterday"], ["nj meets yesterday", "nj meets that ended yesterday"],
+      ["nj events today", "events in nj today"], ["nj events this week", "events in nj that are happening this week"]]) {
+      expect(readEventQuery(long), long).toEqual(readEventQuery(short));
+    }
+    expect(readEventQuery("nj events yesterday")).toMatchObject({ time: "yesterday", region: { key: "USA:NJ" }, where: null, words: [] });
+    expect(timeWindow("yesterday", "2026-11-08")).toEqual({ from: "2026-11-07", to: "2026-11-07" });
+  });
   it("reads \"now\" as today, as \"right now\" is (failed-search #763)", () => {
     for (const q of ["nj meets now", "meets in nj now", "events now"]) expect(readEventQuery(q)?.time, q).toBe("today");
     expect(readEventQuery("nj meets now")).toMatchObject({ kinds: ["meet"], region: { key: "USA:NJ" }, words: [] });

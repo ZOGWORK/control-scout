@@ -215,6 +215,8 @@ describe("a team's highlights", () => {
       expect(a.stat?.intent, q).toBe("team-highlights");
       expect(a.stat?.team?.number, q).toBe(team);
     }
+    // A place that limits the event stays the event's (Greptile on #1197): the team's highlights at NJ states.
+    expect((await stat("hypnotic highlights at nj states 2024-25")).title).toMatch(/New Jersey/);
     // A word that only starts no word of the team found is never read as that team.
     expect((await ask("robotic stuff highlights 2024-25")).stat?.team).toBeUndefined();
   });

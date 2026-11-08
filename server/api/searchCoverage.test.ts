@@ -336,6 +336,10 @@ describe("wrong answers from the 92-query probe (11-03)", () => {
     // A word that names an event with "division" after it, and a game (failed-search #787): that season's division.
     expect(rewriteQuery("edison centerstage", new Set(["division:edison"]))).toMatchObject({ q: "edison division 2023-24", pre: true });
     expect(rewriteQuery("edison centerstage")).toBeNull(); // no event by that name with "division": left to search
+    // A team's matches at its latest meet (owner's screenshots, 11-08): its latest event, never an event named so.
+    for (const q of ["6980 matches at recent meet", "6980 matches at their most recent meet", "bad wolf matches at the last event"])
+      expect(rewriteQuery(q), q).toMatchObject({ q: `${q.split(" matches")[0]} matches at their last event`, pre: true });
+    expect(rewriteQuery("4215 matches at their last event")).toBeNull(); // already read so
     expect(rewriteQuery("nj states into the deep")?.q).toBe("nj states 2024-25");
     expect(rewriteQuery("nj states highest score decode")?.q).toBe("highest score at new jersey championship 2025-26");
     expect(rewriteQuery("highest score at nj states 2024-25")?.q).toBe("highest score at new jersey championship 2024-25");

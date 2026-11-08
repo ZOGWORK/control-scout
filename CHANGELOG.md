@@ -27,9 +27,10 @@ More plain searches answered: a team's highlights by part of its name, events sa
 
 ### Search
 - **A team's highlights by part of its name, or with its place.** "hypnotic highlights", "revAmped highlights" and "ultraviolet nj highlights" are that team's highlights. The words left over are looked up the way a team's stats look them up, and each has to start a word of the team's name. When teams share a name, the place said picks the one from there. (#1197)
-- **Now.** "nj meets now" and "events now" are today's events, as "right now" already was.
+- **Now and yesterday.** "nj meets now" is today's events, as "right now" already was. "nj events yesterday" is yesterday's, and reads the same as "events in nj that finished yesterday".
+- **A team's matches at its latest meet.** "6980 matches at recent meet" and "6980 matches at their most recent meet" are its results at its latest event, never an event with those words in its name.
 - **A kind of event a place or name has none of.** "meets in Massachusetts" lists Massachusetts' events of every kind and says it has no meets. "bergen qualifier" lists the events named Bergen and says none is a qualifier.
-- **A division by its name and a game.** "edison centerstage" is the Edison Division in 2023–24. "jackson division finals" and "parkway division rankings" open that division's tab, the way a match number already did.
+- **A division by its name and a game.** "edison centerstage" is the Edison Division in 2023–24. "jackson division finals" and "parkway division rankings" open that division's tab, the way a match number already did. A division named with a season it wasn't held in ("jackson division finals in centerstage") says so, with that season's divisions and the season it was held.
 - **Worlds' divisions.** "worlds division highlights" is every division at Worlds. "what division was <team> in at worlds" is the team's Worlds divisions, never its latest event with "division" in its name.
 - **Lost or won by N points.** "which match did <team> lose by 1 point" and "did <team> win by 10 points" list the matches decided by exactly that many points, newest first, and say so when there are none.
 

@@ -185,6 +185,8 @@ describe("Greptile on #434", () => {
     const a = await ask("scrimmages in Texas");
     expect(a.understood?.fallback).toBe("No scrimmages in Texas in the data — showing events in Texas instead");
     expect(a.hits.filter((h) => h.kind === "event").length).toBeGreaterThan(0);
+    // The place card counts the events shown, never the kind asked (Greptile on #1197).
+    expect(JSON.stringify(a.hits.find((h) => h.kind === "place"))).not.toMatch(/scrimmage/i);
   });
   it("league meets are meets, never league tournaments", async () => {
     expect(refs((await ask("league meets in New Jersey")).hits)).not.toContain("USNJLT");

@@ -108,7 +108,7 @@ export interface SearchUnderstood {
    *  it); compare: teams side by side; question: a question's answer card; names: names matched to the words typed. */
   kind: "events" | "team" | "compare" | "question" | "names";
   /** Events: the time asked for, and its date window (YYYY-MM-DD, open ends null). */
-  time?: "today" | "tomorrow" | "upcoming" | "past" | "this-weekend" | "next-weekend" | "this-week" | "next-week" | "this-month" | "next-month";
+  time?: "today" | "tomorrow" | "yesterday" | "upcoming" | "past" | "this-weekend" | "next-weekend" | "this-week" | "next-week" | "this-month" | "next-month";
   window?: { from: string | null; to: string | null };
   /** Events: the region ("USA:NJ", "New Jersey"), the city or venue words, the calendar year, the season. */
   place?: { key: string; name: string };

@@ -42,9 +42,9 @@ const EVENT_LABEL: Record<string, string> = {
   event: "Events", competition: "Events", comp: "Events", worlds: "FIRST Championship (Worlds) events",
 };
 
-export type SearchTime = "today" | "tomorrow" | "upcoming" | "past" | "this-weekend" | "next-weekend" | "this-week" | "next-week" | "this-month" | "next-month";
+export type SearchTime = "today" | "tomorrow" | "yesterday" | "upcoming" | "past" | "this-weekend" | "next-weekend" | "this-week" | "next-week" | "this-month" | "next-month";
 const TIME_OF: Record<string, SearchTime> = {
-  today: "today", tomorrow: "tomorrow", upcoming: "upcoming", "coming up": "upcoming", past: "past", recent: "past", previous: "past", latest: "past", finished: "past", completed: "past", ended: "past",
+  today: "today", tomorrow: "tomorrow", yesterday: "yesterday", upcoming: "upcoming", "coming up": "upcoming", past: "past", recent: "past", previous: "past", latest: "past", finished: "past", completed: "past", ended: "past",
   "this weekend": "this-weekend", "next weekend": "next-weekend", "this week": "this-week", "next week": "next-week",
   "this month": "this-month", "next month": "next-month",
   "happening now": "today", "going on now": "today", "on right now": "today", "right now": "today", "live now": "today", live: "today", currently: "today", now: "today",
@@ -56,8 +56,9 @@ const WORD_CODES = new Set(["in", "or", "me", "hi", "ok", "oh", "la", "ma", "pa"
 const FRAME_WORDS = new Set(["next", "many", "much", "there", "all", "any", "list", "show", "me", "find", "get", "give", "see", "every", "some",
   // "What events are happening this week", "events going on today", "events taking place in NJ".
   "happening", "going", "on", "taking", "place", "being", "held", "running", "scheduled"]);
-/** A request's phrase ending a place's words: "(are) happening", "(is) going on", "taking place", "being held". */
-const REQUEST_TAIL = /(?:^|\s)(?:(?:are|is|were|was|will be)\s+)?(?:being\s+)?(?:happening|going on|taking place|held|running|scheduled|on)$/;
+/** A request's phrase ending a place's words: "(are) happening", "(is) going on", "taking place", "being held", "that
+ *  finished" (said with its time: "events in nj that finished yesterday" reads as "nj events yesterday"). */
+const REQUEST_TAIL = /(?:^|\s)(?:(?:that|which)\s+)?(?:(?:are|is|were|was|will be)\s+)?(?:being\s+)?(?:happening|going on|taking place|held|running|scheduled|on|happened|finished|ended|started|took place)$/;
 const PLACE_MARKERS = new Set(["in", "at", "near", "from", "around", "within", "across"]);
 
 /** What an event-set query asks for (every part optional). */
@@ -117,6 +118,8 @@ export function readEventQuery(raw: string): EventQuery | null {
   let time: SearchTime | null = null;
   const t = timePhrase(q);
   if (t) { time = TIME_OF[t.phrase] ?? null; q = t.rest; }
+  // The request's own clause, once its time is read ("nj meets that ended yesterday"): never words of a name.
+  if (time) q = q.replace(/\s+(?:that|which)\s+(?:(?:are|is|were|was)\s+)?(?:happened|happening|finished|ended|started|took\s+place|taking\s+place|held|running|going\s+on)$/i, "").trim();
   // "Upcoming" beside a window still to come ("upcoming events this weekend") says nothing more: the window is it.
   if (time && time !== "upcoming" && time !== "past") q = q.replace(/(?:^|\s)(?:upcoming|coming up)(?=\s|$)/gi, " ").replace(/\s+/g, " ").trim();
   let year: number | null = null, season: number | null = null;
@@ -198,7 +201,7 @@ export function readEventQuery(raw: string): EventQuery | null {
 const titleCase = (s: string) => s.replace(/(^|\s)(\p{L})/gu, (_, a: string, c: string) => a + c.toUpperCase());
 
 const TIME_LABEL: Record<SearchTime, string> = {
-  today: "Today's", tomorrow: "Tomorrow's", upcoming: "Upcoming", past: "Past", "this-weekend": "This weekend's", "next-weekend": "Next weekend's", "this-week": "This week's",
+  today: "Today's", tomorrow: "Tomorrow's", yesterday: "Yesterday's", upcoming: "Upcoming", past: "Past", "this-weekend": "This weekend's", "next-weekend": "Next weekend's", "this-week": "This week's",
   "next-week": "Next week's", "this-month": "This month's", "next-month": "Next month's",
 };
 
@@ -248,6 +251,7 @@ export function timeWindow(time: SearchTime, today: string): { from: string | nu
   switch (time) {
     case "today": return { from: today, to: today };
     case "tomorrow": return { from: add(1), to: add(1) };
+    case "yesterday": return { from: add(-1), to: add(-1) };
     case "upcoming": return { from: today, to: null };
     case "past": return { from: null, to: add(-1) };
     case "this-weekend": return { from: add(toSat), to: add(toSun) };

@@ -291,14 +291,14 @@ export async function eventSetAnswer(q: string, e: EventQuery, opts: { now?: num
   // `room` cards after the link (every answer is cut to SEARCH_PAGE_LIMIT cards, an event with its divisions as one:
   // firstCards), so more than that says how many are listed.
   const room = SEARCH_PAGE_LIMIT - (inPlace ? 1 : 0);
-  const placeFor = (rows: Row[], listed: number, o: Parameters<typeof eventSetLabel>[1]) => (e.region ? placeHitOf(e.region, inPlace, { n: rows.length, listed, label: lower(eventSetLabel({ ...e, region: null }, { seasonLabel, ...o })) }) : null);
-  const done = (rows: Row[], understood: SearchUnderstood, o: Parameters<typeof eventSetLabel>[1] = {}): SearchAnswer => {
+  const placeFor = (rows: Row[], listed: number, o: Parameters<typeof eventSetLabel>[1], shown: EventQuery = e) => (e.region ? placeHitOf(e.region, inPlace, { n: rows.length, listed, label: lower(eventSetLabel({ ...shown, region: null }, { seasonLabel, ...o })) }) : null);
+  const done = (rows: Row[], understood: SearchUnderstood, o: Parameters<typeof eventSetLabel>[1] = {}, shown: EventQuery = e): SearchAnswer => {
     const events = firstCards(rows.map((r) => eventHit(r, now)), room);
     // Every season but more than a page holds: the newest first, how many of them are listed (what the events
     // heading and the All tab count), and the full list one click away.
     const more = e.allSeasons && events.length < rows.length;
     return {
-      q, hits: [...[placeFor(rows, events.length, o)].filter((h): h is SearchHit => !!h), ...events, ...(opts.others ?? [])],
+      q, hits: [...[placeFor(rows, events.length, o, shown)].filter((h): h is SearchHit => !!h), ...events, ...(opts.others ?? [])],
       pages: more && e.region ? [{ title: `Championships in ${e.region.name}, each season: Events`, href: `/events?region=${encodeURIComponent(e.region.key)}&type=Championship` }, ...pagesFor(q)] : pagesFor(q),
       step: "deterministic", weak: false,
       understood: { ...understood, ...(more ? { label: `${understood.label}, the newest ${events.length} of ${rows.length} listed (the full list is on Events)` } : {}), total: rows.length },
@@ -332,7 +332,7 @@ export async function eventSetAnswer(q: string, e: EventQuery, opts: { now?: num
     if (fb.length) {
       const where = whereAsStored(any, fb);
       const { eventTypes: _kinds, ...wide } = base;
-      return done(fb, { ...wide, label: asked, fallback: `No ${lower(asked)} in the data — showing ${lower(eventSetLabel(any, { seasonLabel, where }))} instead` }, { where });
+      return done(fb, { ...wide, label: asked, fallback: `No ${lower(asked)} in the data — showing ${lower(eventSetLabel(any, { seasonLabel, where }))} instead` }, { where }, any);
     }
   }
   // Still nothing. A year named is never swapped for another: say so, with other years' events as closest matches.
