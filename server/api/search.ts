@@ -254,7 +254,8 @@ async function searchWords(q: string, limit: number, prefer: ReadonlySet<string>
     .filter((x) => x.s >= 0.6)
     // Your own teams/events win ties and near-ties, never beat a much better match.
     .map((x) => (prefer.has(`${x.c.kind}:${x.c.ref}`) ? { ...x, s: x.s + 0.1 } : x))
-    .sort((a, b) => b.s - a.s || b.c.weight - a.c.weight || (b.c.season ?? 0) - (a.c.season ?? 0) || a.c.title.localeCompare(b.c.title));
+    // On an equal score, the name spelled exactly as typed ("roborebels" is RoboRebels before Robo Rebels).
+    .sort((a, b) => b.s - a.s || asTyped(query, b.c.title) - asTyped(query, a.c.title) || b.c.weight - a.c.weight || (b.c.season ?? 0) - (a.c.season ?? 0) || a.c.title.localeCompare(b.c.title));
   for (const { c } of ranked) push({ kind: c.kind, ref: c.ref, title: c.title, subtitle: c.subtitle, season: c.season });
   // Short typos can share no trigram with the right word ("dirve" vs "drive"):
   // when the index didn't find enough, scan the names in memory (bounded edit
@@ -283,6 +284,9 @@ async function searchWords(q: string, limit: number, prefer: ReadonlySet<string>
   }
   return newestSeasons(out, query).slice(0, limit);
 }
+
+/** 1 when a hit's name is the query exactly as typed (case aside; a team's "<number> | " before it left out), else 0. */
+const asTyped = (query: string, title: string) => (title.replace(/^\d+\s*\|\s*/, "").trim().toLowerCase() === query.trim().toLowerCase() ? 1 : 0);
 
 /** An event code comes back every season (USNJCMP 2023, 2024, …): keep its newest season unless a year was typed. */
 function newestSeasons(hits: SearchHit[], query: string): SearchHit[] {
