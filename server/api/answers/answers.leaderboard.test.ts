@@ -268,8 +268,15 @@ describe("a count's board in a window", () => {
     day("2026-03-12");
     const e = await searchAnswer("which team attended the most events this week", { limit: 25, full: true });
     expect(e.stat).toMatchObject({ intent: "top-events-window", headline: { value: "4215 Hypnotic Robotics", label: "Events played 1, 2-1-0 · Oradell", href: expect.stringContaining("season=2025") } });
+    // Greptile on #1098: a qualification surrogate win is no win on the record; 6980 stays at 2, behind 4215 by number.
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, blue_total, source) VALUES (2025, 'WQ1', 'qual', 0, 4, 'Q4', '2026-03-10T15:00:00Z', 1, 120, 10, 't')");
+    await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, surrogate) VALUES (2025, 'WQ1', 'qual', 0, 4, 6980, 'red', 1), (2025, 'WQ1', 'qual', 0, 4, 9999, 'blue', 0)");
     const w = await searchAnswer("which team won the most matches this week", { limit: 25, full: true });
     expect(w.stat?.intent).toBe("top-wins-window");
     expect(w.understood?.label).toBe("Team with the most wins this week");
+    expect(w.stat?.headline?.value).toBe("4215 Hypnotic Robotics");
+    const wb = w.stat!.blocks[0];
+    if (wb.kind !== "leaderboard") throw new Error(wb.kind);
+    expect(wb.rows.find((r) => r.team.label.startsWith("6980"))).toMatchObject({ value: 2, record: "2-1-0" });
   });
 });

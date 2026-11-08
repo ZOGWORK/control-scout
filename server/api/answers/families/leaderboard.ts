@@ -193,15 +193,17 @@ async function windowCount(b: BoardQuestion, w: { from: string; to: string; labe
   const v = st.id === "wins" ? "SUM(won)" : st.id === "events" ? "COUNT(DISTINCT p.season || ':' || p.code)" : "COUNT(*)";
   // Each row's OPR beside the count: the team's stored OPR in the season of the window's last day.
   const season = seasonOfDate(w.to);
+  // On the team's record, as eventRecord's onRecord says: a qualification surrogate isn't; every match counts played.
+  const rec = "(m.level <> 'qual' OR mt.surrogate = 0)";
   const rows = await all<{ team: number; name: string | null; city: string | null; state: string | null; country: string | null; v: number; wins: number; losses: number; ties: number; opr: number | null }>(
     `WITH played AS (
-       SELECT mt.team, m.season, m.code,
-              CASE WHEN (mt.alliance = 'red' AND m.red_total > m.blue_total) OR (mt.alliance = 'blue' AND m.blue_total > m.red_total) THEN 1 ELSE 0 END won,
-              CASE WHEN (mt.alliance = 'red' AND m.red_total < m.blue_total) OR (mt.alliance = 'blue' AND m.blue_total < m.red_total) THEN 1 ELSE 0 END lost
+       SELECT mt.team, m.season, m.code, CASE WHEN ${rec} THEN 1 ELSE 0 END rec,
+              CASE WHEN ${rec} AND ((mt.alliance = 'red' AND m.red_total > m.blue_total) OR (mt.alliance = 'blue' AND m.blue_total > m.red_total)) THEN 1 ELSE 0 END won,
+              CASE WHEN ${rec} AND ((mt.alliance = 'red' AND m.red_total < m.blue_total) OR (mt.alliance = 'blue' AND m.blue_total < m.red_total)) THEN 1 ELSE 0 END lost
        FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code
        JOIN match_teams mt ON mt.season = m.season AND mt.code = m.code AND mt.level = m.level AND mt.series = m.series AND mt.number = m.number
        WHERE e.type IN (${OFFICIAL_TYPES.map(() => "?").join(", ")}) AND m.played = 1 AND mt.on_field = 1 AND substr(COALESCE(m.time, e.start), 1, 10) BETWEEN ? AND ?)
-     SELECT p.team, t.name, t.city, t.state, t.country, ${v} v, SUM(won) wins, SUM(lost) losses, COUNT(*) - SUM(won) - SUM(lost) ties, MAX(s.opr_np) opr
+     SELECT p.team, t.name, t.city, t.state, t.country, ${v} v, SUM(won) wins, SUM(lost) losses, SUM(rec) - SUM(won) - SUM(lost) ties, MAX(s.opr_np) opr
      FROM played p JOIN teams t ON t.number = p.team LEFT JOIN team_season_stats s ON s.season = ? AND s.team = p.team
      WHERE ${teamPageSql("p.team", "t.name")}${regionSql}
      GROUP BY p.team ORDER BY v DESC, wins DESC, p.team LIMIT ?`, [...OFFICIAL_TYPES, w.from, w.to, season, ...regionArgs, b.n]);
