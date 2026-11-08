@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 4.3.5 — 2026-11-08
+## 4.3.6 — 2026-11-08
 
 More plain searches answered: a team's highlights by part of its name, events said the way people say them, and a team's losses by a set margin.
 
@@ -34,6 +34,18 @@ More plain searches answered: a team's highlights by part of its name, events sa
 - **A division by its name and a game.** "edison centerstage" is the Edison Division in 2023–24. "jackson division finals" and "parkway division rankings" open that division's tab, the way a match number already did. A division named with a season it wasn't held in ("jackson division finals in centerstage") says so, with that season's divisions and the season it was held.
 - **Worlds' divisions.** "worlds division highlights" is every division at Worlds. "what division was <team> in at worlds" is the team's Worlds divisions, never its latest event with "division" in its name.
 - **Lost or won by N points.** "which match did <team> lose by 1 point" and "did <team> win by 10 points" list the matches decided by exactly that many points, newest first, and say so when there are none.
+
+## 4.3.5 — 2026-11-08
+
+A finished meet whose stream was a short link plays its recording on the page again.
+
+### Highlights
+- [live] A short-link stream (ftcwa.live/…) plays on the page after the meet
+- [fixes] Watch on a match starts the page's player at that match, not YouTube
+- [live] Only the meet's own broadcast is kept, checked against its dates
+
+### Fixes
+- **Short stream links after the meet.** A region's short link (ftcwa.live/…) was only followed on the meet's own dates, so a meet whose day passed before it was followed kept no video: Watch livestream and each match's Watch opened YouTube instead of playing on the page. For two weeks after a meet with no video, its link is followed again, and the video it leads to is kept only when YouTube says that broadcast started on the meet's own dates (a link already pointing at a later meet gives nothing). (#1210)
 
 ## 4.3.4 — 2026-11-08
 
