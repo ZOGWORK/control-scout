@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.4.8 — 2026-11-08
+
+Two events named side by side ("<event> vs <event>") are compared as events rather than read as two teams: how strong each field was, its best OPR, its high score and how many teams played.
+
+### Highlights
+- [rankings] "Ohio Championship vs Texas Championship" compares the events
+- [rankings] Each event's field strength, top OPR, high score and teams
+- [fixes] Two events named with "vs" are no longer read as two teams
+
+### Search
+- **Events side by side.** "<event> vs <event>" (2 to 4 events, each named with a word only an event's name has: championship, qualifier, league meet, tournament…) answers with the events side by side: field strength (the average OPR of the teams that played, its divisions' too), top OPR and its team, high score without penalties, and the number of teams. A state's code in a name is spelled out ("NJ Championship" is New Jersey's), each event is its newest season with a played match unless a season is named, and events from different seasons are marked as different games, with neither called stronger. A team on any side keeps the teams' Compare. (#1158)
+
 ## 4.4.7 — 2026-11-08
 
 A climb in rank: the teams that went from one OPR rank or below to the top of another, from one season to the next.

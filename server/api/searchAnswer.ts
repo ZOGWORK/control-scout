@@ -35,7 +35,7 @@ import { rerank } from "./searchLearn.js";
 import { intentAnswer, parseIntent } from "./searchIntents.js";
 import { parseQuestion, questionAnswer } from "./searchQuestions.js";
 import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
-import { statAnswer } from "./answers/index.js";
+import { eventVersusSearch, statAnswer } from "./answers/index.js";
 import { placeAwardsSearch, readPlaceAwards } from "./answers/families/placeAwards.js";
 import { refreshSearchSeason } from "./answers/season.js";
 import { FALLBACK_NOTE, carryOutcome, layeredAnswer, nameKey, teamNames } from "./searchLayers.js";
@@ -431,6 +431,11 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   // 0. A phrasing the readers below miss, said the way they read it ("compare 12345 and 67890" → "12345 vs 67890"):
   // ./searchCoverage.ts. Who won Worlds by a year or a game ("who won worlds last year" → "… 2024-25") is said so
   // before the stat answers read it; every other rewrite after them, which answer a team's own stats first.
+  // Events named on every side ("Romania Championship vs NJ Championship", "Worlds vs <event>"): the events side by
+  // side, before a rewrite reads a side as a team's name. Only a season written as one ("2024-25") is the season.
+  const evSeason = /(?:^|\s)20\d\d\s*[-–/]\s*\d\d(?=\s|$)/.test(q) ? seasonOf(q) : { season: null, rest: q };
+  const evs = opts.intents === false ? null : await eventVersusSearch(evSeason.rest, evSeason.season ?? opts.season ?? null, { full: !!opts.full, pages: pagesFor(q), asked: q, alias: expandShortForms });
+  if (evs) return evs;
   const rw = opts.intents !== false && (opts.rewrites ?? 0) < 2 ? rewriteQuery(q, await namedParts(q)) : null;
   const rewritten = async (r: { q: string; note?: string }) => {
     const a = await searchAnswer(opts.asked ? `${r.q}?` : r.q, { ...opts, rewrites: (opts.rewrites ?? 0) + 1 });

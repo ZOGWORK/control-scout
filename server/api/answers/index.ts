@@ -44,6 +44,7 @@ import { awardsSideBySide, compareAnswer, compareSeason, headToHead, neverPlayed
 import { sharedMatchList } from "../searchBoolean.js";
 import { compareBlock, decidedText, leadHeadline, seasonScale, winShare } from "./compareBlock.js";
 import { winnersAnswer, worldsFollowUps } from "./families/winners.js";
+import { eventVersusAnswer, eventVersusTitle, eventsNamed, readEventVersus } from "./families/eventVersus.js";
 import { eventHref, shortEvent, teamMatches } from "./matchSet.js";
 import { readCompound } from "./compound.js";
 import { eventInitialisms, initialismEvent } from "../query/initialisms.js";
@@ -1137,4 +1138,23 @@ export async function boardSearch(q: string, said: LeaderboardQuestion, opts: { 
   // The full list's page (Teams for an OPR list, Rankings for a rating list) leads the page links.
   const more = stat.blocks.find((x) => x.kind === "leaderboard")?.more;
   return { ...read, stat, pages: more ? [{ title: more.label.replace(/^View more detail on (?:the )?/, "").replace(/ \(.*\)$/, "").replace(/^./, (c) => c.toUpperCase()), href: more.href }, ...opts.pages.filter((p) => p.href !== more.href)] : opts.pages };
+}
+
+/** "<event> vs <event>" (2–4 events, ./families/eventVersus.ts): the events side by side. Null when it isn't one or an
+ *  event isn't found: the versus is then the teams'. */
+/** `q` is the query less a season it named; `asked`, the query as typed, is what the answer page's link opens. */
+export async function eventVersusSearch(q: string, season: number | null, opts: { full: boolean; pages: SearchPageLink[]; asked?: string; alias?: (w: string) => string }): Promise<SearchAnswer | null> {
+  const sides = readEventVersus(q);
+  if (!sides) return null;
+  const evs = await eventsNamed(sides, season, (words, s) => findEvent(words, s, { anyPlayed: true, closest: true }), opts.alias);
+  if (!evs) return null;
+  const label = eventVersusTitle(evs);
+  const base = {
+    q, hits: [], step: "deterministic" as const, weak: false,
+    understood: { kind: "question" as const, label, ...(season != null ? { season } : {}) },
+    intent: { kind: "stat-event-versus", pattern: `[event] vs [event]${season != null ? " [season]" : ""}`, met: true, understood: [label] },
+  };
+  // The search box: the events found and a link to the answer page, nothing counted while typing.
+  if (!opts.full) return { ...base, pages: [{ title: label, href: `/search?q=${encodeURIComponent(opts.asked ?? q)}` }, ...opts.pages] };
+  return { ...base, pages: opts.pages, stat: await eventVersusAnswer(evs) };
 }
