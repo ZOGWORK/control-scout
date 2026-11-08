@@ -6,6 +6,7 @@ import { registerCache } from "../../caches.js";
 import { countryOf, countryOfDemonym } from "../../../src/shared/countries.js";
 import { regionOf, regionPartOf } from "../../../src/shared/searchEventQuery.js";
 import { edits, nearRegion } from "../../../src/shared/regions.js";
+import { joinThousands } from "../../../src/shared/fuzzy.js";
 import { eventInitialisms } from "./initialisms.js";
 import { LEXICON } from "./lexicon.js";
 
@@ -38,7 +39,7 @@ export interface Names {
 }
 
 /** Lower case, accents and punctuation dropped, single spaces: how names are compared. */
-export const fold = (s: string): string => s.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/['’]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+export const fold = (s: string): string => joinThousands(s).normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/['’]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
 
 /** Initials written with dots joined into the word they spell: "I.C.E. Robotics" → "ICE Robotics". */
 export const joinDotted = (s: string): string => s.replace(/(?<![\p{L}\p{N}])(?:\p{L}\.){2,}(?:\p{L}(?![\p{L}\p{N}]))?/gu, (m) => m.replace(/\./g, ""));
