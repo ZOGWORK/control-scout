@@ -201,6 +201,8 @@ export interface ReadScope {
   championship: boolean;
   states: boolean;
   level: "qual" | "playoff" | null;
+  /** "in the finals": the playoffs' last series only (level is "playoff" too). */
+  finals?: boolean;
   alliance: "red" | "blue" | null;
   /** "at <something>" that isn't Worlds or states: an event (left to the event family). */
   at: string | null;
@@ -319,7 +321,10 @@ export function readScope(q: string): { scope: ReadScope; rest: string } {
   if (take(/\b(?:ever|all[\s-]+time|of\s+all\s+time|career|in\s+history|overall)\b/)) scope.ever = true;
   if (take(/\b(?:on|as|from)\s+(?:the\s+)?red(?:\s+alliance|\s+side)?\b|\bred\s+alliance\b/)) scope.alliance = "red";
   else if (take(/\b(?:on|as|from)\s+(?:the\s+)?blue(?:\s+alliance|\s+side)?\b|\bblue\s+alliance\b/)) scope.alliance = "blue";
-  if (take(/\b(?:in|during)\s+(?:the\s+)?(?:playoffs?|eliminations?|elims?)\b/)) scope.level = "playoff";
+  // The finals, the playoffs' last series ("record in finals matches only", "12345 finals record"); a state's finals
+  // were read as its state championship above.
+  if (take(/\b(?:in|during)\s+(?:the\s+)?(?:grand\s+)?finals?(?:\s+match(?:es)?)?(?:\s+only)?\b|(?<!\b(?:make|makes|made|making|reach|reaches|reached|reaching|to|into)\s+(?:the\s+)?)\b(?:grand\s+)?finals?(?:\s+match(?:es)?)?(?:\s+only)?\b(?!\s+(?:appearances?|odds|chances?|bracket|alliances?))/)) { scope.level = "playoff"; scope.finals = true; }
+  else if (take(/\b(?:in|during)\s+(?:the\s+)?(?:playoffs?|eliminations?|elims?)\b/)) scope.level = "playoff";
   else if (take(/\b(?:in|during)\s+(?:the\s+)?(?:qualifications?|quals?|qualifying)\b/)) scope.level = "qual";
   // The match type said before the intent ("12345 playoff record", "quals record this season"); never a match list's
   // own words ("playoff matches"), which their intents read.
@@ -351,6 +356,8 @@ const PLACE_IDS = new Set<IntentId>(["highest-score", "lowest-score", "biggest-w
  *  the question is left to search instead. The regex readers and the search pipeline both ask it. */
 export function scopeFits(id: IntentId, family: StatFamily, scope: ReadScope, opts: { place?: boolean } = {}): boolean {
   const matchLevel = !!(scope.level || scope.alliance);
+  // The finals are a filter on the team's own match rows, never on anything else.
+  if (scope.finals && !PLACE_IDS.has(id)) return false;
   if (SEASON_ROWS.has(id) && (scope.championship || scope.states || matchLevel || scope.at || scope.window)) return false;
   if (EVENT_ROWS.has(id) && matchLevel) return false;
   if (id === "never-played" && (scope.championship || scope.states || matchLevel || scope.ever || scope.at || scope.window)) return false;
