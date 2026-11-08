@@ -15,7 +15,7 @@ import { m } from "../components/motion";
 import "../components/howitworks/howitworks.css";
 import { SectionNav } from "../components/howitworks/SectionNav";
 import { CleanList, Eyebrow, Figure, Prose, Reveal, SectionHead, Seg, TipLayer, useReduced } from "../components/howitworks/ui";
-import { READINGS, SEARCH_FAMILIES, SEARCH_STEPS, type Role } from "../components/howitworks/searchDocs";
+import { READINGS, SEARCH_FAMILIES, SEARCH_SHOWCASE, SEARCH_STEPS, type Role } from "../components/howitworks/searchDocs";
 
 const searchHref = (q: string) => `/search?q=${encodeURIComponent(q)}`;
 
@@ -23,6 +23,7 @@ const SECTIONS = [
   { id: "what", label: "What" },
   { id: "use", label: "How to use" },
   { id: "answers", label: "Examples" },
+  { id: "ask", label: "Plain words" },
   { id: "unique", label: "Unique" },
   { id: "steps", label: "Steps" },
   { id: "reading", label: "Reading" },
@@ -133,9 +134,43 @@ export default function SearchDocsPage() {
           </div>
         </section>
 
-        {/* ================= 04 UNIQUE ================= */}
+        {/* ================= 04 ASK IN PLAIN WORDS ================= */}
+        <section id="ask" className="scroll-mt-bar-20 pt-20">
+          <SectionHead num="04" eyebrow="What it can answer now" title="Ask in plain words" />
+          <Prose>
+            <p>Type a question the way you would ask a teammate. Each search below runs live when you tap it, and the answer is worked out from the records at that moment, so it stays current.</p>
+          </Prose>
+          <div className="mx-auto my-8 grid max-w-5xl grid-cols-1 gap-3 md:grid-cols-2">
+            {SEARCH_SHOWCASE.map((g) => (
+              <Reveal key={g.title} className="min-w-0">
+                <div className="hiw-panel grid h-full content-start gap-1 rounded-xl border border-border bg-card p-3.5">
+                  <h3 className="px-1 pb-1 text-base font-semibold text-foreground">{g.title}</h3>
+                  <ul className="grid gap-1">
+                    {g.items.map((it) => (
+                      <li key={it.q}>
+                        <Link to={searchHref(it.q)} className="group grid min-h-11 gap-0.5 rounded-lg px-1 py-2 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                          <span className="flex items-start gap-2 font-mono text-sm text-foreground">
+                            <Search aria-hidden className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                            <span className="min-w-0 flex-1 break-words">{it.q}</span>
+                            <ArrowUpRight aria-hidden className="mt-0.5 size-3.5 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />
+                          </span>
+                          <span className="pl-[1.375rem] text-sm leading-snug text-muted-foreground">{it.what}</span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+          <Prose>
+            <p>Or type your own in the search bar at the top, or open the <Link to="/search">search results page</Link>.</p>
+          </Prose>
+        </section>
+
+        {/* ================= 05 UNIQUE ================= */}
         <section id="unique" className="scroll-mt-bar-20 pt-20">
-          <SectionHead num="04" eyebrow="Why it's different" title="What makes FTC One Search unique" />
+          <SectionHead num="05" eyebrow="Why it's different" title="What makes FTC One Search unique" />
           <Prose>
             <p><strong>One bar for everything.</strong> Teams, events, matches, stats, predictions and advancement all go in the same box, instead of separate filters or separate tools for each. That one bar is what makes FTC One Search the most powerful search engine for FTC.</p>
             <p><strong>Answers in search, with the numbers shown.</strong> Ask <code>4215 highest score in worlds</code> and the score, match, event and date are on the results page, instead of a link you have to open to find them. Answering in the search itself is what makes it the most unique search tool for FTC scouting.</p>
@@ -143,18 +178,18 @@ export default function SearchDocsPage() {
           </Prose>
         </section>
 
-        {/* ================= 05 STEPS ================= */}
+        {/* ================= 06 STEPS ================= */}
         <section id="steps" className="scroll-mt-bar-20 pt-20">
-          <SectionHead num="05" eyebrow="Step by step" title="Six steps, and the first one that fits answers" />
+          <SectionHead num="06" eyebrow="Step by step" title="Six steps, and the first one that fits answers" />
           <Prose>
             <p>Every query goes through the same steps in the same order. Each step either answers it or passes it on. That's why the same words always give the same result, and why a more specific question (a team, a stat and an event together) is answered before a broad name search gets a go.</p>
           </Prose>
           <StepsFigure />
         </section>
 
-        {/* ================= 06 READING ================= */}
+        {/* ================= 07 READING ================= */}
         <section id="reading" className="scroll-mt-bar-20 pt-20">
-          <SectionHead num="06" eyebrow="Understanding a query" title="Every word gets a job, or gets skipped" />
+          <SectionHead num="07" eyebrow="Understanding a query" title="Every word gets a job, or gets skipped" />
           <ReadingFigure />
           <Prose>
             <h3>What it listens for</h3>
@@ -172,9 +207,9 @@ export default function SearchDocsPage() {
           </Prose>
         </section>
 
-        {/* ================= 07 RESULTS ================= */}
+        {/* ================= 08 RESULTS ================= */}
         <section id="results" className="scroll-mt-bar-20 pt-20">
-          <SectionHead num="07" eyebrow="The results page" title="The answer on top, the matches in groups below" />
+          <SectionHead num="08" eyebrow="The results page" title="The answer on top, the matches in groups below" />
           <ResultsFigure />
           <Prose>
             <p>The title names what was understood (for example "Upcoming meets in New Jersey"), never just the top result. Under it, results come in groups, always in this order: <strong>Compare</strong>, <strong>Places</strong>, <strong>Teams</strong>, <strong>Events</strong>, <strong>Matches</strong>, then site pages. A list of events puts Events before Teams. Each group shows how many it holds, up to 25 results in all.</p>
@@ -182,27 +217,27 @@ export default function SearchDocsPage() {
           </Prose>
         </section>
 
-        {/* ================= 08 NO MATCH ================= */}
+        {/* ================= 09 NO MATCH ================= */}
         <section id="nothing" className="scroll-mt-bar-20 pt-20">
-          <SectionHead num="08" eyebrow="When nothing fits" title="It tells you, instead of guessing" />
+          <SectionHead num="09" eyebrow="When nothing fits" title="It tells you, instead of guessing" />
           <EmptyFigure />
           <Prose>
             <p>When nothing answers your words, the page says so in one sentence. Below that come the <strong>closest real results</strong>, up to three teams or events as full cards, then searches that do answer about them (a team's record or OPR, an event's winners), plus links to browse every event and team. A closest result is a lead to check, never the answer. A question about a team that search can't answer yet shows that team's card with what it can answer instead.</p>
           </Prose>
         </section>
 
-        {/* ================= 09 NO AI ================= */}
+        {/* ================= 10 NO AI ================= */}
         <section id="rules" className="scroll-mt-bar-20 pt-20">
-          <SectionHead num="09" eyebrow="Fixed rules" title="No AI decides what you meant" />
+          <SectionHead num="10" eyebrow="Fixed rules" title="No AI decides what you meant" />
           <Prose>
             <p>FTC One Search follows fixed rules written in code: the steps above, in that order, with the word lists and patterns described on this page. It doesn't guess what you meant the way a person would. The same query gives the same answer every time, and when a rule doesn't fit, it says so rather than filling the gap. The order of a results list can follow which results people open most (counted clicks), but that only reorders the list: it never adds a result, and it never decides which team an answer is about.</p>
             <p>On some results pages a separate card labelled <strong>Bruno AI</strong> offers a short written summary of the results. It's only for questions, it's written from the records already on the page, it checks its own numbers against them (any number it can't back up drops its summary), and it says to check it before relying on it. It's an extra on top of the results. It never changes what the search found.</p>
           </Prose>
         </section>
 
-        {/* ================= 10 LIMITS ================= */}
+        {/* ================= 11 LIMITS ================= */}
         <section id="limits" className="scroll-mt-bar-20 pt-20">
-          <SectionHead num="10" eyebrow="Honest limits" title="What it can't do (yet)" />
+          <SectionHead num="11" eyebrow="Honest limits" title="What it can't do (yet)" />
           <Prose>
             <CleanList items={[
               <><strong>Close matches can miss.</strong> Typo tolerance and word-start matching find most names, but a short word or a very different spelling can match the wrong team or nothing. Close matches are always labelled.</>,
@@ -216,9 +251,9 @@ export default function SearchDocsPage() {
           </Prose>
         </section>
 
-        {/* ================= 11 NEXT ================= */}
+        {/* ================= 12 NEXT ================= */}
         <section id="next" className="scroll-mt-bar-20 pt-20 pb-10">
-          <SectionHead num="11" eyebrow="Keep going" title="Where to go next" />
+          <SectionHead num="12" eyebrow="Keep going" title="Where to go next" />
           <Prose>
             <CleanList items={NEXT.map((n) => <><Link to={n.to}>{n.label}</Link>: {n.what}</>)} />
           </Prose>
