@@ -176,9 +176,21 @@ const PAIRS: [string, string][] = [
   ["is team 4215 really based in minnesota or not", "where is 4215 from"],
   ["did 4215 list a school", "4215 school"],
   ["does 4215 have a sponsor on record", "4215 sponsors"],
+  // Whose team it is ("my", "our") before its number.
+  ["what was our 6980 record this season", "6980 record this season"],
+  ["what is my team 4215 upcoming event", "4215 next event"],
+  // Its own event, whose team said: the next one, never the season's list.
+  ["what is my 4215 event", "4215 next event"],
+  ["which is our 6980 competition", "6980 next event"],
+  ["our 6980 upcoming event", "6980 next event"],
 ];
 
 describe("long, conversational queries", () => {
+  it("reads whose team it is before a mistyped intent word", async () => {
+    expect(longForm("what is our team #6980 opr")).toBe("6980 opr");
+    expect(what(await ask("what is my 6980 upcomming event"))).toBe(what(await ask("6980 next event")));
+  });
+
   it(`has ${PAIRS.length} phrasings, at least 40`, () => expect(PAIRS.length).toBeGreaterThanOrEqual(40));
 
   it.each(PAIRS)("%s → the answer to %s", async (long, short) => {
@@ -225,6 +237,19 @@ describe("long, conversational queries", () => {
     const w = await ask("when was the last time 4215 went worlds");
     expect(w.card).toMatchObject({ kind: "worlds", headline: expect.stringMatching(/^Last went to Worlds in /) });
     expect(w.understood?.label).not.toMatch(/isn't part of this answer/);
+  });
+
+  it("reads the teams around a team's rank as its OPR rank, keeping a season or a place and the whole name", () => {
+    expect(longForm("who is directly ahead of 6980 in the world this season")).toBe("6980 opr rank this season");
+    expect(longForm("who is right behind bad wolf in new jersey")).toBe("bad wolf opr rank in new jersey");
+    expect(longForm("teams close to critical mass")).toBe("critical mass opr rank");
+    // Worlds isn't a rank list, and another number's ranking is never read as the OPR list (Greptile on #1110).
+    expect(longForm("who is ranked above 6980 at worlds")).toBeNull();
+    for (const q of ["who is ranked above 6980 in rating", "who is right below bad wolf in auto this season", "teams ranked near 6980 in prediction rating"]) expect(longForm(q) ?? "", q).not.toMatch(/opr rank/);
+    // A team named with one of those words is still the team asked about (Greptile on #1110).
+    expect(longForm("who is ranked just above record breakers worldwide")).toBe("record breakers opr rank");
+    expect(longForm("teams near teleop titans last season")).toBe("teleop titans opr rank last season");
+    expect(longForm("who is right behind auto pilots in nj in rating") ?? "").not.toMatch(/opr rank/);
   });
 
   it("reads a yes-or-no listing question with the team as its number and name, or its name alone (Greptile on #1095)", async () => {

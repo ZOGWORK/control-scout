@@ -4,9 +4,14 @@
 // ./time.ts, the intent from ./intents.ts. Nothing here names a team, an event or a place.
 import { AWARD_ONE_WORD, EVENT_NAME_WORDS, LEXICON, type Agg, type Sym } from "./lexicon.js";
 import { pickIntent, type IntentRule, type PipelineIntent } from "./intents.js";
-import { readTime, type TimeSlot } from "./time.js";
+import { readTime, type TimeRead, type TimeSlot } from "./time.js";
 import { fold, type Names, type Place, type TeamName } from "./names.js";
 import { EVENT_TYPES } from "../../../src/shared/searchEventQuery.js";
+import { onlyTopicWords } from "../../../src/shared/searchQuery.js";
+
+/** A name as typed or stored, compared whole: lower case, any run of punctuation and spaces one space. */
+const wholeName = (n: string | null) => (n ?? "").toLowerCase().replace(/[^\p{L}\d]+/gu, " ").trim();
+import { joinThousands } from "../../../src/shared/fuzzy.js";
 
 export interface TeamSlot {
   number: number; name: string | null; typed: string; via: "number" | "name" | "near";
@@ -52,6 +57,8 @@ export interface Parsed {
   over?: { n: number; atLeast: boolean };
   /** Where the first "vs" stands (a word's index, as a team's `at`): two alliances are the teams either side of it. */
   vsAt?: number;
+  /** Where the swap word is ("swap 12345 for 23456"), as a team's `at`. */
+  swapAt?: number;
   /** Every intent symbol read ("agg:max", "metric:score"). */
   symbols: string[];
   /** The stats said not to go by ("not OPR"), as typed: the card says it left them out. */
@@ -66,6 +73,10 @@ export interface Parsed {
   unexplained: string[];
   /** No losses asked ("undefeated teams"). */
   undefeated?: boolean;
+  /** Rookie teams asked ("rookie teams", "first-year teams"): teams in their first season. */
+  rookie?: boolean;
+  /** Reaching Worlds or states said beside a forecast ("chance of making worlds"): the chance to advance there. */
+  reach?: true;
   /** A name asked about as words ("teams named <name>"): the words, never read as a team. */
   named?: { words: string; typed: string };
   /** Every word explained and an intent found. */
@@ -87,7 +98,8 @@ export interface ParseContext {
   prefer?: ReadonlySet<string>;
 }
 
-type Tok = { w: string; typed: string; used: boolean; alliance?: boolean; side?: "red" | "blue" };
+/** `at`: the word as typed it came from (its place among the words typed, before any time was read out). */
+type Tok = { w: string; typed: string; at: number; used: boolean; alliance?: boolean; side?: "red" | "blue" };
 /** The one-word filler phrases ("the", "a"): read before a name that starts with one. */
 const FILLER_WORDS = new Set(LEXICON.filter((e) => e.words.length === 1 && e.syms.every((x) => x.k === "filler")).map((e) => e.words[0]));
 /** Every filler phrase, one word or more ("the", "thank you"). */
@@ -105,11 +117,29 @@ const NAME_MARK = "namedname";
 const NAMED_PHRASES = LEXICON.filter((e) => e.syms.some((x) => x.k === "named")).map((e) => e.words);
 /** The words that end a name asked about as words: a place or a time follows. */
 const NAME_ENDS = /^(?:from|in|at|near|based|located|during|out)$/;
+/** The words that swap one team for another (the lexicon's "swap"), as a pattern. */
+const SWAP_WORDS = "swap|swaps|swapped|swapping|switch|switches|switched|switching|replace|replaces|replaced|replacing|substitute|substituted|substituting|sub|subs|subbed|subbing|trade|traded|trading";
+/** Words that say reaching a place ("making worlds", "qualifying for worlds"), and the words that name Worlds. */
+const REACH = new Set(["make", "makes", "making", "reach", "reaches", "reaching", "qualify", "qualifies", "qualifying", "get", "gets", "getting"]);
+const WORLDS_WORDS = new Set([
+  // Every one-word name the lexicon reads as Worlds or states ("regionals" is states), so a new name is never missed here.
+  ...LEXICON.filter((e) => e.words.length === 1 && e.syms.some((x) => x.k === "worlds" || x.k === "states")).map((e) => e.words[0]),
+  // The last word of their longer names ("the state championship", "world champs").
+  "championship", "championships", "champs",
+]);
+/** What may stand between a reach verb and the place: the lexicon's one-word filler ("it", "to", "the"), the
+ *  prepositions of going there ("for", "into", "in", "at", "through"), and "first" of "the FIRST Championship". */
+const REACH_BETWEEN = new Set([
+  ...LEXICON.filter((e) => e.words.length === 1 && e.syms.every((x) => x.k === "filler")).map((e) => e.words[0]),
+  "for", "into", "in", "at", "through", "first",
+]);
 /** The kind words an event's name can end with. */
 const KIND_WORDS = new Set(["meet", "meets", "tournament", "tournaments", "event", "events", "competition", "competitions"]);
 /** The words before a number that make it a count ("top 5", "last 10") or a match's number ("match 3"). */
 const COUNT_BEFORE = /^(?:top|last|first|best|latest|past|recent|bottom|worst|highest|lowest)$/;
 const MATCH_BEFORE = /^(?:match|qual|q|game|qualification)$/;
+/** The words before a number of teams that make it a size ("more than 40 teams", "over 40", "at least 40"). */
+const SIZE_BEFORE = /^(?:than|over|least|most|under|above|below|exceeding)$/;
 /** A floor in points ("more than 50 points", "at least 30 pts"): read before the team and time readers, so its number is
  *  never a team or a season. */
 const FLOOR = /(?:^| )(more than|greater than|over|above|exceeding|beyond|at least) (\d{1,5}) (?:points?|pts)(?= |$)/;
@@ -126,7 +156,7 @@ const symKey = (s: Sym): string | null => {
 
 /** Lower case, accents off, possessives and punctuation dropped; "highest-scoring" is two words, "2024-25" one. */
 export function normalise(q: string): string {
-  return ` ${q.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase()} `
+  return ` ${joinThousands(q).normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase()} `
     .replace(/[’‘`]/g, "'").replace(/\bwhat's\b/g, "what is").replace(/\bwho's\b/g, "who is").replace(/\bhow's\b/g, "how is")
     .replace(/([\p{L}\p{N}])'s\b/gu, "$1").replace(/s'(?=\s)/g, "s").replace(/#(?=\d)/g, " ")
     .replace(/(?<=[a-z])-(?=[a-z])/g, " ").replace(/[?!,;:()"[\]{}]/g, " ").replace(/\.(?=\s|$)/g, " ")
@@ -138,7 +168,7 @@ export function normalise(q: string): string {
 
 /** The longest stored name after a phrase saying a name follows, ending where a place's preposition, the closing
  *  filler or a time (`timeOnly`) follows it, or null. */
-function keptName(words: string[], ctx: ParseContext, timeOnly: (w: string[]) => boolean): { from: number; to: number } | null {
+function keptName(words: string[], names: Names, timeOnly: (w: string[]) => boolean): { from: number; to: number } | null {
   for (let i = 0; i < words.length; i++) {
     const f = NAMED_PHRASES.find((n) => n.every((w, j) => words[i + j] === w));
     if (!f) continue;
@@ -146,41 +176,57 @@ function keptName(words: string[], ctx: ParseContext, timeOnly: (w: string[]) =>
     for (let to = words.length; to > from; to--) {
       const tail = words.slice(to);
       const ends = !tail.length || NAME_ENDS.test(tail[0]) || allFiller(tail) || timeOnly(tail);
-      if (ends && ctx.names.teamsNamed(words.slice(from, to).join(" ")).length) return { from, to };
+      if (ends && names.teamsNamed(words.slice(from, to).join(" ")).length) return { from, to };
     }
   }
   return null;
 }
 
-/** Parses `raw`. */
-export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed> {
-  const q0 = normalise(raw);
-  const fl = FLOOR.exec(q0);
-  const q = fl ? `${q0.slice(0, fl.index)} ${q0.slice(fl.index + fl[0].length)}`.replace(/\s+/g, " ").trim() : q0;
-  const typedWords = raw.replace(/[?!,;:()"]/g, " ").split(/\s+/).filter(Boolean);
+/** Whether a bare four-digit year in `q` (normalised words) is a season, given which numbers are teams' (`team`). */
+function yearReading(q: string, team: (n: number) => boolean): (y: number) => boolean {
   // The other team numbers typed: a limit ("last 5") or a match's number ("match 3") is never a team.
   const words0 = q.split(" ");
-  const teamNums = words0.filter((w, i) => /^\d{1,5}$/.test(w) && !COUNT_BEFORE.test(words0[i - 1] ?? "") && !MATCH_BEFORE.test(words0[i - 1] ?? "") && !!ctx.names.team(Number(w))).map(Number);
+  const teamNums = words0.filter((w, i) => /^\d{1,5}$/.test(w) && !COUNT_BEFORE.test(words0[i - 1] ?? "") && !MATCH_BEFORE.test(words0[i - 1] ?? "") && team(Number(w))).map(Number);
   // A bare year is a season unless it's the only team number and a team has it ("2024 record", "2024 last 5 matches").
   // "Season 2024" names the season, but "this season 2024 record" is the team after "this season".
   // A team's number joined to another by "vs" or "and" is one of the teams compared, not a year.
   const said = (y: number) => new RegExp(`\\b(?:in|during|for|from|(?<!\\b(?:this|current)\\s)season)\\s+(?:the\\s+)?${y}\\b`).test(q);
   const paired = (y: number) => new RegExp(`\\b${y}\\s+(?:vs\\.?|v|versus|against|and|&)\\s|\\s(?:vs\\.?|v|versus|against|and|&)\\s+${y}\\b`).test(` ${q} `);
-  const yearOk = (y: number) => said(y) || (!(ctx.names.team(y) && paired(y)) && (teamNums.some((n) => n !== y) || !ctx.names.team(y)));
-  // A stored name asked about as words keeps its words from the time reader ("Powerplay Robotics", "March Madness").
-  const timeOnly = (w: string[]) => { const r = readTime(w.join(" "), ctx.today, yearOk); return !!r.time && allFiller(r.rest.split(" ").filter(Boolean)); };
-  const at0 = keptName(words0, ctx, timeOnly);
+  // A team's number swapped out or in ("swap <team> for <team>", "replace <team> with <team>", a number like a year) is a team, never a year.
+  const swapped = (y: number) => new RegExp(`\\b(?:${SWAP_WORDS})\\s+(?:(?:out|in)\\s+)?(?:\\d{1,5}\\s+(?:(?:out|in)\\s+)?(?:for|with|by)\\s+)?${y}\\b`).test(q);
+  return (y: number) => !(swapped(y) && team(y)) && (said(y) || (!(team(y) && paired(y)) && (teamNums.some((n) => n !== y) || !team(y))));
+}
+
+/** The time `q` (normalised words) says, as the parser reads it: a bare year by `yearReading`, and a stored name asked
+ *  about as words ("teams named Powerplay Pioneers", "March Madness") never read as a time. `rest`: `q` without the
+ *  time's words. Shared with the answer's season picker (server/api/answers/season.ts withSeason). */
+export function queryTime(q0: string, names: Names, today: string): TimeRead {
+  // A score threshold ("at least 2025 pts") is never a year: set aside first, as parseQuery does.
+  const fl = FLOOR.exec(q0);
+  const q = fl ? `${q0.slice(0, fl.index)} ${q0.slice(fl.index + fl[0].length)}`.replace(/\s+/g, " ").trim() : q0;
+  const words0 = q.split(" ");
+  const yearOk = yearReading(q, (n) => !!names.team(n));
+  const timeOnly = (w: string[]) => { const r = readTime(w.join(" "), today, yearOk); return !!r.time && allFiller(r.rest.split(" ").filter(Boolean)); };
+  const at0 = keptName(words0, names, timeOnly);
   // The name stands in as one word no time reads, then comes back whole.
   const kept = at0 && words0.slice(at0.from, at0.to).join(" ");
-  const read = readTime(at0 ? [...words0.slice(0, at0.from), NAME_MARK, ...words0.slice(at0.to)].join(" ") : q, ctx.today, yearOk);
-  const { time, unread } = read;
-  const rest = kept ? read.rest.replace(NAME_MARK, kept) : read.rest;
+  const read = readTime(at0 ? [...words0.slice(0, at0.from), NAME_MARK, ...words0.slice(at0.to)].join(" ") : q, today, yearOk);
+  return kept ? { ...read, rest: read.rest.replace(NAME_MARK, kept) } : read;
+}
+
+/** Parses `raw`. */
+export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed> {  const q0 = normalise(raw);
+  const fl = FLOOR.exec(q0);
+  const q = fl ? `${q0.slice(0, fl.index)} ${q0.slice(fl.index + fl[0].length)}`.replace(/\s+/g, " ").trim() : q0;
+  const typedWords = raw.replace(/[?!,;:()"]/g, " ").split(/\s+/).filter(Boolean);
+  const read = queryTime(q, ctx.names, ctx.today);
+  const { time, unread, rest } = read;
   // Each word with its own spelling as typed, matched in order ("in IN": the second is the state code).
   let at = 0;
   const toks: Tok[] = rest.split(" ").filter(Boolean).map((w) => {
     const k = typedWords.findIndex((t, i) => i >= at && fold(t) === w);
     if (k >= 0) at = k + 1;
-    return { w, typed: k >= 0 ? typedWords[k] : w, used: false };
+    return { w, typed: k >= 0 ? typedWords[k] : w, at: k >= 0 ? k : at, used: false };
   });
   const symbols = new Set<string>();
   const p: Parsed = {
@@ -188,6 +234,8 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     n: null, matchNumber: null, noPenalties: false, symbols: [], intent: null, rule: null, leftover: [], unexplained: [], complete: false,
     ...(fl ? { over: { n: Number(fl[2]), atLeast: fl[1] === "at least" } } : {}),
   };
+  // Where the place read starts, in the parser's words: a place typed right after a shared name picks the team.
+  let placeFrom = -1;
   const lexAt = (i: number) => LEXICON.find((e) => e.words.every((w, j) => toks[i + j] && !toks[i + j].used && toks[i + j].w === w));
   const isLex = (w: string) => LEX_WORDS.has(w) || AWARD_ONE_WORD.has(w);
 
@@ -215,6 +263,16 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     span.forEach((t) => (t.used = true));
   }
 
+  // 0b. Rookie teams ("rookie teams", "first-year teams", "first year teams"): the group, read before any name ("rookie
+  // year" is the team's own fact, never this). Only right before the teams word.
+  for (let i = 0; i < toks.length; i++) {
+    const two = toks[i].w === "first" && /^year$/.test(toks[i + 1]?.w ?? "");
+    const w = two ? 2 : /^(?:rookies?|first-year)$/.test(toks[i].w) ? 1 : 0;
+    if (!w || toks.slice(i, i + w).some((t) => t.used) || !/^teams?$/.test(toks[i + w]?.w ?? "")) continue;
+    p.rookie = true;
+    toks.slice(i, i + w).forEach((t) => (t.used = true));
+  }
+
   // 1. Teams by their whole name, longest first: a name made only of search's own words ("The Best") isn't claimed,
   // so "best team" stays a question.
   for (let len = Math.min(ctx.names.longest, 12); len >= 1; len--) {
@@ -224,11 +282,21 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       // After "in" or "from", a place's name is the place ("teams from Texas"), whatever team shares it.
       if (/^(?:in|from|at|near)$/.test(toks[i - 1]?.w ?? "") && ctx.names.place(span.map((t) => t.w).join(" "), span.map((t) => t.typed).join(" "))) continue;
       // A one-word name covers its whole run of unknown words: "robotics" alone isn't the team in "hypnotc robotics".
-      // A longer name is specific enough beside another ("hypnotic robotics bad wolf").
+      // A longer name is specific enough beside another ("hypnotic robotics bad wolf"), and a place beside it is a
+      // place ("ultraviolet nj").
       const loose = (t: Tok | undefined) => !!t && !t.used && !isLex(t.w) && !/^\d+$/.test(t.w);
-      if (len === 1 && (loose(toks[i - 1]) || loose(toks[i + len]))) continue;
-      const named = ctx.names.teamsNamed(span.map((t) => t.w).join(" "));
+      const placeAt = (a: number, b: number) => a >= 0 && b <= toks.length && toks.slice(a, b).every((t) => !t.used) && !!ctx.names.place(toks.slice(a, b).map((t) => t.w).join(" "), toks.slice(a, b).map((t) => t.typed).join(" "));
+      const placed = (k: number, dir: 1 | -1) => [1, 2, 3].some((n) => (dir > 0 ? placeAt(k, k + n) : placeAt(k - n + 1, k + 1)));
+      if (len === 1 && ((loose(toks[i - 1]) && !placed(i - 1, -1)) || (loose(toks[i + len]) && !placed(i + len, 1)))) continue;
+      const said = span.map((t) => t.w).join(" ");
+      // A name's own part never takes a word of a longer place's name ("north" of "north carolina").
+      const inPlace = [1, 2, 3].some((n) => n > len && Array.from({ length: n - len + 1 }, (_, o) => i - o).some((a) => placeAt(a, a + n)));
+      const named = ctx.names.teamsNamed(said).length ? ctx.names.teamsNamed(said) : inPlace ? [] : ctx.names.teamsCalled(said);
       if (!named.length) continue;
+      // What a question asks about ("alliances", "inspire", "stats") names a team only typed as its whole name: "nj
+      // states alliances" is never team Alliance, "most inspire awards" never team Inspires (onlyTopicWords).
+      const typed = span.map((t) => t.typed).join(" ");
+      if (onlyTopicWords(typed) && !named.some((n) => wholeName(n.name) === wholeName(typed))) continue;
       // A number typed beside its own name ("12345 hypnotic robotics") is one team.
       if (!named.some((n) => p.teams.some((t) => t.number === n.number))) {
         p.teams.push({ number: named[0].number, name: named[0].name, typed: span.map((t) => t.typed).join(" "), via: "name", at: i, ...(named.length > 1 ? { candidates: named.map((n) => n.number) } : {}) });
@@ -249,9 +317,25 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     if (prev && MATCH_BEFORE.test(prev) && n <= 400) { p.matchNumber = n; t.used = true; toks[i - 1].used = true; symbols.add("thing:match"); if (prev !== "match" && prev !== "game") p.level = "qual"; continue; }
     // "Top 5 teams", and "top 3" ending the query.
     if (prev && COUNT_BEFORE.test(prev) && n <= 50 && (next ? !ctx.names.team(Number(next)) : !p.teams.length)) { p.n = n; t.used = true; continue; }
+    // A size in teams ("more than 40 teams", "at least 40 teams", "40 or more teams"): a count, never team 40.
+    const sized = /^teams?$/.test(next ?? "") || (next === "or" && /^(?:more|fewer|less)$/.test(toks[i + 2]?.w ?? "") && /^teams?$/.test(toks[i + 3]?.w ?? ""));
+    if (sized && (SIZE_BEFORE.test(prev ?? "") || next === "or")) { t.used = true; continue; }
+    // A number of points ("lose by 1 point", "won by 30 pts"): a margin or a score, never team 1. Left unread for the
+    // readers that take it.
+    if (/^(?:points?|pts?)$/.test(next ?? "")) continue;
     const team = ctx.names.team(n);
     if (team) {
-      if (!p.teams.some((x) => x.number === n)) p.teams.push({ number: n, name: team.name, typed: t.typed, via: "number", at: i });
+      // A name several teams share, with one of their numbers typed right beside it ("<shared name> <number>", "<number>
+      // <shared name>", "team" or "ftc" between allowed), is that team. Only beside it: a number elsewhere is its own
+      // team, never pulled across "vs" or past another team.
+      const beside = (x: Parsed["teams"][number]) => {
+        if (x.at == null) return false;
+        const end = x.at + x.typed.split(/\s+/).length, gap = (k: number) => /^(?:team|ftc)$/.test(toks[k]?.w ?? "");
+        return i === end || (i === end + 1 && gap(end)) || i === x.at - 1 || (i === x.at - 2 && gap(x.at - 1));
+      };
+      const shared = p.teams.find((x) => x.via === "name" && x.candidates?.includes(n) && beside(x));
+      if (shared) { shared.number = n; shared.name = team.name; delete shared.candidates; }
+      else if (!p.teams.some((x) => x.number === n)) p.teams.push({ number: n, name: team.name, typed: t.typed, via: "number", at: i });
       t.used = true;
       if (/^(?:team|ftc)$/.test(prev ?? "")) toks[i - 1].used = true;
     }
@@ -268,7 +352,17 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       if (code && !/^(?:in|from|at)$/.test(toks[i - 1]?.w ?? "")) continue;
       if (!code && span.every((t) => isLex(t.w))) continue;
       const pl = ctx.names.place(span.map((t) => t.w).join(" "), span.map((t) => t.typed).join(" "));
-      if (pl) { p.place = { ...pl, typed: span.map((t) => t.typed).join(" ") }; span.forEach((t) => (t.used = true)); }
+      if (pl) { p.place = { ...pl, typed: span.map((t) => t.typed).join(" ") }; placeFrom = i; span.forEach((t) => (t.used = true)); }
+    }
+  }
+
+  // A swapped team said with "in" or "out" before "for" or "with" ("sub <team> in for <team>", "swap <team> out for
+  // <team>"): which way the swap goes, read before the lexicon so "in" is never a preposition there.
+  const swapSaid = new RegExp(`^(?:${SWAP_WORDS})$`);
+  if (toks.some((t) => !t.used && swapSaid.test(t.w))) {
+    for (const t of p.teams) {
+      const i = t.at + t.typed.split(" ").length, d = toks[i];
+      if (d && !d.used && /^(?:in|out)$/.test(d.w) && /^(?:for|with)$/.test(toks[i + 1]?.w ?? "")) { d.used = true; if (d.w === "in") symbols.add("swap-in"); }
     }
   }
 
@@ -293,8 +387,33 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       else if (s.k === "undefeated") p.undefeated = true;
       else if (s.k === "agg" && !p.agg) p.agg = s.v;
       else if (s.k === "vs" && p.vsAt == null) p.vsAt = i;
+      else if (s.k === "swap" && p.swapAt == null) p.swapAt = i;
       const k = symKey(s);
       if (k && s.k !== "award") symbols.add(k);
+    }
+  }
+  // Reaching Worlds said beside a forecast ("chance of making worlds", "odds of qualifying for worlds"): the chance to
+  // advance there, never a count of appearances or qualification matches.
+  if (symbols.has("predict") && (p.worlds || p.states)) {
+    // The verb, then any filler or preposition ("making it to the world championship"), then the place's name.
+    // The words in between are part of the reach, read with it.
+    const between: Tok[] = [];
+    const reach = toks.filter((t, i) => {
+      if (!REACH.has(t.w)) return false;
+      let j = i + 1;
+      while (j < toks.length && REACH_BETWEEN.has(toks[j].w)) j++;
+      if (j >= toks.length || !WORLDS_WORDS.has(toks[j].w)) return false;
+      between.push(...toks.slice(i + 1, j));
+      return true;
+    });
+    if (reach.length) {
+      [...reach, ...between].forEach((t) => (t.used = true));
+      p.reach = true;
+      symbols.add("advance");
+      // "Next year", "next season": the way there starts at the team's next event.
+      if (symbols.has("agg:next")) symbols.delete("thing:season");
+      symbols.delete("metric:appearance");
+      if (p.level === "qual" && reach.some((t) => t.w.startsWith("qualif"))) { p.level = null; symbols.delete("level:qual"); }
     }
   }
   // One-word awards beside an award word: "design award", "12345 think awards".
@@ -316,6 +435,9 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   let ownWord: Tok | null = null, ownDropped = false;
   const ownEventWord = async (one: Tok): Promise<boolean> => {
     if (p.event || !p.teams.length || !ctx.teamEvent || one.w.length < 3 || KIND_WORDS.has(one.w) || EVENT_TYPES[one.w.replace(/s$/, "")] || EVENT_TYPES[one.w]) return false;
+    // "Division" with Worlds said is the team's Worlds division ("what division was <team> in at worlds"), never its
+    // latest event with a division.
+    if (p.worlds && /^divisions?$/.test(one.w)) return false;
     const name = await ctx.teamEvent(one.w, p.teams.flatMap((x) => (x.candidates && !x.rule ? x.candidates : [x.number])), when);
     if (!name) return false;
     p.event = { words: name, typed: one.typed, latest: true };
@@ -340,7 +462,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     const typed = () => toks.slice(from, to + 1).map((t) => t.typed).join(" ");
     const hasEventWord = toks.slice(from, to + 1).some((t) => EVENT_NAME_WORDS.has(t.w));
     const place = !hasEventWord ? ctx.names.place(words(), typed()) : null;
-    if (place && !p.place) { p.place = { ...place, typed: typed() }; toks.slice(from, to + 1).forEach((t) => (t.used = true)); continue; }
+    if (place && !p.place) { p.place = { ...place, typed: typed() }; placeFrom = from; toks.slice(from, to + 1).forEach((t) => (t.used = true)); continue; }
     // The region or country a town named is in, said after it ("Cluj-Napoca, Romania", "Oradell, NJ"): the same place.
     if (place && p.place && within(p.place, place)) { toks.slice(from, to + 1).forEach((t) => (t.used = true)); continue; }
     // One event: a second one named ("at nj championship at northern division") is left unexplained, never dropped.
@@ -362,7 +484,13 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     if (hasEventWord && !p.place) {
       const bare = toks.slice(from, to + 1).filter((t) => !EVENT_NAME_WORDS.has(t.w));
       const pl = bare.length ? ctx.names.place(bare.map((t) => t.w).join(" "), bare.map((t) => t.typed).join(" ")) : null;
-      if (pl) { p.place = { ...pl, typed: bare.map((t) => t.typed).join(" ") }; toks.slice(from, to + 1).forEach((t) => (t.used = true)); symbols.add("thing:event"); continue; }
+      // A state with only a championship word after it is its state championship ("nj champs", "texas championship").
+      const champ = toks.slice(from, to + 1).every((t) => !EVENT_NAME_WORDS.has(t.w) || /^(?:championships?|champs)$/.test(t.w));
+      if (pl) {
+        p.place = { ...pl, typed: bare.map((t) => t.typed).join(" ") }; placeFrom = from; toks.slice(from, to + 1).forEach((t) => (t.used = true));
+        if (champ && pl.kind === "region") { p.states = true; symbols.add("states"); } else symbols.add("thing:event");
+        continue;
+      }
     }
     // A kind of event by its type words alone ("league", with "meet" the lexicon read beside it; "qualifiers"): every
     // word one of FIRST's event types, never an event's name (read above).
@@ -388,6 +516,8 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       const start = from - k;
       if (start < 0 || toks.slice(start, from).some((t) => !FILLER_WORDS.has(t.w) && !t.alliance)) continue;
       const span = toks.slice(start, to + 1);
+      // What a question asks about is never a name typed nearly right ("inspire" is no typo of team Inspires).
+      if (onlyTopicWords(span.map((t) => t.typed).join(" "))) continue;
       const near = await ctx.nearTeam(span.map((t) => t.w).join(" "));
       if (!near || p.teams.some((t) => t.number === near.number)) continue;
       p.teams.push({ number: near.number, name: near.name, typed: span.map((t) => t.typed).join(" "), via: "near", at: start });
@@ -413,6 +543,15 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       if (pick.rule) { Object.assign(t, pick); more = true; }
     }
   }
+  // A place typed right after a shared name that it told apart ("ultraviolet nj") said which team, not where its
+  // matches were; one said with a preposition ("record in new jersey", "at nj states") stays the matches' place.
+  // The name's last word is the word typed just before the place's first, counted in the words as typed (a time read
+  // out between them still stands between them; a possessive dropped from the name still counts as its word).
+  const rightAfter = (t: TeamSlot) => {
+    const last = toks[t.at + t.typed.split(/\s+/).length - 1];
+    return placeFrom >= 0 && !!last && last.at + 1 === toks[placeFrom].at;
+  };
+  if (p.place && p.teams.some((t) => t.rule === `the one in ${p.place!.name}` && rightAfter(t))) p.place = null;
   // The one-word event, checked again among the teams as settled: none of theirs, and the word is left unread.
   const own = ownWord as Tok | null;
   if (own && p.event?.latest && ctx.teamEvent && !p.teams.some((t) => t.candidates && !t.rule)) {
@@ -432,6 +571,9 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       if (await ownEventWord(one)) break;
     }
   }
+  // "Worlds division highlights", with no team: every division of Worlds, which Worlds already is (each division and
+  // the finals). With a team, "division" is its own Worlds division, search's other readers' ask.
+  if (p.worlds && !p.teams.length && !p.event) for (const t of toks) if (!t.used && /^divisions?$/.test(t.w)) t.used = true;
   p.leftover = toks.filter((t) => !t.used).map((t) => t.typed);
   if (unread) p.leftover.unshift(unread);
   if (p.teams.some((t) => t.candidates && !t.rule)) p.leftover.push(...p.teams.filter((t) => t.candidates && !t.rule).map((t) => t.typed));

@@ -18,8 +18,9 @@ import { teamPageSql } from "../../../src/shared/teamPages.js";
 import { all, get } from "../../db.js";
 import { fuzzyScore } from "../fuzzy.js";
 import { search } from "../search.js";
-import { eventWon, readAsk } from "../searchAsks.js";
-import { eventHit } from "../searchEvents.js";
+import { askSeason, eventWon, readAsk } from "../searchAsks.js";
+import { defaultSteps, relaxed } from "../query/relax.js";
+import { eventHit, searchToday } from "../searchEvents.js";
 import { namedTeam, versusAnswer } from "../searchCompare.js";
 import { predictHref } from "../../../src/shared/predictUrl.js";
 import { CHAMPIONSHIP_TYPE, STATES_TYPE, inScope, officialClause, scopeChips, scopePhrase, type Scope } from "./clauses.js";
@@ -32,11 +33,14 @@ import { OPR_RATING_TITLES, oprRatingAnswer, readOprRating, type OprRatingQuesti
 import { counts, matchAnswer, whoOf } from "./families/matches.js";
 import { changeAnswer, readChange, type ChangeQuestion } from "./families/seasonChange.js";
 import { MATCH_STAT_IDS, matchStatAnswer } from "./families/matchStats.js";
-import { BOARD_STATS, LEADERBOARD_MAX, boardStatFor, leaderboardAnswer, statWords } from "./families/leaderboard.js";
+import { BOARD_STATS, LEADERBOARD_MAX, boardStatFor, leaderboardAnswer, statWords, windowBoardAnswer } from "./families/leaderboard.js";
+import { readTime } from "../query/time.js";
+import { biggestEventsAnswer, readBiggestEvents } from "./families/biggestEvents.js";
+import { readTopCities, storedCountry, topCitiesAnswer } from "./families/topCities.js";
 import { everTopMatches, readTopMatches, topMatchesAnswer, type TopMatchesQuestion } from "./families/topMatches.js";
 import { penaltyTotalAnswer, trendAnswer } from "./families/trends.js";
 import { nextEventPrediction, pairPrediction, predictTitle, predictionSeason } from "./families/predict.js";
-import { awardsSideBySide, compareAnswer, compareSeason, headToHead, neverPlayedAnswer, opponentsAnswer, partnerListAnswer, phaseSideBySide, reliabilitySideBySide, seasonSideBySide } from "./families/twoTeam.js";
+import { awardsSideBySide, compareAnswer, compareSeason, headToHead, neverPlayedAnswer, opponentsAnswer, partnerListAnswer, penaltiesSideBySide, phaseSideBySide, reliabilitySideBySide, seasonSideBySide } from "./families/twoTeam.js";
 import { sharedMatchList } from "../searchBoolean.js";
 import { compareBlock, decidedText, leadHeadline, seasonScale, winShare } from "./compareBlock.js";
 import { winnersAnswer, worldsFollowUps } from "./families/winners.js";
@@ -75,7 +79,7 @@ const TITLES: Record<IntentId, string> = {
 };
 const TWO_TEAM_TITLES: Record<TwoTeamId, string> = {
   "head-to-head": "Head to head", "opr-vs": "OPR side by side", "rating-vs": "Prediction ratings side by side", "win-chance": "Win chance", "better-record": "Better record",
-  predict: "Prediction", "h2h-wins": "Wins against", "shared-matches": "Shared matches", compare: "Compare", "phase-vs": "Phase side by side", "reliability-vs": "Reliability side by side", "awards-vs": "Awards side by side",
+  predict: "Prediction", "h2h-wins": "Wins against", "shared-matches": "Shared matches", compare: "Compare", "phase-vs": "Phase side by side", "reliability-vs": "Reliability side by side", "awards-vs": "Awards side by side", "penalties-vs": "Penalties side by side",
 };
 /** Read from the matches the two teams met in ("this season" is the first team's latest season with matches). */
 const MEETING_IDS = new Set<TwoTeamId>(["head-to-head", "h2h-wins", "shared-matches"]);
@@ -334,6 +338,9 @@ async function findEvent(words: string, season: number | null, opts: { anyPlayed
   return (await row(Number(s), code)) ?? null;
 }
 
+/** "Top teams", "best 5 teams", "strongest teams": the words that ask for the best teams, with a time said or not. */
+const TOP_TEAMS_SAID = /\b(?:top|best|strongest)\s+(?:\d{1,2}\s+)?teams?\b/i;
+
 /** The answer for `q`, or null when it isn't a stat question or its team isn't found. */
 export async function statAnswer(q: string, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
   // A compound question (filters joined, or two answers at once) before any single reader takes part of it.
@@ -345,9 +352,48 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   // A season's highest-scoring matches before a leaderboard ("highest scoring matches at <event>" names no city).
   const tm = readTopMatches(q);
   if (tm) return topSearch(q, tm, opts);
+  // "Which event had the most teams in California this season", "biggest qualifiers in Texas": events by team count.
+  const big = readBiggestEvents(q);
+  if (big) {
+    const stat = opts.full ? await biggestEventsAnswer(big, searchSeason()) : null;
+    const label = stat?.title ?? `Events with the most teams${big.e.region ? ` in ${big.e.region.name}` : ""}`;
+    return { q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label, ...(big.e.region ? { place: { key: big.e.region.key, name: big.e.region.name } } : {}) },
+      intent: { kind: "stat-biggest-events", pattern: `events with the most teams${big.e.region ? " [place]" : ""}`, met: true, understood: [label] }, ...(stat ? { stat } : {}) };
+  }
+  // "Which city in Romania has the most FTC teams": a place's home cities by how many teams list them.
+  const cities = readTopCities(q);
+  // A country no team lists is left to search.
+  const cityStat = cities && (opts.full || cities.country) ? await topCitiesAnswer(cities) : null;
+  if (cities && (cityStat || !cities.country)) {
+    const stat = opts.full ? cityStat : null;
+    // The place as answered (a country's own name), even in the search box, which gets no card.
+    const where = cityStat?.scope?.[0] ?? cities.region?.name;
+    const label = `Cities with the most teams${where && where !== "Worldwide" ? ` in ${where}` : " worldwide"}`;
+    return { q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label, ...(cities.region ? { place: { key: cities.region.key, name: cities.region.name } } : {}) },
+      intent: { kind: "stat-top-cities", pattern: `cities with the most teams${cities.region || cities.country ? " [place]" : ""}`, met: true, understood: [label] }, ...(stat ? { stat } : {}) };
+  }
+  // "Top teams this week", "best teams in NJ last weekend": the teams that played then, by their OPR at those events.
+  const win = TOP_TEAMS_SAID.test(q) ? readTime(q.toLowerCase(), searchToday()) : null;
+  if (win?.time?.kind === "window" && win.time.from && win.time.to) {
+    const rest = win.rest.replace(/[?!.,]/g, " ").replace(/\s+/g, " ").trim();
+    const ask = boardOfAsk(rest);
+    if (ask && ask.stat === BOARD_STATS.rating.id) {
+      const stat = opts.full ? await windowBoardAnswer({ from: win.time.from, to: win.time.to, label: win.time.label }, ask.region, ask.n) : null;
+      return { q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: stat?.title ?? `Top teams ${win.time.label}` },
+        intent: { kind: "stat-window-best", pattern: `top teams [window]${ask.region ? " [place]" : ""}`, met: true, understood: [`Top teams ${win.time.label}`] }, ...(stat ? { stat } : {}) };
+    }
+  }
   // The asks' leaderboards are drawn here on the page; the dropdown keeps the asks' own short card.
-  const board = readLeaderboard(q) ?? (opts.full ? boardOfAsk(q) : null);
+  const board = readLeaderboard(q);
   if (board) return boardSearch(q, board, opts);
+  // An asked board reads the season as the pipeline does: the current one, then the one before when nobody is ranked
+  // there yet, said on the card.
+  const asked = opts.full ? boardOfAsk(q) : null;
+  if (asked) {
+    const season = askSeason();
+    const a = await boardSearch(q, { ...asked, season }, opts);
+    return relaxed(a, defaultSteps(season, asked.region ? ` in ${asked.region.name}` : "", "ranked teams"), (s) => boardSearch(q, { ...asked, season: s }, opts));
+  }
   // "How much did 12345's OPR improve from last season to this season", "12345 rating change this season".
   const change = readChange(q);
   if (change) return changeSearch(q, change, resolve, opts);
@@ -373,7 +419,13 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
     const f = readTeamFact(q);
     return f ? factSearch(q, f, resolve, opts) : null;
   }
-  if (it.noTeam) return winnersSearch(q, it, opts);
+  if (it.noTeam) {
+    const won = await winnersSearch(q, it, opts);
+    // A winner word alone after a team's whole name, not an event's ("bad wolf champion", "hypnotic robotics winner"):
+    // the events that team has won.
+    if (won || !it.bare || !it.core || !(await names()).teamsNamed(it.core).length) return won;
+    return statAnswerOf(q, { ...it, id: "event-wins", family: "awards", noTeam: false, bare: false }, resolve, opts);
+  }
   return statAnswerOf(q, it, resolve, opts);
 }
 
@@ -419,8 +471,10 @@ export async function statAnswerOf(q: string, it0: StatQuestion, resolve: Resolv
   const outcomeTitle = !it.outcome ? null : ({ "first-match": `First ${won}`, "recent-match": `Most recent ${won}`, "last-matches": `Last ${it.outcome === "W" ? "wins" : "losses"}`,
     "longest-streak": it.outcome === "L" ? "Longest losing streak" : null } as Partial<Record<IntentId, string | null>>)[it.id] ?? null;
   const name = outcomeTitle ? outcomeTitle : it.id === "average-margin" && it.outcome ? `Average ${it.outcome === "W" ? "winning" : "losing"} margin` : it.id === "scores-over" ? `Scores ${it.variant === "at-least" ? "of at least" : "over"} ${it.n}`
+    : it.id === "vs-top" && it.n != null ? `Against top-${it.n} teams`
+    : it.id === "closest-match" && it.n != null ? `${it.outcome === "W" ? "Wins" : it.outcome === "L" ? "Losses" : "Matches"} by ${it.n} point${it.n === 1 ? "" : "s"}`
     : it.id === "penalties" && it.variant ? (it.variant === "rate" ? "Penalty rate" : "Penalty points given away per event")
-    : AWARD_INTENTS.has(it.id) ? awardsTitle(it.id, it) ?? TITLES[it.id] : it.byRecord ? (it.id === "best-finish" ? "Best event" : "Worst event") : it.schedule ? "Event schedule" : PREDICT_INTENTS.has(it.id) && scope.event ? predictTitle(it.id) : TITLES[it.id];
+    : AWARD_INTENTS.has(it.id) ? awardsTitle(it.id, it) ?? TITLES[it.id] : it.byRecord ? (it.id === "best-finish" ? "Best event" : "Worst event") : it.rank ? (it.id === "first-event" ? "First event rank" : "Latest event rank") : it.schedule ? "Event schedule" : PREDICT_INTENTS.has(it.id) && scope.event ? predictTitle(it.id) : TITLES[it.id];
   const title = `${it.leadEvent ? "Event with the highest score" : name}${scopePhrase(it.id === "worlds-divisions" ? { ...scope, championship: false } : scope)}`;
   // "This season" with none of the season in progress played yet reads the team's latest: the heading names that
   // season (its title ends "in 2025–26"), and the answer's note says why (scope.seasonWhy), so the heading stays clean.
@@ -544,7 +598,7 @@ async function build(it: StatQuestion, team: { number: number; name: string | nu
   // Reliability is read from its own rows: an event the team was listed for but never took the field at counts.
   if (it.id === "reliability-history") return trendAnswer(it.id, team, { ...(await teamEventSet(team.number)), events: await reliabilityEvents(team.number) }, scope);
   if (TREND_INTENTS.has(it.id)) return trendAnswer(it.id, team, await teamEventSet(team.number), scope);
-  if (EVENT_INTENTS.has(it.id)) return eventAnswer(it.id, team, await teamEventSet(team.number), scope, { byRecord: it.byRecord, schedule: it.schedule });
+  if (EVENT_INTENTS.has(it.id)) return eventAnswer(it.id, team, await teamEventSet(team.number), scope, { byRecord: it.byRecord, schedule: it.schedule, rank: it.rank });
   // A forecast is for one event: the one named, else the team's next; a place or Worlds isn't one event.
   // Only a season written in the question, or "this season" (the current one), narrows it.
   if (PREDICT_INTENTS.has(it.id)) return scope.place || scope.championship || scope.states ? null : nextEventPrediction(it.id, team, undefined, scope.event, scope.season ?? null);
@@ -995,6 +1049,7 @@ async function twoTeamStat(two: TwoTeamQuestion, a: AnswerTeam, b: AnswerTeam, s
     case "compare": return compareAnswer([a, b], scope);
     case "phase-vs": return phaseSideBySide(two.phase ?? "auto", a, b, scope);
     case "reliability-vs": return reliabilitySideBySide(a, b, scope);
+    case "penalties-vs": return penaltiesSideBySide(a, b, scope);
     case "awards-vs": return awardsSideBySide(a, b, scope.season);
     case "predict": case "win-chance": {
       // A prediction is one season's ratings: the season named, else the latest completed one.
@@ -1043,14 +1098,30 @@ function boardOfAsk(q: string): LeaderboardQuestion | null {
 
 /** "Top 10 teams by OPR in NJ", "best rookie team in New Jersey", "teams in Oradell": a ranked list (or a city's
  *  teams), worked out for the page only. A city no team lists is left to search. */
-export async function boardSearch(q: string, b: LeaderboardQuestion, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+export async function boardSearch(q: string, said: LeaderboardQuestion, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+  let b = said;
   const isCity = b.kind === "city" || b.kind === "city-best";
-  const city = isCity ? await get<{ city: string }>("SELECT city FROM teams WHERE lower(city) = lower(?) LIMIT 1", [b.city]) : null;
+  let city = isCity ? await get<{ city: string }>(b.school ? "SELECT school city FROM teams WHERE lower(school) = lower(?) LIMIT 1" : "SELECT city FROM teams WHERE lower(city) = lower(?) LIMIT 1", [b.city]) : null;
+  // "Teams in Springfield IL", "teams in River Edge, New Jersey": a town said with its state or country, the town's
+  // teams from there only (several places share a town's name).
+  if (b.kind === "city" && !b.school && !city) {
+    const ws = b.city!.split(" ");
+    for (let k = 1; k <= 3 && k < ws.length && !city; k++) {
+      // The town is checked against the directory, so a code that's also a word ("Atlanta ga") is the state here.
+      const after = ws.slice(-k).join(" ");
+      const exact = findRegions(after).filter((r) => r.name.toLowerCase() === after || ((r.country === "USA" || r.country === "Canada") && r.state.toLowerCase() === after));
+      const within = exact.length === 1 ? exact[0] : countryOf(after) ? await storedCountry(after) : null;
+      if (!within) continue;
+      const town = ws.slice(0, -k).join(" ");
+      const row = await get<{ city: string }>(`SELECT city FROM teams WHERE lower(city) = lower(?) AND country = ?${within.state ? " AND state = ?" : ""} LIMIT 1`, [town, within.country, ...(within.state ? [within.state] : [])]);
+      if (row) { city = row; b = { ...b, city: town, cityIn: within }; }
+    }
+  }
   if (isCity && !city) return null;
   const st = boardStatFor(b.stat, b.season ?? searchSeason());
   if (!st) return null;
-  const where = b.town ? ` in ${b.town}` : b.region ? ` in ${b.region.name}` : city ? ` in ${city.city}` : "";
-  const label = b.kind === "city" ? `Teams${where}` : b.kind === "city-best" ? `Best team${where} by OPR` : b.undefeated ? `Undefeated teams${where}` : b.kind === "rookie" && b.asc ? `Lowest rookie teams${where} by ${statWords(st)}` : b.asc ? `Lowest ${b.n > 1 ? `${b.n} teams` : "team"} by ${statWords(st)}${where}` : b.best ? `Best team${where} by ${statWords(st)}` : b.kind === "rookie" ? `Best rookie teams${where}` : b.kind === "improved" ? `Most improved teams${where}` : `Top ${b.n} teams by ${statWords(st)}${where}`;
+  const where = b.town ? ` in ${b.town}` : b.region ? ` in ${b.region.name}` : city ? ` ${b.school ? "at" : "in"} ${city.city}${b.cityIn ? `, ${b.cityIn.state || b.cityIn.name}` : ""}` : "";
+  const label = b.event ? `${b.event.home ? `${b.event.home.name} teams` : "Best teams"} at ${b.event.name}` : b.kind === "city" ? `Teams${where}` : b.kind === "city-best" ? `Best team${where} by OPR` : b.undefeated ? `Undefeated teams${where}` : b.kind === "rookie" && b.asc ? `Lowest rookie teams${where} by ${statWords(st)}` : b.asc ? `Lowest ${b.n > 1 ? `${b.n} teams` : "team"} by ${statWords(st)}${where}` : b.best ? `Best team${where} by ${statWords(st)}` : b.kind === "rookie" ? `Best rookie teams${where}` : b.kind === "improved" ? `Most improved teams${where}` : `Top ${b.n} teams by ${statWords(st)}${where}`;
   const answer: SearchAnswer = {
     q, hits: [], pages: opts.pages, step: "deterministic", weak: false,
     understood: { kind: "question", label, ...(b.season != null ? { season: b.season } : {}), ...(b.region ? { place: { key: b.region.key, name: b.region.name } } : {}) },
@@ -1059,7 +1130,11 @@ export async function boardSearch(q: string, b: LeaderboardQuestion, opts: { ful
   // The search box gets a link to the answer page, never an empty answer.
   if (!opts.full) return { ...answer, pages: [{ title: label, href: `/search?q=${encodeURIComponent(q)}` }, ...opts.pages] };
   const stat = await leaderboardAnswer({ ...b, stat: st });
+  // An event's board is headed by its card's own title less its season (what it's ranked by is said there), so the
+  // page says it once: the card's title under a heading that holds it is hidden.
+  const heading = b.event ? stat.title.replace(/ · [^·]+$/, "") : null;
+  const read: SearchAnswer = heading ? { ...answer, understood: { ...answer.understood!, label: heading }, intent: { ...answer.intent!, understood: [heading] } } : answer;
   // The full list's page (Teams for an OPR list, Rankings for a rating list) leads the page links.
   const more = stat.blocks.find((x) => x.kind === "leaderboard")?.more;
-  return { ...answer, stat, pages: more ? [{ title: more.label.replace(/^View more detail on (?:the )?/, "").replace(/ \(.*\)$/, "").replace(/^./, (c) => c.toUpperCase()), href: more.href }, ...opts.pages.filter((p) => p.href !== more.href)] : opts.pages };
+  return { ...read, stat, pages: more ? [{ title: more.label.replace(/^View more detail on (?:the )?/, "").replace(/ \(.*\)$/, "").replace(/^./, (c) => c.toUpperCase()), href: more.href }, ...opts.pages.filter((p) => p.href !== more.href)] : opts.pages };
 }

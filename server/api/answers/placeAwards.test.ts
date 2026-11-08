@@ -74,6 +74,25 @@ const rows = (s: Awaited<ReturnType<typeof placeAwardsAnswer>>, i = 0) => {
 };
 
 describe("a place's award winners", () => {
+  it("the most of one award with no place said is every team's", async () => {
+    for (const q of ["most inspire awards", "teams with the most inspire awards", "which team has the most inspire awards"]) {
+      expect(await readPlaceAwards(q), q).toMatchObject({ place: null, types: ["Inspire"], mode: "most" });
+    }
+    // A list of winners still needs its place.
+    expect(await readPlaceAwards("inspire award winners")).toBeNull();
+  });
+  it("the most awards of any kind over every season (failed-search #799); one season's stays the board's", async () => {
+    for (const q of ["which team in Texas has the most awards, ever", "texas team with the most awards of all time", "texas team with the most awards in ftc history"]) {
+      const ask = await readPlaceAwards(q);
+      expect(ask, q).toMatchObject({ place: { kind: "region", state: "TX" }, types: [], mode: "most", season: null });
+      expect((await placeAwardsAnswer(ask!)).title, q).toMatch(/^Teams from Texas with the most awards, every season/);
+    }
+    for (const q of ["which team in Texas has the most awards", "most awards in texas this season"]) expect(await readPlaceAwards(q), q).toBeNull();
+    // Every award counts, 2nd place too, as the season board does: 11111 has 6 (a Think 2nd among them), 20265 3 (Greptile on #1181).
+    const all = await placeAwardsAnswer((await readPlaceAwards("which team in Texas has the most awards, ever"))!);
+    expect(rows(all).slice(0, 2).map((r) => [r.team, r.n])).toEqual([["11111 Lone Star Bots", 6], ["20265 Heart of RoBots", 3]]);
+  });
+
   it("lists a state's winners of one award, 1st place only, the default season", async () => {
     const ask = await readPlaceAwards("Texas Think winners");
     expect(ask).toMatchObject({ place: { kind: "region", state: "TX" }, types: ["Think"], mode: "list", season: null });
@@ -173,5 +192,14 @@ describe("a place's award winners", () => {
     const a = await searchAnswer("Texas Think winners", { limit: 25, learn: false, full: true });
     expect(a.intent?.kind).toBe("stat-place-awards");
     expect(a.stat?.blocks.find((b) => b.kind === "related")).toMatchObject({ queries: [`Texas Think winners ${S - 1}-${String(S % 100).padStart(2, "0")}`, expect.any(String)] });
+  });
+  it("the most won, tied by more teams than the list shows: counted in the headline, never cut short", async () => {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'USWYQ1', 'Wyoming Qualifier', 'Qualifier', 'Casper', 'WY', 'USA', ?, ?, 't')", [S, `${S}-12-01`, `${S}-12-01`]);
+    for (let i = 0; i < 26; i++) {
+      await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, 'Casper', 'WY', 'USA')", [70000 + i, `Wyoming ${i}`]);
+      await run("INSERT INTO awards (season, code, type, placement, team, name) VALUES (?, 'USWYQ1', 'Connect', 1, ?, 'Connect Award')", [S, 70000 + i]);
+    }
+    const s = await placeAwardsAnswer((await readPlaceAwards("most connect awards in wyoming"))!);
+    expect(s.headline).toMatchObject({ value: "26 teams, tied", label: "1 Connect Award each", sub: "The first 25 by number are listed" });
   });
 });
