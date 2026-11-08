@@ -35,6 +35,9 @@ export interface Names {
 /** Lower case, accents and punctuation dropped, single spaces: how names are compared. */
 export const fold = (s: string): string => s.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/['’]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
 
+/** Initials written with dots joined into the word they spell: "I.C.E. Robotics" → "ICE Robotics". */
+export const joinDotted = (s: string): string => s.replace(/(?<![\p{L}\p{N}])(?:\p{L}\.){2,}(?:\p{L}(?![\p{L}\p{N}]))?/gu, (m) => m.replace(/\./g, ""));
+
 interface Row { number: number; name: string | null; city: string | null; state: string | null; country: string | null; lastPlayed?: number | null }
 
 /** The index for these rows (tests build one from fixtures). */
@@ -54,6 +57,9 @@ export function buildNames(teams: Row[], places: { city: string | null; state: s
     // The name as a query reads it, its possessive "'s" dropped ("The King's School" → "the king school"), too.
     const said = fold((t.name ?? "").replace(/(?<=[\p{L}\p{N}])['’]s\b/giu, ""));
     if (said && said !== k && !byName.get(said)?.includes(tn)) (byName.get(said) ?? byName.set(said, []).get(said)!).push(tn);
+    // Initials written with dots read as the word they spell too ("I.C.E. Robotics" is "ice robotics"), as typed without them.
+    const joined = fold(joinDotted(t.name ?? ""));
+    if (joined && joined !== k && !byName.get(joined)?.includes(tn)) (byName.get(joined) ?? byName.set(joined, []).get(joined)!).push(tn);
   }
   // A town is known with the region (or country) it's in; the same town name in two regions stays ambiguous.
   const towns = new Map<string, Map<string, { country: string; state: string | null; city: string }>>();

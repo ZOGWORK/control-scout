@@ -29,6 +29,7 @@ import { teamPageSql } from "../../src/shared/teamPages.js";
 import { searchTeamTitle } from "../../src/shared/teamTitle.js";
 import { SEARCH_INDEX_SCHEMA } from "../api/search.js";
 import { eventInitialisms } from "../api/query/initialisms.js";
+import { joinDotted } from "../api/query/names.js";
 
 type Log = (m: string) => void;
 const r1 = (x: number | null | undefined) => (x == null || !Number.isFinite(x) ? null : Math.round(x * 100) / 100);
@@ -431,7 +432,7 @@ export async function rebuildSearch(log: Log = () => {}): Promise<void> {
     const place = [t.city, t.state, t.country].filter(Boolean).join(", ");
     const title = searchTeamTitle(t.number, t.name), subtitle = [t.school, place].filter(Boolean).join(" · ");
     const weight = t.last === CURRENT_SEASON ? 2 : 1;
-    stmts.push({ sql: "INSERT INTO search (kind, ref, season, weight, title, subtitle, terms) VALUES ('team', ?, ?, ?, ?, ?, ?)", args: [String(t.number), t.last ?? null, weight, title, subtitle, `${t.number} ${t.name ?? ""} ${t.school ?? ""} ${place} ${regionNames(t.state, t.country)}`] });
+    stmts.push({ sql: "INSERT INTO search (kind, ref, season, weight, title, subtitle, terms) VALUES ('team', ?, ?, ?, ?, ?, ?)", args: [String(t.number), t.last ?? null, weight, title, subtitle, `${t.number} ${t.name ?? ""} ${joinDotted(t.name ?? "")} ${t.school ?? ""} ${place} ${regionNames(t.state, t.country)}`] });
     // Typo-tolerant index: the name people type (team name + school).
     // Stored normalised, exactly like the query's chunks ("X-Drive" → "x drive").
     if (t.name || t.school) stmts.push({ sql: "INSERT INTO search_fuzzy (kind, ref, season, weight, title, subtitle, name) VALUES ('team', ?, ?, ?, ?, ?, ?)", args: [String(t.number), t.last ?? null, weight, title, subtitle, normalize(`${t.name ?? ""} ${t.school ?? ""}`)] });
