@@ -25,7 +25,7 @@ Search answers an event's average match score, and puts two events side by side.
 - [fixes] "NJ Championship" finds the New Jersey Championship
 
 ### Search
-- **Event average match score.** "Average match score at <event>" gives the mean alliance score over its played matches (divisions included), with and without penalties, its highest score and match count; "… versus <event>" shows two events side by side and which averages more. (#1125)
+- **Event average match score.** "Average match score at <event>" gives the mean alliance score over its played matches (divisions included), with and without penalties, its highest score and match count; "… versus <event>" shows two events side by side and which averages more; a state's code ("NJ Championship") is that state's championship. (#1125)
 
 ## 4.4.8 — 2026-11-08
 

@@ -63,7 +63,8 @@ export async function eventsAsked(qn: EventAverageQuestion, find: FindEvent): Pr
   for (const w of qn.events) {
     // A state's code in the name ("NJ Championship"), as events are named: its full name ("New Jersey Championship").
     const spelled = w.split(" ").map((x) => (x.length === 2 ? regionOf([x])?.name ?? x : x)).join(" ");
-    const e = (await find(w, qn.season)) ?? (spelled !== w ? await find(spelled, qn.season) : null);
+    // The state spelled out first: "NJ Championship" is New Jersey's, never an old division with "NJ0312" in its name.
+    const e = (spelled !== w ? await find(spelled, qn.season) : null) ?? (await find(w, qn.season));
     if (!e) return null;
     evs.push(e);
   }
