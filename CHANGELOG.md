@@ -23,9 +23,10 @@ A team whose name has dotted initials is found typed without the dots: "ice robo
 - [fixes] "Ice robotics highlights" finds I.C.E. Robotics
 - [teams] Names with dotted initials match typed without dots
 - [fixes] "Ice robotics" lists I.C.E. Robotics first
+- [fixes] A stray short word at the end no longer blocks the answer
 
 ### Search
-- **Dotted initials.** A team name's initials written with dots ("I.C.E.", "M.E.D.I.C.S.") also read as the word they spell, in the question reader and the search index alike, so the name typed without dots finds the team. One-dot abbreviations ("St.", "Mr.") and numbers ("2.0") are unchanged. (#1163)
+- **Dotted initials.** A team name's initials written with dots ("I.C.E.", "M.E.D.I.C.S.") also read as the word they spell, in the question reader and the search index alike, so the name typed without dots finds the team, its possessive dropped or not, and a near miss of it too. One-dot abbreviations ("St.", "Mr.") and numbers ("2.0") are unchanged. A query that finds nothing and ends in a stray word of up to four letters no word search or the data knows ("theseus highlights decd") is read without it, offered as "did you mean". (#1163)
 
 ## 4.0.8 — 2026-11-07
 

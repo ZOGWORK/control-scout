@@ -11,6 +11,7 @@ const TEAMS = [
   { number: 31005, name: "G.E.A.R. Grinders", city: "Town", state: "TX", country: "USA", lastPlayed: 2026 },
   { number: 31004, name: "Gear Grinders", city: "Town", state: "TX", country: "USA", lastPlayed: 2026 },
   { number: 31006, name: "S.T.E.M. Queen's Court", city: "Town", state: "TX", country: "USA", lastPlayed: 2026 },
+  { number: 31008, name: "R.O.V. Rangers", city: "Town", state: "TX", country: "USA", lastPlayed: 2026 },
 ];
 const ctx: ParseContext = { names: buildNames(TEAMS, []), today: "2026-11-08", isEvent: async () => false };
 
@@ -33,6 +34,8 @@ describe("dotted initials", () => {
     // Both teams go by "gear grinders": one name, two teams, so a near miss of it is never a guess between them.
     expect(ctx.names.teamsNamed("gear grinders").map((t) => t.number).sort()).toEqual([31004, 31005]);
     expect(ctx.names.nearTeam("gear grindrs")).toBeNull();
+    // Two spellings of one team tying is still that team (Greptile on #1163).
+    expect(ctx.names.nearTeam("ro.v rangers")?.number).toBe(31008);
     expect(await parseQuery("steam enignes record", { ...ctx, nearTeam: async (w: string) => ctx.names.nearTeam(w) })).toMatchObject({ teams: [{ number: 31001, via: "near" }] });
   });
 });

@@ -100,7 +100,8 @@ export function buildNames(teams: Row[], places: { city: string | null; state: s
           if (d < best) { best = d; found = [k]; } else if (d === best) found.push(k);
         }
       }
-      const teams = found.length === 1 ? byName.get(found[0]) ?? [] : [];
+      // Spellings that tie may be one team's ("a b c robotics" and "abc robotics"): one team is the answer, two never.
+      const teams = [...new Set(found.flatMap((k) => byName.get(k) ?? []))];
       return teams.length === 1 ? teams[0] : null;
     },
     longest,
