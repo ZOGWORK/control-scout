@@ -111,14 +111,17 @@ describe("LivePanel", () => {
     expect(screen.getByRole("button", { name: /Q15 is up next/ })).toBeTruthy();
   });
 
-  it("before the day's first match has a result: no countdown, says it starts after that match", () => {
+  it("before the day's first score: no match, time or lineup, just waiting for Q1's score", () => {
     personal.tracked.teams = [18360];
     const notYet = MATCHES.map((m) => ({ ...m, played: false, startsAt: m.startsAt && at(Number((Date.parse(m.startsAt) - NOW) / 60_000) + 30) }));
     const { rerender } = show(detail(notYet));
     expect(screen.queryByRole("timer")).toBeNull();
-    expect(screen.getByText(/Matches haven't started yet\. The countdown starts once Q13 has a result\./)).toBeTruthy();
-    expect(screen.getByText(/Scheduled 10:42/)).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Q15 is up next/ })).toBeTruthy();
+    expect(screen.getByText("Waiting for Q13's score")).toBeTruthy();
+    expect(screen.getByText(/Once Q13's score is out, your next match and a countdown to it show here\./)).toBeTruthy();
+    expect(screen.queryByText("Q15")).toBeNull(); // nothing that reads as "Q15 is on now"
+    expect(screen.queryByText(/Scheduled/)).toBeNull();
+    expect(screen.queryByText("Know your match")).toBeNull();
+    expect(screen.getByRole("button", { name: /Waiting for Q13's score/ })).toBeTruthy();
     // Q13 scored: the timer runs.
     const scored = notYet.map((m) => (m.number === 13 ? { ...m, played: true } : m));
     rerender(<MemoryRouter><TooltipProvider><Panel d={detail(scored)} /></TooltipProvider></MemoryRouter>);

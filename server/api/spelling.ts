@@ -20,6 +20,9 @@ import { REGION_NAMES } from "../../src/shared/regions.js";
 import { SEARCH_FILLER, SEARCH_PAGES, SEARCH_TOPICS, pagesFor } from "../../src/shared/search.js";
 import { CONVERSATIONAL, EVENT_WORDS, PLURALS, QUESTION_WORDS, STOPWORDS, TIME_WORDS } from "../../src/shared/searchQuery.js";
 import { EVENT_NAME_WORDS, LEXICON } from "./query/lexicon.js";
+
+/** Lexicon kinds that name something to show, so a misspelling of one of their words is corrected. */
+const SEE_KINDS = new Set(["highlights", "videos"]);
 import { allowedEdits, charSet, editDistance, normalize, setsApart, words } from "./fuzzy.js";
 import { FALLBACK_NOTE, carryOutcome } from "./searchLayers.js";
 import { AWARDS, FILLER, INTENTS, LEADER_STAT_WORDS, PARAPHRASES, PHASES, SCAFFOLD, WEAK_SIGNALS } from "./searchCatalog.js";
@@ -87,6 +90,8 @@ export function ownWords(): Map<string, 1 | 2> {
     ...phraseWords(INTENTS.flatMap((i) => i.words)), ...AWARDS, ...Object.keys(PHASES), ...phraseWords(LEADER_STAT_WORDS),
     ...Object.keys(WEAK_SIGNALS), ...EVENT_WORDS, ...Object.keys(PLURALS), ...Object.values(PLURALS),
     ...phraseWords(SEASONS.map((s) => s.game)), ...phraseWords(REGION_NAMES),
+    // The one-word things a question asks to see ("highlights", "videos", "recap"): a typo of one is that word.
+    ...LEXICON.filter((e) => e.words.length === 1 && e.words[0].length >= 5 && e.syms.some((x) => SEE_KINDS.has(x.k))).map((e) => e.words[0]),
   ];
   const plain = [
     ...PLAIN_WORDS, ...SEARCH_FILLER, ...phraseWords(PARAPHRASES.flat()), ...phraseWords(FILLER), ...phraseWords(SCAFFOLD),
@@ -235,6 +240,10 @@ function numberPairs(): Map<string, string> {
   const plurals = new Set([...nouns].map(many));
   for (const w of nouns) {
     if (/(?:ed|est|ly)$/.test(w) || plurals.has(w) || (w.endsWith("s") && nouns.has(w.slice(0, -1)))) continue;
+    // An award's own name ("inspire", "think") is a name, with no plural: "most inspire awards" never becomes "most
+    // inspires awards", which a team is named.
+    const k = kinds.get(w);
+    if (k?.has("award") && !["thing", "metric", "predict"].some((x) => k.has(x))) continue;
     const p = many(w);
     // A short word's plural only when search knows it ("opr", "oprs"; never "won", "wons").
     if (named.has(w) || named.has(p) || PLURALS[w] || (w.length < 4 && !nouns.has(p) && !kinds.has(p))) continue;
@@ -405,14 +414,17 @@ export function bestFix(typed: string): string | null {
   return `${m[1]}best team`;
 }
 
-/** A query cut off mid-word ("when was the first time enforcers whe"): its last word, of three letters or fewer, is no
+/** A query cut off mid-word ("when was the first time enforcers whe") or ending in a stray word ("theseus highlights
+ *  decd"): its last word, of four letters or fewer, is no
  *  word search or the data knows. The query without it, or null. A trip question left without its trip ("when was the
  *  first time enforcers") is completed as the one asked about most, Worlds ("… went to worlds"). */
 export async function cutOff(typed: string): Promise<string | null> {
-  const m = /^(.*\S)\s+(\p{L}{1,3})$/u.exec(typed.trim());
+  const m = /^(.*\S)\s+(\p{L}{1,4})$/u.exec(typed.trim());
   if (!m) return null;
   const w = m[2].toLowerCase(), v = await vocab();
   if (v.keep.has(w) || v.count.has(w) || v.own.has(w)) return null;
+  // A four-letter word that is a known word mistyped ("oper" for "opr") is corrected, never dropped.
+  if (w.length === 4 && correctWord(w, v, true)) return null;
   const rest = m[1];
   return /^when (?:was|is) the (?:first|last|most recent) time \S/i.test(rest) && !/\b(?:worlds?|states?|championships?)\b/i.test(rest) ? `${rest} went to worlds` : rest;
 }

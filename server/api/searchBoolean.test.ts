@@ -209,6 +209,23 @@ describe("precedence and parsing", () => {
     expect((await ask("4215 and 6980 matches 2024-25")).stat?.none).toContain("no shared matches in 2024–25");
     expect((await ask("4215 or 6980 in playoffs")).stat?.none).toContain("No matches");
   });
+  it("the finals follow a match list too: the event's own bracket's, never every playoff match (Greptile on #1103)", async () => {
+    // A four-alliance double-elimination bracket: M1 opens it, M6 is its grand final.
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, 'USNJQ9', 'Ninth Qualifier', 'Qualifier', 'Town', 'NJ', 'USA', '2026-02-01', '2026-02-01', 't')");
+    for (let a = 1; a <= 4; a++) await run("INSERT INTO alliances (season, code, number, captain) VALUES (2025, 'USNJQ9', ?, ?)", [a, 9000 + a]);
+    for (const [series, label] of [[1, "M1"], [6, "M6"]] as const) {
+      await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'USNJQ9', 'playoff', ?, 1, ?, null, 1, 110, 110, 70, 70, 't')", [series, label]);
+      await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance) VALUES (2025, 'USNJQ9', 'playoff', ?, 1, 16762, 'red'), (2025, 'USNJQ9', 'playoff', ?, 1, 12655, 'blue')", [series, series]);
+    }
+    for (const t of [16762, 12655]) await run("INSERT INTO event_teams (season, code, team) VALUES (2025, 'USNJQ9', ?)", [t]);
+    // The event by its name too.
+    await rebuildSearch();
+    expect(rowsOf(await ask("16762 | 12655 matches in the finals")).map((r) => r.label)).toEqual(["M6"]);
+    expect(rowsOf(await ask("16762 or 12655 matches in playoffs")).map((r) => r.label).sort()).toEqual(["M1", "M6"]);
+    expect((await ask("16762 or 12655 matches in the finals")).understood?.label).toContain("in the finals");
+    // Their meetings at the event keep the finals too.
+    expect(rowsOf(await ask("16762 and 12655 matches at ninth qualifier in the finals")).map((r) => r.label)).toEqual(["M6"]);
+  });
   it("any other stat: each team's own answer in one table, opening the section that answer opens", async () => {
     const a = await ask("4215 and 6980 record");
     expect(a.stat?.intent).toBe("boolean-compare");
