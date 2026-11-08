@@ -38,16 +38,20 @@ export function readEventAverage(q0: string): EventAverageQuestion | null {
   return { events, season };
 }
 
-type Avg = { matches: number; avg: number | null; np: number | null; high: number | null };
+/** `npMatches`: the matches with both scores without penalties on record, the ones the non-penalty average covers. */
+type Avg = { matches: number; avg: number | null; np: number | null; npMatches: number; high: number | null };
 
 async function averages(e: EventRow): Promise<Avg> {
-  const [r] = await all<Avg>(`SELECT COUNT(*) matches, AVG((m.red_total + m.blue_total) / 2.0) avg, AVG((m.red_np + m.blue_np) / 2.0) np, MAX(MAX(m.red_total, m.blue_total)) high
+  const [r] = await all<Avg>(`SELECT COUNT(*) matches, AVG((m.red_total + m.blue_total) / 2.0) avg, AVG((m.red_np + m.blue_np) / 2.0) np,
+    SUM(CASE WHEN m.red_np IS NOT NULL AND m.blue_np IS NOT NULL THEN 1 ELSE 0 END) npMatches, MAX(MAX(m.red_total, m.blue_total)) high
     FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code
     WHERE m.season = ? AND (e.code = ? OR e.division_code = ?) AND m.played = 1 AND m.red_total IS NOT NULL AND m.blue_total IS NOT NULL`, [e.season, e.code, e.code]);
-  return { matches: Number(r?.matches ?? 0), avg: r?.avg ?? null, np: r?.np ?? null, high: r?.high ?? null };
+  return { matches: Number(r?.matches ?? 0), avg: r?.avg ?? null, np: r?.np ?? null, npMatches: Number(r?.npMatches ?? 0), high: r?.high ?? null };
 }
 
 const one = (x: number | null) => (x == null ? "—" : x.toFixed(1));
+/** The non-penalty average, with how many matches it covers when that's fewer than all of them. */
+const npOf = (r: Avg) => (r.np != null && r.npMatches < r.matches ? `${one(r.np)} (${r.npMatches} of ${r.matches})` : one(r.np));
 
 /** The answer, each event found by `find` (its newest season with a played match, or the season named); null when an
  *  event isn't found. */
@@ -75,16 +79,16 @@ export async function eventAverageAnswer(qn: EventAverageQuestion, find: FindEve
   if (!evs) return null;
   const rows = await Promise.all(evs.map(averages));
   const label = (e: EventRow) => `${e.name}, ${seasonLabel(e.season)}`;
-  const definition = "An event's average match score is the mean of each alliance's score (penalties included) over its played matches, its divisions' too; the non-penalty average leaves out points from the other alliance's fouls.";
+  const definition = "An event's average match score is the mean of each alliance's score (penalties included) over its played matches, its divisions' too; the non-penalty average leaves out points from the other alliance's fouls, over the matches with those scores on record (how many is said when that's fewer).";
   const source = `From ${rows.reduce((n, r) => n + r.matches, 0).toLocaleString("en-US")} played matches`;
   const scope = evs.map(label);
   if (evs.length === 1) {
     const [e] = evs, [r] = rows;
     return {
       family: "event", intent: "event-average-score", title: eventAverageTitle(evs), scope, definition, source,
-      ...(r.matches ? { headline: { value: `${one(r.avg)} points`, label: `Average alliance score at ${e.name}`, sub: `${one(r.np)} without penalties · ${r.matches} matches · ${seasonLabel(e.season)}`, href: eventHref(e.season, e.code), type: e.type } } : { none: `No played matches at ${label(e)} on record yet.` }),
+      ...(r.matches ? { headline: { value: `${one(r.avg)} points`, label: `Average alliance score at ${e.name}`, sub: `${npOf(r)} without penalties · ${r.matches} matches · ${seasonLabel(e.season)}`, href: eventHref(e.season, e.code), type: e.type } } : { none: `No played matches at ${label(e)} on record yet.` }),
       blocks: r.matches ? [{ kind: "kpis", items: [
-        { label: "Average score", value: one(r.avg), tone: "accent" }, { label: "Without penalties", value: one(r.np) },
+        { label: "Average score", value: one(r.avg), tone: "accent" }, { label: "Without penalties", value: one(r.np), ...(r.np != null && r.npMatches < r.matches ? { sub: `${r.npMatches} of ${r.matches} matches` } : {}) },
         { label: "Highest score", value: r.high == null ? "—" : String(r.high) }, { label: "Matches", value: String(r.matches) },
       ] }] : [],
     };
@@ -102,7 +106,7 @@ export async function eventAverageAnswer(qn: EventAverageQuestion, find: FindEve
     blocks: [
       // Four short columns, so a phone shows them all (each event's season is in the scope chips above).
       { kind: "table", title: "Side by side", columns: [{ key: "event", label: "Event" }, { key: "avg", label: "Average", num: true }, { key: "np", label: "No pen.", num: true }, { key: "matches", label: "Matches", num: true }],
-        rows: evs.map((e, i) => ({ cells: { event: e.name, avg: one(rows[i].avg), np: one(rows[i].np), matches: rows[i].matches }, href: eventHref(e.season, e.code), strong: lead === i })) },
+        rows: evs.map((e, i) => ({ cells: { event: e.name, avg: one(rows[i].avg), np: npOf(rows[i]), matches: rows[i].matches }, href: eventHref(e.season, e.code), strong: lead === i })) },
     ],
   };
 }

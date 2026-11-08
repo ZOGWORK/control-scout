@@ -21,7 +21,7 @@ Search answers an event's average match score, and puts two events side by side.
 
 ### Highlights
 - [rankings] "Average match score at" an event answers, with and without penalties
-- [rankings] Two events' average scores side by side, the higher one first
+- [rankings] Two events' average scores side by side, the higher one highlighted
 - [fixes] "NJ Championship" finds the New Jersey Championship
 
 ### Search

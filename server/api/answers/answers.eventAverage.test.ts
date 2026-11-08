@@ -22,14 +22,14 @@ describe("reading it", () => {
 
 describe("the answer", () => {
   const ev = (code: string, name: string): EventRow => ({ season: 2025, code, name, type: "Championship", start: "2026-03-01", division: null });
-  const EVENTS: Record<string, EventRow> = { "ohio championship": ev("OH", "Ohio Championship"), "texas championship": ev("TX", "Texas Championship") };
+  const EVENTS: Record<string, EventRow> = { "ohio championship": ev("OH", "Ohio Championship"), "texas championship": ev("TX", "Texas Championship"), "utah championship": ev("UT", "Utah Championship") };
   const find = async (w: string) => EVENTS[w.toLowerCase()] ?? null;
 
   beforeAll(async () => {
     const c = openDb(":memory:");
     setDb(c);
     await migrate(c);
-    await run("INSERT INTO events (season, code, name, type, source) VALUES (2025, 'OH', 'Ohio Championship', 'Championship', 'test'), (2025, 'TX', 'Texas Championship', 'Championship', 'test'), (2025, 'TXD1', 'Texas Championship - Div 1', 'Championship', 'test')");
+    await run("INSERT INTO events (season, code, name, type, source) VALUES (2025, 'OH', 'Ohio Championship', 'Championship', 'test'), (2025, 'TX', 'Texas Championship', 'Championship', 'test'), (2025, 'TXD1', 'Texas Championship - Div 1', 'Championship', 'test'), (2025, 'UT', 'Utah Championship', 'Championship', 'test')");
     await run("UPDATE events SET division_code = 'TX' WHERE code = 'TXD1'");
     // code, number, red total, red np, blue total, blue np
     const ms: [string, number, number, number, number, number][] = [
@@ -38,6 +38,9 @@ describe("the answer", () => {
     for (const [code, n, rt, rn, bt, bn] of ms) {
       await run("INSERT INTO matches (season, code, level, series, number, label, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, ?, 'qual', 0, ?, ?, 1, ?, ?, ?, ?, 'test')", [code, n, `Q${n}`, rt, rn, bt, bn]);
     }
+    // Utah: one match with its scores without penalties, one with only its totals.
+    await run("INSERT INTO matches (season, code, level, series, number, label, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'UT', 'qual', 0, 1, 'Q1', 1, 100, 90, 80, 70, 'test')");
+    await run("INSERT INTO matches (season, code, level, series, number, label, played, red_total, blue_total, source) VALUES (2025, 'UT', 'qual', 0, 2, 'Q2', 1, 200, 160, 'test')");
     // Not played: never counted.
     await run("INSERT INTO matches (season, code, level, series, number, label, played, source) VALUES (2025, 'OH', 'qual', 0, 3, 'Q3', 0, 'test')");
   });
@@ -45,6 +48,16 @@ describe("the answer", () => {
   it("one event: its mean alliance score, with and without penalties", async () => {
     const a = await eventAverageAnswer({ events: ["Ohio Championship"], season: null }, find);
     expect(a?.headline).toMatchObject({ value: "100.0 points", sub: expect.stringContaining("95.0 without penalties · 2 matches") });
+  });
+
+  it("an average without penalties over fewer matches says how many", async () => {
+    const a = await eventAverageAnswer({ events: ["Utah Championship"], season: null }, find);
+    expect(a?.headline?.sub).toContain("80.0 (1 of 2) without penalties · 2 matches");
+    const kpis = a?.blocks.find((b) => b.kind === "kpis");
+    expect(kpis && kpis.kind === "kpis" && kpis.items.find((i) => i.label === "Without penalties")).toMatchObject({ value: "80.0", sub: "1 of 2 matches" });
+    const vs = await eventAverageAnswer({ events: ["Ohio Championship", "Utah Championship"], season: null }, find);
+    const table = vs?.blocks.find((b) => b.kind === "table");
+    expect(table && table.kind === "table" && table.rows.map((r) => r.cells.np)).toEqual(["95.0", "80.0 (1 of 2)"]);
   });
 
   it("two events side by side, a division's matches counted for its event, the higher one leading", async () => {
