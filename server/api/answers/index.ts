@@ -1080,11 +1080,11 @@ function boardOfAsk(q: string): LeaderboardQuestion | null {
  *  teams), worked out for the page only. A city no team lists is left to search. */
 export async function boardSearch(q: string, b: LeaderboardQuestion, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
   const isCity = b.kind === "city" || b.kind === "city-best";
-  const city = isCity ? await get<{ city: string }>("SELECT city FROM teams WHERE lower(city) = lower(?) LIMIT 1", [b.city]) : null;
+  const city = isCity ? await get<{ city: string }>(b.school ? "SELECT school city FROM teams WHERE lower(school) = lower(?) LIMIT 1" : "SELECT city FROM teams WHERE lower(city) = lower(?) LIMIT 1", [b.city]) : null;
   if (isCity && !city) return null;
   const st = boardStatFor(b.stat, b.season ?? searchSeason());
   if (!st) return null;
-  const where = b.town ? ` in ${b.town}` : b.region ? ` in ${b.region.name}` : city ? ` in ${city.city}` : "";
+  const where = b.town ? ` in ${b.town}` : b.region ? ` in ${b.region.name}` : city ? ` ${b.school ? "at" : "in"} ${city.city}` : "";
   const label = b.event ? `${b.event.home ? `${b.event.home.name} teams` : "Best teams"} at ${b.event.name}` : b.kind === "city" ? `Teams${where}` : b.kind === "city-best" ? `Best team${where} by OPR` : b.undefeated ? `Undefeated teams${where}` : b.kind === "rookie" && b.asc ? `Lowest rookie teams${where} by ${statWords(st)}` : b.asc ? `Lowest ${b.n > 1 ? `${b.n} teams` : "team"} by ${statWords(st)}${where}` : b.best ? `Best team${where} by ${statWords(st)}` : b.kind === "rookie" ? `Best rookie teams${where}` : b.kind === "improved" ? `Most improved teams${where}` : `Top ${b.n} teams by ${statWords(st)}${where}`;
   const answer: SearchAnswer = {
     q, hits: [], pages: opts.pages, step: "deterministic", weak: false,

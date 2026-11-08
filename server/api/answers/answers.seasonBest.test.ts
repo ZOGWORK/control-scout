@@ -114,7 +114,10 @@ describe("a season's highest scores, by its game", () => {
     expect(readTopMatches("whats the most points any team scored in a single match this season, worldwide")).toMatchObject({ ever: false, region: null });
     expect(readTopMatches("most points scored in a match in michigan")).toMatchObject({ region: { key: "USA:MI" } });
     // Search hands words over singular ("match"); "on this site" and "in FTC history" filter nothing.
-    for (const q of ["show me the top 3 matches of all time, by total score, in FTC history on this site", "the top 3 match of all time by total score in ftc history on this site"]) expect(readTopMatches(q), q).toMatchObject({ ever: true, region: null });
+    for (const q of ["show me the top 3 matches of all time, by total score, in FTC history on this site", "the top 3 match of all time by total score in ftc history on this site"]) expect(readTopMatches(q), q).toMatchObject({ ever: true, region: null, n: 3 });
+    // How many asked is kept; none asked leaves the list's own length.
+    expect(readTopMatches("show me the top 3 matches in decode by total score on this site")).toMatchObject({ season: 2025, n: 3 });
+    expect(readTopMatches("highest scores this season")).not.toHaveProperty("n");
     // A team's own highest score stays the team's.
     expect(readTopMatches("4215 most points scored in a match")).toBeNull();
     // "Highest auto matches" is the matches with the most auto points; the best auto teams stay a team board.

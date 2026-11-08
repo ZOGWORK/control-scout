@@ -72,6 +72,8 @@ export function boardStatFor(id: string, season: number): BoardStat | undefined 
 export type BoardKind = "top" | "rookie" | "improved" | "city" | "city-best";
 /** `best`: "best team in New Jersey by OPR", one team asked for: titled so, the next few listed under it. */
 export interface BoardQuestion { kind: BoardKind; stat: BoardStat; n: number; region: Region | null; city: string | null; season: number | null; seasonWhy?: string; best?: boolean;
+  /** `city` is a school's name: its teams. */
+  school?: boolean;
   /** The bottom of the list, lowest first ("sorted lowest to highest", "worst teleop OPR in Romania"). */
   asc?: boolean;
   /** Teams with no losses that season only ("undefeated teams", "a perfect record"). */
@@ -104,7 +106,7 @@ const RANKED = `A team is ranked once it has played ${RANKED_MIN_MATCHES} matche
 const record = (r: { wins: number; losses: number; ties: number }) => `${r.wins}-${r.losses}-${r.ties}`;
 
 export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
-  if (b.kind === "city") return cityAnswer(b.city!);
+  if (b.kind === "city") return cityAnswer(b.city!, !!b.school);
   if (b.event) return eventBoardAnswer(b, b.event);
   const season = b.season ?? searchSeason();
   const why = b.season == null ? ` ${searchSeasonWhy(season)}` : b.seasonWhy ? ` ${b.seasonWhy}` : "";
@@ -342,22 +344,24 @@ async function cityBestAnswer(b: BoardQuestion, season: number, why: string): Pr
   };
 }
 
-async function cityAnswer(city: string): Promise<StatAnswer> {
-  const rows = await all<{ number: number; name: string | null; city: string; state: string | null; rookie_year: number | null; last: number | null; opr: number | null }>(
-    `SELECT t.number, t.name, t.city, t.state, t.rookie_year,
+/** A town's teams, or a school's (`school`: the name is the school FIRST lists for each team). */
+async function cityAnswer(city: string, school = false): Promise<StatAnswer> {
+  const rows = await all<{ number: number; name: string | null; city: string; school: string | null; state: string | null; rookie_year: number | null; last: number | null; opr: number | null }>(
+    `SELECT t.number, t.name, t.city, t.school, t.state, t.rookie_year,
             (SELECT MAX(season) FROM team_season_stats x WHERE x.team = t.number AND x.matches > 0) last,
             (SELECT opr_np FROM team_season_stats x WHERE x.team = t.number AND x.matches > 0 ORDER BY season DESC LIMIT 1) opr
-     FROM teams t WHERE lower(t.city) = lower(?) AND ${teamPageSql("t.number", "t.name")}
+     FROM teams t WHERE lower(t.${school ? "school" : "city"}) = lower(?) AND ${teamPageSql("t.number", "t.name")}
      ORDER BY last IS NULL, last DESC, t.number LIMIT 1000`, [city]);
-  const name = rows[0]?.city ?? city;
+  const name = (school ? rows[0]?.school : rows[0]?.city) ?? city;
   const states = [...new Set(rows.map((r) => r.state).filter(Boolean))];
-  const title = `Teams in ${name}${states.length === 1 ? `, ${states[0]}` : ""}`;
-  const base = { family: "leaderboard" as const, intent: "city-teams", title, scope: [name], definition: "Teams whose home city is this name, as FIRST lists it; newest season played first, with that season's OPR. A team that hasn't played yet is listed last.", source: `From the team directory: ${rows.length} team${rows.length === 1 ? "" : "s"}` };
-  if (!rows.length) return { ...base, blocks: [], none: `No teams list ${city} as their home city.` };
+  const title = school ? `Teams at ${name}${rows[0] ? `, ${rows[0].city}` : ""}` : `Teams in ${name}${states.length === 1 ? `, ${states[0]}` : ""}`;
+  const base = { family: "leaderboard" as const, intent: school ? "school-teams" : "city-teams", title, scope: [name],
+    definition: `Teams whose ${school ? "school" : "home city"} is this name, as FIRST lists it; newest season played first, with that season's OPR. A team that hasn't played yet is listed last.`, source: `From the team directory: ${rows.length} team${rows.length === 1 ? "" : "s"}` };
+  if (!rows.length) return { ...base, blocks: [], none: school ? `No teams list ${city} as their school.` : `No teams list ${city} as their home city.` };
   const active = rows.filter((r) => r.last != null);
   return {
     ...base,
-    headline: { value: `${rows.length} team${rows.length === 1 ? "" : "s"}`, label: `in ${name}${states.length > 1 ? ` (${states.join(", ")})` : ""}`, sub: active.length ? `${active.filter((r) => r.last === active[0].last).length} played in ${seasonLabel(active[0].last!)}` : undefined },
+    headline: { value: `${rows.length} team${rows.length === 1 ? "" : "s"}`, label: `${school ? "at" : "in"} ${name}${states.length > 1 ? ` (${states.join(", ")})` : ""}`, sub: active.length ? `${active.filter((r) => r.last === active[0].last).length} played in ${seasonLabel(active[0].last!)}` : undefined },
     blocks: [{
       kind: "table", title: "Teams, newest season first",
       columns: [{ key: "team", label: "Team" }, { key: "rookie", label: "Rookie year", num: true }, { key: "last", label: "Last season" }, { key: "opr", label: "OPR then", num: true }],

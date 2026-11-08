@@ -171,6 +171,17 @@ describe("the lists", () => {
     expect(c.stat!.headline).toMatchObject({ value: "2 teams" });
     expect((await searchAnswer("teams in atlantis", { limit: 25 })).stat).toBeUndefined();
   });
+  it("a school's teams, by the school FIRST lists, however the count is asked (failed-search #965)", async () => {
+    await run("UPDATE teams SET school = 'River Dell Regional High School' WHERE number IN (4215, 6980)");
+    expect(readLeaderboard("how many teams at River Dell Regional High School")).toMatchObject({ kind: "city", school: true, city: "river dell regional high school" });
+    for (const q of ["how many teams at River Dell Regional High School", "teams from river dell regional high school"]) {
+      const a = await searchAnswer(q, { limit: 25 });
+      expect(a.understood?.label, q).toBe("Teams at River Dell Regional High School");
+      expect(a.stat?.headline, q).toMatchObject({ value: "2 teams", label: "at River Dell Regional High School" });
+    }
+    // A school no team lists is left to search.
+    expect((await searchAnswer("teams at atlantis high school", { limit: 25 })).stat).toBeUndefined();
+  });
 });
 
 // "Top teams this week" (failed-search #1174): the teams that played at an event held in the window, by OPR there.

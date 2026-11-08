@@ -33,6 +33,10 @@ describe("events with the most teams", () => {
     expect(readBiggestEvents("events with the most teams in nj 2024-25")).toMatchObject({ e: { season: 2024 } });
     expect(readBiggestEvents("biggest event")).toMatchObject({ e: { region: null } });
     expect(readBiggestEvents("biggest east bergen event")).toBeNull();
+    // "Ever" is every season, never quietly the default one; with a season said too, it's left to search.
+    expect(readBiggestEvents("biggest event ever in california")).toMatchObject({ e: { allSeasons: true, season: null } });
+    expect(readBiggestEvents("largest qualifier of all time")).toMatchObject({ e: { allSeasons: true } });
+    expect(readBiggestEvents("biggest event ever in 2024-25")).toBeNull();
     expect(readBiggestEvents("events in california")).toBeNull();
   });
   it("ranks a place's events by their team lists, an event's divisions counted together", async () => {
@@ -44,6 +48,12 @@ describe("events with the most teams", () => {
     const q = await biggestEventsAnswer(readBiggestEvents("largest qualifiers in california")!, 2025);
     expect(q.title).toBe("Qualifiers with the most teams in California, 2025–26");
     expect(q.headline?.value).toBe("Big Qualifier");
+    // Every season: an older season's bigger event leads.
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2023, 'USCAOLD', 'Old Giant Qualifier', 'Qualifier', 'Town', 'CA', 'USA', '2023-12-01', '2023-12-01', 't')");
+    await run(`INSERT INTO event_teams (season, code, team) VALUES ${Array.from({ length: 40 }, (_, i) => `(2023, 'USCAOLD', ${900 + i})`).join(", ")}`);
+    const ever = await biggestEventsAnswer(readBiggestEvents("biggest event ever in california")!, 2025);
+    expect(ever.title).toBe("Events with the most teams in California, every season");
+    expect(ever.headline).toMatchObject({ value: "Old Giant Qualifier", label: "40 teams" });
     const none = await biggestEventsAnswer(readBiggestEvents("biggest event in california")!, 2026);
     expect(none.none).toBe("No event in California in 2026–27 has a team list yet.");
   });

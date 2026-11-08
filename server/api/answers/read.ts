@@ -515,6 +515,8 @@ export interface LeaderboardQuestion {
   undefeated?: boolean;
   /** A town in the region: its teams only. */
   town?: string | null;
+  /** `city` is a school's name ("teams at Clearview Regional High School"): its teams. */
+  school?: boolean;
   /** One event's teams (its divisions' too): the board of the teams there. */
   event?: { season: number; code: string; codes: string[]; name: string; home?: Region | null };
 }
@@ -544,6 +546,10 @@ const PLACE = "(?: (?:in|from) (.+))?";
 export function readLeaderboard(raw: string): LeaderboardQuestion | null {
   // "overall OPR" is the stat's name, not an every-season scope.
   const q = ` ${raw.toLowerCase().replace(/['’]s\b/g, "").replace(/[?!,.]/g, " ")} `.replace(/\s+/g, " ").replace(/\b(?:overall|total) opr\b/g, "opr");
+  // "teams at Clearview Regional High School", "how many teams from Lincoln Academy": a school's teams, by the school
+  // named whole as FIRST lists it (a word of a school's kind ends it). Before the scope, which reads "at …" as an event.
+  const school = new RegExp(`^ (?:how many |all |the )?${TEAMS} (?:at|from|in|of) (.+ (?:school|academy|college|university|institute)) $`).exec(q);
+  if (school) return { kind: "city", stat: "opr", n: 25, region: null, city: school[1].trim(), season: null, school: true };
   const { scope, rest } = readScope(q);
   if (scope.championship || scope.states || scope.level || scope.alliance || scope.at || scope.ever) return null;
   const n = (s: string | undefined, def: number) => Math.min(25, Math.max(1, s ? Number(s) : def));
@@ -611,7 +617,7 @@ export function readLeaderboard(raw: string): LeaderboardQuestion | null {
   }
   // "teams in oradell": a city, never a region or a country, even one a team lists as its city (the region's and the
   // country's own answers are search's)
-  if ((m = new RegExp(`^(?:all )?${TEAMS} (?:in|from|based in) (.+)$`).exec(rest)) && !findRegions(m[1]).length && !nearRegion(m[1]) && !countryOf(m[1].trim()) && scope.season == null) {
+  if ((m = new RegExp(`^(?:how many |all )?${TEAMS} (?:in|from|based in) (.+)$`).exec(rest)) && !findRegions(m[1]).length && !nearRegion(m[1]) && !countryOf(m[1].trim()) && scope.season == null) {
     return { kind: "city", stat: "opr", n: 25, region: null, city: m[1].trim(), season: null };
   }
   // A place read as events' ("in nj events") is the teams from there; outside the team's own state has no board.

@@ -62,6 +62,9 @@ const SAID_OTHERWISE: [RegExp, string][] = [
 /** The question `q` asks, or null. */
 export function readTopMatches(raw: string): TopMatchesQuestion | null {
   let q = ` ${raw.toLowerCase().replace(/['’]s\b/g, "").replace(/[?!.,]/g, " ")} `.replace(/\s+/g, " ");
+  // "Top 3 matches": how many, kept before the rewrites below take the number out.
+  const said = /\btop\s+(\d{1,2})\b/.exec(q);
+  const n = said ? Math.min(25, Math.max(1, Number(said[1]))) : null;
   for (const [re, to] of SAID_OTHERWISE) q = q.replace(re, to).replace(/\s+/g, " ");
   const noPen = NO_PENALTIES.exec(q);
   if (noPen) q = q.replace(noPen[0], " ").replace(/\s+/g, " ");
@@ -92,7 +95,7 @@ export function readTopMatches(raw: string): TopMatchesQuestion | null {
   const whole = placeWords.length && words.split(" ").every((w) => placeWords.includes(w)) ? regionOf(placeWords.map((w) => asTyped.find((x) => x.toLowerCase() === w) ?? w)) : null;
   const region = words ? whole ?? regionOf(typed) : null;
   if (words && !region) return null;
-  return { season, game: hs.game, ever: ever && season == null, region, event: event || null, phase: ph ? phaseOf(ph[1]) : null, noPenalties: !!noPen };
+  return { season, game: hs.game, ever: ever && season == null, region, event: event || null, phase: ph ? phaseOf(ph[1]) : null, noPenalties: !!noPen, ...(n != null ? { n } : {}) };
 }
 
 export interface Row { season: number; code: string; level: string; series: number; number: number; label: string; time: string | null; name: string; type: string | null; start: string | null; end: string | null; red_total: number | null; red_np: number | null; blue_total: number | null; blue_np: number | null;

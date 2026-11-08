@@ -26,20 +26,24 @@ export function readBiggestEvents(raw: string): BiggestEventsQuestion | null {
   const kind = m[1] ?? m[2] ?? m[3];
   q = q.replace(m[0], ` ${kind} `);
   const thisSeason = THIS_SEASON.test(q);
-  q = q.replace(THIS_SEASON, " ").replace(/\b(?:the|in|of|so\s+far|ever)\b\s*$/, " ").replace(/\s+/g, " ").trim();
+  // "Ever", "of all time": every season, never only the default one.
+  const everRe = /\b(?:ever|of\s+all[\s-]+time|all[\s-]+time|in\s+(?:ftc\s+)?history)\b/;
+  const ever = everRe.test(q);
+  q = q.replace(THIS_SEASON, " ").replace(everRe, " ").replace(/\b(?:the|in|of|so\s+far)\b\s*$/, " ").replace(/\s+/g, " ").trim();
   // The kind alone ("the biggest event"): every event of the season.
   const bare = /^(?:the\s+)?(?:events?|competitions?|tournaments?|qualifiers?|meets?|championships?)$/.test(q);
   const e = bare ? { kinds: [kind.replace(/s$/, "")], time: null, year: null, season: null, region: null, where: null, words: [] } : readEventQuery(q);
   // Every word has to be read as the place, season or kind: a name left over is a search for that event.
   if (!e || e.words.length || e.where || e.time) return null;
   const n = Math.min(25, Math.max(1, Number(/\btop\s+(\d{1,2})\b/.exec(raw.toLowerCase())?.[1] ?? 10)));
-  return { e: { ...e, ...(thisSeason && e.season == null && e.year == null ? { season: CURRENT_SEASON } : {}) }, n };
+  if (ever && (e.season != null || e.year != null || thisSeason)) return null;
+  return { e: { ...e, ...(thisSeason && e.season == null && e.year == null ? { season: CURRENT_SEASON } : {}), ...(ever ? { allSeasons: true } : {}) }, n };
 }
 
 /** The answer, worked out from each event's team list. */
 export async function biggestEventsAnswer(b: BiggestEventsQuestion, defaultSeason: number): Promise<StatAnswer> {
   const { e } = b;
-  const season = e.season ?? (e.year != null ? null : defaultSeason);
+  const season = e.season ?? (e.year != null || e.allSeasons ? null : defaultSeason);
   const types = eventTypesOf(e.kinds);
   const sql: string[] = [], args: (string | number)[] = [];
   if (season != null) { sql.push("p.season = ?"); args.push(season); }
@@ -55,13 +59,13 @@ export async function biggestEventsAnswer(b: BiggestEventsQuestion, defaultSeaso
      WHERE p.division_code IS NULL${sql.length ? ` AND ${sql.join(" AND ")}` : ""}
      GROUP BY p.season, p.code ORDER BY teams DESC, p.start, p.code LIMIT ?`, [...args, b.n]);
   const where = e.region ? ` in ${e.region.name}` : "";
-  const when = season != null ? seasonLabel(season) : `held in ${e.year}`;
+  const when = season != null ? seasonLabel(season) : e.allSeasons ? "every season" : `held in ${e.year}`;
   const what = types ? (e.kinds[0] ?? "event").replace(/s$/, "") : "event";
   const plural = `${what}s`;
   const title = `${plural.replace(/^./, (c) => c.toUpperCase())} with the most teams${where}, ${when}`;
   const base = {
     family: "superlative" as const, intent: "biggest-events", title,
-    scope: [e.region?.name ?? "Worldwide", season != null ? seasonLabel(season) : String(e.year), ...(types ? [plural.replace(/^./, (c) => c.toUpperCase())] : [])],
+    scope: [e.region?.name ?? "Worldwide", season != null ? seasonLabel(season) : e.allSeasons ? "All seasons" : String(e.year), ...(types ? [plural.replace(/^./, (c) => c.toUpperCase())] : [])],
     definition: "An event's size is the number of teams on its team list, an event with divisions counted once with every division's teams together.",
     source: `From the team lists of the ${plural}${where}, ${when}`,
   };
