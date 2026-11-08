@@ -7,6 +7,8 @@ import { seasonLabel } from "../../../src/shared/format.js";
 import { CURRENT_SEASON } from "../../data/seasons.js";
 import { get } from "../../db.js";
 import { CHAMPIONSHIP_TYPE } from "./clauses.js";
+import { names } from "../query/names.js";
+import { readTime } from "../query/time.js";
 
 const TTL_MS = 10 * 60_000;
 let cached: { season: number; at: number } | null = null;
@@ -35,3 +37,27 @@ export function resetSearchSeason(): void { cached = null; }
 
 /** The answer's note on the season it chose, when the query named none. */
 export const searchSeasonWhy = (s = searchSeason()) => `With no season named, the season is ${seasonLabel(s)}, the latest completed season (its FIRST Championship has finished).`;
+
+/** `q` asked about `season` instead (the answer's season picker, /search?season=): the season, game, "this/last
+ *  season" or "ever" words it says are taken out and the season written as one is put in, so every reader takes the
+ *  picked season the way it takes a typed one. A date window stays: its own season is the date's. A bare year is taken
+ *  out only when it's no team's number or is said as a season ("in 2024"). */
+export async function withSeason(q: string, season: number, now = Date.now()): Promise<string> {
+  const idx = await names();
+  const today = new Date(now).toISOString().slice(0, 10);
+  let out = q.replace(/\s+/g, " ").trim();
+  for (let i = 0; i < 4; i++) {
+    const words = out.toLowerCase().replace(/[?!,;:()"]/g, " ").replace(/\s+/g, " ").trim();
+    const said = (y: number) => new RegExp(`\\b(?:in|during|for|from|season)\\s+(?:the\\s+)?${y}\\b`).test(words);
+    const { time } = readTime(words, today, (y) => said(y) || !idx.team(y));
+    if (!time || time.kind === "window" || !time.typed) break;
+    // The words as typed, in any case, with whatever punctuation was between them.
+    const re = new RegExp(time.typed.split(/[\s-]+/).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("[\\s\\p{P}]*"), "iu");
+    const m = re.exec(out);
+    if (!m) break;
+    out = `${out.slice(0, m.index)} ${out.slice(m.index + m[0].length)}`.replace(/\s+/g, " ").replace(/\s+([?!.,])/g, "$1").trim();
+  }
+  const asked = /\?\s*$/.test(out);
+  const core = out.replace(/\?\s*$/, "").trim();
+  return `${core} ${seasonLabel(season)}${asked ? "?" : ""}`.trim();
+}
