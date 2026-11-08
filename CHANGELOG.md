@@ -25,7 +25,7 @@ A team's forecast at a place's state championship answers in any wording: "will 
 - [fixes] A state the team never played there gives no card
 
 ### Search
-- **A team's own state championship, by place.** A team's forecast with a place and states said ("will <team> win the new jersey state championship", "is <team> going to win nj states") is its prediction at that place's state championship, the one it is listed at. The place used to stop the answer; a place whose championship the team never played is left to the other readers, never another state's event. (#PR)
+- **A team's own state championship, by place.** A team's forecast with a place and states said ("will <team> win the new jersey state championship", "is <team> going to win nj states") is its prediction at that place's state championship, the one it is listed at. The place used to stop the answer; a place whose championship the team never played is left to the other readers, never another state's event. (#1172)
 
 ## 4.2.3 — 2026-11-08
 
