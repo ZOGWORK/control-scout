@@ -41,6 +41,12 @@ describe("a match search with a score to reach", () => {
     expect(p.intent === "top-matches" && p.complete).toBe(false);
   });
 
+  it("a second limit is never dropped: the query is left to search", async () => {
+    const p = await parse("games at ohio championship where each alliance scored over 150 and the losing side scored under 170");
+    expect(p.intent === "top-matches" && p.complete).toBe(false);
+    expect(await parse("games at ohio championship where each alliance scored over 150")).toMatchObject({ intent: "top-matches", complete: true });
+  });
+
   it("the number is never a year, for the season picker either", () => {
     // 2030 is no team here: read as a year, a picked season would take the threshold out with it.
     expect(queryTime("games where each alliance scored over 2030", ctx.names, ctx.today).time).toBeNull();
