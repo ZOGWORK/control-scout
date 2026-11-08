@@ -88,6 +88,12 @@ describe("slots", () => {
       expect((await parse(q)).complete, q).toBe(false);
     }
   });
+  it("reads a supposed meeting of two teams as their match's call; a supposing word alone asks nothing", async () => {
+    for (const q of ["what if 6980 faced 23268", "suppose 24033 played 4215 next week", "imagine 23268 against 6980"]) {
+      expect(await parse(q), q).toMatchObject({ intent: "two-predict", complete: true });
+    }
+    for (const q of ["what if 4215 had a better auto", "if 6980 and 23268 teamed up"]) expect((await parse(q)).intent, q).not.toBe("two-predict");
+  });
   it("reads two alliances of two either side of a vs, any wording, as a match's call", async () => {
     for (const q of [
       "predict 4215 6980 vs 24033 23268", "4215 and 6980 vs 24033 and 23268 who wins", "custom matchup 4215 6980 vs 24033 23268",
@@ -364,5 +370,17 @@ describe("when, said with 'time' or as a verb", () => {
   });
   it("a match's number is never read as the last one played", async () => {
     expect(await parse("when did 4215 last play match 12")).toMatchObject({ complete: false });
+  });
+});
+
+describe("a schedule, and a state by its short name (failed-search #1152; held out: other teams, states and words)", () => {
+  it("a team's schedule is its matches, in a state said short or in full", async () => {
+    expect(await parse("bad wolf cali schedule")).toMatchObject({ intent: "season-matches", complete: true, teams: [{ number: 6980 }], place: { name: "California" } });
+    expect(await parse("6980 match schedule in massachusetts")).toMatchObject({ intent: "season-matches", complete: true, place: { name: "Massachusetts" } });
+    expect(await parse("23268 schedules this season")).toMatchObject({ intent: "season-matches", complete: true, teams: [{ number: 23268 }] });
+  });
+  it("a short name is a state only as a whole word, and never inside a team's name", async () => {
+    expect((await parse("bad wolf massa schedule")).place).toBeNull();
+    expect(await parse("teams in mass")).toMatchObject({ place: { name: "Massachusetts" } });
   });
 });

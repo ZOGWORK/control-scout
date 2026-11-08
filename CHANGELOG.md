@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 4.1.3 — 2026-11-08
+## 4.1.7 — 2026-11-08
 
 One question, one season: "best in New Jersey right now" and "best teams in New Jersey" now show the same season, whichever way they're asked.
 
@@ -26,6 +26,55 @@ One question, one season: "best in New Jersey right now" and "best teams in New 
 
 ### Search
 - **The same season, however it's asked.** Asked with no season, the search box's top-teams and stat cards and their full pages read the current season, then the season before while nobody is ranked in it yet, as the rest of search does. Before, some phrasings showed the last completed season while others showed the current one. (#1166)
+
+## 4.1.6 — 2026-11-08
+
+"My" and "our" in a search mean your team: "what is my next event" answers for My team, or asks you to pick one. A team's schedule in a state said short ("Hypnotic Robotics mass schedule") shows its matches there.
+
+### Highlights
+- [fixes] "What is my next event" answers for My team
+- [teams] With no My team set, search asks you to pick one
+- [fixes] "<team> schedule" shows matches still to play, then played
+- [fixes] "Mass" and "Cali" read as Massachusetts and California
+
+### Search
+- **My and our.** A search saying "my" or "our" with no team named ("what is my next event", "how did our team do") answers for My team on this device; with none set, it answers with a link to pick one rather than "no team matched". A team named after "my" ("my 4215 next event") is the one asked about. A team's "schedule" (or "match schedule") is its matches: those scheduled and still to play (at events not yet over, in the place asked) first, then the ones played, whose record counts the played ones only; and a region's other names ("Mass", "Cali") read as that region. (#1154)
+
+## 4.1.5 — 2026-11-08
+
+A match two teams haven't played, supposed in words, answers with its forecast.
+
+### Highlights
+- [predict] "If <team> played <team>" shows the match prediction
+- [predict] "What if", "suppose" and "imagine" read the same way
+- [predict] A day to come is called on the ratings used, said so
+
+### Search
+- **A supposed meeting.** "If <team> played <team>", "what if … faced …", "suppose … against …": the two teams' match call. A day still to come ("tomorrow", "next week") is called on the latest ratings both teams share, the card naming their season; a day gone by isn't read this way. (#1108)
+
+## 4.1.4 — 2026-11-08
+
+A place said before the team word keeps a count's board: "which Texas teams have the most awards" ranks awards won, not the prediction rating.
+
+### Highlights
+- [rankings] "<Place> teams with the most awards" answers with awards
+- [rankings] Matches played and events attended said this way too
+- [rankings] "Have played", "have won" and "have attended" read as said
+
+### Search
+- **The most of a count, the place first.** "Which Texas teams have the most awards", "Ohio teams with the most events" and "the Georgia team with most matches" give that count's board, the same as "which team in Texas has the most awards", where before they gave the prediction rating's. "Have played" and "have attended" read as played and attended, and "won the most matches" stays the wins board. (#1161)
+
+## 4.1.3 — 2026-11-08
+
+One word of a named team's own event's name now reads as that event.
+
+### Highlights
+- [predict] "<team> prediction for <one word>" finds that team's event
+- [predict] The latest such event, or the one in the season named
+- [predict] The card says which event the one word was read as
+
+### Search
+- **One word of a team's own event.** With a team named, one word of the name of an event it was listed at ("<team> last prediction for <word>") reads as its latest such event, or the one in the season named, and the card says so. With no team, or a kind of event's word ("qualifiers"), nothing changes. (#1106)
 
 ## 4.1.2 — 2026-11-08
 

@@ -35,6 +35,8 @@ export type Sym =
   | { k: "review" }
   /** Said of what's to come ("will 12345 win ..."): a forecast, only beside a win and an event named. */
   | { k: "future" }
+  /** A match that hasn't happened, supposed ("if 12345 played 23456"): a forecast, only beside two teams who meet. */
+  | { k: "hypo" }
   | { k: "vs" }
   | { k: "and" }
   | { k: "together" }
@@ -125,7 +127,8 @@ const TABLE: [string, Sym | Sym[]][] = [
   // so it's left to the readers that count trips, never the results there.
   ["been to|been at|gone to|went to|go to|made it to|make it to|qualified for|qualify for|qualified to|attended|competed at|appearance|appearances", { k: "metric", v: "appearance" }],
   // What is counted or listed.
-  ["match|matches|game|games|round|rounds|qualification match", { k: "thing", v: "match" }],
+  // A schedule is its matches ("<team> schedule", "<event> schedule"): one word with "match" before it too.
+  ["match|matches|game|games|round|rounds|qualification match|schedule|schedules|match schedule|match schedules|game schedule", { k: "thing", v: "match" }],
   ["event|events|competition|competitions|comp|comps|tournament|tournaments|meet|meets", { k: "thing", v: "event" }],
   ["season|seasons|year|years", { k: "thing", v: "season" }],
   ["team|teams|robot|robots", { k: "thing", v: "team" }],
@@ -146,6 +149,7 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["trend|trends|trending|over time|progression|rising or falling|falling or rising|getting better or worse|improving or flat|improving or not|improving or declining|going up or down|going up|going down|up or down|improving|getting better|getting worse|rising|falling|event by event|over the season|across the season|through the season|week by week|after each event", { k: "trend" }],
   ["vs actual|versus actual|vs the actual|compared to actual|vs what happened|vs reality|vs result|vs results|vs the result|actual|actually happened|what happened|before and after|before vs after|before or after|right or wrong|get it right|got it right|was it right|were they right|was it accurate|how accurate|accurate|accuracy|way off|or was it way off|or way off|or was it off|or not|how far off|hit or miss", { k: "review" }],
   ["will|would|going to", { k: "future" }],
+  ["if|what if|suppose|supposing|hypothetically|imagine|imagine if", { k: "hypo" }],
   ["advance|advances|advancing|advancement|advancements|advance to the finals|make the finals|making the finals|go through|goes through|get through|gets through", { k: "advance" }],
   // Two teams.
   ["vs|v|versus|against|facing|face|faced|play|played|playing|plays|vs.", { k: "vs" }],
