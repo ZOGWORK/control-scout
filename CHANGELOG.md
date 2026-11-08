@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.1.9 — 2026-11-08
+
+A team's chance of making Worlds or states, asked any way, answers with its advancement chance.
+
+### Highlights
+- [predict] "Chance of making worlds" shows the advancement chance
+- [predict] "Reaching", "getting to" and "qualifying for" read the same
+- [predict] "Next year" starts at the team's next event
+
+### Search
+- **Reaching Worlds or states.** "<team> chance of making worlds", "odds of reaching worlds", "chances of getting to states next season" and "qualifying for worlds as it stands" are the stored projection's advancement chance at the team's next event, as "chance to advance to worlds" is. A forecast made at Worlds itself ("advance at worlds") keeps its own answer. (#1113)
+
 ## 4.1.8 — 2026-11-08
 
 One question, one season: "best in New Jersey right now" and "best teams in New Jersey" now show the same season, whichever way they're asked.
