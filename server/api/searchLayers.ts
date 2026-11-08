@@ -21,7 +21,7 @@ import { onlyTopicWords } from "../../src/shared/searchQuery.js";
 /** A name compared whole: lower case, any run of punctuation and spaces one space. */
 const wholeName = (n: string) => n.toLowerCase().replace(/[^\p{L}\d]+/gu, " ").trim();
 import { longForm } from "./searchLongForm.js";
-import { AWARDS, FILLER, FORBIDDEN, type Found, INTENTS, type Intent, LEADER_STAT_WORDS, PARAPHRASES, PHASES, PRECEDENCE, SCAFFOLD, WEAK_SIGNALS } from "./searchCatalog.js";
+import { AWARDS, FILLER, FORBIDDEN, type Found, INTENTS, type Intent, LEADER_STAT_WORDS, PARAPHRASES, PHASES, PRECEDENCE, SCAFFOLD, TAIL_FILLER, WEAK_SIGNALS } from "./searchCatalog.js";
 
 export type LayerId = "normalize" | "template" | "longform" | "keyword" | "paraphrase" | "filler" | "scope" | "fallback";
 export type OutcomeResult = "answered" | "no-match" | "team-fallback" | "weak" | "name-search-only" | "empty" | "ambiguous";
@@ -404,6 +404,14 @@ export async function stripFiller(q: string): Promise<{ q: string; dropped: stri
     const f = fill.find((p) => p.every((w, k) => low[i + k] === w && !keep.has(i + k)));
     if (f) { dropped.push(f.join(" ")); i += f.length; continue; }
     out.push(ws[i]); i++;
+  }
+  // How the answer is to be shown, at the end only (TAIL_FILLER), one phrase after another ("…, in order, with scores").
+  const tail = phrases(TAIL_FILLER).sort((a, b) => b.length - a.length);
+  for (let cut = true; cut;) {
+    cut = false;
+    const end = out.map((w) => nameKey(w));
+    const t = tail.find((p) => p.length < end.length && p.every((w, k) => end[end.length - p.length + k] === w));
+    if (t) { dropped.push(t.join(" ")); out.splice(out.length - t.length); cut = true; }
   }
   // A greeting or a softener alone is not a query: nothing is made from nothing.
   return out.length ? { q: out.join(" "), dropped } : { q, dropped: [] };

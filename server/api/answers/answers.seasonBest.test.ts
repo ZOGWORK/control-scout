@@ -110,6 +110,14 @@ describe("a season's highest scores, by its game", () => {
     expect(readTopMatches("top tele-op scores in decode")).toMatchObject({ season: 2025, phase: "teleop" });
     expect(readTopMatches("highest end game score in nj in into the deep")).toMatchObject({ season: 2024, phase: "endgame", region: { key: "USA:NJ" } });
   });
+  it("the same question in other words: the most points in one match, the top matches by score", () => {
+    expect(readTopMatches("whats the most points any team scored in a single match this season, worldwide")).toMatchObject({ ever: false, region: null });
+    expect(readTopMatches("most points scored in a match in michigan")).toMatchObject({ region: { key: "USA:MI" } });
+    // Search hands words over singular ("match"); "on this site" and "in FTC history" filter nothing.
+    for (const q of ["show me the top 3 matches of all time, by total score, in FTC history on this site", "the top 3 match of all time by total score in ftc history on this site"]) expect(readTopMatches(q), q).toMatchObject({ ever: true, region: null });
+    // A team's own highest score stays the team's.
+    expect(readTopMatches("4215 most points scored in a match")).toBeNull();
+  });
   it("the failed search: DECODE's best alliance score without penalties, both alliances and its periods", async () => {
     const a = await full("what was the highest score in decode without penalties");
     expect(a.understood?.label).toBe("Highest match score in DECODE (2025–26) without penalties");
