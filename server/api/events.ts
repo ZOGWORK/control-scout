@@ -146,8 +146,9 @@ export async function eventDetail(season: number, code: string): Promise<EventDe
     // A stopgap until FIRST posts the event: once it has a team list (its registrations count) or a schedule, FIRST's data is all that shows.
     provisional: field.length || matches.length ? null : await provisional(season, code),
     sharedSessions: field.length || matches.length ? null : await sharedSessions(season, code, r.start),
-    // The last successful read of its team list from FIRST: a full fetch, or a registrations read (data/registrations.ts).
-    teamsSyncedAt: latest(r.detail_synced_at, r.teams_checked_at),
+    // The last successful read of its team list from FIRST: a full fetch whose list came back (data/bundle.ts), or a
+    // registrations read (data/registrations.ts). A fetch whose list read failed doesn't count: the list shown is older.
+    teamsSyncedAt: r.teams_checked_at ?? null,
     // Ratings read as the forecast and the projections read them; the qualification draw as posted (no-shows included).
     scheduleDifficulty: f ? eventScheduleDifficulty(f, input, { posted: postedQuals(matches), over: eventOver(r) }) : null,
   };
