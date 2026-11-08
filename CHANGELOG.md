@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.1.9 — 2026-11-08
+
+A team's record against the world's top teams by a number is answered. "Whats 14450's record against teams ranked top 10 worldwide" shows its matches against an alliance with a top-10 team, beside the rest.
+
+### Highlights
+- [teams] "<team> record vs top 10" counts opponents in the world's top 10
+- [teams] Any cut works: "against the top 25 teams in the world"
+- [teams] "Against top teams" alone still means the season's top tenth
+
+### Search
+- **Against the top N.** "Against (teams ranked in) the top N (worldwide, in the world)" and "vs top N" read as the against-top-teams answer with N as the cut: matches where the other alliance had a team ranked in the world's top N by prediction rating that season, side by side with the others. Its title and definition say the cut. Before, the number was taken as a second team and the question fell to a Compare. (#1107)
+
 ## 4.1.8 — 2026-11-08
 
 One question, one season: "best in New Jersey right now" and "best teams in New Jersey" now show the same season, whichever way they're asked.
@@ -358,18 +370,6 @@ The live countdown waits for the day's first result, then runs on the field's re
 ### Live
 - **No timer off the posted plan.** Before the day's first match has a result, the LIVE panel, the phone's countdown chip and the pit display show what's up next and its scheduled time, with no countdown: events rarely start on time.
 - **Calibrated on real starts.** Once results come in, the next match is due one cycle after the latest match really started, and everything after it moves by the same amount up to the next break (lunch absorbs a late start). It uses the shorter of the posted cycle and the one the field is really running, and a match with no score yet can't have started more than 8 minutes ago, so the timer errs early, never late. Breaks come from the posted schedule: each match now keeps its posted start beside its real one. The panel says how far behind or ahead the field runs and which match should be on the field now. (#1109)
-
-## 3.9.1 — 2026-11-07
-
-A team's record against the world's top teams by a number is answered. "Whats 14450's record against teams ranked top 10 worldwide" shows its matches against an alliance with a top-10 team, beside the rest.
-
-### Highlights
-- [teams] "<team> record vs top 10" counts opponents in the world's top 10
-- [teams] Any cut works: "against the top 25 teams in the world"
-- [teams] "Against top teams" alone still means the season's top tenth
-
-### Search
-- **Against the top N.** "Against (teams ranked in) the top N (worldwide, in the world)" and "vs top N" read as the against-top-teams answer with N as the cut: matches where the other alliance had a team ranked in the world's top N by prediction rating that season, side by side with the others. Its title and definition say the cut. Before, the number was taken as a second team and the question fell to a Compare. (#1107)
 
 ## 3.9.1 — 2026-11-07
 
