@@ -36,6 +36,8 @@ export interface Scope {
    *  counts by its own date (its time, else its event's first day); an event when any of its days is in the window. */
   window?: { from: string; to: string; label: string };
   level?: "qual" | "playoff";
+  /** The finals only, of the playoffs (a match's `final`, ./matchSet.ts). Set with `level: "playoff"`. */
+  finals?: boolean;
   alliance?: "red" | "blue";
 }
 
@@ -65,7 +67,7 @@ export const windowClause = (s: Scope) => (e: EventFacts) => {
   return !!from && !!to && from <= s.window.to && to >= s.window.from;
 };
 /** Match-type clause (qualifications or playoffs). */
-export const levelClause = (s: Scope) => (m: { level: string }) => !s.level || m.level === s.level;
+export const levelClause = (s: Scope) => (m: { level: string; final?: boolean }) => (!s.level || m.level === s.level) && (!s.finals || (m.level === "playoff" && !!m.final));
 /** Alliance-colour clause. */
 export const allianceClause = (s: Scope) => (m: { alliance: string }) => !s.alliance || m.alliance === s.alliance;
 
@@ -76,7 +78,7 @@ export function eventInScope(s: Scope): (e: EventFacts) => boolean {
 }
 
 /** Every clause of a scope, as one test on a match (its event's facts and the team's side). */
-export function inScope(s: Scope): (m: EventFacts & { level: string; alliance: string }) => boolean {
+export function inScope(s: Scope): (m: EventFacts & { level: string; final?: boolean; alliance: string }) => boolean {
   const ev = eventInScope(s), lv = levelClause(s), al = allianceClause(s);
   return (m) => ev(m) && lv(m) && al(m);
 }
@@ -114,7 +116,7 @@ export function scopeChips(s: Scope): string[] {
     s.place ? `Events ${s.place.outside ? "outside" : "in"} ${s.place.name}` : "",
     s.window ? cap(s.window.label) : "",
     s.season != null ? seasonLabel(s.season) : s.event ? "" : "All seasons",
-    s.level === "qual" ? "Qualification matches" : s.level === "playoff" ? "Playoff matches" : "",
+    s.finals ? "Finals" : s.level === "qual" ? "Qualification matches" : s.level === "playoff" ? "Playoff matches" : "",
     s.alliance ? `${s.alliance === "red" ? "Red" : "Blue"} alliance` : "",
   ].filter(Boolean);
 }
@@ -122,7 +124,7 @@ export function scopeChips(s: Scope): string[] {
 /** The scope as a phrase in a sentence: "at Worlds", "in 2025–26", "in playoffs at New Jersey Championship", "" for
  *  all. The match type is said first, so a title always names it ("Record in quals in 2025–26"). */
 export function scopePhrase(s: Scope): string {
-  const level = s.level === "qual" ? " in quals" : s.level === "playoff" ? " in playoffs" : "";
+  const level = s.finals ? " in the finals" : s.level === "qual" ? " in quals" : s.level === "playoff" ? " in playoffs" : "";
   const where = s.event ? ` at ${s.event.name}` : s.venue ? ` at ${s.venue.name}` : s.championship ? " at Worlds" : s.states ? " at state championships" : s.place ? ` at events ${s.place.outside ? "outside" : "in"} ${s.place.name}` : "";
   const when = s.window ? ` ${s.window.label}` : s.season != null && !s.event ? ` in ${seasonLabel(s.season)}` : "";
   return `${level}${where}${when}`;

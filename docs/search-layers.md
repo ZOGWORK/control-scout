@@ -250,6 +250,7 @@ or stat:
 | please, pls, plz, just, really, basically, actually, quick, kindly | Politeness and softeners; no team, place or stat is said with them. `plz` is an extension: the same word as `pls`. |
 | hey, hi, hello | Greetings, only beside a team and an intent: a greeting alone is no query and is never rewritten. |
 | if any, if there is one, if there are any | An answer of none allowed: every answer already says when there is none ("no next event on record"). |
+| or nah, or what, be honest | A tag asking for a straight answer ("did 12345 choke at states or nah"): "or" here offers no second team, event or stat to choose. |
 
 A filler word inside a team's full name stays: "just in time opr" keeps "just" when Just In Time is a team. That is
 checked against every stored name.
