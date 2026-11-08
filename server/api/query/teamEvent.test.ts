@@ -28,6 +28,8 @@ beforeAll(async () => {
   await ev(S - 1, "USNJRIV", "Riverside Invitational League Tournament", "LeagueTournament", `${S}-02-10`);
   await ev(S, "USNJRIV2", "Riverside Invitational League Tournament", "LeagueTournament", `${S + 1}-02-08`);
   await ev(S, "USNJQ5", "Delaware Valley Qualifier", "Qualifier", `${S + 1}-01-11`);
+  // Another "riverside" event of 7149's in the same season, in January: a window said picks between the two.
+  await ev(S, "USNJRWC", "Riverside Winter Classic", "Qualifier", `${S + 1}-01-18`);
   // One code, renamed the next season: "bayview" is only the older one's.
   await ev(S - 1, "USNJBAY", "Bayview Scrimmage Cup", "Scrimmage", `${S}-01-05`);
   await ev(S, "USNJBAY", "Harbor Scrimmage Cup", "Scrimmage", `${S + 1}-01-04`);
@@ -47,7 +49,7 @@ beforeAll(async () => {
   for (const [t, rating] of [[7149, 120], [23268, 110], [6980, 60]] as const) {
     for (const s of [S - 1, S]) await run("INSERT INTO team_season_stats (season, team, rating_np, rating_sd, rating_rank, matches, wins, losses, ties) VALUES (?, ?, ?, 3, 1, 2, 1, 1, 0)", [s, t, rating]);
   }
-  await run("INSERT INTO event_teams (season, code, team) VALUES (?, 'USNJRIV', 7149), (?, 'USNJRIV', 23268), (?, 'USNJRIV2', 7149), (?, 'USNJRIV2', 23268), (?, 'USNJQ5', 6980), (?, 'USNJQ5', 23268), (?, 'USNJBAY', 7149), (?, 'USNJBAY', 7149), (?, 'USNJRIV2', 31002), (?, 'USNJQ5', 31001)", [S - 1, S - 1, S, S, S, S, S - 1, S, S, S]);
+  await run("INSERT INTO event_teams (season, code, team) VALUES (?, 'USNJRIV', 7149), (?, 'USNJRIV', 23268), (?, 'USNJRIV2', 7149), (?, 'USNJRIV2', 23268), (?, 'USNJQ5', 6980), (?, 'USNJQ5', 23268), (?, 'USNJBAY', 7149), (?, 'USNJBAY', 7149), (?, 'USNJRIV2', 31002), (?, 'USNJQ5', 31001), (?, 'USNJRWC', 7149)", [S - 1, S - 1, S, S, S, S, S - 1, S, S, S, S]);
   await rebuildSearch();
   resetSearchSeason();
   await refreshSearchSeason();
@@ -71,6 +73,12 @@ describe("one word of a named team's own event", () => {
     const year = await ask(`7149 prediction at riverside in ${S}`);
     expect(year.stat).toMatchObject({ intent: "pipeline-team-predict-event", title: "Prediction vs result at Riverside Invitational League Tournament" });
     expect(year.understood!.season).toBe(S - 1);
+  });
+  it("in the window said, when one is: an event held in it, not the season's latest", async () => {
+    const p = await parse(`7149 prediction at riverside in january ${S + 1}`);
+    expect(p.event).toMatchObject({ typed: "riverside", words: "riverside winter classic" });
+    // No event of the team's with the word held in the window: the word isn't read as one.
+    expect((await parse(`7149 prediction at riverside in march ${S + 1}`)).event).toBeNull();
   });
   it("is the event by its name, never another season's event under the same code", async () => {
     const a = await ask("7149 forecast at bayview");

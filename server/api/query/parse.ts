@@ -80,7 +80,7 @@ export interface ParseContext {
   isEvent: (words: string) => Promise<boolean>;
   /** The name (folded) of the latest event of `teams` (in the season or held in the calendar year given) with `word`
    *  in its name as a whole word, or null: one word names an event only among the named teams' own. */
-  teamEvent?: (word: string, teams: number[], when: { season: number | null; year: number | null }) => Promise<string | null>;
+  teamEvent?: (word: string, teams: number[], when: { season: number | null; year: number | null; from?: string; to?: string }) => Promise<string | null>;
   /** The team a near miss of a name means ("hypnotc robotics"), or null. */
   nearTeam?: (words: string) => Promise<TeamName | null>;
   /** The visitor's own teams ("team:12345"), first when several share a name. */
@@ -309,9 +309,11 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   // reads every one of them's events here, and the event is checked again once the name is settled (below).
   const when = (() => {
     const t = p.time;
-    return { season: t?.kind === "season" && t.year == null ? t.season : t?.kind === "window" ? t.season : null, year: t?.kind === "season" ? t.year ?? null : null };
+    return { season: t?.kind === "season" && t.year == null ? t.season : t?.kind === "window" ? t.season : null, year: t?.kind === "season" ? t.year ?? null : null,
+      // A window said ("last week", "in March"): the event is one held in it.
+      ...(t?.kind === "window" && t.from && t.to ? { from: t.from, to: t.to } : {}) };
   })();
-  let ownWord: Tok | null = null;
+  let ownWord: Tok | null = null, ownDropped = false;
   const ownEventWord = async (one: Tok): Promise<boolean> => {
     if (p.event || !p.teams.length || !ctx.teamEvent || one.w.length < 3 || KIND_WORDS.has(one.w) || EVENT_TYPES[one.w.replace(/s$/, "")] || EVENT_TYPES[one.w]) return false;
     const name = await ctx.teamEvent(one.w, p.teams.flatMap((x) => (x.candidates && !x.rule ? x.candidates : [x.number])), when);
@@ -319,7 +321,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     p.event = { words: name, typed: one.typed, latest: true };
     one.used = true;
     ownWord = one;
-    if (!toks.some((x) => x !== one && KIND_WORDS.has(x.w))) symbols.delete("thing:event");
+    if (!toks.some((x) => x !== one && KIND_WORDS.has(x.w))) ownDropped = symbols.delete("thing:event");
     return true;
   };
 
@@ -416,7 +418,11 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   if (own && p.event?.latest && ctx.teamEvent && !p.teams.some((t) => t.candidates && !t.rule)) {
     const name = await ctx.teamEvent(own.w, p.teams.map((t) => t.number), when);
     if (name) p.event = { ...p.event, words: name };
-    else { p.event = null; own.used = false; }
+    else {
+      // Undone whole: the word unread again, and "event" said around it back in the question.
+      p.event = null; own.used = false;
+      if (ownDropped) symbols.add("thing:event");
+    }
   }
   // A word said before any team was found ("<word> forecast for <team typed nearly right>"): tried again now every
   // team is, among the settled teams' own events.
