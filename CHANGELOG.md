@@ -27,6 +27,102 @@ Search answers an event's average match score, and puts two events side by side.
 ### Search
 - **Event average match score.** "Average match score at <event>" gives the mean alliance score over its played matches (divisions included), with and without penalties, its highest score and match count; "… versus <event>" shows two events side by side and which averages more. (#1125)
 
+## 4.4.8 — 2026-11-08
+
+Two events named side by side ("<event> vs <event>") are compared as events rather than read as two teams: how strong each field was, its best OPR, its high score and how many teams played.
+
+### Highlights
+- [rankings] "Ohio Championship vs Texas Championship" compares the events
+- [rankings] Each event's field strength, top OPR, high score and teams
+- [fixes] Two events named with "vs" are no longer read as two teams
+
+### Search
+- **Events side by side.** "<event> vs <event>" (2 to 4 events, each named with a word only an event's name has: championship, qualifier, league meet, tournament…) answers with the events side by side: field strength (the average OPR of the teams that played, its divisions' too), top OPR and its team, high score without penalties, and the number of teams. A state's code in a name is spelled out ("NJ Championship" is New Jersey's), each event is its newest season with a played match unless a season is named, and events from different seasons are marked as different games, with neither called stronger. A team on any side keeps the teams' Compare. (#1158)
+
+## 4.4.7 — 2026-11-08
+
+A climb in rank: the teams that went from one OPR rank or below to the top of another, from one season to the next.
+
+### Highlights
+- [rankings] "Teams that climbed from rank 1000+ to top 100"
+- [rankings] Worldwide OPR rank, the season before to this one
+- [rankings] In a place too: "which NJ teams rose from rank 500"
+
+### Search
+- **A climb in rank.** "Teams that improved from rank 1000+ to the top 100 in one season", "which NJ teams climbed from rank 500 to the top 50" and the like read as the most improved board, kept to the teams ranked at or below the first number worldwide by OPR the season before and at or above the second this season. A fall ("from rank 10 to rank 100") is never read as a climb. The most improved table shows each climb as one column of ranks ("#6283 → #77"), so it fits a phone, and People also ask never names a place the card answered without. (#1121)
+
+## 4.4.6 — 2026-11-08
+
+Compare asked for one team opens Compare with it, and suggests its closest rivals.
+
+### Highlights
+- [teams] "Compare" and one team opens Compare with that team in it
+- [teams] Its closest-rated rivals nearby, each one tap to compare
+- [fixes] A season named carries into each suggested comparison
+
+### Search
+- **Compare one team.** "Compare" and a single team (by number or name) opens Compare with that team in it, ready for more, and suggests the two or three teams rated closest to it in its state (else its country) as comparisons that each answer. (#1120)
+
+## 4.4.5 — 2026-11-08
+
+Steady boards: the most stable OPR from event to event, and the teams strongest in every phase, in a place or worldwide.
+
+### Highlights
+- [rankings] "Which team has the most stable OPR" answers
+- [rankings] The smallest swing in OPR over 3+ events
+- [rankings] "Most consistent across all phases" by the weakest phase
+
+### Search
+- **Steady boards.** "Which team has the most stable OPR, least ups and downs" ranks teams by the smallest swing in their event OPRs in the season (the standard deviation as a share of their average, teams with an OPR at 3 or more events). "Which NJ team is most consistent across all phases" ranks by each team's weakest phase OPR rank worldwide (auto, teleop and endgame; auto and teleop where teleop includes endgame), so a team strong in one phase alone doesn't lead. Counted at some events only, or on a day, is left to search. (#1124)
+
+## 4.4.4 — 2026-11-08
+
+OPR gained within a season: the teams whose OPR grew the most from their first event to their last, in a place or worldwide.
+
+### Highlights
+- [rankings] "Most improved teams in NJ by OPR gain" answers
+- [rankings] First event's OPR to the last's, 2+ events
+- [rankings] "Which team improved its OPR the most" reads
+
+### Search
+- **OPR gained.** "Most improved teams by OPR gain", "which team improved its OPR the most between its first and last event" and "gained the most OPR across the season" rank teams by their OPR at their last event of the season less their OPR at their first, by date (without penalties, as the team page shows them), teams with an OPR at 2 or more events, in a place or worldwide. "Most improved" alone stays the climb in standing from the season before. (#1116)
+
+## 4.4.3 — 2026-11-08
+
+"How many" before a list of teams counts it, and two years or seasons side by side compare: "how many NJ teams went to worlds in 2024, versus 2025".
+
+### Highlights
+- [rankings] "How many NJ teams went to worlds in 2024" counts them
+- [rankings] Two years side by side: "2024 versus 2025"
+- [rankings] Each year's list sits under its count
+
+### Search
+- **A list counted, in one season or two.** "How many", "number of" or "count" before a list of teams (a place, Worlds, an award won, an OPR threshold) answers with the list, its length the headline. Two years or seasons after it ("in 2024 versus 2025", "2025-26 vs 2024-25") read the same list once with each: both counts side by side, the change, and each season's own list under it. A Worlds year is the championship held that year, so 2024 is the 2023–24 season, said on the card. A card comparing two seasons offers no one season to pick. (#1094)
+
+## 4.4.2 — 2026-11-08
+
+The team with the most matches, wins or events can be asked for a few days ("which team played the most matches this week"), and said "by any team … top 5".
+
+### Highlights
+- [rankings] "Most matches played this week" counts the week's matches
+- [rankings] No matches yet this week shows the latest week, said
+- [rankings] "Most matches played by any team, top 5" reads
+
+### Search
+- **Count boards in a window, said any way.** "This week", "last week", "this month", "today" said with the team with the most matches, wins or events counts that team's played matches in those days from the match rows (a match by its own date, else its event's first day), its record there beside it; awards have no date and get no window board. With none in the window yet, the latest seven days with a match are shown, said on the card. "Most matches played by any team …, top 5" is the same board, the count asked; "worldwide" adds nothing. (#1098)
+
+## 4.4.1 — 2026-11-08
+
+A question about "my" or "our" team ("what is my 4215 next event", "our 6980 record") is answered for that team.
+
+### Highlights
+- [fixes] "what is my <team> upcoming event" shows its next event
+- [fixes] "our team <number> record" reads as that team's record
+- [fixes] An intent word typed wrong after "my <team>" still answers
+
+### Search
+- **Whose team it is.** "my" or "our" before a team's number says whose team it is, never part of what's asked, so a long question about it reads the way the same question about the team does. (#1123)
+
 ## 4.4.0 — 2026-11-08
 
 A number written with thousands separators ("1,000", "12,500") is read as one number, never as a team.
