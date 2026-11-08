@@ -101,6 +101,21 @@ describe("who to pick at an event", () => {
     expect(a.headline!.sub).not.toMatch(/^Every team free/);
     expect(a.headline!.value).toBe("Gearbox (24033)");
   });
+  it("the team's next event is read by each event's own date, where it's held", async () => {
+    // Its own event (no other test's rows): its last day is yesterday in UTC terms but still today in Honolulu, so it
+    // is the next event still to finish, ahead of one starting later today.
+    const now = Date.parse(`${day(0)}T09:00:00Z`);
+    const last = new Date(now - 864e5).toISOString().slice(0, 10);
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, timezone, source) VALUES (?, 'USHIQ2', 'Kona Qualifier', 'Qualifier', 'Kona', 'HI', 'USA', ?, ?, 'Pacific/Honolulu', 't')", [S, last, last]);
+    await run("INSERT INTO event_teams (season, code, team) VALUES (?, 'USHIQ2', 33950)", [S]);
+    const { teamPickEvent } = await import("./families/pick");
+    expect(await teamPickEvent(33950, now, null)).toMatchObject({ ev: { code: "USHIQ2" }, next: true });
+  });
+  it("asked with any verb of choosing a partner", async () => {
+    for (const q of ["who should 4215 choose at northeast league meet", "who should 4215 select as a partner at northeast league meet", "who should 4215 ally with at northeast league meet", "who should 4215 take as their first pick at northeast league meet"]) {
+      expect((await stat(q))?.intent, q).toBe("pick-partners");
+    }
+  });
   it("a team not on the event's list is said so, never another event's suggestions", async () => {
     expect((await stat("who should 23268 pick at northeast league meet")).none).toMatch(/isn't on Northeast League Meet's team list/);
   });

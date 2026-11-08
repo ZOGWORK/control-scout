@@ -27,14 +27,17 @@ export interface PickEvent { season: number; code: string; name: string; type: s
 /** The event a pick is for when none is named: the team's next one (still to finish), else its latest; in `season`, or
  *  held in `year`, when one is said. Null: it's listed at none. */
 export async function teamPickEvent(team: number, now: number, season: number | null, year: number | null = null): Promise<{ ev: PickEvent; listed: true; next: boolean } | null> {
-  const today = new Date(now).toISOString().slice(0, 10);
-  const rows = await all<PickEvent>(
-    `SELECT DISTINCT e.season, e.code, e.name, e.type, e.start, e.end FROM ${ROSTER} r JOIN events e ON e.season = r.season AND e.code = r.code
+  const rows = await all<PickEvent & { timezone: string | null }>(
+    `SELECT DISTINCT e.season, e.code, e.name, e.type, e.start, e.end, e.timezone FROM ${ROSTER} r JOIN events e ON e.season = r.season AND e.code = r.code
      WHERE r.team = ? AND (? IS NULL OR e.season = ?) AND (? IS NULL OR e.start LIKE ?) AND COALESCE(e.remote, 0) = 0 ORDER BY e.start DESC, e.code`,
     [team, season, season, year, year == null ? null : `${year}%`]);
-  const next = rows.filter((e) => (e.end ?? e.start ?? "") >= today).at(-1);
-  const ev = next ?? rows.find((e) => (e.start ?? "") <= today);
-  return ev ? { ev, listed: true, next: !!next } : null;
+  // Each event's own today, where it's held: an event on its last day in Hawaii is still to finish after midnight UTC.
+  const today = (e: { timezone: string | null }) => eventToday(now, e.timezone).from;
+  const next = rows.filter((e) => (e.end ?? e.start ?? "") >= today(e)).at(-1);
+  const found = next ?? rows.find((e) => (e.start ?? "") <= today(e));
+  if (!found) return null;
+  const { timezone: _tz, ...ev } = found;
+  return { ev, listed: true, next: !!next };
 }
 
 /** The pick helper's suggestions for `team` at `ev`. `why`: how the event was chosen, when the query named none.
