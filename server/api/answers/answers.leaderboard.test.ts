@@ -260,6 +260,91 @@ describe("a climb in rank from one season to the next", () => {
   });
 });
 
+describe("OPR gained within a season", () => {
+  it("reads the gain, said any way, apart from the climb in standing", () => {
+    expect(readLeaderboard("top 3 most improved teams in texas by opr growth")).toMatchObject({ kind: "gain", stat: "opr", n: 3, region: { key: "USA:TX" } });
+    expect(readLeaderboard("which texas team raised its opr the most from its first to its last event")).toMatchObject({ kind: "gain", n: 10, region: { key: "USA:TX" } });
+    // Counted at some events only, or on a day: no gain board (it counts every event of the season).
+    expect(readLeaderboard("which teams gained the most opr at new jersey events")?.kind).not.toBe("gain");
+    expect(readLeaderboard("which teams gained the most opr out of state")?.kind).not.toBe("gain");
+    expect(readLeaderboard("what teams in nj gained the most opr across the season")).toMatchObject({ kind: "gain", region: { key: "USA:NJ" } });
+    expect(readLeaderboard("most improved teams in texas")).toMatchObject({ kind: "improved" });
+  });
+  it("ranks the first event's OPR to the last's, 2+ events only, in the place", async () => {
+    const ev = (code: string, start: string) => run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, ?, ?, 'Qualifier', 'Edison', 'NJ', 'USA', ?, ?, 't')", [code, `Meet ${code}`, start, start]);
+    await ev("G1", "2025-11-01"); await ev("G2", "2026-01-10"); await ev("G3", "2026-02-01");
+    // 6980: 20 → 70; 4215: 80 → 110 (its middle event never counts); 23268 one event only; 19564 in Texas.
+    for (const [code, team, opr] of [["G1", 4215, 80], ["G2", 4215, 140], ["G3", 4215, 110], ["G1", 6980, 20], ["G2", 6980, 70], ["G2", 23268, 150], ["G1", 19564, 10], ["G3", 19564, 200]] as const) {
+      await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (2025, ?, ?, ?, 5)", [code, team, opr]);
+    }
+    try {
+      const b = await searchAnswer("most improved teams in new jersey in 2025-26 by opr gain", { limit: 25, full: true });
+      expect(b.stat).toMatchObject({ intent: "opr-gain", title: "Most OPR gained in New Jersey between first and last event · 2025–26", headline: { value: "6980 Bad Wolf", label: "+50.0 OPR: 20.0 → 70.0 over 2 events · Oradell" } });
+      const t = b.stat!.blocks[0];
+      if (t.kind !== "table") throw new Error(t.kind);
+      expect(t.rows.map((r) => [r.cells.team, r.cells.gain])).toEqual([["6980 Bad Wolf", "+50.0"], ["4215 Hypnotic Robotics", "+30.0"]]);
+      // Asked of "teams" or "team" through search, the same whole board.
+      for (const q of ["what teams in nj gained the most opr across the season in 2025-26", "which nj team improved its opr the most in 2025-26"]) {
+        const c = await searchAnswer(q, { limit: 25, full: true });
+        expect(c.stat?.title, q).toBe("Most OPR gained in New Jersey between first and last event · 2025–26");
+        expect((c.stat!.blocks[0] as { rows: unknown[] }).rows, q).toHaveLength(2);
+      }
+    } finally {
+      await run("DELETE FROM team_event_stats WHERE code IN ('G1', 'G2', 'G3')"); await run("DELETE FROM events WHERE code IN ('G1', 'G2', 'G3')");
+    }
+  });
+});
+
+describe("steady boards", () => {
+  it("reads a stable OPR and strength in every phase, never at some events only", () => {
+    expect(readLeaderboard("what teams in texas have the steadiest opr")).toMatchObject({ kind: "steady", region: { key: "USA:TX" } });
+    expect(readLeaderboard("which team has the least volatile opr with the fewest ups and downs")).toMatchObject({ kind: "steady", region: null });
+    expect(readLeaderboard("which texas teams are the best balanced across every phase")).toMatchObject({ kind: "phases", region: { key: "USA:TX" } });
+    expect(readLeaderboard("which team has the most stable opr at new jersey events")?.kind).not.toBe("steady");
+    // A place said last.
+    expect(readLeaderboard("which team has the steadiest opr in texas")).toMatchObject({ kind: "steady", region: { key: "USA:TX" } });
+    expect(readLeaderboard("which team is the most balanced across all phases in texas")).toMatchObject({ kind: "phases", region: { key: "USA:TX" } });
+    // Two places said: none.
+    expect(readLeaderboard("which nj team has the steadiest opr in texas")?.kind).not.toBe("steady");
+    // Greptile on #1124: "FTC team" is the team word, not a place.
+    expect(readLeaderboard("what ftc team has the steadiest opr")).toMatchObject({ kind: "steady", region: null });
+    // Greptile on #1124: "worldwide" adds nothing.
+    expect(readLeaderboard("which team has the least volatile opr worldwide")).toMatchObject({ kind: "steady", region: null });
+    expect(readLeaderboard("which teams are the most balanced across all phases globally")).toMatchObject({ kind: "phases", region: null });
+    expect(readLeaderboard("which ohio ftc teams are the best balanced across every phase")).toMatchObject({ kind: "phases", region: { key: "USA:OH" } });
+  });
+  it("ranks the smallest swing in event OPR, 3+ events", async () => {
+    const ev = (code: string, start: string) => run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, ?, ?, 'Qualifier', 'Edison', 'NJ', 'USA', ?, ?, 't')", [code, `Meet ${code}`, start, start]);
+    await ev("H1", "2025-11-01"); await ev("H2", "2026-01-10"); await ev("H3", "2026-02-01");
+    // 4215: 98–102 (±2%); 6980: 20–60 (±41%); 23268: two events only.
+    for (const [code, team, opr] of [["H1", 4215, 100], ["H2", 4215, 102], ["H3", 4215, 98], ["H1", 6980, 20], ["H2", 6980, 60], ["H3", 6980, 40], ["H1", 23268, 150], ["H2", 23268, 160]] as const) {
+      await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (2025, ?, ?, ?, 5)", [code, team, opr]);
+    }
+    try {
+      const a = await searchAnswer("which new jersey team has the most consistent opr in 2025-26", { limit: 25, full: true });
+      expect(a.stat).toMatchObject({ intent: "steady-opr", title: "Most stable OPR in New Jersey: the fewest ups and downs · 2025–26", headline: { value: "4215 Hypnotic Robotics", label: "OPR 100.0 on average, ±2% over 3 events · Oradell" } });
+      const t = a.stat!.blocks[0];
+      if (t.kind !== "table") throw new Error(t.kind);
+      expect(t.rows.map((r) => [r.cells.team, r.cells.swing])).toEqual([["4215 Hypnotic Robotics", "±2%"], ["6980 Bad Wolf", "±41%"]]);
+    } finally {
+      await run("DELETE FROM team_event_stats WHERE code IN ('H1', 'H2', 'H3')"); await run("DELETE FROM events WHERE code IN ('H1', 'H2', 'H3')");
+    }
+  });
+  it("ranks by the weakest phase, so one strong phase alone doesn't lead", async () => {
+    // 2025's teleop includes endgame: auto and teleop are the phases. 23268 is #5 in auto but #900 in teleop.
+    for (const [team, ra, rt] of [[4215, 50, 60], [23268, 5, 900], [31814, 100, 120]] as const) {
+      await run("UPDATE team_season_stats SET rank_auto = ?, rank_teleop = ? WHERE season = 2025 AND team = ?", [ra, rt, team]);
+    }
+    try {
+      const a = await searchAnswer("which nj team is the most well rounded in all phases in 2025-26", { limit: 25, full: true });
+      expect(a.stat).toMatchObject({ intent: "every-phase", headline: { value: "4215 Hypnotic Robotics", label: "Weakest phase #60 worldwide · Oradell" } });
+      const t = a.stat!.blocks[0];
+      if (t.kind !== "table") throw new Error(t.kind);
+      expect(t.rows.map((r) => [r.cells.team, r.cells.worst])).toEqual([["4215 Hypnotic Robotics", "#60"], ["31814 Quantum Core", "#120"], ["23268 Ultraviolet", "#900"]]);
+    } finally { await run("UPDATE team_season_stats SET rank_auto = NULL, rank_teleop = NULL WHERE season = 2025"); }
+  });
+});
+
 // Failed searches #880 #887, in their own words: a count's board in a date window, and said "by any team … top N".
 describe("a count's board in a window", () => {
   afterEach(() => { vi.useRealTimers(); });
