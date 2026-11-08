@@ -135,6 +135,20 @@ describe("test 16: each intent returns its stated surface", () => {
     // A team named is that team's question, never Predict's help.
     expect(readAsk("can i filter 4215 predictions")?.kind).not.toBe("predict-filter");
   });
+  it("a lineup changed in a supposition, with no forecast word: Custom matchup, or which partner is best in it", async () => {
+    for (const q of ["what if we switch the alliance", "suppose you change our partners", "what if we swap our alliance"]) expect(readAsk(q), q).toEqual({ kind: "predict-lineup", say: "change" });
+    for (const q of ["who's the strongest partner if we swap teams", "which team would make the best alliance partner if i switch the alliance", "who is the best partner if you swap the alliances"]) {
+      expect(readAsk(q), q).toEqual({ kind: "predict-lineup", say: "partner" });
+    }
+    // Through the whole search, whatever it rewrites first ("teams" read as "team").
+    const changed = await ask("What if I switch teams?");
+    expect(changed.pages[0]).toEqual({ title: "Predict: Custom matchup", href: "/predict?mode=match" });
+    expect(changed.understood?.label).toMatch(/^Predict's Custom matchup takes any teams on each alliance: change them/);
+    const partner = await ask("who would be the best partner if we change teams");
+    expect(partner.understood?.label).toMatch(/^Try each partner in Predict's Custom matchup/);
+    // Anything else asked, or a team named, is left to the other readers.
+    for (const q of ["if we change the alliance who scores most", "if we change teams does 4215 win"]) expect(readAsk(q)?.kind, q).not.toBe("predict-lineup");
+  });
   it("a team's predictions page: its matches in Predict; a day's calls: that day's events", async () => {
     // A name is read only for a team that has played: this test's own played row, whatever ran before it.
     await run("INSERT OR IGNORE INTO team_event_stats (season, code, team, opr_np, matches) VALUES (?, 'UVPLAYED', 23268, 50, 5)", [S]);

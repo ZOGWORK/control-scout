@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 4.0.9 — 2026-11-08
+## 4.1.4 — 2026-11-08
 
 A place said before the team word keeps a count's board: "which Texas teams have the most awards" ranks awards won, not the prediction rating.
 
@@ -26,6 +26,70 @@ A place said before the team word keeps a count's board: "which Texas teams have
 
 ### Search
 - **The most of a count, the place first.** "Which Texas teams have the most awards", "Ohio teams with the most events" and "the Georgia team with most matches" give that count's board, the same as "which team in Texas has the most awards", where before they gave the prediction rating's. "Have played" and "have attended" read as played and attended, and "won the most matches" stays the wins board. (#1161)
+
+## 4.1.3 — 2026-11-08
+
+One word of a named team's own event's name now reads as that event.
+
+### Highlights
+- [predict] "<team> prediction for <one word>" finds that team's event
+- [predict] The latest such event, or the one in the season named
+- [predict] The card says which event the one word was read as
+
+### Search
+- **One word of a team's own event.** With a team named, one word of the name of an event it was listed at ("<team> last prediction for <word>") reads as its latest such event, or the one in the season named, and the card says so. With no team, or a kind of event's word ("qualifiers"), nothing changes. (#1106)
+
+## 4.1.2 — 2026-11-08
+
+A place's award winners are answered: a state's, a country's or a town's teams and the awards they won, the most, the rarest, and whether any won at Worlds or made its finals.
+
+### Highlights
+- [fixes] "Michigan Inspire winners" lists that state's winners
+- [fixes] A country's teams ranked by Inspire Awards won
+- [fixes] "did any NJ team win Inspire at worlds" says yes or no
+- [fixes] "rarest award a NJ team won this season" names the award
+
+### Search
+- **A place's award winners.** The teams from a state, a country (or its people's word) or a town, and the awards they won, newest first or by a stat ("by auto"): the most won, the rarest one (given fewest times anywhere that season), two awards won at one event, and yes or no at Worlds, for an award or for reaching its finals or playoffs. At Worlds, "last year" is the latest Championship that has finished. (#1100)
+
+
+## 4.1.1 — 2026-11-08
+
+Asking whether one team will beat another gets the match's call, and asking what happens if you change an alliance points you to the part of Predict that does it.
+
+### Highlights
+- [predict] "Will 4215 beat 7149" predicts their match
+- [predict] "If I change the alliance" opens Custom matchup
+- [predict] "Best partner if I change the alliance" says how to try each
+
+### Search
+- **"Will A beat B."** "Will", "would" or "going to" with a win word ("beat", "defeat", "win against") between two teams is the call for a match between them.
+- **A lineup changed, supposed.** "If (what if, suppose) I change, switch or swap the alliance, teams or partners", with no team named, is Predict's Custom matchup; asked with "who is the best partner", it says how to try each partner there. (#1153)
+
+## 4.1.0 — 2026-11-08
+
+In the installed app on a phone, pull down from the top of any page to reload it. A round reload icon slides down under the top bar as you pull, turns yellow once letting go will reload, and spins while the page reloads.
+
+### Highlights
+- [appearance] Pull down from the top to reload, in the installed app on phones
+- [appearance] A reload icon follows the pull and turns yellow when ready
+- [appearance] Phone browser tabs keep their own pull-to-refresh
+
+### Phone app
+- **Pull to reload.** The installed app (added to the home screen) has no reload button, so pulling down from the very top of a page now reloads it: the whole page, so the data, a new release and the offline copy all come fresh. It only starts at the top of the page, with one finger, on a downward drag; a sideways swipe, a scroll, a list with its own scrollbar, a drag handle (reordering picks), or an open dialog or sheet are left alone, and letting go early does nothing. A phone's browser tab keeps its own pull-to-refresh, and desktop gets none. Under reduced motion the icon doesn't turn or spin. (#1159)
+
+## 4.0.9 — 2026-11-08
+
+A team's record, wins and scores in the finals only are answered, and a match told by its margin is the team's biggest loss or win. "Whats 9848's record in finals matches only" shows the record in its finals matches, and "the score of that one match where 4215 lost by a lot" shows its biggest loss.
+
+### Highlights
+- [teams] "<team> record in the finals" counts its finals matches only
+- [teams] Finals follow each bracket: grand final and replay since 2024
+- [teams] "The match where <team> lost by a lot" shows its biggest loss
+
+### Search
+- **The finals, by bracket.** "In the finals", "finals record" and "finals matches only" filter a team's own match rows (record, win rate, scores, margins, streaks) to its events' finals: a classic bracket's final (series 0), and since 2024–25 a double-elimination bracket's grand final and its if-needed replay, read from the event's alliance count and posted series. A state's finals stay its state championship, "make the finals" stays its own question, and a number from season rows (OPR, rank) isn't filtered. Before, the finals were read only by the match finder, and a team's question about them went unanswered.
+- **A match by its margin.** "The match where <team> lost (won) by a lot / by the most / so badly" reads as that team's biggest loss (win), whose card names the match and its score. (#1103)
 
 ## 4.0.8 — 2026-11-07
 
