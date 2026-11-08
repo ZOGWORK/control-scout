@@ -6,6 +6,7 @@ import type { StatFamily } from "../../../src/shared/searchStat.js";
 import { SEASONS } from "../../data/seasons.js";
 import { searchSeason } from "./season.js";
 import { findRegions, nearRegion, type Region } from "../../../src/shared/regions.js";
+import { countryOf } from "../../../src/shared/countries.js";
 
 export type IntentId =
   // Family 3: one best (or worst) of a filtered set.
@@ -448,6 +449,8 @@ const TWO_TEAM: { id: TwoTeamId; re: RegExp; atOnly?: boolean }[] = [
   { id: "head-to-head", re: new RegExp(String.raw`^(.+?) (?:${VS}|and) (.+?) ${H2H}(?: record| matches| results| history)?$`) },
   { id: "head-to-head", re: new RegExp(String.raw`^${H2H}(?: record| matches| results| history)?(?: of| for| between)? (.+?) (?:${VS}|and) (.+)$`) },
   { id: "head-to-head", re: new RegExp(String.raw`^(.+?) ${H2H}(?: record)? (?:${VS}|with) (.+)$`) },
+  // "12345 vs 67890 record": their record against each other (each team's own season record is "12345 and 67890 record").
+  { id: "head-to-head", re: new RegExp(String.raw`^(.+?) ${VS} (.+?) (?:record|w-l-t)$`) },
   // "how many times have 12345 and 67890 played each other, total": their meetings (never a team called "each other").
   { id: "head-to-head", re: /^(?:how (?:many times|often) )?(?:has|have|did) (.+?) and (.+?) (?:ever )?(?:played|faced|met|play|face|meet)(?: against)? (?:each other|one another)(?: in total| total| before)?$/ },
   { id: "head-to-head", re: /^(.+?) and (.+?) (?:have )?(?:played|faced|met)(?: against)? (?:each other|one another)$/ },
@@ -603,11 +606,12 @@ export function readLeaderboard(raw: string): LeaderboardQuestion | null {
     if (region !== false) return { kind: "improved", stat: "opr", n: n(m[1], 10), region, city: null, season: scope.season };
   }
   // "best team in oradell": a city's best team by OPR, never a region's (above)
-  if ((m = new RegExp(`^(?:the )?(?:best|top|strongest)(?: (\\d{1,2}))? ${TEAMS} (?:in|from|based in) (.+)$`).exec(rest)) && !findRegions(m[2]).length && !nearRegion(m[2])) {
+  if ((m = new RegExp(`^(?:the )?(?:best|top|strongest)(?: (\\d{1,2}))? ${TEAMS} (?:in|from|based in) (.+)$`).exec(rest)) && !findRegions(m[2]).length && !nearRegion(m[2]) && !countryOf(m[2].trim())) {
     return { kind: "city-best", stat: "opr", n: n(m[1], 10), region: null, city: m[2].trim(), season: scope.season };
   }
-  // "teams in oradell": a city, never a region (the region's own answers are search's)
-  if ((m = new RegExp(`^(?:all )?${TEAMS} (?:in|from|based in) (.+)$`).exec(rest)) && !findRegions(m[1]).length && !nearRegion(m[1]) && scope.season == null) {
+  // "teams in oradell": a city, never a region or a country, even one a team lists as its city (the region's and the
+  // country's own answers are search's)
+  if ((m = new RegExp(`^(?:all )?${TEAMS} (?:in|from|based in) (.+)$`).exec(rest)) && !findRegions(m[1]).length && !nearRegion(m[1]) && !countryOf(m[1].trim()) && scope.season == null) {
     return { kind: "city", stat: "opr", n: 25, region: null, city: m[1].trim(), season: null };
   }
   // A place read as events' ("in nj events") is the teams from there; outside the team's own state has no board.
