@@ -2,15 +2,16 @@
 // detail (the same /api/events/:season/:code the event page reads, so the numbers are the page's).
 // Pure, so every rule below is unit tested (pitDisplay.test.ts).
 //
-//   Now panel   the match on the field (the next one, once its start time has passed and it has no
+//   Now panel   the match on the field (the next one, once its paced start has passed and it has no
 //               result yet), else the last result with its score and how the call went. Finished: the
 //               last match and the winning alliance (once the Winner award is posted).
 //   Up next     the next 3 unplayed matches after the one on the field, in schedule order.
-//   Countdown   to the next match's start, only while the schedule is on time: once any unplayed match
-//               is more than LATE_MS past its start the times are stale, and it says "Up next: Q25".
+//   Countdown   to the next match's start on the field's real pace (liveMode pace()): none until the
+//               day's first match has a result ("Up next: Q1"), then the posted schedule moved by how
+//               late or early the field runs, erring early.
 //   Rankings    the top 8 by event rank (W–L–T, event OPR); "Final rankings" once the event is over.
 import type { EventDetail, FieldRow, MatchView } from "../shared/api";
-import { nextMatch } from "./liveMode";
+import { nextMatch, pace } from "./liveMode";
 import { eventToday } from "../shared/eventDay";
 
 /** Is the event really over: its last day past (in its own time zone), or its Winner award posted? */
@@ -20,8 +21,6 @@ export function isOver(d: Pick<EventDetail, "event" | "awards">, now: number): b
   return (!!last && last < eventToday(now, d.event.timezone).from) || d.awards.some((a) => a.type === "Winner");
 }
 
-/** A match this far past its scheduled start without a result means the event runs behind. */
-export const LATE_MS = 5 * 60_000;
 export const UP_NEXT = 3;
 export const TOP = 8;
 
@@ -78,7 +77,7 @@ export interface DisplayModel {
   upNext: MatchView[];
   /** The tracked teams' next match, when it isn't the one on the field or already first in Up next. */
   mine: MatchView | null;
-  /** What the countdown counts to; `start` null when the time isn't known or the schedule runs behind (no timer then). */
+  /** What the countdown counts to; `start` (paced, liveMode pace()) null when the time isn't known or the day's first match has no result yet (no timer then). */
   countdown: { match: MatchView; start: number | null } | null;
   rankings: { rows: FieldRow[]; final: boolean };
   winners: Winners | null;
@@ -98,17 +97,21 @@ export function displayModel(d: EventDetail, now: number, highlight: ReadonlySet
   // not one still to come: nothing is up now or next, and no countdown.
   const left = finished ? [] : all;
   const first = left[0] ?? null;
-  const onField = first && Number.isFinite(at(first)) && at(first) <= now ? first : null;
+  // Times run on the field's real pace (liveMode pace()): none before the day's first result, then the posted
+  // schedule moved by how late or early the field runs. Untimed schedules: the posted time as before.
+  const p = pace(finished ? [] : d.matches, now);
+  const paced = p.est.size > 0 || p.opener != null;
+  const onField = paced ? p.onField : first && Number.isFinite(at(first)) && at(first) <= now ? first : null;
   const last = lastPlayed(d.matches);
   const nowPanel = onField ? { match: onField, kind: "on-field" as const } : last ? { match: last, kind: "result" as const } : null;
-  const queue = onField ? left.slice(1) : left;
+  // By key: the paced on-field match needn't be the first unplayed one (an untimed match can sit ahead of it).
+  const queue = onField ? left.filter((m) => m.key !== onField.key) : left;
   const upNext = queue.slice(0, UP_NEXT);
   const mineMatch = highlight.size ? nextMatch(left, highlight) : null;
   const mine = mineMatch && mineMatch.key !== onField?.key && mineMatch.key !== upNext[0]?.key ? mineMatch : null;
-  // Behind schedule: an unplayed match more than LATE_MS past its start. Then no timer at all.
-  const behind = left.some((m) => Number.isFinite(at(m)) && now - at(m) > LATE_MS);
   const target = queue[0] ?? null;
-  const countdown = target ? { match: target, start: !behind && Number.isFinite(at(target)) && at(target) > now ? at(target) : null } : null;
+  const start = target ? p.est.get(target.key) ?? NaN : NaN;
+  const countdown = target ? { match: target, start: Number.isFinite(start) && start > now ? start : null } : null;
   const ranked = d.field.filter((f) => f.rank != null).sort((a, b) => a.rank! - b.rank! || a.team - b.team).slice(0, TOP);
   return {
     progress: finished ? (d.matches.length ? "Event finished" : null) : progress(d.matches, onField),

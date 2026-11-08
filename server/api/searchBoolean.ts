@@ -266,7 +266,7 @@ export async function booleanAnswer(raw: string, read: Reader, full: boolean): P
     const hits = await hitsOf(all);
     if (hits.length !== all.length) return null;
     const who = new Map(hits.map((h) => [Number(h.ref), { number: Number(h.ref), name: teamNameOf(h.title) || null }]));
-    const scope: Scope = { season: rs.season, championship: rs.championship, states: rs.states, level: rs.level ?? undefined };
+    const scope: Scope = { season: rs.season, championship: rs.championship, states: rs.states, level: rs.level ?? undefined, ...(rs.finals ? { finals: true } : {}) };
     // "This season": the newest season any of the teams played.
     if (rs.latest && scope.season == null) {
       const seasons = (await Promise.all(wanted.map((t) => teamMatches(t)))).flat().map((m) => m.season);
@@ -281,7 +281,7 @@ export async function booleanAnswer(raw: string, read: Reader, full: boolean): P
   // the stat answers resolve for both teams (answers/index.ts meetingsAt). The limits already read go with it, so a
   // season, a side or "in playoffs" still applies.
   if (MATCH_WORDS.test(rest) && rs.at && wanted.length === 2 && !left.length && b.ops.every((o) => o === "and")) {
-    const limits = [rs.level === "playoff" ? "in playoffs" : rs.level === "qual" ? "in qualifications" : "", rs.alliance ? `on ${rs.alliance}` : "",
+    const limits = [rs.finals ? "in the finals" : rs.level === "playoff" ? "in playoffs" : rs.level === "qual" ? "in qualifications" : "", rs.alliance ? `on ${rs.alliance}` : "",
       rs.season != null ? `in ${seasonLabel(rs.season)}` : rs.ever ? "ever" : rs.latest ? "this season" : ""].filter(Boolean).join(" ");
     const a = await read(`${wanted[0]} and ${wanted[1]} matches at ${rs.at}${limits ? ` ${limits}` : ""}`);
     if (a.intent?.kind.startsWith("stat-") && (!full || a.stat)) return { ...a, q };

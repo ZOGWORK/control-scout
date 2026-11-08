@@ -143,6 +143,18 @@ describe("records", () => {
   it("against top-rated and rookie teams, never a compare with a team named so", async () => {
     const top = await stat("4215 performance against top teams");
     expect(top).toMatchObject({ intent: "vs-top", headline: { value: "2-2-0" } });
+    // A world rank said as a number is the cut (failed-search #820): the top 3 are 9999 and 6980 (4215 is #2 itself).
+    const three = await stat("how does 4215 do vs teams that are ranked in the top 3 in the world");
+    expect(three).toMatchObject({ intent: "vs-top", title: "Against top-3 teams in 2025–26", headline: { value: "4-2-1" } });
+    expect(three?.definition).toContain("ranked in the world's top 3");
+    // Every way of saying it reaches the answer, never a second team named "top 3" (Greptile on #1107): the top 3's
+    // 4-2-1, not the top tenth's 2-2-0.
+    for (const q of ["4215 record against the top 3 worldwide", "4215 record vs top 3 opponents", "4215 record versus the top 3"]) {
+      expect(await stat(q), q).toMatchObject({ intent: "vs-top", headline: { value: "4-2-1" } });
+      expect(readTwoTeam(q), q).toBeNull();
+    }
+    expect(readStatQuestion("4215 record vs top 25 opponents")).toMatchObject({ id: "vs-top", n: 25 });
+    expect(readStatQuestion("4215 record against top teams")).toMatchObject({ id: "vs-top", n: null });
     expect((await stat("4215 performance against rookie teams"))?.headline).toMatchObject({ value: "2-0-1" });
     expect((await stat("4215 easiest opponent this season"))?.headline).toMatchObject({ value: "23268 Rookie Robots" });
     // Ratings are never compared across seasons: "ever" is the latest season's, said so.

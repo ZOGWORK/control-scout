@@ -67,6 +67,21 @@ describe("what's read", () => {
     expect(readLeaderboard("which team played the most matches at New Jersey events")).toBeNull();
     expect(readLeaderboard("most awards at out of state events")).toBeNull();
   });
+  it("a count's board with the place before the team word, whatever the verb", () => {
+    expect(readLeaderboard("which texas teams have won the most awards")).toMatchObject({ stat: "awards", region: { key: "USA:TX" } });
+    expect(readLeaderboard("ohio teams with the most events")).toMatchObject({ stat: "events", region: { key: "USA:OH" } });
+    expect(readLeaderboard("the georgia team with most matches")).toMatchObject({ stat: "matches", region: { key: "USA:GA" } });
+    expect(readLeaderboard("which new jersey teams have played the most matches")).toMatchObject({ stat: "matches", region: { key: "USA:NJ" } });
+    expect(readLeaderboard("what michigan teams attended the most events")).toMatchObject({ stat: "events", region: { key: "USA:MI" } });
+    expect(readLeaderboard("which texas teams won the most matches")).toMatchObject({ stat: "wins", region: { key: "USA:TX" } });
+    // Only a place goes before the team word, and only one place is said.
+    expect(readLeaderboard("which rookie teams have the most awards")).toBeNull();
+    expect(readLeaderboard("texas teams with the most awards in ohio")).toBeNull();
+    // Greptile on #1161: "FTC teams" is the team word, with or without a place before or after it.
+    expect(readLeaderboard("which ftc teams have the most awards in ohio")).toMatchObject({ stat: "awards", region: { key: "USA:OH" } });
+    expect(readLeaderboard("which ftc teams have the most awards")).toMatchObject({ stat: "awards", region: null });
+    expect(readLeaderboard("which georgia ftc teams have played the most matches")).toMatchObject({ stat: "matches", region: { key: "USA:GA" } });
+  });
 });
 
 describe("the lists", () => {
@@ -76,7 +91,9 @@ describe("the lists", () => {
     // Never the highest-scoring matches.
     expect(m.intent?.kind).toBe("stat-leaderboard-top");
     // Greptile on #1040: with no verb, as typed ("matches", "events"), it's still the count's board.
-    for (const [q, title] of [["which team has the most matches in NJ", "Team in New Jersey with the most matches played · 2025–26"], ["most events in New Jersey", "Team in New Jersey with the most events played · 2025–26"]]) {
+    for (const [q, title] of [["which team has the most matches in NJ", "Team in New Jersey with the most matches played · 2025–26"], ["most events in New Jersey", "Team in New Jersey with the most events played · 2025–26"],
+      // The place before the team word: the count's board, never the prediction rating's.
+      ["which New Jersey teams have attended the most events", "Team in New Jersey with the most events played · 2025–26"], ["NJ team with most matches", "Team in New Jersey with the most matches played · 2025–26"]]) {
       expect((await searchAnswer(q, { limit: 25, full: true })).stat?.title, q).toBe(title);
     }
     for (const [code, team] of [["NJQ1", 6980], ["NJQ1", 4215], ["NJQ2", 6980]] as const) await run("INSERT INTO awards (season, code, type, placement, team) VALUES (2025, ?, 'Think', ?, ?)", [code, team === 4215 ? 2 : 1, team]);
@@ -111,6 +128,29 @@ describe("the lists", () => {
     expect(i.stat!.headline).toMatchObject({ value: "23268 Ultraviolet", sub: "OPR rank #6000 of 7600 → #30 of 8375" });
     // No Teams page list asks the same question (a climb from last season): no link.
     expect(i.stat!.more).toBeUndefined();
+  });
+  // Failed search #1012, in its own words: rookies from the bottom, a stat said before "rookies" or after the place.
+  it("the lowest rookies, the stat said anywhere", async () => {
+    expect(readLeaderboard("lowest opr rookies in new jersey")).toMatchObject({ kind: "rookie", stat: "opr", asc: true, region: { key: "USA:NJ" } });
+    expect(readLeaderboard("worst rookie teams in texas by auto opr")).toMatchObject({ kind: "rookie", stat: "auto", asc: true, region: { key: "USA:TX" } });
+    expect(readLeaderboard("top 5 rookies in nj")).toMatchObject({ kind: "rookie", stat: "opr", n: 5 });
+    expect(readLeaderboard("top 5 rookies in nj")).not.toHaveProperty("asc");
+    // Two stats said is no one board.
+    expect(readLeaderboard("lowest opr rookies in nj by auto")).toBeNull();
+    // A second ranked rookie with a lower OPR (Greptile on #1085): the lowest leads, each ranked from the top.
+    await run("INSERT INTO teams (number, name, city, state, country, rookie_year) VALUES (31999, 'Low Rookie', 'Trenton', 'NJ', 'USA', 2025)");
+    await run("INSERT INTO team_season_stats (season, team, opr_np, opr_auto, wins, losses, ties, matches, rank_np, ranked_teams, rating_np, rating_matches) VALUES (2025, 31999, 12.5, 2, 1, 9, 0, 10, 8000, 8375, 12.5, 10)");
+    try {
+      const r = await searchAnswer("lowest opr rookies in new jersey", { limit: 25 });
+      expect(r.stat).toMatchObject({ title: "Lowest rookie teams in New Jersey by OPR · 2025–26", headline: { value: "31999 Low Rookie", sub: "Lowest of 2 ranked in New Jersey" } });
+      const rb = r.stat!.blocks[0];
+      if (rb.kind !== "leaderboard") throw new Error(rb.kind);
+      expect(rb.rows.map((x) => [x.rank, x.team.label, x.display])).toEqual([[2, "31999 Low Rookie", "12.5"], [1, "31814 Quantum Core", "117.2"]]);
+      expect(rb.more!.href).toContain("dir=asc");
+    } finally {
+      await run("DELETE FROM team_season_stats WHERE team = 31999");
+      await run("DELETE FROM teams WHERE number = 31999");
+    }
   });
   it("a rookie rating list has no Rankings link (Rankings can't keep the rookie filter)", async () => {
     const r = await searchAnswer("best rookie team by rating in New Jersey", { limit: 25 });
