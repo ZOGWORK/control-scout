@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.0.9 — 2026-11-08
+
+A place said before the team word keeps a count's board: "which Texas teams have the most awards" ranks awards won, not the prediction rating.
+
+### Highlights
+- [rankings] "<Place> teams with the most awards" answers with awards
+- [rankings] Matches played and events attended said this way too
+- [rankings] "Have played", "have won" and "have attended" read as said
+
+### Search
+- **The most of a count, the place first.** "Which Texas teams have the most awards", "Ohio teams with the most events" and "the Georgia team with most matches" give that count's board, the same as "which team in Texas has the most awards", where before they gave the prediction rating's. "Have played" and "have attended" read as played and attended, and "won the most matches" stays the wins board. (#1161)
+
 ## 4.0.8 — 2026-11-07
 
 "The best in New Jersey" with no "teams" word, and short words for now, read as the region's top teams this season.
