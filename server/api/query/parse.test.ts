@@ -64,6 +64,21 @@ describe("slots", () => {
     const p = await parse("predicted chances of 4215 east bergen conference");
     expect(p).toMatchObject({ intent: "team-predict", complete: true, teams: [{ number: 4215 }], event: { words: "east bergen conference" }, time: null });
   });
+  it("reads a prediction's miss, a team's or everyone's, and a floor in points never as a team", async () => {
+    expect(await parse("6980 most unpredictable matches")).toMatchObject({ intent: "miss-matches", complete: true, teams: [{ number: 6980 }] });
+    expect(await parse("which match was the prediction most wrong in new jersey")).toMatchObject({ intent: "miss-matches", complete: true, teams: [] });
+    expect(await parse("hypnotic robotics most accurate predictions")).toMatchObject({ intent: "accurate-matches", complete: true, teams: [{ number: 4215 }] });
+    // 6980 is a team too: "more than 6980 points" is a number of points all the same, read before the team and season
+    // readers, so team 2024 stays a team and a floor of 2025 is never a season.
+    expect(await parse("4215 predictions off by more than 6980 points")).toMatchObject({ intent: "miss-matches", complete: true, over: { n: 6980, atLeast: false }, teams: [{ number: 4215 }] });
+    expect(await parse("2024 predictions off by more than 6980 points")).toMatchObject({ intent: "miss-matches", complete: true, time: null, teams: [{ number: 2024 }] });
+    expect(await parse("6980 predictions off by at least 2025 pts")).toMatchObject({ intent: "miss-matches", complete: true, time: null, over: { n: 2025, atLeast: true } });
+    // A match's number is no filter these apply.
+    expect((await parse("4215 prediction miss in match 2")).complete).toBe(false);
+    // A floor nothing else applies leaves the parse incomplete; "accurate" alone is a forecast's review.
+    expect((await parse("4215 matches over 200 points")).complete).toBe(false);
+    expect((await parse("how accurate was the prediction for 4215 at nj championship")).intent).toBe("team-predict");
+  });
   it("reads 'will <team> win <event>' as the forecast at that event; 'will' alone asks nothing", async () => {
     for (const q of ["will 6980 win the east bergen conference", "will hypnotic robotics win at nj championship", "will 23268 win states", "will 24033 win worlds"]) {
       expect(await parse(q), q).toMatchObject({ intent: "team-predict", complete: true });
@@ -86,6 +101,20 @@ describe("slots", () => {
     // Three or five teams are no two alliances of two; two teams stay the two-team call.
     expect((await parse("4215 6980 vs 24033")).intent).not.toBe("alliance-predict");
     expect((await parse("4215 vs 6980 matchup")).intent).toBe("two-predict");
+  });
+  it("reads 'will / would A beat B' as the call for a match between them, in any wording of the win", async () => {
+    for (const q of ["would 6980 beat 4215", "is 24033 going to defeat 23268", "will 4215 win against 6980?", "will 23268 lose against 24033"]) {
+      const p = await parse(q);
+      expect(p.intent, q).toBe("two-predict");
+      expect(p.complete, q).toBe(true);
+      expect(p.teams.length, q).toBe(2);
+    }
+    // One team: no match between two, so it's left alone here.
+    expect((await parse("would 4215 win")).intent).not.toBe("two-predict");
+    // "Defeats" asked as a count stays the team's losses.
+    const lost = await parse("how many defeats does 6980 have");
+    expect(lost.symbols).toContain("metric:loss");
+    expect(lost.symbols).not.toContain("metric:win");
   });
   it("reads a forecast held up against what happened as the forecast at the event (its card shows both)", async () => {
     for (const q of [

@@ -346,6 +346,10 @@ describe("events, awards and Worlds history (260-query list)", () => {
     expect(readStatQuestion("4215 event schedule this season")).toMatchObject({ id: "total-events", scope: { latest: true }, core: "4215" });
     // Search reads "matches" as "match": the championship held in 2025 is 2024–25's.
     expect(readStatQuestion("4215 match at worlds in 2025")).toMatchObject({ id: "results", scope: { championship: true, season: 2024 }, core: "4215" });
+    // "World championship" is one name, never "world" and an event called "championship" (failed-search #982/#1005,
+    // held out: another team and season).
+    for (const q of ["4215 world championship matches 2024-25", "4215 matches at the world championships in 2024-25"]) expect(readStatQuestion(q), q).toMatchObject({ id: "results", scope: { championship: true, season: 2024, at: null }, core: "4215" });
+    expect(readStatQuestion("4215 world champs record")).toMatchObject({ id: "record", scope: { championship: true }, core: "4215" });
     // "wins" and "match" alone, with nothing scoping them, are left as they were.
     expect(readStatQuestion("4215 wins")).toBeNull();
     expect(readStatQuestion("4215 match record")).toMatchObject({ id: "record" });
