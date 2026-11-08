@@ -287,12 +287,15 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       const placeAt = (a: number, b: number) => a >= 0 && b <= toks.length && toks.slice(a, b).every((t) => !t.used) && !!ctx.names.place(toks.slice(a, b).map((t) => t.w).join(" "), toks.slice(a, b).map((t) => t.typed).join(" "));
       const placed = (k: number, dir: 1 | -1) => [1, 2, 3].some((n) => (dir > 0 ? placeAt(k, k + n) : placeAt(k - n + 1, k + 1)));
       if (len === 1 && ((loose(toks[i - 1]) && !placed(i - 1, -1)) || (loose(toks[i + len]) && !placed(i + len, 1)))) continue;
-      const named = ctx.names.teamsNamed(span.map((t) => t.w).join(" "));
+      const said = span.map((t) => t.w).join(" ");
+      // A name's own part never takes a word of a longer place's name ("north" of "north carolina").
+      const inPlace = [1, 2, 3].some((n) => n > len && Array.from({ length: n - len + 1 }, (_, o) => i - o).some((a) => placeAt(a, a + n)));
+      const named = ctx.names.teamsNamed(said).length ? ctx.names.teamsNamed(said) : inPlace ? [] : ctx.names.teamsCalled(said);
       if (!named.length) continue;
       // What a question asks about ("alliances", "inspire", "stats") names a team only typed as its whole name: "nj
       // states alliances" is never team Alliance, "most inspire awards" never team Inspires (onlyTopicWords).
-      const said = span.map((t) => t.typed).join(" ");
-      if (onlyTopicWords(said) && !named.some((n) => wholeName(n.name) === wholeName(said))) continue;
+      const typed = span.map((t) => t.typed).join(" ");
+      if (onlyTopicWords(typed) && !named.some((n) => wholeName(n.name) === wholeName(typed))) continue;
       // A number typed beside its own name ("12345 hypnotic robotics") is one team.
       if (!named.some((n) => p.teams.some((t) => t.number === n.number))) {
         p.teams.push({ number: named[0].number, name: named[0].name, typed: span.map((t) => t.typed).join(" "), via: "name", at: i, ...(named.length > 1 ? { candidates: named.map((n) => n.number) } : {}) });
