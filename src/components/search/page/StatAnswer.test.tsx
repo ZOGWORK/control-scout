@@ -38,6 +38,17 @@ describe("StatAnswerCard, a team's OPR", () => {
     expect(tiles.map((t) => t.getAttribute("data-phase"))).toEqual(["auto", "teleop", "endgame"]);
     expect(tiles.map((t) => t.firstElementChild!.className.match(/border-l-([a-z]+)-\d+/)?.[1])).toEqual(["blue", "emerald", "violet"]);
   });
+  it("a word's explainer that came with it is drawn inside the card: one answer card, the stat first", () => {
+    const explain = { kind: "info" as const, title: "OPR: what it is and how it's worked out", lines: [{ text: "OPR estimates each robot's average contribution to its alliance's score", href: "/methodology#opr" }] };
+    const c = render(<MemoryRouter><StatAnswerCard stat={opr} explain={explain} /></MemoryRouter>).container;
+    expect(c.querySelectorAll("[data-answer-frame]")).toHaveLength(1);
+    const ex = c.querySelector("[data-answer-frame] [data-explainer]")!;
+    expect(ex.querySelector("h3")!.textContent).toBe(explain.title);
+    expect(ex.querySelector("[data-line-text]")!.textContent).toBe(explain.lines[0].text);
+    expect(ex.querySelector("a")!.getAttribute("href")).toBe("/methodology#opr");
+    // After the stat's own numbers.
+    expect(c.querySelector("[data-headline]")!.compareDocumentPosition(ex) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
   it("puts no band behind the number, and keeps its rank, season and chip", () => {
     const c = draw(opr);
     const h = c.querySelector("[data-headline]")!;
