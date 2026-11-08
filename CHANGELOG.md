@@ -30,6 +30,17 @@ Basic team searches answer what was asked: "<team> rank" gives its world rank, a
 - **Rank at an event, asked.** "<team> latest event ranking", "last event rank", "first event standing" lead with the team's qualification rank there instead of its OPR. A league meet has no rank of its own (its rank is the league's running standing), so the answer is the latest ranked event, and it says which meet it skipped and why. (#1175)
 - **League standing out of the league.** "<team> league rank" counts every team ranked in that league's meets this season, not only the teams at its latest meet, so a standing is never larger than its count.
 - **A shared name with its number.** When several teams share a name, typing one of their numbers beside it ("<name> <number> highlights") is that one team, in either order, instead of two teams and no answer.
+## 4.2.4 — 2026-11-08
+
+Matches asked for in order ("highest scoring first"), "what happened last weekend" and finished events each get their answer.
+
+### Highlights
+- [fixes] "Matches from yesterday, highest scoring first" lists the top scores
+- [fixes] "What happened last weekend" shows that weekend's highlights
+- [fixes] "Finished events" lists events that are over
+
+### Search
+- **Order, said in words.** "Highest scoring first", "top first", "lowest first" read as the sort they ask for, never as a team's first match; "what happened" with a time or a place and no team reads as that scope's highlights; matches in a time window with no measure said ("matches from yesterday") list that window's best first; finished, completed and ended events are past events. (#1073)
 
 ## 4.2.3 — 2026-11-08
 
