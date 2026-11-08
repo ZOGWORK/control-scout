@@ -701,3 +701,14 @@ describe("a stat said not to go by (Greptile on #865)", () => {
     expect(by.scope).toContain("Not by OPR");
   });
 });
+
+describe("an event's matches with a score to reach", () => {
+  it("answers with no measure said: the event's matches where both sides got there, best first", async () => {
+    // Romania: 300–140 and 120–330; only the first has both sides over 130.
+    const s = await stat("games at the Romania Championship where both sides scored over 130");
+    expect(s.intent).toBe("find-high");
+    expect(s.title).toMatch(/at Romania Championship where both alliances scored over 130/);
+    expect(s.blocks.flatMap((b) => ("rows" in b ? b.rows : []))).toHaveLength(1);
+    expect(s.source).toMatch(/^From 1 played match /);
+  });
+});

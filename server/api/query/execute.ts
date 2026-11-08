@@ -344,9 +344,10 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   if (intent === "highlights") return highlights(p, scope, opts);
   // Matches by a measure, or the best ones with a filter the season records don't take (a match type, a kind of
   // event): the match finder.
-  // Matches with no measure said are a window's only ("matches from yesterday"), listed best first; "matches" alone,
-  // a place's or a match type's ("playoff matches in NJ") are left to search.
-  if (intent === "top-matches" && !p.teams.length && !p.symbols.includes("agg:max") && !scope.window) return null;
+  // Matches with no measure said are a window's only ("matches from yesterday"), or those with a score to reach
+  // ("matches at <event> where both alliances scored over 250"), listed best first; "matches" alone, a place's or a
+  // match type's ("playoff matches in NJ") are left to search.
+  if (intent === "top-matches" && !p.teams.length && !p.symbols.includes("agg:max") && !scope.window && !p.scoreCond) return null;
   const kind = p.event ? eventKindOf(normalise(p.event.words)) : p.eventKind ? eventKindOf(p.eventKind) : null;
   const teamFind = p.teams.length === 1 && TEAM_FIND.has(FIND[intent]!);
   if ((!p.teams.length || teamFind) && (FIND[intent] || (intent === "top-matches" && (p.level || p.finals || kind || p.scoreCond)))) {
