@@ -36,6 +36,7 @@ import { MATCH_STAT_IDS, matchStatAnswer } from "./families/matchStats.js";
 import { BOARD_STATS, LEADERBOARD_MAX, boardStatFor, leaderboardAnswer, statWords, windowBoardAnswer } from "./families/leaderboard.js";
 import { readTime } from "../query/time.js";
 import { biggestEventsAnswer, readBiggestEvents } from "./families/biggestEvents.js";
+import { readTopCities, storedCountry, topCitiesAnswer } from "./families/topCities.js";
 import { everTopMatches, readTopMatches, topMatchesAnswer, type TopMatchesQuestion } from "./families/topMatches.js";
 import { penaltyTotalAnswer, trendAnswer } from "./families/trends.js";
 import { nextEventPrediction, pairPrediction, predictTitle, predictionSeason } from "./families/predict.js";
@@ -359,6 +360,18 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
     return { q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label, ...(big.e.region ? { place: { key: big.e.region.key, name: big.e.region.name } } : {}) },
       intent: { kind: "stat-biggest-events", pattern: `events with the most teams${big.e.region ? " [place]" : ""}`, met: true, understood: [label] }, ...(stat ? { stat } : {}) };
   }
+  // "Which city in Romania has the most FTC teams": a place's home cities by how many teams list them.
+  const cities = readTopCities(q);
+  // A country no team lists is left to search.
+  const cityStat = cities && (opts.full || cities.country) ? await topCitiesAnswer(cities) : null;
+  if (cities && (cityStat || !cities.country)) {
+    const stat = opts.full ? cityStat : null;
+    // The place as answered (a country's own name), even in the search box, which gets no card.
+    const where = cityStat?.scope?.[0] ?? cities.region?.name;
+    const label = `Cities with the most teams${where && where !== "Worldwide" ? ` in ${where}` : " worldwide"}`;
+    return { q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label, ...(cities.region ? { place: { key: cities.region.key, name: cities.region.name } } : {}) },
+      intent: { kind: "stat-top-cities", pattern: `cities with the most teams${cities.region || cities.country ? " [place]" : ""}`, met: true, understood: [label] }, ...(stat ? { stat } : {}) };
+  }
   // "Top teams this week", "best teams in NJ last weekend": the teams that played then, by their OPR at those events.
   const win = TOP_TEAMS_SAID.test(q) ? readTime(q.toLowerCase(), searchToday()) : null;
   if (win?.time?.kind === "window" && win.time.from && win.time.to) {
@@ -406,7 +419,13 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
     const f = readTeamFact(q);
     return f ? factSearch(q, f, resolve, opts) : null;
   }
-  if (it.noTeam) return winnersSearch(q, it, opts);
+  if (it.noTeam) {
+    const won = await winnersSearch(q, it, opts);
+    // A winner word alone after a team's whole name, not an event's ("bad wolf champion", "hypnotic robotics winner"):
+    // the events that team has won.
+    if (won || !it.bare || !it.core || !(await names()).teamsNamed(it.core).length) return won;
+    return statAnswerOf(q, { ...it, id: "event-wins", family: "awards", noTeam: false, bare: false }, resolve, opts);
+  }
   return statAnswerOf(q, it, resolve, opts);
 }
 
@@ -1078,13 +1097,29 @@ function boardOfAsk(q: string): LeaderboardQuestion | null {
 
 /** "Top 10 teams by OPR in NJ", "best rookie team in New Jersey", "teams in Oradell": a ranked list (or a city's
  *  teams), worked out for the page only. A city no team lists is left to search. */
-export async function boardSearch(q: string, b: LeaderboardQuestion, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+export async function boardSearch(q: string, said: LeaderboardQuestion, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+  let b = said;
   const isCity = b.kind === "city" || b.kind === "city-best";
-  const city = isCity ? await get<{ city: string }>(b.school ? "SELECT school city FROM teams WHERE lower(school) = lower(?) LIMIT 1" : "SELECT city FROM teams WHERE lower(city) = lower(?) LIMIT 1", [b.city]) : null;
+  let city = isCity ? await get<{ city: string }>(b.school ? "SELECT school city FROM teams WHERE lower(school) = lower(?) LIMIT 1" : "SELECT city FROM teams WHERE lower(city) = lower(?) LIMIT 1", [b.city]) : null;
+  // "Teams in Springfield IL", "teams in River Edge, New Jersey": a town said with its state or country, the town's
+  // teams from there only (several places share a town's name).
+  if (b.kind === "city" && !b.school && !city) {
+    const ws = b.city!.split(" ");
+    for (let k = 1; k <= 3 && k < ws.length && !city; k++) {
+      // The town is checked against the directory, so a code that's also a word ("Atlanta ga") is the state here.
+      const after = ws.slice(-k).join(" ");
+      const exact = findRegions(after).filter((r) => r.name.toLowerCase() === after || ((r.country === "USA" || r.country === "Canada") && r.state.toLowerCase() === after));
+      const within = exact.length === 1 ? exact[0] : countryOf(after) ? await storedCountry(after) : null;
+      if (!within) continue;
+      const town = ws.slice(0, -k).join(" ");
+      const row = await get<{ city: string }>(`SELECT city FROM teams WHERE lower(city) = lower(?) AND country = ?${within.state ? " AND state = ?" : ""} LIMIT 1`, [town, within.country, ...(within.state ? [within.state] : [])]);
+      if (row) { city = row; b = { ...b, city: town, cityIn: within }; }
+    }
+  }
   if (isCity && !city) return null;
   const st = boardStatFor(b.stat, b.season ?? searchSeason());
   if (!st) return null;
-  const where = b.town ? ` in ${b.town}` : b.region ? ` in ${b.region.name}` : city ? ` ${b.school ? "at" : "in"} ${city.city}` : "";
+  const where = b.town ? ` in ${b.town}` : b.region ? ` in ${b.region.name}` : city ? ` ${b.school ? "at" : "in"} ${city.city}${b.cityIn ? `, ${b.cityIn.state || b.cityIn.name}` : ""}` : "";
   const label = b.event ? `${b.event.home ? `${b.event.home.name} teams` : "Best teams"} at ${b.event.name}` : b.kind === "city" ? `Teams${where}` : b.kind === "city-best" ? `Best team${where} by OPR` : b.undefeated ? `Undefeated teams${where}` : b.kind === "rookie" && b.asc ? `Lowest rookie teams${where} by ${statWords(st)}` : b.asc ? `Lowest ${b.n > 1 ? `${b.n} teams` : "team"} by ${statWords(st)}${where}` : b.best ? `Best team${where} by ${statWords(st)}` : b.kind === "rookie" ? `Best rookie teams${where}` : b.kind === "improved" ? `Most improved teams${where}` : `Top ${b.n} teams by ${statWords(st)}${where}`;
   const answer: SearchAnswer = {
     q, hits: [], pages: opts.pages, step: "deterministic", weak: false,

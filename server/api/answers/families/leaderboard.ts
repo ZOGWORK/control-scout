@@ -74,6 +74,8 @@ export type BoardKind = "top" | "rookie" | "improved" | "city" | "city-best";
 export interface BoardQuestion { kind: BoardKind; stat: BoardStat; n: number; region: Region | null; city: string | null; season: number | null; seasonWhy?: string; best?: boolean;
   /** `city` is a school's name: its teams. */
   school?: boolean;
+  /** The state or country said with the town: its teams from there only. */
+  cityIn?: Region;
   /** The bottom of the list, lowest first ("sorted lowest to highest", "worst teleop OPR in Romania"). */
   asc?: boolean;
   /** Teams with no losses that season only ("undefeated teams", "a perfect record"). */
@@ -82,7 +84,7 @@ export interface BoardQuestion { kind: BoardKind; stat: BoardStat; n: number; re
   town?: string | null;
   /** One event's teams, its divisions' too ("east bergen conference best teams", "top teams at nj states"). */
   /** `home`: the teams from that place only ("nj teams at worlds"). */
-  event?: { season: number; code: string; codes: string[]; name: string; home?: Region | null } }
+  event?: { season: number; code: string; codes: string[]; name: string; home?: Region | null; rookies?: boolean } }
 
 /** A stat's name inside a sentence ("by win rate", "by OPR"). */
 export const statWords = (st: BoardStat) => (/OPR/.test(st.label) ? st.label : st.label.toLowerCase());
@@ -106,7 +108,7 @@ const RANKED = `A team is ranked once it has played ${RANKED_MIN_MATCHES} matche
 const record = (r: { wins: number; losses: number; ties: number }) => `${r.wins}-${r.losses}-${r.ties}`;
 
 export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
-  if (b.kind === "city") return cityAnswer(b.city!, !!b.school);
+  if (b.kind === "city") return cityAnswer(b.city!, !!b.school, b.cityIn ?? null);
   if (b.event) return eventBoardAnswer(b, b.event);
   const season = b.season ?? searchSeason();
   const why = b.season == null ? ` ${searchSeasonWhy(season)}` : b.seasonWhy ? ` ${b.seasonWhy}` : "";
@@ -168,9 +170,9 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
 async function eventBoardAnswer(b: BoardQuestion, ev: NonNullable<BoardQuestion["event"]>): Promise<StatAnswer> {
   const home = ev.home ?? null;
   const inList = ev.codes.map(() => "?").join(", ");
-  const everyone = await all<{ team: number; name: string | null; city: string | null; state: string | null; country: string | null; eo: number | null;
+  const everyone = await all<{ team: number; name: string | null; city: string | null; state: string | null; country: string | null; rookie_year: number | null; eo: number | null;
     so: number | null; sw: number | null; sl: number | null; st: number | null; po: number | null }>(
-    `SELECT et.team, t.name, t.city, t.state, t.country, MAX(x.opr_np) eo,
+    `SELECT et.team, t.name, t.city, t.state, t.country, t.rookie_year, MAX(x.opr_np) eo,
             MAX(s.opr_np) so, MAX(s.wins) sw, MAX(s.losses) sl, MAX(s.ties) st, MAX(p.opr_np) po
      FROM events e JOIN event_teams et ON et.season = e.season AND et.code = e.code JOIN teams t ON t.number = et.team
      LEFT JOIN team_event_stats x ON x.season = et.season AND x.code = et.code AND x.team = et.team
@@ -180,7 +182,8 @@ async function eventBoardAnswer(b: BoardQuestion, ev: NonNullable<BoardQuestion[
      GROUP BY et.team`, [ev.season, ...ev.codes, ...ev.codes]);
   // A place said keeps the teams from there; how they're ranked is the whole event's (played or not), so a played event
   // whose teams from there have no OPR there never reads as unplayed.
-  const rows = home ? everyone.filter((r) => r.country === home.country && (!home.state || r.state === home.state)) : everyone;
+  // Rookies asked: the teams in their first season, the event's own (a team's rookie year is the season it started).
+  const rows = everyone.filter((r) => (!home || (r.country === home.country && (!home.state || r.state === home.state))) && (!ev.rookies || Number(r.rookie_year) === ev.season));
   // Records there by the official rule (playoffs and qualification no-shows counted), summed over its divisions.
   const there = new Map<number, { wins: number; losses: number; ties: number }>();
   for (const r of await all<{ team: number; wins: number; losses: number; ties: number }>(
@@ -195,13 +198,14 @@ async function eventBoardAnswer(b: BoardQuestion, ev: NonNullable<BoardQuestion[
   const ranked = rows.filter((r) => v(r) != null).sort((x, y) => Number(v(y)) - Number(v(x)) || Number(x.team) - Number(y.team));
   const shown = ranked.slice(0, b.n);
   const rec = (r: (typeof rows)[number]) => (mode === "event" ? there.get(Number(r.team)) ?? { wins: 0, losses: 0, ties: 0 } : { wins: Number(r.sw ?? 0), losses: Number(r.sl ?? 0), ties: Number(r.st ?? 0) });
-  const title = `${home ? `${home.name} teams` : "Best teams"} at ${ev.name} by ${by}`;
+  const who = ev.rookies ? `${home ? `${home.name} rookie` : "Rookie"} teams` : home ? `${home.name} teams` : "Best teams";
+  const title = `${who} at ${ev.name} by ${by}`;
   const base = {
-    family: "leaderboard" as const, intent: "event-best", title: `${title} · ${S}`, scope: [ev.name, ...(home ? [`From ${home.name}`] : []), S, `By ${by}`],
-    definition: `The ${rows.length} team${rows.length === 1 ? "" : "s"}${home ? ` from ${home.name}` : ""} on the event's list (its divisions' too). ${mode === "event" ? "Ranked by each team's OPR at the event (its best division's), without penalties, as the event page shows it; the record is its matches there, playoffs included." : mode === "season" ? `The event's matches aren't played yet: ranked by the ${S} OPR each team brings, as its team page shows it; the record is its ${S} season's.` : `Neither the event's matches nor any ${S} OPR are on record yet: ranked by each team's ${P} OPR.`} A team with no such OPR isn't ranked.`,
+    family: "leaderboard" as const, intent: "event-best", title: `${title} · ${S}`, scope: [ev.name, ...(home ? [`From ${home.name}`] : []), ...(ev.rookies ? ["Rookies"] : []), S, `By ${by}`],
+    definition: `The ${rows.length}${ev.rookies ? " rookie" : ""} team${rows.length === 1 ? "" : "s"}${home ? ` from ${home.name}` : ""}${ev.rookies ? ` (in their first season, ${S})` : ""} on the event's list (its divisions' too). ${mode === "event" ? "Ranked by each team's OPR at the event (its best division's), without penalties, as the event page shows it; the record is its matches there, playoffs included." : mode === "season" ? `The event's matches aren't played yet: ranked by the ${S} OPR each team brings, as its team page shows it; the record is its ${S} season's.` : `Neither the event's matches nor any ${S} OPR are on record yet: ranked by each team's ${P} OPR.`} A team with no such OPR isn't ranked.`,
     source: `${ranked.length} of ${rows.length} teams at ${ev.name} with ${mode === "event" ? "an OPR there" : `a ${mode === "season" ? S : P} OPR`}`,
   };
-  if (!shown.length) return { ...base, blocks: [], none: rows.length ? `None of the ${rows.length} teams at ${ev.name} has ${mode === "before" ? `a ${P}` : "an"} OPR on record yet.` : `No teams${home ? ` from ${home.name}` : ""} are listed for ${ev.name} in ${S}${home ? "" : " yet"}.` };
+  if (!shown.length) return { ...base, blocks: [], none: rows.length ? `None of the ${rows.length} teams at ${ev.name} has ${mode === "before" ? `a ${P}` : "an"} OPR on record yet.` : `No${ev.rookies ? " rookie" : ""} teams${home ? ` from ${home.name}` : ""} are listed for ${ev.name} in ${S}${home || ev.rookies ? "" : " yet"}.` };
   const top = shown[0];
   const fmt1 = (x: number | null) => (x == null ? "–" : (Math.round(x * 10) / 10).toFixed(1));
   return {
@@ -345,15 +349,17 @@ async function cityBestAnswer(b: BoardQuestion, season: number, why: string): Pr
 }
 
 /** A town's teams, or a school's (`school`: the name is the school FIRST lists for each team). */
-async function cityAnswer(city: string, school = false): Promise<StatAnswer> {
-  const rows = await all<{ number: number; name: string | null; city: string; school: string | null; state: string | null; rookie_year: number | null; last: number | null; opr: number | null }>(
-    `SELECT t.number, t.name, t.city, t.school, t.state, t.rookie_year,
+async function cityAnswer(city: string, school = false, within: Region | null = null): Promise<StatAnswer> {
+  const inSql = within ? ` AND t.country = ?${within.state ? " AND t.state = ?" : ""}` : "";
+  const rows = await all<{ number: number; name: string | null; city: string; school: string | null; state: string | null; country: string | null; rookie_year: number | null; last: number | null; opr: number | null }>(
+    `SELECT t.number, t.name, t.city, t.school, t.state, t.country, t.rookie_year,
             (SELECT MAX(season) FROM team_season_stats x WHERE x.team = t.number AND x.matches > 0) last,
             (SELECT opr_np FROM team_season_stats x WHERE x.team = t.number AND x.matches > 0 ORDER BY season DESC LIMIT 1) opr
-     FROM teams t WHERE lower(t.${school ? "school" : "city"}) = lower(?) AND ${teamPageSql("t.number", "t.name")}
-     ORDER BY last IS NULL, last DESC, t.number LIMIT 1000`, [city]);
+     FROM teams t WHERE lower(t.${school ? "school" : "city"}) = lower(?)${inSql} AND ${teamPageSql("t.number", "t.name")}
+     ORDER BY last IS NULL, last DESC, t.number LIMIT 1000`, [city, ...(within ? [within.country, ...(within.state ? [within.state] : [])] : [])]);
   const name = (school ? rows[0]?.school : rows[0]?.city) ?? city;
-  const states = [...new Set(rows.map((r) => r.state).filter(Boolean))];
+  // Where each is: its state in North America, its country elsewhere (a county code like "B" says nothing).
+  const states = [...new Set(rows.map((r) => (r.country === "USA" || r.country === "Canada" || !r.country ? r.state : r.country)).filter(Boolean))];
   const title = school ? `Teams at ${name}${rows[0] ? `, ${rows[0].city}` : ""}` : `Teams in ${name}${states.length === 1 ? `, ${states[0]}` : ""}`;
   const base = { family: "leaderboard" as const, intent: school ? "school-teams" : "city-teams", title, scope: [name],
     definition: `Teams whose ${school ? "school" : "home city"} is this name, as FIRST lists it; newest season played first, with that season's OPR. A team that hasn't played yet is listed last.`, source: `From the team directory: ${rows.length} team${rows.length === 1 ? "" : "s"}` };
@@ -361,7 +367,7 @@ async function cityAnswer(city: string, school = false): Promise<StatAnswer> {
   const active = rows.filter((r) => r.last != null);
   return {
     ...base,
-    headline: { value: `${rows.length} team${rows.length === 1 ? "" : "s"}`, label: `${school ? "at" : "in"} ${name}${states.length > 1 ? ` (${states.join(", ")})` : ""}`, sub: active.length ? `${active.filter((r) => r.last === active[0].last).length} played in ${seasonLabel(active[0].last!)}` : undefined },
+    headline: { value: `${rows.length} team${rows.length === 1 ? "" : "s"}`, label: `${school ? "at" : "in"} ${name}${states.length > 1 ? ` (${states.join(", ")})` : within && states.length === 1 ? `, ${states[0]}` : ""}`, sub: active.length ? `${active.filter((r) => r.last === active[0].last).length} played in ${seasonLabel(active[0].last!)}` : undefined },
     blocks: [{
       kind: "table", title: "Teams, newest season first",
       columns: [{ key: "team", label: "Team" }, { key: "rookie", label: "Rookie year", num: true }, { key: "last", label: "Last season" }, { key: "opr", label: "OPR then", num: true }],

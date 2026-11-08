@@ -199,6 +199,8 @@ describe("scores", () => {
     expect(readStatQuestion("4215 scores of at least 210")).toMatchObject({ id: "scores-over", n: 210, variant: "at-least" });
     expect(await stat("4215 scores of at least 210")).toMatchObject({ title: "Scores of at least 210 in 2025–26", headline: { value: "2 matches" } });
     expect((await stat("4215 scores over 210"))?.headline?.value).toBe("1 match");
+    // Matches said with "with", or handed over singular by search, are the same ask.
+    for (const q of ["4215 matches with more than 200 points", "4215 match over 200 points"]) expect((await stat(q))?.headline?.value, q).toBe("2 matches");
   });
 
   it("the best match by phase, its phases in the team page's colours, and the most penalties", async () => {

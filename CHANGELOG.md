@@ -15,6 +15,23 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.3.2 — 2026-11-08
+
+Search ranks a place's cities by their teams, lists the events over a size, and reads a town said with its state or country.
+
+### Highlights
+- [rankings] "Which city in Romania has the most teams" ranks its cities
+- [fixes] "Events in Texas with more than 40 teams" lists them
+- [fixes] "Teams in Springfield IL" is that Springfield, not every one
+- [fixes] "4215 RP" shows last season while this one has none yet
+
+### Search
+- **Cities by teams.** "Which city in Romania has the most FTC teams", "cities with the most teams in Texas" and "top 5 cities in Ontario by teams" rank a state's, a country's or the world's home cities by how many of their teams played in the newest season there, with every team the directory lists beside; each city opens its own team list.
+- **Events over a size.** "Events in Texas this season with more than 40 teams" (or "over", "at least", "40+") counts the events with that many teams on their lists and lists the biggest of them.
+- **A town and its state.** "Teams in Springfield IL", "teams in Springfield Missouri" and "teams in Bucharest Romania" list that town's teams only; a town abroad is named with its country.
+- **Asked another way.** "Where is this team 4215" shows where the team is from, "hypnotic robotics winner" and "4215 titles" list the events it won, and "how many NJ teams went to worlds in 2024" lists them with their count. A number of teams ("more than 40 teams") is never read as a team's number. "Rookie teams at the NJ championship" ranks the event's teams in their first season, and "which teams should I scout at NJ states" lists the ones worth watching. "Rookie year of calamari" (a fact before the team, its name without "Team") and "which team in New Jersey has the most awards, ever" answer, "4215 matches with more than 200 points" counts them, and "lose by 1 point" no longer reads team 1.
+- **The latest season with a value.** A team's ranking points (or another per-event number) with no season said reads the latest season that has one, and says so, while this season's rankings aren't posted yet. (#1181)
+
 ## 4.3.1 — 2026-11-08
 
 Each team's colour key on a side-by-side card is a full-size tap target on a phone, even for a short team number.

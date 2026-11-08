@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../../../db";
 import type { StatBlock } from "../../../../src/shared/searchStat";
 import { biggestEventsAnswer, readBiggestEvents } from "./biggestEvents";
+import { cleanQuery } from "../../searchAnswer";
 
 beforeAll(async () => {
   const c = openDb(":memory:");
@@ -59,5 +60,21 @@ describe("events with the most teams", () => {
     expect(ever.headline).toMatchObject({ value: "Old Giant Qualifier", label: "40 teams" });
     const none = await biggestEventsAnswer(readBiggestEvents("biggest event in california")!, 2026);
     expect(none.none).toBe("No event in California in 2026–27 has a team list yet.");
+  });
+  it("events over a size: every one counted, the biggest first (failed-search #951)", async () => {
+    for (const [q, teams] of [["events in Texas this season with more than 40 teams", 41], ["events in texas with over 40 teams", 41], ["qualifiers in TX with at least 40 teams", 40], ["events in texas with 40+ teams", 40], ["events in texas with 40 or more team", 40]] as const)
+      expect(readBiggestEvents(q), q).toMatchObject({ min: { teams }, e: { region: { key: "USA:TX" } } });
+    // A size with no kind of event said is not this ask; nor is a name left over.
+    expect(readBiggestEvents("texas with more than 40 teams")).toBeNull();
+    expect(readBiggestEvents("events at east bergen with more than 40 teams")).toBeNull();
+    const ca = await biggestEventsAnswer(readBiggestEvents("events in california with more than 15 teams 2025-26")!, 2025);
+    expect(ca.title).toBe("Events with more than 15 teams in California, 2025–26");
+    expect(ca.headline).toMatchObject({ value: "2 events", label: "with more than 15 teams in California", sub: "Biggest: California Championship, 30 teams" });
+    const table = ca.blocks[0] as Extract<StatBlock, { kind: "table" }>;
+    expect(table.rows.map((r) => r.cells.event)).toEqual(["California Championship", "Big Qualifier"]);
+    // Through search, where "+" is cleaned from a query: "40+ teams" is kept as a size (Greptile on #1181).
+    expect(cleanQuery("events in california with 15+ teams")).toBe("events in california with 15 or more teams");
+    const none = await biggestEventsAnswer(readBiggestEvents("events in california with more than 100 teams 2025-26")!, 2025);
+    expect(none.none).toBe("No event in California in 2025–26 lists more than 100 teams.");
   });
 });

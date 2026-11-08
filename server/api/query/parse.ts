@@ -70,6 +70,8 @@ export interface Parsed {
   unexplained: string[];
   /** No losses asked ("undefeated teams"). */
   undefeated?: boolean;
+  /** Rookie teams asked ("rookie teams", "first-year teams"): teams in their first season. */
+  rookie?: boolean;
   /** Reaching Worlds or states said beside a forecast ("chance of making worlds"): the chance to advance there. */
   reach?: true;
   /** A name asked about as words ("teams named <name>"): the words, never read as a team. */
@@ -130,6 +132,8 @@ const KIND_WORDS = new Set(["meet", "meets", "tournament", "tournaments", "event
 /** The words before a number that make it a count ("top 5", "last 10") or a match's number ("match 3"). */
 const COUNT_BEFORE = /^(?:top|last|first|best|latest|past|recent|bottom|worst|highest|lowest)$/;
 const MATCH_BEFORE = /^(?:match|qual|q|game|qualification)$/;
+/** The words before a number of teams that make it a size ("more than 40 teams", "over 40", "at least 40"). */
+const SIZE_BEFORE = /^(?:than|over|least|most|under|above|below|exceeding)$/;
 /** A floor in points ("more than 50 points", "at least 30 pts"): read before the team and time readers, so its number is
  *  never a team or a season. */
 const FLOOR = /(?:^| )(more than|greater than|over|above|exceeding|beyond|at least) (\d{1,5}) (?:points?|pts)(?= |$)/;
@@ -249,6 +253,16 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     span.forEach((t) => (t.used = true));
   }
 
+  // 0b. Rookie teams ("rookie teams", "first-year teams", "first year teams"): the group, read before any name ("rookie
+  // year" is the team's own fact, never this). Only right before the teams word.
+  for (let i = 0; i < toks.length; i++) {
+    const two = toks[i].w === "first" && /^year$/.test(toks[i + 1]?.w ?? "");
+    const w = two ? 2 : /^(?:rookies?|first-year)$/.test(toks[i].w) ? 1 : 0;
+    if (!w || toks.slice(i, i + w).some((t) => t.used) || !/^teams?$/.test(toks[i + w]?.w ?? "")) continue;
+    p.rookie = true;
+    toks.slice(i, i + w).forEach((t) => (t.used = true));
+  }
+
   // 1. Teams by their whole name, longest first: a name made only of search's own words ("The Best") isn't claimed,
   // so "best team" stays a question.
   for (let len = Math.min(ctx.names.longest, 12); len >= 1; len--) {
@@ -287,6 +301,12 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     if (prev && MATCH_BEFORE.test(prev) && n <= 400) { p.matchNumber = n; t.used = true; toks[i - 1].used = true; symbols.add("thing:match"); if (prev !== "match" && prev !== "game") p.level = "qual"; continue; }
     // "Top 5 teams", and "top 3" ending the query.
     if (prev && COUNT_BEFORE.test(prev) && n <= 50 && (next ? !ctx.names.team(Number(next)) : !p.teams.length)) { p.n = n; t.used = true; continue; }
+    // A size in teams ("more than 40 teams", "at least 40 teams", "40 or more teams"): a count, never team 40.
+    const sized = /^teams?$/.test(next ?? "") || (next === "or" && /^(?:more|fewer|less)$/.test(toks[i + 2]?.w ?? "") && /^teams?$/.test(toks[i + 3]?.w ?? ""));
+    if (sized && (SIZE_BEFORE.test(prev ?? "") || next === "or")) { t.used = true; continue; }
+    // A number of points ("lose by 1 point", "won by 30 pts"): a margin or a score, never team 1. Left unread for the
+    // readers that take it.
+    if (/^(?:points?|pts?)$/.test(next ?? "")) continue;
     const team = ctx.names.team(n);
     if (team) {
       // A name several teams share, with one of their numbers typed right beside it ("<shared name> <number>", "<number>

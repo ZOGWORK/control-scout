@@ -3,6 +3,7 @@
 // metrics), rising or falling against the event before, a season's penalty total, and OPR and record by season.
 import { beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../../db";
+import { clearAllCaches } from "../../caches";
 import { rebuildSearch } from "../../stats/job";
 import { searchAnswer } from "../searchAnswer";
 import { readStatQuestion } from "./read";
@@ -107,5 +108,21 @@ describe("a phase's OPR and reliability by event", () => {
       const rs = r.stat!.blocks.find((b) => b.kind === "series");
       expect(rs && rs.kind === "series" && rs.points.map((p) => [p.x, p.y]), q).toEqual([["Qualifier Two", 70], ["New Jersey Championship", 64], ["Super Qualifier", 20]]);
     }
+  });
+});
+
+describe("a season with events played but no value yet", () => {
+  it("reads the latest season the measure has a value in, and says so; a season named stays that season", async () => {
+    // A 2026–27 meet it played, its rankings not posted: the OPR is there, the ranking points aren't.
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2026, 'USNJM1', 'League Meet One', 'League Meet', 'Edison', 'NJ', 'USA', '2026-11-01', '2026-11-01', 't')");
+    await run("INSERT INTO event_teams (season, code, team, rank, rp) VALUES (2026, 'USNJM1', 4215, NULL, NULL)");
+    await run("INSERT INTO team_event_stats (season, code, team, opr_np, avg_score, avg_pen, matches, wins, losses, ties) VALUES (2026, 'USNJM1', 4215, 80, 120, 5, 4, 2, 2, 0)");
+    clearAllCaches(); // the team's event rows are cached from the tests above
+    const rp = await searchAnswer("4215 rp", { limit: 25 });
+    expect(rp.stat).toMatchObject({ intent: "ranking-points", title: "Ranking points by event in 2025–26", headline: { value: "1.50" } });
+    expect(rp.stat!.definition).toContain("The season is 2025–26, the team's latest with ranking points on record");
+    // A measure that has a value in the newest season reads it.
+    expect((await searchAnswer("4215 opr history", { limit: 25 })).stat).toMatchObject({ title: "OPR by event in 2026–27" });
+    expect((await searchAnswer("4215 ranking points in 2026-27", { limit: 25 })).stat!.none).toBe("No ranking points by event in 2026–27 for Hypnotic Robotics (4215) yet.");
   });
 });
