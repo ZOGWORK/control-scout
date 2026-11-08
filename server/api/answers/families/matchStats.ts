@@ -292,16 +292,18 @@ export async function matchStatAnswer(id: IntentId, team: AnswerTeam, all0: Team
       // Opponents as a group: an alliance with a top-tenth (or a rookie) team on it, against every other match.
       const rookies = id === "vs-rookies" ? await all<{ number: number; rookie_year: number | null }>(`SELECT number, rookie_year FROM teams WHERE number IN (${[...new Set(pool.flatMap((m) => m.opponents))].slice(0, 2000).map(() => "?").join(",") || "NULL"})`, [...new Set(pool.flatMap((m) => m.opponents))].slice(0, 2000)) : [];
       const rookieYear = new Map(rookies.map((r) => [Number(r.number), r.rookie_year == null ? null : Number(r.rookie_year)]));
-      const isTop = (t: number, s: number) => { const x = rating.get(`${t}|${s}`); const n = rated.get(s) ?? 0; return !!x && x.rank != null && n > 0 && x.rank <= Math.ceil(TOP_SHARE * n); };
+      // A number said ("against teams ranked top 10 worldwide") is the world rank cut; else the season's top tenth.
+      const cut = id === "vs-top" && opts.n != null ? opts.n : null;
+      const isTop = (t: number, s: number) => { const x = rating.get(`${t}|${s}`); const n = rated.get(s) ?? 0; return !!x && x.rank != null && n > 0 && x.rank <= (cut ?? Math.ceil(TOP_SHARE * n)); };
       const inGroup = (m: TeamMatch) => m.opponents.some((t) => (id === "vs-top" ? isTop(t, m.season) : rookieYear.get(t) === m.season));
-      const title = title0(id === "vs-top" ? "Against top-rated teams" : "Against rookie teams");
+      const title = title0(id === "vs-top" ? (cut != null ? `Against top-${cut} teams` : "Against top-rated teams") : "Against rookie teams");
       const def = id === "vs-top"
-        ? `Against top-rated teams: matches where the other alliance had a team in the season's top ${Math.round(TOP_SHARE * 100)}% by prediction rating (its world rank among every rated team, as its team page shows it). ${RESULT_RULE} Scores are the official ones, penalties included.`
+        ? `${cut != null ? `Against top-${cut} teams: matches where the other alliance had a team ranked in the world's top ${cut} that season` : `Against top-rated teams: matches where the other alliance had a team in the season's top ${Math.round(TOP_SHARE * 100)}%`} by prediction rating (its world rank among every rated team, as its team page shows it). ${RESULT_RULE} Scores are the official ones, penalties included.`
         : `Against rookie teams: matches where the other alliance had a team in its rookie season (its rookie year on FIRST's listing is that season). ${RESULT_RULE} Scores are the official ones, penalties included.`;
       const scored = several ? pool.filter((m) => m.season === pointsSeason) : pool;
       if (!scored.length) return { ...base, family: "aggregate", intent: id, title, blocks: [], definition: def, none: none("matches") };
       const g = scored.filter(inGroup), rest = scored.filter((m) => !inGroup(m));
-      const word = id === "vs-top" ? "top-rated" : "rookie";
+      const word = id === "vs-top" ? (cut != null ? `top-${cut}` : "top-rated") : "rookie";
       if (!g.length) return { ...base, family: "aggregate", intent: id, title, blocks: [{ kind: "record", title: "Every match", ...record(scored) }], definition: `${def}${pointsNote}`, none: `${who} met no ${word} teams${where || ` in ${seasonLabel(scored[0].season)}`} (${plural(scored.length, "match", "matches")} checked).` };
       const side = (xs: TeamMatch[]) => (xs.length ? { rec: recText(record(xs)), rate: pct(record(xs)), avg: one(mean(xs.map((m) => m.own))) } : { rec: "–", rate: "–", avg: "–" });
       const a = side(g), b = side(rest);
