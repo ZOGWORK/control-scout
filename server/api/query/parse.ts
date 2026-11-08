@@ -274,7 +274,17 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     if (prev && COUNT_BEFORE.test(prev) && n <= 50 && (next ? !ctx.names.team(Number(next)) : !p.teams.length)) { p.n = n; t.used = true; continue; }
     const team = ctx.names.team(n);
     if (team) {
-      if (!p.teams.some((x) => x.number === n)) p.teams.push({ number: n, name: team.name, typed: t.typed, via: "number", at: i });
+      // A name several teams share, with one of their numbers typed right beside it ("<shared name> <number>", "<number>
+      // <shared name>", "team" or "ftc" between allowed), is that team. Only beside it: a number elsewhere is its own
+      // team, never pulled across "vs" or past another team.
+      const beside = (x: Parsed["teams"][number]) => {
+        if (x.at == null) return false;
+        const end = x.at + x.typed.split(/\s+/).length, gap = (k: number) => /^(?:team|ftc)$/.test(toks[k]?.w ?? "");
+        return i === end || (i === end + 1 && gap(end)) || i === x.at - 1 || (i === x.at - 2 && gap(x.at - 1));
+      };
+      const shared = p.teams.find((x) => x.via === "name" && x.candidates?.includes(n) && beside(x));
+      if (shared) { shared.number = n; shared.name = team.name; delete shared.candidates; }
+      else if (!p.teams.some((x) => x.number === n)) p.teams.push({ number: n, name: team.name, typed: t.typed, via: "number", at: i });
       t.used = true;
       if (/^(?:team|ftc)$/.test(prev ?? "")) toks[i - 1].used = true;
     }

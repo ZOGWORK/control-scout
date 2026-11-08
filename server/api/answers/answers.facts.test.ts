@@ -32,6 +32,19 @@ beforeAll(async () => {
   for (const [t, code, rank] of [[4215, "USNJCMPPKWY", 2], [6980, "USNJCMPPKWY", 9], [4215, "USNJBCLM3", 2], [6980, "USNJBCLM3", 1]] as const) {
     await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, ?, ?, ?)", [code, t, rank]);
   }
+  // An earlier meet of the same league with teams that skipped meet 3: the league's standing counts them too.
+  await ev("USNJBCLM2", "NJ Bergen League Meet 2", "LeagueMeet", "2025-12-10");
+  await run("UPDATE events SET league = 'BCL' WHERE code IN ('USNJBCLM2', 'USNJBCLM3')");
+  await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'USNJBCLM2', 31997, 1), (2025, 'USNJBCLM2', 31998, 3)");
+  // A later meet 4215 skipped, with a team new to the league: not in the standing 4215's meet 3 rank comes from.
+  await ev("USNJBCLM4", "NJ Bergen League Meet 4", "LeagueMeet", "2026-02-10");
+  await run("UPDATE events SET league = 'BCL' WHERE code = 'USNJBCLM4'");
+  await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'USNJBCLM4', 31996, 1)");
+  // Another region's league with the same code, earlier: its teams aren't in New Jersey's BCL standing.
+  await ev("USCABCLM1", "California League Meet 1", "LeagueMeet", "2025-11-10");
+  await run("UPDATE events SET region = CASE WHEN code = 'USCABCLM1' THEN 'USCA' ELSE 'USNJ' END WHERE code LIKE 'US%BCLM%'");
+  await run("UPDATE events SET league = 'BCL' WHERE code = 'USCABCLM1'");
+  await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'USCABCLM1', 31995, 1), (2025, 'USCABCLM1', 31994, 2)");
   await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (2025, 'USNJCMPPKWY', 4215, 110, 8), (2025, 'USNJCMPPKWY', 6980, 50, 8)");
   await run(`INSERT INTO team_reliability (season, code, team, matches, no_shows, dqs, near_zero, contrib_n, recent_matches, recent_no_shows, recent_near_zero,
     no_show_rate, dq_rate, near_zero_rate, swing, penalty_ratio, predictability_ratio, idx, computed_at) VALUES
@@ -179,7 +192,7 @@ describe("team facts", () => {
   });
   it("reliability, league standing, the next match; a question about the next match is the asks' own", async () => {
     expect((await searchAnswer("4215 reliability", { limit: 25 })).stat!.headline).toMatchObject({ value: "88", label: "out of 100 · field average 71" });
-    expect((await searchAnswer("4215 league rank", { limit: 25 })).stat!.headline).toMatchObject({ value: "#2 of 2", label: "League after NJ Bergen League Meet 3" });
+    expect((await searchAnswer("4215 league rank", { limit: 25 })).stat!.headline).toMatchObject({ value: "#2 of 4", label: "BCL league after NJ Bergen League Meet 3" });
     // An old event's match left unplayed is never "next"; a rookie's posted schedule is, with no season played.
     expect((await searchAnswer("4215 predicted score next match", { limit: 25 })).stat!.none).toContain("no upcoming match");
     expect((await searchAnswer("31000 predicted score next match", { limit: 25 })).stat!.headline).toMatchObject({ value: "Q3", label: expect.stringContaining("Future Qualifier") });

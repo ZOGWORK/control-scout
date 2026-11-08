@@ -321,10 +321,12 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
         rows: rows.map((x) => ({ cells: { event: names.get(x.code) ?? x.code, word: scheduleWord(x.full!.z), rank: scheduleRankText(x.full!), opp: sign(x.full!.opponents), par: sign(x.full!.partners) }, href: eventHref(season, x.code, team.number) })) }] };
   }
 
-  // league-rank: FIRST's ranking at a league meet is the league's running standing.
-  const r = await get<any>(`SELECT e.code, e.name, e.type, e.league, e.start, et.rank, (SELECT COUNT(*) FROM event_teams o WHERE o.season = et.season AND o.code = et.code AND o.rank IS NOT NULL) n
+  // league-rank: FIRST's ranking at a league meet is the league's running standing, out of the teams ranked in that
+  // league's meets (its region's: a league code can repeat across regions) this season up to that meet's date (a meet lists only its own teams, so its count alone is too small;
+  // a later meet's teams aren't in that standing yet).
+  const r = await get<any>(`SELECT e.code, e.name, e.type, e.league, e.start, et.rank, (SELECT COUNT(DISTINCT o.team) FROM event_teams o JOIN events oe ON oe.season = o.season AND oe.code = o.code WHERE o.season = et.season AND o.rank IS NOT NULL AND (oe.code = e.code OR (e.league IS NOT NULL AND oe.league = e.league AND oe.region IS e.region AND oe.type = 'LeagueMeet' AND oe.start <= e.start))) n
     FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code WHERE et.team = ? AND et.season = ? AND e.type = 'LeagueMeet' AND et.rank IS NOT NULL AND ${ATTENDED} ORDER BY e.start DESC LIMIT 1`, [team.number, season]);
   const b = base("league-rank", `League standing in ${S}`, [S], `A league's standing is FIRST's ranking at the team's latest league meet, which counts every meet so far that season.${why}`, `From the ${S} league meets`);
   if (!r) return { ...b, none: `${who(team)} played no league meets in ${S}.` };
-  return { ...b, headline: { value: `#${r.rank}${r.n ? ` of ${r.n}` : ""}`, label: `${r.league ? `${r.league} league` : "League"} after ${shortEvent(r.name, r.type)}`, sub: dateRange(r.start) ?? undefined, href: eventHref(season, r.code, team.number) } };
+  return { ...b, headline: { value: `#${r.rank}${r.n && r.n >= r.rank ? ` of ${r.n}` : ""}`, label: `${r.league ? `${r.league} league` : "League"} after ${shortEvent(r.name, r.type)}`, sub: dateRange(r.start) ?? undefined, href: eventHref(season, r.code, team.number) } };
 }

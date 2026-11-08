@@ -33,6 +33,36 @@ Topic words are read as the topic, not as a team that happens to share the name,
 - **Top teams this week.** "Top teams this week", "best teams in NJ last weekend": the teams that played at an event held then, ranked by their OPR at those events, with their record there.
 - **Biggest events.** "Which event had the most teams in California this season", "largest qualifiers in Texas" and "biggest event" rank a place's events by the teams on their lists, an event's divisions counted together; "highest auto matches" lists the matches with the most auto points. (#1180)
 
+## 4.2.7 — 2026-11-08
+
+Three more basic searches answer what was asked: a country is never read as a town, a name spelled exactly as typed comes first, and "<team> vs <team> record" is their record against each other.
+
+### Highlights
+- [teams] "Teams in <country>" lists that country's teams
+- [teams] The team spelled as you typed comes first
+- [teams] "<team> vs <team> record" gives their head to head
+
+### Search
+- **A country is never a town.** "Teams in Romania", "best team in Canada" list that country's teams. Before, a team that gives its country as its home city made the answer that one team. (#1178)
+- **The spelling typed, first.** When two teams' names score the same ("RoboRebels" and "Robo Rebels"), the one spelled exactly as typed comes first in the results.
+- **"<team> vs <team> record".** Their record against each other, as "<team> record against <team>" gives. Each team's own season record is still "<team> and <team> record".
+
+## 4.2.6 — 2026-11-08
+
+Basic team searches answer what was asked: "<team> rank" gives its world rank, a team's latest event asked for its ranking leads with the rank, a league's standing counts the whole league, and a name two teams share works beside the number.
+
+### Highlights
+- [rankings] "<team> rank" answers with the team's world rank
+- [rankings] "Latest event ranking" answers with the rank there
+- [rankings] A league standing is out of the whole league
+- [teams] A team's name and number together are one team
+
+### Search
+- **A team's rank, asked plainly.** "<team> rank", "<team> ranking", "<team> standing" and "where does <team> rank" answer with its world rank by OPR and by prediction rating, as "<team> rank worldwide" does, instead of only the team's link. A place, an event, a league or a stat named still goes to that answer.
+- **Rank at an event, asked.** "<team> latest event ranking", "last event rank", "first event standing" lead with the team's qualification rank there instead of its OPR. A league meet has no rank of its own (its rank is the league's running standing), so the answer is the latest ranked event, and it says which meet it skipped and why. (#1175)
+- **League standing out of the league.** "<team> league rank" counts every team ranked in that league's meets this season up to that meet's date, not only the teams at that meet, so a standing is never larger than its count.
+- **A shared name with its number.** When several teams share a name, typing one of their numbers beside it ("<name> <number> highlights") is that one team, in either order, instead of two teams and no answer.
+
 ## 4.2.5 — 2026-11-08
 
 Two teams are read with the stat asked first ("who has the higher OPR, A or B"), a forecast asked as a question ("will A beat B") and penalties side by side.
