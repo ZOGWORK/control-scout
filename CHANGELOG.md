@@ -27,6 +27,18 @@ Two events named side by side ("<event> vs <event>") are compared as events rath
 ### Search
 - **Events side by side.** "<event> vs <event>" (2 to 4 events, each named with a word only an event's name has: championship, qualifier, league meet, tournament…) answers with the events side by side: field strength (the average OPR of the teams that played, its divisions' too), top OPR and its team, high score without penalties, and the number of teams. A state's code in a name is spelled out ("NJ Championship" is New Jersey's), each event is its newest season with a played match unless a season is named, and events from different seasons are marked as different games, with neither called stronger. A team on any side keeps the teams' Compare. (#1158)
 
+## 4.3.5 — 2026-11-08
+
+A finished meet whose stream was a short link plays its recording on the page again.
+
+### Highlights
+- [live] A short-link stream (ftcwa.live/…) plays on the page after the meet
+- [fixes] Watch on a match starts the page's player at that match, not YouTube
+- [live] Only the meet's own broadcast is kept, checked against its dates
+
+### Fixes
+- **Short stream links after the meet.** A region's short link (ftcwa.live/…) was only followed on the meet's own dates, so a meet whose day passed before it was followed kept no video: Watch livestream and each match's Watch opened YouTube instead of playing on the page. For two weeks after a meet with no video, its link is followed again, and the video it leads to is kept only when YouTube says that broadcast started on the meet's own dates (a link already pointing at a later meet gives nothing). (#1210)
+
 ## 4.3.4 — 2026-11-08
 
 One team swapped for another on an alliance answers with what the swap does.
