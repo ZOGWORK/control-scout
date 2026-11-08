@@ -8,6 +8,8 @@ import { CURRENT_SEASON } from "../data/seasons";
 import { searchAnswer } from "./searchAnswer";
 import { forgetTeamNames } from "./searchLayers";
 import { buildNames } from "./query/names";
+import { parseContext } from "./query/context";
+import { parseQuery } from "./query/parse";
 
 const S = CURRENT_SEASON;
 const ask = (q: string) => searchAnswer(q, { learn: false, limit: 40, full: true });
@@ -21,6 +23,7 @@ beforeAll(async () => {
   const teams: [number, string, number, number | null][] = [
     [7001, "Team Squidward", 2015, S], [7002, "Hullabaloo Robotics", 2018, S], [7003, "Zapbot Junior", 2025, null],
     [7004, "Zapbot", 2019, S], [7005, "Quasartron", 2017, S], [7006, "Quasartron", 2020, S - 1], [7007, "Team Quix", 2016, S],
+    [7008, "West Robotics", 2016, S],
   ];
   for (const [n, name, rookie, last] of teams) {
     await run("INSERT INTO teams (number, name, city, state, country, rookie_year) VALUES (?, ?, 'Paramus', 'NJ', 'USA', ?)", [n, name, rookie]);
@@ -77,5 +80,11 @@ describe("a team called by its name's own part", () => {
   it("keeps the season named on a team called by its name's own part", async () => {
     const a = await ask(`zapbot juniors ${S}-${String((S + 1) % 100).padStart(2, "0")}`);
     expect(a.hits[0]).toMatchObject({ ref: "7003", linkSeason: S });
+  });
+  it("never takes a word of a longer place's name as a name's own part", async () => {
+    const p = await parseQuery("highest score in west virginia this week", await parseContext());
+    expect(p.teams).toEqual([]);
+    expect(p.place?.name).toBe("West Virginia");
+    expect((await parseQuery("west record", await parseContext())).teams.map((t) => t.number)).toEqual([7008]);
   });
 });

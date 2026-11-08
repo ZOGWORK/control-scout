@@ -288,7 +288,9 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       const placed = (k: number, dir: 1 | -1) => [1, 2, 3].some((n) => (dir > 0 ? placeAt(k, k + n) : placeAt(k - n + 1, k + 1)));
       if (len === 1 && ((loose(toks[i - 1]) && !placed(i - 1, -1)) || (loose(toks[i + len]) && !placed(i + len, 1)))) continue;
       const said = span.map((t) => t.w).join(" ");
-      const named = ctx.names.teamsNamed(said).length ? ctx.names.teamsNamed(said) : ctx.names.teamsCalled(said);
+      // A name's own part never takes a word of a longer place's name ("north" of "north carolina").
+      const inPlace = [1, 2, 3].some((n) => n > len && Array.from({ length: n - len + 1 }, (_, o) => i - o).some((a) => placeAt(a, a + n)));
+      const named = ctx.names.teamsNamed(said).length ? ctx.names.teamsNamed(said) : inPlace ? [] : ctx.names.teamsCalled(said);
       if (!named.length) continue;
       // What a question asks about ("alliances", "inspire", "stats") names a team only typed as its whole name: "nj
       // states alliances" is never team Alliance, "most inspire awards" never team Inspires (onlyTopicWords).
