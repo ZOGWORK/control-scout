@@ -27,11 +27,11 @@ import { teamPageSql } from "../../src/shared/teamPages.js";
 import { CURRENT_SEASON, FIRST_PREDICT_SEASON, isLegacy } from "../data/seasons.js";
 import { all } from "../db.js";
 import { rankings } from "./rankings.js";
-import { searchSeason } from "./answers/season.js";
 import { search } from "./search.js";
 import { fuzzyScore } from "./fuzzy.js";
 import { PHASE_COLS, tableOf } from "./teamTableRows.js";
 import { eventHit, localTodays, searchToday } from "./searchEvents.js";
+import { seasonOfDate } from "./query/time.js";
 import { namedTeam, versusAnswer } from "./searchCompare.js";
 import { eventChampions } from "./answers/families/winners.js";
 import { NO_MATCH_TYPES } from "./events.js";
@@ -98,6 +98,20 @@ function leaderWords(t: string): { t: string; opened: boolean } {
 
 /** The stat a word names: "auto"/"autonomous", "teleop"/"tele op"/"driver"/"driver controlled", "endgame", "opr", "wins". */
 const statOf = (w: string): Stat => (w = w.replace(/\s+/g, ""), w.startsWith("auto") ? "auto" : w.startsWith("tele") || w.startsWith("driver") ? "teleop" : w.startsWith("end") ? "endgame" : w === "wins" ? "wins" : "opr");
+
+/** The season an asked board reads with none said, as the query pipeline reads one (./query/execute.ts): the current
+ *  season, so "best in NJ right now" and "best teams in NJ" agree whichever reader answers. */
+export const askSeason = (now = Date.now()): number => seasonOfDate(searchToday(now));
+
+/** `read` for the current season, then the season before when the current one has nothing yet (the pipeline's own
+ *  step, ./query/relax.ts defaultSteps). */
+async function currentFirst<T>(read: (season: number) => Promise<T>, empty: (t: T) => boolean): Promise<{ season: number; got: T }> {
+  const season = askSeason();
+  const got = await read(season);
+  if (!empty(got)) return { season, got };
+  const before = await read(season - 1);
+  return empty(before) ? { season, got } : { season: season - 1, got: before };
+}
 
 /** The question `q` asks of a view, or null. `q` is cleaned (no punctuation), any case. */
 export function readAsk(q: string): Ask | null {
@@ -316,9 +330,8 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
     }
 
     case "leaderboard": {
-      const season = searchSeason();
       if (!ask.region) {
-        const r = await rankings({ season, week: null, places: [], page: 1 });
+        const { season, got: r } = await currentFirst((s) => rankings({ season: s, week: null, places: [], page: 1 }), (x) => !x.rows.length);
         const lines = r.rows.slice(0, 5).map((row) => teamLine(row.team, row.name, [`#${row.rank} worldwide`]));
         const title = `Top teams · ${seasonLabel(season)}`;
         return answer(q, {
@@ -330,7 +343,7 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
       const region = ask.region;
       const place = parsePlaces(region.key)?.[0];
       if (!place) return null;
-      const r = await rankings({ season, week: null, places: [place], page: 1 });
+      const { season, got: r } = await currentFirst((s) => rankings({ season: s, week: null, places: [place], page: 1 }), (x) => !x.rows.length);
       const lines = r.rows.slice(0, 5).map((row, i) => teamLine(row.team, row.name, [`#${i + 1} in ${region.name}`, `#${row.rank} worldwide`]));
       const href = `/rankings?season=${season}&region=${encodeURIComponent(ask.region.key)}`;
       const title = `Top teams in ${ask.region.name} · ${seasonLabel(season)}`;
@@ -342,15 +355,14 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
     }
 
     case "stat": {
-      const season = searchSeason();
       const where = ask.region ? " AND t.country = ? AND t.state = ?" : "";
       const col = STAT_COLUMN[ask.stat];
-      const rows = await all<any>(
+      const { season, got: rows } = await currentFirst((season) => all<any>(
         `SELECT s.team, t.name, t.city, t.state, t.country, s.opr_np, ${PHASE_COLS}, s.wins, s.losses, s.ties
          FROM team_season_stats s JOIN teams t ON t.number = s.team
          WHERE s.season = ? AND s.matches >= ? AND ${col} IS NOT NULL AND ${teamPageSql("s.team", "t.name")}${where}
          ORDER BY ${col} DESC${ask.stat === "wins" ? ", s.losses ASC" : ""}, s.team LIMIT 5`,
-        [season, RANKED_MIN_MATCHES, ...(ask.region ? [ask.region.country, ask.region.state] : [])]);
+        [season, RANKED_MIN_MATCHES, ...(ask.region ? [ask.region.country, ask.region.state] : [])]), (x) => !x.length);
       const value = (r: any) => ask.stat === "wins" ? `${r.wins}-${r.losses}-${r.ties}` : `${STAT_LABEL[ask.stat].replace(/^.*\((.+)\)$/, "$1").replace(/^Highest /, "")} ${fmt(r[col.slice(2)])}`;
       const lines = rows.map((r) => teamLine(Number(r.team), r.name, [value(r)], [r.city, r.state].filter(Boolean).join(", ")));
       const title = `${STAT_LABEL[ask.stat]}${ask.region ? ` in ${ask.region.name}` : ""} · ${seasonLabel(season)}`;

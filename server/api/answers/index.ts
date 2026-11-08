@@ -18,7 +18,8 @@ import { teamPageSql } from "../../../src/shared/teamPages.js";
 import { all, get } from "../../db.js";
 import { fuzzyScore } from "../fuzzy.js";
 import { search } from "../search.js";
-import { eventWon, readAsk } from "../searchAsks.js";
+import { askSeason, eventWon, readAsk } from "../searchAsks.js";
+import { defaultSteps, relaxed } from "../query/relax.js";
 import { eventHit } from "../searchEvents.js";
 import { namedTeam, versusAnswer } from "../searchCompare.js";
 import { predictHref } from "../../../src/shared/predictUrl.js";
@@ -346,8 +347,16 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   const tm = readTopMatches(q);
   if (tm) return topSearch(q, tm, opts);
   // The asks' leaderboards are drawn here on the page; the dropdown keeps the asks' own short card.
-  const board = readLeaderboard(q) ?? (opts.full ? boardOfAsk(q) : null);
+  const board = readLeaderboard(q);
   if (board) return boardSearch(q, board, opts);
+  // An asked board reads the season as the pipeline does: the current one, then the one before when nobody is ranked
+  // there yet, said on the card.
+  const asked = opts.full ? boardOfAsk(q) : null;
+  if (asked) {
+    const season = askSeason();
+    const a = await boardSearch(q, { ...asked, season }, opts);
+    return relaxed(a, defaultSteps(season, asked.region ? ` in ${asked.region.name}` : "", "ranked teams"), (s) => boardSearch(q, { ...asked, season: s }, opts));
+  }
   // "How much did 12345's OPR improve from last season to this season", "12345 rating change this season".
   const change = readChange(q);
   if (change) return changeSearch(q, change, resolve, opts);
