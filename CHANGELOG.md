@@ -22,7 +22,7 @@ Topic words are read as the topic, not as a team that happens to share the name,
 ### Highlights
 - [fixes] "NJ states alliances" shows the championship's alliances
 - [fixes] "Most Inspire Awards" lists the teams that won it most
-- [fixes] "Theseus higlights" shows Theseus's highlights
+- [fixes] A team's highlights or videos open even with the word misspelled
 - [fixes] "4215 average OPR", "4215 RP" and "who has 4215 played with" answer
 
 ### Search
