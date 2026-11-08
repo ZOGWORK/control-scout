@@ -1141,6 +1141,9 @@ export async function teamFactAnswer(q: string, prefer: ReadonlySet<string>): Pr
   // The fact said first ("what region is <team> in", "which school does <team> go to"): [who, fact] as below.
   const first = /^(?:what|which)\s+(region|home region|school|high school|organization|organisation|city|town)\s+(?:is|are|was|does|do)\s+(.+?)(?:\s+(?:in|from|based in|located in|go to|attend|part of|with))?$/.exec(t);
   const said = (first ? [first[0], first[2], first[1]] as unknown as RegExpExecArray : null) ?? /^where\s+(?:is|are)\s+(.+?)\s+(from|located|based)$/.exec(t)
+    // "Where is this team 4215", "where is team 4215": a team asked where it is, nothing after it, is where it's from
+    // (only a team is found here, so "where is the nj championship" stays the event's).
+    ?? (/^where\s+(?:is|are)\s+(?:this\s+|the\s+)?(?:team\s+)?(\S.*)$/.exec(t)?.slice(0, 2).concat("located") as unknown as RegExpExecArray | undefined)
     ?? /^what(?:'s| is| are)\s+(.+?)\s+(called)$/.exec(t)
     // When a team started, said any way: "what year did <team> start", "which season was <team> founded", "… join ftc";
     // read before the bare fact, which would take "which season was <team>" as the team.

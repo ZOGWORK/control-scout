@@ -130,6 +130,8 @@ describe("listing facts: one team card, each value apart, as stored", () => {
   it("where they're from: the location as one value", async () => {
     const a = await page("where is 4215 from");
     expect(a.card!.facts).toEqual([{ label: "Where they're from", values: ["Oradell, NJ, USA"] }]);
+    // Asked where a team is, nothing after it, is the same (failed-search #1131).
+    for (const q of ["where is this team 4215", "where is team 4215"]) expect((await page(q)).card?.facts, q).toEqual([{ label: "Where they're from", values: ["Oradell, NJ, USA"] }]);
   });
   it("a fact FIRST's listing doesn't have: no values", async () => {
     expect((await page("6980 sponsors")).card!.facts).toEqual([{ label: "Sponsors", values: [] }]);

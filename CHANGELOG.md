@@ -15,6 +15,22 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.3.1 — 2026-11-08
+
+Search ranks a place's cities by their teams, lists the events over a size, and reads a town said with its state or country.
+
+### Highlights
+- [rankings] "Which city in Romania has the most teams" ranks its cities
+- [fixes] "Events in Texas with more than 40 teams" lists them
+- [fixes] "Teams in Springfield IL" is that Springfield, not every one
+- [fixes] "4215 RP" shows last season while this one has none yet
+
+### Search
+- **Cities by teams.** "Which city in Romania has the most FTC teams", "cities with the most teams in Texas" and "top 5 cities in Ontario by teams" rank a state's, a country's or the world's home cities by how many of their teams played in the newest season there, with every team the directory lists beside; each city opens its own team list.
+- **Events over a size.** "Events in Texas this season with more than 40 teams" (or "over", "at least", "40+") counts the events with that many teams on their lists and lists the biggest of them.
+- **A town and its state.** "Teams in Springfield IL", "teams in Springfield Missouri" and "teams in Bucharest Romania" list that town's teams only; a town abroad is named with its country.
+- **The latest season with a value.** A team's ranking points (or another per-event number) with no season said reads the latest season that has one, and says so, while this season's rankings aren't posted yet. (#PR)
+
 ## 4.2.9 — 2026-11-08
 
 Topic words are read as the topic, not as a team that happens to share the name, and a misspelled "highlights" or "videos" is corrected.

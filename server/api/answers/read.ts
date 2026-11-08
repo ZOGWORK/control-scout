@@ -139,7 +139,7 @@ const RULES: IntentRule[] = [
   // The team's Worlds divisions (one per championship it went to): "12345 worlds divisions", "championship divisions
   // 12345 played in", "12345 championship appearances count".
   { id: "worlds-divisions", family: "aggregate", season: "all", re: /\b(?:(?:world|first|houston)\s+)?(?:championship|worlds?)\s+divisions?\b|\bchampionship\s+appearances?\b|\bdivisions?\s+(?:at|in)\s+(?:the\s+)?(?:worlds?|(?:first\s+)?championship)\b/ },
-  { id: "event-wins", family: "awards", season: "all", re: /\bhow\s+many\s+(?:events?|tournaments?|competitions?)\s+(?:has|have|did)\s+(?<team>.+?)\s+won?\b|\b(?:ever\s+)?won\s+(?:an?\s+|any\s+)?(?:events?|tournaments?|competitions?)\b|\bevent\s+wins?\b|\b(?:events?|tournaments?)\s+won\b/ },
+  { id: "event-wins", family: "awards", season: "all", re: /\bhow\s+many\s+(?:events?|tournaments?|competitions?)\s+(?:has|have|did)\s+(?<team>.+?)\s+won?\b|\b(?:ever\s+)?won\s+(?:an?\s+|any\s+)?(?:events?|tournaments?|competitions?)\b|\bevent\s+wins?\b|\b(?:events?|tournaments?)\s+won\b|\btitles?\s*$/ },
   { id: "inspire-awards", family: "awards", season: "all", re: /\binspire(?:\s+awards?)?\b/ },
   { id: "finalist-finishes", family: "awards", season: "all", re: /\bfinalists?(?:\s+(?:finish(?:es)?|alliances?|awards?))?\b/ },
   { id: "total-awards", family: "awards", season: "all", re: /\b(?:total|number\s+of|how\s+many|all|career)\s+awards\b|\bawards?\s+(?:count|total)\b/ },
