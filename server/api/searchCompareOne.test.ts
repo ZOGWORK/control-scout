@@ -34,6 +34,15 @@ beforeAll(async () => {
     await run("INSERT INTO team_seasons (season, team) VALUES (2024, ?)", [n]);
     await run("INSERT INTO team_season_stats (season, team, rating_np, rating_matches, matches) VALUES (2024, ?, ?, 6, 6)", [n, rating]);
   }
+  // A season just started: one NJ team rated in it, with two rated rivals there, all rated last season too.
+  for (const [n, name, r25, r26] of [[8006, "New Season Lead", 5, 50], [8007, "New Season Near", 6, 52], [8008, "New Season Far", 7, 20]] as const) {
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, 'Town', 'NJ', 'USA')", [n, name]);
+    for (const [season, rating] of [[2025, r25], [2026, r26]]) {
+      await run("INSERT INTO team_seasons (season, team) VALUES (?, ?)", [season, n]);
+      await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (?, 'X', ?, 50, 5)", [season, n]);
+      await run("INSERT INTO team_season_stats (season, team, rating_np, rating_matches, matches) VALUES (?, ?, ?, 5, 5)", [season, n, rating]);
+    }
+  }
   await rebuildSearch();
 });
 
@@ -44,7 +53,7 @@ describe("Compare asked for one team", () => {
       expect(a.hits[0], q).toMatchObject({ kind: "compare", href: "/compare?teams=4215" });
       expect(a.understood, q).toMatchObject({ kind: "compare" });
       // Nearest first; too few rated matches and another state are never picked.
-      expect(a.suggest, q).toEqual(["4215 vs 8000", "4215 vs 6980", "4215 vs 8004"]);
+      expect(a.suggest, q).toEqual(["4215 vs 8000 2025-26", "4215 vs 6980 2025-26", "4215 vs 8004 2025-26"]);
     }
   });
 
@@ -68,7 +77,11 @@ describe("Compare asked for one team", () => {
     expect((await ask("compare 4215 and 6980")).hits[0]).not.toMatchObject({ href: "/compare?teams=4215" });
   });
 
+  it("the rivals' season goes with each suggestion: a season just started, never the one before", async () => {
+    expect((await ask("compare 8006")).suggest).toEqual(["8006 vs 8007 2026-27", "8006 vs 8008 2026-27"]);
+  });
+
   it("a state with too few rated teams widens to the country", async () => {
-    expect((await ask("compare 8003")).suggest).toEqual(["8003 vs 4215", "8003 vs 8000", "8003 vs 6980"]);
+    expect((await ask("compare 8003")).suggest).toEqual(["8003 vs 4215 2025-26", "8003 vs 8000 2025-26", "8003 vs 6980 2025-26"]);
   });
 });
