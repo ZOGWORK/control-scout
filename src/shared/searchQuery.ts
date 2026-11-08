@@ -70,12 +70,12 @@ export const onlyTopicWords = (q: string): boolean => {
  *  stays a name. Phrases are matched as whole words; longer ones first. */
 // "Live", "right now", "happening now" with an event word are today's events (events run a day or two: today is the
 // one under way). Longest first, so "live now" is one phrase.
-export const TIME_WORDS = ["today", "tomorrow", "this weekend", "next weekend", "this week", "next week", "this month", "next month", "upcoming", "coming up", "past", "recent", "previous", "latest", "finished", "completed", "ended",
-  "happening now", "going on now", "on right now", "right now", "live now", "live", "currently"];
-const ALWAYS_TIME = new Set(["today", "tomorrow", "this weekend", "next weekend", "this week", "next week", "this month", "next month", "upcoming", "coming up"]);
+export const TIME_WORDS = ["today", "tomorrow", "yesterday", "this weekend", "next weekend", "this week", "next week", "this month", "next month", "upcoming", "coming up", "past", "recent", "previous", "latest", "finished", "completed", "ended", "happened",
+  "happening now", "going on now", "on right now", "right now", "live now", "live", "currently", "now"];
+const ALWAYS_TIME = new Set(["today", "tomorrow", "yesterday", "this weekend", "next weekend", "this week", "next week", "this month", "next month", "upcoming", "coming up"]);
 
 /** The words that say a query asks for events ("meets in New Jersey"), singular (after singularize). */
-export const EVENT_WORDS = new Set(["meet", "event", "tournament", "championship", "qualifier", "scrimmage", "league", "competition", "premier", "kickoff", "comp", "champ", "champs"]);
+export const EVENT_WORDS = new Set(["meet", "event", "tournament", "championship", "qualifier", "scrimmage", "league", "competition", "premier", "kickoff", "comp", "champ", "champs", "cham"]);
 
 /** A question's own words: dropped from name matching when the query reads as a question (starts with one and has
  *  at least three words, or ended in "?"), so "can robots descore samples" never searches for teams named "Can". */
