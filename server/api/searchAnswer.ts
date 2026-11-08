@@ -29,7 +29,7 @@ import { cleanTeamName, searchTeamTitle, teamNameOf, teamWords } from "../../src
 import { teamPageSql } from "../../src/shared/teamPages.js";
 import { CURRENT_SEASON, SEASONS } from "../data/seasons.js";
 import { all, get } from "../db.js";
-import { fuzzyScore, normalize, wordScore, words } from "./fuzzy.js";
+import { fuzzyScore, joinThousands, normalize, wordScore, words } from "./fuzzy.js";
 import { ftsQuery, search, searchIntent, teamAtEventAnswer } from "./search.js";
 import { rerank } from "./searchLearn.js";
 import { intentAnswer, parseIntent } from "./searchIntents.js";
@@ -81,8 +81,10 @@ export interface AnswerOptions {
 /** The query as search reads it: punctuation that never means anything dropped, spaces folded, at most MAX_QUERY
  *  (cut at the last whole word: a word cut in two, "2025-2", would be read as another). */
 export function cleanQuery(raw: string): string {
-  // "40+ teams" is "40 or more teams" (a size, as the events-over-a-size answer reads it), kept before "+" is cleaned.
-  const q = String(raw ?? "").replace(/(\d)\s*\+\s*(?=teams?\b)/gi, "$1 or more ").replace(/[!?,;"<>(){}[\]|\\^*`~=+]/g, " ").replace(/\s+/g, " ").trim();
+  // "1,000" is one number before its comma could be dropped as punctuation; a stored name written that way is indexed
+  // as one number too (SEARCH_INDEX_SCHEMA 6). "40+ teams" is "40 or more teams" (a size, as the events-over-a-size
+  // answer reads it), kept before "+" is cleaned.
+  const q = joinThousands(String(raw ?? "")).replace(/(\d)\s*\+\s*(?=teams?\b)/gi, "$1 or more ").replace(/[!?,;"<>(){}[\]|\\^*`~=+]/g, " ").replace(/\s+/g, " ").trim();
   if (q.length <= MAX_QUERY) return q;
   const cut = q.slice(0, MAX_QUERY);
   return (q[MAX_QUERY] === " " ? cut : cut.replace(/\s+\S*$/, "")).trim() || cut;
