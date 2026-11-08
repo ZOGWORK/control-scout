@@ -70,7 +70,8 @@ const RULES: { id: FactId; re: RegExp }[] = [
   { id: "reliability", re: /\breliab(?:ility|le)(?:\s+(?:score|index|rating))?\b|\bdependab(?:ility|le)\b/ },
   { id: "schedule", re: /\b(?:schedule|draw)\s+(?:difficulty|strength|toughness)\b|\b(?:strength|difficulty|toughness)\s+of\s+(?:the\s+|their\s+)?schedule\b/ },
   { id: "league-rank", re: /\bleague\s+(?:rank(?:ing)?|standing|place|position)\b/ },
-  { id: "opr", re: /\bopr\b/ },
+  // OPR is already a per-match average: "average OPR" asks the same number.
+  { id: "opr", re: /\b(?:(?:average|avg|mean)\s+)?opr\b/ },
 ];
 
 /** The fact `raw` asks about one team, or null. */

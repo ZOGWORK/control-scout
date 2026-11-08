@@ -23,9 +23,11 @@ Topic words are read as the topic, not as a team that happens to share the name,
 - [fixes] "NJ states alliances" shows the championship's alliances
 - [fixes] "Most Inspire Awards" lists the teams that won it most
 - [fixes] "Theseus higlights" shows Theseus's highlights
+- [fixes] "4215 average OPR", "4215 RP" and "who has 4215 played with" answer
 
 ### Search
-- **Topic words stay topics.** A phrase made only of topic words ("alliances", "inspire awards", "event results") reads as a team only when it is that team's whole name, so "nj states alliances" (or "alliance selection", "alliance captains") opens the championship's Playoffs tab and "most inspire awards" ranks the teams by Inspire Awards won, worldwide or in a region; "inspire" is no longer pluralized into a team name, and a misspelling of "highlights" or "videos" is corrected to that word. (#1180)
+- **Topic words stay topics.** A phrase made only of topic words ("alliances", "inspire awards", "event results") reads as a team only when it is that team's whole name, so "nj states alliances" (or "alliance selection", "alliance captains") opens the championship's Playoffs tab and "most inspire awards" ranks the teams by Inspire Awards won, worldwide or in a region; "inspire" is no longer pluralized into a team name, and a misspelling of "highlights" or "videos" is corrected to that word.
+- **Plain team asks.** "Average OPR" is the OPR (already a per-match average), "RP" is ranking points, and "who has 4215 played with" (or "teamed up with") lists the alliance partners. (#1180)
 
 ## 4.2.5 — 2026-11-08
 
