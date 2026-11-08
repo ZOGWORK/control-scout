@@ -7,6 +7,7 @@ import { onRecord } from "../../../src/shared/eventRecord.js";
 import type { StatLink, StatMatchRow } from "../../../src/shared/searchStat.js";
 import { dateRange, seasonLabel } from "../../../src/shared/format.js";
 import { CHAMPIONSHIP_TYPE } from "./clauses.js";
+import { eventToday } from "../../../src/shared/eventDay.js";
 import { reportedTeleopIncludesEndgame } from "../../data/seasons.js";
 
 export interface TeamMatch {
@@ -40,6 +41,30 @@ registerCache("Search answers: team matches", () => cache.clear());
  *  feeds, held the same day), then in the event's own match order
  *  (qualifications, then playoffs by bracket stage with the final, series 0, last), never by match time, which a played
  *  match may lack. */
+/** A match FIRST has scheduled for the team and not yet played, at an event that hasn't ended at its venue. */
+export interface UpcomingMatch {
+  season: number; code: string; level: string; series: number; number: number; label: string;
+  /** The match's scheduled time, else its event's first day. */
+  date: string | null;
+  event: string; type: string | null; country: string | null; state: string | null; alliance: "red" | "blue";
+}
+
+/** The team's scheduled matches still to play, soonest first (a schedule's rest: never on a record or a stat). Read
+ *  fresh: they change as the event plays them. */
+export async function upcomingMatches(team: number, now = Date.now()): Promise<UpcomingMatch[]> {
+  const from = new Date(now - 24 * 3600_000).toISOString().slice(0, 10);
+  const rows = await all<UpcomingMatch & { start: string | null; end: string | null; timezone: string | null }>(
+    `SELECT x.season, x.code, x.level, x.series, x.number, x.alliance, m.label, COALESCE(m.time, e.start) date, e.name event, e.type, e.country,
+            e.state, e.start, e.end, e.timezone
+     FROM match_teams x
+     JOIN matches m ON m.season = x.season AND m.code = x.code AND m.level = x.level AND m.series = x.series AND m.number = x.number
+     JOIN events e ON e.season = x.season AND e.code = x.code
+     WHERE x.team = ? AND m.played = 0 AND COALESCE(e.end, e.start) >= ? AND COALESCE(e.remote, 0) = 0
+     ORDER BY m.time IS NULL, m.time, e.start, x.code, x.level = 'playoff', x.series, x.number LIMIT 200`, [team, from]);
+  return rows.filter((r) => (r.end ?? r.start ?? "") >= eventToday(now, r.timezone).from)
+    .map(({ start: _s, end: _e, timezone: _t, ...r }) => ({ ...r, season: Number(r.season), series: Number(r.series), number: Number(r.number) }));
+}
+
 export function teamMatches(team: number): Promise<TeamMatch[]> {
   const hit = cache.get(team);
   if (hit && Date.now() - hit.at < TTL_MS) return hit.rows;

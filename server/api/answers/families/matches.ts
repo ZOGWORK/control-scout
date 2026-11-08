@@ -12,13 +12,27 @@
 //     record rule (src/shared/eventRecord.ts: playoffs included, a qualification surrogate match not).
 //   Blowout: a win by at least double the other alliance's score, and by 20 points or more.
 import type { StatAnswer, StatBlock } from "../../../../src/shared/searchStat.js";
-import { seasonLabel } from "../../../../src/shared/format.js";
+import { dateRange, matchDateTime, seasonLabel } from "../../../../src/shared/format.js";
 import { RECORD_RULE } from "../../../../src/shared/eventRecord.js";
 import { RANKED_MIN_MATCHES } from "../../../../src/shared/rankings.js";
 import { teamPageSql } from "../../../../src/shared/teamPages.js";
 import { get } from "../../../db.js";
 import { inScope, scopeChips, scopePhrase, type Scope } from "../clauses.js";
-import { eventHref, matchRow, teamLinks, type TeamMatch } from "../matchSet.js";
+import { eventHref, matchRow, teamLinks, upcomingMatches, type TeamMatch, type UpcomingMatch } from "../matchSet.js";
+
+/** Matches still to play, soonest first: each with its event, its time (else its event's day) and the team's alliance. */
+function upcomingBlock(xs: UpcomingMatch[], team: number): StatBlock {
+  return {
+    kind: "table", title: "Still to play",
+    columns: [{ key: "match", label: "Match" }, { key: "event", label: "Event" }, { key: "when", label: "When" }, { key: "alliance", label: "Alliance" }],
+    rows: xs.slice(0, UPCOMING_CAP).map((m) => ({
+      cells: { match: m.label, event: m.event, when: (m.date?.includes("T") ? matchDateTime(m.date) : dateRange(m.date, null)) || null, alliance: m.alliance === "red" ? "Red" : "Blue" },
+      href: `/events/${m.season}/${encodeURIComponent(m.code)}?match=${m.level}:${m.series}:${m.number}`, eventHref: eventHref(m.season, m.code, team),
+    })),
+    ...(xs.length > UPCOMING_CAP ? { more: `Showing ${UPCOMING_CAP} of ${xs.length}` } : {}),
+  };
+}
+const UPCOMING_CAP = 30;
 import type { IntentId } from "../read.js";
 
 export interface AnswerTeam { number: number; name: string | null }
@@ -396,13 +410,18 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
     // Every match in the scope (a season, a window, a place): the record, quals and playoffs apart, then the list.
     case "season-matches": {
       const title = `Matches${where}`;
-      if (!ms.length) return { ...base, family: "aggregate", intent: id, title, blocks: [], definition: RESULT_RULE, none: none("matches") };
+      // A schedule's rest: matches scheduled and not yet played, in the scope's places and events. Any season's, as
+      // only the current one has any (a season left unsaid is the last completed one).
+      const ahead = (await upcomingMatches(team.number)).filter(inScope({ ...scope, season: null }));
+      const toPlay = ahead.length ? [upcomingBlock(ahead, team.number)] : [];
+      if (!ms.length) return { ...base, family: "aggregate", intent: id, title, blocks: toPlay, definition: RESULT_RULE, ...(toPlay.length ? {} : { none: none("matches") }) };
       const r = record(ms), quals = ms.filter((m) => m.level === "qual"), playoffs = ms.filter((m) => m.level === "playoff");
       return {
         ...base, family: "aggregate", intent: id, title,
         headline: { value: recText(r), label: `in ${ms.length} match${ms.length === 1 ? "" : "es"}${where}` },
         blocks: [
           { kind: "record", title: "Wins, losses and ties", ...r, ...(quals.length && playoffs.length ? { split: { quals: record(quals), playoffs: record(playoffs) } } : {}) },
+          ...toPlay,
           // Every match: a season is a few dozen at most, and the list is the answer.
           { kind: "matches", title: "Newest first", rows: newestFirst(ms).map(row) },
         ],
