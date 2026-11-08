@@ -431,6 +431,9 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   let ownWord: Tok | null = null, ownDropped = false;
   const ownEventWord = async (one: Tok): Promise<boolean> => {
     if (p.event || !p.teams.length || !ctx.teamEvent || one.w.length < 3 || KIND_WORDS.has(one.w) || EVENT_TYPES[one.w.replace(/s$/, "")] || EVENT_TYPES[one.w]) return false;
+    // "Division" with Worlds said is the team's Worlds division ("what division was <team> in at worlds"), never its
+    // latest event with a division.
+    if (p.worlds && /^divisions?$/.test(one.w)) return false;
     const name = await ctx.teamEvent(one.w, p.teams.flatMap((x) => (x.candidates && !x.rule ? x.candidates : [x.number])), when);
     if (!name) return false;
     p.event = { words: name, typed: one.typed, latest: true };
@@ -564,6 +567,9 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       if (await ownEventWord(one)) break;
     }
   }
+  // "Worlds division highlights", with no team: every division of Worlds, which Worlds already is (each division and
+  // the finals). With a team, "division" is its own Worlds division, search's other readers' ask.
+  if (p.worlds && !p.teams.length && !p.event) for (const t of toks) if (!t.used && /^divisions?$/.test(t.w)) t.used = true;
   p.leftover = toks.filter((t) => !t.used).map((t) => t.typed);
   if (unread) p.leftover.unshift(unread);
   if (p.teams.some((t) => t.candidates && !t.rule)) p.leftover.push(...p.teams.filter((t) => t.candidates && !t.rule).map((t) => t.typed));
