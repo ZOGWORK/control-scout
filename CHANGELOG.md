@@ -27,6 +27,18 @@ The team with the most matches, wins or events can be asked for a few days ("whi
 ### Search
 - **Count boards in a window, said any way.** "This week", "last week", "this month", "today" said with the team with the most matches, wins or events counts that team's played matches in those days from the match rows (a match by its own date, else its event's first day), its record there beside it; awards have no date and get no window board. With none in the window yet, the latest seven days with a match are shown, said on the card. "Most matches played by any team …, top 5" is the same board, the count asked; "worldwide" adds nothing. (#1098)
 
+## 4.3.7 — 2026-11-08
+
+"cham" said for a championship ("who won inspire in nj cham") finds that place's newest championship.
+
+### Highlights
+- [fixes] "nj cham" is New Jersey's championship, its newest one
+- [fixes] "who won inspire in nj cham this year" names this season's
+- [fixes] "cham" after a place works like "champ" and "champs"
+
+### Search
+- **"cham" is "champ" cut short.** A place's "cham" is its newest championship, as "champ" and "champs" are, never an older event whose name has the word. (#1122)
+
 ## 4.3.6 — 2026-11-08
 
 More plain searches answered: a team's highlights by part of its name, events said the way people say them, and a team's losses by a set margin.
