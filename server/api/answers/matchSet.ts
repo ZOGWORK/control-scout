@@ -49,7 +49,7 @@ export interface UpcomingMatch {
   event: string; type: string | null; country: string | null; state: string | null; alliance: "red" | "blue";
 }
 
-/** The team's scheduled matches still to play, soonest first (a schedule's rest: never on a record or a stat). Read
+/** The team's scheduled matches still to play, soonest first: by event, then by time, untimed ones last (a schedule's rest: never on a record or a stat). Read
  *  fresh: they change as the event plays them. */
 export async function upcomingMatches(team: number, now = Date.now()): Promise<UpcomingMatch[]> {
   const from = new Date(now - 24 * 3600_000).toISOString().slice(0, 10);
@@ -60,7 +60,7 @@ export async function upcomingMatches(team: number, now = Date.now()): Promise<U
      JOIN matches m ON m.season = x.season AND m.code = x.code AND m.level = x.level AND m.series = x.series AND m.number = x.number
      JOIN events e ON e.season = x.season AND e.code = x.code
      WHERE x.team = ? AND m.played = 0 AND COALESCE(e.end, e.start) >= ? AND COALESCE(e.remote, 0) = 0
-     ORDER BY m.time IS NULL, m.time, e.start, x.code, x.level = 'playoff', x.series, x.number LIMIT 200`, [team, from]);
+     ORDER BY e.start, x.code, m.time IS NULL, m.time, x.level = 'playoff', x.series, x.number LIMIT 200`, [team, from]);
   return rows.filter((r) => (r.end ?? r.start ?? "") >= eventToday(now, r.timezone).from)
     .map(({ start: _s, end: _e, timezone: _t, ...r }) => ({ ...r, season: Number(r.season), series: Number(r.series), number: Number(r.number) }));
 }

@@ -410,9 +410,10 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
     // Every match in the scope (a season, a window, a place): the record, quals and playoffs apart, then the list.
     case "season-matches": {
       const title = `Matches${where}`;
-      // A schedule's rest: matches scheduled and not yet played, in the scope's places and events. Any season's, as
-      // only the current one has any (a season left unsaid is the last completed one).
-      const ahead = (await upcomingMatches(team.number)).filter(inScope({ ...scope, season: null }));
+      // A schedule's rest: matches scheduled and not yet played, in the scope's places and events. A season named is
+      // kept; one left unsaid (or "this season", read as the last completed one: seasonWhy says so) is any season's, as
+      // only the current one has matches still to play.
+      const ahead = (await upcomingMatches(team.number)).filter(inScope({ ...scope, season: scope.seasonWhy ? null : scope.season }));
       const toPlay = ahead.length ? [upcomingBlock(ahead, team.number)] : [];
       if (!ms.length) return { ...base, family: "aggregate", intent: id, title, blocks: toPlay, definition: RESULT_RULE, ...(toPlay.length ? {} : { none: none("matches") }) };
       const r = record(ms), quals = ms.filter((m) => m.level === "qual"), playoffs = ms.filter((m) => m.level === "playoff");
