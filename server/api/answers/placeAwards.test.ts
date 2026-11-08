@@ -182,4 +182,13 @@ describe("a place's award winners", () => {
     expect(a.intent?.kind).toBe("stat-place-awards");
     expect(a.stat?.blocks.find((b) => b.kind === "related")).toMatchObject({ queries: [`Texas Think winners ${S - 1}-${String(S % 100).padStart(2, "0")}`, expect.any(String)] });
   });
+  it("the most won, tied by more teams than the list shows: counted in the headline, never cut short", async () => {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'USWYQ1', 'Wyoming Qualifier', 'Qualifier', 'Casper', 'WY', 'USA', ?, ?, 't')", [S, `${S}-12-01`, `${S}-12-01`]);
+    for (let i = 0; i < 26; i++) {
+      await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, 'Casper', 'WY', 'USA')", [70000 + i, `Wyoming ${i}`]);
+      await run("INSERT INTO awards (season, code, type, placement, team, name) VALUES (?, 'USWYQ1', 'Connect', 1, ?, 'Connect Award')", [S, 70000 + i]);
+    }
+    const s = await placeAwardsAnswer((await readPlaceAwards("most connect awards in wyoming"))!);
+    expect(s.headline).toMatchObject({ value: "26 teams, tied", label: "1 Connect Award each", sub: "The first 25 by number are listed" });
+  });
 });

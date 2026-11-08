@@ -234,9 +234,16 @@ export async function placeAwardsAnswer(ask: PlaceAwardsAsk): Promise<StatAnswer
     const t2 = `${who} with the most ${whats}${at}, ${when}`;
     if (!ranked.length) return { ...none(`No ${what} won by ${whose}${at} in ${when}.`), title: t2 };
     const top = ranked.filter((x) => x.n === ranked[0].n);
+    // Every row listed tied for the lead: more may be tied past the list's end, so they're counted, never left out.
+    const tied = top.length === ranked.length
+      ? Number((await all<{ n: number }>(`SELECT COUNT(*) n FROM (SELECT a.team ${from} WHERE ${filter} GROUP BY a.team HAVING COUNT(DISTINCT a.season || '|' || a.code || '|' || ${TYPE_SQL}) = ?)`, [...args, ranked[0].n]))[0]?.n ?? top.length)
+      : top.length;
+    const won = count(ranked[0].n, ask.types.length === 1 ? awardName(ask.types[0]) : "award", ask.types.length === 1 ? awardsName(ask.types[0]) : "awards");
     return {
       ...base, title: t2,
-      headline: { value: top.map((x) => teamLabel(x.r)).join(", "), label: `${count(ranked[0].n, ask.types.length === 1 ? awardName(ask.types[0]) : "award", ask.types.length === 1 ? awardsName(ask.types[0]) : "awards")}${top.length > 1 ? " each, tied" : ""}`, href: `/teams/${top[0].r.team}` },
+      headline: tied > top.length
+        ? { value: `${tied} teams, tied`, label: `${won} each`, sub: `The first ${top.length} by number are listed` }
+        : { value: top.map((x) => teamLabel(x.r)).join(", "), label: `${won}${top.length > 1 ? " each, tied" : ""}`, href: `/teams/${top[0].r.team}` },
       blocks: [{ kind: "table", title: `${who} by ${whats} won`, columns: [{ key: "team", label: "Team" }, { key: "home", label: "Home" }, { key: "n", label: "Won", num: true }],
         rows: ranked.slice(0, 25).map((x) => ({ cells: { team: teamLabel(x.r), home: [x.r.city, x.r.state].filter(Boolean).join(", "), n: x.n }, href: `/teams/${x.r.team}`, strong: x.n === ranked[0].n })) }],
       definition: `Most won: each team's ${what}, an alliance award once per event. ${rule}`,
