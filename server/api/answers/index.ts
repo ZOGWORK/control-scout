@@ -37,7 +37,7 @@ import { BOARD_STATS, LEADERBOARD_MAX, boardStatFor, leaderboardAnswer, statWord
 import { everTopMatches, readTopMatches, topMatchesAnswer, type TopMatchesQuestion } from "./families/topMatches.js";
 import { penaltyTotalAnswer, trendAnswer } from "./families/trends.js";
 import { nextEventPrediction, pairPrediction, predictTitle, predictionSeason } from "./families/predict.js";
-import { awardsSideBySide, compareAnswer, compareSeason, headToHead, neverPlayedAnswer, opponentsAnswer, partnerListAnswer, phaseSideBySide, reliabilitySideBySide, seasonSideBySide } from "./families/twoTeam.js";
+import { awardsSideBySide, compareAnswer, compareSeason, headToHead, neverPlayedAnswer, opponentsAnswer, partnerListAnswer, penaltiesSideBySide, phaseSideBySide, reliabilitySideBySide, seasonSideBySide } from "./families/twoTeam.js";
 import { sharedMatchList } from "../searchBoolean.js";
 import { compareBlock, decidedText, leadHeadline, seasonScale, winShare } from "./compareBlock.js";
 import { winnersAnswer, worldsFollowUps } from "./families/winners.js";
@@ -76,7 +76,7 @@ const TITLES: Record<IntentId, string> = {
 };
 const TWO_TEAM_TITLES: Record<TwoTeamId, string> = {
   "head-to-head": "Head to head", "opr-vs": "OPR side by side", "rating-vs": "Prediction ratings side by side", "win-chance": "Win chance", "better-record": "Better record",
-  predict: "Prediction", "h2h-wins": "Wins against", "shared-matches": "Shared matches", compare: "Compare", "phase-vs": "Phase side by side", "reliability-vs": "Reliability side by side", "awards-vs": "Awards side by side",
+  predict: "Prediction", "h2h-wins": "Wins against", "shared-matches": "Shared matches", compare: "Compare", "phase-vs": "Phase side by side", "reliability-vs": "Reliability side by side", "awards-vs": "Awards side by side", "penalties-vs": "Penalties side by side",
 };
 /** Read from the matches the two teams met in ("this season" is the first team's latest season with matches). */
 const MEETING_IDS = new Set<TwoTeamId>(["head-to-head", "h2h-wins", "shared-matches"]);
@@ -430,7 +430,7 @@ export async function statAnswerOf(q: string, it0: StatQuestion, resolve: Resolv
   const name = outcomeTitle ? outcomeTitle : it.id === "average-margin" && it.outcome ? `Average ${it.outcome === "W" ? "winning" : "losing"} margin` : it.id === "scores-over" ? `Scores ${it.variant === "at-least" ? "of at least" : "over"} ${it.n}`
     : it.id === "vs-top" && it.n != null ? `Against top-${it.n} teams`
     : it.id === "penalties" && it.variant ? (it.variant === "rate" ? "Penalty rate" : "Penalty points given away per event")
-    : AWARD_INTENTS.has(it.id) ? awardsTitle(it.id, it) ?? TITLES[it.id] : it.byRecord ? (it.id === "best-finish" ? "Best event" : "Worst event") : it.schedule ? "Event schedule" : PREDICT_INTENTS.has(it.id) && scope.event ? predictTitle(it.id) : TITLES[it.id];
+    : AWARD_INTENTS.has(it.id) ? awardsTitle(it.id, it) ?? TITLES[it.id] : it.byRecord ? (it.id === "best-finish" ? "Best event" : "Worst event") : it.rank ? (it.id === "first-event" ? "First event rank" : "Latest event rank") : it.schedule ? "Event schedule" : PREDICT_INTENTS.has(it.id) && scope.event ? predictTitle(it.id) : TITLES[it.id];
   const title = `${it.leadEvent ? "Event with the highest score" : name}${scopePhrase(it.id === "worlds-divisions" ? { ...scope, championship: false } : scope)}`;
   // "This season" with none of the season in progress played yet reads the team's latest: the heading names that
   // season (its title ends "in 2025–26"), and the answer's note says why (scope.seasonWhy), so the heading stays clean.
@@ -554,7 +554,7 @@ async function build(it: StatQuestion, team: { number: number; name: string | nu
   // Reliability is read from its own rows: an event the team was listed for but never took the field at counts.
   if (it.id === "reliability-history") return trendAnswer(it.id, team, { ...(await teamEventSet(team.number)), events: await reliabilityEvents(team.number) }, scope);
   if (TREND_INTENTS.has(it.id)) return trendAnswer(it.id, team, await teamEventSet(team.number), scope);
-  if (EVENT_INTENTS.has(it.id)) return eventAnswer(it.id, team, await teamEventSet(team.number), scope, { byRecord: it.byRecord, schedule: it.schedule });
+  if (EVENT_INTENTS.has(it.id)) return eventAnswer(it.id, team, await teamEventSet(team.number), scope, { byRecord: it.byRecord, schedule: it.schedule, rank: it.rank });
   // A forecast is for one event: the one named, else the team's next; a place or Worlds isn't one event.
   // Only a season written in the question, or "this season" (the current one), narrows it.
   if (PREDICT_INTENTS.has(it.id)) return scope.place || scope.championship || scope.states ? null : nextEventPrediction(it.id, team, undefined, scope.event, scope.season ?? null);
@@ -1005,6 +1005,7 @@ async function twoTeamStat(two: TwoTeamQuestion, a: AnswerTeam, b: AnswerTeam, s
     case "compare": return compareAnswer([a, b], scope);
     case "phase-vs": return phaseSideBySide(two.phase ?? "auto", a, b, scope);
     case "reliability-vs": return reliabilitySideBySide(a, b, scope);
+    case "penalties-vs": return penaltiesSideBySide(a, b, scope);
     case "awards-vs": return awardsSideBySide(a, b, scope.season);
     case "predict": case "win-chance": {
       // A prediction is one season's ratings: the season named, else the latest completed one.

@@ -108,8 +108,7 @@ export function readOprRating(raw: string): OprRatingQuestion | null {
     // A region is for a rank; "12345 rating in New Jersey" is its place on that region's ranking.
     if (region && !["opr-rank", "rating-rank", "rank", "opr-vs-team-average"].includes(id)) return null;
     if (world && region) return null;
-    // A rank with no stat named is a world or a place's rank; "12345 rating in 2024-25" is the rating card's.
-    if (id === "rank" && !world && !region) continue;
+    // A rank with no stat and no place named ("12345 rank", "<team> ranking") is its world rank, as "worldwide" says.
     if (id === "rating-rank" && !region && !/\b(?:rank|place|position|standing)/.test(m[0])) return null;
     const core = squash(words.replace(FILLER, " ").replace(/\b(?:highest|lowest|best|worst|average|vs|versus|compared|with|percent|top)\b/g, " "));
     if (!core) return null;

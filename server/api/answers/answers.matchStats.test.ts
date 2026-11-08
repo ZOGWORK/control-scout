@@ -98,6 +98,9 @@ describe("what's read", () => {
     expect(readTwoTeam("4215 record against top teams")).toBeNull();
     expect(readTwoTeam("4215 record vs rookie teams")).toBeNull();
     expect(readTwoTeam("4215 record against 6980")).toMatchObject({ id: "head-to-head", a: "4215", b: "6980" });
+    // "A vs B record": their record against each other; "A and B record" stays each team's own.
+    for (const q of ["4215 vs 6980 record", "hypnotic robotics vs bad wolf record"]) expect(readTwoTeam(q)?.id, q).toBe("head-to-head");
+    expect(readTwoTeam("4215 and 6980 record")?.id).not.toBe("head-to-head");
     // "Biggest improvement" stays the season-over-season answer; only an improvement trend is the OPR trend.
     expect(readStatQuestion("4215 biggest improvement")).toMatchObject({ id: "most-improved-season" });
     // Its season words stay the scope's: "this season" is read as everywhere else.

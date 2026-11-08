@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 4.2.4 — 2026-11-08
+## 4.2.8 — 2026-11-08
 
 Search answers who is ranked just above and just below a team. "Who is ranked just above and just below 4215 worldwide in 2025-26" shows its world OPR rank, with the teams on either side of it.
 
@@ -26,6 +26,61 @@ Search answers who is ranked just above and just below a team. "Who is ranked ju
 
 ### Search
 - **The teams around a team's rank.** "Who is (ranked) (just, right, directly) above / below / ahead of / behind <team> (worldwide, in the world rankings)" and "teams ranked near (around, close to) <team>" read as the team's OPR rank, keeping a season ("in 2025-26", "last season") or a place ("in new jersey"). The world OPR rank answer now lists the two teams above and below it on the season's world OPR list, as a place's rank already listed its own. "At worlds" isn't read as a rank question. (#1110)
+
+## 4.2.7 — 2026-11-08
+
+Three more basic searches answer what was asked: a country is never read as a town, a name spelled exactly as typed comes first, and "<team> vs <team> record" is their record against each other.
+
+### Highlights
+- [teams] "Teams in <country>" lists that country's teams
+- [teams] The team spelled as you typed comes first
+- [teams] "<team> vs <team> record" gives their head to head
+
+### Search
+- **A country is never a town.** "Teams in Romania", "best team in Canada" list that country's teams. Before, a team that gives its country as its home city made the answer that one team. (#1178)
+- **The spelling typed, first.** When two teams' names score the same ("RoboRebels" and "Robo Rebels"), the one spelled exactly as typed comes first in the results.
+- **"<team> vs <team> record".** Their record against each other, as "<team> record against <team>" gives. Each team's own season record is still "<team> and <team> record".
+
+## 4.2.6 — 2026-11-08
+
+Basic team searches answer what was asked: "<team> rank" gives its world rank, a team's latest event asked for its ranking leads with the rank, a league's standing counts the whole league, and a name two teams share works beside the number.
+
+### Highlights
+- [rankings] "<team> rank" answers with the team's world rank
+- [rankings] "Latest event ranking" answers with the rank there
+- [rankings] A league standing is out of the whole league
+- [teams] A team's name and number together are one team
+
+### Search
+- **A team's rank, asked plainly.** "<team> rank", "<team> ranking", "<team> standing" and "where does <team> rank" answer with its world rank by OPR and by prediction rating, as "<team> rank worldwide" does, instead of only the team's link. A place, an event, a league or a stat named still goes to that answer.
+- **Rank at an event, asked.** "<team> latest event ranking", "last event rank", "first event standing" lead with the team's qualification rank there instead of its OPR. A league meet has no rank of its own (its rank is the league's running standing), so the answer is the latest ranked event, and it says which meet it skipped and why. (#1175)
+- **League standing out of the league.** "<team> league rank" counts every team ranked in that league's meets this season up to that meet's date, not only the teams at that meet, so a standing is never larger than its count.
+- **A shared name with its number.** When several teams share a name, typing one of their numbers beside it ("<name> <number> highlights") is that one team, in either order, instead of two teams and no answer.
+
+## 4.2.5 — 2026-11-08
+
+Two teams are read with the stat asked first ("who has the higher OPR, A or B"), a forecast asked as a question ("will A beat B") and penalties side by side.
+
+### Highlights
+- [fixes] "Who has the higher OPR, 4215 or 7149" compares their OPRs
+- [fixes] "Will 4215 beat 7149" shows the predicted winner
+- [fixes] "Who has better penalties, 207 or 8902" compares fouls given
+- [fixes] Three teams compared "on auto, teleop and endgame" get the card
+
+### Search
+- **Two teams, the stat asked first.** "Who has the higher OPR, rating or reliability, A or B", "who scored more, A or B", "will A beat B" and "predicted winner A vs B" each read as the two teams' answer; a new penalties side by side compares the penalty points each team gives away a match, fewer being better; three teams compared with the phases named are the compare card. (#1088)
+
+## 4.2.4 — 2026-11-08
+
+Matches asked for in order ("highest scoring first"), "what happened last weekend" and finished events each get their answer.
+
+### Highlights
+- [fixes] "Matches from yesterday, highest scoring first" lists the top scores
+- [fixes] "What happened last weekend" shows that weekend's highlights
+- [fixes] "Finished events" lists events that are over
+
+### Search
+- **Order, said in words.** "Highest scoring first", "top first", "lowest first" read as the sort they ask for, never as a team's first match; "what happened" with a time or a place and no team reads as that scope's highlights; matches in a time window with no measure said ("matches from yesterday") list that window's best first; finished, completed and ended events are past events. (#1073)
 
 ## 4.2.3 — 2026-11-08
 

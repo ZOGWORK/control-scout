@@ -196,8 +196,11 @@ export const INTENTS: IntentRule[] = [
   // No team: the best matches anywhere, and ranked lists of teams.
   R("top-matches", 0, ["agg:max", "metric:score"], ["thing:match", "per:match", "nopen"]),
   R("top-matches", 0, ["agg:max", "thing:match"], ["metric:score", "nopen"]),
+  // Matches in a window, no measure said ("matches from yesterday"): the window's best first (./execute.ts needs the window).
+  R("top-matches", 0, ["thing:match"], ["list"], { noEvent: true, noMatchNo: true }),
   // Matches by a measure ("and" is "with": "the match with the most penalty points").
   R("low-matches", 0, ["agg:min", "metric:score"], ["thing:match", "nopen", "and"]),
+  R("low-matches", 0, ["agg:min", "thing:match"], ["metric:score", "nopen", "and"]),
   R("close-matches", 0, ["agg:closest"], ["thing:match", "metric:score", "metric:margin", "metric:win", "metric:loss", "outcome:W", "outcome:L", "and"]),
   R("close-matches", 0, ["agg:min", "metric:margin"], ["thing:match", "metric:win", "metric:loss", "metric:score", "outcome:W", "outcome:L", "and"]),
   R("lopsided-matches", 0, ["agg:max", "metric:margin"], ["thing:match", "metric:win", "metric:score", "outcome:W", "and"]),
@@ -222,6 +225,8 @@ export const INTENTS: IntentRule[] = [
     R("highlights", n, ["highlights"], ["videos", "thing:match", "list", "agg:max"], { noMatchNo: true }),
     R("highlights", n, ["videos"], ["thing:match", "thing:event", "list", "agg:max", "agg:last"], { noMatchNo: true }),
   ]),
+  // "What happened last weekend", with no team: the scope's standout matches (one team's is the forecast's review).
+  R("highlights", 0, ["review"], ["highlights", "thing:match", "list", "agg:max"], { noMatchNo: true }),
   // The teams at an event, Worlds or a state championship ("nj teams at worlds", "teams at east bergen conference"):
   // its board, best first.
   R("leaderboard", 0, ["thing:team", "prep:at"], ["list"], { event: true }),
