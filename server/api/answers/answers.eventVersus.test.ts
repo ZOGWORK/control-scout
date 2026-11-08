@@ -32,14 +32,15 @@ describe("the answer", () => {
     const c = openDb(":memory:");
     setDb(c);
     await migrate(c);
-    await run("INSERT INTO events (season, code, name, type, source) VALUES (2025, 'OH', 'Ohio Championship', 'Championship', 'test'), (2025, 'TX', 'Texas Championship', 'Championship', 'test'), (2025, 'TXD1', 'Texas Championship - Div 1', 'Championship', 'test'), (2025, 'EM', 'Empty Championship', 'Championship', 'test'), (2024, 'UT', 'Utah Championship', 'Championship', 'test'), (2025, 'CMP', 'FIRST Championship', 'FIRSTChampionship', 'test')");
+    await run("INSERT INTO events (season, code, name, type, source) VALUES (2025, 'OH', 'Ohio Championship', 'Championship', 'test'), (2025, 'TX', 'Texas Championship', 'Championship', 'test'), (2025, 'TXD1', 'Texas Championship - Div 1', 'Championship', 'test'), (2025, 'EM', 'Empty Championship', 'Championship', 'test'), (2024, 'UT', 'Utah Championship', 'Championship', 'test'), (2025, 'CMP', 'FIRST Championship', 'FIRSTChampionship', 'test'), (2025, 'PWS', 'Pre Worlds Scrimmage', 'Scrimmage', 'test')");
     await run("UPDATE events SET division_code = 'TX' WHERE code = 'TXD1'");
     // code, team, OPR
     const ts: [string, number, number][] = [["OH", 1, 40], ["OH", 2, 60], ["TXD1", 3, 90], ["TXD1", 4, 70], ["TX", 3, 95]];
     for (const [code, team, opr] of ts) await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (2025, ?, ?, ?, 5)", [code, team, opr]);
     // Another season's game, its points far higher.
     await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (2024, 'UT', 5, 300, 5), (2024, 'UT', 6, 250, 5), (2025, 'CMP', 3, 100, 5), (2025, 'CMP', 8, 80, 5)");
-    await run("INSERT INTO matches (season, code, level, series, number, label, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'CMP', 'playoff', 1, 1, 'M1', 1, 260, 250, 200, 200, 'test')");
+    // An event with "worlds" in its name is never Worlds.
+    await run("INSERT INTO matches (season, code, level, series, number, label, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'CMP', 'playoff', 1, 1, 'M1', 1, 260, 250, 200, 200, 'test'), (2025, 'PWS', 'qual', 0, 1, 'Q1', 1, 90, 90, 80, 80, 'test')");
     await run("INSERT INTO matches (season, code, level, series, number, label, played, red_total, red_np, blue_total, blue_np, source) VALUES (2024, 'UT', 'qual', 0, 1, 'Q1', 1, 500, 480, 400, 400, 'test')");
     // A team that never played: not counted.
     await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (2025, 'OH', 9, 500, 0)");
