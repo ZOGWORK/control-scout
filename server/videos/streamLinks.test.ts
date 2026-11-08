@@ -5,7 +5,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { all, migrate, openDb, run, setDb } from "../db";
 import { clearAllCaches } from "../caches";
 import { eventRecording } from "./recordings";
-import { followable, linkDue, publicAddress, resolveShortLink, resolveStreamLinks, type Hop } from "./streamLinks";
+import { followable, linkDue, publicAddress, resolveShortLink, resolveStreamLinks, type Facts, type Hop } from "./streamLinks";
 
 const S = 2026;
 const NOW = Date.parse("2026-10-31T19:00:00Z"); // noon on Oct 31 in Seattle
@@ -22,7 +22,14 @@ const to = (id: string) => `https://www.youtube.com/live/${id}`;
 async function event(code: string, start: string, livestream: string | null) {
   await run("INSERT INTO events (season, code, name, type, start, end, timezone, remote, hybrid, livestream, source) VALUES (?, ?, ?, 'LeagueMeet', ?, ?, 'America/Los_Angeles', 0, 0, ?, 'test')", [S, code, `Event ${code}`, start, start, livestream]);
 }
-const resolve = (now: number) => resolveStreamLinks(() => {}, { hop, now: () => now });
+// When each video's broadcast started, as YouTube says (missing: an upload with no start; "error": not readable now).
+let started: Record<string, string | "error"> = {};
+const facts: Facts = async (id) => {
+  const s = started[id];
+  if (s === "error") return { status: "error", start: null, end: null, length: null, live: false };
+  return { status: "ok", start: s ?? null, end: null, length: 3600, live: false };
+};
+const resolve = (now: number) => resolveStreamLinks(() => {}, { hop, now: () => now, facts });
 const kept = async (code: string) => { clearAllCaches(); return (await eventRecording(S, code))?.videoId ?? null; };
 
 beforeAll(async () => {
@@ -128,5 +135,47 @@ describe("resolveStreamLinks", () => {
   it("drops the kept video once FIRST gives the event another link", async () => {
     await run("UPDATE events SET livestream = 'https://twitch.tv/other' WHERE code = 'TODAY'");
     expect(await kept("TODAY")).toBeNull();
+  });
+});
+
+describe("resolveStreamLinks after the event", () => {
+  const LATE = "https://ftcwa.live/2027/salk-lm1";
+  const AFTER = NOW + 8 * DAY_MS; // Nov 8: the meet on Oct 31 was never followed on its day
+  it("follows a finished event's link and keeps the video whose broadcast started on its dates", async () => {
+    await event("LATE", "2026-10-31", LATE);
+    hops = { [LATE]: to(THIRD) };
+    started = { [THIRD]: "2026-10-31T16:02:11Z" }; // 9 am in Tacoma
+    await resolve(AFTER);
+    expect(await kept("LATE")).toBe(THIRD);
+  });
+
+  it("gives nothing when the link has moved on to a later meet's broadcast, or the video is an upload", async () => {
+    const MOVED = "https://ftcwa.live/moved";
+    await event("MOVED", "2026-10-30", MOVED);
+    hops = { [MOVED]: to(NEXT) };
+    started = { [NEXT]: "2026-11-07T17:00:00Z" };
+    await resolve(AFTER);
+    expect(await kept("MOVED")).toBeNull();
+    const UP = "https://ftcwa.live/upload";
+    await event("UPLOAD", "2026-10-30", UP);
+    hops = { [UP]: to("abcdefghijk") };
+    started = {};
+    await resolve(AFTER);
+    expect(await kept("UPLOAD")).toBeNull();
+  });
+
+  it("asks again later when YouTube can't be read, and stops LATE_DAYS after the event", async () => {
+    const SOON = "https://ftcwa.live/soon";
+    await event("SOON", "2026-10-29", SOON);
+    hops = { [SOON]: to(VIDEO) };
+    started = { [VIDEO]: "error" };
+    await resolve(AFTER);
+    expect(await all("SELECT 1 FROM event_stream_links WHERE code = 'SOON'")).toEqual([]);
+    started = { [VIDEO]: "2026-10-29T17:00:00Z" };
+    asked.length = 0;
+    await resolve(NOW + 30 * DAY_MS);
+    expect(asked).not.toContain(SOON);
+    await resolve(AFTER + 60_000);
+    expect(await kept("SOON")).toBe(VIDEO);
   });
 });
