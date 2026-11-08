@@ -200,15 +200,18 @@ async function resolveLate(now: number, opts: { max?: number; hop?: Hop; facts?:
     const last = (r.end ?? r.start).slice(0, 10);
     // Dates over at the venue (today's events are the pass above's), and not longer ago than LATE_DAYS.
     return last < eventToday(now, r.timezone).from && last >= day(now - LATE_DAYS * 86_400_000) && linkDue(r, r.livestream, now);
-  }).slice(0, opts.max ?? 20);
+  })
+    // Never tried first, then the longest since a try: a run of failing links can't hold every slot.
+    .sort((a, b) => (a.checked_at ?? "").localeCompare(b.checked_at ?? ""))
+    .slice(0, opts.max ?? 20);
   let found = 0;
   for (const r of todo) {
+    // A failed request (the link's or YouTube's) keeps no video but notes the try, so it waits its 2 hours (linkDue).
     let id = await resolveShortLink(r.livestream, opts.hop);
-    if (id === "error") continue;
+    if (id === "error") id = null;
     if (id) {
       const ok = await broadcastOnDates(id, r, opts.facts);
-      if (ok === "error") continue; // YouTube couldn't say: asked again on a later beat
-      if (!ok) id = null;
+      if (ok !== true) id = null;
     }
     if (id) {
       // Another event already keeps this broadcast for the same link (back-to-back meets): theirs, not this one's.

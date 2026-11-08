@@ -164,18 +164,20 @@ describe("resolveStreamLinks after the event", () => {
     expect(await kept("UPLOAD")).toBeNull();
   });
 
-  it("asks again later when YouTube can't be read, and stops LATE_DAYS after the event", async () => {
+  it("asks again 2 hours after YouTube can't be read, and stops LATE_DAYS after the event", async () => {
     const SOON = "https://ftcwa.live/soon";
     await event("SOON", "2026-10-29", SOON);
     hops = { [SOON]: to(VIDEO) };
     started = { [VIDEO]: "error" };
     await resolve(AFTER);
-    expect(await all("SELECT 1 FROM event_stream_links WHERE code = 'SOON'")).toEqual([]);
+    expect(await kept("SOON")).toBeNull();
     started = { [VIDEO]: "2026-10-29T17:00:00Z" };
     asked.length = 0;
-    await resolve(NOW + 30 * DAY_MS);
+    await resolve(AFTER + 60_000); // the failed try waits its 2 hours
     expect(asked).not.toContain(SOON);
-    await resolve(AFTER + 60_000);
+    await resolve(NOW + 30 * DAY_MS); // past LATE_DAYS: never followed
+    expect(asked).not.toContain(SOON);
+    await resolve(AFTER + 3 * 3600_000);
     expect(await kept("SOON")).toBe(VIDEO);
   });
 });
