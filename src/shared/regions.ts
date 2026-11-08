@@ -3,10 +3,10 @@
 // "MT" is Montana in the USA but Mato Grosso in Brazil. "Name|aliases".
 
 const US: Record<string, string> = {
-  AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas", CA: "California", CO: "Colorado", CT: "Connecticut",
+  AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas", CA: "California|Cali", CO: "Colorado", CT: "Connecticut",
   DE: "Delaware", DC: "District of Columbia|Washington DC", FL: "Florida", GA: "Georgia", HI: "Hawaii", ID: "Idaho",
   IL: "Illinois", IN: "Indiana", IA: "Iowa", KS: "Kansas", KY: "Kentucky", LA: "Louisiana", ME: "Maine", MD: "Maryland",
-  MA: "Massachusetts", MI: "Michigan", MN: "Minnesota", MS: "Mississippi", MO: "Missouri", MT: "Montana", NE: "Nebraska",
+  MA: "Massachusetts|Mass", MI: "Michigan", MN: "Minnesota", MS: "Mississippi", MO: "Missouri", MT: "Montana", NE: "Nebraska",
   NV: "Nevada", NH: "New Hampshire", NJ: "New Jersey", NM: "New Mexico", NY: "New York", NC: "North Carolina",
   ND: "North Dakota", OH: "Ohio", OK: "Oklahoma", OR: "Oregon", PA: "Pennsylvania", RI: "Rhode Island",
   SC: "South Carolina", SD: "South Dakota", TN: "Tennessee", TX: "Texas", UT: "Utah", VT: "Vermont", VA: "Virginia",
@@ -68,6 +68,13 @@ export function findRegions(q: string): Region[] {
   const exact = ALL.filter((r) => r.names.includes(f) || ((r.country === "USA" || r.country === "Canada") && r.state.toLowerCase() === f));
   if (exact.length || f.length < 4) return exact.map(({ names: _, ...r }) => r);
   return ALL.filter((r) => r.names.some((n) => n.startsWith(f))).slice(0, 3).map(({ names: _, ...r }) => r);
+}
+
+/** The one region with this exact name, its own or another it goes by ("Mass", "Cali"); null when none or several. */
+export function regionNamed(q: string): Region | null {
+  const f = fold(q);
+  const hits = f ? ALL.filter((r) => r.names.includes(f)) : [];
+  return hits.length === 1 ? (({ names: _, ...r }) => r)(hits[0]) : null;
 }
 
 /** Letters to change, add or drop to turn `a` into `b`. */
