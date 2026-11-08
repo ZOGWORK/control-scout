@@ -70,16 +70,22 @@ export function pullEnd(s: PullState, cancelled = false): boolean {
 /** Elements a pull never starts inside: dialogs, sheets, menus and anything marked data-no-pull. */
 const BLOCKING = '[role="dialog"],[role="alertdialog"],[aria-modal="true"],[role="menu"],[role="listbox"],[data-no-pull]';
 
+/** A touch-action that leaves vertical panning to the page (auto, manipulation, pan-y …); anything else is a control's own drag. */
+const pansVertically = (ta: string) => !ta || ta === "auto" || ta === "manipulation" || /pan-y|pan-down/.test(ta);
+
 /**
- * Why a touch on `target` can't start a pull: it is inside a dialog or an inner vertical scroller (a list
- * with its own scrollbar, which owns its own overscroll), or a modal is open over the page.
+ * Why a touch on `target` can't start a pull: it is inside a dialog, an inner vertical scroller (a list
+ * with its own scrollbar, which owns its own overscroll) or a control that takes the drag itself (a reorder
+ * grip, a slider, the map: touch-action none or pan-x), or a modal is open over the page.
  */
 export function pullBlocked(target: Element | null, doc: Document = document): boolean {
   for (const el of doc.querySelectorAll('[aria-modal="true"]')) if (isShown(el)) return true;
   for (let el = target; el && el !== doc.body && el !== doc.documentElement; el = el.parentElement) {
     if (el.matches(BLOCKING)) return true;
+    const cs = getComputedStyle(el);
+    if (!pansVertically(cs.touchAction || cs.getPropertyValue("touch-action"))) return true;
     if (el.scrollHeight > el.clientHeight + 1) {
-      const oy = getComputedStyle(el).overflowY;
+      const oy = cs.overflowY;
       if (oy === "auto" || oy === "scroll") return true;
     }
   }

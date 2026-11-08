@@ -25,7 +25,7 @@ In the installed app on a phone, pull down from the top of any page to reload it
 - [appearance] Phone browser tabs keep their own pull-to-refresh
 
 ### Phone app
-- **Pull to reload.** The installed app (added to the home screen) has no reload button, so pulling down from the very top of a page now reloads it: the whole page, so the data, a new release and the offline copy all come fresh. It only starts at the top of the page, with one finger, on a downward drag; a sideways swipe, a scroll, a list with its own scrollbar, or an open dialog or sheet are left alone, and letting go early does nothing. A phone's browser tab keeps its own pull-to-refresh, and desktop gets none. Under reduced motion the icon doesn't turn or spin. (#1159)
+- **Pull to reload.** The installed app (added to the home screen) has no reload button, so pulling down from the very top of a page now reloads it: the whole page, so the data, a new release and the offline copy all come fresh. It only starts at the top of the page, with one finger, on a downward drag; a sideways swipe, a scroll, a list with its own scrollbar, a drag handle (reordering picks), or an open dialog or sheet are left alone, and letting go early does nothing. A phone's browser tab keeps its own pull-to-refresh, and desktop gets none. Under reduced motion the icon doesn't turn or spin. (#1159)
 
 ## 4.0.9 — 2026-11-08
 

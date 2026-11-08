@@ -132,6 +132,19 @@ describe("pullBlocked", () => {
     expect(pullBlocked(document.getElementById("t"))).toBe(true);
   });
 
+  it("blocks on controls that take the drag themselves (a reorder grip, a slider, the map)", () => {
+    for (const ta of ["none", "pan-x", "pinch-zoom"]) {
+      document.body.innerHTML = `<ul><li><button id="t" style="touch-action:${ta}"><svg></svg></button></li></ul>`;
+      expect(pullBlocked(document.getElementById("t")), ta).toBe(true);
+      document.body.innerHTML = `<div style="touch-action:${ta}"><span id="t">inside</span></div>`;
+      expect(pullBlocked(document.getElementById("t")), `inside ${ta}`).toBe(true);
+    }
+    for (const ta of ["auto", "manipulation", "pan-y", "pan-x pan-y"]) {
+      document.body.innerHTML = `<div style="touch-action:${ta}"><span id="t">page</span></div>`;
+      expect(pullBlocked(document.getElementById("t")), ta).toBe(false);
+    }
+  });
+
   it("doesn't block in a horizontal strip or a box with nothing to scroll", () => {
     document.body.innerHTML = `<div id="strip" style="overflow-x:auto"><p id="t">chip</p></div>`;
     const strip = document.getElementById("strip")!;

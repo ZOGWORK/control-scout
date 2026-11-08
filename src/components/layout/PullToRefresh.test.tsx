@@ -60,6 +60,19 @@ describe("PullToRefresh", () => {
     expect(reload).not.toHaveBeenCalled();
   });
 
+  it("leaves a move another control already claimed (its own drag) alone", () => {
+    media(INSTALLED_PHONE);
+    const reload = vi.fn();
+    const grab = (e: Event) => e.preventDefault();
+    document.body.addEventListener("touchmove", grab, { passive: false });
+    const { container } = render(<PullToRefresh reload={reload} />);
+    pull(400);
+    act(() => { vi.runAllTimers(); });
+    document.body.removeEventListener("touchmove", grab);
+    expect(container.querySelector("[data-pull-refresh]")).toBeNull();
+    expect(reload).not.toHaveBeenCalled();
+  });
+
   it("does nothing when the page isn't at the top: the move stays the browser's", () => {
     media(INSTALLED_PHONE);
     Object.defineProperty(window, "scrollY", { value: 300, configurable: true });

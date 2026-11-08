@@ -40,7 +40,8 @@ export function PullToRefresh({ reload = () => window.location.reload() }: { rel
     };
     const onMove = (e: TouchEvent) => {
       if (busy || state.current.phase === "idle" || state.current.phase === "ignored") return;
-      if (e.touches.length !== 1) { set(IDLE); return; }
+      // Two fingers, or a control on the page already took this move (its own drag): not a pull.
+      if (e.touches.length !== 1 || e.defaultPrevented) { set({ ...IDLE, phase: "ignored" }); return; }
       const t = e.touches[0];
       const { state: next, prevent } = pullMove(state.current, t.clientX, t.clientY, pageAtTop());
       if (prevent && e.cancelable) e.preventDefault();
