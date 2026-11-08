@@ -105,13 +105,16 @@ export const askSeason = (now = Date.now()): number => seasonOfDate(searchToday(
 
 /** `read` for the current season, then the season before when the current one has nothing yet (the pipeline's own
  *  step, ./query/relax.ts defaultSteps). */
-async function currentFirst<T>(read: (season: number) => Promise<T>, empty: (t: T) => boolean): Promise<{ season: number; got: T }> {
+async function currentFirst<T>(read: (season: number) => Promise<T>, empty: (t: T) => boolean): Promise<{ season: number; got: T; skipped: number | null }> {
   const season = askSeason();
   const got = await read(season);
-  if (!empty(got)) return { season, got };
+  if (!empty(got)) return { season, got, skipped: null };
   const before = await read(season - 1);
-  return empty(before) ? { season, got } : { season: season - 1, got: before };
+  return empty(before) ? { season, got, skipped: null } : { season: season - 1, got: before, skipped: season };
 }
+/** Why an asked board shows the season before `skipped`, in the pipeline's own words (./query/relax.ts defaultSteps),
+ *  or "" when it shows the current one. */
+const fellBack = (skipped: number | null, where: string) => skipped == null ? "" : ` (No ${seasonLabel(skipped)} ranked teams yet${where}; showing ${seasonLabel(skipped - 1)})`;
 
 /** The question `q` asks of a view, or null. `q` is cleaned (no punctuation), any case. */
 export function readAsk(q: string): Ask | null {
@@ -331,33 +334,33 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
 
     case "leaderboard": {
       if (!ask.region) {
-        const { season, got: r } = await currentFirst((s) => rankings({ season: s, week: null, places: [], page: 1 }), (x) => !x.rows.length);
+        const { season, got: r, skipped } = await currentFirst((s) => rankings({ season: s, week: null, places: [], page: 1 }), (x) => !x.rows.length);
         const lines = r.rows.slice(0, 5).map((row) => teamLine(row.team, row.name, [`#${row.rank} worldwide`]));
         const title = `Top teams · ${seasonLabel(season)}`;
         return answer(q, {
           hits: [], pages: withPage(q, [{ title: `World rankings (${r.total} teams)`, href: `/rankings?season=${season}` }]),
           card: { kind: "leaderboard", title, lines, ...(lines.length ? {} : { none: `No ranked teams for ${seasonLabel(season)} yet.` }) },
-          understood: { kind: "question", label: `${title}: the world rankings`, season },
+          understood: { kind: "question", label: `${title}: the world rankings${fellBack(skipped, "")}`, season },
         });
       }
       const region = ask.region;
       const place = parsePlaces(region.key)?.[0];
       if (!place) return null;
-      const { season, got: r } = await currentFirst((s) => rankings({ season: s, week: null, places: [place], page: 1 }), (x) => !x.rows.length);
+      const { season, got: r, skipped } = await currentFirst((s) => rankings({ season: s, week: null, places: [place], page: 1 }), (x) => !x.rows.length);
       const lines = r.rows.slice(0, 5).map((row, i) => teamLine(row.team, row.name, [`#${i + 1} in ${region.name}`, `#${row.rank} worldwide`]));
       const href = `/rankings?season=${season}&region=${encodeURIComponent(ask.region.key)}`;
       const title = `Top teams in ${ask.region.name} · ${seasonLabel(season)}`;
       return answer(q, {
         hits: [], pages: withPage(q, [{ title: `${ask.region.name} rankings (${r.total} teams)`, href }]),
         card: { kind: "leaderboard", title, lines, ...(lines.length ? {} : { none: `No ranked teams in ${ask.region.name} for ${seasonLabel(season)} yet.` }) },
-        understood: { kind: "question", label: `${title}: the region's rankings`, place: { key: ask.region.key, name: ask.region.name }, season },
+        understood: { kind: "question", label: `${title}: the region's rankings${fellBack(skipped, ` in ${ask.region.name}`)}`, place: { key: ask.region.key, name: ask.region.name }, season },
       });
     }
 
     case "stat": {
       const where = ask.region ? " AND t.country = ? AND t.state = ?" : "";
       const col = STAT_COLUMN[ask.stat];
-      const { season, got: rows } = await currentFirst((season) => all<any>(
+      const { season, got: rows, skipped } = await currentFirst((season) => all<any>(
         `SELECT s.team, t.name, t.city, t.state, t.country, s.opr_np, ${PHASE_COLS}, s.wins, s.losses, s.ties
          FROM team_season_stats s JOIN teams t ON t.number = s.team
          WHERE s.season = ? AND s.matches >= ? AND ${col} IS NOT NULL AND ${teamPageSql("s.team", "t.name")}${where}
@@ -370,7 +373,7 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
         hits: [], pages: withPage(q, [{ title: "Rankings", href: `/rankings?season=${season}${ask.region ? `&region=${encodeURIComponent(ask.region.key)}` : ""}` }]),
         // The same teams as a table, sorted by the stat asked (most wins: the list's own order, its record a column).
         card: { kind: "leaderboard", title, lines, ...(lines.length ? { table: tableOf(rows, season, ({ opr: "opr", auto: "auto", teleop: "dc", endgame: "endgame", wins: "rank" } as const)[ask.stat]) } : { none: `No team has played ${RANKED_MIN_MATCHES}+ matches in ${seasonLabel(season)} yet.` }) },
-        understood: { kind: "question", label: `${title}${ask.stat === "wins" ? "" : ", without penalties"}`, season, ...(ask.region ? { place: { key: ask.region.key, name: ask.region.name } } : {}) },
+        understood: { kind: "question", label: `${title}${ask.stat === "wins" ? "" : ", without penalties"}${fellBack(skipped, ask.region ? ` in ${ask.region.name}` : "")}`, season, ...(ask.region ? { place: { key: ask.region.key, name: ask.region.name } } : {}) },
       });
     }
 
