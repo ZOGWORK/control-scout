@@ -13,7 +13,7 @@ beforeAll(async () => {
   const c = openDb(":memory:");
   setDb(c);
   await migrate(c);
-  for (const [n, name] of [[1, "First Ones"], [12, "Dozen"], [10000, "The Team of 10,000 Lakes"]] as const) {
+  for (const [n, name] of [[1, "First Ones"], [12, "Dozen"], [10000, "The Team of 10,000 Lakes"], [5, "1,000 Lakes Bots"]] as const) {
     await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, 'Town', 'MN', 'USA')", [n, name]);
     await run("INSERT INTO team_seasons (season, team) VALUES (?, ?)", [CURRENT_SEASON, n]);
   }
@@ -21,9 +21,14 @@ beforeAll(async () => {
 });
 
 describe("a number with thousands separators", () => {
-  it("is one number when the query is cleaned", () => {
+  it("is one number when the query is cleaned, other commas dropped", () => {
     expect(cleanQuery("teams with opr over 1,000?")).toBe("teams with opr over 1000");
     expect(cleanQuery("4215, 6980")).toBe("4215 6980");
+    expect(cleanQuery("4215,6980")).toBe("4215 6980");
+  });
+  it("finds a team by a name written with one, its number another", async () => {
+    const dbg = await ask("1,000 lakes bots");
+    expect(dbg.hits[0]).toMatchObject({ kind: "team", ref: "5" });
   });
   it("is a threshold, never team 1", async () => {
     const a = await ask("teams with opr over 1,000");

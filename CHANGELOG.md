@@ -25,7 +25,7 @@ A number written with thousands separators ("1,000", "12,500") is read as one nu
 - [fixes] Commas between team numbers still list each team
 
 ### Search
-- **Thousands separators.** A number written with thousands separators is read as one number by the query parser and the layer tokeniser, never as a team and a leftover "000". Commas between team numbers ("1, 12 and 4215") and in dates stay as they were. (#1157)
+- **Thousands separators.** A number written with thousands separators is one number everywhere search reads it (the query cleaner, the parser, the layers and name matching), never a team and a leftover "000". A name written that way ("1,000 Lakes") is found either way; the search index is rebuilt once for it. Commas between team numbers ("1, 12 and 4215") and in dates stay as they were. (#1157)
 
 ## 4.0.5 — 2026-11-07
 

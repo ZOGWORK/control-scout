@@ -80,6 +80,8 @@ export interface AnswerOptions {
 /** The query as search reads it: punctuation that never means anything dropped, spaces folded, at most MAX_QUERY
  *  (cut at the last whole word: a word cut in two, "2025-2", would be read as another). */
 export function cleanQuery(raw: string): string {
+  // "1,000" is one number before its comma could be dropped as punctuation; a stored name written that way is indexed
+  // as one number too (SEARCH_INDEX_SCHEMA 5).
   const q = joinThousands(String(raw ?? "")).replace(/[!?,;"<>(){}[\]|\\^*`~=+]/g, " ").replace(/\s+/g, " ").trim();
   if (q.length <= MAX_QUERY) return q;
   const cut = q.slice(0, MAX_QUERY);

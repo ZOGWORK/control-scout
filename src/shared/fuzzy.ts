@@ -5,15 +5,18 @@
 //
 // Pure functions — no database — so they're unit-tested on their own.
 
-/** Lowercase, strip accents and punctuation, collapse spaces — keeping letters of every script (机器人, Ελλάδα…). */
+/** Lowercase, strip accents and punctuation, collapse spaces, a number written "1,000" as one — keeping letters of every script (机器人, Ελλάδα…). */
 export function normalize(s: string): string {
-  return s.normalize("NFKD").replace(/\p{M}+/gu, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  return joinThousands(s).normalize("NFKD").replace(/\p{M}+/gu, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 }
 
 /** A number written with thousands separators ("1,000", "12,345,678") as one number: never a team and a leftover. */
-export const joinThousands = (s: string) => s.replace(/(?<![\p{L}\p{N},.])\d{1,3}(?:,\d{3})+(?![\p{L}\p{N}]|,\d)/gu, (m) => m.replace(/,/g, ""));
+export const THOUSANDS = /(?<![\p{L}\p{N},.])\d{1,3}(?:,\d{3})+(?![\p{L}\p{N}]|,\d)/gu;
+export const joinThousands = (s: string) => s.replace(THOUSANDS, (m) => m.replace(/,/g, ""));
+/** A stored name's words as a query reads them ("1,000 Lakes" is also "1000 Lakes"), or "" when they're the same. */
+export const thousandsAlias = (s: string | null | undefined) => { const j = joinThousands(s ?? ""); return j === (s ?? "") ? "" : j; };
 
-export const words = (s: string) =>normalize(s).split(" ").filter(Boolean);
+export const words = (s: string) => normalize(s).split(" ").filter(Boolean);
 
 /** Distinct 3-letter chunks of the normalised text (spaces included, like FTS5's trigram tokenizer). */
 export function trigrams(s: string): string[] {
