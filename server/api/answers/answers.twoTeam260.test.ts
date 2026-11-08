@@ -121,7 +121,7 @@ describe("the answers", () => {
     }
   });
   it("a supposed meeting, now or on a day to come, is the same call on today's ratings, said so", async () => {
-    for (const q of ["what if 6980 faced 4215", "suppose 4215 played 6980 next week", "imagine 6980 against 4215 tomorrow"]) {
+    for (const q of ["what if 6980 faced 4215", "suppose 4215 played 6980 next week", "imagine 6980 against 4215 tomorrow", "what if 4215 played 6980 this week", "if 6980 faced 4215, who would win"]) {
       const a = await ask(q);
       expect(a.stat, q).toMatchObject({ intent: "predict", headline: { value: "4215 rated higher", label: "by 47.7 points per match" } });
       expect(a.understood!.label, q).not.toMatch(/isn't part of this answer/);

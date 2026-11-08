@@ -252,9 +252,10 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   }
   if (p.teams.length === 2 && TWO_TEAM[intent]) {
     const id = TWO_TEAM[intent]!;
-    // A match still to come ("if 12345 played 23456 tomorrow") is called on the ratings as they stand: a window from today on
-    // filters nothing there, so the forecast reads the latest season both teams have a rating in, as with none said.
-    const upcoming = id === "predict" && scope.window && scope.window.from >= searchToday(opts.now) ? scope.window.label : null;
+    // A match still to come ("if 12345 played 23456 tomorrow", "… this week") is called on the ratings as they stand: a
+    // window with a day still to come filters nothing there, so the forecast reads the latest season both teams have a
+    // rating in, as with none said. A window wholly gone by ("last week") is left to the readers of what happened.
+    const upcoming = id === "predict" && scope.window && scope.window.to >= searchToday(opts.now) ? scope.window.label : null;
     if (upcoming) { delete scope.window; scope.season = null; }
     // Compared at an event (or their Worlds, their states): each team's numbers there. With no event, the season's
     // numbers side by side ("12345 vs 67890", "who is better, 12345 or 67890"); a lone "or" is the boolean reader's.
