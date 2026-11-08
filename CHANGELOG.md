@@ -27,6 +27,18 @@ Two events named side by side ("<event> vs <event>") are compared as events rath
 ### Search
 - **Events side by side.** "<event> vs <event>" (2 to 4 events, each named with a word only an event's name has: championship, qualifier, league meet, tournament…) answers with the events side by side: field strength (the average OPR of the teams that played, its divisions' too), top OPR and its team, high score without penalties, and the number of teams. A state's code in a name is spelled out ("NJ Championship" is New Jersey's), each event is its newest season with a played match unless a season is named, and events from different seasons are marked as different games, with neither called stronger. A team on any side keeps the teams' Compare. (#1158)
 
+## 4.3.7 — 2026-11-08
+
+"cham" said for a championship ("who won inspire in nj cham") finds that place's newest championship.
+
+### Highlights
+- [fixes] "nj cham" is New Jersey's championship, its newest one
+- [fixes] "who won inspire in nj cham this year" names this season's
+- [fixes] "cham" after a place works like "champ" and "champs"
+
+### Search
+- **"cham" is "champ" cut short.** A place's "cham" is its newest championship, as "champ" and "champs" are, never an older event whose name has the word. (#1122)
+
 ## 4.3.6 — 2026-11-08
 
 More plain searches answered: a team's highlights by part of its name, events said the way people say them, and a team's losses by a set margin.
