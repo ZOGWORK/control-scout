@@ -32,7 +32,7 @@ export function readBiggestEvents(raw: string): BiggestEventsQuestion | null {
   if (floor) {
     const at = Number(floor[2] ?? floor[3]);
     const more = /^(?:more|over)/i.test(floor[1] ?? "");
-    min = { teams: more ? at + 1 : at, said: `${more ? "more than" : "at least"} ${at} teams` };
+    min = { teams: more ? at + 1 : at, said: floor[3] ? `${at} or more teams` : `${more ? "more than" : "at least"} ${at} teams` };
     q = q.replace(floor[0], " ");
   }
   const m = floor ? null : ASKED.exec(q);

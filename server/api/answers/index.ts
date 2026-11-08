@@ -366,7 +366,8 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   const cityStat = cities && (opts.full || cities.country) ? await topCitiesAnswer(cities) : null;
   if (cities && (cityStat || !cities.country)) {
     const stat = opts.full ? cityStat : null;
-    const where = stat?.scope?.[0] ?? cities.region?.name;
+    // The place as answered (a country's own name), even in the search box, which gets no card.
+    const where = cityStat?.scope?.[0] ?? cities.region?.name;
     const label = `Cities with the most teams${where && where !== "Worldwide" ? ` in ${where}` : " worldwide"}`;
     return { q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label, ...(cities.region ? { place: { key: cities.region.key, name: cities.region.name } } : {}) },
       intent: { kind: "stat-top-cities", pattern: `cities with the most teams${cities.region || cities.country ? " [place]" : ""}`, met: true, understood: [label] }, ...(stat ? { stat } : {}) };

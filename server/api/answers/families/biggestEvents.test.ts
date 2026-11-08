@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../../../db";
 import type { StatBlock } from "../../../../src/shared/searchStat";
 import { biggestEventsAnswer, readBiggestEvents } from "./biggestEvents";
+import { cleanQuery } from "../../searchAnswer";
 
 beforeAll(async () => {
   const c = openDb(":memory:");
@@ -71,6 +72,8 @@ describe("events with the most teams", () => {
     expect(ca.headline).toMatchObject({ value: "2 events", label: "with more than 15 teams in California", sub: "Biggest: California Championship, 30 teams" });
     const table = ca.blocks[0] as Extract<StatBlock, { kind: "table" }>;
     expect(table.rows.map((r) => r.cells.event)).toEqual(["California Championship", "Big Qualifier"]);
+    // Through search, where "+" is cleaned from a query: "40+ teams" is kept as a size (Greptile on #1181).
+    expect(cleanQuery("events in california with 15+ teams")).toBe("events in california with 15 or more teams");
     const none = await biggestEventsAnswer(readBiggestEvents("events in california with more than 100 teams 2025-26")!, 2025);
     expect(none.none).toBe("No event in California in 2025–26 lists more than 100 teams.");
   });
