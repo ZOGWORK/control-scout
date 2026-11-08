@@ -4,6 +4,7 @@
 // maximum (printed), the value at the bar's end and the gap once, right-aligned; one footnote line with the method
 // behind an info button, one primary action. Hue means team only (--color-team-a/b/c): no phase colour, no winner
 // colour (the better value is bold), gold never on data.
+import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import type { CompareRow, StatAnswer, StatBlock } from "../../../shared/searchStat";
 import { teamFill } from "../../../lib/textTones";
@@ -26,7 +27,7 @@ export const barPc = (v: number | null | undefined, max: number) => (v == null |
 /** A row's maximum in its values' unit: a share (values in %) as a percentage, a count or score as itself. */
 const fmtMax = (n: number, values: string[]) => (values.some((v) => /%$/.test(v)) && n <= 1 ? `${Math.round(100 * n)}%` : Number.isInteger(n) ? n.toLocaleString("en-US") : n.toFixed(1));
 
-export function CompareCard({ stat, b }: { stat: StatAnswer; b: Compare }) {
+export function CompareCard({ stat, b, extra }: { stat: StatAnswer; b: Compare; extra?: ReactNode }) {
   const teams: Who[] = stat.teams ?? [];
   const h = stat.headline;
   const links = stat.blocks.find((x) => x.kind === "links") as Extract<StatBlock, { kind: "links" }> | undefined;
@@ -59,6 +60,7 @@ export function CompareCard({ stat, b }: { stat: StatAnswer; b: Compare }) {
           </div>
         </>
       )}
+      {extra}
       <MethodNote lead={b.scale ? `Bars start at 0; each row's max is ${b.scale} · ` : ""} source={stat.source} definition={stat.definition}>
         {(primary || rest.length > 0) && (
           <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">

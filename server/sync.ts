@@ -13,7 +13,7 @@ import { FirstError, firstEventBundle, firstEvents, firstTeams } from "./sources
 import { bundleFromScout, fetchScoutEvent } from "./sources/ftcScout.js";
 import { hasFirst } from "./env.js";
 import { syncFtcNj } from "./data/provisional.js";
-import { syncRegistrations } from "./data/registrations.js";
+import { sessionPairs, syncRegistrations, type SessionEvent } from "./data/registrations.js";
 import { backfillAdvancementPoints } from "./data/advancementPoints.js";
 
 /** Event types that never have matches (skip detail fetches). */
@@ -90,7 +90,9 @@ export async function syncEvent(meta: EventRow, log: SyncLog = () => {}): Promis
   let firstError: unknown = null;
   if (hasFirst()) {
     try {
-      bundle = await firstEventBundle({ ...meta, source: "first" });
+      // One session of an AM/PM pair: FIRST may file the pair's whole list under one of them (sources/first.ts).
+      const pair = meta.start ? sessionPairs(await all<SessionEvent>("SELECT code, name, start FROM events WHERE season = ? AND start = ?", [meta.season, meta.start])).get(meta.code)?.code : undefined;
+      bundle = await firstEventBundle({ ...meta, source: "first" }, { pair });
     } catch (e) { firstError = e; }
   }
   if (!bundle) {

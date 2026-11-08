@@ -80,8 +80,9 @@ describe("one team at one event", () => {
     expect((await searchAnswer("4215 score in match 12 at New Jersey Championship", { limit: 25 })).stat!.headline).toMatchObject({ value: "Lost 80–120", label: "Q12 at New Jersey Championship - Parkway Division" });
     expect((await searchAnswer("4215 score in match 7 at New Jersey Championship", { limit: 25 })).stat!.none).toMatch(/didn't play a match 7/);
   });
-  it("an event the team never attended is left to search", async () => {
-    expect((await searchAnswer("4215 rank at Texas Championship", { limit: 25 })).stat).toBeUndefined();
+  it("a state's championship the team never attended says so", async () => {
+    // "Texas Championship" is Texas's state championship (a state with a championship word): 4215 never played one.
+    expect((await searchAnswer("4215 rank at Texas Championship", { limit: 25 })).stat?.none).toMatch(/^Hypnotic Robotics \(4215\) has no Texas state championships on record/);
   });
 });
 
@@ -346,6 +347,10 @@ describe("events, awards and Worlds history (260-query list)", () => {
     expect(readStatQuestion("4215 event schedule this season")).toMatchObject({ id: "total-events", scope: { latest: true }, core: "4215" });
     // Search reads "matches" as "match": the championship held in 2025 is 2024–25's.
     expect(readStatQuestion("4215 match at worlds in 2025")).toMatchObject({ id: "results", scope: { championship: true, season: 2024 }, core: "4215" });
+    // "World championship" is one name, never "world" and an event called "championship" (failed-search #982/#1005,
+    // held out: another team and season).
+    for (const q of ["4215 world championship matches 2024-25", "4215 matches at the world championships in 2024-25"]) expect(readStatQuestion(q), q).toMatchObject({ id: "results", scope: { championship: true, season: 2024, at: null }, core: "4215" });
+    expect(readStatQuestion("4215 world champs record")).toMatchObject({ id: "record", scope: { championship: true }, core: "4215" });
     // "wins" and "match" alone, with nothing scoping them, are left as they were.
     expect(readStatQuestion("4215 wins")).toBeNull();
     expect(readStatQuestion("4215 match record")).toMatchObject({ id: "record" });

@@ -185,6 +185,8 @@ export const FILLER: string[] = [
   "hey", "hi", "hello",
   // An answer of none allowed: every answer already says when there is none.
   "if any", "if there is one", "if there are any",
+  // A tag asking for a straight answer: it offers no second team, event or stat to choose ("or nah").
+  "or nah", "or what", "be honest",
 ];
 
 /** Question and conversational scaffolding, read by the keyword layer around the team, intent and scope (never by
