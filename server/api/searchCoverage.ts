@@ -771,7 +771,7 @@ export async function worldsAnswer(q: string, now?: number): Promise<SearchAnswe
 }
 
 const SECTION_WORDS: [RegExp, SearchSection | "match"][] = [
-  [/\b(?:rankings?|standings|ranks?)\b/, "rankings"], [/\b(?:playoffs?|brackets?|elims|eliminations|finals?|alliances?|alliance selection)\b/, "playoffs"],
+  [/\b(?:rankings?|standings|ranks?)\b/, "rankings"], [/\b(?:playoffs?|brackets?|elims|eliminations|finals?|alliance (?:selections?|captains?|picks?|partners)|alliances?)\b/, "playoffs"],
   [/\b(?:match(?:es)?|match list|schedule|results?)\b/, "matches"], [/\bawards?\b/, "awards"], [/\b(?:odds|predictions?)\b/, "odds"],
   [/\b(?:teams?|roster|field|who is going|who's going)\b/, "teams"],
 ];
