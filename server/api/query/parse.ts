@@ -191,7 +191,7 @@ function yearReading(q: string, team: (n: number) => boolean): (y: number) => bo
   const said = (y: number) => new RegExp(`\\b(?:in|during|for|from|(?<!\\b(?:this|current)\\s)season)\\s+(?:the\\s+)?${y}\\b`).test(q);
   const paired = (y: number) => new RegExp(`\\b${y}\\s+(?:vs\\.?|v|versus|against|and|&)\\s|\\s(?:vs\\.?|v|versus|against|and|&)\\s+${y}\\b`).test(` ${q} `);
   // A team's number swapped out or in ("swap <team> for <team>", "replace <team> with <team>", a number like a year) is a team, never a year.
-  const swapped = (y: number) => new RegExp(`\\b(?:${SWAP_WORDS})\\s+(?:out\\s+)?(?:\\d{1,5}\\s+(?:out\\s+)?(?:for|with|by)\\s+)?${y}\\b`).test(q);
+  const swapped = (y: number) => new RegExp(`\\b(?:${SWAP_WORDS})\\s+(?:(?:out|in)\\s+)?(?:\\d{1,5}\\s+(?:(?:out|in)\\s+)?(?:for|with|by)\\s+)?${y}\\b`).test(q);
   return (y: number) => !(swapped(y) && team(y)) && (said(y) || (!(team(y) && paired(y)) && (teamNums.some((n) => n !== y) || !team(y))));
 }
 
@@ -343,6 +343,16 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       if (!code && span.every((t) => isLex(t.w))) continue;
       const pl = ctx.names.place(span.map((t) => t.w).join(" "), span.map((t) => t.typed).join(" "));
       if (pl) { p.place = { ...pl, typed: span.map((t) => t.typed).join(" ") }; span.forEach((t) => (t.used = true)); }
+    }
+  }
+
+  // A swapped team said with "in" or "out" before "for" or "with" ("sub <team> in for <team>", "swap <team> out for
+  // <team>"): which way the swap goes, read before the lexicon so "in" is never a preposition there.
+  const swapSaid = new RegExp(`^(?:${SWAP_WORDS})$`);
+  if (toks.some((t) => !t.used && swapSaid.test(t.w))) {
+    for (const t of p.teams) {
+      const i = t.at + t.typed.split(" ").length, d = toks[i];
+      if (d && !d.used && /^(?:in|out)$/.test(d.w) && /^(?:for|with)$/.test(toks[i + 1]?.w ?? "")) { d.used = true; if (d.w === "in") symbols.add("swap-in"); }
     }
   }
 

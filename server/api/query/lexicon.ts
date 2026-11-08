@@ -44,6 +44,8 @@ export type Sym =
   | { k: "vs" }
   /** One team put in another's place ("swap 12345 for 23456", "replace 12345 with 23456"). */
   | { k: "swap" }
+  /** A swap said the other way round ("sub in 12345 for 23456"): the first team comes in, the next goes out. */
+  | { k: "swap-in" }
   | { k: "and" }
   | { k: "together" }
   | { k: "same-side" }
@@ -175,7 +177,8 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["advance|advances|advancing|advancement|advancements|advance to the finals|make the finals|making the finals|go through|goes through|get through|gets through", { k: "advance" }],
   // Two teams.
   ["vs|v|versus|against|facing|face|faced|play|played|playing|plays|vs.", { k: "vs" }],
-  ["swap|swaps|swapped|swapping|swap out|switch|switches|switched|switching|switch out|replace|replaces|replaced|replacing|substitute|substituted|substituting|sub|subs|subbed|subbing|sub out|sub in|trade|traded|trading|if i swap|if we swap|what if i swap|what if we swap|if i replace|if we replace|if i switch|if we switch|if i sub|if we sub|if i substitute|if we substitute", { k: "swap" }],
+  ["swap|swaps|swapped|swapping|swap out|switch|switches|switched|switching|switch out|replace|replaces|replaced|replacing|substitute|substituted|substituting|sub|subs|subbed|subbing|sub out|trade|traded|trading|if i swap|if we swap|what if i swap|what if we swap|if i replace|if we replace|if i switch|if we switch|if i sub|if we sub|if i substitute|if we substitute", { k: "swap" }],
+  ["sub in|swap in|switch in|bring in|subbing in|swapping in|switching in|bringing in", [{ k: "swap" }, { k: "swap-in" }]],
   ["odds change|change the odds|chances change|change the chances|how do the odds change|how would the odds change|how do the chances change|how does that change|how would that change|how does it change|how would it change", { k: "predict" }],
   // "Between A and B": the two teams, whatever the question asks of them.
   ["between", { k: "filler" }],

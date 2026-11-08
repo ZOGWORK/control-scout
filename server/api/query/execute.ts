@@ -245,14 +245,15 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   }
   // One team swapped for another: on an alliance, the predicted score moves by the gap between the two teams' ratings
   // (a rating is the points a team adds a match), so the answer is those two side by side, the partner kept as is.
-  // The first team after the swap word goes out and the next comes in ("swap A for B", "replace A with B"); any other
-  // team is the partner.
+  // The first team after the swap word goes out and the next comes in ("swap A for B", "replace A with B"), the other
+  // way round when the word says in ("sub in A for B"); any other team is the partner.
   if (intent === "swap-predict") {
-    if (scope.level || scope.alliance || scope.place || scope.area || scope.window || scope.at || scope.championship || scope.states || p.matchNumber != null) return null;
+    // The call is on one season's ratings: every season asked ("across all seasons") is left to search, never narrowed.
+    if (scope.level || scope.alliance || scope.place || scope.area || scope.window || scope.at || scope.championship || scope.states || scope.ever || p.matchNumber != null) return null;
     // Each team where it was read, never its name searched for again (a name inside another's: "Robotics").
     const after = p.swapAt == null ? [] : p.teams.filter((t) => t.at > p.swapAt!).sort((a, b) => a.at - b.at);
     if (after.length < 2) return null;
-    const [out, inn] = after;
+    const [out, inn] = p.symbols.includes("swap-in") ? [after[1], after[0]] : after;
     const partner = p.teams.find((t) => t !== out && t !== inn) ?? null;
     const a = await twoTeamSearch(p.q, { id: "predict", scope, a: String(out.number), b: String(inn.number) }, opts.resolve, opts);
     if (!a?.understood) return a;

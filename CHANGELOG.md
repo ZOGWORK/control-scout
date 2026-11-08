@@ -25,7 +25,7 @@ One team swapped for another on an alliance answers with what the swap does.
 - [predict] The card says who goes out, who comes in, and the partner
 
 ### Search
-- **A team swapped for another.** "If I swap <team> for <team> in a match with <team>", "replace … with … beside …", "trade … for …": on an alliance the predicted score moves by the gap in the two teams' ratings, so the answer is their call side by side, labelled with who goes out, who comes in and the partner. Any verb of swapping ("switch", "sub", "substitute"), "what would happen if …", who is asking ("we", "you") and "next to" for beside read the same. (#1115)
+- **A team swapped for another.** "If I swap <team> for <team> in a match with <team>", "replace … with … beside …", "trade … for …": on an alliance the predicted score moves by the gap in the two teams' ratings, so the answer is their call side by side, labelled with who goes out, who comes in and the partner. Any verb of swapping ("switch", "sub", "substitute"), "what would happen if …", who is asking ("we", "you") and "next to" for beside read the same; "in" said with the first team ("sub in <team> for <team>") brings it in. Every season asked is left to search, as the call is one season's. (#1115)
 
 ## 4.3.3 — 2026-11-08
 
