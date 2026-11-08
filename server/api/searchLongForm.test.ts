@@ -234,6 +234,10 @@ describe("long, conversational queries", () => {
     // Worlds isn't a rank list, and another number's ranking is never read as the OPR list (Greptile on #1110).
     expect(longForm("who is ranked above 6980 at worlds")).toBeNull();
     for (const q of ["who is ranked above 6980 in rating", "who is right below bad wolf in auto this season", "teams ranked near 6980 in prediction rating"]) expect(longForm(q) ?? "", q).not.toMatch(/opr rank/);
+    // A team named with one of those words is still the team asked about (Greptile on #1110).
+    expect(longForm("who is ranked just above record breakers worldwide")).toBe("record breakers opr rank");
+    expect(longForm("teams near teleop titans last season")).toBe("teleop titans opr rank last season");
+    expect(longForm("who is right behind auto pilots in nj in rating") ?? "").not.toMatch(/opr rank/);
   });
 
   it("reads a yes-or-no listing question with the team as its number and name, or its name alone (Greptile on #1095)", async () => {
