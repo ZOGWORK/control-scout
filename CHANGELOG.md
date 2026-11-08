@@ -27,6 +27,38 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 ### Search
 - **A list counted, in one season or two.** "How many", "number of" or "count" before a list of teams (a place, Worlds, an award won, an OPR threshold) answers with the list, its length the headline. Two years or seasons after it ("in 2024 versus 2025", "2025-26 vs 2024-25") read the same list once with each: both counts side by side, the change, and each season's own list under it. A Worlds year is the championship held that year, so 2024 is the 2023–24 season, said on the card. (#1094)
 
+## 4.3.6 — 2026-11-08
+
+More plain searches answered: a team's highlights by part of its name, events said the way people say them, and a team's losses by a set margin.
+
+### Highlights
+- [fixes] "Hypnotic highlights" finds the team from part of its name
+- [fixes] "ultraviolet nj highlights" picks the team in that state
+- [fixes] "Jackson division finals" opens the division's playoffs
+- [fixes] "Which match did <team> lose by 1 point" lists those losses
+
+### Search
+- **A team's highlights by part of its name, or with its place.** "hypnotic highlights", "revAmped highlights" and "ultraviolet nj highlights" are that team's highlights. The words left over are looked up the way a team's stats look them up, and each has to start a word of the team's name. When teams share a name, the place said picks the one from there. (#1197)
+- **Now and yesterday.** "nj meets now" is today's events, as "right now" already was. "nj events yesterday" is yesterday's, and reads the same as "events in nj that finished yesterday".
+- **A season said any way.** "how many teams in nj 2025-2026", "… decode year" and "…, centerstage" read the same as "… 2025-26": the years written long, or the season's game, are that season.
+- **A team's matches at its latest meet.** "6980 matches at recent meet" and "6980 matches at their most recent meet" are its results at its latest event, never an event with those words in its name.
+- **A kind of event a place or name has none of.** "meets in Massachusetts" lists Massachusetts' events of every kind and says it has no meets. "bergen qualifier" lists the events named Bergen and says none is a qualifier.
+- **A division by its name and a game.** "edison centerstage" is the Edison Division in 2023–24. "jackson division finals" and "parkway division rankings" open that division's tab, the way a match number already did. A division named with a season it wasn't held in ("jackson division finals in centerstage") says so, with that season's divisions and the season it was held.
+- **Worlds' divisions.** "worlds division highlights" is every division at Worlds. "what division was <team> in at worlds" is the team's Worlds divisions, never its latest event with "division" in its name.
+- **Lost or won by N points.** "which match did <team> lose by 1 point" and "did <team> win by 10 points" list the matches decided by exactly that many points, newest first, and say so when there are none.
+
+## 4.3.5 — 2026-11-08
+
+A finished meet whose stream was a short link plays its recording on the page again.
+
+### Highlights
+- [live] A short-link stream (ftcwa.live/…) plays on the page after the meet
+- [fixes] Watch on a match starts the page's player at that match, not YouTube
+- [live] Only the meet's own broadcast is kept, checked against its dates
+
+### Fixes
+- **Short stream links after the meet.** A region's short link (ftcwa.live/…) was only followed on the meet's own dates, so a meet whose day passed before it was followed kept no video: Watch livestream and each match's Watch opened YouTube instead of playing on the page. For two weeks after a meet with no video, its link is followed again, and the video it leads to is kept only when YouTube says that broadcast started on the meet's own dates (a link already pointing at a later meet gives nothing). (#1210)
+
 ## 4.3.4 — 2026-11-08
 
 One team swapped for another on an alliance answers with what the swap does.
