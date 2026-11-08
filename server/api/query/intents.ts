@@ -162,12 +162,16 @@ export const INTENTS: IntentRule[] = [
   R("team-predict", 1, ["future", "metric:win"], ["thing:event"], { event: true }),
   R("team-predict", 1, ["future", "metric:win", "worlds"], ["thing:event"]),
   // Two or three teams on one alliance, said so: the alliance's predicted score.
-  R("lineup-score", 2, ["same-side"], ["predict", "metric:score", "and", "hypo"]),
-  R("lineup-score", 3, ["same-side"], ["predict", "metric:score", "and", "hypo"]),
+  // "Would" said with it ("what would they score as partners") asks the same.
+  R("lineup-score", 2, ["same-side"], ["predict", "metric:score", "and", "hypo", "future", "prep:for"]),
+  R("lineup-score", 3, ["same-side"], ["predict", "metric:score", "and", "hypo", "future", "prep:for"]),
   // "In a match" beside a forecast word ("predicted score for 12345 and 23456 as partners in a match"); with none it
   // stays the shared matches' question ("12345 and 23456 same alliance matches").
   ...([2, 3] as const).flatMap((n) => (["predict", "hypo"] as const).map((cue) =>
-    R("lineup-score", n, ["same-side", cue], ["predict", "metric:score", "and", "hypo", "thing:match", "per:match", "prep:in"]))),
+    R("lineup-score", n, ["same-side", cue], ["predict", "metric:score", "and", "hypo", "future", "prep:for", "thing:match", "per:match", "prep:in"]))),
+  // "Together" beside a forecast of a score ("predicted score for 12345 and 23456 together"): one alliance. Without
+  // one, "together" stays the matches they shared.
+  ...([2, 3] as const).map((n) => R("lineup-score", n, ["together", "predict", "metric:score"], ["and", "hypo", "future", "prep:for"])),
   // Two alliances of two: a match's call. "Vs" between them is enough, with no other word.
   R("alliance-predict", 4, ["vs"], ["predict", "and", "compare", "metric:win", "metric:score", "metric:margin", "thing:match", "per:match"]),
   // Two teams.

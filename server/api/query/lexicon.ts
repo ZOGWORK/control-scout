@@ -148,7 +148,9 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["vs|v|versus|against|facing|face|faced|play|played|playing|plays|vs.", { k: "vs" }],
   ["and|&|plus|with|alongside", { k: "and" }],
   ["together|in common|shared|share|both|both played|jointly|same match|same matches", { k: "together" }],
-  ["same alliance|same side|as partners|on the same alliance|teamed up|teamed", { k: "same-side" }],
+  ["same alliance|same side|as partners|on the same alliance|teamed up|teamed|one alliance|on one alliance|same team|on the same team|as an alliance|an alliance of|partnered|partnered with|partnered up|partnering with|paired with|paired up|were partners|are partners|be partners|were teammates|as teammates", { k: "same-side" }],
+  // An alliance's own forecast, said of the teams named ("12345 and 23456 alliance predicted score").
+  ["alliance predicted score|alliance's predicted score|alliance prediction|alliance's prediction|predicted alliance score|alliance forecast", [{ k: "same-side" }, { k: "predict" }, { k: "metric", v: "score" }]],
   // "Who is better, 12345 or 67890": the two side by side.
   ["compare|comparison|compared|side by side|or|better|stronger|who is better|which is better|whos better|who's better", { k: "compare" }],
   // Wins and losses as an outcome ("closest win", "biggest loss").
