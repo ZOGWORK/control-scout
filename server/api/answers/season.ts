@@ -8,8 +8,7 @@ import { CURRENT_SEASON } from "../../data/seasons.js";
 import { get } from "../../db.js";
 import { CHAMPIONSHIP_TYPE } from "./clauses.js";
 import { names } from "../query/names.js";
-import { normalise, yearReading } from "../query/parse.js";
-import { readTime } from "../query/time.js";
+import { normalise, queryTime } from "../query/parse.js";
 
 const TTL_MS = 10 * 60_000;
 let cached: { season: number; at: number } | null = null;
@@ -42,19 +41,19 @@ export const searchSeasonWhy = (s = searchSeason()) => `With no season named, th
 /** `q` asked about `season` instead (the answer's season picker, /search?season=): the season, game, "this/last
  *  season" or "ever" words it says are taken out and the season written as one is put in, so every reader takes the
  *  picked season the way it takes a typed one. A date window stays: its own season is the date's. A bare year is read
- *  as the parser reads it (../query/parse.ts yearReading): a team's number stays the team. */
+ *  as the parser reads it, and a stored name asked about as words keeps them (../query/parse.ts queryTime). */
 export async function withSeason(q: string, season: number, now = Date.now()): Promise<string> {
   const idx = await names();
   const today = new Date(now).toISOString().slice(0, 10);
   let out = q.replace(/\s+/g, " ").trim();
   for (let i = 0; i < 4; i++) {
     const words = normalise(out).toLowerCase();
-    const { time } = readTime(words, today, yearReading(words, (n) => !!idx.team(n)));
+    const { time } = queryTime(words, idx, today);
     if (!time || time.kind === "window" || !time.typed) break;
     // The words as typed, whole words only (never part of a team's number), in any case, with whatever punctuation
-    // was between them.
+    // was between them and a possessive ending ("this season's").
     const said = time.typed.split(/[\s-]+/).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("[\\s\\p{P}]*");
-    const m = new RegExp(`(?<![\\p{L}\\p{N}])${said}(?![\\p{L}\\p{N}])`, "iu").exec(out);
+    const m = new RegExp(`(?<![\\p{L}\\p{N}])${said}(?:['’]s?)?(?![\\p{L}\\p{N}])`, "iu").exec(out);
     if (!m) break;
     out = `${out.slice(0, m.index)} ${out.slice(m.index + m[0].length)}`.replace(/\s+/g, " ").replace(/\s+([?!.,])/g, "$1").trim();
   }

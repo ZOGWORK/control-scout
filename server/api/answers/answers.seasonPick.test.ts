@@ -15,7 +15,7 @@ beforeAll(async () => {
   for (const [season, start, end] of [[2024, "2025-04-16", "2025-04-19"], [2025, "2026-04-29", "2026-05-02"]] as const)
     await run("INSERT INTO events (season, code, name, type, start, end, source) VALUES (?, 'FTCCMP1', 'FIRST Championship', 'FIRSTChampionship', ?, ?, 'first')", [season, start, end]);
   // 2024 is a team's number too: never taken for a year unless said as a season.
-  for (const [n, name] of [[4215, "Hypnotic Robotics"], [2024, "Year Team"], [22024, "Five Digits"]] as const) {
+  for (const [n, name] of [[4215, "Hypnotic Robotics"], [2024, "Year Team"], [22024, "Five Digits"], [9999, "Powerplay Pioneers"]] as const) {
     await run("INSERT INTO teams (number, name, city, state, country, rookie_year) VALUES (?, ?, 'Oradell', 'NJ', 'USA', 2010)", [n, name]);
     for (const [season, opr] of [[2024, 144.8], [2025, 101.6]] as const)
       await run("INSERT INTO team_season_stats (season, team, opr_np, rank_np, ranked_teams, wins, losses, ties, matches) VALUES (?, ?, ?, 10, 8000, 20, 5, 0, 25)", [season, n, opr]);
@@ -34,6 +34,7 @@ describe("withSeason", () => {
     expect(await withSeason("4215 record in 2025-26", 2023, NOW)).toBe("4215 record 2023–24");
     expect(await withSeason("4215 DECODE highlights", 2024, NOW)).toBe("4215 highlights 2024–25");
     expect(await withSeason("What is 4215's OPR this season?", 2024, NOW)).toBe("What is 4215's OPR 2024–25?");
+    expect(await withSeason("4215 OPR this season's", 2024, NOW)).toBe("4215 OPR 2024–25");
     expect(await withSeason("4215 opr last season", 2025, NOW)).toBe("4215 opr 2025–26");
     expect(await withSeason("best opr of all time", 2024, NOW)).toBe("best opr 2024–25");
   });
@@ -47,6 +48,10 @@ describe("withSeason", () => {
 
   it("takes out whole words only, never part of a team's number", async () => {
     expect(await withSeason("22024 opr 2024", 2025, NOW)).toBe("22024 opr 2025–26");
+  });
+
+  it("keeps a stored name asked about as words, a game's name in it included", async () => {
+    expect(await withSeason("teams named powerplay pioneers in 2025-26", 2024, NOW)).toBe("teams named powerplay pioneers 2024–25");
   });
 
   it("keeps a date window, whose season is its own", async () => {
