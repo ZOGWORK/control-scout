@@ -82,7 +82,8 @@ export interface AnswerOptions {
  *  (cut at the last whole word: a word cut in two, "2025-2", would be read as another). */
 export function cleanQuery(raw: string): string {
   // "1,000" is one number before its comma could be dropped as punctuation; a stored name written that way is indexed
-  // as one number too (SEARCH_INDEX_SCHEMA 6). "40+ teams" is "40 or more teams" (a size, as the events-over-a-size answer reads it), kept before "+" is cleaned.
+  // as one number too (SEARCH_INDEX_SCHEMA 6). "40+ teams" is "40 or more teams" (a size, as the events-over-a-size
+  // answer reads it), kept before "+" is cleaned.
   const q = joinThousands(String(raw ?? "")).replace(/(\d)\s*\+\s*(?=teams?\b)/gi, "$1 or more ").replace(/[!?,;"<>(){}[\]|\\^*`~=+]/g, " ").replace(/\s+/g, " ").trim();
   if (q.length <= MAX_QUERY) return q;
   const cut = q.slice(0, MAX_QUERY);
