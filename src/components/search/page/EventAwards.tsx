@@ -40,7 +40,7 @@ export function EventAwardsAnswer({ card, heading }: { card: SearchCard; heading
       data={{ "data-card-kind": card.kind, "data-event-awards": "" }}>
       {card.none && <p className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm text-foreground" data-none>{card.none}</p>}
       {!!card.champions?.length && <Champions champions={card.champions} />}
-      {shown && <Podium places={podium} season={ev?.season} />}
+      {shown && <Podium places={podium} season={ev?.season} asked={card.place} />}
       <AnswerVideo />
       {/* An older server's card (no award list): its lines, as before. */}
       {!awards.length && !card.champions?.length && !!card.lines.length && (
@@ -89,16 +89,17 @@ function Champions({ champions }: { champions: NonNullable<SearchCard["champions
   );
 }
 
-/** 1st in the centre and highest, 2nd left, 3rd right (each in its own column, so a lone winner stays centred): each step the team's number big, its name and the place. */
-function Podium({ places, season }: { places: SearchCardAward[]; season?: number }) {
+/** 1st in the centre and highest, 2nd left, 3rd right (each in its own column, so a lone winner stays centred): each step the team's number big, its name and the place.
+ *  `asked`: the place the question asked for ("who got 2nd place …"), ringed. */
+function Podium({ places, season, asked }: { places: SearchCardAward[]; season?: number; asked?: number }) {
   return (
     <ol className="grid grid-cols-3 items-end gap-2 sm:gap-4" aria-label="Podium" data-podium>
       {places.map((a) => {
         const p = PLACE[a.placement];
         const Icon = a.placement === 1 ? Trophy : Medal;
         return (
-          <li key={a.placement} className={cn("flex min-w-0 flex-col items-center text-center", "row-start-1", a.placement === 1 ? "col-start-2" : a.placement === 2 ? "col-start-1" : "col-start-3")} data-place={a.placement}>
-            <Link to={`/teams/${a.team}${season ? `?season=${season}` : ""}`} className={cn("group flex w-full min-w-0 flex-col items-center rounded-xl px-1 py-2 hover:bg-muted/50", TAP)}>
+          <li key={a.placement} className={cn("flex min-w-0 flex-col items-center text-center", "row-start-1", a.placement === 1 ? "col-start-2" : a.placement === 2 ? "col-start-1" : "col-start-3")} data-place={a.placement} {...(asked === a.placement ? { "data-asked": "" } : {})}>
+            <Link to={`/teams/${a.team}${season ? `?season=${season}` : ""}`} aria-current={asked === a.placement ? "true" : undefined} className={cn("group flex w-full min-w-0 flex-col items-center rounded-xl px-1 py-2 hover:bg-muted/50", asked === a.placement && "ring-2 ring-foreground", TAP)}>
               <span className={cn("grid place-items-center rounded-full", tone(nameOf(a)).fill, a.placement === 1 ? "size-12" : "size-10")}><Icon className={a.placement === 1 ? "size-6" : "size-5"} aria-hidden /></span>
               <span className={cn("mt-2 font-display font-semibold tabular-nums text-foreground group-hover:underline", a.placement === 1 ? "text-3xl max-sm:text-2xl" : "text-2xl max-sm:text-xl")}>{a.team}</span>
               <span className="w-full break-words text-sm font-medium leading-snug text-foreground">{a.teamName ?? `Team ${a.team}`}</span>

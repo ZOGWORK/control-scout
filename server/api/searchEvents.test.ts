@@ -123,6 +123,12 @@ describe("event sets (brief Section 3)", () => {
     expect(a.understood).toMatchObject({ label: "This weekend's meets", window: { from: "2026-11-07", to: "2026-11-08" } });
     expect(refs(a.hits)).toEqual(["USNJNEM2", "USMOSLM"]);
   });
+  it("said as finished, an event's last day is in the window: a meet still running isn't one that ended", async () => {
+    expect(refs((await ask("texas meets yesterday")).hits)).toContain("USTXTWO");
+    // None ended there yesterday: Texas's meets are only a labelled fallback, never the answer.
+    expect((await ask("meets in texas that ended yesterday")).understood?.fallback).toMatch(/^No .* — showing /);
+    expect(refs((await ask("nj meets that finished yesterday")).hits)).toEqual(["USNJNOM1"]);
+  });
   it("21: a year scopes to events held that year, never another year's", async () => {
     const a = await ask("2024 Houston Championship Edison Division");
     expect(a.hits.map((h) => h.ref)).toEqual([`${S - 3}:FTCCMP1EDIS`]);
@@ -180,6 +186,13 @@ describe("Greptile on #434", () => {
     expect(past.understood?.fallback).toBe("No past meets in California in the data — showing meets in California instead");
     expect(refs((await ask("past meets in Texas")).hits)).toEqual(["USTXOLD"]);
     expect(refs((await ask("upcoming meets in Texas")).hits)).toContain("USTXTWO");
+  });
+  it("a kind of event a place has none of: its events of every kind, said so (failed-search #763)", async () => {
+    const a = await ask("scrimmages in Texas");
+    expect(a.understood?.fallback).toBe("No scrimmages in Texas in the data — showing events in Texas instead");
+    expect(a.hits.filter((h) => h.kind === "event").length).toBeGreaterThan(0);
+    // The place card counts the events shown, never the kind asked (Greptile on #1197).
+    expect(JSON.stringify(a.hits.find((h) => h.kind === "place"))).not.toMatch(/scrimmage/i);
   });
   it("league meets are meets, never league tournaments", async () => {
     expect(refs((await ask("league meets in New Jersey")).hits)).not.toContain("USNJLT");

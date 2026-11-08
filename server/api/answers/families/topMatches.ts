@@ -45,11 +45,27 @@ const NO_PENALTIES = /\b(?:without|no|minus|excluding|excl|not\s+counting|before
 // A season-wide high score ("highest scoring games", "top scores", "highest score in decode"); a team's, or a world
 // record ("world record score", the season records' own card), is not this.
 const ASKED = /\b(?:highest[\s-]+scoring\s+(?:games?|match(?:es)?)|(?:highest|top|best|biggest|max(?:imum)?)\s+(?:match\s+|alliance\s+|combined\s+)?scores?)\b/;
-const FILLER = /\b(?:the|in|of|for|during|all|ftc|first|tech|challenge|what|whats|which|were|was|are|is|games?|matches?|scores?|scoring|highest|top|best|ever|time|history|so|far|this|season|year|official)\b/g;
+const FILLER = /\b(?:the|in|of|for|during|all|ftc|first|tech|challenge|what|whats|which|were|was|are|is|games?|matches?|scores?|scoring|highest|top|best|ever|time|history|so|far|this|season|year|official|show|me|list|worldwide|globally|anywhere|any|on|site|by)\b/g;
+// The same question in other words: "the most points any team scored in a single match", "top 3 matches by total score".
+const SAID_OTHERWISE: [RegExp, string][] = [
+  [/\b(?:the\s+)?(?:most|highest|top|max(?:imum)?)\s+points\s+(?:(?:any|an?|one)\s+(?:team|alliance)|anyone|anybody)?\s*(?:(?:has|have|ever|had)\s+)*(?:scored|got|put\s+up|made)\s+(?:in|during|for)\s+(?:a|one|any|a\s+single|one\s+single)\s+(?:match|game)\b/, " highest scores "],
+  // Search may hand the words over singular ("top 3 match … by total score").
+  [/\btop\s+(?:\d{1,2}\s+)?(?:match(?:es)?|games?)\b(.*?)\s*\bby\s+(?:total\s+|combined\s+|match\s+)?(?:scores?|points?)\b/, " highest scoring matches $1 "],
+  // "Highest auto matches": the matches with the most auto points, as "highest auto scores" reads.
+  [/\b(highest|top|best|biggest)\s+(auto(?:nomous)?|tele[\s-]?op|driver[\s-]controlled|end[\s-]?game)\s+(?:match(?:es)?|games?)\b/, " $1 $2 scores "],
+  // "on this site", "in ftc history": where the answer comes from, nothing to filter.
+  [/\b(?:on|in)\s+(?:this|the)\s+(?:site|website|app)s?\b/, " "],
+  [/\bin\s+(?:ftc|first)\s+history\b/, " ever "],
+  [/\btop\s+\d{1,2}\b/, " top "],
+];
 
 /** The question `q` asks, or null. */
 export function readTopMatches(raw: string): TopMatchesQuestion | null {
   let q = ` ${raw.toLowerCase().replace(/['’]s\b/g, "").replace(/[?!.,]/g, " ")} `.replace(/\s+/g, " ");
+  // "Top 3 matches": how many, kept before the rewrites below take the number out.
+  const said = /\btop\s+(\d{1,2})\b/.exec(q);
+  const n = said ? Math.min(25, Math.max(1, Number(said[1]))) : null;
+  for (const [re, to] of SAID_OTHERWISE) q = q.replace(re, to).replace(/\s+/g, " ");
   const noPen = NO_PENALTIES.exec(q);
   if (noPen) q = q.replace(noPen[0], " ").replace(/\s+/g, " ");
   const ph = PHASE_SAID.exec(q);
@@ -79,7 +95,7 @@ export function readTopMatches(raw: string): TopMatchesQuestion | null {
   const whole = placeWords.length && words.split(" ").every((w) => placeWords.includes(w)) ? regionOf(placeWords.map((w) => asTyped.find((x) => x.toLowerCase() === w) ?? w)) : null;
   const region = words ? whole ?? regionOf(typed) : null;
   if (words && !region) return null;
-  return { season, game: hs.game, ever: ever && season == null, region, event: event || null, phase: ph ? phaseOf(ph[1]) : null, noPenalties: !!noPen };
+  return { season, game: hs.game, ever: ever && season == null, region, event: event || null, phase: ph ? phaseOf(ph[1]) : null, noPenalties: !!noPen, ...(n != null ? { n } : {}) };
 }
 
 export interface Row { season: number; code: string; level: string; series: number; number: number; label: string; time: string | null; name: string; type: string | null; start: string | null; end: string | null; red_total: number | null; red_np: number | null; blue_total: number | null; blue_np: number | null;

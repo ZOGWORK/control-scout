@@ -54,6 +54,7 @@ const OwnerRoute = named(() => import("./pages/OwnerRoute"), "OwnerRoute");
 const ErrorReportPrompt = named(() => import("./components/layout/ErrorReportPrompt"), "ErrorReportPrompt");
 const FirstRunTour = named(() => import("./components/layout/FirstRunTour"), "FirstRunTour");
 const InstallNudge = named(() => import("./components/layout/InstallNudge"), "InstallNudge");
+const PullToRefresh = named(() => import("./components/layout/PullToRefresh"), "PullToRefresh");
 
 const PAGES = {
   TeamPage: lazyPage(() => import("./pages/TeamPage")),
@@ -223,6 +224,7 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
               <ScoutQueueSync />
               <NotOnBareRoute><FirstRunTour /></NotOnBareRoute>
               <NotOnBareRoute><InstallNudge /></NotOnBareRoute>
+              <NotOnBareRoute><PullToRefresh /></NotOnBareRoute>
             </OptionalParts>
           </SearchProvider>
         </MetaProvider>
