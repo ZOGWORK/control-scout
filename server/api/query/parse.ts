@@ -109,7 +109,12 @@ const NAMED_PHRASES = LEXICON.filter((e) => e.syms.some((x) => x.k === "named"))
 const NAME_ENDS = /^(?:from|in|at|near|based|located|during|out)$/;
 /** Words that say reaching a place ("making worlds", "qualifying for worlds"), and the words that name Worlds. */
 const REACH = new Set(["make", "makes", "making", "reach", "reaches", "reaching", "qualify", "qualifies", "qualifying", "get", "gets", "getting"]);
-const WORLDS_WORDS = new Set(["worlds", "world", "cmp", "houston", "championship", "championships", "champs", "states", "state"]);
+const WORLDS_WORDS = new Set([
+  // Every one-word name the lexicon reads as Worlds or states ("regionals" is states), so a new name is never missed here.
+  ...LEXICON.filter((e) => e.words.length === 1 && e.syms.some((x) => x.k === "worlds" || x.k === "states")).map((e) => e.words[0]),
+  // The last word of their longer names ("the state championship", "world champs").
+  "championship", "championships", "champs",
+]);
 /** The kind words an event's name can end with. */
 const KIND_WORDS = new Set(["meet", "meets", "tournament", "tournaments", "event", "events", "competition", "competitions"]);
 /** The words before a number that make it a count ("top 5", "last 10") or a match's number ("match 3"). */
