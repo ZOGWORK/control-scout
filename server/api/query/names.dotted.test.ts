@@ -7,6 +7,10 @@ const TEAMS = [
   { number: 31001, name: "S.T.E.A.M. Engines", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
   { number: 31002, name: "Steam Punks", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
   { number: 31003, name: "Code Red - M.E.D.I.C.S.", city: "Town", state: "TX", country: "USA", lastPlayed: 2026 },
+  // A dotted name read first that spells another team's whole name (Greptile on #1163).
+  { number: 31005, name: "G.E.A.R. Grinders", city: "Town", state: "TX", country: "USA", lastPlayed: 2026 },
+  { number: 31004, name: "Gear Grinders", city: "Town", state: "TX", country: "USA", lastPlayed: 2026 },
+  { number: 31006, name: "S.T.E.M. Queen's Court", city: "Town", state: "TX", country: "USA", lastPlayed: 2026 },
 ];
 const ctx: ParseContext = { names: buildNames(TEAMS, []), today: "2026-11-08", isEvent: async () => false };
 
@@ -22,5 +26,13 @@ describe("dotted initials", () => {
     expect(await parseQuery("s.t.e.a.m. engines record", ctx)).toMatchObject({ teams: [{ number: 31001 }] });
     expect(await parseQuery("code red medics opr", ctx)).toMatchObject({ teams: [{ number: 31003 }] });
     expect(await parseQuery("steam punks record", ctx)).toMatchObject({ teams: [{ number: 31002 }] });
+  });
+  it("with a possessive dropped too, and never hiding a near miss of another team's own name", async () => {
+    expect(await parseQuery("stem queen's court record", ctx)).toMatchObject({ teams: [{ number: 31006 }] });
+    expect(await parseQuery("stem queens court opr", ctx)).toMatchObject({ teams: [{ number: 31006 }] });
+    // Both teams go by "gear grinders": one name, two teams, so a near miss of it is never a guess between them.
+    expect(ctx.names.teamsNamed("gear grinders").map((t) => t.number).sort()).toEqual([31004, 31005]);
+    expect(ctx.names.nearTeam("gear grindrs")).toBeNull();
+    expect(await parseQuery("steam enignes record", { ...ctx, nearTeam: async (w: string) => ctx.names.nearTeam(w) })).toMatchObject({ teams: [{ number: 31001, via: "near" }] });
   });
 });

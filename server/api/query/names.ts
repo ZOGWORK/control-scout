@@ -45,21 +45,26 @@ export function buildNames(teams: Row[], places: { city: string | null; state: s
   const byNumber = new Map<number, TeamName>(), byName = new Map<string, TeamName[]>();
   let longest = 1;
   /** Folded names by length, for the near-miss look-up. */
-  const byLength = new Map<number, string[]>();
+  const byLength = new Map<number, string[]>(), lengthed = new Set<string>();
   for (const t of teams) {
     const tn: TeamName = { number: Number(t.number), name: t.name, city: t.city, state: t.state, country: t.country, lastPlayed: t.lastPlayed == null ? null : Number(t.lastPlayed) };
     byNumber.set(tn.number, tn);
     const k = fold(t.name ?? "");
     if (!k) continue;
-    if (!byName.has(k)) (byLength.get(k.length) ?? byLength.set(k.length, []).get(k.length)!).push(k);
+    // byLength holds stored names only, tracked apart from byName (which holds the names as typed too): an alias
+    // read first must never keep another team's own name out of the near-miss look-up.
+    if (!lengthed.has(k)) { lengthed.add(k); (byLength.get(k.length) ?? byLength.set(k.length, []).get(k.length)!).push(k); }
     (byName.get(k) ?? byName.set(k, []).get(k)!).push(tn);
     longest = Math.max(longest, k.split(" ").length);
-    // The name as a query reads it, its possessive "'s" dropped ("The King's School" → "the king school"), too.
-    const said = fold((t.name ?? "").replace(/(?<=[\p{L}\p{N}])['’]s\b/giu, ""));
-    if (said && said !== k && !byName.get(said)?.includes(tn)) (byName.get(said) ?? byName.set(said, []).get(said)!).push(tn);
-    // Initials written with dots read as the word they spell too ("I.C.E. Robotics" is "ice robotics"), as typed without them.
-    const joined = fold(joinDotted(t.name ?? ""));
-    if (joined && joined !== k && !byName.get(joined)?.includes(tn)) (byName.get(joined) ?? byName.set(joined, []).get(joined)!).push(tn);
+    // The name as a query reads it, its possessive "'s" dropped ("The King's School" → "the king school"), too. And
+    // initials written with dots as the word they spell ("I.C.E. Robotics" is "ice robotics"), possessive dropped or not.
+    const plain = (t.name ?? "").replace(/(?<=[\p{L}\p{N}])['’]s\b/giu, "");
+    for (const said of [fold(plain), fold(joinDotted(t.name ?? "")), fold(joinDotted(plain))]) {
+      if (said && said !== k && !byName.get(said)?.includes(tn)) (byName.get(said) ?? byName.set(said, []).get(said)!).push(tn);
+    }
+    // The dotted name as its word is a name people type, so a near miss of it is looked up too ("ice robotcs").
+    const word = fold(joinDotted(t.name ?? ""));
+    if (word !== k && !lengthed.has(word)) { lengthed.add(word); (byLength.get(word.length) ?? byLength.set(word.length, []).get(word.length)!).push(word); }
   }
   // A town is known with the region (or country) it's in; the same town name in two regions stays ambiguous.
   const towns = new Map<string, Map<string, { country: string; state: string | null; city: string }>>();
