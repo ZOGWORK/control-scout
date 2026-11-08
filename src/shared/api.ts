@@ -264,6 +264,8 @@ export interface SearchCard {
   event?: { season: number; code: string; name: string };
   /** The award asked about ("Inspire", FIRST's award type): its places draw as a podium. */
   award?: string;
+  /** The place asked ("who got 2nd place Inspire at …"): marked on the podium. */
+  place?: number;
   /** Every award the event gave, in the event page's order (its Awards tab), so the answer lists them all. */
   awards?: SearchCardAward[];
   /** "Who won <event>": its playoff champions by the winning-alliance rule (server/api/answers/families/winners.ts),
@@ -500,6 +502,8 @@ export interface MatchView {
   time: string | null;
   /** The real instant (UTC ISO) when the event's time zone is known. */
   startsAt: string | null;
+  /** A played match's posted start (UTC ISO), when it differs from `startsAt` (then its real start). */
+  scheduledAt?: string | null;
   played: boolean;
   red: AllianceScore;
   blue: AllianceScore;

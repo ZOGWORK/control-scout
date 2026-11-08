@@ -12,6 +12,8 @@ import { siteMeta } from "./api/meta.js";
 import { CURRENT_SEASON, SEASONS, SEASON_NUMBERS, isLegacy, seasonInfo } from "./data/seasons.js";
 import { ensureSearchIndex, search } from "./api/search.js";
 import { MAX_QUERY, cleanQuery, learnQuery, searchAnswer } from "./api/searchAnswer.js";
+import { mineAnswer } from "./api/searchMine.js";
+import { myTeamOf } from "../src/shared/searchMine.js";
 import { withTeamStats } from "./api/searchTeamStats.js";
 import { withEventParents } from "./api/searchEvents.js";
 import { teamHighlights } from "./api/answers/highlights.js";
@@ -372,7 +374,9 @@ export function createApp(opts: { dist?: string } = {}) {
       const q = String(req.query.q ?? "");
       // The same query asked again within a minute (a retry, another visitor) is the answer already worked out
       // (server/api/searchReads.ts).
-      const ans = await pageAnswer(q, limit, prefer);
+      const typed = await pageAnswer(q, limit, prefer);
+      // "My" and "our" with no team named: the visitor's My team, sent as ?my= (server/api/searchMine.ts).
+      const ans = (await mineAnswer(q, typed, myTeamOf(req.query.my), (x) => pageAnswer(x, limit, prefer))) ?? typed;
       // How it was read (server/api/searchLayers.ts), taken from the answer object itself, before it's copied.
       const trace = outcomeTrace(ans);
       const at = Date.now();

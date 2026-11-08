@@ -28,16 +28,29 @@ import { eventFor, forecastAt, teamEventOfType } from "./forecast.js";
 import { teamsNamedSearch } from "../answers/teamsNamed.js";
 import { describe, normalise, parseQuery, type Parsed } from "./parse.js";
 import { parseContext } from "./context.js";
+import { topTeamsNote, topTeamsSaid } from "./topTeams.js";
 import type { PipelineIntent } from "./intents.js";
 
 export interface PipelineOptions { full: boolean; pages: SearchPageLink[]; resolve: Resolve; now?: number; prefer?: ReadonlySet<string> }
 
 /** The pipeline's answer for `q`, or null when it leaves the query to search's other readers. */
 export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<SearchAnswer | null> {
-  const p = await parseQuery(q, await parseContext(opts.now, opts.prefer));
-  if (!p.complete || !p.intent) return null;
+  const ctx = await parseContext(opts.now, opts.prefer);
+  let p = await parseQuery(q, ctx);
+  // A place's top team said where a team would be ("the top NJ team vs the top Romania team"): two teams compared,
+  // read again with their numbers, the card saying which team each phrase was.
+  let tops: Awaited<ReturnType<typeof topTeamsSaid>> = null;
+  if (!p.complete || !p.intent) {
+    // The season the question names picks each place's leader too ("in 2024-25, the top NJ team vs …").
+    tops = await topTeamsSaid(q, ctx, p.time?.kind === "season" && p.time.season != null ? p.time.season : undefined);
+    const again = tops ? await parseQuery(tops.q, ctx) : null;
+    if (!again?.complete || !again.intent || again.teams.length !== 2 || !TWO_TEAM[again.intent]) return null;
+    p = { ...again, q };
+  }
+  if (!p.intent) return null;
   let a = await execute(p, opts);
   if (!a) return null;
+  if (tops && a.understood) a = { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${topTeamsNote(tops.said, tops.season)}` } };
   // Part of a region ("north jersey") is read as all of it, and the card says so.
   if (p.place?.part && a.understood) a = { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${p.place.part.replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase())} isn't a separate region: all of ${p.place.name}` } };
   // A team's name typed nearly right: answered for that team, with the spelling to search for.
@@ -82,6 +95,10 @@ const AWARD_LISTS = new Set<IntentId>(["awards", "total-awards", "inspire-awards
 const TREND_ASK: Partial<Record<PipelineIntent, { ask: string; intent: string }>> = {
   "rating-trend": { ask: "rating trend", intent: "rating-trend" },
   "opr-trend": { ask: "opr history", intent: "opr-history" },
+  "auto-trend": { ask: "auto opr history", intent: "auto-history" },
+  "teleop-trend": { ask: "teleop opr history", intent: "teleop-history" },
+  "endgame-trend": { ask: "endgame opr history", intent: "endgame-history" },
+  "reliability-trend": { ask: "reliability history", intent: "reliability-history" },
 };
 
 /** Words that ask for two teams side by side, beside "or" alone ("12345 or 67890" is a search for either). */
@@ -105,11 +122,14 @@ const MEETINGS = new Set<TwoTeamId>(["head-to-head", "h2h-wins", "shared-matches
 /** The match finder's measure for each intent that asks for one (./matchFind.ts). */
 const FIND: Partial<Record<PipelineIntent, MatchMeasure>> = {
   "low-matches": "low", "close-matches": "closest", "lopsided-matches": "lopsided", "penalty-matches": "penalties", "upset-matches": "upset", "comeback-matches": "comeback",
+  "miss-matches": "miss", "accurate-matches": "accurate",
 };
+/** The match finder's measures one team's matches take ("<team>'s most unpredictable match"). */
+const TEAM_FIND = new Set<MatchMeasure>(["miss", "accurate"]);
 /** The matches a measure finds, in a sentence ("no 2026–27 upsets yet"). */
 const MATCH_NOUN: Record<MatchMeasure, string> = {
   high: "scored matches", low: "scored matches", closest: "decided matches", lopsided: "decided matches", penalties: "matches with penalty points",
-  upset: "upsets", comeback: "comebacks",
+  upset: "upsets", comeback: "comebacks", miss: "matches with a saved prediction", accurate: "matches with a saved prediction",
 };
 /** A place's or the world's season (docs/search-pipeline.md, "Seasons"): the one said, else the current one (today's);
  *  "last season" is the one before the current one. A team's own season stays the latest it played (readScopeOf). */
@@ -135,9 +155,9 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   if (intent === "count-teams") return townCount(p) ? boardSearch(p.q, { kind: "city", stat: "opr", n: 25, region: null, city: p.place!.city, season: null }, opts) : null;
   const scope = readScopeOf(p);
   if (!scope) return null;
-  // The finals are a filter only the match finder applies: anything else would answer for every playoff match.
-  // (and a scope's highlights, read with the match finder's filters).
-  if (p.finals && (p.teams.length || !(FIND[intent] || intent === "top-matches" || intent === "highlights"))) return null;
+  // The finals are a filter the match finder applies (and a scope's highlights, read with its filters), and a team's
+  // answers from its own match rows (scopeFits): anything else would answer for every playoff match.
+  if (p.finals && !p.teams.length && !(FIND[intent] || intent === "top-matches" || intent === "highlights")) return null;
   // So is a kind of event by its type words alone ("at a league meet").
   if (p.eventKind && (p.teams.length || !(FIND[intent] || intent === "top-matches" || intent === "highlights"))) return null;
   const said = normalise(p.q);
@@ -214,7 +234,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     const predictLink = stat.blocks.flatMap((b) => (b.kind === "links" ? b.items : b.kind === "chance" && b.action ? [b.action] : [])).find((l) => l.label.startsWith("Open in Predict"));
     return {
       q: p.q, hits: hits.map((h) => ({ ...h, facts: undefined, events: undefined })), pages: predictLink && !(opts.full && inCard) ? [{ title: predictLink.label, href: predictLink.href }, ...opts.pages] : opts.pages,
-      step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season: found.ev.season }, ...(opts.full ? { stat } : {}),
+      step: "deterministic", weak: false, understood: { kind: "question", label: p.event?.latest ? `${stat.title} · the latest event with "${p.event.typed}" in its name` : stat.title, season: found.ev.season }, ...(opts.full ? { stat } : {}),
       intent: { kind: `stat-${stat.intent}`, pattern: `${p.teams.map(() => "[team]").join(" ")} predict ${p.event ? "[event]" : p.worlds ? "[worlds]" : "[states]"}`, met: true, understood: [] },
     };
   }
@@ -240,6 +260,11 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   }
   if (p.teams.length === 2 && TWO_TEAM[intent]) {
     const id = TWO_TEAM[intent]!;
+    // A match still to come ("if 12345 played 23456 tomorrow", "… this week") is called on the ratings as they stand: a
+    // window with a day still to come filters nothing there, so the forecast reads the latest season both teams have a
+    // rating in, as with none said. A window wholly gone by ("last week") is left to the readers of what happened.
+    const upcoming = id === "predict" && scope.window && scope.window.to >= searchToday(opts.now) ? scope.window.label : null;
+    if (upcoming) { delete scope.window; scope.season = null; }
     // Compared at an event (or their Worlds, their states): each team's numbers there. With no event, the season's
     // numbers side by side ("12345 vs 67890", "who is better, 12345 or 67890"); a lone "or" is the boolean reader's.
     if (id === "compare") {
@@ -254,7 +279,11 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     // Season side-by-sides (OPR, rating, awards, a forecast) read whole seasons: only the meetings take an event, a
     // place, a window, a match type or a side.
     if (!MEETINGS.has(id) && (scope.at || scope.championship || scope.states || scope.level || scope.alliance || scope.window || scope.place || scope.area)) return null;
-    return twoTeamSearch(p.q, { id, scope, a: String(p.teams[0].number), b: String(p.teams[1].number) }, opts.resolve, opts);
+    const a = await twoTeamSearch(p.q, { id, scope, a: String(p.teams[0].number), b: String(p.teams[1].number) }, opts.resolve, opts);
+    // The day said is said back as what it was read as, with the season whose ratings make the call.
+    if (!a || !upcoming || !a.understood) return a;
+    const used = (await predictionSeasonOf(p.teams.map((t) => t.number))).season;
+    return { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${upcoming}: an upcoming match, called on ${seasonLabel(used)} ratings` } };
   }
   // A trend: the reader's own card for the team and the season (said, or the team's latest), whatever the words were.
   const trend = TREND_ASK[intent];
@@ -270,14 +299,16 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // Matches by a measure, or the best ones with a filter the season records don't take (a match type, a kind of
   // event): the match finder.
   const kind = p.event ? eventKindOf(normalise(p.event.words)) : p.eventKind ? eventKindOf(p.eventKind) : null;
-  if (!p.teams.length && (FIND[intent] || (intent === "top-matches" && (p.level || p.finals || kind)))) {
+  const teamFind = p.teams.length === 1 && TEAM_FIND.has(FIND[intent]!);
+  if ((!p.teams.length || teamFind) && (FIND[intent] || (intent === "top-matches" && (p.level || p.finals || kind)))) {
     if (((p.event || p.eventKind) && !kind) || p.worlds || p.states || p.alliance || scope.ever || (p.place && p.place.kind === "city")) return null;
-    const plural = /\b(?:matches|games|scores|upsets|comebacks|blowouts|routs|mismatches|underdogs|wins|losses)\b/.test(said);
+    const plural = /\b(?:matches|games|scores|upsets|comebacks|blowouts|routs|mismatches|underdogs|wins|losses|predictions|misses)\b/.test(said);
     const f: MatchFind = {
       // The current season is the one today is in.
       measure: FIND[intent] ?? "high", season: placeSeason(p, scope.season, opts), region: regionOf(p), level: p.level, finals: p.finals, kind,
       ...(["metric:win", "metric:loss", "outcome:W", "outcome:L"].some((s) => p.symbols.includes(s)) ? { decided: true } : {}),
       ...(scope.window ? { window: scope.window } : {}), n: p.n ?? (plural ? 10 : 5), ...(plural || p.n != null ? { list: true } : {}),
+      ...(teamFind ? { team: { number: p.teams[0].number, name: p.teams[0].name } } : {}), ...(p.over != null ? { over: p.over } : {}),
     };
     const card = async (g: MatchFind): Promise<SearchAnswer> => {
       const stat = await matchFindAnswer(g);
@@ -442,7 +473,7 @@ async function highlights(p: Parsed, scope: ReadScope, opts: PipelineOptions): P
 
 /** The slots as the scope a stat answer reads (server/api/answers/read.ts ReadScope). Null: a slot no answer applies. */
 function readScopeOf(p: Parsed): ReadScope | null {
-  const s: ReadScope = { season: null, latest: false, ever: false, championship: p.worlds, states: p.states, level: p.level, alliance: p.alliance, at: p.event?.words ?? null };
+  const s: ReadScope = { season: null, latest: false, ever: false, championship: p.worlds, states: p.states, level: p.level, ...(p.finals ? { finals: true } : {}), alliance: p.alliance, at: p.event?.words ?? null };
   const t = p.time;
   if (t?.kind === "window") { s.season = t.season; s.window = { from: t.from!, to: t.to!, label: t.label }; }
   else if (t?.kind === "season") {

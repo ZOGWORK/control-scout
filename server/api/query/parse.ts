@@ -17,7 +17,9 @@ export interface TeamSlot {
   at: number;
 }
 /** An event named by its words: the executor finds it, by the season rule (latest, or the year said). */
-export interface EventSlot { words: string; typed: string }
+export interface EventSlot { words: string; typed: string;
+  /** Read from one word of a named team's own events: their latest with it in its name (ParseContext.teamEvent). */
+  latest?: true }
 export interface EventFound { season: number; code: string; name: string }
 
 export interface Parsed {
@@ -45,6 +47,9 @@ export interface Parsed {
   /** Penalty points left out of scores ("without penalties"): read, and an intent that can't apply it leaves the parse
    *  incomplete. */
   noPenalties: boolean;
+  /** A floor in points ("more than 50 points", "at least 30 pts", that number counting): only a rule that takes "over"
+   *  applies it. */
+  over?: { n: number; atLeast: boolean };
   /** Where the first "vs" stands (a word's index, as a team's `at`): two alliances are the teams either side of it. */
   vsAt?: number;
   /** Every intent symbol read ("agg:max", "metric:score"). */
@@ -75,6 +80,9 @@ export interface ParseContext {
   today: string;
   /** Whether these words name a stored event (any season), and the team numbers' event when one is given. */
   isEvent: (words: string) => Promise<boolean>;
+  /** The name (folded) of the latest event of `teams` (in the season or held in the calendar year given) with `word`
+   *  in its name as a whole word, or null: one word names an event only among the named teams' own. */
+  teamEvent?: (word: string, teams: number[], when: { season: number | null; year: number | null; from?: string; to?: string }) => Promise<string | null>;
   /** The team a near miss of a name means ("hypnotc robotics"), or null. */
   nearTeam?: (words: string) => Promise<TeamName | null>;
   /** The visitor's own teams ("team:12345"), first when several share a name. */
@@ -107,6 +115,9 @@ const KIND_WORDS = new Set(["meet", "meets", "tournament", "tournaments", "event
 /** The words before a number that make it a count ("top 5", "last 10") or a match's number ("match 3"). */
 const COUNT_BEFORE = /^(?:top|last|first|best|latest|past|recent|bottom|worst|highest|lowest)$/;
 const MATCH_BEFORE = /^(?:match|qual|q|game|qualification)$/;
+/** A floor in points ("more than 50 points", "at least 30 pts"): read before the team and time readers, so its number is
+ *  never a team or a season. */
+const FLOOR = /(?:^| )(more than|greater than|over|above|exceeding|beyond|at least) (\d{1,5}) (?:points?|pts)(?= |$)/;
 /** Every word of a lexicon phrase: a team's name beside one ("bad wolf offensive power rating") still ends there. */
 const LEX_WORDS = new Set(LEXICON.flatMap((e) => e.words));
 
@@ -148,7 +159,9 @@ function keptName(words: string[], ctx: ParseContext, timeOnly: (w: string[]) =>
 
 /** Parses `raw`. */
 export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed> {
-  const q = normalise(raw);
+  const q0 = normalise(raw);
+  const fl = FLOOR.exec(q0);
+  const q = fl ? `${q0.slice(0, fl.index)} ${q0.slice(fl.index + fl[0].length)}`.replace(/\s+/g, " ").trim() : q0;
   const typedWords = raw.replace(/[?!,;:()"]/g, " ").split(/\s+/).filter(Boolean);
   // The other team numbers typed: a limit ("last 5") or a match's number ("match 3") is never a team.
   const words0 = q.split(" ");
@@ -178,6 +191,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   const p: Parsed = {
     q: raw, teams: [], event: null, place: null, time, level: null, finals: false, eventKind: null, alliance: null, worlds: false, states: false, award: null, agg: null,
     n: null, matchNumber: null, noPenalties: false, symbols: [], intent: null, rule: null, leftover: [], unexplained: [], complete: false,
+    ...(fl ? { over: { n: Number(fl[2]), atLeast: fl[1] === "at least" } } : {}),
   };
   const lexAt = (i: number) => LEXICON.find((e) => e.words.every((w, j) => toks[i + j] && !toks[i + j].used && toks[i + j].w === w));
   const isLex = (w: string) => LEX_WORDS.has(w) || AWARD_ONE_WORD.has(w);
@@ -307,6 +321,29 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     for (const t of toks) if (!t.used && AWARD_ONE_WORD.has(t.w)) { p.award = AWARD_ONE_WORD.get(t.w)!; t.used = true; }
   }
 
+  // One word left on its own, of a named team's own event's name ("<team> last prediction for <word>"): that event,
+  // its latest (in the season or the year said), once every team is settled. Never a kind of event's word ("league",
+  // "qualifiers": read below) or a word of its own kind ("meet"). Tried before a near miss of a team's name, so a team
+  // named nearly so ("Rivertide" for "riverside") never takes a named team's own event word. A name several teams share
+  // reads every one of them's events here, and the event is checked again once the name is settled (below).
+  const when = (() => {
+    const t = p.time;
+    return { season: t?.kind === "season" && t.year == null ? t.season : t?.kind === "window" ? t.season : null, year: t?.kind === "season" ? t.year ?? null : null,
+      // A window said ("last week", "in March"): the event is one held in it.
+      ...(t?.kind === "window" && t.from && t.to ? { from: t.from, to: t.to } : {}) };
+  })();
+  let ownWord: Tok | null = null, ownDropped = false;
+  const ownEventWord = async (one: Tok): Promise<boolean> => {
+    if (p.event || !p.teams.length || !ctx.teamEvent || one.w.length < 3 || KIND_WORDS.has(one.w) || EVENT_TYPES[one.w.replace(/s$/, "")] || EVENT_TYPES[one.w]) return false;
+    const name = await ctx.teamEvent(one.w, p.teams.flatMap((x) => (x.candidates && !x.rule ? x.candidates : [x.number])), when);
+    if (!name) return false;
+    p.event = { words: name, typed: one.typed, latest: true };
+    one.used = true;
+    ownWord = one;
+    if (!toks.some((x) => x !== one && KIND_WORDS.has(x.w))) ownDropped = symbols.delete("thing:event");
+    return true;
+  };
+
   // 4. The words left, in runs: an event's name, a place, or a team's name typed nearly right.
   const runs: { from: number; to: number }[] = [];
   for (let i = 0; i < toks.length; i++) {
@@ -364,6 +401,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     // read as filler ("the roocats": The Robocats) or a colour read as an alliance, so the words just before the run are
     // tried with it first; a colour taken into the name is no longer an alliance, and the alliance is the one the
     // phrases outside the name said ("on red blue lanternfsh": red).
+    if (from === to && await ownEventWord(toks[from])) continue;
     if (!ctx.nearTeam || words().length < 3 || /^\d+$/.test(words())) continue;
     for (const k of [2, 1, 0]) {
       const start = from - k;
@@ -394,6 +432,25 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       if (pick.rule) { Object.assign(t, pick); more = true; }
     }
   }
+  // The one-word event, checked again among the teams as settled: none of theirs, and the word is left unread.
+  const own = ownWord as Tok | null;
+  if (own && p.event?.latest && ctx.teamEvent && !p.teams.some((t) => t.candidates && !t.rule)) {
+    const name = await ctx.teamEvent(own.w, p.teams.map((t) => t.number), when);
+    if (name) p.event = { ...p.event, words: name };
+    else {
+      // Undone whole: the word unread again, and "event" said around it back in the question.
+      p.event = null; own.used = false;
+      if (ownDropped) symbols.add("thing:event");
+    }
+  }
+  // A word said before any team was found ("<word> forecast for <team typed nearly right>"): tried again now every
+  // team is, among the settled teams' own events.
+  if (!p.event && p.teams.length && !p.teams.some((t) => t.candidates && !t.rule)) {
+    for (const [i, one] of toks.entries()) {
+      if (one.used || one === own || toks[i - 1]?.used === false || toks[i + 1]?.used === false) continue;
+      if (await ownEventWord(one)) break;
+    }
+  }
   p.leftover = toks.filter((t) => !t.used).map((t) => t.typed);
   if (unread) p.leftover.unshift(unread);
   if (p.teams.some((t) => t.candidates && !t.rule)) p.leftover.push(...p.teams.filter((t) => t.candidates && !t.rule).map((t) => t.typed));
@@ -403,6 +460,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   // "Without penalties" is a slot only the rules that list it take (the season's best matches); anywhere else the
   // parse is left incomplete rather than answered with penalties in.
   if (pick && p.noPenalties && !(pick.rule.opt ?? []).includes("nopen")) pick.unexplained.push("nopen");
+  if (pick && p.over != null && !(pick.rule.opt ?? []).includes("over")) pick.unexplained.push("over");
   // The awards side-by-side counts every award: one award named ("12345 vs 67890 inspire awards") is left to the
   // readers that count that award alone.
   if (pick && p.award && pick.rule.id === "awards-vs") pick.unexplained.push(`award:${p.award}`);

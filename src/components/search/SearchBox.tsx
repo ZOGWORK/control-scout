@@ -9,6 +9,7 @@ import { m } from "../motion";
 import { apiFetch } from "../../lib/api";
 import { offlineSource } from "../../lib/offline/saved";
 import { usePersonal } from "../../lib/personal";
+import { MINE } from "../../shared/searchMine";
 import { useMeta } from "../../lib/meta";
 import { useServerFlag } from "../../lib/flags";
 import type { SearchAnswer, SearchCard, SearchFact, SearchHit } from "../../shared/api";
@@ -67,6 +68,8 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
   const lastQ = useRef<string | null>(null);
   const brunoOn = useServerFlag("brunoSearch");
   const prefer = usePreferKey();
+  // My team, sent only with a query saying "my" or "our" (src/shared/searchMine.ts).
+  const myTeam = usePersonal().state.myTeam;
   const kindKey = kinds?.join(",") ?? "";
   useEffect(() => {
     const query = q.trim();
@@ -83,7 +86,7 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
     const run = () => {
       waiting.current = null;
       // A box limited to some kinds asks the server for only those, so other kinds (often teams) can't crowd its own out.
-      apiFetch<{ hits: SearchHit[] }>(`/api/search?q=${encodeURIComponent(query)}&limit=${limit}${kindKey ? `&kinds=${encodeURIComponent(kindKey)}` : "&answer=1"}${prefer ? `&prefer=${encodeURIComponent(prefer)}` : ""}`, { signal: ctrl.signal })
+      apiFetch<{ hits: SearchHit[] }>(`/api/search?q=${encodeURIComponent(query)}&limit=${limit}${kindKey ? `&kinds=${encodeURIComponent(kindKey)}` : "&answer=1"}${prefer ? `&prefer=${encodeURIComponent(prefer)}` : ""}${!kindKey && myTeam && MINE.test(query) ? `&my=${myTeam}` : ""}`, { signal: ctrl.signal })
         .then((r) => {
           if (id !== seq.current) return;
           // Offline (saved data) answers plain hits: the plain list, as before.
@@ -106,7 +109,7 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
     const t = setTimeout(run, typed ? SEARCH_DEBOUNCE_MS : 0);
     waiting.current = { q: query, run: () => { clearTimeout(t); run(); } };
     return () => { clearTimeout(t); ctrl.abort(); waiting.current = null; };
-  }, [q, prefer, kindKey, limit, brunoOn, refine, attempt]);
+  }, [q, prefer, myTeam, kindKey, limit, brunoOn, refine, attempt]);
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
   /** Enter: search this query now, without waiting for the typing pause. */
   const searchNow = useCallback(() => { if (waiting.current?.q === q.trim()) waiting.current.run(); }, [q]);
