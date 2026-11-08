@@ -18,6 +18,7 @@ import { SEARCH_PALETTE, meaningOf } from "../../../lib/textTones";
 import { AnswerFrame, RelatedQuestions, TAP, repeats, statedSeason, useAnswerSeason, useTeamProfile } from "./TeamAnswer";
 import { rangeCaption } from "../../../shared/format";
 import { AnswerVideo, RowPlay, useRowPlays } from "./AnswerVideo";
+import { useSeasonPick } from "./SeasonPick";
 import { Cell, EventMarker, HeadlineValue, INK_BAR, MethodNote, TEAM_BAR, TEAM_TEXT, AwardChip, TEAM_SWATCH, swatchOf, type Swatch, RecordText, RichText, SeasonChip, better, columnMax, foldsOnPhone } from "./answerCells";
 import { MatchBox, RankBadge, TeamChip } from "./MatchBox";
 import { CompareCard, comparisonOf } from "./CompareCard";
@@ -71,9 +72,12 @@ function OneCard({ stat, heading, extra }: { stat: StatAnswer; heading?: string;
   // About one team: its hue on the card's numbers and bars; about none (a season's top matches): ink.
   const one = teams?.length === 1;
   const profile = useTeamProfile(teams?.length === 1 ? teams[0].number : null, season);
-  const scope = !!stat.scope.length && (
+  // An answer about no team shows its season as the frame's picker (./SeasonPick.tsx): not again among the chips.
+  const picked = !!useSeasonPick() && !teams?.length && stated != null;
+  const chips = picked ? stat.scope.filter((s) => !(statedSeason(s) != null && s.length <= 7)) : stat.scope;
+  const scope = !!chips.length && (
     <p className="flex flex-wrap gap-1.5 text-xs" data-scope>
-      {stat.scope.map((s) => statedSeason(s) != null && s.length <= 7 ? <SeasonChip key={s} text={s} /> : <span key={s} className="rounded-full border border-border bg-muted/50 px-2.5 py-0.5 font-medium text-foreground/80">{s}</span>)}
+      {chips.map((s) => statedSeason(s) != null && s.length <= 7 ? <SeasonChip key={s} text={s} /> : <span key={s} className="rounded-full border border-border bg-muted/50 px-2.5 py-0.5 font-medium text-foreground/80">{s}</span>)}
     </p>
   );
   return (

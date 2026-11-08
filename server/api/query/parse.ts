@@ -4,7 +4,7 @@
 // ./time.ts, the intent from ./intents.ts. Nothing here names a team, an event or a place.
 import { AWARD_ONE_WORD, EVENT_NAME_WORDS, LEXICON, type Agg, type Sym } from "./lexicon.js";
 import { pickIntent, type IntentRule, type PipelineIntent } from "./intents.js";
-import { readTime, type TimeSlot } from "./time.js";
+import { readTime, type TimeRead, type TimeSlot } from "./time.js";
 import { fold, type Names, type Place, type TeamName } from "./names.js";
 import { EVENT_TYPES } from "../../../src/shared/searchEventQuery.js";
 import { onlyTopicWords } from "../../../src/shared/searchQuery.js";
@@ -160,7 +160,7 @@ export function normalise(q: string): string {
 
 /** The longest stored name after a phrase saying a name follows, ending where a place's preposition, the closing
  *  filler or a time (`timeOnly`) follows it, or null. */
-function keptName(words: string[], ctx: ParseContext, timeOnly: (w: string[]) => boolean): { from: number; to: number } | null {
+function keptName(words: string[], names: Names, timeOnly: (w: string[]) => boolean): { from: number; to: number } | null {
   for (let i = 0; i < words.length; i++) {
     const f = NAMED_PHRASES.find((n) => n.every((w, j) => words[i + j] === w));
     if (!f) continue;
@@ -168,10 +168,40 @@ function keptName(words: string[], ctx: ParseContext, timeOnly: (w: string[]) =>
     for (let to = words.length; to > from; to--) {
       const tail = words.slice(to);
       const ends = !tail.length || NAME_ENDS.test(tail[0]) || allFiller(tail) || timeOnly(tail);
-      if (ends && ctx.names.teamsNamed(words.slice(from, to).join(" ")).length) return { from, to };
+      if (ends && names.teamsNamed(words.slice(from, to).join(" ")).length) return { from, to };
     }
   }
   return null;
+}
+
+/** Whether a bare four-digit year in `q` (normalised words) is a season, given which numbers are teams' (`team`). */
+function yearReading(q: string, team: (n: number) => boolean): (y: number) => boolean {
+  // The other team numbers typed: a limit ("last 5") or a match's number ("match 3") is never a team.
+  const words0 = q.split(" ");
+  const teamNums = words0.filter((w, i) => /^\d{1,5}$/.test(w) && !COUNT_BEFORE.test(words0[i - 1] ?? "") && !MATCH_BEFORE.test(words0[i - 1] ?? "") && team(Number(w))).map(Number);
+  // A bare year is a season unless it's the only team number and a team has it ("2024 record", "2024 last 5 matches").
+  // "Season 2024" names the season, but "this season 2024 record" is the team after "this season".
+  // A team's number joined to another by "vs" or "and" is one of the teams compared, not a year.
+  const said = (y: number) => new RegExp(`\\b(?:in|during|for|from|(?<!\\b(?:this|current)\\s)season)\\s+(?:the\\s+)?${y}\\b`).test(q);
+  const paired = (y: number) => new RegExp(`\\b${y}\\s+(?:vs\\.?|v|versus|against|and|&)\\s|\\s(?:vs\\.?|v|versus|against|and|&)\\s+${y}\\b`).test(` ${q} `);
+  return (y: number) => said(y) || (!(team(y) && paired(y)) && (teamNums.some((n) => n !== y) || !team(y)));
+}
+
+/** The time `q` (normalised words) says, as the parser reads it: a bare year by `yearReading`, and a stored name asked
+ *  about as words ("teams named Powerplay Pioneers", "March Madness") never read as a time. `rest`: `q` without the
+ *  time's words. Shared with the answer's season picker (server/api/answers/season.ts withSeason). */
+export function queryTime(q0: string, names: Names, today: string): TimeRead {
+  // A score threshold ("at least 2025 pts") is never a year: set aside first, as parseQuery does.
+  const fl = FLOOR.exec(q0);
+  const q = fl ? `${q0.slice(0, fl.index)} ${q0.slice(fl.index + fl[0].length)}`.replace(/\s+/g, " ").trim() : q0;
+  const words0 = q.split(" ");
+  const yearOk = yearReading(q, (n) => !!names.team(n));
+  const timeOnly = (w: string[]) => { const r = readTime(w.join(" "), today, yearOk); return !!r.time && allFiller(r.rest.split(" ").filter(Boolean)); };
+  const at0 = keptName(words0, names, timeOnly);
+  // The name stands in as one word no time reads, then comes back whole.
+  const kept = at0 && words0.slice(at0.from, at0.to).join(" ");
+  const read = readTime(at0 ? [...words0.slice(0, at0.from), NAME_MARK, ...words0.slice(at0.to)].join(" ") : q, today, yearOk);
+  return kept ? { ...read, rest: read.rest.replace(NAME_MARK, kept) } : read;
 }
 
 /** Parses `raw`. */
@@ -179,23 +209,8 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   const fl = FLOOR.exec(q0);
   const q = fl ? `${q0.slice(0, fl.index)} ${q0.slice(fl.index + fl[0].length)}`.replace(/\s+/g, " ").trim() : q0;
   const typedWords = raw.replace(/[?!,;:()"]/g, " ").split(/\s+/).filter(Boolean);
-  // The other team numbers typed: a limit ("last 5") or a match's number ("match 3") is never a team.
-  const words0 = q.split(" ");
-  const teamNums = words0.filter((w, i) => /^\d{1,5}$/.test(w) && !COUNT_BEFORE.test(words0[i - 1] ?? "") && !MATCH_BEFORE.test(words0[i - 1] ?? "") && !!ctx.names.team(Number(w))).map(Number);
-  // A bare year is a season unless it's the only team number and a team has it ("2024 record", "2024 last 5 matches").
-  // "Season 2024" names the season, but "this season 2024 record" is the team after "this season".
-  // A team's number joined to another by "vs" or "and" is one of the teams compared, not a year.
-  const said = (y: number) => new RegExp(`\\b(?:in|during|for|from|(?<!\\b(?:this|current)\\s)season)\\s+(?:the\\s+)?${y}\\b`).test(q);
-  const paired = (y: number) => new RegExp(`\\b${y}\\s+(?:vs\\.?|v|versus|against|and|&)\\s|\\s(?:vs\\.?|v|versus|against|and|&)\\s+${y}\\b`).test(` ${q} `);
-  const yearOk = (y: number) => said(y) || (!(ctx.names.team(y) && paired(y)) && (teamNums.some((n) => n !== y) || !ctx.names.team(y)));
-  // A stored name asked about as words keeps its words from the time reader ("Powerplay Robotics", "March Madness").
-  const timeOnly = (w: string[]) => { const r = readTime(w.join(" "), ctx.today, yearOk); return !!r.time && allFiller(r.rest.split(" ").filter(Boolean)); };
-  const at0 = keptName(words0, ctx, timeOnly);
-  // The name stands in as one word no time reads, then comes back whole.
-  const kept = at0 && words0.slice(at0.from, at0.to).join(" ");
-  const read = readTime(at0 ? [...words0.slice(0, at0.from), NAME_MARK, ...words0.slice(at0.to)].join(" ") : q, ctx.today, yearOk);
-  const { time, unread } = read;
-  const rest = kept ? read.rest.replace(NAME_MARK, kept) : read.rest;
+  const read = queryTime(q, ctx.names, ctx.today);
+  const { time, unread, rest } = read;
   // Each word with its own spelling as typed, matched in order ("in IN": the second is the state code).
   let at = 0;
   const toks: Tok[] = rest.split(" ").filter(Boolean).map((w) => {
