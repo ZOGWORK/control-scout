@@ -377,6 +377,9 @@ describe("what answered before answers the same (§5)", () => {
   });
   it("a region's count and a plain name stay search's own", async () => {
     expect(card(await ask("how many teams are from NJ"))).toMatchObject({ kind: "info", title: "How many teams in New Jersey · 2026–27" });
+    // A season said any way reads the same: its years short or long, or its game (owner's screenshots, 11-08).
+    for (const q of ["how many teams in nj 2025-26", "how many teams in nj 2025-2026", "how many teams in nj decode year", "how many teams in nj, decode"])
+      expect(card(await ask(q)), q).toMatchObject({ kind: "info", title: "How many teams in New Jersey · 2025–26" });
     // A name alone is still a team lookup: every team with it, never a count.
     const a = await ask("ultraviolet");
     expect(a.stat).toBeUndefined();

@@ -163,7 +163,7 @@ const RULES: IntentRule[] = [
   { id: "highest-score", family: "superlative", season: "all", re: /\bhighest[\s-]+scoring(?:\s+(?:match|game))?\b|\b(?:high(?:est)?|best|top|max(?:imum)?|biggest|most)\s+(?:match\s+|alliance\s+)?(?:scores?|points)\b|\bscored?\s+(?:the\s+)?(?:highest|most|best)\b/ },
   { id: "biggest-win", family: "superlative", season: "all", re: /\b(?:biggest|largest|best|widest)\s+(?:win|victory|winning\s+margin|margin\s+of\s+victory|blowout)\b/ },
   { id: "biggest-loss", family: "superlative", season: "all", re: /\b(?:biggest|largest|worst|widest)\s+(?:loss|defeat|losing\s+margin)\b/ },
-  { id: "closest-match", family: "superlative", season: "all", re: new RegExp(`\\b(?:closest|tightest|narrowest)\\s+(?:${MATCHES}|win|loss|result)\\b|\\bsmallest\\s+margin\\b`) },
+  { id: "closest-match", family: "superlative", season: "all", re: new RegExp(`\\b(?:closest|tightest|narrowest)\\s+(?:${MATCHES}|win|loss|result)\\b|\\bsmallest\\s+margin\\b|\\b(?:lose|loses|lost|losing|win|wins|won|winning|beat)\\s+by\\s+(?:just\\s+|only\\s+|exactly\\s+)?(\\d{1,3})\\s*(?:points?|pts?)\\b`) },
   { id: "blowout-wins", family: "aggregate", season: "all", re: /\bblow\s?outs?(?:\s+wins?)?\b|\bblow\s?out\s+victories\b/ },
   { id: "playoff-appearances", family: "aggregate", season: "all", re: /\b(?:playoffs?|elimination|elims?)\s+appearances?\b|\b(?:times|events)\s+(?:in|made|reached)\s+(?:the\s+)?(?:playoffs?|eliminations?|elims?)\b/ },
   { id: "playoff-matches", family: "aggregate", season: "all", re: new RegExp(`\\b(?:playoffs?|elimination|elims?)\\s+${MATCHES}\\b`) },
@@ -816,11 +816,11 @@ export function readStatQuestion(raw: string): StatQuestion | null {
     // "q12", "qual 12": a qualification match only, never a playoff match with that number.
     if (r.id === "match-lookup" && /\bq(?:ual(?:ification)?)?\s*\d/.test(m[0])) scope.level = "qual";
     const n = r.id === "last-matches" ? Math.min(20, Math.max(1, Number(m[1]))) : r.id === "match-lookup" ? Number(m[1] ?? m[2]) : r.id === "scores-over" ? Number(m[1])
-      : r.id === "vs-top" && m[1] ? Math.max(1, Number(m[1])) : null;
+      : r.id === "vs-top" && m[1] ? Math.max(1, Number(m[1])) : r.id === "closest-match" && m[1] ? Number(m[1]) : null;
     const variant = r.id === "penalties" ? (/\bper\s+event\b/.test(q) ? "per-event" : /\brate\b/.test(q) ? "rate" : null)
       : r.id === "scores-over" && /\bat\s+least\b/.test(m[0]) ? "at-least" : null;
     // "average winning margin", "margin of victory on average": wins only; "average losing margin": losses only.
-    const outcome = r.id === "closest-match" || r.id === "current-streak" ? (/\b(?:loss|losing|lost)\b/.test(m[0]) ? "L" : /\bwin/.test(m[0]) ? "W" : null)
+    const outcome = r.id === "closest-match" || r.id === "current-streak" ? (/\b(?:loss|losing|lost|lose|loses)\b/.test(m[0]) ? "L" : /\b(?:win|won|beat)/.test(m[0]) ? "W" : null)
       : r.id === "average-margin" ? (/\blosing\b/.test(m[0]) ? "L" : /\b(?:winning|victory)\b/.test(m[0]) ? "W" : null) : null;
     const count = /\b(?:count|how\s+many|number\s+of|total)\b/.test(q);
     // A team-less question: what's left names an event (or nothing: the season's championship).
