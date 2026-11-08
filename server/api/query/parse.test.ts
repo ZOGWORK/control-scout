@@ -213,6 +213,8 @@ describe("slots", () => {
     for (const q of ["events in nj with more than 4215 teams", "events with at least 4215 teams", "events with 4215 or more teams", "events over 4215 teams"])
       expect((await parse(q)).teams, q).toEqual([]);
     expect((await parse("4215 teams up with")).teams).toMatchObject([{ number: 4215 }]);
+    // A number of points is a margin or a score, never a team (#861: "lose by 1 point" read team 1).
+    expect((await parse("which match did 4215 lose by 6980 points")).teams.map((t) => t.number)).toEqual([4215]);
   });
   it("reads rookie teams as a group, only right before the teams word", async () => {
     for (const q of ["rookie teams at nj states", "first year teams at nj states", "top rookies team at nj states"]) expect(await parse(q), q).toMatchObject({ rookie: true, leftover: [] });

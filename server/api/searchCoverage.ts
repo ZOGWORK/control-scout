@@ -1145,6 +1145,8 @@ export async function teamFactAnswer(q: string, prefer: ReadonlySet<string>): Pr
     // (only a team is found here, so "where is the nj championship" stays the event's).
     ?? (/^where\s+(?:is|are)\s+(?:this\s+|the\s+)?(?:team\s+)?(\S.*)$/.exec(t)?.slice(0, 2).concat("located") as unknown as RegExpExecArray | undefined)
     ?? /^what(?:'s| is| are)\s+(.+?)\s+(called)$/.exec(t)
+    // The fact said first, then the team: "rookie year for alphatronic", "school of 4215", "website for bad wolf".
+    ?? ((m) => (m ? [m[0], m[2], m[1]] as unknown as RegExpExecArray : null))(new RegExp(`^(?:what(?:'s| is)\\s+)?(?:the\\s+)?(${FACT_PHRASES})\\s+(?:for|of)\\s+(?:team\\s+)?(.+)$`).exec(t))
     // When a team started, said any way: "what year did <team> start", "which season was <team> founded", "… join ftc";
     // read before the bare fact, which would take "which season was <team>" as the team.
     ?? /^(?:when|(?:what|which) (?:year|season))\s+(?:was|did|were)\s+(.+?)\s+(founded|start|started|begin|began|join|joined|get started|(?:begin|start|started) competing)(?:\s+(?:in\s+)?ftc)?$/.exec(t)
@@ -1161,7 +1163,10 @@ export async function teamFactAnswer(q: string, prefer: ReadonlySet<string>): Pr
     const nm = /^(\d{1,6})\s+(.+)$/.exec(who);
     const h = nm ? await teamHit(nm[1]) : undefined;
     if (h && normalize(teamNameOf(h.title)) === normalize(nm![2])) return h;
-    return (await search(who, 5, prefer, new Set(["team"]))).find((x) => x.kind === "team" && normalize(teamNameOf(x.title)) === normalize(who));
+    // A name that starts with "Team" is its own without it too ("calamari" is Team Calamari).
+    const own = (x: SearchHit) => [normalize(teamNameOf(x.title)), normalize(teamNameOf(x.title).replace(/^team\s+/i, ""))].includes(normalize(who));
+    const hits = (await search(who, 5, prefer, new Set(["team"]))).filter((x) => x.kind === "team");
+    return hits.find((x) => normalize(teamNameOf(x.title)) === normalize(who)) ?? (hits.filter(own).length === 1 ? hits.find(own) : undefined);
   };
   // More than one fact asked at once ("12345 sponsors school", "12345 rookie year, website and sponsors"): each is
   // answered. The whole name is tried first, so a team named with a fact word ("River City") is never cut short.

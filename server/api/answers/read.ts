@@ -155,7 +155,7 @@ const RULES: IntentRule[] = [
   { id: "highest-auto", family: "superlative", season: "latest", re: /\b(?:highest|best|top|most|max(?:imum)?)\s+auto(?:nomous)?(?:\s+(?:scores?|points))?\b(?!\s+(?:opr|teams?))/ },
   { id: "highest-teleop", family: "superlative", season: "latest", re: /\b(?:highest|best|top|most|max(?:imum)?)\s+(?:tele[\s-]?op|driver[\s-]controlled)(?:\s+(?:scores?|points))?\b(?!\s+(?:opr|teams?))/ },
   { id: "highest-endgame", family: "superlative", season: "latest", re: /\b(?:highest|best|top|most|max(?:imum)?)\s+end[\s-]?game(?:\s+(?:scores?|points))?\b(?!\s+(?:opr|teams?))/ },
-  { id: "scores-over", family: "aggregate", season: "latest", re: /\b(?:scores?|scored|matches|games)\s+(?:(?:where|when|with|that|in\s+which)\s+(?:they|it|the\s+team)?\s*(?:scored?|had|got)\s+)?(?:of\s+)?(?:over|above|more\s+than|at\s+least|higher\s+than)\s+(\d{2,3})(?:\s+points)?\b/ },
+  { id: "scores-over", family: "aggregate", season: "latest", re: /\b(?:scores?|scored|match(?:es)?|games?)\s+(?:(?:where|when|with|that|in\s+which)\s+(?:they|it|the\s+team)?\s*(?:scored?|had|got)\s+|with\s+)?(?:of\s+)?(?:over|above|more\s+than|at\s+least|higher\s+than)\s+(\d{2,3})(?:\s+points)?\b/ },
   { id: "median-score", family: "aggregate", season: "latest", re: /\bmedian\s+(?:match\s+|alliance\s+)?(?:scores?|points)\b/ },
   { id: "score-range", family: "aggregate", season: "latest", re: /\b(?:score|scoring|points)\s+(?:range|spread)\b|\brange\s+of\s+scores\b/ },
   { id: "score-consistency", family: "aggregate", season: "latest", re: /\b(?:(?:score|scoring)\s+)?consisten(?:cy|t)(?:\s+(?:rating|score|index))?\b/ },

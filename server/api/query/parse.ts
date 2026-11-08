@@ -304,6 +304,9 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     // A size in teams ("more than 40 teams", "at least 40 teams", "40 or more teams"): a count, never team 40.
     const sized = /^teams?$/.test(next ?? "") || (next === "or" && /^(?:more|fewer|less)$/.test(toks[i + 2]?.w ?? "") && /^teams?$/.test(toks[i + 3]?.w ?? ""));
     if (sized && (SIZE_BEFORE.test(prev ?? "") || next === "or")) { t.used = true; continue; }
+    // A number of points ("lose by 1 point", "won by 30 pts"): a margin or a score, never team 1. Left unread for the
+    // readers that take it.
+    if (/^(?:points?|pts?)$/.test(next ?? "")) continue;
     const team = ctx.names.team(n);
     if (team) {
       // A name several teams share, with one of their numbers typed right beside it ("<shared name> <number>", "<number>

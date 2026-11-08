@@ -81,6 +81,14 @@ describe("a place's award winners", () => {
     // A list of winners still needs its place.
     expect(await readPlaceAwards("inspire award winners")).toBeNull();
   });
+  it("the most awards of any kind over every season (failed-search #799); one season's stays the board's", async () => {
+    for (const q of ["which team in Texas has the most awards, ever", "texas team with the most awards of all time"]) {
+      const ask = await readPlaceAwards(q);
+      expect(ask, q).toMatchObject({ place: { kind: "region", state: "TX" }, types: [], mode: "most", season: null });
+      expect((await placeAwardsAnswer(ask!)).title, q).toMatch(/^Teams from Texas with the most awards, every season/);
+    }
+    for (const q of ["which team in Texas has the most awards", "most awards in texas this season"]) expect(await readPlaceAwards(q), q).toBeNull();
+  });
 
   it("lists a state's winners of one award, 1st place only, the default season", async () => {
     const ask = await readPlaceAwards("Texas Think winners");

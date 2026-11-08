@@ -89,8 +89,10 @@ export async function readPlaceAwards(q: string): Promise<PlaceAwardsAsk | null>
   const mode = stage ? (any ? "any" : "list") : same ? "same-event" : rarest ? "rarest" : most ? "most" : any ? "any" : "list";
   if (mode === "same-event" && types.length < 2) return null;
   if (mode === "rarest" && types.length) return null;
-  // The most awards of any kind is the count leaderboard's ("which team has the most awards in NJ", ./leaderboard.ts).
-  if (mode === "most" && !types.length) return null;
+  // The most awards of any kind is the count leaderboard's ("which team has the most awards in NJ", ./leaderboard.ts),
+  // one season's; asked over every season ("… ever", "of all time") it's counted here.
+  const ever = /\b(?:ever|all[\s-]time|every\s+season|in\s+(?:ftc\s+)?history)\b/.test(t);
+  if (mode === "most" && !types.length && (!ever || sm)) return null;
   // What's left is the place, the place's teams' word ("Romanian", "NJ teams") or a town and its country.
   const left = t.replace(FRAME, " ").replace(/\s+/g, " ").trim().split(" ").map((w) => codes.get(w) ?? w).join(" ");
   let place: Place | null = null;
