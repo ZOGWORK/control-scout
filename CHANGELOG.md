@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.1.0 — 2026-11-08
+
+In the installed app on a phone, pull down from the top of any page to reload it. A round reload icon slides down under the top bar as you pull, turns yellow once letting go will reload, and spins while the page reloads.
+
+### Highlights
+- [appearance] Pull down from the top to reload, in the installed app on phones
+- [appearance] A reload icon follows the pull and turns yellow when ready
+- [appearance] Phone browser tabs keep their own pull-to-refresh
+
+### Phone app
+- **Pull to reload.** The installed app (added to the home screen) has no reload button, so pulling down from the very top of a page now reloads it: the whole page, so the data, a new release and the offline copy all come fresh. It only starts at the top of the page, with one finger, on a downward drag; a sideways swipe, a scroll, a list with its own scrollbar, a drag handle (reordering picks), or an open dialog or sheet are left alone, and letting go early does nothing. A phone's browser tab keeps its own pull-to-refresh, and desktop gets none. Under reduced motion the icon doesn't turn or spin. (#1159)
+
 ## 4.0.9 — 2026-11-08
 
 A team's record, wins and scores in the finals only are answered, and a match told by its margin is the team's biggest loss or win. "Whats 9848's record in finals matches only" shows the record in its finals matches, and "the score of that one match where 4215 lost by a lot" shows its biggest loss.
