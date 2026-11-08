@@ -171,7 +171,14 @@ export const INTENTS: IntentRule[] = [
   R("alliance-predict", 4, ["vs"], ["predict", "and", "compare", "metric:win", "metric:score", "metric:margin", "thing:match", "per:match"]),
   // Two teams.
   // "In a match between them" is the one match's call.
-  R("two-predict", 2, ["predict"], ["vs", "and", "compare", "metric:win", "metric:score", "metric:margin", "thing:match", "per:match"]),
+  R("two-predict", 2, ["predict"], ["vs", "and", "compare", "metric:win", "metric:score", "metric:margin", "thing:match", "per:match", "hypo", "future"]),
+  // Supposed: "if 12345 played 23456", "what if they faced each other", "… who would win".
+  R("two-predict", 2, ["hypo", "vs"], ["predict", "future", "metric:win", "metric:loss", "metric:score", "metric:margin", "thing:match", "per:match"]),
+  // "Will A beat B", "would A win against B": a match not yet played between them, so its call. "Defeat" is a loss as
+  // a noun ("how many defeats"), so the verb ("will A defeat B", "will A lose against B") reads as one: either way
+  // the question is who wins their match.
+  R("two-predict", 2, ["future", "metric:win"], ["vs", "and", "compare", "metric:score", "metric:margin", "thing:match", "per:match", "hypo"]),
+  R("two-predict", 2, ["future", "metric:loss"], ["vs", "and", "compare", "metric:score", "metric:margin", "thing:match", "per:match", "hypo"]),
   // Either alliance: "on the same alliance" (partners only) isn't a filter the shared list takes, so it stays unexplained.
   R("shared-matches", 2, ["together"], ["vs", "and", "thing:match", "list"]),
   R("shared-matches", 2, ["and", "thing:match"], ["list"]),
