@@ -273,7 +273,9 @@ describe("the best teams at an event", () => {
     expect((await ask("best teams at nj states")).stat?.title).toMatch(/^Best teams at New Jersey Championship by OPR there/);
   });
   it("reads a state with a championship word as its championship, and the ones worth watching as the best", async () => {
-    for (const q of ["teams worth watching at the nj championship", "which teams should we watch at new jersey champs", "who should we watch at the new jersey championship", "who to watch at nj states"]) {
+    // Teams to scout are the ones worth watching, and an aside saying "the good ones" again is read past (#900, #921).
+    for (const q of ["teams worth watching at the nj championship", "which teams should we watch at new jersey champs", "who should we watch at the new jersey championship", "who to watch at nj states",
+      "what team should i watch at nj champs, like actually good ones", "whats a good team to scout for alliance selection at nj championship", "which teams should i scout at nj states"]) {
       expect((await ask(q)).stat?.title, q).toMatch(/^Best teams at New Jersey Championship by OPR there/);
     }
   });

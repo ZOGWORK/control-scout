@@ -196,6 +196,9 @@ export const FILLER: string[] = [
 export const TAIL_FILLER: string[] = [
   "in order", "in chronological order", "in date order", "in time order", "with scores", "with the scores", "with their scores",
   "with results", "with the results", "with their results", "with details", "with all the details",
+  // An aside that says again what "watch" or "best" asks ("…, like actually good ones").
+  "like actually good ones", "like the actually good ones", "like the good ones", "like good ones", "like the really good ones",
+  "actually good ones", "the actually good ones", "the good ones", "only the good ones", "the really good ones",
 ];
 
 /** Question and conversational scaffolding, read by the keyword layer around the team, intent and scope (never by

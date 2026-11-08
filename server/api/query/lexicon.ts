@@ -69,6 +69,9 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["should i watch|should we watch|worth watching|to keep an eye on|should i keep an eye on", { k: "agg", v: "max" }],
   // "Who" asked that way is the teams: "who should i watch at worlds".
   ["who should i watch|who should we watch|who to watch|who is worth watching|who should i keep an eye on", [{ k: "thing", v: "team" }, { k: "agg", v: "max" }]],
+  // Teams to scout at an event are the ones worth watching: "which teams should i scout at nj states", "a good team to
+  // scout for alliance selection".
+  ["team to scout for alliance selection|teams to scout for alliance selection|team to scout|teams to scout|teams should i scout|team should i scout|teams should we scout|team should we scout|teams worth scouting|who should i scout|who should we scout|who to scout", [{ k: "thing", v: "team" }, { k: "agg", v: "max" }]],
   ["lowest|low|worst|min|minimum|smallest|fewest|least|weakest", { k: "agg", v: "min" }],
   ["average|avg|mean|typical|on average", { k: "agg", v: "mean" }],
   ["median", { k: "agg", v: "median" }],
