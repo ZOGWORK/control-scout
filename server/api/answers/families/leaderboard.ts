@@ -153,7 +153,7 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
   const shown = (r: (typeof rows)[number]) => (st.id === "record" ? record(r) : fmt(r.v, st));
   const board: StatBlock = {
     kind: "leaderboard", title: b.teams ? `${rows.length} ranked by ${st.label}` : rookie ? `Rookie teams by ${st.label}` : b.asc ? `Lowest ${rows.length} by ${st.label}` : `Top ${rows.length} by ${st.label}`, stat: { id: st.id, label: st.label, ...(st.unit ? { unit: st.unit } : {}) },
-    ...(reportedTeleopIncludesEndgame(season) ? { teleopWithEndgame: true } : {}), ...(bottom ? { lowest: true } : {}),
+    ...(reportedTeleopIncludesEndgame(season) ? { teleopWithEndgame: true } : {}), ...(b.asc ? { lowest: true } : {}),
     note: `${seasonLabel(season)} · ${total.toLocaleString("en-US")} ranked ${rookie ? "rookie " : ""}team${total === 1 ? "" : "s"}${where} · by ${statWords(st)}`,
     rows: rows.map((r, i) => ({
       rank: bottom ? total - i : i + 1, team: { label: `${r.team} ${r.name ?? ""}`.trim(), href: teamHref(Number(r.team), season) },

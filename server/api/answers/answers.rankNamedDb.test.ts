@@ -4,6 +4,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../../db";
 import { rebuildSearch } from "../../stats/job";
 import { searchAnswer } from "../searchAnswer";
+import { sortTeamRows, teamTableOfLeaderboard } from "../../../src/shared/teamTable";
 
 beforeAll(async () => {
   const c = openDb(":memory:");
@@ -27,6 +28,14 @@ beforeAll(async () => {
   await rebuildSearch();
 });
 
+/** The rows in the order the page's table opens them. */
+const drawn = (stat: NonNullable<Awaited<ReturnType<typeof searchAnswer>>["stat"]>) => {
+  const b = stat.blocks.find((x) => x.kind === "leaderboard");
+  if (!b || b.kind !== "leaderboard") return [];
+  const t = teamTableOfLeaderboard(b.stat.id, b.stat.label, b.rows, b.teleopWithEndgame, b.lowest);
+  return sortTeamRows(t.rows, t.by, t.dir).map((r) => r.team);
+};
+
 const rowsOf = (stat: NonNullable<Awaited<ReturnType<typeof searchAnswer>>["stat"]>) =>
   stat.blocks.flatMap((b) => (b.kind === "leaderboard" ? b.rows.map((r) => r.team.label) : []));
 
@@ -48,7 +57,7 @@ describe("teams named, ranked by a stat", () => {
     const a = await searchAnswer("sort these teams by penalties in 2025-26: 4215, 7149, 6980", { full: true, learn: false });
     const board = a.stat!.blocks.find((b) => b.kind === "leaderboard");
     expect(board && board.kind === "leaderboard" && board.rows.map((r) => [r.rank, r.team.label])).toEqual([[1, "6980 Bad Wolf"], [2, "4215 Hypnotic Robotics"], [3, "7149 Enforcers"]]);
-    expect(board).not.toHaveProperty("lowest");
+    expect(drawn(a.stat!)).toEqual([6980, 4215, 7149]);
     expect(a.stat!.title).toMatch(/^3 teams, fewest first, by /);
     expect(a.stat!.headline?.sub).not.toMatch(/Lowest/);
   });
@@ -60,6 +69,7 @@ describe("teams named, ranked by a stat", () => {
     }
     const up = await searchAnswer("put these teams in ascending order by opr in 2025-26: 4215, 6980", { full: true, learn: false });
     expect(rowsOf(up.stat!)).toEqual(["6980 Bad Wolf", "4215 Hypnotic Robotics"]);
+    expect(drawn(up.stat!)).toEqual([6980, 4215]);
     const most = await searchAnswer("sort these teams by penalties from highest to lowest in 2025-26: 6980, 4215", { full: true, learn: false });
     expect(rowsOf(most.stat!)).toEqual(["4215 Hypnotic Robotics", "6980 Bad Wolf"]);
   });
