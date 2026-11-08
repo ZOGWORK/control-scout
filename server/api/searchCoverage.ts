@@ -902,8 +902,20 @@ export async function teamSuggestions(team: number, asked: string): Promise<stri
   return [...new Set(order.map((x) => x.q))].slice(0, 3);
 }
 
-/** Words that may trail a team's name without being part of it ("bad wolf robotics", "ultraviolet team nj"). */
-const NAME_TAIL = new Set(["robotics", "robot", "robots", "team", "teams", "ftc", "club", "the", "first", "tech", "challenge"]);
+/** Words that may trail a team's name without being part of it ("bad wolf robotics", "ultraviolet team nj", "<name>
+ *  stuff, like everything"). */
+const NAME_TAIL = new Set(["robotics", "robot", "robots", "team", "teams", "ftc", "club", "the", "first", "tech", "challenge", "stuff", "everything", "like", "info"]);
+
+/** The teams words call by their name's own part ("calamari" for Team Calamari, "rev amped", "litbot juniors":
+ *  ./query/names.ts teamsCalled), as search lists them. */
+export async function calledTeams(words: string, prefer: ReadonlySet<string>): Promise<SearchHit[]> {
+  const out: SearchHit[] = [];
+  for (const t of (await names()).teamsCalled(words)) {
+    const h = (await search(String(t.number), 5, prefer, new Set(["team"]))).find((x) => x.kind === "team" && x.ref === String(t.number));
+    if (h) out.push(h);
+  }
+  return out;
+}
 
 /** The last stop before "no results": a team number in the query that's a real team, or a team's name with
  *  trailing words that aren't part of it. The team, and what wasn't read, said plainly. Null when neither. */
@@ -938,10 +950,12 @@ export async function teamFallback(q: string, prefer: ReadonlySet<string>): Prom
     else if (r && !region) { region = r; end--; }
     else break;
   }
-  if (end === lower.length || end < 1) return null;
+  if (end < 1) return null;
   const name = ws.slice(0, end).join(" ");
-  const teams = (await search(name, 25, prefer, new Set(["team"]))).filter((h) => h.kind === "team");
-  const exact = teams.filter((h) => normalize(teamNameOf(h.title)) === normalize(name));
+  const teams = end === lower.length ? [] : (await search(name, 25, prefer, new Set(["team"]))).filter((h) => h.kind === "team");
+  // Its whole name, else its name's own part.
+  const whole = teams.filter((h) => normalize(teamNameOf(h.title)) === normalize(name));
+  const exact = whole.length ? whole : await calledTeams(name, prefer);
   const inRegion = region ? exact.filter((h) => new RegExp(`\\b${region!.state}\\b`).test(h.subtitle ?? "")) : exact;
   // A state named and no team of that name there: none, never another state's team said to be in it.
   const pick = inRegion;
