@@ -48,6 +48,10 @@ export function readTopCities(raw: string): TopCitiesQuestion | null {
 const cityHref = (x: { city: string; state: string | null; country: string | null }) =>
   `/search?q=${encodeURIComponent(`teams in ${x.city} ${(x.country === "USA" || x.country === "Canada") && x.state ? x.state : x.country ?? ""}`.trim())}`;
 
+/** A city is told apart by its state in North America only, where its link names the state; elsewhere one city per
+ *  country, the same place its link ("teams in <city> <country>") opens. */
+const NA_STATE = "CASE WHEN t.country IN ('USA', 'Canada') THEN t.state END";
+
 /** The country as the team directory labels it ("USA", "Romania"), from any of its names; null when no team lists it. */
 export async function storedCountry(said: string): Promise<Region | null> {
   const want = countryOf(said)?.code;
@@ -65,10 +69,10 @@ export async function topCitiesAnswer(c: TopCitiesQuestion): Promise<StatAnswer 
   // The place's newest season with matches played (a region whose season hasn't started reads its last one).
   const newest = (await get<{ s: number | null }>(`SELECT MAX(x.season) s FROM team_season_stats x JOIN teams t ON t.number = x.team WHERE x.matches > 0${inSql}`, args))?.s ?? null;
   const rows = await all<{ city: string; state: string | null; country: string | null; teams: number; played: number }>(
-    `SELECT COALESCE(MAX(CASE WHEN t.city <> upper(t.city) THEN t.city END), MIN(t.city)) city, t.state, t.country, COUNT(*) teams,
+    `SELECT COALESCE(MAX(CASE WHEN t.city <> upper(t.city) THEN t.city END), MIN(t.city)) city, ${NA_STATE} state, t.country, COUNT(*) teams,
             SUM(CASE WHEN EXISTS (SELECT 1 FROM team_season_stats x WHERE x.team = t.number AND x.season = ? AND x.matches > 0) THEN 1 ELSE 0 END) played
      FROM teams t WHERE t.city IS NOT NULL AND trim(t.city) <> ''${inSql} AND ${teamPageSql("t.number", "t.name")}
-     GROUP BY lower(trim(t.city)), t.state, t.country ORDER BY played DESC, teams DESC, city LIMIT ?`, [newest ?? -1, ...args, c.n]);
+     GROUP BY lower(trim(t.city)), ${NA_STATE}, t.country ORDER BY played DESC, teams DESC, city LIMIT ?`, [newest ?? -1, ...args, c.n]);
   const where = r ? ` in ${r.name}` : " worldwide";
   // A city's name is said with its state, or its country when the place is wider than one country.
   const na = (x: { country: string | null }) => x.country === "USA" || x.country === "Canada";

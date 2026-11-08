@@ -82,12 +82,15 @@ describe("a place's award winners", () => {
     expect(await readPlaceAwards("inspire award winners")).toBeNull();
   });
   it("the most awards of any kind over every season (failed-search #799); one season's stays the board's", async () => {
-    for (const q of ["which team in Texas has the most awards, ever", "texas team with the most awards of all time"]) {
+    for (const q of ["which team in Texas has the most awards, ever", "texas team with the most awards of all time", "texas team with the most awards in ftc history"]) {
       const ask = await readPlaceAwards(q);
       expect(ask, q).toMatchObject({ place: { kind: "region", state: "TX" }, types: [], mode: "most", season: null });
       expect((await placeAwardsAnswer(ask!)).title, q).toMatch(/^Teams from Texas with the most awards, every season/);
     }
     for (const q of ["which team in Texas has the most awards", "most awards in texas this season"]) expect(await readPlaceAwards(q), q).toBeNull();
+    // Every award counts, 2nd place too, as the season board does: 11111 has 6 (a Think 2nd among them), 20265 3 (Greptile on #1181).
+    const all = await placeAwardsAnswer((await readPlaceAwards("which team in Texas has the most awards, ever"))!);
+    expect(rows(all).slice(0, 2).map((r) => [r.team, r.n])).toEqual([["11111 Lone Star Bots", 6], ["20265 Heart of RoBots", 3]]);
   });
 
   it("lists a state's winners of one award, 1st place only, the default season", async () => {

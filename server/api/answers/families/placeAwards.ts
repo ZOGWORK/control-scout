@@ -91,8 +91,11 @@ export async function readPlaceAwards(q: string): Promise<PlaceAwardsAsk | null>
   if (mode === "rarest" && types.length) return null;
   // The most awards of any kind is the count leaderboard's ("which team has the most awards in NJ", ./leaderboard.ts),
   // one season's; asked over every season ("… ever", "of all time") it's counted here.
-  const ever = /\b(?:ever|all[\s-]time|every\s+season|in\s+(?:ftc\s+)?history)\b/.test(t);
+  const EVER = /\s(?:of\s+)?(?:ever|all[\s-]time|every\s+season|in\s+(?:ftc\s+)?history)(?=\s)/;
+  const ever = EVER.test(t);
   if (mode === "most" && !types.length && (!ever || sm)) return null;
+  // The words said for every season are taken out, never left to be read as the place ("… in FTC history").
+  if (mode === "most" && !types.length) cut(EVER);
   // What's left is the place, the place's teams' word ("Romanian", "NJ teams") or a town and its country.
   const left = t.replace(FRAME, " ").replace(/\s+/g, " ").trim().split(" ").map((w) => codes.get(w) ?? w).join(" ");
   let place: Place | null = null;
@@ -176,7 +179,8 @@ export async function placeAwardsAnswer(ask: PlaceAwardsAsk): Promise<StatAnswer
   if (ask.stage) return stageAnswer(ask);
   const where = placeSql(ask.place);
   // A judged award is won at 1st place, unless every award is listed (each place said as such).
-  const won = ask.types.length || ask.mode !== "list" ? ` AND ${WON_SQL}` : "";
+  // The most awards of every kind counts each one, 2nd and 3rd place too, as the season awards board and a team's card do.
+  const won = ask.types.length || (ask.mode !== "list" && ask.mode !== "most") ? ` AND ${WON_SQL}` : "";
   const typeSql = ask.types.length ? ` AND ${TYPE_SQL} IN (${ask.types.map(() => "?").join(", ")})` : "";
   // The season: the one said, else search's default (the latest completed one, ../season.ts), never another one
   // quietly; "most" and "any" with none said count every season. It's filtered in SQL, never after loading every season.
@@ -248,7 +252,9 @@ export async function placeAwardsAnswer(ask: PlaceAwardsAsk): Promise<StatAnswer
         : { value: top.map((x) => teamLabel(x.r)).join(", "), label: `${won}${top.length > 1 ? " each, tied" : ""}`, href: `/teams/${top[0].r.team}` },
       blocks: [{ kind: "table", title: `${who} by ${whats} won`, columns: [{ key: "team", label: "Team" }, { key: "home", label: "Home" }, { key: "n", label: "Won", num: true }],
         rows: ranked.slice(0, 25).map((x) => ({ cells: { team: teamLabel(x.r), home: [x.r.city, x.r.state].filter(Boolean).join(", "), n: x.n }, href: `/teams/${x.r.team}`, strong: x.n === ranked[0].n })) }],
-      definition: `Most won: each team's ${what}, an alliance award once per event. ${rule}`,
+      definition: ask.types.length
+        ? `Most won: each team's ${what}, an alliance award once per event. ${rule}`
+        : `Most awards: every award each team was given, 2nd and 3rd place included, an alliance award once per event. A team's place is its home on FIRST's listing. From the events' published awards.`,
     };
   }
   if (ask.mode === "rarest") {
