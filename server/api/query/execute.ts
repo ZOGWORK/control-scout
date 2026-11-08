@@ -3,7 +3,7 @@
 // TwoTeamQuestion, a TopMatchesQuestion, a LeaderboardQuestion). They are built from the slots, never by reading text
 // again, and answered with the families' own cards. A parse that isn't complete, or an intent no family takes, is
 // left to search's other readers (null).
-import type { SearchAnswer, SearchPageLink } from "../../../src/shared/api.js";
+import type { SearchAnswer, SearchHit, SearchPageLink } from "../../../src/shared/api.js";
 import type { StatAnswer } from "../../../src/shared/searchStat.js";
 import type { Region } from "../../../src/shared/regions.js";
 import { dateRange, seasonLabel } from "../../../src/shared/format.js";
@@ -38,6 +38,14 @@ export interface PipelineOptions { full: boolean; pages: SearchPageLink[]; resol
 export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<SearchAnswer | null> {
   const ctx = await parseContext(opts.now, opts.prefer);
   let p = await parseQuery(q, ctx);
+  // A team's highlights asked by part of its name ("hypnotic highlights") or by a name teams share, with its place
+  // ("ultraviolet nj highlights"): the parser takes only a whole name that is one team's, so search's own team lookup
+  // reads the words left over, as it does for a team's stats, and the question is read again with the team's number.
+  const byName = !p.complete && p.intent === "highlights" ? await leftoverTeam(q, p, opts.resolve) : null;
+  if (byName) {
+    const again = await parseQuery(byName, ctx);
+    if (again.complete && again.intent === p.intent && again.teams.length === 1) p = { ...again, q };
+  }
   // A place's top team said where a team would be ("the top NJ team vs the top Romania team"): two teams compared,
   // read again with their numbers, the card saying which team each phrase was.
   let tops: Awaited<ReturnType<typeof topTeamsSaid>> = null;
@@ -64,6 +72,40 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
   }
   // How the query was read, slot by slot: the card states the filters it applied.
   return { ...a, intent: { ...(a.intent ?? { kind: `pipeline-${p.intent}`, pattern: p.intent, met: true, understood: [] }), understood: describe(p) } };
+}
+
+const escRe = (w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** The words `typed` (any punctuation between them) as they stand in a query, kept apart from the words beside them. */
+const wordsAt = (typed: string[]) => new RegExp(`(^|[^\\p{L}\\p{N}])${typed.map(escRe).join("[^\\p{L}\\p{N}]+")}(?=$|[^\\p{L}\\p{N}])`, "iu");
+
+/** `q` with the team its left-over words name put as the team's number, or null. The words have to stand together and
+ *  each begin a word of the team's name, so a stray word never becomes a team; with a place said, the team is the one
+ *  of those found that is from there (its listed state, or its country), and the place's words go with the name's. */
+async function leftoverTeam(q: string, p: Parsed, resolve: Resolve): Promise<string | null> {
+  if (p.teams.length || !p.leftover.length || p.leftover.length > 4) return null;
+  const at = wordsAt(p.leftover);
+  if (!at.test(q)) return null;
+  const words = p.leftover.map((w) => w.toLowerCase());
+  const r = await resolve(p.leftover.join(" "));
+  if (r.step === "recovery") return null;
+  const named = (h: SearchHit) => {
+    const name = h.title.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+    return words.every((w) => name.some((n) => n.startsWith(w)));
+  };
+  const from = (h: SearchHit, place: NonNullable<Parsed["place"]>) => {
+    const home = (h.subtitle ?? "").split(/,\s*/).map((x) => x.toLowerCase());
+    return place.state ? home.includes(place.state.toLowerCase()) : home.includes(place.country.toLowerCase());
+  };
+  const teams = r.hits.filter((h) => h.kind === "team" && !h.href && named(h));
+  // A place that limits the event ("<name> highlights at nj states") stays the event's; only a place said with the
+  // name alone picks the team.
+  const place = p.place && !p.states && !p.worlds && !p.event ? p.place : null;
+  // With no place, search's own first answer for the words (as a team's stats read them); with one, the team there.
+  const team = place ? teams.filter((h) => from(h, place)) : r.hits[0] && teams.includes(r.hits[0]) ? [r.hits[0]] : [];
+  if (team.length !== 1) return null;
+  let out = q.replace(at, `$1${team[0].ref}`);
+  if (place) out = out.replace(wordsAt(place.typed.split(/\s+/)), "$1");
+  return out.replace(/\s+/g, " ").trim();
 }
 
 /** Whether `q` asks about teams: one named, or which team in a place ("which team in New Jersey fouls the least").
