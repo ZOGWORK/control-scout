@@ -20,7 +20,7 @@ import { SEARCH_BROWSE, SEARCH_FILLER, SEARCH_PAGE_LIMIT, SEARCH_TOPICS, firstCa
 import { conversationQuery, EVENT_WORDS, isQuestionForm, nameWords, onlyCommonWords, onlyTopicWords, singularize } from "../../src/shared/searchQuery.js";
 import { readEventQuery, regionOf } from "../../src/shared/searchEventQuery.js";
 import { eventSetAnswer, withEventParents, withWholeFamilies } from "./searchEvents.js";
-import { versusAnswer } from "./searchCompare.js";
+import { compareOneAnswer, versusAnswer } from "./searchCompare.js";
 import { ruleAnswer } from "./searchRules.js";
 import { askAnswer, readAsk } from "./searchAsks.js";
 import { readRuleQuery } from "../../src/shared/searchRuleQuery.js";
@@ -562,6 +562,9 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   const vsSeason = /(?:^|\s)20\d\d\s*[-–/]\s*\d\d(?=\s|$)/.test(q) ? seasonOf(q) : { season: null, rest: q };
   const vs = await versusAnswer(vsSeason.rest, prefer, vsSeason.season ?? opts.season ?? null);
   if (vs) return vs;
+  // One team, Compare asked for ("compare 12345"): Compare with it in, and its closest rivals to compare it with.
+  const one = await compareOneAnswer(vsSeason.rest, prefer, vsSeason.season ?? opts.season ?? null);
+  if (one) return one;
 
   // 3. The search, on the season-free, short-forms-expanded query; the name-and-topic reading when it fits better.
   // A season named makes a team's numbers and link that season's.
