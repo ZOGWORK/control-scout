@@ -28,6 +28,8 @@ export type PipelineIntent =
   | "auto-trend" | "teleop-trend" | "endgame-trend" | "reliability-trend"
   // Four teams, two on each alliance: a match's call ("predict a b vs c d").
   | "alliance-predict"
+  // One team's pick at an event: the pick helper's suggestions (../answers/families/pick.ts).
+  | "pick-partners"
   // No team: matches found by a measure (./matchFind.ts).
   | "low-matches" | "close-matches" | "lopsided-matches" | "penalty-matches" | "upset-matches" | "comeback-matches"
   // A team's or everyone's matches by how far the saved prediction was off (./matchFind.ts).
@@ -164,6 +166,9 @@ export const INTENTS: IntentRule[] = [
   R("team-opr", 1, ["metric:opr"], ["agg:last"], { noEvent: true }),
   R("team-rating", 1, ["metric:rating"], ["agg:last"], { noEvent: true }),
   R("team-predict", 1, ["predict"], ["metric:win", "metric:record", "metric:score", "metric:rank", "thing:event", "thing:match", "agg:next", "metric:playoffs", "review", "agg:last", "advance"]),
+  // Who to pick at an event, by Scout's pick helper: the axes said ("by complementing their auto") are what it weighs.
+  // "Would" or a supposition around it ("who would 12345 pick", "if 12345 is a captain, who should it pick") asks the same.
+  R("pick-partners", 1, ["pick"], ["metric:partner", "agg:max", "agg:first", "predict", "metric:win", "metric:opr", "metric:rating", "metric:auto", "metric:teleop", "metric:endgame", "and", "thing:team", "gap", "list", "per:match", "future", "hypo"], { noMatchNo: true }),
   // "Will 12345 win <event>": the forecast at the event named (or its states, or Worlds).
   R("team-predict", 1, ["future", "metric:win"], ["thing:event"], { event: true }),
   R("team-predict", 1, ["future", "metric:win", "worlds"], ["thing:event"]),

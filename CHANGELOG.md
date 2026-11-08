@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.3.3 — 2026-11-08
+
+Who a team should pick at an event is a question search answers, with Scout's pick helper on that event's teams: the partner that fills the team's gaps first.
+
+### Highlights
+- [picklist] "Who should <team> pick at <event>" ranks the event's teams
+- [picklist] "Teams that complement <team>'s weak endgame" shows endgame
+- [picklist] After selection, the suggestions beside who was picked
+
+### Search
+- **Who to pick.** "Who should <team> pick at <event>", "best second pick for <team> at worlds", "which alliance partner would be best for <team> at <event>" and "teams that complement <team>'s weak endgame" are the pick helper's suggestions at that event (its Worlds or state championship division; none named, the team's next event, else its latest), the partner covering the most of its radar first. A stat named gets its own column; once selection is over, the suggestions as it opened sit beside the partners actually picked. (#1093)
+
 ## 4.3.2 — 2026-11-08
 
 Search ranks a place's cities by their teams, lists the events over a size, and reads a town said with its state or country.
