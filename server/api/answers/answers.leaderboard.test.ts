@@ -257,6 +257,11 @@ describe("every season counted", () => {
     const s = await searchAnswer("which team has played the most seasons, ever", { limit: 25, full: true });
     // 4215: rookie year 2010 to its latest season with a match (2025), both counted.
     expect(s.stat).toMatchObject({ intent: "career-seasons", headline: { value: "4215 Hypnotic Robotics", label: "Seasons played 16, rookie year 2010 · Oradell" } });
+    // Greptile on #1111: a team's link opens the season its OPR is from, its latest with a match.
+    expect(s.stat?.headline?.href).toBe("/teams/4215?season=2025");
+    const sb = s.stat!.blocks[0];
+    if (sb.kind !== "leaderboard") throw new Error(sb.kind);
+    expect(sb.rows.every((r) => r.team.href?.endsWith("?season=2025"))).toBe(true);
     const o = await searchAnswer("whats the oldest team still active in New Jersey, by rookie year", { limit: 25, full: true });
     expect(o.stat).toMatchObject({ intent: "oldest-active", title: "Oldest teams still active in New Jersey, by rookie year" });
     const ob = o.stat!.blocks[0];

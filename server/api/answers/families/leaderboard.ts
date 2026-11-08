@@ -220,11 +220,12 @@ async function careerAnswer(b: BoardQuestion, where: string, regionSql: string, 
   return {
     ...base,
     headline: { value: `${top.team} ${top.name ?? ""}`.trim(), label: oldest ? `Rookie year ${top.rookie}, ${Number(top.v)} seasons played${top.city ? ` · ${top.city}` : ""}` : `${c.label} ${Number(top.v)}${b.stat.id === "seasons" && top.rookie ? `, rookie year ${top.rookie}` : `, ${record(top)}`}${top.city ? ` · ${top.city}` : ""}`,
-      sub: oldest ? `Active in ${active}${where}` : `#1 of every team${where}, every season on record`, href: teamHref(Number(top.team)) },
+      sub: oldest ? `Active in ${active}${where}` : `#1 of every team${where}, every season on record`, href: teamHref(Number(top.team), top.lastPlayed) },
     blocks: [{
       kind: "leaderboard", title: `Top ${rows.length} by ${oldest ? "rookie year" : c.label.toLowerCase()}`, stat: { id: oldest ? "rookie-year" : b.stat.id, label: oldest ? "Rookie year" : c.label },
       note: `${oldest ? `Active in ${active}` : `Every season on record, ${S}`}${where}`,
-      rows: rows.map((r, i) => ({ rank: i + 1, team: { label: `${r.team} ${r.name ?? ""}`.trim(), href: teamHref(Number(r.team)) },
+      // A team link opens the season its OPR is from: its latest with a match.
+      rows: rows.map((r, i) => ({ rank: i + 1, team: { label: `${r.team} ${r.name ?? ""}`.trim(), href: teamHref(Number(r.team), r.lastPlayed) },
         location: [r.city, r.state, r.country && r.country !== "USA" ? r.country : null].filter(Boolean).join(", ") || null,
         // OPR: the team's latest season with a match, as its team page shows it.
         record: record(r), opr: r.opr == null ? null : Number(r.opr), value: oldest ? r.rookie : Number(r.v), display: shown(r), parts: null })),
