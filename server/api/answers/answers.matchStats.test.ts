@@ -98,6 +98,9 @@ describe("what's read", () => {
     expect(readTwoTeam("4215 record against top teams")).toBeNull();
     expect(readTwoTeam("4215 record vs rookie teams")).toBeNull();
     expect(readTwoTeam("4215 record against 6980")).toMatchObject({ id: "head-to-head", a: "4215", b: "6980" });
+    // "A vs B record": their record against each other; "A and B record" stays each team's own.
+    for (const q of ["4215 vs 6980 record", "hypnotic robotics vs bad wolf record"]) expect(readTwoTeam(q)?.id, q).toBe("head-to-head");
+    expect(readTwoTeam("4215 and 6980 record")?.id).not.toBe("head-to-head");
     // "Biggest improvement" stays the season-over-season answer; only an improvement trend is the OPR trend.
     expect(readStatQuestion("4215 biggest improvement")).toMatchObject({ id: "most-improved-season" });
     // Its season words stay the scope's: "this season" is read as everywhere else.
@@ -143,6 +146,18 @@ describe("records", () => {
   it("against top-rated and rookie teams, never a compare with a team named so", async () => {
     const top = await stat("4215 performance against top teams");
     expect(top).toMatchObject({ intent: "vs-top", headline: { value: "2-2-0" } });
+    // A world rank said as a number is the cut (failed-search #820): the top 3 are 9999 and 6980 (4215 is #2 itself).
+    const three = await stat("how does 4215 do vs teams that are ranked in the top 3 in the world");
+    expect(three).toMatchObject({ intent: "vs-top", title: "Against top-3 teams in 2025–26", headline: { value: "4-2-1" } });
+    expect(three?.definition).toContain("ranked in the world's top 3");
+    // Every way of saying it reaches the answer, never a second team named "top 3" (Greptile on #1107): the top 3's
+    // 4-2-1, not the top tenth's 2-2-0.
+    for (const q of ["4215 record against the top 3 worldwide", "4215 record vs top 3 opponents", "4215 record versus the top 3"]) {
+      expect(await stat(q), q).toMatchObject({ intent: "vs-top", headline: { value: "4-2-1" } });
+      expect(readTwoTeam(q), q).toBeNull();
+    }
+    expect(readStatQuestion("4215 record vs top 25 opponents")).toMatchObject({ id: "vs-top", n: 25 });
+    expect(readStatQuestion("4215 record against top teams")).toMatchObject({ id: "vs-top", n: null });
     expect((await stat("4215 performance against rookie teams"))?.headline).toMatchObject({ value: "2-0-1" });
     expect((await stat("4215 easiest opponent this season"))?.headline).toMatchObject({ value: "23268 Rookie Robots" });
     // Ratings are never compared across seasons: "ever" is the latest season's, said so.
@@ -184,6 +199,8 @@ describe("scores", () => {
     expect(readStatQuestion("4215 scores of at least 210")).toMatchObject({ id: "scores-over", n: 210, variant: "at-least" });
     expect(await stat("4215 scores of at least 210")).toMatchObject({ title: "Scores of at least 210 in 2025–26", headline: { value: "2 matches" } });
     expect((await stat("4215 scores over 210"))?.headline?.value).toBe("1 match");
+    // Matches said with "with", or handed over singular by search, are the same ask.
+    for (const q of ["4215 matches with more than 200 points", "4215 match over 200 points"]) expect((await stat(q))?.headline?.value, q).toBe("2 matches");
   });
 
   it("the best match by phase, its phases in the team page's colours, and the most penalties", async () => {
@@ -207,6 +224,14 @@ describe("penalties", () => {
     expect(k && k.kind === "kpis" && k.items.find((i) => i.label === "Robot's own share")?.value).toBe("~8.4");
     expect((await stat("4215 penalty rate"))?.headline).toMatchObject({ value: "38%" });
     expect((await stat("4215 average penalties per event"))?.headline).toMatchObject({ value: "13.3" });
+    // A trend asked of penalties is the per-event figure (sign-off Set A, held out: other words, no season said).
+    for (const q of ["is 4215 getting better or worse at penalties", "4215 penalties trend"]) expect((await stat(q))?.headline, q).toMatchObject({ value: "13.3" });
+    // "Better or worse than" another team stays a comparison, never a trend.
+    const vs = await searchAnswer("is 4215 better or worse than 6980", { limit: 25, full: true });
+    expect(vs.intent?.kind).toBe("stat-compare");
+    expect(vs.stat?.title).toMatch(/4215 vs 6980/);
+    // A measure said with the trend keeps it (Greptile on #1043): the rate is the rate.
+    expect((await stat("4215 penalty rate trend"))?.headline).toMatchObject({ value: "38%" });
     expect(await stat("4215 penalties in playoffs")).toMatchObject({ title: "Penalty points given away in playoffs in 2025–26", headline: { value: "0.0" } });
     expect(await stat("4215 penalties at worlds")).toMatchObject({ title: "Penalty points given away at Worlds", headline: { value: "5.0", sub: expect.stringContaining("Worlds · Edison Division") } });
   });

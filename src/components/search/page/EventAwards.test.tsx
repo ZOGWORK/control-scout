@@ -33,6 +33,12 @@ describe("award-at-event answer", () => {
     expect(steps[1].textContent).toContain("4215");
     expect(steps[1].querySelector("a")!.getAttribute("href")).toBe("/teams/4215?season=2025");
   });
+  it("rings the place the question asked for, and no other", () => {
+    const c = draw({ ...card, place: 3 });
+    expect([...c.querySelectorAll("[data-podium] [data-asked]")].map((s) => s.getAttribute("data-place"))).toEqual(["3"]);
+    expect(c.querySelector("[data-podium] [data-place='3'] a")!.getAttribute("aria-current")).toBe("true");
+    expect(draw(card).querySelector("[data-podium] [data-asked]")).toBeNull();
+  });
   it("a lone winner still stands in the centre", () => {
     const c = draw({ ...card, awards: card.awards!.filter((x) => x.placement === 1) });
     expect(c.querySelector("[data-podium] [data-place='1']")!.className).toContain("col-start-2");

@@ -259,7 +259,7 @@ describe("AM/PM sessions", () => {
   });
 });
 
-describe("migration 75", () => {
+describe("migration 76", () => {
   it("keeps each event's latest stored registrations read as its last check", async () => {
     const c = openDb("file::memory:");
     setDb(c);

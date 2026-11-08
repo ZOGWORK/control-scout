@@ -1894,7 +1894,31 @@ ALTER TABLE search_failures ADD COLUMN missed TEXT NOT NULL DEFAULT '{}';
 `,
   },
   {
+    version: 74,
+    name: "league meets keep only their own teams",
+    sql: `
+-- FIRST's /rankings for a league meet is the whole league's running standing, and the event bundle stored it as the
+-- meet's teams (2026 USNJNEM2 the day before: 33 teams, FIRST lists 13). Bundles now take the team list from FIRST's
+-- participant list (sources/first.ts firstEventBundle); this drops what the old ones stored. A meet's teams are the
+-- ones scheduled there; a meet with no schedule keeps none, and its registrations stand in until its next fetch.
+-- Remote meets (2020–2022) are left alone: they keep rankings and no matches, by design.
+DELETE FROM event_teams
+ WHERE EXISTS (SELECT 1 FROM events e WHERE e.season = event_teams.season AND e.code = event_teams.code AND e.type = 'LeagueMeet' AND e.remote = 0)
+   AND NOT EXISTS (SELECT 1 FROM match_teams m WHERE m.season = event_teams.season AND m.code = event_teams.code AND m.team = event_teams.team);
+`,
+  },
+  {
     version: 75,
+    name: "a match keeps its posted start",
+    sql: `
+-- time is the real start once a match is played (FIRST's actualStartTime), else the posted one. scheduled keeps the
+-- posted start (FIRST's schedule startTime) beside it, so the live countdown (src/lib/liveMode.ts pace()) can tell a
+-- break in the posted schedule from a field running early. Null for older rows and sources without a schedule.
+ALTER TABLE matches ADD COLUMN scheduled TEXT;
+`,
+  },
+  {
+    version: 76,
     name: "when an event's team list was last read from FIRST",
     sql: `
 -- The registrations read (data/registrations.ts) sets it on every good read of the event, an empty list included; a
