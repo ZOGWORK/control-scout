@@ -25,7 +25,7 @@ Three more basic searches answer what was asked: a country is never read as a to
 - [teams] "<team> vs <team> record" gives their head to head
 
 ### Search
-- **A country is never a town.** "Teams in Romania", "best team in Canada" list that country's teams. Before, a team that gives its country as its home city made the answer that one team. (#PRNUM)
+- **A country is never a town.** "Teams in Romania", "best team in Canada" list that country's teams. Before, a team that gives its country as its home city made the answer that one team. (#1178)
 - **The spelling typed, first.** When two teams' names score the same ("RoboRebels" and "Robo Rebels"), the one spelled exactly as typed comes first in the results.
 - **"<team> vs <team> record".** Their record against each other, as "<team> record against <team>" gives. Each team's own season record is still "<team> and <team> record".
 
