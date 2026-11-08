@@ -111,7 +111,7 @@ const RULES: IntentRule[] = [
   // Penalty points given away, from the match rows: the most in one match, per match, a rate, per event.
   { id: "most-penalties", family: "superlative", season: "latest", re: /\b(?:most|highest|biggest|worst)\s+(?:penalt(?:y|ies)|fouls?)(?:\s+points)?\b/ },
   { id: "penalties", family: "aggregate", season: "latest", re: /\bfouls?(?:\s+(?:per\s+(?:match|game|event)|rate|committed|points|given(?:\s+away)?))?\b|\bpenalt(?:y|ies)(?:\s+(?:points?\s+)?(?:rate|per\s+(?:match|game|event)|committed|given(?:\s+away)?))?\b/ },
-  { id: "ranking-points", family: "trend", season: "all", re: /\branking\s+(?:points|score)\b/ },
+  { id: "ranking-points", family: "trend", season: "all", re: /\branking\s+(?:points|score)\b|\brps?\b/ },
   { id: "never-played", family: "two-team", season: "latest", re: /\bteams?\s+(?:(?:it|they|he|she)\s+)?(?:(?:has|have)\s+)?(?:never|not\s+yet|hasn't|haven't|has\s+not|have\s+not|didn't|did\s+not)\s+(?:played|faced|met)(?:\s+(?:against|with))?\b|\bnever\s+(?:played|faced|met)\s+(?:teams?|opponents?)\b/ },
   // The team's partners and opponents (families/twoTeam.ts), before "win rate" and "best partner" read their words.
   { id: "pick-partner", family: "two-team", season: "latest", re: /\bwho\s+should\s+(?<team>.+?)\s+(?:pick|choose|select|ally\s+with)(?:\s+as\s+(?:an?\s+|their\s+)?(?:alliance\s+)?partner)?\b|\b(?:recommended|suggested)\s+(?:alliance\s+)?(?:partner|pick)s?\b|\bpick\s+(?:recommendations?|suggestions?)\b/ },
@@ -131,7 +131,7 @@ const RULES: IntentRule[] = [
   { id: "frequent-partner", family: "two-team", season: "all", re: /\bmost\s+(?:frequent|common|often|played\s+with)\s+(?:alliance\s+)?partners?\b|\bfrequent\s+(?:alliance\s+)?partners?\b|\bpartnered\s+(?:with\s+)?(?:the\s+)?most\b/ },
   { id: "best-partner", family: "two-team", season: "all", re: /\b(?:best|strongest|top|winningest)\s+(?:alliance\s+)?partners?\b/ },
   // Every partner or opponent: after the superlatives above ("frequent partners", "toughest opponents").
-  { id: "partners", family: "two-team", season: "all", alone: "latest", re: /\b(?:all\s+)?(?:alliance\s+)?partners\b|\bteams?\s+(?:they|it)\s+(?:partnered|played)\s+with\b/ },
+  { id: "partners", family: "two-team", season: "all", alone: "latest", re: /\b(?:all\s+)?(?:alliance\s+)?partners\b|\bteams?\s+(?:they|it)\s+(?:partnered|played)\s+with\b|\b(?:play(?:ed)?|partner(?:ed)?|team(?:ed)?(?:\s+up)?)\s+with\s*$/ },
   { id: "opponents", family: "two-team", season: "all", alone: "latest", re: /\b(?:all\s+)?opponents\b|\bteams?\s+(?:they|it)\s+(?:faced|played\s+against)\b/ },
   { id: "award-split", family: "awards", season: "all", re: /\bjudged\s+(?:vs\.?|versus|and|or)\s+performance(?:\s+awards?)?\b|\bperformance\s+(?:vs\.?|versus|and|or)\s+judged(?:\s+awards?)?\b|\bawards?\s+by\s+(?:type|kind)\b/ },
   // Events the team ranked first at (a placement, never an award): "events 12345 won outright", "… placed first in".
@@ -515,6 +515,8 @@ export interface LeaderboardQuestion {
   undefeated?: boolean;
   /** A town in the region: its teams only. */
   town?: string | null;
+  /** `city` is a school's name ("teams at Clearview Regional High School"): its teams. */
+  school?: boolean;
   /** One event's teams (its divisions' too): the board of the teams there. */
   event?: { season: number; code: string; codes: string[]; name: string; home?: Region | null };
 }
@@ -544,6 +546,13 @@ const PLACE = "(?: (?:in|from) (.+))?";
 export function readLeaderboard(raw: string): LeaderboardQuestion | null {
   // "overall OPR" is the stat's name, not an every-season scope.
   const q = ` ${raw.toLowerCase().replace(/['’]s\b/g, "").replace(/[?!,.]/g, " ")} `.replace(/\s+/g, " ").replace(/\b(?:overall|total) opr\b/g, "opr");
+  // "teams at Clearview Regional High School", "how many teams from Lincoln Academy": a school's teams, by the school
+  // named whole as FIRST lists it (a word of a school's kind ends it). Before the scope, which reads "at …" as an event.
+  // The name is taken as typed (only a question's closing mark dropped), so "St. Patrick's High School" matches the school
+  // FIRST lists, punctuation and all.
+  const school = new RegExp(`^(?:how many |all |the )?${TEAMS} (?:at|from|in|of) (.+ (?:school|academy|college|university|institute))$`, "i")
+    .exec(raw.trim().replace(/\s+/g, " ").replace(/[?!]+$/, "").trim());
+  if (school) return { kind: "city", stat: "opr", n: 25, region: null, city: school[1].trim(), season: null, school: true };
   const { scope, rest } = readScope(q);
   if (scope.championship || scope.states || scope.level || scope.alliance || scope.at || scope.ever) return null;
   const n = (s: string | undefined, def: number) => Math.min(25, Math.max(1, s ? Number(s) : def));
@@ -611,7 +620,7 @@ export function readLeaderboard(raw: string): LeaderboardQuestion | null {
   }
   // "teams in oradell": a city, never a region or a country, even one a team lists as its city (the region's and the
   // country's own answers are search's)
-  if ((m = new RegExp(`^(?:all )?${TEAMS} (?:in|from|based in) (.+)$`).exec(rest)) && !findRegions(m[1]).length && !nearRegion(m[1]) && !countryOf(m[1].trim()) && scope.season == null) {
+  if ((m = new RegExp(`^(?:how many |all )?${TEAMS} (?:in|from|based in) (.+)$`).exec(rest)) && !findRegions(m[1]).length && !nearRegion(m[1]) && !countryOf(m[1].trim()) && scope.season == null) {
     return { kind: "city", stat: "opr", n: 25, region: null, city: m[1].trim(), season: null };
   }
   // A place read as events' ("in nj events") is the teams from there; outside the team's own state has no board.

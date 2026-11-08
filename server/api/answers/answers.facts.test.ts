@@ -79,6 +79,8 @@ describe("team facts", () => {
   it("what's read; a team against a field's average isn't two teams", () => {
     expect(readTeamFact("4215 auto opr")).toMatchObject({ id: "auto-opr", core: "4215" });
     expect(readTeamFact("4215 opr")).toMatchObject({ id: "opr", core: "4215" });
+    // OPR is already a per-match average (failed basic search): "average OPR" is the same number, the team left alone.
+    for (const q of ["4215 average opr", "4215 avg opr"]) expect(readTeamFact(q), q).toMatchObject({ id: "opr", core: "4215" });
     expect(readTeamFact("4215 event in 2025-26")).toMatchObject({ id: "events-season", season: 2025 });
     expect(readTeamFact("4215 events in new jersey")).toMatchObject({ id: "events-place", region: { state: "NJ" } });
     expect(readTeamFact("4215 opr vs world average")).toMatchObject({ id: "opr-vs-average", world: true });

@@ -24,6 +24,9 @@ const TEAMS = [
   { number: 30009, name: "Mitspe Yam/מצפה ים", city: "Town", state: null, country: "Israel", lastPlayed: 2026 },
   { number: 30010, name: "Powerplay Pioneers", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
   { number: 30011, name: "March Madness", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
+  // Teams named for what a question asks about: theirs only when typed as their whole name.
+  { number: 30012, name: "Alliance", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
+  { number: 30013, name: "Inspires", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
 ];
 const EVENTS = ["east bergen conference", "new jersey championship", "nj championship", "turnpike division"];
 const ctx: ParseContext = {
@@ -34,6 +37,11 @@ const ctx: ParseContext = {
 const parse = (q: string) => parseQuery(q, ctx);
 
 describe("slots", () => {
+  it("a word a question asks about names a team only typed as the team's whole name", async () => {
+    const near = { ...ctx, nearTeam: async (w: string) => ctx.names.nearTeam(w) };
+    for (const q of ["nj states alliances", "most inspire awards", "inspire award winners"]) expect((await parseQuery(q, near)).teams, q).toEqual([]);
+    expect((await parseQuery("inspires awards", near)).teams.map((t) => t.number)).toEqual([30013]);
+  });
   it("a name several teams share, typed with one of their numbers, is that one team in either order", async () => {
     for (const q of ["ultraviolet 23268 highlights", "23268 ultraviolet highlights", "highlights of ultraviolet 23268", "ultraviolet 20245 record"]) {
       const p = await parse(q);

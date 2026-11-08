@@ -7,6 +7,10 @@ import { pickIntent, type IntentRule, type PipelineIntent } from "./intents.js";
 import { readTime, type TimeSlot } from "./time.js";
 import { fold, type Names, type Place, type TeamName } from "./names.js";
 import { EVENT_TYPES } from "../../../src/shared/searchEventQuery.js";
+import { onlyTopicWords } from "../../../src/shared/searchQuery.js";
+
+/** A name as typed or stored, compared whole: lower case, any run of punctuation and spaces one space. */
+const wholeName = (n: string | null) => (n ?? "").toLowerCase().replace(/[^\p{L}\d]+/gu, " ").trim();
 
 export interface TeamSlot {
   number: number; name: string | null; typed: string; via: "number" | "name" | "near";
@@ -169,8 +173,7 @@ function keptName(words: string[], ctx: ParseContext, timeOnly: (w: string[]) =>
 }
 
 /** Parses `raw`. */
-export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed> {
-  const q0 = normalise(raw);
+export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed> {  const q0 = normalise(raw);
   const fl = FLOOR.exec(q0);
   const q = fl ? `${q0.slice(0, fl.index)} ${q0.slice(fl.index + fl[0].length)}`.replace(/\s+/g, " ").trim() : q0;
   const typedWords = raw.replace(/[?!,;:()"]/g, " ").split(/\s+/).filter(Boolean);
@@ -245,6 +248,10 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       if (len === 1 && (loose(toks[i - 1]) || loose(toks[i + len]))) continue;
       const named = ctx.names.teamsNamed(span.map((t) => t.w).join(" "));
       if (!named.length) continue;
+      // What a question asks about ("alliances", "inspire", "stats") names a team only typed as its whole name: "nj
+      // states alliances" is never team Alliance, "most inspire awards" never team Inspires (onlyTopicWords).
+      const said = span.map((t) => t.typed).join(" ");
+      if (onlyTopicWords(said) && !named.some((n) => wholeName(n.name) === wholeName(said))) continue;
       // A number typed beside its own name ("12345 hypnotic robotics") is one team.
       if (!named.some((n) => p.teams.some((t) => t.number === n.number))) {
         p.teams.push({ number: named[0].number, name: named[0].name, typed: span.map((t) => t.typed).join(" "), via: "name", at: i, ...(named.length > 1 ? { candidates: named.map((n) => n.number) } : {}) });
@@ -444,6 +451,8 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       const start = from - k;
       if (start < 0 || toks.slice(start, from).some((t) => !FILLER_WORDS.has(t.w) && !t.alliance)) continue;
       const span = toks.slice(start, to + 1);
+      // What a question asks about is never a name typed nearly right ("inspire" is no typo of team Inspires).
+      if (onlyTopicWords(span.map((t) => t.typed).join(" "))) continue;
       const near = await ctx.nearTeam(span.map((t) => t.w).join(" "));
       if (!near || p.teams.some((t) => t.number === near.number)) continue;
       p.teams.push({ number: near.number, name: near.name, typed: span.map((t) => t.typed).join(" "), via: "near", at: start });
