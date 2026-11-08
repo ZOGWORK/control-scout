@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.1.3 — 2026-11-08
+
+One word of a named team's own event's name now reads as that event.
+
+### Highlights
+- [predict] "<team> prediction for <one word>" finds that team's event
+- [predict] The latest such event, or the one in the season named
+- [predict] The card says which event the one word was read as
+
+### Search
+- **One word of a team's own event.** With a team named, one word of the name of an event it was listed at ("<team> last prediction for <word>") reads as its latest such event, or the one in the season named, and the card says so. With no team, or a kind of event's word ("qualifiers"), nothing changes. (#1106)
+
 ## 4.1.2 — 2026-11-08
 
 A place's award winners are answered: a state's, a country's or a town's teams and the awards they won, the most, the rarest, and whether any won at Worlds or made its finals.
