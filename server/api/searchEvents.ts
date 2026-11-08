@@ -181,12 +181,13 @@ async function rowsFor(e: EventQuery, now: number, drop: { where?: boolean; time
   // A venue or city asked for with no year: every season ("meets at River Dell High School", past ones too).
   else if (e.year == null && e.season == null && !e.allSeasons && !(e.where && !drop.where)) { where.push("season = ?"); args.push(CURRENT_SEASON); }
   if (e.region) { where.push("country = ? AND state = ?"); args.push(e.region.country, e.region.state); }
-  // Bounded windows ("this weekend"): an event is in when any of its days is. "upcoming" and "past" are read on the
+  // Bounded windows ("this weekend"): an event is in when any of its days is (its last day, said as
+  // finished: "that ended yesterday" leaves out one still running). "upcoming" and "past" are read on the
   // event's own calendar, below.
   if (e.time && !drop.time && e.time !== "upcoming" && e.time !== "past") {
     const w = timeWindow(e.time, today);
     if (w.from) { where.push("COALESCE(end, start) >= ?"); args.push(w.from); }
-    if (w.to) { where.push("start <= ?"); args.push(w.to); }
+    if (w.to) { where.push(e.ended ? "COALESCE(end, start) <= ?" : "start <= ?"); args.push(w.to); }
   }
   // A copy: the rows read are shared (./searchReads.ts), and an every-season list is sorted in place below.
   let rows = [...(await searchRead<Row>(`SELECT season, code, name, type, division_code, venue, city, state, country, start, end, timezone FROM events WHERE ${where.join(" AND ")}`, args))];
@@ -291,14 +292,14 @@ export async function eventSetAnswer(q: string, e: EventQuery, opts: { now?: num
   // `room` cards after the link (every answer is cut to SEARCH_PAGE_LIMIT cards, an event with its divisions as one:
   // firstCards), so more than that says how many are listed.
   const room = SEARCH_PAGE_LIMIT - (inPlace ? 1 : 0);
-  const placeFor = (rows: Row[], listed: number, o: Parameters<typeof eventSetLabel>[1]) => (e.region ? placeHitOf(e.region, inPlace, { n: rows.length, listed, label: lower(eventSetLabel({ ...e, region: null }, { seasonLabel, ...o })) }) : null);
-  const done = (rows: Row[], understood: SearchUnderstood, o: Parameters<typeof eventSetLabel>[1] = {}): SearchAnswer => {
+  const placeFor = (rows: Row[], listed: number, o: Parameters<typeof eventSetLabel>[1], shown: EventQuery = e) => (e.region ? placeHitOf(e.region, inPlace, { n: rows.length, listed, label: lower(eventSetLabel({ ...shown, region: null }, { seasonLabel, ...o })) }) : null);
+  const done = (rows: Row[], understood: SearchUnderstood, o: Parameters<typeof eventSetLabel>[1] = {}, shown: EventQuery = e): SearchAnswer => {
     const events = firstCards(rows.map((r) => eventHit(r, now)), room);
     // Every season but more than a page holds: the newest first, how many of them are listed (what the events
     // heading and the All tab count), and the full list one click away.
     const more = e.allSeasons && events.length < rows.length;
     return {
-      q, hits: [...[placeFor(rows, events.length, o)].filter((h): h is SearchHit => !!h), ...events, ...(opts.others ?? [])],
+      q, hits: [...[placeFor(rows, events.length, o, shown)].filter((h): h is SearchHit => !!h), ...events, ...(opts.others ?? [])],
       pages: more && e.region ? [{ title: `Championships in ${e.region.name}, each season: Events`, href: `/events?region=${encodeURIComponent(e.region.key)}&type=Championship` }, ...pagesFor(q)] : pagesFor(q),
       step: "deterministic", weak: false,
       understood: { ...understood, ...(more ? { label: `${understood.label}, the newest ${events.length} of ${rows.length} listed (the full list is on Events)` } : {}), total: rows.length },
@@ -323,6 +324,17 @@ export async function eventSetAnswer(q: string, e: EventQuery, opts: { now?: num
     const fb = await rowsFor(e, now, { where: d.includes("where"), time: d.includes("time") });
     const shown = { drop: d, where: d.includes("where") ? null : whereAsStored(e, fb) };
     if (fb.length) return done(fb, { ...base, ...(d.includes("where") ? { season: e.season ?? (e.year == null && !e.allSeasons ? CURRENT_SEASON : undefined) } : {}), label: asked, fallback: `No ${lower(asked)} in the data — showing ${lower(label(shown))} instead` }, shown);
+  }
+  // A kind of event the place or name has none of ("meets in Massachusetts", whose events are qualifiers; "bergen
+  // qualifier", where only its tournaments are): its events of every kind, said so. The time and year asked stay.
+  if (e.kinds.length && (e.region || e.words.length)) {
+    const any: EventQuery = { ...e, kinds: [] };
+    const fb = await rowsFor(any, now);
+    if (fb.length) {
+      const where = whereAsStored(any, fb);
+      const { eventTypes: _kinds, ...wide } = base;
+      return done(fb, { ...wide, label: asked, fallback: `No ${lower(asked)} in the data — showing ${lower(eventSetLabel(any, { seasonLabel, where }))} instead` }, { where }, any);
+    }
   }
   // Still nothing. A year named is never swapped for another: say so, with other years' events as closest matches.
   const otherYears = e.year != null || e.season != null ? (await rowsFor(e, now, { year: true })).slice(0, 10) : [];
