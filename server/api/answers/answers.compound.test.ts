@@ -221,6 +221,63 @@ describe("compound answers", () => {
   });
 });
 
+// Failed search #974, in its own words and the other way round: the best teams at one event, Worlds or a state's
+// championship, by each team's OPR there.
+describe("the best teams at an event", () => {
+  const rows = (a: Awaited<ReturnType<typeof ask>>) => (a.stat?.blocks.find((b) => b.kind === "leaderboard") as any)?.rows.map((r: any) => [r.team.label.split(" ")[0], r.display]) ?? [];
+  it("ranks an event's teams (its divisions' too) by their OPR there", async () => {
+    for (const q of ["new jersey championship best teams", "top teams at the new jersey championship"]) {
+      const a = await ask(q);
+      expect(a.stat, q).toMatchObject({ intent: "event-best", title: `Best teams at New Jersey Championship by OPR there · ${S}–${String(S + 1).slice(2)}` });
+      // 207, 4215 and 6980 have an OPR in its Parkway division; the rest played there with none, so aren't ranked.
+      expect(rows(a), q).toEqual([["207", "114.0"], ["4215", "101.0"], ["6980", "46.0"]]);
+      // Records there by the official rule: every match played at the event.
+      const recs = (a.stat?.blocks.find((b) => b.kind === "leaderboard") as any).rows.map((r: any) => r.record);
+      expect(recs, q).toEqual(["2-0-0", "1-1-0", "0-2-0"]);
+    }
+  });
+  it("ranks one division named alone, linked to it", async () => {
+    // The fixture's Worlds has a division only: its board is that division's, never its parent's.
+    const a = await ask("top teams at the edison division");
+    expect(a.stat?.title).toMatch(/^Best teams at .*Edison.* by OPR there/);
+    expect(rows(a)).toEqual([["4215", "60.0"]]);
+    const more = (a.stat?.blocks.find((b) => b.kind === "leaderboard") as any).more;
+    expect(more.href).toContain("FTCCMP1EDIS");
+  });
+  it("leaves the lowest first, undefeated teams and OPR said not to go by to search", async () => {
+    for (const q of ["lowest opr teams at the new jersey championship", "undefeated teams at the new jersey championship", "best teams at the new jersey championship not by opr"]) {
+      expect((await ask(q)).stat?.intent, q).not.toBe("event-best");
+    }
+  });
+  it("reads Worlds and a state's championship as their events", async () => {
+    expect(rows(await ask(`best teams at worlds ${S + 1}`))).toEqual([["4215", "60.0"]]);
+    expect((await ask("best teams at nj states")).stat?.title).toMatch(/^Best teams at New Jersey Championship by OPR there/);
+  });
+  it("reads a state with a championship word as its championship, and the ones worth watching as the best", async () => {
+    for (const q of ["teams worth watching at the nj championship", "which teams should we watch at new jersey champs", "who should we watch at the new jersey championship", "who to watch at nj states"]) {
+      expect((await ask(q)).stat?.title, q).toMatch(/^Best teams at New Jersey Championship by OPR there/);
+    }
+  });
+  it("lists only the teams from a place said with Worlds", async () => {
+    await run("INSERT INTO event_teams (season, code, team) VALUES (?, 'FTCCMP1EDIS', 1111)", [S]);
+    await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (?, 'FTCCMP1EDIS', 1111, 300, 2)", [S]);
+    try {
+      expect(rows(await ask(`best teams at worlds ${S + 1}`))).toEqual([["1111", "300.0"], ["4215", "60.0"]]);
+      const nj = await ask(`new jersey teams at worlds ${S + 1}`);
+      expect(nj.stat?.title).toMatch(/^New Jersey teams at Worlds \d+ by OPR there/);
+      expect(rows(nj)).toEqual([["4215", "60.0"]]);
+      expect(rows(await ask(`texas teams at worlds ${S + 1}`))).toEqual([["1111", "300.0"]]);
+      // Played: a place whose teams have no OPR there is ranked by the event's own numbers, so none is ranked.
+      await run("DELETE FROM team_event_stats WHERE code = 'FTCCMP1EDIS' AND team = 1111");
+      const tx = await ask(`texas teams at worlds ${S + 1}`);
+      expect(tx.stat?.title).toMatch(/^Texas teams at Worlds \d+ by OPR there/);
+      expect(rows(tx)).toEqual([]);
+    } finally {
+      await run("DELETE FROM team_event_stats WHERE code = 'FTCCMP1EDIS' AND team = 1111"); await run("DELETE FROM event_teams WHERE code = 'FTCCMP1EDIS' AND team = 1111");
+    }
+  });
+});
+
 // Failed searches (#745 #747 #748 #767 #858 #866 #885 #927 #933 #1033), in their own words: a list's filters said any
 // way, each applied.
 describe("a team list's filters, however they're said", () => {

@@ -222,6 +222,10 @@ export const INTENTS: IntentRule[] = [
     R("highlights", n, ["highlights"], ["videos", "thing:match", "list", "agg:max"], { noMatchNo: true }),
     R("highlights", n, ["videos"], ["thing:match", "thing:event", "list", "agg:max", "agg:last"], { noMatchNo: true }),
   ]),
+  // The teams at an event, Worlds or a state championship ("nj teams at worlds", "teams at east bergen conference"):
+  // its board, best first.
+  R("leaderboard", 0, ["thing:team", "prep:at"], ["list"], { event: true }),
+  R("leaderboard", 0, ["thing:team", "prep:at", "worlds"], ["list"]),
   // The teams with a name, counted and listed: "how many teams named …", "teams called …".
   R("teams-named", 0, ["named"], ["agg:count", "thing:team", "list"]),
   R("count-teams", 0, ["agg:count", "thing:team"], ["list"], { noEvent: true }),

@@ -80,8 +80,9 @@ describe("one team at one event", () => {
     expect((await searchAnswer("4215 score in match 12 at New Jersey Championship", { limit: 25 })).stat!.headline).toMatchObject({ value: "Lost 80–120", label: "Q12 at New Jersey Championship - Parkway Division" });
     expect((await searchAnswer("4215 score in match 7 at New Jersey Championship", { limit: 25 })).stat!.none).toMatch(/didn't play a match 7/);
   });
-  it("an event the team never attended is left to search", async () => {
-    expect((await searchAnswer("4215 rank at Texas Championship", { limit: 25 })).stat).toBeUndefined();
+  it("a state's championship the team never attended says so", async () => {
+    // "Texas Championship" is Texas's state championship (a state with a championship word): 4215 never played one.
+    expect((await searchAnswer("4215 rank at Texas Championship", { limit: 25 })).stat?.none).toMatch(/^Hypnotic Robotics \(4215\) has no Texas state championships on record/);
   });
 });
 
