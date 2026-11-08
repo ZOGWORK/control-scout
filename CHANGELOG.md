@@ -27,6 +27,26 @@ Two events named side by side ("<event> vs <event>") are compared as events rath
 ### Search
 - **Events side by side.** "<event> vs <event>" (2 to 4 events, each named with a word only an event's name has: championship, qualifier, league meet, tournament…) answers with the events side by side: field strength (the average OPR of the teams that played, its divisions' too), top OPR and its team, high score without penalties, and the number of teams. A state's code in a name is spelled out ("NJ Championship" is New Jersey's), each event is its newest season with a played match unless a season is named, and events from different seasons are marked as different games, with neither called stronger. A team on any side keeps the teams' Compare. (#1158)
 
+## 4.3.6 — 2026-11-08
+
+More plain searches answered: a team's highlights by part of its name, events said the way people say them, and a team's losses by a set margin.
+
+### Highlights
+- [fixes] "Hypnotic highlights" finds the team from part of its name
+- [fixes] "ultraviolet nj highlights" picks the team in that state
+- [fixes] "Jackson division finals" opens the division's playoffs
+- [fixes] "Which match did <team> lose by 1 point" lists those losses
+
+### Search
+- **A team's highlights by part of its name, or with its place.** "hypnotic highlights", "revAmped highlights" and "ultraviolet nj highlights" are that team's highlights. The words left over are looked up the way a team's stats look them up, and each has to start a word of the team's name. When teams share a name, the place said picks the one from there. (#1197)
+- **Now and yesterday.** "nj meets now" is today's events, as "right now" already was. "nj events yesterday" is yesterday's, and reads the same as "events in nj that finished yesterday".
+- **A season said any way.** "how many teams in nj 2025-2026", "… decode year" and "…, centerstage" read the same as "… 2025-26": the years written long, or the season's game, are that season.
+- **A team's matches at its latest meet.** "6980 matches at recent meet" and "6980 matches at their most recent meet" are its results at its latest event, never an event with those words in its name.
+- **A kind of event a place or name has none of.** "meets in Massachusetts" lists Massachusetts' events of every kind and says it has no meets. "bergen qualifier" lists the events named Bergen and says none is a qualifier.
+- **A division by its name and a game.** "edison centerstage" is the Edison Division in 2023–24. "jackson division finals" and "parkway division rankings" open that division's tab, the way a match number already did. A division named with a season it wasn't held in ("jackson division finals in centerstage") says so, with that season's divisions and the season it was held.
+- **Worlds' divisions.** "worlds division highlights" is every division at Worlds. "what division was <team> in at worlds" is the team's Worlds divisions, never its latest event with "division" in its name.
+- **Lost or won by N points.** "which match did <team> lose by 1 point" and "did <team> win by 10 points" list the matches decided by exactly that many points, newest first, and say so when there are none.
+
 ## 4.3.5 — 2026-11-08
 
 A finished meet whose stream was a short link plays its recording on the page again.
