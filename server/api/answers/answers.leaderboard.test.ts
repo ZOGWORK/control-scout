@@ -173,12 +173,16 @@ describe("the lists", () => {
   });
   it("a school's teams, by the school FIRST lists, however the count is asked (failed-search #965)", async () => {
     await run("UPDATE teams SET school = 'River Dell Regional High School' WHERE number IN (4215, 6980)");
-    expect(readLeaderboard("how many teams at River Dell Regional High School")).toMatchObject({ kind: "city", school: true, city: "river dell regional high school" });
+    expect(readLeaderboard("how many teams at River Dell Regional High School")).toMatchObject({ kind: "city", school: true, city: "River Dell Regional High School" });
     for (const q of ["how many teams at River Dell Regional High School", "teams from river dell regional high school"]) {
       const a = await searchAnswer(q, { limit: 25 });
       expect(a.understood?.label, q).toBe("Teams at River Dell Regional High School");
       expect(a.stat?.headline, q).toMatchObject({ value: "2 teams", label: "at River Dell Regional High School" });
     }
+    // A school's own punctuation is kept, so its name as FIRST lists it is found.
+    await run("UPDATE teams SET school = 'St. Patrick''s High School' WHERE number = 31814");
+    expect(readLeaderboard("how many teams at St. Patrick's High School?")).toMatchObject({ school: true, city: "St. Patrick's High School" });
+    expect((await searchAnswer("how many teams at St. Patrick's High School", { limit: 25 })).stat?.headline).toMatchObject({ value: "1 team" });
     // A school no team lists is left to search.
     expect((await searchAnswer("teams at atlantis high school", { limit: 25 })).stat).toBeUndefined();
   });

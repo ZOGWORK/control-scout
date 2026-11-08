@@ -548,7 +548,10 @@ export function readLeaderboard(raw: string): LeaderboardQuestion | null {
   const q = ` ${raw.toLowerCase().replace(/['’]s\b/g, "").replace(/[?!,.]/g, " ")} `.replace(/\s+/g, " ").replace(/\b(?:overall|total) opr\b/g, "opr");
   // "teams at Clearview Regional High School", "how many teams from Lincoln Academy": a school's teams, by the school
   // named whole as FIRST lists it (a word of a school's kind ends it). Before the scope, which reads "at …" as an event.
-  const school = new RegExp(`^ (?:how many |all |the )?${TEAMS} (?:at|from|in|of) (.+ (?:school|academy|college|university|institute)) $`).exec(q);
+  // The name is taken as typed (only a question's closing mark dropped), so "St. Patrick's High School" matches the school
+  // FIRST lists, punctuation and all.
+  const school = new RegExp(`^(?:how many |all |the )?${TEAMS} (?:at|from|in|of) (.+ (?:school|academy|college|university|institute))$`, "i")
+    .exec(raw.trim().replace(/\s+/g, " ").replace(/[?!]+$/, "").trim());
   if (school) return { kind: "city", stat: "opr", n: 25, region: null, city: school[1].trim(), season: null, school: true };
   const { scope, rest } = readScope(q);
   if (scope.championship || scope.states || scope.level || scope.alliance || scope.at || scope.ever) return null;
