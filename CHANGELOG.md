@@ -20,11 +20,12 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 A finished meet whose stream was a short link plays its recording on the page again.
 
 ### Highlights
-- [live] A meet's stream behind a short link (ftcwa.live/…) plays on the page after the meet too
+- [live] A short-link stream (ftcwa.live/…) plays on the page after the meet
 - [fixes] Watch on a match starts the page's player at that match, not YouTube
+- [live] Only the meet's own broadcast is kept, checked against its dates
 
 ### Fixes
-- **Short stream links after the meet.** A region's short link (ftcwa.live/…) was only followed on the meet's own dates, so a meet whose day passed before it was followed kept no video: Watch livestream and each match's Watch opened YouTube instead of playing on the page. For two weeks after a meet with no video, its link is followed again, and the video it leads to is kept only when YouTube says that broadcast started on the meet's own dates (a link already pointing at a later meet gives nothing).
+- **Short stream links after the meet.** A region's short link (ftcwa.live/…) was only followed on the meet's own dates, so a meet whose day passed before it was followed kept no video: Watch livestream and each match's Watch opened YouTube instead of playing on the page. For two weeks after a meet with no video, its link is followed again, and the video it leads to is kept only when YouTube says that broadcast started on the meet's own dates (a link already pointing at a later meet gives nothing). (#1210)
 
 ## 4.3.4 — 2026-11-08
 
