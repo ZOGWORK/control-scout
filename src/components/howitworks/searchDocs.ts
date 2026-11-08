@@ -89,7 +89,7 @@ export const SEARCH_SHOWCASE: { title: string; items: { q: string; what: string 
     { q: "7149 events in june", what: "A team's events in one month" },
     { q: "what is my 4215 upcoming event", what: "The next event the team is listed for, once FIRST has posted it" },
     { q: "is 23268 a rookie team", what: "The team's rookie season and how many seasons it has played" },
-    { q: "4215 at worlds", what: "The team's matches at the FIRST Championship, across seasons" },
+    { q: "4215 at worlds", what: "The team's matches at the FIRST Championship" },
   ] },
   { title: "Comparisons and explanations", items: [
     { q: "4215 vs 6980 opr", what: "Two teams' OPR side by side" },
