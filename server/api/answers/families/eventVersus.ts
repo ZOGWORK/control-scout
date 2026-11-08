@@ -31,8 +31,10 @@ export async function eventsNamed(sides: string[], season: number | null, find: 
     // A state's code in the name ("NJ Championship"), as events are named: its full name ("New Jersey Championship").
     const spelled = w.split(" ").map((x) => (x.length === 2 ? regionOf([x])?.name ?? x : x)).join(" ");
     let e: EventRow | null = null;
-    // A short form said in full first: "Worlds" is the FIRST Championship, not an event with "worlds" in its name.
-    for (const words of [...new Set([...(alias ? [alias(w), alias(spelled)] : []), w, spelled])]) if ((e = await find(words, season))) break;
+    // Said in full first: a short form ("Worlds" is the FIRST Championship, not an event with "worlds" in its name) and
+    // a state spelled out ("NJ Championship" is New Jersey's, never an old division with "NJ0312" in its name); as typed
+    // after.
+    for (const words of [...new Set([...(alias ? [alias(spelled), alias(w)] : []), spelled, w])]) if ((e = await find(words, season))) break;
     if (!e) return null;
     if (!evs.some((x) => x.season === e.season && x.code === e.code)) evs.push(e);
   }
