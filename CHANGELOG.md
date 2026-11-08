@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 4.1.0 — 2026-11-08
+## 4.1.2 — 2026-11-08
 
 A place's award winners are answered: a state's, a country's or a town's teams and the awards they won, the most, the rarest, and whether any won at Worlds or made its finals.
 
@@ -28,6 +28,31 @@ A place's award winners are answered: a state's, a country's or a town's teams a
 ### Search
 - **A place's award winners.** The teams from a state, a country (or its people's word) or a town, and the awards they won, newest first or by a stat ("by auto"): the most won, the rarest one (given fewest times anywhere that season), two awards won at one event, and yes or no at Worlds, for an award or for reaching its finals or playoffs. At Worlds, "last year" is the latest Championship that has finished. (#1100)
 
+
+## 4.1.1 — 2026-11-08
+
+Asking whether one team will beat another gets the match's call, and asking what happens if you change an alliance points you to the part of Predict that does it.
+
+### Highlights
+- [predict] "Will 4215 beat 7149" predicts their match
+- [predict] "If I change the alliance" opens Custom matchup
+- [predict] "Best partner if I change the alliance" says how to try each
+
+### Search
+- **"Will A beat B."** "Will", "would" or "going to" with a win word ("beat", "defeat", "win against") between two teams is the call for a match between them.
+- **A lineup changed, supposed.** "If (what if, suppose) I change, switch or swap the alliance, teams or partners", with no team named, is Predict's Custom matchup; asked with "who is the best partner", it says how to try each partner there. (#1153)
+
+## 4.1.0 — 2026-11-08
+
+In the installed app on a phone, pull down from the top of any page to reload it. A round reload icon slides down under the top bar as you pull, turns yellow once letting go will reload, and spins while the page reloads.
+
+### Highlights
+- [appearance] Pull down from the top to reload, in the installed app on phones
+- [appearance] A reload icon follows the pull and turns yellow when ready
+- [appearance] Phone browser tabs keep their own pull-to-refresh
+
+### Phone app
+- **Pull to reload.** The installed app (added to the home screen) has no reload button, so pulling down from the very top of a page now reloads it: the whole page, so the data, a new release and the offline copy all come fresh. It only starts at the top of the page, with one finger, on a downward drag; a sideways swipe, a scroll, a list with its own scrollbar, a drag handle (reordering picks), or an open dialog or sheet are left alone, and letting go early does nothing. A phone's browser tab keeps its own pull-to-refresh, and desktop gets none. Under reduced motion the icon doesn't turn or spin. (#1159)
 
 ## 4.0.9 — 2026-11-08
 
