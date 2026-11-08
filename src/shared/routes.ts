@@ -16,7 +16,8 @@ const ROUTES: [RegExp, PageModule | null][] = [
   [/^\/teams\/[^/]+\/?$/i, "TeamPage"],
   [/^\/rankings\/?$/i, "RankingsPage"],
   [/^\/events\/?$/i, "EventsPage"],
-  [/^\/events\/[^/]+\/?$/i, "EventCodeRedirect"],
+  // A season alone (/events/2025) is no event: the page not found, as EventCodeRedirect renders it.
+  [/^\/events\/(?!\d{4}\/?$)[^/]+\/?$/i, "EventCodeRedirect"],
   [/^\/events\/[^/]+\/[^/]+\/?$/i, "EventPage"],
   [/^\/events\/[^/]+\/[^/]+\/match\/[^/]+\/?$/i, "MatchReportPage"],
   [/^\/events\/[^/]+\/[^/]+\/display\/?$/i, "EventDisplayPage"],
