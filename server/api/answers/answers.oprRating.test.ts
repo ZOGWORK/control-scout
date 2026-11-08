@@ -126,6 +126,21 @@ describe("answers", () => {
     expect((await ask("is 4215 in the top 10 percent worldwide")).headline).toMatchObject({ value: "Yes", label: "top 8% worldwide by OPR: #612 of 8,308" });
     expect((await ask("is 4215 in the top 5 percent worldwide")).headline).toMatchObject({ value: "No" });
   });
+  it("the teams just above and below on the world OPR list (failed-search #818)", async () => {
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (9611, 'One Above', 'Austin', 'TX', 'USA'), (9613, 'One Below', 'Austin', 'TX', 'USA')");
+    await run("INSERT INTO team_season_stats (season, team, opr_np, rank_np, ranked_teams, matches) VALUES (2025, 9611, 101.9, 611, 8308, 10), (2025, 9613, 101.2, 613, 8308, 10), (2024, 9611, 99, 612, 7600, 10)");
+    const nearby = (s: StatAnswer) => (s.blocks.find((b) => b.kind === "table" && b.title === "Nearby worldwide by OPR") as Extract<StatBlock, { kind: "table" }> | undefined)?.rows.map((r) => String(r.cells.team));
+    for (const q of ["which teams are ranked right above and right below hypnotic robotics in the world", "4215 opr rank worldwide", "teams ranked around 4215 in 2025-26"]) {
+      const s = await ask(q);
+      expect(s, q).toMatchObject({ intent: "opr-rank", headline: { value: "#612 of 8,308" } });
+      // Its own season's list only: 9611's 2024–25 row is another season's.
+      expect(nearby(s), q).toEqual(["9611 One Above", "4215 Hypnotic Robotics", "9613 One Below"]);
+    }
+    // The other answers' world averages count the fixture's own teams only.
+    await run("DELETE FROM team_season_stats WHERE team IN (9611, 9613)");
+    await run("DELETE FROM teams WHERE number IN (9611, 9613)");
+    clearAllCaches();
+  });
   it("34, 55, 206, 219, 220: the place on New Jersey's own lists, not the world rank", async () => {
     // The Teams list in New Jersey by OPR: 9100's 300 has under 3 matches, so it isn't on it.
     const o = await ask("4215 opr rank in New Jersey");
