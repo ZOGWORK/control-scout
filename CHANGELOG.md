@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.4.1 — 2026-11-08
+
+A question about "my" or "our" team ("what is my 4215 next event", "our 6980 record") is answered for that team.
+
+### Highlights
+- [fixes] "what is my <team> upcoming event" shows its next event
+- [fixes] "our team <number> record" reads as that team's record
+- [fixes] An intent word typed wrong after "my <team>" still answers
+
+### Search
+- **Whose team it is.** "my" or "our" before a team's number says whose team it is, never part of what's asked, so a long question about it reads the way the same question about the team does. (#1123)
+
 ## 4.4.0 — 2026-11-08
 
 A number written with thousands separators ("1,000", "12,500") is read as one number, never as a team.
