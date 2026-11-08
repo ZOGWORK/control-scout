@@ -27,6 +27,18 @@ Compare asked for one team opens Compare with it, and suggests its closest rival
 ### Search
 - **Compare one team.** "Compare" and a single team (by number or name) opens Compare with that team in it, ready for more, and suggests the two or three teams rated closest to it in its state (else its country) as comparisons that each answer. (#1120)
 
+## 4.4.5 — 2026-11-08
+
+Steady boards: the most stable OPR from event to event, and the teams strongest in every phase, in a place or worldwide.
+
+### Highlights
+- [rankings] "Which team has the most stable OPR" answers
+- [rankings] The smallest swing in OPR over 3+ events
+- [rankings] "Most consistent across all phases" by the weakest phase
+
+### Search
+- **Steady boards.** "Which team has the most stable OPR, least ups and downs" ranks teams by the smallest swing in their event OPRs in the season (the standard deviation as a share of their average, teams with an OPR at 3 or more events). "Which NJ team is most consistent across all phases" ranks by each team's weakest phase OPR rank worldwide (auto, teleop and endgame; auto and teleop where teleop includes endgame), so a team strong in one phase alone doesn't lead. Counted at some events only, or on a day, is left to search. (#1124)
+
 ## 4.4.4 — 2026-11-08
 
 OPR gained within a season: the teams whose OPR grew the most from their first event to their last, in a place or worldwide.
