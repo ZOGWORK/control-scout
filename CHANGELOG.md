@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.2.0 — 2026-11-08
+
+A team's record against the world's top teams by a number is answered. "Whats 14450's record against teams ranked top 10 worldwide" shows its matches against an alliance with a top-10 team, beside the rest.
+
+### Highlights
+- [teams] "<team> record vs top 10" counts opponents in the world's top 10
+- [teams] Any cut works: "against the top 25 teams in the world"
+- [teams] "Against top teams" alone still means the season's top tenth
+
+### Search
+- **Against the top N.** "Against (teams ranked in) the top N (worldwide, in the world)" and "vs top N" read as the against-top-teams answer with N as the cut: matches where the other alliance had a team ranked in the world's top N by prediction rating that season, side by side with the others. Its title and definition say the cut. Before, the number was taken as a second team and the question fell to a Compare. (#1107)
+
 ## 4.1.9 — 2026-11-08
 
 A team's chance of making Worlds or states, asked any way, answers with its advancement chance.
