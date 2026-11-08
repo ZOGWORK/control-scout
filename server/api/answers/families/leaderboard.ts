@@ -74,6 +74,8 @@ export type BoardKind = "top" | "rookie" | "improved" | "city" | "city-best";
 export interface BoardQuestion { kind: BoardKind; stat: BoardStat; n: number; region: Region | null; city: string | null; season: number | null; seasonWhy?: string; best?: boolean;
   /** `city` is a school's name: its teams. */
   school?: boolean;
+  /** The state or country said with the town: its teams from there only. */
+  cityIn?: Region;
   /** The bottom of the list, lowest first ("sorted lowest to highest", "worst teleop OPR in Romania"). */
   asc?: boolean;
   /** Teams with no losses that season only ("undefeated teams", "a perfect record"). */
@@ -106,7 +108,7 @@ const RANKED = `A team is ranked once it has played ${RANKED_MIN_MATCHES} matche
 const record = (r: { wins: number; losses: number; ties: number }) => `${r.wins}-${r.losses}-${r.ties}`;
 
 export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
-  if (b.kind === "city") return cityAnswer(b.city!, !!b.school);
+  if (b.kind === "city") return cityAnswer(b.city!, !!b.school, b.cityIn ?? null);
   if (b.event) return eventBoardAnswer(b, b.event);
   const season = b.season ?? searchSeason();
   const why = b.season == null ? ` ${searchSeasonWhy(season)}` : b.seasonWhy ? ` ${b.seasonWhy}` : "";
@@ -345,13 +347,14 @@ async function cityBestAnswer(b: BoardQuestion, season: number, why: string): Pr
 }
 
 /** A town's teams, or a school's (`school`: the name is the school FIRST lists for each team). */
-async function cityAnswer(city: string, school = false): Promise<StatAnswer> {
+async function cityAnswer(city: string, school = false, within: Region | null = null): Promise<StatAnswer> {
+  const inSql = within ? ` AND t.country = ?${within.state ? " AND t.state = ?" : ""}` : "";
   const rows = await all<{ number: number; name: string | null; city: string; school: string | null; state: string | null; rookie_year: number | null; last: number | null; opr: number | null }>(
     `SELECT t.number, t.name, t.city, t.school, t.state, t.rookie_year,
             (SELECT MAX(season) FROM team_season_stats x WHERE x.team = t.number AND x.matches > 0) last,
             (SELECT opr_np FROM team_season_stats x WHERE x.team = t.number AND x.matches > 0 ORDER BY season DESC LIMIT 1) opr
-     FROM teams t WHERE lower(t.${school ? "school" : "city"}) = lower(?) AND ${teamPageSql("t.number", "t.name")}
-     ORDER BY last IS NULL, last DESC, t.number LIMIT 1000`, [city]);
+     FROM teams t WHERE lower(t.${school ? "school" : "city"}) = lower(?)${inSql} AND ${teamPageSql("t.number", "t.name")}
+     ORDER BY last IS NULL, last DESC, t.number LIMIT 1000`, [city, ...(within ? [within.country, ...(within.state ? [within.state] : [])] : [])]);
   const name = (school ? rows[0]?.school : rows[0]?.city) ?? city;
   const states = [...new Set(rows.map((r) => r.state).filter(Boolean))];
   const title = school ? `Teams at ${name}${rows[0] ? `, ${rows[0].city}` : ""}` : `Teams in ${name}${states.length === 1 ? `, ${states[0]}` : ""}`;

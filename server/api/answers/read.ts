@@ -517,6 +517,8 @@ export interface LeaderboardQuestion {
   town?: string | null;
   /** `city` is a school's name ("teams at Clearview Regional High School"): its teams. */
   school?: boolean;
+  /** The state or country said with the town ("teams in Springfield IL"): the town's teams from there only. */
+  cityIn?: Region;
   /** One event's teams (its divisions' too): the board of the teams there. */
   event?: { season: number; code: string; codes: string[]; name: string; home?: Region | null };
 }

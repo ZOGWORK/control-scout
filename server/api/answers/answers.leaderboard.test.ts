@@ -171,6 +171,18 @@ describe("the lists", () => {
     expect(c.stat!.headline).toMatchObject({ value: "2 teams" });
     expect((await searchAnswer("teams in atlantis", { limit: 25 })).stat).toBeUndefined();
   });
+  it("a town with its state after it is that state's town, never the other state's of the same name (failed-search #899)", async () => {
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (41001, 'Prairie Bots', 'Springfield', 'IL', 'USA'), (41002, 'Ozark Gears', 'Springfield', 'MO', 'USA'), (41003, 'Ozark Two', 'Springfield', 'MO', 'USA')");
+    const il = await searchAnswer("teams in springfield il", { limit: 25 });
+    expect(il.stat?.headline).toMatchObject({ value: "1 team" });
+    expect(il.stat?.title).toContain("Springfield, IL");
+    const mo = await searchAnswer("teams in Springfield Missouri", { limit: 25 });
+    expect(mo.stat?.headline).toMatchObject({ value: "2 teams" });
+    expect(mo.stat?.title).toContain("Springfield, MO");
+    // The town alone is every Springfield; one in a state no team lists it in is left to search.
+    expect((await searchAnswer("teams in springfield", { limit: 25 })).stat?.headline).toMatchObject({ value: "3 teams" });
+    expect((await searchAnswer("teams in springfield texas", { limit: 25 })).stat).toBeUndefined();
+  });
   it("a school's teams, by the school FIRST lists, however the count is asked (failed-search #965)", async () => {
     await run("UPDATE teams SET school = 'River Dell Regional High School' WHERE number IN (4215, 6980)");
     expect(readLeaderboard("how many teams at River Dell Regional High School")).toMatchObject({ kind: "city", school: true, city: "River Dell Regional High School" });
