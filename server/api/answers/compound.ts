@@ -22,6 +22,8 @@ export type CompoundQuestion =
    *  applied), sorted by a stat, top N. */
   | { kind: "list"; n: number | null; stat: ListStat | null; region: Region | null; country: { code: string; name: string } | null; city: string | null; season: number | null;
       award: { type: string; label: string } | null; worlds: boolean; noWorlds?: boolean; rookie?: boolean; thresholds: (Threshold & { stat: ListStat })[]; outputs: ListStat[] }
+  /** How many teams one list holds in each of two seasons ("how many NJ teams went to worlds in 2024 versus 2025"). */
+  | { kind: "list-pair"; lists: [Extract<CompoundQuestion, { kind: "list" }>, Extract<CompoundQuestion, { kind: "list" }>] }
   /** One team's OPR at its first (or last) event of two seasons, side by side. */
   | { kind: "event-pair"; core: string; which: "first" | "last"; seasons: [number, number] }
   /** One team's matches it won or lost by a margin. */
@@ -256,5 +258,19 @@ export function readCompound(raw: string): CompoundQuestion | null {
     if (w && !w.ever) return { kind: "opr-excluding", core: m[1], drop: /^(?:best|highest)$/.test(m[2]) ? "best" : "worst", when: w };
   }
 
+  // "How many NJ teams went to worlds in 2024": the list, its length the count. Said of two years or seasons ("… in
+  // 2024 versus 2025"): the same list read once with each, side by side.
+  const count = /^(?:how many|number of|the number of|count of|count)\s+(.+)$/.exec(q);
+  if (count) {
+    const YEAR = String.raw`((?:19|20)\d\d(?:\s*[-–/]\s*\d\d)?)`;
+    const pair = new RegExp(String.raw`^(.+?\s)${YEAR}\s+(?:versus|vs\.?|v|compared\s+(?:to|with)|against)\s+(?:in\s+)?${YEAR}$`).exec(count[1]);
+    if (pair) {
+      const a = readList(`${pair[1]}${pair[2]}`), b = readList(`${pair[1]}${pair[3]}`);
+      // A count is of every team on the list: a "top N" said with it limits nothing counted (Greptile on #1094).
+      return a?.kind === "list" && b?.kind === "list" && a.season != null && b.season != null && a.season !== b.season ? { kind: "list-pair", lists: [{ ...a, n: null }, { ...b, n: null }] } : null;
+    }
+    const one = readList(count[1]);
+    if (one?.kind === "list") return { ...one, n: null };
+  }
   return readList(q);
 }

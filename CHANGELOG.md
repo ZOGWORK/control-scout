@@ -27,6 +27,30 @@ Steady boards: the most stable OPR from event to event, and the teams strongest 
 ### Search
 - **Steady boards.** "Which team has the most stable OPR, least ups and downs" ranks teams by the smallest swing in their event OPRs in the season (the standard deviation as a share of their average, teams with an OPR at 3 or more events). "Which NJ team is most consistent across all phases" ranks by each team's weakest phase OPR rank worldwide (auto, teleop and endgame; auto and teleop where teleop includes endgame), so a team strong in one phase alone doesn't lead. Counted at some events only, or on a day, is left to search. (#1124)
 
+## 4.4.4 — 2026-11-08
+
+OPR gained within a season: the teams whose OPR grew the most from their first event to their last, in a place or worldwide.
+
+### Highlights
+- [rankings] "Most improved teams in NJ by OPR gain" answers
+- [rankings] First event's OPR to the last's, 2+ events
+- [rankings] "Which team improved its OPR the most" reads
+
+### Search
+- **OPR gained.** "Most improved teams by OPR gain", "which team improved its OPR the most between its first and last event" and "gained the most OPR across the season" rank teams by their OPR at their last event of the season less their OPR at their first, by date (without penalties, as the team page shows them), teams with an OPR at 2 or more events, in a place or worldwide. "Most improved" alone stays the climb in standing from the season before. (#1116)
+
+## 4.4.3 — 2026-11-08
+
+"How many" before a list of teams counts it, and two years or seasons side by side compare: "how many NJ teams went to worlds in 2024, versus 2025".
+
+### Highlights
+- [rankings] "How many NJ teams went to worlds in 2024" counts them
+- [rankings] Two years side by side: "2024 versus 2025"
+- [rankings] Each year's list sits under its count
+
+### Search
+- **A list counted, in one season or two.** "How many", "number of" or "count" before a list of teams (a place, Worlds, an award won, an OPR threshold) answers with the list, its length the headline. Two years or seasons after it ("in 2024 versus 2025", "2025-26 vs 2024-25") read the same list once with each: both counts side by side, the change, and each season's own list under it. A Worlds year is the championship held that year, so 2024 is the 2023–24 season, said on the card. A card comparing two seasons offers no one season to pick. (#1094)
+
 ## 4.4.2 — 2026-11-08
 
 The team with the most matches, wins or events can be asked for a few days ("which team played the most matches this week"), and said "by any team … top 5".
