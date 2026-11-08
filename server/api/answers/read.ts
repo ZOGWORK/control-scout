@@ -517,6 +517,9 @@ export interface LeaderboardQuestion {
   undefeated?: boolean;
   /** A town in the region: its teams only. */
   town?: string | null;
+  /** "improved from rank 1000+ to the top 100": the most improved, only those from that OPR rank or below the season
+   *  before to that rank or better. */
+  climb?: { from: number; to: number };
   /** A date window said with a count ("this week"): the count is of the matches played in it. */
   window?: { from: string; to: string; label: string };
   /** `city` is a school's name ("teams at Clearview Regional High School"): its teams. */
@@ -549,6 +552,25 @@ const regionOf = (s: string): Region | null => { const rs = findRegions(s); retu
 const TEAMS = "(?:teams?|robots?|ftc teams?)";
 const PLACE = "(?: (?:in|from) (.+))?";
 
+/** "Teams that improved from rank 1000+ to top 100 in one season", "which nj teams climbed from rank 1,000 to the top
+ *  50": the most improved, only the teams that made that climb in worldwide OPR rank. The ranks are read before the
+ *  season is ("rank 2024" is a rank, never a year), with their thousands separators ("1,000" is one number). Counted at
+ *  some events only, or on a day, is no climb this board (season ranks) can make. */
+function readClimb(raw: string): LeaderboardQuestion | null {
+  const nums: number[] = [];
+  const q = ` ${raw.toLowerCase().replace(/(\d),(?=\d{3}\b)/g, "$1").replace(/['’]s\b/g, "")
+    .replace(/(#|\b(?:rank(?:ed)?|top|from|to) )(\d{1,5})\b/g, (_, w: string, d: string) => `${w}n${nums.push(Number(d)) - 1}`)
+    .replace(/[?!,.]/g, " ")} `.replace(/\s+/g, " ");
+  if (nums.length < 2) return null;
+  const { scope, rest } = readScope(q);
+  if (scope.championship || scope.states || scope.level || scope.alliance || scope.at || scope.ever || scope.place || scope.outOfState || scope.day || scope.window) return null;
+  const m = new RegExp(`^(?:(?:which|what) )?(?:(.+?) )?${TEAMS}(?: (?:in|from) (.+?))? (?:that |who )?(?:improved|climbed|rose|jumped|moved up|went) from (?:(?:an? )?(?:opr )?rank(?:ed)? |#)?n(\\d)\\+?(?: or (?:lower|worse|below))? to (?:the )?(?:top |rank |#)?n(\\d)(?: (?:in )?(?:one|a single|a) season)?$`).exec(rest);
+  if (!m || (m[1] && m[2])) return null;
+  const from = nums[Number(m[3])], to = nums[Number(m[4])], where = m[1] ?? m[2];
+  const region = where ? regionOf(where) ?? false : null;
+  return to < from && region !== false ? { kind: "improved", stat: "opr", n: 25, region, city: null, season: scope.season, climb: { from, to } } : null;
+}
+
 export function readLeaderboard(raw: string): LeaderboardQuestion | null {
   // "overall OPR" is the stat's name, not an every-season scope.
   const q = ` ${raw.toLowerCase().replace(/['’]s\b/g, "").replace(/[?!,.]/g, " ")} `.replace(/\s+/g, " ").replace(/\b(?:overall|total) opr\b/g, "opr");
@@ -561,6 +583,8 @@ export function readLeaderboard(raw: string): LeaderboardQuestion | null {
   if (school) return { kind: "city", stat: "opr", n: 25, region: null, city: school[1].trim(), season: null, school: true };
   const { scope, rest } = readScope(q);
   if (scope.championship || scope.states || scope.level || scope.alliance || scope.at || scope.ever) return null;
+  const climb = readClimb(raw);
+  if (climb) return climb;
   const n = (s: string | undefined, def: number) => Math.min(25, Math.max(1, s ? Number(s) : def));
   const place = (s: string | undefined): Region | null | false => (s ? regionOf(s) ?? false : null);
   let m: RegExpExecArray | null;

@@ -27,6 +27,18 @@ Two events named side by side ("<event> vs <event>") are compared as events rath
 ### Search
 - **Events side by side.** "<event> vs <event>" (2 to 4 events, each named with a word only an event's name has: championship, qualifier, league meet, tournament…) answers with the events side by side: field strength (the average OPR of the teams that played, its divisions' too), top OPR and its team, high score without penalties, and the number of teams. A state's code in a name is spelled out ("NJ Championship" is New Jersey's), each event is its newest season with a played match unless a season is named, and events from different seasons are marked as different games, with neither called stronger. A team on any side keeps the teams' Compare. (#1158)
 
+## 4.4.7 — 2026-11-08
+
+A climb in rank: the teams that went from one OPR rank or below to the top of another, from one season to the next.
+
+### Highlights
+- [rankings] "Teams that climbed from rank 1000+ to top 100"
+- [rankings] Worldwide OPR rank, the season before to this one
+- [rankings] In a place too: "which NJ teams rose from rank 500"
+
+### Search
+- **A climb in rank.** "Teams that improved from rank 1000+ to the top 100 in one season", "which NJ teams climbed from rank 500 to the top 50" and the like read as the most improved board, kept to the teams ranked at or below the first number worldwide by OPR the season before and at or above the second this season. A fall ("from rank 10 to rank 100") is never read as a climb. The most improved table shows each climb as one column of ranks ("#6283 → #77"), so it fits a phone, and People also ask never names a place the card answered without. (#1121)
+
 ## 4.4.6 — 2026-11-08
 
 Compare asked for one team opens Compare with it, and suggests its closest rivals.
