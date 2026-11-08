@@ -108,7 +108,7 @@ export interface SearchUnderstood {
    *  it); compare: teams side by side; question: a question's answer card; names: names matched to the words typed. */
   kind: "events" | "team" | "compare" | "question" | "names";
   /** Events: the time asked for, and its date window (YYYY-MM-DD, open ends null). */
-  time?: "today" | "tomorrow" | "upcoming" | "past" | "this-weekend" | "next-weekend" | "this-week" | "next-week" | "this-month" | "next-month";
+  time?: "today" | "tomorrow" | "yesterday" | "upcoming" | "past" | "this-weekend" | "next-weekend" | "this-week" | "next-week" | "this-month" | "next-month";
   window?: { from: string | null; to: string | null };
   /** Events: the region ("USA:NJ", "New Jersey"), the city or venue words, the calendar year, the season. */
   place?: { key: string; name: string };
@@ -226,7 +226,8 @@ export type FollowUpTone =
 export interface RelatedPageView { q: string; found: boolean; groups: { title: string; items: SearchFollowUp[] }[] }
 /** GET /api/search/follow: People also ask, Related searches, and the team's highlights search (`team`: whose). */
 /** `about`: the team the follow-ups are about, when there's one (the team asked about, else the one its answer is). */
-export interface SearchFollowUps { ask: SearchFollowUp[]; related: SearchFollowUp[]; highlights?: SearchFollowUp & { team: number }; about?: number }
+/** `asked`: the query as asked with the answer's picked season (?season=), for the related searches page's link. */
+export interface SearchFollowUps { ask: SearchFollowUp[]; related: SearchFollowUp[]; highlights?: SearchFollowUp & { team: number }; about?: number; asked?: string }
 
 /** A question's answer (server/api/searchQuestions.ts): each line a real record, linked to where it's shown. */
 export interface SearchCard {
@@ -264,6 +265,8 @@ export interface SearchCard {
   event?: { season: number; code: string; name: string };
   /** The award asked about ("Inspire", FIRST's award type): its places draw as a podium. */
   award?: string;
+  /** The place asked ("who got 2nd place Inspire at …"): marked on the podium. */
+  place?: number;
   /** Every award the event gave, in the event page's order (its Awards tab), so the answer lists them all. */
   awards?: SearchCardAward[];
   /** "Who won <event>": its playoff champions by the winning-alliance rule (server/api/answers/families/winners.ts),
@@ -500,6 +503,8 @@ export interface MatchView {
   time: string | null;
   /** The real instant (UTC ISO) when the event's time zone is known. */
   startsAt: string | null;
+  /** A played match's posted start (UTC ISO), when it differs from `startsAt` (then its real start). */
+  scheduledAt?: string | null;
   played: boolean;
   red: AllianceScore;
   blue: AllianceScore;

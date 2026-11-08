@@ -14,7 +14,7 @@
 //     "2023-24" means that season. No year: the current season, except championships (one a season): every season.
 //   - A near-miss of a place's full name ("new jesey") is that place, said as read ("New Jersey (from "new jesey")").
 //   - "states", "state champs" or "champs" with a place is its championship ("nj states").
-import { findRegions, isRegionCode, nearRegion, regionLabel, type Region } from "./regions.js";
+import { findRegions, isRegionCode, nearRegion, regionLabel, regionNamed, type Region } from "./regions.js";
 import { QUESTION_WORDS, STOPWORDS, isQuestionForm, singularize, timePhrase } from "./searchQuery.js";
 
 /** Words that ask something of events rather than name them. */
@@ -28,6 +28,8 @@ export const EVENT_TYPES: Record<string, string[] | null> = {
   championship: ["Championship", "FIRSTChampionship"], qualifier: ["Qualifier", "SuperQualifier"],
   scrimmage: ["Scrimmage", "PracticeDay"], kickoff: ["Kickoff"], premier: ["Premier"],
   champ: ["Championship", "FIRSTChampionship"], champs: ["Championship", "FIRSTChampionship"],
+  // "cham" is "champ" cut short ("nj cham").
+  cham: ["Championship", "FIRSTChampionship"],
   // "states" ("nj states"): a state's own championship, never the FIRST Championship held there.
   states: ["Championship"],
   event: null, competition: null, comp: null,
@@ -37,17 +39,17 @@ export const EVENT_TYPES: Record<string, string[] | null> = {
 
 /** How an event word reads in a label, the word typed and no more ("Meets in New Jersey": never "League meets"). */
 const EVENT_LABEL: Record<string, string> = {
-  meet: "Meets", league: "League events", tournament: "Tournaments", championship: "Championships", champ: "Championships", champs: "Championships", states: "State championships",
+  meet: "Meets", league: "League events", tournament: "Tournaments", championship: "Championships", champ: "Championships", champs: "Championships", cham: "Championships", states: "State championships",
   qualifier: "Qualifiers", scrimmage: "Scrimmages", kickoff: "Kickoffs", premier: "Premier events",
   event: "Events", competition: "Events", comp: "Events", worlds: "FIRST Championship (Worlds) events",
 };
 
-export type SearchTime = "today" | "tomorrow" | "upcoming" | "past" | "this-weekend" | "next-weekend" | "this-week" | "next-week" | "this-month" | "next-month";
+export type SearchTime = "today" | "tomorrow" | "yesterday" | "upcoming" | "past" | "this-weekend" | "next-weekend" | "this-week" | "next-week" | "this-month" | "next-month";
 const TIME_OF: Record<string, SearchTime> = {
-  today: "today", tomorrow: "tomorrow", upcoming: "upcoming", "coming up": "upcoming", past: "past", recent: "past", previous: "past", latest: "past",
+  today: "today", tomorrow: "tomorrow", yesterday: "yesterday", upcoming: "upcoming", "coming up": "upcoming", past: "past", recent: "past", previous: "past", latest: "past", finished: "past", completed: "past", ended: "past", happened: "past",
   "this weekend": "this-weekend", "next weekend": "next-weekend", "this week": "this-week", "next week": "next-week",
   "this month": "this-month", "next month": "next-month",
-  "happening now": "today", "going on now": "today", "on right now": "today", "right now": "today", "live now": "today", live: "today", currently: "today",
+  "happening now": "today", "going on now": "today", "on right now": "today", "right now": "today", "live now": "today", live: "today", currently: "today", now: "today",
 };
 
 /** Two-letter state codes that are also everyday words ("in", "or", "me"): a code only when typed in capitals. */
@@ -56,8 +58,9 @@ const WORD_CODES = new Set(["in", "or", "me", "hi", "ok", "oh", "la", "ma", "pa"
 const FRAME_WORDS = new Set(["next", "many", "much", "there", "all", "any", "list", "show", "me", "find", "get", "give", "see", "every", "some",
   // "What events are happening this week", "events going on today", "events taking place in NJ".
   "happening", "going", "on", "taking", "place", "being", "held", "running", "scheduled"]);
-/** A request's phrase ending a place's words: "(are) happening", "(is) going on", "taking place", "being held". */
-const REQUEST_TAIL = /(?:^|\s)(?:(?:are|is|were|was|will be)\s+)?(?:being\s+)?(?:happening|going on|taking place|held|running|scheduled|on)$/;
+/** A request's phrase ending a place's words: "(are) happening", "(is) going on", "taking place", "being held", "that
+ *  finished" (said with its time: "events in nj that finished yesterday" reads as "nj events yesterday"). */
+const REQUEST_TAIL = /(?:^|\s)(?:(?:that|which)\s+)?(?:(?:are|is|were|was|will be)\s+)?(?:being\s+)?(?:happening|going on|taking place|held|running|scheduled|on|happened|finished|ended|started|took place)$/;
 const PLACE_MARKERS = new Set(["in", "at", "near", "from", "around", "within", "across"]);
 
 /** What an event-set query asks for (every part optional). */
@@ -78,6 +81,8 @@ export interface EventQuery {
   regionTyped?: string;
   /** Every season, newest first: a championship asked for with no year, season or time. */
   allSeasons?: boolean;
+  /** Said as finished ("that ended yesterday"): the event's last day is in the window, not just any of its days. */
+  ended?: boolean;
 }
 
 /** The region `ws` (whole words) names exactly, if any. A two-letter code that's also a word counts only in capitals. */
@@ -86,7 +91,7 @@ export function regionOf(ws: string[]): Region | null {
   if (!text) return null;
   if (/^[a-z]{2}$/i.test(text) && !/^[A-Z]{2}$/.test(text) && WORD_CODES.has(text.toLowerCase())) return null;
   const f = text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
-  return findRegions(text).find((r) => r.name.toLowerCase() === f || (f.length === 2 && r.state.toLowerCase() === f && (r.country === "USA" || r.country === "Canada"))) ?? australianCode(text);
+  return findRegions(text).find((r) => r.name.toLowerCase() === f || (f.length === 2 && r.state.toLowerCase() === f && (r.country === "USA" || r.country === "Canada"))) ?? (f.length > 2 ? regionNamed(text) : null) ?? australianCode(text);
 }
 
 /** A part of a region said with a direction ("north jersey", "northern california", "western new york"): that whole
@@ -117,6 +122,10 @@ export function readEventQuery(raw: string): EventQuery | null {
   let time: SearchTime | null = null;
   const t = timePhrase(q);
   if (t) { time = TIME_OF[t.phrase] ?? null; q = t.rest; }
+  // The request's own clause, once its time is read ("nj meets that ended yesterday"): never words of a name.
+  // With the verb read as the time itself ("nj events that finished", "nj meets that happened"), the "that" left.
+  let ended = false;
+  if (time) q = q.replace(/\s+(?:that|which)(?:\s+(?:are|is|were|was))?(?:\s+(happened|happening|finished|ended|completed|started|took\s+place|taking\s+place|held|running|going\s+on))?$/i, (_m, verb?: string) => { ended = !!verb && /^(?:finished|ended|completed)$/i.test(verb); return ""; }).trim();
   // "Upcoming" beside a window still to come ("upcoming events this weekend") says nothing more: the window is it.
   if (time && time !== "upcoming" && time !== "past") q = q.replace(/(?:^|\s)(?:upcoming|coming up)(?=\s|$)/gi, " ").replace(/\s+/g, " ").trim();
   let year: number | null = null, season: number | null = null;
@@ -181,24 +190,24 @@ export function readEventQuery(raw: string): EventQuery | null {
   // "next" before an event word means upcoming ("when is the next meet in NJ"); a question's own words name nothing.
   if (!time && kinds.length && words.some((w) => /^next$/i.test(w))) time = "upcoming";
   if (statesOnly && !region) kinds.pop();
-  const named = words.filter((w) => { const l = w.toLowerCase(); return !STOPWORDS.has(l) && !QUESTION_WORDS.has(l) && !FRAME_WORDS.has(l) && !(region && /^(?:states?|champs?)$/i.test(w)); });
+  const named = words.filter((w) => { const l = w.toLowerCase(); return !STOPWORDS.has(l) && !QUESTION_WORDS.has(l) && !FRAME_WORDS.has(l) && !(region && /^(?:states?|champ?s?)$/i.test(w)); });
   // A question about the events ("who will win the NJ championship", "who won Inspire at …") or an action word
   // ("winner", "advance") asks something of them, read elsewhere: not the set of events itself.
   if (named.some((w) => ASKS.has(w.toLowerCase())) || (named.length && isQuestionForm(raw))) return null;
   const scoped = !!(time || year != null || season != null || region || where.length);
   if (!(kinds.length && scoped) && !(time && (region || where.length))) return null;
-  const ks = [...new Set(kinds.map((k) => (/^champs?$/i.test(k) ? "championship" : k.toLowerCase())))];
+  const ks = [...new Set(kinds.map((k) => (/^champ?s?$/i.test(k) ? "championship" : k.toLowerCase())))];
   // A specific kind with a generic one ("NJ states events") reads as the specific one.
   // Championships (one a season) by the types the words mean: "championship events in NJ" is still championships.
   const types = eventTypesOf(ks);
   const allSeasons = !!types && types.every((t) => t === "Championship" || t === "FIRSTChampionship") && !time && year == null && season == null;
-  return { kinds: ks, time, year, season, region, where: where.join(" ") || null, words: named, ...(regionTyped ? { regionTyped } : {}), ...(allSeasons ? { allSeasons } : {}) };
+  return { kinds: ks, time, year, season, region, where: where.join(" ") || null, words: named, ...(regionTyped ? { regionTyped } : {}), ...(allSeasons ? { allSeasons } : {}), ...(ended ? { ended } : {}) };
 }
 
 const titleCase = (s: string) => s.replace(/(^|\s)(\p{L})/gu, (_, a: string, c: string) => a + c.toUpperCase());
 
 const TIME_LABEL: Record<SearchTime, string> = {
-  today: "Today's", tomorrow: "Tomorrow's", upcoming: "Upcoming", past: "Past", "this-weekend": "This weekend's", "next-weekend": "Next weekend's", "this-week": "This week's",
+  today: "Today's", tomorrow: "Tomorrow's", yesterday: "Yesterday's", upcoming: "Upcoming", past: "Past", "this-weekend": "This weekend's", "next-weekend": "Next weekend's", "this-week": "This week's",
   "next-week": "Next week's", "this-month": "This month's", "next-month": "Next month's",
 };
 
@@ -248,6 +257,7 @@ export function timeWindow(time: SearchTime, today: string): { from: string | nu
   switch (time) {
     case "today": return { from: today, to: today };
     case "tomorrow": return { from: add(1), to: add(1) };
+    case "yesterday": return { from: add(-1), to: add(-1) };
     case "upcoming": return { from: today, to: null };
     case "past": return { from: null, to: add(-1) };
     case "this-weekend": return { from: add(toSat), to: add(toSun) };

@@ -136,9 +136,11 @@ export function readTime(q: string, today: string, yearOk: (y: number) => boolea
   }
   // A month, with or without its year: "in march", "march 2026". With no year, the month of the season asked about
   // (the executor fills the season in): read here as the month of the season `today` is in.
-  // "May" is a word too: a month only after "in" or "during", or with its year.
+  // "May" is a word too: a month only after "in" or "during", or with its year. A short form alone ("dec") is a month
+  // only as the query's last word ("<team> highlights dec"); "mar" and "may" are words, never one alone.
   m = /\b(?:in\s+|during\s+)?(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept?|oct|nov|dec)\.?(?:\s+(20\d\d))?\b/.exec(rest);
-  if (m && monthIndex(m[1]) >= 0 && (m[2] || /\b(?:in|during)\s/.test(m[0]) || (m[1].length > 3 && m[1] !== "may"))) {
+  const last = !!m && !rest.slice(m.index + m[0].length).trim() && !/^ma[ry]$/.test(m[1]);
+  if (m && monthIndex(m[1]) >= 0 && (m[2] || /\b(?:in|during)\s/.test(m[0]) || (m[1].length > 3 && m[1] !== "may") || last)) {
     const mi = monthIndex(m[1]);
     const season = m[2] ? (mi >= 8 ? Number(m[2]) : Number(m[2]) - 1) : seasonOfDate(today);
     const year = mi >= 8 ? season : season + 1;
