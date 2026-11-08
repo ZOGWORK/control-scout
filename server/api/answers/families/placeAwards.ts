@@ -27,6 +27,10 @@ const AWARDS: [RegExp, string][] = [
   [/\bwinning\s+alliances?\b/, "Winner"], [/\bfinalist(?:\s+alliances?)?\b/, "Finalist"],
 ];
 const ALLIANCE = new Set(["Winner", "Finalist"]);
+// FIRST's Leadership Award is stored as a Winner: read as its own award ("Leadership"), never a Winning Alliance,
+// and won whatever place it's stored at.
+const TYPE_SQL = "CASE WHEN a.type = 'Winner' AND COALESCE(a.name, '') LIKE '%Leadership%' THEN 'Leadership' ELSE a.type END";
+const WON_SQL = `(${TYPE_SQL} IN ('Winner', 'Finalist', 'Leadership') OR a.placement = 1)`;
 /** The board stats a list can be ordered by (team_season_stats columns). */
 const BY: Record<string, { col: string; label: string }> = {
   auto: { col: "opr_auto", label: "Auto OPR" }, teleop: { col: "opr_teleop", label: "TeleOp OPR" }, endgame: { col: "opr_endgame", label: "Endgame OPR" },
@@ -117,7 +121,7 @@ export async function readPlaceAwards(q: string): Promise<PlaceAwardsAsk | null>
 
 interface Row { season: number; code: string; event: string; etype: string | null; start: string | null; type: string; placement: number; team: number; team_name: string | null; award: string | null; city: string | null; state: string | null }
 
-const label = (r: Row) => (r.type === "Winner" ? "Winning Alliance" : r.type === "Inspire" && r.placement === 1 ? "Inspire Award" : awardLabel(r.type, r.placement));
+const label = (r: Row) => (r.type === "Winner" ? "Winning Alliance" : r.type === "Leadership" || (r.type === "Inspire" && r.placement === 1) ? awardName(r.type) : awardLabel(r.type, r.placement));
 const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const awardName = (type: string) => (ALLIANCE.has(type) ? awardLabel(type, 1) : `${awardLabel(type, 1)} Award`);
 const awardsName = (type: string) => `${awardName(type)}s`;
@@ -166,12 +170,12 @@ export async function placeAwardsAnswer(ask: PlaceAwardsAsk): Promise<StatAnswer
   if (ask.stage) return stageAnswer(ask);
   const where = placeSql(ask.place);
   // A judged award is won at 1st place, unless every award is listed (each place said as such).
-  const won = ask.types.length || ask.mode !== "list" ? " AND (a.type IN ('Winner', 'Finalist') OR a.placement = 1)" : "";
-  const typeSql = ask.types.length ? ` AND a.type IN (${ask.types.map(() => "?").join(", ")})` : "";
+  const won = ask.types.length || ask.mode !== "list" ? ` AND ${WON_SQL}` : "";
+  const typeSql = ask.types.length ? ` AND ${TYPE_SQL} IN (${ask.types.map(() => "?").join(", ")})` : "";
   const rows = (await all<any>(
-    `SELECT a.season, a.code, e.name event, e.type etype, e.start, a.type, a.placement, a.team, t.name team_name, a.name award, t.city, t.state
+    `SELECT a.season, a.code, e.name event, e.type etype, e.start, ${TYPE_SQL} type, a.placement, a.team, t.name team_name, a.name award, t.city, t.state
      FROM awards a JOIN teams t ON t.number = a.team JOIN events e ON e.season = a.season AND e.code = a.code
-     WHERE ${where.sql}${typeSql}${won}${ask.worlds ? " AND e.type = ?" : ""} AND NOT (a.type = 'Winner' AND COALESCE(a.name, '') LIKE '%Leadership%')
+     WHERE ${where.sql}${typeSql}${won}${ask.worlds ? " AND e.type = ?" : ""}
      ORDER BY e.start DESC, a.code, a.type = 'Winner' DESC, a.type = 'Inspire' DESC, a.placement, a.team`,
     [...where.args, ...ask.types, ...(ask.worlds ? [CHAMPIONSHIP_TYPE] : [])])).map((r): Row => ({ ...r, season: Number(r.season), placement: Number(r.placement), team: Number(r.team) }));
 
@@ -237,7 +241,7 @@ export async function placeAwardsAnswer(ask: PlaceAwardsAsk): Promise<StatAnswer
     if (!inScope.length) return { ...none(`No awards won by ${whose}${at} in ${when}.`), title: `The rarest award ${whose} won, ${when}` };
     const types = [...new Set(inScope.map((r) => r.type))];
     const given = new Map((await all<{ type: string; n: number }>(
-      `SELECT a.type, COUNT(DISTINCT a.code) n FROM awards a WHERE a.season = ? AND a.type IN (${types.map(() => "?").join(", ")}) AND (a.type IN ('Winner', 'Finalist') OR a.placement = 1) AND NOT (a.type = 'Winner' AND COALESCE(a.name, '') LIKE '%Leadership%') GROUP BY a.type`,
+      `SELECT ${TYPE_SQL} type, COUNT(DISTINCT a.code) n FROM awards a WHERE a.season = ? AND ${TYPE_SQL} IN (${types.map(() => "?").join(", ")}) AND ${WON_SQL} GROUP BY 1`,
       [season, ...types])).map((x) => [x.type, Number(x.n)]));
     const order = types.sort((a, b) => (given.get(a) ?? 0) - (given.get(b) ?? 0) || a.localeCompare(b));
     const rarest = order[0], xs = inScope.filter((r) => r.type === rarest);

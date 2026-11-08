@@ -53,6 +53,8 @@ beforeAll(async () => {
   await aw(S, "USTXQ1", "Winner", 1, 11111, "Winning Alliance - Captain");
   await aw(S, "USINQ1", "JudgesChoice", 1, 44444, "Judges' Choice Award");
   await aw(S, "USINQ1", "Motivate", 1, 55555, "Motivate Award");
+  // A second Leadership Award, so it is given more often than Ontario's Promote.
+  await aw(S, "USINQ1", "Winner", 3, 55555, "FIRST Leadership Award");
   await aw(S - 1, "CAONQ1", "Inspire", 1, 22222, "Inspire Award");
   await aw(S - 1, "CAONQ2", "Inspire", 1, 22222, "Inspire Award");
   await aw(S - 1, "CAONQ2", "Think", 1, 33333, "Think Award");
@@ -103,6 +105,12 @@ describe("a place's award winners", () => {
     expect(s.headline?.value).toBe("Promote Award");
     // FIRST's Leadership Award, stored as a Winner, is never a Winning Alliance.
     expect(rows(s).map((r) => r.award)).not.toContain("Winning Alliance");
+    // Greptile on #1100: listed under its own name with every award, never dropped; a Winning Alliance ask leaves it out.
+    const all = await placeAwardsAnswer((await readPlaceAwards("awards won by teams from Ontario this season"))!);
+    expect(rows(all).filter((r) => r.team === "33333 Northern Bolts").map((r) => r.award)).toContain("Leadership Award");
+    expect(rows(all).map((r) => r.award)).not.toContain("Winning Alliance");
+    const wa = await placeAwardsAnswer((await readPlaceAwards("Ontario Winning Alliance winners this season"))!);
+    expect(rows(wa).map((r) => r.award)).not.toContain("Leadership Award");
   });
 
   it("finds teams that won two awards at one event", async () => {
