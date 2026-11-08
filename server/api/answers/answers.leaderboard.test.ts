@@ -77,6 +77,10 @@ describe("what's read", () => {
     // Only a place goes before the team word, and only one place is said.
     expect(readLeaderboard("which rookie teams have the most awards")).toBeNull();
     expect(readLeaderboard("texas teams with the most awards in ohio")).toBeNull();
+    // Greptile on #1161: "FTC teams" is the team word, with or without a place before or after it.
+    expect(readLeaderboard("which ftc teams have the most awards in ohio")).toMatchObject({ stat: "awards", region: { key: "USA:OH" } });
+    expect(readLeaderboard("which ftc teams have the most awards")).toMatchObject({ stat: "awards", region: null });
+    expect(readLeaderboard("which georgia ftc teams have played the most matches")).toMatchObject({ stat: "matches", region: { key: "USA:GA" } });
   });
 });
 

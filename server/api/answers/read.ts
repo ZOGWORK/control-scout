@@ -552,9 +552,10 @@ export function readLeaderboard(raw: string): LeaderboardQuestion | null {
   // match" (matches played), and a verb said before it is its own ("attended the most event").
   // Counted at some events only ("at New Jersey events", "out of state") or on one day is a count the board (season
   // totals) can't make: none.
-  if (!scope.place && !scope.outOfState && !scope.day && (m = new RegExp(`^(?:(?:which|what) )?(?:(?:the )?(?:(.+?) )?${TEAMS} )?(?:(?:in|from) (.+?) )?(?:(?:that|who) )?(?:(?:has|have|had) )?(?:(has|have|had|with|won|played|plays|attended|got) )?(?:the )?most (.+?)${PLACE}$`).exec(rest))
+  if (!scope.place && !scope.outOfState && !scope.day && (m = new RegExp(`^(?:(?:which|what) )?(?:(?:the )?(?:(?!ftc )(.+?) )?${TEAMS} )?(?:(?:in|from) (.+?) )?(?:(?:that|who) )?(?:(?:has|have|had) )?(?:(has|have|had|with|won|played|plays|attended|got) )?(?:the )?most (.+?)${PLACE}$`).exec(rest))
     && [m[1], m[2], m[5]].filter(Boolean).length < 2) {
     // A place said before the team word ("nj teams") is the same place as one after it; anything else there is no board.
+    // "FTC teams" is the team word itself, never a place before "teams".
     const counted = boardStat(m[4]) ?? boardStat(`${m[4]} ${m[3] === "attended" ? "attended" : "played"}`), region = place(m[1] ?? m[2] ?? m[5]);
     // "Won the most matches" is the wins board; "won the most events" is no board here (never events played).
     const stat = m[3] !== "won" || counted === "awards" ? counted : counted === "matches" ? "wins" : null;
