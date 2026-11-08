@@ -72,12 +72,15 @@ export async function eventFor(words: string, teams: number[], year: number | nu
 /** A team's own event of a type ("FIRSTChampionship": its Worlds; "Championship": its state championship), the one it
  *  is listed at: in `season` (or held in `year`), else its latest. A championship split into divisions is the team's
  *  division, where its forecast is made. Null: it was never listed at one then. */
-export async function teamEventOfType(team: number, type: string, season: number | null, year: number | null): Promise<{ ev: Ev; listed: boolean } | null> {
+export async function teamEventOfType(team: number, type: string, season: number | null, year: number | null,
+  /** A region said with it ("nj states"): only that region's championship (its country, and its state when it has one). */
+  region: { country: string; state: string } | null = null): Promise<{ ev: Ev; listed: boolean } | null> {
+  const where = region ? ` AND e.country = ?${region.state ? " AND e.state = ?" : ""}` : "";
   const ev = await get<Ev>(
     `SELECT e.season, e.code, e.name, e.type, e.start, e.end FROM ${ROSTER} r JOIN events e ON e.season = r.season AND e.code = r.code
-     WHERE r.team = ? AND e.type = ? AND (? IS NULL OR e.season = ?) AND (? IS NULL OR e.start LIKE ?)
+     WHERE r.team = ? AND e.type = ? AND (? IS NULL OR e.season = ?) AND (? IS NULL OR e.start LIKE ?)${where}
      ORDER BY e.season DESC, e.division_code IS NULL, e.start DESC LIMIT 1`,
-    [team, type, season, season, year, year == null ? null : `${year}%`]);
+    [team, type, season, season, year, year == null ? null : `${year}%`, ...(region ? [region.country, ...(region.state ? [region.state] : [])] : [])]);
   return ev ? { ev, listed: true } : null;
 }
 

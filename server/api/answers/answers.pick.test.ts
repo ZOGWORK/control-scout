@@ -111,6 +111,19 @@ describe("who to pick at an event", () => {
     const { teamPickEvent } = await import("./families/pick");
     expect(await teamPickEvent(33950, now, null)).toMatchObject({ ev: { code: "USHIQ2" }, next: true });
   });
+  it("a place said with states is that region's championship", async () => {
+    // Its own rows: 24033 at two state championships, New Jersey's the earlier.
+    const champ = (code: string, name: string, state: string, start: string) => Promise.all([
+      run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, ?, ?, 'Championship', 'Town', ?, 'USA', ?, ?, 't')", [S, code, name, state, start, start]),
+      ...[24033, 6980, 207].map((t) => run("INSERT INTO event_teams (season, code, team) VALUES (?, ?, ?)", [S, code, t])),
+    ]);
+    await champ("USNJCMP", "New Jersey Championship", "NJ", day(-30));
+    await champ("USPACMP", "Pennsylvania Championship", "PA", day(-10));
+    clearAllCaches();
+    expect(await stat("who should 24033 pick at nj states")).toMatchObject({ intent: "pick-partners", title: "Who 24033 should pick at New Jersey Championship" });
+    // With no place, the latest state championship it's at.
+    expect(await stat("who should 24033 pick at states")).toMatchObject({ intent: "pick-partners", title: "Who 24033 should pick at Pennsylvania Championship" });
+  });
   it("asked with any verb of choosing a partner", async () => {
     for (const q of ["who should 4215 choose at northeast league meet", "who should 4215 select as a partner at northeast league meet", "who should 4215 ally with at northeast league meet", "who should 4215 take as their first pick at northeast league meet"]) {
       expect((await stat(q))?.intent, q).toBe("pick-partners");

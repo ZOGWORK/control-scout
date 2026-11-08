@@ -264,13 +264,15 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // Who one team should pick at an event: the pick helper on that event's teams. The event named (its Worlds or state
   // championship division), else the team's next event, else its latest; a stat said is what the helper weighs.
   if (intent === "pick-partners") {
-    if (p.teams.length !== 1 || scope.level || scope.alliance || scope.place || scope.area || scope.window || p.n != null || (p.event && (p.worlds || p.states))) return null;
+    // A place only narrows a state championship ("who should 12345 pick at nj states"), never anything else.
+    const region = p.states && !p.worlds && !p.event ? regionOf(p) : null;
+    if (p.teams.length !== 1 || scope.level || scope.alliance || (scope.place && !region) || scope.area || scope.window || p.n != null || (p.event && (p.worlds || p.states))) return null;
     const year = p.time?.kind === "season" && p.time.year != null ? p.time.year : null;
     const season = p.time?.kind === "season" && p.time.year == null && !p.time.relative && p.time.season != null ? p.time.season : null;
     if (p.time && year == null && season == null) return null;
     const t = p.teams[0], team = { number: t.number, name: t.name };
     const found = p.event ? await eventFor(p.event.words, [t.number], year, season)
-      : p.worlds || p.states ? await teamEventOfType(t.number, p.worlds ? CHAMPIONSHIP_TYPE : STATES_TYPE, season, year)
+      : p.worlds || p.states ? await teamEventOfType(t.number, p.worlds ? CHAMPIONSHIP_TYPE : STATES_TYPE, season, year, region)
       : await teamPickEvent(t.number, opts.now ?? Date.now(), season, year);
     if (!found) return null;
     const why = p.event || p.worlds || p.states ? undefined : `No event was named: this is ${t.number}'s ${"next" in found && found.next ? "next" : "latest"} event.`;
