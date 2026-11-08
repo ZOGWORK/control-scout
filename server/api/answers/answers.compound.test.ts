@@ -91,6 +91,8 @@ describe("reading compound questions", () => {
     expect(readCompound("did 4215 ever beat a team ranked top 10 worldwide")).toMatchObject({ kind: "beat-top", n: 10, by: "rating", when: { ever: true } });
     expect(readCompound("4215's best event by rank and worst event by opr in same season")).toMatchObject({ kind: "event-picks", picks: [{ pick: "best", by: "rank" }, { pick: "worst", by: "opr" }] });
     expect(readCompound("team in NJ that went to worlds in 2025 and their opr")).toMatchObject({ kind: "list", region: { state: "NJ" }, worlds: true, season: 2024, outputs: ["opr"] });
+    // "How many" before the teams asks for the same list, which leads with its count (failed-search #1062).
+    for (const q of ["how many NJ team went to worlds in 2025", "how many team in NJ went to worlds in 2025"]) expect(readCompound(q), q).toMatchObject({ kind: "list", region: { state: "NJ" }, worlds: true, season: 2024 });
     expect(readCompound("4215 vs 6980 vs 33950 which has highest reliability")).toMatchObject({ kind: "set-best", teams: [4215, 6980, 33950], stat: "reliability" });
     expect(readCompound("what is 4215's average score when they win versus when they lose")).toMatchObject({ kind: "win-loss-average", core: "4215" });
     expect(readCompound("4215 opr if you exclude their worst event")).toMatchObject({ kind: "opr-excluding", core: "4215", drop: "worst" });

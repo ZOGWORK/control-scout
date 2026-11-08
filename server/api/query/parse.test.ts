@@ -208,6 +208,12 @@ describe("slots", () => {
   it("a limit or a match number never makes a team's number a year", async () => {
     expect(await parse("2024 last 5 matches")).toMatchObject({ teams: [{ number: 2024 }], n: 5, time: null, intent: "last-matches" });
   });
+  it("a size in teams is a count, never a team's number", async () => {
+    // A team numbered as the size exists, and still isn't read (failed-search #951's side panel showed "team 40").
+    for (const q of ["events in nj with more than 4215 teams", "events with at least 4215 teams", "events with 4215 or more teams", "events over 4215 teams"])
+      expect((await parse(q)).teams, q).toEqual([]);
+    expect((await parse("4215 teams up with")).teams).toMatchObject([{ number: 4215 }]);
+  });
   it("reads a limit, a match number and a match type", async () => {
     expect(await parse("4215 last 5 matches")).toMatchObject({ intent: "last-matches", n: 5 });
     expect(await parse("top 5 teams by opr in nj")).toMatchObject({ intent: "leaderboard", n: 5, place: { state: "NJ" } });

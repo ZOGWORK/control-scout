@@ -130,6 +130,8 @@ const KIND_WORDS = new Set(["meet", "meets", "tournament", "tournaments", "event
 /** The words before a number that make it a count ("top 5", "last 10") or a match's number ("match 3"). */
 const COUNT_BEFORE = /^(?:top|last|first|best|latest|past|recent|bottom|worst|highest|lowest)$/;
 const MATCH_BEFORE = /^(?:match|qual|q|game|qualification)$/;
+/** The words before a number of teams that make it a size ("more than 40 teams", "over 40", "at least 40"). */
+const SIZE_BEFORE = /^(?:than|over|least|most|under|above|below|exceeding)$/;
 /** A floor in points ("more than 50 points", "at least 30 pts"): read before the team and time readers, so its number is
  *  never a team or a season. */
 const FLOOR = /(?:^| )(more than|greater than|over|above|exceeding|beyond|at least) (\d{1,5}) (?:points?|pts)(?= |$)/;
@@ -272,6 +274,9 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     if (prev && MATCH_BEFORE.test(prev) && n <= 400) { p.matchNumber = n; t.used = true; toks[i - 1].used = true; symbols.add("thing:match"); if (prev !== "match" && prev !== "game") p.level = "qual"; continue; }
     // "Top 5 teams", and "top 3" ending the query.
     if (prev && COUNT_BEFORE.test(prev) && n <= 50 && (next ? !ctx.names.team(Number(next)) : !p.teams.length)) { p.n = n; t.used = true; continue; }
+    // A size in teams ("more than 40 teams", "at least 40 teams", "40 or more teams"): a count, never team 40.
+    const sized = /^teams?$/.test(next ?? "") || (next === "or" && /^(?:more|fewer|less)$/.test(toks[i + 2]?.w ?? "") && /^teams?$/.test(toks[i + 3]?.w ?? ""));
+    if (sized && (SIZE_BEFORE.test(prev ?? "") || next === "or")) { t.used = true; continue; }
     const team = ctx.names.team(n);
     if (team) {
       // A name several teams share, with one of their numbers typed right beside it ("<shared name> <number>", "<number>
