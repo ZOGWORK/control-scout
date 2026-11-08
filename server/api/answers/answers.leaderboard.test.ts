@@ -230,6 +230,43 @@ describe("the top teams in a date window", () => {
       expect((await searchAnswer("top teams in nj", { limit: 25, full: true })).stat?.intent).not.toBe("window-best");
     } finally {
       vi.useRealTimers();
+      // Its events leave no rows behind for the boards below.
+      await run("DELETE FROM team_event_stats WHERE code IN ('USNJWK', 'USTXWK', 'USNJOLD')"); await run("DELETE FROM events WHERE code IN ('USNJWK', 'USTXWK', 'USNJOLD')");
+    }
+  });
+});
+
+describe("OPR gained within a season", () => {
+  it("reads the gain, said any way, apart from the climb in standing", () => {
+    expect(readLeaderboard("top 3 most improved teams in texas by opr growth")).toMatchObject({ kind: "gain", stat: "opr", n: 3, region: { key: "USA:TX" } });
+    expect(readLeaderboard("which texas team raised its opr the most from its first to its last event")).toMatchObject({ kind: "gain", n: 10, region: { key: "USA:TX" } });
+    // Counted at some events only, or on a day: no gain board (it counts every event of the season).
+    expect(readLeaderboard("which teams gained the most opr at new jersey events")?.kind).not.toBe("gain");
+    expect(readLeaderboard("which teams gained the most opr out of state")?.kind).not.toBe("gain");
+    expect(readLeaderboard("what teams in nj gained the most opr across the season")).toMatchObject({ kind: "gain", region: { key: "USA:NJ" } });
+    expect(readLeaderboard("most improved teams in texas")).toMatchObject({ kind: "improved" });
+  });
+  it("ranks the first event's OPR to the last's, 2+ events only, in the place", async () => {
+    const ev = (code: string, start: string) => run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, ?, ?, 'Qualifier', 'Edison', 'NJ', 'USA', ?, ?, 't')", [code, `Meet ${code}`, start, start]);
+    await ev("G1", "2025-11-01"); await ev("G2", "2026-01-10"); await ev("G3", "2026-02-01");
+    // 6980: 20 → 70; 4215: 80 → 110 (its middle event never counts); 23268 one event only; 19564 in Texas.
+    for (const [code, team, opr] of [["G1", 4215, 80], ["G2", 4215, 140], ["G3", 4215, 110], ["G1", 6980, 20], ["G2", 6980, 70], ["G2", 23268, 150], ["G1", 19564, 10], ["G3", 19564, 200]] as const) {
+      await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (2025, ?, ?, ?, 5)", [code, team, opr]);
+    }
+    try {
+      const b = await searchAnswer("most improved teams in new jersey in 2025-26 by opr gain", { limit: 25, full: true });
+      expect(b.stat).toMatchObject({ intent: "opr-gain", title: "Most OPR gained in New Jersey between first and last event · 2025–26", headline: { value: "6980 Bad Wolf", label: "+50.0 OPR: 20.0 → 70.0 over 2 events · Oradell" } });
+      const t = b.stat!.blocks[0];
+      if (t.kind !== "table") throw new Error(t.kind);
+      expect(t.rows.map((r) => [r.cells.team, r.cells.gain])).toEqual([["6980 Bad Wolf", "+50.0"], ["4215 Hypnotic Robotics", "+30.0"]]);
+      // Asked of "teams" or "team" through search, the same whole board.
+      for (const q of ["what teams in nj gained the most opr across the season in 2025-26", "which nj team improved its opr the most in 2025-26"]) {
+        const c = await searchAnswer(q, { limit: 25, full: true });
+        expect(c.stat?.title, q).toBe("Most OPR gained in New Jersey between first and last event · 2025–26");
+        expect((c.stat!.blocks[0] as { rows: unknown[] }).rows, q).toHaveLength(2);
+      }
+    } finally {
+      await run("DELETE FROM team_event_stats WHERE code IN ('G1', 'G2', 'G3')"); await run("DELETE FROM events WHERE code IN ('G1', 'G2', 'G3')");
     }
   });
 });
