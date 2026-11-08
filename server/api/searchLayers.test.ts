@@ -121,6 +121,12 @@ describe("filler: never changes an answer; forbidden words are never ignored", (
     // A greeting alone is no query: nothing is made from it.
     expect((await stripFiller("hello")).q).toBe("hello");
   });
+  it("how an answer is to be shown goes at the end of a query only", async () => {
+    expect(await stripFiller("207 matches at east bergen, in order, with scores")).toEqual({ q: "207 matches at east bergen,", dropped: ["with scores", "in order"] });
+    expect((await stripFiller("matches with scores over 200")).q).toBe("matches with scores over 200");
+    // Nothing left but the tail: the query stays as typed.
+    expect((await stripFiller("in order")).q).toBe("in order");
+  });
   it("a forbidden word changes the outcome, blocks or is named, never silently dropped", async () => {
     const want = sig(await ask("4215 opr"));
     const silent: string[] = [];

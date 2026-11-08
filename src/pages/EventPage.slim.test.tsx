@@ -35,7 +35,7 @@ vi.mock("../lib/liveMode", async (orig) => ({
 vi.mock("../components/LivePanel", () => ({
   LivePanel: () => <section data-live-panel>Live now</section>,
   LiveCountdownChip: () => null,
-  useLiveTarget: () => ({ teams: new Map(), mine: null, next: null }),
+  useLiveTarget: () => ({ teams: new Map(), mine: null, next: null, matches: [] }),
 }));
 // The tables fetch on their own; these tests are about the header.
 vi.mock("../components/records/RecordsTable", () => ({ RecordsTable: () => <div>records table</div> }));

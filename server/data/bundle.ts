@@ -70,6 +70,8 @@ export interface MatchRow {
   label: string;
   description: string | null;
   time: string | null;
+  /** The posted start (FIRST's schedule startTime), kept once `time` becomes the real start. */
+  scheduled?: string | null;
   played: boolean;
   red: MatchTeam[];
   blue: MatchTeam[];
@@ -192,10 +194,10 @@ export function bundleStatements(b: EventBundle): InStatement[] {
     s.push({
       sql: `INSERT OR REPLACE INTO matches (season, code, level, series, number, label, description, time, played,
               red_total, red_np, red_auto, red_teleop, red_endgame, red_pen, red_bonus, red_tips,
-              blue_total, blue_np, blue_auto, blue_teleop, blue_endgame, blue_pen, blue_bonus, blue_tips, video, source, field, breakdown, red_detail, blue_detail)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              blue_total, blue_np, blue_auto, blue_teleop, blue_endgame, blue_pen, blue_bonus, blue_tips, video, source, field, breakdown, red_detail, blue_detail, scheduled)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [...k, m.level, m.series, m.number, m.label, m.description, m.time, m.played ? 1 : 0, ...sc(m.redScore), ...sc(m.blueScore), m.video ?? null, e.source, m.field ?? null, m.played ? (m.breakdown === false ? 0 : 1) : null,
-        ...[m.redDetail, m.blueDetail].map((x) => (m.played && x ? JSON.stringify(x) : null))],
+        ...[m.redDetail, m.blueDetail].map((x) => (m.played && x ? JSON.stringify(x) : null)), m.scheduled ?? null],
     });
     for (const [alliance, ts] of [["red", m.red], ["blue", m.blue]] as const) {
       for (const t of ts) {

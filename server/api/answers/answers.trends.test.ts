@@ -3,6 +3,7 @@
 // metrics), rising or falling against the event before, a season's penalty total, and OPR and record by season.
 import { beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../../db";
+import { clearAllCaches } from "../../caches";
 import { rebuildSearch } from "../../stats/job";
 import { searchAnswer } from "../searchAnswer";
 import { readStatQuestion } from "./read";
@@ -22,6 +23,16 @@ beforeAll(async () => {
     await run("INSERT INTO event_teams (season, code, team, rank, rp) VALUES (?, ?, 4215, 3, ?)", [season, code, rp]);
     await run("INSERT INTO team_event_stats (season, code, team, opr_np, avg_score, avg_pen, matches, wins, losses, ties) VALUES (?, ?, 4215, ?, ?, ?, ?, ?, ?, 0)", [season, code, opr, score, pen, n, w, l]);
   }
+  // TeleOp OPR and the reliability index at each 2025–26 event (failed-search #863/#999, #862/#1000).
+  for (const [code, teleop, idx] of [["USNJQ2", 30, 70], ["USNJCMP", 45, 64]] as const) {
+    await run("UPDATE team_event_stats SET opr_teleop = ? WHERE season = 2025 AND code = ? AND team = 4215", [teleop, code]);
+    await run(`INSERT INTO team_reliability (season, code, team, matches, no_shows, dqs, near_zero, contrib_n, recent_matches, recent_no_shows, recent_near_zero, idx, computed_at)
+      VALUES (2025, ?, 4215, 5, 0, 0, 0, 5, 5, 0, 0, ?, 't')`, [code, idx]);
+  }
+  // An event it was listed for but never took the field at: no event row of its own, only its reliability (all no-shows).
+  await ev(2025, "USNJSQ", "Super Qualifier", "Qualifier", "2026-03-20");
+  await run(`INSERT INTO team_reliability (season, code, team, matches, no_shows, dqs, near_zero, contrib_n, recent_matches, recent_no_shows, recent_near_zero, idx, computed_at)
+    VALUES (2025, 'USNJSQ', 4215, 5, 5, 0, 0, 0, 5, 5, 0, 20, 't')`);
   await run("INSERT INTO team_season_stats (season, team, opr_np, rank_np, ranked_teams, events, matches, wins, losses, ties) VALUES (2024, 4215, 144.8, 370, 7608, 1, 12, 7, 5, 0), (2025, 4215, 101.6, 616, 8375, 2, 14, 10, 4, 0)");
   await rebuildSearch();
 });
@@ -39,6 +50,8 @@ describe("trends", () => {
     expect(readStatQuestion("4215 win rate at worlds")).toMatchObject({ id: "win-percent", scope: { championship: true } });
     expect(readStatQuestion("4215 average alliance score by event")).toMatchObject({ id: "avg-score-by-event" });
     expect(readStatQuestion("4215 ranking points")).toMatchObject({ id: "ranking-points" });
+    for (const q of ["4215 rp", "4215 rps"]) expect(readStatQuestion(q), q).toMatchObject({ id: "ranking-points" });
+    for (const q of ["who has 4215 played with", "who did 4215 play with", "who has 4215 teamed up with"]) expect(readStatQuestion(q), q).toMatchObject({ id: "partners" });
     // A scope a trend can't apply is left to search.
     expect(readStatQuestion("4215 opr history at worlds")).toBeNull();
     expect(readStatQuestion("2024 OPR by season")).toMatchObject({ id: "opr-by-season", core: "2024", scope: { season: null } });
@@ -68,5 +81,48 @@ describe("trends", () => {
     const t = o.blocks.find((b) => b.kind === "table");
     expect(t && t.kind === "table" && t.columns.map((c) => c.key)).toEqual(["season", "rank", "share"]);
     expect((await searchAnswer("4215 record by season", { limit: 25 })).stat!.headline).toMatchObject({ value: "10-4-0", label: "in 2025–26 · 71% wins" });
+  });
+});
+
+// A phase's OPR and the reliability index, event by event (failed-search #862, #863, #999, #1000): held out from the
+// issues' words (other team, other phrasings).
+describe("a phase's OPR and reliability by event", () => {
+  it("what's read", () => {
+    expect(readStatQuestion("4215 teleop opr history")).toMatchObject({ id: "teleop-history", core: "4215" });
+    expect(readStatQuestion("4215 auto trend")).toMatchObject({ id: "auto-history", core: "4215" });
+    expect(readStatQuestion("4215 endgame over time")).toMatchObject({ id: "endgame-history", core: "4215" });
+    expect(readStatQuestion("4215 reliability by event")).toMatchObject({ id: "reliability-history", core: "4215" });
+    // The OPR's own history stays the OPR's; a plain phase OPR or reliability stays the fact's.
+    expect(readStatQuestion("4215 opr history")).toMatchObject({ id: "opr-history" });
+    for (const q of ["4215 teleop opr", "4215 reliability"]) expect(readStatQuestion(q)?.family, q).not.toBe("trend");
+  });
+  it("each event's number, rising or falling against the event before", async () => {
+    const t = await searchAnswer("is hypnotic robotics' teleop getting better", { limit: 25 });
+    expect(t.stat).toMatchObject({ intent: "teleop-history", title: "TeleOp OPR by event in 2025–26", headline: { value: "45.0", label: "TeleOp OPR at New Jersey Championship · Rising" } });
+    const s = t.stat!.blocks.find((b) => b.kind === "series");
+    expect(s && s.kind === "series" && s.points.map((p) => [p.x, p.y])).toEqual([["Qualifier Two", 30], ["New Jersey Championship", 45]]);
+    for (const q of ["4215 reliability over the season", "how reliable has 4215 been event by event"]) {
+      const r = await searchAnswer(q, { limit: 25 });
+      // The latest is the event of no-shows only: it counts, never hidden behind an older one (Greptile on #1074).
+      expect(r.stat, q).toMatchObject({ intent: "reliability-history", title: "Reliability by event in 2025–26", headline: { value: "20", label: "Reliability at Super Qualifier · Falling" } });
+      const rs = r.stat!.blocks.find((b) => b.kind === "series");
+      expect(rs && rs.kind === "series" && rs.points.map((p) => [p.x, p.y]), q).toEqual([["Qualifier Two", 70], ["New Jersey Championship", 64], ["Super Qualifier", 20]]);
+    }
+  });
+});
+
+describe("a season with events played but no value yet", () => {
+  it("reads the latest season the measure has a value in, and says so; a season named stays that season", async () => {
+    // A 2026–27 meet it played, its rankings not posted: the OPR is there, the ranking points aren't.
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2026, 'USNJM1', 'League Meet One', 'League Meet', 'Edison', 'NJ', 'USA', '2026-11-01', '2026-11-01', 't')");
+    await run("INSERT INTO event_teams (season, code, team, rank, rp) VALUES (2026, 'USNJM1', 4215, NULL, NULL)");
+    await run("INSERT INTO team_event_stats (season, code, team, opr_np, avg_score, avg_pen, matches, wins, losses, ties) VALUES (2026, 'USNJM1', 4215, 80, 120, 5, 4, 2, 2, 0)");
+    clearAllCaches(); // the team's event rows are cached from the tests above
+    const rp = await searchAnswer("4215 rp", { limit: 25 });
+    expect(rp.stat).toMatchObject({ intent: "ranking-points", title: "Ranking points by event in 2025–26", headline: { value: "1.50" } });
+    expect(rp.stat!.definition).toContain("The season is 2025–26, the team's latest with ranking points on record");
+    // A measure that has a value in the newest season reads it.
+    expect((await searchAnswer("4215 opr history", { limit: 25 })).stat).toMatchObject({ title: "OPR by event in 2026–27" });
+    expect((await searchAnswer("4215 ranking points in 2026-27", { limit: 25 })).stat!.none).toBe("No ranking points by event in 2026–27 for Hypnotic Robotics (4215) yet.");
   });
 });

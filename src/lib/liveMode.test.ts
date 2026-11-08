@@ -4,7 +4,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EventDetail, MatchView } from "../shared/api";
-import { countdownWords, formatCountdown, isLiveMode, MIN_GAP_MS, nextMatch, pollInterval, relevantTeams, useEventPoll, venueClock } from "./liveMode";
+import { countdownWords, formatCountdown, isLiveMode, MAX_POST_LAG_MS, MIN_GAP_MS, nextMatch, pace, pollInterval, relevantTeams, useEventPoll, venueClock } from "./liveMode";
 
 type D = Pick<EventDetail, "event" | "live">;
 const ev = (status: EventDetail["event"]["status"], live: EventDetail["live"]): D => ({ event: { status } as EventDetail["event"], live });
@@ -218,5 +218,97 @@ describe("useEventPoll", () => {
     window.dispatchEvent(new Event("focus"));
     act(() => { vi.advanceTimersByTime(60_000); });
     expect(reload).not.toHaveBeenCalled();
+  });
+});
+
+describe("pace: countdowns on the field's real pace", () => {
+  const T = Date.UTC(2026, 10, 7, 14, 0);
+  const t = (min: number) => new Date(T + min * 60_000).toISOString();
+  // Q1..Q6 posted every 7 min from 0; lunch before Q6 (posted at 90).
+  const sched = (played: Record<number, number> = {}) => [0, 7, 14, 21, 28, 90].map((s, i) => {
+    const n = i + 1;
+    return match(n, [n * 10 + 1, n * 10 + 2], [n * 10 + 3, n * 10 + 4], n in played ? { played: true, startsAt: t(played[n]) } : { startsAt: t(s) });
+  });
+  const est = (p: ReturnType<typeof pace>, n: number) => (p.est.get(`qual:0:${n}`)! - T) / 60_000;
+
+  it("nothing until the day's first match has a result, even past its posted start", () => {
+    const p = pace(sched(), T + 10 * 60_000);
+    expect(p.opener?.label).toBe("Q1");
+    expect(p.est.size).toBe(0);
+  });
+  it("on time: the posted schedule", () => {
+    const p = pace(sched({ 1: 0 }), T + 2 * 60_000);
+    expect([est(p, 2), est(p, 3), est(p, 6)]).toEqual([7, 14, 90]);
+    expect(p).toMatchObject({ opener: null, onField: null, shift: 0 });
+  });
+  it("Q1 started 20 min late: everything up to lunch moves 20 min, and lunch absorbs it", () => {
+    const p = pace(sched({ 1: 20 }), T + 23 * 60_000);
+    expect([est(p, 2), est(p, 3), est(p, 5), est(p, 6)]).toEqual([27, 34, 48, 90]);
+    expect(p.shift).toBe(20 * 60_000);
+  });
+  it("the field speeding up: the shorter real cycle, so the timer is early rather than late", () => {
+    const p = pace(sched({ 1: 20, 2: 25 }), T + 26 * 60_000); // a 5-min real cycle against 7 posted
+    expect(est(p, 3)).toBe(30);
+  });
+  it("no score long after the estimate: the match is on the field, and later ones wait for it", () => {
+    const now = T + 40 * 60_000;
+    const p = pace(sched({ 1: 20 }), now); // Q2 estimated at 27, still no score at 40
+    expect(est(p, 2)).toBe(40 - MAX_POST_LAG_MS / 60_000);
+    expect(p.onField?.label).toBe("Q2");
+    expect(est(p, 3)).toBe(39);
+  });
+  it("a lunch late in a short schedule doesn't set the cycle", () => {
+    const short = [match(1, [1, 2], [3, 4], { played: true, startsAt: t(0) }), match(2, [5, 6], [7, 8], { startsAt: t(7) }),
+      match(3, [1, 3], [2, 4], { startsAt: t(14) }), match(4, [5, 7], [6, 8], { startsAt: t(90) })];
+    const p = pace(short, T + 60_000);
+    expect([est(p, 2), est(p, 3), est(p, 4)]).toEqual([7, 14, 90]);
+  });
+  it("a field running early isn't taken for a break", () => {
+    // Q1–Q4 really started 0, 5, 10, 15 against 7-min posted cycles: Q5 (posted 28) is due at 20, not 28.
+    const p = pace(sched({ 1: 0, 2: 5, 3: 10, 4: 15 }), T + 18 * 60_000);
+    expect(est(p, 5)).toBe(20);
+  });
+  it("with posted starts kept: a field 30 min early is early, and a lunch is a lunch", () => {
+    // Posted every 10 min; the field runs 5-min cycles, so Q6 (posted 50) really started at 25. Q7 (posted 60) is
+    // due at 30: the posted gap before it is 10, no break, however far ahead the field is.
+    const fast = [0, 10, 20, 30, 40, 50, 60, 70].map((s, i) => {
+      const n = i + 1;
+      return n <= 6 ? match(n, [n], [n + 10], { played: true, startsAt: t(5 * i), scheduledAt: t(s) }) : match(n, [n], [n + 10], { startsAt: t(s) });
+    });
+    expect(est(pace(fast, T + 27 * 60_000), 7)).toBe(30);
+    // Lunch: Q5 played (posted 28, real 40, 12 late); Q6 posted 90: a 62-min posted gap is a break.
+    const lunch = sched({ 1: 0, 2: 7, 3: 14, 4: 21 }).map((m) => (m.number === 5 ? { ...m, played: true, startsAt: t(40), scheduledAt: m.startsAt } : m));
+    expect(est(pace(lunch, T + 45 * 60_000), 6)).toBe(90);
+  });
+  it("lunch with the field on time: the posted restart holds", () => {
+    expect(est(pace(sched({ 1: 0, 2: 7, 3: 14, 4: 21, 5: 28 }), T + 30 * 60_000), 6)).toBe(90);
+  });
+  it("a new day waits again: yesterday's results don't count", () => {
+    const ms = [match(1, [1, 2], [3, 4], { played: true, startsAt: t(-24 * 60) }), match(2, [5, 6], [7, 8], { startsAt: t(0) })];
+    expect(pace(ms, T).opener?.label).toBe("Q2");
+  });
+  it("no times: still waits for the first score, then has nothing to pace", () => {
+    expect(pace([match(1, [1, 2], [3, 4]), match(2, [5, 6], [7, 8])], T).opener?.label).toBe("Q1");
+    expect(pace([match(1, [1, 2], [3, 4], { played: true }), match(2, [5, 6], [7, 8])], T)).toMatchObject({ opener: null, onField: null });
+  });
+  it("a schedule posted 12 hours off: its gaps, not its clock", () => {
+    // Posted 7 min apart from 12 h before the field really ran, lunch before Q6; Q1 really started at 0.
+    const off = [0, 7, 14, 21, 28, 90].map((s, i) => {
+      const n = i + 1;
+      return n === 1 ? match(n, [n], [n + 10], { played: true, startsAt: t(0), scheduledAt: t(-720) }) : match(n, [n], [n + 10], { startsAt: t(s - 720) });
+    });
+    const p = pace(off, T + 60_000);
+    expect(p.clockOk).toBe(false);
+    expect([est(p, 2), est(p, 3), est(p, 6)]).toEqual([7, 14, 90]); // lunch keeps the shift: no snap back 12 h
+  });
+  it("a wrong clock with lunch right after the latest score: the break's gap holds", () => {
+    // Q5 posted 28 but really started 12 h later (at 28); Q6 posted 90 after lunch: due at 90, not during lunch.
+    const ms = [0, 7, 14, 21, 28, 90].map((s, i) => {
+      const n = i + 1;
+      return n <= 5 ? match(n, [n], [n + 10], { played: true, startsAt: t(s), scheduledAt: t(s - 720) }) : match(n, [n], [n + 10], { startsAt: t(s - 720) });
+    });
+    const p = pace(ms, T + 30 * 60_000);
+    expect(p.clockOk).toBe(false);
+    expect(est(p, 6)).toBe(90);
   });
 });
