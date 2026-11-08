@@ -12,6 +12,7 @@
 //   Worlds     "where is worlds", "worlds 2026", "worlds divisions"             → the FIRST Championship's events
 //   an event's page  "nj states rankings", "match 12 at nj states"             → that event's tab or match
 //   a team, kept     "12345 alliance partners", "bad wolf robotics"             → the team, never "no results"
+import { AsyncLocalStorage } from "node:async_hooks";
 import type { SearchAnswer, SearchCardFact, SearchCardLine, SearchHit, SearchSection } from "../../src/shared/api.js";
 import type { TeamTable } from "../../src/shared/teamTable.js";
 import { PHASE_COLS, tableOf, tableRow } from "./teamTableRows.js";
@@ -83,7 +84,18 @@ const AWARD_WORD = /(?:^| )(inspire|think|innovate|design|motivate|connect|contr
  *  rest names an event; or null. The award
  *  word is kept wherever it sits, and the rest must be an event, never a team ("Got Milk inspire" stays the team's). */
 export async function awardQuery(q: string): Promise<string | null> {
-  const t = squash(q.toLowerCase().replace(/[?!.,]/g, " "));
+  let t = squash(q.toLowerCase().replace(/[?!.,]/g, " "));
+  // A season said anywhere ("… inspire 2025-26", "… in decode", "… last year") is the event's season, never its name:
+  // "last year" is the season before the current one; "this year" is the newest, as with no season said.
+  const g = seasonWord(t);
+  const rel = g ? null : new RegExp(`(?:^|\\s)(?:in\\s+|for\\s+|during\\s+)?(?:the\\s+)?${SEASON_WORDS}(?=\\s|$)`).exec(t);
+  const season = g ? g.season : rel && /^(?:last|previous)/.test(rel[1]) ? `${CURRENT_SEASON - 1}-${String(CURRENT_SEASON % 100).padStart(2, "0")}` : rel && /\d/.test(rel[1]) ? rel[1].replace(/\s+/g, "") : "";
+  if (g) t = g.rest;
+  else if (rel) t = squash(t.slice(0, rel.index) + " " + t.slice(rel.index + rel[0].length));
+  // A place asked ("who got 2nd place inspire at …"): the award's places are all listed, that one first.
+  const pm = /(?:^| )(?:(1st|2nd|3rd)(?: place)?|(first|second|third) place)(?= |$)/.exec(t);
+  const place = pm ? (pm[1] ? Number(pm[1][0]) : ["first", "second", "third"].indexOf(pm[2]) + 1) : null;
+  if (pm) t = squash(t.slice(0, pm.index) + " " + t.slice(pm.index + pm[0].length));
   const found = [...t.matchAll(AWARD_WORD)];
   if (found.length !== 1 || /\b\d{1,6}\b/.test(t.replace(/\b(?:19|20)\d\d\b/g, ""))) return null;
   const award = found[0][1].replace(/['’]/g, "").replace(/^deans?s? list$/, "deans list");
@@ -94,7 +106,7 @@ export async function awardQuery(q: string): Promise<string | null> {
   if (!rest) return null;
   const e = readEventQuery(rest);
   const event = (e && !e.words.length && (e.kinds.length || e.region)) || await (await parseContext()).isEvent(rest);
-  return event ? `who won ${award} at ${rest}` : null;
+  return event ? squash(`who won ${place ? `${["", "1st", "2nd", "3rd"][place]} place ` : ""}${award} at ${rest} ${season}`) : null;
 }
 
 /** A query said another way that the readers already answer, and why; or null. `q` is cleaned, any case. `pre`: tried
@@ -182,6 +194,9 @@ export function rewriteQuery(q: string, named: ReadonlySet<string> = new Set()):
   if ((m = /^(?:all\s+)?(?:the\s+)?(?:ftc\s+)?(events?|meets?|competitions?|tournaments?)(?:\s+(?:this|ths|tis|thsi|current)(?:\s+(?:season|year))?)?$/.exec(t))) {
     return { q: `${m[1].replace(/s?$/, "s")} in ${seasonLabel(CURRENT_SEASON).replace("–", "-")}`, pre: true };
   }
+  // A team's quality or a showing at an event asked in plain words: its season's numbers, or its results there.
+  const plain = plainTeamQuestion(t);
+  if (plain) return { q: plain, pre: true };
   // A question opened with filler ("so like what was 12345 last game"): the question.
   if ((m = /^(?:(?:so|like|um+|uh+|ok|okay|hey|yo|bro)\s+)+((?:what|who|when|where|how|which|is|are|did|does|has|have)\b.+|\d{1,6}\b.+)$/.exec(t))) return { q: m[1], pre: true };
   // A team's matches "in" an event, said as "at" ("12345 matches in worlds").
@@ -307,13 +322,52 @@ export function rewriteQuery(q: string, named: ReadonlySet<string> = new Set()):
   return null;
 }
 
+/** Words that say a team is good, said any way ("any good", "actually that good", "cracked"). */
+const QUALITY = String.raw`(?:(?:any|really|actually|that|so|even|truly)\s+)*(?:good|strong|decent|competitive|cracked|elite|legit|any\s+good)`;
+/** Asides around a plain question, never part of it: "or just hype", "be honest", "like in plain numbers", "or nah". */
+const ASIDE = /(?:\s+(?:or\s+(?:just\s+)?(?:hype|hyped|overrated|not|nah|what)|be\s+honest|honestly|for\s+real|really|actually|lol|(?:like\s+)?in\s+plain\s+(?:numbers|words|english|terms)|if\s+(?:they|it)\s+(?:played|competed|were\s+around|was\s+around)(?:\s+(?:then|that\s+(?:year|season)))?))+$/;
+/** How a showing at an event is said in slang ("choke", "flop", "do well"). */
+const SHOWING = String.raw`(?:choke|choked|flop|flopped|bomb|bombed|tank|tanked|struggle|struggled|do\s+(?:well|badly|bad|good|ok|okay|alright)|perform(?:\s+well)?)`;
+
+/** A one-team question in plain words, said the way the readers read it, or null:
+ *    "is 12345 actually that good or just hype, in 2025-26", "can you tell me if bad wolf is good, be honest",
+ *    "whats up with bad wolf, are they cracked", "how good is 12345 really"  → "how good is 12345 [in 2025-26]"
+ *    "did bad wolf choke at states or nah"                                     → "how did bad wolf do at states"
+ *    "show me 12345 in 2023, if they played then"                              → "12345 in 2023"
+ *  The team is whatever the frame leaves; a frame with anything after the quality word ("good at auto") isn't one. */
+export function plainTeamQuestion(t: string): string | null {
+  const s = squash(t.replace(/[,?!.]+/g, " "));
+  // The season said, kept as said.
+  const sm = new RegExp(`\\s+(?:in\\s+|for\\s+|during\\s+)?${SEASON_WORDS}(?=\\s|$)`).exec(s) ?? /\s+(?:in|during)\s+(20\d\d)(?=\s|$)/.exec(s);
+  const when = sm ? ` in ${sm[1]}` : "";
+  const bare = sm ? squash(s.replace(sm[0], " ")) : s;
+  const core = bare.replace(ASIDE, "");
+  let m: RegExpExecArray | null;
+  // Never two teams, an event or a game's season ("whats up with decode").
+  const team = (w: string) => (/\b(?:than|vs\.?|versus|or|and|at|in)\b/.test(w) || EVENT_WORDS.test(w) || gameSeason(w) ? null : w);
+  if ((m = new RegExp(`^(?:can|could|would)\\s+(?:you|u)\\s+tell\\s+me\\s+(?:if|whether)\\s+(.+?)\\s+(?:is|are)\\s+${QUALITY}$`).exec(core))
+    || (m = new RegExp(`^(?:is|are)\\s+(.+?)\\s+${QUALITY}$`).exec(core))
+    || (m = new RegExp(`^(?:what'?s|what\\s+is|whats)\\s+up\\s+with\\s+(.+?)(?:\\s+(?:are|is)\\s+(?:they|it|them)(?:\\s+${QUALITY})?)?$`).exec(core))
+    // "How good is" with an aside after it: the aside goes ("how good is 12345" alone is already read as it is).
+    || (core !== bare && (m = /^how\s+(?:good|strong)\s+(?:is|are)\s+(.+)$/.exec(core)))) {
+    const who = team(m[1]);
+    return who ? `how good is ${who}${when}` : null;
+  }
+  if ((m = new RegExp(`^did\\s+(.+?)\\s+${SHOWING}\\s+at\\s+(.+)$`).exec(core)) && team(m[1])) return `how did ${m[1]} do at ${m[2]}${when}`;
+  // A team and a season, with "if they played then" after it: the team's season.
+  if (core !== bare && sm && (m = /^(?:show\s+me\s+)?(\d{1,6})$/.exec(core))) return `${m[1]}${when}`;
+  return null;
+}
+
 const nameOf = (h: SearchHit) => `${teamNameOf(h.title)} (${h.ref})`;
 const titleCase = (s: string) => s.replace(/(^|\s)(\p{L})/gu, (_, a: string, c: string) => a + c.toUpperCase());
 
 const answer = (q: string, a: Omit<SearchAnswer, "q" | "step" | "weak"> & { step?: SearchAnswer["step"] }): SearchAnswer =>
   ({ q, step: "deterministic", weak: false, ...a });
 
-type Explainer = { words: RegExp; label: string; lines: SearchCardLine[]; pages: { title: string; href: string }[] };
+/** `term` finds the word inside a longer question, `stat` is the team stat that shows a team's own number of it
+ *  ("how is OPR calculated, with 4215"), `change` the stat a "why did it go down" asks, and `why` what moves it. */
+type Explainer = { words: RegExp; label: string; lines: SearchCardLine[]; pages: { title: string; href: string }[]; term?: RegExp; stat?: string; change?: string; why?: SearchCardLine[] };
 
 /** FIRST's own pages for the rules: lines link straight to them (the page's links and the box open a full URL as is). */
 const OFFICIAL = { manual: "https://ftc-resources.firstinspires.org/ftc/game/manual", events: "https://ftc-events.firstinspires.org" };
@@ -350,6 +404,7 @@ const EXPLAINS: Explainer[] = [
   {
     words: /^(?:what(?:'s| is| does)?|how (?:is|do you|does)|explain|define|meaning of)?\s*(?:an?\s+)?opr\s*(?:mean|means|calculated|computed|worked out|work|stand for|meaning|definition)?$/,
     label: "OPR: what it is and how it's worked out",
+    term: /\bopr\b/, stat: "opr",
     lines: [
       { text: "OPR estimates each robot's average contribution to its alliance's score", detail: "Solved from an event's qualification matches (plain least squares), with auto, TeleOp and endgame parts", href: "/methodology#opr" },
       { text: "Control Scout's OPR counts non-penalty points only", detail: "A team's season OPR is its best event OPR. Predictions use the rating instead", href: "/methodology#opr" },
@@ -359,6 +414,8 @@ const EXPLAINS: Explainer[] = [
   {
     words: /^(?:what(?:'s| is| are| does)?|how (?:is|are|does))?\s*(?:the\s+)?(?:prediction\s+)?rating\s*(?:mean|calculated|work|worked out)?$/,
     label: "The prediction rating: how it's worked out",
+    term: /\b(?:prediction )?rating\b/, stat: "rating", change: "rating change",
+    why: [{ text: "A rating moves on the alliance's score against what its ratings expected, not on who won", detail: "A win that scores less than expected splits the miss between the two robots, and both ratings go down", href: "/methodology#rating" }],
     // As the methodology page says it (src/pages/MethodologyPage.tsx #rating, #rating-assumption), with the engine's own settings.
     lines: [
       { text: "A rating is the points a robot is expected to add to its alliance's score", detail: "In real game points, split into auto, TeleOp, endgame and the penalty points it gives away", href: "/methodology#rating" },
@@ -378,6 +435,17 @@ const EXPLAINS: Explainer[] = [
       { text: "Every part is pulled toward the season average, so a few matches can't make a team look perfect or broken", detail: "The weights are a stated rule, not fitted. A near-zero match is a hint, not proof of a dead robot", href: "/methodology#reliability" },
     ],
     pages: [{ title: "How reliability is worked out", href: "/methodology#reliability" }],
+  },
+  {
+    words: /^(?:what(?:'s| is| are| does)?|whats)?\s*(?:the\s+)?(?:auto(?:nomous)?|tele ?op|tele-op|driver[- ]controlled|end ?game)(?:\s+(?:period|phase|points?|and\s+(?:auto(?:nomous)?|tele ?op|end ?game)))*\s*(?:mean|means|in ftc)?$/,
+    label: "A match's periods: auto, TeleOp and endgame",
+    // As the app's match timer and stat list say it (src/lib/videoMoment.ts, src/shared/statCatalog.ts, #opr).
+    lines: [
+      { text: "A match opens with 30 s of auto: robots run their own code, no drivers", detail: "Then an 8 s transition while drivers pick up the controllers", href: "/rules" },
+      { text: "TeleOp is the 2-minute driver-controlled period; its last 30 s are the endgame", detail: "From 2024–25 on, FIRST's TeleOp points include the endgame; Control Scout also shows the endgame on its own", href: "/methodology#opr" },
+      { text: "Every OPR and rating is split into these parts", detail: "Auto, TeleOp and endgame, plus the penalty points a robot gives away", href: "/methodology#rating" },
+    ],
+    pages: [{ title: "Rules", href: "/rules" }, { title: "How OPR is calculated", href: "/methodology#opr" }],
   },
   {
     words: /^(?:how (?:are|is|do you|does (?:control scout|the engine|it))\s+(?:the\s+)?(?:match\s+)?predictions?\s+(?:made|calculated|worked out|work|done)|how (?:does|do) (?:the\s+)?(?:predictions?|prediction engine|predictor) work|how (?:are|is) (?:the\s+)?(?:win\s+)?(?:odds|win (?:chances?|probabilit(?:y|ies))) (?:made|calculated|worked out))$/,
@@ -407,6 +475,7 @@ const EXPLAINS: Explainer[] = [
   {
     words: /^(?:what(?:'s| is| are| does)?|how (?:are|do|does))?\s*(?:an?\s+|the\s+)?(?:rp|rps|ranking points?|ranking score)\s*(?:mean|calculated|work|worked out)?$/,
     label: "Ranking points: how they work",
+    term: /\b(?:ranking (?:score|points?)|rps?)\b/, stat: "rank",
     lines: [{ text: "Ranking points follow each season's real rules", detail: "2025–26 gives 3 for a win and 1 for a tie, plus bonus RPs; the tiebreaker is average non-penalty score", href: "/methodology#advancement" }],
     pages: [{ title: "How ranking points and advancement work", href: "/methodology#advancement" }, { title: "Rankings", href: "/rankings" }],
   },
@@ -474,18 +543,93 @@ const EXPLAINS: Explainer[] = [
   },
 ];
 
+/** The explainer whose words a question is. */
+const explainerOf = (t: string) => EXPLAINS.find((e) => e.words.test(t));
+
+/** A question without its framing: "teleop explained", "… in plain words, for a beginner", "explain opr" → the word. */
+function unframed(t: string): string {
+  for (let prev = ""; prev !== t;) {
+    prev = t;
+    t = t.replace(/^(?:(?:can you|could you|please)\s+)*(?:explain|describe)\s+(?:to me\s+)?(?=\S)/, "")
+      .replace(/\s*(?:in (?:plain|simple) (?:words|english|terms)|simply|briefly|for (?:a )?beginners?|for dummies|step by step|to me|(?:please )?explain(?:ed)?(?: it| that| this)?(?: to me)?|please)$/, "")
+      .trim();
+  }
+  return t;
+}
+
+/** The words of a "what does X mean / how is X calculated / why did X go down" frame, which name no team or event. */
+const FRAME_WORDS = new Set("what whats what's does do did is are how why mean means meaning calculated calculate computed worked work out explain explained explanation it me show with as an a example step by for plain simple words beginner go goes went down up drop dropped fall fell even though although after when they won win lost still despite so this that please".split(" "));
+
+/** "what does … mean", "… calculated", "explain …", "why …": a question asking what a word means. */
+const ASKS_MEANING = /\bwhat (?:does|do|did)\b.*\bmean\b|\b(?:meaning|calculated|calculate|computed|worked out|explain|explained|explanation)\b|^why\b/;
+
+/** Set while explainTeamAnswer asks for a team's own numbers, so that question isn't explained in turn. */
+const EXPLAINING = new AsyncLocalStorage<boolean>();
+
+/** A word's explanation for one team ("how is OPR calculated, show me with 4215 as an example", "what does ranking
+ *  score mean, for 14450 at NJ Championship Parkway", "why did 4215's rating go down even though they won"): the team's
+ *  own numbers (its stat answer, as "4215 opr" gives it), with the word's explainer under them; or null. */
+export async function explainTeamAnswer(q: string, ask: (q: string, full?: boolean) => Promise<SearchAnswer>, full = false): Promise<SearchAnswer | null> {
+  // The team's own question, asked from here, is never explained again (a team named "CALculated Risk" keeps its words).
+  if (EXPLAINING.getStore()) return null;
+  // Sentence punctuation only: a season's "2024/25" or "2024–25" keeps its separator.
+  const t = squash(q.toLowerCase().replace(/[?,!;:"“”()]|\.+(?=\s|$)/g, " ").replace(/(\d)['’]s\b/g, "$1"));
+  // "Mean" alone can be an average ("4215 mean opr"): only "what does … mean" asks what a word means.
+  if (!ASKS_MEANING.test(t)) return null;
+  const e = EXPLAINS.find((x) => x.term && x.stat && x.term.test(t));
+  if (!e) return null;
+  const ws = t.replace(e.term!, " ").split(" ").filter(Boolean);
+  // A team's whole name, two words or more, stays together, frame words in it included ("calculated risk").
+  const idx = await names(), rest: string[] = [];
+  for (let i = 0; i < ws.length;) {
+    let len = Math.min(idx.longest, ws.length - i);
+    while (len > 1 && !(ws.slice(i, i + len).some((w) => !FRAME_WORDS.has(w)) && idx.teamsNamed(ws.slice(i, i + len).join(" ")).length)) len--;
+    if (len > 1 || !FRAME_WORDS.has(ws[i])) rest.push(ws.slice(i, i + len).join(" "));
+    i += len;
+  }
+  if (!rest.length) return null;
+  const moved = /^why\b/.test(t) && /\b(?:up|down|drop|dropped|fall|fell|rise|rose|change|changed)\b/.test(t);
+  const of = (stat: string, full?: boolean) => EXPLAINING.run(true, () => ask([rest[0], stat, ...rest.slice(1)].join(" "), full));
+  // Every choice here is made on the page's answer (the dropdown's has no `stat`, and the page may add its own note),
+  // so the dropdown and the page show the same one. A change with nothing on record to show it ("no weekly ratings
+  // are kept"): the team's own number instead.
+  let whole = await of(moved && e.change ? e.change : e.stat!, true);
+  const stat = moved && e.change && !whole.stat?.none ? e.change : e.stat!;
+  if (stat !== (moved && e.change ? e.change : e.stat)) whole = await of(stat, true);
+  // A team's stat answer, or not this one.
+  if (whole.weak || !whole.intent?.kind.startsWith("stat-") || whole.hits[0]?.kind !== "team") return null;
+  const a = full ? whole : await of(stat);
+  if (a.hits[0]?.kind !== "team") return null;
+  const lines = moved && e.why ? [...e.why, ...e.lines] : e.lines;
+  const label = `${whole.understood?.label ?? whole.hits[0].title} · ${e.label.split(":")[0]} explained`;
+  return { ...a, q, card: { kind: "info", title: e.label, lines }, pages: [...e.pages, ...(a.pages ?? []).filter((p) => !e.pages.some((x) => x.href === p.href))], understood: { ...(whole.understood ?? { kind: "question" }), label } };
+}
+
 /** The season a game's name means ("DECODE" → 2025–26), from the season list. */
 const gameSeason = (t: string) => SEASONS.find((s) => normalize(s.game).replace(/\s+/g, "") === t.replace(/\s+/g, ""));
 
 /** "what is OPR", "what is DECODE", "game manual": what it means, and the page that has the rest; or null. */
 export function explainAnswer(q: string): SearchAnswer | null {
-  const t = squash(q.toLowerCase().replace(/[?]/g, ""));
-  for (const e of EXPLAINS) if (e.words.test(t)) {
-    return answer(q, { hits: [], pages: [...e.pages, ...pagesFor(q).filter((p) => !e.pages.some((x) => x.href === p.href))], card: { kind: "info", title: e.label, lines: e.lines }, understood: { kind: "question", label: e.label } });
+  const t = unframed(squash(q.toLowerCase().replace(/[?,]/g, " ")));
+  const said = (e: Explainer, title = e.label, lines = e.lines, pages = e.pages) =>
+    answer(q, { hits: [], pages: [...pages, ...pagesFor(q).filter((p) => !pages.some((x) => x.href === p.href))], card: { kind: "info", title, lines }, understood: { kind: "question", label: title } });
+  const e = explainerOf(t);
+  if (e) return said(e);
+  // Two words compared ("the difference between OPR and rating"): each one's first two lines, one after the other.
+  const d = /^(?:what(?:'s| is| are)|whats)?\s*(?:the\s+)?differences?\s+between\s+(?:an?\s+|the\s+)?(.+?)\s+and\s+(?:an?\s+|the\s+)?(.+)$/.exec(t)
+    ?? /^how (?:is|are|does|do)\s+(?:an?\s+|the\s+)?(.+?)\s+differ(?:ent)?\s+from\s+(?:an?\s+|the\s+)?(.+)$/.exec(t);
+  const [a, b] = d ? [explainerOf(d[1]), explainerOf(d[2])] : [];
+  // Two words one explainer covers ("auto and teleop", both periods of a match): that explainer, which sets them apart.
+  if (a && a === b) return said(a);
+  if (a && b) {
+    const title = `${a.label.split(":")[0]} and ${b.label.split(":")[0].replace(/^The /, "the ")}: the difference`;
+    return said(a, title, [...a.lines.slice(0, 2), ...b.lines.slice(0, 2)], [...a.pages, ...b.pages.filter((p) => !a.pages.some((x) => x.href === p.href))]);
   }
-  // A season's game: "what is decode", "decode game", "what was into the deep".
+  // A season's game: "what is decode", "decode game", "what was into the deep"; "what is the game this season" is
+  // the current one's, "… last season" the one before.
+  const now = /^(?:what(?:'s| is| was)|whats|which)?\s*(?:is\s+)?(?:the\s+)?(?:ftc\s+)?(?:game\s+(?:this|last)\s+(?:season|year)|(?:this|last)\s+(?:season|year)['’]?s?\s+(?:ftc\s+)?game|current\s+(?:ftc\s+)?game)(?:\s+in\s+ftc)?$/.exec(t);
   let m = /^(?:what(?:'s| is| was)|whats|which)\s+(?:the\s+)?(?:ftc\s+)?(?:game\s+)?(.+?)(?:\s+game)?$/.exec(t) ?? /^(.+?)\s+(?:game|season)$/.exec(t) ?? /^(?:ftc\s+)?(.+)$/.exec(t);
-  const s = m ? gameSeason(normalize(m[1])) ?? gameSeason(normalize(m[1].replace(/\b(?:ftc|the|game|season)\b/g, ""))) : undefined;
+  const s = now ? SEASONS.find((x) => x.season === CURRENT_SEASON - (/\blast\b/.test(t) ? 1 : 0)) : m ? gameSeason(normalize(m[1])) ?? gameSeason(normalize(m[1].replace(/\b(?:ftc|the|game|season)\b/g, ""))) : undefined;
   if (s) {
     const label = `${s.game}: the ${seasonLabel(s.season)} FTC game`;
     const current = s.season === CURRENT_SEASON;

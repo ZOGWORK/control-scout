@@ -10,7 +10,9 @@ export type Metric =
   // Whether or how often a team went somewhere: a question no pipeline rule takes.
   | "appearance"
   // Derived from a match's numbers by a rule the card prints (./matchFind.ts).
-  | "upset" | "comeback";
+  | "upset" | "comeback"
+  // How far a match's saved prediction was from what happened (./matchFind.ts).
+  | "miss";
 export type Thing = "match" | "event" | "season" | "team";
 
 export type Sym =
@@ -31,6 +33,10 @@ export type Sym =
   | { k: "advance" }
   /** A forecast held up against what happened: "vs actual", "before and after", "did it get it right". */
   | { k: "review" }
+  /** Said of what's to come ("will 12345 win ..."): a forecast, only beside a win and an event named. */
+  | { k: "future" }
+  /** A match that hasn't happened, supposed ("if 12345 played 23456"): a forecast, only beside two teams who meet. */
+  | { k: "hypo" }
   | { k: "vs" }
   | { k: "and" }
   | { k: "together" }
@@ -59,6 +65,10 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["margin of defeat|losing margin|margin of loss|defeat margin", [{ k: "metric", v: "margin" }, { k: "outcome", v: "L" }]],
   // Aggregations.
   ["highest|high|best|top|max|maximum|biggest|largest|greatest|most|record high|peak|strongest|winningest|career high|personal best|longest|most times|the most times", { k: "agg", v: "max" }],
+  // The ones worth watching are the best: "what team should i watch at nj states".
+  ["should i watch|should we watch|worth watching|to keep an eye on|should i keep an eye on", { k: "agg", v: "max" }],
+  // "Who" asked that way is the teams: "who should i watch at worlds".
+  ["who should i watch|who should we watch|who to watch|who is worth watching|who should i keep an eye on", [{ k: "thing", v: "team" }, { k: "agg", v: "max" }]],
   ["lowest|low|worst|min|minimum|smallest|fewest|least|weakest", { k: "agg", v: "min" }],
   ["average|avg|mean|typical|on average", { k: "agg", v: "mean" }],
   ["median", { k: "agg", v: "median" }],
@@ -67,6 +77,11 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["first|earliest|debut|very first|opening|initial", { k: "agg", v: "first" }],
   ["last|latest|most recent|recent|newest|previous|final|current|so far", { k: "agg", v: "last" }],
   ["closest|tightest|narrowest|nail biter|nailbiter", { k: "agg", v: "closest" }],
+  // A sort said as an order ("highest scoring first", "lowest first"): the highest or lowest, never a first match.
+  ["highest first|best first|top first|most first|biggest first", { k: "agg", v: "max" }],
+  ["lowest first|worst first|fewest first|least first|smallest first", { k: "agg", v: "min" }],
+  ["highest scoring first|highest scores first|top scoring first|top scores first", [{ k: "agg", v: "max" }, { k: "metric", v: "score" }]],
+  ["lowest scoring first|lowest scores first", [{ k: "agg", v: "min" }, { k: "metric", v: "score" }]],
   ["next|upcoming|coming up", { k: "agg", v: "next" }],
   // "The last time", "the first time", "next time": when, said with "time" ("when was the last time they played").
   ["last time|the last time|most recent time|latest time|last time ever", { k: "agg", v: "last" }],
@@ -78,12 +93,16 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["margin|margin of victory|point differential|differential|point diff|spread|gap|score gap|point gap|points gap|difference in score", { k: "metric", v: "margin" }],
   // The biggest margin, said as one word.
   ["lopsided|most lopsided|one sided|blowout|blowouts|biggest blowout|mismatch|mismatches|rout|routs|beatdown", [{ k: "agg", v: "max" }, { k: "metric", v: "margin" }]],
+  // A prediction against what happened: how far off ("most unpredictable match", "where the prediction was wrong"), or
+  // how close ("the most accurate prediction"). "Accurate" alone asks whether one forecast was right (review).
+  ["unpredictable|least predictable|unpredicted|was wrong|were wrong|was most wrong|were most wrong|most wrong|predicted wrong|prediction miss|prediction misses|biggest miss|biggest misses|prediction error|prediction errors|missed by|off by|furthest off|farthest off", { k: "metric", v: "miss" }],
+  ["most accurate|most accurately|least wrong|best predicted|closest prediction|closest predictions|most accurate prediction|most accurate predictions", [{ k: "metric", v: "miss" }, { k: "agg", v: "min" }]],
   ["upset|upsets|underdog|underdogs|giant killing|giant killer|shock win|shock result|surprise win|surprise result", { k: "metric", v: "upset" }],
   ["comeback|comebacks|come back|came back|comeback win|comeback wins|rallied|rally", { k: "metric", v: "comeback" }],
   // A place's leaderboard ("Romania leaderboard"): its top teams.
   ["leaderboard|leaderboards|leader board", [{ k: "agg", v: "max" }, { k: "thing", v: "team" }]],
   ["with their records|with their record|with records|and their records|record|records|w-l-t|w l t|wlt|win loss|win-loss|win loss record|win loss tie|wins and losses|win/loss", { k: "metric", v: "record" }],
-  ["win|wins|won|victory|victories|beat|beaten|defeated", { k: "metric", v: "win" }],
+  ["win|wins|won|victory|victories|beat|beats|beaten|defeated", { k: "metric", v: "win" }],
   ["loss|losses|lost|lose|loses|defeat|defeats", { k: "metric", v: "loss" }],
   // Winning a match, as a question ("did they ever win a match"): its wins.
   ["win a match|won a match|win a game|won a game|win any match|won any match|win any matches|won any matches", [{ k: "metric", v: "win" }, { k: "thing", v: "match" }]],
@@ -117,7 +136,8 @@ const TABLE: [string, Sym | Sym[]][] = [
   // so it's left to the readers that count trips, never the results there.
   ["been to|been at|gone to|went to|go to|made it to|make it to|qualified for|qualify for|qualified to|attended|competed at|appearance|appearances", { k: "metric", v: "appearance" }],
   // What is counted or listed.
-  ["match|matches|game|games|round|rounds|qualification match", { k: "thing", v: "match" }],
+  // A schedule is its matches ("<team> schedule", "<event> schedule"): one word with "match" before it too.
+  ["match|matches|game|games|round|rounds|qualification match|schedule|schedules|match schedule|match schedules|game schedule", { k: "thing", v: "match" }],
   ["event|events|competition|competitions|comp|comps|tournament|tournaments|meet|meets", { k: "thing", v: "event" }],
   ["season|seasons|year|years", { k: "thing", v: "season" }],
   ["team|teams|robot|robots", { k: "thing", v: "team" }],
@@ -130,16 +150,20 @@ const TABLE: [string, Sym | Sym[]][] = [
   // Everywhere, said: no place filter (never the FIRST Championship).
   ["in the world|worldwide|world wide|globally|across the world|around the world|all over the world|internationally|anywhere|in ftc", { k: "filler" }],
   // Asides and slang around a question: never part of it, nor a team's name ("just curious" is no team called Curious).
-  ["only|just|just curious|curious|out of curiosity|wondering|i wonder|i was wondering|honestly|be honest|lol|lmao|bruh|da|ur|ya|yall|kinda|sorta|gonna|wanna|nah|or nah|right now|these days|lately|by now|if any|if there is one|if there are any|often|frequently", { k: "filler" }],
+  ["only|just|just curious|curious|out of curiosity|wondering|i wonder|i was wondering|honestly|be honest|lol|lmao|bruh|da|ur|ya|yall|kinda|sorta|gonna|wanna|nah|or nah|right now|based on now|as of now|as things stand|as it stands|these days|lately|by now|if any|if there is one|if there are any|often|frequently", { k: "filler" }],
   ["worlds|world|world championship|world championships|world champs|first championship|first champs|championship of the world|cmp|houston championship|houston", { k: "worlds" }],
   ["states|state|state championship|state championships|state champs|state finals|regionals|regional championship|regional", { k: "states" }],
   // Forecasts.
   ["prediction|predictions|predicted|predict|forecast|forecasts|projected|projection|expected|expect|chance|chances|odds|probability|likely|likelihood|favourite|favorite|favored|favoured|who wins|who will win|who would win|matchup|matchups|match up|custom matchup|custom match|hypothetical matchup|hypothetical match", { k: "predict" }],
   ["trend|trends|trending|over time|progression|rising or falling|falling or rising|getting better or worse|improving or flat|improving or not|improving or declining|going up or down|going up|going down|up or down|improving|getting better|getting worse|rising|falling|event by event|over the season|across the season|through the season|week by week|after each event", { k: "trend" }],
   ["vs actual|versus actual|vs the actual|compared to actual|vs what happened|vs reality|vs result|vs results|vs the result|actual|actually happened|what happened|before and after|before vs after|before or after|right or wrong|get it right|got it right|was it right|were they right|was it accurate|how accurate|accurate|accuracy|way off|or was it way off|or way off|or was it off|or not|how far off|hit or miss", { k: "review" }],
+  ["will|would|going to", { k: "future" }],
+  ["if|what if|suppose|supposing|hypothetically|imagine|imagine if", { k: "hypo" }],
   ["advance|advances|advancing|advancement|advancements|advance to the finals|make the finals|making the finals|go through|goes through|get through|gets through", { k: "advance" }],
   // Two teams.
   ["vs|v|versus|against|facing|face|faced|play|played|playing|plays|vs.", { k: "vs" }],
+  // "Between A and B": the two teams, whatever the question asks of them.
+  ["between", { k: "filler" }],
   ["and|&|plus|with|alongside", { k: "and" }],
   ["together|in common|shared|share|both|both played|jointly|same match|same matches", { k: "together" }],
   ["same alliance|same side|as partners|on the same alliance|teamed up|teamed", { k: "same-side" }],

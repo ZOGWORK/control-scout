@@ -18,12 +18,13 @@ import { teamPageSql } from "../../../src/shared/teamPages.js";
 import { all, get } from "../../db.js";
 import { fuzzyScore } from "../fuzzy.js";
 import { search } from "../search.js";
-import { eventWon, readAsk } from "../searchAsks.js";
+import { askSeason, eventWon, readAsk } from "../searchAsks.js";
+import { defaultSteps, relaxed } from "../query/relax.js";
 import { eventHit } from "../searchEvents.js";
 import { namedTeam, versusAnswer } from "../searchCompare.js";
 import { predictHref } from "../../../src/shared/predictUrl.js";
 import { CHAMPIONSHIP_TYPE, STATES_TYPE, inScope, officialClause, scopeChips, scopePhrase, type Scope } from "./clauses.js";
-import { teamEventSet, type TeamEvent } from "./eventSet.js";
+import { reliabilityEvents, teamEventSet, type TeamEvent } from "./eventSet.js";
 import { awardsAnswer, awardsTitle } from "./families/awards.js";
 import { championshipMatchesAnswer, eventScopeAnswer } from "./families/eventScope.js";
 import { eventAnswer } from "./families/events.js";
@@ -62,7 +63,7 @@ const TITLES: Record<IntentId, string> = {
   "red-blue-record": "Record by alliance colour", results: "Results", "event-rank": "Rank", "event-opr": "OPR", "match-lookup": "Match",
   "event-wins": "Event wins", "inspire-awards": "Inspire Awards", "finalist-finishes": "Finalist finishes", "total-awards": "All awards", "award-split": "Judged and performance awards",
   awards: "Awards", "winning-alliance": "Winning alliance",
-  "opr-history": "OPR by event", "opr-by-season": "OPR by season", "record-by-season": "Record by season", "win-rate": "Win rate by event", "avg-penalties": "Penalty points given by event",
+  "opr-history": "OPR by event", "auto-history": "Auto OPR by event", "teleop-history": "TeleOp OPR by event", "endgame-history": "Endgame OPR by event", "reliability-history": "Reliability by event", "opr-by-season": "OPR by season", "record-by-season": "Record by season", "win-rate": "Win rate by event", "avg-penalties": "Penalty points given by event",
   "avg-score-by-event": "Average alliance score by event", "ranking-points": "Ranking points by event", "total-penalties": "Penalty points given",
   "most-played-opponent": "Most played opponent", "toughest-opponent": "Toughest opponent", "best-partner": "Best alliance partner", "frequent-partner": "Most frequent partner", "never-played": "Teams never played",
   "worst-partner": "Worst alliance partner", partners: "Alliance partners", opponents: "Opponents", "beat-most": "Teams beaten most often", "lost-to-most": "Teams lost to most often",
@@ -82,7 +83,7 @@ const MEETING_IDS = new Set<TwoTeamId>(["head-to-head", "h2h-wins", "shared-matc
 
 /** The intents about the team's opponents and partners (family 6, one team named). */
 /** One number over the team's events or seasons (family 2), and a season's penalty total. */
-const TREND_INTENTS = new Set<IntentId>(["opr-history", "opr-by-season", "record-by-season", "win-rate", "avg-penalties", "avg-score-by-event", "ranking-points", "total-penalties"]);
+const TREND_INTENTS = new Set<IntentId>(["opr-history", "auto-history", "teleop-history", "endgame-history", "reliability-history", "opr-by-season", "record-by-season", "win-rate", "avg-penalties", "avg-score-by-event", "ranking-points", "total-penalties"]);
 const OPPONENT_INTENTS = new Set<IntentId>(["most-played-opponent", "toughest-opponent", "best-partner", "frequent-partner"]);
 const PARTNER_LIST_INTENTS = new Set<IntentId>(["worst-partner", "partners", "opponents", "beat-most", "lost-to-most", "partner-top-opr", "opponent-top-opr", "partner-win-rate", "opponent-win-rate", "pick-partner"]);
 /** The engine's stored projection for the team's next event (families/predict.ts): no season scope applies. */
@@ -222,7 +223,7 @@ function placeOf(at: string) {
  *  latest season with matches at official events (said so), else every season. */
 async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
   const s = it.scope;
-  const scope: Scope = { season: s.season, championship: s.championship, states: s.states, level: s.level ?? undefined, alliance: s.alliance ?? undefined };
+  const scope: Scope = { season: s.season, championship: s.championship, states: s.states, level: s.level ?? undefined, ...(s.finals ? { finals: true } : {}), alliance: s.alliance ?? undefined };
   if (s.place) scope.place = { country: s.place.country, state: s.place.state, name: s.place.name };
   if (s.area) scope.place = { country: s.area.country, state: s.area.state ?? "", name: s.area.name };
   if (s.window) scope.window = s.window;
@@ -346,8 +347,16 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   const tm = readTopMatches(q);
   if (tm) return topSearch(q, tm, opts);
   // The asks' leaderboards are drawn here on the page; the dropdown keeps the asks' own short card.
-  const board = readLeaderboard(q) ?? (opts.full ? boardOfAsk(q) : null);
+  const board = readLeaderboard(q);
   if (board) return boardSearch(q, board, opts);
+  // An asked board reads the season as the pipeline does: the current one, then the one before when nobody is ranked
+  // there yet, said on the card.
+  const asked = opts.full ? boardOfAsk(q) : null;
+  if (asked) {
+    const season = askSeason();
+    const a = await boardSearch(q, { ...asked, season }, opts);
+    return relaxed(a, defaultSteps(season, asked.region ? ` in ${asked.region.name}` : "", "ranked teams"), (s) => boardSearch(q, { ...asked, season: s }, opts));
+  }
   // "How much did 12345's OPR improve from last season to this season", "12345 rating change this season".
   const change = readChange(q);
   if (change) return changeSearch(q, change, resolve, opts);
@@ -419,6 +428,7 @@ export async function statAnswerOf(q: string, it0: StatQuestion, resolve: Resolv
   const outcomeTitle = !it.outcome ? null : ({ "first-match": `First ${won}`, "recent-match": `Most recent ${won}`, "last-matches": `Last ${it.outcome === "W" ? "wins" : "losses"}`,
     "longest-streak": it.outcome === "L" ? "Longest losing streak" : null } as Partial<Record<IntentId, string | null>>)[it.id] ?? null;
   const name = outcomeTitle ? outcomeTitle : it.id === "average-margin" && it.outcome ? `Average ${it.outcome === "W" ? "winning" : "losing"} margin` : it.id === "scores-over" ? `Scores ${it.variant === "at-least" ? "of at least" : "over"} ${it.n}`
+    : it.id === "vs-top" && it.n != null ? `Against top-${it.n} teams`
     : it.id === "penalties" && it.variant ? (it.variant === "rate" ? "Penalty rate" : "Penalty points given away per event")
     : AWARD_INTENTS.has(it.id) ? awardsTitle(it.id, it) ?? TITLES[it.id] : it.byRecord ? (it.id === "best-finish" ? "Best event" : "Worst event") : it.schedule ? "Event schedule" : PREDICT_INTENTS.has(it.id) && scope.event ? predictTitle(it.id) : TITLES[it.id];
   const title = `${it.leadEvent ? "Event with the highest score" : name}${scopePhrase(it.id === "worlds-divisions" ? { ...scope, championship: false } : scope)}`;
@@ -541,6 +551,8 @@ const worldsSeason = (s: StatAnswer): number | null => {
 async function build(it: StatQuestion, team: { number: number; name: string | null }, scope: Scope): Promise<StatAnswer | null> {
   if (AWARD_INTENTS.has(it.id)) return awardsAnswer(it.id, team, scope, { count: it.count, award: it.award, pick: it.pick });
   if (it.id === "total-penalties") return penaltyTotalAnswer(team, await teamEventSet(team.number), scope);
+  // Reliability is read from its own rows: an event the team was listed for but never took the field at counts.
+  if (it.id === "reliability-history") return trendAnswer(it.id, team, { ...(await teamEventSet(team.number)), events: await reliabilityEvents(team.number) }, scope);
   if (TREND_INTENTS.has(it.id)) return trendAnswer(it.id, team, await teamEventSet(team.number), scope);
   if (EVENT_INTENTS.has(it.id)) return eventAnswer(it.id, team, await teamEventSet(team.number), scope, { byRecord: it.byRecord, schedule: it.schedule });
   // A forecast is for one event: the one named, else the team's next; a place or Worlds isn't one event.
@@ -774,7 +786,7 @@ export async function twoTeamSearch(q: string, two: TwoTeamQuestion, resolve: Re
   if (!ta || !tb || ta.href || tb.href) return null;
   const a = { number: Number(ta.ref), name: teamNameOf(ta.title) || null }, b = { number: Number(tb.ref), name: teamNameOf(tb.title) || null };
   const s = two.scope;
-  const scope: Scope = { season: s.season, championship: s.championship, states: s.states, level: s.level ?? undefined, alliance: s.alliance ?? undefined };
+  const scope: Scope = { season: s.season, championship: s.championship, states: s.states, level: s.level ?? undefined, ...(s.finals ? { finals: true } : {}), alliance: s.alliance ?? undefined };
   if (s.place) scope.place = { country: s.place.country, state: s.place.state, name: s.place.name };
   if (s.area) scope.place = { country: s.area.country, state: s.area.state ?? "", name: s.area.name };
   if (s.window) scope.window = s.window;
@@ -1049,7 +1061,7 @@ export async function boardSearch(q: string, b: LeaderboardQuestion, opts: { ful
   const st = boardStatFor(b.stat, b.season ?? searchSeason());
   if (!st) return null;
   const where = b.town ? ` in ${b.town}` : b.region ? ` in ${b.region.name}` : city ? ` in ${city.city}` : "";
-  const label = b.kind === "city" ? `Teams${where}` : b.kind === "city-best" ? `Best team${where} by OPR` : b.undefeated ? `Undefeated teams${where}` : b.asc ? `Lowest ${b.n > 1 ? `${b.n} teams` : "team"} by ${statWords(st)}${where}` : b.best ? `Best team${where} by ${statWords(st)}` : b.kind === "rookie" ? `Best rookie teams${where}` : b.kind === "improved" ? `Most improved teams${where}` : `Top ${b.n} teams by ${statWords(st)}${where}`;
+  const label = b.event ? `${b.event.home ? `${b.event.home.name} teams` : "Best teams"} at ${b.event.name}` : b.kind === "city" ? `Teams${where}` : b.kind === "city-best" ? `Best team${where} by OPR` : b.undefeated ? `Undefeated teams${where}` : b.kind === "rookie" && b.asc ? `Lowest rookie teams${where} by ${statWords(st)}` : b.asc ? `Lowest ${b.n > 1 ? `${b.n} teams` : "team"} by ${statWords(st)}${where}` : b.best ? `Best team${where} by ${statWords(st)}` : b.kind === "rookie" ? `Best rookie teams${where}` : b.kind === "improved" ? `Most improved teams${where}` : `Top ${b.n} teams by ${statWords(st)}${where}`;
   const answer: SearchAnswer = {
     q, hits: [], pages: opts.pages, step: "deterministic", weak: false,
     understood: { kind: "question", label, ...(b.season != null ? { season: b.season } : {}), ...(b.region ? { place: { key: b.region.key, name: b.region.name } } : {}) },
@@ -1058,7 +1070,11 @@ export async function boardSearch(q: string, b: LeaderboardQuestion, opts: { ful
   // The search box gets a link to the answer page, never an empty answer.
   if (!opts.full) return { ...answer, pages: [{ title: label, href: `/search?q=${encodeURIComponent(q)}` }, ...opts.pages] };
   const stat = await leaderboardAnswer({ ...b, stat: st });
+  // An event's board is headed by its card's own title less its season (what it's ranked by is said there), so the
+  // page says it once: the card's title under a heading that holds it is hidden.
+  const heading = b.event ? stat.title.replace(/ · [^·]+$/, "") : null;
+  const read: SearchAnswer = heading ? { ...answer, understood: { ...answer.understood!, label: heading }, intent: { ...answer.intent!, understood: [heading] } } : answer;
   // The full list's page (Teams for an OPR list, Rankings for a rating list) leads the page links.
   const more = stat.blocks.find((x) => x.kind === "leaderboard")?.more;
-  return { ...answer, stat, pages: more ? [{ title: more.label.replace(/^View more detail on (?:the )?/, "").replace(/ \(.*\)$/, "").replace(/^./, (c) => c.toUpperCase()), href: more.href }, ...opts.pages.filter((p) => p.href !== more.href)] : opts.pages };
+  return { ...read, stat, pages: more ? [{ title: more.label.replace(/^View more detail on (?:the )?/, "").replace(/ \(.*\)$/, "").replace(/^./, (c) => c.toUpperCase()), href: more.href }, ...opts.pages.filter((p) => p.href !== more.href)] : opts.pages };
 }

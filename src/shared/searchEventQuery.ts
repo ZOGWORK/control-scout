@@ -14,7 +14,7 @@
 //     "2023-24" means that season. No year: the current season, except championships (one a season): every season.
 //   - A near-miss of a place's full name ("new jesey") is that place, said as read ("New Jersey (from "new jesey")").
 //   - "states", "state champs" or "champs" with a place is its championship ("nj states").
-import { findRegions, isRegionCode, nearRegion, regionLabel, type Region } from "./regions.js";
+import { findRegions, isRegionCode, nearRegion, regionLabel, regionNamed, type Region } from "./regions.js";
 import { QUESTION_WORDS, STOPWORDS, isQuestionForm, singularize, timePhrase } from "./searchQuery.js";
 
 /** Words that ask something of events rather than name them. */
@@ -44,7 +44,7 @@ const EVENT_LABEL: Record<string, string> = {
 
 export type SearchTime = "today" | "tomorrow" | "upcoming" | "past" | "this-weekend" | "next-weekend" | "this-week" | "next-week" | "this-month" | "next-month";
 const TIME_OF: Record<string, SearchTime> = {
-  today: "today", tomorrow: "tomorrow", upcoming: "upcoming", "coming up": "upcoming", past: "past", recent: "past", previous: "past", latest: "past",
+  today: "today", tomorrow: "tomorrow", upcoming: "upcoming", "coming up": "upcoming", past: "past", recent: "past", previous: "past", latest: "past", finished: "past", completed: "past", ended: "past",
   "this weekend": "this-weekend", "next weekend": "next-weekend", "this week": "this-week", "next week": "next-week",
   "this month": "this-month", "next month": "next-month",
   "happening now": "today", "going on now": "today", "on right now": "today", "right now": "today", "live now": "today", live: "today", currently: "today",
@@ -86,7 +86,7 @@ export function regionOf(ws: string[]): Region | null {
   if (!text) return null;
   if (/^[a-z]{2}$/i.test(text) && !/^[A-Z]{2}$/.test(text) && WORD_CODES.has(text.toLowerCase())) return null;
   const f = text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
-  return findRegions(text).find((r) => r.name.toLowerCase() === f || (f.length === 2 && r.state.toLowerCase() === f && (r.country === "USA" || r.country === "Canada"))) ?? australianCode(text);
+  return findRegions(text).find((r) => r.name.toLowerCase() === f || (f.length === 2 && r.state.toLowerCase() === f && (r.country === "USA" || r.country === "Canada"))) ?? (f.length > 2 ? regionNamed(text) : null) ?? australianCode(text);
 }
 
 /** A part of a region said with a direction ("north jersey", "northern california", "western new york"): that whole

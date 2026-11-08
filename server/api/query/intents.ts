@@ -24,10 +24,14 @@ export type PipelineIntent =
   | "teams-named" | "count-teams"
   // A team's number over a season, event by event (the readers' trend cards).
   | "rating-trend" | "opr-trend"
+  // A phase's OPR or the reliability index over a season, event by event.
+  | "auto-trend" | "teleop-trend" | "endgame-trend" | "reliability-trend"
   // Four teams, two on each alliance: a match's call ("predict a b vs c d").
   | "alliance-predict"
   // No team: matches found by a measure (./matchFind.ts).
-  | "low-matches" | "close-matches" | "lopsided-matches" | "penalty-matches" | "upset-matches" | "comeback-matches";
+  | "low-matches" | "close-matches" | "lopsided-matches" | "penalty-matches" | "upset-matches" | "comeback-matches"
+  // A team's or everyone's matches by how far the saved prediction was off (./matchFind.ts).
+  | "miss-matches" | "accurate-matches";
 
 export interface IntentRule {
   id: PipelineIntent;
@@ -153,13 +157,28 @@ export const INTENTS: IntentRule[] = [
   R("rating-trend", 1, ["metric:rating", "per:event"], ["thing:event", "list", "agg:last"], { noEvent: true }),
   R("opr-trend", 1, ["metric:opr", "trend"], ["per:event", "thing:event", "list", "agg:last"], { noEvent: true }),
   R("opr-trend", 1, ["metric:opr", "per:event"], ["thing:event", "list", "agg:last"], { noEvent: true }),
+  ...([["auto-trend", "metric:auto"], ["teleop-trend", "metric:teleop"], ["endgame-trend", "metric:endgame"], ["reliability-trend", "metric:reliability"]] as const).flatMap(([id, m]) => [
+    R(id, 1, [m, "trend"], ["metric:opr", "per:event", "thing:event", "list", "agg:last"], { noEvent: true }),
+    R(id, 1, [m, "per:event"], ["metric:opr", "thing:event", "list", "agg:last"], { noEvent: true }),
+  ]),
   R("team-opr", 1, ["metric:opr"], ["agg:last"], { noEvent: true }),
   R("team-rating", 1, ["metric:rating"], ["agg:last"], { noEvent: true }),
   R("team-predict", 1, ["predict"], ["metric:win", "metric:record", "metric:score", "metric:rank", "thing:event", "thing:match", "agg:next", "metric:playoffs", "review", "agg:last", "advance"]),
+  // "Will 12345 win <event>": the forecast at the event named (or its states, or Worlds).
+  R("team-predict", 1, ["future", "metric:win"], ["thing:event"], { event: true }),
+  R("team-predict", 1, ["future", "metric:win", "worlds"], ["thing:event"]),
   // Two alliances of two: a match's call. "Vs" between them is enough, with no other word.
   R("alliance-predict", 4, ["vs"], ["predict", "and", "compare", "metric:win", "metric:score", "metric:margin", "thing:match", "per:match"]),
   // Two teams.
-  R("two-predict", 2, ["predict"], ["vs", "and", "compare", "metric:win", "metric:score", "metric:margin", "thing:match"]),
+  // "In a match between them" is the one match's call.
+  R("two-predict", 2, ["predict"], ["vs", "and", "compare", "metric:win", "metric:score", "metric:margin", "thing:match", "per:match", "hypo", "future"]),
+  // Supposed: "if 12345 played 23456", "what if they faced each other", "… who would win".
+  R("two-predict", 2, ["hypo", "vs"], ["predict", "future", "metric:win", "metric:loss", "metric:score", "metric:margin", "thing:match", "per:match"]),
+  // "Will A beat B", "would A win against B": a match not yet played between them, so its call. "Defeat" is a loss as
+  // a noun ("how many defeats"), so the verb ("will A defeat B", "will A lose against B") reads as one: either way
+  // the question is who wins their match.
+  R("two-predict", 2, ["future", "metric:win"], ["vs", "and", "compare", "metric:score", "metric:margin", "thing:match", "per:match", "hypo"]),
+  R("two-predict", 2, ["future", "metric:loss"], ["vs", "and", "compare", "metric:score", "metric:margin", "thing:match", "per:match", "hypo"]),
   // Either alliance: "on the same alliance" (partners only) isn't a filter the shared list takes, so it stays unexplained.
   R("shared-matches", 2, ["together"], ["vs", "and", "thing:match", "list"]),
   R("shared-matches", 2, ["and", "thing:match"], ["list"]),
@@ -177,13 +196,23 @@ export const INTENTS: IntentRule[] = [
   // No team: the best matches anywhere, and ranked lists of teams.
   R("top-matches", 0, ["agg:max", "metric:score"], ["thing:match", "per:match", "nopen"]),
   R("top-matches", 0, ["agg:max", "thing:match"], ["metric:score", "nopen"]),
+  // Matches in a window, no measure said ("matches from yesterday"): the window's best first (./execute.ts needs the window).
+  R("top-matches", 0, ["thing:match"], ["list"], { noEvent: true, noMatchNo: true }),
   // Matches by a measure ("and" is "with": "the match with the most penalty points").
   R("low-matches", 0, ["agg:min", "metric:score"], ["thing:match", "nopen", "and"]),
+  R("low-matches", 0, ["agg:min", "thing:match"], ["metric:score", "nopen", "and"]),
   R("close-matches", 0, ["agg:closest"], ["thing:match", "metric:score", "metric:margin", "metric:win", "metric:loss", "outcome:W", "outcome:L", "and"]),
   R("close-matches", 0, ["agg:min", "metric:margin"], ["thing:match", "metric:win", "metric:loss", "metric:score", "outcome:W", "outcome:L", "and"]),
   R("lopsided-matches", 0, ["agg:max", "metric:margin"], ["thing:match", "metric:win", "metric:score", "outcome:W", "and"]),
   R("penalty-matches", 0, ["agg:max", "metric:penalty"], ["thing:match", "metric:score", "and"]),
   R("upset-matches", 0, ["metric:upset"], ["agg:max", "thing:match", "metric:win", "metric:margin", "metric:score", "and"]),
+  // Predictions against results, everyone's or one team's: furthest off first, or closest first ("most accurate").
+  // A floor in points ("wrong by more than 50 points") is the misses' own.
+  ...([0, 1] as const).flatMap((n) => [
+    // A match's number is never a filter they apply: "<team> prediction miss in match 2" is left to search.
+    R("accurate-matches", n, ["metric:miss", "agg:min"], ["predict", "thing:match", "thing:team", "vs", "list", "per:match"], { noMatchNo: true }),
+    R("miss-matches", n, ["metric:miss"], ["agg:max", "predict", "thing:match", "thing:team", "vs", "list", "per:match", "metric:score", "over"], { noMatchNo: true }),
+  ]),
   R("comeback-matches", 0, ["metric:comeback"], ["agg:max", "thing:match", "metric:win", "and"]),
   ...["agg:max", "agg:min"].flatMap((agg) => [
     R("leaderboard", 0, [agg, "thing:team"], BOARD_OPT),
@@ -196,6 +225,12 @@ export const INTENTS: IntentRule[] = [
     R("highlights", n, ["highlights"], ["videos", "thing:match", "list", "agg:max"], { noMatchNo: true }),
     R("highlights", n, ["videos"], ["thing:match", "thing:event", "list", "agg:max", "agg:last"], { noMatchNo: true }),
   ]),
+  // "What happened last weekend", with no team: the scope's standout matches (one team's is the forecast's review).
+  R("highlights", 0, ["review"], ["highlights", "thing:match", "list", "agg:max"], { noMatchNo: true }),
+  // The teams at an event, Worlds or a state championship ("nj teams at worlds", "teams at east bergen conference"):
+  // its board, best first.
+  R("leaderboard", 0, ["thing:team", "prep:at"], ["list"], { event: true }),
+  R("leaderboard", 0, ["thing:team", "prep:at", "worlds"], ["list"]),
   // The teams with a name, counted and listed: "how many teams named …", "teams called …".
   R("teams-named", 0, ["named"], ["agg:count", "thing:team", "list"]),
   R("count-teams", 0, ["agg:count", "thing:team"], ["list"], { noEvent: true }),

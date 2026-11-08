@@ -5,6 +5,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../../db";
 import { rebuildSearch } from "../../stats/job";
 import { CURRENT_SEASON } from "../../data/seasons";
+import { seasonLabel } from "../../../src/shared/format";
 import { setFlag } from "../../flags";
 import { searchAnswer } from "../searchAnswer";
 import { refreshSearchSeason, resetSearchSeason } from "./season";
@@ -98,6 +99,8 @@ describe("reading the 260 list's two-team questions", () => {
     expect(readStatQuestion("who should 4215 pick as an alliance partner")).toMatchObject({ id: "pick-partner", core: "4215" });
     expect(id("4215 predicted wins at their next event")).toBe("next-event-wins");
     expect(id("4215 chance to win an event")).toBe("event-win-chance");
+    // The next event's forecast, said as a noun: the stored projection, led by the chance to win it.
+    for (const q of ["6980 next meet forecast", "23268 next competition projections", "7149 forecast for their next tournament"]) expect(id(q), q).toBe("event-win-chance");
     expect(id("4215 chance to advance to worlds")).toBe("advance-chance");
     expect(id("4215 advancement chances")).toBe("advance-chance");
     expect(id("4215 predicted to make playoffs at their next event")).toBe("playoff-chance");
@@ -116,6 +119,16 @@ describe("the answers", () => {
       expect(a.stat!.headline, q).toMatchObject({ value: "4215 rated higher", label: "by 47.7 points per match" });
       expect(a.stat!.blocks[0], q).toMatchObject({ kind: "kpis", items: [{ value: expect.stringMatching(/^(98\.0|50\.3) ±3$/) }, { value: expect.stringMatching(/^(98\.0|50\.3) ±3$/) }] });
     }
+  });
+  it("a supposed meeting, now or on a day to come, is the same call on today's ratings, said so", async () => {
+    for (const q of ["what if 6980 faced 4215", "suppose 4215 played 6980 next week", "imagine 6980 against 4215 tomorrow", "what if 4215 played 6980 this week", "if 6980 faced 4215, who would win"]) {
+      const a = await ask(q);
+      expect(a.stat, q).toMatchObject({ intent: "predict", headline: { value: "4215 rated higher", label: "by 47.7 points per match" } });
+      expect(a.understood!.label, q).not.toMatch(/isn't part of this answer/);
+    }
+    expect((await ask("imagine 6980 against 4215 tomorrow")).understood!.label).toContain(`tomorrow: an upcoming match, called on ${seasonLabel(S)} ratings`);
+    // A day gone by isn't to come: never this call.
+    expect((await ask("suppose 4215 played 6980 last week")).stat?.intent).not.toBe("predict");
   });
   it("81: wins in the meetings only", async () => {
     const a = await ask("4215 wins against 6980");
@@ -193,6 +206,26 @@ describe("the answers", () => {
     expect(none.stat!.headline).toMatchObject({ value: "Not published yet" });
     expect(none.stat!.none).toMatch(/hasn't published a projection for Northeast League Meet yet/);
     expect((await ask("6980 chance to advance to worlds")).stat!.none).toMatch(/^No upcoming event is published for Bad Wolf \(6980\)/);
+    // The forecast said as a noun ("next meet forecast"): the same card, end to end, any team.
+    const noun = await ask("4215 next meet forecast");
+    expect(noun.stat).toMatchObject({ intent: "event-win-chance", team: { number: 4215 }, headline: { value: "22%", label: "to win Northeast League Meet" } });
+    expect((await ask("33950 projection for their next competition")).stat!.headline).toMatchObject({ value: "Not published yet" });
+    expect((await ask("6980 next tournament odds")).stat!.none).toMatch(/^No upcoming event is published for Bad Wolf \(6980\)/);
+    // "Will <team> win <event>": the forecast at that event, before it starts (the stored chance) or after (before and after).
+    const will = await ask("will hypnotic robotics win the northeast league meet");
+    expect(will.stat).toMatchObject({ intent: "pipeline-team-predict-event", team: { number: 4215 }, headline: { value: "22%", label: "to win Northeast League Meet" } });
+    const past = await ask("will 6980 win new jersey qualifier");
+    expect(past.stat).toMatchObject({ intent: "pipeline-team-predict-event", team: { number: 6980 }, title: "Prediction vs result at New Jersey Qualifier" });
+    // Reaching Worlds or states said beside a forecast: the advancement chance at the next event, any wording.
+    for (const q of ["4215 odds of reaching worlds", "what are 4215's chances of getting to states next season", "4215 chance of qualifying for worlds as it stands"]) {
+      expect((await ask(q)).stat, q).toMatchObject({ intent: "advance-chance", headline: { value: "33%", label: "to advance from Northeast League Meet (2 slots)" } });
+    }
+    expect((await ask("6980 odds of reaching worlds next year")).stat!.none).toMatch(/^No upcoming event is published for Bad Wolf \(6980\)/);
+    // "As of now" is filler; a season said asks for something the next event's projection isn't.
+    expect((await ask("4215 odds of reaching worlds as of now")).stat).toMatchObject({ intent: "advance-chance", headline: { value: "33%" } });
+    expect((await ask(`4215 odds of reaching worlds in ${S - 1}-${String(S % 100).padStart(2, "0")}`)).stat?.intent).not.toBe("advance-chance");
+    // A forecast made at Worlds is still its own ("advance at worlds"): the division's before and after.
+    expect((await ask("4215 chance to advance at worlds")).stat?.intent).not.toBe("advance-chance");
     // The forecast's switch off: the event page shows no odds, and nor does search.
     await setFlag("advancementOdds", false, "test");
     const off = await ask("4215 chance to win an event");
