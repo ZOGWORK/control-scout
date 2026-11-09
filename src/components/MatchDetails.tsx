@@ -17,7 +17,7 @@ import { CalibrationLine, ConfidenceBadge, FactorList, KIND_LABEL, PairHistoryLi
 import { VideoPanel } from "./MatchVideo";
 import { ShareMatch } from "./ShareMatch";
 import { ResultChanges } from "./ResultChanges";
-import { BonusOdds } from "./BonusOdds";
+import { BonusOddsRow } from "./BonusOdds";
 import { FactorSheetPanel } from "./FactorSheet";
 import { sheetWinner } from "../shared/factorSheet";
 import { ScoreRange } from "./ScoreRange";
@@ -349,14 +349,13 @@ function Prediction({ d }: { d: MatchDetail }) {
         <span className="w-10 text-sm font-semibold tabular-nums text-blue-alliance">{oddsPct(1 - p.pRed)}</span>
       </div>
       <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-        {!p.noScoreBasis && <><dt className="text-text-muted">Predicted{p.redRange && <span className="text-[11px]"> (± {levelPct(p.rangeLevel)} range)</span>}</dt><dd className="tabular-nums"><ScoreRange mean={p.redMean} range={p.redRange} level={p.rangeLevel} className="text-red-alliance" /> – <ScoreRange mean={p.blueMean} range={p.blueRange} level={p.rangeLevel} className="text-blue-alliance" /></dd></>}
-        {!p.noScoreBasis && <><dt className="text-text-muted">Predicted margin</dt><dd className="tabular-nums" data-testid="predicted-margin">{marginText(p.redMean, p.blueMean)}</dd></>}
+        {!p.noScoreBasis && <><dt className="text-text-muted">Predicted{p.redRange && <span className="text-[11px]"> (± {levelPct(p.rangeLevel)} range)</span>}</dt><dd className="tabular-nums"><ScoreRange mean={p.redMean} range={p.redRange} level={p.rangeLevel} className="text-red-alliance" /> – <ScoreRange mean={p.blueMean} range={p.blueRange} level={p.rangeLevel} className="text-blue-alliance" />, <span data-testid="predicted-margin">{marginText(p.redMean, p.blueMean)}</span></dd></>}
         {played && <><dt className="text-text-muted">Actual</dt><dd className="tabular-nums"><span className="text-red-alliance">{m.red.score!.total}</span> – <span className="text-blue-alliance">{m.blue.score!.total}</span></dd></>}
         {played && !p.noScoreBasis && <><dt className="text-text-muted">Off by</dt><dd className="tabular-nums">red {signed(m.red.score!.total - p.redMean)}, blue {signed(m.blue.score!.total - p.blueMean)}</dd></>}
         {played && !p.noScoreBasis && p.redRange && p.blueRange && <><dt className="text-text-muted">Inside the range</dt><dd>red {inside(m.red.score!.total, p.redRange)}, blue {inside(m.blue.score!.total, p.blueRange)}</dd></>}
         {called != null && <><dt className="text-text-muted">Call</dt><dd className={called ? "text-success" : "text-warning"}>{called ? "Called it" : "Upset"}</dd></>}
       </dl>
-      {p.bonus && <BonusOdds season={m.season} bonus={p.bonus} actual={played ? d.bonus : null} className="mt-3 bg-text-base/[0.02]" />}
+      {p.bonus && <BonusOddsRow season={m.season} bonus={p.bonus} actual={played ? d.bonus : null} className="mt-3 border-t border-border pt-3" />}
       {p.factors?.length ? <><p className="mt-3 text-xs font-medium text-text-muted">Why</p><FactorList factors={p.factors} reasons={p.reasons} className="mt-1.5" /></> : null}
       {p.history ? <PairHistoryLine history={p.history} className="mt-1.5" /> : null}
       {p.sheet && <FactorSheetPanel sheet={p.sheet} level={m.level} winner={played ? sheetWinner(m.red.score!.total, m.blue.score!.total) : null} className="mt-3" />}

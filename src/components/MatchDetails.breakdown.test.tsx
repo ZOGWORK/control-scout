@@ -107,3 +107,16 @@ describe("match breakdown", () => {
     expect([rpIcon("Swarm"), rpIcon("Pollinator 1"), rpIcon("Pollinator 2")]).toEqual([SwarmIcon, Pollinator1Icon, Pollinator2Icon]);
   });
 });
+
+describe("bonus RP odds in the call card", () => {
+  it("prints each RP's chance for both sides and the expected RP as numbers, no bars", async () => {
+    const { BonusOddsRow } = await import("./BonusOdds");
+    const { MemoryRouter } = await import("react-router-dom");
+    render(<MemoryRouter><BonusOddsRow season={2026} bonus={{ tier: "provisional", red: [0.67, 0.06, 0.01], blue: [0.69, 0.07, 0.01], rpRed: 2.3, rpBlue: 2.3 } as never} actual={{ red: [false, false, false], blue: [false, false, false] }} /></MemoryRouter>);
+    const text = screen.getByTestId("bonus-odds").textContent!;
+    expect(text).toContain("Swarm67% – 69%");
+    expect(text).toContain("Pollinator 16% – 7%");
+    expect(text).toContain("Expected RP2.3 – 2.3");
+    expect(screen.getByTestId("bonus-odds").querySelector("[style*='width']")).toBeNull();
+  });
+});
