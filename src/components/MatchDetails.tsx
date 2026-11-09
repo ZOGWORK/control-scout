@@ -1,11 +1,11 @@
 // One match, opened in place under its row (never a dialog): both lineups
 // with each robot's standing at the event and this season, the score
-// breakdown side by side, bonus RPs, what OPR expected vs what happened, the
+// breakdown as one difference table (phases first, what each is made of a tap away), bonus RPs, what OPR expected vs what happened, the
 // prediction against the result with its reasons, official result changes,
 // and the match's video.
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ChevronLeft, ChevronRight, ClipboardList, Video } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Video } from "lucide-react";
 import { ClipLink, MatchVideoLink } from "./MatchClip";
 import { clipTime } from "../shared/recording";
 import type { MatchDetail, MatchView } from "../shared/api";
@@ -30,9 +30,9 @@ import { rowIcon, rpIcon } from "./BreakdownIcons";
 
 type Side = "red" | "blue";
 const SIDES: Side[] = ["red", "blue"];
-const TONE: Record<Side, { text: string; bar: string; card: string }> = {
-  red: { text: "text-red-alliance", bar: "bg-red-alliance/80", card: "border-red-alliance/30 bg-red-alliance/[0.05]" },
-  blue: { text: "text-blue-alliance", bar: "bg-blue-alliance/80", card: "border-blue-alliance/30 bg-blue-alliance/[0.05]" },
+const TONE: Record<Side, { text: string }> = {
+  red: { text: "text-red-alliance" },
+  blue: { text: "text-blue-alliance" },
 };
 const r1 = (x: number) => Math.round(x * 10) / 10;
 const signed = (x: number) => `${x > 0 ? "+" : x < 0 ? "−" : "±"}${Math.abs(r1(x))}`;
@@ -64,11 +64,11 @@ function Body({ d, eventName }: { d: MatchDetail; eventName?: string }) {
   const m = d.match;
   const played = m.played && !!m.red.score && !!m.blue.score;
   const href = (key: string) => `/events/${m.season}/${encodeURIComponent(m.code)}?tab=matches&match=${encodeURIComponent(key)}`;
+  // One column, read top to bottom: the score and margin first, then the breakdown, then the call and its why.
   return (
-    <div className="space-y-4">
+    <div className="mx-auto max-w-[45rem] space-y-4">
+      <Headline d={d} />
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
-        <span className="font-medium text-text-base">{d.description ?? m.label}</span>
-        {m.time && <span>{matchTime(m.time)}</span>}
         {eventName !== undefined && <Link to={href(m.key)} className="underline-offset-2 hover:underline">{d.event.name}</Link>}
         {m.clip && <ClipLink clip={m.clip} label={m.label} matchKey={m.key} className="font-medium text-video hover:text-text-base">Watch in the recording · {clipTime(m.clip.t)}</ClipLink>}
         {m.video && <MatchVideoLink url={m.video} label={m.label} matchKey={m.key} className="hover:text-text-base">Official video</MatchVideoLink>}
@@ -78,17 +78,51 @@ function Body({ d, eventName }: { d: MatchDetail; eventName?: string }) {
           {d.next && <Link to={href(d.next.key)} className="inline-flex items-center rounded px-1.5 py-0.5 hover:bg-text-base/[0.06] hover:text-text-base" aria-label={`Next match, ${d.next.label}`}>{d.next.label}<ChevronRight className="size-3.5" /></Link>}
         </span>
       </div>
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2">
         {SIDES.map((s) => <Alliance key={s} d={d} side={s} />)}
       </div>
-      <div className="grid gap-3 lg:grid-cols-2">
-        {played ? <Breakdown d={d} /> : <p className="rounded-xl border border-dashed border-border p-4 text-sm text-text-muted">Not played yet — the score breakdown appears once the result is posted.</p>}
-        <Prediction d={d} />
-      </div>
+      {played ? <Breakdown d={d} /> : <p className="rounded-xl border border-dashed border-border p-4 text-sm text-text-muted">Not played yet — the score breakdown appears once the result is posted.</p>}
+      <Prediction d={d} />
       {/* Asks again whenever this match's result or schedule on screen changes (live checks, refreshes). */}
       <ResultChanges season={m.season} code={m.code} matchKey={m.key}
         refreshKey={JSON.stringify([m.time, m.played, m.red.score, m.blue.score, m.red.teams.map((t) => t.number), m.blue.teams.map((t) => t.number)])} />
     </div>
+  );
+}
+
+/** The loser's number fades back: the alliance colour mixed toward muted text, so it still reads at 4.5:1. */
+const FADED: Record<Side, string> = {
+  red: "text-[color-mix(in_srgb,var(--color-red-alliance-text)_55%,var(--color-text-muted))]",
+  blue: "text-[color-mix(in_srgb,var(--color-blue-alliance-text)_55%,var(--color-text-muted))]",
+};
+const NAME: Record<Side, string> = { red: "Red", blue: "Blue" };
+
+/** The whole match in one glance: the score and the margin in the biggest type on the page, then which match,
+ *  when, and who won. Winner bold in its colour, loser faded. */
+export function Headline({ d }: { d: MatchDetail }) {
+  const m = d.match, r = m.red.score, b = m.blue.score;
+  const played = m.played && !!r && !!b;
+  const diff = played ? r!.total - b!.total : 0;
+  const win: Side | null = played && diff !== 0 ? (diff > 0 ? "red" : "blue") : null;
+  const num = (s: Side) => cn("tabular-nums", win === s || !win ? cn("font-bold", TONE[s].text) : cn("font-normal", FADED[s]));
+  const penalties = played && win && Math.sign(r!.np - b!.np) !== Math.sign(diff);
+  return (
+    <header data-testid="match-headline">
+      {played && (
+        <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1 font-display" data-testid="breakdown-margin">
+          <span className="text-4xl sm:text-5xl">
+            <span className={num("red")}>{r!.total}</span><span className="font-normal text-text-muted"> – </span><span className={num("blue")}>{b!.total}</span>
+          </span>
+          <span className={cn("text-xl font-bold sm:text-2xl", win ? TONE[win].text : "text-text-base")}>{win ? `${NAME[win]} by ${Math.abs(diff)}` : "Tie"}</span>
+        </p>
+      )}
+      <p className="mt-1 text-sm text-text-muted" data-testid="match-line">
+        <span className="font-medium text-text-base">{d.description ?? m.label}</span>
+        {m.time && <> · {matchTime(m.time)}</>}
+        {" · "}{!played ? "Not played yet" : win ? `${NAME[win]} won` : "Tie"}
+        {penalties && " · decided by penalties"}
+      </p>
+    </header>
   );
 }
 
@@ -103,6 +137,8 @@ function MatchVideoSection({ m }: { m: MatchView }) {
   );
 }
 
+/** One alliance as compact text: each robot on one line (number, name), its standing under it (station, event
+ *  rank and record, OPR at this time, season OPR and rank), what the lineup's OPRs add up to, and its bonus RPs. */
 function Alliance({ d, side }: { d: MatchDetail; side: Side }) {
   const m = d.match;
   const a = m[side], other = m[side === "red" ? "blue" : "red"];
@@ -113,46 +149,40 @@ function Alliance({ d, side }: { d: MatchDetail; side: Side }) {
   const expected = oprs.length && oprs.every((x) => x != null) ? (oprs as number[]).reduce((s, x) => s + x, 0) : null;
   const bonus = d.bonus?.[side];
   return (
-    <section className={cn("rounded-xl border p-4", TONE[side].card)} aria-label={`${side === "red" ? "Red" : "Blue"} alliance`}>
-      <div className="flex items-baseline justify-between gap-2">
-        <p className={cn("text-xs font-semibold uppercase tracking-wide", TONE[side].text)}>{side === "red" ? "Red" : "Blue"} alliance{won ? " · won" : ""}</p>
-        <p className={cn("font-display text-3xl font-bold tabular-nums", TONE[side].text)}>{a.score?.total ?? "—"}</p>
-      </div>
-      <ul className="mt-2 divide-y divide-border/60">
+    <section className={cn("min-w-0 border-l-2 pl-3", side === "red" ? "border-red-alliance" : "border-blue-alliance")} aria-label={`${NAME[side]} alliance`}>
+      <p className={cn("text-xs font-semibold", TONE[side].text)}>{NAME[side]}{won ? " · won" : ""}</p>
+      <ul className="mt-1 space-y-1.5">
         {a.teams.map((t) => {
           const info = d.teams[t.number];
           const ev = info?.event, se = info?.season;
           return (
-            <li key={t.number} className={cn("py-2", !t.onField && "opacity-60")}>
+            <li key={t.number} className={cn(!t.onField && "opacity-60")}>
               <div className="flex flex-wrap items-baseline gap-x-2">
                 {hasTeamPage(t.number, info?.name)
                   ? <Link to={`/teams/${t.number}?season=${m.season}`} className="font-mono text-sm font-semibold hover:underline">{t.number}</Link>
                   : <span className="font-mono text-sm font-semibold">{t.number}</span>}
                 <span className="min-w-0 truncate text-sm">{info?.name ?? ""}</span>
-                {d.stations[t.number] && <span className="text-[11px] text-text-muted">Station {d.stations[t.number]}</span>}
                 {t.surrogate && <span className="rounded bg-muted px-1 text-[10px]">Surrogate</span>}
                 {t.dq && <span className="rounded bg-destructive/15 px-1 text-[10px] text-destructive">DQ</span>}
                 {!t.onField && <span className="rounded bg-muted px-1 text-[10px]">Not on field</span>}
               </div>
-              <dl className="mt-1 grid grid-cols-3 gap-x-3 text-[11px] text-text-muted">
-                <div><dt className="sr-only">Event rank</dt><dd>{ev?.rank ? <>Rank <span className="text-text-base">#{ev.rank}</span>{ev.wins != null && <> · {ev.wins}-{ev.losses}-{ev.ties}</>}</> : "Unranked"}</dd></div>
-                <div><dt className="sr-only">Event OPR</dt><dd>OPR at this time <span className="text-text-base">{ev?.opr.np != null ? r1(ev.opr.np) : "—"}</span></dd></div>
-                <div><dt className="sr-only">Season OPR</dt><dd>Season <span className="text-text-base">{se?.opr != null ? r1(se.opr) : "—"}</span>{se?.rank ? <> · #{se.rank.toLocaleString()}</> : null}</dd></div>
-              </dl>
+              <p className="text-[11px] text-text-muted" data-testid="team-standing">
+                {d.stations[t.number] && <>Station {d.stations[t.number]} · </>}
+                {ev?.rank ? <>Rank <span className="text-text-base">#{ev.rank}</span>{ev.wins != null && <> · {ev.wins}-{ev.losses}-{ev.ties}</>}</> : "Unranked"}
+                {" · "}OPR at this time <span className="text-text-base">{ev?.opr.np != null ? r1(ev.opr.np) : "—"}</span>
+                {" · "}Season <span className="text-text-base">{se?.opr != null ? r1(se.opr) : "—"}</span>{se?.rank ? <> #{se.rank.toLocaleString()}</> : null}
+              </p>
             </li>
           );
         })}
       </ul>
-      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
-        {expected != null && <span>Event OPRs add up to <span className="text-text-base">{r1(expected)}</span>{a.score ? <> · scored {a.score.np} without penalties (<span className={cn(a.score.np - expected >= 0 ? "text-success" : "text-warning")}>{signed(a.score.np - expected)}</span>)</> : null}</span>}
-      </div>
+      {expected != null && (
+        <p className="mt-1.5 text-[11px] text-text-muted">Event OPRs add up to <span className="text-text-base">{r1(expected)}</span>{a.score ? <> · scored {a.score.np} without penalties (<span className={cn(a.score.np - expected >= 0 ? "text-success" : "text-warning")}>{signed(a.score.np - expected)}</span>)</> : null}</p>
+      )}
       {bonus && d.bonus && (
-        <div className="mt-3">
-          <p className="mb-1 text-[11px] text-text-muted">Bonus ranking points</p>
-          <ul className="grid grid-cols-3 gap-1.5" aria-label="Bonus ranking points">
-            {d.bonus.labels.map((l, i) => <RpChip key={l} label={l} earned={bonus[i]} />)}
-          </ul>
-        </div>
+        <ul className="mt-1.5 flex flex-wrap gap-1" aria-label={`${NAME[side]} bonus ranking points`}>
+          {d.bonus.labels.map((l, i) => <RpChip key={l} label={l} earned={bonus[i]} />)}
+        </ul>
       )}
     </section>
   );
@@ -190,83 +220,88 @@ export function rowLead(x: BreakdownRow): { side: Side | null; text: string } {
   return { side, text: `${who} +${by}` };
 }
 
-/** The score side by side: each row is a pair of bars on one baseline and one scale (red on top, blue below),
- *  with both values, who's ahead and by how much. Ends on the margin. */
+/** A sheet's rows grouped by phase: each top-level row (Auto, TeleOp, fouls, the total) with what it's made of. */
+export type BreakdownGroup = { row: BreakdownRow; parts: BreakdownRow[] };
+export function groupRows(rows: BreakdownRow[]): BreakdownGroup[] {
+  const out: BreakdownGroup[] = [];
+  for (const x of rows) {
+    if (x.depth === 1 && out.length) out[out.length - 1].parts.push(x);
+    else out.push({ row: x, parts: [] });
+  }
+  return out;
+}
+
+// label | red | difference | blue. Fixed number tracks, so every row's values line up.
+const GRID = "grid grid-cols-[minmax(0,1fr)_2.5rem_6.75rem_2.5rem] items-center gap-x-2 sm:grid-cols-[minmax(0,1fr)_3.5rem_9rem_3.5rem] sm:gap-x-3";
+
+/** The score as one table: a row per scoring phase with both values and the difference in words, in the
+ *  colour of the side it favours. No bars: for two numbers, the difference says it faster. What each phase is
+ *  made of sits under it, one tap away (collapsed on load). */
 export function Breakdown({ d }: { d: MatchDetail }) {
-  const r = d.match.red.score!, b = d.match.blue.score!;
-  const rows = breakdownRows(d);
-  const diff = r.total - b.total;
+  const groups = groupRows(breakdownRows(d));
+  const [open, setOpen] = useState<ReadonlySet<number>>(() => new Set());
+  const toggle = (i: number) => setOpen((o) => { const n = new Set(o); if (n.has(i)) n.delete(i); else n.add(i); return n; });
+  const id = `breakdown-${d.match.code}-${d.match.key.replace(/:/g, "-")}`;
   return (
-    <section className="rounded-xl border border-border bg-card" aria-label="Score breakdown">
-      <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2 text-[11px] text-text-muted">
-        <span>Score breakdown</span>
-        <span className="flex items-center gap-3" aria-hidden>
-          <span className="flex items-center gap-1"><span className={cn("h-1.5 w-4 rounded-full", TONE.red.bar)} />Red, top</span>
-          <span className="flex items-center gap-1"><span className={cn("h-1.5 w-4 rounded-full", TONE.blue.bar)} />Blue, below</span>
-        </span>
+    <section className="overflow-hidden rounded-xl border border-border bg-card" aria-label="Score breakdown">
+      <div className={cn(GRID, "border-b border-border px-3 py-2 text-[11px]")}>
+        <span className="text-text-muted">Score breakdown</span>
+        <span className="text-right font-semibold text-red-alliance">Red</span>
+        <span className="text-center text-text-muted">Difference</span>
+        <span className="font-semibold text-blue-alliance">Blue</span>
       </div>
       <ul className="divide-y divide-border">
-        {rows.map((x, i) => <BreakdownLine key={`${x.label}:${i}`} x={x} sheet={!!d.sheet} />)}
+        {groups.map((g, i) => <Phase key={`${g.row.label}:${i}`} g={g} open={open.has(i)} onToggle={() => toggle(i)} id={`${id}-${i}`} />)}
       </ul>
-      <p className="flex flex-wrap items-baseline gap-x-2 border-t border-border px-3 py-2.5 text-sm" data-testid="breakdown-margin">
-        {diff === 0
-          ? <span className="font-semibold">Tie, {r.total}–{b.total}.</span>
-          : <><span className={cn("font-semibold", TONE[diff > 0 ? "red" : "blue"].text)}>{diff > 0 ? "Red" : "Blue"} by {Math.abs(diff)}</span>
-            <span className="text-xs text-text-muted">{r.total}–{b.total}{Math.sign(r.np - b.np) !== Math.sign(diff) ? " — decided by penalties." : "."}</span></>}
-      </p>
     </section>
   );
 }
 
-function BreakdownLine({ x, sheet }: { x: BreakdownRow; sheet: boolean }) {
+const rowData = (r: BreakdownRow) => ({ title: r.note, "data-depth": r.depth ?? 0, "data-label": r.label, "data-red": r.red ?? "", "data-blue": r.blue ?? "" });
+
+function Phase({ g, open, onToggle, id }: { g: BreakdownGroup; open: boolean; onToggle: () => void; id: string }) {
+  const x = g.row;
+  const row = cn(GRID, "min-h-11 w-full px-3 py-2 text-left", x.total && "bg-text-base/[0.03]");
+  return (
+    <li>
+      {g.parts.length ? (
+        <button type="button" onClick={onToggle} aria-expanded={open} aria-controls={id}
+          className={cn(row, "cursor-pointer outline-none hover:bg-text-base/[0.03] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60")} {...rowData(x)}>
+          <Cells x={x} open={open} />
+        </button>
+      ) : <div className={row} {...rowData(x)}><Cells x={x} /></div>}
+      {g.parts.length > 0 && open && (
+        <ul id={id} className="divide-y divide-border/60 border-t border-border bg-text-base/[0.02]" aria-label={`${x.label}, what it's made of`}>
+          {g.parts.map((p, i) => <li key={`${p.label}:${i}`} className={cn(GRID, "min-h-9 py-1.5 pl-9 pr-3")} {...rowData(p)}><Cells x={p} /></li>)}
+        </ul>
+      )}
+    </li>
+  );
+}
+
+function Cells({ x, open }: { x: BreakdownRow; open?: boolean }) {
   const sub = x.depth === 1;
   const Icon = rowIcon(x.label);
   const lead = rowLead(x);
-  // One scale per row: the larger value fills the track, so the two lengths compare directly.
-  const max = Math.max(Math.abs(x.red ?? 0), Math.abs(x.blue ?? 0), 1);
-  const bar = (side: Side) => {
-    const v = x[side];
+  // The side a row favours is bold in its colour, the other faded; an even row, both plain.
+  const value = (s: Side) => {
+    const v = x[s];
     return (
-      <div className="grid grid-cols-[2.25rem_minmax(0,1fr)] items-center gap-2" data-side={side}>
-        <span className={cn("text-right tabular-nums", x.total ? "text-base font-bold" : sub ? "text-xs" : "text-sm font-semibold", v ? TONE[side].text : "text-text-muted")} data-testid={`value-${side}`}>{v ?? "—"}</span>
-        <span className={cn("relative block overflow-hidden rounded-full bg-text-base/[0.07]", x.total ? "h-3" : sub ? "h-1.5" : "h-2.5")}>
-          <span className={cn("absolute inset-y-0 left-0 rounded-full", TONE[side].bar, sub && "opacity-75")} style={{ width: `${(Math.abs(v ?? 0) / max) * 100}%` }} />
-        </span>
-      </div>
+      <span className={cn("tabular-nums", s === "red" ? "text-right" : "text-left", x.total ? "text-base" : sub ? "text-xs" : "text-sm",
+        !v ? "text-text-muted" : lead.side === s ? cn("font-bold", TONE[s].text) : lead.side ? FADED[s] : "font-semibold text-text-base")} data-testid={`value-${s}`}>{v ?? "—"}</span>
     );
   };
-  const tone = lead.side === "red" ? "red-alliance" : "blue-alliance";
-  const chip = (
-    <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums", sub && "px-1.5 text-[10px]",
-      !lead.side ? "border border-border text-text-muted"
-        // Fouls: an outlined chip, so "gave away more" never reads like a lead.
-        : x.fouls ? (tone === "red-alliance" ? "border border-dashed border-red-alliance/50 text-red-alliance" : "border border-dashed border-blue-alliance/50 text-blue-alliance")
-        : tone === "red-alliance" ? "bg-red-alliance/15 text-red-alliance" : "bg-blue-alliance/15 text-blue-alliance")} data-testid="lead">{lead.text}</span>
-  );
-  const label = (
-    <span className={cn("flex min-w-0 items-center gap-1.5", sub ? "text-xs text-text-muted" : "text-sm", x.total && "font-semibold")}>
-      <Icon size={sub ? 14 : 18} className={cn("shrink-0", sub ? "opacity-80" : "text-accent-text")} />
-      <span className="truncate">{x.label}</span>{x.count && <span className="sr-only"> (count)</span>}
-    </span>
-  );
   return (
-    <li className={cn("px-3", sub ? "py-1.5 pl-6" : "py-2.5", x.total && "bg-text-base/[0.03]", !sub && sheet && !x.total && "bg-text-base/[0.02]")}
-      title={x.note} data-depth={x.depth ?? 0} data-label={x.label} data-red={x.red ?? ""} data-blue={x.blue ?? ""}>
-      {sub ? (
-        <div className="grid grid-cols-[6.5rem_minmax(0,1fr)_4.75rem] items-center gap-2 sm:grid-cols-[8rem_minmax(0,1fr)_8.5rem] sm:gap-3">
-          {label}
-          <div className="space-y-0.5">{bar("red")}{bar("blue")}</div>
-          <span className="justify-self-end">{chip}</span>
-        </div>
-      ) : (
-        // Phone: name and lead on one line, the bars below. Wider: name, bars, lead in one line.
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 sm:grid-cols-[9.5rem_minmax(0,1fr)_8.5rem]">
-          {label}
-          <span className="justify-self-end sm:col-start-3 sm:row-start-1">{chip}</span>
-          <div className="col-span-2 space-y-1 sm:col-span-1 sm:col-start-2 sm:row-start-1">{bar("red")}{bar("blue")}</div>
-        </div>
-      )}
-    </li>
+    <>
+      <span className={cn("flex min-w-0 items-center gap-1.5", sub ? "text-xs text-text-muted" : "text-sm", x.total && "font-semibold")}>
+        {!sub && <Icon size={16} className="shrink-0 text-accent-text" />}
+        <span className="min-w-0 break-words">{x.label}</span>{x.count && <span className="sr-only"> (count)</span>}
+        {open !== undefined && <ChevronDown className={cn("size-3.5 shrink-0 text-text-muted transition-transform motion-reduce:transition-none", open && "rotate-180")} aria-hidden />}
+      </span>
+      {value("red")}
+      <span className={cn("text-center tabular-nums", sub ? "text-[11px]" : "text-xs", lead.side ? cn(TONE[lead.side].text, !sub && "font-semibold") : "text-text-muted")} data-testid="lead">{lead.text}</span>
+      {value("blue")}
+    </>
   );
 }
 
@@ -275,15 +310,13 @@ function BreakdownLine({ x, sheet }: { x: BreakdownRow; sheet: boolean }) {
 export function RpChip({ label, earned }: { label: string; earned: boolean }) {
   const Icon = rpIcon(label);
   return (
-    <li className={cn("relative flex min-w-0 flex-col items-center gap-0.5 rounded-lg border px-1 py-1.5 text-center",
-      earned ? "border-success/50 bg-success/10" : "border-dashed border-border")}
+    <li className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] leading-tight",
+      earned ? "border-success/50 bg-success/10 text-text-base" : "border-dashed border-border text-text-muted")}
       data-earned={earned}>
       <span className="sr-only">{label} RP {earned ? "earned" : "missed"}</span>
-      <span className={cn("absolute right-1 top-1 grid size-4 place-items-center rounded-full text-[10px] font-bold leading-none",
-        earned ? "bg-success text-card" : "border border-text-muted/60 text-text-muted")} aria-hidden>{earned ? "✓" : "✗"}</span>
-      <Icon size={34} className={earned ? "text-success" : "text-text-muted opacity-55"} />
-      <span className={cn("mt-0.5 w-full truncate text-[11px] leading-tight", earned ? "font-semibold text-text-base" : "text-text-muted")} aria-hidden>{label}</span>
-      <span className={cn("text-[10px] leading-tight", earned ? "font-semibold text-success" : "text-text-muted")} aria-hidden>{earned ? "✓ Earned" : "✗ Missed"}</span>
+      <Icon size={14} className={earned ? "text-success" : "opacity-70"} />
+      <span aria-hidden>{label}</span>
+      <span className={earned ? "font-semibold text-success" : undefined} aria-hidden>{earned ? "✓ Earned" : "✗ Missed"}</span>
     </li>
   );
 }

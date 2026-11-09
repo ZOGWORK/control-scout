@@ -2,10 +2,10 @@
 // The finished match's breakdown is display only: every number it renders is the match's own data, unchanged
 // (each phase, the fouls, the total and the margin), and each bonus RP chip says earned or missed exactly as
 // the data does, in words and a mark as well as colour.
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import type { MatchDetail } from "../shared/api";
-import { Breakdown, RpChip, breakdownRows, rowLead } from "./MatchDetails";
+import { Breakdown, Headline, RpChip, breakdownRows, groupRows, rowLead } from "./MatchDetails";
 import { Pollinator1Icon, Pollinator2Icon, SwarmIcon, rpIcon } from "./BreakdownIcons";
 
 const score = (total: number, np: number, auto: number, teleop: number, endgame: number, pen: number) => ({ total, np, auto, teleop, endgame, pen });
@@ -18,11 +18,12 @@ const detail = (sheet: MatchDetail["sheet"] = null): MatchDetail => ({
   teams: {}, sheet, prev: null, next: null,
 } as unknown as MatchDetail);
 
-const rendered = () => screen.getAllByRole("listitem").filter((li) => li.dataset.label != null).map((li) => ({
-  label: li.dataset.label!,
-  red: within(li).getByTestId("value-red").textContent,
-  blue: within(li).getByTestId("value-blue").textContent,
-  lead: within(li).getByTestId("lead").textContent,
+// Every row on screen (a phase, or a part of one once its phase is open), read the way a person would.
+const rendered = () => Array.from(document.querySelectorAll<HTMLElement>("[data-label]")).map((el) => ({
+  label: el.dataset.label!,
+  red: within(el).getByTestId("value-red").textContent,
+  blue: within(el).getByTestId("value-blue").textContent,
+  lead: within(el).getByTestId("lead").textContent,
 }));
 const shown = (v: number | null) => (v == null ? "—" : String(v));
 
@@ -41,10 +42,18 @@ describe("match breakdown", () => {
       { label: "Fouls given away", red: String(r.pen), blue: String(b.pen), lead: "Red gave 20 more" },
       { label: "Total", red: String(r.total), blue: String(b.total), lead: "Red +42" },
     ]);
-    expect(screen.getByTestId("breakdown-margin").textContent).toBe("Red by 42124–82.");
+    // No bars anywhere: the difference column is the comparison.
+    expect(document.querySelector("[style*='width']")).toBeNull();
   });
 
-  it("renders FIRST's full sheet row by row, with the total from the match score", () => {
+  it("puts the score and the margin first, winner named, and says when penalties decided it", () => {
+    const d = detail();
+    render(<Headline d={d} />);
+    expect(screen.getByTestId("breakdown-margin").textContent).toBe("124 – 82Red by 42");
+    expect(screen.getByTestId("match-line").textContent).toBe("Q8 · Red won");
+  });
+
+  it("renders FIRST's full sheet: phases first, each one's parts a tap away with the same numbers", () => {
     const sheet: MatchDetail["sheet"] = [
       { label: "Auto", depth: 0, red: 36, blue: 3 }, { label: "Leave", depth: 1, red: 6, blue: 3 }, { label: "Hive", depth: 1, red: 20, blue: 0 },
       { label: "TeleOp", depth: 0, red: 88, blue: 59 }, { label: "Flower", depth: 1, red: null, blue: 12 },
@@ -52,13 +61,27 @@ describe("match breakdown", () => {
     ];
     const d = detail(sheet);
     render(<Breakdown d={d} />);
+    // Collapsed on load: the phases and the total only.
+    expect(rendered().map((x) => x.label)).toEqual(["Auto", "TeleOp", "Fouls given away", "Total"]);
+    const phases = screen.getAllByRole("button");
+    expect(phases.map((b) => b.getAttribute("aria-expanded"))).toEqual(["false", "false", "false"]);
+    phases.forEach((b) => fireEvent.click(b));
     const rows = rendered();
     expect(rows.map((x) => x.label)).toEqual([...sheet.map((x) => x.label), "Total"]);
     sheet.forEach((x, i) => expect([rows[i].red, rows[i].blue]).toEqual([shown(x.red), shown(x.blue)]));
     expect(rows.at(-1)).toMatchObject({ red: "124", blue: "82" });
     expect(rows.find((x) => x.label === "Major fouls")!.lead).toBe("Red 1 more");
+    expect(rows.find((x) => x.label === "Fouls given away")!.lead).toBe("Red gave 20 more");
     expect(rows.find((x) => x.label === "Flower")!.lead).toBe("—");
     expect(breakdownRows(d).at(-1)).toMatchObject({ red: d.match.red.score!.total, blue: d.match.blue.score!.total, total: true });
+    // A second tap closes the phase again.
+    fireEvent.click(phases[0]);
+    expect(rendered().map((x) => x.label)).not.toContain("Leave");
+  });
+
+  it("groups each part under the phase above it", () => {
+    const g = groupRows([{ label: "Auto", red: 1, blue: 2 }, { label: "Leave", red: 1, blue: 0, depth: 1 }, { label: "Total", red: 1, blue: 2, total: true }]);
+    expect(g.map((x) => [x.row.label, x.parts.map((p) => p.label)])).toEqual([["Auto", ["Leave"]], ["Total", []]]);
   });
 
   it("says a tie in words, names no lead when a value is missing, and never relies on colour", () => {
