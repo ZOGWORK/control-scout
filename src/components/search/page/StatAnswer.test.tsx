@@ -85,6 +85,22 @@ describe("StatAnswerCard, a team's OPR", () => {
     const one = render(<MemoryRouter><SeasonPickContext.Provider value={ctx}><StatAnswerCard stat={{ ...pair, title: "Teams in New Jersey · 2024–25", scope: ["New Jersey", "2024–25"] }} /></SeasonPickContext.Provider></MemoryRouter>).container;
     expect(one.querySelector("[role=combobox]")).not.toBeNull();
   });
+  // Live check of #1111: a board over every season, or over a span of seasons, is no one season's: no season to pick.
+  it("a board over every season, or a span of them, has no season picker", () => {
+    const ctx = { picked: null, pending: false, pick: () => {} };
+    const boards: [string, string[]][] = [
+      ["Team worldwide with the most wins, every season", ["Worldwide", "Every season on record (2008–09 to 2025–26)"]],
+      ["Oldest teams still active in Ohio, by rookie year", ["Ohio", "Active in 2025–26 or 2026–27"]],
+      ["Teams from Texas with the most awards", ["Texas", "All seasons"]],
+    ];
+    for (const [title, scope] of boards) {
+      const st: StatAnswer = { family: "leaderboard", intent: "career-wins", title, scope, headline: { value: "1", label: "" }, blocks: [], definition: "", source: "" };
+      const c = render(<MemoryRouter><SeasonPickContext.Provider value={ctx}><StatAnswerCard stat={st} /></SeasonPickContext.Provider></MemoryRouter>).container;
+      expect(c.querySelector("[role=combobox]"), title).toBeNull();
+      expect(c.querySelector("[data-scope]")!.textContent, title).toContain(scope[1]);
+      cleanup();
+    }
+  });
   it("a title the page heading already says is for screen readers only", () => {
     const c = render(<MemoryRouter><StatAnswerCard stat={opr} heading="Hypnotic Robotics (4215) · OPR in 2025–26" /></MemoryRouter>).container;
     expect(c.querySelector("[data-answer-title]")!.className).toContain("sr-only");

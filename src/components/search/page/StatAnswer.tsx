@@ -64,12 +64,18 @@ export function StatAnswerCard({ stat, heading, explain }: { stat: StatAnswer; h
   return <OneCard stat={stat} heading={heading} extra={extra} />;
 }
 
+/** Whether texts name more than one season ("2023–24", "2024–25"; every one in each text) or say they count every one. */
+export function manySeasons(texts: readonly string[]): boolean {
+  if (texts.some((t) => /\b(?:every|all) seasons?\b/i.test(t))) return true;
+  const said = new Set(texts.flatMap((t) => [...t.matchAll(/\b20\d\d[–-]\d\d\b/g)].map((m) => statedSeason(m[0])).filter((s) => s != null)));
+  return said.size > 1;
+}
+
 function OneCard({ stat, heading, extra }: { stat: StatAnswer; heading?: string; extra?: ReactNode }) {
   const teams = stat.teams && stat.teams.length > 1 ? stat.teams : stat.team ? [stat.team] : undefined;
-  // A card about no team and two seasons side by side ("2024 versus 2025") is no one season's: no season to pick, both
-  // its chips kept.
-  const seasonsSaid = new Set([stat.title, ...stat.scope].map((s) => statedSeason(s)).filter((s) => s != null));
-  const stated = !teams?.length && seasonsSaid.size > 1 ? null : statedSeason(stat.title, ...stat.scope);
+  // A card about no team that is no one season's has no season to pick, its chips kept: two seasons side by side
+  // ("2024 versus 2025"), a span of them ("2007–08 to 2025–26", "Active in 2025–26 or 2026–27"), or every season.
+  const stated = !teams?.length && manySeasons([stat.title, ...stat.scope]) ? null : statedSeason(stat.title, ...stat.scope);
   const season = useAnswerSeason(stated);
   const said = saidBy(stat);
   // About one team: its hue on the card's numbers and bars; about none (a season's top matches): ink.

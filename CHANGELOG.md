@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## NEXT — 2026-11-09
+## NEXT — 2026-11-08
 
 Hovering a point on a search chart says which match (or event) it is and its score, right away.
 
@@ -26,6 +26,42 @@ Hovering a point on a search chart says which match (or event) it is and its sco
 
 ### Search
 - **Chart point labels.** Each point on a line chart ("Score, match by match", "OPR by event") shows a small label on hover or keyboard focus: the match or event, then its value and result. It replaces the browser's own title tip, which was slow and easy to miss. `npm run shots` gains a `hover` step for screenshots of hover states. (#1227)
+
+## 4.6.5 — 2026-11-09
+
+"Top rookie teams at NJ conference" lists New Jersey's best rookie teams: a place's conference or league with no name of its own is the place.
+
+### Highlights
+- [rankings] "Top rookie teams at NJ conference" answers
+- [rankings] A state's conference or league reads as the state
+- [rankings] A named conference is still that event
+
+### Search
+- **A place's conference.** "At <place> conference" or "at <place> league", with no name of its own, reads as the place's teams on the leaderboards, so "top rookie teams at NJ conference" is New Jersey's best rookie teams. A named one ("East Bergen Conference") is still that event. (#1218)
+
+## 4.6.4 — 2026-11-09
+
+A board over every season reads once and offers no one season to pick.
+
+### Highlights
+- [fixes] Every-season boards no longer offer a season to pick
+- [fixes] "Oldest team still active" says its title once
+- [rankings] Career boards keep their season chips
+
+### Search
+- **Every-season boards.** A board that counts every season (the most seasons, matches, events or wins ever, the oldest teams still active) heads its page with the card's own title, so the page no longer says it twice in two wordings. A card about no team that counts every season, or spans seasons ("2007–08 to 2025–26", "active in 2025–26 or 2026–27"), has no season picker, and its season chips stay. The sign-off's visual pass now flags a season picker on such a card. (#1219)
+
+## 4.6.3 — 2026-11-09
+
+A team's name with "from" and a place ("ultraviolet from nj") finds the team, and a name several teams share finds the one from the place named.
+
+### Highlights
+- [fixes] "<team> from <state>" finds the team, as "<team> in <state>" does
+- [fixes] A name several teams share finds the one from the place you name
+- [fixes] A place code like "nj" after "from" is read as the place
+
+### Search
+- **Team from a place.** "From" before a state, province or country that ends the query is read as where the team is, never as part of the name; and when the name belongs to more than one team, the answer leads with the team whose home is in that place (the others stay in the list). (#1222)
 
 ## 4.6.2 — 2026-11-09
 
