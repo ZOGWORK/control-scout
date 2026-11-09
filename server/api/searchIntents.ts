@@ -138,7 +138,12 @@ async function teamInRegion(hits: SearchHit[], region: Region): Promise<SearchHi
   const all = await teamsByName(name);
   if (all.length < 2 || all.some((t) => String(t.number) === hits[0].ref && inRegion(t, region))) return null;
   const local = all.find((t) => inRegion(t, region));
-  return local ? hits.find((h) => h.kind === "team" && h.ref === String(local.number)) ?? namedTeamHit(local) : null;
+  if (!local) return null;
+  const listed = hits.find((h) => h.kind === "team" && h.ref === String(local.number));
+  if (listed) return listed;
+  // Not among the hits listed: its hit opens on the season the top hit does (a season asked for), as search's would.
+  const hit = namedTeamHit(local), s = hits[0].linkSeason;
+  return s == null ? hit : { ...hit, linkSeason: s, subtitle: [seasonLabel(s), hit.subtitle].filter(Boolean).join(" · ") };
 }
 
 /** The answer for a parsed intent: `base` is search's answer for the core (the team, the teams, or nothing). */
@@ -146,7 +151,8 @@ export async function intentAnswer(q: string, it: ParsedIntent, base: SearchAnsw
   const compare = !!base.hits[0]?.href?.startsWith("/compare");
   // A name several teams share, with a place named ("ultraviolet from michigan"): the team from that place, when one
   // of the teams found is from there; else search's own first team.
-  if (!compare && it.region && base.step !== "recovery" && base.hits[0]?.kind === "team") {
+  // A team asked for by its number is that team, wherever it is.
+  if (!compare && it.region && base.step !== "recovery" && base.hits[0]?.kind === "team" && !new RegExp(`(^|\\D)${base.hits[0].ref}(\\D|$)`).test(it.core)) {
     const local = await teamInRegion(base.hits, it.region);
     if (local) base = { ...base, hits: [local, ...base.hits.filter((h) => !(h.kind === "team" && h.ref === local.ref))] };
   }
