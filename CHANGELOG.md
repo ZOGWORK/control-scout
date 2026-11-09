@@ -25,7 +25,7 @@ The Share button on an opened match is bigger and gold, so it is easy to find.
 - [share] Hover tints it gold; tap area stays 44 px on phones
 
 ### Changed
-- The match details Share icon uses the gold accent (`text-accent-text`, set per theme) instead of muted grey, in a 40 px icon button with a 20 px icon (35 px and 17.5 px on a phone, 44 px tap area). (#PRNUM)
+- The match details Share icon uses the gold accent (`text-accent-text`, set per theme) instead of muted grey, in a 40 px icon button with a 20 px icon (35 px and 17.5 px on a phone, 44 px tap area). (#1257)
 
 ## 4.8.9 — 2026-11-09
 
