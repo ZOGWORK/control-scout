@@ -1932,6 +1932,26 @@ UPDATE events SET teams_checked_at = NULLIF(MAX(
   CASE WHEN source = 'first' THEN COALESCE(detail_synced_at, '') ELSE '' END), '');
 `,
   },
+  {
+    version: 77,
+    name: "an event's broadcasts found on its YouTube channel",
+    sql: `
+-- FIRST's stream link is sometimes a YouTube channel's page (youtube.com/@name/streams), which names no video. The
+-- channel's broadcasts that started on the event's dates are found (server/videos/channelStreams.ts) and kept here,
+-- one row each: a two-day meet has a Saturday and a Sunday broadcast. url: the channel link they were found from (a
+-- changed link drops them). The first of them is also the event's row in event_stream_links, which records the check.
+CREATE TABLE event_broadcasts (
+  season INTEGER NOT NULL, code TEXT NOT NULL,
+  video_id TEXT NOT NULL,
+  url TEXT NOT NULL,
+  start TEXT NOT NULL,
+  PRIMARY KEY (season, code, video_id)
+);
+-- read_at: the last read of the link that answered (checked_at is the last try, failed or not), so a failed try
+-- spaces the next one without counting as a look (server/videos/channelStreams.ts channelDue).
+ALTER TABLE event_stream_links ADD COLUMN read_at TEXT;
+`,
+  },
 ];
 
 export type Db = Client;

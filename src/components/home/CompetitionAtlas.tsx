@@ -178,10 +178,6 @@ export function CompetitionAtlas({ overview, currentSeason, compact, homeCountry
         </div>
       </div>
 
-      <p className="mt-3 text-xs text-text-muted">
-        Country totals from each team’s reported country, not team locations. A listing is a registration for the season, not a sign the team has competed.{mode === "globe" && !failed ? ` Drag the globe with a mouse or focus it and use the arrow keys to turn it${still ? "" : "; the pause button stops it"}.` : ""}
-      </p>
-
       <details className="group mt-3 rounded-xl border border-line">
         <summary className="flex min-h-11 cursor-pointer items-center justify-between gap-2 px-4 text-sm font-medium">
           All {overview.countries.length} countries and territories

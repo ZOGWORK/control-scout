@@ -50,6 +50,22 @@ function Player({ stream, title, matches, liveCall, recording }: { stream: Event
   const [play, setPlay] = useState<{ t: number; n: number; own?: { videoId: string; label: string; matchKey?: string } } | null>(null);
   const start = play?.t ?? null;
   const own = play?.own ?? null;
+  // An event broadcast a day at a time: the day's video playing (a match's Watch moves to its day).
+  const days = stream.days?.length ? stream.days : [{ videoId: stream.videoId, label: "" }];
+  // First shown: today's broadcast while the event is on, else its first day.
+  const opening = recording ? stream.videoId : days[days.length - 1].videoId;
+  const [picked, setDay] = useState(opening);
+  // A day whose video was taken off since (a refresh): the opening one instead.
+  const day = days.some((d) => d.videoId === picked) ? picked : opening;
+  // ... and a recording playing starts that video afresh (a new player: its own clock, from its start).
+  useEffect(() => {
+    if (day === picked) return;
+    setDay(day);
+    // An official match video playing stays: only the recording behind it changes.
+    setPlay((p) => (p && !p.own ? { t: 0, n: p.n + 1 } : p));
+  }, [day, picked]);
+  const dayRef = useRef(day);
+  dayRef.current = day;
   const box = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLIFrameElement>(null);
   const { clock, seek } = useVideoClock(frame, play?.n);
@@ -60,38 +76,52 @@ function Player({ stream, title, matches, liveCall, recording }: { stream: Event
   seekRef.current = seek;
   const ownRef = useRef(own);
   ownRef.current = own;
+  const dayIds = days.map((d) => d.videoId).join(",");
   useEffect(() => onStreamSeek(({ videoId, t, label, matchKey }) => {
-    if (videoId !== stream.videoId) setPlay((p) => ({ t, n: (p?.n ?? 0) + 1, own: { videoId, label, matchKey } }));
+    if (!dayIds.split(",").includes(videoId)) setPlay((p) => ({ t, n: (p?.n ?? 0) + 1, own: { videoId, label, matchKey } }));
+    else if (videoId !== dayRef.current) { setDay(videoId); setPlay((p) => ({ t, n: (p?.n ?? 0) + 1 })); }
     else if (ownRef.current || !seekRef.current(t)) setPlay((p) => ({ t, n: (p?.n ?? 0) + 1 }));
     box.current?.scrollIntoView({ block: "center", behavior: smoothBehavior() });
-  }), [stream.videoId]);
+  }), [dayIds]);
   // What the overlay shows: a recording follows the player's second; live, the match being called.
   // A match's own video: that match, its result once the video stops past the match's length (from where its link starts).
-  const timed = recording && matches.some((m) => m.clip && !m.clip.early);
+  // The latest day's video is the live one while the event is on; an earlier day's is a recording, whatever the event's state.
+  const liveVideo = !recording && day === days[days.length - 1].videoId;
+  const timed = !liveVideo && matches.some((m) => m.clip?.videoId === day && !m.clip.early);
   const ownMatch = own?.matchKey ? matches.find((m) => m.key === own.matchKey) ?? null : null;
   const call: OverlayCall | null = start == null || !overlay ? null
     : own ? (ownMatch ? { match: ownMatch, phase: clock && !clock.playing && clock.t - (start ?? 0) >= MATCH_S ? "after" : "playing" } : null)
-    : timed ? (clock ? videoMoment(matches, clock.t) : null) : recording ? null : liveCall;
-  const offerOverlay = timed || !recording || !!ownMatch;
+    : timed ? (clock ? videoMoment(matches.filter((m) => m.clip?.videoId === day), clock.t) : null) : liveVideo ? liveCall : null;
+  const offerOverlay = timed || liveVideo || !!ownMatch;
   return (
     <>
     <div ref={box} className="relative aspect-video w-full overflow-hidden rounded-2xl border border-border bg-black">
       {start != null ? (
         // Loaded by a click (the facade, or a match's Watch), so autoplay here is the viewer's own choice.
         <>
-          <iframe ref={frame} key={play!.n} className="absolute inset-0 size-full" src={bridgedSrc(own ? embedUrl(own.videoId) : stream.streamUrl, { autoplay: 1, rel: 0, ...(start ? { start } : {}) })} title={own ? `${own.label}: official match video` : title}
+          <iframe ref={frame} key={play!.n} className="absolute inset-0 size-full" src={bridgedSrc(own ? embedUrl(own.videoId) : day === stream.videoId ? stream.streamUrl : embedUrl(day), { autoplay: 1, rel: 0, ...(start ? { start } : {}) })} title={own ? `${own.label}: official match video` : title}
             allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen" referrerPolicy="strict-origin-when-cross-origin" />
           {/* A match's own video is a recording too, even while the event is live. */}
-          <VideoPredictions call={call} live={!recording && !own} pos={pos} />
+          <VideoPredictions call={call} live={liveVideo && !own} pos={pos} />
         </>
       ) : (
         <button type="button" onClick={() => setPlay({ t: 0, n: 1 })} className="group absolute inset-0 grid place-items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label={`Play: ${title}`} data-stream-facade>
-          <img src={thumbnailUrl(stream.videoId)} alt="" loading="lazy" decoding="async" onError={(e) => { e.currentTarget.hidden = true; }} className="absolute inset-0 size-full object-cover opacity-80 transition-opacity group-hover:opacity-100 motion-reduce:transition-none" />
+          <img src={thumbnailUrl(day)} alt="" loading="lazy" decoding="async" onError={(e) => { e.currentTarget.hidden = true; }} className="absolute inset-0 size-full object-cover opacity-80 transition-opacity group-hover:opacity-100 motion-reduce:transition-none" />
           <span className="relative grid size-16 place-items-center rounded-full bg-video-fill text-white shadow-lg sm:size-20"><Play className="size-7 translate-x-0.5 fill-current sm:size-9" aria-hidden /></span>
         </button>
       )}
     </div>
     <div className="mt-2 flex flex-wrap items-center gap-2">
+      {days.length > 1 && (
+        // One video a day: which day's plays (a match's Watch picks its own).
+        <span className="inline-flex h-9 items-center rounded-lg border border-border bg-card p-0.5 text-sm font-medium max-sm:h-10" role="group" aria-label="Which day's video" data-stream-days>
+          {days.map((d) => (
+            <button key={d.videoId} type="button" aria-pressed={!own && day === d.videoId}
+              onClick={() => { setDay(d.videoId); setPlay((p) => (p ? { t: 0, n: p.n + 1 } : p)); }}
+              className={cn("h-full rounded-md px-3", !own && day === d.videoId ? "bg-accent text-accent-ink" : "text-muted-foreground hover:text-foreground")}>{d.label}</button>
+          ))}
+        </span>
+      )}
       {own && (
         <>
           <span className="text-sm font-medium text-foreground" data-own-video>{own.label}: official match video</span>

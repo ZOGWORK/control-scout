@@ -43,6 +43,8 @@
         if (localStorage.getItem('cs-nav-more') === '1') document.documentElement.classList.add('cs-nav-more');
       } catch (e) {}
     </script>
+    <!-- Without JavaScript nothing reveals a section that fades in from script (.hiw-reveal): shown as it is. -->
+    <noscript><style>.hiw-reveal { opacity: 1 !important; transform: none !important; filter: none !important; }</style></noscript>
   </head>
   <body>
     <div id="root"><!--cs-boot--></div>
