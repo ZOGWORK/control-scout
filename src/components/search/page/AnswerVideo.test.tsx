@@ -32,8 +32,8 @@ describe("AnswerVideo", () => {
   it("is a play button until clicked; the click loads the player at the match's second", () => {
     const c = draw(video);
     expect(c.querySelector("iframe")).toBeNull();
-    // A recording's picture is whatever was on the field then (another match, an award): none, its caption instead.
-    expect(c.querySelector("[data-answer-video] img")).toBeNull();
+    // A recording shows its cover, never a blank player; the caption says which match and from when.
+    expect(c.querySelector("[data-answer-video] img")?.getAttribute("src")).toBe("https://i.ytimg.com/vi/xnQFL9T27fY/hqdefault.jpg");
     expect(c.querySelector("[data-video-caption]")?.textContent).toBe("M10 in the event's recording, from 9:12:32");
     fireEvent.click(c.querySelector("[data-video-facade]")!);
     const src = new URL(c.querySelector("iframe")!.getAttribute("src")!);

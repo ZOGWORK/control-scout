@@ -37,7 +37,9 @@ import { BOARD_STATS, LEADERBOARD_MAX, boardStatFor, careerBoardTitle, leaderboa
 import { readTime } from "../query/time.js";
 import { biggestEventsAnswer, readBiggestEvents } from "./families/biggestEvents.js";
 import { readTopCities, storedCountry, topCitiesAnswer } from "./families/topCities.js";
+import { placeAverageAnswer, readPlaceAverage } from "./families/placeAverages.js";
 import { everTopMatches, readTopMatches, topMatchesAnswer, type TopMatchesQuestion } from "./families/topMatches.js";
+import { rankUpsetAnswer, readRankUpset, type RankUpsetQuestion } from "./families/rankUpset.js";
 import { eventAverageAnswer, eventAverageTitle, eventsAsked, readEventAverage, type EventAverageQuestion } from "./families/eventAverage.js";
 import { penaltyTotalAnswer, trendAnswer } from "./families/trends.js";
 import { nextEventPrediction, pairPrediction, predictTitle, predictionSeason } from "./families/predict.js";
@@ -302,6 +304,20 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
   return scope;
 }
 
+/** Matches a team ranked below one line beat a team ranked inside another (./families/rankUpset.ts). */
+async function rankUpsetSearch(q: string, ru: RankUpsetQuestion, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+  // The search box reads it too (its link opens the page); only the page draws the matches.
+  const stat = opts.full ? await rankUpsetAnswer(ru) : null;
+  const label = stat?.title ?? `Matches a team ranked below ${ru.below.toLocaleString("en-US")} beat a top-${ru.top.toLocaleString("en-US")} team`;
+  return {
+    // The search box: a link to the answer page.
+    q, hits: [], pages: stat ? opts.pages : [{ title: label, href: `/search?q=${encodeURIComponent(q)}` }, ...opts.pages], step: "deterministic", weak: false,
+    understood: { kind: "question", label, ...(ru.season != null ? { season: ru.season } : {}) },
+    intent: { kind: "stat-rank-upsets", pattern: `team ranked below [n] beat team ranked top [n]${ru.season != null ? " [season]" : ""}`, met: true, understood: [label] },
+    ...(stat ? { stat } : {}),
+  };
+}
+
 /** An event's average match score, or two events' side by side (./families/eventAverage.ts). Null when an event
  *  isn't found: the question is then left to search. */
 async function eventAverageSearch(q: string, ea: EventAverageQuestion, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
@@ -363,6 +379,9 @@ const TOP_TEAMS_SAID = /\b(?:top|best|strongest)\s+(?:\d{1,2}\s+)?teams?\b/i;
 
 /** The answer for `q`, or null when it isn't a stat question or its team isn't found. */
 export async function statAnswer(q: string, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+  // Matches a low-ranked team won against a high-ranked one: before a leaderboard reads "ranked top 100" as one.
+  const ru = readRankUpset(q);
+  if (ru) return rankUpsetSearch(q, ru, opts);
   // A compound question (filters joined, or two answers at once) before any single reader takes part of it.
   const comp = readCompound(q);
   if (comp) {
@@ -385,6 +404,14 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
     const label = stat?.title ?? `Events with the most teams${big.e.region ? ` in ${big.e.region.name}` : ""}`;
     return { q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label, ...(big.e.region ? { place: { key: big.e.region.key, name: big.e.region.name } } : {}) },
       intent: { kind: "stat-biggest-events", pattern: `events with the most teams${big.e.region ? " [place]" : ""}`, met: true, understood: [label] }, ...(stat ? { stat } : {}) };
+  }
+  // "Which state has the highest average OPR": states and provinces by their teams' average OPR.
+  const avg = readPlaceAverage(q);
+  if (avg) {
+    const stat = opts.full ? await placeAverageAnswer(avg) : null;
+    const label = `${avg.country === "USA" ? "US states" : avg.country === "Canada" ? "Canadian provinces" : "States and provinces"} by average OPR${avg.order === "asc" ? ", lowest first" : ""}`;
+    return { q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label },
+      intent: { kind: "stat-place-average-opr", pattern: "places by average opr", met: true, understood: [label] }, ...(stat ? { stat } : {}) };
   }
   // "Which city in Romania has the most FTC teams": a place's home cities by how many teams list them.
   const cities = readTopCities(q);
@@ -1153,7 +1180,7 @@ export async function boardSearch(q: string, said: LeaderboardQuestion, opts: { 
   const st = boardStatFor(b.stat, b.season ?? searchSeason());
   if (!st) return null;
   const where = b.town ? ` in ${b.town}` : b.region ? ` in ${b.region.name}` : city ? ` ${b.school ? "at" : "in"} ${city.city}${b.cityIn ? `, ${b.cityIn.state || b.cityIn.name}` : ""}` : "";
-  const label = b.event ? `${b.event.home ? `${b.event.home.name} teams` : "Best teams"} at ${b.event.name}` : b.kind === "oldest" || b.kind === "career" ? careerBoardTitle({ kind: b.kind, stat: st }, where || " worldwide"): b.kind === "city" ? `Teams${where}` : b.kind === "city-best" ? `Best team${where} by OPR` : b.kind === "gain" ? `Most OPR gained${where} between first and last event`: b.undefeated ? `Undefeated teams${where}` : (st.count || b.window) && b.best ? `Team${where} with the most ${statWords(st)}${b.window ? ` ${b.window.label}` : ""}` : b.window ? `Top ${b.n} teams${where} by ${statWords(st)} ${b.window.label}` : b.kind === "rookie" && b.asc ? `Lowest rookie teams${where} by ${statWords(st)}` : b.asc ? `Lowest ${b.n > 1 ? `${b.n} teams` : "team"} by ${statWords(st)}${where}` : b.best ? `Best team${where} by ${statWords(st)}` : b.kind === "rookie" ? `Best rookie teams${where}` : b.kind === "improved" ? (b.climb ? `Teams${where} that climbed from OPR rank ${b.climb.from}+ to the top ${b.climb.to}` : `Most improved teams${where}`) : b.kind === "steady" ? `Most stable OPR${where}: the fewest ups and downs` : b.kind === "phases" ? `Strongest in every phase${where}` : `Top ${b.n} teams by ${statWords(st)}${where}`;
+  const label = b.event ? `${b.event.home ? `${b.event.home.name} teams` : "Best teams"} at ${b.event.name}` : b.kind === "oldest" || b.kind === "career" ? careerBoardTitle({ kind: b.kind, stat: st }, where || " worldwide"): b.kind === "city" ? `Teams${where}` : b.kind === "city-best" ? `Best team${where} by OPR` : b.kind === "gain" ? `Most OPR gained${where} between first and last event`: b.teams ? `${b.teams.length} teams by ${statWords(st)}` : b.undefeated ? `Undefeated teams${where}` : (st.count || b.window) && b.best ? `Team${where} with the most ${statWords(st)}${b.window ? ` ${b.window.label}` : ""}` : b.window ? `Top ${b.n} teams${where} by ${statWords(st)} ${b.window.label}` : b.kind === "rookie" && b.asc ? `Lowest rookie teams${where} by ${statWords(st)}` : b.asc ? `Lowest ${b.n > 1 ? `${b.n} teams` : "team"} by ${statWords(st)}${where}` : b.best ? `Best team${where} by ${statWords(st)}` : b.kind === "rookie" ? `Best rookie teams${where}` : b.kind === "improved" ? (b.climb ? `Teams${where} that climbed from OPR rank ${b.climb.from}+ to the top ${b.climb.to}` : `Most improved teams${where}`) : b.kind === "steady" ? `Most stable OPR${where}: the fewest ups and downs` : b.kind === "phases" ? `Strongest in every phase${where}` : `Top ${b.n} teams by ${statWords(st)}${where}`;
   const answer: SearchAnswer = {
     q, hits: [], pages: opts.pages, step: "deterministic", weak: false,
     understood: { kind: "question", label, ...(b.season != null ? { season: b.season } : {}), ...(b.region ? { place: { key: b.region.key, name: b.region.name } } : {}) },
