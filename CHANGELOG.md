@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 4.5.4 — 2026-11-09
+## NEXT — 2026-11-08
 
 A rating trend names the season's peak when the latest rating is well below it: "Rising from 57.7 after …, down from a 132 peak at …".
 
@@ -26,6 +26,31 @@ A rating trend names the season's peak when the latest rating is well below it: 
 
 ### Search
 - **Rating trend peaks.** When the latest rating is a tenth or more below the highest rating after an earlier event (not the first), the trend line adds "down from a <peak> peak at <event>"; the direction still compares the first and the latest. (#1078)
+
+## 4.5.5 — 2026-11-09
+
+A match that "went to a tiebreak, or overtime" is read as a tie.
+
+### Highlights
+- [fixes] "Did 17965 ever play a match that went to tiebreak" answers
+- [fixes] Overtime and sudden death are read as a tie too
+- [fixes] A team named Overtime is still found by its name
+
+### Search
+- **Tiebreaks and overtime.** A match that went to, ended in or was decided by a tiebreak, overtime or sudden death is read as a tie, so the team's ties answer it; the word alone still finds a team named after it. (#1117)
+
+## 4.5.4 — 2026-11-09
+
+Pull to reload in the installed phone app now follows your finger smoothly and looks like the rest of Control Scout: the app's own mark in a round card, with a yellow ring that fills as you pull.
+
+### Highlights
+- [appearance] Pull to reload follows your finger smoothly, frame by frame
+- [appearance] The app's mark with a yellow ring that fills as you pull
+- [appearance] Lets go early? It springs back up instead of vanishing
+
+### Phone app
+- **Smoother pull to reload.** The indicator used to redraw through the page's components on every finger move, which came out at about 10 frames a second on a phone. It now stays in the page and each move only shifts it and fills its ring, once per screen frame, so it keeps up with the finger. Letting go short of the line springs it back up; past the line it settles, the ring spins, and the thin yellow refresh bar the tables use sweeps under the top bar until the page reloads. Under reduced motion nothing turns, springs or sweeps.
+- **Looks like the app.** The plain reload arrow is now Control Scout's own mark in a card-coloured circle, with a yellow ring that fills as you pull and the home search's yellow glow once letting go will reload. (#1214)
 
 ## 4.5.3 — 2026-11-09
 
