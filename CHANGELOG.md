@@ -29,7 +29,7 @@ An opened match is one quiet column: the score, a table, the call on the same co
 - **One column, no panels.** The opened match is one column (720 px at most) separated by space: no bordered cards, no section titles. The score table keeps its column names (Red, Difference, Blue) and hairlines.
 - **The call on the table's columns.** Under the score table the call reads on the same columns: the 50/50 bar, predicted scores with their ranges and the predicted margin, the actual score with "Upset" or "Called it", and how far off each side was with whether both landed in range.
 - **Bonus ranking points as icons.** One line: each RP's icon with Red's and Blue's chances (a ✓ after a side that earned it) and the expected RP. Hovering or tapping an icon names the RP and says both sides' chances and whether each earned it. They no longer repeat under each alliance.
-- **Quieter extras.** The confidence tier is a small muted word, Share and the pre-match report are icons, live or replayed is an icon with its name on hover, the full why breakdown and the video are single muted rows, and result changes lose their box. Every number is still on the page. (#PRNUM)
+- **Quieter extras.** The confidence tier is a small muted word, Share and the pre-match report are icons, live or replayed is an icon with its name on hover, the full why breakdown and the video are single muted rows, and result changes lose their box. Every number is still on the page. (#1252)
 
 ## 4.8.6 — 2026-11-09
 
