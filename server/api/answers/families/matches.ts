@@ -188,7 +188,8 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
       }
       if (!top) return { ...base, family: "superlative", intent: id, title, blocks: [], definition: def, none: none(by != null ? `${kindOf} by exactly ${pts(by)}` : kindOf) };
       const list = by != null || under != null ? closest : id === "closest-match" ? (opts.outcome === "W" ? "Closest wins" : opts.outcome === "L" ? "Closest losses" : "Closest matches") : id === "biggest-win" ? "Biggest wins" : "Biggest losses";
-      const blocks: StatBlock[] = [matchesBlock(`${list}${note ? `, ${seasonLabel(top.season)}` : ""}`, pick.slice(0, 5))];
+      // A bound lists every match inside it (the list says how many it shows of how many); else the top five.
+      const blocks: StatBlock[] = [matchesBlock(`${list}${note ? `, ${seasonLabel(top.season)}` : ""}`, under != null ? pick : pick.slice(0, 5))];
       if (note) {
         const per = bySeason(xs).map(([s, ys]) => ({ s, m: ys[0] }));
         blocks.push({ kind: "table", title: `${id === "biggest-win" ? "Biggest win" : "Biggest loss"} each season (each season is a different game)`, columns: [{ key: "season", label: "Season" }, { key: "margin", label: "Margin", num: true }, { key: "score", label: "Score" }, { key: "event", label: "Event" }], rows: per.map(({ s, m }) => ({ cells: { season: seasonLabel(s), margin: Math.abs(margin(m)), score: `${m.own}–${m.opp}`, event: m.event }, href: row(m).href, strong: m === top })) });
