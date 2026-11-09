@@ -76,6 +76,10 @@ async function load(team: number): Promise<{ events: TeamEvent[]; seasons: TeamS
     all<any>(
       `SELECT e.season, e.code, e.name, e.type, e.start, e.end, e.city, e.state, e.country, e.division_code, et.rank,
               (SELECT COUNT(*) FROM event_teams r WHERE r.season = et.season AND r.code = et.code AND r.rank IS NOT NULL) ranked,
+              -- A league meet's standing is out of the league's ranked teams through that meet (as facts.ts's league
+              -- standing counts them), not the meet's own roster.
+              CASE WHEN e.type = 'LeagueMeet' THEN (SELECT COUNT(DISTINCT o.team) FROM event_teams o JOIN events oe ON oe.season = o.season AND oe.code = o.code
+                WHERE o.season = et.season AND o.rank IS NOT NULL AND (oe.code = e.code OR (e.league IS NOT NULL AND oe.league = e.league AND oe.region IS e.region AND oe.type = 'LeagueMeet' AND oe.start <= e.start))) END league_ranked,
               s.opr_np, s.opr_auto, s.opr_teleop, s.opr_endgame, COALESCE(s.matches, 0) matches,
               s.avg_score, s.avg_pen, s.wins, s.losses, s.ties, et.rp
        FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
@@ -94,7 +98,7 @@ async function load(team: number): Promise<{ events: TeamEvent[]; seasons: TeamS
       city: r.city ?? null, state: r.state ?? null, country: r.country ?? null, division: r.division_code ?? null,
       // A league meet's stored rank is the league's running standing, not the team's finish there: left out.
       rank: r.type === "LeagueMeet" ? null : num(r.rank), of: r.type === "LeagueMeet" ? null : Number(r.ranked) || null,
-      standing: r.type === "LeagueMeet" && r.rank != null ? { n: Number(r.rank), of: Number(r.ranked) || null } : null, opr: num(r.opr_np), auto: num(r.opr_auto), teleop: num(r.opr_teleop), endgame: num(r.opr_endgame),
+      standing: r.type === "LeagueMeet" && r.rank != null ? { n: Number(r.rank), of: Number(r.league_ranked) >= Number(r.rank) ? Number(r.league_ranked) : null } : null, opr: num(r.opr_np), auto: num(r.opr_auto), teleop: num(r.opr_teleop), endgame: num(r.opr_endgame),
       matches: Number(r.matches) || 0,
       avgScore: num(r.avg_score), avgPen: num(r.avg_pen), wins: num(r.wins), losses: num(r.losses), ties: num(r.ties),
       rp: r.type === "LeagueMeet" ? null : num(r.rp),
