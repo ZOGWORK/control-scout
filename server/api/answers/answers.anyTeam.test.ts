@@ -205,6 +205,13 @@ describe("states, worlds and a team's own events (complex queries file)", () => 
   it("42, 43, 44: league meets, and the team's own last and first event", async () => {
     expect((await ask("4215 matches at league meets this season")).title).toBe("Results at its 2025–26 league meets");
     expect((await ask("4215 matches at their last event")).title).toBe("Results at New Jersey Championship - Parkway Division");
+    // Asked in plain words (failed-search #1244, #1245): the same event, its heading saying it is their latest.
+    for (const q of ["how did hypnotic robotics do in thier recent meet", "hypnotic robotics last meet performence"]) {
+      const a = await searchAnswer(q, { limit: 25, full: true });
+      expect((a.stat as StatAnswer).title, q).toBe("Results at New Jersey Championship - Parkway Division");
+      expect(a.understood?.label, q).toMatch(/ · their latest event$/);
+      expect(a.understood?.label, q).not.toMatch(/isn't part of this answer/);
+    }
     expect((await ask("4215 matches at their first event this season")).title).toMatch(/^Results at P1-4 (?:AM|PM) Northern League Meet$/);
   });
   it("19: a match type at an event", async () => {
