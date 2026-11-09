@@ -196,11 +196,19 @@ describe("answerVideo: a video page", () => {
 });
 
 describe("answerVideo: a video page whose lead has no clip", () => {
-  it("plays its first listed match with one, not the event's recording from its start", async () => {
-    const tile = (code: string, key: string, label: string) => ({ label, href: href(code, key), level: "playoff" as const, red: [], blue: [], redScore: 1, blueScore: 0 });
+  const tile = (code: string, key: string, label: string) => ({ label, href: href(code, key), level: "playoff" as const, red: [], blue: [], redScore: 1, blueScore: 0 });
+  it("plays the event's next listed match with one, not the event's recording from its start", async () => {
+    const v = await answerVideo(stat({ headline: { value: "x", label: "x", href: href("USMACMP", "playoff:9:9") },
+      blocks: [{ kind: "videos", title: "Every match", tiles: [tile("USMACMP", "playoff:9:9", "M9"), tile("USMACMP", "qual:0:12", "Q12")] }] }), NOW);
+    expect(v?.main).toMatchObject({ kind: "recording", match: "Q12" });
+  });
+
+  it("never another event's match: the headline's event recording, or no player", async () => {
     const v = await answerVideo(stat({ headline: { value: "x", label: "x", href: href("USCHSCMP", "playoff:0:2") },
       blocks: [{ kind: "videos", title: "Every match", tiles: [tile("USCHSCMP", "playoff:0:2", "F2"), tile("FTCCMP1EDIS", "playoff:1:1", "M1")] }] }), NOW);
-    expect(v?.main).toMatchObject({ kind: "match", match: "M1" });
+    expect(v?.main).toEqual({ videoId: "Z2ArRHRiwh0", t: 0, kind: "stream" });
+    // The grid's match keeps its own button.
+    expect(v?.rows?.[href("FTCCMP1EDIS", "playoff:1:1")]).toMatchObject({ kind: "match", match: "M1" });
   });
 });
 

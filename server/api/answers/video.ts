@@ -161,8 +161,9 @@ export async function answerVideo(a: SearchAnswer, now = Date.now()): Promise<Se
     if (!out.main && aboutTeam(a)) {
       // The first listed match with a clip (a team's highlights: its best one). An answer with a list of highlights
       // stands in only one of those: a video page's grid beside them is every match, never one the headline is about.
+      // A video page with none stands in a match at the headline's own event, never another event's.
       const lead = highlightHrefs(a);
-      const first = rows.find((r) => (!lead || lead.has(r.href)) && items.has(`${evKey(r)}:${r.key}`));
+      const first = rows.find((r) => (lead ? lead.has(r.href) : !main.key || evKey(r) === evKey(main)) && items.has(`${evKey(r)}:${r.key}`));
       if (first) { mainHref = `${evKey(first)}:${first.key}`; out.main = items.get(mainHref); }
     }
     if (!out.main && teamAt) {
