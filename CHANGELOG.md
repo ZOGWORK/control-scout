@@ -27,6 +27,16 @@ How FTC One Search works shows the newer questions you can ask, grouped by what 
 ### How it works
 - **Ask in plain words.** How it works › FTC One Search has a new section of example questions in four groups (leaderboards and counts, winners and awards, one team in plain words, comparisons and explanations). Each one is a link that runs that exact search, with a short line on the kind of answer it returns; each was checked on the live site before it was listed. (#1167)
 
+The live search demo on How FTC One Search works sits in the middle, beside the text.
+
+### Highlights
+- [appearance] The How FTC One Search demo sits beside the intro's middle
+- [appearance] No more empty gap above the demo on wide screens
+- [fixes] The demo keeps one height as its examples change
+
+### How it works
+- **Search demo centred.** On wide screens the animated example card at the top of How FTC One Search works sits halfway down the intro text instead of at its bottom edge, and it keeps the height of its tallest example, so it no longer shifts as the examples change. (#1232)
+
 ## 4.6.9 — 2026-11-09
 
 An event's address without its season, like /events/USNJNEM2, opens the event's page instead of "Page not found".
@@ -38,6 +48,7 @@ An event's address without its season, like /events/USNJNEM2, opens the event's 
 
 ### Fixes
 - **Event addresses without a season.** `/events/<code>` is a 301 to `/events/<season>/<code>` for the newest season holding that code, query kept, in any case; an unknown code is still the 404 page. The app's own route does the same through `/api/event-code/<code>`, so the service worker's app shell redirects too; a failed lookup there offers a retry instead of saying the event doesn't exist. (#1042)
+
 
 ## 4.6.8 — 2026-11-09
 
@@ -2525,7 +2536,7 @@ Every event opens now, whatever its code looks like, and the policy, help and re
 ### Events
 - **Every event opens.** Older seasons' events whose codes FIRST wrote in mixed case or with punctuation, spaces or Cyrillic letters (2019INMeet10, NL'HKO, laredomeet 2, 63693260770.2649, about 260 of them, mostly 2019–20) were "Event not found". They open now, from any link, at any spelling of the code, and each has one address with the code in capitals, its light version too. (#491)
 
-### Pages
+### How it works
 - **Words before the app.** Privacy, terms, contact, donate and the rules quick reference arrive with their whole text, and the team and match record tables with the first 100 rows they open on, before the app has loaded. Search engines read them as visitors do, and the sitemap lists them again (the rules reference only while it is switched on).
 
 ## 2.8.7 — 2026-11-03
@@ -5293,7 +5304,7 @@ A new home page, sharper predictions, and Scout pages that are faster to read an
 - **Predict, rebuilt.** The Lab (any four teams, any event) is a card you can't miss. A matchup starts from any team, and earlier seasons' calls are a click away. The header's right side now shows the latest live calls and how each one turned out. (#153, #155, #160)
 - **Power rankings publish themselves** every Friday, with blurbs written by Bruno. (#145)
 
-### Pages
+### How it works
 - **My teams** has its own page, with your teams and their stats. (#150)
 - **Compare:** a search that stays put, your teams one click away, and stats and charts on one screen. (#152)
 - **Team colours.** Give each shortlisted team a colour; the shortlist and Compare use it. (#161)
