@@ -266,7 +266,7 @@ export function Breakdown({ d }: { d: MatchDetail }) {
     <section aria-label="Score breakdown">
       {/* The column names say what the table is: no title. */}
       <div className={cn(GRID, "pb-1.5 text-[11px] text-text-muted")}>
-        <span className="sr-only">Phase</span>
+        <span><span className="sr-only">Phase</span></span>
         <span className="text-right text-red-alliance">Red</span>
         <span className="text-center">Difference</span>
         <span className="text-blue-alliance">Blue</span>

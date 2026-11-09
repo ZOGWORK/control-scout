@@ -132,3 +132,13 @@ describe("a robot's standing line", () => {
     expect(visible()).toContain("season 12");
   });
 });
+
+describe("the score table's column names", () => {
+  it("keep four grid cells, so Red, Difference and Blue sit over their values (and screen readers get them)", () => {
+    render(<Breakdown d={detail()} />);
+    const head = screen.getByText("Difference").parentElement!;
+    expect(head.getAttribute("aria-hidden")).toBeNull();
+    expect(Array.from(head.children).map((c) => c.textContent)).toEqual(["Phase", "Red", "Difference", "Blue"]);
+    expect(head.children[0].classList.contains("sr-only")).toBe(false);
+  });
+});
