@@ -126,6 +126,13 @@ describe("a place's award winners", () => {
     // 33333 Northern Bolts won none; 22222 Maple Gears won 3.
     expect(s.headline).toMatchObject({ value: "1 team", label: "from Canada played and won no Inspire Award in any season" });
     expect(rows(s).map((r) => [r.team, r.n])).toEqual([["22222 Maple Gears", 3]]);
+    // A playoff reserve that never took the field never played (Greptile on #1217): none left without one.
+    await run("UPDATE match_teams SET on_field = 0 WHERE code = 'FTCCMP1' AND team = 33333");
+    try {
+      expect((await placeAwardsAnswer(ask!)).headline).toMatchObject({ value: "22222 Maple Gears", label: "3 Inspire Awards, the fewest" });
+    } finally {
+      await run("UPDATE match_teams SET on_field = 1 WHERE code = 'FTCCMP1' AND team = 33333");
+    }
     // Fewest first: Lone Star Bots' 2 before Maple Gears' 3, every team.
     const all = await placeAwardsAnswer((await readPlaceAwards("fewest inspire awards"))!);
     expect(rows(all).map((r) => [r.team, r.n])).toEqual([["4215 Hypnotic Robotics", 1], ["11111 Lone Star Bots", 2], ["22222 Maple Gears", 3]]);

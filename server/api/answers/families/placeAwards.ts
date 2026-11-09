@@ -260,7 +260,7 @@ export async function placeAwardsAnswer(ask: PlaceAwardsAsk): Promise<StatAnswer
       ? (await all<{ winners: number; zero: number }>(
         `SELECT (SELECT COUNT(DISTINCT a.team) ${from} WHERE ${filter}) winners,
                 (SELECT COUNT(*) FROM teams t WHERE ${where.sql} AND EXISTS (SELECT 1 FROM match_teams mt JOIN matches m ON m.season = mt.season AND m.code = mt.code AND m.level = mt.level AND m.series = mt.series AND m.number = mt.number
-                     WHERE mt.team = t.number AND m.played = 1${season != null ? " AND mt.season = ?" : ""})
+                     WHERE mt.team = t.number AND mt.on_field = 1 AND m.played = 1${season != null ? " AND mt.season = ?" : ""})
                    AND t.number NOT IN (SELECT a.team ${from} WHERE ${filter})) zero`,
         [...args, ...where.args, ...(season != null ? [season] : []), ...args])).map((x) => ({ winners: Number(x.winners), zero: Number(x.zero) }))[0]
       : null;
