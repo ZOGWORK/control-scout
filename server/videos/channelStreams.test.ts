@@ -165,6 +165,11 @@ describe("resolveChannelStreams and the event's recording", () => {
     const rec = (await eventRecording(S, "MTI"))!;
     expect(rec.videoId).toBe(SUN);
     expect(rec.more).toBeUndefined();
+    // Still timed on Sunday's matches only: Saturday's (outside it) never judge Sunday's video.
+    expect(rec.daily).toBe(true);
+    const sunOnly = withClips([{ label: "Q60", time: "2026-06-28T13:00:00.123", startsAt: "2026-06-28T13:00:00Z", played: true }, { label: "Q1", time: "2026-06-27T17:12:07.123", startsAt: "2026-06-27T17:12:07Z", played: true }] as Pick<MatchView, "label" | "time" | "startsAt" | "played" | "clip">[], rec, NOW);
+    expect(sunOnly[0].clip).toMatchObject({ videoId: SUN });
+    expect(sunOnly[1].clip).toBeUndefined();
     await run("UPDATE video_meta SET status = 'ok' WHERE video_id = ?", [SAT]);
   });
 

@@ -18,10 +18,14 @@ import { fetchFromApi, fetchWatchPage, type WatchPageFacts } from "./youtube.js"
 
 export interface VideoMeta extends WatchPageFacts { videoId: string; checkedAt: string }
 /** An event's recording: its video, and, for an event broadcast a day at a time (event_broadcasts), the other days' videos in order. */
-export interface Recording { videoId: string; source: "owner" | "first"; meta: VideoMeta | null; more?: { videoId: string; meta: VideoMeta | null }[] }
+export interface Recording {
+  videoId: string; source: "owner" | "first"; meta: VideoMeta | null; more?: { videoId: string; meta: VideoMeta | null }[];
+  /** Broadcast a day at a time (event_broadcasts): each video holds its own day's matches only, even when one day is left. */
+  daily?: true;
+}
 
 const TTL_MS = 60_000;
-type SeasonData = { first: Map<string, string>; more: Map<string, string[]>; official: Set<string>; meta: Map<string, VideoMeta> };
+type SeasonData = { first: Map<string, string>; more: Map<string, string[]>; daily: Set<string>; official: Set<string>; meta: Map<string, VideoMeta> };
 let cache = new Map<number, { at: number; v: Promise<SeasonData>; ready?: boolean }>();
 registerCache("Event recordings", () => { cache = new Map(); });
 
@@ -74,6 +78,7 @@ function seasonData(season: number, now = Date.now()) {
     for (const l of short) first.set(String(l.code), String(l.video_id));
     // The other days' broadcasts of an event whose first one is its video.
     const more = new Map<string, string[]>();
+    const daily = new Set(days.map((d) => String(d.code)));
     for (const d of days) {
       const code = String(d.code), id = String(d.video_id);
       if (first.get(code) !== id) (more.get(code) ?? more.set(code, []).get(code)!).push(id);
@@ -85,7 +90,7 @@ function seasonData(season: number, now = Date.now()) {
       const part = ids.slice(i, i + 200);
       for (const r of await all<any>(`SELECT ${META_COLUMNS} FROM video_meta WHERE video_id IN (${part.map(() => "?").join(",")})`, part)) meta.set(String(r.video_id), metaOf(r));
     }
-    return { first, more, official: new Set(official.map((o) => String(o.code))), meta };
+    return { first, more, daily, official: new Set(official.map((o) => String(o.code))), meta };
   })();
   // A map read before keeps being given while its next read runs (search reads these on its answer path: a read
   // costs a season's matches); forgetRecordings drops it at once when the links change.
@@ -98,12 +103,12 @@ function seasonData(season: number, now = Date.now()) {
 
 /** Every event's recording in a season, by event code; a video YouTube says won't play is left out. */
 export async function seasonRecordings(season: number): Promise<Map<string, Recording>> {
-  const [{ first, more, meta }, owner] = await Promise.all([seasonData(season), seasonStreams(season).catch(() => new Map<string, EventStream>())]);
+  const [{ first, more, daily, meta }, owner] = await Promise.all([seasonData(season), seasonStreams(season).catch(() => new Map<string, EventStream>())]);
   const out = new Map<string, Recording>();
   for (const [code, videoId] of first) {
     // Every day YouTube still plays, in order: the first of them is the event's video (a day made private leaves the others).
     const [main, ...days] = [videoId, ...(more.get(code) ?? [])].map((id) => ({ videoId: id, meta: meta.get(id) ?? null })).filter((d) => d.meta?.status !== "unavailable");
-    if (main) out.set(code, { ...main, source: "first", ...(days.length ? { more: days } : {}) });
+    if (main) out.set(code, { ...main, source: "first", ...(days.length ? { more: days } : {}), ...(daily.has(code) ? { daily: true as const } : {}) });
   }
   for (const [code, s] of owner) out.set(code, { videoId: s.videoId, source: "owner", meta: meta.get(s.videoId) ?? null });
   for (const [code, r] of out) if (r.meta?.status === "unavailable") out.delete(code);
@@ -223,7 +228,7 @@ export function withClips<M extends Pick<MatchView, "label" | "time" | "startsAt
   const videos = [{ videoId: r.videoId, meta: r.meta }, ...(r.more ?? [])].flatMap((v) => {
     const meta = v.meta;
     if (!meta || meta.status !== "ok") return [];
-    const timing = withConfirmed(meta, r.more?.length ? eventSpan(whole.starts.filter((s) => within(s.startsAt, meta, now))) : whole);
+    const timing = withConfirmed(meta, r.daily || r.more?.length ? eventSpan(whole.starts.filter((s) => within(s.startsAt, meta, now))) : whole);
     const slack = gapSlack(timing);
     return slack == null ? [] : [{ videoId: v.videoId, timing, slack }];
   });
