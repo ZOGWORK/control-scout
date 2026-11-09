@@ -66,7 +66,10 @@ export function StatAnswerCard({ stat, heading, explain }: { stat: StatAnswer; h
 
 function OneCard({ stat, heading, extra }: { stat: StatAnswer; heading?: string; extra?: ReactNode }) {
   const teams = stat.teams && stat.teams.length > 1 ? stat.teams : stat.team ? [stat.team] : undefined;
-  const stated = statedSeason(stat.title, ...stat.scope);
+  // A card about no team and two seasons side by side ("2024 versus 2025") is no one season's: no season to pick, both
+  // its chips kept.
+  const seasonsSaid = new Set([stat.title, ...stat.scope].map((s) => statedSeason(s)).filter((s) => s != null));
+  const stated = !teams?.length && seasonsSaid.size > 1 ? null : statedSeason(stat.title, ...stat.scope);
   const season = useAnswerSeason(stated);
   const said = saidBy(stat);
   // About one team: its hue on the card's numbers and bars; about none (a season's top matches): ink.
