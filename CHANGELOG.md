@@ -20,8 +20,8 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 Search's videos play only what the answer is about, and every video shows a picture: when the headline match has no video, the card no longer plays an unrelated match from another event, and a recording is no longer a blank black box.
 
 ### Highlights
-- [fixes] A highlights or video answer never plays a match from another event
-- [fixes] With no video for the headline match, a standout match or one at its event plays
+- [fixes] A highlights or video answer never plays an unrelated match
+- [fixes] No video for the headline match: a standout or same-event one plays
 - [appearance] Every video tile and player shows its picture, never a blank box
 
 ### Search
