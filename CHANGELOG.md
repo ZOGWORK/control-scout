@@ -20,10 +20,12 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 The live search demo on How FTC One Search works sits in the middle, beside the text.
 
 ### Highlights
-- [appearance] The search demo on How FTC One Search works is centred beside the intro
+- [appearance] The How FTC One Search demo sits beside the intro's middle
+- [appearance] No more empty gap above the demo on wide screens
+- [fixes] The demo keeps one height as its examples change
 
 ### How it works
-- **Search demo centred.** On wide screens the animated example card at the top of How FTC One Search works sits halfway down the intro text instead of at its bottom edge, and it keeps the height of its tallest example, so it no longer shifts as the examples change.
+- **Search demo centred.** On wide screens the animated example card at the top of How FTC One Search works sits halfway down the intro text instead of at its bottom edge, and it keeps the height of its tallest example, so it no longer shifts as the examples change. (#1232)
 ## 4.6.6 — 2026-11-09
 
 Hovering a point on a search chart says which match (or event) it is and its score, right away.
