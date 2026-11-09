@@ -458,15 +458,21 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     if (counted && BOARD_STATS[counted.stat]?.count) return boardSearch(p.q, counted, opts);
   }
   if (!p.teams.length && intent === "top-matches") {
-    if (p.event || p.worlds || p.states || p.level || p.alliance || (p.place && p.place.kind === "city")) return null;
+    if (p.worlds || p.states || p.level || p.alliance || (p.place && p.place.kind === "city")) return null;
+    // An event named by its name ("best match in <event>"): that event's matches, its divisions' too, in the season said,
+    // else its latest edition with a match played (the reader finds it). A place or a window beside it is left to search.
+    if (p.event && (p.place || scope.window)) return null;
     // "The highest-scoring match": one match; "matches", "scores", "top 5", or no match said ("highest score in
     // decode"): a list.
     const one = /\b(?:match|game)\b/.test(said) && !/\b(?:matches|games|scores)\b/.test(said);
     const t: TopMatchesQuestion = {
-      season: scope.ever ? scope.season : placeSeason(p, scope.season, opts), game: null, ever: scope.ever, region: regionOf(p), event: null,
+      // An event with no time said: its latest edition with a match played (null lets the reader find it).
+      season: scope.ever ? scope.season : p.event && !p.time ? null : placeSeason(p, scope.season, opts), game: null, ever: scope.ever, region: p.event ? null : regionOf(p), event: p.event ? p.event.words : null,
       ...(scope.window ? { window: scope.window } : {}), ...(p.n != null ? { n: p.n } : one ? { n: 1 } : {}), ...(p.noPenalties ? { noPenalties: true } : {}),
     };
     const a = await topSearch(p.q, t, opts);
+    // No time said: the event's latest edition played, already found. "This season" falls back below, as for a season.
+    if (p.event && !p.time) return a;
     // No season said: the current one, then the one before (as the match finder does).
     if (!scope.ever && (!p.time || (p.time.kind === "season" && p.time.relative === "this"))) {
       return relaxed(a, defaultSteps(t.season!, t.region ? ` in ${t.region.name}` : "", "scored matches"), (season) => topSearch(p.q, { ...t, season }, opts));
