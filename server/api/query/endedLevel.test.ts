@@ -38,6 +38,13 @@ describe("a match that ended level", () => {
     expect((await parse("6980 games that ended in a tie in IN")).place).toMatchObject({ kind: "region", state: "IN" });
   });
 
+  it("a match still to come is never a tie already played", async () => {
+    expect(endedLevel("is 6980 going to overtime")).toBe("is 6980 going to overtime");
+    for (const q of ["is 6980 going to overtime", "will 6980 go to a tiebreak"]) {
+      expect(await parse(q), q).not.toMatchObject({ intent: "ties-count", complete: true });
+    }
+  });
+
   it("a match's number with it is left to search", async () => {
     expect(await parse("did 6980 play match 4 that went to overtime")).not.toMatchObject({ intent: "ties-count", complete: true });
   });

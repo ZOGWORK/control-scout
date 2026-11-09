@@ -235,9 +235,9 @@ export function scoreCondOf(q: string): { cond: ScoreCond; rest: string; said: s
 }
 
 /** A match that "went to a tiebreak, or overtime" ended level: said as "tied". Only after a verb saying how it ended, so
- *  a team named Overtime is still that team anywhere else. */
+ *  a team named Overtime is still that team anywhere else; never "going to", which asks about a match still to come. */
 const LEVEL = "(?:a |an )?(?:tiebreak|tiebreaker|tie break|tie breaker|overtime|sudden death|tie)s?";
-const LEVEL_SRC = `\\b(?:went|go|goes|gone|going|ended|end|ends|came down|come down|decided) (?:to|in|by) ${LEVEL}(?: or ${LEVEL})?(?= |$)`;
+const LEVEL_SRC = `\\b(?:went|go|goes|gone|ended|end|ends|came down|come down|decided) (?:to|in|by) ${LEVEL}(?: or ${LEVEL})?(?= |$)`;
 const LEVEL_END = new RegExp(LEVEL_SRC, "g");
 export const endedLevel = (q: string) => q.replace(LEVEL_END, "tied");
 /** The same, on the words as typed (any case, "tie-break"), so the typed words stay in step with the read ones: a
