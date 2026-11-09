@@ -50,7 +50,7 @@ describe("match breakdown", () => {
     const d = detail();
     render(<Headline d={d} />);
     expect(screen.getByTestId("breakdown-margin").textContent).toBe("124 – 82Red by 42");
-    expect(screen.getByTestId("match-line").textContent).toBe("Q8 · Red won");
+    expect(screen.getByTestId("match-line").textContent).toBe("Q8");
   });
 
   it("renders FIRST's full sheet: phases first, each one's parts a tap away with the same numbers", () => {
@@ -96,11 +96,11 @@ describe("match breakdown", () => {
     const [earned, missed] = screen.getAllByRole("listitem");
     expect(earned.dataset.earned).toBe("true");
     expect(earned.textContent).toContain("Swarm RP earned");
-    expect(earned.textContent).toContain("✓ Earned");
+    expect(earned.textContent).toContain("✓");
     expect(missed.dataset.earned).toBe("false");
     expect(missed.textContent).toContain("Pollinator 1 RP missed");
-    expect(missed.textContent).toContain("✗ Missed");
-    expect(missed.textContent).not.toContain("Earned");
+    expect(missed.textContent).toContain("✗");
+    expect(missed.textContent).not.toContain("✓");
   });
 
   it("gives BIOBUZZ's three bonus RPs three different icons", () => {
@@ -118,5 +118,23 @@ describe("bonus RP odds in the call card", () => {
     expect(text).toContain("Pollinator 1Red 6% – Blue 7%");
     expect(text).toContain("Expected RPRed 2.3 – Blue 2.3");
     expect(screen.getByTestId("bonus-odds").querySelector("[style*='width']")).toBeNull();
+  });
+});
+
+describe("a robot's standing line", () => {
+  it("never leaves a bare season label: a dash when unknown, nothing when it equals the event OPR", async () => {
+    const { TeamLine } = await import("./MatchDetails");
+    const ev = { rank: 13, wins: 4, losses: 2, ties: 0, opr: { np: 15.5 } } as never;
+    const visible = () => Array.from(screen.getByTestId("team-standing").querySelectorAll("[aria-hidden]")).map((e) => e.textContent).join("");
+    render(<TeamLine ev={ev} se={{ opr: 15.5, rank: null } as never} />);
+    expect(visible()).not.toContain("season");
+    expect(screen.getByTestId("team-standing").textContent).toContain("Season OPR 15.5");
+    cleanup();
+    render(<TeamLine ev={ev} se={{ opr: null, rank: null } as never} />);
+    expect(visible()).toContain("season —");
+    cleanup();
+    render(<TeamLine ev={ev} se={{ opr: 12.04, rank: 1666 } as never} />);
+    expect(screen.getByTestId("team-standing").textContent).toContain("#1,666");
+    expect(visible()).toContain("season 12");
   });
 });

@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.8.6 — 2026-11-09
+
+An opened match reads side by side again, with about half the words.
+
+### Highlights
+- [predict] On a wide screen the score table and the call sit side by side
+- [predict] Shorter team lines: station, rank, record, OPR in one glance
+- [predict] The call fits in two lines: predicted, then what happened
+
+### Matches
+- **Side by side.** On a wide screen the two alliances, then the score table and the call, sit next to each other; a phone keeps one column.
+- **Fewer words, same numbers.** Each robot reads "S1 · #13 4-2-0 · OPR 15.5 · season #1,378" (the season OPR shows only when it differs from the event's); each lineup's OPR sum reads "OPRs 27.7 → scored 13 (−14.7)"; bonus RPs show their icon, name and a ✓ or ✗. The call is two lines: "Predicted 52 ±44 – 55 ±45 · Blue by 3" and "Actual 33 – 75 · off −19 / +20 · both in range · Upset". The bonus RP note and the result-changes explanation moved into their tooltips (and stay read aloud). The headline drops "Blue won", since "Blue by 42" says it. (#1249)
+
 ## 4.8.5 — 2026-11-09
 
 Search answers show a league meet's rank, and a team's stat tiles each get their own colour.

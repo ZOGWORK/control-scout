@@ -22,7 +22,7 @@ import { FactorSheetPanel } from "./FactorSheet";
 import { sheetWinner } from "../shared/factorSheet";
 import { ScoreRange } from "./ScoreRange";
 import { PredictionBasis } from "./PredictionBasis";
-import { marginText, matchBasis } from "../shared/predictionBasis";
+import { marginText, marginWords, matchBasis } from "../shared/predictionBasis";
 import { levelPct } from "../shared/scoreRange";
 import { cn } from "./cn";
 import { hasTeamPage } from "../shared/teamPages";
@@ -37,6 +37,10 @@ const TONE: Record<Side, { text: string }> = {
 const r1 = (x: number) => Math.round(x * 10) / 10;
 const signed = (x: number) => `${x > 0 ? "+" : x < 0 ? "−" : "±"}${Math.abs(r1(x))}`;
 const inside = (score: number, [lo, hi]: [number, number]) => (score < lo ? "below" : score > hi ? "above" : "yes");
+
+/** Both scores against their ranges in the fewest words: "both in range", or each side's own. */
+const rangeWords = (red: string, blue: string) => (red === "yes" && blue === "yes" ? "both in range"
+  : `red ${red === "yes" ? "in range" : red + " range"}, blue ${blue === "yes" ? "in range" : blue + " range"}`);
 
 export const matchRef = (m: MatchView) => `${m.season}:${m.code}:${m.level}:${m.series}:${m.number}`;
 
@@ -66,7 +70,8 @@ function Body({ d, eventName }: { d: MatchDetail; eventName?: string }) {
   const href = (key: string) => `/events/${m.season}/${encodeURIComponent(m.code)}?tab=matches&match=${encodeURIComponent(key)}`;
   // One column, read top to bottom: the score and margin first, then the breakdown, then the call and its why.
   return (
-    <div className="mx-auto max-w-[45rem] space-y-4">
+    // @container: the details lay out by their own width (an event's tab, a team's season, the half-width My teams panel), not the window's.
+    <div className="@container space-y-4">
       <Headline d={d} />
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
         {eventName !== undefined && <Link to={href(m.key)} className="underline-offset-2 hover:underline">{d.event.name}</Link>}
@@ -78,11 +83,13 @@ function Body({ d, eventName }: { d: MatchDetail; eventName?: string }) {
           {d.next && <Link to={href(d.next.key)} className="inline-flex items-center rounded px-1.5 py-0.5 hover:bg-text-base/[0.06] hover:text-text-base" aria-label={`Next match, ${d.next.label}`}>{d.next.label}<ChevronRight className="size-3.5" /></Link>}
         </span>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 @xl:grid-cols-2">
         {SIDES.map((s) => <Alliance key={s} d={d} side={s} />)}
       </div>
-      {played ? <Breakdown d={d} /> : <p className="rounded-xl border border-dashed border-border p-4 text-sm text-text-muted">Not played yet — the score breakdown appears once the result is posted.</p>}
-      <Prediction d={d} />
+      <div className="grid items-start gap-4 @4xl:grid-cols-2">
+        {played ? <Breakdown d={d} /> : <p className="rounded-xl border border-dashed border-border p-4 text-sm text-text-muted">Not played yet — the score breakdown appears once the result is posted.</p>}
+        <Prediction d={d} />
+      </div>
       {/* Asks again whenever this match's result or schedule on screen changes (live checks, refreshes). */}
       <ResultChanges season={m.season} code={m.code} matchKey={m.key}
         refreshKey={JSON.stringify([m.time, m.played, m.red.score, m.blue.score, m.red.teams.map((t) => t.number), m.blue.teams.map((t) => t.number)])} />
@@ -119,7 +126,7 @@ export function Headline({ d }: { d: MatchDetail }) {
       <p className="mt-1 text-sm text-text-muted" data-testid="match-line">
         <span className="font-medium text-text-base">{d.description ?? m.label}</span>
         {m.time && <> · {matchTime(m.time)}</>}
-        {" · "}{!played ? "Not played yet" : win ? `${NAME[win]} won` : "Tie"}
+        {!played ? " · Not played yet" : !win ? " · Tie" : null}
         {penalties && " · decided by penalties"}
       </p>
     </header>
@@ -166,18 +173,13 @@ function Alliance({ d, side }: { d: MatchDetail; side: Side }) {
                 {t.dq && <span className="rounded bg-destructive/15 px-1 text-[10px] text-destructive">DQ</span>}
                 {!t.onField && <span className="rounded bg-muted px-1 text-[10px]">Not on field</span>}
               </div>
-              <p className="text-[11px] text-text-muted" data-testid="team-standing">
-                {d.stations[t.number] && <>Station {d.stations[t.number]} · </>}
-                {ev?.rank ? <>Rank <span className="text-text-base">#{ev.rank}</span>{ev.wins != null && <> · {ev.wins}-{ev.losses}-{ev.ties}</>}</> : "Unranked"}
-                {" · "}OPR at this time <span className="text-text-base">{ev?.opr.np != null ? r1(ev.opr.np) : "—"}</span>
-                {" · "}Season <span className="text-text-base">{se?.opr != null ? r1(se.opr) : "—"}</span>{se?.rank ? <> #{se.rank.toLocaleString()}</> : null}
-              </p>
+              <TeamLine station={d.stations[t.number]} ev={ev} se={se} />
             </li>
           );
         })}
       </ul>
       {expected != null && (
-        <p className="mt-1.5 text-[11px] text-text-muted">Event OPRs add up to <span className="text-text-base">{r1(expected)}</span>{a.score ? <> · scored {a.score.np} without penalties (<span className={cn(a.score.np - expected >= 0 ? "text-success" : "text-warning")}>{signed(a.score.np - expected)}</span>)</> : null}</p>
+        <p className="mt-1.5 text-[11px] text-text-muted" title="What the robots' event OPRs add up to, then the points scored without penalties"><span className="sr-only">Event OPRs add up to </span><span aria-hidden>OPRs </span><span className="text-text-base">{r1(expected)}</span>{a.score ? <><span className="sr-only">, scored without penalties </span><span aria-hidden> → scored </span><span className="text-text-base">{a.score.np}</span> (<span className={cn(a.score.np - expected >= 0 ? "text-success" : "text-warning")}>{signed(a.score.np - expected)}</span>)</> : null}</p>
       )}
       {bonus && d.bonus && (
         <ul className="mt-1.5 flex flex-wrap gap-1" aria-label={`${NAME[side]} bonus ranking points`}>
@@ -185,6 +187,24 @@ function Alliance({ d, side }: { d: MatchDetail; side: Side }) {
         </ul>
       )}
     </section>
+  );
+}
+
+/** A robot's standing in one short line: station, event rank and record, OPR at this time, season OPR and rank.
+ *  Short labels on screen; the full names in the tooltip and for screen readers. The season OPR is printed only
+ *  when it differs from the event's, so the same number never shows twice. */
+export function TeamLine({ station, ev, se }: { station?: number; ev?: MatchDetail["teams"][number]["event"]; se?: MatchDetail["teams"][number]["season"] }) {
+  const evOpr = ev?.opr.np != null ? r1(ev.opr.np) : null, seOpr = se?.opr != null ? r1(se.opr) : null;
+  // The season OPR on screen: a dash when unknown, the number when it differs from the event's, nothing when it's the same.
+  const seVisible = seOpr == null ? "—" : seOpr !== evOpr ? seOpr : null;
+  return (
+    <p className="text-[11px] text-text-muted" data-testid="team-standing">
+      {station ? <span title={`Station ${station}`}><span className="sr-only">Station </span><span aria-hidden>S</span>{station} · </span> : null}
+      {ev?.rank ? <span title="Event rank and record"><span className="sr-only">Rank </span><span className="text-text-base">#{ev.rank}</span>{ev.wins != null && <> {ev.wins}-{ev.losses}-{ev.ties}</>}</span> : "Unranked"}
+      {" · "}<span title="OPR at this time"><span className="sr-only">OPR at this time </span><span aria-hidden>OPR </span><span className="text-text-base">{evOpr ?? "—"}</span></span>
+      {(seVisible != null || se?.rank) ? <>{" · "}<span title={`Season OPR ${seOpr ?? "—"}${se?.rank ? `, rank #${se.rank.toLocaleString()}` : ""}`}><span className="sr-only">Season OPR {seOpr ?? "unknown"}{se?.rank ? ", season rank " : ""}</span><span aria-hidden>season {seVisible != null && <span className="text-text-base">{seVisible} </span>}</span>{se?.rank ? <>#{se.rank.toLocaleString()}</> : null}</span></>
+        : <span className="sr-only"> · Season OPR {seOpr}, the same as at this event</span>}
+    </p>
   );
 }
 
@@ -305,7 +325,7 @@ function Cells({ x, open }: { x: BreakdownRow; open?: boolean }) {
   );
 }
 
-/** One bonus RP: its icon and name, and earned or missed said by a mark and a word as well as by colour.
+/** One bonus RP: its icon and name, and earned or missed said by a mark and the chip's outline as well as by colour.
  *  The icon only names the RP; `earned` comes straight from the match data. */
 export function RpChip({ label, earned }: { label: string; earned: boolean }) {
   const Icon = rpIcon(label);
@@ -316,7 +336,7 @@ export function RpChip({ label, earned }: { label: string; earned: boolean }) {
       <span className="sr-only">{label} RP {earned ? "earned" : "missed"}</span>
       <Icon size={14} className={earned ? "text-success" : "opacity-70"} />
       <span aria-hidden>{label}</span>
-      <span className={earned ? "font-semibold text-success" : undefined} aria-hidden>{earned ? "✓ Earned" : "✗ Missed"}</span>
+      <span className={earned ? "font-semibold text-success" : undefined} aria-hidden>{earned ? "✓" : "✗"}</span>
     </li>
   );
 }
@@ -348,13 +368,22 @@ function Prediction({ d }: { d: MatchDetail }) {
         <WinBar pRed={p.pRed} className="flex-1" />
         <span className="w-10 text-sm font-semibold tabular-nums text-blue-alliance">{oddsPct(1 - p.pRed)}</span>
       </div>
-      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-        {!p.noScoreBasis && <><dt className="text-text-muted">Predicted{p.redRange && <span className="text-[11px]"> (± {levelPct(p.rangeLevel)} range)</span>}</dt><dd className="tabular-nums"><ScoreRange mean={p.redMean} range={p.redRange} level={p.rangeLevel} className="text-red-alliance" /> – <ScoreRange mean={p.blueMean} range={p.blueRange} level={p.rangeLevel} className="text-blue-alliance" />, <span data-testid="predicted-margin">{marginText(p.redMean, p.blueMean)}</span></dd></>}
-        {played && <><dt className="text-text-muted">Actual</dt><dd className="tabular-nums"><span className="text-red-alliance">{m.red.score!.total}</span> – <span className="text-blue-alliance">{m.blue.score!.total}</span></dd></>}
-        {played && !p.noScoreBasis && <><dt className="text-text-muted">Off by</dt><dd className="tabular-nums">red {signed(m.red.score!.total - p.redMean)}, blue {signed(m.blue.score!.total - p.blueMean)}</dd></>}
-        {played && !p.noScoreBasis && p.redRange && p.blueRange && <><dt className="text-text-muted">Inside the range</dt><dd>red {inside(m.red.score!.total, p.redRange)}, blue {inside(m.blue.score!.total, p.blueRange)}</dd></>}
-        {called != null && <><dt className="text-text-muted">Call</dt><dd className={called ? "text-success" : "text-warning"}>{called ? "Called it" : "Upset"}</dd></>}
-      </dl>
+      <div className="mt-3 space-y-1 text-sm">
+        {!p.noScoreBasis && (
+          <p className="tabular-nums" data-testid="call-predicted">
+            <span className="text-text-muted">Predicted </span><ScoreRange mean={p.redMean} range={p.redRange} level={p.rangeLevel} className="text-red-alliance" /> – <ScoreRange mean={p.blueMean} range={p.blueRange} level={p.rangeLevel} className="text-blue-alliance" />
+            {" · "}<span data-testid="predicted-margin" title={marginText(p.redMean, p.blueMean)}>{marginWords(p.redMean, p.blueMean)}</span>
+          </p>
+        )}
+        {played && (
+          <p className="tabular-nums" data-testid="call-actual">
+            <span className="text-text-muted">Actual </span><span className="text-red-alliance">{m.red.score!.total}</span> – <span className="text-blue-alliance">{m.blue.score!.total}</span>
+            {!p.noScoreBasis && <><span className="text-text-muted"> · off </span><span title="Actual minus predicted, red then blue">{signed(m.red.score!.total - p.redMean)} / {signed(m.blue.score!.total - p.blueMean)}</span></>}
+            {!p.noScoreBasis && p.redRange && p.blueRange && <> · <span title="Whether each score landed inside its predicted range">{rangeWords(inside(m.red.score!.total, p.redRange), inside(m.blue.score!.total, p.blueRange))}</span></>}
+            {called != null && <> · <span className={cn("font-semibold", called ? "text-success" : "text-warning")}>{called ? "Called it" : "Upset"}</span></>}
+          </p>
+        )}
+      </div>
       {p.bonus && <BonusOddsRow season={m.season} bonus={p.bonus} actual={played ? d.bonus : null} className="mt-3 border-t border-border pt-3" />}
       {p.factors?.length ? <><p className="mt-3 text-xs font-medium text-text-muted">Why</p><FactorList factors={p.factors} reasons={p.reasons} className="mt-1.5" /></> : null}
       {p.history ? <PairHistoryLine history={p.history} className="mt-1.5" /> : null}

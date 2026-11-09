@@ -56,3 +56,12 @@ describe("by-hand helpers", () => {
     expect(s.blue).toBeCloseTo(106.37, 2);
   });
 });
+
+describe("predicted margin in words alone", () => {
+  it("names the side and the gap, without repeating the scores", async () => {
+    const { marginWords } = await import("./predictionBasis");
+    expect(marginWords(52.4, 55.1)).toBe("Blue by 3");
+    expect(marginWords(118.4, 105.6)).toBe("Red by 12");
+    expect(marginWords(50.2, 49.8)).toBe("Even");
+  });
+});

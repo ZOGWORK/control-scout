@@ -89,9 +89,17 @@ function Body({ v, one }: { v: ResultChangesView; one: boolean }) {
     : <>Not tracked yet: changes are recorded from this event's next results check.</>;
   return (
     <>
-      <p className="mt-1 text-xs text-text-muted">
-        {one ? "Official results and schedule for this match" : "When an official result is first posted, corrected, or a match is rescheduled"}, as Control Scout's sync saw them. {since}
-      </p>
+      {one ? (
+        // One match (under its own details): a short line on screen, the full sentence in the tooltip and for screen readers.
+        <p className="mt-1 text-xs text-text-muted" title={`Official results and schedule for this match, as Control Scout's sync saw them. ${v.trackedSince ? `Tracked since ${day(v.trackedSince)}; not tracked before then.` : "Not tracked yet."}`}>
+          <span className="sr-only">Official results and schedule for this match, as Control Scout's sync saw them. </span>
+          {v.trackedSince ? <>Tracked since {day(v.trackedSince)}<span className="sr-only">; not tracked before then.</span></> : since}
+        </p>
+      ) : (
+        <p className="mt-1 text-xs text-text-muted">
+          When an official result is first posted, corrected, or a match is rescheduled, as Control Scout's sync saw them. {since}
+        </p>
+      )}
       {!v.changes.length ? (
         <p className="mt-3 rounded-xl border border-dashed border-border px-4 py-3 text-sm text-text-muted">No changes recorded{v.trackedSince ? ` since ${day(v.trackedSince)}` : ""}.</p>
       ) : (
