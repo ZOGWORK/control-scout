@@ -62,7 +62,7 @@ const RULES: { id: FactId; re: RegExp }[] = [
   { id: "report-card", re: /\b(?:prediction\s+)?report\s+card\b|\bprediction\s+(?:accuracy|record)\b/ },
   // Only the predicted score: "will 12345 win its next match" and "when is 12345's next match" are the asks' own.
   // "Predicted matches" (failed-search #1147): the engine's call on the team's next match, as "next match prediction".
-  { id: "next-match", re: /\bpredicted\s+score(?:\s+(?:for\s+)?(?:the\s+|its\s+)?next\s+match)?\b|\bnext\s+match\s+(?:prediction|forecast|predicted\s+score)\b|\bpredicted\s+match(?:es)?\b/ },
+  { id: "next-match", re: /\bpredicted\s+score(?:\s+(?:for\s+)?(?:the\s+|its\s+)?next\s+match)?\b|\bnext\s+match\s+(?:prediction|forecast|predicted\s+score)\b|\bpredicted\s+match(?:es)?\b|\bmatch(?:es)?\s+predictions?\b/ },
   // "reliability rating" is the reliability index, below.
   { id: "rating", re: /(?<!\breliability\s)\b(?:prediction\s+|engine\s+|predicted\s+)?rating\b/ },
   // Search reads plurals as singular ("12345 event in 2025-26"), so both.
