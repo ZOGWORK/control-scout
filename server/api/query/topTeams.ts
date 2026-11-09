@@ -17,8 +17,8 @@ const PLACE = String.raw`\p{L}(?:(?!\bteams?\b)[\p{L}.'\s-])*?`;
 const END = String.raw`(?=\s+(?:and|vs\.?|versus|against|or|in|at|with|on)\b|[,?.!]|\s*$)`;
 /** "(the) top / best / strongest / number one <place> team", or "… team in / from <place>" (tried first: its place
  *  runs on to the longest words that are one place, as `placeAfter` reads them), or the team with no place said
- *  ("the best team"): the world's. */
-const TOP_TEAM = new RegExp(String.raw`\b(?:the\s+)?(?:top|best|strongest|number\s+one|no\s*1|highest[\s-]rated)\s+(?:(?:ranked|rated)\s+)?(?:team\s+(?:in|from|of)\s+(?=\p{L})|(?<before>${PLACE})\s+team${END}|(?<alone>team)(?=\s|[,?.!]|$))`, "giu");
+ *  ("the best team", "best team's"): the world's. */
+const TOP_TEAM = new RegExp(String.raw`\b(?:the\s+)?(?:top|best|strongest|number\s+one|no\s*1|highest[\s-]rated)\s+(?:(?:ranked|rated)\s+)?(?:team\s+(?:in|from|of)\s+(?=\p{L})|(?<before>${PLACE})\s+team${END}|(?<alone>team)(?:['’]s)?(?=\s|[,?.!]|$))`, "giu");
 const ENDS = new RegExp(END, "giu");
 
 /** The words are one place and nothing else: a region or a country, never a town. Read as the place index reads them,

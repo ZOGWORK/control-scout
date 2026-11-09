@@ -117,6 +117,8 @@ describe("the best team with no place said (failed-search #1225)", () => {
     expect(now.stat).toMatchObject({ intent: "team-highlights", team: { number: 23268 } });
     expect(now.understood?.label).toContain("The top team worldwide by prediction rating");
     expect(now.understood?.label).toContain("is Ultraviolet (23268)");
+    // Said as the team's own ("best team's highlights"), either apostrophe.
+    for (const q of ["best team's highlights", "best team’s highlights"]) expect((await ask(q)).stat, q).toMatchObject({ intent: "team-highlights", team: { number: 23268 } });
     // Last season said: last season's leader.
     expect((await ask("best team highlights last season")).stat).toMatchObject({ intent: "team-highlights", team: { number: 14270 } });
     // Dates said: the leader of their season.
