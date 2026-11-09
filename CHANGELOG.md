@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.6.0 — 2026-11-09
+
+Search's videos play only what the answer is about, and every video shows a picture: when the headline match has no video, the card no longer plays an unrelated match from another event, and a recording is no longer a blank black box.
+
+### Highlights
+- [fixes] A highlights or video answer never plays an unrelated match
+- [fixes] No video for the headline match: a standout or same-event one plays
+- [appearance] Every video tile and player shows its picture, never a blank box
+
+### Search
+- **Videos about the answer.** When an answer's headline match has no clip, the match that stands in is one of its standout matches (highlights) or a match at the headline's own event (a video page), never the first clip in the "Every match" grid (which lists every match, from any event); else the headline event's recording, or no player.
+- **Pictures on recordings.** A match's second in the event's recording, and the recording itself, show the video's picture with what it is over it ("In the event's recording, from 4:26:23", "The event's whole recording"), instead of a black box. (#1224)
+
 ## 4.5.9 — 2026-11-09
 
 Two events side by side read a state's code as that state's championship.
