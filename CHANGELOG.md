@@ -25,7 +25,7 @@ Highlights play only one of their own matches: when the best score has no video,
 - [fixes] No standout match with a video: the best score's event recording, or none
 
 ### Search
-- **Highlights video.** When a highlights answer's lead match has no clip, the match that stands in is one of its standout matches, never the first clip in the "Every match" grid beside them (which lists every match, from any event).
+- **Highlights video.** When a highlights answer's lead match has no clip, the match that stands in is one of its standout matches, never the first clip in the "Every match" grid beside them (which lists every match, from any event). (#1224)
 
 ## 4.5.7 — 2026-11-09
 
