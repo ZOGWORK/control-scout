@@ -161,9 +161,11 @@ export async function answerVideo(a: SearchAnswer, now = Date.now()): Promise<Se
     if (!out.main && aboutTeam(a)) {
       // The first listed match with a clip (a team's highlights: its best one). An answer with a list of highlights
       // stands in only one of those: a video page's grid beside them is every match, never one the headline is about.
-      // A video page with none stands in a match at the headline's own event, never another event's.
+      // A scope's video page with none (no team) stands in a match at the headline's own event, never another
+      // event's; a team's answer keeps its own next match, at any event.
       const lead = highlightHrefs(a);
-      const first = rows.find((r) => (lead ? lead.has(r.href) : !main.key || evKey(r) === evKey(main)) && items.has(`${evKey(r)}:${r.key}`));
+      const grid = !lead && teamOf(a) == null && !!main.key && !!a.stat?.blocks.some((x) => x.kind === "videos");
+      const first = rows.find((r) => (lead ? lead.has(r.href) : !grid || evKey(r) === evKey(main)) && items.has(`${evKey(r)}:${r.key}`));
       if (first) { mainHref = `${evKey(first)}:${first.key}`; out.main = items.get(mainHref); }
     }
     if (!out.main && teamAt) {

@@ -210,6 +210,12 @@ describe("answerVideo: a video page whose lead has no clip", () => {
     // The grid's match keeps its own button.
     expect(v?.rows?.[href("FTCCMP1EDIS", "playoff:1:1")]).toMatchObject({ kind: "match", match: "M1" });
   });
+
+  it("a team's own match list (no reasons): its next match with a clip, at any event", async () => {
+    const v = await answerVideo(stat({ team: { number: 4215, name: null }, headline: { value: "x", label: "x", href: href("USCHSCMP", "playoff:0:2") },
+      blocks: [{ kind: "matches", title: "Best scores", rows: [row("USCHSCMP", "playoff:0:2", "F2"), row("FTCCMP1EDIS", "playoff:1:1", "M1")] }] }), NOW);
+    expect(v?.main).toMatchObject({ kind: "match", match: "M1" });
+  });
 });
 
 describe("refOfHref and mainRef", () => {
