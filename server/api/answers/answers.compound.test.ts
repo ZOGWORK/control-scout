@@ -223,6 +223,44 @@ describe("compound answers", () => {
   });
 });
 
+// Failed searches #868 #892 #1032 #1062, in their own words: a list counted, in one season or two side by side.
+describe("how many teams a list holds", () => {
+  it("reads a count, and a count in two years", () => {
+    expect(readCompound("how many NJ teams went to worlds in 2024")).toMatchObject({ kind: "list", region: { state: "NJ" }, worlds: true, season: 2023 });
+    const pair = readCompound("how many NJ teams went to worlds in 2024, versus 2025");
+    expect(pair).toMatchObject({ kind: "list-pair", lists: [{ region: { state: "NJ" }, worlds: true, season: 2023 }, { region: { state: "NJ" }, worlds: true, season: 2024 }] });
+    // The same season twice, or a year that names no list, is no pair.
+    expect(readCompound("how many NJ teams went to worlds in 2024 versus 2024")).toBeNull();
+    expect(readCompound("how many teams in 2024 versus 2025")).toBeNull();
+  });
+  it("counts each season's list, side by side", async () => {
+    const a = await ask(`how many NJ teams went to worlds in ${S}, versus ${S + 1}`);
+    expect(a.stat).toMatchObject({ intent: "filtered-list-pair", title: `How many teams in New Jersey: Worlds ${S} (${S - 1}–${String(S).slice(2)}) against Worlds ${S + 1} (${S}–${String(S + 1).slice(2)})`,
+      headline: { value: "4 vs 4", sub: "The same number both seasons" } });
+    const k = a.stat!.blocks[0] as any;
+    expect(k.items.map((i: any) => i.value)).toEqual(["4 teams", "4 teams"]);
+    // Each season's own list under it.
+    expect(a.stat!.blocks.filter((b) => b.kind === "leaderboard").map((b: any) => b.rows.map((r: any) => r.team.label.split(" ")[0]))).toEqual([["23268", "7149", "207", "6980"], ["23268", "7149", "4215", "33950"]]);
+    const one = await ask(`how many NJ teams went to worlds in ${S + 1}`);
+    expect(one.stat?.headline?.value).toBe("4 teams");
+    // Greptile on #1094: a "top N" said with a count counts every team; a stat asked beside the list stays, each season's.
+    expect(readCompound("how many top 2 NJ teams went to worlds in 2024 versus 2025")).toMatchObject({ kind: "list-pair", lists: [{ n: null }, { n: null }] });
+    const top = await ask(`how many top 2 NJ teams went to worlds in ${S} versus ${S + 1}`);
+    expect(top.stat?.headline?.value).toBe("4 vs 4");
+    const rel = await ask(`how many NJ teams and their reliability went to worlds in ${S} versus ${S + 1}`);
+    expect(rel.stat!.blocks.map((b: any) => b.title).filter((t: string) => /Reliability/.test(t))).toEqual([expect.stringMatching(new RegExp(`^Worlds ${S + 1} \\(`))]);
+    // Greptile on #1094: a list of teams that missed Worlds names each championship beside its count, not one on a chip.
+    const miss = await ask(`how many nj teams did not make worlds in ${S} versus ${S + 1}`);
+    expect(miss.stat?.intent).toBe("filtered-list-pair");
+    expect(miss.stat!.scope.filter((c) => /Worlds/.test(c))).toEqual(["Didn't go to Worlds"]);
+    expect((miss.stat!.blocks[0] as any).items.map((i: any) => i.label)).toEqual([`Worlds ${S} (${S - 1}–${String(S).slice(2)})`, `Worlds ${S + 1} (${S}–${String(S + 1).slice(2)})`]);
+  });
+  it("a town's pair is previewed as the town's, in the search box", async () => {
+    const a = await searchAnswer(`how many teams from Oradell with opr over 100 in ${S} versus ${S + 1}`, { limit: 8 });
+    expect(a.pages[0]?.title).toMatch(/^How many: Teams from Oradell /);
+  });
+});
+
 // Failed search #974, in its own words and the other way round: the best teams at one event, Worlds or a state's
 // championship, by each team's OPR there.
 describe("the best teams at an event", () => {
