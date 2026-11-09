@@ -132,6 +132,11 @@ describe("event page", () => {
     clearAllCaches();
     expect((await eventDetail(S, "SOON"))!.teamsSyncedAt! > NOW.toISOString()).toBe(true);
   });
+  it("a list from FTC Scout (FIRST couldn't serve the event) was read at that source's last successful fetch", async () => {
+    await event("SCOUT", "2026-10-31");
+    await run("UPDATE events SET source = 'ftcscout', detail_synced_at = ? WHERE season = ? AND code = 'SCOUT'", ["2026-10-30T12:00:00.000Z", S]);
+    expect((await eventDetail(S, "SCOUT"))!.teamsSyncedAt).toBe("2026-10-30T12:00:00.000Z");
+  });
 
   it("shows the registered teams as the field, counted, and marked as registrations", async () => {
     await event("SOON", "2026-10-31");
