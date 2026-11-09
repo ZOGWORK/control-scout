@@ -25,8 +25,8 @@ A floor said as "44 or above" lists teams at or over it, and "which state has th
 - [rankings] States need 10 teams with an OPR to be ranked
 
 ### Search
-- **A floor said as "or above".** "Teams with 44 or above OPR" and "teams with OPR 44 or above" read like "OPR of at least 44": "or above", "or more", "or higher" and "and up" after a number make it a floor, the number said before the stat or after it. A year after a stat is still a season. (#NEW)
-- **States by average OPR.** "Which state has the highest average OPR" (or lowest, or "states by average OPR") ranks US states and Canadian provinces by the mean OPR of their teams that played in the newest season, with each one's team count. A place with fewer than 10 such teams is left out. (#NEW)
+- **A floor said as "or above".** "Teams with 44 or above OPR" and "teams with OPR 44 or above" read like "OPR of at least 44": "or above", "or more", "or higher" and "and up" after a number make it a floor, the number said before the stat or after it. A year after a stat is still a season.
+- **States by average OPR.** "Which state has the highest average OPR" (or lowest, or "states by average OPR") ranks US states and Canadian provinces by the mean OPR of their teams that played in the newest season, with each one's team count. A place with fewer than 10 such teams is left out. (#1216)
 
 ## 4.5.2 — 2026-11-09
 
