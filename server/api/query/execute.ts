@@ -52,8 +52,17 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
   if (!p.complete || !p.intent) {
     // The season the question names picks each place's leader too ("in 2024-25, the top NJ team vs …").
     tops = await topTeamsSaid(q, ctx, p.time?.kind === "season" && p.time.season != null ? p.time.season : undefined);
-    const again = tops ? await parseQuery(tops.q, ctx) : null;
-    // Two teams compared; or one team's highlights ("best team highlights": the world's top team's).
+    let again = tops ? await parseQuery(tops.q, ctx) : null;
+    // One team's highlights ("best team highlights": the world's top team's): the leader of the season the highlights
+    // show (the current one unless another is said, as highlights() reads it), never only the latest completed one.
+    if (tops && again?.complete && again.intent === "highlights" && again.teams.length === 1) {
+      const shown = placeSeason(again, again.time?.kind === "season" ? again.time.season ?? null : null, opts);
+      if (shown !== tops.season) {
+        tops = await topTeamsSaid(q, ctx, shown);
+        again = tops ? await parseQuery(tops.q, ctx) : null;
+      }
+    }
+    // Two teams compared; or one team's highlights.
     if (!again?.complete || !again.intent || !((again.teams.length === 2 && TWO_TEAM[again.intent]) || (again.teams.length === 1 && again.intent === "highlights"))) return null;
     p = { ...again, q };
   }

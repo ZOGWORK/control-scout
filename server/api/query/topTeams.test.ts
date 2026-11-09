@@ -99,16 +99,26 @@ describe("a place's top team, said as one of two teams", () => {
 });
 
 describe("the best team with no place said (failed-search #1225)", () => {
-  it("its highlights are the world's top-rated ranked team's, the card saying which", async () => {
-    // One played match for the world's top ranked team (Ohio's 300 is on too few matches to be ranked).
+  it("its highlights are the top-rated ranked team's of the season the highlights show, the card saying which", async () => {
+    // Last season: one played match for its top ranked team (Ohio's 300 is on too few matches to be ranked).
     await run("INSERT INTO events (season, code, name, type, start, end, source) VALUES (?, 'ROQ1', 'Romania Qualifier', 'Qualifier', '2025-11-01', '2025-11-01', 'first')", [S]);
     await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (?, 'ROQ1', 'qual', 0, 1, 'Q1', '2025-11-01T10:00:00', 1, 120, 120, 80, 80, 'first')", [S]);
     await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (?, 'ROQ1', 'qual', 0, 1, 14270, 'red', 1), (?, 'ROQ1', 'qual', 0, 1, 24033, 'blue', 1)", [S, S]);
+    // This season another team leads, with a played match of its own.
+    const C = S + 1;
+    await run("INSERT INTO team_season_stats (season, team, rating_np, rating_sd, rating_rank, rating_matches, matches, wins, losses, ties) VALUES (?, 23268, 170, 3, 1, 10, 10, 5, 5, 0), (?, 14270, 120, 3, 2, 10, 10, 5, 5, 0)", [C, C]);
+    for (const n of [23268, 14270]) await run("INSERT INTO team_seasons (season, team) VALUES (?, ?)", [C, n]);
+    await run("INSERT INTO events (season, code, name, type, start, end, source) VALUES (?, 'NJQ1', 'Bergen Qualifier', 'Qualifier', ?, ?, 'first')", [C, `${C}-10-15`, `${C}-10-15`]);
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (?, 'NJQ1', 'qual', 0, 1, 'Q1', ?, 1, 150, 150, 90, 90, 'first')", [C, `${C}-10-15T10:00:00`]);
+    await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (?, 'NJQ1', 'qual', 0, 1, 23268, 'red', 1), (?, 'NJQ1', 'qual', 0, 1, 4215, 'blue', 1)", [C, C]);
     clearAllCaches();
-    const a = await ask("best team highlights now");
-    expect(a.stat).toMatchObject({ intent: "team-highlights", team: { number: 14270 } });
-    expect(a.understood?.label).toContain("The top team worldwide by prediction rating");
-    expect(a.understood?.label).toContain("is Quantum Robotics (14270)");
+    // "Now" is this season's highlights: this season's leader, never last season's.
+    const now = await ask("best team highlights now");
+    expect(now.stat).toMatchObject({ intent: "team-highlights", team: { number: 23268 } });
+    expect(now.understood?.label).toContain("The top team worldwide by prediction rating");
+    expect(now.understood?.label).toContain("is Ultraviolet (23268)");
+    // Last season said: last season's leader.
+    expect((await ask("best team highlights last season")).stat).toMatchObject({ intent: "team-highlights", team: { number: 14270 } });
     // A board asked of the best team stays the board.
     expect((await ask("best team")).stat?.intent).toBe("top-rating");
   });
