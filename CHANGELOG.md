@@ -25,7 +25,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 - [rankings] A named conference is still that event
 
 ### Search
-- **A place's conference.** "At <place> conference" or "at <place> league", with no name of its own, reads as the place's teams on the leaderboards, so "top rookie teams at NJ conference" is New Jersey's best rookie teams. A named one ("East Bergen Conference") is still that event. (#NEW)
+- **A place's conference.** "At <place> conference" or "at <place> league", with no name of its own, reads as the place's teams on the leaderboards, so "top rookie teams at NJ conference" is New Jersey's best rookie teams. A named one ("East Bergen Conference") is still that event. (#1218)
 
 ## 4.5.3 — 2026-11-09
 
