@@ -35,8 +35,8 @@ describe("HighlightGrid", () => {
     // The reason once, on the tile: not again in its match box.
     expect(c.querySelectorAll("[data-note]")).toHaveLength(0);
     expect(tiles[0].querySelector("img")?.getAttribute("src")).toBe("https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg");
-    // A second in the recording: no picture of whatever else was on the field, its time instead.
-    expect(tiles[1].querySelector("img")).toBeNull();
+    // A second in the recording: the recording's cover, and its time.
+    expect(tiles[1].querySelector("img")).not.toBeNull();
     expect(tiles[1].textContent).toContain("In the event's recording, from 1:23:20");
     expect(tiles[2].querySelector("[data-tile-play]")).toBeNull();
     expect(tiles[2].querySelector("[data-no-video]")?.textContent).toBe("No video");

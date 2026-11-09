@@ -28,6 +28,67 @@ A floor said as "44 or above" lists teams at or over it, and "which state has th
 - **A floor said as "or above".** "Teams with 44 or above OPR" and "teams with OPR 44 or above" read like "OPR of at least 44": "or above", "or more", "or higher" and "and up" after a number make it a floor, the number said before the stat or after it. A year after a stat is still a season.
 - **States by average OPR.** "Which state has the highest average OPR" (or lowest, or "states by average OPR") ranks US states and Canadian provinces by the mean OPR of their teams that played in the newest season, with each one's team count. A place with fewer than 10 such teams is left out. (#1216)
 
+## 4.6.0 — 2026-11-09
+
+Search's videos play only what the answer is about, and every video shows a picture: when the headline match has no video, the card no longer plays an unrelated match from another event, and a recording is no longer a blank black box.
+
+### Highlights
+- [fixes] A highlights or video answer never plays an unrelated match
+- [fixes] No video for the headline match: a standout or same-event one plays
+- [appearance] Every video tile and player shows its picture, never a blank box
+
+### Search
+- **Videos about the answer.** When an answer's headline match has no clip, the match that stands in is one of its standout matches (highlights) or a match at the headline's own event (a video page), never the first clip in the "Every match" grid (which lists every match, from any event); else the headline event's recording, or no player.
+- **Pictures on recordings.** A match's second in the event's recording, and the recording itself, show the video's picture with what it is over it ("In the event's recording, from 4:26:23", "The event's whole recording"), instead of a black box. (#1224)
+
+## 4.5.9 — 2026-11-09
+
+Two events side by side read a state's code as that state's championship.
+
+### Highlights
+- [fixes] "<event> vs NJ Championship" compares New Jersey's championship
+- [fixes] An old division with the state's code in its name is no longer picked
+- [fixes] A state code reads as its latest played championship
+
+### Search
+- **Events side by side, a state's code.** Each side is tried with a state's two-letter code spelled out first ("NJ Championship" is the New Jersey Championship, its latest played season), then as typed, so an old division whose name carries the code inside an event code is never the state's championship. (#1220)
+
+## 4.5.8 — 2026-11-09
+
+Teams named can be ranked by one stat: "rank these teams by reliability: 4215, 7149, 23268".
+
+### Highlights
+- [fixes] "Rank these teams by reliability: …" ranks the teams named
+- [fixes] Works with any board stat: OPR, phases, rating, win rate
+- [fixes] A named team too new to rank is listed as not ranked
+
+### Search
+- **Teams named, ranked.** "Rank, sort or order these teams by <stat>: A, B, C" and "A, B and C ranked by <stat>" give a leaderboard of those teams only, ranked among themselves; a named team with too few matches is said as not ranked. (#1104)
+
+## 4.5.7 — 2026-11-09
+
+Search lists the matches a low-ranked team won against a top-ranked one.
+
+### Highlights
+- [rankings] "A team ranked below 1000 beat a team ranked top 100" lists them
+- [rankings] The biggest rank gap first, every team with its world rank
+- [fixes] Asked the other way round, "lost to", it answers too
+
+### Search
+- **Rank upsets.** "Matches where a team ranked below N beat a team ranked top M" (or "… lost to …") lists the season's decided matches at official events where the winning alliance had a team past the first line and the losing alliance one inside the second, by world rating rank, biggest gap first. (#1126)
+
+## 4.5.6 — 2026-11-09
+
+A rating trend names the season's peak when the latest rating is well below it: "Rising from 57.7 after …, down from a 132 peak at …".
+
+### Highlights
+- [fixes] A rating trend names a peak the latest is well below
+- [fixes] "Rising" no longer hides a drop from a mid-season high
+- [fixes] A steady climb reads as it did, with no peak note
+
+### Search
+- **Rating trend peaks.** When the latest rating is a tenth or more below the highest rating after an earlier event (not the first), the trend line adds "down from a <peak> peak at <event>"; the direction still compares the first and the latest. (#1078)
+
 ## 4.5.5 — 2026-11-09
 
 A match that "went to a tiebreak, or overtime" is read as a tie.
