@@ -13,7 +13,7 @@ let server: Server;
 let base = "";
 const S = 2025;
 const DAY = "2026-05-02";
-const FIRST_ID = "WQUBVjbh-hM", GONE_ID = "SXVDvK3XiOM", UPLOAD_ID = "dQw4w9WgXcQ", OWNER_ID = "9i15Y3g5BqQ", GAPPED_ID = "KjjznpzWGmo", TRIMMED_ID = "7VF5ax17flg", CHAPTERED_ID = "96RZLC94jE4";
+const FIRST_ID = "WQUBVjbh-hM", GONE_ID = "SXVDvK3XiOM", UPLOAD_ID = "dQw4w9WgXcQ", OWNER_ID = "9i15Y3g5BqQ", GAPPED_ID = "KjjznpzWGmo", TRIMMED_ID = "7VF5ax17flg", CHAPTERED_ID = "96RZLC94jE4", SHORT_ID = "Gh5ShortGap";
 
 // What each video's watch page says.
 const pages: Record<string, string> = {
@@ -28,6 +28,8 @@ const pages: Record<string, string> = {
   [CHAPTERED_ID]: `"playabilityStatus":{"status":"OK"},"lengthSeconds":"18000","liveBroadcastDetails":{"isLiveNow":false,"startTimestamp":"${DAY}T12:00:00+00:00","endTimestamp":"${DAY}T23:00:00+00:00"}`
     + ["Opening", ...["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"].map((w) => `Match ${w}`)]
       .map((title, i) => `"chapterRenderer":{"title":{"simpleText":"${title}"},"timeRangeStartMillis":${i ? (1200 * i - 90) * 1000 : 0}}`).join(","),
+  // A drop-out of 10 min somewhere in an 8 h broadcast, no chapters: under GAP_SLACK_MAX_S, so clips start early by all of it.
+  [SHORT_ID]: `"playabilityStatus":{"status":"OK"},"lengthSeconds":"28200","liveBroadcastDetails":{"isLiveNow":false,"startTimestamp":"${DAY}T10:00:00+00:00","endTimestamp":"${DAY}T18:00:00+00:00"}`,
   [OWNER_ID]: `"playabilityStatus":{"status":"OK"},"lengthSeconds":"30807","liveBroadcastDetails":{"isLiveNow":false,"startTimestamp":"${DAY}T12:00:00+00:00","endTimestamp":"${DAY}T20:33:00+00:00"}`,
 };
 const read: string[] = [];
@@ -64,6 +66,10 @@ beforeAll(async () => {
   await match("UPLOAD", 1, `${DAY}T13:00:13`);
   await event("GAPPED", `https://www.youtube.com/watch?v=${GAPPED_ID}`); // dropped out: the video is 1 h 41 min short
   await match("GAPPED", 1, `${DAY}T10:30:00`);
+  await event("SHORT", `https://www.youtube.com/watch?v=${SHORT_ID}`);
+  await match("SHORT", 1, `${DAY}T11:00:00.5`);         // 1 h in
+  await match("SHORT", 2, `${DAY}T17:55:00.5`);         // 7 h 55 min in: past the video's length, inside its last 10 min
+  await match("SHORT", 3, `${DAY}T18:20:00.5`);         // after the broadcast ended
   await event("TRIMMED", `https://www.youtube.com/watch?v=${TRIMMED_ID}`);
   await match("TRIMMED", 1, `${DAY}T12:30:00.5`);
   await match("TRIMMED", 2, `${DAY}T16:00:00.5`);       // the last match: 4 h in, 10 min before the video ends
@@ -91,9 +97,9 @@ describe("event recordings", () => {
   });
 
   it("reads each linked YouTube video once, and nothing for channel pages or Twitch", async () => {
-    expect(await backfillVideoMeta(() => {}, { apiKey: null, gapMs: 0, fetchImpl: fakeFetch })).toBe(7);
+    expect(await backfillVideoMeta(() => {}, { apiKey: null, gapMs: 0, fetchImpl: fakeFetch })).toBe(8);
     // A video far shorter than its broadcast whose page showed no chapters is read once more (YouTube now and then leaves them out).
-    expect(read.sort()).toEqual([CHAPTERED_ID, FIRST_ID, GAPPED_ID, GAPPED_ID, GONE_ID, OWNER_ID, TRIMMED_ID, TRIMMED_ID, UPLOAD_ID].sort());
+    expect(read.sort()).toEqual([CHAPTERED_ID, FIRST_ID, GAPPED_ID, GAPPED_ID, GONE_ID, OWNER_ID, SHORT_ID, TRIMMED_ID, TRIMMED_ID, UPLOAD_ID].sort());
     expect(await backfillVideoMeta(() => {}, { apiKey: null, gapMs: 0, fetchImpl: fakeFetch })).toBe(0); // nothing due again
     expect(await get("SELECT status FROM video_meta WHERE video_id = ?", [GONE_ID])).toEqual({ status: "unavailable" });
     clearAllCaches();
@@ -133,6 +139,14 @@ describe("event recordings", () => {
     expect(JSON.parse((await get<{ chapters: string }>("SELECT chapters FROM video_meta WHERE video_id = ?", [CHAPTERED_ID]))!.chapters)[1]).toEqual([1110, "Match one"]);
   });
 
+  it("a broadcast up to 15 min short, the gap unplaced: each match starts early by all of it, marked early", async () => {
+    const d = await getJson(`/api/events/${S}/SHORT`);
+    expect(d.matches.map((m: any) => m.clip?.t ?? null)).toEqual([3600 - 600 - 20, 28500 - 600 - 20, null]);
+    expect(d.matches[0].clip).toMatchObject({ videoId: SHORT_ID, early: 600 });
+    // One match on its own gets the same second.
+    expect((await getJson(`/api/events/${S}/SHORT/matches/qual:0:2`)).match.clip).toMatchObject({ t: 28500 - 600 - 20, early: 600 });
+  });
+
   it("an upload, or a broadcast with a gap, plays but has no clips; a removed video, a channel page and Twitch give no player", async () => {
     for (const [code, id] of [["UPLOAD", UPLOAD_ID], ["GAPPED", GAPPED_ID]]) {
       const d = await getJson(`/api/events/${S}/${code}`);
@@ -145,7 +159,7 @@ describe("event recordings", () => {
   it("the events list says what there is to watch (match clips only when a played match gets one)", async () => {
     const { events } = await getJson(`/api/events?season=${S}`);
     const by = Object.fromEntries(events.map((e: any) => [e.code, e.video ?? null]));
-    expect(by).toEqual({ CLIPS: "clips", OWNER: "clips", CHAPTERED: "clips", OFFICIAL: "clips", UPLOAD: "recording", GAPPED: "recording", TRIMMED: "clips", ELSEWHEN: "recording", GONE: null, CHANNEL: null, TWITCH: null });
+    expect(by).toEqual({ CLIPS: "clips", OWNER: "clips", CHAPTERED: "clips", OFFICIAL: "clips", UPLOAD: "recording", GAPPED: "recording", TRIMMED: "clips", SHORT: "clips", ELSEWHEN: "recording", GONE: null, CHANNEL: null, TWITCH: null });
   });
 });
 

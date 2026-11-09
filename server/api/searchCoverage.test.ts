@@ -214,6 +214,16 @@ describe("answers on their own", () => {
     await run("INSERT INTO teams (number, name, city, state, country) VALUES (32101, 'Cafe Robotics', 'Austin', 'TX', 'USA'), (32102, 'Café Robotics', 'Newark', 'NJ', 'USA')");
     await rebuildSearch();
     expect((await ask("cafe robotics nj")).hits.map((h) => h.ref)).toEqual(["32102"]);
+    // The same with "in" or "from" before the place: the local team leads, never cut off, accents folded.
+    for (const [q, team] of [["gear heads from michigan", "32099"], ["gear heads in michigan", "32099"], ["cafe robotics in new jersey", "32102"], ["cafe robotics from nj", "32102"]]) {
+      expect((await ask(q)).hits[0]?.ref, q).toBe(team);
+    }
+    // A team asked for by its number stays that team; one found past the hits listed opens on the season asked for.
+    expect((await ask("32000 in michigan")).hits[0]?.ref).toBe("32000");
+    const last = await ask("gear heads from michigan last season");
+    expect(last.hits[0]?.ref).toBe("32099");
+    expect(last.hits[0]?.linkSeason).toBe((await ask("gear heads last season")).hits[0]?.linkSeason);
+    expect(last.hits[0]?.linkSeason).toBeDefined();
   });
   it("when a team last played: its most recent match (failed-search #487)", async () => {
     expect(rewriteQuery("when did hypnotic last play")).toMatchObject({ q: "hypnotic last match", pre: true });
