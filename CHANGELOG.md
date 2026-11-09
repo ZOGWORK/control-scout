@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.7.9 — 2026-11-09
+
+"Match predictions" asked of a team answers with its next match's predicted score, as "predicted matches" does.
+
+### Highlights
+- [fixes] "Match predictions" for a team shows its next match's prediction
+- [predict] A team's next match prediction reads either way round
+- [fixes] Two teams' match prediction stays the head-on forecast
+
+### Search
+- **A team's match predictions.** "Hypnotic Robotics match predictions" is read as the team's next match predicted score, the same question as "predicted matches". Two teams said with it ("14270 vs 4215 match prediction") is still their head-on prediction. (#1239)
+
 ## 4.7.8 — 2026-11-09
 
 "Best team last 5 matches" answers for the world's top team by prediction rating, as its highlights already do.
