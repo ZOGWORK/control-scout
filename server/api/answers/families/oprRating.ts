@@ -459,6 +459,9 @@ async function worldsAnswer(f: OprRatingQuestion, team: Team, set: { events: Tea
   };
 }
 
+/** How far below its season's peak the latest rating has to be for the trend to name the peak: a tenth. */
+export const PEAK_DROP = 0.1;
+
 /** The rating over a season: after each event, read from the weekly ranking snapshots (the Monday after it), ending
  *  on the team page's season rating; and the rating each season. */
 async function ratingTrend(team: Team, season: number, set: { events: TeamEvent[]; seasons: TeamSeason[] }, st: Awaited<ReturnType<typeof seasonStats>>, why: string): Promise<StatAnswer> {
@@ -487,6 +490,11 @@ async function ratingTrend(team: Team, season: number, set: { events: TeamEvent[
   const known = pts.filter((p) => p.y != null) as { e: TeamEvent; y: number }[];
   const first = known[0];
   const dir = known.length > 1 ? (Math.abs(known.at(-1)!.y - first.y) < 0.05 * Math.max(first.y, 1) ? "Steady" : known.at(-1)!.y > first.y ? "Rising" : "Falling") : null;
+  // A peak between the first and the latest event that the latest is well below (PEAK_DROP of it) is said beside the
+  // direction, which compares the first and the latest only: "Rising from 57.7 …, down from a 132 peak at …".
+  const top = known.slice(1, -1).reduce<(typeof known)[number] | null>((m, p) => (!m || p.y > m.y ? p : m), null);
+  // Only a positive peak: ratings at zero throughout (the engine keeps them) are no drop from one.
+  const peak = dir && top && top.y > 0 && known.at(-1)!.y <= top.y * (1 - PEAK_DROP) ? top : null;
   const blocks: StatBlock[] = [];
   if (known.length > 1) blocks.push({ kind: "series", title: "Rating after each event", points: pts.map((p) => ({ x: p.e.name, y: p.y == null ? null : Math.round(p.y * 10) / 10, href: eventHref(p.e.season, p.e.code, team.number), note: dateRange(p.e.start, p.e.end) ?? undefined })) });
   blocks.push(ratingKpis(st!, await ratingPop(season)));
@@ -496,7 +504,7 @@ async function ratingTrend(team: Team, season: number, set: { events: TeamEvent[
   return {
     ...b,
     ...(known.length > 1 ? {} : { definition: `${b.definition} No weekly snapshot after its earlier ${S} events is stored, so only the season rating is shown.` }),
-    headline: { value: `${num(r.np)} ± ${num(r.sd)}`, label: `latest rating${last ? `, after ${last.name}` : ""}${dir ? ` · ${dir} from ${num(first.y)} after ${first.e.name}` : ""}`, sub: [S, `${r.matches ?? 0} matches rated`, r.rank ? `#${n(r.rank)} worldwide` : null].filter(Boolean).join(" · "), href: teamHref(team.number, season) },
+    headline: { value: `${num(r.np)} ± ${num(r.sd)}`, label: `latest rating${last ? `, after ${last.name}` : ""}${dir ? ` · ${dir} from ${num(first.y)} after ${first.e.name}${peak ? `, down from a ${num(peak.y)} peak at ${peak.e.name}` : ""}` : ""}`, sub: [S, `${r.matches ?? 0} matches rated`, r.rank ? `#${n(r.rank)} worldwide` : null].filter(Boolean).join(" · "), href: teamHref(team.number, season) },
     blocks,
   };
 }

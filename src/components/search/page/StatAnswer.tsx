@@ -64,12 +64,18 @@ export function StatAnswerCard({ stat, heading, explain }: { stat: StatAnswer; h
   return <OneCard stat={stat} heading={heading} extra={extra} />;
 }
 
+/** Whether texts name more than one season ("2023–24", "2024–25"; every one in each text) or say they count every one. */
+export function manySeasons(texts: readonly string[]): boolean {
+  if (texts.some((t) => /\b(?:every|all) seasons?\b/i.test(t))) return true;
+  const said = new Set(texts.flatMap((t) => [...t.matchAll(/\b20\d\d[–-]\d\d\b/g)].map((m) => statedSeason(m[0])).filter((s) => s != null)));
+  return said.size > 1;
+}
+
 function OneCard({ stat, heading, extra }: { stat: StatAnswer; heading?: string; extra?: ReactNode }) {
   const teams = stat.teams && stat.teams.length > 1 ? stat.teams : stat.team ? [stat.team] : undefined;
-  // A card about no team and two seasons side by side ("2024 versus 2025") is no one season's: no season to pick, both
-  // its chips kept.
-  const seasonsSaid = new Set([stat.title, ...stat.scope].map((s) => statedSeason(s)).filter((s) => s != null));
-  const stated = !teams?.length && seasonsSaid.size > 1 ? null : statedSeason(stat.title, ...stat.scope);
+  // A card about no team that is no one season's has no season to pick, its chips kept: two seasons side by side
+  // ("2024 versus 2025"), a span of them ("2007–08 to 2025–26", "Active in 2025–26 or 2026–27"), or every season.
+  const stated = !teams?.length && manySeasons([stat.title, ...stat.scope]) ? null : statedSeason(stat.title, ...stat.scope);
   const season = useAnswerSeason(stated);
   const said = saidBy(stat);
   // About one team: its hue on the card's numbers and bars; about none (a season's top matches): ink.
@@ -476,7 +482,8 @@ function Series({ b }: { b: Extract<StatBlock, { kind: "series" }> }) {
   return (
     <figure data-block="series">
       <figcaption className={H3}>{b.title}</figcaption>
-      <div className="relative h-32 rounded-lg border border-border bg-muted/20">
+      {/* A size container: a point's label is at most half the chart wide (cqw), so it always fits on its side. */}
+      <div className="relative h-32 rounded-lg border border-border bg-muted/20" style={{ containerType: "inline-size" }}>
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 size-full" aria-hidden>
           {pts.length > 1 && <polyline points={pts.map((p) => `${x(p.i)},${y(p.y)}`).join(" ")} fill="none" className="stroke-team-a" strokeWidth="3" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />}
         </svg>
@@ -485,13 +492,25 @@ function Series({ b }: { b: Extract<StatBlock, { kind: "series" }> }) {
           const last = p.i === pts[pts.length - 1].i;
           const dot = <span className={cn("block rounded-full border-2 border-team-a", last ? "size-4 bg-team-a" : "size-3 bg-card")} />;
           const style = { left: `${x(p.i)}%`, top: `${y(p.y)}%` };
-          const label = `${p.x}: ${p.y}${b.unit ? ` ${b.unit}` : ""}${p.note ? ` (${p.note})` : ""}`;
-          const mark = (cls: string) => <span key={`m${p.i}`} style={style} title={label} aria-label={label} role="img" className={cn("absolute size-[24px] -translate-x-1/2 -translate-y-1/2 items-center justify-center", cls)}>{dot}</span>;
+          const value = `${p.y}${b.unit ? ` ${b.unit}` : ""}${p.note ? ` · ${p.note}` : ""}`;
+          const label = `${p.x}: ${value}`;
+          // What the point is, shown at once on hover or keyboard focus (a browser's own title tip is slow and easy to
+          // miss): the match, then its value. It opens toward the chart's wider side from the point, at most 48% of
+          // the chart wide, so it never runs past either edge.
+          const tip = (
+            <span role="tooltip" data-point-tip className={cn("pointer-events-none absolute bottom-full z-10 mb-1.5 hidden w-max max-w-[min(16rem,48cqw)] rounded-md border border-border bg-popover px-2 py-1 text-left text-xs leading-snug text-popover-foreground shadow-md group-hover:block group-focus-visible:block",
+              x(p.i) < 50 ? "left-0" : "right-0")}>
+              <span className="block font-medium">{p.x}</span>
+              <span className="block tabular-nums text-muted-foreground">{value}</span>
+            </span>
+          );
+          // The point hovered or focused sits above its neighbours, so no later dot covers its label.
+          const mark = (cls: string) => <span key={`m${p.i}`} style={style} aria-label={label} role="img" tabIndex={0} className={cn("group absolute size-[24px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full hover:z-20 focus-visible:z-20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60", cls)}>{dot}{tip}</span>;
           // A point is a link for a mouse only. On a phone or touch screen neighbouring points can sit closer than a
           // finger (44px), so a tap could open the wrong match: there the list below, a full row per point, is the way in.
           return p.href
             ? <Fragment key={p.i}>
-                <Link to={p.href} style={style} title={label} aria-label={label} className="absolute flex size-[24px] -translate-x-1/2 -translate-y-1/2 items-center justify-center hover:[&>span]:bg-accent max-md:hidden pointer-coarse:hidden">{dot}</Link>
+                <Link to={p.href} style={style} aria-label={label} className="group absolute flex size-[24px] -translate-x-1/2 -translate-y-1/2 items-center justify-center hover:z-20 focus-visible:z-20 hover:[&>span:first-child]:bg-accent max-md:hidden pointer-coarse:hidden">{dot}{tip}</Link>
                 {mark("hidden max-md:flex pointer-coarse:flex")}
               </Fragment>
             : mark("flex");
