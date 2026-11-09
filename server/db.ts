@@ -1959,7 +1959,8 @@ ALTER TABLE event_stream_links ADD COLUMN read_at TEXT;
 -- The top bar's "Report a bug" (server/bugReports.ts). No IP address is kept. page/release/viewport/device/theme: the
 -- details the dialog attaches (and shows the sender). files_declared: the attachments the report said it would upload
 -- (JSON [{type, bytes}]), each upload checked against it; files_expected: their count. token_hash: the upload token's
--- hash (uploads only, for 30 minutes). status: open | done (the owner closed it). emailed: 0 not yet, 2 being sent, 1 sent.
+-- hash (uploads only, for 30 minutes). status: open | done (the owner closed it). emailed: 0 not yet, 2 being sent
+-- (since email_claimed_at), 1 sent; email_attempts: tries so far (the sweep stops at 5). done_at: the sender finished.
 CREATE TABLE bug_reports (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   created_at TEXT NOT NULL,
@@ -1975,14 +1976,20 @@ CREATE TABLE bug_reports (
   files_declared TEXT NOT NULL DEFAULT '[]',
   token_hash TEXT,
   status TEXT NOT NULL DEFAULT 'open',
-  emailed INTEGER NOT NULL DEFAULT 0
+  done_at TEXT,
+  emailed INTEGER NOT NULL DEFAULT 0,
+  email_claimed_at TEXT,
+  email_attempts INTEGER NOT NULL DEFAULT 0
 );
--- One row per uploaded attachment; the bytes are on disk at DATA_DIR/bug-reports/<report_id>-<n>.<ext>.
+-- One row per attachment, made when its first piece arrives (bytes: its whole size, reserved against the disk cap;
+-- received: how much has arrived, finished when equal). On disk at DATA_DIR/bug-reports/<report_id>-<n>.<ext>
+-- (<report_id>-<n>.part while it arrives).
 CREATE TABLE bug_report_files (
   report_id INTEGER NOT NULL REFERENCES bug_reports(id) ON DELETE CASCADE,
   n INTEGER NOT NULL,
   type TEXT NOT NULL,
   bytes INTEGER NOT NULL,
+  received INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   PRIMARY KEY (report_id, n)
 );

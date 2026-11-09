@@ -20,9 +20,11 @@ export const BUG_LIMITS = {
   /** Screenshots per report, and the size of each. */
   images: 6,
   imageBytes: 5 * MB,
-  /** Videos per report, and the size of each: a short screen recording. */
+  /** Videos per report, and the size each must stay under: a short screen recording. */
   videos: 1,
   videoBytes: 5 * MB,
+  /** Attachments upload in pieces of this size (the last one smaller): under the site's 4 MB request cap. */
+  chunkBytes: 3 * MB,
   /** The automatic details (page, version, screen, device, theme): each field's length. */
   context: 300,
 } as const;
@@ -52,7 +54,7 @@ export function attachmentProblem(type: string, bytes: number): string | null {
     return bytes > BUG_LIMITS.imageBytes ? `Screenshots can be up to ${formatBytes(BUG_LIMITS.imageBytes)}; this one is ${formatBytes(bytes)}.` : bytes <= 0 ? "That file is empty." : null;
   }
   if (isVideoType(type)) {
-    return bytes > BUG_LIMITS.videoBytes ? `Videos must be under ${formatBytes(BUG_LIMITS.videoBytes)}; this one is ${formatBytes(bytes)}. Try a shorter clip.` : bytes <= 0 ? "That file is empty." : null;
+    return bytes >= BUG_LIMITS.videoBytes ? `Videos must be under ${formatBytes(BUG_LIMITS.videoBytes)}; this one is ${formatBytes(bytes)}. Try a shorter clip.` : bytes <= 0 ? "That file is empty." : null;
   }
   return "Only images (PNG, JPEG, WebP, GIF) and videos (MP4, WebM, MOV) can be attached.";
 }
@@ -106,7 +108,8 @@ export interface BugReportCreate {
   website?: string;
 }
 
-/** Its answer: where the attachments go (PUT /api/bug-reports/:id/files/:n, header X-Bug-Token), then POST …/:id/done. */
+/** Its answer: where the attachments go (PUT /api/bug-reports/:id/files/:n?offset=…, header X-Bug-Token, in pieces of
+ *  BUG_LIMITS.chunkBytes from the start of the file), then POST …/:id/done. */
 export interface BugReportCreated { id: number; token: string }
 
 /** The owner console's list (GET /api/owner/bug-reports). */
@@ -124,4 +127,13 @@ export interface BugReportItem {
   missing: number;
   files: BugReportFile[];
 }
-export interface BugReportList { reports: BugReportItem[]; open: number; storedBytes: number; capBytes: number }
+export interface BugReportList { reports: BugReportItem[]; open: number; closed: number; more: boolean; storedBytes: number; capBytes: number }
+
+/** The piece of a file that starts at `offset`: its length, or 0 when the offset isn't a piece boundary of a file this size. */
+export function chunkLength(fileBytes: number, offset: number): number {
+  if (!Number.isInteger(offset) || offset < 0 || offset >= fileBytes || offset % BUG_LIMITS.chunkBytes) return 0;
+  return Math.min(BUG_LIMITS.chunkBytes, fileBytes - offset);
+}
+
+/** A page path on this site, safe to link to: starts with one "/", no backslash, no spaces or control characters. */
+export const isSitePath = (p: string): boolean => /^\/(?![/\\])[^\\\s\u0000-\u001f\u007f]*$/.test(p);

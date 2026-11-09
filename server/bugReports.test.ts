@@ -10,12 +10,13 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { all, migrate, openDb, run, setDb } from "./db";
 import { createApp } from "./app";
 import { setMailer, type MailOptions } from "./auth/email";
-import { BUG_RATE, bugDir, deleteBugReport, emailing, listBugReports, resetBugLimits, validateBugReport } from "./bugReports";
-import { BUG_LIMITS, sniffType } from "../src/shared/bugReport";
+import { BUG_RATE, bugDir, deleteBugReport, emailing, listBugReports, resetBugLimits, STORAGE_CAP_BYTES, sweepBugReports, UPLOAD_WINDOW_MS, validateBugReport } from "./bugReports";
+import { BUG_LIMITS, isSitePath, sniffType } from "../src/shared/bugReport";
 
 let server: Server;
 let base = "";
 let mails: { to: string; subject: string; text: string; opts?: MailOptions }[] = [];
+let failSend = false;
 const saved = { to: process.env.CONTACT_TO, dir: process.env.DATA_DIR };
 const dir = mkdtempSync(join(tmpdir(), "cs-bugs-"));
 
@@ -24,7 +25,10 @@ beforeAll(async () => {
   const c = openDb(":memory:");
   setDb(c);
   await migrate(c);
-  setMailer(async (to, subject, text, _html, opts) => { mails.push({ to, subject, text, opts }); });
+  setMailer(async (to, subject, text, _html, opts) => {
+    if (failSend) throw new Error("email provider error 500");
+    mails.push({ to, subject, text, opts });
+  });
   server = createApp().listen(0);
   await new Promise((r) => server.once("listening", r));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -38,6 +42,7 @@ afterAll(() => {
 beforeEach(async () => {
   process.env.CONTACT_TO = "team@controlscout.test";
   mails = [];
+  failSend = false;
   resetBugLimits();
   await run("DELETE FROM bug_report_files");
   await run("DELETE FROM bug_reports");
@@ -52,9 +57,19 @@ const create = async (body: unknown) => {
   const res = await fetch(`${base}/api/bug-reports`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   return { status: res.status, json: await res.json().catch(() => null) };
 };
-const upload = async (id: number, n: number, token: string, body: Buffer, type = "image/png") => {
-  const res = await fetch(`${base}/api/bug-reports/${id}/files/${n}`, { method: "PUT", headers: { "Content-Type": type, "X-Bug-Token": token }, body });
+/** One piece: PUT …/files/:n?offset=…. */
+const put = async (id: number, n: number, token: string, body: Buffer, offset = 0, type = "image/png") => {
+  const res = await fetch(`${base}/api/bug-reports/${id}/files/${n}?offset=${offset}`, { method: "PUT", headers: { "Content-Type": type, "X-Bug-Token": token }, body });
   return { status: res.status, json: await res.json().catch(() => null) };
+};
+/** A whole file, in pieces as the dialog sends it; the last piece's answer. */
+const upload = async (id: number, n: number, token: string, body: Buffer, type = "image/png") => {
+  let last: { status: number; json: { error?: string } | null } = { status: 0, json: null };
+  for (let at = 0; at < body.length; at += BUG_LIMITS.chunkBytes) {
+    last = await put(id, n, token, body.subarray(at, at + BUG_LIMITS.chunkBytes), at, type);
+    if (last.status !== 200) break;
+  }
+  return last;
 };
 const done = async (id: number, token: string) => {
   const res = await fetch(`${base}/api/bug-reports/${id}/done`, { method: "POST", headers: { "Content-Type": "application/json", "X-Bug-Token": token }, body: "{}" });
@@ -66,8 +81,11 @@ describe("validateBugReport", () => {
   it("cleans a good report and keeps only a path on this site", () => {
     const v = validateBugReport({ ...good, context: { ...context, page: "https://evil.example/x" } });
     expect(v.ok && v.value).toMatchObject({ category: "broken", email: "coach@example.com", context: { page: "" } });
-    const p = validateBugReport({ ...good, context: { ...context, page: "//evil.example" } });
-    expect(p.ok && p.value.context.page).toBe("");
+    for (const page of ["//evil.example", "/\\evil.example", "/a b", "/a\u0001"]) {
+      const p = validateBugReport({ ...good, context: { ...context, page } });
+      expect(p.ok && p.value.context.page, page).toBe("");
+    }
+    expect(isSitePath("/teams/4215?tab=matches")).toBe(true);
   });
   it("needs a category and a long enough description; the email is optional", () => {
     const v = validateBugReport({ category: "nope", message: "short", email: "not-an-email" });
@@ -79,7 +97,8 @@ describe("validateBugReport", () => {
   it("refuses a video of 5 MB or more, a second video, too many screenshots and other file types", () => {
     const over = validateBugReport({ ...good, files: [{ type: "video/mp4", bytes: BUG_LIMITS.videoBytes + 1 }] });
     expect(!over.ok && over.fields.files).toMatch(/under 5 MB/);
-    expect(validateBugReport({ ...good, files: [{ type: "video/mp4", bytes: BUG_LIMITS.videoBytes }] }).ok).toBe(true);
+    expect(validateBugReport({ ...good, files: [{ type: "video/mp4", bytes: BUG_LIMITS.videoBytes }] }).ok).toBe(false);
+    expect(validateBugReport({ ...good, files: [{ type: "video/mp4", bytes: BUG_LIMITS.videoBytes - 1 }] }).ok).toBe(true);
     const two = validateBugReport({ ...good, files: [{ type: "video/mp4", bytes: 10 }, { type: "video/webm", bytes: 10 }] });
     expect(!two.ok && two.fields.files).toMatch(/One video/);
     const many = validateBugReport({ ...good, files: Array.from({ length: BUG_LIMITS.images + 1 }, () => ({ type: "image/png", bytes: 10 })) });
@@ -121,18 +140,47 @@ describe("POST /api/bug-reports", () => {
     expect(mails).toHaveLength(1);
   });
 
-  it("refuses bytes that aren't what was listed, a wrong token, a repeat upload and files over the cap", async () => {
+  it("refuses bytes that aren't what was listed, a wrong token, a repeat upload and other slots", async () => {
     const r = await create({ ...good, files: [{ type: "image/png", bytes: PNG.length }] });
     const { id, token } = r.json as { id: number; token: string };
-    expect((await upload(id, 0, "wrong", PNG)).status).toBe(404);
-    expect((await upload(id, 0, token, Buffer.from("<html><script>alert(1)</script></html>"), "image/png")).status).toBe(415);
-    expect((await upload(id, 0, token, Buffer.concat([PNG, Buffer.alloc(1)]))).status).toBe(400);
-    expect((await upload(id, 1, token, PNG)).status).toBe(404);
-    expect((await upload(id, 0, token, PNG)).status).toBe(200);
-    expect((await upload(id, 0, token, PNG)).status).toBe(409);
-    const big = await upload(id, 0, token, MP4(BUG_LIMITS.videoBytes + 1), "video/mp4");
-    expect(big.status).toBe(413);
-    expect(big.json.error).toMatch(/too large/);
+    expect((await put(id, 0, "wrong", PNG)).status).toBe(404);
+    const html = Buffer.alloc(PNG.length, 32); html.write("<html><script>alert(1)</script>");
+    expect((await put(id, 0, token, html)).status).toBe(415);
+    expect((await put(id, 0, token, Buffer.concat([PNG, Buffer.alloc(1)]))).status).toBe(400);
+    expect((await put(id, 1, token, PNG)).status).toBe(404);
+    expect((await put(id, 0, token, PNG)).status).toBe(200);
+    expect((await put(id, 0, token, PNG)).status).toBe(409);
+  });
+
+  it("takes a video just under 5 MB in pieces under the proxy's 4 MB cap, in order only", async () => {
+    const video = MP4(BUG_LIMITS.videoBytes - 1);
+    expect(BUG_LIMITS.chunkBytes).toBeLessThan(4 * 1024 * 1024);
+    const r = await create({ ...good, files: [{ type: "video/mp4", bytes: video.length }] });
+    const { id, token } = r.json as { id: number; token: string };
+    // The second piece before the first: refused.
+    expect((await put(id, 0, token, video.subarray(BUG_LIMITS.chunkBytes), BUG_LIMITS.chunkBytes, "video/mp4")).status).toBe(409);
+    expect((await put(id, 0, token, video.subarray(0, BUG_LIMITS.chunkBytes), 0, "video/mp4")).status).toBe(200);
+    // Not finished yet: not an attachment.
+    expect((await listBugReports()).reports[0].files).toEqual([]);
+    expect((await put(id, 0, token, video.subarray(BUG_LIMITS.chunkBytes), BUG_LIMITS.chunkBytes, "video/mp4")).status).toBe(200);
+    expect((await listBugReports()).reports[0].files).toMatchObject([{ type: "video/mp4", bytes: video.length }]);
+  });
+
+  it("refuses a piece of the wrong size before reading it", async () => {
+    const r = await create({ ...good, files: [{ type: "video/mp4", bytes: BUG_LIMITS.videoBytes - 1 }] });
+    const { id, token } = r.json as { id: number; token: string };
+    expect((await put(id, 0, token, MP4(BUG_LIMITS.chunkBytes + 1), 0, "video/mp4")).status).toBe(400);
+  });
+
+  it("never lets parallel uploads go past the disk cap", async () => {
+    // Storage filled to just under the cap by a stand-in row, then two uploads race for the last of the room.
+    await run("INSERT INTO bug_reports (id, created_at, category, message) VALUES (999999, ?, 'other', 'storage filler')", [new Date().toISOString()]);
+    const fill = STORAGE_CAP_BYTES - PNG.length - 10;
+    await run("INSERT INTO bug_report_files (report_id, n, type, bytes, received, created_at) VALUES (999999, 0, 'image/png', ?, ?, ?)", [fill, fill, new Date().toISOString()]);
+    const a = (await create({ ...good, files: [{ type: "image/png", bytes: PNG.length }] })).json as { id: number; token: string };
+    const b = (await create({ ...good, files: [{ type: "image/png", bytes: PNG.length }] })).json as { id: number; token: string };
+    const got = (await Promise.all([put(a.id, 0, a.token, PNG), put(b.id, 0, b.token, PNG)])).map((x) => x.status).sort();
+    expect(got).toEqual([200, 507]);
   });
 
   it("emails a report with no attachments without a Reply-To when no email was given", async () => {
@@ -166,17 +214,65 @@ describe("POST /api/bug-reports", () => {
   });
 });
 
+describe("sweepBugReports", () => {
+  it("sends again an email that failed, and one for a sender who never finished", async () => {
+    failSend = true;
+    const a = (await create(good)).json as { id: number; token: string };
+    await done(a.id, a.token);
+    expect(mails).toEqual([]);
+    failSend = false;
+    await sweepBugReports();
+    expect(mails).toHaveLength(1);
+    // Left mid-upload: emailed once the upload window has passed, with what arrived.
+    await create({ ...good, files: [{ type: "image/png", bytes: PNG.length }] });
+    await sweepBugReports();
+    expect(mails).toHaveLength(1);
+    await sweepBugReports(Date.now() + UPLOAD_WINDOW_MS + 1000);
+    expect(mails).toHaveLength(2);
+    expect(mails[1].text).toContain("1 attachment was never uploaded");
+  });
+  it("takes back a send interrupted by a restart, and gives up after 5 tries", async () => {
+    const a = (await create(good)).json as { id: number; token: string };
+    await run("UPDATE bug_reports SET emailed = 2, email_claimed_at = ?, email_attempts = 1, done_at = ? WHERE id = ?", [new Date(Date.now() - 3600e3).toISOString(), new Date().toISOString(), a.id]);
+    await sweepBugReports();
+    expect(mails).toHaveLength(1);
+    const b = (await create(good)).json as { id: number; token: string };
+    await run("UPDATE bug_reports SET email_attempts = 5, done_at = ? WHERE id = ?", [new Date().toISOString(), b.id]);
+    await sweepBugReports();
+    expect(mails).toHaveLength(1);
+  });
+});
+
 describe("owner endpoints", () => {
   it("are refused to anyone who isn't a signed-in owner", async () => {
     expect((await fetch(`${base}/api/owner/bug-reports`)).status).toBe(403);
     expect((await fetch(`${base}/api/owner/bug-reports/1/files/0`)).status).toBe(403);
   });
-  it("deleting a report removes its files", async () => {
+  it("deleting a report removes its files, finished or still arriving", async () => {
     const r = await create({ ...good, files: [{ type: "image/png", bytes: PNG.length }] });
     const { id, token } = r.json as { id: number; token: string };
     await upload(id, 0, token, PNG);
+    const video = MP4(BUG_LIMITS.videoBytes - 1);
+    const v = (await create({ ...good, files: [{ type: "video/mp4", bytes: video.length }] })).json as { id: number; token: string };
+    await put(v.id, 0, v.token, video.subarray(0, BUG_LIMITS.chunkBytes), 0, "video/mp4");
+    expect(existsSync(join(bugDir(), `${v.id}-0.part`))).toBe(true);
     expect(await deleteBugReport(id)).toBe(true);
+    expect(await deleteBugReport(v.id)).toBe(true);
     expect(existsSync(join(bugDir(), `${id}-0.png`))).toBe(false);
+    expect(existsSync(join(bugDir(), `${v.id}-0.part`))).toBe(false);
+    // The rest of that video arriving after the delete: refused, nothing left on disk.
+    expect((await put(v.id, 0, v.token, video.subarray(BUG_LIMITS.chunkBytes), BUG_LIMITS.chunkBytes, "video/mp4")).status).toBe(404);
+    expect(existsSync(join(bugDir(), `${v.id}-0.part`))).toBe(false);
     expect((await listBugReports()).reports).toEqual([]);
+  });
+  it("lists open and closed reports apart, a page at a time", async () => {
+    for (let i = 0; i < 3; i++) await create(good);
+    const ids = (await all<{ id: number }>("SELECT id FROM bug_reports ORDER BY id")).map((r) => Number(r.id));
+    await run("UPDATE bug_reports SET status = 'done' WHERE id = ?", [ids[0]]);
+    const first = await listBugReports("open", null, 1);
+    expect(first).toMatchObject({ open: 2, closed: 1, more: true });
+    expect(first.reports.map((r) => r.id)).toEqual([ids[2]]);
+    expect((await listBugReports("open", ids[2], 1)).reports.map((r) => r.id)).toEqual([ids[1]]);
+    expect((await listBugReports("done")).reports.map((r) => r.id)).toEqual([ids[0]]);
   });
 });
