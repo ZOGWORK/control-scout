@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## NEXT — 2026-11-09
+## NEXT — 2026-11-08
 
 "Match predictions" asked of a team answers with its next match's predicted score, as "predicted matches" does.
 
@@ -26,6 +26,18 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ### Search
 - **A team's match predictions.** "Hypnotic Robotics match predictions" is read as the team's next match predicted score, the same question as "predicted matches". Two teams said with it ("14270 vs 4215 match prediction") is still their head-on prediction. (#1239)
+
+## 4.7.8 — 2026-11-09
+
+"Best team last 5 matches" answers for the world's top team by prediction rating, as its highlights already do.
+
+### Highlights
+- [fixes] "Best team last 5 matches" shows the top team's latest matches
+- [fixes] Any one-team question works with "the best team" as the team
+- [rankings] The best team is the leader of the season its stats come from
+
+### Search
+- **The best team's matches and stats.** "Best team last 5 matches", and any other question asked of one team, with "the best team" said for the team: answered for the world's top-rated ranked team of the season the answer reads (the season said, or the one a question naming none reads), the card naming it. "Best team" alone stays the board. (#1237)
 
 ## 4.7.7 — 2026-11-09
 
