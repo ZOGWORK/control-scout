@@ -13,6 +13,9 @@ export interface TeamEvent {
   /** Qualification rank there, and how many teams were ranked (none for a league meet: its stored rank is the league's
    *  standing). */
   rank: number | null; of: number | null;
+  /** A league meet's posted rank: the league's running standing after it, as the event page shows it (#1 of 20).
+   *  Shown, labelled, in event lists; never a finish (best, worst or mean rank leave it out). */
+  standing?: { n: number; of: number | null } | null;
   /** The team's OPR at the event, without penalties (as on its pages), and its phases. */
   opr: number | null; auto: number | null; teleop: number | null; endgame: number | null;
   matches: number;
@@ -90,7 +93,8 @@ async function load(team: number): Promise<{ events: TeamEvent[]; seasons: TeamS
       season: Number(r.season), code: r.code, name: shortEvent(r.name, r.type ?? null), type: r.type ?? null, start: r.start ?? null, end: r.end ?? null,
       city: r.city ?? null, state: r.state ?? null, country: r.country ?? null, division: r.division_code ?? null,
       // A league meet's stored rank is the league's running standing, not the team's finish there: left out.
-      rank: r.type === "LeagueMeet" ? null : num(r.rank), of: r.type === "LeagueMeet" ? null : Number(r.ranked) || null, opr: num(r.opr_np), auto: num(r.opr_auto), teleop: num(r.opr_teleop), endgame: num(r.opr_endgame),
+      rank: r.type === "LeagueMeet" ? null : num(r.rank), of: r.type === "LeagueMeet" ? null : Number(r.ranked) || null,
+      standing: r.type === "LeagueMeet" && r.rank != null ? { n: Number(r.rank), of: Number(r.ranked) || null } : null, opr: num(r.opr_np), auto: num(r.opr_auto), teleop: num(r.opr_teleop), endgame: num(r.opr_endgame),
       matches: Number(r.matches) || 0,
       avgScore: num(r.avg_score), avgPen: num(r.avg_pen), wins: num(r.wins), losses: num(r.losses), ties: num(r.ties),
       rp: r.type === "LeagueMeet" ? null : num(r.rp),

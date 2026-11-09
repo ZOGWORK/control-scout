@@ -49,9 +49,12 @@ describe("order", () => {
   it("a final (series 0) comes after its semifinals", async () => {
     expect((await searchAnswer("6980 most recent match", { limit: 25 })).stat!.headline).toMatchObject({ label: "F1 at Northern League Meet 1" });
   });
-  it("a coming event is never the latest; a league meet shows no finish", async () => {
+  it("a coming event is never the latest; a league meet shows its league standing, not a finish", async () => {
     const a = await searchAnswer("4215 last event", { limit: 25 });
-    expect(a.stat!.headline).toMatchObject({ value: "Northern League Meet 1", label: "No rank posted" });
+    expect(a.stat!.headline).toMatchObject({ value: "Northern League Meet 1", label: "League standing #1 of 1" });
+    // The events table says it too, marked as the league's standing (the owner, 11-09: the rank was missing).
+    const rows = a.stat!.blocks.find((b) => b.kind === "table");
+    expect(rows && rows.kind === "table" && rows.rows[0].cells.rank).toBe("#1 of 1 league");
     expect((await searchAnswer("4215 total events", { limit: 25 })).stat!.headline).toMatchObject({ value: "1 event" });
   });
 });

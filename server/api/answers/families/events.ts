@@ -25,6 +25,8 @@ const topText = (s: TeamSeason) => (s.rank != null && s.of ? `#${s.rank} of ${s.
 const rec = (s: { wins: number; losses: number; ties: number }) => `${s.wins}-${s.losses}-${s.ties}`;
 const opr = (v: number | null) => (v == null ? "–" : v.toFixed(1));
 const rankText = (e: TeamEvent) => (e.rank != null ? `#${e.rank}${e.of ? ` of ${e.of}` : ""}` : "–");
+/** An event list's rank cell: the event's rank, else a league meet's standing said as the league's ("#1 of 20 league"). */
+const rankCell = (e: TeamEvent) => (e.rank == null && e.standing ? `#${e.standing.n}${e.standing.of ? ` of ${e.standing.of}` : ""} league` : rankText(e));
 /** The team's record at the event as its team page shows it, or a dash. */
 const evRec = (e: TeamEvent) => (e.record ? `${e.record.wins}-${e.record.losses}-${e.record.ties}` : "–");
 /** Win share at the event (a tie counts half), for breaking a tie on rank. */
@@ -35,7 +37,7 @@ function eventRows(evs: TeamEvent[], team: number, title: string, opts: { opr?: 
   return {
     kind: "table", title,
     columns: [{ key: "event", label: "Event" }, { key: "season", label: "Season" }, { key: "date", label: "Date" }, { key: "rank", label: "Rank" }, { key: "record", label: "W-L-T" }, ...(opts.opr === false ? [] : [{ key: "opr", label: "OPR", num: true }])],
-    rows: evs.slice(0, 25).map((e) => ({ cells: { event: e.name, season: seasonLabel(e.season), date: dateRange(e.start, e.end), rank: rankText(e), record: evRec(e), opr: opr(e.opr) }, href: eventHref(e.season, e.code, team), type: e.type })),
+    rows: evs.slice(0, 25).map((e) => ({ cells: { event: e.name, season: seasonLabel(e.season), date: dateRange(e.start, e.end), rank: rankCell(e), record: evRec(e), opr: opr(e.opr) }, href: eventHref(e.season, e.code, team), type: e.type })),
   };
 }
 
@@ -137,7 +139,7 @@ export function eventAnswer(id: IntentId, team: AnswerTeam, set: { events: TeamE
       }
       return {
         ...base, family: "superlative", intent: id, title, source: evSource, definition: EVENT_RULE,
-        headline: { value: e.name, label: [e.rank != null ? `Ranked #${e.rank}${e.of ? ` of ${e.of}` : ""}` : "", e.opr != null ? `OPR ${opr(e.opr)}` : ""].filter(Boolean).join(" · ") || "No rank posted", sub: [seasonLabel(e.season), dateRange(e.start, e.end), place(e.city, e.state)].filter(Boolean).join(" · "), href: eventHref(e.season, e.code, team.number), type: e.type },
+        headline: { value: e.name, label: [e.rank != null ? `Ranked #${e.rank}${e.of ? ` of ${e.of}` : ""}` : e.standing ? `League standing #${e.standing.n}${e.standing.of ? ` of ${e.standing.of}` : ""}` : "", e.opr != null ? `OPR ${opr(e.opr)}` : ""].filter(Boolean).join(" · ") || "No rank posted", sub: [seasonLabel(e.season), dateRange(e.start, e.end), place(e.city, e.state)].filter(Boolean).join(" · "), href: eventHref(e.season, e.code, team.number), type: e.type },
         blocks: [eventRows(id === "first-event" ? evs.slice(0, 5) : [...evs].reverse().slice(0, 5), team.number, id === "first-event" ? "First events" : "Latest events")],
       };
     }
