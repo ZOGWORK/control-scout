@@ -20,9 +20,13 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 Search answers show a league meet's rank, and a team's stat tiles each get their own colour.
 
 ### Highlights
-- [fixes] A league meet's rank shows in search's events list again, marked as the league's standing
-- [appearance] Stat tiles in a search answer each get their own colour: a falling trend red, rising green
-- [appearance] Wins, losses and ties in search results are green, red and grey chips
+- [fixes] A league meet's rank shows in search's events list again
+- [appearance] Each stat tile in a search answer has its own colour
+- [appearance] A falling trend is red, a rising one green
+
+### Search
+- **League standing.** In search's events tables, a league meet's rank shows as the league's standing (`#1 of 20 league`), and the latest-event answer says "League standing #1 of 20". Best and worst finishes still leave league meets out. (#1248)
+- **Colour per tile.** One team's tiles (average, trend, highest, lowest and the rest) each take their own colour, never all the team's blue: a falling trend red, a rising one green, steady slate. Wins, losses and ties are green, red and slate chips. (#1248)
 
 ## 4.8.3 — 2026-11-09
 
