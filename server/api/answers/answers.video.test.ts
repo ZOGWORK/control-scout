@@ -165,6 +165,19 @@ describe("answerVideo: an answer about a team plays one of its own matches", () 
     expect((await answerVideo(opr, NOW))?.main).toEqual({ videoId: "njq5njq5njq", t: 0, kind: "match", match: "Q5" });
   });
 
+  it("highlights with every match beside them: a highlight stands in, never another event's match from the grid", async () => {
+    const tile = (code: string, key: string, label: string) => ({ label, href: href(code, key), level: "playoff" as const, red: [], blue: [], redScore: 1, blueScore: 0 });
+    // The best score and its runner-up have no second in the recording; the grid's M1, another event's, has a video.
+    const highlights = (lead: StatMatchRow[]) => stat({ intent: "scope-highlights", headline: { value: "x", label: "x", href: lead[0].href },
+      blocks: [{ kind: "matches", title: "Highlights", rows: lead.map((r, i) => ({ ...r, note: `Reason ${i}` })) },
+        { kind: "videos", title: "Every match", tiles: [tile("FTCCMP1EDIS", "playoff:1:1", "M1")] }] });
+    const v = await answerVideo(highlights([row("USCHSCMP", "playoff:0:1", "F1"), row("USCHSCMP", "playoff:0:2", "F2")]), NOW);
+    expect(v?.main).toEqual({ videoId: "Z2ArRHRiwh0", t: 0, kind: "stream" });
+    expect(v?.mainRow).toBeUndefined();
+    // A highlight with a clip still stands in.
+    expect((await answerVideo(highlights([row("USCHSCMP", "playoff:0:1", "F1"), row("FTCCMP1EDIS", "playoff:1:1", "M1")]), NOW))?.main).toMatchObject({ kind: "match", match: "M1" });
+  });
+
   it("an event with no recording and no match video: no video at all", async () => {
     expect(await answerVideo(theirs([row("USNJCMP", "qual:0:1", "Q1")]), NOW)).toBeUndefined();
   });

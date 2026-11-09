@@ -96,6 +96,13 @@ function aboutTeam(a: SearchAnswer): boolean {
   return !!a.stat?.blocks.some((b) => (b.kind === "matches" && b.rows.length > 0 && b.rows.every((r) => r.note)) || (b.kind === "videos" && b.tiles.length > 0));
 }
 
+/** The links of an answer's list of highlights (a matches block whose every row says why it stands out); null when it
+ *  has none. */
+function highlightHrefs(a: SearchAnswer): Set<string> | null {
+  const hs = (a.stat?.blocks ?? []).flatMap((b) => (b.kind === "matches" && b.rows.length > 0 && b.rows.every((r) => r.note) ? b.rows.map((r) => r.href) : []));
+  return hs.length ? new Set(hs.filter((h): h is string => !!h)) : null;
+}
+
 /** The team an answer is about: its stat answer's team, else the one its headline's event link is for. */
 function teamOf(a: SearchAnswer): number | null {
   const n = a.stat?.team?.number ?? Number(/[?&]team=(\d+)/.exec(a.stat?.headline?.href ?? "")?.[1] ?? NaN);
@@ -152,8 +159,10 @@ export async function answerVideo(a: SearchAnswer, now = Date.now()): Promise<Se
     const rec = recs.get(evKey(main));
     out.main = mainHref ? items.get(mainHref) : undefined;
     if (!out.main && aboutTeam(a)) {
-      // The team's first listed match with a clip (a team's highlights: its best one).
-      const first = rows.find((r) => items.has(`${evKey(r)}:${r.key}`));
+      // The first listed match with a clip (a team's highlights: its best one). An answer with a list of highlights
+      // stands in only one of those: a video page's grid beside them is every match, never one the headline is about.
+      const lead = highlightHrefs(a);
+      const first = rows.find((r) => (!lead || lead.has(r.href)) && items.has(`${evKey(r)}:${r.key}`));
       if (first) { mainHref = `${evKey(first)}:${first.key}`; out.main = items.get(mainHref); }
     }
     if (!out.main && teamAt) {

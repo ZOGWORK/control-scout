@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## NEXT — 2026-11-09
+
+Highlights play only one of their own matches: when the best score has no video, the card no longer plays an unrelated match from another event.
+
+### Highlights
+- [fixes] A highlights answer never plays a match it isn't about
+- [fixes] With no video for the best score, the next standout match with one plays
+- [fixes] No standout match with a video: the best score's event recording, or none
+
+### Search
+- **Highlights video.** When a highlights answer's lead match has no clip, the match that stands in is one of its standout matches, never the first clip in the "Every match" grid beside them (which lists every match, from any event).
+
 ## 4.5.7 — 2026-11-09
 
 Search lists the matches a low-ranked team won against a top-ranked one.
