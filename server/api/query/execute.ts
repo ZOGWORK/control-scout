@@ -53,7 +53,8 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
     // The season the question names picks each place's leader too ("in 2024-25, the top NJ team vs …").
     tops = await topTeamsSaid(q, ctx, p.time?.kind === "season" && p.time.season != null ? p.time.season : undefined);
     const again = tops ? await parseQuery(tops.q, ctx) : null;
-    if (!again?.complete || !again.intent || again.teams.length !== 2 || !TWO_TEAM[again.intent]) return null;
+    // Two teams compared; or one team's highlights ("best team highlights": the world's top team's).
+    if (!again?.complete || !again.intent || !((again.teams.length === 2 && TWO_TEAM[again.intent]) || (again.teams.length === 1 && again.intent === "highlights"))) return null;
     p = { ...again, q };
   }
   if (!p.intent) return null;
