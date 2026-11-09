@@ -194,8 +194,10 @@ describe("the owner console's test sends", () => {
     await settle(2);
     mails = [];
     expect((await (await api("/api/owner/digest/send", { method: "POST", cookie: o.cookie, body: { kind: "digest", confirm: true } })).json()).result.outcome).toBe("sent");
-    // Later the same day, the scheduled send: the member gets theirs, the owner (already sent today) doesn't.
-    const later = slotAt(Date.now() + 60_000);
+    // Later the same day, the scheduled send: the member gets theirs, the owner (already sent today) doesn't. The day
+    // is today's in New York even a minute before its midnight (CI ran this at 23:59 there): only the time moves on.
+    const now = Date.now();
+    const later = { ...slotAt(now), at: now + 60_000 };
     const s = await runDigest({ ...later, key: `${later.date}T23:59` }, { gapMs: 0 });
     expect(s).toMatchObject({ sent: 1, already: 1 });
     expect(mails.map((m) => m.to)).toEqual(["owner@example.com", "member@example.com"]);
