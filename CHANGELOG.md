@@ -25,7 +25,7 @@ Asking for a world record without penalties now gives the top match, with no pen
 
 ### Fixed
 - "world record match decode without penalties" answers with DECODE's highest score without penalties, the same answer as "best match in decode without penalties"; "world record" was read as Worlds when penalties were also said.
-- A best-match answer asked without penalties no longer shows each score with penalties, the Pen given tile, or the score with penalties under the headline. (#PR)
+- A best-match answer asked without penalties no longer shows each score with penalties, the Pen given tile, or the score with penalties under the headline. (#1256)
 
 ## 4.8.9 — 2026-11-09
 
