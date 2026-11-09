@@ -66,7 +66,7 @@ export function Picture({ v }: { v: SearchVideoItem }) {
   return (
     <span className="relative block aspect-video w-full overflow-hidden rounded-lg border border-border bg-black" data-video-control>
       <img src={thumbnailUrl(v.videoId)} alt="" loading="lazy" decoding="async" onError={(e) => { e.currentTarget.hidden = true; }} className="absolute inset-0 size-full object-cover opacity-90 transition-opacity group-hover:opacity-100 motion-reduce:transition-none" />
-      {v.kind !== "match" && <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-2.5 pb-2 pt-6 text-xs font-medium text-white">{v.kind === "stream" ? (v.live ? "The event's live stream" : "The event's whole recording") : `In the event's recording, from ${clipTime(v.t)}`}</span>}
+      {v.kind !== "match" && <span className="absolute inset-x-0 bottom-0 bg-black/70 px-2.5 py-1.5 text-xs font-medium text-white">{v.kind === "stream" ? (v.live ? "The event's live stream" : "The event's whole recording") : `In the event's recording, from ${clipTime(v.t)}`}</span>}
       <span className="absolute inset-0 grid place-items-center">
         <span className="grid size-12 place-items-center rounded-full bg-black/70 text-white ring-1 ring-white/40"><Play className="size-6 translate-x-px fill-current" aria-hidden /></span>
       </span>

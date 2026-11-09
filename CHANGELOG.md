@@ -17,15 +17,16 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## NEXT — 2026-11-09
 
-Highlights play only one of their own matches: when the best score has no video, the card no longer plays an unrelated match from another event.
+Search's videos play only what the answer is about, and every video shows a picture: when the headline match has no video, the card no longer plays an unrelated match from another event, and a recording is no longer a blank black box.
 
 ### Highlights
-- [fixes] A highlights answer never plays a match it isn't about
-- [fixes] With no video for the best score, the next standout match with one plays
-- [fixes] No standout match with a video: the best score's event recording, or none
+- [fixes] A highlights or video answer never plays a match from another event
+- [fixes] With no video for the headline match, a standout match or one at its event plays
+- [appearance] Every video tile and player shows its picture, never a blank box
 
 ### Search
-- **Highlights video.** When a highlights answer's lead match has no clip, the match that stands in is one of its standout matches, never the first clip in the "Every match" grid beside them (which lists every match, from any event). (#1224)
+- **Videos about the answer.** When an answer's headline match has no clip, the match that stands in is one of its standout matches (highlights) or a match at the headline's own event (a video page), never the first clip in the "Every match" grid (which lists every match, from any event); else the headline event's recording, or no player. (#1224)
+- **Pictures on recordings.** A match's second in the event's recording, and the recording itself, show the video's picture with what it is over it ("In the event's recording, from 4:26:23", "The event's whole recording"), instead of a black box. (#1224)
 
 ## 4.5.7 — 2026-11-09
 
