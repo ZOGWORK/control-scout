@@ -22,7 +22,7 @@ On a wide screen an opened match sits side by side: the score and table on the l
 ### Highlights
 - [predict] Score, teams and table left; the call right on wide screens
 - [predict] A bright Watch the match button when a video exists
-- [predict] Saved videos stand out; no box around result changes
+- [predict] Saved videos stand out; no box around result changes (#1253)
 
 ### Changed
 - Match details use two columns once there is room (about 900 px of panel), one column below that, so half-width panels and phones keep the one-column layout.
