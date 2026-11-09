@@ -15,6 +15,21 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.8.3 — 2026-11-09
+
+A small Report a bug button sits at the top right of every page, with the clock, weather and bell pushed to the bar's edge.
+
+### Highlights
+- [report] Report a bug from any page: the button is at the top right
+- [report] Paste a screenshot with Ctrl+V, or add images and a short video
+- [appearance] The clock, weather and bell sit right at the top bar's edge
+
+### Bug reports
+- **Report a bug.** A small button at the far right of the top bar (an icon on phones) opens a dialog, a bottom sheet on phones: pick what kind of problem, describe it, and attach screenshots by pasting them (Ctrl+V or ⌘V), dropping them or choosing them, plus one video under 5 MB. Each attachment shows as a thumbnail you can remove. Your email is optional and filled in when you're signed in. The page, version, screen, browser and theme are listed in the dialog before you send. No account needed. (#1243)
+
+### Top bar
+- **Pushed right.** The connection status, clock and weather, the new button and the bell sit together against the top bar's right edge.
+
 ## 4.8.2 — 2026-11-09
 
 Bug reports get a home: the server takes them with screenshots and a short video, and the owner reads them in one place.

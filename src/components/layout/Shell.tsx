@@ -21,6 +21,7 @@ import { AccountFooter, AccountProvider, useAccountPanel } from "./AccountMenu";
 import { ClockWeather, showsClockWeather } from "./TopBarExtras";
 import { OfflineStatus } from "../OfflineNote";
 import { InboxBell } from "./InboxBell";
+import { BugReportButton } from "./BugReport";
 import { usePersonal } from "../../lib/personal";
 import { isBareRoute, pageTitle } from "../../shared/routes";
 import { SiteFooter } from "./SiteFooter";
@@ -325,10 +326,14 @@ export function Shell({ children }: { children: ReactNode }) {
               <Link to="/" className="tap-44 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:hidden" aria-label="Control Scout home"><BrandMark /></Link>
               <p className="hidden truncate text-sm text-text-muted md:block"><span>Control Scout / </span><span className="text-text-base">{title}</span></p>
               <div className="flex flex-1 justify-end md:justify-center"><GlobalSearch part="field" /></div>
-              <OfflineStatus />
-              {showsClockWeather(loc.pathname) && <ClockWeather />}
-              {/* The notification inbox: top right, in the header only (never the sidebar). */}
-              <InboxBell />
+              {/* Far right, against the bar's edge: connection, clock · weather, Report a bug, and the notification inbox
+                  (header only, never the sidebar). */}
+              <div className="-mr-1.5 flex shrink-0 items-center gap-1 md:-mr-3 md:gap-2 lg:-mr-5">
+                <OfflineStatus />
+                {showsClockWeather(loc.pathname) && <ClockWeather />}
+                <BugReportButton />
+                <InboxBell />
+              </div>
             </header>}
             <div className="relative flex-1">
               {/* The ambient layer fills the screen under the top bar and stays there while the page scrolls
