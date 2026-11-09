@@ -22,6 +22,7 @@ Two events side by side read a state's code as that state's championship.
 ### Highlights
 - [fixes] "<event> vs NJ Championship" compares New Jersey's championship
 - [fixes] An old division with the state's code in its name is no longer picked
+- [fixes] A state code reads as its latest played championship
 
 ### Search
 - **Events side by side, a state's code.** Each side is tried with a state's two-letter code spelled out first ("NJ Championship" is the New Jersey Championship, its latest played season), then as typed, so an old division whose name carries the code inside an event code is never the state's championship. (#1220)
