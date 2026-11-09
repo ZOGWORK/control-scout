@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## NEXT — 2026-11-09
+## NEXT — 2026-11-08
 
 Teams named can be ranked by one stat: "rank these teams by reliability: 4215, 7149, 23268".
 
@@ -26,6 +26,18 @@ Teams named can be ranked by one stat: "rank these teams by reliability: 4215, 7
 
 ### Search
 - **Teams named, ranked.** "Rank, sort or order these teams by <stat>: A, B, C" and "A, B and C ranked by <stat>" give a leaderboard of those teams only, ranked among themselves; a named team with too few matches is said as not ranked. (#1104)
+
+## 4.5.7 — 2026-11-09
+
+Search lists the matches a low-ranked team won against a top-ranked one.
+
+### Highlights
+- [rankings] "A team ranked below 1000 beat a team ranked top 100" lists them
+- [rankings] The biggest rank gap first, every team with its world rank
+- [fixes] Asked the other way round, "lost to", it answers too
+
+### Search
+- **Rank upsets.** "Matches where a team ranked below N beat a team ranked top M" (or "… lost to …") lists the season's decided matches at official events where the winning alliance had a team past the first line and the losing alliance one inside the second, by world rating rank, biggest gap first. (#1126)
 
 ## 4.5.6 — 2026-11-09
 
