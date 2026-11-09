@@ -199,7 +199,7 @@ function TeamLine({ station, ev, se }: { station?: number; ev?: MatchDetail["tea
       {station ? <span title={`Station ${station}`}><span className="sr-only">Station </span><span aria-hidden>S</span>{station} · </span> : null}
       {ev?.rank ? <span title="Event rank and record"><span className="sr-only">Rank </span><span className="text-text-base">#{ev.rank}</span>{ev.wins != null && <> {ev.wins}-{ev.losses}-{ev.ties}</>}</span> : "Unranked"}
       {" · "}<span title="OPR at this time"><span className="sr-only">OPR at this time </span><span aria-hidden>OPR </span><span className="text-text-base">{evOpr ?? "—"}</span></span>
-      {" · "}<span title="Season OPR and rank"><span className="sr-only">Season OPR </span><span aria-hidden>season </span>{seOpr !== evOpr && <span className="text-text-base">{seOpr ?? "—"} </span>}{se?.rank ? <>#{se.rank.toLocaleString()}</> : null}</span>
+      {" · "}<span title={`Season OPR ${seOpr ?? "—"}${se?.rank ? `, rank #${se.rank.toLocaleString()}` : ""}`}><span className="sr-only">Season OPR {seOpr ?? "unknown"}{se?.rank ? ", season rank " : ""}</span><span aria-hidden>season {seOpr !== evOpr && <span className="text-text-base">{seOpr ?? "—"} </span>}</span>{se?.rank ? <>#{se.rank.toLocaleString()}</> : null}</span>
     </p>
   );
 }
