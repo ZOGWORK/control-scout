@@ -25,7 +25,7 @@ Matches in a recording with a short drop-out get their clip again: the player st
 - [fixes] No more playing a whole day's stream from 0:00 for one match
 
 ### Event pages
-- **Recordings with a short gap.** When an event's archived stream is up to 15 minutes shorter than its broadcast and nothing says where the time went (no chapters), each match's clip starts early by all the time missing, so it lands at or before the match, never after. A bigger gap still gets no clips. (#1226)
+- **Recordings with a short gap.** When an event's archived stream is up to 15 minutes shorter than its broadcast and nothing says where the time went (no chapters), each match's clip starts early by all the time missing, so it lands at or before the match, never after. Such a clip shows no prediction or result over the player, since it can't say when the match is on screen. A bigger gap still gets no clips. (#1226)
 
 ## 4.5.9 — 2026-11-09
 
