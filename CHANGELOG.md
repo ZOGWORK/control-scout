@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 4.7.3 — 2026-11-09
+## 4.7.4 — 2026-11-09
 
 The Home globe drops its small print.
 
@@ -26,6 +26,18 @@ The Home globe drops its small print.
 
 ### Home
 - **Globe note removed.** The small paragraph under the globe and atlas (where the country totals come from, what a listing means, how to turn the globe) is gone, so the panel goes straight from the selected country to the full country list. The globe still turns by drag, by arrow keys once focused, and stops with the pause button; screen readers still hear "Arrow keys turn it" in the globe’s own label. (#1231)
+
+## 4.7.3 — 2026-11-09
+
+An event whose stream link is a YouTube channel plays each day's broadcast on its page.
+
+### Highlights
+- [live] A YouTube channel as stream link finds the event's broadcasts
+- [live] A meet over two days: Saturday and Sunday buttons on the player
+- [fixes] Each match's Watch starts its own day's video at that match
+
+### Live
+- **Broadcasts found on the event's channel.** When FIRST gives an event a YouTube channel's page instead of a video (Multinational Tech Invitational: youtube.com/@funroboticsnetwork/streams), the channel's broadcasts that started on the event's dates at the venue are its recordings, one a day. The player gets a button for each day, each match's Watch plays its own day's video from that match, and the predictions over the video follow the day playing. With the YouTube Data API key the channel's whole upload list is read back to the event; without it, its latest streams. (#1228)
 
 ## 4.7.2 — 2026-11-09
 
