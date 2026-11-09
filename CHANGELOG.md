@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.6.1 — 2026-11-09
+
+A floor said as "44 or above" lists teams at or over it, and "which state has the highest average OPR" ranks US states and Canadian provinces.
+
+### Highlights
+- [rankings] "Teams with 44 or above OPR" lists them
+- [rankings] "Which state has the highest average OPR" answers
+- [rankings] States need 10 teams with an OPR to be ranked
+
+### Search
+- **A floor said as "or above".** "Teams with 44 or above OPR" and "teams with OPR 44 or above" read like "OPR of at least 44": "or above", "or more", "or higher" and "and up" after a number make it a floor, the number said before the stat or after it. A year after a stat is still a season.
+- **States by average OPR.** "Which state has the highest average OPR" (or lowest, or "states by average OPR") ranks US states and Canadian provinces by the mean OPR of their teams that played in the newest season, with each one's team count. A place with fewer than 10 such teams is left out. (#1216)
+
 ## 4.6.0 — 2026-11-09
 
 Search's videos play only what the answer is about, and every video shows a picture: when the headline match has no video, the card no longer plays an unrelated match from another event, and a recording is no longer a blank black box.
