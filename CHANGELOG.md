@@ -27,6 +27,151 @@ A rating trend names the season's peak when the latest rating is well below it: 
 ### Search
 - **Rating trend peaks.** When the latest rating is a tenth or more below the highest rating after an earlier event (not the first), the trend line adds "down from a <peak> peak at <event>"; the direction still compares the first and the latest. (#1078)
 
+## 4.5.3 — 2026-11-09
+
+An event page says where its team list comes from and when it was last read: FIRST's list, FTC New Jersey's provisional one before FIRST publishes, or that FIRST has published no teams yet.
+
+### Highlights
+- [teams] Event pages say where their team list comes from
+- [teams] "Last synced" time on every event's team list
+- [fixes] No teams published yet is said plainly, with when it was checked
+
+### Event pages
+- **Source line.** Under the event header: "Source: FIRST Events API · last synced 2 h ago" for FIRST's list, "FTC New Jersey · provisional, FIRST has not published teams yet" while that list is shown, "FTC Scout (FIRST couldn't serve this event)" when it is the fallback, or "FIRST Events API · no teams published yet · last checked …". A list on an event that isn't over and hasn't been read for 36 hours says it may be out of date. The time is the server's last good read of the event's team list from FIRST: its full fetch, or its registrations read (migration 76 `events.teams_checked_at`, set on every good read, an empty list included; a failed read leaves it). Saved data with no time shows the source alone.
+- **Empty Teams tab.** "No teams published for this event yet", with when FIRST was last checked. (#1044)
+
+## 4.5.2 — 2026-11-09
+
+Match searches can set a score an alliance had to reach: "where the losing alliance scored over 200", "both alliances scored over 250".
+
+### Highlights
+- [fixes] "Losing alliance scored over 200" lists those matches
+- [fixes] "Both alliances scored over 250" works at an event too
+- [fixes] The card says the condition back in words
+
+### Search
+- **A score to reach.** "Where the losing, winning, both or either alliance scored over, under or at least N" filters the match list by that alliance's final score, in a place, a time window or at an event named; the number is never read as a team. (#1096)
+
+## 4.5.1 — 2026-11-09
+
+Search answers an event's average match score, and puts two events side by side.
+
+### Highlights
+- [rankings] "Average match score at" an event answers, with and without penalties
+- [rankings] Two events' average scores side by side, the higher one highlighted
+- [fixes] "NJ Championship" finds the New Jersey Championship
+
+### Search
+- **Event average match score.** "Average match score at <event>" gives the mean alliance score over its played matches (divisions included), with and without penalties, its highest score and match count; "… versus <event>" shows two events side by side and which averages more; a state's code ("NJ Championship") is that state's championship. (#1125)
+
+## 4.5.0 — 2026-11-09
+
+A team name ending in "team", typed with a slip, reaches that team, not a longer name its first word starts.
+
+### Highlights
+- [fixes] A slip in ULTIMA TEAM's name still finds ULTIMA TEAM
+- [fixes] A name ending in "team" keeps that word when misspelled
+- [fixes] "Did you mean" names the team you meant
+
+### Search
+- **A slip in a name ending in "team".** A stat question drops "team" as its frame's word, so a name ending in it was looked up without it (its first word alone, where longer names starting with that word rank first). The frame's words are now put back after the name as well as before it, as they already were for a name starting with "Team", and a name one slip from that is offered as "Did you mean". (#1213)
+
+## 4.4.9 — 2026-11-08
+
+Boards over every season: the team that has played the most seasons, the oldest teams still active, and the most matches, events or wins ever.
+
+### Highlights
+- [rankings] "Which team has played the most seasons" answers
+- [rankings] "Oldest team still active in New Jersey" by rookie year
+- [rankings] "Most wins ever" counts every season
+
+### Search
+- **Career boards.** "Ever", "of all time" or "in history" said with the team with the most matches, events or wins counts every season on record, not one. "The most seasons" (from FIRST's rookie year to the team's latest season with a match) and "the oldest team still active" (a match in either of the two latest seasons, the earliest rookie year first) are boards of their own, in a place or worldwide. A rookie year before FTC's first season is a directory slip and never counted. (#1111)
+
+## 4.4.8 — 2026-11-08
+
+Two events named side by side ("<event> vs <event>") are compared as events rather than read as two teams: how strong each field was, its best OPR, its high score and how many teams played.
+
+### Highlights
+- [rankings] "Ohio Championship vs Texas Championship" compares the events
+- [rankings] Each event's field strength, top OPR, high score and teams
+- [fixes] Two events named with "vs" are no longer read as two teams
+
+### Search
+- **Events side by side.** "<event> vs <event>" (2 to 4 events, each named with a word only an event's name has: championship, qualifier, league meet, tournament…) answers with the events side by side: field strength (the average OPR of the teams that played, its divisions' too), top OPR and its team, high score without penalties, and the number of teams. A state's code in a name is spelled out ("NJ Championship" is New Jersey's), each event is its newest season with a played match unless a season is named, and events from different seasons are marked as different games, with neither called stronger. A team on any side keeps the teams' Compare. (#1158)
+
+## 4.4.7 — 2026-11-08
+
+A climb in rank: the teams that went from one OPR rank or below to the top of another, from one season to the next.
+
+### Highlights
+- [rankings] "Teams that climbed from rank 1000+ to top 100"
+- [rankings] Worldwide OPR rank, the season before to this one
+- [rankings] In a place too: "which NJ teams rose from rank 500"
+
+### Search
+- **A climb in rank.** "Teams that improved from rank 1000+ to the top 100 in one season", "which NJ teams climbed from rank 500 to the top 50" and the like read as the most improved board, kept to the teams ranked at or below the first number worldwide by OPR the season before and at or above the second this season. A fall ("from rank 10 to rank 100") is never read as a climb. The most improved table shows each climb as one column of ranks ("#6283 → #77"), so it fits a phone, and People also ask never names a place the card answered without. (#1121)
+
+## 4.4.6 — 2026-11-08
+
+Compare asked for one team opens Compare with it, and suggests its closest rivals.
+
+### Highlights
+- [teams] "Compare" and one team opens Compare with that team in it
+- [teams] Its closest-rated rivals nearby, each one tap to compare
+- [fixes] A season named carries into each suggested comparison
+
+### Search
+- **Compare one team.** "Compare" and a single team (by number or name) opens Compare with that team in it, ready for more, and suggests the two or three teams rated closest to it in its state (else its country) as comparisons that each answer. (#1120)
+
+## 4.4.5 — 2026-11-08
+
+Steady boards: the most stable OPR from event to event, and the teams strongest in every phase, in a place or worldwide.
+
+### Highlights
+- [rankings] "Which team has the most stable OPR" answers
+- [rankings] The smallest swing in OPR over 3+ events
+- [rankings] "Most consistent across all phases" by the weakest phase
+
+### Search
+- **Steady boards.** "Which team has the most stable OPR, least ups and downs" ranks teams by the smallest swing in their event OPRs in the season (the standard deviation as a share of their average, teams with an OPR at 3 or more events). "Which NJ team is most consistent across all phases" ranks by each team's weakest phase OPR rank worldwide (auto, teleop and endgame; auto and teleop where teleop includes endgame), so a team strong in one phase alone doesn't lead. Counted at some events only, or on a day, is left to search. (#1124)
+
+## 4.4.4 — 2026-11-08
+
+OPR gained within a season: the teams whose OPR grew the most from their first event to their last, in a place or worldwide.
+
+### Highlights
+- [rankings] "Most improved teams in NJ by OPR gain" answers
+- [rankings] First event's OPR to the last's, 2+ events
+- [rankings] "Which team improved its OPR the most" reads
+
+### Search
+- **OPR gained.** "Most improved teams by OPR gain", "which team improved its OPR the most between its first and last event" and "gained the most OPR across the season" rank teams by their OPR at their last event of the season less their OPR at their first, by date (without penalties, as the team page shows them), teams with an OPR at 2 or more events, in a place or worldwide. "Most improved" alone stays the climb in standing from the season before. (#1116)
+
+## 4.4.3 — 2026-11-08
+
+"How many" before a list of teams counts it, and two years or seasons side by side compare: "how many NJ teams went to worlds in 2024, versus 2025".
+
+### Highlights
+- [rankings] "How many NJ teams went to worlds in 2024" counts them
+- [rankings] Two years side by side: "2024 versus 2025"
+- [rankings] Each year's list sits under its count
+
+### Search
+- **A list counted, in one season or two.** "How many", "number of" or "count" before a list of teams (a place, Worlds, an award won, an OPR threshold) answers with the list, its length the headline. Two years or seasons after it ("in 2024 versus 2025", "2025-26 vs 2024-25") read the same list once with each: both counts side by side, the change, and each season's own list under it. A Worlds year is the championship held that year, so 2024 is the 2023–24 season, said on the card. A card comparing two seasons offers no one season to pick. (#1094)
+
+## 4.4.2 — 2026-11-08
+
+The team with the most matches, wins or events can be asked for a few days ("which team played the most matches this week"), and said "by any team … top 5".
+
+### Highlights
+- [rankings] "Most matches played this week" counts the week's matches
+- [rankings] No matches yet this week shows the latest week, said
+- [rankings] "Most matches played by any team, top 5" reads
+
+### Search
+- **Count boards in a window, said any way.** "This week", "last week", "this month", "today" said with the team with the most matches, wins or events counts that team's played matches in those days from the match rows (a match by its own date, else its event's first day), its record there beside it; awards have no date and get no window board. With none in the window yet, the latest seven days with a match are shown, said on the card. "Most matches played by any team …, top 5" is the same board, the count asked; "worldwide" adds nothing. (#1098)
+
 ## 4.4.1 — 2026-11-08
 
 A question about "my" or "our" team ("what is my 4215 next event", "our 6980 record") is answered for that team.
