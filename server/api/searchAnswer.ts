@@ -33,6 +33,7 @@ import { fuzzyScore, joinThousands, normalize, wordScore, words } from "./fuzzy.
 import { ftsQuery, search, searchIntent, teamAtEventAnswer } from "./search.js";
 import { rerank } from "./searchLearn.js";
 import { intentAnswer, parseIntent } from "./searchIntents.js";
+import { inRegion, namedTeamHit, teamsByName } from "./teamsByName.js";
 import { parseQuestion, questionAnswer } from "./searchQuestions.js";
 import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
 import { eventVersusSearch, statAnswer } from "./answers/index.js";
@@ -149,25 +150,14 @@ async function namedInPlace(q: string, limit: number, prefer: ReadonlySet<string
   for (let k = Math.min(3, ws.length - 1); k >= 1; k--) {
     const region = regionOf(ws.slice(-k));
     if (!region) continue;
-    const name = ws.slice(0, -k).join(" ");
-    const want = normalize(name);
-    if (!want) return null;
-    // Every team by that whole name: the candidates from the search index (accents and case folded, as search reads
-    // a name) with no cap, then the teams themselves with their stored state and country, so a team with no city on
-    // record still counts as in its state.
-    const fts = ftsQuery(name);
-    if (!fts) return null;
-    const refs = (await all<{ ref: string }>("SELECT ref FROM search WHERE search MATCH ? AND kind = 'team'", [fts])).map((r) => Number(r.ref)).filter(Number.isFinite);
-    if (!refs.length) return null;
-    const rows = (await all<any>(
-      `SELECT t.number, t.name, t.city, t.state, t.country, cs.season last FROM teams t
-       LEFT JOIN team_seasons cs ON cs.team = t.number AND cs.season = ?
-       WHERE t.number IN (${refs.map(() => "?").join(",")}) AND ${teamPageSql("t.number", "t.name")} ORDER BY cs.season IS NOT NULL DESC, t.number`,
-      [CURRENT_SEASON, ...refs],
-    )).filter((t) => normalize(cleanTeamName(t.number, t.name) ?? "") === want);
+    // "In" or "from" before the place says where the team is ("ultraviolet from nj"): never a word of the name.
+    const name = ws.slice(0, -k).join(" ").replace(/\s+(?:in|from)$/i, "");
+    if (!normalize(name)) return null;
+    // Every team by that whole name (server/api/teamsByName.ts), then the ones in the place.
+    const rows = await teamsByName(name);
     if (!rows.length) return null;
-    const hit = (t: any): SearchHit => ({ kind: "team", ref: String(t.number), title: searchTeamTitle(t.number, t.name), subtitle: [t.city, t.state, t.country].filter(Boolean).join(", "), season: t.last == null ? null : Number(t.last) });
-    const there = rows.filter((t) => String(t.country ?? "").toLowerCase() === region.country.toLowerCase() && (!region.state || String(t.state ?? "").toLowerCase() === region.state.toLowerCase()));
+    const hit = namedTeamHit;
+    const there = rows.filter((t) => inRegion(t, region));
     const shown = cleanTeamName(rows[0].number, rows[0].name);
     const label = there.length
       ? `${there.length === 1 ? "The team" : `${there.length} teams`} named ${shown} in ${region.name}`
