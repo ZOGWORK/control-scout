@@ -4,7 +4,7 @@ import { cleanup, render } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { pageModule, pageTitle } from "../shared/routes";
-import { SEARCH_FAMILIES, SEARCH_STEPS } from "../components/howitworks/searchDocs";
+import { SEARCH_FAMILIES, SEARCH_SHOWCASE, SEARCH_STEPS } from "../components/howitworks/searchDocs";
 
 afterEach(cleanup);
 beforeAll(() => {
@@ -34,5 +34,23 @@ describe("FTC One Search page", () => {
     const text = container.textContent ?? "";
     expect(text).not.toMatch(/Immersive Search|Smart Search|Ask Scout|AI-powered/i);
     expect(text).toMatch(/No AI decides what you meant/);
+  });
+
+  it("shows every plain-words example in its group, each a link that runs that exact search", async () => {
+    const { default: Docs } = await import("./SearchDocsPage");
+    const { container } = render(<MemoryRouter initialEntries={["/how-it-works/search"]}><Docs /></MemoryRouter>);
+    const section = container.querySelector("section#ask")!;
+    expect(section).not.toBeNull();
+    const groups = [...section.querySelectorAll("h3")].map((h) => h.textContent);
+    expect(groups).toEqual(SEARCH_SHOWCASE.map((g) => g.title));
+    const links = [...section.querySelectorAll("li a")];
+    const items = SEARCH_SHOWCASE.flatMap((g) => g.items);
+    expect(links).toHaveLength(items.length);
+    items.forEach((it, i) => {
+      expect(links[i].getAttribute("href"), it.q).toBe(`/search?q=${encodeURIComponent(it.q)}`);
+      expect(links[i].textContent, it.q).toContain(it.q);
+      expect(links[i].className, it.q).toContain("min-h-11");
+    });
+    expect(section.querySelector('a[href="/search"]')).not.toBeNull();
   });
 });
