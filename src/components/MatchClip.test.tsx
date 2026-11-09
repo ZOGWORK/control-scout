@@ -110,6 +110,47 @@ describe("Watch", () => {
   });
 });
 
+describe("an event broadcast a day at a time", () => {
+  const SUN = "G4HPbJNLeLE";
+  const sunClip: MatchClip = { videoId: SUN, t: 1780, url: `https://www.youtube.com/watch?v=${SUN}&t=1780s` };
+  const days = { ...stream, days: [{ videoId: clip.videoId, label: "Saturday" }, { videoId: SUN, label: "Sunday" }] };
+  const path = () => new URL(document.querySelector("iframe")!.getAttribute("src")!).pathname;
+  it("a match's Watch plays its own day's video, never as an official match video; the day buttons switch", () => {
+    render(<MemoryRouter><WatchLive d={d} stream={days} /><ClipLink clip={sunClip} label="Q60">Watch</ClipLink></MemoryRouter>);
+    const sat = screen.getByRole("button", { name: "Saturday" }), sun = screen.getByRole("button", { name: "Sunday" });
+    expect(sat.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(screen.getByRole("link", { name: /Watch Q60 in the recording/ }));
+    expect(path()).toBe(`/embed/${SUN}`);
+    expect(document.querySelector("iframe")!.getAttribute("src")).toContain("start=1780");
+    expect(screen.queryByText(/official match video/)).toBeNull();
+    expect(sun.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(sat);
+    expect(path()).toBe(`/embed/${clip.videoId}`);
+    expect(document.querySelector("iframe")!.getAttribute("src")).not.toContain("start=");
+  });
+  it("a day picked and then taken off (a refresh) falls back to the event's video", () => {
+    const { rerender } = render(<MemoryRouter><WatchLive d={d} stream={days} /><ClipLink clip={sunClip} label="Q60">Watch</ClipLink></MemoryRouter>);
+    fireEvent.click(screen.getByRole("link", { name: /Watch Q60 in the recording/ }));
+    const sunday = document.querySelector("iframe");
+    expect(path()).toBe(`/embed/${SUN}`);
+    rerender(<MemoryRouter><WatchLive d={d} stream={stream} /><ClipLink clip={sunClip} label="Q60">Watch</ClipLink></MemoryRouter>);
+    // A new player for the event's video, from its start.
+    expect(document.querySelector("iframe")).not.toBe(sunday);
+    expect(path()).toBe(`/embed/${clip.videoId}`);
+    expect(document.querySelector("iframe")!.getAttribute("src")).not.toContain("start=");
+  });
+    it("while the event is on, it opens on the latest day's broadcast", () => {
+    render(<MemoryRouter><WatchLive d={{ ...d, event: { ...d.event, status: "live" }, matches: [] } as unknown as EventDetail} stream={days} /></MemoryRouter>);
+    expect(screen.getByRole("button", { name: "Sunday" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: /^Play:/ }));
+    expect(path()).toBe(`/embed/${SUN}`);
+  });
+    it("one video: no day buttons", () => {
+    render(<MemoryRouter><WatchLive d={d} stream={stream} /></MemoryRouter>);
+    expect(document.querySelector("[data-stream-days]")).toBeNull();
+  });
+});
+
 describe("playMatchVideo", () => {
   it("goes to the page's player first, then the dialog, else nowhere", () => {
     expect(playMatchVideo({ videoId: "abcdefghijk", t: 5, label: "Q1" })).toBe(false);
