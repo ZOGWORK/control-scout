@@ -74,12 +74,14 @@ function Player({ stream, title, matches, liveCall, recording }: { stream: Event
   }), [dayIds]);
   // What the overlay shows: a recording follows the player's second; live, the match being called.
   // A match's own video: that match, its result once the video stops past the match's length (from where its link starts).
-  const timed = recording && matches.some((m) => m.clip && !m.clip.early);
+  // The latest day's video is the live one while the event is on; an earlier day's is a recording, whatever the event's state.
+  const liveVideo = !recording && day === days[days.length - 1].videoId;
+  const timed = !liveVideo && matches.some((m) => m.clip?.videoId === day && !m.clip.early);
   const ownMatch = own?.matchKey ? matches.find((m) => m.key === own.matchKey) ?? null : null;
   const call: OverlayCall | null = start == null || !overlay ? null
     : own ? (ownMatch ? { match: ownMatch, phase: clock && !clock.playing && clock.t - (start ?? 0) >= MATCH_S ? "after" : "playing" } : null)
-    : timed ? (clock ? videoMoment(matches.filter((m) => m.clip?.videoId === day), clock.t) : null) : recording ? null : liveCall;
-  const offerOverlay = timed || !recording || !!ownMatch;
+    : timed ? (clock ? videoMoment(matches.filter((m) => m.clip?.videoId === day), clock.t) : null) : liveVideo ? liveCall : null;
+  const offerOverlay = timed || liveVideo || !!ownMatch;
   return (
     <>
     <div ref={box} className="relative aspect-video w-full overflow-hidden rounded-2xl border border-border bg-black">
@@ -89,7 +91,7 @@ function Player({ stream, title, matches, liveCall, recording }: { stream: Event
           <iframe ref={frame} key={play!.n} className="absolute inset-0 size-full" src={bridgedSrc(own ? embedUrl(own.videoId) : day === stream.videoId ? stream.streamUrl : embedUrl(day), { autoplay: 1, rel: 0, ...(start ? { start } : {}) })} title={own ? `${own.label}: official match video` : title}
             allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen" referrerPolicy="strict-origin-when-cross-origin" />
           {/* A match's own video is a recording too, even while the event is live. */}
-          <VideoPredictions call={call} live={!recording && !own} pos={pos} />
+          <VideoPredictions call={call} live={liveVideo && !own} pos={pos} />
         </>
       ) : (
         <button type="button" onClick={() => setPlay({ t: 0, n: 1 })} className="group absolute inset-0 grid place-items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label={`Play: ${title}`} data-stream-facade>

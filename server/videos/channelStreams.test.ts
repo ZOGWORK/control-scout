@@ -6,7 +6,7 @@ import { all, migrate, openDb, run, setDb } from "../db";
 import { clearAllCaches } from "../caches";
 import type { MatchView } from "../../src/shared/api";
 import { eventRecording, recordingStream, withClips } from "./recordings";
-import { apiReader, channelDue, channelRef, onDates, resolveChannelStreams, type Broadcast, type ChannelReader } from "./channelStreams";
+import { apiReader, channelDue, channelRef, onDates, pageReader, resolveChannelStreams, type Broadcast, type ChannelReader } from "./channelStreams";
 
 const S = 2025;
 const CH = "https://youtube.com/@funroboticsnetwork/streams";
@@ -22,9 +22,23 @@ describe("channelRef", () => {
     expect(channelRef("https://m.youtube.com/user/firstinspires")).toEqual({ kind: "user", value: "firstinspires" });
     expect(channelRef("https://www.youtube.com/c/FUNRobotics/streams")).toEqual({ kind: "custom", value: "FUNRobotics" });
     for (const no of [`https://youtu.be/${SAT}`, `https://www.youtube.com/watch?v=${SAT}`, `https://www.youtube.com/live/${SAT}`, "https://twitch.tv/ftcwa",
-      "https://www.youtube.com/@FTCWA/playlists", "https://www.youtube.com/", "https://www.youtube.com/results?search_query=ftc", "not a link", "https://evil.example/@x/streams"]) {
+      "https://www.youtube.com/@FTCWA/playlists", "https://www.youtube.com/", "https://www.youtube.com/results?search_query=ftc", "not a link", "https://evil.example/@x/streams",
+      "https://www.youtube.com/@bad%E0%A4%A/streams"]) {
       expect(channelRef(no), no).toBeNull();
     }
+  });
+});
+
+describe("pageReader", () => {
+  const page = (ids: string[]) => ids.map((id) => `"videoId":"${id}"`).join(",");
+  it("reads a /c/ channel at YouTube's /c/ address, and a partial read is an error, never the channel's whole list", async () => {
+    const asked: string[] = [];
+    const fake = (async (url: string) => { asked.push(url); return new Response(page([SAT, SUN]), { status: 200 }); }) as unknown as typeof fetch;
+    const ok = async (id: string) => ({ status: "ok" as const, start: id === SAT ? "2026-06-27T16:30:06Z" : "2026-06-28T11:55:24Z", end: null, length: 100, live: false });
+    expect(await pageReader(fake, ok, 0)(channelRef("https://www.youtube.com/c/FUNRobotics")!, 0)).toHaveLength(2);
+    expect(asked).toEqual(["https://www.youtube.com/c/FUNRobotics/streams"]);
+    const half = async (id: string) => id === SUN ? { status: "error" as const, start: null, end: null, length: null, live: false } : ok(id);
+    expect(await pageReader(fake, half, 0)(channelRef(CH)!, 0)).toBe("error");
   });
 });
 
@@ -130,6 +144,26 @@ describe("resolveChannelStreams and the event's recording", () => {
     expect(q60.clip).toMatchObject({ videoId: SUN, t: 30 * 60 - 20 });
     expect(f1.clip).toMatchObject({ videoId: SUN, t: 7.5 * 3600 - 20 });
     expect(gap.clip).toBeUndefined(); // overnight, in neither
+  });
+
+  it("a day made private leaves the other: the next day becomes the event's video", async () => {
+    await run("UPDATE video_meta SET status = 'unavailable' WHERE video_id = ?", [SAT]);
+    clearAllCaches();
+    const rec = (await eventRecording(S, "MTI"))!;
+    expect(rec.videoId).toBe(SUN);
+    expect(rec.more).toBeUndefined();
+    await run("UPDATE video_meta SET status = 'ok' WHERE video_id = ?", [SAT]);
+  });
+
+  it("a read that finds only one day keeps the day found before; a failed read is noted, so other events get their turn", async () => {
+    list = [{ videoId: SUN, start: "2026-06-28T12:30:00Z" }];
+    await run("UPDATE event_stream_links SET checked_at = '2026-01-01T00:00:00Z' WHERE code = 'MTI'"); // due again
+    await resolve(NOW + 60_000);
+    expect(await all("SELECT video_id FROM event_broadcasts ORDER BY start")).toEqual([{ video_id: SAT }, { video_id: SUN }]);
+    list = "error";
+    await run("UPDATE event_stream_links SET checked_at = '2026-01-01T00:00:00Z' WHERE code = 'MTI'");
+    await resolve(NOW + 120_000);
+    expect(await all("SELECT video_id, checked_at FROM event_stream_links WHERE code = 'MTI'")).toEqual([{ video_id: SAT, checked_at: new Date(NOW + 120_000).toISOString() }]);
   });
 
   it("keeps what was found when a later read fails or finds nothing, and drops it when the link changes", async () => {

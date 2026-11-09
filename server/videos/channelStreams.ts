@@ -5,7 +5,7 @@
 // streams page (its latest 30 or so), each one's start read from its watch page: an event of the last weeks, or
 // an older one whose broadcasts are still among the latest (it gets one look). Kept in event_broadcasts (migration 77); the first is also the event's event_stream_links
 // row, so the page plays it like any other link (server/videos/recordings.ts) and the check is noted.
-import { all, run } from "../db.js";
+import { all, writeBatch } from "../db.js";
 import { env } from "../env.js";
 import { onEventDates } from "../../src/shared/eventDay.js";
 import { isYouTubeHost, parseStreamUrl } from "../../src/shared/stream.js";
@@ -28,7 +28,8 @@ export function channelRef(link: string): ChannelRef | null {
   let u: URL;
   try { u = new URL(/^[a-z]+:\/\//i.test(link.trim()) ? link.trim() : `https://${link.trim()}`); } catch { return null; }
   if (!isYouTubeHost(u.hostname) || parseStreamUrl(link).ok) return null;
-  const parts = u.pathname.split("/").filter(Boolean).map(decodeURIComponent);
+  let parts: string[];
+  try { parts = u.pathname.split("/").filter(Boolean).map(decodeURIComponent); } catch { return null; } // a malformed escape: not a link to read
   const rest = parts.slice(parts[0]?.startsWith("@") ? 1 : 2);
   if (rest.length > 1 || (rest[0] && !["streams", "live", "videos", "featured"].includes(rest[0]))) return null;
   if (parts[0]?.startsWith("@") && parts[0].length > 1) return { kind: "handle", value: parts[0] };
@@ -39,7 +40,7 @@ export function channelRef(link: string): ChannelRef | null {
 }
 
 /** A channel's page address, for the streams page read without the key. */
-const channelPage = (c: ChannelRef) => `https://www.youtube.com/${c.kind === "handle" ? c.value : `${c.kind === "id" ? "channel" : c.kind}/${c.value}`}/streams`;
+const channelPage = (c: ChannelRef) => `https://www.youtube.com/${c.kind === "handle" ? c.value : `${c.kind === "id" ? "channel" : c.kind === "custom" ? "c" : c.kind}/${c.value}`}/streams`;
 
 /** A broadcast on a channel: its video and when it started (UTC ISO). */
 export interface Broadcast { videoId: string; start: string }
@@ -109,7 +110,8 @@ export function pageReader(fetchImpl: typeof fetch = fetch, facts: (id: string) 
         if (f.status === "error") errors++;
         else if (f.status === "ok" && f.start) out.push({ videoId: id, start: f.start });
       }
-      return ids.length && errors === ids.length ? "error" : out;
+      // Any video not read leaves the answer incomplete: tried again, never taken as the channel's whole list.
+      return errors ? "error" : out;
     } catch {
       return "error";
     }
@@ -163,7 +165,10 @@ export async function resolveChannelStreams(log: (s: string) => void, opts: { ma
       // still be among them), never the weekly ones.
       if (!withKey && now - Date.parse(`${(r.end ?? r.start).slice(0, 10)}T00:00:00Z`) > (RECENT_DAYS + 1) * DAY_MS && r.url === r.livestream && r.checked_at) return false;
       return channelDue(r, r.livestream, r, now);
-    }).slice(0, opts.max ?? (withKey ? 10 : 3));
+    })
+      // Never looked first, then the longest since a look (a failed one counts): a few failing channels can't hold every slot.
+      .sort((a, b) => (a.checked_at ?? "").localeCompare(b.checked_at ?? ""))
+      .slice(0, opts.max ?? (withKey ? 10 : 3));
     // One read a channel a run: a league's meets share it.
     const read = new Map<string, Promise<Broadcast[] | "error">>();
     let changed = 0;
@@ -174,20 +179,28 @@ export async function resolveChannelStreams(log: (s: string) => void, opts: { ma
       // read without the key is the same whatever the date).
       const k = `${c.kind}:${c.value.toLowerCase()}${withKey ? `:${since}` : ""}`;
       const got = await (read.get(k) ?? read.set(k, reader(c, since)).get(k)!);
-      if (got === "error") continue;
-      const found = onDates(got, r);
-      const before = (await all<{ video_id: string }>("SELECT video_id FROM event_broadcasts WHERE season = ? AND code = ? AND url = ? ORDER BY start", [r.season, r.code, r.livestream])).map((x) => String(x.video_id));
-      // Nothing found now, by a link already looked at: what was found before stays (a video made private for a while).
-      const keep = found.length || r.url !== r.livestream ? found : before.map((videoId) => ({ videoId, start: "" }));
-      if (keep.map((b) => b.videoId).join() !== before.join() || r.url !== r.livestream) changed++;
-      if (found.length || r.url !== r.livestream) {
-        await run("DELETE FROM event_broadcasts WHERE season = ? AND code = ?", [r.season, r.code]);
-        for (const b of found) await run("INSERT INTO event_broadcasts (season, code, video_id, url, start) VALUES (?, ?, ?, ?, ?)", [r.season, r.code, b.videoId, r.livestream, b.start]);
-      }
-      await run(
-        `INSERT INTO event_stream_links (season, code, url, video_id, checked_at) VALUES (?, ?, ?, ?, ?)
-         ON CONFLICT(season, code) DO UPDATE SET url = excluded.url, video_id = excluded.video_id, checked_at = excluded.checked_at`,
-        [r.season, r.code, r.livestream, keep[0]?.videoId ?? null, new Date(now).toISOString()]);
+      const sameLink = r.url === r.livestream;
+      const note = (videoId: string | null) => ({
+        sql: `INSERT INTO event_stream_links (season, code, url, video_id, checked_at) VALUES (?, ?, ?, ?, ?)
+              ON CONFLICT(season, code) DO UPDATE SET url = excluded.url, video_id = excluded.video_id, checked_at = excluded.checked_at`,
+        args: [r.season, r.code, r.livestream, videoId, new Date(now).toISOString()],
+      });
+      // A failed read keeps what was found and notes the look, so it waits its turn again (channelDue).
+      if (got === "error") { await writeBatch([note(sameLink ? r.video_id : null)]); continue; }
+      // Broadcasts found before by the same link stay (a day's video can drop out of a read, or out of the latest
+      // streams); the new ones join them. A changed link starts over.
+      const before = sameLink ? await all<{ video_id: string; start: string }>("SELECT video_id, start FROM event_broadcasts WHERE season = ? AND code = ? AND url = ?", [r.season, r.code, r.livestream]) : [];
+      const merged = new Map<string, Broadcast>(before.map((b) => [String(b.video_id), { videoId: String(b.video_id), start: String(b.start) }]));
+      for (const b of onDates(got, r)) merged.set(b.videoId, b);
+      const keep = [...merged.values()].sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+      const was = before.map((b) => String(b.video_id)).sort().join();
+      if (!sameLink || keep.map((b) => b.videoId).sort().join() !== was || (keep[0]?.videoId ?? null) !== r.video_id) changed++;
+      // One transaction: an interrupted save keeps the previous set.
+      await writeBatch([
+        { sql: "DELETE FROM event_broadcasts WHERE season = ? AND code = ?", args: [r.season, r.code] },
+        ...keep.map((b) => ({ sql: "INSERT INTO event_broadcasts (season, code, video_id, url, start) VALUES (?, ?, ?, ?, ?)", args: [r.season, r.code, b.videoId, r.livestream, b.start] })),
+        note(keep[0]?.videoId ?? null),
+      ]);
     }
     if (changed) { forgetRecordings(); log(`recordings: ${changed} event${changed === 1 ? "" : "s"}' channel broadcasts found or changed`); }
     return changed;

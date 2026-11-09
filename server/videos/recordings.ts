@@ -101,9 +101,9 @@ export async function seasonRecordings(season: number): Promise<Map<string, Reco
   const [{ first, more, meta }, owner] = await Promise.all([seasonData(season), seasonStreams(season).catch(() => new Map<string, EventStream>())]);
   const out = new Map<string, Recording>();
   for (const [code, videoId] of first) {
-    // The other days, those YouTube still plays.
-    const days = (more.get(code) ?? []).map((id) => ({ videoId: id, meta: meta.get(id) ?? null })).filter((d) => d.meta?.status !== "unavailable");
-    out.set(code, { videoId, source: "first", meta: meta.get(videoId) ?? null, ...(days.length ? { more: days } : {}) });
+    // Every day YouTube still plays, in order: the first of them is the event's video (a day made private leaves the others).
+    const [main, ...days] = [videoId, ...(more.get(code) ?? [])].map((id) => ({ videoId: id, meta: meta.get(id) ?? null })).filter((d) => d.meta?.status !== "unavailable");
+    if (main) out.set(code, { ...main, source: "first", ...(days.length ? { more: days } : {}) });
   }
   for (const [code, s] of owner) out.set(code, { videoId: s.videoId, source: "owner", meta: meta.get(s.videoId) ?? null });
   for (const [code, r] of out) if (r.meta?.status === "unavailable") out.delete(code);
@@ -126,26 +126,27 @@ export function seasonVideoKinds(season: number, now = Date.now()): Promise<Map<
     const [recs, { official }] = await Promise.all([seasonRecordings(season), seasonData(season)]);
     const out = new Map<string, "clips" | "recording">();
     // Every recording with a broadcast start: whether its timing holds can depend on the event's last match (timingTrusted).
-    const timed = [...recs].filter(([, r]) => r.meta?.status === "ok" && r.meta.start);
+    const timed = [...recs].filter(([, r]) => [r.meta, ...(r.more ?? []).map((d) => d.meta)].some((m) => m?.status === "ok" && m.start));
     const withClip = new Set<string>();
     for (let i = 0; i < timed.length; i += 200) {
       const part = timed.slice(i, i + 200);
       const rows = await all<{ code: string; label: string; time: string; timezone: string | null }>(
         `SELECT m.code, m.label, m.time, e.timezone FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code
          WHERE m.season = ? AND m.played = 1 AND m.time IS NOT NULL AND m.code IN (${part.map(() => "?").join(",")})`, [season, ...part.map(([c]) => c)]);
-      const starts = new Map<string, MatchStart[]>();
+      const starts = new Map<string, (MatchStart & { time: string })[]>();
       for (const r of rows) {
         if (!actualStart(r.time)) continue;
         const ms = localToUtcMs(r.time, r.timezone);
         if (ms == null) continue;
         const code = String(r.code);
-        (starts.get(code) ?? starts.set(code, []).get(code)!).push({ label: String(r.label), startsAt: new Date(ms).toISOString() });
+        (starts.get(code) ?? starts.set(code, []).get(code)!).push({ label: String(r.label), time: String(r.time), startsAt: new Date(ms).toISOString() });
       }
       for (const [code, rec] of part) {
         const s = starts.get(code);
         if (!s) continue;
-        const timing = withConfirmed(rec.meta!, eventSpan(s));
-        if (gapSlack(timing) != null && s.some((x) => clipSecond(x.startsAt, timing, now) != null)) withClip.add(code);
+        // The same check as the page's (each day's video on its own day's matches).
+        const played = s.map((x) => ({ label: x.label, time: x.time, startsAt: x.startsAt ?? null, played: true, clip: undefined }));
+        if (withClips(played, rec, now, eventSpan(s.map(({ label, startsAt }) => ({ label, startsAt })))).some((x) => x.clip)) withClip.add(code);
       }
     }
     for (const [code] of recs) out.set(code, withClip.has(code) ? "clips" : "recording");
