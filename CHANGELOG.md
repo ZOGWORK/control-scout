@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 4.7.4 — 2026-11-09
+## 4.7.5 — 2026-11-09
 
 The Home globe drops its small print.
 
@@ -26,6 +26,18 @@ The Home globe drops its small print.
 
 ### Home
 - **Globe note removed.** The small paragraph under the globe and atlas (where the country totals come from, what a listing means, how to turn the globe) is gone, so the panel goes straight from the selected country to the full country list. The globe still turns by drag, by arrow keys once focused, and stops with the pause button; screen readers still hear "Arrow keys turn it" in the globe’s own label. (#1231)
+
+## 4.7.4 — 2026-11-09
+
+A team's closest match with a bound ("by less than 3 points", "within 5 points") lists the matches inside it, and says the closest there was when none is.
+
+### Highlights
+- [fixes] "Closest match by less than 3 points" lists every match inside it
+- [fixes] "Within 5 points" and "under 5 points" read the same way
+- [fixes] None inside the bound? The answer names the closest match instead
+
+### Search
+- **Closest matches under a bound.** A team's closest match, win or loss with "by less than N points", "under N points" or "within N points" lists the matches decided by fewer than N points, closest first; with none, it says so and shows the closest there was. (#1233)
 
 ## 4.7.3 — 2026-11-09
 
