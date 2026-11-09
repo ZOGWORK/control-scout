@@ -15,6 +15,22 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.8.8 — 2026-11-09
+
+An opened match is one quiet column: the score, a table, the call on the same columns, and very few words.
+
+### Highlights
+- [predict] An opened match drops its boxes and headings: space and type size do the work
+- [predict] Predicted, actual and off by sit under Red and Blue, on the score table's columns
+- [predict] Bonus ranking points are icons with both chances; tap or hover for the name
+- [predict] Share, the confidence tier and the match report are small icons or words
+
+### Matches
+- **One column, no panels.** The opened match is one column (720 px at most) separated by space: no bordered cards, no section titles. The score table keeps its column names (Red, Difference, Blue) and hairlines.
+- **The call on the table's columns.** Under the score table the call reads on the same columns: the 50/50 bar, predicted scores with their ranges and the predicted margin, the actual score with "Upset" or "Called it", and how far off each side was with whether both landed in range.
+- **Bonus ranking points as icons.** One line: each RP's icon with Red's and Blue's chances (a ✓ after a side that earned it) and the expected RP. Hovering or tapping an icon names the RP and says both sides' chances and whether each earned it. They no longer repeat under each alliance.
+- **Quieter extras.** The confidence tier is a small muted word, Share and the pre-match report are icons, live or replayed is an icon with its name on hover, the full why breakdown and the video are single muted rows, and result changes lose their box. Every number is still on the page. (#PRNUM)
+
 ## 4.8.6 — 2026-11-09
 
 An opened match reads side by side again, with about half the words.
