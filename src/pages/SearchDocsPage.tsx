@@ -62,7 +62,7 @@ export default function SearchDocsPage() {
   return (
     <TipLayer>
       <div className={cn("hiw", !reduced && "hiw-anim")}>
-        <header className="grid items-end gap-8 max-sm:gap-5 pb-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:gap-10">
+        <header className="grid items-center gap-8 max-sm:gap-5 pb-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:gap-10">
           <div className="grid min-w-0 gap-5 max-sm:gap-4">
             <Eyebrow>Control Scout · Search, explained</Eyebrow>
             <h1 className="text-balance font-display text-[2.1rem] font-bold leading-[1.02] tracking-tight text-foreground sm:text-5xl xl:text-6xl">
@@ -266,7 +266,20 @@ function QueryCard() {
       </div>
       <div className="grid min-h-[9.5rem] content-start gap-3 px-4 py-4">
         <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Read as</p>
-        <div className="flex flex-wrap gap-2" aria-live="polite">
+        {/* Every reading's chips share one grid cell (the others invisible), so the card keeps the
+            height of its tallest reading and stays centred beside the hero text as examples cycle. */}
+        <div className="grid">
+          {READINGS.map((x) => x !== r && (
+            <div key={x.q} aria-hidden className="invisible col-start-1 row-start-1 flex flex-wrap gap-2">
+              {x.words.map((w) => (
+                <span key={w.w} className="grid gap-0.5">
+                  <span className="rounded-md border px-2 py-1 font-mono text-sm">{w.w}</span>
+                  <span className="px-0.5 font-mono text-[10px]">{ROLE[w.role].label}</span>
+                </span>
+              ))}
+            </div>
+          ))}
+        <div className="col-start-1 row-start-1 flex flex-wrap gap-2" aria-live="polite">
           {r.words.map((w, i) => (
             <m.span
               key={`${r.q}-${w.w}`}
@@ -280,8 +293,14 @@ function QueryCard() {
             </m.span>
           ))}
         </div>
+        </div>
       </div>
-      <p className="min-h-[3.2em] border-t border-border px-4 py-2.5 text-sm text-foreground/85"><span className="hiw-gold-text font-semibold">→ </span>{r.result}</p>
+      <div className="grid min-h-[3.2em] border-t border-border px-4 py-2.5 text-sm text-foreground/85">
+        {READINGS.map((x) => x !== r && (
+          <p key={x.q} aria-hidden className="invisible col-start-1 row-start-1"><span className="font-semibold">→ </span>{x.result}</p>
+        ))}
+        <p className="col-start-1 row-start-1"><span className="hiw-gold-text font-semibold">→ </span>{r.result}</p>
+      </div>
       <div role="group" aria-label="Example queries" className="flex items-center pb-1 pl-1 pr-4 md:gap-1 md:pb-3 md:pl-4">
         {READINGS.map((x, i) => (
           <button
