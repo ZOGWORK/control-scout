@@ -52,7 +52,9 @@ function Player({ stream, title, matches, liveCall, recording }: { stream: Event
   const own = play?.own ?? null;
   // An event broadcast a day at a time: the day's video playing (a match's Watch moves to its day).
   const days = stream.days?.length ? stream.days : [{ videoId: stream.videoId, label: "" }];
-  const [day, setDay] = useState(stream.videoId);
+  const [picked, setDay] = useState(stream.videoId);
+  // A day whose video was taken off since (a refresh): the event's video instead.
+  const day = days.some((d) => d.videoId === picked) ? picked : stream.videoId;
   const dayRef = useRef(day);
   dayRef.current = day;
   const box = useRef<HTMLDivElement>(null);
