@@ -4,7 +4,7 @@
 // its rating's ± and world rank, its rating after each event and its best season rating. Each is one of the
 // 260-query completion list's (by number in the test names).
 import { beforeAll, describe, expect, it } from "vitest";
-import { migrate, openDb, run, setDb } from "../../db";
+import { all, migrate, openDb, run, setDb } from "../../db";
 import { rebuildSearch } from "../../stats/job";
 import { searchAnswer } from "../searchAnswer";
 import { clearAllCaches } from "../../caches";
@@ -238,6 +238,12 @@ describe("answers", () => {
     await run("UPDATE ranking_snapshots SET rating = 105 WHERE week = '2026-03-09'");
     clearAllCaches();
     expect((await ask("4215 rating trend")).headline?.label).not.toContain("peak");
+    // Zero in between and at the latest (the engine keeps zero ratings): no drop from a "0 peak".
+    const before = await all<{ week: string; rating: number }>("SELECT week, rating FROM ranking_snapshots WHERE week >= '2026-03-09'");
+    await run("UPDATE ranking_snapshots SET rating = 0 WHERE week >= '2026-03-09'");
+    clearAllCaches();
+    expect((await ask("4215 rating trend")).headline?.label).not.toContain("peak");
+    for (const b of before) await run("UPDATE ranking_snapshots SET rating = ? WHERE week = ?", [b.rating, b.week]);
     await run("UPDATE ranking_snapshots SET rating = 88.2 WHERE week = '2026-03-09'");
     clearAllCaches();
     // An event whose Monday snapshot was pruned (older than the retention window) is a gap, never a later week's rating.

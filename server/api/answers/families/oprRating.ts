@@ -493,7 +493,8 @@ async function ratingTrend(team: Team, season: number, set: { events: TeamEvent[
   // A peak between the first and the latest event that the latest is well below (PEAK_DROP of it) is said beside the
   // direction, which compares the first and the latest only: "Rising from 57.7 …, down from a 132 peak at …".
   const top = known.slice(1, -1).reduce<(typeof known)[number] | null>((m, p) => (!m || p.y > m.y ? p : m), null);
-  const peak = dir && top && known.at(-1)!.y <= top.y * (1 - PEAK_DROP) ? top : null;
+  // Only a positive peak: ratings at zero throughout (the engine keeps them) are no drop from one.
+  const peak = dir && top && top.y > 0 && known.at(-1)!.y <= top.y * (1 - PEAK_DROP) ? top : null;
   const blocks: StatBlock[] = [];
   if (known.length > 1) blocks.push({ kind: "series", title: "Rating after each event", points: pts.map((p) => ({ x: p.e.name, y: p.y == null ? null : Math.round(p.y * 10) / 10, href: eventHref(p.e.season, p.e.code, team.number), note: dateRange(p.e.start, p.e.end) ?? undefined })) });
   blocks.push(ratingKpis(st!, await ratingPop(season)));
