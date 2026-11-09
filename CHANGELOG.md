@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## NEXT — 2026-11-09
+
+"Best team's highlights", with the apostrophe, answers as "best team highlights" does.
+
+### Highlights
+- [fixes] "Best team's highlights" shows the top team's highlights
+- [fixes] Either apostrophe works in "best team's"
+- [rankings] The card still names the top team it read
+
+### Search
+- **"Best team's".** The world's top team said as its own ("best team's highlights", with a straight or a curly apostrophe) is read as "best team". (#1240)
+
 ## 4.7.9 — 2026-11-09
 
 "Match predictions" asked of a team answers with its next match's predicted score, as "predicted matches" does.
