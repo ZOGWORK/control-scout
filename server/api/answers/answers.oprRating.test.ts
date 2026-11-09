@@ -239,11 +239,17 @@ describe("answers", () => {
     clearAllCaches();
     expect((await ask("4215 rating trend")).headline?.label).not.toContain("peak");
     // Zero in between and at the latest (the engine keeps zero ratings): no drop from a "0 peak".
+    // The latest point is the team's season rating (team_season_stats), so it goes to zero too.
     const before = await all<{ week: string; rating: number }>("SELECT week, rating FROM ranking_snapshots WHERE week >= '2026-03-09'");
+    const latest = await all<{ season: number; rating_np: number }>("SELECT season, rating_np FROM team_season_stats WHERE team = 4215");
     await run("UPDATE ranking_snapshots SET rating = 0 WHERE week >= '2026-03-09'");
+    await run("UPDATE team_season_stats SET rating_np = 0 WHERE team = 4215");
     clearAllCaches();
-    expect((await ask("4215 rating trend")).headline?.label).not.toContain("peak");
+    const zero = await ask("4215 rating trend");
+    expect(zero.blocks.find((b) => b.kind === "series")).toMatchObject({ points: [{ y: 60.5 }, { y: 0 }, { y: 0 }] });
+    expect(zero.headline?.label).not.toContain("peak");
     for (const b of before) await run("UPDATE ranking_snapshots SET rating = ? WHERE week = ?", [b.rating, b.week]);
+    for (const l of latest) await run("UPDATE team_season_stats SET rating_np = ? WHERE team = 4215 AND season = ?", [l.rating_np, l.season]);
     await run("UPDATE ranking_snapshots SET rating = 88.2 WHERE week = '2026-03-09'");
     clearAllCaches();
     // An event whose Monday snapshot was pruned (older than the retention window) is a gap, never a later week's rating.
