@@ -9,6 +9,7 @@ import type { SearchAnswer, SearchCard, SearchCardLine, SearchHit } from "../../
 import { dateRange, place, seasonLabel } from "../../src/shared/format.js";
 import { get, all } from "../db.js";
 import { CURRENT_SEASON, SEASONS, ownScorePenalties } from "../data/seasons.js";
+import { unofficialLine } from "../data/unofficialRecords.js";
 import { teamNameOf, teamWords } from "../../src/shared/teamTitle.js";
 
 /** Events whose matches count for a record. */
@@ -97,6 +98,7 @@ async function best(season: number, team: number | null, types: string[]): Promi
     detail: [seasonLabel(r.season), dateRange(r.start, r.end), place(r.city, r.state)].filter(Boolean).join(" · "),
     results: [
       `${r.side === "red" ? "Red" : "Blue"} alliance: ${lineups.get(key(r, r.side))?.join(", ") || "teams not posted"}`,
+      unofficialLine(r) ?? "",
       r.np == null ? "Penalties not posted" : r.total != null && r.total !== r.np ? `${r.total} ${ownScorePenalties(r.season) ? "after its own penalties" : "with the other alliance's penalties"}` : "",
     ].filter(Boolean),
     href: `/events/${r.season}/${encodeURIComponent(r.code)}?match=${r.level}:${r.series}:${r.number}`,

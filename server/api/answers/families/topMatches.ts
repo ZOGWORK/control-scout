@@ -11,6 +11,7 @@ import { all, get } from "../../../db.js";
 import { SEASONS, gameOf as gameOfSeason, ownScorePenalties, reportedTeleopIncludesEndgame } from "../../../data/seasons.js";
 import { parseHighScore } from "../../searchHighScores.js";
 import { OFFICIAL_TYPES } from "../clauses.js";
+import { UNOFFICIAL_NOTE, unofficialLine, unofficialWhy } from "../../../data/unofficialRecords.js";
 import { eventHref, matchHref, shortEvent, teamLinks } from "../matchSet.js";
 
 /** How many matches each list shows. */
@@ -189,6 +190,8 @@ export function allianceRow(r: Row, side: "red" | "blue", named: (r: Row, side: 
     label: r.label, href: matchHref(r), event: { label: shortEvent(r.name, r.type), href: eventHref(r.season, r.code) }, season: seasonLabel(r.season),
     date: dateRange((r.time ?? r.start)?.slice(0, 10) ?? null) || null, alliance: side, own, opp, ownNp: np(r, side), oppNp: np(r, other), result: own > opp ? "W" : own < opp ? "L" : "T",
     partners: named(r, side), opponents: named(r, other), type: r.type, phases: phasesOf(r, side),
+    // A match the owner marked as not an official record says so wherever it is listed.
+    ...(unofficialWhy(r) ? { note: UNOFFICIAL_NOTE } : {}),
   };
 }
 
@@ -236,7 +239,7 @@ export async function topMatchesAnswer(t: TopMatchesQuestion, findEvent: (words:
   const bestTotal = Number(best.side === "red" ? best.red_total : best.blue_total);
   return {
     ...base, blocks,
-    headline: { value: `${best.score} ${P ? `${P.toLowerCase()} ` : ""}points`, label: `${best.label} at ${shortEvent(best.name, best.type)}`, sub: [!phase && !t.noPenalties && Number.isFinite(bestTotal) && bestTotal !== best.score ? `${bestTotal} with penalties` : "", seasonLabel(best.season), dateRange((best.time ?? best.start)?.slice(0, 10) ?? null)].filter(Boolean).join(" · "), href: matchHref(best), type: best.type,
+    headline: { value: `${best.score} ${P ? `${P.toLowerCase()} ` : ""}points`, label: `${best.label} at ${shortEvent(best.name, best.type)}`, sub: [unofficialLine(best) ?? "", !phase && !t.noPenalties && Number.isFinite(bestTotal) && bestTotal !== best.score ? `${bestTotal} with penalties` : "", seasonLabel(best.season), dateRange((best.time ?? best.start)?.slice(0, 10) ?? null)].filter(Boolean).join(" · "), href: matchHref(best), type: best.type,
       teams: named(best, best.side), alliance: best.side },
   };
 }
