@@ -2,7 +2,7 @@
 // first, open ones and closed ones apart (50 at a time, then Load older), each with its screenshots (click for full
 // size) and video, the details the dialog attached, and Close / Reopen / Delete. Attachments load from
 // /api/owner/bug-reports/:id/files/:n, behind the owner gate.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Bug, CheckCircle2, Mail, RotateCcw, Trash2 } from "lucide-react";
 import { Section, EmptyState } from "../page";
 import { Async } from "../states";
@@ -28,7 +28,7 @@ function Attachments({ r }: { r: BugReportItem }) {
         ? <video key={f.n} src={f.url} controls preload="metadata" className="max-h-56 max-w-full rounded-lg border border-border bg-black" aria-label={`Video ${f.n + 1}, ${formatBytes(f.bytes)}`} />
         : (
           <a key={f.n} href={f.url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg border border-border outline-none focus-visible:ring-2 focus-visible:ring-ring/60" title={`Screenshot ${f.n + 1}, ${formatBytes(f.bytes)}: open full size`}>
-            <img src={f.url} alt={`Screenshot ${f.n + 1} of report #${r.id}`} loading="lazy" className="h-28 w-auto max-w-[14rem] object-cover" />
+            <img src={f.url} alt={`Screenshot ${f.n + 1} of report #${r.id}`} loading="lazy" className="h-28 w-40 object-cover object-top" />
           </a>
         ))}
       {r.missing > 0 && <span className="self-center text-xs text-muted-foreground">{r.missing} attachment{r.missing === 1 ? " was" : "s were"} never uploaded</span>}
@@ -89,18 +89,22 @@ export function BugReportsPanel() {
   const [older, setOlder] = useState<BugReportItem[]>([]);
   const [olderMore, setOlderMore] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
-  useEffect(() => { setOlder([]); setOlderMore(null); }, [status, state.data]);
+  // Which view an older page was asked for: an answer for another tab (or an earlier first page) is dropped.
+  const view = useRef(0);
+  useEffect(() => { view.current++; setOlder([]); setOlderMore(null); setLoading(false); }, [status, state.data]);
   const d = state.data;
   const more = olderMore ?? d?.more ?? false;
   const loadOlder = async () => {
     const last = older.at(-1)?.id ?? d?.reports.at(-1)?.id;
     if (!last) return;
+    const asked = view.current;
     setLoading(true);
     try {
       const page = await apiFetch<BugReportList>(`${PATH}?status=${status}&before=${last}`);
+      if (asked !== view.current) return;
       setOlder((o) => [...o, ...page.reports]);
       setOlderMore(page.more);
-    } catch (e) { toast.error((e as ApiError).message); } finally { setLoading(false); }
+    } catch (e) { if (asked === view.current) toast.error((e as ApiError).message); } finally { if (asked === view.current) setLoading(false); }
   };
   const tab = (s: Status, label: string, n?: number) => (
     <button key={s} type="button" role="tab" aria-selected={status === s} onClick={() => setStatus(s)}

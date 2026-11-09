@@ -21,7 +21,7 @@
 // The owner reads, closes and deletes reports in the owner console (bugReportOwnerRoutes, mounted under /api/owner,
 // whose gate already refused everyone else).
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { appendFile, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, open, readdir, readFile, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import { all, get, run } from "./db.js";
@@ -218,7 +218,7 @@ async function openForUpload(req: Request): Promise<{ ok: true; row: ReportRow }
   return { ok: true, row };
 }
 
-/** One upload at a time per file (this process serves every upload): pieces can't interleave. */
+/** One upload at a time per file (this process serves every upload): pieces can't interleave or race. */
 const busy = new Set<string>();
 
 /**
@@ -258,6 +258,47 @@ async function checkUpload(req: Request, res: Response): Promise<Upload | null> 
   return { row, n, offset, length, declared };
 }
 
+/**
+ * Writes one piece at its own offset (a piece sent again overwrites itself, never appends twice) and cuts the file to
+ * the end of that piece, then records it. The first piece's bytes must be the declared type.
+ */
+async function storePiece(req: Request, res: Response, { row, n, offset, length, declared }: Upload): Promise<void> {
+  const id = Number(row.id);
+  const body = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+  if (body.length !== length) { res.status(400).json({ error: "That file isn't the one this report listed." }); return; }
+  if (offset === 0) {
+    // The type the bytes say, never the name: it must be what the report listed, within its size cap.
+    const type = sniffType(body);
+    const problem = !type ? "Only images (PNG, JPEG, WebP, GIF) and videos (MP4, WebM, MOV) can be attached." : attachmentProblem(type, declared.bytes);
+    const wrong = problem ?? (type !== declared.type ? "That file isn't the one this report listed." : null);
+    if (wrong) {
+      await run("DELETE FROM bug_report_files WHERE report_id = ? AND n = ? AND received = 0", [id, n]);
+      res.status(problem ? 415 : 400).json({ error: wrong });
+      return;
+    }
+  }
+  await mkdir(bugDir(), { recursive: true });
+  const part = partPath(id, n);
+  const fh = await open(part, offset === 0 ? "w" : "r+");
+  try {
+    await fh.write(body, 0, length, offset);
+    await fh.truncate(offset + length);
+  } finally { await fh.close(); }
+  const now = await get<{ received: number }>("UPDATE bug_report_files SET received = ? WHERE report_id = ? AND n = ? AND received = ? RETURNING received",
+    [offset + length, id, n, offset]);
+  const final = filePath(id, n, declared.type);
+  if (now && Number(now.received) === declared.bytes) await rename(part, final);
+  // Deleted while this piece was being written: take the file away too, so nothing is left without a report.
+  if (!(await get("SELECT id FROM bug_reports WHERE id = ?", [id]))) {
+    await rm(part, { force: true });
+    await rm(final, { force: true });
+    res.status(404).json({ error: "No such report." });
+    return;
+  }
+  if (!now) { res.status(409).json({ error: "Upload the file's pieces in order, from the start." }); return; }
+  res.json({ ok: true, received: Number(now.received) });
+}
+
 export function bugReportsRouter(): Router {
   const r = express.Router();
   const h = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => {
@@ -288,51 +329,22 @@ export function bugReportsRouter(): Router {
     return { id: Number(row!.id), token };
   }));
 
+  const raw = express.raw({ type: () => true, limit: BUG_LIMITS.chunkBytes });
   r.put("/:id/files/:n", (req: Request, res: Response, next: NextFunction) => {
-    const key = `${req.params.id}-${req.params.n}`;
+    // Keyed by the numbers the files are named by ("01" is report 1), held until this request is fully handled.
+    const key = `${Number(req.params.id)}-${Number(req.params.n)}`;
     if (busy.has(key)) { res.status(409).json({ error: "This attachment is already uploading." }); return; }
     busy.add(key);
-    // Freed as soon as the answer is sent ("finish"), or the connection drops ("close"): the next piece follows at once.
-    const free = () => busy.delete(key);
-    res.on("finish", free);
-    res.on("close", free);
-    checkUpload(req, res).then((u) => {
-      if (!u) return;
-      (req as Request & { upload: Upload }).upload = u;
-      next();
-    }, next);
-  }, express.raw({ type: () => true, limit: BUG_LIMITS.chunkBytes }), h(async (req, res) => {
-    const { row, n, offset, length, declared } = (req as Request & { upload: Upload }).upload;
-    const id = Number(row.id);
-    const body = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
-    if (body.length !== length) { res.status(400).json({ error: "That file isn't the one this report listed." }); return; }
-    if (offset === 0) {
-      // The type the bytes say, never the name: it must be what the report listed, within its size cap.
-      const type = sniffType(body);
-      const problem = !type ? "Only images (PNG, JPEG, WebP, GIF) and videos (MP4, WebM, MOV) can be attached." : attachmentProblem(type, declared.bytes);
-      const wrong = problem ?? (type !== declared.type ? "That file isn't the one this report listed." : null);
-      if (wrong) {
-        await run("DELETE FROM bug_report_files WHERE report_id = ? AND n = ? AND received = 0", [id, n]);
-        res.status(problem ? 415 : 400).json({ error: wrong });
-        return;
-      }
-    }
-    await mkdir(bugDir(), { recursive: true });
-    const part = partPath(id, n);
-    if (offset === 0) await writeFile(part, body); else await appendFile(part, body);
-    const now = await get<{ received: number }>("UPDATE bug_report_files SET received = received + ? WHERE report_id = ? AND n = ? AND received = ? RETURNING received",
-      [length, id, n, offset]);
-    const final = filePath(id, n, declared.type);
-    if (now && Number(now.received) === declared.bytes) await rename(part, final);
-    // Deleted while this piece was being written: take the file away too, so nothing is left without a report.
-    if (!now || !(await get("SELECT id FROM bug_reports WHERE id = ?", [id]))) {
-      await rm(part, { force: true });
-      await rm(final, { force: true });
-      res.status(404).json({ error: "No such report." });
-      return;
-    }
-    return { ok: true, received: Number(now.received) };
-  }));
+    (async () => {
+      try {
+        const u = await checkUpload(req, res);
+        if (!u) return;
+        const err = await new Promise<unknown>((done) => raw(req, res, done));
+        if (err) throw err;
+        await storePiece(req, res, u);
+      } finally { busy.delete(key); }
+    })().catch(next);
+  });
 
   r.post("/:id/done", h(async (req, res) => {
     if (!req.is("application/json")) { res.status(415).json({ error: "Send JSON" }); return; }
