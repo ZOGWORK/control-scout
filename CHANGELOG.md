@@ -15,6 +15,16 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.8.4 — 2026-11-09
+
+"Best match in <event>" now answers with that event's highest-scoring match.
+
+### Highlights
+- [fixes] "Best match in <event>" shows that event's top match, not other events
+
+### Search
+- **Best match at an event.** Asking for the best match at an event by its name ("best match in Royal Oak Qualifier") now shows that event's highest-scoring match with both alliances, from its latest edition with matches played. Before, it listed upcoming events elsewhere whose venue or town had "West" in it. (#PR)
+
 ## 4.8.3 — 2026-11-09
 
 A small Report a bug button sits at the top right of every page, with the clock, weather and bell pushed to the bar's edge.
