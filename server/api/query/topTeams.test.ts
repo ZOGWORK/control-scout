@@ -119,6 +119,8 @@ describe("the best team with no place said (failed-search #1225)", () => {
     expect(now.understood?.label).toContain("is Ultraviolet (23268)");
     // Last season said: last season's leader.
     expect((await ask("best team highlights last season")).stat).toMatchObject({ intent: "team-highlights", team: { number: 14270 } });
+    // Dates said: the leader of their season.
+    expect((await ask(`best team highlights in November ${S}`)).stat).toMatchObject({ intent: "team-highlights", team: { number: 14270 } });
     // A board asked of the best team stays the board.
     expect((await ask("best team")).stat?.intent).toBe("top-rating");
   });

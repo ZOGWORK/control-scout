@@ -56,7 +56,8 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
     // One team's highlights ("best team highlights": the world's top team's): the leader of the season the highlights
     // show (the current one unless another is said, as highlights() reads it), never only the latest completed one.
     if (tops && again?.complete && again.intent === "highlights" && again.teams.length === 1) {
-      const shown = placeSeason(again, again.time?.kind === "season" ? again.time.season ?? null : null, opts);
+      // A dated window ("in March 2026") is its season's highlights too.
+      const shown = placeSeason(again, again.time?.season ?? null, opts);
       if (shown !== tops.season) {
         tops = await topTeamsSaid(q, ctx, shown);
         again = tops ? await parseQuery(tops.q, ctx) : null;
