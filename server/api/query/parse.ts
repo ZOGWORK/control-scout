@@ -264,6 +264,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     return { w, typed: k >= 0 ? typedWords[k] : w, at: k >= 0 ? k : at, used: false };
   });
   const symbols = new Set<string>(cond ? ["cond"] : []);
+  let rate = false;
   const p: Parsed = {
     q: raw, teams: [], event: null, place: null, time, level: null, finals: false, eventKind: null, alliance: null, worlds: false, states: false, award: null, agg: null,
     n: null, matchNumber: null, noPenalties: false, symbols: [], intent: null, rule: null, leftover: [], unexplained: [], complete: false,
@@ -423,6 +424,8 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       else if (s.k === "undefeated") p.undefeated = true;
       else if (s.k === "agg" && !p.agg) p.agg = s.v;
       else if (s.k === "vs" && p.vsAt == null) p.vsAt = i;
+      // "Per match", "each game": a rate said, never "a match".
+      else if (s.k === "per" && s.v === "match" && e.words[0] !== "a") rate = true;
       else if (s.k === "swap" && p.swapAt == null) p.swapAt = i;
       const k = symKey(s);
       if (k && s.k !== "award") symbols.add(k);
@@ -614,7 +617,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   if (unread) p.leftover.unshift(unread);
   if (p.teams.some((t) => t.candidates && !t.rule)) p.leftover.push(...p.teams.filter((t) => t.candidates && !t.rule).map((t) => t.typed));
   p.symbols = [...symbols];
-  const pick = pickIntent(symbols, p.teams.length, { event: !!p.event, n: p.n != null, matchNo: p.matchNumber != null });
+  const pick = pickIntent(symbols, p.teams.length, { event: !!p.event, n: p.n != null, matchNo: p.matchNumber != null, rate });
   if (pick) { p.intent = pick.rule.id; p.rule = pick.rule; p.unexplained = pick.unexplained; }
   // "Without penalties" is a slot only the rules that list it take (the season's best matches); anywhere else the
   // parse is left incomplete rather than answered with penalties in.

@@ -55,6 +55,8 @@ export interface IntentRule {
   matchNo?: boolean;
   /** The query must give no match's number: "did a team win match 2" is that match, never its wins. */
   noMatchNo?: boolean;
+  /** "A match" only, never a rate said ("per match", "each game"): the answer is a count, never one per match. */
+  noRate?: boolean;
 }
 
 const SCORE_LIKE = ["metric:score", "thing:match", "thing:event"];
@@ -110,8 +112,9 @@ export const INTENTS: IntentRule[] = [
   // "Did 12345 ever win a match": its wins, none said as none.
   R("wins-count", 1, ["metric:win", "thing:match"], [], { noMatchNo: true }),
   R("losses", 1, ["metric:loss"], ["agg:count", "thing:match"]),
-  // "Did they ever play a match that tied": playing, said as a verb, is the matches counted.
-  R("ties-count", 1, ["metric:tie"], ["agg:count", "thing:match", "per:match", "vs"], { noMatchNo: true }),
+  // "Did they ever play a match that tied": playing, said as a verb, is the matches counted. "Ties per match" is a
+  // rate, which a count never answers.
+  R("ties-count", 1, ["metric:tie"], ["agg:count", "thing:match", "per:match", "vs"], { noMatchNo: true, noRate: true }),
   R("record", 1, ["metric:record"], ["metric:win", "metric:loss", "metric:tie", "thing:match", "per:event"]),
   // "Wins vs losses", "wins and losses": the record, as said.
   R("record", 1, ["metric:win", "metric:loss"], ["vs", "and", "compare", "metric:tie", "thing:match", "per:event"]),
@@ -261,7 +264,7 @@ export const SLOT_SYMBOLS = /^(?:level|finals|alliance|worlds|states|award|prep|
 export interface IntentPick { rule: IntentRule; unexplained: string[] }
 
 /** The rule for these symbols, `teams` teams named and an event named or not, or null. */
-export function pickIntent(symbols: Set<string>, teams: number, opts: { event: boolean; n: boolean; matchNo?: boolean }): IntentPick | null {
+export function pickIntent(symbols: Set<string>, teams: number, opts: { event: boolean; n: boolean; matchNo?: boolean; rate?: boolean }): IntentPick | null {
   const atEvent = opts.event || symbols.has("states");
   const asked = [...symbols].filter((s) => !SLOT_SYMBOLS.test(s) || s === "level:playoff" || s === "level:qual");
   let best: { rule: IntentRule; score: number; unexplained: string[] } | null = null;
@@ -270,6 +273,7 @@ export function pickIntent(symbols: Set<string>, teams: number, opts: { event: b
     if (rule.event && !atEvent) continue;
     if (rule.noEvent && opts.event) continue;
     if (rule.noMatchNo && opts.matchNo) continue;
+    if (rule.noRate && opts.rate) continue;
     if (rule.n && !opts.n) continue;
     // A match's number is only a match lookup's, and a match lookup needs one.
     if (!!rule.matchNo !== !!opts.matchNo && (rule.matchNo || rule.event)) continue;
