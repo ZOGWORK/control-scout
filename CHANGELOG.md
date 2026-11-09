@@ -21,9 +21,60 @@ A board over every season reads once and offers no one season to pick.
 
 ### Highlights
 - [fixes] Every-season boards no longer offer a season to pick
+- [fixes] "Oldest team still active" says its title once
+- [rankings] Career boards keep their season chips
 
 ### Search
-- **Every-season boards.** A board that counts every season (the most seasons, matches, events or wins ever, the oldest teams still active) heads its page with the card's own title, so the page no longer says it twice in two wordings. A card about no team that counts every season, or spans seasons ("2007–08 to 2025–26", "active in 2025–26 or 2026–27"), has no season picker, and its season chips stay. The sign-off's visual pass now flags a season picker on such a card.
+- **Every-season boards.** A board that counts every season (the most seasons, matches, events or wins ever, the oldest teams still active) heads its page with the card's own title, so the page no longer says it twice in two wordings. A card about no team that counts every season, or spans seasons ("2007–08 to 2025–26", "active in 2025–26 or 2026–27"), has no season picker, and its season chips stay. The sign-off's visual pass now flags a season picker on such a card. (#1219)
+
+## 4.5.3 — 2026-11-09
+
+An event page says where its team list comes from and when it was last read: FIRST's list, FTC New Jersey's provisional one before FIRST publishes, or that FIRST has published no teams yet.
+
+### Highlights
+- [teams] Event pages say where their team list comes from
+- [teams] "Last synced" time on every event's team list
+- [fixes] No teams published yet is said plainly, with when it was checked
+
+### Event pages
+- **Source line.** Under the event header: "Source: FIRST Events API · last synced 2 h ago" for FIRST's list, "FTC New Jersey · provisional, FIRST has not published teams yet" while that list is shown, "FTC Scout (FIRST couldn't serve this event)" when it is the fallback, or "FIRST Events API · no teams published yet · last checked …". A list on an event that isn't over and hasn't been read for 36 hours says it may be out of date. The time is the server's last good read of the event's team list from FIRST: its full fetch, or its registrations read (migration 76 `events.teams_checked_at`, set on every good read, an empty list included; a failed read leaves it). Saved data with no time shows the source alone.
+- **Empty Teams tab.** "No teams published for this event yet", with when FIRST was last checked. (#1044)
+
+## 4.5.2 — 2026-11-09
+
+Match searches can set a score an alliance had to reach: "where the losing alliance scored over 200", "both alliances scored over 250".
+
+### Highlights
+- [fixes] "Losing alliance scored over 200" lists those matches
+- [fixes] "Both alliances scored over 250" works at an event too
+- [fixes] The card says the condition back in words
+
+### Search
+- **A score to reach.** "Where the losing, winning, both or either alliance scored over, under or at least N" filters the match list by that alliance's final score, in a place, a time window or at an event named; the number is never read as a team. (#1096)
+
+## 4.5.1 — 2026-11-09
+
+Search answers an event's average match score, and puts two events side by side.
+
+### Highlights
+- [rankings] "Average match score at" an event answers, with and without penalties
+- [rankings] Two events' average scores side by side, the higher one highlighted
+- [fixes] "NJ Championship" finds the New Jersey Championship
+
+### Search
+- **Event average match score.** "Average match score at <event>" gives the mean alliance score over its played matches (divisions included), with and without penalties, its highest score and match count; "… versus <event>" shows two events side by side and which averages more; a state's code ("NJ Championship") is that state's championship. (#1125)
+
+## 4.5.0 — 2026-11-09
+
+A team name ending in "team", typed with a slip, reaches that team, not a longer name its first word starts.
+
+### Highlights
+- [fixes] A slip in ULTIMA TEAM's name still finds ULTIMA TEAM
+- [fixes] A name ending in "team" keeps that word when misspelled
+- [fixes] "Did you mean" names the team you meant
+
+### Search
+- **A slip in a name ending in "team".** A stat question drops "team" as its frame's word, so a name ending in it was looked up without it (its first word alone, where longer names starting with that word rank first). The frame's words are now put back after the name as well as before it, as they already were for a name starting with "Team", and a name one slip from that is offered as "Did you mean". (#1213)
 
 ## 4.4.9 — 2026-11-08
 
