@@ -100,6 +100,9 @@ export interface EventBundle {
   /** FIRST's own team list for the event, read with the detail: replaces its stored registrations (data/registrations.ts),
    *  so a list FIRST emptied stays empty. Undefined: not read, or the list was an AM/PM pair's (kept as it is). */
   registrations?: number[];
+  /** FIRST's team list for the event came back with the detail (an empty or AM/PM pair's list included): the time
+   *  its list was last read moves (events.teams_checked_at). A failed list read leaves that time. */
+  teamsRead?: boolean;
   /** Null = detail not fetched (event-list-only refresh): keep existing detail rows. */
   detail: {
     entries: EntryRow[];
@@ -178,6 +181,7 @@ export function bundleStatements(b: EventBundle): InStatement[] {
   if (!b.detail) return s;
   const k = [e.season, e.code];
   for (const t of ["event_teams", "matches", "match_teams", "alliances", "awards"]) s.push({ sql: `DELETE FROM ${t} WHERE season = ? AND code = ?`, args: k });
+  if (b.teamsRead) s.push({ sql: "UPDATE events SET teams_checked_at = ? WHERE season = ? AND code = ?", args: [now(), ...k] });
   if (b.registrations) {
     s.push({ sql: "DELETE FROM event_registrations WHERE season = ? AND code = ?", args: k });
     for (const t of b.registrations) s.push({ sql: "INSERT OR REPLACE INTO event_registrations (season, code, team, fetched_at) VALUES (?, ?, ?, ?)", args: [...k, t, now()] });

@@ -5,7 +5,7 @@
 <h3 align="center">Free-forever FTC scouting and predictions for <em>every</em> team.</h3>
 
 <p align="center">
-  <strong><a href="https://controlscout.org">Live Demo — controlscout.org</a></strong>
+  <strong><a href="https://controlscout.org">Live at — controlscout.org</a></strong>
 </p>
 
 <p align="center">
