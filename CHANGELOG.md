@@ -25,9 +25,9 @@ Bug reports get a home: the server takes them with screenshots and a short video
 - [fixes] The privacy policy says what a bug report keeps and for how long
 
 ### Bug reports
-- **Reports with attachments.** A bug report stores its text, an optional email and up to 6 screenshots and one video under 5 MB, checked by their contents, not their names. It's emailed to us with the files attached. No account needed. (#PR)
-- **Owner console › Bug reports.** Every report with its screenshots, video, page, version, screen, device and theme; close, reopen or delete. (#PR)
-- **Privacy.** The policy now covers bug reports and their attachments. (#PR)
+- **Reports with attachments.** A bug report stores its text, an optional email and up to 6 screenshots and one video under 5 MB, checked by their contents, not their names. It's emailed to us with the files attached. No account needed. (#1242)
+- **Owner console › Bug reports.** Every report with its screenshots, video, page, version, screen, device and theme; close, reopen or delete. (#1242)
+- **Privacy.** The policy now covers bug reports and their attachments. (#1242)
 
 ## 4.8.0 — 2026-11-09
 
