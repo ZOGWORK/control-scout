@@ -12,6 +12,7 @@ import { abuseSummary, flushAbuse } from "../moderation.js";
 import { publishUsageSetting, setPublishUsage } from "../ownerSettings.js";
 import { ownerAnalytics } from "./ownerAnalytics.js";
 import { featureOwnerRoutes } from "./features.js";
+import { bugReportOwnerRoutes } from "../bugReports.js";
 import { flushMetrics, usageSummary } from "../metrics.js";
 import { vitalsSummary } from "../vitals.js";
 import { liveConnections } from "../liveConnections.js";
@@ -95,6 +96,9 @@ export function ownerRouter(): Router {
 
   // Feature toggles and kill switches (server/portal/features.ts).
   featureOwnerRoutes(r, h, actor);
+
+  // Bug reports from the top bar's button, with their screenshots and videos (server/bugReports.ts).
+  bugReportOwnerRoutes(r, h, actor, async (who, what, detail) => { await recordAudit(who, what, detail); });
 
   // The scouting commons, opened one event at a time (server/scout/commons.ts).
   commonsOwnerRoutes(r, h, actor);

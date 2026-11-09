@@ -6,7 +6,7 @@ import { useTitle } from "../lib/meta";
 import { PageHeader } from "../components/page";
 import { Ext, In, LegalSections, ShortVersion, type LegalSectionDef } from "../components/legal";
 
-export const PRIVACY_UPDATED = "2 November 2026";
+export const PRIVACY_UPDATED = "9 November 2026";
 
 const COOKIES: { name: string; what: string; lasts: string }[] = [
   { name: "cs_session", what: "Keeps you signed in. Set only when you sign in; scripts on the page can't read it.", lasts: "30 days, or until you sign out" },
@@ -55,6 +55,7 @@ const SECTIONS: LegalSectionDef[] = [
           <li><strong>If you sign in:</strong> your email address, an optional display name, and what you choose to sync: my team, tracked teams and events, your shortlist and its notes, scouting entries and match-video links.</li>
           <li><strong>If you allow anonymous usage statistics:</strong> which pages are viewed and how fast they load. See <a href="#analytics">Usage statistics</a>.</li>
           <li><strong>If you contact us:</strong> the email address, optional name and message you send through the <In to="/contact">contact form</In>.</li>
+          <li><strong>If you report a bug:</strong> what you write, the category you pick, your email only if you leave one, any screenshots or video you attach, and the details the dialog shows you before you send (the page, the app version, your screen size, browser and theme). Attachments are stored on our own server, not with a third party, and only we can see them.</li>
           <li><strong>If you report an error:</strong> only when you tap Report, or send a report from Settings: the error message and its technical details (the page, the app version, your browser), with emails, codes and other personal details removed, plus anything you type. Reports go into our private issue tracker on GitHub so we can fix the bug. Your notes and scouting entries are never included.</li>
           <li><strong>Server logs:</strong> like any website, our web server briefly records requests (the page asked for, IP address, browser type) to keep the site secure and working.</li>
         </ul>
@@ -68,6 +69,7 @@ const SECTIONS: LegalSectionDef[] = [
         <li><strong>Your email</strong> is used to send sign-in codes and to recognise your account, and for the email digest only if you turn it on in Settings (off unless you do: then one welcome email, and the digest a few times a week; every one has a one-click unsubscribe link). The digest has no tracking pixels or tracked links. No marketing, ever.</li>
         <li><strong>Synced data</strong> is there so your lists and scouting follow you between devices.</li>
         <li><strong>Contact messages</strong> are used only to read and answer what you sent.</li>
+        <li><strong>Bug reports</strong> and their screenshots and videos are used only to find and fix the problem, and to answer you if you left an email.</li>
         <li><strong>Usage statistics</strong> (only if you allow them) tell us which pages people use, so we know what to improve.</li>
         <li><strong>Server logs</strong> help us stop abuse (for example too many sign-in attempts) and fix errors.</li>
       </ul>
@@ -133,6 +135,7 @@ const SECTIONS: LegalSectionDef[] = [
         <li><strong>Sign-in codes:</strong> 10 minutes.</li>
         <li><strong>Server logs:</strong> about two weeks, then deleted automatically.</li>
         <li><strong>Contact messages:</strong> as long as we need them to follow up. Ask us and we'll delete yours.</li>
+        <li><strong>Bug reports and their attachments:</strong> until the bug is dealt with, then deleted. Ask us and we'll delete yours sooner.</li>
         <li><strong>Usage statistics:</strong> anonymous page counts, with nothing that could tie them back to you.</li>
         <li><strong>Data on your device:</strong> until you clear it. It's yours, and it's under your control.</li>
       </ul>

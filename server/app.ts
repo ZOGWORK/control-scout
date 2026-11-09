@@ -69,6 +69,7 @@ import { liveForecaster, liveVersion, dataVersion, recentRecords } from "./predi
 import { bonusView } from "../src/shared/bonusOdds.js";
 import { authRouter, meRouter, authProviders } from "./auth/routes.js";
 import { contactRouter } from "./contact.js";
+import { bugReportsRouter } from "./bugReports.js";
 import { scoutRouter } from "./scout/entries.js";
 import { streamRouter } from "./scout/stream.js";
 import { templateRouter } from "./scout/templates.js";
@@ -950,6 +951,7 @@ export function createApp(opts: { dist?: string } = {}) {
   api.use("/collect", collectRouter());
   api.use("/stats", statsRouter());
   api.use("/contact", contactRouter());
+  api.use("/bug-reports", bugReportsRouter());
   api.use("/reports", reportsRouter());
   api.use("/reports/search-failures", searchFailuresRouter((q) => searchAnswer(q, { limit: 12, learn: false })));
   api.use("/owner", ownerRouter());
