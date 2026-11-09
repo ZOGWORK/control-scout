@@ -8,7 +8,7 @@ import { FieldError, Input } from "./ui/basic";
 import { toast } from "./ui/sonner";
 import { usePersonal } from "../lib/personal";
 import { youtubeId } from "../shared/personal";
-import { CHANGED, deleteRecording, fmtBytes, listRecordings, pickMime, saveRecording, type Recording } from "../lib/recordings";
+import { CHANGED, countRecordings, deleteRecording, fmtBytes, listRecordings, pickMime, saveRecording, type Recording } from "../lib/recordings";
 import { cn } from "./cn";
 
 export function useRecordings(matchRef?: string) {
@@ -23,6 +23,20 @@ export function useRecordings(matchRef?: string) {
 export function useVideoLinkCount(matchRef: string) {
   const { state } = usePersonal();
   return state.videoLinks[matchRef]?.length ?? 0;
+}
+
+/** Every video saved for a match: YouTube links plus recordings and files kept on this device. */
+export function useVideoCount(matchRef: string) {
+  const links = useVideoLinkCount(matchRef);
+  // Counted on the matchRef index: no recording is read, however many the device holds.
+  const [local, setLocal] = useState(0);
+  useEffect(() => {
+    let live = true;
+    const refresh = () => { countRecordings(matchRef).then((n) => { if (live) setLocal(n); }, () => {}); };
+    refresh(); window.addEventListener(CHANGED, refresh);
+    return () => { live = false; window.removeEventListener(CHANGED, refresh); };
+  }, [matchRef]);
+  return links + local;
 }
 
 /** Video for one match, inline (no dialog): YouTube links, record on this device, saved recordings. */

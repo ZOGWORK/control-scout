@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.8.9 — 2026-11-09
+
+On a wide screen an opened match sits side by side: the score and table on the left, the call on the right.
+
+### Highlights
+- [predict] Score, teams and table left; the call right on wide screens
+- [predict] A bright Watch the match button when a video exists
+- [predict] Saved videos stand out; no box around result changes
+
+### Changed
+- Match details use two columns once there is room (about 900 px of panel), one column below that, so half-width panels and phones keep the one-column layout.
+- Watch the match and Official video are filled video-coloured buttons beside the score; the Video section turns bright when you have saved videos.
+- Result changes on a match have no dashed box; How is a short link next to the track record. (#1253)
+
 ## 4.8.8 — 2026-11-09
 
 An opened match is one quiet column: the score, a table, the call on the same columns, and very few words.

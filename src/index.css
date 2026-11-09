@@ -79,6 +79,8 @@
      text, icons and tints (deeper on light so small text reaches 4.5:1 on white); the fill is the play button's. */
   --color-video: #ff4d6d;
   --color-video-fill: #ff0033;
+  /* Text on a filled --color-video button: near-black on the dark themes' light reds, white on light's deep red (5.6:1). */
+  --color-on-video: #0a0a0b;
   /* Scrollbar thumbs (the page's and .custom-scrollbar's). */
   --color-scrollbar: #2e2e35;
   --color-scrollbar-hover: #3f3f47;
@@ -181,6 +183,7 @@ html.light {
   --color-blue-alliance-text: #0369a1;
   --color-red-alliance-ink: #be123c;
   --color-video: #c81e3a;
+  --color-on-video: #ffffff;
   --color-scrollbar: #d4d4d8;
   --color-scrollbar-hover: #a1a1aa;
   /* The keyboard focus ring: the gold accent is under 2:1 on white, so light takes a deep amber that keeps 3:1

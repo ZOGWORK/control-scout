@@ -15,7 +15,7 @@ import { matchTime, oddsPct } from "../lib/format";
 import { Async } from "./states";
 import { CalibrationLine, ConfidenceBadge, FactorList, KIND_LABEL, PairHistoryLine, WinBar } from "./predict";
 import { TapTooltip, Tooltip, TooltipContent, TooltipTrigger } from "./ui/overlay";
-import { VideoPanel } from "./MatchVideo";
+import { VideoPanel, useVideoCount } from "./MatchVideo";
 import { ShareMatch } from "./ShareMatch";
 import { ResultChanges } from "./ResultChanges";
 import { bonusLabels } from "../shared/labels";
@@ -69,20 +69,29 @@ function Body({ d, eventName }: { d: MatchDetail; eventName?: string }) {
   const m = d.match;
   const played = m.played && !!m.red.score && !!m.blue.score;
   const href = (key: string) => `/events/${m.season}/${encodeURIComponent(m.code)}?tab=matches&match=${encodeURIComponent(key)}`;
-  // One column, separated by space alone (no boxes, no headings): the answer, who played, the score, the call.
+  // Separated by space alone (no boxes, no headings). Wide: what happened on the left (score, lineups, the table),
+  // the call on the right. Narrow (a phone, the half-width My teams panel): one column, the call under the table.
   return (
-    <div className="mx-auto max-w-[45rem] space-y-7">
-      <div className="space-y-4">
-        <Headline d={d} eventName={eventName} href={href} />
-        <div className="grid grid-cols-2 gap-x-4">
-          {SIDES.map((s) => <Alliance key={s} d={d} side={s} />)}
+    <div className="@container">
+     <div className="grid gap-x-10 gap-y-7 @4xl:grid-cols-2">
+      <div className="min-w-0 space-y-7">
+        <div className="space-y-4">
+          <Headline d={d} eventName={eventName} href={href} />
+          <div className="grid grid-cols-2 gap-x-4">
+            {SIDES.map((s) => <Alliance key={s} d={d} side={s} />)}
+          </div>
         </div>
+        {played ? <Breakdown d={d} /> : <p className="text-sm text-text-muted">Not played yet — the score breakdown appears once the result is posted.</p>}
       </div>
-      {played ? <Breakdown d={d} /> : <p className="text-sm text-text-muted">Not played yet — the score breakdown appears once the result is posted.</p>}
-      <Prediction d={d} />
+      <div className="min-w-0 @4xl:border-l @4xl:border-border/60 @4xl:pl-10">
+        <Prediction d={d} />
+      </div>
+     </div>
       {/* Asks again whenever this match's result or schedule on screen changes (live checks, refreshes). */}
-      <ResultChanges season={m.season} code={m.code} matchKey={m.key} bare
-        refreshKey={JSON.stringify([m.time, m.played, m.red.score, m.blue.score, m.red.teams.map((t) => t.number), m.blue.teams.map((t) => t.number)])} />
+      <div className="mt-7">
+        <ResultChanges season={m.season} code={m.code} matchKey={m.key} bare
+          refreshKey={JSON.stringify([m.time, m.played, m.red.score, m.blue.score, m.red.teams.map((t) => t.number), m.blue.teams.map((t) => t.number)])} />
+      </div>
     </div>
   );
 }
@@ -93,6 +102,9 @@ const FADED: Record<Side, string> = {
   blue: "text-[color-mix(in_srgb,var(--color-blue-alliance-text)_55%,var(--color-text-muted))]",
 };
 const NAME: Record<Side, string> = { red: "Red", blue: "Blue" };
+
+/** A match video's button: filled in the video colour, 44 px tall on a touch screen. */
+const WATCH = "min-h-9 gap-1.5 rounded-lg bg-video px-3 text-sm font-semibold text-on-video shadow-sm hover:opacity-90 max-sm:min-h-11 [&_svg]:size-4";
 
 /** The whole match in one glance: the score and the margin in the biggest type on the page, then which match
  *  and when, muted, with its links as icons (their names on hover, and for screen readers). */
@@ -114,6 +126,13 @@ export function Headline({ d, eventName, href }: { d: MatchDetail; eventName?: s
           <span className={cn("text-2xl font-bold", win ? TONE[win].text : "text-text-base")}>{win ? `${NAME[win]} by ${Math.abs(diff)}` : "Tie"}</span>
         </p>
       )}
+      {/* A video of this match: the one loud button besides the score, so it's never missed. */}
+      {(m.clip || m.video) && (
+        <div className="mt-3 flex flex-wrap gap-2" data-testid="match-video-buttons">
+          {m.clip && <ClipLink clip={m.clip} label={m.label} matchKey={m.key} className={WATCH}>Watch the match · {clipTime(m.clip.t)}</ClipLink>}
+          {m.video && <MatchVideoLink url={m.video} label={m.label} matchKey={m.key} className={WATCH}>{m.clip ? "Official video" : "Watch the match"}</MatchVideoLink>}
+        </div>
+      )}
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
         <p data-testid="match-line">
           {d.description ?? m.label}
@@ -122,8 +141,6 @@ export function Headline({ d, eventName, href }: { d: MatchDetail; eventName?: s
           {penalties && " · decided by penalties"}
         </p>
         {eventName !== undefined && href && <Link to={href(m.key)} className="underline-offset-2 hover:underline">{d.event.name}</Link>}
-        {m.clip && <ClipLink clip={m.clip} label={m.label} matchKey={m.key} className="font-medium text-video hover:text-text-base">Watch · {clipTime(m.clip.t)}</ClipLink>}
-        {m.video && <MatchVideoLink url={m.video} label={m.label} matchKey={m.key} className="hover:text-text-base">Video</MatchVideoLink>}
         <span className="ml-auto flex items-center gap-1">
           <Tooltip>
             <TooltipTrigger asChild>
@@ -141,10 +158,14 @@ export function Headline({ d, eventName, href }: { d: MatchDetail; eventName?: s
 
 function MatchVideoSection({ m }: { m: MatchView }) {
   const [open, setOpen] = useState(false);
+  const saved = useVideoCount(matchRef(m));
   return (
     // Mounted only while open: closing it unmounts the recorder, which stops (and saves) any recording and releases the camera.
-    <details className="group mx-auto mt-6 max-w-[45rem]" onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}>
-      <summary className="flex min-h-11 cursor-pointer select-none items-center gap-2 text-xs text-text-muted hover:text-text-base" title="Record, add a file or a YouTube link"><Video className="size-4 text-accent-text" aria-hidden />Video<span className="sr-only"> for {m.label}: record, add a file or a YouTube link</span><ChevronDown className="size-3.5 transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden /></summary>
+    <details className="group mt-6" onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}>
+      {/* Saved videos of this match: as loud as the watch button; none yet: a quiet row to add one. */}
+      <summary className={cn("flex min-h-11 w-fit cursor-pointer select-none items-center gap-2 [&::-webkit-details-marker]:hidden", saved > 0 ? "rounded-lg bg-video px-3 text-sm font-semibold text-on-video" : "text-xs text-text-muted hover:text-text-base")} title="Record, add a file or a YouTube link">
+        <Video className={cn("size-4", saved > 0 ? "" : "text-accent-text")} aria-hidden />{saved > 0 ? `Your videos (${saved})` : "Video"}<span className="sr-only"> for {m.label}: record, add a file or a YouTube link</span><ChevronDown className="size-3.5 transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
+      </summary>
       {open && <div className="pt-2"><VideoPanel matchRef={matchRef(m)} label={`${m.code} ${m.label}`} /></div>}
     </details>
   );
@@ -402,8 +423,10 @@ function Prediction({ d }: { d: MatchDetail }) {
       {(
         <div className="space-y-1.5">
           {p.sheet && <FactorSheetPanel sheet={p.sheet} level={m.level} winner={played ? sheetWinner(m.red.score!.total, m.blue.score!.total) : null} quiet />}
-          <CalibrationLine pRed={p.pRed} compact />
-          <PredictionBasis kind={matchBasis(m.level)} />
+          <div className="flex flex-wrap items-center gap-x-2">
+            <CalibrationLine pRed={p.pRed} compact />
+            <PredictionBasis kind={matchBasis(m.level)} quiet />
+          </div>
         </div>
       )}
     </section>

@@ -12,7 +12,7 @@ vi.mock("../lib/api", async (orig) => {
   const real = await orig<typeof import("../lib/api")>();
   return { ...real, useApi: () => ({ data: undefined, error: new real.ApiError(0, "You're offline.", state.offline), loading: false, reload: async () => {} }) };
 });
-vi.mock("./MatchVideo", () => ({ MatchVideoSection: () => null, useVideoLinkCount: () => 0 }));
+vi.mock("./MatchVideo", () => ({ MatchVideoSection: () => null, useVideoLinkCount: () => 0, useVideoCount: () => 0 }));
 vi.mock("../lib/calibration", () => ({ useCalibration: () => null }));
 const { MatchDetails } = await import("./MatchDetails");
 

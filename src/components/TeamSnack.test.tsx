@@ -8,7 +8,7 @@ import type { MatchView, TeamProfile } from "../shared/api";
 
 vi.mock("../lib/meta", () => ({ usePredictable: () => true }));
 vi.mock("../lib/calibration", () => ({ useCalibration: () => null }));
-vi.mock("./MatchVideo", () => ({ useVideoLinkCount: () => 0 }));
+vi.mock("./MatchVideo", () => ({ useVideoLinkCount: () => 0, useVideoCount: () => 0 }));
 const profile = {
   team: { number: 207, name: "Critical Mass" },
   stats: { record: { wins: 3, losses: 0, ties: 0, matches: 3, events: 1 }, opr: { np: { value: 13.56, rank: 9, of: 100 } }, avg: { np: 41.33 }, rating: null },

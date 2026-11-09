@@ -11,7 +11,7 @@ import type { MatchView } from "../../shared/api";
 
 vi.mock("../../lib/meta", () => ({ usePredictable: () => true }));
 vi.mock("../../lib/calibration", () => ({ useCalibration: () => null }));
-vi.mock("../MatchVideo", () => ({ useVideoLinkCount: () => 0 }));
+vi.mock("../MatchVideo", () => ({ useVideoLinkCount: () => 0, useVideoCount: () => 0 }));
 
 const { SortTable } = await import("../SortTable");
 const { MatchList } = await import("../predict");

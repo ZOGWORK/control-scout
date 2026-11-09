@@ -142,3 +142,14 @@ describe("the score table's column names", () => {
     expect(head.children[0].classList.contains("sr-only")).toBe(false);
   });
 });
+
+describe("a match video", () => {
+  it("gets its own filled button by the score when the match has one", () => {
+    const d = detail();
+    (d.match as { video: string | null }).video = "https://www.youtube.com/watch?v=abcdefghijk";
+    render(<MemoryRouter><TooltipProvider><Headline d={d} /></TooltipProvider></MemoryRouter>);
+    const box = screen.getByTestId("match-video-buttons");
+    expect(box.textContent).toContain("Watch the match");
+    expect(box.querySelector("a")!.className).toContain("bg-video");
+  });
+});
