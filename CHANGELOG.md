@@ -23,7 +23,7 @@ A misspelled team name ending in "team" ("ultma team record") reaches that team,
 - [fixes] "ultma team record" offers ULTIMA TEAM
 
 ### Search
-- **A slip in a name ending in "team".** A stat question drops "team" as its frame's word, so a name ending in it was looked up without it ("ultma" alone, where "Ultimate …" names rank first). The frame's words are now put back after the name as well as before it ("team sealth" already worked), and a name one slip from that is offered as "Did you mean". (#NEW)
+- **A slip in a name ending in "team".** A stat question drops "team" as its frame's word, so a name ending in it was looked up without it ("ultma" alone, where "Ultimate …" names rank first). The frame's words are now put back after the name as well as before it ("team sealth" already worked), and a name one slip from that is offered as "Did you mean". (#1213)
 
 ## 4.4.9 — 2026-11-08
 
