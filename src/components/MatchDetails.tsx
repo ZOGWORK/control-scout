@@ -70,7 +70,8 @@ function Body({ d, eventName }: { d: MatchDetail; eventName?: string }) {
   const href = (key: string) => `/events/${m.season}/${encodeURIComponent(m.code)}?tab=matches&match=${encodeURIComponent(key)}`;
   // One column, read top to bottom: the score and margin first, then the breakdown, then the call and its why.
   return (
-    <div className="space-y-4">
+    // @container: the details lay out by their own width (an event's tab, a team's season, the half-width My teams panel), not the window's.
+    <div className="@container space-y-4">
       <Headline d={d} />
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
         {eventName !== undefined && <Link to={href(m.key)} className="underline-offset-2 hover:underline">{d.event.name}</Link>}
@@ -82,10 +83,10 @@ function Body({ d, eventName }: { d: MatchDetail; eventName?: string }) {
           {d.next && <Link to={href(d.next.key)} className="inline-flex items-center rounded px-1.5 py-0.5 hover:bg-text-base/[0.06] hover:text-text-base" aria-label={`Next match, ${d.next.label}`}>{d.next.label}<ChevronRight className="size-3.5" /></Link>}
         </span>
       </div>
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 @xl:grid-cols-2">
         {SIDES.map((s) => <Alliance key={s} d={d} side={s} />)}
       </div>
-      <div className="grid items-start gap-4 lg:grid-cols-2">
+      <div className="grid items-start gap-4 @4xl:grid-cols-2">
         {played ? <Breakdown d={d} /> : <p className="rounded-xl border border-dashed border-border p-4 text-sm text-text-muted">Not played yet — the score breakdown appears once the result is posted.</p>}
         <Prediction d={d} />
       </div>
@@ -192,14 +193,17 @@ function Alliance({ d, side }: { d: MatchDetail; side: Side }) {
 /** A robot's standing in one short line: station, event rank and record, OPR at this time, season OPR and rank.
  *  Short labels on screen; the full names in the tooltip and for screen readers. The season OPR is printed only
  *  when it differs from the event's, so the same number never shows twice. */
-function TeamLine({ station, ev, se }: { station?: number; ev?: MatchDetail["teams"][number]["event"]; se?: MatchDetail["teams"][number]["season"] }) {
+export function TeamLine({ station, ev, se }: { station?: number; ev?: MatchDetail["teams"][number]["event"]; se?: MatchDetail["teams"][number]["season"] }) {
   const evOpr = ev?.opr.np != null ? r1(ev.opr.np) : null, seOpr = se?.opr != null ? r1(se.opr) : null;
+  // The season OPR on screen: a dash when unknown, the number when it differs from the event's, nothing when it's the same.
+  const seVisible = seOpr == null ? "—" : seOpr !== evOpr ? seOpr : null;
   return (
     <p className="text-[11px] text-text-muted" data-testid="team-standing">
       {station ? <span title={`Station ${station}`}><span className="sr-only">Station </span><span aria-hidden>S</span>{station} · </span> : null}
       {ev?.rank ? <span title="Event rank and record"><span className="sr-only">Rank </span><span className="text-text-base">#{ev.rank}</span>{ev.wins != null && <> {ev.wins}-{ev.losses}-{ev.ties}</>}</span> : "Unranked"}
       {" · "}<span title="OPR at this time"><span className="sr-only">OPR at this time </span><span aria-hidden>OPR </span><span className="text-text-base">{evOpr ?? "—"}</span></span>
-      {" · "}<span title={`Season OPR ${seOpr ?? "—"}${se?.rank ? `, rank #${se.rank.toLocaleString()}` : ""}`}><span className="sr-only">Season OPR {seOpr ?? "unknown"}{se?.rank ? ", season rank " : ""}</span><span aria-hidden>season {seOpr !== evOpr && <span className="text-text-base">{seOpr ?? "—"} </span>}</span>{se?.rank ? <>#{se.rank.toLocaleString()}</> : null}</span>
+      {(seVisible != null || se?.rank) ? <>{" · "}<span title={`Season OPR ${seOpr ?? "—"}${se?.rank ? `, rank #${se.rank.toLocaleString()}` : ""}`}><span className="sr-only">Season OPR {seOpr ?? "unknown"}{se?.rank ? ", season rank " : ""}</span><span aria-hidden>season {seVisible != null && <span className="text-text-base">{seVisible} </span>}</span>{se?.rank ? <>#{se.rank.toLocaleString()}</> : null}</span></>
+        : <span className="sr-only"> · Season OPR {seOpr}, the same as at this event</span>}
     </p>
   );
 }

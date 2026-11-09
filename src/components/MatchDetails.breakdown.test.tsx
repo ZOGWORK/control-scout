@@ -120,3 +120,21 @@ describe("bonus RP odds in the call card", () => {
     expect(screen.getByTestId("bonus-odds").querySelector("[style*='width']")).toBeNull();
   });
 });
+
+describe("a robot's standing line", () => {
+  it("never leaves a bare season label: a dash when unknown, nothing when it equals the event OPR", async () => {
+    const { TeamLine } = await import("./MatchDetails");
+    const ev = { rank: 13, wins: 4, losses: 2, ties: 0, opr: { np: 15.5 } } as never;
+    const visible = () => Array.from(screen.getByTestId("team-standing").querySelectorAll("[aria-hidden]")).map((e) => e.textContent).join("");
+    render(<TeamLine ev={ev} se={{ opr: 15.5, rank: null } as never} />);
+    expect(visible()).not.toContain("season");
+    expect(screen.getByTestId("team-standing").textContent).toContain("Season OPR 15.5");
+    cleanup();
+    render(<TeamLine ev={ev} se={{ opr: null, rank: null } as never} />);
+    expect(visible()).toContain("season —");
+    cleanup();
+    render(<TeamLine ev={ev} se={{ opr: 12.04, rank: 1666 } as never} />);
+    expect(screen.getByTestId("team-standing").textContent).toContain("#1,666");
+    expect(visible()).toContain("season 12");
+  });
+});
