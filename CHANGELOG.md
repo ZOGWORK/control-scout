@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 4.6.7 — 2026-11-09
+## 4.7.0 — 2026-11-09
 
 The Home globe drops its small print.
 
@@ -26,6 +26,44 @@ The Home globe drops its small print.
 
 ### Home
 - **Globe note removed.** The small paragraph under the globe and atlas (where the country totals come from, what a listing means, how to turn the globe) is gone, so the panel goes straight from the selected country to the full country list. The globe still turns by drag, by arrow keys once focused, and stops with the pause button; screen readers still hear "Arrow keys turn it" in the globe’s own label. (#1231)
+
+## 4.6.9 — 2026-11-09
+
+An event's address without its season, like /events/USNJNEM2, opens the event's page instead of "Page not found".
+
+### Highlights
+- [fixes] /events/CODE opens that event's newest season
+- [share] Short event links work when typed or shared
+- [fixes] An unknown code still says the page isn't found
+
+### Fixes
+- **Event addresses without a season.** `/events/<code>` is a 301 to `/events/<season>/<code>` for the newest season holding that code, query kept, in any case; an unknown code is still the 404 page. The app's own route does the same through `/api/event-code/<code>`, so the service worker's app shell redirects too; a failed lookup there offers a retry instead of saying the event doesn't exist. (#1042)
+
+## 4.6.8 — 2026-11-09
+
+An award asked on its own lists its latest winners, and "fewest Inspire awards in a country" reads the count board from the bottom.
+
+### Highlights
+- [fixes] "Inspire award winner" lists the latest events' winners
+- [fixes] "Fewest Inspire awards in Romania" answers instead of a sorry
+- [fixes] The fewest board counts the teams that won none
+- [fixes] A season said keeps the latest winners to that season
+
+### Search
+- **Latest winners and the fewest awards.** One award asked with no event or place ("inspire award winner") lists the winners at the latest events that gave it, newest first, any season unless one is said. "Fewest" (or "least") of an award in a place is the most-awards board read from its bottom: the teams that won at least one, fewest first, with the place's teams that played and won none counted in the headline. (#1217)
+
+## 4.6.7 — 2026-11-09
+
+"Recent highlights" shows the latest week of play's standout matches, and a slip in an event request's own verb reads as the verb.
+
+### Highlights
+- [fixes] "Recent highlights" shows the latest week's standout matches
+- [fixes] "NJ recent highlights" does the same for one place
+- [fixes] A one-letter slip in "meets that happened" still lists the past meets
+
+### Search
+- **Recent highlights.** "Recent highlights" or "latest highlights" with no team, event or time named: the standout matches of the latest week with played matches (that day and the six before it), in a place when one is said, titled "Recent highlights" with the dates in a chip. A team or an event said reads as before. (#1215)
+- **The request's own verb.** An event request ending in "that …" or "which …" reads a verb one letter off "happened", "finished", "completed" or "ended" as that verb, so the request lists past meets instead of searching event names for the slip.
 
 ## 4.6.6 — 2026-11-09
 
