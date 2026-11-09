@@ -265,8 +265,8 @@ export function Breakdown({ d }: { d: MatchDetail }) {
   return (
     <section aria-label="Score breakdown">
       {/* The column names say what the table is: no title. */}
-      <div className={cn(GRID, "pb-1.5 text-[11px] text-text-muted")} aria-hidden>
-        <span />
+      <div className={cn(GRID, "pb-1.5 text-[11px] text-text-muted")}>
+        <span className="sr-only">Phase</span>
         <span className="text-right text-red-alliance">Red</span>
         <span className="text-center">Difference</span>
         <span className="text-blue-alliance">Blue</span>
@@ -348,19 +348,21 @@ function Prediction({ d }: { d: MatchDetail }) {
     // The call on the score table's own columns, so predicted, actual and off by sit under Red and Blue.
     <section className="space-y-6" aria-label={`Prediction: ${KIND_LABEL[p.kind]}`}>
       <div>
+        {/* The call's small controls on their own short row, so a narrow panel never pushes them into the odds. */}
+        <div className="flex flex-wrap items-center gap-x-2">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex text-text-muted" tabIndex={0} aria-label={KIND_LABEL[p.kind]}><Kind className="size-3.5" aria-hidden /></span>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-64">{KIND_LABEL[p.kind]}</TooltipContent>
+          </Tooltip>
+          <ConfidenceBadge tier={p.tier} quiet />
+          {red.length > 0 && blue.length > 0 && (
+            <ShareMatch query={{ season: m.season, red, blue, event: m.code, match: m.key }} pRed={p.pRed} tier={p.tier} played={!!played} iconOnly />
+          )}
+        </div>
         <div className={cn(GRID, "min-h-[44px]")}>
-          <span className="flex min-w-0 items-center gap-1.5">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="inline-flex text-text-muted" tabIndex={0} aria-label={KIND_LABEL[p.kind]}><Kind className="size-3.5" aria-hidden /></span>
-              </TooltipTrigger>
-              <TooltipContent className="max-w-64">{KIND_LABEL[p.kind]}</TooltipContent>
-            </Tooltip>
-            <ConfidenceBadge tier={p.tier} quiet />
-            {red.length > 0 && blue.length > 0 && (
-              <ShareMatch query={{ season: m.season, red, blue, event: m.code, match: m.key }} pRed={p.pRed} tier={p.tier} played={!!played} iconOnly />
-            )}
-          </span>
+          <span className={label}>Odds</span>
           <span className="text-right text-sm font-semibold tabular-nums text-red-alliance">{oddsPct(p.pRed)}</span>
           <WinBar pRed={p.pRed} size="sm" />
           <span className="text-sm font-semibold tabular-nums text-blue-alliance">{oddsPct(1 - p.pRed)}</span>

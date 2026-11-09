@@ -20,7 +20,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 An opened match is one quiet column: the score, a table, the call on the same columns, and very few words.
 
 ### Highlights
-- [predict] An opened match drops its boxes and headings: space and type size do the work
+- [predict] No boxes or headings: space and type size do the work
 - [predict] Predicted, actual and off by sit under Red and Blue, on the score table's columns
 - [predict] Bonus ranking points are icons with both chances; tap or hover for the name
 - [predict] Share, the confidence tier and the match report are small icons or words
