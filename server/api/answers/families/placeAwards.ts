@@ -259,7 +259,8 @@ export async function placeAwardsAnswer(ask: PlaceAwardsAsk): Promise<StatAnswer
     const bottom = fewest
       ? (await all<{ winners: number; zero: number }>(
         `SELECT (SELECT COUNT(DISTINCT a.team) ${from} WHERE ${filter}) winners,
-                (SELECT COUNT(*) FROM teams t WHERE ${where.sql} AND t.number IN (SELECT s.team FROM team_season_stats s WHERE s.matches > 0${season != null ? " AND s.season = ?" : ""})
+                (SELECT COUNT(*) FROM teams t WHERE ${where.sql} AND EXISTS (SELECT 1 FROM match_teams mt JOIN matches m ON m.season = mt.season AND m.code = mt.code AND m.level = mt.level AND m.series = mt.series AND m.number = mt.number
+                     WHERE mt.team = t.number AND m.played = 1${season != null ? " AND mt.season = ?" : ""})
                    AND t.number NOT IN (SELECT a.team ${from} WHERE ${filter})) zero`,
         [...args, ...where.args, ...(season != null ? [season] : []), ...args])).map((x) => ({ winners: Number(x.winners), zero: Number(x.zero) }))[0]
       : null;
