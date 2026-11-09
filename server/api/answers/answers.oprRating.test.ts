@@ -4,7 +4,7 @@
 // its rating's ± and world rank, its rating after each event and its best season rating. Each is one of the
 // 260-query completion list's (by number in the test names).
 import { beforeAll, describe, expect, it } from "vitest";
-import { migrate, openDb, run, setDb } from "../../db";
+import { all, migrate, openDb, run, setDb } from "../../db";
 import { rebuildSearch } from "../../stats/job";
 import { searchAnswer } from "../searchAnswer";
 import { clearAllCaches } from "../../caches";
@@ -230,6 +230,28 @@ describe("answers", () => {
     // Asked as a choice ("rising or falling"), the same trend (sign-off held-out paraphrase).
     expect((await ask("is 4215's rating rising or falling")).headline).toMatchObject({ value: "98 ± 3.2" });
     expect(t.blocks.find((b) => b.kind === "series")).toMatchObject({ points: [{ y: 60.5 }, { y: 88.2 }, { y: 98 }] });
+    // Up and down: a peak in between the latest is well below (a tenth or more) is named beside the direction.
+    await run("UPDATE ranking_snapshots SET rating = 130 WHERE week = '2026-03-09'");
+    clearAllCaches();
+    expect((await ask("4215 rating trend")).headline?.label).toBe("latest rating, after New Jersey Championship - Parkway Division · Rising from 60.5 after P1-4 PM Northern League Meet, down from a 130 peak at East Bergen Conference Northern League Tournament");
+    // A dip under a tenth below the peak isn't one (98 is 6.7% under 105): the steady climb's wording, as above.
+    await run("UPDATE ranking_snapshots SET rating = 105 WHERE week = '2026-03-09'");
+    clearAllCaches();
+    expect((await ask("4215 rating trend")).headline?.label).not.toContain("peak");
+    // Zero in between and at the latest (the engine keeps zero ratings): no drop from a "0 peak".
+    // The latest point is the team's season rating (team_season_stats), so it goes to zero too.
+    const before = await all<{ week: string; rating: number }>("SELECT week, rating FROM ranking_snapshots WHERE week >= '2026-03-09'");
+    const latest = await all<{ season: number; rating_np: number }>("SELECT season, rating_np FROM team_season_stats WHERE team = 4215");
+    await run("UPDATE ranking_snapshots SET rating = 0 WHERE week >= '2026-03-09'");
+    await run("UPDATE team_season_stats SET rating_np = 0 WHERE team = 4215");
+    clearAllCaches();
+    const zero = await ask("4215 rating trend");
+    expect(zero.blocks.find((b) => b.kind === "series")).toMatchObject({ points: [{ y: 60.5 }, { y: 0 }, { y: 0 }] });
+    expect(zero.headline?.label).not.toContain("peak");
+    for (const b of before) await run("UPDATE ranking_snapshots SET rating = ? WHERE week = ?", [b.rating, b.week]);
+    for (const l of latest) await run("UPDATE team_season_stats SET rating_np = ? WHERE team = 4215 AND season = ?", [l.rating_np, l.season]);
+    await run("UPDATE ranking_snapshots SET rating = 88.2 WHERE week = '2026-03-09'");
+    clearAllCaches();
     // An event whose Monday snapshot was pruned (older than the retention window) is a gap, never a later week's rating.
     await run("DELETE FROM ranking_snapshots WHERE week = '2025-11-10'");
     const g = await ask("4215 rating trend");

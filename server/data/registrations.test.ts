@@ -109,6 +109,35 @@ describe("syncRegistrations", () => {
 });
 
 describe("event page", () => {
+  it("says when the team list was last read from FIRST without error, also while FIRST has none", async () => {
+    await event("SOON", "2026-10-31");
+    await event("LATER", "2026-12-31");
+    first({ SOON: [] });
+    await syncRegistrations(S, { now: NOW });
+    // FIRST has no list for SOON yet: the good read still counts; LATER was never read.
+    expect((await eventDetail(S, "SOON"))!.teamsSyncedAt).toBe(NOW.toISOString());
+    expect((await eventDetail(S, "LATER"))!.teamsSyncedAt).toBeNull();
+    // A failed read later doesn't move it.
+    first({ SOON: 400 });
+    await syncRegistrations(S, { now: new Date(NOW.getTime() + 7 * 3600_000) });
+    expect((await eventDetail(S, "SOON"))!.teamsSyncedAt).toBe(NOW.toISOString());
+    // A full fetch whose team list read failed doesn't move it either: the list shown is the older one.
+    const row = eventRowFromFirst(S, { code: "SOON", name: "SOON meet", typeName: "Qualifier", venue: "Gym", city: "Piscataway", stateprov: "NJ", dateStart: "2026-10-31T00:00:00" });
+    const detail = { entries: [], matches: [], alliances: [], awards: [], advancement: null, advancementPoints: [] };
+    await writeBatch(bundleStatements({ event: row, teams: [], teamsRead: false, detail }));
+    clearAllCaches();
+    expect((await eventDetail(S, "SOON"))!.teamsSyncedAt).toBe(NOW.toISOString());
+    // One whose list came back is the newer read.
+    await writeBatch(bundleStatements({ event: row, teams: [], teamsRead: true, detail }));
+    clearAllCaches();
+    expect((await eventDetail(S, "SOON"))!.teamsSyncedAt! > NOW.toISOString()).toBe(true);
+  });
+  it("a list from FTC Scout (FIRST couldn't serve the event) was read at that source's last successful fetch", async () => {
+    await event("SCOUT", "2026-10-31");
+    await run("UPDATE events SET source = 'ftcscout', detail_synced_at = ? WHERE season = ? AND code = 'SCOUT'", ["2026-10-30T12:00:00.000Z", S]);
+    expect((await eventDetail(S, "SCOUT"))!.teamsSyncedAt).toBe("2026-10-30T12:00:00.000Z");
+  });
+
   it("shows the registered teams as the field, counted, and marked as registrations", async () => {
     await event("SOON", "2026-10-31");
     first({ SOON: [team(3944, "Team Mercury"), team(8421, "Tigers")] });
@@ -239,5 +268,24 @@ describe("AM/PM sessions", () => {
     await syncRegistrations(S, { now: NOW, force: true });
     expect((await eventDetail(S, "A_AM"))!.field.map((f) => f.team)).toEqual([1, 3]);
     expect((await eventDetail(S, "A_PM"))!.field.map((f) => f.team)).toEqual([2]);
+  });
+});
+
+describe("migration 76", () => {
+  it("keeps the time each event's page showed: the later of its stored registrations read and its last FIRST full fetch", async () => {
+    const c = openDb("file::memory:");
+    setDb(c);
+    const v = (await import("../db")).MIGRATIONS.find((m) => m.name === "when an event's team list was last read from FIRST")!.version;
+    await migrate(c, v - 1);
+    for (const [code, source, detail] of [["READ", "first", null], ["NEVER", "first", null], ["FULL", "first", "2026-11-02T00:00:00Z"], ["SCOUT", "ftcscout", "2026-11-02T00:00:00Z"]]) {
+      await run("INSERT INTO events (season, code, name, type, start, end, source, synced_at, detail_synced_at) VALUES (?, ?, 'E', 'Qualifier', '2026-11-01', '2026-11-01', ?, 'x', ?)", [S, code, source, detail]);
+    }
+    await run("INSERT INTO event_registrations (season, code, team, fetched_at) VALUES (?, 'READ', 1, '2026-10-30T00:00:00Z'), (?, 'READ', 2, '2026-10-31T00:00:00Z'), (?, 'FULL', 1, '2026-10-31T00:00:00Z')", [S, S, S]);
+    await migrate(c, v);
+    expect(await all<any>("SELECT code, teams_checked_at FROM events ORDER BY code")).toEqual([
+      { code: "FULL", teams_checked_at: "2026-11-02T00:00:00Z" }, { code: "NEVER", teams_checked_at: null },
+      { code: "READ", teams_checked_at: "2026-10-31T00:00:00Z" }, { code: "SCOUT", teams_checked_at: null },
+    ]);
+    c.close();
   });
 });
