@@ -35,7 +35,7 @@ const ICON: Record<SheetFactor["id"], LucideIcon> = {
   schedule: CalendarRange, headToHead: Swords,
 };
 
-export function FactorSheetPanel({ sheet, winner = null, defaultOpen = false, className, level }: {
+export function FactorSheetPanel({ sheet, winner = null, defaultOpen = false, className, level, quiet }: {
   sheet: FactorSheet;
   /** The call's match level: the sheet then says what it learns from and what playoffs change. */
   level?: "qual" | "playoff";
@@ -43,6 +43,8 @@ export function FactorSheetPanel({ sheet, winner = null, defaultOpen = false, cl
   winner?: "A" | "B" | "tie" | null;
   defaultOpen?: boolean;
   className?: string;
+  /** One muted chevron row, no box (a page that keeps its words to a minimum); the content is the same. */
+  quiet?: boolean;
 }) {
   // The owner's factorSheet toggle: off, the call keeps its top 3 reasons and nothing else (offline too).
   const on = useFlag("factorSheet");
@@ -52,13 +54,21 @@ export function FactorSheetPanel({ sheet, winner = null, defaultOpen = false, cl
   const top = Math.max(...all.map((f) => f.weight), 0.0001);
   const review = sheetReview(sheet, winner);
   return (
-    <details className={cn("@container group rounded-xl border border-border bg-text-base/[0.02]", className)} open={defaultOpen || undefined} data-testid="factor-sheet">
+    <details className={cn("@container group", !quiet && "rounded-xl border border-border bg-text-base/[0.02]", className)} open={defaultOpen || undefined} data-testid="factor-sheet">
+      {quiet ? (
+        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 text-xs text-text-muted hover:text-text-base [&::-webkit-details-marker]:hidden">
+          <ChartBarBig className="size-4 text-accent-text" aria-hidden />
+          <span>Full why breakdown · {all.length} factors</span>
+          <ChevronDown className="size-3.5 transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
+        </summary>
+      ) : (
       <summary className="flex cursor-pointer list-none items-center gap-2.5 px-3 py-2.5 text-sm font-medium [&::-webkit-details-marker]:hidden">
         <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent-text" aria-hidden><ChartBarBig className="size-4" /></span>
         <span className="min-w-0 flex-1">Full why breakdown <span className="font-normal text-text-muted">· {all.length} factors</span></span>
         <ChevronDown className="size-4 shrink-0 text-text-muted transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
       </summary>
-      <div className="space-y-4 border-t border-border px-3 pb-3 pt-3 @2xl:px-4 @2xl:pb-4">
+      )}
+      <div className={cn("space-y-4", quiet ? "pb-2 pt-2" : "border-t border-border px-3 pb-3 pt-3 @2xl:px-4 @2xl:pb-4")}>
         <TugOfWar sheet={sheet} />
         {review && (
           <p className="rounded-lg bg-success/10 px-3 py-2 text-sm" data-testid="sheet-review">

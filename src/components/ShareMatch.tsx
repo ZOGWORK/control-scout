@@ -16,7 +16,7 @@ import { cn } from "./cn";
 
 type Format = "landscape" | "square";
 
-export function ShareMatch({ query, pRed, pBlue, tier, played, className }: {
+export function ShareMatch({ query, pRed, pBlue, tier, played, className, iconOnly }: {
   query: Omit<ShareCardQuery, "format">;
   pRed: number;
   pBlue?: number;
@@ -24,6 +24,8 @@ export function ShareMatch({ query, pRed, pBlue, tier, played, className }: {
   tier: ConfidenceTier;
   played?: boolean;
   className?: string;
+  /** The share icon alone (its name on hover and for screen readers). */
+  iconOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [format, setFormat] = useState<Format>("landscape");
@@ -68,7 +70,9 @@ export function ShareMatch({ query, pRed, pBlue, tier, played, className }: {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className={className}><Share2 /> Share</Button>
+        {iconOnly
+          ? <Button variant="ghost" size="icon-sm" className={cn("tap-44 text-text-muted", className)} aria-label="Share" title="Share"><Share2 /></Button>
+          : <Button variant="outline" size="sm" className={className}><Share2 /> Share</Button>}
       </PopoverTrigger>
       <PopoverContent align="end" collisionPadding={8} className="max-h-[var(--radix-popover-content-available-height)] w-[22rem] max-w-[calc(100vw-2rem)] space-y-3 overflow-y-auto">
         <p className="text-sm font-semibold text-text-base">Share this prediction</p>
