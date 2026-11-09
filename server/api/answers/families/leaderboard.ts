@@ -185,6 +185,12 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
 
 /** FTC's first season (2005–06): a rookie year listed before it is a directory slip, never a team's start. */
 const FTC_FIRST_SEASON = 2005;
+/** An every-season board's title, the same on its card and as the page's heading (search's boardSearch), so the page
+ *  never says it twice in two wordings. */
+export function careerBoardTitle(b: Pick<BoardQuestion, "kind" | "stat">, where: string): string {
+  return b.kind === "oldest" ? `Oldest teams still active${where}, by rookie year` : `Team${where} with the most ${CAREER[b.stat.id]?.label.toLowerCase() ?? statWords(b.stat)}, every season`;
+}
+
 const CAREER: Record<string, { label: string; sql: string; rule: string }> = {
   matches: { label: "Matches played", sql: "SUM(s.matches)", rule: "Matches played: every season's matches on record, as each team page counts them." },
   events: { label: "Events played", sql: "SUM(s.events)", rule: "Events played: every season's events on record, as each team page counts them." },
@@ -200,7 +206,7 @@ async function careerAnswer(b: BoardQuestion, where: string, regionSql: string, 
   const oldest = b.kind === "oldest";
   const c = CAREER[oldest ? "seasons" : b.stat.id];
   const span = await get<{ first: number | null; last: number | null }>("SELECT MIN(season) first, MAX(season) last FROM team_season_stats WHERE matches > 0");
-  const title = oldest ? `Oldest teams still active${where}, by rookie year` : `Team${where} with the most ${c.label.toLowerCase()}, every season`;
+  const title = careerBoardTitle(b, where);
   // No season with a match on record: no years to say, so none are made up.
   if (span?.first == null || span?.last == null) {
     return { family: "leaderboard", intent: oldest ? "oldest-active" : `career-${b.stat.id}`, title, scope: [b.region?.name ?? "Worldwide"], definition: oldest ? "Still active: a match on record in one of the two latest seasons played." : c.rule,
