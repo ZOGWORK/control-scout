@@ -37,6 +37,7 @@ import { BOARD_STATS, LEADERBOARD_MAX, boardStatFor, leaderboardAnswer, statWord
 import { readTime } from "../query/time.js";
 import { biggestEventsAnswer, readBiggestEvents } from "./families/biggestEvents.js";
 import { readTopCities, storedCountry, topCitiesAnswer } from "./families/topCities.js";
+import { placeAverageAnswer, readPlaceAverage } from "./families/placeAverages.js";
 import { everTopMatches, readTopMatches, topMatchesAnswer, type TopMatchesQuestion } from "./families/topMatches.js";
 import { rankUpsetAnswer, readRankUpset, type RankUpsetQuestion } from "./families/rankUpset.js";
 import { eventAverageAnswer, eventAverageTitle, eventsAsked, readEventAverage, type EventAverageQuestion } from "./families/eventAverage.js";
@@ -403,6 +404,14 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
     const label = stat?.title ?? `Events with the most teams${big.e.region ? ` in ${big.e.region.name}` : ""}`;
     return { q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label, ...(big.e.region ? { place: { key: big.e.region.key, name: big.e.region.name } } : {}) },
       intent: { kind: "stat-biggest-events", pattern: `events with the most teams${big.e.region ? " [place]" : ""}`, met: true, understood: [label] }, ...(stat ? { stat } : {}) };
+  }
+  // "Which state has the highest average OPR": states and provinces by their teams' average OPR.
+  const avg = readPlaceAverage(q);
+  if (avg) {
+    const stat = opts.full ? await placeAverageAnswer(avg) : null;
+    const label = `${avg.country === "USA" ? "US states" : avg.country === "Canada" ? "Canadian provinces" : "States and provinces"} by average OPR${avg.order === "asc" ? ", lowest first" : ""}`;
+    return { q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label },
+      intent: { kind: "stat-place-average-opr", pattern: "places by average opr", met: true, understood: [label] }, ...(stat ? { stat } : {}) };
   }
   // "Which city in Romania has the most FTC teams": a place's home cities by how many teams list them.
   const cities = readTopCities(q);

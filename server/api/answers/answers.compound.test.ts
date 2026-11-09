@@ -345,6 +345,13 @@ describe("a team list's filters, however they're said", () => {
   it("reads a threshold with no 'with', a bare number as at least it, and several at once", () => {
     expect(readCompound("Oradell teams, OPR over 100")).toMatchObject({ kind: "list", city: "oradell", thresholds: [{ stat: "opr", op: "gt", value: 100 }] });
     for (const q of ["Houston teams, OPR 90", "Houston teams, OPR 90+"]) expect(readCompound(q), q).toMatchObject({ kind: "list", city: "houston", thresholds: [{ stat: "opr", op: "ge", value: 90 }] });
+    // "Or above" after the number, the number said before the stat or after it (failed-search #1198).
+    for (const q of ["teams with 44 or above opr", "teams with opr 44 or above", "Houston teams with 90 or more opr"]) {
+      expect(readCompound(q)?.kind, q).toBe("list");
+      expect((readCompound(q) as { thresholds: unknown[] }).thresholds, q).toEqual([{ stat: "opr", op: "ge", value: /90/.test(q) ? 90 : 44 }]);
+    }
+    // A year after a stat is still the season's words, never a floor.
+    expect(readCompound("Houston teams by opr 2025")).toBeNull();
     expect(readCompound("teams in Romania with at least 30 matches and a win rate over 70 percent")).toMatchObject({ kind: "list", country: { code: "RO" }, city: null,
       thresholds: [{ stat: "win-rate", op: "gt", value: 70 }, { stat: "matches", op: "ge", value: 30 }] });
     expect(readCompound("leaderboard for teams that played at least 20 matches, by win rate, worldwide")).toMatchObject({ kind: "list", stat: "win-rate", region: null, country: null, city: null,
