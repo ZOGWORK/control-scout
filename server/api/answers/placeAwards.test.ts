@@ -78,8 +78,48 @@ describe("a place's award winners", () => {
     for (const q of ["most inspire awards", "teams with the most inspire awards", "which team has the most inspire awards"]) {
       expect(await readPlaceAwards(q), q).toMatchObject({ place: null, types: ["Inspire"], mode: "most" });
     }
-    // A list of winners still needs its place.
-    expect(await readPlaceAwards("inspire award winners")).toBeNull();
+    // Every award's winners, or whether any won, still needs its place.
+    for (const q of ["award winners", "did any team win inspire", "inspire winners at worlds"]) expect(await readPlaceAwards(q), q).toBeNull();
+  });
+
+  // Failed search #1194 "inspire award winner": one award asked with no event or place.
+  it("one award's winners with no place said: the latest events that gave it, newest first, any season", async () => {
+    const ask = await readPlaceAwards("inspire award winner");
+    expect(ask).toMatchObject({ place: null, types: ["Inspire"], mode: "list", season: null });
+    const s = await placeAwardsAnswer(ask!);
+    expect(s.title).toBe("The latest Inspire Award winners");
+    // Worlds (the newest), then Texas's Championship, Ontario's and Texas's Qualifiers, then last season's Ontario ones.
+    expect(rows(s).map((r) => `${r.team} ${r.event} ${r.season}`.replace(/ \d{4}–\d\d$/, (x) => (x.includes(String(S)) ? " S" : " S-1")))).toEqual([
+      "4215 Hypnotic Robotics Worlds finals S", "11111 Lone Star Bots Texas Championship S", "22222 Maple Gears Ontario Qualifier S",
+      "11111 Lone Star Bots Texas Qualifier S", "22222 Maple Gears Ontario Qualifier 2 S-1", "22222 Maple Gears Ontario Qualifier S-1",
+    ]);
+    expect(s.headline).toMatchObject({ value: "4215 Hypnotic Robotics", label: "won the Inspire Award at Worlds finals" });
+    // A season said keeps to it; an alliance award lists each of its teams.
+    const last = await placeAwardsAnswer((await readPlaceAwards("inspire award winners last season"))!);
+    expect(rows(last).map((r) => r.team)).toEqual(["22222 Maple Gears", "22222 Maple Gears"]);
+    const wa = await placeAwardsAnswer((await readPlaceAwards("winning alliance winners"))!);
+    expect(wa.headline?.value).toBe("20265 Heart of RoBots, 11111 Lone Star Bots");
+  });
+
+  // Failed search #1207 "fewest inspire awards in romania": the count board read from its bottom.
+  it("the fewest of an award: the teams that won any, fewest first, and the place's teams that won none counted", async () => {
+    const ask = await readPlaceAwards("fewest inspire awards in canada");
+    expect(ask).toMatchObject({ place: { kind: "country", country: "Canada" }, types: ["Inspire"], mode: "fewest", season: null });
+    expect(await readPlaceAwards("which texas team has the least think awards")).toMatchObject({ mode: "fewest", types: ["Think"] });
+    const s = await placeAwardsAnswer(ask!);
+    expect(s.title).toBe("Teams from Canada with the fewest Inspire Awards, every season");
+    // 33333 Northern Bolts won none; 22222 Maple Gears won 3.
+    expect(s.headline).toMatchObject({ value: "1 team", label: "from Canada played and won no Inspire Award in any season" });
+    expect(rows(s).map((r) => [r.team, r.n])).toEqual([["22222 Maple Gears", 3]]);
+    // Fewest first: Lone Star Bots' 2 before Maple Gears' 3, every team.
+    const all = await placeAwardsAnswer((await readPlaceAwards("fewest inspire awards"))!);
+    expect(rows(all).map((r) => [r.team, r.n])).toEqual([["4215 Hypnotic Robotics", 1], ["11111 Lone Star Bots", 2], ["22222 Maple Gears", 3]]);
+    // No team that played went without one: the fewest are named, never "0 teams won none".
+    const on = await placeAwardsAnswer((await readPlaceAwards("fewest think awards in ontario last season"))!);
+    expect(on.headline).toMatchObject({ value: "33333 Northern Bolts", label: "1 Think Award, the fewest" });
+    // "At least" counts nothing, "least common" is the rarest award's.
+    expect(await readPlaceAwards("texas teams that won at least inspire")).not.toMatchObject({ mode: "fewest" });
+    expect(await readPlaceAwards("least common award a texas team won")).toMatchObject({ mode: "rarest" });
   });
   it("the most awards of any kind over every season (failed-search #799); one season's stays the board's", async () => {
     for (const q of ["which team in Texas has the most awards, ever", "texas team with the most awards of all time", "texas team with the most awards in ftc history"]) {
@@ -179,7 +219,8 @@ describe("a place's award winners", () => {
     expect(await readPlaceAwards("District of Columbia Think winners")).toMatchObject({ place: { kind: "region", state: "DC" }, types: ["Think"] });
     expect(await readPlaceAwards("Think winners from Newfoundland and Labrador")).toMatchObject({ place: { kind: "region", state: "NL" } });
     expect(await readPlaceAwards("IN Judges' Choice winners")).toMatchObject({ place: { kind: "region", state: "IN" }, types: ["JudgesChoice"] });
-    expect(await readPlaceAwards("in judges choice winners")).toBeNull();
+    // A lowercase "in" is never Indiana: the award's latest winners anywhere.
+    expect(await readPlaceAwards("in judges choice winners")).toMatchObject({ place: null, types: ["JudgesChoice"] });
     expect(await readPlaceAwards("Springfield IL Motivate winners")).toMatchObject({ place: { kind: "city", city: "Springfield", state: "IL" } });
   });
   it("leaves a team's, an event's and an award-less ask alone", async () => {
