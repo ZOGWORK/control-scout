@@ -15,6 +15,104 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.5.6 — 2026-11-09
+
+A rating trend names the season's peak when the latest rating is well below it: "Rising from 57.7 after …, down from a 132 peak at …".
+
+### Highlights
+- [fixes] A rating trend names a peak the latest is well below
+- [fixes] "Rising" no longer hides a drop from a mid-season high
+- [fixes] A steady climb reads as it did, with no peak note
+
+### Search
+- **Rating trend peaks.** When the latest rating is a tenth or more below the highest rating after an earlier event (not the first), the trend line adds "down from a <peak> peak at <event>"; the direction still compares the first and the latest. (#1078)
+
+## 4.5.5 — 2026-11-09
+
+A match that "went to a tiebreak, or overtime" is read as a tie.
+
+### Highlights
+- [fixes] "Did 17965 ever play a match that went to tiebreak" answers
+- [fixes] Overtime and sudden death are read as a tie too
+- [fixes] A team named Overtime is still found by its name
+
+### Search
+- **Tiebreaks and overtime.** A match that went to, ended in or was decided by a tiebreak, overtime or sudden death is read as a tie, so the team's ties answer it; the word alone still finds a team named after it. (#1117)
+
+## 4.5.4 — 2026-11-09
+
+Pull to reload in the installed phone app now follows your finger smoothly and looks like the rest of Control Scout: the app's own mark in a round card, with a yellow ring that fills as you pull.
+
+### Highlights
+- [appearance] Pull to reload follows your finger smoothly, frame by frame
+- [appearance] The app's mark with a yellow ring that fills as you pull
+- [appearance] Lets go early? It springs back up instead of vanishing
+
+### Phone app
+- **Smoother pull to reload.** The indicator used to redraw through the page's components on every finger move, which came out at about 10 frames a second on a phone. It now stays in the page and each move only shifts it and fills its ring, once per screen frame, so it keeps up with the finger. Letting go short of the line springs it back up; past the line it settles, the ring spins, and the thin yellow refresh bar the tables use sweeps under the top bar until the page reloads. Under reduced motion nothing turns, springs or sweeps.
+- **Looks like the app.** The plain reload arrow is now Control Scout's own mark in a card-coloured circle, with a yellow ring that fills as you pull and the home search's yellow glow once letting go will reload. (#1214)
+
+## 4.5.3 — 2026-11-09
+
+An event page says where its team list comes from and when it was last read: FIRST's list, FTC New Jersey's provisional one before FIRST publishes, or that FIRST has published no teams yet.
+
+### Highlights
+- [teams] Event pages say where their team list comes from
+- [teams] "Last synced" time on every event's team list
+- [fixes] No teams published yet is said plainly, with when it was checked
+
+### Event pages
+- **Source line.** Under the event header: "Source: FIRST Events API · last synced 2 h ago" for FIRST's list, "FTC New Jersey · provisional, FIRST has not published teams yet" while that list is shown, "FTC Scout (FIRST couldn't serve this event)" when it is the fallback, or "FIRST Events API · no teams published yet · last checked …". A list on an event that isn't over and hasn't been read for 36 hours says it may be out of date. The time is the server's last good read of the event's team list from FIRST: its full fetch, or its registrations read (migration 76 `events.teams_checked_at`, set on every good read, an empty list included; a failed read leaves it). Saved data with no time shows the source alone.
+- **Empty Teams tab.** "No teams published for this event yet", with when FIRST was last checked. (#1044)
+
+## 4.5.2 — 2026-11-09
+
+Match searches can set a score an alliance had to reach: "where the losing alliance scored over 200", "both alliances scored over 250".
+
+### Highlights
+- [fixes] "Losing alliance scored over 200" lists those matches
+- [fixes] "Both alliances scored over 250" works at an event too
+- [fixes] The card says the condition back in words
+
+### Search
+- **A score to reach.** "Where the losing, winning, both or either alliance scored over, under or at least N" filters the match list by that alliance's final score, in a place, a time window or at an event named; the number is never read as a team. (#1096)
+
+## 4.5.1 — 2026-11-09
+
+Search answers an event's average match score, and puts two events side by side.
+
+### Highlights
+- [rankings] "Average match score at" an event answers, with and without penalties
+- [rankings] Two events' average scores side by side, the higher one highlighted
+- [fixes] "NJ Championship" finds the New Jersey Championship
+
+### Search
+- **Event average match score.** "Average match score at <event>" gives the mean alliance score over its played matches (divisions included), with and without penalties, its highest score and match count; "… versus <event>" shows two events side by side and which averages more; a state's code ("NJ Championship") is that state's championship. (#1125)
+
+## 4.5.0 — 2026-11-09
+
+A team name ending in "team", typed with a slip, reaches that team, not a longer name its first word starts.
+
+### Highlights
+- [fixes] A slip in ULTIMA TEAM's name still finds ULTIMA TEAM
+- [fixes] A name ending in "team" keeps that word when misspelled
+- [fixes] "Did you mean" names the team you meant
+
+### Search
+- **A slip in a name ending in "team".** A stat question drops "team" as its frame's word, so a name ending in it was looked up without it (its first word alone, where longer names starting with that word rank first). The frame's words are now put back after the name as well as before it, as they already were for a name starting with "Team", and a name one slip from that is offered as "Did you mean". (#1213)
+
+## 4.4.9 — 2026-11-08
+
+Boards over every season: the team that has played the most seasons, the oldest teams still active, and the most matches, events or wins ever.
+
+### Highlights
+- [rankings] "Which team has played the most seasons" answers
+- [rankings] "Oldest team still active in New Jersey" by rookie year
+- [rankings] "Most wins ever" counts every season
+
+### Search
+- **Career boards.** "Ever", "of all time" or "in history" said with the team with the most matches, events or wins counts every season on record, not one. "The most seasons" (from FIRST's rookie year to the team's latest season with a match) and "the oldest team still active" (a match in either of the two latest seasons, the earliest rookie year first) are boards of their own, in a place or worldwide. A rookie year before FTC's first season is a directory slip and never counted. (#1111)
+
 ## 4.4.8 — 2026-11-08
 
 Two events named side by side ("<event> vs <event>") are compared as events rather than read as two teams: how strong each field was, its best OPR, its high score and how many teams played.

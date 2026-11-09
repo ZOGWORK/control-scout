@@ -596,6 +596,9 @@ export interface EventDetail {
   /** This event is one session of an AM/PM pair and FIRST lists the pair's registrations together, with no word on
    *  who plays which session: never this session's `field`. Null otherwise. Absent from older servers and saved packs. */
   sharedSessions?: SharedSessions | null;
+  /** When this server last read the event's team list from FIRST without error (its full fetch, or its registrations):
+   *  the event page's "last synced" time. Null: never read. Absent (time unknown) from older servers and saved packs. */
+  teamsSyncedAt?: string | null;
   /** Each team's qualification schedule next to the field's (src/shared/scheduleDifficulty.ts): the full schedule, and
    *  what's left once quals are under way. Null without a posted schedule or ratings; absent from older servers and packs. */
   scheduleDifficulty?: ScheduleDifficulty | null;

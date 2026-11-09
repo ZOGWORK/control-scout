@@ -7,8 +7,9 @@ import { rebuildSearch } from "../../stats/job";
 import { searchAnswer } from "../searchAnswer";
 import { readLeaderboard } from "./read";
 
+let fixture: ReturnType<typeof openDb>;
 beforeAll(async () => {
-  const c = openDb(":memory:");
+  const c = (fixture = openDb(":memory:"));
   setDb(c);
   await migrate(c);
   // number, name, city, state, rookie year, [2024: opr, rank], [2025: opr, auto, wins, losses, matches, rank]
@@ -232,6 +233,57 @@ describe("the top teams in a date window", () => {
       vi.useRealTimers();
       // Its events leave no rows behind for the boards below.
       await run("DELETE FROM team_event_stats WHERE code IN ('USNJWK', 'USTXWK', 'USNJOLD')"); await run("DELETE FROM events WHERE code IN ('USNJWK', 'USTXWK', 'USNJOLD')");
+    }
+  });
+});
+
+// Failed searches #976 #934 #799, in their own words: boards over every season.
+describe("every season counted", () => {
+  it("reads the most seasons, the oldest still active and a count 'ever'", () => {
+    expect(readLeaderboard("which team has played the most seasons, ever")).toMatchObject({ kind: "career", stat: "seasons", region: null });
+    expect(readLeaderboard("which team played the most seasons")).toMatchObject({ kind: "career", stat: "seasons" });
+    expect(readLeaderboard("whats the oldest team still active in New Jersey, by rookie year")).toMatchObject({ kind: "oldest", region: { key: "USA:NJ" } });
+    expect(readLeaderboard("which team in New Jersey has the most wins, ever")).toMatchObject({ kind: "career", stat: "wins", region: { key: "USA:NJ" } });
+    expect(readLeaderboard("which team in New Jersey has the most awards, ever")?.kind).not.toBe("career");
+    // A season said is that season's: never every season.
+    expect(readLeaderboard("oldest team still active this season")?.kind).not.toBe("oldest");
+    expect(readLeaderboard("which team has played the most seasons this season")?.kind).not.toBe("career");
+    // Two places said is no one place's board.
+    expect(readLeaderboard("team from ohio with the most matches played ever in california")?.kind).not.toBe("career");
+    // Without "ever" a count is the season's board, as before.
+    expect(readLeaderboard("which team in New Jersey has the most awards")).toMatchObject({ kind: "top", stat: "awards" });
+  });
+  it("answers from every season on record", async () => {
+    const s = await searchAnswer("which team has played the most seasons, ever", { limit: 25, full: true });
+    // 4215: rookie year 2010 to its latest season with a match (2025), both counted.
+    expect(s.stat).toMatchObject({ intent: "career-seasons", headline: { value: "4215 Hypnotic Robotics", label: "Seasons played 16, rookie year 2010 · Oradell" } });
+    // Greptile on #1111: a team's link opens the season its OPR is from, its latest with a match.
+    expect(s.stat?.headline?.href).toBe("/teams/4215?season=2025");
+    const sb = s.stat!.blocks[0];
+    if (sb.kind !== "leaderboard") throw new Error(sb.kind);
+    expect(sb.rows.every((r) => r.team.href?.endsWith("?season=2025"))).toBe(true);
+    const o = await searchAnswer("whats the oldest team still active in New Jersey, by rookie year", { limit: 25, full: true });
+    expect(o.stat).toMatchObject({ intent: "oldest-active", title: "Oldest teams still active in New Jersey, by rookie year" });
+    const ob = o.stat!.blocks[0];
+    if (ob.kind !== "leaderboard") throw new Error(ob.kind);
+    expect(ob.rows.slice(0, 3).map((r) => r.display)).toEqual(["2010", "2013", "2017"]);
+    // The most awards ever, worldwide or in a place, is the awards family's answer, every season counted.
+    for (const q of ["which team in New Jersey has the most awards, ever", "which team has the most awards, ever"]) expect((await searchAnswer(q, { limit: 25, full: true })).stat?.intent, q).toBe("place-awards");
+  });
+  it("with no match on record, says so and names no years", async () => {
+    const empty = openDb(":memory:");
+    setDb(empty);
+    try {
+      await migrate(empty);
+      await run("INSERT INTO teams (number, name, city, state, country, rookie_year) VALUES (100, 'No Matches Yet', 'Camden', 'NJ', 'USA', 2015)");
+      await rebuildSearch();
+      for (const q of ["team with the most events attended ever", "oldest team still active"]) {
+        const a = (await searchAnswer(q, { limit: 25, full: true })).stat;
+        expect(a?.none, q).toMatch(/has a match on record yet/);
+        expect(JSON.stringify(a), q).not.toMatch(/NaN|\d{4}[–-]\d{2}/);
+      }
+    } finally {
+      setDb(fixture);
     }
   });
 });

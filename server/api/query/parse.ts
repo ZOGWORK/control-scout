@@ -5,6 +5,7 @@
 import { AWARD_ONE_WORD, EVENT_NAME_WORDS, LEXICON, type Agg, type Sym } from "./lexicon.js";
 import { pickIntent, type IntentRule, type PipelineIntent } from "./intents.js";
 import { readTime, type TimeRead, type TimeSlot } from "./time.js";
+import type { ScoreCond } from "./matchFind.js";
 import { fold, type Names, type Place, type TeamName } from "./names.js";
 import { EVENT_TYPES } from "../../../src/shared/searchEventQuery.js";
 import { onlyTopicWords } from "../../../src/shared/searchQuery.js";
@@ -79,6 +80,8 @@ export interface Parsed {
   reach?: true;
   /** A name asked about as words ("teams named <name>"): the words, never read as a team. */
   named?: { words: string; typed: string };
+  /** A score an alliance had to reach ("where the losing alliance scored over 200"): the match finder's filter. */
+  scoreCond?: ScoreCond;
   /** Every word explained and an intent found. */
   complete: boolean;
 }
@@ -201,9 +204,13 @@ function yearReading(q: string, team: (n: number) => boolean): (y: number) => bo
  *  about as words ("teams named Powerplay Pioneers", "March Madness") never read as a time. `rest`: `q` without the
  *  time's words. Shared with the answer's season picker (server/api/answers/season.ts withSeason). */
 export function queryTime(q0: string, names: Names, today: string): TimeRead {
-  // A score threshold ("at least 2025 pts") is never a year: set aside first, as parseQuery does.
-  const fl = FLOOR.exec(q0);
-  const q = fl ? `${q0.slice(0, fl.index)} ${q0.slice(fl.index + fl[0].length)}`.replace(/\s+/g, " ").trim() : q0;
+  // A score threshold ("at least 2025 pts", "both alliances scored over 2025") is never a year: set aside first, as
+  // parseQuery does. parseQuery has read its own condition off already: one more here stays in `rest`, unread, so the
+  // query never passes with a limit dropped.
+  const c = scoreCondOf(q0);
+  const q1 = c ? c.rest : q0;
+  const fl = FLOOR.exec(q1);
+  const q = fl ? `${q1.slice(0, fl.index)} ${q1.slice(fl.index + fl[0].length)}`.replace(/\s+/g, " ").trim() : q1;
   const words0 = q.split(" ");
   const yearOk = yearReading(q, (n) => !!names.team(n));
   const timeOnly = (w: string[]) => { const r = readTime(w.join(" "), today, yearOk); return !!r.time && allFiller(r.rest.split(" ").filter(Boolean)); };
@@ -211,14 +218,42 @@ export function queryTime(q0: string, names: Names, today: string): TimeRead {
   // The name stands in as one word no time reads, then comes back whole.
   const kept = at0 && words0.slice(at0.from, at0.to).join(" ");
   const read = readTime(at0 ? [...words0.slice(0, at0.from), NAME_MARK, ...words0.slice(at0.to)].join(" ") : q, today, yearOk);
-  return kept ? { ...read, rest: read.rest.replace(NAME_MARK, kept) } : read;
+  const out = kept ? { ...read, rest: read.rest.replace(NAME_MARK, kept) } : read;
+  return c ? { ...out, rest: `${out.rest} ${c.said}`.trim() } : out;
 }
 
+/** "Where the losing alliance scored over 200", "both alliances scored over 250", "each alliance had at least 150
+ *  points": whose score, the comparison and the number, and the query without them. */
+const SIDE: Record<string, ScoreCond["side"]> = { losing: "losing", losers: "losing", winning: "winning", winners: "winning", both: "both", each: "both", either: "either", one: "either" };
+const OP: [RegExp, ScoreCond["op"]][] = [[/^(?:over|more than|above)$/, ">"], [/^at least$/, ">="], [/^(?:under|less than|below|fewer than)$/, "<"], [/^at most$/, "<="]];
+const COND_RE = /(?:^| )(?:(?:where|with|in which|when|that|and) )?(?:the )?(losing|losers|winning|winners|both|each|either|one) (?:of the )?(?:alliances?|sides?)(?: each)? (?:scored|scores|score|had|got|put up|reached|hit|with) (over|more than|above|at least|under|less than|below|fewer than|at most) (\d{1,4})(?: points?| pts)?(?= |$)/;
+export function scoreCondOf(q: string): { cond: ScoreCond; rest: string; said: string } | null {
+  const m = COND_RE.exec(q);
+  if (!m) return null;
+  const op = OP.find(([re]) => re.test(m[2]))![1];
+  return { cond: { side: SIDE[m[1]], op, n: Number(m[3]) }, rest: `${q.slice(0, m.index)} ${q.slice(m.index + m[0].length)}`.replace(/\s+/g, " ").trim(), said: m[0].trim() };
+}
+
+/** A match that "went to a tiebreak, or overtime" ended level: said as "tied". Only after a verb saying how it ended, so
+ *  a team named Overtime is still that team anywhere else; never "going to", which asks about a match still to come. */
+const LEVEL = "(?:a |an )?(?:tiebreak|tiebreaker|tie break|tie breaker|overtime|sudden death|tie)s?";
+const LEVEL_SRC = `\\b(?:went|go|goes|gone|ended|end|ends|came down|come down|decided) (?:to|in|by) ${LEVEL}(?: or ${LEVEL})?(?= |$)`;
+const LEVEL_END = new RegExp(LEVEL_SRC, "g");
+export const endedLevel = (q: string) => q.replace(LEVEL_END, "tied");
+/** The same, on the words as typed (any case, "tie-break"), so the typed words stay in step with the read ones: a
+ *  state's capitals ("IN") are found again after it. */
+const LEVEL_END_TYPED = new RegExp(LEVEL_SRC.replace(/ /g, "[\\s-]+"), "gi");
+
 /** Parses `raw`. */
-export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed> {  const q0 = normalise(raw);
+export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed> {
+  // How a match ended, said as "tied" first; then a score an alliance had to reach is read off: its number is never a
+  // team, nor a floor in points.
+  const nq = endedLevel(normalise(raw));
+  const cond = scoreCondOf(nq);
+  const q0 = cond ? cond.rest : nq;
   const fl = FLOOR.exec(q0);
   const q = fl ? `${q0.slice(0, fl.index)} ${q0.slice(fl.index + fl[0].length)}`.replace(/\s+/g, " ").trim() : q0;
-  const typedWords = raw.replace(/[?!,;:()"]/g, " ").split(/\s+/).filter(Boolean);
+  const typedWords = raw.replace(/[?!,;:()"]/g, " ").replace(LEVEL_END_TYPED, "tied").split(/\s+/).filter(Boolean);
   const read = queryTime(q, ctx.names, ctx.today);
   const { time, unread, rest } = read;
   // Each word with its own spelling as typed, matched in order ("in IN": the second is the state code).
@@ -228,10 +263,12 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     if (k >= 0) at = k + 1;
     return { w, typed: k >= 0 ? typedWords[k] : w, at: k >= 0 ? k : at, used: false };
   });
-  const symbols = new Set<string>();
+  const symbols = new Set<string>(cond ? ["cond"] : []);
+  let rate = false;
   const p: Parsed = {
     q: raw, teams: [], event: null, place: null, time, level: null, finals: false, eventKind: null, alliance: null, worlds: false, states: false, award: null, agg: null,
     n: null, matchNumber: null, noPenalties: false, symbols: [], intent: null, rule: null, leftover: [], unexplained: [], complete: false,
+    ...(cond ? { scoreCond: cond.cond } : {}),
     ...(fl ? { over: { n: Number(fl[2]), atLeast: fl[1] === "at least" } } : {}),
   };
   // Where the place read starts, in the parser's words: a place typed right after a shared name picks the team.
@@ -387,6 +424,8 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       else if (s.k === "undefeated") p.undefeated = true;
       else if (s.k === "agg" && !p.agg) p.agg = s.v;
       else if (s.k === "vs" && p.vsAt == null) p.vsAt = i;
+      // "Per match", "each game": a rate said, never "a match".
+      else if (s.k === "per" && s.v === "match" && e.words[0] !== "a") rate = true;
       else if (s.k === "swap" && p.swapAt == null) p.swapAt = i;
       const k = symKey(s);
       if (k && s.k !== "award") symbols.add(k);
@@ -578,7 +617,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   if (unread) p.leftover.unshift(unread);
   if (p.teams.some((t) => t.candidates && !t.rule)) p.leftover.push(...p.teams.filter((t) => t.candidates && !t.rule).map((t) => t.typed));
   p.symbols = [...symbols];
-  const pick = pickIntent(symbols, p.teams.length, { event: !!p.event, n: p.n != null, matchNo: p.matchNumber != null });
+  const pick = pickIntent(symbols, p.teams.length, { event: !!p.event, n: p.n != null, matchNo: p.matchNumber != null, rate });
   if (pick) { p.intent = pick.rule.id; p.rule = pick.rule; p.unexplained = pick.unexplained; }
   // "Without penalties" is a slot only the rules that list it take (the season's best matches); anywhere else the
   // parse is left incomplete rather than answered with penalties in.

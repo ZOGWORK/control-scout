@@ -10,7 +10,7 @@ import { parseContext } from "./query/context";
 
 const S = 2025;
 const ask = (q: string) => searchAnswer(q, { limit: 25, full: true, learn: false });
-const TEAMS: [number, string][] = [[24325, "UK 488 - The King's School- Barrel Botz"], [21536, "Team Stealth"], [16309, "Stealth Panther Robotics FTC"], [5000, "Rivals"], [5001, "Others"], [5002, "QUEEN'S GAMBIT"]];
+const TEAMS: [number, string][] = [[24325, "UK 488 - The King's School- Barrel Botz"], [21536, "Team Stealth"], [16309, "Stealth Panther Robotics FTC"], [5000, "Rivals"], [5001, "Others"], [5002, "QUEEN'S GAMBIT"], [5003, "ULTIMA TEAM"], [5004, "DURT (DeSmet Ultimate Robotics Team)"], [5005, "ULTIMATE DRIVE"]];
 
 beforeAll(async () => {
   const c = openDb(":memory:");
@@ -67,5 +67,11 @@ describe("a team's name typed whole, punctuation and all", () => {
     // A team named without it is still read as itself.
     const own = await ask("stealth panther robotics ftc record");
     expect(own.stat?.team?.number ?? Number(own.hits[0]?.ref), JSON.stringify(own.understood)).toBe(16309);
+  });
+  it("a name ending in a word questions drop (\"ULTIMA TEAM\") keeps it with a slip, never a longer name its first word starts", async () => {
+    const a = await ask("ultma team record");
+    expect(a.stat?.team?.number ?? Number(a.hits[0]?.ref), JSON.stringify(a.understood)).toBe(5003);
+    expect(a.didYouMean).toBe("ultima team record");
+    expect((await ask("ultima team record")).didYouMean).toBeUndefined();
   });
 });
