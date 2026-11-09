@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## NEXT — 2026-11-09
+## NEXT — 2026-11-08
 
 Search's videos play only what the answer is about, and every video shows a picture: when the headline match has no video, the card no longer plays an unrelated match from another event, and a recording is no longer a blank black box.
 
@@ -27,6 +27,30 @@ Search's videos play only what the answer is about, and every video shows a pict
 ### Search
 - **Videos about the answer.** When an answer's headline match has no clip, the match that stands in is one of its standout matches (highlights) or a match at the headline's own event (a video page), never the first clip in the "Every match" grid (which lists every match, from any event); else the headline event's recording, or no player. (#1224)
 - **Pictures on recordings.** A match's second in the event's recording, and the recording itself, show the video's picture with what it is over it ("In the event's recording, from 4:26:23", "The event's whole recording"), instead of a black box. (#1224)
+
+## 4.5.9 — 2026-11-09
+
+Two events side by side read a state's code as that state's championship.
+
+### Highlights
+- [fixes] "<event> vs NJ Championship" compares New Jersey's championship
+- [fixes] An old division with the state's code in its name is no longer picked
+- [fixes] A state code reads as its latest played championship
+
+### Search
+- **Events side by side, a state's code.** Each side is tried with a state's two-letter code spelled out first ("NJ Championship" is the New Jersey Championship, its latest played season), then as typed, so an old division whose name carries the code inside an event code is never the state's championship. (#1220)
+
+## 4.5.8 — 2026-11-09
+
+Teams named can be ranked by one stat: "rank these teams by reliability: 4215, 7149, 23268".
+
+### Highlights
+- [fixes] "Rank these teams by reliability: …" ranks the teams named
+- [fixes] Works with any board stat: OPR, phases, rating, win rate
+- [fixes] A named team too new to rank is listed as not ranked
+
+### Search
+- **Teams named, ranked.** "Rank, sort or order these teams by <stat>: A, B, C" and "A, B and C ranked by <stat>" give a leaderboard of those teams only, ranked among themselves; a named team with too few matches is said as not ranked. (#1104)
 
 ## 4.5.7 — 2026-11-09
 
