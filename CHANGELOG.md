@@ -25,7 +25,7 @@ A team's "predicted matches" shows the engine's call on its next match, as "next
 - [fixes] No more "can't answer that yet" for a team's predicted matches
 
 ### Search
-- **Predicted matches.** "<team> predicted matches" reads as the team's next match prediction: each alliance's expected score and win chance once the schedule is posted, or plainly that no upcoming match is on one. (#N)
+- **Predicted matches.** "<team> predicted matches" reads as the team's next match prediction: each alliance's expected score and win chance once the schedule is posted, or plainly that no upcoming match is on one. (#1234)
 
 ## 4.6.9 — 2026-11-09
 
