@@ -17,7 +17,7 @@ import { searchSeason } from "../answers/season.js";
 import { BOARD_STATS } from "../answers/families/leaderboard.js";
 import type { TopMatchesQuestion } from "../answers/families/topMatches.js";
 import { defaultSteps, isEmpty, relaxed, windowSteps } from "./relax.js";
-import { eventsNamed, heldInYear, highlightsAnswer, latestPlayed, scopeEvents, type HighlightFind } from "./highlights.js";
+import { eventsNamed, heldInYear, highlightsAnswer, latestPlayed, recentWindow, scopeEvents, type HighlightFind } from "./highlights.js";
 import { teamHighlights, type TeamHighlightScope } from "../answers/highlights.js";
 import { shortEvent } from "../answers/matchSet.js";
 import { CHAMPIONSHIP_TYPE, OFFICIAL_TYPES, STATES_TYPE } from "../answers/clauses.js";
@@ -559,6 +559,8 @@ const STATES_KIND = { types: ["Championship"], label: "State championships" };
 async function highlights(p: Parsed, scope: ReadScope, opts: PipelineOptions): Promise<SearchAnswer | null> {
   // A count of none ("top 0 highlights") lists nothing to show.
   if (!opts.full || p.alliance || scope.ever || p.place?.kind === "city" || (p.n != null && p.n < 1)) return null;
+  // "Recent highlights": a scope's latest week of play, when no team, event or time says which matches already.
+  const recent = p.symbols.includes("agg:last") && !(p.teams.length || p.event || p.worlds || p.states || p.time);
   const answer = (stat: StatAnswer, season: number, hits: SearchAnswer["hits"] = []): SearchAnswer => ({
     q: p.q, hits, pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season }, stat,
     intent: { kind: `stat-${stat.intent}`, pattern: `${p.teams.length ? "[team] " : ""}highlights${p.event ? " [event]" : p.worlds ? " [worlds]" : p.states ? " [states]" : ""}${p.place ? " [place]" : ""}${scope.window ? " [window]" : ""}`, met: true, understood: [] },
@@ -629,6 +631,13 @@ async function highlights(p: Parsed, scope: ReadScope, opts: PipelineOptions): P
       ...(p.finals ? ["Finals"] : p.level === "qual" ? ["Qualification matches"] : p.level === "playoff" ? ["Playoff matches"] : []), ...(kind && !evs ? [kind.label] : [])],
   };
   const card = async (season: number, g: HighlightFind = f) => answer(await highlightsAnswer({ ...g, season }), season);
+  if (recent) {
+    const r = await recentWindow(f);
+    if (!r) return card(f.season);
+    const stat = await highlightsAnswer({ ...f, season: r.season, window: r.window, chips: [...f.chips, dateRange(r.window.from, r.window.to)] });
+    const a = answer({ ...stat, title: `Recent ${stat.title.replace(/^./, (c) => c.toLowerCase())}` }, r.season);
+    return { ...a, intent: { ...a.intent!, pattern: `${a.intent!.pattern} [recent]` } };
+  }
   const a = await card(f.season);
   // A window said against today: its season, then the season before, with the window's chip gone.
   if (scope.window && scope.season != null && p.time?.year == null) {
