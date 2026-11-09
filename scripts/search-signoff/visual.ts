@@ -61,8 +61,10 @@ const audit = (page: Page, mobile: boolean) => page.evaluate((mobile) => {
   const dup = heads.find((h, i) => heads.some((g, j) => j !== i && core(g).length > 12 && (core(g) === core(h) || (j < i && core(h).startsWith(core(g))))));
   if (dup) issues.push(`duplicate header "${dup.slice(0, 60)}"`);
   // A card over every season, or a span of them ("2007–08 to 2025–26", "2025–26 or 2026–27"), is no one season's: a
-  // season picker on it would offer to narrow what was never one season.
+  // season picker on it would offer to narrow what was never one season. A team's card is the exception, as the card
+  // itself makes it (OneCard): "4215 opr change from 2024-25 to 2025-26" keeps its picker.
   for (const f of frames) {
+    if (f.querySelector("[data-answer-team], [data-answer-teams]")) continue;
     const said = `${f.querySelector("[data-answer-title]")?.textContent ?? ""} ${f.querySelector("[data-scope]")?.textContent ?? ""}`;
     const seasons = new Set([...said.matchAll(/\b(20\d\d)[–-]\d\d\b/g)].map((m) => m[1]));
     const picker = [...f.querySelectorAll("[data-season-picker]")].some(vis);
