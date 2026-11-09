@@ -110,6 +110,7 @@ describe("apiReader", () => {
   it("is an error when YouTube can't be read", async () => {
     const down = (async () => new Response("", { status: 500 })) as unknown as typeof fetch;
     expect(await apiReader("k", down)(channelRef(CH)!, 0)).toBe("error");
+    expect(await apiReader("k", down)(channelRef("https://www.youtube.com/c/FUNRobotics")!, 0)).toBe("error"); // a /c/ page that failed: not an empty channel
   });
 });
 
@@ -185,6 +186,14 @@ describe("resolveChannelStreams and the event's recording", () => {
     list = [{ videoId: SAT, start: "2026-06-27T16:50:00Z" }];
     await run("UPDATE event_stream_links SET checked_at = '2026-01-01T00:00:00Z', read_at = NULL WHERE code = 'MTI'");
     await resolve(NOW + 240_000);
+  });
+
+  it("a changed link whose first read fails is no look at the new link: it's tried again", async () => {
+    await run("UPDATE events SET livestream = 'https://youtube.com/@moved' WHERE code = 'MTI'");
+    list = "error";
+    await resolve(NOW + 300_000);
+    expect(await all("SELECT url, read_at FROM event_stream_links WHERE code = 'MTI'")).toMatchObject([{ url: "https://youtube.com/@moved", read_at: null }]);
+    await run("UPDATE events SET livestream = ? WHERE code = 'MTI'", [CH]);
   });
 
   it("keeps what was found when a later read fails or finds nothing, and drops it when the link changes", async () => {

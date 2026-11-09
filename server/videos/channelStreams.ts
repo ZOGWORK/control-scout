@@ -67,7 +67,9 @@ export function apiReader(key: string, fetchImpl: typeof fetch = fetch): Channel
       // A custom (/c/) name has no lookup in the API: its page is read for the channel's id.
       if (!id && c.kind === "custom") {
         const res = await fetchImpl(`https://www.youtube.com/c/${encodeURIComponent(c.value)}`, { headers: PAGE_HEADERS, signal: timeout() });
-        id = res.ok ? /"channelId":"(UC[\w-]{22})"/.exec(await res.text())?.[1] ?? null : null;
+        // No such page: no channel. Any other failure: tried again, never an empty channel.
+        if (!res.ok) return res.status === 404 ? [] : "error";
+        id = /"channelId":"(UC[\w-]{22})"/.exec(await res.text())?.[1] ?? null;
       }
       if (!id || !/^UC[\w-]{22}$/.test(id)) return [];
       const ids: string[] = [];
@@ -188,7 +190,7 @@ export async function resolveChannelStreams(log: (s: string) => void, opts: { ma
       const note = (videoId: string | null, answered: boolean) => ({
         sql: `INSERT INTO event_stream_links (season, code, url, video_id, checked_at, read_at) VALUES (?, ?, ?, ?, ?, ?)
               ON CONFLICT(season, code) DO UPDATE SET url = excluded.url, video_id = excluded.video_id, checked_at = excluded.checked_at,
-                read_at = CASE WHEN ? THEN excluded.read_at ELSE event_stream_links.read_at END`,
+                read_at = CASE WHEN ? THEN excluded.read_at WHEN event_stream_links.url != excluded.url THEN NULL ELSE event_stream_links.read_at END`,
         args: [r.season, r.code, r.livestream, videoId, at, answered ? at : null, answered ? 1 : 0],
       });
       if (got === "error") { await writeBatch([note(sameLink ? r.video_id : null, false)]); continue; }
