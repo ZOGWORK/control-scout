@@ -32,9 +32,12 @@ const TIER: Record<ConfidenceTier, { label: string; cls: string; icon: typeof Ga
   confident: { label: TIER_WORD.confident, cls: "border-success/40 bg-success/10 text-success", icon: ShieldCheck, blurb: "Every robot has a real sample this season." },
 };
 
-export function ConfidenceBadge({ tier, reason, className }: { tier: ConfidenceTier; reason?: string; className?: string }) {
+/** `quiet`: the tier as a small muted word (no box, no icon), for a page that keeps its words to a minimum. */
+export function ConfidenceBadge({ tier, reason, className, quiet }: { tier: ConfidenceTier; reason?: string; className?: string; quiet?: boolean }) {
   const t = TIER[tier];
-  const badge = (
+  const badge = quiet ? (
+    <span className={cn("whitespace-nowrap text-[11px] text-text-muted underline decoration-dotted underline-offset-2", className)}><span className="sr-only">Confidence: </span>{t.label.toLowerCase()}</span>
+  ) : (
     <span className={cn("inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium leading-none whitespace-nowrap [&_svg]:size-3", t.cls, className)}>
       <t.icon aria-hidden /> <span className="sr-only">Confidence: </span>{t.label}
     </span>

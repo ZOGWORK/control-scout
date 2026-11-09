@@ -5,7 +5,10 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import type { MatchDetail } from "../shared/api";
-import { Breakdown, Headline, RpChip, breakdownRows, groupRows, rowLead } from "./MatchDetails";
+import { BonusRows, Breakdown, Headline, breakdownRows, groupRows, rowLead } from "./MatchDetails";
+import { MemoryRouter } from "react-router-dom";
+import { Tooltip as T } from "radix-ui";
+const TooltipProvider = T.Provider;
 import { Pollinator1Icon, Pollinator2Icon, SwarmIcon, rpIcon } from "./BreakdownIcons";
 
 const score = (total: number, np: number, auto: number, teleop: number, endgame: number, pen: number) => ({ total, np, auto, teleop, endgame, pen });
@@ -48,7 +51,7 @@ describe("match breakdown", () => {
 
   it("puts the score and the margin first, winner named, and says when penalties decided it", () => {
     const d = detail();
-    render(<Headline d={d} />);
+    render(<MemoryRouter><TooltipProvider><Headline d={d} /></TooltipProvider></MemoryRouter>);
     expect(screen.getByTestId("breakdown-margin").textContent).toBe("124 – 82Red by 42");
     expect(screen.getByTestId("match-line").textContent).toBe("Q8");
   });
@@ -91,33 +94,24 @@ describe("match breakdown", () => {
     expect(rowLead({ label: "Flower", red: null, blue: 12 })).toEqual({ side: null, text: "—" });
   });
 
-  it("shows each RP as earned or missed exactly as the data says, with a word and a mark", () => {
-    render(<ul><RpChip label="Swarm" earned /><RpChip label="Pollinator 1" earned={false} /></ul>);
-    const [earned, missed] = screen.getAllByRole("listitem");
-    expect(earned.dataset.earned).toBe("true");
-    expect(earned.textContent).toContain("Swarm RP earned");
-    expect(earned.textContent).toContain("✓");
-    expect(missed.dataset.earned).toBe("false");
-    expect(missed.textContent).toContain("Pollinator 1 RP missed");
-    expect(missed.textContent).toContain("✗");
-    expect(missed.textContent).not.toContain("✓");
+  it("shows each bonus RP once: icon as the label, its name and both sides (earned or missed) in the tip, no name on screen", () => {
+    const odds = { tier: "provisional", red: [0.67, 0.06, 0.01], blue: [0.69, 0.07, 0.01], rpRed: 2.3, rpBlue: 2.3 } as never;
+    render(<MemoryRouter><TooltipProvider><BonusRows season={2026} odds={odds} actual={{ labels: ["Swarm", "Pollinator 1", "Pollinator 2"], red: [true, false, false], blue: [false, false, false] } as never} /></TooltipProvider></MemoryRouter>);
+    const rows = screen.getByTestId("bonus-odds");
+    const buttons = within(rows).getAllByRole("button");
+    expect(buttons[0].getAttribute("aria-label")).toBe("Swarm: bonus ranking point. Red 67%, earned, Blue 69%, missed.");
+    expect(buttons[1].getAttribute("aria-label")).toBe("Pollinator 1: bonus ranking point. Red 6%, missed, Blue 7%, missed.");
+    expect(buttons[3].getAttribute("aria-label")).toMatch(/^Expected ranking points: Red 2.3, Blue 2.3\./);
+    // On screen: numbers and marks only, never the RP's name.
+    const visible = Array.from(rows.querySelectorAll("li")).map((li) => Array.from(li.querySelectorAll("span:not(.sr-only)")).map((x) => x.textContent).join(" ")).join(" | ");
+    expect(visible).not.toMatch(/Swarm|Pollinator/);
+    const swarm = rows.querySelector("[data-bonus='Swarm']")!.textContent;
+    expect(swarm).toContain("67%✓–69%");
+    expect(rows.querySelector("[style*='width']")).toBeNull();
   });
 
   it("gives BIOBUZZ's three bonus RPs three different icons", () => {
     expect([rpIcon("Swarm"), rpIcon("Pollinator 1"), rpIcon("Pollinator 2")]).toEqual([SwarmIcon, Pollinator1Icon, Pollinator2Icon]);
-  });
-});
-
-describe("bonus RP odds in the call card", () => {
-  it("prints each RP's chance for both sides and the expected RP as numbers, no bars", async () => {
-    const { BonusOddsRow } = await import("./BonusOdds");
-    const { MemoryRouter } = await import("react-router-dom");
-    render(<MemoryRouter><BonusOddsRow season={2026} bonus={{ tier: "provisional", red: [0.67, 0.06, 0.01], blue: [0.69, 0.07, 0.01], rpRed: 2.3, rpBlue: 2.3 } as never} actual={{ red: [false, false, false], blue: [false, false, false] }} /></MemoryRouter>);
-    const text = screen.getByTestId("bonus-odds").textContent!;
-    expect(text).toContain("SwarmRed 67% – Blue 69%");
-    expect(text).toContain("Pollinator 1Red 6% – Blue 7%");
-    expect(text).toContain("Expected RPRed 2.3 – Blue 2.3");
-    expect(screen.getByTestId("bonus-odds").querySelector("[style*='width']")).toBeNull();
   });
 });
 
@@ -136,5 +130,15 @@ describe("a robot's standing line", () => {
     render(<TeamLine ev={ev} se={{ opr: 12.04, rank: 1666 } as never} />);
     expect(screen.getByTestId("team-standing").textContent).toContain("#1,666");
     expect(visible()).toContain("season 12");
+  });
+});
+
+describe("the score table's column names", () => {
+  it("keep four grid cells, so Red, Difference and Blue sit over their values (and screen readers get them)", () => {
+    render(<Breakdown d={detail()} />);
+    const head = screen.getByText("Difference").parentElement!;
+    expect(head.getAttribute("aria-hidden")).toBeNull();
+    expect(Array.from(head.children).map((c) => c.textContent)).toEqual(["Phase", "Red", "Difference", "Blue"]);
+    expect(head.children[0].classList.contains("sr-only")).toBe(false);
   });
 });

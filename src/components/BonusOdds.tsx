@@ -2,7 +2,6 @@
 // each alliance earns it, mirrored red | label | blue like the score breakdown, and the ranking points
 // each side can expect from the match. Rule: shown with its confidence tier, never a flat 0% or 100%
 // (oddsPct), and once played the call sits beside what actually happened.
-import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Check, X } from "lucide-react";
 import type { BonusOddsView } from "../shared/api";
@@ -52,42 +51,6 @@ export function BonusOdds({ season, bonus, actual, className, compact }: {
         </p>
       )}
     </section>
-  );
-}
-
-const EXPECTED_RP_NOTE = "3 for a win and 1 for a tie, weighted by their chances (a tie is about 1% in an even match), plus each bonus chance, from each alliance's likely score this season. Qualification matches only.";
-
-/** The same odds as one compact row inside a card that already has its own frame (a match's call): each RP's
- *  chance per side as numbers (no bars), the expected RP, and the footnote as one small line. */
-export function BonusOddsRow({ season, bonus, actual, className }: {
-  season: number; bonus: BonusOddsView; actual?: { red: Flags; blue: Flags } | null; className?: string;
-}) {
-  const labels = bonusLabels(season);
-  if (!labels) return null;
-  const mark = (f: Flags, i: number) => (!f ? null : f[i]
-    ? <Check className="inline size-3 text-success" aria-label="earned" />
-    : <X className="inline size-3 text-text-muted" aria-label="missed" />);
-  const pair = (r: ReactNode, b: ReactNode) => (
-    // The colour names the side on screen; the hidden words name it for a screen reader.
-    <span className="whitespace-nowrap tabular-nums"><span className="font-semibold text-red-alliance"><span className="sr-only">Red </span>{r}</span><span className="text-text-muted"> – </span><span className="font-semibold text-blue-alliance"><span className="sr-only">Blue </span>{b}</span></span>
-  );
-  return (
-    <div aria-label="Bonus ranking point odds" className={className} data-testid="bonus-odds">
-      <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-        <span className="text-text-muted">Bonus ranking points</span>
-        <TierMark tier={bonus.tier} chip />
-      </p>
-      <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-        {labels.map((label, i) => (
-          <li key={label} className="flex items-center gap-1.5">
-            <span className="text-text-muted">{label}</span>
-            {mark(actual?.red, i)}{pair(oddsPct(bonus.red[i]), oddsPct(bonus.blue[i]))}{mark(actual?.blue, i)}
-          </li>
-        ))}
-        <li className="flex items-center gap-1.5"><span className="text-text-muted">Expected RP</span>{pair(bonus.rpRed.toFixed(1), bonus.rpBlue.toFixed(1))}
-          <Link to="/methodology#bonus" title={EXPECTED_RP_NOTE} className="text-xs text-text-muted underline underline-offset-2">How</Link></li>
-      </ul>
-    </div>
   );
 }
 

@@ -53,7 +53,8 @@ const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month
  * `refreshKey`: changes whenever the event's (or match's) results may have moved — a live check, a refresh, a new
  * score or schedule on screen — and the timeline asks again in place (the last answer stays up meanwhile).
  */
-export function ResultChanges({ season, code, matchKey, refreshKey }: { season: number; code: string; matchKey?: string; refreshKey?: string }) {
+/** `bare`: one match on a page with no panels: no box, a small muted heading. */
+export function ResultChanges({ season, code, matchKey, refreshKey, bare }: { season: number; code: string; matchKey?: string; refreshKey?: string; bare?: boolean }) {
   const base = `/api/events/${season}/${encodeURIComponent(code)}`;
   const state = useApi<ResultChangesView>(matchKey ? `${base}/matches/${matchKey}/result-changes` : `${base}/result-changes`, isView);
   const seenKey = useRef(refreshKey);
@@ -66,8 +67,8 @@ export function ResultChanges({ season, code, matchKey, refreshKey }: { season: 
   const headingId = useId();
   const one = !!matchKey;
   return (
-    <section aria-labelledby={headingId} className={cn(one ? "rounded-xl border border-border bg-card p-4" : "mt-10 max-sm:mt-6")}>
-      <h2 id={headingId} className={cn("flex items-center gap-2 font-display font-semibold text-foreground", one ? "text-sm" : "text-lg")}>
+    <section aria-labelledby={headingId} className={cn(one ? (bare ? "" : "rounded-xl border border-border bg-card p-4") : "mt-10 max-sm:mt-6")}>
+      <h2 id={headingId} className={cn("flex items-center gap-2", bare ? "text-xs font-normal text-text-muted" : cn("font-display font-semibold text-foreground", one ? "text-sm" : "text-lg"))}>
         <History className="size-4 text-text-muted" aria-hidden /> Result changes
       </h2>
       <Async state={state} loading={<div className="skeleton mt-3 h-16 rounded-xl" />}>
