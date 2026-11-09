@@ -25,7 +25,7 @@ The Home globe drops its small print.
 - [appearance] Globe still turns by drag, arrow keys and pause
 
 ### Home
-- **Globe note removed.** The small paragraph under the globe and atlas (where the country totals come from, what a listing means, how to turn the globe) is gone, so the panel goes straight from the selected country to the full country list. The globe still turns by drag, by arrow keys once focused, and stops with the pause button; screen readers still hear "Arrow keys turn it" in the globe's own label.
+- **Globe note removed.** The small paragraph under the globe and atlas (where the country totals come from, what a listing means, how to turn the globe) is gone, so the panel goes straight from the selected country to the full country list. The globe still turns by drag, by arrow keys once focused, and stops with the pause button; screen readers still hear "Arrow keys turn it" in the globe’s own label. (#1231)
 
 ## 4.6.4 — 2026-11-09
 
