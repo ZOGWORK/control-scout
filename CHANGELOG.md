@@ -25,10 +25,10 @@ A small Report a bug button sits at the top right of every page, with the clock,
 - [appearance] The clock, weather and bell sit right at the top bar's edge
 
 ### Bug reports
-- **Report a bug.** A small button at the far right of the top bar (an icon on phones) opens a dialog, a bottom sheet on phones: pick what kind of problem, describe it, and attach screenshots by pasting them (Ctrl+V or ⌘V), dropping them or choosing them, plus one video under 5 MB. Each attachment shows as a thumbnail you can remove. Your email is optional and filled in when you're signed in. The page, version, screen, browser and theme are listed in the dialog before you send. No account needed. (#PR)
+- **Report a bug.** A small button at the far right of the top bar (an icon on phones) opens a dialog, a bottom sheet on phones: pick what kind of problem, describe it, and attach screenshots by pasting them (Ctrl+V or ⌘V), dropping them or choosing them, plus one video under 5 MB. Each attachment shows as a thumbnail you can remove. Your email is optional and filled in when you're signed in. The page, version, screen, browser and theme are listed in the dialog before you send. No account needed. (#1243)
 
 ### Top bar
-- **Pushed right.** The connection status, clock and weather, the new button and the bell sit together against the top bar's right edge. (#PR)
+- **Pushed right.** The connection status, clock and weather, the new button and the bell sit together against the top bar's right edge. (#1243)
 
 ## 4.8.0 — 2026-11-09
 
