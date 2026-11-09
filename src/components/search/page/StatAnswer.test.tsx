@@ -160,8 +160,18 @@ describe("StatAnswerCard, a team's OPR", () => {
     expect([...tip.children].map((x) => x.textContent)).toEqual(["East Bergen Conference Northern League Tournament", "84.4"]);
     expect(tip.className).toMatch(/group-hover:block.*group-focus-visible:block/);
     expect(point.getAttribute("title")).toBeNull();
-    // The first point's tip stays inside the chart, at its left edge.
+    // A tip opens toward the chart's wider side, at most 48% of the chart wide: never past an edge, wherever the point.
     expect(tip.className).toContain("left-0");
+    expect(tip.className).toContain("max-w-[min(16rem,48cqw)]");
+    const tips = [...series.querySelectorAll(".relative a [data-point-tip], .relative [role=img].flex [data-point-tip]")];
+    expect(tips.at(-1)!.className).toContain("right-0");
+    // A point with no link can be focused too, and the one hovered or focused sits above the rest.
+    const plain = series.querySelector(".relative [role=img].flex") as HTMLElement;
+    expect(plain.tabIndex).toBe(0);
+    plain.focus();
+    expect(document.activeElement).toBe(plain);
+    expect(plain.className).toMatch(/hover:z-20.*focus-visible:z-20/);
+    expect(point.className).toMatch(/hover:z-20.*focus-visible:z-20/);
   });
 });
 

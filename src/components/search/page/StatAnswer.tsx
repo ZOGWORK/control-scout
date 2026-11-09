@@ -476,7 +476,8 @@ function Series({ b }: { b: Extract<StatBlock, { kind: "series" }> }) {
   return (
     <figure data-block="series">
       <figcaption className={H3}>{b.title}</figcaption>
-      <div className="relative h-32 rounded-lg border border-border bg-muted/20">
+      {/* A size container: a point's label is at most half the chart wide (cqw), so it always fits on its side. */}
+      <div className="relative h-32 rounded-lg border border-border bg-muted/20" style={{ containerType: "inline-size" }}>
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 size-full" aria-hidden>
           {pts.length > 1 && <polyline points={pts.map((p) => `${x(p.i)},${y(p.y)}`).join(" ")} fill="none" className="stroke-team-a" strokeWidth="3" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />}
         </svg>
@@ -488,21 +489,22 @@ function Series({ b }: { b: Extract<StatBlock, { kind: "series" }> }) {
           const value = `${p.y}${b.unit ? ` ${b.unit}` : ""}${p.note ? ` · ${p.note}` : ""}`;
           const label = `${p.x}: ${value}`;
           // What the point is, shown at once on hover or keyboard focus (a browser's own title tip is slow and easy to
-          // miss): the match, then its value. Kept inside the chart at its two ends.
-          const at = x(p.i);
+          // miss): the match, then its value. It opens toward the chart's wider side from the point, at most 48% of
+          // the chart wide, so it never runs past either edge.
           const tip = (
-            <span role="tooltip" data-point-tip className={cn("pointer-events-none absolute bottom-full z-10 mb-1.5 hidden w-max max-w-[16rem] rounded-md border border-border bg-popover px-2 py-1 text-left text-xs leading-snug text-popover-foreground shadow-md group-hover:block group-focus-visible:block",
-              at < 20 ? "left-0" : at > 80 ? "right-0" : "left-1/2 -translate-x-1/2")}>
+            <span role="tooltip" data-point-tip className={cn("pointer-events-none absolute bottom-full z-10 mb-1.5 hidden w-max max-w-[min(16rem,48cqw)] rounded-md border border-border bg-popover px-2 py-1 text-left text-xs leading-snug text-popover-foreground shadow-md group-hover:block group-focus-visible:block",
+              x(p.i) < 50 ? "left-0" : "right-0")}>
               <span className="block font-medium">{p.x}</span>
               <span className="block tabular-nums text-muted-foreground">{value}</span>
             </span>
           );
-          const mark = (cls: string) => <span key={`m${p.i}`} style={style} aria-label={label} role="img" className={cn("group absolute size-[24px] -translate-x-1/2 -translate-y-1/2 items-center justify-center", cls)}>{dot}{tip}</span>;
+          // The point hovered or focused sits above its neighbours, so no later dot covers its label.
+          const mark = (cls: string) => <span key={`m${p.i}`} style={style} aria-label={label} role="img" tabIndex={0} className={cn("group absolute size-[24px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full hover:z-20 focus-visible:z-20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60", cls)}>{dot}{tip}</span>;
           // A point is a link for a mouse only. On a phone or touch screen neighbouring points can sit closer than a
           // finger (44px), so a tap could open the wrong match: there the list below, a full row per point, is the way in.
           return p.href
             ? <Fragment key={p.i}>
-                <Link to={p.href} style={style} aria-label={label} className="group absolute flex size-[24px] -translate-x-1/2 -translate-y-1/2 items-center justify-center hover:[&>span:first-child]:bg-accent max-md:hidden pointer-coarse:hidden">{dot}{tip}</Link>
+                <Link to={p.href} style={style} aria-label={label} className="group absolute flex size-[24px] -translate-x-1/2 -translate-y-1/2 items-center justify-center hover:z-20 focus-visible:z-20 hover:[&>span:first-child]:bg-accent max-md:hidden pointer-coarse:hidden">{dot}{tip}</Link>
                 {mark("hidden max-md:flex pointer-coarse:flex")}
               </Fragment>
             : mark("flex");
