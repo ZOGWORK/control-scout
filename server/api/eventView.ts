@@ -10,9 +10,9 @@ import { eventRecording, recordingStream, withClips } from "../videos/recordings
  *  and each played match's place in it, for every route that answers with one (the page and "Refresh results" alike,
  *  or a refresh would take the Watch section away). Both ride along outside the cached detail (they change without a
  *  data version); the shared objects are never changed. */
-export async function withStream<T extends { event: { season: number; code: string }; matches: MatchView[] }>(d: T): Promise<T> {
+export async function withStream<T extends { event: { season: number; code: string; timezone?: string | null }; matches: MatchView[] }>(d: T): Promise<T> {
   const rec = await eventRecording(d.event.season, d.event.code).catch(() => null);
-  return rec ? { ...d, event: { ...d.event, stream: recordingStream(rec) }, matches: withClips(d.matches, rec) } : d;
+  return rec ? { ...d, event: { ...d.event, stream: recordingStream(rec, d.event.timezone) }, matches: withClips(d.matches, rec) } : d;
 }
 
 /** The event page's answer (null: no such event): the cached detail, its recording, and the bracket and schedule gates. */

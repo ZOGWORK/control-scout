@@ -17,10 +17,11 @@ import { env } from "../env.js";
 import { fetchFromApi, fetchWatchPage, type WatchPageFacts } from "./youtube.js";
 
 export interface VideoMeta extends WatchPageFacts { videoId: string; checkedAt: string }
-export interface Recording { videoId: string; source: "owner" | "first"; meta: VideoMeta | null }
+/** An event's recording: its video, and, for an event broadcast a day at a time (event_broadcasts), the other days' videos in order. */
+export interface Recording { videoId: string; source: "owner" | "first"; meta: VideoMeta | null; more?: { videoId: string; meta: VideoMeta | null }[] }
 
 const TTL_MS = 60_000;
-type SeasonData = { first: Map<string, string>; official: Set<string>; meta: Map<string, VideoMeta> };
+type SeasonData = { first: Map<string, string>; more: Map<string, string[]>; official: Set<string>; meta: Map<string, VideoMeta> };
 let cache = new Map<number, { at: number; v: Promise<SeasonData>; ready?: boolean }>();
 registerCache("Event recordings", () => { cache = new Map(); });
 
@@ -55,7 +56,7 @@ function seasonData(season: number, now = Date.now()) {
   const hit = cache.get(season);
   if (hit && now - hit.at < TTL_MS) return hit.v;
   const v = (async () => {
-    const [links, short, official] = await Promise.all([
+    const [links, short, official, days] = await Promise.all([
       all<{ code: string; livestream: string }>("SELECT code, livestream FROM events WHERE season = ? AND livestream LIKE '%youtu%'", [season]),
       // Short links followed while their event was on, while FIRST still gives the same link.
       all<{ code: string; video_id: string }>(
@@ -63,18 +64,28 @@ function seasonData(season: number, now = Date.now()) {
          WHERE l.season = ? AND l.video_id IS NOT NULL AND e.livestream = l.url`, [season]),
       // Events with FIRST's own per-match videos (championship-level events, mostly).
       all<{ code: string }>("SELECT DISTINCT code FROM matches WHERE season = ? AND video IS NOT NULL AND video != ''", [season]),
+      // A channel's broadcasts on the event's dates (server/videos/channelStreams.ts), while FIRST still gives that channel.
+      all<{ code: string; video_id: string }>(
+        `SELECT b.code, b.video_id FROM event_broadcasts b JOIN events e ON e.season = b.season AND e.code = b.code
+         WHERE b.season = ? AND e.livestream = b.url ORDER BY b.code, b.start`, [season]),
     ]);
     const first = new Map<string, string>();
     for (const l of links) { const id = firstVideoId(l.livestream); if (id) first.set(String(l.code), id); }
     for (const l of short) first.set(String(l.code), String(l.video_id));
+    // The other days' broadcasts of an event whose first one is its video.
+    const more = new Map<string, string[]>();
+    for (const d of days) {
+      const code = String(d.code), id = String(d.video_id);
+      if (first.get(code) !== id) (more.get(code) ?? more.set(code, []).get(code)!).push(id);
+    }
     const owner = await seasonStreams(season).catch(() => new Map<string, EventStream>());
-    const ids = [...new Set([...first.values(), ...[...owner.values()].map((s) => s.videoId)])];
+    const ids = [...new Set([...first.values(), ...[...more.values()].flat(), ...[...owner.values()].map((s) => s.videoId)])];
     const meta = new Map<string, VideoMeta>();
     for (let i = 0; i < ids.length; i += 200) {
       const part = ids.slice(i, i + 200);
       for (const r of await all<any>(`SELECT ${META_COLUMNS} FROM video_meta WHERE video_id IN (${part.map(() => "?").join(",")})`, part)) meta.set(String(r.video_id), metaOf(r));
     }
-    return { first, official: new Set(official.map((o) => String(o.code))), meta };
+    return { first, more, official: new Set(official.map((o) => String(o.code))), meta };
   })();
   // A map read before keeps being given while its next read runs (search reads these on its answer path: a read
   // costs a season's matches); forgetRecordings drops it at once when the links change.
@@ -87,9 +98,13 @@ function seasonData(season: number, now = Date.now()) {
 
 /** Every event's recording in a season, by event code; a video YouTube says won't play is left out. */
 export async function seasonRecordings(season: number): Promise<Map<string, Recording>> {
-  const [{ first, meta }, owner] = await Promise.all([seasonData(season), seasonStreams(season).catch(() => new Map<string, EventStream>())]);
+  const [{ first, more, meta }, owner] = await Promise.all([seasonData(season), seasonStreams(season).catch(() => new Map<string, EventStream>())]);
   const out = new Map<string, Recording>();
-  for (const [code, videoId] of first) out.set(code, { videoId, source: "first", meta: meta.get(videoId) ?? null });
+  for (const [code, videoId] of first) {
+    // The other days, those YouTube still plays.
+    const days = (more.get(code) ?? []).map((id) => ({ videoId: id, meta: meta.get(id) ?? null })).filter((d) => d.meta?.status !== "unavailable");
+    out.set(code, { videoId, source: "first", meta: meta.get(videoId) ?? null, ...(days.length ? { more: days } : {}) });
+  }
   for (const [code, s] of owner) out.set(code, { videoId: s.videoId, source: "owner", meta: meta.get(s.videoId) ?? null });
   for (const [code, r] of out) if (r.meta?.status === "unavailable") out.delete(code);
   return out;
@@ -150,7 +165,18 @@ export async function eventRecording(season: number, code: string): Promise<Reco
   return (await seasonRecordings(season)).get(code) ?? null;
 }
 
-export const recordingStream = (r: Recording): EventStream => ({ videoId: r.videoId, streamUrl: embedUrl(r.videoId), ...(r.source === "first" ? { source: "first" as const } : {}) });
+export const recordingStream = (r: Recording, timezone?: string | null): EventStream => ({
+  videoId: r.videoId, streamUrl: embedUrl(r.videoId), ...(r.source === "first" ? { source: "first" as const } : {}),
+  // A day at a time: each day's video, named by its weekday at the venue (the broadcast's start).
+  ...(r.more?.length ? { days: [{ videoId: r.videoId, meta: r.meta }, ...r.more].map((d) => ({ videoId: d.videoId, label: dayLabel(d.meta?.start, timezone) })) } : {}),
+});
+
+/** A broadcast's weekday at the venue ("Saturday"); "Day" when its start isn't known. */
+function dayLabel(start: string | null | undefined, timezone: string | null | undefined): string {
+  const t = start ? Date.parse(start) : NaN;
+  if (!Number.isFinite(t)) return "Day";
+  try { return new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: timezone ?? "UTC" }).format(t); } catch { return new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: "UTC" }).format(t); }
+}
 
 export interface MatchSpan { firstMatch: string | null; lastMatch: string | null }
 export interface MatchStart { label: string; startsAt: string | null | undefined }
@@ -190,16 +216,34 @@ export async function eventMatchSpan(season: number, code: string): Promise<Even
  * played matches (timingTrusted, chaptersConfirm), read from `matches` when they're the whole event.
  */
 export function withClips<M extends Pick<MatchView, "label" | "time" | "startsAt" | "played" | "clip">>(matches: M[], r: Recording | null, now = Date.now(), span?: EventSpan): M[] {
-  const meta = r?.meta;
-  if (!r || !meta || meta.status !== "ok") return matches;
-  const m = withConfirmed(meta, span ?? eventSpan(matches.filter((x) => x.played && actualStart(x.time)).map((x) => ({ label: x.label, startsAt: x.startsAt }))));
-  const slack = gapSlack(m);
-  if (slack == null) return matches;
+  if (!r) return matches;
+  const whole = span ?? eventSpan(matches.filter((x) => x.played && actualStart(x.time)).map((x) => ({ label: x.label, startsAt: x.startsAt })));
+  // Each video with its timing, judged on the matches it holds: the event's all for one video, a day's for a day's video.
+  const videos = [{ videoId: r.videoId, meta: r.meta }, ...(r.more ?? [])].flatMap((v) => {
+    const meta = v.meta;
+    if (!meta || meta.status !== "ok") return [];
+    const timing = withConfirmed(meta, r.more?.length ? eventSpan(whole.starts.filter((s) => within(s.startsAt, meta, now))) : whole);
+    const slack = gapSlack(timing);
+    return slack == null ? [] : [{ videoId: v.videoId, timing, slack }];
+  });
+  if (!videos.length) return matches;
   return matches.map((x) => {
     // Played matches with a real start only: an unplayed one's time, or a result posted without a start, is the schedule.
-    const t = x.played && actualStart(x.time) ? clipSecond(x.startsAt, m, now) : null;
-    return t == null ? x : { ...x, clip: { videoId: r.videoId, t, url: watchUrl(r.videoId, t), ...(slack ? { early: slack } : {}) } };
+    if (!x.played || !actualStart(x.time)) return x;
+    for (const v of videos) {
+      const t = clipSecond(x.startsAt, v.timing, now);
+      if (t != null) return { ...x, clip: { videoId: v.videoId, t, url: watchUrl(v.videoId, t), ...(v.slack ? { early: v.slack } : {}) } };
+    }
+    return x;
   });
+}
+
+/** Whether a match start falls inside a broadcast (from its start to its end, or to now while it's live). */
+function within(startsAt: string | null | undefined, m: VideoMeta, now: number): boolean {
+  const at = startsAt ? Date.parse(startsAt) : NaN, from = m.start ? Date.parse(m.start) : NaN;
+  if (!Number.isFinite(at) || !Number.isFinite(from) || at < from) return false;
+  const to = m.end ? Date.parse(m.end) : m.live ? now : m.length != null ? from + m.length * 1000 : Infinity;
+  return at <= to;
 }
 
 /** Store one video's facts and drop the season maps that read them. */
@@ -242,7 +286,7 @@ export async function backfillVideoMeta(log: (s: string) => void, opts: { max?: 
   const now = opts.now ?? Date.now;
   try {
     const links = await all<{ season: number; livestream: string }>("SELECT season, livestream FROM events WHERE livestream LIKE '%youtu%' ORDER BY season DESC, start DESC");
-    const owned = await all<{ video_id: string }>("SELECT video_id FROM event_streams UNION SELECT video_id FROM event_stream_links WHERE video_id IS NOT NULL");
+    const owned = await all<{ video_id: string }>("SELECT video_id FROM event_streams UNION SELECT video_id FROM event_stream_links WHERE video_id IS NOT NULL UNION SELECT video_id FROM event_broadcasts");
     const ids = [...new Set([...owned.map((o) => String(o.video_id)), ...links.map((l) => firstVideoId(l.livestream)).filter((x): x is string => !!x)])];
     const known = new Map<string, VideoMeta>();
     for (let i = 0; i < ids.length; i += 200) {
