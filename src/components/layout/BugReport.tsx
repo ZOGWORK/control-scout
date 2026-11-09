@@ -145,6 +145,9 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
   const [fileProblem, setFileProblem] = useState<string | null>(null);
   const [tried, setTried] = useState(false);
   const [status, setStatus] = useState<Status>("idle");
+  // While sending, the attachments are fixed: what's shown is what goes (paste, drop, pick and remove wait).
+  const sending = useRef(false);
+  sending.current = status === "sending";
   const [progress, setProgress] = useState("");
   const [failure, setFailure] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -159,7 +162,7 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
 
   // Worked out from the current list, outside any state updater (an updater may run twice: no URL or id made twice).
   const attach = useCallback((incoming: File[], fromPaste = false) => {
-    if (!incoming.length) return;
+    if (!incoming.length || sending.current) return;
     const cur = filesRef.current;
     const { add, problem } = addFiles(cur.map((a) => a.file), fromPaste ? incoming.map((f) => named(f, ++pasted.current)) : incoming);
     setFileProblem(problem);
@@ -169,6 +172,7 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
     setFiles(next);
   }, []);
   const remove = (id: number) => {
+    if (sending.current) return;
     const cur = filesRef.current;
     const gone = cur.find((a) => a.id === id);
     if (gone) URL.revokeObjectURL(gone.url);
@@ -296,8 +300,8 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
           <span className="text-sm font-medium text-foreground" id={ids.files}>Screenshots or a video <span className="font-normal text-text-muted">(optional)</span></span>
           <span className="text-xs tabular-nums text-text-muted">{shots}/{BUG_LIMITS.images} images · {videos}/{BUG_LIMITS.videos} video</span>
         </div>
-        <button type="button" onClick={() => pick.current?.click()} aria-describedby={ids.files}
-          className={cn("flex w-full flex-col items-center justify-center gap-1 rounded-xl border border-dashed px-3 py-4 text-center text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+        <button type="button" onClick={() => pick.current?.click()} aria-describedby={ids.files} disabled={status === "sending"}
+          className={cn("flex w-full flex-col items-center justify-center gap-1 rounded-xl border border-dashed px-3 py-4 disabled:opacity-50 text-center text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
             dragging ? "border-accent bg-accent-soft text-foreground" : "border-line text-text-muted hover:border-text-muted/50 hover:text-foreground")}
           data-testid="bug-attach">
           <span className="flex items-center gap-2 font-medium"><ImagePlus className="size-4" aria-hidden /> {phone ? "Add screenshots or a video" : "Paste, drop or choose files"}</span>
@@ -313,7 +317,7 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
                 {isVideoType(a.file.type)
                   ? <div className="flex h-16 w-24 flex-col items-center justify-center gap-0.5 text-text-muted"><Clapperboard className="size-5" aria-hidden /><span className="text-[10px] tabular-nums">{formatBytes(a.file.size)}</span></div>
                   : <img src={a.url} alt={a.file.name} className="h-16 w-24 object-cover" />}
-                <button type="button" onClick={() => remove(a.id)} aria-label={`Remove ${a.file.name}`}
+                <button type="button" onClick={() => remove(a.id)} aria-label={`Remove ${a.file.name}`} disabled={status === "sending"}
                   className="absolute right-1 top-1 flex size-6 items-center justify-center rounded-full bg-black/70 text-white outline-none hover:bg-black/90 focus-visible:ring-2 focus-visible:ring-ring/60 pointer-coarse:size-8">
                   <X className="size-3.5" aria-hidden />
                 </button>
