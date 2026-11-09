@@ -25,7 +25,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 - [fixes] The card says which team "the best team" was read as
 
 ### Search
-- **The best team's highlights.** "Best team highlights", "top team highlights": the highlights of the world's top-rated ranked team (the first on the prediction-rating board), the card naming it, as "the top NJ team" already reads a place's. "Best team" alone stays the board. (#N)
+- **The best team's highlights.** "Best team highlights", "top team highlights": the highlights of the world's top-rated ranked team (the first on the prediction-rating board), the card naming it, as "the top NJ team" already reads a place's. "Best team" alone stays the board. (#1235)
 
 ## 4.6.9 — 2026-11-09
 
