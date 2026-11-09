@@ -115,6 +115,10 @@ describe("match box", () => {
     expect(sides[0].querySelector("b.font-display")!.className).toContain("text-muted-foreground");
     expect(c.querySelector("[data-rank-badge]")!.className).toContain("bg-team-a");
   });
+  it("asked without penalties: only the scores without them, no score with penalties", () => {
+    const c = html(<ul><MatchBox r={{ ...m, noPenalties: true }} /></ul>);
+    expect(c.querySelector("[data-scoreboard]")!.textContent).not.toContain("with penalties");
+  });
   it("the listed score's phases as tiles filled in the palette's phase colours, red and blue only on the alliances", () => {
     const c = html(<ul><MatchBox r={m} /></ul>);
     const tiles = [...c.querySelectorAll("[data-phases] > div")];

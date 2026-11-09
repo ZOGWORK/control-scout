@@ -138,6 +138,19 @@ describe("a season's highest scores, by its game", () => {
     expect(top.opponents!.map((p) => p.label)).toEqual(["4215 Hypnotic Robotics", "25334 Best Robotics"]);
     expect(rows(s).find((r) => r.own === 210)).toMatchObject({ ownNp: 150 });
   });
+  it("the failed search: \"world record\" is the highest score, never Worlds, and penalties said left out stay out", async () => {
+    const a = await full("world record match decode without penalties");
+    expect(a.understood?.label).toBe("Highest match score in DECODE (2025–26) without penalties");
+    const s = a.stat as StatAnswer;
+    expect(s.headline).toMatchObject({ value: "190 points" });
+    // No score with penalties and no penalty points: only the scores without them.
+    expect(s.headline?.sub).not.toContain("with penalties");
+    expect(s.definition).not.toContain("with penalties beside it");
+    for (const r of rows(s)) {
+      expect(r.noPenalties).toBe(true);
+      expect(r.phases).not.toHaveProperty("pen");
+    }
+  });
   it("each season's best, by its game's name in any spelling", async () => {
     const cases: [string, string, number][] = [["highest score in decode", "DECODE 2025–26", 190], ["highest score in into the deep", "INTO THE DEEP 2024–25", 200], ["highest score in center stage", "CENTERSTAGE 2023–24", 180]];
     for (const [q, game, best] of cases) {
