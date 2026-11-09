@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## NEXT — 2026-11-09
+
+"Top rookie teams at NJ conference" lists New Jersey's best rookie teams: a place's conference or league with no name of its own is the place.
+
+### Highlights
+- [rankings] "Top rookie teams at NJ conference" answers
+- [rankings] A state's conference or league reads as the state
+- [rankings] A named conference is still that event
+
+### Search
+- **A place's conference.** "At <place> conference" or "at <place> league", with no name of its own, reads as the place's teams on the leaderboards, so "top rookie teams at NJ conference" is New Jersey's best rookie teams. A named one ("East Bergen Conference") is still that event. (#NEW)
+
 ## 4.5.3 — 2026-11-09
 
 An event page says where its team list comes from and when it was last read: FIRST's list, FTC New Jersey's provisional one before FIRST publishes, or that FIRST has published no teams yet.
