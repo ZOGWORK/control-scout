@@ -129,9 +129,9 @@ export async function readPlaceAwards(q: string): Promise<PlaceAwardsAsk | null>
     }
     if (!place || idx.teamsNamed(left).length) return null;
     // The most (or fewest) of an award with no place said is every team's ("most inspire awards"). One award's
-    // winners with no place or event are the latest events' ("inspire award winner"); "any", every award and
+    // winners with no place or event are the latest events' ("inspire award winner"); "any", two awards, every award and
     // Worlds (an event: its own awards answer) need a place.
-  } else if (mode !== "same-event" && !board && !(mode === "list" && types.length && !byM && !worlds)) return null;
+  } else if (mode !== "same-event" && !board && !(mode === "list" && types.length === 1 && !byM && !worlds)) return null;
   if (stage && (!place || byM)) return null;
   return { place, types, season, seasonSaid, worlds, mode, by: (byM?.[1] as keyof typeof BY) ?? null, ...(stage ? { stage } : {}) };
 }
@@ -190,7 +190,7 @@ export async function placeAwardsAnswer(ask: PlaceAwardsAsk): Promise<StatAnswer
   // The most awards of every kind counts each one, 2nd and 3rd place too, as the season awards board and a team's card do.
   const board = ask.mode === "most" || ask.mode === "fewest";
   // One award's winners with no place said: the latest events that gave it, newest first, in any season unless one was said.
-  const latest = ask.mode === "list" && !ask.place && !ask.worlds && ask.types.length > 0;
+  const latest = ask.mode === "list" && !ask.place && !ask.worlds && ask.types.length === 1;
   const won = ask.types.length || (ask.mode !== "list" && !board) ? ` AND ${WON_SQL}` : "";
   const typeSql = ask.types.length ? ` AND ${TYPE_SQL} IN (${ask.types.map(() => "?").join(", ")})` : "";
   // The season: the one said, else search's default (the latest completed one, ../season.ts), never another one
@@ -226,11 +226,12 @@ export async function placeAwardsAnswer(ask: PlaceAwardsAsk): Promise<StatAnswer
   const title = ask.types.length ? `${ask.place ? `${ask.place.name} ` : ""}${what} winners${at}` : `Awards won by ${whose}${at}`;
   const none = (s: string) => ({ ...base, title, blocks: [], definition: rule, none: s });
   const ev = (r: Row) => shortEvent(r.event, r.etype);
-  const table = (xs: Row[], heading: string, extra?: { key: string; label: string; value: (r: Row) => string | number | null }): StatBlock => ({
+  // `max` rows are shown; the latest winners' table (already bounded by its events) shows every one, never half an event.
+  const table = (xs: Row[], heading: string, extra?: { key: string; label: string; value: (r: Row) => string | number | null }, max = 50): StatBlock => ({
     kind: "table", title: heading,
     columns: [{ key: "team", label: "Team" }, { key: "award", label: "Award" }, { key: "event", label: "Event" }, ...(season == null ? [{ key: "season", label: "Season" }] : []), ...(extra ? [{ key: extra.key, label: extra.label, num: true }] : [])],
-    rows: xs.slice(0, 50).map((r) => ({ cells: { team: teamLabel(r), award: label(r), event: ev(r), season: seasonLabel(r.season), ...(extra ? { [extra.key]: extra.value(r) } : {}) }, href: eventHref(r.season, r.code, r.team), strong: r.type === "Winner" || (r.type === "Inspire" && r.placement === 1) })),
-    ...(xs.length > 50 ? { more: `Showing 50 of ${xs.length}` } : {}),
+    rows: xs.slice(0, max).map((r) => ({ cells: { team: teamLabel(r), award: label(r), event: ev(r), season: seasonLabel(r.season), ...(extra ? { [extra.key]: extra.value(r) } : {}) }, href: eventHref(r.season, r.code, r.team), strong: r.type === "Winner" || (r.type === "Inspire" && r.placement === 1) })),
+    ...(xs.length > max ? { more: `Showing ${max} of ${xs.length}` } : {}),
   });
 
   if (ask.mode === "same-event") {
@@ -253,7 +254,22 @@ export async function placeAwardsAnswer(ask: PlaceAwardsAsk): Promise<StatAnswer
     const ranked = counted.map((x) => ({ r: { team: Number(x.team), team_name: x.team_name, city: x.city, state: x.state } as Row, n: Number(x.n) }));
     const fewest = ask.mode === "fewest";
     const t2 = `${who} with the ${fewest ? "fewest" : "most"} ${whats}${at}, ${when}`;
-    if (!ranked.length) return { ...none(`No ${what} won by ${whose}${at} in ${when}.`), title: t2 };
+    // The board's bottom: most teams won none, so they're counted (the place's teams that played a stored match that
+    // season, or in any season, and won none), and the teams that won at least one are listed, fewest first.
+    const bottom = fewest
+      ? (await all<{ winners: number; zero: number }>(
+        `SELECT (SELECT COUNT(DISTINCT a.team) ${from} WHERE ${filter}) winners,
+                (SELECT COUNT(*) FROM teams t WHERE ${where.sql} AND t.number IN (SELECT s.team FROM team_season_stats s WHERE s.matches > 0${season != null ? " AND s.season = ?" : ""})
+                   AND t.number NOT IN (SELECT a.team ${from} WHERE ${filter})) zero`,
+        [...args, ...where.args, ...(season != null ? [season] : []), ...args])).map((x) => ({ winners: Number(x.winners), zero: Number(x.zero) }))[0]
+      : null;
+    const noneWon = `${ask.place ? `from ${ask.place.name} ` : ""}played and won no ${ask.types.length === 1 ? awardName(ask.types[0]) : what}${at} ${season == null ? "in any season" : `in ${when}`}`;
+    const fewestDef = `Fewest won: each team's ${what}, an alliance award once per event, listed for the teams that won at least one. Teams that won none are counted: ${whose} that played a stored match ${season == null ? "in any season" : "that season"} and won none. ${rule}`;
+    if (!ranked.length) {
+      // Nobody won it: the fewest is none, and the teams that played are still counted.
+      if (bottom?.zero) return { ...base, title: t2, headline: { value: count(bottom.zero, "team"), label: noneWon, sub: `No team ${ask.place ? `from ${ask.place.name} ` : ""}won one` }, blocks: [], definition: fewestDef };
+      return { ...none(`No ${what} won by ${whose}${at} in ${when}.`), title: t2 };
+    }
     const top = ranked.filter((x) => x.n === ranked[0].n);
     // Every row listed tied for the lead: more may be tied past the list's end, so they're counted, never left out.
     const tied = top.length === ranked.length
@@ -261,24 +277,17 @@ export async function placeAwardsAnswer(ask: PlaceAwardsAsk): Promise<StatAnswer
       : top.length;
     const won = count(ranked[0].n, ask.types.length === 1 ? awardName(ask.types[0]) : "award", ask.types.length === 1 ? awardsName(ask.types[0]) : "awards");
     const home = (x: (typeof ranked)[number]) => [x.r.city, x.r.state].filter(Boolean).join(", ");
-    if (fewest) {
-      // The board's bottom: most teams won none, so they're counted (the place's teams that played a stored match that
-      // season, or in any season, and won none), and the teams that won at least one are listed, fewest first.
-      const [{ winners, zero }] = (await all<{ winners: number; zero: number }>(
-        `SELECT (SELECT COUNT(DISTINCT a.team) ${from} WHERE ${filter}) winners,
-                (SELECT COUNT(*) FROM teams t WHERE ${where.sql} AND t.number IN (SELECT s.team FROM team_season_stats s WHERE s.matches > 0${season != null ? " AND s.season = ?" : ""})
-                   AND t.number NOT IN (SELECT a.team ${from} WHERE ${filter})) zero`,
-        [...args, ...where.args, ...(season != null ? [season] : []), ...args])).map((x) => ({ winners: Number(x.winners), zero: Number(x.zero) }));
-      const noneWon = `won no ${ask.types.length === 1 ? awardName(ask.types[0]) : what}${at}`;
+    if (bottom) {
+      const { winners, zero } = bottom;
       return {
         ...base, title: t2,
         headline: zero
-          ? { value: count(zero, "team"), label: `${ask.place ? `from ${ask.place.name} ` : ""}played and ${noneWon} ${season == null ? "in any season" : `in ${when}`}`, sub: `Of the ${count(Number(winners), "team")} that won any, ${tied} won ${won}, the fewest` }
+          ? { value: count(zero, "team"), label: noneWon, sub: `Of the ${count(winners, "team")} that won any, ${tied} won ${won}, the fewest` }
           : { value: tied > 1 ? `${tied} teams, tied` : teamLabel(top[0].r), label: `${won}${tied > 1 ? " each" : ""}, the fewest`, ...(tied > 1 ? {} : { href: `/teams/${top[0].r.team}` }) },
         blocks: [{ kind: "table", title: `${who} that won any, fewest first`, columns: [{ key: "team", label: "Team" }, { key: "home", label: "Home" }, { key: "n", label: "Won", num: true }],
           rows: ranked.map((x) => ({ cells: { team: teamLabel(x.r), home: home(x), n: x.n }, href: `/teams/${x.r.team}`, strong: x.n === ranked[0].n })),
-          ...(Number(winners) > ranked.length ? { more: `Showing the ${ranked.length} with the fewest of ${winners}` } : {}) }],
-        definition: `Fewest won: each team's ${what}, an alliance award once per event, listed for the teams that won at least one. Teams that won none are counted: ${whose} that played a stored match ${season == null ? "in any season" : "that season"} and won none. ${rule}`,
+          ...(winners > ranked.length ? { more: `Showing the ${ranked.length} with the fewest of ${winners}` } : {}) }],
+        definition: fewestDef,
       };
     }
     return {
@@ -337,8 +346,8 @@ export async function placeAwardsAnswer(ask: PlaceAwardsAsk): Promise<StatAnswer
     const t2 = `The latest ${what} winners${at}${season == null ? "" : `, ${when}`}`;
     return {
       ...base, title: t2, scope: [...scope.slice(0, -1), season == null ? `Latest ${count(events, "event")}` : seasonLabel(season)],
-      headline: { value: [...new Set(first.map(teamLabel))].join(", "), label: `won the ${ask.types.length === 1 ? what : label(first[0])} at ${ev(first[0])}`, sub: [first[0].start, seasonLabel(first[0].season)].filter(Boolean).join(" · "), ...(first.length === 1 ? { href: eventHref(first[0].season, first[0].code, first[0].team) } : {}) },
-      blocks: [table(xs, `The latest ${count(events, "event")} that gave it, newest first`)],
+      headline: { value: [...new Set(first.map(teamLabel))].join(", "), label: `won the ${what} at ${ev(first[0])}`, sub: [first[0].start, seasonLabel(first[0].season)].filter(Boolean).join(" · "), ...(first.length === 1 ? { href: eventHref(first[0].season, first[0].code, first[0].team) } : {}) },
+      blocks: [table(xs, `The latest ${count(events, "event")} that gave it, newest first`, undefined, xs.length)],
       definition: `The latest winners: the events (up to ${LATEST_EVENTS}) most recently held that gave the award, by their start date, ${season == null ? "in any season" : `in ${when}`}. ${rule}`,
     };
   }

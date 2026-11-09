@@ -78,8 +78,8 @@ describe("a place's award winners", () => {
     for (const q of ["most inspire awards", "teams with the most inspire awards", "which team has the most inspire awards"]) {
       expect(await readPlaceAwards(q), q).toMatchObject({ place: null, types: ["Inspire"], mode: "most" });
     }
-    // Every award's winners, or whether any won, still needs its place.
-    for (const q of ["award winners", "did any team win inspire", "inspire winners at worlds"]) expect(await readPlaceAwards(q), q).toBeNull();
+    // Every award's winners, two awards' (Greptile on #1217), or whether any won, still needs its place.
+    for (const q of ["award winners", "did any team win inspire", "inspire winners at worlds", "inspire and think award winners last season"]) expect(await readPlaceAwards(q), q).toBeNull();
   });
 
   // Failed search #1194 "inspire award winner": one award asked with no event or place.
@@ -99,6 +99,21 @@ describe("a place's award winners", () => {
     expect(rows(last).map((r) => r.team)).toEqual(["22222 Maple Gears", "22222 Maple Gears"]);
     const wa = await placeAwardsAnswer((await readPlaceAwards("winning alliance winners"))!);
     expect(wa.headline?.value).toBe("20265 Heart of RoBots, 11111 Lone Star Bots");
+    // Every row of the events chosen is shown, never half an alliance cut at 50 rows (Greptile on #1217).
+    for (let i = 0; i < 20; i++) {
+      const code = `USWAQ${i}`;
+      await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, ?, ?, 'Qualifier', 'Seattle', 'WA', 'USA', ?, ?, 't')", [S + 1, code, `Washington Qualifier ${i}`, `${S + 1}-10-${String(i + 1).padStart(2, "0")}`, `${S + 1}-10-${String(i + 1).padStart(2, "0")}`]);
+      for (const [p, team] of [[1, 20265], [2, 11111], [3, 22222]]) await run("INSERT INTO awards (season, code, type, placement, team, name) VALUES (?, ?, 'Winner', ?, ?, 'Winning Alliance')", [S + 1, code, p, team]);
+    }
+    try {
+      const many = await placeAwardsAnswer((await readPlaceAwards("winning alliance winners"))!);
+      expect(many.blocks[0]).not.toHaveProperty("more");
+      // 20 events of 3, then this season's Texas Championship (2) and Texas Qualifier (1).
+      expect(rows(many).length).toBe(20 * 3 + 3);
+    } finally {
+      await run("DELETE FROM awards WHERE season = ?", [S + 1]);
+      await run("DELETE FROM events WHERE season = ?", [S + 1]);
+    }
   });
 
   // Failed search #1207 "fewest inspire awards in romania": the count board read from its bottom.
@@ -120,6 +135,9 @@ describe("a place's award winners", () => {
     // "At least" counts nothing, "least common" is the rarest award's.
     expect(await readPlaceAwards("texas teams that won at least inspire")).not.toMatchObject({ mode: "fewest" });
     expect(await readPlaceAwards("least common award a texas team won")).toMatchObject({ mode: "rarest" });
+    // Nobody from the place won it: the teams that played are still counted (Greptile on #1217).
+    const nobody = await placeAwardsAnswer((await readPlaceAwards("fewest inspire awards in texas at worlds"))!);
+    expect(nobody.headline).toMatchObject({ value: "2 teams", label: "from Texas played and won no Inspire Award at the FIRST Championship in any season" });
   });
   it("the most awards of any kind over every season (failed-search #799); one season's stays the board's", async () => {
     for (const q of ["which team in Texas has the most awards, ever", "texas team with the most awards of all time", "texas team with the most awards in ftc history"]) {
