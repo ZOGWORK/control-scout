@@ -39,6 +39,10 @@ describe("pageReader", () => {
     expect(asked).toEqual(["https://www.youtube.com/c/FUNRobotics/streams"]);
     const half = async (id: string) => id === SUN ? { status: "error" as const, start: null, end: null, length: null, live: false } : ok(id);
     expect(await pageReader(fake, half, 0)(channelRef(CH)!, 0)).toBe("error");
+    const consent = (async () => new Response("<html>Before you continue to YouTube</html>", { status: 200 })) as unknown as typeof fetch;
+    expect(await pageReader(consent, ok, 0)(channelRef(CH)!, 0)).toBe("error");
+    const empty = (async () => new Response('{"channelMetadataRenderer":{"title":"x"}}', { status: 200 })) as unknown as typeof fetch;
+    expect(await pageReader(empty, ok, 0)(channelRef(CH)!, 0)).toEqual([]);
   });
 });
 

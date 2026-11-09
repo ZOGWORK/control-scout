@@ -103,7 +103,10 @@ export function pageReader(fetchImpl: typeof fetch = fetch, facts: (id: string) 
     try {
       const res = await fetchImpl(channelPage(c), { headers: PAGE_HEADERS, signal: timeout() });
       if (!res.ok) return res.status === 404 ? [] : "error";
-      const ids = [...new Set([...(await res.text()).matchAll(/"videoId":"([\w-]{11})"/g)].map((m) => m[1]))].slice(0, 30);
+      const html = await res.text();
+      const ids = [...new Set([...html.matchAll(/"videoId":"([\w-]{11})"/g)].map((m) => m[1]))].slice(0, 30);
+      // No streams listed counts only from the channel's own page; a consent wall or anything else is tried again.
+      if (!ids.length) return html.includes('"channelMetadataRenderer"') ? [] : "error";
       const out: Broadcast[] = [];
       let errors = 0;
       for (const [i, id] of ids.entries()) {
