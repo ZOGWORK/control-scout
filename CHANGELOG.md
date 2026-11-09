@@ -27,6 +27,19 @@ A match that "went to a tiebreak, or overtime" is read as a tie.
 ### Search
 - **Tiebreaks and overtime.** A match that went to, ended in or was decided by a tiebreak, overtime or sudden death is read as a tie, so the team's ties answer it; the word alone still finds a team named after it. (#1117)
 
+## 4.5.4 — 2026-11-09
+
+Pull to reload in the installed phone app now follows your finger smoothly and looks like the rest of Control Scout: the app's own mark in a round card, with a yellow ring that fills as you pull.
+
+### Highlights
+- [appearance] Pull to reload follows your finger smoothly, frame by frame
+- [appearance] The app's mark with a yellow ring that fills as you pull
+- [appearance] Lets go early? It springs back up instead of vanishing
+
+### Phone app
+- **Smoother pull to reload.** The indicator used to redraw through the page's components on every finger move, which came out at about 10 frames a second on a phone. It now stays in the page and each move only shifts it and fills its ring, once per screen frame, so it keeps up with the finger. Letting go short of the line springs it back up; past the line it settles, the ring spins, and the thin yellow refresh bar the tables use sweeps under the top bar until the page reloads. Under reduced motion nothing turns, springs or sweeps.
+- **Looks like the app.** The plain reload arrow is now Control Scout's own mark in a card-coloured circle, with a yellow ring that fills as you pull and the home search's yellow glow once letting go will reload. (#1214)
+
 ## 4.5.3 — 2026-11-09
 
 An event page says where its team list comes from and when it was last read: FIRST's list, FTC New Jersey's provisional one before FIRST publishes, or that FIRST has published no teams yet.
