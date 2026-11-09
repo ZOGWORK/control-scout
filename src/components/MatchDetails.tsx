@@ -410,9 +410,10 @@ function Prediction({ d }: { d: MatchDetail }) {
 
 const RP_NOTE = "3 for a win and 1 for a tie, weighted by their chances (a tie is about 1% in an even match), plus each bonus chance, from each alliance's likely score this season. Qualification matches only.";
 
-/** The bonus ranking points on the call's columns: one row per RP, its icon as the label (the name, both
- *  chances and whether each side earned it on hover or tap, and for screen readers), each side's chance under
- *  Red and Blue, a ✓ beside a side that earned it; then the expected RP. With no odds, only what was earned. */
+/** The bonus ranking points on one line: per RP its icon with Red's and Blue's chances beside it (a ✓ after a side
+ *  that earned it), then the expected RP. No names on screen: each item is one button whose tip (hover or tap)
+ *  names the RP and says both sides' chances and whether each earned it, which is also its accessible name.
+ *  With no odds, the icons carry only what was earned. */
 export function BonusRows({ season, odds, actual, tier }: {
   season: number;
   odds: NonNullable<MatchDetail["match"]["prediction"]>["bonus"] | null;
@@ -423,41 +424,39 @@ export function BonusRows({ season, odds, actual, tier }: {
   if (!labels) return null;
   const got = (s: Side, i: number) => (actual?.[s] ? actual[s]![i] : null);
   const word = (g: boolean | null) => (g == null ? "" : g ? ", earned" : ", missed");
-  const mark = (g: boolean | null) => (g ? <span className="text-success" aria-hidden> ✓</span> : null);
-  const cell = (s: Side, i: number) => {
-    const g = got(s, i);
-    if (odds) return <>{oddsPct(odds[s][i])}{mark(g)}</>;
-    return g == null ? "—" : g ? <span className="text-success">✓</span> : <span className="text-text-muted">✗</span>;
-  };
+  const mark = (g: boolean | null) => (g ? <span className="text-success">✓</span> : null);
+  const item = "tap-44 inline-flex min-h-11 items-center gap-1.5 rounded px-1 text-xs tabular-nums outline-none hover:bg-text-base/[0.04] focus-visible:ring-2 focus-visible:ring-ring/60";
   return (
-    <ul className="mt-1 border-t border-border/60 pt-1" aria-label="Bonus ranking points" data-testid="bonus-odds">
+    <ul className="mt-1 flex flex-wrap items-center gap-x-3 border-t border-border/60 pt-1" aria-label="Bonus ranking points" data-testid="bonus-odds">
       {labels.map((l, i) => {
         const Icon = rpIcon(l);
-        const tip = `${l}: bonus ranking point. Red ${odds ? oddsPct(odds.red[i]) : ""}${word(got("red", i))}, Blue ${odds ? oddsPct(odds.blue[i]) : ""}${word(got("blue", i))}.${odds && tier ? ` ${tierPhrase(odds.tier)}.` : ""}`.replace(/ ,/g, ",");
+        const gr = got("red", i), gb = got("blue", i);
+        const tip = `${l}: bonus ranking point. Red${odds ? ` ${oddsPct(odds.red[i])}` : ""}${word(gr)}, Blue${odds ? ` ${oddsPct(odds.blue[i])}` : ""}${word(gb)}.${odds && tier ? ` ${tierPhrase(odds.tier)}.` : ""}`;
         return (
-          <li key={l} className={cn(GRID, "py-0.5")} data-bonus={l}>
+          <li key={l} data-bonus={l}>
             <TapTooltip className="max-w-64" trigger={
-              <button type="button" className="tap-44 inline-flex w-fit items-center rounded text-text-muted outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label={tip}>
-                <Icon size={20} aria-hidden />
+              <button type="button" className={item} aria-label={tip}>
+                <Icon size={18} className="text-text-muted" aria-hidden />
+                <span aria-hidden>
+                  {odds
+                    ? <><span className="text-red-alliance">{oddsPct(odds.red[i])}</span>{mark(gr)}<span className="text-text-muted">–</span><span className="text-blue-alliance">{oddsPct(odds.blue[i])}</span>{mark(gb)}</>
+                    : <><span className="text-red-alliance">{gr == null ? "—" : gr ? "✓" : "✗"}</span><span className="text-text-muted"> </span><span className="text-blue-alliance">{gb == null ? "—" : gb ? "✓" : "✗"}</span></>}
+                </span>
               </button>
             }>{tip}</TapTooltip>
-            <span className={cn("text-right text-xs tabular-nums", odds ? "text-red-alliance" : "")}>{cell("red", i)}</span>
-            <span />
-            <span className={cn("text-xs tabular-nums", odds ? "text-blue-alliance" : "")}>{cell("blue", i)}</span>
           </li>
         );
       })}
       {odds && (
-        <li className={cn(GRID, "py-0.5")}>
+        <li>
           <TapTooltip className="max-w-72" trigger={
-            <button type="button" className="tap-44 w-fit text-left text-xs text-text-muted underline decoration-dotted underline-offset-2 outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label={`Expected ranking points. ${RP_NOTE}`}>RP</button>
+            <button type="button" className={item} aria-label={`Expected ranking points: Red ${odds.rpRed.toFixed(1)}, Blue ${odds.rpBlue.toFixed(1)}. ${RP_NOTE}`}>
+              <span className="text-text-muted" aria-hidden>RP</span>
+              <span className="font-semibold" aria-hidden><span className="text-red-alliance">{odds.rpRed.toFixed(1)}</span><span className="text-text-muted">–</span><span className="text-blue-alliance">{odds.rpBlue.toFixed(1)}</span></span>
+            </button>
           }>Expected ranking points. {RP_NOTE} <Link to="/methodology#bonus" className="underline">How</Link></TapTooltip>
-          <span className="text-right text-xs font-semibold tabular-nums text-red-alliance"><span className="sr-only">Red expected </span>{odds.rpRed.toFixed(1)}</span>
-          <span />
-          <span className="text-xs font-semibold tabular-nums text-blue-alliance"><span className="sr-only">Blue expected </span>{odds.rpBlue.toFixed(1)}</span>
         </li>
       )}
     </ul>
   );
-
 }

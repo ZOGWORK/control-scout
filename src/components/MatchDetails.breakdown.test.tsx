@@ -101,14 +101,12 @@ describe("match breakdown", () => {
     const buttons = within(rows).getAllByRole("button");
     expect(buttons[0].getAttribute("aria-label")).toBe("Swarm: bonus ranking point. Red 67%, earned, Blue 69%, missed.");
     expect(buttons[1].getAttribute("aria-label")).toBe("Pollinator 1: bonus ranking point. Red 6%, missed, Blue 7%, missed.");
+    expect(buttons[3].getAttribute("aria-label")).toMatch(/^Expected ranking points: Red 2.3, Blue 2.3\./);
     // On screen: numbers and marks only, never the RP's name.
     const visible = Array.from(rows.querySelectorAll("li")).map((li) => Array.from(li.querySelectorAll("span:not(.sr-only)")).map((x) => x.textContent).join(" ")).join(" | ");
     expect(visible).not.toMatch(/Swarm|Pollinator/);
     const swarm = rows.querySelector("[data-bonus='Swarm']")!.textContent;
-    expect(swarm).toContain("67% ✓");
-    expect(swarm).toContain("69%");
-    expect(rows.textContent).toContain("Red expected 2.3");
-    expect(rows.textContent).toContain("Blue expected 2.3");
+    expect(swarm).toContain("67%✓–69%");
     expect(rows.querySelector("[style*='width']")).toBeNull();
   });
 
