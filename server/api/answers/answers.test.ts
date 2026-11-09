@@ -169,6 +169,8 @@ describe("the answers", () => {
     const won = (await searchAnswer("4215 closest match won by less than 45 points", { limit: 25 })).stat!;
     expect(won.headline).toMatchObject({ value: "40 points", label: "100–60 in Q1 at New Jersey Qualifier" });
     expect(won.blocks.flatMap((b) => (b.kind === "matches" ? b.rows : [])).every((r) => r.own > r.opp)).toBe(true);
+    // The bound said after an event named is still the bound, never part of the event's name.
+    expect(readStatQuestion("4215 closest match at new jersey championship by less than 45 points")).toMatchObject({ id: "closest-match", under: 45, core: "4215", scope: { at: "new jersey championship" } });
     // Every match inside the bound is listed, not only five: six under 100 points.
     const six = (await searchAnswer("4215 closest match by less than 100 points", { limit: 25 })).stat!;
     // (The bound is the official totals' gap; a row shows points without penalties, so the Worlds win reads 275–200.)

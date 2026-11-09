@@ -874,7 +874,19 @@ export function readStatQuestion(raw: string): StatQuestion | null {
     if (!m) continue;
     // The intent's own words go; a team named inside them ("how many matches has 12345 in 2024-25 played") stays, so
     // its scope words are read like any other.
-    const { scope, rest } = readScope(q.replace(m[0], ` ${m.groups?.team ?? ""} `));
+    // A closest match bounded ("by less than 1 point", "under 5 points", "within 3 points"), wherever it's said (after an
+    // event named too): read before the scope, so its words never name the team or the event.
+    let said = q.replace(m[0], ` ${m.groups?.team ?? ""} `), under: number | undefined, boundOutcome: "W" | "L" | null = null;
+    if (r.id === "closest-match") {
+      const u = /\b(?:(won|wins?|lost|loss(?:es)?|decided)\s+)?(?:by\s+)?(?:less\s+than|fewer\s+than|under|within)\s+(\d{1,3})\s*(?:points?|pts?)\b/.exec(said);
+      if (u) {
+        under = Math.max(1, Number(u[2]));
+        // "Won by less than 45 points": the result said with the bound is the one asked about.
+        boundOutcome = u[1] && /^w/.test(u[1]) ? "W" : u[1] && /^l/.test(u[1]) ? "L" : null;
+        said = said.replace(u[0], " ");
+      }
+    }
+    const { scope, rest } = readScope(said);
     let bare = false;
     if (r.id === "winning-alliance") {
       if (/^world\s/.test(m[0])) scope.championship = true;
@@ -938,17 +950,7 @@ export function readStatQuestion(raw: string): StatQuestion | null {
     const defaultOf = () => (r.alone && !namesSeasons(scope) ? r.alone : r.season);
     if (r.noTeam) return { id: r.id, family: r.family, defaultSeason: defaultOf(), scope, leadEvent, n, outcome, count, noTeam: true, ...(bare ? { bare } : {}), core: squash(rest.replace(/\b(?:ftc|first|tech|challenge|the|who|won|what|which|was|is|of|in|for|world|winners?|champions?|winning|alliances?)\b/g, " ").replace(/^[\s-]+|[\s-]+$/g, "")) || (scope.at ?? "") };
     // One award named, and only the newest or the earliest: their words never name the team.
-    let left = rest, award: string | undefined, pick: "first" | "latest" | undefined, under: number | undefined, boundOutcome: "W" | "L" | null = null;
-    // A closest match bounded ("by less than 1 point", "under 5 points", "within 3 points"): its words never name the team.
-    if (r.id === "closest-match") {
-      const u = /\b(?:(won|wins?|lost|loss(?:es)?|decided)\s+)?(?:by\s+)?(?:less\s+than|fewer\s+than|under|within)\s+(\d{1,3})\s*(?:points?|pts?)\b/.exec(left);
-      if (u) {
-        under = Math.max(1, Number(u[2]));
-        // "Won by less than 45 points": the result said with the bound is the one asked about.
-        boundOutcome = u[1] && /^w/.test(u[1]) ? "W" : u[1] && /^l/.test(u[1]) ? "L" : null;
-        left = left.replace(u[0], " ");
-      }
-    }
+    let left = rest, award: string | undefined, pick: "first" | "latest" | undefined;
     if (r.id === "awards" || r.id === "total-awards" || r.id === "inspire-awards") {
       const t = r.id === "inspire-awards" ? undefined : AWARD_TYPES.find(([re]) => re.test(left));
       if (t) { award = t[1]; left = left.replace(t[0], " "); }
