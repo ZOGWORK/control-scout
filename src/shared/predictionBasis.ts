@@ -23,10 +23,12 @@ export const BASIS: Record<BasisKind, string> = {
 };
 
 /** The predicted margin from the two shown (rounded) scores, so it adds up by hand: "Red by 12 (118 − 106)". */
-export const marginText = (red: number, blue: number): string => {
-  const r = Math.round(red), b = Math.round(blue), d = r - b;
-  return `${d === 0 ? "Even" : d > 0 ? `Red by ${d}` : `Blue by ${-d}`} (${r} − ${b})`;
+/** The predicted margin in words alone ("Blue by 3"), for where the two scores are already printed. */
+export const marginWords = (red: number, blue: number): string => {
+  const d = Math.round(red) - Math.round(blue);
+  return d === 0 ? "Even" : d > 0 ? `Red by ${d}` : `Blue by ${-d}`;
 };
+export const marginText = (red: number, blue: number): string => `${marginWords(red, blue)} (${Math.round(red)} − ${Math.round(blue)})`;
 
 /** An alliance's overlap loss over its three phases (engine explain overlapA/overlapB). */
 export const overlapTotal = (o: { auto: number; teleop: number; endgame: number } | null | undefined): number => (o ? o.auto + o.teleop + o.endgame : 0);

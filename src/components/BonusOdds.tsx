@@ -55,6 +55,8 @@ export function BonusOdds({ season, bonus, actual, className, compact }: {
   );
 }
 
+const EXPECTED_RP_NOTE = "3 for a win and 1 for a tie, weighted by their chances (a tie is about 1% in an even match), plus each bonus chance, from each alliance's likely score this season. Qualification matches only.";
+
 /** The same odds as one compact row inside a card that already has its own frame (a match's call): each RP's
  *  chance per side as numbers (no bars), the expected RP, and the footnote as one small line. */
 export function BonusOddsRow({ season, bonus, actual, className }: {
@@ -82,12 +84,9 @@ export function BonusOddsRow({ season, bonus, actual, className }: {
             {mark(actual?.red, i)}{pair(oddsPct(bonus.red[i]), oddsPct(bonus.blue[i]))}{mark(actual?.blue, i)}
           </li>
         ))}
-        <li className="flex items-center gap-1.5"><span className="text-text-muted">Expected RP</span>{pair(bonus.rpRed.toFixed(1), bonus.rpBlue.toFixed(1))}</li>
+        <li className="flex items-center gap-1.5"><span className="text-text-muted">Expected RP</span>{pair(bonus.rpRed.toFixed(1), bonus.rpBlue.toFixed(1))}
+          <Link to="/methodology#bonus" title={EXPECTED_RP_NOTE} className="text-xs text-text-muted underline underline-offset-2">How</Link></li>
       </ul>
-      <p className="mt-1 text-[11px] leading-snug text-text-muted">
-        3 for a win and 1 for a tie, weighted by their chances (a tie is about 1% in an even match), plus each bonus chance, from each alliance's likely score this season. Qualification matches only.{" "}
-        <Link to="/methodology#bonus" className="underline underline-offset-2">How</Link>
-      </p>
     </div>
   );
 }
