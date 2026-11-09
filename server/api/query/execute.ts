@@ -466,7 +466,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     // decode"): a list.
     const one = /\b(?:match|game)\b/.test(said) && !/\b(?:matches|games|scores)\b/.test(said);
     const t: TopMatchesQuestion = {
-      season: scope.ever || p.event ? scope.season : placeSeason(p, scope.season, opts), game: null, ever: scope.ever, region: p.event ? null : regionOf(p), event: p.event ? p.event.words : null,
+      // An event with no time said: its latest edition with a match played (null lets the reader find it).
+      season: scope.ever ? scope.season : p.event && !p.time ? null : placeSeason(p, scope.season, opts), game: null, ever: scope.ever, region: p.event ? null : regionOf(p), event: p.event ? p.event.words : null,
       ...(scope.window ? { window: scope.window } : {}), ...(p.n != null ? { n: p.n } : one ? { n: 1 } : {}), ...(p.noPenalties ? { noPenalties: true } : {}),
     };
     const a = await topSearch(p.q, t, opts);
