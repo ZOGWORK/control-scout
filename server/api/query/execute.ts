@@ -471,7 +471,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
       ...(scope.window ? { window: scope.window } : {}), ...(p.n != null ? { n: p.n } : one ? { n: 1 } : {}), ...(p.noPenalties ? { noPenalties: true } : {}),
     };
     const a = await topSearch(p.q, t, opts);
-    if (p.event) return a;
+    // No time said: the event's latest edition played, already found. "This season" falls back below, as for a season.
+    if (p.event && !p.time) return a;
     // No season said: the current one, then the one before (as the match finder does).
     if (!scope.ever && (!p.time || (p.time.kind === "season" && p.time.relative === "this"))) {
       return relaxed(a, defaultSteps(t.season!, t.region ? ` in ${t.region.name}` : "", "scored matches"), (season) => topSearch(p.q, { ...t, season }, opts));
