@@ -23,7 +23,7 @@ Search answers how a team did at its latest meet, asked in plain words.
 - [fixes] "How did <team> do in their recent meet" shows its results there
 
 ### Search
-- **Latest meet, plain words.** "how did enforcers do in thier recent meet" and "enforcers last meet performence" now show the team's matches at its latest event, the card saying "their latest event". "Performance" is read with a typo or two, as team names are. (#PR)
+- **Latest meet, plain words.** "how did enforcers do in thier recent meet" and "enforcers last meet performence" now show the team's matches at its latest event, the card saying "their latest event". "Performance" is read with a typo or two, as team names are. (#1251)
 
 ## 4.8.6 — 2026-11-09
 
