@@ -8,7 +8,7 @@ import type { MatchView } from "../shared/api";
 
 vi.mock("../lib/meta", () => ({ usePredictable: () => true }));
 vi.mock("../lib/calibration", () => ({ useCalibration: () => null }));
-vi.mock("./MatchVideo", () => ({ useVideoLinkCount: () => 0 }));
+vi.mock("./MatchVideo", () => ({ useVideoLinkCount: () => 0, useVideoCount: () => 0 }));
 const restored = vi.hoisted(() => ({ on: false }));
 vi.mock("../lib/pageScroll", () => ({ restoredSavedPosition: () => restored.on, scrollToElement: (...a: unknown[]) => scrolled(...a), smoothBehavior: () => "smooth" }));
 

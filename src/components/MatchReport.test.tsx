@@ -13,7 +13,7 @@ import type { WorkspaceAnswer } from "../lib/consensus";
 
 vi.mock("../lib/meta", () => ({ usePredictable: () => true }));
 vi.mock("../lib/calibration", () => ({ useCalibration: () => null }));
-vi.mock("./MatchVideo", () => ({ useVideoLinkCount: () => 0 }));
+vi.mock("./MatchVideo", () => ({ useVideoLinkCount: () => 0, useVideoCount: () => 0 }));
 
 const { MatchReportView } = await import("./MatchReport");
 const { MatchList } = await import("./predict");

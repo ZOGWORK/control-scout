@@ -15,7 +15,7 @@ import { matchTime, oddsPct } from "../lib/format";
 import { Async } from "./states";
 import { CalibrationLine, ConfidenceBadge, FactorList, KIND_LABEL, PairHistoryLine, WinBar } from "./predict";
 import { TapTooltip, Tooltip, TooltipContent, TooltipTrigger } from "./ui/overlay";
-import { VideoPanel, useVideoLinkCount } from "./MatchVideo";
+import { VideoPanel, useVideoCount } from "./MatchVideo";
 import { ShareMatch } from "./ShareMatch";
 import { ResultChanges } from "./ResultChanges";
 import { bonusLabels } from "../shared/labels";
@@ -104,7 +104,7 @@ const FADED: Record<Side, string> = {
 const NAME: Record<Side, string> = { red: "Red", blue: "Blue" };
 
 /** A match video's button: filled in the video colour, 44 px tall on a touch screen. */
-const WATCH = "min-h-9 gap-1.5 rounded-lg bg-video px-3 text-sm font-semibold text-[#0a0a0b] shadow-sm hover:opacity-90 max-sm:min-h-11 [&_svg]:size-4";
+const WATCH = "min-h-9 gap-1.5 rounded-lg bg-video px-3 text-sm font-semibold text-on-video shadow-sm hover:opacity-90 max-sm:min-h-11 [&_svg]:size-4";
 
 /** The whole match in one glance: the score and the margin in the biggest type on the page, then which match
  *  and when, muted, with its links as icons (their names on hover, and for screen readers). */
@@ -158,12 +158,12 @@ export function Headline({ d, eventName, href }: { d: MatchDetail; eventName?: s
 
 function MatchVideoSection({ m }: { m: MatchView }) {
   const [open, setOpen] = useState(false);
-  const saved = useVideoLinkCount(matchRef(m));
+  const saved = useVideoCount(matchRef(m));
   return (
     // Mounted only while open: closing it unmounts the recorder, which stops (and saves) any recording and releases the camera.
     <details className="group mt-6" onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}>
       {/* Saved videos of this match: as loud as the watch button; none yet: a quiet row to add one. */}
-      <summary className={cn("flex min-h-11 w-fit cursor-pointer select-none items-center gap-2 [&::-webkit-details-marker]:hidden", saved > 0 ? "rounded-lg bg-video px-3 text-sm font-semibold text-[#0a0a0b]" : "text-xs text-text-muted hover:text-text-base")} title="Record, add a file or a YouTube link">
+      <summary className={cn("flex min-h-11 w-fit cursor-pointer select-none items-center gap-2 [&::-webkit-details-marker]:hidden", saved > 0 ? "rounded-lg bg-video px-3 text-sm font-semibold text-on-video" : "text-xs text-text-muted hover:text-text-base")} title="Record, add a file or a YouTube link">
         <Video className={cn("size-4", saved > 0 ? "" : "text-accent-text")} aria-hidden />{saved > 0 ? `Your videos (${saved})` : "Video"}<span className="sr-only"> for {m.label}: record, add a file or a YouTube link</span><ChevronDown className="size-3.5 transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
       </summary>
       {open && <div className="pt-2"><VideoPanel matchRef={matchRef(m)} label={`${m.code} ${m.label}`} /></div>}

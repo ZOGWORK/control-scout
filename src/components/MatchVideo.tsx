@@ -25,6 +25,13 @@ export function useVideoLinkCount(matchRef: string) {
   return state.videoLinks[matchRef]?.length ?? 0;
 }
 
+/** Every video saved for a match: YouTube links plus recordings and files kept on this device. */
+export function useVideoCount(matchRef: string) {
+  const links = useVideoLinkCount(matchRef);
+  const { list } = useRecordings(matchRef);
+  return links + (list?.length ?? 0);
+}
+
 /** Video for one match, inline (no dialog): YouTube links, record on this device, saved recordings. */
 export function VideoPanel({ matchRef, label }: { matchRef: string; label: string }) {
   return (
