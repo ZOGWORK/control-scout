@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## NEXT — 2026-11-09
+
+A floor said as "44 or above" lists teams at or over it, and "which state has the highest average OPR" ranks US states and Canadian provinces.
+
+### Highlights
+- [rankings] "Teams with 44 or above OPR" lists them
+- [rankings] "Which state has the highest average OPR" answers
+- [rankings] States need 10 teams with an OPR to be ranked
+
+### Search
+- **A floor said as "or above".** "Teams with 44 or above OPR" and "teams with OPR 44 or above" read like "OPR of at least 44": "or above", "or more", "or higher" and "and up" after a number make it a floor, the number said before the stat or after it. A year after a stat is still a season. (#NEW)
+- **States by average OPR.** "Which state has the highest average OPR" (or lowest, or "states by average OPR") ranks US states and Canadian provinces by the mean OPR of their teams that played in the newest season, with each one's team count. A place with fewer than 10 such teams is left out. (#NEW)
+
 ## 4.5.2 — 2026-11-09
 
 Match searches can set a score an alliance had to reach: "where the losing alliance scored over 200", "both alliances scored over 250".
