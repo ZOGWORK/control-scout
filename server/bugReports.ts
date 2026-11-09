@@ -22,6 +22,7 @@
 // whose gate already refused everyone else).
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { mkdir, open, readdir, readFile, rename, rm } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import { all, get, run } from "./db.js";
@@ -199,6 +200,7 @@ export async function sweepBugReports(now = Date.now()): Promise<{ emailed: numb
   for (const f of stale) {
     await run("DELETE FROM bug_report_files WHERE report_id = ? AND n = ? AND received < bytes", [f.report_id, f.n]);
     await rm(partPath(Number(f.report_id), Number(f.n)), { force: true });
+    await rm(filePath(Number(f.report_id), Number(f.n), f.type as AttachmentType), { force: true });
   }
   return { emailed: due.length, cleared: stale.length };
 }
@@ -279,15 +281,19 @@ async function storePiece(req: Request, res: Response, { row, n, offset, length,
   }
   await mkdir(bugDir(), { recursive: true });
   const part = partPath(id, n);
+  const final = filePath(id, n, declared.type);
+  // The last piece sent again after the file was finished but before that was recorded (a restart): reopen it.
+  if (offset > 0 && !existsSync(part) && existsSync(final)) await rename(final, part);
   const fh = await open(part, offset === 0 ? "w" : "r+");
   try {
     await fh.write(body, 0, length, offset);
     await fh.truncate(offset + length);
   } finally { await fh.close(); }
+  // Finished: the file takes its name first, then the record says so. A stop in between leaves it unrecorded, so the
+  // last piece can be sent again (above); the record never points at a file that isn't there.
+  if (offset + length === declared.bytes) await rename(part, final);
   const now = await get<{ received: number }>("UPDATE bug_report_files SET received = ? WHERE report_id = ? AND n = ? AND received = ? RETURNING received",
     [offset + length, id, n, offset]);
-  const final = filePath(id, n, declared.type);
-  if (now && Number(now.received) === declared.bytes) await rename(part, final);
   // Deleted while this piece was being written: take the file away too, so nothing is left without a report.
   if (!(await get("SELECT id FROM bug_reports WHERE id = ?", [id]))) {
     await rm(part, { force: true });

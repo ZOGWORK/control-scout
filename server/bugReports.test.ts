@@ -3,7 +3,7 @@
 // the owner endpoints behind the owner gate.
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
-import { existsSync, mkdtempSync, readFileSync, renameSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -173,8 +173,9 @@ describe("POST /api/bug-reports", () => {
     expect((await put(id, 0, token, video.subarray(0, BUG_LIMITS.chunkBytes), 0, "video/mp4")).status).toBe(200);
     // The second piece written, then its record lost (a restart between the write and the update).
     expect((await put(id, 0, token, video.subarray(BUG_LIMITS.chunkBytes), BUG_LIMITS.chunkBytes, "video/mp4")).status).toBe(200);
+    // Finished on disk (renamed) but the record lost: the last piece sent again reopens it.
     await run("UPDATE bug_report_files SET received = ? WHERE report_id = ?", [BUG_LIMITS.chunkBytes, id]);
-    renameSync(join(bugDir(), `${id}-0.mp4`), join(bugDir(), `${id}-0.part`));
+    expect(existsSync(join(bugDir(), `${id}-0.mp4`))).toBe(true);
     expect((await put(id, 0, token, video.subarray(BUG_LIMITS.chunkBytes), BUG_LIMITS.chunkBytes, "video/mp4")).status).toBe(200);
     expect(readFileSync(join(bugDir(), `${id}-0.mp4`)).equals(video)).toBe(true);
   });
