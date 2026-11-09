@@ -28,7 +28,7 @@ A match opens on its score: the result and margin first, one difference table, t
 ### Matches
 - **Score first.** An opened match leads with the final score and who won by how much (winner bold, loser faded), then which match, when, and who won. Each alliance's robots are compact lines: station, event rank and record, OPR at this time, season OPR and rank, what their OPRs add up to, and the bonus RPs earned or missed.
 - **One difference table.** The breakdown shows one row per phase with Red's points, the difference in words in the colour of the side it favours ("Blue +17", "Even", "Blue gave 20 more" for fouls), and Blue's points. No bars: the difference says it faster. What each phase is made of (Leave, Park, Hive…; fouls by kind) opens under it with a tap, in the same three columns, with the same numbers as before.
-- **The call in one card.** Predicted scores and the predicted margin share a line, and the bonus ranking point chances sit in the same card as numbers, with the expected RP and a one-line note. The why, the full 13-factor breakdown (still collapsed) and the track record are unchanged.
+- **The call in one card.** Predicted scores and the predicted margin share a line, and the bonus ranking point chances sit in the same card as numbers, with the expected RP and a one-line note. The why, the full 13-factor breakdown (still collapsed) and the track record are unchanged. (#1241)
 
 ## 4.8.0 — 2026-11-09
 
