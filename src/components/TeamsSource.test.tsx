@@ -10,12 +10,12 @@ const NOW = Date.parse("2026-11-06T22:00:00Z");
 const HOUR_AGO = new Date(NOW - 3600_000).toISOString();
 const DAYS_AGO = new Date(NOW - 3 * 86400_000).toISOString();
 
-const detail = (o: { source?: string; field?: number; status?: string; synced?: string | null; shared?: boolean; provisionalAt?: string; registered?: boolean }): EventDetail => ({
+const detail = (o: { source?: string; field?: number; status?: string; synced?: string | null; shared?: boolean | string; provisionalAt?: string; registered?: boolean }): EventDetail => ({
   event: { source: o.source ?? "first", status: o.status ?? "upcoming" },
   field: Array.from({ length: o.field ?? 0 }, (_, i) => ({ team: i + 1 }) as FieldRow),
   ...("synced" in o ? { teamsSyncedAt: o.synced } : {}),
   registered: o.registered ? { fetchedAt: HOUR_AGO } : null,
-  sharedSessions: o.shared ? { fetchedAt: HOUR_AGO, other: { code: "X", name: "X" }, teams: [] } : null,
+  sharedSessions: o.shared ? { fetchedAt: typeof o.shared === "string" ? o.shared : HOUR_AGO, other: { code: "X", name: "X" }, teams: [] } : null,
   provisional: o.provisionalAt ? { fetchedAt: o.provisionalAt } : null,
 }) as unknown as EventDetail;
 
@@ -30,6 +30,12 @@ describe("TeamsSource", () => {
   it("FIRST's list: FIRST, last synced", () => {
     expect(line(detail({ field: 13, synced: HOUR_AGO }))).toMatch(/^Source: FIRST Events API · last synced /);
     expect(line(detail({ field: 13, synced: HOUR_AGO }))).not.toMatch(/out of date/);
+  });
+
+  it("an AM/PM pair's shared list says when that list was read, never this session's own empty read", () => {
+    const d = detail({ shared: DAYS_AGO, synced: new Date(NOW).toISOString() });
+    expect(line(d)).toMatch(/^Source: FIRST Events API · last synced \d+ days ago/);
+    expect(line(d)).toMatch(/may be out of date/);
   });
 
   it("no list yet: says FIRST has published none, with when it was checked", () => {

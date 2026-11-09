@@ -10,7 +10,10 @@ export const STALE_SYNC_MS = 36 * 3600_000;
 export function TeamsSource({ d, provisional, now = Date.now() }: { d: EventDetail; provisional: boolean; now?: number }) {
   const e = d.event;
   // Absent (saved data, an older server): the time isn't known, which is not the same as never synced.
-  const at = provisional ? d.provisional?.fetchedAt : d.teamsSyncedAt;
+  // An AM/PM pair's shared list (this session has none of its own) was read when that list was: never this session's
+  // own read, which an empty answer moves while the other session's read may have failed.
+  const shared = !provisional && !d.field.length && !!d.sharedSessions;
+  const at = provisional ? d.provisional?.fetchedAt : shared ? d.sharedSessions!.fetchedAt : d.teamsSyncedAt;
   const known = at !== undefined;
   const stale = known && e.status !== "finished" && (!at || now - Date.parse(at) > STALE_SYNC_MS);
   // FIRST's registrations are FIRST's list whatever the event's last full fetch came from.
@@ -20,7 +23,7 @@ export function TeamsSource({ d, provisional, now = Date.now() }: { d: EventDeta
   return (
     <p className="mt-3 text-[11px] text-muted-foreground" data-teams-source>
       Source: {source}
-      {known && <> · {at ? <>{provisional ? "read" : d.field.length ? "last synced" : "last checked"} <time dateTime={at} title={new Date(at).toLocaleString()}>{ago(at)}</time></> : "not synced yet"}</>}
+      {known && <> · {at ? <>{provisional ? "read" : d.field.length || shared ? "last synced" : "last checked"} <time dateTime={at} title={new Date(at).toLocaleString()}>{ago(at)}</time></> : "not synced yet"}</>}
       {stale && <span className="text-warning"> · may be out of date</span>}
     </p>
   );
