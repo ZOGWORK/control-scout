@@ -67,7 +67,7 @@ function Player({ stream, title, matches, liveCall, recording }: { stream: Event
   }), [stream.videoId]);
   // What the overlay shows: a recording follows the player's second; live, the match being called.
   // A match's own video: that match, its result once the video stops past the match's length (from where its link starts).
-  const timed = recording && matches.some((m) => m.clip);
+  const timed = recording && matches.some((m) => m.clip && !m.clip.early);
   const ownMatch = own?.matchKey ? matches.find((m) => m.key === own.matchKey) ?? null : null;
   const call: OverlayCall | null = start == null || !overlay ? null
     : own ? (ownMatch ? { match: ownMatch, phase: clock && !clock.playing && clock.t - (start ?? 0) >= MATCH_S ? "after" : "playing" } : null)

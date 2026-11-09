@@ -85,6 +85,22 @@ describe("StatAnswerCard, a team's OPR", () => {
     const one = render(<MemoryRouter><SeasonPickContext.Provider value={ctx}><StatAnswerCard stat={{ ...pair, title: "Teams in New Jersey · 2024–25", scope: ["New Jersey", "2024–25"] }} /></SeasonPickContext.Provider></MemoryRouter>).container;
     expect(one.querySelector("[role=combobox]")).not.toBeNull();
   });
+  // Live check of #1111: a board over every season, or over a span of seasons, is no one season's: no season to pick.
+  it("a board over every season, or a span of them, has no season picker", () => {
+    const ctx = { picked: null, pending: false, pick: () => {} };
+    const boards: [string, string[]][] = [
+      ["Team worldwide with the most wins, every season", ["Worldwide", "Every season on record (2008–09 to 2025–26)"]],
+      ["Oldest teams still active in Ohio, by rookie year", ["Ohio", "Active in 2025–26 or 2026–27"]],
+      ["Teams from Texas with the most awards", ["Texas", "All seasons"]],
+    ];
+    for (const [title, scope] of boards) {
+      const st: StatAnswer = { family: "leaderboard", intent: "career-wins", title, scope, headline: { value: "1", label: "" }, blocks: [], definition: "", source: "" };
+      const c = render(<MemoryRouter><SeasonPickContext.Provider value={ctx}><StatAnswerCard stat={st} /></SeasonPickContext.Provider></MemoryRouter>).container;
+      expect(c.querySelector("[role=combobox]"), title).toBeNull();
+      expect(c.querySelector("[data-scope]")!.textContent, title).toContain(scope[1]);
+      cleanup();
+    }
+  });
   it("a title the page heading already says is for screen readers only", () => {
     const c = render(<MemoryRouter><StatAnswerCard stat={opr} heading="Hypnotic Robotics (4215) · OPR in 2025–26" /></MemoryRouter>).container;
     expect(c.querySelector("[data-answer-title]")!.className).toContain("sr-only");
@@ -155,6 +171,23 @@ describe("StatAnswerCard, a team's OPR", () => {
     expect(point.className).toMatch(/max-md:hidden.*pointer-coarse:hidden/);
     expect(series.querySelectorAll('.relative [role=img].max-md\\:flex')).toHaveLength(1);
     expect(series.querySelector('[data-series-values] a[href="/events/2025/USNJNOLT2?team=4215"]')!.className).toContain("max-md:min-h-[44px]");
+    // Hovering or focusing a point says what it is at once: its name, then its value (not a slow browser title).
+    const tip = point.querySelector("[data-point-tip]")!;
+    expect([...tip.children].map((x) => x.textContent)).toEqual(["East Bergen Conference Northern League Tournament", "84.4"]);
+    expect(tip.className).toMatch(/group-hover:block.*group-focus-visible:block/);
+    expect(point.getAttribute("title")).toBeNull();
+    // A tip opens toward the chart's wider side, at most 48% of the chart wide: never past an edge, wherever the point.
+    expect(tip.className).toContain("left-0");
+    expect(tip.className).toContain("max-w-[min(16rem,48cqw)]");
+    const tips = [...series.querySelectorAll(".relative a [data-point-tip], .relative [role=img].flex [data-point-tip]")];
+    expect(tips.at(-1)!.className).toContain("right-0");
+    // A point with no link can be focused too, and the one hovered or focused sits above the rest.
+    const plain = series.querySelector(".relative [role=img].flex") as HTMLElement;
+    expect(plain.tabIndex).toBe(0);
+    plain.focus();
+    expect(document.activeElement).toBe(plain);
+    expect(plain.className).toMatch(/hover:z-20.*focus-visible:z-20/);
+    expect(point.className).toMatch(/hover:z-20.*focus-visible:z-20/);
   });
 });
 
