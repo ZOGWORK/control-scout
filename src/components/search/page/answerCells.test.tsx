@@ -6,7 +6,8 @@ import { cleanup, render } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
 import type { StatAnswer, StatMatchRow } from "../../../shared/searchStat";
-import { RankPill, RecordText, ResultPill, RichText, better } from "./answerCells";
+import { RankPill, RecordText, ResultPill, RichText, better, kpiSwatches } from "./answerCells";
+import { SEARCH_PALETTE } from "../../../lib/textTones";
 import { MatchBox } from "./MatchBox";
 import { StatAnswerCard } from "./StatAnswer";
 
@@ -147,3 +148,17 @@ describe("combined scores", () => {
   });
 });
 
+
+describe("one team's tiles, each its own colour (the owner, 11-09)", () => {
+  it("a falling trend red, a rising one green, and no two tiles in a row the same", () => {
+    const row = [{ label: "Average, last 6", value: "78.3" }, { label: "Trend", value: "Falling", tone: "bad" }, { label: "Highest", value: "99" }, { label: "Lowest", value: "57" }];
+    const sw = kpiSwatches(row);
+    expect(sw[1]).toBe(SEARCH_PALETTE.pen);
+    expect(sw[0].bar).toBe("bg-team-a");
+    expect(new Set(sw.map((s) => s.bar)).size).toBe(4);
+    expect(kpiSwatches([{ label: "Trend", value: "Rising", tone: "good" }])[0]).toBe(SEARCH_PALETTE.yes);
+    expect(kpiSwatches([{ label: "Trend", value: "Steady" }])[0]).toBe(SEARCH_PALETTE.no);
+    // Tiles with no kind of their own still never share a colour.
+    expect(new Set(kpiSwatches([{ label: "Wins" }, { label: "Losses" }, { label: "Ties" }, { label: "Events" }]).map((s) => s.bar)).size).toBe(4);
+  });
+});

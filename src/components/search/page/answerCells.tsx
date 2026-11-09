@@ -37,6 +37,41 @@ export function swatchOf(label: string | null | undefined, i = 0): Swatch {
   return m ? SEARCH_PALETTE[m] : TEAM_SWATCH[Math.max(0, Math.min(2, i))];
 }
 
+// One team's tiles in a row (an average, a trend, a highest, a lowest): each its own colour, never the team's blue
+// on every tile (the owner, 11-09: "falling should be red… make all groups unique in color"). A trend says its
+// direction (rising green, falling red, steady slate); a highest, lowest and average keep one colour wherever they
+// show; anything else takes the next colour no other tile in the row has. No sky, cyan, blue or amber: too like the
+// team's hue or each other on one card (answerAudit ALIKE).
+const P = SEARCH_PALETTE;
+const KPI_KINDS: [RegExp, Swatch][] = [
+  [/high|best|max|\btop\b|most/i, P.endgame],
+  [/low|worst|\bmin|fewest|least/i, P.winning],
+  [/average|\bavg\b|mean|typical/i, TEAM_SWATCH[0]],
+];
+const KPI_ROTATION: Swatch[] = [TEAM_SWATCH[0], P.endgame, P.winning, P.inspire, P.performance, P.judged, P.finalist, P.finished];
+const familyOf = (s: Swatch) => s.bar.split(" ")[0].replace(/^bg-/, "").replace(/-\d+$/, "");
+/** A row of one team's tiles, each its colour: its meaning's (a phase, an award), its tone's (a trend: good green,
+ *  bad red, else slate), its kind's (highest, lowest, average), else the next colour no tile in the row has yet. */
+export function kpiSwatches(items: { label: string; value?: unknown; tone?: string }[]): Swatch[] {
+  const fixed = items.map((k): Swatch | null => {
+    const m = meaningOf(k.label);
+    if (m) return P[m];
+    if (k.tone === "good") return P.yes;
+    if (k.tone === "bad") return P.pen;
+    if (/trend|direction/i.test(k.label) || /^steady$/i.test(String(k.value ?? ""))) return P.no;
+    return KPI_KINDS.find(([re]) => re.test(k.label))?.[1] ?? null;
+  });
+  const used = new Set<string>();
+  // A kind's colour only once: a second "best" tile in a row takes the rotation's next.
+  const out = fixed.map((s) => { if (!s || used.has(familyOf(s))) return null; used.add(familyOf(s)); return s; });
+  return out.map((s) => {
+    if (s) return s;
+    const next = KPI_ROTATION.find((r) => !used.has(familyOf(r))) ?? TEAM_SWATCH[0];
+    used.add(familyOf(next));
+    return next;
+  });
+}
+
 /** An award as a filled chip in its kind's colour (Inspire, Winning or Finalist Alliance, a judged award), its name on it. */
 export function AwardChip({ name, className }: { name: string; className?: string }) {
   return (
@@ -82,11 +117,12 @@ export function RecordText({ text, className, win = "text-foreground" }: { text:
   );
 }
 
-/** A won, lost or tied result as a chip: a win solid, a loss outlined, a tie muted (told apart without hue). */
+/** A won, lost or tied result as a chip: a win filled green, a loss red, a tie slate (the owner, 11-09: colour each
+ *  group); the letter says it too. */
 export function ResultChip({ text }: { text: string }) {
   const r = /^w/i.test(text) ? "W" : /^l/i.test(text) ? "L" : /^t/i.test(text) ? "T" : null;
   if (!r) return <>{text}</>;
-  const tone = r === "W" ? "bg-foreground text-background" : r === "L" ? "border border-border text-foreground" : "bg-muted text-muted-foreground";
+  const tone = r === "W" ? SEARCH_PALETTE.yes.fill : r === "L" ? SEARCH_PALETTE.pen.fill : SEARCH_PALETTE.no.fill;
   return <span className={cn("inline-flex min-w-6 items-center justify-center rounded-md px-1.5 py-0.5 text-xs font-bold", tone)} data-result={r}>{text}</span>;
 }
 

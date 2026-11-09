@@ -28,6 +28,19 @@ An opened match reads side by side again, with about half the words.
 - **Side by side.** On a wide screen the two alliances, then the score table and the call, sit next to each other; a phone keeps one column.
 - **Fewer words, same numbers.** Each robot reads "S1 · #13 4-2-0 · OPR 15.5 · season #1,378" (the season OPR shows only when it differs from the event's); each lineup's OPR sum reads "OPRs 27.7 → scored 13 (−14.7)"; bonus RPs show their icon, name and a ✓ or ✗. The call is two lines: "Predicted 52 ±44 – 55 ±45 · Blue by 3" and "Actual 33 – 75 · off −19 / +20 · both in range · Upset". The bonus RP note and the result-changes explanation moved into their tooltips (and stay read aloud). The headline drops "Blue won", since "Blue by 42" says it. (#1249)
 
+## 4.8.5 — 2026-11-09
+
+Search answers show a league meet's rank, and a team's stat tiles each get their own colour.
+
+### Highlights
+- [fixes] A league meet's rank shows in search's events list again
+- [appearance] Each stat tile in a search answer has its own colour
+- [appearance] A falling trend is red, a rising one green
+
+### Search
+- **League standing.** In search's events tables, a league meet's rank shows as the league's standing (`#1 of 20 league`), and the latest-event answer says "League standing #1 of 20". Best and worst finishes still leave league meets out. (#1248)
+- **Colour per tile.** One team's tiles (average, trend, highest, lowest and the rest) each take their own colour, never all the team's blue: a falling trend red, a rising one green, steady slate. Wins, losses and ties are green, red and slate chips. (#1248)
+
 ## 4.8.4 — 2026-11-09
 
 "Best match in <event>" now answers with that event's highest-scoring match.
