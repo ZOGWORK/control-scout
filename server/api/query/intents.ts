@@ -235,9 +235,10 @@ export const INTENTS: IntentRule[] = [
     ...BOARD_METRICS.map((m) => R("leaderboard", 0, [agg, m], BOARD_OPT)),
   ]),
   // Standout matches: a scope's ("worlds highlights", "new jersey highlights 2024-25"), or one team's ("<team> best
-  // matches at worlds"); its match videos ("jackson division recap", "watch <team>") are its highlights too.
+  // matches at worlds"), or the latest week of play's ("recent highlights"); its match videos ("jackson division recap",
+  // "watch <team>") are its highlights too.
   ...([0, 1] as const).flatMap((n) => [
-    R("highlights", n, ["highlights"], ["videos", "thing:match", "list", "agg:max"], { noMatchNo: true }),
+    R("highlights", n, ["highlights"], ["videos", "thing:match", "list", "agg:max", "agg:last"], { noMatchNo: true }),
     R("highlights", n, ["videos"], ["thing:match", "thing:event", "list", "agg:max", "agg:last"], { noMatchNo: true }),
   ]),
   // "What happened last weekend", with no team: the scope's standout matches (one team's is the forecast's review).

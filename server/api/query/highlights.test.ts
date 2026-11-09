@@ -197,6 +197,22 @@ describe("highlights over a scope", () => {
   it("a match's number is that match, never the highlights", async () => {
     expect((await ask("jackson division q16 video")).stat?.intent).not.toBe("scope-highlights");
   });
+
+  it("recent highlights, no team or event: the latest week of play's standout matches (failed-search #1205)", async () => {
+    // The latest day played is Colorado's (Feb 14): its week is Feb 8–14, so Texas (Feb 7) is out.
+    const s = await stat("recent highlights");
+    expect(s.intent).toBe("scope-highlights");
+    expect(s.title).toBe("Recent highlights, 2025–26");
+    expect(s.scope).toContain("Feb 8–14, 2026");
+    expect(new Set(rows(s).map(codeOf))).toEqual(new Set(["USCOQ1"]));
+    expect(s.source).toBe("From 3 played matches on Feb 8–14, 2026");
+    // With a place: that place's latest week.
+    const nj = await stat("new jersey recent highlights");
+    expect(nj.title).toBe("Recent highlights in New Jersey, 2025–26");
+    expect(new Set(rows(nj).map(codeOf))).toEqual(new Set(["USNJQ1"]));
+    // A team or an event said already says which matches: read as before.
+    expect((await stat("4215 recent highlights")).intent).toBe("team-highlights");
+  });
 });
 
 describe("a team's highlights", () => {
