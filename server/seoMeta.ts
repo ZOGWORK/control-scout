@@ -679,6 +679,8 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
     let m: RegExpMatchArray | null;
     // Any number of digits: the value is what counts (/teams/0004215 is team 4215, as in the app; a huge one is out of range).
     if ((m = p.match(/^\/teams\/(\d+)$/i))) return await teamMeta(Number(m[1]), qstr(query.season) ?? undefined);
+    // An event address without its season that got this far wasn't redirected (server/app.ts): no such event.
+    if (/^\/events\/[^/]+$/i.test(p)) return NOT_FOUND;
     // The season by value too (/events/02025/X is 2025, as in the app and the API).
     // Any code FIRST uses, in any case (src/shared/eventCode.ts): looked up as stored, the canonical in upper case.
     if ((m = p.match(/^\/events\/(\d+)\/([^/]+)$/i)) && isEventCodeParam(m[2])) {

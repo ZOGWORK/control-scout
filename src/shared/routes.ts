@@ -7,7 +7,7 @@
 /** A lazily loaded page module under src/pages (the file name without .tsx). */
 export type PageModule =
   | "TeamPage" | "EventsPage" | "RecordsPage" | "RankingsPage" | "EventPage" | "PredictPage" | "ComparePage" | "MyTeamPage" | "MyTeamsPage"
-  | "ShortlistPage" | "ScoutPage" | "DownloadPage" | "SettingsPage" | "MethodologyPage" | "SearchDocsPage" | "PrivacyPage" | "TermsPage" | "ContactPage" | "DonatePage" | "SupportersPage" | "FaqPage" | "RulesPage" | "MatchReportPage" | "PowerRankingsPage" | "EventDisplayPage" | "DigestUnsubscribedPage" | "BundlePage" | "SearchPage" | "RelatedSearchesPage" | "NotFound";
+  | "ShortlistPage" | "ScoutPage" | "DownloadPage" | "SettingsPage" | "MethodologyPage" | "SearchDocsPage" | "PrivacyPage" | "TermsPage" | "ContactPage" | "DonatePage" | "SupportersPage" | "FaqPage" | "RulesPage" | "MatchReportPage" | "PowerRankingsPage" | "EventDisplayPage" | "EventCodeRedirect" | "DigestUnsubscribedPage" | "BundlePage" | "SearchPage" | "RelatedSearchesPage" | "NotFound";
 
 // React Router matches case-insensitively, a trailing slash included: so do these.
 const ROUTES: [RegExp, PageModule | null][] = [
@@ -16,6 +16,8 @@ const ROUTES: [RegExp, PageModule | null][] = [
   [/^\/teams\/[^/]+\/?$/i, "TeamPage"],
   [/^\/rankings\/?$/i, "RankingsPage"],
   [/^\/events\/?$/i, "EventsPage"],
+  // A season alone (/events/2025) is no event: the page not found, as EventCodeRedirect renders it.
+  [/^\/events\/(?!\d{4}\/?$)[^/]+\/?$/i, "EventCodeRedirect"],
   [/^\/events\/[^/]+\/[^/]+\/?$/i, "EventPage"],
   [/^\/events\/[^/]+\/[^/]+\/match\/[^/]+\/?$/i, "MatchReportPage"],
   [/^\/events\/[^/]+\/[^/]+\/display\/?$/i, "EventDisplayPage"],
