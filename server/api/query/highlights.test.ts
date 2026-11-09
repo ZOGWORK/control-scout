@@ -206,6 +206,8 @@ describe("highlights over a scope", () => {
     expect(s.scope).toContain("Feb 8–14, 2026");
     expect(new Set(rows(s).map(codeOf))).toEqual(new Set(["USCOQ1"]));
     expect(s.source).toBe("From 3 played matches on Feb 8–14, 2026");
+    // Another measure word before it keeps the week.
+    expect((await stat("best recent highlights")).title).toBe("Recent highlights, 2025–26");
     // With a place: that place's latest week.
     const nj = await stat("new jersey recent highlights");
     expect(nj.title).toBe("Recent highlights in New Jersey, 2025–26");

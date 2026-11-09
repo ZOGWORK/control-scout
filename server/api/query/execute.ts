@@ -560,7 +560,7 @@ async function highlights(p: Parsed, scope: ReadScope, opts: PipelineOptions): P
   // A count of none ("top 0 highlights") lists nothing to show.
   if (!opts.full || p.alliance || scope.ever || p.place?.kind === "city" || (p.n != null && p.n < 1)) return null;
   // "Recent highlights": a scope's latest week of play, when no team, event or time says which matches already.
-  const recent = p.agg === "last" && !(p.teams.length || p.event || p.worlds || p.states || p.time);
+  const recent = p.symbols.includes("agg:last") && !(p.teams.length || p.event || p.worlds || p.states || p.time);
   const answer = (stat: StatAnswer, season: number, hits: SearchAnswer["hits"] = []): SearchAnswer => ({
     q: p.q, hits, pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season }, stat,
     intent: { kind: `stat-${stat.intent}`, pattern: `${p.teams.length ? "[team] " : ""}highlights${p.event ? " [event]" : p.worlds ? " [worlds]" : p.states ? " [states]" : ""}${p.place ? " [place]" : ""}${scope.window ? " [window]" : ""}`, met: true, understood: [] },
