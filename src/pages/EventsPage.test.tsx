@@ -26,11 +26,14 @@ const HITS = [
   { kind: "event", ref: "2026:USTXAMS", title: "Amarillo Scrimmage", subtitle: "Amarillo, TX", season: 2026 },
   { kind: "place", ref: "USA:TX", title: "All events in Texas", subtitle: "40 this season", season: 2026 },
 ];
+// The events list still loading (a test flips it to see what happens when it lands).
+let listPending = false;
 vi.mock("../lib/personal", () => ({ usePersonal: () => ({ state: { myTeam: null, tracked: { teams: [], events: [] }, bookmarks: [] } }) }));
 vi.mock("../lib/api", async (orig) => ({
   ...(await orig<typeof import("../lib/api")>()),
   apiFetch: async (path: string) => { searched.push(path); return { hits: HITS }; },
-  useApi: (path: string | null) => ({ data: path?.startsWith("/api/events") ? { events: EVENTS } : undefined, error: undefined, loading: false, reload: () => {} }),
+  useApi: (path: string | null) => (listPending && path?.startsWith("/api/events") ? { data: undefined, error: undefined, loading: true, reload: () => {} }
+    : { data: path?.startsWith("/api/events") ? { events: EVENTS } : undefined, error: undefined, loading: false, reload: () => {} }),
 }));
 // Today's coin flips have their own tests (CoinFlipRadar.test.tsx).
 vi.mock("../components/home/CoinFlipRadar", () => ({ CoinFlipRadarSection: () => null }));
@@ -232,6 +235,20 @@ describe("Events page default status", () => {
     fireEvent.click(screen.getByRole("button", { name: /Clear filters/ }));
     expect(loc).toBe("");
     expect(pressed()).toEqual(["Live now"]);
+  }));
+
+  it("lights no chip while the list loads, and a tap then still wins when live events arrive", () => withLive(() => {
+    listPending = true;
+    try {
+      const view = mount();
+      expect(screen.queryAllByRole("button", { pressed: true })).toEqual([]);
+      fireEvent.click(screen.getByRole("button", { name: /^All/ }));
+      expect(new URLSearchParams(loc).get("status")).toBe("all");
+      listPending = false;
+      view.rerender(<MemoryRouter initialEntries={["/events?status=all"]}><EventsPage /><Probe /></MemoryRouter>);
+      expect(pressed()).toEqual(["All"]);
+      expect(cards()).toBe(FIRST_EVENTS);
+    } finally { listPending = false; }
   }));
 });
 

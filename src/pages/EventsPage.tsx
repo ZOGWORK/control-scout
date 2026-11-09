@@ -29,16 +29,18 @@ export default function EventsPage() {
   // With no status in the address: Live now while something is live, else All. Decided once per season, when the
   // list is in (no chip is lit before, so nothing jumps), and kept: a count changing later never moves the page.
   const [decided, setDecided] = useState<{ season: number; status: Status } | null>(null);
-  if (decided?.season !== season && (state.data || state.error)) {
-    setDecided({ season, status: state.data ? defaultStatus(state.data.events, { region, type, from, to, q: urlQ, video }) : "all" });
+  // Only a list decides it: an error leaves it open, so Try again bringing live events still opens on Live now.
+  if (decided?.season !== season && state.data) {
+    setDecided({ season, status: defaultStatus(state.data.events, { region, type, from, to, q: urlQ, video }) });
   }
   const fallback: Status | null = decided?.season === season ? decided.status : null;
   const status = asked ?? fallback ?? "all";
   // One place for URL edits: empty values drop out, history isn't flooded while typing. A status equal to the
-  // page's own default drops out too; any other (All on a day with something live) is written, so it holds.
+  // page's own default drops out too; any other (All on a day with something live) is written, so it holds. A tap
+  // before the default is known is always written, so the list arriving can't override it.
   const set = useCallback((patch: Record<string, string | null>, replace = true) => setSp((x) => {
     for (const [k, v] of Object.entries(patch)) {
-      const none = k === "status" ? v == null || v === (fallback ?? "all") : v == null || v === "" || v === "all";
+      const none = k === "status" ? v == null || v === fallback : v == null || v === "" || v === "all";
       if (none) x.delete(k); else x.set(k, v!);
     }
     return x;
