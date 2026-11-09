@@ -12,9 +12,9 @@ beforeAll(async () => {
   const c = openDb(":memory:");
   setDb(c);
   await migrate(c);
-  // [country, state, how many teams, OPR each]: New Jersey and Texas have enough teams; Kansas has a strong few; a
-  // region outside the US and Canada is never a state here.
-  const places: [string, string, number, number][] = [["USA", "NJ", MIN_TEAMS, 50], ["USA", "TX", MIN_TEAMS + 2, 30], ["USA", "KS", 3, 90], ["Kazakhstan", "ALA", MIN_TEAMS, 80]];
+  // [country, state, how many teams, OPR each]: Ontario, New Jersey and Texas have enough teams; Kansas has a strong
+  // few; a region outside the US and Canada is never a state here.
+  const places: [string, string, number, number][] = [["Canada", "ON", MIN_TEAMS, 60], ["USA", "NJ", MIN_TEAMS, 50], ["USA", "TX", MIN_TEAMS + 2, 30], ["USA", "KS", 3, 90], ["Kazakhstan", "ALA", MIN_TEAMS, 80]];
   let n = 1000;
   for (const [country, state, count, opr] of places) {
     for (let i = 0; i < count; i++, n++) {
@@ -39,9 +39,16 @@ describe("states by average OPR", () => {
     const a = await searchAnswer("which state has the highest average OPR", { limit: 25, learn: false });
     expect(a.step).toBe("deterministic");
     const rows = (a.stat?.blocks?.find((b) => b.kind === "table") as { rows: { cells: Record<string, unknown> }[] }).rows;
-    expect(rows.map((r) => r.cells.place)).toEqual(["New Jersey", "Texas"]);
-    expect(rows.map((r) => r.cells.avg)).toEqual(["50.0", "30.0"]);
-    expect(a.stat?.headline?.value).toBe("New Jersey");
+    expect(rows.map((r) => r.cells.place)).toEqual(["Ontario, Canada", "New Jersey", "Texas"]);
+    expect(rows.map((r) => r.cells.avg)).toEqual(["60.0", "50.0", "30.0"]);
+    // "In the US" keeps to US states: a Canadian province is never its answer; "in Canada" to provinces.
+    expect(readPlaceAverage("which state in the US has the highest average opr")).toMatchObject({ country: "USA" });
+    const us = await searchAnswer("which state in the US has the highest average OPR", { limit: 25, learn: false });
+    expect(us.stat?.headline?.value).toBe("New Jersey");
+    expect((us.stat?.blocks?.find((b) => b.kind === "table") as { rows: { cells: Record<string, unknown> }[] }).rows.map((r) => r.cells.place)).toEqual(["New Jersey", "Texas"]);
+    expect(us.stat?.title).toMatch(/^US states by average OPR/);
+    const ca = await searchAnswer("which province in canada has the highest average opr", { limit: 25, learn: false });
+    expect(ca.stat?.headline?.value).toBe("Ontario, Canada");
     const low = await searchAnswer("which state has the lowest average opr", { limit: 25, learn: false });
     expect((low.stat?.blocks?.find((b) => b.kind === "table") as { rows: { cells: Record<string, unknown> }[] }).rows[0].cells.place).toBe("Texas");
   });

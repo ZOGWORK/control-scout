@@ -146,11 +146,11 @@ function readList(said: string): CompoundQuestion | null {
       thresholds.push({ stat, op: t[2] ? opOf(t[2]) : "ge", value: Number(t[3]) });
       continue;
     }
-    // The number said first, with what makes it a floor: "with 44 or above opr", "44+ opr".
-    const F = new RegExp(String.raw`\b${LEAD}${NUM}(?![\d.])(?:\s*(\+)|${AT_LEAST})\s+${STAT}\b`);
+    // The number said first, with the words that make it a floor: "with 44 or above opr".
+    const F = new RegExp(String.raw`\b${LEAD}${NUM}(?![\d.])${AT_LEAST}\s+${STAT}\b`);
     const first = take(F);
     if (first) {
-      const stat = statOf(first[3]);
+      const stat = statOf(first[2]);
       if (!stat) return null;
       thresholds.push({ stat, op: "ge", value: Number(first[1]) });
       continue;

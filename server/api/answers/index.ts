@@ -391,7 +391,7 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   const avg = readPlaceAverage(q);
   if (avg) {
     const stat = opts.full ? await placeAverageAnswer(avg) : null;
-    const label = `States and provinces by average OPR${avg.order === "asc" ? ", lowest first" : ""}`;
+    const label = `${avg.country === "USA" ? "US states" : avg.country === "Canada" ? "Canadian provinces" : "States and provinces"} by average OPR${avg.order === "asc" ? ", lowest first" : ""}`;
     return { q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label },
       intent: { kind: "stat-place-average-opr", pattern: "places by average opr", met: true, understood: [label] }, ...(stat ? { stat } : {}) };
   }
