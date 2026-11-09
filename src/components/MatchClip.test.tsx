@@ -139,6 +139,12 @@ describe("an event broadcast a day at a time", () => {
     expect(path()).toBe(`/embed/${clip.videoId}`);
     expect(document.querySelector("iframe")!.getAttribute("src")).not.toContain("start=");
   });
+    it("while the event is on, it opens on the latest day's broadcast", () => {
+    render(<MemoryRouter><WatchLive d={{ ...d, event: { ...d.event, status: "live" }, matches: [] } as unknown as EventDetail} stream={days} /></MemoryRouter>);
+    expect(screen.getByRole("button", { name: "Sunday" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: /^Play:/ }));
+    expect(path()).toBe(`/embed/${SUN}`);
+  });
     it("one video: no day buttons", () => {
     render(<MemoryRouter><WatchLive d={d} stream={stream} /></MemoryRouter>);
     expect(document.querySelector("[data-stream-days]")).toBeNull();

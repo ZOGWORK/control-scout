@@ -52,14 +52,17 @@ function Player({ stream, title, matches, liveCall, recording }: { stream: Event
   const own = play?.own ?? null;
   // An event broadcast a day at a time: the day's video playing (a match's Watch moves to its day).
   const days = stream.days?.length ? stream.days : [{ videoId: stream.videoId, label: "" }];
-  const [picked, setDay] = useState(stream.videoId);
-  // A day whose video was taken off since (a refresh): the event's video instead.
-  const day = days.some((d) => d.videoId === picked) ? picked : stream.videoId;
-  // ... and anything playing starts that video afresh (a new player: its own clock, from its start).
+  // First shown: today's broadcast while the event is on, else its first day.
+  const opening = recording ? stream.videoId : days[days.length - 1].videoId;
+  const [picked, setDay] = useState(opening);
+  // A day whose video was taken off since (a refresh): the opening one instead.
+  const day = days.some((d) => d.videoId === picked) ? picked : opening;
+  // ... and a recording playing starts that video afresh (a new player: its own clock, from its start).
   useEffect(() => {
     if (day === picked) return;
     setDay(day);
-    setPlay((p) => (p ? { t: 0, n: p.n + 1 } : p));
+    // An official match video playing stays: only the recording behind it changes.
+    setPlay((p) => (p && !p.own ? { t: 0, n: p.n + 1 } : p));
   }, [day, picked]);
   const dayRef = useRef(day);
   dayRef.current = day;
