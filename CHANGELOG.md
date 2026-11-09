@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.6.3 — 2026-11-09
+
+A team's name with "from" and a place ("ultraviolet from nj") finds the team, and a name several teams share finds the one from the place named.
+
+### Highlights
+- [fixes] "<team> from <state>" finds the team, as "<team> in <state>" does
+- [fixes] A name several teams share finds the one from the place you name
+- [fixes] A place code like "nj" after "from" is read as the place
+
+### Search
+- **Team from a place.** "From" before a state, province or country that ends the query is read as where the team is, never as part of the name; and when the name belongs to more than one team, the answer leads with the team whose home is in that place (the others stay in the list). (#1222)
+
 ## 4.6.2 — 2026-11-09
 
 Matches in a recording with a short drop-out get their clip again: the player starts just before the match instead of at the start of a 10-hour stream.
