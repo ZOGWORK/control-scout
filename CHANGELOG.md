@@ -22,6 +22,7 @@ Asking for a world record without penalties now gives the top match, with no pen
 ### Highlights
 - [fixes] "World record" means the highest score, never the Championship
 - [fixes] Without penalties shows no penalty points or scores with them
+- [fixes] "World record … without penalties" gives the top match
 
 ### Fixed
 - "world record match decode without penalties" answers with DECODE's highest score without penalties, the same answer as "best match in decode without penalties"; "world record" was read as Worlds when penalties were also said.
