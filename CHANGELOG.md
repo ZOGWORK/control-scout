@@ -21,6 +21,8 @@ Search answers how a team did at its latest meet, asked in plain words.
 
 ### Highlights
 - [fixes] "How did <team> do in their recent meet" shows its results there
+- [fixes] "<team> last meet performance" answers the same, typos and all
+- [fixes] The answer's heading says it is the team's latest event
 
 ### Search
 - **Latest meet, plain words.** "how did enforcers do in thier recent meet" and "enforcers last meet performence" now show the team's matches at its latest event, the card saying "their latest event". "Performance" is read with a typo or two, as team names are. (#1251)
