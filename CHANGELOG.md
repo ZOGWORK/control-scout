@@ -27,6 +27,18 @@ Teams named can be ranked by one stat: "rank these teams by reliability: 4215, 7
 ### Search
 - **Teams named, ranked.** "Rank, sort or order these teams by <stat>: A, B, C" and "A, B and C ranked by <stat>" give a leaderboard of those teams only, ranked among themselves; a named team with too few matches is said as not ranked. (#1104)
 
+## 4.5.6 — 2026-11-09
+
+A rating trend names the season's peak when the latest rating is well below it: "Rising from 57.7 after …, down from a 132 peak at …".
+
+### Highlights
+- [fixes] A rating trend names a peak the latest is well below
+- [fixes] "Rising" no longer hides a drop from a mid-season high
+- [fixes] A steady climb reads as it did, with no peak note
+
+### Search
+- **Rating trend peaks.** When the latest rating is a tenth or more below the highest rating after an earlier event (not the first), the trend line adds "down from a <peak> peak at <event>"; the direction still compares the first and the latest. (#1078)
+
 ## 4.5.5 — 2026-11-09
 
 A match that "went to a tiebreak, or overtime" is read as a tie.
