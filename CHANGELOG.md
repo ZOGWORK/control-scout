@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.7.6 — 2026-11-09
+
+A team's "predicted matches" shows the engine's call on its next match, as "next match prediction" does.
+
+### Highlights
+- [predict] "Hypnotic Robotics predicted matches" shows its next match's prediction
+- [predict] With no match on a posted schedule, it says so
+- [fixes] No more "can't answer that yet" for a team's predicted matches
+
+### Search
+- **Predicted matches.** "<team> predicted matches" reads as the team's next match prediction: each alliance's expected score and win chance once the schedule is posted, or plainly that no upcoming match is on one. (#1234)
+
 ## 4.7.5 — 2026-11-09
 
 The Home globe drops its small print.
