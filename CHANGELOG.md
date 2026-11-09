@@ -21,9 +21,9 @@ An opened match is one quiet column: the score, a table, the call on the same co
 
 ### Highlights
 - [predict] No boxes or headings: space and type size do the work
-- [predict] Predicted, actual and off by sit under Red and Blue, on the score table's columns
-- [predict] Bonus ranking points are icons with both chances; tap or hover for the name
-- [predict] Share, the confidence tier and the match report are small icons or words
+- [predict] Predicted, actual and off by sit under Red and Blue
+- [predict] Bonus ranking points as icons; tap or hover for the name
+- [predict] Share, confidence and the match report shrink to icons
 
 ### Matches
 - **One column, no panels.** The opened match is one column (720 px at most) separated by space: no bordered cards, no section titles. The score table keeps its column names (Red, Difference, Blue) and hairlines.
