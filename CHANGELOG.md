@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 4.7.0 — 2026-11-09
+## 4.7.1 — 2026-11-09
 
 How FTC One Search works shows the newer questions you can ask, grouped by what they show.
 
@@ -26,6 +26,8 @@ How FTC One Search works shows the newer questions you can ask, grouped by what 
 
 ### How it works
 - **Ask in plain words.** How it works › FTC One Search has a new section of example questions in four groups (leaderboards and counts, winners and awards, one team in plain words, comparisons and explanations). Each one is a link that runs that exact search, with a short line on the kind of answer it returns; each was checked on the live site before it was listed. (#1167)
+
+## 4.7.0 — 2026-11-09
 
 The live search demo on How FTC One Search works sits in the middle, beside the text.
 
