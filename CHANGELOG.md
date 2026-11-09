@@ -27,6 +27,19 @@ Search lists the matches a low-ranked team won against a top-ranked one.
 ### Search
 - **Rank upsets.** "Matches where a team ranked below N beat a team ranked top M" (or "… lost to …") lists the season's decided matches at official events where the winning alliance had a team past the first line and the losing alliance one inside the second, by world rating rank, biggest gap first. (#1126)
 
+## 4.5.3 — 2026-11-09
+
+An event page says where its team list comes from and when it was last read: FIRST's list, FTC New Jersey's provisional one before FIRST publishes, or that FIRST has published no teams yet.
+
+### Highlights
+- [teams] Event pages say where their team list comes from
+- [teams] "Last synced" time on every event's team list
+- [fixes] No teams published yet is said plainly, with when it was checked
+
+### Event pages
+- **Source line.** Under the event header: "Source: FIRST Events API · last synced 2 h ago" for FIRST's list, "FTC New Jersey · provisional, FIRST has not published teams yet" while that list is shown, "FTC Scout (FIRST couldn't serve this event)" when it is the fallback, or "FIRST Events API · no teams published yet · last checked …". A list on an event that isn't over and hasn't been read for 36 hours says it may be out of date. The time is the server's last good read of the event's team list from FIRST: its full fetch, or its registrations read (migration 76 `events.teams_checked_at`, set on every good read, an empty list included; a failed read leaves it). Saved data with no time shows the source alone.
+- **Empty Teams tab.** "No teams published for this event yet", with when FIRST was last checked. (#1044)
+
 ## 4.5.2 — 2026-11-09
 
 Match searches can set a score an alliance had to reach: "where the losing alliance scored over 200", "both alliances scored over 250".
