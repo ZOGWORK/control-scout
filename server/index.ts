@@ -2,6 +2,7 @@
 // background schedule — sync daily, every 15–60 min on event days (stats and
 // the prediction ledger after every sync), and every minute for events that
 // are on right now (the live fast lane).
+import { sweepBugReports } from "./bugReports.js";
 import { backfillVideoMeta } from "./videos/recordings.js";
 import { resolveStreamLinks } from "./videos/streamLinks.js";
 import { resolveChannelStreams } from "./videos/channelStreams.js";
@@ -149,6 +150,8 @@ scheduleCycles({ cycle, eventDay, backfillDue, eventDayMinutes });
 // 08:00 UTC, one server only) expire photos of events that ended over 2 days ago, total the bucket and
 // check the free-tier guardrails. Nothing without R2 configured; off with the rest of the schedule.
 if (!process.env.CS_NO_SCHEDULER) {
+  // Bug reports: email what's due and unsent (a failed or interrupted send), clear abandoned uploads, every 10 minutes (server/bugReports.ts).
+  setInterval(() => { sweepBugReports().catch((e) => log(`bug reports: sweep failed: ${(e as Error)?.message ?? e}`)); }, 10 * 60_000).unref();
   // Failed searches → GitHub issues, every 10 minutes (server/searchFailures.ts).
   startSearchFailureJobs(log);
   setInterval(() => { photoSchedulerTick(log).catch((e) => log(`photos: ${(e as Error).message}`)); }, 15 * 60_000).unref();

@@ -13,8 +13,8 @@ const MAX_SENDS_PER_HOUR = 5;
 const RESEND_COOLDOWN_MS = 30_000;
 
 /** `replyTo`: where a reply goes (the contact form sets the sender's address). `headers`: extra message headers
- *  (the email digest's List-Unsubscribe). Resolves with the provider's id for the message when it gives one. */
-export type MailOptions = { replyTo?: string; headers?: Record<string, string> };
+ *  (the email digest's List-Unsubscribe). `attachments`: files sent with it (a bug report's screenshots). Resolves with the provider's id for the message when it gives one. */
+export type MailOptions = { replyTo?: string; headers?: Record<string, string>; attachments?: { filename: string; content: Buffer }[] };
 export type Mailer = (to: string, subject: string, text: string, html: string, opts?: MailOptions) => Promise<void | { id?: string }>;
 
 /** A failed send: `status` is the provider's HTTP status (null for a timeout or network failure). */
@@ -30,8 +30,9 @@ const resendMailer: Mailer = async (to, subject, text, html, opts) => {
         from: env.emailFrom, to: [to], subject, text, html,
         ...(opts?.replyTo ? { reply_to: opts.replyTo } : {}),
         ...(opts?.headers ? { headers: opts.headers } : {}),
+        ...(opts?.attachments?.length ? { attachments: opts.attachments.map((a) => ({ filename: a.filename, content: a.content.toString("base64") })) } : {}),
       }),
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(opts?.attachments?.length ? 60_000 : 15000),
     });
   } catch (e) {
     throw new MailError((e as Error)?.name === "TimeoutError" ? "timeout" : "network error", null);

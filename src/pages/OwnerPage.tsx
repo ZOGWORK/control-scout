@@ -46,6 +46,7 @@ import { ModerationPanel } from "../components/owner/ModerationPanel";
 import { CommonsPanel } from "../components/owner/CommonsPanel";
 import { FeedbackPanel } from "../components/owner/FeedbackPanel";
 import { ErrorsPanel } from "../components/owner/ErrorsPanel";
+import { BugReportsPanel } from "../components/owner/BugReportsPanel";
 import { AnalyticsPanel } from "../components/owner/AnalyticsPanel";
 
 const PANELS = [
@@ -57,6 +58,7 @@ const PANELS = [
   { id: "features", label: "Features", icon: ToggleRight, group: "Product" },
   { id: "moderation", label: "Moderation", icon: ShieldAlert, group: "People & trust" },
   { id: "feedback", label: "Feedback & errors", icon: Inbox, group: "People & trust" },
+  { id: "bugs", label: "Bug reports", icon: Bug, group: "People & trust" },
   { id: "analytics", label: "Analytics", icon: Activity, group: "People & trust" },
   { id: "accounts", label: "Accounts", icon: UserRound, group: "People & trust" },
   { id: "storage", label: "Photo storage", icon: HardDrive, group: "People & trust" },
@@ -161,6 +163,7 @@ export default function OwnerPage() {
           {panel === "features" && <FeaturesPanel />}
           {panel === "moderation" && <div className="space-y-8"><CommonsPanel /><ModerationPanel onOpenResync={() => go("data")} /></div>}
           {panel === "feedback" && <div className="space-y-8"><FeedbackPanel onOpenResync={() => go("data")} /><ErrorsPanel /></div>}
+          {panel === "bugs" && <BugReportsPanel />}
           {panel === "analytics" && <div className="space-y-8"><AnalyticsPanel /><UsagePanel /></div>}
           {panel === "accounts" && <div className="space-y-8"><UsersPanel /><OrphanedPanel /></div>}
           {panel === "storage" && <StoragePanel />}
