@@ -108,10 +108,15 @@ function usePhone(): boolean {
 
 /** The button for the top bar: a small icon-and-label on wide screens, a 44px icon on phones. */
 export function BugReportButton() {
-  const [open, setOpen] = useState(false);
+  // Sheet or dialog is picked when it opens and kept until it closes: turning a phone sideways mid-report would
+  // otherwise swap the overlay and lose what was typed and attached.
+  const [open, setOpen] = useState<null | "sheet" | "dialog">(null);
   const phone = usePhone();
+  const ref = useRef<HTMLButtonElement>(null);
+  const close = (o: boolean) => { if (!o) setOpen(null); };
+  const back = () => ref.current;
   const button = (
-    <button type="button" onClick={() => setOpen(true)} aria-label="Report a bug" aria-haspopup="dialog" title="Report a bug"
+    <button ref={ref} type="button" onClick={() => setOpen(phone ? "sheet" : "dialog")} aria-label="Report a bug" aria-haspopup="dialog" title="Report a bug"
       className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-line px-2 text-xs font-medium text-text-muted outline-none transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger focus-visible:ring-2 focus-visible:ring-ring/60 max-md:w-8 max-md:justify-center max-md:border-transparent max-md:px-0 pointer-coarse:max-md:size-[44px]"
       data-testid="bug-report-button">
       <Bug className="size-4 max-md:size-5" aria-hidden />
@@ -121,9 +126,8 @@ export function BugReportButton() {
   return (
     <>
       {button}
-      {open && (phone
-        ? <Sheet open onOpenChange={setOpen}><SheetContent side="bottom" className="gap-3 px-4 pt-5"><BugReportForm phone onDone={() => setOpen(false)} /></SheetContent></Sheet>
-        : <Dialog open onOpenChange={setOpen}><DialogContent className="max-w-xl"><BugReportForm onDone={() => setOpen(false)} /></DialogContent></Dialog>)}
+      {open === "sheet" && <Sheet open onOpenChange={close}><SheetContent side="bottom" className="gap-3 px-4 pt-5" returnFocus={back}><BugReportForm phone onDone={() => close(false)} /></SheetContent></Sheet>}
+      {open === "dialog" && <Dialog open onOpenChange={close}><DialogContent className="max-w-xl" returnFocus={back}><BugReportForm onDone={() => close(false)} /></DialogContent></Dialog>}
     </>
   );
 }
@@ -212,7 +216,12 @@ function BugReportForm({ phone = false, onDone }: { phone?: boolean; onDone: () 
       for (const [n, a] of files.entries()) {
         setProgress(`Uploading ${files.length === 1 ? "the attachment" : `attachment ${n + 1} of ${files.length}`}…`);
         try {
-          await apiFetch(`/api/bug-reports/${created.id}/files/${n}`, { method: "PUT", body: a.file, headers: { ...headers, "Content-Type": a.file.type }, _online: true });
+          // In pieces, in order: each under the site's 4 MB request cap.
+          for (let at = 0; at < a.file.size; at += BUG_LIMITS.chunkBytes) {
+            await apiFetch(`/api/bug-reports/${created.id}/files/${n}?offset=${at}`, {
+              method: "PUT", body: a.file.slice(at, at + BUG_LIMITS.chunkBytes), headers: { ...headers, "Content-Type": a.file.type }, _online: true,
+            });
+          }
         } catch (err) { skipped.push(`${a.file.name}: ${(err as ApiError).message}`); }
       }
       await apiFetch(`/api/bug-reports/${created.id}/done`, { method: "POST", json: {}, headers, _online: true });
