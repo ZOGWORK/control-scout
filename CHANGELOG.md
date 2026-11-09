@@ -25,7 +25,7 @@ A team's closest match with a bound ("by less than 3 points", "within 5 points")
 - [fixes] None inside the bound? The answer names the closest match instead
 
 ### Search
-- **Closest matches under a bound.** A team's closest match, win or loss with "by less than N points", "under N points" or "within N points" lists the matches decided by fewer than N points, closest first; with none, it says so and shows the closest there was. (#N)
+- **Closest matches under a bound.** A team's closest match, win or loss with "by less than N points", "under N points" or "within N points" lists the matches decided by fewer than N points, closest first; with none, it says so and shows the closest there was. (#1233)
 
 ## 4.6.9 — 2026-11-09
 
