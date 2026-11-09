@@ -1917,6 +1917,21 @@ DELETE FROM event_teams
 ALTER TABLE matches ADD COLUMN scheduled TEXT;
 `,
   },
+  {
+    version: 76,
+    name: "when an event's team list was last read from FIRST",
+    sql: `
+-- Set on every good read of the event's team list from FIRST, an empty list included: the registrations read
+-- (data/registrations.ts) or a full fetch whose team list came back (data/bundle.ts). A failed read leaves it. The
+-- event page's "last synced" (api/events.ts).
+ALTER TABLE events ADD COLUMN teams_checked_at TEXT;
+-- Events read before this column: the later of their latest stored registrations read and their last FIRST full
+-- fetch, the time the page showed before.
+UPDATE events SET teams_checked_at = NULLIF(MAX(
+  COALESCE((SELECT MAX(r.fetched_at) FROM event_registrations r WHERE r.season = events.season AND r.code = events.code), ''),
+  CASE WHEN source = 'first' THEN COALESCE(detail_synced_at, '') ELSE '' END), '');
+`,
+  },
 ];
 
 export type Db = Client;
