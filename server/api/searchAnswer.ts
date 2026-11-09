@@ -20,7 +20,7 @@ import { SEARCH_BROWSE, SEARCH_FILLER, SEARCH_PAGE_LIMIT, SEARCH_TOPICS, firstCa
 import { conversationQuery, EVENT_WORDS, isQuestionForm, nameWords, onlyCommonWords, onlyTopicWords, singularize } from "../../src/shared/searchQuery.js";
 import { readEventQuery, regionOf } from "../../src/shared/searchEventQuery.js";
 import { eventSetAnswer, withEventParents, withWholeFamilies } from "./searchEvents.js";
-import { versusAnswer } from "./searchCompare.js";
+import { compareOneAnswer, versusAnswer } from "./searchCompare.js";
 import { ruleAnswer } from "./searchRules.js";
 import { askAnswer, readAsk } from "./searchAsks.js";
 import { readRuleQuery } from "../../src/shared/searchRuleQuery.js";
@@ -29,13 +29,13 @@ import { cleanTeamName, searchTeamTitle, teamNameOf, teamWords } from "../../src
 import { teamPageSql } from "../../src/shared/teamPages.js";
 import { CURRENT_SEASON, SEASONS } from "../data/seasons.js";
 import { all, get } from "../db.js";
-import { fuzzyScore, normalize, wordScore, words } from "./fuzzy.js";
+import { fuzzyScore, joinThousands, normalize, wordScore, words } from "./fuzzy.js";
 import { ftsQuery, search, searchIntent, teamAtEventAnswer } from "./search.js";
 import { rerank } from "./searchLearn.js";
 import { intentAnswer, parseIntent } from "./searchIntents.js";
 import { parseQuestion, questionAnswer } from "./searchQuestions.js";
 import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
-import { statAnswer } from "./answers/index.js";
+import { eventVersusSearch, statAnswer } from "./answers/index.js";
 import { placeAwardsSearch, readPlaceAwards } from "./answers/families/placeAwards.js";
 import { refreshSearchSeason } from "./answers/season.js";
 import { FALLBACK_NOTE, carryOutcome, layeredAnswer, nameKey, teamNames } from "./searchLayers.js";
@@ -45,7 +45,7 @@ import { booleanAnswer } from "./searchBoolean.js";
 import { asksOfTeams, pipelineAnswer, pipelineReads } from "./query/execute.js";
 import { yesNoAnswer } from "./answers/yesNo.js";
 import { sorryFor } from "./answers/sorry.js";
-import { awardQuery, bottomAnswer, countAnswer, eventCodeAnswer, eventPageAnswer, explainAnswer, explainTeamAnswer, monthAnswer, nearMeAnswer, namedParts, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
+import { awardQuery, bottomAnswer, calledTeams, countAnswer, eventCodeAnswer, eventPageAnswer, explainAnswer, explainTeamAnswer, monthAnswer, nearMeAnswer, namedParts, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
 
 /** The longest query read: a full question ("did the prediction for 12345 at the state championship get it right, or
  *  was it way off") fits. Longer is cut at a word, never inside one. */
@@ -81,8 +81,10 @@ export interface AnswerOptions {
 /** The query as search reads it: punctuation that never means anything dropped, spaces folded, at most MAX_QUERY
  *  (cut at the last whole word: a word cut in two, "2025-2", would be read as another). */
 export function cleanQuery(raw: string): string {
-  // "40+ teams" is "40 or more teams" (a size, as the events-over-a-size answer reads it), kept before "+" is cleaned.
-  const q = String(raw ?? "").replace(/(\d)\s*\+\s*(?=teams?\b)/gi, "$1 or more ").replace(/[!?,;"<>(){}[\]|\\^*`~=+]/g, " ").replace(/\s+/g, " ").trim();
+  // "1,000" is one number before its comma could be dropped as punctuation; a stored name written that way is indexed
+  // as one number too (SEARCH_INDEX_SCHEMA 6). "40+ teams" is "40 or more teams" (a size, as the events-over-a-size
+  // answer reads it), kept before "+" is cleaned.
+  const q = joinThousands(String(raw ?? "")).replace(/(\d)\s*\+\s*(?=teams?\b)/gi, "$1 or more ").replace(/[!?,;"<>(){}[\]|\\^*`~=+]/g, " ").replace(/\s+/g, " ").trim();
   if (q.length <= MAX_QUERY) return q;
   const cut = q.slice(0, MAX_QUERY);
   return (q[MAX_QUERY] === " " ? cut : cut.replace(/\s+\S*$/, "")).trim() || cut;
@@ -331,11 +333,11 @@ async function typedAnswer(raw: string, opts: AnswerOptions): Promise<SearchAnsw
   // A question the search pipeline reads completely ("12345 and 67890 matches together") is its answer, whatever
   // operator words it holds: "and" there joins two teams of one question, not two searches.
   const operators = /["&|-]|\b(?:and|or|not)\b/i.test(String(raw ?? ""));
-  if (operators && !String(raw ?? "").includes('"') && opts.intents !== false && (await pipelineReads(cleanQuery(raw), opts.now, opts.prefer))) return layeredAnswer(cleanQuery(raw), reader);
+  if (operators && !String(raw ?? "").includes('"') && opts.intents !== false && (await pipelineReads(cleanQuery(raw), opts.now, opts.prefer))) return layeredAnswer(cleanQuery(raw), reader, opts.prefer);
   const bool = operators ? await booleanAnswer(String(raw ?? ""), reader, opts.full ?? (opts.limit ?? 12) >= SEARCH_PAGE_LIMIT) : null;
   // Cut to the caller's limit like every other answer (a quoted name adds the teams named exactly that).
   if (bool) return { ...bool, hits: bool.hits.slice(0, opts.limit ?? 12) };
-  return layeredAnswer(cleanQuery(raw), reader);
+  return layeredAnswer(cleanQuery(raw), reader, opts.prefer);
 }
 
 /** A team number typed against the next word ("23268matches at nj championship"): the two words apart. Three letters
@@ -429,6 +431,11 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   // 0. A phrasing the readers below miss, said the way they read it ("compare 12345 and 67890" → "12345 vs 67890"):
   // ./searchCoverage.ts. Who won Worlds by a year or a game ("who won worlds last year" → "… 2024-25") is said so
   // before the stat answers read it; every other rewrite after them, which answer a team's own stats first.
+  // Events named on every side ("Romania Championship vs NJ Championship", "Worlds vs <event>"): the events side by
+  // side, before a rewrite reads a side as a team's name. Only a season written as one ("2024-25") is the season.
+  const evSeason = /(?:^|\s)20\d\d\s*[-–/]\s*\d\d(?=\s|$)/.test(q) ? seasonOf(q) : { season: null, rest: q };
+  const evs = opts.intents === false ? null : await eventVersusSearch(evSeason.rest, evSeason.season ?? opts.season ?? null, { full: !!opts.full, pages: pagesFor(q), asked: q, alias: expandShortForms });
+  if (evs) return evs;
   const rw = opts.intents !== false && (opts.rewrites ?? 0) < 2 ? rewriteQuery(q, await namedParts(q)) : null;
   const rewritten = async (r: { q: string; note?: string }) => {
     const a = await searchAnswer(opts.asked ? `${r.q}?` : r.q, { ...opts, rewrites: (opts.rewrites ?? 0) + 1 });
@@ -560,6 +567,9 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   const vsSeason = /(?:^|\s)20\d\d\s*[-–/]\s*\d\d(?=\s|$)/.test(q) ? seasonOf(q) : { season: null, rest: q };
   const vs = await versusAnswer(vsSeason.rest, prefer, vsSeason.season ?? opts.season ?? null);
   if (vs) return vs;
+  // One team, Compare asked for ("compare 12345"): Compare with it in, and its closest rivals to compare it with.
+  const one = await compareOneAnswer(vsSeason.rest, prefer, vsSeason.season ?? opts.season ?? null);
+  if (one) return one;
 
   // 3. The search, on the season-free, short-forms-expanded query; the name-and-topic reading when it fits better.
   // A season named makes a team's numbers and link that season's.
@@ -626,7 +636,12 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   // Only a site page's word ("rankings", "rules") that near-matches names ("Iron Hawkings"): the page is the answer,
   // not a guess at a team. A name beside it ("hipnotic rankings") keeps its corrected results.
   if (score < WEAK_SCORE && onlyPageWords(opts.typed ?? q)) return answer(q, { hits: [], step: "deterministic", understood: pageUnderstood(opts.typed ?? q) });
-  // A near match to a team that never played (a test registration, a typo'd sign-up) is a closest match, not a result.
+  // A near match to a team that never played (a test registration, a typo'd sign-up) is a closest match, not a result,
+  // unless the words call it by its name's own part ("<name> juniors" for "<Name> Junior").
+  const called = !exact && hits[0].kind === "team" ? await calledTeams(rest, prefer) : [];
+  // The hits already listed keep what the season named gave them (its link, its label).
+  const listed = called.map((c) => hits.find((h) => h.kind === "team" && h.ref === c.ref) ?? c);
+  if (called.some((h) => h.ref === hits[0].ref)) return answer(q, { hits: [...listed, ...hits.filter((h) => !called.some((c) => c.ref === h.ref))].slice(0, limit), step: "deterministic" });
   if (!exact && hits[0].kind === "team" && !hits[0].href && !(await played(hits[0].ref))) {
     return recovery(q, [`No exact match for "${q}"`], uniq(hits).slice(0, 5));
   }
