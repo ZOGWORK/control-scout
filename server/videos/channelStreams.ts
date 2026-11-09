@@ -127,18 +127,21 @@ export function onDates(list: Broadcast[], e: { start: string; end: string | nul
 }
 
 /**
- * When an event's channel link is due a look: never looked, or the link changed: now. On its dates: every
- * 15 minutes (the day's broadcast starts, or the next day's). Up to RECENT_DAYS after: every 2 hours until one is
- * found, then once its dates are 2 days past. Older, with nothing found: weekly (the key may have been set since).
+ * When an event's channel link is due a look. Never tried, or the link changed: now. On its dates: every 15 minutes
+ * (the day's broadcast starts, or the next day's). Otherwise a try that failed (no answered read since) waits 2 hours
+ * (a day for an older event). Answered: up to RECENT_DAYS after, every 2 hours until a broadcast is found, then once
+ * more its dates 2 days past; older with nothing found, weekly (the key may have been set since).
+ * checked_at: the last try; read_at: the last answered read.
  */
-export function channelDue(row: { url: string | null; video_id: string | null; checked_at: string | null }, link: string, e: { start: string; end: string | null }, now: number): boolean {
+export function channelDue(row: { url: string | null; video_id: string | null; checked_at: string | null; read_at: string | null }, link: string, e: { start: string; end: string | null }, now: number): boolean {
   if (row.url !== link || !row.checked_at) return true;
-  const age = now - Date.parse(row.checked_at), last = Date.parse(`${(e.end ?? e.start).slice(0, 10)}T00:00:00Z`) + DAY_MS;
-  if (now < last + DAY_MS) return age > 15 * 60_000; // its dates (with a day's slack for any zone)
-  const checkedAfter = Date.parse(row.checked_at) - last;
-  if (row.video_id) return checkedAfter < 2 * DAY_MS && age > 2 * 3600_000;
-  if (now - last < RECENT_DAYS * DAY_MS) return age > 2 * 3600_000;
-  return age > 7 * DAY_MS;
+  const sinceTry = now - Date.parse(row.checked_at), last = Date.parse(`${(e.end ?? e.start).slice(0, 10)}T00:00:00Z`) + DAY_MS;
+  if (now < last + DAY_MS) return sinceTry > 15 * 60_000; // its dates (with a day's slack for any zone)
+  const recent = now - last < RECENT_DAYS * DAY_MS;
+  if (!row.read_at || Date.parse(row.read_at) < Date.parse(row.checked_at)) return sinceTry > (recent ? 2 * 3600_000 : DAY_MS);
+  if (row.video_id) return Date.parse(row.read_at) - last < 2 * DAY_MS && sinceTry > 2 * 3600_000;
+  if (recent) return sinceTry > 2 * 3600_000;
+  return sinceTry > 7 * DAY_MS;
 }
 
 let busy = false;
@@ -154,16 +157,16 @@ export async function resolveChannelStreams(log: (s: string) => void, opts: { ma
     const key = env.youtubeApiKey;
     const withKey = opts.withKey ?? !!key;
     const reader = opts.reader ?? (key ? apiReader(key) : pageReader());
-    const rows = await all<{ season: number; code: string; start: string; end: string | null; timezone: string | null; livestream: string; url: string | null; video_id: string | null; checked_at: string | null }>(
-      `SELECT e.season, e.code, e.start, e.end, e.timezone, e.livestream, l.url, l.video_id, l.checked_at FROM events e
+    const rows = await all<{ season: number; code: string; start: string; end: string | null; timezone: string | null; livestream: string; url: string | null; video_id: string | null; checked_at: string | null; read_at: string | null }>(
+      `SELECT e.season, e.code, e.start, e.end, e.timezone, e.livestream, l.url, l.video_id, l.checked_at, l.read_at FROM events e
        LEFT JOIN event_stream_links l ON l.season = e.season AND l.code = e.code
        WHERE e.livestream LIKE '%youtu%' AND e.start IS NOT NULL AND substr(e.start, 1, 10) <= ?
        ORDER BY e.start DESC`, [new Date(now + DAY_MS).toISOString().slice(0, 10)]);
     const todo = rows.filter((r) => {
       if (!channelRef(r.livestream)) return false;
-      // Without the key the streams page holds only the latest: an older event gets one look (its broadcasts may
-      // still be among them), never the weekly ones.
-      if (!withKey && now - Date.parse(`${(r.end ?? r.start).slice(0, 10)}T00:00:00Z`) > (RECENT_DAYS + 1) * DAY_MS && r.url === r.livestream && r.checked_at) return false;
+      // Without the key the streams page holds only the latest: an older event gets one answered look (its broadcasts
+      // may still be among them), never the weekly ones; a failed try is tried again.
+      if (!withKey && now - Date.parse(`${(r.end ?? r.start).slice(0, 10)}T00:00:00Z`) > (RECENT_DAYS + 1) * DAY_MS && r.url === r.livestream && r.read_at) return false;
       return channelDue(r, r.livestream, r, now);
     })
       // Never looked first, then the longest since a look (a failed one counts): a few failing channels can't hold every slot.
@@ -180,17 +183,20 @@ export async function resolveChannelStreams(log: (s: string) => void, opts: { ma
       const k = `${c.kind}:${c.value.toLowerCase()}${withKey ? `:${since}` : ""}`;
       const got = await (read.get(k) ?? read.set(k, reader(c, since)).get(k)!);
       const sameLink = r.url === r.livestream;
-      const note = (videoId: string | null) => ({
-        sql: `INSERT INTO event_stream_links (season, code, url, video_id, checked_at) VALUES (?, ?, ?, ?, ?)
-              ON CONFLICT(season, code) DO UPDATE SET url = excluded.url, video_id = excluded.video_id, checked_at = excluded.checked_at`,
-        args: [r.season, r.code, r.livestream, videoId, new Date(now).toISOString()],
+      const at = new Date(now).toISOString();
+      // A failed read notes the try (read_at stays: no look counted), so it waits its turn without ending the search.
+      const note = (videoId: string | null, answered: boolean) => ({
+        sql: `INSERT INTO event_stream_links (season, code, url, video_id, checked_at, read_at) VALUES (?, ?, ?, ?, ?, ?)
+              ON CONFLICT(season, code) DO UPDATE SET url = excluded.url, video_id = excluded.video_id, checked_at = excluded.checked_at,
+                read_at = CASE WHEN ? THEN excluded.read_at ELSE event_stream_links.read_at END`,
+        args: [r.season, r.code, r.livestream, videoId, at, answered ? at : null, answered ? 1 : 0],
       });
-      // A failed read keeps what was found and notes the look, so it waits its turn again (channelDue).
-      if (got === "error") { await writeBatch([note(sameLink ? r.video_id : null)]); continue; }
+      if (got === "error") { await writeBatch([note(sameLink ? r.video_id : null, false)]); continue; }
       // Broadcasts found before by the same link stay (a day's video can drop out of a read, or out of the latest
       // streams); the new ones join them. A changed link starts over.
       const before = sameLink ? await all<{ video_id: string; start: string }>("SELECT video_id, start FROM event_broadcasts WHERE season = ? AND code = ? AND url = ?", [r.season, r.code, r.livestream]) : [];
-      const merged = new Map<string, Broadcast>(before.map((b) => [String(b.video_id), { videoId: String(b.video_id), start: String(b.start) }]));
+      // Only those still on the event's dates (FIRST can correct them).
+      const merged = new Map<string, Broadcast>(onDates(before.map((b) => ({ videoId: String(b.video_id), start: String(b.start) })), r).map((b) => [b.videoId, b]));
       for (const b of onDates(got, r)) merged.set(b.videoId, b);
       const keep = [...merged.values()].sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
       const was = before.map((b) => String(b.video_id)).sort().join();
@@ -199,7 +205,7 @@ export async function resolveChannelStreams(log: (s: string) => void, opts: { ma
       await writeBatch([
         { sql: "DELETE FROM event_broadcasts WHERE season = ? AND code = ?", args: [r.season, r.code] },
         ...keep.map((b) => ({ sql: "INSERT INTO event_broadcasts (season, code, video_id, url, start) VALUES (?, ?, ?, ?, ?)", args: [r.season, r.code, b.videoId, r.livestream, b.start] })),
-        note(keep[0]?.videoId ?? null),
+        note(keep[0]?.videoId ?? null, true),
       ]);
     }
     if (changed) { forgetRecordings(); log(`recordings: ${changed} event${changed === 1 ? "" : "s"}' channel broadcasts found or changed`); }

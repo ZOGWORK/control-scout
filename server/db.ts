@@ -1947,6 +1947,9 @@ CREATE TABLE event_broadcasts (
   start TEXT NOT NULL,
   PRIMARY KEY (season, code, video_id)
 );
+-- read_at: the last read of the link that answered (checked_at is the last try, failed or not), so a failed try
+-- spaces the next one without counting as a look (server/videos/channelStreams.ts channelDue).
+ALTER TABLE event_stream_links ADD COLUMN read_at TEXT;
 `,
   },
 ];

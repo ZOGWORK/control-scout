@@ -57,9 +57,10 @@ describe("onDates", () => {
 
 describe("channelDue", () => {
   const e = { start: "2026-06-27", end: "2026-06-28" };
-  const row = (video: string | null, at: number) => ({ url: CH, video_id: video, checked_at: new Date(at).toISOString() });
+  // An answered read at `at` (failed: a try at `at` after an answered read at `read`).
+  const row = (video: string | null, at: number, read: number | null = at) => ({ url: CH, video_id: video, checked_at: new Date(at).toISOString(), read_at: read == null ? null : new Date(read).toISOString() });
   it("looks at once, every 15 min on its dates, every 2 h for two weeks with nothing, weekly after", () => {
-    expect(channelDue({ url: null, video_id: null, checked_at: null }, CH, e, NOW)).toBe(true);
+    expect(channelDue({ url: null, video_id: null, checked_at: null, read_at: null }, CH, e, NOW)).toBe(true);
     expect(channelDue({ ...row(SAT, NOW), url: "https://youtube.com/@other" }, CH, e, NOW)).toBe(true);
     const sat = Date.parse("2026-06-27T18:00:00Z");
     expect(channelDue(row(SAT, sat - 10 * 60_000), CH, e, sat)).toBe(false);
@@ -71,6 +72,13 @@ describe("channelDue", () => {
     expect(channelDue(row(SAT, week - 3 * 3600_000), CH, e, week)).toBe(false);
     expect(channelDue(row(null, NOW - 3 * 86_400_000), CH, e, NOW)).toBe(false);
     expect(channelDue(row(null, NOW - 8 * 86_400_000), CH, e, NOW)).toBe(true);
+  });
+  it("a failed try never counts as a look: tried again after 2 hours (a day for an older event)", () => {
+    const week = Date.parse("2026-07-05T12:00:00Z");
+    // Saturday found during the event; the check after it failed: still looking for Sunday.
+    expect(channelDue(row(SAT, week - 3 * 3600_000, Date.parse("2026-06-28T20:00:00Z")), CH, e, week)).toBe(true);
+    expect(channelDue(row(null, NOW - 2 * 86_400_000, null), CH, e, NOW)).toBe(true);
+    expect(channelDue(row(null, NOW - 3600_000, null), CH, e, NOW)).toBe(false);
   });
 });
 
@@ -157,13 +165,26 @@ describe("resolveChannelStreams and the event's recording", () => {
 
   it("a read that finds only one day keeps the day found before; a failed read is noted, so other events get their turn", async () => {
     list = [{ videoId: SUN, start: "2026-06-28T12:30:00Z" }];
-    await run("UPDATE event_stream_links SET checked_at = '2026-01-01T00:00:00Z' WHERE code = 'MTI'"); // due again
+    await run("UPDATE event_stream_links SET checked_at = '2026-01-01T00:00:00Z', read_at = NULL WHERE code = 'MTI'"); // due again
     await resolve(NOW + 60_000);
     expect(await all("SELECT video_id FROM event_broadcasts ORDER BY start")).toEqual([{ video_id: SAT }, { video_id: SUN }]);
+    expect(await all("SELECT read_at FROM event_stream_links WHERE code = 'MTI'")).toMatchObject([{ read_at: new Date(NOW + 60_000).toISOString() }]);
     list = "error";
-    await run("UPDATE event_stream_links SET checked_at = '2026-01-01T00:00:00Z' WHERE code = 'MTI'");
+    await run("UPDATE event_stream_links SET checked_at = '2026-01-02T00:00:00Z', read_at = '2026-01-01T00:00:00Z' WHERE code = 'MTI'"); // a try failed after the last answered read
     await resolve(NOW + 120_000);
-    expect(await all("SELECT video_id, checked_at FROM event_stream_links WHERE code = 'MTI'")).toEqual([{ video_id: SAT, checked_at: new Date(NOW + 120_000).toISOString() }]);
+    expect(await all("SELECT video_id, checked_at, read_at FROM event_stream_links WHERE code = 'MTI'")).toMatchObject([{ video_id: SAT, checked_at: new Date(NOW + 120_000).toISOString(), read_at: "2026-01-01T00:00:00Z" }]);
+  });
+
+  it("a saved day no longer on the event's (corrected) dates is dropped", async () => {
+    await run("UPDATE events SET start = '2026-06-28' WHERE code = 'MTI'");
+    list = [];
+    await run("UPDATE event_stream_links SET checked_at = '2026-01-01T00:00:00Z', read_at = NULL WHERE code = 'MTI'");
+    await resolve(NOW + 180_000);
+    expect(await all("SELECT video_id FROM event_broadcasts WHERE code = 'MTI'")).toEqual([{ video_id: SUN }]);
+    await run("UPDATE events SET start = '2026-06-26' WHERE code = 'MTI'");
+    list = [{ videoId: SAT, start: "2026-06-27T16:50:00Z" }];
+    await run("UPDATE event_stream_links SET checked_at = '2026-01-01T00:00:00Z', read_at = NULL WHERE code = 'MTI'");
+    await resolve(NOW + 240_000);
   });
 
   it("keeps what was found when a later read fails or finds nothing, and drops it when the link changes", async () => {
