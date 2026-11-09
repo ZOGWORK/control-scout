@@ -347,9 +347,10 @@ export function readScope(q: string): { scope: ReadScope; rest: string } {
     const region = pl ? regionOf(pl[1]) : null;
     if (pl && region) { scope.place = region; rest = rest.replace(pl[0], " "); }
   }
-  // A place's conference or league with no name of its own ("at nj conference") is the place's teams, never one event.
-  const group = /\bat\s+(?:the\s+)?(.+?)\s+(?:conferences?|leagues?)\s*$/.exec(rest);
-  if (group && regionOf(group[1])) rest = `${rest.slice(0, group.index)} in ${group[1]} `;
+  // A place's conference or league with no name of its own ("at nj conference") is the place's teams, never one event;
+  // a stat said after it stays ("at nj conference by auto opr").
+  const group = /\bat\s+(?:the\s+)?(.+?)\s+(?:conferences?|leagues?)(\s+by\s+.+?)?\s*$/.exec(rest);
+  if (group && regionOf(group[1])) rest = `${rest.slice(0, group.index)} in ${group[1]}${group[2] ?? ""} `;
   const at = /\bat\s+(.+)$/.exec(rest);
   if (at && at[1].trim()) { scope.at = squash(at[1].replace(/^\s*the\s+/, " ")); rest = rest.slice(0, at.index); }
   // "worlds Ross division": one division of the FIRST Championship.

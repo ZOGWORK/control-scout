@@ -39,6 +39,7 @@ describe("what's read", () => {
     // A place's conference or league with no name of its own is the place's teams (failed-search #1212); a named one
     // ("east bergen conference") stays an event, left to the event readers.
     expect(readLeaderboard("top rookie teams at nj conference")).toMatchObject({ kind: "rookie", stat: "opr", region: { key: "USA:NJ" } });
+    expect(readLeaderboard("top rookie teams at nj conference by auto opr")).toMatchObject({ kind: "rookie", stat: "auto", region: { key: "USA:NJ" } });
     expect(readLeaderboard("top teams by opr at new jersey league")).toMatchObject({ kind: "top", stat: "opr", region: { key: "USA:NJ" } });
     expect(readLeaderboard("top rookie teams at east bergen conference")).toBeNull();
     expect(readLeaderboard("Most improved team in New Jersey")).toMatchObject({ kind: "improved" });
