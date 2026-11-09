@@ -129,11 +129,15 @@ describe("an event broadcast a day at a time", () => {
     expect(document.querySelector("iframe")!.getAttribute("src")).not.toContain("start=");
   });
   it("a day picked and then taken off (a refresh) falls back to the event's video", () => {
-    const { rerender } = render(<MemoryRouter><WatchLive d={d} stream={days} /></MemoryRouter>);
-    fireEvent.click(screen.getByRole("button", { name: "Sunday" }));
-    rerender(<MemoryRouter><WatchLive d={d} stream={stream} /></MemoryRouter>);
-    fireEvent.click(screen.getByRole("button", { name: /^Play:/ }));
+    const { rerender } = render(<MemoryRouter><WatchLive d={d} stream={days} /><ClipLink clip={sunClip} label="Q60">Watch</ClipLink></MemoryRouter>);
+    fireEvent.click(screen.getByRole("link", { name: /Watch Q60 in the recording/ }));
+    const sunday = document.querySelector("iframe");
+    expect(path()).toBe(`/embed/${SUN}`);
+    rerender(<MemoryRouter><WatchLive d={d} stream={stream} /><ClipLink clip={sunClip} label="Q60">Watch</ClipLink></MemoryRouter>);
+    // A new player for the event's video, from its start.
+    expect(document.querySelector("iframe")).not.toBe(sunday);
     expect(path()).toBe(`/embed/${clip.videoId}`);
+    expect(document.querySelector("iframe")!.getAttribute("src")).not.toContain("start=");
   });
     it("one video: no day buttons", () => {
     render(<MemoryRouter><WatchLive d={d} stream={stream} /></MemoryRouter>);

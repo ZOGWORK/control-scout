@@ -55,6 +55,12 @@ function Player({ stream, title, matches, liveCall, recording }: { stream: Event
   const [picked, setDay] = useState(stream.videoId);
   // A day whose video was taken off since (a refresh): the event's video instead.
   const day = days.some((d) => d.videoId === picked) ? picked : stream.videoId;
+  // ... and anything playing starts that video afresh (a new player: its own clock, from its start).
+  useEffect(() => {
+    if (day === picked) return;
+    setDay(day);
+    setPlay((p) => (p ? { t: 0, n: p.n + 1 } : p));
+  }, [day, picked]);
   const dayRef = useRef(day);
   dayRef.current = day;
   const box = useRef<HTMLDivElement>(null);
