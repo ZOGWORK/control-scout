@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.6.6 — 2026-11-09
+
+Hovering a point on a search chart says which match (or event) it is and its score, right away.
+
+### Highlights
+- [fixes] Hovering a chart point shows its match: "M2 · New Jersey Championship"
+- [fixes] The score and result show under it: "262 points · Won 262–135"
+- [fixes] Shown at once on hover or keyboard focus, kept inside the chart
+
+### Search
+- **Chart point labels.** Each point on a line chart ("Score, match by match", "OPR by event") shows a small label on hover or keyboard focus: the match or event, then its value and result. It replaces the browser's own title tip, which was slow and easy to miss. `npm run shots` gains a `hover` step for screenshots of hover states. (#1227)
+
 ## 4.6.5 — 2026-11-09
 
 "Top rookie teams at NJ conference" lists New Jersey's best rookie teams: a place's conference or league with no name of its own is the place.
