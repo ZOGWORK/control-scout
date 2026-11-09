@@ -39,8 +39,9 @@ export const EXTENSION: Record<AttachmentType, string> = {
   "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov",
 };
 
-/** "4.2 MB", "820 KB": for messages about sizes. */
+/** "2 GB", "4.2 MB", "820 KB": for messages about sizes. */
 export function formatBytes(n: number): string {
+  if (n >= 1024 * MB) return `${(n / (1024 * MB)).toFixed(1).replace(/\.0$/, "")} GB`;
   if (n >= MB) return `${(n / MB).toFixed(n >= 10 * MB ? 0 : 1).replace(/\.0$/, "")} MB`;
   return `${Math.max(1, Math.round(n / 1024))} KB`;
 }
