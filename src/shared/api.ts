@@ -515,7 +515,9 @@ export interface MatchView {
 }
 
 /** A match's place in its event's recording: the video, the second to start from, and YouTube's link to it. */
-export interface MatchClip { videoId: string; t: number; url: string }
+/** `early`: a recording with a gap whose place isn't known (src/shared/recording.ts gapSlack): `t` may be up to this
+ *  many seconds (plus the lead-in) before the match, so nothing times the match from it (lib/videoMoment.ts). */
+export interface MatchClip { videoId: string; t: number; url: string; early?: number }
 
 export interface EventSummary {
   season: number;

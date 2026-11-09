@@ -60,6 +60,12 @@ describe("a video with a gap", () => {
     expect(gapSlack(gapped)).toBeNull();
     expect(clipSecond("2026-05-30T15:21:09Z", gapped)).toBeNull();
   });
+  it("its ends: a match in the broadcast's last `slack` seconds gets one; one past its end, none; exactly the most missing counts", () => {
+    // The broadcast ran 39809 s; the video is 39013 s long.
+    expect(clipSecond("2026-11-08T00:00:00Z", short13)).toBe(39774 - 796 - CLIP_LEAD_S);
+    expect(clipSecond("2026-11-08T00:00:36Z", short13)).toBeNull();
+    expect(gapSlack({ ...short13, length: 39809 - GAP_SLACK_MAX_S })).toBe(GAP_SLACK_MAX_S);
+  });
 });
 
 describe("a stream left running after the event, its archive cut at the event's end", () => {

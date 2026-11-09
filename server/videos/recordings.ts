@@ -193,11 +193,12 @@ export function withClips<M extends Pick<MatchView, "label" | "time" | "startsAt
   const meta = r?.meta;
   if (!r || !meta || meta.status !== "ok") return matches;
   const m = withConfirmed(meta, span ?? eventSpan(matches.filter((x) => x.played && actualStart(x.time)).map((x) => ({ label: x.label, startsAt: x.startsAt }))));
-  if (gapSlack(m) == null) return matches;
+  const slack = gapSlack(m);
+  if (slack == null) return matches;
   return matches.map((x) => {
     // Played matches with a real start only: an unplayed one's time, or a result posted without a start, is the schedule.
     const t = x.played && actualStart(x.time) ? clipSecond(x.startsAt, m, now) : null;
-    return t == null ? x : { ...x, clip: { videoId: r.videoId, t, url: watchUrl(r.videoId, t) } };
+    return t == null ? x : { ...x, clip: { videoId: r.videoId, t, url: watchUrl(r.videoId, t), ...(slack ? { early: slack } : {}) } };
   });
 }
 
