@@ -19,6 +19,11 @@ describe("reading an event set", () => {
       expect(!!ended, long).toBe(/(?:finished|ended) yesterday$/.test(long));
     }
     expect(readEventQuery("nj events yesterday")).toMatchObject({ time: "yesterday", region: { key: "USA:NJ" }, where: null, words: [] });
+    // A one-letter slip in the clause's own verb reads as the verb (failed-search #1201), its time after it too.
+    expect(readEventQuery("nj meets that happend")).toEqual(readEventQuery("nj meets that happened"));
+    expect(readEventQuery("nj meets that finishd yesterday")).toEqual(readEventQuery("nj meets that finished yesterday"));
+    // Two letters off stays as typed.
+    expect(readEventQuery("nj meets that hapend")).toMatchObject({ time: null, words: ["that", "hapend"] });
     expect(timeWindow("yesterday", "2026-11-08")).toEqual({ from: "2026-11-07", to: "2026-11-07" });
   });
   it("reads \"now\" as today, as \"right now\" is (failed-search #763)", () => {

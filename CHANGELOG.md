@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.6.7 — 2026-11-09
+
+"Recent highlights" shows the latest week of play's standout matches, and a slip in an event request's own verb reads as the verb.
+
+### Highlights
+- [fixes] "Recent highlights" shows the latest week's standout matches
+- [fixes] "NJ recent highlights" does the same for one place
+- [fixes] A one-letter slip in "meets that happened" still lists the past meets
+
+### Search
+- **Recent highlights.** "Recent highlights" or "latest highlights" with no team, event or time named: the standout matches of the latest week with played matches (that day and the six before it), in a place when one is said, titled "Recent highlights" with the dates in a chip. A team or an event said reads as before. (#1215)
+- **The request's own verb.** An event request ending in "that …" or "which …" reads a verb one letter off "happened", "finished", "completed" or "ended" as that verb, so the request lists past meets instead of searching event names for the slip.
+
 ## 4.6.6 — 2026-11-09
 
 Hovering a point on a search chart says which match (or event) it is and its score, right away.
