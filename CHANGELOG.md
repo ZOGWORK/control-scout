@@ -15,12 +15,12 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## NEXT — 2026-11-08
+## 4.6.7 — 2026-11-09
 
 "Recent highlights" shows the latest week of play's standout matches, and a slip in an event request's own verb reads as the verb.
 
 ### Highlights
-- [fixes] "Recent highlights" shows the standout matches of the latest week of play
+- [fixes] "Recent highlights" shows the latest week's standout matches
 - [fixes] "NJ recent highlights" does the same for one place
 - [fixes] A one-letter slip in "meets that happened" still lists the past meets
 
