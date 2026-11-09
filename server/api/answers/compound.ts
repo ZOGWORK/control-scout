@@ -133,15 +133,26 @@ function readList(said: string): CompoundQuestion | null {
   const thresholds: (Threshold & { stat: ListStat })[] = [];
   const LEAD = String.raw`(?:(?:with|who\s+had|that\s+had|who\s+have|that\s+have|who\s+has|that\s+has|having|whose)\s+)?`;
   const AMOUNT = String.raw`${NUM}(?![\d.]|\s*[-–/]\s*\d)(?:\s*(\+|%|percent|per\s+cent)(?!\w))?`;
+  // "or above", "or more", "and up" after a number: at least it ("opr 44 or above", "44 or above opr").
+  const AT_LEAST = String.raw`(?:\s+(?:or|and)\s+(?:above|more|higher|over|better|up))`;
   for (let k = 0; k < 3; k++) {
-    const T = new RegExp(String.raw`\b${LEAD}(?:an?\s+)?${STAT}\s+(?:of\s+|is\s+|was\s+)?(?:${OP}\s+)?${AMOUNT}`);
+    const T = new RegExp(String.raw`\b${LEAD}(?:an?\s+)?${STAT}\s+(?:of\s+|is\s+|was\s+)?(?:${OP}\s+)?${AMOUNT}(${AT_LEAST})?`);
     const seen = T.exec(rest);
     // A year after a stat with no comparison ("by opr 2025") is the season's words, left for seasonWords.
-    if (seen && !(!seen[2] && !seen[4] && /^(?:19|20)\d\d$/.test(seen[3]))) {
+    if (seen && !(!seen[2] && !seen[4] && !seen[5] && /^(?:19|20)\d\d$/.test(seen[3]))) {
       const t = take(T)!;
       const stat = statOf(t[1]);
       if (!stat) return null;
       thresholds.push({ stat, op: t[2] ? opOf(t[2]) : "ge", value: Number(t[3]) });
+      continue;
+    }
+    // The number said first, with what makes it a floor: "with 44 or above opr", "44+ opr".
+    const F = new RegExp(String.raw`\b${LEAD}${NUM}(?![\d.])(?:\s*(\+)|${AT_LEAST})\s+${STAT}\b`);
+    const first = take(F);
+    if (first) {
+      const stat = statOf(first[3]);
+      if (!stat) return null;
+      thresholds.push({ stat, op: "ge", value: Number(first[1]) });
       continue;
     }
     const c = take(new RegExp(String.raw`\b((?:with|having|who\s+(?:have|had|has)|that\s+(?:have|had|has)|(?:who\s+|that\s+)?(?:played|play|plays))\s+)?(?:${OP}\s+)?${NUM}(\+)?\s+(matches|match|games?|wins?)\b`));
