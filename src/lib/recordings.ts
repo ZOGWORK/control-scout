@@ -55,8 +55,8 @@ export async function listRecordings(matchRef?: string): Promise<Recording[]> {
 }
 
 /** How many recordings this device holds, without reading any of them. */
-export async function countRecordings(): Promise<number> {
-  return tx<number>("readonly", (s) => s.count());
+export async function countRecordings(matchRef?: string): Promise<number> {
+  return tx<number>("readonly", (s) => (matchRef == null ? s.count() : s.index("matchRef").count(matchRef)));
 }
 
 export async function deleteRecording(id: string): Promise<void> {
