@@ -16,6 +16,7 @@
 //   - "states", "state champs" or "champs" with a place is its championship ("nj states").
 import { findRegions, isRegionCode, nearRegion, regionLabel, regionNamed, type Region } from "./regions.js";
 import { QUESTION_WORDS, STOPWORDS, isQuestionForm, singularize, timePhrase } from "./searchQuery.js";
+import { allowedEdits, editDistance } from "./fuzzy.js";
 
 /** Words that ask something of events rather than name them. */
 const ASKS = new Set(["win", "wins", "won", "winner", "winners", "winning", "advance", "advances", "advancing", "beat", "predict", "prediction", "odds", "award", "awards", "inspire"]);
@@ -115,10 +116,28 @@ function australianCode(text: string): Region | null {
   return r ?? null;
 }
 
+/** The verbs a request's own clause ends in that say its time ("nj meets that happened": past), from TIME_OF. */
+const CLAUSE_VERBS = Object.keys(TIME_OF).filter((w) => /^\p{L}+ed$/u.test(w));
+
+/** `q` with the verb of its own clause ("… that <verb>", "… which were <verb>", then perhaps a time) read as the clause
+ *  verb it is a slip from: within the edits search allows a word (./fuzzy.ts allowedEdits), and closer to it than to
+ *  any other. A word after "that"/"which" in that place is the request's verb, never a name's. Else `q` as typed. */
+function clauseVerb(q: string): string {
+  const m = /(\s(?:that|which)(?:\s+(?:are|is|were|was))?\s+)(\p{L}+)((?:\s+\p{L}+){0,2})$/iu.exec(q);
+  if (!m) return q;
+  const w = m[2].toLowerCase();
+  if (CLAUSE_VERBS.includes(w) || (m[3] && timePhrase(`meet ${m[3].trim()}`)?.rest !== "meet")) return q;
+  const max = allowedEdits(w.length);
+  const near = CLAUSE_VERBS.map((v) => ({ v, d: editDistance(w, v, max) })).filter((x) => x.d <= max).sort((a, b) => a.d - b.d);
+  if (!near.length || near[1]?.d === near[0].d) return q;
+  return `${q.slice(0, m.index)}${m[1]}${near[0].v}${m[3]}`;
+}
+
 /** The event set a query asks for, or null when it isn't one (the rules are at the top of this file). */
 export function readEventQuery(raw: string): EventQuery | null {
   let q = singularize(raw.trim().replace(/[?!,;]/g, " ").replace(/\s+/g, " ").trim());
   if (!q || /\s(?:vs\.?|versus|v\.?|against)\s/i.test(` ${q} `)) return null;
+  q = clauseVerb(q);
   let time: SearchTime | null = null;
   const t = timePhrase(q);
   if (t) { time = TIME_OF[t.phrase] ?? null; q = t.rest; }

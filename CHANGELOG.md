@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 4.6.5 — 2026-11-09
+## 4.6.8 — 2026-11-09
 
 The Events list opens on Live now only while something is live; otherwise it opens on All.
 
@@ -26,6 +26,43 @@ The Events list opens on Live now only while something is live; otherwise it ope
 
 ### Events
 - **Default status.** With no status in the address, the Events page picks Live now when at least one event under the other filters is live, and All when none is. It decides once the list is in (no chip is lit before, so nothing jumps) and keeps that choice: a count changing later never moves the page. A status in the address or one you tap still wins, All included, and Clear filters goes back to the default. (#1230)
+
+## 4.6.7 — 2026-11-09
+
+"Recent highlights" shows the latest week of play's standout matches, and a slip in an event request's own verb reads as the verb.
+
+### Highlights
+- [fixes] "Recent highlights" shows the latest week's standout matches
+- [fixes] "NJ recent highlights" does the same for one place
+- [fixes] A one-letter slip in "meets that happened" still lists the past meets
+
+### Search
+- **Recent highlights.** "Recent highlights" or "latest highlights" with no team, event or time named: the standout matches of the latest week with played matches (that day and the six before it), in a place when one is said, titled "Recent highlights" with the dates in a chip. A team or an event said reads as before. (#1215)
+- **The request's own verb.** An event request ending in "that …" or "which …" reads a verb one letter off "happened", "finished", "completed" or "ended" as that verb, so the request lists past meets instead of searching event names for the slip.
+
+## 4.6.6 — 2026-11-09
+
+Hovering a point on a search chart says which match (or event) it is and its score, right away.
+
+### Highlights
+- [fixes] Hovering a chart point shows its match: "M2 · New Jersey Championship"
+- [fixes] The score and result show under it: "262 points · Won 262–135"
+- [fixes] Shown at once on hover or keyboard focus, kept inside the chart
+
+### Search
+- **Chart point labels.** Each point on a line chart ("Score, match by match", "OPR by event") shows a small label on hover or keyboard focus: the match or event, then its value and result. It replaces the browser's own title tip, which was slow and easy to miss. `npm run shots` gains a `hover` step for screenshots of hover states. (#1227)
+
+## 4.6.5 — 2026-11-09
+
+"Top rookie teams at NJ conference" lists New Jersey's best rookie teams: a place's conference or league with no name of its own is the place.
+
+### Highlights
+- [rankings] "Top rookie teams at NJ conference" answers
+- [rankings] A state's conference or league reads as the state
+- [rankings] A named conference is still that event
+
+### Search
+- **A place's conference.** "At <place> conference" or "at <place> league", with no name of its own, reads as the place's teams on the leaderboards, so "top rookie teams at NJ conference" is New Jersey's best rookie teams. A named one ("East Bergen Conference") is still that event. (#1218)
 
 ## 4.6.4 — 2026-11-09
 

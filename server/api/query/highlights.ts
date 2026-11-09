@@ -6,7 +6,7 @@
 // The scope is the match finder's filters (./matchFind.ts where), resolved to its events first so its matches, teams
 // and saved calls are read by their keys.
 import type { StatAnswer, StatBlock, StatLink, StatMatchRow, VideoTile } from "../../../src/shared/searchStat.js";
-import { seasonLabel } from "../../../src/shared/format.js";
+import { dateRange, seasonLabel } from "../../../src/shared/format.js";
 import { all, get } from "../../db.js";
 import { registerCache } from "../../caches.js";
 import { search } from "../search.js";
@@ -134,6 +134,22 @@ export async function latestPlayed(f: MatchScope): Promise<number | null> {
   const w = where({ ...f, window: undefined, ...(events ? { events } : {}) }, true);
   const s = (await get<{ s: number | null }>(`SELECT MAX(m.season) s ${FROM} WHERE ${w.sql}`, w.args))?.s;
   return s == null ? null : Number(s);
+}
+
+/** Days of play a recent scope's highlights read: its latest day with a played match and the six before it. */
+export const RECENT_DAYS = 7;
+
+/** The scope's latest week of play ("recent highlights"): the days up to its latest day with a played match, in the
+ *  latest season up to the scope's with one, as a date window; null when it has none. */
+export async function recentWindow(f: MatchScope): Promise<{ season: number; window: { from: string; to: string; label: string } } | null> {
+  const season = await latestPlayed(f);
+  if (season == null) return null;
+  const events = await scopeEvents({ ...f, season, window: undefined });
+  const w = where({ ...f, season, window: undefined, ...(events ? { events } : {}) });
+  const to = (await get<{ d: string | null }>(`SELECT MAX(substr(COALESCE(m.time, e.start), 1, 10)) d ${FROM} WHERE ${w.sql}`, w.args))?.d;
+  if (!to || !/^\d{4}-\d\d-\d\d$/.test(to)) return null;
+  const from = new Date(Date.parse(`${to}T00:00:00Z`) - (RECENT_DAYS - 1) * 86_400_000).toISOString().slice(0, 10);
+  return { season, window: { from, to, label: `on ${dateRange(from, to)}` } };
 }
 
 /** `(season, code)` pairs as SQL over `alias` (by season, as the tables' keys read them). */
