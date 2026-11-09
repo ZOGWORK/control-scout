@@ -261,7 +261,7 @@ const rowData = (r: BreakdownRow) => ({ title: r.note, "data-depth": r.depth ?? 
 
 function Phase({ g, open, onToggle, id }: { g: BreakdownGroup; open: boolean; onToggle: () => void; id: string }) {
   const x = g.row;
-  const row = cn(GRID, "min-h-11 w-full px-3 py-2 text-left", x.total && "bg-text-base/[0.03]");
+  const row = cn(GRID, "min-h-[44px] w-full px-3 py-2 text-left", x.total && "bg-text-base/[0.03]");
   return (
     <li>
       {g.parts.length ? (
