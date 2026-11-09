@@ -27,6 +27,18 @@ Search answers an event's average match score, and puts two events side by side.
 ### Search
 - **Event average match score.** "Average match score at <event>" gives the mean alliance score over its played matches (divisions included), with and without penalties, its highest score and match count; "… versus <event>" shows two events side by side and which averages more; a state's code ("NJ Championship") is that state's championship. (#1125)
 
+## 4.4.9 — 2026-11-08
+
+Boards over every season: the team that has played the most seasons, the oldest teams still active, and the most matches, events or wins ever.
+
+### Highlights
+- [rankings] "Which team has played the most seasons" answers
+- [rankings] "Oldest team still active in New Jersey" by rookie year
+- [rankings] "Most wins ever" counts every season
+
+### Search
+- **Career boards.** "Ever", "of all time" or "in history" said with the team with the most matches, events or wins counts every season on record, not one. "The most seasons" (from FIRST's rookie year to the team's latest season with a match) and "the oldest team still active" (a match in either of the two latest seasons, the earliest rookie year first) are boards of their own, in a place or worldwide. A rookie year before FTC's first season is a directory slip and never counted. (#1111)
+
 ## 4.4.8 — 2026-11-08
 
 Two events named side by side ("<event> vs <event>") are compared as events rather than read as two teams: how strong each field was, its best OPR, its high score and how many teams played.
