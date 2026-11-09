@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.7.7 — 2026-11-09
+
+"Best team highlights" shows the highlights of the world's top team by prediction rating, and says which team that is.
+
+### Highlights
+- [fixes] "Best team highlights" shows the top team's standout matches
+- [rankings] The top team is the world's first by prediction rating
+- [fixes] The card says which team "the best team" was read as
+
+### Search
+- **The best team's highlights.** "Best team highlights", "top team highlights": the highlights of the world's top-rated ranked team (the first on the prediction-rating board), the card naming it, as "the top NJ team" already reads a place's. "Best team" alone stays the board. (#1235)
+
 ## 4.7.6 — 2026-11-09
 
 A team's "predicted matches" shows the engine's call on its next match, as "next match prediction" does.
