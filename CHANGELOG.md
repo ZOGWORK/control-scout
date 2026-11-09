@@ -22,12 +22,12 @@ On a wide screen an opened match sits side by side: the score and table on the l
 ### Highlights
 - [predict] Score, teams and table left; the call right on wide screens
 - [predict] A bright Watch the match button when a video exists
-- [predict] Saved videos stand out; no box around result changes (#1253)
+- [predict] Saved videos stand out; no box around result changes
 
 ### Changed
 - Match details use two columns once there is room (about 900 px of panel), one column below that, so half-width panels and phones keep the one-column layout.
 - Watch the match and Official video are filled video-coloured buttons beside the score; the Video section turns bright when you have saved videos.
-- Result changes on a match have no dashed box; How is a short link next to the track record.
+- Result changes on a match have no dashed box; How is a short link next to the track record. (#1253)
 
 ## 4.8.8 — 2026-11-09
 
