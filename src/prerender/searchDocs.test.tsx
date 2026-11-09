@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { renderSearchDocs } from "./searchDocs";
-import { SEARCH_FAMILIES } from "../components/howitworks/searchDocs";
+import { SEARCH_FAMILIES, SEARCH_SHOWCASE } from "../components/howitworks/searchDocs";
 
 // The build prerenders How FTC One Search works with this (scripts/prerender.mjs): one H1, every section, every example.
 describe("How FTC One Search works prerender", () => {
   it("renders the full page server-side", () => {
     const html = renderSearchDocs();
     expect(html.match(/<h1[\s>]/g)).toHaveLength(1);
-    for (const id of ["what", "use", "answers", "unique", "steps", "reading", "results", "nothing", "rules", "limits", "next"]) expect(html, id).toContain(`id="${id}"`);
+    for (const id of ["what", "use", "answers", "ask", "unique", "steps", "reading", "results", "nothing", "rules", "limits", "next"]) expect(html, id).toContain(`id="${id}"`);
     // What a crawler must read in the first response, as plain text: the H1, the opening phrases, every H2.
     const text = html.replace(/<[^>]+>/g, "").replace(/&#x27;/g, "'");
     expect(text).toContain("FTC One Search — the most powerful search engine for FTC");
@@ -18,6 +18,8 @@ describe("How FTC One Search works prerender", () => {
     for (const to of ["/search", "/teams", "/events", "/predict", "/methodology"]) expect(html, to).toContain(`href="${to}"`);
     expect(html).not.toMatch(/Control-Point-FTC|click here/i);
     for (const f of SEARCH_FAMILIES) expect(html, f.q).toContain(`/search?q=${encodeURIComponent(f.q)}`);
+    // The plain-words examples are real links in the first paint too, so they work with JS off.
+    for (const it of SEARCH_SHOWCASE.flatMap((g) => g.items)) expect(html, it.q).toContain(`href="/search?q=${encodeURIComponent(it.q).replace(/'/g, "&#x27;")}"`);
     expect(html.length).toBeGreaterThan(8000);
   });
 });

@@ -68,6 +68,36 @@ export const SEARCH_FAMILIES: { title: string; q: string; what: string }[] = [
   { title: "What a word means", q: "what is OPR", what: "A short explainer" },
 ];
 
+/** "Ask in plain words": newer kinds of question, grouped by what they show. Each query was run on the live site
+ *  (/api/search?answer=1) and came back with an answer card before it was listed. The lines say what kind of answer
+ *  comes back, never its numbers or teams, since those change. */
+export const SEARCH_SHOWCASE: { title: string; items: { q: string; what: string }[] }[] = [
+  { title: "Leaderboards and counts", items: [
+    { q: "team with the most matches 2025-26", what: "The team that played the most matches in a season" },
+    { q: "top 10 teams in michigan by opr 2025-26", what: "A ranked table for one state and season, as long as you ask for" },
+    { q: "lowest opr rookies in new jersey", what: "The bottom of a board, not just the top: rookie teams, lowest OPR first" },
+    { q: "highest scoring matches in new jersey on march 15 2026", what: "The top-scoring matches on one day, in one state" },
+  ] },
+  { title: "Winners and awards", items: [
+    { q: "who won nj turnpike division this year", what: "One division's winning alliance, with its final matches" },
+    { q: "nj states winner", what: "“States” means the state championship: its winners and each division's" },
+    { q: "East Bergen conference inspire award winner", what: "Who won one award at one event" },
+  ] },
+  { title: "One team, in plain words", items: [
+    { q: "is 14450's rating rising or falling in 2025-26", what: "The prediction rating after each event, so you can see which way it went" },
+    { q: "4215 teleop opr by event 2025-26", what: "One part of OPR, at each event of the season" },
+    { q: "7149 events in june", what: "A team's events in one month" },
+    { q: "what is my 4215 upcoming event", what: "The next event the team is listed for, once FIRST has posted it" },
+    { q: "is 23268 a rookie team", what: "The team's rookie season and how many seasons it has played" },
+    { q: "4215 at worlds", what: "The team's matches at the FIRST Championship" },
+  ] },
+  { title: "Comparisons and explanations", items: [
+    { q: "4215 vs 6980 opr", what: "Two teams' OPR side by side" },
+    { q: "explain 4215 opr in 2024/25", what: "A team's OPR in a past season, with what OPR means" },
+    { q: "difference between auto and teleop", what: "A short explainer of a match's periods" },
+  ] },
+];
+
 /** Worked readings for the "how a query is read" figure: each word and what it was read as. */
 export type Role = "team" | "stat" | "scope" | "place" | "time" | "kind" | "filler" | "versus";
 export const READINGS: { q: string; words: { w: string; role: Role }[]; result: string }[] = [

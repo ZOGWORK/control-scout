@@ -155,6 +155,27 @@ describe("the answers", () => {
     expect((await searchAnswer("did 4215 win by 60 points", { limit: 25 })).stat!.headline).toMatchObject({ value: "1 win", label: "by exactly 60 points" });
     expect((await searchAnswer("4215 lost by 1 point", { limit: 25 })).stat!.none).toMatch(/^No losses by exactly 1 point/);
   });
+  it("a bound said: the matches decided by less than that, closest first; none inside it names the closest (failed-search #1223)", async () => {
+    // The closest is the 30-point loss, then the 40-point ones.
+    const under = (await searchAnswer("4215 closest match by less than 45 points", { limit: 25 })).stat!;
+    expect(under.title).toMatch(/^Matches decided by less than 45 points/);
+    expect(under.headline).toMatchObject({ value: "30 points", label: "90–120 in Q2 at New Jersey Championship" });
+    const rows = under.blocks.flatMap((b) => (b.kind === "matches" ? b.rows : []));
+    expect(rows.map((r) => Math.abs(r.own - r.opp))).toEqual([30, 40, 40]);
+    const none = (await searchAnswer("4215 closest match by less than 1 point", { limit: 25 })).stat!;
+    expect(none.none).toMatch(/^No matches decided by less than 1 point.*: the closest was 30 points, 90–120 in Q2 at New Jersey Championship\.$/);
+    expect((await searchAnswer("4215 closest win within 50 points", { limit: 25 })).stat!.headline).toMatchObject({ value: "40 points" });
+    // The result said with the bound counts: wins only, never the 30-point loss.
+    const won = (await searchAnswer("4215 closest match won by less than 45 points", { limit: 25 })).stat!;
+    expect(won.headline).toMatchObject({ value: "40 points", label: "100–60 in Q1 at New Jersey Qualifier" });
+    expect(won.blocks.flatMap((b) => (b.kind === "matches" ? b.rows : [])).every((r) => r.own > r.opp)).toBe(true);
+    // The bound said after an event named is still the bound, never part of the event's name.
+    expect(readStatQuestion("4215 closest match at new jersey championship by less than 45 points")).toMatchObject({ id: "closest-match", under: 45, core: "4215", scope: { at: "new jersey championship" } });
+    // Every match inside the bound is listed, not only five: six under 100 points.
+    const six = (await searchAnswer("4215 closest match by less than 100 points", { limit: 25 })).stat!;
+    // (The bound is the official totals' gap; a row shows points without penalties, so the Worlds win reads 275–200.)
+    expect(six.blocks.flatMap((b) => (b.kind === "matches" ? b.rows : []))).toHaveLength(6);
+  });
   it("a result answer shows the official totals; a score answer the points without penalties", async () => {
     const win = await searchAnswer("4215 biggest win", { limit: 25 });
     const rows = win.stat!.blocks.flatMap((b) => (b.kind === "matches" ? b.rows : []));

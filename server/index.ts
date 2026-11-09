@@ -4,6 +4,7 @@
 // are on right now (the live fast lane).
 import { backfillVideoMeta } from "./videos/recordings.js";
 import { resolveStreamLinks } from "./videos/streamLinks.js";
+import { resolveChannelStreams } from "./videos/channelStreams.js";
 import "./env.js";
 import { env } from "./env.js";
 import { migrate, all, openReplicaIfRemote } from "./db.js";
@@ -205,6 +206,7 @@ if (!process.env.CS_NO_SCHEDULER) {
   // stream links of events on now are followed first (server/videos/streamLinks.ts), so the video they lead to is read too.
   const recordings = () => {
     resolveStreamLinks(log).catch((e) => log(`recordings: ${(e as Error).message}`))
+      .then(() => resolveChannelStreams(log)).catch((e) => log(`recordings: ${(e as Error).message}`))
       .then(() => backfillVideoMeta(log)).catch((e) => log(`recordings: ${(e as Error).message}`));
   };
   setTimeout(recordings, 150_000).unref();

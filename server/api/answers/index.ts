@@ -672,7 +672,7 @@ async function build(it: StatQuestion, team: { number: number; name: string | nu
   }
   if (MATCH_STAT_IDS.has(it.id)) return matchStatAnswer(it.id, team, ms, scope, { n: it.n, variant: it.variant });
   if (it.id === "results" && (scope.championship || scope.states)) return championshipMatchesAnswer(team, ms, scope);
-  return matchAnswer(it.id, team, ms, scope, { leadEvent: it.leadEvent, n: it.n, outcome: it.outcome, perEvent: it.variant === "per-event" });
+  return matchAnswer(it.id, team, ms, scope, { leadEvent: it.leadEvent, n: it.n, outcome: it.outcome, perEvent: it.variant === "per-event", ...(it.under != null ? { under: it.under } : {}) });
 }
 
 /** "Highest scoring games in decode", "top scores in nj this season", "highest scoring match ever": no team, a
