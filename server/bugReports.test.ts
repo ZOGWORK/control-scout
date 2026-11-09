@@ -245,6 +245,16 @@ describe("sweepBugReports", () => {
     expect(mails).toHaveLength(2);
     expect(mails[1].text).toContain("1 attachment was never uploaded");
   });
+  it("clears an abandoned upload only after a second window, and never a finished one", async () => {
+    const video = MP4(BUG_LIMITS.videoBytes - 1);
+    const v = (await create({ ...good, files: [{ type: "video/mp4", bytes: video.length }, { type: "image/png", bytes: PNG.length }] })).json as { id: number; token: string };
+    await put(v.id, 0, v.token, video.subarray(0, BUG_LIMITS.chunkBytes), 0, "video/mp4");
+    await upload(v.id, 1, v.token, PNG);
+    expect((await sweepBugReports(Date.now() + UPLOAD_WINDOW_MS + 1000)).cleared).toBe(0);
+    expect((await sweepBugReports(Date.now() + 2 * UPLOAD_WINDOW_MS + 1000)).cleared).toBe(1);
+    expect(existsSync(join(bugDir(), `${v.id}-0.part`))).toBe(false);
+    expect(existsSync(join(bugDir(), `${v.id}-1.png`))).toBe(true);
+  });
   it("takes back a send interrupted by a restart, and gives up after 5 tries", async () => {
     const a = (await create(good)).json as { id: number; token: string };
     await run("UPDATE bug_reports SET emailed = 2, email_claimed_at = ?, email_attempts = 1, done_at = ? WHERE id = ?", [new Date(Date.now() - 3600e3).toISOString(), new Date().toISOString(), a.id]);

@@ -68,6 +68,10 @@ const uploads = limiter(UPLOAD_RATE);
 /** Tests: forget every IP's recent reports and uploads. */
 export const resetBugLimits = () => { reports.reset(); uploads.reset(); };
 
+/** One upload at a time per file (this process serves every upload): pieces can't interleave or race, and the
+ *  sweep leaves a file alone while it's being written. Keyed "<report id>-<n>". */
+const busy = new Set<string>();
+
 export const bugDir = () => join(env.dataDir, "bug-reports");
 const filePath = (id: number, n: number, type: AttachmentType) => join(bugDir(), `${id}-${n}.${EXTENSION[type]}`);
 const partPath = (id: number, n: number) => join(bugDir(), `${id}-${n}.part`);
@@ -196,13 +200,21 @@ export async function sweepBugReports(now = Date.now()): Promise<{ emailed: numb
        AND (emailed = 0 OR email_claimed_at < ?) ORDER BY id LIMIT 20`,
     [MAX_EMAIL_ATTEMPTS, closed, new Date(now - STALE_CLAIM_MS).toISOString()]);
   for (const { id } of due) await emailReport(Number(id));
-  const stale = await all<FileRow>("SELECT report_id, n, type, bytes FROM bug_report_files WHERE received < bytes AND created_at < ?", [closed]);
+  // Uploads stop at the window's end; clearing waits a second window, skips a file still being written, and removes
+  // files only for a row it actually deleted (a piece finishing meanwhile keeps its row, so its file stays).
+  const stale = await all<FileRow>("SELECT report_id, n, type, bytes FROM bug_report_files WHERE received < bytes AND created_at < ?",
+    [new Date(now - 2 * UPLOAD_WINDOW_MS).toISOString()]);
+  let cleared = 0;
   for (const f of stale) {
-    await run("DELETE FROM bug_report_files WHERE report_id = ? AND n = ? AND received < bytes", [f.report_id, f.n]);
-    await rm(partPath(Number(f.report_id), Number(f.n)), { force: true });
-    await rm(filePath(Number(f.report_id), Number(f.n), f.type as AttachmentType), { force: true });
+    const id = Number(f.report_id), n = Number(f.n);
+    if (busy.has(`${id}-${n}`)) continue;
+    const gone = await get("DELETE FROM bug_report_files WHERE report_id = ? AND n = ? AND received < bytes RETURNING n", [id, n]);
+    if (!gone) continue;
+    cleared++;
+    await rm(partPath(id, n), { force: true });
+    await rm(filePath(id, n, f.type as AttachmentType), { force: true });
   }
-  return { emailed: due.length, cleared: stale.length };
+  return { emailed: due.length, cleared };
 }
 
 type Upload = { row: ReportRow; n: number; offset: number; length: number; declared: { type: AttachmentType; bytes: number } };
@@ -220,8 +232,6 @@ async function openForUpload(req: Request): Promise<{ ok: true; row: ReportRow }
   return { ok: true, row };
 }
 
-/** One upload at a time per file (this process serves every upload): pieces can't interleave or race. */
-const busy = new Set<string>();
 
 /**
  * Everything checkable before the body is read: the per-IP limit, the token, the slot, the piece's offset and
