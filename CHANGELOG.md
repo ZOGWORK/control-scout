@@ -15,13 +15,13 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## NEXT — 2026-11-08
+## 4.7.9 — 2026-11-09
 
 "Match predictions" asked of a team answers with its next match's predicted score, as "predicted matches" does.
 
 ### Highlights
 - [fixes] "Match predictions" for a team shows its next match's prediction
-- [predictions] A team's next match prediction reads either way round
+- [predict] A team's next match prediction reads either way round
 - [fixes] Two teams' match prediction stays the head-on forecast
 
 ### Search
