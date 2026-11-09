@@ -9,6 +9,15 @@ export type Status = "all" | "live" | "upcoming" | "finished";
 export type VideoFilter = "all" | "recording" | "clips";
 export interface Filters { region: string | null; type: string; status: Status; from: string | null; to: string | null; q: string; video?: VideoFilter }
 
+/** The status a query string names, "all" included; null when it names none (the Events page then picks its own). */
+export const statusParam = (v: string | null): Status | null =>
+  v === "all" || v === "live" || v === "upcoming" || v === "finished" ? v : null;
+
+/** The Events page's status when the address names none: Live now while an event under the other filters is live
+ *  (its chip count is above 0), else All, so the page never opens on an empty list. */
+export const defaultStatus = (events: EventListItem[], f: Omit<Filters, "status">): Status =>
+  applyFilters(events, f).some((e) => e.status === "live") ? "live" : "all";
+
 /** The filters as written in a query string (the Events page's URL, or Scout's picker's own state): anything unknown reads as "all". */
 export function readFilters(get: (k: string) => string | null): Filters & { video: VideoFilter } {
   const status = get("status");
