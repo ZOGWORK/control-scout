@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## NEXT — 2026-11-09
+## NEXT — 2026-11-08
 
 "Top rookie teams at NJ conference" lists New Jersey's best rookie teams: a place's conference or league with no name of its own is the place.
 
@@ -26,6 +26,141 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ### Search
 - **A place's conference.** "At <place> conference" or "at <place> league", with no name of its own, reads as the place's teams on the leaderboards, so "top rookie teams at NJ conference" is New Jersey's best rookie teams. A named one ("East Bergen Conference") is still that event. (#1218)
+
+## 4.6.4 — 2026-11-09
+
+A board over every season reads once and offers no one season to pick.
+
+### Highlights
+- [fixes] Every-season boards no longer offer a season to pick
+- [fixes] "Oldest team still active" says its title once
+- [rankings] Career boards keep their season chips
+
+### Search
+- **Every-season boards.** A board that counts every season (the most seasons, matches, events or wins ever, the oldest teams still active) heads its page with the card's own title, so the page no longer says it twice in two wordings. A card about no team that counts every season, or spans seasons ("2007–08 to 2025–26", "active in 2025–26 or 2026–27"), has no season picker, and its season chips stay. The sign-off's visual pass now flags a season picker on such a card. (#1219)
+
+## 4.6.3 — 2026-11-09
+
+A team's name with "from" and a place ("ultraviolet from nj") finds the team, and a name several teams share finds the one from the place named.
+
+### Highlights
+- [fixes] "<team> from <state>" finds the team, as "<team> in <state>" does
+- [fixes] A name several teams share finds the one from the place you name
+- [fixes] A place code like "nj" after "from" is read as the place
+
+### Search
+- **Team from a place.** "From" before a state, province or country that ends the query is read as where the team is, never as part of the name; and when the name belongs to more than one team, the answer leads with the team whose home is in that place (the others stay in the list). (#1222)
+
+## 4.6.2 — 2026-11-09
+
+Matches in a recording with a short drop-out get their clip again: the player starts just before the match instead of at the start of a 10-hour stream.
+
+### Highlights
+- [live] A recording missing up to 15 minutes still jumps to each match
+- [live] The clip starts a little early, never after the match begins
+- [fixes] No more playing a whole day's stream from 0:00 for one match
+
+### Event pages
+- **Recordings with a short gap.** When an event's archived stream is up to 15 minutes shorter than its broadcast and nothing says where the time went (no chapters), each match's clip starts early by all the time missing, so it lands at or before the match, never after. Such a clip shows no prediction or result over the player, since it can't say when the match is on screen. A bigger gap still gets no clips. (#1226)
+
+## 4.6.1 — 2026-11-09
+
+A floor said as "44 or above" lists teams at or over it, and "which state has the highest average OPR" ranks US states and Canadian provinces.
+
+### Highlights
+- [rankings] "Teams with 44 or above OPR" lists them
+- [rankings] "Which state has the highest average OPR" answers
+- [rankings] States need 10 teams with an OPR to be ranked
+
+### Search
+- **A floor said as "or above".** "Teams with 44 or above OPR" and "teams with OPR 44 or above" read like "OPR of at least 44": "or above", "or more", "or higher" and "and up" after a number make it a floor, the number said before the stat or after it. A year after a stat is still a season.
+- **States by average OPR.** "Which state has the highest average OPR" (or lowest, or "states by average OPR") ranks US states and Canadian provinces by the mean OPR of their teams that played in the newest season, with each one's team count. A place with fewer than 10 such teams is left out. (#1216)
+
+## 4.6.0 — 2026-11-09
+
+Search's videos play only what the answer is about, and every video shows a picture: when the headline match has no video, the card no longer plays an unrelated match from another event, and a recording is no longer a blank black box.
+
+### Highlights
+- [fixes] A highlights or video answer never plays an unrelated match
+- [fixes] No video for the headline match: a standout or same-event one plays
+- [appearance] Every video tile and player shows its picture, never a blank box
+
+### Search
+- **Videos about the answer.** When an answer's headline match has no clip, the match that stands in is one of its standout matches (highlights) or a match at the headline's own event (a video page), never the first clip in the "Every match" grid (which lists every match, from any event); else the headline event's recording, or no player.
+- **Pictures on recordings.** A match's second in the event's recording, and the recording itself, show the video's picture with what it is over it ("In the event's recording, from 4:26:23", "The event's whole recording"), instead of a black box. (#1224)
+
+## 4.5.9 — 2026-11-09
+
+Two events side by side read a state's code as that state's championship.
+
+### Highlights
+- [fixes] "<event> vs NJ Championship" compares New Jersey's championship
+- [fixes] An old division with the state's code in its name is no longer picked
+- [fixes] A state code reads as its latest played championship
+
+### Search
+- **Events side by side, a state's code.** Each side is tried with a state's two-letter code spelled out first ("NJ Championship" is the New Jersey Championship, its latest played season), then as typed, so an old division whose name carries the code inside an event code is never the state's championship. (#1220)
+
+## 4.5.8 — 2026-11-09
+
+Teams named can be ranked by one stat: "rank these teams by reliability: 4215, 7149, 23268".
+
+### Highlights
+- [fixes] "Rank these teams by reliability: …" ranks the teams named
+- [fixes] Works with any board stat: OPR, phases, rating, win rate
+- [fixes] A named team too new to rank is listed as not ranked
+
+### Search
+- **Teams named, ranked.** "Rank, sort or order these teams by <stat>: A, B, C" and "A, B and C ranked by <stat>" give a leaderboard of those teams only, ranked among themselves; a named team with too few matches is said as not ranked. (#1104)
+
+## 4.5.7 — 2026-11-09
+
+Search lists the matches a low-ranked team won against a top-ranked one.
+
+### Highlights
+- [rankings] "A team ranked below 1000 beat a team ranked top 100" lists them
+- [rankings] The biggest rank gap first, every team with its world rank
+- [fixes] Asked the other way round, "lost to", it answers too
+
+### Search
+- **Rank upsets.** "Matches where a team ranked below N beat a team ranked top M" (or "… lost to …") lists the season's decided matches at official events where the winning alliance had a team past the first line and the losing alliance one inside the second, by world rating rank, biggest gap first. (#1126)
+
+## 4.5.6 — 2026-11-09
+
+A rating trend names the season's peak when the latest rating is well below it: "Rising from 57.7 after …, down from a 132 peak at …".
+
+### Highlights
+- [fixes] A rating trend names a peak the latest is well below
+- [fixes] "Rising" no longer hides a drop from a mid-season high
+- [fixes] A steady climb reads as it did, with no peak note
+
+### Search
+- **Rating trend peaks.** When the latest rating is a tenth or more below the highest rating after an earlier event (not the first), the trend line adds "down from a <peak> peak at <event>"; the direction still compares the first and the latest. (#1078)
+
+## 4.5.5 — 2026-11-09
+
+A match that "went to a tiebreak, or overtime" is read as a tie.
+
+### Highlights
+- [fixes] "Did 17965 ever play a match that went to tiebreak" answers
+- [fixes] Overtime and sudden death are read as a tie too
+- [fixes] A team named Overtime is still found by its name
+
+### Search
+- **Tiebreaks and overtime.** A match that went to, ended in or was decided by a tiebreak, overtime or sudden death is read as a tie, so the team's ties answer it; the word alone still finds a team named after it. (#1117)
+
+## 4.5.4 — 2026-11-09
+
+Pull to reload in the installed phone app now follows your finger smoothly and looks like the rest of Control Scout: the app's own mark in a round card, with a yellow ring that fills as you pull.
+
+### Highlights
+- [appearance] Pull to reload follows your finger smoothly, frame by frame
+- [appearance] The app's mark with a yellow ring that fills as you pull
+- [appearance] Lets go early? It springs back up instead of vanishing
+
+### Phone app
+- **Smoother pull to reload.** The indicator used to redraw through the page's components on every finger move, which came out at about 10 frames a second on a phone. It now stays in the page and each move only shifts it and fills its ring, once per screen frame, so it keeps up with the finger. Letting go short of the line springs it back up; past the line it settles, the ring spins, and the thin yellow refresh bar the tables use sweeps under the top bar until the page reloads. Under reduced motion nothing turns, springs or sweeps.
+- **Looks like the app.** The plain reload arrow is now Control Scout's own mark in a card-coloured circle, with a yellow ring that fills as you pull and the home search's yellow glow once letting go will reload. (#1214)
 
 ## 4.5.3 — 2026-11-09
 

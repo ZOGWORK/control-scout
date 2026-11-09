@@ -12,7 +12,7 @@
 //   3. Names are matched without the stopwords (STOPWORDS: "in", "at", "the", …), the time words (TIME_WORDS:
 //      "upcoming", "this weekend", …) and a question's own words (QUESTION_WORDS: "can", "will", …) when the query
 //      is a question. Those words say what kind of answer is wanted, never which team or event.
-import { REGION_PHRASES, isRegionCode } from "./regions.js";
+import { REGION_NAMES, REGION_PHRASES, isRegionCode } from "./regions.js";
 import { SEARCH_TOPICS, type SearchTopic } from "./search.js";
 
 /** The plurals read as their singular (lower case). Every pair has its own test (server/api/search.test.ts). */
@@ -150,6 +150,12 @@ function restOf(q: string, p: string): string {
 }
 
 /** Indexes of `ws` inside a region name with a little word in it ("district of columbia"). */
+/** `s` is a state's, province's or country's whole name, or a US or Canadian state code in any case ("nj"). */
+function isPlaceName(s: string): boolean {
+  const t = s.trim();
+  return !!t && (REGION_NAMES.includes(t.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")) || isRegionCode(t.toUpperCase()));
+}
+
 function placeWords(ws: string[]): Set<number> {
   const lower = ws.map((w) => w.toLowerCase()), kept = new Set<number>();
   for (const p of REGION_PHRASES) {
@@ -181,6 +187,9 @@ export function nameWords(q: string, asked = false): string {
     const l = w.toLowerCase();
     // A place's own words stay: "IN" and "ON" typed as codes (Indiana, Ontario), "of" in "District of Columbia".
     if (place.has(i) || isRegionCode(w)) return true;
+    // "From" before a place that ends the query says where the team is, as "in" does ("ultraviolet from nj"): never a
+    // name's word.
+    if (l === "from" && i > 0 && isPlaceName(all.slice(i + 1).join(" "))) return false;
     return !STOPWORDS.has(l) && !(question && QUESTION_WORDS.has(l));
   });
   return ws.length ? ws.join(" ") : one;

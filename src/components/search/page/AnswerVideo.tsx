@@ -50,9 +50,9 @@ function Player({ v, className }: { v: SearchVideoItem; className?: string }) {
           <iframe className="absolute inset-0 size-full" src={src} title={caption} allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen" referrerPolicy="strict-origin-when-cross-origin" />
         ) : (
           <button type="button" onClick={() => setOn(true)} className="group absolute inset-0 grid place-items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60" aria-label={`Play: ${caption}`} data-video-facade>
-            {/* A match's own video shows its picture; a recording's picture is whatever was on the field then (another
-                team's match, an award), so a recording plays from black with its caption under it. */}
-            {v.kind === "match" && <img src={thumbnailUrl(v.videoId)} alt="" loading="lazy" decoding="async" onError={(e) => { e.currentTarget.hidden = true; }} className="absolute inset-0 size-full object-cover opacity-80 transition-opacity group-hover:opacity-100 motion-reduce:transition-none" />}
+            {/* The video's picture (a blank player reads as broken); a recording's is its cover, the caption under it
+                saying which match and from when. */}
+            <img src={thumbnailUrl(v.videoId)} alt="" loading="lazy" decoding="async" onError={(e) => { e.currentTarget.hidden = true; }} className="absolute inset-0 size-full object-cover opacity-80 transition-opacity group-hover:opacity-100 motion-reduce:transition-none" />
             {/* Neutral, not YouTube's red: on a search card hue means team and red marks the red alliance (the results guide). */}
             <span className="relative grid size-16 place-items-center rounded-full bg-black/75 text-white shadow-lg ring-1 ring-white/40"><Play className="size-7 translate-x-0.5 fill-current" aria-hidden /></span>
           </button>

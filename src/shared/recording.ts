@@ -17,6 +17,9 @@ export interface RecordingTiming {
 
 /** How far the video's length may fall short of the broadcast's start-to-end time before its times can't be trusted. */
 export const GAP_TOLERANCE_S = 180;
+/** The most a video may fall short of its broadcast, where the gap can't be placed, for its matches still to get a
+ *  clip: each then starts early by all the time missing, so it never starts after its match, at most this early. */
+export const GAP_SLACK_MAX_S = 900;
 /** How soon after the last match's start a video trimmed at the event's end stops. */
 export const TAIL_TRIM_S = 900;
 
@@ -136,15 +139,29 @@ export function chaptersConfirm(rec: RecordingTiming, chapters: Chapter[] | null
  * still live, up to now.
  */
 export function clipSecond(startsAt: string | null | undefined, rec: RecordingTiming, now = Date.now()): number | null {
-  if (!startsAt || !rec.start || !timingTrusted(rec)) return null;
+  const slack = gapSlack(rec);
+  if (!startsAt || !rec.start || slack == null) return null;
   const from = Date.parse(rec.start), at = Date.parse(startsAt);
   if (!Number.isFinite(from) || !Number.isFinite(at) || at < from) return null;
   const offset = Math.floor((at - from) / 1000);
   const end = rec.live ? Math.floor((now - from) / 1000) : rec.length;
-  if (end == null || offset > end) return null;
+  if (end == null || offset - slack > end) return null;
   // Trusted on the chapters' word: only as far as they vouch for.
   if (rec.confirmedTo != null && offset > rec.confirmedTo) return null;
-  return Math.max(0, offset - CLIP_LEAD_S);
+  return Math.max(0, offset - slack - CLIP_LEAD_S);
+}
+
+/**
+ * How many seconds early a clip starts for a gap that can't be placed: 0 for a video whose times are trusted
+ * (timingTrusted); else, for an archive at most GAP_SLACK_MAX_S short of its broadcast (a drop-out, its dead air cut),
+ * all the time missing: a match sits between that much earlier and its clock time, so starting there never misses
+ * it (Royal Oak Qualifier 2026: 13 min short, no chapters). Null for more missing, or none known.
+ */
+export function gapSlack(rec: RecordingTiming): number | null {
+  if (timingTrusted(rec)) return 0;
+  if (!rec.start || !rec.end || rec.length == null || rec.live) return null;
+  const missing = (Date.parse(rec.end) - Date.parse(rec.start)) / 1000 - rec.length;
+  return Number.isFinite(missing) && missing > 0 && missing <= GAP_SLACK_MAX_S ? Math.ceil(missing) : null;
 }
 
 /**

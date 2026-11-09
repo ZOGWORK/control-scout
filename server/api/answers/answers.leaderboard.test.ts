@@ -276,6 +276,14 @@ describe("every season counted", () => {
     // The most awards ever, worldwide or in a place, is the awards family's answer, every season counted.
     for (const q of ["which team in New Jersey has the most awards, ever", "which team has the most awards, ever"]) expect((await searchAnswer(q, { limit: 25, full: true })).stat?.intent, q).toBe("place-awards");
   });
+  // Live check of #1111: the page's heading is the card's title, so the page never says it twice in two wordings.
+  it("heads the page with the card's own title", async () => {
+    for (const q of ["oldest team still active in ohio", "which team in texas has won the most matches ever", "team with the most events attended of all time", "which team has played the most seasons in history"]) {
+      const a = await searchAnswer(q, { limit: 25, full: true });
+      expect(a.stat?.intent, q).toMatch(/^(?:career-|oldest-active)/);
+      expect(a.understood?.label, q).toBe(a.stat?.title);
+    }
+  });
   it("with no match on record, says so and names no years", async () => {
     const empty = openDb(":memory:");
     setDb(empty);

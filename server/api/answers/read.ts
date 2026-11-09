@@ -521,6 +521,8 @@ export interface LeaderboardQuestion {
   undefeated?: boolean;
   /** A town in the region: its teams only. */
   town?: string | null;
+  /** The teams named ("rank these teams by reliability: 12345, 67890, 33950"): those only, ranked among themselves. */
+  teams?: number[];
   /** "improved from rank 1000+ to the top 100": the most improved, only those from that OPR rank or below the season
    *  before to that rank or better. */
   climb?: { from: number; to: number };
@@ -556,6 +558,32 @@ const regionOf = (s: string): Region | null => { const rs = findRegions(s); retu
 const TEAMS = "(?:teams?|robots?|ftc teams?)";
 const PLACE = "(?: (?:in|from) (.+))?";
 
+/** "Rank these nj teams by reliability: 12345, 67890, 33950", "12345 67890 33950 ranked by opr": the teams named, by the
+ *  stat, among themselves; undefined when the query isn't one, null when it is but the season totals can't answer it (a
+ *  place, a window, a day, an event or a match type said). A word or two before "teams" ("these nj") says no more than
+ *  the numbers do. A bare year in the list is a team ("2024, 6980"); a season is named as one ("in 2024-25"). */
+function namedBoard(q: string): LeaderboardQuestion | null | undefined {
+  const said = q.replace(/:/g, " ").replace(/(?<!\b(?:in|during|for|from|season|year) )\b(20\d\d)\b(?!\s*[-–/]\s*\d)/g, "n$1");
+  const { scope, rest: r } = readScope(said);
+  // An order said ("in ascending order", "highest to lowest"): read, never swallowed with the list's own words.
+  const d = new RegExp(String.raw`(?:^| )(${ASC}|${DESC})(?= |$)`).exec(r);
+  const dir = d ? (new RegExp(`^${ASC}$`).test(d[1]) ? "asc" : "desc") : null;
+  const rest = (d ? `${r.slice(0, d.index)} ${r.slice(d.index + d[0].length)}` : r).replace(/\s+/g, " ").trim().replace(/\bn(20\d\d)\b/g, "$1");
+  const m = new RegExp(String.raw`^(?:(?:rank|sort|order|list|put)(?: these| the| those| my| our)?(?: \D+?)?(?: ${TEAMS})? (?:by|on|in order of|according to) (\D+?) ((?:\d{1,5} (?:and )?)+\d{1,5})|(?:${TEAMS} )?((?:\d{1,5} (?:and )?)+\d{1,5}) (?:ranked|sorted|ordered|in order) (?:by|on) (\D+?))$`).exec(rest);
+  if (!m) return undefined;
+  if (scope.championship || scope.states || scope.level || scope.alliance || scope.at || scope.ever || scope.place || scope.area || scope.outOfState || scope.day || scope.window) return null;
+  const words = (m[1] ?? m[4]).trim();
+  // Any stat a board ranks by, phases added ("auto and endgame"), or penalty points (fewest first).
+  // Search says a plural's singular ("by match", "by event"): the counts' own words.
+  const stat = sortStat(words) ?? sortStat(words.replace(/\bmatch\b/g, "matches").replace(/\bevent\b/g, "events"))
+    ?? (/^(?:penalties|penalty points|fouls)(?: given(?: away)?)?$/.test(words) ? "penalties" : null);
+  const teams = [...new Set((m[2] ?? m[3]).split(" ").filter((w) => /^\d+$/.test(w)).map(Number))];
+  if (!stat || teams.length < 2 || teams.length > 25) return null;
+  // Penalties go fewest first unless an order is said.
+  const asc = dir ? dir === "asc" : stat === "penalties";
+  return { kind: "top", stat, n: teams.length, region: null, city: null, season: scope.season, teams, ...(asc ? { asc: true } : {}) };
+}
+
 /** "Teams that improved from rank 1000+ to top 100 in one season", "which nj teams climbed from rank 1,000 to the top
  *  50": the most improved, only the teams that made that climb in worldwide OPR rank. The ranks are read before the
  *  season is ("rank 2024" is a rank, never a year), with their thousands separators ("1,000" is one number). Counted at
@@ -578,6 +606,8 @@ function readClimb(raw: string): LeaderboardQuestion | null {
 export function readLeaderboard(raw: string): LeaderboardQuestion | null {
   // "overall OPR" is the stat's name, not an every-season scope.
   const q = ` ${raw.toLowerCase().replace(/['’]s\b/g, "").replace(/[?!,.]/g, " ")} `.replace(/\s+/g, " ").replace(/\b(?:overall|total) opr\b/g, "opr");
+  const named = namedBoard(q);
+  if (named !== undefined) return named;
   // "teams at Clearview Regional High School", "how many teams from Lincoln Academy": a school's teams, by the school
   // named whole as FIRST lists it (a word of a school's kind ends it). Before the scope, which reads "at …" as an event.
   // The name is taken as typed (only a question's closing mark dropped), so "St. Patrick's High School" matches the school

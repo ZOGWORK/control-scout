@@ -16,7 +16,9 @@ export interface VideoMoment { match: MatchView; phase: Phase }
 
 /** The match on screen at second `t` of the recording, and where in it; null between matches or outside them. */
 export function videoMoment(matches: MatchView[], t: number): VideoMoment | null {
-  const timed = matches.filter((m) => m.clip).sort((a, b) => a.clip!.t - b.clip!.t);
+  // A clip that only starts somewhere before its match (clip.early) says nothing of when the match is on screen: an
+  // overlay timed from it would show a result before the match plays.
+  const timed = matches.filter((m) => m.clip && !m.clip.early).sort((a, b) => a.clip!.t - b.clip!.t);
   if (!timed.length || !Number.isFinite(t)) return null;
   let i = -1;
   for (let k = 0; k < timed.length && timed[k].clip!.t <= t; k++) i = k;

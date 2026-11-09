@@ -23,6 +23,11 @@ describe("the match on screen at a second of the recording", () => {
     expect(at(874)).toBe("Q1 after");
     expect(at(875)).toBe("Q2 before");
   });
+  it("a clip that only starts somewhere before its match (a gap not placed) times nothing: no call, no result early", () => {
+    const early = ms.map((x) => (x.clip ? { ...x, clip: { ...x.clip, early: 600 } } : x));
+    expect(videoMoment(early, 337 + CLIP_LEAD_S)).toBeNull();
+    expect(videoMoment(early, 1612 + CLIP_LEAD_S + MATCH_S)).toBeNull();
+  });
   it("a long gap (a break) clears the result after a while; matches without a clip are left out", () => {
     const end = 1612 + CLIP_LEAD_S + MATCH_S;
     expect(at(end + RESULT_HOLD_S - 1)).toBe("Q3 after");
