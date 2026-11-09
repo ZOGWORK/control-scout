@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.8.7 — 2026-11-09
+
+Search answers how a team did at its latest meet, asked in plain words.
+
+### Highlights
+- [fixes] "How did <team> do in their recent meet" shows its results there
+- [fixes] "<team> last meet performance" answers the same, typos and all
+- [fixes] The answer's heading says it is the team's latest event
+
+### Search
+- **Latest meet, plain words.** "how did enforcers do in thier recent meet" and "enforcers last meet performence" now show the team's matches at its latest event, the card saying "their latest event". "Performance" is read with a typo or two, as team names are. (#1251)
+
 ## 4.8.6 — 2026-11-09
 
 An opened match reads side by side again, with about half the words.
