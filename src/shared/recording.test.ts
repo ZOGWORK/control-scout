@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { actualStart, chapterLabel, chaptersConfirm, CHAPTER_MIN_ANCHORS, CHAPTER_MIN_GAP_S, CHAPTER_TAIL, CLIP_LEAD_S, clipSecond, clipTime, timingTrusted, watchUrl, type Chapter } from "./recording";
+import { actualStart, chapterLabel, chaptersConfirm, CHAPTER_MIN_ANCHORS, CHAPTER_MIN_GAP_S, CHAPTER_TAIL, CLIP_LEAD_S, clipSecond, clipTime, gapSlack, GAP_SLACK_MAX_S, timingTrusted, watchUrl, type Chapter } from "./recording";
 
 const rec = { start: "2026-05-02T12:58:13Z", length: 4 * 3600, live: false };
 
@@ -43,6 +43,22 @@ describe("a video with a gap", () => {
     expect(timingTrusted({ ...gapped, live: true })).toBe(true);
     expect(timingTrusted({ ...whole, length: 16541 - 170 })).toBe(true); // a few minutes trimmed off the end
     expect(timingTrusted({ ...whole, start: null })).toBe(false);
+  });
+
+  // Royal Oak Qualifier 2026: broadcast 12:57:06 to 00:00:35, video 10 h 50 min 13 s: 796 s missing, no chapters,
+  // matches 16:15 to 23:23, so neither a trimmed tail nor trusted.
+  const short13 = { start: "2026-11-07T12:57:06Z", end: "2026-11-08T00:00:35Z", length: 39013, live: false, firstMatch: "2026-11-07T16:15:45Z", lastMatch: "2026-11-07T23:23:13Z" };
+  it("a gap of at most 15 min that can't be placed: each match starts early by all of it, never after its start", () => {
+    expect(timingTrusted(short13)).toBe(false);
+    expect(gapSlack(short13)).toBe(796);
+    // A match at 22:21:39 by the clock: 33873 s in, so between 33077 and 33873 in the video; it starts before both.
+    expect(clipSecond("2026-11-07T22:21:39Z", short13)).toBe(33873 - 796 - CLIP_LEAD_S);
+    expect(clipSecond("2026-11-07T12:58:00Z", short13)).toBe(0);
+    // A trusted video starts on time; more missing, or a big gap, none.
+    expect(gapSlack(whole)).toBe(0);
+    expect(gapSlack({ ...short13, length: 39809 - GAP_SLACK_MAX_S - 1 })).toBeNull();
+    expect(gapSlack(gapped)).toBeNull();
+    expect(clipSecond("2026-05-30T15:21:09Z", gapped)).toBeNull();
   });
 });
 

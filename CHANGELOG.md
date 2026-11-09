@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## NEXT — 2026-11-09
+
+Matches in a recording with a short drop-out get their clip again: the player starts just before the match instead of at the start of a 10-hour stream.
+
+### Highlights
+- [live] A recording missing up to 15 minutes still jumps to each match
+- [live] The clip starts a little early, never after the match begins
+- [fixes] No more playing a whole day's stream from 0:00 for one match
+
+### Event pages
+- **Recordings with a short gap.** When an event's archived stream is up to 15 minutes shorter than its broadcast and nothing says where the time went (no chapters), each match's clip starts early by all the time missing, so it lands at or before the match, never after. A bigger gap still gets no clips. (#N)
+
 ## 4.5.8 — 2026-11-09
 
 Teams named can be ranked by one stat: "rank these teams by reliability: 4215, 7149, 23268".

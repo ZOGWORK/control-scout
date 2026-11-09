@@ -10,7 +10,7 @@ import { all, run } from "../db.js";
 import { registerCache } from "../caches.js";
 import { seasonStreams } from "../portal/streams.js";
 import { embedUrl, parseStreamUrl } from "../../src/shared/stream.js";
-import { CHAPTER_MIN_GAP_S, actualStart, chaptersConfirm, clipSecond, timingTrusted, watchUrl, type Chapter } from "../../src/shared/recording.js";
+import { CHAPTER_MIN_GAP_S, actualStart, chaptersConfirm, clipSecond, gapSlack, timingTrusted, watchUrl, type Chapter } from "../../src/shared/recording.js";
 import { localToUtcMs } from "../../src/shared/time.js";
 import type { EventStream, MatchView } from "../../src/shared/api.js";
 import { env } from "../env.js";
@@ -130,7 +130,7 @@ export function seasonVideoKinds(season: number, now = Date.now()): Promise<Map<
         const s = starts.get(code);
         if (!s) continue;
         const timing = withConfirmed(rec.meta!, eventSpan(s));
-        if (timingTrusted(timing) && s.some((x) => clipSecond(x.startsAt, timing, now) != null)) withClip.add(code);
+        if (gapSlack(timing) != null && s.some((x) => clipSecond(x.startsAt, timing, now) != null)) withClip.add(code);
       }
     }
     for (const [code] of recs) out.set(code, withClip.has(code) ? "clips" : "recording");
@@ -193,7 +193,7 @@ export function withClips<M extends Pick<MatchView, "label" | "time" | "startsAt
   const meta = r?.meta;
   if (!r || !meta || meta.status !== "ok") return matches;
   const m = withConfirmed(meta, span ?? eventSpan(matches.filter((x) => x.played && actualStart(x.time)).map((x) => ({ label: x.label, startsAt: x.startsAt }))));
-  if (!timingTrusted(m)) return matches;
+  if (gapSlack(m) == null) return matches;
   return matches.map((x) => {
     // Played matches with a real start only: an unplayed one's time, or a result posted without a start, is the schedule.
     const t = x.played && actualStart(x.time) ? clipSecond(x.startsAt, m, now) : null;
