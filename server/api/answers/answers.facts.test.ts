@@ -196,6 +196,9 @@ describe("team facts", () => {
     // An old event's match left unplayed is never "next"; a rookie's posted schedule is, with no season played.
     expect((await searchAnswer("4215 predicted score next match", { limit: 25 })).stat!.none).toContain("no upcoming match");
     expect((await searchAnswer("31000 predicted score next match", { limit: 25 })).stat!.headline).toMatchObject({ value: "Q3", label: expect.stringContaining("Future Qualifier") });
+    // "Predicted matches" (failed-search #1147) is the same question.
+    expect((await searchAnswer("31000 predicted matches", { limit: 25 })).stat).toMatchObject({ intent: "next-match", headline: { value: "Q3" } });
+    expect((await searchAnswer("4215 predicted matches", { limit: 25 })).stat!.none).toContain("no upcoming match");
     for (const q of ["will 4215 win its next match", "when is 4215 next match", "when is 4215 next event", "what events did 4215 win in 2025"]) expect(readTeamFact(q), q).toBeNull();
   });
 });
