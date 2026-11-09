@@ -155,6 +155,13 @@ describe("StatAnswerCard, a team's OPR", () => {
     expect(point.className).toMatch(/max-md:hidden.*pointer-coarse:hidden/);
     expect(series.querySelectorAll('.relative [role=img].max-md\\:flex')).toHaveLength(1);
     expect(series.querySelector('[data-series-values] a[href="/events/2025/USNJNOLT2?team=4215"]')!.className).toContain("max-md:min-h-[44px]");
+    // Hovering or focusing a point says what it is at once: its name, then its value (not a slow browser title).
+    const tip = point.querySelector("[data-point-tip]")!;
+    expect([...tip.children].map((x) => x.textContent)).toEqual(["East Bergen Conference Northern League Tournament", "84.4"]);
+    expect(tip.className).toMatch(/group-hover:block.*group-focus-visible:block/);
+    expect(point.getAttribute("title")).toBeNull();
+    // The first point's tip stays inside the chart, at its left edge.
+    expect(tip.className).toContain("left-0");
   });
 });
 
