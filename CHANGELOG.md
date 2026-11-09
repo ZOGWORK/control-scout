@@ -26,7 +26,7 @@ An award asked on its own lists its latest winners, and "fewest Inspire awards i
 - [fixes] A season said keeps the latest winners to that season
 
 ### Search
-- **Latest winners and the fewest awards.** One award asked with no event or place ("inspire award winner") lists the winners at the latest events that gave it, newest first, any season unless one is said. "Fewest" (or "least") of an award in a place is the most-awards board read from its bottom: the teams that won at least one, fewest first, with the place's teams that played and won none counted in the headline.
+- **Latest winners and the fewest awards.** One award asked with no event or place ("inspire award winner") lists the winners at the latest events that gave it, newest first, any season unless one is said. "Fewest" (or "least") of an award in a place is the most-awards board read from its bottom: the teams that won at least one, fewest first, with the place's teams that played and won none counted in the headline. (#1217)
 
 ## 4.5.2 — 2026-11-09
 
