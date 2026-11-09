@@ -31,6 +31,18 @@ An opened match is one quiet column: the score, a table, the call on the same co
 - **Bonus ranking points as icons.** One line: each RP's icon with Red's and Blue's chances (a ✓ after a side that earned it) and the expected RP. Hovering or tapping an icon names the RP and says both sides' chances and whether each earned it. They no longer repeat under each alliance.
 - **Quieter extras.** The confidence tier is a small muted word, Share and the pre-match report are icons, live or replayed is an icon with its name on hover, the full why breakdown and the video are single muted rows, and result changes lose their box. Every number is still on the page. (#1252)
 
+## 4.8.7 — 2026-11-09
+
+Search answers how a team did at its latest meet, asked in plain words.
+
+### Highlights
+- [fixes] "How did <team> do in their recent meet" shows its results there
+- [fixes] "<team> last meet performance" answers the same, typos and all
+- [fixes] The answer's heading says it is the team's latest event
+
+### Search
+- **Latest meet, plain words.** "how did enforcers do in thier recent meet" and "enforcers last meet performence" now show the team's matches at its latest event, the card saying "their latest event". "Performance" is read with a typo or two, as team names are. (#1251)
+
 ## 4.8.6 — 2026-11-09
 
 An opened match reads side by side again, with about half the words.

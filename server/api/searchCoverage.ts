@@ -143,6 +143,11 @@ export async function namedParts(q: string): Promise<Set<string>> {
   return out;
 }
 
+/** A team's latest meet said in words ("their most recent meet", "thier recent meet", "last event"). */
+const LATEST_MEET = String.raw`(?:(?:their|thier|its|the)\s+)?(?:most\s+recent|latest|last|recent|newest)\s+(?:meet|event|competition)`;
+/** The word for how a team did, said after its latest meet ("last meet performance"). */
+const SHOWING_WORDS = ["performance"];
+
 export function rewriteQuery(q: string, named: ReadonlySet<string> = new Set()): { q: string; note?: string; pre?: true } | null {
   const t = squash(q.toLowerCase());
   let m: RegExpExecArray | null;
@@ -209,6 +214,12 @@ export function rewriteQuery(q: string, named: ReadonlySet<string> = new Set()):
   // at recent meet"): its results there, as "<team> matches at their last event" reads, never an event so named.
   if ((m = /^(.+?)\s+(?:matches|match|games?|results?|scores?)\s+(?:at|in|from)\s+(?:(?:their|thier|its|the)\s+)?(?:most\s+recent|latest|last|recent|newest)\s+(?:meet|event|competition)$/.exec(t))
     && `${m[1]} matches at their last event` !== t) return { q: `${m[1]} matches at their last event`, pre: true };
+  // How a team did at its latest meet, asked as a question ("how did <team> do in thier recent meet") or by a word for
+  // its showing after it ("<team> last meet performance", that word misspelled within the usual edit allowance): its
+  // results there, the same reading, the card saying it is their latest event.
+  if ((m = new RegExp(`^how\\s+(?:did|have|has)\\s+(.+?)\\s+(?:do|done|perform|performed|play|played)\\s+(?:at|in)\\s+${LATEST_MEET}$`).exec(t))
+    || ((m = new RegExp(`^(.+?)\\s+${LATEST_MEET}\\s+(\\S+)$`).exec(t)) && SHOWING_WORDS.some((w) => editDistance(m![2], w) <= allowedEdits(w.length))))
+    return { q: `${m[1]} matches at their last event`, note: "their latest event", pre: true };
   // A team's matches "in" an event, said as "at" ("12345 matches in worlds").
   if ((m = /^(\d{1,6})\s+(matches|match|games?|record)\s+in\s+(worlds|first championship|world championships?)$/.exec(t))) return { q: `${m[1]} ${m[2]} at worlds`, pre: true };
   // "When did hypnotic last play", "when did 12345 play last", "when did they last compete": the team's most recent match.
