@@ -72,13 +72,13 @@ export function ResultChanges({ season, code, matchKey, refreshKey, bare }: { se
         <History className="size-4 text-text-muted" aria-hidden /> Result changes
       </h2>
       <Async state={state} loading={<div className="skeleton mt-3 h-16 rounded-xl" />}>
-        {(v) => (isView(v) ? <Body v={v} one={one} /> : null)}
+        {(v) => (isView(v) ? <Body v={v} one={one} bare={bare} /> : null)}
       </Async>
     </section>
   );
 }
 
-function Body({ v, one }: { v: ResultChangesView; one: boolean }) {
+function Body({ v, one, bare }: { v: ResultChangesView; one: boolean; bare?: boolean }) {
   const [all, setAll] = useState(false);
   // A whole event's first postings can bury a correction: offer corrections and moves on their own.
   const fixes = v.changes.filter((c) => c.kind !== "posted");
@@ -102,7 +102,7 @@ function Body({ v, one }: { v: ResultChangesView; one: boolean }) {
         </p>
       )}
       {!v.changes.length ? (
-        <p className="mt-3 rounded-xl border border-dashed border-border px-4 py-3 text-sm text-text-muted">No changes recorded{v.trackedSince ? ` since ${day(v.trackedSince)}` : ""}.</p>
+        <p className={cn("text-text-muted", bare ? "mt-1 text-xs" : "mt-3 rounded-xl border border-dashed border-border px-4 py-3 text-sm")}>No changes recorded{v.trackedSince ? ` since ${day(v.trackedSince)}` : ""}.</p>
       ) : (
         <>
         {!one && fixes.length > 0 && fixes.length < v.changes.length && (
