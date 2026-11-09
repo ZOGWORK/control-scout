@@ -123,5 +123,9 @@ describe("the best team with no place said (failed-search #1225)", () => {
     expect((await ask(`best team highlights in November ${S}`)).stat).toMatchObject({ intent: "team-highlights", team: { number: 14270 } });
     // A board asked of the best team stays the board.
     expect((await ask("best team")).stat?.intent).toBe("top-rating");
+    // Any one team's question is the top team's too (failed-search #1236).
+    const last = await ask("best team last 5 matches");
+    expect(last.stat).toMatchObject({ team: { number: 23268 } });
+    expect(last.understood?.label).toContain("The top team worldwide by prediction rating");
   });
 });

@@ -53,18 +53,20 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
     // The season the question names picks each place's leader too ("in 2024-25, the top NJ team vs …").
     tops = await topTeamsSaid(q, ctx, p.time?.kind === "season" && p.time.season != null ? p.time.season : undefined);
     let again = tops ? await parseQuery(tops.q, ctx) : null;
-    // One team's highlights ("best team highlights": the world's top team's): the leader of the season the highlights
-    // show (the current one unless another is said, as highlights() reads it), never only the latest completed one.
-    if (tops && again?.complete && again.intent === "highlights" && again.teams.length === 1) {
-      // A dated window ("in March 2026") is its season's highlights too.
+    // One team's question ("best team highlights", "best team last 5 matches": the world's top team's): the leader of
+    // the season asked (the current one unless another is said, as highlights() reads it), never only the latest
+    // completed one.
+    const oneTeam = (x: typeof again) => !!x?.intent && x.teams.length === 1 && (x.intent === "highlights" || TEAM_INTENTS.has(x.intent));
+    if (tops && again?.complete && oneTeam(again)) {
+      // A dated window ("in March 2026") is its season's question too.
       const shown = placeSeason(again, again.time?.season ?? null, opts);
       if (shown !== tops.season) {
         tops = await topTeamsSaid(q, ctx, shown);
         again = tops ? await parseQuery(tops.q, ctx) : null;
       }
     }
-    // Two teams compared; or one team's highlights.
-    if (!again?.complete || !again.intent || !((again.teams.length === 2 && TWO_TEAM[again.intent]) || (again.teams.length === 1 && again.intent === "highlights"))) return null;
+    // Two teams compared; or one team's question.
+    if (!again?.complete || !again.intent || !((again.teams.length === 2 && TWO_TEAM[again.intent]) || oneTeam(again))) return null;
     p = { ...again, q };
   }
   if (!p.intent) return null;
