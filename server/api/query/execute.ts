@@ -58,8 +58,10 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
     // completed one.
     const oneTeam = (x: typeof again) => !!x?.intent && x.teams.length === 1 && (x.intent === "highlights" || TEAM_INTENTS.has(x.intent));
     if (tops && again?.complete && oneTeam(again)) {
-      // A dated window ("in March 2026") is its season's question too.
-      const shown = placeSeason(again, again.time?.season ?? null, opts);
+      // The season the answer itself reads, resolved once: highlights' own (a dated window, "in March 2026", is its
+      // season's); a team's stats read the scope's season ("last season" the one before searchSeason()), searchSeason()
+      // when none is said.
+      const shown = again.intent === "highlights" ? placeSeason(again, again.time?.season ?? null, opts) : readScopeOf(again)?.season ?? searchSeason();
       if (shown !== tops.season) {
         tops = await topTeamsSaid(q, ctx, shown);
         again = tops ? await parseQuery(tops.q, ctx) : null;

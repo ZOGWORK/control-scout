@@ -22,10 +22,10 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 ### Highlights
 - [fixes] "Best team last 5 matches" shows the top team's latest matches
 - [fixes] Any one-team question works with "the best team" as the team
-- [rankings] The best team is this season's leader unless another is said
+- [rankings] The best team is the leader of the season its stats come from
 
 ### Search
-- **The best team's matches and stats.** "Best team last 5 matches", and any other question asked of one team, with "the best team" said for the team: answered for the world's top-rated ranked team of the season asked, the card naming it. "Best team" alone stays the board. (#1237)
+- **The best team's matches and stats.** "Best team last 5 matches", and any other question asked of one team, with "the best team" said for the team: answered for the world's top-rated ranked team of the season the answer reads (the season said, or the one a question naming none reads), the card naming it. "Best team" alone stays the board. (#1237)
 
 ## 4.7.7 — 2026-11-09
 
