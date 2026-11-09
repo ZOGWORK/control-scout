@@ -25,9 +25,15 @@ function pull(dy: number, hold = false) {
   return moves;
 }
 
+/** The indicator's state: null when it isn't in the page at all (the feature is off). */
+const view = (c: HTMLElement) => c.querySelector<HTMLElement>("[data-pull-refresh]")?.dataset.state ?? null;
+/** Out of sight: off, or on and idle. */
+const hidden = (c: HTMLElement) => view(c) === null || view(c) === "idle";
+
 beforeEach(() => {
-  vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => { cb(0); return 0; });
+  // Fake timers first: they bring their own requestAnimationFrame, which the stub then replaces (frames run at once).
   vi.useFakeTimers();
+  vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => { cb(0); return 0; });
   Object.defineProperty(window, "scrollY", { value: 0, configurable: true });
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); window.matchMedia = real; });
@@ -40,24 +46,41 @@ describe("PullToRefresh", () => {
     const far = PULL_THRESHOLD / PULL_RESISTANCE + 20;
     const moves = pull(far, true);
     expect(moves.every((m) => m.defaultPrevented)).toBe(true);
-    expect(container.querySelector("[data-pull-refresh]")).not.toBeNull();
+    expect(view(container)).toBe("armed");
     expect(container.textContent).toContain("Release to reload");
+    // It follows the finger by transform alone (no re-render per move), capped at the max travel.
+    expect(container.querySelector<HTMLElement>("[data-pull-refresh]")!.style.transform).toMatch(/translate3d\(0, \d+(\.\d+)?px, 0\)/);
     touch("touchend", null);
+    expect(view(container)).toBe("refreshing");
     expect(container.textContent).toContain("Reloading");
     act(() => { vi.runAllTimers(); });
     expect(reload).toHaveBeenCalledTimes(1);
   });
 
-  it("a short pull shows the icon, then puts it away without reloading", () => {
+  it("a short pull shows the icon, then springs it back up without reloading", () => {
     media(INSTALLED_PHONE);
     const reload = vi.fn();
     const { container } = render(<PullToRefresh reload={reload} />);
     pull(60, true);
+    expect(view(container)).toBe("pulling");
     expect(container.textContent).toContain("Pull to reload");
     touch("touchend", null);
+    expect(view(container)).toBe("returning");
+    const el = container.querySelector<HTMLElement>("[data-pull-refresh]")!;
+    expect(el.style.transform).toBe("translate3d(0, -44px, 0)");
+    const done = Object.assign(new Event("transitionend"), { propertyName: "transform" });
+    act(() => { el.dispatchEvent(done); });
+    expect(view(container)).toBe("idle");
     act(() => { vi.runAllTimers(); });
-    expect(container.querySelector("[data-pull-refresh]")).toBeNull();
     expect(reload).not.toHaveBeenCalled();
+  });
+
+  it("under reduced motion a short pull just goes, with no spring", () => {
+    media([...INSTALLED_PHONE, "prefers-reduced-motion: reduce"]);
+    const { container } = render(<PullToRefresh reload={vi.fn()} />);
+    pull(60, true);
+    touch("touchend", null);
+    expect(view(container)).toBe("idle");
   });
 
   it("leaves a move another control already claimed (its own drag) alone", () => {
@@ -69,7 +92,7 @@ describe("PullToRefresh", () => {
     pull(400);
     act(() => { vi.runAllTimers(); });
     document.body.removeEventListener("touchmove", grab);
-    expect(container.querySelector("[data-pull-refresh]")).toBeNull();
+    expect(hidden(container)).toBe(true);
     expect(reload).not.toHaveBeenCalled();
   });
 
@@ -81,7 +104,7 @@ describe("PullToRefresh", () => {
     const moves = pull(400);
     act(() => { vi.runAllTimers(); });
     expect(moves.some((m) => m.defaultPrevented)).toBe(false);
-    expect(container.querySelector("[data-pull-refresh]")).toBeNull();
+    expect(hidden(container)).toBe(true);
     expect(reload).not.toHaveBeenCalled();
   });
 
@@ -99,7 +122,7 @@ describe("PullToRefresh", () => {
     touch("touchend", null);
     rotate([...on, "max-width: 1024px"]);
     expect(pull(400, true).every((m) => m.defaultPrevented)).toBe(true);
-    expect(container.querySelector("[data-pull-refresh]")).not.toBeNull();
+    expect(view(container)).toBe("armed");
     rotate(["display-mode: standalone", "pointer: coarse"]); // turned back mid-pull: the icon goes, nothing reloads
     expect(container.querySelector("[data-pull-refresh]")).toBeNull();
     touch("touchend", null);
@@ -115,7 +138,7 @@ describe("PullToRefresh", () => {
       const moves = pull(400);
       act(() => { vi.runAllTimers(); });
       expect(moves.some((m) => m.defaultPrevented)).toBe(false);
-      expect(container.querySelector("[data-pull-refresh]")).toBeNull();
+      expect(view(container)).toBeNull();
       expect(reload).not.toHaveBeenCalled();
       unmount();
     }
