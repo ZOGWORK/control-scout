@@ -196,6 +196,13 @@ describe("team facts", () => {
     // An old event's match left unplayed is never "next"; a rookie's posted schedule is, with no season played.
     expect((await searchAnswer("4215 predicted score next match", { limit: 25 })).stat!.none).toContain("no upcoming match");
     expect((await searchAnswer("31000 predicted score next match", { limit: 25 })).stat!.headline).toMatchObject({ value: "Q3", label: expect.stringContaining("Future Qualifier") });
+    // "Predicted matches" (failed-search #1147) is the same question.
+    expect((await searchAnswer("31000 predicted matches", { limit: 25 })).stat).toMatchObject({ intent: "next-match", headline: { value: "Q3" } });
+    expect((await searchAnswer("4215 predicted matches", { limit: 25 })).stat!.none).toContain("no upcoming match");
+    expect((await searchAnswer("31000 match predictions", { limit: 25 })).stat).toMatchObject({ intent: "next-match", headline: { value: "Q3" } });
+    // The logged wording, the team said by name; two teams said with it stay their head-on prediction.
+    expect((await searchAnswer("hypnotic robotics match predictions", { limit: 25 })).stat).toMatchObject({ intent: "next-match", team: { number: 4215 } });
+    expect((await searchAnswer("4215 vs 6980 match prediction", { limit: 25 })).stat?.intent).toBe("predict");
     for (const q of ["will 4215 win its next match", "when is 4215 next match", "when is 4215 next event", "what events did 4215 win in 2025"]) expect(readTeamFact(q), q).toBeNull();
   });
 });

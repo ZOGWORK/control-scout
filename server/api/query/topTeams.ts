@@ -16,8 +16,9 @@ const PLACE = String.raw`\p{L}(?:(?!\bteams?\b)[\p{L}.'\s-])*?`;
 /** Where a phrase may end: before the word that joins it to the next part of the question, or at punctuation. */
 const END = String.raw`(?=\s+(?:and|vs\.?|versus|against|or|in|at|with|on)\b|[,?.!]|\s*$)`;
 /** "(the) top / best / strongest / number one <place> team", or "… team in / from <place>" (tried first: its place
- *  runs on to the longest words that are one place, as `placeAfter` reads them). */
-const TOP_TEAM = new RegExp(String.raw`\b(?:the\s+)?(?:top|best|strongest|number\s+one|no\s*1|highest[\s-]rated)\s+(?:(?:ranked|rated)\s+)?(?:team\s+(?:in|from|of)\s+(?=\p{L})|(?<before>${PLACE})\s+team${END})`, "giu");
+ *  runs on to the longest words that are one place, as `placeAfter` reads them), or the team with no place said
+ *  ("the best team", "best team's"): the world's. */
+const TOP_TEAM = new RegExp(String.raw`\b(?:the\s+)?(?:top|best|strongest|number\s+one|no\s*1|highest[\s-]rated)\s+(?:(?:ranked|rated)\s+)?(?:team\s+(?:in|from|of)\s+(?=\p{L})|(?<before>${PLACE})\s+team${END}|(?<alone>team)(?:['’]s)?(?=\s|[,?.!]|$))`, "giu");
 const ENDS = new RegExp(END, "giu");
 
 /** The words are one place and nothing else: a region or a country, never a town. Read as the place index reads them,
@@ -52,8 +53,12 @@ export async function topTeamsSaid(q: string, ctx: ParseContext, season = search
   let out = "", from = 0;
   const re = new RegExp(TOP_TEAM.source, TOP_TEAM.flags);
   for (let m = re.exec(q); m; m = re.exec(q)) {
-    let pl: Place | null, typed: string;
-    if (m.groups!.before != null) {
+    let pl: Place | null, typed: string, world = false;
+    if (m.groups!.alone != null) {
+      // No place said: the world's top team.
+      pl = null; world = true;
+      typed = m[0];
+    } else if (m.groups!.before != null) {
       pl = await wholePlace(m.groups!.before.trim(), ctx);
       typed = m[0];
     } else {
@@ -61,14 +66,14 @@ export async function topTeamsSaid(q: string, ctx: ParseContext, season = search
       pl = after?.place ?? null;
       typed = after ? q.slice(m.index, m.index + m[0].length) + after.words : m[0];
     }
-    if (!pl) return null;
+    if (!pl && !world) return null;
     re.lastIndex = m.index + typed.length;
     const top = await get<{ team: number; name: string | null }>(
       `SELECT s.team, t.name FROM team_season_stats s JOIN teams t ON t.number = s.team
-       WHERE s.season = ? AND s.rating_matches >= ? AND s.rating_np IS NOT NULL AND ${teamPageSql("s.team", "t.name")} AND t.country = ?${pl.state ? " AND t.state = ?" : ""}
-       ORDER BY s.rating_np DESC, s.team LIMIT 1`, [season, RANKED_MIN_MATCHES, pl.country, ...(pl.state ? [pl.state] : [])]);
+       WHERE s.season = ? AND s.rating_matches >= ? AND s.rating_np IS NOT NULL AND ${teamPageSql("s.team", "t.name")}${pl ? ` AND t.country = ?${pl.state ? " AND t.state = ?" : ""}` : ""}
+       ORDER BY s.rating_np DESC, s.team LIMIT 1`, [season, RANKED_MIN_MATCHES, ...(pl ? [pl.country, ...(pl.state ? [pl.state] : [])] : [])]);
     if (!top) return null;
-    said.push({ typed: typed.trim(), team: Number(top.team), name: top.name, place: pl.name, ...(pl.part ? { part: pl.part } : {}) });
+    said.push({ typed: typed.trim(), team: Number(top.team), name: top.name, place: pl?.name ?? "", ...(pl?.part ? { part: pl.part } : {}) });
     out += `${q.slice(from, m.index)} ${top.team} `;
     from = m.index + typed.length;
   }
@@ -78,4 +83,4 @@ export async function topTeamsSaid(q: string, ctx: ParseContext, season = search
 
 /** The line that says which team each phrase was read as. */
 export const topTeamsNote = (said: TopTeamSaid[], season: number) =>
-  said.map((s) => `the top ${s.place} team${s.part ? ` (${s.part.replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase())} isn't a separate region: all of ${s.place})` : ""} by prediction rating in ${seasonLabel(season)} is ${s.name ? `${s.name} (${s.team})` : `Team ${s.team}`}`).join(", and ").replace(/^t/, "T");
+  said.map((s) => `the top ${s.place ? `${s.place} ` : ""}team${s.place ? "" : " worldwide"}${s.part ? ` (${s.part.replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase())} isn't a separate region: all of ${s.place})` : ""} by prediction rating in ${seasonLabel(season)} is ${s.name ? `${s.name} (${s.team})` : `Team ${s.team}`}`).join(", and ").replace(/^t/, "T");

@@ -15,6 +15,201 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.8.0 — 2026-11-09
+
+"Best team's highlights", with the apostrophe, answers as "best team highlights" does.
+
+### Highlights
+- [fixes] "Best team's highlights" shows the top team's highlights
+- [fixes] Either apostrophe works in "best team's"
+- [rankings] The card still names the top team it read
+
+### Search
+- **"Best team's".** The world's top team said as its own ("best team's highlights", with a straight or a curly apostrophe) is read as "best team". (#1240)
+
+## 4.7.9 — 2026-11-09
+
+"Match predictions" asked of a team answers with its next match's predicted score, as "predicted matches" does.
+
+### Highlights
+- [fixes] "Match predictions" for a team shows its next match's prediction
+- [predict] A team's next match prediction reads either way round
+- [fixes] Two teams' match prediction stays the head-on forecast
+
+### Search
+- **A team's match predictions.** "Hypnotic Robotics match predictions" is read as the team's next match predicted score, the same question as "predicted matches". Two teams said with it ("14270 vs 4215 match prediction") is still their head-on prediction. (#1239)
+
+## 4.7.8 — 2026-11-09
+
+"Best team last 5 matches" answers for the world's top team by prediction rating, as its highlights already do.
+
+### Highlights
+- [fixes] "Best team last 5 matches" shows the top team's latest matches
+- [fixes] Any one-team question works with "the best team" as the team
+- [rankings] The best team is the leader of the season its stats come from
+
+### Search
+- **The best team's matches and stats.** "Best team last 5 matches", and any other question asked of one team, with "the best team" said for the team: answered for the world's top-rated ranked team of the season the answer reads (the season said, or the one a question naming none reads), the card naming it. "Best team" alone stays the board. (#1237)
+
+## 4.7.7 — 2026-11-09
+
+"Best team highlights" shows the highlights of the world's top team by prediction rating, and says which team that is.
+
+### Highlights
+- [fixes] "Best team highlights" shows the top team's standout matches
+- [rankings] The top team is the world's first by prediction rating
+- [fixes] The card says which team "the best team" was read as
+
+### Search
+- **The best team's highlights.** "Best team highlights", "top team highlights": the highlights of the world's top-rated ranked team (the first on the prediction-rating board), the card naming it, as "the top NJ team" already reads a place's. "Best team" alone stays the board. (#1235)
+
+## 4.7.6 — 2026-11-09
+
+A team's "predicted matches" shows the engine's call on its next match, as "next match prediction" does.
+
+### Highlights
+- [predict] "Hypnotic Robotics predicted matches" shows its next match's prediction
+- [predict] With no match on a posted schedule, it says so
+- [fixes] No more "can't answer that yet" for a team's predicted matches
+
+### Search
+- **Predicted matches.** "<team> predicted matches" reads as the team's next match prediction: each alliance's expected score and win chance once the schedule is posted, or plainly that no upcoming match is on one. (#1234)
+
+## 4.7.5 — 2026-11-09
+
+The Home globe drops its small print.
+
+### Highlights
+- [home] No more fine-print note under the Home globe
+- [home] The country list sits right under the selected country
+- [appearance] Globe still turns by drag, arrow keys and pause
+
+### Home
+- **Globe note removed.** The small paragraph under the globe and atlas (where the country totals come from, what a listing means, how to turn the globe) is gone, so the panel goes straight from the selected country to the full country list. The globe still turns by drag, by arrow keys once focused, and stops with the pause button; screen readers still hear "Arrow keys turn it" in the globe’s own label. (#1231)
+
+## 4.7.4 — 2026-11-09
+
+A team's closest match with a bound ("by less than 3 points", "within 5 points") lists the matches inside it, and says the closest there was when none is.
+
+### Highlights
+- [fixes] "Closest match by less than 3 points" lists every match inside it
+- [fixes] "Within 5 points" and "under 5 points" read the same way
+- [fixes] None inside the bound? The answer names the closest match instead
+
+### Search
+- **Closest matches under a bound.** A team's closest match, win or loss with "by less than N points", "under N points" or "within N points" lists the matches decided by fewer than N points, closest first; with none, it says so and shows the closest there was. (#1233)
+
+## 4.7.3 — 2026-11-09
+
+An event whose stream link is a YouTube channel plays each day's broadcast on its page.
+
+### Highlights
+- [live] A YouTube channel as stream link finds the event's broadcasts
+- [live] A meet over two days: Saturday and Sunday buttons on the player
+- [fixes] Each match's Watch starts its own day's video at that match
+
+### Live
+- **Broadcasts found on the event's channel.** When FIRST gives an event a YouTube channel's page instead of a video (Multinational Tech Invitational: youtube.com/@funroboticsnetwork/streams), the channel's broadcasts that started on the event's dates at the venue are its recordings, one a day. The player gets a button for each day, each match's Watch plays its own day's video from that match, and the predictions over the video follow the day playing. With the YouTube Data API key the channel's whole upload list is read back to the event; without it, its latest streams. (#1228)
+
+## 4.7.2 — 2026-11-09
+
+The Events list opens on Live now only while something is live; otherwise it opens on All.
+
+### Highlights
+- [live] Events open on Live now while an event is on, else on All
+- [fixes] The Events list never opens on an empty "Live now"
+- [fixes] A status you pick, All included, stays put
+
+### Events
+- **Default status.** With no status in the address, the Events page picks Live now when at least one event under the other filters is live, and All when none is. It decides once the list is in (no chip is lit before, so nothing jumps) and keeps that choice: a count changing later never moves the page. A status in the address or one you tap still wins, All included, and Clear filters goes back to the default. (#1230)
+
+## 4.7.1 — 2026-11-09
+
+How FTC One Search works shows the newer questions you can ask, grouped by what they show.
+
+### Highlights
+- [report] How FTC One Search works has a new "Ask in plain words" section
+- [report] Example searches grouped: leaderboards, winners, one team, comparisons
+- [report] Tap any example to run that exact search
+
+### How it works
+- **Ask in plain words.** How it works › FTC One Search has a new section of example questions in four groups (leaderboards and counts, winners and awards, one team in plain words, comparisons and explanations). Each one is a link that runs that exact search, with a short line on the kind of answer it returns; each was checked on the live site before it was listed. (#1167)
+
+## 4.7.0 — 2026-11-09
+
+The live search demo on How FTC One Search works sits in the middle, beside the text.
+
+### Highlights
+- [appearance] The How FTC One Search demo sits beside the intro's middle
+- [appearance] No more empty gap above the demo on wide screens
+- [fixes] The demo keeps one height as its examples change
+
+### How it works
+- **Search demo centred.** On wide screens the animated example card at the top of How FTC One Search works sits halfway down the intro text instead of at its bottom edge, and it keeps the height of its tallest example, so it no longer shifts as the examples change. (#1232)
+
+## 4.6.9 — 2026-11-09
+
+An event's address without its season, like /events/USNJNEM2, opens the event's page instead of "Page not found".
+
+### Highlights
+- [fixes] /events/CODE opens that event's newest season
+- [share] Short event links work when typed or shared
+- [fixes] An unknown code still says the page isn't found
+
+### Fixes
+- **Event addresses without a season.** `/events/<code>` is a 301 to `/events/<season>/<code>` for the newest season holding that code, query kept, in any case; an unknown code is still the 404 page. The app's own route does the same through `/api/event-code/<code>`, so the service worker's app shell redirects too; a failed lookup there offers a retry instead of saying the event doesn't exist. (#1042)
+
+
+## 4.6.8 — 2026-11-09
+
+An award asked on its own lists its latest winners, and "fewest Inspire awards in a country" reads the count board from the bottom.
+
+### Highlights
+- [fixes] "Inspire award winner" lists the latest events' winners
+- [fixes] "Fewest Inspire awards in Romania" answers instead of a sorry
+- [fixes] The fewest board counts the teams that won none
+- [fixes] A season said keeps the latest winners to that season
+
+### Search
+- **Latest winners and the fewest awards.** One award asked with no event or place ("inspire award winner") lists the winners at the latest events that gave it, newest first, any season unless one is said. "Fewest" (or "least") of an award in a place is the most-awards board read from its bottom: the teams that won at least one, fewest first, with the place's teams that played and won none counted in the headline. (#1217)
+
+## 4.6.7 — 2026-11-09
+
+"Recent highlights" shows the latest week of play's standout matches, and a slip in an event request's own verb reads as the verb.
+
+### Highlights
+- [fixes] "Recent highlights" shows the latest week's standout matches
+- [fixes] "NJ recent highlights" does the same for one place
+- [fixes] A one-letter slip in "meets that happened" still lists the past meets
+
+### Search
+- **Recent highlights.** "Recent highlights" or "latest highlights" with no team, event or time named: the standout matches of the latest week with played matches (that day and the six before it), in a place when one is said, titled "Recent highlights" with the dates in a chip. A team or an event said reads as before. (#1215)
+- **The request's own verb.** An event request ending in "that …" or "which …" reads a verb one letter off "happened", "finished", "completed" or "ended" as that verb, so the request lists past meets instead of searching event names for the slip.
+
+## 4.6.6 — 2026-11-09
+
+Hovering a point on a search chart says which match (or event) it is and its score, right away.
+
+### Highlights
+- [fixes] Hovering a chart point shows its match: "M2 · New Jersey Championship"
+- [fixes] The score and result show under it: "262 points · Won 262–135"
+- [fixes] Shown at once on hover or keyboard focus, kept inside the chart
+
+### Search
+- **Chart point labels.** Each point on a line chart ("Score, match by match", "OPR by event") shows a small label on hover or keyboard focus: the match or event, then its value and result. It replaces the browser's own title tip, which was slow and easy to miss. `npm run shots` gains a `hover` step for screenshots of hover states. (#1227)
+
+## 4.6.5 — 2026-11-09
+
+"Top rookie teams at NJ conference" lists New Jersey's best rookie teams: a place's conference or league with no name of its own is the place.
+
+### Highlights
+- [rankings] "Top rookie teams at NJ conference" answers
+- [rankings] A state's conference or league reads as the state
+- [rankings] A named conference is still that event
+
+### Search
+- **A place's conference.** "At <place> conference" or "at <place> league", with no name of its own, reads as the place's teams on the leaderboards, so "top rookie teams at NJ conference" is New Jersey's best rookie teams. A named one ("East Bergen Conference") is still that event. (#1218)
+
 ## 4.6.4 — 2026-11-09
 
 A board over every season reads once and offers no one season to pick.
@@ -2451,7 +2646,7 @@ Every event opens now, whatever its code looks like, and the policy, help and re
 ### Events
 - **Every event opens.** Older seasons' events whose codes FIRST wrote in mixed case or with punctuation, spaces or Cyrillic letters (2019INMeet10, NL'HKO, laredomeet 2, 63693260770.2649, about 260 of them, mostly 2019–20) were "Event not found". They open now, from any link, at any spelling of the code, and each has one address with the code in capitals, its light version too. (#491)
 
-### Pages
+### How it works
 - **Words before the app.** Privacy, terms, contact, donate and the rules quick reference arrive with their whole text, and the team and match record tables with the first 100 rows they open on, before the app has loaded. Search engines read them as visitors do, and the sitemap lists them again (the rules reference only while it is switched on).
 
 ## 2.8.7 — 2026-11-03
@@ -5219,7 +5414,7 @@ A new home page, sharper predictions, and Scout pages that are faster to read an
 - **Predict, rebuilt.** The Lab (any four teams, any event) is a card you can't miss. A matchup starts from any team, and earlier seasons' calls are a click away. The header's right side now shows the latest live calls and how each one turned out. (#153, #155, #160)
 - **Power rankings publish themselves** every Friday, with blurbs written by Bruno. (#145)
 
-### Pages
+### How it works
 - **My teams** has its own page, with your teams and their stats. (#150)
 - **Compare:** a search that stays put, your teams one click away, and stats and charts on one screen. (#152)
 - **Team colours.** Give each shortlisted team a colour; the shortlist and Compare use it. (#161)
