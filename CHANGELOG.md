@@ -26,7 +26,7 @@ An opened match reads side by side again, with about half the words.
 
 ### Matches
 - **Side by side.** On a wide screen the two alliances, then the score table and the call, sit next to each other; a phone keeps one column.
-- **Fewer words, same numbers.** Each robot reads "S1 · #13 4-2-0 · OPR 15.5 · season #1,378" (the season OPR shows only when it differs from the event's); each lineup's OPR sum reads "OPRs 27.7 → scored 13 (−14.7)"; bonus RPs show their icon, name and a ✓ or ✗. The call is two lines: "Predicted 52 ±44 – 55 ±45 · Blue by 3" and "Actual 33 – 75 · off −19 / +20 · both in range · Upset". The bonus RP note and the result-changes explanation moved into their tooltips (and stay read aloud). The headline drops "Blue won", since "Blue by 42" says it. (#PRNUM)
+- **Fewer words, same numbers.** Each robot reads "S1 · #13 4-2-0 · OPR 15.5 · season #1,378" (the season OPR shows only when it differs from the event's); each lineup's OPR sum reads "OPRs 27.7 → scored 13 (−14.7)"; bonus RPs show their icon, name and a ✓ or ✗. The call is two lines: "Predicted 52 ±44 – 55 ±45 · Blue by 3" and "Actual 33 – 75 · off −19 / +20 · both in range · Upset". The bonus RP note and the result-changes explanation moved into their tooltips (and stay read aloud). The headline drops "Blue won", since "Blue by 42" says it. (#1249)
 
 ## 4.8.4 — 2026-11-09
 
