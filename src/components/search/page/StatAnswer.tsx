@@ -19,7 +19,7 @@ import { AnswerFrame, RelatedQuestions, TAP, repeats, statedSeason, useAnswerSea
 import { rangeCaption } from "../../../shared/format";
 import { AnswerVideo, RowPlay, useRowPlays } from "./AnswerVideo";
 import { useSeasonPick } from "./SeasonPick";
-import { Cell, EventMarker, HeadlineValue, INK_BAR, MethodNote, TEAM_BAR, TEAM_TEXT, AwardChip, TEAM_SWATCH, swatchOf, type Swatch, RecordText, RichText, SeasonChip, better, columnMax, foldsOnPhone } from "./answerCells";
+import { Cell, EventMarker, HeadlineValue, INK_BAR, MethodNote, TEAM_BAR, TEAM_TEXT, AwardChip, TEAM_SWATCH, kpiSwatches, swatchOf, type Swatch, RecordText, RichText, SeasonChip, better, columnMax, foldsOnPhone } from "./answerCells";
 import { MatchBox, RankBadge, TeamChip } from "./MatchBox";
 import { CompareCard, comparisonOf } from "./CompareCard";
 import { ExplainerLines } from "./FactCard";
@@ -214,13 +214,14 @@ function Block({ b: block, team, teams, said, hue }: { b: StatBlock; team?: Stat
           </div>
         );
       }
+      const rowSw = kpiSwatches(b.items);
       return (
         <div className={cn("grid gap-3", b.items.length === 1 ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : b.items.length === 3 ? "grid-cols-2 lg:grid-cols-3" : "grid-cols-2 lg:grid-cols-4")} data-block="kpis">
-          {b.items.map((k) => {
+          {b.items.map((k, j) => {
             const [icon, tone] = kpiLook(k.label, k.tone);
-            // Each tile in its meaning's colour (an award, a phase), else the team's: a thick left bar, a filled icon, the number in it.
+            // Each tile its own colour (answerCells kpiSwatches): a thick left bar, a filled icon, the number in it.
             const phase = meaningOf(k.label) ?? undefined;
-            const sw = swatchOf(k.label);
+            const sw = rowSw[j];
             const value = <span className={sw.text}>{k.value}</span>;
             const tile = <StatTile tone={tone} icon={icon} label={k.label} value={value} hint={k.sub} chip={sw.fill} className={cn(PAINT, sw.edge, sw.tint)} />;
             return k.href
