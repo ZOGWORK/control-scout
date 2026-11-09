@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 4.6.8 — 2026-11-09
+## 4.7.1 — 2026-11-09
 
 The Events list opens on Live now only while something is live; otherwise it opens on All.
 
@@ -26,6 +26,44 @@ The Events list opens on Live now only while something is live; otherwise it ope
 
 ### Events
 - **Default status.** With no status in the address, the Events page picks Live now when at least one event under the other filters is live, and All when none is. It decides once the list is in (no chip is lit before, so nothing jumps) and keeps that choice: a count changing later never moves the page. A status in the address or one you tap still wins, All included, and Clear filters goes back to the default. (#1230)
+
+## 4.7.0 — 2026-11-09
+
+The live search demo on How FTC One Search works sits in the middle, beside the text.
+
+### Highlights
+- [appearance] The How FTC One Search demo sits beside the intro's middle
+- [appearance] No more empty gap above the demo on wide screens
+- [fixes] The demo keeps one height as its examples change
+
+### How it works
+- **Search demo centred.** On wide screens the animated example card at the top of How FTC One Search works sits halfway down the intro text instead of at its bottom edge, and it keeps the height of its tallest example, so it no longer shifts as the examples change. (#1232)
+
+## 4.6.9 — 2026-11-09
+
+An event's address without its season, like /events/USNJNEM2, opens the event's page instead of "Page not found".
+
+### Highlights
+- [fixes] /events/CODE opens that event's newest season
+- [share] Short event links work when typed or shared
+- [fixes] An unknown code still says the page isn't found
+
+### Fixes
+- **Event addresses without a season.** `/events/<code>` is a 301 to `/events/<season>/<code>` for the newest season holding that code, query kept, in any case; an unknown code is still the 404 page. The app's own route does the same through `/api/event-code/<code>`, so the service worker's app shell redirects too; a failed lookup there offers a retry instead of saying the event doesn't exist. (#1042)
+
+
+## 4.6.8 — 2026-11-09
+
+An award asked on its own lists its latest winners, and "fewest Inspire awards in a country" reads the count board from the bottom.
+
+### Highlights
+- [fixes] "Inspire award winner" lists the latest events' winners
+- [fixes] "Fewest Inspire awards in Romania" answers instead of a sorry
+- [fixes] The fewest board counts the teams that won none
+- [fixes] A season said keeps the latest winners to that season
+
+### Search
+- **Latest winners and the fewest awards.** One award asked with no event or place ("inspire award winner") lists the winners at the latest events that gave it, newest first, any season unless one is said. "Fewest" (or "least") of an award in a place is the most-awards board read from its bottom: the teams that won at least one, fewest first, with the place's teams that played and won none counted in the headline. (#1217)
 
 ## 4.6.7 — 2026-11-09
 
@@ -2500,7 +2538,7 @@ Every event opens now, whatever its code looks like, and the policy, help and re
 ### Events
 - **Every event opens.** Older seasons' events whose codes FIRST wrote in mixed case or with punctuation, spaces or Cyrillic letters (2019INMeet10, NL'HKO, laredomeet 2, 63693260770.2649, about 260 of them, mostly 2019–20) were "Event not found". They open now, from any link, at any spelling of the code, and each has one address with the code in capitals, its light version too. (#491)
 
-### Pages
+### How it works
 - **Words before the app.** Privacy, terms, contact, donate and the rules quick reference arrive with their whole text, and the team and match record tables with the first 100 rows they open on, before the app has loaded. Search engines read them as visitors do, and the sitemap lists them again (the rules reference only while it is switched on).
 
 ## 2.8.7 — 2026-11-03
@@ -5268,7 +5306,7 @@ A new home page, sharper predictions, and Scout pages that are faster to read an
 - **Predict, rebuilt.** The Lab (any four teams, any event) is a card you can't miss. A matchup starts from any team, and earlier seasons' calls are a click away. The header's right side now shows the latest live calls and how each one turned out. (#153, #155, #160)
 - **Power rankings publish themselves** every Friday, with blurbs written by Bruno. (#145)
 
-### Pages
+### How it works
 - **My teams** has its own page, with your teams and their stats. (#150)
 - **Compare:** a search that stays put, your teams one click away, and stats and charts on one screen. (#152)
 - **Team colours.** Give each shortlisted team a colour; the shortlist and Compare use it. (#161)
