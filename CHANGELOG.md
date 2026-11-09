@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## NEXT — 2026-11-09
+## 4.7.8 — 2026-11-09
 
 "Best team last 5 matches" answers for the world's top team by prediction rating, as its highlights already do.
 
@@ -25,7 +25,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 - [rankings] The best team is this season's leader unless another is said
 
 ### Search
-- **The best team's matches and stats.** "Best team last 5 matches", and any other question asked of one team, with "the best team" said for the team: answered for the world's top-rated ranked team of the season asked, the card naming it. "Best team" alone stays the board.
+- **The best team's matches and stats.** "Best team last 5 matches", and any other question asked of one team, with "the best team" said for the team: answered for the world's top-rated ranked team of the season asked, the card naming it. "Best team" alone stays the board. (#1237)
 
 ## 4.7.7 — 2026-11-09
 
