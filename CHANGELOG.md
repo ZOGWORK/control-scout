@@ -25,7 +25,7 @@ A team's name with "from" and a place ("ultraviolet from nj") finds the team, an
 - [fixes] A place code like "nj" after "from" is read as the place
 
 ### Search
-- **Team from a place.** "From" before a state, province or country that ends the query is read as where the team is, never as part of the name; and when the name belongs to more than one team, the answer leads with the team whose home is in that place (the others stay in the list).
+- **Team from a place.** "From" before a state, province or country that ends the query is read as where the team is, never as part of the name; and when the name belongs to more than one team, the answer leads with the team whose home is in that place (the others stay in the list). (#1222)
 
 ## 4.5.6 — 2026-11-09
 
