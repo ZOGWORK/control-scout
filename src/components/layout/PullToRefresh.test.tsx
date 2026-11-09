@@ -144,3 +144,54 @@ describe("PullToRefresh", () => {
     }
   });
 });
+
+describe("PullToRefresh frames", () => {
+  /** Frames queue until the test runs them, as a real screen would. */
+  let frames: Map<number, FrameRequestCallback>;
+  let next = 1;
+  const runFrame = () => act(() => { const due = [...frames.values()]; frames.clear(); for (const f of due) f(0); });
+  beforeEach(() => {
+    frames = new Map();
+    vi.mocked(window.requestAnimationFrame).mockImplementation((cb) => { const id = next++; frames.set(id, cb); return id; });
+    vi.spyOn(window, "cancelAnimationFrame").mockImplementation((id) => { frames.delete(id); });
+  });
+
+  it("draws once per frame, however many moves come in between", () => {
+    media(INSTALLED_PHONE);
+    const { container } = render(<PullToRefresh reload={vi.fn()} />);
+    const el = container.querySelector<HTMLElement>("[data-pull-refresh]")!;
+    const writes = vi.fn();
+    const style = el.style;
+    let t = style.transform;
+    Object.defineProperty(style, "transform", { configurable: true, get: () => t, set: (v: string) => { t = v; writes(v); } });
+    pull(120, true);
+    expect(frames.size).toBe(1); // three moves, one frame asked for
+    expect(writes).not.toHaveBeenCalled();
+    runFrame();
+    expect(writes).toHaveBeenCalledTimes(1);
+    expect(t).toBe("translate3d(0, 16px, 0)"); // the last move's travel (60) less the circle (44)
+    expect(view(container)).toBe("pulling");
+  });
+
+  it("a quick release before the first frame cancels it and leaves nothing on screen", () => {
+    media(INSTALLED_PHONE);
+    const { container } = render(<PullToRefresh reload={vi.fn()} />);
+    pull(60); // released before any frame ran
+    expect(window.cancelAnimationFrame).toHaveBeenCalled();
+    expect(frames.size).toBe(0);
+    const el = container.querySelector<HTMLElement>("[data-pull-refresh]")!;
+    expect(view(container)).toBe("idle");
+    expect(el.style.opacity).toBe("0");
+  });
+
+  it("a spring back that never reports its end still goes idle", () => {
+    media(INSTALLED_PHONE);
+    const { container } = render(<PullToRefresh reload={vi.fn()} />);
+    pull(60, true);
+    runFrame();
+    touch("touchend", null);
+    expect(view(container)).toBe("returning");
+    act(() => { vi.advanceTimersByTime(400); });
+    expect(view(container)).toBe("idle");
+  });
+});

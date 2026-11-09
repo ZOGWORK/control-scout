@@ -16,7 +16,8 @@ import { IDLE, PULL_MEDIA, PULL_THRESHOLD, pageAtTop, pullBlocked, pullEnd, pull
 
 const reducedMotion = () => { try { return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true; } catch { return false; } };
 
-/** The circle's size (px); it starts this far above its resting line, hidden under the top bar. */
+/** The circle's size (px, not rem: the phone's 14px base and the text-size setting must not move its centre);
+ *  it starts this far above its resting line, hidden under the top bar. */
 const SIZE = 44;
 /** The ring's radius and length, in the 44×44 viewBox. */
 const R = 19;
@@ -47,6 +48,9 @@ export function PullToRefresh({ reload = () => window.location.reload() }: { rel
     let busy = false;
     let frame = 0;
     let view: PullView = "idle";
+    /** Travel last drawn: a release with nothing drawn yet has nothing to spring back. */
+    let drawn = 0;
+    let settle = 0;
 
     /** Write the indicator for travel `d` in view `v`: transform, opacity and ring only (compositor-cheap). */
     const draw = (d: number, v: PullView) => {
@@ -57,6 +61,7 @@ export function PullToRefresh({ reload = () => window.location.reload() }: { rel
         el.dataset.state = v;
         if (label.current && LABEL[v] !== label.current.textContent) label.current.textContent = LABEL[v];
       }
+      drawn = d;
       const p = Math.min(1, d / PULL_THRESHOLD);
       el.style.transform = `translate3d(0, ${d - SIZE}px, 0)`;
       el.style.opacity = v === "idle" ? "0" : String(v === "refreshing" ? 1 : Math.min(1, 0.25 + p));
@@ -102,8 +107,11 @@ export function PullToRefresh({ reload = () => window.location.reload() }: { rel
         draw(PULL_THRESHOLD, "refreshing");
         // A frame or two for the spinner and the bar to show before the page goes.
         requestAnimationFrame(() => setTimeout(() => reloadRef.current(), 120));
-      } else if (from > 0 && !reducedMotion()) {
+      } else if (from > 0 && drawn > 0 && !reducedMotion()) {
         draw(0, "returning"); // springs back up (CSS transition on [data-state=returning])
+        // And idle after the spring even if no transitionend comes (an interrupted or skipped transition).
+        clearTimeout(settle);
+        settle = window.setTimeout(() => { if (view === "returning") draw(0, "idle"); }, 400);
       } else {
         draw(0, "idle");
       }
@@ -125,6 +133,7 @@ export function PullToRefresh({ reload = () => window.location.reload() }: { rel
     el?.addEventListener("transitionend", onSettled);
     return () => {
       if (frame) cancelAnimationFrame(frame);
+      clearTimeout(settle);
       root.style.overscrollBehaviorY = overscroll;
       el?.removeEventListener("transitionend", onSettled);
       document.removeEventListener("touchstart", onStart);
@@ -138,10 +147,10 @@ export function PullToRefresh({ reload = () => window.location.reload() }: { rel
   return (
     <>
       <div ref={box} data-pull-refresh data-state="idle"
-        className="cs-pull pointer-events-none fixed left-1/2 top-(--header-h) z-40 -ml-[22px] size-11"
+        className="cs-pull pointer-events-none fixed left-1/2 top-(--header-h) z-40 -ml-[22px] size-[44px]"
         style={{ transform: `translate3d(0, ${-SIZE}px, 0)`, opacity: 0 }}>
-        <div className="cs-pull-disc relative grid size-11 place-items-center rounded-full border border-line bg-card shadow-[0_10px_28px_-10px_rgba(0,0,0,.65)]">
-          <svg viewBox="0 0 44 44" className="cs-pull-ring absolute inset-0 size-11 -rotate-90" aria-hidden>
+        <div className="cs-pull-disc relative grid size-[44px] place-items-center rounded-full border border-line bg-card shadow-[0_10px_28px_-10px_rgba(0,0,0,.65)]">
+          <svg viewBox="0 0 44 44" className="cs-pull-ring absolute inset-0 size-[44px] -rotate-90" aria-hidden>
             <circle cx="22" cy="22" r={R} fill="none" strokeWidth="2.5" className="stroke-text-base/10" />
             <circle ref={ring} cx="22" cy="22" r={R} fill="none" strokeWidth="2.5" strokeLinecap="round" className="stroke-accent"
               style={{ strokeDasharray: RING, strokeDashoffset: RING }} />
