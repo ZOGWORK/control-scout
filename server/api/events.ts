@@ -28,7 +28,7 @@ function summary(r: any): EventSummary {
 }
 
 const SUMMARY_SQL = `SELECT e.season, e.code, e.name, e.type, e.division_code, e.region, e.venue, e.city, e.state, e.country, e.start, e.end, e.timezone, e.remote,
-  e.address, e.website, e.livestream, e.source, e.detail_synced_at, e.live_checked_at,
+  e.address, e.website, e.livestream, e.source, e.detail_synced_at, e.teams_checked_at, e.live_checked_at,
   COALESCE(NULLIF((SELECT COUNT(*) FROM event_teams t WHERE t.season = e.season AND t.code = e.code), 0),
     (SELECT COUNT(*) FROM event_registrations r WHERE r.season = e.season AND r.code = e.code AND r.shared = 0)) teams,
   (SELECT COUNT(*) FROM matches m WHERE m.season = e.season AND m.code = e.code AND m.played = 1) played,
@@ -146,6 +146,10 @@ export async function eventDetail(season: number, code: string): Promise<EventDe
     // A stopgap until FIRST posts the event: once it has a team list (its registrations count) or a schedule, FIRST's data is all that shows.
     provisional: field.length || matches.length ? null : await provisional(season, code),
     sharedSessions: field.length || matches.length ? null : await sharedSessions(season, code, r.start),
+    // When the list shown was last read. FIRST's: a full fetch whose list came back (data/bundle.ts), or a registrations
+    // read (data/registrations.ts); a fetch whose list read failed doesn't count, the list shown is older. FTC Scout's
+    // (FIRST couldn't serve the event): its last successful fetch, which brings the whole list.
+    teamsSyncedAt: (r.source === "first" ? r.teams_checked_at : r.detail_synced_at) ?? null,
     // Ratings read as the forecast and the projections read them; the qualification draw as posted (no-shows included).
     scheduleDifficulty: f ? eventScheduleDifficulty(f, input, { posted: postedQuals(matches), over: eventOver(r) }) : null,
   };

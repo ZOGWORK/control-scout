@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## NEXT — 2026-11-09
+## NEXT — 2026-11-08
 
 A floor said as "44 or above" lists teams at or over it, and "which state has the highest average OPR" ranks US states and Canadian provinces.
 
@@ -27,6 +27,44 @@ A floor said as "44 or above" lists teams at or over it, and "which state has th
 ### Search
 - **A floor said as "or above".** "Teams with 44 or above OPR" and "teams with OPR 44 or above" read like "OPR of at least 44": "or above", "or more", "or higher" and "and up" after a number make it a floor, the number said before the stat or after it. A year after a stat is still a season.
 - **States by average OPR.** "Which state has the highest average OPR" (or lowest, or "states by average OPR") ranks US states and Canadian provinces by the mean OPR of their teams that played in the newest season, with each one's team count. A place with fewer than 10 such teams is left out. (#1216)
+
+## 4.5.5 — 2026-11-09
+
+A match that "went to a tiebreak, or overtime" is read as a tie.
+
+### Highlights
+- [fixes] "Did 17965 ever play a match that went to tiebreak" answers
+- [fixes] Overtime and sudden death are read as a tie too
+- [fixes] A team named Overtime is still found by its name
+
+### Search
+- **Tiebreaks and overtime.** A match that went to, ended in or was decided by a tiebreak, overtime or sudden death is read as a tie, so the team's ties answer it; the word alone still finds a team named after it. (#1117)
+
+## 4.5.4 — 2026-11-09
+
+Pull to reload in the installed phone app now follows your finger smoothly and looks like the rest of Control Scout: the app's own mark in a round card, with a yellow ring that fills as you pull.
+
+### Highlights
+- [appearance] Pull to reload follows your finger smoothly, frame by frame
+- [appearance] The app's mark with a yellow ring that fills as you pull
+- [appearance] Lets go early? It springs back up instead of vanishing
+
+### Phone app
+- **Smoother pull to reload.** The indicator used to redraw through the page's components on every finger move, which came out at about 10 frames a second on a phone. It now stays in the page and each move only shifts it and fills its ring, once per screen frame, so it keeps up with the finger. Letting go short of the line springs it back up; past the line it settles, the ring spins, and the thin yellow refresh bar the tables use sweeps under the top bar until the page reloads. Under reduced motion nothing turns, springs or sweeps.
+- **Looks like the app.** The plain reload arrow is now Control Scout's own mark in a card-coloured circle, with a yellow ring that fills as you pull and the home search's yellow glow once letting go will reload. (#1214)
+
+## 4.5.3 — 2026-11-09
+
+An event page says where its team list comes from and when it was last read: FIRST's list, FTC New Jersey's provisional one before FIRST publishes, or that FIRST has published no teams yet.
+
+### Highlights
+- [teams] Event pages say where their team list comes from
+- [teams] "Last synced" time on every event's team list
+- [fixes] No teams published yet is said plainly, with when it was checked
+
+### Event pages
+- **Source line.** Under the event header: "Source: FIRST Events API · last synced 2 h ago" for FIRST's list, "FTC New Jersey · provisional, FIRST has not published teams yet" while that list is shown, "FTC Scout (FIRST couldn't serve this event)" when it is the fallback, or "FIRST Events API · no teams published yet · last checked …". A list on an event that isn't over and hasn't been read for 36 hours says it may be out of date. The time is the server's last good read of the event's team list from FIRST: its full fetch, or its registrations read (migration 76 `events.teams_checked_at`, set on every good read, an empty list included; a failed read leaves it). Saved data with no time shows the source alone.
+- **Empty Teams tab.** "No teams published for this event yet", with when FIRST was last checked. (#1044)
 
 ## 4.5.2 — 2026-11-09
 

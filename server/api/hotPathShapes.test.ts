@@ -44,9 +44,9 @@ async function seed() {
   for (const [code, start, played] of [["DONE", "2025-11-08", 1], ["NEXT", "2026-01-10", 0]] as const) {
     await run(
       `INSERT INTO events (season, code, name, type, division_code, region, league, venue, city, state, country, start, end, timezone, remote, hybrid,
-         website, livestream, source, upstream_updated, synced_at, detail_synced_at, live_checked_at, address)
+         website, livestream, source, upstream_updated, synced_at, detail_synced_at, live_checked_at, address, teams_checked_at)
        VALUES (?, ?, ?, 'Qualifier', NULL, 'USNJ', 'NJL', 'Gym', 'Trenton', 'NJ', 'USA', ?, ?, 'America/New_York', 0, 0,
-         'https://example.org/e', 'https://youtube.com/watch?v=abc', 'first', '2025-10-01T00:00:00Z', '2025-10-01T00:00:00Z', '2025-10-01T00:00:00Z', '2025-10-01T00:00:00Z', '1 Main St')`,
+         'https://example.org/e', 'https://youtube.com/watch?v=abc', 'first', '2025-10-01T00:00:00Z', '2025-10-01T00:00:00Z', '2025-10-01T00:00:00Z', '2025-10-01T00:00:00Z', '1 Main St', '2025-10-01T00:00:00Z')`,
       [S, code, `Event ${code}`, start, start],
     );
     for (const [i, t] of TEAMS.entries()) {
