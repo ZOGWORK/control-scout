@@ -178,7 +178,8 @@ export async function intentAnswer(q: string, it: ParsedIntent, base: SearchAnsw
   if (!hits.length) return null;
   const rest = base.hits.filter((h) => !hits.some((x) => x.kind === h.kind && x.ref === h.ref));
   const intent: SearchIntentNote = { kind, pattern: parts.join(" "), met: !gap, understood, ...(gap ? { gap } : {}) };
-  return { q, hits: [...hits, ...rest], pages: base.pages, step: gap ? "closest" : "deterministic", weak: false, intent };
+  // The searches suggested with it (Compare's rivals for one team) stay with it.
+  return { q, hits: [...hits, ...rest], pages: base.pages, step: gap ? "closest" : "deterministic", weak: false, intent, ...(base.suggest?.length ? { suggest: base.suggest } : {}) };
 }
 
 /** Count one intent (aggregate: its kind and pattern, how often, the day last seen). */

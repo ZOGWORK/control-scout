@@ -38,12 +38,14 @@ import { readTime } from "../query/time.js";
 import { biggestEventsAnswer, readBiggestEvents } from "./families/biggestEvents.js";
 import { readTopCities, storedCountry, topCitiesAnswer } from "./families/topCities.js";
 import { everTopMatches, readTopMatches, topMatchesAnswer, type TopMatchesQuestion } from "./families/topMatches.js";
+import { eventAverageAnswer, eventAverageTitle, eventsAsked, readEventAverage, type EventAverageQuestion } from "./families/eventAverage.js";
 import { penaltyTotalAnswer, trendAnswer } from "./families/trends.js";
 import { nextEventPrediction, pairPrediction, predictTitle, predictionSeason } from "./families/predict.js";
 import { awardsSideBySide, compareAnswer, compareSeason, headToHead, neverPlayedAnswer, opponentsAnswer, partnerListAnswer, penaltiesSideBySide, phaseSideBySide, reliabilitySideBySide, seasonSideBySide } from "./families/twoTeam.js";
 import { sharedMatchList } from "../searchBoolean.js";
 import { compareBlock, decidedText, leadHeadline, seasonScale, winShare } from "./compareBlock.js";
 import { winnersAnswer, worldsFollowUps } from "./families/winners.js";
+import { eventVersusAnswer, eventVersusTitle, eventsNamed, readEventVersus } from "./families/eventVersus.js";
 import { eventHref, shortEvent, teamMatches } from "./matchSet.js";
 import { readCompound } from "./compound.js";
 import { eventInitialisms, initialismEvent } from "../query/initialisms.js";
@@ -300,6 +302,24 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
   return scope;
 }
 
+/** An event's average match score, or two events' side by side (./families/eventAverage.ts). Null when an event
+ *  isn't found: the question is then left to search. */
+async function eventAverageSearch(q: string, ea: EventAverageQuestion, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+  const find = (words: string, season: number | null) => findEvent(words, season, { anyPlayed: true, closest: true });
+  const intent = (label: string) => ({ kind: `stat-event-average-score${ea.events.length > 1 ? "-vs" : ""}`, pattern: `average match score [event]${ea.events.length > 1 ? " vs [event]" : ""}${ea.season != null ? " [season]" : ""}`, met: true, understood: [label] });
+  const understood = (label: string) => ({ kind: "question" as const, label, ...(ea.season != null ? { season: ea.season } : {}) });
+  // The search box: the events found and a link to the answer page, nothing counted while typing.
+  if (!opts.full) {
+    const evs = await eventsAsked(ea, find);
+    if (!evs) return null;
+    const label = eventAverageTitle(evs);
+    return { q, hits: [], pages: [{ title: label, href: `/search?q=${encodeURIComponent(q)}` }, ...opts.pages], step: "deterministic", weak: false, understood: understood(label), intent: intent(label) };
+  }
+  const stat = await eventAverageAnswer(ea, find);
+  if (!stat) return null;
+  return { q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: understood(stat.title), intent: intent(stat.title), stat };
+}
+
 /** An event by name for a team-less question (its newest season, or the season named). */
 async function findEvent(words: string, season: number | null, opts: { anyPlayed?: boolean; closest?: boolean } = {}) {
   const hits = (await search(words, 8, new Set(), new Set(["event"]), season)).filter((h) => h.kind === "event");
@@ -352,6 +372,12 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   // A season's highest-scoring matches before a leaderboard ("highest scoring matches at <event>" names no city).
   const tm = readTopMatches(q);
   if (tm) return topSearch(q, tm, opts);
+  // An event's average match score, or two events' side by side.
+  const ea = readEventAverage(q);
+  if (ea) {
+    const a = await eventAverageSearch(q, ea, opts);
+    if (a) return a;
+  }
   // "Which event had the most teams in California this season", "biggest qualifiers in Texas": events by team count.
   const big = readBiggestEvents(q);
   if (big) {
@@ -429,20 +455,26 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   return statAnswerOf(q, it, resolve, opts);
 }
 
-/** `core` with the words typed just before it that a question's frame drops ("team", "the", "ftc") put back, when
- *  with them it's a team's name or one slip from just one ("team sealth" is Team Stealth, not a team named "Stealth…"). */
+/** `core` with the words typed just before or after it that a question's frame drops ("team", "the", "ftc") put back,
+ *  when with them it's a team's name or one slip from just one ("team sealth" is Team Stealth, not a team named
+ *  "Stealth…"; "ultma team" is ULTIMA TEAM, not a team whose name starts "Ultima…"). */
 async function withLead(q: string, core: string): Promise<{ core: string; near?: string }> {
   const esc = core.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const m = esc && new RegExp(`(?:^|\\s)((?:(?:the|team|ftc)\\s+)+)${esc}(?=\\s|$)`).exec(q.toLowerCase());
+  const lower = q.toLowerCase();
+  const before = esc ? new RegExp(`(?:^|\\s)((?:(?:the|team|ftc)\\s+)+)${esc}(?=\\s|$)`).exec(lower) : null;
+  const after = esc ? new RegExp(`(?:^|\\s)${esc}((?:\\s+(?:team|ftc))+)(?=\\s|$)`).exec(lower) : null;
   // A team's number ("team 14471") or a name of its own stands as it is.
-  if (!m || /^\d+$/.test(core.trim())) return { core };
+  if ((!before && !after) || /^\d+$/.test(core.trim())) return { core };
   const idx = await names();
   const own = idx.teamsNamed(core).length > 0;
-  for (let lead = m[1].trim().split(/\s+/); lead.length; lead = lead.slice(1)) {
-    const named = `${lead.join(" ")} ${core.trim()}`;
-    if (idx.teamsNamed(named).length) return { core: named };
-    // One slip from a name: read as that name, and said so ("Did you mean team stealth record").
-    const near = own ? null : idx.nearTeam(named);
+  // Each way to put the frame's words back, the most words first: before it ("team sealth"), after it ("ultma team").
+  const tries: string[] = [];
+  for (let lead = before?.[1].trim().split(/\s+/) ?? []; lead.length; lead = lead.slice(1)) tries.push(`${lead.join(" ")} ${core.trim()}`);
+  for (let trail = after?.[1].trim().split(/\s+/) ?? []; trail.length; trail = trail.slice(0, -1)) tries.push(`${core.trim()} ${trail.join(" ")}`);
+  for (const named of tries) if (idx.teamsNamed(named).length) return { core: named };
+  // One slip from a name: read as that name, and said so ("Did you mean team stealth record").
+  if (!own) for (const named of tries) {
+    const near = idx.nearTeam(named);
     if (near?.name) return { core: near.name.toLowerCase(), near: named };
   }
   return { core };
@@ -1121,7 +1153,7 @@ export async function boardSearch(q: string, said: LeaderboardQuestion, opts: { 
   const st = boardStatFor(b.stat, b.season ?? searchSeason());
   if (!st) return null;
   const where = b.town ? ` in ${b.town}` : b.region ? ` in ${b.region.name}` : city ? ` ${b.school ? "at" : "in"} ${city.city}${b.cityIn ? `, ${b.cityIn.state || b.cityIn.name}` : ""}` : "";
-  const label = b.event ? `${b.event.home ? `${b.event.home.name} teams` : "Best teams"} at ${b.event.name}` : b.kind === "city" ? `Teams${where}` : b.kind === "city-best" ? `Best team${where} by OPR` : b.teams ? `${b.teams.length} teams by ${statWords(st)}` : b.undefeated ? `Undefeated teams${where}` : b.kind === "rookie" && b.asc ? `Lowest rookie teams${where} by ${statWords(st)}` : b.asc ? `Lowest ${b.n > 1 ? `${b.n} teams` : "team"} by ${statWords(st)}${where}` : b.best ? `Best team${where} by ${statWords(st)}` : b.kind === "rookie" ? `Best rookie teams${where}` : b.kind === "improved" ? `Most improved teams${where}` : `Top ${b.n} teams by ${statWords(st)}${where}`;
+  const label = b.event ? `${b.event.home ? `${b.event.home.name} teams` : "Best teams"} at ${b.event.name}` : b.kind === "oldest" ? `Oldest teams still active${where}` : b.kind === "career" ? `Team${where} with the most ${statWords(st)}, every season`: b.kind === "city" ? `Teams${where}` : b.kind === "city-best" ? `Best team${where} by OPR` : b.kind === "gain" ? `Most OPR gained${where} between first and last event`: b.teams ? `${b.teams.length} teams by ${statWords(st)}` : b.undefeated ? `Undefeated teams${where}` : (st.count || b.window) && b.best ? `Team${where} with the most ${statWords(st)}${b.window ? ` ${b.window.label}` : ""}` : b.window ? `Top ${b.n} teams${where} by ${statWords(st)} ${b.window.label}` : b.kind === "rookie" && b.asc ? `Lowest rookie teams${where} by ${statWords(st)}` : b.asc ? `Lowest ${b.n > 1 ? `${b.n} teams` : "team"} by ${statWords(st)}${where}` : b.best ? `Best team${where} by ${statWords(st)}` : b.kind === "rookie" ? `Best rookie teams${where}` : b.kind === "improved" ? (b.climb ? `Teams${where} that climbed from OPR rank ${b.climb.from}+ to the top ${b.climb.to}` : `Most improved teams${where}`) : b.kind === "steady" ? `Most stable OPR${where}: the fewest ups and downs` : b.kind === "phases" ? `Strongest in every phase${where}` : `Top ${b.n} teams by ${statWords(st)}${where}`;
   const answer: SearchAnswer = {
     q, hits: [], pages: opts.pages, step: "deterministic", weak: false,
     understood: { kind: "question", label, ...(b.season != null ? { season: b.season } : {}), ...(b.region ? { place: { key: b.region.key, name: b.region.name } } : {}) },
@@ -1137,4 +1169,23 @@ export async function boardSearch(q: string, said: LeaderboardQuestion, opts: { 
   // The full list's page (Teams for an OPR list, Rankings for a rating list) leads the page links.
   const more = stat.blocks.find((x) => x.kind === "leaderboard")?.more;
   return { ...read, stat, pages: more ? [{ title: more.label.replace(/^View more detail on (?:the )?/, "").replace(/ \(.*\)$/, "").replace(/^./, (c) => c.toUpperCase()), href: more.href }, ...opts.pages.filter((p) => p.href !== more.href)] : opts.pages };
+}
+
+/** "<event> vs <event>" (2–4 events, ./families/eventVersus.ts): the events side by side. Null when it isn't one or an
+ *  event isn't found: the versus is then the teams'. */
+/** `q` is the query less a season it named; `asked`, the query as typed, is what the answer page's link opens. */
+export async function eventVersusSearch(q: string, season: number | null, opts: { full: boolean; pages: SearchPageLink[]; asked?: string; alias?: (w: string) => string }): Promise<SearchAnswer | null> {
+  const sides = readEventVersus(q);
+  if (!sides) return null;
+  const evs = await eventsNamed(sides, season, (words, s) => findEvent(words, s, { anyPlayed: true, closest: true }), opts.alias);
+  if (!evs) return null;
+  const label = eventVersusTitle(evs);
+  const base = {
+    q, hits: [], step: "deterministic" as const, weak: false,
+    understood: { kind: "question" as const, label, ...(season != null ? { season } : {}) },
+    intent: { kind: "stat-event-versus", pattern: `[event] vs [event]${season != null ? " [season]" : ""}`, met: true, understood: [label] },
+  };
+  // The search box: the events found and a link to the answer page, nothing counted while typing.
+  if (!opts.full) return { ...base, pages: [{ title: label, href: `/search?q=${encodeURIComponent(opts.asked ?? q)}` }, ...opts.pages] };
+  return { ...base, pages: opts.pages, stat: await eventVersusAnswer(evs) };
 }
