@@ -25,7 +25,7 @@ Hovering a point on a search chart says which match (or event) it is and its sco
 - [fixes] Shown at once on hover or keyboard focus, kept inside the chart
 
 ### Search
-- **Chart point labels.** Each point on a line chart ("Score, match by match", "OPR by event") shows a small label on hover or keyboard focus: the match or event, then its value and result. It replaces the browser's own title tip, which was slow and easy to miss. `npm run shots` gains a `hover` step for screenshots of hover states. (#N)
+- **Chart point labels.** Each point on a line chart ("Score, match by match", "OPR by event") shows a small label on hover or keyboard focus: the match or event, then its value and result. It replaces the browser's own title tip, which was slow and easy to miss. `npm run shots` gains a `hover` step for screenshots of hover states. (#1227)
 
 ## 4.6.2 — 2026-11-09
 
