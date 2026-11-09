@@ -8,12 +8,13 @@
 //
 // --steps <file.json> runs interactions after the page loads (open a dialog,
 // build a filter…) before the shot, or while a --video records. The file is
-// an array of { click | hold(+ms) | fill+value | upload+files | type | press | wait | waitFor | reload | goto | scrollTo } steps
+// an array of { click | hold(+ms) | fill+value | upload+files | type | press | wait | waitFor | reload | goto | scrollTo | hover } steps
 // (goto: open another route of the same app in the same tab, e.g. after saving a season on /download;
 // scrollTo: bring an element to the top of the viewport, for a --viewport shot of one section;
 // hold: press the pointer on an element for ms, default 1600, e.g. a hold-to-confirm button;
 // pull: drag one finger down that many px from near the top of the page, in steps, as a phone would
 // (with --pull: the installed app's pull-to-refresh); release: false keeps the finger down for the shot;
+// hover: rest the pointer on an element (a tooltip, a hover state) for the shot;
 // upload: put local files into a file input, e.g. a photo to attach;
 // offline: true / false switches the network off or on, e.g. a venue with no signal: take the page online
 // first so the service worker caches the app, on a production build with --base);
@@ -50,7 +51,7 @@ const COOKIE = (() => {
   if (!name || !rest.length) { console.error("--cookie-file: the file must hold name=value"); process.exit(1); }
   return { name, value: rest.join("=") };
 })();
-type Step = { pull?: number; release?: boolean; click?: string; hold?: string; ms?: number; fill?: string; value?: string; type?: string; press?: string; wait?: number; waitFor?: string; reload?: boolean; upload?: string; files?: string[]; goto?: string; scrollTo?: string; offline?: boolean };
+type Step = { pull?: number; release?: boolean; click?: string; hold?: string; ms?: number; fill?: string; value?: string; type?: string; press?: string; wait?: number; waitFor?: string; reload?: boolean; upload?: string; files?: string[]; goto?: string; scrollTo?: string; hover?: string; offline?: boolean };
 const STEPS: Step[] = (() => {
   const f = opt("steps");
   if (!f) return [];
@@ -73,6 +74,7 @@ async function runSteps(page: Page, slow: boolean) {
     else if (s.hold) { await page.locator(s.hold).first().hover(); await page.mouse.down(); await page.waitForTimeout(s.ms ?? 1600); await page.mouse.up(); }
     else if (s.fill) await page.locator(s.fill).first().fill(s.value ?? "");
     else if (s.upload) await page.locator(s.upload).first().setInputFiles(s.files ?? []);
+    else if (s.hover) await page.locator(s.hover).first().hover();
     else if (s.type != null) await page.keyboard.type(s.type, { delay: slow ? 90 : 20 });
     else if (s.press) await page.keyboard.press(s.press);
     else if (s.waitFor) await page.locator(s.waitFor).first().waitFor({ state: "visible", timeout: 20_000 });

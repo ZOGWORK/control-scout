@@ -36,6 +36,12 @@ describe("what's read", () => {
     expect(readLeaderboard("Top teams by auto OPR in New Jersey")).toMatchObject({ kind: "top", stat: "auto", n: 10 });
     expect(readLeaderboard("top 5 win rate teams in nj 2024-25")).toMatchObject({ kind: "top", stat: "win-rate", n: 5, season: 2024 });
     expect(readLeaderboard("Best rookie team in New Jersey")).toMatchObject({ kind: "rookie", stat: "opr" });
+    // A place's conference or league with no name of its own is the place's teams (failed-search #1212); a named one
+    // ("east bergen conference") stays an event, left to the event readers.
+    expect(readLeaderboard("top rookie teams at nj conference")).toMatchObject({ kind: "rookie", stat: "opr", region: { key: "USA:NJ" } });
+    expect(readLeaderboard("top rookie teams at nj conference by auto opr")).toMatchObject({ kind: "rookie", stat: "auto", region: { key: "USA:NJ" } });
+    expect(readLeaderboard("top teams by opr at new jersey league")).toMatchObject({ kind: "top", stat: "opr", region: { key: "USA:NJ" } });
+    expect(readLeaderboard("top rookie teams at east bergen conference")).toBeNull();
     expect(readLeaderboard("Most improved team in New Jersey")).toMatchObject({ kind: "improved" });
     expect(readLeaderboard("Teams in Oradell")).toMatchObject({ kind: "city", city: "oradell" });
     // A country is never a city, even one a team lists as its home city.
@@ -269,6 +275,14 @@ describe("every season counted", () => {
     expect(ob.rows.slice(0, 3).map((r) => r.display)).toEqual(["2010", "2013", "2017"]);
     // The most awards ever, worldwide or in a place, is the awards family's answer, every season counted.
     for (const q of ["which team in New Jersey has the most awards, ever", "which team has the most awards, ever"]) expect((await searchAnswer(q, { limit: 25, full: true })).stat?.intent, q).toBe("place-awards");
+  });
+  // Live check of #1111: the page's heading is the card's title, so the page never says it twice in two wordings.
+  it("heads the page with the card's own title", async () => {
+    for (const q of ["oldest team still active in ohio", "which team in texas has won the most matches ever", "team with the most events attended of all time", "which team has played the most seasons in history"]) {
+      const a = await searchAnswer(q, { limit: 25, full: true });
+      expect(a.stat?.intent, q).toMatch(/^(?:career-|oldest-active)/);
+      expect(a.understood?.label, q).toBe(a.stat?.title);
+    }
   });
   it("with no match on record, says so and names no years", async () => {
     const empty = openDb(":memory:");
