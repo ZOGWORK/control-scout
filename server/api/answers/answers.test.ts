@@ -155,6 +155,17 @@ describe("the answers", () => {
     expect((await searchAnswer("did 4215 win by 60 points", { limit: 25 })).stat!.headline).toMatchObject({ value: "1 win", label: "by exactly 60 points" });
     expect((await searchAnswer("4215 lost by 1 point", { limit: 25 })).stat!.none).toMatch(/^No losses by exactly 1 point/);
   });
+  it("a bound said: the matches decided by less than that, closest first; none inside it names the closest (failed-search #1223)", async () => {
+    // The closest is the 30-point loss, then the 40-point ones.
+    const under = (await searchAnswer("4215 closest match by less than 45 points", { limit: 25 })).stat!;
+    expect(under.title).toMatch(/^Matches decided by less than 45 points/);
+    expect(under.headline).toMatchObject({ value: "30 points", label: "90–120 in Q2 at New Jersey Championship" });
+    const rows = under.blocks.flatMap((b) => (b.kind === "matches" ? b.rows : []));
+    expect(rows.map((r) => Math.abs(r.own - r.opp))).toEqual([30, 40, 40]);
+    const none = (await searchAnswer("4215 closest match by less than 1 point", { limit: 25 })).stat!;
+    expect(none.none).toMatch(/^No matches decided by less than 1 point.*: the closest was 30 points, 90–120 in Q2 at New Jersey Championship\.$/);
+    expect((await searchAnswer("4215 closest win within 50 points", { limit: 25 })).stat!.headline).toMatchObject({ value: "40 points" });
+  });
   it("a result answer shows the official totals; a score answer the points without penalties", async () => {
     const win = await searchAnswer("4215 biggest win", { limit: 25 });
     const rows = win.stat!.blocks.flatMap((b) => (b.kind === "matches" ? b.rows : []));

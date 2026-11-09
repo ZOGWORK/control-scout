@@ -97,7 +97,7 @@ export function counts(id: IntentId, m: TeamMatch): boolean {
 }
 
 /** The answer for a match-set intent, or null when `id` isn't one of these families' match intents. */
-export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch[], scope: Scope, opts: { leadEvent?: boolean; n?: number | null; outcome?: "W" | "L" | null; perEvent?: boolean }): Promise<StatAnswer | null> {
+export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch[], scope: Scope, opts: { leadEvent?: boolean; n?: number | null; outcome?: "W" | "L" | null; perEvent?: boolean; under?: number }): Promise<StatAnswer | null> {
   const ms = pool(id, all, scope);
   const who = whoOf(team), where = scopePhrase(scope);
   const base = { team, scope: scopeChips(scope), source: sourceOf(ms) };
@@ -159,24 +159,35 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
       const margin = (m: TeamMatch) => m.own - m.opp;
       const xs = id === "biggest-win" ? ms.filter((m) => m.result === "W").sort((a, b) => margin(b) - margin(a))
         : id === "biggest-loss" ? ms.filter((m) => m.result === "L").sort((a, b) => margin(a) - margin(b))
-        : ms.filter((m) => (!opts.outcome || m.result === opts.outcome) && (opts.n == null || Math.abs(margin(m)) === opts.n))
+        : ms.filter((m) => (!opts.outcome || m.result === opts.outcome) && (opts.n == null || Math.abs(margin(m)) === opts.n) && (opts.under == null || Math.abs(margin(m)) < opts.under))
           .sort((a, b) => Math.abs(margin(a)) - Math.abs(margin(b)) || String(b.date).localeCompare(String(a.date)));
       // A margin said ("which match did 12345 lose by 1 point"): the matches decided by exactly that many, newest first.
       const by = id === "closest-match" && opts.n != null ? opts.n : null;
       // Newest first; matches with no time of their own (dated by their event) keep their play order, reversed.
       if (by != null) xs.reverse().sort((a, b) => String(b.date).localeCompare(String(a.date)));
       const pts = (n: number) => `${n} point${n === 1 ? "" : "s"}`;
-      const closest = by != null ? `${opts.outcome === "W" ? "Wins" : opts.outcome === "L" ? "Losses" : "Matches"} by ${pts(by)}`
+      const what = opts.outcome === "W" ? "Wins" : opts.outcome === "L" ? "Losses" : "Matches";
+      // A bound said ("by less than 1 point"): every match inside it, the closest first.
+      const under = id === "closest-match" && by == null && opts.under != null ? opts.under : null;
+      const closest = by != null ? `${what} by ${pts(by)}` : under != null ? `${what} decided by less than ${pts(under)}`
         : opts.outcome === "W" ? "Closest win" : opts.outcome === "L" ? "Closest loss" : "Closest match";
       const title = id === "biggest-win" ? `Biggest win${where}` : id === "biggest-loss" ? `Biggest loss${where}` : `${closest}${where}`;
       // A biggest margin is points too: one season's, each season's listed below (a closest gap compares fine).
       const { xs: pick, note } = id === "closest-match" ? { xs, note: "" } : latestOnly(xs);
       const top = pick[0];
       const def = by != null ? `Decided by ${pts(by)}: the gap between the two alliances' official scores is exactly that; newest first. ${RESULT_RULE}`
+        : under != null ? `Decided by less than ${pts(under)}: the gap between the two alliances' official scores is under that (a tie is 0); the closest first. ${RESULT_RULE}`
         : `${id === "closest-match" ? "Closest: the smallest gap between the two alliances' scores (a tie is 0); the latest first on equal gaps." : "Margin: the gap between the two alliances' official scores."} ${RESULT_RULE}${note}`;
       const kindOf = id === "biggest-win" || opts.outcome === "W" ? "wins" : id === "biggest-loss" || opts.outcome === "L" ? "losses" : "matches";
+      if (!top && under != null) {
+        // None inside the bound: say so, with the closest there was ("the closest was 1 point: 88–89 in Q5 at …").
+        const near = ms.filter((m) => !opts.outcome || m.result === opts.outcome).sort((a, b) => Math.abs(margin(a)) - Math.abs(margin(b)) || String(b.date).localeCompare(String(a.date)))[0];
+        const said = none(`${kindOf} decided by less than ${pts(under)}`);
+        return { ...base, family: "superlative", intent: id, title, blocks: near ? [matchesBlock("The closest instead", [near])] : [], definition: def,
+          none: near ? `${said.replace(/\.$/, "")}: the closest was ${pts(Math.abs(margin(near)))}, ${near.own}–${near.opp} in ${near.label} at ${near.event}.` : said };
+      }
       if (!top) return { ...base, family: "superlative", intent: id, title, blocks: [], definition: def, none: none(by != null ? `${kindOf} by exactly ${pts(by)}` : kindOf) };
-      const list = by != null ? closest : id === "closest-match" ? (opts.outcome === "W" ? "Closest wins" : opts.outcome === "L" ? "Closest losses" : "Closest matches") : id === "biggest-win" ? "Biggest wins" : "Biggest losses";
+      const list = by != null || under != null ? closest : id === "closest-match" ? (opts.outcome === "W" ? "Closest wins" : opts.outcome === "L" ? "Closest losses" : "Closest matches") : id === "biggest-win" ? "Biggest wins" : "Biggest losses";
       const blocks: StatBlock[] = [matchesBlock(`${list}${note ? `, ${seasonLabel(top.season)}` : ""}`, pick.slice(0, 5))];
       if (note) {
         const per = bySeason(xs).map(([s, ys]) => ({ s, m: ys[0] }));
