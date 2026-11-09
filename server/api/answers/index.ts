@@ -455,20 +455,26 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   return statAnswerOf(q, it, resolve, opts);
 }
 
-/** `core` with the words typed just before it that a question's frame drops ("team", "the", "ftc") put back, when
- *  with them it's a team's name or one slip from just one ("team sealth" is Team Stealth, not a team named "Stealth…"). */
+/** `core` with the words typed just before or after it that a question's frame drops ("team", "the", "ftc") put back,
+ *  when with them it's a team's name or one slip from just one ("team sealth" is Team Stealth, not a team named
+ *  "Stealth…"; "ultma team" is ULTIMA TEAM, not a team whose name starts "Ultima…"). */
 async function withLead(q: string, core: string): Promise<{ core: string; near?: string }> {
   const esc = core.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const m = esc && new RegExp(`(?:^|\\s)((?:(?:the|team|ftc)\\s+)+)${esc}(?=\\s|$)`).exec(q.toLowerCase());
+  const lower = q.toLowerCase();
+  const before = esc ? new RegExp(`(?:^|\\s)((?:(?:the|team|ftc)\\s+)+)${esc}(?=\\s|$)`).exec(lower) : null;
+  const after = esc ? new RegExp(`(?:^|\\s)${esc}((?:\\s+(?:team|ftc))+)(?=\\s|$)`).exec(lower) : null;
   // A team's number ("team 14471") or a name of its own stands as it is.
-  if (!m || /^\d+$/.test(core.trim())) return { core };
+  if ((!before && !after) || /^\d+$/.test(core.trim())) return { core };
   const idx = await names();
   const own = idx.teamsNamed(core).length > 0;
-  for (let lead = m[1].trim().split(/\s+/); lead.length; lead = lead.slice(1)) {
-    const named = `${lead.join(" ")} ${core.trim()}`;
-    if (idx.teamsNamed(named).length) return { core: named };
-    // One slip from a name: read as that name, and said so ("Did you mean team stealth record").
-    const near = own ? null : idx.nearTeam(named);
+  // Each way to put the frame's words back, the most words first: before it ("team sealth"), after it ("ultma team").
+  const tries: string[] = [];
+  for (let lead = before?.[1].trim().split(/\s+/) ?? []; lead.length; lead = lead.slice(1)) tries.push(`${lead.join(" ")} ${core.trim()}`);
+  for (let trail = after?.[1].trim().split(/\s+/) ?? []; trail.length; trail = trail.slice(0, -1)) tries.push(`${core.trim()} ${trail.join(" ")}`);
+  for (const named of tries) if (idx.teamsNamed(named).length) return { core: named };
+  // One slip from a name: read as that name, and said so ("Did you mean team stealth record").
+  if (!own) for (const named of tries) {
+    const near = idx.nearTeam(named);
     if (near?.name) return { core: near.name.toLowerCase(), near: named };
   }
   return { core };
