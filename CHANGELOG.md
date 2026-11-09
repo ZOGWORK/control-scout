@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 4.6.9 — 2026-11-09
+## 4.7.0 — 2026-11-09
 
 The live search demo on How FTC One Search works sits in the middle, beside the text.
 
@@ -26,6 +26,19 @@ The live search demo on How FTC One Search works sits in the middle, beside the 
 
 ### How it works
 - **Search demo centred.** On wide screens the animated example card at the top of How FTC One Search works sits halfway down the intro text instead of at its bottom edge, and it keeps the height of its tallest example, so it no longer shifts as the examples change. (#1232)
+
+## 4.6.9 — 2026-11-09
+
+An event's address without its season, like /events/USNJNEM2, opens the event's page instead of "Page not found".
+
+### Highlights
+- [fixes] /events/CODE opens that event's newest season
+- [share] Short event links work when typed or shared
+- [fixes] An unknown code still says the page isn't found
+
+### Fixes
+- **Event addresses without a season.** `/events/<code>` is a 301 to `/events/<season>/<code>` for the newest season holding that code, query kept, in any case; an unknown code is still the 404 page. The app's own route does the same through `/api/event-code/<code>`, so the service worker's app shell redirects too; a failed lookup there offers a retry instead of saying the event doesn't exist. (#1042)
+
 
 ## 4.6.8 — 2026-11-09
 
