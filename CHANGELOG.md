@@ -15,6 +15,16 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## NEXT — 2026-11-08
+
+A board over every season reads once and offers no one season to pick.
+
+### Highlights
+- [fixes] Every-season boards no longer offer a season to pick
+
+### Search
+- **Every-season boards.** A board that counts every season (the most seasons, matches, events or wins ever, the oldest teams still active) heads its page with the card's own title, so the page no longer says it twice in two wordings. A card about no team that counts every season, or spans seasons ("2007–08 to 2025–26", "active in 2025–26 or 2026–27"), has no season picker, and its season chips stay. The sign-off's visual pass now flags a season picker on such a card.
+
 ## 4.4.9 — 2026-11-08
 
 Boards over every season: the team that has played the most seasons, the oldest teams still active, and the most matches, events or wins ever.

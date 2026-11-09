@@ -4,6 +4,7 @@
 //   - no sideways scroll
 //   - tap targets at least 44px on the phone (inline links in running text are exempt, as in WCAG 2.5.8)
 //   - one answer card, no duplicate header, no TEAMS card repeating the answered team
+//   - no season picker on a card over every season or a span of them
 //   - no yellow/olive-gold band or yellow-bordered answer box, no "read as"/debug text
 //   - the desktop results column 640–720px wide
 // and a PNG of each, for the report.
@@ -59,6 +60,14 @@ const audit = (page: Page, mobile: boolean) => page.evaluate((mobile) => {
   const core = (h: string) => h.replace(/^results:\s*/, "").replace(/\s*·.*$/, "").trim();
   const dup = heads.find((h, i) => heads.some((g, j) => j !== i && core(g).length > 12 && (core(g) === core(h) || (j < i && core(h).startsWith(core(g))))));
   if (dup) issues.push(`duplicate header "${dup.slice(0, 60)}"`);
+  // A card over every season, or a span of them ("2007–08 to 2025–26", "2025–26 or 2026–27"), is no one season's: a
+  // season picker on it would offer to narrow what was never one season.
+  for (const f of frames) {
+    const said = `${f.querySelector("[data-answer-title]")?.textContent ?? ""} ${f.querySelector("[data-scope]")?.textContent ?? ""}`;
+    const seasons = new Set([...said.matchAll(/\b(20\d\d)[–-]\d\d\b/g)].map((m) => m[1]));
+    const picker = [...f.querySelectorAll("[data-season-picker]")].some(vis);
+    if (picker && (seasons.size > 1 || /\b(?:every|all) seasons?\b/i.test(said))) issues.push(`season picker on a card over many seasons ("${said.trim().slice(0, 60)}")`);
+  }
   const answered = frames.map((f) => f.querySelector("[data-answer-team]")?.getAttribute("data-answer-team")).filter(Boolean);
   const teamCards = [...main.querySelectorAll("[data-result=team] a[href^='/teams/']")].filter(vis).map((a) => a.getAttribute("href")!.split("/")[2]);
   const repeated = teamCards.filter((t) => answered.includes(t));
