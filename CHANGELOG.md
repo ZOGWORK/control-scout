@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## NEXT — 2026-11-09
+## NEXT — 2026-11-08
 
 Matches in a recording with a short drop-out get their clip again: the player starts just before the match instead of at the start of a 10-hour stream.
 
@@ -26,6 +26,18 @@ Matches in a recording with a short drop-out get their clip again: the player st
 
 ### Event pages
 - **Recordings with a short gap.** When an event's archived stream is up to 15 minutes shorter than its broadcast and nothing says where the time went (no chapters), each match's clip starts early by all the time missing, so it lands at or before the match, never after. A bigger gap still gets no clips. (#1226)
+
+## 4.5.9 — 2026-11-09
+
+Two events side by side read a state's code as that state's championship.
+
+### Highlights
+- [fixes] "<event> vs NJ Championship" compares New Jersey's championship
+- [fixes] An old division with the state's code in its name is no longer picked
+- [fixes] A state code reads as its latest played championship
+
+### Search
+- **Events side by side, a state's code.** Each side is tried with a state's two-letter code spelled out first ("NJ Championship" is the New Jersey Championship, its latest played season), then as typed, so an old division whose name carries the code inside an event code is never the state's championship. (#1220)
 
 ## 4.5.8 — 2026-11-09
 
