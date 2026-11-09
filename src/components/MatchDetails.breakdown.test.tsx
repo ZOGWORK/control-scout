@@ -114,9 +114,9 @@ describe("bonus RP odds in the call card", () => {
     const { MemoryRouter } = await import("react-router-dom");
     render(<MemoryRouter><BonusOddsRow season={2026} bonus={{ tier: "provisional", red: [0.67, 0.06, 0.01], blue: [0.69, 0.07, 0.01], rpRed: 2.3, rpBlue: 2.3 } as never} actual={{ red: [false, false, false], blue: [false, false, false] }} /></MemoryRouter>);
     const text = screen.getByTestId("bonus-odds").textContent!;
-    expect(text).toContain("Swarm67% – 69%");
-    expect(text).toContain("Pollinator 16% – 7%");
-    expect(text).toContain("Expected RP2.3 – 2.3");
+    expect(text).toContain("SwarmRed 67% – Blue 69%");
+    expect(text).toContain("Pollinator 1Red 6% – Blue 7%");
+    expect(text).toContain("Expected RPRed 2.3 – Blue 2.3");
     expect(screen.getByTestId("bonus-odds").querySelector("[style*='width']")).toBeNull();
   });
 });

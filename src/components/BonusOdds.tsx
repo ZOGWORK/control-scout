@@ -66,7 +66,8 @@ export function BonusOddsRow({ season, bonus, actual, className }: {
     ? <Check className="inline size-3 text-success" aria-label="earned" />
     : <X className="inline size-3 text-text-muted" aria-label="missed" />);
   const pair = (r: ReactNode, b: ReactNode) => (
-    <span className="whitespace-nowrap tabular-nums"><span className="font-semibold text-red-alliance">{r}</span><span className="text-text-muted"> – </span><span className="font-semibold text-blue-alliance">{b}</span></span>
+    // The colour names the side on screen; the hidden words name it for a screen reader.
+    <span className="whitespace-nowrap tabular-nums"><span className="font-semibold text-red-alliance"><span className="sr-only">Red </span>{r}</span><span className="text-text-muted"> – </span><span className="font-semibold text-blue-alliance"><span className="sr-only">Blue </span>{b}</span></span>
   );
   return (
     <div aria-label="Bonus ranking point odds" className={className} data-testid="bonus-odds">
