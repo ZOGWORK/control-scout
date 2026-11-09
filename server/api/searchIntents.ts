@@ -130,9 +130,29 @@ export function parseIntent(q: string): ParsedIntent | null {
   return { season: s?.season ?? null, game: s?.game ?? null, region: r?.region ?? null, ranking, missing, core: rest, regionBare: !!r?.bare, withoutRanking: squash(q.replace(new RegExp(RANKING.source, "gi"), " ")) };
 }
 
+/** The first team hit sharing the top hit's name whose home is in `region`; null when none is. */
+async function teamInRegion(hits: SearchHit[], region: Region): Promise<SearchHit | null> {
+  const name = teamWords(hits[0].title).replace(/^\d+\s+/, "").toLowerCase();
+  const same = hits.filter((h) => h.kind === "team" && teamWords(h.title).replace(/^\d+\s+/, "").toLowerCase() === name);
+  if (same.length < 2) return null;
+  const rows = await all<{ number: number; country: string | null; state: string | null }>(
+    `SELECT number, country, state FROM teams WHERE number IN (${same.map(() => "?").join(", ")})`, same.map((h) => Number(h.ref)));
+  const home = new Map(rows.map((r) => [Number(r.number), r]));
+  return same.find((h) => {
+    const t = home.get(Number(h.ref));
+    return !!t && t.country === region.country && (!region.state || (t.state ?? "").toUpperCase() === region.state);
+  }) ?? null;
+}
+
 /** The answer for a parsed intent: `base` is search's answer for the core (the team, the teams, or nothing). */
 export async function intentAnswer(q: string, it: ParsedIntent, base: SearchAnswer): Promise<SearchAnswer | null> {
   const compare = !!base.hits[0]?.href?.startsWith("/compare");
+  // A name several teams share, with a place named ("ultraviolet from michigan"): the team from that place, when one
+  // of the teams found is from there; else search's own first team.
+  if (!compare && it.region && base.step !== "recovery" && base.hits[0]?.kind === "team") {
+    const local = await teamInRegion(base.hits, it.region);
+    if (local && local !== base.hits[0]) base = { ...base, hits: [local, ...base.hits.filter((h) => h !== local)] };
+  }
   const team = !compare && base.step !== "recovery" && base.hits[0]?.kind === "team" ? base.hits[0] : null;
   const season = it.season ?? null;
   const understood: string[] = [];

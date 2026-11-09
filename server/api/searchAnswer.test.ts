@@ -157,6 +157,17 @@ describe("intents and their counts (T71–T75)", () => {
     expect(a.hits[0].ref).toBe("4215");
     expect((await searchAnswer("hypnotic rankings last season in new jersey")).intent?.kind).toBe("season-region-ranking");
   });
+  it("a name two teams share, with a place: the team from there, with \"from\" as \"in\"", async () => {
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (40001, 'Prism Lights', 'Muskegon', 'MI', 'USA'), (40002, 'Prism Lights', 'Edison', 'NJ', 'USA')");
+    for (const n of [40001, 40002]) {
+      await run("INSERT INTO team_seasons (season, team) VALUES (?, ?)", [S, n]);
+      await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (?, 'USNJQ1', ?, 40, 5)", [S, n]);
+    }
+    await rebuildSearch();
+    for (const [q, team] of [["prism lights from nj", "40002"], ["prism lights in new jersey", "40002"], ["prism lights from michigan", "40001"], ["prism lights in michigan", "40001"]]) {
+      expect((await searchAnswer(q)).hits[0]?.ref, q).toBe(team);
+    }
+  });
   it("counts repeat; no query text, no one", async () => {
     const a = await searchAnswer("hypnotic robot specs");
     await recordIntent(a.intent);
