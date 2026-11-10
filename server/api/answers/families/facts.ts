@@ -254,7 +254,7 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
     const evs = (await teamEvents(season, team.number)).filter((e) => (!f.played || playedAt(e)) && inMonth(e));
     const what = f.played ? "Events played" : "Events";
     const when = mon ? `${mon.name} (${S})` : S;
-    const b = base("events-season", `${what} in ${when}`, mon ? [mon.name, S] : [S], `Every event the team is listed for ${mon ? `with a day in ${mon.name}, of the ${S} season` : "that season"}${f.played ? " that it played (on the field, or a remote event's matches)" : ""}, oldest first, with its rank, record and OPR there.`, `From ${possessive(who(team))} ${S} events`);
+    const b = base("events-season", `${what} in ${when}`, mon ? [mon.name, S] : [S], `Every event the team is listed for ${mon ? `with a day in ${mon.name}, of the ${S} season` : "that season"}${f.played ? " that it played (on the field, or a remote event's matches)" : ""}, oldest first, with its rank, record and OPR there.${why}`, `From ${possessive(who(team))} ${S} events`);
     if (!evs.length) return { ...b, none: `${who(team)} has no events${f.played ? " played" : ""} in ${when}.` };
     // The best finish among them: the best rank, its event named.
     const best = evs.filter((e) => e.rank != null).sort((x, y) => Number(x.rank) - Number(y.rank))[0];

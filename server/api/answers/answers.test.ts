@@ -213,7 +213,7 @@ describe("the answers", () => {
   it("\"this season\" before the team has played the season in progress: its latest season, a clean heading, the reason in the note", async () => {
     const a = await searchAnswer("4215 record this season", { limit: 25 });
     expect(a.understood!.label).toBe("Hypnotic Robotics (4215) · Record in 2025–26");
-    expect(a.stat!.definition).toContain(`"This season" here is 2025–26, the latest season 4215 has played in (no 2026–27 matches on record yet).`);
+    expect(a.stat!.definition).toContain(`"This season" here is 2025–26, the latest season 4215 has played in (no 2026–27 match played yet).`);
   });
   it("the dropdown gets the same reading and hits, without the blocks", async () => {
     const a = await searchAnswer("4215 worlds record", { limit: 15 });

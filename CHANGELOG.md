@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.3.6 — 2026-11-10
+## 5.3.7 — 2026-11-10
 
 A shorter first-run tour that fits the page you land on and keeps your place.
 
@@ -28,6 +28,22 @@ A shorter first-run tour that fits the page you land on and keeps your place.
 - The tour (`src/lib/tour.ts`, `src/components/layout/FirstRunTour.tsx`) is search first, then on a team page OPR vs Rating and saving the team, then highlights; an event page gets search and its recordings; other pages search and highlights. No welcome card. A step whose part isn't on the page is left out.
 - It follows the visitor: search carries on on any page; a step on the start page's own parts shows "Tour paused" elsewhere, with one tap back. Closing the tab or a reload resumes it at the same step. Only Skip (×, Esc) or the last step end it.
 - `cs-tour` keeps `paused`, `finished` and `skipped` apart (`v: 2`). An old record "skipped" at step 0, written by just navigating away, counts as never shown, so those visitors get the new tour once. (#1344)
+
+## 5.3.6 — 2026-11-10
+
+Search says why a team's events are from the season shown, and reads names with punctuation or typed nearly right.
+
+### Highlights
+- [fixes] "4215 events this season" says why that season
+- [fixes] A team's record and OPR always name the same season
+- [fixes] "die toaster, die!'s worst score" finds the team
+- [fixes] A misspelled team name ending in a number finds that team
+
+### Fixed
+- Search: a team's events with no season named, or "this season", say on the card which season was read and why, as its record and OPR do.
+- Search: a team's newest season where it was only ever a no-show is no longer its season for answers that default to its latest: its record, OPR and every other card name the same season (the one season rule). The card's note says no match of the newer season has been played yet, never that none is on record.
+- Search: a possessive after a name that ends in punctuation ("die toaster, die!'s") reads as the team, never as a stray "s".
+- Search: a team's name typed nearly right that runs past a shorter team's name ("girls in roboics 2") reads as the longer team, never the shorter one plus the number taken for an event. (#1340)
 
 ## 5.3.5 — 2026-11-10
 
