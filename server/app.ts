@@ -1020,8 +1020,10 @@ export function createApp(opts: { dist?: string } = {}) {
       const file = join(dist, "index.html"), query = req.query as Record<string, unknown>;
       // A team, event, search or home page is kept whole for a short while (server/pageCache.ts): the same address
       // asked again is the bytes already drawn, gzipped once. The ETag res.send makes keeps a repeat visit a 304.
-      if (req.method === "GET" && CACHED_PAGE.test(req.path)) {
-        const page = await keptPage(pageKey(req.path, query), () => drawPage(file, req.path, query));
+      // Before the data can be read (a start, before its migrations: the cache's version check reads kv), the page
+      // is drawn as it always was and nothing is kept.
+      const page = req.method === "GET" && CACHED_PAGE.test(req.path) ? await keptPage(pageKey(req.path, query), () => drawPage(file, req.path, query)).catch(() => null) : null;
+      if (page) {
         res.setHeader(cspHeaderName(), page.csp);
         res.setHeader("Vary", "Accept-Encoding");
         // The same for everyone (no personal data in these pages): a browser revalidates every time (the ETag makes it
@@ -1033,9 +1035,9 @@ export function createApp(opts: { dist?: string } = {}) {
         return;
       }
       // The query names the page's view: rankings filters, a shared matchup (its card is the link preview).
-      const page = await renderPage(file, req.path, query);
-      setPageCsp(res, page.html);
-      res.status(page.status).type("html").send(page.html);
+      const drawn = await renderPage(file, req.path, query);
+      setPageCsp(res, drawn.html);
+      res.status(drawn.status).type("html").send(drawn.html);
     }));
   }
 
