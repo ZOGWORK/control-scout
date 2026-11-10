@@ -172,7 +172,8 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["weak|weakness|weaknesses|weaker|lacking|lacks", { k: "gap" }],
   ["should|shall", { k: "filler" }],
   ["based on|based off", { k: "prep", v: "by" }],
-  ["will|would|going to", { k: "future" }],
+  // "Can 12345 make it to states": a question about what is still to come.
+  ["will|would|going to|can|could", { k: "future" }],
   ["if|what if|what would happen if|what happens if|what will happen if|suppose|supposing|hypothetically|imagine|imagine if", { k: "hypo" }],
   ["advance|advances|advancing|advancement|advancements|advance to the finals|make the finals|making the finals|go through|goes through|get through|gets through", { k: "advance" }],
   // Two teams.

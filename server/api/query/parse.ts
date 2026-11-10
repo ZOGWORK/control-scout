@@ -433,7 +433,8 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   }
   // Reaching Worlds said beside a forecast ("chance of making worlds", "odds of qualifying for worlds"): the chance to
   // advance there, never a count of appearances or qualification matches.
-  if (symbols.has("predict") && (p.worlds || p.states)) {
+  // A question of what is to come said instead ("can 12345 make it to states", "will 12345 make worlds") asks the same.
+  if ((symbols.has("predict") || symbols.has("future")) && (p.worlds || p.states)) {
     // The verb, then any filler or preposition ("making it to the world championship"), then the place's name.
     // The words in between are part of the reach, read with it.
     const between: Tok[] = [];

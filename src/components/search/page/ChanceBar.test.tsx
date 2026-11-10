@@ -23,6 +23,13 @@ describe("ChanceBar", () => {
     expect(bar.querySelector("[data-chance-fill]")?.className).toContain("bg-team-a");
     expect(bar.outerHTML).not.toMatch(/accent/);
   });
+  it("prints a long shot as Predict does, never a false 0%, and a settled chance as is", () => {
+    const at = (p: number) => render(<MemoryRouter><ChanceBar b={{ kind: "chance", p, who: "1", label: "x" }} /></MemoryRouter>).container.querySelector("[data-chance-value]")?.textContent;
+    expect(at(0.002)).toBe("1%");
+    expect(at(0.999)).toBe("99%");
+    expect(at(0)).toBe("0%");
+    expect(at(1)).toBe("100%");
+  });
   it("keeps a chance outside 0–1 on the scale", () => {
     const { container } = render(<MemoryRouter><ChanceBar b={{ kind: "chance", p: 1.2, who: "1", label: "x" }} /></MemoryRouter>);
     expect((container.querySelector("[data-chance-fill]") as HTMLElement).style.width).toBe("100%");

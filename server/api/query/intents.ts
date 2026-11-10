@@ -177,6 +177,8 @@ export const INTENTS: IntentRule[] = [
   // Who to pick at an event, by Scout's pick helper: the axes said ("by complementing their auto") are what it weighs.
   // "Would" or a supposition around it ("who would 12345 pick", "if 12345 is a captain, who should it pick") asks the same.
   R("pick-partners", 1, ["pick"], ["metric:partner", "agg:max", "agg:first", "predict", "metric:win", "metric:opr", "metric:rating", "metric:auto", "metric:teleop", "metric:endgame", "and", "thing:team", "gap", "list", "per:match", "future", "hypo"], { noMatchNo: true }),
+  // "Will 12345 advance at <event>", "can 12345 make it to states": its advancement odds there.
+  R("team-predict", 1, ["future", "advance"], ["thing:event", "agg:next", "thing:season"]),
   // "Will 12345 win <event>": the forecast at the event named (or its states, or Worlds).
   R("team-predict", 1, ["future", "metric:win"], ["thing:event"], { event: true }),
   R("team-predict", 1, ["future", "metric:win", "worlds"], ["thing:event"]),

@@ -25,6 +25,7 @@ import { eventKindOf, matchFindAnswer, type MatchFind, type MatchMeasure } from 
 import { seasonOfDate } from "./time.js";
 import { searchToday } from "../searchEvents.js";
 import { eventFor, forecastAt, teamEventOfType } from "./forecast.js";
+import { advancementAt, advancementEvent, seasonAdvancement } from "../answers/families/advancement.js";
 import { teamsNamedSearch } from "../answers/teamsNamed.js";
 import { pickAnswer, teamPickEvent } from "../answers/families/pick.js";
 import { describe, normalise, parseQuery, type Parsed } from "./parse.js";
@@ -134,9 +135,14 @@ export async function asksOfTeams(q: string, now?: number, prefer?: ReadonlySet<
 export async function pipelineReads(q: string, now?: number, prefer?: ReadonlySet<string>): Promise<boolean> {
   const p = await parseQuery(q, await parseContext(now, prefer));
   // A comparison is the pipeline's only at an event (or Worlds, or states): "12345 or 67890" stays the boolean reader's.
-  return p.complete && !!p.intent && ANSWERED.has(p.intent) && (p.intent !== "team-predict" || !!p.event || p.worlds || p.states) && (p.intent !== "count-teams" || townCount(p))
+  return p.complete && !!p.intent && ANSWERED.has(p.intent) && (p.intent !== "team-predict" || !!p.event || p.worlds || p.states || seasonOdds(p)) && (p.intent !== "count-teams" || townCount(p))
     && (p.intent !== "compare" || !!p.event || p.worlds || p.states);
 }
+
+/** One team's chances asked for a season with nothing narrower said ("12345 chances this season", "predicted chances
+ *  of 12345 in 2026-27"): no event, match, score, rank, record or next one, only the chance and the season. */
+const seasonOdds = (p: Parsed) => p.teams.length === 1 && !p.event && !p.worlds && !p.states && !p.reach && p.time?.kind === "season"
+  && p.symbols.includes("predict") && p.symbols.every((x) => ["predict", "metric:win", "advance", "thing:season", "future", "prep:for", "prep:in"].includes(x));
 
 /** A count of teams the pipeline answers: a town's, with no time, event, championship, match type, side or award said
  *  (its list is every team from the town, which none of those narrow). */
@@ -207,6 +213,18 @@ const BOARD_STAT: Partial<Record<string, string>> = {
   "metric:endgame": "endgame", "metric:record": "record", "metric:win": "wins", "metric:reliability": "reliability", "metric:penalty": "penalties",
 };
 
+/** An advancement-odds card as search's answer: the team's row beside it, Predict linked from the card's own button. */
+async function advancementResult(p: Parsed, stat: StatAnswer, opts: PipelineOptions): Promise<SearchAnswer> {
+  const t = p.teams[0];
+  const hit = (await opts.resolve(String(t.number))).hits.find((h) => h.kind === "team" && h.ref === String(t.number));
+  const action = stat.blocks.flatMap((b) => (b.kind === "chance" && b.action ? [b.action] : []))[0];
+  return {
+    q: p.q, hits: hit ? [{ ...hit, facts: undefined, events: undefined }] : [], pages: action && !opts.full ? [{ title: `Open in Predict: ${t.number}'s advancement odds`, href: action.href }, ...opts.pages] : opts.pages,
+    step: "deterministic", weak: false, understood: { kind: "question", label: stat.title }, ...(opts.full ? { stat } : {}),
+    intent: { kind: `stat-${stat.intent}`, pattern: `[team] advance ${p.event ? "[event]" : p.worlds ? "[worlds]" : p.states ? "[states]" : "[season]"}`, met: !stat.none, understood: [] },
+  };
+}
+
 async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer | null> {
   const intent = p.intent!;
   // Rookie teams are listed only at an event (its board keeps its rookies); anywhere else the word is never dropped.
@@ -272,23 +290,48 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // One team's Worlds or state championship ("advancement odds at worlds") is its own division there.
   // Reaching Worlds or states ("chance of making worlds next year"): the chance to advance from the team's next
   // event, the stored projection's, as "chance to advance to worlds" reads; never a forecast made at Worlds itself.
+  // One team's chances for a season, no event or match said ("predicted chances of 12345 this season", "12345 win
+  // chances in 2026-27"): its advancement odds at its next advancing event (or, said so, its latest).
+  if (intent === "team-predict" && seasonOdds(p)) {
+    if (scope.level || scope.alliance || scope.place || scope.area || scope.window || scope.at) return null;
+    const season = p.time?.kind === "season" && !p.time.relative && p.time.season != null ? p.time.season : null;
+    return advancementResult(p, await seasonAdvancement({ number: p.teams[0].number, name: p.teams[0].name }, { season, toward: null, now: opts.now ?? Date.now() }), opts);
+  }
   if (intent === "team-predict" && p.reach && !p.event && p.teams.length === 1) {
-    // The projection is the next event's as things stand: a season, a day or all time said asks for another answer.
-    if (scope.level || scope.alliance || scope.place || scope.area || scope.window || scope.at || p.time) return null;
-    const a = await statAnswer(`${p.teams[0].number} chance to advance to ${p.worlds ? "worlds" : "states"}`, opts.resolve, { full: opts.full, pages: opts.pages });
-    return a && a.intent?.kind === "stat-advance-chance" ? { ...a, q: p.q } : null;
+    // The odds are the team's next event's on the way there: a place, a side or a day said asks for another answer.
+    if (scope.level || scope.alliance || scope.place || scope.area || scope.window || scope.at) return null;
+    // A season named is the one looked in; "next year" and "this season" are the current one (its events still to come).
+    const season = p.time?.kind === "season" && !p.time.relative && p.time.season != null ? p.time.season : p.time && p.time.kind !== "season" ? undefined : null;
+    if (season === undefined) return null;
+    const stat = await seasonAdvancement({ number: p.teams[0].number, name: p.teams[0].name }, { season, toward: p.worlds ? "worlds" : "states", now: opts.now ?? Date.now() });
+    return advancementResult(p, stat, opts);
   }
   const ownChampionship = intent === "team-predict" && !p.event && p.teams.length === 1 && (p.worlds || p.states);
   if ((intent === "team-predict" || intent === "two-predict") && (p.event || ownChampionship)) {
     // The card lists every forecast at the event: a count asked ("last 3 predictions") is left to the other readers.
-    if (scope.level || scope.alliance || scope.place || scope.area || scope.window || (p.event && (p.worlds || p.states)) || p.n != null) return null;
+    // A place only narrows a state championship ("will 12345 advance at nj champs"), never anything else.
+    const region = p.states && !p.worlds && !p.event ? regionOf(p) : null;
+    if (scope.level || scope.alliance || (scope.place && !region) || scope.area || scope.window || (p.event && (p.worlds || p.states)) || p.n != null) return null;
     // A calendar year ("2025") is the event held that year; a season or a game named ("2025-26", "decode") its season.
     const year = p.time?.kind === "season" && p.time.year != null ? p.time.year : null;
     const season = p.time?.kind === "season" && p.time.year == null && !p.time.relative && p.time.season != null ? p.time.season : null;
     if (p.time && year == null && season == null) return null;
     const found = p.event ? await eventFor(p.event.words, p.teams.map((t) => t.number), year, season)
-      : await teamEventOfType(p.teams[0].number, p.worlds ? CHAMPIONSHIP_TYPE : STATES_TYPE, season, year);
+      : await teamEventOfType(p.teams[0].number, p.worlds ? CHAMPIONSHIP_TYPE : STATES_TYPE, season, year, region);
+    // Advancement odds at a championship the team never reached ("6980 odds to advance at nj champs 2025-26"): said so,
+    // with its odds of getting there, at its latest event that sends teams on to it.
+    if (!found && ownChampionship && p.symbols.includes("advance") && year == null) {
+      const t = p.teams[0], where = p.worlds ? "Worlds" : `${region ? `the ${region.name} ` : "a "}state championship`;
+      return advancementResult(p, await seasonAdvancement({ number: t.number, name: t.name }, { season, toward: p.worlds ? "worlds" : "states", now: opts.now ?? Date.now(),
+        missing: `${t.name ? `${t.name} (${t.number})` : `Team ${t.number}`} isn't listed at ${where}${season != null ? ` in ${seasonLabel(season)}` : ""}` }), opts);
+    }
     if (!found) return null;
+    // One team's advancement odds ("advancement odds at nj championship", "odds of advancing at worlds"): the chance to
+    // take a slot there (./answers/families/advancement.ts), never a match's win chance.
+    if (p.teams.length === 1 && p.symbols.includes("advance") && found.listed) {
+      const ev = await advancementEvent(Number(found.ev.season), found.ev.code);
+      if (ev) return advancementResult(p, await advancementAt({ number: p.teams[0].number, name: p.teams[0].name }, ev, opts.now ?? Date.now()), opts);
+    }
     const stat = await forecastAt(p.teams.map((t) => ({ number: t.number, name: t.name })), found.ev, found.listed, opts.now ?? Date.now(), { advance: p.symbols.includes("advance") });
     const hits = (await Promise.all(p.teams.map(async (t) => (await opts.resolve(String(t.number))).hits.find((h) => h.kind === "team" && h.ref === String(t.number))))).filter((h): h is NonNullable<typeof h> => !!h);
     // The search box's link to Predict; the page prints it once, as the card's own action, so not again under it.
