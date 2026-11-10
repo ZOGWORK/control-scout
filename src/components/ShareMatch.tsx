@@ -24,7 +24,7 @@ export function ShareMatch({ query, pRed, pBlue, tier, played, className, iconOn
   tier: ConfidenceTier;
   played?: boolean;
   className?: string;
-  /** The share icon alone (its name on hover and for screen readers). */
+  /** The share icon alone, large and in the gold accent (its name on hover and for screen readers). */
   iconOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -71,7 +71,7 @@ export function ShareMatch({ query, pRed, pBlue, tier, played, className, iconOn
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         {iconOnly
-          ? <Button variant="ghost" size="icon-sm" className={cn("tap-44 text-text-muted", className)} aria-label="Share" title="Share"><Share2 /></Button>
+          ? <Button variant="ghost" size="icon" className={cn("tap-44 text-accent-text hover:bg-accent/10 hover:text-accent-text", className)} aria-label="Share" title="Share"><Share2 className="size-5" /></Button>
           : <Button variant="outline" size="sm" className={className}><Share2 /> Share</Button>}
       </PopoverTrigger>
       <PopoverContent align="end" collisionPadding={8} className="max-h-[var(--radix-popover-content-available-height)] w-[22rem] max-w-[calc(100vw-2rem)] space-y-3 overflow-y-auto">
