@@ -565,26 +565,28 @@ function LastEvent({ last, team, className }: { last: TeamEventRow; team: number
 /** How often Upcoming asks for the matches again on an event day (the server checks FIRST about every minute). */
 const UPCOMING_REFRESH_MS = 60_000;
 
-/** The page's clock for the team's next `event`: a check every UPCOMING_REFRESH_MS while the tab is visible, and once
- *  on coming back to it. Each check reads the venue's calendar again, so a page opened the night before starts asking
- *  for the matches (`reload`) once the event day begins there, and stops for good once the event is over. Returns the
- *  time of the last check. Hidden tabs do nothing. Exported for its test. */
-export function useEventDayRefresh(event: EventCalendar | null, reload: () => Promise<void> | void): number {
+/** The page's clock for the team's `events`: a check every UPCOMING_REFRESH_MS while the tab is visible, and once on
+ *  coming back to it. Each check takes the event that is next at that moment, on its venue's calendar: a page opened
+ *  the night before starts asking for the matches (`reload`) once the event day begins there, moves on to the team's
+ *  following event when one ends, and stops for good once none is left. Returns the time of the last check. Hidden
+ *  tabs do nothing. Exported for its test. */
+export function useEventDayRefresh(events: EventCalendar[] | null, reload: () => Promise<void> | void): number {
   const [at, setAt] = useState(() => Date.now());
   useEffect(() => {
-    if (!event) return;
+    if (!events?.length) return;
     let timer = 0;
     const tick = () => {
       if (document.visibilityState !== "visible") return;
       const t = Date.now();
       setAt(t);
-      if (eventOver(event, t)) { clearInterval(timer); return; }
+      const event = events.find((e) => !eventOver(e, t));
+      if (!event) { clearInterval(timer); return; }
       if (onEventDates(event, t)) void reload();
     };
     timer = window.setInterval(tick, UPCOMING_REFRESH_MS);
     document.addEventListener("visibilitychange", tick);
     return () => { clearInterval(timer); document.removeEventListener("visibilitychange", tick); };
-  }, [event, reload]);
+  }, [events, reload]);
   return at;
 }
 
@@ -611,7 +613,7 @@ function Upcoming({ p, next: first, last: before }: { p: TeamProfile; next: Team
   const ms = useApi<{ matches: MatchView[] }>(first ? `/api/teams/${n}/matches?season=${p.season}` : null);
   // On the event's day the next match moves as the field plays: asked again every minute while the tab is visible
   // and on coming back to it, and the "late, not next" cutoff is read against the time of that check.
-  const now = useEventDayRefresh(first, ms.reload);
+  const now = useEventDayRefresh(first ? p.events : null, ms.reload);
   // Next and last again on that clock: a page left open past the event's end says so instead of "Next event".
   const next = p.events.find((e) => !eventOver(e, now)) ?? null;
   const last = next === first ? before : [...p.events].reverse().find((e) => eventOver(e, now)) ?? null;
