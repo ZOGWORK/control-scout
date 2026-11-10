@@ -27,7 +27,7 @@ Search pages carry People also ask and Related searches in the page itself, at e
 ### Changed
 - The search page's server-drawn first paint carries People also ask (up to six questions, each opening to its answer's line and a link that runs that exact question) under the answer, and Related searches at the end, with a link to the related searches page. The app starts from the same ones, so nothing is asked twice. Both are the follow-ups already checked to answer directly; a set that takes over 1.2 s is left to the app, as before.
 - Wide screens show them in the answer's column too, where a phone already had them, rather than in a column beside it.
-- More short searches to offer: an event's top teams and every award it gives; with nothing named, the season's other boards (Auto, TeleOp, Endgame OPR, best record) and more event weeks (next week, this weekend, past events, upcoming championships). Each is still shown only when it answers directly.
+- More short searches to offer: an event's top teams and every award it gives; with nothing named, the season's other boards (Auto, TeleOp, Endgame OPR, best record) and more event weeks (next week, this weekend, past events, upcoming championships). Each is still shown only when it answers directly. (#1328)
 
 ## 5.2.3 — 2026-11-10
 
