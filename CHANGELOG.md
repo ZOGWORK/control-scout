@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.9.7 — 2026-11-10
+
+A championship division's awards are read from its championship, and an event named is its newest edition.
+
+### Highlights
+- [fixes] An award asked at a division names the championship's winner
+- [fixes] An event named is its newest edition, not an older look-alike
+- [fixes] The card says the award was given at the championship
+
+### Fixed
+- A division of a championship (New Jersey Championship - Turnpike Division) has no judged awards of its own: FIRST posts them on the championship. An award asked at a division is now the championship's, said so on the card, instead of "No Control Award recorded".
+- "Who won Inspire at NJ Championship Parkway Division" answers for the 2025–26 division, not a 2020–21 event whose name holds extra words. Of the events whose names fit the words best, the newest is picked; a region code typed ("NJ") is read as its name. (#1270)
+
 ## 4.9.6 — 2026-11-10
 
 Search answers the plural with the list, and finds a team whose name was typed nearly right even when each word is a real word.
