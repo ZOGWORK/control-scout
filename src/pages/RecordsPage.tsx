@@ -13,7 +13,7 @@ import { cn } from "../components/cn";
 import { revealInStrip } from "../lib/revealInStrip";
 import { smoothBehavior } from "../lib/pageScroll";
 import { useApi } from "../lib/api";
-import { SEASON_RECORD_LABEL, SEASON_RECORD_RULE, seasonRecordPath } from "../shared/seasonRecord";
+import { SEASON_RECORD_LABEL, SEASON_RECORD_RULE, seasonRecordPath, unofficialMark } from "../shared/seasonRecord";
 import type { SearchCardLine } from "../shared/api";
 
 type View = "events" | "season" | "listed" | "matches";
@@ -146,6 +146,7 @@ function SeasonRecord({ season }: { season: number }) {
     <p className="mb-3 text-sm text-text-muted" data-season-record>
       <span className="font-semibold text-foreground">{SEASON_RECORD_LABEL} {seasonLabel(season)}:</span>{" "}
       {line.href ? <Link to={line.href} className="font-medium text-foreground underline underline-offset-2 hover:text-accent-text">{line.text}</Link> : line.text}
+      {unofficialMark(line) && <span className="text-warning"> ({unofficialMark(line)})</span>}
       <span className="block text-xs sm:ml-1.5 sm:inline">{SEASON_RECORD_RULE}</span>
     </p>
   );
