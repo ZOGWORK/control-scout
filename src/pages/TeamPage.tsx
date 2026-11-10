@@ -203,7 +203,7 @@ function Hero({ p, onSeason, fellBackFrom, asked = false }: { p: TeamProfile; on
           </div>
           {t.sponsors.length > 0 && (
             <Collapsible className="relative mt-3">
-              <CollapsibleTrigger className="group inline-flex min-h-8 max-w-full items-center gap-1.5 rounded text-left text-sm text-muted-foreground hover:text-foreground max-sm:min-h-10">
+              <CollapsibleTrigger className="group inline-flex min-h-8 max-w-full items-center gap-1.5 rounded text-left text-sm text-muted-foreground hover:text-foreground max-sm:min-h-10 pointer-coarse:min-h-[44px]">
                 <span className="shrink-0 whitespace-nowrap font-medium text-foreground">Sponsors ({t.sponsors.length})</span>
                 <span className="truncate group-data-[state=open]:hidden">{t.sponsors.slice(0, 2).join(" · ")}{t.sponsors.length > 2 ? " …" : ""}</span>
                 <ChevronDown className="size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
@@ -216,7 +216,7 @@ function Hero({ p, onSeason, fellBackFrom, asked = false }: { p: TeamProfile; on
             <p className="relative mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground" data-season-fallback>
               <Info className="size-3.5 shrink-0 text-accent-text" aria-hidden />
               <span>No {seasonLabel(fellBackFrom)} results yet, so this shows {seasonLabel(p.season)}.</span>
-              <button type="button" onClick={() => onSeason(fellBackFrom)} className="-my-1 py-1 font-medium text-accent-text underline-offset-2 hover:underline">See {seasonLabel(fellBackFrom)}</button>
+              <button type="button" onClick={() => onSeason(fellBackFrom)} className="tap-44 -my-1 py-1 font-medium text-accent-text underline-offset-2 hover:underline">See {seasonLabel(fellBackFrom)}</button>
             </p>
           )}
           <div className="relative mt-4 flex flex-wrap gap-2">

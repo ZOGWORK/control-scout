@@ -368,20 +368,20 @@ function StatsTable({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: num
             {t.map((x, i) => (
               <m.th key={x.team.number} scope="col" data-col={i} className={cn("border-l border-border p-3 text-left align-top font-normal", colClass(i))} style={{ boxShadow: `inset 0 3px 0 ${COLORS[i]}` }}
                 initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} transition={CELL}>
-                <div className="flex items-start justify-between gap-1">
+                <div className="flex items-start justify-between gap-1 pointer-coarse:flex-wrap pointer-coarse:gap-0">
                   {t.length > 1 && (
                     <button type="button" {...gripProps(x.team.number, i)}
                       aria-label={`Reorder ${x.team.number}, ${ORDINAL[i]} of ${t.length}: drag, or use the arrow keys`} title="Drag to reorder: the first team is the one the others are measured against"
-                      className="-ml-2 -mt-0.5 flex h-8 w-5 shrink-0 cursor-grab touch-none items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing max-sm:h-10">
+                      className="-ml-2 -mt-0.5 flex h-8 w-5 shrink-0 pointer-coarse:mt-0 pointer-coarse:-ml-3 pointer-coarse:h-[44px] pointer-coarse:w-[44px] cursor-grab touch-none items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing max-sm:h-10">
                       <GripVertical className="size-4" aria-hidden />
                     </button>
                   )}
-                  <Link to={`/teams/${x.team.number}?season=${d.season}`} className="min-w-0 hover:underline">
+                  <Link to={`/teams/${x.team.number}?season=${d.season}`} className="min-w-0 hover:underline pointer-coarse:order-first pointer-coarse:min-h-[44px] pointer-coarse:basis-full">
                     <span className="block font-display text-xl font-semibold tabular-nums">{x.team.number}</span>
                     <span className="block truncate text-xs text-muted-foreground">{x.team.name ?? "—"}</span>
                     {i === 0 && t.length > 1 && <span className="mt-1 inline-block rounded-full bg-yellow-300/25 px-1.5 text-[10px] font-semibold text-yellow-800 dark:bg-yellow-200/15 dark:text-yellow-200">Baseline</span>}
                   </Link>
-                  <Button variant="ghost" size="icon-sm" className="-mr-1.5 -mt-1 shrink-0 max-sm:size-10" aria-label={`Remove ${x.team.number}`} onClick={() => onRemove(x.team.number)}><X /></Button>
+                  <Button variant="ghost" size="icon-sm" className="-mr-1.5 -mt-1 shrink-0 max-sm:size-10 pointer-coarse:ml-auto pointer-coarse:mt-0 pointer-coarse:size-[44px]" aria-label={`Remove ${x.team.number}`} onClick={() => onRemove(x.team.number)}><X /></Button>
                 </div>
                 {!x.stats && <span className="mt-1 block text-xs text-muted-foreground">No results this season</span>}
               </m.th>
@@ -485,11 +485,11 @@ function Compare({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: number
           {t.map((x, i) => (
             <div key={x.team.number} className="min-w-0 rounded-xl border border-border bg-card p-3">
               <p className="flex items-center gap-2 text-sm font-semibold"><span className="size-2.5 shrink-0 rounded-full" style={{ background: COLORS[i] }} />
-                <Link to={`/teams/${x.team.number}?season=${d.season}`} className="truncate hover:text-accent-text">{x.team.number} {x.team.name}</Link></p>
+                <Link to={`/teams/${x.team.number}?season=${d.season}`} className="truncate hover:text-accent-text pointer-coarse:block pointer-coarse:leading-[44px]">{x.team.number} {x.team.name}</Link></p>
               <ul className="mt-2 space-y-1 text-xs">
                 {x.events.length ? x.events.map((e) => (
-                  <li key={e.code} className="flex items-baseline gap-2">
-                    <Link to={`/events/${d.season}/${e.code}?team=${x.team.number}`} className="min-w-0 flex-1 truncate text-foreground/90 hover:text-accent-text" title={e.name}>{e.name}</Link>
+                  <li key={e.code} className="flex items-baseline gap-2 pointer-coarse:min-h-[44px] pointer-coarse:items-center">
+                    <Link to={`/events/${d.season}/${e.code}?team=${x.team.number}`} className="min-w-0 flex-1 truncate text-foreground/90 hover:text-accent-text pointer-coarse:leading-[44px]" title={e.name}>{e.name}</Link>
                     <span className="shrink-0 tabular-nums text-muted-foreground">{e.rank ? `#${e.rank}` : "—"} · OPR {e.opr == null ? "—" : num(e.opr, 1)}</span>
                   </li>
                 )) : <li className="text-muted-foreground">No events this season.</li>}

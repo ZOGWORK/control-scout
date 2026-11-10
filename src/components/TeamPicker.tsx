@@ -72,7 +72,7 @@ export function TeamPicker({ onPick, exclude = [], disabled, busy, error, onEdit
 
   return (
     <div className={cn("relative min-w-0", className)}>
-      <div className={cn("flex h-12 items-center gap-2 rounded-xl border bg-card px-3 transition-colors focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/25",
+      <div className={cn("flex h-12 items-center gap-2 rounded-xl border bg-card px-3 pointer-coarse:min-h-[46px] transition-colors focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/25",
         error ? "border-destructive" : "border-border", disabled && "opacity-60")}>
         {busy ? <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" aria-hidden /> : <Search className="size-4 shrink-0 text-accent" aria-hidden />}
         <input ref={inputRef} value={text} disabled={disabled} autoFocus={autoFocus} placeholder={placeholder} aria-label={label}
