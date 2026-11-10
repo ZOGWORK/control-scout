@@ -37,6 +37,7 @@ import { SearchBox } from "../components/search/SearchBox";
 import { canonicalPredict, matchApiPath, matchupOf, parsePick, predictHref, predictParams, readPredict, switchMode, type PredictMode, type PredictPick } from "../shared/predictUrl";
 import { cn } from "../components/cn";
 import { PredictionBasis } from "../components/PredictionBasis";
+import { WhatIf } from "../components/predict/WhatIf";
 import { marginCalibration, marginText, matchBasis, overlapTotal, scoreSum, scoreTotal } from "../shared/predictionBasis";
 import { Reveal, m } from "../components/motion";
 import { dateRange, dayDate, num, oddsPct, place, seasonLabel } from "../lib/format";
@@ -402,9 +403,10 @@ function MatchLab() {
     const bad = errs.findIndex(Boolean);
     if (bad >= 0) { inputs.current[bad]?.focus(); return; }
     const m = parse(red.join(","), blue.join(","));
-    if (!m) { const first = [...red, ...blue].findIndex((v) => v.trim()); setErrors((e) => e.map((x, i) => (i === first ? "Pick different teams, one or two a side." : x))); inputs.current[first]?.focus(); return; }
+    if (!m) { const first = [...red, ...blue].findIndex((v) => v.trim()); setErrors((e) => e.map((x, i) => (i === first ? "Pick different teams, one a side or two a side." : x))); inputs.current[first]?.focus(); return; }
     setSubmittedTeams(m);
-    setSp((x) => { x.set("mode", "match"); x.set("season", String(season)); x.set("red", m.red.join(",")); x.set("blue", m.blue.join(",")); return x; }, { replace: true });
+    // A new matchup starts without the last one's what-if.
+    setSp((x) => { x.set("mode", "match"); x.set("season", String(season)); x.set("red", m.red.join(",")); x.set("blue", m.blue.join(",")); x.delete("whatif"); return x; }, { replace: true });
   };
   const swap = () => { edits.current++; setRed(blue); setBlue(red); setErrors((e) => [e[2], e[3], e[0], e[1]]); };
   // From the result: the same four teams with the alliances swapped, predicted straight away (they're already checked).
@@ -412,7 +414,9 @@ function MatchLab() {
     if (!submittedTeams) return;
     const m = { red: submittedTeams.blue, blue: submittedTeams.red };
     edits.current++;
-    setRed(m.red.map(String)); setBlue(m.blue.map(String)); setErrors([null, null, null, null]);
+    // Two boxes a side even for a one-team side, so the second box stays to type in.
+    const two = (x: number[]) => [String(x[0] ?? ""), String(x[1] ?? "")];
+    setRed(two(m.red)); setBlue(two(m.blue)); setErrors([null, null, null, null]);
     setSubmittedTeams(m);
     setSp((x) => { x.set("mode", "match"); x.set("season", String(season)); x.set("red", m.red.join(",")); x.set("blue", m.blue.join(",")); return x; }, { replace: true });
   };
@@ -438,7 +442,7 @@ function MatchLab() {
       </div>
       {submitted && (state.error
         ? (offline.data ? <MatchResult x={offline.data} offlineAsOf={offline.asOf} onSwap={swapResult} /> : offline.loading ? <div className="skeleton h-72 rounded-2xl" /> : <ErrorState error={state.error} onRetry={state.reload} />)
-        : !state.data ? <div className="skeleton h-72 rounded-2xl" /> : <MatchResult x={state.data} onSwap={swapResult} />)}
+        : !state.data ? <div className="skeleton h-72 rounded-2xl" /> : <><MatchResult x={state.data} onSwap={swapResult} /><WhatIf base={state.data} /></>)}
       {!submitted && <EmptyState icon={Swords} title="Pick the teams" description="One or two a side, any teams, any season. You'll get win odds, predicted scores with ranges, the three biggest reasons, and how confident the call is." />}
       <SavedPredictions />
     </div>

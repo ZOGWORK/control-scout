@@ -117,3 +117,10 @@ export const REGION_PHRASES: readonly string[] = REGION_NAMES.filter((n) => n.in
 
 /** A US or Canadian state code, as typed alone ("IN" Indiana, "ON" Ontario): the codes findRegions reads. */
 export const isRegionCode = (w: string): boolean => /^[A-Z]{2}$/.test(w) && (Object.hasOwn(US, w) || Object.hasOwn(CA, w));
+
+/** A place's own name from its state and country codes: ("NJ", "USA") → "New Jersey"; the country as FIRST names it
+ *  ("Mexico") when the state isn't known (COUNTRY holds search words, not a name to show), else the state's code. */
+export function placeName(state: string | null | undefined, country: string | null | undefined): string | null {
+  const st = state && country ? STATES[country]?.[state.toUpperCase()]?.split("|")[0] : undefined;
+  return st ?? country ?? state ?? null;
+}

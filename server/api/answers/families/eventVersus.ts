@@ -73,6 +73,77 @@ async function factsOf(e: EventRow): Promise<Facts> {
 
 const one = (x: number | null) => (x == null ? "—" : x.toFixed(1));
 
+type Field = { rated: number; field: number | null; top: number | null; topTeam: number | null };
+/** Each event's field from its teams' OPR rows alone (no match scan): a team counted once at its best OPR there, the
+ *  event's divisions' rows too. One query for every event asked. */
+async function fieldsOf(evs: EventRow[]): Promise<Field[]> {
+  if (!evs.length) return [];
+  const rows = await all<{ parent: string; team: number; opr: number }>(`SELECT x.parent, s.team, MAX(s.opr_np) opr FROM team_event_stats s
+    JOIN (${evs.map(() => "SELECT ? parent, ? season, code FROM events WHERE season = ? AND (code = ? OR division_code = ?)").join(" UNION ALL ")}) x ON x.season = s.season AND x.code = s.code
+    WHERE s.matches > 0 AND s.opr_np IS NOT NULL GROUP BY x.parent, s.team`, evs.flatMap((e) => [e.code, e.season, e.season, e.code, e.code]));
+  return evs.map((e) => {
+    const rated = rows.filter((r) => r.parent === e.code).sort((a, b) => Number(b.opr) - Number(a.opr) || a.team - b.team);
+    return { rated: rated.length, field: rated.length ? rated.reduce((n, r) => n + Number(r.opr), 0) / rated.length : null, top: rated.length ? Number(rated[0].opr) : null, topTeam: rated.length ? Number(rated[0].team) : null };
+  });
+}
+
+/** Whether `q` asks which division of a championship was hardest or easiest ("which championship division was hardest
+ *  this year, by average OPR"): "easiest" for the weakest first, else the strongest first; null when it isn't asked. */
+export function readDivisionField(q: string): { easiest: boolean } | null {
+  const t = q.toLowerCase();
+  if (!/\bdivisions?\b/.test(t) || /\b\d{2,6}\b/.test(t.replace(/\b20\d\d(?:\s*[-–/]\s*\d\d)?\b/g, ""))) return null;
+  if (/\b(?:easiest|weakest|softest|least competitive)\b/.test(t)) return { easiest: true };
+  return /\b(?:hardest|toughest|strongest|most competitive|most stacked|stacked|deepest)\b/.test(t) ? { easiest: false } : null;
+}
+
+/** A championship's divisions side by side by field strength (each its teams' average OPR there), the strongest first,
+ *  or the weakest when `easiest`. */
+export async function divisionFieldAnswer(parent: EventRow, divisions: EventRow[], easiest: boolean): Promise<StatAnswer> {
+  const facts = await fieldsOf(divisions);
+  const order = divisions.map((_, i) => i).filter((i) => facts[i].field != null).sort((a, b) => (easiest ? facts[a].field! - facts[b].field! : facts[b].field! - facts[a].field!));
+  const at = `${parent.name}, ${seasonLabel(parent.season)}`;
+  const title = `${easiest ? "Easiest" : "Hardest"} division at ${parent.name}, ${seasonLabel(parent.season)}`;
+  const base = {
+    family: "event" as const, intent: "division-field", title, scope: [at, "By average OPR"],
+    definition: "A division's field strength is the average OPR (penalties left out) of the teams that played in it: the higher, the harder. OPR is the points a team adds to its alliance per match.",
+    source: `From ${facts.reduce((n, f) => n + f.rated, 0).toLocaleString("en-US")} teams' OPR in ${divisions.length} divisions`,
+  };
+  if (order.length < 2) return { ...base, blocks: [], none: `${at} has ${order.length ? "only one division" : "no division"} with OPR on record.` };
+  const [first, second] = order;
+  // A division by its own name ("Jackson Division"), the championship's said once in the title.
+  const short = (d: EventRow) => d.name.startsWith(`${parent.name} - `) ? d.name.slice(parent.name.length + 3) : d.name;
+  return {
+    ...base,
+    headline: {
+      value: one(facts[first].field), label: `average OPR: ${short(divisions[first])} was the ${easiest ? "easiest" : "hardest"}`, href: eventHref(divisions[first].season, divisions[first].code), type: divisions[first].type,
+      sub: `${Math.abs(facts[first].field! - facts[second].field!).toFixed(1)} ${easiest ? "below" : "above"} ${short(divisions[second])} (${one(facts[second].field)})`,
+    },
+    blocks: [{ kind: "table", title: "Every division", columns: [{ key: "rank", label: "#", num: true }, { key: "event", label: "Division" }, { key: "teams", label: "Teams", num: true }, { key: "field", label: "Avg OPR", num: true }, { key: "top", label: "Top OPR", num: true }],
+      rows: order.map((i, k) => ({ cells: { rank: k + 1, event: short(divisions[i]), teams: facts[i].rated, field: one(facts[i].field), top: one(facts[i].top) }, href: eventHref(divisions[i].season, divisions[i].code), strong: k === 0, type: divisions[i].type })) }],
+  };
+}
+
+/** One event's field ("the average OPR of teams at <event>"): its teams' average OPR there, its divisions' too when the
+ *  event is the parent; a division named is that division alone. */
+export async function eventFieldAnswer(e: EventRow): Promise<StatAnswer> {
+  const [f] = await fieldsOf([e]);
+  const at = `${e.name}, ${seasonLabel(e.season)}`;
+  const base = {
+    family: "event" as const, intent: "event-field", title: `Average OPR at ${e.name}, ${seasonLabel(e.season)}`, scope: [at],
+    definition: "The field's average OPR: the mean of each team's OPR at the event (penalties left out), a team in a division and the finals counted once at its best. OPR is the points a team adds to its alliance per match.",
+    source: `From ${f.rated.toLocaleString("en-US")} teams' OPR at ${e.name}`,
+  };
+  if (f.field == null) return { ...base, blocks: [], none: `No team has an OPR at ${at} on record yet.` };
+  return {
+    ...base,
+    headline: {
+      value: one(f.field), label: `average OPR of the ${f.rated} teams at ${e.name}`, href: eventHref(e.season, e.code), type: e.type,
+      sub: f.top != null && f.topTeam != null ? `Top OPR ${one(f.top)} (team ${f.topTeam})` : undefined,
+    },
+    blocks: f.topTeam == null ? [] : [{ kind: "kpis", items: [{ label: `Top OPR at ${e.name}`, value: one(f.top), sub: `Team ${f.topTeam}`, href: teamHref(f.topTeam, e.season) }] }],
+  };
+}
+
 export async function eventVersusAnswer(evs: EventRow[]): Promise<StatAnswer> {
   const facts = await Promise.all(evs.map(factsOf));
   const seasons = new Set(evs.map((e) => e.season));
