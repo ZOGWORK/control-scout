@@ -125,10 +125,10 @@ const bonusFlags = (s: unknown): [boolean, boolean, boolean] | null => {
   try { const v = JSON.parse(s); return v && typeof v === "object" ? [!!v.movement, !!v.goal, !!v.pattern] : null; } catch { return null; }
 };
 
-/** Every scored bonus RP call, by kind and season (calls whose match has recorded bonus RPs only). */
 /** Let the event loop go: requests waiting behind a long build are answered in between. */
 const yieldLoop = () => new Promise<void>((r) => setImmediate(r));
 
+/** Every scored bonus RP call, by kind and season (calls whose match has recorded bonus RPs only). */
 async function bonusCalls(chunk = 4_000): Promise<Map<string, { calls: BonusCall[]; matches: number }>> {
   // In chunks (db.ts allInChunks): one read of every call held the server's one thread for a third of a second.
   const rows = await allInChunks<any>(
