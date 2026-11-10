@@ -109,13 +109,18 @@ describe("team page first paint (HTML)", () => {
     expect(html).toContain("<title>Compare 7149 Big Red vs 4215 Hypnotic Robotics");
     expect(html).toMatch(/<link rel="canonical" href="[^"]*\/compare" \/>/);
     expect(html).toContain('<style id="cs-critical">');
-    // Without a season the API picks one, and the key says none was asked for.
+    // Without a season the API picks one (the latest any of them has results in), and the key says none was asked for.
     drawnWith.length = 0;
-    expect(Object.keys(data(await renderIndex(file, "/compare", { teams: "4215" })))).toContain("/api/compare?teams=4215");
-    expect(drawnWith).toEqual(["/compare?teams=4215"]);
+    await run("INSERT INTO team_season_stats (season, team, matches) VALUES (2024, 4215, 12)");
+    const picked = data(await renderIndex(file, "/compare", { teams: "4215,7149" }));
+    expect(picked["/api/compare?teams=4215%2C7149"].season).toBe(2024);
+    expect(drawnWith).toEqual(["/compare?teams=4215%2C7149"]);
+    // Any spelling of the address, and only team numbers the API takes (a 7-digit one is left out, as the API refuses it).
+    drawnWith.length = 0;
+    expect(Object.keys(data(await renderIndex(file, "/Compare", { teams: "4215,1234567" })))).toContain("/api/compare?teams=4215");
     // No teams, none that can be one, or a season the API refuses: the plain Compare page.
     drawnWith.length = 0;
-    for (const query of [{}, { teams: "x,0" }, { teams: "4215", season: "1999" }]) {
+    for (const query of [{}, { teams: "x,0" }, { teams: "1234567" }, { teams: "4215", season: "1999" }]) {
       const plain = await renderIndex(file, "/compare", query);
       expect(plain, JSON.stringify(query)).toContain("<title>Compare FTC teams");
       expect(plain, JSON.stringify(query)).not.toContain(PAGE_DATA_ID);

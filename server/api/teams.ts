@@ -201,9 +201,9 @@ export function relationOf(numbers: number[], red: number[], blue: number[]): "o
 }
 
 /** The comparison /api/compare answers: `season` when asked for, else the latest season any of the teams has results
- *  in (like the team page), never an empty current season. `fallback`: the season when none of them has results. */
-export async function compareAnswer(numbers: number[], season: number | undefined, fallback: number): Promise<CompareView> {
-  let s = season ?? fallback;
+ *  in (like the team page), never an empty current season (the current one when none of them has results). */
+export async function compareAnswer(numbers: number[], season?: number): Promise<CompareView> {
+  let s = season ?? CURRENT_SEASON;
   if (season == null && numbers.length) {
     const ph = numbers.map(() => "?").join(",");
     const r = await get<{ season: number | null }>(`SELECT MAX(season) season FROM team_season_stats WHERE team IN (${ph}) AND matches > 0`, numbers);

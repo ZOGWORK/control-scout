@@ -22,6 +22,7 @@ Compare opens on its teams: a search answer's Compare link lands on both teams w
 ### Highlights
 - [fixes] Compare from a search answer opens with both teams already there
 - [speed] A shared Compare link shows the comparison at once, before the app loads
+- [share] A comparison's tab and link title name both teams
 
 ### Changed
 - `/compare?teams=…&season=…` is drawn on the server like team and event pages: the stats table, charts, events and awards are in the page itself, so a slow connection shows the teams straight away. Its title names the teams. (#1269)

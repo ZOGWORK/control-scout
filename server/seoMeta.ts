@@ -33,7 +33,8 @@ import { staticRankingsHtml } from "./powerRankings/static.js";
 import { isWeekId, weekLabel, type PowerRankingsResponse } from "../src/shared/powerRankings.js";
 import { trackRecordIfReady } from "./api/accuracy.js";
 import { isEnabled } from "./flags.js";
-import type { CompareView, SearchCardLine, TrackRecord } from "../src/shared/api.js";
+import type { SearchCardLine, TrackRecord } from "../src/shared/api.js";
+import { compareTitle } from "../src/shared/compareUrl.js";
 import { ensureSearchIndex } from "./api/search.js";
 import { MAX_QUERY, searchAnswer } from "./api/searchAnswer.js";
 import { relatedPage } from "./api/answers/relatedPage.js";
@@ -683,15 +684,13 @@ async function relatedMeta(raw: string): Promise<PageMeta> {
  * Compare page's values when there's nothing to draw. Every comparison is the one page (its canonical is /compare).
  */
 async function compareMeta(sp: URLSearchParams): Promise<PageMeta | null> {
-  const firstPaint = await compareFirstPaint(sp).catch(() => null);
-  if (!firstPaint) return null;
-  const view = Object.entries(firstPaint.data).find(([k]) => k.startsWith("/api/compare"))?.[1] as CompareView | undefined;
-  if (!view?.teams.length) return null;
-  const who = view.teams.map((t) => (t.team.name ? `${t.team.number} ${t.team.name}` : `Team ${t.team.number}`)).join(" vs ");
-  const label = seasonInfo(view.season).label;
+  const drawn = await compareFirstPaint(sp).catch(() => null);
+  if (!drawn?.view.teams.length) return null;
+  const { view, ...firstPaint } = drawn;
+  const title = compareTitle(view.teams), who = title.replace(/^Compare /, "");
   return {
-    title: `Compare ${who}`, heading: `Compare ${who}`, type: "website", path: "/compare", firstPaint,
-    description: fitDescription(`${who} side by side in ${label}: OPR by game phase, prediction ratings, records, event-by-event form and every match they met in.`),
+    title, heading: title, type: "website", path: "/compare", firstPaint,
+    description: fitDescription(`${who} side by side in ${seasonInfo(view.season).label}: OPR by game phase, prediction ratings, records, event-by-event form and every match they met in.`),
   };
 }
 
@@ -751,7 +750,7 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
   // A team or event address that can't be one (/teams/abc, /teams/1234567, /events/2025/a%20b): the app says not found too.
   if (/^\/teams\/[^/]+$/i.test(p) || /^\/events\/[^/]+\/[^/]+$/i.test(p) || /^\/events\/[^/]+\/[^/]+\/match\/[^/]+$/i.test(p) || /^\/events\/[^/]+\/[^/]+\/display$/i.test(p)) return NOT_FOUND;
   // A comparison with teams in its address: drawn whole, as team and event pages are.
-  if (p === "/compare" && sp.has("teams")) {
+  if (/^\/compare$/i.test(p) && sp.has("teams")) {
     const cm = await compareMeta(sp);
     if (cm) return cm;
   }

@@ -34,7 +34,7 @@ import { SWING_LINE, swingText, swingTitle } from "../shared/reliability";
 import { useTeamColors } from "../components/TeamColorPicker";
 import { Reveal, Stagger, StaggerItem, m } from "../components/motion";
 import { predictHref } from "../shared/predictUrl";
-import { COMPARE_MAX as MAX, compareApiPath, compareSeasonOf, compareTeamsOf } from "../shared/compareUrl";
+import { COMPARE_MAX as MAX, compareApiPath, compareSeasonOf, compareTeamsOf, compareTitle } from "../shared/compareUrl";
 
 const COLORS = ["var(--color-chart-1)", "var(--color-chart-2)", "var(--color-chart-3)", "var(--color-chart-4)"];
 
@@ -60,7 +60,6 @@ export function baselineMeetings(meetings: CompareView["meetings"], order: numbe
 }
 
 export default function ComparePage() {
-  useTitle("Compare");
   const [sp, setSp] = useSearchParams();
   const current = useCurrentSeason();
   const asked = compareSeasonOf(sp.get("season"));
@@ -118,6 +117,8 @@ export default function ComparePage() {
     return rest;
   });
   const season = asked ?? state.data?.season ?? current;
+  // Titled by its teams once they're here, as the server titles a drawn comparison (src/shared/compareUrl.ts).
+  useTitle(teams.length && view?.teams.length ? compareTitle(view.teams) : "Compare");
   const full = teams.length >= MAX;
   const suggestions = useSuggestions(teams.map(Number));
   return (

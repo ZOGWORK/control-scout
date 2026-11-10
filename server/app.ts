@@ -665,7 +665,7 @@ export function createApp(opts: { dist?: string } = {}) {
 
   // No season asked for: the latest season where any of them has results (like the team page), not an empty
   // current season (compareAnswer; the first paint of /compare asks the same way, server/firstPaint.ts).
-  api.get("/compare", h(async (req) => compareAnswer(teamList(req.query.teams, "teams", 4), req.query.season ? season(req.query.season) : undefined, season(undefined))));
+  api.get("/compare", h(async (req) => compareAnswer(teamList(req.query.teams, "teams", 4), req.query.season ? season(req.query.season) : undefined)));
 
   /** Many teams at once (shortlist, tracked teams): name, place, season stats, latest event. */
   api.get("/teams-summary", h(async (req) => ({ season: season(req.query.season), teams: await teamSummaries(teamList(req.query.teams, "teams", 100), season(req.query.season)) })));

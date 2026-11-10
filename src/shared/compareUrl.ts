@@ -4,10 +4,19 @@
 /** The most teams a comparison holds. */
 export const COMPARE_MAX = 4;
 
-/** The teams in ?teams=, as plain numbers ("04215" is 4215), each once, at most COMPARE_MAX. */
+/** The highest FTC team number the API takes (server/app.ts teamList). */
+const MAX_TEAM = 999_999;
+
+/** The teams in ?teams=, as plain numbers ("04215" is 4215), each once, at most COMPARE_MAX; a number no team can have
+ *  (0, over 999999) is left out, as the API would refuse it. */
 export function compareTeamsOf(v: string | null): string[] {
-  return [...new Set((v ?? "").split(",").filter((x) => /^\d+$/.test(x) && Number(x) > 0).map((x) => String(Number(x))))].slice(0, COMPARE_MAX);
+  return [...new Set((v ?? "").split(",").filter((x) => /^\d+$/.test(x) && Number(x) > 0 && Number(x) <= MAX_TEAM).map((x) => String(Number(x))))].slice(0, COMPARE_MAX);
 }
+
+/** The page's title for a comparison: its teams by number and name ("Compare 4215 Hypnotic Robotics vs 7149 ENFORCERS"),
+ *  the server's <title> and the app's alike. */
+export const compareTitle = (teams: { team: { number: number; name: string | null } }[]) =>
+  `Compare ${teams.map((t) => (t.team.name ? `${t.team.number} ${t.team.name}` : `Team ${t.team.number}`)).join(" vs ")}`;
 
 /** The season asked for in ?season= (null: none, the API picks the latest the teams have results in). */
 export const compareSeasonOf = (v: string | null): number | null => Number(v) || null;

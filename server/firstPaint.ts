@@ -12,10 +12,11 @@ import { matchViews } from "./api/matches.js";
 import { eventView } from "./api/eventView.js";
 import { resultChanges } from "./api/resultChanges.js";
 import { siteMeta } from "./api/meta.js";
-import { CURRENT_SEASON, SEASON_NUMBERS } from "./data/seasons.js";
+import { SEASON_NUMBERS } from "./data/seasons.js";
 import { storedEventCode } from "./eventCodes.js";
 import { isEventCodeParam } from "../src/shared/eventCode.js";
 import { compareApiPath, compareSeasonOf, compareTeamsOf } from "../src/shared/compareUrl.js";
+import type { CompareView } from "../src/shared/api.js";
 
 export interface FirstPaint {
   /** The page's markup, as the app draws it. */
@@ -108,15 +109,18 @@ export async function eventFirstPaint(seasonRaw: string, codeRaw: string, search
  * A pre-filled Compare page as its first paint, for `/compare?teams=…&season=…` (`sp`: the address's query). Null when there
  * are no teams to compare, the season isn't one the API covers (the app shows its error), or it can't be drawn here.
  */
-export async function compareFirstPaint(sp: URLSearchParams): Promise<FirstPaint | null> {
+export async function compareFirstPaint(sp: URLSearchParams): Promise<(FirstPaint & { view: CompareView }) | null> {
   // Read as the page reads it (src/shared/compareUrl.ts), so the answer's key is the one its useApi asks for.
   const teams = compareTeamsOf(sp.get("teams"));
   if (!teams.length) return null;
   const asked = compareSeasonOf(sp.get("season"));
   if (asked != null && !SEASON_NUMBERS.includes(asked)) return null;
   const key = compareApiPath(teams, asked);
-  return draw(`/compare?${sp.toString()}`, `compare ${teams.join(",")}`, async () => {
-    const [d, meta] = await Promise.all([compareAnswer(teams.map(Number), asked ?? undefined, CURRENT_SEASON), siteMeta()]);
+  let view: CompareView | null = null;
+  const fp = await draw(`/compare?${sp.toString()}`, `compare ${teams.join(",")}`, async () => {
+    const [d, meta] = await Promise.all([compareAnswer(teams.map(Number), asked ?? undefined), siteMeta()]);
+    view = d;
     return { "/api/meta": meta, [key]: d };
   });
+  return fp && view ? { ...fp, view } : null;
 }
