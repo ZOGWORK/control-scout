@@ -4,6 +4,8 @@
 // Every answer says what it counted (`definition`) and from which records (`source`), and nothing found is said
 // plainly (`none`), never filled in with another team's or another season's numbers.
 
+import type { LeagueStandingRow } from "./leagues";
+
 /** The implementation family an intent belongs to (the brief's eight; server/api/answers/families). */
 export type StatFamily = "stat" | "trend" | "superlative" | "aggregate" | "event" | "two-team" | "leaderboard" | "awards";
 
@@ -123,6 +125,9 @@ export type StatBlock =
   /** Two or more teams compared (server/api/answers/compareBlock.ts): a row per metric, Total first and then by the
    *  gap, each on its own scale from zero. `scale`: what each row's max is, for the footnote ("100", "the 2025–26 high, rounded up"). */
   | { kind: "compare"; title: string; teams: StatLink[]; rows: CompareRow[]; scale?: string }
+  /** A league's standings (FIRST's league rankings, src/shared/leagues.ts), `team`'s row marked and in view; `more`: the
+   *  league's page. */
+  | { kind: "league"; title: string; season: number; rows: LeagueStandingRow[]; team?: number; note?: string; more: StatLink }
   /** Buttons to pages (a championship's divisions). */
   | { kind: "links"; title: string; items: (StatLink & { sub?: string })[]; none?: string }
   /** Related questions, each run as a search. */

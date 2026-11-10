@@ -36,7 +36,7 @@ import { intentAnswer, parseIntent } from "./searchIntents.js";
 import { inRegion, namedTeamHit, teamsByName } from "./teamsByName.js";
 import { parseQuestion, questionAnswer } from "./searchQuestions.js";
 import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
-import { eventVersusSearch, statAnswer } from "./answers/index.js";
+import { eventVersusSearch, leagueSearch, statAnswer } from "./answers/index.js";
 import { divisionFieldAnswer, readDivisionField, type EventRow } from "./answers/families/eventVersus.js";
 import { seasonOfDate } from "./query/time.js";
 import { searchToday } from "./searchEvents.js";
@@ -639,6 +639,9 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   // 0. The search pipeline (./query/, docs/search-pipeline.md): the query parsed into slots in any word order and run
   // as one structured question over the stored data. A query it can't read completely goes on to the readers below.
   // It reads the words as typed: plurals are its lexicon's to read, and a team's name keeps its own ("Robotics").
+  // A league's standings with no team: before the pipeline reads "league leaderboard" as its own board.
+  const league = opts.intents === false ? null : await leagueSearch(opts.typed ?? q, { full: !!opts.full, pages: pagesFor(q) });
+  if (league) return league;
   const piped = opts.intents === false ? null : await pipelineAnswer(opts.typed ?? q, { full: !!opts.full, pages: pagesFor(q), now: opts.now, prefer, resolve: (core) => resolveCore(core, opts) });
   if (piped) return piped;
 

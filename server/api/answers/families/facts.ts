@@ -17,6 +17,8 @@ import { readScope } from "../read.js";
 import { searchSeason, searchSeasonWhy } from "../season.js";
 import { ratingKpis } from "./oprRating.js";
 import { eventHref, matchHref, shortEvent, teamHref } from "../matchSet.js";
+import { leagueStandings, teamLeagueStanding } from "../../leagues.js";
+import { leagueHref, leagueTitle } from "../../../../src/shared/leagues.js";
 
 export type FactId = "opr" | "auto-opr" | "teleop-opr" | "endgame-opr" | "rating" | "report-card" | "next-match" | "events-season" | "events-place"
   | "opr-vs-average" | "reliability" | "schedule" | "league-rank";
@@ -330,6 +332,20 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
   const r = await get<any>(`SELECT e.code, e.name, e.type, e.league, e.start, et.rank, (SELECT COUNT(DISTINCT o.team) FROM event_teams o JOIN events oe ON oe.season = o.season AND oe.code = o.code WHERE o.season = et.season AND o.rank IS NOT NULL AND (oe.code = e.code OR (e.league IS NOT NULL AND oe.league = e.league AND oe.region IS e.region AND oe.type = 'LeagueMeet' AND oe.start <= e.start))) n
     FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code WHERE et.team = ? AND et.season = ? AND e.type = 'LeagueMeet' AND et.rank IS NOT NULL AND ${ATTENDED} ORDER BY e.start DESC LIMIT 1`, [team.number, season]);
   const b = base("league-rank", `League standing in ${S}`, [S], `A league's standing is FIRST's ranking at the team's latest league meet, which counts every meet so far that season.${why}`, `From the ${S} league meets`);
+  // FIRST's whole league table, when the sync has read it (server/data/leagues.ts): the standing is its row, out of the
+  // teams that have played, and the table follows with the team's row marked.
+  const own = await teamLeagueStanding(season, team.number);
+  const table = own ? await leagueStandings(season, own.region, own.code) : null;
+  if (own && table?.rows.length) {
+    const name = `${leagueTitle(table.name, table.code)}${table.place ? ` (${table.place})` : ""}`;
+    const more = { label: "Full league standings", href: `${leagueHref(season, table.region, table.code)}?team=${team.number}` };
+    // The table is the whole league's, so its time is the league's latest meet played, not the team's own last meet.
+    const latest = table.meets.filter((m) => m.played).sort((x, y) => (y.start ?? "").localeCompare(x.start ?? ""))[0];
+    return { ...b, definition: `A league's standing is FIRST's official league ranking, which counts every meet so far that season, ranked by ranking score (RS, average ranking points per match).${why}`, source: `FIRST's ${S} league rankings`,
+      // A member with no match yet sits below everyone in FIRST's list: not a place out of the teams that have played.
+      headline: { value: table.rows.find((x) => x.team === team.number)?.played ? `#${own.rank} of ${own.of}` : "Not ranked yet", label: latest ? `${name} after ${shortEvent(latest.name, latest.type)}` : name, sub: (latest && dateRange(latest.start)) || undefined, href: more.href },
+      blocks: [{ kind: "league", title: `${name} standings`, season, rows: table.rows, team: team.number, more }] };
+  }
   if (!r) return { ...b, none: `${who(team)} played no league meets in ${S}.` };
   return { ...b, headline: { value: `#${r.rank}${r.n && r.n >= r.rank ? ` of ${r.n}` : ""}`, label: `${r.league ? `${r.league} league` : "League"} after ${shortEvent(r.name, r.type)}`, sub: dateRange(r.start) ?? undefined, href: eventHref(season, r.code, team.number) } };
 }
