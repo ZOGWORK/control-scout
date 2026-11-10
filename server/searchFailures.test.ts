@@ -15,6 +15,7 @@ import {
   counters, failureBody, onRows, failureOf, readTrace, failureTitle, flushSearchFailures, githubPausedUntil, keyFor, keyHash, noteSearch, outcomeTrace, recheck, redact, reportKey,
   NEW_PER_DAY, resetSearchFailures, settle, SETTLE_MS, syncOne, syncSearchFailures, type SearchTrace, MISSED_KEEP, mergeMissed, patternFor } from "./searchFailures";
 import type { SearchAnswer } from "../src/shared/api";
+import { FALLBACK_NOTE } from "./api/searchLayers";
 
 let server: Server;
 let base = "";
@@ -102,7 +103,8 @@ beforeEach(async () => {
 const base0: SearchAnswer = { q: "", hits: [], pages: [], step: "deterministic", weak: false };
 const team = { kind: "team", ref: "4215", title: "Hypnotic Robotics", subtitle: "", href: "/teams/4215" } as unknown as SearchAnswer["hits"][number];
 const noMatch = (q: string): SearchAnswer => ({ ...base0, q, step: "recovery", weak: true, understood: { kind: "names", label: `No team, event or match matched "${q}"` } });
-const fallback = (q: string, left: string): SearchAnswer => ({ ...base0, q, hits: [team], understood: { kind: "team", label: `Hypnotic Robotics (4215) · "${left}" isn't answered directly yet: the rest is on their page` } });
+// `_left`: the words not read (the reading never quotes them).
+const fallback = (q: string, _left: string): SearchAnswer => ({ ...base0, q, hits: [team], understood: { kind: "team", label: `Hypnotic Robotics (4215) · ${FALLBACK_NOTE}` } });
 const answered = (q: string): SearchAnswer => ({ ...base0, q, hits: [team], card: { kind: "info", title: "Location", team: { number: 4215, name: "Hypnotic Robotics" }, lines: [{ text: "Oradell, NJ, USA" }] }, understood: { kind: "question", label: "Hypnotic Robotics (4215) · Location" } });
 
 let clock = Date.parse("2026-11-03T12:00:00Z");

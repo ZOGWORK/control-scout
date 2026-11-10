@@ -39,7 +39,7 @@ import { eventSections, eventStatuses, localDay } from "../components/search/pag
 import { SEARCH_PALETTE } from "../lib/textTones";
 import { EventTree } from "../components/search/page/EventTree";
 import { answerTeams, anyFilter, askedWhen, filteredTitle, filterAlternatives, whenCounts, compareSeason, compareSides, compareTeams, filterChoices, cardTeamName, isCompare, isFuzzy, keeps, pageTitle, contextBadge, badgeUnder, readingOf, fuzzyWords, readFilters, teamParts, withFilters, type AnswerExtra, type PageFilters, type Statuses } from "../components/search/page/results";
-import { SEARCH_PAGE_LIMIT } from "../shared/search";
+import { SEARCH_PAGE_LIMIT, SORRY_SENTENCE } from "../shared/search";
 import type { AnswerRow, AnswerSection } from "../shared/searchSections";
 import type { SearchHit, TeamSummary } from "../shared/api";
 import { BOOT_HITS } from "../lib/searchBoot";
@@ -160,7 +160,8 @@ export default function SearchPage() {
     : title;
   // A comparison says what it compares in its own card: no reading badge repeating the teams.
   // Nor does a heading the filters rewrote: the server's reading is of the whole set, which the page no longer shows.
-  const badge = !found || !ax || narrowed || (answer?.stat && comparisonOf(answer.stat)) ? null : badgeUnder(title!, contextBadge({ ...ax, hits }, notes.understood));
+  // A sorry note says what was read on its own line: no badge beside it (it would say the team and sorry again).
+  const badge = !found || !ax || ax.sorry || narrowed || (answer?.stat && comparisonOf(answer.stat)) ? null : badgeUnder(title!, contextBadge({ ...ax, hits }, notes.understood));
   const open = (h: SearchHit) => logPick(h);
   // Phase 2 summary: a championship question's records as a timeline and stats; "how good is X" as X's standing.
   const apps = useMemo(() => appearances(answer?.card), [answer?.card]);
@@ -206,7 +207,8 @@ export default function SearchPage() {
       {/* The accent is the selected control's alone on this page (the active time tab): the eyebrow is plain. */}
       <p className="text-xs font-semibold text-muted-foreground max-md:hidden" data-eyebrow>FTC One Search</p>
       <h1 className="mt-1 font-display text-xl font-semibold tracking-tight text-foreground max-md:mt-0 md:text-2xl lg:text-3xl">
-        {!query ? "Search" : ax?.sorry && !busy && !error ? "Sorry — I can't answer that yet" : found ? <>{phone && "Results: "}{shownTitle}</> : busy || error ? "Search results" : "No matches found"}
+        {/* Nothing answered (a question search can't answer yet, or nothing found): the page says sorry, once, here. */}
+        {!query ? "Search" : ax?.sorry && !busy && !error ? SORRY_SENTENCE : found ? <>{phone && "Results: "}{shownTitle}</> : busy || error ? "Search results" : SORRY_SENTENCE}
       </h1>
       {badge && (
         <p className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-muted/50 px-2.5 py-1 text-xs font-medium text-foreground" data-context-badge>

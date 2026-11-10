@@ -542,7 +542,7 @@ function ScoutNotes({ team, season }: { team: number; season: number }) {
   );
 }
 
-const ROW = "lift flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-sm max-sm:min-h-11";
+const ROW = "lift flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-sm pointer-coarse:min-h-[44px]";
 
 /** The team's last event, one tap to its page: where it ranked and what it won. */
 function LastEvent({ last, team, className }: { last: TeamEventRow; team: number; className?: string }) {
@@ -607,7 +607,7 @@ function Upcoming({ p, next, last }: { p: TeamProfile; next: TeamEventRow | null
       <h2 id={`upcoming-${n}`} className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Upcoming</h2>
       {m && mEvent && (
         <div className="rounded-xl border border-accent/30 bg-accent/[0.05] p-3">
-          <Link to={`/events/${m.season}/${m.code}?team=${n}&match=${m.key}`} className="flex items-baseline justify-between gap-3 hover:underline max-sm:min-h-11 max-sm:items-center">
+          <Link to={`/events/${m.season}/${m.code}?team=${n}&match=${m.key}`} className="flex items-baseline justify-between gap-3 hover:underline pointer-coarse:min-h-[44px] pointer-coarse:items-center">
             <span className="min-w-0"><span className="font-semibold">Next match · {m.label}</span> <span className="text-muted-foreground">{m.time ? matchTime(m.time) : "time not posted yet"}</span></span>
             {chance != null && <span className="shrink-0 tabular-nums font-medium text-accent-text">{oddsPct(chance)} to win</span>}
           </Link>

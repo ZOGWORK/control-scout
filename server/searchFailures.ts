@@ -24,7 +24,7 @@ import { env } from "./env.js";
 import { isEnabled } from "./flags.js";
 import { ownerOf } from "./owner.js";
 import { GITHUB_REPO, GithubError, fenced, gh, refused, takeReportSlot } from "./errorReports.js";
-import { searchKey, searchOutcome, traceOf, type OutcomeResult } from "./api/searchLayers.js";
+import { FALLBACK_NOTE, searchKey, searchOutcome, traceOf, type OutcomeResult } from "./api/searchLayers.js";
 import { failurePattern } from "./api/query/pattern.js";
 import type { SearchAnswer } from "../src/shared/api.js";
 
@@ -129,7 +129,7 @@ export function failureOf(q: string, a: SearchAnswer, given?: SearchTrace | null
     trace.ambiguous && trace.ambiguous.length > 1 ? "ambiguous"
     : a.hits.length === 0 && !answered && (a.step === "recovery" || a.understood?.kind === "names") ? "no-match"
     : a.hits.length === 0 && !answered ? "empty"
-    : !answered && /isn't answered directly yet/.test(label) && teamAndIntent ? "team-fallback"
+    : !answered && label.includes(FALLBACK_NOTE) && teamAndIntent ? "team-fallback"
     : !answered && a.understood?.kind === "names" && /(?:^| )\d{1,5}(?: |$)/.test(n) && trace.intents.length > 0 ? "name-only"
     : a.weak && !answered && teamAndIntent ? "weak"
     : null;

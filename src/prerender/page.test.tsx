@@ -9,11 +9,14 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import teamFixture from "./team.fixture.json";
 import eventFixture from "./event.fixture.json";
+import compareFixture from "./compare.fixture.json";
 import { renderAppPage } from "./page";
 import { PAGE_DATA_ID } from "../shared/boot";
 
 const TEAM = teamFixture as Record<string, unknown>;
 const EVENT = eventFixture as Record<string, unknown>;
+const COMPARE = compareFixture as Record<string, unknown>;
+const COMPARE_URL = "/compare?teams=4215,7149&season=2025";
 const words = (el: Element) => (el.textContent ?? "").replace(/\s+/g, " ").trim();
 const asDom = (html: string) => { const d = document.createElement("div"); d.innerHTML = html; return d; };
 
@@ -37,6 +40,7 @@ async function appFirstRender(url: string, data: Record<string, unknown>) {
   expect(readPageData(document).sort()).toEqual(Object.keys(data).sort());
   const { default: TeamPage } = await import("../pages/TeamPage");
   const { default: EventPage } = await import("../pages/EventPage");
+  const { default: ComparePage } = await import("../pages/ComparePage");
   const { StaticPersonalProvider } = await import("../lib/personal");
   const { MetaProvider } = await import("../lib/meta");
   const { TooltipProvider } = await import("../components/ui/overlay");
@@ -53,6 +57,7 @@ async function appFirstRender(url: string, data: Record<string, unknown>) {
         <MemoryRouter initialEntries={[url]}><Routes>
           <Route path="/teams/:number" element={<><TeamPage /><Snapshot /></>} />
           <Route path="/events/:season/:code" element={<><EventPage /><Snapshot /></>} />
+          <Route path="/compare" element={<><ComparePage /><Snapshot /></>} />
         </Routes></MemoryRouter>
       </TooltipProvider></MetaProvider></StaticPersonalProvider></MotionReady.Provider>,
       { container: host },
@@ -112,6 +117,23 @@ describe("event page first paint (server)", () => {
   });
 });
 
+describe("compare page first paint (server)", () => {
+  const html = renderAppPage(COMPARE_URL, COMPARE);
+  const page = asDom(html);
+
+  it("is the comparison itself: both teams by number and name, their numbers, with no picker-only state or placeholder", () => {
+    const text = words(page);
+    for (const t of ["4215", "Hypnotic Robotics", "7149", "ENFORCERS", "101.6", "115.3", "OPR by phase", "Events and awards", "Head to head"]) expect(text, t).toContain(t);
+    expect(text).toContain("2 of 4 teams");
+    expect(page.querySelector(".skeleton")).toBeNull();
+    expect(page.querySelector('[role="status"][aria-label="Loading"]')).toBeNull();
+    // The address's order is the table's (7149 was asked for second), each team a link to its page.
+    const heads = [...page.querySelectorAll("thead th a")].map((a) => a.getAttribute("href"));
+    expect(heads).toEqual(["/teams/4215?season=2025", "/teams/7149?season=2025"]);
+    expect(html).not.toMatch(/opacity:\s*0[;"]/);
+  });
+});
+
 describe("first render (app), from the page's data", () => {
   it("team: draws the same page as the server's first paint at once: same words, no loading state, no request", async () => {
     const server = words(asDom(renderAppPage("/teams/4215", TEAM)));
@@ -120,6 +142,14 @@ describe("first render (app), from the page's data", () => {
     expect(fromFirstPaint("/api/teams/4215")).toBe(true);
     expect(first).toBe(server);
     expect(host.querySelector('[role="status"][aria-label="Loading"]')).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("compare: draws the same page as the server's first paint at once: same words, no loading state, no request", async () => {
+    const server = words(asDom(renderAppPage(COMPARE_URL, COMPARE)));
+    const { first, host } = await appFirstRender(COMPARE_URL, COMPARE);
+    expect(first).toBe(server);
+    expect(host.querySelector(".skeleton")).toBeNull();
     expect(fetch).not.toHaveBeenCalled();
   });
 

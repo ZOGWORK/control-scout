@@ -84,7 +84,9 @@ describe("OpenSearch", () => {
     expect(none).toContain("No team, event or match matched &quot;zzqx&quot;");
     expect(none).toContain('<a href="/teams">Browse all teams</a>');
     // The heading never repeats the query (it's in the top bar).
-    expect(none).toMatch(/<h1[^>]*>No matches found<\/h1>/);
+    // Nothing answered: the page says sorry, once, as its heading.
+    expect(none).toMatch(/<h1[^>]*>Sorry — I can&#39;t answer that yet<\/h1>|<h1[^>]*>Sorry — I can't answer that yet<\/h1>/);
+    expect(none.match(/Sorry — I can(?:&#39;|')t answer that yet/g)).toHaveLength(1);
     expect(none).not.toContain("<zzqx>");
     expect(none).toContain('"q":"\\u003czzqx>"');
   });
