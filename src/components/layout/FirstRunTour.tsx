@@ -25,7 +25,7 @@ import { cn } from "../cn";
 import { useConsent } from "../../lib/consent";
 import { usePersonal } from "../../lib/personal";
 import { claimFirstRun, releaseFirstRun, useFirstRunHolder } from "../../lib/firstRun";
-import { coversTour, endTour, findTarget, isAutomated, isShown, isTourPage, knowsTheApp, readTour, rereadTour, resolveSteps, samePage, saveTour, tourDemo, tourOver, TOUR_CHANGE, TOUR_KEY, TOUR_STEPS, type TourRecord, type TourStep } from "../../lib/tour";
+import { coversTour, endTour, findTarget, isAutomated, isShown, isTourPage, knowsTheApp, readTour, rereadTour, resolveSteps, samePage, saveTour, tourDemo, tourKind, tourOver, TOUR_CHANGE, TOUR_KEY, TOUR_STEPS, type TourRecord, type TourStep } from "../../lib/tour";
 
 /** After the page is idle, wait this long before opening (the page settles; no flash on a bounce). */
 export const TOUR_DELAY_MS = 900;
@@ -121,12 +121,18 @@ export function FirstRunTour() {
   // Ended (here or in another tab): close and give the slot back.
   useEffect(() => { if (!running && view) { setView(null); releaseFirstRun(SLOT); } }, [running, view]);
 
-  // Start: once the page has loaded and settled, pick its steps.
+  // Start: once the page has loaded and settled, pick its steps. Its parts may render late (slow data): look
+  // again a few times before waiting for the next page.
+  const [retry, setRetry] = useState(0);
+  useEffect(() => setRetry(0), [path]);
   useEffect(() => {
     if (!startable || !free) return;
-    return lookWhenSettled(seen.current ? FOLLOW_DELAY_MS : TOUR_DELAY_MS, true, () => {
+    let again = 0;
+    const stop = lookWhenSettled(retry ? START_RETRY_MS : seen.current ? FOLLOW_DELAY_MS : TOUR_DELAY_MS, true, () => {
       const ids = resolveSteps(path);
-      // Nothing to point at here (no search box, too few steps): wait for the next page.
+      // Nothing to point at yet (no search box), or the team page's own parts still coming: look again.
+      const partial = tourKind(path) === "team" && ids.length < 4;
+      if ((!ids.length || partial) && retry < START_RETRIES) { again = window.setTimeout(() => setRetry((n) => n + 1), 0); return; }
       if (!ids.length) return;
       if (!claimFirstRun(SLOT)) return; // another first-run surface got there first: try again when it's gone
       // The page as it is now (its query may have changed while it waited), kept with its query (a season, a
@@ -136,7 +142,8 @@ export function FirstRunTour() {
       setRec(saveTour({ status: "paused", step: 0, origin: pageRef.current, steps: ids }));
       setView("card");
     });
-  }, [startable, free, path]); // the query is read when it starts (pageRef), not watched
+    return () => { stop(); window.clearTimeout(again); };
+  }, [startable, free, path, retry]); // the query is read when it starts (pageRef), not watched
 
   // Running: show the step on this page, or wait visibly ("Tour paused") until a page that has it.
   useEffect(() => {
@@ -192,6 +199,10 @@ export function FirstRunTour() {
     />
   );
 }
+
+/** Looking again for a page's parts that weren't there yet: this often, this many times (about 10 s). */
+const START_RETRY_MS = 1000;
+const START_RETRIES = 8;
 
 /** A later page in a running tour: a short settle, then look (its data has to load first). */
 const FOLLOW_DELAY_MS = 300;

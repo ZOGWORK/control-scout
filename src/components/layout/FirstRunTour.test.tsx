@@ -255,10 +255,29 @@ describe("steps adapt to the page", () => {
     expect(stepId()).toBe("watch");
   });
 
-  it("a team page missing a part leaves its step out", async () => {
+  it("a team page missing a part leaves its step out (after looking again for a while, in case it loads late)", async () => {
     mount({ team: false });
+    await waitFor(() => expect(card()).not.toBeNull(), { timeout: 15000 });
+    expect(screen.getByRole("dialog", { name: /Step 1 of 2/ })).toBeTruthy();
+  }, 20000);
+
+  it("a team page's parts that render late are still in its tour", async () => {
+    const view = render(
+      <MemoryRouter initialEntries={["/teams/18360"]}><Nav /><TeamPage team={false} /><FirstRunTour /></MemoryRouter>,
+    );
+    await settle();
+    expect(card()).toBeNull();
+    view.rerender(<MemoryRouter initialEntries={["/teams/18360"]}><Nav /><TeamPage /><FirstRunTour /></MemoryRouter>);
+    await opened();
+    expect(screen.getByRole("dialog", { name: /Step 1 of 4/ })).toBeTruthy();
+  });
+
+  it("an event page with nothing of its own yet (no schedule, no recording): search then highlights", async () => {
+    mount({ path: "/events/2026/USNJNEM9", team: false });
     await opened();
     expect(screen.getByRole("dialog", { name: /Step 1 of 2/ })).toBeTruthy();
+    key("ArrowRight");
+    expect(stepId()).toBe("highlights");
   });
 
   it("doesn't start without a search box to point at, and starts on the next page that has one", async () => {

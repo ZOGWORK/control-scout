@@ -218,10 +218,13 @@ export function findTarget(step: TourStep, root: ParentNode = document): HTMLEle
 }
 
 /**
- * The tour a page gets: its kind's steps whose target is on screen. Empty (wait for another page)
- * without search to start on or with fewer than two steps.
+ * The tour a page gets: its kind's steps whose target is on screen (at least two). Empty (wait) without a
+ * search box to start on.
  */
 export function resolveSteps(pathname: string, root: ParentNode = document): TourStepId[] {
   const ids = BY_KIND[tourKind(pathname)].filter((id) => findTarget(TOUR_STEPS[id], root) !== null);
-  return ids[0] === "search" && ids.length >= 2 ? ids : [];
+  if (ids[0] !== "search") return [];
+  // An event page with nothing of its own on screen yet (no schedule, no recording): everyone else's tour,
+  // search then highlights, rather than none.
+  return ids.length >= 2 ? ids : BY_KIND.other;
 }
