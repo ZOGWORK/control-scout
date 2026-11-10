@@ -31,6 +31,17 @@ Search answers more of the questions people asked and got no answer to: most win
 - Search: a team number with its possessive typed without the apostrophe ("4215s chances at the east bergen conference") is that team, and "chance of winning <event>" is the team's forecast there.
 - Search: "performance" reads as how a team did ("4215 performance in nj states in powerplay"), never as the team named Performance.
 - Search: a comparison where one side is a number no FTC team has ("4215 vs 2056 opr") answers the other team's question and says that number is no FTC team. (#1331)
+Search pages carry People also ask and Related searches in the page itself, at every screen width.
+
+### Highlights
+- [fixes] People also ask sits under every search answer
+- [fixes] Related searches close every search page, six to eight of them
+- [speed] Both arrive with the page, no second wait
+
+### Changed
+- The search page's server-drawn first paint carries People also ask (up to six questions, each opening to its answer's line and a link that runs that exact question) under the answer, and Related searches at the end, with a link to the related searches page. The app starts from the same ones, so nothing is asked twice. Both are the follow-ups already checked to answer directly; a set that takes over 1.2 s is left to the app, as before.
+- Wide screens show them in the answer's column too, where a phone already had them, rather than in a column beside it.
+- More short searches to offer: an event's top teams and every award it gives; with nothing named, the season's other boards (Auto, TeleOp, Endgame OPR, best record) and more event weeks (next week, this weekend, past events, upcoming championships). Each is still shown only when it answers directly. (#1328)
 
 ## 5.2.4 — 2026-11-10
 
