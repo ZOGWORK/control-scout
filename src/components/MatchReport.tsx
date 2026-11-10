@@ -198,7 +198,7 @@ function FlagChip({ f }: { f: DataFlag | WatchFlag }) {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button type="button" className={cn("inline-flex min-h-8 items-center gap-1 rounded-full border px-2.5 text-xs font-medium", FLAG_TONE[f.kind])} aria-label={`${f.label}: ${f.detail}`} data-flag={f.kind}>
+        <button type="button" className={cn("inline-flex min-h-8 items-center gap-1 rounded-full border px-2.5 text-xs font-medium pointer-coarse:min-h-[44px]", FLAG_TONE[f.kind])} aria-label={`${f.label}: ${f.detail}`} data-flag={f.kind}>
           <Icon className="size-3.5" aria-hidden />{f.label}
         </button>
       </PopoverTrigger>
@@ -219,7 +219,7 @@ function TeamCard({ side, season, t, info, ws, watch }: {
   return (
     <article className={cn("min-w-0 rounded-lg border border-l-[3px] border-border bg-card p-3", SIDE[side].edge, !t.onField && "opacity-75")} data-testid="report-team" data-team={t.number}>
       <header className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-        <Link to={`/teams/${t.number}?season=${season}`} className="font-mono text-lg font-bold hover:underline">{t.number}</Link>
+        <Link to={`/teams/${t.number}?season=${season}`} className="tap-44 font-mono text-lg font-bold hover:underline">{t.number}</Link>
         <span className="min-w-0 flex-1 truncate text-sm">{info?.name ?? ""}</span>
         <span className="text-xs tabular-nums text-muted-foreground">
           {ev?.rank ? <>#{ev.rank} here{ev.wins != null && <> · {ev.wins}-{ev.losses ?? 0}-{ev.ties ?? 0}</>}</> : "Unranked here"}

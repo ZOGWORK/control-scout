@@ -23,7 +23,7 @@ const PHASE: Record<Phase, string> = { upcoming: "Not started", quals: "Qualific
  *  without one (src/shared/teamPages.ts; `name`, when known, tells a placeholder). */
 export function TeamNo({ team, name, season, className }: { team: number; name?: string | null; season: number; className?: string }) {
   if (!hasTeamPage(team, name)) return <span className={cn("font-mono font-semibold tabular-nums", className)}>{team}</span>;
-  return <Link to={`/teams/${team}?season=${season}`} className={cn("font-mono font-semibold tabular-nums hover:text-accent-text", className)}>{team}</Link>;
+  return <Link to={`/teams/${team}?season=${season}`} className={cn("tap-44 font-mono font-semibold tabular-nums hover:text-accent-text", className)}>{team}</Link>;
 }
 
 /** One stat cell. In a narrow card (a phone) it's a one-line row, label left and value right; from 22rem
@@ -56,7 +56,7 @@ export function EventGlance({ d, onTab, live }: { d: EventDetail; onTab: (t: str
   const seed1 = topSeed(d.field);
   const topOpr = [...d.field].filter((f) => f.opr.np != null).sort((a, b) => b.opr.np! - a.opr.np!)[0] ?? null;
   // inline-block with padding offset by negative margin: a 24px-tall target (WCAG 2.5.8) in the same line box.
-  const reportLink = (key: string, children: ReactNode) => <Link to={matchReportHref({ season, code: e.code, key })} className="-my-1 inline-block py-1 hover:text-accent-text">{children}</Link>;
+  const reportLink = (key: string, children: ReactNode) => <Link to={matchReportHref({ season, code: e.code, key })} className="tap-44 -my-1 inline-block py-1 hover:text-accent-text">{children}</Link>;
 
   const cells: ReactNode[] = [];
   const next = live ? live.match : s.next;
@@ -64,7 +64,7 @@ export function EventGlance({ d, onTab, live }: { d: EventDetail; onTab: (t: str
     const when = matchTime(next.startsAt ?? next.time);
     const body = <>{next.label}{when && <span className="font-normal text-muted-foreground"> · {when}</span>} <ArrowRight className="inline size-3.5 align-[-2px] text-muted-foreground" aria-hidden /></>;
     cells.push(<Cell key="next" testId="next" label={live?.mine ? "Your next match" : "Next match"} wide>
-      {live ? <button type="button" onClick={live.open} className="text-left hover:text-accent-text">{body}</button> : <Link to={`?tab=matches&match=${encodeURIComponent(next.key)}`} className="hover:text-accent-text">{body}</Link>}
+      {live ? <button type="button" onClick={live.open} className="tap-44 text-left hover:text-accent-text">{body}</button> : <Link to={`?tab=matches&match=${encodeURIComponent(next.key)}`} className="tap-44 hover:text-accent-text">{body}</Link>}
     </Cell>);
   }
   if (s.avgScore != null) cells.push(<Cell key="avg" testId="avg-score" label="Avg alliance score">{num(s.avgScore)}</Cell>);
@@ -105,7 +105,7 @@ export function EventGlance({ d, onTab, live }: { d: EventDetail; onTab: (t: str
   if (topOpr) lead.push(<Cell key="opr" testId="top-opr" label="Top OPR" term="OPR, offensive power rating: the points a team adds to its alliance's score per match at this event, from least squares (penalty points left out)"><TeamNo team={topOpr.team} name={names.get(topOpr.team)} season={season} /> <span className="font-normal text-muted-foreground">{topOpr.opr.np!.toFixed(1)}</span></Cell>);
   cells.splice(next ? 1 : 0, 0, ...lead); // after the next match (live), before the scoring stats
   if (d.advancement?.slots) cells.push(<Cell key="adv" testId="advancing" label="Advancing" wide>
-    <button type="button" onClick={() => onTab(predictable ? "odds" : "awards")} className="text-left hover:text-accent-text">
+    <button type="button" onClick={() => onTab(predictable ? "odds" : "awards")} className="tap-44 text-left hover:text-accent-text">
       {d.advancement.slots} slots{d.advancement.advancesTo ? <span className="font-normal text-muted-foreground"> → {d.advancement.advancesTo}</span> : null}
     </button>
   </Cell>);

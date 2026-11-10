@@ -143,7 +143,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
         {!full && <span className="flex items-center gap-2">{typeChip}<span className="font-mono text-xs">{e.code} · {seasonLabel(e.season)}</span></span>}
         {/* The venue opens in Google Maps (a search for the venue and town: works on every phone, opens the Maps app where there is one). */}
         {(e.venue || e.city) && (
-          <a href={mapsUrl(place(e.venue, e.address, e.city, e.state, e.country))} target="_blank" rel="noreferrer noopener" className="flex items-center gap-1.5 underline-offset-2 hover:text-foreground hover:underline" data-venue-map>
+          <a href={mapsUrl(place(e.venue, e.address, e.city, e.state, e.country))} target="_blank" rel="noreferrer noopener" className="flex items-center gap-1.5 underline-offset-2 hover:text-foreground hover:underline pointer-coarse:min-h-[44px]" data-venue-map>
             <MapPin className="size-4" />{place(e.venue, e.address, e.city, e.state, e.country)}
           </a>
         )}

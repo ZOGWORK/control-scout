@@ -50,7 +50,7 @@ export function ConfidenceBadge({ tier, reason, className, quiet }: { tier: Conf
 }
 
 /** One small status chip in a match row's call column: never wraps, the same height for every kind. */
-const STATUS_CHIP = "inline-flex h-[18px] shrink-0 items-center gap-0.5 whitespace-nowrap rounded px-1 text-[11px] font-medium leading-none";
+const STATUS_CHIP = "tap-44 inline-flex h-[18px] shrink-0 items-center gap-0.5 whitespace-nowrap rounded px-1 text-[11px] font-medium leading-none";
 
 /** Compact, always-visible tier for dense lists (match rows, the Home card):
  *  the rule is a confidence tier on every prediction surface, never hover-only. */
@@ -167,7 +167,8 @@ function TeamChip({ t, side, season, highlight }: { t: AllianceScore["teams"][nu
   const snack = useTeamSnack();
   const n = t.number, sub = t.surrogate || !t.onField;
   const me = n === highlight, picked = snack?.team === n;
-  const cls = cn("flex min-w-0 flex-col rounded-md px-1.5 py-0.5 text-left leading-tight outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+  // Touch screens: 44px tall, the row growing with it (src/index.css tap-44: stacked rows grow rather than overlap).
+  const cls = cn("flex min-w-0 flex-col rounded-md px-1.5 py-0.5 text-left leading-tight outline-none pointer-coarse:min-h-[44px] pointer-coarse:justify-center focus-visible:ring-2 focus-visible:ring-ring/60",
     side === "blue" && "@min-[330px]:items-end @min-[330px]:text-right",
     picked ? (side === "red" ? "bg-red-alliance/30 ring-1 ring-red-alliance/70" : "bg-blue-alliance/30 ring-1 ring-blue-alliance/70")
       : me ? "bg-accent/15 ring-1 ring-accent/60" : "still-hover:bg-text-base/[0.06]");
@@ -452,7 +453,7 @@ function GroupHeading({ g, rowProps }: { g: Group; rowProps: Record<string, unkn
     </h3>
   ) : (
     <h3 {...rowProps} className="flex items-center gap-2 border-b border-border bg-muted/40 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted">
-      {g.href ? <Link to={g.href} className="truncate normal-case tracking-normal text-base text-text-base hover:text-accent-text hover:underline">{g.title}</Link> : g.title}
+      {g.href ? <Link to={g.href} className="truncate normal-case tracking-normal text-base text-text-base hover:text-accent-text hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-[44px] pointer-coarse:items-center">{g.title}</Link> : g.title}
       <span className="shrink-0 rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-text-base/80">{g.ms.length}</span>
     </h3>
   );

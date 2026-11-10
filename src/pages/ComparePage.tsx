@@ -372,11 +372,11 @@ function StatsTable({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: num
                   {t.length > 1 && (
                     <button type="button" {...gripProps(x.team.number, i)}
                       aria-label={`Reorder ${x.team.number}, ${ORDINAL[i]} of ${t.length}: drag, or use the arrow keys`} title="Drag to reorder: the first team is the one the others are measured against"
-                      className="-ml-2 -mt-0.5 flex h-8 w-5 shrink-0 cursor-grab touch-none items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing max-sm:h-10">
+                      className="-ml-2 -mt-0.5 flex h-8 w-5 shrink-0 pointer-coarse:-ml-3 pointer-coarse:h-[44px] pointer-coarse:w-[44px] cursor-grab touch-none items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing max-sm:h-10">
                       <GripVertical className="size-4" aria-hidden />
                     </button>
                   )}
-                  <Link to={`/teams/${x.team.number}?season=${d.season}`} className="min-w-0 hover:underline">
+                  <Link to={`/teams/${x.team.number}?season=${d.season}`} className="min-w-0 hover:underline pointer-coarse:min-h-[44px]">
                     <span className="block font-display text-xl font-semibold tabular-nums">{x.team.number}</span>
                     <span className="block truncate text-xs text-muted-foreground">{x.team.name ?? "—"}</span>
                     {i === 0 && t.length > 1 && <span className="mt-1 inline-block rounded-full bg-yellow-300/25 px-1.5 text-[10px] font-semibold text-yellow-800 dark:bg-yellow-200/15 dark:text-yellow-200">Baseline</span>}
@@ -485,11 +485,11 @@ function Compare({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: number
           {t.map((x, i) => (
             <div key={x.team.number} className="min-w-0 rounded-xl border border-border bg-card p-3">
               <p className="flex items-center gap-2 text-sm font-semibold"><span className="size-2.5 shrink-0 rounded-full" style={{ background: COLORS[i] }} />
-                <Link to={`/teams/${x.team.number}?season=${d.season}`} className="truncate hover:text-accent-text">{x.team.number} {x.team.name}</Link></p>
+                <Link to={`/teams/${x.team.number}?season=${d.season}`} className="truncate hover:text-accent-text pointer-coarse:flex pointer-coarse:min-h-[44px] pointer-coarse:items-center">{x.team.number} {x.team.name}</Link></p>
               <ul className="mt-2 space-y-1 text-xs">
                 {x.events.length ? x.events.map((e) => (
-                  <li key={e.code} className="flex items-baseline gap-2">
-                    <Link to={`/events/${d.season}/${e.code}?team=${x.team.number}`} className="min-w-0 flex-1 truncate text-foreground/90 hover:text-accent-text" title={e.name}>{e.name}</Link>
+                  <li key={e.code} className="flex items-baseline gap-2 pointer-coarse:min-h-[44px] pointer-coarse:items-center">
+                    <Link to={`/events/${d.season}/${e.code}?team=${x.team.number}`} className="min-w-0 flex-1 truncate text-foreground/90 hover:text-accent-text pointer-coarse:py-3" title={e.name}>{e.name}</Link>
                     <span className="shrink-0 tabular-nums text-muted-foreground">{e.rank ? `#${e.rank}` : "—"} · OPR {e.opr == null ? "—" : num(e.opr, 1)}</span>
                   </li>
                 )) : <li className="text-muted-foreground">No events this season.</li>}

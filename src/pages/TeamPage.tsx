@@ -200,7 +200,7 @@ function Hero({ p, onSeason, fellBackFrom }: { p: TeamProfile; onSeason: (s: num
           </div>
           {t.sponsors.length > 0 && (
             <Collapsible className="relative mt-3">
-              <CollapsibleTrigger className="group inline-flex min-h-8 max-w-full items-center gap-1.5 rounded text-left text-sm text-muted-foreground hover:text-foreground max-sm:min-h-10">
+              <CollapsibleTrigger className="group inline-flex min-h-8 max-w-full items-center gap-1.5 rounded text-left text-sm text-muted-foreground hover:text-foreground max-sm:min-h-10 pointer-coarse:min-h-[44px]">
                 <span className="shrink-0 whitespace-nowrap font-medium text-foreground">Sponsors ({t.sponsors.length})</span>
                 <span className="truncate group-data-[state=open]:hidden">{t.sponsors.slice(0, 2).join(" · ")}{t.sponsors.length > 2 ? " …" : ""}</span>
                 <ChevronDown className="size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" />

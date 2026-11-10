@@ -36,7 +36,7 @@ const field =
   'disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20';
 
 export function Input({ className, type, ...props }: React.ComponentProps<'input'>) {
-  return <input type={type} data-slot="input" className={cn(field, 'h-9 py-1', className)} {...props} />;
+  return <input type={type} data-slot="input" className={cn(field, 'h-9 py-1 pointer-coarse:min-h-[44px]', className)} {...props} />;
 }
 export function Textarea({ className, ...props }: React.ComponentProps<'textarea'>) {
   return <textarea data-slot="textarea" className={cn(field, 'min-h-20 py-2', className)} {...props} />;
