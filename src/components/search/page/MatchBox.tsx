@@ -4,7 +4,7 @@
 // muted, the winner marked), and the listed alliance's points by phase as tiles filled in search's palette colour for
 // each phase (lib/textTones SEARCH_PALETTE: Auto blue, TeleOp green, Endgame purple, penalties red), white on them. Drawn from the row the server sends; nothing is fetched or worked out beyond adding the numbers up.
 import { Link } from "react-router-dom";
-import type { StatLink, StatMatchRow } from "../../../shared/searchStat";
+import { UNOFFICIAL_NOTE, type StatLink, type StatMatchRow } from "../../../shared/searchStat";
 import { PODIUM_CHIP } from "../../../lib/textTones";
 import { cn } from "../../cn";
 import { SEARCH_PALETTE } from "../../../lib/textTones";
@@ -57,6 +57,7 @@ export function MatchBox({ r, team, atEvent, noPlay }: { r: StatMatchRow; team?:
       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
         {r.rank != null && <RankBadge rank={r.rank} />}
         {r.note && <span className="rounded-md border border-border bg-muted/50 px-1.5 py-0.5 text-[11px] font-semibold text-foreground" data-note>{r.note}</span>}
+        {r.unofficial && <span className="rounded-md border border-border bg-muted/50 px-1.5 py-0.5 text-[11px] font-semibold text-foreground" title={r.unofficial} data-unofficial>{UNOFFICIAL_NOTE}</span>}
         <Link to={r.href} className={cn("inline-flex items-center font-display text-base font-semibold text-foreground hover:text-accent-text hover:underline", TAP)}>{r.label}</Link>
         <span className="min-w-0 flex-1 basis-40 text-xs text-muted-foreground">
           {atEvent ? r.date : <>

@@ -191,7 +191,7 @@ export function allianceRow(r: Row, side: "red" | "blue", named: (r: Row, side: 
     date: dateRange((r.time ?? r.start)?.slice(0, 10) ?? null) || null, alliance: side, own, opp, ownNp: np(r, side), oppNp: np(r, other), result: own > opp ? "W" : own < opp ? "L" : "T",
     partners: named(r, side), opponents: named(r, other), type: r.type, phases: phasesOf(r, side),
     // A match the owner marked as not an official record says so wherever it is listed.
-    ...(unofficialWhy(r) ? { note: UNOFFICIAL_NOTE } : {}),
+    ...(unofficialLine(r) ? { unofficial: unofficialLine(r)! } : {}),
   };
 }
 

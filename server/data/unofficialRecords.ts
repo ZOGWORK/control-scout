@@ -1,5 +1,8 @@
 // Matches whose scores are not official records (the owner's call, with why). They stay listed by score as played;
 // wherever a record or a season's best scores show one, it is marked with the reason.
+import { UNOFFICIAL_NOTE } from "../../src/shared/searchStat.js";
+
+export { UNOFFICIAL_NOTE };
 
 export interface MatchKey { season: number; code: string; level: string; series: number; number: number }
 
@@ -8,8 +11,6 @@ const UNOFFICIAL: (MatchKey & { why: string })[] = [
   { season: 2025, code: "FPECAR", level: "qual", series: 0, number: 49, why: "the event did not play by the game's usual rules" },
 ];
 
-/** The chip on a marked match. */
-export const UNOFFICIAL_NOTE = "Not an official record";
 
 /** Why match `m` is not an official record, or null when it counts as one. */
 export function unofficialWhy(m: MatchKey): string | null {

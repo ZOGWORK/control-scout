@@ -11,6 +11,9 @@ export type StatFamily = "stat" | "trend" | "superlative" | "aggregate" | "event
 export interface StatLink { label: string; href: string }
 
 /** One match a team played, as an answer lists it. */
+/** The chip on a match whose score the owner marked as not an official record. */
+export const UNOFFICIAL_NOTE = "Not an official record";
+
 export interface StatMatchRow {
   /** "Q45", "Final 2" */
   label: string;
@@ -33,6 +36,8 @@ export interface StatMatchRow {
   opponents?: StatLink[];
   /** The other alliance's score without penalties. */
   oppNp?: number | null;
+  /** Why its score is not an official record (the owner's mark): a chip on its box. Never a list's reason (`note`). */
+  unofficial?: string;
   /** Asked without penalties ("best match without penalties"): only the scores without them, no penalty points. */
   noPenalties?: boolean;
   /** The event's type as FIRST lists it ("Qualifier", "FIRSTChampionship"): its Events-card colour. */

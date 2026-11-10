@@ -115,6 +115,12 @@ describe("match box", () => {
     expect(sides[0].querySelector("b.font-display")!.className).toContain("text-muted-foreground");
     expect(c.querySelector("[data-rank-badge]")!.className).toContain("bg-team-a");
   });
+  it("a match marked as not an official record says so on its box, its reason on hover", () => {
+    const c = html(<ul><MatchBox r={{ ...m, unofficial: "Not an official record: why" }} /></ul>);
+    expect(c.querySelector("[data-unofficial]")!.textContent).toBe("Not an official record");
+    expect(c.querySelector("[data-unofficial]")!.getAttribute("title")).toBe("Not an official record: why");
+    expect(c.querySelector("[data-note]")).toBeNull();
+  });
   it("asked without penalties: only the scores without them, no score with penalties", () => {
     const c = html(<ul><MatchBox r={{ ...m, noPenalties: true }} /></ul>);
     expect(c.querySelector("[data-scoreboard]")!.textContent).not.toContain("with penalties");
