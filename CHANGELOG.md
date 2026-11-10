@@ -30,7 +30,7 @@ Search answers more of the questions people asked and got no answer to: most win
 - Search: a team stat alone with a season or a place ("2027 opr") is everyone's board by that stat for that season, and says when nobody has played yet.
 - Search: a team number with its possessive typed without the apostrophe ("4215s chances at the east bergen conference") is that team, and "chance of winning <event>" is the team's forecast there.
 - Search: "performance" reads as how a team did ("4215 performance in nj states in powerplay"), never as the team named Performance.
-- Search: a comparison where one side is a number no FTC team has ("4215 vs 2056 opr") answers the other team's question and says that number is no FTC team.
+- Search: a comparison where one side is a number no FTC team has ("4215 vs 2056 opr") answers the other team's question and says that number is no FTC team. (#1331)
 
 ## 5.2.4 — 2026-11-10
 
