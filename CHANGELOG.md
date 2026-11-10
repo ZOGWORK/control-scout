@@ -27,6 +27,7 @@ Gold is the accent only: charts, compared teams and team colours use their own h
 ### Fixed
 - Team B's colour on dark was Okabe–Ito amber (#e69f00), a step from the accent gold (#eab308): a compared team read as a button. It is now vermilion (#f0763a, the light theme's #d55e00 lifted for dark).
 - The first chart colour was the accent itself, so a team's own trend and Compare's first team were gold. It is team A's blue; Compare draws each team in the team hues search's compare card uses, with a fourth (reddish purple) for a fourth team.
+- Compare marked each row's best value and the baseline column in gold; the best is now bold on a neutral tint, the baseline a neutral tint.
 - The colours a scout gives their teams had Gold; it is Indigo now. A team saved as gold shows in its usual colour.
 
 ## 5.2.6 — 2026-11-10

@@ -288,7 +288,8 @@ const CELL = { duration: 0.28, ease: [0.2, 0.8, 0.2, 1] as const };
 
 const ORDINAL = ["first", "second", "third", "fourth"];
 /** The first team's column, the one the others are measured against: a light yellow. */
-const BASELINE = "bg-yellow-300/[0.14] dark:bg-yellow-200/[0.09]";
+// A neutral tint, not the accent: gold marks the interface, never a team or a value.
+const BASELINE = "bg-foreground/[0.04]";
 
 function StatsTable({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: number) => void; onMove: (team: number, to: number) => void }) {
   const t = d.teams;
@@ -399,9 +400,9 @@ function StatsTable({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: num
                   const lead = best.has(x.team.number);
                   const sub = metric.sub?.(x);
                   return (
-                    <m.td key={x.team.number} data-col={i} title={metric.title?.(x)} className={cn("border-l border-border px-3 py-2 tabular-nums transition-colors duration-300", colClass(i), lead && "bg-accent/[0.08]")}
+                    <m.td key={x.team.number} data-col={i} title={metric.title?.(x)} className={cn("border-l border-border px-3 py-2 tabular-nums transition-colors duration-300", colClass(i), lead && "bg-foreground/[0.07]")}
                       initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={CELL}>
-                      <span className={cn("whitespace-nowrap font-medium", lead && "text-accent-text")}>{metric.show(x)}</span>
+                      <span className={cn("whitespace-nowrap font-medium", lead && "font-bold text-foreground")}>{metric.show(x)}</span>
                       {lead && <span className="sr-only"> (best)</span>}
                       {sub && <span className="whitespace-nowrap text-xs text-muted-foreground max-sm:block sm:ml-1.5">{sub}</span>}
                     </m.td>
