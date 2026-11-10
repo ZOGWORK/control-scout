@@ -502,7 +502,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     let stats = [...new Set(p.symbols.map((s) => BOARD_STAT[s]).filter((s): s is string => !!s && !!BOARD_STATS[s]))];
     // "Auto OPR" is the auto phase's OPR; a record beside another stat is the column every row shows.
     if (stats.some((s) => s === "auto" || s === "teleop" || s === "endgame")) stats = stats.filter((s) => s !== "opr");
-    if (stats.length > 1) stats = stats.filter((s) => s !== "record" && s !== "wins");
+    // Wins said with a record ("wins losses record") are the record itself; with another stat, the record is a column.
+    if (stats.length > 1) { const rest = stats.filter((s) => s !== "record" && s !== "wins"); stats = rest.length || !stats.includes("record") ? rest : ["record"]; }
     if (stats.length > 1) return null;
     // "The best team in NJ by OPR": one team, the next few under it; with no place or stat named, or a sort asked
     // for ("best team sorted by auto"), the top 10.
@@ -527,12 +528,26 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
       const a = await boardSearch(p.q, q, opts);
       return p.notStats?.length && a?.stat ? { ...a, stat: { ...a.stat, scope: [...a.stat.scope, ...p.notStats.map((w) => `Not by ${w}`)] } } : a;
     };
+    // A record asked with no team and no "best" or "worst" ("win loss record decode"): the board, and a "which team?"
+    // row first, each a team's own record question.
+    const asked = b.stat === "record" && !p.agg && !p.undefeated ? whichTeam : (x: SearchAnswer | null) => x;
     const a = await board(b);
     // No season said, or "this season": the current one, then the one before when nobody has played enough yet.
-    if (scope.season != null || !(p.time == null || (p.time.kind === "season" && p.time.relative === "this"))) return a;
-    return relaxed(a, defaultSteps(b.season!, town ? ` in ${town.city}` : region ? ` in ${region.name}` : "", b.undefeated ? "undefeated teams" : b.kind === "top" ? "ranked teams" : "teams"), (season) => board({ ...b, season }));
+    if (scope.season != null || !(p.time == null || (p.time.kind === "season" && p.time.relative === "this"))) return asked(a);
+    return asked(await relaxed(a, defaultSteps(b.season!, town ? ` in ${town.city}` : region ? ` in ${region.name}` : "", b.undefeated ? "undefeated teams" : b.kind === "top" ? "ranked teams" : "teams"), (season) => board({ ...b, season })));
   }
   return null;
+}
+
+/** A team-less record question's board with a "which team?" row first: the top teams' own record questions for the
+ *  season shown, one tap each, so a team's record is never picked for the visitor. */
+function whichTeam(a: SearchAnswer | null): SearchAnswer | null {
+  const board = a?.stat?.blocks.find((x) => x.kind === "leaderboard");
+  if (!a?.stat || board?.kind !== "leaderboard" || !board.rows.length) return a;
+  const season = a.understood?.season;
+  const said = season != null ? ` ${season}-${String((season + 1) % 100).padStart(2, "0")}` : "";
+  const queries = board.rows.slice(0, 3).map((r) => /^\d+/.exec(r.team.label)?.[0]).filter(Boolean).map((n) => `${n} record${said}`);
+  return { ...a, stat: { ...a.stat, blocks: [{ kind: "related", title: "Which team? Ask for one team's record", queries }, ...a.stat.blocks] } };
 }
 
 /** The board of the teams at one event named, Worlds or the place's state championship: the season said (a year: the

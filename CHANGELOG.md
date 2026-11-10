@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.0.3 — 2026-11-10
+## 5.0.4 — 2026-11-10
 
 A season that hasn't started says so, and a prediction's links open on the season its cards show.
 
@@ -28,6 +28,18 @@ A season that hasn't started says so, and a prediction's links open on the seaso
 - A one-team question that names a season with no events yet ("opr 2027", "rating in 2027") answers with a no-events card for that season, and a link to the same question for the latest season, instead of reading the year as part of an event name or dropping it. A named year that has been played still answers for exactly that season. (#1301)
 - A two-team prediction with no season named reads the latest season both teams have a rating in, the one their team cards show, and its Predict and Compare links carry that season too.
 - A prediction asked in search for a season whose ratings weren't loaded yet showed the rating gap ("rated higher by 38.8 points per match"), and the same question later showed the engine's call ("by 53"). Search now starts loading that season's ratings the first time it is asked, so the next ask, and every one after, gets the engine's call.
+
+## 5.0.3 — 2026-11-10
+
+A record asked with no team shows the season's best records and asks which team, never one team picked for you.
+
+### Highlights
+- [fixes] "Win loss record decode" shows the season's best records
+- [fixes] A "which team?" row offers one team's own record, one tap each
+- [fixes] "Best record in decode" and "decode records" answer too
+
+### Fixed
+- A record asked with no team ("win loss record decode", "record for decode", "decode win loss record") answered for one team whose name happened to fit a word of the question ("Decode Dynamics", "Lost In Time"). It now shows the season's teams by record, best first, with a "which team?" row above it: the top teams' own record questions, one tap each. "Best record in decode", "worst record decode" and "best record in nj" are that board too. No season said: the current season, then the one before when nothing is played yet. (#1297)
 
 ## 5.0.2 — 2026-11-10
 
