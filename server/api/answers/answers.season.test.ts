@@ -143,8 +143,19 @@ describe("a team's season, said in words", () => {
       expect((await latestSeason(4215, "record"))?.season).toBe(2025);
       expect((await latestSeason(4215))?.season).toBe(2025);
       expect((await searchAnswer("4215 opr", { limit: 25, full: true, now: NOW })).stat?.title).toBe("OPR in 2025–26");
+      // A newer season whose only match has its totals but no score without penalties, or is at a remote event: the
+      // record's matches don't hold it, so neither reader takes it.
+      await run("INSERT INTO events (season, code, name, type, start, end, source) VALUES (2026, 'TTOTALS', 'TTOTALS', 'Qualifier', '2027-01-10', '2027-01-10', 'first')");
+      await run("INSERT INTO matches (season, code, level, series, number, label, played, red_total, blue_total, source) VALUES (2026, 'TTOTALS', 'qual', 0, 1, 'Q1', 1, 50, 40, 'first')");
+      await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, station, on_field) VALUES (2026, 'TTOTALS', 'qual', 0, 1, 4215, 'red', 1, 1)");
+      await run("INSERT INTO events (season, code, name, type, start, end, source, remote) VALUES (2026, 'TREMOTE', 'TREMOTE', 'Qualifier', '2027-01-11', '2027-01-11', 'first', 1)");
+      await run("INSERT INTO matches (season, code, level, series, number, label, played, red_total, blue_total, red_np, blue_np, source) VALUES (2026, 'TREMOTE', 'qual', 0, 1, 'Q1', 1, 50, 40, 50, 40, 'first')");
+      await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, station, on_field) VALUES (2026, 'TREMOTE', 'qual', 0, 1, 4215, 'red', 1, 1)");
+      clearAllCaches();
+      expect(await teamSeason(4215)).toBe(2025);
+      expect((await latestSeason(4215, "record"))?.season).toBe(2025);
     } finally {
-      for (const t of ["match_teams", "matches", "events"]) await run(`DELETE FROM ${t} WHERE code IN ('TPLAYED', 'TNOSHOW')`);
+      for (const t of ["match_teams", "matches", "events"]) await run(`DELETE FROM ${t} WHERE code IN ('TPLAYED', 'TNOSHOW', 'TTOTALS', 'TREMOTE')`);
     }
   });
 });

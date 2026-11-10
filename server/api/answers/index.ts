@@ -214,8 +214,8 @@ function pickName(events: TeamEvent[], families: number): string {
 export async function latestSeason(team: number, id?: IntentId): Promise<{ season: number; own: boolean } | null> {
   // A season of only scrimmages isn't one, nor one where the team is only on a roster (league rosters list teams that
   // never took the field), nor one of only no-shows (a record counts them, but the team never played): a season with a
-  // match the team was on the field for that the answer counts, as ./season.ts teamSeason reads it, so a team's record
-  // and its OPR always name the same season.
+  // match the team was on the field for that the answer counts. ./season.ts teamSeason reads the same matches first (in
+  // person, scored), so a team's record and its OPR name the same season.
   const official = officialClause();
   const ms = (await teamMatches(team)).filter((m) => official(m) && m.onField && (!id || counts(id, m)));
   if (!ms.length) return null;

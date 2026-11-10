@@ -73,11 +73,17 @@ export function relativeSeason(relative: "this" | "last" | null | undefined, nam
 export async function teamSeason(team: number): Promise<number | null> {
   // A season of only scrimmages isn't one: the newest season with a played match at an official event, as its record reads
   // (index.ts latestSeason). A team with no stored match rows at all reads its season rows.
-  const r = await get<{ s: number | null; any: number }>(
-    `SELECT MAX(CASE WHEN e.type IN (${OFFICIAL_TYPES.map(() => "?").join(", ")}) THEN mt.season END) s, COUNT(*) any
+  // First the matches a team's answers count (index.ts latestSeason reads ./matchSet.ts teamMatches: in person, with
+  // the score without penalties on record), so its record and its OPR name the same season; only a team with none of
+  // those reads any official match it was on the field for (a remote season, a score stored as totals only).
+  const official = `e.type IN (${OFFICIAL_TYPES.map(() => "?").join(", ")})`;
+  const r = await get<{ s: number | null; loose: number | null; any: number }>(
+    `SELECT MAX(CASE WHEN ${official} AND m.red_np IS NOT NULL AND m.blue_np IS NOT NULL AND COALESCE(e.remote, 0) = 0 THEN mt.season END) s,
+       MAX(CASE WHEN ${official} THEN mt.season END) loose, COUNT(*) any
      FROM match_teams mt JOIN matches m ON m.season = mt.season AND m.code = mt.code AND m.level = mt.level AND m.series = mt.series AND m.number = mt.number
-     JOIN events e ON e.season = mt.season AND e.code = mt.code WHERE mt.team = ? AND mt.on_field = 1 AND m.played = 1`, [...OFFICIAL_TYPES, team]);
+     JOIN events e ON e.season = mt.season AND e.code = mt.code WHERE mt.team = ? AND mt.on_field = 1 AND m.played = 1`, [...OFFICIAL_TYPES, ...OFFICIAL_TYPES, team]);
   if (r?.s != null) return Number(r.s);
+  if (r?.loose != null) return Number(r.loose);
   if (Number(r?.any)) return null;
   const t = await get<{ s: number | null }>("SELECT MAX(season) s FROM team_season_stats WHERE team = ? AND matches > 0", [team]);
   return t?.s != null ? Number(t.s) : null;
