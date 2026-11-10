@@ -9,7 +9,7 @@ const sp = (s: string) => new URLSearchParams(s);
 
 describe("directory URL state", () => {
   it("reads the defaults from a bare link", () => {
-    expect(parseDirectoryState(sp("view=listed"))).toEqual({ country: null, countryUnknown: null, q: null, sort: "team", dir: "asc", page: 1 });
+    expect(parseDirectoryState(sp("view=listed"))).toEqual({ country: null, countryUnknown: null, q: null, sort: "results", dir: "desc", page: 1 });
   });
 
   it("round-trips country, sort, direction and page, keeping view and season", () => {
@@ -22,14 +22,16 @@ describe("directory URL state", () => {
 
   it("leaves defaults out of the link", () => {
     const out = writeDirectoryState(sp("view=listed&country=US&sort=name&page=4"), { country: "US", countryUnknown: null, q: null, sort: "results", dir: "desc", page: 1 });
-    expect(out.toString()).toBe("view=listed&country=US&sort=results");
+    expect(out.toString()).toBe("view=listed&country=US");
+    const byNumber = writeDirectoryState(sp("view=listed"), { country: null, countryUnknown: null, q: null, sort: "team", dir: "asc", page: 1 });
+    expect(byNumber.toString()).toBe("view=listed&sort=team");
   });
 
   it("keeps an unknown country in the URL until it's cleared, asks for no rows meanwhile, and ignores junk", () => {
     const s = parseDirectoryState(sp("country=ZZ&sort=opr&dir=up&page=-2"));
-    expect(s).toEqual({ country: null, countryUnknown: "ZZ", q: null, sort: "team", dir: "asc", page: 1 });
+    expect(s).toEqual({ country: null, countryUnknown: "ZZ", q: null, sort: "results", dir: "desc", page: 1 });
     expect(directoryUrl(2026, s)).toBeNull();
-    expect(writeDirectoryState(sp("view=listed&country=ZZ"), { ...s, sort: "name" }).toString()).toBe("view=listed&country=ZZ&sort=name");
+    expect(writeDirectoryState(sp("view=listed&country=ZZ"), { ...s, sort: "name", dir: "asc" }).toString()).toBe("view=listed&country=ZZ&sort=name");
     expect(writeDirectoryState(sp("view=listed&country=ZZ"), { ...s, countryUnknown: null }).toString()).toBe("view=listed");
   });
 
@@ -42,7 +44,7 @@ describe("directory URL state", () => {
     const s = parseDirectoryState(sp("view=listed&season=2025&country=US&q=%20robo%20raiders%20&page=2"));
     expect(s).toMatchObject({ country: "US", q: "robo raiders", page: 2 });
     expect(writeDirectoryState(sp("view=listed&season=2025"), s).toString()).toBe("view=listed&season=2025&country=US&q=robo+raiders&page=2");
-    expect(directoryUrl(2025, s)).toBe("/api/directory/2025?country=US&q=robo+raiders&sort=team&dir=asc&page=2&pageSize=50");
+    expect(directoryUrl(2025, s)).toBe("/api/directory/2025?country=US&q=robo+raiders&sort=results&dir=desc&page=2&pageSize=50");
     expect(writeDirectoryState(sp("view=listed&q=robo"), { ...s, q: "  " }).toString()).toBe("view=listed&country=US&page=2");
     expect(parseDirectoryState(sp("q=%20%20")).q).toBeNull();
   });

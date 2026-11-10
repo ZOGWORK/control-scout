@@ -10,6 +10,15 @@ import { MAX_TEAM_COLORS, teamColorById } from "./teamColors.js";
 export interface TrackedState { teams: number[]; events: string[] } // events: "season:CODE"
 export interface VideoLink { url: string; title: string | null; addedAt: number }
 export interface SavedPrediction { id: string; season: number; red: number[]; blue: number[]; winProbRed: number; predictedRed: number; predictedBlue: number; tier: string; savedAt: number; note?: string }
+
+/** One saved prediction per matchup (season, red alliance, blue alliance; team order inside an alliance doesn't
+ *  count): the newest save wins, so saving the same match twice, or the same save arriving from another device
+ *  under a new id, never lists it twice. Newest first. */
+export function dedupePredictions(list: readonly SavedPrediction[]): SavedPrediction[] {
+  const seen = new Set<string>();
+  const key = (p: SavedPrediction) => `${p.season}|${[...p.red].sort((a, b) => a - b).join(",")}|${[...p.blue].sort((a, b) => a - b).join(",")}`;
+  return [...list].sort((x, y) => (y.savedAt ?? 0) - (x.savedAt ?? 0)).filter((p) => { const k = key(p); if (seen.has(k)) return false; seen.add(k); return true; });
+}
 /** The built-in themes, in the order Settings lists them. Dim and Midnight are dark themes (html.dim / html.midnight
  *  swap only surfaces and text, src/index.css); System follows the device's light or dark setting. */
 export const THEMES = ["light", "dim", "dark", "midnight", "system"] as const;
@@ -116,7 +125,7 @@ export function cleanValue<K extends PersonalKey>(key: K, v: unknown): PersonalS
     }
     case "predictionHistory": {
       if (!Array.isArray(v)) return null;
-      return v.filter((p) => p && typeof p.id === "string" && Array.isArray(p.red) && Array.isArray(p.blue)).slice(0, MAX_HISTORY) as PersonalState[K];
+      return dedupePredictions(v.filter((p) => p && typeof p.id === "string" && Array.isArray(p.red) && Array.isArray(p.blue))).slice(0, MAX_HISTORY) as PersonalState[K];
     }
     case "shortlistNotes": {
       if (!v || typeof v !== "object" || Array.isArray(v)) return null;
@@ -165,7 +174,7 @@ export function mergeValue<K extends PersonalKey>(key: K, account: Stamped<Perso
     }
     case "predictionHistory": {
       const ids = new Set(a.map((p: SavedPrediction) => p.id));
-      return { value: [...a, ...l.filter((p: SavedPrediction) => !ids.has(p.id))].sort((x: SavedPrediction, y: SavedPrediction) => y.savedAt - x.savedAt).slice(0, MAX_HISTORY) as any, updatedAt };
+      return { value: dedupePredictions([...a, ...l.filter((p: SavedPrediction) => !ids.has(p.id))]).slice(0, MAX_HISTORY) as any, updatedAt };
     }
     case "teamColors":
     case "shortlistNotes": {

@@ -9,14 +9,27 @@ export type Status = "all" | "live" | "upcoming" | "finished";
 export type VideoFilter = "all" | "recording" | "clips";
 export interface Filters { region: string | null; type: string; status: Status; from: string | null; to: string | null; q: string; video?: VideoFilter }
 
-/** The status a query string names, "all" included; null when it names none (the Events page then picks its own). */
+/** The status a query string names, "all" included; null when it names none. */
 export const statusParam = (v: string | null): Status | null =>
   v === "all" || v === "live" || v === "upcoming" || v === "finished" ? v : null;
 
-/** The Events page's status when the address names none: Live now while an event under the other filters is live
- *  (its chip count is above 0), else All, so the page never opens on an empty list. */
-export const defaultStatus = (events: EventListItem[], f: Omit<Filters, "status">): Status =>
-  applyFilters(events, f).some((e) => e.status === "live") ? "live" : "all";
+/** Picking a video filter never dead-ends: when the status picked has no event with that video, the status goes
+ *  back to All (only finished events have a recording, so "Upcoming" + "Match clips" would show nothing). The patch
+ *  for the filter bar's `set`. */
+export function videoPick(events: EventListItem[], f: Filters, video: VideoFilter): Record<string, string | null> {
+  const p: Record<string, string | null> = { video };
+  if (video !== "all" && f.status !== "all" && !applyFilters(events, { ...f, video }).some((e) => e.status === f.status)) p.status = null;
+  return p;
+}
+
+/** And the other way round: a status with nothing under the video filter picked drops the video filter. The status
+ *  picked now plays no part: the events under every other filter are checked for the status asked for. */
+export function statusPick(events: EventListItem[], f: Filters, status: Status): Record<string, string | null> {
+  const p: Record<string, string | null> = { status };
+  const { status: _now, ...rest } = f;
+  if (f.video && f.video !== "all" && status !== "all" && !applyFilters(events, rest).some((e) => e.status === status)) p.video = null;
+  return p;
+}
 
 /** The filters as written in a query string (the Events page's URL, or Scout's picker's own state): anything unknown reads as "all". */
 export function readFilters(get: (k: string) => string | null): Filters & { video: VideoFilter } {

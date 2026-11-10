@@ -36,7 +36,8 @@ const SUMMARY_SQL = `SELECT e.season, e.code, e.name, e.type, e.division_code, e
   FROM events e`;
 
 /** Listed event types that have no matches (kept out of event lists and counts unless asked for). */
-export const NO_MATCH_TYPES = ["Kickoff", "Workshop", "DemoExhibition", "VolunteerSignup", "PracticeDay", "InnovationChallenge"] as const;
+export { NO_MATCH_TYPES } from "../../src/shared/labels.js";
+import { NO_MATCH_TYPES } from "../../src/shared/labels.js";
 
 export interface EventListFilter { season: number; from?: string; to?: string; q?: string; type?: string; region?: string; limit?: number; hideNoMatch?: boolean }
 
@@ -48,7 +49,8 @@ export async function listEvents(f: EventListFilter): Promise<EventSummary[]> {
   if (f.type) { where.push("e.type = ?"); args.push(f.type); }
   if (f.region) { where.push("e.region = ?"); args.push(f.region); }
   if (f.q) { where.push("(e.name LIKE ? OR e.code LIKE ? OR e.city LIKE ?)"); const like = `%${f.q}%`; args.push(like, like, like); }
-  if (f.hideNoMatch) { where.push(`e.type NOT IN (${NO_MATCH_TYPES.map(() => "?").join(",")})`); args.push(...NO_MATCH_TYPES); }
+  // Only the known no-match types are left out: an event with no type stays (as in Scout's picker), never dropped by NULL NOT IN.
+  if (f.hideNoMatch) { where.push(`(e.type IS NULL OR e.type NOT IN (${NO_MATCH_TYPES.map(() => "?").join(",")}))`); args.push(...NO_MATCH_TYPES); }
   const rows = await all<any>(`${SUMMARY_SQL} WHERE ${where.join(" AND ")} ORDER BY e.start, e.name LIMIT ?`, [...args, f.limit ?? 2000]);
   return rows.map(summary);
 }

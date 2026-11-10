@@ -6,6 +6,9 @@ import type { SeasonReadiness } from "./home";
 
 export const DIRECTORY_SORTS = ["team", "name", "rookie", "location", "results"] as const;
 export type DirectorySort = (typeof DIRECTORY_SORTS)[number];
+/** The order the list opens in: best first (teams with results, by season OPR, then the rest), never a page of
+ *  teams with no results yet. */
+export const DIRECTORY_DEFAULT_SORT: DirectorySort = "results";
 export const DIRECTORY_PAGE_SIZE = 50;
 export const DIRECTORY_MAX_PAGE_SIZE = 100;
 /** The longest ?q= the directory takes, and the most words in one. */
