@@ -100,8 +100,8 @@ export const env = {
     const n = Number(str("R2_SOFT_CAP_GB"));
     return Number.isFinite(n) && n > 0 && n <= 10 ? n : 9.5;
   },
-  /** Development only (ignored in production): MAIL_DEV_LOG=1 writes every email to the server log instead of sending
-   *  it, so a sign-in code can be read there when signed-in flows are tested against a local server with no Resend key. */
+  /** Development only (ignored in production): MAIL_DEV_LOG=1 writes sign-in codes to the server log when no real mailer
+   *  is set (other email stays off), so a sign-in code can be read there when signed-in flows are tested against a local server with no Resend key. */
   get mailDevLog() { return !this.production && str("MAIL_DEV_LOG") === "1"; },
   /** Development and tests only: an in-process stand-in for R2 (server/scout/fakeR2.ts). Ignored in production. */
   get r2Fake() { return !this.production && str("R2_FAKE") === "1"; },

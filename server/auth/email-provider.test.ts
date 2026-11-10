@@ -2,7 +2,7 @@
 // (trimmed, never the key or the address), and a failed send leaves no code.
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { all, migrate, openDb, setDb } from "../db";
-import { setMailer, startEmailSignIn } from "./email";
+import { emailEnabled, emailSignInEnabled, setMailer, startEmailSignIn } from "./email";
 
 const realFetch = globalThis.fetch;
 beforeAll(async () => {
@@ -65,15 +65,18 @@ describe("development log mailer (MAIL_DEV_LOG=1)", () => {
     expect(await codes("d@example.com")).toEqual([{ email: "d@example.com" }]);
   });
 
-  it("is ignored in production: the provider is still used", async () => {
+  it("is ignored in production: no code is logged and sign-in stays off without a provider", async () => {
     delete process.env.RESEND_API_KEY;
     process.env.MAIL_DEV_LOG = "1";
     const was = process.env.NODE_ENV;
     process.env.NODE_ENV = "production";
     try {
-      providerAnswers(401, JSON.stringify({ message: "API key is invalid" }));
-      vi.spyOn(console, "warn").mockImplementation(() => {});
+      const fetched = vi.fn();
+      globalThis.fetch = fetched as unknown as typeof fetch;
+      const log = vi.spyOn(console, "log").mockImplementation(() => {});
+      expect(emailSignInEnabled()).toBe(false);
       expect(await startEmailSignIn("e@example.com")).toEqual({ ok: false, reason: "disabled" });
+      expect(log.mock.calls.some((c) => String(c[0]).startsWith("[mail]"))).toBe(false);
     } finally { process.env.NODE_ENV = was; }
   });
 });
