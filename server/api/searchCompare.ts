@@ -20,6 +20,7 @@ import { normalize } from "./fuzzy.js";
 import { search, searchIntent } from "./search.js";
 import { pickShared } from "./query/shared.js";
 import { onlyOrdinary } from "./query/ordinary.js";
+import { place } from "../../src/shared/format.js";
 
 interface TeamFacts { number: number; name: string; city: string | null; state: string | null; country: string | null; lastPlayed: number | null; strength: number | null }
 
@@ -33,7 +34,7 @@ async function teamFacts(nums: number[]): Promise<Map<number, TeamFacts>> {
   return new Map(rows.map((r) => [Number(r.number), { number: Number(r.number), name: r.name ?? "", city: r.city, state: r.state, country: r.country, lastPlayed: r.lastPlayed == null ? null : Number(r.lastPlayed), strength: r.strength == null ? null : Number(r.strength) }]));
 }
 
-const placeOf = (t: TeamFacts) => [t.city, t.state].filter(Boolean).join(", ") || t.country || "";
+const placeOf = (t: TeamFacts) => place(t.city, t.state) || t.country || "";
 const sideOf = (t: TeamFacts): SearchCompareSide => ({ number: t.number, name: cleanTeamName(t.number, t.name) ?? "", place: placeOf(t) });
 
 /** What one side of a versus names: a team, several equally (a shared name), or nothing. `pool`: a shared name's
@@ -136,7 +137,7 @@ function compareHit(teams: TeamFacts[], q: string, season: number | null, resolv
 const uniqTeams = (ts: TeamFacts[]) => [...new Map(ts.map((t) => [t.number, t])).values()];
 
 const teamHit = (t: TeamFacts, hits: Map<string, SearchHit>): SearchHit =>
-  hits.get(String(t.number)) ?? { kind: "team", ref: String(t.number), title: searchTeamTitle(t.number, t.name), subtitle: [t.city, t.state, t.country].filter(Boolean).join(", "), season: t.lastPlayed };
+  hits.get(String(t.number)) ?? { kind: "team", ref: String(t.number), title: searchTeamTitle(t.number, t.name), subtitle: place(t.city, t.state, t.country), season: t.lastPlayed };
 
 /** The answer for a versus query, or null when `q` isn't one. */
 export async function versusAnswer(q: string, prefer: ReadonlySet<string>, season: number | null): Promise<SearchAnswer | null> {

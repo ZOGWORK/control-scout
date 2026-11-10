@@ -23,6 +23,7 @@ import { whoOf, type AnswerTeam } from "./matches.js";
 import { currentSeason, seasonWhy } from "../season.js";
 import { rangeCoverageNow } from "../../accuracy.js";
 import { rangeCoverageLine } from "../../../../src/shared/scoreRange.js";
+import { place } from "../../../../src/shared/format.js";
 
 const pct = (p: number) => `${Math.round(100 * p)}%`;
 /** The range coverage line under a card's score ranges (nothing when it can't be read). */
@@ -174,7 +175,7 @@ export async function nextEventPrediction(id: IntentId, team: AnswerTeam, now = 
   const S = seasonLabel(e ? Number(e.season) : season ?? CURRENT_SEASON);
   const base = { family: "stat" as const, intent: id, title, team, scope: [S, event ? e?.name ?? "Event" : "Next event"], definition: NEXT_RULE, source: e ? `${e.name}, ${S}` : `${team.number}'s published events` };
   if (!e) return { ...base, blocks: [], none: `No upcoming event is published for ${whoOf(team)} in ${S} yet, so there's no projection to show.` };
-  const when = [dateRange(e.start, e.end), [e.city, e.state].filter(Boolean).join(", ")].filter(Boolean).join(" · ");
+  const when = [dateRange(e.start, e.end), place(e.city, e.state)].filter(Boolean).join(" · ");
   const evLink: StatBlock = { kind: "links", title: event ? "Event" : "Next event", items: [{ label: e.name, sub: when, href: eventHref(Number(e.season), e.code, team.number) }] };
   // The forecast's own switch (advancementOdds): off, the event page shows none, so search shows none either.
   if (!(await isEnabled("advancementOdds").catch(() => false))) {

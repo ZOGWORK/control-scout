@@ -27,7 +27,7 @@ School names and towns read as they should: no cut-short school names, no double
 
 ### Fixed
 - Team and event places are tidied where a sync writes them (`src/shared/placeClean.ts`, used by `server/data/bundle.ts`), and the rows already stored, past seasons too, are tidied once soon after the server starts (`server/data/tidyPlaces.ts`): a school's cut-short last word ("Sch", "Schl", "Acad", "Elem", "Chrn") in full; a town's run of one letter three or more times kept to two; a town's last comma part dropped when it only names the row's own state or country (a postcode after it allowed). A team with no school in FIRST's data still shows none.
-- `place()` leaves out a part that is only digits, so a numeric state code never shows in an event or team line. (#1327)
+- `place()` leaves out a part that is only digits, so a numeric state code never shows in an event or team line; every team and event location line (search results and their index, tables, leaderboards, answers, the digest, the offline packs) is built with `place()`, so the rule holds everywhere. (#1327)
 
 ## 5.2.4 — 2026-11-10
 

@@ -23,6 +23,7 @@ import { readScope, readTwoTeam } from "./answers/read.js";
 import { sourceOf, whoOf, type AnswerTeam } from "./answers/families/matches.js";
 import { nameKey, teamExists, teamNames, teamsNamed } from "./searchLayers.js";
 import { search } from "./search.js";
+import { place } from "../../src/shared/format.js";
 
 /** Matches listed at most, teams an expression may name at most, words a protected name may span. */
 const LIST_CAP = 25, MAX_TEAMS = 8, NAME_SPAN = 8;
@@ -360,7 +361,7 @@ async function sideBySide(what: string, teams: number[], stats: StatAnswer[], na
     const r = season != null ? has(t, season) : undefined, s = stats[i];
     return {
       rank: i + 1, team: { label: `${t}${r?.name ? ` ${r.name}` : ""}`, href: teamHref(t, season) },
-      location: r ? [r.city, r.state, r.country && r.country !== "USA" ? r.country : null].filter(Boolean).join(", ") || null : null,
+      location: r ? place(r.city, r.state, r.country && r.country !== "USA" ? r.country : null) || null : null,
       record: r ? `${r.wins}-${r.losses}-${r.ties}` : "–", opr: num(r?.opr_np), value: numberOf(s.headline?.value), display: s.headline?.value ?? "–",
       parts: r ? { auto: num(r.opr_auto), teleop: num(r.opr_teleop), endgame: num(r.opr_endgame), pen: num(r.opr_pen) } : null,
     };
