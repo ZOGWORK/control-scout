@@ -15,7 +15,7 @@ import type { StatAnswer, StatBlock } from "../../../../src/shared/searchStat.js
 import type { SearchAnswer, SearchPageLink } from "../../../../src/shared/api.js";
 import { awardLabel, num, seasonLabel } from "../../../../src/shared/format.js";
 import { all } from "../../../db.js";
-import { searchSeason } from "../season.js";
+import { completedSeason, currentSeason, lastSeason } from "../season.js";
 import { names, type Place } from "../../query/names.js";
 import { regionOf } from "../../../../src/shared/searchEventQuery.js";
 import { CHAMPIONSHIP_TYPE } from "../clauses.js";
@@ -75,10 +75,10 @@ export async function readPlaceAwards(q: string): Promise<PlaceAwardsAsk | null>
   const st = cut(new RegExp(String.raw`\s${REACH}\s+${WORLDS}\s+(finals?|playoffs?)(?=\s)`)) ?? cut(new RegExp(String.raw`\s${REACH}\s+(?:the\s+)?(finals?|playoffs?)\s+(?:at|in)\s+${WORLDS}(?=\s)`));
   const stage = st ? (/^final/.test(st[1]) ? "finals" : "playoffs") : undefined;
   const worlds = !!stage || !!cut(new RegExp(String.raw`\s(?:at|in)\s+${WORLDS}(?=\s)`));
-  // "This season" is search's own (the latest completed one, ../season.ts), "last season" the one before it. At
-  // Worlds "last year" is the latest Championship that has finished, as the winners answer reads it (that same season);
-  // "last season" keeps its meaning everywhere.
-  const season = !sm ? null : sm[2] ? Number(sm[2]) : searchSeason() - (seasonSaid === "this" || (worlds && /\byear$/.test(sm[0])) ? 0 : 1);
+  // The one season rule (../season.ts): "this season" is the current season (no team is named here), "last season" the
+  // latest completed one. At Worlds "last year" is the latest Championship that has finished, as the winners answer
+  // reads it (the completed season too).
+  const season = !sm ? null : sm[2] ? Number(sm[2]) : seasonSaid === "this" ? currentSeason() : worlds && /\byear$/.test(sm[0]) ? completedSeason() : lastSeason();
   const byM = cut(/\s(?:by|on|ranked\s+by|sorted\s+by)\s+(auto|teleop|endgame|opr|rating)(?:\s+opr)?(?=\s)/);
   const types: string[] = [];
   for (const [re, type] of AWARDS) if (cut(re) && !types.includes(type)) types.push(type);
@@ -156,7 +156,7 @@ function placeSql(p: Place | null): { sql: string; args: (string | null)[] } {
 async function stageAnswer(ask: PlaceAwardsAsk): Promise<StatAnswer> {
   const where = placeSql(ask.place);
   // As with awards: a list is one season (the one said, else the latest completed one); "any" with none said, every season.
-  const season = ask.season ?? (ask.mode === "any" ? null : searchSeason());
+  const season = ask.season ?? (ask.mode === "any" ? null : currentSeason());
   const rows = await all<{ season: number; code: string; event: string; etype: string | null; team: number; team_name: string | null; won: number }>(
     `SELECT e.season, e.code, e.name event, e.type etype, mt.team, t.name team_name,
             MAX(CASE WHEN mt.on_field = 1 AND ((mt.alliance = 'red' AND m.red_total > m.blue_total) OR (mt.alliance = 'blue' AND m.blue_total > m.red_total)) THEN 1 ELSE 0 END) won
@@ -193,9 +193,9 @@ export async function placeAwardsAnswer(ask: PlaceAwardsAsk): Promise<StatAnswer
   const latest = ask.mode === "list" && !ask.place && !ask.worlds && ask.types.length === 1;
   const won = ask.types.length || (ask.mode !== "list" && !board) ? ` AND ${WON_SQL}` : "";
   const typeSql = ask.types.length ? ` AND ${TYPE_SQL} IN (${ask.types.map(() => "?").join(", ")})` : "";
-  // The season: the one said, else search's default (the latest completed one, ../season.ts), never another one
+  // The season: the one said, else the current season (the one season rule, ../season.ts), never another one
   // quietly; the count boards and "any" with none said count every season. It's filtered in SQL, never after loading every season.
-  const season = ask.season == null && (board || ask.mode === "any" || latest) ? null : ask.season ?? searchSeason();
+  const season = ask.season == null && (board || ask.mode === "any" || latest) ? null : ask.season ?? currentSeason();
   const filter = `${where.sql}${typeSql}${won}${ask.worlds ? " AND e.type = ?" : ""}${season != null ? " AND a.season = ?" : ""}`;
   const args = [...where.args, ...ask.types, ...(ask.worlds ? [CHAMPIONSHIP_TYPE] : []), ...(season != null ? [season] : [])];
   const from = "FROM awards a JOIN teams t ON t.number = a.team JOIN events e ON e.season = a.season AND e.code = a.code";

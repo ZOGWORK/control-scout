@@ -13,7 +13,7 @@ import { eventsNamed } from "../query/highlights.js";
 import { eventKindOf } from "../query/matchFind.js";
 import { CHAMPIONSHIP_TYPE, OFFICIAL_TYPES, STATES_TYPE } from "./clauses.js";
 import { eventHref, matchRow, shortEvent, teamLinks, teamMatches } from "./matchSet.js";
-import { searchSeason } from "./season.js";
+import { relativeSeason, teamSeason } from "./season.js";
 
 /** How a yes-or-no question opens, or "ever" anywhere in it ("4215 ever at worlds"). Never a question word first. */
 const FRAME = /^(?:has|have|had|did|does|do|was|were|is|are)\s|\bever\b/;
@@ -38,17 +38,19 @@ const at = (s: EventScope) => (s.bare ? s.label : `at ${s.label}`);
 /** Official events only, as every answer counts them: an off-season event's matches and awards are never the record. */
 const OFFICIAL = `e.type IN (${OFFICIAL_TYPES.map((t) => `'${t}'`).join(", ")})`;
 
-function timeOf(p: Parsed): { season: number | null; year: number | null } | undefined {
+/** The season the question says, by the one season rule (./season.ts): "this season" is the team's latest season with
+ *  matches (the current one when nobody is named), "last season" the latest completed one. */
+async function timeOf(p: Parsed): Promise<{ season: number | null; year: number | null } | undefined> {
   const t = p.time;
   if (!t || t.kind === "ever") return { season: null, year: null };
   if (t.kind === "window") return undefined;
-  if (t.relative === "this") return { season: searchSeason(), year: null };
-  if (t.relative === "last") return { season: searchSeason() - 1, year: null };
+  if (t.relative === "this" && p.teams.length === 1) return { season: (await teamSeason(p.teams[0].number)) ?? relativeSeason("this", null), year: null };
+  if (t.relative) return { season: relativeSeason(t.relative, null), year: null };
   return t.year != null ? { season: null, year: t.year } : { season: t.season, year: null };
 }
 
 async function scopeOf(p: Parsed): Promise<EventScope | null | undefined> {
-  const when = timeOf(p);
+  const when = await timeOf(p);
   if (!when) return undefined;
   const said = when.season != null ? ` in ${seasonLabel(when.season)}` : when.year != null ? ` in ${when.year}` : "";
   if (p.worlds) return { label: `Worlds${said}`, types: [CHAMPIONSHIP_TYPE], ...when };

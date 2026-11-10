@@ -18,7 +18,7 @@ import { OFFICIAL_TYPES, inScope, scopeChips, scopePhrase, type Scope } from "..
 import { matchRow, teamHref, teamLinks, type TeamMatch } from "../matchSet.js";
 import type { TwoTeamId, IntentId } from "../read.js";
 import { teamReliability } from "../../teams.js";
-import { searchSeason, searchSeasonWhy } from "../season.js";
+import { currentSeason, seasonWhy } from "../season.js";
 import { sourceOf, whoOf, type AnswerTeam } from "./matches.js";
 import { awardScale, compareBlock, decidedText, leadHeadline, seasonScale, winShare, type CompareInput, type StatColumn } from "../compareBlock.js";
 
@@ -93,8 +93,9 @@ async function seasonRows(teams: number[], season: number | null): Promise<{ sea
   const of = (t: number, s: number) => rows.find((r) => Number(r.team) === t && Number(r.season) === s);
   const allOf = (s: number) => teams.map((t) => of(t, s));
   if (season != null) return { season, rows: allOf(season) };
-  const def = searchSeason();
-  if (teams.every((t) => of(t, def))) return { season: def, why: searchSeasonWhy(def), rows: allOf(def) };
+  // The one season rule (../season.ts): the current season when every team has played it, else the latest they all have.
+  const def = currentSeason();
+  if (teams.every((t) => of(t, def))) return { season: def, why: seasonWhy("teams", def), rows: allOf(def) };
   const s = rows.map((r) => Number(r.season)).find((x) => teams.every((t) => of(t, x)));
   if (s == null) return { season: null, rows: [] };
   return { season: s, why: `The season is ${seasonLabel(s)}, the latest season ${teams.length === 2 ? "both" : "all the"} teams played.`, rows: allOf(s) };

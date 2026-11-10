@@ -25,7 +25,7 @@ import { CURRENT_SEASON, SEASONS } from "../data/seasons.js";
 import { all, get } from "../db.js";
 import { RANKED_MIN_MATCHES } from "../../src/shared/rankings.js";
 import { teamPageSql } from "../../src/shared/teamPages.js";
-import { searchSeason } from "./answers/season.js";
+import { currentSeason, relativeSeason } from "./answers/season.js";
 import { RECORD_TYPES } from "./searchHighScores.js";
 import { allowedEdits, editDistance, normalize } from "./fuzzy.js";
 import { search } from "./search.js";
@@ -173,11 +173,11 @@ export function rewriteQuery(q: string, named: ReadonlySet<string> = new Set()):
     }
   }
   // A place's events with the season said in words ("events this season in New Jersey", "meets last season in nj"):
-  // the season written as one, which the event readers read. "This season" is the default season (the latest
-  // completed one, ./answers/season.ts), "last season" the one before it. Never a team's (a number) or a place-less set.
+  // the season written as one, which the event readers read. "This season" is the current season (no team is named
+  // here), "last season" the latest completed one (./answers/season.ts). Never a team's (a number) or a place-less set.
   const rel = /(?:^|\s)(?:in\s+|during\s+|for\s+)?(?:the\s+)?(this|current|last|previous|past)\s+season(?=\s|$)/.exec(t);
   if (rel && !/\d/.test(t)) {
-    const s = searchSeason() - (/^(?:last|previous|past)$/.test(rel[1]) ? 1 : 0);
+    const s = relativeSeason(/^(?:last|previous|past)$/.test(rel[1]) ? "last" : "this", null)!;
     const out = squash(`${t.slice(0, rel.index)} ${t.slice(rel.index + rel[0].length)} ${s}-${String((s + 1) % 100).padStart(2, "0")}`);
     const e = readEventQuery(out);
     if (e && (e.region || e.where)) return { q: out, pre: true };
@@ -238,8 +238,6 @@ export function rewriteQuery(q: string, named: ReadonlySet<string> = new Set()):
   // A team's partners and opponents: who it played with (or against) most often, every one counted.
   if ((m = /^(\d{1,6})\s+(?:alliance\s+)?(?:partners?|teammates?)$/.exec(t))) return { q: `${m[1]} most frequent partner`, pre: true };
   if ((m = /^(\d{1,6})\s+(?:opponents?|rivals?)$/.exec(t))) return { q: `${m[1]} most played opponent`, pre: true };
-  // "This season" for a team's events is the default season, the latest completed one (./answers/season.ts).
-  if ((m = /^(\d{1,6})\s+(?:events?|competitions?|tournaments?)\s+(?:this|current)\s+(?:season|year)$/.exec(t))) return { q: `${m[1]} events in ${seasonLabel(searchSeason()).replace("–", "-")}`, pre: true };
   // A team's world rank: by OPR, as on Rankings.
   if ((m = /^(\d{1,6})\s+(?:world|global|worldwide|overall)\s+(?:rank|ranking|standing)$/.exec(t))) return { q: `${m[1]} opr`, note: "the world rank by OPR; the prediction rating has its own (\"" + m[1] + " prediction rating\")", pre: true };
   // A team's rank in a place, said with the place first ("12345 nj rank").
@@ -754,7 +752,7 @@ export async function bottomAnswer(q: string): Promise<SearchAnswer | null> {
   // teams" is.
   const word = m[2] ?? m[1] ?? "rating";
   const stat = BOARD_STATS[/rating/.test(word) ? "rating" : word === "win rate" ? "win-rate" : word.replace(/\s+opr$/, "")];
-  const season = searchSeason();
+  const season = currentSeason();
   const sorted = stat?.teamsSort ? teamsHref(season, stat, region) : null;
   const where = region ? ` in ${region.name}` : "";
   const href = sorted ? `${sorted}&dir=asc` : `/rankings?season=${season}${region ? `&region=${encodeURIComponent(region.key)}` : ""}`;
@@ -894,8 +892,8 @@ export async function eventPageAnswer(q: string, prefer: ReadonlySet<string>, no
 export async function teamSuggestions(team: number, asked: string): Promise<string[]> {
   const played = await all<{ season: number }>("SELECT season FROM team_season_stats WHERE team = ? AND matches > 0 ORDER BY season DESC", [team]);
   if (!played.length) return [];
-  const def = searchSeason();
-  const season = played.some((r) => r.season === def) ? def : played[0].season;
+  // The team's latest season with matches (the one season rule, ./answers/season.ts).
+  const season = played[0].season;
   const worlds = !!(await get("SELECT 1 FROM team_event_stats s JOIN events e ON e.season = s.season AND e.code = s.code WHERE s.team = ? AND e.type = 'FIRSTChampionship' AND s.matches > 0 LIMIT 1", [team]));
   const awards = !!(await get("SELECT 1 FROM awards WHERE team = ? LIMIT 1", [team]));
   const S = seasonLabel(season);
@@ -1017,7 +1015,7 @@ export async function teamListAnswer(q: string): Promise<SearchAnswer | null> {
   }
   // Nothing below is asked: never a database read for an ordinary search.
   if (!/\b(?:best|top|strongest|highest|biggest|max(?:imum)?|undefeated|unbeaten|perfect|no losses|without a loss|win(?:ning|rate)?|improved|rookies?|oldest|newest|youngest|first[\s-]year|veteran|average|mean|avg|worlds|first championship|world championship)\b/.test(t)) return null;
-  const season = searchSeason();
+  const season = currentSeason();
   // A country's best: "best teams in canada", "top teams in romania" (a state's are the leaderboards').
   if ((m = /^(?:the\s+)?(?:best|top|strongest|highest[\s-]ranked)(?:\s+(\d+))?\s+(?:teams?|robots?)\s+(?:in|from|of)\s+(.+)$/.exec(t))) {
     const p = await placeOf(cased(q, m[2]));
@@ -1385,7 +1383,7 @@ export async function placeTeamsAnswer(q: string, prefer: ReadonlySet<string>): 
   // "Teams in Great Britain" names its place after "in", so it's never read this way.
   if (!/^(?:all\s+)?(?:the\s+)?teams?\s/.test(t) && /\b(?:best|top|strongest|highest|most|worst|rookie|oldest|newest|undefeated)\b/.test(m[1])) return null;
   const p = await placeOf(cased(q, m[1]));
-  const season = searchSeason();
+  const season = currentSeason();
   if (p) {
     const rows = await all<any>(`SELECT s.team, t.name, t.city, t.state, t.country, s.opr_np, ${PHASE_COLS}, s.wins, s.losses, s.ties FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE s.season = ? AND s.matches >= ${RANKED_MIN_MATCHES} AND ${teamPageSql("s.team", "t.name")}${placeSql(p)} ORDER BY s.opr_np DESC, s.team LIMIT 25`, [season, ...placeArgs(p)]);
     const n = await get<{ n: number }>(`SELECT COUNT(*) n FROM team_seasons ts JOIN teams t ON t.number = ts.team WHERE ts.season = ?${placeSql(p)}`, [CURRENT_SEASON, ...placeArgs(p)]);

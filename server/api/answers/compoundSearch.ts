@@ -11,7 +11,7 @@ import type { CompoundQuestion, SeasonWords } from "./compound.js";
 import { fuzzyScore } from "../fuzzy.js";
 import { teamEventSet, type TeamEvent } from "./eventSet.js";
 import { teamMatches } from "./matchSet.js";
-import { searchSeason } from "./season.js";
+import { currentSeason, seasonWhy } from "./season.js";
 import { awardsAnswer } from "./families/awards.js";
 import { beatTopAnswer, combinedAnswer, eventPairAnswer, eventPicksAnswer, listAnswer, listPairAnswer, listTitle, marginAnswer, oprExcludingAnswer, reliabilitySetAnswer, sideThresholdAnswer, winLossAverageAnswer } from "./families/compound.js";
 import { matchAnswer, whoOf, type AnswerTeam } from "./families/matches.js";
@@ -35,11 +35,11 @@ const TITLES: Record<Exclude<CompoundQuestion["kind"], "list" | "list-pair" | "s
 /** The season a team's answer reads: the one named; every season for "ever"; else the default season, or the team's
  *  latest with matches (said so). */
 async function seasonFor(w: SeasonWords, team: number, deps: CompoundDeps, everAllowed = true): Promise<{ season: number | null; why?: string }> {
-  if (w.season != null) return { season: w.season, ...(w.latest ? { why: `"This season" here is ${seasonLabel(w.season)}, the latest completed season.` } : {}) };
+  if (w.season != null) return { season: w.season, ...(w.latest ? { why: seasonWhy("this-any", w.season) } : {}) };
   if (w.ever && everAllowed) return { season: null };
   const l = await deps.latestSeason(team);
   if (!l) return { season: null };
-  return { season: l.season, why: l.own ? `The season is ${seasonLabel(l.season)}: no ${seasonLabel(searchSeason())} matches on record, so the team's latest season with matches.` : `With no season named, the season is ${seasonLabel(l.season)}, the latest completed season (its FIRST Championship has finished).` };
+  return { season: l.season, why: seasonWhy("team", l.season, String(team)) };
 }
 
 /** Two of the team's events that name the words about as well (pickTeamEvent picks neither) but are one championship:
@@ -170,7 +170,7 @@ async function listSearch(q: string, c: Extract<CompoundQuestion, { kind: "list"
   const label = listTitle(c, c.city ? c.city.replace(/\b\w/g, (x) => x.toUpperCase()) : null);
   const answer: SearchAnswer = {
     q, hits: [], pages: opts.pages, step: "deterministic", weak: false,
-    understood: { kind: "question", label, season: c.season ?? searchSeason(), ...(c.region ? { place: { key: c.region.key, name: c.region.name } } : {}) },
+    understood: { kind: "question", label, season: c.season ?? currentSeason(), ...(c.region ? { place: { key: c.region.key, name: c.region.name } } : {}) },
     intent: { kind: "stat-compound-list", pattern: `teams${c.region ? " [place]" : c.city ? " [city]" : ""}${c.award ? " [award]" : ""}${c.worlds ? " [worlds]" : ""}${c.thresholds.length ? " [threshold]" : ""}${c.noWorlds ? " [not worlds]" : ""}${c.rookie ? " [rookie]" : ""}`, met: true, understood: [label] },
   };
   if (!opts.full) return { ...answer, pages: [{ title: label, href: `/search?q=${encodeURIComponent(q)}` }, ...opts.pages] };

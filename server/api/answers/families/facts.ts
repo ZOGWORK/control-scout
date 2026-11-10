@@ -14,7 +14,7 @@ import { all, get } from "../../../db.js";
 import { isEnabled } from "../../../flags.js";
 import { ATTENDED, seasonStats, teamEvents, teamReliability, teamReportCards, teamSchedule } from "../../teams.js";
 import { readScope } from "../read.js";
-import { searchSeason, searchSeasonWhy } from "../season.js";
+import { currentSeason, seasonWhy, teamSeason } from "../season.js";
 import { ratingKpis } from "./oprRating.js";
 import { eventHref, matchHref, shortEvent, teamHref } from "../matchSet.js";
 
@@ -34,6 +34,8 @@ export interface FactQuestion {
   world: boolean;
   /** "OPR vs New Jersey Championship average": the event's words. */
   event: string | null;
+  /** "this season" was said: the season is the team's latest with matches, and the card says so (seasonOf). */
+  latest?: boolean;
   /** "events played in 2025-26": only the events with a played match (the season's list holds upcoming ones too). */
   played?: boolean;
   /** "in date order", "oldest first": a place's events listed oldest first (they're newest first otherwise). */
@@ -104,7 +106,7 @@ export function readTeamFact(raw: string): FactQuestion | null {
       if (s.scope.season != null && !s.rest.replace(/\bevents?\b/, "").trim()) { const core = rest.trim(); return core ? { id: "events-season", core, season: s.scope.season, region: null, world: false, event: null, ...listed, ...(mo ? { month } : {}) } : null; }
       // "events in New Jersey 2024-25", "events in Romania this year": the place, and the season read off it ("this
       // year" is the default season, as every team answer reads it).
-      const said = s.scope.season ?? (s.scope.latest ? searchSeason() : null);
+      const said = s.scope.season ?? (s.scope.latest ? currentSeason() : null);
       const place = said != null ? s.rest.replace(/\bevents?\s+in\b/, "").trim() : what;
       region = regionOf(place.split(" "));
       // A whole country ("Romania"): its events, every state or province of it.
@@ -118,9 +120,10 @@ export function readTeamFact(raw: string): FactQuestion | null {
     // "This season" is the default season, as the team's other answers read it ("12345 events played this season").
     // A month is a filter on a season's events only: any other answer would drop it.
     if (mo && r.id !== "events-season") return null;
-    if (mo) scope.season ??= monthSeason ?? searchSeason();
-    if (r.id === "events-season" && scope.season == null && scope.latest) scope.season = searchSeason();
-    if (r.id === "events-season" && scope.season == null) return null;
+    if (mo) scope.season ??= monthSeason ?? currentSeason();
+    // "12345 events this season": the team's latest season with matches, resolved by the answer (seasonOf); said here as
+    // "latest" so the answer knows it was asked for.
+    if (r.id === "events-season" && scope.season == null && !scope.latest) return null;
     if ((r.id === "events-season" || r.id === "events-place") && /\b(?:when|next|win|won|did|does|what|which|how|where|awards?|upcoming)\b/.test(q)) return null;
     // "past events in michigan", "recent events in nj": a time, not a team ("past" isn't PastaBots), the event sets' own.
     if ((r.id === "events-season" || r.id === "events-place") && /^\s*(?:past|recent|previous|latest|future|coming|all|every|the|list|show)\s*$/.test(rest)) return null;
@@ -129,9 +132,9 @@ export function readTeamFact(raw: string): FactQuestion | null {
     // A bare year with nothing else naming a team is the team's number ("2024 reliability").
     const more = { ...(country ? { country } : {}), ...(r.id === "events-season" || r.id === "events-place" ? listed : {}), ...(mo ? { month } : {}) };
     // The month's own year stays its season ("2024 events in march 2024"): the bare year was the team's.
-    if (!core && scope.year && scope.season != null) return { id: r.id, core: String(scope.season), season: mo ? (monthSeason ?? searchSeason()) : null, region, world, event, ...more };
+    if (!core && scope.year && scope.season != null) return { id: r.id, core: String(scope.season), season: mo ? (monthSeason ?? currentSeason()) : null, region, world, event, ...more };
     if (!core) return null;
-    return { id: r.id, core, season: scope.season, region, world, event, ...more };
+    return { id: r.id, core, season: scope.season, region, world, event, ...more, ...(scope.latest && scope.season == null ? { latest: true } : {}) };
   }
   return null;
 }
@@ -143,13 +146,10 @@ const top = (rank: number, of: number) => `top ${Math.max(1, Math.ceil((100 * ra
 const n = (x: number) => x.toLocaleString("en-US");
 const OPR_RULE = "OPR: the points a team adds to its alliance's score without penalties, its best event that season (as its team page shows). Each phase's OPR is its own best that season, so the phases don't add up to the OPR. Ranks count every team with an OPR that season; each season is a different game, so a number is only set against its own season's.";
 
-/** The season asked, else the default season (the latest completed one, ../season.ts) when the team played in it,
- *  else the team's newest with matches. */
+/** The season asked, else the team's latest season with official matches (the one season rule, ../season.ts). */
 export async function seasonOf(team: number, asked: number | null): Promise<number | null> {
   if (asked != null) return asked;
-  const def = searchSeason();
-  const r = await get<{ s: number | null; d: number }>("SELECT MAX(season) s, MAX(season = ?) d FROM team_season_stats WHERE team = ? AND matches > 0", [def, team]);
-  return r?.s == null ? null : Number(r.d) ? def : Number(r.s);
+  return teamSeason(team);
 }
 
 /** The answer, or null when it has nothing to stand on (the question is left to search). */
@@ -174,7 +174,7 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
   const season = await seasonOf(team.number, f.season);
   if (season == null) return { ...base(f.id, "Season numbers", [], OPR_RULE, "From the stored season numbers"), none: `${who(team)} has no season with matches on record.` };
   const S = seasonLabel(season);
-  const why = f.season == null ? (season === searchSeason() ? ` ${searchSeasonWhy(season)}` : ` The season is ${S}: no ${seasonLabel(searchSeason())} matches on record, so the team's latest with matches.`) : "";
+  const why = f.season == null ? ` ${seasonWhy(f.latest ? "this" : "team", season, String(team.number))}` : "";
 
   if (f.id === "opr" || f.id in PHASE) {
     // The team page's own reader (seasonStats, server/api/teams.ts): the same stored row, ranks and population, so the

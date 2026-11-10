@@ -12,7 +12,7 @@ import { dateRange, num, possessive, seasonLabel } from "../../../../src/shared/
 import { all, get } from "../../../db.js";
 import { seasonStats } from "../../teams.js";
 import { readScope } from "../read.js";
-import { searchSeason } from "../season.js";
+import { currentSeason, seasonWhy, teamSeason } from "../season.js";
 import { teamHref } from "../matchSet.js";
 
 export interface ChangeQuestion {
@@ -21,6 +21,9 @@ export interface ChangeQuestion {
   /** Two seasons ("from last season to this season"), or one ("this season": within it). */
   from: number | null;
   to: number;
+  /** No season was said (or "this season"): `to` is the current season here, and the answer reads the team's latest
+   *  season with matches instead (the one season rule, ../season.ts). */
+  defaulted?: boolean;
 }
 
 const CHANGE = String.raw`(?:improve[ds]?|improvement|change[ds]?|grow|grew|go up|went up|increase[ds]?|rise|rose|drop(?:ped)?|fall|fell|go down|went down|decrease[ds]?)`;
@@ -29,7 +32,7 @@ const CHANGE = String.raw`(?:improve[ds]?|improvement|change[ds]?|grow|grew|go u
 function seasonIn(words: string): number | null | undefined {
   const { scope, rest } = readScope(` ${words} `);
   if (rest.replace(/\b(?:the|season|year)\b/g, "").trim()) return undefined;
-  return scope.season ?? (scope.latest ? searchSeason() : null);
+  return scope.season ?? (scope.latest ? currentSeason() : null);
 }
 
 /** "how much did 12345's opr improve from last season to this season", "12345 rating change this season", "12345
@@ -43,19 +46,21 @@ export function readChange(raw: string): ChangeQuestion | null {
   if (!m || /\b(?:vs|versus|and|or)\b/.test(m[1])) return null;
   const stat = m[2] === "opr" ? "opr" : "rating";
   const tail = (m[3] ?? "").trim();
-  const def = searchSeason();
+  const def = currentSeason();
   // "from X to Y" keeps its direction (the change is Y against X); "between X and Y" has none: oldest first.
   const two = /^(from|between) (.+?) (?:to|and) (.+)$/.exec(tail) ?? (/^since (.+)$/.exec(tail) ? [tail, "from", tail.slice(6), "this season"] : null);
   if (two) {
     const a = seasonIn(two[2]), b = seasonIn(two[3]);
     if (a == null || b == null || a === b) return null;
-    return two[1] === "between" ? { stat, core: m[1], from: Math.min(a, b), to: Math.max(a, b) } : { stat, core: m[1], from: a, to: b };
+    const defaulted = b === def && /\b(?:this|current)\s+(?:season|year)\b/.test(two[3]);
+    return two[1] === "between" ? { stat, core: m[1], from: Math.min(a, b), to: Math.max(a, b), ...(defaulted ? { defaulted } : {}) } : { stat, core: m[1], from: a, to: b, ...(defaulted ? { defaulted } : {}) };
   }
-  if (!tail) return stat === "opr" ? { stat, core: m[1], from: def - 1, to: def } : { stat, core: m[1], from: null, to: def };
+  if (!tail) return stat === "opr" ? { stat, core: m[1], from: def - 1, to: def, defaulted: true } : { stat, core: m[1], from: null, to: def, defaulted: true };
+  const latest = /^(?:in|during|over|across )?\s*(?:the\s+)?(?:this|current)\s+(?:season|year)$/.test(tail);
   const one = seasonIn(tail.replace(/^(?:in|during|over|across) /, ""));
   if (one == null) return null;
   // One season: a rating moves within it; OPR is a season's best event, so it's set against the season before.
-  return stat === "opr" ? { stat, core: m[1], from: one - 1, to: one } : { stat, core: m[1], from: null, to: one };
+  return stat === "opr" ? { stat, core: m[1], from: one - 1, to: one, ...(latest ? { defaulted: true } : {}) } : { stat, core: m[1], from: null, to: one, ...(latest ? { defaulted: true } : {}) };
 }
 
 type Team = { number: number; name: string | null };
@@ -63,8 +68,11 @@ const who = (t: Team) => `${t.number}${t.name ? ` ${t.name}` : ""}`;
 const signed = (x: number) => `${x > 0 ? "+" : x < 0 ? "−" : "±"}${num(Math.abs(x))}`;
 const top = (rank: number, of: number) => `top ${Math.max(1, Math.ceil((100 * rank) / of))}%`;
 
-export async function changeAnswer(c: ChangeQuestion, team: Team): Promise<StatAnswer> {
-  return c.from != null ? seasonsAnswer(c, c.from, team) : withinAnswer(c.to, team);
+export async function changeAnswer(c0: ChangeQuestion, team: Team): Promise<StatAnswer> {
+  // No season said: the team's latest season with matches, the one season rule (../season.ts); the season before it
+  // when the change is from one season to the next.
+  const c = c0.defaulted ? await (async () => { const s = await teamSeason(team.number); return s == null || s === c0.to ? c0 : { ...c0, to: s, from: c0.from == null ? null : c0.from - (c0.to - s) }; })() : c0;
+  return c.from != null ? seasonsAnswer(c, c.from, team) : withinAnswer(c.to, team, !!c.defaulted);
 }
 
 /** One number in two seasons: the team page's season rows, and the difference. */
@@ -107,7 +115,7 @@ async function seasonsAnswer(c: ChangeQuestion, from: number, team: Team): Promi
 /** The rating within one season, from the weekly Rankings snapshots alone (one series, so start and end compare): its
  *  earliest stored week and the season's last (its final standing), and the weeks between. The team page's rating
  *  today is shown beside it, said to be the engine's live number, which isn't one of the weekly snapshots. */
-async function withinAnswer(season: number, team: Team): Promise<StatAnswer> {
+async function withinAnswer(season: number, team: Team, defaulted = false): Promise<StatAnswer> {
   const S = seasonLabel(season);
   const [all_, now] = await Promise.all([
     all<{ week: string; rating: number; rank: number }>("SELECT week, rating, rank FROM ranking_snapshots WHERE season = ? AND team = ? ORDER BY week", [season, team.number]),
@@ -120,7 +128,7 @@ async function withinAnswer(season: number, team: Team): Promise<StatAnswer> {
   const weeks = all_.slice(0, last + 1);
   const base = {
     family: "trend" as const, intent: "rating-change", title: `Prediction rating change in ${S}`, team, scope: [S],
-    definition: `Prediction rating: the engine's points-per-match strength, from the weekly Rankings snapshots (a team is in a week's snapshot once 3 of its matches are rated). The start is the earliest week of ${S} kept; the end is the season's last week in which its rating or world rank changed, its final standing. The team page shows the engine's live ${S} rating, which isn't one of these weekly snapshots, so it is listed beside them and not used for the change.${season === searchSeason() ? ` With no other season named, "this season" is ${S}, the latest completed season (its FIRST Championship has finished).` : ""}`,
+    definition: `Prediction rating: the engine's points-per-match strength, from the weekly Rankings snapshots (a team is in a week's snapshot once 3 of its matches are rated). The start is the earliest week of ${S} kept; the end is the season's last week in which its rating or world rank changed, its final standing. The team page shows the engine's live ${S} rating, which isn't one of these weekly snapshots, so it is listed beside them and not used for the change.${defaulted ? ` ${seasonWhy("this", season, String(team.number))}` : ""}`,
     source: `From ${weeks.length} weekly Rankings snapshot${weeks.length === 1 ? "" : "s"} of ${who(team)}, ${S}`,
   };
   const live = now?.rating?.np ?? null;

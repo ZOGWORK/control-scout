@@ -7,7 +7,7 @@ import type { Region } from "../../../src/shared/regions.js";
 import { findRegions, nearRegion } from "../../../src/shared/regions.js";
 import { countryOf } from "../../../src/shared/countries.js";
 import { SEASONS } from "../../data/seasons.js";
-import { searchSeason } from "./season.js";
+import { currentSeason, lastSeason } from "./season.js";
 
 /** "over 100", "less than 10", "at least 3": a comparison with a number. */
 export interface Threshold { op: "gt" | "ge" | "lt" | "le"; value: number }
@@ -58,8 +58,8 @@ export function seasonWords(s: string): SeasonWords & { rest: string } {
   const take = (re: RegExp) => { const m = re.exec(rest); if (m) rest = rest.replace(m[0], " "); return m; };
   const label = take(/\b(?:in\s+|during\s+|for\s+)?(?:the\s+)?(20\d\d)\s*[-–/]\s*(\d\d)(?:\s+season)?\b/);
   if (label && (Number(label[1]) + 1) % 100 === Number(label[2])) out.season = Number(label[1]);
-  if (out.season == null && take(/\b(?:in\s+|during\s+|for\s+)?(?:the\s+)?(?:this|current)\s+(?:season|year)\b/)) { out.season = searchSeason(); out.latest = true; }
-  if (out.season == null && take(/\b(?:in\s+|during\s+|for\s+)?(?:the\s+)?(?:last|previous|past)\s+(?:season|year)\b/)) out.season = searchSeason() - 1;
+  if (out.season == null && take(/\b(?:in\s+|during\s+|for\s+)?(?:the\s+)?(?:this|current)\s+(?:season|year)\b/)) { out.season = currentSeason(); out.latest = true; }
+  if (out.season == null && take(/\b(?:in\s+|during\s+|for\s+)?(?:the\s+)?(?:last|previous|past)\s+(?:season|year)\b/)) out.season = lastSeason();
   if (out.season == null) {
     const y = take(/\b(?:in\s+|during\s+|for\s+)?(20\d\d)\b/);
     if (y && SEASONS.some((x) => x.season === Number(y[1]))) out.season = Number(y[1]);

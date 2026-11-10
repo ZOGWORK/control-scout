@@ -12,7 +12,7 @@ import { rewriteQuery } from "../searchCoverage";
 import { readEventQuery } from "../../../src/shared/searchEventQuery";
 import { readLeaderboard, readScope } from "./read";
 import { readChange } from "./families/seasonChange";
-import { refreshSearchSeason, resetSearchSeason, searchSeason } from "./season";
+import { completedSeason, currentSeason, lastSeason, refreshSearchSeason, resetSearchSeason, teamSeason } from "./season";
 
 const NOW = Date.parse("2026-11-04T12:00:00Z");
 
@@ -54,7 +54,7 @@ beforeAll(async () => {
 
 describe("the default season", () => {
   it("is the newest season whose FIRST Championship has finished, from the data", async () => {
-    expect(searchSeason()).toBe(2025);
+    expect(completedSeason()).toBe(2025);
     // Once 2026–27's Championship is over, it's the default (no year is written down anywhere).
     resetSearchSeason();
     expect(await refreshSearchSeason(Date.parse("2027-05-10T00:00:00Z"))).toBe(2026);

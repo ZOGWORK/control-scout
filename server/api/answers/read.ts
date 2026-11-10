@@ -4,7 +4,7 @@
 // the scope words are read once, the same way for every intent (./clauses.ts applies them).
 import type { StatFamily } from "../../../src/shared/searchStat.js";
 import { SEASONS } from "../../data/seasons.js";
-import { searchSeason } from "./season.js";
+import { lastSeason } from "./season.js";
 import { readTime } from "../query/time.js";
 import { searchToday } from "../searchEvents.js";
 import { findRegions, nearRegion, type Region } from "../../../src/shared/regions.js";
@@ -278,11 +278,11 @@ const FRAME = /\b(?:how|many|much|what|whats|which|who|when|where|is|was|were|ar
 const squash = (s: string) => s.replace(/\s+/g, " ").trim();
 
 /** Answered from season rows: no event, match-type or colour scope applies to a season's numbers. */
-const SEASON_ROWS = new Set<IntentId>(["seasons-played", "seasons-count", "first-season", "best-season", "most-improved-season"]);
+export const SEASON_ROWS = new Set<IntentId>(["seasons-played", "seasons-count", "first-season", "best-season", "most-improved-season"]);
 /** Answered from the awards: no match type or colour applies. */
 const AWARD_IDS = new Set<IntentId>(["event-wins", "inspire-awards", "finalist-finishes", "total-awards", "award-split", "awards"]);
 /** Answered from event rows: an event-level scope (Worlds, states, a season) applies, a match type or colour doesn't. */
-const EVENT_ROWS = new Set<IntentId>(["best-finish", "worst-finish", "first-place-events", "worlds-divisions", "first-event", "last-event", "best-opr-event", "total-events", "average-rank"]);
+export const EVENT_ROWS = new Set<IntentId>(["best-finish", "worst-finish", "first-place-events", "worlds-divisions", "first-event", "last-event", "best-opr-event", "total-events", "average-rank"]);
 
 /** An event's rank, OPR and results, and the forecasts: their event can be named without "at" (StatQuestion.eventInCore). */
 const EVENT_IN_CORE = new Set<IntentId>(["event-rank", "event-opr", "results", "next-event-wins", "event-win-chance", "advance-chance", "playoff-chance"]);
@@ -305,7 +305,11 @@ export function readScope(q: string): { scope: ReadScope; rest: string } {
       const k = team ? [3, 2, 1].find((n) => before.length > n && named(before.slice(-n).join(" "))) : undefined;
       // The state named stays a limit: "10809 new jersey states" is New Jersey's, not the team's own elsewhere.
       if (k) scope.place = regionOf(before.slice(-k).join(" "));
-      rest = `${(k ? before.slice(0, -k) : before).join(" ")} ${rest.slice(st.index + st[0].length)}`;
+      let kept = (k ? before.slice(0, -k) : before).join(" ");
+      // "All (of their) state championships", "every states": every season the team played one, never only the latest.
+      const every = /(?:^|\s)(?:all|every|each)(?:\s+of)?(?:\s+(?:their|its|the))?\s*$/.exec(kept);
+      if (every) { scope.ever = true; kept = kept.slice(0, every.index); }
+      rest = `${kept} ${rest.slice(st.index + st[0].length)}`;
       scope.states = true;
     }
   }
@@ -327,9 +331,9 @@ export function readScope(q: string): { scope: ReadScope; rest: string } {
     if (y && SEASONS.some((s) => s.season === Number(y[1]))) { scope.season = Number(y[1]); scope.year = true; rest = rest.replace(y[0], " "); }
   }
   if (take(/\b(?:this|current|the\s+current)\s+(?:season|year)\b|\bthis\s+year'?s?\b/)) scope.latest = true;
-  // "Last season" is the season before the default one (the latest completed season, ./season.ts); a championship
-  // question reads it as the latest finished one.
-  else if (take(/\b(?:last|previous|past)\s+(?:year|season)'?s?\b/)) { scope.lastYear = true; scope.season ??= searchSeason() - 1; }
+  // "Last season" is the latest completed season (./season.ts lastSeason); a championship question reads it as the
+  // latest finished one.
+  else if (take(/\b(?:last|previous|past)\s+(?:year|season)'?s?\b/)) { scope.lastYear = true; scope.season ??= lastSeason(); }
   if (take(/\b(?:ever|all[\s-]+time|of\s+all\s+time|career|in\s+history|overall)\b/)) scope.ever = true;
   if (take(/\b(?:on|as|from)\s+(?:the\s+)?red(?:\s+alliance|\s+side)?\b|\bred\s+alliance\b/)) scope.alliance = "red";
   else if (take(/\b(?:on|as|from)\s+(?:the\s+)?blue(?:\s+alliance|\s+side)?\b|\bblue\s+alliance\b/)) scope.alliance = "blue";

@@ -19,7 +19,7 @@ import { recordSql } from "../../../../src/shared/eventRecord.js";
 import { countryOf } from "../../../../src/shared/countries.js";
 import type { Region } from "../../../../src/shared/regions.js";
 import { all, get } from "../../../db.js";
-import { searchSeason, searchSeasonWhy } from "../season.js";
+import { currentSeason, searchSeasonWhy } from "../season.js";
 import { reportedTeleopIncludesEndgame } from "../../../data/seasons.js";
 import { eventHref, teamHref } from "../matchSet.js";
 import { seasonOfDate } from "../../query/time.js";
@@ -119,7 +119,7 @@ const record = (r: { wins: number; losses: number; ties: number }) => `${r.wins}
 export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
   if (b.kind === "city") return cityAnswer(b.city!, !!b.school, b.cityIn ?? null);
   if (b.event) return eventBoardAnswer(b, b.event);
-  const season = b.season ?? searchSeason();
+  const season = b.season ?? currentSeason();
   const why = b.season == null ? ` ${searchSeasonWhy(season)}` : b.seasonWhy ? ` ${b.seasonWhy}` : "";
   if (b.kind === "city-best") return b.season == null ? cityBestNow(b) : cityBestAnswer(b, season, why);
   // A region, or a whole country (no state); a town in it narrows to the teams from there.

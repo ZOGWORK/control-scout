@@ -7,9 +7,9 @@ import { migrate, openDb, run, setDb } from "../../db";
 import { rebuildSearch } from "../../stats/job";
 import { searchAnswer } from "../searchAnswer";
 import { placeAwardsAnswer, readPlaceAwards } from "./families/placeAwards";
-import { searchSeason } from "./season";
+import { currentSeason } from "./season";
 
-const S = searchSeason();
+const S = currentSeason();
 
 beforeAll(async () => {
   const c = openDb(":memory:");

@@ -9,7 +9,7 @@ import { hasTeamPage, teamPageSql } from "../../../src/shared/teamPages.js";
 import { all } from "../../db.js";
 import { fold, names, type TeamName } from "../query/names.js";
 import type { Parsed } from "../query/parse.js";
-import { searchSeason } from "./season.js";
+import { relativeSeason } from "./season.js";
 
 const plural = (n: number) => `${n.toLocaleString("en-US")} ${n === 1 ? "team" : "teams"}`;
 const from = (t: TeamName) => [t.city, t.state, t.country === "USA" ? null : t.country].filter(Boolean).join(", ");
@@ -20,9 +20,8 @@ function seasonOf(p: Parsed): number | null | undefined {
   const t = p.time;
   if (!t || t.kind === "ever") return null;
   if (t.kind === "window") return undefined;
-  if (t.relative === "this") return searchSeason();
-  if (t.relative === "last") return searchSeason() - 1;
-  return t.season;
+  // No team is named here: "this season" is the current one, "last season" the latest completed (./season.ts).
+  return relativeSeason(t.relative, t.season);
 }
 
 /** The answer for a parse with a name said as words, or null when it holds a slot a list of names doesn't take. */
