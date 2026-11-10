@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.0.4 — 2026-11-10
+## 5.0.5 — 2026-11-10
 
 Search reads one season rule in every answer, and says which season (and which state championship) it read.
 
@@ -29,6 +29,21 @@ Search reads one season rule in every answer, and says which season (and which s
 - One season resolver (`server/api/answers/season.ts`) for every intent: a team's question with no season (or "this season", "right now") reads the latest season that team has played; a question about no team reads the current season, stepping back a season with a note when nothing is played there yet; "last season" / "last year" is the latest completed season; a season named is honoured exactly. Every card states the season and why.
 - "At states" reads the team's state championship (the season named, else the latest it played) for a record, match list, score or streak as it already did for results, rank and OPR, so rewordings get one scope; the card names the event and its season. "All state championships", "ever" or "all time" reads every season, labelled "All seasons".
 - Plain leaderboards ("NJ top teams leaderboard") step back a season, said on the card, as the asked boards did. (#1286)
+
+## 5.0.4 — 2026-11-10
+
+Predict opens on its teams: a matchup link from a team page or a search answer shows the teams and the call from the first paint.
+
+### Highlights
+- [predict] "Open in Predict" from a search answer shows the call, not an empty form
+- [speed] A shared matchup shows its odds and scores at once, before the app loads
+- [predict] The team boxes show each team's name straight away
+
+### Changed
+- `/predict?mode=match&…` with teams in it is drawn on the server like team and event pages: the teams in their boxes with their names and, with both sides given, the odds, predicted scores and reasons. (#1284)
+- One team a side (as search's "4215 vs 7149 who wins" links it) now shows its call; before, Predict waited for four teams. The form takes one or two teams a side, and a link that fills it no longer puts the cursor in an empty box (on a phone that opened the keyboard over the call). A team typed twice is named on its box ("4215 is already red team 1") instead of leaving the button greyed out, and the page says "one or two teams a side" where it said four. A head-to-head link posted in a chat unfurls into its call's card, like a two-a-side one.
+
+
 ## 5.0.3 — 2026-11-10
 
 A record asked with no team shows the season's best records and asks which team, never one team picked for you.

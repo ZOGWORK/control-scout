@@ -1,7 +1,7 @@
 // Predict: predictions run on their own, so this page starts from what people
 // care about — a team or an event. Pick one and its predictions show inline;
-// this week's events are listed underneath. The manual what-if lab (any four
-// teams, advancement for any team at any event) sits at the bottom.
+// this week's events are listed underneath. The manual what-if lab (one or two
+// teams a side, advancement for any team at any event) sits at the bottom.
 // Every output carries its confidence tier.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -34,7 +34,7 @@ import { teamsErrors } from "../lib/teamCheck";
 import { SeasonToggle } from "../components/SeasonToggle";
 import { AdvancementView } from "../components/Advancement";
 import { SearchBox } from "../components/search/SearchBox";
-import { canonicalPredict, parsePick, predictHref, predictParams, readPredict, switchMode, type PredictMode, type PredictPick } from "../shared/predictUrl";
+import { canonicalPredict, matchApiPath, matchupOf, parsePick, predictHref, predictParams, readPredict, switchMode, type PredictMode, type PredictPick } from "../shared/predictUrl";
 import { cn } from "../components/cn";
 import { PredictionBasis } from "../components/PredictionBasis";
 import { marginCalibration, marginText, matchBasis, overlapTotal, scoreSum, scoreTotal } from "../shared/predictionBasis";
@@ -97,9 +97,9 @@ export default function PredictPage() {
         <div className="grid items-start gap-x-10 @5xl/predict:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]">
           <div className="min-w-0">
             <h1 className="font-display text-3xl font-semibold tracking-tight text-foreground max-sm:text-2xl">Predict</h1>
-            <p className="mt-1 text-sm text-muted-foreground sm:hidden">Advancement odds, scheduled matches, or any four teams.</p>
+            <p className="mt-1 text-sm text-muted-foreground sm:hidden">Advancement odds, scheduled matches, or any matchup.</p>
             <p className="mt-1 max-w-2xl text-sm text-muted-foreground max-sm:hidden">
-              Odds for any team at any event, every scheduled match, or any four teams. Each number carries its confidence; the <Link to="/methodology#accuracy" className="underline">track record</Link> shows how often they've been right.
+              Odds for any team at any event, every scheduled match, or any matchup of one or two teams a side. Each number carries its confidence; the <Link to="/methodology#accuracy" className="underline">track record</Link> shows how often they've been right.
             </p>
             <TabsList aria-label="Predict mode" className="mt-4 max-sm:mt-3 max-sm:grid max-sm:w-full max-sm:grid-cols-3 sm:p-1">
               {MODES.map(({ v, label, short, icon: Icon }) => (
@@ -347,22 +347,22 @@ function MatchLab() {
   const [sp, setSp] = useSearchParams();
   // The first empty box takes focus only when nothing else has it (arriving on the Lab); switching to it with the
   // view tabs' arrow keys leaves focus on the tab, as the tabs pattern expects.
-  const [grab] = useState(() => !document.activeElement || document.activeElement === document.body);
+  const [grab] = useState(() => typeof document !== "undefined" && (!document.activeElement || document.activeElement === document.body));
   const current = useCurrentSeason();
   const season = Number(sp.get("season")) || current;
   const init = (k: string) => (sp.get(k) ?? "").split(",").filter(Boolean);
   const [red, setRed] = useState<string[]>(() => { const x = init("red"); return [x[0] ?? "", x[1] ?? ""]; });
   const [blue, setBlue] = useState<string[]>(() => { const x = init("blue"); return [x[0] ?? "", x[1] ?? ""]; });
-  const ready = red.every((x) => x) && blue.every((x) => x);
+  // One or two teams a side (src/shared/predictUrl.ts matchupOf): an empty second box is a one-team side.
+  const ready = matchupOf(red.join(","), blue.join(",")) != null;
+  // The button needs a team each side to check; a repeat or a bad number is then named on its own box (run below).
+  const canCheck = red.some((v) => v.trim()) && blue.some((v) => v.trim());
   const query = ready ? `/api/predict/match${qs({ season, red: red.join(","), blue: blue.join(",") })}` : null;
   // The matchup last asked for (from the URL or the Predict button). Typing in
   // the inputs edits a draft; the season switch never touches the draft.
   type Matchup = { red: number[]; blue: number[] };
-  const parse = (r: string, b: string): Matchup | null => {
-    const red = r.split(",").filter(Boolean).map(Number), blue = b.split(",").filter(Boolean).map(Number);
-    const all = [...red, ...blue];
-    return red.length === 2 && blue.length === 2 && all.every((t) => Number.isInteger(t) && t > 0) && new Set(all).size === 4 ? { red, blue } : null;
-  };
+  // Two a side, or one a side (a head-to-head, as search links it): src/shared/predictUrl.ts.
+  const parse = (r: string, b: string): Matchup | null => matchupOf(r, b);
   const urlRed = sp.get("red") ?? "", urlBlue = sp.get("blue") ?? "";
   const [submittedTeams, setSubmittedTeams] = useState<Matchup | null>(() => parse(urlRed, urlBlue));
   // Saved links and back/forward change the URL on this same page: follow it.
@@ -374,7 +374,8 @@ function MatchLab() {
     setErrors([null, null, null, null]);
     edits.current++;
   }, [urlRed, urlBlue]);
-  const submitted = submittedTeams ? `/api/predict/match${qs({ season, red: submittedTeams.red.join(","), blue: submittedTeams.blue.join(",") })}` : null;
+  // The same path the server draws a pre-filled matchup from (server/firstPaint.ts), so its answer is on screen at once.
+  const submitted = submittedTeams ? matchApiPath(season, submittedTeams.red, submittedTeams.blue) : null;
   const state = useApi<MatchExplanationView>(submitted);
   // Offline: the submitted (validated) matchup — never the half-typed draft.
   const offline = useOfflineFallback(state.error?.offline && submittedTeams ? { season, ...submittedTeams } : null);
@@ -386,19 +387,23 @@ function MatchLab() {
   const edits = useRef(0);
   const clearError = (i: number) => { edits.current++; setErrors((e) => (e[i] ? e.map((x, j) => (j === i ? null : x)) : e)); };
   const run = async () => {
-    if (!ready) return;
+    if (!canCheck) return;
     const at = edits.current;
     setChecking(true);
-    const errs = await teamsErrors([...red, ...blue], ["red team 1", "red team 2", "blue team 1", "blue team 2"], lookupTeamName);
+    // Only the boxes filled in are checked (an empty second box is a one-team side); errors land on their own box.
+    const filled = [...red, ...blue].map((v, i) => ({ v, i })).filter((x) => x.v);
+    const found = await teamsErrors(filled.map((x) => x.v), filled.map((x) => ["red team 1", "red team 2", "blue team 1", "blue team 2"][x.i]), lookupTeamName);
+    const errs: (string | null)[] = [null, null, null, null];
+    filled.forEach((x, k) => { errs[x.i] = found[k]; });
     setChecking(false);
     if (edits.current !== at) return;
     setErrors(errs);
     const bad = errs.findIndex(Boolean);
     if (bad >= 0) { inputs.current[bad]?.focus(); return; }
     const m = parse(red.join(","), blue.join(","));
-    if (!m) return;
+    if (!m) { const first = [...red, ...blue].findIndex((v) => v.trim()); setErrors((e) => e.map((x, i) => (i === first ? "Pick different teams, one or two a side." : x))); inputs.current[first]?.focus(); return; }
     setSubmittedTeams(m);
-    setSp((x) => { x.set("mode", "match"); x.set("season", String(season)); x.set("red", red.join(",")); x.set("blue", blue.join(",")); return x; }, { replace: true });
+    setSp((x) => { x.set("mode", "match"); x.set("season", String(season)); x.set("red", m.red.join(",")); x.set("blue", m.blue.join(",")); return x; }, { replace: true });
   };
   const swap = () => { edits.current++; setRed(blue); setBlue(red); setErrors((e) => [e[2], e[3], e[0], e[1]]); };
   // From the result: the same four teams with the alliances swapped, predicted straight away (they're already checked).
@@ -420,20 +425,20 @@ function MatchLab() {
         <form onSubmit={(e) => { e.preventDefault(); run(); }} noValidate className="grid items-start gap-4 md:grid-cols-[1fr_auto_1fr]">
           <fieldset className="rounded-xl border border-red-alliance/30 bg-red-alliance/[0.04] p-4">
             <legend className="px-1 text-sm font-semibold text-red-alliance">Red alliance</legend>
-            <div className="grid grid-cols-2 gap-3">{red.map((v, i) => <TeamInput key={i} label={`Red team ${i + 1}`} tone="red" value={v} onChange={(x) => { setRed((r) => r.map((y, j) => (j === i ? x : y))); clearError(i); }} autoFocus={grab && !v && i === red.indexOf("")} error={errors[i]} inputRef={(el) => { inputs.current[i] = el; }} />)}</div>
+            <div className="grid grid-cols-2 gap-3">{red.map((v, i) => <TeamInput key={i} label={`Red team ${i + 1}`} tone="red" value={v} onChange={(x) => { setRed((r) => r.map((y, j) => (j === i ? x : y))); clearError(i); }} autoFocus={grab && !submittedTeams && !v && i === red.indexOf("")} error={errors[i]} inputRef={(el) => { inputs.current[i] = el; }} />)}</div>
           </fieldset>
           <div className="flex justify-center md:pt-8"><Button type="button" variant="ghost" size="icon" onClick={swap} aria-label="Swap alliances"><ArrowLeftRight /></Button></div>
           <fieldset className="rounded-xl border border-blue-alliance/30 bg-blue-alliance/[0.04] p-4">
             <legend className="px-1 text-sm font-semibold text-blue-alliance">Blue alliance</legend>
             <div className="grid grid-cols-2 gap-3">{blue.map((v, i) => <TeamInput key={i} label={`Blue team ${i + 1}`} tone="blue" value={v} onChange={(x) => { setBlue((r) => r.map((y, j) => (j === i ? x : y))); clearError(2 + i); }} error={errors[2 + i]} inputRef={(el) => { inputs.current[2 + i] = el; }} />)}</div>
           </fieldset>
-          <div className="md:col-span-3"><Button type="submit" size="lg" disabled={!ready || checking} className="w-full sm:w-auto"><Sparkles /> Predict this match</Button></div>
+          <div className="md:col-span-3"><Button type="submit" size="lg" disabled={!canCheck || checking} className="w-full sm:w-auto"><Sparkles /> Predict this match</Button></div>
         </form>
       </div>
       {submitted && (state.error
         ? (offline.data ? <MatchResult x={offline.data} offlineAsOf={offline.asOf} onSwap={swapResult} /> : offline.loading ? <div className="skeleton h-72 rounded-2xl" /> : <ErrorState error={state.error} onRetry={state.reload} />)
         : !state.data ? <div className="skeleton h-72 rounded-2xl" /> : <MatchResult x={state.data} onSwap={swapResult} />)}
-      {!submitted && <EmptyState icon={Swords} title="Pick four teams" description="Any teams, any season. You'll get win odds, predicted scores with ranges, the three biggest reasons, and how confident the call is." />}
+      {!submitted && <EmptyState icon={Swords} title="Pick the teams" description="One or two a side, any teams, any season. You'll get win odds, predicted scores with ranges, the three biggest reasons, and how confident the call is." />}
       <SavedPredictions />
     </div>
   );

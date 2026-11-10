@@ -105,3 +105,24 @@ export function switchMode(s: PredictState, to: PredictMode): Partial<PredictSta
   if (to === "scheduled") return { mode: to, pick: team ? { kind: "team", team } : s.mode === "advancement" && s.code && s.season ? { kind: "event", season: s.season, code: s.code } : null, season: team ? s.season : null };
   return { mode: to, season: s.season, red: s.mode === "match" ? s.red : team ? [team] : [], blue: s.mode === "match" ? s.blue : [] };
 }
+
+/** A what-if matchup as an address carries it (?red=4215,7149&blue=…): each alliance one or two teams, no team twice;
+ *  null when it isn't one yet (a side empty, a third robot, a repeat). One team a side is a head-to-head, as search's
+ *  "4215 vs 7149 who wins" links it. Read the one way by the Predict page and the server drawing its first paint. */
+export function matchupOf(red: string | null, blue: string | null): { red: number[]; blue: number[] } | null {
+  const side = (v: string | null) => (v ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+  const r = side(red), b = side(blue);
+  if (r.length < 1 || r.length > 2 || b.length < 1 || b.length > 2) return null;
+  if (![...r, ...b].every((x) => /^\d{1,6}$/.test(x) && Number(x) > 0)) return null;
+  const rn = r.map(Number), bn = b.map(Number), all = [...rn, ...bn];
+  return new Set(all).size === all.length ? { red: rn, blue: bn } : null;
+}
+
+/** The API path the Predict page asks for a matchup's prediction: the same string on the server and in the app. */
+export function matchApiPath(season: number, red: number[], blue: number[]): string {
+  const p = new URLSearchParams();
+  p.set("season", String(season));
+  p.set("red", red.join(","));
+  p.set("blue", blue.join(","));
+  return `/api/predict/match?${p.toString()}`;
+}
