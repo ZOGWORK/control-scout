@@ -22,7 +22,7 @@ Gold is the accent only: charts, compared teams and team colours use their own h
 ### Highlights
 - [fixes] Team B on dark is vermilion, no longer amber beside the gold
 - [fixes] Charts and Compare draw teams in team hues, never the accent
-- [fixes] Indigo replaces gold among the colours you give a team
+- [fixes] Indigo replaces gold among team colours (#1337)
 
 ### Fixed
 - Team B's colour on dark was Okabe–Ito amber (#e69f00), a step from the accent gold (#eab308): a compared team read as a button. It is now vermilion (#f0763a, the light theme's #d55e00 lifted for dark).
