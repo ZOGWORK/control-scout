@@ -15,7 +15,7 @@ import { ErrorState } from "../states";
 import { DataStatus } from "../DataStatus";
 import { cn } from "../cn";
 import { eventState, homeReplays, shortDay, usageView, type RecordView } from "./homeModel";
-import { headlineRule, LEDGER_MODE } from "../../shared/ledger";
+import { headlineRule, LEDGER_MODE, liveCallsLine } from "../../shared/ledger";
 import { CURRENT_ENGINE, CURRENT_ENGINE_ROWS } from "../howitworks/currentEngine";
 
 const fmt = (n: number) => n.toLocaleString();
@@ -199,6 +199,20 @@ function CalendarRow({ e }: { e: EventListItem }) {
 
 // --- The public prediction record ---------------------------------------------------
 
+/**
+ * Under either replay: that it is a replay, and the live record (calls made in advance) beside it with its own slice
+ * and sample, so neither number is ever read as "the live accuracy" on its own (src/shared/ledger.ts liveCallsLine).
+ */
+function LiveCallsNote({ t }: { t: TrackRecord }) {
+  const line = liveCallsLine(t);
+  return (
+    <p data-testid="live-calls-note" className="mt-3 rounded-lg border border-line bg-text-base/[0.03] px-3 py-2 text-xs leading-relaxed text-text-muted">
+      <b className="font-semibold text-text-base">The figure above is replayed from past matches, not calls made in advance.</b>{" "}
+      {line ?? "No live call has been scored yet; live calls made in advance are reported beside the replay as soon as there are any, never blended with it."}
+    </p>
+  );
+}
+
 type RecordTab = "replay" | "soFar";
 const RECORD_TAB: Record<RecordTab, string> = { replay: "Last season", soFar: "This season so far" };
 
@@ -243,7 +257,7 @@ export function PredictionRecord() {
           <div id="record-evidence" role="region" aria-live="polite" aria-label={RECORD_TAB[tab]} className="mt-4">
             {view && eng ? (
               <>
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Engine {CURRENT_ENGINE.version} · tested month by month{view.isHeadline && " · the headline"}</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Replayed test · Engine {CURRENT_ENGINE.version}, month by month{view.isHeadline && " · the headline"}</p>
                 <p className="font-display text-6xl font-semibold tabular-nums text-accent-text">{pct(eng.accuracy, 1).replace("%", "")}<span className="text-3xl">%</span></p>
                 <p className="mt-1 text-sm text-text-muted">Correct winner · {view.seasonLabel}, each month predicted by an engine fitted only on the year before</p>
                 <div className="mt-4">
@@ -256,6 +270,7 @@ export function PredictionRecord() {
                   {`${fmt(eng.matches)} matches with a winner at rated events, not calls made in advance. The site’s replay of every ${view.seasonLabel} match in order scores ${view.split ? `${pct(view.block.accuracy, 1)} on ${fmt(view.split.decided)} decisive calls` : pct(view.block.accuracy, 1)}; the two use different match lists.`}
                   {` Engine v${t.engineVersion} serves predictions now · updated ${ago(t.generatedAt)}.`}
                 </p>
+                <LiveCallsNote t={t} />
               </>
             ) : !view ? (
               <p className="rounded-xl border border-dashed border-line px-4 py-6 max-sm:py-4 text-sm text-text-muted">No replayed season is on record yet.</p>
@@ -284,6 +299,7 @@ export function PredictionRecord() {
                   {` ${headlineRule(t)}`}
                   {` Engine v${t.engineVersion} serves predictions now · updated ${ago(t.generatedAt)}.`}
                 </p>
+                <LiveCallsNote t={t} />
               </>
             )}
           </div>

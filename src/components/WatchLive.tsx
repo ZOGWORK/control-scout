@@ -114,31 +114,31 @@ function Player({ stream, title, matches, liveCall, recording }: { stream: Event
     <div className="mt-2 flex flex-wrap items-center gap-2">
       {days.length > 1 && (
         // One video a day: which day's plays (a match's Watch picks its own).
-        <span className="inline-flex h-9 items-center rounded-lg border border-border bg-card p-0.5 text-sm font-medium max-sm:h-10" role="group" aria-label="Which day's video" data-stream-days>
+        <span className="inline-flex h-9 items-center rounded-lg border border-border bg-card p-0.5 text-sm font-medium max-sm:h-10 pointer-coarse:h-auto" role="group" aria-label="Which day's video" data-stream-days>
           {days.map((d) => (
             <button key={d.videoId} type="button" aria-pressed={!own && day === d.videoId}
               onClick={() => { setDay(d.videoId); setPlay((p) => (p ? { t: 0, n: p.n + 1 } : p)); }}
-              className={cn("h-full rounded-md px-3", !own && day === d.videoId ? "bg-accent text-accent-ink" : "text-muted-foreground hover:text-foreground")}>{d.label}</button>
+              className={cn("h-full rounded-md px-3 pointer-coarse:h-[44px] pointer-coarse:min-w-[44px]", !own && day === d.videoId ? "bg-accent text-accent-ink" : "text-muted-foreground hover:text-foreground")}>{d.label}</button>
           ))}
         </span>
       )}
       {own && (
         <>
           <span className="text-sm font-medium text-foreground" data-own-video>{own.label}: official match video</span>
-          <button type="button" onClick={() => setPlay((p) => ({ t: 0, n: (p?.n ?? 0) + 1 }))} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground hover:bg-text-base/[0.06] max-sm:h-10" data-back-to-recording>
+          <button type="button" onClick={() => setPlay((p) => ({ t: 0, n: (p?.n ?? 0) + 1 }))} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground hover:bg-text-base/[0.06] max-sm:h-10 pointer-coarse:h-[44px]" data-back-to-recording>
             <Play className="size-4" aria-hidden /> {recording ? "Back to the recording" : "Back to the stream"}
           </button>
         </>
       )}
       {/* Our own way to stop it, whatever the embedded player does: back to the picture, nothing playing. */}
       {start != null && (
-        <button type="button" onClick={() => setPlay(null)} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground hover:bg-text-base/[0.06] max-sm:h-10" data-stream-close>
+        <button type="button" onClick={() => setPlay(null)} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground hover:bg-text-base/[0.06] max-sm:h-10 pointer-coarse:h-[44px]" data-stream-close>
           <X className="size-4" aria-hidden /> Close video
         </button>
       )}
       {offerOverlay && (
         <button type="button" role="switch" aria-checked={overlay} onClick={() => setOverlay(!overlay)}
-          className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground hover:bg-text-base/[0.06] max-sm:h-10" data-overlay-toggle>
+          className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground hover:bg-text-base/[0.06] max-sm:h-10 pointer-coarse:h-[44px]" data-overlay-toggle>
           <span className={cn("relative h-5 w-9 shrink-0 rounded-full transition-colors motion-reduce:transition-none", overlay ? "bg-accent" : "bg-text-base/25")} aria-hidden>
             <span className={cn("absolute top-0.5 size-4 rounded-full bg-white shadow transition-[left] motion-reduce:transition-none", overlay ? "left-[1.125rem]" : "left-0.5")} />
           </span>
@@ -146,10 +146,10 @@ function Player({ stream, title, matches, liveCall, recording }: { stream: Event
         </button>
       )}
       {offerOverlay && overlay && (
-        <span className="inline-flex h-9 items-center rounded-lg border border-border bg-card p-0.5 text-xs font-medium max-sm:h-10" role="group" aria-label="Where the predictions sit on the video">
+        <span className="inline-flex h-9 items-center rounded-lg border border-border bg-card p-0.5 text-xs font-medium max-sm:h-10 pointer-coarse:h-auto" role="group" aria-label="Where the predictions sit on the video">
           {(["top", "bottom"] as const).map((p) => (
             <button key={p} type="button" aria-pressed={pos === p} onClick={() => setPos(p)}
-              className={cn("h-full rounded-md px-2.5 capitalize", pos === p ? "bg-accent text-accent-ink" : "text-muted-foreground hover:text-foreground")}>{p}</button>
+              className={cn("h-full rounded-md px-2.5 capitalize pointer-coarse:h-[44px] pointer-coarse:min-w-[44px]", pos === p ? "bg-accent text-accent-ink" : "text-muted-foreground hover:text-foreground")}>{p}</button>
           ))}
         </span>
       )}

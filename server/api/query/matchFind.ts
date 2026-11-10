@@ -15,7 +15,7 @@ import { DOUBLE_ELIM_FROM } from "../../../src/shared/bracketOdds.js";
 import { matchHref, shortEvent, teamLinks } from "../answers/matchSet.js";
 import { markedLabel, unofficialLine } from "../../data/unofficialRecords.js";
 
-export type MatchMeasure = "high" | "low" | "closest" | "lopsided" | "penalties" | "upset" | "comeback" | "miss" | "accurate";
+export type MatchMeasure = "high" | "low" | "closest" | "lopsided" | "penalties" | "upset" | "comeback" | "miss" | "accurate" | "loss-high";
 
 /** A score an alliance had to reach ("where the losing alliance scored over 200", "both alliances scored over 250"):
  *  `side` is whose final score (penalties included, as the result was decided) is held to it. The losing or winning
@@ -116,6 +116,8 @@ const MEASURES: Record<MatchMeasure, Measure> = {
   comeback: { value: "CASE WHEN m.red_total > m.blue_total AND m.red_auto < m.blue_auto THEN m.blue_auto - m.red_auto WHEN m.blue_total > m.red_total AND m.blue_auto < m.red_auto THEN m.red_auto - m.blue_auto END", order: "DESC", title: "Biggest comeback", plural: "Biggest comebacks", column: "Behind after auto",
     rule: "a comeback is a match won by the alliance that was behind after the autonomous period (fewer auto points); the biggest is the one it was furthest behind in.", show: (v) => `Won after trailing by ${v} after auto` },
   miss: { value: MISS, order: "DESC", title: "Biggest prediction miss", plural: "Biggest prediction misses", column: "Off by", rule: `${MISS_RULE}; the furthest off first.`, show: (v) => `Off by ${Math.round(v)} points` },
+  "loss-high": { value: "CASE WHEN m.red_total < m.blue_total THEN m.red_np WHEN m.blue_total < m.red_total THEN m.blue_np END", order: "DESC", title: "Highest score in a lost match", plural: "Highest scores in lost matches", column: "Losing score",
+    rule: "a lost match's score is the losing alliance's points without penalties, the result decided by the final scores, penalties included; the highest first. A tie is never a loss.", show: (v) => `${v} points, and lost` },
   accurate: { value: MISS, order: "ASC", title: "Most accurate prediction", plural: "Most accurate predictions", column: "Off by", rule: `${MISS_RULE}; the closest first.`, show: (v) => (Math.round(v) === 0 ? "Margin called exactly" : `Off by ${Math.round(v)} points`) },
 };
 /** The upset rule's fallback, when the matches have no saved call: the larger summed season rating that lost. */
@@ -235,7 +237,9 @@ export async function matchFindAnswer(f: MatchFind): Promise<StatAnswer> {
   return {
     ...base, blocks: rows.length > 1 ? [table(rows.slice(1), 2, `The next ${rows.length - 1}`)] : [],
     headline: {
-      value: show(Number(top.v)), label: `${top.label} at ${shortEvent(top.name, top.type)}`, href: matchHref(top),
+      value: show(Number(top.v)), href: matchHref(top),
+      // A lost match's answer is who lost it: the losing alliance's teams lead.
+      label: `${f.measure === "loss-high" ? `${side(top, top.red_total < top.blue_total ? "red" : "blue")} lost ` : ""}${top.label} at ${shortEvent(top.name, top.type)}`,
       sub: [unofficialLine(top) ?? "", dateRange((top.time ?? top.start)?.slice(0, 10) ?? null), `Red ${top.red_total} (${side(top, "red")}) – Blue ${top.blue_total} (${side(top, "blue")})`].filter(Boolean).join(" · "),
     },
   };

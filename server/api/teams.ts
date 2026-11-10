@@ -9,6 +9,7 @@ import { recordSql, recordsFromRows, wltText } from "../../src/shared/eventRecor
 import { KEEP_COLUMNS, keepEvent, teamEventRows, teamEventsQuery } from "../../src/shared/teamEventRows.js";
 import { hasTeamPage } from "../../src/shared/teamPages.js";
 import { eventSchedule } from "../predict/scheduleDifficulty.js";
+import { teamLeagueStanding } from "./leagues.js";
 
 /**
  * Many teams' stored season reliability, in the order asked (null: none stored). Public match data only; also
@@ -161,15 +162,17 @@ export async function teamProfile(number: number, season?: number): Promise<Team
   }
   // Report cards and schedule difficulty are their own requests (teamReportCards, teamSchedule), asked for when
   // the team page's collapsed sections are first opened.
-  const [stats, events, awardsAllTime] = await Promise.all([
+  const [stats, events, awardsAllTime, league] = await Promise.all([
     seasonStats(s, number),
     s === CURRENT_SEASON && current ? current : teamEvents(s, number),
     all<any>("SELECT a.season, a.code, e.name event, a.type, a.placement, a.name FROM awards a JOIN events e ON e.season = a.season AND e.code = a.code WHERE a.team = ? ORDER BY a.season DESC, e.start DESC", [number]),
+    teamLeagueStanding(s, number),
   ]);
   return {
     team: team ?? { number, name: null, fullName: null, school: null, sponsors: [], city: null, state: null, country: null, rookieYear: null, website: null, homeRegion: null },
     season: s, seasons, stats, events,
     awardsAllTime: awardsAllTime.map((a) => ({ season: a.season, code: a.code, event: a.event, type: a.type, placement: a.placement, name: a.name })),
+    league,
   };
 }
 
@@ -198,6 +201,18 @@ export function relationOf(numbers: number[], red: number[], blue: number[]): "o
   const others = numbers.filter((n) => n !== base);
   if (others.some((o) => theirs.includes(o))) return "opponents";
   return others.some((o) => mine.includes(o)) ? "partners" : null;
+}
+
+/** The comparison /api/compare answers: `season` when asked for, else the latest season any of the teams has results
+ *  in (like the team page), never an empty current season (the current one when none of them has results). */
+export async function compareAnswer(numbers: number[], season?: number): Promise<CompareView> {
+  let s = season ?? CURRENT_SEASON;
+  if (season == null && numbers.length) {
+    const ph = numbers.map(() => "?").join(",");
+    const r = await get<{ season: number | null }>(`SELECT MAX(season) season FROM team_season_stats WHERE team IN (${ph}) AND matches > 0`, numbers);
+    if (r?.season) s = r.season;
+  }
+  return compareTeams(numbers, s);
 }
 
 export async function compareTeams(numbers: number[], season: number): Promise<CompareView> {

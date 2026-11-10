@@ -6,6 +6,7 @@
 // the team page's own data, so a one-line answer still has its detail. Optional fields a newer server adds to a fact
 // (`detail`, `link`) show when they're there.
 import { Link } from "react-router-dom";
+import { useCurrentSeason } from "../../../lib/meta";
 import { ArrowRight, BookOpen, CalendarDays, Globe, GraduationCap, Handshake, Info, MapPin, Medal, Sparkles, Trophy, type LucideIcon } from "lucide-react";
 import type { SearchCard, SearchCardFact, SearchCardLine } from "../../../shared/api";
 import { StatTile, type Tone } from "../../StatTile";
@@ -60,11 +61,19 @@ type CardExtra = SearchCard & { season?: number; support?: SearchCardFact[] };
  *  support facts aren't drawn twice. */
 const ON_TILES = /^(record|opr|rating)\b/i;
 
-/** `season`: the season the query named (its team hit's linkSeason); the card's own season wins, then one its title
- *  states, else the default. */
+/** The season a fact answer is about: the card's own, then the query's, then one its title states. A next match or
+ *  next event is always in the current season, so it never falls back to last season's (the team page link opens
+ *  on its Upcoming block). null: the default (useAnswerSeason). */
+export function factSeason(card: Pick<CardExtra, "kind" | "season" | "title">, asked: number | null | undefined, current: number): number | null {
+  if (card.season != null) return card.season;
+  if (card.kind === "next-match" || card.kind === "next-event") return current;
+  return asked ?? statedSeason(card.title);
+}
+
+/** `season`: the season the query named (its team hit's linkSeason); see factSeason. */
 export function FactCard({ card, heading, season: asked }: { card: CardExtra; heading?: string; season?: number | null }) {
   const team = card.team;
-  const season = useAnswerSeason(card.season ?? asked ?? statedSeason(card.title));
+  const season = useAnswerSeason(factSeason(card, asked, useCurrentSeason()));
   const support = (card.support ?? []).filter((f) => !ON_TILES.test(f.label) && !card.facts?.some((x) => x.label === f.label));
   const profile = useTeamProfile(team?.number, season);
   const facts = card.facts ?? [];

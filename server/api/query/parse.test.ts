@@ -194,9 +194,11 @@ describe("slots", () => {
     expect(p.teams).toEqual([]);
     expect(p.complete).toBe(false);
   });
-  it("picks one of the teams sharing a name by the place named, else the newest played", async () => {
+  it("picks one of the teams sharing a name by the place named, never the newest by default", async () => {
     expect((await parse("ultraviolet record in new jersey")).teams[0]).toMatchObject({ number: 23268, rule: "the one in New Jersey" });
-    expect((await parse("alphatronic record")).teams[0]).toMatchObject({ number: 24033, rule: "the one that played most recently" });
+    // Both played this season or last, neither ranked: still tied (./shared.ts).
+    expect((await parse("alphatronic record")).teams[0].rule).toBeUndefined();
+    expect((await parse("alphatronic record")).complete).toBe(false);
     // Two still tied: never guessed; the other team named breaks it by region.
     expect((await parse("ultraviolet opr")).complete).toBe(false);
     expect((await parse("ultraviolet vs hypnotic robotics")).teams.map((t) => t.number)).toEqual([23268, 4215]);
@@ -484,5 +486,45 @@ describe("a number written with thousands separators", () => {
     expect(normalise("4215,6980")).toBe("4215 6980");
     expect((await parseQuery("1, 12 and 4215", small)).teams.map((t) => t.number)).toEqual([1, 12, 4215]);
     expect((await parseQuery("4215 record on march 1, 2026", small)).teams.map((t) => t.number)).toEqual([4215]);
+  });
+});
+
+// Launch audit (Nov 9 2026, Phase A3): "comparison", "winner" and "head to head" are the compare, forecast and
+// meetings intents, however the two teams are joined.
+describe("compare, winner and head to head words", () => {
+  it("a comparison of a stat is that stat side by side", async () => {
+    for (const [q, intent] of [["opr comparison 4215 and 6980", "opr-vs"], ["which opr is bigger, 4215 or 6980", "opr-vs"], ["rating comparison 4215 6980", "rating-vs"], ["awards comparison 4215 and 6980", "awards-vs"]] as const) {
+      const p = await parse(q);
+      expect([p.intent, p.complete], q).toEqual([intent, true]);
+    }
+  });
+  it("the winner in a forecast is the forecast", async () => {
+    for (const q of ["predict winner 4215 6980", "predict 4215 6980 winner", "who is the winner 4215 vs 6980", "4215 vs 6980 winner prediction"]) {
+      const p = await parse(q);
+      expect([p.intent, p.complete], q).toEqual(["two-predict", true]);
+    }
+  });
+  it("head to head is their meetings, with a score said or Worlds as the scope", async () => {
+    for (const q of ["4215 vs 6980 head to head", "4215 versus 6980 worlds head to head score", "4215 6980 h2h record", "head-to-head 4215 vs 6980"]) {
+      const p = await parse(q);
+      expect([p.intent, p.complete], q).toEqual(["head-to-head", true]);
+    }
+    expect((await parse("4215 versus 6980 worlds head to head score")).worlds).toBe(true);
+  });
+  it("a winner beside an award word is still the winning-alliance award", async () => {
+    const p = await parse("4215 winner awards");
+    expect([p.intent, p.award, p.complete]).toEqual(["awards", "Winner", true]);
+  });
+});
+
+// Launch audit (Nov 9 2026, Phase A4): two teams and an event, states or Worlds alone are their numbers there side by side.
+describe("two teams and a place to compare them", () => {
+  it("an event, a state championship or Worlds named with two teams is the compare there", async () => {
+    for (const q of ["4215 6980 nj championship", "4215 and 6980 at new jersey championship 2025-26", "4215 6980 nj states", "4215 6980 at worlds"]) {
+      const p = await parse(q);
+      expect([p.intent, p.complete], q).toEqual(["compare", true]);
+    }
+    // Two teams with nothing named are no question here.
+    expect((await parse("4215 6980")).complete).toBe(false);
   });
 });

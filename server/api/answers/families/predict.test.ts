@@ -11,7 +11,7 @@ vi.mock("../../../predict/engine.js", () => ({
 }));
 vi.mock("../../../flags.js", () => ({ isEnabled: async () => true }));
 
-const { allianceForecast } = await import("./predict");
+const { allianceForecast, predictionSeasonOf } = await import("./predict");
 const red = [{ number: 101, name: "Red One" }, { number: 102, name: "Red Two" }];
 const blue = [{ number: 201, name: "Blue One" }, { number: 202, name: "Blue Two" }];
 
@@ -53,5 +53,15 @@ describe("allianceForecast", () => {
   it("a team with no rating that season is named", async () => {
     const s = await allianceForecast(red, [blue[0], { number: 999, name: "Unrated" }], 2025);
     expect(s.none).toBe("No 2025–26 prediction rating for Unrated (999) yet.");
+  });
+});
+
+describe("the season a prediction reads when none is named", () => {
+  it("is the newest season every team has a rating in (what their team cards show), else the latest completed one", async () => {
+    for (const team of [101, 201]) await run("INSERT INTO team_season_stats (season, team, rating_np, rating_sd, rating_rank) VALUES (2026, ?, 50, 9, 1)", [team]);
+    expect(await predictionSeasonOf([101, 201])).toEqual({ season: 2026, why: "With no season named, the season is 2026–27, the latest season both teams have a prediction rating in, as their team cards show." });
+    // One of them not rated in 2026–27 yet: the newest season both are.
+    expect((await predictionSeasonOf([101, 202])).season).toBe(2025);
+    expect((await predictionSeasonOf([101, 102, 201, 202])).why).toMatch(/latest season all 4 teams have a prediction rating in/);
   });
 });

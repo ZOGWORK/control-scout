@@ -13,7 +13,7 @@
 //   Blowout: a win by at least double the other alliance's score, and by 20 points or more.
 import type { StatAnswer, StatBlock } from "../../../../src/shared/searchStat.js";
 import { dateRange, matchDateTime, seasonLabel } from "../../../../src/shared/format.js";
-import { RECORD_RULE } from "../../../../src/shared/eventRecord.js";
+import { OFFICIAL_ONLY, OFFICIAL_RULE, RECORD_RULE } from "../../../../src/shared/eventRecord.js";
 import { RANKED_MIN_MATCHES } from "../../../../src/shared/rankings.js";
 import { teamPageSql } from "../../../../src/shared/teamPages.js";
 import { get } from "../../../db.js";
@@ -42,7 +42,7 @@ export const whoOf = (t: AnswerTeam) => (t.name ? `${t.name} (${t.number})` : `T
 
 export const SCORE_RULE = "Scores are the alliance's official score, penalties included, as the team page's match list shows it (the score without penalties beside it), in matches the team was on the field for, at official events: qualifiers, league play, championships and premier events, never scrimmages or off-season events.";
 const HIGH_RULE = "The highest and lowest score are picked by the alliance's own points, without penalties (as the season records are: the other alliance's fouls never make a record), and shown at the official score, penalties included, as the match list shows it. A higher official score that fouls made is shown beside it.";
-export const RESULT_RULE = `Results use the official scores, penalties included. ${RECORD_RULE}`;
+export const RESULT_RULE = `Results use the official scores, penalties included. ${RECORD_RULE} ${OFFICIAL_RULE}`;
 export const BLOWOUT = { factor: 2, min: 20 };
 export const LIST_CAP = 25;
 
@@ -71,7 +71,7 @@ export function seasonTable(ms: TeamMatch[], title = "By season"): StatBlock {
   };
 }
 
-export const WIN_RATE_RANK = `World rank by win rate: the team's place on the season's "top teams by win rate" list (wins over matches played, teams with ${RANKED_MIN_MATCHES} or more matches, then most wins, then team number), shown when that list's record for the team is the one above.`;
+export const WIN_RATE_RANK = `World rank by win rate: the team's place on the season's "top teams by win rate" list (wins over matches played, teams with ${RANKED_MIN_MATCHES} or more matches at official events, then most wins, then team number), shown when that list's record for the team is the one above.`;
 
 /** The team's place on the season's win-rate list (leaderboard.ts "win-rate": the stored season numbers, the same
  *  order), with the record that list holds for it, or null when it isn't ranked. The season's whole list is read once
@@ -82,7 +82,7 @@ export async function winRateRank(team: number, season: number): Promise<{ rank:
   const list = await searchRead<{ team: number; rank: number; of: number; wins: number; losses: number; ties: number }>(
     `SELECT s.team, s.wins, s.losses, s.ties, ROW_NUMBER() OVER (ORDER BY ${rate} DESC, s.wins DESC, s.team) rank, COUNT(*) OVER () of
        FROM team_season_stats s JOIN teams t ON t.number = s.team
-       WHERE s.season = ? AND s.matches >= ${RANKED_MIN_MATCHES} AND ${rate} IS NOT NULL AND ${teamPageSql("s.team", "t.name")}`, [season]);
+       WHERE s.season = ? AND (s.wins + s.losses + s.ties) >= ${RANKED_MIN_MATCHES} AND ${rate} IS NOT NULL AND ${teamPageSql("s.team", "t.name")}`, [season]);
   const r = list.find((x) => Number(x.team) === team);
   return r ? { rank: Number(r.rank), of: Number(r.of), wins: Number(r.wins), losses: Number(r.losses), ties: Number(r.ties) } : null;
 }
@@ -139,7 +139,9 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
         { kind: "kpis", items: [
           { label: "Without penalties", value: String(np(top)), sub: top.own !== np(top) ? `ranked by this; +${top.own - np(top)} from fouls` : "ranked by this", href: r.href },
           { label: "Result", value: `${top.result === "W" ? "Won" : top.result === "L" ? "Lost" : "Tied"} ${top.own}–${top.opp}`, tone: top.result === "W" ? "good" : top.result === "L" ? "bad" : undefined },
-          ...(byOfficial !== top ? [{ label: `${high ? "Highest" : "Lowest"} official score`, value: String(byOfficial.own), sub: `${byOfficial.label}, ${byOfficial.event}: ${byOfficial.own - np(byOfficial)} from the other alliance's fouls`, href: row(byOfficial).href }] : []),
+          // Another match than the headline's, said with its match, event and date, so it never reads as the headline's
+          // number contradicted.
+          ...(byOfficial !== top ? [{ label: `${high ? "Highest" : "Lowest"} official score`, value: String(byOfficial.own), sub: `Another match: ${[`${byOfficial.label} at ${byOfficial.event}`, row(byOfficial).date].filter(Boolean).join(", ")}. ${byOfficial.own - np(byOfficial)} from the other alliance's fouls (its own points ${np(byOfficial)})`, href: row(byOfficial).href }] : []),
         ] },
         matchesBlock(`${high ? "Best scores" : "Lowest scores"} by points without penalties${note ? `, ${seasonLabel(top.season)}` : ""}`, pick.slice(0, 5)),
       ];
@@ -262,10 +264,10 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
       if (id === "record" && opts.perEvent) blocks.push(perEventTable(ms, team.number));
       if (seasons.length > 1 || id !== "record") blocks.push(seasonTable(ms));
       if (scope.championship) blocks.push(eventTable(ms, "Worlds events"));
-      const headline = id === "wins-count" ? { value: `${r.wins} win${r.wins === 1 ? "" : "s"}`, label: `in ${ms.length} match${ms.length === 1 ? "" : "es"}${where}`, sub: seasonsText(seasons) }
+      const headline = id === "wins-count" ? { value: `${r.wins} win${r.wins === 1 ? "" : "s"}`, label: `in ${ms.length} match${ms.length === 1 ? "" : "es"}${where}`, sub: `${seasonsText(seasons)} · ${OFFICIAL_ONLY}` }
         : id === "total-matches" ? { value: `${ms.length} match${ms.length === 1 ? "" : "es"}`, label: `played${where}`, sub: `${recText(r)} · ${seasonsText(seasons)}` }
         : id === "red-blue-record" ? { value: `${recText(record(ms.filter((m) => m.alliance === "red")))} red · ${recText(record(ms.filter((m) => m.alliance === "blue")))} blue`, label: `${ms.length} matches${where}`, sub: seasonsText(seasons) }
-        : { value: recText(r), label: `${pct(r)} win rate in ${ms.length} match${ms.length === 1 ? "" : "es"}${where}`, ...(whole ? {} : { sub: seasonsText(seasons) }) };
+        : { value: recText(r), label: `${pct(r)} win rate in ${ms.length} match${ms.length === 1 ? "" : "es"}${where}`, sub: whole ? OFFICIAL_ONLY : `${seasonsText(seasons)} · ${OFFICIAL_ONLY}` };
       return { ...base, family: "aggregate", intent: id, title, headline, blocks, definition: whole ? `${RESULT_RULE} ${WIN_RATE_RANK}` : RESULT_RULE };
     }
 

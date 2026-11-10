@@ -261,6 +261,9 @@ export interface SearchCard {
   /** Under the facts asked, the rest of the team's card: where it's from, its region, and the season's record, OPR,
    *  rating and reliability as the team page shows them (only what `facts` doesn't already hold). */
   support?: SearchCardFact[];
+  /** Where an award-at-event answer's awards come from when it isn't the event asked: a division's are its
+   *  championship's ("… is a division of New Jersey Championship: its awards are given at the championship"). */
+  note?: string;
   /** An award-at-event answer's event, which /search links to on its Awards tab. */
   event?: { season: number; code: string; name: string };
   /** The award asked about ("Inspire", FIRST's award type): its places draw as a podium. */
@@ -340,6 +343,9 @@ export interface TeamEventRow {
   city: string | null;
   state: string | null;
   country: string | null;
+  /** The venue's IANA time zone, so "is it over" is read on the event's own calendar (src/shared/eventDay.ts);
+   *  absent from older servers and saved packs (then every zone on Earth counts, eventToday). */
+  timezone?: string | null;
   /** At a league meet, the meet's own rank and ranking score (FIRST's are the league's running standing). */
   rank: number | null;
   rp: number | null;
@@ -429,6 +435,9 @@ export interface TeamProfile {
   events: TeamEventRow[];
   /** Awards across all seasons we hold (newest first). */
   awardsAllTime: { season: number; code: string; event: string; type: string; placement: number; name: string | null }[];
+  /** The team's place in its league's standings that season (FIRST's league rankings, server/api/leagues.ts): its rank
+   *  out of the teams that have played. Absent: no league standing (or an older server). */
+  league?: { region: string; code: string; name: string | null; rank: number; of: number; played: boolean } | null;
 }
 
 /** GET /api/teams/:n/report-card: the predictability report card from live calls (null: no scored live call this season). */
@@ -527,6 +536,9 @@ export interface EventSummary {
   typeLabel: string;
   divisionCode: string | null;
   region: string | null;
+  /** FIRST's league code at a league meet or tournament (a league is its region and code together). Sent on the
+   *  event's own detail only, not in event lists. */
+  league?: string | null;
   city: string | null;
   state: string | null;
   country: string | null;
@@ -755,6 +767,19 @@ export interface RangeCoverage {
   /** Mean width of the stated ranges (points). */
   width: number;
   byTier: Record<ConfidenceTier, { n: number; coverage: number }>;
+}
+
+/** GET /api/predict/ranges: how the stated score ranges have held, for every surface that shows a range. The newest
+ *  season with live calls that stated a range, its live coverage and its season replay's, each with its sample. */
+export interface RangeCoverageNow {
+  season: number;
+  label: string;
+  /** The ranges' stated level (0.8). */
+  level: number;
+  /** Live calls made in advance: alliance scores checked (two per call) and the share inside. */
+  live: { n: number; coverage: number };
+  /** The same season's replay, when it has stated ranges. */
+  backtest: { n: number; coverage: number } | null;
 }
 
 export interface ShadowScore { accuracy: number; brier: number; logLoss: number }

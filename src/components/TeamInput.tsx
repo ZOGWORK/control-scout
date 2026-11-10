@@ -2,9 +2,9 @@
 // form's error for it (aria-invalid, described by the message) when it has one.
 import { useEffect, useId, useState, type Ref } from "react";
 import { Input } from "./ui/basic";
-import { apiFetch } from "../lib/api";
+import { apiFetch, peek } from "../lib/api";
 import { offlineSource } from "../lib/offline/saved";
-import type { SearchHit } from "../shared/api";
+import type { SearchHit, TeamProfile } from "../shared/api";
 import { teamNameOf } from "../shared/teamTitle";
 import { cn } from "./cn";
 
@@ -32,11 +32,20 @@ export async function lookupTeamName(n: number, deadlineMs = LOOKUP_DEADLINE_MS)
   try { return await Promise.race([lookup, deadline]); } finally { clearTimeout(timer); }
 }
 
+/** The name a page already holds for team `n`: the cache, else its team page's answer when that came with the page (a
+ *  server-drawn Predict page carries it, server/firstPaint.ts), so the hint is there on the first paint. */
+function knownName(n: number): string | null | undefined {
+  if (nameCache.has(n)) return nameCache.get(n);
+  const p = peek<TeamProfile>(`/api/teams/${n}`);
+  return p?.team?.number === n ? p.team.name ?? "" : undefined;
+}
+
 export function useTeamName(n: number | null): string | null | undefined {
-  const [name, setName] = useState<string | null | undefined>(n ? nameCache.get(n) : undefined);
+  const [name, setName] = useState<string | null | undefined>(n ? knownName(n) : undefined);
   useEffect(() => {
     if (!n) { setName(undefined); return; }
-    if (nameCache.has(n)) { setName(nameCache.get(n)); return; }
+    const known = knownName(n);
+    if (known !== undefined) { setName(known); return; }
     let live = true;
     // The hint isn't blocking a form, so it gives the request up to a minute.
     const t = setTimeout(() => { lookupTeamName(n, 60_000).then((v) => { if (live) setName(v); }); }, 200);
@@ -60,7 +69,7 @@ export function TeamInput({ value, onChange, label, tone, autoFocus, error, inpu
     <div className="min-w-0">
       <Input ref={inputRef} value={value} onChange={(e) => onChange(e.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" placeholder="Team #" aria-label={label} autoFocus={autoFocus}
         aria-invalid={error ? true : undefined} aria-describedby={hintId}
-        className={cn(size === "lg" ? "h-14 font-mono text-2xl font-semibold" : "h-11 font-mono text-base", tone === "red" && "focus-visible:border-red-alliance", tone === "blue" && "focus-visible:border-blue-alliance", !error && n && name === null && "border-warning")} />
+        className={cn(size === "lg" ? "h-14 font-mono text-2xl font-semibold" : "h-11 font-mono text-base pointer-coarse:h-[44px]", tone === "red" && "focus-visible:border-red-alliance", tone === "blue" && "focus-visible:border-blue-alliance", !error && n && name === null && "border-warning")} />
       {error
         ? <p id={hintId} role="alert" className="mt-1 text-xs font-medium text-destructive">{error}</p>
         : <p id={hintId} className={cn(size === "lg" ? "mt-1.5 h-5 truncate text-sm" : "mt-1 h-4 truncate text-xs", name === null ? "text-warning" : "text-muted-foreground")}>{n ? (name === undefined ? "…" : name === null ? "Not a team we know" : name || "Unnamed team") : ""}</p>}

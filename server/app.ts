@@ -38,12 +38,13 @@ const preferOf = (raw: unknown) => new Set(String(raw ?? "").split(",").filter((
 import { recordClick } from "./api/searchLearn.js";
 import { recordIntent } from "./api/searchIntents.js";
 import { rebuildSearch } from "./stats/job.js";
-import { teamProfile, compareTeams, teamSummaries, shortlistTeams, reliabilityMany, teamReportCards, teamSchedule } from "./api/teams.js";
+import { teamProfile, compareAnswer, teamSummaries, shortlistTeams, reliabilityMany, teamReportCards, teamSchedule } from "./api/teams.js";
 import { teamRoadMap } from "./api/roadmap.js";
 import { cachedEventDetail, eventDetail, listEvents, toEventInput } from "./api/events.js";
 import { withBracketGate } from "./api/bracket.js";
 import { scheduleGate } from "./api/eventGates.js";
 import { eventView, withStream } from "./api/eventView.js";
+import { leagueStandings } from "./api/leagues.js";
 import { perTeamOf, simulatedRankings } from "./projections/rankingSim.js";
 import { eventRecording, recordingStream, seasonRecordings, seasonVideoKinds, withClips, eventMatchSpan } from "./videos/recordings.js";
 import { answerVideo } from "./api/answers/video.js";
@@ -53,7 +54,7 @@ import { resultChanges } from "./api/resultChanges.js";
 import { eventDisagreements } from "./api/disagreements.js";
 import { pickRatings } from "./api/pickRatings.js";
 import { MATCH_KEY as REPORT_KEY } from "../src/shared/matchReport.js";
-import { trackRecord } from "./api/accuracy.js";
+import { rangeCoverageNow, trackRecord } from "./api/accuracy.js";
 import { currentWeather } from "./weather.js";
 import { MISSING_FILE, canonicalRedirects, renderPage } from "./seo.js";
 import { CSP_REPORT_PATH, cspReportRouter, securityHeaders, setPageCsp } from "./securityHeaders.js";
@@ -67,6 +68,7 @@ import { overlapTotal } from "../src/shared/predictionBasis.js";
 import { FORECAST_RUNS } from "../src/shared/projections.js";
 import { liveForecaster, liveVersion, dataVersion, recentRecords } from "./predict/engine.js";
 import { bonusView } from "../src/shared/bonusOdds.js";
+import { matchExplanation } from "./api/predictMatch.js";
 import { authRouter, meRouter, authProviders } from "./auth/routes.js";
 import { contactRouter } from "./contact.js";
 import { bugReportsRouter } from "./bugReports.js";
@@ -587,6 +589,15 @@ export function createApp(opts: { dist?: string } = {}) {
     return d;
   }));
 
+  // A league's standings (api/leagues.ts): FIRST's league rankings, as the sync last read them.
+  api.get("/leagues/:season/:region/:code", h(async (req) => {
+    const r = String(req.params.region), c = String(req.params.code);
+    if (!/^[A-Za-z0-9]{1,16}$/.test(r) || !/^[A-Za-z0-9]{1,16}$/.test(c)) throw bad("invalid league");
+    const d = await leagueStandings(season(req.params.season), r, c);
+    if (!d) throw new HttpError(404, `No league ${c} in ${r} in ${req.params.season}`);
+    return d;
+  }));
+
   // "Refresh results" on an event that's on today: no login. One real check of FIRST per event
   // every 20 s (everyone else shares it), on top of the live fast lane's every-minute checks.
   api.post("/events/:season/:code/refresh", limiter(12), h(async (req): Promise<EventRefreshResult> => {
@@ -663,18 +674,9 @@ export function createApp(opts: { dist?: string } = {}) {
     return r;
   }));
 
-  api.get("/compare", h(async (req) => {
-    const numbers = teamList(req.query.teams, "teams", 4);
-    // No season asked for: the latest season where any of them has results
-    // (like the team page), not an empty current season.
-    let s = season(req.query.season);
-    if (!req.query.season && numbers.length) {
-      const ph = numbers.map(() => "?").join(",");
-      const r = await get<{ season: number | null }>(`SELECT MAX(season) season FROM team_season_stats WHERE team IN (${ph}) AND matches > 0`, numbers);
-      if (r?.season) s = r.season;
-    }
-    return compareTeams(numbers, s);
-  }));
+  // No season asked for: the latest season where any of them has results (like the team page), not an empty
+  // current season (compareAnswer; the first paint of /compare asks the same way, server/firstPaint.ts).
+  api.get("/compare", h(async (req) => compareAnswer(teamList(req.query.teams, "teams", 4), req.query.season ? season(req.query.season) : undefined)));
 
   /** Many teams at once (shortlist, tracked teams): name, place, season stats, latest event. */
   api.get("/teams-summary", h(async (req) => ({ season: season(req.query.season), teams: await teamSummaries(teamList(req.query.teams, "teams", 100), season(req.query.season)) })));
@@ -782,18 +784,10 @@ export function createApp(opts: { dist?: string } = {}) {
     // what-if with no level is treated as a qualification match.
     const lv = req.query.level;
     if (lv != null && lv !== "qual" && lv !== "playoff") throw bad("level must be qual or playoff");
-    const level = lv === "playoff" ? "playoff" : "qual";
-    const f = await liveForecaster(s);
-    const x = f.explain(s, red, blue, level, undefined, await recentRecords(s, [...red, ...blue]));
+    // The same answer the first paint of /predict?mode=match draws (server/api/predictMatch.ts).
+    const x = await matchExplanation(s, red, blue, lv === "playoff" ? "playoff" : "qual");
     if (!x) throw new HttpError(503, "Ratings for this season aren't ready yet.");
-    const names = new Map((await all<any>(`SELECT number, name FROM teams WHERE number IN (${[...red, ...blue].map(() => "?").join(",")})`, [...red, ...blue])).map((r) => [Number(r.number), r.name]));
-    return {
-      season: s, red, blue, winProbRed: x.winProbA, winProbBlue: x.winProbB, predictedRed: x.predictedScoreA, predictedBlue: x.predictedScoreB,
-      rangeRed: x.scoreRangeA, rangeBlue: x.scoreRangeB, rangeLevel: x.scoreBandA.level, factors: x.factors, ...((await isEnabled("factorSheet")) ? { factorSheet: compactSheet(x.factorSheet) } : {}), history: x.partnership ? pairHistory(x.partnership) : null, confidence: x.confidence, reasons: x.reasons,
-      teamsRed: x.teamsA.map((t) => ({ ...t, name: names.get(t.team) ?? null })), teamsBlue: x.teamsB.map((t) => ({ ...t, name: names.get(t.team) ?? null })),
-      overlapRed: overlapTotal(x.overlapA), overlapBlue: overlapTotal(x.overlapB), marginScale: x.marginScale,
-      level, probabilityModel: x.probabilityModel, bonus: bonusView(s, x) ?? null, engineVersion: ENGINE_VERSION,
-    };
+    return x;
   }));
 
   // --- Share cards (server/share) ------------------------------------------
@@ -894,6 +888,9 @@ export function createApp(opts: { dist?: string } = {}) {
   }));
 
   api.get("/predict/accuracy", h(async () => trackRecord()));
+  // How the stated score ranges have held (live and replay, with samples): a few bytes every range on a page reads,
+  // instead of the whole track record.
+  api.get("/predict/ranges", h(async () => rangeCoverageNow()));
 
   // Monte Carlo projections (server/projections): stored by the background job, only read here.
   // Advancement odds (the advancementOdds feature toggle): the odds and their live stream answer 403 feature_disabled while it's off.

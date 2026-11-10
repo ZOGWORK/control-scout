@@ -196,8 +196,19 @@ const RULES: IntentRule[] = [
   { id: "record", family: "aggregate", season: "all", alone: "latest", re: /\b(?:win[\s-]+loss(?:[\s-]+tie)?\s+)?record\b|\bwins?\s+and\s+loss(?:es)?\b/ },
 ];
 
+/** Whether a bare year `y` (matched in `rest`) is a season still to come rather than a team's number. */
+function futureYear(rest: string, y: RegExpExecArray, newest: number): boolean {
+  const year = Number(y[1]);
+  if (year <= newest || year > newest + 2) return false;
+  if (/^(?:in|during)\s/.test(y[0])) return true;
+  const others = rest.replace(y[0], " ").match(/(?<![\d.])\d{1,5}(?![\d.])/g) ?? [];
+  return others.length === 1 && !/\b(?:vs\.?|versus|v|against|and|or|with|beat|beats|plus)\b|&/.test(rest);
+}
+
 export interface ReadScope {
   season: number | null;
+  /** A year after every season on record, as typed ("2027"): its answer is the "no events yet" card. */
+  future?: { season: number; typed: string };
   /** A day was said ("on March 15 2026"): read here only as its season. */
   day?: boolean;
   /** "this season": the team's latest season with matches. */
@@ -325,6 +336,11 @@ export function readScope(q: string): { scope: ReadScope; rest: string } {
   if (scope.season == null) {
     const y = /\b(?:in|during)\s+(20\d\d)\b(?!\s*[-–/]\s*\d)/.exec(rest) ?? /(?<!\bteam\s+)\b(20\d\d)\b(?!\s*[-–/]\s*\d)/.exec(rest);
     if (y && SEASONS.some((s) => s.season === Number(y[1]))) { scope.season = Number(y[1]); scope.year = true; rest = rest.replace(y[0], " "); }
+    // A year after every season on record ("12345 opr 2027"): kept as asked, so the answer says that season has no
+    // events yet, never silently dropped for the default season.
+    // Only a year that can't be a team's number: within two seasons of the newest, and said after "in"/"during", or
+    // beside another team's number with no second team asked about ("12345 opr 2027", never "12345 vs 2027").
+    else if (y && futureYear(rest, y, Math.max(...SEASONS.map((s) => s.season)))) { scope.future = { season: Number(y[1]), typed: y[0].trim() }; rest = rest.replace(y[0], " "); }
   }
   if (take(/\b(?:this|current|the\s+current)\s+(?:season|year)\b|\bthis\s+year'?s?\b/)) scope.latest = true;
   // "Last season" is the season before the default one (the latest completed season, ./season.ts); a championship

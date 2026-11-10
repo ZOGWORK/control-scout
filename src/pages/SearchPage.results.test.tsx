@@ -331,10 +331,12 @@ describe("search results page", () => {
   it("never dead-ends (results guide §8): what's missing in one sentence, the closest as full cards, searches that answer, places to go", () => {
     state.answer = answer([], { step: "recovery", recovery: { understood: ["Events in New Jersey", "at Nonexistent High School"], closest: [team(4215, "Hypnotic Robotics", "Oradell, NJ")], browse: [] } });
     const { container } = show("/search?q=meets%20at%20Nonexistent%20High%20School%20in%20New%20Jersey");
-    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("No matches found");
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Sorry — I can't answer that yet");
     // The query is in the top bar: the heading never repeats it.
     expect(screen.getByRole("heading", { level: 1 }).textContent).not.toContain("Nonexistent");
-    expect(container.textContent).toContain("Search has no answer for “meets at Nonexistent High School in New Jersey”; these are the closest real results.");
+    expect(container.textContent).toContain("Nothing in “meets at Nonexistent High School in New Jersey” matched a team, event or place I know. These are the closest real results.");
+    // Said once: the heading only.
+    expect(container.textContent!.split("Sorry — I can't answer that yet")).toHaveLength(2);
     // What it was understood as stays off the page (§7): an attribute only.
     expect(container.querySelector("[data-understood]")!.getAttribute("data-understood")).toContain("Events in New Jersey");
     expect(container.querySelector("[data-no-results]")!.textContent).not.toMatch(/understood|read as/i);

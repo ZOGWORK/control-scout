@@ -168,6 +168,8 @@ const S = (blocks: StatAnswer["blocks"], over: Partial<StatAnswer> = {}) => card
 const BLOCK_CARDS: Record<StatBlock["kind"], () => HTMLElement> = {
   kpis: CARDS["stat tiles, OPR by phase"], record: CARDS["team record"], matches: CARDS["single match"], videos: CARDS["video page (every match, a stream, the filter)"],
   table: CARDS["event result (table)"], series: CARDS["over time (series)"], bars: CARDS.bars, leaderboard: CARDS.leaderboard, compare: CARDS.comparison,
+  league: () => S([{ kind: "league", title: "Northeast League (New Jersey) standings", season: 2026, team: 6980, more: { label: "Full league standings", href: "/leagues/2026/USNJ/NE?team=6980" },
+    rows: [{ rank: 1, team: 23314, name: "Galactic Pigeon", wins: 6, losses: 0, ties: 0, rs: 2.4, tbp: 51.7, played: 6, meets: 2 }, { rank: 30, team: 6980, name: "Bad Wolf", wins: 2, losses: 4, ties: 0, rs: 0.9, tbp: 20, played: 6, meets: 2 }] }]),
   links: () => S([{ kind: "links", title: "Open", items: [{ label: "NJ Championship", href: "/events/2025/USNJCMP" }] }]),
   related: () => S([{ kind: "related", title: "Did you mean", queries: ["4215 record"] }], { team: undefined, headline: { value: "0 teams", label: "named robot" }, family: "aggregate" }),
   chance: () => S([{ kind: "chance", label: "Win chance", p: 0.62, who: "4215 wins NJ Championship", action: { label: "Open in Predict", href: "/predict" } }]),

@@ -1,8 +1,9 @@
 // Team profile — any team, any season. Control Point's Team Stats design
 // (hero, OPR cards with world rank, one trend chart, event history),
 // generalised from "my team" to every team.
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { leagueHref, leagueTitle } from "../shared/leagues";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import {
   Award, Bookmark, BookmarkCheck, CalendarDays, ChevronDown, ClipboardList, ExternalLink, Eye, GraduationCap, Info, Link2, MapPin, Scale, Sparkles, Star, TrendingDown, TrendingUp, Trophy,
@@ -16,7 +17,7 @@ import { usePersonal, useTeamFlags } from "../lib/personal";
 import { FOLLOWED_TEAM_PATH, useYoursRow } from "../lib/yoursRow";
 import { toast } from "../components/ui/sonner";
 import { useScouting } from "../lib/scouting";
-import type { MatchView, TeamEventRow, TeamProfile } from "../shared/api";
+import type { ConfidenceTier, MatchView, TeamEventRow, TeamProfile } from "../shared/api";
 import { Section, EmptyState } from "../components/page";
 import { Async } from "../components/states";
 import { Reveal, Stagger, StaggerItem } from "../components/motion";
@@ -24,18 +25,19 @@ import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/basic";
 import { ToggleGroup, ToggleGroupItem, Collapsible, CollapsibleContent, CollapsibleTrigger } from "../components/ui/controls";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "../components/ui/chart";
-import { MatchList } from "../components/predict";
+import { MatchList, TierMark } from "../components/predict";
 import { SeasonToggle } from "../components/SeasonToggle";
 import { cn } from "../components/cn";
 import { PROFILE_PERCENTILE_TEXT } from "../lib/textTones";
 import { Meter, StatTile, TONES, rankPc } from "../components/StatTile";
 import { OPR_CARDS, OPR_TONE, oprRankHint } from "../components/oprCards";
-import { ago, awardLabel, dateRange, dayDate, int, num, place, seasonLabel, rankPct } from "../lib/format";
+import { ago, awardLabel, dateRange, dayDate, int, matchTime, num, oddsPct, place, seasonLabel, rankPct } from "../lib/format";
 import { eventTypeLabel } from "../lib/labels";
 import { copyLink } from "../lib/clipboard";
 import { direction, trendLabel } from "../shared/trend";
 import { teamTitle } from "../shared/teamTitle";
-import { RECORD_RULE } from "../shared/eventRecord";
+import { eventOver, onEventDates, type EventCalendar } from "../shared/eventDay";
+import { OFFICIAL_ONLY, OFFICIAL_RULE, RECORD_RULE, offSeasonRecord, wltText } from "../shared/eventRecord";
 import { OfflineNote } from "../components/OfflineNote";
 import { offlineSource } from "../lib/offline/saved";
 import { StickyActions } from "../components/StickyActions";
@@ -88,7 +90,7 @@ function Profile({ p, drawn = false, asked, onSeason }: { p: TeamProfile; drawn?
   return (
     <div className="min-w-0">
       <OfflineNote data={p} />
-      <Hero p={p} onSeason={onSeason} fellBackFrom={fellBackFrom} />
+      <Hero p={p} onSeason={onSeason} fellBackFrom={fellBackFrom} asked={asked} />
       {!rest ? null : !hasResults ? (
         <EmptyState className="mb-8 max-sm:mb-5" icon={CalendarDays} title={`No ${seasonLabel(p.season)} results for ${p.team.number} yet`}
           description={p.seasons.length > 1 ? "Pick another season above to see past results." : "This team hasn't played an event we have data for."} />
@@ -144,7 +146,7 @@ function useFellBackFrom(p: TeamProfile, asked: boolean): number | null {
   return !asked && p.season < current && p.seasons.includes(current) ? current : null;
 }
 
-function Hero({ p, onSeason, fellBackFrom }: { p: TeamProfile; onSeason: (s: number) => void; fellBackFrom: number | null }) {
+function Hero({ p, onSeason, fellBackFrom, asked = false }: { p: TeamProfile; onSeason: (s: number) => void; fellBackFrom: number | null; asked?: boolean }) {
   const t = p.team;
   const flags = useTeamFlags(t.number);
   const { state: personal } = usePersonal();
@@ -169,9 +171,11 @@ function Hero({ p, onSeason, fellBackFrom }: { p: TeamProfile; onSeason: (s: num
   };
   const loc = place(t.city, t.state, t.country);
   const s = p.stats;
-  const today = new Date().toISOString().slice(0, 10);
-  const next = p.events.find((e) => (e.end ?? e.start ?? "") >= today) ?? null;
-  const last = [...p.events].reverse().find((e) => (e.end ?? e.start ?? "") < today) ?? null;
+  // Over or not on the event's own calendar (a California event's last evening is already tomorrow in UTC).
+  const clock = Date.now();
+  const next = p.events.find((e) => !eventOver(e, clock)) ?? null;
+  const last = [...p.events].reverse().find((e) => eventOver(e, clock)) ?? null;
+  const current = useCurrentSeason();
   const top = rankPct(s?.opr.np.rank, s?.opr.np.of, true);
   const predictable = usePredictable(p.season);
   const share = () => copyLink();
@@ -200,7 +204,7 @@ function Hero({ p, onSeason, fellBackFrom }: { p: TeamProfile; onSeason: (s: num
           </div>
           {t.sponsors.length > 0 && (
             <Collapsible className="relative mt-3">
-              <CollapsibleTrigger className="group inline-flex min-h-8 max-w-full items-center gap-1.5 rounded text-left text-sm text-muted-foreground hover:text-foreground max-sm:min-h-10">
+              <CollapsibleTrigger className="group inline-flex min-h-8 max-w-full items-center gap-1.5 rounded text-left text-sm text-muted-foreground hover:text-foreground max-sm:min-h-10 pointer-coarse:min-h-[44px]">
                 <span className="shrink-0 whitespace-nowrap font-medium text-foreground">Sponsors ({t.sponsors.length})</span>
                 <span className="truncate group-data-[state=open]:hidden">{t.sponsors.slice(0, 2).join(" · ")}{t.sponsors.length > 2 ? " …" : ""}</span>
                 <ChevronDown className="size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
@@ -213,7 +217,7 @@ function Hero({ p, onSeason, fellBackFrom }: { p: TeamProfile; onSeason: (s: num
             <p className="relative mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground" data-season-fallback>
               <Info className="size-3.5 shrink-0 text-accent-text" aria-hidden />
               <span>No {seasonLabel(fellBackFrom)} results yet, so this shows {seasonLabel(p.season)}.</span>
-              <button type="button" onClick={() => onSeason(fellBackFrom)} className="-my-1 py-1 font-medium text-accent-text underline-offset-2 hover:underline">See {seasonLabel(fellBackFrom)}</button>
+              <button type="button" onClick={() => onSeason(fellBackFrom)} className="tap-44 -my-1 py-1 font-medium text-accent-text underline-offset-2 hover:underline">See {seasonLabel(fellBackFrom)}</button>
             </p>
           )}
           <div className="relative mt-4 flex flex-wrap gap-2">
@@ -259,25 +263,15 @@ function Hero({ p, onSeason, fellBackFrom }: { p: TeamProfile; onSeason: (s: num
                 {predictable
                   ? <div><dt className="text-xs text-muted-foreground" title={RATING_TERM}>Rating</dt><dd className="font-display text-2xl font-semibold tabular-nums">{s.rating ? num(s.rating.np) : "—"}{s.rating && <span className="text-sm font-normal text-muted-foreground"> ±{num(s.rating.sd, 0)}</span>}</dd></div>
                   : <div><dt className="text-xs text-muted-foreground">Avg score</dt><dd className="font-display text-2xl font-semibold tabular-nums">{num(s.avg.np)}</dd></div>}
-                <div><dt className="text-xs text-muted-foreground" title={RECORD_RULE}>Record</dt><dd className="font-display text-2xl font-semibold tabular-nums" title={RECORD_RULE}>{s.record.wins}-{s.record.losses}-{s.record.ties}</dd></div>
+                <div><dt className="text-xs text-muted-foreground" title={`${OFFICIAL_RULE} ${RECORD_RULE}`}>Record</dt><dd className="font-display text-2xl font-semibold tabular-nums" title={`${OFFICIAL_RULE} ${RECORD_RULE}`}>{s.record.wins}-{s.record.losses}-{s.record.ties}</dd><dd className="text-xs text-muted-foreground" data-record-scope>{OFFICIAL_ONLY}</dd></div>
                 {s.reliability && <div><dt className="text-xs text-muted-foreground" title="An estimate from match results: no-shows, DQs, near-zero matches, swing, penalties">Reliability</dt><dd className="font-display text-2xl font-semibold tabular-nums">{s.reliability.index}<span className="text-sm font-normal text-muted-foreground"> /100</span></dd></div>}
               </dl>
+              <OffSeasonLine events={p.events} />
             </>
           )}
-          <div className="mt-5 max-sm:mt-4 space-y-2 text-sm">
-            {last && (
-              <Link to={`/events/${last.season}/${last.code}?team=${t.number}`} className="lift flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-3 py-2">
-                <span className="min-w-0 truncate" title={last.name}><span className="text-muted-foreground">Last · </span>{last.name}</span>
-                <span className="shrink-0 tabular-nums text-muted-foreground">{last.rank ? `ranked #${last.rank}` : ""}{last.awards.length ? ` · ${last.awards.length} award${last.awards.length > 1 ? "s" : ""}` : ""}</span>
-              </Link>
-            )}
-            {next && (
-              <Link to={ADVANCING.has(next.type ?? "") ? `/events/${next.season}/${next.code}?tab=odds&team=${t.number}` : `/events/${next.season}/${next.code}?team=${t.number}`} className="lift flex items-center justify-between gap-3 rounded-xl border border-accent/30 bg-accent/[0.05] px-3 py-2">
-                <span className="min-w-0 truncate"><span className="text-muted-foreground">Next · </span>{next.name}</span>
-                <span className="shrink-0 font-medium text-accent-text">{ADVANCING.has(next.type ?? "") ? "Odds to advance →" : "Schedule →"}</span>
-              </Link>
-            )}
-          </div>
+          {/* What's next: on the team's own page (its newest season, or the current one); a past season asked for shows only its last event. */}
+          {!asked || p.season >= current ? <Upcoming p={p} next={next} last={last} /> : last && <LastEvent last={last} team={t.number} className="mt-5 max-sm:mt-4" />}
+          {p.league && <LeagueStanding league={p.league} season={p.season} team={t.number} />}
           {predictable ? (
             <div className="mt-5 max-sm:mt-4 flex flex-wrap gap-2">
               <Button size="sm" asChild><Link to={matchHref} data-tour="predict"><Sparkles /> Predict a match with {t.number}</Link></Button>
@@ -340,7 +334,7 @@ export function OprSection({ p }: { p: TeamProfile }) {
       {open && <OprBreakdown events={p.events} k={open} />}
       {s && !predictable && s.record.matches > 0 && (
         <p className="mt-3 rounded-xl border border-border bg-card p-4 text-xs text-muted-foreground">
-          Season record {s.record.wins}-{s.record.losses}-{s.record.ties} across {s.record.events} event{s.record.events === 1 ? "" : "s"} · avg alliance score {num(s.avg.score)} ({num(s.avg.np)} without penalties)
+          Season record {s.record.wins}-{s.record.losses}-{s.record.ties} at official events · avg alliance score {num(s.avg.score)} ({num(s.avg.np)} without penalties)
         </p>
       )}
       {s?.rating && (
@@ -350,7 +344,7 @@ export function OprSection({ p }: { p: TeamProfile }) {
             hint={`${s.rating.rank ? `Rating #${s.rating.rank.toLocaleString()} worldwide, of teams rated on 3+ matches · ` : ""}${s.rating.matches} matches this season`} />
           <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
             <p>The rating is what the prediction engine expects this robot to add to its alliance <em>now</em> (<span className={cn("font-medium", TONES.sky.text)}>auto {num(s.rating.auto)}</span>, <span className={cn("font-medium", TONES.emerald.text)}>TeleOp {num(s.rating.teleop)}</span>, <span className={cn("font-medium", TONES.violet.text)}>endgame {num(s.rating.endgame)}</span>; gives away ~{num(s.rating.pen)} penalty pts a match). Unlike OPR it updates after every match and carries over from last season, so it's what drives win odds. It's read from alliance scores: random qualification partners let a team's share show, and playoffs (fixed partners) count half. <Link to="/methodology#rating-assumption" className="underline">How ratings work</Link></p>
-            <p className="mt-2 text-xs">Season record {s.record.wins}-{s.record.losses}-{s.record.ties} across {s.record.events} event{s.record.events === 1 ? "" : "s"} · avg alliance score {num(s.avg.score)}</p>
+            <p className="mt-2 text-xs">Season record {s.record.wins}-{s.record.losses}-{s.record.ties} at official events · avg alliance score {num(s.avg.score)}</p>
           </div>
         </div>
       )}
@@ -550,5 +544,136 @@ function ScoutNotes({ team, season }: { team: number; season: number }) {
         </div>
       )}
     </Section>
+  );
+}
+
+/** The next match's call for this team: its chance to win with the call's confidence tier, as on every prediction. */
+export function NextChance({ chance, tier }: { chance: number; tier: ConfidenceTier }) {
+  return <span className="flex shrink-0 flex-col items-end tabular-nums font-medium text-accent-text">{oddsPct(chance)} to win<TierMark tier={tier} className="text-xs font-normal" /></span>;
+}
+
+const ROW = "lift flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-sm pointer-coarse:min-h-[44px]";
+
+/** The team's last event, one tap to its page: where it ranked and what it won. */
+/** The team's place in its league (FIRST's league rankings, every meet so far), linking to the league's standings
+ *  with its row marked. Out of the teams that have played; a member with no match yet is "Not ranked yet". */
+function LeagueStanding({ league, season, team }: { league: NonNullable<TeamProfile["league"]>; season: number; team: number }) {
+  return (
+    <Link to={`${leagueHref(season, league.region, league.code)}?team=${team}`} data-league-standing className={cn(ROW, "mt-2 border-border bg-card text-sm")}>
+      <span className="min-w-0 truncate"><span className="font-semibold tabular-nums">{league.played ? `#${league.rank} of ${league.of}` : "Not ranked yet"}</span> <span className="text-muted-foreground">in the {leagueTitle(league.name, league.code)}</span></span>
+      <span className="shrink-0 text-muted-foreground">Standings →</span>
+    </Link>
+  );
+}
+
+function LastEvent({ last, team, className }: { last: TeamEventRow; team: number; className?: string }) {
+  return (
+    <Link to={`/events/${last.season}/${last.code}?team=${team}`} className={cn(ROW, "border-border bg-card", className)}>
+      <span className="min-w-0 truncate" title={last.name}><span className="text-muted-foreground">Last · </span>{last.name}</span>
+      <span className="shrink-0 tabular-nums text-muted-foreground">{last.rank ? `ranked #${last.rank}` : ""}{last.awards.length ? ` · ${last.awards.length} award${last.awards.length > 1 ? "s" : ""}` : ""}</span>
+    </Link>
+  );
+}
+
+/** How often Upcoming asks for the matches again on an event day (the server checks FIRST about every minute). */
+const UPCOMING_REFRESH_MS = 60_000;
+
+/** The page's clock for the team's `events`: a check every UPCOMING_REFRESH_MS while the tab is visible, and once on
+ *  coming back to it. Each check takes the event that is next at that moment, on its venue's calendar: a page opened
+ *  the night before starts asking for the matches (`reload`) once the event day begins there, moves on to the team's
+ *  following event when one ends, and stops for good once none is left. Returns the time of the last check. Hidden
+ *  tabs do nothing. Exported for its test. */
+export function useEventDayRefresh(events: EventCalendar[] | null, reload: () => Promise<void> | void): number {
+  const [at, setAt] = useState(() => Date.now());
+  useEffect(() => {
+    if (!events?.length) return;
+    let timer = 0;
+    const tick = () => {
+      if (document.visibilityState !== "visible") return;
+      const t = Date.now();
+      setAt(t);
+      const event = events.find((e) => !eventOver(e, t));
+      if (!event) { clearInterval(timer); return; }
+      if (onEventDates(event, t)) void reload();
+    };
+    timer = window.setInterval(tick, UPCOMING_REFRESH_MS);
+    document.addEventListener("visibilitychange", tick);
+    return () => { clearInterval(timer); document.removeEventListener("visibilitychange", tick); };
+  }, [events, reload]);
+  return at;
+}
+
+/** An alliance as Predict takes it (two robots at most): this team first when it's on it, then the others, so a playoff
+ *  alliance of three still opens as a matchup Predict can run. */
+export const lineup = (teams: { number: number }[], team: number) =>
+  [...teams.filter((t) => t.number === team), ...teams.filter((t) => t.number !== team)].slice(0, 2).map((t) => t.number);
+
+/** The team's next match on a posted schedule, soonest first (not played, its event not over); null when none is posted. */
+export function nextMatch(matches: MatchView[], events: TeamEventRow[], now = Date.now()): MatchView | null {
+  const live = new Set(events.filter((e) => !eventOver(e, now)).map((e) => e.code));
+  // A match whose start passed over half an hour ago without a result is late, not next.
+  return matches.find((m) => !m.played && live.has(m.code) && (!m.startsAt || Date.parse(m.startsAt) > now - 30 * 60_000)) ?? null;
+}
+
+/**
+ * Upcoming, right under the team's name: its next match (with the call and one tap to its event or to Predict with the
+ * alliances filled in) once a schedule is posted; else its next event, saying the match list comes at the event; else
+ * plainly that none is published, with its last event. Drawn in the first paint from the answers the page already has.
+ */
+function Upcoming({ p, next: first, last: before }: { p: TeamProfile; next: TeamEventRow | null; last: TeamEventRow | null }) {
+  const n = p.team.number;
+  // The page's own matches request (MatchesSection asks for the same): no second request, and in the drawn page's data.
+  const ms = useApi<{ matches: MatchView[] }>(first ? `/api/teams/${n}/matches?season=${p.season}` : null);
+  // On the event's day the next match moves as the field plays: asked again every minute while the tab is visible
+  // and on coming back to it, and the "late, not next" cutoff is read against the time of that check.
+  const now = useEventDayRefresh(first ? p.events : null, ms.reload);
+  // Next and last again on that clock: a page left open past the event's end says so instead of "Next event".
+  const next = p.events.find((e) => !eventOver(e, now)) ?? null;
+  const last = next === first ? before : [...p.events].reverse().find((e) => eventOver(e, now)) ?? null;
+  const m = next && ms.data ? nextMatch(ms.data.matches, p.events, now) : null;
+  const mEvent = m ? p.events.find((e) => e.code === m.code) : null;
+  const side = m ? (m.red.teams.some((t) => t.number === n) ? "red" : "blue") : null;
+  const chance = m?.prediction && side ? (side === "red" ? m.prediction.pRed : 1 - m.prediction.pRed) : null;
+  const predictable = usePredictable(p.season);
+  const row = ROW;
+  return (
+    <section aria-labelledby={`upcoming-${n}`} className="mt-5 max-sm:mt-4 space-y-2 text-sm" data-upcoming>
+      <h2 id={`upcoming-${n}`} className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Upcoming</h2>
+      {m && mEvent && (
+        <div className="rounded-xl border border-accent/30 bg-accent/[0.05] p-3">
+          <Link to={`/events/${m.season}/${m.code}?team=${n}&match=${m.key}`} className="flex items-baseline justify-between gap-3 hover:underline pointer-coarse:min-h-[44px] pointer-coarse:items-center">
+            <span className="min-w-0"><span className="font-semibold">Next match · {m.label}</span> <span className="text-muted-foreground">{m.time ? matchTime(m.time) : "time not posted yet"}</span></span>
+            {chance != null && m.prediction && <NextChance chance={chance} tier={m.prediction.tier} />}
+          </Link>
+          <p className="mt-1 truncate text-muted-foreground" title={mEvent.name}>{mEvent.name} · on <span className={side === "red" ? "text-red-alliance" : "text-blue-alliance"}>{side}</span>: {m.red.teams.map((t) => t.number).join(" + ")} vs {m.blue.teams.map((t) => t.number).join(" + ")}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button size="sm" variant="secondary" asChild className="max-sm:h-11 pointer-coarse:h-[44px]"><Link to={`/events/${m.season}/${m.code}?team=${n}&match=${m.key}`}><CalendarDays /> Event schedule</Link></Button>
+            {/* At an event that advances teams, its odds stay one tap away all event day (the hero's button hands over to these). */}
+            {ADVANCING.has(mEvent.type ?? "") && <Button size="sm" variant="outline" asChild className="max-sm:h-11 pointer-coarse:h-[44px]"><Link to={`/events/${m.season}/${m.code}?tab=odds&team=${n}`}><Trophy /> Odds to advance</Link></Button>}
+            {predictable && <Button size="sm" variant="outline" asChild className="max-sm:h-11 pointer-coarse:h-[44px]"><Link to={predictHref({ mode: "match", season: m.season, red: lineup(m.red.teams, n), blue: lineup(m.blue.teams, n) })}><Sparkles /> Predict this match</Link></Button>}
+          </div>
+        </div>
+      )}
+      {next && !m && (
+        <Link to={ADVANCING.has(next.type ?? "") ? `/events/${next.season}/${next.code}?tab=odds&team=${n}` : `/events/${next.season}/${next.code}?team=${n}`} className={cn(row, "border-accent/30 bg-accent/[0.05]")}>
+          <span className="min-w-0"><span className="block truncate" title={next.name}><span className="text-muted-foreground">Next event · </span>{next.name}</span>
+            <span className="block text-xs text-muted-foreground">{[dateRange(next.start, next.end), ms.data ? "match list is posted at the event" : ms.error ? "match list couldn't be checked just now" : null].filter(Boolean).join(" · ")}</span></span>
+          <span className="shrink-0 font-medium text-accent-text">{ADVANCING.has(next.type ?? "") ? "Odds to advance →" : "Schedule →"}</span>
+        </Link>
+      )}
+      {!next && <p className="text-muted-foreground">No upcoming event is published for {n} yet{last ? "; its last event:" : "."}</p>}
+      {last && <LastEvent last={last} team={n} />}
+    </section>
+  );
+}
+
+/** Off-season events and scrimmages, added up on a line of their own under the record: never in it (OFFICIAL_RULE). */
+function OffSeasonLine({ events }: { events: TeamEventRow[] }) {
+  const off = offSeasonRecord(events);
+  if (!off) return null;
+  return (
+    <p className="mt-3 text-xs text-muted-foreground" data-off-season-record>
+      Off-season and scrimmages, not in the record: <span className="font-medium tabular-nums text-foreground">{wltText(off)}</span> at {off.events} event{off.events === 1 ? "" : "s"}
+    </p>
   );
 }

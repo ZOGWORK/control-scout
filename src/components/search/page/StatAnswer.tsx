@@ -26,6 +26,7 @@ import { ExplainerLines } from "./FactCard";
 import { ChanceBar } from "./ChanceBar";
 import { HighlightGrid, isHighlights } from "./HighlightGrid";
 import { VideoGallery } from "./VideoGallery";
+import { LeagueTable } from "../../LeagueTable";
 
 // Section headers in the team hue (the owner's brief: coloured section headers).
 const H3 = "mb-1.5 text-xs font-semibold text-team-a";
@@ -277,6 +278,15 @@ function Block({ b: block, team, teams, said, hue }: { b: StatBlock; team?: Stat
       return b.rows.some((r) => r.teams) ? <MatchTable b={b} /> : <Table b={b} />;
     case "leaderboard":
       return <Leaderboard b={b} />;
+    case "league":
+      return (
+        <div data-block="league" className="space-y-2">
+          {b.title && <h3 className={H3}>{b.title}</h3>}
+          <LeagueTable rows={b.rows} season={b.season} team={b.team} maxRows={10} />
+          {b.note && <p className="text-xs text-muted-foreground">{b.note}</p>}
+          <p><Link to={b.more.href} className="inline-flex items-center gap-1 text-sm font-medium text-foreground underline decoration-border underline-offset-2 hover:text-accent-text max-md:min-h-[44px] pointer-coarse:min-h-[44px]" data-more-detail>{b.more.label}<ArrowRight className="size-3.5" aria-hidden /></Link></p>
+        </div>
+      );
     case "series":
       return <Series b={b} />;
     case "bars":
