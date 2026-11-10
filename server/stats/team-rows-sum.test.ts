@@ -5,6 +5,7 @@
 //  - a finished league meet with no matches listed every league team (ghost rows);
 //  - a scrimmage with played matches but no ranking row showed nothing;
 //  - the season record left out qualification no-shows, which FIRST counts (team 1's 2025 record).
+import { isOfficialEvent } from "../../src/shared/eventRecord";
 import { beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../db";
 import { computeSeasonStats } from "./job";
@@ -83,7 +84,8 @@ beforeAll(async () => {
   await computeRecords(S, events);
 });
 
-const sum = (rows: TeamEventRow[]) => rows.reduce((a, r) => ({ wins: a.wins + (r.wins ?? 0), losses: a.losses + (r.losses ?? 0), ties: a.ties + (r.ties ?? 0), matches: a.matches + (r.played ?? 0) }), { wins: 0, losses: 0, ties: 0, matches: 0 });
+// The record adds up the official events' rows (src/shared/eventRecord.ts); the match count every row's.
+const sum = (rows: TeamEventRow[]) => rows.reduce((a, r) => { const on = isOfficialEvent(r.type); return { wins: a.wins + (on ? r.wins ?? 0 : 0), losses: a.losses + (on ? r.losses ?? 0 : 0), ties: a.ties + (on ? r.ties ?? 0 : 0), matches: a.matches + (r.played ?? 0) }; }, { wins: 0, losses: 0, ties: 0, matches: 0 });
 
 describe("team event rows", () => {
   it("add up to the season record, for every team", async () => {
@@ -102,7 +104,8 @@ describe("team event rows", () => {
   it("count playoffs, with the quals alone beside them", async () => {
     const q = (await teamEvents(S, A)).find((e) => e.code === "QUAL")!;
     expect(q).toMatchObject({ wins: 3, losses: 2, ties: 0, played: 5, qual: { wins: 1, losses: 1, ties: 0, played: 2 } });
-    expect((await seasonStats(S, A))!.record).toMatchObject({ wins: 4, losses: 4, ties: 0, matches: 8 });
+    // The scrimmage's win (SCRIM) is a match played, not on the record.
+    expect((await seasonStats(S, A))!.record).toMatchObject({ wins: 3, losses: 4, ties: 0, matches: 8 });
   });
 
   it("leave out a finished league meet the team has no match at, and keep a scrimmage with no scores, saying so", async () => {

@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 4.9.9 — 2026-11-10
+## 5.0.0 — 2026-11-10
 
 Predict opens on its teams: a matchup link from a team page or a search answer shows the teams and the call from the first paint.
 
@@ -28,6 +28,18 @@ Predict opens on its teams: a matchup link from a team page or a search answer s
 - `/predict?mode=match&…` with teams in it is drawn on the server like team and event pages: the teams in their boxes with their names and, with both sides given, the odds, predicted scores and reasons. (#1284)
 - One team a side (as search's "4215 vs 7149 who wins" links it) now shows its call; before, Predict waited for four teams. The form takes one or two teams a side, and a link that fills it no longer puts the cursor in an empty box (on a phone that opened the keyboard over the call).
 
+
+## 4.9.9 — 2026-11-10
+
+A season record counts official events only, on the team page and in search alike, and says so.
+
+### Highlights
+- [teams] A season record counts official events only, everywhere
+- [teams] Off-season events and scrimmages get their own line on the team page
+- [fixes] Search and the team page show the same record for every team
+
+### Fixed
+- The team page's record counted off-season events and scrimmages, while search's record card counted official events only: 24033 read 46-20-0 on its page and 41-16-0 in search, 17713 31-14-0 and 30-14-0, 23268 (2024–25) 42-20-0 and 37-14-0. One rule now (`isOfficialEvent` in src/shared/eventRecord.ts) for the stats job, the team page and search: official events only (qualifiers, league play, championships, premier events). The record tile and the search card say "Official events only"; the team page adds a line for off-season events and scrimmages ("not in the record: 5-4-0 at 1 event"). Matches played still count every event. Season stats are recomputed once after this release. (#1280)
 
 ## 4.9.8 — 2026-11-10
 
