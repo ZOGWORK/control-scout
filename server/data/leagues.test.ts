@@ -6,6 +6,7 @@ import { migrate, openDb, run, setDb } from "../db";
 import { clearAllCaches } from "../caches";
 import { syncLeagues } from "./leagues";
 import { leagueStandings, leaguesOf, teamLeagueStanding } from "../api/leagues";
+import { pageMeta } from "../seoMeta";
 
 const S = 2026;
 const rank = (team: number, r: number, played = 6) => ({ teamNumber: team, rank: r, sortOrder1: 2 - r / 10, sortOrder2: 40, wins: 6 - r, losses: r, ties: 0, matchesPlayed: played, matchesCounted: played });
@@ -87,6 +88,15 @@ describe("league standings sync", () => {
     // Not again until REREAD_HOURS on, like any read.
     expect(await syncLeagues(S, { now: new Date("2026-11-08T19:05:00Z"), fetch: fetcher([]) })).toMatchObject({ ranked: 0 });
     expect(await syncLeagues(S, { now: new Date("2026-11-09T01:05:00Z"), fetch: fetcher([]) })).toMatchObject({ ranked: 1 });
+  });
+
+  it("serves a league's page meta, and a 404 for an address that is no league", async () => {
+    await syncLeagues(S, { now: new Date("2026-11-08T12:00:00Z"), fetch: fetcher([]) });
+    const m = await pageMeta("/Leagues/2026/usnj/ne");
+    expect(m).toMatchObject({ title: "Northeast League (New Jersey) standings 2026–27", path: "/leagues/2026/USNJ/NE" });
+    expect(m.bodyHtml).toContain("Bad Wolf");
+    expect((await pageMeta("/leagues/2026/USNJ/a-b")).notFound).toBe(true);
+    expect((await pageMeta("/leagues/2026/USNY/NE")).notFound).toBe(true);
   });
 
   it("tries a failed league again next sync", async () => {
