@@ -58,14 +58,14 @@ describe("offline team profile (same shape as /api/teams/:n)", () => {
     expect(p.stats).toEqual({
       opr: { np: { value: 55.5, rank: 7, of: 400 }, auto: { value: 10, rank: 9, of: 400 }, teleop: { value: 30, rank: 6, of: 400 }, endgame: { value: 15.5, rank: 5, of: 400 }, pen: 2 },
       rating: { np: 50, auto: 9, teleop: 28, endgame: 13, pen: 2, sd: 6, matches: 3, rank: 8 },
-      record: { wins: 2, losses: 1, ties: 0, matches: 3, events: 1 },
+      record: { wins: 3, losses: 0, ties: 0, matches: 3, events: 1 }, // from the pack's own matches, official events only
       avg: { np: 100, score: 105, pen: 5 },
       // The fixture pack predates the reliability table: read as not computed, never an error.
       reliability: null,
     });
     expect(p.events.map((e) => e.code)).toEqual(["USNJQ1", "USNJQ9"]); // by start date
     expect(p.events[0]).toEqual({
-      season: 2025, code: "USNJQ1", name: "New Jersey Qualifier 1", type: "Qualifier", start: "2025-11-01", end: "2025-11-01", city: "Newark", state: "NJ", country: "USA",
+      season: 2025, code: "USNJQ1", name: "New Jersey Qualifier 1", type: "Qualifier", start: "2025-11-01", end: "2025-11-01", city: "Newark", state: "NJ", country: "USA", timezone: "America/New_York",
       // The record is counted from the matches (won Q1, Q2 and the playoff M1), not read from FIRST's ranking row
       // (the fixture's says 1-1-0), with the quals alone beside it.
       rank: 2, rp: 2, wins: 3, losses: 0, ties: 0, played: 3, qualPlayed: 2, qual: { wins: 2, losses: 0, ties: 0, played: 2 }, onField: true,

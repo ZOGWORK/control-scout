@@ -15,7 +15,9 @@ import { eventTypeLabel } from "../src/shared/labels.js";
 import { canonicalOrigin, canonicalUrl } from "./seo.js";
 import { FAQ, faqJsonLd, faqText } from "../src/shared/faq.js";
 import { ATTENDED, teamKnown } from "./api/teams.js";
-import { eventFirstPaint, teamFirstPaint, type FirstPaint } from "./firstPaint.js";
+import { compareFirstPaint, eventFirstPaint, leagueFirstPaint, predictFirstPaint, teamFirstPaint, type FirstPaint } from "./firstPaint.js";
+import { leagueStandings } from "./api/leagues.js";
+import { leagueHref, leaguePageTitle } from "../src/shared/leagues.js";
 import { recordOf, recordSql } from "../src/shared/eventRecord.js";
 import { hasTeamPage } from "../src/shared/teamPages.js";
 import { eventHasDataSql, isReachableEventCode, teamHasDataSql } from "./indexable.js";
@@ -27,6 +29,7 @@ import { listRecords, recordsQuery } from "./api/records.js";
 import { siteTitle, teamHeading, teamTitle } from "../src/shared/teamTitle.js";
 import { pageModule } from "../src/shared/routes.js";
 import { normalMatchKey } from "../src/shared/matchReport.js";
+import { matchupOf } from "../src/shared/predictUrl.js";
 import { allianceText, shareHeadline, shareImagePath, sharePagePath, tierWords, type ShareCardQuery } from "../src/shared/share.js";
 import { latestRankings, rankingsWeek } from "./powerRankings/store.js";
 import { staticRankingsHtml } from "./powerRankings/static.js";
@@ -34,6 +37,7 @@ import { isWeekId, weekLabel, type PowerRankingsResponse } from "../src/shared/p
 import { trackRecordIfReady } from "./api/accuracy.js";
 import { isEnabled } from "./flags.js";
 import type { SearchCardLine, TrackRecord } from "../src/shared/api.js";
+import { compareTitle } from "../src/shared/compareUrl.js";
 import { ensureSearchIndex } from "./api/search.js";
 import { MAX_QUERY, searchAnswer } from "./api/searchAnswer.js";
 import { relatedPage } from "./api/answers/relatedPage.js";
@@ -308,6 +312,24 @@ async function eventMeta(season: number, code: string): Promise<PageMeta | null>
   return { title: `${e.name} (${seasonInfo(season).label})`, description, type: "website", path: eventPath(season, code), jsonLd: [ev], bodyHtml, ...(data?.ok ? {} : { noData: true }), ...(moreHtml ? { moreHtml } : {}) };
 }
 
+/** A league's standings page (server/api/leagues.ts): its title, a description with the top of the table, and the
+ *  table's words as the first HTML (the drawn page replaces it when this server can draw one). */
+async function leagueMeta(season: number, region: string, code: string): Promise<PageMeta | null> {
+  if (!SEASON_NUMBERS.includes(season)) return null;
+  const d = await leagueStandings(season, region, code);
+  if (!d) return null;
+  const x = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const title = leaguePageTitle(d);
+  const top = d.rows.slice(0, 3).map((r) => `#${r.rank} ${r.team}${r.name ? ` ${r.name}` : ""}`).join(", ");
+  const description = fitDescription(`${title}: FIRST's official FTC league ranking over every meet so far${d.rows.length ? `, ${d.rows.length} teams` : ""}.${top ? ` ${top}.` : ""}`);
+  const items = d.rows.map((r) => {
+    const facts = [record(r.wins, r.losses, r.ties), r.rs != null ? `RS ${Number(r.rs).toFixed(2)}` : "", `${r.meets} meets`].filter(Boolean).join(" · ");
+    return `<li>#${r.rank} <a href="/teams/${r.team}?season=${season}">${x(teamHeading(r.team, r.name))}</a> <small>${x(facts)}</small></li>`;
+  }).join("");
+  const bodyHtml = `<p>${x(description)}</p>${items ? `<h2>Standings</h2><ol>${items}</ol>` : ""}`;
+  return { title, description, type: "website", path: leagueHref(d.season, d.region, d.code), bodyHtml, ...(d.rows.length ? {} : { noData: true }) };
+}
+
 /** At most this many teams in an event page's first HTML (the biggest championships run past it). */
 const EVENT_ROWS = 100;
 
@@ -380,14 +402,6 @@ async function matchReportMeta(season: number, code: string, key: string): Promi
   };
 }
 
-/** Two distinct team numbers per alliance from "a,b" (what the Predict Lab and a match lineup hold), else null. */
-function pair(v: string | null): number[] | null {
-  const t = (v ?? "").split(",");
-  if (t.length !== 2 || !t.every((x) => /^\d{1,6}$/.test(x.trim()))) return null;
-  const n = t.map((x) => Number(x.trim()));
-  return n.every((x) => x >= 1) && n[0] !== n[1] ? n : null;
-}
-
 
 /** A matchup's words for its link preview: the card's headline, the predicted score and the confidence
  *  (and, for a backtest, that it was replayed afterward: never passed off as a call made before the match). */
@@ -407,8 +421,10 @@ async function matchupMeta(sp: URLSearchParams): Promise<PageMeta | null> {
   const mode = sp.get("mode");
   if (mode != null && mode !== "match") return null;
   if (sp.get("view") === "events") return null;
-  const red = pair(sp.get("red")), blue = pair(sp.get("blue"));
-  if (!red || !blue || red.some((t) => blue.includes(t))) return null;
+  // One or two distinct teams a side, as the Predict page takes them (a head-to-head link has one).
+  const m = matchupOf(sp.get("red"), sp.get("blue"));
+  if (!m) return null;
+  const { red, blue } = m;
   const raw = sp.get("season");
   const season = raw == null || raw === "" ? CURRENT_SEASON : /^\d{4}$/.test(raw) ? Number(raw) : NaN;
   if (!SEASON_NUMBERS.includes(season) || isLegacy(season)) return null;
@@ -630,9 +646,14 @@ async function searchMeta(raw: string): Promise<PageMeta> {
     + (s.none ? `<p>${esc(s.none)}</p>` : "")
     // Its teams as chips on the page (an alliance's): named here as links.
     + (s.headline ? `<p><b>${linked(s.headline.value, s.headline.href)}</b> · ${esc(s.headline.label)}${s.headline.teams?.length ? `: ${s.headline.teams.map((t) => linked(t.label, t.href)).join(", ")}` : ""}${s.headline.sub ? `<br><small>${esc(s.headline.sub)}</small>` : ""}</p>` : "")
-    + (kpis.length ? `<p>${kpis.map((k) => `${esc(k.label)}: <b>${linked(k.value, k.href)}</b>`).join(" · ")}</p>` : "")
+    // Each tile's line under its number too (which match, which event, when), as the app shows it.
+    + (kpis.length ? `<p>${kpis.map((k) => `${esc(k.label)}: <b>${linked(k.value, k.href)}</b>${k.sub ? ` <small>(${esc(k.sub)})</small>` : ""}`).join(" · ")}</p>` : "")
     // A leaderboard's teams, every row, as the app's table has them; its "View more detail" link under it.
     + s.blocks.map((b) => (b.kind === "leaderboard" ? `<h3>${esc(b.title)}</h3><p><small>${esc(b.note)}</small></p>${teamTableHtml(teamTableOfLeaderboard(b.stat.id, b.stat.label, b.rows, b.teleopWithEndgame), b.title)}${b.more ? `<p><a href="${esc(b.more.href)}">${esc(b.more.label)}</a></p>` : ""}` : "")).join("")
+    // Its links ("Open in Predict", "Compare side by side"), each with the teams and season in its address as the app's
+    // buttons have them: the tap-through from the answer is in the served page, not only in the app's JSON.
+    + s.blocks.map((b) => (b.kind === "links" && b.items.length ? `<p>${esc(b.title)}: ${b.items.map((l) => `<a href="${esc(l.href)}">${esc(l.label)}</a>`).join(" · ")}</p>` : "")).join("")
+    + (s.more ? `<p><a href="${esc(s.more.href)}">${esc(s.more.label)}</a></p>` : "")
     + `<p><small>${esc(s.definition)}<br>${esc(s.source)}</small></p></section>` : "";
   // The heading as the app titles it; a badge that only repeats it is left out, as the app leaves it out.
   // Nothing answered (a sorry note, or nothing found at all): the page says sorry, once, as its heading.
@@ -670,6 +691,22 @@ async function relatedMeta(raw: string): Promise<PageMeta> {
     title, type: "website", bodyHtml: body, pageData: { [relatedApiPath(q)]: r },
     ...(q ? { path: `/related-searches${relatedSearch(q)}` } : {}),
     description: fitDescription(q && r.found ? `${n} FTC searches related to “${q}” on Control Scout, each with its answer: team stats, records, awards and events.` : "Popular FTC searches on Control Scout, each with its answer: top teams, OPR leaders, upcoming events and the season's standout teams."),
+  };
+}
+
+/**
+ * /compare?teams=4215,7149&season=2025: the comparison itself as the first paint (server/firstPaint.ts), so a tap from a
+ * search answer lands on the teams with their numbers, not on an empty picker; its title names the teams. The plain
+ * Compare page's values when there's nothing to draw. Every comparison is the one page (its canonical is /compare).
+ */
+async function compareMeta(sp: URLSearchParams): Promise<PageMeta | null> {
+  const drawn = await compareFirstPaint(sp).catch(() => null);
+  if (!drawn?.view.teams.length) return null;
+  const { view, ...firstPaint } = drawn;
+  const title = compareTitle(view.teams), who = title.replace(/^Compare /, "");
+  return {
+    title, heading: title, type: "website", path: "/compare", firstPaint,
+    description: fitDescription(`${who} side by side in ${seasonInfo(view.season).label}: OPR by game phase, prediction ratings, records, event-by-event form and every match they met in.`),
   };
 }
 
@@ -715,6 +752,15 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
       const ev = await eventMeta(Number(m[1]), code);
       return ev ? { ...ev, title: `Pit display: ${ev.title}`, path: eventPath(Number(m[1]), code), jsonLd: undefined, bodyHtml: undefined } : NOT_FOUND;
     }
+    if ((m = p.match(/^\/leagues\/(\d{4})\/([A-Za-z0-9]{1,16})\/([A-Za-z0-9]{1,16})$/i))) {
+      const lm = await leagueMeta(Number(m[1]), m[2], m[3]);
+      if (!lm) return NOT_FOUND;
+      const q = sp.toString();
+      const firstPaint = await leagueFirstPaint(m[1], m[2], m[3], q ? `?${q}` : "");
+      return firstPaint ? { ...lm, firstPaint } : lm;
+    }
+    // Any other league-shaped address (a code that can't be one) is no league.
+    if (/^\/leagues\/[^/]+\/[^/]+\/[^/]+$/i.test(p)) return NOT_FOUND;
     if (/^\/rankings$/i.test(p)) return await rankingsMeta(query);
     if (p === "/events") return await eventsListMeta();
     if (p === "/teams") return await teamsTableMeta(query);
@@ -728,10 +774,21 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
   }
   // A team or event address that can't be one (/teams/abc, /teams/1234567, /events/2025/a%20b): the app says not found too.
   if (/^\/teams\/[^/]+$/i.test(p) || /^\/events\/[^/]+\/[^/]+$/i.test(p) || /^\/events\/[^/]+\/[^/]+\/match\/[^/]+$/i.test(p) || /^\/events\/[^/]+\/[^/]+\/display$/i.test(p)) return NOT_FOUND;
+  // A comparison with teams in its address: drawn whole, as team and event pages are.
+  if (/^\/compare$/i.test(p) && sp.has("teams")) {
+    const cm = await compareMeta(sp);
+    if (cm) return cm;
+  }
   if (p === "/predict" && (sp.has("red") || sp.has("blue"))) {
-    // A shared matchup; the Predict page's own values when it isn't one (or ratings aren't ready).
-    const mm = await matchupMeta(sp).catch(() => null);
-    if (mm) return mm;
+    // A shared matchup; the Predict page's own values when it isn't one (or ratings aren't ready). Either way, the page
+    // itself drawn with its teams when this server can (a production build): server/firstPaint.ts.
+    const [mm, firstPaint] = await Promise.all([matchupMeta(sp).catch(() => null), predictFirstPaint(sp).catch(() => null)]);
+    if (mm) return firstPaint ? { ...mm, firstPaint } : mm;
+    if (firstPaint) {
+      // A head-to-head (one team a side) has no share card, but its title still names the matchup.
+      const m = matchupOf(sp.get("red"), sp.get("blue"));
+      return { ...STATIC["/predict"], ...(m ? { title: `${allianceText(m.red)} vs ${allianceText(m.blue)}: match prediction` } : {}), description: fitDescription(STATIC["/predict"].description), type: "website", firstPaint };
+    }
   }
   // How it works: the whole page in the first paint, prerendered from the real page component at build time
   // (scripts/prerender.mjs), so crawlers read every section without running JavaScript.

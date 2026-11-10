@@ -10,7 +10,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerE
 import { Link, useSearchParams } from "react-router-dom";
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, XAxis, YAxis } from "recharts";
 import { ArrowUp, GripVertical, Info, Plus, Scale, Sparkles, Trophy, X } from "lucide-react";
-import { useApi, qs } from "../lib/api";
+import { useApi } from "../lib/api";
 import { useCurrentSeason, usePredictable, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
 import { myTeamsOf } from "../lib/myTeams";
@@ -34,6 +34,7 @@ import { SWING_LINE, swingText, swingTitle } from "../shared/reliability";
 import { useTeamColors } from "../components/TeamColorPicker";
 import { Reveal, Stagger, StaggerItem, m } from "../components/motion";
 import { predictHref } from "../shared/predictUrl";
+import { COMPARE_MAX as MAX, compareApiPath, compareSeasonOf, compareTeamsOf, compareTitle } from "../shared/compareUrl";
 
 const COLORS = ["var(--color-chart-1)", "var(--color-chart-2)", "var(--color-chart-3)", "var(--color-chart-4)"];
 
@@ -41,12 +42,8 @@ const COLORS = ["var(--color-chart-1)", "var(--color-chart-2)", "var(--color-cha
 export function teamPalette(teams: number[], colorOf: (team: number) => { css: string } | null): string[] {
   return teams.map((t, i) => colorOf(t)?.css ?? COLORS[i % COLORS.length]);
 }
-const MAX = 4;
-
-/** The teams in ?teams=, as plain numbers ("04215" is 4215), each once. */
-export function teamsOf(v: string | null): string[] {
-  return [...new Set((v ?? "").split(",").filter((x) => /^\d+$/.test(x) && Number(x) > 0).map((x) => String(Number(x))))];
-}
+/** The teams in ?teams= (src/shared/compareUrl.ts: the server reads the address the same way for the first paint). */
+export const teamsOf = compareTeamsOf;
 
 /** The head-to-head matches for the baseline (the first team): the ones it played with or against another
  *  compared team, each marked from its side. */
@@ -63,11 +60,10 @@ export function baselineMeetings(meetings: CompareView["meetings"], order: numbe
 }
 
 export default function ComparePage() {
-  useTitle("Compare");
   const [sp, setSp] = useSearchParams();
   const current = useCurrentSeason();
-  const asked = Number(sp.get("season")) || null;
-  const teams = teamsOf(sp.get("teams")).slice(0, MAX);
+  const asked = compareSeasonOf(sp.get("season"));
+  const teams = teamsOf(sp.get("teams"));
   const { colorOf } = useTeamColors();
   const palette = teamPalette(teams.map(Number), colorOf);
   const [error, setError] = useState<string | null>(null);
@@ -103,8 +99,8 @@ export default function ComparePage() {
   const addAll = (ns: number[]) => edit((now) => [...now, ...ns.map(String).filter((n) => !now.includes(n))]);
   // Without ?season the server picks the latest season these teams have results in. Asked for in one fixed
   // order, so dragging the columns into another order doesn't fetch again: the URL's order is applied here.
-  const asking = [...teams].sort((a, b) => Number(a) - Number(b)).join(",");
-  const state = useApi<CompareView>(teams.length ? `/api/compare${qs({ teams: asking, season: asked ?? undefined })}` : null);
+  // A page the server drew (server/firstPaint.ts) carries this very answer, so the first render is the comparison.
+  const state = useApi<CompareView>(teams.length ? compareApiPath(teams, asked) : null);
   const order = teams.join(",");
   const view = useMemo(() => {
     if (!state.data) return state.data;
@@ -121,6 +117,8 @@ export default function ComparePage() {
     return rest;
   });
   const season = asked ?? state.data?.season ?? current;
+  // Titled by its teams once they're here, as the server titles a drawn comparison (src/shared/compareUrl.ts).
+  useTitle(teams.length && view?.teams.length ? compareTitle(view.teams) : "Compare");
   const full = teams.length >= MAX;
   const suggestions = useSuggestions(teams.map(Number));
   return (
@@ -370,20 +368,20 @@ function StatsTable({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: num
             {t.map((x, i) => (
               <m.th key={x.team.number} scope="col" data-col={i} className={cn("border-l border-border p-3 text-left align-top font-normal", colClass(i))} style={{ boxShadow: `inset 0 3px 0 ${COLORS[i]}` }}
                 initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} transition={CELL}>
-                <div className="flex items-start justify-between gap-1">
+                <div className="flex items-start justify-between gap-1 pointer-coarse:flex-wrap pointer-coarse:gap-0">
                   {t.length > 1 && (
                     <button type="button" {...gripProps(x.team.number, i)}
                       aria-label={`Reorder ${x.team.number}, ${ORDINAL[i]} of ${t.length}: drag, or use the arrow keys`} title="Drag to reorder: the first team is the one the others are measured against"
-                      className="-ml-2 -mt-0.5 flex h-8 w-5 shrink-0 cursor-grab touch-none items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing max-sm:h-10">
+                      className="-ml-2 -mt-0.5 flex h-8 w-5 shrink-0 pointer-coarse:mt-0 pointer-coarse:-ml-3 pointer-coarse:h-[44px] pointer-coarse:w-[44px] cursor-grab touch-none items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing max-sm:h-10">
                       <GripVertical className="size-4" aria-hidden />
                     </button>
                   )}
-                  <Link to={`/teams/${x.team.number}?season=${d.season}`} className="min-w-0 hover:underline">
+                  <Link to={`/teams/${x.team.number}?season=${d.season}`} className="min-w-0 hover:underline pointer-coarse:order-first pointer-coarse:min-h-[44px] pointer-coarse:basis-full">
                     <span className="block font-display text-xl font-semibold tabular-nums">{x.team.number}</span>
                     <span className="block truncate text-xs text-muted-foreground">{x.team.name ?? "—"}</span>
                     {i === 0 && t.length > 1 && <span className="mt-1 inline-block rounded-full bg-yellow-300/25 px-1.5 text-[10px] font-semibold text-yellow-800 dark:bg-yellow-200/15 dark:text-yellow-200">Baseline</span>}
                   </Link>
-                  <Button variant="ghost" size="icon-sm" className="-mr-1.5 -mt-1 shrink-0 max-sm:size-10" aria-label={`Remove ${x.team.number}`} onClick={() => onRemove(x.team.number)}><X /></Button>
+                  <Button variant="ghost" size="icon-sm" className="-mr-1.5 -mt-1 shrink-0 max-sm:size-10 pointer-coarse:ml-auto pointer-coarse:mt-0 pointer-coarse:size-[44px]" aria-label={`Remove ${x.team.number}`} onClick={() => onRemove(x.team.number)}><X /></Button>
                 </div>
                 {!x.stats && <span className="mt-1 block text-xs text-muted-foreground">No results this season</span>}
               </m.th>
@@ -487,11 +485,11 @@ function Compare({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: number
           {t.map((x, i) => (
             <div key={x.team.number} className="min-w-0 rounded-xl border border-border bg-card p-3">
               <p className="flex items-center gap-2 text-sm font-semibold"><span className="size-2.5 shrink-0 rounded-full" style={{ background: COLORS[i] }} />
-                <Link to={`/teams/${x.team.number}?season=${d.season}`} className="truncate hover:text-accent-text">{x.team.number} {x.team.name}</Link></p>
+                <Link to={`/teams/${x.team.number}?season=${d.season}`} className="truncate hover:text-accent-text pointer-coarse:block pointer-coarse:leading-[44px]">{x.team.number} {x.team.name}</Link></p>
               <ul className="mt-2 space-y-1 text-xs">
                 {x.events.length ? x.events.map((e) => (
-                  <li key={e.code} className="flex items-baseline gap-2">
-                    <Link to={`/events/${d.season}/${e.code}?team=${x.team.number}`} className="min-w-0 flex-1 truncate text-foreground/90 hover:text-accent-text" title={e.name}>{e.name}</Link>
+                  <li key={e.code} className="flex items-baseline gap-2 pointer-coarse:min-h-[44px] pointer-coarse:items-center">
+                    <Link to={`/events/${d.season}/${e.code}?team=${x.team.number}`} className="min-w-0 flex-1 truncate text-foreground/90 hover:text-accent-text pointer-coarse:leading-[44px]" title={e.name}>{e.name}</Link>
                     <span className="shrink-0 tabular-nums text-muted-foreground">{e.rank ? `#${e.rank}` : "—"} · OPR {e.opr == null ? "—" : num(e.opr, 1)}</span>
                   </li>
                 )) : <li className="text-muted-foreground">No events this season.</li>}

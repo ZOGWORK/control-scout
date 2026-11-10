@@ -9,6 +9,7 @@ import type { SearchAnswer, SearchHit, SearchPageLink } from "../../../src/share
 import type { StatAnswer } from "../../../src/shared/searchStat.js";
 import type { AnswerTeam } from "./families/matches.js";
 import { dateRange, seasonLabel } from "../../../src/shared/format.js";
+import { latestStoredSeason, noEventsStat, withoutYear } from "./noEventsYet.js";
 import { edits, findRegions, regionLabel } from "../../../src/shared/regions.js";
 import { eventTypeLabel } from "../../../src/shared/labels.js";
 import { CURRENT_SEASON, SEASON_NUMBERS } from "../../data/seasons.js";
@@ -29,6 +30,7 @@ import { awardsAnswer, awardsTitle } from "./families/awards.js";
 import { championshipMatchesAnswer, eventScopeAnswer } from "./families/eventScope.js";
 import { eventAnswer } from "./families/events.js";
 import { factAnswer, readTeamFact, seasonOf as factSeason, type FactQuestion } from "./families/facts.js";
+import { leagueAskAnswer, readLeagueAsk } from "./families/league.js";
 import { OPR_RATING_TITLES, oprRatingAnswer, readOprRating, type OprRatingQuestion } from "./families/oprRating.js";
 import { counts, matchAnswer, whoOf } from "./families/matches.js";
 import { changeAnswer, readChange, type ChangeQuestion } from "./families/seasonChange.js";
@@ -378,6 +380,20 @@ async function findEvent(words: string, season: number | null, opts: { anyPlayed
 /** "Top teams", "best 5 teams", "strongest teams": the words that ask for the best teams, with a time said or not. */
 const TOP_TEAMS_SAID = /\b(?:top|best|strongest)\s+(?:\d{1,2}\s+)?teams?\b/i;
 
+/** A league's standings with no team ("NE league standings", "who is first in the northeast league"), found from the
+ *  data (./families/league.ts), or null: a league no data names is left to the other readers. Asked before the search
+ *  pipeline, which would read "leaderboard" as its own board. */
+export async function leagueSearch(q: string, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+  const la = readLeagueAsk(q);
+  if (!la) return null;
+  const season = la.last ? askSeason() - 1 : la.season ?? askSeason();
+  const stat = await leagueAskAnswer(la, season, la.season != null || la.last);
+  // No league by those words: the pipeline reads it. A season with nothing yet ("… in 2027") says so.
+  if (stat.none && season <= askSeason()) return null;
+  return { q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season },
+    intent: { kind: "stat-league-standings", pattern: `[league] standings${la.season != null ? " [season]" : ""}`, met: true, understood: [stat.title] }, ...(opts.full ? { stat } : {}) };
+}
+
 /** The answer for `q`, or null when it isn't a stat question or its team isn't found. */
 export async function statAnswer(q: string, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
   // Matches a low-ranked team won against a high-ranked one: before a leaderboard reads "ranked top 100" as one.
@@ -523,6 +539,8 @@ export async function statAnswerOf(q: string, it0: StatQuestion, resolve: Resolv
   const top = base.step !== "recovery" ? base.hits[0] : undefined;
   if (!top || top.kind !== "team" || top.href) return null;
   const team = { number: Number(top.ref), name: teamNameOf(top.title) || null };
+  // A season after every one on record ("12345 auto opr 2027"): said so, never the default season's numbers.
+  if (it.scope.future) return futureAnswer(q, top, team, it.scope.future, it.id, opts);
   const scope = await scopeFor(it, team.number);
   if (!scope) return null;
   // "average winning margin" is titled as asked, not as the plain average margin.
@@ -699,6 +717,14 @@ export async function topSearch(q: string, t: TopMatchesQuestion, opts: { full: 
   return { ...answer, understood: { ...answer.understood!, label: stat.title }, stat };
 }
 
+/** A team's question about a season after every one on record: the "no events yet" card (./noEventsYet.ts). */
+async function futureAnswer(q: string, top: SearchHit, team: { number: number; name: string | null }, future: { season: number; typed: string }, intent: string, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer> {
+  const S = seasonLabel(future.season), what = `${S} events`;
+  const answer: SearchAnswer = { q, hits: [{ ...top, facts: undefined, events: undefined }], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: `${whoOf(team)} · No ${what} yet` } };
+  if (!opts.full) return answer;
+  return { ...answer, stat: noEventsStat({ intent, team, what, scope: S, latestQ: withoutYear(q, future.typed), latest: await latestStoredSeason() }) };
+}
+
 /** "12345 auto OPR", "12345 reliability", "12345 school": one team's stored fact. The team is found as search finds it;
  *  the answer is worked out for the page only. */
 async function factSearch(q: string, f: FactQuestion, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
@@ -706,6 +732,8 @@ async function factSearch(q: string, f: FactQuestion, resolve: Resolve, opts: { 
   const top = base.step !== "recovery" ? base.hits[0] : undefined;
   if (!top || top.kind !== "team" || top.href) return null;
   const team = { number: Number(top.ref), name: teamNameOf(top.title) || null };
+  // A season after every one on record ("whats 12345s opr 2027"): said so, never the default season's numbers.
+  if (f.future) return futureAnswer(q, top, team, f.future, f.id, opts);
   const label = `${whoOf(team)} · ${FACT_TITLES[f.id]}`;
   const guessed = base.step === "did-you-mean";
   const answer: SearchAnswer = {
@@ -772,6 +800,8 @@ async function oprRatingSearch(q: string, f: OprRatingQuestion, resolve: Resolve
   const top = base.step !== "recovery" ? base.hits[0] : undefined;
   if (!top || top.kind !== "team" || top.href) return null;
   const team = { number: Number(top.ref), name: teamNameOf(top.title) || null };
+  // A season with no events yet is said so, never answered with an older season's number.
+  if (f.future) return futureAnswer(q, top, team, f.future, f.id, opts);
   const label = `${whoOf(team)} · ${OPR_RATING_TITLES[f.id]}`;
   const guessed = base.step === "did-you-mean";
   const answer: SearchAnswer = {
@@ -911,10 +941,10 @@ export async function twoTeamSearch(q: string, two: TwoTeamQuestion, resolve: Re
   // Compare's own link leads a forecast and a season side by side, as plain "12345 vs 67890" always opened it: on the
   // card's season, the one named or else the one the card picks (every team played it).
   const seasonCompare = two.id === "compare" && !s.at && !s.championship && !s.states;
-  const leadSeason = seasonCompare ? scope.season ?? (await compareSeason([a.number, b.number])) : scope.season;
-  const lead = two.id === "predict" || seasonCompare ? (await versusAnswer(`${a.number} vs ${b.number}`, new Set(), leadSeason))?.hits.find((h) => h.kind === "compare") : undefined;
-  // Predict opens on the season the card's call is for.
+  // Predict opens on the season the card's call is for, and so does Compare beside it (one season per answer).
   const predictSeasonOf = two.id === "predict" ? scope.season ?? (await predictionSeason(a.number, b.number)).season : null;
+  const leadSeason = seasonCompare ? scope.season ?? (await compareSeason([a.number, b.number])) : predictSeasonOf ?? scope.season;
+  const lead = two.id === "predict" || seasonCompare ? (await versusAnswer(`${a.number} vs ${b.number}`, new Set(), leadSeason))?.hits.find((h) => h.kind === "compare") : undefined;
   const pages = predictSeasonOf != null ? [{ title: `Predict ${a.number} vs ${b.number}`, href: predictHref({ mode: "match", season: predictSeasonOf, red: [a.number], blue: [b.number] }) }, ...opts.pages] : opts.pages;
   const answer: SearchAnswer = {
     q, hits: [...(lead ? [lead] : []), { ...ta, section: "matches", facts: undefined, events: undefined }, { ...tb, section: "matches", facts: undefined, events: undefined }], pages, step: "deterministic", weak: false,

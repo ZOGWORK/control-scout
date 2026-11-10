@@ -9,12 +9,12 @@ import { env } from "../env.js";
 import { cleanValue, mergeValue, PERSONAL_KEYS, type PersonalKey, type Stamped } from "../../src/shared/personal.js";
 import { isOwnerEmail } from "../owner.js";
 import { clearMalformedSession, currentUser, deleteUser, endSession, readCookie, startSession, token, userForIdentity, type User } from "./session.js";
-import { emailEnabled, startEmailSignIn, verifyEmailCode } from "./email.js";
+import { emailSignInEnabled, startEmailSignIn, verifyEmailCode } from "./email.js";
 import { copyToAdminSpaces } from "../scout/adminCopies.js";
 import { accessError, checkScoutEntry, cleanScoutEntry, INVALID_ENTRY, pushWorkspaceEntries, storedEntryFields, supersedeBound, supersedes, workspaceAccess, workspacePaused, type ScoutEntryInput } from "../scout/entries.js";
 import { CP_PROVIDER, controlPointEnabled, isWorkspaceId, controlPointInfo, controlPointVia, isCpVia, rememberInfo, linkedAccountId, linkToSharedAccount, logFailure, provenEmailFor, redeemHandoff } from "./controlPoint.js";
 
-export const authProviders = () => ({ email: emailEnabled(), google: !!(env.googleClientId && env.googleClientSecret), controlPoint: controlPointEnabled() });
+export const authProviders = () => ({ email: emailSignInEnabled(), google: !!(env.googleClientId && env.googleClientSecret), controlPoint: controlPointEnabled() });
 
 const h = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => {
   fn(req, res).then((b) => { if (!res.headersSent && b !== undefined) res.json(b); }).catch(next);

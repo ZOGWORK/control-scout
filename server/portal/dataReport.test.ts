@@ -57,7 +57,7 @@ async function fixture() {
   await run("INSERT INTO matches (season, code, level, series, number, label, played, source) VALUES (?, 'UNPLAYED', 'qual', 0, 1, 'Q1', 0, 'first')", [S]);
   await run("INSERT INTO event_teams (season, code, team) VALUES (?, 'EMPTY', 4215), (?, 'EMPTY', 4216)", [S, S]);
   // Season records: one adds up, one doesn't.
-  await run("INSERT INTO team_season_stats (season, team, matches, wins, losses, ties) VALUES (?, 4215, 10, 6, 3, 1), (?, 4216, 10, 6, 3, 0)", [S, S]);
+  await run("INSERT INTO team_season_stats (season, team, matches, wins, losses, ties) VALUES (?, 4215, 10, 6, 3, 1), (?, 4216, 10, 7, 3, 1)", [S, S]);
   // Event rows: 4215's events count 8 of its 10 (fine); 4216's count 12 (more than its season total); 4217 has no season row.
   await run(`INSERT INTO team_event_stats (season, code, team, matches) VALUES (?, 'PLAYED', 4215, 5), (?, 'EMPTY', 4215, 3),
     (?, 'PLAYED', 4216, 12), (?, 'PLAYED', 4217, 4)`, [S, S, S, S]);
@@ -116,7 +116,7 @@ describe("data quality flags", () => {
   it("finds season records whose wins, losses and ties don't add up to the match count", async () => {
     const f = await recordMismatch();
     expect(f.count).toBe(1);
-    expect(f.examples).toEqual([{ label: `${S} team 4216`, detail: "6-3-0 over 10 matches", href: "/teams/4216" }]);
+    expect(f.examples).toEqual([{ label: `${S} team 4216`, detail: "7-3-1 over 10 matches", href: "/teams/4216" }]);
   });
 
   it("finds season totals smaller than their events' qualification matches, a missing season row included", async () => {

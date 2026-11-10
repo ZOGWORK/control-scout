@@ -633,6 +633,16 @@ describe("years", () => {
     expect(f.stat).toMatchObject({ title: "No 2027–28 events yet", none: expect.stringContaining("no 2027–28 events on record yet") });
     expect(f.stat?.headline).toBeUndefined();
   });
+  it("a future year is said for any one-team question, never an old season's numbers read as an event's name", async () => {
+    for (const q of ["4215 opr 2027", "4215 opr in 2027", "whats 4215s opr 2027", "hypnotic robotics opr 2027", "4215 rating 2027", "4215 percentile in 2027", "4215 opr rank in 2027"]) {
+      const f = await ask(q);
+      expect(f.stat, q).toMatchObject({ title: "No 2027–28 events yet", none: expect.stringContaining("no 2027–28 events on record yet") });
+      expect(f.stat?.headline, q).toBeUndefined();
+    }
+    // The same rule with another team, and a named past season still answered as asked.
+    expect((await ask("4215 opr 2028")).stat?.title).toBe("No 2028–29 events yet");
+    expect((await ask("4215 opr 2025")).stat?.title).not.toMatch(/events yet/);
+  });
 });
 
 describe("review fixes", () => {

@@ -27,6 +27,7 @@ beforeAll(async () => {
   setDb(c);
   await migrate(c);
   await run("INSERT INTO teams (number, name, city, state, country) VALUES (4215, 'Hypnotic Robotics', 'Oradell', 'NJ', 'USA')");
+  await run("INSERT INTO teams (number, name, city, state, country) VALUES (7149, 'Big Red', 'Haddonfield', 'NJ', 'USA')");
   await run("INSERT INTO events (season, code, name, type, start, \"end\", timezone, source) VALUES (?, 'USNJCMP', 'New Jersey Championship', 'Championship', '2026-03-14', '2026-03-15', 'UTC', 'first')", [CURRENT_SEASON]);
 });
 afterEach(() => { setPageRenderer(null); drawnWith.length = 0; });
@@ -94,6 +95,51 @@ describe("team page first paint (HTML)", () => {
     drawnWith.length = 0;
     await renderIndex(file, `/events/${CURRENT_SEASON}/NOPE`);
     await renderIndex(file, "/events/1999/USNJCMP");
+    expect(drawnWith).toEqual([]);
+  });
+
+  it("a pre-filled Compare page too: drawn from the comparison the page asks for, titled by its teams", async () => {
+    draw();
+    const html = await renderIndex(file, "/compare", { teams: "7149,4215", season: String(CURRENT_SEASON) });
+    expect(drawnWith).toEqual([`/compare?teams=7149%2C4215&season=${CURRENT_SEASON}`]);
+    const d = data(html);
+    // The page's own key (src/shared/compareUrl.ts): the teams in one fixed order, the season as asked for.
+    expect(Object.keys(d).sort()).toEqual(["/api/meta", `/api/compare?teams=4215%2C7149&season=${CURRENT_SEASON}`].sort());
+    expect(d[`/api/compare?teams=4215%2C7149&season=${CURRENT_SEASON}`].teams.map((t: { team: { number: number } }) => t.team.number)).toEqual([7149, 4215]);
+    expect(html).toContain("<title>Compare 7149 Big Red vs 4215 Hypnotic Robotics");
+    expect(html).toMatch(/<link rel="canonical" href="[^"]*\/compare" \/>/);
+    expect(html).toContain('<style id="cs-critical">');
+    // Without a season the API picks one (the latest any of them has results in), and the key says none was asked for.
+    drawnWith.length = 0;
+    await run("INSERT INTO team_season_stats (season, team, matches) VALUES (2024, 4215, 12)");
+    const picked = data(await renderIndex(file, "/compare", { teams: "4215,7149" }));
+    expect(picked["/api/compare?teams=4215%2C7149"].season).toBe(2024);
+    expect(drawnWith).toEqual(["/compare?teams=4215%2C7149"]);
+    // Any spelling of the address, and only team numbers the API takes (a 7-digit one is left out, as the API refuses it).
+    drawnWith.length = 0;
+    expect(Object.keys(data(await renderIndex(file, "/Compare", { teams: "4215,1234567" })))).toContain("/api/compare?teams=4215");
+    // No teams, none that can be one, or a season the API refuses: the plain Compare page.
+    drawnWith.length = 0;
+    for (const query of [{}, { teams: "x,0" }, { teams: "1234567" }, { teams: "4215", season: "1999" }]) {
+      const plain = await renderIndex(file, "/compare", query);
+      expect(plain, JSON.stringify(query)).toContain("<title>Compare FTC teams");
+      expect(plain, JSON.stringify(query)).not.toContain(PAGE_DATA_ID);
+    }
+    expect(drawnWith).toEqual([]);
+  });
+
+  it("a pre-filled Predict matchup too: drawn with each team's page answer (their names), in match mode only", async () => {
+    draw();
+    const html = await renderIndex(file, "/predict", { mode: "match", season: String(CURRENT_SEASON), red: "4215" });
+    expect(drawnWith).toEqual([`/predict?mode=match&season=${CURRENT_SEASON}&red=4215`]);
+    const d = data(html);
+    expect(Object.keys(d).sort()).toEqual(["/api/meta", "/api/teams/4215"]);
+    expect(d["/api/teams/4215"].team.name).toBe("Hypnotic Robotics");
+    // Another mode, no team, or a history season with no predictions: the plain Predict page.
+    drawnWith.length = 0;
+    for (const query of [{ mode: "advancement", team: "4215" }, { mode: "match" }, { mode: "match", season: "2021", red: "4215" }]) {
+      expect(await renderIndex(file, "/predict", query), JSON.stringify(query)).not.toContain(PAGE_DATA_ID);
+    }
     expect(drawnWith).toEqual([]);
   });
 

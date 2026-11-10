@@ -9,11 +9,17 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import teamFixture from "./team.fixture.json";
 import eventFixture from "./event.fixture.json";
+import compareFixture from "./compare.fixture.json";
+import predictFixture from "./predict.fixture.json";
 import { renderAppPage } from "./page";
 import { PAGE_DATA_ID } from "../shared/boot";
 
 const TEAM = teamFixture as Record<string, unknown>;
 const EVENT = eventFixture as Record<string, unknown>;
+const COMPARE = compareFixture as Record<string, unknown>;
+const COMPARE_URL = "/compare?teams=4215,7149&season=2025";
+const PREDICT = predictFixture as Record<string, unknown>;
+const PREDICT_URL = "/predict?mode=match&season=2025&red=4215&blue=7149";
 const words = (el: Element) => (el.textContent ?? "").replace(/\s+/g, " ").trim();
 const asDom = (html: string) => { const d = document.createElement("div"); d.innerHTML = html; return d; };
 
@@ -37,6 +43,8 @@ async function appFirstRender(url: string, data: Record<string, unknown>) {
   expect(readPageData(document).sort()).toEqual(Object.keys(data).sort());
   const { default: TeamPage } = await import("../pages/TeamPage");
   const { default: EventPage } = await import("../pages/EventPage");
+  const { default: ComparePage } = await import("../pages/ComparePage");
+  const { default: PredictPage } = await import("../pages/PredictPage");
   const { StaticPersonalProvider } = await import("../lib/personal");
   const { MetaProvider } = await import("../lib/meta");
   const { TooltipProvider } = await import("../components/ui/overlay");
@@ -53,6 +61,8 @@ async function appFirstRender(url: string, data: Record<string, unknown>) {
         <MemoryRouter initialEntries={[url]}><Routes>
           <Route path="/teams/:number" element={<><TeamPage /><Snapshot /></>} />
           <Route path="/events/:season/:code" element={<><EventPage /><Snapshot /></>} />
+          <Route path="/compare" element={<><ComparePage /><Snapshot /></>} />
+          <Route path="/predict" element={<><PredictPage /><Snapshot /></>} />
         </Routes></MemoryRouter>
       </TooltipProvider></MetaProvider></StaticPersonalProvider></MotionReady.Provider>,
       { container: host },
@@ -69,6 +79,11 @@ describe("team page first paint (server)", () => {
     expect(words(page.querySelector("h1")!)).toBe("4215 Hypnotic Robotics");
     const text = words(page);
     for (const t of ["At a glance", "Top 8%", "26-6-0", "Offensive power rating", "101.6", "Season Road Map", "Matches"]) expect(text, t).toContain(t);
+    // What's next, right under the name: none published here, so it says so and points at the last event.
+    const up = page.querySelector("[data-upcoming]")!;
+    expect(words(up)).toContain("Upcoming");
+    expect(words(up)).toContain("No upcoming event is published for 4215 yet");
+    expect(up.querySelector('a[href^="/events/"]')).not.toBeNull();
     // The events, as links to their pages.
     const events = page.querySelector("#events")!;
     for (const e of (TEAM["/api/teams/4215"] as { events: { name: string; code: string }[] }).events) {
@@ -107,6 +122,41 @@ describe("event page first paint (server)", () => {
   });
 });
 
+describe("compare page first paint (server)", () => {
+  const html = renderAppPage(COMPARE_URL, COMPARE);
+  const page = asDom(html);
+
+  it("is the comparison itself: both teams by number and name, their numbers, with no picker-only state or placeholder", () => {
+    const text = words(page);
+    for (const t of ["4215", "Hypnotic Robotics", "7149", "ENFORCERS", "101.6", "115.3", "OPR by phase", "Events and awards", "Head to head"]) expect(text, t).toContain(t);
+    expect(text).toContain("2 of 4 teams");
+    expect(page.querySelector(".skeleton")).toBeNull();
+    expect(page.querySelector('[role="status"][aria-label="Loading"]')).toBeNull();
+    // The address's order is the table's (7149 was asked for second), each team a link to its page.
+    const heads = [...page.querySelectorAll("thead th a")].map((a) => a.getAttribute("href"));
+    expect(heads).toEqual(["/teams/4215?season=2025", "/teams/7149?season=2025"]);
+    expect(html).not.toMatch(/opacity:\s*0[;"]/);
+  });
+});
+
+describe("predict page first paint (server)", () => {
+  it("a head-to-head from search: both teams named, the call's odds and scores, the reasons, no placeholder", () => {
+    const html = renderAppPage(PREDICT_URL, PREDICT);
+    const text = words(asDom(html));
+    for (const t of ["Red 4215", "Blue 7149", "23%", "77%", "145", "198", "Hypnotic Robotics", "ENFORCERS", "Why: the top 3 factors"]) expect(text, t).toContain(t);
+    expect(text).not.toContain("Pick the teams");
+    expect(asDom(html).querySelector(".skeleton")).toBeNull();
+  });
+
+  it("one team from its page's link: the team in red's first box, named, waiting for the others", () => {
+    const { [`/api/teams/7149`]: _, ...one } = PREDICT;
+    const page = asDom(renderAppPage("/predict?mode=match&season=2025&red=4215", one));
+    expect((page.querySelector('input[aria-label="Red team 1"]') as HTMLInputElement).getAttribute("value")).toBe("4215");
+    expect(words(page)).toContain("Hypnotic Robotics");
+    expect(words(page)).toContain("Pick the teams");
+  });
+});
+
 describe("first render (app), from the page's data", () => {
   it("team: draws the same page as the server's first paint at once: same words, no loading state, no request", async () => {
     const server = words(asDom(renderAppPage("/teams/4215", TEAM)));
@@ -116,6 +166,23 @@ describe("first render (app), from the page's data", () => {
     expect(first).toBe(server);
     expect(host.querySelector('[role="status"][aria-label="Loading"]')).toBeNull();
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("compare: draws the same page as the server's first paint at once: same words, no loading state, no request", async () => {
+    const server = words(asDom(renderAppPage(COMPARE_URL, COMPARE)));
+    const { first, host } = await appFirstRender(COMPARE_URL, COMPARE);
+    expect(first).toBe(server);
+    expect(host.querySelector(".skeleton")).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("predict: draws the same page as the server's first paint at once: same words, no loading state, no request for the call", async () => {
+    const server = words(asDom(renderAppPage(PREDICT_URL, PREDICT)));
+    const { first, host } = await appFirstRender(PREDICT_URL, PREDICT);
+    expect(first).toBe(server);
+    expect(host.querySelector(".skeleton")).toBeNull();
+    // The call itself needs nothing more; only the track-record line under it is asked for after the paint.
+    expect(vi.mocked(fetch).mock.calls.map((c) => String(c[0]))).toEqual(["/api/predict/accuracy"]);
   });
 
   it("event: draws the same page as the server's first paint at once: same words, no loading state, no request", async () => {

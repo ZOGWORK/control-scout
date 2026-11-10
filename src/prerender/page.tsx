@@ -1,12 +1,16 @@
 // A page's first paint, rendered on the server per request with the real page component (server/firstPaint.ts): team
-// and event pages. The page a visitor (or a crawler) gets first IS the page (a team's header, record, rank, OPR,
-// events and matches; an event's header, rankings and matches), not a summary that the app then swaps for a loading
-// state. It's drawn as a fresh, signed-out device sees it, from the same answers the HTML carries for the app
+// and event pages, a Compare page with teams in its address and a Predict matchup with teams in its address. The page a
+// visitor (or a crawler) gets first IS the page (a team's header, record, rank, OPR, events and matches; an event's
+// header, rankings and matches; a comparison's table; a matchup's call), not a summary that the app then swaps for a
+// loading state. It's drawn as a fresh, signed-out device sees it, from the same answers the HTML carries for the app
 // (src/lib/pageData.ts), so the app's first render matches it.
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import TeamPage from "../pages/TeamPage";
+import LeaguePage from "../pages/LeaguePage";
 import EventPage from "../pages/EventPage";
+import ComparePage from "../pages/ComparePage";
+import PredictPage from "../pages/PredictPage";
 import { StaticPersonalProvider } from "../lib/personal";
 import { MetaProvider } from "../lib/meta";
 import { TooltipProvider } from "../components/ui/overlay";
@@ -14,7 +18,7 @@ import { MotionReady } from "../lib/motionSupport";
 import { forget, prime } from "../lib/api";
 import { withFirstPaint } from "../lib/pageData";
 
-/** The page at `url` ("/teams/4215", "/events/2025/USNJCMP?tab=odds") as HTML, drawn from `data` (API path → answer). */
+/** The page at `url` ("/teams/4215", "/events/2025/USNJCMP?tab=odds", "/compare?teams=4215,7149", "/predict?mode=match&season=2025&red=4215&blue=7149") as HTML, drawn from `data` (API path → answer). */
 export function renderAppPage(url: string, data: Record<string, unknown>): string {
   const paths = Object.keys(data);
   for (const p of paths) prime(p, data[p]);
@@ -29,6 +33,9 @@ export function renderAppPage(url: string, data: Record<string, unknown>): strin
                 <Routes>
                   <Route path="/teams/:number" element={<TeamPage />} />
                   <Route path="/events/:season/:code" element={<EventPage />} />
+                  <Route path="/leagues/:season/:region/:code" element={<LeaguePage />} />
+                  <Route path="/compare" element={<ComparePage />} />
+                  <Route path="/predict" element={<PredictPage />} />
                 </Routes>
               </MemoryRouter>
             </TooltipProvider>

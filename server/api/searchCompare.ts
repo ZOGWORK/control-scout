@@ -1,12 +1,9 @@
 // "hypnotic versus bad wolf history": Compare for the teams named (2–4), as its own kind of result (never a team).
 //
 // Each side names a team by number, or by name. A name several teams share exactly ("Ultraviolet": 18304, 20245,
-// 23268) is resolved by fixed rules, in order, the same on every surface:
-//   1. the visitor's own teams (my team, tracked, shortlisted: `prefer`)
-//   2. teams that have played a match (a registration alone names nothing)
-//   3. the newest season played
-//   4. the same state or province as a team another side named ("ultraviolet vs hypnotic": Hypnotic is in NJ, so the
-//      Ultraviolet from Hackettstown, NJ)
+// 23268) is resolved by the parser's fixed rules (./query/shared.ts), the same on every surface: the visitor's own
+// team, the same state or province as a team another side named ("ultraviolet vs hypnotic": Hypnotic is in NJ, so the
+// Ultraviolet from Hackettstown, NJ), the only one that has played, the only one still playing, the clearly stronger.
 // Every team with exactly that name is a candidate (from the teams table, never cut by a display limit), and the pick
 // is recorded with its rule (`compare.resolved`). Still tied: no team is guessed. With one side tied, one Compare per
 // candidate (all of them), each naming its team's place, for the visitor to pick; with several sides tied, the
@@ -21,22 +18,27 @@ import { seasonLabel } from "../../src/shared/format.js";
 import { all, get } from "../db.js";
 import { normalize } from "./fuzzy.js";
 import { search, searchIntent } from "./search.js";
+import { pickShared } from "./query/shared.js";
+import { onlyOrdinary } from "./query/ordinary.js";
 
-interface TeamFacts { number: number; name: string; city: string | null; state: string | null; country: string | null; lastPlayed: number | null }
+interface TeamFacts { number: number; name: string; city: string | null; state: string | null; country: string | null; lastPlayed: number | null; strength: number | null }
 
 async function teamFacts(nums: number[]): Promise<Map<number, TeamFacts>> {
   if (!nums.length) return new Map();
   const rows = await all<any>(`SELECT t.number, t.name, t.city, t.state, t.country,
-      (SELECT MAX(s.season) FROM team_event_stats s WHERE s.team = t.number AND s.matches > 0) lastPlayed
+      (SELECT MAX(s.season) FROM team_event_stats s WHERE s.team = t.number AND s.matches > 0) lastPlayed,
+      (SELECT MAX(1.0 - CAST(x.rank_np AS REAL) / x.ranked_teams) FROM (SELECT rank_np, ranked_teams FROM team_season_stats y
+        WHERE y.team = t.number AND y.rank_np IS NOT NULL AND y.ranked_teams > 0 ORDER BY y.season DESC LIMIT 2) x) strength
     FROM teams t WHERE t.number IN (${nums.map(() => "?").join(",")})`, nums);
-  return new Map(rows.map((r) => [Number(r.number), { number: Number(r.number), name: r.name ?? "", city: r.city, state: r.state, country: r.country, lastPlayed: r.lastPlayed == null ? null : Number(r.lastPlayed) }]));
+  return new Map(rows.map((r) => [Number(r.number), { number: Number(r.number), name: r.name ?? "", city: r.city, state: r.state, country: r.country, lastPlayed: r.lastPlayed == null ? null : Number(r.lastPlayed), strength: r.strength == null ? null : Number(r.strength) }]));
 }
 
 const placeOf = (t: TeamFacts) => [t.city, t.state].filter(Boolean).join(", ") || t.country || "";
 const sideOf = (t: TeamFacts): SearchCompareSide => ({ number: t.number, name: cleanTeamName(t.number, t.name) ?? "", place: placeOf(t) });
 
-/** What one side of a versus names: a team, several equally (a shared name), or nothing. */
-type Side = { typed: string; team: TeamFacts | null; tied: TeamFacts[]; rule?: string; candidates: number[] };
+/** What one side of a versus names: a team, several equally (a shared name), or nothing. `pool`: a shared name's
+ *  teams, read again once the other sides are (./query/shared.ts: another side's state comes before the name's own). */
+type Side = { typed: string; team: TeamFacts | null; tied: TeamFacts[]; rule?: string; candidates: number[]; pool?: TeamFacts[] };
 
 /** Every team named exactly `name` (FIRST's stored name, a number inside it left out; accents, case, punctuation and
  *  spacing as search folds them), whatever search would show. Candidates come from the search index (which folds the
@@ -70,9 +72,12 @@ async function readSide(typed: string, prefer: ReadonlySet<string>): Promise<Sid
   // The whole side first, then without its last words ("67890 please" → "67890"): an exact name or number, then
   // search's best team.
   let found: Awaited<ReturnType<typeof sideTeams>> = null;
-  // A side of only question and result words ("when they lose") names a team only by that exact name, never by
-  // search's closest one ("Raiders of the Lost Bot", "The Loose Screws").
-  for (const best of words.length && words.every((w) => COMMON_WORDS.test(w.toLowerCase())) ? [false] : [false, true]) {
+  // A side of only question, result and ordinary words ("when they lose", "at worlds head to head") names a team only
+  // by that exact name, all of it: never by search's closest one ("Raiders of the Lost Bot", "Faker for Worlds") nor
+  // by a few of its words.
+  const plain = words.length > 0 && (words.every((w) => COMMON_WORDS.test(w.toLowerCase())) || onlyOrdinary(words.join(" ")));
+  if (plain) found = await sideTeams(words.join(" "), prefer, false);
+  else for (const best of [false, true]) {
     for (let n = words.length; n >= 1 && !found; n--) found = await sideTeams(words.slice(0, n).join(" "), prefer, best);
     if (found) break;
   }
@@ -82,21 +87,24 @@ async function readSide(typed: string, prefer: ReadonlySet<string>): Promise<Sid
   const nums = "best" in found ? [found.best] : found.exact;
   const all = [...(await teamFacts(nums)).values()].sort((a, b) => a.number - b.number);
   const candidates = all.length > 1 ? all.map((t) => t.number) : [];
-  const pick = (team: TeamFacts, rule?: string): Side => ({ typed, team, tied: [], ...(rule ? { rule } : {}), candidates });
-  // 1. Your own team, played or not.
-  const mine = all.filter((t) => prefer.has(`team:${t.number}`));
-  if (mine.length === 1) return pick(mine[0], all.length > 1 ? "your team" : undefined);
-  let cands = mine.length > 1 ? mine : all;
-  // 2. A team that has played: a registration alone names nothing (a typed number still names its team).
-  const played = cands.filter((t) => t.lastPlayed != null);
-  if (!played.length) return mine.length > 1 ? { typed, team: null, tied: mine, candidates } : typedNumber && all.length === 1 ? pick(all[0]) : none;
-  if (played.length === 1) return pick(played[0], all.length > 1 ? "the only one that has played" : undefined);
-  cands = played;
-  // 3. The newest season played.
-  const newest = Math.max(...cands.map((t) => t.lastPlayed!));
-  const recent = cands.filter((t) => t.lastPlayed === newest);
-  if (recent.length === 1) return pick(recent[0], "the one that played most recently");
-  return { typed, team: null, tied: recent, candidates };
+  const pick = (team: TeamFacts, rule?: string): Side => ({ typed, team, tied: [], ...(rule ? { rule } : {}), candidates, ...(all.length > 1 ? { pool: all } : {}) });
+  if (all.length === 1) {
+    // A registration alone names nothing, a number typed or the visitor's own team aside.
+    return all[0].lastPlayed != null || typedNumber || prefer.has(`team:${all[0].number}`) ? pick(all[0]) : none;
+  }
+  if (!all.length) return none;
+  const r = settle(all, prefer, []);
+  if ("team" in r) return pick(r.team, r.rule);
+  // Nothing played and none the visitor's: no team.
+  if (!all.some((t) => t.lastPlayed != null) && !r.tied.some((t) => prefer.has(`team:${t.number}`))) return none;
+  return { typed, team: null, tied: r.tied, candidates, pool: all };
+}
+
+/** The shared rules (./query/shared.ts) for one side's teams, `others` the teams the other sides settled on. */
+function settle(all: TeamFacts[], prefer: ReadonlySet<string>, others: TeamFacts[]): { team: TeamFacts; rule: string } | { tied: TeamFacts[] } {
+  const r = pickShared(all, { mine: (n) => prefer.has(`team:${n}`), others });
+  // Said as Compare has always said it.
+  return "team" in r && r.rule.startsWith("the one in the same region") ? { team: r.team, rule: `the one in the same state as the other team (${r.team.state})` } : r;
 }
 
 /** The question a still-tied side asks. */
@@ -135,13 +143,19 @@ export async function versusAnswer(q: string, prefer: ReadonlySet<string>, seaso
   const typedSides = q.split(VERSUS).map((s) => s.trim()).filter(Boolean);
   if (typedSides.length < 2) return null;
   const sides = await Promise.all(typedSides.map((s) => readSide(s, prefer)));
-  // Rule 4: a shared name goes to the team in the same state as a team another side named.
+  // A shared name read again beside the teams the other sides named: the one in the same state as one of them comes
+  // before the rules that look only at the name's own teams (still playing, stronger). The visitor's own team stays.
+  // A side that names one team, or a shared name its own teams settled (your team, the only one playing, the stronger):
+  // never one settled only by another side, so two shared names can't settle each other.
+  // Each side's team as first read is the anchor: a side moved by this loop never moves another, whatever the order.
+  const firm = new Map(sides.filter((o) => o.team && (!o.pool || o.rule)).map((o) => [o, o.team!]));
   for (const side of sides) {
-    if (side.team || !side.tied.length) continue;
-    // Only a real state on both sides: two teams with none stored aren't "in the same state".
-    const states = new Set(sides.filter((o) => o !== side && o.team?.state).map((o) => `${o.team!.country}:${o.team!.state}`));
-    const local = side.tied.filter((t) => t.state && states.has(`${t.country}:${t.state}`));
-    if (local.length === 1) { side.team = local[0]; side.rule = `the one in the same state as the other team (${local[0].state})`; side.tied = []; }
+    if (!side.pool || side.rule === "your team") continue;
+    // Only a real state on both sides.
+    const others = sides.filter((o) => o !== side && firm.get(o)?.state).map((o) => firm.get(o)!);
+    if (!others.length) continue;
+    const r = settle(side.pool, prefer, others);
+    if ("team" in r) { side.team = r.team; side.rule = r.rule; side.tied = []; }
   }
   const resolved = sides.filter((s) => s.team && s.rule).map((s) => ({ typed: s.typed, number: s.team!.number, rule: s.rule!, candidates: s.candidates }));
   const known = [...new Map(sides.filter((s) => s.team).map((s) => [s.team!.number, s.team!])).values()];

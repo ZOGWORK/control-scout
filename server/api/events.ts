@@ -27,7 +27,7 @@ function summary(r: any): EventSummary {
   };
 }
 
-const SUMMARY_SQL = `SELECT e.season, e.code, e.name, e.type, e.division_code, e.region, e.venue, e.city, e.state, e.country, e.start, e.end, e.timezone, e.remote,
+const SUMMARY_SQL = `SELECT e.season, e.code, e.name, e.type, e.division_code, e.region, e.league, e.venue, e.city, e.state, e.country, e.start, e.end, e.timezone, e.remote,
   e.address, e.website, e.livestream, e.source, e.detail_synced_at, e.teams_checked_at, e.live_checked_at,
   COALESCE(NULLIF((SELECT COUNT(*) FROM event_teams t WHERE t.season = e.season AND t.code = e.code), 0),
     (SELECT COUNT(*) FROM event_registrations r WHERE r.season = e.season AND r.code = e.code AND r.shared = 0)) teams,
@@ -131,7 +131,8 @@ export async function eventDetail(season: number, code: string): Promise<EventDe
   }).sort((a, b) => (a.rank ?? 1e9) - (b.rank ?? 1e9) || a.team - b.team);
   const input = toEventInput(summary(r), field, matches, alliances);
   return {
-    event: { ...summary(r), address: r.address ?? null, website: r.website ?? null, livestream: r.livestream ?? null, timezone: r.timezone ?? null, source: r.source },
+    // The league's code only on the event's own page (its League standings button), never in the events list.
+    event: { ...summary(r), ...(r.league ? { league: r.league } : {}), address: r.address ?? null, website: r.website ?? null, livestream: r.livestream ?? null, timezone: r.timezone ?? null, source: r.source },
     field,
     matches,
     alliances: alliances.map((a) => ({ number: a.number, name: a.name, captain: a.captain, pick1: a.pick1, pick2: a.pick2, backup: a.backup })),

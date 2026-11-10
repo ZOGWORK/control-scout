@@ -36,16 +36,25 @@ import { intentAnswer, parseIntent } from "./searchIntents.js";
 import { inRegion, namedTeamHit, teamsByName } from "./teamsByName.js";
 import { parseQuestion, questionAnswer } from "./searchQuestions.js";
 import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
-import { eventVersusSearch, statAnswer } from "./answers/index.js";
+import { eventVersusSearch, leagueSearch, statAnswer } from "./answers/index.js";
+import { divisionFieldAnswer, readDivisionField, type EventRow } from "./answers/families/eventVersus.js";
+import { seasonOfDate } from "./query/time.js";
+import { searchToday } from "./searchEvents.js";
 import { placeAwardsSearch, readPlaceAwards } from "./answers/families/placeAwards.js";
 import { refreshSearchSeason } from "./answers/season.js";
 import { FALLBACK_NOTE, carryOutcome, layeredAnswer, nameKey, teamNames } from "./searchLayers.js";
-import { INFORMAL, informalQuery } from "./query/lexicon.js";
+import { INFORMAL, informalQuery, spelledNumbers } from "./query/lexicon.js";
 import { numberQuery, spelled, strength } from "./spelling.js";
 import { booleanAnswer } from "./searchBoolean.js";
 import { asksOfTeams, pipelineAnswer, pipelineReads } from "./query/execute.js";
 import { derivedVerdict, yesNoAnswer } from "./answers/yesNo.js";
 import { sorryFor } from "./answers/sorry.js";
+import { fold, names } from "./query/names.js";
+import { normalise, parseQuery } from "./query/parse.js";
+import { parseContext } from "./query/context.js";
+import { pickShared } from "./query/shared.js";
+import { asideWord, asksWhich, onlyOrdinary } from "./query/ordinary.js";
+import { LEXICON } from "./query/lexicon.js";
 import { awardQuery, bottomAnswer, calledTeams, countAnswer, eventCodeAnswer, eventPageAnswer, explainAnswer, explainTeamAnswer, monthAnswer, nearMeAnswer, namedParts, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
 
 /** The longest query read: a full question ("did the prediction for 12345 at the state championship get it right, or
@@ -99,6 +108,38 @@ export function withoutContrast(q: string): string {
   const SEASON = String.raw`(?:(?:the |this |last |next |that )?(?:season|year)|20\d\d(?:\s*[-–/]\s*\d{2,4})?)`;
   return q.replace(new RegExp(String.raw`\s*,\s*not\s+(?:(?:just|only)\s+[^,]*?|${SEASON})\s*(?=,|[?.!]*\s*$)`, "gi"), "");
 }
+
+/** `q` without the words at its end that only talk around the question, when the parser reads every word before them:
+ *  a last comma clause of ordinary words (./query/ordinary.ts) that names no number, place, time, event or question
+ *  word ("who won inspire at <event>, i forgot"; a team named by such words is no team there), or the same said with
+ *  no comma, its words ones the parser leaves unread ("<event> i forget", "<team> next match date please"). A clause
+ *  that says something ("…, this month", "…, or nah", "…, not rookies") stays, and so does anything the parser needs. */
+export async function withoutAside(q: string, opts: { now?: number; prefer?: ReadonlySet<string> } = {}): Promise<string> {
+  if (q.includes('"')) return q;
+  const ctx = await parseContext(opts.now, opts.prefer);
+  const m = /^(.*\S)\s*,\s*([^,]+?)\s*([?!.]*)\s*$/s.exec(q);
+  const asideOnly = (t: string) => t.trim().split(/\s+/).every((w) => asideWord(w) || FILLER_ONE.has(fold(w)));
+  if (m && asideOnly(m[2])) {
+    const p = await parseQuery(m[2], ctx);
+    const said = p.symbols.length || p.teams.some((t) => t.via === "number") || p.place || p.time || p.event || p.named || p.worlds || p.states || p.award;
+    if (!said) return `${m[1]}${m[3]}`;
+  }
+  // No comma: the unread ordinary words at the end, and the filler among them ("i", "please").
+  const p = await parseQuery(q, ctx);
+  if (!p.leftover.length || !p.leftover.every((w) => asideWord(w))) return q;
+  const ws = q.trim().split(/\s+/);
+  const unread = new Set(p.leftover.map((w) => fold(w)));
+  let k = ws.length;
+  while (k > 0 && (unread.has(fold(ws[k - 1])) || FILLER_ONE.has(fold(ws[k - 1])))) k--;
+  // Every word the parser left unread is in that end, and something is left before it.
+  const tail = ws.slice(k).map(fold);
+  if (k === 0 || k === ws.length || ![...unread].every((w) => tail.includes(w))) return q;
+  const rest = ws.slice(0, k).join(" ") + (/[?]\s*$/.test(q) ? "?" : "");
+  const again = await parseQuery(rest, ctx);
+  return again.leftover.length ? q : rest;
+}
+/** The lexicon's one-word filler ("i", "please"). */
+const FILLER_ONE = new Set(LEXICON.filter((e) => e.words.length === 1 && e.syms.every((x) => x.k === "filler")).map((e) => e.words[0]));
 
 const SHORT_FORMS: Record<string, string> = { champs: "championship", champ: "championship", cmp: "championship", quals: "qualifier", worlds: "first championship", states: "state championship" };
 const MATCH_WORDS = /\b(q|qual|m|match|f|final)\s*-?\s*\d{1,3}\b/i;
@@ -184,13 +225,33 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
     const b = await searchAnswer(plain, opts);
     return carryOutcome(b, { ...b, q: cleanQuery(raw) });
   }
+  // A last clause that only talks around the question ("…, i forgot", "…, be honest") goes too: never a team's name.
+  const unasked = await withoutAside(String(raw ?? ""), opts);
+  if (unasked !== String(raw ?? "")) {
+    const b = await searchAnswer(unasked, opts);
+    return carryOutcome(b, { ...b, q: cleanQuery(raw) });
+  }
   const said = String(raw ?? ""), full = await inFull(said);
   if (full !== said) {
     const b = await searchAnswer(full, opts);
     return carryOutcome(b, { ...b, q: cleanQuery(raw) });
   }
   // A season written with both years ("2025-2026"): written as search reads one ("2025-26").
-  const years = said.replace(/\b(20\d\d)\s*[-–/]\s*(20\d\d)\b/g, (w, a: string, b: string) => (Number(b) === Number(a) + 1 ? `${a}-${b.slice(2)}` : w));
+  // Numbers said as words after a word that takes one ("opr over eighty") in digits (./query/lexicon.ts spelledNumbers).
+  // A season written with a comma ("2025, 26", "season 25, 26") is the same season: consecutive years only, the
+  // second as two digits (two four-digit numbers with a comma, "2024, 2025", are two teams), and two two-digit years
+  // only beside a season word, so a list of team numbers ("25, 26") stays a list.
+  const next = (a: string, b: string) => (Number(b) === (Number(a.slice(-2)) + 1) % 100);
+  const dated = said.replace(/\b(20\d\d)\s*[-–/]\s*(20\d\d)\b/g, (w, a: string, b: string) => (Number(b) === Number(a) + 1 ? `${a}-${b.slice(2)}` : w))
+    .replace(/\b(20\d\d)\s*,\s*(\d\d)\b/g, (w, a: string, b: string) => (next(a, b) ? `${a}-${b}` : w))
+    .replace(/\b(season\s+)(\d\d)\s*,\s*(\d\d)\b|\b(\d\d)\s*,\s*(\d\d)(\s+season)\b/gi, (w, pre?: string, a1?: string, b1?: string, a2?: string, b2?: string, post?: string) => {
+      const [a, b] = a1 ? [a1, b1!] : [a2!, b2!];
+      return next(a, b) ? `${pre ?? ""}20${a}-${b}${post ?? ""}` : w;
+    });
+  // The names are loaded only when there is a number said as words; the rewrite itself is the name-aware one, on the
+  // text as typed.
+  const saysNumber = spelledNumbers(dated) !== dated;
+  const years = saysNumber ? spelledNumbers(dated, await inAName()) : dated;
   if (years !== said) {
     const b = await searchAnswer(years, opts);
     return carryOutcome(b, { ...b, q: cleanQuery(raw) });
@@ -242,6 +303,15 @@ async function inFull(q: string): Promise<string> {
 }
 let longestName: number | undefined;
 
+/** Whether words are part of a team's or event's name, word for word ("top ten" in "Top Ten Robotics"). */
+async function inAName(): Promise<(words: string) => boolean> {
+  const [{ list }, events] = await Promise.all([teamNames(), eventNames()]);
+  return (words) => {
+    const k = ` ${nameKey(words)} `;
+    return list.some(([n]) => ` ${n} `.includes(k)) || events.some((n) => ` ${n} `.includes(k));
+  };
+}
+
 let eventNameList: { at: number; list: string[] } | null = null;
 async function eventNames(): Promise<string[]> {
   if (eventNameList && Date.now() - eventNameList.at < 10 * 60_000) return eventNameList.list;
@@ -262,6 +332,8 @@ async function onPage(raw: string, a: SearchAnswer, opts: AnswerOptions): Promis
  *  above the card that answered it, which is kept as it was; the evidence card of its own (./answers/yesNo.ts) when
  *  nothing did. Null when it isn't one. */
 async function withVerdict(raw: string, a: SearchAnswer, opts: AnswerOptions): Promise<SearchAnswer | null> {
+  // Which team a shared name means is asked first: no verdict for one of them.
+  if (a.understood?.label.startsWith(WHICH)) return null;
   const q = cleanQuery(raw);
   const yn = await yesNoAnswer(q, { full: true, pages: pagesFor(q), now: opts.now, prefer: opts.prefer, resolve: (core) => resolveCore(core, opts) });
   const answered = (!!a.stat || !!a.card) && a.step !== "recovery" && !(a.understood?.label ?? "").includes(FALLBACK_NOTE);
@@ -397,14 +469,164 @@ function markMatches(rest: string, hits: SearchHit[]): SearchHit[] {
   return [...marked.filter((h) => h.match !== "fuzzy"), ...marked.filter((h) => h.match === "fuzzy")];
 }
 
+/** How a question about a shared name that nothing told apart begins: "Which "Ultraviolet"? …". */
+export const WHICH = "Which \"";
+/** Every word search's own lexicon reads: a run made only of them is the question's, never a team's name. */
+const LEX_WORDS = new Set(LEXICON.flatMap((e) => e.words));
+
+/** A name several teams share in `q` (its whole name, nothing else beside it but the question's words), told apart by
+ *  the shared rules: `q` asked again with that team's number, the card saying which name was read as which team; or,
+ *  still tied, the teams it can be, each with its place, and the same question asked about each, one tap each. Null:
+ *  no shared name, or one typed with its number beside it, "team" before it, or a versus (Compare asks its own). */
+async function sharedName(q: string, opts: AnswerOptions): Promise<SearchAnswer | null> {
+  const typed = opts.typed ?? q;
+  if (VERSUS.test(` ${typed} `)) return null;
+  const idx = await names();
+  const ws = normalise(typed).split(" ").filter(Boolean);
+  // Cheap first: no run of the words is a name two teams share.
+  const taken = new Array<boolean>(ws.length).fill(false);
+  const spans: { i: number; len: number; teams: ReturnType<typeof idx.teamsNamed> }[] = [];
+  for (let len = Math.min(idx.longest, 12); len >= 1; len--) {
+    for (let i = 0; i + len <= ws.length; i++) {
+      if (taken.slice(i, i + len).some(Boolean)) continue;
+      const said = ws.slice(i, i + len).join(" ");
+      if (said.split(" ").every((w) => LEX_WORDS.has(w) || /^\d+$/.test(w))) continue;
+      const teams = idx.teamsNamed(said);
+      if (!teams.length) continue;
+      // A longer name holds its words, a team's own or one several share.
+      taken.fill(true, i, i + len);
+      if (teams.length < 2) continue;
+      const beside = [ws[i - 1], ws[i + len]].some((w) => !!w && teams.some((t) => String(t.number) === w));
+      if (beside || /^(?:team|ftc)$/.test(ws[i - 1] ?? "")) continue;
+      // A place's name, or ordinary words, are read as such (the parser's rules): no question about which team.
+      const pl = idx.place(said, said);
+      if ((pl && pl.kind !== "city") || onlyOrdinary(said)) continue;
+      spans.push({ i, len, teams });
+    }
+  }
+  if (!spans.length) return null;
+  const p = await parseQuery(typed, await parseContext(opts.now, opts.prefer));
+  if (p.named) return null;
+  // A place typed right after the name ("robo rebels nj", "gear heads from michigan") picks among them, or says plainly
+  // that none of the name is there: the team-in-a-place reader's own answer. A place elsewhere is the question's.
+  const pl = p.place;
+  const placeWords = pl ? fold(pl.typed).split(" ").filter(Boolean) : [];
+  const placeAfter = (sp: (typeof spans)[number]) => {
+    const after = ws.slice(sp.i + sp.len);
+    const from = /^(?:in|from|of)$/.test(after[0] ?? "") ? 1 : 0;
+    return placeWords.length > 0 && placeWords.every((w, k) => after[from + k] === w);
+  };
+  if (pl && spans.some(placeAfter)) return null;
+  // A name the parser settled by the place typed beside it ("robo rebels michigan") is the team-in-a-place answer.
+  const settledByParse = (sp: (typeof spans)[number]) => p.teams.some((t) => t.rule?.startsWith("the one in ") && !t.rule.startsWith("the one in the same") && t.candidates?.some((n) => sp.teams.some((x) => x.number === n)));
+  if (spans.some(settledByParse)) return null;
+  // Words search reads nothing in ("favorite color") ask what no team's answer holds: the sorry note says so instead.
+  const inSpans = new Set(spans.flatMap((sp) => ws.slice(sp.i, sp.i + sp.len)));
+  if (p.leftover.some((w) => !w.split(" ").every((x) => inSpans.has(fold(x))) && !onlyOrdinary(w))) return null;
+  // The other teams named, settled: never one of the span's own teams (the parser may have settled the span itself).
+  const settled = p.teams.filter((t) => !t.candidates || t.rule).map((t) => idx.team(t.number)).filter((t) => !!t);
+  const prefer = opts.prefer ?? new Set<string>();
+  const picks = spans.map((sp) => {
+    const own = new Set(sp.teams.map((t) => t.number));
+    const others = settled.filter((t) => !own.has(t.number));
+    return { ...sp, r: pickShared(sp.teams, { mine: (n) => prefer.has(`team:${n}`), others }) };
+  });
+  // The query with each name's team number in its place; a name with none given stays as typed. Right to left by
+  // position, so each name's place is still its own.
+  const asked = (n: (number | null)[]) => {
+    const out = [...ws];
+    for (const [k, sp] of [...picks.entries()].sort((a, b) => b[1].i - a[1].i)) if (n[k] != null) out.splice(sp.i, sp.len, String(n[k]));
+    return out.join(" ");
+  };
+  const shown = (t: { number: number; city: string | null; state: string | null; country: string | null }) => `${t.number} (${[t.city?.trim(), t.state].filter(Boolean).join(", ") || t.country || "?"})`;
+  // The name as typed in the question ("ultraviolet"), the team's own spelling once one is picked.
+  const typedOf = (sp: (typeof picks)[number]) => ws.slice(sp.i, sp.i + sp.len).join(" ");
+  const nameOfSpan = (sp: (typeof picks)[number]) => cleanTeamName(sp.teams[0].number, sp.teams[0].name) ?? typedOf(sp);
+  const tied = picks.find((x) => "tied" in x.r);
+  if (tied && "tied" in tied.r) {
+    const choices = tied.r.tied;
+    // Registrations alone, none of them played: the teams list of the name, as before, picks none either.
+    if (choices.every((t) => t.lastPlayed == null)) return null;
+    // The other names: the team settled, else as typed (asked about next).
+    const fixed = picks.map((x) => ("team" in x.r ? x.r.team.number : null));
+    const at = picks.indexOf(tied);
+    const hits = (await Promise.all(choices.map(async (t) => (await search(String(t.number), 3, prefer, new Set(["team"]))).find((h) => h.kind === "team" && h.ref === String(t.number)))))
+      .filter((h): h is SearchHit => !!h).map((h) => ({ ...h, match: "exact" as const }));
+    return answer(q, {
+      hits, step: "deterministic",
+      understood: { kind: "names", label: `${WHICH}${typedOf(tied)}"? ${choices.length} teams have that name: ${choices.map(shown).join(", ")}` },
+      suggest: choices.slice(0, 4).map((t) => asked(fixed.map((n, k) => (k === at ? t.number : n)))),
+    });
+  }
+  const numbers = picks.map((x) => ("team" in x.r ? x.r.team.number : 0));
+  const said = picks.map((x) => ("team" in x.r ? `${nameOfSpan(x)}: ${shown(x.r.team)}, ${x.r.rule} of ${x.teams.length} teams with the name` : ""));
+  const a = await searchAnswer(opts.asked ? `${asked(numbers)}?` : asked(numbers), { ...opts, rewrites: (opts.rewrites ?? 0) + 1 });
+  const u = a.understood ?? understoodOf(a);
+  return carryOutcome(a, { ...a, q, understood: { ...u, label: `${u.label} · ${said.join(" · ")}` } });
+}
+
+/** Which division of a championship was hardest (or easiest) by field strength (./answers/families/eventVersus.ts
+ *  readDivisionField): Worlds, or the state championship of a place named; the season written, else the latest held up
+ *  to the current one with two or more divisions. */
+async function divisionField(q: string, opts: AnswerOptions): Promise<SearchAnswer | null> {
+  const asked = readDivisionField(opts.typed ?? q);
+  if (!asked) return null;
+  const p = await parseQuery(opts.typed ?? q, await parseContext(opts.now, opts.prefer));
+  if (p.teams.length || p.event) return null;
+  const region = p.place && p.place.kind !== "city" && !p.worlds ? p.place : null;
+  const current = seasonOfDate(searchToday(opts.now));
+  // The season said: written ("2024-25"), read ("last season", "2025"), else the latest with divisions.
+  const t = p.time?.kind === "season" ? p.time : null;
+  const written = seasonOf(q).season ?? (t?.relative === "last" ? current - 1 : t && !t.relative ? t.season : null);
+  const parents = await all<EventRow>(`SELECT season, code, name, type, start, division_code division FROM events
+    WHERE type = ? AND division_code IS NULL${region ? ` AND country = ?${region.state ? " AND state = ?" : ""}` : ""} AND season <= ? ORDER BY season DESC, start DESC`,
+    [region ? "Championship" : "FIRSTChampionship", ...(region ? [region.country, ...(region.state ? [region.state] : [])] : []), written ?? current]);
+  for (const parent of parents.filter((e) => written == null || Number(e.season) === written)) {
+    const divisions = await all<EventRow>(`SELECT season, code, name, type, start, division_code division FROM events WHERE season = ? AND division_code = ?
+      AND EXISTS (SELECT 1 FROM team_event_stats s WHERE s.season = events.season AND s.code = events.code AND s.opr_np IS NOT NULL) ORDER BY name`, [parent.season, parent.code]);
+    if (divisions.length < 2) continue;
+    const stat = await divisionFieldAnswer({ ...parent, season: Number(parent.season) }, divisions.map((d) => ({ ...d, season: Number(d.season) })), asked.easiest);
+    const skipped = written == null && Number(parent.season) < current ? `No ${seasonLabel(current)} divisions with OPR yet; showing ${seasonLabel(Number(parent.season))}` : null;
+    const shown = skipped ? { ...stat, scope: [skipped, ...stat.scope] } : stat;
+    return answer(q, {
+      hits: [], step: "deterministic", understood: { kind: "question", label: shown.title, season: Number(parent.season) }, ...(opts.full ? { stat: shown } : {}),
+      intent: { kind: "stat-division-field", pattern: "hardest division [championship]", met: true, understood: [shown.title] },
+    });
+  }
+  return null;
+}
+
 /** A question's leftover words read as a team (`core`): search's answer for them alone. Common words alone ("without",
  *  "team", "best") name no team (COMMON_WORDS), however many names hold them; topic words alone ("alliances", "most
  *  inspire") name a team only typed as its whole name, so "nj states alliances" is never team Alliance and "most
  *  inspire awards" never team Inspires (onlyTopicWords). */
 async function resolveCore(core: string, opts: AnswerOptions): Promise<SearchAnswer> {
-  if (onlyCommonWords(core)) return answer(core, { hits: [], step: "deterministic" });
+  const nothing = answer(core, { hits: [], step: "deterministic" });
+  if (onlyCommonWords(core)) return nothing;
+  const idx = await names();
+  const ws = core.toLowerCase().replace(/['’]s\b/g, "").split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  const own = idx.teamsNamed(core).length > 0;
+  // A team's number typed among other words is that team, never a name its words nearly spell ("4215 date please" is
+  // 4215, not 4218 Late() Knights); unless the words are a team's whole name with the number in it.
+  const nums = [...new Set(ws.map((w) => w.replace(/^(\d+)s$/, "$1")).filter((w) => /^[1-9]\d{0,5}$/.test(w) && idx.team(Number(w))))];
+  const byNumber = nums.length === 1 && !own && ws.length > 1;
+  if (!own) {
+    // A place's name (with ordinary words around it) is the place, never a team named after it ("Texas" is no
+    // "Texas Robots", "romania" no placeholder "2025 FTC Romania Team").
+    const rest = ws.filter((w) => !onlyOrdinary(w));
+    const pl = rest.length ? idx.place(rest.join(" "), core.split(/\s+/).filter((w) => !onlyOrdinary(w)).join(" ")) : null;
+    if (pl && pl.kind !== "city") return nothing;
+  }
+  // Ordinary words ("average", "lost", "actual rank") name a team only as its whole name, and never in a question
+  // asking which team: there the team is the answer.
+  if (onlyOrdinary(core) && (!own || asksWhich(opts.typed ?? ""))) return nothing;
   const r = await searchAnswer(core, { ...opts, intents: false, learn: false });
-  if (!onlyTopicWords(core)) return r;
+  // Search's own reading keeps what the words ask about (a topic's facts); only when its team isn't the number's is
+  // the number read alone.
+  // Only a near miss of the number (a team number as long, not it) is swapped back: "top 25 hypnotic" stays Hypnotic.
+  const top = r.hits[0]?.kind === "team" ? r.hits[0].ref : null;
+  if (byNumber && r.step !== "recovery" && top && top !== nums[0] && /^\d+$/.test(top) && top.length === nums[0].length) return resolveCore(nums[0], opts);
+  if (!onlyTopicWords(core) && !onlyOrdinary(core)) return r;
   const whole = (t: string) => t.toLowerCase().replace(/[^\p{L}\d]+/gu, " ").trim();
   return { ...r, hits: r.hits.filter((h) => h.kind !== "team" || whole(teamNameOf(h.title)) === whole(core)) };
 }
@@ -417,8 +639,16 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   // 0. The search pipeline (./query/, docs/search-pipeline.md): the query parsed into slots in any word order and run
   // as one structured question over the stored data. A query it can't read completely goes on to the readers below.
   // It reads the words as typed: plurals are its lexicon's to read, and a team's name keeps its own ("Robotics").
+  // A league's standings with no team: before the pipeline reads "league leaderboard" as its own board.
+  const league = opts.intents === false ? null : await leagueSearch(opts.typed ?? q, { full: !!opts.full, pages: pagesFor(q) });
+  if (league) return league;
   const piped = opts.intents === false ? null : await pipelineAnswer(opts.typed ?? q, { full: !!opts.full, pages: pagesFor(q), now: opts.now, prefer, resolve: (core) => resolveCore(core, opts) });
   if (piped) return piped;
+
+  // A name several teams share, read before the readers below pick one of them by search's order: the one the shared
+  // rules pick (./query/shared.ts), asked again with its number; still tied, which one (each with its place).
+  const shared = opts.intents === false || (opts.rewrites ?? 0) >= 2 ? null : await sharedName(q, opts);
+  if (shared) return shared;
 
   // 0. A phrasing the readers below miss, said the way they read it ("compare 12345 and 67890" → "12345 vs 67890"):
   // ./searchCoverage.ts. Who won Worlds by a year or a game ("who won worlds last year" → "… 2024-25") is said so
@@ -428,6 +658,9 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   const evSeason = /(?:^|\s)20\d\d\s*[-–/]\s*\d\d(?=\s|$)/.test(q) ? seasonOf(q) : { season: null, rest: q };
   const evs = opts.intents === false ? null : await eventVersusSearch(evSeason.rest, evSeason.season ?? opts.season ?? null, { full: !!opts.full, pages: pagesFor(q), asked: q, alias: expandShortForms });
   if (evs) return evs;
+  // Which division of a championship was hardest or easiest, by its field's average OPR.
+  const divs = opts.intents === false ? null : await divisionField(q, opts);
+  if (divs) return divs;
   const rw = opts.intents !== false && (opts.rewrites ?? 0) < 2 ? rewriteQuery(q, await namedParts(q)) : null;
   const rewritten = async (r: { q: string; note?: string }) => {
     const a = await searchAnswer(opts.asked ? `${r.q}?` : r.q, { ...opts, rewrites: (opts.rewrites ?? 0) + 1 });
@@ -490,7 +723,7 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   const high = opts.intents === false ? null : parseHighScore(q);
   if (high) {
     if (!high.core) return highScoreAnswer(q, high, null, [], pagesFor(q));
-    const base = await searchAnswer(high.core, { ...opts, intents: false, learn: false });
+    const base = await resolveCore(high.core, opts);
     const team = base.step !== "recovery" && base.hits[0]?.kind === "team" && !base.hits[0].href ? base.hits[0] : null;
     if (team) return highScoreAnswer(q, high, team, base.hits.slice(1), pagesFor(q));
   }
@@ -498,9 +731,20 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   // 0b. A question with a direct answer, when its team is found (else search goes on with the whole query).
   const question = opts.intents === false ? null : parseQuestion(q);
   if (question) {
-    const base = await searchAnswer(question.core, { ...opts, intents: false, learn: false });
+    // Read with its plurals as typed: "4215 upcoming events" is the list, though `q` says "event".
+    if (opts.typed && parseQuestion(opts.typed)?.many) question.many = true;
+    const base = await resolveCore(question.core, opts);
     const team = base.step !== "recovery" && base.hits[0]?.kind === "team" && !base.hits[0].href ? base.hits[0] : null;
-    if (team) return questionAnswer(q, question, team, base.hits.slice(1), pagesFor(q));
+    if (team) {
+      const ans = await questionAnswer(q, question, team, base.hits.slice(1), pagesFor(q));
+      // The team found by a near spelling of its name ("hypnotik robotics upcoming events"): said as a correction.
+      const said = opts.typed ?? q, name = teamNameOf(team.title);
+      const at = said.toLowerCase().indexOf(question.core.toLowerCase());
+      // A plural ending alone ("hypnotics robotics") is no misspelling: the name is found as typed.
+      const bare = (x: string) => normalize(x).split(" ").map((w) => w.replace(/s$/, "")).join(" ");
+      if (team.match !== "fuzzy" || at < 0 || !name || bare(name) === bare(question.core)) return ans;
+      return { ...ans, step: "did-you-mean", didYouMean: `${said.slice(0, at)}${name}${said.slice(at + question.core.length)}` };
+    }
   }
 
   // 0c. A conversational opening ("how good is simply complex", "where is 12345"): the question's frame, never part of

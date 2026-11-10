@@ -9,6 +9,8 @@ import type { ScoreCond } from "./matchFind.js";
 import { fold, type Names, type Place, type TeamName } from "./names.js";
 import { EVENT_TYPES } from "../../../src/shared/searchEventQuery.js";
 import { onlyTopicWords } from "../../../src/shared/searchQuery.js";
+import { asksWhich, onlyOrdinary } from "./ordinary.js";
+import { pickShared as pickAmong } from "./shared.js";
 
 /** A name as typed or stored, compared whole: lower case, any run of punctuation and spaces one space. */
 const wholeName = (n: string | null) => (n ?? "").toLowerCase().replace(/[^\p{L}\d]+/gu, " ").trim();
@@ -336,6 +338,16 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       // states alliances" is never team Alliance, "most inspire awards" never team Inspires (onlyTopicWords).
       const typed = span.map((t) => t.typed).join(" ");
       if (onlyTopicWords(typed) && !named.some((n) => wholeName(n.name) === wholeName(typed))) continue;
+      // A name is a team only where the query refers to one: "team" or "ftc" before it, or one of its numbers beside it,
+      // make it one whatever its words. Otherwise a region's or a country's name is the place ("top match CA this week",
+      // "lowest score Texas"), never a team named after it; and a name made only of ordinary words ("I Forgot", "Lost
+      // In Time") is a team only typed whole, and never in a question asking which team ("who won inspire at …, i forgot").
+      const numbered = (t: Tok | undefined) => !!t && /^\d+$/.test(t.w) && named.some((n) => n.number === Number(t.w));
+      if (!/^(?:team|ftc)$/.test(toks[i - 1]?.w ?? "") && !numbered(toks[i - 1]) && !numbered(toks[i + len])) {
+        const pl = ctx.names.place(said, typed);
+        if (pl && pl.kind !== "city") continue;
+        if (onlyOrdinary(said) && (!ctx.names.teamsNamed(said).length || asksWhich(raw))) continue;
+      }
       // A number typed beside its own name ("12345 hypnotic robotics") is one team.
       if (!named.some((n) => p.teams.some((t) => t.number === n.number))) {
         p.teams.push({ number: named[0].number, name: named[0].name, typed: span.map((t) => t.typed).join(" "), via: "name", at: i, ...(named.length > 1 ? { candidates: named.map((n) => n.number) } : {}) });
@@ -464,6 +476,9 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   // One-word awards beside an award word: "design award", "12345 think awards".
   if (symbols.has("metric:award")) {
     for (const t of toks) if (!t.used && AWARD_ONE_WORD.has(t.w)) { p.award = AWARD_ONE_WORD.get(t.w)!; t.used = true; }
+    // "Winner" beside an award word ("12345 winner awards") is the winning-alliance award, not a win asked about.
+    // Never a forecast's word ("who is the winner …"): only a win read from "winner" itself.
+    if (!p.award && !symbols.has("predict") && symbols.has("metric:win") && toks.some((t) => /^winners?$/.test(t.w))) { p.award = AWARD_ONE_WORD.get("winner")!; symbols.delete("metric:win"); }
   }
 
   // One word left on its own, of a named team's own event's name ("<team> last prediction for <word>"): that event,
@@ -561,8 +576,9 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       const start = from - k;
       if (start < 0 || toks.slice(start, from).some((t) => !FILLER_WORDS.has(t.w) && !t.alliance)) continue;
       const span = toks.slice(start, to + 1);
-      // What a question asks about is never a name typed nearly right ("inspire" is no typo of team Inspires).
-      if (onlyTopicWords(span.map((t) => t.typed).join(" "))) continue;
+      // What a question asks about is never a name typed nearly right ("inspire" is no typo of team Inspires), nor is an
+      // ordinary word ("month" is no typo of team Monte).
+      if (onlyTopicWords(span.map((t) => t.typed).join(" ")) || onlyOrdinary(span.map((t) => t.w).join(" "))) continue;
       const near = await ctx.nearTeam(span.map((t) => t.w).join(" "));
       if (!near || p.teams.some((t) => t.number === near.number)) continue;
       p.teams.push({ number: near.number, name: near.name, typed: span.map((t) => t.typed).join(" "), via: "near", at: start });
@@ -642,30 +658,15 @@ function within(inner: Place, outer: Place): boolean {
   return outer.kind === "country" ? inner.kind !== "country" : inner.kind === "city" && inner.state === outer.state;
 }
 
-/** One of the teams sharing a name, by the rules Compare uses (server/api/searchCompare.ts): the visitor's own team,
- *  one that has played, the newest season played, then the one in the place named or in the other team's region.
- *  Still tied: no rule, and the parse is incomplete (search asks which). */
+/** One of the teams sharing a name, by the rules Compare uses too (./shared.ts): the visitor's own team, the one in
+ *  the place named or in another settled team's region, the only one that has played or still plays, the clearly
+ *  stronger one. Still tied: no rule, and the parse is incomplete (search asks which). */
 function pickShared(slot: TeamSlot, p: Parsed, ctx: ParseContext): Partial<TeamSlot> {
-  let cands = (slot.candidates ?? []).map((n) => ctx.names.team(n)).filter((t): t is TeamName => !!t);
-  const take = (t: TeamName, rule: string): Partial<TeamSlot> => ({ number: t.number, name: t.name, rule });
-  const mine = cands.filter((t) => ctx.prefer?.has(`team:${t.number}`));
-  if (mine.length === 1) return take(mine[0], "your team");
-  if (mine.length > 1) cands = mine;
+  const cands = (slot.candidates ?? []).map((n) => ctx.names.team(n)).filter((t): t is TeamName => !!t);
   // Only teams already settled count as "the other team": a name still shared holds an arbitrary first candidate.
-  const place = p.place, others = p.teams.filter((t) => t !== slot && (!t.candidates || t.rule)).map((t) => ctx.names.team(t.number)).filter((t): t is TeamName => !!t);
-  const inPlace = (t: TeamName) => !!place && t.country === place.country && (place.state == null || t.state === place.state) && (place.city == null || t.city === place.city);
-  const local = place ? cands.filter(inPlace) : [];
-  if (local.length === 1) return take(local[0], `the one in ${place!.name}`);
-  if (local.length > 1) cands = local;
-  const played = cands.filter((t) => t.lastPlayed != null);
-  if (played.length === 1) return take(played[0], "the only one that has played");
-  if (played.length) cands = played;
-  const newest = Math.max(...cands.map((t) => t.lastPlayed ?? -1));
-  const recent = cands.filter((t) => (t.lastPlayed ?? -1) === newest);
-  if (recent.length === 1) return take(recent[0], "the one that played most recently");
-  const near = recent.filter((t) => others.some((o) => o.country === t.country && o.state === t.state));
-  if (near.length === 1) return take(near[0], `the one in the same region as ${others[0].number}`);
-  return {};
+  const others = p.teams.filter((t) => t !== slot && (!t.candidates || t.rule)).map((t) => ctx.names.team(t.number)).filter((t): t is TeamName => !!t);
+  const r = pickAmong(cands, { mine: (n) => !!ctx.prefer?.has(`team:${n}`), place: p.place, others });
+  return "team" in r ? { number: r.team.number, name: r.team.name, rule: r.rule } : {};
 }
 
 /** The slots in words, for the card's "Read as" line: "Intent: highest score · Team 12345 · In California · This week". */

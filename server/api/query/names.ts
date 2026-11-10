@@ -10,7 +10,9 @@ import { joinThousands } from "../../../src/shared/fuzzy.js";
 import { eventInitialisms } from "./initialisms.js";
 import { LEXICON } from "./lexicon.js";
 
-export interface TeamName { number: number; name: string | null; country: string | null; state: string | null; city: string | null; lastPlayed: number | null }
+export interface TeamName { number: number; name: string | null; country: string | null; state: string | null; city: string | null; lastPlayed: number | null;
+  /** Its best OPR percentile (0–1) in its last two ranked seasons: how a name several teams share is told apart (./shared.ts). */
+  strength?: number | null }
 /** A place: a region (a state or province), a whole country, or a town (with the region it's in). */
 /** `part`: the words when they named part of a region ("north jersey"), which is read as the whole region. */
 export interface Place { kind: "region" | "country" | "city"; country: string; state: string | null; city: string | null; name: string; part?: string }
@@ -44,7 +46,7 @@ export const fold = (s: string): string => joinThousands(s).normalize("NFKD").re
 /** Initials written with dots joined into the word they spell: "I.C.E. Robotics" → "ICE Robotics". */
 export const joinDotted = (s: string): string => s.replace(/(?<![\p{L}\p{N}])(?:\p{L}\.){2,}(?:\p{L}(?![\p{L}\p{N}]))?/gu, (m) => m.replace(/\./g, ""));
 
-interface Row { number: number; name: string | null; city: string | null; state: string | null; country: string | null; lastPlayed?: number | null }
+interface Row { number: number; name: string | null; city: string | null; state: string | null; country: string | null; lastPlayed?: number | null; strength?: number | null }
 
 /** The words around a name that only say it is a team ("Team …", "… Robotics", "The …"): the lexicon's filler and its
  *  word for a team, and "robotics", the word most teams' names end with. */
@@ -68,7 +70,7 @@ export function buildNames(teams: Row[], places: { city: string | null; state: s
   /** Folded names by length, for the near-miss look-up. */
   const byLength = new Map<number, string[]>(), lengthed = new Set<string>();
   for (const t of teams) {
-    const tn: TeamName = { number: Number(t.number), name: t.name, city: t.city, state: t.state, country: t.country, lastPlayed: t.lastPlayed == null ? null : Number(t.lastPlayed) };
+    const tn: TeamName = { number: Number(t.number), name: t.name, city: t.city, state: t.state, country: t.country, lastPlayed: t.lastPlayed == null ? null : Number(t.lastPlayed), strength: t.strength == null ? null : Number(t.strength) };
     byNumber.set(tn.number, tn);
     const k = fold(t.name ?? "");
     if (!k) continue;
@@ -177,8 +179,12 @@ export async function names(): Promise<Names> {
   const version = (await kvGet<string>("search:version")) ?? "0";
   if (cache?.version === version) return cache.names;
   const n = Promise.all([
-    all<Row>(`SELECT t.number, t.name, t.city, t.state, t.country, p.last lastPlayed FROM teams t
-      LEFT JOIN (SELECT team, MAX(season) last FROM team_event_stats WHERE matches > 0 GROUP BY team) p ON p.team = t.number`),
+    // Its strength: the best world OPR percentile in its two latest ranked seasons (./shared.ts).
+    all<Row>(`SELECT t.number, t.name, t.city, t.state, t.country, p.last lastPlayed, r.strength FROM teams t
+      LEFT JOIN (SELECT team, MAX(season) last FROM team_event_stats WHERE matches > 0 GROUP BY team) p ON p.team = t.number
+      LEFT JOIN (SELECT team, MAX(pct) strength FROM (SELECT team, 1.0 - CAST(rank_np AS REAL) / ranked_teams pct,
+          ROW_NUMBER() OVER (PARTITION BY team ORDER BY season DESC) k FROM team_season_stats WHERE rank_np IS NOT NULL AND ranked_teams > 0)
+        WHERE k <= 2 GROUP BY team) r ON r.team = t.number`),
     all<{ city: string | null; state: string | null; country: string | null; name: string | null; code: string | null }>("SELECT city, state, country, name, code FROM events"),
   ]).then(([teams, places]) => buildNames(teams, places));
   cache = { version, names: n };
