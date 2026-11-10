@@ -42,7 +42,7 @@ import { withEventParents } from "./api/searchEvents.js";
 import { recordIntent } from "./api/searchIntents.js";
 import { answerSections } from "../src/shared/searchSections.js";
 import { rebuildSearch } from "./stats/job.js";
-import { SEARCH_HITS_ID, SEARCH_PAGE_LIMIT, cardWho, hitHref, relatedApiPath, relatedQuery, relatedSearch } from "../src/shared/search.js";
+import { SEARCH_HITS_ID, SEARCH_PAGE_LIMIT, SORRY_SENTENCE, cardWho, hitHref, relatedApiPath, relatedQuery, relatedSearch } from "../src/shared/search.js";
 import { hasPhases, phaseNote, teamColumns, teamTableOfLeaderboard, type TeamTable } from "../src/shared/teamTable.js";
 import { badgeUnder, contextBadge, isQualityQuestion, pageTitle } from "../src/shared/searchPage.js";
 
@@ -603,11 +603,18 @@ async function searchMeta(raw: string): Promise<PageMeta> {
   // A visit here is a whole query (the address bar's, or a shared link): its intent counts, never as it's typed.
   await recordIntent(answer.intent).catch(() => {});
   const { sections, notes } = answerSections(answer);
-  const badge = contextBadge(answer, notes.understood);
+  // A question search can't answer yet (server/api/answers/sorry.ts): the heading says sorry, once; what was read and
+  // the searches that answer are its note, so the badge (which would say the team and sorry again) is left out.
+  const sorry = answer.sorry;
+  const badge = sorry ? null : contextBadge(answer, notes.understood);
   // The badge says what was understood; with none (nothing found), the reading's own lines do. A fallback is always
   // said, so substitute events are never shown as the answer.
   const fallback = answer.understood?.fallback;
-  const said = [notes.didYouMean ? `Did you mean: <a href="/search?q=${esc(encodeURIComponent(notes.didYouMean))}">${esc(notes.didYouMean)}</a>${notes.corrected ? ". Showing results for that" : ""}` : "", ...(badge ? (fallback ? [esc(fallback)] : []) : notes.understood.map(esc)), notes.gap ? `<b>${esc(notes.gap)}</b>` : ""].filter(Boolean);
+  const said = [notes.didYouMean ? `Did you mean: <a href="/search?q=${esc(encodeURIComponent(notes.didYouMean))}">${esc(notes.didYouMean)}</a>${notes.corrected ? ". Showing results for that" : ""}` : "", ...(badge ? (fallback ? [esc(fallback)] : []) : sorry ? [] : notes.understood.map(esc)), notes.gap ? `<b>${esc(notes.gap)}</b>` : ""].filter(Boolean);
+  // A yes-or-no question's answer, first and in bold, before the card that is its evidence (the app's Verdict).
+  const verdict = answer.verdict ? `<p data-verdict="${esc(answer.verdict.answer)}"><b>${esc(answer.verdict.answer)}</b> · ${esc(answer.verdict.label)}</p>` : "";
+  const sorryNote = sorry ? (sorry.understood.length ? `<p data-sorry><b>I read:</b> ${esc(sorry.understood.join(" · "))}</p>` : "")
+    + (sorry.suggest.length ? `<h2>Searches that answer about them</h2><ul>${sorry.suggest.map((x) => `<li><a href="/search?q=${esc(encodeURIComponent(x))}">${esc(x)}</a></li>`).join("")}</ul>` : "") : "";
   // A question's direct answer (server/api/searchQuestions.ts), as the page shows it: its records, or its plain
   // "none found" with the closest records under it.
   const c = answer.card;
@@ -628,9 +635,10 @@ async function searchMeta(raw: string): Promise<PageMeta> {
     + s.blocks.map((b) => (b.kind === "leaderboard" ? `<h3>${esc(b.title)}</h3><p><small>${esc(b.note)}</small></p>${teamTableHtml(teamTableOfLeaderboard(b.stat.id, b.stat.label, b.rows, b.teleopWithEndgame), b.title)}${b.more ? `<p><a href="${esc(b.more.href)}">${esc(b.more.label)}</a></p>` : ""}` : "")).join("")
     + `<p><small>${esc(s.definition)}<br>${esc(s.source)}</small></p></section>` : "";
   // The heading as the app titles it; a badge that only repeats it is left out, as the app leaves it out.
-  const heading = answer.hits.length || c || s || answer.pages.length ? pageTitle(answer, answer.hits, isQualityQuestion(q)) : "No matches found";
+  // Nothing answered (a sorry note, or nothing found at all): the page says sorry, once, as its heading.
+  const heading = !sorry && (answer.hits.length || c || s || answer.pages.length) ? pageTitle(answer, answer.hits, isQualityQuestion(q)) : SORRY_SENTENCE;
   const shown = badge && badgeUnder(heading, badge);
-  const body = (shown ? `<p><b>${esc(shown)}</b></p>` : "") + (said.length ? `<p>${said.join("<br>")}</p>` : "") + stat + card + sections.map((sec) => {
+  const body = (shown ? `<p><b>${esc(shown)}</b></p>` : "") + (said.length ? `<p>${said.join("<br>")}</p>` : "") + verdict + sorryNote + stat + card + sections.map((sec) => {
     const n = sec.rows.filter((r) => !r.sub).length;
     return `<h2>${esc(sec.title)}${sec.id === "pages" || sec.id === "browse" ? "" : ` <small>${n}</small>`}</h2><ul>${sec.rows.map(({ hit: h, sub }) => `<li${sub ? ' style="margin-left:1.5em"' : ""}><a href="${esc(hitHref(h))}">${esc(h.title)}</a>${h.subtitle ? ` · ${esc(h.subtitle)}` : ""}${h.facts?.length ? `<br>${h.facts.map((f) => `${esc(f.label)}: <b>${esc(f.value)}</b>`).join(" · ")}` : ""}</li>`).join("")}</ul>`;
   }).join("");
