@@ -56,7 +56,8 @@ describe("rewrites: said the way a reader answers", () => {
     expect(rewriteQuery("4215 best event")?.q).toBe("4215 best finish");
     expect(rewriteQuery("4215 partners")?.q).toBe("4215 most frequent partner");
     expect(rewriteQuery("4215 opponents")?.q).toBe("4215 most played opponent");
-    expect(rewriteQuery("4215 events this season")?.q).toMatch(/^4215 events in 20\d\d-\d\d$/);
+    // A team's "this season" is its own latest season, read by the answer (server/api/answers/season.ts), never rewritten.
+    expect(rewriteQuery("4215 events this season")).toBeNull();
     expect(rewriteQuery("4215 world rank")).toMatchObject({ q: "4215 opr", note: expect.stringMatching(/world rank by OPR/) });
     expect(rewriteQuery("4215 nj rank")?.q).toBe("4215 rank in New Jersey");
     expect(rewriteQuery("4215 win probability next match")?.q).toBe("will 4215 win their next match");

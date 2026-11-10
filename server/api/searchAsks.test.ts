@@ -3,7 +3,6 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { kvSet, migrate, openDb, run, setDb } from "../db";
 import { rebuildSearch } from "../stats/job";
-import { searchSeason } from "./answers/season";
 import { searchAnswer } from "./searchAnswer";
 import { askAnswer, askSeason, eventWon, readAsk, type Stat } from "./searchAsks";
 import { seasonLabel } from "../../src/shared/format";
@@ -105,7 +104,8 @@ describe("test 16: each intent returns its stated surface", () => {
     const a = await ask("4215 vs 6980 who wins");
     expect(a.hits[0]).toMatchObject({ kind: "compare", ref: "4215,6980" });
     // Predict opens on the season the answer's call is for (the latest completed one when none is written).
-    expect(hrefs(a)[0]).toBe(`/predict?mode=match&season=${searchSeason()}&red=4215&blue=6980`);
+    // The latest season both teams are rated in (the one season rule for two teams, server/api/answers/season.ts).
+    expect(hrefs(a)[0]).toBe(`/predict?mode=match&season=${S}&red=4215&blue=6980`);
   });
   it("who will win an event: its odds", async () => {
     expect((await ask("who will win New Jersey Championship")).hits[0]).toMatchObject({ kind: "event", ref: "2025:USNJCMP", section: "odds" });

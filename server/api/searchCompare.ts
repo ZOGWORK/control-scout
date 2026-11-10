@@ -138,6 +138,23 @@ const uniqTeams = (ts: TeamFacts[]) => [...new Map(ts.map((t) => [t.number, t]))
 const teamHit = (t: TeamFacts, hits: Map<string, SearchHit>): SearchHit =>
   hits.get(String(t.number)) ?? { kind: "team", ref: String(t.number), title: searchTeamTitle(t.number, t.name), subtitle: [t.city, t.state, t.country].filter(Boolean).join(", "), season: t.lastPlayed };
 
+/** A versus whose one side is a number no FTC team has ("12345 vs 99 opr", "99 vs 12345 record"): the question about
+ *  the other side's team alone (the number and its "vs" taken out), and the number, or null. Only a number typed alone
+ *  as the side's first word: a name that matches no team is still a comparison's (its recovery names it). */
+export async function versusLoneTeam(q: string, prefer: ReadonlySet<string>): Promise<{ q: string; missing: number } | null> {
+  const typedSides = q.split(VERSUS).map((s) => s.trim()).filter(Boolean);
+  if (typedSides.length !== 2) return null;
+  const firsts = typedSides.map((s) => /^\d{1,5}$/.exec(s.split(/\s+/)[0])?.[0] ?? null);
+  const unknown = await Promise.all(firsts.map(async (n) => n != null && !(await teamFacts([Number(n)])).size));
+  if (unknown.filter(Boolean).length !== 1) return null;
+  const i = unknown.indexOf(true), n = firsts[i]!;
+  // The other side a team: its number typed first, or its name.
+  if (firsts[1 - i] == null && !(await readSide(typedSides[1 - i], prefer)).team) return null;
+  const vs = VERSUS.source;
+  const rest = (i === 1 ? q.replace(new RegExp(`${vs}${n}(?=\\s|$)`, "i"), " ") : q.replace(new RegExp(`(?:^|\\s)${n}${vs}`, "i"), " ")).replace(/\s+/g, " ").trim();
+  return rest === q.trim() ? null : { q: rest, missing: Number(n) };
+}
+
 /** The answer for a versus query, or null when `q` isn't one. */
 export async function versusAnswer(q: string, prefer: ReadonlySet<string>, season: number | null): Promise<SearchAnswer | null> {
   const typedSides = q.split(VERSUS).map((s) => s.trim()).filter(Boolean);
@@ -149,13 +166,25 @@ export async function versusAnswer(q: string, prefer: ReadonlySet<string>, seaso
   // never one settled only by another side, so two shared names can't settle each other.
   // Each side's team as first read is the anchor: a side moved by this loop never moves another, whatever the order.
   const firm = new Map(sides.filter((o) => o.team && (!o.pool || o.rule)).map((o) => [o, o.team!]));
+  const moved = new Set<Side>();
   for (const side of sides) {
     if (!side.pool || side.rule === "your team") continue;
     // Only a real state on both sides.
     const others = sides.filter((o) => o !== side && firm.get(o)?.state).map((o) => firm.get(o)!);
     if (!others.length) continue;
     const r = settle(side.pool, prefer, others);
-    if ("team" in r) { side.team = r.team; side.rule = r.rule; side.tied = []; }
+    if (!("team" in r)) continue;
+    side.team = r.team; side.rule = r.rule; side.tied = [];
+    if (r.rule.startsWith("the one in the same state")) moved.add(side);
+  }
+  // Two shared names can move past each other (one to the other's first state, the other away from it): a side moved to
+  // be beside another team that is no longer beside it asks which, never a pick that says "the same state" and isn't.
+  const beside = (a: TeamFacts, b: TeamFacts) => a.state === b.state && a.country === b.country;
+  const apart = [...moved].filter((side) => !sides.some((o) => o !== side && o.team && beside(o.team, side.team!)));
+  for (const side of apart) {
+    // The name's teams that have played (a registration alone is never a choice), else every one.
+    const played = side.pool!.filter((t) => t.lastPlayed != null);
+    side.tied = played.length ? played : side.pool!; side.team = null; side.rule = undefined;
   }
   const resolved = sides.filter((s) => s.team && s.rule).map((s) => ({ typed: s.typed, number: s.team!.number, rule: s.rule!, candidates: s.candidates }));
   const known = [...new Map(sides.filter((s) => s.team).map((s) => [s.team!.number, s.team!])).values()];

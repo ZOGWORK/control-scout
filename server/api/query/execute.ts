@@ -14,7 +14,7 @@ import { allianceForecast, predictionSeasonOf } from "../answers/families/predic
 import { CURRENT_SEASON, isLegacy } from "../../data/seasons.js";
 import { predictHref } from "../../../src/shared/predictUrl.js";
 import { boardSearch, statAnswer, statAnswerOf, topSearch, twoTeamSearch, type Resolve } from "../answers/index.js";
-import { searchSeason } from "../answers/season.js";
+import { currentSeason, defaultSeason, lastSeason } from "../answers/season.js";
 import { BOARD_STATS } from "../answers/families/leaderboard.js";
 import type { TopMatchesQuestion } from "../answers/families/topMatches.js";
 import { defaultSteps, isEmpty, relaxed, windowSteps } from "./relax.js";
@@ -28,7 +28,7 @@ import { searchToday } from "../searchEvents.js";
 import { eventFor, forecastAt, teamEventOfType } from "./forecast.js";
 import { advancementAt, advancementEvent, advancementNotListed, seasonAdvancement } from "../answers/families/advancement.js";
 import { teamsNamedSearch } from "../answers/teamsNamed.js";
-import { eventFieldAnswer } from "../answers/families/eventVersus.js";
+import { eventFieldAnswer, saysOtherThanOpr } from "../answers/families/eventVersus.js";
 import { asksNow, streakBoardAnswer } from "./streakBoard.js";
 import { pickAnswer, teamPickEvent } from "../answers/families/pick.js";
 import { describe, normalise, parseQuery, type Parsed } from "./parse.js";
@@ -63,9 +63,9 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
     const oneTeam = (x: typeof again) => !!x?.intent && x.teams.length === 1 && (x.intent === "highlights" || TEAM_INTENTS.has(x.intent));
     if (tops && again?.complete && oneTeam(again)) {
       // The season the answer itself reads, resolved once: highlights' own (a dated window, "in March 2026", is its
-      // season's); a team's stats read the scope's season ("last season" the one before searchSeason()), searchSeason()
-      // when none is said.
-      const shown = again.intent === "highlights" ? placeSeason(again, again.time?.season ?? null, opts) : readScopeOf(again)?.season ?? searchSeason();
+      // season's); a team's stats read the scope's season ("last season" the latest completed one), the current season
+      // when none is said (../answers/season.ts).
+      const shown = again.intent === "highlights" ? placeSeason(again, again.time?.season ?? null, opts) : readScopeOf(again)?.season ?? defaultSeason();
       if (shown !== tops.season) {
         tops = await topTeamsSaid(q, ctx, shown);
         again = tops ? await parseQuery(tops.q, ctx) : null;
@@ -208,10 +208,10 @@ const MATCH_NOUN: Record<MatchMeasure, string> = {
 const WHEN_WORD = /^(?:in|on|during|this|last|next|from|between|today|tonight|yesterday|tomorrow)\b/i;
 /** A place's or the world's season (docs/search-pipeline.md, "Seasons"): the one said, else the current one (today's);
  *  "last season" is the one before the current one. A team's own season stays the latest it played (readScopeOf). */
-function placeSeason(p: Parsed, said: number | null | undefined, opts: PipelineOptions): number {
-  const current = seasonOfDate(searchToday(opts.now));
-  if (p.time?.kind === "season" && p.time.relative === "last") return current - 1;
-  return said ?? current;
+function placeSeason(p: Parsed, said: number | null | undefined, _opts: PipelineOptions): number {
+  // The one season rule (../answers/season.ts): "last season" is the latest completed one, else the current season.
+  if (p.time?.kind === "season" && p.time.relative === "last") return lastSeason();
+  return said ?? currentSeason();
 }
 /** The answers a win or a loss said with them narrows ("closest loss", "first win", "longest losing streak"). */
 const OUTCOME_IDS = new Set(["closest-match", "current-streak", "average-margin", "first-match", "recent-match", "last-matches", "longest-streak"]);
@@ -241,6 +241,9 @@ async function advancementResult(p: Parsed, stat: StatAnswer, opts: PipelineOpti
     intent: { kind: `stat-${stat.intent}`, pattern: `[team] advance ${p.event ? "[event]" : p.worlds ? "[worlds]" : p.states ? "[states]" : "[season]"}`, met: !stat.none, understood: [] },
   };
 }
+
+/** Whether `p` names a stat other than OPR (auto, record, penalties …): an answer counted by OPR only isn't it. */
+export const saysOtherStat = (p: Pick<Parsed, "symbols">) => p.symbols.some((s) => BOARD_STAT[s] && BOARD_STAT[s] !== "opr");
 
 async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer | null> {
   const intent = p.intent!;
@@ -576,6 +579,10 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     // Wins said with a record ("wins losses record") are the record itself; with another stat, the record is a column.
     if (stats.length > 1) { const rest = stats.filter((s) => s !== "record" && s !== "wins"); stats = rest.length || !stats.includes("record") ? rest : ["record"]; }
     if (stats.length > 1) return null;
+    // A stat alone, no "best", "team" or count said, is everyone's board only for a season or a place said ("2027 opr").
+    if (!p.agg && !p.undefeated && !p.symbols.includes("thing:team") && stats[0] !== "record" && !p.time && !p.place) return null;
+    // Wins with no "team" said are a count only beside "most", "fewest" or "least": "biggest win in nj" is a match.
+    if (stats[0] === "wins" && !p.symbols.includes("thing:team") && !p.undefeated && !/\b(?:most|fewest|least)\b/.test(said)) return null;
     // "The best team in NJ by OPR": one team, the next few under it; with no place or stat named, or a sort asked
     // for ("best team sorted by auto"), the top 10.
     const one = /\b(?:team|who)\b/.test(said) && !/\b(?:teams|sorted|ranked|order)\b/.test(said) && p.n == null && (!!p.place || stats.length === 1);
@@ -660,7 +667,8 @@ async function eventNamed(p: Parsed, scope: ReadScope, opts: PipelineOptions) {
 
 /** An event's field (./intents.ts "event-field"): its teams' average OPR there, the event found as its board finds it. */
 async function eventField(p: Parsed, scope: ReadScope, opts: PipelineOptions): Promise<SearchAnswer | null> {
-  if (p.place?.kind === "city" || scope.window || scope.ever) return null;
+  // Average OPR only: another stat said ("average auto OPR") is left to search.
+  if (saysOtherStat(p) || saysOtherThanOpr(p.q, p.place?.typed) || p.place?.kind === "city" || scope.window || scope.ever) return null;
   const ev = await eventNamed(p, scope, opts);
   // Some of the field only ("NJ teams at worlds"): not this answer's to count.
   if (!ev || ev.home) return null;
@@ -673,7 +681,7 @@ async function eventField(p: Parsed, scope: ReadScope, opts: PipelineOptions): P
 /** The board of the teams at one event named, Worlds or the place's state championship: the season said (a year: the
  *  one held then), else the latest held. OPR only: another stat said is left to search. */
 async function eventBoard(p: Parsed, scope: ReadScope, said: string, opts: PipelineOptions): Promise<SearchAnswer | null> {
-  if (p.symbols.some((s) => BOARD_STAT[s] && BOARD_STAT[s] !== "opr") || p.place?.kind === "city") return null;
+  if (saysOtherStat(p) || p.place?.kind === "city") return null;
   // The best first by OPR only: the lowest first, undefeated teams alone or OPR said not to go by are left to search.
   if (p.agg === "min" || p.undefeated || (p.notMetrics ?? []).some((s) => !BOARD_STAT[s] || BOARD_STAT[s] === "opr")) return null;
   const ev = await eventNamed(p, scope, opts);
@@ -738,7 +746,7 @@ async function highlights(p: Parsed, scope: ReadScope, opts: PipelineOptions): P
     const stat = await teamHighlights({ number: t.number, name: t.name }, w ? undefined : said ?? undefined, when, p.n ?? undefined, videos ? "videos" : "highlights");
     const hit = (await opts.resolve(String(t.number))).hits.find((h) => h.kind === "team" && h.ref === String(t.number));
     const hits = hit ? [{ ...hit, facts: undefined, events: undefined }] : [];
-    const first = stat ? answer(stat, Number(/^\d{4}/.exec(stat.scope[0] ?? "")?.[0] ?? said ?? searchSeason()), hits) : null;
+    const first = stat ? answer(stat, Number(/^\d{4}/.exec(stat.scope[0] ?? "")?.[0] ?? said ?? currentSeason()), hits) : null;
     // Nothing in a time said against today ("in december", "this week"): its season, then the one before, said on the
     // card, as every answer with a window relaxes it. A time with its year typed stays that time.
     if (first && w && scope.season != null && p.time?.year == null) {
@@ -797,10 +805,12 @@ function readScopeOf(p: Parsed): ReadScope | null {
   if (t?.kind === "window") { s.season = t.season; s.window = { from: t.from!, to: t.to!, label: t.label }; }
   else if (t?.kind === "season") {
     if (t.relative === "this") s.latest = true;
-    // "Last season": the one before the season a query naming none reads (./answers/season.ts).
-    else if (t.relative === "last") { s.lastYear = true; s.season = searchSeason() - 1; }
+    // "Last season": the latest completed season (../answers/season.ts).
+    else if (t.relative === "last") { s.lastYear = true; s.season = lastSeason(); }
     else { s.season = t.season; if (t.year) s.year = true; }
   } else if (t?.kind === "ever") s.ever = true;
+  // "All (of their) state championships", "every states": every season the team played one, as ../answers/read.ts reads it.
+  if (p.states && /\b(?:all|every|each)\s+(?:of\s+)?(?:(?:their|its|the)\s+)?(?:states|state\s+champ)/i.test(p.q)) s.ever = true;
   if (p.place) {
     // A town names where a team is from, which a team's own question already knows: only events in a region or a
     // country are a filter. A leaderboard's town is the teams from it.

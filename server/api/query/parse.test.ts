@@ -30,6 +30,7 @@ const TEAMS = [
   { number: 30013, name: "Inspires", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
   { number: 30014, name: "The King's School", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
   { number: 30015, name: "The King's School", city: "Newark", state: "NJ", country: "USA", lastPlayed: 2026 },
+  { number: 30016, name: "Performance", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
 ];
 const EVENTS = ["east bergen conference", "new jersey championship", "nj championship", "turnpike division"];
 const ctx: ParseContext = {
@@ -101,6 +102,23 @@ describe("slots", () => {
   it("reads a forecast at a named event", async () => {
     const p = await parse("predicted chances of 4215 east bergen conference");
     expect(p).toMatchObject({ intent: "team-predict", complete: true, teams: [{ number: 4215 }], event: { words: "east bergen conference" }, time: null });
+  });
+  it("reads a team number's possessive typed without its apostrophe, and a chance of winning, as the forecast", async () => {
+    for (const q of ["what are 4215s chances at the east bergen conference", "whats 4215s chance of winning the east bergen conference", "6980s odds of winning east bergen conference"]) {
+      expect(await parse(q), q).toMatchObject({ intent: "team-predict", complete: true, event: { words: "east bergen conference" } });
+    }
+    expect((await parse("6980s chances at the east bergen conference")).teams.map((t) => t.number)).toEqual([6980]);
+    // A number that is no team keeps its "s": never a team.
+    expect((await parse("1990s chances at the east bergen conference")).teams).toEqual([]);
+  });
+  it("reads 'performance' as how a team did, never a team of that name beside another team", async () => {
+    const p = await parse("4215 performance at nj championship");
+    expect(p.teams.map((t) => t.number)).toEqual([4215]);
+  });
+  it("reads everyone's board from a count of wins or a stat said with a season", async () => {
+    for (const q of ["most wins in nj 2025-26", "teams with the most wins in nj 2025-26", "fewest wins in nj 2025-26", "2027 opr"]) {
+      expect(await parse(q), q).toMatchObject({ intent: "leaderboard", complete: true, teams: [] });
+    }
   });
   it("reads a prediction's miss, a team's or everyone's, and a floor in points never as a team", async () => {
     expect(await parse("6980 most unpredictable matches")).toMatchObject({ intent: "miss-matches", complete: true, teams: [{ number: 6980 }] });
@@ -520,7 +538,7 @@ describe("compare, winner and head to head words", () => {
     }
   });
   it("head to head is their meetings, with a score said or Worlds as the scope", async () => {
-    for (const q of ["4215 vs 6980 head to head", "4215 versus 6980 worlds head to head score", "4215 6980 h2h record", "head-to-head 4215 vs 6980"]) {
+    for (const q of ["4215 vs 6980 head to head", "4215 versus 6980 worlds head to head score", "4215 6980 h2h record", "head-to-head 4215 vs 6980", "4215 and 6980 head to head score"]) {
       const p = await parse(q);
       expect([p.intent, p.complete], q).toEqual(["head-to-head", true]);
     }

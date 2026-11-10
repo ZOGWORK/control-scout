@@ -6,6 +6,7 @@
 // from the query as typed, the answer and the lexicon.
 import type { SearchAnswer, SearchFollowUp, SearchFollowUps } from "../../../src/shared/api.js";
 import { SEARCH_PAGE_LIMIT } from "../../../src/shared/search.js";
+import { seasonLabel } from "../../../src/shared/format.js";
 import { normalise, parseQuery, type Parsed } from "../query/parse.js";
 import { parseContext } from "../query/context.js";
 import { names } from "../query/names.js";
@@ -21,6 +22,11 @@ type Family = SearchFollowUp["family"];
  *  tap opens. */
 export const pageAnswer = (q: string, limit: number, prefer: ReadonlySet<string>): Promise<SearchAnswer> =>
   keptAnswer(JSON.stringify([q, limit, [...prefer].sort(), forecasterBuilds()]), () => searchAnswer(q, { limit, prefer }));
+
+/** The follow-ups for `q` with its own kept answer (followUps), kept a minute as the answer is: the /search page's
+ *  first paint and the app's /api/search/follow for the same search are one reading. */
+export const keptFollowUps = (q: string, prefer: ReadonlySet<string> = new Set()): Promise<SearchFollowUps> =>
+  keptAnswer(JSON.stringify(["follow", q, [...prefer].sort(), forecasterBuilds()]), async () => followUps(q, await pageAnswer(q, SEARCH_PAGE_LIMIT, prefer), prefer));
 
 /** At most this many questions are shown, and this many candidates run to find them. */
 export const ASK_MAX = 6, RELATED_MAX = 8;
@@ -75,6 +81,7 @@ const EVENT: Template[] = [
   T("events", ["event"], (s) => `Who won ${s.event}${IN(s)}?`, (s) => `who won ${s.event}${AT(s)}`),
   T("events", ["event"], (s) => `What were the best matches at ${s.event}${IN(s)}?`, (s) => `${s.event}${AT(s)} highlights`),
   T("events", ["event"], (s) => `Which teams played at ${s.event}${IN(s)}?`, (s) => `teams at ${s.event}${AT(s)}`),
+  T("events", ["event"], (s) => `Who were the top teams at ${s.event}${IN(s)}?`, (s) => `top teams at ${s.event}${AT(s)}`),
 ];
 const AWARD_AT: Template = T("awards", ["event", "award"], (s) => `Who won the ${s.award} Award at ${s.event}${IN(s)}?`, (s) => `${s.award} award at ${s.event}${AT(s)}`);
 const PLACE: Template[] = [
@@ -103,6 +110,15 @@ const START: Template[] = [
   T("events", [], () => "What events are coming up?", () => "upcoming events"),
   T("events", [], () => "What events are this week?", () => "events this week"),
   T("events", [], () => "What events are happening today?", () => "live events"),
+  // Past the questions' six: the season's other boards and weeks, Related searches' chips.
+  T("leaders", [], () => "Who has the best Auto OPR?", () => "best auto opr"),
+  T("leaders", [], () => "Who has the best TeleOp OPR?", () => "best teleop opr"),
+  T("leaders", [], () => "Who has the best Endgame OPR?", () => "best endgame opr"),
+  T("leaders", [], () => "Which team has the best record?", () => "best record"),
+  T("events", [], () => "What events are next week?", () => "events next week"),
+  T("events", [], () => "What events have already happened?", () => "past events"),
+  T("events", [], () => "What championships are coming up?", () => "upcoming championships"),
+  T("events", [], () => "What events are this weekend?", () => "events this weekend"),
 ];
 
 /** The Worlds phrases the lexicon reads, longest first ("first championship" before "first"). */
@@ -156,7 +172,8 @@ export function candidates(p: Parsed, a: SearchAnswer, team = answerTeam(a)): Ca
       const filled = { ...(slots as Required<Slots>), when: (x.needs.includes("t") ? (x.when ? teamWhen : undefined) : slots.when) ?? "" };
       return { q: x.ask(filled), short: x.short(filled), family: x.family, ...(x.chip ? { chip: true } : {}) };
     });
-  const [award1, ...awards] = event ? AWARDS.filter((x) => x !== s.award).slice(0, 4).flatMap((award) => fill([AWARD_AT], { ...s, award })) : [];
+  // Every award an event gives, its winner's question first: those the questions don't take are Related searches.
+  const [award1, ...awards] = event ? AWARDS.filter((x) => x !== s.award).flatMap((award) => fill([AWARD_AT], { ...s, award })) : [];
   const out = [
     ...(s.u != null ? fill(TWO, s) : []),
     ...(p.intent === "leaderboard" ? fill(LEADERS, s) : []),
@@ -174,6 +191,20 @@ export function candidates(p: Parsed, a: SearchAnswer, team = answerTeam(a)): Ca
 
 type Line = Pick<SearchFollowUp, "value" | "rest" | "tone">;
 
+/** A season said in words: a season's two years ("<year>–<yy>"), "all seasons", "over N seasons", "this season". */
+const SAYS_SEASON = /\d{4}[–-]\d{2}|\bseasons?\b/i;
+/** One season's two years, alone. */
+const ONE_SEASON = /^\d{4}[–-]\d{2}$/;
+/** The season a line's numbers are from, said after it when the line itself doesn't say one (a rating's line ends
+ *  "· <season>"): one follow-up's numbers are often another season's than the next one's (a record from the
+ *  latest completed season, a trend from the current one), so each says which. `said`: the answer's own words for it
+ *  (a stat's season chip, "All seasons"), else a card's season. */
+function withSeason(l: Line, said: string | undefined): Line {
+  if (!said || SAYS_SEASON.test(`${l.value} ${l.rest}`)) return l;
+  const season = /^all seasons$/i.test(said) ? "all seasons" : said;
+  return { ...l, rest: l.rest ? `${l.rest} · ${season}` : season };
+}
+
 /** One line from a direct answer, its number apart from the rest, or null when `a` isn't one (no answer card,
  *  nothing found, a list of names). */
 export function lineOf(a: SearchAnswer): Line | null {
@@ -184,13 +215,18 @@ export function lineOf(a: SearchAnswer): Line | null {
     if (st.none || !st.headline?.value) return null;
     // The teams its card draws: two or more as the card lists them, else the one it's about.
     const teams = (st.teams && st.teams.length > 1 ? st.teams : st.team ? [st.team] : []).map((t) => t.number);
-    return { value: st.headline.value, rest: st.headline.label, tone: { stat: { intent: st.intent, family: st.family, ...(st.split != null ? { split: st.split } : {}), teams } } };
+    // The headline's own season when the line under it says one on its own (a single match's: "<season> · <date>"),
+    // which an all-season answer narrows to; else the answer's season chip.
+    const own = st.headline.sub?.split(" · ").map((x) => x.trim()).find((x) => ONE_SEASON.test(x));
+    const chip = own ?? st.scope.find((x) => SAYS_SEASON.test(x));
+    return withSeason({ value: st.headline.value, rest: st.headline.label, tone: { stat: { intent: st.intent, family: st.family, ...(st.split != null ? { split: st.split } : {}), teams } } }, chip);
   }
   const c = a.card;
   if (c) {
     const first = c.lines[0];
-    if (c.headline) return { value: c.headline, rest: "", tone: { card: c.kind } };
-    return first?.text ? { value: first.text, rest: first.detail ?? "", tone: { card: c.kind } } : null;
+    const season = c.season != null ? seasonLabel(c.season) : undefined;
+    if (c.headline) return withSeason({ value: c.headline, rest: "", tone: { card: c.kind } }, season);
+    return first?.text ? withSeason({ value: first.text, rest: first.detail ?? "", tone: { card: c.kind } }, season) : null;
   }
   const u = a.understood;
   // As many events as its page lists (and its tabs count), never more than the page will show.

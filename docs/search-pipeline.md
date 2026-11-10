@@ -137,9 +137,27 @@ any other answer said with them is left to the readers after it, never answered 
 
 No season said (or "this season") reads the season today is in; when it has none of the matches asked for yet it
 reads the season before and says so: "No 2026–27 matches yet in California; showing 2025–26", "No 2026–27
-comebacks yet…". The plain highest score (no measure, no match type) follows the same rule. "Last season" is the one
-before the season today is in. A window ("this week") relaxes as everywhere else; a year said is never relaxed. "In
+comebacks yet…". The plain highest score (no measure, no match type) follows the same rule. "Last season" is the
+latest completed season. All of it is the one season rule below. A window ("this week") relaxes as everywhere else; a year said is never relaxed. "In
 the world", "worldwide" and "globally" mean every place.
+
+## Season default
+
+One rule, one resolver (`server/api/answers/season.ts`), read by every intent:
+
+- A team's question with no season, or "this season" / "right now" / "current": the latest season that team has
+  played an official match in (`teamSeason`). The card says which season and why.
+- A question about no team (a leaderboard, a place's best match, awards in a place) with no season: the current
+  competition season (`currentSeason`, the season today is in), said on the card; when it has nothing yet the readers
+  step back a season and say so (`relax.ts`).
+- "Last season" / "last year": the latest completed season, the newest whose FIRST Championship has finished
+  (`lastSeason`), said on the card.
+- A season named is honoured exactly.
+
+"At states" is one event: the team's state championship, the season's named, else the latest it played, for every
+answer read from its matches (results, record, match lists, scores, rank, OPR), and the card names the event and its
+season. "Ever", "all time" or "all (of their) state championships" reads every season it played one, labelled "All
+seasons". Answers read from event or season rows (best finish, seasons played) are across its state championships.
 
 ## Highlights
 

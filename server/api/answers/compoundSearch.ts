@@ -11,7 +11,7 @@ import type { CompoundQuestion, SeasonWords } from "./compound.js";
 import { fuzzyScore } from "../fuzzy.js";
 import { teamEventSet, type TeamEvent } from "./eventSet.js";
 import { teamMatches } from "./matchSet.js";
-import { searchSeason } from "./season.js";
+import { defaultSeason, seasonWhy, teamSeason } from "./season.js";
 import { awardsAnswer } from "./families/awards.js";
 import { beatTopAnswer, combinedAnswer, eventPairAnswer, eventPicksAnswer, listAnswer, listPairAnswer, listTitle, marginAnswer, oprExcludingAnswer, reliabilitySetAnswer, sideThresholdAnswer, winLossAverageAnswer } from "./families/compound.js";
 import { matchAnswer, whoOf, type AnswerTeam } from "./families/matches.js";
@@ -35,11 +35,16 @@ const TITLES: Record<Exclude<CompoundQuestion["kind"], "list" | "list-pair" | "s
 /** The season a team's answer reads: the one named; every season for "ever"; else the default season, or the team's
  *  latest with matches (said so). */
 async function seasonFor(w: SeasonWords, team: number, deps: CompoundDeps, everAllowed = true): Promise<{ season: number | null; why?: string }> {
-  if (w.season != null) return { season: w.season, ...(w.latest ? { why: `"This season" here is ${seasonLabel(w.season)}, the latest completed season.` } : {}) };
+  // "This season" for a team: its latest season with matches (the one season rule, ./season.ts), said on the card.
+  if (w.latest) {
+    const own = (await teamSeason(team)) ?? w.season;
+    return { season: own, ...(own != null ? { why: seasonWhy("this", own, String(team)) } : {}) };
+  }
+  if (w.season != null) return { season: w.season };
   if (w.ever && everAllowed) return { season: null };
   const l = await deps.latestSeason(team);
   if (!l) return { season: null };
-  return { season: l.season, why: l.own ? `The season is ${seasonLabel(l.season)}: no ${seasonLabel(searchSeason())} matches on record, so the team's latest season with matches.` : `With no season named, the season is ${seasonLabel(l.season)}, the latest completed season (its FIRST Championship has finished).` };
+  return { season: l.season, why: seasonWhy("team", l.season, String(team)) };
 }
 
 /** Two of the team's events that name the words about as well (pickTeamEvent picks neither) but are one championship:
@@ -96,10 +101,14 @@ export async function compoundSearch(q: string, c: CompoundQuestion, resolve: Re
     return { ...a, understood: { ...a.understood!, label: `${whoOf(team)} · ${stat.title}` }, stat };
   };
   if (c.kind === "event-pair") {
-    const a = answer(`${whoOf(team)} · ${TITLES[c.kind]}`, c.seasons[0], "history");
+    // "This season" is the team's latest with matches; "last season" beside it is the season before that one.
+    const own = c.said?.includes("this") ? await teamSeason(team.number) : null;
+    const seasons = own == null ? c.seasons : c.seasons.map((x, i) => (c.said![i] === "this" ? own : c.said![i] === "last" ? own - 1 : x)) as [number, number];
+    if (seasons[0] === seasons[1]) return null;
+    const a = answer(`${whoOf(team)} · ${TITLES[c.kind]}`, seasons[0], "history");
     if (!opts.full) return a;
     const set = await teamEventSet(team.number);
-    return done(a, eventPairAnswer(team, set.events, set.seasons, c.which, c.seasons));
+    return done(a, eventPairAnswer(team, set.events, set.seasons, c.which, seasons));
   }
   const s = await seasonFor(c.when, team.number, deps, c.kind === "margin" || c.kind === "beat-top" || c.kind === "combined" || c.kind === "win-loss-average");
   const scope: Scope = { season: s.season };
@@ -110,10 +119,12 @@ export async function compoundSearch(q: string, c: CompoundQuestion, resolve: Re
     const evs = (await teamEventSet(team.number)).events;
     // A state's code in the event's words ("nj championship") is also tried as the state's name ("new jersey").
     const named = c.at.replace(/\b[a-z]{2}\b/g, (w) => findRegions(w).find((r) => r.state.toLowerCase() === w)?.name.toLowerCase() ?? w);
-    const fp = familyPick(evs, named, c.when.season);
-    const pick = deps.pickTeamEvent(evs, c.at, c.when.season) ?? (named !== c.at ? deps.pickTeamEvent(evs, named, c.when.season) : null)
+    // The season said: "this season" is the team's latest with matches (seasonFor), never the current one it hasn't played.
+    const said = c.when.latest ? s.season : c.when.season;
+    const fp = familyPick(evs, named, said);
+    const pick = deps.pickTeamEvent(evs, c.at, said) ?? (named !== c.at ? deps.pickTeamEvent(evs, named, said) : null)
       ?? (fp ? { primary: fp, events: evs.filter((x) => x.season === fp.season && (x.code === fp.code || x.code === fp.division)) } : null);
-    if (!pick) return noEventAnswer(q, c.at, team, top, evs, c.when.season, opts);
+    if (!pick) return noEventAnswer(q, c.at, team, top, evs, said, opts);
     // The events picked are read as one: a championship named is its division and its finals together, a division
     // named is that division alone (never the finals with it).
     const e = pick.primary;
@@ -170,7 +181,7 @@ async function listSearch(q: string, c: Extract<CompoundQuestion, { kind: "list"
   const label = listTitle(c, c.city ? c.city.replace(/\b\w/g, (x) => x.toUpperCase()) : null);
   const answer: SearchAnswer = {
     q, hits: [], pages: opts.pages, step: "deterministic", weak: false,
-    understood: { kind: "question", label, season: c.season ?? searchSeason(), ...(c.region ? { place: { key: c.region.key, name: c.region.name } } : {}) },
+    understood: { kind: "question", label, season: c.season ?? defaultSeason(), ...(c.region ? { place: { key: c.region.key, name: c.region.name } } : {}) },
     intent: { kind: "stat-compound-list", pattern: `teams${c.region ? " [place]" : c.city ? " [city]" : ""}${c.award ? " [award]" : ""}${c.worlds ? " [worlds]" : ""}${c.thresholds.length ? " [threshold]" : ""}${c.noWorlds ? " [not worlds]" : ""}${c.rookie ? " [rookie]" : ""}`, met: true, understood: [label] },
   };
   if (!opts.full) return { ...answer, pages: [{ title: label, href: `/search?q=${encodeURIComponent(q)}` }, ...opts.pages] };

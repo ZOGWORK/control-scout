@@ -20,7 +20,7 @@ import { readProjections } from "../../../projections/store.js";
 import { eventHref, teamHref } from "../matchSet.js";
 import type { IntentId } from "../read.js";
 import { whoOf, type AnswerTeam } from "./matches.js";
-import { searchSeason, searchSeasonWhy } from "../season.js";
+import { currentSeason, seasonWhy } from "../season.js";
 import { rangeCoverageNow } from "../../accuracy.js";
 import { rangeCoverageLine } from "../../../../src/shared/scoreRange.js";
 
@@ -42,10 +42,10 @@ export async function predictionSeason(a: number, b: number): Promise<{ season: 
 
 /** predictionSeason for any lineup: the season every team has a rating in. */
 export async function predictionSeasonOf(teams: number[]): Promise<{ season: number; why: string }> {
-  const def = searchSeason();
+  const def = currentSeason();
   const rows = await all<{ season: number; n: number }>(`SELECT season, COUNT(*) n FROM team_season_stats WHERE team IN (${teams.map(() => "?").join(", ")}) AND rating_np IS NOT NULL AND season >= ? GROUP BY season HAVING COUNT(*) = ? ORDER BY season DESC`, [...teams, FIRST_PREDICT_SEASON, teams.length]);
   const every = rows.map((r) => Number(r.season));
-  if (!every.length) return { season: def, why: searchSeasonWhy(def) };
+  if (!every.length) return { season: def, why: seasonWhy("teams", def) };
   return { season: every[0], why: `With no season named, the season is ${seasonLabel(every[0])}, the latest season ${teams.length === 2 ? "both teams have" : `all ${teams.length} teams have`} a prediction rating in, as their team cards show.` };
 }
 

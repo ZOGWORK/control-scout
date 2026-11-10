@@ -1,6 +1,7 @@
-// The season a query means when it names none (./season.ts): the latest completed season, the newest whose FIRST
-// Championship has finished, read from the stored events. Here 2026–27 has begun (some teams rated, its Championship
-// still to come), so "this season" and every leaderboard read 2025–26, and "last season" is 2024–25. Also the lists
+// The one season rule (./season.ts). Here it is November 2026: 2026–27 has begun (one team has played it, its
+// Championship still to come) and 2025–26 is the latest completed season. A team's question with no season (or "this
+// season") reads that team's latest season with matches; a question about no team reads the current season, 2026–27;
+// "last season" is 2025–26, the latest completed one; a season named is that season. Also the lists
 // and answers the 260-query list asks for: reliability and record leaderboards, "best team in <place> by <stat>",
 // "<place> leaderboard by <stat>", a city's best team, OPR across two seasons, the rating across one, and a place's
 // events with the season said in words.
@@ -11,8 +12,8 @@ import { searchAnswer } from "../searchAnswer";
 import { rewriteQuery } from "../searchCoverage";
 import { readEventQuery } from "../../../src/shared/searchEventQuery";
 import { readLeaderboard, readScope } from "./read";
-import { readChange } from "./families/seasonChange";
-import { refreshSearchSeason, resetSearchSeason, searchSeason } from "./season";
+import { readChange, shiftChange } from "./families/seasonChange";
+import { completedSeason, currentSeason, defaultSeason, lastSeason, refreshSearchSeason, resetSearchSeason, teamSeason } from "./season";
 
 const NOW = Date.parse("2026-11-04T12:00:00Z");
 
@@ -53,31 +54,61 @@ beforeAll(async () => {
 });
 
 describe("the default season", () => {
-  it("is the newest season whose FIRST Championship has finished, from the data", async () => {
-    expect(searchSeason()).toBe(2025);
-    // Once 2026–27's Championship is over, it's the default (no year is written down anywhere).
+  it("the current season is today's, the completed one the newest whose FIRST Championship has finished, from the data", async () => {
+    expect([currentSeason(), completedSeason(), lastSeason()]).toEqual([2026, 2025, 2025]);
+    // Once 2026–27's Championship is over it's the completed season, and "last season" is still 2025–26 until
+    // 2027–28 begins (no year is written down anywhere).
     resetSearchSeason();
     expect(await refreshSearchSeason(Date.parse("2027-05-10T00:00:00Z"))).toBe(2026);
+    expect([currentSeason(), completedSeason(), lastSeason()]).toEqual([2026, 2026, 2025]);
     resetSearchSeason();
-    expect(await refreshSearchSeason(NOW)).toBe(2025);
+    expect(await refreshSearchSeason(NOW)).toBe(2026);
   });
-  it("\"last season\" is the one before it; a season named wins", () => {
-    expect(readScope(" 4215 opr last season ").scope).toMatchObject({ season: 2024, lastYear: true });
+  it("a team's season is its latest with matches", async () => {
+    expect(await teamSeason(4215)).toBe(2025);
+    expect(await teamSeason(30000)).toBe(2026);
+    expect(await teamSeason(99999)).toBeNull();
+  });
+  it("a season of only scrimmages isn't the team's season", async () => {
+    const add = async (season: number, code: string, type: string) => {
+      await run("INSERT INTO events (season, code, name, type, start, end, source) VALUES (?, ?, ?, ?, '2026-10-01', '2026-10-01', 'first')", [season, code, code, type]);
+      await run("INSERT INTO matches (season, code, level, series, number, label, played, red_total, blue_total, source) VALUES (?, ?, 'qual', 0, 1, 'Q1', 1, 50, 40, 'first')", [season, code]);
+      await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, station, on_field) VALUES (?, ?, 'qual', 0, 1, 4215, 'red', 1, 1)", [season, code]);
+    };
+    await add(2025, "TQUAL", "Qualifier");
+    await add(2026, "TSCRIM", "Scrimmage");
+    // Its season rows count the scrimmage's match.
+    await run("INSERT INTO team_season_stats (season, team, wins, losses, ties, matches) VALUES (2026, 4215, 1, 0, 0, 1)");
+    try {
+      expect(await teamSeason(4215)).toBe(2025);
+    } finally {
+      for (const t of ["match_teams", "matches", "events"]) await run(`DELETE FROM ${t} WHERE code IN ('TQUAL', 'TSCRIM')`);
+      await run("DELETE FROM team_season_stats WHERE season = 2026 AND team = 4215");
+    }
+  });
+  it("\"last season\" is the latest completed one; a season named wins", () => {
+    expect(readScope(" 4215 opr last season ").scope).toMatchObject({ season: 2025, lastYear: true });
     expect(readScope(" 4215 opr 2023-24 ").scope).toMatchObject({ season: 2023 });
   });
 });
 
 describe("a team's season, said in words", () => {
-  it("last season's OPR, rating, record and awards are 2024–25's", async () => {
-    expect((await searchAnswer("4215 opr last season", { limit: 25, full: true })).stat).toMatchObject({ title: "OPR in 2024–25", headline: { value: "144.8" } });
-    expect((await searchAnswer("4215 rating last season", { limit: 25, full: true })).stat?.title).toBe("Prediction rating in 2024–25");
-    expect((await searchAnswer("4215 record last season", { limit: 25, full: true })).stat?.title).toMatch(/2024–25/);
+  it("last season's OPR, rating and record are 2025–26's, the latest completed season", async () => {
+    for (const q of ["4215 opr last season", "4215 opr last year"]) expect((await searchAnswer(q, { limit: 25, full: true, now: NOW })).stat, q).toMatchObject({ title: "OPR in 2025–26", headline: { value: "101.6" } });
+    expect((await searchAnswer("4215 rating last season", { limit: 25, full: true, now: NOW })).stat?.title).toBe("Prediction rating in 2025–26");
+    expect((await searchAnswer("4215 record last season", { limit: 25, full: true, now: NOW })).stat?.title).toMatch(/2025–26/);
   });
-  it("no season named, or \"this season\": the default season, said on the card", async () => {
-    const a = (await searchAnswer("4215 opr", { limit: 25, full: true })).stat;
+  it("no season named, or \"this season\": the team's latest season with matches, said on the card", async () => {
+    const a = (await searchAnswer("4215 opr", { limit: 25, full: true, now: NOW })).stat;
     expect(a).toMatchObject({ title: "OPR in 2025–26", headline: { value: "101.6" } });
-    expect(a?.definition).toContain("2025–26, the latest completed season");
-    expect(rewriteQuery("4215 events this season")).toMatchObject({ q: "4215 events in 2025-26" });
+    expect(a?.definition).toContain("the season is 2025–26, the latest season 4215 has played in (no 2026–27 matches on record yet)");
+    const t = (await searchAnswer("4215 opr this season", { limit: 25, full: true, now: NOW })).stat;
+    expect(t?.title).toBe("OPR in 2025–26");
+    expect(t?.definition).toContain('"This season" here is 2025–26, the latest season 4215 has played in');
+    // A team that has played the current season: that season.
+    const e = (await searchAnswer("30000 opr this season", { limit: 25, full: true, now: NOW })).stat;
+    expect(e).toMatchObject({ title: "OPR in 2026–27", headline: { value: "400" } });
+    expect(e?.definition).toContain('"This season" is 2026–27, the current season');
   });
 });
 
@@ -116,8 +147,9 @@ describe("leaderboards", () => {
     const rec = await searchAnswer("New Jersey leaderboard by record", { limit: 25, full: true });
     const b = rec.stat!.blocks[0];
     if (b.kind !== "leaderboard") throw new Error(b.kind);
-    expect(rec.stat?.title).toBe("Top 25 teams by record in New Jersey · 2025–26");
-    expect(b.rows[0]).toMatchObject({ team: { label: "18061 Simply Complex" }, display: "20-4-0" });
+    // No season said and no team named: the current season, 2026–27, where one New Jersey team has played.
+    expect(rec.stat?.title).toBe("Top 25 teams by record in New Jersey · 2026–27");
+    expect(b.rows[0]).toMatchObject({ team: { label: "30000 Early Bird" }, display: "6-0-0" });
   });
   it("a place's leaderboard by a stat, said place first", async () => {
     expect(readLeaderboard("New Jersey leaderboard by rating")).toMatchObject({ kind: "top", stat: "rating", region: { key: "USA:NJ" } });
@@ -125,7 +157,8 @@ describe("leaderboards", () => {
     // A team's own rankings aren't a leaderboard.
     expect(readLeaderboard("4215 rankings")).toBeNull();
     const a = await searchAnswer("New Jersey leaderboard by rating", { limit: 25, full: true });
-    expect(a.stat).toMatchObject({ title: "Top 25 teams by prediction rating in New Jersey · 2025–26", headline: { value: "23268 Ultraviolet" } });
+    expect(a.stat).toMatchObject({ title: "Top 25 teams by prediction rating in New Jersey · 2026–27", headline: { value: "30000 Early Bird" } });
+    expect((await searchAnswer("New Jersey leaderboard by rating in 2025-26", { limit: 25, full: true })).stat?.headline?.value).toBe("23268 Ultraviolet");
   });
   it("the best team in a place by a stat is that place's #1, never a team named \"best\"", async () => {
     expect(readLeaderboard("best team in New Jersey by opr")).toMatchObject({ kind: "top", stat: "opr", best: true, region: { key: "USA:NJ" } });
@@ -150,15 +183,36 @@ describe("leaderboards", () => {
 
 describe("how a number changed", () => {
   it("OPR from last season to this season: both seasons' numbers and the difference", async () => {
-    expect(readChange("how much did 4215's opr improve from last season to this season")).toEqual({ stat: "opr", core: "4215", from: 2024, to: 2025 });
+    // "This season" is read as the current one here and as the team's latest season by the answer (one rule).
+    expect(readChange("how much did 4215's opr improve from last season to this season")).toEqual({ stat: "opr", core: "4215", from: 2025, to: 2026, defaulted: true, fromRelative: true });
     // "from … to …" keeps its direction; "between" is oldest first.
     expect(readChange("4215 opr change from 2025-26 to 2024-25")).toEqual({ stat: "opr", core: "4215", from: 2025, to: 2024 });
     expect(readChange("4215 opr change between 2025-26 and 2024-25")).toEqual({ stat: "opr", core: "4215", from: 2024, to: 2025 });
-    const a = (await searchAnswer("how much did 4215's opr improve from last season to this season", { limit: 25, full: true })).stat;
+    const full = await searchAnswer("how much did 4215's opr improve from last season to this season", { limit: 25, full: true });
+    const a = full.stat;
     expect(a).toMatchObject({ title: "OPR change, 2024–25 to 2025–26", headline: { value: "−43.2", label: "OPR 144.8 in 2024–25 → 101.6 in 2025–26" } });
+    // The page's heading and the team's link name the same seasons as the card.
+    expect(full.understood).toMatchObject({ season: 2025 });
+    expect(full.understood?.label).toMatch(/OPR change, 2024–25 to 2025–26$/);
+    expect(full.hits[0]).toMatchObject({ kind: "team", ref: "4215", linkSeason: 2025 });
+  });
+  it("a named starting season stays as said; only \"this season\" moves to the team's latest", async () => {
+    expect(readChange("4215 opr change from 2024-25 to this season")).toEqual({ stat: "opr", core: "4215", from: 2024, to: 2026, defaulted: true });
+    expect(shiftChange({ stat: "opr", core: "4215", from: 2024, to: 2026, defaulted: true }, 2025)).toMatchObject({ from: 2024, to: 2025 });
+    expect(shiftChange({ stat: "opr", core: "4215", from: 2025, to: 2026, defaulted: true, fromRelative: true }, 2025)).toMatchObject({ from: 2024, to: 2025 });
+    // "This season" at the start resolves the same way; the named end stays.
+    expect(readChange("4215 opr change from this season to 2024-25")).toEqual({ stat: "opr", core: "4215", from: 2026, to: 2024, fromThis: true });
+    expect(shiftChange({ stat: "opr", core: "4215", from: 2026, to: 2024, fromThis: true }, 2025)).toMatchObject({ from: 2025, to: 2024 });
+    const back = (await searchAnswer("4215 opr change from this season to 2024-25", { limit: 25, full: true })).stat;
+    expect(back).toMatchObject({ title: "OPR change, 2025–26 to 2024–25", headline: { value: "+43.2" } });
+    const a = (await searchAnswer("4215 opr change from 2024-25 to this season", { limit: 25, full: true })).stat;
+    expect(a).toMatchObject({ title: "OPR change, 2024–25 to 2025–26", headline: { value: "−43.2" } });
+    // The latest season named as the start: nothing later to compare it with, said so (never a different start).
+    const same = (await searchAnswer("4215 opr change from 2025-26 to this season", { limit: 25, full: true })).stat;
+    expect(same?.none).toMatch(/^2025–26 is 4215 .*latest season on record/);
   });
   it("the rating across this season: its earliest and last stored weeks, the change, the team page's rating beside", async () => {
-    expect(readChange("how much did 4215's rating change this season")).toEqual({ stat: "rating", core: "4215", from: null, to: 2025 });
+    expect(readChange("how much did 4215's rating change this season")).toEqual({ stat: "rating", core: "4215", from: null, to: 2026, defaulted: true });
     const a = (await searchAnswer("how much did 4215's rating change this season", { limit: 25, full: true })).stat;
     expect(a?.title).toBe("Prediction rating change in 2025–26");
     expect(a?.headline).toMatchObject({ value: "−22.4", sub: "4 weeks on record" });
@@ -175,9 +229,9 @@ describe("how a number changed", () => {
 });
 
 describe("a place's events with the season in words", () => {
-  it("\"this season\" is the default season, \"last season\" the one before it", () => {
-    expect(rewriteQuery("events this season in New Jersey")).toMatchObject({ q: "events in new jersey 2025-26", pre: true });
-    expect(rewriteQuery("events last season in New Jersey")).toMatchObject({ q: "events in new jersey 2024-25", pre: true });
+  it("\"this season\" is the current season, \"last season\" the latest completed one", () => {
+    expect(rewriteQuery("events this season in New Jersey")).toMatchObject({ q: "events in new jersey 2026-27", pre: true });
+    expect(rewriteQuery("events last season in New Jersey")).toMatchObject({ q: "events in new jersey 2025-26", pre: true });
     // A team's events are the team's answer, not a place's.
     expect(rewriteQuery("4215 events last season")).toBeNull();
   });
@@ -187,12 +241,13 @@ describe("a place's events with the season in words", () => {
 });
 
 describe("no finished Championship stored", () => {
-  it("falls back to the newest season with matches before the current one, never a season with none", async () => {
+  it("the completed season falls back to the newest season with matches before the current one, never a season with none", async () => {
     const c = openDb(":memory:");
     setDb(c);
     await migrate(c);
     await run("INSERT INTO team_season_stats (season, team, matches) VALUES (2024, 1, 10), (2026, 1, 6)");
     resetSearchSeason();
-    expect(await refreshSearchSeason(NOW)).toBe(2024);
+    expect(await refreshSearchSeason(NOW)).toBe(2026);
+    expect([completedSeason(), lastSeason(), defaultSeason()]).toEqual([2024, 2024, 2026]);
   });
 });

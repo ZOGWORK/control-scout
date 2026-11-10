@@ -20,7 +20,7 @@ import { SEARCH_BROWSE, SEARCH_FILLER, SEARCH_PAGE_LIMIT, SEARCH_TOPICS, firstCa
 import { conversationQuery, EVENT_WORDS, isQuestionForm, nameWords, onlyCommonWords, onlyTopicWords, singularize } from "../../src/shared/searchQuery.js";
 import { readEventQuery, regionOf } from "../../src/shared/searchEventQuery.js";
 import { eventSetAnswer, withEventParents, withWholeFamilies } from "./searchEvents.js";
-import { compareOneAnswer, versusAnswer } from "./searchCompare.js";
+import { compareOneAnswer, versusAnswer, versusLoneTeam } from "./searchCompare.js";
 import { ruleAnswer } from "./searchRules.js";
 import { askAnswer, readAsk } from "./searchAsks.js";
 import { readRuleQuery } from "../../src/shared/searchRuleQuery.js";
@@ -37,7 +37,7 @@ import { inRegion, namedTeamHit, teamsByName } from "./teamsByName.js";
 import { parseQuestion, questionAnswer } from "./searchQuestions.js";
 import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
 import { eventVersusSearch, leagueSearch, statAnswer } from "./answers/index.js";
-import { divisionFieldAnswer, readDivisionField, type EventRow } from "./answers/families/eventVersus.js";
+import { divisionFieldAnswer, readDivisionField, saysOtherThanOpr, type EventRow } from "./answers/families/eventVersus.js";
 import { seasonOfDate } from "./query/time.js";
 import { searchToday } from "./searchEvents.js";
 import { placeAwardsSearch, readPlaceAwards } from "./answers/families/placeAwards.js";
@@ -215,7 +215,7 @@ const recovery = (q: string, understood: string[], closest: SearchHit[] = []): S
  *  docs/search-layers.md): the readers below are Layer 1, and a query they miss is read again by its words. */
 export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promise<SearchAnswer> {
   // The season a query naming none means (./answers/season.ts), read before the readers that use it.
-  await refreshSearchSeason();
+  await refreshSearchSeason(opts.now);
   if (opts.inner || opts.intents === false || opts.rewrites) return readerAnswer(raw, opts);
   // Informal short forms said in full first ("events happening rn"), in the query as typed (its quotes and operators
   // kept), the answer keeping the query as typed.
@@ -477,7 +477,7 @@ const LEX_WORDS = new Set(LEXICON.flatMap((e) => e.words));
 /** A name several teams share in `q` (its whole name, nothing else beside it but the question's words), told apart by
  *  the shared rules: `q` asked again with that team's number, the card saying which name was read as which team; or,
  *  still tied, the teams it can be, each with its place, and the same question asked about each, one tap each. Null:
- *  no shared name, or one typed with its number beside it, "team" before it, or a versus (Compare asks its own). */
+ *  no shared name, or one typed with its number beside it, or a versus (Compare asks its own). */
 async function sharedName(q: string, opts: AnswerOptions): Promise<SearchAnswer | null> {
   const typed = opts.typed ?? q;
   if (VERSUS.test(` ${typed} `)) return null;
@@ -497,10 +497,12 @@ async function sharedName(q: string, opts: AnswerOptions): Promise<SearchAnswer 
       taken.fill(true, i, i + len);
       if (teams.length < 2) continue;
       const beside = [ws[i - 1], ws[i + len]].some((w) => !!w && teams.some((t) => String(t.number) === w));
-      if (beside || /^(?:team|ftc)$/.test(ws[i - 1] ?? "")) continue;
-      // A place's name, or ordinary words, are read as such (the parser's rules): no question about which team.
-      const pl = idx.place(said, said);
-      if ((pl && pl.kind !== "city") || onlyOrdinary(said)) continue;
+      if (beside) continue;
+      // A place's name, or ordinary words, are read as such (the parser's rules): no question about which team. "team"
+      // before them says a team is meant, never which one: the question is still asked.
+      const called = /^(?:team|ftc)$/.test(ws[i - 1] ?? "");
+      const pl = called ? null : idx.place(said, said);
+      if (!called && ((pl && pl.kind !== "city") || onlyOrdinary(said))) continue;
       spans.push({ i, len, teams });
     }
   }
@@ -572,7 +574,8 @@ async function divisionField(q: string, opts: AnswerOptions): Promise<SearchAnsw
   const asked = readDivisionField(opts.typed ?? q);
   if (!asked) return null;
   const p = await parseQuery(opts.typed ?? q, await parseContext(opts.now, opts.prefer));
-  if (p.teams.length || p.event) return null;
+  // Ranked by average OPR only: another stat said ("by average auto OPR", "most penalties") is no question this answers.
+  if (p.teams.length || p.event || saysOtherThanOpr(opts.typed ?? q, p.place?.typed)) return null;
   const region = p.place && p.place.kind !== "city" && !p.worlds ? p.place : null;
   const current = seasonOfDate(searchToday(opts.now));
   // The season said: written ("2024-25"), read ("last season", "2025"), else the latest with divisions.
@@ -737,12 +740,14 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
     const team = base.step !== "recovery" && base.hits[0]?.kind === "team" && !base.hits[0].href ? base.hits[0] : null;
     if (team) {
       const ans = await questionAnswer(q, question, team, base.hits.slice(1), pagesFor(q));
-      // The team found by a near spelling of its name ("hypnotik robotics upcoming events"): said as a correction.
+      // The team found by a near spelling of its name ("hypnotik robotics upcoming events"): said as a correction, only
+      // when the team's own search says so (its name close to what was typed, no other name as close). Words found in
+      // a school, city or venue ("river dell robotics") are the team as typed, never "corrected" to its name.
       const said = opts.typed ?? q, name = teamNameOf(team.title);
       const at = said.toLowerCase().indexOf(question.core.toLowerCase());
       // A plural ending alone ("hypnotics robotics") is no misspelling: the name is found as typed.
       const bare = (x: string) => normalize(x).split(" ").map((w) => w.replace(/s$/, "")).join(" ");
-      if (team.match !== "fuzzy" || at < 0 || !name || bare(name) === bare(question.core)) return ans;
+      if (base.step !== "did-you-mean" || at < 0 || !name || bare(name) === bare(question.core)) return ans;
       return { ...ans, step: "did-you-mean", didYouMean: `${said.slice(0, at)}${name}${said.slice(at + question.core.length)}` };
     }
   }
@@ -802,6 +807,18 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   // Only a season written as one ("2024-25") counts here: a bare 2000–2099 is as likely a team ("2024 vs 12345").
   const vsSeason = /(?:^|\s)20\d\d\s*[-–/]\s*\d\d(?=\s|$)/.test(q) ? seasonOf(q) : { season: null, rest: q };
   const vs = await versusAnswer(vsSeason.rest, prefer, vsSeason.season ?? opts.season ?? null);
+  // One side a number no FTC team has ("12345 vs 99 opr"): the other team's own answer, the number said missing on it,
+  // never a comparison with nothing on one side.
+  const lone = vs?.step === "recovery" ? await versusLoneTeam(q, prefer) : null;
+  if (lone) {
+    const a = await searchAnswer(lone.q, { ...opts, learn: false });
+    const note = `No FTC team ${lone.missing} in our data`;
+    // The search box's short answer (no card drawn) as much as the page's: any answer that isn't itself a recovery or a
+    // sorry, the note on its label, and on the card's scope when it has one.
+    if (a.understood && a.step !== "recovery" && !a.sorry) {
+      return { ...a, q, ...(a.stat ? { stat: { ...a.stat, scope: [...a.stat.scope, note] } } : {}), understood: { ...a.understood, label: `${a.understood.label} · ${note}` } };
+    }
+  }
   if (vs) return vs;
   // One team, Compare asked for ("compare 12345"): Compare with it in, and its closest rivals to compare it with.
   const one = await compareOneAnswer(vsSeason.rest, prefer, vsSeason.season ?? opts.season ?? null);
@@ -883,12 +900,18 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   }
   // Learned order, read under the same key a pick is counted under (learnQuery).
   if (opts.learn !== false) hits = await rerank(nameWords(rest), hits, { pinTop: exact });
-  const marked = markMatches(rest, uniq(hits));
+  const fuzzed = markMatches(rest, uniq(hits));
+  const named = searchIntent(rest)?.rest ?? rest;
+  // A result whose own name is a near miss of what was typed comes before results matched only by fuzzy words in a
+  // school, city or venue ("lake rbotics": Lake Robotics before a team from Lake Oswego Robotics).
+  const ownNear = fuzzed[0]?.match === "fuzzy" && fuzzyScore(named, nameOf(fuzzed[0])) < 0.6
+    ? fuzzed.reduce<{ i: number; s: number }>((b, h, i) => { const sc = h.match === "fuzzy" ? fuzzyScore(named, nameOf(h)) : 0; return sc > b.s ? { i, s: sc } : b; }, { i: -1, s: 0.6 - Number.EPSILON }).i
+    : -1;
+  const marked = ownNear > 0 ? [fuzzed[ownNear], ...fuzzed.filter((_, i) => i !== ownNear)] : fuzzed;
   // A correction ("did you mean") only for a genuine near miss to a name: the top hit's own name is close to what was
   // typed but not it ("hipnotic robotics"). Words found only in a school, city or venue ("River Dell") are results,
   // labelled as fuzzy matches, never a "correction" to some unrelated name.
   const top = marked[0];
-  const named = searchIntent(rest)?.rest ?? rest;
   const nearName = top.match === "fuzzy" && fuzzyScore(named, nameOf(top)) >= 0.6;
   // Two names as close as each other ("molt bots": Volt Bots and Bolt Bots): both are listed, neither is guessed.
   // Every other near name, not just the next: learned clicks may have put a less close one between them.

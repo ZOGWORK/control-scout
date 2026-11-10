@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.2.2 — 2026-11-10
+## 5.2.8 — 2026-11-10
 
 Search answers advancement odds: a team's chance to take an advancing slot at an event, from the same engine numbers as Predict.
 
@@ -32,6 +32,93 @@ Search answers advancement odds: a team's chance to take an advancing slot at an
 - A match's win chance is never shown as advancement odds: those queries used to show the average chance to win each match.
 - A chance under 1.5% prints as 1% in search, as Predict prints it, never a false 0%.
 - The advancement card shows its confidence tier and why, by the same rule as Predict's Advancement view.
+
+## 5.2.7 — 2026-11-10
+
+Every follow-up a search offers says which season its numbers are from.
+
+### Highlights
+- [fixes] Related searches say each number's season
+- [fixes] People also ask previews say their season too
+- [fixes] A single match's line says that match's season
+
+### Changed
+- A follow-up's line (People also ask, Related searches, the related searches page and the team's highlights link) ends with the season its numbers are from when the line doesn't already say one: "98 ± 3.2 · #525 worldwide … · 2025–26", "11 awards · 7 performance · 4 judged · all seasons"; a single match (a team's biggest win, last match or highest score) says that match's own season. A record from the latest completed season and a trend from the current one no longer sit side by side unlabelled. (#1330)
+
+## 5.2.6 — 2026-11-10
+
+Search answers more of the questions people asked and got no answer to: most wins in a place, a stat for a season, a team's chances written "4215s".
+
+### Highlights
+- [fixes] "most wins in nj 2025-26" lists the teams with the most wins
+- [fixes] "2027 opr" shows everyone's OPR board for that season
+- [fixes] "4215s chances at …" reads the team, typed without an apostrophe
+- [fixes] A versus with a number no team has answers for the other one
+
+### Fixed
+- Search: a count of wins asked about everyone ("most wins in nj 2025-26", "teams with the most wins in nj 2025-26", "fewest wins …") is the place's board by wins. "Biggest win" with no team is still a match, never this count.
+- Search: a team stat alone with a season or a place ("2027 opr") is everyone's board by that stat for that season, and says when nobody has played yet.
+- Search: a team number with its possessive typed without the apostrophe ("4215s chances at the east bergen conference") is that team, and "chance of winning <event>" is the team's forecast there.
+- Search: "performance" reads as how a team did ("4215 performance in nj states in powerplay"), never as the team named Performance.
+- Search: a comparison where one side is a number no FTC team has ("4215 vs 2056 opr") answers the other team's question and says that number is no FTC team. (#1331)
+
+## 5.2.5 — 2026-11-10
+
+Search pages carry People also ask and Related searches in the page itself, at every screen width.
+
+### Highlights
+- [fixes] People also ask sits under every search answer
+- [fixes] Related searches close every search page, six to eight of them
+- [speed] Both arrive with the page, no second wait
+
+### Changed
+- The search page's server-drawn first paint carries People also ask (up to six questions, each opening to its answer's line and a link that runs that exact question) under the answer, and Related searches at the end, with a link to the related searches page. The app starts from the same ones, so nothing is asked twice. Both are the follow-ups already checked to answer directly; a set that takes over 1.2 s is left to the app, as before.
+- Wide screens show them in the answer's column too, where a phone already had them, rather than in a column beside it.
+- More short searches to offer: an event's top teams and every award it gives; with nothing named, the season's other boards (Auto, TeleOp, Endgame OPR, best record) and more event weeks (next week, this weekend, past events, upcoming championships). Each is still shown only when it answers directly. (#1328)
+
+## 5.2.4 — 2026-11-10
+
+Search asks which team when a name is still shared, and its new answers count only what was asked.
+
+### Highlights
+- [fixes] "team" before a shared name still asks which team you mean
+- [fixes] Two shared names in a comparison never claim the same state wrongly
+- [fixes] Win streaks by place follow each event's own match order
+- [fixes] Hardest division and event field answers are by OPR only
+
+### Fixed
+- Search: a name several teams share, typed with "team" before it ("team echo kites record"), asks which team instead of answering for the first one found.
+- Search: in a comparison of two shared names, a name moved to sit beside the other team's state, when that team moved away, now asks which instead of saying both are in the same state.
+- Search: the win streak board orders each team's matches by event and by the event's own match order, so a match with no time on record no longer jumps ahead.
+- Search: "hardest division … by average auto OPR" and "average auto OPR at an event" are no longer answered with plain OPR. (#1325)
+
+## 5.2.3 — 2026-11-10
+
+Search reads one season rule in every answer, and says which season (and which state championship) it read.
+
+### Highlights
+- [fixes] A team's question with no season reads its latest season
+- [fixes] "Last season" and "last year" are 2025–26, the latest completed
+- [fixes] Leaderboards and place questions read the current season
+- [fixes] "At states" is one named state championship in every answer
+
+### Changed
+- One season resolver (`server/api/answers/season.ts`) for every intent: a team's question with no season (or "this season", "right now") reads the latest season that team has played; a question about no team reads the current season, stepping back a season with a note when nothing is played there yet; "last season" / "last year" is the latest completed season; a season named is honoured exactly. Every card states the season and why.
+- "At states" reads the team's state championship (the season named, else the latest it played) for a record, match list, score or streak as it already did for results, rank and OPR, so rewordings get one scope; the card names the event and its season. "All state championships", "ever" or "all time" reads every season, labelled "All seasons".
+- A misspelled team name that a team's own name nearly spells reaches that team before teams whose school or city has the same words ("lake rbotics record").
+- Plain leaderboards ("NJ top teams leaderboard") step back a season, said on the card, as the asked boards did. (#1286)
+
+## 5.2.2 — 2026-11-10
+
+Search keeps a city's upcoming events with the place and offers a correction only for a name typed nearly right.
+
+### Highlights
+- [fixes] "Upcoming events in" a city lists the city's events
+- [fixes] A team found by its school is no longer "corrected"
+- [fixes] "4215 and 6980 head to head score" shows their meetings
+
+### Changed
+- "Upcoming events in Oradell" and other city or venue requests stay with the event reader, as regions and countries already did, rather than one team's schedule. A team found through its school or city words ("river dell robotics upcoming events") is the team as typed, with no "did you mean". Two teams joined by "and" read as head to head with a score asked. (#1324)
 
 ## 5.2.1 — 2026-11-10
 

@@ -179,7 +179,7 @@ export const INTENTS: IntentRule[] = [
   ]),
   R("team-opr", 1, ["metric:opr"], ["agg:last"], { noEvent: true }),
   R("team-rating", 1, ["metric:rating"], ["agg:last"], { noEvent: true }),
-  R("team-predict", 1, ["predict"], ["metric:win", "metric:record", "metric:score", "metric:rank", "thing:event", "thing:match", "agg:next", "metric:playoffs", "review", "agg:last", "advance"]),
+  R("team-predict", 1, ["predict"], ["metric:win", "metric:record", "metric:score", "metric:rank", "thing:event", "thing:match", "agg:next", "metric:playoffs", "review", "agg:last", "advance", "outcome:W"]),
   // Who to pick at an event, by Scout's pick helper: the axes said ("by complementing their auto") are what it weighs.
   // "Would" or a supposition around it ("who would 12345 pick", "if 12345 is a captain, who should it pick") asks the same.
   R("pick-partners", 1, ["pick"], ["metric:partner", "agg:max", "agg:first", "predict", "metric:win", "metric:opr", "metric:rating", "metric:auto", "metric:teleop", "metric:endgame", "and", "thing:team", "gap", "list", "per:match", "future", "hypo"], { noMatchNo: true }),
@@ -208,7 +208,8 @@ export const INTENTS: IntentRule[] = [
   R("shared-matches", 2, ["together"], ["vs", "and", "thing:match", "list"]),
   R("shared-matches", 2, ["and", "thing:match"], ["list"]),
   // "Head to head score": their meetings, each with its score.
-  R("head-to-head", 2, ["vs", "thing:match"], ["list", "metric:record", "metric:score"]),
+  // The teams joined by "and" ("A and B head to head score") read the same as "vs".
+  R("head-to-head", 2, ["vs", "thing:match"], ["list", "metric:record", "metric:score", "and"]),
   R("h2h-wins", 2, ["vs", "metric:win"], ["agg:count", "thing:match"]),
   // "12345 and 67890 awards" is each team's own list (search's AND list); a versus or a comparison is the side by side.
   R("opr-vs", 2, ["metric:opr", "vs"], ["compare"]),
@@ -261,9 +262,14 @@ export const INTENTS: IntentRule[] = [
   ...["agg:max", "agg:min"].flatMap((agg) => [
     R("leaderboard", 0, [agg, "metric:record"], BOARD_OPT, { noEvent: true }),
     R("leaderboard", 0, [agg, "thing:team"], BOARD_OPT),
+    // A count of wins asked about everyone: "most wins in nj", "teams with the most wins" ("with" is read as "and"); a
+    // win's size with no "team" is a match (./execute.ts).
+    R("leaderboard", 0, [agg, "metric:win"], [...BOARD_OPT, "and"], { noEvent: true }),
     // A team stat asked about everyone, with no "team": "who has the highest auto OPR in NJ".
     ...BOARD_METRICS.map((m) => R("leaderboard", 0, [agg, m], BOARD_OPT)),
   ]),
+  // A team stat alone with a season or a place and no team ("2027 opr", "opr nj"): everyone's board by it (./execute.ts).
+  ...BOARD_METRICS.map((m) => R("leaderboard", 0, [m], ["thing:season", "prep:in", "prep:for"], { noEvent: true })),
   // Standout matches: a scope's ("worlds highlights", "new jersey highlights 2024-25"), or one team's ("<team> best
   // matches at worlds"), or the latest week of play's ("recent highlights"); its match videos ("jackson division recap",
   // "watch <team>") are its highlights too.

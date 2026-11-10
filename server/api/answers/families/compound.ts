@@ -18,7 +18,7 @@ import { CHAMPIONSHIP_TYPE, inScope, officialClause, scopeChips, scopePhrase, ty
 import type { CompoundQuestion, Threshold } from "../compound.js";
 import type { TeamEvent, TeamSeason } from "../eventSet.js";
 import { eventHref, matchRow, teamHref, teamLinks, type TeamMatch } from "../matchSet.js";
-import { searchSeason, searchSeasonWhy } from "../season.js";
+import { currentSeason, defaultSeason, seasonWhy, searchSeasonWhy } from "../season.js";
 import { BOARD_STATS, statWords, type BoardStat } from "./leaderboard.js";
 import { compareBlock, leadHeadline } from "../compareBlock.js";
 import { reliabilityRows } from "./twoTeam.js";
@@ -66,7 +66,7 @@ function listWords(c: ListQuestion, season: number) {
 /** The stat a list is sorted by: the one said, else a threshold's (a stat before a count), else what's shown, else OPR. */
 const sortOf = (c: ListQuestion) => c.stat ?? c.thresholds.find((t) => !COUNTS[t.stat])?.stat ?? c.thresholds[0]?.stat ?? c.outputs[0] ?? "opr";
 /** "Top 5 teams in New Jersey that won the Inspire Award, by Auto OPR · 2025–26": every filter, in words. */
-export function listTitle(c: ListQuestion, city: string | null, season = c.season ?? searchSeason()): string {
+export function listTitle(c: ListQuestion, city: string | null, season = c.season ?? defaultSeason()): string {
   const st = listStat(sortOf(c));
   const w = listWords(c, season);
   const teams = c.rookie ? "rookie teams" : "teams";
@@ -75,7 +75,7 @@ export function listTitle(c: ListQuestion, city: string | null, season = c.seaso
 type ListQuestion = Extract<CompoundQuestion, { kind: "list" }>;
 
 export async function listAnswer(c: ListQuestion): Promise<StatAnswer | null> {
-  const season = c.season ?? searchSeason();
+  const season = c.season ?? defaultSeason();
   const S = seasonLabel(season);
   const sortBy = sortOf(c);
   const st = listStat(sortBy), tsts = c.thresholds.map((t) => ({ t, x: listStat(t.stat) }));
@@ -495,9 +495,11 @@ export async function sideThresholdAnswer(team: AnswerTeam, msAll: TeamMatch[], 
 export async function reliabilitySetAnswer(teams: AnswerTeam[], season: number | null): Promise<StatAnswer> {
   const rows = await all<{ season: number; team: number }>(`SELECT season, team FROM team_reliability WHERE code = '' AND team IN (${teams.map(() => "?").join(",")})${season != null ? " AND season = ?" : ""} ORDER BY season DESC`, [...teams.map((t) => t.number), ...(season != null ? [season] : [])]);
   const has = (s: number) => teams.every((t) => rows.some((r) => Number(r.season) === s && Number(r.team) === t.number));
-  const def = searchSeason();
+  // The one season rule (../season.ts): the current season when every team has a reliability in it, else the latest
+  // season they all have one for, said on the card.
+  const def = currentSeason();
   const s = season ?? (has(def) ? def : rows.map((r) => Number(r.season)).find(has) ?? null);
-  const why = season != null ? "" : s === def ? ` ${searchSeasonWhy(def)}` : s != null ? ` The season is ${seasonLabel(s)}, the latest season every team has a reliability for.` : "";
+  const why = season != null ? "" : s != null ? ` ${seasonWhy("teams", s)}` : "";
   const out = { family: "two-team" as const, intent: "reliability-set", title: `Reliability: ${teams.map((t) => t.number).join(" vs ")}${s != null ? ` in ${seasonLabel(s)}` : ""}`, team: teams[0], teams, scope: s != null ? [seasonLabel(s)] : ["No common season"],
     definition: `Reliability (0–100, higher = more dependable), as each team page shows it: from public match data only (no-shows, disqualifications, near-zero matches, how much its contribution swings, penalties given away and how far its scores land from the engine's calls). The most reliable team is the highest index.${why}`,
     source: s != null ? `From the teams' ${seasonLabel(s)} qualification matches` : "No season every team has a reliability for" };
