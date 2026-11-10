@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.9.2 — 2026-11-09
+
+DECODE's highest score, Q49 at Carolinas Premier Event, is marked as not an official record.
+
+### Highlights
+- [fixes] DECODE's 714-point Q49 is marked: not an official record
+- [fixes] The mark shows on best-match lists, tables and season records
+- [fixes] It says why: the event did not play by the game's usual rules
+
+### Changed
+- Q49 at Carolinas Premier Event (DECODE 2025–26) carries "Not an official record" wherever a record or best-score answer lists it, a team's best score included: the match box chip, the headline, the combined and each-season tables, and the season records card. It stays listed by its score as played. (#1259)
+
 ## 4.9.1 — 2026-11-09
 
 The Share button on an opened match is bigger and gold, so it is easy to find.
@@ -26,6 +38,7 @@ The Share button on an opened match is bigger and gold, so it is easy to find.
 
 ### Changed
 - The match details Share icon uses the gold accent (`text-accent-text`, set per theme) instead of muted grey, in a 40 px icon button with a 20 px icon (35 px and 17.5 px on a phone, 44 px tap area). (#1257)
+
 ## 4.9.0 — 2026-11-09
 
 Asking for a world record without penalties now gives the top match, with no penalty figures in it.
