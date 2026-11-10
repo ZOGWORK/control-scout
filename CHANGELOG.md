@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.9.6 — 2026-11-10
+
+A what-if under every predicted match: swap one robot and see how the call and the margin move.
+
+### Highlights
+- [predict] What if? Swap a partner or opponent and see the call move
+- [predict] Before and after side by side: win chance and margin, with the change
+- [predict] A search answer's two-team call opens in Predict, already filled in
+
+### Changed
+- Predict › Match shows a What if? panel under the result: pick a robot in the match, type another, and both calls sit side by side with the change in win chance and margin. The swap is in the address, so a what-if can be shared, and Undo or Back takes it out. Both calls come from the same prediction the lab shows.
+- The match lab takes one robot a side as well as two, so "Open in Predict" on a two-team search answer opens with both teams in and the call made.
+
 ## 4.9.4 — 2026-11-10
 
 Compare opens on its teams: a search answer's Compare link lands on both teams with their numbers, from the first paint.
