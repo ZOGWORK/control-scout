@@ -35,9 +35,11 @@ export async function sorryFor(q: string, a: SearchAnswer, opts: { now?: number;
   // The searches that answer about what was read: the team's own (as the team fallback offers them), else a place's,
   // an event's or a name's.
   const where = p.place?.name;
-  const suggest = a.suggest?.length && !shared.length ? a.suggest
+  // A season the question named: the team's searches are made again for it (the fallback's are the default season's).
+  const season = p.time?.kind === "season" ? p.time.season ?? null : null;
+  const suggest = a.suggest?.length && !shared.length && season == null ? a.suggest
     // A team with no played season yet has no stat searches: its own page is the one that answers.
-    : !Number.isNaN(team) ? await teamSuggestions(team, q, p.time?.kind === "season" ? p.time.season ?? null : null).then((x) => x.length ? x : [String(team)])
+    : !Number.isNaN(team) ? await teamSuggestions(team, q, season).then((x) => x.length ? x : [String(team)])
     : shared.length ? shared.map((t) => `teams named ${t.typed}`)
     : where ? [`teams in ${where}`, `events in ${where}`, `top 10 teams in ${where}`]
     : p.event ? [`${p.event.typed} results`, `who won ${p.event.typed}`]
