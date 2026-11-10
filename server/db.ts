@@ -2000,7 +2000,8 @@ CREATE TABLE bug_report_files (
     name: "leagues and FIRST's league standings",
     sql: `
 -- A season's leagues as FIRST lists them (server/data/leagues.ts): a league is its region and code together (two
--- regions can both have an "NE"). ranked_at: when its standings were last read (null: never).
+-- regions can both have an "NE"). ranked_at: when its standings were last read (null: never); tried_at: the last
+-- attempt, read or not (a league FIRST has nothing for waits its turn instead of holding the sync's slots).
 CREATE TABLE leagues (
   season INTEGER NOT NULL,
   region TEXT NOT NULL,
@@ -2008,6 +2009,7 @@ CREATE TABLE leagues (
   name TEXT,
   location TEXT,
   ranked_at TEXT,
+  tried_at TEXT,
   PRIMARY KEY (season, region, code)
 );
 -- FIRST's league rankings (/leagues/rankings): the league's official running standing over every meet so far. rs: the

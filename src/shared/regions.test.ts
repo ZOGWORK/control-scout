@@ -19,3 +19,13 @@ describe("regionNames", () => {
     expect(regionLabel("USA:NJ")).toBe("New Jersey");
   });
 });
+
+describe("placeName", () => {
+  it("a state's own name, else the country as FIRST names it, never search words", async () => {
+    const { placeName } = await import("./regions");
+    expect(placeName("NJ", "USA")).toBe("New Jersey");
+    expect(placeName(null, "USA")).toBe("USA");
+    expect(placeName("XX", "Mexico")).toBe("Mexico");
+    expect(placeName(null, null)).toBeNull();
+  });
+});

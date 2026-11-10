@@ -36,6 +36,30 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe("Custom matchup", () => {
+  it("a team typed twice keeps Predict enabled and names the repeat on its box", async () => {
+    render(<TooltipProvider><MemoryRouter initialEntries={["/predict?mode=match&season=2025"]}><PredictPage /><Where /></MemoryRouter></TooltipProvider>);
+    const box = (name: string) => screen.getByRole("textbox", { name }) as HTMLInputElement;
+    fireEvent.change(box("Red team 1"), { target: { value: "4215" } });
+    fireEvent.change(box("Red team 2"), { target: { value: "4215" } });
+    fireEvent.change(box("Blue team 1"), { target: { value: "7149" } });
+    const go = screen.getByRole("button", { name: /Predict this match/ }) as HTMLButtonElement;
+    expect(go.disabled).toBe(false);
+    fireEvent.click(go);
+    expect(await screen.findByText("4215 is already red team 1. Pick different teams.")).toBeTruthy();
+    expect(new URLSearchParams(where).get("red")).toBeNull();
+  });
+  it("one team a side is enough to predict", async () => {
+    render(<TooltipProvider><MemoryRouter initialEntries={["/predict?mode=match&season=2025"]}><PredictPage /><Where /></MemoryRouter></TooltipProvider>);
+    const go = screen.getByRole("button", { name: /Predict this match/ }) as HTMLButtonElement;
+    expect(go.disabled).toBe(true);
+    fireEvent.change(screen.getByRole("textbox", { name: "Red team 1" }), { target: { value: "4215" } });
+    expect(go.disabled).toBe(true);
+    fireEvent.change(screen.getByRole("textbox", { name: "Blue team 1" }), { target: { value: "7149" } });
+    expect(go.disabled).toBe(false);
+    fireEvent.click(go);
+    await waitFor(() => expect(new URLSearchParams(where).get("red")).toBe("4215"));
+    expect(new URLSearchParams(where).get("blue")).toBe("7149");
+  });
   it("Swap sides predicts the swapped alliances straight away and the link follows", async () => {
     render(<TooltipProvider><MemoryRouter initialEntries={["/predict?mode=match&season=2025&red=1,2&blue=3,4"]}><PredictPage /><Where /></MemoryRouter></TooltipProvider>);
     expect(await screen.findByText("Red 1 + 2")).toBeTruthy();
