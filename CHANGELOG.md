@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.4.3 — 2026-11-10
+
+The first-run tour now does the real thing at every step: a real search, a real Track tap, then Predict.
+
+### Highlights
+- [home] The tour's first step asks search a real question and shows the answer
+- [teams] Tap Track on the team itself; the tour moves on once it's tracked
+- [predict] The tour ends by opening Predict with the team or event picked
+
+### Changed
+- Step 1's button runs `who won decode` on the real search page (or the visitor's own question); the card then docks at the bottom so the answer stays readable and asks for a tap on a follow-up question. Step 3 (team pages) is the page's own Track button: tracking moves the tour on, already tracking is noticed, and the team stays tracked. Step 4 runs the highlights search (the team's own, else a season's) and ends on "Predict a match with …" / "Predict a match"; an event page ends on "Predict this event", saying plainly when the event has no recording. While a step points, only the spotlit part and search take taps; typing in search moves the card aside. Tour buttons are 44 px tall on phones. (#PRNUM)
+
 ## 5.4.2 — 2026-11-10
 
 A shorter first-run tour that fits the page you land on and keeps your place.
