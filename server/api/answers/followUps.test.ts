@@ -123,6 +123,14 @@ describe("people also ask", () => {
     expect(lineOf(stat("over 7 seasons", ["All seasons"]))?.rest).toBe("over 7 seasons");
     // A chip that isn't a season ("New Jersey") is never said as one.
     expect(lineOf(stat("in New Jersey", ["New Jersey"]))?.rest).toBe("in New Jersey");
+    // An all-season answer narrowed to one match says that match's season, never "all seasons".
+    const narrowed = stat("75–19 in Q6 at League Meet", ["All seasons"]);
+    (narrowed.stat!.headline as { sub?: string }).sub = "2026–27 · Nov 7, 2026";
+    expect(lineOf(narrowed)?.rest).toBe("75–19 in Q6 at League Meet · 2026–27");
+    // A season only inside a longer line under it ("Last together …, 2025–26") isn't the headline's own.
+    const partner = stat("3-0-0 together in 3 matches", ["All seasons"]);
+    (partner.stat!.headline as { sub?: string }).sub = "Last together Q23 at League Meet, 2025–26";
+    expect(lineOf(partner)?.rest).toBe("3-0-0 together in 3 matches · all seasons");
     // A card says its own season.
     const card = { q: "", hits: [], pages: [], card: { kind: "team", title: "", season: 2025, lines: [{ text: "#3 of 40", detail: "at Garden State Qualifier" }] } } as unknown as SearchAnswer;
     expect(lineOf(card)?.rest).toBe("at Garden State Qualifier · 2025–26");

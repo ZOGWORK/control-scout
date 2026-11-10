@@ -177,6 +177,8 @@ type Line = Pick<SearchFollowUp, "value" | "rest" | "tone">;
 
 /** A season said in words: a season's two years ("<year>–<yy>"), "all seasons", "over N seasons", "this season". */
 const SAYS_SEASON = /\d{4}[–-]\d{2}|\bseasons?\b/i;
+/** One season's two years, alone. */
+const ONE_SEASON = /^\d{4}[–-]\d{2}$/;
 /** The season a line's numbers are from, said after it when the line itself doesn't say one (a rating's line ends
  *  "· <season>"): one follow-up's numbers are often another season's than the next one's (a record from the
  *  latest completed season, a trend from the current one), so each says which. `said`: the answer's own words for it
@@ -197,7 +199,10 @@ export function lineOf(a: SearchAnswer): Line | null {
     if (st.none || !st.headline?.value) return null;
     // The teams its card draws: two or more as the card lists them, else the one it's about.
     const teams = (st.teams && st.teams.length > 1 ? st.teams : st.team ? [st.team] : []).map((t) => t.number);
-    const chip = st.scope.find((x) => SAYS_SEASON.test(x));
+    // The headline's own season when the line under it says one on its own (a single match's: "<season> · <date>"),
+    // which an all-season answer narrows to; else the answer's season chip.
+    const own = st.headline.sub?.split(" · ").map((x) => x.trim()).find((x) => ONE_SEASON.test(x));
+    const chip = own ?? st.scope.find((x) => SAYS_SEASON.test(x));
     return withSeason({ value: st.headline.value, rest: st.headline.label, tone: { stat: { intent: st.intent, family: st.family, ...(st.split != null ? { split: st.split } : {}), teams } } }, chip);
   }
   const c = a.card;
