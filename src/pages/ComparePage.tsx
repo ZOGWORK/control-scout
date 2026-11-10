@@ -287,7 +287,7 @@ export function leaders(m: Pick<Metric, "better" | "value">, t: CompareTeam[]): 
 const CELL = { duration: 0.28, ease: [0.2, 0.8, 0.2, 1] as const };
 
 const ORDINAL = ["first", "second", "third", "fourth"];
-/** The first team's column, the one the others are measured against: a light yellow. */
+/** The first team's column, the one the others are measured against: a neutral tint. */
 // A neutral tint, not the accent: gold marks the interface, never a team or a value.
 const BASELINE = "bg-foreground/[0.04]";
 
@@ -381,7 +381,7 @@ function StatsTable({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: num
                   <Link to={`/teams/${x.team.number}?season=${d.season}`} className="min-w-0 hover:underline pointer-coarse:order-first pointer-coarse:min-h-[44px] pointer-coarse:basis-full">
                     <span className="block font-display text-xl font-semibold tabular-nums">{x.team.number}</span>
                     <span className="block truncate text-xs text-muted-foreground">{x.team.name ?? "—"}</span>
-                    {i === 0 && t.length > 1 && <span className="mt-1 inline-block rounded-full bg-yellow-300/25 px-1.5 text-[10px] font-semibold text-yellow-800 dark:bg-yellow-200/15 dark:text-yellow-200">Baseline</span>}
+                    {i === 0 && t.length > 1 && <span className="mt-1 inline-block rounded-full border border-border bg-muted px-1.5 text-[10px] font-semibold text-foreground/80">Baseline</span>}
                   </Link>
                   <Button variant="ghost" size="icon-sm" className="-mr-1.5 -mt-1 shrink-0 max-sm:size-10 pointer-coarse:ml-auto pointer-coarse:mt-0 pointer-coarse:size-[44px]" aria-label={`Remove ${x.team.number}`} onClick={() => onRemove(x.team.number)}><X /></Button>
                 </div>
