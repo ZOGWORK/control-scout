@@ -28,7 +28,7 @@ export interface TourRecord {
   at: string;
   /** The step (0-based, into `steps`) it's on, or ended on. */
   step: number;
-  /** The page it started on: steps that point at that page's own parts are shown there. */
+  /** The page it started on, with its query: steps that point at that page's own parts are shown there. */
   origin: string;
   /** Its steps, chosen when it started (empty: not started yet, e.g. a replay waiting for a page). */
   steps: TourStepId[];
@@ -130,7 +130,9 @@ export function isTourPage(pathname: string): boolean {
 /** Pages a running tour carries on over: its start pages and search's results. Elsewhere it waits, paused. */
 export const coversTour = (pathname: string) => isTourPage(pathname) || trim(pathname) === "/search";
 
-export const samePage = (a: string, b: string) => trim(a).toLowerCase() === trim(b).toLowerCase();
+/** The same page, whatever its query (a start page is kept with its query: `/teams/4215?season=2024`). */
+const pathOf = (p: string) => trim(p.replace(/[?#].*$/, ""));
+export const samePage = (a: string, b: string) => pathOf(a).toLowerCase() === pathOf(b).toLowerCase();
 
 export type TourKind = "team" | "event" | "other";
 /** Which tour a page gets: a team page's (four steps), an event page's, or everyone else's. */

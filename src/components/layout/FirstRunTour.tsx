@@ -127,7 +127,8 @@ export function FirstRunTour() {
       if (!claimFirstRun(SLOT)) return; // another first-run surface got there first: try again when it's gone
       shownFor.current = `${path}#0`;
       seen.current = true;
-      setRec(saveTour({ status: "paused", step: 0, origin: path, steps: ids }));
+      // Kept with its query (a season, a tab), so going back for a step lands on the same view.
+      setRec(saveTour({ status: "paused", step: 0, origin: path + loc.search, steps: ids }));
       setView("card");
     });
   }, [startable, free, path]);

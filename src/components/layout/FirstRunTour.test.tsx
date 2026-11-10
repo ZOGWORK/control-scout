@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter, useNavigate } from "react-router-dom";
+import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
 import { EMPTY_STATE, type PersonalState } from "../../shared/personal";
 import { resetConsent, setAnalyticsConsent } from "../../lib/consent";
 import { claimFirstRun, firstRunHolder, releaseFirstRun, resetFirstRunForTests } from "../../lib/firstRun";
@@ -40,7 +40,9 @@ function TeamPage({ team = true, search = true, matches = false }: { team?: bool
 }
 
 let go: (to: string) => void = () => {};
-function Nav() { go = useNavigate(); return null; }
+/** Where the app is now (path + query). */
+let where = "";
+function Nav() { go = useNavigate(); const l = useLocation(); where = l.pathname + l.search; return null; }
 
 function mount(opts: { path?: string; team?: boolean; search?: boolean; matches?: boolean; banner?: boolean } = {}) {
   return render(
@@ -339,6 +341,18 @@ describe("leaving the page doesn't end it", () => {
     // Leaving the console: the paused note is back.
     act(() => go("/settings"));
     await waitFor(() => expect(pill()).not.toBeNull());
+  });
+
+  it("going back for a step keeps the start page's query (a season, a tab)", async () => {
+    mount({ path: "/teams/18360?season=2024" });
+    await opened();
+    expect(readTour()).toMatchObject({ origin: "/teams/18360?season=2024" });
+    key("ArrowRight");
+    act(() => go("/settings"));
+    await waitFor(() => expect(pill()).not.toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Pick up where you left off" }));
+    await waitFor(() => expect(stepId()).toBe("rating"));
+    expect(where).toBe("/teams/18360?season=2024");
   });
 
   it("the paused note's close is an explicit skip", async () => {
