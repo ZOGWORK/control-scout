@@ -246,9 +246,22 @@ describe("yes or no, with the evidence (3c)", () => {
   it("a win as a surrogate is never a win on the record", async () => {
     expect(await yn("did 30004 ever beat 30005")).toMatchObject({ answer: "No" });
   });
+  // Launch audit (Nov 9): one rule for every yes-or-no frame, never per intent. A count card under a yes-or-no question
+  // gets its yes (a count over zero) or its no (zero, or none found), the card kept as the evidence.
+  it("any yes-or-no frame over a count card: yes or no first, the card kept", async () => {
+    for (const q of ["has 7149 ever won inspire", "7149 ever won inspire?", "did 7149 win any awards"]) {
+      const a = await ask(q);
+      expect(a.verdict?.answer, q).toBe("Yes");
+      expect(a.stat ?? a.card, q).toBeTruthy();
+    }
+    const none = await ask("has 6980 ever won an award");
+    expect(none.verdict?.answer).toBe("No");
+  });
   it("only a yes-or-no question: a count or a list stays what it was", async () => {
     expect((await ask("how many times has 7149 been to worlds")).stat?.intent ?? "").not.toMatch(/^yes-no/);
     expect((await ask("7149 awards")).stat?.intent ?? "").not.toMatch(/^yes-no/);
+    // A question word first, or no yes-or-no frame: no verdict.
+    for (const q of ["how many awards has 7149 won", "7149 awards", "what awards has 7149 won"]) expect((await ask(q)).verdict, q).toBeUndefined();
   });
 });
 
@@ -342,6 +355,14 @@ describe("sorry, with what was read (§4)", () => {
     const a = await ask("has 6980 ever been to worlds");
     expect(a.verdict?.answer).toBe("No");
     expect(a.sorry).toBeUndefined();
+  });
+  it("what was read is the team the answer kept, never a word of the question read as another team", async () => {
+    // "lost" is part of team 30002's name ("Lost In Space"): still only 4215 was read.
+    const a = await ask("how many screws were lost on 4215's robot");
+    expect(a.sorry?.understood).toEqual(["Team 4215 Hypnotic Robotics"]);
+  });
+  it("a team's possessive typed without its apostrophe is still the team", async () => {
+    expect((await ask("what colour is 4215s robot")).sorry?.understood.join(" ") ?? "").toContain("4215");
   });
   it("a quoted name gets the sorry too", async () => {
     expect((await ask('"Hypnotic Robotics" favorite color')).sorry?.understood.join(" ") ?? "").toContain("4215");
