@@ -78,6 +78,15 @@ describe("the HTML route", () => {
     expect(b.status).toBe(304);
   });
 
+  it("lets a shared cache keep a found page as long as the server does, and a browser always revalidate", async () => {
+    const ok = await fetch(`${base}/`);
+    expect(ok.headers.get("cache-control")).toBe("public, max-age=0, must-revalidate, s-maxage=30");
+    // Not found: never kept by a shared cache.
+    const missing = await fetch(`${base}/teams/4215`);
+    expect(missing.status).toBe(404);
+    expect(missing.headers.get("cache-control")).toBe("no-cache");
+  });
+
   it("sends plain HTML to a client that takes no gzip", async () => {
     const r = await raw("/", "identity");
     expect(r.encoding).toBeUndefined();

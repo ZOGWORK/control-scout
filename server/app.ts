@@ -58,7 +58,7 @@ import { currentWeather } from "./weather.js";
 import { MISSING_FILE, canonicalRedirects, renderPage } from "./seo.js";
 import { CSP_REPORT_PATH, cspHeaderName, cspReportRouter, securityHeaders, setPageCsp } from "./securityHeaders.js";
 import { CACHED_PAGE, drawPage, pageKey } from "./pageCache.js";
-import { keptPage } from "./api/searchReads.js";
+import { keptPage, PAGE_TTL_MS } from "./api/searchReads.js";
 import { sitemapChunkRoute, sitemapRoute } from "./sitemap.js";
 import { indexNowKeyRoute } from "./indexNow.js";
 import { latestRankings, rankingsWeek } from "./powerRankings/store.js";
@@ -1024,6 +1024,9 @@ export function createApp(opts: { dist?: string } = {}) {
         const page = await keptPage(pageKey(req.path, query), () => drawPage(file, req.path, query));
         res.setHeader(cspHeaderName(), page.csp);
         res.setHeader("Vary", "Accept-Encoding");
+        // The same for everyone (no personal data in these pages): a browser revalidates every time (the ETag makes it
+        // a cheap 304), and a shared cache such as Cloudflare's may keep a found page for as long as this server does.
+        if (page.status === 200) res.setHeader("Cache-Control", `public, max-age=0, must-revalidate, s-maxage=${PAGE_TTL_MS / 1000}`);
         const gz = req.acceptsEncodings("gzip") ? await page.gz.catch(() => null) : null;
         if (gz) res.setHeader("Content-Encoding", "gzip");
         res.status(page.status).type("html").send(gz ?? page.html);
