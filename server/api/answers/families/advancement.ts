@@ -70,8 +70,11 @@ async function oddsAt(ev: Ev, team: number, before: boolean, simulate: boolean) 
   const fc = await eventForecast(Number(ev.season), ev.code, team, before ? "pre-event" : "current").catch(() => null);
   const t = fc?.teams.find((x) => x.team === team);
   if (!fc || !t) return null;
-  const already = fc.prequalified.includes(team);
-  return { pAdvance: already ? null : t.pAdvance, status: already ? "qualified" : "odds", pWin: t.pWin, rank: { p10: t.rank.p10, p50: t.rank.mean, p90: t.rank.p90 }, runs: fc.runs, slots: fc.slots, estimated: fc.slotsSource !== "official", notes: fc.assumptions.filter((a) => /slots|divisions/i.test(a)), confidence: forecastTier(fc, team) };
+  // The forecast knows who is prequalified; FIRST's advancement list (when posted) also says who can't take a slot here.
+  const listed = await get<{ rows: string }>(`SELECT rows FROM advancement WHERE season = ? AND code IN (?, ?) ORDER BY code = ? DESC LIMIT 1`, [ev.season, ev.code, ev.division_code ?? ev.code, ev.code]);
+  const on = listed ? (JSON.parse(listed.rows) as { team: number; status: string }[]).find((x) => x.team === team) : undefined;
+  const status = on?.status === "INELIGIBLE" ? "ineligible" : fc.prequalified.includes(team) || on?.status === "ALREADY_ADVANCING" || on?.status === "ADVANCING_ABOVE" ? "qualified" : "odds";
+  return { pAdvance: status === "odds" ? t.pAdvance : null, status, pWin: t.pWin, rank: { p10: t.rank.p10, p50: t.rank.mean, p90: t.rank.p90 }, runs: fc.runs, slots: fc.slots, estimated: fc.slotsSource !== "official", notes: fc.assumptions.filter((a) => /slots|divisions/i.test(a)), confidence: forecastTier(fc, team) };
 }
 
 /** An award as the card names it: "Winning Alliance", "Control Award", "Reach Award 2nd". */

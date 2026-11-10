@@ -38,11 +38,14 @@ beforeAll(async () => {
   await ev(2026, "USNJNOM1", "Northern League Meet", "LeagueMeet", "2026-11-01");
   // A one-day qualifier played today (NOW's date) whose every match has a result: finished, as the event page says.
   await ev(2026, "USNJTODAY", "Today Qualifier", "Qualifier", "2026-11-10");
+  // A qualifier where FIRST's list marks 7149 not eligible to take a slot.
+  await ev(2025, "USNJQELIG", "Eligibility Qualifier", "Qualifier", "2025-12-06");
+  await run("INSERT INTO advancement (season, code, slots, advances_to, rows) VALUES (2025, 'USNJQELIG', 3, 'USNJCMP', ?)", [JSON.stringify([{ team: 7149, status: "INELIGIBLE", declined: false }])]);
   // A Los Angeles qualifier on 2026-11-09, its venue's date: still on there at 03:00 UTC on the 10th.
   await ev(2026, "USCALA", "LA Qualifier", "Qualifier", "2026-11-09");
   await run("UPDATE events SET timezone = 'America/Los_Angeles' WHERE code = 'USCALA'");
   await run("INSERT INTO matches (season, code, level, series, number, label, played, source) VALUES (2026, 'USNJTODAY', 'qual', 0, 1, 'Q1', 1, 't'), (2026, 'USNJTODAY', 'qual', 0, 2, 'Q2', 1, 't')");
-  for (const [code, t, rank] of [["USNJCMPTRPK", 7149, 3], ["FTCCMP1ROSS", 7149, 19], ["USNJNOLT", 6980, 5], ["USNJNOLT", 7149, 1], ["USNJNOM1", 7149, 2], ["USNJTODAY", 6980, 1], ["USCALA", 6980, 3]] as const)
+  for (const [code, t, rank] of [["USNJCMPTRPK", 7149, 3], ["FTCCMP1ROSS", 7149, 19], ["USNJNOLT", 6980, 5], ["USNJNOLT", 7149, 1], ["USNJNOM1", 7149, 2], ["USNJTODAY", 6980, 1], ["USCALA", 6980, 3], ["USNJQELIG", 7149, 2]] as const)
     await run("INSERT INTO event_teams (season, code, team, rank) VALUES (?, ?, ?, ?)", [code.startsWith("USNJNOM") || code === "USNJTODAY" || code === "USCALA" ? 2026 : 2025, code, t, rank]);
   await run("INSERT INTO advancement (season, code, slots, advances_to, rows) VALUES (2025, 'USNJCMP', 19, 'FIRST Championship & Premier Events', ?)", [JSON.stringify([{ team: 7149, status: "FIRST", declined: false }])]);
   await run("INSERT INTO advancement (season, code, slots, advances_to, rows) VALUES (2025, 'USNJNOLT', 5, 'USNJCMP', ?)", [JSON.stringify([{ team: 7149, status: "FIRST", declined: false }])]);
@@ -95,6 +98,11 @@ describe("advancement odds at an event", () => {
     expect(a.scope[0]).toBe("Northern League Tournament");
     expect(tile(a, "Not listed there")?.sub).toMatch(/^Bad Wolf \(6980\) isn't listed at New Jersey Championship \(2025–26\): these are its odds of getting there/);
     expect(chance(a)?.p).toBe(0.22);
+  });
+  it("a team not eligible to advance there: said so, never a simulated chance", async () => {
+    const a = await advancementAt(team, (await advancementEvent(2025, "USNJQELIG"))!, NOW);
+    expect(chance(a)).toBeUndefined();
+    expect(tile(a, "Advance")?.value).toBe("Not eligible here");
   });
   it("a Worlds division: the step on is its finals, so the chance is to win the division", async () => {
     const a = await advancementAt(team, (await advancementEvent(2025, "FTCCMP1ROSS"))!, NOW);

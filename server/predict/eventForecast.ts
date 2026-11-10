@@ -41,6 +41,7 @@ async function make(s: number, c: string, team: number | null, mode: ForecastVie
   if (d.forecastUnsupported) throw new ForecastUnavailable(422, d.forecastUnsupported);
   const f = await liveForecaster(s);
   const ev = toEventInput(d.event, d.field, d.matches, d.alliances);
+  if (mode === "pre-event" && !ev.start) throw new ForecastUnavailable(422, `${c} has no start date, so there's no before-the-event view of it.`);
   const fc = mode === "pre-event" ? f.preEventForecast(ev, team, FORECAST_RUNS) : f.forecast(ev, team, FORECAST_RUNS);
   if (!fc) throw new ForecastUnavailable(503, "Ratings for this season aren't ready yet.");
   const finished = d.event.status === "finished";
