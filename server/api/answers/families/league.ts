@@ -36,7 +36,9 @@ export function readLeagueAsk(raw: string): LeagueAsk | null {
   const { scope, rest } = readScope(q);
   // Any other number is a team's (a season was taken out above).
   if (/\b\d{1,6}s?\b/.test(rest.replace(/\b(?:number\s+1|1st|#1)\b/g, " "))) return null;
-  if (scope.championship || scope.states || scope.at) return null;
+  // A filter the league table can't answer (playoffs, an alliance, all time, a day, an event's place): not this ask,
+  // never the whole season's table as if it were.
+  if (scope.championship || scope.states || scope.at || scope.level || scope.alliance || scope.ever || scope.day || scope.window || scope.place || scope.outOfState) return null;
   // A code typed in capitals is kept as typed, even one that is a word too ("IN", "OR", "MA"): the place and code
   // readers below tell "MA" (Massachusetts) from "ma", and a frame word in capitals may be a league's code.
   // A query all in capitals says nothing by them.
