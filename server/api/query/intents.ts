@@ -235,7 +235,11 @@ export const INTENTS: IntentRule[] = [
     R("miss-matches", n, ["metric:miss"], ["agg:max", "predict", "thing:match", "thing:team", "vs", "list", "per:match", "metric:score", "over"], { noMatchNo: true }),
   ]),
   R("comeback-matches", 0, ["metric:comeback"], ["agg:max", "thing:match", "metric:win", "and"]),
+  // A record asked with no team ("win loss record decode", "record for decode", "best record in nj"): the season's
+  // best records, with a "which team?" row (./execute.ts), never one team whose name a word happens to fit.
+  R("leaderboard", 0, ["metric:record"], ["metric:win", "metric:loss", "thing:season", "prep:for", "prep:in", "list", "and"], { noEvent: true }),
   ...["agg:max", "agg:min"].flatMap((agg) => [
+    R("leaderboard", 0, [agg, "metric:record"], BOARD_OPT, { noEvent: true }),
     R("leaderboard", 0, [agg, "thing:team"], BOARD_OPT),
     // A team stat asked about everyone, with no "team": "who has the highest auto OPR in NJ".
     ...BOARD_METRICS.map((m) => R("leaderboard", 0, [agg, m], BOARD_OPT)),
