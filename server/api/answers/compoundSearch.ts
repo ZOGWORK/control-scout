@@ -119,10 +119,12 @@ export async function compoundSearch(q: string, c: CompoundQuestion, resolve: Re
     const evs = (await teamEventSet(team.number)).events;
     // A state's code in the event's words ("nj championship") is also tried as the state's name ("new jersey").
     const named = c.at.replace(/\b[a-z]{2}\b/g, (w) => findRegions(w).find((r) => r.state.toLowerCase() === w)?.name.toLowerCase() ?? w);
-    const fp = familyPick(evs, named, c.when.season);
-    const pick = deps.pickTeamEvent(evs, c.at, c.when.season) ?? (named !== c.at ? deps.pickTeamEvent(evs, named, c.when.season) : null)
+    // The season said: "this season" is the team's latest with matches (seasonFor), never the current one it hasn't played.
+    const said = c.when.latest ? s.season : c.when.season;
+    const fp = familyPick(evs, named, said);
+    const pick = deps.pickTeamEvent(evs, c.at, said) ?? (named !== c.at ? deps.pickTeamEvent(evs, named, said) : null)
       ?? (fp ? { primary: fp, events: evs.filter((x) => x.season === fp.season && (x.code === fp.code || x.code === fp.division)) } : null);
-    if (!pick) return noEventAnswer(q, c.at, team, top, evs, c.when.season, opts);
+    if (!pick) return noEventAnswer(q, c.at, team, top, evs, said, opts);
     // The events picked are read as one: a championship named is its division and its finals together, a division
     // named is that division alone (never the finals with it).
     const e = pick.primary;

@@ -165,6 +165,9 @@ describe("compound answers", () => {
     const a = await ask("4215 partners at NJ championship who had opr over 80");
     expect(a.stat?.headline).toMatchObject({ value: "1 of 2" });
     expect(cells(a, /^Partners with OPR there over 80/)).toEqual([expect.objectContaining({ team: "207 Critical Mass", opr: "114.0" })]);
+    // "This season" is the team's latest with matches (S here), so the event is still found in it.
+    const now = await ask("4215 partners at NJ championship this season who had opr over 80");
+    expect([now.stat?.intent, now.stat?.headline?.value]).toEqual(["partners-opr-threshold", "1 of 2"]);
   });
   it("10: the same asked by the verb (launch audit A4): who partnered, teamed up with, played against", async () => {
     for (const q of ["who partnered 4215 at NJ championship with opr over 80", "who teamed up with 4215 at nj championship with an opr above 80", "which teams partnered with 4215 at NJ championship that had opr over 80"]) {
