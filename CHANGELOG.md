@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.0.8 — 2026-11-10
+## 5.1.0 — 2026-11-10
 
 On a phone, buttons and links are a full fingertip tall again.
 
@@ -27,6 +27,36 @@ On a phone, buttons and links are a full fingertip tall again.
 ### Fixed
 - The 14 px phone base shrank buttons and links sized in rem below 44 px tall: an event page had 196 of them, the team page 34. On touch screens they now have at least 44 px to tap, either as an invisible hit area (rows that must not grow) or a taller row where links stack, so two tap areas never sit on top of each other. On Compare, a phone puts the reorder and remove buttons on a row under each team. Desktop with a mouse is unchanged. (#1300)
 
+
+## 5.0.9 — 2026-11-10
+
+Search picks the right team when several share a name, and never reads a place or an ordinary word as a team.
+
+### Highlights
+- [fixes] A team number you type is always that team, never one a digit off
+- [fixes] A shared team name: the one near the other team, or the stronger one
+- [fixes] Still unclear? Search asks which, with each team's place
+- [fixes] Places and words like "worlds" or "I forgot" are never a team
+
+### Changed
+- A name two or more teams share is settled by one rule, the same in every reader: your own team, the one in the place the question names, the one in the same region as the other team named, the only one that has played, the only one still playing, then the clearly stronger one by world OPR rank over its last two seasons. The answer says which rule picked it. When none settles it, search asks "Which …?" with each team's number and place, and offers the same question about each. It never picks the newest by default.
+- A team number typed among other words is that team ("4215 next match date please" is 4215, not 4218). Search's fuzzy match never swaps a typed team number for a near one.
+- A state, region or country name is the place, never a team named after it: "top scoring match CA this week", "lowest score Texas last week", "longest winning streak in Romania".
+- Ordinary words name a team only typed as its whole name where a team is asked about. In a question that asks which team ("who won inspire at east bergen"), they are words. "Did 4215 and 6980 play at worlds" is their head-to-head at Worlds.
+- A last clause that only talks around the question ("…, i forgot", "… date please") is dropped before reading.
+- While a name is still several teams', People also ask and related searches are about none of them. (#1296)
+
+## 5.0.8 — 2026-11-10
+
+A finished bracket shows the call each series had before it began, and whether it held.
+
+### Highlights
+- [predict] Every decided series shows the call it had before it began
+- [predict] Held or missed, said plainly beside each one
+- [predict] Live calls and season-replay calls are labelled apart
+
+### Changed
+- Event › Playoffs: a decided series showed no call at all, so a finished event's bracket had every call empty. Each decided series now shows the call stored before its first match (logged live before the match, or the season replay's, said which), priced as the whole series, and whether the favourite won: held, missed, or an even call. Undecided series keep the odds from 10,000 simulated playoffs. (#1302)
 
 ## 5.0.7 — 2026-11-10
 

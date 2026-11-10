@@ -23,6 +23,8 @@ import { onlyTopicWords } from "../../src/shared/searchQuery.js";
 const wholeName = (n: string) => n.toLowerCase().replace(/[^\p{L}\d]+/gu, " ").trim();
 import { longForm } from "./searchLongForm.js";
 import { names as pipelineNames } from "./query/names.js";
+import { pickShared } from "./query/shared.js";
+import { asksWhich, onlyOrdinary } from "./query/ordinary.js";
 import { AWARDS, FILLER, FORBIDDEN, type Found, INTENTS, type Intent, LEADER_STAT_WORDS, PARAPHRASES, PHASES, PRECEDENCE, SCAFFOLD, TAIL_FILLER, WEAK_SIGNALS } from "./searchCatalog.js";
 
 export type LayerId = "normalize" | "template" | "longform" | "keyword" | "paraphrase" | "filler" | "scope" | "fallback";
@@ -132,11 +134,18 @@ export async function teamExists(n: string): Promise<boolean> {
 
 /** The teams a run of words names: its full name exactly, or failing that one team whose name starts with those whole
  *  words ("hypnotic" for Hypnotic Robotics, 5+ letters), or the teams it calls by their name's own part ("calamari" for
- *  Team Calamari: ./query/names.ts teamsCalled). Several teams of one name are all returned (never one picked). */
-export async function teamsNamed(ws: string[]): Promise<string[]> {
+ *  Team Calamari: ./query/names.ts teamsCalled). Several teams of one name are all returned (never one picked).
+ *  `which`: the query asks which team ("who won …"), where ordinary words never name one (./query/ordinary.ts). */
+export async function teamsNamed(ws: string[], which = false): Promise<string[]> {
   const n = ws.join(" ");
   if (!n || /^\d+$/.test(n)) return [];
   const { byName, list, whole } = await teamNames();
+  // A region's or a country's name is the place ("Texas", "Romania"), never a team named after it (the parser's rule).
+  // Two letters lower case ("in", "or", "me") are words here: a state's code is only read as typed, by the parser.
+  const pl = n.length > 2 ? (await pipelineNames()).place(n) : null;
+  if (pl && pl.kind !== "city") return [];
+  // Ordinary words ("the average", "lost") name a team only as its whole name, and never in a question asking which.
+  if (onlyOrdinary(n)) return which ? [] : (byName.get(n) ?? []).filter((x) => whole.get(x) === wholeName(n));
   // What a question asks about ("alliances", "inspire") names a team only typed as its whole name (onlyTopicWords).
   if (onlyTopicWords(n)) return (byName.get(n) ?? []).filter((x) => whole.get(x) === wholeName(n));
   const exact = byName.get(n);
@@ -149,16 +158,13 @@ export async function teamsNamed(ws: string[]): Promise<string[]> {
   return pre.length ? [] : (await pipelineNames()).teamsCalled(n).map((t) => String(t.number));
 }
 
-/** Of the teams sharing a name, the visitor's own team, else the one that played most recently, when only one did (the
- *  parser's rules, ./query/parse.ts pickShared); else null and the name stays several teams'. */
+/** Of the teams sharing a name, the one the parser's shared rules pick (./query/shared.ts: the visitor's own, the only
+ *  one that has played or still plays, the clearly stronger); else null and the name stays several teams'. */
 async function newestOf(all: string[], prefer: ReadonlySet<string>): Promise<string | null> {
-  const mine = all.filter((n) => prefer.has(`team:${n}`));
-  if (mine.length === 1) return mine[0];
-  const teams = mine.length ? mine : all;
   const idx = await pipelineNames();
-  const last = teams.map((n) => idx.team(Number(n))?.lastPlayed ?? -1);
-  const top = Math.max(...last);
-  return top >= 0 && last.filter((s) => s === top).length === 1 ? teams[last.indexOf(top)] : null;
+  const teams = all.map((n) => idx.team(Number(n))).filter((t) => !!t);
+  const r = pickShared(teams, { mine: (n) => prefer.has(`team:${n}`) });
+  return "team" in r ? String(r.team.number) : null;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -281,7 +287,7 @@ export async function extract(q: string, prefer: ReadonlySet<string> = new Set()
       const from = Math.max(0, r.from - l), to = Math.min(toks.length - 1, r.to + rr);
       const span = toks.slice(from, to + 1);
       if (span.some((t, k) => (k < r.from - from || k > r.to - from) && t.kind && t.kind !== "scaffold" && t.kind !== "filler" && t.kind !== "intent" && t.kind !== "weak")) continue;
-      hit = await teamsNamed(span.map((t) => t.w));
+      hit = await teamsNamed(span.map((t) => t.w), asksWhich(q));
       if (hit.length) { used = { from, to }; break; }
     }
     const newest = hit.length > 1 ? await newestOf(hit, prefer) : null;
