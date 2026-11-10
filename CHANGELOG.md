@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.1.8 — 2026-11-10
+
+A team's league standing in search is this season's, while the league is running.
+
+### Highlights
+- [rankings] "6980 league standing" shows this season's league table, not last season's final one
+- [rankings] "north east league standings" finds the Northeast League
+- [fixes] A league standing says which season it is when none was named
+
+### Fixed
+- A team's league standing asked with no season is the team's newest league season with a match played (FIRST's league rankings), said on the card; it was the latest completed season's final table.
+- Two words said for one league name word ("north east" for "Northeast") now find the league even where "North" and "East" are league names too.
+
 ## 5.1.7 — 2026-11-10
 
 A team's league standing in search now shows the whole league table, and a league asked by name answers with its table.

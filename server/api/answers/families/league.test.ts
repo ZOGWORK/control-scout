@@ -55,6 +55,9 @@ describe("league standings asks", () => {
     expect(codes("northeast league standings")).toEqual(["USNJ/NE"]);
     expect(codes("nj northeast league leaderboard")).toEqual(["USNJ/NE"]);
     expect(codes("northeast florida league table")).toEqual(["USFL/NE"]);
+    // Two words said for one name word, even where each word is a league's name too.
+    const split = [...LEAGUES, L("USNY", "NO", "North", "NY", 10), L("USNY", "EA", "East", "NY", 10)];
+    expect(matchLeagues(readLeagueAsk("north east league standings")!.words, split).leagues.map((l) => `${l.region}/${l.code}`).sort()).toEqual(["USNJ/NE"]);
     expect(codes("who is first in the ctx nerd league")).toEqual(["USTX/CEUC"]);
     // "NE" is a code in two places (and Nebraska's): both leagues, the answer showing the bigger with the other linked.
     expect(codes("NE league standings")?.sort()).toEqual(["USFL/NE", "USNJ/NE"]);
