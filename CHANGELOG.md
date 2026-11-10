@@ -22,7 +22,7 @@ A search's heading is the answer's own: words it read past get a quiet note of t
 ### Highlights
 - [fixes] Search headings never carry "isn't part of this answer"
 - [fixes] Words an answer read past get their own small note
-- [fixes] A search page no longer says its heading twice
+- [fixes] A search page no longer says its heading twice (#1335)
 
 ### Fixed
 - An answer that reads past some of the query's words ("4215 last prediction for East Bergen", "23268 rating going up or down") put `"last" isn't part of this answer` into its label, which titles the page. The words now go in `understood.unread` and show as a quiet note under the answer ("Not used in this answer: "last""), on the page and in its first HTML; the label is the answer's own.
