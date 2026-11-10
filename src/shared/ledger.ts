@@ -72,6 +72,26 @@ export function headlineRule(t: Pick<TrackRecord, "headline" | "seasons" | "live
   return `No headline yet: a replay needs ${n(REPLAY_HEADLINE_MIN)} matches and live calls ${n(t.liveThreshold)} scored${so}, so this opens on the newest season's replay.`;
 }
 
+/**
+ * The live record said beside a replay, with its slice and sample, so a replay figure is never read as "the live
+ * accuracy": the newest season with live calls, its decided-call accuracy and Brier score, how early it is (and how
+ * much of it is rough guesses), and that it isn't the card's figure until LIVE_THRESHOLD calls are scored. Null when
+ * no live call has been scored yet.
+ */
+export function liveCallsLine(t: Pick<TrackRecord, "seasons" | "liveThreshold">): string | null {
+  const n = (x: number) => x.toLocaleString("en-US");
+  const p = liveProgress(t);
+  const l = p ? t.seasons.find((s) => s.season === p.season)?.live : null;
+  if (!p || !l) return null;
+  const early = l.n < t.liveThreshold;
+  const shown = early ? ` They lead the track record’s headline once ${n(t.liveThreshold)} are scored (${n(l.n)} so far); this card always shows replays.` : ` Past ${n(t.liveThreshold)} scored, they lead the track record’s headline; this card still shows replays.`;
+  if (l.decided <= 0) return `Live calls made in advance, ${p.label}: ${n(l.n)} scored, none decided yet (every one a tie or a 50:50 call).${shown}`;
+  return `Live calls made in advance, ${p.label}: ${(100 * l.accuracy).toFixed(1)}% of ${n(l.decided)} decided called right, Brier ${l.brier.toFixed(4)}${early ? ` (early season: ${roughGuessPct(l)}% of them rough guesses, so the figure is still moving)` : ""}.${shown}`;
+}
+
+/** The share of a block's calls that were rough guesses (provisional tier), in whole percent. */
+export const roughGuessPct = (b: Pick<AccuracyBlock, "n" | "byTier">) => (b.n > 0 ? Math.round((100 * b.byTier.provisional.n) / b.n) : 0);
+
 /** Which mode a number is, in words every ledger surface uses. */
 export const LEDGER_MODE: Record<LedgerKind, { tab: string; title: string; detail: string }> = {
   live: { tab: "Logged live", title: "Live calls, logged before each match", detail: "called before each match" },
