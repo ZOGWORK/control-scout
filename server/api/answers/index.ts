@@ -9,6 +9,7 @@ import type { SearchAnswer, SearchHit, SearchPageLink } from "../../../src/share
 import type { StatAnswer } from "../../../src/shared/searchStat.js";
 import type { AnswerTeam } from "./families/matches.js";
 import { dateRange, seasonLabel } from "../../../src/shared/format.js";
+import { latestStoredSeason, noEventsStat, withoutYear } from "./noEventsYet.js";
 import { edits, findRegions, regionLabel } from "../../../src/shared/regions.js";
 import { eventTypeLabel } from "../../../src/shared/labels.js";
 import { CURRENT_SEASON, SEASON_NUMBERS } from "../../data/seasons.js";
@@ -522,6 +523,8 @@ export async function statAnswerOf(q: string, it0: StatQuestion, resolve: Resolv
   const top = base.step !== "recovery" ? base.hits[0] : undefined;
   if (!top || top.kind !== "team" || top.href) return null;
   const team = { number: Number(top.ref), name: teamNameOf(top.title) || null };
+  // A season after every one on record ("12345 auto opr 2027"): said so, never the default season's numbers.
+  if (it.scope.future) return futureAnswer(q, top, team, it.scope.future, it.id, opts);
   const scope = await scopeFor(it, team.number);
   if (!scope) return null;
   // "average winning margin" is titled as asked, not as the plain average margin.
@@ -692,6 +695,14 @@ export async function topSearch(q: string, t: TopMatchesQuestion, opts: { full: 
   return { ...answer, understood: { ...answer.understood!, label: stat.title }, stat };
 }
 
+/** A team's question about a season after every one on record: the "no events yet" card (./noEventsYet.ts). */
+async function futureAnswer(q: string, top: SearchHit, team: { number: number; name: string | null }, future: { season: number; typed: string }, intent: string, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer> {
+  const S = seasonLabel(future.season), what = `${S} events`;
+  const answer: SearchAnswer = { q, hits: [{ ...top, facts: undefined, events: undefined }], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: `${whoOf(team)} · No ${what} yet` } };
+  if (!opts.full) return answer;
+  return { ...answer, stat: noEventsStat({ intent, team, what, scope: S, latestQ: withoutYear(q, future.typed), latest: await latestStoredSeason() }) };
+}
+
 /** "12345 auto OPR", "12345 reliability", "12345 school": one team's stored fact. The team is found as search finds it;
  *  the answer is worked out for the page only. */
 async function factSearch(q: string, f: FactQuestion, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
@@ -699,6 +710,8 @@ async function factSearch(q: string, f: FactQuestion, resolve: Resolve, opts: { 
   const top = base.step !== "recovery" ? base.hits[0] : undefined;
   if (!top || top.kind !== "team" || top.href) return null;
   const team = { number: Number(top.ref), name: teamNameOf(top.title) || null };
+  // A season after every one on record ("whats 12345s opr 2027"): said so, never the default season's numbers.
+  if (f.future) return futureAnswer(q, top, team, f.future, f.id, opts);
   const label = `${whoOf(team)} · ${FACT_TITLES[f.id]}`;
   const guessed = base.step === "did-you-mean";
   const answer: SearchAnswer = {

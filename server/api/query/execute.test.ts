@@ -637,7 +637,7 @@ describe("years", () => {
       expect(f.stat?.headline, q).toBeUndefined();
     }
     // The same rule with another team, and a named past season still answered as asked.
-    expect((await ask("7149 opr 2028")).stat?.title).toBe("No 2028–29 events yet");
+    expect((await ask("4215 opr 2028")).stat?.title).toBe("No 2028–29 events yet");
     expect((await ask("4215 opr 2025")).stat?.title).not.toMatch(/events yet/);
   });
 });
