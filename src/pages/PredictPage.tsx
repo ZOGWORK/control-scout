@@ -37,6 +37,7 @@ import { SearchBox } from "../components/search/SearchBox";
 import { canonicalPredict, parsePick, predictHref, predictParams, readPredict, switchMode, type PredictMode, type PredictPick } from "../shared/predictUrl";
 import { cn } from "../components/cn";
 import { PredictionBasis } from "../components/PredictionBasis";
+import { WhatIf } from "../components/predict/WhatIf";
 import { marginCalibration, marginText, matchBasis, overlapTotal, scoreSum, scoreTotal } from "../shared/predictionBasis";
 import { Reveal, m } from "../components/motion";
 import { dateRange, dayDate, num, oddsPct, place, seasonLabel } from "../lib/format";
@@ -353,15 +354,17 @@ function MatchLab() {
   const init = (k: string) => (sp.get(k) ?? "").split(",").filter(Boolean);
   const [red, setRed] = useState<string[]>(() => { const x = init("red"); return [x[0] ?? "", x[1] ?? ""]; });
   const [blue, setBlue] = useState<string[]>(() => { const x = init("blue"); return [x[0] ?? "", x[1] ?? ""]; });
-  const ready = red.every((x) => x) && blue.every((x) => x);
-  const query = ready ? `/api/predict/match${qs({ season, red: red.join(","), blue: blue.join(",") })}` : null;
+  // One or two robots a side: a search answer's two-team call opens here as one against one. Blank boxes are skipped.
+  const filled = (side: string[]) => side.filter((x) => x.trim());
+  const ready = filled(red).length > 0 && filled(blue).length > 0;
   // The matchup last asked for (from the URL or the Predict button). Typing in
   // the inputs edits a draft; the season switch never touches the draft.
   type Matchup = { red: number[]; blue: number[] };
   const parse = (r: string, b: string): Matchup | null => {
     const red = r.split(",").filter(Boolean).map(Number), blue = b.split(",").filter(Boolean).map(Number);
     const all = [...red, ...blue];
-    return red.length === 2 && blue.length === 2 && all.every((t) => Number.isInteger(t) && t > 0) && new Set(all).size === 4 ? { red, blue } : null;
+    const sized = (n: number) => n >= 1 && n <= 2;
+    return sized(red.length) && sized(blue.length) && all.every((t) => Number.isInteger(t) && t > 0) && new Set(all).size === all.length ? { red, blue } : null;
   };
   const urlRed = sp.get("red") ?? "", urlBlue = sp.get("blue") ?? "";
   const [submittedTeams, setSubmittedTeams] = useState<Matchup | null>(() => parse(urlRed, urlBlue));
@@ -389,16 +392,22 @@ function MatchLab() {
     if (!ready) return;
     const at = edits.current;
     setChecking(true);
-    const errs = await teamsErrors([...red, ...blue], ["red team 1", "red team 2", "blue team 1", "blue team 2"], lookupTeamName);
+    // Only the filled boxes are checked; each error goes back to its own box.
+    const labels = ["red team 1", "red team 2", "blue team 1", "blue team 2"];
+    const boxes = [...red, ...blue].map((v, i) => ({ v, i })).filter((b) => b.v.trim());
+    const found = await teamsErrors(boxes.map((b) => b.v), boxes.map((b) => labels[b.i]), lookupTeamName);
     setChecking(false);
     if (edits.current !== at) return;
+    const errs: (string | null)[] = [null, null, null, null];
+    boxes.forEach((b, k) => { errs[b.i] = found[k]; });
     setErrors(errs);
     const bad = errs.findIndex(Boolean);
     if (bad >= 0) { inputs.current[bad]?.focus(); return; }
-    const m = parse(red.join(","), blue.join(","));
+    const r = filled(red).join(","), b = filled(blue).join(",");
+    const m = parse(r, b);
     if (!m) return;
     setSubmittedTeams(m);
-    setSp((x) => { x.set("mode", "match"); x.set("season", String(season)); x.set("red", red.join(",")); x.set("blue", blue.join(",")); return x; }, { replace: true });
+    setSp((x) => { x.set("mode", "match"); x.set("season", String(season)); x.set("red", r); x.set("blue", b); x.delete("whatif"); return x; }, { replace: true });
   };
   const swap = () => { edits.current++; setRed(blue); setBlue(red); setErrors((e) => [e[2], e[3], e[0], e[1]]); };
   // From the result: the same four teams with the alliances swapped, predicted straight away (they're already checked).
@@ -406,7 +415,8 @@ function MatchLab() {
     if (!submittedTeams) return;
     const m = { red: submittedTeams.blue, blue: submittedTeams.red };
     edits.current++;
-    setRed(m.red.map(String)); setBlue(m.blue.map(String)); setErrors([null, null, null, null]);
+    const two = (x: number[]) => [String(x[0] ?? ""), String(x[1] ?? "")];
+    setRed(two(m.red)); setBlue(two(m.blue)); setErrors([null, null, null, null]);
     setSubmittedTeams(m);
     setSp((x) => { x.set("mode", "match"); x.set("season", String(season)); x.set("red", m.red.join(",")); x.set("blue", m.blue.join(",")); return x; }, { replace: true });
   };
@@ -432,8 +442,8 @@ function MatchLab() {
       </div>
       {submitted && (state.error
         ? (offline.data ? <MatchResult x={offline.data} offlineAsOf={offline.asOf} onSwap={swapResult} /> : offline.loading ? <div className="skeleton h-72 rounded-2xl" /> : <ErrorState error={state.error} onRetry={state.reload} />)
-        : !state.data ? <div className="skeleton h-72 rounded-2xl" /> : <MatchResult x={state.data} onSwap={swapResult} />)}
-      {!submitted && <EmptyState icon={Swords} title="Pick four teams" description="Any teams, any season. You'll get win odds, predicted scores with ranges, the three biggest reasons, and how confident the call is." />}
+        : !state.data ? <div className="skeleton h-72 rounded-2xl" /> : <><MatchResult x={state.data} onSwap={swapResult} /><WhatIf base={state.data} /></>)}
+      {!submitted && <EmptyState icon={Swords} title="Pick four teams" description="Any teams, any season (or one a side, robot against robot). You'll get win odds, predicted scores with ranges, the three biggest reasons, and how confident the call is." />}
       <SavedPredictions />
     </div>
   );
