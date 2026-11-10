@@ -1,21 +1,25 @@
 // Matches whose scores are not official records (the owner's call, with why). They stay listed by score as played;
-// wherever a record or a season's best scores show one, it is marked with the reason.
+// wherever a record or a season's best scores show one, it is marked with the reason. An entry names one match, or a
+// whole event (no level, series or number): every match played there is then marked.
 import { UNOFFICIAL_NOTE } from "../../src/shared/searchStat.js";
 
 export { UNOFFICIAL_NOTE };
 
 export interface MatchKey { season: number; code: string; level: string; series: number; number: number }
 
-const UNOFFICIAL: (MatchKey & { why: string })[] = [
-  // DECODE's highest score: Carolinas Premier Event did not play by the game's usual rules.
-  { season: 2025, code: "FPECAR", level: "qual", series: 0, number: 49, why: "the event did not play by the game's usual rules" },
+/** One match, or (with no level, series or number) every match at the event. */
+export type UnofficialEntry = { season: number; code: string; why: string } & ({ level: string; series: number; number: number } | { level?: undefined; series?: undefined; number?: undefined });
+
+export const UNOFFICIAL: UnofficialEntry[] = [
+  // Carolinas Premier Event (DECODE, Jul 25–26, 2026) did not play by the game's usual rules: none of its scores count.
+  { season: 2025, code: "FPECAR", why: "the event did not play by the game's usual rules" },
 ];
 
-
-/** Why match `m` is not an official record, or null when it counts as one. */
-export function unofficialWhy(m: MatchKey): string | null {
-  const u = UNOFFICIAL.find((x) => x.season === Number(m.season) && x.code === m.code && x.level === m.level && x.series === Number(m.series) && x.number === Number(m.number));
-  return u?.why ?? null;
+/** Why match `m` is not an official record (its own entry first, then its event's), or null when it counts as one. */
+export function unofficialWhy(m: MatchKey, entries: UnofficialEntry[] = UNOFFICIAL): string | null {
+  const at = entries.filter((x) => x.season === Number(m.season) && x.code === m.code);
+  const own = at.find((x) => x.level != null && x.level === m.level && x.series === Number(m.series) && x.number === Number(m.number));
+  return (own ?? at.find((x) => x.level == null))?.why ?? null;
 }
 
 /** "Not an official record: the event …", for a line under a marked match. */
