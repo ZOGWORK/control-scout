@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.9.4 — 2026-11-10
+
+Score ranges say how often they have really held, with the sample, wherever one is shown.
+
+### Highlights
+- [predict] Score ranges say how often they have really held, with the sample
+- [predict] No range reads as exactly 8 in 10 any more
+- [report] Search prediction cards carry the same line under their ranges
+
+### Changed
+- Every predicted score range now comes with how often such ranges have held: "80% ranges have held 91.1% of 5,322 live alliance scores in 2026–27 BIOBUZZ (93.4% of 6,450 in its season replay), so they run wider than 80%", from the track record (GET /api/predict/ranges), never typed in. On Predict's matchup, the match page, a match row's call detail, each range's hover text, and search's prediction cards. The request waits until the page is drawn and the browser is idle. (#PR2)
+
 ## 4.9.2 — 2026-11-09
 
 DECODE's highest score, Q49 at Carolinas Premier Event, is marked as not an official record.
