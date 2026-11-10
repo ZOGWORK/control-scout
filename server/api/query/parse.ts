@@ -458,6 +458,9 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   // One-word awards beside an award word: "design award", "12345 think awards".
   if (symbols.has("metric:award")) {
     for (const t of toks) if (!t.used && AWARD_ONE_WORD.has(t.w)) { p.award = AWARD_ONE_WORD.get(t.w)!; t.used = true; }
+    // "Winner" beside an award word ("12345 winner awards") is the winning-alliance award, not a win asked about.
+    // Never a forecast's word ("who is the winner …"): only a win read from "winner" itself.
+    if (!p.award && !symbols.has("predict") && symbols.has("metric:win") && toks.some((t) => /^winners?$/.test(t.w))) { p.award = AWARD_ONE_WORD.get("winner")!; symbols.delete("metric:win"); }
   }
 
   // One word left on its own, of a named team's own event's name ("<team> last prediction for <word>"): that event,
