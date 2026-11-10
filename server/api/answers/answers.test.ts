@@ -122,9 +122,9 @@ describe("the answers", () => {
   });
   it("wins and the record at Worlds only, with the matches and seasons counted", async () => {
     const w = await searchAnswer("How many matches has 4215 won at worlds", { limit: 25 });
-    expect(w.stat!.headline).toMatchObject({ value: "2 wins", label: "in 3 matches at Worlds", sub: "2024–25" });
+    expect(w.stat!.headline).toMatchObject({ value: "2 wins", label: "in 3 matches at Worlds", sub: "2024–25 · Official events only" });
     const r = await searchAnswer("4215 worlds record", { limit: 25 });
-    expect(r.stat!.headline).toMatchObject({ value: "2-1-0" });
+    expect(r.stat!.headline).toMatchObject({ value: "2-1-0", sub: "2024–25 · Official events only" });
     expect(r.stat!.blocks[0]).toMatchObject({ kind: "record", wins: 2, losses: 1, ties: 0 });
     // Qualifications only: no quals and playoffs split to show.
     expect(r.stat!.blocks[0]).not.toHaveProperty("split");

@@ -239,10 +239,10 @@ export async function eventWon(words: string, prefer: ReadonlySet<string>, now =
   // counts only while its event still has a name every word typed matches, and the events found that do lead.
   const named = sm ? (words.slice(0, sm.index) + " " + words.slice(sm.index + sm[0].length)).trim() : words;
   const hits = (await search(named, 8, prefer, new Set(["event"]))).filter((h) => h.kind === "event");
-  const fits = (name: string) => fuzzyScore(named, name) >= 0.75;
+  const fits = (name: string) => fuzzyScore(regionsSpelled(named), name) >= 0.75;
   const lead = hits.filter((h) => fits(h.title));
   if (!hits.length) return null;
-  const pool = lead.length ? lead : [hits[0]];
+  const pool = lead.length ? lead : [bestEventHit(named, hits, prefer) ?? hits[0]];
   const rows = (await Promise.all(pool.map((h) => all<Ev>("SELECT season, code, name, start, end, timezone FROM events WHERE code = ?", [h.ref.split(":")[1]])))).flat()
     .filter((r) => !lead.length || fits(r.name)).sort((a, b) => Number(b.season) - Number(a.season));
   return pick(finished(rows).filter(inScope)[0]);
@@ -266,8 +266,30 @@ async function teamOf(words: string, prefer: ReadonlySet<string>): Promise<Named
 /** A shared name still tied: its teams and the question; no schedule or Predict link is guessed. */
 const whichAnswer = (q: string, t: { tied: SearchHit[]; question: string }) => answer(q, { hits: t.tied, pages: pagesFor(q), understood: { kind: "question", label: t.question } });
 
+/** The words with each region code read as its region's name ("nj championship" → "new jersey championship"), so a
+ *  name is scored against the words a stored name holds. */
+export const regionsSpelled = (words: string) => words.split(/\s+/).map((w) => (/^[a-z]{2}$/i.test(w) ? regionOf([w])?.name ?? w : w)).join(" ");
+
+/** The least a name must fit the words typed to be picked by its fit (fuzzyScore). */
+const MIN_NAME_FIT = 0.5;
+
+/** Of the event hits search found, the ones whose name fits the words best (within 0.05 of the best fit): one the
+ *  visitor follows (`prefer`) first, then the newest season: "NJ Championship Parkway Division" is the latest event of
+ *  that name, never an older one whose name holds extra words ("… State Championship HYBRID - Parkway Division"). */
+export function bestEventHit(words: string, hits: SearchHit[], prefer: ReadonlySet<string> = new Set()): SearchHit | null {
+  const evs = hits.filter((h) => h.kind === "event");
+  if (!evs.length) return null;
+  const said = regionsSpelled(words);
+  const scored = evs.map((h, i) => ({ h, i, s: fuzzyScore(said, h.title) }));
+  const top = Math.max(...scored.map((x) => x.s));
+  // No name fits the words (an event's code typed, "USNJQ1", which search reads from its terms): search's own order.
+  if (top < MIN_NAME_FIT) return evs[0];
+  const followed = (h: SearchHit) => (prefer.has(`event:${h.ref}`) ? 0 : 1);
+  return scored.filter((x) => x.s >= top - 0.05).sort((a, b) => followed(a.h) - followed(b.h) || (b.h.season ?? 0) - (a.h.season ?? 0) || a.i - b.i)[0].h;
+}
+
 async function eventOf(words: string, prefer: ReadonlySet<string>): Promise<SearchHit | null> {
-  return (await search(words, 3, prefer, new Set(["event"]))).find((h) => h.kind === "event") ?? null;
+  return bestEventHit(words, await search(words, 8, prefer, new Set(["event"])), prefer);
 }
 
 /** The answer for `ask`, or null when what it names isn't found (search goes on as before). */
@@ -432,27 +454,43 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
       // The event found, or (not held yet, or no such award recorded) the latest season the same event code gave it:
       // "who won Inspire at New Jersey Championship" in November is last season's winner, said with its season.
       const [found, code] = ev.ref.split(":");
-      const latest = await all<{ season: number }>("SELECT MAX(season) season FROM awards WHERE code = ? AND type = ? AND season <= ?", [code, ask.award, Number(found)]);
-      const season = latest[0]?.season != null ? Number(latest[0].season) : Number(found);
+      // A championship's division: FIRST posts the judged awards on the championship itself (its parent event), so a
+      // division with none of that award recorded reads its parent's, said so on the card.
+      const parentRow = (await all<{ division_code: string | null; name: string | null }>("SELECT d.division_code, p.name FROM events d LEFT JOIN events p ON p.season = d.season AND p.code = d.division_code WHERE d.season = ? AND d.code = ?", [Number(found), code]))[0];
+      const parent = parentRow?.division_code ?? null;
+      const latestOf = async (c: string) => (await all<{ season: number }>("SELECT MAX(season) season FROM awards WHERE code = ? AND type = ? AND season <= ?", [c, ask.award, Number(found)]))[0]?.season;
+      const own = await latestOf(code), fromParentSeason = parent != null ? await latestOf(parent) : undefined;
+      // The championship's, unless the division has that award of its own as recently (some regions judge divisions).
+      const fromParent = parent != null && fromParentSeason != null && (own == null || Number(fromParentSeason) > Number(own));
+      const awardCode = fromParent ? parent! : code;
+      const latest = fromParent ? fromParentSeason : own;
+      const season = latest != null ? Number(latest) : Number(found);
       const rows = await all<any>(
         "SELECT a.placement, a.team, a.name award, t.name FROM awards a LEFT JOIN teams t ON t.number = a.team WHERE a.season = ? AND a.code = ? AND a.type = ? ORDER BY a.placement, a.team",
-        [season, code, ask.award]);
+        [season, awardCode, ask.award]);
       // An older season: that season's event, with its own dates and place, and the newer one said when it's still to
       // come or not posted ("The 2026–27 one (Nov 15, 2026) isn't held yet").
       // Only a newer one with no such award recorded: an older year asked, whose newer one has its winner, says nothing.
-      const [newer] = await all<{ season: number; start: string | null; end: string | null }>("SELECT season, start, end FROM events e WHERE e.code = ? AND e.season > ? AND NOT EXISTS (SELECT 1 FROM awards a WHERE a.season = e.season AND a.code = e.code AND a.type = ?) ORDER BY e.season DESC LIMIT 1", [code, season, ask.award]);
+      const [newer] = await all<{ season: number; start: string | null; end: string | null }>("SELECT season, start, end FROM events e WHERE e.code = ? AND e.season > ? AND NOT EXISTS (SELECT 1 FROM awards a WHERE a.season = e.season AND a.code IN (e.code, COALESCE(e.division_code, e.code)) AND a.type = ?) ORDER BY e.season DESC LIMIT 1", [code, season, ask.award]);
       const held = !!newer?.start && (newer.end ?? newer.start) < new Date().toISOString().slice(0, 10);
       const upcoming = newer?.start ? ` · The ${seasonLabel(Number(newer.season))} one (${dateRange(newer.start, newer.end)}) ${held ? "has no award posted yet" : "isn't held yet"}` : "";
       if (season !== Number(found)) ev = (await search(code, 5, opts.prefer, new Set(["event"]), season)).find((h) => h.kind === "event" && h.ref === `${season}:${code}`)
         ?? { ...ev, ref: `${season}:${code}`, season, subtitle: seasonLabel(season) };
+      const parentName = !fromParent ? "" : season === Number(found) && parentRow?.name ? parentRow.name
+        : (await all<{ name: string }>("SELECT name FROM events WHERE season = ? AND code = ?", [season, parent!]))[0]?.name ?? parentRow?.name ?? parent!;
+      // The result under the card is the event the awards were given at: the championship, whose Awards tab holds them.
+      const shownHit: SearchHit = fromParent ? (await search(parent!, 5, opts.prefer, new Set(["event"]), season)).find((h) => h.kind === "event" && h.ref === `${season}:${parent}`)
+        ?? { ...ev, ref: `${season}:${parent}`, title: parentName, season, subtitle: seasonLabel(season) } : ev;
       const place = (p: number) => (p === 1 ? "Winner" : `${p}${p === 2 ? "nd" : p === 3 ? "rd" : "th"} place`);
       const asked = ask.place != null ? rows.filter((r) => Number(r.placement) === ask.place) : [];
       const lines = [...asked, ...rows.filter((r) => !asked.includes(r))].map((r) => teamLine(Number(r.team), r.name, [place(Number(r.placement))], r.award ?? undefined));
       const award = rows[0]?.award ?? `${AWARD_NAME[ask.award] ?? ask.award} Award`;
       return answer(q, {
-        hits: [{ ...ev, section: "awards" }], pages: pagesFor(q),
-        card: { kind: "event-awards", title: `${award} · ${ev.title} · ${seasonLabel(season)}`, lines, award: ask.award, ...(ask.place != null ? { place: ask.place } : {}), ...(await eventAwards(season, code, ev.title)), ...(lines.length ? {} : { none: `No ${award} recorded at ${ev.title} in any season on record.` }) },
-        understood: { kind: "question", label: `${ask.place != null && ask.place > 1 ? `Who got ${place(ask.place)} for the` : "Who won the"} ${award} at ${ev.title} (${seasonLabel(season)})${upcoming}${ask.place != null && rows.length && !asked.length ? ` · No ${place(ask.place)} recorded` : ""}`, season },
+        hits: [{ ...shownHit, section: "awards" }], pages: pagesFor(q),
+        card: { kind: "event-awards", title: `${award} · ${fromParent ? parentName : ev.title} · ${seasonLabel(season)}`, lines, award: ask.award, ...(ask.place != null ? { place: ask.place } : {}), ...(await eventAwards(season, awardCode, fromParent ? parentName : ev.title)),
+          ...(fromParent ? { note: `${ev.title} is a division of ${parentName}: its awards are given at the championship, so this is the championship's ${award}.` } : {}),
+          ...(lines.length ? {} : { none: `No ${award} recorded at ${fromParent ? parentName : ev.title}${parent && !fromParent ? ` or its championship` : ""} in any season on record.` }) },
+        understood: { kind: "question", label: `${ask.place != null && ask.place > 1 ? `Who got ${place(ask.place)} for the` : "Who won the"} ${award} at ${ev.title} (${seasonLabel(season)})${fromParent ? ` · given at ${parentName}` : ""}${upcoming}${ask.place != null && rows.length && !asked.length ? ` · No ${place(ask.place)} recorded` : ""}`, season },
       });
     }
 
