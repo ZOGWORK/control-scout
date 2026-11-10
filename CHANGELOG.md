@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.0.2 — 2026-11-10
+
+The track record says which number is which: every figure carries its slice and sample.
+
+### Highlights
+- [home] The track record says its figure is a replay, not live calls
+- [home] Live calls made in advance are stated beside it, with their sample
+- [report] How it works lists every figure with what it counts and how many
+
+### Changed
+- The home page's track record says plainly that its figure is replayed from past matches, not calls made in advance, and states the live record beside it: live calls made in advance this season, the share of decided calls right, the Brier score, how early the season is (and how many calls are rough guesses), and that live calls lead the track record's headline once 10,000 are scored, while the card always shows replays. All from the accuracy API, never typed in. (#1276)
+- How it works › Accuracy lists every headline-sized figure the site quotes, each with its slice and sample: this season's replay so far, live calls made in advance, the headline replay, and the Prediction Engine 2.0 replay. None of them is "the live accuracy" on its own.
+
 ## 5.0.1 — 2026-11-10
 
 A best-score answer's "Highest official score" tile names the match it comes from.
