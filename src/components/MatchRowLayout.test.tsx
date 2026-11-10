@@ -149,3 +149,21 @@ describe("match row layout", () => {
     expect(link.className.split(" ")).toContain("tap-44");
   });
 });
+
+// The 14 px phone base shrank rem sizes below 44 px (h-10 is 35 px). On a touch screen the row's controls are 44 px:
+// stacked rows grow (the status row, the team chips), and a control with room around it gets tap-44.
+describe("match row on a touch screen: 44 px tap targets", () => {
+  it("the status row grows to 44 px, and its confidence chip has a 44 px tap area", () => {
+    show(match({}, 90, 120));
+    expect(q("[data-call-status]")!.className.split(" ")).toContain("pointer-coarse:min-h-[44px]");
+    expect(within(call()).getByRole("button", { name: /^Confidence: / }).className.split(" ")).toContain("tap-44");
+  });
+
+  it("each team chip is 44 px tall", () => {
+    show(match({}, 90, 120));
+    const chips = Array.from(alliances().querySelectorAll<HTMLElement>("button, a"));
+    expect(chips.length).toBe(4);
+    for (const c of chips) expect(c.className.split(" ")).toContain("pointer-coarse:min-h-[44px]");
+  });
+});
+

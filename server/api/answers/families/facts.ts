@@ -17,6 +17,8 @@ import { readScope } from "../read.js";
 import { currentSeason, seasonWhy, teamSeason } from "../season.js";
 import { ratingKpis } from "./oprRating.js";
 import { eventHref, matchHref, shortEvent, teamHref } from "../matchSet.js";
+import { leagueStandings, teamLeagueStanding } from "../../leagues.js";
+import { leagueHref, leagueTitle } from "../../../../src/shared/leagues.js";
 
 export type FactId = "opr" | "auto-opr" | "teleop-opr" | "endgame-opr" | "rating" | "report-card" | "next-match" | "events-season" | "events-place"
   | "opr-vs-average" | "reliability" | "schedule" | "league-rank";
@@ -155,6 +157,12 @@ export async function seasonOf(team: number, asked: number | null): Promise<numb
   return teamSeason(team);
 }
 
+/** The newest season the team has a league standing in, from a match played (null: none read from FIRST). */
+export async function newestLeagueSeason(team: number): Promise<number | null> {
+  const r = await get<{ s: number | null }>("SELECT MAX(season) s FROM league_rankings WHERE team = ? AND COALESCE(played, 1) > 0", [team]);
+  return r?.s == null ? null : Number(r.s);
+}
+
 /** The answer, or null when it has nothing to stand on (the question is left to search). */
 export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words: string, season: number | null) => Promise<{ season: number; code: string; name: string; type: string | null } | null>): Promise<StatAnswer | null> {
   const base = (intent: string, title: string, scope: string[], definition: string, source: string) => ({ family: "stat" as const, intent, title, team, scope, definition, source, blocks: [] as StatBlock[] });
@@ -174,10 +182,13 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
       blocks: [{ kind: "bars", title: "Predicted scores", groups: [{ label: m.label, items: [{ label: `${own === "red" ? "Red" : "Blue"} (with ${team.number})`, value: Math.round(mine), tone: "a" }, { label: own === "red" ? "Blue" : "Red", value: Math.round(theirs), tone: "b" }] }] }] };
   }
 
-  const season = await seasonOf(team.number, f.season);
+  // A league standing runs through the season, so with no season named it is the team's newest league's (FIRST's
+  // league rankings, server/data/leagues.ts), not the latest completed season's final table.
+  const leagueSeason = f.id === "league-rank" && f.season == null ? await newestLeagueSeason(team.number) : null;
+  const season = leagueSeason ?? await seasonOf(team.number, f.season);
   if (season == null) return { ...base(f.id, "Season numbers", [], OPR_RULE, "From the stored season numbers"), none: `${who(team)} has no season with matches on record.` };
   const S = seasonLabel(season);
-  const why = f.season == null ? ` ${seasonWhy(f.latest ? "this" : "team", season, String(team.number))}` : "";
+  const why = leagueSeason != null ? ` With no season named, the season is ${S}, the team's newest league standing.` : f.season == null ? ` ${seasonWhy(f.latest ? "this" : "team", season, String(team.number))}` : "";
 
   if (f.id === "opr" || f.id in PHASE) {
     // The team page's own reader (seasonStats, server/api/teams.ts): the same stored row, ranks and population, so the
@@ -339,6 +350,20 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
   const r = await get<any>(`SELECT e.code, e.name, e.type, e.league, e.start, et.rank, (SELECT COUNT(DISTINCT o.team) FROM event_teams o JOIN events oe ON oe.season = o.season AND oe.code = o.code WHERE o.season = et.season AND o.rank IS NOT NULL AND (oe.code = e.code OR (e.league IS NOT NULL AND oe.league = e.league AND oe.region IS e.region AND oe.type = 'LeagueMeet' AND oe.start <= e.start))) n
     FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code WHERE et.team = ? AND et.season = ? AND e.type = 'LeagueMeet' AND et.rank IS NOT NULL AND ${ATTENDED} ORDER BY e.start DESC LIMIT 1`, [team.number, season]);
   const b = base("league-rank", `League standing in ${S}`, [S], `A league's standing is FIRST's ranking at the team's latest league meet, which counts every meet so far that season.${why}`, `From the ${S} league meets`);
+  // FIRST's whole league table, when the sync has read it (server/data/leagues.ts): the standing is its row, out of the
+  // teams that have played, and the table follows with the team's row marked.
+  const own = await teamLeagueStanding(season, team.number);
+  const table = own ? await leagueStandings(season, own.region, own.code) : null;
+  if (own && table?.rows.length) {
+    const name = `${leagueTitle(table.name, table.code)}${table.place ? ` (${table.place})` : ""}`;
+    const more = { label: "Full league standings", href: `${leagueHref(season, table.region, table.code)}?team=${team.number}` };
+    // The table is the whole league's, so its time is the league's latest meet played, not the team's own last meet.
+    const latest = table.meets.filter((m) => m.played).sort((x, y) => (y.start ?? "").localeCompare(x.start ?? ""))[0];
+    return { ...b, definition: `A league's standing is FIRST's official league ranking, which counts every meet so far that season, ranked by ranking score (RS, average ranking points per match).${why}`, source: `FIRST's ${S} league rankings`,
+      // A member with no match yet sits below everyone in FIRST's list: not a place out of the teams that have played.
+      headline: { value: table.rows.find((x) => x.team === team.number)?.played ? `#${own.rank} of ${own.of}` : "Not ranked yet", label: latest ? `${name} after ${shortEvent(latest.name, latest.type)}` : name, sub: (latest && dateRange(latest.start)) || undefined, href: more.href },
+      blocks: [{ kind: "league", title: `${name} standings`, season, rows: table.rows, team: team.number, more }] };
+  }
   if (!r) return { ...b, none: `${who(team)} played no league meets in ${S}.` };
   return { ...b, headline: { value: `#${r.rank}${r.n && r.n >= r.rank ? ` of ${r.n}` : ""}`, label: `${r.league ? `${r.league} league` : "League"} after ${shortEvent(r.name, r.type)}`, sub: dateRange(r.start) ?? undefined, href: eventHref(season, r.code, team.number) } };
 }

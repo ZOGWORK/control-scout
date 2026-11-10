@@ -238,13 +238,22 @@ export function readCompound(raw: string): CompoundQuestion | null {
   }
 
   // "12345 partners at NJ championship who had opr over 80", "12345 opponents this season with opr above 100".
-  if ((m = new RegExp(String.raw`^(.+?) (?:alliance )?(partners?|opponents?)(?: (?:at|in) (.+?))? (?:who|that|which|with)(?: had| have| has| having)? (?:an? )?(?:opr|event opr) (?:of |is |was )?${OP} ${NUM}${SIDE_END}`).exec(q))) {
-    const w = when(m[6]);
+  // The same asked as a question by the verb: "who partnered 12345 at NJ championship with opr over 80", "who teamed up
+  // with 12345 …", "who played against 12345 …" (the side is the verb's: with a partner, against an opponent).
+  const THRESH = String.raw`(?: (?:at|in) (.+?))? (?:who|that|which|with)(?: had| have| has| having)? (?:an? )?(?:opr|event opr) (?:of |is |was )?${OP} ${NUM}${SIDE_END}`;
+  const asked = new RegExp(String.raw`^(?:who|which teams?|what teams?)(?: have| has| did)? (partnered|teamed up|teamed|played alongside|played against|played|faced|met)( with| against)? (.+?)${THRESH}`).exec(q);
+  const named = asked ? null : new RegExp(String.raw`^(.+?) (?:alliance )?(partners?|opponents?)${THRESH}`).exec(q);
+  const sided = asked
+    ? { core: asked[3], against: /against|faced|met/.test(`${asked[1]}${asked[2] ?? ""}`) || (asked[1] === "played" && !asked[2]), rest: asked.slice(4) }
+    : named ? { core: named[1], against: !/^p/.test(named[2]), rest: named.slice(3) } : null;
+  if (sided) {
+    const [atWords, op, value, tail] = sided.rest;
+    const w = when(tail);
     // "at <event>" names an event unless its words are only a season ("in 2024-25").
-    const at = m[3] ? seasonWords(m[3]) : null;
+    const at = atWords ? seasonWords(atWords) : null;
     const scoped = at && (at.season != null || at.ever) ? { season: at.season, ever: at.ever, latest: at.latest } : null;
     // An OPR is one season's: "ever" across seasons isn't read here.
-    if (w && !(scoped ?? w).ever) return { kind: "side-threshold", core: m[1], side: /^p/.test(m[2]) ? "partners" : "opponents", at: at?.rest || null, threshold: { op: opOf(m[4]), value: Number(m[5]) }, when: scoped && w.season == null ? scoped : w };
+    if (w && !(scoped ?? w).ever) return { kind: "side-threshold", core: sided.core, side: sided.against ? "opponents" : "partners", at: at?.rest || null, threshold: { op: opOf(op), value: Number(value) }, when: scoped && w.season == null ? scoped : w };
   }
 
   // "did 12345 ever beat a team ranked top 10 worldwide".

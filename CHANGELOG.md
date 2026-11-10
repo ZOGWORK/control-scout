@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.0.8 — 2026-11-10
+## 5.2.1 — 2026-11-10
 
 Search reads one season rule in every answer, and says which season (and which state championship) it read.
 
@@ -29,6 +29,189 @@ Search reads one season rule in every answer, and says which season (and which s
 - One season resolver (`server/api/answers/season.ts`) for every intent: a team's question with no season (or "this season", "right now") reads the latest season that team has played; a question about no team reads the current season, stepping back a season with a note when nothing is played there yet; "last season" / "last year" is the latest completed season; a season named is honoured exactly. Every card states the season and why.
 - "At states" reads the team's state championship (the season named, else the latest it played) for a record, match list, score or streak as it already did for results, rank and OPR, so rewordings get one scope; the card names the event and its season. "All state championships", "ever" or "all time" reads every season, labelled "All seasons".
 - Plain leaderboards ("NJ top teams leaderboard") step back a season, said on the card, as the asked boards did. (#1286)
+
+## 5.2.0 — 2026-11-10
+
+A team's page says where it stands in its league, and league meets link to the league's table.
+
+### Highlights
+- [teams] Team pages show where the team stands in its league
+- [rankings] League meet and tournament pages have a League standings button
+- [teams] Each link marks the team's row in the league table
+
+### Added
+- Team page: under the team's last league meet, a line with its place in FIRST's league ranking (out of the teams that have played, "Not ranked yet" before its first match) linking to the league's standings with its row marked.
+- League meet and league tournament pages: a "League standings" button beside Pit display, to the league's standings page. (#1312)
+
+## 5.1.9 — 2026-11-10
+
+A team's league standing in search is this season's, while the league is running.
+
+### Highlights
+- [rankings] "6980 league standing" shows this season's league table
+- [rankings] "north east league standings" finds the Northeast League
+- [fixes] A league standing says which season it is when none was named
+
+### Fixed
+- A team's league standing asked with no season is the team's newest league season with a match played (FIRST's league rankings), said on the card; it was the latest completed season's final table.
+- Two words said for one league name word ("north east" for "Northeast") now find the league even where "North" and "East" are league names too. (#1321)
+
+## 5.1.8 — 2026-11-10
+
+What if? on a phone: every button is a full fingertip tall.
+
+### Highlights
+- [predict] What if? on a phone: the robot-to-swap buttons are 44 px tall
+- [predict] "Open this line-up" after a swap is an easy tap too
+- [fixes] Desktop with a mouse looks the same
+
+### Fixed
+- On a touch screen, the What if? robot picks under a predicted match were 39 px tall on the 14 px phone base. They are 44 px now, and the "Open this line-up" link after a swap has a 44 px tall tap row. (#1313)
+
+
+## 5.1.7 — 2026-11-10
+
+A team's league standing in search now shows the whole league table, and a league asked by name answers with its table.
+
+### Highlights
+- [rankings] "6980 league standing" shows the full league table, 6980's row marked
+- [rankings] Ask for a league by name: "northeast league standings" gives its table
+- [rankings] "nj league standings" lists New Jersey's leagues, each one tap away
+
+### Changed
+- The league standing answer is FIRST's official league ranking: "#30 of 34" out of the teams that have played, the league named with its place, then the league's whole table (rank, team, ranking score, record, matches, meets) with the asked team's row marked and scrolled into view, and a link to the league's page. (#1309)
+
+### Added
+- League standings asked with no team ("NE league standings", "nj northeast league leaderboard", "who is first in the northeast league", "northeast league rankings 2026-27"): the league is found from its FIRST name, its code and the place its meets are in; the current season unless one is named, said on the card. A code several places use shows the biggest league with the others linked; a place alone lists its leagues. (#1309)
+
+## 5.1.6 — 2026-11-10
+
+On a phone, buttons and links are a full fingertip tall again.
+
+### Highlights
+- [fixes] Event pages on a phone: team numbers and chips are easy taps
+- [fixes] Team boxes, the season picker and text boxes are 44 px tall on touch
+- [fixes] Compare, the match page and team page links get the same room
+
+### Fixed
+- The 14 px phone base shrank buttons and links sized in rem below 44 px tall: an event page had 196 of them, the team page 34. On touch screens they now have at least 44 px to tap, either as an invisible hit area (rows that must not grow) or a taller row where links stack, so two tap areas never sit on top of each other. On Compare, a phone puts the reorder and remove buttons on a row under each team. Desktop with a mouse is unchanged. (#1300)
+- A long match list on a touch screen sizes its rows for the taller touch rows before it measures them, so scrolling doesn't jump. Predict's result folds (the robots' ratings, the full why breakdown) and its track-record link are 44 px too.
+
+
+## 5.1.5 — 2026-11-10
+
+A team page says what's next, right under the team's name: the next match once a schedule is posted, else the next event, else its last one.
+
+### Highlights
+- [teams] Upcoming on every team page: the next match, with its call
+- [predict] One tap from the next match to Predict, both alliances filled in
+- [teams] No event published yet? It says so and links the last event
+
+### Changed
+- The team page's header has an Upcoming block. With a posted schedule it shows the next match (number, time, alliances, the team's chance to win) with "Event schedule" and "Predict this match"; before that, the next event with "match list is posted at the event"; with none, "No upcoming event is published" and the last event. It is in the first paint, so a slow connection shows it at once. (#1283)
+- On a phone, the Upcoming rows are at least 44 px tall, so each is an easy tap.
+- The next match's chance to win carries its confidence tier, like every other call.
+- At an event that advances teams, the next-match card keeps an "Odds to advance" button all event day.
+- Whether an event is over is read on the venue's own calendar: a California event's finals still show as next after UTC midnight. Team event rows carry the venue's time zone for this.
+- A team page left open from the night before starts following the event once its day begins at the venue, and stops once the event is over.
+- Search's "next match" and "next event" answers link to the team's current season, so the team page opens on its Upcoming block (they linked last season's page before).
+
+
+## 5.1.4 — 2026-11-10
+
+A what-if under every predicted match: swap one robot and see how the call and the margin move.
+
+### Highlights
+- [predict] What if? Swap a partner or opponent and see the call move
+- [predict] Before and after side by side: win chance and margin, with the change
+- [predict] The swap is in the address: share it, or Undo and Back
+
+### Changed
+- Predict › Match shows a What if? panel under the result: pick a robot in the match, type another, and both calls sit side by side with the change in win chance and margin. The swap is in the address, so a what-if can be shared, and Undo or Back takes it out. Both calls come from the same prediction the lab shows. (#1298)
+- The match lab never makes a two-against-one call: a forgotten box is pointed out, and the call waits for as many teams on each side.
+
+## 5.1.3 — 2026-11-10
+
+Search answers four questions it used to miss: a lost match's best score, an event's field, the hardest division and a place's win streaks.
+
+### Highlights
+- [fixes] Highest score in a lost match, with the alliance that lost
+- [fixes] An event's average OPR: "average OPR of teams at <event>"
+- [fixes] The hardest (or easiest) division of Worlds or a state championship
+- [fixes] Win streaks in a state or country: the longest, and going now
+
+### Added
+- "Who has the highest score in a match they lost" and "highest losing score": the losing alliance's best score without penalties, its teams named, ties never counted. Place, season and window filters work as for other match questions.
+- "Average OPR of teams at <event>", "<state> states average OPR", "average OPR at worlds": the field's average OPR, each team once at its best OPR there. A division named is that division alone, and a parent event counts its divisions.
+- "Which championship division was hardest this year, by average OPR", "easiest division at nj states": every division ranked by its field's average OPR. Worlds by default, a state's championship when a state is named, and the latest season with divisions when this one has none yet, said on the card.
+- "Who has the longest winning streak in <state or country> right now": two lists of the place's teams, the longest run over this season and last, and the run going now up to each team's latest match. A tie ends a streak, as on a team's own streak answer. Losing streaks too. (#1307)
+
+## 5.1.2 — 2026-11-10
+
+Records count official events only everywhere, including the wins list and My team.
+
+### Highlights
+- [fixes] The most-wins list ranks teams on their official matches
+- [fixes] My team says "no official results yet" instead of an empty rate
+- [fixes] Scrimmages never make a team eligible for a record list
+
+### Fixed
+- "Top teams by wins" admitted a team by every match it played, scrimmages included, while its wins count official events only: a team with one official match and two scrimmages was ranked. It now needs three official matches, as the record and win-rate lists do, and says "official events only". (#1306)
+- My team's win-rate tile for a team that has played only off-season events or scrimmages showed an empty rate. It now says there are no official results yet and how many off-season matches it played. Its Record tile says "Official events only", with the matches and events in all beside it.
+
+## 5.1.1 — 2026-11-10
+
+Every league has its own standings page: FIRST's official league ranking over every meet so far.
+
+### Highlights
+- [rankings] New league pages: the whole league table, rank to last place
+- [rankings] Each row: ranking score, record, matches and meets played
+- [rankings] Phones show a numbers-only table that fits the screen
+
+### Added
+- League standings pages at `/leagues/<season>/<region>/<league>` (for example the New Jersey Northeast League): FIRST's official league rankings, read from FIRST every few hours while a league's meets are on, with each team's ranking score, win-loss-tie record, qualification matches and league meets played, and the league's meets and tournament below. `?team=` marks one team's row. The page is drawn on the server, so the table is in the first HTML. Last season's league standings are read too. (#1287)
+
+## 5.1.0 — 2026-11-10
+
+Search answers who partnered or played against a team at an event with an OPR floor, asked the way people say it.
+
+### Highlights
+- [fixes] "Who partnered …" with an OPR floor lists those partners
+- [fixes] "Who teamed up with …" and "who played alongside …" read as partners
+- [fixes] "Who played against …" and "who faced …" read as opponents
+
+### Changed
+- A team's partners or opponents filtered by OPR can be asked by the verb ("who partnered 4215 at NJ championship with opr over 80", "who played against 4215 at NJ championship with opr above 90"), with the same card as "4215 partners at NJ championship who had opr over 80". (#1289)
+
+## 5.0.9 — 2026-11-10
+
+Search picks the right team when several share a name, and never reads a place or an ordinary word as a team.
+
+### Highlights
+- [fixes] A team number you type is always that team, never one a digit off
+- [fixes] A shared team name: the one near the other team, or the stronger one
+- [fixes] Still unclear? Search asks which, with each team's place
+- [fixes] Places and words like "worlds" or "I forgot" are never a team
+
+### Changed
+- A name two or more teams share is settled by one rule, the same in every reader: your own team, the one in the place the question names, the one in the same region as the other team named, the only one that has played, the only one still playing, then the clearly stronger one by world OPR rank over its last two seasons. The answer says which rule picked it. When none settles it, search asks "Which …?" with each team's number and place, and offers the same question about each. It never picks the newest by default.
+- A team number typed among other words is that team ("4215 next match date please" is 4215, not 4218). Search's fuzzy match never swaps a typed team number for a near one.
+- A state, region or country name is the place, never a team named after it: "top scoring match CA this week", "lowest score Texas last week", "longest winning streak in Romania".
+- Ordinary words name a team only typed as its whole name where a team is asked about. In a question that asks which team ("who won inspire at east bergen"), they are words. "Did 4215 and 6980 play at worlds" is their head-to-head at Worlds.
+- A last clause that only talks around the question ("…, i forgot", "… date please") is dropped before reading.
+- While a name is still several teams', People also ask and related searches are about none of them. (#1296)
+
+## 5.0.8 — 2026-11-10
+
+A finished bracket shows the call each series had before it began, and whether it held.
+
+### Highlights
+- [predict] Every decided series shows the call it had before it began
+- [predict] Held or missed, said plainly beside each one
+- [predict] Live calls and season-replay calls are labelled apart
+
+### Changed
+- Event › Playoffs: a decided series showed no call at all, so a finished event's bracket had every call empty. Each decided series now shows the call stored before its first match (logged live before the match, or the season replay's, said which), priced as the whole series, and whether the favourite won: held, missed, or an even call. Undecided series keep the odds from 10,000 simulated playoffs. (#1302)
 
 ## 5.0.7 — 2026-11-10
 

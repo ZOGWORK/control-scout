@@ -27,6 +27,8 @@ import { seasonOfDate } from "./time.js";
 import { searchToday } from "../searchEvents.js";
 import { eventFor, forecastAt, teamEventOfType } from "./forecast.js";
 import { teamsNamedSearch } from "../answers/teamsNamed.js";
+import { eventFieldAnswer } from "../answers/families/eventVersus.js";
+import { asksNow, streakBoardAnswer } from "./streakBoard.js";
 import { pickAnswer, teamPickEvent } from "../answers/families/pick.js";
 import { describe, normalise, parseQuery, type Parsed } from "./parse.js";
 import { parseContext } from "./context.js";
@@ -76,6 +78,10 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
   let a = await execute(p, opts);
   if (!a) return null;
   if (tops && a.understood) a = { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${topTeamsNote(tops.said, tops.season)}` } };
+  // A name several teams share, told apart by a rule (./shared.ts): the card says which team it was read as, and why.
+  for (const t of p.teams) {
+    if (t.candidates && t.rule && a.understood) a = { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${t.typed}: ${t.number}, ${t.rule} of ${t.candidates.length} teams with the name` } };
+  }
   // Part of a region ("north jersey") is read as all of it, and the card says so.
   if (p.place?.part && a.understood) a = { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${p.place.part.replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase())} isn't a separate region: all of ${p.place.name}` } };
   // A team's name typed nearly right: answered for that team, with the spelling to search for.
@@ -180,7 +186,7 @@ const MEETINGS = new Set<TwoTeamId>(["head-to-head", "h2h-wins", "shared-matches
 /** Every intent execute() answers (the rest are left to search's readers). */
 /** The match finder's measure for each intent that asks for one (./matchFind.ts). */
 const FIND: Partial<Record<PipelineIntent, MatchMeasure>> = {
-  "low-matches": "low", "close-matches": "closest", "lopsided-matches": "lopsided", "penalty-matches": "penalties", "upset-matches": "upset", "comeback-matches": "comeback",
+  "low-matches": "low", "close-matches": "closest", "lopsided-matches": "lopsided", "penalty-matches": "penalties", "upset-matches": "upset", "comeback-matches": "comeback", "loss-matches": "loss-high",
   "miss-matches": "miss", "accurate-matches": "accurate",
 };
 /** The match finder's measures one team's matches take ("<team>'s most unpredictable match"). */
@@ -188,7 +194,7 @@ const TEAM_FIND = new Set<MatchMeasure>(["miss", "accurate"]);
 /** The matches a measure finds, in a sentence ("no 2026–27 upsets yet"). */
 const MATCH_NOUN: Record<MatchMeasure, string> = {
   high: "scored matches", low: "scored matches", closest: "decided matches", lopsided: "decided matches", penalties: "matches with penalty points",
-  upset: "upsets", comeback: "comebacks", miss: "matches with a saved prediction", accurate: "matches with a saved prediction",
+  upset: "upsets", comeback: "comebacks", "loss-high": "decided matches", miss: "matches with a saved prediction", accurate: "matches with a saved prediction",
 };
 /** A time's label that already reads alone ("in March 2026", "this week", "on Mar 15, 2026", "today"). */
 const WHEN_WORD = /^(?:in|on|during|this|last|next|from|between|today|tonight|yesterday|tomorrow)\b/i;
@@ -490,6 +496,17 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     if (!scope.window || scope.season == null || p.time?.year != null) return a;
     return relaxed(a, windowSteps(scope.window, scope.season), (season) => topSearch(p.q, { ...t, window: undefined, season }, opts));
   }
+  if (!p.teams.length && intent === "event-field") return eventField(p, scope, opts);
+  if (!p.teams.length && intent === "streak-board") {
+    // A place's teams (a state or a country): the world's every match is too many to count here.
+    const region = regionOf(p);
+    // A match type or alliance said ("playoff win streak") is a streak this board doesn't count.
+    if (!region || p.place?.kind === "city" || p.event || p.worlds || p.states || p.level || p.finals || p.alliance || scope.window || scope.ever) return null;
+    const losing = p.symbols.includes("outcome:L") || p.symbols.includes("metric:loss");
+    const stat = await streakBoardAnswer({ region, season: placeSeason(p, scope.season, opts), now: asksNow(p.q) || p.symbols.includes("agg:last"), losing, n: Math.min(25, p.n ?? 10) });
+    return { q: p.q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: stat.title }, ...(opts.full ? { stat } : {}),
+      intent: { kind: "stat-streak-board", pattern: "streak [place]", met: true, understood: [stat.title] } };
+  }
   if (!p.teams.length && intent === "leaderboard") {
     // The search box keeps the asks' own short card; the page draws the list.
     if (!opts.full) return null;
@@ -550,12 +567,10 @@ function whichTeam(a: SearchAnswer | null): SearchAnswer | null {
   return { ...a, stat: { ...a.stat, blocks: [{ kind: "related", title: "Which team? Ask for one team's record", queries }, ...a.stat.blocks] } };
 }
 
-/** The board of the teams at one event named, Worlds or the place's state championship: the season said (a year: the
- *  one held then), else the latest held. OPR only: another stat said is left to search. */
-async function eventBoard(p: Parsed, scope: ReadScope, said: string, opts: PipelineOptions): Promise<SearchAnswer | null> {
-  if (p.symbols.some((s) => BOARD_STAT[s] && BOARD_STAT[s] !== "opr") || p.place?.kind === "city") return null;
-  // The best first by OPR only: the lowest first, undefeated teams alone or OPR said not to go by are left to search.
-  if (p.agg === "min" || p.undefeated || (p.notMetrics ?? []).some((s) => !BOARD_STAT[s] || BOARD_STAT[s] === "opr")) return null;
+/** The event a query names, Worlds or the place's state championship, with its divisions' codes: the season said (a
+ *  year: the one held then), else the latest held up to the current season whose teams are listed. `home`: the place
+ *  said beside Worlds or an event, the teams' home; `skipped`, a newer season with no teams listed yet. */
+async function eventNamed(p: Parsed, scope: ReadScope, opts: PipelineOptions) {
   // A place said with a state championship is the event's ("nj states"); with Worlds or an event named, the teams'
   // home ("nj teams at worlds"): only the teams from there are listed.
   const region = regionOf(p);
@@ -586,7 +601,30 @@ async function eventBoard(p: Parsed, scope: ReadScope, said: string, opts: Pipel
   if (season == null) season = year == null && scope.season != null ? null : seasons[0] ?? null;
   if (season == null) return null;
   const { main, codes } = at(season);
-  const name = p.worlds ? `Worlds ${season + 1}` : shortEvent(main.name, main.type);
+  return { season, main, codes, name: p.worlds ? `Worlds ${season + 1}` : shortEvent(main.name, main.type), home, skipped };
+}
+
+/** An event's field (./intents.ts "event-field"): its teams' average OPR there, the event found as its board finds it. */
+async function eventField(p: Parsed, scope: ReadScope, opts: PipelineOptions): Promise<SearchAnswer | null> {
+  if (p.place?.kind === "city" || scope.window || scope.ever) return null;
+  const ev = await eventNamed(p, scope, opts);
+  // Some of the field only ("NJ teams at worlds"): not this answer's to count.
+  if (!ev || ev.home) return null;
+  const stat = await eventFieldAnswer({ season: ev.season, code: ev.main.code, name: ev.main.name, type: ev.main.type, start: ev.main.start, division: ev.main.division });
+  const label = stat.title;
+  return { q: p.q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label, season: ev.season }, ...(opts.full ? { stat } : {}),
+    intent: { kind: "stat-event-field", pattern: "average OPR at [event]", met: true, understood: [label] } };
+}
+
+/** The board of the teams at one event named, Worlds or the place's state championship: the season said (a year: the
+ *  one held then), else the latest held. OPR only: another stat said is left to search. */
+async function eventBoard(p: Parsed, scope: ReadScope, said: string, opts: PipelineOptions): Promise<SearchAnswer | null> {
+  if (p.symbols.some((s) => BOARD_STAT[s] && BOARD_STAT[s] !== "opr") || p.place?.kind === "city") return null;
+  // The best first by OPR only: the lowest first, undefeated teams alone or OPR said not to go by are left to search.
+  if (p.agg === "min" || p.undefeated || (p.notMetrics ?? []).some((s) => !BOARD_STAT[s] || BOARD_STAT[s] === "opr")) return null;
+  const ev = await eventNamed(p, scope, opts);
+  if (!ev) return null;
+  const { season, main, codes, name, home, skipped } = ev;
   const one = p.n == null && /\b(?:team|who)\b/.test(said) && !/\bteams\b/.test(said);
   const a = await boardSearch(p.q, { kind: "top", stat: "opr", n: Math.min(25, p.n ?? (one ? 5 : 10)), region: null, city: null, season, event: { season, code: main.code, codes, name, home, ...(p.rookie ? { rookies: true } : {}) } }, opts);
   if (!a?.stat || skipped == null || skipped === season) return a;
