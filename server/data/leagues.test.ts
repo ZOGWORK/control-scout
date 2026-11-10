@@ -68,6 +68,10 @@ describe("league standings sync", () => {
     // Out of the teams that have played: team 8 hasn't in New Jersey.
     expect(await teamLeagueStanding(S, 6980)).toEqual({ region: "USNJ", code: "NE", name: "Northeast", rank: 2, of: 2, played: true });
     expect(await teamLeagueStanding(S, 1234)).toBeNull();
+    // A member with no match yet: listed below everyone, so not a place out of the teams that have played (the team
+    // page says "Not ranked yet", never "#3 of 2").
+    await run("DELETE FROM league_rankings WHERE region = 'USFL'");
+    expect(await teamLeagueStanding(S, 8)).toEqual({ region: "USNJ", code: "NE", name: "Northeast", rank: 3, of: 2, played: false });
     expect((await leaguesOf(S, "USNJ")).map((l) => [l.code, l.name, l.teams])).toEqual([["NE", "Northeast", 3]]);
   });
 
