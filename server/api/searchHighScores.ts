@@ -39,9 +39,13 @@ const gameRe = (game: string) => new RegExp(`\\b${[...game.replace(/\s+/g, "").t
 
 /** The high-score question `q` asks, or null when it isn't one. */
 export function parseHighScore(q: string): HighScoreQuestion | null {
-  const asked = ASKED.exec(q);
+  // A game named inside the words ("best decode score ever", "highest bio buzz score") is read out first, so the
+  // question reads as "best score" around it; the game is then found in what it took out.
+  const named = SEASONS.map((x) => gameRe(x.game).exec(q)).find((m) => m && !ASKED.test(q));
+  const text = named ? squash(q.replace(named[0], " ")) : q;
+  const asked = ASKED.exec(text);
   if (!asked) return null;
-  let rest = q.replace(asked[0], " "), season: number | null = null, game: string | null = null;
+  let rest = (named ? `${text} ${named[0]}` : q).replace(asked[0], " "), season: number | null = null, game: string | null = null;
   for (const s of SEASONS) {
     const m = gameRe(s.game).exec(rest);
     if (m) { season = s.season; game = s.game; rest = rest.replace(m[0], " "); break; }

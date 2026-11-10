@@ -48,12 +48,24 @@ describe("what's read as a high-score question", () => {
     expect(parseHighScore("4215 high score")).toEqual({ season: null, game: null, core: "4215" });
     expect(parseHighScore("hypnotic robotics best score this season")).toMatchObject({ season: 2026, core: "hypnotic robotics" });
   });
+  it("the game named between the words: best decode score ever, highest into the deep score", () => {
+    expect(parseHighScore("best decode score ever")).toEqual({ season: 2025, game: "DECODE", core: "" });
+    expect(parseHighScore("highest into the deep score")).toMatchObject({ season: 2024, game: "INTO THE DEEP", core: "" });
+    expect(parseHighScore("4215 top decode scores")).toMatchObject({ season: 2025, core: "4215" });
+    // A game named with no score word is still not one.
+    expect(parseHighScore("decode")).toBeNull();
+    expect(parseHighScore("best decode team")).toBeNull();
+  });
   it("a team's win-loss record or a plain search is never one", () => {
     for (const q of ["4215 record", "hypnotic robotics", "score", "records"]) expect(parseHighScore(q), q).toBeNull();
   });
 });
 
 describe("the answer", () => {
+  it("the game named between the words (best decode score ever) gets the same card", async () => {
+    const a = await searchAnswer("best decode score ever");
+    expect(a.card).toMatchObject({ kind: "high-scores", title: "Highest scores in 2025–26 (DECODE)" });
+  });
   it("a season's best scores without penalties, official events only, each a link to its match with its alliance", async () => {
     const a = await searchAnswer("world record score decode");
     expect(a.card).toMatchObject({ kind: "high-scores", title: "Highest scores in 2025–26 (DECODE)" });
