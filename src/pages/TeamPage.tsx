@@ -35,7 +35,7 @@ import { eventTypeLabel } from "../lib/labels";
 import { copyLink } from "../lib/clipboard";
 import { direction, trendLabel } from "../shared/trend";
 import { teamTitle } from "../shared/teamTitle";
-import { RECORD_RULE } from "../shared/eventRecord";
+import { OFFICIAL_ONLY, OFFICIAL_RULE, RECORD_RULE, offSeasonRecord, wltText } from "../shared/eventRecord";
 import { OfflineNote } from "../components/OfflineNote";
 import { offlineSource } from "../lib/offline/saved";
 import { StickyActions } from "../components/StickyActions";
@@ -259,9 +259,10 @@ function Hero({ p, onSeason, fellBackFrom }: { p: TeamProfile; onSeason: (s: num
                 {predictable
                   ? <div><dt className="text-xs text-muted-foreground" title={RATING_TERM}>Rating</dt><dd className="font-display text-2xl font-semibold tabular-nums">{s.rating ? num(s.rating.np) : "—"}{s.rating && <span className="text-sm font-normal text-muted-foreground"> ±{num(s.rating.sd, 0)}</span>}</dd></div>
                   : <div><dt className="text-xs text-muted-foreground">Avg score</dt><dd className="font-display text-2xl font-semibold tabular-nums">{num(s.avg.np)}</dd></div>}
-                <div><dt className="text-xs text-muted-foreground" title={RECORD_RULE}>Record</dt><dd className="font-display text-2xl font-semibold tabular-nums" title={RECORD_RULE}>{s.record.wins}-{s.record.losses}-{s.record.ties}</dd></div>
+                <div><dt className="text-xs text-muted-foreground" title={`${OFFICIAL_RULE} ${RECORD_RULE}`}>Record</dt><dd className="font-display text-2xl font-semibold tabular-nums" title={`${OFFICIAL_RULE} ${RECORD_RULE}`}>{s.record.wins}-{s.record.losses}-{s.record.ties}</dd><dd className="text-xs text-muted-foreground" data-record-scope>{OFFICIAL_ONLY}</dd></div>
                 {s.reliability && <div><dt className="text-xs text-muted-foreground" title="An estimate from match results: no-shows, DQs, near-zero matches, swing, penalties">Reliability</dt><dd className="font-display text-2xl font-semibold tabular-nums">{s.reliability.index}<span className="text-sm font-normal text-muted-foreground"> /100</span></dd></div>}
               </dl>
+              <OffSeasonLine events={p.events} />
             </>
           )}
           <div className="mt-5 max-sm:mt-4 space-y-2 text-sm">
@@ -340,7 +341,7 @@ export function OprSection({ p }: { p: TeamProfile }) {
       {open && <OprBreakdown events={p.events} k={open} />}
       {s && !predictable && s.record.matches > 0 && (
         <p className="mt-3 rounded-xl border border-border bg-card p-4 text-xs text-muted-foreground">
-          Season record {s.record.wins}-{s.record.losses}-{s.record.ties} across {s.record.events} event{s.record.events === 1 ? "" : "s"} · avg alliance score {num(s.avg.score)} ({num(s.avg.np)} without penalties)
+          Season record {s.record.wins}-{s.record.losses}-{s.record.ties} at official events · avg alliance score {num(s.avg.score)} ({num(s.avg.np)} without penalties)
         </p>
       )}
       {s?.rating && (
@@ -350,7 +351,7 @@ export function OprSection({ p }: { p: TeamProfile }) {
             hint={`${s.rating.rank ? `Rating #${s.rating.rank.toLocaleString()} worldwide, of teams rated on 3+ matches · ` : ""}${s.rating.matches} matches this season`} />
           <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
             <p>The rating is what the prediction engine expects this robot to add to its alliance <em>now</em> (<span className={cn("font-medium", TONES.sky.text)}>auto {num(s.rating.auto)}</span>, <span className={cn("font-medium", TONES.emerald.text)}>TeleOp {num(s.rating.teleop)}</span>, <span className={cn("font-medium", TONES.violet.text)}>endgame {num(s.rating.endgame)}</span>; gives away ~{num(s.rating.pen)} penalty pts a match). Unlike OPR it updates after every match and carries over from last season, so it's what drives win odds. It's read from alliance scores: random qualification partners let a team's share show, and playoffs (fixed partners) count half. <Link to="/methodology#rating-assumption" className="underline">How ratings work</Link></p>
-            <p className="mt-2 text-xs">Season record {s.record.wins}-{s.record.losses}-{s.record.ties} across {s.record.events} event{s.record.events === 1 ? "" : "s"} · avg alliance score {num(s.avg.score)}</p>
+            <p className="mt-2 text-xs">Season record {s.record.wins}-{s.record.losses}-{s.record.ties} at official events · avg alliance score {num(s.avg.score)}</p>
           </div>
         </div>
       )}
@@ -550,5 +551,16 @@ function ScoutNotes({ team, season }: { team: number; season: number }) {
         </div>
       )}
     </Section>
+  );
+}
+
+/** Off-season events and scrimmages, added up on a line of their own under the record: never in it (OFFICIAL_RULE). */
+function OffSeasonLine({ events }: { events: TeamEventRow[] }) {
+  const off = offSeasonRecord(events);
+  if (!off) return null;
+  return (
+    <p className="mt-3 text-xs text-muted-foreground" data-off-season-record>
+      Off-season and scrimmages, not in the record: <span className="font-medium tabular-nums text-foreground">{wltText(off)}</span> at {off.events} event{off.events === 1 ? "" : "s"}
+    </p>
   );
 }

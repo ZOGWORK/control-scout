@@ -106,11 +106,28 @@ describe("methodology ledger", () => {
     expect(document.getElementById("match-counts")!.textContent).toBe("Match counts on this page: 37,395 in this held-out test; 37,414 in the Prediction Engine 2.0 replay of the whole 2025–26 season, 37,140 of them with a winner (the rest were ties). They are separate tests with their own match lists, so the counts differ slightly.");
   });
 
+  it("lists every headline-sized figure with its slice and sample, from the same API answer as the home card", async () => {
+    data = RECORD;
+    await mount();
+    const slices = document.querySelector("[data-slices]")!;
+    expect(slices.textContent).toMatch(/^5 figures, 5 slices\. Each one is labelled with what it counts and how many; none of them is "the live accuracy" on its own\./);
+    const dts = [...slices.querySelectorAll("dt")].map((d) => d.textContent);
+    expect(dts).toEqual(["Engine 3.5 tested month by month · 2025–26 DECODE", "Season replay · 2026–27 BIOBUZZ so far", "Live calls made in advance · 2026–27 BIOBUZZ", "Headline · 2025–26 DECODE season replay", expect.stringMatching(/^Prediction Engine 2\.0 replay · /)]);
+    const dds = [...slices.querySelectorAll("dd")].map((d) => d.textContent).slice(1);
+    expect(document.querySelector("[data-slices] dd")!.textContent).toBe("74.8% 27,354 right of 36,572 matches with a winner, each month predicted by an engine fitted only on the year before · the home card's \"Last season\" figure");
+    expect(dds[0]).toBe("63.6% 198 decisive calls of 207 scored, replayed with only earlier matches · the home card's \"This season so far\" figure");
+    expect(dds[1]).toBe("48.5% 33 decided of 33 scored · Brier 0.2480 · early season, 100% rough guesses · lead the track record's headline once 10,000 are scored; the home card always shows replays");
+    expect(dds[2]).toBe("73.8% 41,405 decided of 41,743 scored · the newest season past the 10,000-match bar");
+    expect(dds[3]).toMatch(/^\d\d\.\d\d% [\d,]+ matches with a winner of [\d,]+ replayed · Brier 0\.\d{4} \(was 0\.\d{4}\) · the engine's own test, not this site's ledger$/);
+  });
+
   it("shows no percentage and no skill when nothing was decided", async () => {
     data = { ...RECORD, headline: null, seasons: [{ season: 2026, label: "2026–27 BIOBUZZ", live: blk(2, 0, 0, 0, 0), backtest: null }] } satisfies TrackRecord;
     const card = within(await mount());
     expect(card.getByText(/no decided match yet/)).toBeTruthy();
-    expect(card.getAllByText("—")).toHaveLength(2);
+    // The accuracy and skill cells, and the live slice in the list of every figure.
+    expect(card.getAllByText("—")).toHaveLength(3);
+    expect(document.querySelector("[data-slices] dd")!.textContent).toMatch(/^— 0 decided of 2 scored/);
     expect(card.queryByText("0.0%")).toBeNull();
   });
 });

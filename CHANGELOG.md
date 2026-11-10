@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 4.9.6 — 2026-11-10
+## 5.0.3 — 2026-11-10
 
 A season that hasn't started says so, and a prediction's links open on the season its cards show.
 
@@ -28,6 +28,108 @@ A season that hasn't started says so, and a prediction's links open on the seaso
 - A one-team question that names a season with no events yet ("opr 2027", "rating in 2027") answers with a no-events card for that season, and a link to the same question for the latest season, instead of reading the year as part of an event name or dropping it. A named year that has been played still answers for exactly that season.
 - A two-team prediction with no season named reads the latest season both teams have a rating in, the one their team cards show, and its Predict and Compare links carry that season too.
 - A prediction asked in search for a season whose ratings weren't loaded yet showed the rating gap ("rated higher by 38.8 points per match"), and the same question later showed the engine's call ("by 53"). Search now starts loading that season's ratings the first time it is asked, so the next ask, and every one after, gets the engine's call.
+
+## 5.0.2 — 2026-11-10
+
+The track record says which number is which: every figure carries its slice and sample.
+
+### Highlights
+- [home] The track record says its figure is a replay, not live calls
+- [home] Live calls made in advance are stated beside it, with their sample
+- [report] How it works lists every figure with what it counts and how many
+
+### Changed
+- The home page's track record says plainly that its figure is replayed from past matches, not calls made in advance, and states the live record beside it: live calls made in advance this season, the share of decided calls right, the Brier score, how early the season is (and how many calls are rough guesses), and that live calls lead the track record's headline once 10,000 are scored, while the card always shows replays. All from the accuracy API, never typed in. (#1276)
+- How it works › Accuracy lists every headline-sized figure the site quotes, each with its slice and sample: this season's replay so far, live calls made in advance, the headline replay, and the Prediction Engine 2.0 replay. None of them is "the live accuracy" on its own.
+
+## 5.0.1 — 2026-11-10
+
+A best-score answer's "Highest official score" tile names the match it comes from.
+
+### Highlights
+- [fixes] The highest official score tile names its own match, event and date
+- [fixes] It links to that match, never reading as the headline contradicted
+- [fixes] Tiles' detail lines are in the page as first served
+
+### Fixed
+- "4215 highest scoring match in 2025-26" showed 262 points and, beside it, "Highest official score: 302" with nothing saying 302 was another match's, made by the other alliance's fouls. The tile now reads "Another match: Q19 at P2-8 Northern League Meet, Dec 21, 2025. 200 from the other alliance's fouls (its own points 102)" and links to Q19. The page as first served (before the app loads, and for search engines) prints every tile's detail line too. (#1290)
+
+## 5.0.0 — 2026-11-10
+
+A prediction-versus-result card lists every match the team played, with or without a stored call.
+
+### Highlights
+- [predict] Prediction vs result lists every match the team played
+- [predict] A match with no stored call says so instead of dropping out
+- [fixes] The record on the card counts the same matches as its table
+
+### Fixed
+- "Predicted chances of 4215 East Bergen Conference" listed 7 of 4215's 8 matches: Q6, where an opposing robot was a no-show, had no replayed call stored, so it dropped out of the table and the record. Every played match is now a row; one with no call reads "No call stored", counts on the record (8-0-0) and never in "Called right" or the expected wins, which the headline says. (#1285)
+
+## 4.9.9 — 2026-11-10
+
+A season record counts official events only, on the team page and in search alike, and says so.
+
+### Highlights
+- [teams] A season record counts official events only, everywhere
+- [teams] Off-season events and scrimmages get their own line on the team page
+- [fixes] Search and the team page show the same record for every team
+
+### Fixed
+- The team page's record counted off-season events and scrimmages, while search's record card counted official events only: 24033 read 46-20-0 on its page and 41-16-0 in search, 17713 31-14-0 and 30-14-0, 23268 (2024–25) 42-20-0 and 37-14-0. One rule now (`isOfficialEvent` in src/shared/eventRecord.ts) for the stats job, the team page and search: official events only (qualifiers, league play, championships, premier events). The record tile and the search card say "Official events only"; the team page adds a line for off-season events and scrimmages ("not in the record: 5-4-0 at 1 event"). Matches played still count every event. Season stats are recomputed once after this release. (#1280)
+
+## 4.9.8 — 2026-11-10
+
+Search reads "comparison", "winner" and "head to head" the way people say them.
+
+### Highlights
+- [fixes] "opr comparison 4215 and 7149" shows the OPR side by side
+- [fixes] "predict winner 4215 6980" shows the match forecast
+- [fixes] "head to head" shows the two teams' meetings, at Worlds when said
+
+### Changed
+- "Comparison", "bigger" and "higher" compare two teams' stat, however the teams are joined ("which opr is bigger, 4215 or 7149").
+- "Winner" in a forecast ("predict 23268 7149 winner", "who is the winner 4215 vs 6980") asks for the match call.
+- "Head to head" and "h2h" read as the teams' meetings card, with a scope said alongside ("4215 versus 6980 worlds head to head score"), never only a Compare link. (#1277)
+
+## 4.9.7 — 2026-11-10
+
+A championship division's awards are read from its championship, and an event named is its newest edition.
+
+### Highlights
+- [fixes] An award asked at a division names the championship's winner
+- [fixes] An event named is its newest edition, not an older look-alike
+- [fixes] The card says the award was given at the championship
+
+### Fixed
+- A division of a championship (New Jersey Championship - Turnpike Division) has no judged awards of its own: FIRST posts them on the championship. An award asked at a division is now the championship's, said so on the card, instead of "No Control Award recorded".
+- "Who won Inspire at NJ Championship Parkway Division" answers for the 2025–26 division, not a 2020–21 event whose name holds extra words. Of the events whose names fit the words best, the newest is picked; a region code typed ("NJ") is read as its name. (#1270)
+
+## 4.9.6 — 2026-11-10
+
+Search answers the plural with the list, and finds a team whose name was typed nearly right even when each word is a real word.
+
+### Highlights
+- [fixes] "4215 upcoming events" lists the team's upcoming events
+- [fixes] A team's name typed nearly right is found, with a Did you mean
+- [fixes] A team's number with an s after it finds the team
+
+### Changed
+- Asked in the plural ("upcoming events", "next events", "upcoming matches"), search shows the list, titled as one, even when it holds one event or none. The singular still shows the next one.
+- A team's name typed nearly right, where each word is still a real word, is read as that team and said as "Did you mean". A team found by a near spelling inside a question says so too.
+- "Partnered" reads as alliance partners, never split into two words. (#1275)
+
+## 4.9.5 — 2026-11-10
+
+On a phone, every tracked team on My team can be removed again.
+
+### Highlights
+- [fixes] My team on a phone: the remove button shows on every tracked team
+- [fixes] A long event name is cut short instead of pushing the row off the screen
+- [fixes] Tracked events and the win-rate tiles keep to a phone screen too
+
+### Fixed
+- My team › Tracked teams on a phone: a team whose last event has a long name (a league tournament, say) made its row wider than the screen, so the row ran off the right edge and its Stop tracking button couldn't be reached. Rows now keep to the screen's width and the event name is shortened with "…"; the tracked events and win-rate tiles on the same page got the same fix. (#1279)
 
 ## 4.9.4 — 2026-11-10
 
