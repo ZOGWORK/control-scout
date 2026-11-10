@@ -8,6 +8,7 @@ import type { StatAnswer } from "../../../src/shared/searchStat.js";
 import type { Region } from "../../../src/shared/regions.js";
 import { dateRange, seasonLabel } from "../../../src/shared/format.js";
 import { all, get } from "../../db.js";
+import { latestStoredSeason, noEventsStat, withoutYear } from "../answers/noEventsYet.js";
 import { intentDefaults, readLeaderboard, scopeFits, type IntentId, type LeaderboardQuestion, type ReadScope, type StatQuestion, type TwoTeamId } from "../answers/read.js";
 import { allianceForecast, predictionSeasonOf } from "../answers/families/predict.js";
 import { isLegacy } from "../../data/seasons.js";
@@ -217,6 +218,15 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   if (intent === "count-teams") return townCount(p) ? boardSearch(p.q, { kind: "city", stat: "opr", n: 25, region: null, city: p.place!.city, season: null }, opts) : null;
   const scope = readScopeOf(p);
   if (!scope) return null;
+  // One team's question with a season or a year that has no events on record yet (a future one: "12345 opr 2027"),
+  // whatever it asks: the card that says so, never another season's numbers. The stat readers below check this
+  // themselves (after their own reading of a year, such as Worlds held that year); every other one-team intent is
+  // checked here, before any reader can take the year for part of an event's name. A team's prediction and pick
+  // helper read the year as an event's (theirs say when it has none).
+  if (p.teams.length === 1 && !TEAM_INTENTS.has(intent) && intent !== "team-predict" && intent !== "pick-partners") {
+    const future = await noEventsYet(p, p.teams[0].number, intent as IntentId, opts);
+    if (future) return future(opts);
+  }
   // The finals are a filter the match finder applies (and a scope's highlights, read with its filters), and a team's
   // answers from its own match rows (scopeFits): anything else would answer for every playoff match.
   if (p.finals && !p.teams.length && !(FIND[intent] || intent === "top-matches" || intent === "highlights")) return null;
@@ -721,7 +731,7 @@ function regionOf(p: Parsed): Region | null {
 async function noEventsYet(p: Parsed, team: number, id: IntentId, opts0: { now?: number }): Promise<((opts: PipelineOptions) => Promise<SearchAnswer>) | null> {
   const t = p.time;
   if (!t || t.kind !== "season" || t.relative || t.season == null) return null;
-  const latest = Number((await get<{ s: number | null }>("SELECT MAX(season) s FROM events"))?.s ?? NaN);
+  const latest = await latestStoredSeason();
   // A past year is answered as asked (the family says when the team has nothing there). Only a season after the
   // newest stored, or an event's year still to come, gets this card.
   const today = new Date(opts0.now ?? Date.now());
@@ -729,15 +739,8 @@ async function noEventsYet(p: Parsed, team: number, id: IntentId, opts0: { now?:
   const S = p.event ? String(t.year ?? t.season) : seasonLabel(t.season);
   const what = p.event ? `${p.event.typed} in ${S}` : `${S} events`;
   const who = `${p.teams[0].name ?? `Team ${team}`} (${team})`;
-  const latestQ = p.q.replace(new RegExp(`\\b${t.typed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i"), " ").replace(/\s+/g, " ").trim();
   return async (opts) => {
-    const stat: StatAnswer = {
-      family: "event", intent: id, title: `No ${what} yet`, team: { number: team, name: p.teams[0].name }, scope: [p.event ? `${p.event.typed}, ${S}` : S],
-      blocks: [{ kind: "related", title: "The latest on record instead", queries: [latestQ] }],
-      definition: "A season's events are listed once FIRST publishes them; a year with none yet has nothing to answer from, so its answer is never the latest season's.",
-      source: `Seasons on record: up to ${seasonLabel(latest)}`,
-      none: `There are no ${what} on record yet, so ${who} has nothing there to show. Ask without the year for the latest.`,
-    };
+    const stat = noEventsStat({ intent: id, team: { number: team, name: p.teams[0].name }, what, scope: p.event ? `${p.event.typed}, ${S}` : S, latestQ: withoutYear(p.q, t.typed), latest });
     const hit = (await opts.resolve(String(team))).hits.find((h) => h.kind === "team" && h.ref === String(team));
     return { q: p.q, hits: hit ? [{ ...hit, facts: undefined, events: undefined }] : [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: `${who} · No ${what} yet` }, stat };
   };
