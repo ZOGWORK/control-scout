@@ -84,6 +84,11 @@ describe("advancement odds for a season", () => {
     expect(a.scope[0]).toBe("Northern League Tournament");
     expect(chance(a)!.label).toBe("to advance to New Jersey Championship, before it started");
   });
+  it("a place given: only events there (a state championship's own region leads to it)", async () => {
+    const a = await seasonAdvancement(team, { season: 2025, toward: "states", now: NOW, missing: "Not listed", region: { country: "Romania", state: "" } });
+    expect(a.none).toBeTruthy();
+    expect(chance(a)).toBeUndefined();
+  });
   it("a season that's over: its own latest event, with no 'nothing to come' line", async () => {
     const a = await seasonAdvancement(team, { season: 2025, toward: "worlds", now: NOW });
     expect(a.title).toBe("Advancement odds: 7149 at New Jersey Championship - Turnpike Division");

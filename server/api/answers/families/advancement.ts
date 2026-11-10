@@ -16,7 +16,7 @@ import { all, get } from "../../../db.js";
 import { isEnabled } from "../../../flags.js";
 import { eventForecast } from "../../../predict/eventForecast.js";
 import { readProjections } from "../../../projections/store.js";
-import { eventHref } from "../matchSet.js";
+import { eventHref, shortEvent } from "../matchSet.js";
 import { whoOf, type AnswerTeam } from "./matches.js";
 import { wonEventByRules } from "./winners.js";
 
@@ -106,7 +106,7 @@ export async function advancementAt(team: AnswerTeam, ev: Ev, now: number, lead?
   const worlds = ev.type === "FIRSTChampionship";
   const played = (ev.start ?? "9999") <= today;
   const done = (ev.end ?? ev.start ?? "9999") < today;
-  const name = ev.name.replace(/^FIRST Championship - FIRST Tech Challenge - /, "Worlds · ");
+  const name = shortEvent(ev.name, ev.type);
   const href = predictHref({ mode: "advancement", season: Number(ev.season), code: ev.code, team: team.number });
   const links: StatBlock = { kind: "links", title: "Event", items: [{ label: ev.name, sub: when, href: eventHref(Number(ev.season), ev.code, team.number) }] };
   const base: Omit<StatAnswer, "blocks"> = {
@@ -138,14 +138,17 @@ export async function advancementAt(team: AnswerTeam, ev: Ev, now: number, lead?
 
 /** A team's advancement odds for a season, no event named ("17670 chances this season", "can 4215 make it to states"):
  *  its next event toward where it's going (the soonest one the engine can forecast), else, said so, its latest one. */
-export async function seasonAdvancement(team: AnswerTeam, o: { season: number | null; toward: Toward; now: number; missing?: string }): Promise<StatAnswer> {
+export async function seasonAdvancement(team: AnswerTeam, o: { season: number | null; toward: Toward; now: number; missing?: string;
+  /** Only events in this place (a state championship's region: its events are the ones that lead there). */
+  region?: { country: string; state: string } | null }): Promise<StatAnswer> {
   const today = new Date(o.now).toISOString().slice(0, 10), types = typesFor(o.toward), S = seasonLabel(o.season ?? CURRENT_SEASON);
   // The team's events of those types; a championship split into divisions is the team's division, where its odds are made.
   const evs = await all<Ev>(
     `SELECT DISTINCT ${EV_COLS} FROM ${ROSTER} r JOIN events e ON e.season = r.season AND e.code = r.code
-     WHERE r.team = ? AND e.season >= ? AND e.type IN (${types.map(() => "?").join(", ")})
+     WHERE r.team = ? AND e.season >= ? AND (e.type IN (${types.map(() => "?").join(", ")})
+       OR (${o.toward ? "0" : "1"} AND EXISTS (SELECT 1 FROM event_projections x WHERE x.season = e.season AND x.code = e.code)))${o.region ? ` AND e.country = ?${o.region.state ? " AND e.state = ?" : ""}` : ""}
        AND NOT EXISTS (SELECT 1 FROM events d WHERE d.season = e.season AND d.division_code = e.code)
-     ORDER BY e.start DESC, e.code`, [team.number, FIRST_PREDICT_SEASON, ...types]);
+     ORDER BY e.start DESC, e.code`, [team.number, FIRST_PREDICT_SEASON, ...types, ...(o.region ? [o.region.country, ...(o.region.state ? [o.region.state] : [])] : [])]);
   const upcoming = evs.filter((e) => (e.end ?? e.start ?? "") >= today && Number(e.season) === (o.season ?? CURRENT_SEASON)).reverse();
   for (const e of upcoming) {
     const a = await advancementAt(team, e, o.now);
@@ -159,7 +162,8 @@ export async function seasonAdvancement(team: AnswerTeam, o: { season: number | 
   const why = o.missing ?? `No next ${toward} with a team list is published for ${whoOf(team)} in ${S} yet`;
   if (!latest) {
     return { family: "stat", intent: "advancement-odds", title: `Advancement odds: ${team.number}`, team, scope: [S], definition: ADVANCE_RULE, source: `${team.number}'s events`, blocks: [],
-      none: over ? `${whoOf(team)} played no ${toward} with a forecast in ${S}.` : `${why}, and it has no earlier ${toward} with a forecast to show instead. The odds appear once the event's team list is in.` };
+      none: o.missing ? `${o.missing}, and it played no ${toward} there with a forecast, so there are no odds of getting there to show.`
+        : over ? `${whoOf(team)} played no ${toward} with a forecast in ${S}.` : `${why}, and it has no earlier ${toward} with a forecast to show instead. The odds appear once the event's team list is in.` };
   }
   const L = seasonLabel(Number(latest.season));
   if (over && !o.missing) return advancementAt(team, latest, o.now);

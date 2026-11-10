@@ -126,7 +126,9 @@ describe("slots", () => {
       expect((await parse(q)).complete, q).toBe(false);
     }
     // Advancing asked instead of winning is its own answer: the advancement odds (./execute.ts).
-    expect(await parse("will 4215 advance to worlds")).toMatchObject({ intent: "team-predict", complete: true, worlds: true });
+    // "Advance to worlds" is getting there; "advance at worlds" is its division there.
+    expect(await parse("will 4215 advance to worlds")).toMatchObject({ intent: "team-predict", complete: true, worlds: true, reach: true });
+    expect((await parse("will 4215 advance at worlds")).reach).toBeUndefined();
   });
   it("reads one team swapped for another, with a partner or not, as the swap's call", async () => {
     for (const q of ["what if we replace 6980 with 24033 alongside 23268", "swapping 23268 out for 4215", "trade 4215 for 24033 beside 6980, how would the odds change",
