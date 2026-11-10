@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.3.0 — 2026-11-10
+
+A shorter first-run tour that fits the page you land on and keeps your place.
+
+### Highlights
+- [home] The first-run tour is at most four steps, picked by the page it starts on
+- [teams] On a team page it explains OPR vs Rating and My team vs Track vs Shortlist
+- [fixes] Leaving the page no longer ends the tour: it waits, paused, at the same step
+
+### Changed
+- The tour (`src/lib/tour.ts`, `src/components/layout/FirstRunTour.tsx`) is search first, then on a team page OPR vs Rating and saving the team, then highlights; an event page gets search and its recordings; other pages search and highlights. No welcome card. A step whose part isn't on the page is left out.
+- It follows the visitor: search carries on on any page; a step on the start page's own parts shows "Tour paused" elsewhere, with one tap back. Closing the tab or a reload resumes it at the same step. Only Skip (×, Esc) or the last step end it.
+- `cs-tour` keeps `paused`, `finished` and `skipped` apart (`v: 2`). An old record "skipped" at step 0, written by just navigating away, counts as never shown, so those visitors get the new tour once.
+
 ## 5.2.9 — 2026-11-10
 
 School names and towns read as they should: no cut-short school names, no doubled state, no stray letters.

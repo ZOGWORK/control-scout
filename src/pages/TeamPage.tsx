@@ -220,7 +220,7 @@ function Hero({ p, onSeason, fellBackFrom, asked = false }: { p: TeamProfile; on
               <button type="button" onClick={() => onSeason(fellBackFrom)} className="tap-44 -my-1 py-1 font-medium text-accent-text underline-offset-2 hover:underline">See {seasonLabel(fellBackFrom)}</button>
             </p>
           )}
-          <div className="relative mt-4 flex flex-wrap gap-2">
+          <div className="relative mt-4 flex flex-wrap gap-2" data-tour="save">
             <Button variant={flags.isMine ? "secondary" : "outline"} size="sm" aria-pressed={flags.isMine} onClick={() => flags.setMine(!flags.isMine)} className="max-sm:h-10">
               <Star className={cn(flags.isMine && "fill-accent text-accent")} /> {flags.isMine ? "My team" : "Mark as my team"}
             </Button>
@@ -258,7 +258,7 @@ function Hero({ p, onSeason, fellBackFrom, asked = false }: { p: TeamProfile; on
             <>
               <p className={cn("mt-3 font-display text-5xl font-semibold tabular-nums", PROFILE_PERCENTILE_TEXT)}>{top ?? "Unranked"}</p>
               <p className="text-sm text-muted-foreground">worldwide by OPR{s.opr.np.rank ? ` · #${s.opr.np.rank.toLocaleString()} of ${s.opr.np.of?.toLocaleString()} teams with an OPR` : ""}</p>
-              <dl className={cn("mt-5 max-sm:mt-4 grid gap-3", s.reliability ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3")}>
+              <dl className={cn("mt-5 max-sm:mt-4 grid gap-3", s.reliability ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3")} data-tour={predictable && s.rating ? "rating" : undefined}>
                 <div><dt className="text-xs text-muted-foreground" title={OPR_TERM}>OPR</dt><dd className="font-display text-2xl font-semibold tabular-nums">{num(s.opr.np.value)}</dd></div>
                 {predictable
                   ? <div><dt className="text-xs text-muted-foreground" title={RATING_TERM}>Rating</dt><dd className="font-display text-2xl font-semibold tabular-nums">{s.rating ? num(s.rating.np) : "—"}{s.rating && <span className="text-sm font-normal text-muted-foreground"> ±{num(s.rating.sd, 0)}</span>}</dd></div>
