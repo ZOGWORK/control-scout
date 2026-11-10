@@ -25,7 +25,7 @@ A question search can't answer yet says sorry plainly, and a yes-or-no question 
 - [fixes] Every yes-or-no question shows Yes or No first, big, then the proof
 
 ### Changed
-- When search can't answer a question, or nothing matches at all, the page heading says "Sorry — I can't answer that yet", once. Under it: what was read (the team, event, place or season) and a few searches about it, each checked to answer before it is shown. The old "This isn't answered directly yet" and "No matches found" wordings are gone.
+- When search can't answer a question, or nothing matches at all, the page heading says "Sorry — I can't answer that yet", once. Under it: what was read (the team, event, place or season) and a few searches about it, each checked to answer before it is shown. The old "This isn't answered directly yet" and "No matches found" wordings are gone. (#1278)
 - What was read is the team the answer kept: a word of the question that happens to be another team's name ("how many rivets are on 4215's robot") is no longer read as that team. "7149s robot", with no apostrophe, is read as 7149.
 - Any question asked as yes or no ("did …", "has … ever", "was … at", "… ever won …?") shows Yes or No first whenever its answer card counts something: a count over zero is Yes, zero or none found is No. The card under it stays the evidence, with its links. The page's first paint says it too.
 
