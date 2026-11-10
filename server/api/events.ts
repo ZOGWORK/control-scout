@@ -22,7 +22,7 @@ function summary(r: any): EventSummary {
   const played = Number(r.played ?? 0), total = Number(r.total ?? 0);
   return {
     season: Number(r.season), code: r.code, name: r.name, type: r.type, typeLabel: eventTypeLabel(r.type), divisionCode: r.division_code ?? null,
-    region: r.region, ...(r.league ? { league: r.league } : {}), city: r.city, state: r.state, country: r.country, venue: r.venue ?? null, start: r.start, end: r.end, remote: !!r.remote,
+    region: r.region, city: r.city, state: r.state, country: r.country, venue: r.venue ?? null, start: r.start, end: r.end, remote: !!r.remote,
     teams: Number(r.teams ?? 0), matchesPlayed: played, matchesTotal: total, status: eventStatus(r, played, total),
   };
 }
@@ -131,7 +131,8 @@ export async function eventDetail(season: number, code: string): Promise<EventDe
   }).sort((a, b) => (a.rank ?? 1e9) - (b.rank ?? 1e9) || a.team - b.team);
   const input = toEventInput(summary(r), field, matches, alliances);
   return {
-    event: { ...summary(r), address: r.address ?? null, website: r.website ?? null, livestream: r.livestream ?? null, timezone: r.timezone ?? null, source: r.source },
+    // The league's code only on the event's own page (its League standings button), never in the events list.
+    event: { ...summary(r), ...(r.league ? { league: r.league } : {}), address: r.address ?? null, website: r.website ?? null, livestream: r.livestream ?? null, timezone: r.timezone ?? null, source: r.source },
     field,
     matches,
     alliances: alliances.map((a) => ({ number: a.number, name: a.name, captain: a.captain, pick1: a.pick1, pick2: a.pick2, backup: a.backup })),

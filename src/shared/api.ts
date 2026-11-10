@@ -533,7 +533,8 @@ export interface EventSummary {
   typeLabel: string;
   divisionCode: string | null;
   region: string | null;
-  /** FIRST's league code at a league meet or tournament (a league is its region and code together). */
+  /** FIRST's league code at a league meet or tournament (a league is its region and code together). Sent on the
+   *  event's own detail only, not in event lists. */
   league?: string | null;
   city: string | null;
   state: string | null;
