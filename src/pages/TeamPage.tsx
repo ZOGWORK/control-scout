@@ -16,7 +16,7 @@ import { usePersonal, useTeamFlags } from "../lib/personal";
 import { FOLLOWED_TEAM_PATH, useYoursRow } from "../lib/yoursRow";
 import { toast } from "../components/ui/sonner";
 import { useScouting } from "../lib/scouting";
-import type { MatchView, TeamEventRow, TeamProfile } from "../shared/api";
+import type { ConfidenceTier, MatchView, TeamEventRow, TeamProfile } from "../shared/api";
 import { Section, EmptyState } from "../components/page";
 import { Async } from "../components/states";
 import { Reveal, Stagger, StaggerItem } from "../components/motion";
@@ -24,7 +24,7 @@ import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/basic";
 import { ToggleGroup, ToggleGroupItem, Collapsible, CollapsibleContent, CollapsibleTrigger } from "../components/ui/controls";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "../components/ui/chart";
-import { MatchList } from "../components/predict";
+import { MatchList, TierMark } from "../components/predict";
 import { SeasonToggle } from "../components/SeasonToggle";
 import { cn } from "../components/cn";
 import { PROFILE_PERCENTILE_TEXT } from "../lib/textTones";
@@ -543,6 +543,11 @@ function ScoutNotes({ team, season }: { team: number; season: number }) {
   );
 }
 
+/** The next match's call for this team: its chance to win with the call's confidence tier, as on every prediction. */
+export function NextChance({ chance, tier }: { chance: number; tier: ConfidenceTier }) {
+  return <span className="flex shrink-0 flex-col items-end tabular-nums font-medium text-accent-text">{oddsPct(chance)} to win<TierMark tier={tier} className="text-xs font-normal" /></span>;
+}
+
 const ROW = "lift flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-sm pointer-coarse:min-h-[44px]";
 
 /** The team's last event, one tap to its page: where it ranked and what it won. */
@@ -610,12 +615,12 @@ function Upcoming({ p, next, last }: { p: TeamProfile; next: TeamEventRow | null
         <div className="rounded-xl border border-accent/30 bg-accent/[0.05] p-3">
           <Link to={`/events/${m.season}/${m.code}?team=${n}&match=${m.key}`} className="flex items-baseline justify-between gap-3 hover:underline pointer-coarse:min-h-[44px] pointer-coarse:items-center">
             <span className="min-w-0"><span className="font-semibold">Next match · {m.label}</span> <span className="text-muted-foreground">{m.time ? matchTime(m.time) : "time not posted yet"}</span></span>
-            {chance != null && <span className="shrink-0 tabular-nums font-medium text-accent-text">{oddsPct(chance)} to win</span>}
+            {chance != null && m.prediction && <NextChance chance={chance} tier={m.prediction.tier} />}
           </Link>
           <p className="mt-1 truncate text-muted-foreground" title={mEvent.name}>{mEvent.name} · on <span className={side === "red" ? "text-red-alliance" : "text-blue-alliance"}>{side}</span>: {m.red.teams.map((t) => t.number).join(" + ")} vs {m.blue.teams.map((t) => t.number).join(" + ")}</p>
           <div className="mt-2 flex flex-wrap gap-2">
-            <Button size="sm" variant="secondary" asChild className="max-sm:h-11"><Link to={`/events/${m.season}/${m.code}?team=${n}&match=${m.key}`}><CalendarDays /> Event schedule</Link></Button>
-            {predictable && <Button size="sm" variant="outline" asChild className="max-sm:h-11"><Link to={predictHref({ mode: "match", season: m.season, red: lineup(m.red.teams, n), blue: lineup(m.blue.teams, n) })}><Sparkles /> Predict this match</Link></Button>}
+            <Button size="sm" variant="secondary" asChild className="max-sm:h-11 pointer-coarse:h-[44px]"><Link to={`/events/${m.season}/${m.code}?team=${n}&match=${m.key}`}><CalendarDays /> Event schedule</Link></Button>
+            {predictable && <Button size="sm" variant="outline" asChild className="max-sm:h-11 pointer-coarse:h-[44px]"><Link to={predictHref({ mode: "match", season: m.season, red: lineup(m.red.teams, n), blue: lineup(m.blue.teams, n) })}><Sparkles /> Predict this match</Link></Button>}
           </div>
         </div>
       )}

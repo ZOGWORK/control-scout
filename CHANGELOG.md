@@ -27,6 +27,7 @@ A team page says what's next, right under the team's name: the next match once a
 ### Changed
 - The team page's header has an Upcoming block. With a posted schedule it shows the next match (number, time, alliances, the team's chance to win) with "Event schedule" and "Predict this match"; before that, the next event with "match list is posted at the event"; with none, "No upcoming event is published" and the last event. It is in the first paint, so a slow connection shows it at once. (#1283)
 - On a phone, the Upcoming rows are at least 44 px tall, so each is an easy tap.
+- The next match's chance to win carries its confidence tier, like every other call.
 
 
 ## 4.9.9 — 2026-11-10

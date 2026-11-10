@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { AwardsAllTime, OprSection, RowRecord, lineup, nextMatch } from "./TeamPage";
+import { AwardsAllTime, NextChance, OprSection, RowRecord, lineup, nextMatch } from "./TeamPage";
 import type { MatchView, TeamEventRow, TeamProfile } from "../shared/api";
 
 // useMeta as the app's metadata would answer it (null: not loaded yet, as with no provider), and the current season.
@@ -128,5 +128,13 @@ describe("lineup (Upcoming's Predict link)", () => {
   it("keeps two robots a side, the team itself first", () => {
     expect(lineup([{ number: 1 }, { number: 2 }], 9)).toEqual([1, 2]);
     expect(lineup([{ number: 1 }, { number: 2 }, { number: 4215 }], 4215)).toEqual([4215, 1]);
+  });
+});
+
+describe("NextChance (Upcoming's call)", () => {
+  it("shows the chance to win with the call's confidence tier", () => {
+    render(<NextChance chance={0.23} tier="provisional" />);
+    expect(screen.getByText(/23% to win/)).toBeTruthy();
+    expect(screen.getByTitle(/^Confidence: /)).toBeTruthy();
   });
 });
