@@ -367,6 +367,13 @@ describe("leaving the page doesn't end it", () => {
     expect(readTour()).toMatchObject({ status: "paused", step: 1 });
   });
 
+  it("a query changed while the tour waited to open: it starts from the view the visitor is on now", async () => {
+    mount({ path: "/teams/18360?season=2024" });
+    act(() => go("/teams/18360?season=2025"));
+    await opened();
+    expect(readTour()).toMatchObject({ origin: "/teams/18360?season=2025" });
+  });
+
   it("the paused note's close is an explicit skip", async () => {
     mount();
     await opened();

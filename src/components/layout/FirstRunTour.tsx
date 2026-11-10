@@ -129,13 +129,14 @@ export function FirstRunTour() {
       // Nothing to point at here (no search box, too few steps): wait for the next page.
       if (!ids.length) return;
       if (!claimFirstRun(SLOT)) return; // another first-run surface got there first: try again when it's gone
-      shownFor.current = `${page}#0`;
+      // The page as it is now (its query may have changed while it waited), kept with its query (a season, a
+      // tab) so going back for a step lands on the same view.
+      shownFor.current = `${pageRef.current}#0`;
       seen.current = true;
-      // Kept with its query (a season, a tab), so going back for a step lands on the same view.
-      setRec(saveTour({ status: "paused", step: 0, origin: path + loc.search, steps: ids }));
+      setRec(saveTour({ status: "paused", step: 0, origin: pageRef.current, steps: ids }));
       setView("card");
     });
-  }, [startable, free, path]); // the query is read once, when it starts
+  }, [startable, free, path]); // the query is read when it starts (pageRef), not watched
 
   // Running: show the step on this page, or wait visibly ("Tour paused") until a page that has it.
   useEffect(() => {
