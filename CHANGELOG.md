@@ -25,7 +25,7 @@ Search finds a team whose name is typed nearly right even when its first words a
 - [fixes] A number after a team name is never taken for an event
 
 ### Fixed
-- Search: a team's name typed nearly right that runs past a shorter name several teams share ("girls in roboics 2", where two teams are called Girls in Robotics) reads as the longer team, never another team found by part of the words, or the number taken for an event. The shorter name typed alone still asks which team.
+- Search: a team's name typed nearly right that runs past a shorter name several teams share ("girls in roboics 2", where two teams are called Girls in Robotics) reads as the longer team, never another team found by part of the words, or the number taken for an event. The shorter name typed alone still asks which team. (#1347)
 
 ## 5.3.6 — 2026-11-10
 
