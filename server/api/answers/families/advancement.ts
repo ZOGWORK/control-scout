@@ -164,7 +164,9 @@ export async function seasonAdvancement(team: AnswerTeam, o: { season: number | 
   const past = evs.filter((e) => (e.end ?? e.start ?? "9999") < today);
   // The season asked, when it's over: its latest event, the answer itself. Else the latest one, said why.
   const over = o.season != null && o.season < CURRENT_SEASON;
-  const latest = (o.season != null ? past.find((e) => Number(e.season) === o.season) : undefined) ?? (over && !o.missing ? undefined : past[0]);
+  // A season named for a championship never reached keeps to that season: another season's odds never stand in.
+  const inSeason = o.season != null ? past.find((e) => Number(e.season) === o.season) : undefined;
+  const latest = inSeason ?? (over || (o.missing && o.season != null) ? undefined : past[0]);
   const why = o.missing ?? `No next ${toward} with a team list is published for ${whoOf(team)} in ${S} yet`;
   if (!latest) {
     return { family: "stat", intent: "advancement-odds", title: `Advancement odds: ${team.number}`, team, scope: [S], definition: ADVANCE_RULE, source: `${team.number}'s events`, blocks: [],

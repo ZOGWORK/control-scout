@@ -94,6 +94,11 @@ describe("advancement odds for a season", () => {
     expect(a.none).toBeTruthy();
     expect(chance(a)).toBeUndefined();
   });
+  it("a championship never reached in a season named: only that season's events, never another season's", async () => {
+    const a = await seasonAdvancement({ number: 6980, name: "Bad Wolf" }, { season: 2024, toward: "states", now: NOW, missing: "Bad Wolf (6980) isn't listed at a state championship in 2024–25" });
+    expect(chance(a)).toBeUndefined();
+    expect(a.none).toMatch(/no odds of getting there/);
+  });
   it("a season that's over: its own latest event, with no 'nothing to come' line", async () => {
     const a = await seasonAdvancement(team, { season: 2025, toward: "worlds", now: NOW });
     expect(a.title).toBe("Advancement odds: 7149 at New Jersey Championship - Turnpike Division");
