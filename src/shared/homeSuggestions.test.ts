@@ -30,7 +30,7 @@ describe("home suggestion pool", () => {
   it("fails on any suggestion naming a team outside the six, by number or by name", () => {
     const allowed = new Set(Object.keys(SUGGESTION_TEAMS));
     // Every team number in a query or label (a threshold, "opr over 100" or "OPR 120+", is not one).
-    const numbers = (text: string) => text.match(/(?<!\bover )\b\d{3,5}\b(?!\+)/g) ?? [];
+    const numbers = (text: string): string[] => text.match(/(?<!\bover )\b\d{3,5}\b(?!\+)/g) ?? [];
     const outside = HOME_SUGGESTIONS.flatMap((s) => [...numbers(s.q), ...numbers(suggestionLabel(s)), ...(s.teams ?? [])].filter((t) => !allowed.has(t)).map((t) => `${s.q}: ${t}`));
     expect(outside).toEqual([]);
     // A team named by name is listed in `teams`, and a team listed there is named by its own name.
