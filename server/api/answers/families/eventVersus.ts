@@ -77,11 +77,17 @@ const one = (x: number | null) => (x == null ? "—" : x.toFixed(1));
 type Field = { rated: number; field: number | null; top: number | null; topTeam: number | null };
 /** Each event's field from its teams' OPR rows alone (no match scan): a team counted once at its best OPR there, the
  *  event's divisions' rows too. One query for every event asked. */
-async function fieldsOf(evs: EventRow[]): Promise<Field[]> {
+/** The OPR a field is measured by: the whole OPR, or one game phase's. */
+export type OprPhase = "opr" | "auto" | "teleop" | "endgame";
+const PHASE_COLUMN: Record<OprPhase, string> = { opr: "opr_np", auto: "opr_auto", teleop: "opr_teleop", endgame: "opr_endgame" };
+const PHASE_LABEL: Record<OprPhase, string> = { opr: "OPR", auto: "Auto OPR", teleop: "TeleOp OPR", endgame: "Endgame OPR" };
+
+async function fieldsOf(evs: EventRow[], phase: OprPhase = "opr"): Promise<Field[]> {
   if (!evs.length) return [];
-  const rows = await all<{ parent: string; team: number; opr: number }>(`SELECT x.parent, s.team, MAX(s.opr_np) opr FROM team_event_stats s
+  const col = PHASE_COLUMN[phase];
+  const rows = await all<{ parent: string; team: number; opr: number }>(`SELECT x.parent, s.team, MAX(s.${col}) opr FROM team_event_stats s
     JOIN (${evs.map(() => "SELECT ? parent, ? season, code FROM events WHERE season = ? AND (code = ? OR division_code = ?)").join(" UNION ALL ")}) x ON x.season = s.season AND x.code = s.code
-    WHERE s.matches > 0 AND s.opr_np IS NOT NULL GROUP BY x.parent, s.team`, evs.flatMap((e) => [e.code, e.season, e.season, e.code, e.code]));
+    WHERE s.matches > 0 AND s.${col} IS NOT NULL GROUP BY x.parent, s.team`, evs.flatMap((e) => [e.code, e.season, e.season, e.code, e.code]));
   return evs.map((e) => {
     const rated = rows.filter((r) => r.parent === e.code).sort((a, b) => Number(b.opr) - Number(a.opr) || a.team - b.team);
     return { rated: rated.length, field: rated.length ? rated.reduce((n, r) => n + Number(r.opr), 0) / rated.length : null, top: rated.length ? Number(rated[0].opr) : null, topTeam: rated.length ? Number(rated[0].team) : null };
@@ -97,6 +103,23 @@ const escape = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const phrases = (ws: string[]) => new RegExp(`(?<![\\p{L}\\d])(?:${ws.map((w) => w.split(/\s+/).map((x) => `${escape(x)}s?`).join("\\s+")).join("|")})(?![\\p{L}\\d])`, "u");
 const OPR_WORDS = phrases(statWords(["opr"]));
 const OTHER_STAT = phrases(statWords(["auto", "teleop", "endgame", "penalty", "record", "winrate", "rating", "reliability", "score", "margin"]));
+const PHASES = (["auto", "teleop", "endgame"] as const).map((ph) => ({ ph, re: phrases(statWords([ph])) }));
+const NOT_PHASE = phrases(statWords(["penalty", "record", "winrate", "rating", "reliability", "score", "margin"]));
+/** The OPR `q` measures a field by: OPR itself, or one game phase's OPR said with OPR ("by average auto OPR"); null
+ *  for any other stat ("auto points", "most penalties"), or two phases at once. `place` as in saysOtherThanOpr. */
+export function oprPhaseOf(q: string, place?: string | null): OprPhase | null {
+  let t = q.toLowerCase();
+  const typed = place?.toLowerCase().trim();
+  if (typed) t = t.replace(new RegExp(`(?<![\\p{L}\\d])${escape(typed)}(?![\\p{L}\\d])`, "u"), " ");
+  t = t.replace(/[-/]/g, " ");
+  const opr = OPR_WORDS.test(t);
+  t = t.replace(new RegExp(OPR_WORDS.source, "gu"), " ");
+  if (NOT_PHASE.test(t)) return null;
+  const said = PHASES.filter((x) => x.re.test(t));
+  if (!said.length) return "opr";
+  return said.length === 1 && opr ? said[0].ph : null;
+}
+
 /** Whether `q` names a stat other than OPR, OPR's own names ("offensive power rating") and the words read as the
  *  question's place (`place` as typed: "DC" is Washington, never driver controlled) left out first. */
 export function saysOtherThanOpr(q: string, place?: string | null): boolean {
@@ -117,27 +140,28 @@ export function readDivisionField(q: string): { easiest: boolean } | null {
 
 /** A championship's divisions side by side by field strength (each its teams' average OPR there), the strongest first,
  *  or the weakest when `easiest`. */
-export async function divisionFieldAnswer(parent: EventRow, divisions: EventRow[], easiest: boolean): Promise<StatAnswer> {
-  const facts = await fieldsOf(divisions);
+export async function divisionFieldAnswer(parent: EventRow, divisions: EventRow[], easiest: boolean, phase: OprPhase = "opr"): Promise<StatAnswer> {
+  const facts = await fieldsOf(divisions, phase);
+  const label = PHASE_LABEL[phase];
   const order = divisions.map((_, i) => i).filter((i) => facts[i].field != null).sort((a, b) => (easiest ? facts[a].field! - facts[b].field! : facts[b].field! - facts[a].field!));
   const at = `${parent.name}, ${seasonLabel(parent.season)}`;
   const title = `${easiest ? "Easiest" : "Hardest"} division at ${parent.name}, ${seasonLabel(parent.season)}`;
   const base = {
-    family: "event" as const, intent: "division-field", title, scope: [at, "By average OPR"],
-    definition: "A division's field strength is the average OPR (penalties left out) of the teams that played in it: the higher, the harder. OPR is the points a team adds to its alliance per match.",
-    source: `From ${facts.reduce((n, f) => n + f.rated, 0).toLocaleString("en-US")} teams' OPR in ${divisions.length} divisions`,
+    family: "event" as const, intent: "division-field", title, scope: [at, `By average ${label}`],
+    definition: `A division's field strength is the average ${label} (penalties left out) of the teams that played in it: the higher, the harder. OPR is the points a team adds to its alliance per match${phase === "opr" ? "" : `; ${label} is the part of it scored in that phase`}.`,
+    source: `From ${facts.reduce((n, f) => n + f.rated, 0).toLocaleString("en-US")} teams' ${label} in ${divisions.length} divisions`,
   };
-  if (order.length < 2) return { ...base, blocks: [], none: `${at} has ${order.length ? "only one division" : "no division"} with OPR on record.` };
+  if (order.length < 2) return { ...base, blocks: [], none: `${at} has ${order.length ? "only one division" : "no division"} with ${label} on record.` };
   const [first, second] = order;
   // A division by its own name ("Jackson Division"), the championship's said once in the title.
   const short = (d: EventRow) => d.name.startsWith(`${parent.name} - `) ? d.name.slice(parent.name.length + 3) : d.name;
   return {
     ...base,
     headline: {
-      value: one(facts[first].field), label: `average OPR: ${short(divisions[first])} was the ${easiest ? "easiest" : "hardest"}`, href: eventHref(divisions[first].season, divisions[first].code), type: divisions[first].type,
+      value: one(facts[first].field), label: `average ${label}: ${short(divisions[first])} was the ${easiest ? "easiest" : "hardest"}`, href: eventHref(divisions[first].season, divisions[first].code), type: divisions[first].type,
       sub: `${Math.abs(facts[first].field! - facts[second].field!).toFixed(1)} ${easiest ? "below" : "above"} ${short(divisions[second])} (${one(facts[second].field)})`,
     },
-    blocks: [{ kind: "table", title: "Every division", columns: [{ key: "rank", label: "#", num: true }, { key: "event", label: "Division" }, { key: "teams", label: "Teams", num: true }, { key: "field", label: "Avg OPR", num: true }, { key: "top", label: "Top OPR", num: true }],
+    blocks: [{ kind: "table", title: "Every division", columns: [{ key: "rank", label: "#", num: true }, { key: "event", label: "Division" }, { key: "teams", label: "Teams", num: true }, { key: "field", label: `Avg ${label}`, num: true }, { key: "top", label: `Top ${label}`, num: true }],
       rows: order.map((i, k) => ({ cells: { rank: k + 1, event: short(divisions[i]), teams: facts[i].rated, field: one(facts[i].field), top: one(facts[i].top) }, href: eventHref(divisions[i].season, divisions[i].code), strong: k === 0, type: divisions[i].type })) }],
   };
 }

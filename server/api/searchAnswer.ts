@@ -37,7 +37,7 @@ import { inRegion, namedTeamHit, teamsByName } from "./teamsByName.js";
 import { parseQuestion, questionAnswer } from "./searchQuestions.js";
 import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
 import { eventVersusSearch, leagueSearch, statAnswer } from "./answers/index.js";
-import { divisionFieldAnswer, readDivisionField, saysOtherThanOpr, type EventRow } from "./answers/families/eventVersus.js";
+import { divisionFieldAnswer, oprPhaseOf, readDivisionField, type EventRow } from "./answers/families/eventVersus.js";
 import { seasonOfDate } from "./query/time.js";
 import { searchToday } from "./searchEvents.js";
 import { placeAwardsSearch, readPlaceAwards } from "./answers/families/placeAwards.js";
@@ -574,8 +574,10 @@ async function divisionField(q: string, opts: AnswerOptions): Promise<SearchAnsw
   const asked = readDivisionField(opts.typed ?? q);
   if (!asked) return null;
   const p = await parseQuery(opts.typed ?? q, await parseContext(opts.now, opts.prefer));
-  // Ranked by average OPR only: another stat said ("by average auto OPR", "most penalties") is no question this answers.
-  if (p.teams.length || p.event || saysOtherThanOpr(opts.typed ?? q, p.place?.typed)) return null;
+  // Ranked by average OPR, or one game phase's OPR said with OPR ("by average auto OPR"): another stat ("most
+  // penalties", "auto points") is no question this answers.
+  const phase = oprPhaseOf(opts.typed ?? q, p.place?.typed);
+  if (p.teams.length || p.event || !phase) return null;
   const region = p.place && p.place.kind !== "city" && !p.worlds ? p.place : null;
   const current = seasonOfDate(searchToday(opts.now));
   // The season said: written ("2024-25"), read ("last season", "2025"), else the latest with divisions.
@@ -588,7 +590,7 @@ async function divisionField(q: string, opts: AnswerOptions): Promise<SearchAnsw
     const divisions = await all<EventRow>(`SELECT season, code, name, type, start, division_code division FROM events WHERE season = ? AND division_code = ?
       AND EXISTS (SELECT 1 FROM team_event_stats s WHERE s.season = events.season AND s.code = events.code AND s.opr_np IS NOT NULL) ORDER BY name`, [parent.season, parent.code]);
     if (divisions.length < 2) continue;
-    const stat = await divisionFieldAnswer({ ...parent, season: Number(parent.season) }, divisions.map((d) => ({ ...d, season: Number(d.season) })), asked.easiest);
+    const stat = await divisionFieldAnswer({ ...parent, season: Number(parent.season) }, divisions.map((d) => ({ ...d, season: Number(d.season) })), asked.easiest, phase);
     const skipped = written == null && Number(parent.season) < current ? `No ${seasonLabel(current)} divisions with OPR yet; showing ${seasonLabel(Number(parent.season))}` : null;
     const shown = skipped ? { ...stat, scope: [skipped, ...stat.scope] } : stat;
     return answer(q, {

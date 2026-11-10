@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.2.8 — 2026-11-10
+## 5.2.9 — 2026-11-10
 
 School names and towns read as they should: no cut-short school names, no doubled state, no stray letters.
 
@@ -28,6 +28,18 @@ School names and towns read as they should: no cut-short school names, no double
 ### Fixed
 - Team and event places are tidied where a sync writes them (`src/shared/placeClean.ts`, used by `server/data/bundle.ts`), and the rows already stored, past seasons too, are tidied once soon after the server starts (`server/data/tidyPlaces.ts`): a school's cut-short last word ("Sch", "Schl", "Acad", "Elem", "Chrn") in full; a town's run of one letter three or more times kept to two; a town's last comma part dropped when it only names the row's own state or country (a postcode after it allowed). A team with no school in FIRST's data still shows none.
 - `place()` leaves out a part that is only digits, so a numeric state code never shows in an event or team line; every team and event location line (search results and their index, tables, leaderboards, answers, the digest, the offline packs) is built with `place()`, so the rule holds everywhere. (#1327)
+
+## 5.2.8 — 2026-11-10
+
+Search ranks a championship's divisions by one game phase's OPR when asked.
+
+### Highlights
+- [fixes] "Hardest division by average auto OPR" ranks by Auto OPR
+- [fixes] TeleOp and Endgame OPR work the same way
+- [fixes] A phase with no OPR on record says so
+
+### Fixed
+- Search: "which championship division was hardest this year, by average auto OPR" (in any word order) ranks the divisions by their teams' average Auto OPR, labelled on the card, instead of no answer. TeleOp and Endgame OPR work the same way. A phase's points without OPR, or another stat, still isn't answered with OPR. (#1336)
 
 ## 5.2.7 — 2026-11-10
 
