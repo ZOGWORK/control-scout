@@ -489,6 +489,9 @@ async function sharedName(q: string, opts: AnswerOptions): Promise<SearchAnswer 
   // Cheap first: no run of the words is a name two teams share.
   const taken = new Array<boolean>(ws.length).fill(false);
   const spans: { i: number; len: number; teams: ReturnType<typeof idx.teamsNamed> }[] = [];
+  // A number right after a shared name that is no team's ("girls in robotics 2") is the teams' own numbering: part
+  // of the name, as the parser reads it, so the suggestions put each team's number in its place.
+  const numbering = (end: number) => (/^\d{1,3}$/.test(ws[end] ?? "") && !idx.team(Number(ws[end])) ? 1 : 0);
   for (let len = Math.min(idx.longest, 12); len >= 1; len--) {
     for (let i = 0; i + len <= ws.length; i++) {
       if (taken.slice(i, i + len).some(Boolean)) continue;
@@ -506,7 +509,7 @@ async function sharedName(q: string, opts: AnswerOptions): Promise<SearchAnswer 
       const called = /^(?:team|ftc)$/.test(ws[i - 1] ?? "");
       const pl = called ? null : idx.place(said, said);
       if (!called && ((pl && pl.kind !== "city") || onlyOrdinary(said))) continue;
-      spans.push({ i, len, teams });
+      spans.push({ i, len: len + numbering(i + len), teams });
     }
   }
   // No shared name spelled right: the parser's own reading, for a shared name typed nearly right ("girls in roboics",
@@ -520,9 +523,7 @@ async function sharedName(q: string, opts: AnswerOptions): Promise<SearchAnswer 
       const tw = fold(t.typed).split(" ");
       const i = ws.findIndex((_, k) => tw.every((w, j) => ws[k + j] === w));
       const teams = t.candidates.map((n) => idx.team(n)).filter((x): x is NonNullable<typeof x> => !!x);
-      // A number right after it that is no team's ("girls in roboics 2") is the teams' own numbering: part of the name.
-      const more = /^\d{1,3}$/.test(ws[i + tw.length] ?? "") && !idx.team(Number(ws[i + tw.length])) ? 1 : 0;
-      if (i >= 0 && teams.length === t.candidates.length && !onlyOrdinary(tw.join(" "))) spans.push({ i, len: tw.length + more, teams });
+      if (i >= 0 && teams.length === t.candidates.length && !onlyOrdinary(tw.join(" "))) spans.push({ i, len: tw.length + numbering(i + tw.length), teams });
     }
     if (!spans.length) return null;
   }

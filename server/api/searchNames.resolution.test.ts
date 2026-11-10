@@ -59,7 +59,7 @@ describe("a typed team number", () => {
 
 describe("a name several teams share", () => {
   it("typed nearly right, a number of their own after it or not: still which one, under the name as they spell it", async () => {
-    for (const q of ["copper roboics opr", "copper roboics 2 opr"]) {
+    for (const q of ["copper roboics opr", "copper roboics 2 opr", "copper robotics 2 opr"]) {
       const a = await ask(q);
       expect(a.understood?.label.startsWith(`${WHICH}copper robotics"? 2 teams have that name: `), q).toBe(true);
       expect(a.suggest, q).toEqual(["5801 opr", "5802 opr"]);
