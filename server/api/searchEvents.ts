@@ -23,6 +23,7 @@ import { all, get } from "../db.js";
 import { searchRead } from "./searchReads.js";
 import { CURRENT_SEASON, SEASON_NUMBERS, gameOf } from "../data/seasons.js";
 import { edits, type Region } from "../../src/shared/regions.js";
+import { place } from "../../src/shared/format.js";
 
 interface Row { season: number; code: string; name: string; type: string | null; division_code?: string | null; venue: string | null; city: string | null; state: string | null; country: string | null; start: string | null; end: string | null; timezone: string | null }
 
@@ -100,7 +101,7 @@ function atPlace(typed: string, r: Row): boolean {
 }
 const venueWords = new Map<string, Set<string>>();
 
-const placeOf = (r: Row) => [r.city, r.state, r.country].filter(Boolean).join(", ");
+const placeOf = (r: Row) => place(r.city, r.state, r.country);
 
 /** A venue as shown: FIRST's event list stores some with a trailing comma (the address cut off after it, "Columbia
  *  High School,"), so the name ends at the comma; nothing else of it changes. */

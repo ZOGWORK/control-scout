@@ -21,6 +21,7 @@ import { Badge } from "../components/ui/basic";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/controls";
 import { toast } from "../components/ui/sonner";
 import { SnapshotBanner, SnapshotFrame } from "../components/offline/Snapshot";
+import { place } from "../shared/format";
 
 export default function BundlePage() {
   const { season, code } = useParams();
@@ -55,16 +56,16 @@ const scored = (m: MatchView) => m.played && !!m.red.score && !!m.blue.score;
 
 /** The venue card: where and when, from the event's own data (times carry their zone where they're shown). */
 export function VenueCardView({ v, children }: { v: VenueCard; children?: ReactNode }) {
-  const place = [v.city, v.state, v.country].filter(Boolean).join(", ");
+  const where = place(v.city, v.state, v.country);
   const when = dateRange(v);
-  const mapQ = v.address ?? [v.venue, place].filter(Boolean).join(", ");
+  const mapQ = v.address ?? [v.venue, where].filter(Boolean).join(", ");
   return (
     <section aria-label="Venue" className="rounded-2xl border border-accent/30 bg-accent/[0.06] p-5 max-sm:p-4" data-venue-card>
       <p className="text-xs text-muted-foreground">{v.typeLabel}</p>
       <h1 className="mt-0.5 font-display text-2xl font-semibold tracking-tight sm:text-3xl">{v.name}</h1>
       <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
         <p className="flex items-start gap-2"><MapPin className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden />
-          <span>{v.venue && <span className="block font-medium">{v.venue}</span>}<span className="text-muted-foreground">{v.address ?? (place || "Venue not published yet")}</span></span>
+          <span>{v.venue && <span className="block font-medium">{v.venue}</span>}<span className="text-muted-foreground">{v.address ?? (where || "Venue not published yet")}</span></span>
         </p>
         {when && <p className="flex items-start gap-2"><CalendarDays className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden /><span className="font-medium">{when}</span></p>}
       </div>

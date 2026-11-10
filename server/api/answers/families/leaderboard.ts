@@ -25,6 +25,7 @@ import { eventHref, teamHref } from "../matchSet.js";
 import { seasonOfDate } from "../../query/time.js";
 import { searchToday } from "../../searchEvents.js";
 import { OFFICIAL_TYPES } from "../clauses.js";
+import { place } from "../../../../src/shared/format.js";
 
 export const LEADERBOARD_MAX = 25;
 
@@ -172,7 +173,7 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
     note: `${seasonLabel(season)} · ${total.toLocaleString("en-US")} ranked ${rookie ? "rookie " : ""}team${total === 1 ? "" : "s"}${where} · by ${statWords(st)}${onRecord ? ` · ${OFFICIAL_ONLY.toLowerCase()}` : ""}`,
     rows: rows.map((r, i) => ({
       rank: bottom ? total - i : i + 1, team: { label: `${r.team} ${r.name ?? ""}`.trim(), href: teamHref(Number(r.team), season) },
-      location: [r.city, r.state, r.country && r.country !== "USA" ? r.country : null].filter(Boolean).join(", ") || null,
+      location: place(r.city, r.state, r.country && r.country !== "USA" ? r.country : null) || null,
       record: record(r), opr: num(r.opr), value: num(r.v), display: shown(r),
       parts: r.auto != null || r.teleop != null || r.endgame != null || r.pen != null ? { auto: num(r.auto), teleop: num(r.teleop), endgame: num(r.endgame), pen: num(r.pen) } : null,
     })),
@@ -247,7 +248,7 @@ async function careerAnswer(b: BoardQuestion, where: string, regionSql: string, 
       note: `${oldest ? `Active in ${active}` : `Every season on record, ${S}`}${where}`,
       // A team link opens the season its OPR is from: its latest with a match.
       rows: rows.map((r, i) => ({ rank: i + 1, team: { label: `${r.team} ${r.name ?? ""}`.trim(), href: teamHref(Number(r.team), r.lastPlayed) },
-        location: [r.city, r.state, r.country && r.country !== "USA" ? r.country : null].filter(Boolean).join(", ") || null,
+        location: place(r.city, r.state, r.country && r.country !== "USA" ? r.country : null) || null,
         // OPR: the team's latest season with a match, as its team page shows it.
         record: record(r), opr: r.opr == null ? null : Number(r.opr), value: oldest ? r.rookie : Number(r.v), display: shown(r), parts: null })),
     }],
@@ -310,7 +311,7 @@ async function windowCount(b: BoardQuestion, w: { from: string; to: string; labe
       kind: "leaderboard", title: `Top ${rows.length} by ${label.toLowerCase()}`, stat: { id: st.id, label },
       note: `${when} · ${w.from} to ${w.to}${where}`,
       rows: rows.map((r, i) => ({ rank: i + 1, team: { label: `${r.team} ${r.name ?? ""}`.trim(), href: teamHref(Number(r.team), season) },
-        location: [r.city, r.state, r.country && r.country !== "USA" ? r.country : null].filter(Boolean).join(", ") || null,
+        location: place(r.city, r.state, r.country && r.country !== "USA" ? r.country : null) || null,
         record: record(r), opr: r.opr == null ? null : Number(r.opr), value: Number(r.v), display: String(Number(r.v)), parts: null })),
     }],
   };
@@ -370,7 +371,7 @@ async function eventBoardAnswer(b: BoardQuestion, ev: NonNullable<BoardQuestion[
       ...(reportedTeleopIncludesEndgame(ev.season) ? { teleopWithEndgame: true } : {}),
       note: `${S} · ${ranked.length} ranked of ${rows.length} teams · by ${by}`,
       rows: shown.map((r, i) => ({ rank: i + 1, team: { label: `${r.team} ${r.name ?? ""}`.trim(), href: teamHref(Number(r.team), ev.season) },
-        location: [r.city, r.state, r.country && r.country !== "USA" ? r.country : null].filter(Boolean).join(", ") || null,
+        location: place(r.city, r.state, r.country && r.country !== "USA" ? r.country : null) || null,
         record: record(rec(r)), opr: v(r) == null ? null : Number(v(r)), value: v(r) == null ? null : Number(v(r)), display: fmt1(v(r)), parts: null })),
       more: { label: "Open the event", href: eventHref(ev.season, ev.code) },
     }],
@@ -419,7 +420,7 @@ export async function windowBoardAnswer(window: { from: string; to: string; labe
       ...(reportedTeleopIncludesEndgame(season) ? { teleopWithEndgame: true } : {}),
       note: `${seasonLabel(season)} · ${rows.length} team${rows.length === 1 ? "" : "s"} that played ${window.label} · by OPR at their best event`,
       rows: shown.map((r, i) => ({ rank: i + 1, team: { label: `${r.team} ${r.name ?? ""}`.trim(), href: eventHref(season, r.code, Number(r.team)) },
-        location: [r.city, r.state, r.country && r.country !== "USA" ? r.country : null].filter(Boolean).join(", ") || null,
+        location: place(r.city, r.state, r.country && r.country !== "USA" ? r.country : null) || null,
         record: rec(Number(r.team)), opr: Number(r.v), value: Number(r.v), display: fmt1(Number(r.v)), parts: null })),
     }],
   };
@@ -611,7 +612,7 @@ async function cityBestAnswer(b: BoardQuestion, season: number, why: string): Pr
       kind: "leaderboard", title: `Teams${where} by OPR`, stat: { id: "opr", label: "OPR" },
       ...(reportedTeleopIncludesEndgame(season) ? { teleopWithEndgame: true } : {}),
       note: `${S} · ${total} ranked team${total === 1 ? "" : "s"}${where} · by OPR`,
-      rows: rows.map((r, i) => ({ rank: i + 1, team: { label: `${r.team} ${r.name ?? ""}`.trim(), href: teamHref(Number(r.team), season) }, location: [r.city, r.state].filter(Boolean).join(", ") || null, record: record(r), opr: Number(r.opr), value: Number(r.opr), display: fmt(r.opr, st), parts: null })),
+      rows: rows.map((r, i) => ({ rank: i + 1, team: { label: `${r.team} ${r.name ?? ""}`.trim(), href: teamHref(Number(r.team), season) }, location: place(r.city, r.state) || null, record: record(r), opr: Number(r.opr), value: Number(r.opr), display: fmt(r.opr, st), parts: null })),
     }],
   };
 }

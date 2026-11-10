@@ -38,6 +38,7 @@ import { FITTED_MODEL } from "@control-scout/predict-engine";
 import { eventHit, eventSetAnswer } from "./searchEvents.js";
 import { BOARD_STATS, teamsHref } from "./answers/families/leaderboard.js";
 import { countryOf } from "../../src/shared/countries.js";
+import { place } from "../../src/shared/format.js";
 
 const squash = (s: string) => s.replace(/\s+/g, " ").trim();
 const TEAM = String.raw`(\d{1,6}|[a-z0-9][\w'’&.-]*(?:\s+[\w'’&.-]+){0,4})`;
@@ -1003,7 +1004,7 @@ const placeArgs = (p: Place | null) => (p ? (p.state ? [p.country, p.state] : [p
 const fmt1 = (x: number | null) => (x == null ? "–" : (Math.round(Number(x) * 10) / 10).toFixed(1));
 /** A team's line; `season` when its numbers are one season's, so the link opens that season. */
 const lineOf = (r: any, results: string[], season?: number | null): SearchCardLine => ({
-  text: `${r.team ?? r.number} ${(r.name ?? "").trim()}`.trim(), detail: [r.city, r.state, r.country === "USA" ? null : r.country].filter(Boolean).join(", "), results,
+  text: `${r.team ?? r.number} ${(r.name ?? "").trim()}`.trim(), detail: place(r.city, r.state, r.country === "USA" ? null : r.country), results,
   href: `/teams/${r.team ?? r.number}${season != null ? `?season=${season}` : ""}`,
 });
 
@@ -1051,7 +1052,7 @@ export async function teamListAnswer(q: string): Promise<SearchAnswer | null> {
       WHERE m.season = ? AND m.played = 1 AND COALESCE(m.${c}_np, m.${c}_total) IS NOT NULL AND ${where} AND e.type IN (${types})`;
     const rows = s == null ? [] : await all<any>(`${side("red")} UNION ALL ${side("blue")} ORDER BY np DESC LIMIT 10`, [s, ...placeArgs(p), ...RECORD_TYPES, s, ...placeArgs(p), ...RECORD_TYPES]);
     const lines: SearchCardLine[] = rows.map((r) => ({
-      text: `${Number(r.np)} points · ${r.label ?? `Match ${r.number}`}`, detail: `${r.name} · ${r.start ?? ""} · ${[r.city, r.state].filter(Boolean).join(", ")}`,
+      text: `${Number(r.np)} points · ${r.label ?? `Match ${r.number}`}`, detail: `${r.name} · ${r.start ?? ""} · ${place(r.city, r.state)}`,
       results: [`${String(r.side) === "red" ? "Red" : "Blue"} alliance`], href: `/events/${r.season}/${r.code}?match=${r.level}:${r.series}:${r.number}`,
     }));
     const title = `Highest scores in ${p.name}${s != null ? ` · ${seasonLabel(s)}` : ""}`;
@@ -1139,7 +1140,7 @@ export async function teamListAnswer(q: string): Promise<SearchAnswer | null> {
       FROM team_event_stats x JOIN events e ON e.season = x.season AND e.code = x.code JOIN teams t ON t.number = x.team
       WHERE e.type = 'FIRSTChampionship' AND x.matches > 0${placeSql(p)}${m[2] ? " AND x.season = ?" : ""}
       ORDER BY x.season DESC, x.opr_np DESC LIMIT 40`, [...placeArgs(p), ...(m[2] ? [Number(m[2]) - 1] : [])]);
-    const lines = rows.map((r) => ({ ...lineOf(r, [seasonLabel(Number(r.season)), `${r.wins}-${r.losses}-${r.ties}`, `OPR ${fmt1(r.opr_np)}`], Number(r.season)), detail: `${String(r.event).replace(/^FIRST Championship\s*-\s*(?:FIRST Tech Challenge\s*-\s*)?/, "")} · ${[r.city, r.state].filter(Boolean).join(", ")}` }));
+    const lines = rows.map((r) => ({ ...lineOf(r, [seasonLabel(Number(r.season)), `${r.wins}-${r.losses}-${r.ties}`, `OPR ${fmt1(r.opr_np)}`], Number(r.season)), detail: `${String(r.event).replace(/^FIRST Championship\s*-\s*(?:FIRST Tech Challenge\s*-\s*)?/, "")} · ${place(r.city, r.state)}` }));
     const title = `${p.name} teams at the FIRST Championship (Worlds)${m[2] ? ` ${m[2]}` : ""}`;
     return card(title, lines, `No ${p.name} team has played at the FIRST Championship in the recorded seasons.`, [{ title: "Events", href: "/events" }], `${title}, newest season first`);
   }
@@ -1260,19 +1261,19 @@ export async function teamFactAnswer(q: string, prefer: ReadonlySet<string>): Pr
   // A season asked that the team didn't play has no numbers: said so, never another season's.
   if (!st?.record.matches) st = null;
   const S = seasonLabel(season);
-  const place = [row.city, row.state, row.country].filter(Boolean).join(", ") || null;
+  const where = place(row.city, row.state, row.country) || null;
   const region = regionText(row.home_region ?? null, row.state ?? null, row.country ?? null);
   const LABEL: Record<Fact, string> = { school: "School or organization", place: "Where they're from", rookie: "Rookie year", website: "Website", sponsors: "Sponsors", name: "Team name", region: "Region", summary: "Team profile" };
   // Titles name the facts short and in sentence case ("Sponsors and school"); each line keeps its full label.
   const TITLE: Record<Fact, string> = { ...LABEL, school: "School" };
   const read = (fact: Fact): { text: string | null; detail?: string } => {
     if (fact === "school") return { text: row.school ? String(row.school) : null };
-    if (fact === "place") return { text: place };
+    if (fact === "place") return { text: where };
     if (fact === "rookie") return row.rookie_year ? { text: `Rookie season ${seasonLabel(Number(row.rookie_year))}`, detail: `${CURRENT_SEASON - Number(row.rookie_year) + 1} seasons, this one included` } : { text: null };
     if (fact === "website") return { text: row.website ? String(row.website) : null };
     if (fact === "name") return { text: team.name || null, detail: `Team ${number}` };
     if (fact === "region") return region ? { text: region, detail: "FIRST home region" } : { text: null };
-    if (fact === "summary") return { text: [name, place].filter(Boolean).join(" · ") };
+    if (fact === "summary") return { text: [name, where].filter(Boolean).join(" · ") };
     let s: string[] = [];
     try { s = JSON.parse(row.sponsors ?? "[]"); } catch { /* not a list */ }
     return { text: s.length ? s.join(", ") : null };
@@ -1320,9 +1321,9 @@ export async function teamFactAnswer(q: string, prefer: ReadonlySet<string>): Pr
   // Under the facts asked, the rest of the team's card: where it's from, its region and the season's numbers, so
   // every fact answer can be drawn as a full team card. Only what wasn't asked.
   // A school FIRST doesn't list is said so, and where the team is from is given with it (it's on the listing).
-  const from = facts.length === 1 && last === "school" && !row.school ? place : null;
+  const from = facts.length === 1 && last === "school" && !row.school ? where : null;
   const support: SearchCardFact[] = [
-    ...(!facts.includes("place") && !from && place ? [factOf("place")] : []),
+    ...(!facts.includes("place") && !from && where ? [factOf("place")] : []),
     ...(!facts.includes("region") && region ? [factOf("region")] : []),
     ...numbers.filter((f) => f !== asked2),
   ];
@@ -1348,7 +1349,7 @@ export async function teamFactAnswer(q: string, prefer: ReadonlySet<string>): Pr
     card: {
       kind: "info", title: what, team, facts: [factOf(last), ...(from ? [factOf("place")] : []), ...(asked2 ? [asked2] : [])], related, ...extra,
       lines: [...(text ? [{ text, ...(detail ? { detail } : {}), href: `/teams/${hit.ref}` }] : from ? [{ text: from, detail: "Where they're from", href: `/teams/${hit.ref}` }] : []), ...alsoLine],
-      ...(text && (!alsoLabel || asked2) ? {} : { none: [text ? "" : `FIRST's listing for ${name} has no ${TITLE[last].toLowerCase()}.${from ? ` The team is from ${place}.` : ""}`, alsoLabel && !asked2 ? `${name} has no ${alsoLabel === "OPR" ? alsoLabel : alsoLabel.toLowerCase()} on record in ${S}.` : ""].filter(Boolean).join(" ") }),
+      ...(text && (!alsoLabel || asked2) ? {} : { none: [text ? "" : `FIRST's listing for ${name} has no ${TITLE[last].toLowerCase()}.${from ? ` The team is from ${where}.` : ""}`, alsoLabel && !asked2 ? `${name} has no ${alsoLabel === "OPR" ? alsoLabel : alsoLabel.toLowerCase()} on record in ${S}.` : ""].filter(Boolean).join(" ") }),
     },
     understood: { kind: "team", label: title },
   });

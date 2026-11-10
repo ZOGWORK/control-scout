@@ -27,6 +27,7 @@ import { packsDir } from "./routes.js";
 import { PACK_INDEXES, PACK_TABLES as FULL_TABLES, PACK_TEAMS_DDL, SCHEDULE_TABLE } from "../../src/shared/packSchema.js";
 import { SCHEDULE_COLUMNS, scheduleRows } from "../../src/shared/scheduleDifficulty.js";
 import { seasonScheduleDifficulty } from "../predict/scheduleDifficulty.js";
+import { place } from "../../src/shared/format.js";
 
 export const PACK_FORMAT = 1;
 const KEEP_VERSIONS = 3;
@@ -73,7 +74,7 @@ export async function buildLite(version: string, dir: string, log: (m: string) =
   // Only a small cut ships (src/shared/litePairs.ts): the pack is downloaded at venues, and the history is a reason only.
   const pairs = pf.partnershipData ? encodeLitePairs(pf.partnershipData) : null;
   const teams = (await all<any>("SELECT number, name, city, state, country FROM teams ORDER BY number"))
-    .map((t) => [Number(t.number), t.name ?? null, [t.city, t.state, t.country].filter(Boolean).join(", ") || null]);
+    .map((t) => [Number(t.number), t.name ?? null, place(t.city, t.state, t.country) || null]);
   const json = JSON.stringify({ format: PACK_FORMAT, version, builtAt: builtAt.toISOString(), engineVersion: ENGINE_VERSION, books, bonus, teams, pairs, learned });
   const gz = gzipSync(Buffer.from(json), { level: 9 });
   const name = `scout-pack-${version.replace(/\./g, "-")}-lite.json.gz`;
