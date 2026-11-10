@@ -50,8 +50,8 @@ export function leagueRecord(r: Pick<LeagueStandingRow, "wins" | "losses" | "tie
   return r.wins == null || r.losses == null ? null : `${r.wins}-${r.losses}-${r.ties ?? 0}`;
 }
 
-/** A ranking score as FIRST shows it (two decimals at most). */
-export const rankingScore = (v: number | null) => (v == null ? null : String(Math.round(v * 100) / 100));
+/** A ranking score as FIRST shows it (two decimals). */
+export const rankingScore = (v: number | null) => (v == null ? null : v.toFixed(2));
 
 /** A league page's title, the same on the server and in the app: "Northeast League (New Jersey) standings 2026–27". */
 export const leaguePageTitle = (d: Pick<LeagueStandings, "name" | "code" | "place" | "season">) =>
