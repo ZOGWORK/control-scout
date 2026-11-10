@@ -521,10 +521,11 @@ async function sharedName(q: string, opts: AnswerOptions): Promise<SearchAnswer 
     const others = settled.filter((t) => !own.has(t.number));
     return { ...sp, r: pickShared(sp.teams, { mine: (n) => prefer.has(`team:${n}`), others }) };
   });
-  const asked = (n: number[]) => {
+  // The query with each name's team number in its place; a name with none given stays as typed. Right to left by
+  // position, so each name's place is still its own.
+  const asked = (n: (number | null)[]) => {
     const out = [...ws];
-    // Right to left, so each span's place is still its own.
-    for (const [k, sp] of [...picks.entries()].reverse()) out.splice(sp.i, sp.len, String(n[k]));
+    for (const [k, sp] of [...picks.entries()].sort((a, b) => b[1].i - a[1].i)) if (n[k] != null) out.splice(sp.i, sp.len, String(n[k]));
     return out.join(" ");
   };
   const shown = (t: { number: number; city: string | null; state: string | null; country: string | null }) => `${t.number} (${[t.city?.trim(), t.state].filter(Boolean).join(", ") || t.country || "?"})`;
@@ -536,7 +537,8 @@ async function sharedName(q: string, opts: AnswerOptions): Promise<SearchAnswer 
     const choices = tied.r.tied;
     // Registrations alone, none of them played: the teams list of the name, as before, picks none either.
     if (choices.every((t) => t.lastPlayed == null)) return null;
-    const fixed = picks.map((x) => ("team" in x.r ? x.r.team.number : choices[0].number));
+    // The other names: the team settled, else as typed (asked about next).
+    const fixed = picks.map((x) => ("team" in x.r ? x.r.team.number : null));
     const at = picks.indexOf(tied);
     const hits = (await Promise.all(choices.map(async (t) => (await search(String(t.number), 3, prefer, new Set(["team"]))).find((h) => h.kind === "team" && h.ref === String(t.number)))))
       .filter((h): h is SearchHit => !!h).map((h) => ({ ...h, match: "exact" as const }));

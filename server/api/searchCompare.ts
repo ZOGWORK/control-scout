@@ -145,10 +145,13 @@ export async function versusAnswer(q: string, prefer: ReadonlySet<string>, seaso
   const sides = await Promise.all(typedSides.map((s) => readSide(s, prefer)));
   // A shared name read again beside the teams the other sides named: the one in the same state as one of them comes
   // before the rules that look only at the name's own teams (still playing, stronger). The visitor's own team stays.
+  // A side that names one team, or a shared name its own teams settled (your team, the only one playing, the stronger):
+  // never one settled only by another side, so two shared names can't settle each other.
+  const firm = new Set(sides.filter((o) => o.team && (!o.pool || o.rule)));
   for (const side of sides) {
     if (!side.pool || side.rule === "your team") continue;
-    // Only a real state on both sides, of a side that names one team by itself.
-    const others = sides.filter((o) => o !== side && o.team?.state && !o.pool).map((o) => o.team!);
+    // Only a real state on both sides.
+    const others = sides.filter((o) => o !== side && firm.has(o) && o.team?.state).map((o) => o.team!);
     if (!others.length) continue;
     const r = settle(side.pool, prefer, others);
     if ("team" in r) { side.team = r.team; side.rule = r.rule; side.tied = []; }

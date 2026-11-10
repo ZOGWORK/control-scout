@@ -40,10 +40,12 @@ export function pickShared<T extends SharedCandidate>(cands0: T[], ctx: { mine?:
   // A registration alone names nothing, once one of them has played.
   const played = cands.filter((t) => t.lastPlayed != null);
   const pool = played.length ? played : cands;
-  const others = (ctx.others ?? []).filter((o) => o.state || o.country);
-  const near = others.length ? pool.filter((t) => others.some((o) => o.country === t.country && (o.state ?? null) === (t.state ?? null))) : [];
+  // A real state on both: missing location data is no shared region.
+  const others = (ctx.others ?? []).filter((o) => o.state);
+  const sameRegion = (o: SharedCandidate, t: SharedCandidate) => !!t.state && o.country === t.country && o.state === t.state;
+  const near = others.length ? pool.filter((t) => others.some((o) => sameRegion(o, t))) : [];
   if (near.length === 1) {
-    const o = others.find((x) => x.country === near[0].country && (x.state ?? null) === (near[0].state ?? null))!;
+    const o = others.find((x) => sameRegion(x, near[0]))!;
     return { team: near[0], rule: `the one in the same region as ${o.number}` };
   }
   if (played.length === 1) return { team: played[0], rule: "the only one that has played" };

@@ -26,6 +26,9 @@ beforeAll(async () => {
     [5402, "Actualizers", "Dubai", "DU", "United Arab Emirates", [[2025, 5000, 8000]]],
     [5403, "Romania Demo Team", "Otopeni", "B", "Romania", []],
     [5404, "Ohio Robots", "Allen", "TX", "USA", []],
+    // A three-word name two equal teams share, and a pair in NJ and MI where one is the visitor's.
+    [5501, "Red Tide Crew", "Camden", "NJ", "USA", [[2025, 400, 8000]]],
+    [5502, "Red Tide Crew", "Flint", "MI", "USA", [[2025, 420, 8000]]],
   ];
   for (const [n, name, city, state, country, seasons] of teams) {
     await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, ?, ?, ?)", [n, name, city, state, country]);
@@ -65,6 +68,22 @@ describe("a name several teams share", () => {
     const b = await ask("sigma wolves record");
     expect(teamsOf(b)[0]).toBe(5301);
     expect(b.understood?.label).toMatch(/5301.*the stronger one of 2 teams with the name/);
+  });
+});
+
+describe("two shared names in one question", () => {
+  it("each suggestion settles one name and keeps the other as typed, every other word in its place", async () => {
+    const a = await ask("echo kites with red tide crew matches");
+    expect(a.understood?.label.startsWith(WHICH)).toBe(true);
+    expect(a.suggest?.length).toBeGreaterThan(0);
+    for (const s of a.suggest ?? []) {
+      expect(s, s).toMatch(/ matches$/);
+      expect(s, s).toMatch(/^520[12] with red tide crew matches$|^echo kites with 550[12] matches$/);
+    }
+  });
+  it("a name settled by your own team places the other name's team beside it", async () => {
+    const a = await searchAnswer("echo kites vs red tide crew", { learn: false, limit: 25, full: true, prefer: new Set(["team:5501"]) });
+    expect(a.hits.find((h) => h.kind === "compare")?.ref).toBe("5201,5501");
   });
 });
 

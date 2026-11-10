@@ -65,6 +65,9 @@ describe("a name several teams share", () => {
     expect(pickShared([a, b], {})).toMatchObject({ team: a, rule: "the stronger one" });
     expect(pickShared([a, { ...b, strength: 0.85 }], {})).toEqual({ tied: [a, { ...b, strength: 0.85 }] });
     expect(pickShared([a, { ...b, strength: 0.85 }], { others: [{ number: 9, state: "MI", country: "USA", city: null, lastPlayed: 2026 }] })).toMatchObject({ team: { number: 2 } });
+    // Missing location data is no shared region.
+    const noState = { ...a, state: null }, other = { number: 9, state: null, country: "USA", city: null, lastPlayed: 2026 };
+    expect(pickShared([noState, { ...b, strength: 0.85 }], { others: [other] })).toEqual({ tied: [noState, { ...b, strength: 0.85 }] });
   });
 });
 
