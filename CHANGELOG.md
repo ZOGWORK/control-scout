@@ -15,6 +15,22 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.2.5 — 2026-11-10
+
+One record score on the match records page and in search, light event pages ranked like the full page, and related searches that say what they count.
+
+### Highlights
+- [rankings] Match records show the season record search gives
+- [offline] A light league meet page ranks every team on the meet itself
+- [fixes] "Best score" says it leaves penalties out
+- [fixes] "Teams at an event" previews say how many teams
+
+### Fixed
+- `/matches` gave 352 as the season's highest (a scrimmage, penalties in) where search gave 246 (official events, penalties left out). The page now leads with the season record as search gives it (`seasonRecordLine`, `/api/records/:season/high-score`), and its table is said for what it is: every played match by score, penalties in, all events.
+- The light event page (`/lite/events/…`) at a league meet ranked teams on FIRST's running league standing (league rank, its ranking score, "RP"), so the meet's winner showed rank 8 and teams FIRST's league list left out had no rank. It now ranks every team on the meet's own standing, as the full page's Meet view does, with the column named RS (ranking score) and a line saying what it is.
+- A highlights headline says "Best score without penalties", so an event's best (Q6, 78) is never read against its high score with penalties (Q14, 217).
+- The related search "teams at <event>" previews "10 teams · first: 12853 Robo Cavos …" (`StatAnswer.listed`), never one team as if it were the list.
+
 ## 5.2.4 — 2026-11-10
 
 Search asks which team when a name is still shared, and its new answers count only what was asked.

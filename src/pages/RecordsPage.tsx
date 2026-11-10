@@ -12,6 +12,9 @@ import { TeamDirectory } from "../components/records/TeamDirectory";
 import { cn } from "../components/cn";
 import { revealInStrip } from "../lib/revealInStrip";
 import { smoothBehavior } from "../lib/pageScroll";
+import { useApi } from "../lib/api";
+import { SEASON_RECORD_LABEL, SEASON_RECORD_RULE, seasonRecordPath } from "../shared/seasonRecord";
+import type { SearchCardLine } from "../shared/api";
 
 type View = "events" | "season" | "listed" | "matches";
 
@@ -117,8 +120,11 @@ export default function RecordsPage({ matches }: { matches?: boolean }) {
       {view === "listed" ? (
         <TeamDirectory season={season} onSeason={setSeason} />
       ) : view === "matches" ? (
+        <>
+        <SeasonRecord season={season} />
         <RecordsTable key={`m${season}`} scope="match" season={season} predictable={predictable} defaultCols={MATCH_COLS} defaultSort="highScore"
           storageKey="matches" noun="matches" controls={{ onSeason: setSeason, region: true, eventType: true, dates: true }} />
+        </>
       ) : view === "season" ? (
         <RecordsTable key={`s${season}`} scope="teamSeason" season={season} predictable={predictable} defaultCols={SEASON_COLS} defaultSort="totalPointsNpOpr"
           storageKey="team-seasons" noun="teams" selectable controls={{ onSeason: setSeason, region: true }} />
@@ -127,5 +133,20 @@ export default function RecordsPage({ matches }: { matches?: boolean }) {
           storageKey="team-events" noun="team-events" selectable controls={{ onSeason: setSeason, region: true, eventType: true, dates: true }} />
       )}
     </div>
+  );
+}
+
+/** The season's record score, the number search gives for "highest score this season" (official events, penalties
+ *  left out), above the table, which lists every match by its score with penalties (src/shared/seasonRecord.ts). */
+function SeasonRecord({ season }: { season: number }) {
+  const { data } = useApi<{ line: SearchCardLine | null }>(seasonRecordPath(season));
+  const line = data?.line;
+  if (!line) return null;
+  return (
+    <p className="mb-3 text-sm text-text-muted" data-season-record>
+      <span className="font-semibold text-foreground">{SEASON_RECORD_LABEL} {seasonLabel(season)}:</span>{" "}
+      {line.href ? <Link to={line.href} className="font-medium text-foreground underline underline-offset-2 hover:text-accent-text">{line.text}</Link> : line.text}
+      <span className="block text-xs sm:ml-1.5 sm:inline">{SEASON_RECORD_RULE}</span>
+    </p>
   );
 }

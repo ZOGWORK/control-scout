@@ -85,6 +85,12 @@ export async function highScoreCard(it: HighScoreQuestion, team: { number: numbe
   return card;
 }
 
+/** The season's record score, as "highest score this season" answers it (official events, penalties left out), for
+ *  the match records page (/matches), so both pages give one number. Null: no official match played that season. */
+export async function seasonRecordLine(season: number): Promise<SearchCardLine | null> {
+  return (await best(season, null, RECORD_TYPES))[0] ?? null;
+}
+
 /** The best scores (without penalties) at events of `types`, as card lines, each a link to its match. */
 async function best(season: number, team: number | null, types: string[]): Promise<SearchCardLine[]> {
   const args = (side: "red" | "blue") => [...(team != null ? [team] : []), season, ...types];

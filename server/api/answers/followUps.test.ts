@@ -263,3 +263,15 @@ describe("the related searches page", () => {
     expect((await pageMeta("/related-searches")).title).toBe("Popular FTC searches");
   });
 });
+
+describe("a list question's preview", () => {
+  it("says how many teams, then the first, never one team as the whole answer", async () => {
+    const { lineOf } = await import("./followUps");
+    const a = { q: "teams at X", hits: [], pages: [], step: "deterministic", weak: false,
+      stat: { family: "leaderboard", intent: "event-best", title: "Best teams at X", scope: [], blocks: [], listed: 10,
+        headline: { value: "12853 Robo Cavos", label: "OPR there 46.0, 4-2-0 · Emerson" } } } as never;
+    expect(lineOf(a, true)).toMatchObject({ value: "10 teams", rest: "first: 12853 Robo Cavos, OPR there 46.0, 4-2-0 · Emerson" });
+    // A leader question ("who is best at X") keeps the team as its answer.
+    expect(lineOf(a)).toMatchObject({ value: "12853 Robo Cavos" });
+  });
+});

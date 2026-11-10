@@ -9,6 +9,7 @@ import type { StatAnswer, StatBlock, StatMatchRow } from "../../../src/shared/se
 import { dateRange } from "../../../src/shared/format.js";
 import { eventHref, matchHref, matchRow, teamLinks, teamMatches, type TeamMatch } from "./matchSet.js";
 import { teamEventSet } from "./eventSet.js";
+import { withoutPenalties } from "../../../src/shared/seasonRecord.js";
 
 /** Where a team's highlights are read: its matches at an event named (or Worlds, or a state championship), and that
  *  place in words ("New Jersey Championship", "the FIRST Championship") for when it played none there. */
@@ -66,7 +67,7 @@ export async function teamHighlights(team: { number: number; name: string | null
   return {
     // The event is said once, in the title: its first match's (a Worlds division before the finals it feeds).
     family: "superlative", intent: "team-highlights", title: `${page === "videos" ? "Match videos" : "Highlights"}${where}, ${S}`, team, scope: [S],
-    headline: { value: `${np(top)} points`, label: `${lead.note}: ${top.label} at ${top.event}`, sub: `${top.own !== np(top) ? `${top.own} with penalties · ` : ""}${top.result === "W" ? "Won" : top.result === "L" ? "Lost" : "Tied"} ${top.own}–${top.opp}`, href: matchHref(top) },
+    headline: { value: `${np(top)} points`, label: `${withoutPenalties(lead.note)}: ${top.label} at ${top.event}`, sub: `${top.own !== np(top) ? `${top.own} with penalties · ` : ""}${top.result === "W" ? "Won" : top.result === "L" ? "Lost" : "Tied"} ${top.own}–${top.opp}`, href: matchHref(top) },
     blocks: page === "videos" ? [gallery!] : gallery ? [standout, gallery] : [standout],
     definition: `The team's standout matches${where} of ${S}${asked == null ? `, its latest season with matches${at ? " there" : ""}` : ""}: its best score (points without penalties), biggest win (by margin), latest playoff win, best Auto and closest win, each match once. Only matches its robot played in. A match with a video plays here.`,
     source: `From ${xs.length} ${xs.length === 1 ? "match" : "matches"} in ${S}`,

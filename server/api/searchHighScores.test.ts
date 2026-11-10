@@ -100,3 +100,20 @@ describe("the answer", () => {
     expect(a.card!.closest!.map((l) => l.text)).toEqual(["115 points: Q1 at Kickoff Scrimmage", "80 points: Q1 at Kickoff Scrimmage"]);
   });
 });
+
+describe("the season's record line (the match records page)", () => {
+  it("is the answer's own first line: official events, penalties left out, never a scrimmage's higher score", async () => {
+    const { seasonRecordLine } = await import("./searchHighScores");
+    const a = await searchAnswer("world record score decode");
+    const line = await seasonRecordLine(2025);
+    expect(line).toEqual(a.card!.lines[0]);
+    expect(line?.text).toBe("300 points: M9 at New Jersey Championship");
+    expect(await seasonRecordLine(2019)).toBeNull();
+  });
+  it("/matches says the same record above its table", async () => {
+    const { pageMeta } = await import("../seoMeta");
+    const html = (await pageMeta("/matches", { season: "2025" })).bodyHtml ?? "";
+    expect(html).toContain("Season record 2025–26:");
+    expect(html).toContain(">300 points: M9 at New Jersey Championship</a>");
+  });
+});

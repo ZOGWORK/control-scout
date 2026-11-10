@@ -19,6 +19,7 @@ import { EVENT_FIT } from "./context.js";
 import { names } from "./names.js";
 import { initialismEvent } from "./initialisms.js";
 import { FROM, MARGIN, NP, where, type MatchScope } from "./matchFind.js";
+import { withoutPenalties } from "../../../src/shared/seasonRecord.js";
 
 export interface HighlightFind extends MatchScope {
   /** The scope in words after "Highlights" ("at Worlds", "in New Jersey"), and as the card's chips. */
@@ -260,7 +261,7 @@ async function workOut(f0: HighlightFind): Promise<StatAnswer> {
   const standout: StatBlock = { kind: "matches", title: `${picks.length} standout ${picks.length === 1 ? "match" : "matches"}`, rows };
   return {
     ...base, ...(f.videos ? { title: `Match videos${at ? ` ${at}` : ""}, ${S}` } : {}),
-    headline: { value: `${best.ownNp ?? best.own} points`, label: `${lead.note}: ${top.label} at ${shortEvent(top.name, top.type)}`, href: best.href, type: top.type,
+    headline: { value: `${best.ownNp ?? best.own} points`, label: `${withoutPenalties(lead.note)}: ${top.label} at ${shortEvent(top.name, top.type)}`, href: best.href, type: top.type,
       sub: `${best.ownNp != null && best.own !== best.ownNp ? `${best.own} with penalties · ` : ""}${best.alliance === "red" ? "Red" : "Blue"} ${best.result === "W" ? "won" : best.result === "L" ? "lost" : "tied"} ${best.own}–${best.opp}`,
       teams: best.partners, alliance: best.alliance },
     // A scope too big to list keeps its standout matches, the gallery saying why it lists none.

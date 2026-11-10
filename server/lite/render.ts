@@ -93,8 +93,8 @@ export function eventPage(e: LiteEvent, full: string): LitePage {
   const status = e.status === "live" ? "On now" : e.status === "finished" ? "Finished" : "Upcoming";
   const ranked = e.teams.some((t) => t.rank != null);
   const teamRows = e.teams.map((t) => `<tr><td class="n">${t.rank ?? "—"}</td><td><a href="${liteTeamPath(t.team, e.season)}">${t.team}</a></td><td>${esc(t.name ?? "")}</td>`
-    + (ranked ? `<td class="n">${wlt(t.wins, t.losses, t.ties)}</td><td class="n">${num(t.rp, 2)}</td>` : "") + `<td class="n">${num(t.opr)}</td></tr>`);
-  const teamHead = `<th class="n">Rank</th><th>Team</th><th>Name</th>${ranked ? `<th class="n">W-L-T</th><th class="n">RP</th>` : ""}<th class="n">OPR</th>`;
+    + (ranked ? `<td class="n">${wlt(t.wins, t.losses, t.ties)}</td><td class="n">${num(t.rs, 2)}</td>` : "") + `<td class="n">${num(t.opr)}</td></tr>`);
+  const teamHead = `<th class="n">Rank</th><th>Team</th><th>Name</th>${ranked ? `<th class="n">W-L-T</th><th class="n" title="Ranking score: average ranking points a match">RS</th>` : ""}<th class="n">OPR</th>`;
   const awardsByTeam = e.awards.map((a) => `<tr><td>${esc(awardLabel(a.type, a.placement))}</td><td><a href="${liteTeamPath(a.team, e.season)}">${a.team}</a></td></tr>`);
   const body = `<h1>${esc(e.name)}</h1>`
     + `<p class="m">${esc([e.typeLabel, dateRange(e.start, e.end), place(e.city, e.state, e.country)].filter(Boolean).join(" · "))}</p>`
@@ -102,6 +102,7 @@ export function eventPage(e: LiteEvent, full: string): LitePage {
     + (e.checkedAt ? `<p class="s m">Results checked ${esc(matchTime(e.checkedAt))} (refresh the page for newer ones).</p>` : "")
     + `<h2>${ranked ? "Rankings" : e.registered ? "Registered teams" : "Teams"}</h2>`
     + (e.registered ? `<p class="s m">FIRST's registration list: it can still change before the event.</p>` : "")
+    + (ranked && e.meet ? `<p class="s m">This meet's own standing, from its matches alone. RS: ranking score, the average ranking points a match. The league's running standing is on the full page.</p>` : ranked ? `<p class="s m">RS: ranking score, the average ranking points a match.</p>` : "")
     + table(teamHead, teamRows, "No team list published yet.")
     + (e.alliances.length ? `<h2>Alliances</h2>` + table(`<th class="n">#</th><th>Teams</th>`, e.alliances.map((a) => `<tr><td class="n">${a.number}</td><td>${a.teams.map((t) => `<a href="${liteTeamPath(t, e.season)}">${t}</a>`).join(" ")}</td></tr>`), "") : "")
     + `<h2>Matches</h2>` + table(MATCH_HEAD, matchRows(e.matches, e.season, e.code), "No schedule published yet.")
