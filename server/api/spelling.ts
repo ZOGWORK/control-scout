@@ -451,7 +451,8 @@ export async function spelled(typed: string, a: SearchAnswer, run: (q: string) =
   // A team's name typed nearly right where each word on its own is a real one ("hypnotic robotix": another team is
   // named Robotix, so no word is a typo by itself): the name as the query parser reads it whole (./query/names.ts
   // nearTeam), taken only when that reading answers better.
-  const near = was <= 1 ? await nearNamed(typed) : null;
+  // Only a query with two words a name could be made of is parsed again for one.
+  const near = was <= 1 && /\p{L}{3,}[^\p{L}\p{N}]+\p{L}{3,}/u.test(typed) ? await nearNamed(typed) : null;
   if (near) {
     const b = await run(near);
     if (strength(b) > was) return carryOutcome(b, { ...b, q: a.q, step: b.step === "deterministic" ? "did-you-mean" : b.step, didYouMean: b.step === "did-you-mean" && b.didYouMean ? b.didYouMean : near });

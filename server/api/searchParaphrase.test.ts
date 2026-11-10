@@ -43,6 +43,11 @@ describe("the plural is the list", () => {
     // Said any way a person says it.
     for (const q of ["whats 4215s upcoming events", "4215 next events", "hypnotic robotics upcoming competitions"]) expect((await ask(q)).card, q).toMatchObject({ kind: "next-event", title: "Upcoming events" });
   });
+  it("a place's upcoming events stay the place's, never a team named like it", async () => {
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (31998, 'Ro2D2', 'Cluj', 'CJ', 'Romania')");
+    await rebuildSearch();
+    for (const q of ["upcoming meets in romania", "upcoming events in nj", "upcoming events in new jersey"]) expect((await ask(q)).card?.kind, q).toBeUndefined();
+  });
   it("the singular is the next one", async () => {
     expect((await ask("7149 upcoming event")).card).toMatchObject({ kind: "next-event", title: "Next event", lines: [{ text: "Northeast League Meet" }] });
     expect((await ask("23268 next event")).card).toMatchObject({ title: "Next event", none: "No upcoming event is published for Ultraviolet yet." });

@@ -17,6 +17,8 @@ import { ROSTER } from "../data/registrations.js";
 import { gameOf } from "../data/seasons.js";
 import { ATTENDED } from "./teams.js";
 import { teamNameOf, teamWords } from "../../src/shared/teamTitle.js";
+import { regionOf } from "../../src/shared/searchEventQuery.js";
+import { countryOf } from "../../src/shared/countries.js";
 
 export type QuestionKind = Exclude<SearchCard["kind"], "high-scores" | "rule" | "leaderboard" | "event-awards" | "info">;
 
@@ -42,7 +44,8 @@ const squash = (s: string) => s.replace(/\s+/g, " ").trim();
 /** A season named some way other than "in <year>": a question with one is left to search, never answered for all seasons. */
 const OTHER_SEASON = /\b(?:seasons?|20\d\d\s*[-–/]\s*\d\d|(?:last|this|previous|past|next)\s+year)\b/i;
 // A possessive with or without its apostrophe ("hypnotic's", "4215s"): the team.
-const coreOf = (s: string) => squash(s.replace(/['’]s\b/gi, " ").replace(/\b(\d{1,6})s\b/gi, "$1").replace(FRAME, " "));
+// A decade ("the 2020s") keeps its s.
+const coreOf = (s: string) => squash(s.replace(/['’]s\b/gi, " ").replace(/\b(?!(?:19|20)\d0s\b)(\d{1,6})s\b/gi, "$1").replace(FRAME, " "));
 /** A year only as a date ("in 2025", "during 2024"), never a season's start ("in 2023-24"): a bare 2000–2099 may be a
  *  team ("when did 2025 go to worlds"). */
 const YEAR = /\b(?:in|during)\s+(20\d\d)\b(?!\s*[-–/]\s*\d)/i;
@@ -65,6 +68,8 @@ export function parseQuestion(q: string): ParsedQuestion | null {
   const next = /\b(?:next|upcoming|coming)\s+(match(?:es)?|games?|events?|competitions?|tournaments?|meets?)\b/i.exec(q);
   if (next) {
     const core = coreOf(q.replace(next[0], " "));
+    // "Upcoming events in Romania", "upcoming meets in texas": a place's events, never a team named like the place.
+    if (core && (regionOf(core.split(" ")) || countryOf(core))) return null;
     const many = /s$/i.test(next[1]);
     return core ? { kind: /match|game/i.test(next[1]) ? "next-match" : "next-event", core, year: null, ...(many ? { many: true as const } : {}) } : null;
   }
