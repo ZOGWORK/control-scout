@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.3.5 — 2026-11-10
+## 5.3.6 — 2026-11-10
 
 Search says why a team's events are from the season shown, and reads names with punctuation or typed nearly right.
 
@@ -30,6 +30,22 @@ Search says why a team's events are from the season shown, and reads names with 
 - Search: a team's newest season where it was only ever a no-show is no longer its season for answers that default to its latest: its record, OPR and every other card name the same season (the one season rule). The card's note says no match of the newer season has been played yet, never that none is on record.
 - Search: a possessive after a name that ends in punctuation ("die toaster, die!'s") reads as the team, never as a stray "s".
 - Search: a team's name typed nearly right that runs past a shorter team's name ("girls in roboics 2") reads as the longer team, never the shorter one plus the number taken for an event. (#1340)
+
+## 5.3.5 — 2026-11-10
+
+Search suggestions name only six teams, by their names.
+
+### Highlights
+- [home] Home's suggestions name only six New Jersey teams
+- [home] Teams go by name ("Bad Wolf auto OPR") where search answers it
+- [fixes] Filtered suggestions answer this season again
+
+### Changed
+- Home: the suggestion chips and the "Try …" placeholder name only teams 4215 Hypnotic Robotics, 6980 Bad Wolf, 7149 ENFORCERS, 14481 Don't Blink, 23268 Ultraviolet and 19477 Bit by Bit, by name wherever search answers the name. Ultraviolet is four teams' name, and three teams' names side by side don't answer as a comparison yet, so those go by number. Next-event chips are gone until one of the six has a published next event. A test fails on any suggestion naming another team. (#1343)
+- Search: the "Try" example chips and the how-it-works search examples use the same six teams.
+
+### Fixed
+- Home: seven several-filter suggestions ("teams in texas with opr over 150") answered "none" in the young 2026–27 season. Their thresholds now fit this season, or they ask about last season.
 
 ## 5.3.4 — 2026-11-10
 
