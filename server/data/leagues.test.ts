@@ -7,6 +7,7 @@ import { clearAllCaches } from "../caches";
 import { syncLeagues } from "./leagues";
 import { leagueStandings, leaguesOf, teamLeagueStanding } from "../api/leagues";
 import { pageMeta } from "../seoMeta";
+import { newestLeagueSeason } from "../api/answers/families/facts";
 
 const S = 2026;
 const rank = (team: number, r: number, played = 6) => ({ teamNumber: team, rank: r, sortOrder1: 2 - r / 10, sortOrder2: 40, wins: 6 - r, losses: r, ties: 0, matchesPlayed: played, matchesCounted: played });
@@ -113,5 +114,15 @@ describe("league standings sync", () => {
     expect(await syncLeagues(S, { limit: 1, now: new Date("2026-11-08T12:00:00Z"), fetch: njFails })).toMatchObject({ ranked: 0, failed: 1 });
     expect(await syncLeagues(S, { limit: 1, now: new Date("2026-11-08T12:05:00Z"), fetch: njFails })).toMatchObject({ ranked: 1 });
     expect(asked.filter((a) => a.includes("rankings"))).toEqual([`/${S}/leagues/rankings/USNJ/NE`, `/${S}/leagues/rankings/USFL/NE`]);
+  });
+
+  it("takes a team's league standing from its newest league season with a match played", async () => {
+    const row = (season: number, team: number, played: number) => run("INSERT INTO league_rankings (season, region, league, team, rank, played) VALUES (?, 'USNJ', 'NE', ?, 1, ?)", [season, team, played]);
+    await row(S - 1, 6980, 10); await row(S, 6980, 6);
+    await row(S - 1, 7, 10); await row(S, 7, 0);
+    expect(await newestLeagueSeason(6980)).toBe(S);
+    // Listed this season but no match yet: last season's standing.
+    expect(await newestLeagueSeason(7)).toBe(S - 1);
+    expect(await newestLeagueSeason(8)).toBeNull();
   });
 });

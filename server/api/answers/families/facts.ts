@@ -156,6 +156,12 @@ export async function seasonOf(team: number, asked: number | null): Promise<numb
   return r?.s == null ? null : Number(r.d) ? def : Number(r.s);
 }
 
+/** The newest season the team has a league standing in, from a match played (null: none read from FIRST). */
+export async function newestLeagueSeason(team: number): Promise<number | null> {
+  const r = await get<{ s: number | null }>("SELECT MAX(season) s FROM league_rankings WHERE team = ? AND COALESCE(played, 1) > 0", [team]);
+  return r?.s == null ? null : Number(r.s);
+}
+
 /** The answer, or null when it has nothing to stand on (the question is left to search). */
 export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words: string, season: number | null) => Promise<{ season: number; code: string; name: string; type: string | null } | null>): Promise<StatAnswer | null> {
   const base = (intent: string, title: string, scope: string[], definition: string, source: string) => ({ family: "stat" as const, intent, title, team, scope, definition, source, blocks: [] as StatBlock[] });
@@ -175,10 +181,13 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
       blocks: [{ kind: "bars", title: "Predicted scores", groups: [{ label: m.label, items: [{ label: `${own === "red" ? "Red" : "Blue"} (with ${team.number})`, value: Math.round(mine), tone: "a" }, { label: own === "red" ? "Blue" : "Red", value: Math.round(theirs), tone: "b" }] }] }] };
   }
 
-  const season = await seasonOf(team.number, f.season);
+  // A league standing runs through the season, so with no season named it is the team's newest league's (FIRST's
+  // league rankings, server/data/leagues.ts), not the latest completed season's final table.
+  const leagueSeason = f.id === "league-rank" && f.season == null ? await newestLeagueSeason(team.number) : null;
+  const season = leagueSeason ?? await seasonOf(team.number, f.season);
   if (season == null) return { ...base(f.id, "Season numbers", [], OPR_RULE, "From the stored season numbers"), none: `${who(team)} has no season with matches on record.` };
   const S = seasonLabel(season);
-  const why = f.season == null ? (season === searchSeason() ? ` ${searchSeasonWhy(season)}` : ` The season is ${S}: no ${seasonLabel(searchSeason())} matches on record, so the team's latest with matches.`) : "";
+  const why = leagueSeason != null ? ` With no season named, the season is ${S}, the team's newest league standing.` : f.season == null ? (season === searchSeason() ? ` ${searchSeasonWhy(season)}` : ` The season is ${S}: no ${seasonLabel(searchSeason())} matches on record, so the team's latest with matches.`) : "";
 
   if (f.id === "opr" || f.id in PHASE) {
     // The team page's own reader (seasonStats, server/api/teams.ts): the same stored row, ranks and population, so the

@@ -72,7 +72,13 @@ const nameWords = (l: League) => (l.name ?? "").toLowerCase().replace(/[^a-z0-9 
 export function matchLeagues(said: string[], leagues: League[]): { leagues: League[]; place: string | null; named: boolean; also?: { place: string; leagues: League[] } } {
   // Two words said for one of a league's name words ("north east" for "Northeast") are that word.
   const known = new Set(leagues.flatMap(nameWords));
-  const words = said.reduce<string[]>((out, w) => { const j = lower(`${out[out.length - 1] ?? ""}${w}`); if (out.length && known.has(j) && !known.has(lower(w))) out[out.length - 1] = j; else out.push(w); return out; }, []);
+  // Read joined first ("north east" is "northeast" even where "North" and "East" are leagues too), then as said.
+  const joined = said.reduce<string[]>((out, w) => { const j = lower(`${out[out.length - 1] ?? ""}${w}`); if (out.length && known.has(j)) out[out.length - 1] = j; else out.push(w); return out; }, []);
+  if (joined.length < said.length) { const m = matchWords(joined, leagues); if (m.leagues.length) return m; }
+  return matchWords(said, leagues);
+}
+
+function matchWords(words: string[], leagues: League[]): { leagues: League[]; place: string | null; named: boolean; also?: { place: string; leagues: League[] } } {
   const countries = new Map(leagues.filter((l) => l.country).map((l) => [lower(l.country!), l.country!]));
   const tryWith = (placeWords: string[] | null) => {
     const region = placeWords ? regionOf(placeWords) : null;
