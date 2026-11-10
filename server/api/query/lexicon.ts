@@ -292,10 +292,11 @@ function numberValue(said: string): number {
 }
 
 /** `q` with each number said as words after a word that takes one written in digits ("over eighty" → "over 80"),
- *  everything else as typed; nothing inside quotes. */
-export function spelledNumbers(q: string): string {
+ *  everything else as typed; nothing inside quotes, and never words `named` says are part of a team's or event's
+ *  name (a team called "Top Ten Robotics" keeps "top ten"). */
+export function spelledNumbers(q: string, named: (words: string) => boolean = () => false): string {
   if (q.includes('"')) return q;
-  return q.replace(NUMBER_RE, (_, before: string, said: string) => `${before} ${numberValue(said)}`);
+  return q.replace(NUMBER_RE, (w, before: string, said: string) => (named(w) ? w : `${before} ${numberValue(said)}`));
 }
 
 /** A word without the punctuation around it (`"rn"`, "rn?"): what a form is matched on, the rest kept as typed. */

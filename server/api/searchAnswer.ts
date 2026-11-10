@@ -191,15 +191,17 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   }
   // A season written with both years ("2025-2026"): written as search reads one ("2025-26").
   // Numbers said as words after a word that takes one ("opr over eighty") in digits (./query/lexicon.ts spelledNumbers).
-  // A season written with a comma ("2025, 26", "2025, 2026", "season 25, 26") is the same season: consecutive years
-  // only, and two two-digit years only beside a season word, so a list of team numbers ("25, 26") stays a list.
-  const next = (a: string, b: string) => (Number(b.slice(-2)) === (Number(a.slice(-2)) + 1) % 100);
-  const years = spelledNumbers(said.replace(/\b(20\d\d)\s*[-–/]\s*(20\d\d)\b/g, (w, a: string, b: string) => (Number(b) === Number(a) + 1 ? `${a}-${b.slice(2)}` : w))
-    .replace(/\b(20\d\d)\s*,\s*((?:20)?\d\d)\b/g, (w, a: string, b: string) => (next(a, b) ? `${a}-${b.slice(-2)}` : w))
+  // A season written with a comma ("2025, 26", "season 25, 26") is the same season: consecutive years only, the
+  // second as two digits (two four-digit numbers with a comma, "2024, 2025", are two teams), and two two-digit years
+  // only beside a season word, so a list of team numbers ("25, 26") stays a list.
+  const next = (a: string, b: string) => (Number(b) === (Number(a.slice(-2)) + 1) % 100);
+  const dated = said.replace(/\b(20\d\d)\s*[-–/]\s*(20\d\d)\b/g, (w, a: string, b: string) => (Number(b) === Number(a) + 1 ? `${a}-${b.slice(2)}` : w))
+    .replace(/\b(20\d\d)\s*,\s*(\d\d)\b/g, (w, a: string, b: string) => (next(a, b) ? `${a}-${b}` : w))
     .replace(/\b(season\s+)(\d\d)\s*,\s*(\d\d)\b|\b(\d\d)\s*,\s*(\d\d)(\s+season)\b/gi, (w, pre?: string, a1?: string, b1?: string, a2?: string, b2?: string, post?: string) => {
       const [a, b] = a1 ? [a1, b1!] : [a2!, b2!];
       return next(a, b) ? `${pre ?? ""}20${a}-${b}${post ?? ""}` : w;
-    }));
+    });
+  const years = spelledNumbers(dated) === dated ? dated : spelledNumbers(dated, await inAName());
   if (years !== said) {
     const b = await searchAnswer(years, opts);
     return carryOutcome(b, { ...b, q: cleanQuery(raw) });
@@ -250,6 +252,15 @@ async function inFull(q: string): Promise<string> {
   }, longestName);
 }
 let longestName: number | undefined;
+
+/** Whether words are part of a team's or event's name, word for word ("top ten" in "Top Ten Robotics"). */
+async function inAName(): Promise<(words: string) => boolean> {
+  const [{ list }, events] = await Promise.all([teamNames(), eventNames()]);
+  return (words) => {
+    const k = ` ${nameKey(words)} `;
+    return list.some(([n]) => ` ${n} `.includes(k)) || events.some((n) => ` ${n} `.includes(k));
+  };
+}
 
 let eventNameList: { at: number; list: string[] } | null = null;
 async function eventNames(): Promise<string[]> {

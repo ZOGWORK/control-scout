@@ -14,6 +14,11 @@ describe("spelledNumbers", () => {
   it("leaves every other word as typed", () => {
     for (const q of ["which one is better", "the best one", "two teams at worlds", "seven wonders robotics", "top fiver", '"over eighty" robotics']) expect(spelledNumbers(q), q).toBe(q);
   });
+  it("never changes words of a team's or event's name", () => {
+    const named = (w: string) => /top ten/i.test(w);
+    expect(spelledNumbers("top ten robotics opr", named)).toBe("top ten robotics opr");
+    expect(spelledNumbers("top ten teams in nj", (w) => w === "top five")).toBe("top 10 teams in nj");
+  });
   it("champs is the championship", () => {
     expect(INFORMAL).toContainEqual(["champs", "championship"]);
   });

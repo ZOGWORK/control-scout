@@ -16,13 +16,14 @@ beforeAll(async () => {
     await run(`INSERT INTO team_season_stats (season, team, opr_np, opr_auto, opr_teleop, opr_endgame, rating_np, rating_matches, matches, wins, losses, ties)
       VALUES (?, 4215, ?, 30, 60, 10, 90, 10, 10, 7, 3, 0)`, [s, opr]);
   }
+  for (const n of [2024, 2025]) await run("INSERT INTO teams (number, name, city, state, country, rookie_year) VALUES (?, ?, 'Austin', 'TX', 'USA', 2010)", [n, `Team ${n}`]);
   await rebuildSearch();
 });
 
 describe("comma seasons", () => {
   it("reads as the dashed season", async () => {
     const dashed = await ask("4215 opr 2024-25");
-    for (const q of ["4215 opr 2024, 25", "4215 opr 2024,25", "4215 opr 2024, 2025", "4215 opr season 24, 25"]) {
+    for (const q of ["4215 opr 2024, 25", "4215 opr 2024,25", "4215 opr season 24, 25"]) {
       const a = await ask(q);
       expect(a.stat?.title, q).toBe(dashed.stat?.title);
       expect(a.stat?.headline?.value, q).toBe(dashed.stat?.headline?.value);
@@ -31,5 +32,9 @@ describe("comma seasons", () => {
   });
   it("years that aren't one season stay as typed", async () => {
     expect((await ask("4215 opr 2024, 27")).stat?.title ?? "").not.toMatch(/2024–25/);
+  });
+  it("two four-digit numbers with a comma are two teams, not a season", async () => {
+    const a = await ask("compare 2024, 2025");
+    expect(JSON.stringify(a)).not.toMatch(/2024-25|2024–25/);
   });
 });
