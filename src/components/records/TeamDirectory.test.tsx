@@ -40,7 +40,7 @@ afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 describe("TeamDirectory", () => {
   it("asks for the URL's country and shows its counts, without implying every listing is active", () => {
     mount("/teams?view=listed&country=CA&page=2");
-    expect(asked.at(-1)).toBe("/api/directory/2026?country=CA&sort=team&dir=asc&page=2&pageSize=50");
+    expect(asked.at(-1)).toBe("/api/directory/2026?country=CA&sort=results&dir=desc&page=2&pageSize=50");
     expect(screen.getByText("120")).toBeTruthy();
     expect(screen.getByText(/doesn’t mean the team is active or has competed/)).toBeTruthy();
     expect(screen.getByText(/7 listings report no country/)).toBeTruthy();
@@ -80,7 +80,7 @@ describe("TeamDirectory", () => {
     expect(asked).toEqual([]);
     fireEvent.click(screen.getByRole("button", { name: /Show every country/ }));
     expect(search).toBe("?view=listed");
-    expect(asked.at(-1)).toBe("/api/directory/2026?sort=team&dir=asc&page=1&pageSize=50");
+    expect(asked.at(-1)).toBe("/api/directory/2026?sort=results&dir=desc&page=1&pageSize=50");
   });
 
   describe("search", () => {
@@ -97,7 +97,7 @@ describe("TeamDirectory", () => {
       expect(search).toBe("?view=listed&season=2025&country=CA&page=3");
       act(() => { vi.advanceTimersByTime(1); });
       expect(search).toBe("?view=listed&season=2025&country=CA&q=map");
-      expect(asked.at(-1)).toBe("/api/directory/2026?country=CA&q=map&sort=team&dir=asc&page=1&pageSize=50");
+      expect(asked.at(-1)).toBe("/api/directory/2026?country=CA&q=map&sort=results&dir=desc&page=1&pageSize=50");
       expect(asked.some((a) => a.includes("q=ma&"))).toBe(false);
     });
 

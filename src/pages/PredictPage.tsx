@@ -13,6 +13,7 @@ import { useEventCheck } from "../lib/eventSeason";
 import { defaultSeason } from "../lib/myTeamSeason";
 import { callTally } from "../lib/seasonSoFar";
 import { usePersonal } from "../lib/personal";
+import { dedupePredictions } from "../shared/personal";
 import type { EventDetail, EventSummary, EventListItem, MatchExplanationView, MatchView, TeamProfile } from "../shared/api";
 import { pairHistory } from "../shared/pairHistory";
 import { compactSheet } from "../shared/factorSheet";
@@ -505,7 +506,7 @@ function MatchResult({ x, offlineAsOf, onSwap }: { x: MatchExplanationView; offl
   const cov = useRangeCoverage();
   const fav = x.winProbRed >= 0.5 ? "Red" : "Blue";
   const save = () => {
-    update("predictionHistory", (h) => [{ id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, season: x.season, red: x.red, blue: x.blue, winProbRed: x.winProbRed, predictedRed: x.predictedRed, predictedBlue: x.predictedBlue, tier: x.confidence.tier, savedAt: Date.now() }, ...h].slice(0, 200));
+    update("predictionHistory", (h) => dedupePredictions([{ id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, season: x.season, red: x.red, blue: x.blue, winProbRed: x.winProbRed, predictedRed: x.predictedRed, predictedBlue: x.predictedBlue, tier: x.confidence.tier, savedAt: Date.now() }, ...h]).slice(0, 200));
     toast.success("Saved to your predictions");
   };
   const share = () => copyLink();
@@ -581,7 +582,8 @@ function MatchResult({ x, offlineAsOf, onSwap }: { x: MatchExplanationView; offl
 function SavedPredictions() {
   const { state, update } = usePersonal();
   const [all, setAll] = useState(false);
-  const h = state.predictionHistory;
+  // Saves from before the one-per-matchup rule (or two devices) can still hold a matchup twice: list it once.
+  const h = useMemo(() => dedupePredictions(state.predictionHistory), [state.predictionHistory]);
   if (!h.length) return null;
   return (
     <Section title="Your saved predictions" description="Saved on this device (and your account, when signed in)." action={<Button variant="ghost" size="sm" onClick={() => update("predictionHistory", () => [])}>Clear</Button>}>

@@ -12,7 +12,7 @@ import { useApi, type ApiError } from "../../lib/api";
 import { place, seasonLabel } from "../../lib/format";
 import { useTeamFlags } from "../../lib/personal";
 import { COUNTRIES, countryByCode } from "../../shared/countries";
-import { isDirectoryPage, type DirectoryPage, type DirectorySort, type DirectoryTeam } from "../../shared/directory";
+import { DIRECTORY_DEFAULT_SORT, isDirectoryPage, type DirectoryPage, type DirectorySort, type DirectoryTeam } from "../../shared/directory";
 import type { SeasonReadiness } from "../../shared/home";
 import { directoryDefaultDir, directorySearchIssue, directoryUrl, parseDirectoryState, writeDirectoryState, type DirectoryState } from "../../lib/records/directoryState";
 import { clampPage, searchString } from "../../lib/records/urlState";
@@ -29,7 +29,7 @@ const fmt = (n: number) => n.toLocaleString();
 const BY_NAME = [...COUNTRIES].sort((a, b) => a.name.localeCompare(b.name));
 const SORTS: { key: DirectorySort; label: string }[] = [
   { key: "team", label: "Team number" }, { key: "name", label: "Name" }, { key: "location", label: "Location" },
-  { key: "rookie", label: "Rookie year" }, { key: "results", label: "Results first" },
+  { key: "rookie", label: "Rookie year" }, { key: "results", label: "Best first" },
 ];
 const field = "h-9 rounded-lg border border-line bg-card px-3 text-sm font-medium text-text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring max-sm:h-10";
 
@@ -89,15 +89,14 @@ export function TeamDirectory({ season, onSeason }: { season: number; onSeason: 
       </select>
     </label>
   );
-  const sortLabel = SORTS.find((s) => s.key === state.sort)?.label ?? "Team number";
+  const sortLabel = SORTS.find((s) => s.key === state.sort)?.label ?? "Best first";
   const chips: FilterChip[] = country ? [{ id: "country", label: <><MapPin className="inline size-3.5 text-accent" aria-hidden /> {country.name}</>, name: `Country: ${country.name}`, onRemove: () => setState({ ...state, country: null, countryUnknown: null, page: 1 }) }] : [];
-  // A sort other than the default shows as a chip too (removing it goes back to team number); the default
-  // shows in the Team column's header.
-  const defaultOrder = state.sort === "team" && state.dir === directoryDefaultDir("team");
+  // A sort other than the default (best first) shows as a chip too; removing it goes back to the default.
+  const defaultOrder = state.sort === DIRECTORY_DEFAULT_SORT && state.dir === directoryDefaultDir(DIRECTORY_DEFAULT_SORT);
   if (!defaultOrder) {
     const dirWords = state.dir === "asc" ? "low → high" : "high → low";
     chips.push({ id: "sort", label: <>{state.dir === "asc" ? <ArrowUp className="inline size-3.5 text-accent" aria-hidden /> : <ArrowDown className="inline size-3.5 text-accent" aria-hidden />} {sortLabel}</>,
-      name: `Sorted by ${sortLabel.toLowerCase()}, ${dirWords}`, onRemove: () => setState({ ...state, sort: "team", dir: directoryDefaultDir("team"), page: 1 }) });
+      name: `Sorted by ${sortLabel.toLowerCase()}, ${dirWords}`, onRemove: () => setState({ ...state, sort: DIRECTORY_DEFAULT_SORT, dir: directoryDefaultDir(DIRECTORY_DEFAULT_SORT), page: 1 }) });
   }
 
   return (
@@ -109,7 +108,7 @@ export function TeamDirectory({ season, onSeason }: { season: number; onSeason: 
           summary={data ? (data.q ? `${fmt(matched)} of ${fmt(data.total)} listed teams from ${where}` : `${fmt(data.total)} listed teams from ${where}`) : undefined}
           doneLabel={data ? `Show ${fmt(matched)} teams` : "Done"}
           // Clears what the chips show: the country and a non-default sort (the search has its own ×).
-          onClearAll={() => setState({ ...state, country: null, countryUnknown: null, sort: "team", dir: directoryDefaultDir("team"), page: 1 })}>
+          onClearAll={() => setState({ ...state, country: null, countryUnknown: null, sort: DIRECTORY_DEFAULT_SORT, dir: directoryDefaultDir(DIRECTORY_DEFAULT_SORT), page: 1 })}>
           <FilterSection label="Country">{countryPicker}</FilterSection>
           <FilterSection label="Order">{sortPicker}</FilterSection>
         </CompactFilters>
