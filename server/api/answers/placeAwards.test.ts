@@ -164,6 +164,11 @@ describe("a place's award winners", () => {
     const s = await placeAwardsAnswer(ask!);
     expect(rows(s).map((r) => r.team)).toEqual(["20265 Heart of RoBots"]);
     expect(s.headline?.value).toBe("1 Think Award");
+    // No season said: the card says which season it read and why (the one season rule, ../season.ts).
+    expect(s.definition).toContain("With no season named, the season is ");
+    // A season said needs no note.
+    const said = await placeAwardsAnswer((await readPlaceAwards(`Texas Think winners ${S}-${String((S + 1) % 100).padStart(2, "0")}`))!);
+    expect(said.definition).not.toContain("With no season named");
   });
 
   it("orders the winners by a stat that season", async () => {
@@ -218,6 +223,7 @@ describe("a place's award winners", () => {
     expect(yes.headline).toMatchObject({ value: "Yes", label: "2 teams" });
     expect(rows(yes).map((r) => [r.team, r.won])).toEqual([["22222 Maple Gears", "No"], ["33333 Northern Bolts", "Yes"]]);
     const tx = await placeAwardsAnswer((await readPlaceAwards("Texas teams in the playoffs at worlds this season"))!);
+    expect((await placeAwardsAnswer({ ...ask!, mode: "list" })).definition).toContain("With no season named, the season is ");
     expect(tx.headline?.value).toBe("2 teams");
     expect((await placeAwardsAnswer((await readPlaceAwards("did any Ohio team make worlds finals"))!)).headline?.value).toBe("No");
     // At Worlds "last year" is the latest Championship finished, and "last season" the latest completed season: the

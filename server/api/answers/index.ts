@@ -31,7 +31,7 @@ import { eventAnswer } from "./families/events.js";
 import { factAnswer, readTeamFact, seasonOf as factSeason, type FactQuestion } from "./families/facts.js";
 import { OPR_RATING_TITLES, oprRatingAnswer, readOprRating, type OprRatingQuestion } from "./families/oprRating.js";
 import { counts, matchAnswer, whoOf } from "./families/matches.js";
-import { changeAnswer, readChange, type ChangeQuestion } from "./families/seasonChange.js";
+import { changeAnswer, readChange, shiftChange, type ChangeQuestion } from "./families/seasonChange.js";
 import { MATCH_STAT_IDS, matchStatAnswer } from "./families/matchStats.js";
 import { BOARD_STATS, LEADERBOARD_MAX, boardStatFor, careerBoardTitle, leaderboardAnswer, statWords, windowBoardAnswer } from "./families/leaderboard.js";
 import { readTime } from "../query/time.js";
@@ -743,8 +743,7 @@ async function changeSearch(q: string, c: ChangeQuestion, resolve: Resolve, opts
  *  season's top-rated teams (real teams, from the stored ratings), with the season's biggest climbers beside them. */
 async function changeWithoutTeam(q: string, c0: ChangeQuestion, pages: SearchPageLink[]): Promise<SearchAnswer> {
   // No season said and no team: the current season once anyone has played it, else the latest with matches (./season.ts).
-  const shift = c0.defaulted ? c0.to - defaultSeason() : 0;
-  const c = shift ? { ...c0, to: c0.to - shift, from: c0.from == null ? null : c0.from - shift } : c0;
+  const c = c0.defaulted ? shiftChange(c0, defaultSeason()) : c0;
   const what = c.stat === "opr" ? "OPR" : "prediction rating";
   const col = c.stat === "opr" ? "s.opr_np" : "s.rating_np";
   const top = await all<{ team: number; name: string | null }>(`SELECT s.team, t.name FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE s.season = ? AND ${col} IS NOT NULL AND ${teamPageSql("s.team", "t.name")} ORDER BY ${col} DESC, s.team LIMIT 3`, [c.to]);

@@ -15,7 +15,7 @@ import type { StatAnswer, StatBlock } from "../../../../src/shared/searchStat.js
 import type { SearchAnswer, SearchPageLink } from "../../../../src/shared/api.js";
 import { awardLabel, num, seasonLabel } from "../../../../src/shared/format.js";
 import { all } from "../../../db.js";
-import { completedSeason, currentSeason, defaultSeason, lastSeason } from "../season.js";
+import { completedSeason, currentSeason, defaultSeason, lastSeason, seasonWhy } from "../season.js";
 import { names, type Place } from "../../query/names.js";
 import { regionOf } from "../../../../src/shared/searchEventQuery.js";
 import { CHAMPIONSHIP_TYPE } from "../clauses.js";
@@ -169,7 +169,7 @@ async function stageAnswer(ask: PlaceAwardsAsk): Promise<StatAnswer> {
   const what = ask.stage === "finals" ? "the Worlds finals" : "the playoffs at Worlds";
   const when = season == null ? "any season" : seasonLabel(season);
   const title = ask.mode === "any" ? `Did any team from ${place} make ${what}, ${when}?` : `Teams from ${place} in ${what}, ${when}`;
-  const definition = `${ask.stage === "finals" ? "The Worlds finals: the playoff matches of the FIRST Championship's own event, between its divisions' winners." : "The playoffs at Worlds: any FIRST Championship division's playoff matches, or its finals."} A team's place is its home on FIRST's listing. From the stored matches.`;
+  const definition = `${ask.stage === "finals" ? "The Worlds finals: the playoff matches of the FIRST Championship's own event, between its divisions' winners." : "The playoffs at Worlds: any FIRST Championship division's playoff matches, or its finals."} A team's place is its home on FIRST's listing. From the stored matches.${ask.season == null && season != null ? ` ${seasonWhy("any", season)}` : ""}`;
   const base = { family: "awards" as const, intent: "place-worlds-stage", title, definition, scope: [place, "FIRST Championship", season == null ? "All seasons" : seasonLabel(season)], source: `From ${count(rows.length, "team")} in the stored playoff matches` };
   const teams = new Set(rows.map((r) => r.team)).size;
   if (!rows.length) return { ...base, blocks: [], ...(ask.mode === "any" ? { headline: { value: "No", label: `no team from ${place} played in ${what} in ${when}` } } : { none: `No team from ${place} played in ${what} in ${when} in the stored matches.` }) };
@@ -222,7 +222,7 @@ export async function placeAwardsAnswer(ask: PlaceAwardsAsk): Promise<StatAnswer
   const when = season == null ? "every season" : seasonLabel(season);
   const scope = [ask.place?.name ?? "Every team", ...(ask.worlds ? ["FIRST Championship"] : []), season == null ? "All seasons" : seasonLabel(season)];
   const base = { family: "awards" as const, intent: "place-awards", scope, source: `From ${count(records, "award record")} in the events' published awards` };
-  const rule = `${ALLIANCE.has(ask.types[0] ?? "") || !ask.types.length ? "A Winning or Finalist Alliance award counts for each of its teams. " : ""}A judged award is won at 1st place${ask.types.length ? "" : " (2nd and 3rd place are listed as such)"}. A team's place is its home on FIRST's listing. From the events' published awards.`;
+  const rule = `${ALLIANCE.has(ask.types[0] ?? "") || !ask.types.length ? "A Winning or Finalist Alliance award counts for each of its teams. " : ""}A judged award is won at 1st place${ask.types.length ? "" : " (2nd and 3rd place are listed as such)"}. A team's place is its home on FIRST's listing. From the events' published awards.${ask.season == null && season != null ? ` ${seasonWhy("any", season)}` : ""}`;
   const title = ask.types.length ? `${ask.place ? `${ask.place.name} ` : ""}${what} winners${at}` : `Awards won by ${whose}${at}`;
   const none = (s: string) => ({ ...base, title, blocks: [], definition: rule, none: s });
   const ev = (r: Row) => shortEvent(r.event, r.etype);

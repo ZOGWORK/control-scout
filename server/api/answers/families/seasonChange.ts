@@ -24,6 +24,16 @@ export interface ChangeQuestion {
   /** No season was said (or "this season"): `to` is the current season here, and the answer reads the team's latest
    *  season with matches instead (the one season rule, ../season.ts). */
   defaulted?: boolean;
+  /** `from` is said relative to `to` ("last season", or the season before when only one is said), so it moves with
+   *  `to` when that is resolved; a named starting season never moves. */
+  fromRelative?: boolean;
+}
+
+/** The question read for the season `to` resolves to (the team's latest, or the season with matches): `to` moves there,
+ *  `from` only when it was said relative to it. */
+export function shiftChange(c: ChangeQuestion, to: number): ChangeQuestion {
+  if (to === c.to) return c;
+  return { ...c, to, from: c.from == null ? null : c.fromRelative ? c.from - (c.to - to) : c.from };
 }
 
 const CHANGE = String.raw`(?:improve[ds]?|improvement|change[ds]?|grow|grew|go up|went up|increase[ds]?|rise|rose|drop(?:ped)?|fall|fell|go down|went down|decrease[ds]?)`;
@@ -52,15 +62,19 @@ export function readChange(raw: string): ChangeQuestion | null {
   if (two) {
     const a = seasonIn(two[2]), b = seasonIn(two[3]);
     if (a == null || b == null || a === b) return null;
-    const defaulted = b === def && /\b(?:this|current)\s+(?:season|year)\b/.test(two[3]);
-    return two[1] === "between" ? { stat, core: m[1], from: Math.min(a, b), to: Math.max(a, b), ...(defaulted ? { defaulted } : {}) } : { stat, core: m[1], from: a, to: b, ...(defaulted ? { defaulted } : {}) };
+    // "between" reads oldest first, so its ends are put in order with their words.
+    const swap = two[1] === "between" && a > b;
+    const from = swap ? b : a, to = swap ? a : b, fromWords = swap ? two[3] : two[2], toWords = swap ? two[2] : two[3];
+    const defaulted = to === def && /\b(?:this|current)\s+(?:season|year)\b/.test(toWords);
+    const fromRelative = defaulted && /\b(?:last|previous|past)\s+(?:season|year)\b/.test(fromWords);
+    return { stat, core: m[1], from, to, ...(defaulted ? { defaulted } : {}), ...(fromRelative ? { fromRelative } : {}) };
   }
-  if (!tail) return stat === "opr" ? { stat, core: m[1], from: def - 1, to: def, defaulted: true } : { stat, core: m[1], from: null, to: def, defaulted: true };
+  if (!tail) return stat === "opr" ? { stat, core: m[1], from: def - 1, to: def, defaulted: true, fromRelative: true } : { stat, core: m[1], from: null, to: def, defaulted: true };
   const latest = /^(?:in|during|over|across )?\s*(?:the\s+)?(?:this|current)\s+(?:season|year)$/.test(tail);
   const one = seasonIn(tail.replace(/^(?:in|during|over|across) /, ""));
   if (one == null) return null;
   // One season: a rating moves within it; OPR is a season's best event, so it's set against the season before.
-  return stat === "opr" ? { stat, core: m[1], from: one - 1, to: one, ...(latest ? { defaulted: true } : {}) } : { stat, core: m[1], from: null, to: one, ...(latest ? { defaulted: true } : {}) };
+  return stat === "opr" ? { stat, core: m[1], from: one - 1, to: one, fromRelative: true, ...(latest ? { defaulted: true } : {}) } : { stat, core: m[1], from: null, to: one, ...(latest ? { defaulted: true } : {}) };
 }
 
 type Team = { number: number; name: string | null };
@@ -69,9 +83,10 @@ const signed = (x: number) => `${x > 0 ? "+" : x < 0 ? "−" : "±"}${num(Math.a
 const top = (rank: number, of: number) => `top ${Math.max(1, Math.ceil((100 * rank) / of))}%`;
 
 export async function changeAnswer(c0: ChangeQuestion, team: Team): Promise<StatAnswer> {
-  // No season said: the team's latest season with matches, the one season rule (../season.ts); the season before it
-  // when the change is from one season to the next.
-  const c = c0.defaulted ? await (async () => { const s = await teamSeason(team.number); return s == null || s === c0.to ? c0 : { ...c0, to: s, from: c0.from == null ? null : c0.from - (c0.to - s) }; })() : c0;
+  // No season said (or "this season"): the team's latest season with matches, the one season rule (../season.ts). A
+  // starting season said relative to it moves with it; a named one stays as said.
+  const latest = c0.defaulted ? await teamSeason(team.number) : null;
+  const c = latest == null ? c0 : shiftChange(c0, latest);
   if (c.from == null) return withinAnswer(c.to, team, !!c.defaulted);
   const a = await seasonsAnswer(c, c.from, team);
   return c.defaulted ? { ...a, definition: `${a.definition} ${seasonWhy("this", c.to, String(team.number))}` } : a;
@@ -89,6 +104,7 @@ async function seasonsAnswer(c: ChangeQuestion, from: number, team: Team): Promi
     definition: `${c.stat === "opr" ? "OPR: the points a team adds to its alliance's score without penalties, its best event that season (as its team page shows)." : "Prediction rating: the engine's points-per-match strength at the end of each season's matches (as the team page shows)."} Each season is a different game, so the change in points says how far apart the two seasons' numbers are, not how much the robot itself improved; the world standing (rank as a share of every ranked team) compares like with like.`,
     source: `From ${possessive(who(team))} ${A} and ${B} season numbers`,
   };
+  if (from === c.to) return { ...base, scope: [A], blocks: [], none: `${A} is ${possessive(who(team))} latest season on record, so there is no later season to compare it with.` };
   const va = value(a), vb = value(b);
   if (va == null || vb == null) {
     const missing = [va == null ? A : null, vb == null ? B : null].filter(Boolean).join(" or ");

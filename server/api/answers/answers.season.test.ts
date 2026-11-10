@@ -12,7 +12,7 @@ import { searchAnswer } from "../searchAnswer";
 import { rewriteQuery } from "../searchCoverage";
 import { readEventQuery } from "../../../src/shared/searchEventQuery";
 import { readLeaderboard, readScope } from "./read";
-import { readChange } from "./families/seasonChange";
+import { readChange, shiftChange } from "./families/seasonChange";
 import { completedSeason, currentSeason, defaultSeason, lastSeason, refreshSearchSeason, resetSearchSeason, teamSeason } from "./season";
 
 const NOW = Date.parse("2026-11-04T12:00:00Z");
@@ -167,12 +167,22 @@ describe("leaderboards", () => {
 describe("how a number changed", () => {
   it("OPR from last season to this season: both seasons' numbers and the difference", async () => {
     // "This season" is read as the current one here and as the team's latest season by the answer (one rule).
-    expect(readChange("how much did 4215's opr improve from last season to this season")).toEqual({ stat: "opr", core: "4215", from: 2025, to: 2026, defaulted: true });
+    expect(readChange("how much did 4215's opr improve from last season to this season")).toEqual({ stat: "opr", core: "4215", from: 2025, to: 2026, defaulted: true, fromRelative: true });
     // "from … to …" keeps its direction; "between" is oldest first.
     expect(readChange("4215 opr change from 2025-26 to 2024-25")).toEqual({ stat: "opr", core: "4215", from: 2025, to: 2024 });
     expect(readChange("4215 opr change between 2025-26 and 2024-25")).toEqual({ stat: "opr", core: "4215", from: 2024, to: 2025 });
     const a = (await searchAnswer("how much did 4215's opr improve from last season to this season", { limit: 25, full: true })).stat;
     expect(a).toMatchObject({ title: "OPR change, 2024–25 to 2025–26", headline: { value: "−43.2", label: "OPR 144.8 in 2024–25 → 101.6 in 2025–26" } });
+  });
+  it("a named starting season stays as said; only \"this season\" moves to the team's latest", async () => {
+    expect(readChange("4215 opr change from 2024-25 to this season")).toEqual({ stat: "opr", core: "4215", from: 2024, to: 2026, defaulted: true });
+    expect(shiftChange({ stat: "opr", core: "4215", from: 2024, to: 2026, defaulted: true }, 2025)).toMatchObject({ from: 2024, to: 2025 });
+    expect(shiftChange({ stat: "opr", core: "4215", from: 2025, to: 2026, defaulted: true, fromRelative: true }, 2025)).toMatchObject({ from: 2024, to: 2025 });
+    const a = (await searchAnswer("4215 opr change from 2024-25 to this season", { limit: 25, full: true })).stat;
+    expect(a).toMatchObject({ title: "OPR change, 2024–25 to 2025–26", headline: { value: "−43.2" } });
+    // The latest season named as the start: nothing later to compare it with, said so (never a different start).
+    const same = (await searchAnswer("4215 opr change from 2025-26 to this season", { limit: 25, full: true })).stat;
+    expect(same?.none).toMatch(/^2025–26 is 4215 .*latest season on record/);
   });
   it("the rating across this season: its earliest and last stored weeks, the change, the team page's rating beside", async () => {
     expect(readChange("how much did 4215's rating change this season")).toEqual({ stat: "rating", core: "4215", from: null, to: 2026, defaulted: true });
