@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.3.5 — 2026-11-10
+## 5.3.6 — 2026-11-10
 
 The Events page opens on every event, its video and status filters never leave an empty list, and Scout's event picker counts the same events.
 
@@ -26,8 +26,24 @@ The Events page opens on every event, its video and status filters never leave a
 
 ### Fixed
 - `/events` with no status in the address opened on Live now whenever one event was live, hiding the rest of the season behind a short list. It now opens on All; a status in the address (`?status=live`) still holds.
-- On Events, picking "Match clips" (or "Has a recording") while a status with no such event was picked (Upcoming, Live now) showed "No events match". A video pick now sends that status back to All, and a status tap with nothing under the video picked drops the video filter (`videoPick`, `statusPick` in `src/pages/eventsList.ts`).
+- On Events, picking "Match clips" (or "Has a recording") while a status with no such event was picked (Upcoming, Live now) showed "No events match". A video pick now sends that status back to All, and a status tap with nothing under the video picked drops the video filter (`videoPick`, `statusPick` in `src/pages/eventsList.ts`). (#1345)
 - Scout's event picker counted 1,630 events (447 finished) where Events counted 1,411 (230 finished): it listed kickoffs, workshops, practice days and the other types with no matches, which Events leaves out. It now lists the Events page's set, so the counts agree; picking one of those types in its Event type filter still lists them, as a pit can be scouted at a practice day. The list of those types lives once, in `src/shared/labels.ts` (`NO_MATCH_TYPES`).
+
+## 5.3.5 — 2026-11-10
+
+Search suggestions name only six teams, by their names.
+
+### Highlights
+- [home] Home's suggestions name only six New Jersey teams
+- [home] Teams go by name ("Bad Wolf auto OPR") where search answers it
+- [fixes] Filtered suggestions answer this season again
+
+### Changed
+- Home: the suggestion chips and the "Try …" placeholder name only teams 4215 Hypnotic Robotics, 6980 Bad Wolf, 7149 ENFORCERS, 14481 Don't Blink, 23268 Ultraviolet and 19477 Bit by Bit, by name wherever search answers the name. Ultraviolet is four teams' name, and three teams' names side by side don't answer as a comparison yet, so those go by number. Next-event chips are gone until one of the six has a published next event. A test fails on any suggestion naming another team. (#1343)
+- Search: the "Try" example chips and the how-it-works search examples use the same six teams.
+
+### Fixed
+- Home: seven several-filter suggestions ("teams in texas with opr over 150") answered "none" in the young 2026–27 season. Their thresholds now fit this season, or they ask about last season.
 
 ## 5.3.4 — 2026-11-10
 
