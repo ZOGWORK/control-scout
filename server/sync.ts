@@ -15,6 +15,7 @@ import { hasFirst } from "./env.js";
 import { syncFtcNj } from "./data/provisional.js";
 import { sessionPairs, syncRegistrations, type SessionEvent } from "./data/registrations.js";
 import { backfillAdvancementPoints } from "./data/advancementPoints.js";
+import { syncLeagues } from "./data/leagues.js";
 
 /** Event types that never have matches (skip detail fetches). */
 export const NO_MATCH_TYPES = new Set(["Kickoff", "Workshop", "DemoExhibition", "VolunteerSignup", "PracticeDay", "InnovationChallenge"]);
@@ -180,6 +181,8 @@ export async function syncSeason(season: number, o: SyncOptions = {}): Promise<S
       if (b.filled || b.failed) log(`${season}: advancement points for ${b.filled} settled events${b.failed ? `, ${b.failed} failed` : ""}`);
     } catch (e) { log(`${season}: advancement points backfill failed: ${(e as Error).message.slice(0, 120)}`); }
   }
+  // FIRST's league standings (data/leagues.ts). Its own failure never fails the sync.
+  if (hasFirst() && season === CURRENT_SEASON) await leagueSync(season, false, log);
   const now = new Date().toISOString();
   await run("UPDATE seasons SET last_sync = ? WHERE season = ?", [now, season]);
   if (!report.failed.length) {
@@ -194,6 +197,13 @@ export async function syncSeason(season: number, o: SyncOptions = {}): Promise<S
   return report;
 }
 
+async function leagueSync(season: number, past: boolean, log: SyncLog): Promise<void> {
+  try {
+    const l = await syncLeagues(season, { past });
+    if (l.listed || l.ranked || l.failed) log(`${season}: ${l.listed ? `${l.listed} leagues listed, ` : ""}standings for ${l.ranked} leagues${l.failed ? `, ${l.failed} failed` : ""}`);
+  } catch (e) { log(`${season}: league standings failed: ${(e as Error).message.slice(0, 120)}`); }
+}
+
 export async function syncAll(o: SyncOptions = {}): Promise<SyncReport[]> {
   await ensureSeasons();
   const seasons = (o.seasons ?? SEASON_NUMBERS).slice().sort((a, b) => b - a); // current season first
@@ -206,6 +216,8 @@ export async function syncAll(o: SyncOptions = {}): Promise<SyncReport[]> {
       out.push({ season: s, listed: 0, detailed: 0, failed: [{ code: "*", error: msg }], fallback: 0, teams: 0 });
     }
   }
+  // The season before's league standings, read once with the current season's sync (a frozen season's stops before them).
+  if (hasFirst() && seasons.includes(CURRENT_SEASON)) await leagueSync(CURRENT_SEASON - 1, true, o.log ?? (() => {}));
   await kvSet("sync:last", { at: new Date().toISOString(), reports: out.map((r) => ({ ...r, failed: r.failed.slice(0, 20), failedCount: r.failed.length })) });
   return out;
 }
