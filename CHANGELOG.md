@@ -25,7 +25,7 @@ The Teams "All listed" tab opens with the best teams first, and Predict lists ea
 
 ### Fixed
 - `/teams?view=listed` opened sorted by team number, so its first page was mostly teams with "No results yet". It now opens best first (the sort formerly called "Results first", now "Best first"): teams with results, by season OPR, then the rest by number. Team number is still a tap on the Team column (`?sort=team`), and old links keep their sort. (`DIRECTORY_DEFAULT_SORT`, `src/shared/directory.ts`)
-- Predict's "Your saved predictions" listed one matchup twice (saved twice, or saved on two devices under two ids). The list now keeps one save per matchup (season, red alliance, blue alliance), the newest: saving again replaces the old one, a device's stored list is cleaned when read, and an account merge keeps one (`dedupePredictions`, `src/shared/personal.ts`).
+- Predict's "Your saved predictions" listed one matchup twice (saved twice, or saved on two devices under two ids). The list now keeps one save per matchup (season, red alliance, blue alliance), the newest: saving again replaces the old one, a device's stored list is cleaned when read, and an account merge keeps one (`dedupePredictions`, `src/shared/personal.ts`). (#1346)
 
 ## 5.3.5 — 2026-11-10
 
