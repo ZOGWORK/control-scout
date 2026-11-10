@@ -24,8 +24,8 @@ beforeAll(async () => {
   setDb(c);
   await migrate(c);
   realExec = c.execute.bind(c);
-  // Count full builds: each reads every scored prediction once.
-  (c as any).execute = (s: any) => { if (String(s?.sql ?? s).startsWith("SELECT kind, season, p_red")) builds++; return realExec(s); };
+  // Count full builds: each reads every scored prediction once, in chunks (db.ts allInChunks): its first chunk counts.
+  (c as any).execute = (s: any) => { if (String(s?.sql ?? s).startsWith("SELECT id, kind, season, p_red") && s?.args?.at(-1) === Number.MIN_SAFE_INTEGER) builds++; return realExec(s); };
 });
 afterAll(() => { (db() as any).execute = realExec; });
 
