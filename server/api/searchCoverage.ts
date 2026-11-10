@@ -151,9 +151,12 @@ const SHOWING_WORDS = ["performance"];
 export function rewriteQuery(q: string, named: ReadonlySet<string> = new Set()): { q: string; note?: string; pre?: true } | null {
   const t = squash(q.toLowerCase());
   let m: RegExpExecArray | null;
-  // Whether two teams have met: their head-to-head (every match they played on opposite alliances).
-  if ((m = new RegExp(`^(?:have|has|did)\\s+${TEAM}\\s+(?:and|&)\\s+${TEAM}\\s+(?:ever\\s+)?(?:played|faced|met|play|face|meet)(?:\\s+(?:each other|one another|before|against each other))?$`).exec(t))
-    || (m = new RegExp(`^(?:have|has|did)\\s+${TEAM}\\s+(?:ever\\s+)?(?:played|faced|met|play|face|meet)\\s+(?:against\\s+)?${TEAM}$`).exec(t))) return { q: `${m[1]} vs ${m[2]} head to head`, pre: true };
+  // Whether two teams have met: their head-to-head (every match they played on opposite alliances), where one is said
+  // ("did 12345 and 67890 play at worlds": at Worlds, never a team named "… for Worlds").
+  const where = String.raw`(?:\s+((?:at|in|during)\s+.+))?`;
+  if ((m = new RegExp(`^(?:have|has|did)\\s+${TEAM}\\s+(?:and|&)\\s+${TEAM}\\s+(?:ever\\s+)?(?:played|faced|met|play|face|meet)(?:\\s+(?:each other|one another|before|against each other))?${where}$`).exec(t))
+    // One team, then the other: neither is a pair joined by "and", nor a place said with its preposition.
+    || (m = new RegExp(`^(?:have|has|did)\\s+(?!.*\\s(?:and|&)\\s)${TEAM}\\s+(?:ever\\s+)?(?:played|faced|met|play|face|meet)\\s+(?:against\\s+)?(?!(?:at|in|during|on)\\s)${TEAM}$`).exec(t))) return { q: `${m[1]} vs ${m[2]} head to head${m[3] ? ` ${m[3]}` : ""}`, pre: true };
   // A team at a state championship by its short name ("12345 record at nj states", "12345 match 12 at nj states"):
   // that state's championship among the team's events.
   if ((m = /^(\d{1,6}(?:\s+vs\.?\s+\d{1,6})?)\s+(.*?)\s*\b(?:at|in)\s+(?:the\s+)?(.+?)\s+(?:states|state championships?|state champs|championship)$/.exec(t)) && regionOf(m[3].split(" "))) {
