@@ -53,6 +53,8 @@ export const PRIVATE_TABLES = [
  */
 export const PUBLIC_TABLES = [
   "schema_version", "seasons", "teams", "team_seasons", "events", "event_teams", "matches", "match_teams", "alliances", "awards",
+  // FIRST's league list and official league standings (migration 79): public rankings.
+  "leagues", "league_rankings",
   "advancement", "advancement_points", "kv", "team_event_stats", "team_season_stats", "predictions", "search", "search_fuzzy",
   "team_event_records", "team_season_records", "match_records",
   // Weekly world rankings: ranks and ratings derived from public match results, nobody's own data.

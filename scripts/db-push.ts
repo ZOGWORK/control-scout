@@ -25,10 +25,15 @@ const PUBLIC_TABLES = [
   // FIRST's pre-event registrations (server/data/registrations.ts): the source's lists replace the target's whole
   // (below), so a team that dropped out doesn't linger.
   "event_registrations",
+  // FIRST's league list and league standings (server/data/leagues.ts): each read replaces a league's whole ranking.
+  "leagues", "league_rankings",
 ];
 /** Small tables whose target rows the source's replace whole (lists each read replaces, not rows that accumulate):
  *  read in full first, then swapped in one transaction, so a failed push leaves the target's as they were. */
-const REPLACE_WHOLE = new Set(["event_registrations"]);
+const REPLACE_WHOLE = new Set(["event_registrations", "leagues", "league_rankings"]);
+/** Tables replaced together, in one target transaction: a league's read date never arrives without its standings. */
+const REPLACE_TOGETHER: Record<string, string[]> = { leagues: ["leagues", "league_rankings"] };
+const TOGETHER = new Set(Object.values(REPLACE_TOGETHER).flat());
 /** WITHOUT ROWID tables (no rowid to page by): their primary key order instead. */
 const KEY_ORDER: Record<string, string> = {
   team_event_records: "season, code, team", team_season_records: "season, team", match_records: "season, code, level, series, number",
@@ -51,9 +56,20 @@ for (const table of PUBLIC_TABLES) {
   let cols = (await source.execute(`PRAGMA table_info(${table})`)).rows.map((r) => String(r.name));
   if (!cols.length) { console.log(`  ${table}: not in source, skipped`); continue; }
   if (REPLACE_WHOLE.has(table)) {
-    const rows = (await source.execute(`SELECT ${cols.join(", ")} FROM ${table}`)).rows;
-    await to.batch([`DELETE FROM ${table}`, ...rows.map((r) => ({ sql: `INSERT INTO ${table} (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`, args: cols.map((c) => (r[c] ?? null) as never) }))], "write");
-    console.log(`  ${table}: ${rows.length.toLocaleString()} rows (replaced)`);
+    // A group's tables read from one source transaction and swapped in one target transaction; the group's other
+    // tables are done with its first.
+    if (TOGETHER.has(table) && !REPLACE_TOGETHER[table]) continue;
+    const group = REPLACE_TOGETHER[table] ?? [table];
+    const read = await source.transaction("read");
+    const sets = [];
+    try {
+      for (const t of group) {
+        const c = (await read.execute(`PRAGMA table_info(${t})`)).rows.map((r) => String(r.name));
+        sets.push({ t, c, rows: c.length ? (await read.execute(`SELECT ${c.join(", ")} FROM ${t}`)).rows : [] });
+      }
+    } finally { read.close(); }
+    await to.batch(sets.flatMap(({ t, c, rows }) => (c.length ? [`DELETE FROM ${t}`, ...rows.map((r) => ({ sql: `INSERT INTO ${t} (${c.join(", ")}) VALUES (${c.map(() => "?").join(", ")})`, args: c.map((k) => (r[k] ?? null) as never) }))] : [])), "write");
+    for (const { t, rows } of sets) console.log(`  ${t}: ${rows.length.toLocaleString()} rows (replaced)`);
     continue;
   }
   // The prediction ledger is first-write-wins and its ids are local: copy rows
