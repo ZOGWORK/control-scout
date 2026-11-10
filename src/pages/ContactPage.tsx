@@ -151,7 +151,7 @@ export default function ContactPage() {
 
               <FieldWrap label={<>Message <RequiredMark /></>} htmlFor={ids.message} error={shown("message")}
                 hint={`${form.message.trim().length.toLocaleString("en-US")} / ${CONTACT_LIMITS.messageMax.toLocaleString("en-US")}`}>
-                <Textarea id={ids.message} required rows={7} maxLength={CONTACT_LIMITS.messageMax + 200} value={form.message} onChange={(e) => set("message", e.target.value)} onBlur={() => leave("message")}
+                <Textarea id={ids.message} required rows={7} maxLength={CONTACT_LIMITS.messageMax} value={form.message} onChange={(e) => set("message", e.target.value)} onBlur={() => leave("message")}
                   aria-invalid={!!shown("message")} aria-describedby={`${ids.message}-${shown("message") ? "err" : "hint"}`} className="resize-y" />
               </FieldWrap>
 

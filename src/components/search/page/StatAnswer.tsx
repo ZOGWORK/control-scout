@@ -4,7 +4,7 @@
 import { Link } from "react-router-dom";
 import { ArrowRight, BarChart3, CalendarDays, Hash, Info, Medal, Sparkles, Target, Trophy, type LucideIcon } from "lucide-react";
 import { eventTypeLabel } from "../../../shared/labels";
-import { seasonLabel } from "../../../shared/format";
+import { seasonLabel, recordWords } from "../../../shared/format";
 import { Fragment, useMemo, type ReactNode } from "react";
 import type { StatAnswer, StatBlock, StatLink, StatRecord } from "../../../shared/searchStat";
 import type { SearchCard } from "../../../shared/api";
@@ -241,7 +241,7 @@ function Block({ b: block, team, teams, said, hue }: { b: StatBlock; team?: Stat
       return (
         <figure data-block="record">
           {b.title && <figcaption className={H3}>{b.title}</figcaption>}
-          <div className="flex h-1.5 overflow-hidden rounded-full bg-muted" role="img" aria-label={`${b.wins} wins, ${b.losses} losses, ${b.ties} ties`}>
+          <div className="flex h-1.5 overflow-hidden rounded-full bg-muted" role="img" aria-label={recordWords(b.wins, b.losses, b.ties)}>
             <span className={TEAM_BAR} style={{ width: w(b.wins) }} data-bar data-value={b.wins} data-scale={n} />
             <span className="bg-team-a/40" style={{ width: w(b.losses) }} data-bar data-value={b.losses} data-scale={n} />
             <span className="bg-team-a/20" style={{ width: w(b.ties) }} data-bar data-value={b.ties} data-scale={n} />

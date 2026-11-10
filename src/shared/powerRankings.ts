@@ -147,7 +147,8 @@ export const publishedLine = (w: Pick<PowerRankingsWeek, "published" | "updated"
  * its text), "Stats are live." for a hand-written one; and, when they come from another season, which.
  */
 export function statsLine(w: Pick<PowerRankingsWeek, "statsAsOf" | "dataSeason">): string {
-  const asOf = w.statsAsOf ? `Stats as of ${longDate(w.statsAsOf)}.` : "Stats are live.";
+  // Frozen with the write-ups, so a team's rating here can differ from World rankings and its team page, which are live.
+  const asOf = w.statsAsOf ? `Stats as of ${longDate(w.statsAsOf)}, frozen with the write-ups; World rankings show the latest ratings.`: "Stats are live.";
   if (w.dataSeason == null) return asOf;
   return `${asOf} Ratings and records are from the ${w.dataSeason}–${String((w.dataSeason + 1) % 100).padStart(2, "0")} season.`;
 }

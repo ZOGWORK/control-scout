@@ -3,6 +3,7 @@
 // latest matches. Every team links to its full team page; each workspace to its shared scout space.
 // Tapping a team's number and name folds its card down to the header, remembered per team on this device.
 import { useMemo, useState } from "react";
+import { recordWords } from "../shared/format";
 import { Link } from "react-router-dom";
 import { ArrowRight, CalendarDays, ChevronDown, ClipboardList, ExternalLink, Hash, LogIn, RefreshCw, Sparkles, Star, Target, Trophy, Users } from "lucide-react";
 import { qs, useApi } from "../lib/api";
@@ -197,7 +198,7 @@ function Season({ p, isCurrent, current }: { p: TeamProfile; isCurrent: boolean;
           value={s?.rating ? <>{num(s.rating.np)}<span className="ml-1 text-base font-medium text-muted-foreground">±{num(s.rating.sd)}</span></> : "—"}
           hint={s?.rating ? `${s.rating.rank ? `#${s.rating.rank.toLocaleString()} worldwide · ` : ""}${s.rating.matches} matches` : `no matches ${when}`} /></StaggerItem>
         <StaggerItem><StatTile tone="emerald" icon={Trophy} label="Record"
-          value={r ? <span aria-label={`${r.wins} wins, ${r.losses} losses, ${r.ties} ties`}><span className="text-success">{r.wins}</span><span className="text-muted-foreground">-</span><span className="text-destructive">{r.losses}</span><span className="text-muted-foreground">-{r.ties}</span></span> : "—"}
+          value={r ? <span aria-label={recordWords(r.wins, r.losses, r.ties)}><span className="text-success">{r.wins}</span><span className="text-muted-foreground">-</span><span className="text-destructive">{r.losses}</span><span className="text-muted-foreground">-{r.ties}</span></span> : "—"}
           hint={r ? `${r.matches} matches · ${r.events} event${r.events === 1 ? "" : "s"}` : `no matches ${when}`}
           bar={r && r.wins + r.losses + r.ties > 0 ? <RecordMeter w={r.wins} l={r.losses} t={r.ties} /> : null} /></StaggerItem>
         <StaggerItem>{next

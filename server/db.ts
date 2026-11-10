@@ -2032,6 +2032,14 @@ CREATE TABLE league_rankings (
 CREATE INDEX league_rankings_team ON league_rankings (season, team);
 `,
   },
+  {
+    version: 80,
+    name: "hero line spelling",
+    sql: `
+-- A saved home hero line read "Scouting, Remagined" (launch audit J3): the word as meant, in either part of any line.
+UPDATE hero_lines SET plain = REPLACE(plain, 'Remagined', 'Reimagined'), accent = REPLACE(accent, 'Remagined', 'Reimagined'), updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE plain LIKE '%Remagined%' OR accent LIKE '%Remagined%';
+`,
+  },
 ];
 
 export type Db = Client;

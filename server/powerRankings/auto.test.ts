@@ -386,7 +386,7 @@ describe("a week is frozen with its text", () => {
     expect(after.entries.find((e) => e.team === 7020)?.name).toBe("Bots 7020");
     // The page says what the numbers are.
     const page = await renderPage(index, "/power-rankings/2026-w43");
-    expect(page.html).toContain("Stats as of Oct 23, 2026.");
+    expect(page.html).toContain("Stats as of Oct 23, 2026, frozen with the write-ups; World rankings show the latest ratings.");
   });
 
   it("a team with no name when the week went out stays nameless in that week, on its page and in the archive", async () => {

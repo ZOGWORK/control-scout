@@ -78,3 +78,9 @@ export function awardLabel(type: string, placement: number): string {
   if (type === "Winner" || type === "Finalist") return base;
   return placement > 1 ? `${base} ${placement === 2 ? "2nd" : placement === 3 ? "3rd" : `${placement}th`}` : base;
 }
+
+/** A record in words, each count with its own singular or plural: "1 win, 1 loss, 0 ties" (for screen readers). */
+export const recordWords = (w: number | string | null | undefined, l: number | string | null | undefined, t: number | string | null | undefined) => {
+  const one = (n: number | string | null | undefined, word: string, words: string) => `${n ?? 0} ${Number(n ?? 0) === 1 ? word : words}`;
+  return `${one(w, "win", "wins")}, ${one(l, "loss", "losses")}, ${one(t, "tie", "ties")}`;
+};
