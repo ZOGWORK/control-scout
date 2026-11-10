@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { AwardsAllTime, OprSection, RowRecord } from "./TeamPage";
-import type { TeamEventRow, TeamProfile } from "../shared/api";
+import { AwardsAllTime, NextChance, OprSection, RowRecord, lineup, nextMatch, useEventDayRefresh } from "./TeamPage";
+import type { MatchView, TeamEventRow, TeamProfile } from "../shared/api";
 
 // useMeta as the app's metadata would answer it (null: not loaded yet, as with no provider), and the current season.
 const meta = vi.hoisted(() => ({ value: null as { statsAt: string | null } | null, current: 2025 }));
@@ -104,5 +104,77 @@ describe("AwardsAllTime", () => {
     const link = screen.getByRole("link");
     expect(link.getAttribute("href")).toBe("/events/2025/USNJCMP");
     expect(link.textContent).toContain("New Jersey Championship");
+  });
+});
+
+describe("nextMatch (the Upcoming block's next match)", () => {
+  const ev = (code: string, start: string, end = start) => ({ code, start, end } as TeamEventRow);
+  const match = (code: string, key: string, played: boolean, startsAt: string | null) => ({ code, key, played, startsAt } as MatchView);
+  const events = [ev("OLD", "2026-11-01"), ev("NOW", "2026-11-10")];
+  const now = Date.parse("2026-11-10T15:00:00Z");
+
+  it("is the first scheduled match still to play at an event that isn't over", () => {
+    const ms = [match("OLD", "qual:0:9", false, null), match("NOW", "qual:0:1", true, "2026-11-10T14:00:00Z"), match("NOW", "qual:0:5", false, "2026-11-10T15:20:00Z"), match("NOW", "qual:0:8", false, "2026-11-10T16:00:00Z")];
+    expect(nextMatch(ms, events, now)?.key).toBe("qual:0:5");
+  });
+
+  it("reads 'over' on the venue's calendar: a California event's last evening is still on after UTC midnight", () => {
+    const la = [{ code: "LA", start: "2026-11-10", end: "2026-11-10", timezone: "America/Los_Angeles" } as TeamEventRow];
+    const evening = Date.parse("2026-11-11T01:30:00Z"); // 17:30 on the 10th in Los Angeles
+    expect(nextMatch([match("LA", "playoff:1:1", false, null)], la, evening)?.key).toBe("playoff:1:1");
+    expect(nextMatch([match("LA", "playoff:1:1", false, null)], la, Date.parse("2026-11-11T09:00:00Z"))).toBeNull();
+  });
+
+  it("skips a match whose start passed over half an hour ago with no result (late, not next), and none is none", () => {
+    expect(nextMatch([match("NOW", "qual:0:2", false, "2026-11-10T14:00:00Z"), match("NOW", "qual:0:3", false, null)], events, now)?.key).toBe("qual:0:3");
+    expect(nextMatch([match("OLD", "qual:0:9", false, null)], events, now)).toBeNull();
+  });
+});
+
+describe("lineup (Upcoming's Predict link)", () => {
+  it("keeps two robots a side, the team itself first", () => {
+    expect(lineup([{ number: 1 }, { number: 2 }], 9)).toEqual([1, 2]);
+    expect(lineup([{ number: 1 }, { number: 2 }, { number: 4215 }], 4215)).toEqual([4215, 1]);
+  });
+});
+
+describe("NextChance (Upcoming's call)", () => {
+  it("shows the chance to win with the call's confidence tier", () => {
+    render(<NextChance chance={0.23} tier="provisional" />);
+    expect(screen.getByText(/23% to win/)).toBeTruthy();
+    expect(screen.getByTitle(/^Confidence: /)).toBeTruthy();
+  });
+});
+
+describe("useEventDayRefresh (Upcoming's clock)", () => {
+  afterEach(() => { vi.useRealTimers(); });
+  const ny = { start: "2026-11-11", end: "2026-11-11", timezone: "America/New_York" };
+
+  it("a page opened the night before starts refreshing once the event day begins at the venue, and stops after it", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.parse("2026-11-11T04:58:30Z")); // 23:58:30 on the 10th in New York
+    const reload = vi.fn();
+    renderHook(() => useEventDayRefresh([ny], reload));
+    act(() => { vi.advanceTimersByTime(60_000); }); // 23:59:30: still the night before
+    expect(reload).not.toHaveBeenCalled();
+    act(() => { vi.advanceTimersByTime(60_000); }); // 00:00:30 on the 11th: the event day
+    expect(reload).toHaveBeenCalledTimes(1);
+    vi.setSystemTime(Date.parse("2026-11-12T05:00:30Z")); // 00:00:30 on the 12th: over
+    act(() => { vi.advanceTimersByTime(60_000); });
+    act(() => { vi.advanceTimersByTime(5 * 60_000); });
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("moves on to the team's following event when one ends, so a schedule posted later is still picked up", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.parse("2026-11-11T15:00:00Z")); // the first event's day in New York
+    const reload = vi.fn();
+    const later = { start: "2026-11-14", end: "2026-11-14", timezone: "America/New_York" };
+    renderHook(() => useEventDayRefresh([ny, later], reload));
+    act(() => { vi.advanceTimersByTime(60_000); });
+    expect(reload).toHaveBeenCalledTimes(1);
+    vi.setSystemTime(Date.parse("2026-11-14T14:00:00Z")); // the later event's day
+    act(() => { vi.advanceTimersByTime(60_000); });
+    expect(reload).toHaveBeenCalledTimes(2);
   });
 });
