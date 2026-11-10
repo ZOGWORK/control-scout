@@ -40,5 +40,6 @@ describe("league standings asks", () => {
     expect(nj.leagues.map((l) => l.code).sort()).toEqual(["CEN", "NE", "NO"]);
     expect(codes("new jersey league rankings")?.length).toBe(3);
     expect(codes("narnia league standings")).toEqual([]);
+    expect(codes("north east league standings")).toEqual(["USNJ/NE"]);
   });
 });

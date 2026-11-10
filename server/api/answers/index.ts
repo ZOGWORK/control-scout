@@ -378,22 +378,24 @@ async function findEvent(words: string, season: number | null, opts: { anyPlayed
 /** "Top teams", "best 5 teams", "strongest teams": the words that ask for the best teams, with a time said or not. */
 const TOP_TEAMS_SAID = /\b(?:top|best|strongest)\s+(?:\d{1,2}\s+)?teams?\b/i;
 
+/** A league's standings with no team ("NE league standings", "who is first in the northeast league"), found from the
+ *  data (./families/league.ts), or null: a league no data names is left to the other readers. Asked before the search
+ *  pipeline, which would read "leaderboard" as its own board. */
+export async function leagueSearch(q: string, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+  const la = readLeagueAsk(q);
+  if (!la) return null;
+  const season = la.season ?? askSeason();
+  const stat = await leagueAskAnswer(la, season, la.season != null);
+  if (stat.none) return null;
+  return { q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season },
+    intent: { kind: "stat-league-standings", pattern: `[league] standings${la.season != null ? " [season]" : ""}`, met: true, understood: [stat.title] }, ...(opts.full ? { stat } : {}) };
+}
+
 /** The answer for `q`, or null when it isn't a stat question or its team isn't found. */
 export async function statAnswer(q: string, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
   // Matches a low-ranked team won against a high-ranked one: before a leaderboard reads "ranked top 100" as one.
   const ru = readRankUpset(q);
   if (ru) return rankUpsetSearch(q, ru, opts);
-  // A league's standings with no team ("NE league standings", "who is first in the northeast league"), found from the
-  // data (./families/league.ts); a league no data names is left to the readers below.
-  const la = readLeagueAsk(q);
-  if (la) {
-    const season = la.season ?? askSeason();
-    const stat = await leagueAskAnswer(la, season, la.season != null);
-    if (!stat.none) {
-      return { q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season },
-        intent: { kind: "stat-league-standings", pattern: `[league] standings${la.season != null ? " [season]" : ""}`, met: true, understood: [stat.title] }, ...(opts.full ? { stat } : {}) };
-    }
-  }
   // A compound question (filters joined, or two answers at once) before any single reader takes part of it.
   const comp = readCompound(q);
   if (comp) {

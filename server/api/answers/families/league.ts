@@ -58,7 +58,10 @@ const nameWords = (l: League) => (l.name ?? "").toLowerCase().replace(/[^a-z0-9 
  * leagues; every other word must be one of the league's name words or its code. Leagues whose whole name was said
  * come first. When the place reading leaves no league ("NE" is Nebraska too), the words are read without it.
  */
-export function matchLeagues(words: string[], leagues: League[]): { leagues: League[]; place: string | null; named: boolean } {
+export function matchLeagues(said: string[], leagues: League[]): { leagues: League[]; place: string | null; named: boolean } {
+  // Two words said for one of a league's name words ("north east" for "Northeast") are that word.
+  const known = new Set(leagues.flatMap(nameWords));
+  const words = said.reduce<string[]>((out, w) => { const j = `${out[out.length - 1] ?? ""}${w}`; if (out.length && known.has(j) && !known.has(w)) out[out.length - 1] = j; else out.push(w); return out; }, []);
   const tryWith = (placeWords: string[] | null) => {
     const region = placeWords ? regionOf(placeWords) : null;
     if (placeWords && !region) return null;
