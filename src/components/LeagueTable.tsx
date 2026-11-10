@@ -38,7 +38,7 @@ export function LeagueTable({ rows, season, team, maxRows }: { rows: LeagueStand
             const href = `/teams/${r.team}?season=${season}`;
             return (
               <tr key={r.team} data-marked={marked ? "" : undefined} aria-current={marked ? "true" : undefined}
-                className={cn("border-b border-border last:border-b-0", marked && "bg-accent/[0.08] font-semibold")}>
+                className={cn("border-b border-border last:border-b-0", marked && "bg-muted font-semibold shadow-[inset_3px_0_0_var(--color-text-base)]")}>
                 <td className={cn(TD, "text-right tabular-nums")}>{r.rank}</td>
                 <td className={cn(TD, "max-w-[16rem] truncate")}>
                   <span className="sm:hidden"><TeamNumber team={r.team} name={r.name ?? ""} href={href} /></span>
