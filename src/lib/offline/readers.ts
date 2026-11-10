@@ -17,7 +17,7 @@ import { eventStatus } from "../../shared/eventDay";
 import { joinThousands, normalize, scoreWords, words } from "../../shared/fuzzy";
 import { regionNames } from "../../shared/regions";
 import { projectionsViewFromRows, type ProjectionsView } from "../../shared/projections";
-import { recordSql, recordsFromRows } from "../../shared/eventRecord";
+import { isOfficialEvent, recordSql, recordsFromRows } from "../../shared/eventRecord";
 import { teamEventRows, teamEventsQuery } from "../../shared/teamEventRows";
 import { meetStandingByTeam } from "../../shared/meetStandings";
 import { LEAGUE_TYPES, recordAddsUp } from "../../shared/eventStanding";
@@ -79,10 +79,21 @@ function seasonStats(db: Db, season: number, team: number): TeamSeasonStats | nu
   return {
     opr: { np: stat(s.opr_np, s.rank_np), auto: stat(s.opr_auto, s.rank_auto), teleop: stat(s.opr_teleop, s.rank_teleop), endgame: stat(s.opr_endgame, s.rank_endgame), pen: s.opr_pen ?? null },
     rating: s.rating_np == null ? null : { np: s.rating_np, auto: s.rating_auto, teleop: s.rating_teleop, endgame: s.rating_endgame, pen: s.rating_pen, sd: s.rating_sd, matches: s.rating_matches, rank: s.rating_rank },
-    record: { wins: s.wins, losses: s.losses, ties: s.ties, matches: s.matches, events: s.events },
+    record: { ...officialRecord(db, season, team, s), matches: s.matches, events: s.events },
     avg: { np: s.avg_np, score: s.avg_score, pen: s.avg_pen },
     reliability: packReliability(db, season, team),
   };
+}
+
+/** The season record from the pack's own matches, official events only (src/shared/eventRecord.ts), so a pack saved
+ *  before the record left off-season events out says the same record as the site; the stored one when the pack holds
+ *  no match for the team. */
+function officialRecord(db: Db, season: number, team: number, s: { wins: number; losses: number; ties: number }): { wins: number; losses: number; ties: number } {
+  const rows = db.all(recordSql("mt.season = ? AND mt.team = ?"), [season, team]) as Record<string, unknown>[];
+  if (!rows.length) return { wins: s.wins, losses: s.losses, ties: s.ties };
+  const types = new Map((db.all("SELECT code, type FROM events WHERE season = ?", [season]) as { code: string; type: string | null }[]).map((r) => [r.code, r.type]));
+  return rows.filter((r) => isOfficialEvent(types.get(String(r.code)))).reduce<{ wins: number; losses: number; ties: number }>(
+    (a, r) => ({ wins: a.wins + Number(r.wins ?? 0), losses: a.losses + Number(r.losses ?? 0), ties: a.ties + Number(r.ties ?? 0) }), { wins: 0, losses: 0, ties: 0 });
 }
 
 /** The pack's reliability row (packs built before the index have no table: null). */

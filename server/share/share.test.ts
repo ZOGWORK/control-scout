@@ -240,6 +240,13 @@ describe("link previews for a shared matchup", () => {
     expect(html).toContain('<link rel="canonical" href="https://controlscout.org/predict" />');
   });
 
+  it("a head-to-head link (one team a side, as search links it) previews as its card too", async () => {
+    const html = await renderIndex(file, "/predict", qs("?mode=match&season=2025&red=101&blue=103"));
+    expect(meta(html, "og:image")).toBe("https://controlscout.org/api/share/match.png?season=2025&red=101&blue=103");
+    expect(meta(html, "og:title")).toContain("101 vs 103");
+    expect(meta(html, "og:description")).toMatch(/^Our model gives (101|103) a \d+% win chance vs/);
+  });
+
   it("an event match previews as its own card", async () => {
     const html = await renderIndex(file, "/events/2025/SHARE1", qs("?tab=matches&match=qual%3A0%3A2"));
     expect(meta(html, "og:image")).toBe("https://controlscout.org/api/share/match.png?season=2025&red=101,102&blue=103,104&event=SHARE1&match=qual:0:2");

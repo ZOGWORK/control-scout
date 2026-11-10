@@ -26,6 +26,8 @@ export interface FactQuestion {
   /** The words naming the team. */
   core: string;
   season: number | null;
+  /** A year after every season on record, as typed ("12345 opr 2027"): answered with the "no events yet" card. */
+  future?: { season: number; typed: string };
   /** "events in New Jersey", "OPR vs New Jersey average". */
   region: Region | null;
   /** "events in Romania": a whole country (events-place), by its code. */
@@ -131,7 +133,7 @@ export function readTeamFact(raw: string): FactQuestion | null {
     // The month's own year stays its season ("2024 events in march 2024"): the bare year was the team's.
     if (!core && scope.year && scope.season != null) return { id: r.id, core: String(scope.season), season: mo ? (monthSeason ?? searchSeason()) : null, region, world, event, ...more };
     if (!core) return null;
-    return { id: r.id, core, season: scope.season, region, world, event, ...more };
+    return { id: r.id, core, season: scope.season, region, world, event, ...more, ...(scope.future ? { future: scope.future } : {}) };
   }
   return null;
 }
