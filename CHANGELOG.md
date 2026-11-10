@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.2.1 — 2026-11-10
+## 5.2.2 — 2026-11-10
 
 Search answers advancement odds: a team's chance to take an advancing slot at an event, from the same engine numbers as Predict.
 
@@ -31,6 +31,20 @@ Search answers advancement odds: a team's chance to take an advancing slot at an
 ### Changed
 - A match's win chance is never shown as advancement odds: those queries used to show the average chance to win each match.
 - A chance under 1.5% prints as 1% in search, as Predict prints it, never a false 0%.
+- The advancement card shows its confidence tier and why, by the same rule as Predict's Advancement view.
+
+## 5.2.1 — 2026-11-10
+
+Team, event, search and home pages stay quick when many people open them at once.
+
+### Highlights
+- [speed] Team, event and search pages open quickly when many visit at once
+- [speed] The first search after a restart no longer waits on a long warm-up
+- [speed] A busy page is sent at once while a fresh copy is made
+
+### Changed
+- A team, event, search or home page drawn for one visitor is kept for 30 seconds and sent, already compressed, to the next visitors at the same address; a page past that is still sent at once while a fresh copy is drawn. Every search visit is still counted.
+- The page drawing code and last season's ratings are made ready when the server starts, not on the first visit that needs them. (#1291)
 
 ## 5.2.0 — 2026-11-10
 
