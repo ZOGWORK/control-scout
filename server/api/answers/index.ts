@@ -29,6 +29,7 @@ import { awardsAnswer, awardsTitle } from "./families/awards.js";
 import { championshipMatchesAnswer, eventScopeAnswer } from "./families/eventScope.js";
 import { eventAnswer } from "./families/events.js";
 import { factAnswer, readTeamFact, seasonOf as factSeason, type FactQuestion } from "./families/facts.js";
+import { leagueAskAnswer, readLeagueAsk } from "./families/league.js";
 import { OPR_RATING_TITLES, oprRatingAnswer, readOprRating, type OprRatingQuestion } from "./families/oprRating.js";
 import { counts, matchAnswer, whoOf } from "./families/matches.js";
 import { changeAnswer, readChange, type ChangeQuestion } from "./families/seasonChange.js";
@@ -382,6 +383,17 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   // Matches a low-ranked team won against a high-ranked one: before a leaderboard reads "ranked top 100" as one.
   const ru = readRankUpset(q);
   if (ru) return rankUpsetSearch(q, ru, opts);
+  // A league's standings with no team ("NE league standings", "who is first in the northeast league"), found from the
+  // data (./families/league.ts); a league no data names is left to the readers below.
+  const la = readLeagueAsk(q);
+  if (la) {
+    const season = la.season ?? askSeason();
+    const stat = await leagueAskAnswer(la, season, la.season != null);
+    if (!stat.none) {
+      return { q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season },
+        intent: { kind: "stat-league-standings", pattern: `[league] standings${la.season != null ? " [season]" : ""}`, met: true, understood: [stat.title] }, ...(opts.full ? { stat } : {}) };
+    }
+  }
   // A compound question (filters joined, or two answers at once) before any single reader takes part of it.
   const comp = readCompound(q);
   if (comp) {
