@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigationType, useParams, useSearchParams } from "react-router-dom";
 import { pickHelperQuery } from "../shared/scoutSections";
+import { eventOver } from "../shared/eventDay";
 import { Award, CalendarDays, ChevronDown, Clock, ExternalLink, Gavel, Info, ListOrdered, Loader2, Luggage, MapPin, Radar, Radio, RefreshCw, Search, Sparkles, Swords, Trophy, Tv, Users } from "lucide-react";
 import { leagueHref } from "../shared/leagues";
 import { BRACKETS, type Slot } from "@control-scout/predict-engine";
@@ -713,8 +714,8 @@ function Playoffs({ d }: { d: EventDetail }) {
     // event with none on record had none to show; only an event still to play its playoffs waits for selection.
     if (d.event.type === "LeagueMeet") return <EmptyState icon={Trophy} title="No playoffs at a league meet" description="League meets play qualification matches only. Alliances are picked at the league tournament." />;
     // "Finished" can mean every posted match has a result while the playoffs are still to come: only an event whose last
-    // day is behind it (the day after its end, wherever it was) has no selection left to wait for.
-    if (d.event.end && d.event.end < new Date(Date.now() - 86_400_000).toISOString().slice(0, 10)) return <EmptyState icon={Trophy} title="No alliances on record" description="This event finished with no alliance selection in FIRST's results." />;
+    // day is behind it at the venue (eventOver, the app's one "is it over" check) has no selection left to wait for.
+    if (eventOver(d.event)) return <EmptyState icon={Trophy} title="No alliances on record" description="This event finished with no alliance selection in FIRST's results." />;
     return <EmptyState icon={Trophy} title="Alliances not selected yet" description="Alliance selection happens after qualification matches. The pick helper shows which partners fill your gaps." action={<PickHelperLink d={d} />} />;
   }
   const playoff = d.matches.filter((m) => m.level === "playoff");
