@@ -49,7 +49,7 @@ afterAll(() => server?.close());
 
 describe("GET /api/directory/:season", () => {
   it("lists every registered team, with and without results, and says how many can't be placed", async () => {
-    const { status, body } = await dir();
+    const { status, body } = await dir("sort=team");
     expect(status).toBe(200);
     expect(body.total).toBe(11);
     expect(body.withResults).toBe(3);
@@ -60,7 +60,7 @@ describe("GET /api/directory/:season", () => {
   });
 
   it("filters by country under every spelling, with totals that match the atlas", async () => {
-    const us = await dir("country=US");
+    const us = await dir("country=US&sort=team");
     expect(us.body.rows.map((r) => [r.team, r.hasResults])).toEqual([[10, true], [11, false], [12, true], [13, false]]);
     expect(us.body).toMatchObject({ country: "US", total: 4, withResults: 2 });
     const tr = await dir("country=tr");
@@ -75,7 +75,7 @@ describe("GET /api/directory/:season", () => {
   });
 
   it("keeps a country with no results browsable", async () => {
-    const ca = await dir("country=CA");
+    const ca = await dir("country=CA&sort=team");
     expect(ca.body).toMatchObject({ total: 2, withResults: 0 });
     expect(ca.body.rows.map((r) => r.team)).toEqual([30, 31]);
     const fr = await dir("country=FR");
@@ -95,6 +95,13 @@ describe("GET /api/directory/:season", () => {
     expect((await dir("country=US&sort=name&dir=desc")).body.rows.map((r) => r.team)).toEqual([10, 12, 11, 13]);
     expect((await dir("country=US&sort=rookie")).body.rows.map((r) => r.team)).toEqual([10, 13, 11, 12]);
     expect((await dir("country=US&sort=results")).body.rows.map((r) => r.team)).toEqual([10, 12, 11, 13]);
+    // Best first is the default: teams with results by season OPR (none last), then the rest by number.
+    await run("INSERT INTO team_season_stats (season, team, opr_np) VALUES (?, 12, 90.5), (?, 20, 40)", [S, S]);
+    clearAllCaches();
+    expect((await dir()).body.rows.map((r) => r.team)).toEqual([12, 20, 10, 11, 13, 21, 30, 31, 40, 41, 99]);
+    expect((await dir()).body.sort).toBe("results");
+    await run("DELETE FROM team_season_stats WHERE season = ?", [S]);
+    clearAllCaches();
     const seen: number[] = [];
     for (let page = 1; page <= 4; page++) {
       const r = await dir(`sort=name&pageSize=3&page=${page}`);

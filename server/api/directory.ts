@@ -15,7 +15,7 @@ import { cachedReadiness } from "./readiness.js";
 import { homeOverview } from "./home.js";
 import { countryByCode } from "../../src/shared/countries.js";
 import { teamPageSql } from "../../src/shared/teamPages.js";
-import { DIRECTORY_MAX_PAGE_SIZE, DIRECTORY_PAGE_SIZE, DIRECTORY_SORTS, directorySearchProblem, directorySearchWords, type DirectoryPage, type DirectorySort } from "../../src/shared/directory.js";
+import { DIRECTORY_DEFAULT_SORT, DIRECTORY_MAX_PAGE_SIZE, DIRECTORY_PAGE_SIZE, DIRECTORY_SORTS, directorySearchProblem, directorySearchWords, type DirectoryPage, type DirectorySort } from "../../src/shared/directory.js";
 
 export class DirectoryQueryError extends Error {}
 
@@ -55,7 +55,7 @@ export function directoryQuery(q: Record<string, unknown>): DirectoryQuery {
   if (problem) throw new DirectoryQueryError(problem);
   const sortRaw = one(q, "sort");
   if (sortRaw != null && !(DIRECTORY_SORTS as readonly string[]).includes(sortRaw)) throw new DirectoryQueryError(`sort must be one of ${DIRECTORY_SORTS.join(", ")}`);
-  const sort = (sortRaw ?? "team") as DirectorySort;
+  const sort = (sortRaw ?? DIRECTORY_DEFAULT_SORT) as DirectorySort;
   const dirRaw = one(q, "dir");
   if (dirRaw != null && dirRaw !== "asc" && dirRaw !== "desc") throw new DirectoryQueryError("dir must be asc or desc");
   return {
@@ -86,6 +86,8 @@ function searchWhere(q: DirectoryQuery): { sql: string; args: string[] } | null 
   return { sql: parts.join(" AND "), args };
 }
 
+const SEASON_OPR = "SELECT s.opr_np FROM team_season_stats s WHERE s.season = ts.season AND s.team = ts.team";
+
 /** ORDER BY for a sort: its key in the asked direction, blanks always last, then the team number. */
 function orderBy(sort: DirectorySort, dir: "asc" | "desc"): string {
   const d = dir === "desc" ? "DESC" : "ASC";
@@ -93,7 +95,8 @@ function orderBy(sort: DirectorySort, dir: "asc" | "desc"): string {
     case "name": return `(t.name IS NULL OR t.name = '') ASC, t.name COLLATE NOCASE ${d}, ts.team ASC`;
     case "rookie": return `(t.rookie_year IS NULL) ASC, t.rookie_year ${d}, ts.team ASC`;
     case "location": return `(t.country IS NULL OR trim(t.country) = '') ASC, t.country COLLATE NOCASE ${d}, t.state COLLATE NOCASE ${d}, t.city COLLATE NOCASE ${d}, ts.team ASC`;
-    case "results": return `(r.team IS NOT NULL) ${d}, ts.team ASC`;
+    // Best first: teams with results, by season OPR (none last), then the team number.
+    case "results": return `(r.team IS NOT NULL) ${d}, (${SEASON_OPR}) IS NULL ASC, (${SEASON_OPR}) DESC, ts.team ASC`;
     default: return `ts.team ${d}`;
   }
 }
