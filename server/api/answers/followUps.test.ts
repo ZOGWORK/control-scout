@@ -14,10 +14,10 @@ import { clearAllCaches } from "../../caches";
 import { relatedPage, grouped, teamTitle } from "./relatedPage";
 import { pageMeta } from "../../seoMeta";
 import { canonicalQuery } from "../../../src/lib/meta";
-import { RELATED_QUERY_MAX, relatedApiPath } from "../../../src/shared/search";
+import { RELATED_QUERY_MAX, followApiPath, relatedApiPath } from "../../../src/shared/search";
 import { MAX_QUERY } from "../searchAnswer";
 import type { SearchAnswer, SearchFollowUp } from "../../../src/shared/api";
-import { answerKey, candidates, followUps, lineOf, pageAnswer, previewOf, ASK_MAX, RELATED_MAX } from "./followUps";
+import { answerKey, candidates, followUps, keptFollowUps, lineOf, pageAnswer, previewOf, ASK_MAX, RELATED_MAX } from "./followUps";
 
 const TEAMS = [4215, 6980, 7149] as const;
 
@@ -284,5 +284,38 @@ describe("the related searches page", () => {
     expect(m.bodyHtml).toContain("<h2>");
     expect(m.bodyHtml).toContain(`href="/search?q=${encodeURIComponent("What awards has 4215 won?")}"`);
     expect((await pageMeta("/related-searches")).title).toBe("Popular FTC searches");
+  });
+});
+
+describe("the search page's first paint", () => {
+  it("carries People also ask under the answer and Related searches at the end, each a link that runs it", async () => {
+    const q = "4215 record";
+    const f = await keptFollowUps(q);
+    expect(f.ask.length).toBeGreaterThan(0);
+    expect(f.related.length).toBeGreaterThan(0);
+    const m = await pageMeta("/search", { q });
+    const html = m.bodyHtml!;
+    const paa = html.indexOf('data-block="people-also-ask"'), rel = html.indexOf('data-block="related-searches"');
+    // Under the answer card, before the results; the related searches after the results, last.
+    expect(paa).toBeGreaterThan(html.indexOf("<section"));
+    expect(paa).toBeLessThan(html.indexOf("<h2>Teams"));
+    expect(rel).toBeGreaterThan(html.indexOf("<h2>Teams"));
+    // Each question opens (a <details>) to its answer's line and a link that runs that exact question.
+    for (const x of f.ask) {
+      expect(html).toContain(`<summary>${x.q}</summary>`);
+      expect(html).toContain(`href="/search?q=${encodeURIComponent(x.q)}"`);
+    }
+    for (const x of f.related) expect(html).toContain(`href="/search?q=${encodeURIComponent(x.q)}"`);
+    expect(html).toContain(`href="/related-searches?q=${encodeURIComponent(q)}"`);
+    // Never the search itself.
+    expect([...f.ask, ...f.related].map((x) => x.q.toLowerCase())).not.toContain(q);
+    // The app starts from the same ones: no second request.
+    expect(m.pageData?.[followApiPath(q)]).toEqual({ q, ...f });
+  });
+
+  it("has none on a page that answered nothing", async () => {
+    const m = await pageMeta("/search", { q: "zzqx nothing at all" });
+    expect(m.bodyHtml).not.toContain("people-also-ask");
+    expect(m.bodyHtml).not.toContain("related-searches");
   });
 });

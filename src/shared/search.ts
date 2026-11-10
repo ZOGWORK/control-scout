@@ -19,6 +19,16 @@ export const RELATED_QUERY_MAX = 160;
 export const relatedQuery = (q: string) => q.trim().slice(0, RELATED_QUERY_MAX).trim();
 /** That page's own address's query (its canonical URL's, server and app alike): "?q=…", or none with no query. */
 export const relatedSearch = (q: string) => (relatedQuery(q) ? `?q=${encodeURIComponent(relatedQuery(q))}` : "");
+/** The follow-ups' API path (People also ask, Related searches) as /search asks it and its first paint carries it:
+ *  the query, the visitor's preferred teams and the answer's picked season, each only when there is one. */
+export const followApiPath = (q: string, prefer = "", season: number | null = null) => {
+  const p = new URLSearchParams();
+  if (q) p.set("q", q);
+  if (prefer) p.set("prefer", prefer);
+  if (season != null) p.set("season", String(season));
+  const s = p.toString();
+  return `/api/search/follow${s ? `?${s}` : ""}`;
+};
 /** The API path the page asks (and its first paint carries): with the visitor's preferred teams when they have any. */
 export const relatedApiPath = (q: string, prefer = "") => {
   const p = new URLSearchParams();

@@ -2,12 +2,15 @@
 // A search's follow-ups: People also ask (one closed row per question, 44 px tall at least, opening to its answer's
 // line and a link running it), Related searches (one 44 px chip each, one per line on a phone) and the team's
 // highlights link; nothing at all with none, before the answer is on screen, or with another search's.
-import { cleanup, fireEvent, render, renderHook } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
 import type { SearchFollowUps } from "../../../shared/api";
 import { prime } from "../../../lib/api";
-import { FollowUpsRail, PeopleAlsoAsk, RelatedSearches, useFollowUps } from "./FollowUps";
+import { readPageData } from "../../../lib/pageData";
+import { PAGE_DATA_ID } from "../../../shared/boot";
+import { followApiPath } from "../../../shared/search";
+import { PeopleAlsoAsk, RelatedSearches, useFollowUps } from "./FollowUps";
 import { TEAM_TEXT } from "./answerCells";
 import { SEARCH_PALETTE } from "../../../lib/textTones";
 
@@ -56,18 +59,6 @@ describe("related searches", () => {
   });
 });
 
-describe("the column beside the answer", () => {
-  it("has the team's highlights, then People also ask, then Related searches", () => {
-    const c = draw(<FollowUpsRail f={f} />);
-    expect([...c.querySelectorAll("[data-block]")].map((b) => b.getAttribute("data-block"))).toEqual(["team-highlights", "people-also-ask", "related-searches"]);
-    expect(c.querySelector("[data-block=team-highlights]")!.getAttribute("href")).toBe(href("4215 highlights"));
-  });
-
-  it("draws nothing with nothing to offer", () => {
-    expect(draw(<FollowUpsRail f={{ ask: [], related: [] }} />).innerHTML).toBe("");
-  });
-});
-
 describe("useFollowUps", () => {
   it("is none before the answer is on screen, and never another search's", () => {
     prime("/api/search/follow?q=4215+opr", { q: "4215 opr", ...f });
@@ -75,5 +66,22 @@ describe("useFollowUps", () => {
     expect(renderHook(() => useFollowUps("4215 opr", undefined, false)).result.current.ask).toEqual([]);
     prime("/api/search/follow?q=4215+record", { q: "4215 opr", ...f });
     expect(renderHook(() => useFollowUps("4215 record", undefined, true)).result.current.ask).toEqual([]);
+  });
+
+  it("shows the ones the page was served with from the first frame, while the answer is read again and before a visitor's own", () => {
+    const doc = document.implementation.createHTMLDocument("");
+    doc.body.innerHTML = `<script type="application/json" id="${PAGE_DATA_ID}">${JSON.stringify({ [followApiPath("6980 opr")]: { q: "6980 opr", ...f } })}</script>`;
+    readPageData(doc);
+    // The answer is still being read again: the served ones stay.
+    expect(renderHook(() => useFollowUps("6980 opr", undefined, false)).result.current.ask).toEqual(f.ask);
+    // A visitor with preferred teams: the served ones until theirs arrive, then theirs.
+    const { result, rerender } = renderHook(() => useFollowUps("6980 opr", "team:6980", true));
+    expect(result.current.ask).toEqual(f.ask);
+    const theirs = { ...f, ask: f.ask.slice(0, 1) };
+    act(() => prime(followApiPath("6980 opr", "team:6980"), { q: "6980 opr", ...theirs }));
+    rerender();
+    expect(result.current.ask).toEqual(theirs.ask);
+    // Another season picked: never the served (no season) ones.
+    expect(renderHook(() => useFollowUps("6980 opr", undefined, false, 2024)).result.current.ask).toEqual([]);
   });
 });
