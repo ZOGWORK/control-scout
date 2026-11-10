@@ -760,9 +760,9 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
     }
     catch (e) { if (e instanceof DirectoryQueryError) throw bad(e.message); throw e; }
   }));
-  /** The region codes a season's records use, named by their main place (for the Region dropdown). */
   /** The season's record score as search gives it (official events, penalties left out): the match records page's line. */
   api.get("/records/:season/high-score", recordsLimit, h(async (req) => ({ line: await seasonRecordLine(season(req.params.season)) })));
+  /** The region codes a season's records use, named by their main place (for the Region dropdown). */
   api.get("/records/:season/regions", recordsLimit, h(async (req) => ({ regions: await recordRegions(season(req.params.season)) })));
 
   // --- World rankings (/rankings): every rated team, movement since last week -----
