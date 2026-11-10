@@ -48,3 +48,26 @@ describe("a record asked with no team", () => {
     expect(own.stat?.intent).not.toBe("top-record");
   });
 });
+
+describe("a count of wins asked with no team", () => {
+  it("is the place's board by wins; a win's size is never a count", async () => {
+    for (const q of ["most wins in nj 2025-26", "teams with the most wins in nj 2025-26"]) {
+      const a = await ask(q);
+      expect(a.stat?.intent, q).toBe("top-wins");
+      const board = a.stat!.blocks.find((b) => b.kind === "leaderboard");
+      expect(board?.kind === "leaderboard" && board.rows[0].team.label, q).toBe("24033 Alphatronic");
+    }
+    expect((await ask("biggest win in nj 2025-26")).stat?.intent).not.toBe("top-wins");
+  });
+});
+
+describe("a versus with a number no team has", () => {
+  it("answers the other team's question and says the number is no team", async () => {
+    for (const q of ["7149 vs 99 record 2025-26", "99 vs 7149 record 2025-26"]) {
+      const a = await ask(q);
+      expect(a.understood?.label, q).toContain("ENFORCERS (7149)");
+      expect(a.understood?.label, q).toContain("No FTC team 99 in our data");
+      expect(a.stat?.scope, q).toContain("No FTC team 99 in our data");
+    }
+  });
+});
