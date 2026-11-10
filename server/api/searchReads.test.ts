@@ -1,0 +1,100 @@
+// Search's kept reads, answers and pages (server/api/searchReads.ts): what is kept is shared, dropped when the data
+// moves (search:version, data:version, a write to a data table, "Clear caches"), and bounded in number.
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { kvSet, migrate, openDb, setDb } from "../db";
+import { clearAllCaches } from "../caches";
+import { keptAnswer, keptCounts, keptPage, PAGE_TTL_MS, PAGES_KEPT, searchRead, STALE_MS } from "./searchReads";
+
+beforeEach(async () => {
+  const c = openDb(":memory:");
+  setDb(c);
+  await migrate(c);
+  clearAllCaches();
+  vi.useFakeTimers({ toFake: ["Date"] });
+});
+afterEach(() => { vi.useRealTimers(); });
+
+const tick = (ms: number) => vi.setSystemTime(Date.now() + ms);
+
+describe("kept pages", () => {
+  it("draws a page once within its TTL, and again after", async () => {
+    const draw = vi.fn(async () => ({ html: "<p>page</p>", status: 200 as const }));
+    const a = await keptPage("/teams/4215", draw);
+    tick(PAGE_TTL_MS - 1_000);
+    const b = await keptPage("/teams/4215", draw);
+    expect(b).toBe(a);
+    expect(draw).toHaveBeenCalledTimes(1);
+    tick(PAGE_TTL_MS + 2_000);
+    await keptPage("/teams/4215", draw);
+    expect(draw).toHaveBeenCalledTimes(2);
+  });
+
+  it("serves the kept page past its time while one fresh copy is made, then the fresh one", async () => {
+    await keptPage("/events/2025/X", async () => "old");
+    tick(PAGE_TTL_MS + 1_000);
+    let release!: (v: string) => void;
+    const remake = vi.fn(() => new Promise<string>((r) => { release = r; }));
+    expect(await keptPage("/events/2025/X", remake)).toBe("old");
+    expect(await keptPage("/events/2025/X", remake)).toBe("old");
+    expect(remake).toHaveBeenCalledTimes(1);
+    release("new");
+    await new Promise((r) => setTimeout(r, 0));
+    expect(await keptPage("/events/2025/X", remake)).toBe("new");
+  });
+
+  it("never serves a kept page past its stale window", async () => {
+    await keptPage("/events/2025/Y", async () => "old");
+    tick(PAGE_TTL_MS + STALE_MS + 1_000);
+    expect(await keptPage("/events/2025/Y", async () => "new")).toBe("new");
+  });
+
+  it("serves nothing stale once the data moves", async () => {
+    await keptPage("/teams/1", async () => "old");
+    tick(PAGE_TTL_MS + 1_000);
+    await kvSet("data:version", "3");
+    expect(await keptPage("/teams/1", async () => "new")).toBe("new");
+  });
+
+  it("keeps each address apart", async () => {
+    expect(await keptPage("/teams/4215", async () => "a")).toBe("a");
+    expect(await keptPage("/teams/7149", async () => "b")).toBe("b");
+    expect(keptCounts().pages).toBe(2);
+  });
+
+  it("drops everything kept when the data version moves", async () => {
+    await keptPage("/teams/4215", async () => "v1");
+    await keptAnswer("q", async () => "a1");
+    await kvSet("data:version", "2");
+    tick(3_000);
+    expect(await keptPage("/teams/4215", async () => "v2")).toBe("v2");
+    expect(await keptAnswer("q", async () => "a2")).toBe("a2");
+  });
+
+  it("drops everything kept when the search index is rebuilt (search:version)", async () => {
+    await keptPage("/search?q=4215", async () => "v1");
+    await kvSet("search:version", "9");
+    tick(3_000);
+    expect(await keptPage("/search?q=4215", async () => "v2")).toBe("v2");
+  });
+
+  it("is emptied by Clear caches", async () => {
+    await keptPage("/", async () => "v1");
+    await searchRead("SELECT 1 AS one");
+    expect(keptCounts()).toMatchObject({ pages: 1, rows: 1 });
+    clearAllCaches();
+    expect(keptCounts()).toEqual({ rows: 0, answers: 0, pages: 0 });
+  });
+
+  it("keeps at most PAGES_KEPT pages, dropping the least recently used", async () => {
+    for (let i = 0; i < PAGES_KEPT + 5; i++) await keptPage(`/teams/${i}`, async () => `p${i}`);
+    expect(keptCounts().pages).toBe(PAGES_KEPT);
+    const draw = vi.fn(async () => "again");
+    expect(await keptPage("/teams/0", draw)).toBe("again");
+    expect(await keptPage(`/teams/${PAGES_KEPT + 4}`, draw)).toBe(`p${PAGES_KEPT + 4}`);
+  });
+
+  it("does not keep a page that failed to draw", async () => {
+    await expect(keptPage("/teams/1", async () => { throw new Error("no"); })).rejects.toThrow("no");
+    expect(await keptPage("/teams/1", async () => "ok")).toBe("ok");
+  });
+});

@@ -47,6 +47,11 @@ function renderer(): Promise<Render | null> {
   return render;
 }
 
+/** Load the build's render function now (server/index.ts warm-up): loading it compiles the whole server-side
+ *  bundle on this process's one thread, seconds that would otherwise stall every request queued behind the first
+ *  team or event page after a deploy. */
+export const warmPageRenderer = (): Promise<unknown> => renderer();
+
 /** For tests: use this render function (or none) instead of the build's. */
 export function setPageRenderer(fn: Render | null) { render = Promise.resolve(fn); }
 

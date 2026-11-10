@@ -57,7 +57,9 @@ import { MATCH_KEY as REPORT_KEY } from "../src/shared/matchReport.js";
 import { rangeCoverageNow, trackRecord } from "./api/accuracy.js";
 import { currentWeather } from "./weather.js";
 import { MISSING_FILE, canonicalRedirects, renderPage } from "./seo.js";
-import { CSP_REPORT_PATH, cspReportRouter, securityHeaders, setPageCsp } from "./securityHeaders.js";
+import { CSP_REPORT_PATH, cspHeaderName, cspReportRouter, securityHeaders, setPageCsp } from "./securityHeaders.js";
+import { CACHED_PAGE, drawPage, pageKey } from "./pageCache.js";
+import { keptPage, PAGE_TTL_MS } from "./api/searchReads.js";
 import { sitemapChunkRoute, sitemapRoute } from "./sitemap.js";
 import { indexNowKeyRoute } from "./indexNow.js";
 import { latestRankings, rankingsWeek } from "./powerRankings/store.js";
@@ -96,7 +98,8 @@ import { failureOf, keyFor, noteSearch, outcomeTrace, patternFor, reportingOn, s
 import { supporters } from "./sponsors.js";
 import { packsRouter } from "./packs/routes.js";
 import { bundleRouter } from "./packs/bundle.js";
-import { cachedPublicUsage, collectRouter, PUBLIC_USAGE_MAX_AGE_S, statsRouter } from "./analytics.js";
+import { cachedPublicUsage, collectRouter, PUBLIC_USAGE_MAX_AGE_S, rateLimiter, statsRouter } from "./analytics.js";
+import { visitorIp } from "./visitorIp.js";
 import { vitalsRouter } from "./vitals.js";
 import { abuseMonitor } from "./moderation.js";
 import { homeOverview } from "./api/home.js";
@@ -183,11 +186,28 @@ const code = (x: unknown) => {
   return c;
 };
 
-/** Tiny per-IP token bucket (heavy endpoints only). */
+/** Searches one visitor address may make a minute (the /search page and /api/search together). Generous: a person
+ *  searches every few seconds at most, and a whole venue can share one address; a script hammering search from one
+ *  address gets 429 with Retry-After. Bruno's k6 run (100 users, 5 s apart, one machine) makes ~800 a minute. */
+export const SEARCHES_PER_MINUTE = 1_200;
+const SEARCH_WINDOW_MS = 60_000;
+
+/** The search limit (server/analytics.ts rateLimiter: a fixed minute per address, held in memory only). */
+export function searchLimit(max = SEARCHES_PER_MINUTE, windowMs = SEARCH_WINDOW_MS) {
+  const allow = rateLimiter(max, windowMs);
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (allow(visitorIp(req))) { next(); return; }
+    res.setHeader("Retry-After", String(Math.ceil(windowMs / 1000)));
+    res.setHeader("Cache-Control", "no-store");
+    res.status(429).type("text/plain").send("Too many searches from this address: try again in a minute.");
+  };
+}
+
+/** Tiny per-visitor token bucket (heavy endpoints only). */
 function limiter(perMinute: number) {
   const buckets = new Map<string, { tokens: number; at: number }>();
   return (req: Request, res: Response, next: NextFunction) => {
-    const ip = req.ip ?? "?";
+    const ip = visitorIp(req);
     const now = Date.now();
     const b = buckets.get(ip) ?? { tokens: perMinute, at: now };
     b.tokens = Math.min(perMinute, b.tokens + ((now - b.at) / 60000) * perMinute);
@@ -251,7 +271,7 @@ export function createServer(app: express.Express, health: () => Record<string, 
   return server;
 }
 
-export function createApp(opts: { dist?: string } = {}) {
+export function createApp(opts: { dist?: string; /** Tests only: a smaller search limit. */ searchesPerMinute?: number } = {}) {
   const app = express();
   app.disable("x-powered-by");
   app.set("trust proxy", 1);
@@ -276,6 +296,8 @@ export function createApp(opts: { dist?: string } = {}) {
   // Same matching as Express routing (case-insensitive, optional trailing slash).
   app.use((req, res, next) => (/^\/api\/(collect(\/vitals)?|digest\/webhook|csp-report)\/?$/i.test(req.path) ? next() : json(req, res, next)));
 
+  // One search limit for the page and the API (searchLimit): a visit to /search and the app's request for it count as two.
+  const searches = searchLimit(opts.searchesPerMinute);
   const api = express.Router();
   // Every route's :code, as stored: an address may spell it in any case (/api/events/2019/2019INMEET10 is event
   // 2019INMeet10). A code that can't be one is left for code() to refuse; a season that isn't digits, for season().
@@ -372,7 +394,7 @@ export function createApp(opts: { dist?: string } = {}) {
     return s;
   }));
 
-  api.get("/search", h(async (req) => {
+  api.get("/search", searches, h(async (req) => {
     await ensureSearchIndex(rebuildSearch);
     const prefer = preferOf(req.query.prefer);
     // ?kinds=event,place: only those kinds, picked before the limit (unknown names are ignored).
@@ -964,6 +986,8 @@ export function createApp(opts: { dist?: string } = {}) {
   app.use(CSP_REPORT_PATH, cspReportRouter());
   app.use("/api", api);
   app.use("/packs", packsRouter());
+  // The /search page counts against the same search limit as /api/search (searchLimit).
+  app.get(/^\/search\/?$/i, searches);
   // Light pages for a weak signal (server/lite/, docs/lite.md): /lite/…, and ?lite=1 on a rich page's address.
   app.use(liteSwitch);
   app.use("/lite", liteRouter());
@@ -1012,10 +1036,32 @@ export function createApp(opts: { dist?: string } = {}) {
     // app's HTML, so the visitor sees the app's own not-found page (and search engines drop the URL).
     app.get(/^(?!\/api\/|\/packs\/).*/, h(async (req, res) => {
       res.setHeader("Cache-Control", "no-cache");
+      const file = join(dist, "index.html"), query = req.query as Record<string, unknown>;
+      // A team, event, search or home page is kept whole for a short while (server/pageCache.ts): the same address
+      // asked again is the bytes already drawn, gzipped once. The ETag res.send makes keeps a repeat visit a 304.
+      // Before the data can be read (a start, before its migrations: the cache's version check reads kv), the page
+      // is drawn as it always was and nothing is kept.
+      const page = req.method === "GET" && CACHED_PAGE.test(req.path) ? await keptPage(pageKey(req.path, query), () => drawPage(file, req.path, query)).catch(() => null) : null;
+      if (page) {
+        // A search is counted on every visit, the kept page's too (server/api/searchIntents.ts: what people ask for).
+        void recordIntent(page.intent).catch(() => {});
+        res.setHeader(cspHeaderName(), page.csp);
+        res.setHeader("Vary", "Accept-Encoding");
+        // The same for everyone (no personal data in these pages): a browser revalidates every time (the ETag makes it
+        // a cheap 304), and a shared cache such as Cloudflare's may keep a found page for as long as this server does.
+        // Never a search page: each of its visits reaches this server, so it is counted.
+        const shared = /^\/search$/i.test(req.path) ? "" : `, s-maxage=${PAGE_TTL_MS / 1000}`;
+        if (page.status === 200) res.setHeader("Cache-Control", `public, max-age=0, must-revalidate${shared}`);
+        const gz = req.acceptsEncodings("gzip") ? await page.gz.catch(() => null) : null;
+        if (gz) res.setHeader("Content-Encoding", "gzip");
+        res.status(page.status).type("html").send(gz ?? page.html);
+        return;
+      }
       // The query names the page's view: rankings filters, a shared matchup (its card is the link preview).
-      const page = await renderPage(join(dist, "index.html"), req.path, req.query as Record<string, unknown>);
-      setPageCsp(res, page.html);
-      res.status(page.status).type("html").send(page.html);
+      const drawn = await renderPage(file, req.path, query);
+      void recordIntent(drawn.intent).catch(() => {});
+      setPageCsp(res, drawn.html);
+      res.status(drawn.status).type("html").send(drawn.html);
     }));
   }
 

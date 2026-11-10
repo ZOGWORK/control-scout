@@ -20,6 +20,7 @@ import { APP_CSS_ID } from "../src/shared/boot.js";
 import { COIN_FLIPS_META, hasFlips } from "../src/shared/coinFlips.js";
 import { liteHref } from "../src/shared/lite.js";
 import { isEnabled } from "./flags.js";
+import type { SearchIntentNote } from "../src/shared/api.js";
 
 /** The request's query as "?a=b" (repeated or nested values left out). */
 const queryString = (query: Record<string, unknown>) => {
@@ -168,7 +169,7 @@ function pageStylesheets(indexFile: string, path: string): string[] {
  * route, team or event). A 404 still carries the app's HTML, so the browser shows the app's own
  * not-found page.
  */
-export async function renderPage(file: string, path: string, query: Record<string, unknown> = {}): Promise<{ status: 200 | 404; html: string }> {
+export async function renderPage(file: string, path: string, query: Record<string, unknown> = {}): Promise<{ status: 200 | 404; html: string; intent?: SearchIntentNote }> {
   const { pageMeta, headTags } = await import("./seoMeta.js");
   // The home page's hero lines too (the owner's, or the built-in ones): every page carries them (server/bootShell.ts).
   // And on /events, whether today has coin flips (coinFlipsHint).
@@ -189,7 +190,8 @@ export async function renderPage(file: string, path: string, query: Record<strin
     // Not on a bare page (the pit display): nobody answers it on a pit TV, and the app shows no banner there to take it over.
     .replace(/<div id="root">(?:<!--cs-boot-->)?<\/div>/, () => `<div id="root">${bootShell(path, meta, hero, meta.notFound || !lite ? null : liteHref(path, queryString(query)))}</div>${isBareRoute(path) ? "" : bootConsent()}`);
   if (deferred) html = inlineCriticalCss(html, [join(dirname(file), deferred.href), ...pageStylesheets(file, path)]);
-  return { status: meta.notFound ? 404 : 200, html };
+  // A search's intent goes out with the page, for the route to count per visit (PageMeta.intent).
+  return { status: meta.notFound ? 404 : 200, html, ...(meta.intent ? { intent: meta.intent } : {}) };
 }
 
 /** The id of a drawn page's inline critical CSS (inlineCriticalCss). */

@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.2.1 — 2026-11-10
+## 5.2.3 — 2026-11-10
 
 Search reads one season rule in every answer, and says which season (and which state championship) it read.
 
@@ -30,6 +30,31 @@ Search reads one season rule in every answer, and says which season (and which s
 - "At states" reads the team's state championship (the season named, else the latest it played) for a record, match list, score or streak as it already did for results, rank and OPR, so rewordings get one scope; the card names the event and its season. "All state championships", "ever" or "all time" reads every season, labelled "All seasons".
 - A misspelled team name that a team's own name nearly spells reaches that team before teams whose school or city has the same words ("lake rbotics record").
 - Plain leaderboards ("NJ top teams leaderboard") step back a season, said on the card, as the asked boards did. (#1286)
+
+## 5.2.2 — 2026-11-10
+
+Search keeps a city's upcoming events with the place and offers a correction only for a name typed nearly right.
+
+### Highlights
+- [fixes] "Upcoming events in" a city lists the city's events
+- [fixes] A team found by its school is no longer "corrected"
+- [fixes] "4215 and 6980 head to head score" shows their meetings
+
+### Changed
+- "Upcoming events in Oradell" and other city or venue requests stay with the event reader, as regions and countries already did, rather than one team's schedule. A team found through its school or city words ("river dell robotics upcoming events") is the team as typed, with no "did you mean". Two teams joined by "and" read as head to head with a score asked. (#1324)
+
+## 5.2.1 — 2026-11-10
+
+Team, event, search and home pages stay quick when many people open them at once.
+
+### Highlights
+- [speed] Team, event and search pages open quickly when many visit at once
+- [speed] The first search after a restart no longer waits on a long warm-up
+- [speed] A busy page is sent at once while a fresh copy is made
+
+### Changed
+- A team, event, search or home page drawn for one visitor is kept for 30 seconds and sent, already compressed, to the next visitors at the same address; a page past that is still sent at once while a fresh copy is drawn. Every search visit is still counted.
+- The page drawing code and last season's ratings are made ready when the server starts, not on the first visit that needs them. (#1291)
 
 ## 5.2.0 — 2026-11-10
 
