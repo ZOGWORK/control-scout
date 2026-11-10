@@ -206,7 +206,8 @@ export const INTENTS: IntentRule[] = [
   R("shared-matches", 2, ["together"], ["vs", "and", "thing:match", "list"]),
   R("shared-matches", 2, ["and", "thing:match"], ["list"]),
   // "Head to head score": their meetings, each with its score.
-  R("head-to-head", 2, ["vs", "thing:match"], ["list", "metric:record", "metric:score"]),
+  // The teams joined by "and" ("A and B head to head score") read the same as "vs".
+  R("head-to-head", 2, ["vs", "thing:match"], ["list", "metric:record", "metric:score", "and"]),
   R("h2h-wins", 2, ["vs", "metric:win"], ["agg:count", "thing:match"]),
   // "12345 and 67890 awards" is each team's own list (search's AND list); a versus or a comparison is the side by side.
   R("opr-vs", 2, ["metric:opr", "vs"], ["compare"]),

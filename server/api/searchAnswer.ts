@@ -737,12 +737,14 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
     const team = base.step !== "recovery" && base.hits[0]?.kind === "team" && !base.hits[0].href ? base.hits[0] : null;
     if (team) {
       const ans = await questionAnswer(q, question, team, base.hits.slice(1), pagesFor(q));
-      // The team found by a near spelling of its name ("hypnotik robotics upcoming events"): said as a correction.
+      // The team found by a near spelling of its name ("hypnotik robotics upcoming events"): said as a correction, only
+      // when the team's own search says so (its name close to what was typed, no other name as close). Words found in
+      // a school, city or venue ("river dell robotics") are the team as typed, never "corrected" to its name.
       const said = opts.typed ?? q, name = teamNameOf(team.title);
       const at = said.toLowerCase().indexOf(question.core.toLowerCase());
       // A plural ending alone ("hypnotics robotics") is no misspelling: the name is found as typed.
       const bare = (x: string) => normalize(x).split(" ").map((w) => w.replace(/s$/, "")).join(" ");
-      if (team.match !== "fuzzy" || at < 0 || !name || bare(name) === bare(question.core)) return ans;
+      if (base.step !== "did-you-mean" || at < 0 || !name || bare(name) === bare(question.core)) return ans;
       return { ...ans, step: "did-you-mean", didYouMean: `${said.slice(0, at)}${name}${said.slice(at + question.core.length)}` };
     }
   }
