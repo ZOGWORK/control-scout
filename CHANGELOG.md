@@ -25,7 +25,7 @@ A what-if under every predicted match: swap one robot and see how the call and t
 - [predict] A search answer's two-team call opens in Predict, already filled in
 
 ### Changed
-- Predict › Match shows a What if? panel under the result: pick a robot in the match, type another, and both calls sit side by side with the change in win chance and margin. The swap is in the address, so a what-if can be shared, and Undo or Back takes it out. Both calls come from the same prediction the lab shows.
+- Predict › Match shows a What if? panel under the result: pick a robot in the match, type another, and both calls sit side by side with the change in win chance and margin. The swap is in the address, so a what-if can be shared, and Undo or Back takes it out. Both calls come from the same prediction the lab shows. (#1298)
 - The match lab takes one robot a side as well as two, so "Open in Predict" on a two-team search answer opens with both teams in and the call made.
 
 ## 4.9.5 — 2026-11-10
