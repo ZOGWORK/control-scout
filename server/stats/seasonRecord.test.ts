@@ -49,6 +49,10 @@ describe("the season record", () => {
     const board = a.blocks.find((x) => x.kind === "leaderboard");
     expect(board?.kind === "leaderboard" ? board.rows.map((r) => r.team.label).sort() : null).toEqual(["2 Team 2", "3 Team 3", "4 Team 4"]);
     expect(board?.kind === "leaderboard" && board.note).toContain("official events only");
+    // The wins list too: team 1 has five matches but two official ones, so it isn't ranked by wins either.
+    const w = await leaderboardAnswer({ kind: "top", stat: boardStatFor("wins", S)!, n: 10, region: null, city: null, season: S });
+    const wb = w.blocks.find((x) => x.kind === "leaderboard");
+    expect(wb?.kind === "leaderboard" ? wb.rows.map((r) => r.team.label).sort() : null).toEqual(["2 Team 2", "3 Team 3", "4 Team 4"]);
   });
   it("the events off the record add up on a line of their own", () => {
     const rows = [{ type: "Qualifier", wins: 1, losses: 1, ties: 0 }, { type: "OffSeason", wins: 2, losses: 0, ties: 0 }, { type: "Scrimmage", wins: 0, losses: 1, ties: 0 }, { type: "OffSeason", wins: null, losses: null, ties: null }];
