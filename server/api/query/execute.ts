@@ -684,6 +684,8 @@ function readScopeOf(p: Parsed): ReadScope | null {
     else if (t.relative === "last") { s.lastYear = true; s.season = lastSeason(); }
     else { s.season = t.season; if (t.year) s.year = true; }
   } else if (t?.kind === "ever") s.ever = true;
+  // "All (of their) state championships", "every states": every season the team played one, as ../answers/read.ts reads it.
+  if (p.states && /\b(?:all|every|each)\s+(?:of\s+)?(?:(?:their|its|the)\s+)?(?:states|state\s+champ)/i.test(p.q)) s.ever = true;
   if (p.place) {
     // A town names where a team is from, which a team's own question already knows: only events in a region or a
     // country are a filter. A leaderboard's town is the teams from it.
