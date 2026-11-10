@@ -105,14 +105,15 @@ export function readTeamFact(raw: string): FactQuestion | null {
       const s = readScope(` events in ${what} `);
       if (s.scope.season != null && !s.rest.replace(/\bevents?\b/, "").trim()) { const core = rest.trim(); return core ? { id: "events-season", core, season: s.scope.season, region: null, world: false, event: null, ...listed, ...(mo ? { month } : {}) } : null; }
       // "events in New Jersey 2024-25", "events in Romania this year": the place, and the season read off it ("this
-      // year" is the default season, as every team answer reads it).
-      const said = s.scope.season ?? (s.scope.latest ? currentSeason() : null);
-      const place = said != null ? s.rest.replace(/\bevents?\s+in\b/, "").trim() : what;
+      // year" is the team's latest season with matches, as every team answer reads it: resolved by the answer).
+      const said = s.scope.season;
+      const place = said != null || s.scope.latest ? s.rest.replace(/\bevents?\s+in\b/, "").trim() : what;
       region = regionOf(place.split(" "));
       // A whole country ("Romania"): its events, every state or province of it.
       const c = region ? null : countryOf(place);
       if (!region && !c) return null;
       if (said != null) scope.season ??= said;
+      else if (s.scope.latest) scope.latest = true;
       if (c) country = { code: c.code, name: c.name };
     }
     // "12345 events" alone is the count, another answer's: the season list needs a season. A question about them
@@ -249,6 +250,14 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
         rows: evs.map((e) => ({ cells: { event: shortEvent(e.name, e.type), date: dateRange(e.start, e.end) ?? "–", rank: e.rank ?? "–", record: e.wins == null ? "–" : `${e.wins}-${e.losses}-${e.ties}`, opr: dp(e.opr.np) }, href: eventHref(season, e.code, team.number) })) }] };
   }
 
+  if (f.id === "events-place" && f.latest && f.season == null) {
+    // "This season": the team's latest season with matches (the one season rule, ../season.ts), said on the card.
+    const own = await teamSeason(team.number);
+    if (own != null) {
+      const a = await factAnswer({ ...f, season: own, latest: false }, team, findEvent);
+      return a ? { ...a, definition: `${a.definition} ${seasonWhy("this", own, String(team.number))}` } : a;
+    }
+  }
   if (f.id === "events-place") {
     const country = f.country;
     if (!f.region && !country) return null;

@@ -11,7 +11,7 @@ import type { CompoundQuestion, SeasonWords } from "./compound.js";
 import { fuzzyScore } from "../fuzzy.js";
 import { teamEventSet, type TeamEvent } from "./eventSet.js";
 import { teamMatches } from "./matchSet.js";
-import { defaultSeason, seasonWhy } from "./season.js";
+import { defaultSeason, seasonWhy, teamSeason } from "./season.js";
 import { awardsAnswer } from "./families/awards.js";
 import { beatTopAnswer, combinedAnswer, eventPairAnswer, eventPicksAnswer, listAnswer, listPairAnswer, listTitle, marginAnswer, oprExcludingAnswer, reliabilitySetAnswer, sideThresholdAnswer, winLossAverageAnswer } from "./families/compound.js";
 import { matchAnswer, whoOf, type AnswerTeam } from "./families/matches.js";
@@ -35,7 +35,12 @@ const TITLES: Record<Exclude<CompoundQuestion["kind"], "list" | "list-pair" | "s
 /** The season a team's answer reads: the one named; every season for "ever"; else the default season, or the team's
  *  latest with matches (said so). */
 async function seasonFor(w: SeasonWords, team: number, deps: CompoundDeps, everAllowed = true): Promise<{ season: number | null; why?: string }> {
-  if (w.season != null) return { season: w.season, ...(w.latest ? { why: seasonWhy("this-any", w.season) } : {}) };
+  // "This season" for a team: its latest season with matches (the one season rule, ./season.ts), said on the card.
+  if (w.latest) {
+    const own = (await teamSeason(team)) ?? w.season;
+    return { season: own, ...(own != null ? { why: seasonWhy("this", own, String(team)) } : {}) };
+  }
+  if (w.season != null) return { season: w.season };
   if (w.ever && everAllowed) return { season: null };
   const l = await deps.latestSeason(team);
   if (!l) return { season: null };
@@ -96,10 +101,14 @@ export async function compoundSearch(q: string, c: CompoundQuestion, resolve: Re
     return { ...a, understood: { ...a.understood!, label: `${whoOf(team)} · ${stat.title}` }, stat };
   };
   if (c.kind === "event-pair") {
-    const a = answer(`${whoOf(team)} · ${TITLES[c.kind]}`, c.seasons[0], "history");
+    // "This season" is the team's latest with matches; "last season" beside it is the season before that one.
+    const own = c.said?.includes("this") ? await teamSeason(team.number) : null;
+    const seasons = own == null ? c.seasons : c.seasons.map((x, i) => (c.said![i] === "this" ? own : c.said![i] === "last" ? own - 1 : x)) as [number, number];
+    if (seasons[0] === seasons[1]) return null;
+    const a = answer(`${whoOf(team)} · ${TITLES[c.kind]}`, seasons[0], "history");
     if (!opts.full) return a;
     const set = await teamEventSet(team.number);
-    return done(a, eventPairAnswer(team, set.events, set.seasons, c.which, c.seasons));
+    return done(a, eventPairAnswer(team, set.events, set.seasons, c.which, seasons));
   }
   const s = await seasonFor(c.when, team.number, deps, c.kind === "margin" || c.kind === "beat-top" || c.kind === "combined" || c.kind === "win-loss-average");
   const scope: Scope = { season: s.season };

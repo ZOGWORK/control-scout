@@ -15,6 +15,21 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.9.3 — 2026-11-10
+
+Search reads one season rule in every answer, and says which season (and which state championship) it read.
+
+### Highlights
+- [fixes] A team's question with no season reads that team's latest season, said on the card
+- [fixes] "Last season" and "last year" are 2025–26, the latest completed season
+- [fixes] Leaderboards and place questions read the current season, 2026–27, said on the card
+- [fixes] "At states" is one named state championship in every answer; "all states" is every season
+
+### Changed
+- One season resolver (`server/api/answers/season.ts`) for every intent: a team's question with no season (or "this season", "right now") reads the latest season that team has played; a question about no team reads the current season, stepping back a season with a note when nothing is played there yet; "last season" / "last year" is the latest completed season; a season named is honoured exactly. Every card states the season and why.
+- "At states" reads the team's state championship (the season named, else the latest it played) for a record, match list, score or streak as it already did for results, rank and OPR, so rewordings get one scope; the card names the event and its season. "All state championships", "ever" or "all time" reads every season, labelled "All seasons".
+- Plain leaderboards ("NJ top teams leaderboard") step back a season, said on the card, as the asked boards did.
+
 ## 4.9.2 — 2026-11-09
 
 DECODE's highest score, Q49 at Carolinas Premier Event, is marked as not an official record.

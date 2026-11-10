@@ -180,7 +180,8 @@ export function rewriteQuery(q: string, named: ReadonlySet<string> = new Set()):
     const s = relativeSeason(/^(?:last|previous|past)$/.test(rel[1]) ? "last" : "this", null)!;
     const out = squash(`${t.slice(0, rel.index)} ${t.slice(rel.index + rel[0].length)} ${s}-${String((s + 1) % 100).padStart(2, "0")}`);
     const e = readEventQuery(out);
-    if (e && (e.region || e.where)) return { q: out, pre: true };
+    // Nothing else left (a team named by its name is a team's question: its own season, never this rewrite's).
+    if (e && (e.region || e.where) && !e.words.length) return { q: out, pre: true };
   }
   // An event's best score, "at" or not ("highest score new jersey championship", "nj states highest score"). A
   // place's "states" is its championship, never another event with the place in its name (a workshop).

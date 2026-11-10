@@ -212,7 +212,7 @@ describe("long, conversational queries", () => {
   });
 
   it("keeps season and place words: they still scope the answer", async () => {
-    expect((await ask("did 4215 win any awards last season")).stat?.title).toMatch(/2024–25|last season/i);
+    expect((await ask("did 4215 win any awards last season")).stat?.title).toMatch(/2025–26|last season/i);
     expect(longForm("what was 4215's record in 2024-25")).toBe("4215 record in 2024-25");
     // A season after a Worlds question: Worlds divisions, which takes one (the appearances card is every season's).
     expect(longForm("when was the last time 4215 went to worlds in 2025-26")).toBe("4215 worlds divisions in 2025-26");

@@ -15,7 +15,9 @@ export interface Threshold { op: "gt" | "ge" | "lt" | "le"; value: number }
 export type ListStat = "opr" | "auto" | "teleop" | "endgame" | "rating" | "win-rate" | "record" | "reliability" | "matches" | "wins";
 
 /** The season words of a clause: one season, every season ("ever"), or none said. */
-export interface SeasonWords { season: number | null; ever: boolean; latest: boolean }
+export interface SeasonWords { season: number | null; ever: boolean; latest: boolean;
+  /** "last season" was said (the latest completed one; beside a team's "this season", the season before it). */
+  last?: boolean }
 
 export type CompoundQuestion =
   /** Teams by place, filtered by an award won, a Worlds season (gone to, or not), rookies or stat thresholds (each one
@@ -25,7 +27,10 @@ export type CompoundQuestion =
   /** How many teams one list holds in each of two seasons ("how many NJ teams went to worlds in 2024 versus 2025"). */
   | { kind: "list-pair"; lists: [Extract<CompoundQuestion, { kind: "list" }>, Extract<CompoundQuestion, { kind: "list" }>] }
   /** One team's OPR at its first (or last) event of two seasons, side by side. */
-  | { kind: "event-pair"; core: string; which: "first" | "last"; seasons: [number, number] }
+  | { kind: "event-pair"; core: string; which: "first" | "last"; seasons: [number, number];
+      /** Each side's words: "this season" is the team's latest season with matches, "last season" beside it the one
+       *  before (the one season rule, ./season.ts), resolved by the answer. */
+      said?: ["this" | "last" | null, "this" | "last" | null] }
   /** One team's matches it won or lost by a margin. */
   | { kind: "margin"; core: string; result: "W" | "L"; margin: Threshold; when: SeasonWords }
   /** Two of a team's answers on one card: its record, its awards, its OPR. */
@@ -59,7 +64,7 @@ export function seasonWords(s: string): SeasonWords & { rest: string } {
   const label = take(/\b(?:in\s+|during\s+|for\s+)?(?:the\s+)?(20\d\d)\s*[-–/]\s*(\d\d)(?:\s+season)?\b/);
   if (label && (Number(label[1]) + 1) % 100 === Number(label[2])) out.season = Number(label[1]);
   if (out.season == null && take(/\b(?:in\s+|during\s+|for\s+)?(?:the\s+)?(?:this|current)\s+(?:season|year)\b/)) { out.season = currentSeason(); out.latest = true; }
-  if (out.season == null && take(/\b(?:in\s+|during\s+|for\s+)?(?:the\s+)?(?:last|previous|past)\s+(?:season|year)\b/)) out.season = lastSeason();
+  if (out.season == null && take(/\b(?:in\s+|during\s+|for\s+)?(?:the\s+)?(?:last|previous|past)\s+(?:season|year)\b/)) { out.season = lastSeason(); out.last = true; }
   if (out.season == null) {
     const y = take(/\b(?:in\s+|during\s+|for\s+)?(20\d\d)\b/);
     if (y && SEASONS.some((x) => x.season === Number(y[1]))) out.season = Number(y[1]);
@@ -212,7 +217,8 @@ export function readCompound(raw: string): CompoundQuestion | null {
   // "what was 12345 opr at their first event this season compared to last season".
   if ((m = /^(?:what (?:was|is|were) )?(.+?) opr (?:at|in) (?:their|its|the) (first|last|latest|most recent|final) (?:event|competition|meet|tournament) (?:of |in )?(.+?) (?:compared (?:to|with)|vs\.?|versus|against|and) (.+?)$/.exec(q))) {
     const a = seasonWords(m[3]), b = seasonWords(m[4]);
-    if (!a.rest && !b.rest && a.season != null && b.season != null && a.season !== b.season) return { kind: "event-pair", core: m[1], which: m[2] === "first" ? "first" : "last", seasons: [a.season, b.season] };
+    const said = (w: SeasonWords) => (w.latest ? "this" : w.last ? "last" : null);
+    if (!a.rest && !b.rest && a.season != null && b.season != null && (a.season !== b.season || (a.latest !== b.latest))) return { kind: "event-pair", core: m[1], which: m[2] === "first" ? "first" : "last", seasons: [a.season, b.season], said: [said(a), said(b)] };
   }
 
   // "12345 matches where they lost by less than 10 points", "12345 wins by more than 50 this season".
