@@ -1,5 +1,10 @@
 // Labels shared by the server and the web app.
 
+/** Event types with no matches (kickoffs, workshops, practice days…): the Events page leaves them out, and so does
+ *  Scout's picker until its Event type filter picks one (a pit can be scouted at a practice day). */
+export const NO_MATCH_TYPES = ["Kickoff", "Workshop", "DemoExhibition", "VolunteerSignup", "PracticeDay", "InnovationChallenge"] as const;
+export const isNoMatchType = (t: string | null | undefined): boolean => !!t && (NO_MATCH_TYPES as readonly string[]).includes(t);
+
 /** Human label for a compact event type. */
 export function eventTypeLabel(type: string | null | undefined): string {
   const map: Record<string, string> = {

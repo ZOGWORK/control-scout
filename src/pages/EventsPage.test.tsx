@@ -215,40 +215,37 @@ describe("Events page default status", () => {
     expect(screen.queryByRole("button", { name: /Clear filters/ })).toBeNull();
   });
 
-  it("opens on Live now when an event is live, and that is the default (nothing to clear)", () => withLive(() => {
+  it("opens on All even while an event is live, with nothing to clear", () => withLive(() => {
     mount();
-    expect(pressed()).toEqual(["Live now"]);
-    expect(cards()).toBe(1);
+    expect(pressed()).toEqual(["All"]);
+    expect(cards()).toBe(FIRST_EVENTS);
     expect(loc).toBe("");
     expect(screen.queryByRole("button", { name: /Clear filters/ })).toBeNull();
   }));
 
-  it("keeps a status the address names, and a tap on All holds while something is live", () => withLive(() => {
+  it("keeps a status the address names, and Clear filters goes back to All", () => withLive(() => {
     mount("/events?status=finished");
     expect(pressed()).toEqual(["Finished"]);
     expect(cards()).toBe(1);
-    fireEvent.click(screen.getByRole("button", { name: /^All/ }));
-    expect(new URLSearchParams(loc).get("status")).toBe("all");
-    expect(pressed()).toEqual(["All"]);
-    expect(cards()).toBe(FIRST_EVENTS);
-    // Clear filters goes back to the page's default: Live now.
     fireEvent.click(screen.getByRole("button", { name: /Clear filters/ }));
     expect(loc).toBe("");
-    expect(pressed()).toEqual(["Live now"]);
+    expect(pressed()).toEqual(["All"]);
+    expect(cards()).toBe(FIRST_EVENTS);
   }));
 
-  it("lights no chip while the list loads, and a tap then still wins when live events arrive", () => withLive(() => {
-    listPending = true;
+  it("a status tap with nothing under the video picked drops the video filter, so the list never dead-ends", () => withLive(() => {
+    // EV1 (finished) has match clips; nothing upcoming does.
+    const kept = EVENTS[1];
+    EVENTS[1] = { ...kept, video: "clips" } as EventListItem;
     try {
-      const view = mount();
-      expect(screen.queryAllByRole("button", { pressed: true })).toEqual([]);
-      fireEvent.click(screen.getByRole("button", { name: /^All/ }));
-      expect(new URLSearchParams(loc).get("status")).toBe("all");
-      listPending = false;
-      view.rerender(<MemoryRouter initialEntries={["/events?status=all"]}><EventsPage /><Probe /></MemoryRouter>);
-      expect(pressed()).toEqual(["All"]);
-      expect(cards()).toBe(FIRST_EVENTS);
-    } finally { listPending = false; }
+      mount("/events?video=clips");
+      expect(cards()).toBe(1);
+      fireEvent.click(screen.getByRole("button", { name: /^Upcoming/ }));
+      const p = new URLSearchParams(loc);
+      expect(p.get("status")).toBe("upcoming");
+      expect(p.get("video")).toBeNull();
+      expect(cards()).toBeGreaterThan(0);
+    } finally { EVENTS[1] = kept; }
   }));
 });
 

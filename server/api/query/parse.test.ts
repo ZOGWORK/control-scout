@@ -31,6 +31,10 @@ const TEAMS = [
   { number: 30014, name: "The King's School", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
   { number: 30015, name: "The King's School", city: "Newark", state: "NJ", country: "USA", lastPlayed: 2026 },
   { number: 30016, name: "Performance", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
+  { number: 30017, name: "Girls in Robotics", city: "Town", state: "OH", country: "USA", lastPlayed: 2025 },
+  { number: 30018, name: "Girls in Robotics 2", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
+  // The shorter name two teams share.
+  { number: 30019, name: "Girls in Robotics", city: "Town", state: "OH", country: "USA", lastPlayed: 2025 },
 ];
 const EVENTS = ["east bergen conference", "new jersey championship", "nj championship", "turnpike division"];
 const ctx: ParseContext = {
@@ -99,6 +103,16 @@ describe("slots", () => {
     expect((await parse("6980s chances at the east bergen conference")).teams.map((t) => t.number)).toEqual([6980]);
     // A number that is no team keeps its "s": never a team.
     expect((await parse("1990s chances at the east bergen conference")).teams).toEqual([]);
+  });
+  it("reads a longer team's name typed nearly right after a shorter team's part of it, never the rest as an event", async () => {
+    const near = { ...ctx, nearTeam: async (w: string) => ctx.names.nearTeam(w), isEvent: async (w: string) => w === "roboics 2" || (await ctx.isEvent(w)) };
+    const p = await parseQuery("girls in roboics 2 record", near);
+    expect(p.teams.map((t) => t.number)).toEqual([30018]);
+    expect(p.event).toBeNull();
+    // Typed right, each is its own team.
+    expect((await parseQuery("girls in robotics 2 record", near)).teams.map((t) => t.number)).toEqual([30018]);
+    // Its shorter name is two teams' ("which Girls in Robotics?"), never settled by the longer one's.
+    expect((await parseQuery("girls in robotics record", near)).teams[0]).toMatchObject({ candidates: [30017, 30019] });
   });
   it("reads 'performance' as how a team did, never a team of that name beside another team", async () => {
     const p = await parse("4215 performance at nj championship");
