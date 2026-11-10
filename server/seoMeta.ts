@@ -631,7 +631,8 @@ async function searchMeta(raw: string): Promise<PageMeta> {
     + (s.none ? `<p>${esc(s.none)}</p>` : "")
     // Its teams as chips on the page (an alliance's): named here as links.
     + (s.headline ? `<p><b>${linked(s.headline.value, s.headline.href)}</b> · ${esc(s.headline.label)}${s.headline.teams?.length ? `: ${s.headline.teams.map((t) => linked(t.label, t.href)).join(", ")}` : ""}${s.headline.sub ? `<br><small>${esc(s.headline.sub)}</small>` : ""}</p>` : "")
-    + (kpis.length ? `<p>${kpis.map((k) => `${esc(k.label)}: <b>${linked(k.value, k.href)}</b>`).join(" · ")}</p>` : "")
+    // Each tile's line under its number too (which match, which event, when), as the app shows it.
+    + (kpis.length ? `<p>${kpis.map((k) => `${esc(k.label)}: <b>${linked(k.value, k.href)}</b>${k.sub ? ` <small>(${esc(k.sub)})</small>` : ""}`).join(" · ")}</p>` : "")
     // A leaderboard's teams, every row, as the app's table has them; its "View more detail" link under it.
     + s.blocks.map((b) => (b.kind === "leaderboard" ? `<h3>${esc(b.title)}</h3><p><small>${esc(b.note)}</small></p>${teamTableHtml(teamTableOfLeaderboard(b.stat.id, b.stat.label, b.rows, b.teleopWithEndgame), b.title)}${b.more ? `<p><a href="${esc(b.more.href)}">${esc(b.more.label)}</a></p>` : ""}` : "")).join("")
     // Its links ("Open in Predict", "Compare side by side"), each with the teams and season in its address as the app's
