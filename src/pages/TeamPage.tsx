@@ -213,7 +213,7 @@ function Hero({ p, onSeason, fellBackFrom }: { p: TeamProfile; onSeason: (s: num
             <p className="relative mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground" data-season-fallback>
               <Info className="size-3.5 shrink-0 text-accent-text" aria-hidden />
               <span>No {seasonLabel(fellBackFrom)} results yet, so this shows {seasonLabel(p.season)}.</span>
-              <button type="button" onClick={() => onSeason(fellBackFrom)} className="-my-1 py-1 font-medium text-accent-text underline-offset-2 hover:underline">See {seasonLabel(fellBackFrom)}</button>
+              <button type="button" onClick={() => onSeason(fellBackFrom)} className="tap-44 -my-1 py-1 font-medium text-accent-text underline-offset-2 hover:underline">See {seasonLabel(fellBackFrom)}</button>
             </p>
           )}
           <div className="relative mt-4 flex flex-wrap gap-2">
