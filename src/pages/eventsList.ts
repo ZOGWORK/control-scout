@@ -22,11 +22,12 @@ export function videoPick(events: EventListItem[], f: Filters, video: VideoFilte
   return p;
 }
 
-/** And the other way round: a status with nothing under the video filter picked drops the video filter. (applyFilters
- *  never reads the status; the candidate status is passed so the check reads as what it is.) */
+/** And the other way round: a status with nothing under the video filter picked drops the video filter. The status
+ *  picked now plays no part: the events under every other filter are checked for the status asked for. */
 export function statusPick(events: EventListItem[], f: Filters, status: Status): Record<string, string | null> {
   const p: Record<string, string | null> = { status };
-  if (f.video && f.video !== "all" && status !== "all" && !applyFilters(events, { ...f, status }).some((e) => e.status === status)) p.video = null;
+  const { status: _now, ...rest } = f;
+  if (f.video && f.video !== "all" && status !== "all" && !applyFilters(events, rest).some((e) => e.status === status)) p.video = null;
   return p;
 }
 
