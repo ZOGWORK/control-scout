@@ -5,6 +5,7 @@
 import type { SearchAnswer, SearchHit } from "../../shared/api";
 import type { AnswerNotes, AnswerSection } from "../../shared/searchSections";
 import { SEARCH_GROUPS } from "../../shared/search";
+import { unreadNote } from "../../shared/searchPage";
 import { fuzzyWords, isCompare, isFuzzy } from "./page/results";
 
 export type DropId = AnswerSection["id"] | "compare" | "fuzzy";
@@ -42,7 +43,9 @@ export function dropdownNotes(notes: AnswerNotes, answer: SearchAnswer | undefin
   const label = answer?.understood?.label?.trim();
   if (!label || answer?.step === "recovery" || answer?.step === "did-you-mean") return notes;
   const fallback = answer?.understood?.fallback;
-  return { ...notes, understood: [`Understood: ${label}`, ...(fallback ? [fallback] : [])] };
+  // Words the answer read past, said as the page says them (never in the label).
+  const unread = answer ? unreadNote(answer) : null;
+  return { ...notes, understood: [`Understood: ${label}`, ...(fallback ? [fallback] : []), ...(unread ? [unread] : [])] };
 }
 
 /** A group's count: rows shown, and for a set of events with more than fit, how many there are in all ("14 of 26"). */

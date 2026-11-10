@@ -30,7 +30,7 @@ Three rules run alongside the order:
 - **A filler word never decides an answer.** A query Layer 1 answered is also read without its filler. If that reading answers differently and directly, the filler-free reading wins. For example, "what is opr please" read "please" as the team Please Don't Explode; it now gets the OPR definition.
 - **A definition beats a name search** (brief section 10). "what does opr mean" read "mean" as the start of Mean Green Irish Machine; it now gets the OPR definition.
 - **A leaderboard, count or winners question with every word read beats an answer about a team the query never named in full.** "opr leaders texas" read "leaders" as Newgen Leaders, and "top win rate" read "top" as Top Shelf BGS; both now get the leaderboard. This also covers a place typed without "in" ("highest opr california").
-- **A forbidden word Layer 1 read past is named.** "4215 today opr" still gets the OPR card, and the line adds `"today" isn't part of this answer`.
+- **A forbidden word Layer 1 read past is named.** "4215 today opr" still gets the OPR card, and the answer carries `understood.unread: ["today"]`, said under it as `Not used in this answer: "today"` (`unreadNote`), never in the label.
 
 ### Long form
 
@@ -272,7 +272,7 @@ for similarity, which isn't supported, so it falls back honestly.
 
 Team numbers, names, places, events, awards, games and stat words are never in any list. Every forbidden word is
 tested in "4215 `<word>` opr". Each one either stops the OPR card (team fallback, with the word in the line) or, when
-Layer 1 reads past it ("today", "this week"), gets the line `"<word>" isn't part of this answer`.
+Layer 1 reads past it ("today", "this week"), goes in `understood.unread`, said under the answer as `Not used in this answer: "<word>"` (`unreadNote`).
 
 ## 5. Paraphrase sets
 
@@ -372,7 +372,7 @@ answer is built; nothing in the layers writes, logs or calls GitHub.
 - **The keyword layer hands a canonical phrasing to the intent's existing answer.** It doesn't call each family's internals. "Layer 1 off" therefore means the typed query is never matched against a template; the keyword layer finds team, intent and scope itself. Each canonical phrasing is pinned by the coverage test, so a template change that breaks one fails CI.
 - **Case is folded only for the word layers.** Layer 1 still reads the typed case, because state codes like "IN", "OR" and "ME" read differently by case. That was a doubt case under Layer 0's rule.
 - **Found while testing, not fixed here** (other features' readers):
-  - "4215 no opr" reads as team 9215 (Team Talos). It now says `"no" isn't part of this answer`.
+  - "4215 no opr" reads as team 9215 (Team Talos). It now says `Not used in this answer: "no"` under the answer.
   - "what is teleop" and "what is endgame" have no definition.
   - "how many teams 2024-25" is read as names.
   - The long-form query takes 4–7 s locally. Almost all of that is Layer 1's existing word-by-word search before it gives up; the layers add about 20 ms.

@@ -532,7 +532,8 @@ export async function layeredAnswer(typed: string, reader: Run, prefer: Readonly
     // A compound answer (./answers/compound.ts) reads every clause it joins ("… and their opr"), or isn't given.
     const consumed = won === "longform" ? x0.forbidden.filter((w) => !tokens(a.understood?.showing ?? "").includes(w)) : [];
     const unread = won && !a.intent?.kind.startsWith("stat-compound-") ? x0.forbidden.filter((w) => !own.includes(w) && !SAID_AS[w]?.test(own) && !consumed.includes(w)) : [];
-    if (unread.length && a.understood) a = { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${unread.map((w) => `"${w}"`).join(", ")} isn't part of this answer` } };
+    // Said apart from the label (it titles the page): a note of its own under the answer (src/shared/searchPage.ts unreadNote).
+    if (unread.length && a.understood) a = { ...a, understood: { ...a.understood, unread } };
     const out = { ...a, q: typed };
     outcomes.set(out, {
       typed, normalized, layers: [...new Set(layers)], won, result: result ?? (won ? "answered" : resultOf(a, asked)),

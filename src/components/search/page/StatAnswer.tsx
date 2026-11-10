@@ -93,7 +93,10 @@ function OneCard({ stat, heading, extra }: { stat: StatAnswer; heading?: string;
   return (
     <AnswerFrame teams={teams} split={stat.split} profile={profile} season={stated} title={stat.title} hideTitle={repeats(heading, stat.title, stat.scope)} sub={scope || undefined}
       data={{ "data-stat-answer": stat.intent, "data-family": stat.family }}>
-      {stat.headline && <Headline h={{ ...stat.headline, ...oneContext(stat.headline.label, stat.headline.sub, stat.scope) }} hue={one} tone={headlineTone(stat, teams)} />}
+      {/* A label the page's heading already holds (or that only repeats the title) is for screen readers only, as the
+          server's first paint leaves it out (server/seoMeta.ts): never the same words twice. */}
+      {stat.headline && <Headline h={{ ...stat.headline, ...oneContext(stat.headline.label, stat.headline.sub, stat.scope) }} hue={one} tone={headlineTone(stat, teams)}
+        hideLabel={repeats(heading, stat.headline.label, stat.scope) || stat.headline.label === stat.title} />}
       <AnswerVideo />
       {stat.none && (
         // Nothing found is the answer "no": No's slate, a thick bar and a filled chip.
@@ -129,7 +132,7 @@ export function headlineTone(stat: Pick<StatAnswer, "intent" | "headline" | "fam
 }
 
 /** The number asked for: big and bold, what it is under it; no band behind it (the team page shows its numbers so). */
-function Headline({ h, hue, tone }: { h: NonNullable<StatAnswer["headline"]>; hue?: boolean; tone: string }) {
+function Headline({ h, hue, tone, hideLabel }: { h: NonNullable<StatAnswer["headline"]>; hue?: boolean; tone: string; hideLabel?: boolean }) {
   // One event's headline: its type and season as neutral badges (the season leaves the line under it, so it isn't
   // said twice).
   const ev = h.type !== undefined;
@@ -138,7 +141,7 @@ function Headline({ h, hue, tone }: { h: NonNullable<StatAnswer["headline"]>; hu
   const body = (
     <>
       <p className={cn("break-words font-display text-4xl font-semibold leading-tight tabular-nums group-hover:underline", tone)}><HeadlineValue value={h.value} win={hue ? TEAM_TEXT : tone} /></p>
-      <p className="mt-1 text-sm text-foreground"><RichText text={h.label} /></p>
+      <p className={hideLabel ? "sr-only" : "mt-1 text-sm text-foreground"}><RichText text={h.label} /></p>
       {sub && <p className="mt-0.5 text-xs text-muted-foreground"><RichText text={sub} /></p>}
       {ev && (h.type || season != null) && (
         <p className="mt-2 flex flex-wrap gap-1.5" data-headline-chips>

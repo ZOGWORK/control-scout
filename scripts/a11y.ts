@@ -37,7 +37,7 @@ const SCOUT: Record<string, unknown> = {
   "cs-personal:myTeam": { value: 18360, updatedAt: 1 },
   "cs-personal:tracked": { value: { teams: [24089, 14380], events: [] }, updatedAt: 1 },
   "cs-personal:bookmarks": { value: [18360, 24089, 14380], updatedAt: 1 },
-  "cs-personal:teamColors": { value: { "18360": "gold", "24089": "sky" }, updatedAt: 1 },
+  "cs-personal:teamColors": { value: { "18360": "indigo", "24089": "sky" }, updatedAt: 1 },
 };
 const ROUTES: Route[] = [
   { path: "/" },
