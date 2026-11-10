@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.2.6 — 2026-11-10
+## 5.2.7 — 2026-11-10
 
 Every follow-up a search offers says which season its numbers are from.
 
@@ -26,6 +26,23 @@ Every follow-up a search offers says which season its numbers are from.
 
 ### Changed
 - A follow-up's line (People also ask, Related searches, the related searches page and the team's highlights link) ends with the season its numbers are from when the line doesn't already say one: "98 ± 3.2 · #525 worldwide … · 2025–26", "11 awards · 7 performance · 4 judged · all seasons"; a single match (a team's biggest win, last match or highest score) says that match's own season. A record from the latest completed season and a trend from the current one no longer sit side by side unlabelled. (#1330)
+
+## 5.2.6 — 2026-11-10
+
+Search answers more of the questions people asked and got no answer to: most wins in a place, a stat for a season, a team's chances written "4215s".
+
+### Highlights
+- [fixes] "most wins in nj 2025-26" lists the teams with the most wins
+- [fixes] "2027 opr" shows everyone's OPR board for that season
+- [fixes] "4215s chances at …" reads the team, typed without an apostrophe
+- [fixes] A versus with a number no team has answers for the other one
+
+### Fixed
+- Search: a count of wins asked about everyone ("most wins in nj 2025-26", "teams with the most wins in nj 2025-26", "fewest wins …") is the place's board by wins. "Biggest win" with no team is still a match, never this count.
+- Search: a team stat alone with a season or a place ("2027 opr") is everyone's board by that stat for that season, and says when nobody has played yet.
+- Search: a team number with its possessive typed without the apostrophe ("4215s chances at the east bergen conference") is that team, and "chance of winning <event>" is the team's forecast there.
+- Search: "performance" reads as how a team did ("4215 performance in nj states in powerplay"), never as the team named Performance.
+- Search: a comparison where one side is a number no FTC team has ("4215 vs 2056 opr") answers the other team's question and says that number is no FTC team. (#1331)
 
 ## 5.2.5 — 2026-11-10
 
