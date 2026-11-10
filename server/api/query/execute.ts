@@ -13,7 +13,7 @@ import { allianceForecast, predictionSeasonOf } from "../answers/families/predic
 import { isLegacy } from "../../data/seasons.js";
 import { predictHref } from "../../../src/shared/predictUrl.js";
 import { boardSearch, statAnswer, statAnswerOf, topSearch, twoTeamSearch, type Resolve } from "../answers/index.js";
-import { currentSeason, lastSeason } from "../answers/season.js";
+import { currentSeason, defaultSeason, lastSeason } from "../answers/season.js";
 import { BOARD_STATS } from "../answers/families/leaderboard.js";
 import type { TopMatchesQuestion } from "../answers/families/topMatches.js";
 import { defaultSteps, isEmpty, relaxed, windowSteps } from "./relax.js";
@@ -61,7 +61,7 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
       // The season the answer itself reads, resolved once: highlights' own (a dated window, "in March 2026", is its
       // season's); a team's stats read the scope's season ("last season" the latest completed one), the current season
       // when none is said (../answers/season.ts).
-      const shown = again.intent === "highlights" ? placeSeason(again, again.time?.season ?? null, opts) : readScopeOf(again)?.season ?? currentSeason();
+      const shown = again.intent === "highlights" ? placeSeason(again, again.time?.season ?? null, opts) : readScopeOf(again)?.season ?? defaultSeason();
       if (shown !== tops.season) {
         tops = await topTeamsSaid(q, ctx, shown);
         again = tops ? await parseQuery(tops.q, ctx) : null;

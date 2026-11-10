@@ -174,7 +174,7 @@ const recovery = (q: string, understood: string[], closest: SearchHit[] = []): S
  *  docs/search-layers.md): the readers below are Layer 1, and a query they miss is read again by its words. */
 export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promise<SearchAnswer> {
   // The season a query naming none means (./answers/season.ts), read before the readers that use it.
-  await refreshSearchSeason();
+  await refreshSearchSeason(opts.now);
   if (opts.inner || opts.intents === false || opts.rewrites) return readerAnswer(raw, opts);
   // Informal short forms said in full first ("events happening rn"), in the query as typed (its quotes and operators
   // kept), the answer keeping the query as typed.

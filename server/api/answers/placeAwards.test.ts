@@ -220,8 +220,9 @@ describe("a place's award winners", () => {
     const tx = await placeAwardsAnswer((await readPlaceAwards("Texas teams in the playoffs at worlds this season"))!);
     expect(tx.headline?.value).toBe("2 teams");
     expect((await placeAwardsAnswer((await readPlaceAwards("did any Ohio team make worlds finals"))!)).headline?.value).toBe("No");
-    // At Worlds "last year" is the latest Championship finished, "last season" the one before; a list is one season.
-    expect(await readPlaceAwards("did any Ontario team win Connect at worlds last year")).toMatchObject({ season: S, worlds: true });
+    // At Worlds "last year" is the latest Championship finished, and "last season" the latest completed season: the
+    // same one while the current season is under way (here the season before S); a list is one season.
+    expect(await readPlaceAwards("did any Ontario team win Connect at worlds last year")).toMatchObject({ season: S - 1, worlds: true });
     expect(await readPlaceAwards("did any Ontario team win Connect at worlds last season")).toMatchObject({ season: S - 1 });
     expect(tx.scope.at(-1)).not.toBe("All seasons");
     await run("UPDATE match_teams SET on_field = 0 WHERE code = 'FTCCMP1' AND team = 33333");

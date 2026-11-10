@@ -11,7 +11,7 @@ import type { CompoundQuestion, SeasonWords } from "./compound.js";
 import { fuzzyScore } from "../fuzzy.js";
 import { teamEventSet, type TeamEvent } from "./eventSet.js";
 import { teamMatches } from "./matchSet.js";
-import { currentSeason, seasonWhy } from "./season.js";
+import { defaultSeason, seasonWhy } from "./season.js";
 import { awardsAnswer } from "./families/awards.js";
 import { beatTopAnswer, combinedAnswer, eventPairAnswer, eventPicksAnswer, listAnswer, listPairAnswer, listTitle, marginAnswer, oprExcludingAnswer, reliabilitySetAnswer, sideThresholdAnswer, winLossAverageAnswer } from "./families/compound.js";
 import { matchAnswer, whoOf, type AnswerTeam } from "./families/matches.js";
@@ -170,7 +170,7 @@ async function listSearch(q: string, c: Extract<CompoundQuestion, { kind: "list"
   const label = listTitle(c, c.city ? c.city.replace(/\b\w/g, (x) => x.toUpperCase()) : null);
   const answer: SearchAnswer = {
     q, hits: [], pages: opts.pages, step: "deterministic", weak: false,
-    understood: { kind: "question", label, season: c.season ?? currentSeason(), ...(c.region ? { place: { key: c.region.key, name: c.region.name } } : {}) },
+    understood: { kind: "question", label, season: c.season ?? defaultSeason(), ...(c.region ? { place: { key: c.region.key, name: c.region.name } } : {}) },
     intent: { kind: "stat-compound-list", pattern: `teams${c.region ? " [place]" : c.city ? " [city]" : ""}${c.award ? " [award]" : ""}${c.worlds ? " [worlds]" : ""}${c.thresholds.length ? " [threshold]" : ""}${c.noWorlds ? " [not worlds]" : ""}${c.rookie ? " [rookie]" : ""}`, met: true, understood: [label] },
   };
   if (!opts.full) return { ...answer, pages: [{ title: label, href: `/search?q=${encodeURIComponent(q)}` }, ...opts.pages] };

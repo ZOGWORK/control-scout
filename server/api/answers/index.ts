@@ -12,7 +12,7 @@ import { dateRange, seasonLabel } from "../../../src/shared/format.js";
 import { edits, findRegions, regionLabel } from "../../../src/shared/regions.js";
 import { eventTypeLabel } from "../../../src/shared/labels.js";
 import { CURRENT_SEASON, SEASON_NUMBERS } from "../../data/seasons.js";
-import { completedSeason, currentSeason, seasonWhy } from "./season.js";
+import { completedSeason, currentSeason, defaultSeason, seasonWhy } from "./season.js";
 import { teamNameOf } from "../../../src/shared/teamTitle.js";
 import { teamPageSql } from "../../../src/shared/teamPages.js";
 import { all, get } from "../../db.js";
@@ -251,17 +251,21 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
   // one event for its results: its Worlds of the latest completed season.
   const matchRead = EVENT_SCOPE_INTENTS.has(it.id) || ((it.family === "aggregate" || it.family === "superlative") && !EVENT_ROWS.has(it.id) && !SEASON_ROWS.has(it.id));
   const oneEvent = !s.ever && it.id !== "match-lookup" && ((s.states && matchRead) || (s.championship && it.id === "results" && s.season == null && !s.latest && !s.at));
+  // The answers newly read as one state championship (a record, a match list, a score) keep the reading across its
+  // state championships when no one event of the team's is found (its event list leaves some out): labelled so.
+  const acrossIfNone = !s.at && s.states && !EVENT_SCOPE_INTENTS.has(it.id);
   if (region) scope.place = { country: region.country, state: region.state, name: region.name };
   else if (s.at || oneEvent) {
     // An event the team attended, in the season asked for ("this season": the team's latest with matches).
     // A forecast's "this season" is the current one (its upcoming event), not the team's last played.
     const season = s.year ? null : s.season ?? (s.latest ? (PREDICT_INTENTS.has(it.id) ? currentSeason() : (await latestSeason(team, it.id))?.season ?? null) : null);
-    if (s.latest && season == null) return null;
+    if (s.latest && season == null && !acrossIfNone) return null;
     const p = teamPick((await teamEventSet(team)).events, s, season);
     if (p) {
       const codes = p.events.map((e) => e.code);
       return { ...scope, season: null, states: false, event: { season: p.primary.season, code: p.primary.code, name: p.name, ...(codes.length > 1 ? { codes } : {}) } };
     }
+    if (acrossIfNone) return { ...scope, season: s.year && s.season != null ? s.season - 1 : season ?? s.season };
     // An event read beside the team names one of its own, or none.
     if (s.own) return null;
     // Worlds with none of the latest season: every season the team went, as before.
@@ -392,7 +396,7 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   // "Which event had the most teams in California this season", "biggest qualifiers in Texas": events by team count.
   const big = readBiggestEvents(q);
   if (big) {
-    const stat = opts.full ? await biggestEventsAnswer(big, currentSeason()) : null;
+    const stat = opts.full ? await biggestEventsAnswer(big, defaultSeason()) : null;
     const label = stat?.title ?? `Events with the most teams${big.e.region ? ` in ${big.e.region.name}` : ""}`;
     return { q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label, ...(big.e.region ? { place: { key: big.e.region.key, name: big.e.region.name } } : {}) },
       intent: { kind: "stat-biggest-events", pattern: `events with the most teams${big.e.region ? " [place]" : ""}`, met: true, understood: [label] }, ...(stat ? { stat } : {}) };
@@ -430,7 +434,15 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   }
   // The asks' leaderboards are drawn here on the page; the dropdown keeps the asks' own short card.
   const board = readLeaderboard(q);
-  if (board) return boardSearch(q, board, opts);
+  if (board) {
+    const a = await boardSearch(q, board, opts);
+    // No season said: the current one, then the one before when nobody has played it there yet, said on the card,
+    // as the asked boards and the pipeline's read it (the one season rule, ./season.ts).
+    // Boards over every season (careers, the oldest active) and a city's (its own "now") have no season to step.
+    if (board.season != null || !opts.full || ["career", "oldest", "city", "city-best"].includes(board.kind)) return a;
+    const season = currentSeason();
+    return relaxed(a, defaultSteps(season, board.region ? ` in ${board.region.name}` : "", board.undefeated ? "undefeated teams" : "ranked teams"), (s) => boardSearch(q, { ...board, season: s }, opts));
+  }
   // An asked board reads the season as the pipeline does: the current one, then the one before when nobody is ranked
   // there yet, said on the card.
   const asked = opts.full ? boardOfAsk(q) : null;
@@ -1169,7 +1181,7 @@ export async function boardSearch(q: string, said: LeaderboardQuestion, opts: { 
     }
   }
   if (isCity && !city) return null;
-  const st = boardStatFor(b.stat, b.season ?? currentSeason());
+  const st = boardStatFor(b.stat, b.season ?? defaultSeason());
   if (!st) return null;
   const where = b.town ? ` in ${b.town}` : b.region ? ` in ${b.region.name}` : city ? ` ${b.school ? "at" : "in"} ${city.city}${b.cityIn ? `, ${b.cityIn.state || b.cityIn.name}` : ""}` : "";
   const label = b.event ? `${b.event.home ? `${b.event.home.name} teams` : "Best teams"} at ${b.event.name}` : b.kind === "oldest" || b.kind === "career" ? careerBoardTitle({ kind: b.kind, stat: st }, where || " worldwide"): b.kind === "city" ? `Teams${where}` : b.kind === "city-best" ? `Best team${where} by OPR` : b.kind === "gain" ? `Most OPR gained${where} between first and last event`: b.teams ? `${b.teams.length} teams by ${statWords(st)}` : b.undefeated ? `Undefeated teams${where}` : (st.count || b.window) && b.best ? `Team${where} with the most ${statWords(st)}${b.window ? ` ${b.window.label}` : ""}` : b.window ? `Top ${b.n} teams${where} by ${statWords(st)} ${b.window.label}` : b.kind === "rookie" && b.asc ? `Lowest rookie teams${where} by ${statWords(st)}` : b.asc ? `Lowest ${b.n > 1 ? `${b.n} teams` : "team"} by ${statWords(st)}${where}` : b.best ? `Best team${where} by ${statWords(st)}` : b.kind === "rookie" ? `Best rookie teams${where}` : b.kind === "improved" ? (b.climb ? `Teams${where} that climbed from OPR rank ${b.climb.from}+ to the top ${b.climb.to}` : `Most improved teams${where}`) : b.kind === "steady" ? `Most stable OPR${where}: the fewest ups and downs` : b.kind === "phases" ? `Strongest in every phase${where}` : `Top ${b.n} teams by ${statWords(st)}${where}`;

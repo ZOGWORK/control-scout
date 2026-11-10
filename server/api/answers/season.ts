@@ -6,19 +6,20 @@
 // The rule, applied the same in every intent:
 //   - a team's question with no season, or "this season": the team's latest season with matches, said on the card;
 //   - a question about no team (a leaderboard, a place's best match) with no season: the current season, said on the
-//     card; when it has nothing yet the readers step back a season and say so (../query/relax.ts);
+//     card; when it has nothing yet the readers step back a season and say so (../query/relax.ts), and a reader with
+//     no step of its own reads `defaultSeason`: the current season once it has matches, else the latest with any;
 //   - "last season" / "last year": the latest completed season, said on the card;
 //   - a season named is honoured exactly.
 import { seasonLabel } from "../../../src/shared/format.js";
 import { CURRENT_SEASON } from "../../data/seasons.js";
 import { get } from "../../db.js";
-import { CHAMPIONSHIP_TYPE, OFFICIAL_TYPES } from "./clauses.js";
+import { CHAMPIONSHIP_TYPE } from "./clauses.js";
 import { names } from "../query/names.js";
 import { normalise, queryTime } from "../query/parse.js";
 import { seasonOfDate } from "../query/time.js";
 
 const TTL_MS = 10 * 60_000;
-let cached: { completed: number; current: number; at: number } | null = null;
+let cached: { completed: number; current: number; played: number; at: number; day: string } | null = null;
 
 /** The completed season from the data: the newest season with a FIRST Championship event that has ended, else (no
  *  Championship stored at all) the newest season with matches before the current one. */
@@ -32,16 +33,24 @@ async function readCompleted(today: string): Promise<number> {
 /** Reads the seasons again once `TTL_MS` has passed (search calls this before it reads a query). Returns the current
  *  season. */
 export async function refreshSearchSeason(now = Date.now()): Promise<number> {
-  if (cached && now - cached.at < TTL_MS) return cached.current;
   const today = new Date(now).toISOString().slice(0, 10);
+  // Read again after `TTL_MS`, or for another day (a question asked as of another date reads that day's seasons).
+  if (cached && cached.day === today && Math.abs(now - cached.at) < TTL_MS) return cached.current;
   const completed = await readCompleted(today);
-  // The season today is in; never before the one that has finished (a clock set back).
-  cached = { completed, current: Math.max(seasonOfDate(today), completed), at: now };
+  // The season today is in, never before the one that has finished (a clock set back).
+  const current = Math.max(seasonOfDate(today), completed);
+  // The newest season with matches on record, up to the current one.
+  const p = await get<{ s: number | null }>("SELECT MAX(season) s FROM team_season_stats WHERE matches > 0 AND season <= ?", [current]);
+  cached = { completed, current, played: p?.s != null ? Number(p.s) : completed, at: now, day: today };
   return cached.current;
 }
 
 /** The current competition season (2026–27 in autumn 2026): what a question about no team reads when it names none. */
 export const currentSeason = (): number => cached?.current ?? CURRENT_SEASON;
+
+/** A question about no team, read by an answer with no step back of its own: the current season once any team has
+ *  matches in it, else the newest season with matches (the card says so, seasonWhy "any"). */
+export const defaultSeason = (): number => cached?.played ?? CURRENT_SEASON;
 
 /** The latest completed season: the newest whose FIRST Championship has finished (2025–26 until spring 2027). The
  *  latest Worlds held is this season's. */
@@ -58,12 +67,11 @@ export function relativeSeason(relative: "this" | "last" | null | undefined, nam
   return relative === "this" ? currentSeason() : relative === "last" ? lastSeason() : null;
 }
 
-/** The latest season `team` has played an official match in (a season of only scrimmages isn't one, nor one where it
- *  is only on a roster), or null when it has none. What a team's question reads when it names no season. */
+/** The latest season `team` has played matches in, as its team page picks its season (server/api/teams.ts: the
+ *  newest season row with matches, official events only), or null when it has none. What a team's question reads
+ *  when it names no season. */
 export async function teamSeason(team: number): Promise<number | null> {
-  const r = await get<{ s: number | null }>(
-    `SELECT MAX(s.season) s FROM team_event_stats s JOIN events e ON e.season = s.season AND e.code = s.code
-     WHERE s.team = ? AND s.matches > 0 AND e.type IN (${OFFICIAL_TYPES.map(() => "?").join(", ")})`, [team, ...OFFICIAL_TYPES]);
+  const r = await get<{ s: number | null }>("SELECT MAX(season) s FROM team_season_stats WHERE team = ? AND matches > 0", [team]);
   return r?.s != null ? Number(r.s) : null;
 }
 
@@ -78,7 +86,8 @@ export function seasonWhy(kind: "any" | "team" | "teams" | "this" | "this-any" |
   const S = seasonLabel(season);
   const current = season === currentSeason();
   switch (kind) {
-    case "any": return `With no season named, the season is ${S}, the current season.`;
+    case "any": return current ? `With no season named, the season is ${S}, the current season.`
+      : `With no season named, the season is ${S}, the latest season with matches on record (no ${seasonLabel(currentSeason())} matches yet).`;
     case "this-any": return `"This season" is ${S}, the current season.`;
     case "team": return current ? `With no season named, the season is ${S}, the current season, which ${who ?? "the team"} has played in.`
       : `With no season named, the season is ${S}, the latest season ${who ?? "the team"} has played in (no ${seasonLabel(currentSeason())} matches on record yet).`;
@@ -91,7 +100,7 @@ export function seasonWhy(kind: "any" | "team" | "teams" | "this" | "this-any" |
 }
 
 /** The answer's note on the season it chose, when the query named none and no team is asked about. */
-export const searchSeasonWhy = (s = currentSeason()) => seasonWhy("any", s);
+export const searchSeasonWhy = (s = defaultSeason()) => seasonWhy("any", s);
 
 /** `q` asked about `season` instead (the answer's season picker, /search?season=): the season, game, "this/last
  *  season" or "ever" words it says are taken out and the season written as one is put in, so every reader takes the

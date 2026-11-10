@@ -72,7 +72,9 @@ export async function changeAnswer(c0: ChangeQuestion, team: Team): Promise<Stat
   // No season said: the team's latest season with matches, the one season rule (../season.ts); the season before it
   // when the change is from one season to the next.
   const c = c0.defaulted ? await (async () => { const s = await teamSeason(team.number); return s == null || s === c0.to ? c0 : { ...c0, to: s, from: c0.from == null ? null : c0.from - (c0.to - s) }; })() : c0;
-  return c.from != null ? seasonsAnswer(c, c.from, team) : withinAnswer(c.to, team, !!c.defaulted);
+  if (c.from == null) return withinAnswer(c.to, team, !!c.defaulted);
+  const a = await seasonsAnswer(c, c.from, team);
+  return c.defaulted ? { ...a, definition: `${a.definition} ${seasonWhy("this", c.to, String(team.number))}` } : a;
 }
 
 /** One number in two seasons: the team page's season rows, and the difference. */

@@ -25,7 +25,7 @@ import { CURRENT_SEASON, SEASONS } from "../data/seasons.js";
 import { all, get } from "../db.js";
 import { RANKED_MIN_MATCHES } from "../../src/shared/rankings.js";
 import { teamPageSql } from "../../src/shared/teamPages.js";
-import { currentSeason, relativeSeason } from "./answers/season.js";
+import { defaultSeason, relativeSeason } from "./answers/season.js";
 import { RECORD_TYPES } from "./searchHighScores.js";
 import { allowedEdits, editDistance, normalize } from "./fuzzy.js";
 import { search } from "./search.js";
@@ -752,7 +752,7 @@ export async function bottomAnswer(q: string): Promise<SearchAnswer | null> {
   // teams" is.
   const word = m[2] ?? m[1] ?? "rating";
   const stat = BOARD_STATS[/rating/.test(word) ? "rating" : word === "win rate" ? "win-rate" : word.replace(/\s+opr$/, "")];
-  const season = currentSeason();
+  const season = defaultSeason();
   const sorted = stat?.teamsSort ? teamsHref(season, stat, region) : null;
   const where = region ? ` in ${region.name}` : "";
   const href = sorted ? `${sorted}&dir=asc` : `/rankings?season=${season}${region ? `&region=${encodeURIComponent(region.key)}` : ""}`;
@@ -1015,7 +1015,7 @@ export async function teamListAnswer(q: string): Promise<SearchAnswer | null> {
   }
   // Nothing below is asked: never a database read for an ordinary search.
   if (!/\b(?:best|top|strongest|highest|biggest|max(?:imum)?|undefeated|unbeaten|perfect|no losses|without a loss|win(?:ning|rate)?|improved|rookies?|oldest|newest|youngest|first[\s-]year|veteran|average|mean|avg|worlds|first championship|world championship)\b/.test(t)) return null;
-  const season = currentSeason();
+  const season = defaultSeason();
   // A country's best: "best teams in canada", "top teams in romania" (a state's are the leaderboards').
   if ((m = /^(?:the\s+)?(?:best|top|strongest|highest[\s-]ranked)(?:\s+(\d+))?\s+(?:teams?|robots?)\s+(?:in|from|of)\s+(.+)$/.exec(t))) {
     const p = await placeOf(cased(q, m[2]));
@@ -1383,7 +1383,7 @@ export async function placeTeamsAnswer(q: string, prefer: ReadonlySet<string>): 
   // "Teams in Great Britain" names its place after "in", so it's never read this way.
   if (!/^(?:all\s+)?(?:the\s+)?teams?\s/.test(t) && /\b(?:best|top|strongest|highest|most|worst|rookie|oldest|newest|undefeated)\b/.test(m[1])) return null;
   const p = await placeOf(cased(q, m[1]));
-  const season = currentSeason();
+  const season = defaultSeason();
   if (p) {
     const rows = await all<any>(`SELECT s.team, t.name, t.city, t.state, t.country, s.opr_np, ${PHASE_COLS}, s.wins, s.losses, s.ties FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE s.season = ? AND s.matches >= ${RANKED_MIN_MATCHES} AND ${teamPageSql("s.team", "t.name")}${placeSql(p)} ORDER BY s.opr_np DESC, s.team LIMIT 25`, [season, ...placeArgs(p)]);
     const n = await get<{ n: number }>(`SELECT COUNT(*) n FROM team_seasons ts JOIN teams t ON t.number = ts.team WHERE ts.season = ?${placeSql(p)}`, [CURRENT_SEASON, ...placeArgs(p)]);
