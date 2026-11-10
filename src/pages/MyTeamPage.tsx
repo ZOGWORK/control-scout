@@ -2,6 +2,7 @@
 // next event outlook, and activity from the teams and events you track.
 // Works with no account (saved on this device); signed in, it syncs.
 import { OFFICIAL_ONLY } from "../shared/eventRecord";
+import { recordWords } from "../shared/format";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ArrowRight, CalendarDays, Crosshair, Eye, History, Sparkles, Star, Swords, Target, Trophy, X } from "lucide-react";
@@ -172,7 +173,7 @@ function Dashboard({ team }: { team: number }) {
                   value={s?.rating ? <>{num(s.rating.np)}<span className="ml-1 text-base font-medium text-muted-foreground">±{num(s.rating.sd)}</span></> : "—"}
                   hint={s?.rating ? `${s.rating.rank ? `#${s.rating.rank.toLocaleString()} worldwide · ` : ""}${s.rating.matches} matches` : `no matches ${when}`} /></StaggerItem>
                 <StaggerItem><StatTile tone="emerald" icon={Trophy} label="Record"
-                  value={r ? <span aria-label={`${r.wins} wins, ${r.losses} losses, ${r.ties} ties`}><span className="text-success">{r.wins}</span><span className="text-muted-foreground">-</span><span className="text-destructive">{r.losses}</span><span className="text-muted-foreground">-{r.ties}</span></span> : "—"}
+                  value={r ? <span aria-label={recordWords(r.wins, r.losses, r.ties)}><span className="text-success">{r.wins}</span><span className="text-muted-foreground">-</span><span className="text-destructive">{r.losses}</span><span className="text-muted-foreground">-{r.ties}</span></span> : "—"}
                   // The record is official events only; the matches and events counted beside it are every one played.
                   hint={r ? `${OFFICIAL_ONLY} · ${r.matches} matches at ${r.events} event${r.events === 1 ? "" : "s"} in all` : `no matches ${when}`}
                   bar={r && r.wins + r.losses + r.ties > 0 ? <RecordMeter w={r.wins} l={r.losses} t={r.ties} /> : null} /></StaggerItem>

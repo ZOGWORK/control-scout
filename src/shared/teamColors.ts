@@ -3,8 +3,10 @@
 
 export interface TeamColor { id: string; label: string; /** Any CSS colour (fills, dots, chart lines). */ css: string }
 
+// No gold: gold/yellow is the interface accent (buttons, the current tab), never a team's colour. A team saved as
+// gold before shows in its usual colour (the id no longer resolves).
 export const TEAM_COLORS: readonly TeamColor[] = [
-  { id: "gold", label: "Gold", css: "#eab308" },
+  { id: "indigo", label: "Indigo", css: "#818cf8" },
   { id: "sky", label: "Sky", css: "#38bdf8" },
   { id: "emerald", label: "Emerald", css: "#34d399" },
   { id: "violet", label: "Violet", css: "#a78bfa" },

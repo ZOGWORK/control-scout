@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.3.0 — 2026-11-10
+## 5.3.8 — 2026-11-10
 
 The season's highest scores read calmly in blue, play each match's video in the row, and mark every score from an event that didn't play by the usual rules.
 
@@ -30,6 +30,125 @@ The season's highest scores read calmly in blue, play each match's video in the 
 
 ### Fixed
 - Records: a score can be marked "Not an official record" for a whole event, not just one match. Carolinas Premier Event (DECODE, Jul 25–26, 2026) is now marked as a whole, so Q54 (592) carries the mark like Q49 (714), in search answers, best-score tables and the match finder. (#1341)
+
+
+## 5.3.7 — 2026-11-10
+
+Search finds a team whose name is typed nearly right even when its first words are a name two other teams share.
+
+### Highlights
+- [fixes] "girls in roboics 2 record" finds Girls in Robotics 2
+- [fixes] A name two teams share still asks which one you mean
+- [fixes] A number after a team name is never taken for an event
+
+### Fixed
+- Search: a team's name typed nearly right that runs past a shorter name several teams share ("girls in roboics 2", where two teams are called Girls in Robotics) reads as the longer team, never another team found by part of the words, or the number taken for an event. The shorter name typed alone still asks which team. (#1347)
+
+## 5.3.6 — 2026-11-10
+
+Search says why a team's events are from the season shown, and reads names with punctuation or typed nearly right.
+
+### Highlights
+- [fixes] "4215 events this season" says why that season
+- [fixes] A team's record and OPR always name the same season
+- [fixes] "die toaster, die!'s worst score" finds the team
+- [fixes] A misspelled team name ending in a number finds that team
+
+### Fixed
+- Search: a team's events with no season named, or "this season", say on the card which season was read and why, as its record and OPR do.
+- Search: a team's newest season where it was only ever a no-show is no longer its season for answers that default to its latest: its record, OPR and every other card name the same season (the one season rule). The card's note says no match of the newer season has been played yet, never that none is on record.
+- Search: a possessive after a name that ends in punctuation ("die toaster, die!'s") reads as the team, never as a stray "s".
+- Search: a team's name typed nearly right that runs past a shorter team's name ("girls in roboics 2") reads as the longer team, never the shorter one plus the number taken for an event. (#1340)
+
+## 5.3.5 — 2026-11-10
+
+Search suggestions name only six teams, by their names.
+
+### Highlights
+- [home] Home's suggestions name only six New Jersey teams
+- [home] Teams go by name ("Bad Wolf auto OPR") where search answers it
+- [fixes] Filtered suggestions answer this season again
+
+### Changed
+- Home: the suggestion chips and the "Try …" placeholder name only teams 4215 Hypnotic Robotics, 6980 Bad Wolf, 7149 ENFORCERS, 14481 Don't Blink, 23268 Ultraviolet and 19477 Bit by Bit, by name wherever search answers the name. Ultraviolet is four teams' name, and three teams' names side by side don't answer as a comparison yet, so those go by number. Next-event chips are gone until one of the six has a published next event. A test fails on any suggestion naming another team. (#1343)
+- Search: the "Try" example chips and the how-it-works search examples use the same six teams.
+
+### Fixed
+- Home: seven several-filter suggestions ("teams in texas with opr over 150") answered "none" in the young 2026–27 season. Their thresholds now fit this season, or they ask about last season.
+
+## 5.3.4 — 2026-11-10
+
+One record score on the match records page and in search, light event pages ranked like the full page, and related searches that say what they count.
+
+### Highlights
+- [rankings] Match records show the season record search gives
+- [offline] A light league meet page ranks every team on the meet itself
+- [fixes] "Best score" says it leaves penalties out
+- [fixes] "Teams at an event" previews say how many teams
+
+### Fixed
+- `/matches` gave 352 as the season's highest (a scrimmage, penalties in) where search gave 246 (official events, penalties left out). The page now leads with the season record as search gives it (`seasonRecordLine`, `/api/records/:season/high-score`), and its table is said for what it is: every played match by score, penalties in, all events. A record search marks as not official, or with penalties not posted, is marked here too, and the page says the table counts penalties and every event. (#1334)
+- The light event page (`/lite/events/…`) at a league meet ranked teams on FIRST's running league standing (league rank, its ranking score, "RP"), so the meet's winner showed rank 8 and teams FIRST's league list left out had no rank. It now ranks every team on the meet's own standing, as the full page's Meet view does, with the column named RS (ranking score) and a line saying what it is.
+- A highlights headline says "Best score without penalties", so an event's best (Q6, 78) is never read against its high score with penalties (Q14, 217).
+- The related search "teams at <event>" previews "10 teams · first: 12853 Robo Cavos …" (`StatAnswer.listed`), never one team as if it were the list.
+
+## 5.3.3 — 2026-11-10
+
+Every page links Methodology, FAQ, Rules, Settings and Donate from its footer, and /how-it-works opens How it works.
+
+### Highlights
+- [fixes] Every page's footer links Methodology, FAQ, Rules, Settings and Donate
+- [fixes] /how-it-works opens How it works instead of "Not found"
+- [fixes] The footer is there before the app loads, and without JavaScript
+
+### Fixed
+- The footer's links live in one list (`src/shared/footer.ts`) shared by the app's footer and the server's first paint (`server/bootShell.ts`), so they are in every page's HTML before the app loads and without JavaScript: Methodology, FAQ, Rules, Settings, Donate, Contact, Privacy, Terms.
+- `/how-it-works` (and `/how-it-works/`) 301s to `/methodology`, the page the sidebar's How it works opens, in one hop; the app redirects the same way. (#1329)
+
+## 5.3.2 — 2026-11-10
+
+Small words set right: the home headline's spelling, the power rankings' day and snapshot, the contact limit, a league meet's playoffs.
+
+### Highlights
+- [fixes] The home headline reads "Scouting, Reimagined"
+- [rankings] Power rankings say their ratings are frozen with the write-ups
+- [fixes] A league meet's Playoffs tab says league meets have no playoffs
+- [fixes] The contact form stops at its 5,000-character limit
+
+### Fixed
+- The saved home hero line "Scouting, Remagined" reads "Reimagined" (migration 80; next free migration 81).
+- The FAQ no longer promises a Friday publish: a new power-rankings week normally comes out on Friday, the page says the day it did, and it is checked again daily. Each week's stats line says its ratings are frozen with the write-ups and a team's page can differ today, so a rating that moved since (21229: 145.9 there, 146.3 live) is explained on the page.
+- The contact message box's limit is the 5,000 its counter shows (it allowed 5,200), and the counter counts every character the box does.
+- A league meet's Playoffs tab says league meets play qualification matches only (alliances are picked at the league tournament); an event whose last day has passed with no alliances on record says so, instead of "Alliances not selected yet".
+- Records read aloud say "1 loss", "1 win", "1 tie" (`recordWords`), never "1 losses". (#1332)
+
+## 5.3.1 — 2026-11-10
+
+Gold is the accent only: charts, compared teams and team colours use their own hues, and team B is no longer amber beside it.
+
+### Highlights
+- [fixes] Team B on dark is vermilion, no longer amber beside the gold
+- [fixes] Charts and Compare draw teams in team hues, never the accent
+- [fixes] Indigo replaces gold among team colours
+
+### Fixed
+- Team B's colour on dark was Okabe–Ito amber (#e69f00), a step from the accent gold (#eab308): a compared team read as a button. It is now vermilion (#f0763a, the light theme's #d55e00 lifted for dark).
+- The first chart colour was the accent itself, so a team's own trend and Compare's first team were gold. It is team A's blue; Compare draws each team in the team hues search's compare card uses, with a fourth (reddish purple) for a fourth team.
+- Compare marked each row's best value and the baseline column in gold; the best is now bold on a neutral tint, the baseline a neutral tint.
+- The colours a scout gives their teams had Gold; it is Indigo now. A team saved as gold shows in its usual colour. (#1337)
+
+## 5.3.0 — 2026-11-10
+
+A search's heading is the answer's own: words it read past get a quiet note of their own, and no heading is said twice.
+
+### Highlights
+- [fixes] Search headings never carry "isn't part of this answer"
+- [fixes] Words an answer read past get their own small note
+- [fixes] A search page no longer says its heading twice
+
+### Fixed
+- An answer that reads past some of the query's words ("4215 last prediction for East Bergen", "23268 rating going up or down") put `"last" isn't part of this answer` into its label, which titles the page. The words now go in `understood.unread` and show as a quiet note under the answer ("Not used in this answer: "last""), on the page and in its first HTML; the label is the answer's own.
+- The first HTML of a search no longer repeats the heading: a stat's or card's own title that matches it, and a headline label that only repeats the title, are left out (35 of 200 audited pages said their title twice). (#1335)
 
 ## 5.2.9 — 2026-11-10
 

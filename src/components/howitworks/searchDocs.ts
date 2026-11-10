@@ -84,7 +84,7 @@ export const SEARCH_SHOWCASE: { title: string; items: { q: string; what: string 
     { q: "East Bergen conference inspire award winner", what: "Who won one award at one event" },
   ] },
   { title: "One team, in plain words", items: [
-    { q: "is 14450's rating rising or falling in 2025-26", what: "The prediction rating after each event, so you can see which way it went" },
+    { q: "is 7149's rating rising or falling in 2025-26", what: "The prediction rating after each event, so you can see which way it went" },
     { q: "4215 teleop opr by event 2025-26", what: "One part of OPR, at each event of the season" },
     { q: "7149 events in june", what: "A team's events in one month" },
     { q: "what is my 4215 upcoming event", what: "The next event the team is listed for, once FIRST has posted it" },

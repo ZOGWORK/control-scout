@@ -4,6 +4,7 @@
 // in the team hue (filled on the top three), an award a filled chip in its kind's colour, an OPR a bar in the team hue.
 // Alliance red and blue stay where they mark an alliance. A cell that isn't in a known shape stays plain text.
 import { useId, useState, type ReactNode } from "react";
+import { recordWords } from "../../../shared/format";
 import { Award, Info, Medal, Trophy } from "lucide-react";
 import { PODIUM_CHIP, SEARCH_PALETTE, meaningOf } from "../../../lib/textTones";
 import { eventTypeLabel } from "../../../shared/labels";
@@ -110,7 +111,7 @@ export function RecordText({ text, className, win = "text-foreground" }: { text:
   const m = RECORD.exec(text.trim());
   if (!m) return <>{text}</>;
   return (
-    <span className={cn("whitespace-nowrap tabular-nums", className)} aria-label={`${m[1]} wins, ${m[2]} losses, ${m[3]} ties${m[4]}`} data-record-text>
+    <span className={cn("whitespace-nowrap tabular-nums", className)} aria-label={`${recordWords(m[1], m[2], m[3])}${m[4]}`} data-record-text>
       <span aria-hidden><b className={cn("font-semibold", win)}>{m[1]}</b><span className="text-muted-foreground">-{m[2]}-{m[3]}</span></span>
       {m[4] && <span aria-hidden className="text-muted-foreground">{m[4]}</span>}
     </span>

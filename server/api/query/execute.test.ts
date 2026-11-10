@@ -104,7 +104,7 @@ describe("place and time are applied and stated", () => {
     expect(a.stat).toMatchObject({ headline: { value: "260 points" }, scope: expect.arrayContaining(["Relaxed: this week → 2025–26", "California"]) });
     expect(a.stat!.definition).toContain("this week → 2026–27, then 2026–27 → 2025–26");
     // The chip names the time it relaxed: "this week" is read, never said to be left out.
-    expect(a.understood?.label ?? "").not.toMatch(/isn't part of this answer/);
+    expect(a.understood?.unread ?? []).toEqual([]);
     // A team's question too: its season instead of the week.
     const t = await ask("4215 highest score this week", Date.parse("2026-02-11T12:00:00Z"));
     expect(t.stat).toMatchObject({ headline: { value: expect.stringContaining("150") }, scope: expect.arrayContaining(["Relaxed: this week → 2025–26"]) });

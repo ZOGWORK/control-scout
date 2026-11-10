@@ -311,7 +311,8 @@ const flows: Flow[] = [
     },
   },
   {
-    // V4-A11Y-003: on light, Compare's best values were #eab308 on their own gold tint, 1.8:1. Measured as rendered:
+    // V4-A11Y-003: on light, Compare's best values were #eab308 on their own gold tint, 1.8:1. Since Phase J5 they are
+    // never gold at all (gold is the accent only): bold on a neutral tint. Measured as rendered:
     // each gold text's colour against its real background (semi-transparent tints blended down to the page).
     // The profile's large "Top 8%" stays the accent itself, the owner's large-text exception (Oct 20 2026).
     name: "Light-mode gold text: small gold text reaches 4.5:1 on its real background; large Top 8% keeps the accent",
@@ -325,7 +326,7 @@ const flows: Flow[] = [
       for (const [vp, width, height] of [["desktop", 1440, 900], ["phone", 390, 844]] as const) {
         await page.setViewportSize({ width, height });
         await page.goto(`${BASE}/compare?teams=18360,24089&season=2025`, { waitUntil: "networkidle" });
-        await page.locator("td:has(> .sr-only) > span.font-medium").first().waitFor({ timeout: 30_000 });
+        await page.locator("td:has(> .sr-only) > span.font-bold").first().waitFor({ timeout: 30_000 });
         await page.waitForFunction(() => !document.querySelector(".skeleton, [aria-busy=true]"), null, { timeout: 30_000 });
         await page.waitForTimeout(500);
         assert(await page.evaluate(() => document.documentElement.classList.contains("light")), `${vp}: the page isn't in the light theme`);
@@ -373,19 +374,22 @@ const flows: Flow[] = [
             const cs = getComputedStyle(el), fg = parse(cs.color);
             if (!gold(fg)) continue;
             const bg = backdrop(el), shown = over([fg[0], fg[1], fg[2], fg[3] * +cs.opacity], bg);
-            const best = el.matches("td:has(> .sr-only) > span.font-medium");
+            const best = el.matches("td:has(> .sr-only) > span.font-bold");
             out.push({ text: own.slice(0, 30), kind: best ? "best value" : el.closest("[role=radio]") ? "season" : "other", fg: hex(shown), bg: hex(bg), px: parseFloat(cs.fontSize), weight: +cs.fontWeight, ratio: ratio(shown, bg) });
           }
           return out;
         });
+        // The best values are marked (bold, "(best)" for screen readers), never in gold: gold is the accent only.
         const best = texts.filter((t) => t.kind === "best value");
-        assert(best.length >= 4, `${vp}: found ${best.length} gold best values on Compare (expected at least 4, e.g. 149.9, 55.1, 11.9, 23-5-0)`);
+        assert(!best.length, `${vp}: ${best.length} best values on Compare are gold (${best.map((t) => t.text).join(", ")}); gold is the accent only`);
+        const marked = await page.locator("td:has(> .sr-only) > span.font-bold").count();
+        assert(marked >= 4, `${vp}: found ${marked} bold best values on Compare (expected at least 4, e.g. 149.9, 55.1, 11.9, 23-5-0)`);
         assert(texts.some((t) => t.kind === "season"), `${vp}: the chosen season isn't gold`);
         // Small text: under 24px, or under 18.66px when bold (WCAG's large-text line).
         const small = texts.filter((t) => t.px < 24 && !(t.px >= 18.66 && t.weight >= 700));
         const bad = small.filter((t) => t.ratio < 4.5);
         assert(!bad.length, `${vp}: small gold text under 4.5:1: ${bad.map((t) => `"${t.text}" (${t.kind}) ${t.fg} on ${t.bg} ${t.px}px ${t.ratio.toFixed(2)}:1`).join("; ")}`);
-        seen.push(`${vp} ${small.length} small gold texts, lowest ${Math.min(...small.map((t) => t.ratio)).toFixed(2)}:1 (best ${best[0].text} ${best[0].fg} on ${best[0].bg} ${best[0].ratio.toFixed(2)}:1)`);
+        seen.push(`${vp} ${small.length} small gold texts, lowest ${Math.min(...small.map((t) => t.ratio)).toFixed(2)}:1 (${marked} best values bold, none gold)`);
       }
       // The owner's exception: the profile's 48px percentile stays the accent itself.
       await page.setViewportSize({ width: 1440, height: 900 });

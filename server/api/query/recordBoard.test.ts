@@ -75,3 +75,28 @@ describe("a versus with a number no team has", () => {
     expect(short.understood?.label).toContain("No FTC team 99 in our data");
   });
 });
+
+describe("a possessive after a name ending in punctuation", () => {
+  it("is the team, as typed without it, never a word \"s\"", async () => {
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (11002, 'Die Toaster, Die!', 'Town', 'UT', 'USA')");
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (37179, 's', 'Town', 'OH', 'USA')");
+    await run("INSERT INTO team_seasons (season, team) VALUES (?, 11002)", [S]);
+    await run("INSERT INTO team_season_stats (season, team, rating_np, rating_sd, rating_rank, rating_matches, matches, wins, losses, ties) VALUES (?, 11002, 50, 3, 9, 6, 6, 1, 5, 0)", [S]);
+    await rebuildSearch();
+    clearAllCaches();
+    const plain = await ask("die toaster die record 2025-26");
+    const owned = await ask("what's die toaster, die!'s record 2025-26");
+    expect(plain.understood?.label).toContain("(11002)");
+    expect(owned.understood?.label).toBe(plain.understood?.label);
+    expect(owned.understood?.label).not.toContain("37179");
+    // Any punctuation ending the name: "Green.Griffins;'s record".
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (10092, 'Green.Griffins;', 'Town', 'OH', 'USA')");
+    await run("INSERT INTO team_seasons (season, team) VALUES (?, 10092)", [S]);
+    await run("INSERT INTO team_season_stats (season, team, rating_np, rating_sd, rating_rank, rating_matches, matches, wins, losses, ties) VALUES (?, 10092, 40, 3, 10, 6, 6, 2, 4, 0)", [S]);
+    await rebuildSearch();
+    clearAllCaches();
+    const semi = await ask("Green.Griffins;'s record 2025-26");
+    expect(semi.understood?.label).toContain("(10092)");
+    expect(semi.understood?.label).not.toContain("37179");
+  });
+});
