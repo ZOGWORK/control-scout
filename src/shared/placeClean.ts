@@ -12,10 +12,11 @@ const TRIPLED = /(\p{L})\1{2,}/gu;
 export function cleanCity(city: string | null | undefined, state?: string | null, country?: string | null): string | null {
   if (city == null) return null;
   const own = new Set(placeNames(state, country));
-  let parts = city.replace(TRIPLED, "$1$1").split(",").map((p) => p.trim());
+  // Empty parts out first ("McKinney, Texas," is "McKinney, Texas"), so the check below sees the real last part.
+  let parts = city.replace(TRIPLED, "$1$1").split(",").map((p) => p.trim()).filter(Boolean);
   // The last part names the row's own state or country (a postcode after it allowed: "Orange Beach, AL 36561" in AL).
   while (parts.length > 1 && own.has(parts[parts.length - 1].replace(/\s+\d[\d-]*$/, "").toLowerCase())) parts = parts.slice(0, -1);
-  return parts.filter(Boolean).join(", ") || null;
+  return parts.join(", ") || null;
 }
 
 /** School words FIRST shortens at the end of a name, and the word in full. Only the last word: that's where it cuts. */

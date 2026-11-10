@@ -29,6 +29,8 @@ describe("cleanCity", () => {
     expect(cleanCity("Orange Beach, AL 36561", "AL", "USA")).toBe("Orange Beach");
     expect(cleanCity("Red Deer, Alberta, Canada", "AB", "Canada")).toBe("Red Deer");
     expect(cleanCity("Piscataway,", "NJ", "USA")).toBe("Piscataway");
+    expect(cleanCity("McKinney, Texas,", "TX", "USA")).toBe("McKinney");
+    expect(cleanCity(cleanCity("McKinney, Texas,", "TX", "USA"), "TX", "USA")).toBe("McKinney");
   });
   it("keeps a district or another state's name", () => {
     expect(cleanCity("CDMX, Tlalpan", "CMX", "Mexico")).toBe("CDMX, Tlalpan");

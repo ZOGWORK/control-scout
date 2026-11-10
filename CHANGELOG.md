@@ -20,14 +20,14 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 School names and towns read as they should: no cut-short school names, no doubled state, no stray letters.
 
 ### Highlights
-- [teams] A school name FIRST cut short is written in full ("River Dell Regional High School")
-- [fixes] A town no longer repeats its state ("McKinney, Texas, TX" reads "McKinney, TX")
-- [fixes] A letter typed three times in a town keeps two ("Oradelll" reads "Oradell")
-- [fixes] A numeric state code no longer shows in a place ("San Lorenzo, 11, Paraguay" reads "San Lorenzo, Paraguay")
+- [teams] A school name cut short by FIRST is written in full
+- [fixes] A town no longer repeats its own state ("McKinney, TX")
+- [fixes] A letter typed three times in a town keeps two ("Oradell")
+- [fixes] A numeric state code no longer shows in a place
 
 ### Fixed
 - Team and event places are tidied where a sync writes them (`src/shared/placeClean.ts`, used by `server/data/bundle.ts`), and the rows already stored, past seasons too, are tidied once soon after the server starts (`server/data/tidyPlaces.ts`): a school's cut-short last word ("Sch", "Schl", "Acad", "Elem", "Chrn") in full; a town's run of one letter three or more times kept to two; a town's last comma part dropped when it only names the row's own state or country (a postcode after it allowed). A team with no school in FIRST's data still shows none.
-- `place()` leaves out a part that is only digits, so a numeric state code never shows in an event or team line.
+- `place()` leaves out a part that is only digits, so a numeric state code never shows in an event or team line. (#1327)
 
 ## 5.2.3 — 2026-11-10
 

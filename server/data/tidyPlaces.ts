@@ -1,7 +1,9 @@
 // The rows stored before src/shared/placeClean.ts tidied what is written (and past seasons, which no sync writes
 // again): each team's school and town and each event's town, cleaned the same way, only the rows it changes. Run once
-// soon after the server starts (server/index.ts); a second run finds nothing to change.
-import { all, db } from "../db.js";
+// soon after the server starts (server/index.ts), which rebuilds the search index when anything changed; a second run
+// finds nothing to change. Each write holds only while the row still reads as it was read: a sync that wrote the row in
+// between (already tidied) is never undone.
+import { all, writeBatch } from "../db.js";
 import { cleanCity, cleanSchool } from "../../src/shared/placeClean.js";
 
 interface TeamRow { number: number; school: string | null; city: string | null; state: string | null; country: string | null }
@@ -16,9 +18,10 @@ export async function tidyStoredPlaces(): Promise<{ teams: number; events: numbe
     .map((e) => ({ e, city: cleanCity(e.city, e.state, e.country) }))
     .filter((x) => x.city !== x.e.city);
   const writes = [
-    ...teams.map(({ t, school, city }) => ({ sql: "UPDATE teams SET school = ?, city = ? WHERE number = ?", args: [school, city, t.number] })),
-    ...events.map(({ e, city }) => ({ sql: "UPDATE events SET city = ? WHERE season = ? AND code = ?", args: [city, e.season, e.code] })),
+    ...teams.map(({ t, school, city }) => ({ sql: "UPDATE teams SET school = ?, city = ? WHERE number = ? AND school IS ? AND city IS ?", args: [school, city, t.number, t.school, t.city] })),
+    ...events.map(({ e, city }) => ({ sql: "UPDATE events SET city = ? WHERE season = ? AND code = ? AND city IS ?", args: [city, e.season, e.code, e.city] })),
   ];
-  for (let i = 0; i < writes.length; i += 500) await db().batch(writes.slice(i, i + 500), "write");
+  // writeBatch, not a bare batch: it counts as a data write, so cached reads are dropped.
+  await writeBatch(writes, 500);
   return { teams: teams.length, events: events.length };
 }
