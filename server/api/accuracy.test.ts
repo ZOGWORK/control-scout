@@ -10,6 +10,8 @@ import { LIVE_THRESHOLD, REPLAY_HEADLINE_MIN, brierSkill, ledgerSplit } from "..
 const S = Math.max(...PREDICT_SEASONS);
 let builds = 0;
 let realExec: any;
+/** Run once just before the next bonus read (mid-build, after the scored calls' chunks): a write landing in between. */
+let beforeBonusRead: (() => Promise<void>) | null = null;
 
 async function backtestCall(number: number, p: number, outcome: number) {
   await run(
@@ -24,8 +26,13 @@ beforeAll(async () => {
   setDb(c);
   await migrate(c);
   realExec = c.execute.bind(c);
-  // Count full builds: each reads every scored prediction once.
-  (c as any).execute = (s: any) => { if (String(s?.sql ?? s).startsWith("SELECT kind, season, p_red")) builds++; return realExec(s); };
+  // Count full builds: each reads every scored prediction once, in chunks (db.ts allInChunks): its first chunk counts.
+  (c as any).execute = (s: any) => {
+    const sql = String(s?.sql ?? s);
+    if (sql.startsWith("SELECT id, kind, season, p_red") && s?.args?.at(-1) === Number.MIN_SAFE_INTEGER) builds++;
+    if (beforeBonusRead && sql.includes("p.bonus_red")) { const w = beforeBonusRead; beforeBonusRead = null; return w().then(() => realExec(s)); }
+    return realExec(s);
+  };
 });
 afterAll(() => { (db() as any).execute = realExec; });
 
@@ -62,6 +69,17 @@ describe("side by side: served vs shadow model on the same live calls", () => {
 });
 
 describe("track record cache", () => {
+  it("reads the calls again when a write lands during a build, counting each call once", async () => {
+    // A replay rewriting the season mid-build: deleted and written again (new ids), one call more.
+    beforeBonusRead = async () => {
+      await run("DELETE FROM predictions WHERE kind = 'backtest' AND season = ?", [S]);
+      for (let i = 1; i <= 5; i++) await backtestCall(i, 0.7, i === 4 ? 0 : 1);
+    };
+    const t = await trackRecord();
+    expect(builds).toBe(2);
+    expect(n(t)).toBe(5);
+  });
+
   it("builds once per data version, shared by concurrent callers", async () => {
     const [a, b] = await Promise.all([trackRecord(), trackRecord()]);
     expect(builds).toBe(1);
