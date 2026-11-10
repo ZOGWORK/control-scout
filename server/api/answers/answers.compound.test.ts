@@ -165,6 +165,14 @@ describe("compound answers", () => {
     expect(a.stat?.headline).toMatchObject({ value: "1 of 2" });
     expect(cells(a, /^Partners with OPR there over 80/)).toEqual([expect.objectContaining({ team: "207 Critical Mass", opr: "114.0" })]);
   });
+  it("10: the same asked by the verb (launch audit A4): who partnered, teamed up with, played against", async () => {
+    for (const q of ["who partnered 4215 at NJ championship with opr over 80", "who teamed up with 4215 at nj championship with an opr above 80", "which teams partnered with 4215 at NJ championship that had opr over 80"]) {
+      const a = await ask(q);
+      expect([a.stat?.intent, a.stat?.headline?.value], q).toEqual(["partners-opr-threshold", "1 of 2"]);
+    }
+    for (const q of ["who played with 4215 at NJ championship with opr over 80", "who played alongside 4215 at NJ championship with opr over 80"]) expect((await ask(q)).stat?.intent, q).toBe("partners-opr-threshold");
+    for (const q of ["who played against 4215 at NJ championship with opr over 80", "who faced 4215 at NJ championship with opr over 80", "who played 4215 at NJ championship with opr over 80"]) expect((await ask(q)).stat?.intent, q).toBe("opponents-opr-threshold");
+  });
   it("10: the championship takes in the finals, a division named doesn't; a match off the field meets no one", async () => {
     // A finals match with 1111 (OPR 130) and a division match 4215 sat out with 23268 (OPR 157.9).
     await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (?, 'USNJCMP', 'qual', 0, 900, 'F1', NULL, 1, 150, 150, 100, 100, 't'), (?, 'USNJCMPP', 'qual', 0, 901, 'Q901', NULL, 1, 150, 150, 100, 100, 't')", [S, S]);
