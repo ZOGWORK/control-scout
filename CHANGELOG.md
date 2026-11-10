@@ -25,7 +25,7 @@ The first-run tour now does the real thing at every step: a real search, a real 
 - [predict] The tour ends by opening Predict with the team or event picked
 
 ### Changed
-- Step 1's button runs `who won decode` on the real search page (or the visitor's own question); the card then docks at the bottom so the answer stays readable and asks for a tap on a follow-up question. Step 3 (team pages) is the page's own Track button: tracking moves the tour on, already tracking is noticed, and the team stays tracked. Step 4 runs the highlights search (the team's own, else a season's) and ends on "Predict a match with …" / "Predict a match"; an event page ends on "Predict this event", saying plainly when the event has no recording. While a step points, only the spotlit part and search take taps; typing in search moves the card aside. Tour buttons are 44 px tall on phones. (#PRNUM)
+- Step 1's button runs `who won decode` on the real search page (or the visitor's own question); the card then docks at the bottom so the answer stays readable and asks for a tap on a follow-up question. Step 3 (team pages) is the page's own Track button: tracking moves the tour on, already tracking is noticed, and the team stays tracked. Step 4 runs the highlights search (the team's own, else a season's) and ends on "Predict a match with …" / "Predict a match"; an event page ends on "Predict this event", saying plainly when the event has no recording. While a step points, only the spotlit part and search take taps; typing in search moves the card aside. Tour buttons are 44 px tall on phones. (#1352)
 
 ## 5.4.2 — 2026-11-10
 
