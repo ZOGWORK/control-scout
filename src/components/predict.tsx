@@ -144,7 +144,7 @@ export function CalibrationLine({ pRed, className, compact }: { pRed: number; cl
   if (!c) return null;
   const said = Math.round(c.said * 100), won = Math.round(c.won * 100);
   return (
-    <Link to="/methodology#accuracy" title="A tie counts as half a win" className={cn("group inline-flex items-center gap-1.5 text-xs text-text-muted hover:text-text-base", className)}>
+    <Link to="/methodology#accuracy" title="A tie counts as half a win" className={cn("group inline-flex items-center gap-1.5 text-xs text-text-muted hover:text-text-base pointer-coarse:min-h-[44px]", className)}>
       <span className="size-1.5 shrink-0 rounded-full bg-success" aria-hidden />
       {compact
         ? <>Calls near {said}% came true {won}% of the time</>
@@ -330,7 +330,7 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
           </span>
         )}
         {(p || m.video || m.clip || videos > 0) && (
-          <div className="relative z-[1] flex flex-wrap items-center justify-end gap-1 text-[11px] text-text-muted pointer-coarse:min-h-[44px] pointer-coarse:gap-x-[14px]" data-call-status>
+          <div className="relative z-[1] flex flex-wrap items-center justify-end gap-1 text-[11px] text-text-muted pointer-coarse:min-h-[44px] pointer-coarse:gap-y-[26px]" data-call-status>
             {/* Right and Upset share one width, so the chips after them line up from row to row. */}
             {called === true && <span className={cn(STATUS_CHIP, "min-w-[3.25rem] justify-center bg-success/12 text-success")} data-outcome="right"><Check className="size-3" aria-hidden /> Right</span>}
             {called === false && <span className={cn(STATUS_CHIP, "min-w-[3.25rem] justify-center bg-warning/12 text-warning")} data-outcome="upset"><X className="size-3" aria-hidden /> Upset</span>}
@@ -344,7 +344,7 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
               </span>
             )}
             {m.clip && <ClipLink clip={m.clip} label={m.label} matchKey={m.key} className={cn(STATUS_CHIP, "tap-44", VIDEO_TONE.chip, "still-hover:bg-video/20")}><span className="text-[10px]">Watch</span></ClipLink>}
-            {m.video && <MatchVideoLink url={m.video} label={m.label} matchKey={m.key} className={cn(STATUS_CHIP, "tap-44", "still-hover:text-text-base")} />}
+            {m.video && <MatchVideoLink url={m.video} label={m.label} matchKey={m.key} className={cn(STATUS_CHIP, "tap-44", "still-hover:text-text-base", m.clip && "pointer-coarse:ml-[10px]")} />}
             {videos > 0 && <span className={cn(STATUS_CHIP, "text-accent-text")} title={`${videos} saved video link${videos > 1 ? "s" : ""}`}><Video className="size-3.5" /><span className="text-[10px]">{videos}</span></span>}
           </div>
         )}
@@ -434,6 +434,8 @@ type Group = { key: string; title: string; date?: string; href?: string; ms: Mat
 type ListItem = { kind: "head"; gi: number; key: string } | { kind: "match"; gi: number; m: MatchView; key: string };
 /** Heights for rows not measured yet (desktop / phone, measured on real rows): a match, a level heading, an event's heading. */
 const ROW_H = 71, ROW_H_PHONE = 105, HEAD_H = 29, EVENT_HEAD_H = 41, EVENT_HEAD_H_PHONE = 57;
+/** A touch screen's match row is taller: its team chips and status row are 44 px (measured: 142 px a row at 390 px). */
+const ROW_TOUCH_EXTRA = 38;
 
 /** A match list's row. Memoized: a windowed list renders again at each step of a scroll, and then only the rows
  *  that change, or arrive, render. */
@@ -455,7 +457,7 @@ function GroupHeading({ g, rowProps }: { g: Group; rowProps: Record<string, unkn
     </h3>
   ) : (
     <h3 {...rowProps} className="flex items-center gap-2 border-b border-border bg-muted/40 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted">
-      {g.href ? <Link to={g.href} className="truncate normal-case tracking-normal text-base text-text-base hover:text-accent-text hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-[44px] pointer-coarse:items-center">{g.title}</Link> : g.title}
+      {g.href ? <Link to={g.href} className="truncate normal-case tracking-normal text-base text-text-base hover:text-accent-text hover:underline pointer-coarse:leading-[44px]">{g.title}</Link> : g.title}
       <span className="shrink-0 rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-text-base/80">{g.ms.length}</span>
     </h3>
   );
@@ -498,9 +500,10 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
     ...g.ms.map((m) => ({ kind: "match" as const, gi, m, key: id(m) })),
   ]), [groups]);
   const [phone] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.(PHONE).matches);
+  const [touch] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.("(pointer: coarse)").matches);
   const estimate = (i: number) => {
     const x = flat[i];
-    return x.kind === "match" ? (phone ? ROW_H_PHONE : ROW_H) : groups[x.gi].date ? (phone ? EVENT_HEAD_H_PHONE : EVENT_HEAD_H) : HEAD_H;
+    return x.kind === "match" ? (phone ? ROW_H_PHONE : ROW_H) + (touch ? ROW_TOUCH_EXTRA : 0) : groups[x.gi].date ? (phone ? EVENT_HEAD_H_PHONE : EVENT_HEAD_H) : HEAD_H;
   };
   const loc = useLocation();
   // Named by page and kind of list, so coming Back to it finds its rows' measured heights.

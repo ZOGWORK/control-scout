@@ -57,7 +57,7 @@ export function EventGlance({ d, onTab, live }: { d: EventDetail; onTab: (t: str
   const topOpr = [...d.field].filter((f) => f.opr.np != null).sort((a, b) => b.opr.np! - a.opr.np!)[0] ?? null;
   // inline-block with padding offset by negative margin: a 24px-tall target (WCAG 2.5.8) in the same line box.
   // On touch the row grows to 44 px instead, since team numbers can sit right under it.
-  const reportLink = (key: string, children: ReactNode) => <Link to={matchReportHref({ season, code: e.code, key })} className="-my-1 inline-block py-1 hover:text-accent-text pointer-coarse:my-0 pointer-coarse:inline-flex pointer-coarse:min-h-[44px] pointer-coarse:min-w-[44px] pointer-coarse:items-center pointer-coarse:justify-center pointer-coarse:py-0 pointer-coarse:align-middle">{children}</Link>;
+  const reportLink = (key: string, children: ReactNode, inline = false) => inline ? <Link to={matchReportHref({ season, code: e.code, key })} className="font-semibold hover:text-accent-text">{children}</Link> : <Link to={matchReportHref({ season, code: e.code, key })} className="-my-1 inline-block py-1 hover:text-accent-text pointer-coarse:my-0 pointer-coarse:inline-flex pointer-coarse:min-h-[44px] pointer-coarse:min-w-[44px] pointer-coarse:items-center pointer-coarse:justify-center pointer-coarse:py-0 pointer-coarse:align-middle">{children}</Link>;
 
   const cells: ReactNode[] = [];
   const next = live ? live.match : s.next;
@@ -81,7 +81,7 @@ export function EventGlance({ d, onTab, live }: { d: EventDetail; onTab: (t: str
   if (s.upsets) {
     const u = s.upsets;
     cells.push(<Cell key="upsets" testId="upsets" label={u.kind === "live" ? "Upsets (live calls)" : "Upsets (replayed)"}
-      hint={u.biggest ? <>Biggest: {reportLink(u.biggest.key, u.biggest.label)} ({pctCall(u.biggest.pFav)} favourite lost, <TierMark tier={u.biggest.tier} />)</> : "Every favourite won"}>
+      hint={u.biggest ? <>Biggest: {reportLink(u.biggest.key, u.biggest.label, true)} ({pctCall(u.biggest.pFav)} favourite lost, <TierMark tier={u.biggest.tier} />)</> : "Every favourite won"}>
       {u.n} <span className="font-normal text-muted-foreground">of {u.of}</span>
     </Cell>);
   }

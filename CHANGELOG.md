@@ -26,6 +26,7 @@ On a phone, buttons and links are a full fingertip tall again.
 
 ### Fixed
 - The 14 px phone base shrank buttons and links sized in rem below 44 px tall: an event page had 196 of them, the team page 34. On touch screens they now have at least 44 px to tap, either as an invisible hit area (rows that must not grow) or a taller row where links stack, so two tap areas never sit on top of each other. On Compare, a phone puts the reorder and remove buttons on a row under each team. Desktop with a mouse is unchanged. (#1300)
+- A long match list on a touch screen sizes its rows for the taller touch rows before it measures them, so scrolling doesn't jump. Predict's result folds (the robots' ratings, the full why breakdown) and its track-record link are 44 px too.
 
 
 ## 5.0.9 — 2026-11-10
