@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.9.8 — 2026-11-10
+
+Search reads "comparison", "winner" and "head to head" the way people say them.
+
+### Highlights
+- [fixes] "opr comparison 4215 and 7149" shows the OPR side by side
+- [fixes] "predict winner 4215 6980" shows the match forecast
+- [fixes] "head to head" shows the two teams' meetings, at Worlds when said
+
+### Changed
+- "Comparison", "bigger" and "higher" compare two teams' stat, however the teams are joined ("which opr is bigger, 4215 or 7149").
+- "Winner" in a forecast ("predict 23268 7149 winner", "who is the winner 4215 vs 6980") asks for the match call.
+- "Head to head" and "h2h" read as the teams' meetings card, with a scope said alongside ("4215 versus 6980 worlds head to head score"), never only a Compare link. (#1277)
+
 ## 4.9.7 — 2026-11-10
 
 A championship division's awards are read from its championship, and an event named is its newest edition.
