@@ -30,4 +30,8 @@ describe("prediction vs result", () => {
     expect(kpis?.kind === "kpis" && kpis.items.find((i) => i.label === "Called right")?.value).toBe("2 of 2");
     expect(a.headline?.label).toContain("1 more played with none stored: 3-0-0 in all");
   });
+  it("a team whose every match has no call stored: the record, said so, never the event's odds", async () => {
+    const a = await forecastAt([{ number: 6, name: "Six" }], { season: S, code: "EB", name: "East Bergen", type: "LeagueTournament", start: "2026-03-08", end: "2026-03-08" } as never, true, Date.parse("2026-11-10T00:00:00Z"));
+    expect(a.headline).toMatchObject({ value: "0-1-0", label: "record, no call stored for that match" });
+  });
 });

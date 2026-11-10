@@ -219,6 +219,8 @@ export async function forecastAt(teams: { number: number; name: string | null }[
       : next
         // The bar's own chance (the call now, else the saved one): printed once, the bar keeping it.
         ? { value: pct(call ? call.p : next.pWin), label: `to win ${b ? "their next meeting" : "the next match"} (${next.row.cells.match}), not played yet`, sub: [S, when, label].filter(Boolean).join(" · "), href: predict.href }
+        // Played, but no match had a call stored: the record, said so, never the event's odds standing in for it.
+        : uncalled ? { value: `${wins}-${losses}-${ties}`, label: `${b ? "in their meetings" : "record"}, no call stored for ${uncalled === 1 ? "that match" : `those ${uncalled} matches`}`, sub: [S, when].filter(Boolean).join(" · "), href: predict.href }
         : { value: pre ? pct(pre.pWin) : "–", label: "to win the event, before it started", sub: [S, when].filter(Boolean).join(" · "), href: predict.href },
   });
 }
