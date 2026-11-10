@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.0.1 — 2026-11-10
+
+A best-score answer's "Highest official score" tile names the match it comes from.
+
+### Highlights
+- [fixes] The highest official score tile names its own match, event and date
+- [fixes] It links to that match, so it never reads as the headline contradicted
+- [fixes] Tiles' detail lines are in the page as first served, not only after loading
+
+### Fixed
+- "4215 highest scoring match in 2025-26" showed 262 points and, beside it, "Highest official score: 302" with nothing saying 302 was another match's, made by the other alliance's fouls. The tile now reads "Another match: Q19 at P2-8 Northern League Meet, Dec 21, 2025. 200 from the other alliance's fouls (its own points 102)" and links to Q19. The page as first served (before the app loads, and for search engines) prints every tile's detail line too. (#1290)
+
 ## 5.0.0 — 2026-11-10
 
 A prediction-versus-result card lists every match the team played, with or without a stored call.

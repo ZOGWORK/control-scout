@@ -6,6 +6,7 @@ import { migrate, openDb, run, setDb } from "../../db";
 import { rebuildSearch } from "../../stats/job";
 import { searchAnswer } from "../searchAnswer";
 import { readStatQuestion, readTwoTeam } from "./read";
+import { pageMeta } from "../../seoMeta";
 
 type Side = [np: number, auto: number, teleop: number, endgame: number, pen: number];
 
@@ -173,6 +174,14 @@ describe("scores", () => {
     expect(s?.headline).toMatchObject({ value: "210 points", label: expect.stringContaining("official score, penalties included") });
     const kpis = s?.blocks.find((b) => b.kind === "kpis");
     expect(kpis && kpis.kind === "kpis" && kpis.items.find((i) => i.label === "Highest official score")).toMatchObject({ value: "260", sub: expect.stringContaining("60 from the other alliance's fouls") });
+    // It names its own match, event and date, so it never reads as the headline contradicted (launch audit D6).
+    const other = kpis && kpis.kind === "kpis" ? kpis.items.find((i) => i.label === "Highest official score") : undefined;
+    // The fixture's 260: Q1 at the Pennsylvania qualifier on Feb 7, 2026, linked to that match.
+    const detail = "Another match: Q1 at Pennsylvania Qualifier, Feb 7, 2026. 60 from the other alliance's fouls (its own points 200)";
+    expect(other).toMatchObject({ sub: detail, href: "/events/2025/USPAQ1?match=qual:0:1" });
+    // The page as first served prints it too, in its text (not only in the embedded answer data).
+    const html = (await pageMeta("/search", { q: "4215 highest scoring match this season" })).bodyHtml ?? "";
+    expect(html.replace(/<script[\s\S]*?<\/script>/g, "")).toContain(`<small>(${detail})</small>`);
     // Every phrasing names the same match.
     expect((await stat("4215 best match"))?.headline?.value).toBe("210 points");
     expect((await stat("4215 highest alliance score"))?.headline?.value).toBe("210 points");
