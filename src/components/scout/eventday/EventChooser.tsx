@@ -15,6 +15,7 @@ import { Async, LoadingBlock } from "../../states";
 import { CurrentlyTracking } from "../../CurrentlyTracking";
 import { EventFilterBar, EventWeeks, type TileAction } from "../../EventBrowse";
 import { readFilters } from "../../../pages/eventsList";
+import { isNoMatchType } from "../../../shared/labels";
 import { cn } from "../../cn";
 
 /** Today's date on this device, as event dates are written (YYYY-MM-DD, event-local). */
@@ -59,8 +60,9 @@ export function EventChooser({ season, currentSeason, onSeason, entries, ourTeam
   const start = (current ?? "").trim().toUpperCase();
   const titleId = useId();
   const teamsKey = [...new Set(ourTeams)].sort((a, b) => a - b).join(",");
-  // Every event type, practice days and the like too (the Events page leaves out types with no matches): a pit
-  // can be scouted at any of them.
+  // Every event type, practice days and the like too: a pit can be scouted at any of them. The list shows the
+  // Events page's own set (no kickoffs, workshops, practice days…) until the Event type filter picks one of those,
+  // so the two count the same events.
   const state = useApi<{ events: EventListItem[] }>(`/api/events${qs({ season, all: 1, limit: ALL_EVENTS })}`);
 
   // The filters live here, not in the URL: Scout's own query string is the entry list's.
@@ -127,8 +129,9 @@ export function EventChooser({ season, currentSeason, onSeason, entries, ourTeam
     };
   }, [start, ours, byEvent, today, onPick]);
 
-  const events = state.data?.events;
-  const mineSoon = useMemo(() => ourUpcoming(events ?? [], ours, today), [events, ours, today]);
+  const allEvents = state.data?.events;
+  const events = useMemo(() => (allEvents && !isNoMatchType(type) ? allEvents.filter((e) => !isNoMatchType(e.type)) : allEvents), [allEvents, type]);
+  const mineSoon = useMemo(() => ourUpcoming(allEvents ?? [], ours, today), [allEvents, ours, today]);
 
   return (
     <section aria-labelledby={titleId}>
@@ -154,11 +157,11 @@ export function EventChooser({ season, currentSeason, onSeason, entries, ourTeam
         </div>
       )}
       {/* The events you track: a card picks it here (this season's only, as Scout scouts one season at a time). */}
-      <CurrentlyTracking season={season} current={currentSeason} events={events} listSettled={!state.loading} className="mb-6 max-sm:mb-5"
+      <CurrentlyTracking season={season} current={currentSeason} events={allEvents} listSettled={!state.loading} className="mb-6 max-sm:mb-5"
         onPick={(_, code) => onPick(code)} picked={start ? `${season}:${start}` : null} only={(e) => e.season === season} />
-      <EventFilterBar season={season} onSeason={onSeason} events={events ?? []} {...{ region, type, status, from, to, q, video, listQ, set, active }} onQ={setQ} onClear={clear} />
+      <EventFilterBar season={season} onSeason={onSeason} events={events ?? []} typeEvents={allEvents ?? []} {...{ region, type, status, from, to, q, video, listQ, set, active }} onQ={setQ} onClear={clear} />
       <Async state={state} loading={<LoadingBlock rows={6} label="Loading events" />} empty={(d) => !d.events.length && <EmptyState icon={CalendarDays} title={`No events listed for ${seasonLabel(season)} yet`} />}>
-        {(d) => <EventWeeks events={d.events} {...{ region, type, status, from, to, video }} q={listQ} onClear={clear} tileAction={tileAction} />}
+        {() => <EventWeeks events={events ?? []} {...{ region, type, status, from, to, video }} q={listQ} onClear={clear} tileAction={tileAction} />}
       </Async>
     </section>
   );
