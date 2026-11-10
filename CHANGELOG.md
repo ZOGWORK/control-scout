@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 4.9.8 — 2026-11-10
+## 4.9.9 — 2026-11-10
 
 Predict opens on its teams: a matchup link from a team page or a search answer shows the teams and the call from the first paint.
 
@@ -28,6 +28,20 @@ Predict opens on its teams: a matchup link from a team page or a search answer s
 - `/predict?mode=match&…` with teams in it is drawn on the server like team and event pages: the teams in their boxes with their names and, with both sides given, the odds, predicted scores and reasons. (#1284)
 - One team a side (as search's "4215 vs 7149 who wins" links it) now shows its call; before, Predict waited for four teams. The form takes one or two teams a side, and a link that fills it no longer puts the cursor in an empty box (on a phone that opened the keyboard over the call).
 
+
+## 4.9.8 — 2026-11-10
+
+Search reads "comparison", "winner" and "head to head" the way people say them.
+
+### Highlights
+- [fixes] "opr comparison 4215 and 7149" shows the OPR side by side
+- [fixes] "predict winner 4215 6980" shows the match forecast
+- [fixes] "head to head" shows the two teams' meetings, at Worlds when said
+
+### Changed
+- "Comparison", "bigger" and "higher" compare two teams' stat, however the teams are joined ("which opr is bigger, 4215 or 7149").
+- "Winner" in a forecast ("predict 23268 7149 winner", "who is the winner 4215 vs 6980") asks for the match call.
+- "Head to head" and "h2h" read as the teams' meetings card, with a scope said alongside ("4215 versus 6980 worlds head to head score"), never only a Compare link. (#1277)
 
 ## 4.9.7 — 2026-11-10
 
