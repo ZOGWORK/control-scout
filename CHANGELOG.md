@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.1.0 — 2026-11-10
+## 5.1.1 — 2026-11-10
 
 Every league has its own standings page: FIRST's official league ranking over every meet so far.
 
@@ -26,6 +26,18 @@ Every league has its own standings page: FIRST's official league ranking over ev
 
 ### Added
 - League standings pages at `/leagues/<season>/<region>/<league>` (for example the New Jersey Northeast League): FIRST's official league rankings, read from FIRST every few hours while a league's meets are on, with each team's ranking score, win-loss-tie record, qualification matches and league meets played, and the league's meets and tournament below. `?team=` marks one team's row. The page is drawn on the server, so the table is in the first HTML. Last season's league standings are read too. (#1287)
+
+## 5.1.0 — 2026-11-10
+
+Search answers who partnered or played against a team at an event with an OPR floor, asked the way people say it.
+
+### Highlights
+- [fixes] "Who partnered …" with an OPR floor lists those partners
+- [fixes] "Who teamed up with …" and "who played alongside …" read as partners
+- [fixes] "Who played against …" and "who faced …" read as opponents
+
+### Changed
+- A team's partners or opponents filtered by OPR can be asked by the verb ("who partnered 4215 at NJ championship with opr over 80", "who played against 4215 at NJ championship with opr above 90"), with the same card as "4215 partners at NJ championship who had opr over 80". (#1289)
 
 ## 5.0.9 — 2026-11-10
 
