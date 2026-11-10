@@ -200,6 +200,12 @@ describe("every card kind and block kind has its colour", () => {
     expect(el.querySelector("[data-lines] a")!.className).toContain("border-l-info");
     expect(el.querySelector("[data-award]")).toBeNull();
     expect(el.querySelectorAll("[data-score-note]")).toHaveLength(2);
+    // Beside the blue alliance's pill (the same colour as the theme's info), a score note is never a blue wash: a
+    // neutral pill, its blue only a small icon.
+    for (const note of el.querySelectorAll("[data-score-note]")) {
+      expect(note.className).not.toMatch(/info|blue/);
+      expect(note.querySelector("svg")!.getAttribute("class")).toContain("text-info");
+    }
     expect(el.querySelector("[data-lines]")!.innerHTML).not.toMatch(/amber|orange|\bred-[0-9]|bg-pen/);
     expect(auditAnswer(el).join("\n")).toBe("");
   });
