@@ -48,6 +48,12 @@ export function onEventDates(e: EventCalendar, now = Date.now()): boolean {
   return e.start <= to && (e.end ?? e.start) >= from;
 }
 
+/** Is the event over (its last date passed at the venue, see eventToday)? An event with no dates never is. */
+export function eventOver(e: { start: string | null; end: string | null; timezone?: string | null }, now = Date.now()): boolean {
+  const last = e.end ?? e.start;
+  return !!last && last < eventToday(now, e.timezone).from;
+}
+
 /**
  * The event's status by its venue's calendar: upcoming before its first date,
  * finished after its last, live on its dates, except that once every scheduled

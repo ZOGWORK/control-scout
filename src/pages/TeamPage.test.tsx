@@ -115,12 +115,19 @@ describe("nextMatch (the Upcoming block's next match)", () => {
 
   it("is the first scheduled match still to play at an event that isn't over", () => {
     const ms = [match("OLD", "qual:0:9", false, null), match("NOW", "qual:0:1", true, "2026-11-10T14:00:00Z"), match("NOW", "qual:0:5", false, "2026-11-10T15:20:00Z"), match("NOW", "qual:0:8", false, "2026-11-10T16:00:00Z")];
-    expect(nextMatch(ms, events, "2026-11-10", now)?.key).toBe("qual:0:5");
+    expect(nextMatch(ms, events, now)?.key).toBe("qual:0:5");
+  });
+
+  it("reads 'over' on the venue's calendar: a California event's last evening is still on after UTC midnight", () => {
+    const la = [{ code: "LA", start: "2026-11-10", end: "2026-11-10", timezone: "America/Los_Angeles" } as TeamEventRow];
+    const evening = Date.parse("2026-11-11T01:30:00Z"); // 17:30 on the 10th in Los Angeles
+    expect(nextMatch([match("LA", "playoff:1:1", false, null)], la, evening)?.key).toBe("playoff:1:1");
+    expect(nextMatch([match("LA", "playoff:1:1", false, null)], la, Date.parse("2026-11-11T09:00:00Z"))).toBeNull();
   });
 
   it("skips a match whose start passed over half an hour ago with no result (late, not next), and none is none", () => {
-    expect(nextMatch([match("NOW", "qual:0:2", false, "2026-11-10T14:00:00Z"), match("NOW", "qual:0:3", false, null)], events, "2026-11-10", now)?.key).toBe("qual:0:3");
-    expect(nextMatch([match("OLD", "qual:0:9", false, null)], events, "2026-11-10", now)).toBeNull();
+    expect(nextMatch([match("NOW", "qual:0:2", false, "2026-11-10T14:00:00Z"), match("NOW", "qual:0:3", false, null)], events, now)?.key).toBe("qual:0:3");
+    expect(nextMatch([match("OLD", "qual:0:9", false, null)], events, now)).toBeNull();
   });
 });
 

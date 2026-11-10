@@ -343,6 +343,9 @@ export interface TeamEventRow {
   city: string | null;
   state: string | null;
   country: string | null;
+  /** The venue's IANA time zone, so "is it over" is read on the event's own calendar (src/shared/eventDay.ts);
+   *  absent from older servers and saved packs (then every zone on Earth counts, eventToday). */
+  timezone?: string | null;
   /** At a league meet, the meet's own rank and ranking score (FIRST's are the league's running standing). */
   rank: number | null;
   rp: number | null;

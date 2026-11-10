@@ -35,6 +35,7 @@ import { eventTypeLabel } from "../lib/labels";
 import { copyLink } from "../lib/clipboard";
 import { direction, trendLabel } from "../shared/trend";
 import { teamTitle } from "../shared/teamTitle";
+import { eventOver, eventToday } from "../shared/eventDay";
 import { OFFICIAL_ONLY, OFFICIAL_RULE, RECORD_RULE, offSeasonRecord, wltText } from "../shared/eventRecord";
 import { OfflineNote } from "../components/OfflineNote";
 import { offlineSource } from "../lib/offline/saved";
@@ -169,9 +170,10 @@ function Hero({ p, onSeason, fellBackFrom, asked = false }: { p: TeamProfile; on
   };
   const loc = place(t.city, t.state, t.country);
   const s = p.stats;
-  const today = new Date().toISOString().slice(0, 10);
-  const next = p.events.find((e) => (e.end ?? e.start ?? "") >= today) ?? null;
-  const last = [...p.events].reverse().find((e) => (e.end ?? e.start ?? "") < today) ?? null;
+  // Over or not on the event's own calendar (a California event's last evening is already tomorrow in UTC).
+  const clock = Date.now();
+  const next = p.events.find((e) => !eventOver(e, clock)) ?? null;
+  const last = [...p.events].reverse().find((e) => eventOver(e, clock)) ?? null;
   const current = useCurrentSeason();
   const top = rankPct(s?.opr.np.rank, s?.opr.np.of, true);
   const predictable = usePredictable(p.season);
@@ -583,8 +585,8 @@ export const lineup = (teams: { number: number }[], team: number) =>
   [...teams.filter((t) => t.number === team), ...teams.filter((t) => t.number !== team)].slice(0, 2).map((t) => t.number);
 
 /** The team's next match on a posted schedule, soonest first (not played, its event not over); null when none is posted. */
-export function nextMatch(matches: MatchView[], events: TeamEventRow[], today: string, now = Date.now()): MatchView | null {
-  const live = new Set(events.filter((e) => (e.end ?? e.start ?? "") >= today).map((e) => e.code));
+export function nextMatch(matches: MatchView[], events: TeamEventRow[], now = Date.now()): MatchView | null {
+  const live = new Set(events.filter((e) => !eventOver(e, now)).map((e) => e.code));
   // A match whose start passed over half an hour ago without a result is late, not next.
   return matches.find((m) => !m.played && live.has(m.code) && (!m.startsAt || Date.parse(m.startsAt) > now - 30 * 60_000)) ?? null;
 }
@@ -596,13 +598,12 @@ export function nextMatch(matches: MatchView[], events: TeamEventRow[], today: s
  */
 function Upcoming({ p, next, last }: { p: TeamProfile; next: TeamEventRow | null; last: TeamEventRow | null }) {
   const n = p.team.number;
-  const today = new Date().toISOString().slice(0, 10);
   // The page's own matches request (MatchesSection asks for the same): no second request, and in the drawn page's data.
   const ms = useApi<{ matches: MatchView[] }>(next ? `/api/teams/${n}/matches?season=${p.season}` : null);
   // On the event's day the next match moves as the field plays: asked again every minute while the tab is visible
   // and on coming back to it, and the "late, not next" cutoff is read against the time of that check.
-  const now = useEventDayRefresh(!!next && (next.start ?? "") <= today, ms.reload);
-  const m = next && ms.data ? nextMatch(ms.data.matches, p.events, today, now) : null;
+  const now = useEventDayRefresh(!!next && (next.start ?? "") <= eventToday(Date.now(), next.timezone).to, ms.reload);
+  const m = next && ms.data ? nextMatch(ms.data.matches, p.events, now) : null;
   const mEvent = m ? p.events.find((e) => e.code === m.code) : null;
   const side = m ? (m.red.teams.some((t) => t.number === n) ? "red" : "blue") : null;
   const chance = m?.prediction && side ? (side === "red" ? m.prediction.pRed : 1 - m.prediction.pRed) : null;
@@ -620,6 +621,8 @@ function Upcoming({ p, next, last }: { p: TeamProfile; next: TeamEventRow | null
           <p className="mt-1 truncate text-muted-foreground" title={mEvent.name}>{mEvent.name} · on <span className={side === "red" ? "text-red-alliance" : "text-blue-alliance"}>{side}</span>: {m.red.teams.map((t) => t.number).join(" + ")} vs {m.blue.teams.map((t) => t.number).join(" + ")}</p>
           <div className="mt-2 flex flex-wrap gap-2">
             <Button size="sm" variant="secondary" asChild className="max-sm:h-11 pointer-coarse:h-[44px]"><Link to={`/events/${m.season}/${m.code}?team=${n}&match=${m.key}`}><CalendarDays /> Event schedule</Link></Button>
+            {/* At an event that advances teams, its odds stay one tap away all event day (the hero's button hands over to these). */}
+            {ADVANCING.has(mEvent.type ?? "") && <Button size="sm" variant="outline" asChild className="max-sm:h-11 pointer-coarse:h-[44px]"><Link to={`/events/${m.season}/${m.code}?tab=odds&team=${n}`}><Trophy /> Odds to advance</Link></Button>}
             {predictable && <Button size="sm" variant="outline" asChild className="max-sm:h-11 pointer-coarse:h-[44px]"><Link to={predictHref({ mode: "match", season: m.season, red: lineup(m.red.teams, n), blue: lineup(m.blue.teams, n) })}><Sparkles /> Predict this match</Link></Button>}
           </div>
         </div>
