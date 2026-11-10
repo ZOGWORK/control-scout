@@ -10,9 +10,10 @@ import { all } from "../../db.js";
 import { fold, names, type TeamName } from "../query/names.js";
 import type { Parsed } from "../query/parse.js";
 import { relativeSeason } from "./season.js";
+import { place } from "../../../src/shared/format.js";
 
 const plural = (n: number) => `${n.toLocaleString("en-US")} ${n === 1 ? "team" : "teams"}`;
-const from = (t: TeamName) => [t.city, t.state, t.country === "USA" ? null : t.country].filter(Boolean).join(", ");
+const from = (t: TeamName) => place(t.city, t.state, t.country === "USA" ? null : t.country);
 
 /** The season a time said names (null: every season), or undefined when the time is one no list of names takes (a
  *  window: teams aren't named by the week). */

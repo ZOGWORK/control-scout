@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.2.9 — 2026-11-10
+## 5.3.0 — 2026-11-10
 
 One record score on the match records page and in search, light event pages ranked like the full page, and related searches that say what they count.
 
@@ -30,6 +30,20 @@ One record score on the match records page and in search, light event pages rank
 - The light event page (`/lite/events/…`) at a league meet ranked teams on FIRST's running league standing (league rank, its ranking score, "RP"), so the meet's winner showed rank 8 and teams FIRST's league list left out had no rank. It now ranks every team on the meet's own standing, as the full page's Meet view does, with the column named RS (ranking score) and a line saying what it is.
 - A highlights headline says "Best score without penalties", so an event's best (Q6, 78) is never read against its high score with penalties (Q14, 217).
 - The related search "teams at <event>" previews "10 teams · first: 12853 Robo Cavos …" (`StatAnswer.listed`), never one team as if it were the list.
+
+## 5.2.9 — 2026-11-10
+
+School names and towns read as they should: no cut-short school names, no doubled state, no stray letters.
+
+### Highlights
+- [teams] A school name cut short by FIRST is written in full
+- [fixes] A town no longer repeats its own state ("McKinney, TX")
+- [fixes] A letter typed three times in a town keeps two ("Oradell")
+- [fixes] A numeric state code no longer shows in a place
+
+### Fixed
+- Team and event places are tidied where a sync writes them (`src/shared/placeClean.ts`, used by `server/data/bundle.ts`), and the rows already stored, past seasons too, are tidied once soon after the server starts (`server/data/tidyPlaces.ts`): a school's cut-short last word ("Sch", "Schl", "Acad", "Elem", "Chrn") in full; a town's run of one letter three or more times kept to two; a town's last comma part dropped when it only names the row's own state or country (a postcode after it allowed). A team with no school in FIRST's data still shows none.
+- `place()` leaves out a part that is only digits, so a numeric state code never shows in an event or team line; every team and event location line (search results and their index, tables, leaderboards, answers, the digest, the offline packs) is built with `place()`, so the rule holds everywhere. (#1327)
 
 ## 5.2.8 — 2026-11-10
 

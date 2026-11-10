@@ -10,6 +10,7 @@
 // is the plain page it names.
 import { MAX_RESULTS, type DigestData, type RankingRow, type TeamWeek, type Upcoming } from "./build.js";
 import type { Movement } from "../../src/shared/powerRankings.js";
+import { place } from "../../src/shared/format.js";
 
 /** Bumped whenever the email's layout or wording changes in a way worth telling apart in the send log. */
 export const TEMPLATE_VERSION = 1;
@@ -166,7 +167,7 @@ export function renderText(d: DigestData, k: Links): string {
   if (d.upcoming.length) {
     out.push("COMING UP", "");
     for (const u of d.upcoming) {
-      out.push(`${eventDates(u.start, u.end)} (${countdown(u.inDays)}): ${u.event}${u.city || u.state ? `, ${[u.city, u.state].filter(Boolean).join(", ")}` : ""}`,
+      out.push(`${eventDates(u.start, u.end)} (${countdown(u.inDays)}): ${u.event}${u.city || u.state ? `, ${place(u.city, u.state)}` : ""}`,
         `  ${teamLabel(u)}${u.scheduled ? "" : " · schedule not posted yet"}`, `  ${url(k.site, eventPath(u.season, u.code))}`, "");
     }
     if (d.moreUpcoming) out.push(`${d.moreUpcoming} more: ${url(k.site, "/my-team")}`, "");
@@ -219,10 +220,10 @@ function resultItem(r: TeamWeek, site: string, d: DigestData): string {
 }
 
 function upcomingItem(u: Upcoming, site: string): string {
-  const place = [u.city, u.state].filter(Boolean).join(", ");
+  const where = place(u.city, u.state);
   return item(`<div class="cs-muted" style="font-size:13px;line-height:18px;font-weight:600;letter-spacing:0.2px;color:${L.muted}">${esc(eventDates(u.start, u.end))} · <span class="cs-text" style="color:${L.text}">${esc(countdown(u.inDays))}</span></div>
     <div style="margin-top:4px;font-size:16px;line-height:24px">${a(url(site, eventPath(u.season, u.code)), esc(u.event))}</div>
-    <div class="cs-muted" style="margin-top:2px;font-size:14px;line-height:21px;color:${L.muted}">${esc(teamLabel(u))}${place ? ` · ${esc(place)}` : ""}${u.scheduled ? "" : " · schedule not posted yet"}</div>`);
+    <div class="cs-muted" style="margin-top:2px;font-size:14px;line-height:21px;color:${L.muted}">${esc(teamLabel(u))}${where ? ` · ${esc(where)}` : ""}${u.scheduled ? "" : " · schedule not posted yet"}</div>`);
 }
 
 function rankingItem(r: RankingRow, site: string): string {

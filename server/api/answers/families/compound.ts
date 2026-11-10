@@ -23,6 +23,7 @@ import { BOARD_STATS, statWords, type BoardStat } from "./leaderboard.js";
 import { compareBlock, leadHeadline } from "../compareBlock.js";
 import { reliabilityRows } from "./twoTeam.js";
 import { LIST_CAP, RESULT_RULE, SCORE_RULE, pct, recText, record, sourceOf, whoOf, type AnswerTeam } from "./matches.js";
+import { place } from "../../../../src/shared/format.js";
 
 const num1 = (x: number | null | undefined) => (x == null ? "–" : (Math.round(x * 10) / 10).toFixed(1));
 const signed = (x: number) => `${x > 0 ? "+" : x < 0 ? "−" : "±"}${num1(Math.abs(x))}`;
@@ -172,7 +173,7 @@ export async function listAnswer(c: ListQuestion): Promise<StatAnswer | null> {
     note: `${S} · ${chips.slice(2).join(" · ")}`,
     rows: rows.map((r, i): LeaderboardRow => ({
       rank: i + 1, team: { label: `${r.team} ${r.name ?? ""}`.trim(), href: teamHref(Number(r.team), season) },
-      location: [r.city, r.state, r.country && r.country !== "USA" ? r.country : null].filter(Boolean).join(", ") || null,
+      location: place(r.city, r.state, r.country && r.country !== "USA" ? r.country : null) || null,
       record: `${r.wins}-${r.losses}-${r.ties}`, opr: n(r.opr), value: n(r.v), display: fmt(n(r.v)),
       parts: r.auto != null || r.teleop != null || r.endgame != null ? { auto: n(r.auto), teleop: n(r.teleop), endgame: n(r.endgame), pen: n(r.pen) } : null,
     })),
