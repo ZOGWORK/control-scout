@@ -35,6 +35,7 @@ import { seasonOfDate } from "./query/time.js";
 import { namedTeam, versusAnswer } from "./searchCompare.js";
 import { eventChampions } from "./answers/families/winners.js";
 import { NO_MATCH_TYPES } from "./events.js";
+import { place } from "../../src/shared/format.js";
 
 export type Stat = "opr" | "auto" | "teleop" | "endgame" | "wins";
 export type Ask =
@@ -389,7 +390,7 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
          ORDER BY ${col} DESC${ask.stat === "wins" ? ", s.losses ASC" : ""}, s.team LIMIT 5`,
         [season, RANKED_MIN_MATCHES, ...(ask.region ? [ask.region.country, ask.region.state] : [])]), (x) => !x.length);
       const value = (r: any) => ask.stat === "wins" ? `${r.wins}-${r.losses}-${r.ties}` : `${STAT_LABEL[ask.stat].replace(/^.*\((.+)\)$/, "$1").replace(/^Highest /, "")} ${fmt(r[col.slice(2)])}`;
-      const lines = rows.map((r) => teamLine(Number(r.team), r.name, [value(r)], [r.city, r.state].filter(Boolean).join(", ")));
+      const lines = rows.map((r) => teamLine(Number(r.team), r.name, [value(r)], place(r.city, r.state)));
       const title = `${STAT_LABEL[ask.stat]}${ask.region ? ` in ${ask.region.name}` : ""} · ${seasonLabel(season)}`;
       return answer(q, {
         hits: [], pages: withPage(q, [{ title: "Rankings", href: `/rankings?season=${season}${ask.region ? `&region=${encodeURIComponent(ask.region.key)}` : ""}` }]),

@@ -20,6 +20,7 @@ import { names, type Place } from "../../query/names.js";
 import { regionOf } from "../../../../src/shared/searchEventQuery.js";
 import { CHAMPIONSHIP_TYPE } from "../clauses.js";
 import { eventHref, shortEvent } from "../matchSet.js";
+import { place } from "../../../../src/shared/format.js";
 
 /** The awards by the words people use (awards.type). */
 const AWARDS: [RegExp, string][] = [
@@ -277,7 +278,7 @@ export async function placeAwardsAnswer(ask: PlaceAwardsAsk): Promise<StatAnswer
       ? Number((await all<{ n: number }>(`SELECT COUNT(*) n FROM (SELECT a.team ${from} WHERE ${filter} GROUP BY a.team HAVING ${nCount} = ?)`, [...args, ranked[0].n]))[0]?.n ?? top.length)
       : top.length;
     const won = count(ranked[0].n, ask.types.length === 1 ? awardName(ask.types[0]) : "award", ask.types.length === 1 ? awardsName(ask.types[0]) : "awards");
-    const home = (x: (typeof ranked)[number]) => [x.r.city, x.r.state].filter(Boolean).join(", ");
+    const home = (x: (typeof ranked)[number]) => place(x.r.city, x.r.state);
     if (bottom) {
       const { winners, zero } = bottom;
       return {

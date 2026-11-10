@@ -44,7 +44,17 @@ export function regionNames(state: string | null | undefined, country: string | 
   return [st, country ? COUNTRY[country] : undefined].filter(Boolean).join(" ");
 }
 
-const BY_ISO: Record<string, string> = { US: "USA", CA: "Canada", AU: "Australia", GB: "United Kingdom" };
+/** Every name a place's codes go by, each whole and lowercase: ("TX", "USA") → ["tx", "texas", "usa", "united states of
+ *  america", "us", "america"]. The country's own aliases count one each. */
+export function placeNames(state: string | null | undefined, country: string | null | undefined): string[] {
+  const out: string[] = [];
+  if (state) out.push(state.toLowerCase(), ...(country ? STATES[country]?.[state.toUpperCase()]?.split("|") ?? [] : []).map((x) => x.toLowerCase()));
+  if (country) out.push(country.toLowerCase(), ...(COUNTRY_NAMES[country] ?? []).map((x) => x.toLowerCase()));
+  return out;
+}
+const COUNTRY_NAMES: Record<string, string[]> = { USA: ["United States of America", "United States", "US", "America"], "United Kingdom": ["UK", "Great Britain", "Britain"], "United Arab Emirates": ["UAE"], Türkiye: ["Turkey"], "South Korea": ["Korea"] };
+
+const BY_ISO: Record<string, string> ={ US: "USA", CA: "Canada", AU: "Australia", GB: "United Kingdom" };
 
 /** A state's name from its ISO country and FIRST state code: ("US", "NJ") → "New Jersey" (the code itself when unknown). */
 export const stateName = (iso: string, state: string): string => STATES[BY_ISO[iso.toUpperCase()] ?? ""]?.[state.toUpperCase()]?.split("|")[0] ?? state.toUpperCase();

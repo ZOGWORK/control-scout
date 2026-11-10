@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.2.9 — 2026-11-10
+## 5.3.0 — 2026-11-10
 
 Gold is the accent only: charts, compared teams and team colours use their own hues, and team B is no longer amber beside it.
 
@@ -29,6 +29,20 @@ Gold is the accent only: charts, compared teams and team colours use their own h
 - The first chart colour was the accent itself, so a team's own trend and Compare's first team were gold. It is team A's blue; Compare draws each team in the team hues search's compare card uses, with a fourth (reddish purple) for a fourth team.
 - Compare marked each row's best value and the baseline column in gold; the best is now bold on a neutral tint, the baseline a neutral tint.
 - The colours a scout gives their teams had Gold; it is Indigo now. A team saved as gold shows in its usual colour. (#1337)
+
+## 5.2.9 — 2026-11-10
+
+School names and towns read as they should: no cut-short school names, no doubled state, no stray letters.
+
+### Highlights
+- [teams] A school name cut short by FIRST is written in full
+- [fixes] A town no longer repeats its own state ("McKinney, TX")
+- [fixes] A letter typed three times in a town keeps two ("Oradell")
+- [fixes] A numeric state code no longer shows in a place
+
+### Fixed
+- Team and event places are tidied where a sync writes them (`src/shared/placeClean.ts`, used by `server/data/bundle.ts`), and the rows already stored, past seasons too, are tidied once soon after the server starts (`server/data/tidyPlaces.ts`): a school's cut-short last word ("Sch", "Schl", "Acad", "Elem", "Chrn") in full; a town's run of one letter three or more times kept to two; a town's last comma part dropped when it only names the row's own state or country (a postcode after it allowed). A team with no school in FIRST's data still shows none.
+- `place()` leaves out a part that is only digits, so a numeric state code never shows in an event or team line; every team and event location line (search results and their index, tables, leaderboards, answers, the digest, the offline packs) is built with `place()`, so the rule holds everywhere. (#1327)
 
 ## 5.2.8 — 2026-11-10
 

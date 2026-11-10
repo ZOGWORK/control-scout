@@ -18,6 +18,7 @@ import { searchTeamTitle, teamNameOf } from "../../src/shared/teamTitle.js";
 import { nameWords, onlyCommonWords } from "../../src/shared/searchQuery.js";
 import { placeHit } from "./searchEvents.js";
 import { searchRead } from "./searchReads.js";
+import { place } from "../../src/shared/format.js";
 
 /** Turn free text into a safe FTS5 query: every word as a quoted prefix term. */
 export function ftsQuery(q: string): string | null {
@@ -224,7 +225,7 @@ async function searchWords(q: string, limit: number, prefer: ReadonlySet<string>
        ORDER BY t.number = ? DESC, t.number IN (${preferred.map(() => "?").join(",") || "NULL"}) DESC, cs.season IS NOT NULL DESC, t.number LIMIT ?`,
       [CURRENT_SEASON, ...ranges.flat(), p, ...preferred, query.length >= 4 ? Math.ceil(limit / 2) : limit],
     );
-    for (const t of rows) push({ kind: "team", ref: String(t.number), title: searchTeamTitle(t.number, t.name), subtitle: [t.city, t.state, t.country].filter(Boolean).join(", "), season: t.last == null ? null : Number(t.last) });
+    for (const t of rows) push({ kind: "team", ref: String(t.number), title: searchTeamTitle(t.number, t.name), subtitle: place(t.city, t.state, t.country), season: t.last == null ? null : Number(t.last) });
     if (out.length >= limit) return out.slice(0, limit);
   }
   // Other numbers: only 4+ digits (a year, digits of an event code) go on to the
@@ -428,8 +429,9 @@ export const warmTypoIndex = async (): Promise<void> => { await fuzzyIndex(); };
  *  2: team titles as "18061 | Simply Complex" (number and name each once). 3: events' venues are searchable words.
  *  4: events' initialisms ("mti", ./query/initialisms.ts) are searchable words. 5: a team name's dotted initials as the
  *  word they spell ("I.C.E." as "ice", ./query/names.ts joinDotted).
- *  6: a name written with thousands separators ("1,000 Lakes") is searchable as one number too ("1000 lakes"). */
-export const SEARCH_INDEX_SCHEMA = 6;
+ *  6: a name written with thousands separators ("1,000 Lakes") is searchable as one number too ("1000 lakes").
+ *  7: places as place() writes them: no numeric state ("San Lorenzo, Paraguay", not "San Lorenzo, 11, Paraguay"). */
+export const SEARCH_INDEX_SCHEMA = 7;
 
 /**
  * A database upgraded to migration 4 has an empty typo index until the next
