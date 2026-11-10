@@ -25,7 +25,7 @@ Score ranges say how often they have really held, with the sample, wherever one 
 - [report] Search prediction cards carry the same line under their ranges
 
 ### Changed
-- Every predicted score range now comes with how often such ranges have held: "80% ranges have held 91.1% of 5,322 live alliance scores in 2026–27 BIOBUZZ (93.4% of 6,450 in its season replay), so they run wider than 80%", from the track record (GET /api/predict/ranges), never typed in. On Predict's matchup, the match page, a match row's call detail, each range's hover text, and search's prediction cards. The request waits until the page is drawn and the browser is idle. (#PR2)
+- Every predicted score range now comes with how often such ranges have held: "80% ranges have held 91.1% of 5,322 live alliance scores in 2026–27 BIOBUZZ (93.4% of 6,450 in its season replay), so they run wider than 80%", from the track record (GET /api/predict/ranges), never typed in. On Predict's matchup, the match page, a match row's call detail, each range's hover text, and search's prediction cards. The request waits until the page is drawn and the browser is idle. (#1288)
 
 ## 4.9.2 — 2026-11-09
 
