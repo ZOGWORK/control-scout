@@ -11,7 +11,7 @@ import type { EventRecord } from "./eventRecord.js";
  * `meetRanks`: also the meet's own rank and ranking score (team_event_records, which a season pack doesn't hold).
  */
 export function teamEventsQuery(season: number, team: number, o: { meetRanks: boolean }): { sql: string; args: number[] } {
-  const sql = `SELECT e.season, e.code, e.name, e.type, e.start, e.end, e.city, e.state, e.country, e.remote,
+  const sql = `SELECT e.season, e.code, e.name, e.type, e.start, e.end, e.city, e.state, e.country, e.timezone, e.remote,
             et.rank, et.rp, et.wins, et.losses, et.ties, et.qual_played,
             ${o.meetRanks ? "r.rank meet_rank, r.rp meet_rp," : "NULL meet_rank, NULL meet_rp,"}
             s.opr_np, s.opr_auto, s.opr_teleop, s.opr_endgame, s.opr_pen, s.avg_score, s.avg_np, s.avg_pen,
@@ -68,7 +68,7 @@ export function teamEventRows(
     const al = alliances.find((a) => a.code === r.code);
     const seat: Seat | null = al ? (Number(al.captain) === team ? "captain" : Number(al.pick1) === team ? "pick1" : Number(al.pick2) === team ? "pick2" : "backup") : null;
     out.push({
-      season, code: r.code, name: r.name, type: r.type, start: r.start, end: r.end, city: r.city, state: r.state, country: r.country,
+      season, code: r.code, name: r.name, type: r.type, start: r.start, end: r.end, city: r.city, state: r.state, country: r.country, timezone: r.timezone ?? null,
       rank: meet ? num(r.meet_rank) : num(r.rank), rp: meet ? num(r.meet_rp) : num(r.rp),
       wins: rec ? rec.wins : null, losses: rec ? rec.losses : null, ties: rec ? rec.ties : null, played: rec ? rec.played : null,
       qualPlayed: rec ? rec.qual.played : remote ? num(r.qual_played) : null,

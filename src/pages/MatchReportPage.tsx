@@ -73,7 +73,7 @@ function Report({ r }: { r: MatchReport }) {
   const watch = useWatchFlags(teams, ws?.state.data);
   const back = `/events/${m.season}/${encodeURIComponent(m.code)}?tab=matches&match=${encodeURIComponent(m.key)}`;
   const step = (x: { key: string; label: string } | null, dir: "prev" | "next") => x && (
-    <Link to={matchReportHref({ season: m.season, code: m.code, key: x.key })} className="inline-flex min-h-9 items-center rounded-md border border-border bg-card px-2 text-sm hover:border-accent/50"
+    <Link to={matchReportHref({ season: m.season, code: m.code, key: x.key })} className="inline-flex min-h-9 pointer-coarse:min-h-[44px] items-center rounded-md border border-border bg-card px-2 text-sm hover:border-accent/50"
       aria-label={`${dir === "prev" ? "Previous" : "Next"} match, ${x.label}`}>
       {dir === "prev" && <ChevronLeft className="size-4" aria-hidden />}{x.label}{dir === "next" && <ChevronRight className="size-4" aria-hidden />}
     </Link>
@@ -81,7 +81,7 @@ function Report({ r }: { r: MatchReport }) {
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <Link to={back} className="inline-flex min-h-9 items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+        <Link to={back} className="inline-flex min-h-9 pointer-coarse:min-h-[44px] items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="size-4" aria-hidden /><span className="truncate" title={r.event.name}>{r.event.name}</span>
         </Link>
         <span className="ml-auto flex gap-1.5">{step(r.prev, "prev")}{step(r.next, "next")}</span>
@@ -104,7 +104,7 @@ function SnapshotReport({ snap }: { snap: FoundSnapshot }) {
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <Link to={`/bundle/${meta.season}/${encodeURIComponent(meta.code)}`} className="inline-flex min-h-9 items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+        <Link to={`/bundle/${meta.season}/${encodeURIComponent(meta.code)}`} className="inline-flex min-h-9 pointer-coarse:min-h-[44px] items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="size-4" aria-hidden /><span className="truncate">{meta.name} bundle</span>
         </Link>
       </div>

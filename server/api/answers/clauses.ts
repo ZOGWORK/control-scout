@@ -3,10 +3,11 @@
 // Scope; `inScope` applies it to a team's matches (./matchSet.ts), `eventSql` to event rows (awards, placements), and
 // `scopeChips` says it in words. No intent filters on its own.
 import { seasonLabel } from "../../../src/shared/format.js";
+import { isOfficialEvent } from "../../../src/shared/eventRecord.js";
 
-/** Events whose matches count for scores and records (as server/api/searchHighScores.ts's records): qualifiers, league
- *  play, championships and premier events. Scrimmages, off-season and demo events never count. */
-export const OFFICIAL_TYPES = ["Qualifier", "LeagueMeet", "LeagueTournament", "Championship", "FIRSTChampionship", "Premier", "SuperQualifier", "Official"] as const;
+/** Events whose matches count for scores and records (as server/api/searchHighScores.ts's records, and the team page's
+ *  season record): src/shared/eventRecord.ts, one list for all of them. */
+export { OFFICIAL_TYPES } from "../../../src/shared/eventRecord.js";
 
 /** Worlds: the FIRST Championship, its divisions (FTCCMP1EDIS, …) and its finals (FTCCMP1), all stored as this type.
  *  "States" is a region's championship (Championship), as in server/api/searchQuestions.ts. */
@@ -51,7 +52,7 @@ export const seasonClause = (s: Scope) => (e: EventFacts) => s.season == null ||
 export const championshipClause = (s: Scope) => (e: EventFacts) => !s.championship || e.type === CHAMPIONSHIP_TYPE;
 export const statesClause = (s: Scope) => (e: EventFacts) => !s.states || e.type === STATES_TYPE;
 /** Official events only: always on for scores and records. */
-export const officialClause = () => (e: EventFacts) => (OFFICIAL_TYPES as readonly string[]).includes(e.type ?? "");
+export const officialClause = () => (e: EventFacts) => isOfficialEvent(e.type);
 /** Event clause. */
 export const eventClause = (s: Scope) => (e: EventFacts) => !s.event || (e.season === s.event.season && (s.event.codes ?? [s.event.code]).includes(e.code));
 /** Venue clause. */

@@ -34,6 +34,12 @@ export type PipelineIntent =
   | "pick-partners"
   // No team: matches found by a measure (./matchFind.ts).
   | "low-matches" | "close-matches" | "lopsided-matches" | "penalty-matches" | "upset-matches" | "comeback-matches"
+  // No team: the highest score an alliance had in a match it lost.
+  | "loss-matches"
+  // No team: an event's field, its teams' average OPR there ("the average OPR of teams at <event>").
+  | "event-field"
+  // No team: a place's teams by their current or longest win streak (./streakBoard.ts).
+  | "streak-board"
   // A team's or everyone's matches by how far the saved prediction was off (./matchFind.ts).
   | "miss-matches" | "accurate-matches";
 
@@ -199,17 +205,23 @@ export const INTENTS: IntentRule[] = [
   // Either alliance: "on the same alliance" (partners only) isn't a filter the shared list takes, so it stays unexplained.
   R("shared-matches", 2, ["together"], ["vs", "and", "thing:match", "list"]),
   R("shared-matches", 2, ["and", "thing:match"], ["list"]),
-  R("head-to-head", 2, ["vs", "thing:match"], ["list", "metric:record"]),
+  // "Head to head score": their meetings, each with its score.
+  R("head-to-head", 2, ["vs", "thing:match"], ["list", "metric:record", "metric:score"]),
   R("h2h-wins", 2, ["vs", "metric:win"], ["agg:count", "thing:match"]),
   // "12345 and 67890 awards" is each team's own list (search's AND list); a versus or a comparison is the side by side.
   R("opr-vs", 2, ["metric:opr", "vs"], ["compare"]),
-  R("opr-vs", 2, ["metric:opr", "compare"], []),
+  // "OPR comparison 12345 and 67890": the side by side, the teams joined any way.
+  R("opr-vs", 2, ["metric:opr", "compare"], ["and"]),
   R("rating-vs", 2, ["metric:rating", "vs"], ["compare"]),
-  R("rating-vs", 2, ["metric:rating", "compare"], []),
+  R("rating-vs", 2, ["metric:rating", "compare"], ["and"]),
   R("awards-vs", 2, ["metric:award", "vs"], ["compare", "agg:max", "agg:count", "metric:win"]),
-  R("awards-vs", 2, ["metric:award", "compare"], ["agg:max", "agg:count", "metric:win"]),
+  R("awards-vs", 2, ["metric:award", "compare"], ["agg:max", "agg:count", "metric:win", "and"]),
   R("compare", 2, ["compare"], ["vs", "and"]),
   R("compare", 2, ["vs"], []),
+  // Two teams and an event, their state championship or Worlds, nothing else asked ("12345 67890 nj champs 2025-26"):
+  // their numbers there, side by side.
+  R("compare", 2, [], ["and"], { event: true }),
+  R("compare", 2, ["worlds"], ["and"]),
   // No team: the best matches anywhere, and ranked lists of teams.
   R("top-matches", 0, ["agg:max", "metric:score"], ["thing:match", "per:match", "nopen"]),
   R("top-matches", 0, ["agg:max", "thing:match"], ["metric:score", "nopen"]),
@@ -224,6 +236,14 @@ export const INTENTS: IntentRule[] = [
   R("close-matches", 0, ["agg:min", "metric:margin"], ["thing:match", "metric:win", "metric:loss", "metric:score", "outcome:W", "outcome:L", "and"]),
   R("lopsided-matches", 0, ["agg:max", "metric:margin"], ["thing:match", "metric:win", "metric:score", "outcome:W", "and"]),
   R("penalty-matches", 0, ["agg:max", "metric:penalty"], ["thing:match", "metric:score", "and"]),
+  // No team: a place's teams by their win (or losing) streak ("longest winning streak in Romania right now").
+  R("streak-board", 0, ["metric:streak"], ["agg:max", "agg:last", "outcome:W", "outcome:L", "metric:win", "metric:loss", "thing:team", "list"]),
+  // An event's field: its teams' average OPR there (an event named, a state championship or Worlds).
+  R("event-field", 0, ["agg:mean", "metric:opr"], ["thing:team", "prep:for", "prep:at", "list"], { event: true }),
+  R("event-field", 0, ["agg:mean", "metric:opr", "worlds"], ["thing:team", "prep:for", "prep:at", "list"]),
+  // The highest score in a lost match ("highest score in a match they lost", "highest losing score").
+  R("loss-matches", 0, ["agg:max", "metric:score", "metric:loss"], ["thing:match", "per:match", "nopen", "and"]),
+  R("loss-matches", 0, ["agg:max", "metric:score", "outcome:L"], ["thing:match", "per:match", "nopen", "and"]),
   R("upset-matches", 0, ["metric:upset"], ["agg:max", "thing:match", "metric:win", "metric:margin", "metric:score", "and"]),
   // Predictions against results, everyone's or one team's: furthest off first, or closest first ("most accurate").
   // A floor in points ("wrong by more than 50 points") is the misses' own.
@@ -233,7 +253,11 @@ export const INTENTS: IntentRule[] = [
     R("miss-matches", n, ["metric:miss"], ["agg:max", "predict", "thing:match", "thing:team", "vs", "list", "per:match", "metric:score", "over"], { noMatchNo: true }),
   ]),
   R("comeback-matches", 0, ["metric:comeback"], ["agg:max", "thing:match", "metric:win", "and"]),
+  // A record asked with no team ("win loss record decode", "record for decode", "best record in nj"): the season's
+  // best records, with a "which team?" row (./execute.ts), never one team whose name a word happens to fit.
+  R("leaderboard", 0, ["metric:record"], ["metric:win", "metric:loss", "thing:season", "prep:for", "prep:in", "list", "and"], { noEvent: true }),
   ...["agg:max", "agg:min"].flatMap((agg) => [
+    R("leaderboard", 0, [agg, "metric:record"], BOARD_OPT, { noEvent: true }),
     R("leaderboard", 0, [agg, "thing:team"], BOARD_OPT),
     // A team stat asked about everyone, with no "team": "who has the highest auto OPR in NJ".
     ...BOARD_METRICS.map((m) => R("leaderboard", 0, [agg, m], BOARD_OPT)),

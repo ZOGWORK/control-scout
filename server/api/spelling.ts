@@ -347,7 +347,8 @@ const PARSER_WORDS = new Set(LEXICON.filter((e) => e.syms.some((x) => x.k !== "f
 /** Two of search's own words typed as one ("latestmatches"), either of them misspelled ("lasetestmatches"): both,
  *  apart, when only one split reads so (the fewest fixes), else null. */
 export function splitWord(w: string, v: Vocab): WordFix | null {
-  if (w.length < 7 || v.keep.has(w) || v.count.has(w)) return null;
+  // A plain form of a known word ("partnered", "scouted") is that word, never two run together ("partner red").
+  if (w.length < 7 || v.keep.has(w) || v.count.has(w) || formOfKnown(w, v.keep)) return null;
   const asked = (x: string) => v.own.get(x) === 2 || PARSER_WORDS.has(x);
   const part = (x: string) => (asked(x) ? { word: x, fixed: 0 } : ((f) => (f?.own && asked(f.word) ? { word: f.word, fixed: 1 } : null))(correctWord(x, v)));
   let best: { word: string; fixed: number }[] = [];
@@ -447,6 +448,15 @@ export async function spelled(typed: string, a: SearchAnswer, run: (q: string) =
     const b = await run(cut);
     if (strength(b) > was) return carryOutcome(b, { ...b, q: a.q, step: b.step === "deterministic" ? "did-you-mean" : b.step, didYouMean: b.step === "did-you-mean" && b.didYouMean ? b.didYouMean : cut });
   }
+  // A team's name typed nearly right where each word on its own is a real one ("hypnotic robotix": another team is
+  // named Robotix, so no word is a typo by itself): the name as the query parser reads it whole (./query/names.ts
+  // nearTeam), taken only when that reading answers better.
+  // Only a query with two words a name could be made of is parsed again for one.
+  const near = was <= 1 && /\p{L}{3,}[^\p{L}\p{N}]+\p{L}{3,}/u.test(typed) ? await nearNamed(typed) : null;
+  if (near) {
+    const b = await run(near);
+    if (strength(b) > was) return carryOutcome(b, { ...b, q: a.q, step: b.step === "deterministic" ? "did-you-mean" : b.step, didYouMean: b.step === "did-you-mean" && b.didYouMean ? b.didYouMean : near });
+  }
   const fix = await correctQuery(typed);
   // Still nothing: the words kept as names or short read as search's own words they are a slip from ("math
   // highlights", "who wom"), taken only when that reading answers.
@@ -471,6 +481,19 @@ export async function spelled(typed: string, a: SearchAnswer, run: (q: string) =
   }
   if (fix.own && now === was && was === 2 && !a.didYouMean) return carryOutcome(a, { ...a, didYouMean: said });
   return a;
+}
+
+/** `typed` with each team name the query parser read as a near miss ("hypnotic robotix") written as the team's own
+ *  name ("Hypnotic Robotics"), or null when it read none. */
+export async function nearNamed(typed: string): Promise<string | null> {
+  // Loaded when asked: the parser's context reads search's answers, which read this module.
+  const [{ parseQuery }, { parseContext }] = await Promise.all([import("./query/parse.js"), import("./query/context.js")]);
+  const p = await parseQuery(typed, await parseContext());
+  const near = p.teams.filter((t) => t.via === "near" && t.name);
+  if (!near.length) return null;
+  const at = (words: string) => new RegExp(words.split(/\s+/).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("[^\\p{L}\\p{N}]+"), "iu");
+  const out = near.reduce((s, t) => s.replace(at(t.typed), t.name!.trim()), typed);
+  return out !== typed ? out : null;
 }
 
 /** "What is the bet", "what is the best time": a "what is the best" question with "best" mistyped, or with a word

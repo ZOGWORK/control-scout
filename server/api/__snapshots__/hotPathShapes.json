@@ -42,7 +42,7 @@
  },
  "/api/events/2026/DONE": {
   "status": 200,
-  "bytes": 4216,
+  "bytes": 4231,
   "body": {
    "event": {
     "season": 2026,
@@ -63,6 +63,7 @@
     "matchesPlayed": 2,
     "matchesTotal": 2,
     "status": "finished",
+    "league": "NJL",
     "address": "1 Main St",
     "website": "https://example.org/e",
     "livestream": "https://youtube.com/watch?v=abc",
@@ -420,7 +421,7 @@
  },
  "/api/events/2026/NEXT": {
   "status": 200,
-  "bytes": 3500,
+  "bytes": 3515,
   "body": {
    "event": {
     "season": 2026,
@@ -441,6 +442,7 @@
     "matchesPlayed": 0,
     "matchesTotal": 2,
     "status": "upcoming",
+    "league": "NJL",
     "address": "1 Main St",
     "website": "https://example.org/e",
     "livestream": "https://youtube.com/watch?v=abc",
@@ -985,7 +987,7 @@
  },
  "/api/events/2026/DONE/matches/qual:0:1/report": {
   "status": 200,
-  "bytes": 4077,
+  "bytes": 4092,
   "body": {
    "event": {
     "season": 2026,
@@ -1006,6 +1008,7 @@
     "matchesPlayed": 2,
     "matchesTotal": 2,
     "status": "finished",
+    "league": "NJL",
     "address": "1 Main St",
     "website": "https://example.org/e",
     "livestream": "https://youtube.com/watch?v=abc",
@@ -1367,7 +1370,7 @@
  },
  "/api/events/2026/NEXT/matches/qual:0:1/report": {
   "status": 200,
-  "bytes": 3861,
+  "bytes": 3876,
   "body": {
    "event": {
     "season": 2026,
@@ -1388,6 +1391,7 @@
     "matchesPlayed": 0,
     "matchesTotal": 2,
     "status": "upcoming",
+    "league": "NJL",
     "address": "1 Main St",
     "website": "https://example.org/e",
     "livestream": "https://youtube.com/watch?v=abc",
@@ -1717,7 +1721,7 @@
  },
  "/api/teams/101?season=2026": {
   "status": 200,
-  "bytes": 1991,
+  "bytes": 2065,
   "body": {
    "team": {
     "number": 101,
@@ -1823,6 +1827,7 @@
      "city": "Trenton",
      "state": "NJ",
      "country": "USA",
+     "timezone": "America/New_York",
      "rank": 1,
      "rp": 4,
      "wins": 2,
@@ -1871,6 +1876,7 @@
      "city": "Trenton",
      "state": "NJ",
      "country": "USA",
+     "timezone": "America/New_York",
      "rank": null,
      "rp": null,
      "wins": null,
@@ -1905,7 +1911,8 @@
      "placement": 1,
      "name": "Inspire Award"
     }
-   ]
+   ],
+   "league": null
   }
  },
  "/api/teams/101/report-card?season=2026": {

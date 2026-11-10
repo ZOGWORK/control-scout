@@ -137,7 +137,7 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["win streak|winning streak|streak of wins", [{ k: "metric", v: "streak" }, { k: "outcome", v: "W" }]],
   ["losing streak|loss streak|streak of losses", [{ k: "metric", v: "streak" }, { k: "outcome", v: "L" }]],
   ["streak|run", { k: "metric", v: "streak" }],
-  ["partner|partners|alliance partner|alliance partners|teammate|teammates|allies", { k: "metric", v: "partner" }],
+  ["partner|partners|alliance partner|alliance partners|teammate|teammates|allies|partnered|partnered with|partner with|partnering with|teamed with|teamed up with", { k: "metric", v: "partner" }],
   ["opponent|opponents|rival|rivals|nemesis|enemy|enemies", { k: "metric", v: "opponent" }],
   ["ranking points|rp|rps", { k: "metric", v: "rp" }],
   ["range|score range|spread of scores", { k: "metric", v: "range" }],
@@ -186,7 +186,14 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["together|in common|shared|share|both|both played|jointly|same match|same matches", { k: "together" }],
   ["same alliance|same side|as partners|on the same alliance|teamed up|teamed", { k: "same-side" }],
   // "Who is better, 12345 or 67890": the two side by side.
-  ["compare|comparison|compared|side by side|or|better|stronger|who is better|which is better|whos better|who's better", { k: "compare" }],
+  // "Which OPR is bigger, 12345 or 67890", "opr comparison": the same side by side.
+  ["compare|comparison|comparisons|compared|side by side|or|better|stronger|bigger|larger|higher|who is better|which is better|whos better|who's better|which is bigger|which is higher|who has the better|who has the higher|who has the bigger", { k: "compare" }],
+  // Two teams' meetings: "head to head", "h2h".
+  ["head to head|h2h|head to head record|head to head matches|head to head results|head to head history", [{ k: "vs" }, { k: "thing", v: "match" }]],
+  // "Predict the winner", "who is the winner": who wins their match (a forecast only beside "predict" or a supposition).
+  ["winner|winners|the winner", { k: "metric", v: "win" }],
+  // Asked as a question ("who is the winner, 12345 vs 67890"): who wins, as "who wins" is.
+  ["who is the winner|whos the winner|who will be the winner|who would be the winner|who is going to be the winner|pick the winner|pick a winner", { k: "predict" }],
   // Wins and losses as an outcome ("closest win", "biggest loss").
   ["winning", { k: "outcome", v: "W" }],
   ["losing", { k: "outcome", v: "L" }],
@@ -255,8 +262,47 @@ export const INFORMAL: [string, string][] = [
   ["wknd", "weekend"],
   ["nxt wk", "next week"], ["nxt week", "next week"], ["next wk", "next week"], ["lst wk", "last week"], ["last wk", "last week"], ["nxt", "next"],
   ["szn", "season"],
+  // "NJ champs", "Romania champs", "world champs": the championship, as every reader reads it.
+  ["champs", "championship"],
   ["ur", "your"], ["u", "you"],
 ];
+
+/** Numbers said as words, read as digits after a word that takes a number ("opr over eighty", "top five teams", "last
+ *  ten matches", "won by twenty-five points"): one to nineteen, the tens, a ten and a unit, and hundreds. Only there:
+ *  "one" or "two" elsewhere ("which one", "the two teams") is a word, never a team's number. */
+const UNITS = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen",
+  "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
+const TENS = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+const NUMBER_BEFORE = "over|above|under|below|than|least|most|top|last|first|past|next|best|worst|bottom|exceeding|beyond|by|within";
+// "One" alone stays a word ("the best one", "which one"); in a longer number ("a hundred and one") it's the number.
+const UNIT = UNITS.slice(2).join("|"), DIGIT = UNITS.slice(1, 10).join("|"), TEN = TENS.slice(2).join("|");
+const TENS_SAID = `(?:${TEN})(?:[\\s-]+(?:${DIGIT}))?`;
+const NUMBER_SAID = `(?:(?:a|${DIGIT})\\s+hundred(?:\\s+and)?(?:\\s+(?:${TENS_SAID}|${UNIT}|one))?|${TENS_SAID}|${UNIT})`;
+const NUMBER_RE = new RegExp(`\\b(${NUMBER_BEFORE})\\s+(${NUMBER_SAID})(?![\\p{L}\\p{N}])`, "giu");
+
+/** The value of a number said as words ("eighty five", "a hundred and ten"). */
+function numberValue(said: string): number {
+  let n = 0;
+  for (const w of said.toLowerCase().split(/[\s-]+/)) {
+    if (w === "hundred") n = (n || 1) * 100;
+    else if (UNITS.indexOf(w) > 0) n += UNITS.indexOf(w);
+    else if (TENS.indexOf(w) > 1) n += TENS.indexOf(w) * 10;
+  }
+  return n;
+}
+
+/** `q` with each number said as words after a word that takes one written in digits ("over eighty" → "over 80"),
+ *  everything else as typed; nothing inside quotes, and never words `named` says are part of a team's or event's
+ *  name: the number with the word before it ("Top Ten Robotics" keeps "top ten") or with the words after it ("won by
+ *  Seven Wonders" keeps "seven"). */
+export function spelledNumbers(q: string, named: (words: string) => boolean = () => false): string {
+  return q.replace(NUMBER_RE, (w: string, before: string, said: string, at: number) => {
+    if ((q.slice(0, at).split('"').length - 1) % 2 === 1) return w;
+    const after = q.slice(at + w.length).trim().split(/\s+/).filter(Boolean).slice(0, 2);
+    const runs = [w, ...after.map((_, i) => [said, ...after.slice(0, i + 1)].join(" "))];
+    return runs.some((r) => named(r)) ? w : `${before} ${numberValue(said)}`;
+  });
+}
 
 /** A word without the punctuation around it (`"rn"`, "rn?"): what a form is matched on, the rest kept as typed. */
 const core = (w: string) => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
