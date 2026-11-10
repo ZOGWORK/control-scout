@@ -1,7 +1,7 @@
 // Team profile — any team, any season. Control Point's Team Stats design
 // (hero, OPR cards with world rank, one trend chart, event history),
 // generalised from "my team" to every team.
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import {
@@ -554,6 +554,23 @@ function LastEvent({ last, team, className }: { last: TeamEventRow; team: number
   );
 }
 
+/** How often Upcoming asks for the matches again on an event day (the server checks FIRST about every minute). */
+const UPCOMING_REFRESH_MS = 60_000;
+
+/** While `on` (the team's next event is under way), call `reload` every UPCOMING_REFRESH_MS while the tab is visible and
+ *  once on coming back to it; returns the time of the last check (Date.now() otherwise). Hidden tabs run no timer. */
+function useEventDayRefresh(on: boolean, reload: () => Promise<void>): number {
+  const [at, setAt] = useState(() => Date.now());
+  useEffect(() => {
+    if (!on) return;
+    const tick = () => { if (document.visibilityState === "visible") { setAt(Date.now()); void reload(); } };
+    const t = window.setInterval(tick, UPCOMING_REFRESH_MS);
+    document.addEventListener("visibilitychange", tick);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", tick); };
+  }, [on, reload]);
+  return at;
+}
+
 /** The team's next match on a posted schedule, soonest first (not played, its event not over); null when none is posted. */
 export function nextMatch(matches: MatchView[], events: TeamEventRow[], today: string, now = Date.now()): MatchView | null {
   const live = new Set(events.filter((e) => (e.end ?? e.start ?? "") >= today).map((e) => e.code));
@@ -571,7 +588,10 @@ function Upcoming({ p, next, last }: { p: TeamProfile; next: TeamEventRow | null
   const today = new Date().toISOString().slice(0, 10);
   // The page's own matches request (MatchesSection asks for the same): no second request, and in the drawn page's data.
   const ms = useApi<{ matches: MatchView[] }>(next ? `/api/teams/${n}/matches?season=${p.season}` : null);
-  const m = next && ms.data ? nextMatch(ms.data.matches, p.events, today) : null;
+  // On the event's day the next match moves as the field plays: asked again every minute while the tab is visible
+  // and on coming back to it, and the "late, not next" cutoff is read against the time of that check.
+  const now = useEventDayRefresh(!!next && (next.start ?? "") <= today, ms.reload);
+  const m = next && ms.data ? nextMatch(ms.data.matches, p.events, today, now) : null;
   const mEvent = m ? p.events.find((e) => e.code === m.code) : null;
   const side = m ? (m.red.teams.some((t) => t.number === n) ? "red" : "blue") : null;
   const chance = m?.prediction && side ? (side === "red" ? m.prediction.pRed : 1 - m.prediction.pRed) : null;
