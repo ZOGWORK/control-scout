@@ -21,8 +21,8 @@ A best-score answer's "Highest official score" tile names the match it comes fro
 
 ### Highlights
 - [fixes] The highest official score tile names its own match, event and date
-- [fixes] It links to that match, so it never reads as the headline contradicted
-- [fixes] Tiles' detail lines are in the page as first served, not only after loading
+- [fixes] It links to that match, never reading as the headline contradicted
+- [fixes] Tiles' detail lines are in the page as first served
 
 ### Fixed
 - "4215 highest scoring match in 2025-26" showed 262 points and, beside it, "Highest official score: 302" with nothing saying 302 was another match's, made by the other alliance's fouls. The tile now reads "Another match: Q19 at P2-8 Northern League Meet, Dec 21, 2025. 200 from the other alliance's fouls (its own points 102)" and links to Q19. The page as first served (before the app loads, and for search engines) prints every tile's detail line too. (#1290)
