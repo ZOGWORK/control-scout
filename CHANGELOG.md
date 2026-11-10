@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 4.9.3 — 2026-11-10
+## 4.9.5 — 2026-11-10
 
 The track record says which number is which: every figure carries its slice and sample.
 
@@ -25,8 +25,34 @@ The track record says which number is which: every figure carries its slice and 
 - [report] How it works lists every figure with what it counts and how many
 
 ### Changed
-- The home page's track record says plainly that its figure is a season replay, and states the live record beside it: live calls made in advance this season, the share of decided calls right, the Brier score, how early the season is (and how many calls are rough guesses), and that live calls aren't the card's figure until 10,000 are scored. All from the accuracy API, never typed in. (#1276)
+- The home page's track record says plainly that its figure is replayed from past matches, not calls made in advance, and states the live record beside it: live calls made in advance this season, the share of decided calls right, the Brier score, how early the season is (and how many calls are rough guesses), and that live calls aren't the card's figure until 10,000 are scored. All from the accuracy API, never typed in. (#1276)
 - How it works › Accuracy lists every headline-sized figure the site quotes, each with its slice and sample: this season's replay so far, live calls made in advance, the headline replay, and the Prediction Engine 2.0 replay. None of them is "the live accuracy" on its own.
+
+## 4.9.4 — 2026-11-10
+
+Compare opens on its teams: a search answer's Compare link lands on both teams with their numbers, from the first paint.
+
+### Highlights
+- [fixes] Compare from a search answer opens with both teams already there
+- [speed] A shared Compare link shows the comparison at once, before the app loads
+- [share] A comparison's tab and link title name both teams
+
+### Changed
+- `/compare?teams=…&season=…` is drawn on the server like team and event pages: the stats table, charts, events and awards are in the page itself, so a slow connection shows the teams straight away. Its title names the teams. (#1269)
+- The search page's first paint lists an answer's "Open in Predict" and "Compare side by side" links with the teams and season in them.
+## 4.9.3 — 2026-11-10
+
+A question search can't answer yet says sorry plainly, and a yes-or-no question gets its Yes or No first.
+
+### Highlights
+- [fixes] "Sorry — I can't answer that yet", once, when nothing answers
+- [fixes] What was read on one line, and searches that answer, one tap each
+- [fixes] Every yes-or-no question shows Yes or No first, big, then the proof
+
+### Changed
+- When search can't answer a question, or nothing matches at all, the page heading says "Sorry — I can't answer that yet", once. Under it: what was read (the team, event, place or season) and a few searches about it, each checked to answer before it is shown. The old "This isn't answered directly yet" and "No matches found" wordings are gone. (#1278)
+- What was read is the team the answer kept: a word of the question that happens to be another team's name ("how many rivets are on 4215's robot") is no longer read as that team. "7149s robot", with no apostrophe, is read as 7149.
+- Any question asked as yes or no ("did …", "has … ever", "was … at", "… ever won …?") shows Yes or No first whenever its answer card counts something: a count over zero is Yes, zero or none found is No. The card under it stays the evidence, with its links. The page's first paint says it too.
 
 ## 4.9.2 — 2026-11-09
 
