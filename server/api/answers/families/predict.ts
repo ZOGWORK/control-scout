@@ -26,7 +26,7 @@ import { rangeCoverageLine } from "../../../../src/shared/scoreRange.js";
 
 const pct = (p: number) => `${Math.round(100 * p)}%`;
 /** The range coverage line under a card's score ranges (nothing when it can't be read). */
-const coverageMore = async (): Promise<{ more?: string }> => { const l = rangeCoverageLine(await rangeCoverageNow().catch(() => null)); return l ? { more: l } : {}; };
+const coverageMore = async (): Promise<{ more?: string }> => { const l = rangeCoverageLine(await rangeCoverageNow({ wait: false }).catch(() => null)); return l ? { more: l } : {}; };
 const num1 = (x: number | null | undefined) => (x == null ? "–" : (Math.round(x * 10) / 10).toFixed(1));
 
 const PREDICT_RULE = "The engine's call for one team on each alliance in a qualification match, as Predict makes it for the same lineup: each side's expected score (without penalties, margin-calibrated), the win chance and the predicted margin. It rests on each team's prediction rating (points per match ± its uncertainty) as their team pages show it. A real FTC match is two alliances of two, so a real match's call also needs the partners: Predict works it out for any lineup.";
