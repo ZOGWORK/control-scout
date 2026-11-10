@@ -23,7 +23,12 @@ beforeEach(async () => {
   await ev("FLM1", "USFL", "2026-10-24");
   await ev("FLM9", "USFL", "2027-01-09");
   for (const [n, name] of [[6980, "Bad Wolf"], [7, "Seven"], [8, "Eight"]] as const) await run("INSERT INTO teams (number, name) VALUES (?, ?)", [n, name]);
-  for (const [code, team, r] of [["NJM1", 6980, 2], ["NJM2", 6980, 2], ["NJM2", 7, 1]] as const) await run("INSERT INTO event_teams (season, code, team, rank) VALUES (?, ?, ?, ?)", [S, code, team, r]);
+  for (const [code, team, r] of [["NJM1", 6980, 2], ["NJM2", 6980, 2], ["NJM2", 7, 1], ["NJLT", 7, 1]] as const) await run("INSERT INTO event_teams (season, code, team, rank) VALUES (?, ?, ?, ?)", [S, code, team, r]);
+  // Played matches at the two New Jersey meets (the tournament's roster has 7 ranked before it plays: not a meet played).
+  for (const code of ["NJM1", "NJM2"]) {
+    await run("INSERT INTO matches (season, code, level, series, number, label, played, source) VALUES (?, ?, 'qual', 0, 1, 'Q1', 1, 'first')", [S, code]);
+    for (const team of code === "NJM1" ? [6980] : [6980, 7]) await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance) VALUES (?, ?, 'qual', 0, 1, ?, 'red')", [S, code, team]);
+  }
 });
 
 const fetcher = (asked: string[]) => async (path: string) => {
@@ -62,6 +67,24 @@ describe("league standings sync", () => {
     expect(await teamLeagueStanding(S, 6980)).toEqual({ region: "USNJ", code: "NE", name: "Northeast", rank: 2, of: 2 });
     expect(await teamLeagueStanding(S, 1234)).toBeNull();
     expect((await leaguesOf(S, "USNJ")).map((l) => [l.code, l.name, l.teams])).toEqual([["NE", "Northeast", 3]]);
+  });
+
+  it("catches up on a league whose refresh window was missed", async () => {
+    // Read once on Nov 1; the server is down from before New Jersey's Nov 7 meet until Nov 20.
+    await syncLeagues(S, { now: new Date("2026-11-01T12:00:00Z"), fetch: fetcher([]) });
+    const asked: string[] = [];
+    expect(await syncLeagues(S, { now: new Date("2026-11-20T12:00:00Z"), fetch: fetcher(asked) })).toMatchObject({ ranked: 1 });
+    expect(asked.filter((a) => a.includes("rankings"))).toEqual([`/${S}/leagues/rankings/USNJ/NE`]);
+    asked.length = 0;
+    expect(await syncLeagues(S, { now: new Date("2026-11-21T12:00:00Z"), fetch: fetcher(asked) })).toMatchObject({ ranked: 0 });
+  });
+
+  it("keeps the stored standings when FIRST answers with none (404), and asks again", async () => {
+    await syncLeagues(S, { now: new Date("2026-11-08T12:00:00Z"), fetch: fetcher([]) });
+    const missing = async (path: string) => (path.includes("rankings") ? null : fetcher([])(path));
+    expect(await syncLeagues(S, { now: new Date("2026-11-08T19:00:00Z"), fetch: missing })).toMatchObject({ ranked: 0, failed: 1 });
+    expect((await leagueStandings(S, "USNJ", "NE"))!.rows).toHaveLength(3);
+    expect(await syncLeagues(S, { now: new Date("2026-11-08T19:05:00Z"), fetch: fetcher([]) })).toMatchObject({ ranked: 1 });
   });
 
   it("tries a failed league again next sync", async () => {

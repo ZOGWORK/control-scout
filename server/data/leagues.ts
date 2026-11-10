@@ -19,7 +19,6 @@ export interface LeagueRankingRow { team: number; rank: number; rs: number | nul
 
 const str = (x: unknown) => (typeof x === "string" && x.trim() ? x.trim() : null);
 const num = (x: unknown) => (typeof x === "number" && Number.isFinite(x) ? x : null);
-const addDays = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
 
 /** FIRST's /leagues answer as rows (a league with no region or code is dropped). */
 export function leagueRows(body: any): LeagueRow[] {
@@ -48,8 +47,9 @@ export function rankingStatements(season: number, region: string, league: string
 
 /**
  * Read the season's league list (once a day) and the standings of the leagues that are due: a league with a meet
- * that has started, never read, or last read over REREAD_HOURS ago while its latest started meet is under
- * SETTLE_DAYS old. At most `limit` leagues; a failed read is tried again next sync.
+ * that has started, never read, or last read over REREAD_HOURS ago and before its latest started meet was SETTLE_DAYS
+ * old (so a league whose window was missed, the server down or FIRST failing, still catches up once). At most `limit`
+ * leagues; a failed read, or no answer from FIRST, keeps what's stored and is tried again next sync.
  */
 export async function syncLeagues(season: number, o: { past?: boolean; limit?: number; now?: Date; fetch?: (path: string) => Promise<unknown> } = {}): Promise<{ listed: number; ranked: number; failed: number }> {
   const out = { listed: 0, ranked: 0, failed: 0 };
@@ -73,12 +73,15 @@ export async function syncLeagues(season: number, o: { past?: boolean; limit?: n
   const due = await all<{ region: string; league: string }>(
     `SELECT e.region, e.league, MAX(e.start) latest, l.ranked_at FROM events e LEFT JOIN leagues l ON l.season = e.season AND l.region = e.region AND l.code = e.league
      WHERE e.season = ? AND e.type = 'LeagueMeet' AND e.league IS NOT NULL AND e.region IS NOT NULL AND e.start <= ?
-     GROUP BY e.region, e.league HAVING l.ranked_at IS NULL OR (l.ranked_at < ? AND latest >= ?) ORDER BY l.ranked_at IS NOT NULL, latest DESC`,
-    [season, today, stale, addDays(today, -SETTLE_DAYS)]);
+     GROUP BY e.region, e.league HAVING l.ranked_at IS NULL OR (l.ranked_at < ? AND l.ranked_at < date(latest, '+${SETTLE_DAYS} days')) ORDER BY l.ranked_at IS NOT NULL, latest DESC`,
+    [season, today, stale]);
   for (const { region, league } of due.slice(0, o.limit ?? LEAGUES_PER_SYNC)) {
-    let rows: LeagueRankingRow[];
-    try { rows = leagueRankingRows(await get(`/${season}/leagues/rankings/${encodeURIComponent(region)}/${encodeURIComponent(league)}`)); }
+    let body: unknown;
+    try { body = await get(`/${season}/leagues/rankings/${encodeURIComponent(region)}/${encodeURIComponent(league)}`); }
     catch { out.failed++; continue; }
+    // Not found (FIRST answers 404 before a league's standings exist): nothing replaced, asked again next sync.
+    if (body == null) { out.failed++; continue; }
+    const rows = leagueRankingRows(body);
     await writeBatch(rankingStatements(season, region, league, rows, at));
     out.ranked++;
   }

@@ -727,7 +727,7 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
       const ev = await eventMeta(Number(m[1]), code);
       return ev ? { ...ev, title: `Pit display: ${ev.title}`, path: eventPath(Number(m[1]), code), jsonLd: undefined, bodyHtml: undefined } : NOT_FOUND;
     }
-    if ((m = p.match(/^\/leagues\/(\d{4})\/([A-Za-z0-9]{1,16})\/([A-Za-z0-9]{1,16})$/))) {
+    if ((m = p.match(/^\/leagues\/(\d{4})\/([A-Za-z0-9]{1,16})\/([A-Za-z0-9]{1,16})$/i))) {
       const lm = await leagueMeta(Number(m[1]), m[2], m[3]);
       if (!lm) return NOT_FOUND;
       const q = sp.toString();

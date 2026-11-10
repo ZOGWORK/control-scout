@@ -3,7 +3,11 @@
 // code together: "NE" is a league in New Jersey and another in Florida.
 import { all, get } from "../db.js";
 import type { LeagueMeet, LeagueStandingRow, LeagueStandings } from "../../src/shared/leagues.js";
-import { ATTENDED } from "./teams.js";
+
+/** A league meet the team played a match at (a ranked roster entry alone is no proof: an upcoming meet's list carries
+ *  the league's standing before anyone plays). */
+const PLAYED = `EXISTS (SELECT 1 FROM match_teams x JOIN matches m ON m.season = x.season AND m.code = x.code AND m.level = x.level AND m.series = x.series AND m.number = x.number
+  WHERE x.season = et.season AND x.code = et.code AND x.team = et.team AND x.on_field = 1 AND m.played = 1)`;
 import { placeName } from "../../src/shared/regions.js";
 
 /** A league's region and code as stored ("usnj" → "USNJ"), or null when the season has no such league. */
@@ -25,7 +29,7 @@ export async function leagueStandings(season: number, regionRaw: string, codeRaw
     all<Omit<LeagueStandingRow, "meets"> & { meets: number | null }>(
       `SELECT r.rank, r.team, t.name, r.wins, r.losses, r.ties, r.rs, r.tbp, r.played,
          (SELECT COUNT(*) FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
-           WHERE et.season = r.season AND et.team = r.team AND e.type = 'LeagueMeet' AND e.region = r.region AND e.league = r.league AND et.rank IS NOT NULL AND ${ATTENDED}) meets
+           WHERE et.season = r.season AND et.team = r.team AND e.type = 'LeagueMeet' AND e.region = r.region AND e.league = r.league AND ${PLAYED}) meets
        FROM league_rankings r LEFT JOIN teams t ON t.number = r.team
        WHERE r.season = ? AND r.region = ? AND r.league = ? ORDER BY r.rank, r.team`, [season, region, code]),
     all<LeagueMeet & { state: string | null; country: string | null }>("SELECT code, name, start, type, state, country FROM events WHERE season = ? AND region = ? AND league = ? ORDER BY start, code", [season, region, code]),
