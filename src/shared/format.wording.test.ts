@@ -1,6 +1,6 @@
 // The search display audit (v2.8.9): one possessive rule and one chart-caption sentence, used everywhere.
 import { describe, expect, it } from "vitest";
-import { possessive, rangeCaption } from "./format";
+import { possessive, rangeCaption, recordWords } from "./format";
 
 describe("possessive", () => {
   it("a name ending in s takes an apostrophe alone", () => {
@@ -25,4 +25,12 @@ describe("rangeCaption", () => {
     expect(rangeCaption(80, 80, 3, "points")).toBe("All 3 values: 80 points.");
   });
   it("never the old mixed-case form", () => expect(rangeCaption(52.4, 101.6, 5)).not.toMatch(/·|on the chart|^Low/));
+});
+
+describe("recordWords", () => {
+  it("says each count in the singular or plural it takes", () => {
+    expect(recordWords(4, 1, 0)).toBe("4 wins, 1 loss, 0 ties");
+    expect(recordWords(1, 2, 1)).toBe("1 win, 2 losses, 1 tie");
+    expect(recordWords(3, null, undefined)).toBe("3 wins, 0 losses, 0 ties");
+  });
 });
