@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.9.6 — 2026-11-10
+
+Search answers the plural with the list, and finds a team whose name was typed nearly right even when each word is a real word.
+
+### Highlights
+- [fixes] "4215 upcoming events" lists the team's upcoming events
+- [fixes] A team's name typed nearly right is found, with a Did you mean
+- [fixes] A team's number with an s after it finds the team
+
+### Changed
+- Asked in the plural ("upcoming events", "next events", "upcoming matches"), search shows the list, titled as one, even when it holds one event or none. The singular still shows the next one.
+- A team's name typed nearly right, where each word is still a real word, is read as that team and said as "Did you mean". A team found by a near spelling inside a question says so too.
+- "Partnered" reads as alliance partners, never split into two words. (#1275)
+
 ## 4.9.5 — 2026-11-10
 
 On a phone, every tracked team on My team can be removed again.
