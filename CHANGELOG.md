@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.1.1 — 2026-11-10
+## 5.1.2 — 2026-11-10
 
 A what-if under every predicted match: swap one robot and see how the call and the margin move.
 
@@ -27,6 +27,18 @@ A what-if under every predicted match: swap one robot and see how the call and t
 ### Changed
 - Predict › Match shows a What if? panel under the result: pick a robot in the match, type another, and both calls sit side by side with the change in win chance and margin. The swap is in the address, so a what-if can be shared, and Undo or Back takes it out. Both calls come from the same prediction the lab shows. (#1298)
 - The match lab never makes a two-against-one call: a forgotten box is pointed out, and the call waits for as many teams on each side.
+
+## 5.1.1 — 2026-11-10
+
+Every league has its own standings page: FIRST's official league ranking over every meet so far.
+
+### Highlights
+- [rankings] New league pages: the whole league table, rank to last place
+- [rankings] Each row: ranking score, record, matches and meets played
+- [rankings] Phones show a numbers-only table that fits the screen
+
+### Added
+- League standings pages at `/leagues/<season>/<region>/<league>` (for example the New Jersey Northeast League): FIRST's official league rankings, read from FIRST every few hours while a league's meets are on, with each team's ranking score, win-loss-tie record, qualification matches and league meets played, and the league's meets and tournament below. `?team=` marks one team's row. The page is drawn on the server, so the table is in the first HTML. Last season's league standings are read too. (#1287)
 
 ## 5.1.0 — 2026-11-10
 

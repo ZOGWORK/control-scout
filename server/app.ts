@@ -44,6 +44,7 @@ import { cachedEventDetail, eventDetail, listEvents, toEventInput } from "./api/
 import { withBracketGate } from "./api/bracket.js";
 import { scheduleGate } from "./api/eventGates.js";
 import { eventView, withStream } from "./api/eventView.js";
+import { leagueStandings } from "./api/leagues.js";
 import { perTeamOf, simulatedRankings } from "./projections/rankingSim.js";
 import { eventRecording, recordingStream, seasonRecordings, seasonVideoKinds, withClips, eventMatchSpan } from "./videos/recordings.js";
 import { answerVideo } from "./api/answers/video.js";
@@ -585,6 +586,15 @@ export function createApp(opts: { dist?: string } = {}) {
     if (!d) throw new HttpError(404, `No event ${req.params.code} in ${req.params.season}`);
     // On an event day results move every minute: revalidate every time (the ETag keeps that a cheap 304).
     if (d.live) res.setHeader("Cache-Control", "no-cache");
+    return d;
+  }));
+
+  // A league's standings (api/leagues.ts): FIRST's league rankings, as the sync last read them.
+  api.get("/leagues/:season/:region/:code", h(async (req) => {
+    const r = String(req.params.region), c = String(req.params.code);
+    if (!/^[A-Za-z0-9]{1,16}$/.test(r) || !/^[A-Za-z0-9]{1,16}$/.test(c)) throw bad("invalid league");
+    const d = await leagueStandings(season(req.params.season), r, c);
+    if (!d) throw new HttpError(404, `No league ${c} in ${r} in ${req.params.season}`);
     return d;
   }));
 
