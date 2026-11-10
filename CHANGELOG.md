@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.2.7 — 2026-11-10
+
+Search ranks a championship's divisions by one game phase's OPR when asked.
+
+### Highlights
+- [fixes] "Hardest division by average auto OPR" ranks by Auto OPR
+- [fixes] TeleOp and Endgame OPR work the same way
+- [fixes] A phase with no OPR on record says so
+
+### Fixed
+- Search: "which championship division was hardest this year, by average auto OPR" (in any word order) ranks the divisions by their teams' average Auto OPR, labelled on the card, instead of no answer. TeleOp and Endgame OPR work the same way. A phase's points without OPR, or another stat, still isn't answered with OPR.
+
 ## 5.2.6 — 2026-11-10
 
 Search answers more of the questions people asked and got no answer to: most wins in a place, a stat for a season, a team's chances written "4215s".
