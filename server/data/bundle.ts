@@ -3,6 +3,7 @@
 // half-fetched event never mixes old and new data.
 import type { InStatement } from "@libsql/client";
 import { isLegacy, type ScoreSplit } from "./seasons.js";
+import { cleanCity, cleanSchool } from "../../src/shared/placeClean.js";
 
 export interface EventRow {
   season: number;
@@ -134,7 +135,7 @@ export function teamStatements(teams: TeamRow[], onlyNew = false): InStatement[]
   if (onlyNew) {
     return teams.map((t) => ({
       sql: `INSERT OR IGNORE INTO teams (number, name, full_name, school, sponsors, city, state, country, rookie_year, website, home_region, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: [t.number, t.name, t.fullName, t.school, t.sponsors ? JSON.stringify(t.sponsors) : null, t.city, t.state, t.country, t.rookieYear, t.website, t.homeRegion, now()],
+      args: [t.number, t.name, t.fullName, cleanSchool(t.school), t.sponsors ? JSON.stringify(t.sponsors) : null, cleanCity(t.city, t.state, t.country), t.state, t.country, t.rookieYear, t.website, t.homeRegion, now()],
     }));
   }
   return teams.map((t) => ({
@@ -152,7 +153,7 @@ export function teamStatements(teams: TeamRow[], onlyNew = false): InStatement[]
             website = COALESCE(excluded.website, teams.website),
             home_region = COALESCE(excluded.home_region, teams.home_region),
             updated_at = excluded.updated_at`,
-    args: [t.number, t.name, t.fullName, t.school, t.sponsors ? JSON.stringify(t.sponsors) : null, t.city, t.state, t.country, t.rookieYear, t.website, t.homeRegion, now()],
+    args: [t.number, t.name, t.fullName, cleanSchool(t.school), t.sponsors ? JSON.stringify(t.sponsors) : null, cleanCity(t.city, t.state, t.country), t.state, t.country, t.rookieYear, t.website, t.homeRegion, now()],
   }));
 }
 
@@ -175,7 +176,7 @@ export function bundleStatements(b: EventBundle): InStatement[] {
             upstream_updated = COALESCE(excluded.upstream_updated, events.upstream_updated),
             synced_at = excluded.synced_at,
             detail_synced_at = COALESCE(excluded.detail_synced_at, events.detail_synced_at)`,
-    args: [e.season, e.code, e.name, e.type, e.divisionCode, e.region, e.league, e.venue, e.address ?? null, e.city, e.state, e.country, e.start, e.end, e.timezone, e.remote ? 1 : 0, e.hybrid ? 1 : 0, e.website, e.livestream, e.source, e.upstreamUpdated, now(), b.detail ? now() : null],
+    args: [e.season, e.code, e.name, e.type, e.divisionCode, e.region, e.league, e.venue, e.address ?? null, cleanCity(e.city, e.state, e.country), e.state, e.country, e.start, e.end, e.timezone, e.remote ? 1 : 0, e.hybrid ? 1 : 0, e.website, e.livestream, e.source, e.upstreamUpdated, now(), b.detail ? now() : null],
   });
   s.push(...teamStatements(b.teams, isLegacy(e.season)));
   if (!b.detail) return s;

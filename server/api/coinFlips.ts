@@ -20,6 +20,7 @@ import type { MatchView } from "../../src/shared/api.js";
 import { matchViews } from "./matches.js";
 import { isEventDay } from "../data/live.js";
 import { pool } from "../sync.js";
+import { place } from "../../src/shared/format.js";
 
 export const KV_KEY = "radar:coin-flips";
 /** A stored radar older than this is gathered again on read (the job normally keeps it within minutes). */
@@ -31,7 +32,7 @@ interface EventRow { code: string; name: string; city: string | null; state: str
 
 const placeOf = (e: EventRow) => {
   const region = e.country && !["USA", "US", "United States"].includes(e.country) ? e.country : e.state;
-  return [e.city, region].filter(Boolean).join(", ") || null;
+  return place(e.city, region) || null;
 };
 
 /** One event's coin flips from its match views (pure: the rules, tested on their own). */

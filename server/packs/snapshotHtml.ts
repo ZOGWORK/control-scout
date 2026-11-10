@@ -13,6 +13,7 @@ import type { PickList } from "../../src/shared/picklist.js";
 import { oddsPct } from "../../src/shared/share.js";
 import { TIER_WORD } from "../../src/shared/tierWords.js";
 import type { SeasonReference } from "../../src/shared/rules/types.js";
+import { place } from "../../src/shared/format.js";
 
 const ESC: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
 /** Text for HTML: every value from data goes through this. */
@@ -91,7 +92,7 @@ function teamBlock(side: "red" | "blue", t: ReportTeam | undefined, number: numb
     ? `Rank <b class="num">${ev.rank}</b> here · <span class="num">${ev.wins ?? 0}-${ev.losses ?? 0}-${ev.ties ?? 0}</span>`
     : `<span class="mut">No standing here yet</span>`;
   const season = t?.season ? ` · season <span class="num">${t.season.wins}-${t.season.losses}-${t.season.ties}</span>${t.season.rank ? `, world #${t.season.rank}${t.season.of ? ` of ${t.season.of}` : ""}` : ""}` : "";
-  return `<div class="team side-${side}"><div><b class="num">${number}</b> ${esc(t?.name ?? "")}${t?.city ? ` <span class="mut sm">${esc([t.city, t.state].filter(Boolean).join(", "))}</span>` : ""}</div>`
+  return `<div class="team side-${side}"><div><b class="num">${number}</b> ${esc(t?.name ?? "")}${t?.city ? ` <span class="mut sm">${esc(place(t.city, t.state))}</span>` : ""}</div>`
     + `<div class="sm">${standing}${season}</div>`
     + `<div class="sm">${split(ev?.opr?.np != null ? ev.opr : t?.season?.opr)}</div>`
     + (chips ? `<div class="chips">${chips}</div>` : "")

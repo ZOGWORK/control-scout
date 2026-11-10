@@ -8,6 +8,7 @@ import { CURRENT_SEASON } from "../data/seasons.js";
 import { all } from "../db.js";
 import { normalize } from "./fuzzy.js";
 import { ftsQuery } from "./search.js";
+import { place } from "../../src/shared/format.js";
 
 export interface NamedTeam { number: number; name: string | null; city: string | null; state: string | null; country: string | null; last: number | null }
 
@@ -33,4 +34,4 @@ export const inRegion = (t: Pick<NamedTeam, "state" | "country">, region: Region
 
 /** A team's search hit, as search lists a team. */
 export const namedTeamHit = (t: NamedTeam): SearchHit =>
-  ({ kind: "team", ref: String(t.number), title: searchTeamTitle(t.number, t.name), subtitle: [t.city, t.state, t.country].filter(Boolean).join(", "), season: t.last == null ? null : Number(t.last) });
+  ({ kind: "team", ref: String(t.number), title: searchTeamTitle(t.number, t.name), subtitle: place(t.city, t.state, t.country), season: t.last == null ? null : Number(t.last) });
