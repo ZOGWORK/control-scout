@@ -92,5 +92,7 @@ describe("Video and status picks never dead-end", () => {
     expect(statusPick(events, clips, "live")).toEqual({ status: "live", video: null });
     expect(statusPick(events, clips, "finished")).toEqual({ status: "finished" });
     expect(statusPick(events, clips, "all")).toEqual({ status: "all" });
+    // From Live now to Finished with clips picked: the finished events have clips, so the video filter stays.
+    expect(statusPick(events, { ...clips, status: "live" }, "finished")).toEqual({ status: "finished" });
   });
 });
