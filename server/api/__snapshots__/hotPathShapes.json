@@ -1717,7 +1717,7 @@
  },
  "/api/teams/101?season=2026": {
   "status": 200,
-  "bytes": 1991,
+  "bytes": 2051,
   "body": {
    "team": {
     "number": 101,
@@ -1823,6 +1823,7 @@
      "city": "Trenton",
      "state": "NJ",
      "country": "USA",
+     "timezone": "America/New_York",
      "rank": 1,
      "rp": 4,
      "wins": 2,
@@ -1871,6 +1872,7 @@
      "city": "Trenton",
      "state": "NJ",
      "country": "USA",
+     "timezone": "America/New_York",
      "rank": null,
      "rp": null,
      "wins": null,

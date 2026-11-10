@@ -15,6 +15,25 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.1.5 — 2026-11-10
+
+A team page says what's next, right under the team's name: the next match once a schedule is posted, else the next event, else its last one.
+
+### Highlights
+- [teams] Upcoming on every team page: the next match, with its call
+- [predict] One tap from the next match to Predict, both alliances filled in
+- [teams] No event published yet? It says so and links the last event
+
+### Changed
+- The team page's header has an Upcoming block. With a posted schedule it shows the next match (number, time, alliances, the team's chance to win) with "Event schedule" and "Predict this match"; before that, the next event with "match list is posted at the event"; with none, "No upcoming event is published" and the last event. It is in the first paint, so a slow connection shows it at once. (#1283)
+- On a phone, the Upcoming rows are at least 44 px tall, so each is an easy tap.
+- The next match's chance to win carries its confidence tier, like every other call.
+- At an event that advances teams, the next-match card keeps an "Odds to advance" button all event day.
+- Whether an event is over is read on the venue's own calendar: a California event's finals still show as next after UTC midnight. Team event rows carry the venue's time zone for this.
+- A team page left open from the night before starts following the event once its day begins at the venue, and stops once the event is over.
+- Search's "next match" and "next event" answers link to the team's current season, so the team page opens on its Upcoming block (they linked last season's page before).
+
+
 ## 5.1.4 — 2026-11-10
 
 A what-if under every predicted match: swap one robot and see how the call and the margin move.
