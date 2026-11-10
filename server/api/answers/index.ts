@@ -778,6 +778,8 @@ async function oprRatingSearch(q: string, f: OprRatingQuestion, resolve: Resolve
   const top = base.step !== "recovery" ? base.hits[0] : undefined;
   if (!top || top.kind !== "team" || top.href) return null;
   const team = { number: Number(top.ref), name: teamNameOf(top.title) || null };
+  // A season with no events yet is said so, never answered with an older season's number.
+  if (f.future) return futureAnswer(q, top, team, f.future, f.id, opts);
   const label = `${whoOf(team)} · ${OPR_RATING_TITLES[f.id]}`;
   const guessed = base.step === "did-you-mean";
   const answer: SearchAnswer = {
