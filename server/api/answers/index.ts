@@ -13,7 +13,7 @@ import { latestStoredSeason, noEventsStat, withoutYear } from "./noEventsYet.js"
 import { edits, findRegions, regionLabel } from "../../../src/shared/regions.js";
 import { eventTypeLabel } from "../../../src/shared/labels.js";
 import { CURRENT_SEASON, SEASON_NUMBERS } from "../../data/seasons.js";
-import { searchSeason, searchSeasonWhy } from "./season.js";
+import { completedSeason, currentSeason, defaultSeason, seasonWhy } from "./season.js";
 import { teamNameOf } from "../../../src/shared/teamTitle.js";
 import { teamPageSql } from "../../../src/shared/teamPages.js";
 import { all, get } from "../../db.js";
@@ -33,7 +33,7 @@ import { factAnswer, readTeamFact, seasonOf as factSeason, type FactQuestion } f
 import { leagueAskAnswer, readLeagueAsk } from "./families/league.js";
 import { OPR_RATING_TITLES, oprRatingAnswer, readOprRating, type OprRatingQuestion } from "./families/oprRating.js";
 import { counts, matchAnswer, whoOf } from "./families/matches.js";
-import { changeAnswer, readChange, type ChangeQuestion } from "./families/seasonChange.js";
+import { changeAnswer, readChange, resolveChange, shiftChange, type ChangeQuestion } from "./families/seasonChange.js";
 import { MATCH_STAT_IDS, matchStatAnswer } from "./families/matchStats.js";
 import { BOARD_STATS, LEADERBOARD_MAX, boardStatFor, careerBoardTitle, leaderboardAnswer, statWords, windowBoardAnswer } from "./families/leaderboard.js";
 import { readTime } from "../query/time.js";
@@ -57,7 +57,7 @@ import { names } from "../query/names.js";
 import { countryOf } from "../../../src/shared/countries.js";
 import { regionOf } from "../../../src/shared/searchEventQuery.js";
 import { compoundSearch } from "./compoundSearch.js";
-import { THEIR_FIRST, THEIR_LAST, readLeaderboard, readStatQuestion, readTeamSet, readTwoTeam, type LeaderboardQuestion, type TeamSetQuestion, type IntentId, type StatQuestion, type TwoTeamId, type TwoTeamQuestion } from "./read.js";
+import { EVENT_ROWS, SEASON_ROWS, THEIR_FIRST, THEIR_LAST, readLeaderboard, readStatQuestion, readTeamSet, readTwoTeam, type LeaderboardQuestion, type TeamSetQuestion, type IntentId, type StatQuestion, type TwoTeamId, type TwoTeamQuestion } from "./read.js";
 
 /** Search's own answer for the part of a query that names the team (searchAnswer with intents off). */
 export type Resolve = (core: string) => Promise<SearchAnswer>;
@@ -187,8 +187,8 @@ function teamPick(evs: TeamEvent[], s: StatQuestion["scope"], season: number | n
   if (kind) return newest(evs.filter((e) => inSeason(e) && e.type === kind[1] && played(e)), (x) => `its ${seasonLabel(x)} ${kind[2]}`);
   if (at) return pickTeamEvent(evs, at, inSeason);
   if (s.states) return newest(evs.filter((e) => inSeason(e) && e.type === STATES_TYPE && played(e) && (!s.place || (e.country === s.place.country && e.state === s.place.state))));
-  // Worlds: the season or year named, else the current search season's.
-  if (s.championship) return newest(evs.filter((e) => (season != null || held != null ? inSeason(e) : e.season === searchSeason()) && e.type === CHAMPIONSHIP_TYPE && played(e)));
+  // Worlds: the season or year named, else the latest Championship held (the completed season's, ./season.ts).
+  if (s.championship) return newest(evs.filter((e) => (season != null || held != null ? inSeason(e) : e.season === completedSeason()) && e.type === CHAMPIONSHIP_TYPE && played(e)));
   return null;
 }
 
@@ -208,17 +208,17 @@ function pickName(events: TeamEvent[], families: number): string {
   return names.length === 2 ? list : `${names.length} events: ${list}`;
 }
 
-/** The season a team's answer reads when none is named: the default season (the latest completed one, ./season.ts)
- *  when the team has matches at official events in it, else the team's latest season with such matches (a season of
- *  only scrimmages isn't one). `own`: the team's latest was used. */
+/** The season a team's answer reads when none is named (the one season rule, ./season.ts): the team's latest season
+ *  with matches at official events that the answer counts (a season of only scrimmages isn't one). `own`: that season
+ *  is not the current one, so the card says the team hasn't played the current season yet. */
 export async function latestSeason(team: number, id?: IntentId): Promise<{ season: number; own: boolean } | null> {
   // A season of only scrimmages isn't one, nor one where the team is only on a roster (league rosters list teams that
   // never took the field): a season with a match the answer counts.
   const official = officialClause();
   const ms = (await teamMatches(team)).filter((m) => official(m) && (!id || counts(id, m)));
   if (!ms.length) return null;
-  const def = searchSeason();
-  return ms.some((m) => m.season === def) ? { season: def, own: false } : { season: Math.max(...ms.map((m) => m.season)), own: true };
+  const season = Math.max(...ms.map((m) => m.season));
+  return { season, own: season !== currentSeason() };
 }
 
 /** "new jersey events", "nj meets": a region named outright (its whole name or code), else null. */
@@ -245,20 +245,29 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
   }
   // "12345 awards at New Jersey events" when the place wasn't read already: the events' own region, not one event.
   const region = !scope.place && s.at ? placeOf(s.at) : null;
-  // "At states" and "at worlds" with no season named are one event for a team's results, rank or OPR there: its state
-  // championship (the latest it played, or the year's) and its Worlds of the latest completed season.
-  const oneEvent = EVENT_SCOPE_INTENTS.has(it.id) && ((s.states && it.id !== "match-lookup" && !s.ever) || (s.championship && it.id === "results" && s.season == null && !s.ever && !s.latest && !s.at));
+  // "At states" is one event, the team's state championship (the season's named, else the latest it played, the card
+  // naming it and its season), for every answer read from matches: its results, rank or OPR there, and its record,
+  // match lists, scores and streaks there too, so a question asked two ways gets one scope. Only "ever", "all time" or
+  // "all their state championships" aggregates every season (and says so). Answers read from event or season rows
+  // (best finish, seasons played) are across its state championships by nature. "At worlds" with no season named is
+  // one event for its results: its Worlds of the latest completed season.
+  const matchRead = EVENT_SCOPE_INTENTS.has(it.id) || ((it.family === "aggregate" || it.family === "superlative") && !EVENT_ROWS.has(it.id) && !SEASON_ROWS.has(it.id));
+  const oneEvent = !s.ever && it.id !== "match-lookup" && ((s.states && matchRead) || (s.championship && it.id === "results" && s.season == null && !s.latest && !s.at));
+  // The answers newly read as one state championship (a record, a match list, a score) keep the reading across its
+  // state championships when no one event of the team's is found (its event list leaves some out): labelled so.
+  const acrossIfNone = !s.at && s.states && !EVENT_SCOPE_INTENTS.has(it.id);
   if (region) scope.place = { country: region.country, state: region.state, name: region.name };
   else if (s.at || oneEvent) {
     // An event the team attended, in the season asked for ("this season": the team's latest with matches).
     // A forecast's "this season" is the current one (its upcoming event), not the team's last played.
-    const season = s.year ? null : s.season ?? (s.latest ? (PREDICT_INTENTS.has(it.id) ? CURRENT_SEASON : (await latestSeason(team, it.id))?.season ?? null) : null);
-    if (s.latest && season == null) return null;
+    const season = s.year ? null : s.season ?? (s.latest ? (PREDICT_INTENTS.has(it.id) ? currentSeason() : (await latestSeason(team, it.id))?.season ?? null) : null);
+    if (s.latest && season == null && !acrossIfNone) return null;
     const p = teamPick((await teamEventSet(team)).events, s, season);
     if (p) {
       const codes = p.events.map((e) => e.code);
       return { ...scope, season: null, states: false, event: { season: p.primary.season, code: p.primary.code, name: p.name, ...(codes.length > 1 ? { codes } : {}) } };
     }
+    if (acrossIfNone) return { ...scope, season: s.year && s.season != null ? s.season - 1 : season ?? s.season };
     // An event read beside the team names one of its own, or none.
     if (s.own) return null;
     // Worlds with none of the latest season: every season the team went, as before.
@@ -266,7 +275,7 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
     // No state championship of the team's: said so, with the events it did play.
     if (!s.at) {
       const name = s.season != null ? (s.place ? `the ${s.place.name} state championship` : "a state championship") : `${s.place ? `${s.place.name} ` : ""}state championships`;
-      return { ...scope, place: undefined, states: false, event: { season: s.season != null ? (s.year ? s.season - 1 : s.season) : searchSeason(), code: "", name, absent: s.season != null ? true : "never" } };
+      return { ...scope, place: undefined, states: false, event: { season: s.season != null ? (s.year ? s.season - 1 : s.season) : (await latestSeason(team))?.season ?? currentSeason(), code: "", name, absent: s.season != null ? true : "never" } };
     }
     if (s.at === THEIR_LAST || s.at === THEIR_FIRST || EVENT_KINDS.some(([re]) => re.test(s.at!))) return null;
     // None of the team's events: the event those words name, which the answer says the team didn't play.
@@ -279,29 +288,16 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
     return { ...scope, season: null, event: { season: Number(named.season), code: named.code, name: shortEvent(named.name, named.type ?? null), absent: true } };
   }
   // A forecast's "this season" is the current one, where its upcoming event is: the heading and links agree with it.
-  if (s.season == null && s.latest && PREDICT_INTENTS.has(it.id)) return { ...scope, season: CURRENT_SEASON };
-  if (s.season == null && !s.ever && (s.latest || it.defaultSeason === "latest") && PARTNER_LIST_INTENTS.has(it.id)) {
-    // The partner and opponent answers read the latest completed season when the team played it ("this season" too).
-    const def = searchSeason();
-    const official = officialClause();
-    if ((await teamMatches(team)).some((m) => m.season === def && official(m))) {
-      scope.season = def;
-      scope.seasonWhy = s.latest ? `"This season" here is ${seasonLabel(def)}, the latest completed season.` : searchSeasonWhy(def);
-      return scope;
-    }
-  }
+  if (s.season == null && s.latest && PREDICT_INTENTS.has(it.id)) return { ...scope, season: currentSeason() };
   // Worlds with no season named is every season the team went (a team goes to few), unless "this season" says one.
+  // Every other answer that needs one season reads the team's latest with matches (the one season rule, ./season.ts),
+  // the partner and opponent lists too, and the card says which season and why.
   if (s.season == null && !s.ever && (s.latest || (it.defaultSeason === "latest" && !s.championship))) {
     const latest = await latestSeason(team, it.id);
     // A plain "12345 record" with no match on record is left to search's team answer (its stored season record).
     if (latest == null && it.id === "record" && !s.latest) return null;
     scope.season = latest?.season ?? null;
-    if (latest) {
-      const S = seasonLabel(latest.season), said = s.latest ? `"This season" here is ${S}` : `The season is ${S}`;
-      scope.seasonWhy = latest.own
-        ? `${said}: no ${seasonLabel(searchSeason())} matches on record, so the team's latest season with matches.`
-        : `${said}, the latest completed season (its FIRST Championship has finished).`;
-    }
+    if (latest) scope.seasonWhy = seasonWhy(s.latest ? "this" : "team", latest.season, String(team));
   }
   return scope;
 }
@@ -416,7 +412,7 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   // "Which event had the most teams in California this season", "biggest qualifiers in Texas": events by team count.
   const big = readBiggestEvents(q);
   if (big) {
-    const stat = opts.full ? await biggestEventsAnswer(big, searchSeason()) : null;
+    const stat = opts.full ? await biggestEventsAnswer(big, defaultSeason()) : null;
     const label = stat?.title ?? `Events with the most teams${big.e.region ? ` in ${big.e.region.name}` : ""}`;
     return { q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label, ...(big.e.region ? { place: { key: big.e.region.key, name: big.e.region.name } } : {}) },
       intent: { kind: "stat-biggest-events", pattern: `events with the most teams${big.e.region ? " [place]" : ""}`, met: true, understood: [label] }, ...(stat ? { stat } : {}) };
@@ -454,7 +450,15 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   }
   // The asks' leaderboards are drawn here on the page; the dropdown keeps the asks' own short card.
   const board = readLeaderboard(q);
-  if (board) return boardSearch(q, board, opts);
+  if (board) {
+    const a = await boardSearch(q, board, opts);
+    // No season said: the current one, then the one before when nobody has played it there yet, said on the card,
+    // as the asked boards and the pipeline's read it (the one season rule, ./season.ts).
+    // Boards over every season (careers, the oldest active) and a city's (its own "now") have no season to step.
+    if (board.season != null || !opts.full || ["career", "oldest", "city", "city-best"].includes(board.kind)) return a;
+    const season = currentSeason();
+    return relaxed(a, defaultSteps(season, board.region ? ` in ${board.region.name}` : "", board.undefeated ? "undefeated teams" : "ranked teams"), (s) => boardSearch(q, { ...board, season: s }, opts));
+  }
   // An asked board reads the season as the pipeline does: the current one, then the one before when nobody is ranked
   // there yet, said on the card.
   const asked = opts.full ? boardOfAsk(q) : null;
@@ -743,12 +747,14 @@ async function factSearch(q: string, f: FactQuestion, resolve: Resolve, opts: { 
 
 /** "How much did 12345's OPR improve from last season to this season": one team's number in two seasons, or its rating
  *  across one season (./families/seasonChange.ts). */
-async function changeSearch(q: string, c: ChangeQuestion, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
-  if (!c.core) return changeWithoutTeam(q, c, opts.pages);
-  const base = await resolve(c.core);
+async function changeSearch(q: string, c0: ChangeQuestion, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+  if (!c0.core) return changeWithoutTeam(q, c0, opts.pages);
+  const base = await resolve(c0.core);
   const top = base.step !== "recovery" ? base.hits[0] : undefined;
   if (!top || top.kind !== "team" || top.href) return null;
   const team = { number: Number(top.ref), name: teamNameOf(top.title) || null };
+  // The heading, the reading and the team's link name the seasons the card reads (its "this season" resolved).
+  const c = await resolveChange(c0, team.number);
   const what = c.stat === "opr" ? "OPR" : "Prediction rating";
   const label = `${whoOf(team)} · ${what} change, ${c.from != null ? `${seasonLabel(c.from)} to ` : ""}${seasonLabel(c.to)}`;
   const guessed = base.step === "did-you-mean";
@@ -765,7 +771,9 @@ async function changeSearch(q: string, c: ChangeQuestion, resolve: Resolve, opts
 
 /** "predicted changes", "rating change": a change is one team's, so the card says so and asks the same question of the
  *  season's top-rated teams (real teams, from the stored ratings), with the season's biggest climbers beside them. */
-async function changeWithoutTeam(q: string, c: ChangeQuestion, pages: SearchPageLink[]): Promise<SearchAnswer> {
+async function changeWithoutTeam(q: string, c0: ChangeQuestion, pages: SearchPageLink[]): Promise<SearchAnswer> {
+  // No season said and no team: the current season once anyone has played it, else the latest with matches (./season.ts).
+  const c = c0.defaulted || c0.fromThis ? shiftChange(c0, defaultSeason()) : c0;
   const what = c.stat === "opr" ? "OPR" : "prediction rating";
   const col = c.stat === "opr" ? "s.opr_np" : "s.rating_np";
   const top = await all<{ team: number; name: string | null }>(`SELECT s.team, t.name FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE s.season = ? AND ${col} IS NOT NULL AND ${teamPageSql("s.team", "t.name")} ORDER BY ${col} DESC, s.team LIMIT 3`, [c.to]);
@@ -873,10 +881,10 @@ async function winnersSearch(q: string, it: StatQuestion, opts: { full: boolean;
   const championship = !it.scope.states && (it.scope.championship || !core);
   // As the asks' "who won" reads them: a bare year is when the event was held ("who won 2025 nj states": 2024–25),
   // "last year" the latest finished championship.
-  const asked = it.scope.lastYear ? null : it.scope.latest && it.scope.season == null ? CURRENT_SEASON : it.scope.year && it.scope.season != null ? it.scope.season - 1 : it.scope.season;
+  const asked = it.scope.lastYear ? null : it.scope.latest && it.scope.season == null ? currentSeason() : it.scope.year && it.scope.season != null ? it.scope.season - 1 : it.scope.season;
   // No season said: the latest one held with a result; a season said is that season's, whatever fits better elsewhere.
   const unsaid = asked == null && !it.scope.lastYear;
-  let named = championship ? null : (await teamsLastEvent(core, asked)) ?? (unsaid ? (await latestWithResult(it, CURRENT_SEASON)) ?? await namedEvent(it, null) : await namedEvent(it, asked));
+  let named = championship ? null : (await teamsLastEvent(core, asked)) ?? (unsaid ? (await latestWithResult(it, currentSeason())) ?? await namedEvent(it, null) : await namedEvent(it, asked));
   // "This year" naming an event not on this season's calendar yet (a division FIRST hasn't set up): its latest one, said so.
   let before = !championship && !named && it.scope.latest && it.scope.season == null ? asked : null;
   if (before != null) {
@@ -927,7 +935,7 @@ export async function twoTeamSearch(q: string, two: TwoTeamQuestion, resolve: Re
   if (MEETING_IDS.has(two.id) && s.season == null && s.latest) {
     const ms = (await teamMatches(a.number)).filter(officialClause());
     scope.season = ms.length ? Math.max(...ms.map((m) => m.season)) : null;
-    if (scope.season != null) scope.seasonWhy = `"This season" here is ${seasonLabel(scope.season)}, ${a.number}'s latest season with matches on record.`;
+    if (scope.season != null) scope.seasonWhy = seasonWhy("this", scope.season, String(a.number));
   }
   const title = `${TWO_TEAM_TITLES[two.id]}: ${whoOf(a)} vs ${whoOf(b)}`;
   // "Who wins" keeps what the asks gave it (Compare's hit first, Predict first among the pages), with the call as its card.
@@ -1207,7 +1215,7 @@ export async function boardSearch(q: string, said: LeaderboardQuestion, opts: { 
     }
   }
   if (isCity && !city) return null;
-  const st = boardStatFor(b.stat, b.season ?? searchSeason());
+  const st = boardStatFor(b.stat, b.season ?? defaultSeason());
   if (!st) return null;
   const where = b.town ? ` in ${b.town}` : b.region ? ` in ${b.region.name}` : city ? ` ${b.school ? "at" : "in"} ${city.city}${b.cityIn ? `, ${b.cityIn.state || b.cityIn.name}` : ""}` : "";
   const label = b.event ? `${b.event.home ? `${b.event.home.name} teams` : "Best teams"} at ${b.event.name}` : b.kind === "oldest" || b.kind === "career" ? careerBoardTitle({ kind: b.kind, stat: st }, where || " worldwide"): b.kind === "city" ? `Teams${where}` : b.kind === "city-best" ? `Best team${where} by OPR` : b.kind === "gain" ? `Most OPR gained${where} between first and last event`: b.teams ? `${b.teams.length} teams by ${statWords(st)}` : b.undefeated ? `Undefeated teams${where}` : (st.count || b.window) && b.best ? `Team${where} with the most ${statWords(st)}${b.window ? ` ${b.window.label}` : ""}` : b.window ? `Top ${b.n} teams${where} by ${statWords(st)} ${b.window.label}` : b.kind === "rookie" && b.asc ? `Lowest rookie teams${where} by ${statWords(st)}` : b.asc ? `Lowest ${b.n > 1 ? `${b.n} teams` : "team"} by ${statWords(st)}${where}` : b.best ? `Best team${where} by ${statWords(st)}` : b.kind === "rookie" ? `Best rookie teams${where}` : b.kind === "improved" ? (b.climb ? `Teams${where} that climbed from OPR rank ${b.climb.from}+ to the top ${b.climb.to}` : `Most improved teams${where}`) : b.kind === "steady" ? `Most stable OPR${where}: the fewest ups and downs` : b.kind === "phases" ? `Strongest in every phase${where}` : `Top ${b.n} teams by ${statWords(st)}${where}`;

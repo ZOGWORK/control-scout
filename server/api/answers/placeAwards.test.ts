@@ -7,9 +7,9 @@ import { migrate, openDb, run, setDb } from "../../db";
 import { rebuildSearch } from "../../stats/job";
 import { searchAnswer } from "../searchAnswer";
 import { placeAwardsAnswer, readPlaceAwards } from "./families/placeAwards";
-import { searchSeason } from "./season";
+import { currentSeason } from "./season";
 
-const S = searchSeason();
+const S = currentSeason();
 
 beforeAll(async () => {
   const c = openDb(":memory:");
@@ -164,6 +164,11 @@ describe("a place's award winners", () => {
     const s = await placeAwardsAnswer(ask!);
     expect(rows(s).map((r) => r.team)).toEqual(["20265 Heart of RoBots"]);
     expect(s.headline?.value).toBe("1 Think Award");
+    // No season said: the card says which season it read and why (the one season rule, ../season.ts).
+    expect(s.definition).toContain("With no season named, the season is ");
+    // A season said needs no note.
+    const said = await placeAwardsAnswer((await readPlaceAwards(`Texas Think winners ${S}-${String((S + 1) % 100).padStart(2, "0")}`))!);
+    expect(said.definition).not.toContain("With no season named");
   });
 
   it("orders the winners by a stat that season", async () => {
@@ -218,10 +223,12 @@ describe("a place's award winners", () => {
     expect(yes.headline).toMatchObject({ value: "Yes", label: "2 teams" });
     expect(rows(yes).map((r) => [r.team, r.won])).toEqual([["22222 Maple Gears", "No"], ["33333 Northern Bolts", "Yes"]]);
     const tx = await placeAwardsAnswer((await readPlaceAwards("Texas teams in the playoffs at worlds this season"))!);
+    expect((await placeAwardsAnswer({ ...ask!, mode: "list" })).definition).toContain("With no season named, the season is ");
     expect(tx.headline?.value).toBe("2 teams");
     expect((await placeAwardsAnswer((await readPlaceAwards("did any Ohio team make worlds finals"))!)).headline?.value).toBe("No");
-    // At Worlds "last year" is the latest Championship finished, "last season" the one before; a list is one season.
-    expect(await readPlaceAwards("did any Ontario team win Connect at worlds last year")).toMatchObject({ season: S, worlds: true });
+    // At Worlds "last year" is the latest Championship finished, and "last season" the latest completed season: the
+    // same one while the current season is under way (here the season before S); a list is one season.
+    expect(await readPlaceAwards("did any Ontario team win Connect at worlds last year")).toMatchObject({ season: S - 1, worlds: true });
     expect(await readPlaceAwards("did any Ontario team win Connect at worlds last season")).toMatchObject({ season: S - 1 });
     expect(tx.scope.at(-1)).not.toBe("All seasons");
     await run("UPDATE match_teams SET on_field = 0 WHERE code = 'FTCCMP1' AND team = 33333");

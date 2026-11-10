@@ -35,7 +35,7 @@ await ensureSearchIndex(rebuildSearch);
 const { names, fold } = await import("../server/api/query/names.js");
 const { forecasterFor, recentRecords } = await import("../server/predict/engine.js");
 const { CURRENT_SEASON } = await import("../server/data/seasons.js");
-const { refreshSearchSeason } = await import("../server/api/answers/season.js");
+const { completedSeason, refreshSearchSeason, teamSeason } = await import("../server/api/answers/season.js");
 const { searchAnswer } = await import("../server/api/searchAnswer.js");
 const { seasonLabel } = await import("../src/shared/format.js");
 const { SHAPES, paraphrases, rng, sample, pick } = await import("../server/api/query/eval/generate.js");
@@ -43,7 +43,10 @@ const { newestSeason, teamTruth, teamsPlayed, opponentsOf, allNames, unambiguous
 type Answer = Awaited<ReturnType<typeof searchAnswer>>;
 
 const index = await names();
-const season = await refreshSearchSeason();
+// The latest completed season; each sampled team's own latest season is it (a team's question with no season reads
+// that team's latest, server/api/answers/season.ts), so every no-season answer is checked against it.
+await refreshSearchSeason();
+const season = completedSeason();
 // The engine's ratings, as the server loads them at start: a matchup's call needs them.
 await forecasterFor(CURRENT_SEASON);
 await forecasterFor(season);
@@ -69,12 +72,13 @@ const placeChip = (a: Answer, typed: string) => (a.stat?.scope ?? []).find((c) =
 // Warm the readers so the times are the warm path the budget is for.
 for (const q of ["1 record", "2 highest score"]) await searchAnswer(q, { learn: false, limit: 12, full: true });
 
-const pool = (await teamsPlayed(season)).filter((t) => index.team(t.number));
+const played = (await teamsPlayed(season)).filter((t) => index.team(t.number));
+const pool = (await Promise.all(played.map(async (t) => ((await teamSeason(t.number)) === season ? t : null)))).filter((t): t is NonNullable<typeof t> => t != null);
 const teams = sample(r, pool, TEAMS);
 console.log(`seed ${SEED} · season ${seasonLabel(season)} · ${teams.length} of ${pool.length} teams · ${PER} paraphrases per question`);
 
 for (const t of teams) {
-  // The record and average read the default season (the latest completed, which every sampled team played); the
+  // The record and average read the team's latest season (the latest completed, every sampled team's latest); the
   // highest and lowest score read every season and give the newest one's (each season is a different game).
   const truth = await teamTruth(t.number, season);
   const newest = await newestSeason(t.number);

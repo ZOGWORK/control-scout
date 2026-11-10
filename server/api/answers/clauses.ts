@@ -116,7 +116,8 @@ export function scopeChips(s: Scope): string[] {
     s.championship ? "FIRST Championship (Worlds)" : s.states ? "State championships" : "",
     s.place ? `Events ${s.place.outside ? "outside" : "in"} ${s.place.name}` : "",
     s.window ? cap(s.window.label) : "",
-    s.season != null ? seasonLabel(s.season) : s.event ? "" : "All seasons",
+    // One event's answer names the event's season too, so the card always states which season it reads.
+    s.season != null ? seasonLabel(s.season) : s.event ? seasonLabel(s.event.season) : "All seasons",
     s.finals ? "Finals" : s.level === "qual" ? "Qualification matches" : s.level === "playoff" ? "Playoff matches" : "",
     s.alliance ? `${s.alliance === "red" ? "Red" : "Blue"} alliance` : "",
   ].filter(Boolean);
