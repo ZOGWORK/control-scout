@@ -25,7 +25,7 @@ A finished bracket shows the call each series had before it began, and whether i
 - [predict] Live calls and season-replay calls are labelled apart
 
 ### Changed
-- Event › Playoffs: a decided series showed no call at all, so a finished event's bracket had every call empty. Each decided series now shows the call stored before its first match (logged live before the match, or the season replay's, said which), priced as the whole series, and whether the favourite won: held, missed, or an even call. Undecided series keep the odds from 10,000 simulated playoffs.
+- Event › Playoffs: a decided series showed no call at all, so a finished event's bracket had every call empty. Each decided series now shows the call stored before its first match (logged live before the match, or the season replay's, said which), priced as the whole series, and whether the favourite won: held, missed, or an even call. Undecided series keep the odds from 10,000 simulated playoffs. (#1302)
 
 ## 4.9.8 — 2026-11-10
 
