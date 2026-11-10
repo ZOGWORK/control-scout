@@ -22,11 +22,11 @@ A what-if under every predicted match: swap one robot and see how the call and t
 ### Highlights
 - [predict] What if? Swap a partner or opponent and see the call move
 - [predict] Before and after side by side: win chance and margin, with the change
-- [predict] A search answer's two-team call opens in Predict, already filled in
+- [predict] The swap is in the address: share it, or Undo and Back
 
 ### Changed
 - Predict › Match shows a What if? panel under the result: pick a robot in the match, type another, and both calls sit side by side with the change in win chance and margin. The swap is in the address, so a what-if can be shared, and Undo or Back takes it out. Both calls come from the same prediction the lab shows. (#1298)
-- The match lab takes one robot a side as well as two, so "Open in Predict" on a two-team search answer opens with both teams in and the call made.
+- The match lab never makes a two-against-one call: a forgotten box is pointed out, and the call waits for as many teams on each side.
 
 ## 5.0.5 — 2026-11-10
 
