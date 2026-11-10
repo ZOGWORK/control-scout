@@ -58,6 +58,8 @@ describe("canonical redirects", () => {
       for (const [from, to] of [
         ["/predict/how-it-works", "https://controlscout.org/methodology"],
         ["/predict/how-it-works/", "https://controlscout.org/methodology"],
+        ["/how-it-works", "https://controlscout.org/methodology"],
+        ["/how-it-works/", "https://controlscout.org/methodology"],
         ["/Predict/How-It-Works", "https://controlscout.org/methodology"],
         ["/predict/accuracy", "https://controlscout.org/methodology#accuracy"],
         ["/predict/accuracy/?season=2025", "https://controlscout.org/methodology?season=2025#accuracy"],
