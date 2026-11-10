@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.3.9 — 2026-11-10
+## 5.4.0 — 2026-11-10
 
 A shorter first-run tour that fits the page you land on and keeps your place.
 
@@ -28,6 +28,19 @@ A shorter first-run tour that fits the page you land on and keeps your place.
 - The tour (`src/lib/tour.ts`, `src/components/layout/FirstRunTour.tsx`) is search first, then on a team page OPR vs Rating and saving the team, then highlights; an event page gets search and its recordings; other pages search and highlights. No welcome card. A step whose part isn't on the page is left out.
 - It follows the visitor: search carries on on any page; a step on the start page's own parts shows "Tour paused" elsewhere, with one tap back. Closing the tab or a reload resumes it at the same step. Only Skip (×, Esc) or the last step end it.
 - `cs-tour` keeps `paused`, `finished` and `skipped` apart (`v: 2`). An old record "skipped" at step 0, written by just navigating away, counts as never shown, so those visitors get the new tour once. (#1344)
+
+## 5.3.9 — 2026-11-10
+
+The Teams "All listed" tab opens with the best teams first, and Predict lists each saved prediction once.
+
+### Highlights
+- [teams] Teams → All listed opens best first, not on teams with no results
+- [predict] Your saved predictions list each matchup once
+- [predict] Saving a matchup again replaces its old save
+
+### Fixed
+- `/teams?view=listed` opened sorted by team number, so its first page was mostly teams with "No results yet". It now opens best first (the sort formerly called "Results first", now "Best first"): teams with results, by season OPR, then the rest by number. Team number is still a tap on the Team column (`?sort=team`), and old links keep their sort. (`DIRECTORY_DEFAULT_SORT`, `src/shared/directory.ts`)
+- Predict's "Your saved predictions" listed one matchup twice (saved twice, or saved on two devices under two ids). The list now keeps one save per matchup (season, red alliance, blue alliance), the newest: saving again replaces the old one, a device's stored list is cleaned when read, and an account merge keeps one (`dedupePredictions`, `src/shared/personal.ts`). (#1346)
 
 ## 5.3.8 — 2026-11-10
 

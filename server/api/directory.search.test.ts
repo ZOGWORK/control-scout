@@ -114,11 +114,11 @@ describe("GET /api/directory/:season?q=", () => {
 
   it("keeps sorting and paging over the matches", async () => {
     expect(await teams("q=robo&sort=name")).toEqual([4123, 5001, 123, 12345]);
-    expect(await teams("q=robo&dir=desc")).toEqual([12345, 5001, 4123, 123]);
+    expect(await teams("q=robo&sort=team&dir=desc")).toEqual([12345, 5001, 4123, 123]);
     expect(await teams("q=robo&sort=results")).toEqual([123, 4123, 5001, 12345]);
     const seen: number[] = [];
     for (let page = 1; page <= 2; page++) {
-      const r = await dir(`q=robo&pageSize=3&page=${page}`);
+      const r = await dir(`q=robo&sort=team&pageSize=3&page=${page}`);
       expect(r.body.matched).toBe(4);
       seen.push(...r.body.rows.map((x) => x.team));
     }
