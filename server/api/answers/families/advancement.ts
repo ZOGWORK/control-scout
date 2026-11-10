@@ -173,7 +173,9 @@ export async function seasonAdvancement(team: AnswerTeam, o: { season: number | 
      WHERE r.team = ? AND e.season >= ? AND e.type IN (${types.map(() => "?").join(", ")})${o.region ? ` AND e.country = ?${o.region.state ? " AND e.state = ?" : ""}` : ""}
        AND NOT EXISTS (SELECT 1 FROM events d WHERE d.season = e.season AND d.division_code = e.code)
      ORDER BY e.start DESC, e.code`, [team.number, FIRST_PREDICT_SEASON, ...types, ...(o.region ? [o.region.country, ...(o.region.state ? [o.region.state] : [])] : [])]);
-  const upcoming = evs.filter((e) => !!(e.end ?? e.start) && !ended(e) && Number(e.season) === (o.season ?? CURRENT_SEASON)).reverse();
+  // Still to come in the season, soonest first; one with no dates yet is still to come too (as advancementAt reads it), after the dated ones.
+  const inSeasonNow = evs.filter((e) => Number(e.season) === (o.season ?? CURRENT_SEASON));
+  const upcoming = [...inSeasonNow.filter((e) => !!(e.end ?? e.start) && !ended(e)).reverse(), ...inSeasonNow.filter((e) => !e.start && !e.end)];
   // The soonest few: each may need a simulation, and a team is rarely listed for more than a couple ahead.
   // One on today's date may be over already (every match played): it's the latest, not the next.
   const overToday: Ev[] = [];
