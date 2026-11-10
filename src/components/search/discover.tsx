@@ -8,14 +8,15 @@ import { cn } from "../cn";
 export type SearchExampleKind = "place" | "versus" | "question" | "record" | "rankings" | "leaderboard";
 
 /** Real, runnable examples, one of each kind, checked against the live answer API before each was added: each gives
- *  a real result, not a "none found". No team appears twice, and some name no team at all, so the set shows the range
+ *  a real result, not a "none found". No team appears twice, the teams are only the six suggestion teams, by name
+ *  (src/shared/homeSuggestions.ts SUGGESTION_TEAMS), and some name no team at all, so the set shows the range
  *  of what search answers rather than one team's page. (A next-match prediction waits until match lists are
  *  published: before an event it answers "none scheduled".) In sentence case: the text shown is the query that runs. */
 export const SEARCH_EXAMPLE_SET: readonly { q: string; kind: SearchExampleKind }[] = [
   { q: "Meets in New Jersey", kind: "place" },
-  { q: "6980 vs 16461", kind: "versus" },
-  { q: "When did 7149 go to Worlds", kind: "question" },
-  { q: "18061 record", kind: "record" },
+  { q: "Bad Wolf vs Don't Blink", kind: "versus" },
+  { q: "When did ENFORCERS go to Worlds", kind: "question" },
+  { q: "Hypnotic Robotics record", kind: "record" },
   { q: "Top teams in NJ", kind: "rankings" },
   { q: "Highest OPR", kind: "leaderboard" },
 ];
