@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.1.3 — 2026-11-10
+## 5.1.6 — 2026-11-10
 
 On a phone, buttons and links are a full fingertip tall again.
 
@@ -28,6 +28,54 @@ On a phone, buttons and links are a full fingertip tall again.
 - The 14 px phone base shrank buttons and links sized in rem below 44 px tall: an event page had 196 of them, the team page 34. On touch screens they now have at least 44 px to tap, either as an invisible hit area (rows that must not grow) or a taller row where links stack, so two tap areas never sit on top of each other. On Compare, a phone puts the reorder and remove buttons on a row under each team. Desktop with a mouse is unchanged. (#1300)
 - A long match list on a touch screen sizes its rows for the taller touch rows before it measures them, so scrolling doesn't jump. Predict's result folds (the robots' ratings, the full why breakdown) and its track-record link are 44 px too.
 
+
+## 5.1.5 — 2026-11-10
+
+A team page says what's next, right under the team's name: the next match once a schedule is posted, else the next event, else its last one.
+
+### Highlights
+- [teams] Upcoming on every team page: the next match, with its call
+- [predict] One tap from the next match to Predict, both alliances filled in
+- [teams] No event published yet? It says so and links the last event
+
+### Changed
+- The team page's header has an Upcoming block. With a posted schedule it shows the next match (number, time, alliances, the team's chance to win) with "Event schedule" and "Predict this match"; before that, the next event with "match list is posted at the event"; with none, "No upcoming event is published" and the last event. It is in the first paint, so a slow connection shows it at once. (#1283)
+- On a phone, the Upcoming rows are at least 44 px tall, so each is an easy tap.
+- The next match's chance to win carries its confidence tier, like every other call.
+- At an event that advances teams, the next-match card keeps an "Odds to advance" button all event day.
+- Whether an event is over is read on the venue's own calendar: a California event's finals still show as next after UTC midnight. Team event rows carry the venue's time zone for this.
+- A team page left open from the night before starts following the event once its day begins at the venue, and stops once the event is over.
+- Search's "next match" and "next event" answers link to the team's current season, so the team page opens on its Upcoming block (they linked last season's page before).
+
+
+## 5.1.4 — 2026-11-10
+
+A what-if under every predicted match: swap one robot and see how the call and the margin move.
+
+### Highlights
+- [predict] What if? Swap a partner or opponent and see the call move
+- [predict] Before and after side by side: win chance and margin, with the change
+- [predict] The swap is in the address: share it, or Undo and Back
+
+### Changed
+- Predict › Match shows a What if? panel under the result: pick a robot in the match, type another, and both calls sit side by side with the change in win chance and margin. The swap is in the address, so a what-if can be shared, and Undo or Back takes it out. Both calls come from the same prediction the lab shows. (#1298)
+- The match lab never makes a two-against-one call: a forgotten box is pointed out, and the call waits for as many teams on each side.
+
+## 5.1.3 — 2026-11-10
+
+Search answers four questions it used to miss: a lost match's best score, an event's field, the hardest division and a place's win streaks.
+
+### Highlights
+- [fixes] Highest score in a lost match, with the alliance that lost
+- [fixes] An event's average OPR: "average OPR of teams at <event>"
+- [fixes] The hardest (or easiest) division of Worlds or a state championship
+- [fixes] Win streaks in a state or country: the longest, and going now
+
+### Added
+- "Who has the highest score in a match they lost" and "highest losing score": the losing alliance's best score without penalties, its teams named, ties never counted. Place, season and window filters work as for other match questions.
+- "Average OPR of teams at <event>", "<state> states average OPR", "average OPR at worlds": the field's average OPR, each team once at its best OPR there. A division named is that division alone, and a parent event counts its divisions.
+- "Which championship division was hardest this year, by average OPR", "easiest division at nj states": every division ranked by its field's average OPR. Worlds by default, a state's championship when a state is named, and the latest season with divisions when this one has none yet, said on the card.
+- "Who has the longest winning streak in <state or country> right now": two lists of the place's teams, the longest run over this season and last, and the run going now up to each team's latest match. A tie ends a streak, as on a team's own streak answer. Losing streaks too. (#1307)
 
 ## 5.1.2 — 2026-11-10
 
