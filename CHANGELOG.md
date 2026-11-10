@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.0.5 — 2026-11-10
+## 5.0.6 — 2026-11-10
 
 Every league has its own standings page: FIRST's official league ranking over every meet so far.
 
@@ -26,6 +26,20 @@ Every league has its own standings page: FIRST's official league ranking over ev
 
 ### Added
 - League standings pages at `/leagues/<season>/<region>/<league>` (for example the New Jersey Northeast League): FIRST's official league rankings, read from FIRST every few hours while a league's meets are on, with each team's ranking score, win-loss-tie record, qualification matches and league meets played, and the league's meets and tournament below. `?team=` marks one team's row. The page is drawn on the server, so the table is in the first HTML. Last season's league standings are read too. (#1287)
+
+## 5.0.5 — 2026-11-10
+
+A season that hasn't started says so, and a prediction's links open on the season its cards show.
+
+### Highlights
+- [fixes] A team stat for a season not played yet says no events yet
+- [fixes] A named year means that season; no year means the latest one
+- [predict] Predict and Compare links open on the prediction's own season
+
+### Changed
+- A one-team question that names a season with no events yet ("opr 2027", "rating in 2027") answers with a no-events card for that season, and a link to the same question for the latest season, instead of reading the year as part of an event name or dropping it. A named year that has been played still answers for exactly that season. (#1301)
+- A two-team prediction with no season named reads the latest season both teams have a rating in, the one their team cards show, and its Predict and Compare links carry that season too.
+- A prediction asked in search for a season whose ratings weren't loaded yet showed the rating gap ("rated higher by 38.8 points per match"), and the same question later showed the engine's call ("by 53"). Search now starts loading that season's ratings the first time it is asked, so the next ask, and every one after, gets the engine's call.
 
 ## 5.0.4 — 2026-11-10
 
