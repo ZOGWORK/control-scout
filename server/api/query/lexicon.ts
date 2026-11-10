@@ -137,7 +137,7 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["win streak|winning streak|streak of wins", [{ k: "metric", v: "streak" }, { k: "outcome", v: "W" }]],
   ["losing streak|loss streak|streak of losses", [{ k: "metric", v: "streak" }, { k: "outcome", v: "L" }]],
   ["streak|run", { k: "metric", v: "streak" }],
-  ["partner|partners|alliance partner|alliance partners|teammate|teammates|allies", { k: "metric", v: "partner" }],
+  ["partner|partners|alliance partner|alliance partners|teammate|teammates|allies|partnered|partnered with|partner with|partnering with|teamed with|teamed up with", { k: "metric", v: "partner" }],
   ["opponent|opponents|rival|rivals|nemesis|enemy|enemies", { k: "metric", v: "opponent" }],
   ["ranking points|rp|rps", { k: "metric", v: "rp" }],
   ["range|score range|spread of scores", { k: "metric", v: "range" }],

@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 4.9.6 — 2026-11-10
+## 4.9.8 — 2026-11-10
 
 The track record says which number is which: every figure carries its slice and sample.
 
@@ -25,8 +25,35 @@ The track record says which number is which: every figure carries its slice and 
 - [report] How it works lists every figure with what it counts and how many
 
 ### Changed
-- The home page's track record says plainly that its figure is replayed from past matches, not calls made in advance, and states the live record beside it: live calls made in advance this season, the share of decided calls right, the Brier score, how early the season is (and how many calls are rough guesses), and that live calls aren't the card's figure until 10,000 are scored. All from the accuracy API, never typed in. (#1276)
+- The home page's track record says plainly that its figure is replayed from past matches, not calls made in advance, and states the live record beside it: live calls made in advance this season, the share of decided calls right, the Brier score, how early the season is (and how many calls are rough guesses), and that live calls lead the track record's headline once 10,000 are scored, while the card always shows replays. All from the accuracy API, never typed in. (#1276)
 - How it works › Accuracy lists every headline-sized figure the site quotes, each with its slice and sample: this season's replay so far, live calls made in advance, the headline replay, and the Prediction Engine 2.0 replay. None of them is "the live accuracy" on its own.
+
+## 4.9.7 — 2026-11-10
+
+A championship division's awards are read from its championship, and an event named is its newest edition.
+
+### Highlights
+- [fixes] An award asked at a division names the championship's winner
+- [fixes] An event named is its newest edition, not an older look-alike
+- [fixes] The card says the award was given at the championship
+
+### Fixed
+- A division of a championship (New Jersey Championship - Turnpike Division) has no judged awards of its own: FIRST posts them on the championship. An award asked at a division is now the championship's, said so on the card, instead of "No Control Award recorded".
+- "Who won Inspire at NJ Championship Parkway Division" answers for the 2025–26 division, not a 2020–21 event whose name holds extra words. Of the events whose names fit the words best, the newest is picked; a region code typed ("NJ") is read as its name. (#1270)
+
+## 4.9.6 — 2026-11-10
+
+Search answers the plural with the list, and finds a team whose name was typed nearly right even when each word is a real word.
+
+### Highlights
+- [fixes] "4215 upcoming events" lists the team's upcoming events
+- [fixes] A team's name typed nearly right is found, with a Did you mean
+- [fixes] A team's number with an s after it finds the team
+
+### Changed
+- Asked in the plural ("upcoming events", "next events", "upcoming matches"), search shows the list, titled as one, even when it holds one event or none. The singular still shows the next one.
+- A team's name typed nearly right, where each word is still a real word, is read as that team and said as "Did you mean". A team found by a near spelling inside a question says so too.
+- "Partnered" reads as alliance partners, never split into two words. (#1275)
 
 ## 4.9.5 — 2026-11-10
 

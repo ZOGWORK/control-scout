@@ -61,11 +61,11 @@ describe("the live record beside a replay", () => {
   const at = (l: AccuracyBlock | null) => [{ season: 2026, label: "2026–27 BIOBUZZ", live: l, backtest: b(3459) }, { season: 2025, label: "2025–26 DECODE", live: null, backtest: b(41743) }] as TrackRecord["seasons"];
   it("names the slice, the sample, how early it is and that it isn't the card's figure yet", () => {
     expect(liveCallsLine({ seasons: at(live(2720, 2683, 0.6231830040998881, 2541)), liveThreshold: LIVE_THRESHOLD }))
-      .toBe("Live calls made in advance, 2026–27 BIOBUZZ: 62.3% of 2,683 decided called right, Brier 0.2196 (early season: 93% of them rough guesses, so the figure is still moving). They aren’t this card’s figure until 10,000 are scored (2,720 so far).");
+      .toBe("Live calls made in advance, 2026–27 BIOBUZZ: 62.3% of 2,683 decided called right, Brier 0.2196 (early season: 93% of them rough guesses, so the figure is still moving). They lead the track record’s headline once 10,000 are scored (2,720 so far); this card always shows replays.");
   });
   it("says so when nothing is decided yet, and when live leads", () => {
     expect(liveCallsLine({ seasons: at(live(3, 0, 0, 3)), liveThreshold: LIVE_THRESHOLD })).toMatch(/^Live calls made in advance, 2026–27 BIOBUZZ: 3 scored, none decided yet/);
-    expect(liveCallsLine({ seasons: at(live(12_000, 11_900, 0.7, 2000)), liveThreshold: LIVE_THRESHOLD })).toMatch(/70\.0% of 11,900 decided called right, Brier 0\.2196\. Past 10,000 scored, they lead the headline\.$/);
+    expect(liveCallsLine({ seasons: at(live(12_000, 11_900, 0.7, 2000)), liveThreshold: LIVE_THRESHOLD })).toMatch(/70\.0% of 11,900 decided called right, Brier 0\.2196\. Past 10,000 scored, they lead the track record’s headline; this card still shows replays\.$/);
   });
   it("is nothing while no live call is scored", () => {
     expect(liveCallsLine({ seasons: at(null), liveThreshold: LIVE_THRESHOLD })).toBeNull();

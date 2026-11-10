@@ -253,7 +253,7 @@ describe("Home", () => {
     // with its slice and sample, so neither number can be read as "the live accuracy" on its own.
     expect(screen.queryByText(/Logged live/)).toBeNull();
     const note = screen.getByTestId("live-calls-note");
-    expect(note.textContent).toMatch(/^The figure above is replayed from past matches, not calls made in advance\. Live calls made in advance, 2026–27 BIOBUZZ: 59\.5% of 698 decided called right, Brier 0\.2000 \(early season: 100% of them rough guesses, so the figure is still moving\)\. They aren’t this card’s figure until 10,000 are scored \(706 so far\)\.$/);
+    expect(note.textContent).toMatch(/^The figure above is replayed from past matches, not calls made in advance\. Live calls made in advance, 2026–27 BIOBUZZ: 59\.5% of 698 decided called right, Brier 0\.2000 \(early season: 100% of them rough guesses, so the figure is still moving\)\. They lead the track record’s headline once 10,000 are scored \(706 so far\); this card always shows replays\.$/);
     // The same note under the other tab.
     fireEvent.click(radios[0]);
     expect(screen.getByTestId("live-calls-note").textContent).toMatch(/59\.5% of 698 decided/);

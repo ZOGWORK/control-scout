@@ -116,7 +116,7 @@ describe("methodology ledger", () => {
     const dds = [...slices.querySelectorAll("dd")].map((d) => d.textContent).slice(1);
     expect(document.querySelector("[data-slices] dd")!.textContent).toBe("74.8% 27,354 right of 36,572 matches with a winner, each month predicted by an engine fitted only on the year before · the home card's \"Last season\" figure");
     expect(dds[0]).toBe("63.6% 198 decisive calls of 207 scored, replayed with only earlier matches · the home card's \"This season so far\" figure");
-    expect(dds[1]).toBe("48.5% 33 decided of 33 scored · Brier 0.2480 · early season, 100% rough guesses · not the headline until 10,000 are scored");
+    expect(dds[1]).toBe("48.5% 33 decided of 33 scored · Brier 0.2480 · early season, 100% rough guesses · lead the track record's headline once 10,000 are scored; the home card always shows replays");
     expect(dds[2]).toBe("73.8% 41,405 decided of 41,743 scored · the newest season past the 10,000-match bar");
     expect(dds[3]).toMatch(/^\d\d\.\d\d% [\d,]+ matches with a winner of [\d,]+ replayed · Brier 0\.\d{4} \(was 0\.\d{4}\) · the engine's own test, not this site's ledger$/);
   });

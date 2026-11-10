@@ -84,7 +84,7 @@ export function liveCallsLine(t: Pick<TrackRecord, "seasons" | "liveThreshold">)
   const l = p ? t.seasons.find((s) => s.season === p.season)?.live : null;
   if (!p || !l) return null;
   const early = l.n < t.liveThreshold;
-  const shown = early ? ` They aren’t this card’s figure until ${n(t.liveThreshold)} are scored (${n(l.n)} so far).` : ` Past ${n(t.liveThreshold)} scored, they lead the headline.`;
+  const shown = early ? ` They lead the track record’s headline once ${n(t.liveThreshold)} are scored (${n(l.n)} so far); this card always shows replays.` : ` Past ${n(t.liveThreshold)} scored, they lead the track record’s headline; this card still shows replays.`;
   if (l.decided <= 0) return `Live calls made in advance, ${p.label}: ${n(l.n)} scored, none decided yet (every one a tie or a 50:50 call).${shown}`;
   return `Live calls made in advance, ${p.label}: ${(100 * l.accuracy).toFixed(1)}% of ${n(l.decided)} decided called right, Brier ${l.brier.toFixed(4)}${early ? ` (early season: ${roughGuessPct(l)}% of them rough guesses, so the figure is still moving)` : ""}.${shown}`;
 }

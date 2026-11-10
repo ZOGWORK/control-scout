@@ -260,7 +260,7 @@ export function AccuracySection() {
 /**
  * Every headline-sized accuracy figure this site quotes, each with its slice and its sample, in one list: today's engine
  * on the headline season's month-by-month test and the season in progress replayed so far (the home card's two tabs),
- * live calls made in advance (never the card's figure until the threshold), the headline replay, and the Prediction
+ * live calls made in advance (never the home card's figure: past the threshold they lead the ledger's headline), the headline replay, and the Prediction
  * Engine 2.0 replay from the engine's own write-up. None of them is
  * "the live accuracy" on its own, and the list reads the same numbers the home card does (the same API answer).
  */
@@ -268,17 +268,17 @@ export function SlicesAtAGlance({ t }: { t: TrackRecord }) {
   const n = (x: number) => x.toLocaleString("en-US");
   const newest = [...t.seasons].sort((a, b) => b.season - a.season);
   const head = t.headline ? newest.find((s) => s.season === t.headline!.season) : undefined;
-  const soFar = newest.find((s) => s.backtest && s.backtest.n > 0 && s.season !== head?.season && s.season > (head?.season ?? -Infinity));
+  // The two home-card tabs, read the way the card reads them (homeReplays), so the list never drops one the card shows.
+  const { replay: last, soFar } = homeReplays(t);
   const live = newest.find((s) => (s.live?.n ?? 0) > 0);
   const rows: { slice: string; value: string; sample: string }[] = [];
-  // Today's engine on the month-by-month test of the season the home card's "Last season" tab shows (homeReplays).
-  const last = homeReplays(t).replay;
+  // Today's engine on the month-by-month test of the season the home card's "Last season" tab shows.
   const eng = last && !last.noneDecided ? CURRENT_ENGINE_ROWS.find((r) => r.seasonYear === last.season) : undefined;
   if (eng && last) rows.push({ slice: `Engine ${CURRENT_ENGINE.version} tested month by month · ${last.seasonLabel}`, value: pct(eng.accuracy, 1), sample: `${n(eng.correct)} right of ${n(eng.matches)} matches with a winner, each month predicted by an engine fitted only on the year before · the home card's "Last season" figure` });
-  if (soFar?.backtest) rows.push({ slice: `Season replay · ${soFar.label} so far`, value: soFar.backtest.decided > 0 ? pct(soFar.backtest.accuracy, 1) : "—", sample: `${n(soFar.backtest.decided)} decisive calls of ${n(soFar.backtest.n)} scored, replayed with only earlier matches · the home card's "This season so far" figure` });
+  if (soFar) rows.push({ slice: `Season replay · ${soFar.seasonLabel} so far`, value: soFar.block.decided > 0 ? pct(soFar.block.accuracy, 1) : "—", sample: `${n(soFar.block.decided)} decisive calls of ${n(soFar.block.n)} scored, replayed with only earlier matches · the home card's "This season so far" figure` });
   if (live?.live) {
     const l = live.live, early = l.n < t.liveThreshold;
-    rows.push({ slice: `Live calls made in advance · ${live.label}`, value: l.decided > 0 ? pct(l.accuracy, 1) : "—", sample: `${n(l.decided)} decided of ${n(l.n)} scored · Brier ${l.brier.toFixed(4)}${early ? ` · early season, ${roughGuessPct(l)}% rough guesses · not the headline until ${n(t.liveThreshold)} are scored` : " · leads the headline"}` });
+    rows.push({ slice: `Live calls made in advance · ${live.label}`, value: l.decided > 0 ? pct(l.accuracy, 1) : "—", sample: `${n(l.decided)} decided of ${n(l.n)} scored · Brier ${l.brier.toFixed(4)}${early ? ` · early season, ${roughGuessPct(l)}% rough guesses · lead the track record's headline once ${n(t.liveThreshold)} are scored; the home card always shows replays` : " · lead the track record's headline; the home card still shows replays"}` });
   }
   if (head && t.headline) {
     const b = head[t.headline.kind];
