@@ -15,6 +15,21 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.1.2 — 2026-11-10
+
+A team's league standing in search now shows the whole league table, and a league asked by name answers with its table.
+
+### Highlights
+- [rankings] "6980 league standing" shows the full league table, 6980's row marked
+- [rankings] Ask for a league by name: "northeast league standings" gives its table
+- [rankings] "nj league standings" lists New Jersey's leagues, each one tap away
+
+### Changed
+- The league standing answer is FIRST's official league ranking: "#30 of 34" out of the teams that have played, the league named with its place, then the league's whole table (rank, team, ranking score, record, matches, meets) with the asked team's row marked and scrolled into view, and a link to the league's page.
+
+### Added
+- League standings asked with no team ("NE league standings", "nj northeast league leaderboard", "who is first in the northeast league", "northeast league rankings 2026-27"): the league is found from its FIRST name, its code and the place its meets are in; the current season unless one is named, said on the card. A code several places use shows the biggest league with the others linked; a place alone lists its leagues.
+
 ## 5.1.1 — 2026-11-10
 
 Every league has its own standings page: FIRST's official league ranking over every meet so far.
