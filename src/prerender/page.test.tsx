@@ -69,6 +69,11 @@ describe("team page first paint (server)", () => {
     expect(words(page.querySelector("h1")!)).toBe("4215 Hypnotic Robotics");
     const text = words(page);
     for (const t of ["At a glance", "Top 8%", "26-6-0", "Offensive power rating", "101.6", "Season Road Map", "Matches"]) expect(text, t).toContain(t);
+    // What's next, right under the name: none published here, so it says so and points at the last event.
+    const up = page.querySelector("[data-upcoming]")!;
+    expect(words(up)).toContain("Upcoming");
+    expect(words(up)).toContain("No upcoming event is published for 4215 yet");
+    expect(up.querySelector('a[href^="/events/"]')).not.toBeNull();
     // The events, as links to their pages.
     const events = page.querySelector("#events")!;
     for (const e of (TEAM["/api/teams/4215"] as { events: { name: string; code: string }[] }).events) {

@@ -30,7 +30,7 @@ import { cn } from "../components/cn";
 import { PROFILE_PERCENTILE_TEXT } from "../lib/textTones";
 import { Meter, StatTile, TONES, rankPc } from "../components/StatTile";
 import { OPR_CARDS, OPR_TONE, oprRankHint } from "../components/oprCards";
-import { ago, awardLabel, dateRange, dayDate, int, num, place, seasonLabel, rankPct } from "../lib/format";
+import { ago, awardLabel, dateRange, dayDate, int, matchTime, num, oddsPct, place, seasonLabel, rankPct } from "../lib/format";
 import { eventTypeLabel } from "../lib/labels";
 import { copyLink } from "../lib/clipboard";
 import { direction, trendLabel } from "../shared/trend";
@@ -88,7 +88,7 @@ function Profile({ p, drawn = false, asked, onSeason }: { p: TeamProfile; drawn?
   return (
     <div className="min-w-0">
       <OfflineNote data={p} />
-      <Hero p={p} onSeason={onSeason} fellBackFrom={fellBackFrom} />
+      <Hero p={p} onSeason={onSeason} fellBackFrom={fellBackFrom} asked={asked} />
       {!rest ? null : !hasResults ? (
         <EmptyState className="mb-8 max-sm:mb-5" icon={CalendarDays} title={`No ${seasonLabel(p.season)} results for ${p.team.number} yet`}
           description={p.seasons.length > 1 ? "Pick another season above to see past results." : "This team hasn't played an event we have data for."} />
@@ -144,7 +144,7 @@ function useFellBackFrom(p: TeamProfile, asked: boolean): number | null {
   return !asked && p.season < current && p.seasons.includes(current) ? current : null;
 }
 
-function Hero({ p, onSeason, fellBackFrom }: { p: TeamProfile; onSeason: (s: number) => void; fellBackFrom: number | null }) {
+function Hero({ p, onSeason, fellBackFrom, asked = false }: { p: TeamProfile; onSeason: (s: number) => void; fellBackFrom: number | null; asked?: boolean }) {
   const t = p.team;
   const flags = useTeamFlags(t.number);
   const { state: personal } = usePersonal();
@@ -172,6 +172,7 @@ function Hero({ p, onSeason, fellBackFrom }: { p: TeamProfile; onSeason: (s: num
   const today = new Date().toISOString().slice(0, 10);
   const next = p.events.find((e) => (e.end ?? e.start ?? "") >= today) ?? null;
   const last = [...p.events].reverse().find((e) => (e.end ?? e.start ?? "") < today) ?? null;
+  const current = useCurrentSeason();
   const top = rankPct(s?.opr.np.rank, s?.opr.np.of, true);
   const predictable = usePredictable(p.season);
   const share = () => copyLink();
@@ -264,20 +265,8 @@ function Hero({ p, onSeason, fellBackFrom }: { p: TeamProfile; onSeason: (s: num
               </dl>
             </>
           )}
-          <div className="mt-5 max-sm:mt-4 space-y-2 text-sm">
-            {last && (
-              <Link to={`/events/${last.season}/${last.code}?team=${t.number}`} className="lift flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-3 py-2">
-                <span className="min-w-0 truncate" title={last.name}><span className="text-muted-foreground">Last · </span>{last.name}</span>
-                <span className="shrink-0 tabular-nums text-muted-foreground">{last.rank ? `ranked #${last.rank}` : ""}{last.awards.length ? ` · ${last.awards.length} award${last.awards.length > 1 ? "s" : ""}` : ""}</span>
-              </Link>
-            )}
-            {next && (
-              <Link to={ADVANCING.has(next.type ?? "") ? `/events/${next.season}/${next.code}?tab=odds&team=${t.number}` : `/events/${next.season}/${next.code}?team=${t.number}`} className="lift flex items-center justify-between gap-3 rounded-xl border border-accent/30 bg-accent/[0.05] px-3 py-2">
-                <span className="min-w-0 truncate"><span className="text-muted-foreground">Next · </span>{next.name}</span>
-                <span className="shrink-0 font-medium text-accent-text">{ADVANCING.has(next.type ?? "") ? "Odds to advance →" : "Schedule →"}</span>
-              </Link>
-            )}
-          </div>
+          {/* What's next: on the team's own page (its newest season, or the current one); a past season asked for shows only its last event. */}
+          {!asked || p.season >= current ? <Upcoming p={p} next={next} last={last} /> : last && <LastEvent last={last} team={t.number} className="mt-5 max-sm:mt-4" />}
           {predictable ? (
             <div className="mt-5 max-sm:mt-4 flex flex-wrap gap-2">
               <Button size="sm" asChild><Link to={matchHref} data-tour="predict"><Sparkles /> Predict a match with {t.number}</Link></Button>
@@ -550,5 +539,69 @@ function ScoutNotes({ team, season }: { team: number; season: number }) {
         </div>
       )}
     </Section>
+  );
+}
+
+const ROW = "lift flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-sm max-sm:min-h-11";
+
+/** The team's last event, one tap to its page: where it ranked and what it won. */
+function LastEvent({ last, team, className }: { last: TeamEventRow; team: number; className?: string }) {
+  return (
+    <Link to={`/events/${last.season}/${last.code}?team=${team}`} className={cn(ROW, "border-border bg-card", className)}>
+      <span className="min-w-0 truncate" title={last.name}><span className="text-muted-foreground">Last · </span>{last.name}</span>
+      <span className="shrink-0 tabular-nums text-muted-foreground">{last.rank ? `ranked #${last.rank}` : ""}{last.awards.length ? ` · ${last.awards.length} award${last.awards.length > 1 ? "s" : ""}` : ""}</span>
+    </Link>
+  );
+}
+
+/** The team's next match on a posted schedule, soonest first (not played, its event not over); null when none is posted. */
+export function nextMatch(matches: MatchView[], events: TeamEventRow[], today: string, now = Date.now()): MatchView | null {
+  const live = new Set(events.filter((e) => (e.end ?? e.start ?? "") >= today).map((e) => e.code));
+  // A match whose start passed over half an hour ago without a result is late, not next.
+  return matches.find((m) => !m.played && live.has(m.code) && (!m.startsAt || Date.parse(m.startsAt) > now - 30 * 60_000)) ?? null;
+}
+
+/**
+ * Upcoming, right under the team's name: its next match (with the call and one tap to its event or to Predict with the
+ * alliances filled in) once a schedule is posted; else its next event, saying the match list comes at the event; else
+ * plainly that none is published, with its last event. Drawn in the first paint from the answers the page already has.
+ */
+function Upcoming({ p, next, last }: { p: TeamProfile; next: TeamEventRow | null; last: TeamEventRow | null }) {
+  const n = p.team.number;
+  const today = new Date().toISOString().slice(0, 10);
+  // The page's own matches request (MatchesSection asks for the same): no second request, and in the drawn page's data.
+  const ms = useApi<{ matches: MatchView[] }>(next ? `/api/teams/${n}/matches?season=${p.season}` : null);
+  const m = next && ms.data ? nextMatch(ms.data.matches, p.events, today) : null;
+  const mEvent = m ? p.events.find((e) => e.code === m.code) : null;
+  const side = m ? (m.red.teams.some((t) => t.number === n) ? "red" : "blue") : null;
+  const chance = m?.prediction && side ? (side === "red" ? m.prediction.pRed : 1 - m.prediction.pRed) : null;
+  const predictable = usePredictable(p.season);
+  const row = ROW;
+  return (
+    <section aria-labelledby={`upcoming-${n}`} className="mt-5 max-sm:mt-4 space-y-2 text-sm" data-upcoming>
+      <h2 id={`upcoming-${n}`} className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Upcoming</h2>
+      {m && mEvent && (
+        <div className="rounded-xl border border-accent/30 bg-accent/[0.05] p-3">
+          <Link to={`/events/${m.season}/${m.code}?team=${n}&match=${m.key}`} className="flex items-baseline justify-between gap-3 hover:underline">
+            <span className="min-w-0"><span className="font-semibold">Next match · {m.label}</span> <span className="text-muted-foreground">{m.time ? matchTime(m.time) : "time not posted yet"}</span></span>
+            {chance != null && <span className="shrink-0 tabular-nums font-medium text-accent-text">{oddsPct(chance)} to win</span>}
+          </Link>
+          <p className="mt-1 truncate text-muted-foreground" title={mEvent.name}>{mEvent.name} · on <span className={side === "red" ? "text-red-alliance" : "text-blue-alliance"}>{side}</span>: {m.red.teams.map((t) => t.number).join(" + ")} vs {m.blue.teams.map((t) => t.number).join(" + ")}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button size="sm" variant="secondary" asChild className="max-sm:h-11"><Link to={`/events/${m.season}/${m.code}?team=${n}&match=${m.key}`}><CalendarDays /> Event schedule</Link></Button>
+            {predictable && <Button size="sm" variant="outline" asChild className="max-sm:h-11"><Link to={predictHref({ mode: "match", season: m.season, red: m.red.teams.map((t) => t.number), blue: m.blue.teams.map((t) => t.number) })}><Sparkles /> Predict this match</Link></Button>}
+          </div>
+        </div>
+      )}
+      {next && !m && (
+        <Link to={ADVANCING.has(next.type ?? "") ? `/events/${next.season}/${next.code}?tab=odds&team=${n}` : `/events/${next.season}/${next.code}?team=${n}`} className={cn(row, "border-accent/30 bg-accent/[0.05]")}>
+          <span className="min-w-0"><span className="block truncate" title={next.name}><span className="text-muted-foreground">Next event · </span>{next.name}</span>
+            <span className="block text-xs text-muted-foreground">{[dateRange(next.start, next.end), ms.data || !ms.loading ? "match list is posted at the event" : null].filter(Boolean).join(" · ")}</span></span>
+          <span className="shrink-0 font-medium text-accent-text">{ADVANCING.has(next.type ?? "") ? "Odds to advance →" : "Schedule →"}</span>
+        </Link>
+      )}
+      {!next && <p className="text-muted-foreground">No upcoming event is published for {n} yet{last ? "; its last event:" : "."}</p>}
+      {last && <LastEvent last={last} team={n} />}
+    </section>
   );
 }

@@ -2,8 +2,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { AwardsAllTime, OprSection, RowRecord } from "./TeamPage";
-import type { TeamEventRow, TeamProfile } from "../shared/api";
+import { AwardsAllTime, OprSection, RowRecord, nextMatch } from "./TeamPage";
+import type { MatchView, TeamEventRow, TeamProfile } from "../shared/api";
 
 // useMeta as the app's metadata would answer it (null: not loaded yet, as with no provider), and the current season.
 const meta = vi.hoisted(() => ({ value: null as { statsAt: string | null } | null, current: 2025 }));
@@ -104,5 +104,22 @@ describe("AwardsAllTime", () => {
     const link = screen.getByRole("link");
     expect(link.getAttribute("href")).toBe("/events/2025/USNJCMP");
     expect(link.textContent).toContain("New Jersey Championship");
+  });
+});
+
+describe("nextMatch (the Upcoming block's next match)", () => {
+  const ev = (code: string, start: string, end = start) => ({ code, start, end } as TeamEventRow);
+  const match = (code: string, key: string, played: boolean, startsAt: string | null) => ({ code, key, played, startsAt } as MatchView);
+  const events = [ev("OLD", "2026-11-01"), ev("NOW", "2026-11-10")];
+  const now = Date.parse("2026-11-10T15:00:00Z");
+
+  it("is the first scheduled match still to play at an event that isn't over", () => {
+    const ms = [match("OLD", "qual:0:9", false, null), match("NOW", "qual:0:1", true, "2026-11-10T14:00:00Z"), match("NOW", "qual:0:5", false, "2026-11-10T15:20:00Z"), match("NOW", "qual:0:8", false, "2026-11-10T16:00:00Z")];
+    expect(nextMatch(ms, events, "2026-11-10", now)?.key).toBe("qual:0:5");
+  });
+
+  it("skips a match whose start passed over half an hour ago with no result (late, not next), and none is none", () => {
+    expect(nextMatch([match("NOW", "qual:0:2", false, "2026-11-10T14:00:00Z"), match("NOW", "qual:0:3", false, null)], events, "2026-11-10", now)?.key).toBe("qual:0:3");
+    expect(nextMatch([match("OLD", "qual:0:9", false, null)], events, "2026-11-10", now)).toBeNull();
   });
 });
