@@ -87,7 +87,7 @@ describe("matchupOf / matchApiPath (the Lab's matchup, read the same by the page
     expect(matchupOf("4215", "7149")).toEqual({ red: [4215], blue: [7149] });
     expect(matchupOf("4215,", "7149,")).toEqual({ red: [4215], blue: [7149] });
     expect(matchupOf("4215,23268", "7149,6980")).toEqual({ red: [4215, 23268], blue: [7149, 6980] });
-    for (const [r, b] of [["4215", ""], ["4215,1,2", "7149"], ["4215", "4215"], ["x", "7149"], ["0", "7149"], [null, "7149"]]) expect(matchupOf(r, b), `${r} v ${b}`).toBeNull();
+    for (const [r, b] of [["4215", ""], ["4215,1,2", "7149"], ["4215", "4215"], ["4215,23268", "7149"], ["x", "7149"], ["0", "7149"], [null, "7149"]]) expect(matchupOf(r, b), `${r} v ${b}`).toBeNull();
     expect(matchApiPath(2025, [4215], [7149])).toBe("/api/predict/match?season=2025&red=4215&blue=7149");
   });
 });
