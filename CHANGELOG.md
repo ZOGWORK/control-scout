@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.3.7 — 2026-11-10
+## 5.3.8 — 2026-11-10
 
 Search answers advancement odds: a team's chance to take an advancing slot at an event, from the same engine numbers as Predict.
 
@@ -32,6 +32,18 @@ Search answers advancement odds: a team's chance to take an advancing slot at an
 - A match's win chance is never shown as advancement odds: those queries used to show the average chance to win each match.
 - A chance under 1.5% prints as 1% in search, as Predict prints it, never a false 0%.
 - The advancement card shows its confidence tier and why, by the same rule as Predict's Advancement view.
+
+## 5.3.7 — 2026-11-10
+
+Search finds a team whose name is typed nearly right even when its first words are a name two other teams share.
+
+### Highlights
+- [fixes] "girls in roboics 2 record" finds Girls in Robotics 2
+- [fixes] A name two teams share still asks which one you mean
+- [fixes] A number after a team name is never taken for an event
+
+### Fixed
+- Search: a team's name typed nearly right that runs past a shorter name several teams share ("girls in roboics 2", where two teams are called Girls in Robotics) reads as the longer team, never another team found by part of the words, or the number taken for an event. The shorter name typed alone still asks which team. (#1347)
 
 ## 5.3.6 — 2026-11-10
 

@@ -525,17 +525,20 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     const typed = () => toks.slice(from, to + 1).map((t) => t.typed).join(" ");
     // A team read by part of its name ("girls in" of Girls in Robotics), with the words right after it nearly spelling a
     // longer team's whole name with it ("girls in roboics 2": Girls in Robotics 2): that team, never the words taken
-    // for an event or a place. The longest stretch of the words that does is taken.
-    const before = p.teams.find((t) => t.via === "name" && t.candidates == null && t.at + t.typed.split(" ").length === from);
+    // for an event or a place. The longest stretch of the words that does is taken. A name several teams share ("Girls
+    // in Robotics", two teams) is no reason to stop: the longer name is one team's.
+    const before = p.teams.find((t) => t.via === "name" && t.at + t.typed.split(" ").length === from);
     if (before && ctx.nearTeam) {
       const own = toks.slice(before.at, from);
       let longer: { team: TeamName; upTo: number } | null = null;
       for (let end = to; end >= from && !longer; end--) {
         const near = await ctx.nearTeam([...own, ...toks.slice(from, end + 1)].map((t) => t.w).join(" "));
-        if (near && near.number !== before.number && fold(near.name ?? "").length > fold(before.name ?? "").length) longer = { team: near, upTo: end };
+        if (near && near.number !== before.number && !before.candidates?.includes(near.number) && fold(near.name ?? "").length > fold(before.name ?? "").length) longer = { team: near, upTo: end };
       }
       if (longer) {
         Object.assign(before, { number: longer.team.number, name: longer.team.name, typed: [...own, ...toks.slice(from, longer.upTo + 1)].map((t) => t.typed).join(" "), via: "near" as const });
+        delete before.candidates;
+        delete before.rule;
         toks.slice(from, longer.upTo + 1).forEach((t) => (t.used = true));
         // Words after it in the run are left unread (the question isn't read whole), never taken for an event here.
         continue;
