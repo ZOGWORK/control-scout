@@ -28,6 +28,7 @@ Search reads one season rule in every answer, and says which season (and which s
 ### Changed
 - One season resolver (`server/api/answers/season.ts`) for every intent: a team's question with no season (or "this season", "right now") reads the latest season that team has played; a question about no team reads the current season, stepping back a season with a note when nothing is played there yet; "last season" / "last year" is the latest completed season; a season named is honoured exactly. Every card states the season and why.
 - "At states" reads the team's state championship (the season named, else the latest it played) for a record, match list, score or streak as it already did for results, rank and OPR, so rewordings get one scope; the card names the event and its season. "All state championships", "ever" or "all time" reads every season, labelled "All seasons".
+- A misspelled team name that a team's own name nearly spells reaches that team before teams whose school or city has the same words ("lake rbotics record").
 - Plain leaderboards ("NJ top teams leaderboard") step back a season, said on the card, as the asked boards did. (#1286)
 
 ## 5.2.0 — 2026-11-10
