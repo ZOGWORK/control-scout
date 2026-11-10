@@ -35,7 +35,8 @@ const margin = (x: MatchExplanationView) => Math.round(x.predictedRed) - Math.ro
 export function WhatIf({ base }: { base: MatchExplanationView }) {
   const [sp, setSp] = useSearchParams();
   const lineUp = [...base.red, ...base.blue];
-  const key = lineUp.join(",");
+  // The matchup this panel is about: its season and line-up. A pending check for another one is dropped.
+  const key = `${base.season}|${lineUp.join(",")}`;
   const swap = readWhatIf(sp.get("whatif"), lineUp);
   const [out, setOut] = useState<number>(swap?.out ?? lineUp[0]);
   const [into, setInto] = useState(swap ? String(swap.in) : "");
