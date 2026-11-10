@@ -34,6 +34,12 @@ export type PipelineIntent =
   | "pick-partners"
   // No team: matches found by a measure (./matchFind.ts).
   | "low-matches" | "close-matches" | "lopsided-matches" | "penalty-matches" | "upset-matches" | "comeback-matches"
+  // No team: the highest score an alliance had in a match it lost.
+  | "loss-matches"
+  // No team: an event's field, its teams' average OPR there ("the average OPR of teams at <event>").
+  | "event-field"
+  // No team: a place's teams by their current or longest win streak (./streakBoard.ts).
+  | "streak-board"
   // A team's or everyone's matches by how far the saved prediction was off (./matchFind.ts).
   | "miss-matches" | "accurate-matches";
 
@@ -230,6 +236,14 @@ export const INTENTS: IntentRule[] = [
   R("close-matches", 0, ["agg:min", "metric:margin"], ["thing:match", "metric:win", "metric:loss", "metric:score", "outcome:W", "outcome:L", "and"]),
   R("lopsided-matches", 0, ["agg:max", "metric:margin"], ["thing:match", "metric:win", "metric:score", "outcome:W", "and"]),
   R("penalty-matches", 0, ["agg:max", "metric:penalty"], ["thing:match", "metric:score", "and"]),
+  // No team: a place's teams by their win (or losing) streak ("longest winning streak in Romania right now").
+  R("streak-board", 0, ["metric:streak"], ["agg:max", "agg:last", "outcome:W", "outcome:L", "metric:win", "metric:loss", "thing:team", "list"]),
+  // An event's field: its teams' average OPR there (an event named, a state championship or Worlds).
+  R("event-field", 0, ["agg:mean", "metric:opr"], ["thing:team", "prep:for", "prep:at", "list"], { event: true }),
+  R("event-field", 0, ["agg:mean", "metric:opr", "worlds"], ["thing:team", "prep:for", "prep:at", "list"]),
+  // The highest score in a lost match ("highest score in a match they lost", "highest losing score").
+  R("loss-matches", 0, ["agg:max", "metric:score", "metric:loss"], ["thing:match", "per:match", "nopen", "and"]),
+  R("loss-matches", 0, ["agg:max", "metric:score", "outcome:L"], ["thing:match", "per:match", "nopen", "and"]),
   R("upset-matches", 0, ["metric:upset"], ["agg:max", "thing:match", "metric:win", "metric:margin", "metric:score", "and"]),
   // Predictions against results, everyone's or one team's: furthest off first, or closest first ("most accurate").
   // A floor in points ("wrong by more than 50 points") is the misses' own.
