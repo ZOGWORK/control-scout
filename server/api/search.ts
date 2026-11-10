@@ -285,12 +285,17 @@ async function searchWords(q: string, limit: number, prefer: ReadonlySet<string>
   return newestSeasons(await numbersKept(query, out), query).slice(0, limit);
 }
 
+/** Words before a number that make it a count or a bound, never a team's number. */
+const COUNT_BEFORE = /^(?:top|best|bottom|worst|first|last|next|over|under|above|below|than|least|most|within|past)$/;
+
 /** `hits` without a team found only through a number typed nearly right, when the number typed is a team's own: a
  *  typed team number always means that team ("4215 next match date" is never 4218 Late() Knights, a digit and a
  *  letter off). Only a near miss goes (a team number as long as the typed one, not it); a hit whose own words start with
- *  the number stays, and so does every team when the number is a count or a score ("top 25 hypnotic"). */
+ *  the number stays. */
 async function numbersKept(query: string, hits: SearchHit[]): Promise<SearchHit[]> {
-  const nums = [...new Set(words(query).filter((w) => /^[1-9]\d{1,5}$/.test(w)))];
+  // A count or a bound ("top 25", "over 200", "last 10") is no team's number.
+  const ws = words(query);
+  const nums = [...new Set(ws.filter((w, i) => /^[1-9]\d{1,5}$/.test(w) && !COUNT_BEFORE.test(ws[i - 1] ?? "")))];
   if (!nums.length || !hits.some((h) => h.kind === "team")) return hits;
   const teams = new Set((await searchRead<{ number: number }>(`SELECT number FROM teams WHERE number IN (${nums.map(() => "?").join(",")})`, nums.map(Number))).map((r) => String(r.number)));
   if (!teams.size) return hits;
