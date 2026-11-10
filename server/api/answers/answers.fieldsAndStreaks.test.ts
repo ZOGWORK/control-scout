@@ -25,9 +25,10 @@ beforeAll(async () => {
   await event("USNJCMPA", "New Jersey Championship - Alder Division", "Championship", "USNJCMP", "NJ", "2026-03-01");
   await event("USNJCMPB", "New Jersey Championship - Birch Division", "Championship", "USNJCMP", "NJ", "2026-03-01");
   await event("USNJQ1", "Ridge Qualifier", "Qualifier", null, "NJ", "2026-01-10");
-  // Alder: 6101 (100) and 6102 (80), average 90. Birch: 6103 (40) and 6104 (60), average 50.
-  for (const [code, team, opr] of [["USNJCMPA", 6101, 100], ["USNJCMPA", 6102, 80], ["USNJCMPB", 6103, 40], ["USNJCMPB", 6104, 60]] as const)
-    await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (?, ?, ?, ?, 5)", [S, code, team, opr]);
+  // Alder: 6101 (100) and 6102 (80), average 90. Birch: 6103 (40) and 6104 (60), average 50. By Auto OPR the other way
+  // round: Alder 10 and 10, Birch 30 and 40.
+  for (const [code, team, opr, auto] of [["USNJCMPA", 6101, 100, 10], ["USNJCMPA", 6102, 80, 10], ["USNJCMPB", 6103, 40, 30], ["USNJCMPB", 6104, 60, 40]] as const)
+    await run("INSERT INTO team_event_stats (season, code, team, opr_np, opr_auto, matches) VALUES (?, ?, ?, ?, ?, 5)", [S, code, team, opr, auto]);
   // Ridge Qualifier: 6101 and 6102 (red) against 6103 and 6104 (blue), in date order.
   // Q1 red 50-40, Q2 red 60-55, Q3 blue 90-80 (red lost scoring 80), Q4 red 70-30.
   const scores = [[50, 40], [60, 55], [80, 90], [70, 30]];
@@ -77,8 +78,22 @@ describe("a championship's divisions by field strength", () => {
     const e = await ask("easiest division at nj states");
     expect(e.stat?.headline?.label).toBe("average OPR: Birch Division was the easiest");
   });
-  it("by average OPR only: another stat said is no question it answers", async () => {
-    for (const q of ["which division was hardest at nj states, by average auto opr", "hardest division at nj states by average end-game opr", "hardest division at nj states by average tele op opr", "which division was hardest at nj states by average score", "hardest division at nj states by average dc opr"])
+  it("by average OPR, or one phase's OPR said with OPR: another stat said is no question it answers", async () => {
+    // A phase's OPR ranks by that phase's ("by average auto OPR", in any word order).
+    for (const q of ["which division was hardest at nj states, by average auto opr", "by average auto opr which division was hardest at nj states"]) {
+      const a = await ask(q);
+      expect(a.stat?.intent, q).toBe("division-field");
+      expect(a.stat?.headline, q).toMatchObject({ value: "35.0", label: "average Auto OPR: Birch Division was the hardest" });
+      expect(a.stat?.scope, q).toContain("By average Auto OPR");
+    }
+    // A phase with no OPR on record says so, never the whole OPR instead.
+    for (const q of ["hardest division at nj states by average end-game opr", "hardest division at nj states by average tele op opr", "hardest division at nj states by average dc opr"]) {
+      const a = await ask(q);
+      expect(a.stat?.intent, q).toBe("division-field");
+      expect(a.stat?.none, q).toMatch(/no division with (?:TeleOp|Endgame) OPR on record/);
+    }
+    // A stat that is no OPR, or a phase's points without OPR: no question this answers.
+    for (const q of ["which division was hardest at nj states by average score", "hardest division at nj states by auto points", "hardest division at nj states by average auto and endgame opr"])
       expect((await ask(q)).stat?.intent, q).not.toBe("division-field");
     // A place's name is the place, never a stat its letters spell ("DC" is no driver controlled).
     expect(saysOtherThanOpr("states average opr in dc", "dc")).toBe(false);
