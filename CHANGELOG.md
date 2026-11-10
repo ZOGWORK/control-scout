@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.3.8 — 2026-11-10
+## 5.3.9 — 2026-11-10
 
 A shorter first-run tour that fits the page you land on and keeps your place.
 
@@ -28,6 +28,20 @@ A shorter first-run tour that fits the page you land on and keeps your place.
 - The tour (`src/lib/tour.ts`, `src/components/layout/FirstRunTour.tsx`) is search first, then on a team page OPR vs Rating and saving the team, then highlights; an event page gets search and its recordings; other pages search and highlights. No welcome card. A step whose part isn't on the page is left out.
 - It follows the visitor: search carries on on any page; a step on the start page's own parts shows "Tour paused" elsewhere, with one tap back. Closing the tab or a reload resumes it at the same step. Only Skip (×, Esc) or the last step end it.
 - `cs-tour` keeps `paused`, `finished` and `skipped` apart (`v: 2`). An old record "skipped" at step 0, written by just navigating away, counts as never shown, so those visitors get the new tour once. (#1344)
+
+## 5.3.8 — 2026-11-10
+
+The Events page opens on every event, its video and status filters never leave an empty list, and Scout's event picker counts the same events.
+
+### Highlights
+- [fixes] Events opens on All, not Live now
+- [fixes] Picking Match clips with a status picked never shows "No events match"
+- [scout] Scout's event picker counts the same events as the Events page
+
+### Fixed
+- `/events` with no status in the address opened on Live now whenever one event was live, hiding the rest of the season behind a short list. It now opens on All; a status in the address (`?status=live`) still holds.
+- On Events, picking "Match clips" (or "Has a recording") while a status with no such event was picked (Upcoming, Live now) showed "No events match". A video pick now sends that status back to All, and a status tap with nothing under the video picked drops the video filter (`videoPick`, `statusPick` in `src/pages/eventsList.ts`). (#1345)
+- Scout's event picker counted 1,630 events (447 finished) where Events counted 1,411 (230 finished): it listed kickoffs, workshops, practice days and the other types with no matches, which Events leaves out. It now lists the Events page's set, so the counts agree; picking one of those types in its Event type filter still lists them, as a pit can be scouted at a practice day. The list of those types lives once, in `src/shared/labels.ts` (`NO_MATCH_TYPES`), and an event with no type is listed on both.
 
 ## 5.3.7 — 2026-11-10
 
