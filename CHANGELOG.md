@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.0.0 — 2026-11-10
+## 5.0.1 — 2026-11-10
 
 Predict opens on its teams: a matchup link from a team page or a search answer shows the teams and the call from the first paint.
 
@@ -28,6 +28,18 @@ Predict opens on its teams: a matchup link from a team page or a search answer s
 - `/predict?mode=match&…` with teams in it is drawn on the server like team and event pages: the teams in their boxes with their names and, with both sides given, the odds, predicted scores and reasons. (#1284)
 - One team a side (as search's "4215 vs 7149 who wins" links it) now shows its call; before, Predict waited for four teams. The form takes one or two teams a side, and a link that fills it no longer puts the cursor in an empty box (on a phone that opened the keyboard over the call).
 
+
+## 5.0.0 — 2026-11-10
+
+A prediction-versus-result card lists every match the team played, with or without a stored call.
+
+### Highlights
+- [predict] Prediction vs result lists every match the team played
+- [predict] A match with no stored call says so instead of dropping out
+- [fixes] The record on the card counts the same matches as its table
+
+### Fixed
+- "Predicted chances of 4215 East Bergen Conference" listed 7 of 4215's 8 matches: Q6, where an opposing robot was a no-show, had no replayed call stored, so it dropped out of the table and the record. Every played match is now a row; one with no call reads "No call stored", counts on the record (8-0-0) and never in "Called right" or the expected wins, which the headline says. (#1285)
 
 ## 4.9.9 — 2026-11-10
 
