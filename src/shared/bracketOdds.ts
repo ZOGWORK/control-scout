@@ -30,6 +30,9 @@ export interface BracketMatch {
   /** Final scores, when played. */
   redScore: number | null;
   blueScore: number | null;
+  /** The engine's stored call on this match, when one was made before it was known: P(red wins), its tier, and
+   *  whether it was logged live before the match or is the season replay's (never one from today's ratings). */
+  call?: { pRed: number; tier: ConfidenceTier; kind: "live" | "backtest" } | null;
 }
 
 export interface BracketAlliance {
@@ -76,6 +79,9 @@ export interface BracketSeriesView {
   skipped: boolean;
   /** An if-needed replay whose grand final hasn't been decided yet: no call until it is. */
   pending: boolean;
+  /** Decided: the call on the series before its first match, from that match's stored call (live, or the season
+   *  replay's, said which), and whether the favourite won. Null when its first match has no stored call. */
+  before?: { alliance: number; p: number; tier: ConfidenceTier; kind: "live" | "backtest"; right: boolean | null } | null;
 }
 
 export interface BracketAllianceOdds {
@@ -183,6 +189,17 @@ function seriesWins(ms: BracketMatch[], allianceOf: (teams: number[]) => number 
     if (a != null) wins.set(a, (wins.get(a) ?? 0) + 1);
   }
   return wins;
+}
+
+/** A decided series' call before it began: its first match's stored call, priced as the whole series from 0–0. */
+function beforeCall(ms: BracketMatch[], bestOf: number, winner: number | null, allianceOf: (teams: number[]) => number | null): BracketSeriesView["before"] {
+  if (winner == null) return null;
+  const first = [...ms].sort((x, y) => x.number - y.number).find((m) => m.call);
+  const a = first ? allianceOf(first.red) : null, b = first ? allianceOf(first.blue) : null;
+  if (!first?.call || a == null || b == null || a === b) return null;
+  const pa = seriesWinProb(first.call.pRed, bestOf, 0, 0);
+  const fav = pa >= 0.5 ? a : b;
+  return { alliance: fav, p: Math.max(pa, 1 - pa), tier: first.call.tier, kind: first.call.kind, right: pa === 0.5 ? null : winner === fav };
 }
 
 /** The two alliances that played a series (from its matches' line-ups), when they can be told. */
@@ -334,6 +351,7 @@ export function bracketOdds(input: BracketInput): BracketOdds {
     return {
       index: k + 1, series: node.series, label: node.label, stage: node.stage, bestOf: node.bestOf, red: sides[0], blue: sides[1],
       wins: [a != null ? st.wins.get(a) ?? 0 : 0, b != null ? st.wins.get(b) ?? 0 : 0], winner: st.winner, call, likely, ifNeeded: !!node.ifNeeded, skipped: st.skipped, pending: st.pending,
+      before: beforeCall(bySeries.get(node.series) ?? [], node.bestOf, st.winner, allianceOf),
     };
   });
   // The odds rest on every pair that can still meet: their weakest tier.
@@ -442,6 +460,7 @@ function unknownOdds(season: number, shape: Shape | null, bySeries: Map<number, 
     return {
       index: known ? nodeOf.get(s)!.k + 1 : i + 1, series: s, label: known?.label ?? (s === 0 ? "Final" : `M${s}`), stage: known?.stage ?? (s === 0 ? "Final" : "Series"), bestOf, red: slot(sides?.[0] ?? null), blue: slot(sides?.[1] ?? null),
       wins: [sides ? wins.get(sides[0]) ?? 0 : 0, sides ? wins.get(sides[1]) ?? 0 : 0], winner, call, likely: null, ifNeeded: false, skipped: false, pending: false,
+      before: beforeCall(ms, bestOf, winner, allianceOf),
     };
   });
   return { format: "unknown", runs: 0, tier: weakest(tiers.length ? tiers : ["confident"]), series, alliances: [], note };

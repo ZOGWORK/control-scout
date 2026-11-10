@@ -104,6 +104,27 @@ describe("bracketOdds", () => {
     expect(o.series[6].skipped).toBe(true);
   });
 
+  it("gives a decided series the call stored before its first match, and whether it held, never today's call", () => {
+    // A finished bracket: every series decided. M1's call was logged live (1 favoured, 1 won); M2's is the replay's
+    // (3 favoured, 2 won); M3 has no stored call.
+    const call = (pRed: number, kind: "live" | "backtest") => ({ pRed, tier: "moderate" as const, kind });
+    const matches = [{ ...played(1, 1, 4), call: call(0.7, "live") }, { ...played(2, 2, 3), call: call(0.4, "backtest") }, played(3, 4, 3), played(4, 1, 2), played(5, 2, 4), played(6, 1, 2)];
+    const o = bracketOdds({ season: 2025, alliances: alliances(4), matches, price, strength, runs: 200, seed: 3 });
+    expect(o.series.every((x) => x.call == null)).toBe(true);
+    expect(o.series[0].before).toEqual({ alliance: 1, p: 0.7, tier: "moderate", kind: "live", right: true });
+    expect(o.series[1].before).toMatchObject({ alliance: 3, kind: "backtest", right: false });
+    expect(o.series[1].before!.p).toBeCloseTo(0.6, 9);
+    expect(o.series[2].before).toBeNull();
+    // An open series has no "before": its call is the live one.
+    const open = bracketOdds({ season: 2025, alliances: alliances(4), matches: [{ ...played(1, 1, 4), call: call(0.7, "live") }], price, strength, runs: 200, seed: 3 });
+    expect(open.series[1]).toMatchObject({ before: null });
+    expect(open.series[1].call).not.toBeNull();
+    // A best-of-3 is called as a series from its first game's call, from 0–0.
+    const fin = bracketOdds({ season: 2025, alliances: alliances(2), matches: [{ ...played(0, 1, 2, 1), call: call(0.6, "live") }, played(0, 1, 2, 2)], price, strength, runs: 200, seed: 1 });
+    expect(fin.series[0].before).toMatchObject({ alliance: 1, right: true });
+    expect(fin.series[0].before!.p).toBeCloseTo(seriesWinProb(0.6, 3), 9);
+  });
+
   it("plays the replay when the lower alliance wins the grand final", () => {
     const matches = [played(1, 1, 4), played(2, 2, 3), played(3, 4, 3), played(4, 1, 2), played(5, 2, 4), played(6, 2, 1)];
     const o = bracketOdds({ season: 2025, alliances: alliances(4), matches, price, strength, runs: 2000, seed: 3 });
