@@ -194,9 +194,11 @@ describe("slots", () => {
     expect(p.teams).toEqual([]);
     expect(p.complete).toBe(false);
   });
-  it("picks one of the teams sharing a name by the place named, else the newest played", async () => {
+  it("picks one of the teams sharing a name by the place named, never the newest by default", async () => {
     expect((await parse("ultraviolet record in new jersey")).teams[0]).toMatchObject({ number: 23268, rule: "the one in New Jersey" });
-    expect((await parse("alphatronic record")).teams[0]).toMatchObject({ number: 24033, rule: "the one that played most recently" });
+    // Both played this season or last, neither ranked: still tied (./shared.ts).
+    expect((await parse("alphatronic record")).teams[0].rule).toBeUndefined();
+    expect((await parse("alphatronic record")).complete).toBe(false);
     // Two still tied: never guessed; the other team named breaks it by region.
     expect((await parse("ultraviolet opr")).complete).toBe(false);
     expect((await parse("ultraviolet vs hypnotic robotics")).teams.map((t) => t.number)).toEqual([23268, 4215]);
@@ -512,5 +514,17 @@ describe("compare, winner and head to head words", () => {
   it("a winner beside an award word is still the winning-alliance award", async () => {
     const p = await parse("4215 winner awards");
     expect([p.intent, p.award, p.complete]).toEqual(["awards", "Winner", true]);
+  });
+});
+
+// Launch audit (Nov 9 2026, Phase A4): two teams and an event, states or Worlds alone are their numbers there side by side.
+describe("two teams and a place to compare them", () => {
+  it("an event, a state championship or Worlds named with two teams is the compare there", async () => {
+    for (const q of ["4215 6980 nj championship", "4215 and 6980 at new jersey championship 2025-26", "4215 6980 nj states", "4215 6980 at worlds"]) {
+      const p = await parse(q);
+      expect([p.intent, p.complete], q).toEqual(["compare", true]);
+    }
+    // Two teams with nothing named are no question here.
+    expect((await parse("4215 6980")).complete).toBe(false);
   });
 });

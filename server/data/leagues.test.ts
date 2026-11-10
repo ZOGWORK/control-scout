@@ -6,6 +6,7 @@ import { migrate, openDb, run, setDb } from "../db";
 import { clearAllCaches } from "../caches";
 import { syncLeagues } from "./leagues";
 import { leagueStandings, leaguesOf, teamLeagueStanding } from "../api/leagues";
+import { pageMeta } from "../seoMeta";
 
 const S = 2026;
 const rank = (team: number, r: number, played = 6) => ({ teamNumber: team, rank: r, sortOrder1: 2 - r / 10, sortOrder2: 40, wins: 6 - r, losses: r, ties: 0, matchesPlayed: played, matchesCounted: played });
@@ -60,7 +61,7 @@ describe("league standings sync", () => {
     const nj = await leagueStandings(S, "usnj", "ne");
     expect(nj).toMatchObject({ region: "USNJ", code: "NE", name: "Northeast", place: "New Jersey" });
     expect(nj!.rows.map((r) => [r.rank, r.team, r.name, r.meets])).toEqual([[1, 7, "Seven", 1], [2, 6980, "Bad Wolf", 2], [3, 8, "Eight", 0]]);
-    expect(nj!.meets.map((m) => m.code)).toEqual(["NJM1", "NJM2", "NJLT"]);
+    expect(nj!.meets.map((m) => [m.code, m.played])).toEqual([["NJM1", true], ["NJM2", true], ["NJLT", false]]);
     expect((await leagueStandings(S, "USFL", "NE"))!.rows.map((r) => r.team)).toEqual([8]);
     expect(await leagueStandings(S, "USNY", "NE")).toBeNull();
     // Out of the teams that have played: team 8 hasn't in New Jersey.
@@ -87,6 +88,15 @@ describe("league standings sync", () => {
     // Not again until REREAD_HOURS on, like any read.
     expect(await syncLeagues(S, { now: new Date("2026-11-08T19:05:00Z"), fetch: fetcher([]) })).toMatchObject({ ranked: 0 });
     expect(await syncLeagues(S, { now: new Date("2026-11-09T01:05:00Z"), fetch: fetcher([]) })).toMatchObject({ ranked: 1 });
+  });
+
+  it("serves a league's page meta, and a 404 for an address that is no league", async () => {
+    await syncLeagues(S, { now: new Date("2026-11-08T12:00:00Z"), fetch: fetcher([]) });
+    const m = await pageMeta("/Leagues/2026/usnj/ne");
+    expect(m).toMatchObject({ title: "Northeast League (New Jersey) standings 2026–27", path: "/leagues/2026/USNJ/NE" });
+    expect(m.bodyHtml).toContain("Bad Wolf");
+    expect((await pageMeta("/leagues/2026/USNJ/a-b")).notFound).toBe(true);
+    expect((await pageMeta("/leagues/2026/USNY/NE")).notFound).toBe(true);
   });
 
   it("tries a failed league again next sync", async () => {

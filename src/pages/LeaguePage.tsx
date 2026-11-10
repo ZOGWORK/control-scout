@@ -25,7 +25,8 @@ export default function LeaguePage() {
     <div className="space-y-6">
       <Async state={state}>
         {(d) => {
-          const played = d.meets.filter((m) => m.type === "LeagueMeet" && m.start && m.start <= new Date().toISOString().slice(0, 10)).length;
+          // Meets with a result (a meet on its day, before its first match, isn't in FIRST's standing yet).
+          const played = d.meets.filter((m) => m.type === "LeagueMeet" && m.played).length;
           const waiting = d.rows.filter((r) => !r.played).length;
           return (
             <>

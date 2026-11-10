@@ -76,6 +76,10 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
   let a = await execute(p, opts);
   if (!a) return null;
   if (tops && a.understood) a = { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${topTeamsNote(tops.said, tops.season)}` } };
+  // A name several teams share, told apart by a rule (./shared.ts): the card says which team it was read as, and why.
+  for (const t of p.teams) {
+    if (t.candidates && t.rule && a.understood) a = { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${t.typed}: ${t.number}, ${t.rule} of ${t.candidates.length} teams with the name` } };
+  }
   // Part of a region ("north jersey") is read as all of it, and the card says so.
   if (p.place?.part && a.understood) a = { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${p.place.part.replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase())} isn't a separate region: all of ${p.place.name}` } };
   // A team's name typed nearly right: answered for that team, with the spelling to search for.
