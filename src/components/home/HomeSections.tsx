@@ -207,7 +207,7 @@ function LiveCallsNote({ t }: { t: TrackRecord }) {
   const line = liveCallsLine(t);
   return (
     <p data-testid="live-calls-note" className="mt-3 rounded-lg border border-line bg-text-base/[0.03] px-3 py-2 text-xs leading-relaxed text-text-muted">
-      <b className="font-semibold text-text-base">The figure above is a season replay, not calls made in advance.</b>{" "}
+      <b className="font-semibold text-text-base">The figure above is replayed from past matches, not calls made in advance.</b>{" "}
       {line ?? "No live call has been scored yet; live calls made in advance are reported beside the replay as soon as there are any, never blended with it."}
     </p>
   );
@@ -257,7 +257,7 @@ export function PredictionRecord() {
           <div id="record-evidence" role="region" aria-live="polite" aria-label={RECORD_TAB[tab]} className="mt-4">
             {view && eng ? (
               <>
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Season replay · Engine {CURRENT_ENGINE.version} tested month by month{view.isHeadline && " · the headline"}</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Replayed test · Engine {CURRENT_ENGINE.version}, month by month{view.isHeadline && " · the headline"}</p>
                 <p className="font-display text-6xl font-semibold tabular-nums text-accent-text">{pct(eng.accuracy, 1).replace("%", "")}<span className="text-3xl">%</span></p>
                 <p className="mt-1 text-sm text-text-muted">Correct winner · {view.seasonLabel}, each month predicted by an engine fitted only on the year before</p>
                 <div className="mt-4">

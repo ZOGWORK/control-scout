@@ -237,7 +237,7 @@ describe("Home", () => {
     expect(radios.map((r) => r.getAttribute("aria-label"))).toEqual(["Last season, 36,572 scored", "This season so far, 1,087 scored"]);
     expect(radios[0].getAttribute("aria-checked")).toBe("true");
     // Last season leads with engine 3.5's month-by-month test; the site's full replay is named beside it.
-    expect(screen.getByText("Season replay · Engine 3.5 tested month by month · the headline")).toBeTruthy();
+    expect(screen.getByText("Replayed test · Engine 3.5, month by month · the headline")).toBeTruthy();
     expect(screen.getByText("74.8")).toBeTruthy();
     expect(screen.getByText("27,354 correct")).toBeTruthy();
     expect(screen.getByText("9,218 missed")).toBeTruthy();
@@ -253,7 +253,7 @@ describe("Home", () => {
     // with its slice and sample, so neither number can be read as "the live accuracy" on its own.
     expect(screen.queryByText(/Logged live/)).toBeNull();
     const note = screen.getByTestId("live-calls-note");
-    expect(note.textContent).toMatch(/^The figure above is a season replay, not calls made in advance\. Live calls made in advance, 2026–27 BIOBUZZ: 59\.5% of 698 decided called right, Brier 0\.2000 \(early season: 100% of them rough guesses, so the figure is still moving\)\. They aren’t this card’s figure until 10,000 are scored \(706 so far\)\.$/);
+    expect(note.textContent).toMatch(/^The figure above is replayed from past matches, not calls made in advance\. Live calls made in advance, 2026–27 BIOBUZZ: 59\.5% of 698 decided called right, Brier 0\.2000 \(early season: 100% of them rough guesses, so the figure is still moving\)\. They aren’t this card’s figure until 10,000 are scored \(706 so far\)\.$/);
     // The same note under the other tab.
     fireEvent.click(radios[0]);
     expect(screen.getByTestId("live-calls-note").textContent).toMatch(/59\.5% of 698 decided/);

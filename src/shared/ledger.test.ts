@@ -65,7 +65,7 @@ describe("the live record beside a replay", () => {
   });
   it("says so when nothing is decided yet, and when live leads", () => {
     expect(liveCallsLine({ seasons: at(live(3, 0, 0, 3)), liveThreshold: LIVE_THRESHOLD })).toMatch(/^Live calls made in advance, 2026–27 BIOBUZZ: 3 scored, none decided yet/);
-    expect(liveCallsLine({ seasons: at(live(12_000, 11_900, 0.7, 2000)), liveThreshold: LIVE_THRESHOLD })).toMatch(/70\.0% of 11,900 decided called right, Brier 0\.2196\. They lead the headline\.$/);
+    expect(liveCallsLine({ seasons: at(live(12_000, 11_900, 0.7, 2000)), liveThreshold: LIVE_THRESHOLD })).toMatch(/70\.0% of 11,900 decided called right, Brier 0\.2196\. Past 10,000 scored, they lead the headline\.$/);
   });
   it("is nothing while no live call is scored", () => {
     expect(liveCallsLine({ seasons: at(null), liveThreshold: LIVE_THRESHOLD })).toBeNull();

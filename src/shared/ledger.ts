@@ -80,15 +80,17 @@ export function headlineRule(t: Pick<TrackRecord, "headline" | "seasons" | "live
  */
 export function liveCallsLine(t: Pick<TrackRecord, "seasons" | "liveThreshold">): string | null {
   const n = (x: number) => x.toLocaleString("en-US");
-  const s = [...t.seasons].sort((a, b) => b.season - a.season).find((x) => (x.live?.n ?? 0) > 0);
-  if (!s?.live) return null;
-  const l = s.live;
+  const p = liveProgress(t);
+  const l = p ? t.seasons.find((s) => s.season === p.season)?.live : null;
+  if (!p || !l) return null;
   const early = l.n < t.liveThreshold;
-  const shown = early ? ` They aren’t this card’s figure until ${n(t.liveThreshold)} are scored (${n(l.n)} so far).` : " They lead the headline.";
-  if (l.decided <= 0) return `Live calls made in advance, ${s.label}: ${n(l.n)} scored, none decided yet (every one a tie or a 50:50 call).${shown}`;
-  const rough = Math.round((100 * l.byTier.provisional.n) / l.n);
-  return `Live calls made in advance, ${s.label}: ${(100 * l.accuracy).toFixed(1)}% of ${n(l.decided)} decided called right, Brier ${l.brier.toFixed(4)}${early ? ` (early season: ${rough}% of them rough guesses, so the figure is still moving)` : ""}.${shown}`;
+  const shown = early ? ` They aren’t this card’s figure until ${n(t.liveThreshold)} are scored (${n(l.n)} so far).` : ` Past ${n(t.liveThreshold)} scored, they lead the headline.`;
+  if (l.decided <= 0) return `Live calls made in advance, ${p.label}: ${n(l.n)} scored, none decided yet (every one a tie or a 50:50 call).${shown}`;
+  return `Live calls made in advance, ${p.label}: ${(100 * l.accuracy).toFixed(1)}% of ${n(l.decided)} decided called right, Brier ${l.brier.toFixed(4)}${early ? ` (early season: ${roughGuessPct(l)}% of them rough guesses, so the figure is still moving)` : ""}.${shown}`;
 }
+
+/** The share of a block's calls that were rough guesses (provisional tier), in whole percent. */
+export const roughGuessPct = (b: Pick<AccuracyBlock, "n" | "byTier">) => (b.n > 0 ? Math.round((100 * b.byTier.provisional.n) / b.n) : 0);
 
 /** Which mode a number is, in words every ledger surface uses. */
 export const LEDGER_MODE: Record<LedgerKind, { tab: string; title: string; detail: string }> = {
