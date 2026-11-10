@@ -224,7 +224,8 @@ function SeasonSoFar({ p, team, matches, matchesFailed, when, earlier, onSeason 
   const s = p.stats;
   const predictable = usePredictable(p.season);
   const calls = useMemo(() => (matches ? callTally(matches, team) : null), [matches, team]);
-  if (!s || s.record.wins + s.record.losses + s.record.ties === 0) {
+  // Any match counts (a scrimmage's too): the record holds official events only, the season's numbers every event.
+  if (!s || s.record.matches === 0) {
     return (
       <div className="mt-4 space-y-3 text-sm">
         <p className="text-muted-foreground">No results {when} yet.</p>
