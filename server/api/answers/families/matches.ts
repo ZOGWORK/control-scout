@@ -17,6 +17,7 @@ import { OFFICIAL_ONLY, OFFICIAL_RULE, RECORD_RULE } from "../../../../src/share
 import { RANKED_MIN_MATCHES } from "../../../../src/shared/rankings.js";
 import { teamPageSql } from "../../../../src/shared/teamPages.js";
 import { get } from "../../../db.js";
+import { searchRead } from "../../searchReads.js";
 import { markedLabel, unofficialLine } from "../../../data/unofficialRecords.js";
 import { inScope, scopeChips, scopePhrase, type Scope } from "../clauses.js";
 import { eventHref, matchRow, teamLinks, upcomingMatches, type TeamMatch, type UpcomingMatch } from "../matchSet.js";
@@ -73,13 +74,16 @@ export function seasonTable(ms: TeamMatch[], title = "By season"): StatBlock {
 export const WIN_RATE_RANK = `World rank by win rate: the team's place on the season's "top teams by win rate" list (wins over matches played, teams with ${RANKED_MIN_MATCHES} or more matches at official events, then most wins, then team number), shown when that list's record for the team is the one above.`;
 
 /** The team's place on the season's win-rate list (leaderboard.ts "win-rate": the stored season numbers, the same
- *  order), with the record that list holds for it, or null when it isn't ranked. */
+ *  order), with the record that list holds for it, or null when it isn't ranked. The season's whole list is read once
+ *  and kept (searchReads.ts: until the data moves), so every team's record answer after the first reads no SQL here:
+ *  the window over the season cost 150–450 ms per answer (measured 2026-11-10). */
 export async function winRateRank(team: number, season: number): Promise<{ rank: number; of: number; wins: number; losses: number; ties: number } | null> {
   const rate = "(1.0 * s.wins / NULLIF(s.wins + s.losses + s.ties, 0))";
-  const r = await get<{ rank: number; of: number; wins: number; losses: number; ties: number }>(
-    `SELECT rank, of, wins, losses, ties FROM (SELECT s.team, s.wins, s.losses, s.ties, ROW_NUMBER() OVER (ORDER BY ${rate} DESC, s.wins DESC, s.team) rank, COUNT(*) OVER () of
+  const list = await searchRead<{ team: number; rank: number; of: number; wins: number; losses: number; ties: number }>(
+    `SELECT s.team, s.wins, s.losses, s.ties, ROW_NUMBER() OVER (ORDER BY ${rate} DESC, s.wins DESC, s.team) rank, COUNT(*) OVER () of
        FROM team_season_stats s JOIN teams t ON t.number = s.team
-       WHERE s.season = ? AND (s.wins + s.losses + s.ties) >= ${RANKED_MIN_MATCHES} AND ${rate} IS NOT NULL AND ${teamPageSql("s.team", "t.name")}) WHERE team = ?`, [season, team]);
+       WHERE s.season = ? AND (s.wins + s.losses + s.ties) >= ${RANKED_MIN_MATCHES} AND ${rate} IS NOT NULL AND ${teamPageSql("s.team", "t.name")}`, [season]);
+  const r = list.find((x) => Number(x.team) === team);
   return r ? { rank: Number(r.rank), of: Number(r.of), wins: Number(r.wins), losses: Number(r.losses), ties: Number(r.ties) } : null;
 }
 
