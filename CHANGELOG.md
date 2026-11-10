@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.3.6 — 2026-11-10
+## 5.3.7 — 2026-11-10
 
 The Events page opens on every event, its video and status filters never leave an empty list, and Scout's event picker counts the same events.
 
@@ -28,6 +28,22 @@ The Events page opens on every event, its video and status filters never leave a
 - `/events` with no status in the address opened on Live now whenever one event was live, hiding the rest of the season behind a short list. It now opens on All; a status in the address (`?status=live`) still holds.
 - On Events, picking "Match clips" (or "Has a recording") while a status with no such event was picked (Upcoming, Live now) showed "No events match". A video pick now sends that status back to All, and a status tap with nothing under the video picked drops the video filter (`videoPick`, `statusPick` in `src/pages/eventsList.ts`). (#1345)
 - Scout's event picker counted 1,630 events (447 finished) where Events counted 1,411 (230 finished): it listed kickoffs, workshops, practice days and the other types with no matches, which Events leaves out. It now lists the Events page's set, so the counts agree; picking one of those types in its Event type filter still lists them, as a pit can be scouted at a practice day. The list of those types lives once, in `src/shared/labels.ts` (`NO_MATCH_TYPES`), and an event with no type is listed on both.
+
+## 5.3.6 — 2026-11-10
+
+Search says why a team's events are from the season shown, and reads names with punctuation or typed nearly right.
+
+### Highlights
+- [fixes] "4215 events this season" says why that season
+- [fixes] A team's record and OPR always name the same season
+- [fixes] "die toaster, die!'s worst score" finds the team
+- [fixes] A misspelled team name ending in a number finds that team
+
+### Fixed
+- Search: a team's events with no season named, or "this season", say on the card which season was read and why, as its record and OPR do.
+- Search: a team's newest season where it was only ever a no-show is no longer its season for answers that default to its latest: its record, OPR and every other card name the same season (the one season rule). The card's note says no match of the newer season has been played yet, never that none is on record.
+- Search: a possessive after a name that ends in punctuation ("die toaster, die!'s") reads as the team, never as a stray "s".
+- Search: a team's name typed nearly right that runs past a shorter team's name ("girls in roboics 2") reads as the longer team, never the shorter one plus the number taken for an event. (#1340)
 
 ## 5.3.5 — 2026-11-10
 

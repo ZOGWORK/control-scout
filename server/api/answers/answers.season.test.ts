@@ -14,6 +14,8 @@ import { readEventQuery } from "../../../src/shared/searchEventQuery";
 import { readLeaderboard, readScope } from "./read";
 import { readChange, shiftChange } from "./families/seasonChange";
 import { completedSeason, currentSeason, defaultSeason, lastSeason, refreshSearchSeason, resetSearchSeason, teamSeason } from "./season";
+import { latestSeason } from "./index";
+import { clearAllCaches } from "../../caches";
 
 const NOW = Date.parse("2026-11-04T12:00:00Z");
 
@@ -101,7 +103,7 @@ describe("a team's season, said in words", () => {
   it("no season named, or \"this season\": the team's latest season with matches, said on the card", async () => {
     const a = (await searchAnswer("4215 opr", { limit: 25, full: true, now: NOW })).stat;
     expect(a).toMatchObject({ title: "OPR in 2025–26", headline: { value: "101.6" } });
-    expect(a?.definition).toContain("the season is 2025–26, the latest season 4215 has played in (no 2026–27 matches on record yet)");
+    expect(a?.definition).toContain("the season is 2025–26, the latest season 4215 has played in (no 2026–27 match played yet)");
     const t = (await searchAnswer("4215 opr this season", { limit: 25, full: true, now: NOW })).stat;
     expect(t?.title).toBe("OPR in 2025–26");
     expect(t?.definition).toContain('"This season" here is 2025–26, the latest season 4215 has played in');
@@ -109,6 +111,56 @@ describe("a team's season, said in words", () => {
     const e = (await searchAnswer("30000 opr this season", { limit: 25, full: true, now: NOW })).stat;
     expect(e).toMatchObject({ title: "OPR in 2026–27", headline: { value: "400" } });
     expect(e?.definition).toContain('"This season" is 2026–27, the current season');
+  });
+  it("a team's events this season say why that season, as its other cards do", async () => {
+    await run("INSERT INTO events (season, code, name, type, start, end, source) VALUES (2025, 'TEVQ', 'Season Qualifier', 'Qualifier', '2026-01-10', '2026-01-10', 'first')");
+    await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'TEVQ', 4215, 3)");
+    try {
+      const a = (await searchAnswer("4215 events this season", { limit: 25, full: true, now: NOW })).stat;
+      expect(a?.title).toBe("Events in 2025–26");
+      expect(a?.definition).toContain('"This season" here is 2025–26, the latest season 4215 has played in');
+      // A season named needs no note.
+      expect((await searchAnswer("4215 events in 2025-26", { limit: 25, full: true, now: NOW })).stat?.definition).not.toContain("This season");
+    } finally {
+      await run("DELETE FROM event_teams WHERE code = 'TEVQ'");
+      await run("DELETE FROM events WHERE code = 'TEVQ'");
+    }
+  });
+  it("a newest season of only no-shows isn't the team's season: its record and its OPR name the same one", async () => {
+    // 4215 played a 2025–26 qualifier, then was listed at a 2026–27 one and never took the field (a no-show still counts
+    // on a record, but the team never played).
+    const add = async (season: number, code: string, onField: number) => {
+      await run("INSERT INTO events (season, code, name, type, start, end, source) VALUES (?, ?, ?, 'Qualifier', ?, ?, 'first')", [season, code, code, `${season + 1}-01-10`, `${season + 1}-01-10`]);
+      await run("INSERT INTO matches (season, code, level, series, number, label, played, red_total, blue_total, red_np, blue_np, source) VALUES (?, ?, 'qual', 0, 1, 'Q1', 1, 50, 40, 50, 40, 'first')", [season, code]);
+      await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, station, on_field) VALUES (?, ?, 'qual', 0, 1, 4215, 'blue', 1, ?)", [season, code, onField]);
+    };
+    await add(2025, "TPLAYED", 1);
+    await add(2026, "TNOSHOW", 0);
+    clearAllCaches();
+    try {
+      expect(await teamSeason(4215)).toBe(2025);
+      // The record's season (every answer that defaults to the team's latest reads it) is the OPR's.
+      expect((await latestSeason(4215, "record"))?.season).toBe(2025);
+      expect((await latestSeason(4215))?.season).toBe(2025);
+      const opr = (await searchAnswer("4215 opr", { limit: 25, full: true, now: NOW })).stat;
+      expect(opr?.title).toBe("OPR in 2025–26");
+      // The no-show is on the record, so the note says no match was played, never that none is on record.
+      expect(opr?.definition).toContain("(no 2026–27 match played yet)");
+      expect(opr?.definition).not.toContain("on record yet");
+      // A newer season whose only match has its totals but no score without penalties, or is at a remote event: the
+      // record's matches don't hold it, so neither reader takes it.
+      await run("INSERT INTO events (season, code, name, type, start, end, source) VALUES (2026, 'TTOTALS', 'TTOTALS', 'Qualifier', '2027-01-10', '2027-01-10', 'first')");
+      await run("INSERT INTO matches (season, code, level, series, number, label, played, red_total, blue_total, source) VALUES (2026, 'TTOTALS', 'qual', 0, 1, 'Q1', 1, 50, 40, 'first')");
+      await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, station, on_field) VALUES (2026, 'TTOTALS', 'qual', 0, 1, 4215, 'red', 1, 1)");
+      await run("INSERT INTO events (season, code, name, type, start, end, source, remote) VALUES (2026, 'TREMOTE', 'TREMOTE', 'Qualifier', '2027-01-11', '2027-01-11', 'first', 1)");
+      await run("INSERT INTO matches (season, code, level, series, number, label, played, red_total, blue_total, red_np, blue_np, source) VALUES (2026, 'TREMOTE', 'qual', 0, 1, 'Q1', 1, 50, 40, 50, 40, 'first')");
+      await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, station, on_field) VALUES (2026, 'TREMOTE', 'qual', 0, 1, 4215, 'red', 1, 1)");
+      clearAllCaches();
+      expect(await teamSeason(4215)).toBe(2025);
+      expect((await latestSeason(4215, "record"))?.season).toBe(2025);
+    } finally {
+      for (const t of ["match_teams", "matches", "events"]) await run(`DELETE FROM ${t} WHERE code IN ('TPLAYED', 'TNOSHOW', 'TTOTALS', 'TREMOTE')`);
+    }
   });
 });
 
