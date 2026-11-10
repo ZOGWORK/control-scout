@@ -56,7 +56,9 @@ import { MATCH_KEY as REPORT_KEY } from "../src/shared/matchReport.js";
 import { trackRecord } from "./api/accuracy.js";
 import { currentWeather } from "./weather.js";
 import { MISSING_FILE, canonicalRedirects, renderPage } from "./seo.js";
-import { CSP_REPORT_PATH, cspReportRouter, securityHeaders, setPageCsp } from "./securityHeaders.js";
+import { CSP_REPORT_PATH, cspHeaderName, cspReportRouter, securityHeaders, setPageCsp } from "./securityHeaders.js";
+import { CACHED_PAGE, drawPage, pageKey } from "./pageCache.js";
+import { keptPage } from "./api/searchReads.js";
 import { sitemapChunkRoute, sitemapRoute } from "./sitemap.js";
 import { indexNowKeyRoute } from "./indexNow.js";
 import { latestRankings, rankingsWeek } from "./powerRankings/store.js";
@@ -1015,8 +1017,20 @@ export function createApp(opts: { dist?: string } = {}) {
     // app's HTML, so the visitor sees the app's own not-found page (and search engines drop the URL).
     app.get(/^(?!\/api\/|\/packs\/).*/, h(async (req, res) => {
       res.setHeader("Cache-Control", "no-cache");
+      const file = join(dist, "index.html"), query = req.query as Record<string, unknown>;
+      // A team, event, search or home page is kept whole for a short while (server/pageCache.ts): the same address
+      // asked again is the bytes already drawn, gzipped once. The ETag res.send makes keeps a repeat visit a 304.
+      if (req.method === "GET" && CACHED_PAGE.test(req.path)) {
+        const page = await keptPage(pageKey(req.path, query), () => drawPage(file, req.path, query));
+        res.setHeader(cspHeaderName(), page.csp);
+        res.setHeader("Vary", "Accept-Encoding");
+        const gz = req.acceptsEncodings("gzip") ? await page.gz.catch(() => null) : null;
+        if (gz) res.setHeader("Content-Encoding", "gzip");
+        res.status(page.status).type("html").send(gz ?? page.html);
+        return;
+      }
       // The query names the page's view: rankings filters, a shared matchup (its card is the link preview).
-      const page = await renderPage(join(dist, "index.html"), req.path, req.query as Record<string, unknown>);
+      const page = await renderPage(file, req.path, query);
       setPageCsp(res, page.html);
       res.status(page.status).type("html").send(page.html);
     }));

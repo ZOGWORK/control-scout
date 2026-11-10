@@ -28,6 +28,8 @@ import { ensureSearchIndex, warmTypoIndex } from "./api/search.js";
 import { rebuildSearch } from "./stats/job.js";
 import { scheduleCycles, warmUp } from "./warm.js";
 import { names as warmNames } from "./api/query/names.js";
+import { warmPageRenderer } from "./firstPaint.js";
+import { refreshSearchSeason } from "./api/answers/season.js";
 import { seasonCutoffs } from "./api/matchReport.js";
 import { installShippedPacks, restoreSnapshotIfEmpty } from "./data/snapshot.js";
 import { drainOnSigterm, systemdSocket } from "./listen.js";
@@ -82,7 +84,9 @@ const indexed = ensureSearchIndex(rebuildSearch);
 const afterIndex = () => indexed.catch(() => { /* its own step says it failed */ });
 // The current season's ratings, so the first prediction is fast: in the background, never held for (about 20 s cold,
 // and only predictions need them; held for, every queued search would wait on them).
-const rated = warmUp([["ratings", () => forecasterFor(CURRENT_SEASON)]], log, Infinity, Date.now, "warm (background)");
+// Then the season a search with none named reads (the latest completed one, server/api/answers/season.ts): its
+// predictions ("4215 vs 7149 who wins") otherwise built the whole season on a visitor's request, 10–20 s cold.
+const rated = warmUp([["ratings", () => forecasterFor(CURRENT_SEASON).then(() => refreshSearchSeason()).then((s) => (s !== CURRENT_SEASON ? forecasterFor(s) : null))]], log, Infinity, Date.now, "warm (background)");
 const warming = await warmUp([
   // The track record (every scored prediction: about a second and a half cold), then the match report's flag
   // cutoffs (two scans of a season) for this season and last.
@@ -92,6 +96,8 @@ const warming = await warmUp([
   // name's words, numbered: about a second cold), and the names it reads queries with.
   ["spelling and typo index", () => afterIndex().then(() => warmSpelling()).then(() => warmTypoIndex())],
   ["search names", () => afterIndex().then(() => warmNames())],
+  // The server-side page render (server/firstPaint.ts): its bundle compiled before the first team or event page asks.
+  ["page renderer", () => warmPageRenderer()],
 ], log);
 void Promise.all([warming.settled, rated.then((r) => r.settled)]).then(() => { warm = true; });
 ready = true;

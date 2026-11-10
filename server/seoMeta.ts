@@ -35,7 +35,8 @@ import { trackRecordIfReady } from "./api/accuracy.js";
 import { isEnabled } from "./flags.js";
 import type { SearchCardLine, TrackRecord } from "../src/shared/api.js";
 import { ensureSearchIndex } from "./api/search.js";
-import { MAX_QUERY, searchAnswer } from "./api/searchAnswer.js";
+import { MAX_QUERY } from "./api/searchAnswer.js";
+import { pageAnswer } from "./api/answers/followUps.js";
 import { relatedPage } from "./api/answers/relatedPage.js";
 import { withTeamStats } from "./api/searchTeamStats.js";
 import { withEventParents } from "./api/searchEvents.js";
@@ -590,6 +591,9 @@ export function teamTableHtml(t: TeamTable, label: string): string {
  * loaded (or without JavaScript), and as data the app starts from (src/lib/searchBoot.ts). Crawlable but never
  * indexed ("noindex, follow", searchPage): engines index the pages its results link to.
  */
+/** The page has no preferred teams (the app sends its visitor's as ?prefer=): the answer with none. */
+const NO_PREFER: ReadonlySet<string> = new Set();
+
 async function searchMeta(raw: string): Promise<PageMeta> {
   // As typed (quotes and | are the boolean reader's): searchAnswer reads it to MAX_QUERY, cut at a word. Only a
   // runaway address is trimmed here.
@@ -597,7 +601,9 @@ async function searchMeta(raw: string): Promise<PageMeta> {
   if (!q) return { title: "Search", description: "Search any FTC team, event or match.", type: "website", searchPage: true };
   // The same readiness check as /api/search (typo matches on an upgraded database).
   await ensureSearchIndex(rebuildSearch);
-  const found = await searchAnswer(q, { limit: SEARCH_PAGE_LIMIT });
+  // The same kept answer /api/search?answer=1 gives for this query (server/api/answers/followUps.ts pageAnswer): a
+  // visit and the app's own request for the same results cost one reading, as do two visitors within a minute.
+  const found = await pageAnswer(q, SEARCH_PAGE_LIMIT, NO_PREFER);
   // As /api/search sends it: team rows with their season numbers, so the app starts from the same answer.
   const answer = { ...found, hits: await withTeamStats(await withEventParents(found.hits)) };
   // A visit here is a whole query (the address bar's, or a shared link): its intent counts, never as it's typed.
