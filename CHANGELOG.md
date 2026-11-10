@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 4.9.4 — 2026-11-10
+## 4.9.5 — 2026-11-10
 
 Search reads one season rule in every answer, and says which season (and which state championship) it read.
 
@@ -30,6 +30,19 @@ Search reads one season rule in every answer, and says which season (and which s
 - "At states" reads the team's state championship (the season named, else the latest it played) for a record, match list, score or streak as it already did for results, rank and OPR, so rewordings get one scope; the card names the event and its season. "All state championships", "ever" or "all time" reads every season, labelled "All seasons".
 - Plain leaderboards ("NJ top teams leaderboard") step back a season, said on the card, as the asked boards did. (#1286)
 
+
+## 4.9.4 — 2026-11-10
+
+Compare opens on its teams: a search answer's Compare link lands on both teams with their numbers, from the first paint.
+
+### Highlights
+- [fixes] Compare from a search answer opens with both teams already there
+- [speed] A shared Compare link shows the comparison at once, before the app loads
+- [share] A comparison's tab and link title name both teams
+
+### Changed
+- `/compare?teams=…&season=…` is drawn on the server like team and event pages: the stats table, charts, events and awards are in the page itself, so a slow connection shows the teams straight away. Its title names the teams. (#1269)
+- The search page's first paint lists an answer's "Open in Predict" and "Compare side by side" links with the teams and season in them.
 ## 4.9.3 — 2026-11-10
 
 A question search can't answer yet says sorry plainly, and a yes-or-no question gets its Yes or No first.
