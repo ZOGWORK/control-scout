@@ -38,6 +38,7 @@ export function EventAwardsAnswer({ card, heading }: { card: SearchCard; heading
     <AnswerFrame title={card.title} hideTitle={repeats(heading, card.title)}
       sub={ev ? `${ev.name} · ${seasonLabel(ev.season)} · from FIRST's award list for the event` : "From FIRST's award list for the event"}
       data={{ "data-card-kind": card.kind, "data-event-awards": "" }}>
+      {card.note && <p className="text-sm text-muted-foreground" data-note>{card.note}</p>}
       {card.none && <p className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm text-foreground" data-none>{card.none}</p>}
       {!!card.champions?.length && <Champions champions={card.champions} />}
       {shown && <Podium places={podium} season={ev?.season} asked={card.place} />}
