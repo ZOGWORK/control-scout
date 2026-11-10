@@ -2,10 +2,12 @@
 // (./parse.ts) and Compare (server/api/searchCompare.ts). In order:
 //   1. the visitor's own team (my team, tracked, shortlisted)
 //   2. the one in the place the query names
-//   3. the one in the same region as another team the query names (the teams a question is about are usually near)
-//   4. the only one that has played a match (a registration alone names nothing)
-//   5. the only one still active: played in the newest season any of them played, or the season before
-//   6. the clearly stronger one: its best OPR rank in its last two seasons is at least STRONGER points of percentile
+//   3. once one of them has played a match, only those that have: a registration alone names nothing (it has no data
+//      to answer with), so it never wins by region over a twin that played elsewhere
+//   4. the one in the same region as another team the query names (the teams a question is about are usually near)
+//   5. the only one that has played
+//   6. the only one still active: played in the newest season any of them played, or the season before
+//   7. the clearly stronger one: its best OPR rank in its last two seasons is at least STRONGER points of percentile
 //      above every other's ("Delta Force": a top-2% team and a bottom-third one); every one of them ranked
 // Still tied: no team. Search then asks which, listing each with its place, and never answers for one of them.
 import type { Place } from "./names.js";
