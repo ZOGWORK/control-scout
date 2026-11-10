@@ -69,7 +69,7 @@ beforeEach(() => {
   resetInstallForTests();
   resetFirstRunForTests();
   resetTour();
-  endTour("done", 4); // the tour is behind this device unless a test says otherwise
+  endTour("finished", 4); // the tour is behind this device unless a test says otherwise
   setAnalyticsConsent(false);
   setWebdriver(false);
   setUA(realUA);
@@ -240,7 +240,7 @@ describe("Add-to-home-screen nudge: dismissed", () => {
     expect(readInstall().dismissed).toBeTruthy();
 
     localStorage.clear();
-    endTour("done", 4);
+    endTour("finished", 4);
     setAnalyticsConsent(false);
     reload();
     mount();

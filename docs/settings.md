@@ -125,7 +125,7 @@ These keys never leave the device (`DEVICE_ONLY_KEYS`):
 | `cs-scout-dirty`, `cs-scout-ws-dirty:<workspace>` | Entries waiting to sync |
 | `cs-account-cache` | The signed-in account as `/api/auth/me` last answered (`src/lib/personal.tsx`). When the app opens offline it stands in for the account, so the scout space (and where new entries go) is the workspace it was. Removed on sign-out or when `/me` says signed out; used only for the device's own account |
 | `cs-scout-lost:<workspace>` | Edits this device lost to a newer one from someone else, kept so they can be compared and restored (`src/lib/lostEdits.ts`; at most 30 per workspace, 30 days). A restore sends the entry, as any edit; the list itself never leaves the device |
-| `cs-tour` | The first-run tour was finished or skipped on this device (`src/lib/tour.ts`): `{v, outcome: "done" \| "skipped", at, step}`. It never shows again here. See "First-run tour" below |
+| `cs-tour` | The first-run tour on this device (`src/lib/tour.ts`): `{v: 2, status: "paused" \| "finished" \| "skipped", at, step, origin, steps}`. Paused while it runs (leaving, a reload or closing the tab keep it at the same step); finished or skipped, it never shows on its own again here. An old `{v: 1}` "skipped" at step 0 (written by just navigating away) counts as never shown. See "First-run tour" below |
 | `cs-tour-demo` | `"1"` lets a browser driven by automation see the tour (`npm run shots -- --tour`); real visitors never have it |
 | `cs-install` | The add-to-home-screen nudge on this device (`src/lib/installNudge.ts`): `{v, lastShown: "YYYY-MM-DD", dismissed?, installed?}`. See "Add-to-home-screen nudge" below |
 | `cs-install-demo` | `"1"` lets a browser driven by automation see the nudge (`npm run shots -- --install`); real visitors never have it |
@@ -162,7 +162,7 @@ have a team of their own, tracked teams or events, a shortlist, or a Control
 Point workspace, which do sync. The tour never shows to anyone with any of
 those (`knowsTheApp` in `src/lib/tour.ts`), so a synced flag would add a
 personal key, its server validation and a merge rule for no visible change.
-The worst case is a signed-in person with none of those seeing the four-step
+The worst case is a signed-in person with none of those seeing the short
 tour once more on a new device.
 
 ### Add-to-home-screen nudge
