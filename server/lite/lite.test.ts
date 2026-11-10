@@ -16,6 +16,7 @@ import { renderPage } from "../seo";
 import { CURRENT_SEASON } from "../data/seasons";
 import { fullHref, liteHref } from "../../src/shared/lite";
 import { liteEvent, nextMatches } from "./trim";
+import { eventPage } from "./render";
 import type { EventDetail, MatchView } from "../../src/shared/api";
 
 let server: Server;
@@ -226,7 +227,27 @@ describe("trimming", () => {
         opr: { np: 10, auto: 1, teleop: 2, endgame: 3, pen: 4 }, avgNp: 9, rating: { np: 1, sd: 1, matches: 1 }, seasonOpr: 5 }],
       matches: [], alliances: [], awards: [], advancement: null, forecastUnsupported: null, live: null,
     } as unknown as EventDetail;
-    expect(liteEvent(d).teams).toEqual([{ team: 1, name: "A", rank: null, rp: null, wins: null, losses: null, ties: null, opr: 10 }]);
+    expect(liteEvent(d).teams).toEqual([{ team: 1, name: "A", rank: null, rs: null, wins: null, losses: null, ties: null, opr: 10 }]);
     expect(Object.keys(liteEvent(d))).not.toContain("field");
+  });
+
+  it("a league meet ranks every team on the meet's own standing (RS), never FIRST's league totals", () => {
+    const row = (team: number, rank: number | null, rp: number | null, meet: { rank: number; rs: number; w: number; l: number } | null) => ({
+      team, name: `T${team}`, city: null, state: null, rank, rp, tbp: null, wins: 9, losses: 9, ties: 0, qualPlayed: 6,
+      opr: { np: team / 10, auto: null, teleop: null, endgame: null, pen: null }, avgNp: null, rating: null,
+      meet: meet && { rank: meet.rank, rs: meet.rs, tb: [], wins: meet.w, losses: meet.l, ties: 0, played: 6 } });
+    const d = {
+      event: { season: 2026, code: "M1", name: "Meet", type: "LeagueMeet", typeLabel: "League meet", city: null, state: null, country: null, start: null, end: null, status: "finished" },
+      // FIRST's league rank 8 for the meet's winner, and a team FIRST's league list leaves out (rank null).
+      field: [row(100, 8, 1.5, { rank: 1, rs: 2.5, w: 5, l: 1 }), row(200, 12, 1.4, { rank: 2, rs: 2.33, w: 4, l: 2 }), row(300, null, null, { rank: 3, rs: 2.17, w: 4, l: 2 })],
+      matches: [], alliances: [], awards: [], live: null,
+    } as unknown as EventDetail;
+    const e = liteEvent(d);
+    expect(e.meet).toBe(true);
+    expect(e.teams.map((t) => [t.team, t.rank, t.rs, `${t.wins}-${t.losses}`])).toEqual([[100, 1, 2.5, "5-1"], [200, 2, 2.33, "4-2"], [300, 3, 2.17, "4-2"]]);
+    const html = eventPage(e, "/events/2026/M1").body;
+    expect(html).toContain(">RS</th>");
+    expect(html).not.toContain(">RP</th>");
+    expect(html).toContain("This meet's own standing");
   });
 });
