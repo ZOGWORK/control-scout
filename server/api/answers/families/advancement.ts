@@ -119,7 +119,8 @@ export async function advancementAt(team: AnswerTeam, ev: Ev, now: number, lead?
   const worlds = ev.type === "FIRSTChampionship";
   // Upcoming, live or finished as the event page says it: the venue's calendar, and finished once every match has a result.
   const m = await get<{ played: number | null; total: number }>(`SELECT SUM(played = 1) played, COUNT(*) total FROM matches WHERE season = ? AND code = ?`, [ev.season, ev.code]);
-  const status = eventStatus(ev, Number(m?.played ?? 0), Number(m?.total ?? 0), now);
+  // An event with no dates yet is still to come, never one already played.
+  const status = !ev.start && !ev.end ? "upcoming" : eventStatus(ev, Number(m?.played ?? 0), Number(m?.total ?? 0), now);
   const played = status !== "upcoming", done = status === "finished";
   const name = shortEvent(ev.name, ev.type);
   const href = predictHref({ mode: "advancement", season: Number(ev.season), code: ev.code, team: team.number });
