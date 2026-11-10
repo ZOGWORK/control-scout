@@ -27,6 +27,7 @@ A season that hasn't started says so, and a prediction's links open on the seaso
 ### Changed
 - A one-team question that names a season with no events yet ("opr 2027", "rating in 2027") answers with a no-events card for that season, and a link to the same question for the latest season, instead of reading the year as part of an event name or dropping it. A named year that has been played still answers for exactly that season.
 - A two-team prediction with no season named reads the latest season both teams have a rating in, the one their team cards show, and its Predict and Compare links carry that season too.
+- A prediction asked in search for a season whose ratings weren't loaded yet showed the rating gap ("rated higher by 38.8 points per match"), and the same question later showed the engine's call ("by 53"). Search now starts loading that season's ratings the first time it is asked, so the next ask, and every one after, gets the engine's call.
 
 ## 4.9.4 — 2026-11-10
 

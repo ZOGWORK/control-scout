@@ -461,10 +461,14 @@ export async function liveForecaster(season: number): Promise<ScoutForecaster> {
   return prev.f;
 }
 
-/** The last built forecaster for the season, or null while none is built: for search, which reads the ratings the
- *  pages already hold and never starts a build. */
+/** The last built forecaster for the season, or null while none is built: for search, which never waits for a build.
+ *  With none built, the build starts in the background (once: forecasterFor shares it), so the same question asked
+ *  again gets the engine's call. Before, only the current season was built at start, and a prediction for another
+ *  season showed the ratings-gap fallback until some page happened to build it: the same question answered two ways. */
 export function readyForecaster(season: number): Promise<ScoutForecaster> | null {
-  return built.get(anchorFor(season))?.f ?? null;
+  const hit = built.get(anchorFor(season))?.f;
+  if (!hit) forecasterFor(season).catch(() => {});
+  return hit ?? null;
 }
 
 /** The data version of the ratings pages are answering with (for caches of results computed from them). */
