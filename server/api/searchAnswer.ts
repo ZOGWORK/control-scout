@@ -40,7 +40,7 @@ import { eventVersusSearch, statAnswer } from "./answers/index.js";
 import { placeAwardsSearch, readPlaceAwards } from "./answers/families/placeAwards.js";
 import { refreshSearchSeason } from "./answers/season.js";
 import { FALLBACK_NOTE, carryOutcome, layeredAnswer, nameKey, teamNames } from "./searchLayers.js";
-import { INFORMAL, informalQuery } from "./query/lexicon.js";
+import { INFORMAL, informalQuery, spelledNumbers } from "./query/lexicon.js";
 import { numberQuery, spelled, strength } from "./spelling.js";
 import { booleanAnswer } from "./searchBoolean.js";
 import { asksOfTeams, pipelineAnswer, pipelineReads } from "./query/execute.js";
@@ -190,7 +190,16 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
     return carryOutcome(b, { ...b, q: cleanQuery(raw) });
   }
   // A season written with both years ("2025-2026"): written as search reads one ("2025-26").
-  const years = said.replace(/\b(20\d\d)\s*[-–/]\s*(20\d\d)\b/g, (w, a: string, b: string) => (Number(b) === Number(a) + 1 ? `${a}-${b.slice(2)}` : w));
+  // Numbers said as words after a word that takes one ("opr over eighty") in digits (./query/lexicon.ts spelledNumbers).
+  // A season written with a comma ("2025, 26", "2025, 2026", "season 25, 26") is the same season: consecutive years
+  // only, and two two-digit years only beside a season word, so a list of team numbers ("25, 26") stays a list.
+  const next = (a: string, b: string) => (Number(b.slice(-2)) === (Number(a.slice(-2)) + 1) % 100);
+  const years = spelledNumbers(said.replace(/\b(20\d\d)\s*[-–/]\s*(20\d\d)\b/g, (w, a: string, b: string) => (Number(b) === Number(a) + 1 ? `${a}-${b.slice(2)}` : w))
+    .replace(/\b(20\d\d)\s*,\s*((?:20)?\d\d)\b/g, (w, a: string, b: string) => (next(a, b) ? `${a}-${b.slice(-2)}` : w))
+    .replace(/\b(season\s+)(\d\d)\s*,\s*(\d\d)\b|\b(\d\d)\s*,\s*(\d\d)(\s+season)\b/gi, (w, pre?: string, a1?: string, b1?: string, a2?: string, b2?: string, post?: string) => {
+      const [a, b] = a1 ? [a1, b1!] : [a2!, b2!];
+      return next(a, b) ? `${pre ?? ""}20${a}-${b}${post ?? ""}` : w;
+    }));
   if (years !== said) {
     const b = await searchAnswer(years, opts);
     return carryOutcome(b, { ...b, q: cleanQuery(raw) });

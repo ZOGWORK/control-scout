@@ -262,8 +262,41 @@ export const INFORMAL: [string, string][] = [
   ["wknd", "weekend"],
   ["nxt wk", "next week"], ["nxt week", "next week"], ["next wk", "next week"], ["lst wk", "last week"], ["last wk", "last week"], ["nxt", "next"],
   ["szn", "season"],
+  // "NJ champs", "Romania champs", "world champs": the championship, as every reader reads it.
+  ["champs", "championship"],
   ["ur", "your"], ["u", "you"],
 ];
+
+/** Numbers said as words, read as digits after a word that takes a number ("opr over eighty", "top five teams", "last
+ *  ten matches", "won by twenty-five points"): one to nineteen, the tens, a ten and a unit, and hundreds. Only there:
+ *  "one" or "two" elsewhere ("which one", "the two teams") is a word, never a team's number. */
+const UNITS = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen",
+  "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
+const TENS = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+const NUMBER_BEFORE = "over|above|under|below|than|least|most|top|last|first|past|next|best|worst|bottom|exceeding|beyond|by|within";
+// "One" alone stays a word ("the best one", "which one"); with a hundred it's the number.
+const UNIT = UNITS.slice(2).join("|"), DIGIT = UNITS.slice(1, 10).join("|"), TEN = TENS.slice(2).join("|");
+const TENS_SAID = `(?:${TEN})(?:[\\s-]+(?:${DIGIT}))?`;
+const NUMBER_SAID = `(?:(?:a|${DIGIT})\\s+hundred(?:\\s+and)?(?:\\s+(?:${TENS_SAID}|${UNIT}))?|${TENS_SAID}|${UNIT})`;
+const NUMBER_RE = new RegExp(`\\b(${NUMBER_BEFORE})\\s+(${NUMBER_SAID})(?![\\p{L}\\p{N}])`, "giu");
+
+/** The value of a number said as words ("eighty five", "a hundred and ten"). */
+function numberValue(said: string): number {
+  let n = 0;
+  for (const w of said.toLowerCase().split(/[\s-]+/)) {
+    if (w === "hundred") n = (n || 1) * 100;
+    else if (UNITS.indexOf(w) > 0) n += UNITS.indexOf(w);
+    else if (TENS.indexOf(w) > 1) n += TENS.indexOf(w) * 10;
+  }
+  return n;
+}
+
+/** `q` with each number said as words after a word that takes one written in digits ("over eighty" → "over 80"),
+ *  everything else as typed; nothing inside quotes. */
+export function spelledNumbers(q: string): string {
+  if (q.includes('"')) return q;
+  return q.replace(NUMBER_RE, (_, before: string, said: string) => `${before} ${numberValue(said)}`);
+}
 
 /** A word without the punctuation around it (`"rn"`, "rn?"): what a form is matched on, the rest kept as typed. */
 const core = (w: string) => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
