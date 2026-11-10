@@ -102,7 +102,7 @@ export async function leagueAskAnswer(ask: LeagueAsk, season: number, said: bool
   const lead = d.rows[0];
   const blocks: StatBlock[] = [{ kind: "league", title: "", season, rows: d.rows, more }];
   if (others.length) blocks.push({ kind: "links", title: `Other leagues called "${ask.words.join(" ")}"`, items: others.map((l) => ({ label: label(l), href: leagueHref(season, l.region, l.code), sub: `${l.teams} teams` })) });
-  return { ...base, title: `${name} standings · ${S}`, scope: [S, d.place ?? ""].filter(Boolean), more,
+  return { ...base, title: `${name} standings · ${S}`, scope: [S, d.place ?? ""].filter(Boolean),
     ...(lead ? { headline: { value: `#1 ${lead.team}`, label: `${lead.name ?? `Team ${lead.team}`} leads ${d.rows.filter((r) => r.played).length} teams`, sub: `RS ${lead.rs?.toFixed(2) ?? "—"} · ${lead.wins ?? 0}-${lead.losses ?? 0}-${lead.ties ?? 0}`, href: `/teams/${lead.team}?season=${season}` } } : { none: `FIRST has no standings for ${name} yet.` }),
     blocks };
 }
