@@ -21,17 +21,21 @@ import { eventHref, teamHref } from "../matchSet.js";
 import type { IntentId } from "../read.js";
 import { whoOf, type AnswerTeam } from "./matches.js";
 import { currentSeason, seasonWhy } from "../season.js";
+import { rangeCoverageNow } from "../../accuracy.js";
+import { rangeCoverageLine } from "../../../../src/shared/scoreRange.js";
 
 const pct = (p: number) => `${Math.round(100 * p)}%`;
+/** The range coverage line under a card's score ranges (nothing when it can't be read). */
+const coverageMore = async (): Promise<{ more?: string }> => { const l = rangeCoverageLine(await rangeCoverageNow().catch(() => null)); return l ? { more: l } : {}; };
 const num1 = (x: number | null | undefined) => (x == null ? "–" : (Math.round(x * 10) / 10).toFixed(1));
 
 const PREDICT_RULE = "The engine's call for one team on each alliance in a qualification match, as Predict makes it for the same lineup: each side's expected score (without penalties, margin-calibrated), the win chance and the predicted margin. It rests on each team's prediction rating (points per match ± its uncertainty) as their team pages show it. A real FTC match is two alliances of two, so a real match's call also needs the partners: Predict works it out for any lineup.";
 
 interface RatingRow { team: number; rating_np: number | null; rating_sd: number | null; rating_rank: number | null }
 
-/** The season a prediction reads when none is named: the latest completed one when both teams have a rating there,
- *  else the latest predicted season both have one in (said so), else the latest completed one (its card says what's
- *  missing). */
+/** The season a prediction reads when none is named: the newest season every team has a prediction rating in, the
+ *  season their own team cards show (a team's latest season), so the call, its Predict and Compare links and the team
+ *  cards beside it all read one season; with none, the latest completed one (its card says what's missing). */
 export async function predictionSeason(a: number, b: number): Promise<{ season: number; why: string }> {
   return predictionSeasonOf([a, b]);
 }
@@ -41,8 +45,8 @@ export async function predictionSeasonOf(teams: number[]): Promise<{ season: num
   const def = currentSeason();
   const rows = await all<{ season: number; n: number }>(`SELECT season, COUNT(*) n FROM team_season_stats WHERE team IN (${teams.map(() => "?").join(", ")}) AND rating_np IS NOT NULL AND season >= ? GROUP BY season HAVING COUNT(*) = ? ORDER BY season DESC`, [...teams, FIRST_PREDICT_SEASON, teams.length]);
   const every = rows.map((r) => Number(r.season));
-  if (every.includes(def) || !every.length) return { season: def, why: seasonWhy("teams", def) };
-  return { season: every[0], why: `The season is ${seasonLabel(every[0])}, the latest season ${teams.length === 2 ? "both teams have" : `all ${teams.length} teams have`} a prediction rating in.` };
+  if (!every.length) return { season: def, why: seasonWhy("teams", def) };
+  return { season: every[0], why: `With no season named, the season is ${seasonLabel(every[0])}, the latest season ${teams.length === 2 ? "both teams have" : `all ${teams.length} teams have`} a prediction rating in, as their team cards show.` };
 }
 
 const ALLIANCE_RULE = "The engine's call for a qualification match between the two alliances named, as Predict makes it for the same lineup: each alliance's expected score (without penalties, margin-calibrated), the win chance and the predicted margin, from each team's prediction rating (points per match ± its uncertainty) as their team pages show it.";
@@ -137,7 +141,9 @@ export async function pairPrediction(intent: string, title: string, a: AnswerTea
       ] },
       { kind: "bars", title: "Predicted score", unit: "pts", groups: [{ label: "Qualification match", items: [{ label: String(a.number), value: Math.round(sa), tone: "a" }, { label: String(b.number), value: Math.round(sb), tone: "b" }] }] },
       { kind: "table", title: "Score ranges", columns: [{ key: "team", label: "Team" }, { key: "score", label: "Predicted", num: true }, { key: "range", label: `${Math.round(100 * x.scoreBandA.level)}% range` }],
-        rows: [[a, sa, x.scoreRangeA], [b, sb, x.scoreRangeB]].map(([t, s, r]) => ({ cells: { team: whoOf(t as AnswerTeam), score: Math.round(s as number), range: `${Math.round((r as [number, number])[0])}–${Math.round((r as [number, number])[1])}` }, href: teamHref((t as AnswerTeam).number, season) })) },
+        rows: [[a, sa, x.scoreRangeA], [b, sb, x.scoreRangeB]].map(([t, s, r]) => ({ cells: { team: whoOf(t as AnswerTeam), score: Math.round(s as number), range: `${Math.round((r as [number, number])[0])}–${Math.round((r as [number, number])[1])}` }, href: teamHref((t as AnswerTeam).number, season) })),
+        // How such ranges have really held, with the sample: never read as exactly 80%.
+        ...(await coverageMore()) },
       { kind: "kpis", items: [rating(a, ra!, Number(ra!.rating_np) > Number(rb!.rating_np)), rating(b, rb!, Number(rb!.rating_np) > Number(ra!.rating_np))] },
       links,
     ],

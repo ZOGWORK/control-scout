@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.0.5 — 2026-11-10
+## 5.0.7 — 2026-11-10
 
 Search reads one season rule in every answer, and says which season (and which state championship) it read.
 
@@ -29,6 +29,32 @@ Search reads one season rule in every answer, and says which season (and which s
 - One season resolver (`server/api/answers/season.ts`) for every intent: a team's question with no season (or "this season", "right now") reads the latest season that team has played; a question about no team reads the current season, stepping back a season with a note when nothing is played there yet; "last season" / "last year" is the latest completed season; a season named is honoured exactly. Every card states the season and why.
 - "At states" reads the team's state championship (the season named, else the latest it played) for a record, match list, score or streak as it already did for results, rank and OPR, so rewordings get one scope; the card names the event and its season. "All state championships", "ever" or "all time" reads every season, labelled "All seasons".
 - Plain leaderboards ("NJ top teams leaderboard") step back a season, said on the card, as the asked boards did. (#1286)
+
+## 5.0.6 — 2026-11-10
+
+Score ranges say how often they have really held, with the sample, wherever one is shown.
+
+### Highlights
+- [predict] Score ranges say how often they have really held, with the sample
+- [predict] No range reads as exactly 8 in 10 any more
+- [report] Search prediction cards carry the same line under their ranges
+
+### Changed
+- Every predicted score range now comes with how often such ranges have held: "80% ranges have held 91.1% of 5,322 live alliance scores in 2026–27 BIOBUZZ (93.4% of 6,450 in its season replay), so they run wider than 80%", from the track record (GET /api/predict/ranges), never typed in. On Predict's matchup, the match page, a match row's call detail, each range's hover text, and search's prediction cards. The request waits until the page is drawn and the browser is idle. (#1288)
+
+## 5.0.5 — 2026-11-10
+
+A season that hasn't started says so, and a prediction's links open on the season its cards show.
+
+### Highlights
+- [fixes] A team stat for a season not played yet says no events yet
+- [fixes] A named year means that season; no year means the latest one
+- [predict] Predict and Compare links open on the prediction's own season
+
+### Changed
+- A one-team question that names a season with no events yet ("opr 2027", "rating in 2027") answers with a no-events card for that season, and a link to the same question for the latest season, instead of reading the year as part of an event name or dropping it. A named year that has been played still answers for exactly that season. (#1301)
+- A two-team prediction with no season named reads the latest season both teams have a rating in, the one their team cards show, and its Predict and Compare links carry that season too.
+- A prediction asked in search for a season whose ratings weren't loaded yet showed the rating gap ("rated higher by 38.8 points per match"), and the same question later showed the engine's call ("by 53"). Search now starts loading that season's ratings the first time it is asked, so the next ask, and every one after, gets the engine's call.
 
 ## 5.0.4 — 2026-11-10
 
