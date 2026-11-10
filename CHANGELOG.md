@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.1.6 — 2026-11-10
+
+On a phone, buttons and links are a full fingertip tall again.
+
+### Highlights
+- [fixes] Event pages on a phone: team numbers and chips are easy taps
+- [fixes] Team boxes, the season picker and text boxes are 44 px tall on touch
+- [fixes] Compare, the match page and team page links get the same room
+
+### Fixed
+- The 14 px phone base shrank buttons and links sized in rem below 44 px tall: an event page had 196 of them, the team page 34. On touch screens they now have at least 44 px to tap, either as an invisible hit area (rows that must not grow) or a taller row where links stack, so two tap areas never sit on top of each other. On Compare, a phone puts the reorder and remove buttons on a row under each team. Desktop with a mouse is unchanged. (#1300)
+- A long match list on a touch screen sizes its rows for the taller touch rows before it measures them, so scrolling doesn't jump. Predict's result folds (the robots' ratings, the full why breakdown) and its track-record link are 44 px too.
+
+
 ## 5.1.5 — 2026-11-10
 
 A team page says what's next, right under the team's name: the next match once a schedule is posted, else the next event, else its last one.
