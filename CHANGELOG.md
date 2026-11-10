@@ -25,7 +25,7 @@ Search suggestions name only six teams, by their names.
 - [fixes] Filtered suggestions answer this season again
 
 ### Changed
-- Home: the suggestion chips and the "Try …" placeholder name only teams 4215 Hypnotic Robotics, 6980 Bad Wolf, 7149 ENFORCERS, 14481 Don't Blink, 23268 Ultraviolet and 19477 Bit by Bit, by name wherever search answers the name. Ultraviolet is four teams' name, and three teams' names side by side don't answer as a comparison yet, so those go by number. Next-event chips are gone until one of the six has a published next event. A test fails on any suggestion naming another team.
+- Home: the suggestion chips and the "Try …" placeholder name only teams 4215 Hypnotic Robotics, 6980 Bad Wolf, 7149 ENFORCERS, 14481 Don't Blink, 23268 Ultraviolet and 19477 Bit by Bit, by name wherever search answers the name. Ultraviolet is four teams' name, and three teams' names side by side don't answer as a comparison yet, so those go by number. Next-event chips are gone until one of the six has a published next event. A test fails on any suggestion naming another team. (#1343)
 - Search: the "Try" example chips and the how-it-works search examples use the same six teams.
 
 ### Fixed
