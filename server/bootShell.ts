@@ -9,7 +9,7 @@
 // Offline, the service worker answers every page with the cached "/" HTML, so
 // the page block carries the path it was made for and hides itself on another.
 import type { PageMeta } from "./seoMeta.js";
-import { pageTitle } from "../src/shared/routes.js";
+import { isBareRoute, pageTitle } from "../src/shared/routes.js";
 import { BOOT_CHOICE_GLOBAL, BOOT_CONSENT_ID, HOME_ABOUT, HOME_LEAD, PAGE_DATA_ID, PAGE_FRAME, homeHeadlineAt } from "../src/shared/boot.js";
 import { DEFAULT_HERO_LINES, HERO_LINES_ID, type HeroLinesResponse } from "../src/shared/heroLines.js";
 import { LITE_BOOT_S } from "../src/shared/lite.js";
@@ -205,7 +205,8 @@ export function bootShell(path: string, meta: PageMeta, hero: HeroLinesResponse 
   // before its first render (src/lib/heroLines.ts), so Home draws the same lines whichever page it opens from.
   const heroJson = hero.custom ? `<script type="application/json" id="${HERO_LINES_ID}">${JSON.stringify(lines).replace(/</g, "\\u003c")}</script>` : "";
   // The page block is hidden when the service worker served this HTML (made for "/") for another page offline.
-  // The site's own pages (src/shared/footer.ts), on every page as in the app (SiteFooter), so none is orphaned before
+  // The site's own pages (src/shared/footer.ts), on every page as in the app (SiteFooter; not a bare page such as the
+  // pit display, which the app draws with nothing around it), so none is orphaned before
   // the app loads or without JavaScript.
   const foot = `<footer class="csb-foot"><nav aria-label="Site">${footerLinks(flagOn).map((l) => `<a href="${l.to}">${esc(l.label)}</a>`).join("")}</nav></footer>`;
   const guard = `<script>(function(){var b=document.getElementById('cs-boot-page'),p=location.pathname.replace(/\\/+$/,'')||'/';if(b&&b.getAttribute('data-path').toLowerCase()!==p.toLowerCase())b.hidden=true})()</script>`;
@@ -214,7 +215,7 @@ export function bootShell(path: string, meta: PageMeta, hero: HeroLinesResponse 
     `<aside class="csb-side"><a class="csb-brand" href="/" aria-label="Control Scout home"><img src="/logo-56.webp" alt="" /><span>Control Scout</span></a><nav class="csb-nav" aria-label="Main">${nav}</nav></aside>`,
     `<div class="csb-col"><header class="csb-top"><span class="csb-menu" aria-hidden="true"></span><a href="/" aria-label="Control Scout home"><img src="/logo-56.webp" alt="" /></a><p class="csb-crumb"><i>Control Scout / </i><b>${esc(pageTitle(p))}</b></p>${home ? "" : `<div class="csb-search"><span>Search teams, events, matches…</span></div>`}</header>`,
     // A page with content in full scrolls with the document (before the app loads, or with no JavaScript at all).
-    `<main class="csb-main${meta.bodyHtml && !meta.firstPaint && page ? " csb-scroll" : ""}">${page}${foot}${guard}${heroJson}</main></div>`,
+    `<main class="csb-main${meta.bodyHtml && !meta.firstPaint && page ? " csb-scroll" : ""}">${page}${isBareRoute(p) ? "" : foot}${guard}${heroJson}</main></div>`,
     `<nav class="csb-tabs" aria-label="Main">${TABS.map((it) => link(p, it)).join("")}</nav>`,
     `</div>`,
   ].join("");

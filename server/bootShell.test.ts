@@ -105,6 +105,10 @@ describe("static first paint", () => {
     expect(foot).not.toContain('href="/rules"');
     expect(foot).toContain('href="/faq"');
   });
+  it("draws no footer on a bare page (the pit display), as the app draws nothing around it", () => {
+    const meta = { title: "T", description: "D", type: "website" } as const;
+    expect(bootShell("/events/2025/USNJNEM2/display", meta)).not.toContain('class="csb-foot"');
+  });
   it("draws the sidebar's everyday pages, then More, open only on one of its own pages", () => {
     const meta = { title: "T", description: "D", type: "website" } as const;
     const labels = (html: string) => [...html.matchAll(/<span>([^<]+)<\/span>/g)].map((m) => m[1]);
