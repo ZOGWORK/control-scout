@@ -48,3 +48,32 @@ describe("email provider failures", () => {
     expect(await codes("c@example.com")).toEqual([]);
   });
 });
+
+describe("development log mailer (MAIL_DEV_LOG=1)", () => {
+  afterEach(() => { delete process.env.MAIL_DEV_LOG; process.env.RESEND_API_KEY = "re_test_key_not_real"; });
+
+  it("writes the code to the log and never calls the provider; the code stays valid", async () => {
+    delete process.env.RESEND_API_KEY;
+    process.env.MAIL_DEV_LOG = "1";
+    const fetched = vi.fn();
+    globalThis.fetch = fetched as unknown as typeof fetch;
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    expect(await startEmailSignIn("d@example.com")).toEqual({ ok: true });
+    expect(fetched).not.toHaveBeenCalled();
+    const line = log.mock.calls.map((c) => String(c[0])).find((l) => l.startsWith("[mail] to d@example.com"))!;
+    expect(line).toMatch(/\b\d{6}\b/);
+    expect(await codes("d@example.com")).toEqual([{ email: "d@example.com" }]);
+  });
+
+  it("is ignored in production: the provider is still used", async () => {
+    delete process.env.RESEND_API_KEY;
+    process.env.MAIL_DEV_LOG = "1";
+    const was = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      providerAnswers(401, JSON.stringify({ message: "API key is invalid" }));
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      expect(await startEmailSignIn("e@example.com")).toEqual({ ok: false, reason: "disabled" });
+    } finally { process.env.NODE_ENV = was; }
+  });
+});

@@ -46,12 +46,18 @@ const resendMailer: Mailer = async (to, subject, text, html, opts) => {
   return typeof body?.id === "string" ? { id: body.id } : undefined;
 };
 
-let mailer: Mailer = resendMailer;
-/** Tests swap the mailer; production uses Resend. */
-export function setMailer(m: Mailer | null): void { mailer = m ?? resendMailer; }
-export const emailEnabled = () => !!env.resendKey || mailer !== resendMailer;
-/** Send one email through the configured mailer (Resend, or a test's). Throws on failure. */
-export const sendEmail: Mailer = (...args) => mailer(...args);
+/** Development only (MAIL_DEV_LOG=1, never production): the email goes to the server log, nowhere else. */
+const logMailer: Mailer = async (to, subject, text) => { console.log(`[mail] to ${to}
+[mail] subject ${subject}
+${text}`); };
+
+let mailer: Mailer | null = null;
+/** Tests swap the mailer; otherwise Resend, or the log in development with MAIL_DEV_LOG=1. */
+export function setMailer(m: Mailer | null): void { mailer = m; }
+const currentMailer = (): Mailer => mailer ?? (env.mailDevLog ? logMailer : resendMailer);
+export const emailEnabled = () => !!env.resendKey || mailer !== null || env.mailDevLog;
+/** Send one email through the configured mailer (Resend, a test's, or the development log). Throws on failure. */
+export const sendEmail: Mailer = (...args) => currentMailer()(...args);
 
 export const normalizeEmail = (e: string) => e.trim().toLowerCase();
 export const validEmail = (e: string) => e.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e);
@@ -81,7 +87,7 @@ export async function startEmailSignIn(rawEmail: string): Promise<StartResult> {
     [email, codeHash(email, code), new Date(now + CODE_TTL_MS).toISOString(), sent, windowStart],
   );
   const { subject, text, html } = codeEmail(code, { minutes: CODE_TTL_MS / 60_000, siteUrl: env.appUrl });
-  try { await mailer(email, subject, text, html); }
+  try { await currentMailer()(email, subject, text, html); }
   catch (e) {
     console.warn(`[email] sign-in code not sent: ${(e as Error)?.name === "TimeoutError" ? "timeout" : (e as Error)?.message ?? "unknown"}`);
     await run("DELETE FROM email_codes WHERE email = ?", [email]);
