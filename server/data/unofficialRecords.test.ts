@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { unofficialLine, unofficialWhy } from "./unofficialRecords";
-import { allianceRow, type Row } from "../api/answers/families/topMatches";
+import { allianceRow, matchCell, type Row } from "../api/answers/families/topMatches";
 
 const q49 = { season: 2025, code: "FPECAR", level: "qual", series: 0, number: 49 };
 
@@ -18,5 +18,9 @@ describe("matches that are not official records", () => {
       red_auto: 0, red_teleop: 0, red_endgame: 0, red_pen: 0, blue_auto: 63, blue_teleop: 641, blue_endgame: 10, blue_pen: 55, breakdown: 1 } as Row;
     expect(allianceRow(r, "blue", () => []).note).toBe("Not an official record");
     expect(allianceRow({ ...r, number: 50 }, "blue", () => []).note).toBeUndefined();
+  });
+  it("its label in a table of scores says so too", () => {
+    expect(matchCell({ ...q49, label: "Q49" })).toBe("Q49 (not an official record)");
+    expect(matchCell({ ...q49, number: 50, label: "Q50" })).toBe("Q50");
   });
 });

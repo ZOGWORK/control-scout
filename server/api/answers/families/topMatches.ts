@@ -11,7 +11,7 @@ import { all, get } from "../../../db.js";
 import { SEASONS, gameOf as gameOfSeason, ownScorePenalties, reportedTeleopIncludesEndgame } from "../../../data/seasons.js";
 import { parseHighScore } from "../../searchHighScores.js";
 import { OFFICIAL_TYPES } from "../clauses.js";
-import { UNOFFICIAL_NOTE, unofficialLine, unofficialWhy } from "../../../data/unofficialRecords.js";
+import { UNOFFICIAL_NOTE, type MatchKey, unofficialLine, unofficialWhy } from "../../../data/unofficialRecords.js";
 import { eventHref, matchHref, shortEvent, teamLinks } from "../matchSet.js";
 
 /** How many matches each list shows. */
@@ -195,6 +195,9 @@ export function allianceRow(r: Row, side: "red" | "blue", named: (r: Row, side: 
   };
 }
 
+/** A match's label in a table, marked when the owner said its score is not an official record. */
+export const matchCell = (r: MatchKey & { label: string }) => (unofficialWhy(r) ? `${r.label} (${UNOFFICIAL_NOTE.toLowerCase()})` : r.label);
+
 /** The answer. Null when the event named isn't found. */
 export async function topMatchesAnswer(t: TopMatchesQuestion, findEvent: (words: string, season: number | null) => Promise<{ season: number; code: string; name: string; type: string | null } | null>): Promise<StatAnswer | null> {
   const ev = t.event ? await findEvent(t.event, t.season) : null;
@@ -233,7 +236,7 @@ export async function topMatchesAnswer(t: TopMatchesQuestion, findEvent: (words:
   const blocks: StatBlock[] = one ? [alliances] : [
     alliances,
     { kind: "table", title: `Highest combined ${P ? `${P.toLowerCase()} ` : ""}scores (both alliances)`, columns: [{ key: "rank", label: "#", num: true }, { key: "combined", label: "Combined", num: true }, { key: "score", label: "Red–Blue" }, { key: "match", label: "Match" }, { key: "event", label: "Event" }, { key: "date", label: "Date" }],
-      rows: top.combined.map((r, i) => ({ cells: { rank: i + 1, combined: r.score, score: phase ? `${r.score_red}–${r.score_blue}` : `${np(r, "red")}–${np(r, "blue")}`, match: r.label, event: shortEvent(r.name, r.type), date: dateRange((r.time ?? r.start)?.slice(0, 10) ?? null) },
+      rows: top.combined.map((r, i) => ({ cells: { rank: i + 1, combined: r.score, score: phase ? `${r.score_red}–${r.score_blue}` : `${np(r, "red")}–${np(r, "blue")}`, match: matchCell(r), event: shortEvent(r.name, r.type), date: dateRange((r.time ?? r.start)?.slice(0, 10) ?? null) },
         href: matchHref(r), eventHref: eventHref(r.season, r.code), type: r.type, teams: { red: named(r, "red"), blue: named(r, "blue") }, winner: winnerOf(r) })) },
   ];
   const bestTotal = Number(best.side === "red" ? best.red_total : best.blue_total);
@@ -258,7 +261,7 @@ export async function everTopMatches(t: TopMatchesQuestion, findEvent: Parameter
   // A period asked: every heading says which ("Highest alliance auto score each season").
   const p = t.phase ? `${PHASE_LABEL[t.phase].toLowerCase()} ` : "";
   const table: StatBlock = { kind: "table", title: `Highest alliance ${p}score each season (each season is a different game)`, columns: [{ key: "season", label: "Season" }, { key: "score", label: t.phase ? `${PHASE_LABEL[t.phase]} score` : "Score", num: true }, { key: "match", label: "Match" }, { key: "event", label: "Event" }],
-    rows: per.map(({ s, r }) => ({ cells: { season: `${gameOf(s)} ${seasonLabel(s)}`, score: r!.score, match: r!.label, event: shortEvent(r!.name, r!.type) }, href: matchHref(r!), strong: s === per[0].s })) };
+    rows: per.map(({ s, r }) => ({ cells: { season: `${gameOf(s)} ${seasonLabel(s)}`, score: r!.score, match: matchCell(r!), event: shortEvent(r!.name, r!.type) }, href: matchHref(r!), strong: s === per[0].s })) };
   const place = ev ? ` at ${shortEvent(ev.name, ev.type)}` : t.region ? ` in ${t.region.name}` : "";
   // The latest season's lists only when it has scores here (a place's newest season may have none yet).
   return {
