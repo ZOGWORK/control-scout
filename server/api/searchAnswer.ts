@@ -37,7 +37,7 @@ import { inRegion, namedTeamHit, teamsByName } from "./teamsByName.js";
 import { parseQuestion, questionAnswer } from "./searchQuestions.js";
 import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
 import { eventVersusSearch, leagueSearch, statAnswer } from "./answers/index.js";
-import { divisionFieldAnswer, readDivisionField, type EventRow } from "./answers/families/eventVersus.js";
+import { divisionFieldAnswer, readDivisionField, saysOtherThanOpr, type EventRow } from "./answers/families/eventVersus.js";
 import { seasonOfDate } from "./query/time.js";
 import { searchToday } from "./searchEvents.js";
 import { placeAwardsSearch, readPlaceAwards } from "./answers/families/placeAwards.js";
@@ -477,7 +477,7 @@ const LEX_WORDS = new Set(LEXICON.flatMap((e) => e.words));
 /** A name several teams share in `q` (its whole name, nothing else beside it but the question's words), told apart by
  *  the shared rules: `q` asked again with that team's number, the card saying which name was read as which team; or,
  *  still tied, the teams it can be, each with its place, and the same question asked about each, one tap each. Null:
- *  no shared name, or one typed with its number beside it, "team" before it, or a versus (Compare asks its own). */
+ *  no shared name, or one typed with its number beside it, or a versus (Compare asks its own). */
 async function sharedName(q: string, opts: AnswerOptions): Promise<SearchAnswer | null> {
   const typed = opts.typed ?? q;
   if (VERSUS.test(` ${typed} `)) return null;
@@ -497,10 +497,12 @@ async function sharedName(q: string, opts: AnswerOptions): Promise<SearchAnswer 
       taken.fill(true, i, i + len);
       if (teams.length < 2) continue;
       const beside = [ws[i - 1], ws[i + len]].some((w) => !!w && teams.some((t) => String(t.number) === w));
-      if (beside || /^(?:team|ftc)$/.test(ws[i - 1] ?? "")) continue;
-      // A place's name, or ordinary words, are read as such (the parser's rules): no question about which team.
-      const pl = idx.place(said, said);
-      if ((pl && pl.kind !== "city") || onlyOrdinary(said)) continue;
+      if (beside) continue;
+      // A place's name, or ordinary words, are read as such (the parser's rules): no question about which team. "team"
+      // before them says a team is meant, never which one: the question is still asked.
+      const called = /^(?:team|ftc)$/.test(ws[i - 1] ?? "");
+      const pl = called ? null : idx.place(said, said);
+      if (!called && ((pl && pl.kind !== "city") || onlyOrdinary(said))) continue;
       spans.push({ i, len, teams });
     }
   }
@@ -572,7 +574,8 @@ async function divisionField(q: string, opts: AnswerOptions): Promise<SearchAnsw
   const asked = readDivisionField(opts.typed ?? q);
   if (!asked) return null;
   const p = await parseQuery(opts.typed ?? q, await parseContext(opts.now, opts.prefer));
-  if (p.teams.length || p.event) return null;
+  // Ranked by average OPR only: another stat said ("by average auto OPR", "most penalties") is no question this answers.
+  if (p.teams.length || p.event || saysOtherThanOpr(opts.typed ?? q, p.place?.typed)) return null;
   const region = p.place && p.place.kind !== "city" && !p.worlds ? p.place : null;
   const current = seasonOfDate(searchToday(opts.now));
   // The season said: written ("2024-25"), read ("last season", "2025"), else the latest with divisions.
