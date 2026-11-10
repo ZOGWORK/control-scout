@@ -6,6 +6,7 @@
 // from the query as typed, the answer and the lexicon.
 import type { SearchAnswer, SearchFollowUp, SearchFollowUps } from "../../../src/shared/api.js";
 import { SEARCH_PAGE_LIMIT } from "../../../src/shared/search.js";
+import { seasonLabel } from "../../../src/shared/format.js";
 import { normalise, parseQuery, type Parsed } from "../query/parse.js";
 import { parseContext } from "../query/context.js";
 import { names } from "../query/names.js";
@@ -190,6 +191,20 @@ export function candidates(p: Parsed, a: SearchAnswer, team = answerTeam(a)): Ca
 
 type Line = Pick<SearchFollowUp, "value" | "rest" | "tone">;
 
+/** A season said in words: a season's two years ("<year>–<yy>"), "all seasons", "over N seasons", "this season". */
+const SAYS_SEASON = /\d{4}[–-]\d{2}|\bseasons?\b/i;
+/** One season's two years, alone. */
+const ONE_SEASON = /^\d{4}[–-]\d{2}$/;
+/** The season a line's numbers are from, said after it when the line itself doesn't say one (a rating's line ends
+ *  "· <season>"): one follow-up's numbers are often another season's than the next one's (a record from the
+ *  latest completed season, a trend from the current one), so each says which. `said`: the answer's own words for it
+ *  (a stat's season chip, "All seasons"), else a card's season. */
+function withSeason(l: Line, said: string | undefined): Line {
+  if (!said || SAYS_SEASON.test(`${l.value} ${l.rest}`)) return l;
+  const season = /^all seasons$/i.test(said) ? "all seasons" : said;
+  return { ...l, rest: l.rest ? `${l.rest} · ${season}` : season };
+}
+
 /** One line from a direct answer, its number apart from the rest, or null when `a` isn't one (no answer card,
  *  nothing found, a list of names). */
 export function lineOf(a: SearchAnswer): Line | null {
@@ -200,13 +215,18 @@ export function lineOf(a: SearchAnswer): Line | null {
     if (st.none || !st.headline?.value) return null;
     // The teams its card draws: two or more as the card lists them, else the one it's about.
     const teams = (st.teams && st.teams.length > 1 ? st.teams : st.team ? [st.team] : []).map((t) => t.number);
-    return { value: st.headline.value, rest: st.headline.label, tone: { stat: { intent: st.intent, family: st.family, ...(st.split != null ? { split: st.split } : {}), teams } } };
+    // The headline's own season when the line under it says one on its own (a single match's: "<season> · <date>"),
+    // which an all-season answer narrows to; else the answer's season chip.
+    const own = st.headline.sub?.split(" · ").map((x) => x.trim()).find((x) => ONE_SEASON.test(x));
+    const chip = own ?? st.scope.find((x) => SAYS_SEASON.test(x));
+    return withSeason({ value: st.headline.value, rest: st.headline.label, tone: { stat: { intent: st.intent, family: st.family, ...(st.split != null ? { split: st.split } : {}), teams } } }, chip);
   }
   const c = a.card;
   if (c) {
     const first = c.lines[0];
-    if (c.headline) return { value: c.headline, rest: "", tone: { card: c.kind } };
-    return first?.text ? { value: first.text, rest: first.detail ?? "", tone: { card: c.kind } } : null;
+    const season = c.season != null ? seasonLabel(c.season) : undefined;
+    if (c.headline) return withSeason({ value: c.headline, rest: "", tone: { card: c.kind } }, season);
+    return first?.text ? withSeason({ value: first.text, rest: first.detail ?? "", tone: { card: c.kind } }, season) : null;
   }
   const u = a.understood;
   // As many events as its page lists (and its tabs count), never more than the page will show.

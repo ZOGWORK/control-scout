@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.2.7 — 2026-11-10
+## 5.2.8 — 2026-11-10
 
 Search ranks a championship's divisions by one game phase's OPR when asked.
 
@@ -26,6 +26,18 @@ Search ranks a championship's divisions by one game phase's OPR when asked.
 
 ### Fixed
 - Search: "which championship division was hardest this year, by average auto OPR" (in any word order) ranks the divisions by their teams' average Auto OPR, labelled on the card, instead of no answer. TeleOp and Endgame OPR work the same way. A phase's points without OPR, or another stat, still isn't answered with OPR. (#1336)
+
+## 5.2.7 — 2026-11-10
+
+Every follow-up a search offers says which season its numbers are from.
+
+### Highlights
+- [fixes] Related searches say each number's season
+- [fixes] People also ask previews say their season too
+- [fixes] A single match's line says that match's season
+
+### Changed
+- A follow-up's line (People also ask, Related searches, the related searches page and the team's highlights link) ends with the season its numbers are from when the line doesn't already say one: "98 ± 3.2 · #525 worldwide … · 2025–26", "11 awards · 7 performance · 4 judged · all seasons"; a single match (a team's biggest win, last match or highest score) says that match's own season. A record from the latest completed season and a trend from the current one no longer sit side by side unlabelled. (#1330)
 
 ## 5.2.6 — 2026-11-10
 
