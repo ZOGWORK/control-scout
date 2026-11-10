@@ -13,7 +13,7 @@
 import { seasonLabel } from "../../../src/shared/format.js";
 import { CURRENT_SEASON } from "../../data/seasons.js";
 import { get } from "../../db.js";
-import { CHAMPIONSHIP_TYPE } from "./clauses.js";
+import { CHAMPIONSHIP_TYPE, OFFICIAL_TYPES } from "./clauses.js";
 import { names } from "../query/names.js";
 import { normalise, queryTime } from "../query/parse.js";
 import { seasonOfDate } from "../query/time.js";
@@ -71,8 +71,16 @@ export function relativeSeason(relative: "this" | "last" | null | undefined, nam
  *  newest season row with matches, official events only), or null when it has none. What a team's question reads
  *  when it names no season. */
 export async function teamSeason(team: number): Promise<number | null> {
-  const r = await get<{ s: number | null }>("SELECT MAX(season) s FROM team_season_stats WHERE team = ? AND matches > 0", [team]);
-  return r?.s != null ? Number(r.s) : null;
+  // A season of only scrimmages isn't one: the newest season with a played match at an official event, as its record reads
+  // (index.ts latestSeason). A team with no stored match rows at all reads its season rows.
+  const r = await get<{ s: number | null; any: number }>(
+    `SELECT MAX(CASE WHEN e.type IN (${OFFICIAL_TYPES.map(() => "?").join(", ")}) THEN mt.season END) s, COUNT(*) any
+     FROM match_teams mt JOIN matches m ON m.season = mt.season AND m.code = mt.code AND m.level = mt.level AND m.series = mt.series AND m.number = mt.number
+     JOIN events e ON e.season = mt.season AND e.code = mt.code WHERE mt.team = ? AND mt.on_field = 1 AND m.played = 1`, [...OFFICIAL_TYPES, team]);
+  if (r?.s != null) return Number(r.s);
+  if (Number(r?.any)) return null;
+  const t = await get<{ s: number | null }>("SELECT MAX(season) s FROM team_season_stats WHERE team = ? AND matches > 0", [team]);
+  return t?.s != null ? Number(t.s) : null;
 }
 
 /** Forgets the seasons read (tests that change the stored events). */

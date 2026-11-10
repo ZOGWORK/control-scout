@@ -69,6 +69,23 @@ describe("the default season", () => {
     expect(await teamSeason(30000)).toBe(2026);
     expect(await teamSeason(99999)).toBeNull();
   });
+  it("a season of only scrimmages isn't the team's season", async () => {
+    const add = async (season: number, code: string, type: string) => {
+      await run("INSERT INTO events (season, code, name, type, start, end, source) VALUES (?, ?, ?, ?, '2026-10-01', '2026-10-01', 'first')", [season, code, code, type]);
+      await run("INSERT INTO matches (season, code, level, series, number, label, played, red_total, blue_total, source) VALUES (?, ?, 'qual', 0, 1, 'Q1', 1, 50, 40, 'first')", [season, code]);
+      await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, station, on_field) VALUES (?, ?, 'qual', 0, 1, 4215, 'red', 1, 1)", [season, code]);
+    };
+    await add(2025, "TQUAL", "Qualifier");
+    await add(2026, "TSCRIM", "Scrimmage");
+    // Its season rows count the scrimmage's match.
+    await run("INSERT INTO team_season_stats (season, team, wins, losses, ties, matches) VALUES (2026, 4215, 1, 0, 0, 1)");
+    try {
+      expect(await teamSeason(4215)).toBe(2025);
+    } finally {
+      for (const t of ["match_teams", "matches", "events"]) await run(`DELETE FROM ${t} WHERE code IN ('TQUAL', 'TSCRIM')`);
+      await run("DELETE FROM team_season_stats WHERE season = 2026 AND team = 4215");
+    }
+  });
   it("\"last season\" is the latest completed one; a season named wins", () => {
     expect(readScope(" 4215 opr last season ").scope).toMatchObject({ season: 2025, lastYear: true });
     expect(readScope(" 4215 opr 2023-24 ").scope).toMatchObject({ season: 2023 });
@@ -178,6 +195,11 @@ describe("how a number changed", () => {
     expect(readChange("4215 opr change from 2024-25 to this season")).toEqual({ stat: "opr", core: "4215", from: 2024, to: 2026, defaulted: true });
     expect(shiftChange({ stat: "opr", core: "4215", from: 2024, to: 2026, defaulted: true }, 2025)).toMatchObject({ from: 2024, to: 2025 });
     expect(shiftChange({ stat: "opr", core: "4215", from: 2025, to: 2026, defaulted: true, fromRelative: true }, 2025)).toMatchObject({ from: 2024, to: 2025 });
+    // "This season" at the start resolves the same way; the named end stays.
+    expect(readChange("4215 opr change from this season to 2024-25")).toEqual({ stat: "opr", core: "4215", from: 2026, to: 2024, fromThis: true });
+    expect(shiftChange({ stat: "opr", core: "4215", from: 2026, to: 2024, fromThis: true }, 2025)).toMatchObject({ from: 2025, to: 2024 });
+    const back = (await searchAnswer("4215 opr change from this season to 2024-25", { limit: 25, full: true })).stat;
+    expect(back).toMatchObject({ title: "OPR change, 2025–26 to 2024–25", headline: { value: "+43.2" } });
     const a = (await searchAnswer("4215 opr change from 2024-25 to this season", { limit: 25, full: true })).stat;
     expect(a).toMatchObject({ title: "OPR change, 2024–25 to 2025–26", headline: { value: "−43.2" } });
     // The latest season named as the start: nothing later to compare it with, said so (never a different start).

@@ -27,13 +27,17 @@ export interface ChangeQuestion {
   /** `from` is said relative to `to` ("last season", or the season before when only one is said), so it moves with
    *  `to` when that is resolved; a named starting season never moves. */
   fromRelative?: boolean;
+  /** The starting end was said as "this season" ("from this season to 2024-25"): it is resolved like `to` would be. */
+  fromThis?: boolean;
 }
 
 /** The question read for the season `to` resolves to (the team's latest, or the season with matches): `to` moves there,
  *  `from` only when it was said relative to it. */
-export function shiftChange(c: ChangeQuestion, to: number): ChangeQuestion {
-  if (to === c.to) return c;
-  return { ...c, to, from: c.from == null ? null : c.fromRelative ? c.from - (c.to - to) : c.from };
+export function shiftChange(c: ChangeQuestion, latest: number): ChangeQuestion {
+  let { from, to } = c;
+  if (c.defaulted) { if (from != null && c.fromRelative) from -= to - latest; to = latest; }
+  if (c.fromThis) from = latest;
+  return from === c.from && to === c.to ? c : { ...c, from, to };
 }
 
 const CHANGE = String.raw`(?:improve[ds]?|improvement|change[ds]?|grow|grew|go up|went up|increase[ds]?|rise|rose|drop(?:ped)?|fall|fell|go down|went down|decrease[ds]?)`;
@@ -67,7 +71,8 @@ export function readChange(raw: string): ChangeQuestion | null {
     const from = swap ? b : a, to = swap ? a : b, fromWords = swap ? two[3] : two[2], toWords = swap ? two[2] : two[3];
     const defaulted = to === def && /\b(?:this|current)\s+(?:season|year)\b/.test(toWords);
     const fromRelative = defaulted && /\b(?:last|previous|past)\s+(?:season|year)\b/.test(fromWords);
-    return { stat, core: m[1], from, to, ...(defaulted ? { defaulted } : {}), ...(fromRelative ? { fromRelative } : {}) };
+    const fromThis = from === def && /\b(?:this|current)\s+(?:season|year)\b/.test(fromWords);
+    return { stat, core: m[1], from, to, ...(defaulted ? { defaulted } : {}), ...(fromRelative ? { fromRelative } : {}), ...(fromThis ? { fromThis } : {}) };
   }
   if (!tail) return stat === "opr" ? { stat, core: m[1], from: def - 1, to: def, defaulted: true, fromRelative: true } : { stat, core: m[1], from: null, to: def, defaulted: true };
   const latest = /^(?:in|during|over|across )?\s*(?:the\s+)?(?:this|current)\s+(?:season|year)$/.test(tail);
@@ -85,7 +90,7 @@ const top = (rank: number, of: number) => `top ${Math.max(1, Math.ceil((100 * ra
 export async function changeAnswer(c0: ChangeQuestion, team: Team): Promise<StatAnswer> {
   // No season said (or "this season"): the team's latest season with matches, the one season rule (../season.ts). A
   // starting season said relative to it moves with it; a named one stays as said.
-  const latest = c0.defaulted ? await teamSeason(team.number) : null;
+  const latest = c0.defaulted || c0.fromThis ? await teamSeason(team.number) : null;
   const c = latest == null ? c0 : shiftChange(c0, latest);
   if (c.from == null) return withinAnswer(c.to, team, !!c.defaulted);
   const a = await seasonsAnswer(c, c.from, team);

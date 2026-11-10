@@ -756,7 +756,7 @@ async function changeSearch(q: string, c: ChangeQuestion, resolve: Resolve, opts
  *  season's top-rated teams (real teams, from the stored ratings), with the season's biggest climbers beside them. */
 async function changeWithoutTeam(q: string, c0: ChangeQuestion, pages: SearchPageLink[]): Promise<SearchAnswer> {
   // No season said and no team: the current season once anyone has played it, else the latest with matches (./season.ts).
-  const c = c0.defaulted ? shiftChange(c0, defaultSeason()) : c0;
+  const c = c0.defaulted || c0.fromThis ? shiftChange(c0, defaultSeason()) : c0;
   const what = c.stat === "opr" ? "OPR" : "prediction rating";
   const col = c.stat === "opr" ? "s.opr_np" : "s.rating_np";
   const top = await all<{ team: number; name: string | null }>(`SELECT s.team, t.name FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE s.season = ? AND ${col} IS NOT NULL AND ${teamPageSql("s.team", "t.name")} ORDER BY ${col} DESC, s.team LIMIT 3`, [c.to]);
