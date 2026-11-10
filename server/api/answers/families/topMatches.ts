@@ -175,6 +175,11 @@ const RULE = "An alliance score is the alliance's own points without penalties (
 
 // 2020–21 and 2021–22 took penalties off the alliance's own score instead.
 const RULE_OWN = RULE.replace("the alliance's own points without penalties (fouls the other alliance committed aren't its points), the score with penalties beside it", "the alliance's points before its own penalties (in this season penalties came off the alliance's own score), the score after them beside it");
+/** The season's rule; penalties said to be left out, without the score with them, which isn't shown then. */
+const ruleOf = (season: number, noPenalties: boolean) => {
+  const rule = ownScorePenalties(season) ? RULE_OWN : RULE;
+  return noPenalties ? rule.replace(/, the score (?:with penalties|after them) beside it/, "") : rule;
+};
 
 /** A match as one alliance's row (its points first, the other's beside them), both alliances' teams named. */
 export function allianceRow(r: Row, side: "red" | "blue", named: (r: Row, side: string) => StatMatchRow["partners"]): StatMatchRow {
@@ -211,11 +216,13 @@ export async function topMatchesAnswer(t: TopMatchesQuestion, findEvent: (words:
     : `Highest-scoring match${one ? "" : "es"}${at}, ${gameOf(season)} ${seasonLabel(season)}`;
   const base = {
     family: "superlative" as const, intent: "season-top-matches", title, scope: [seasonLabel(season), ...(place ? [place] : []), ...(t.window ? [t.window.label.replace(/^./, (c) => c.toUpperCase())] : []), "Official events"],
-    definition: `${phase ? `An alliance's ${P!.toLowerCase()} score is its own points in that period${phase === "teleop" && reportedTeleopIncludesEndgame(season) ? ", with the endgame, as FIRST reports TeleOp this season" : ""} (penalties are never a period's points); a combined score is both alliances'.${phase !== "auto" ? " A match posted as totals only has no reported split and isn't counted." : ""} ` : ""}${ownScorePenalties(season) ? RULE_OWN : RULE}${t.season == null && !ev ? ` The season is ${gameOf(season)} (${seasonLabel(season)}), the latest with official matches played.` : ""}`,
+    definition: `${phase ? `An alliance's ${P!.toLowerCase()} score is its own points in that period${phase === "teleop" && reportedTeleopIncludesEndgame(season) ? ", with the endgame, as FIRST reports TeleOp this season" : ""} (penalties are never a period's points); a combined score is both alliances'.${phase !== "auto" ? " A match posted as totals only has no reported split and isn't counted." : ""} ` : ""}${ruleOf(season, !!t.noPenalties)}${t.season == null && !ev ? ` The season is ${gameOf(season)} (${seasonLabel(season)}), the latest with official matches played.` : ""}`,
     source: `From ${top.count.toLocaleString("en-US")} played match${top.count === 1 ? "" : "es"} at official events, ${scopeWords}`,
   };
   if (!top.alliances.length) return { ...base, blocks: [], none: `No played matches at official events${place ? ` in ${place}` : ""}${t.window ? ` ${t.window.label}` : ` in ${seasonLabel(season)}`} yet.` };
-  const row = (r: Row & { side: "red" | "blue" }, i: number): StatMatchRow => ({ ...allianceRow(r, r.side, named), rank: i + 1, ...(phase ? { ranked: phase } : {}) });
+  // Penalties said to be left out: no score with them and no penalty points, only the scores without them.
+  const noPen = (m: StatMatchRow): StatMatchRow => (t.noPenalties ? { ...m, noPenalties: true, phases: m.phases && (({ pen: _pen, ...rest }) => rest)(m.phases) } : m);
+  const row = (r: Row & { side: "red" | "blue" }, i: number): StatMatchRow => noPen({ ...allianceRow(r, r.side, named), rank: i + 1, ...(phase ? { ranked: phase } : {}) });
   const best = top.alliances[0];
   // One list per question, a match box each (no bar chart repeating it): the alliance scores, then the combined.
   // One match asked for: that match, both alliances and their teams, and nothing else.
@@ -229,7 +236,7 @@ export async function topMatchesAnswer(t: TopMatchesQuestion, findEvent: (words:
   const bestTotal = Number(best.side === "red" ? best.red_total : best.blue_total);
   return {
     ...base, blocks,
-    headline: { value: `${best.score} ${P ? `${P.toLowerCase()} ` : ""}points`, label: `${best.label} at ${shortEvent(best.name, best.type)}`, sub: [!phase && Number.isFinite(bestTotal) && bestTotal !== best.score ? `${bestTotal} with penalties` : "", seasonLabel(best.season), dateRange((best.time ?? best.start)?.slice(0, 10) ?? null)].filter(Boolean).join(" · "), href: matchHref(best), type: best.type,
+    headline: { value: `${best.score} ${P ? `${P.toLowerCase()} ` : ""}points`, label: `${best.label} at ${shortEvent(best.name, best.type)}`, sub: [!phase && !t.noPenalties && Number.isFinite(bestTotal) && bestTotal !== best.score ? `${bestTotal} with penalties` : "", seasonLabel(best.season), dateRange((best.time ?? best.start)?.slice(0, 10) ?? null)].filter(Boolean).join(" · "), href: matchHref(best), type: best.type,
       teams: named(best, best.side), alliance: best.side },
   };
 }

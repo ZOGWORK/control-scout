@@ -26,6 +26,18 @@ The Share button on an opened match is bigger and gold, so it is easy to find.
 
 ### Changed
 - The match details Share icon uses the gold accent (`text-accent-text`, set per theme) instead of muted grey, in a 40 px icon button with a 20 px icon (35 px and 17.5 px on a phone, 44 px tap area). (#1257)
+## 4.9.0 — 2026-11-09
+
+Asking for a world record without penalties now gives the top match, with no penalty figures in it.
+
+### Highlights
+- [fixes] "World record" means the highest score, never the Championship
+- [fixes] Without penalties shows no penalty points or scores with them
+- [fixes] "World record … without penalties" gives the top match
+
+### Fixed
+- "world record match decode without penalties" answers with DECODE's highest score without penalties, the same answer as "best match in decode without penalties"; "world record" was read as Worlds when penalties were also said.
+- A best-match answer asked without penalties no longer shows each score with penalties, the Pen given tile, or the score with penalties under the headline. (#1256)
 
 ## 4.8.9 — 2026-11-09
 
