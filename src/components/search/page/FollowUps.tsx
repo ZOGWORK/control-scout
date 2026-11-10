@@ -2,11 +2,12 @@
 // next questions, each opening to its answer's line and a link that runs it), Related searches (short searches, one
 // tap each) and the team's highlights. Each is a search answered directly, its numbers that answer's own, coloured as
 // that answer's card colours them (search's palette). Plain rows and chips in the page's card style, nothing when
-// there's nothing to offer. A wide screen
-// has them in a column beside the answer; a phone, People also ask under it and Related searches at the end.
+// there's nothing to offer. At every
+// width, People also ask goes under the answer and Related searches at the end of the page.
 import { Link } from "react-router-dom";
 import { ChevronDown, Clapperboard, Search } from "lucide-react";
-import { useApi, qs } from "../../../lib/api";
+import { useApi } from "../../../lib/api";
+import { followApiPath } from "../../../shared/search";
 import type { FollowUpTone, SearchFollowUp, SearchFollowUps } from "../../../shared/api";
 import { SEARCH_PALETTE } from "../../../lib/textTones";
 import { cn } from "../../cn";
@@ -38,7 +39,7 @@ function Line({ x, className }: { x: SearchFollowUp; className?: string }) {
 /** The follow-ups for `q`, asked once `ready` (the answer on screen); none until then, and never another search's.
  *  `season`: the answer's picked season (./SeasonPick.tsx), which they're asked about too. */
 export function useFollowUps(q: string, prefer: string | undefined, ready: boolean, season: number | null = null): SearchFollowUps {
-  const { data } = useApi<SearchFollowUps & { q: string; season?: number }>(ready && q ? `/api/search/follow${qs({ q, prefer, season: season ?? undefined })}` : null);
+  const { data } = useApi<SearchFollowUps & { q: string; season?: number }>(ready && q ? followApiPath(q, prefer, season) : null);
   return data?.q === q && (data.season ?? null) === season ? data : NONE;
 }
 
@@ -96,17 +97,5 @@ export function TeamHighlights({ h, className }: { h: SearchFollowUps["highlight
         <Line x={h} className="block" />
       </span>
     </Link>
-  );
-}
-
-/** All three, for the column beside the answer. */
-export function FollowUpsRail({ f, q }: { f: SearchFollowUps; q?: string }) {
-  if (!f.ask.length && !f.related.length && !f.highlights) return null;
-  return (
-    <div className="space-y-5" data-rail="follow-ups">
-      <TeamHighlights h={f.highlights} />
-      <PeopleAlsoAsk ask={f.ask} />
-      <RelatedSearches related={f.related} seeAll={q} />
-    </div>
   );
 }

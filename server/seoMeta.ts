@@ -36,17 +36,17 @@ import { staticRankingsHtml } from "./powerRankings/static.js";
 import { isWeekId, weekLabel, type PowerRankingsResponse } from "../src/shared/powerRankings.js";
 import { trackRecordIfReady } from "./api/accuracy.js";
 import { isEnabled } from "./flags.js";
-import type { SearchCardLine, SearchIntentNote, TrackRecord } from "../src/shared/api.js";
+import type { SearchCardLine, SearchFollowUps, SearchIntentNote, TrackRecord } from "../src/shared/api.js";
 import { compareTitle } from "../src/shared/compareUrl.js";
 import { ensureSearchIndex } from "./api/search.js";
 import { MAX_QUERY } from "./api/searchAnswer.js";
-import { pageAnswer } from "./api/answers/followUps.js";
+import { keptFollowUps, pageAnswer } from "./api/answers/followUps.js";
 import { relatedPage } from "./api/answers/relatedPage.js";
 import { withTeamStats } from "./api/searchTeamStats.js";
 import { withEventParents } from "./api/searchEvents.js";
 import { answerSections } from "../src/shared/searchSections.js";
 import { rebuildSearch } from "./stats/job.js";
-import { SEARCH_HITS_ID, SEARCH_PAGE_LIMIT, SORRY_SENTENCE, cardWho, hitHref, relatedApiPath, relatedQuery, relatedSearch } from "../src/shared/search.js";
+import { SEARCH_HITS_ID, SEARCH_PAGE_LIMIT, SORRY_SENTENCE, cardWho, followApiPath, hitHref, relatedApiPath, relatedQuery, relatedSearch } from "../src/shared/search.js";
 import { hasPhases, phaseNote, teamColumns, teamTableOfLeaderboard, type TeamTable } from "../src/shared/teamTable.js";
 import { badgeUnder, contextBadge, isQualityQuestion, pageTitle } from "../src/shared/searchPage.js";
 
@@ -612,6 +612,36 @@ export function teamTableHtml(t: TeamTable, label: string): string {
 /** The page has no preferred teams (the app sends its visitor's as ?prefer=): the answer with none. */
 const NO_PREFER: ReadonlySet<string> = new Set();
 
+/** How long a search's first paint waits for its follow-ups (People also ask, Related searches) once its answer is
+ *  read. Each is a search run to check it answers directly, kept a minute (keptFollowUps): most are already kept, and
+ *  the app asked for them right after the page anyway. Still making past this, the page goes without them and the app
+ *  asks for the same kept ones, so a slow set never holds the answer back. */
+export const FOLLOW_FIRST_PAINT_MS = 1200;
+
+/** The follow-ups for `q`, or null when they take longer than `ms`. */
+async function followUpsWithin(q: string, ms: number): Promise<SearchFollowUps | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<null>((ok) => { timer = setTimeout(ok, ms, null); });
+  return Promise.race([keptFollowUps(q, NO_PREFER).catch(() => null), late]).finally(() => clearTimeout(timer));
+}
+
+/** People also ask as the app draws it (src/components/search/page/FollowUps.tsx): each question opens to its
+ *  answer's line and a link that runs it. Plain <details>, so it opens and closes without the app's code too. */
+export function peopleAlsoAskHtml(f: SearchFollowUps): string {
+  if (!f.ask.length) return "";
+  const href = (q: string) => `/search?q=${esc(encodeURIComponent(q))}`;
+  return `<section aria-label="People also ask" data-block="people-also-ask"><h2>People also ask</h2>${f.ask.map((x) =>
+    `<details><summary>${esc(x.q)}</summary><p><b>${esc(x.value)}</b>${x.rest ? ` · ${esc(x.rest)}` : ""}</p><p><a href="${href(x.q)}">See the full answer →</a></p></details>`).join("")}</section>`;
+}
+
+/** Related searches as the app draws them: one link each, then the related searches page for the query. */
+export function relatedSearchesHtml(f: SearchFollowUps, q: string): string {
+  if (!f.related.length) return "";
+  return `<nav aria-label="Related searches" data-block="related-searches"><h2>Related searches</h2><ul>${f.related.map((x) =>
+    `<li><a href="/search?q=${esc(encodeURIComponent(x.q))}" title="${esc(x.preview)}">${esc(x.q)}</a></li>`).join("")}</ul>`
+    + `<p><a href="/related-searches${esc(relatedSearch(q))}">See all related searches →</a></p></nav>`;
+}
+
 async function searchMeta(raw: string): Promise<PageMeta> {
   // As typed (quotes and | are the boolean reader's): searchAnswer reads it to MAX_QUERY, cut at a word. Only a
   // runaway address is trimmed here.
@@ -622,6 +652,8 @@ async function searchMeta(raw: string): Promise<PageMeta> {
   // The same kept answer /api/search?answer=1 gives for this query (server/api/answers/followUps.ts pageAnswer): a
   // visit and the app's own request for the same results cost one reading, as do two visitors within a minute.
   const found = await pageAnswer(q, SEARCH_PAGE_LIMIT, NO_PREFER);
+  // Its follow-ups, from the same kept answer, while the rest of the page is put together (FOLLOW_FIRST_PAINT_MS).
+  const following = followUpsWithin(q, FOLLOW_FIRST_PAINT_MS);
   // As /api/search sends it: team rows with their season numbers, so the app starts from the same answer.
   const answer = { ...found, hits: await withTeamStats(await withEventParents(found.hits)) };
   const { sections, notes } = answerSections(answer);
@@ -663,17 +695,22 @@ async function searchMeta(raw: string): Promise<PageMeta> {
     + `<p><small>${esc(s.definition)}<br>${esc(s.source)}</small></p></section>` : "";
   // The heading as the app titles it; a badge that only repeats it is left out, as the app leaves it out.
   // Nothing answered (a sorry note, or nothing found at all): the page says sorry, once, as its heading.
-  const heading = !sorry && (answer.hits.length || c || s || answer.pages.length) ? pageTitle(answer, answer.hits, isQualityQuestion(q)) : SORRY_SENTENCE;
+  const answered = !sorry && !!(answer.hits.length || c || s || answer.pages.length);
+  const heading = answered ? pageTitle(answer, answer.hits, isQualityQuestion(q)) : SORRY_SENTENCE;
   const shown = badge && badgeUnder(heading, badge);
-  const body = (shown ? `<p><b>${esc(shown)}</b></p>` : "") + (said.length ? `<p>${said.join("<br>")}</p>` : "") + verdict + sorryNote + stat + card + sections.map((sec) => {
+  // The follow-ups as the app places them on a page with an answer: People also ask under the answer, Related searches
+  // at the end. With them, their data for the app, so it starts from the same ones (src/lib/pageData.ts).
+  const follow = answered ? await following : null;
+  const body = (shown ? `<p><b>${esc(shown)}</b></p>` : "") + (said.length ? `<p>${said.join("<br>")}</p>` : "") + verdict + sorryNote + stat + card + (follow ? peopleAlsoAskHtml(follow) : "") + sections.map((sec) => {
     const n = sec.rows.filter((r) => !r.sub).length;
     return `<h2>${esc(sec.title)}${sec.id === "pages" || sec.id === "browse" ? "" : ` <small>${n}</small>`}</h2><ul>${sec.rows.map(({ hit: h, sub }) => `<li${sub ? ' style="margin-left:1.5em"' : ""}><a href="${esc(hitHref(h))}">${esc(h.title)}</a>${h.subtitle ? ` · ${esc(h.subtitle)}` : ""}${h.facts?.length ? `<br>${h.facts.map((f) => `${esc(f.label)}: <b>${esc(f.value)}</b>`).join(" · ")}` : ""}</li>`).join("")}</ul>`;
-  }).join("");
+  }).join("") + (follow ? relatedSearchesHtml(follow, q) : "");
   // As typed: the app matches it against its own query (the answer's q has punctuation dropped).
   const data = `<script type="application/json" id="${SEARCH_HITS_ID}">${JSON.stringify({ ...answer, q }).replace(/</g, "\\u003c")}</script>`;
   const n = answer.hits.length;
   return {
     title: `Search: ${q}`, heading, type: "website", bodyHtml: body + data, searchPage: true, intent: answer.intent,
+    ...(follow ? { pageData: { [followApiPath(q)]: { q, ...follow } } } : {}),
     description: n ? `${n === SEARCH_PAGE_LIMIT ? `The top ${n}` : n} FTC team, event and match results for “${q}” on Control Scout.` : `No FTC team, event or match matches “${q}”.`,
   };
 }

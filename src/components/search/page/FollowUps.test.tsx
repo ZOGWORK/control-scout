@@ -7,7 +7,7 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
 import type { SearchFollowUps } from "../../../shared/api";
 import { prime } from "../../../lib/api";
-import { FollowUpsRail, PeopleAlsoAsk, RelatedSearches, useFollowUps } from "./FollowUps";
+import { PeopleAlsoAsk, RelatedSearches, useFollowUps } from "./FollowUps";
 import { TEAM_TEXT } from "./answerCells";
 import { SEARCH_PALETTE } from "../../../lib/textTones";
 
@@ -53,18 +53,6 @@ describe("related searches", () => {
     expect(links.map((a) => a.getAttribute("href"))).toEqual(f.related.map((x) => href(x.q)));
     expect(links.every((a) => a.className.includes("min-h-[44px]"))).toBe(true);
     expect(c.querySelector("ul")!.className).toContain("max-sm:flex-col");
-  });
-});
-
-describe("the column beside the answer", () => {
-  it("has the team's highlights, then People also ask, then Related searches", () => {
-    const c = draw(<FollowUpsRail f={f} />);
-    expect([...c.querySelectorAll("[data-block]")].map((b) => b.getAttribute("data-block"))).toEqual(["team-highlights", "people-also-ask", "related-searches"]);
-    expect(c.querySelector("[data-block=team-highlights]")!.getAttribute("href")).toBe(href("4215 highlights"));
-  });
-
-  it("draws nothing with nothing to offer", () => {
-    expect(draw(<FollowUpsRail f={{ ask: [], related: [] }} />).innerHTML).toBe("");
   });
 });
 
