@@ -1,7 +1,7 @@
 // Predict: predictions run on their own, so this page starts from what people
 // care about — a team or an event. Pick one and its predictions show inline;
-// this week's events are listed underneath. The manual what-if lab (any four
-// teams, advancement for any team at any event) sits at the bottom.
+// this week's events are listed underneath. The manual what-if lab (one or two
+// teams a side, advancement for any team at any event) sits at the bottom.
 // Every output carries its confidence tier.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -97,9 +97,9 @@ export default function PredictPage() {
         <div className="grid items-start gap-x-10 @5xl/predict:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]">
           <div className="min-w-0">
             <h1 className="font-display text-3xl font-semibold tracking-tight text-foreground max-sm:text-2xl">Predict</h1>
-            <p className="mt-1 text-sm text-muted-foreground sm:hidden">Advancement odds, scheduled matches, or any four teams.</p>
+            <p className="mt-1 text-sm text-muted-foreground sm:hidden">Advancement odds, scheduled matches, or any matchup.</p>
             <p className="mt-1 max-w-2xl text-sm text-muted-foreground max-sm:hidden">
-              Odds for any team at any event, every scheduled match, or any four teams. Each number carries its confidence; the <Link to="/methodology#accuracy" className="underline">track record</Link> shows how often they've been right.
+              Odds for any team at any event, every scheduled match, or any matchup of one or two teams a side. Each number carries its confidence; the <Link to="/methodology#accuracy" className="underline">track record</Link> shows how often they've been right.
             </p>
             <TabsList aria-label="Predict mode" className="mt-4 max-sm:mt-3 max-sm:grid max-sm:w-full max-sm:grid-cols-3 sm:p-1">
               {MODES.map(({ v, label, short, icon: Icon }) => (
@@ -355,6 +355,8 @@ function MatchLab() {
   const [blue, setBlue] = useState<string[]>(() => { const x = init("blue"); return [x[0] ?? "", x[1] ?? ""]; });
   // One or two teams a side (src/shared/predictUrl.ts matchupOf): an empty second box is a one-team side.
   const ready = matchupOf(red.join(","), blue.join(",")) != null;
+  // The button needs a team each side to check; a repeat or a bad number is then named on its own box (run below).
+  const canCheck = red.some((v) => v.trim()) && blue.some((v) => v.trim());
   const query = ready ? `/api/predict/match${qs({ season, red: red.join(","), blue: blue.join(",") })}` : null;
   // The matchup last asked for (from the URL or the Predict button). Typing in
   // the inputs edits a draft; the season switch never touches the draft.
@@ -385,7 +387,7 @@ function MatchLab() {
   const edits = useRef(0);
   const clearError = (i: number) => { edits.current++; setErrors((e) => (e[i] ? e.map((x, j) => (j === i ? null : x)) : e)); };
   const run = async () => {
-    if (!ready) return;
+    if (!canCheck) return;
     const at = edits.current;
     setChecking(true);
     // Only the boxes filled in are checked (an empty second box is a one-team side); errors land on their own box.
@@ -399,7 +401,7 @@ function MatchLab() {
     const bad = errs.findIndex(Boolean);
     if (bad >= 0) { inputs.current[bad]?.focus(); return; }
     const m = parse(red.join(","), blue.join(","));
-    if (!m) return;
+    if (!m) { const first = [...red, ...blue].findIndex((v) => v.trim()); setErrors((e) => e.map((x, i) => (i === first ? "Pick different teams, one or two a side." : x))); inputs.current[first]?.focus(); return; }
     setSubmittedTeams(m);
     setSp((x) => { x.set("mode", "match"); x.set("season", String(season)); x.set("red", m.red.join(",")); x.set("blue", m.blue.join(",")); return x; }, { replace: true });
   };
@@ -430,7 +432,7 @@ function MatchLab() {
             <legend className="px-1 text-sm font-semibold text-blue-alliance">Blue alliance</legend>
             <div className="grid grid-cols-2 gap-3">{blue.map((v, i) => <TeamInput key={i} label={`Blue team ${i + 1}`} tone="blue" value={v} onChange={(x) => { setBlue((r) => r.map((y, j) => (j === i ? x : y))); clearError(2 + i); }} error={errors[2 + i]} inputRef={(el) => { inputs.current[2 + i] = el; }} />)}</div>
           </fieldset>
-          <div className="md:col-span-3"><Button type="submit" size="lg" disabled={!ready || checking} className="w-full sm:w-auto"><Sparkles /> Predict this match</Button></div>
+          <div className="md:col-span-3"><Button type="submit" size="lg" disabled={!canCheck || checking} className="w-full sm:w-auto"><Sparkles /> Predict this match</Button></div>
         </form>
       </div>
       {submitted && (state.error
