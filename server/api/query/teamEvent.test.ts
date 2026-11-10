@@ -61,9 +61,9 @@ describe("one word of a named team's own event", () => {
     expect(a.stat).toMatchObject({ intent: "pipeline-team-predict-event", team: { number: 7149 }, title: "Prediction vs result at Riverside Invitational League Tournament" });
     expect(a.understood!.season).toBe(S);
     expect(a.understood!.label).toContain(`the latest event with "riverside" in its name`);
-    expect(a.understood!.label).not.toMatch(/isn't part of this answer/);
+    expect(a.understood!.unread ?? []).toEqual([]);
     // "Last" is that pick: no note that it went unread.
-    expect((await ask("23268 last forecast for invitational")).understood!.label).not.toMatch(/isn't part of this answer/);
+    expect((await ask("23268 last forecast for invitational")).understood!.unread ?? []).toEqual([]);
   });
   it("in the season said, when one is", async () => {
     const season = await ask(`7149 prediction at riverside in ${S - 1}-${String(S % 100).padStart(2, "0")}`);

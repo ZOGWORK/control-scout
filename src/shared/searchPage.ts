@@ -5,7 +5,7 @@ import { showingLine } from "./search.js";
 
 /** What the server says it understood (the search-engine work, `SearchAnswer.understood`): the one line to show, and
  *  when the hits are a fallback rather than the answer, the line that says so. Read defensively (older servers lack it). */
-export interface UnderstoodLine { label: string; fallback?: string; showing?: string; total?: number; scope?: { subject: string; span: string }; /** What it was read as ("events"), and an event set's time ("upcoming"). */ kind?: string; time?: string }
+export interface UnderstoodLine { label: string; fallback?: string; showing?: string; unread?: string[]; total?: number; scope?: { subject: string; span: string }; /** What it was read as ("events"), and an event set's time ("upcoming"). */ kind?: string; time?: string }
 export type AnswerExtra = Omit<SearchAnswer, "understood"> & { understood?: UnderstoodLine };
 
 /** The server's reading of the query, in words ("League meets in New Jersey"), when it sends one. */
@@ -108,3 +108,18 @@ export function contextBadge(a: AnswerExtra, understood: string[] = []): string 
   if (top && (top.kind === "team" || isCompare(top))) { const s = showingLine(a); if (s) return s.replace(" — ", " · "); }
   return null;
 }
+
+/** The note under an answer that read past some of the query's words: "Not used in this answer: "today"". Null: none. */
+export function unreadNote(a: { understood?: { unread?: string[] } }): string | null {
+  const w = a.understood?.unread ?? [];
+  return w.length ? `Not used in this answer: ${w.map((x) => `"${x}"`).join(", ")}` : null;
+}
+
+/** The card's title says only what the page's heading already says ("Record in 2025–26" under "Hypnotic Robotics
+ *  (4215) · Record in 2025–26"): then it's for screen readers only, so nothing reads twice. */
+export const repeats = (heading: string | null | undefined, title: string, chips: readonly string[] = []) => {
+  // The title less what its chips say at its end ("Top 10 teams in New Jersey · 2025–26" with a 2025–26 chip).
+  let t = title.trim();
+  for (let i = t.lastIndexOf(" · "); i > 0 && chips.some((c) => c.trim().toLowerCase() === t.slice(i + 3).trim().toLowerCase()); i = t.lastIndexOf(" · ")) t = t.slice(0, i).trim();
+  return !!heading && !!t && heading.toLowerCase().includes(t.toLowerCase());
+};

@@ -104,9 +104,9 @@ export function seasonWhy(kind: "any" | "team" | "teams" | "this" | "this-any" |
       : `With no season named, the season is ${S}, the latest season with matches on record (no ${seasonLabel(currentSeason())} matches yet).`;
     case "this-any": return `"This season" is ${S}, the current season.`;
     case "team": return current ? `With no season named, the season is ${S}, the current season, which ${who ?? "the team"} has played in.`
-      : `With no season named, the season is ${S}, the latest season ${who ?? "the team"} has played in (no ${seasonLabel(currentSeason())} matches on record yet).`;
+      : `With no season named, the season is ${S}, the latest season ${who ?? "the team"} has played in (no ${seasonLabel(currentSeason())} match played yet).`;
     case "this": return current ? `"This season" is ${S}, the current season, which ${who ?? "the team"} has played in.`
-      : `"This season" here is ${S}, the latest season ${who ?? "the team"} has played in (no ${seasonLabel(currentSeason())} matches on record yet).`;
+      : `"This season" here is ${S}, the latest season ${who ?? "the team"} has played in (no ${seasonLabel(currentSeason())} match played yet).`;
     case "teams": return current ? `With no season named, the season is ${S}, the current season, which every team here has played in.`
       : `With no season named, the season is ${S}, the latest season every team here has played in.`;
     case "last": return `"Last season" is ${S}, the latest completed season.`;

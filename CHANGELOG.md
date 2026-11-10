@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.3.0 — 2026-11-10
+## 5.3.2 — 2026-11-10
 
 Search says why a team's events are from the season shown, and reads names with punctuation or typed nearly right.
 
@@ -30,6 +30,34 @@ Search says why a team's events are from the season shown, and reads names with 
 - Search: a team's newest season where it was only ever a no-show is no longer its season for answers that default to its latest: its record, OPR and every other card name the same season (the one season rule).
 - Search: a possessive after a name that ends in punctuation ("die toaster, die!'s") reads as the team, never as a stray "s".
 - Search: a team's name typed nearly right that runs past a shorter team's name ("girls in roboics 2") reads as the longer team, never the shorter one plus the number taken for an event. (#1340)
+
+## 5.3.1 — 2026-11-10
+
+Gold is the accent only: charts, compared teams and team colours use their own hues, and team B is no longer amber beside it.
+
+### Highlights
+- [fixes] Team B on dark is vermilion, no longer amber beside the gold
+- [fixes] Charts and Compare draw teams in team hues, never the accent
+- [fixes] Indigo replaces gold among team colours
+
+### Fixed
+- Team B's colour on dark was Okabe–Ito amber (#e69f00), a step from the accent gold (#eab308): a compared team read as a button. It is now vermilion (#f0763a, the light theme's #d55e00 lifted for dark).
+- The first chart colour was the accent itself, so a team's own trend and Compare's first team were gold. It is team A's blue; Compare draws each team in the team hues search's compare card uses, with a fourth (reddish purple) for a fourth team.
+- Compare marked each row's best value and the baseline column in gold; the best is now bold on a neutral tint, the baseline a neutral tint.
+- The colours a scout gives their teams had Gold; it is Indigo now. A team saved as gold shows in its usual colour. (#1337)
+
+## 5.3.0 — 2026-11-10
+
+A search's heading is the answer's own: words it read past get a quiet note of their own, and no heading is said twice.
+
+### Highlights
+- [fixes] Search headings never carry "isn't part of this answer"
+- [fixes] Words an answer read past get their own small note
+- [fixes] A search page no longer says its heading twice
+
+### Fixed
+- An answer that reads past some of the query's words ("4215 last prediction for East Bergen", "23268 rating going up or down") put `"last" isn't part of this answer` into its label, which titles the page. The words now go in `understood.unread` and show as a quiet note under the answer ("Not used in this answer: "last""), on the page and in its first HTML; the label is the answer's own.
+- The first HTML of a search no longer repeats the heading: a stat's or card's own title that matches it, and a headline label that only repeats the title, are left out (35 of 200 audited pages said their title twice). (#1335)
 
 ## 5.2.9 — 2026-11-10
 

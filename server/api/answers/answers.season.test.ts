@@ -103,7 +103,7 @@ describe("a team's season, said in words", () => {
   it("no season named, or \"this season\": the team's latest season with matches, said on the card", async () => {
     const a = (await searchAnswer("4215 opr", { limit: 25, full: true, now: NOW })).stat;
     expect(a).toMatchObject({ title: "OPR in 2025–26", headline: { value: "101.6" } });
-    expect(a?.definition).toContain("the season is 2025–26, the latest season 4215 has played in (no 2026–27 matches on record yet)");
+    expect(a?.definition).toContain("the season is 2025–26, the latest season 4215 has played in (no 2026–27 match played yet)");
     const t = (await searchAnswer("4215 opr this season", { limit: 25, full: true, now: NOW })).stat;
     expect(t?.title).toBe("OPR in 2025–26");
     expect(t?.definition).toContain('"This season" here is 2025–26, the latest season 4215 has played in');
@@ -142,7 +142,11 @@ describe("a team's season, said in words", () => {
       // The record's season (every answer that defaults to the team's latest reads it) is the OPR's.
       expect((await latestSeason(4215, "record"))?.season).toBe(2025);
       expect((await latestSeason(4215))?.season).toBe(2025);
-      expect((await searchAnswer("4215 opr", { limit: 25, full: true, now: NOW })).stat?.title).toBe("OPR in 2025–26");
+      const opr = (await searchAnswer("4215 opr", { limit: 25, full: true, now: NOW })).stat;
+      expect(opr?.title).toBe("OPR in 2025–26");
+      // The no-show is on the record, so the note says no match was played, never that none is on record.
+      expect(opr?.definition).toContain("(no 2026–27 match played yet)");
+      expect(opr?.definition).not.toContain("on record yet");
       // A newer season whose only match has its totals but no score without penalties, or is at a remote event: the
       // record's matches don't hold it, so neither reader takes it.
       await run("INSERT INTO events (season, code, name, type, start, end, source) VALUES (2026, 'TTOTALS', 'TTOTALS', 'Qualifier', '2027-01-10', '2027-01-10', 'first')");
