@@ -29,6 +29,11 @@ beforeAll(async () => {
     // A three-word name two equal teams share, and a pair in NJ and MI where one is the visitor's.
     [5501, "Red Tide Crew", "Camden", "NJ", "USA", [[2025, 400, 8000]]],
     [5502, "Red Tide Crew", "Flint", "MI", "USA", [[2025, 420, 8000]]],
+    // Two names, each with an NJ and an MI team: one name's stronger team in NJ, the other's in MI.
+    [5601, "Iron Finch", "Trenton", "NJ", "USA", [[2025, 100, 8000]]],
+    [5602, "Iron Finch", "Detroit", "MI", "USA", [[2025, 4000, 8000]]],
+    [5701, "Glass Heron", "Edison", "NJ", "USA", [[2025, 4000, 8000]]],
+    [5702, "Glass Heron", "Warren", "MI", "USA", [[2025, 100, 8000]]],
   ];
   for (const [n, name, city, state, country, seasons] of teams) {
     await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, ?, ?, ?)", [n, name, city, state, country]);
@@ -61,6 +66,11 @@ describe("a name several teams share", () => {
       expect(a.verdict, q).toBeUndefined();
     }
   });
+  it("\"team\" before it says a team is meant, never which one", async () => {
+    const a = await ask("team echo kites record");
+    expect(a.understood?.label.startsWith(`${WHICH}echo kites"? 2 teams have that name: `)).toBe(true);
+    expect(a.stat?.team).toBeUndefined();
+  });
   it("is the one beside the other team named, or the clearly stronger one, and says so", async () => {
     const a = await ask("quartz owls and echo kites opr compare");
     expect(teamsOf(a)).toContain(5201);
@@ -84,6 +94,12 @@ describe("two shared names in one question", () => {
   it("a name settled by your own team places the other name's team beside it", async () => {
     const a = await searchAnswer("echo kites vs red tide crew", { learn: false, limit: 25, full: true, prefer: new Set(["team:5501"]) });
     expect(a.hits.find((h) => h.kind === "compare")?.ref).toBe("5201,5501");
+  });
+  it("two names that would each move beside the other's first pick ask which, never two teams said to share a state", async () => {
+    const a = await ask("iron finch vs glass heron");
+    expect(a.hits.some((h) => h.kind === "compare")).toBe(false);
+    expect(a.understood?.label).toContain('Which "iron finch"?');
+    expect(a.understood?.label).toContain('Which "glass heron"?');
   });
 });
 

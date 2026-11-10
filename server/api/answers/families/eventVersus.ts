@@ -7,6 +7,7 @@ import { seasonLabel } from "../../../../src/shared/format.js";
 import { regionOf } from "../../../../src/shared/searchEventQuery.js";
 import { all, get } from "../../../db.js";
 import { eventHref, teamHref } from "../matchSet.js";
+import { LEXICON } from "../../query/lexicon.js";
 
 /** The event as findEvent gives it. */
 export type EventRow = { season: number; code: string; name: string; type: string | null; start: string | null; division: string | null };
@@ -85,6 +86,24 @@ async function fieldsOf(evs: EventRow[]): Promise<Field[]> {
     const rated = rows.filter((r) => r.parent === e.code).sort((a, b) => Number(b.opr) - Number(a.opr) || a.team - b.team);
     return { rated: rated.length, field: rated.length ? rated.reduce((n, r) => n + Number(r.opr), 0) / rated.length : null, top: rated.length ? Number(rated[0].opr) : null, topTeam: rated.length ? Number(rated[0].team) : null };
   });
+}
+
+/** Every spelling search reads as OPR, and as a stat other than OPR (its lexicon: "auto", "end-game", "tele op",
+ *  "penalties", "average score" …), hyphens read as spaces and each word with or without a plural "s" ("autos", the form a retry
+ *  reads). "strength" is how hard a division is, never another stat here. */
+const statWords = (vs: string[]) => LEXICON.filter((e) => e.syms.some((x) => x.k === "metric" && vs.includes(String(x.v))))
+  .map((e) => e.words.join(" ").replace(/[-/]/g, " ")).filter((w) => w !== "strength");
+const escape = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const phrases = (ws: string[]) => new RegExp(`(?<![\\p{L}\\d])(?:${ws.map((w) => w.split(/\s+/).map((x) => `${escape(x)}s?`).join("\\s+")).join("|")})(?![\\p{L}\\d])`, "u");
+const OPR_WORDS = phrases(statWords(["opr"]));
+const OTHER_STAT = phrases(statWords(["auto", "teleop", "endgame", "penalty", "record", "winrate", "rating", "reliability", "score", "margin"]));
+/** Whether `q` names a stat other than OPR, OPR's own names ("offensive power rating") and the words read as the
+ *  question's place (`place` as typed: "DC" is Washington, never driver controlled) left out first. */
+export function saysOtherThanOpr(q: string, place?: string | null): boolean {
+  let t = q.toLowerCase();
+  const typed = place?.toLowerCase().trim();
+  if (typed) t = t.replace(new RegExp(`(?<![\\p{L}\\d])${escape(typed)}(?![\\p{L}\\d])`, "u"), " ");
+  return OTHER_STAT.test(t.replace(/[-/]/g, " ").replace(new RegExp(OPR_WORDS.source, "gu"), " "));
 }
 
 /** Whether `q` asks which division of a championship was hardest or easiest ("which championship division was hardest

@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.2.4 — 2026-11-10
+## 5.2.5 — 2026-11-10
 
 School names and towns read as they should: no cut-short school names, no doubled state, no stray letters.
 
@@ -28,6 +28,22 @@ School names and towns read as they should: no cut-short school names, no double
 ### Fixed
 - Team and event places are tidied where a sync writes them (`src/shared/placeClean.ts`, used by `server/data/bundle.ts`), and the rows already stored, past seasons too, are tidied once soon after the server starts (`server/data/tidyPlaces.ts`): a school's cut-short last word ("Sch", "Schl", "Acad", "Elem", "Chrn") in full; a town's run of one letter three or more times kept to two; a town's last comma part dropped when it only names the row's own state or country (a postcode after it allowed). A team with no school in FIRST's data still shows none.
 - `place()` leaves out a part that is only digits, so a numeric state code never shows in an event or team line. (#1327)
+
+## 5.2.4 — 2026-11-10
+
+Search asks which team when a name is still shared, and its new answers count only what was asked.
+
+### Highlights
+- [fixes] "team" before a shared name still asks which team you mean
+- [fixes] Two shared names in a comparison never claim the same state wrongly
+- [fixes] Win streaks by place follow each event's own match order
+- [fixes] Hardest division and event field answers are by OPR only
+
+### Fixed
+- Search: a name several teams share, typed with "team" before it ("team echo kites record"), asks which team instead of answering for the first one found.
+- Search: in a comparison of two shared names, a name moved to sit beside the other team's state, when that team moved away, now asks which instead of saying both are in the same state.
+- Search: the win streak board orders each team's matches by event and by the event's own match order, so a match with no time on record no longer jumps ahead.
+- Search: "hardest division … by average auto OPR" and "average auto OPR at an event" are no longer answered with plain OPR. (#1325)
 
 ## 5.2.3 — 2026-11-10
 
