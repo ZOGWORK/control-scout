@@ -44,14 +44,15 @@ export async function leagueStandings(season: number, regionRaw: string, codeRaw
 }
 
 /** A team's place in its league's standings for a season (its latest league meet's league), or null. */
-export async function teamLeagueStanding(season: number, team: number): Promise<{ region: string; code: string; name: string | null; rank: number; of: number } | null> {
-  const r = await get<{ region: string; code: string; name: string | null; rank: number; n: number }>(
-    `SELECT r.region, r.league code, l.name, r.rank, (SELECT COUNT(*) FROM league_rankings o WHERE o.season = r.season AND o.region = r.region AND o.league = r.league AND COALESCE(o.played, 1) > 0) n
+export async function teamLeagueStanding(season: number, team: number): Promise<{ region: string; code: string; name: string | null; rank: number; of: number; played: boolean } | null> {
+  const r = await get<{ region: string; code: string; name: string | null; rank: number; n: number; played: number | null }>(
+    `SELECT r.region, r.league code, l.name, r.rank, r.played, (SELECT COUNT(*) FROM league_rankings o WHERE o.season = r.season AND o.region = r.region AND o.league = r.league AND COALESCE(o.played, 1) > 0) n
      FROM league_rankings r LEFT JOIN leagues l ON l.season = r.season AND l.region = r.region AND l.code = r.league
      WHERE r.season = ? AND r.team = ?
      ORDER BY (SELECT MAX(e.start) FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
                WHERE et.season = r.season AND et.team = r.team AND e.region = r.region AND e.league = r.league) DESC LIMIT 1`, [season, team]);
-  return r ? { region: r.region, code: r.code, name: r.name, rank: r.rank, of: r.n } : null;
+  // A member with no match yet sits below everyone in FIRST's list: no place out of the teams that have played.
+  return r ? { region: r.region, code: r.code, name: r.name, rank: r.rank, of: r.n, played: (r.played ?? 1) > 0 } : null;
 }
 
 /** The leagues of a season with standings, in `region` when given (FIRST's region code, "USNJ"): name and team count. */

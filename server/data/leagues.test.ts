@@ -65,7 +65,7 @@ describe("league standings sync", () => {
     expect((await leagueStandings(S, "USFL", "NE"))!.rows.map((r) => r.team)).toEqual([8]);
     expect(await leagueStandings(S, "USNY", "NE")).toBeNull();
     // Out of the teams that have played: team 8 hasn't in New Jersey.
-    expect(await teamLeagueStanding(S, 6980)).toEqual({ region: "USNJ", code: "NE", name: "Northeast", rank: 2, of: 2 });
+    expect(await teamLeagueStanding(S, 6980)).toEqual({ region: "USNJ", code: "NE", name: "Northeast", rank: 2, of: 2, played: true });
     expect(await teamLeagueStanding(S, 1234)).toBeNull();
     expect((await leaguesOf(S, "USNJ")).map((l) => [l.code, l.name, l.teams])).toEqual([["NE", "Northeast", 3]]);
   });

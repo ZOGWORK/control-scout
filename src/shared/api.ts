@@ -434,7 +434,7 @@ export interface TeamProfile {
   awardsAllTime: { season: number; code: string; event: string; type: string; placement: number; name: string | null }[];
   /** The team's place in its league's standings that season (FIRST's league rankings, server/api/leagues.ts): its rank
    *  out of the teams that have played. Absent: no league standing (or an older server). */
-  league?: { region: string; code: string; name: string | null; rank: number; of: number } | null;
+  league?: { region: string; code: string; name: string | null; rank: number; of: number; played: boolean } | null;
 }
 
 /** GET /api/teams/:n/report-card: the predictability report card from live calls (null: no scored live call this season). */

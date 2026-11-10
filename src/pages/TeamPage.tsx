@@ -276,7 +276,7 @@ function Hero({ p, onSeason, fellBackFrom }: { p: TeamProfile; onSeason: (s: num
             {/* The league's own standing (FIRST's league rankings, every meet so far), beside the meet's rank above. */}
             {p.league && (
               <Link to={`${leagueHref(p.season, p.league.region, p.league.code)}?team=${t.number}`} data-league-standing className="lift flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-3 py-2">
-                <span className="min-w-0 truncate"><span className="font-semibold tabular-nums">#{p.league.rank} of {p.league.of}</span> <span className="text-muted-foreground">in the {leagueTitle(p.league.name, p.league.code)}</span></span>
+                <span className="min-w-0 truncate"><span className="font-semibold tabular-nums">{p.league.played ? `#${p.league.rank} of ${p.league.of}` : "Not ranked yet"}</span> <span className="text-muted-foreground">in the {leagueTitle(p.league.name, p.league.code)}</span></span>
                 <span className="shrink-0 text-muted-foreground">Standings →</span>
               </Link>
             )}

@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.1.5 — 2026-11-10
+
+A team's page says where it stands in its league, and league meets link to the league's table.
+
+### Highlights
+- [teams] Team pages show the league standing: "#30 of 34 in the Northeast League"
+- [rankings] League meet and tournament pages have a League standings button
+- [teams] Each link marks the team's row in the league table
+
+### Added
+- Team page: under the team's last league meet, a line with its place in FIRST's league ranking (out of the teams that have played, "Not ranked yet" before its first match) linking to the league's standings with its row marked.
+- League meet and league tournament pages: a "League standings" button beside Pit display, to the league's standings page.
+
 ## 5.1.4 — 2026-11-10
 
 A what-if under every predicted match: swap one robot and see how the call and the margin move.
