@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 4.9.3 — 2026-11-10
+## 4.9.4 — 2026-11-10
 
 Search reads one season rule in every answer, and says which season (and which state championship) it read.
 
@@ -29,6 +29,20 @@ Search reads one season rule in every answer, and says which season (and which s
 - One season resolver (`server/api/answers/season.ts`) for every intent: a team's question with no season (or "this season", "right now") reads the latest season that team has played; a question about no team reads the current season, stepping back a season with a note when nothing is played there yet; "last season" / "last year" is the latest completed season; a season named is honoured exactly. Every card states the season and why.
 - "At states" reads the team's state championship (the season named, else the latest it played) for a record, match list, score or streak as it already did for results, rank and OPR, so rewordings get one scope; the card names the event and its season. "All state championships", "ever" or "all time" reads every season, labelled "All seasons".
 - Plain leaderboards ("NJ top teams leaderboard") step back a season, said on the card, as the asked boards did. (#1286)
+
+## 4.9.3 — 2026-11-10
+
+A question search can't answer yet says sorry plainly, and a yes-or-no question gets its Yes or No first.
+
+### Highlights
+- [fixes] "Sorry — I can't answer that yet", once, when nothing answers
+- [fixes] What was read on one line, and searches that answer, one tap each
+- [fixes] Every yes-or-no question shows Yes or No first, big, then the proof
+
+### Changed
+- When search can't answer a question, or nothing matches at all, the page heading says "Sorry — I can't answer that yet", once. Under it: what was read (the team, event, place or season) and a few searches about it, each checked to answer before it is shown. The old "This isn't answered directly yet" and "No matches found" wordings are gone. (#1278)
+- What was read is the team the answer kept: a word of the question that happens to be another team's name ("how many rivets are on 4215's robot") is no longer read as that team. "7149s robot", with no apostrophe, is read as 7149.
+- Any question asked as yes or no ("did …", "has … ever", "was … at", "… ever won …?") shows Yes or No first whenever its answer card counts something: a count over zero is Yes, zero or none found is No. The card under it stays the evidence, with its links. The page's first paint says it too.
 
 ## 4.9.2 — 2026-11-09
 

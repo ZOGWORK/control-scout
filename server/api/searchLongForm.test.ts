@@ -351,11 +351,17 @@ describe("a team found, its question not answered", () => {
   it("says so plainly, never quoting the query, with questions it answers from the team's records", async () => {
     const a = await ask("what colour is 4215's robot");
     expect(a.hits[0]).toMatchObject({ kind: "team", ref: "4215" });
-    expect(a.understood?.label).toBe("Hypnotic Robotics (4215) · This isn't answered directly yet");
+    expect(a.understood?.label).toBe("Hypnotic Robotics (4215) · Sorry — I can't answer that yet");
     expect(a.understood?.label).not.toContain("colour");
     expect(a.suggest).toEqual([`4215 record ${S}–${String(S + 1).slice(2)}`, `4215 opr ${S}–${String(S + 1).slice(2)}`, "4215 worlds appearances"]);
     // Each suggestion is answered directly.
     for (const q of a.suggest!) expect(what(await ask(q)), q).not.toBeNull();
+  });
+
+  // Greptile on #1278: a season the question named stays in the sorry note's searches (the fallback's are the default's).
+  it("a season the question named is the one its searches ask about", async () => {
+    const a = await searchAnswer(`what colour was 4215's robot in ${L}-${String(L + 1).slice(2)}`, { limit: 25, full: true });
+    expect(a.sorry?.suggest).toEqual(expect.arrayContaining([`4215 record ${L}–${String(L + 1).slice(2)}`, `4215 opr ${L}–${String(L + 1).slice(2)}`]));
   });
 
   it("puts what was asked about first, and only what the team has", async () => {

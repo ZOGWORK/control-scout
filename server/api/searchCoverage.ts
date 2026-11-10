@@ -16,7 +16,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import type { SearchAnswer, SearchCardFact, SearchCardLine, SearchHit, SearchSection } from "../../src/shared/api.js";
 import type { TeamTable } from "../../src/shared/teamTable.js";
 import { PHASE_COLS, tableOf, tableRow } from "./teamTableRows.js";
-import { SEARCH_BROWSE, pagesFor } from "../../src/shared/search.js";
+import { SEARCH_BROWSE, SORRY_SENTENCE, pagesFor } from "../../src/shared/search.js";
 import { readEventQuery, regionOf, regionPartOf, type EventQuery } from "../../src/shared/searchEventQuery.js";
 import { num, seasonLabel } from "../../src/shared/format.js";
 import { stateName } from "../../src/shared/regions.js";
@@ -890,11 +890,14 @@ export async function eventPageAnswer(q: string, prefer: ReadonlySet<string>, no
 
 /** Two or three questions search answers about a team, each from what its records hold (a Worlds trip, an award, a
  *  season of matches), the ones nearest what was asked first: a fallback's way on, never a dead end. */
-export async function teamSuggestions(team: number, asked: string): Promise<string[]> {
+/** `asked`: the words asked, so the searches nearest them come first; `said`: a season the question named, kept in
+ *  the searches when the team played it (else its latest). */
+export async function teamSuggestions(team: number, asked: string, said: number | null = null): Promise<string[]> {
   const played = await all<{ season: number }>("SELECT season FROM team_season_stats WHERE team = ? AND matches > 0 ORDER BY season DESC", [team]);
   if (!played.length) return [];
-  // The team's latest season with matches (the one season rule, ./answers/season.ts).
-  const season = played[0].season;
+  // The season the question named when the team played it, else the team's latest season with matches (the one season
+  // rule, ./answers/season.ts).
+  const season = said != null && played.some((r) => r.season === said) ? said : played[0].season;
   const worlds = !!(await get("SELECT 1 FROM team_event_stats s JOIN events e ON e.season = s.season AND e.code = s.code WHERE s.team = ? AND e.type = 'FIRSTChampionship' AND s.matches > 0 LIMIT 1", [team]));
   const awards = !!(await get("SELECT 1 FROM awards WHERE team = ? LIMIT 1", [team]));
   const S = seasonLabel(season);
@@ -945,7 +948,8 @@ export async function teamFallback(q: string, prefer: ReadonlySet<string>): Prom
     const section: SearchSection | undefined = /\b(?:partners?|alliances?|pick|picks|opponents?|played with|played against)\b/i.test(left) ? "matches"
       : /\bevents?\b/i.test(left) ? "history" : /\b(?:matches|match|games?|scores?)\b/i.test(left) ? "matches" : undefined;
     // Never the query echoed back (cleaning has already changed its words): what search can show instead, plainly.
-    const label = `${nameOf(hit)} · This isn't answered directly yet${section ? `: their ${section === "history" ? "events" : "matches"} are on their page` : ""}`;
+    // The page says sorry (SORRY_SENTENCE) as its heading and what it read under it: the reading ends in the same words.
+    const label = `${nameOf(hit)} · ${SORRY_SENTENCE}${section ? `: their ${section === "history" ? "events" : "matches"} are on their page` : ""}`;
     const suggest = await teamSuggestions(Number(hit.ref), left);
     return answer(q, { hits: [{ ...hit, ...(section ? { section } : {}), match: "exact" }], pages: pagesFor(q), understood: { kind: "team", label }, ...(suggest.length ? { suggest } : {}) });
   }

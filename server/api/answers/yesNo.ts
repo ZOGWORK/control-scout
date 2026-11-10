@@ -166,6 +166,23 @@ async function beaten(a: Team, b: Team, outcome: "W" | "L", s: EventScope | null
   };
 }
 
+/** The one rule for every other yes-or-no question (server/api/searchAnswer.ts withVerdict): a question framed yes or
+ *  no ("did", "has", "was", "ever" …) whose answer card counts something ("2 Inspire Awards", "8 wins", "0 awards") is
+ *  "Yes" above a count over zero and "No" above zero, the card kept as the evidence. Null when the question isn't
+ *  framed that way or the card's headline isn't a count (an OPR, a record, a name). */
+export function derivedVerdict(q: string, a: SearchAnswer): NonNullable<SearchAnswer["verdict"]> | null {
+  const n = normalise(q);
+  if (!FRAME.test(n) || ASKS.test(n)) return null;
+  // A card that found none ("No awards at Worlds found for …") answers No, its own sentence the evidence.
+  const none = (a.stat?.none && !a.stat.headline ? a.stat.none : null) ?? (a.card?.none && !a.card.lines.length ? a.card.none : null);
+  if (none) return { answer: "No", label: none };
+  const head = a.stat?.headline ?? (a.card?.headline ? { value: a.card.headline, label: "" } : undefined);
+  const m = head && /^(\d[\d,]*)\s+\p{L}/u.exec(head.value.trim());
+  if (!m) return null;
+  const count = Number(m[1].replace(/,/g, ""));
+  return { answer: count > 0 ? "Yes" : "No", label: [head.value.trim(), head.label, "sub" in head ? head.sub : undefined].filter(Boolean).join(" · ") };
+}
+
 /** The answer for a yes-or-no question, or null when `q` isn't one of the shapes answered here. */
 export async function yesNoAnswer(q: string, opts: { full: boolean; pages: SearchPageLink[]; now?: number; prefer?: ReadonlySet<string>; resolve: (core: string) => Promise<SearchAnswer> }): Promise<(SearchAnswer & { verdict: NonNullable<SearchAnswer["verdict"]> }) | null> {
   const n = normalise(q);
