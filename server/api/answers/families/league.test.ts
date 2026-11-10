@@ -15,7 +15,7 @@ const codes = (ask: string) => {
 
 describe("league standings asks", () => {
   it("reads asks with no team, and leaves a team's to the team answer", () => {
-    expect(readLeagueAsk("NE league standings")).toEqual({ words: ["ne"], season: null, leader: false });
+    expect(readLeagueAsk("NE league standings")).toEqual({ words: ["NE"], season: null, last: false, leader: false });
     expect(readLeagueAsk("northeast league rankings 2026-27")).toMatchObject({ words: ["northeast"], season: 2026 });
     expect(readLeagueAsk("nj northeast league leaderboard")).toMatchObject({ words: ["nj", "northeast"] });
     expect(readLeagueAsk("who is first in the northeast league")).toMatchObject({ words: ["northeast"], leader: true });
@@ -25,6 +25,28 @@ describe("league standings asks", () => {
     // No standings word: a league's events, not its table.
     expect(readLeagueAsk("northeast league meets")).toBeNull();
     expect(readLeagueAsk("league standings")).toBeNull();
+  });
+
+  it("keeps a code typed in capitals, and reads last season and future seasons", () => {
+    expect(readLeagueAsk("IN league standings")).toMatchObject({ words: ["IN"] });
+    expect(readLeagueAsk("MA league standings")).toMatchObject({ words: ["MA"] });
+    expect(readLeagueAsk("WHO IS FIRST IN THE NORTHEAST LEAGUE")).toMatchObject({ words: ["northeast"] });
+    expect(readLeagueAsk("northeast league standings last season")).toMatchObject({ season: null, last: true });
+    expect(readLeagueAsk("northeast league standings in 2027")).toMatchObject({ season: 2027, last: false });
+  });
+
+  it("finds a state by its capital code and a country by name", () => {
+    const more = [...LEAGUES, L("USMA", "ME", "Metro", "MA", 16), L("CAON", "TOR", "Toronto", "ON", 14, "Canada"), L("CAQC", "MTL", "Montreal", "QC", 10, "Canada"), L("USIN", "IN", "Indianapolis", "IN", 12)];
+    const find = (ask: string) => matchLeagues(readLeagueAsk(ask)!.words, more);
+    expect(find("MA league standings").leagues.map((l) => l.code)).toEqual(["ME"]);
+    expect(find("canada league standings")).toMatchObject({ place: "Canada", named: false });
+    expect(find("canada league standings").leagues.map((l) => l.code).sort()).toEqual(["MTL", "TOR"]);
+    expect(find("IN league standings").leagues.map((l) => l.code)).toEqual(["IN"]);
+    // A word that is a league's code and a place: the code's league, the place's leagues beside it.
+    const ma = matchLeagues(["MA"], [...more, L("USWA", "MA", "Maxwell", "WA", 12)]);
+    expect(ma.leagues.map((l) => l.code)).toEqual(["MA"]);
+    expect(ma.also).toMatchObject({ place: "Massachusetts" });
+    expect(ma.also?.leagues.map((l) => l.code)).toEqual(["ME"]);
   });
 
   it("finds the league by its name, its code or its place", () => {

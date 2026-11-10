@@ -385,9 +385,10 @@ const TOP_TEAMS_SAID = /\b(?:top|best|strongest)\s+(?:\d{1,2}\s+)?teams?\b/i;
 export async function leagueSearch(q: string, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
   const la = readLeagueAsk(q);
   if (!la) return null;
-  const season = la.season ?? askSeason();
-  const stat = await leagueAskAnswer(la, season, la.season != null);
-  if (stat.none) return null;
+  const season = la.last ? askSeason() - 1 : la.season ?? askSeason();
+  const stat = await leagueAskAnswer(la, season, la.season != null || la.last);
+  // No league by those words: the pipeline reads it. A season with nothing yet ("… in 2027") says so.
+  if (stat.none && season <= askSeason()) return null;
   return { q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season },
     intent: { kind: "stat-league-standings", pattern: `[league] standings${la.season != null ? " [season]" : ""}`, met: true, understood: [stat.title] }, ...(opts.full ? { stat } : {}) };
 }

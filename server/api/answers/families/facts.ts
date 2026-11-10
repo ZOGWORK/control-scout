@@ -339,9 +339,11 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
   if (own && table?.rows.length) {
     const name = `${leagueTitle(table.name, table.code)}${table.place ? ` (${table.place})` : ""}`;
     const more = { label: "Full league standings", href: `${leagueHref(season, table.region, table.code)}?team=${team.number}` };
+    // The table is the whole league's, so its time is the league's latest meet played, not the team's own last meet.
+    const latest = table.meets.filter((m) => m.played).sort((x, y) => (y.start ?? "").localeCompare(x.start ?? ""))[0];
     return { ...b, definition: `A league's standing is FIRST's official league ranking, which counts every meet so far that season, ranked by ranking score (RS, average ranking points per match).${why}`, source: `FIRST's ${S} league rankings`,
       // A member with no match yet sits below everyone in FIRST's list: not a place out of the teams that have played.
-      headline: { value: table.rows.find((x) => x.team === team.number)?.played ? `#${own.rank} of ${own.of}` : "Not ranked yet", label: r ? `${name} after ${shortEvent(r.name, r.type)}` : name, sub: (r && dateRange(r.start)) || undefined, href: more.href },
+      headline: { value: table.rows.find((x) => x.team === team.number)?.played ? `#${own.rank} of ${own.of}` : "Not ranked yet", label: latest ? `${name} after ${shortEvent(latest.name, latest.type)}` : name, sub: (latest && dateRange(latest.start)) || undefined, href: more.href },
       blocks: [{ kind: "league", title: `${name} standings`, season, rows: table.rows, team: team.number, more }] };
   }
   if (!r) return { ...b, none: `${who(team)} played no league meets in ${S}.` };
