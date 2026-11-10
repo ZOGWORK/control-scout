@@ -20,10 +20,12 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 Search asks which team you mean when a name two teams share is typed nearly right.
 
 ### Highlights
-- [fixes] A shared team name typed with a small slip asks which team, as typed right does
+- [fixes] A shared team name typed with a slip asks which team you mean
+- [fixes] Each team of the name is listed with its place, to pick from
+- [fixes] A number typed right after the name is read as part of it
 
 ### Fixed
-- A name several teams share, typed one or two letters off, read as one of them or as nothing: two teams called Girls in Robotics, typed with a letter missing and a number after it, read another team's record at an event. It now gets the same "Which …? 2 teams have that name" card as the name typed right, with each team's place, and a number right after the name that is no team's is read as part of it. (`nearShared`, `server/api/query/names.ts`; the near-spelling step in `server/api/query/parse.ts`; `sharedName`, `server/api/searchAnswer.ts`)
+- A name several teams share, typed one or two letters off, read as one of them or as nothing: two teams called Girls in Robotics, typed with a letter missing and a number after it, read another team's record at an event. It now gets the same "Which …? 2 teams have that name" card as the name typed right, with each team's place, and a number right after the name that is no team's is read as part of it. (`nearShared`, `server/api/query/names.ts`; the near-spelling step in `server/api/query/parse.ts`; `sharedName`, `server/api/searchAnswer.ts`) (#1348)
 
 ## 5.3.9 — 2026-11-10
 
