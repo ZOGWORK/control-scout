@@ -94,7 +94,7 @@ import { failureOf, keyFor, noteSearch, outcomeTrace, patternFor, reportingOn, s
 import { supporters } from "./sponsors.js";
 import { packsRouter } from "./packs/routes.js";
 import { bundleRouter } from "./packs/bundle.js";
-import { cachedPublicUsage, collectRouter, PUBLIC_USAGE_MAX_AGE_S, statsRouter } from "./analytics.js";
+import { cachedPublicUsage, collectRouter, PUBLIC_USAGE_MAX_AGE_S, rateLimiter, statsRouter } from "./analytics.js";
 import { vitalsRouter } from "./vitals.js";
 import { abuseMonitor } from "./moderation.js";
 import { homeOverview } from "./api/home.js";
@@ -182,10 +182,35 @@ const code = (x: unknown) => {
 };
 
 /** Tiny per-IP token bucket (heavy endpoints only). */
+/** The visitor's address. Behind Cloudflare the connection nginx sees is Cloudflare's edge, so req.ip (one trusted
+ *  proxy) is that edge, shared by every visitor it serves: Cloudflare names the visitor in CF-Connecting-IP. Without
+ *  Cloudflare in front (local, tests), req.ip. Only a limit's key: never stored, never logged. */
+export const visitorIp = (req: Request): string => {
+  const cf = req.get("cf-connecting-ip")?.trim();
+  return cf && cf.length <= 64 ? cf : (req.ip ?? "?");
+};
+
+/** Searches one visitor address may make a minute (the /search page and /api/search together). Generous: a person
+ *  searches every few seconds at most, and a whole venue can share one address; a script hammering search from one
+ *  address gets 429 with Retry-After. Bruno's k6 run (100 users, 5 s apart, one machine) makes ~800 a minute. */
+export const SEARCHES_PER_MINUTE = 1_200;
+const SEARCH_WINDOW_MS = 60_000;
+
+/** The search limit (server/analytics.ts rateLimiter: a fixed minute per address, held in memory only). */
+export function searchLimit(max = SEARCHES_PER_MINUTE, windowMs = SEARCH_WINDOW_MS) {
+  const allow = rateLimiter(max, windowMs);
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (allow(visitorIp(req))) { next(); return; }
+    res.setHeader("Retry-After", String(Math.ceil(windowMs / 1000)));
+    res.setHeader("Cache-Control", "no-store");
+    res.status(429).type("text/plain").send("Too many searches from this address: try again in a minute.");
+  };
+}
+
 function limiter(perMinute: number) {
   const buckets = new Map<string, { tokens: number; at: number }>();
   return (req: Request, res: Response, next: NextFunction) => {
-    const ip = req.ip ?? "?";
+    const ip = visitorIp(req);
     const now = Date.now();
     const b = buckets.get(ip) ?? { tokens: perMinute, at: now };
     b.tokens = Math.min(perMinute, b.tokens + ((now - b.at) / 60000) * perMinute);
@@ -274,6 +299,8 @@ export function createApp(opts: { dist?: string } = {}) {
   // Same matching as Express routing (case-insensitive, optional trailing slash).
   app.use((req, res, next) => (/^\/api\/(collect(\/vitals)?|digest\/webhook|csp-report)\/?$/i.test(req.path) ? next() : json(req, res, next)));
 
+  // One search limit for the page and the API (searchLimit): a visit to /search and the app's request for it count as two.
+  const searches = searchLimit();
   const api = express.Router();
   // Every route's :code, as stored: an address may spell it in any case (/api/events/2019/2019INMEET10 is event
   // 2019INMeet10). A code that can't be one is left for code() to refuse; a season that isn't digits, for season().
@@ -370,7 +397,7 @@ export function createApp(opts: { dist?: string } = {}) {
     return s;
   }));
 
-  api.get("/search", h(async (req) => {
+  api.get("/search", searches, h(async (req) => {
     await ensureSearchIndex(rebuildSearch);
     const prefer = preferOf(req.query.prefer);
     // ?kinds=event,place: only those kinds, picked before the limit (unknown names are ignored).
@@ -967,6 +994,8 @@ export function createApp(opts: { dist?: string } = {}) {
   app.use(CSP_REPORT_PATH, cspReportRouter());
   app.use("/api", api);
   app.use("/packs", packsRouter());
+  // The /search page counts against the same search limit as /api/search (searchLimit).
+  app.get(/^\/search\/?$/i, searches);
   // Light pages for a weak signal (server/lite/, docs/lite.md): /lite/…, and ?lite=1 on a rich page's address.
   app.use(liteSwitch);
   app.use("/lite", liteRouter());
