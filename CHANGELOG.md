@@ -25,7 +25,7 @@ Search ranks a championship's divisions by one game phase's OPR when asked.
 - [fixes] A phase with no OPR on record says so
 
 ### Fixed
-- Search: "which championship division was hardest this year, by average auto OPR" (in any word order) ranks the divisions by their teams' average Auto OPR, labelled on the card, instead of no answer. TeleOp and Endgame OPR work the same way. A phase's points without OPR, or another stat, still isn't answered with OPR.
+- Search: "which championship division was hardest this year, by average auto OPR" (in any word order) ranks the divisions by their teams' average Auto OPR, labelled on the card, instead of no answer. TeleOp and Endgame OPR work the same way. A phase's points without OPR, or another stat, still isn't answered with OPR. (#1336)
 
 ## 5.2.6 — 2026-11-10
 
