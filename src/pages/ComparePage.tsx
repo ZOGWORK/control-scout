@@ -485,7 +485,7 @@ function Compare({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: number
           {t.map((x, i) => (
             <div key={x.team.number} className="min-w-0 rounded-xl border border-border bg-card p-3">
               <p className="flex items-center gap-2 text-sm font-semibold"><span className="size-2.5 shrink-0 rounded-full" style={{ background: COLORS[i] }} />
-                <Link to={`/teams/${x.team.number}?season=${d.season}`} className="truncate hover:text-accent-text pointer-coarse:flex pointer-coarse:min-h-[44px] pointer-coarse:items-center">{x.team.number} {x.team.name}</Link></p>
+                <Link to={`/teams/${x.team.number}?season=${d.season}`} className="truncate hover:text-accent-text pointer-coarse:block pointer-coarse:leading-[44px]">{x.team.number} {x.team.name}</Link></p>
               <ul className="mt-2 space-y-1 text-xs">
                 {x.events.length ? x.events.map((e) => (
                   <li key={e.code} className="flex items-baseline gap-2 pointer-coarse:min-h-[44px] pointer-coarse:items-center">

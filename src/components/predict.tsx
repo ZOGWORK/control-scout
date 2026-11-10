@@ -436,6 +436,8 @@ type ListItem = { kind: "head"; gi: number; key: string } | { kind: "match"; gi:
 const ROW_H = 71, ROW_H_PHONE = 105, HEAD_H = 29, EVENT_HEAD_H = 41, EVENT_HEAD_H_PHONE = 57;
 /** A touch screen's match row is taller: its team chips and status row are 44 px (measured: 142 px a row at 390 px). */
 const ROW_TOUCH_EXTRA = 38;
+/** A heading that links its event is a 44 px line on a touch screen (measured: 56 px with its padding and border). */
+const HEAD_TOUCH_H = 56;
 
 /** A match list's row. Memoized: a windowed list renders again at each step of a scroll, and then only the rows
  *  that change, or arrive, render. */
@@ -503,7 +505,7 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
   const [touch] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.("(pointer: coarse)").matches);
   const estimate = (i: number) => {
     const x = flat[i];
-    return x.kind === "match" ? (phone ? ROW_H_PHONE : ROW_H) + (touch ? ROW_TOUCH_EXTRA : 0) : groups[x.gi].date ? (phone ? EVENT_HEAD_H_PHONE : EVENT_HEAD_H) : HEAD_H;
+    return x.kind === "match" ? (phone ? ROW_H_PHONE : ROW_H) + (touch ? ROW_TOUCH_EXTRA : 0) : groups[x.gi].date ? (phone ? EVENT_HEAD_H_PHONE : EVENT_HEAD_H) : touch && groups[x.gi].href ? HEAD_TOUCH_H : HEAD_H;
   };
   const loc = useLocation();
   // Named by page and kind of list, so coming Back to it finds its rows' measured heights.
