@@ -43,9 +43,10 @@ export function dateRange(start: string | null | undefined, end?: string | null)
 }
 
 /** "Venue, City, State": each part trimmed of stray commas and spaces first (FIRST's data has venues like
- *  "Livingston High School,"), so the joined line never shows ",,". Empty parts drop out. */
+ *  "Livingston High School,"), so the joined line never shows ",,". Empty parts drop out, and so does a part that is
+ *  only digits: some countries' state codes in FIRST's data are numbers ("San Lorenzo, 11, Paraguay"), which name nothing. */
 export const place = (...xs: (string | null | undefined)[]) =>
-  xs.map((x) => (x ?? "").replace(/^[\s,]+|[\s,]+$/g, "")).filter(Boolean).join(", ");
+  xs.map((x) => (x ?? "").replace(/^[\s,]+|[\s,]+$/g, "")).filter((x) => x && !/^\d+$/.test(x)).join(", ");
 
 /** Match time (FIRST: event-local, no zone) → "Sat 10:42". */
 export function matchTime(t: string | null | undefined): string {
