@@ -10,8 +10,9 @@ import { TAP, TEAM_BAR, TEAM_TEXT } from "./answerCells";
 
 export function ChanceBar({ b }: { b: Extract<StatBlock, { kind: "chance" }> }) {
   const p = Math.min(1, Math.max(0, b.p)), pc = Math.round(100 * p);
-  // Printed as Predict prints odds: a chance under 1.5% is "1%", over 98.5% "99%" (never a false 0 or 100); a settled 0 or 1 as is.
-  const shown = oddsPct(p, p === 0 || p === 1);
+  // Printed as Predict prints odds: a chance under 1.5% is "1%", over 98.5% "99%", even a simulated 0 or 1 (never a
+  // false 0 or 100); only a chance marked decided prints as it is.
+  const shown = oddsPct(p, b.decided === true);
   return (
     <section data-block="chance">
       <p className="text-sm"><span className={cn("font-display text-3xl font-semibold tabular-nums", TEAM_TEXT)} data-chance-value data-kpi>{shown}</span> <span className="text-muted-foreground">{b.label}</span></p>

@@ -8,7 +8,7 @@
 import type { StatAnswer, StatBlock } from "../../../../src/shared/searchStat.js";
 import { awardLabel, dateRange, oddsPct, seasonLabel } from "../../../../src/shared/format.js";
 import { predictHref } from "../../../../src/shared/predictUrl.js";
-import { eventStatus } from "../../../../src/shared/eventDay.js";
+import { eventStatus, eventToday } from "../../../../src/shared/eventDay.js";
 import { forecastTier, projectionTier } from "../../../../src/shared/forecastTier.js";
 import { advanceStatus } from "../../../../src/shared/projections.js";
 import { CURRENT_SEASON, FIRST_PREDICT_SEASON, isLegacy } from "../../../data/seasons.js";
@@ -27,8 +27,9 @@ export type Toward = "worlds" | "states" | null;
 
 interface Ev { season: number; code: string; name: string; type: string | null; start: string | null; end: string | null; region: string | null; division_code: string | null; timezone: string | null }
 
-/** Odds printed as Predict prints them ("1%" for a long shot, never a false 0%). */
-const pct = (p: number) => oddsPct(p, p <= 0 || p >= 1);
+/** Odds printed as Predict prints them: "1%" for a long shot, never a false 0% or 100%, even when no simulated run
+ *  (or every one) had it: a forecast is never a settled outcome. */
+const pct = (p: number) => oddsPct(p, false);
 const EV_COLS = "e.season, e.code, e.name, e.type, e.start, e.end, e.region, e.division_code, e.timezone";
 /** FIRST's event types a team can advance from, by where they lead. */
 const TO_STATES = ["Qualifier", "LeagueTournament", "SuperQualifier"];
@@ -159,7 +160,9 @@ export async function seasonAdvancement(team: AnswerTeam, o: { season: number | 
   /** False for the search dropdown: no new simulation (see oddsAt). */
   simulate?: boolean }): Promise<StatAnswer> {
   const sim = o.simulate ?? true;
-  const today = new Date(o.now).toISOString().slice(0, 10), types = typesFor(o.toward), S = seasonLabel(o.season ?? CURRENT_SEASON);
+  const types = typesFor(o.toward), S = seasonLabel(o.season ?? CURRENT_SEASON);
+  // Past or still to come by the venue's own calendar (as advancementAt's status reads it), never UTC's date.
+  const ended = (e: Ev) => (e.end ?? e.start ?? "9999") < eventToday(o.now, e.timezone).from;
   // The team's events of those types; a championship split into divisions is the team's division, where its odds are made.
   const evs = await all<Ev>(
     `SELECT DISTINCT ${EV_COLS} FROM ${ROSTER} r JOIN events e ON e.season = r.season AND e.code = r.code
@@ -167,7 +170,7 @@ export async function seasonAdvancement(team: AnswerTeam, o: { season: number | 
        OR (${o.toward ? "0" : "1"} AND EXISTS (SELECT 1 FROM event_projections x WHERE x.season = e.season AND x.code = e.code)))${o.region ? ` AND e.country = ?${o.region.state ? " AND e.state = ?" : ""}` : ""}
        AND NOT EXISTS (SELECT 1 FROM events d WHERE d.season = e.season AND d.division_code = e.code)
      ORDER BY e.start DESC, e.code`, [team.number, FIRST_PREDICT_SEASON, ...types, ...(o.region ? [o.region.country, ...(o.region.state ? [o.region.state] : [])] : [])]);
-  const upcoming = evs.filter((e) => (e.end ?? e.start ?? "") >= today && Number(e.season) === (o.season ?? CURRENT_SEASON)).reverse();
+  const upcoming = evs.filter((e) => !!(e.end ?? e.start) && !ended(e) && Number(e.season) === (o.season ?? CURRENT_SEASON)).reverse();
   // The soonest few: each may need a simulation, and a team is rarely listed for more than a couple ahead.
   // One on today's date may be over already (every match played): it's the latest, not the next.
   const overToday: Ev[] = [];
@@ -177,7 +180,7 @@ export async function seasonAdvancement(team: AnswerTeam, o: { season: number | 
     if (!a.none) return { ...a, scope: [...a.scope, "Its next advancing event"] };
   }
   const toward = o.toward === "worlds" ? "event that sends teams to Worlds" : o.toward === "states" ? "event that sends teams to its championship" : "advancing event";
-  const past = [...overToday, ...evs.filter((e) => (e.end ?? e.start ?? "9999") < today)];
+  const past = [...overToday, ...evs.filter(ended)];
   // The season asked, when it's over: its latest event, the answer itself. Else the latest one, said why.
   const over = o.season != null && o.season < CURRENT_SEASON;
   // A season named for a championship never reached keeps to that season: another season's odds never stand in.

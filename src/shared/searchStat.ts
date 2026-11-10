@@ -134,7 +134,9 @@ export type StatBlock =
   | { kind: "related"; title: string; queries: string[] }
   /** A chance on a 0–100% scale (the search results guide, §8 "Prediction"): the number, a bar split at it from 0, the
    *  call's score with its range when there is one, and the card's one action (Open in Predict). */
-  | { kind: "chance"; label: string; p: number; who: string; note?: string; action?: StatLink };
+  | { kind: "chance"; label: string; p: number; who: string; note?: string; action?: StatLink;
+      /** The outcome is already settled, so 0 and 1 print as 0% and 100%; a forecast never does (AGENTS.md rule 9). */
+      decided?: boolean };
 
 /** One metric in a comparison (server/api/answers/compareBlock.ts). */
 export interface CompareRow {
