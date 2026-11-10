@@ -336,7 +336,9 @@ async function eventBoardAnswer(b: BoardQuestion, ev: NonNullable<BoardQuestion[
   // Records there by the official rule (playoffs and qualification no-shows counted), summed over its divisions.
   const there = new Map<number, { wins: number; losses: number; ties: number }>();
   for (const r of await all<{ team: number; wins: number; losses: number; ties: number }>(
-    recordSql(`mt.season = ? AND (e.code IN (${inList}) OR e.division_code IN (${inList}))`), [ev.season, ...ev.codes, ...ev.codes])) {
+    // The event and its divisions picked by code first: an OR on the joined events table kept SQLite from the match
+    // rows' own index, and it read the whole season's (1–4 s for a championship, measured 2026-11-10; now 6–45 ms).
+    recordSql(`mt.season = ? AND mt.code IN (SELECT code FROM events WHERE season = ? AND (code IN (${inList}) OR division_code IN (${inList})))`), [ev.season, ev.season, ...ev.codes, ...ev.codes])) {
     const o = there.get(Number(r.team)) ?? { wins: 0, losses: 0, ties: 0 };
     there.set(Number(r.team), { wins: o.wins + Number(r.wins), losses: o.losses + Number(r.losses), ties: o.ties + Number(r.ties) });
   }
