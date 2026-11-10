@@ -1021,11 +1021,15 @@ export function createApp(opts: { dist?: string } = {}) {
       // is drawn as it always was and nothing is kept.
       const page = req.method === "GET" && CACHED_PAGE.test(req.path) ? await keptPage(pageKey(req.path, query), () => drawPage(file, req.path, query)).catch(() => null) : null;
       if (page) {
+        // A search is counted on every visit, the kept page's too (server/api/searchIntents.ts: what people ask for).
+        void recordIntent(page.intent).catch(() => {});
         res.setHeader(cspHeaderName(), page.csp);
         res.setHeader("Vary", "Accept-Encoding");
         // The same for everyone (no personal data in these pages): a browser revalidates every time (the ETag makes it
         // a cheap 304), and a shared cache such as Cloudflare's may keep a found page for as long as this server does.
-        if (page.status === 200) res.setHeader("Cache-Control", `public, max-age=0, must-revalidate, s-maxage=${PAGE_TTL_MS / 1000}`);
+        // Never a search page: each of its visits reaches this server, so it is counted.
+        const shared = /^\/search$/i.test(req.path) ? "" : `, s-maxage=${PAGE_TTL_MS / 1000}`;
+        if (page.status === 200) res.setHeader("Cache-Control", `public, max-age=0, must-revalidate${shared}`);
         const gz = req.acceptsEncodings("gzip") ? await page.gz.catch(() => null) : null;
         if (gz) res.setHeader("Content-Encoding", "gzip");
         res.status(page.status).type("html").send(gz ?? page.html);
@@ -1033,6 +1037,7 @@ export function createApp(opts: { dist?: string } = {}) {
       }
       // The query names the page's view: rankings filters, a shared matchup (its card is the link preview).
       const drawn = await renderPage(file, req.path, query);
+      void recordIntent(drawn.intent).catch(() => {});
       setPageCsp(res, drawn.html);
       res.status(drawn.status).type("html").send(drawn.html);
     }));

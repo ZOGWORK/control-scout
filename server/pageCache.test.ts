@@ -7,7 +7,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { migrate, openDb, setDb } from "./db";
+import { all, migrate, openDb, run, setDb } from "./db";
+import { rebuildSearch } from "./stats/job";
 import { createApp } from "./app";
 import { clearAllCaches } from "./caches";
 import { CACHED_PAGE, pageKey } from "./pageCache";
@@ -85,6 +86,24 @@ describe("the HTML route", () => {
     const missing = await fetch(`${base}/teams/4215`);
     expect(missing.status).toBe(404);
     expect(missing.headers.get("cache-control")).toBe("no-cache");
+  });
+
+  it("counts every visit to a search, though its page is drawn once", async () => {
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (40001, 'Prism Lights', 'Edison', 'NJ', 'USA')");
+    await rebuildSearch();
+    const path = `/search?q=${encodeURIComponent("40001 robot specs")}`;
+    expect((await fetch(`${base}${path}`)).status).toBe(200);
+    const drawn = keptCounts().pages;
+    for (let i = 0; i < 2; i++) expect((await fetch(`${base}${path}`)).status).toBe(200);
+    expect(keptCounts().pages).toBe(drawn);
+    // Counted after the page is sent: give the write a turn to land.
+    await new Promise((r) => setTimeout(r, 50));
+    expect(await all<{ kind: string; count: number }>("SELECT kind, count FROM search_intents")).toEqual([{ kind: "robot-specs", count: 3 }]);
+  });
+
+  it("never lets a shared cache keep a search page", async () => {
+    const r = await fetch(`${base}/search?q=${encodeURIComponent("4215 opr")}`);
+    expect(r.headers.get("cache-control")).toBe("public, max-age=0, must-revalidate");
   });
 
   it("sends plain HTML to a client that takes no gzip", async () => {

@@ -36,7 +36,7 @@ import { staticRankingsHtml } from "./powerRankings/static.js";
 import { isWeekId, weekLabel, type PowerRankingsResponse } from "../src/shared/powerRankings.js";
 import { trackRecordIfReady } from "./api/accuracy.js";
 import { isEnabled } from "./flags.js";
-import type { SearchCardLine, TrackRecord } from "../src/shared/api.js";
+import type { SearchCardLine, SearchIntentNote, TrackRecord } from "../src/shared/api.js";
 import { compareTitle } from "../src/shared/compareUrl.js";
 import { ensureSearchIndex } from "./api/search.js";
 import { MAX_QUERY } from "./api/searchAnswer.js";
@@ -44,7 +44,6 @@ import { pageAnswer } from "./api/answers/followUps.js";
 import { relatedPage } from "./api/answers/relatedPage.js";
 import { withTeamStats } from "./api/searchTeamStats.js";
 import { withEventParents } from "./api/searchEvents.js";
-import { recordIntent } from "./api/searchIntents.js";
 import { answerSections } from "../src/shared/searchSections.js";
 import { rebuildSearch } from "./stats/job.js";
 import { SEARCH_HITS_ID, SEARCH_PAGE_LIMIT, SORRY_SENTENCE, cardWho, hitHref, relatedApiPath, relatedQuery, relatedSearch } from "../src/shared/search.js";
@@ -95,6 +94,9 @@ export interface PageMeta {
   /** Lists a drawn first paint leaves closed or on another tab (a team's events, an event's standings), as already-safe
    *  HTML: shown under it, so the first HTML has them either way. */
   moreHtml?: string;
+  /** /search: what the query asked for (server/api/searchIntents.ts). Counted by the HTML route on every visit
+   *  (server/app.ts), never here: a kept page (server/pageCache.ts) is drawn once for many visits. */
+  intent?: SearchIntentNote;
 }
 
 
@@ -622,8 +624,6 @@ async function searchMeta(raw: string): Promise<PageMeta> {
   const found = await pageAnswer(q, SEARCH_PAGE_LIMIT, NO_PREFER);
   // As /api/search sends it: team rows with their season numbers, so the app starts from the same answer.
   const answer = { ...found, hits: await withTeamStats(await withEventParents(found.hits)) };
-  // A visit here is a whole query (the address bar's, or a shared link): its intent counts, never as it's typed.
-  await recordIntent(answer.intent).catch(() => {});
   const { sections, notes } = answerSections(answer);
   // A question search can't answer yet (server/api/answers/sorry.ts): the heading says sorry, once; what was read and
   // the searches that answer are its note, so the badge (which would say the team and sorry again) is left out.
@@ -673,7 +673,7 @@ async function searchMeta(raw: string): Promise<PageMeta> {
   const data = `<script type="application/json" id="${SEARCH_HITS_ID}">${JSON.stringify({ ...answer, q }).replace(/</g, "\\u003c")}</script>`;
   const n = answer.hits.length;
   return {
-    title: `Search: ${q}`, heading, type: "website", bodyHtml: body + data, searchPage: true,
+    title: `Search: ${q}`, heading, type: "website", bodyHtml: body + data, searchPage: true, intent: answer.intent,
     description: n ? `${n === SEARCH_PAGE_LIMIT ? `The top ${n}` : n} FTC team, event and match results for “${q}” on Control Scout.` : `No FTC team, event or match matches “${q}”.`,
   };
 }

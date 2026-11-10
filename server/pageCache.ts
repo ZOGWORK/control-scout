@@ -11,6 +11,7 @@ import { gzip } from "node:zlib";
 import { promisify } from "node:util";
 import { renderPage } from "./seo.js";
 import { buildCsp, inlineScriptHashes } from "./securityHeaders.js";
+import type { SearchIntentNote } from "../src/shared/api.js";
 
 const gzipAsync = promisify(gzip);
 
@@ -24,6 +25,8 @@ export interface KeptPage {
   csp: string;
   /** The HTML gzipped, for a visitor who accepts gzip (compression's default level). */
   gz: Promise<Buffer>;
+  /** A search page's intent, counted by the route on every visit to the kept page (server/seoMeta.ts PageMeta.intent). */
+  intent?: SearchIntentNote;
 }
 
 /** The key a drawn page is kept under: its path (trailing slash dropped) and query, keys sorted, repeats in order. */
@@ -43,5 +46,5 @@ export async function drawPage(file: string, path: string, query: Record<string,
   // A failed gzip is a failed page: not kept (keep() drops a rejected value), and the plain HTML is sent instead.
   const gz = gzipAsync(page.html);
   gz.catch(() => undefined);
-  return { status: page.status, html: page.html, csp: buildCsp(inlineScriptHashes(page.html)), gz };
+  return { status: page.status, html: page.html, csp: buildCsp(inlineScriptHashes(page.html)), gz, ...(page.intent ? { intent: page.intent } : {}) };
 }
