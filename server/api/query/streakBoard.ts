@@ -7,6 +7,7 @@ import type { Region } from "../../../src/shared/regions.js";
 import { seasonLabel } from "../../../src/shared/format.js";
 import { all } from "../../db.js";
 import { matchHref, shortEvent, teamLinks } from "../answers/matchSet.js";
+import { OFFICIAL_TYPES } from "../../../src/shared/eventRecord.js";
 
 interface Row { team: number; season: number; code: string; level: string; series: number; number: number; label: string; name: string; type: string | null; alliance: string; red_total: number; blue_total: number }
 
@@ -18,10 +19,14 @@ export async function streakBoardAnswer(o: { region: Region; season: number; now
   const rows = await all<Row>(`SELECT t.team, m.season, m.code, m.level, m.series, m.number, m.label, e.name, e.type, t.alliance, m.red_total, m.blue_total
     FROM match_teams t JOIN matches m ON m.season = t.season AND m.code = t.code AND m.level = t.level AND m.series = t.series AND m.number = t.number
     JOIN events e ON e.season = m.season AND e.code = m.code JOIN teams tm ON tm.number = t.team
-    WHERE t.on_field = 1 AND m.played = 1 AND m.red_total IS NOT NULL AND m.blue_total IS NOT NULL AND m.season IN (?, ?)
+    WHERE m.played = 1 AND m.red_total IS NOT NULL AND m.blue_total IS NOT NULL AND m.red_np IS NOT NULL AND m.blue_np IS NOT NULL AND m.season IN (?, ?)
+      -- The one record rule (src/shared/eventRecord.ts recordSql): official in-person events; a qualification no-show
+      -- counts and a surrogate match doesn't.
+      AND COALESCE(e.remote, 0) = 0 AND e.type IN (${OFFICIAL_TYPES.map(() => "?").join(", ")})
+      AND CASE WHEN t.level = 'qual' THEN COALESCE(t.surrogate, 0) = 0 ELSE COALESCE(t.on_field, 1) = 1 END
       AND tm.country = ?${o.region.state ? " AND tm.state = ?" : ""}
     ORDER BY t.team, COALESCE(m.time, e.start), e.start, m.code, CASE m.level WHEN 'qual' THEN 0 ELSE 1 END, m.series, m.number`,
-    [o.season - 1, o.season, o.region.country, ...(o.region.state ? [o.region.state] : [])]);
+    [o.season - 1, o.season, ...OFFICIAL_TYPES, o.region.country, ...(o.region.state ? [o.region.state] : [])]);
   const result = (r: Row) => (r.red_total === r.blue_total ? "T" : (r.red_total > r.blue_total) === (r.alliance === "red") ? "W" : "L");
   const byTeam = new Map<number, Row[]>();
   for (const r of rows) byTeam.set(Number(r.team), [...(byTeam.get(Number(r.team)) ?? []), r]);
@@ -39,7 +44,7 @@ export async function streakBoardAnswer(o: { region: Region; season: number; now
   const seasons = `${seasonLabel(o.season - 1)} and ${seasonLabel(o.season)}`;
   const lead = o.now ? going : longest;
   const title = `${o.now ? "Current" : "Longest"} ${kind} streaks in ${o.region.name}`;
-  const definition = `A streak: matches in a row with the same result for one team, in date order across events and seasons (a tie ends it). Longest: the longest run in ${seasons}; going now: the run up to the team's latest match. Teams from ${o.region.name}, every match they played in ${seasons}, final scores with penalties.`;
+  const definition = `A streak: matches in a row with the same result for one team, in date order across events and seasons (a tie ends it). Longest: the longest run in ${seasons}; going now: the run up to the team's latest match. Teams from ${o.region.name}, their official, in-person matches in ${seasons} as their records count them, final scores with penalties.`;
   const base = { family: "aggregate" as const, intent: "streak-board", title, scope: [o.region.name, seasons], definition, source: `From ${rows.length.toLocaleString("en-US")} match results of ${byTeam.size.toLocaleString("en-US")} teams from ${o.region.name}` };
   if (!lead.length) return { ...base, blocks: [], none: byTeam.size ? `No team from ${o.region.name} is on a ${kind} streak${o.now ? " now: each one's latest match broke it" : ` in ${seasons}`}.` : `No matches played by teams from ${o.region.name} in ${seasons} on record.` };
   const links = await teamLinks([...longest.slice(0, o.n), ...going.slice(0, o.n)].map((r) => r.team));

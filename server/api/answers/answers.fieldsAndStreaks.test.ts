@@ -37,6 +37,14 @@ beforeAll(async () => {
     for (const [t, a] of [[6101, "red"], [6102, "red"], [6103, "blue"], [6104, "blue"]] as const)
       await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (?, 'USNJQ1', 'qual', 0, ?, ?, ?, 1)", [S, n, t, a]);
   }
+  // An off-season event after it: red wins three more, never on a record.
+  await event("USNJOFF", "Ridge Off-Season Scrimmage", "OffSeason", null, "NJ", "2026-01-20");
+  for (const n of [1, 2, 3]) {
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (?, 'USNJOFF', 'qual', 0, ?, ?, ?, 1, 90, 90, 10, 10, 't')",
+      [S, n, `Q${n}`, `2026-01-20T1${n}:00:00Z`]);
+    for (const [t, a] of [[6101, "red"], [6102, "red"], [6103, "blue"], [6104, "blue"]] as const)
+      await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (?, 'USNJOFF', 'qual', 0, ?, ?, ?, 1)", [S, n, t, a]);
+  }
   await rebuildSearch();
 });
 
@@ -81,7 +89,8 @@ describe("a place's teams by win streak", () => {
   it("the longest run and the run going now, a tie or a loss ending it", async () => {
     const a = await ask("who has the longest winning streak in new jersey right now");
     expect(a.stat?.intent).toBe("streak-board");
-    // Red won Q1, Q2 (2 in a row), lost Q3, won Q4: the longest is 2, the run going now 1.
+    // Red won Q1, Q2 (2 in a row), lost Q3, won Q4: the longest is 2, the run going now 1. The off-season wins after
+    // it are on no record, so they never add to either.
     expect(a.stat?.headline?.value).toBe("2 wins");
     const tables = (a.stat?.blocks ?? []).filter((b) => b.kind === "table");
     expect(tables.map((b) => b.kind === "table" && b.title)).toEqual(["Longest in 2024–25 and 2025–26", "Going now, up to each team's latest match"]);
