@@ -49,7 +49,8 @@ export async function listEvents(f: EventListFilter): Promise<EventSummary[]> {
   if (f.type) { where.push("e.type = ?"); args.push(f.type); }
   if (f.region) { where.push("e.region = ?"); args.push(f.region); }
   if (f.q) { where.push("(e.name LIKE ? OR e.code LIKE ? OR e.city LIKE ?)"); const like = `%${f.q}%`; args.push(like, like, like); }
-  if (f.hideNoMatch) { where.push(`e.type NOT IN (${NO_MATCH_TYPES.map(() => "?").join(",")})`); args.push(...NO_MATCH_TYPES); }
+  // Only the known no-match types are left out: an event with no type stays (as in Scout's picker), never dropped by NULL NOT IN.
+  if (f.hideNoMatch) { where.push(`(e.type IS NULL OR e.type NOT IN (${NO_MATCH_TYPES.map(() => "?").join(",")}))`); args.push(...NO_MATCH_TYPES); }
   const rows = await all<any>(`${SUMMARY_SQL} WHERE ${where.join(" AND ")} ORDER BY e.start, e.name LIMIT ?`, [...args, f.limit ?? 2000]);
   return rows.map(summary);
 }

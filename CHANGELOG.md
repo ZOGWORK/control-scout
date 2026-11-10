@@ -27,7 +27,7 @@ The Events page opens on every event, its video and status filters never leave a
 ### Fixed
 - `/events` with no status in the address opened on Live now whenever one event was live, hiding the rest of the season behind a short list. It now opens on All; a status in the address (`?status=live`) still holds.
 - On Events, picking "Match clips" (or "Has a recording") while a status with no such event was picked (Upcoming, Live now) showed "No events match". A video pick now sends that status back to All, and a status tap with nothing under the video picked drops the video filter (`videoPick`, `statusPick` in `src/pages/eventsList.ts`). (#1345)
-- Scout's event picker counted 1,630 events (447 finished) where Events counted 1,411 (230 finished): it listed kickoffs, workshops, practice days and the other types with no matches, which Events leaves out. It now lists the Events page's set, so the counts agree; picking one of those types in its Event type filter still lists them, as a pit can be scouted at a practice day. The list of those types lives once, in `src/shared/labels.ts` (`NO_MATCH_TYPES`).
+- Scout's event picker counted 1,630 events (447 finished) where Events counted 1,411 (230 finished): it listed kickoffs, workshops, practice days and the other types with no matches, which Events leaves out. It now lists the Events page's set, so the counts agree; picking one of those types in its Event type filter still lists them, as a pit can be scouted at a practice day. The list of those types lives once, in `src/shared/labels.ts` (`NO_MATCH_TYPES`), and an event with no type is listed on both.
 
 ## 5.3.5 — 2026-11-10
 
