@@ -26,7 +26,7 @@ The track record says which number is which: every figure carries its slice and 
 
 ### Changed
 - The home page's track record says plainly that its figure is a season replay, and states the live record beside it: live calls made in advance this season, the share of decided calls right, the Brier score, how early the season is (and how many calls are rough guesses), and that live calls aren't the card's figure until 10,000 are scored. All from the accuracy API, never typed in. (#1276)
-- How it works › Accuracy lists every headline-sized figure the site quotes, each with its slice and sample: this season's replay so far, live calls made in advance, the headline replay, and the Prediction Engine 2.0 replay. None of them is "the live accuracy" on its own. (#1276)
+- How it works › Accuracy lists every headline-sized figure the site quotes, each with its slice and sample: this season's replay so far, live calls made in advance, the headline replay, and the Prediction Engine 2.0 replay. None of them is "the live accuracy" on its own.
 
 ## 4.9.2 — 2026-11-09
 
