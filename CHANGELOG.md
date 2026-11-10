@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.0.8 — 2026-11-10
+
+A finished bracket shows the call each series had before it began, and whether it held.
+
+### Highlights
+- [predict] Every decided series shows the call it had before it began
+- [predict] Held or missed, said plainly beside each one
+- [predict] Live calls and season-replay calls are labelled apart
+
+### Changed
+- Event › Playoffs: a decided series showed no call at all, so a finished event's bracket had every call empty. Each decided series now shows the call stored before its first match (logged live before the match, or the season replay's, said which), priced as the whole series, and whether the favourite won: held, missed, or an even call. Undecided series keep the odds from 10,000 simulated playoffs. (#1302)
+
 ## 5.0.7 — 2026-11-10
 
 Search reads "champs", numbers said as words, and seasons written with a comma.
