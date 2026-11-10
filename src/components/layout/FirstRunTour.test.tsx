@@ -27,9 +27,10 @@ function laidOut(this: Element) {
 }
 
 /** The bits of a page the tour points at (a team page's, unless turned off). */
-function TeamPage({ team = true, search = true, matches = false }: { team?: boolean; search?: boolean; matches?: boolean }) {
+function TeamPage({ team = true, search = true, matches = false, loading = false }: { team?: boolean; search?: boolean; matches?: boolean; loading?: boolean }) {
   return (
     <div>
+      {loading && <div className="skeleton" />}
       {search && <button type="button" data-tour="search">Search</button>}
       <button type="button" id="before">Something</button>
       {team && <dl data-tour="rating"><dt>OPR</dt><dd>16</dd><dt>Rating</dt><dd>28.6</dd></dl>}
@@ -255,15 +256,15 @@ describe("steps adapt to the page", () => {
     expect(stepId()).toBe("watch");
   });
 
-  it("a team page missing a part leaves its step out (after looking again for a while, in case it loads late)", async () => {
+  it("a team page that will never have a part (no rating this season) leaves its step out, without waiting for it", async () => {
     mount({ team: false });
-    await waitFor(() => expect(card()).not.toBeNull(), { timeout: 15000 });
+    await opened();
     expect(screen.getByRole("dialog", { name: /Step 1 of 2/ })).toBeTruthy();
-  }, 20000);
+  });
 
-  it("a team page's parts that render late are still in its tour", async () => {
+  it("a team page's parts that render late (still loading past the wait) are still in its tour", async () => {
     const view = render(
-      <MemoryRouter initialEntries={["/teams/18360"]}><Nav /><TeamPage team={false} /><FirstRunTour /></MemoryRouter>,
+      <MemoryRouter initialEntries={["/teams/18360"]}><Nav /><TeamPage team={false} loading /><FirstRunTour /></MemoryRouter>,
     );
     await settle();
     expect(card()).toBeNull();

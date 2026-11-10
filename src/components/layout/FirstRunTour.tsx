@@ -130,8 +130,9 @@ export function FirstRunTour() {
     let again = 0;
     const stop = lookWhenSettled(retry ? START_RETRY_MS : seen.current ? FOLLOW_DELAY_MS : TOUR_DELAY_MS, true, () => {
       const ids = resolveSteps(path);
-      // Nothing to point at yet (no search box), or the team page's own parts still coming: look again.
-      const partial = tourKind(path) === "team" && ids.length < 4;
+      // Nothing to point at yet (no search box), or a team page's own parts while it's still loading: look again.
+      // A part the page will never have (no rating this season) doesn't hold the tour up.
+      const partial = tourKind(path) === "team" && ids.length < 4 && !!document.querySelector(".skeleton, [aria-busy=true]");
       if ((!ids.length || partial) && retry < START_RETRIES) { again = window.setTimeout(() => setRetry((n) => n + 1), 0); return; }
       if (!ids.length) return;
       if (!claimFirstRun(SLOT)) return; // another first-run surface got there first: try again when it's gone
@@ -200,7 +201,7 @@ export function FirstRunTour() {
   );
 }
 
-/** Looking again for a page's parts that weren't there yet: this often, this many times (about 10 s). */
+/** Looking again for a page's parts while it's still loading: this often, this many times (about 10 s). */
 const START_RETRY_MS = 1000;
 const START_RETRIES = 8;
 
