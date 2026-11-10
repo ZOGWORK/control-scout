@@ -3,7 +3,7 @@
 //
 // Live and backtest are always separate blocks — never blended. "Live" counts
 // only predictions written down before the match was played.
-import { all, kvGet } from "../db.js";
+import { all, allInChunks, get, kvGet } from "../db.js";
 import { CURRENT_SEASON, PREDICT_SEASONS, SEASONS, bonusLabels } from "../data/seasons.js";
 import { ENGINE_VERSION, type ConfidenceTier } from "@control-scout/predict-engine";
 import type { AccuracyBlock, BonusAccuracy, MarginError, RangeCoverage, RangeCoverageNow, ReplayCoverage, ShadowScore, TrackRecord } from "../../src/shared/api.js";
@@ -125,12 +125,17 @@ const bonusFlags = (s: unknown): [boolean, boolean, boolean] | null => {
   try { const v = JSON.parse(s); return v && typeof v === "object" ? [!!v.movement, !!v.goal, !!v.pattern] : null; } catch { return null; }
 };
 
+/** Let the event loop go: requests waiting behind a long build are answered in between. */
+const yieldLoop = () => new Promise<void>((r) => setImmediate(r));
+
 /** Every scored bonus RP call, by kind and season (calls whose match has recorded bonus RPs only). */
-async function bonusCalls(): Promise<Map<string, { calls: BonusCall[]; matches: number }>> {
-  const rows = await all<any>(
-    `SELECT p.kind, p.season, p.bonus_red, p.bonus_blue, m.red_bonus, m.blue_bonus FROM predictions p
+async function bonusCalls(chunk = 4_000): Promise<Map<string, { calls: BonusCall[]; matches: number }>> {
+  // In chunks (db.ts allInChunks): one read of every call held the server's one thread for a third of a second.
+  const rows = await allInChunks<any>(
+    `SELECT p.id pid, p.kind, p.season, p.bonus_red, p.bonus_blue, m.red_bonus, m.blue_bonus FROM predictions p
        JOIN matches m ON m.season = p.season AND m.code = p.code AND m.level = p.level AND m.series = p.series AND m.number = p.number
-      WHERE p.bonus_red IS NOT NULL AND p.outcome IS NOT NULL AND p.kind IN ('live', 'backtest') AND m.played = 1`,
+      WHERE p.bonus_red IS NOT NULL AND p.outcome IS NOT NULL AND p.kind IN ('live', 'backtest') AND m.played = 1 AND p.id > ?`,
+    [], "pid", chunk,
   );
   const out = new Map<string, { calls: BonusCall[]; matches: number }>();
   for (const r of rows) {
@@ -300,25 +305,65 @@ let pastCoverage: { key: string; value: Map<number, ReplayCoverage> } | null = n
 async function seasonCoverage(): Promise<Map<number, ReplayCoverage>> {
   const key = JSON.stringify((await kvGet<unknown>("stats:last")) ?? null);
   const past = PREDICT_SEASONS.filter((s) => s !== CURRENT_SEASON);
-  if (pastCoverage?.key !== key) pastCoverage = { key, value: await replayCoverage(past) };
+  // A season at a time, the event loop let go between: one read of every season held the thread for half a second.
+  if (pastCoverage?.key !== key) {
+    const value = new Map<number, ReplayCoverage>();
+    for (const s of past) { for (const [k, v] of await replayCoverage([s])) value.set(k, v); await yieldLoop(); }
+    pastCoverage = { key, value };
+  }
   const current = PREDICT_SEASONS.includes(CURRENT_SEASON) ? await replayCoverage([CURRENT_SEASON]) : new Map<number, ReplayCoverage>();
   return new Map([...pastCoverage.value, ...current]);
 }
 
+/** What the predictions table holds, in brief: any write between two reads of it (a call logged or scored, a season's
+ *  replay deleted and written again under new ids) changes it. */
+const callsFingerprint = async () => JSON.stringify(await get("SELECT COUNT(*) n, COALESCE(MAX(id), 0) m, COUNT(outcome) o, TOTAL(outcome) t, COALESCE(MAX(scored_at), '') s FROM predictions"));
+
+/**
+ * Every scored call and every bonus call, in chunks (db.ts allInChunks): read at once, the 100,000-odd scored calls
+ * held the server's one thread for 1.3–2.5 s after every data move (measured 2026-11-10), every visitor's request
+ * waiting behind it. In chunks, a write can land between two of them (a replay rewriting a season would be counted
+ * twice, or not at all), so the table is fingerprinted before and after, and read again if it moved; after three
+ * tries, each is read in one statement as it was before (consistent, and the thread held that once).
+ */
+async function scoredCalls(): Promise<{ rows: any[]; bonus: Awaited<ReturnType<typeof bonusCalls>> }> {
+  const SQL = "SELECT id, kind, season, p_red p, outcome y, tier, level, match_time time, engine_version engine, model_id model, p_red_shadow ps, shadow_model_id sm, red_lo, red_hi, blue_lo, blue_hi, range_level, red_score, blue_score, red_mean, blue_mean, no_score_basis FROM predictions WHERE outcome IS NOT NULL AND id > ?";
+  for (let i = 0; i < 3; i++) {
+    const before = await callsFingerprint();
+    const rows = await allInChunks<any>(SQL, [], "id");
+    const bonus = await bonusCalls();
+    if ((await callsFingerprint()) === before) return { rows, bonus };
+  }
+  const WHOLE = 1_000_000_000;
+  return { rows: await allInChunks<any>(SQL, [], "id", WHOLE), bonus: await bonusCalls(WHOLE) };
+}
+
 async function computeTrackRecord(): Promise<TrackRecord> {
-  const rows = await all<any>("SELECT kind, season, p_red p, outcome y, tier, level, match_time time, engine_version engine, model_id model, p_red_shadow ps, shadow_model_id sm, red_lo, red_hi, blue_lo, blue_hi, range_level, red_score, blue_score, red_mean, blue_mean, no_score_basis FROM predictions WHERE outcome IS NOT NULL");
+  const { rows, bonus } = await scoredCalls();
+  // Grouped once by kind and season: each season's blocks read their own calls, not all of them again.
+  const byKindSeason = new Map<string, any[]>();
+  for (const r of rows) {
+    const k = `${r.kind}|${Number(r.season)}`;
+    let xs = byKindSeason.get(k);
+    if (!xs) { xs = []; byKindSeason.set(k, xs); }
+    xs.push(r);
+  }
+  const calls = (kind: string, season: number) => byKindSeason.get(`${kind}|${season}`) ?? [];
   const coverage = await seasonCoverage();
-  const bonus = await bonusCalls();
-  const seasons = SEASONS.filter((s) => PREDICT_SEASONS.includes(s.season)).map((s) => {
-    const of = (kind: string, engine?: string) => rows.filter((r) => r.kind === kind && Number(r.season) === s.season && (engine == null || r.engine === engine))
+  // A season at a time, the event loop let go between (half a second of work over every season's calls).
+  const seasons: TrackRecord["seasons"] = [];
+  for (const s of SEASONS.filter((x) => PREDICT_SEASONS.includes(x.season))) {
+    await yieldLoop();
+    seasons.push((() => {
+    const of = (kind: string, engine?: string) => calls(kind, s.season).filter((r) => engine == null || r.engine === engine)
       .map((r) => ({ p: Number(r.p), y: Number(r.y), tier: r.tier, level: r.level, time: r.time, ranges: statedRanges(r), margin: callMargin(r) }));
     // Prospective evidence per engine version: each version's own calls only.
-    const engines = [...new Set(rows.filter((r) => r.kind === "live" && Number(r.season) === s.season).map((r) => String(r.engine)))].sort();
+    const engines = [...new Set(calls("live", s.season).map((r) => String(r.engine)))].sort();
     const liveByEngine = engines.map((engine) => { const b = block(of("live", engine))!; return { engine, n: b.n, decided: b.decided, accuracy: b.accuracy, brier: b.brier, logLoss: b.logLoss }; });
     // Paired: the same live calls scored for the served and the shadow model.
     const paired = new Map<string, { y: number; p: number; ps: number }[]>();
-    for (const r of rows) {
-      if (r.kind !== "live" || Number(r.season) !== s.season || r.ps == null || !r.model || !r.sm) continue;
+    for (const r of calls("live", s.season)) {
+      if (r.ps == null || !r.model || !r.sm) continue;
       const k = `${r.model}|${r.sm}`;
       let xs = paired.get(k);
       if (!xs) { xs = []; paired.set(k, xs); }
@@ -339,7 +384,9 @@ async function computeTrackRecord(): Promise<TrackRecord> {
       season: s.season, label: `${s.label} ${s.game}`, live: block(of("live")), backtest: block(of("backtest")), replay: coverage.get(s.season), liveByEngine, liveShadow,
       ...(labels ? { bonus: { live: bonusOf("live"), backtest: bonusOf("backtest") } } : {}),
     };
-  }).reverse();
+    })());
+  }
+  seasons.reverse();
   // Headline: the one rule every ledger card reads (src/shared/ledger.ts), always labelled with its kind.
   const headline = pickHeadline(seasons);
   // The most recent scored live calls (or none yet).
