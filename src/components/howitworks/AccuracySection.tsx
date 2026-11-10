@@ -13,7 +13,7 @@ import { BONUS_CONFIDENCE_RULE, BONUS_MIN_SAMPLES, BONUS_WINDOW, CONFIDENCE_RULE
 import { useApi } from "../../lib/api";
 import { useCurrentSeason } from "../../lib/meta";
 import type { AccuracyBlock, BonusAccuracy, MarginError, ReplayCoverage, TrackRecord } from "../../shared/api";
-import { brierSkill, headlineRule, LEDGER_MODE, ledgerDefault, liveCallsLine, type LedgerKind } from "../../shared/ledger";
+import { brierSkill, headlineRule, LEDGER_MODE, ledgerDefault, liveCallsLine, REPLAY_HEADLINE_MIN, type LedgerKind } from "../../shared/ledger";
 import { ago, pct } from "../../lib/format";
 import { cn } from "../cn";
 import { Badge } from "../ui/basic";
@@ -257,9 +257,10 @@ export function AccuracySection() {
 }
 
 /**
- * Every headline-sized accuracy figure this site quotes, each with its slice and its sample, in one list: the season in
- * progress replayed so far (the home card's figure), live calls made in advance (never the card's figure until the
- * threshold), the headline replay, and the Prediction Engine 2.0 replay from the engine's own write-up. None of them is
+ * Every headline-sized accuracy figure this site quotes, each with its slice and its sample, in one list: today's engine
+ * on the headline season's month-by-month test and the season in progress replayed so far (the home card's two tabs),
+ * live calls made in advance (never the card's figure until the threshold), the headline replay, and the Prediction
+ * Engine 2.0 replay from the engine's own write-up. None of them is
  * "the live accuracy" on its own, and the list reads the same numbers the home card does (the same API answer).
  */
 export function SlicesAtAGlance({ t }: { t: TrackRecord }) {
@@ -269,14 +270,17 @@ export function SlicesAtAGlance({ t }: { t: TrackRecord }) {
   const soFar = newest.find((s) => s.backtest && s.backtest.n > 0 && s.season !== head?.season && s.season > (head?.season ?? -Infinity));
   const live = newest.find((s) => (s.live?.n ?? 0) > 0);
   const rows: { slice: string; value: string; sample: string }[] = [];
-  if (soFar?.backtest) rows.push({ slice: `Season replay · ${soFar.label} so far`, value: soFar.backtest.decided > 0 ? pct(soFar.backtest.accuracy, 1) : "—", sample: `${n(soFar.backtest.decided)} decisive calls of ${n(soFar.backtest.n)} scored, replayed with only earlier matches · the home card's figure` });
+  // Today's engine on the month-by-month test of the headline season: the home card's "Last season" figure.
+  const eng = head ? CURRENT_ENGINE_ROWS.find((r) => r.seasonYear === head.season) : undefined;
+  if (eng && head) rows.push({ slice: `Engine ${CURRENT_ENGINE.version} tested month by month · ${head.label}`, value: pct(eng.accuracy, 1), sample: `${n(eng.correct)} right of ${n(eng.matches)} matches with a winner, each month predicted by an engine fitted only on the year before · the home card's "Last season" figure` });
+  if (soFar?.backtest) rows.push({ slice: `Season replay · ${soFar.label} so far`, value: soFar.backtest.decided > 0 ? pct(soFar.backtest.accuracy, 1) : "—", sample: `${n(soFar.backtest.decided)} decisive calls of ${n(soFar.backtest.n)} scored, replayed with only earlier matches · the home card's "This season so far" figure` });
   if (live?.live) {
     const l = live.live, early = l.n < t.liveThreshold;
     rows.push({ slice: `Live calls made in advance · ${live.label}`, value: l.decided > 0 ? pct(l.accuracy, 1) : "—", sample: `${n(l.decided)} decided of ${n(l.n)} scored · Brier ${l.brier.toFixed(4)}${early ? ` · early season, ${Math.round((100 * l.byTier.provisional.n) / l.n)}% rough guesses · not the headline until ${n(t.liveThreshold)} are scored` : " · leads the headline"}` });
   }
   if (head && t.headline) {
     const b = head[t.headline.kind];
-    if (b) rows.push({ slice: `Headline · ${head.label} ${t.headline.kind === "live" ? "live calls" : "season replay"}`, value: pct(b.accuracy, 1), sample: `${n(b.decided)} decided of ${n(b.n)} scored · the newest season past the ${n(t.headline.kind === "live" ? t.liveThreshold : 10_000)}-match bar` });
+    if (b) rows.push({ slice: `Headline · ${head.label} ${t.headline.kind === "live" ? "live calls" : "season replay"}`, value: pct(b.accuracy, 1), sample: `${n(b.decided)} decided of ${n(b.n)} scored · the newest season past the ${n(t.headline.kind === "live" ? t.liveThreshold : REPLAY_HEADLINE_MIN)}-match bar` });
   }
   rows.push({ slice: `Prediction Engine 2.0 replay · ${ENG.testSeason}`, value: `${(100 * E2.accuracy).toFixed(2)}%`, sample: `${n(E2.nonTies)} matches with a winner of ${n(E2.matches)} replayed · Brier ${E2.brier.toFixed(4)} (was ${E2.baselineBrier.toFixed(4)}) · the engine's own test, not this site's ledger` });
   return (
