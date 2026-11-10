@@ -29,7 +29,7 @@ The season's highest scores read calmly in blue, play each match's video in the 
 - Search: a row on that card whose match has a video shows the video's picture toward the right on wider screens, or a "Watch" button under the row on a phone; either plays in the app's video dialog. Rows without a video are unchanged.
 
 ### Fixed
-- Records: a score can be marked "Not an official record" for a whole event, not just one match. Carolinas Premier Event (DECODE, Jul 25–26, 2026) is now marked as a whole, so Q54 (592) carries the mark like Q49 (714), in search answers, best-score tables and the match finder.
+- Records: a score can be marked "Not an official record" for a whole event, not just one match. Carolinas Premier Event (DECODE, Jul 25–26, 2026) is now marked as a whole, so Q54 (592) carries the mark like Q49 (714), in search answers, best-score tables and the match finder. (#1341)
 
 ## 5.2.9 — 2026-11-10
 
