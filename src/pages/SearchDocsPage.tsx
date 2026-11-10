@@ -462,7 +462,7 @@ function EmptyFigure() {
     <Figure label="Figure 4" title="When nothing answers" note="illustration" narrow
       caption={<>The closest real results are full cards under one sentence that says what's missing, and never shown as the answer.</>}>
       <div className="grid gap-3">
-        <p className="pop font-display text-base font-semibold text-foreground" style={{ ["--i" as string]: 0 }}>Search has no answer for “hypnotic zebras”; these are the closest real results.</p>
+        <p className="pop font-display text-base font-semibold text-foreground" style={{ ["--i" as string]: 0 }}>Nothing in “hypnotic zebras” matched a team, event or place I know. These are the closest real results.</p>
         <div className="pop grid gap-1.5 rounded-xl border border-border p-3" style={{ ["--i" as string]: 1 }}>
           <span className="block rounded-md bg-muted/60 px-2.5 py-1.5 font-mono text-xs text-foreground">4215 · Hypnotic Robotics · Oradell, NJ</span>
           <span className="block rounded-md bg-muted/60 px-2.5 py-1.5 font-mono text-xs text-foreground">24173 · E.Z. (Electric Zebras)</span>

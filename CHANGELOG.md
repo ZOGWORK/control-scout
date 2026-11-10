@@ -25,8 +25,35 @@ Predict opens on its teams: a matchup link from a team page or a search answer s
 - [predict] The team boxes show each team's name straight away
 
 ### Changed
-- `/predict?mode=match&…` with teams in it is drawn on the server like team and event pages: the teams in their boxes with their names and, with both sides given, the odds, predicted scores and reasons.
+- `/predict?mode=match&…` with teams in it is drawn on the server like team and event pages: the teams in their boxes with their names and, with both sides given, the odds, predicted scores and reasons. (#1284)
 - One team a side (as search's "4215 vs 7149 who wins" links it) now shows its call; before, Predict waited for four teams. The form takes one or two teams a side, and a link that fills it no longer puts the cursor in an empty box (on a phone that opened the keyboard over the call).
+
+## 4.9.4 — 2026-11-10
+
+Compare opens on its teams: a search answer's Compare link lands on both teams with their numbers, from the first paint.
+
+### Highlights
+- [fixes] Compare from a search answer opens with both teams already there
+- [speed] A shared Compare link shows the comparison at once, before the app loads
+- [share] A comparison's tab and link title name both teams
+
+### Changed
+- `/compare?teams=…&season=…` is drawn on the server like team and event pages: the stats table, charts, events and awards are in the page itself, so a slow connection shows the teams straight away. Its title names the teams. (#1269)
+- The search page's first paint lists an answer's "Open in Predict" and "Compare side by side" links with the teams and season in them.
+
+## 4.9.3 — 2026-11-10
+
+A question search can't answer yet says sorry plainly, and a yes-or-no question gets its Yes or No first.
+
+### Highlights
+- [fixes] "Sorry — I can't answer that yet", once, when nothing answers
+- [fixes] What was read on one line, and searches that answer, one tap each
+- [fixes] Every yes-or-no question shows Yes or No first, big, then the proof
+
+### Changed
+- When search can't answer a question, or nothing matches at all, the page heading says "Sorry — I can't answer that yet", once. Under it: what was read (the team, event, place or season) and a few searches about it, each checked to answer before it is shown. The old "This isn't answered directly yet" and "No matches found" wordings are gone. (#1278)
+- What was read is the team the answer kept: a word of the question that happens to be another team's name ("how many rivets are on 4215's robot") is no longer read as that team. "7149s robot", with no apostrophe, is read as 7149.
+- Any question asked as yes or no ("did …", "has … ever", "was … at", "… ever won …?") shows Yes or No first whenever its answer card counts something: a count over zero is Yes, zero or none found is No. The card under it stays the evidence, with its links. The page's first paint says it too.
 
 ## 4.9.2 — 2026-11-09
 
@@ -2466,6 +2493,7 @@ Search answers look like the team page all the way down: an award at an event is
 - **Place card.** "where is 4215 from" draws the place over a map-style grid with a pin, the place big, and its city, state and country as FIRST lists them.
 - **Leaderboards.** The top three's rank badges are coloured (green, blue, orange).
 - **No truncation.** Match rows' event names and partners, and OPR by event's names, wrap instead of being cut off with "…"; the cut-off names under the OPR line are gone (the list under it has every name). Table values such as W-L-T stay on one line on phones. (#648)
+
 ## 3.0.9 — 2026-11-04
 
 Three fixes to the two-team and forecast answers from 3.0.7's last review.
@@ -2581,6 +2609,7 @@ explains how search, predictions and Worlds qualification work.
 - **More team facts.** "what is team 4215 called", "what is the name of team 4215", "4215 region", "4215 city and state" and "4215 organization name" are answered directly. A team number followed by that team's own name ("17670 raider robotics location") is that team.
 - **Fuller fact cards.** Every fact answer also carries where the team is from, its region and that season's numbers (card.support), so the card can show the whole team. A school FIRST doesn't list is still said so, now with the team's city.
 - **How it works.** "how does FTC One Search work", "how are predictions made" and "how does worlds qualification work" get short explainers from the site's own pages and the stored 2026–27 Competition Manual rules; the rating and reliability explainers say more. "what does 4215's reliability score mean" gives the team's reliability.
+
 ## 3.0.2 — 2026-11-04
 
 Search answers a team's events, awards and Worlds history more exactly: one award by name, the newest or first award, the events it ranked 1st at, its Worlds divisions and its matches at a given Worlds.
@@ -2930,6 +2959,7 @@ How a team's rating is read from alliance scores is now stated where the rating 
 
 ### Engine research notes
 - New notes in `docs/engine/research-2026-11/`: the DECODE score sheet mapped onto the engine's categories (no defense category, because no recorded data supports one), how per-team ratings come from alliance scores, and a check of every prediction endpoint for ratings computed inside a request.
+
 ## 2.7.9 — 2026-11-03
 
 FTC One Search reads a question by its words when its phrasing doesn't match: any word order, extra words like "rn" or "please", and long conversational questions all get the same answer as the short form, with a line saying how it was read.
@@ -3845,6 +3875,7 @@ Taps that change something show at once on slow venue Wi-Fi.
 
 ### Speed
 - **Changes show before the round trip.** Done and Reopen on an assignment, sharing a pit entry in the scouting commons, and the email digest switch now change on screen the moment you tap, then save in the background and take the server's answer when it comes. If it doesn't save, the screen goes back to what the server has and tells you "Didn't save" and why. Taps on the same thing go to the server in order, and only the newest decides what shows. Scouting entries, your lists, the pick list and notifications already worked this way. Deletes and owner or admin actions still wait for the server. (#413)
+
 ## 2.1.4 — 2026-11-01
 
 Real-user speed: the owner can see how fast pages load for real visitors.

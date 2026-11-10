@@ -15,7 +15,7 @@ import { eventTypeLabel } from "../src/shared/labels.js";
 import { canonicalOrigin, canonicalUrl } from "./seo.js";
 import { FAQ, faqJsonLd, faqText } from "../src/shared/faq.js";
 import { ATTENDED, teamKnown } from "./api/teams.js";
-import { eventFirstPaint, predictFirstPaint, teamFirstPaint, type FirstPaint } from "./firstPaint.js";
+import { compareFirstPaint, eventFirstPaint, predictFirstPaint, teamFirstPaint, type FirstPaint } from "./firstPaint.js";
 import { recordOf, recordSql } from "../src/shared/eventRecord.js";
 import { hasTeamPage } from "../src/shared/teamPages.js";
 import { eventHasDataSql, isReachableEventCode, teamHasDataSql } from "./indexable.js";
@@ -35,6 +35,7 @@ import { isWeekId, weekLabel, type PowerRankingsResponse } from "../src/shared/p
 import { trackRecordIfReady } from "./api/accuracy.js";
 import { isEnabled } from "./flags.js";
 import type { SearchCardLine, TrackRecord } from "../src/shared/api.js";
+import { compareTitle } from "../src/shared/compareUrl.js";
 import { ensureSearchIndex } from "./api/search.js";
 import { MAX_QUERY, searchAnswer } from "./api/searchAnswer.js";
 import { relatedPage } from "./api/answers/relatedPage.js";
@@ -43,7 +44,7 @@ import { withEventParents } from "./api/searchEvents.js";
 import { recordIntent } from "./api/searchIntents.js";
 import { answerSections } from "../src/shared/searchSections.js";
 import { rebuildSearch } from "./stats/job.js";
-import { SEARCH_HITS_ID, SEARCH_PAGE_LIMIT, cardWho, hitHref, relatedApiPath, relatedQuery, relatedSearch } from "../src/shared/search.js";
+import { SEARCH_HITS_ID, SEARCH_PAGE_LIMIT, SORRY_SENTENCE, cardWho, hitHref, relatedApiPath, relatedQuery, relatedSearch } from "../src/shared/search.js";
 import { hasPhases, phaseNote, teamColumns, teamTableOfLeaderboard, type TeamTable } from "../src/shared/teamTable.js";
 import { badgeUnder, contextBadge, isQualityQuestion, pageTitle } from "../src/shared/searchPage.js";
 
@@ -604,11 +605,18 @@ async function searchMeta(raw: string): Promise<PageMeta> {
   // A visit here is a whole query (the address bar's, or a shared link): its intent counts, never as it's typed.
   await recordIntent(answer.intent).catch(() => {});
   const { sections, notes } = answerSections(answer);
-  const badge = contextBadge(answer, notes.understood);
+  // A question search can't answer yet (server/api/answers/sorry.ts): the heading says sorry, once; what was read and
+  // the searches that answer are its note, so the badge (which would say the team and sorry again) is left out.
+  const sorry = answer.sorry;
+  const badge = sorry ? null : contextBadge(answer, notes.understood);
   // The badge says what was understood; with none (nothing found), the reading's own lines do. A fallback is always
   // said, so substitute events are never shown as the answer.
   const fallback = answer.understood?.fallback;
-  const said = [notes.didYouMean ? `Did you mean: <a href="/search?q=${esc(encodeURIComponent(notes.didYouMean))}">${esc(notes.didYouMean)}</a>${notes.corrected ? ". Showing results for that" : ""}` : "", ...(badge ? (fallback ? [esc(fallback)] : []) : notes.understood.map(esc)), notes.gap ? `<b>${esc(notes.gap)}</b>` : ""].filter(Boolean);
+  const said = [notes.didYouMean ? `Did you mean: <a href="/search?q=${esc(encodeURIComponent(notes.didYouMean))}">${esc(notes.didYouMean)}</a>${notes.corrected ? ". Showing results for that" : ""}` : "", ...(badge ? (fallback ? [esc(fallback)] : []) : sorry ? [] : notes.understood.map(esc)), notes.gap ? `<b>${esc(notes.gap)}</b>` : ""].filter(Boolean);
+  // A yes-or-no question's answer, first and in bold, before the card that is its evidence (the app's Verdict).
+  const verdict = answer.verdict ? `<p data-verdict="${esc(answer.verdict.answer)}"><b>${esc(answer.verdict.answer)}</b> · ${esc(answer.verdict.label)}</p>` : "";
+  const sorryNote = sorry ? (sorry.understood.length ? `<p data-sorry><b>I read:</b> ${esc(sorry.understood.join(" · "))}</p>` : "")
+    + (sorry.suggest.length ? `<h2>Searches that answer about them</h2><ul>${sorry.suggest.map((x) => `<li><a href="/search?q=${esc(encodeURIComponent(x))}">${esc(x)}</a></li>`).join("")}</ul>` : "") : "";
   // A question's direct answer (server/api/searchQuestions.ts), as the page shows it: its records, or its plain
   // "none found" with the closest records under it.
   const c = answer.card;
@@ -627,11 +635,16 @@ async function searchMeta(raw: string): Promise<PageMeta> {
     + (kpis.length ? `<p>${kpis.map((k) => `${esc(k.label)}: <b>${linked(k.value, k.href)}</b>`).join(" · ")}</p>` : "")
     // A leaderboard's teams, every row, as the app's table has them; its "View more detail" link under it.
     + s.blocks.map((b) => (b.kind === "leaderboard" ? `<h3>${esc(b.title)}</h3><p><small>${esc(b.note)}</small></p>${teamTableHtml(teamTableOfLeaderboard(b.stat.id, b.stat.label, b.rows, b.teleopWithEndgame), b.title)}${b.more ? `<p><a href="${esc(b.more.href)}">${esc(b.more.label)}</a></p>` : ""}` : "")).join("")
+    // Its links ("Open in Predict", "Compare side by side"), each with the teams and season in its address as the app's
+    // buttons have them: the tap-through from the answer is in the served page, not only in the app's JSON.
+    + s.blocks.map((b) => (b.kind === "links" && b.items.length ? `<p>${esc(b.title)}: ${b.items.map((l) => `<a href="${esc(l.href)}">${esc(l.label)}</a>`).join(" · ")}</p>` : "")).join("")
+    + (s.more ? `<p><a href="${esc(s.more.href)}">${esc(s.more.label)}</a></p>` : "")
     + `<p><small>${esc(s.definition)}<br>${esc(s.source)}</small></p></section>` : "";
   // The heading as the app titles it; a badge that only repeats it is left out, as the app leaves it out.
-  const heading = answer.hits.length || c || s || answer.pages.length ? pageTitle(answer, answer.hits, isQualityQuestion(q)) : "No matches found";
+  // Nothing answered (a sorry note, or nothing found at all): the page says sorry, once, as its heading.
+  const heading = !sorry && (answer.hits.length || c || s || answer.pages.length) ? pageTitle(answer, answer.hits, isQualityQuestion(q)) : SORRY_SENTENCE;
   const shown = badge && badgeUnder(heading, badge);
-  const body = (shown ? `<p><b>${esc(shown)}</b></p>` : "") + (said.length ? `<p>${said.join("<br>")}</p>` : "") + stat + card + sections.map((sec) => {
+  const body = (shown ? `<p><b>${esc(shown)}</b></p>` : "") + (said.length ? `<p>${said.join("<br>")}</p>` : "") + verdict + sorryNote + stat + card + sections.map((sec) => {
     const n = sec.rows.filter((r) => !r.sub).length;
     return `<h2>${esc(sec.title)}${sec.id === "pages" || sec.id === "browse" ? "" : ` <small>${n}</small>`}</h2><ul>${sec.rows.map(({ hit: h, sub }) => `<li${sub ? ' style="margin-left:1.5em"' : ""}><a href="${esc(hitHref(h))}">${esc(h.title)}</a>${h.subtitle ? ` · ${esc(h.subtitle)}` : ""}${h.facts?.length ? `<br>${h.facts.map((f) => `${esc(f.label)}: <b>${esc(f.value)}</b>`).join(" · ")}` : ""}</li>`).join("")}</ul>`;
   }).join("");
@@ -663,6 +676,22 @@ async function relatedMeta(raw: string): Promise<PageMeta> {
     title, type: "website", bodyHtml: body, pageData: { [relatedApiPath(q)]: r },
     ...(q ? { path: `/related-searches${relatedSearch(q)}` } : {}),
     description: fitDescription(q && r.found ? `${n} FTC searches related to “${q}” on Control Scout, each with its answer: team stats, records, awards and events.` : "Popular FTC searches on Control Scout, each with its answer: top teams, OPR leaders, upcoming events and the season's standout teams."),
+  };
+}
+
+/**
+ * /compare?teams=4215,7149&season=2025: the comparison itself as the first paint (server/firstPaint.ts), so a tap from a
+ * search answer lands on the teams with their numbers, not on an empty picker; its title names the teams. The plain
+ * Compare page's values when there's nothing to draw. Every comparison is the one page (its canonical is /compare).
+ */
+async function compareMeta(sp: URLSearchParams): Promise<PageMeta | null> {
+  const drawn = await compareFirstPaint(sp).catch(() => null);
+  if (!drawn?.view.teams.length) return null;
+  const { view, ...firstPaint } = drawn;
+  const title = compareTitle(view.teams), who = title.replace(/^Compare /, "");
+  return {
+    title, heading: title, type: "website", path: "/compare", firstPaint,
+    description: fitDescription(`${who} side by side in ${seasonInfo(view.season).label}: OPR by game phase, prediction ratings, records, event-by-event form and every match they met in.`),
   };
 }
 
@@ -721,6 +750,11 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
   }
   // A team or event address that can't be one (/teams/abc, /teams/1234567, /events/2025/a%20b): the app says not found too.
   if (/^\/teams\/[^/]+$/i.test(p) || /^\/events\/[^/]+\/[^/]+$/i.test(p) || /^\/events\/[^/]+\/[^/]+\/match\/[^/]+$/i.test(p) || /^\/events\/[^/]+\/[^/]+\/display$/i.test(p)) return NOT_FOUND;
+  // A comparison with teams in its address: drawn whole, as team and event pages are.
+  if (/^\/compare$/i.test(p) && sp.has("teams")) {
+    const cm = await compareMeta(sp);
+    if (cm) return cm;
+  }
   if (p === "/predict" && (sp.has("red") || sp.has("blue"))) {
     // A shared matchup; the Predict page's own values when it isn't one (or ratings aren't ready). Either way, the page
     // itself drawn with its teams when this server can (a production build): server/firstPaint.ts.
