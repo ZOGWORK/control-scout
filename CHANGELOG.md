@@ -22,9 +22,10 @@ On a phone, every tracked team on My team can be removed again.
 ### Highlights
 - [fixes] My team on a phone: the remove button shows on every tracked team
 - [fixes] A long event name is cut short instead of pushing the row off the screen
+- [fixes] Tapping × on a tracked team stops tracking it on every device
 
 ### Fixed
-- My team › Tracked teams on a phone: a team whose last event has a long name (a league tournament, say) made its row wider than the screen, so the row ran off the right edge and its Stop tracking button couldn't be reached. Rows now keep to the screen's width and the event name is shortened with "…".
+- My team › Tracked teams on a phone: a team whose last event has a long name (a league tournament, say) made its row wider than the screen, so the row ran off the right edge and its Stop tracking button couldn't be reached. Rows now keep to the screen's width and the event name is shortened with "…". (#1279)
 
 ## 4.9.2 — 2026-11-09
 
