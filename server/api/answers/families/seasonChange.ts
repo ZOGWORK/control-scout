@@ -87,11 +87,17 @@ const who = (t: Team) => `${t.number}${t.name ? ` ${t.name}` : ""}`;
 const signed = (x: number) => `${x > 0 ? "+" : x < 0 ? "−" : "±"}${num(Math.abs(x))}`;
 const top = (rank: number, of: number) => `top ${Math.max(1, Math.ceil((100 * rank) / of))}%`;
 
+/** The question with its "this season" ends read as `team`'s latest season with matches (the one season rule,
+ *  ../season.ts), and the ends said relative to them moved along; named seasons stay. Reading it twice changes nothing. */
+export async function resolveChange(c: ChangeQuestion, team: number): Promise<ChangeQuestion> {
+  const latest = c.defaulted || c.fromThis ? await teamSeason(team) : null;
+  return latest == null ? c : shiftChange(c, latest);
+}
+
 export async function changeAnswer(c0: ChangeQuestion, team: Team): Promise<StatAnswer> {
   // No season said (or "this season"): the team's latest season with matches, the one season rule (../season.ts). A
   // starting season said relative to it moves with it; a named one stays as said.
-  const latest = c0.defaulted || c0.fromThis ? await teamSeason(team.number) : null;
-  const c = latest == null ? c0 : shiftChange(c0, latest);
+  const c = await resolveChange(c0, team.number);
   if (c.from == null) return withinAnswer(c.to, team, !!c.defaulted);
   const a = await seasonsAnswer(c, c.from, team);
   return c.defaulted ? { ...a, definition: `${a.definition} ${seasonWhy("this", c.to, String(team.number))}` } : a;

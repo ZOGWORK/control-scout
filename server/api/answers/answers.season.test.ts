@@ -188,8 +188,13 @@ describe("how a number changed", () => {
     // "from … to …" keeps its direction; "between" is oldest first.
     expect(readChange("4215 opr change from 2025-26 to 2024-25")).toEqual({ stat: "opr", core: "4215", from: 2025, to: 2024 });
     expect(readChange("4215 opr change between 2025-26 and 2024-25")).toEqual({ stat: "opr", core: "4215", from: 2024, to: 2025 });
-    const a = (await searchAnswer("how much did 4215's opr improve from last season to this season", { limit: 25, full: true })).stat;
+    const full = await searchAnswer("how much did 4215's opr improve from last season to this season", { limit: 25, full: true });
+    const a = full.stat;
     expect(a).toMatchObject({ title: "OPR change, 2024–25 to 2025–26", headline: { value: "−43.2", label: "OPR 144.8 in 2024–25 → 101.6 in 2025–26" } });
+    // The page's heading and the team's link name the same seasons as the card.
+    expect(full.understood).toMatchObject({ season: 2025 });
+    expect(full.understood?.label).toMatch(/OPR change, 2024–25 to 2025–26$/);
+    expect(full.hits[0]).toMatchObject({ kind: "team", ref: "4215", linkSeason: 2025 });
   });
   it("a named starting season stays as said; only \"this season\" moves to the team's latest", async () => {
     expect(readChange("4215 opr change from 2024-25 to this season")).toEqual({ stat: "opr", core: "4215", from: 2024, to: 2026, defaulted: true });

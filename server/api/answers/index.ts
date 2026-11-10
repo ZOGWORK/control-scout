@@ -33,7 +33,7 @@ import { factAnswer, readTeamFact, seasonOf as factSeason, type FactQuestion } f
 import { leagueAskAnswer, readLeagueAsk } from "./families/league.js";
 import { OPR_RATING_TITLES, oprRatingAnswer, readOprRating, type OprRatingQuestion } from "./families/oprRating.js";
 import { counts, matchAnswer, whoOf } from "./families/matches.js";
-import { changeAnswer, readChange, shiftChange, type ChangeQuestion } from "./families/seasonChange.js";
+import { changeAnswer, readChange, resolveChange, shiftChange, type ChangeQuestion } from "./families/seasonChange.js";
 import { MATCH_STAT_IDS, matchStatAnswer } from "./families/matchStats.js";
 import { BOARD_STATS, LEADERBOARD_MAX, boardStatFor, careerBoardTitle, leaderboardAnswer, statWords, windowBoardAnswer } from "./families/leaderboard.js";
 import { readTime } from "../query/time.js";
@@ -747,12 +747,14 @@ async function factSearch(q: string, f: FactQuestion, resolve: Resolve, opts: { 
 
 /** "How much did 12345's OPR improve from last season to this season": one team's number in two seasons, or its rating
  *  across one season (./families/seasonChange.ts). */
-async function changeSearch(q: string, c: ChangeQuestion, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
-  if (!c.core) return changeWithoutTeam(q, c, opts.pages);
-  const base = await resolve(c.core);
+async function changeSearch(q: string, c0: ChangeQuestion, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+  if (!c0.core) return changeWithoutTeam(q, c0, opts.pages);
+  const base = await resolve(c0.core);
   const top = base.step !== "recovery" ? base.hits[0] : undefined;
   if (!top || top.kind !== "team" || top.href) return null;
   const team = { number: Number(top.ref), name: teamNameOf(top.title) || null };
+  // The heading, the reading and the team's link name the seasons the card reads (its "this season" resolved).
+  const c = await resolveChange(c0, team.number);
   const what = c.stat === "opr" ? "OPR" : "Prediction rating";
   const label = `${whoOf(team)} · ${what} change, ${c.from != null ? `${seasonLabel(c.from)} to ` : ""}${seasonLabel(c.to)}`;
   const guessed = base.step === "did-you-mean";
