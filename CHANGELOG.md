@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.9.5 — 2026-11-10
+
+Predict opens on its teams: a matchup link from a team page or a search answer shows the teams and the call from the first paint.
+
+### Highlights
+- [predict] "Open in Predict" from a search answer shows the call, not an empty form
+- [speed] A shared matchup shows its odds and scores at once, before the app loads
+- [predict] The team boxes show each team's name straight away
+
+### Changed
+- `/predict?mode=match&…` with teams in it is drawn on the server like team and event pages: the teams in their boxes with their names and, with both sides given, the odds, predicted scores and reasons.
+- One team a side (as search's "4215 vs 7149 who wins" links it) now shows its call; before, Predict waited for four teams.
+
 ## 4.9.2 — 2026-11-09
 
 DECODE's highest score, Q49 at Carolinas Premier Event, is marked as not an official record.
