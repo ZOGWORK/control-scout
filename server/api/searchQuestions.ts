@@ -67,9 +67,11 @@ export function parseQuestion(q: string): ParsedQuestion | null {
   // "Next" or "upcoming", the noun in either number: "4215 upcoming events" is the list, "next event" the first of it.
   const next = /\b(?:next|upcoming|coming)\s+(match(?:es)?|games?|events?|competitions?|tournaments?|meets?)\b/i.exec(q);
   if (next) {
-    const core = coreOf(q.replace(next[0], " "));
-    // "Upcoming events in Romania", "upcoming meets in texas": a place's events, never a team named like the place.
-    if (core && (regionOf(core.split(" ")) || countryOf(core))) return null;
+    const rest = q.replace(next[0], " ");
+    const core = coreOf(rest);
+    // "Upcoming events in Romania", "upcoming meets in texas", "upcoming events in Oradell": a place's events, never a
+    // team named like the place. A year after "in" is a date ("next event in 2027"), not a place.
+    if (core && (regionOf(core.split(" ")) || countryOf(core) || /\b(?:in|at|near|around)\s+(?!(?:19|20)\d\d\b)[a-z]/i.test(rest))) return null;
     const many = /s$/i.test(next[1]);
     return core ? { kind: /match|game/i.test(next[1]) ? "next-match" : "next-event", core, year: null, ...(many ? { many: true as const } : {}) } : null;
   }

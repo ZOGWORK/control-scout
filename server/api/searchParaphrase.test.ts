@@ -47,6 +47,11 @@ describe("the plural is the list", () => {
     await run("INSERT INTO teams (number, name, city, state, country) VALUES (31998, 'Ro2D2', 'Cluj', 'CJ', 'Romania')");
     await rebuildSearch();
     for (const q of ["upcoming meets in romania", "upcoming events in nj", "upcoming events in new jersey"]) expect((await ask(q)).card?.kind, q).toBeUndefined();
+    // A city ("in Oradell", where these teams are) is a place too: never one team's schedule, never a "correction".
+    for (const q of ["upcoming events in oradell", "next meet at union"]) {
+      const a = await ask(q);
+      expect([a.card?.kind, a.didYouMean], q).toEqual([undefined, undefined]);
+    }
   });
   it("the singular is the next one", async () => {
     expect((await ask("7149 upcoming event")).card).toMatchObject({ kind: "next-event", title: "Next event", lines: [{ text: "Northeast League Meet" }] });
@@ -73,6 +78,24 @@ describe("a team's name typed nearly right", () => {
     const a = await ask("hypnotik robotics upcoming events");
     expect(a.card).toMatchObject({ kind: "next-event", title: "Upcoming events" });
     expect(a).toMatchObject({ step: "did-you-mean", didYouMean: "Hypnotic Robotics upcoming events" });
+  });
+  it("is never said for words found only in a team's city or school", async () => {
+    // One team in its own city, with its school: the words typed are those, spelled right.
+    await run("UPDATE teams SET school = 'River Dell', city = 'Paramus' WHERE number = 4215");
+    // A team that has played (a near name to one that never did is only a closest match).
+    await run("INSERT INTO team_event_stats (season, code, team, matches) VALUES (?, 'USNJQ1', 4215, 5)", [S]);
+    await rebuildSearch();
+    try {
+      const a = await ask("river dell robotics upcoming events");
+      expect([a.card?.kind, a.didYouMean]).toEqual(["next-event", undefined]);
+      // Its city alone is a place: the place's events, not this one team's.
+      const city = await ask("upcoming events in paramus");
+      expect([city.card?.kind, city.didYouMean]).toEqual([undefined, undefined]);
+    } finally {
+      await run("UPDATE teams SET school = NULL, city = 'Oradell' WHERE number = 4215");
+      await run("DELETE FROM team_event_stats WHERE team = 4215");
+      await rebuildSearch();
+    }
   });
 });
 

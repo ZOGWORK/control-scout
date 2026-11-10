@@ -505,7 +505,7 @@ describe("compare, winner and head to head words", () => {
     }
   });
   it("head to head is their meetings, with a score said or Worlds as the scope", async () => {
-    for (const q of ["4215 vs 6980 head to head", "4215 versus 6980 worlds head to head score", "4215 6980 h2h record", "head-to-head 4215 vs 6980"]) {
+    for (const q of ["4215 vs 6980 head to head", "4215 versus 6980 worlds head to head score", "4215 6980 h2h record", "head-to-head 4215 vs 6980", "4215 and 6980 head to head score"]) {
       const p = await parse(q);
       expect([p.intent, p.complete], q).toEqual(["head-to-head", true]);
     }
