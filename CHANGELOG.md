@@ -15,6 +15,22 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.0.7 — 2026-11-10
+
+Search reads "champs", numbers said as words, and seasons written with a comma.
+
+### Highlights
+- [fixes] "champs" means championship: "who won inspire Romania champs" answers
+- [fixes] "opr over eighty" and "top five" read the number
+- [fixes] "2025, 26" reads as the 2025–26 season
+- [fixes] Two teams and an event compare them at that event
+
+### Changed
+- "Champs" is read as "championship" everywhere in search.
+- A number said as words after a word that takes one ("over eighty", "top five", "last ten") is read as the number; elsewhere the words stay as typed.
+- A season written with a comma ("2025, 26", "season 25, 26") reads as the dashed season.
+- Two teams with only an event, their state championship or Worlds named ("7149 23268 nj champs 2025-26") show their numbers there side by side. (#1282)
+
 ## 5.0.6 — 2026-11-10
 
 Score ranges say how often they have really held, with the sample, wherever one is shown.
