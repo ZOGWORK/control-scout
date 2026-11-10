@@ -652,8 +652,10 @@ async function searchMeta(raw: string): Promise<PageMeta> {
   // The same kept answer /api/search?answer=1 gives for this query (server/api/answers/followUps.ts pageAnswer): a
   // visit and the app's own request for the same results cost one reading, as do two visitors within a minute.
   const found = await pageAnswer(q, SEARCH_PAGE_LIMIT, NO_PREFER);
-  // Its follow-ups, from the same kept answer, while the rest of the page is put together (FOLLOW_FIRST_PAINT_MS).
-  const following = followUpsWithin(q, FOLLOW_FIRST_PAINT_MS);
+  // A page with an answer (not a sorry, not nothing found) has follow-ups: from the same kept answer, made while the
+  // rest of the page is put together (FOLLOW_FIRST_PAINT_MS). A page without one asks for none.
+  const answered = !found.sorry && !!(found.hits.length || found.card || found.stat || found.pages.length);
+  const following = answered ? followUpsWithin(q, FOLLOW_FIRST_PAINT_MS) : null;
   // As /api/search sends it: team rows with their season numbers, so the app starts from the same answer.
   const answer = { ...found, hits: await withTeamStats(await withEventParents(found.hits)) };
   const { sections, notes } = answerSections(answer);
@@ -695,12 +697,11 @@ async function searchMeta(raw: string): Promise<PageMeta> {
     + `<p><small>${esc(s.definition)}<br>${esc(s.source)}</small></p></section>` : "";
   // The heading as the app titles it; a badge that only repeats it is left out, as the app leaves it out.
   // Nothing answered (a sorry note, or nothing found at all): the page says sorry, once, as its heading.
-  const answered = !sorry && !!(answer.hits.length || c || s || answer.pages.length);
   const heading = answered ? pageTitle(answer, answer.hits, isQualityQuestion(q)) : SORRY_SENTENCE;
   const shown = badge && badgeUnder(heading, badge);
   // The follow-ups as the app places them on a page with an answer: People also ask under the answer, Related searches
   // at the end. With them, their data for the app, so it starts from the same ones (src/lib/pageData.ts).
-  const follow = answered ? await following : null;
+  const follow = following ? await following : null;
   const body = (shown ? `<p><b>${esc(shown)}</b></p>` : "") + (said.length ? `<p>${said.join("<br>")}</p>` : "") + verdict + sorryNote + stat + card + (follow ? peopleAlsoAskHtml(follow) : "") + sections.map((sec) => {
     const n = sec.rows.filter((r) => !r.sub).length;
     return `<h2>${esc(sec.title)}${sec.id === "pages" || sec.id === "browse" ? "" : ` <small>${n}</small>`}</h2><ul>${sec.rows.map(({ hit: h, sub }) => `<li${sub ? ' style="margin-left:1.5em"' : ""}><a href="${esc(hitHref(h))}">${esc(h.title)}</a>${h.subtitle ? ` · ${esc(h.subtitle)}` : ""}${h.facts?.length ? `<br>${h.facts.map((f) => `${esc(f.label)}: <b>${esc(f.value)}</b>`).join(" · ")}` : ""}</li>`).join("")}</ul>`;
