@@ -7,12 +7,13 @@
 // (`detail`, `link`) show when they're there.
 import { Link } from "react-router-dom";
 import { useCurrentSeason } from "../../../lib/meta";
-import { ArrowRight, BookOpen, CalendarDays, Globe, GraduationCap, Handshake, Info, MapPin, Medal, Sparkles, Trophy, type LucideIcon } from "lucide-react";
-import type { SearchCard, SearchCardFact, SearchCardLine } from "../../../shared/api";
+import { ArrowRight, BookOpen, CalendarDays, Globe, GraduationCap, Handshake, Info, MapPin, Medal, Play, PlayCircle, Sparkles, Trophy, type LucideIcon } from "lucide-react";
+import type { SearchCard, SearchCardFact, SearchCardLine, SearchVideoItem } from "../../../shared/api";
 import { StatTile, type Tone } from "../../StatTile";
 import { TeamTable } from "../TeamTable";
 import { cn } from "../../cn";
-import { AnswerVideo } from "./AnswerVideo";
+import { AnswerVideo, useClips, videoCaption } from "./AnswerVideo";
+import { thumbnailUrl } from "../../../shared/stream";
 import { SEARCH_PALETTE, meaningOf, type Meaning } from "../../../lib/textTones";
 import { ResultPill, RichText, TEAM_BAR, TEAM_SWATCH, TEAM_TEXT, type Swatch } from "./answerCells";
 import { AnswerFrame, PART, RelatedQuestions, SeasonEvents, SeasonTiles, TAP, repeats, statedSeason, useAnswerSeason, useTeamProfile } from "./TeamAnswer";
@@ -32,22 +33,26 @@ const SOURCE: Partial<Record<SearchCard["kind"], string>> = {
 
 /** Each card kind's colour (search's palette, the owner's brief 11-06: nothing grey for data), for whatever on it has
  *  no meaning of its own: a one-team card's records in the team hue, a schedule in it too (cyan, Upcoming's, sits too
- *  close to team A on the same card), a how-many's number in Count's amber, a rule or a definition in Reference's sky.
- *  Every kind is listed, so a new one can't be added without a colour (answerAudit.test.tsx draws each one). */
+ *  close to team A on the same card), a how-many's number in Count's amber, a rule or a definition in Reference's sky,
+ *  a season's best scores in Record's blue (the theme's info: Sushil 11-10, nothing orange or red on a records
+ *  card, which never asks anyone to act). Every kind is listed, so a new one can't be added without a colour
+ *  (answerAudit.test.tsx draws each one). */
 export const CARD_MEANING: Record<SearchCard["kind"], Meaning | "team"> = {
   worlds: "team", states: "team", "next-event": "team", "next-match": "team",
   wins: "winning", awards: "judged", "event-awards": "judged",
-  "high-scores": "count", leaderboard: "team", rule: "reference", info: "reference",
+  "high-scores": "record", leaderboard: "team", rule: "reference", info: "reference",
 };
+
 
 /** A line that starts with its number: the number, then the rest of the sentence. */
 const COUNT = /^(\d[\d,.]*)(\s.*)?$/;
 
 /** A line's colour: an award's own on an awards card, Count's when a general answer's line is a number ("578 teams
  *  registered in Canada"), else the card kind's. */
-export function lineSwatch(kind: SearchCard["kind"], line: Pick<SearchCardLine, "text">): Swatch {
+export function lineSwatch(kind: SearchCard["kind"], line: Pick<SearchCardLine, "text">, team?: boolean): Swatch {
   const award = kind === "awards" || kind === "event-awards" || kind === "wins" ? meaningOf(line.text) : null;
-  const m = award ?? (kind === "info" && COUNT.test(line.text) ? "count" : CARD_MEANING[kind]);
+  // One team's best scores are that team's records: its hue (a blue too), never Record's info blue beside it.
+  const m = award ?? (kind === "info" && COUNT.test(line.text) ? "count" : kind === "high-scores" && team ? "team" : CARD_MEANING[kind]);
   return m === "team" ? TEAM_SWATCH[0] : SEARCH_PALETTE[m];
 }
 
@@ -96,10 +101,10 @@ export function FactCard({ card, heading, season: asked }: { card: CardExtra; he
         </p>
       )}
       {card.table?.rows.length ? <TeamTable table={card.table} label={card.title} />
-        : !!lines.length && <Lines lines={lines} kind={card.kind} icon={ICON[card.kind] ?? Info} />}
+        : !!lines.length && <Lines lines={lines} kind={card.kind} icon={ICON[card.kind] ?? Info} team={!!team} />}
       <AnswerVideo />
       {!!card.none && !!card.closest?.length && (
-        <div className="mt-4"><h3 className={PART}>Closest records</h3><Lines lines={card.closest} kind={card.kind} /></div>
+        <div className="mt-4"><h3 className={PART}>Closest records</h3><Lines lines={card.closest} kind={card.kind} team={!!team} /></div>
       )}
       {!!support.length && (
         <section aria-label="More about the team" className="mt-5" data-support>
@@ -115,6 +120,26 @@ export function FactCard({ card, heading, season: asked }: { card: CardExtra; he
       )}
       <RelatedQuestions queries={card.related ?? []} />
     </AnswerFrame>
+  );
+}
+
+/** A row's video: its picture with a play button toward the right of the row on wider screens, a compact play
+ *  button under the row's text on a phone (five pictures would bury the records). Either opens the app's video dialog. */
+function LineVideo({ v, label, play, indent }: { v: SearchVideoItem; label: string; play: () => void; indent: boolean }) {
+  const caption = videoCaption(v);
+  return (
+    <>
+      <button type="button" onClick={play} className="group/video relative hidden aspect-video w-44 shrink-0 overflow-hidden rounded-lg border border-border bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 sm:block md:w-52"
+        aria-label={`Play ${label}: ${caption}`} title={caption} data-line-play="wide" data-video-control>
+        <img src={thumbnailUrl(v.videoId)} alt="" loading="lazy" decoding="async" onError={(e) => { e.currentTarget.hidden = true; }} className="absolute inset-0 size-full object-cover opacity-80 transition-opacity group-hover/video:opacity-100 motion-reduce:transition-none" />
+        {/* Neutral, not YouTube's red: hue on a search card means team or alliance. */}
+        <span className="absolute inset-0 grid place-items-center"><span className="grid size-10 place-items-center rounded-full bg-black/75 text-white ring-1 ring-white/40"><Play className="size-4 translate-x-px fill-current" aria-hidden /></span></span>
+      </button>
+      <button type="button" onClick={play} className={cn("inline-flex min-h-[44px] basis-full items-center gap-2 self-start rounded-lg border border-border bg-card px-3 text-xs font-semibold text-foreground hover:bg-text-base/[0.06] sm:hidden", indent && "ml-12")}
+        aria-label={`Play ${label}: ${caption}`} data-line-play="phone" data-video-control>
+        <PlayCircle className="size-5 shrink-0" aria-hidden /><span className="truncate">{v.kind === "match" ? "Watch the match" : "Watch in the recording"}</span>
+      </button>
+    </>
   );
 }
 
@@ -221,12 +246,14 @@ export function ExplainerLines({ card, heading }: { card: Pick<SearchCard, "titl
   );
 }
 
-function Lines({ lines, kind, icon: Icon }: { lines: SearchCardLine[]; kind: SearchCard["kind"]; icon?: LucideIcon }) {
+function Lines({ lines, kind, icon: Icon, team }: { lines: SearchCardLine[]; kind: SearchCard["kind"]; icon?: LucideIcon; team?: boolean }) {
+  const { clip, play } = useClips();
   return (
     <ul className="space-y-2" data-lines>
       {lines.map((l, i) => {
-        const sw = lineSwatch(kind, l);
-        const n = sw === SEARCH_PALETTE.count ? COUNT.exec(l.text) : null;
+        const sw = lineSwatch(kind, l, team);
+        // A count's or a record's line leads with its number, drawn big.
+        const n = sw === SEARCH_PALETTE.count || kind === "high-scores" ? COUNT.exec(l.text) : null;
         const body = (
           <>
             {Icon && <span className={cn("mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg", sw.fill)} data-line-icon><Icon className="size-5" aria-hidden /></span>}
@@ -237,7 +264,7 @@ function Lines({ lines, kind, icon: Icon }: { lines: SearchCardLine[]; kind: Sea
               {l.detail && <span className="mt-0.5 block text-xs text-muted-foreground"><RichText text={l.detail} /></span>}
               {!!l.results?.length && (
                 <span className="mt-2 flex flex-wrap gap-1.5" data-results>
-                  {l.results.map((r, j) => <ResultPill key={j} text={r} />)}
+                  {l.results.map((r, j) => <ResultPill key={j} text={r} record={sw === SEARCH_PALETTE.record} />)}
                 </span>
               )}
             </span>
@@ -245,6 +272,18 @@ function Lines({ lines, kind, icon: Icon }: { lines: SearchCardLine[]; kind: Sea
           </>
         );
         const cls = cn("group flex min-h-[44px] items-start gap-3 rounded-xl border border-l-[6px] border-border px-3.5 py-3", sw.edge, sw.tint);
+        // A listed match with a video: the row's link, then its video toward the right (a phone: a play button under
+        // the text), played in the app's video dialog; a button never sits inside the link.
+        const v = l.href ? clip(l.href) : undefined;
+        if (v && l.href) {
+          const label = l.text;
+          return (
+            <li key={i} className={cn("flex flex-wrap items-start gap-x-3 gap-y-2 rounded-xl border border-l-[6px] border-border px-3.5 py-3 sm:flex-nowrap", sw.edge, sw.tint)} data-line-video={v.kind}>
+              <Link to={l.href} className={cn("group flex min-h-[44px] min-w-0 flex-1 items-start gap-3", TAP)}>{body}</Link>
+              <LineVideo v={v} label={label} play={() => play(v, label)} indent={!!Icon} />
+            </li>
+          );
+        }
         return (
           <li key={i}>
             {!l.href ? <div className={cls}>{body}</div>

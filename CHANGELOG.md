@@ -15,6 +15,26 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.4.1 — 2026-11-10
+
+The season's highest scores read calmly in blue, play each match's video in the row, and mark every score from an event that didn't play by the usual rules.
+
+### Highlights
+- [fixes] Highest scores: each match's video toward the right of its row
+- [appearance] Highest scores card in blue, no orange or red
+- [fixes] Every Carolinas Premier Event score marked "Not an official record"
+
+### Changed
+- Search: the "Highest scores" card ("decode world record", "highest score decode") is blue (the theme's info colour) instead of amber, and a score's penalties note ("724 with the other alliance's penalties") is a plain blue pill instead of a red award chip. Alliance chips keep their alliance colours; a team's own best scores keep the team's hue.
+- Search: a row on that card whose match has a video shows the video's picture toward the right on wider screens, or a "Watch" button under the row on a phone; either plays in the app's video dialog. Rows without a video are unchanged.
+
+### Fixed
+- Records: a score can be marked "Not an official record" for a whole event, not just one match. Carolinas Premier Event (DECODE, Jul 25–26, 2026) is now marked as a whole, so Q54 (592) carries the mark like Q49 (714), in search answers, best-score tables and the match finder. (#1341)
+
+
+
+
+
 ## 5.4.0 — 2026-11-10
 
 Search answers advancement odds: a team's chance to take an advancing slot at an event, from the same engine numbers as Predict.

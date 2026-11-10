@@ -208,9 +208,17 @@ export function HeadlineValue({ value, win }: { value: string; win?: string }) {
 /** One of a card line's small stat pills ("Ranked #1", "6-0-0 in quals", "OPR 50.0", "Red alliance", an award): a
  *  rank as its pill, an alliance in its colour (red and blue mark alliances), an award a filled chip in its kind's
  *  colour; the rest on the team hue's wash (nothing grey for data). */
-export function ResultPill({ text }: { text: string }) {
+export function ResultPill({ text, record }: { text: string; record?: boolean }) {
   const box = "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-semibold tabular-nums";
   if (/^(Ranked\s+)?#\d/.test(text)) return <RankPill text={text} />;
+  // A note about a score ("724 with the other alliance's penalties", "Not an official record: …") is never an award:
+  // on a records card a neutral pill marked by the card's blue info icon. Never a blue wash: the theme's info and the
+  // blue alliance are one colour, and the alliance pill sits beside it. Elsewhere the plain pill.
+  if (/\bpenalt|^not an official record\b/i.test(text)) {
+    return record
+      ? <span className={cn(box, "items-start border-border bg-card text-foreground")} data-pill data-score-note><Info className="mt-0.5 size-3.5 shrink-0 text-info" aria-hidden /><span>{text}</span></span>
+      : <span className={cn(box, "border-team-a/50 bg-card text-foreground")} data-pill data-score-note>{text}</span>;
+  }
   if (RECORD.test(text)) return <span className={cn(box, "border-team-a/50 bg-card")} data-pill><RecordText text={text} win={TEAM_TEXT} /></span>;
   if (/^red\b/i.test(text)) return <span className={cn(box, "border-red-alliance/30 bg-red-alliance/10 text-red-alliance-text")}>{text}</span>;
   if (/^blue\b/i.test(text)) return <span className={cn(box, "border-blue-alliance/30 bg-blue-alliance/10 text-blue-alliance-text")}>{text}</span>;
