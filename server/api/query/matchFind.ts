@@ -13,6 +13,7 @@ import { OFFICIAL_TYPES } from "../answers/clauses.js";
 import { BRACKETS } from "@control-scout/predict-engine";
 import { DOUBLE_ELIM_FROM } from "../../../src/shared/bracketOdds.js";
 import { matchHref, shortEvent, teamLinks } from "../answers/matchSet.js";
+import { markedLabel, unofficialLine } from "../../data/unofficialRecords.js";
 
 export type MatchMeasure = "high" | "low" | "closest" | "lopsided" | "penalties" | "upset" | "comeback" | "miss" | "accurate";
 
@@ -228,14 +229,14 @@ export async function matchFindAnswer(f: MatchFind): Promise<StatAnswer> {
   const table = (rs: Row[], from: number, title: string): StatBlock => ({
     kind: "table", title,
     columns: [{ key: "rank", label: "#", num: true }, { key: "value", label: column }, { key: "score", label: "Red–Blue" }, { key: "match", label: "Match" }, { key: "event", label: "Event" }, { key: "date", label: "Date" }],
-    rows: rs.map((r, i) => ({ cells: { rank: from + i, value: show(Number(r.v)), score: `${r.red_total}–${r.blue_total}`, match: r.label, event: shortEvent(r.name, r.type), date: dateRange((r.time ?? r.start)?.slice(0, 10) ?? null) }, href: matchHref(r) })),
+    rows: rs.map((r, i) => ({ cells: { rank: from + i, value: show(Number(r.v)), score: `${r.red_total}–${r.blue_total}`, match: markedLabel(r), event: shortEvent(r.name, r.type), date: dateRange((r.time ?? r.start)?.slice(0, 10) ?? null) }, href: matchHref(r) })),
   });
   if (f.list) return { ...base, blocks: [table(rows, 1, "")] };
   return {
     ...base, blocks: rows.length > 1 ? [table(rows.slice(1), 2, `The next ${rows.length - 1}`)] : [],
     headline: {
       value: show(Number(top.v)), label: `${top.label} at ${shortEvent(top.name, top.type)}`, href: matchHref(top),
-      sub: [dateRange((top.time ?? top.start)?.slice(0, 10) ?? null), `Red ${top.red_total} (${side(top, "red")}) – Blue ${top.blue_total} (${side(top, "blue")})`].filter(Boolean).join(" · "),
+      sub: [unofficialLine(top) ?? "", dateRange((top.time ?? top.start)?.slice(0, 10) ?? null), `Red ${top.red_total} (${side(top, "red")}) – Blue ${top.blue_total} (${side(top, "blue")})`].filter(Boolean).join(" · "),
     },
   };
 }

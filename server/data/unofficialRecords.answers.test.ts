@@ -42,4 +42,9 @@ describe("a match that is not an official record, in answers", () => {
     expect(a.headline?.sub).toMatch(/^Not an official record: /);
     expect(matchRows(a).find((r) => r.label === "Q49")?.unofficial).toMatch(/^Not an official record: /);
   });
+  it("a narrowed best-score question (qualification matches only): its table row says so", async () => {
+    const a = await stat("highest scoring qualifying matches in decode");
+    const table = a.blocks.find((b): b is Extract<StatBlock, { kind: "table" }> => b.kind === "table")!;
+    expect(table.rows.map((r) => r.cells.match)).toEqual(["Q49 (not an official record)", "Q50"]);
+  });
 });
