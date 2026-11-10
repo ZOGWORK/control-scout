@@ -1,7 +1,7 @@
 // Home's suggestion pool and the hourly pick: every family of answer is in the pool, each chip fits, and each hour
 // gives six of different families, with a leaderboard and a sentence or filtered query, the same in every browser.
 import { describe, expect, it } from "vitest";
-import { HOME_SUGGESTIONS, SUGGESTION_COUNT, SUGGESTION_HOUR_MS, SUGGESTION_LABEL_MAX, DESKTOP_CHIPS, allFit, chipWidthEstimate, fitChips, placeholderable, suggestionLabel, suggestionTeams, suggestionsAt, type HomeSuggestion, type SuggestionKind } from "./homeSuggestions";
+import { HOME_SUGGESTIONS, SUGGESTION_COUNT, SUGGESTION_HOUR_MS, SUGGESTION_LABEL_MAX, SUGGESTION_TEAMS, DESKTOP_CHIPS, allFit, chipWidthEstimate, fitChips, placeholderable, suggestionLabel, suggestionTeams, suggestionsAt, type HomeSuggestion, type SuggestionKind } from "./homeSuggestions";
 
 const KINDS: SuggestionKind[] = ["team", "opr", "rating", "record", "matches", "awards", "worlds", "versus", "three", "leaderboard", "winners", "predict", "question", "filters"];
 const T0 = Date.UTC(2026, 10, 4, 0, 0);
@@ -21,11 +21,26 @@ describe("home suggestion pool", () => {
     }
     expect(new Set(HOME_SUGGESTIONS.map(suggestionLabel)).size).toBe(HOME_SUGGESTIONS.length);
   });
-  it("names many teams, not one team over and over", () => {
+  it("names only the six suggestion teams, each several times, and none over and over", () => {
     const counts = new Map<string, number>();
     for (const s of HOME_SUGGESTIONS) for (const t of suggestionTeams(s)) counts.set(t, (counts.get(t) ?? 0) + 1);
-    expect(counts.size).toBeGreaterThanOrEqual(12);
-    for (const [t, n] of counts) expect(n, t).toBeLessThanOrEqual(8);
+    expect([...counts.keys()].sort()).toEqual(Object.keys(SUGGESTION_TEAMS).sort());
+    for (const [t, n] of counts) { expect(n, t).toBeGreaterThanOrEqual(4); expect(n, t).toBeLessThanOrEqual(14); }
+  });
+  it("fails on any suggestion naming a team outside the six, by number or by name", () => {
+    const allowed = new Set(Object.keys(SUGGESTION_TEAMS));
+    // Every team number in a query or label (a threshold, "opr over 100" or "OPR 120+", is not one).
+    const numbers = (text: string): string[] => text.match(/(?<!\bover )\b\d{3,5}\b(?!\+)/g) ?? [];
+    const outside = HOME_SUGGESTIONS.flatMap((s) => [...numbers(s.q), ...numbers(suggestionLabel(s)), ...(s.teams ?? [])].filter((t) => !allowed.has(t)).map((t) => `${s.q}: ${t}`));
+    expect(outside).toEqual([]);
+    // A team named by name is listed in `teams`, and a team listed there is named by its own name.
+    for (const s of HOME_SUGGESTIONS) {
+      const named = Object.entries(SUGGESTION_TEAMS).filter(([n, name]) => !numbers(s.q).includes(n) && s.q.toLowerCase().includes(name.toLowerCase())).map(([n]) => n);
+      expect([...(s.teams ?? [])].sort(), s.q).toEqual(named.sort());
+    }
+    // The check itself catches the old random teams.
+    const bad: HomeSuggestion = { q: "14343 auto OPR", kind: "opr" };
+    expect(suggestionTeams(bad).some((t) => !allowed.has(t))).toBe(true);
   });
 });
 

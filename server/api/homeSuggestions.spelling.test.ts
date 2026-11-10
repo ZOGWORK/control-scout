@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createClient } from "@libsql/client";
 import { buildVocab, correctWord, type Vocab } from "./spelling";
-import { HOME_SUGGESTIONS, suggestionLabel } from "../../src/shared/homeSuggestions";
+import { HOME_SUGGESTIONS, SUGGESTION_TEAMS, suggestionLabel } from "../../src/shared/homeSuggestions";
 import { misnamed, misspelled } from "../../scripts/check-suggestions";
 
 /** Each word search would correct in the pool's queries and labels, as "text: word → fix". */
@@ -49,5 +49,10 @@ describe("suggestions:check's spelling checks", () => {
     expect(misnamed({ q: "hypnotik robotics opr", kind: "opr", teams: ["4215"] }, names)).toContain("Hypnotic Robotics");
     expect(misnamed({ q: "where is hypnotic robotics from", kind: "team", label: "Where is Hypnotik", teams: ["4215"] }, names)).toContain("Where is Hypnotik");
     expect(misnamed({ q: "x", kind: "team", teams: ["1"] }, names)).toContain("no name");
+  });
+  it("spells each of the six suggestion teams the pool names by name as its own name (no data copy needed)", () => {
+    const six = new Map(Object.entries(SUGGESTION_TEAMS));
+    expect(HOME_SUGGESTIONS.flatMap((s) => { const why = misnamed(s, six); return why ? [why] : []; })).toEqual([]);
+    expect(misnamed({ q: "Enforcer teleop OPR", kind: "opr", teams: ["7149"] }, six)).toContain("ENFORCERS");
   });
 });
