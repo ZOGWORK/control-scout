@@ -15,6 +15,22 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.2.4 — 2026-11-10
+
+Search asks which team when a name is still shared, and its new answers count only what was asked.
+
+### Highlights
+- [fixes] "team" before a shared name still asks which team you mean
+- [fixes] Two shared names in a comparison never claim the same state wrongly
+- [fixes] Win streaks by place follow each event's own match order
+- [fixes] Hardest division and event field answers are by OPR only
+
+### Fixed
+- Search: a name several teams share, typed with "team" before it ("team echo kites record"), asks which team instead of answering for the first one found.
+- Search: in a comparison of two shared names, a name moved to sit beside the other team's state, when that team moved away, now asks which instead of saying both are in the same state.
+- Search: the win streak board orders each team's matches by event and by the event's own match order, so a match with no time on record no longer jumps ahead.
+- Search: "hardest division … by average auto OPR" and "average auto OPR at an event" are no longer answered with plain OPR. (#1325)
+
 ## 5.2.3 — 2026-11-10
 
 Search reads one season rule in every answer, and says which season (and which state championship) it read.
