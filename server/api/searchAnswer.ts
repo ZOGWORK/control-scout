@@ -813,7 +813,11 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   if (lone) {
     const a = await searchAnswer(lone.q, { ...opts, learn: false });
     const note = `No FTC team ${lone.missing} in our data`;
-    if (a.stat && a.understood) return { ...a, q, stat: { ...a.stat, scope: [...a.stat.scope, note] }, understood: { ...a.understood, label: `${a.understood.label} · ${note}` } };
+    // The search box's short answer (no card drawn) as much as the page's: any answer that isn't itself a recovery or a
+    // sorry, the note on its label, and on the card's scope when it has one.
+    if (a.understood && a.step !== "recovery" && !a.sorry) {
+      return { ...a, q, ...(a.stat ? { stat: { ...a.stat, scope: [...a.stat.scope, note] } } : {}), understood: { ...a.understood, label: `${a.understood.label} · ${note}` } };
+    }
   }
   if (vs) return vs;
   // One team, Compare asked for ("compare 12345"): Compare with it in, and its closest rivals to compare it with.

@@ -69,5 +69,9 @@ describe("a versus with a number no team has", () => {
       expect(a.understood?.label, q).toContain("No FTC team 99 in our data");
       expect(a.stat?.scope, q).toContain("No FTC team 99 in our data");
     }
+    // The search box's short answer (no card) says it too, never the comparison's recovery.
+    const short = await searchAnswer("7149 vs 99 record 2025-26", { limit: 8 });
+    expect(short.step).not.toBe("recovery");
+    expect(short.understood?.label).toContain("No FTC team 99 in our data");
   });
 });
