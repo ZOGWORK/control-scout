@@ -20,7 +20,7 @@ import { SEARCH_BROWSE, SEARCH_FILLER, SEARCH_PAGE_LIMIT, SEARCH_TOPICS, firstCa
 import { conversationQuery, EVENT_WORDS, isQuestionForm, nameWords, onlyCommonWords, onlyTopicWords, singularize } from "../../src/shared/searchQuery.js";
 import { readEventQuery, regionOf } from "../../src/shared/searchEventQuery.js";
 import { eventSetAnswer, withEventParents, withWholeFamilies } from "./searchEvents.js";
-import { compareOneAnswer, versusAnswer } from "./searchCompare.js";
+import { compareOneAnswer, versusAnswer, versusLoneTeam } from "./searchCompare.js";
 import { ruleAnswer } from "./searchRules.js";
 import { askAnswer, readAsk } from "./searchAsks.js";
 import { readRuleQuery } from "../../src/shared/searchRuleQuery.js";
@@ -807,6 +807,18 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   // Only a season written as one ("2024-25") counts here: a bare 2000–2099 is as likely a team ("2024 vs 12345").
   const vsSeason = /(?:^|\s)20\d\d\s*[-–/]\s*\d\d(?=\s|$)/.test(q) ? seasonOf(q) : { season: null, rest: q };
   const vs = await versusAnswer(vsSeason.rest, prefer, vsSeason.season ?? opts.season ?? null);
+  // One side a number no FTC team has ("12345 vs 99 opr"): the other team's own answer, the number said missing on it,
+  // never a comparison with nothing on one side.
+  const lone = vs?.step === "recovery" ? await versusLoneTeam(q, prefer) : null;
+  if (lone) {
+    const a = await searchAnswer(lone.q, { ...opts, learn: false });
+    const note = `No FTC team ${lone.missing} in our data`;
+    // The search box's short answer (no card drawn) as much as the page's: any answer that isn't itself a recovery or a
+    // sorry, the note on its label, and on the card's scope when it has one.
+    if (a.understood && a.step !== "recovery" && !a.sorry) {
+      return { ...a, q, ...(a.stat ? { stat: { ...a.stat, scope: [...a.stat.scope, note] } } : {}), understood: { ...a.understood, label: `${a.understood.label} · ${note}` } };
+    }
+  }
   if (vs) return vs;
   // One team, Compare asked for ("compare 12345"): Compare with it in, and its closest rivals to compare it with.
   const one = await compareOneAnswer(vsSeason.rest, prefer, vsSeason.season ?? opts.season ?? null);
