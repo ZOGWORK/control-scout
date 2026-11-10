@@ -26,6 +26,21 @@ Every follow-up a search offers says which season its numbers are from.
 
 ### Changed
 - A follow-up's line (People also ask, Related searches, the related searches page and the team's highlights link) ends with the season its numbers are from when the line doesn't already say one: "98 ± 3.2 · #525 worldwide … · 2025–26", "11 awards · 7 performance · 4 judged · all seasons"; a single match (a team's biggest win, last match or highest score) says that match's own season. A record from the latest completed season and a trend from the current one no longer sit side by side unlabelled. (#1330)
+## 5.2.4 — 2026-11-10
+
+Search asks which team when a name is still shared, and its new answers count only what was asked.
+
+### Highlights
+- [fixes] "team" before a shared name still asks which team you mean
+- [fixes] Two shared names in a comparison never claim the same state wrongly
+- [fixes] Win streaks by place follow each event's own match order
+- [fixes] Hardest division and event field answers are by OPR only
+
+### Fixed
+- Search: a name several teams share, typed with "team" before it ("team echo kites record"), asks which team instead of answering for the first one found.
+- Search: in a comparison of two shared names, a name moved to sit beside the other team's state, when that team moved away, now asks which instead of saying both are in the same state.
+- Search: the win streak board orders each team's matches by event and by the event's own match order, so a match with no time on record no longer jumps ahead.
+- Search: "hardest division … by average auto OPR" and "average auto OPR at an event" are no longer answered with plain OPR. (#1325)
 
 ## 5.2.3 — 2026-11-10
 

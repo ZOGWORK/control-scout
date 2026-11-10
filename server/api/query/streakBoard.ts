@@ -8,6 +8,7 @@ import { seasonLabel } from "../../../src/shared/format.js";
 import { all } from "../../db.js";
 import { matchHref, shortEvent, teamLinks } from "../answers/matchSet.js";
 import { OFFICIAL_TYPES } from "../../../src/shared/eventRecord.js";
+import { DOUBLE_ELIM_FROM } from "../../../src/shared/bracketOdds.js";
 
 interface Row { team: number; season: number; code: string; level: string; series: number; number: number; label: string; name: string; type: string | null; alliance: string; red_total: number; blue_total: number }
 
@@ -25,8 +26,12 @@ export async function streakBoardAnswer(o: { region: Region; season: number; now
       AND COALESCE(e.remote, 0) = 0 AND e.type IN (${OFFICIAL_TYPES.map(() => "?").join(", ")})
       AND CASE WHEN t.level = 'qual' THEN COALESCE(t.surrogate, 0) = 0 ELSE COALESCE(t.on_field, 1) = 1 END
       AND tm.country = ?${o.region.state ? " AND tm.state = ?" : ""}
-    ORDER BY t.team, COALESCE(m.time, e.start), e.start, m.code, CASE m.level WHEN 'qual' THEN 0 ELSE 1 END, m.series, m.number`,
-    [o.season - 1, o.season, ...OFFICIAL_TYPES, o.region.country, ...(o.region.state ? [o.region.state] : [])]);
+    -- A team's own match order (../answers/matchSet.ts teamMatches): by event, a division before the finals it feeds,
+    -- then the event's order (qualifications, playoffs by stage; a classic bracket's final, series 0, last: a double
+    -- elimination bracket may number from 0, its first match first), never by match time, which a played
+    -- match may lack.
+    ORDER BY t.team, e.start, t.season, COALESCE(e.division_code, e.code), e.division_code IS NULL, t.code, t.level = 'playoff', t.level = 'playoff' AND t.series = 0 AND t.season < ?, t.series, t.number`,
+    [o.season - 1, o.season, ...OFFICIAL_TYPES, o.region.country, ...(o.region.state ? [o.region.state] : []), DOUBLE_ELIM_FROM]);
   const result = (r: Row) => (r.red_total === r.blue_total ? "T" : (r.red_total > r.blue_total) === (r.alliance === "red") ? "W" : "L");
   const byTeam = new Map<number, Row[]>();
   for (const r of rows) byTeam.set(Number(r.team), [...(byTeam.get(Number(r.team)) ?? []), r]);

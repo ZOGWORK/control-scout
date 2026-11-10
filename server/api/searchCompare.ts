@@ -149,13 +149,25 @@ export async function versusAnswer(q: string, prefer: ReadonlySet<string>, seaso
   // never one settled only by another side, so two shared names can't settle each other.
   // Each side's team as first read is the anchor: a side moved by this loop never moves another, whatever the order.
   const firm = new Map(sides.filter((o) => o.team && (!o.pool || o.rule)).map((o) => [o, o.team!]));
+  const moved = new Set<Side>();
   for (const side of sides) {
     if (!side.pool || side.rule === "your team") continue;
     // Only a real state on both sides.
     const others = sides.filter((o) => o !== side && firm.get(o)?.state).map((o) => firm.get(o)!);
     if (!others.length) continue;
     const r = settle(side.pool, prefer, others);
-    if ("team" in r) { side.team = r.team; side.rule = r.rule; side.tied = []; }
+    if (!("team" in r)) continue;
+    side.team = r.team; side.rule = r.rule; side.tied = [];
+    if (r.rule.startsWith("the one in the same state")) moved.add(side);
+  }
+  // Two shared names can move past each other (one to the other's first state, the other away from it): a side moved to
+  // be beside another team that is no longer beside it asks which, never a pick that says "the same state" and isn't.
+  const beside = (a: TeamFacts, b: TeamFacts) => a.state === b.state && a.country === b.country;
+  const apart = [...moved].filter((side) => !sides.some((o) => o !== side && o.team && beside(o.team, side.team!)));
+  for (const side of apart) {
+    // The name's teams that have played (a registration alone is never a choice), else every one.
+    const played = side.pool!.filter((t) => t.lastPlayed != null);
+    side.tied = played.length ? played : side.pool!; side.team = null; side.rule = undefined;
   }
   const resolved = sides.filter((s) => s.team && s.rule).map((s) => ({ typed: s.typed, number: s.team!.number, rule: s.rule!, candidates: s.candidates }));
   const known = [...new Map(sides.filter((s) => s.team).map((s) => [s.team!.number, s.team!])).values()];
