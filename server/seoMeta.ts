@@ -15,7 +15,7 @@ import { eventTypeLabel } from "../src/shared/labels.js";
 import { canonicalOrigin, canonicalUrl } from "./seo.js";
 import { FAQ, faqJsonLd, faqText } from "../src/shared/faq.js";
 import { ATTENDED, teamKnown } from "./api/teams.js";
-import { compareFirstPaint, eventFirstPaint, leagueFirstPaint, teamFirstPaint, type FirstPaint } from "./firstPaint.js";
+import { compareFirstPaint, eventFirstPaint, leagueFirstPaint, predictFirstPaint, teamFirstPaint, type FirstPaint } from "./firstPaint.js";
 import { leagueStandings } from "./api/leagues.js";
 import { leagueHref, leaguePageTitle } from "../src/shared/leagues.js";
 import { recordOf, recordSql } from "../src/shared/eventRecord.js";
@@ -29,6 +29,7 @@ import { listRecords, recordsQuery } from "./api/records.js";
 import { siteTitle, teamHeading, teamTitle } from "../src/shared/teamTitle.js";
 import { pageModule } from "../src/shared/routes.js";
 import { normalMatchKey } from "../src/shared/matchReport.js";
+import { matchupOf } from "../src/shared/predictUrl.js";
 import { allianceText, shareHeadline, shareImagePath, sharePagePath, tierWords, type ShareCardQuery } from "../src/shared/share.js";
 import { latestRankings, rankingsWeek } from "./powerRankings/store.js";
 import { staticRankingsHtml } from "./powerRankings/static.js";
@@ -401,14 +402,6 @@ async function matchReportMeta(season: number, code: string, key: string): Promi
   };
 }
 
-/** Two distinct team numbers per alliance from "a,b" (what the Predict Lab and a match lineup hold), else null. */
-function pair(v: string | null): number[] | null {
-  const t = (v ?? "").split(",");
-  if (t.length !== 2 || !t.every((x) => /^\d{1,6}$/.test(x.trim()))) return null;
-  const n = t.map((x) => Number(x.trim()));
-  return n.every((x) => x >= 1) && n[0] !== n[1] ? n : null;
-}
-
 
 /** A matchup's words for its link preview: the card's headline, the predicted score and the confidence
  *  (and, for a backtest, that it was replayed afterward: never passed off as a call made before the match). */
@@ -428,8 +421,10 @@ async function matchupMeta(sp: URLSearchParams): Promise<PageMeta | null> {
   const mode = sp.get("mode");
   if (mode != null && mode !== "match") return null;
   if (sp.get("view") === "events") return null;
-  const red = pair(sp.get("red")), blue = pair(sp.get("blue"));
-  if (!red || !blue || red.some((t) => blue.includes(t))) return null;
+  // One or two distinct teams a side, as the Predict page takes them (a head-to-head link has one).
+  const m = matchupOf(sp.get("red"), sp.get("blue"));
+  if (!m) return null;
+  const { red, blue } = m;
   const raw = sp.get("season");
   const season = raw == null || raw === "" ? CURRENT_SEASON : /^\d{4}$/.test(raw) ? Number(raw) : NaN;
   if (!SEASON_NUMBERS.includes(season) || isLegacy(season)) return null;
@@ -783,9 +778,15 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
     if (cm) return cm;
   }
   if (p === "/predict" && (sp.has("red") || sp.has("blue"))) {
-    // A shared matchup; the Predict page's own values when it isn't one (or ratings aren't ready).
-    const mm = await matchupMeta(sp).catch(() => null);
-    if (mm) return mm;
+    // A shared matchup; the Predict page's own values when it isn't one (or ratings aren't ready). Either way, the page
+    // itself drawn with its teams when this server can (a production build): server/firstPaint.ts.
+    const [mm, firstPaint] = await Promise.all([matchupMeta(sp).catch(() => null), predictFirstPaint(sp).catch(() => null)]);
+    if (mm) return firstPaint ? { ...mm, firstPaint } : mm;
+    if (firstPaint) {
+      // A head-to-head (one team a side) has no share card, but its title still names the matchup.
+      const m = matchupOf(sp.get("red"), sp.get("blue"));
+      return { ...STATIC["/predict"], ...(m ? { title: `${allianceText(m.red)} vs ${allianceText(m.blue)}: match prediction` } : {}), description: fitDescription(STATIC["/predict"].description), type: "website", firstPaint };
+    }
   }
   // How it works: the whole page in the first paint, prerendered from the real page component at build time
   // (scripts/prerender.mjs), so crawlers read every section without running JavaScript.
