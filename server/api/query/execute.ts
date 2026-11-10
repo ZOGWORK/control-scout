@@ -526,6 +526,10 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     // Wins said with a record ("wins losses record") are the record itself; with another stat, the record is a column.
     if (stats.length > 1) { const rest = stats.filter((s) => s !== "record" && s !== "wins"); stats = rest.length || !stats.includes("record") ? rest : ["record"]; }
     if (stats.length > 1) return null;
+    // A stat alone, no "best", "team" or count said, is everyone's board only for a season or a place said ("2027 opr").
+    if (!p.agg && !p.undefeated && !p.symbols.includes("thing:team") && stats[0] !== "record" && !p.time && !p.place) return null;
+    // Wins with no "team" said are a count only beside "most", "fewest" or "least": "biggest win in nj" is a match.
+    if (stats[0] === "wins" && !p.symbols.includes("thing:team") && !p.undefeated && !/\b(?:most|fewest|least)\b/.test(said)) return null;
     // "The best team in NJ by OPR": one team, the next few under it; with no place or stat named, or a sort asked
     // for ("best team sorted by auto"), the top 10.
     const one = /\b(?:team|who)\b/.test(said) && !/\b(?:teams|sorted|ranked|order)\b/.test(said) && p.n == null && (!!p.place || stats.length === 1);

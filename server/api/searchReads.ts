@@ -20,7 +20,13 @@
 // 2026-11-10), and at a meet the same few pages are asked for over and over. Thirty seconds, so a live event's page
 // never lags its API by more than that (the live lane's writes drop everything kept anyway, through dataWriteCount).
 // Past its time, a kept answer or page is still served once more while a fresh one is made behind it (STALE_MS),
-// so a busy page is remade by the server, not by a visitor waiting; nothing kept outlives a data move.
+// so a busy page is remade by the server, not by a visitor waiting.
+//
+// A data move (a sync, the live lane) drops the kept reads at once, but not the answers and pages: each is served as
+// it was until one request has drawn it again from the new data (single-flight: the first ask after the move starts
+// the draw, every ask meanwhile gets the copy from before), so a page lags the data by at most one draw, and never
+// by more than its time and STALE_MS. Before, every page and answer was drawn again at once on the move, every
+// visitor waiting. "Clear caches" still drops everything.
 import { all, dataWriteCount, kvGet } from "../db.js";
 import { registerCache } from "../caches.js";
 
@@ -28,15 +34,41 @@ const VERSION_CHECK_MS = 2_000, READ_TTL_MS = 10 * 60_000, READS_KEPT = 5_000, A
 export const PAGE_TTL_MS = 30_000, PAGES_KEPT = 200;
 /** How long past its time a kept answer or page is still served while its fresh copy is made. */
 export const STALE_MS = 5 * 60_000;
-type Kept = { at: number; value: Promise<unknown>; renewing?: boolean };
-const fresh = (version = "", checked = 0, writes = dataWriteCount()) => ({ version, checked, writes, rows: new Map<string, Kept>(), answers: new Map<string, Kept>(), pages: new Map<string, Kept>() });
+/** `ok`: its value has resolved (only those are served across a data move). */
+type Kept = { at: number; value: Promise<unknown>; renewing?: boolean; ok?: boolean };
+interface Store {
+  version: string; checked: number; writes: number;
+  rows: Map<string, Kept>; answers: Map<string, Kept>; pages: Map<string, Kept>;
+  before: { answers: Map<string, Kept>; pages: Map<string, Kept> };
+}
+const fresh = (version = "", checked = 0, writes = dataWriteCount(), before?: Store): Store => ({
+  version, checked, writes, rows: new Map<string, Kept>(), answers: new Map<string, Kept>(), pages: new Map<string, Kept>(),
+  /** The answers and pages from before the last data move, served until drawn again (resolved ones only). */
+  before: { answers: carried(before, "answers"), pages: carried(before, "pages") },
+});
+/** How long each kind is kept and how many: a carried copy is held to the same (below). */
+const LIMITS = { answers: { ttl: ANSWER_TTL_MS, max: ANSWERS_KEPT }, pages: { ttl: PAGE_TTL_MS, max: PAGES_KEPT } } as const;
+/** What a new store keeps from `s` of `which`: its own resolved entries, over what it had carried itself; only those
+ *  that can still be served (younger than their time plus STALE_MS), and at most as many as are kept (the newest), so
+ *  copies of one-off addresses never pile up over many moves. */
+function carried(s: Store | undefined, which: "answers" | "pages", now = Date.now()): Map<string, Kept> {
+  const out = new Map<string, Kept>();
+  if (!s) return out;
+  const { ttl, max } = LIMITS[which];
+  for (const [k, v] of s.before[which]) out.set(k, v);
+  for (const [k, v] of s[which]) if (v.ok) out.set(k, v);
+  const live = [...out].filter(([, v]) => now - v.at < ttl + STALE_MS).sort((x, y) => x[1].at - y[1].at).slice(-max);
+  return new Map(live);
+}
+/** A new store after a data move: the reads go, the answers and pages are carried (above). */
+const moved = (version = "", checked = 0) => fresh(version, checked, dataWriteCount(), kept);
 let kept = fresh();
 let checking: Promise<void> | null = null;
 
 async function checkVersion(now: number): Promise<void> {
   const [s, d] = await Promise.all([kvGet<string>("search:version"), kvGet<string>("data:version")]);
   const version = `${s ?? "0"}|${d ?? "0"}`;
-  if (version !== kept.version) kept = fresh(version, now);
+  if (version !== kept.version) kept = moved(version, now);
   else kept.checked = now;
 }
 
@@ -45,7 +77,7 @@ async function checkVersion(now: number): Promise<void> {
 async function keep<T>(which: "rows" | "answers" | "pages", key: string, ttl: number, max: number, make: () => Promise<T>): Promise<T> {
   const now = Date.now();
   // A write here since: whatever was kept may be out of date, and the versions are read again too.
-  if (kept.writes !== dataWriteCount()) kept = fresh();
+  if (kept.writes !== dataWriteCount()) kept = moved(kept.version);
   if (now - kept.checked > VERSION_CHECK_MS) {
     checking ??= checkVersion(now).finally(() => { checking = null; });
     await checking;
@@ -60,15 +92,30 @@ async function keep<T>(which: "rows" | "answers" | "pages", key: string, ttl: nu
     if (!hit.renewing) {
       hit.renewing = true;
       const store = kept, next = make();
-      next.then(() => { if (kept === store && map.get(key) === hit) { map.delete(key); map.set(key, { at: Date.now(), value: next }); } },
+      next.then(() => { if (kept === store && map.get(key) === hit) { map.delete(key); map.set(key, { at: Date.now(), value: next, ok: true }); } },
         () => { hit.renewing = false; });
     }
     return hit.value as Promise<T>;
   }
+  // From before a data move (and still within its time and STALE_MS): served while one draw from the new data is
+  // made, which takes its place once made; a failed draw leaves it for the next ask to try again.
+  const old = which === "rows" ? undefined : kept.before[which].get(key);
+  if (old && now - old.at < ttl + STALE_MS) {
+    const store = kept, next = make(), standIn: Kept = { at: old.at, value: old.value, renewing: true, ok: true };
+    map.set(key, standIn);
+    if (map.size > max) map.delete(map.keys().next().value!);
+    next.then(() => {
+      if (kept !== store) return;
+      store.before[which as "answers" | "pages"].delete(key);
+      if (map.get(key) === standIn) { map.delete(key); map.set(key, { at: Date.now(), value: next, ok: true }); }
+    }, () => { if (map.get(key) === standIn) map.delete(key); });
+    return old.value as Promise<T>;
+  }
   const value = make();
-  map.set(key, { at: now, value });
+  const entry: Kept = { at: now, value };
+  map.set(key, entry);
   if (map.size > max) map.delete(map.keys().next().value!);
-  value.catch(() => { if (map.get(key)?.value === value) map.delete(key); });
+  value.then(() => { entry.ok = true; }, () => { if (map.get(key)?.value === value) map.delete(key); });
   return value;
 }
 
@@ -83,7 +130,7 @@ export const keptAnswer = <T>(key: string, make: () => Promise<T>): Promise<T> =
 /** A whole page, kept PAGE_TTL_MS under `key` (its address: path and query). Shared by every visitor: never changed. */
 export const keptPage = <T>(key: string, make: () => Promise<T>): Promise<T> => keep("pages", key, PAGE_TTL_MS, PAGES_KEPT, make);
 
-/** How many of each are kept right now (the owner portal's caches view, tests). */
-export const keptCounts = () => ({ rows: kept.rows.size, answers: kept.answers.size, pages: kept.pages.size });
+/** How many of each are kept right now, and how many copies from before the last data move (tests). */
+export const keptCounts = () => ({ rows: kept.rows.size, answers: kept.answers.size, pages: kept.pages.size, carried: kept.before.answers.size + kept.before.pages.size });
 
 registerCache("Search reads, answers and pages", () => { kept = fresh(); });

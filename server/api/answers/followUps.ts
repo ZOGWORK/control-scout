@@ -22,6 +22,11 @@ type Family = SearchFollowUp["family"];
 export const pageAnswer = (q: string, limit: number, prefer: ReadonlySet<string>): Promise<SearchAnswer> =>
   keptAnswer(JSON.stringify([q, limit, [...prefer].sort(), forecasterBuilds()]), () => searchAnswer(q, { limit, prefer }));
 
+/** The follow-ups for `q` with its own kept answer (followUps), kept a minute as the answer is: the /search page's
+ *  first paint and the app's /api/search/follow for the same search are one reading. */
+export const keptFollowUps = (q: string, prefer: ReadonlySet<string> = new Set()): Promise<SearchFollowUps> =>
+  keptAnswer(JSON.stringify(["follow", q, [...prefer].sort(), forecasterBuilds()]), async () => followUps(q, await pageAnswer(q, SEARCH_PAGE_LIMIT, prefer), prefer));
+
 /** At most this many questions are shown, and this many candidates run to find them. */
 export const ASK_MAX = 6, RELATED_MAX = 8;
 const CHECK_MAX = 16;
@@ -75,6 +80,7 @@ const EVENT: Template[] = [
   T("events", ["event"], (s) => `Who won ${s.event}${IN(s)}?`, (s) => `who won ${s.event}${AT(s)}`),
   T("events", ["event"], (s) => `What were the best matches at ${s.event}${IN(s)}?`, (s) => `${s.event}${AT(s)} highlights`),
   T("events", ["event"], (s) => `Which teams played at ${s.event}${IN(s)}?`, (s) => `teams at ${s.event}${AT(s)}`),
+  T("events", ["event"], (s) => `Who were the top teams at ${s.event}${IN(s)}?`, (s) => `top teams at ${s.event}${AT(s)}`),
 ];
 const AWARD_AT: Template = T("awards", ["event", "award"], (s) => `Who won the ${s.award} Award at ${s.event}${IN(s)}?`, (s) => `${s.award} award at ${s.event}${AT(s)}`);
 const PLACE: Template[] = [
@@ -103,6 +109,15 @@ const START: Template[] = [
   T("events", [], () => "What events are coming up?", () => "upcoming events"),
   T("events", [], () => "What events are this week?", () => "events this week"),
   T("events", [], () => "What events are happening today?", () => "live events"),
+  // Past the questions' six: the season's other boards and weeks, Related searches' chips.
+  T("leaders", [], () => "Who has the best Auto OPR?", () => "best auto opr"),
+  T("leaders", [], () => "Who has the best TeleOp OPR?", () => "best teleop opr"),
+  T("leaders", [], () => "Who has the best Endgame OPR?", () => "best endgame opr"),
+  T("leaders", [], () => "Which team has the best record?", () => "best record"),
+  T("events", [], () => "What events are next week?", () => "events next week"),
+  T("events", [], () => "What events have already happened?", () => "past events"),
+  T("events", [], () => "What championships are coming up?", () => "upcoming championships"),
+  T("events", [], () => "What events are this weekend?", () => "events this weekend"),
 ];
 
 /** The Worlds phrases the lexicon reads, longest first ("first championship" before "first"). */
@@ -156,7 +171,8 @@ export function candidates(p: Parsed, a: SearchAnswer, team = answerTeam(a)): Ca
       const filled = { ...(slots as Required<Slots>), when: (x.needs.includes("t") ? (x.when ? teamWhen : undefined) : slots.when) ?? "" };
       return { q: x.ask(filled), short: x.short(filled), family: x.family, ...(x.chip ? { chip: true } : {}) };
     });
-  const [award1, ...awards] = event ? AWARDS.filter((x) => x !== s.award).slice(0, 4).flatMap((award) => fill([AWARD_AT], { ...s, award })) : [];
+  // Every award an event gives, its winner's question first: those the questions don't take are Related searches.
+  const [award1, ...awards] = event ? AWARDS.filter((x) => x !== s.award).flatMap((award) => fill([AWARD_AT], { ...s, award })) : [];
   const out = [
     ...(s.u != null ? fill(TWO, s) : []),
     ...(p.intent === "leaderboard" ? fill(LEADERS, s) : []),

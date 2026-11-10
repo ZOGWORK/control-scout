@@ -139,6 +139,23 @@ const uniqTeams = (ts: TeamFacts[]) => [...new Map(ts.map((t) => [t.number, t]))
 const teamHit = (t: TeamFacts, hits: Map<string, SearchHit>): SearchHit =>
   hits.get(String(t.number)) ?? { kind: "team", ref: String(t.number), title: searchTeamTitle(t.number, t.name), subtitle: place(t.city, t.state, t.country), season: t.lastPlayed };
 
+/** A versus whose one side is a number no FTC team has ("12345 vs 99 opr", "99 vs 12345 record"): the question about
+ *  the other side's team alone (the number and its "vs" taken out), and the number, or null. Only a number typed alone
+ *  as the side's first word: a name that matches no team is still a comparison's (its recovery names it). */
+export async function versusLoneTeam(q: string, prefer: ReadonlySet<string>): Promise<{ q: string; missing: number } | null> {
+  const typedSides = q.split(VERSUS).map((s) => s.trim()).filter(Boolean);
+  if (typedSides.length !== 2) return null;
+  const firsts = typedSides.map((s) => /^\d{1,5}$/.exec(s.split(/\s+/)[0])?.[0] ?? null);
+  const unknown = await Promise.all(firsts.map(async (n) => n != null && !(await teamFacts([Number(n)])).size));
+  if (unknown.filter(Boolean).length !== 1) return null;
+  const i = unknown.indexOf(true), n = firsts[i]!;
+  // The other side a team: its number typed first, or its name.
+  if (firsts[1 - i] == null && !(await readSide(typedSides[1 - i], prefer)).team) return null;
+  const vs = VERSUS.source;
+  const rest = (i === 1 ? q.replace(new RegExp(`${vs}${n}(?=\\s|$)`, "i"), " ") : q.replace(new RegExp(`(?:^|\\s)${n}${vs}`, "i"), " ")).replace(/\s+/g, " ").trim();
+  return rest === q.trim() ? null : { q: rest, missing: Number(n) };
+}
+
 /** The answer for a versus query, or null when `q` isn't one. */
 export async function versusAnswer(q: string, prefer: ReadonlySet<string>, season: number | null): Promise<SearchAnswer | null> {
   const typedSides = q.split(VERSUS).map((s) => s.trim()).filter(Boolean);
