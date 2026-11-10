@@ -281,8 +281,10 @@ function TrackedFeed({ season }: { season: number }) {
       <Section title="Tracked teams" description="Teams you follow — track any team from its page.">
         {!teams.length ? <EmptyState icon={Eye} title="Not tracking any teams" description="Open a team and press Track. Tracked teams show up here and get priority in search." /> : (
           <Async state={summary} loading={<div className="skeleton h-32 rounded-xl" />}>
+            {/* grid-cols-1, not the implicit column: an implicit track grows to its longest line, so a long event name would
+                push the row (and its Stop tracking button) off a phone screen instead of truncating. */}
             {(d) => (
-              <ul className="grid gap-2 sm:grid-cols-2">
+              <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {d.teams.map((t) => (
                   <li key={t.team} className="flex items-start gap-3 rounded-xl border border-border bg-card p-3">
                     <Link to={`/teams/${t.team}?season=${season}`} className="min-w-0 flex-1">
