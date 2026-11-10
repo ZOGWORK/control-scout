@@ -15,6 +15,85 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.9.8 — 2026-11-10
+
+Search reads "comparison", "winner" and "head to head" the way people say them.
+
+### Highlights
+- [fixes] "opr comparison 4215 and 7149" shows the OPR side by side
+- [fixes] "predict winner 4215 6980" shows the match forecast
+- [fixes] "head to head" shows the two teams' meetings, at Worlds when said
+
+### Changed
+- "Comparison", "bigger" and "higher" compare two teams' stat, however the teams are joined ("which opr is bigger, 4215 or 7149").
+- "Winner" in a forecast ("predict 23268 7149 winner", "who is the winner 4215 vs 6980") asks for the match call.
+- "Head to head" and "h2h" read as the teams' meetings card, with a scope said alongside ("4215 versus 6980 worlds head to head score"), never only a Compare link. (#1277)
+
+## 4.9.7 — 2026-11-10
+
+A championship division's awards are read from its championship, and an event named is its newest edition.
+
+### Highlights
+- [fixes] An award asked at a division names the championship's winner
+- [fixes] An event named is its newest edition, not an older look-alike
+- [fixes] The card says the award was given at the championship
+
+### Fixed
+- A division of a championship (New Jersey Championship - Turnpike Division) has no judged awards of its own: FIRST posts them on the championship. An award asked at a division is now the championship's, said so on the card, instead of "No Control Award recorded".
+- "Who won Inspire at NJ Championship Parkway Division" answers for the 2025–26 division, not a 2020–21 event whose name holds extra words. Of the events whose names fit the words best, the newest is picked; a region code typed ("NJ") is read as its name. (#1270)
+
+## 4.9.6 — 2026-11-10
+
+Search answers the plural with the list, and finds a team whose name was typed nearly right even when each word is a real word.
+
+### Highlights
+- [fixes] "4215 upcoming events" lists the team's upcoming events
+- [fixes] A team's name typed nearly right is found, with a Did you mean
+- [fixes] A team's number with an s after it finds the team
+
+### Changed
+- Asked in the plural ("upcoming events", "next events", "upcoming matches"), search shows the list, titled as one, even when it holds one event or none. The singular still shows the next one.
+- A team's name typed nearly right, where each word is still a real word, is read as that team and said as "Did you mean". A team found by a near spelling inside a question says so too.
+- "Partnered" reads as alliance partners, never split into two words. (#1275)
+
+## 4.9.5 — 2026-11-10
+
+On a phone, every tracked team on My team can be removed again.
+
+### Highlights
+- [fixes] My team on a phone: the remove button shows on every tracked team
+- [fixes] A long event name is cut short instead of pushing the row off the screen
+- [fixes] Tracked events and the win-rate tiles keep to a phone screen too
+
+### Fixed
+- My team › Tracked teams on a phone: a team whose last event has a long name (a league tournament, say) made its row wider than the screen, so the row ran off the right edge and its Stop tracking button couldn't be reached. Rows now keep to the screen's width and the event name is shortened with "…"; the tracked events and win-rate tiles on the same page got the same fix. (#1279)
+
+## 4.9.4 — 2026-11-10
+
+Compare opens on its teams: a search answer's Compare link lands on both teams with their numbers, from the first paint.
+
+### Highlights
+- [fixes] Compare from a search answer opens with both teams already there
+- [speed] A shared Compare link shows the comparison at once, before the app loads
+- [share] A comparison's tab and link title name both teams
+
+### Changed
+- `/compare?teams=…&season=…` is drawn on the server like team and event pages: the stats table, charts, events and awards are in the page itself, so a slow connection shows the teams straight away. Its title names the teams. (#1269)
+- The search page's first paint lists an answer's "Open in Predict" and "Compare side by side" links with the teams and season in them.
+## 4.9.3 — 2026-11-10
+
+A question search can't answer yet says sorry plainly, and a yes-or-no question gets its Yes or No first.
+
+### Highlights
+- [fixes] "Sorry — I can't answer that yet", once, when nothing answers
+- [fixes] What was read on one line, and searches that answer, one tap each
+- [fixes] Every yes-or-no question shows Yes or No first, big, then the proof
+
+### Changed
+- When search can't answer a question, or nothing matches at all, the page heading says "Sorry — I can't answer that yet", once. Under it: what was read (the team, event, place or season) and a few searches about it, each checked to answer before it is shown. The old "This isn't answered directly yet" and "No matches found" wordings are gone. (#1278)
+- What was read is the team the answer kept: a word of the question that happens to be another team's name ("how many rivets are on 4215's robot") is no longer read as that team. "7149s robot", with no apostrophe, is read as 7149.
+- Any question asked as yes or no ("did …", "has … ever", "was … at", "… ever won …?") shows Yes or No first whenever its answer card counts something: a count over zero is Yes, zero or none found is No. The card under it stays the evidence, with its links. The page's first paint says it too.
+
 ## 4.9.2 — 2026-11-09
 
 DECODE's highest score, Q49 at Carolinas Premier Event, is marked as not an official record.

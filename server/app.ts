@@ -38,7 +38,7 @@ const preferOf = (raw: unknown) => new Set(String(raw ?? "").split(",").filter((
 import { recordClick } from "./api/searchLearn.js";
 import { recordIntent } from "./api/searchIntents.js";
 import { rebuildSearch } from "./stats/job.js";
-import { teamProfile, compareTeams, teamSummaries, shortlistTeams, reliabilityMany, teamReportCards, teamSchedule } from "./api/teams.js";
+import { teamProfile, compareAnswer, teamSummaries, shortlistTeams, reliabilityMany, teamReportCards, teamSchedule } from "./api/teams.js";
 import { teamRoadMap } from "./api/roadmap.js";
 import { cachedEventDetail, eventDetail, listEvents, toEventInput } from "./api/events.js";
 import { withBracketGate } from "./api/bracket.js";
@@ -663,18 +663,9 @@ export function createApp(opts: { dist?: string } = {}) {
     return r;
   }));
 
-  api.get("/compare", h(async (req) => {
-    const numbers = teamList(req.query.teams, "teams", 4);
-    // No season asked for: the latest season where any of them has results
-    // (like the team page), not an empty current season.
-    let s = season(req.query.season);
-    if (!req.query.season && numbers.length) {
-      const ph = numbers.map(() => "?").join(",");
-      const r = await get<{ season: number | null }>(`SELECT MAX(season) season FROM team_season_stats WHERE team IN (${ph}) AND matches > 0`, numbers);
-      if (r?.season) s = r.season;
-    }
-    return compareTeams(numbers, s);
-  }));
+  // No season asked for: the latest season where any of them has results (like the team page), not an empty
+  // current season (compareAnswer; the first paint of /compare asks the same way, server/firstPaint.ts).
+  api.get("/compare", h(async (req) => compareAnswer(teamList(req.query.teams, "teams", 4), req.query.season ? season(req.query.season) : undefined)));
 
   /** Many teams at once (shortlist, tracked teams): name, place, season stats, latest event. */
   api.get("/teams-summary", h(async (req) => ({ season: season(req.query.season), teams: await teamSummaries(teamList(req.query.teams, "teams", 100), season(req.query.season)) })));

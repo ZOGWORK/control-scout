@@ -5,6 +5,10 @@ import type { SearchHit, SearchPageLink, SearchSection } from "./api.js";
 /** The kinds in the order they're listed, with their group names. */
 export const SEARCH_GROUPS: [SearchHit["kind"], string][] = [["compare", "Compare"], ["place", "Places"], ["team", "Teams"], ["event", "Events"], ["match", "Matches"]];
 
+/** What the /search page says, once, as its heading when nothing answers the question (the natural-questions brief,
+ *  §4): the app and the server's first paint alike; a team fallback's reading ends in it too (server/api/searchLayers.ts). */
+export const SORRY_SENTENCE = "Sorry — I can't answer that yet";
+
 /** How many hits the /search page lists (the API's most), counted as cards: an event and its divisions are one
  *  (firstCards). */
 export const SEARCH_PAGE_LIMIT = 25;
