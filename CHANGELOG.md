@@ -25,7 +25,7 @@ A team's page says where it stands in its league, and league meets link to the l
 - [teams] Each link marks the team's row in the league table
 
 ### Added
-- Team page: under the team's last league meet, a line with its place in FIRST's league ranking (out of the teams that have played, "Not ranked yet" before its first match) linking to the league's standings with its row marked. (#1312)
+- Team page: under the team's last league meet, a line with its place in FIRST's league ranking (out of the teams that have played, "Not ranked yet" before its first match) linking to the league's standings with its row marked.
 - League meet and league tournament pages: a "League standings" button beside Pit display, to the league's standings page. (#1312)
 
 ## 5.1.7 — 2026-11-10
