@@ -25,10 +25,12 @@ const PUBLIC_TABLES = [
   // FIRST's pre-event registrations (server/data/registrations.ts): the source's lists replace the target's whole
   // (below), so a team that dropped out doesn't linger.
   "event_registrations",
+  // FIRST's league list and league standings (server/data/leagues.ts): each read replaces a league's whole ranking.
+  "leagues", "league_rankings",
 ];
 /** Small tables whose target rows the source's replace whole (lists each read replaces, not rows that accumulate):
  *  read in full first, then swapped in one transaction, so a failed push leaves the target's as they were. */
-const REPLACE_WHOLE = new Set(["event_registrations"]);
+const REPLACE_WHOLE = new Set(["event_registrations", "leagues", "league_rankings"]);
 /** WITHOUT ROWID tables (no rowid to page by): their primary key order instead. */
 const KEY_ORDER: Record<string, string> = {
   team_event_records: "season, code, team", team_season_records: "season, team", match_records: "season, code, level, series, number",

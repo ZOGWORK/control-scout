@@ -84,13 +84,24 @@ describe("league standings sync", () => {
     const missing = async (path: string) => (path.includes("rankings") ? none : fetcher([])(path));
     expect(await syncLeagues(S, { now: new Date("2026-11-08T19:00:00Z"), fetch: missing })).toMatchObject({ ranked: 0, failed: 1 });
     expect((await leagueStandings(S, "USNJ", "NE"))!.rows).toHaveLength(3);
-    expect(await syncLeagues(S, { now: new Date("2026-11-08T19:05:00Z"), fetch: fetcher([]) })).toMatchObject({ ranked: 1 });
+    // Not again until REREAD_HOURS on, like any read.
+    expect(await syncLeagues(S, { now: new Date("2026-11-08T19:05:00Z"), fetch: fetcher([]) })).toMatchObject({ ranked: 0 });
+    expect(await syncLeagues(S, { now: new Date("2026-11-09T01:05:00Z"), fetch: fetcher([]) })).toMatchObject({ ranked: 1 });
   });
 
   it("tries a failed league again next sync", async () => {
     const asked: string[] = [];
     const failing = async (path: string) => { asked.push(path); if (path.includes("rankings")) throw new Error("FIRST 503"); return fetcher([])(path); };
     expect(await syncLeagues(S, { now: new Date("2026-11-08T12:00:00Z"), fetch: failing })).toEqual({ listed: 2, ranked: 0, failed: 2 });
-    expect(await syncLeagues(S, { now: new Date("2026-11-08T12:05:00Z"), fetch: fetcher(asked) })).toMatchObject({ ranked: 2 });
+    expect(await syncLeagues(S, { now: new Date("2026-11-08T18:05:00Z"), fetch: fetcher(asked) })).toMatchObject({ ranked: 2 });
+  });
+
+  it("never lets a league that keeps failing hold the sync's slots", async () => {
+    const asked: string[] = [];
+    const njFails = async (path: string) => { asked.push(path); return path.endsWith("/USNJ/NE") ? null : fetcher([])(path); };
+    // One league per sync: New Jersey's (the newer meet) goes first and fails; the next sync reads Florida's.
+    expect(await syncLeagues(S, { limit: 1, now: new Date("2026-11-08T12:00:00Z"), fetch: njFails })).toMatchObject({ ranked: 0, failed: 1 });
+    expect(await syncLeagues(S, { limit: 1, now: new Date("2026-11-08T12:05:00Z"), fetch: njFails })).toMatchObject({ ranked: 1 });
+    expect(asked.filter((a) => a.includes("rankings"))).toEqual([`/${S}/leagues/rankings/USNJ/NE`, `/${S}/leagues/rankings/USFL/NE`]);
   });
 });
