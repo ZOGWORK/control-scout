@@ -80,3 +80,14 @@ describe("switching modes", () => {
     expect(switchMode(s("mode=advancement&season=2025&code=USNJQ1"), "scheduled")).toMatchObject({ pick: { kind: "event", season: 2025, code: "USNJQ1" } });
   });
 });
+
+describe("matchupOf / matchApiPath (the Lab's matchup, read the same by the page and the server)", () => {
+  it("takes one or two teams a side, never a repeat, a third robot or an empty side", async () => {
+    const { matchupOf, matchApiPath } = await import("./predictUrl");
+    expect(matchupOf("4215", "7149")).toEqual({ red: [4215], blue: [7149] });
+    expect(matchupOf("4215,", "7149,")).toEqual({ red: [4215], blue: [7149] });
+    expect(matchupOf("4215,23268", "7149,6980")).toEqual({ red: [4215, 23268], blue: [7149, 6980] });
+    for (const [r, b] of [["4215", ""], ["4215,1,2", "7149"], ["4215", "4215"], ["4215,23268", "7149"], ["x", "7149"], ["0", "7149"], [null, "7149"]]) expect(matchupOf(r, b), `${r} v ${b}`).toBeNull();
+    expect(matchApiPath(2025, [4215], [7149])).toBe("/api/predict/match?season=2025&red=4215&blue=7149");
+  });
+});

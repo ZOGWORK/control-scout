@@ -12,6 +12,7 @@ import { names } from "../query/names.js";
 import { AWARD_WORDS, LEXICON } from "../query/lexicon.js";
 import { keptAnswer } from "../searchReads.js";
 import { searchAnswer } from "../searchAnswer.js";
+import { forecasterBuilds } from "../../predict/engine.js";
 import { failureOf, outcomeTrace } from "../../searchFailures.js";
 
 type Family = SearchFollowUp["family"];
@@ -19,7 +20,7 @@ type Family = SearchFollowUp["family"];
 /** The whole answer for `q` as /api/search?answer=1 gives it, kept a minute: a follow-up checked here is the answer its
  *  tap opens. */
 export const pageAnswer = (q: string, limit: number, prefer: ReadonlySet<string>): Promise<SearchAnswer> =>
-  keptAnswer(JSON.stringify([q, limit, [...prefer].sort()]), () => searchAnswer(q, { limit, prefer }));
+  keptAnswer(JSON.stringify([q, limit, [...prefer].sort(), forecasterBuilds()]), () => searchAnswer(q, { limit, prefer }));
 
 /** At most this many questions are shown, and this many candidates run to find them. */
 export const ASK_MAX = 6, RELATED_MAX = 8;
@@ -130,7 +131,9 @@ function answerTeam(a: SearchAnswer): number | undefined {
 export function candidates(p: Parsed, a: SearchAnswer, team = answerTeam(a)): Candidate[] {
   const n = normalise(p.q);
   const worlds = p.worlds ? WORLDS.find((w) => ` ${n} `.includes(` ${w} `)) : undefined;
-  const said = (meant(p.event?.typed) ? p.event?.typed : undefined) ?? worlds;
+  // A league's standings answer named a league, not an event ("nj league standings" is no event called "Nj League").
+  const league = a.intent?.kind === "stat-league-standings";
+  const said = league ? undefined : (meant(p.event?.typed) ? p.event?.typed : undefined) ?? worlds;
   // As typed, or in title case when typed all in lower case ("north league meet" → "North League Meet").
   const event = said && said === said.toLowerCase() ? said.replace(/(?<![\p{L}\p{N}'])\p{L}/gu, (c) => c.toUpperCase()) : said;
   const teams = p.teams.map((t) => t.number);
@@ -231,7 +234,9 @@ export async function initialsUpper(p: Parsed): Promise<Parsed> {
  *  answer's own line; none answers what another, the search itself or one the page already offers does. Only the
  *  first CHECK_MAX candidates are run for each: fewer follow-ups, never a slower page. */
 export async function followUps(q: string, a: SearchAnswer, prefer: ReadonlySet<string> = new Set()): Promise<SearchFollowUps> {
-  const p = await initialsUpper(await parseQuery(q, await parseContext(Date.now(), prefer)));
+  const read = await initialsUpper(await parseQuery(q, await parseContext(Date.now(), prefer)));
+  // A name several teams still share holds an arbitrary first one: no follow-up is about it (../query/shared.ts).
+  const p = { ...read, teams: read.teams.filter((t) => !t.candidates || t.rule) };
   // The searches the page already offers (a sorry note's, a team fallback's, the answer's own related ones): asked
   // again in other words, they'd be offered twice. Their answers, kept the same way, say what they answer.
   const shown = [...new Set([...(a.suggest ?? []), ...(a.sorry?.suggest ?? []), ...(a.stat?.blocks ?? []).flatMap((b) => (b.kind === "related" ? b.queries : []))])].slice(0, SHOWN_MAX);

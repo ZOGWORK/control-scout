@@ -16,7 +16,7 @@ import { oprRows, solveOpr } from "./opr.js";
 import { normalize, thousandsAlias } from "../api/fuzzy.js";
 import { forecasterFor } from "../predict/engine.js";
 import { regionNames } from "../../src/shared/regions.js";
-import { onRecord } from "../../src/shared/eventRecord.js";
+import { isOfficialEvent, onRecord } from "../../src/shared/eventRecord.js";
 import { computeRecords, fillAdvancementOdds, fillRecordPredictions, fillScheduleDifficulty } from "./records.js";
 import { snapshotRankings } from "./rankings.js";
 import { partnershipPrefix } from "../predict/partnerships.js";
@@ -79,6 +79,7 @@ function tallyEvents(season: number, events: DbEvent[]): { eventRows: Map<string
     if (e.remote) continue;
     const rows = oprRows(e.matches, season);
     const res = rows.length ? solveOpr(rows) : null;
+    const official = isOfficialEvent(e.type);
     const perTeam = new Map<number, Acc>();
     for (const m of e.matches) {
       if (!m.played || !m.redScore || !m.blueScore) continue;
@@ -88,9 +89,11 @@ function tallyEvents(season: number, events: DbEvent[]): { eventRows: Map<string
           if (!counts && !t.onField) continue;
           let s = seasonAcc.get(t.team); if (!s) { s = { ...acc(), events: new Set(), rec: { matches: 0, w: 0, l: 0, t: 0 } }; seasonAcc.set(t.team, s); }
           if (counts) {
-            // The season record: every match on the team's record, a qualification no-show's included (FIRST counts them too).
+            // The season record: every match on the team's record, a qualification no-show's included (FIRST counts them
+            // too), at official events only (src/shared/eventRecord.ts isOfficialEvent: search and the team page say
+            // the same record). Matches played still count every event's.
             s.rec.matches++;
-            if (own.total > opp.total) s.rec.w++; else if (own.total < opp.total) s.rec.l++; else s.rec.t++;
+            if (official) { if (own.total > opp.total) s.rec.w++; else if (own.total < opp.total) s.rec.l++; else s.rec.t++; }
           }
           s.events.add(e.code);
           if (!t.onField) continue;
@@ -471,7 +474,7 @@ export interface StatsOptions { seasons?: number[]; backtest?: boolean; log?: Lo
  *    count as FIRST counts them, playoff matches sat out don't. Hosts already rebuilt under 6 rebuild once more.
  * 8: schedule difficulty in the event records (team_event_records.schedule*, migration 62): every season once.
  */
-export const STATS_RULES = 8;
+export const STATS_RULES = 9;
 
 /** True when past seasons were computed under older rules, or haven't all been
  *  recomputed by this engine version yet (a new engine rewrites every season's

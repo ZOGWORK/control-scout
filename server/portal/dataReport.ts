@@ -101,11 +101,13 @@ export function endedNoMatches(now = Date.now()): Promise<DataFlag> {
     });
 }
 
-/** A team's season record whose wins, losses and ties don't add up to its match count (the headline on its page). */
+/** A team's season record holding more results than its match count. The record counts official events only
+ *  (src/shared/eventRecord.ts) and the match count every event, so fewer results than matches is a team with
+ *  off-season or scrimmage matches, never a fault; more is one. */
 export function recordMismatch(): Promise<DataFlag> {
-  const where = "wins + losses + ties != matches";
+  const where = "wins + losses + ties > matches";
   return check("record-mismatch", "Season records that don't add up",
-    "Team season rows whose wins + losses + ties differ from their match count, so the record and the match total on the team page disagree. The next stats run rebuilds these rows from the matches.",
+    "Team season rows whose wins + losses + ties are more than their match count (the record counts official events only, the match count every event, so the record can never hold more). The next stats run rebuilds these rows from the matches.",
     async () => {
       const [n, rows] = await Promise.all([
         all<{ n: number }>(`SELECT COUNT(*) n FROM team_season_stats WHERE ${where}`),

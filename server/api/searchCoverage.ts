@@ -16,7 +16,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import type { SearchAnswer, SearchCardFact, SearchCardLine, SearchHit, SearchSection } from "../../src/shared/api.js";
 import type { TeamTable } from "../../src/shared/teamTable.js";
 import { PHASE_COLS, tableOf, tableRow } from "./teamTableRows.js";
-import { SEARCH_BROWSE, pagesFor } from "../../src/shared/search.js";
+import { SEARCH_BROWSE, SORRY_SENTENCE, pagesFor } from "../../src/shared/search.js";
 import { readEventQuery, regionOf, regionPartOf, type EventQuery } from "../../src/shared/searchEventQuery.js";
 import { num, seasonLabel } from "../../src/shared/format.js";
 import { stateName } from "../../src/shared/regions.js";
@@ -151,9 +151,12 @@ const SHOWING_WORDS = ["performance"];
 export function rewriteQuery(q: string, named: ReadonlySet<string> = new Set()): { q: string; note?: string; pre?: true } | null {
   const t = squash(q.toLowerCase());
   let m: RegExpExecArray | null;
-  // Whether two teams have met: their head-to-head (every match they played on opposite alliances).
-  if ((m = new RegExp(`^(?:have|has|did)\\s+${TEAM}\\s+(?:and|&)\\s+${TEAM}\\s+(?:ever\\s+)?(?:played|faced|met|play|face|meet)(?:\\s+(?:each other|one another|before|against each other))?$`).exec(t))
-    || (m = new RegExp(`^(?:have|has|did)\\s+${TEAM}\\s+(?:ever\\s+)?(?:played|faced|met|play|face|meet)\\s+(?:against\\s+)?${TEAM}$`).exec(t))) return { q: `${m[1]} vs ${m[2]} head to head`, pre: true };
+  // Whether two teams have met: their head-to-head (every match they played on opposite alliances), where one is said
+  // ("did 12345 and 67890 play at worlds": at Worlds, never a team named "… for Worlds").
+  const where = String.raw`(?:\s+((?:at|in|during)\s+.+))?`;
+  if ((m = new RegExp(`^(?:have|has|did)\\s+${TEAM}\\s+(?:and|&)\\s+${TEAM}\\s+(?:ever\\s+)?(?:played|faced|met|play|face|meet)(?:\\s+(?:each other|one another|before|against each other))?${where}$`).exec(t))
+    // One team, then the other: neither is a pair joined by "and", nor a place said with its preposition.
+    || (m = new RegExp(`^(?:have|has|did)\\s+(?!.*\\s(?:and|&)\\s)${TEAM}\\s+(?:ever\\s+)?(?:played|faced|met|play|face|meet)\\s+(?:against\\s+)?(?!(?:at|in|during|on)\\s)${TEAM}$`).exec(t))) return { q: `${m[1]} vs ${m[2]} head to head${m[3] ? ` ${m[3]}` : ""}`, pre: true };
   // A team at a state championship by its short name ("12345 record at nj states", "12345 match 12 at nj states"):
   // that state's championship among the team's events.
   if ((m = /^(\d{1,6}(?:\s+vs\.?\s+\d{1,6})?)\s+(.*?)\s*\b(?:at|in)\s+(?:the\s+)?(.+?)\s+(?:states|state championships?|state champs|championship)$/.exec(t)) && regionOf(m[3].split(" "))) {
@@ -891,10 +894,12 @@ export async function eventPageAnswer(q: string, prefer: ReadonlySet<string>, no
 
 /** Two or three questions search answers about a team, each from what its records hold (a Worlds trip, an award, a
  *  season of matches), the ones nearest what was asked first: a fallback's way on, never a dead end. */
-export async function teamSuggestions(team: number, asked: string): Promise<string[]> {
+/** `asked`: the words asked, so the searches nearest them come first; `said`: a season the question named, kept in
+ *  the searches when the team played it (else its latest). */
+export async function teamSuggestions(team: number, asked: string, said: number | null = null): Promise<string[]> {
   const played = await all<{ season: number }>("SELECT season FROM team_season_stats WHERE team = ? AND matches > 0 ORDER BY season DESC", [team]);
   if (!played.length) return [];
-  const def = searchSeason();
+  const def = said != null && played.some((r) => r.season === said) ? said : searchSeason();
   const season = played.some((r) => r.season === def) ? def : played[0].season;
   const worlds = !!(await get("SELECT 1 FROM team_event_stats s JOIN events e ON e.season = s.season AND e.code = s.code WHERE s.team = ? AND e.type = 'FIRSTChampionship' AND s.matches > 0 LIMIT 1", [team]));
   const awards = !!(await get("SELECT 1 FROM awards WHERE team = ? LIMIT 1", [team]));
@@ -946,7 +951,8 @@ export async function teamFallback(q: string, prefer: ReadonlySet<string>): Prom
     const section: SearchSection | undefined = /\b(?:partners?|alliances?|pick|picks|opponents?|played with|played against)\b/i.test(left) ? "matches"
       : /\bevents?\b/i.test(left) ? "history" : /\b(?:matches|match|games?|scores?)\b/i.test(left) ? "matches" : undefined;
     // Never the query echoed back (cleaning has already changed its words): what search can show instead, plainly.
-    const label = `${nameOf(hit)} · This isn't answered directly yet${section ? `: their ${section === "history" ? "events" : "matches"} are on their page` : ""}`;
+    // The page says sorry (SORRY_SENTENCE) as its heading and what it read under it: the reading ends in the same words.
+    const label = `${nameOf(hit)} · ${SORRY_SENTENCE}${section ? `: their ${section === "history" ? "events" : "matches"} are on their page` : ""}`;
     const suggest = await teamSuggestions(Number(hit.ref), left);
     return answer(q, { hits: [{ ...hit, ...(section ? { section } : {}), match: "exact" }], pages: pagesFor(q), understood: { kind: "team", label }, ...(suggest.length ? { suggest } : {}) });
   }
