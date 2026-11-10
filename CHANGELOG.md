@@ -25,7 +25,7 @@ Every page links Methodology, FAQ, Rules, Settings and Donate from its footer, a
 
 ### Fixed
 - The footer's links live in one list (`src/shared/footer.ts`) shared by the app's footer and the server's first paint (`server/bootShell.ts`), so they are in every page's HTML before the app loads and without JavaScript: Methodology, FAQ, Rules, Settings, Donate, Contact, Privacy, Terms.
-- `/how-it-works` (and `/how-it-works/`) 301s to `/methodology`, the page the sidebar's How it works opens, in one hop; the app redirects the same way.
+- `/how-it-works` (and `/how-it-works/`) 301s to `/methodology`, the page the sidebar's How it works opens, in one hop; the app redirects the same way. (#1329)
 
 ## 5.2.3 — 2026-11-10
 
