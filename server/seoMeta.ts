@@ -759,6 +759,8 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
       const firstPaint = await leagueFirstPaint(m[1], m[2], m[3], q ? `?${q}` : "");
       return firstPaint ? { ...lm, firstPaint } : lm;
     }
+    // Any other league-shaped address (a code that can't be one) is no league.
+    if (/^\/leagues\/[^/]+\/[^/]+\/[^/]+$/i.test(p)) return NOT_FOUND;
     if (/^\/rankings$/i.test(p)) return await rankingsMeta(query);
     if (p === "/events") return await eventsListMeta();
     if (p === "/teams") return await teamsTableMeta(query);

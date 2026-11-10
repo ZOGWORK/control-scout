@@ -30,6 +30,8 @@ export function bracketMatches(matches: MatchView[]): BracketMatch[] {
     series: m.series, number: m.number,
     red: m.red.teams.map((t) => t.number), blue: m.blue.teams.map((t) => t.number),
     redScore: m.played && m.red.score ? m.red.score.total : null, blueScore: m.played && m.blue.score ? m.blue.score.total : null,
+    // The call stored before the match was known (live, or the season replay's): what a decided series was called at.
+    call: m.prediction && m.prediction.kind !== "now" ? { pRed: m.prediction.pRed, tier: m.prediction.tier, kind: m.prediction.kind } : null,
   }));
 }
 
@@ -47,9 +49,10 @@ export function eventBracket(season: number, code: string, f: ScoutForecaster | 
   if (!alliances.length) return null;
   const posted = bracketMatches(matches);
   const state = bracketStateKey(alliances, posted);
-  // Cached by the whole posted schedule too (series numbers and line-ups of unplayed matches shape the bracket);
-  // the seed stays on the results alone.
-  const schedule = JSON.stringify(posted.map((m) => [m.series, m.number, m.red, m.blue]).sort((x, y) => (x[0] as number) - (y[0] as number) || (x[1] as number) - (y[1] as number)));
+  // Cached by the whole posted schedule too (series numbers and line-ups of unplayed matches shape the bracket), and
+  // by each match's stored call (a decided series shows it, and a replay can add one later); the seed stays on the
+  // results alone.
+  const schedule = JSON.stringify(posted.map((m) => [m.series, m.number, m.red, m.blue, m.call ? [m.call.kind, m.call.pRed] : null]).sort((x, y) => (x[0] as number) - (y[0] as number) || (x[1] as number) - (y[1] as number)));
   const key = `${season}|${code}|${ratings}|${state}|${schedule}`;
   if (cache.has(key)) return cache.get(key)!;
   const strength = new Map(field.map((r) => [r.team, r.rating?.np ?? null]));

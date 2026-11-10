@@ -45,7 +45,8 @@ import { ShareMatch } from "../components/ShareMatch";
 import { BonusOdds } from "../components/BonusOdds";
 import { bonusView } from "../shared/bonusOdds";
 import { ScoreRange } from "../components/ScoreRange";
-import { levelPct } from "../shared/scoreRange";
+import { levelPct, rangeCoverageLine } from "../shared/scoreRange";
+import { useRangeCoverage } from "../lib/rangeCoverage";
 
 const ADVANCING = new Set(["LeagueTournament", "Qualifier", "Championship", "SuperQualifier", "Premier", "FIRSTChampionship"]);
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -497,6 +498,7 @@ function ScoreSumLines({ x, overlapRed, overlapBlue }: { x: MatchExplanationView
 
 function MatchResult({ x, offlineAsOf, onSwap }: { x: MatchExplanationView; offlineAsOf?: string | null; onSwap?: () => void }) {
   const { update } = usePersonal();
+  const cov = useRangeCoverage();
   const fav = x.winProbRed >= 0.5 ? "Red" : "Blue";
   const save = () => {
     update("predictionHistory", (h) => [{ id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, season: x.season, red: x.red, blue: x.blue, winProbRed: x.winProbRed, predictedRed: x.predictedRed, predictedBlue: x.predictedBlue, tier: x.confidence.tier, savedAt: Date.now() }, ...h].slice(0, 200));
@@ -527,7 +529,7 @@ function MatchResult({ x, offlineAsOf, onSwap }: { x: MatchExplanationView; offl
           <div><p className="text-muted-foreground">Predicted score</p><p className="font-display text-2xl font-semibold"><ScoreRange mean={x.predictedRed} range={x.rangeRed} level={x.rangeLevel} pmClassName="text-base font-medium text-muted-foreground" /></p><p className="text-xs text-muted-foreground">{levelPct(x.rangeLevel)} range {x.rangeRed[0]}–{x.rangeRed[1]}</p></div>
           <div className="text-right"><p className="text-muted-foreground">Predicted score</p><p className="font-display text-2xl font-semibold"><ScoreRange mean={x.predictedBlue} range={x.rangeBlue} level={x.rangeLevel} pmClassName="text-base font-medium text-muted-foreground" /></p><p className="text-xs text-muted-foreground">{levelPct(x.rangeLevel)} range {x.rangeBlue[0]}–{x.rangeBlue[1]}</p></div>
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">Predicted margin: <span className="tabular-nums" data-testid="lab-margin">{marginText(x.predictedRed, x.predictedBlue)}</span>. ± covers about {Math.round((x.rangeLevel ?? 0.8) * 10)} in 10 real scores. <Link to="/methodology#ranges" className="underline">How often it holds</Link></p>
+        <p className="mt-2 text-xs text-muted-foreground">Predicted margin: <span className="tabular-nums" data-testid="lab-margin">{marginText(x.predictedRed, x.predictedBlue)}</span>. <span data-testid="range-coverage">{rangeCoverageLine(cov) ?? `± is the stated ${levelPct(x.rangeLevel)} range.`}</span> <Link to="/methodology#ranges" className="underline">How often it holds</Link></p>
         {x.bonus && <BonusOdds season={x.season} bonus={x.bonus} className="mt-4 bg-text-base/[0.02]" />}
         <p className="mt-4 text-xs text-muted-foreground">{fav} is favoured — not certain. This is a probability from current ratings, including penalties each side tends to give away.</p>
         <CalibrationLine pRed={x.winProbRed} className="mt-2" />
