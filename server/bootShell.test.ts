@@ -92,6 +92,13 @@ describe("static first paint", () => {
   });
 
   // Mirrors the app's sidebar (src/components/layout/Shell.tsx SECTIONS), so nothing moves when the app takes over.
+  it("links the site's own pages from a footer on every page: home, a content page, a team page and not found", () => {
+    const meta = { title: "T", description: "D", type: "website" } as const;
+    for (const [path, m] of [["/", meta], ["/faq", meta], ["/teams/4215", { ...meta, firstPaint: { html: "<p>x</p>", data: {} } }], ["/nope", { ...meta, notFound: true }]] as const) {
+      const foot = bootShell(path, m as never).match(/<footer class="csb-foot">.*?<\/footer>/)?.[0] ?? "";
+      for (const to of ["/methodology", "/faq", "/rules", "/settings", "/donate"]) expect(foot, path).toContain(`<a href="${to}">`);
+    }
+  });
   it("draws the sidebar's everyday pages, then More, open only on one of its own pages", () => {
     const meta = { title: "T", description: "D", type: "website" } as const;
     const labels = (html: string) => [...html.matchAll(/<span>([^<]+)<\/span>/g)].map((m) => m[1]);

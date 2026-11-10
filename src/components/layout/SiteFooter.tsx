@@ -1,6 +1,6 @@
 // The small footer at the bottom of every page's content (inside the Shell's
 // scrolling main, so on phones it sits above the bottom tab bar's padding).
-// Site-level links live in FOOTER_LINKS: add a page here and it shows everywhere.
+// Site-level links live in FOOTER_LINKS (src/shared/footer.ts, shared with the server's first paint): add a page there and it shows everywhere.
 // The running release ("v1.3.8", from package.json via vite's __APP_VERSION__) opens What's new.
 import { Link, useLocation } from "react-router-dom";
 import { currentRelease } from "../../lib/changelog";
@@ -8,14 +8,9 @@ import { discordInviteUrl } from "../../shared/discord";
 import { liteHref } from "../../shared/lite";
 import { useFlag } from "../../lib/flags";
 import { openWhatsNew } from "../WhatsNew";
+import { FOOTER_LINKS } from "../../shared/footer";
 
-export const FOOTER_LINKS: { to: string; label: string }[] = [
-  { to: "/privacy", label: "Privacy" },
-  { to: "/terms", label: "Terms" },
-  { to: "/faq", label: "FAQ" },
-  { to: "/contact", label: "Contact" },
-  { to: "/donate", label: "Donate" },
-];
+export { FOOTER_LINKS };
 
 const LINK = "tap-44 rounded py-1 font-medium hover:text-text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60";
 

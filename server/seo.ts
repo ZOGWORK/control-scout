@@ -39,6 +39,8 @@ const LOOPBACK = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
  *  redirect the same way (src/main.tsx), for in-app links and offline use. */
 export const MOVED_PAGES: [RegExp, string, string][] = [
   [/^\/predict\/how-it-works$/i, "/methodology", ""],
+  // How it works is a fold in the sidebar (Predictions, FTC One Search); its own address opens its first page.
+  [/^\/how-it-works$/i, "/methodology", ""],
   [/^\/predict\/accuracy$/i, "/methodology", "#accuracy"],
 ];
 

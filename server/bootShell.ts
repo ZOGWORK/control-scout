@@ -13,6 +13,7 @@ import { pageTitle } from "../src/shared/routes.js";
 import { BOOT_CHOICE_GLOBAL, BOOT_CONSENT_ID, HOME_ABOUT, HOME_LEAD, PAGE_DATA_ID, PAGE_FRAME, homeHeadlineAt } from "../src/shared/boot.js";
 import { DEFAULT_HERO_LINES, HERO_LINES_ID, type HeroLinesResponse } from "../src/shared/heroLines.js";
 import { LITE_BOOT_S } from "../src/shared/lite.js";
+import { FOOTER_LINKS } from "../src/shared/footer.js";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -67,6 +68,9 @@ export const BOOT_STYLE = `<style>
       .csb-page h1{margin:0;font:600 24px/1.25 "Space Grotesk",sans-serif;letter-spacing:-.025em;overflow-wrap:anywhere}
       .csb-page>p{margin:6px 0 0;max-width:42rem;font-size:14px;line-height:1.45;color:var(--b-mut)}
       .csb-main.csb-scroll{padding-bottom:96px}
+      .csb-foot{max-width:1200px;margin:64px auto 0;padding:0 16px calc(68px + env(safe-area-inset-bottom))}
+      .csb-foot nav{display:flex;flex-wrap:wrap;gap:8px 20px;padding-top:16px;border-top:1px solid var(--b-line);font-size:12px;font-weight:500;color:var(--b-mut)}
+      .csb-main.csb-scroll .csb-foot{padding-bottom:0}
       .csb-lite{visibility:hidden;margin:20px 0 0;font-size:14px;color:var(--b-mut);animation:csb-lite 0s ${LITE_BOOT_S}s forwards}
       .csb-lite a{color:var(--b-acc);font-weight:600;text-decoration:underline;text-underline-offset:2px}
       @keyframes csb-lite{to{visibility:visible}}
@@ -91,11 +95,12 @@ export const BOOT_STYLE = `<style>
       .csb-tabs a[aria-current]{color:var(--b-acc)}
       .csb-tabs a[aria-current] .csb-ico{background:var(--b-acc);opacity:.9}
       @media (min-width:640px){.csb-top{padding:0 24px}.csb-crumb i{display:inline}.csb-page{padding:32px 24px 0}.csb-page h1{font-size:32px}.csb-home{padding-top:24px}.csb .csb-home h1,.csb-hl{font-size:min(35px,8.5cqi)}.csb-home>div:not(.csb-hl){margin-top:calc(var(--r)*1.5)}.csb .csb-home>p.csb-about{margin-top:calc(var(--r)*5.75 + 72px)}}
-      @media (min-width:768px){.csb-home{--r:16px}.csb .csb-home h1,.csb-hl{font-size:min(40px,8.5cqi)}.csb-side{display:flex}.csb-top{gap:12px;height:48px;padding:0 24px}.csb-top>a,.csb-menu,.csb-tabs{display:none}.csb-crumb{display:block}.csb-search{flex:1;justify-content:center}.csb-search span{display:flex;align-items:center;width:100%;max-width:20rem;height:36px;margin:0;padding:0 12px;border:1px solid var(--b-line);border-radius:8px;font-size:14px;color:var(--b-mut);opacity:1}}
-      @media (min-width:1024px){.csb .csb-home>p.csb-about{margin-top:calc(var(--r)*8.5 + 72px)}.csb-top{padding:0 32px}.csb-page{padding:32px 32px 0}.csb-search span{max-width:24rem}}
+      @media (min-width:768px){.csb-foot{padding-bottom:24px}.csb-home{--r:16px}.csb .csb-home h1,.csb-hl{font-size:min(40px,8.5cqi)}.csb-side{display:flex}.csb-top{gap:12px;height:48px;padding:0 24px}.csb-top>a,.csb-menu,.csb-tabs{display:none}.csb-crumb{display:block}.csb-search{flex:1;justify-content:center}.csb-search span{display:flex;align-items:center;width:100%;max-width:20rem;height:36px;margin:0;padding:0 12px;border:1px solid var(--b-line);border-radius:8px;font-size:14px;color:var(--b-mut);opacity:1}}
+      @media (min-width:640px){.csb-foot{padding-left:24px;padding-right:24px}}
+      @media (min-width:1024px){.csb-foot{padding-left:32px;padding-right:32px}.csb .csb-home>p.csb-about{margin-top:calc(var(--r)*8.5 + 72px)}.csb-top{padding:0 32px}.csb-page{padding:32px 32px 0}.csb-search span{max-width:24rem}}
       @media (max-width:1279px){${rail("")}}
       ${rail("html.cs-sb-min ")}
-      @media (min-width:1700px){.csb-page{max-width:1600px}}
+      @media (min-width:1700px){.csb-page,.csb-foot{max-width:1600px}}
       .csbc{--b-pop:#141416;--b-fg:#f4f4f5;--b-mut:#a1a1aa;--b-line:#ffffff14;--b-acc:#ffc700;--b-soft:#ffc7001f;position:fixed;left:12px;right:12px;bottom:calc(53px + env(safe-area-inset-bottom) + .75rem);z-index:60;box-sizing:border-box;padding:16px;border:1px solid var(--b-line);border-radius:12px;background:var(--b-pop);color:var(--b-fg);box-shadow:0 18px 40px -16px rgba(0,0,0,.55);font-family:Inter,ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
       html.light .csbc{--b-pop:#fff;--b-fg:#09090b;--b-mut:#52525b;--b-line:#e4e4e7;--b-acc:#a16207;--b-soft:#eab3081f}
       html.dim .csbc{--b-pop:#2a2b30;--b-fg:#e4e4e7;--b-mut:#b4b4bd;--b-line:#ffffff1a}
@@ -199,13 +204,16 @@ export function bootShell(path: string, meta: PageMeta, hero: HeroLinesResponse 
   // before its first render (src/lib/heroLines.ts), so Home draws the same lines whichever page it opens from.
   const heroJson = hero.custom ? `<script type="application/json" id="${HERO_LINES_ID}">${JSON.stringify(lines).replace(/</g, "\\u003c")}</script>` : "";
   // The page block is hidden when the service worker served this HTML (made for "/") for another page offline.
+  // The site's own pages (src/shared/footer.ts), on every page as in the app (SiteFooter), so none is orphaned before
+  // the app loads or without JavaScript.
+  const foot = `<footer class="csb-foot"><nav aria-label="Site">${FOOTER_LINKS.map((l) => `<a href="${l.to}">${esc(l.label)}</a>`).join("")}</nav></footer>`;
   const guard = `<script>(function(){var b=document.getElementById('cs-boot-page'),p=location.pathname.replace(/\\/+$/,'')||'/';if(b&&b.getAttribute('data-path').toLowerCase()!==p.toLowerCase())b.hidden=true})()</script>`;
   return [
     `<div class="csb">`,
     `<aside class="csb-side"><a class="csb-brand" href="/" aria-label="Control Scout home"><img src="/logo-56.webp" alt="" /><span>Control Scout</span></a><nav class="csb-nav" aria-label="Main">${nav}</nav></aside>`,
     `<div class="csb-col"><header class="csb-top"><span class="csb-menu" aria-hidden="true"></span><a href="/" aria-label="Control Scout home"><img src="/logo-56.webp" alt="" /></a><p class="csb-crumb"><i>Control Scout / </i><b>${esc(pageTitle(p))}</b></p>${home ? "" : `<div class="csb-search"><span>Search teams, events, matches…</span></div>`}</header>`,
     // A page with content in full scrolls with the document (before the app loads, or with no JavaScript at all).
-    `<main class="csb-main${meta.bodyHtml && !meta.firstPaint && page ? " csb-scroll" : ""}">${page}${guard}${heroJson}</main></div>`,
+    `<main class="csb-main${meta.bodyHtml && !meta.firstPaint && page ? " csb-scroll" : ""}">${page}${foot}${guard}${heroJson}</main></div>`,
     `<nav class="csb-tabs" aria-label="Main">${TABS.map((it) => link(p, it)).join("")}</nav>`,
     `</div>`,
   ].join("");
