@@ -135,7 +135,9 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
         { kind: "kpis", items: [
           { label: "Without penalties", value: String(np(top)), sub: top.own !== np(top) ? `ranked by this; +${top.own - np(top)} from fouls` : "ranked by this", href: r.href },
           { label: "Result", value: `${top.result === "W" ? "Won" : top.result === "L" ? "Lost" : "Tied"} ${top.own}–${top.opp}`, tone: top.result === "W" ? "good" : top.result === "L" ? "bad" : undefined },
-          ...(byOfficial !== top ? [{ label: `${high ? "Highest" : "Lowest"} official score`, value: String(byOfficial.own), sub: `${byOfficial.label}, ${byOfficial.event}: ${byOfficial.own - np(byOfficial)} from the other alliance's fouls`, href: row(byOfficial).href }] : []),
+          // Another match than the headline's, said with its match, event and date, so it never reads as the headline's
+          // number contradicted.
+          ...(byOfficial !== top ? [{ label: `${high ? "Highest" : "Lowest"} official score`, value: String(byOfficial.own), sub: `Another match: ${[`${byOfficial.label} at ${byOfficial.event}`, row(byOfficial).date].filter(Boolean).join(", ")}. ${byOfficial.own - np(byOfficial)} from the other alliance's fouls (its own points ${np(byOfficial)})`, href: row(byOfficial).href }] : []),
         ] },
         matchesBlock(`${high ? "Best scores" : "Lowest scores"} by points without penalties${note ? `, ${seasonLabel(top.season)}` : ""}`, pick.slice(0, 5)),
       ];

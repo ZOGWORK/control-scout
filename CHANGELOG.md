@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.0.0 — 2026-11-10
+## 5.0.4 — 2026-11-10
 
 Search reads one season rule in every answer, and says which season (and which state championship) it read.
 
@@ -29,6 +29,54 @@ Search reads one season rule in every answer, and says which season (and which s
 - One season resolver (`server/api/answers/season.ts`) for every intent: a team's question with no season (or "this season", "right now") reads the latest season that team has played; a question about no team reads the current season, stepping back a season with a note when nothing is played there yet; "last season" / "last year" is the latest completed season; a season named is honoured exactly. Every card states the season and why.
 - "At states" reads the team's state championship (the season named, else the latest it played) for a record, match list, score or streak as it already did for results, rank and OPR, so rewordings get one scope; the card names the event and its season. "All state championships", "ever" or "all time" reads every season, labelled "All seasons".
 - Plain leaderboards ("NJ top teams leaderboard") step back a season, said on the card, as the asked boards did. (#1286)
+## 5.0.3 — 2026-11-10
+
+A record asked with no team shows the season's best records and asks which team, never one team picked for you.
+
+### Highlights
+- [fixes] "Win loss record decode" shows the season's best records
+- [fixes] A "which team?" row offers one team's own record, one tap each
+- [fixes] "Best record in decode" and "decode records" answer too
+
+### Fixed
+- A record asked with no team ("win loss record decode", "record for decode", "decode win loss record") answered for one team whose name happened to fit a word of the question ("Decode Dynamics", "Lost In Time"). It now shows the season's teams by record, best first, with a "which team?" row above it: the top teams' own record questions, one tap each. "Best record in decode", "worst record decode" and "best record in nj" are that board too. No season said: the current season, then the one before when nothing is played yet. (#1297)
+
+## 5.0.2 — 2026-11-10
+
+The track record says which number is which: every figure carries its slice and sample.
+
+### Highlights
+- [home] The track record says its figure is a replay, not live calls
+- [home] Live calls made in advance are stated beside it, with their sample
+- [report] How it works lists every figure with what it counts and how many
+
+### Changed
+- The home page's track record says plainly that its figure is replayed from past matches, not calls made in advance, and states the live record beside it: live calls made in advance this season, the share of decided calls right, the Brier score, how early the season is (and how many calls are rough guesses), and that live calls lead the track record's headline once 10,000 are scored, while the card always shows replays. All from the accuracy API, never typed in. (#1276)
+- How it works › Accuracy lists every headline-sized figure the site quotes, each with its slice and sample: this season's replay so far, live calls made in advance, the headline replay, and the Prediction Engine 2.0 replay. None of them is "the live accuracy" on its own.
+
+## 5.0.1 — 2026-11-10
+
+A best-score answer's "Highest official score" tile names the match it comes from.
+
+### Highlights
+- [fixes] The highest official score tile names its own match, event and date
+- [fixes] It links to that match, never reading as the headline contradicted
+- [fixes] Tiles' detail lines are in the page as first served
+
+### Fixed
+- "4215 highest scoring match in 2025-26" showed 262 points and, beside it, "Highest official score: 302" with nothing saying 302 was another match's, made by the other alliance's fouls. The tile now reads "Another match: Q19 at P2-8 Northern League Meet, Dec 21, 2025. 200 from the other alliance's fouls (its own points 102)" and links to Q19. The page as first served (before the app loads, and for search engines) prints every tile's detail line too. (#1290)
+
+## 5.0.0 — 2026-11-10
+
+A prediction-versus-result card lists every match the team played, with or without a stored call.
+
+### Highlights
+- [predict] Prediction vs result lists every match the team played
+- [predict] A match with no stored call says so instead of dropping out
+- [fixes] The record on the card counts the same matches as its table
+
+### Fixed
+- "Predicted chances of 4215 East Bergen Conference" listed 7 of 4215's 8 matches: Q6, where an opposing robot was a no-show, had no replayed call stored, so it dropped out of the table and the record. Every played match is now a row; one with no call reads "No call stored", counts on the record (8-0-0) and never in "Called right" or the expected wins, which the headline says. (#1285)
 
 ## 4.9.9 — 2026-11-10
 
