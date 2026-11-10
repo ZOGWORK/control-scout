@@ -26,6 +26,9 @@ export function readWhatIf(v: string | null, lineUp: number[]): { out: number; i
 /** The side with one robot swapped. */
 export const swapped = (side: number[], out: number, into: number) => side.map((t) => (t === out ? into : t));
 
+/** A win chance as the rows show it (oddsPct: 1% to 99%), so the Change line adds up from the two rows. */
+const shownPct = (p: number) => Math.min(99, Math.max(1, Math.round(100 * p)));
+
 /** Red's predicted margin in points (negative: Blue ahead), from the shown scores. */
 const margin = (x: MatchExplanationView) => Math.round(x.predictedRed) - Math.round(x.predictedBlue);
 
@@ -43,8 +46,10 @@ export function WhatIf({ base }: { base: MatchExplanationView }) {
   const red = swap ? swapped(base.red, swap.out, swap.in) : base.red, blue = swap ? swapped(base.blue, swap.out, swap.in) : base.blue;
   const after = useApi<MatchExplanationView>(swap ? `/api/predict/match${qs({ season: base.season, red: red.join(","), blue: blue.join(","), ...(base.level === "playoff" ? { level: "playoff" } : {}) })}` : null);
   const set = (v: string | null) => setSp((x) => { if (v) x.set("whatif", v); else x.delete("whatif"); return x; });
-  // The matchup and robot this check is for: a check that finishes after either changed is dropped.
+  // The check in flight: any edit, pick, Undo, new matchup or leaving the page clears it, and a check that finishes
+  // after that is dropped (never writes an old swap over a newer choice).
   const asked = useRef("");
+  useEffect(() => () => { asked.current = ""; }, []);
   const run = async () => {
     const n = Number(into.trim());
     if (lineUp.includes(n)) { setError(`${n} is already in this match. Pick a robot that isn't.`); return; }
@@ -56,7 +61,7 @@ export function WhatIf({ base }: { base: MatchExplanationView }) {
     if (e) { setError(e); return; }
     set(`${out}:${n}`);
   };
-  useEffect(() => { asked.current = ""; }, [key]);
+  useEffect(() => { asked.current = ""; }, [key, sp.get("whatif")]);
   // Arrow keys move the pick along the robots, as a radio group does; only the picked one is a tab stop.
   const pickKey = (e: KeyboardEvent, i: number) => {
     const d = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
@@ -82,9 +87,9 @@ export function WhatIf({ base }: { base: MatchExplanationView }) {
           ))}
         </div>
         <ArrowRight className="mb-3.5 size-4 text-muted-foreground max-sm:hidden" aria-hidden />
-        <div className="w-44 max-sm:w-full"><TeamInput label={`Instead of ${out}`} tone={side(out)} value={into} onChange={(v) => { setInto(v); setError(null); }} error={error} /></div>
+        <div className="w-44 max-sm:w-full"><TeamInput label={`Instead of ${out}`} tone={side(out)} value={into} onChange={(v) => { setInto(v); setError(null); asked.current = ""; }} error={error} /></div>
         <Button type="submit" disabled={!into.trim() || checking} className="h-11">Try it</Button>
-        {swap && <Button type="button" variant="ghost" onClick={() => set(null)} className="h-11"><Undo2 /> Undo</Button>}
+        {swap && <Button type="button" variant="ghost" onClick={() => { asked.current = ""; set(null); }} className="h-11"><Undo2 /> Undo</Button>}
       </form>
       {swap && (after.error ? <p role="alert" className="mt-3 text-sm text-destructive">{after.error.message}</p>
         : !after.data ? <div className="skeleton mt-4 h-28 rounded-xl" />
@@ -94,7 +99,7 @@ export function WhatIf({ base }: { base: MatchExplanationView }) {
 }
 
 function WhatIfResult({ before, after, swap }: { before: MatchExplanationView; after: MatchExplanationView; swap: { out: number; in: number } }) {
-  const dp = Math.round(100 * after.winProbRed) - Math.round(100 * before.winProbRed);
+  const dp = shownPct(after.winProbRed) - shownPct(before.winProbRed);
   const dm = margin(after) - margin(before);
   const row = (label: string, x: MatchExplanationView, testid: string) => (
     <div data-testid={testid} className="grid grid-cols-[6rem_1fr] items-center gap-3 max-sm:grid-cols-1 max-sm:gap-1">
