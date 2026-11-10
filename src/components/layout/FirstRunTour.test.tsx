@@ -355,6 +355,18 @@ describe("leaving the page doesn't end it", () => {
     expect(where).toBe("/teams/18360?season=2024");
   });
 
+  it("a step whose part leaves the page (an event's tab changed by Back/Forward) waits, paused, instead of pointing at nothing", async () => {
+    mount({ path: "/events/2025/USNJNEM3", team: false, matches: true });
+    await opened();
+    key("ArrowRight");
+    expect(stepId()).toBe("watch");
+    document.querySelector<HTMLElement>('[data-tour="event-matches"]')!.style.display = "none";
+    act(() => go("/events/2025/USNJNEM3?tab=rankings"));
+    await waitFor(() => expect(pill()).not.toBeNull());
+    expect(card()).toBeNull();
+    expect(readTour()).toMatchObject({ status: "paused", step: 1 });
+  });
+
   it("the paused note's close is an explicit skip", async () => {
     mount();
     await opened();

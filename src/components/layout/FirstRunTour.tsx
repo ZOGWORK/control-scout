@@ -97,8 +97,12 @@ export function FirstRunTour() {
   }, []);
 
   const path = loc.pathname;
+  // The page with its query: a different tab or season (Back/Forward, a shared link) is looked at again.
+  const page = path + loc.search;
   const pathRef = useRef(path);
   pathRef.current = path;
+  const pageRef = useRef(page);
+  pageRef.current = page;
   const automated = isAutomated() && !tourDemo();
   // Signed-in data (tracked teams, workspaces) arrives with /api/auth/me and the first sync: wait for both.
   // Signed in, only a sync that worked counts (a failed one leaves this device without the account's data).
@@ -125,20 +129,20 @@ export function FirstRunTour() {
       // Nothing to point at here (no search box, too few steps): wait for the next page.
       if (!ids.length) return;
       if (!claimFirstRun(SLOT)) return; // another first-run surface got there first: try again when it's gone
-      shownFor.current = `${path}#0`;
+      shownFor.current = `${page}#0`;
       seen.current = true;
       // Kept with its query (a season, a tab), so going back for a step lands on the same view.
       setRec(saveTour({ status: "paused", step: 0, origin: path + loc.search, steps: ids }));
       setView("card");
     });
-  }, [startable, free, path]);
+  }, [startable, free, path]); // the query is read once, when it starts
 
   // Running: show the step on this page, or wait visibly ("Tour paused") until a page that has it.
   useEffect(() => {
     if (!running || !step) return;
     // Not now (the owner console, another first-run surface up, consent pending): out of the way, slot given back.
     if (!ready || !free || samePage(path, "/owner")) { setView(null); shownFor.current = null; releaseFirstRun(SLOT); return; }
-    const key = `${path}#${rec!.step}`;
+    const key = `${page}#${rec!.step}`;
     if (!here) { shownFor.current = null; if (claimFirstRun(SLOT)) setView("pill"); return; }
     if (shownFor.current === key) return;
     setView(null);
@@ -149,7 +153,7 @@ export function FirstRunTour() {
       // The step's part isn't on this page after all: wait, paused, rather than point at nothing.
       setView(findTarget(step) ? "card" : "pill");
     });
-  }, [running, step, here, path, rec?.step, ready, free, nonce]);
+  }, [running, step, here, path, page, rec?.step, ready, free, nonce]);
 
   const finish = useCallback((status: "finished" | "skipped") => {
     setRec(endTour(status, readTour()?.step ?? 0));
@@ -163,7 +167,7 @@ export function FirstRunTour() {
     if (!r || r.status !== "paused" || n < 0 || n >= r.steps.length) return;
     const there = !TOUR_STEPS[r.steps[n]!].home || samePage(pathRef.current, r.origin);
     // Moving on in place: the card stays up (no settle); else the next page is looked at once it loads.
-    if (there) shownFor.current = `${pathRef.current}#${n}`;
+    if (there) shownFor.current = `${pageRef.current}#${n}`;
     setRec(saveTour({ ...r, step: n }));
     // A step on the start page's own parts, from elsewhere: go back there for it.
     if (!there) navigate(r.origin);
@@ -183,6 +187,7 @@ export function FirstRunTour() {
       onNext={() => (n === count - 1 ? finish("finished") : goTo(n + 1))}
       onBack={() => goTo(n - 1)}
       onSkip={() => finish("skipped")}
+      onLost={() => { shownFor.current = null; setNonce((x) => x + 1); }}
     />
   );
 }
@@ -222,8 +227,10 @@ function TourPaused({ onResume, onSkip }: { onResume: () => void; onSkip: () => 
 }
 
 /** The overlay itself: dimmed page, a spotlight on the step's target, and the step card. */
-export function TourOverlay({ step, index: i, count, onNext, onBack, onSkip }: {
+export function TourOverlay({ step, index: i, count, onNext, onBack, onSkip, onLost }: {
   step: TourStep; index: number; count: number; onNext: () => void; onBack: () => void; onSkip: () => void;
+  /** Its part left the page (a tab changed under it): the tour looks again (paused when it's gone). */
+  onLost?: () => void;
 }) {
   const last = i === count - 1;
   const [box, setBox] = useState<Box | null>(null);
@@ -235,6 +242,8 @@ export function TourOverlay({ step, index: i, count, onNext, onBack, onSkip }: {
   const titleId = useId();
   const bodyId = useId();
   const reduced = reducedMotion();
+  const lost = useRef(onLost);
+  lost.current = onLost;
 
   const next = onNext;
   const back = useCallback(() => { if (i > 0) onBack(); }, [i, onBack]);
@@ -253,10 +262,12 @@ export function TourOverlay({ step, index: i, count, onNext, onBack, onSkip }: {
     if (el) el.scrollIntoView({ block: "center", inline: "nearest", behavior: reduced ? "auto" : "smooth" });
     let raf = 0;
     let until = performance.now() + 900;
+    let had = !!el;
     const measure = () => {
       if (!el || !el.isConnected) el = findTarget(step);
       // A resize can swap which copy is shown (the phone search button for the desktop field).
       else if (el.getBoundingClientRect().width === 0) el = findTarget(step);
+      if (had && !el) { had = false; lost.current?.(); }
       const r = el?.getBoundingClientRect();
       const b = r ? { top: Math.round(r.top), left: Math.round(r.left), width: Math.round(r.width), height: Math.round(r.height) } : null;
       setBox((prev) => (sameBox(prev, b) ? prev : b));
