@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.0.1 — 2026-11-10
+## 5.0.4 — 2026-11-10
 
 Every league has its own standings page: FIRST's official league ranking over every meet so far.
 
@@ -26,6 +26,43 @@ Every league has its own standings page: FIRST's official league ranking over ev
 
 ### Added
 - League standings pages at `/leagues/<season>/<region>/<league>` (for example the New Jersey Northeast League): FIRST's official league rankings, read from FIRST every few hours while a league's meets are on, with each team's ranking score, win-loss-tie record, qualification matches and league meets played, and the league's meets and tournament below. `?team=` marks one team's row. The page is drawn on the server, so the table is in the first HTML. Last season's league standings are read too. (#1287)
+
+## 5.0.3 — 2026-11-10
+
+A record asked with no team shows the season's best records and asks which team, never one team picked for you.
+
+### Highlights
+- [fixes] "Win loss record decode" shows the season's best records
+- [fixes] A "which team?" row offers one team's own record, one tap each
+- [fixes] "Best record in decode" and "decode records" answer too
+
+### Fixed
+- A record asked with no team ("win loss record decode", "record for decode", "decode win loss record") answered for one team whose name happened to fit a word of the question ("Decode Dynamics", "Lost In Time"). It now shows the season's teams by record, best first, with a "which team?" row above it: the top teams' own record questions, one tap each. "Best record in decode", "worst record decode" and "best record in nj" are that board too. No season said: the current season, then the one before when nothing is played yet. (#1297)
+
+## 5.0.2 — 2026-11-10
+
+The track record says which number is which: every figure carries its slice and sample.
+
+### Highlights
+- [home] The track record says its figure is a replay, not live calls
+- [home] Live calls made in advance are stated beside it, with their sample
+- [report] How it works lists every figure with what it counts and how many
+
+### Changed
+- The home page's track record says plainly that its figure is replayed from past matches, not calls made in advance, and states the live record beside it: live calls made in advance this season, the share of decided calls right, the Brier score, how early the season is (and how many calls are rough guesses), and that live calls lead the track record's headline once 10,000 are scored, while the card always shows replays. All from the accuracy API, never typed in. (#1276)
+- How it works › Accuracy lists every headline-sized figure the site quotes, each with its slice and sample: this season's replay so far, live calls made in advance, the headline replay, and the Prediction Engine 2.0 replay. None of them is "the live accuracy" on its own.
+
+## 5.0.1 — 2026-11-10
+
+A best-score answer's "Highest official score" tile names the match it comes from.
+
+### Highlights
+- [fixes] The highest official score tile names its own match, event and date
+- [fixes] It links to that match, never reading as the headline contradicted
+- [fixes] Tiles' detail lines are in the page as first served
+
+### Fixed
+- "4215 highest scoring match in 2025-26" showed 262 points and, beside it, "Highest official score: 302" with nothing saying 302 was another match's, made by the other alliance's fouls. The tile now reads "Another match: Q19 at P2-8 Northern League Meet, Dec 21, 2025. 200 from the other alliance's fouls (its own points 102)" and links to Q19. The page as first served (before the app loads, and for search engines) prints every tile's detail line too. (#1290)
 
 ## 5.0.0 — 2026-11-10
 
