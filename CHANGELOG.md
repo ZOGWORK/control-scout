@@ -25,7 +25,7 @@ DECODE's highest score, Q49 at Carolinas Premier Event, is marked as not an offi
 - [fixes] It says why: the event did not play by the game's usual rules
 
 ### Changed
-- Q49 at Carolinas Premier Event (DECODE 2025–26) carries "Not an official record" wherever a record or best-score answer lists it: the match box chip, the headline, the combined and each-season tables, and the season records card. It stays listed by its score as played. (#PR)
+- Q49 at Carolinas Premier Event (DECODE 2025–26) carries "Not an official record" wherever a record or best-score answer lists it: the match box chip, the headline, the combined and each-season tables, and the season records card. It stays listed by its score as played. (#1259)
 
 ## 4.9.0 — 2026-11-09
 
