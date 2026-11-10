@@ -2146,6 +2146,22 @@ export async function all<T = Row>(sql: string, args: InArgs = []): Promise<T[]>
   return (await db().execute({ sql, args })).rows as unknown as T[];
 }
 
+/** The rows of a large read, a chunk at a time in key order, the event loop let go between chunks. The driver reads
+ *  synchronously on this process's one thread, so one read of 100,000 rows held every request for seconds (the track
+ *  record's predictions: 1.3–2.5 s, measured 2026-11-10); a chunk is a tenth of a second or so. `sql` is the read
+ *  without its order or limit; `key` is a column it selects (a table's integer id, or an alias of one) that the
+ *  chunks are ordered by, and its WHERE ends with "<that id> > ?", the last argument, filled in here. */
+export async function allInChunks<T = Row>(sql: string, args: InArgs, key: keyof T & string, size = 10_000): Promise<T[]> {
+  const out: T[] = [];
+  for (let after = Number.MIN_SAFE_INTEGER; ;) {
+    const rows = await all<T>(`${sql} ORDER BY ${key} LIMIT ${size}`, [...(args as unknown[]), after] as InArgs);
+    for (const r of rows) out.push(r);
+    if (rows.length < size) return out;
+    after = Number(rows[rows.length - 1][key]);
+    await new Promise<void>((r) => setImmediate(r));
+  }
+}
+
 export async function get<T = Row>(sql: string, args: InArgs = []): Promise<T | undefined> {
   return (await db().execute({ sql, args })).rows[0] as unknown as T | undefined;
 }

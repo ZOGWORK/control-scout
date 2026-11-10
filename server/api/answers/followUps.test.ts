@@ -14,10 +14,10 @@ import { clearAllCaches } from "../../caches";
 import { relatedPage, grouped, teamTitle } from "./relatedPage";
 import { pageMeta } from "../../seoMeta";
 import { canonicalQuery } from "../../../src/lib/meta";
-import { RELATED_QUERY_MAX, relatedApiPath } from "../../../src/shared/search";
+import { RELATED_QUERY_MAX, followApiPath, relatedApiPath } from "../../../src/shared/search";
 import { MAX_QUERY } from "../searchAnswer";
 import type { SearchAnswer, SearchFollowUp } from "../../../src/shared/api";
-import { answerKey, candidates, followUps, lineOf, pageAnswer, previewOf, ASK_MAX, RELATED_MAX } from "./followUps";
+import { answerKey, candidates, followUps, keptFollowUps, lineOf, pageAnswer, previewOf, ASK_MAX, RELATED_MAX } from "./followUps";
 
 const TEAMS = [4215, 6980, 7149] as const;
 
@@ -111,6 +111,29 @@ describe("people also ask", () => {
     expect(lineOf(events(86, 25))?.value).toBe("25 events");
     expect(lineOf(events(9, 9))?.value).toBe("9 events");
     expect(lineOf(events(4, 0))).toBeNull();
+  });
+
+  it("says the season every line's numbers are from, once", () => {
+    const stat = (label: string, scope: string[]) => ({ q: "", hits: [], pages: [], stat: { family: "stat", intent: "rating", title: "", scope, headline: { value: "98 ± 3.2", label }, blocks: [], definition: "", source: "" } }) as unknown as SearchAnswer;
+    // Not said in the line: the answer's season chip is.
+    expect(lineOf(stat("#525 worldwide of 7,809 rated", ["2025–26"]))?.rest).toBe("#525 worldwide of 7,809 rated · 2025–26");
+    expect(lineOf(stat("7 performance · 4 judged", ["All seasons"]))?.rest).toBe("7 performance · 4 judged · all seasons");
+    // Already said: never twice.
+    expect(lineOf(stat("81% win rate in 32 matches in 2025–26", ["2025–26"]))?.rest).toBe("81% win rate in 32 matches in 2025–26");
+    expect(lineOf(stat("over 7 seasons", ["All seasons"]))?.rest).toBe("over 7 seasons");
+    // A chip that isn't a season ("New Jersey") is never said as one.
+    expect(lineOf(stat("in New Jersey", ["New Jersey"]))?.rest).toBe("in New Jersey");
+    // An all-season answer narrowed to one match says that match's season, never "all seasons".
+    const narrowed = stat("75–19 in Q6 at League Meet", ["All seasons"]);
+    (narrowed.stat!.headline as { sub?: string }).sub = "2026–27 · Nov 7, 2026";
+    expect(lineOf(narrowed)?.rest).toBe("75–19 in Q6 at League Meet · 2026–27");
+    // A season only inside a longer line under it ("Last together …, 2025–26") isn't the headline's own.
+    const partner = stat("3-0-0 together in 3 matches", ["All seasons"]);
+    (partner.stat!.headline as { sub?: string }).sub = "Last together Q23 at League Meet, 2025–26";
+    expect(lineOf(partner)?.rest).toBe("3-0-0 together in 3 matches · all seasons");
+    // A card says its own season.
+    const card = { q: "", hits: [], pages: [], card: { kind: "team", title: "", season: 2025, lines: [{ text: "#3 of 40", detail: "at Garden State Qualifier" }] } } as unknown as SearchAnswer;
+    expect(lineOf(card)?.rest).toBe("at Garden State Qualifier · 2025–26");
   });
 
   it("knows one board by its title's words, whatever their wording, and its other end as another", () => {
@@ -261,5 +284,38 @@ describe("the related searches page", () => {
     expect(m.bodyHtml).toContain("<h2>");
     expect(m.bodyHtml).toContain(`href="/search?q=${encodeURIComponent("What awards has 4215 won?")}"`);
     expect((await pageMeta("/related-searches")).title).toBe("Popular FTC searches");
+  });
+});
+
+describe("the search page's first paint", () => {
+  it("carries People also ask under the answer and Related searches at the end, each a link that runs it", async () => {
+    const q = "4215 record";
+    const f = await keptFollowUps(q);
+    expect(f.ask.length).toBeGreaterThan(0);
+    expect(f.related.length).toBeGreaterThan(0);
+    const m = await pageMeta("/search", { q });
+    const html = m.bodyHtml!;
+    const paa = html.indexOf('data-block="people-also-ask"'), rel = html.indexOf('data-block="related-searches"');
+    // Under the answer card, before the results; the related searches after the results, last.
+    expect(paa).toBeGreaterThan(html.indexOf("<section"));
+    expect(paa).toBeLessThan(html.indexOf("<h2>Teams"));
+    expect(rel).toBeGreaterThan(html.indexOf("<h2>Teams"));
+    // Each question opens (a <details>) to its answer's line and a link that runs that exact question.
+    for (const x of f.ask) {
+      expect(html).toContain(`<summary>${x.q}</summary>`);
+      expect(html).toContain(`href="/search?q=${encodeURIComponent(x.q)}"`);
+    }
+    for (const x of f.related) expect(html).toContain(`href="/search?q=${encodeURIComponent(x.q)}"`);
+    expect(html).toContain(`href="/related-searches?q=${encodeURIComponent(q)}"`);
+    // Never the search itself.
+    expect([...f.ask, ...f.related].map((x) => x.q.toLowerCase())).not.toContain(q);
+    // The app starts from the same ones: no second request.
+    expect(m.pageData?.[followApiPath(q)]).toEqual({ q, ...f });
+  });
+
+  it("has none on a page that answered nothing", async () => {
+    const m = await pageMeta("/search", { q: "zzqx nothing at all" });
+    expect(m.bodyHtml).not.toContain("people-also-ask");
+    expect(m.bodyHtml).not.toContain("related-searches");
   });
 });
