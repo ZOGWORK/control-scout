@@ -242,7 +242,10 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   // second as two digits (two four-digit numbers with a comma, "2024, 2025", are two teams), and two two-digit years
   // only beside a season word, so a list of team numbers ("25, 26") stays a list.
   const next = (a: string, b: string) => (Number(b) === (Number(a.slice(-2)) + 1) % 100);
-  const dated = said.replace(/\b(20\d\d)\s*[-–/]\s*(20\d\d)\b/g, (w, a: string, b: string) => (Number(b) === Number(a) + 1 ? `${a}-${b.slice(2)}` : w))
+  // A possessive after a name ending in punctuation ("die toaster, die!'s worst score"): the name as typed, never a
+  // stray "s" every reader would take for a word (or a team named "s").
+  const owned = said.replace(/(?<=[\p{L}\p{N}][!?.]+)['’]s(?=[\s,;:?!]|$)/gu, "");
+  const dated = owned.replace(/\b(20\d\d)\s*[-–/]\s*(20\d\d)\b/g, (w, a: string, b: string) => (Number(b) === Number(a) + 1 ? `${a}-${b.slice(2)}` : w))
     .replace(/\b(20\d\d)\s*,\s*(\d\d)\b/g, (w, a: string, b: string) => (next(a, b) ? `${a}-${b}` : w))
     .replace(/\b(season\s+)(\d\d)\s*,\s*(\d\d)\b|\b(\d\d)\s*,\s*(\d\d)(\s+season)\b/gi, (w, pre?: string, a1?: string, b1?: string, a2?: string, b2?: string, post?: string) => {
       const [a, b] = a1 ? [a1, b1!] : [a2!, b2!];
