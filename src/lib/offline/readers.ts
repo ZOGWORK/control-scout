@@ -23,6 +23,7 @@ import { meetStandingByTeam } from "../../shared/meetStandings";
 import { LEAGUE_TYPES, recordAddsUp } from "../../shared/eventStanding";
 import { searchTeamTitle } from "../../shared/teamTitle";
 import { nameWords } from "../../shared/searchQuery";
+import { place } from "../../shared/format";
 
 /** Rows as plain objects (column → value), like the server's `all`. */
 export interface Db { all<T = any>(sql: string, params?: SqlValue[]): T[] }
@@ -353,13 +354,13 @@ function rowsOf({ season, db }: SeasonDb, newest: number): Row[] {
   });
   const rows = [
     ...db.all("SELECT number, name, school, city, state, country FROM teams").map((t) => {
-      const place = [t.city, t.state, t.country].filter(Boolean).join(", ");
+      const where = place(t.city, t.state, t.country);
       const title = searchTeamTitle(t.number, t.name);
-      return row("team", String(t.number), title, [t.school, place].filter(Boolean).join(" · "), `${t.number} ${t.name ?? ""} ${t.school ?? ""} ${place} ${regionNames(t.state, t.country)}`, `${t.name ?? ""} ${t.school ?? ""}`);
+      return row("team", String(t.number), title, [t.school, where].filter(Boolean).join(" · "), `${t.number} ${t.name ?? ""} ${t.school ?? ""} ${where} ${regionNames(t.state, t.country)}`, `${t.name ?? ""} ${t.school ?? ""}`);
     }),
     ...db.all("SELECT code, name, city, state, country, start FROM events").map((e) => {
-      const place = [e.city, e.state, e.country].filter(Boolean).join(", ");
-      return row("event", `${season}:${e.code}`, e.name, [e.code, e.start, place].filter(Boolean).join(" · "), `${e.code} ${e.name} ${place} ${regionNames(e.state, e.country)}`, `${e.name} ${e.city ?? ""}`);
+      const where = place(e.city, e.state, e.country);
+      return row("event", `${season}:${e.code}`, e.name, [e.code, e.start, where].filter(Boolean).join(" · "), `${e.code} ${e.name} ${where} ${regionNames(e.state, e.country)}`, `${e.name} ${e.city ?? ""}`);
     }),
   ];
   rowsCache.set(db, { newest, rows });
@@ -399,7 +400,7 @@ export function readSearch(dbs: SeasonDb[], q: string, limit = 15, prefer: Reado
       || Number(b.season === newest) - Number(a.season === newest)
       || a.t.number - b.t.number);
     for (const { t, season } of ranked.slice(0, query.length >= 4 ? Math.ceil(limit / 2) : limit)) {
-      push({ kind: "team", ref: String(t.number), title: searchTeamTitle(t.number, t.name), subtitle: [t.city, t.state, t.country].filter(Boolean).join(", "), season });
+      push({ kind: "team", ref: String(t.number), title: searchTeamTitle(t.number, t.name), subtitle: place(t.city, t.state, t.country), season });
     }
     if (out.length >= limit) return out.slice(0, limit);
   }

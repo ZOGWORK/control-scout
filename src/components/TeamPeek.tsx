@@ -12,6 +12,7 @@ import { Badge } from "./ui/basic";
 import { ErrorState } from "./states";
 import { dateRange, oddsPct, seasonLabel } from "../lib/format";
 import { cn } from "./cn";
+import { place } from "../shared/format";
 
 const rankRange = (a: number, b: number) => (Math.round(a) === Math.round(b) ? `#${Math.round(a)}` : `#${Math.round(a)}–${Math.round(b)}`);
 const record = (w: number | null, l: number | null, t: number | null) => (w == null ? "—" : `${w}-${l ?? 0}-${t ?? 0}`);
@@ -48,7 +49,7 @@ function PeekBody({ team, season, eventName, row, status, settled, over, onShowO
   const yesNo = (p: number) => (p >= 0.5 ? "Yes" : "No");
   const state = useApi<TeamProfile>(`/api/teams/${team}${qs({ season })}`);
   const p = state.data?.team?.number === team ? state.data : undefined;
-  const place = p ? [p.team.city, p.team.state, p.team.country].filter(Boolean).join(", ") : "";
+  const where = p ? place(p.team.city, p.team.state, p.team.country) : "";
   const st = p?.stats;
   const events = (p?.events ?? []).slice(-6).reverse();
   return (
@@ -58,7 +59,7 @@ function PeekBody({ team, season, eventName, row, status, settled, over, onShowO
           <span className="tabular-nums">{team}</span> <span className="text-muted-foreground">{p?.team.name ?? ""}</span>
         </SheetTitle>
         <SheetDescription className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          {place && <span className="inline-flex items-center gap-1"><MapPin className="size-3.5" aria-hidden />{place}</span>}
+          {where && <span className="inline-flex items-center gap-1"><MapPin className="size-3.5" aria-hidden />{where}</span>}
           {p?.team.rookieYear && <span>Rookie year {p.team.rookieYear}</span>}
           {!p && !state.error && <span className="skeleton inline-block h-4 w-40 rounded" />}
         </SheetDescription>

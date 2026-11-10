@@ -46,6 +46,7 @@ import { digestTick } from "./digest/job.js";
 import { autoPowerRankingsTick } from "./powerRankings/auto.js";
 import { dailyRefreshTick } from "./powerRankings/refresh.js";
 import { pingIndexNow } from "./indexNow.js";
+import { tidyStoredPlaces } from "./data/tidyPlaces.js";
 import type { Server } from "node:http";
 
 const log = (m: string) => console.log(`[${new Date().toISOString()}] ${m}`);
@@ -164,6 +165,9 @@ if (!process.env.CS_NO_SCHEDULER) {
   // Workspace activity feeds keep 90 days (server/scout/activityLog.ts): a small indexed delete, every 6 hours, and once soon after boot.
   const prune = () => { pruneActivity().then((n) => { if (n) log(`activity: pruned ${n} items older than 90 days`); }).catch((e) => log(`activity: ${(e as Error).message}`)); };
   setTimeout(prune, 90_000).unref();
+  // Places and school names stored before they were tidied on write (server/data/tidyPlaces.ts): once, soon after boot;
+  // search reads the names from its own index, so it is rebuilt when any changed.
+  setTimeout(() => { tidyStoredPlaces().then((n) => { if (!n.teams && !n.events) return; log(`places: tidied ${n.teams} teams, ${n.events} events`); return rebuildSearch(log); }).catch((e) => log(`places: ${(e as Error).message}`)); }, 95_000).unref();
   setInterval(prune, 6 * 3600_000).unref();
   // The notification inbox keeps 90 days too (server/inbox/inbox.ts); owner alerts still waiting for an owner
   // account (none had signed up when the alert was raised) are delivered on the same beat.
