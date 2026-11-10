@@ -113,6 +113,21 @@ describe("people also ask", () => {
     expect(lineOf(events(4, 0))).toBeNull();
   });
 
+  it("says the season every line's numbers are from, once", () => {
+    const stat = (label: string, scope: string[]) => ({ q: "", hits: [], pages: [], stat: { family: "stat", intent: "rating", title: "", scope, headline: { value: "98 ± 3.2", label }, blocks: [], definition: "", source: "" } }) as unknown as SearchAnswer;
+    // Not said in the line: the answer's season chip is.
+    expect(lineOf(stat("#525 worldwide of 7,809 rated", ["2025–26"]))?.rest).toBe("#525 worldwide of 7,809 rated · 2025–26");
+    expect(lineOf(stat("7 performance · 4 judged", ["All seasons"]))?.rest).toBe("7 performance · 4 judged · all seasons");
+    // Already said: never twice.
+    expect(lineOf(stat("81% win rate in 32 matches in 2025–26", ["2025–26"]))?.rest).toBe("81% win rate in 32 matches in 2025–26");
+    expect(lineOf(stat("over 7 seasons", ["All seasons"]))?.rest).toBe("over 7 seasons");
+    // A chip that isn't a season ("New Jersey") is never said as one.
+    expect(lineOf(stat("in New Jersey", ["New Jersey"]))?.rest).toBe("in New Jersey");
+    // A card says its own season.
+    const card = { q: "", hits: [], pages: [], card: { kind: "team", title: "", season: 2025, lines: [{ text: "#3 of 40", detail: "at Garden State Qualifier" }] } } as unknown as SearchAnswer;
+    expect(lineOf(card)?.rest).toBe("at Garden State Qualifier · 2025–26");
+  });
+
   it("knows one board by its title's words, whatever their wording, and its other end as another", () => {
     const board = (title: string) => ({ stat: { family: "leaderboard", intent: "top-opr", title, scope: ["New Jersey", "2025–26"] } }) as unknown as SearchAnswer;
     expect(answerKey(board("Best team in New Jersey by OPR · 2025–26"))).toBe(answerKey(board("Top 10 teams by OPR in New Jersey · 2025–26")));
