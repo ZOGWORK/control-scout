@@ -17,7 +17,7 @@ const page = (q: string | null, rows: DirectoryTeam[]): DirectoryPage => ({
   season: 2025, country: "CA", q, total: 2, withResults: 1, matched: rows.length, unplaced: 0, page: 1, pageSize: 50, sort: "team", dir: "asc",
   readiness: { state: "ready", resultsAt: "2026-10-17T12:00:00Z", statsAt: "2026-10-17T12:05:00Z" }, rows,
 });
-const url = (q?: string) => `/api/directory/2025?country=CA${q ? `&q=${q}` : ""}&sort=team&dir=asc&page=1&pageSize=50`;
+const url = (q?: string) => `/api/directory/2025?country=CA${q ? `&q=${q}` : ""}&sort=results&dir=desc&page=1&pageSize=50`;
 
 // Each request waits until the test answers it.
 const pending = new Map<string, (body: DirectoryPage) => void>();
