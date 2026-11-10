@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.2.8 — 2026-11-10
+## 5.2.9 — 2026-11-10
 
 Small words set right: the home headline's spelling, the power rankings' day and snapshot, the contact limit, a league meet's playoffs.
 
@@ -31,6 +31,18 @@ Small words set right: the home headline's spelling, the power rankings' day and
 - The contact message box's limit is the 5,000 its counter shows (it allowed 5,200), and the counter counts every character the box does.
 - A league meet's Playoffs tab says league meets play qualification matches only (alliances are picked at the league tournament); an event whose last day has passed with no alliances on record says so, instead of "Alliances not selected yet".
 - Records read aloud say "1 loss", "1 win", "1 tie" (`recordWords`), never "1 losses". (#1332)
+
+## 5.2.8 — 2026-11-10
+
+Search ranks a championship's divisions by one game phase's OPR when asked.
+
+### Highlights
+- [fixes] "Hardest division by average auto OPR" ranks by Auto OPR
+- [fixes] TeleOp and Endgame OPR work the same way
+- [fixes] A phase with no OPR on record says so
+
+### Fixed
+- Search: "which championship division was hardest this year, by average auto OPR" (in any word order) ranks the divisions by their teams' average Auto OPR, labelled on the card, instead of no answer. TeleOp and Endgame OPR work the same way. A phase's points without OPR, or another stat, still isn't answered with OPR. (#1336)
 
 ## 5.2.7 — 2026-11-10
 
