@@ -2,7 +2,7 @@
 // What if: under a predicted match, one robot swapped for another shows the call and margin before and after, and
 // the swap is in the address. And the lab takes one robot a side (a search answer's two-team call opens as one).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 
 vi.mock("../lib/personal", () => ({ usePersonal: () => ({ user: null, providers: {}, state: { myTeam: null, tracked: { teams: [], events: [] }, bookmarks: [], videoLinks: {}, predictionHistory: [] }, update: () => true, syncReady: false }) }));
@@ -119,5 +119,15 @@ describe("One robot a side", () => {
     fireEvent.keyDown(screen.getByRole("radio", { name: "1" }), { key: "ArrowRight" });
     expect(screen.getByRole("radio", { name: "2" }).getAttribute("aria-checked")).toBe("true");
     expect(screen.getByRole("textbox", { name: "Instead of 2" })).toBeTruthy();
+  });
+
+  it("on a touch screen every what-if control is at least 44 px tall", async () => {
+    render(<TooltipProvider><MemoryRouter initialEntries={["/predict?mode=match&season=2025&red=1,2&blue=3,4&whatif=1:9"]}><PredictPage /></MemoryRouter></TooltipProvider>);
+    await screen.findByTestId("what-if-result");
+    const box = screen.getByTestId("what-if");
+    for (const r of within(box).getAllByRole("radio")) expect(r.className.split(" ")).toContain("pointer-coarse:h-[44px]");
+    for (const b of [within(box).getByRole("button", { name: "Try it" }), within(box).getByRole("button", { name: /Undo/ })]) expect(b.className.split(" ")).toContain("tap-44");
+    const link = [...box.querySelectorAll("a")].find((a) => a.textContent === "Open this line-up")!;
+    expect(link.className.split(" ")).toContain("pointer-coarse:min-h-[44px]");
   });
 });

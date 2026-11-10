@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.1.8 — 2026-11-10
+## 5.1.9 — 2026-11-10
 
 A team's league standing in search is this season's, while the league is running.
 
@@ -27,6 +27,19 @@ A team's league standing in search is this season's, while the league is running
 ### Fixed
 - A team's league standing asked with no season is the team's newest league season with a match played (FIRST's league rankings), said on the card; it was the latest completed season's final table.
 - Two words said for one league name word ("north east" for "Northeast") now find the league even where "North" and "East" are league names too. (#1321)
+
+## 5.1.8 — 2026-11-10
+
+What if? on a phone: every button is a full fingertip tall.
+
+### Highlights
+- [predict] What if? on a phone: the robot-to-swap buttons are 44 px tall
+- [predict] "Open this line-up" after a swap is an easy tap too
+- [fixes] Desktop with a mouse looks the same
+
+### Fixed
+- On a touch screen, the What if? robot picks under a predicted match were 39 px tall on the 14 px phone base. They are 44 px now, and the "Open this line-up" link after a swap has a 44 px tall tap row. (#1313)
+
 
 ## 5.1.7 — 2026-11-10
 

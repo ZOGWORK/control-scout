@@ -81,7 +81,7 @@ export function WhatIf({ base }: { base: MatchExplanationView }) {
         <div role="radiogroup" aria-label="Robot to swap out" className="flex flex-wrap gap-1.5">
           {lineUp.map((t, i) => (
             <button key={t} type="button" role="radio" aria-checked={out === t} tabIndex={out === t ? 0 : -1} onKeyDown={(e) => pickKey(e, i)} onClick={() => { setOut(t); setError(null); asked.current = ""; }}
-              className={cn("h-11 rounded-lg border px-3 font-mono text-sm tabular-nums transition-colors motion-reduce:transition-none",
+              className={cn("h-11 pointer-coarse:h-[44px] rounded-lg border px-3 font-mono text-sm tabular-nums transition-colors motion-reduce:transition-none",
                 out === t ? (side(t) === "red" ? "border-red-alliance bg-red-alliance/10 text-red-alliance" : "border-blue-alliance bg-blue-alliance/10 text-blue-alliance") : "border-border text-muted-foreground hover:text-foreground")}>
               {t}
             </button>
@@ -121,7 +121,7 @@ function WhatIfResult({ before, after, swap }: { before: MatchExplanationView; a
       {row(`${swap.out} → ${swap.in}`, after, "what-if-after")}
       <p className="text-sm" data-testid="what-if-change">
         <b className="font-semibold">Change:</b> Red's chance {dp === 0 ? "stays the same" : `${dp > 0 ? "rises" : "falls"} ${Math.abs(dp)} points`}, and the margin {dm === 0 ? "doesn't move" : `moves ${Math.abs(dm)} toward ${dm > 0 ? "Red" : "Blue"}`}.
-        {" "}<Link to={predictHref({ mode: "match", season: after.season, red: after.red, blue: after.blue })} className="underline">Open this line-up</Link>
+        {" "}<Link to={predictHref({ mode: "match", season: after.season, red: after.red, blue: after.blue })} className="underline pointer-coarse:inline-flex pointer-coarse:min-h-[44px] pointer-coarse:items-center">Open this line-up</Link>
       </p>
     </div>
   );
