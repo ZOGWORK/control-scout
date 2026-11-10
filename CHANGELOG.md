@@ -20,7 +20,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 A team's page says where it stands in its league, and league meets link to the league's table.
 
 ### Highlights
-- [teams] Team pages show the league standing: "#30 of 34 in the Northeast League"
+- [teams] Team pages show where the team stands in its league
 - [rankings] League meet and tournament pages have a League standings button
 - [teams] Each link marks the team's row in the league table
 
