@@ -30,7 +30,16 @@ export function useRangeCoverage(): RangeCoverageNow | null {
     whenIdle(() => { if (live) setGo(true); });
     return () => { live = false; };
   }, []);
-  const data = useApi<RangeCoverageNow | null>(go ? "/api/predict/ranges" : null, isCoverage).data;
+  const api = useApi<RangeCoverageNow | null>(go ? "/api/predict/ranges" : null, isCoverage);
+  const data = api.data;
+  // Null: the server's track record is still being built (just after a restart). Asked once more a little later, so
+  // the sentence appears without a reload.
+  const { reload } = api;
+  useEffect(() => {
+    if (data !== null) return;
+    const t = setTimeout(() => { void reload(); }, 20_000);
+    return () => clearTimeout(t);
+  }, [data, reload]);
   if (data && isCoverage(data)) last = data;
   return data && isCoverage(data) ? data : last;
 }
