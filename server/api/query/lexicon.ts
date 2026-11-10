@@ -186,7 +186,14 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["together|in common|shared|share|both|both played|jointly|same match|same matches", { k: "together" }],
   ["same alliance|same side|as partners|on the same alliance|teamed up|teamed", { k: "same-side" }],
   // "Who is better, 12345 or 67890": the two side by side.
-  ["compare|comparison|compared|side by side|or|better|stronger|who is better|which is better|whos better|who's better", { k: "compare" }],
+  // "Which OPR is bigger, 12345 or 67890", "opr comparison": the same side by side.
+  ["compare|comparison|comparisons|compared|side by side|or|better|stronger|bigger|larger|higher|who is better|which is better|whos better|who's better|which is bigger|which is higher|who has the better|who has the higher|who has the bigger", { k: "compare" }],
+  // Two teams' meetings: "head to head", "h2h".
+  ["head to head|h2h|head to head record|head to head matches|head to head results|head to head history", [{ k: "vs" }, { k: "thing", v: "match" }]],
+  // "Predict the winner", "who is the winner": who wins their match (a forecast only beside "predict" or a supposition).
+  ["winner|winners|the winner", { k: "metric", v: "win" }],
+  // Asked as a question ("who is the winner, 12345 vs 67890"): who wins, as "who wins" is.
+  ["who is the winner|whos the winner|who will be the winner|who would be the winner|who is going to be the winner|pick the winner|pick a winner", { k: "predict" }],
   // Wins and losses as an outcome ("closest win", "biggest loss").
   ["winning", { k: "outcome", v: "W" }],
   ["losing", { k: "outcome", v: "L" }],

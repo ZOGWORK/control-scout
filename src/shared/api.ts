@@ -261,6 +261,9 @@ export interface SearchCard {
   /** Under the facts asked, the rest of the team's card: where it's from, its region, and the season's record, OPR,
    *  rating and reliability as the team page shows them (only what `facts` doesn't already hold). */
   support?: SearchCardFact[];
+  /** Where an award-at-event answer's awards come from when it isn't the event asked: a division's are its
+   *  championship's ("… is a division of New Jersey Championship: its awards are given at the championship"). */
+  note?: string;
   /** An award-at-event answer's event, which /search links to on its Awards tab. */
   event?: { season: number; code: string; name: string };
   /** The award asked about ("Inspire", FIRST's award type): its places draw as a podium. */
