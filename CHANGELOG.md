@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.2.5 — 2026-11-10
+
+A search's heading is the answer's own: words it read past get a quiet note of their own, and no heading is said twice.
+
+### Highlights
+- [fixes] Search headings never carry "isn't part of this answer"
+- [fixes] Words an answer read past get their own small note
+- [fixes] A search page no longer says its heading twice
+
+### Fixed
+- An answer that reads past some of the query's words ("4215 last prediction for East Bergen", "23268 rating going up or down") put `"last" isn't part of this answer` into its label, which titles the page. The words now go in `understood.unread` and show as a quiet note under the answer ("Not used in this answer: "last""), on the page and in its first HTML; the label is the answer's own.
+- The first HTML of a search no longer repeats the heading: a stat's or card's own title that matches it, and a headline label that only repeats the title, are left out (35 of 200 audited pages said their title twice).
+
 ## 5.2.4 — 2026-11-10
 
 Search asks which team when a name is still shared, and its new answers count only what was asked.

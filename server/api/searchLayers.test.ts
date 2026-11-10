@@ -9,6 +9,7 @@ import { searchAnswer } from "./searchAnswer";
 import { FILLER, FORBIDDEN, INTENTS, PARAPHRASES, WEAK_SIGNALS } from "./searchCatalog";
 import { extract, loneTeamHit, paraphrase, searchKey, searchOutcome, setLayersForTest, stripFiller, tokens, traceOf } from "./searchLayers";
 import { PARAPHRASE_SETS } from "./searchLayers.sets";
+import { unreadNote } from "../../src/shared/searchPage";
 
 const ask = (q: string) => searchAnswer(q, { limit: 25, learn: false });
 /** What an answer says: the card, the stat and its number, the team hit and the section or link it opens. */
@@ -132,13 +133,16 @@ describe("filler: never changes an answer; forbidden words are never ignored", (
     const silent: string[] = [];
     for (const w of FORBIDDEN.filter((x) => !/^(?:vs|versus|or|and)$/.test(x))) {
       const a = await ask(`4215 ${w} opr`);
-      if (sig(a) === want && !a.understood?.label.includes(`"${w}"`)) silent.push(w);
+      if (sig(a) === want && !a.understood?.unread?.includes(w)) silent.push(w);
     }
     expect(silent).toEqual([]);
     // Layer 1 reads past "today" (a stopword there): the answer says so.
-    expect((await ask("4215 today opr")).understood?.label).toMatch(/"today" isn't part of this answer/);
+    expect((await ask("4215 today opr")).understood?.unread).toEqual(["today"]);
+    // Said in its own note, never in the label, which titles the page.
+    expect((await ask("4215 today opr")).understood?.label).not.toMatch(/today|part of this answer/);
+    expect(unreadNote(await ask("4215 today opr"))).toBe('Not used in this answer: "today"');
     // The same when a later layer answers it, after filler is taken out.
-    expect((await ask("4215 today opr rn")).understood?.label).toMatch(/"today" isn't part of this answer/);
+    expect((await ask("4215 today opr rn")).understood?.unread).toEqual(["today"]);
     const x = await extract("4215 not opr");
     expect(x.forbidden).toEqual(["not"]);
     expect(x.canonical).toBeNull();

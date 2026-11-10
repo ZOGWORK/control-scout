@@ -237,4 +237,13 @@ describe("the answers", () => {
     const long = await pageMeta("/search", { q: `${"please ".repeat(12)}4215 worlds record` });
     expect(long.bodyHtml).toMatch(/<h2>Record at Worlds<\/h2>/);
   });
+  it("the first paint never says the page's heading twice: a stat or card titled as the heading gets no second one", async () => {
+    for (const q of ["4215 worlds record", "4215 record", "4215 opr", "4215 awards", "4215 today opr", "4215 and 6980 record", "4215 vs 6980 opr"]) {
+      const m = await pageMeta("/search", { q });
+      const lines = [m.heading ?? "", ...[...(m.bodyHtml ?? "").matchAll(/<(?:h2|h3)>([^<]*)</g)].map((x) => x[1])].filter(Boolean);
+      expect(new Set(lines.map((x) => x.toLowerCase())).size, `${q}: ${lines.join(" | ")}`).toBe(lines.length);
+      expect(`${m.heading} ${m.bodyHtml}`, q).not.toMatch(/isn't part of this answer/);
+    }
+    expect((await pageMeta("/search", { q: "4215 today opr" })).bodyHtml).toContain("Not used in this answer: &quot;today&quot;");
+  });
 });
