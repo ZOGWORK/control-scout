@@ -20,12 +20,12 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 On a phone, buttons and links are a full fingertip tall again.
 
 ### Highlights
-- [fixes] Team numbers, match chips and confidence chips on an event page are easy taps on a phone
-- [fixes] Team boxes, the season picker and text boxes are 44 px tall on a touch screen
-- [fixes] Compare, the match page and the team page's small links get the same room
+- [fixes] Event pages on a phone: team numbers and chips are easy taps
+- [fixes] Team boxes, the season picker and text boxes are 44 px tall on touch
+- [fixes] Compare, the match page and team page links get the same room
 
 ### Fixed
-- The 14 px phone base shrank buttons and links sized in rem below 44 px tall: an event page had 196 of them, the team page 34. On touch screens they now have at least 44 px to tap, either as an invisible hit area (rows that must not grow) or a taller row. Desktop with a mouse is unchanged. (#1300)
+- The 14 px phone base shrank buttons and links sized in rem below 44 px tall: an event page had 196 of them, the team page 34. On touch screens they now have at least 44 px to tap, either as an invisible hit area (rows that must not grow) or a taller row where links stack, so two tap areas never sit on top of each other. On Compare, a phone puts the reorder and remove buttons on a row under each team. Desktop with a mouse is unchanged. (#1300)
 
 ## 4.9.6 — 2026-11-10
 

@@ -50,7 +50,7 @@ export function ConfidenceBadge({ tier, reason, className, quiet }: { tier: Conf
 }
 
 /** One small status chip in a match row's call column: never wraps, the same height for every kind. */
-const STATUS_CHIP = "tap-44 inline-flex h-[18px] shrink-0 items-center gap-0.5 whitespace-nowrap rounded px-1 text-[11px] font-medium leading-none";
+const STATUS_CHIP = "inline-flex h-[18px] shrink-0 items-center gap-0.5 whitespace-nowrap rounded px-1 text-[11px] font-medium leading-none";
 
 /** Compact, always-visible tier for dense lists (match rows, the Home card):
  *  the rule is a confidence tier on every prediction surface, never hover-only. */
@@ -71,7 +71,7 @@ export function TierIcon({ tier }: { tier: ConfidenceTier }) {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button type="button" className={cn(STATUS_CHIP, "w-[18px] justify-center border px-0 outline-none focus-visible:ring-2 focus-visible:ring-ring/60 [&_svg]:size-3", t.cls)} data-tier={tier}>
+        <button type="button" className={cn(STATUS_CHIP, "tap-44 w-[18px] justify-center border px-0 outline-none focus-visible:ring-2 focus-visible:ring-ring/60 [&_svg]:size-3", t.cls)} data-tier={tier}>
           <t.icon aria-hidden /><span className="sr-only">Confidence: {t.label.toLowerCase()}</span>
         </button>
       </PopoverTrigger>
@@ -341,8 +341,8 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
                 <span className="sr-only">{p.kind === "live" ? "pre-match" : "replayed"}: {KIND_LABEL[p.kind]}</span>
               </span>
             )}
-            {m.clip && <ClipLink clip={m.clip} label={m.label} matchKey={m.key} className={cn(STATUS_CHIP, VIDEO_TONE.chip, "still-hover:bg-video/20")}><span className="text-[10px]">Watch</span></ClipLink>}
-            {m.video && <MatchVideoLink url={m.video} label={m.label} matchKey={m.key} className={cn(STATUS_CHIP, "still-hover:text-text-base")} />}
+            {m.clip && <ClipLink clip={m.clip} label={m.label} matchKey={m.key} className={cn(STATUS_CHIP, "tap-44", VIDEO_TONE.chip, "still-hover:bg-video/20")}><span className="text-[10px]">Watch</span></ClipLink>}
+            {m.video && <MatchVideoLink url={m.video} label={m.label} matchKey={m.key} className={cn(STATUS_CHIP, "tap-44", "still-hover:text-text-base")} />}
             {videos > 0 && <span className={cn(STATUS_CHIP, "text-accent-text")} title={`${videos} saved video link${videos > 1 ? "s" : ""}`}><Video className="size-3.5" /><span className="text-[10px]">{videos}</span></span>}
           </div>
         )}
