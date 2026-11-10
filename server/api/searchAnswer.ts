@@ -37,6 +37,9 @@ import { inRegion, namedTeamHit, teamsByName } from "./teamsByName.js";
 import { parseQuestion, questionAnswer } from "./searchQuestions.js";
 import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
 import { eventVersusSearch, leagueSearch, statAnswer } from "./answers/index.js";
+import { divisionFieldAnswer, readDivisionField, type EventRow } from "./answers/families/eventVersus.js";
+import { seasonOfDate } from "./query/time.js";
+import { searchToday } from "./searchEvents.js";
 import { placeAwardsSearch, readPlaceAwards } from "./answers/families/placeAwards.js";
 import { refreshSearchSeason } from "./answers/season.js";
 import { FALLBACK_NOTE, carryOutcome, layeredAnswer, nameKey, teamNames } from "./searchLayers.js";
@@ -562,6 +565,37 @@ async function sharedName(q: string, opts: AnswerOptions): Promise<SearchAnswer 
   return carryOutcome(a, { ...a, q, understood: { ...u, label: `${u.label} · ${said.join(" · ")}` } });
 }
 
+/** Which division of a championship was hardest (or easiest) by field strength (./answers/families/eventVersus.ts
+ *  readDivisionField): Worlds, or the state championship of a place named; the season written, else the latest held up
+ *  to the current one with two or more divisions. */
+async function divisionField(q: string, opts: AnswerOptions): Promise<SearchAnswer | null> {
+  const asked = readDivisionField(opts.typed ?? q);
+  if (!asked) return null;
+  const p = await parseQuery(opts.typed ?? q, await parseContext(opts.now, opts.prefer));
+  if (p.teams.length || p.event) return null;
+  const region = p.place && p.place.kind !== "city" && !p.worlds ? p.place : null;
+  const current = seasonOfDate(searchToday(opts.now));
+  // The season said: written ("2024-25"), read ("last season", "2025"), else the latest with divisions.
+  const t = p.time?.kind === "season" ? p.time : null;
+  const written = seasonOf(q).season ?? (t?.relative === "last" ? current - 1 : t && !t.relative ? t.season : null);
+  const parents = await all<EventRow>(`SELECT season, code, name, type, start, division_code division FROM events
+    WHERE type = ? AND division_code IS NULL${region ? ` AND country = ?${region.state ? " AND state = ?" : ""}` : ""} AND season <= ? ORDER BY season DESC, start DESC`,
+    [region ? "Championship" : "FIRSTChampionship", ...(region ? [region.country, ...(region.state ? [region.state] : [])] : []), written ?? current]);
+  for (const parent of parents.filter((e) => written == null || Number(e.season) === written)) {
+    const divisions = await all<EventRow>(`SELECT season, code, name, type, start, division_code division FROM events WHERE season = ? AND division_code = ?
+      AND EXISTS (SELECT 1 FROM team_event_stats s WHERE s.season = events.season AND s.code = events.code AND s.opr_np IS NOT NULL) ORDER BY name`, [parent.season, parent.code]);
+    if (divisions.length < 2) continue;
+    const stat = await divisionFieldAnswer({ ...parent, season: Number(parent.season) }, divisions.map((d) => ({ ...d, season: Number(d.season) })), asked.easiest);
+    const skipped = written == null && Number(parent.season) < current ? `No ${seasonLabel(current)} divisions with OPR yet; showing ${seasonLabel(Number(parent.season))}` : null;
+    const shown = skipped ? { ...stat, scope: [skipped, ...stat.scope] } : stat;
+    return answer(q, {
+      hits: [], step: "deterministic", understood: { kind: "question", label: shown.title, season: Number(parent.season) }, ...(opts.full ? { stat: shown } : {}),
+      intent: { kind: "stat-division-field", pattern: "hardest division [championship]", met: true, understood: [shown.title] },
+    });
+  }
+  return null;
+}
+
 /** A question's leftover words read as a team (`core`): search's answer for them alone. Common words alone ("without",
  *  "team", "best") name no team (COMMON_WORDS), however many names hold them; topic words alone ("alliances", "most
  *  inspire") name a team only typed as its whole name, so "nj states alliances" is never team Alliance and "most
@@ -624,6 +658,9 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   const evSeason = /(?:^|\s)20\d\d\s*[-–/]\s*\d\d(?=\s|$)/.test(q) ? seasonOf(q) : { season: null, rest: q };
   const evs = opts.intents === false ? null : await eventVersusSearch(evSeason.rest, evSeason.season ?? opts.season ?? null, { full: !!opts.full, pages: pagesFor(q), asked: q, alias: expandShortForms });
   if (evs) return evs;
+  // Which division of a championship was hardest or easiest, by its field's average OPR.
+  const divs = opts.intents === false ? null : await divisionField(q, opts);
+  if (divs) return divs;
   const rw = opts.intents !== false && (opts.rewrites ?? 0) < 2 ? rewriteQuery(q, await namedParts(q)) : null;
   const rewritten = async (r: { q: string; note?: string }) => {
     const a = await searchAnswer(opts.asked ? `${r.q}?` : r.q, { ...opts, rewrites: (opts.rewrites ?? 0) + 1 });
