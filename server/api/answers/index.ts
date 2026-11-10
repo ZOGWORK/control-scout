@@ -45,6 +45,7 @@ import { rankUpsetAnswer, readRankUpset, type RankUpsetQuestion } from "./famili
 import { eventAverageAnswer, eventAverageTitle, eventsAsked, readEventAverage, type EventAverageQuestion } from "./families/eventAverage.js";
 import { penaltyTotalAnswer, trendAnswer } from "./families/trends.js";
 import { nextEventPrediction, pairPrediction, predictTitle, predictionSeason } from "./families/predict.js";
+import { advancementAt, advancementEvent, seasonAdvancement } from "./families/advancement.js";
 import { awardsSideBySide, compareAnswer, compareSeason, headToHead, neverPlayedAnswer, opponentsAnswer, partnerListAnswer, penaltiesSideBySide, phaseSideBySide, reliabilitySideBySide, seasonSideBySide } from "./families/twoTeam.js";
 import { sharedMatchList } from "../searchBoolean.js";
 import { compareBlock, decidedText, leadHeadline, seasonScale, winShare } from "./compareBlock.js";
@@ -684,6 +685,12 @@ async function build(it: StatQuestion, team: { number: number; name: string | nu
   if (EVENT_INTENTS.has(it.id)) return eventAnswer(it.id, team, await teamEventSet(team.number), scope, { byRecord: it.byRecord, schedule: it.schedule, rank: it.rank });
   // A forecast is for one event: the one named, else the team's next; a place or Worlds isn't one event.
   // Only a season written in the question, or "this season" (the current one), narrows it.
+  // Advancement odds are the chance to take a slot (./families/advancement.ts): at the event named, else the team's next
+  // advancing event in the season, else (said so) its latest one. Never a match's or the event's win chance.
+  if (it.id === "advance-chance" && !scope.place && !scope.championship && !scope.states) {
+    const ev = scope.event ? await advancementEvent(scope.event.season, scope.event.code) : null;
+    return ev ? advancementAt(team, ev, Date.now()) : seasonAdvancement(team, { season: scope.season ?? null, toward: null, now: Date.now() });
+  }
   if (PREDICT_INTENTS.has(it.id)) return scope.place || scope.championship || scope.states ? null : nextEventPrediction(it.id, team, undefined, scope.event, scope.season ?? null);
   const ms = await teamMatches(team.number);
   if (OPPONENT_INTENTS.has(it.id)) return opponentsAnswer(it.id, team, ms, scope);

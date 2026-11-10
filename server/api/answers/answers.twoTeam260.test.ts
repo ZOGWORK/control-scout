@@ -219,12 +219,16 @@ describe("the answers", () => {
     expect(win.understood!.label).toBe("Hypnotic Robotics (4215) · Chance to win their next event");
     expect(win.stat!.definition).not.toMatch(/The season is/);
     expect((await ask("4215 predicted to make playoffs at their next event")).stat!.headline).toMatchObject({ value: "71%" });
-    expect((await ask("4215 advancement chances")).stat!.headline).toMatchObject({ value: "33%", label: "to advance from Northeast League Meet (2 slots)" });
+    // Advancement odds with no event named: the team's next event that advances teams (./families/advancement.ts); a
+    // league meet, whatever its stored projection, never stands in for one, and the win chance never does either.
+    const adv = (await ask("4215 advancement chances")).stat!;
+    expect(adv.intent).toBe("advancement-odds");
+    expect(JSON.stringify(adv)).not.toContain("Northeast League Meet");
     expect((await ask("4215 predicted wins at their next event")).stat!.headline).toMatchObject({ value: "#3" });
     const none = await ask("33950 chance to win an event");
     expect(none.stat!.headline).toMatchObject({ value: "Not published yet" });
     expect(none.stat!.none).toMatch(/hasn't published a projection for Northeast League Meet yet/);
-    expect((await ask("6980 chance to advance to worlds")).stat!.none).toMatch(/^No upcoming event is published for Bad Wolf \(6980\)/);
+    expect((await ask("6980 chance to advance to worlds")).stat?.intent).toBe("advancement-odds");
     // The forecast said as a noun ("next meet forecast"): the same card, end to end, any team.
     const noun = await ask("4215 next meet forecast");
     expect(noun.stat).toMatchObject({ intent: "event-win-chance", team: { number: 4215 }, headline: { value: "22%", label: "to win Northeast League Meet" } });
@@ -235,14 +239,13 @@ describe("the answers", () => {
     expect(will.stat).toMatchObject({ intent: "pipeline-team-predict-event", team: { number: 4215 }, headline: { value: "22%", label: "to win Northeast League Meet" } });
     const past = await ask("will 6980 win new jersey qualifier");
     expect(past.stat).toMatchObject({ intent: "pipeline-team-predict-event", team: { number: 6980 }, title: "Prediction vs result at New Jersey Qualifier" });
-    // Reaching Worlds or states said beside a forecast: the advancement chance at the next event, any wording.
-    for (const q of ["4215 odds of reaching worlds", "what are 4215's chances of getting to states next season", "4215 chance of qualifying for worlds as it stands"]) {
-      expect((await ask(q)).stat, q).toMatchObject({ intent: "advance-chance", headline: { value: "33%", label: "to advance from Northeast League Meet (2 slots)" } });
+    // Reaching Worlds or states said beside a forecast: the advancement odds on the way there, any wording; never a
+    // league meet's own chance read as the chance of reaching Worlds.
+    for (const q of ["4215 odds of reaching worlds", "what are 4215's chances of getting to states next season", "4215 chance of qualifying for worlds as it stands", "6980 odds of reaching worlds next year", "4215 odds of reaching worlds as of now"]) {
+      const a = (await ask(q)).stat;
+      expect(a?.intent, q).toBe("advancement-odds");
+      expect(JSON.stringify(a), q).not.toContain("Northeast League Meet");
     }
-    expect((await ask("6980 odds of reaching worlds next year")).stat!.none).toMatch(/^No upcoming event is published for Bad Wolf \(6980\)/);
-    // "As of now" is filler; a season said asks for something the next event's projection isn't.
-    expect((await ask("4215 odds of reaching worlds as of now")).stat).toMatchObject({ intent: "advance-chance", headline: { value: "33%" } });
-    expect((await ask(`4215 odds of reaching worlds in ${S - 1}-${String(S % 100).padStart(2, "0")}`)).stat?.intent).not.toBe("advance-chance");
     // A forecast made at Worlds is still its own ("advance at worlds"): the division's before and after.
     expect((await ask("4215 chance to advance at worlds")).stat?.intent).not.toBe("advance-chance");
     // The forecast's switch off: the event page shows no odds, and nor does search.
@@ -255,22 +258,22 @@ describe("the answers", () => {
   it("review fixes: a forecast for the event named, Compare opening on the card's season", async () => {
     // The event asked about, not the team's next one.
     const at = await ask("4215 advancement chances at Northeast League Meet");
-    expect(at.stat!.headline).toMatchObject({ value: "33%" });
+    expect(at.stat!.blocks.find((b) => b.kind === "chance")).toMatchObject({ p: 0.33 });
     expect(at.stat!.scope).toContain("Northeast League Meet");
     // An event named and "this season", either order: the current season's event.
     for (const q of ["4215 advancement chances this season at Northeast League Meet", "4215 advancement chances at Northeast League Meet this season"]) {
-      expect((await ask(q)).stat?.headline).toMatchObject({ value: "33%" });
+      expect((await ask(q)).stat?.blocks.find((b) => b.kind === "chance")).toMatchObject({ p: 0.33 });
     }
     // A place's events aren't one event: no forecast, never the next event's in its place.
     const q1 = await ask("4215 chance to win an event at New Jersey Qualifier");
     expect(JSON.stringify(q1.stat ?? {})).not.toContain("Northeast League Meet");
     // A season named is the only one looked in: none upcoming in a finished season, said so.
     const past = await ask(`4215 advancement chances in ${S}-${String((S + 1) % 100).padStart(2, "0")}`);
-    expect(JSON.stringify(past.stat ?? {})).not.toContain("33%");
-    expect(past.stat?.none ?? "").toMatch(/No upcoming event/);
+    expect(JSON.stringify(past.stat ?? {})).not.toContain("Northeast League Meet");
     // "This season" is the current one, where the upcoming event is (4215 has no matches in it yet).
     const now = await ask("4215 advancement chances this season");
-    expect(now.stat!.headline).toMatchObject({ value: "33%" });
+    expect(now.stat!.intent).toBe("advancement-odds");
+    expect(JSON.stringify(now.stat)).not.toContain("Northeast League Meet");
     // Its heading and links name the current season, not the team's last played one.
     expect(JSON.stringify(now.stat)).not.toContain(`${S}–${String((S + 1) % 100).padStart(2, "0")}`);
     // A season OPR at a named event (its scope holds the event, not a season) reads that event's season.
