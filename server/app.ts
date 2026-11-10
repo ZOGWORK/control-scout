@@ -69,6 +69,7 @@ import { compactSheet } from "../src/shared/factorSheet.js";
 import { overlapTotal } from "../src/shared/predictionBasis.js";
 import { FORECAST_RUNS } from "../src/shared/projections.js";
 import { liveForecaster, liveVersion, dataVersion, recentRecords } from "./predict/engine.js";
+import { ForecastUnavailable, eventForecast } from "./predict/eventForecast.js";
 import { bonusView } from "../src/shared/bonusOdds.js";
 import { matchExplanation } from "./api/predictMatch.js";
 import { authRouter, meRouter, authProviders } from "./auth/routes.js";
@@ -236,9 +237,8 @@ function memo<T>(ttlMs: number) {
   };
   return Object.assign(lookup, { clear: () => m.clear() });
 }
-const forecastMemo = memo<ForecastView | null>(120_000);
 const partnersMemo = memo<unknown>(120_000);
-registerCache("Event forecasts", () => { forecastMemo.clear(); partnersMemo.clear(); });
+registerCache("Event partner scenarios", () => partnersMemo.clear());
 
 function refreshMessage(o: ManualOutcome): string {
   switch (o.status) {
@@ -861,32 +861,9 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
     return { season: s, matches: out.sort((a, b) => (a.time ?? "").localeCompare(b.time ?? "")).slice(0, 200) };
   }));
 
+  // One event's forecast (server/predict/eventForecast.ts), shared with search's advancement-odds answer.
   const forecastFor = async (s: number, c: string, team: number | null, mode: ForecastView["mode"]): Promise<ForecastView> => {
-    // Keyed by the ratings in use too: while new ones build, results from the previous ones aren't cached as the new data's.
-    const v = await forecastMemo(`${await liveVersion(s)}|${s}|${c}|${team ?? ""}|${mode}`, async () => {
-      const d = await eventDetail(s, c);
-      if (!d) throw new HttpError(404, `No event ${c} in ${s}`);
-      if (d.forecastUnsupported) throw new HttpError(422, d.forecastUnsupported);
-      const f = await liveForecaster(s);
-      const ev = toEventInput(d.event, d.field, d.matches, d.alliances);
-      const fc = mode === "pre-event" ? f.preEventForecast(ev, team, FORECAST_RUNS) : f.forecast(ev, team, FORECAST_RUNS);
-      if (!fc) throw new HttpError(503, "Ratings for this season aren't ready yet.");
-      const finished = d.event.status === "finished";
-      // 2025+ games award bonus ranking points. The forecast says how its simulation drew them
-      // (fc.bonusDraws: the bonus model it actually used, this event's recorded results, or none),
-      // and the flag and any warning follow that one value, so they can't contradict the numbers
-      // (a learned season model counts; a frozen "before the event" view with too little earlier
-      // data doesn't). Official ranks (after quals) already include them.
-      const bonusModelled = fc.bonusDraws !== "none";
-      const explained = fc.assumptions.some((a) => /bonus ranking point/i.test(a));
-      const assumptions = bonusModelled || explained ? fc.assumptions
-        : [...fc.assumptions, `Bonus ranking points for ${seasonInfo(s).game} aren't modelled for this forecast (no bonus model from results so far), so simulated ranks count win/tie points only — real ranks and the odds that depend on them may differ.`];
-      return {
-        ...fc, assumptions, bonusModelled, eventName: d.event.name, eventStart: d.event.start, eventEnd: d.event.end, myTeam: team, engineVersion: ENGINE_VERSION, mode,
-        hindsightNote: mode === "current" && finished ? "This event is over: these odds use ratings that already include its results. Switch to “Before the event” for the forecast made without hindsight." : null,
-      };
-    });
-    return v!;
+    try { return await eventForecast(s, c, team, mode); } catch (e) { throw e instanceof ForecastUnavailable ? new HttpError(e.status, e.message) : e; }
   };
 
   api.get("/predict/event", predictions, limiter(30), h(async (req) => {

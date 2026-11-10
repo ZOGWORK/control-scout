@@ -24,6 +24,8 @@ import { projectionHeadline } from "./Projections";
 import { ADVANCE_LABEL, advanceStatus, type ProjectionRun, type ProjectionsView } from "../shared/projections";
 import { oddsTabBasis } from "../lib/eventRankingNotes";
 import { eventStanding } from "../shared/eventStanding";
+import { forecastTier } from "../shared/forecastTier";
+export { forecastTier };
 
 const ease = [0.2, 0.8, 0.2, 1] as const;
 const pct = (p: number | null | undefined, decided = false) => oddsPct(p, decided);
@@ -43,22 +45,6 @@ const STAGES = [
   { k: "quals", label: "Quals finished", short: "Ranked" },
   { k: "selected", label: "Alliances selected", short: "Alliances" },
 ] as const;
-
-/** How sure an advancement forecast is (a stated rule, shown on the page). */
-export function forecastTier(fc: ForecastView, team: number | null): { tier: ConfidenceTier; reason: string } {
-  const base = forecastTierBase(fc, team);
-  if (!fc.bonusModelled && fc.stage !== "selected" && base.tier === "confident") return { tier: "moderate", reason: `${base.reason} Bonus ranking points aren't modelled for this forecast.` };
-  return base;
-}
-
-function forecastTierBase(fc: ForecastView, team: number | null): { tier: ConfidenceTier; reason: string } {
-  const t = team ? fc.teams.find((x) => x.team === team) : null;
-  const n = t?.strength.matches ?? Math.min(...fc.teams.map((x) => x.strength.matches));
-  if (fc.stage === "selected") return { tier: "confident", reason: "Alliances are set; only the playoffs (and awards) are left to simulate." };
-  if (fc.stage === "quals") return n >= 3 ? { tier: "confident", reason: "Quals are over: ranks are known, only alliance selection, playoffs and awards are simulated." } : { tier: "moderate", reason: "Quals are over, but this team has few matches on record." };
-  if (n < 3) return { tier: "provisional", reason: `${team ? `Team ${team} has` : "Some teams have"} under 3 matches this season, so the forecast leans on last season.` };
-  return { tier: fc.stage === "live" ? "moderate" : n >= 8 ? "moderate" : "provisional", reason: fc.stage === "live" ? "Quals are under way; most of the event is still simulated." : `Before the event, every match is simulated (${n} matches on record for the team).` };
-}
 
 /** The simulator's forecast with a stored projection's odds and ranks laid over it (awards and points stay the simulator's). */
 export type Shown = ForecastView & { projection?: ProjectionRun; awardOdds?: Map<number, number>; ineligible?: Set<number> };

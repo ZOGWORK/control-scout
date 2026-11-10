@@ -15,6 +15,24 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.4.0 — 2026-11-10
+
+Search answers advancement odds: a team's chance to take an advancing slot at an event, from the same engine numbers as Predict.
+
+### Highlights
+- [predict] Search answers advancement odds, on a 0–100% bar
+- [predict] Past events: the odds the day before, then what happened
+- [predict] "Can 4215 make it to states" and "chances this season" answer too
+
+### Added
+- An advancement-odds answer in search: the team's chance to take a slot at the event asked (its division at a championship), where advancing leads ("to New Jersey Championship", "to the Worlds finals"), the slots, and the simulated runs, with Open in Predict. It reads the stored projection or the same forecast as Predict's Advancement view, so the numbers match. (#1281) An event already played shows the forecast as it stood the day before (Predict's "Before the event") beside what happened: took a slot or didn't, with rank, playoff finish, awards and advancement points. At a Worlds division the step on is the finals, so the chance is the chance to win the division.
+- A season asked with no event ("17670 chances this season", "whats 17713's chance of making worlds next year") answers for the team's next advancing event; with none published yet it says so and shows its latest one. A championship the team never reached says so and shows its odds of getting there.
+
+### Changed
+- A match's win chance is never shown as advancement odds: those queries used to show the average chance to win each match.
+- A chance under 1.5% prints as 1% in search, as Predict prints it, never a false 0%.
+- The advancement card shows its confidence tier and why, by the same rule as Predict's Advancement view.
+
 ## 5.3.9 — 2026-11-10
 
 The Teams "All listed" tab opens with the best teams first, and Predict lists each saved prediction once.
