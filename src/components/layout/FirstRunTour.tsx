@@ -25,7 +25,7 @@ import { cn } from "../cn";
 import { useConsent } from "../../lib/consent";
 import { usePersonal } from "../../lib/personal";
 import { claimFirstRun, releaseFirstRun, useFirstRunHolder } from "../../lib/firstRun";
-import { coversTour, endTour, findTarget, highlightsQuery, isAutomated, isShown, isTourPage, knowsTheApp, predictAction, readTour, rereadTour, resolveSteps, samePage, saveTour, searchHref, stepMode, tourDemo, tourKind, tourOver, tourTeam, TOUR_ASK, TOUR_CHANGE, TOUR_KEY, TOUR_STEPS, type TourRecord, type TourStep } from "../../lib/tour";
+import { coversTour, endTour, findTarget, highlightsQuery, isAutomated, isShown, isTourPage, knowsTheApp, predictAction, readTour, rememberTourPage, rereadTour, resolveSteps, samePage, saveTour, searchHref, stepMode, tourDemo, tourKind, tourOver, tourTeam, TOUR_ASK, TOUR_CHANGE, TOUR_KEY, TOUR_STEPS, type TourRecord, type TourStep } from "../../lib/tour";
 
 /** After the page is idle, wait this long before opening (the page settles; no flash on a bounce). */
 export const TOUR_DELAY_MS = 900;
@@ -99,6 +99,8 @@ export function FirstRunTour() {
   const path = loc.pathname;
   // The page with its query: a different tab or season (Back/Forward, a shared link) is looked at again.
   const page = path + loc.search;
+  // The page "Take the tour" starts from (the last one here with a tour).
+  useEffect(() => { rememberTourPage(path + loc.search); }, [path, loc.search]);
   const pathRef = useRef(path);
   pathRef.current = path;
   const pageRef = useRef(page);
