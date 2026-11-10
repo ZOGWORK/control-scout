@@ -19,6 +19,23 @@ export interface EventRecord extends Wlt { qual: Wlt }
 export const onRecord = (level: string, t: { surrogate: boolean; onField: boolean }): boolean =>
   level === "qual" ? !t.surrogate : t.onField;
 
+/** Events whose matches go on a team's season record (and its scores and records in search): qualifiers, league play,
+ *  championships and premier events. Off-season events, scrimmages and demos never count; the team page lists them
+ *  apart (offSeasonRecord). One list for the stats job, the team page and search. */
+export const OFFICIAL_TYPES = ["Qualifier", "LeagueMeet", "LeagueTournament", "Championship", "FIRSTChampionship", "Premier", "SuperQualifier", "Official"] as const;
+export const isOfficialEvent = (type: string | null | undefined): boolean => (OFFICIAL_TYPES as readonly string[]).includes(type ?? "");
+/** The season record's scope, said on every card and tile that shows one. */
+export const OFFICIAL_ONLY = "Official events only";
+export const OFFICIAL_RULE = "A season record counts official events only (qualifiers, league play, championships and premier events); off-season events and scrimmages are listed apart, never added in.";
+
+/** The matches at events off the record (off-season, scrimmages) added up from the team's event rows, or null when
+ *  it played none: the team page's separate line. */
+export function offSeasonRecord(rows: { type: string | null; wins: number | null; losses: number | null; ties: number | null }[]): (Pick<Wlt, "wins" | "losses" | "ties"> & { events: number }) | null {
+  const off = rows.filter((r) => !isOfficialEvent(r.type) && r.wins != null);
+  if (!off.length) return null;
+  return off.reduce((a, r) => ({ wins: a.wins + (r.wins ?? 0), losses: a.losses + (r.losses ?? 0), ties: a.ties + (r.ties ?? 0), events: a.events + 1 }), { wins: 0, losses: 0, ties: 0, events: 0 });
+}
+
 /** Short form of the rule, for a note or tooltip next to a record. */
 export const RECORD_RULE = "Every match played, playoffs included. As in FIRST's rankings, a qualification no-show still counts and a surrogate match doesn't.";
 
