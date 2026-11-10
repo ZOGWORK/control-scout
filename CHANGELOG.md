@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.3.9 — 2026-11-10
+## 5.4.0 — 2026-11-10
 
 Search answers advancement odds: a team's chance to take an advancing slot at an event, from the same engine numbers as Predict.
 
@@ -32,6 +32,19 @@ Search answers advancement odds: a team's chance to take an advancing slot at an
 - A match's win chance is never shown as advancement odds: those queries used to show the average chance to win each match.
 - A chance under 1.5% prints as 1% in search, as Predict prints it, never a false 0%.
 - The advancement card shows its confidence tier and why, by the same rule as Predict's Advancement view.
+
+## 5.3.9 — 2026-11-10
+
+The Teams "All listed" tab opens with the best teams first, and Predict lists each saved prediction once.
+
+### Highlights
+- [teams] Teams → All listed opens best first, not on teams with no results
+- [predict] Your saved predictions list each matchup once
+- [predict] Saving a matchup again replaces its old save
+
+### Fixed
+- `/teams?view=listed` opened sorted by team number, so its first page was mostly teams with "No results yet". It now opens best first (the sort formerly called "Results first", now "Best first"): teams with results, by season OPR, then the rest by number. Team number is still a tap on the Team column (`?sort=team`), and old links keep their sort. (`DIRECTORY_DEFAULT_SORT`, `src/shared/directory.ts`)
+- Predict's "Your saved predictions" listed one matchup twice (saved twice, or saved on two devices under two ids). The list now keeps one save per matchup (season, red alliance, blue alliance), the newest: saving again replaces the old one, a device's stored list is cleaned when read, and an account merge keeps one (`dedupePredictions`, `src/shared/personal.ts`). (#1346)
 
 ## 5.3.8 — 2026-11-10
 

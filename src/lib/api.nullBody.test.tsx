@@ -48,7 +48,7 @@ const good: DirectoryPage = {
     { team: 31, name: "Moose", city: null, state: null, country: "Canada", rookieYear: null, hasResults: true },
   ],
 };
-const DIR = "/api/directory/2025?country=CA&sort=team&dir=asc&page=1&pageSize=50";
+const DIR = "/api/directory/2025?country=CA&sort=results&dir=desc&page=1&pageSize=50";
 const mount = () => render(<MemoryRouter initialEntries={["/teams?view=listed&season=2025&country=CA"]}><TeamDirectory season={2025} onSeason={() => {}} /></MemoryRouter>);
 
 describe("TeamDirectory: an answer it can't use", () => {
