@@ -43,7 +43,11 @@ export interface LiteEvent {
   checkedAt: string | null;
   /** The team list is FIRST's pre-event registrations (no rankings yet). */
   registered: boolean;
-  teams: { team: number; name: string | null; rank: number | null; rp: number | null; wins: number | null; losses: number | null; ties: number | null; opr: number | null }[];
+  /** A league meet: rank, RS and record are this meet's own standing (FieldRow.meet), as the full page's Meet view shows
+   *  them; FIRST's rank and ranking score there are the league's running totals, never shown under the meet's name. */
+  meet: boolean;
+  /** `rs`: the ranking score (average ranking points a match), the full page's RS column. */
+  teams: { team: number; name: string | null; rank: number | null; rs: number | null; wins: number | null; losses: number | null; ties: number | null; opr: number | null }[];
   matches: LiteMatchRow[];
   alliances: { number: number; teams: number[] }[];
   awards: { type: string; placement: number; team: number }[];
@@ -122,14 +126,18 @@ export function liteMatchRow(m: MatchView): LiteMatchRow {
 
 export function liteEvent(d: EventDetail): LiteEvent {
   const e = d.event;
+  const meet = d.field.some((r) => "meet" in r);
+  const standing = (r: EventDetail["field"][number]) => (meet
+    ? { rank: r.meet?.rank ?? null, rs: r.meet?.rs ?? null, wins: r.meet?.wins ?? null, losses: r.meet?.losses ?? null, ties: r.meet?.ties ?? null }
+    : { rank: r.rank, rs: r.rp, wins: r.wins, losses: r.losses, ties: r.ties });
   return {
     season: e.season, code: e.code, name: e.name, typeLabel: e.typeLabel, start: e.start, end: e.end,
     city: e.city, state: e.state, country: e.country, status: e.status, checkedAt: d.live?.checkedAt ?? null,
     registered: !!d.registered,
+    meet,
     // Ranked teams in rank order, then the rest by number (as the rankings table sorts them).
-    teams: [...d.field]
-      .sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity) || a.team - b.team)
-      .map((r) => ({ team: r.team, name: r.name, rank: r.rank, rp: r.rp, wins: r.wins, losses: r.losses, ties: r.ties, opr: r.opr.np })),
+    teams: d.field.map((r) => ({ team: r.team, name: r.name, ...standing(r), opr: r.opr.np }))
+      .sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity) || a.team - b.team),
     matches: d.matches.map(liteMatchRow),
     alliances: d.alliances.map((a) => ({ number: a.number, teams: [a.captain, a.pick1, a.pick2, a.backup].filter((t): t is number => t != null) })),
     awards: d.awards.map((a) => ({ type: a.type, placement: a.placement, team: a.team })),
