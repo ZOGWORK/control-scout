@@ -26,7 +26,7 @@ import { eventKindOf, matchFindAnswer, type MatchFind, type MatchMeasure } from 
 import { seasonOfDate } from "./time.js";
 import { searchToday } from "../searchEvents.js";
 import { eventFor, forecastAt, teamEventOfType } from "./forecast.js";
-import { advancementAt, advancementEvent, seasonAdvancement } from "../answers/families/advancement.js";
+import { advancementAt, advancementEvent, advancementNotListed, seasonAdvancement } from "../answers/families/advancement.js";
 import { teamsNamedSearch } from "../answers/teamsNamed.js";
 import { eventFieldAnswer } from "../answers/families/eventVersus.js";
 import { asksNow, streakBoardAnswer } from "./streakBoard.js";
@@ -321,14 +321,14 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   if (intent === "team-predict" && seasonOdds(p)) {
     if (scope.level || scope.alliance || scope.place || scope.area || scope.window || scope.at) return null;
     // The season as the scope read it: named, or "last season" (the one before); "this season" is the current one.
-    return advancementResult(p, await seasonAdvancement({ number: p.teams[0].number, name: p.teams[0].name }, { season: scope.season ?? null, toward: null, now: opts.now ?? Date.now() }), opts);
+    return advancementResult(p, await seasonAdvancement({ number: p.teams[0].number, name: p.teams[0].name }, { season: scope.season ?? null, toward: null, now: opts.now ?? Date.now(), simulate: opts.full }), opts);
   }
   if (intent === "team-predict" && p.reach && !p.event && p.teams.length === 1) {
     // The odds are the team's next event's on the way there: a place, a side or a day said asks for another answer.
     if (scope.level || scope.alliance || scope.place || scope.area || scope.window || scope.at) return null;
     // A season named (or "last season") is the one looked in; "next year" and "this season" are the current one.
     if (p.time && p.time.kind !== "season") return null;
-    const stat = await seasonAdvancement({ number: p.teams[0].number, name: p.teams[0].name }, { season: scope.season ?? null, toward: p.worlds ? "worlds" : "states", now: opts.now ?? Date.now() });
+    const stat = await seasonAdvancement({ number: p.teams[0].number, name: p.teams[0].name }, { season: scope.season ?? null, toward: p.worlds ? "worlds" : "states", now: opts.now ?? Date.now(), simulate: opts.full });
     return advancementResult(p, stat, opts);
   }
   const ownChampionship = intent === "team-predict" && !p.event && p.teams.length === 1 && (p.worlds || p.states);
@@ -348,15 +348,16 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     if (!found && ownChampionship && p.symbols.includes("advance") && year == null) {
       const t = p.teams[0], where = p.worlds ? "Worlds" : `${region ? `the ${region.name} ` : "a "}state championship`;
       // Only events in the championship's own region lead there (any region's championship leads to Worlds).
-      return advancementResult(p, await seasonAdvancement({ number: t.number, name: t.name }, { season, toward: p.worlds ? "worlds" : "states", now: opts.now ?? Date.now(), region: p.worlds ? null : region,
+      return advancementResult(p, await seasonAdvancement({ number: t.number, name: t.name }, { season, toward: p.worlds ? "worlds" : "states", now: opts.now ?? Date.now(), simulate: opts.full, region: p.worlds ? null : region,
         missing: `${t.name ? `${t.name} (${t.number})` : `Team ${t.number}`} isn't listed at ${where}${season != null ? ` in ${seasonLabel(season)}` : ""}` }), opts);
     }
     if (!found) return null;
     // One team's advancement odds ("advancement odds at nj championship", "odds of advancing at worlds"): the chance to
     // take a slot there (./answers/families/advancement.ts), never a match's win chance.
-    if (p.teams.length === 1 && p.symbols.includes("advance") && found.listed) {
-      const ev = await advancementEvent(Number(found.ev.season), found.ev.code);
-      if (ev) return advancementResult(p, await advancementAt({ number: p.teams[0].number, name: p.teams[0].name }, ev, opts.now ?? Date.now()), opts);
+    // Not listed there: at a championship, its odds of getting there; anywhere else, said so (never a match's chance).
+    if (p.teams.length === 1 && p.symbols.includes("advance")) {
+      const ev = await advancementEvent(Number(found.ev.season), found.ev.code), t = { number: p.teams[0].number, name: p.teams[0].name };
+      if (ev) return advancementResult(p, found.listed ? await advancementAt(t, ev, opts.now ?? Date.now(), undefined, opts.full) : await advancementNotListed(t, ev, opts.now ?? Date.now(), opts.full), opts);
     }
     const stat = await forecastAt(p.teams.map((t) => ({ number: t.number, name: t.name })), found.ev, found.listed, opts.now ?? Date.now(), { advance: p.symbols.includes("advance") });
     const hits = (await Promise.all(p.teams.map(async (t) => (await opts.resolve(String(t.number))).hits.find((h) => h.kind === "team" && h.ref === String(t.number))))).filter((h): h is NonNullable<typeof h> => !!h);

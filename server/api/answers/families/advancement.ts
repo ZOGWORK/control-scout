@@ -8,6 +8,8 @@
 import type { StatAnswer, StatBlock } from "../../../../src/shared/searchStat.js";
 import { awardLabel, dateRange, oddsPct, seasonLabel } from "../../../../src/shared/format.js";
 import { predictHref } from "../../../../src/shared/predictUrl.js";
+import { eventStatus } from "../../../../src/shared/eventDay.js";
+import { forecastTier, projectionTier } from "../../../../src/shared/forecastTier.js";
 import { advanceStatus } from "../../../../src/shared/projections.js";
 import { CURRENT_SEASON, FIRST_PREDICT_SEASON, isLegacy } from "../../../data/seasons.js";
 import { regionRuleset } from "../../../data/roadmapRules.js";
@@ -23,11 +25,11 @@ import { wonEventByRules } from "./winners.js";
 /** Where the advancing is asked toward: Worlds ("make worlds"), a state or regional championship ("make states"), or any next step. */
 export type Toward = "worlds" | "states" | null;
 
-interface Ev { season: number; code: string; name: string; type: string | null; start: string | null; end: string | null; region: string | null; division_code: string | null }
+interface Ev { season: number; code: string; name: string; type: string | null; start: string | null; end: string | null; region: string | null; division_code: string | null; timezone: string | null }
 
 /** Odds printed as Predict prints them ("1%" for a long shot, never a false 0%). */
 const pct = (p: number) => oddsPct(p, p <= 0 || p >= 1);
-const EV_COLS = "e.season, e.code, e.name, e.type, e.start, e.end, e.region, e.division_code";
+const EV_COLS = "e.season, e.code, e.name, e.type, e.start, e.end, e.region, e.division_code, e.timezone";
 /** FIRST's event types a team can advance from, by where they lead. */
 const TO_STATES = ["Qualifier", "LeagueTournament", "SuperQualifier"];
 const TO_WORLDS = ["Championship", "Premier"];
@@ -51,22 +53,24 @@ async function destination(ev: Ev, advancesTo: string | null): Promise<string> {
 
 /** The team's odds at `ev` the way Predict's Advancement view shows them: the stored projection when there is one (the
  *  current run, or for an event already played the baseline made before it), else the engine's forecast. Null: no
- *  forecast can be made (no team list, an unsupported event, ratings still building). */
-async function oddsAt(ev: Ev, team: number, before: boolean) {
+ *  forecast can be made (no team list, an unsupported event, ratings still building). `simulate` false (the search
+ *  dropdown, which never shows the card): no new simulation is started; the card's title and Predict link are the same. */
+async function oddsAt(ev: Ev, team: number, before: boolean, simulate: boolean) {
   const stored = await readProjections(Number(ev.season), ev.code).catch(() => null);
   const run = before ? stored?.baseline : stored?.current;
   const row = run?.teams.find((t) => t.team === team);
   if (run && row) {
     const status = advanceStatus(row);
-    return { pAdvance: status === "odds" ? row.pAdvance : null, status, pWin: row.pWin, rank: row.rank ? { p10: row.rank.p10, p50: row.rank.p50, p90: row.rank.p90 } : null, runs: run.runs, slots: run.slots, estimated: run.slotsSource !== "official", notes: [] as string[] };
+    return { pAdvance: status === "odds" ? row.pAdvance : null, status, pWin: row.pWin, rank: row.rank ? { p10: row.rank.p10, p50: row.rank.p50, p90: row.rank.p90 } : null, runs: run.runs, slots: run.slots, estimated: run.slotsSource !== "official", notes: [] as string[], confidence: projectionTier(run) };
   }
   // The engine's own forecast only while live predictions are on (as /api/predict/event); stored runs need only the odds switch.
   if (!(await isEnabled("livePredictions").catch(() => false))) return null;
+  if (!simulate) return { pAdvance: null, status: "odds", pWin: 0, rank: null, runs: 0, slots: 0, estimated: true, notes: [] as string[], confidence: null };
   const fc = await eventForecast(Number(ev.season), ev.code, team, before ? "pre-event" : "current").catch(() => null);
   const t = fc?.teams.find((x) => x.team === team);
   if (!fc || !t) return null;
   const already = fc.prequalified.includes(team);
-  return { pAdvance: already ? null : t.pAdvance, status: already ? "qualified" : "odds", pWin: t.pWin, rank: { p10: t.rank.p10, p50: t.rank.mean, p90: t.rank.p90 }, runs: fc.runs, slots: fc.slots, estimated: fc.slotsSource !== "official", notes: fc.assumptions.filter((a) => /slots|divisions/i.test(a)) };
+  return { pAdvance: already ? null : t.pAdvance, status: already ? "qualified" : "odds", pWin: t.pWin, rank: { p10: t.rank.p10, p50: t.rank.mean, p90: t.rank.p90 }, runs: fc.runs, slots: fc.slots, estimated: fc.slotsSource !== "official", notes: fc.assumptions.filter((a) => /slots|divisions/i.test(a)), confidence: forecastTier(fc, team) };
 }
 
 /** An award as the card names it: "Winning Alliance", "Control Award", "Reach Award 2nd". */
@@ -97,23 +101,28 @@ async function outcome(ev: Ev, team: number, worlds: boolean): Promise<{ value: 
   return { value: "List not published", sub: [sub, "FIRST hasn't posted who advanced yet"].filter(Boolean).join(" · ") };
 }
 
+/** The scope chip of a card for an event already played. */
+const PLAYED = "Before it started, then what happened";
+
 /** An event's row as the card reads it, by its season and code. */
 export async function advancementEvent(season: number, code: string): Promise<Ev | null> {
   return (await get<Ev>(`SELECT ${EV_COLS} FROM events e WHERE e.season = ? AND e.code = ?`, [season, code])) ?? null;
 }
 
 /** One team's advancement odds at one event: the card. `lead`: a line said first (why this event, when another was asked). */
-export async function advancementAt(team: AnswerTeam, ev: Ev, now: number, lead?: { title: string; tile: { label: string; value: string; sub: string } }): Promise<StatAnswer> {
-  const S = seasonLabel(Number(ev.season)), when = dateRange(ev.start, ev.end), today = new Date(now).toISOString().slice(0, 10);
+export async function advancementAt(team: AnswerTeam, ev: Ev, now: number, lead?: { title: string; tile: { label: string; value: string; sub: string } }, simulate = true): Promise<StatAnswer> {
+  const S = seasonLabel(Number(ev.season)), when = dateRange(ev.start, ev.end);
   const worlds = ev.type === "FIRSTChampionship";
-  const played = (ev.start ?? "9999") <= today;
-  const done = (ev.end ?? ev.start ?? "9999") < today;
+  // Upcoming, live or finished as the event page says it: the venue's calendar, and finished once every match has a result.
+  const m = await get<{ played: number | null; total: number }>(`SELECT SUM(played = 1) played, COUNT(*) total FROM matches WHERE season = ? AND code = ?`, [ev.season, ev.code]);
+  const status = eventStatus(ev, Number(m?.played ?? 0), Number(m?.total ?? 0), now);
+  const played = status !== "upcoming", done = status === "finished";
   const name = shortEvent(ev.name, ev.type);
   const href = predictHref({ mode: "advancement", season: Number(ev.season), code: ev.code, team: team.number });
   const links: StatBlock = { kind: "links", title: "Event", items: [{ label: ev.name, sub: when, href: eventHref(Number(ev.season), ev.code, team.number) }] };
   const base: Omit<StatAnswer, "blocks"> = {
     family: "stat", intent: "advancement-odds", title: lead?.title ?? `Advancement odds: ${team.number} at ${name}`, team,
-    scope: [name, S, done ? "Before it started, then what happened" : played ? "As things stand" : "Not played yet"], definition: ADVANCE_RULE,
+    scope: [name, S, done ? PLAYED : played ? "As things stand" : "Not played yet"], definition: ADVANCE_RULE,
     source: `${ev.name}, ${S}${when ? ` · ${when}` : ""} · the engine's simulation, as Predict shows it`,
   };
   if (isLegacy(Number(ev.season))) return { ...base, blocks: [links], none: `Predictions start with ${seasonLabel(FIRST_PREDICT_SEASON)}: ${S} has no advancement odds.` };
@@ -123,7 +132,7 @@ export async function advancementAt(team: AnswerTeam, ev: Ev, now: number, lead?
   if (!Number(listed?.n)) return { ...base, blocks: [links], none: `${whoOf(team)} isn't listed at ${ev.name} (${S}), so there are no advancement odds for it there.` };
   const adv = await get<{ slots: number; advances_to: string | null }>(`SELECT slots, advances_to FROM advancement WHERE season = ? AND code IN (?, ?) ORDER BY code = ? DESC LIMIT 1`, [ev.season, ev.code, ev.division_code ?? ev.code, ev.code]);
   const to = await destination(ev, adv?.advances_to ?? null);
-  const odds = await oddsAt(ev, team.number, done);
+  const odds = await oddsAt(ev, team.number, done, simulate);
   if (!odds) return { ...base, blocks: [links], none: `There's no forecast for ${whoOf(team)} at ${ev.name} (${S}) yet: the engine needs the event's team list${played ? "" : " and the season's ratings"}, and nothing is guessed in the meantime.` };
   const p = worlds ? odds.pWin : odds.pAdvance;
   const said = done ? "before it started" : played ? "as things stand" : "before it starts";
@@ -136,6 +145,7 @@ export async function advancementAt(team: AnswerTeam, ev: Ev, now: number, lead?
     ...(p == null ? [{ label: "Advance", value: odds.status === "qualified" ? "Already qualified" : odds.status === "ineligible" ? "Not eligible here" : "–", sub: `Advancing here means going on ${to}` }] : []),
     ...(result ? [{ label: "What happened", value: result.value, sub: result.sub, ...(result.tone ? { tone: result.tone } : {}) }] : []),
     ...(worlds ? [] : [{ label: "Win the event", value: pct(odds.pWin), sub: said[0].toUpperCase() + said.slice(1) }]),
+    ...(odds.confidence ? [{ label: "Confidence", value: odds.confidence.tier[0].toUpperCase() + odds.confidence.tier.slice(1), sub: odds.confidence.reason }] : []),
     ...(odds.rank ? [{ label: "Projected rank", value: `#${Math.round(odds.rank.p50)}`, sub: `#${Math.round(odds.rank.p10)}–#${Math.round(odds.rank.p90)} (P10–P90)` }] : []),
   ];
   return { ...base, blocks: [...(chance ? [chance] : []), { kind: "kpis", items: tiles }, links] };
@@ -145,7 +155,10 @@ export async function advancementAt(team: AnswerTeam, ev: Ev, now: number, lead?
  *  its next event toward where it's going (the soonest one the engine can forecast), else, said so, its latest one. */
 export async function seasonAdvancement(team: AnswerTeam, o: { season: number | null; toward: Toward; now: number; missing?: string;
   /** Only events in this place (a state championship's region: its events are the ones that lead there). */
-  region?: { country: string; state: string } | null }): Promise<StatAnswer> {
+  region?: { country: string; state: string } | null;
+  /** False for the search dropdown: no new simulation (see oddsAt). */
+  simulate?: boolean }): Promise<StatAnswer> {
+  const sim = o.simulate ?? true;
   const today = new Date(o.now).toISOString().slice(0, 10), types = typesFor(o.toward), S = seasonLabel(o.season ?? CURRENT_SEASON);
   // The team's events of those types; a championship split into divisions is the team's division, where its odds are made.
   const evs = await all<Ev>(
@@ -156,12 +169,15 @@ export async function seasonAdvancement(team: AnswerTeam, o: { season: number | 
      ORDER BY e.start DESC, e.code`, [team.number, FIRST_PREDICT_SEASON, ...types, ...(o.region ? [o.region.country, ...(o.region.state ? [o.region.state] : [])] : [])]);
   const upcoming = evs.filter((e) => (e.end ?? e.start ?? "") >= today && Number(e.season) === (o.season ?? CURRENT_SEASON)).reverse();
   // The soonest few: each may need a simulation, and a team is rarely listed for more than a couple ahead.
+  // One on today's date may be over already (every match played): it's the latest, not the next.
+  const overToday: Ev[] = [];
   for (const e of upcoming.slice(0, 3)) {
-    const a = await advancementAt(team, e, o.now);
+    const a = await advancementAt(team, e, o.now, undefined, sim);
+    if (a.scope.includes(PLAYED)) { overToday.unshift(e); continue; }
     if (!a.none) return { ...a, scope: [...a.scope, "Its next advancing event"] };
   }
   const toward = o.toward === "worlds" ? "event that sends teams to Worlds" : o.toward === "states" ? "event that sends teams to its championship" : "advancing event";
-  const past = evs.filter((e) => (e.end ?? e.start ?? "9999") < today);
+  const past = [...overToday, ...evs.filter((e) => (e.end ?? e.start ?? "9999") < today)];
   // The season asked, when it's over: its latest event, the answer itself. Else the latest one, said why.
   const over = o.season != null && o.season < CURRENT_SEASON;
   // A season named for a championship never reached keeps to that season: another season's odds never stand in.
@@ -174,10 +190,22 @@ export async function seasonAdvancement(team: AnswerTeam, o: { season: number | 
         : over ? `${whoOf(team)} played no ${toward} with a forecast in ${S}.` : `${why}, and it has no earlier ${toward} with a forecast to show instead. The odds appear once the event's team list is in.` };
   }
   const L = seasonLabel(Number(latest.season));
-  if (over && !o.missing) return advancementAt(team, latest, o.now);
+  if (over && !o.missing) return advancementAt(team, latest, o.now, undefined, sim);
   const a = await advancementAt(team, latest, o.now, {
     title: `Advancement odds: ${team.number}'s latest ${o.toward === "worlds" ? "championship" : "advancing event"} (${L})`,
     tile: { label: o.missing ? "Not listed there" : `${S} so far`, value: o.missing ? "Not there" : "No event yet", sub: o.missing ? `${why}: these are its odds of getting there, at ${latest.name} (${L})` : `Nothing to come with a team list yet: these are the odds at its latest one (${L})` },
-  });
+  }, sim);
   return { ...a, scope: [...a.scope, o.missing ? "Not at the event asked" : `No next event in ${S} yet`] };
+}
+
+/** Advancement odds asked at an event the team isn't listed at: at a championship, its odds of getting there (its
+ *  latest event that leads there, only that championship's own region for a state one); anywhere else, said so. */
+export async function advancementNotListed(team: AnswerTeam, ev: Ev, now: number, simulate = true): Promise<StatAnswer> {
+  const worlds = ev.type === "FIRSTChampionship";
+  if (!worlds && ev.type !== "Championship") return advancementAt(team, ev, now, undefined, simulate);
+  const top = ev.division_code ?? ev.code;
+  const at = await get<{ name: string; country: string | null; state: string | null }>(`SELECT name, country, state FROM events WHERE season = ? AND code = ?`, [ev.season, top]);
+  return seasonAdvancement(team, { season: Number(ev.season), toward: worlds ? "worlds" : "states", now, simulate,
+    region: worlds || !at?.country ? null : { country: at.country, state: at.state ?? "" },
+    missing: `${whoOf(team)} isn't listed at ${at?.name ?? ev.name} (${seasonLabel(Number(ev.season))})` });
 }
