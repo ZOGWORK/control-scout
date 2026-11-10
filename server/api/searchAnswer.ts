@@ -504,9 +504,16 @@ async function sharedName(q: string, opts: AnswerOptions): Promise<SearchAnswer 
   if (!spans.length) return null;
   const p = await parseQuery(typed, await parseContext(opts.now, opts.prefer));
   if (p.named) return null;
-  // A place named picks among them, or says plainly that none of the name is there: the parser's and the team-in-a-place
-  // reader's own answer.
-  if (p.place) return null;
+  // A place typed right after the name ("robo rebels nj", "gear heads from michigan") picks among them, or says plainly
+  // that none of the name is there: the team-in-a-place reader's own answer. A place elsewhere is the question's.
+  const pl = p.place;
+  const placeWords = pl ? fold(pl.typed).split(" ").filter(Boolean) : [];
+  const placeAfter = (sp: (typeof spans)[number]) => {
+    const after = ws.slice(sp.i + sp.len);
+    const from = /^(?:in|from|of)$/.test(after[0] ?? "") ? 1 : 0;
+    return placeWords.length > 0 && placeWords.every((w, k) => after[from + k] === w);
+  };
+  if (pl && spans.some(placeAfter)) return null;
   // A name the parser settled by the place typed beside it ("robo rebels michigan") is the team-in-a-place answer.
   const settledByParse = (sp: (typeof spans)[number]) => p.teams.some((t) => t.rule?.startsWith("the one in ") && !t.rule.startsWith("the one in the same") && t.candidates?.some((n) => sp.teams.some((x) => x.number === n)));
   if (spans.some(settledByParse)) return null;
@@ -582,7 +589,9 @@ async function resolveCore(core: string, opts: AnswerOptions): Promise<SearchAns
   const r = await searchAnswer(core, { ...opts, intents: false, learn: false });
   // Search's own reading keeps what the words ask about (a topic's facts); only when its team isn't the number's is
   // the number read alone.
-  if (byNumber && r.step !== "recovery" && r.hits[0]?.kind === "team" && r.hits[0].ref !== nums[0]) return resolveCore(nums[0], opts);
+  // Only a near miss of the number (a team number as long, not it) is swapped back: "top 25 hypnotic" stays Hypnotic.
+  const top = r.hits[0]?.kind === "team" ? r.hits[0].ref : null;
+  if (byNumber && r.step !== "recovery" && top && top !== nums[0] && /^\d+$/.test(top) && top.length === nums[0].length) return resolveCore(nums[0], opts);
   if (!onlyTopicWords(core) && !onlyOrdinary(core)) return r;
   const whole = (t: string) => t.toLowerCase().replace(/[^\p{L}\d]+/gu, " ").trim();
   return { ...r, hits: r.hits.filter((h) => h.kind !== "team" || whole(teamNameOf(h.title)) === whole(core)) };

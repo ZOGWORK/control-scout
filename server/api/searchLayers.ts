@@ -141,7 +141,8 @@ export async function teamsNamed(ws: string[], which = false): Promise<string[]>
   if (!n || /^\d+$/.test(n)) return [];
   const { byName, list, whole } = await teamNames();
   // A region's or a country's name is the place ("Texas", "Romania"), never a team named after it (the parser's rule).
-  const pl = (await pipelineNames()).place(n);
+  // Two letters lower case ("in", "or", "me") are words here: a state's code is only read as typed, by the parser.
+  const pl = n.length > 2 ? (await pipelineNames()).place(n) : null;
   if (pl && pl.kind !== "city") return [];
   // Ordinary words ("the average", "lost") name a team only as its whole name, and never in a question asking which.
   if (onlyOrdinary(n)) return which ? [] : (byName.get(n) ?? []).filter((x) => whole.get(x) === wholeName(n));

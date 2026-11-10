@@ -287,13 +287,15 @@ async function searchWords(q: string, limit: number, prefer: ReadonlySet<string>
 
 /** `hits` without a team found only through a number typed nearly right, when the number typed is a team's own: a
  *  typed team number always means that team ("4215 next match date" is never 4218 Late() Knights, a digit and a
- *  letter off). A hit whose own words start with the number (its number, a longer one, a name holding it) stays. */
+ *  letter off). Only a near miss goes (a team number as long as the typed one, not it); a hit whose own words start with
+ *  the number stays, and so does every team when the number is a count or a score ("top 25 hypnotic"). */
 async function numbersKept(query: string, hits: SearchHit[]): Promise<SearchHit[]> {
   const nums = [...new Set(words(query).filter((w) => /^[1-9]\d{1,5}$/.test(w)))];
   if (!nums.length || !hits.some((h) => h.kind === "team")) return hits;
   const teams = new Set((await searchRead<{ number: number }>(`SELECT number FROM teams WHERE number IN (${nums.map(() => "?").join(",")})`, nums.map(Number))).map((r) => String(r.number)));
   if (!teams.size) return hits;
-  return hits.filter((h) => h.kind !== "team" || [...teams].some((n) => words(`${h.ref} ${h.title} ${h.subtitle ?? ""}`).some((w) => w.startsWith(n))));
+  const nearMiss = (ref: string) => [...teams].some((n) => /^\d+$/.test(ref) && ref !== n && ref.length === n.length);
+  return hits.filter((h) => h.kind !== "team" || !nearMiss(h.ref) || [...teams].some((n) => words(`${h.ref} ${h.title} ${h.subtitle ?? ""}`).some((w) => w.startsWith(n))));
 }
 
 /** 2 when a hit's name is the query exactly as typed ("the king robotics" is The King Robotics), 1 when it's the query
