@@ -23,7 +23,7 @@ const PHASE: Record<Phase, string> = { upcoming: "Not started", quals: "Qualific
  *  without one (src/shared/teamPages.ts; `name`, when known, tells a placeholder). */
 export function TeamNo({ team, name, season, className }: { team: number; name?: string | null; season: number; className?: string }) {
   if (!hasTeamPage(team, name)) return <span className={cn("font-mono font-semibold tabular-nums", className)}>{team}</span>;
-  return <Link to={`/teams/${team}?season=${season}`} className={cn("font-mono font-semibold tabular-nums hover:text-accent-text pointer-coarse:inline-block pointer-coarse:min-w-[44px] pointer-coarse:py-[13px] pointer-coarse:text-center", className)}>{team}</Link>;
+  return <Link to={`/teams/${team}?season=${season}`} className={cn("font-mono font-semibold tabular-nums hover:text-accent-text pointer-coarse:inline-flex pointer-coarse:min-h-[44px] pointer-coarse:min-w-[44px] pointer-coarse:items-center pointer-coarse:justify-center pointer-coarse:align-middle", className)}>{team}</Link>;
 }
 
 /** One stat cell. In a narrow card (a phone) it's a one-line row, label left and value right; from 22rem
@@ -57,7 +57,7 @@ export function EventGlance({ d, onTab, live }: { d: EventDetail; onTab: (t: str
   const topOpr = [...d.field].filter((f) => f.opr.np != null).sort((a, b) => b.opr.np! - a.opr.np!)[0] ?? null;
   // inline-block with padding offset by negative margin: a 24px-tall target (WCAG 2.5.8) in the same line box.
   // On touch the row grows to 44 px instead, since team numbers can sit right under it.
-  const reportLink = (key: string, children: ReactNode) => <Link to={matchReportHref({ season, code: e.code, key })} className="-my-1 inline-block py-1 hover:text-accent-text pointer-coarse:my-0 pointer-coarse:py-[12px]">{children}</Link>;
+  const reportLink = (key: string, children: ReactNode) => <Link to={matchReportHref({ season, code: e.code, key })} className="-my-1 inline-block py-1 hover:text-accent-text pointer-coarse:my-0 pointer-coarse:inline-flex pointer-coarse:min-h-[44px] pointer-coarse:min-w-[44px] pointer-coarse:items-center pointer-coarse:justify-center pointer-coarse:py-0 pointer-coarse:align-middle">{children}</Link>;
 
   const cells: ReactNode[] = [];
   const next = live ? live.match : s.next;

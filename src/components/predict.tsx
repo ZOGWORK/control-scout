@@ -328,7 +328,7 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
           </span>
         )}
         {(p || m.video || m.clip || videos > 0) && (
-          <div className="relative z-[1] flex flex-wrap items-center justify-end gap-1 text-[11px] text-text-muted" data-call-status>
+          <div className="relative z-[1] flex flex-wrap items-center justify-end gap-1 text-[11px] text-text-muted pointer-coarse:min-h-[44px] pointer-coarse:gap-x-[14px]" data-call-status>
             {/* Right and Upset share one width, so the chips after them line up from row to row. */}
             {called === true && <span className={cn(STATUS_CHIP, "min-w-[3.25rem] justify-center bg-success/12 text-success")} data-outcome="right"><Check className="size-3" aria-hidden /> Right</span>}
             {called === false && <span className={cn(STATUS_CHIP, "min-w-[3.25rem] justify-center bg-warning/12 text-warning")} data-outcome="upset"><X className="size-3" aria-hidden /> Upset</span>}
