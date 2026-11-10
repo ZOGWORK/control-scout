@@ -144,12 +144,12 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
         {!full && <span className="flex items-center gap-2">{typeChip}<span className="font-mono text-xs">{e.code} · {seasonLabel(e.season)}</span></span>}
         {/* The venue opens in Google Maps (a search for the venue and town: works on every phone, opens the Maps app where there is one). */}
         {(e.venue || e.city) && (
-          <a href={mapsUrl(place(e.venue, e.address, e.city, e.state, e.country))} target="_blank" rel="noreferrer noopener" className="flex items-center gap-1.5 underline-offset-2 hover:text-foreground hover:underline" data-venue-map>
+          <a href={mapsUrl(place(e.venue, e.address, e.city, e.state, e.country))} target="_blank" rel="noreferrer noopener" className="flex items-center gap-1.5 underline-offset-2 hover:text-foreground hover:underline pointer-coarse:min-h-[44px]" data-venue-map>
             <MapPin className="size-4" />{place(e.venue, e.address, e.city, e.state, e.country)}
           </a>
         )}
         <span>{d.registered ? `${e.teams} teams registered` : !e.teams && shared ? `${registeredCount} teams registered for both sessions` : !e.teams && registeredCount ? `${registeredCount} teams registered (provisional)` : `${e.teams} teams`} · {e.matchesPlayed}/{e.matchesTotal} matches played</span>
-        {e.website && <a href={e.website} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 hover:text-foreground">Website <ExternalLink className="size-3" /></a>}
+        {e.website && <a href={e.website} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 hover:text-foreground pointer-coarse:min-h-[44px]">Website <ExternalLink className="size-3" /></a>}
       </div>
       {d.live && !liveMode && <LiveBar live={d.live} r={refresh} />}
       <HeaderActions liveMode={liveMode} watch={{ url: e.livestream, stream: !!e.stream, finished: e.status === "finished" }} track={track}>

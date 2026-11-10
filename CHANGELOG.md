@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.1.5 — 2026-11-10
+## 5.1.8 — 2026-11-10
 
 A team's page says where it stands in its league, and league meets link to the league's table.
 
@@ -27,6 +27,54 @@ A team's page says where it stands in its league, and league meets link to the l
 ### Added
 - Team page: under the team's last league meet, a line with its place in FIRST's league ranking (out of the teams that have played, "Not ranked yet" before its first match) linking to the league's standings with its row marked. (#1312)
 - League meet and league tournament pages: a "League standings" button beside Pit display, to the league's standings page. (#1312)
+
+## 5.1.7 — 2026-11-10
+
+A team's league standing in search now shows the whole league table, and a league asked by name answers with its table.
+
+### Highlights
+- [rankings] "6980 league standing" shows the full league table, 6980's row marked
+- [rankings] Ask for a league by name: "northeast league standings" gives its table
+- [rankings] "nj league standings" lists New Jersey's leagues, each one tap away
+
+### Changed
+- The league standing answer is FIRST's official league ranking: "#30 of 34" out of the teams that have played, the league named with its place, then the league's whole table (rank, team, ranking score, record, matches, meets) with the asked team's row marked and scrolled into view, and a link to the league's page. (#1309)
+
+### Added
+- League standings asked with no team ("NE league standings", "nj northeast league leaderboard", "who is first in the northeast league", "northeast league rankings 2026-27"): the league is found from its FIRST name, its code and the place its meets are in; the current season unless one is named, said on the card. A code several places use shows the biggest league with the others linked; a place alone lists its leagues. (#1309)
+
+## 5.1.6 — 2026-11-10
+
+On a phone, buttons and links are a full fingertip tall again.
+
+### Highlights
+- [fixes] Event pages on a phone: team numbers and chips are easy taps
+- [fixes] Team boxes, the season picker and text boxes are 44 px tall on touch
+- [fixes] Compare, the match page and team page links get the same room
+
+### Fixed
+- The 14 px phone base shrank buttons and links sized in rem below 44 px tall: an event page had 196 of them, the team page 34. On touch screens they now have at least 44 px to tap, either as an invisible hit area (rows that must not grow) or a taller row where links stack, so two tap areas never sit on top of each other. On Compare, a phone puts the reorder and remove buttons on a row under each team. Desktop with a mouse is unchanged. (#1300)
+- A long match list on a touch screen sizes its rows for the taller touch rows before it measures them, so scrolling doesn't jump. Predict's result folds (the robots' ratings, the full why breakdown) and its track-record link are 44 px too.
+
+
+## 5.1.5 — 2026-11-10
+
+A team page says what's next, right under the team's name: the next match once a schedule is posted, else the next event, else its last one.
+
+### Highlights
+- [teams] Upcoming on every team page: the next match, with its call
+- [predict] One tap from the next match to Predict, both alliances filled in
+- [teams] No event published yet? It says so and links the last event
+
+### Changed
+- The team page's header has an Upcoming block. With a posted schedule it shows the next match (number, time, alliances, the team's chance to win) with "Event schedule" and "Predict this match"; before that, the next event with "match list is posted at the event"; with none, "No upcoming event is published" and the last event. It is in the first paint, so a slow connection shows it at once. (#1283)
+- On a phone, the Upcoming rows are at least 44 px tall, so each is an easy tap.
+- The next match's chance to win carries its confidence tier, like every other call.
+- At an event that advances teams, the next-match card keeps an "Odds to advance" button all event day.
+- Whether an event is over is read on the venue's own calendar: a California event's finals still show as next after UTC midnight. Team event rows carry the venue's time zone for this.
+- A team page left open from the night before starts following the event once its day begins at the venue, and stops once the event is over.
+- Search's "next match" and "next event" answers link to the team's current season, so the team page opens on its Upcoming block (they linked last season's page before).
+
 
 ## 5.1.4 — 2026-11-10
 

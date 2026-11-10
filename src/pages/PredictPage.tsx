@@ -552,7 +552,7 @@ function MatchResult({ x, offlineAsOf, onSwap }: { x: MatchExplanationView; offl
           <p className="mt-3 text-xs text-muted-foreground">Factors are an exact split of the rating gap by game phase{x.marginScale != null && x.marginScale !== 1 ? `; the predicted margin is ${x.marginScale} of that gap (margin calibration)` : ""}{x.history ? "; the last line is these robots' real history together or against each other" : ""}. <Link to="/methodology#factors" className="underline">More</Link></p>
         </div>
         <details className="group rounded-2xl border border-border bg-card p-5 max-sm:p-4 md:open:row-span-1">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-base font-semibold [&::-webkit-details-marker]:hidden">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-base font-semibold pointer-coarse:min-h-[44px] [&::-webkit-details-marker]:hidden">
             <span>The robots' ratings <span className="text-sm font-normal text-muted-foreground">· {x.teamsRed.length + x.teamsBlue.length} robots</span></span> <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
           </summary>
           <table className="mt-3 w-full text-sm">

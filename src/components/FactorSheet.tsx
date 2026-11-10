@@ -62,7 +62,7 @@ export function FactorSheetPanel({ sheet, winner = null, defaultOpen = false, cl
           <ChevronDown className="size-3.5 transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
         </summary>
       ) : (
-      <summary className="flex cursor-pointer list-none items-center gap-2.5 px-3 py-2.5 text-sm font-medium [&::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer list-none items-center gap-2.5 px-3 py-2.5 text-sm font-medium pointer-coarse:min-h-[44px] [&::-webkit-details-marker]:hidden">
         <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent-text" aria-hidden><ChartBarBig className="size-4" /></span>
         <span className="min-w-0 flex-1">Full why breakdown <span className="font-normal text-text-muted">· {all.length} factors</span></span>
         <ChevronDown className="size-4 shrink-0 text-text-muted transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
