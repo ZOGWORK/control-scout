@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.9.0 — 2026-11-09
+
+Asking for a world record without penalties now gives the top match, with no penalty figures in it.
+
+### Highlights
+- [fixes] "World record" means the highest score, never the Championship
+- [fixes] Without penalties shows no penalty points or scores with them
+- [fixes] "World record … without penalties" gives the top match
+
+### Fixed
+- "world record match decode without penalties" answers with DECODE's highest score without penalties, the same answer as "best match in decode without penalties"; "world record" was read as Worlds when penalties were also said.
+- A best-match answer asked without penalties no longer shows each score with penalties, the Pen given tile, or the score with penalties under the headline. (#1256)
+
 ## 4.8.9 — 2026-11-09
 
 On a wide screen an opened match sits side by side: the score and table on the left, the call on the right.

@@ -85,7 +85,7 @@ export function MatchBox({ r, team, atEvent, noPlay }: { r: StatMatchRow; team?:
                     {won && <span className="rounded bg-foreground px-1 text-[10px] font-bold text-background" aria-hidden>W</span>}
                     <b className={cn("font-display text-2xl font-semibold leading-none tabular-nums", lost ? "text-muted-foreground" : s === "red" ? "text-red-alliance-ink" : "text-blue-alliance-text")}>{sc.shown}</b>
                   </span>
-                  {sc.total !== sc.shown && <span className="block text-[11px] text-muted-foreground">{sc.total} with penalties</span>}
+                  {sc.total !== sc.shown && !r.noPenalties && <span className="block text-[11px] text-muted-foreground">{sc.total} with penalties</span>}
                 </span>
               </div>
             );

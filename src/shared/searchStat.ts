@@ -33,6 +33,8 @@ export interface StatMatchRow {
   opponents?: StatLink[];
   /** The other alliance's score without penalties. */
   oppNp?: number | null;
+  /** Asked without penalties ("best match without penalties"): only the scores without them, no penalty points. */
+  noPenalties?: boolean;
   /** The event's type as FIRST lists it ("Qualifier", "FIRSTChampionship"): its Events-card colour. */
   type?: string | null;
   /** The alliance's points by period (without penalties), as reported: TeleOp with the endgame where FIRST counts it
