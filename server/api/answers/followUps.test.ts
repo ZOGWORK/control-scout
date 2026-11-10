@@ -287,6 +287,21 @@ describe("the related searches page", () => {
   });
 });
 
+describe("a list question's preview", () => {
+  it("says how many teams, then the first, never one team as the whole answer", async () => {
+    const { lineOf } = await import("./followUps");
+    const a = { q: "teams at X", hits: [], pages: [], step: "deterministic", weak: false,
+      stat: { family: "leaderboard", intent: "event-best", title: "Best teams at X", scope: [], blocks: [], listed: 10,
+        headline: { value: "12853 Robo Cavos", label: "OPR there 46.0, 4-2-0 · Emerson" } } } as never;
+    expect(lineOf(a, true)).toMatchObject({ value: "10 teams", rest: "first: 12853 Robo Cavos, OPR there 46.0, 4-2-0 · Emerson" });
+    // A leader question ("who is best at X") keeps the team as its answer.
+    expect(lineOf(a)).toMatchObject({ value: "12853 Robo Cavos" });
+    // One team listed: still the count, never that team as if it were the answer.
+    const one = { ...(a as object), stat: { ...(a as { stat: object }).stat, listed: 1 } } as never;
+    expect(lineOf(one, true)).toMatchObject({ value: "1 team", rest: "first: 12853 Robo Cavos, OPR there 46.0, 4-2-0 · Emerson" });
+  });
+});
+
 describe("the search page's first paint", () => {
   it("carries People also ask under the answer and Related searches at the end, each a link that runs it", async () => {
     const q = "4215 record";

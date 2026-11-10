@@ -32,14 +32,14 @@ describe("a team's highlights", () => {
     const rows = a.blocks[0].kind === "matches" ? a.blocks[0].rows : [];
     expect(rows.map((r) => [r.note, r.label])).toEqual([["Best score", "Q2"], ["Latest playoff win", "M4"], ["Best Auto", "Q4"], ["Closest win", "Q3"]]);
     expect(a.title).toBe("Highlights, 2025–26");
-    expect(a.headline).toMatchObject({ value: "200 points", label: "Best score: Q2 at NJ Championship", sub: "210 with penalties · Won 210–100", href: rows[0].href });
+    expect(a.headline).toMatchObject({ value: "200 points", label: "Best score without penalties: Q2 at NJ Championship", sub: "210 with penalties · Won 210–100", href: rows[0].href });
     expect(a.source).toBe("From 5 matches in 2025–26");
   });
   it("a season the search named is the one shown, never a later one", async () => {
     ms.rows = [m({ season: 2024, label: "Q1", own: 120, ownNp: 120 }), m({ label: "Q9", own: 250, ownNp: 250 })];
     const a = (await teamHighlights(team, 2024))!;
     expect(a.title).toBe("Highlights, 2024–25");
-    expect(a.headline?.label).toBe("Best score: Q1 at NJ Championship");
+    expect(a.headline?.label).toBe("Best score without penalties: Q1 at NJ Championship");
     expect(await teamHighlights(team, 2023)).toBeNull();
   });
   it("no played match: no answer", async () => {

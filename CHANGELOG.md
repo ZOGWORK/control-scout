@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.3.3 — 2026-11-10
+## 5.3.5 — 2026-11-10
 
 Search says why a team's events are from the season shown, and reads names with punctuation or typed nearly right.
 
@@ -30,6 +30,35 @@ Search says why a team's events are from the season shown, and reads names with 
 - Search: a team's newest season where it was only ever a no-show is no longer its season for answers that default to its latest: its record, OPR and every other card name the same season (the one season rule). The card's note says no match of the newer season has been played yet, never that none is on record.
 - Search: a possessive after a name that ends in punctuation ("die toaster, die!'s") reads as the team, never as a stray "s".
 - Search: a team's name typed nearly right that runs past a shorter team's name ("girls in roboics 2") reads as the longer team, never the shorter one plus the number taken for an event. (#1340)
+
+## 5.3.4 — 2026-11-10
+
+One record score on the match records page and in search, light event pages ranked like the full page, and related searches that say what they count.
+
+### Highlights
+- [rankings] Match records show the season record search gives
+- [offline] A light league meet page ranks every team on the meet itself
+- [fixes] "Best score" says it leaves penalties out
+- [fixes] "Teams at an event" previews say how many teams
+
+### Fixed
+- `/matches` gave 352 as the season's highest (a scrimmage, penalties in) where search gave 246 (official events, penalties left out). The page now leads with the season record as search gives it (`seasonRecordLine`, `/api/records/:season/high-score`), and its table is said for what it is: every played match by score, penalties in, all events. A record search marks as not official, or with penalties not posted, is marked here too, and the page says the table counts penalties and every event. (#1334)
+- The light event page (`/lite/events/…`) at a league meet ranked teams on FIRST's running league standing (league rank, its ranking score, "RP"), so the meet's winner showed rank 8 and teams FIRST's league list left out had no rank. It now ranks every team on the meet's own standing, as the full page's Meet view does, with the column named RS (ranking score) and a line saying what it is.
+- A highlights headline says "Best score without penalties", so an event's best (Q6, 78) is never read against its high score with penalties (Q14, 217).
+- The related search "teams at <event>" previews "10 teams · first: 12853 Robo Cavos …" (`StatAnswer.listed`), never one team as if it were the list.
+
+## 5.3.3 — 2026-11-10
+
+Every page links Methodology, FAQ, Rules, Settings and Donate from its footer, and /how-it-works opens How it works.
+
+### Highlights
+- [fixes] Every page's footer links Methodology, FAQ, Rules, Settings and Donate
+- [fixes] /how-it-works opens How it works instead of "Not found"
+- [fixes] The footer is there before the app loads, and without JavaScript
+
+### Fixed
+- The footer's links live in one list (`src/shared/footer.ts`) shared by the app's footer and the server's first paint (`server/bootShell.ts`), so they are in every page's HTML before the app loads and without JavaScript: Methodology, FAQ, Rules, Settings, Donate, Contact, Privacy, Terms.
+- `/how-it-works` (and `/how-it-works/`) 301s to `/methodology`, the page the sidebar's How it works opens, in one hop; the app redirects the same way. (#1329)
 
 ## 5.3.2 — 2026-11-10
 

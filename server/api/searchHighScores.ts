@@ -10,6 +10,7 @@ import { dateRange, place, seasonLabel } from "../../src/shared/format.js";
 import { get, all } from "../db.js";
 import { CURRENT_SEASON, SEASONS, ownScorePenalties } from "../data/seasons.js";
 import { unofficialLine } from "../data/unofficialRecords.js";
+import { PENALTIES_NOT_POSTED } from "../../src/shared/seasonRecord.js";
 import { teamNameOf, teamWords } from "../../src/shared/teamTitle.js";
 
 /** Events whose matches count for a record. */
@@ -85,6 +86,12 @@ export async function highScoreCard(it: HighScoreQuestion, team: { number: numbe
   return card;
 }
 
+/** The season's record score, as "highest score this season" answers it (official events, penalties left out), for
+ *  the match records page (/matches), so both pages give one number. Null: no official match played that season. */
+export async function seasonRecordLine(season: number): Promise<SearchCardLine | null> {
+  return (await best(season, null, RECORD_TYPES))[0] ?? null;
+}
+
 /** The best scores (without penalties) at events of `types`, as card lines, each a link to its match. */
 async function best(season: number, team: number | null, types: string[]): Promise<SearchCardLine[]> {
   const args = (side: "red" | "blue") => [...(team != null ? [team] : []), season, ...types];
@@ -99,7 +106,7 @@ async function best(season: number, team: number | null, types: string[]): Promi
     results: [
       `${r.side === "red" ? "Red" : "Blue"} alliance: ${lineups.get(key(r, r.side))?.join(", ") || "teams not posted"}`,
       unofficialLine(r) ?? "",
-      r.np == null ? "Penalties not posted" : r.total != null && r.total !== r.np ? `${r.total} ${ownScorePenalties(r.season) ? "after its own penalties" : "with the other alliance's penalties"}` : "",
+      r.np == null ? PENALTIES_NOT_POSTED : r.total != null && r.total !== r.np ? `${r.total} ${ownScorePenalties(r.season) ? "after its own penalties" : "with the other alliance's penalties"}` : "",
     ].filter(Boolean),
     href: `/events/${r.season}/${encodeURIComponent(r.code)}?match=${r.level}:${r.series}:${r.number}`,
   }));

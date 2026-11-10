@@ -35,7 +35,7 @@ const CHECK_MAX = 16;
 const SHOWN_MAX = 8;
 
 type Slots = { t?: number; u?: number; event?: string; place?: string; when?: string; award?: string };
-type Template = { family: Family; needs: (keyof Slots)[]; ask: (s: Required<Slots>) => string; short: (s: Required<Slots>) => string; when?: boolean; chip?: boolean };
+type Template = { family: Family; needs: (keyof Slots)[]; ask: (s: Required<Slots>) => string; short: (s: Required<Slots>) => string; when?: boolean; chip?: boolean; list?: boolean };
 /** A follow-up two ways: a question (People also ask) and the search's short form (Related searches). */
 const T = (family: Family, needs: (keyof Slots)[], ask: Template["ask"], short: Template["short"], when = false): Template => ({ family, needs, ask, short, when });
 /** The words a time is typed with that already say how it's placed ("in <season>", "last season", "this year"). */
@@ -80,7 +80,8 @@ const TWO: Template[] = [
 const EVENT: Template[] = [
   T("events", ["event"], (s) => `Who won ${s.event}${IN(s)}?`, (s) => `who won ${s.event}${AT(s)}`),
   T("events", ["event"], (s) => `What were the best matches at ${s.event}${IN(s)}?`, (s) => `${s.event}${AT(s)} highlights`),
-  T("events", ["event"], (s) => `Which teams played at ${s.event}${IN(s)}?`, (s) => `teams at ${s.event}${AT(s)}`),
+  // A list question: its preview says how many teams, the first of them after (never one team as if it were the answer).
+  { ...T("events", ["event"], (s) => `Which teams played at ${s.event}${IN(s)}?`, (s) => `teams at ${s.event}${AT(s)}`), list: true },
   T("events", ["event"], (s) => `Who were the top teams at ${s.event}${IN(s)}?`, (s) => `top teams at ${s.event}${AT(s)}`),
 ];
 const AWARD_AT: Template = T("awards", ["event", "award"], (s) => `Who won the ${s.award} Award at ${s.event}${IN(s)}?`, (s) => `${s.award} award at ${s.event}${AT(s)}`);
@@ -134,7 +135,7 @@ const meant = (typed: string | undefined) => !!typed && (/\s/.test(typed.trim())
 const AWARDS = AWARD_WORDS.map(([, type]) => type).filter((type) => /^[A-Z][a-z]+$/.test(type));
 
 /** A follow-up as a question and as the search's short form. */
-export type Candidate = { q: string; short: string; family: Family; chip?: boolean };
+export type Candidate = { q: string; short: string; family: Family; chip?: boolean; list?: boolean };
 
 /** The team an answer is about when the query named none ("who won inspire at …": the winner). */
 function answerTeam(a: SearchAnswer): number | undefined {
@@ -170,7 +171,7 @@ export function candidates(p: Parsed, a: SearchAnswer, team = answerTeam(a)): Ca
     .filter((x) => x.needs.every((k) => slots[k] != null))
     .map((x) => {
       const filled = { ...(slots as Required<Slots>), when: (x.needs.includes("t") ? (x.when ? teamWhen : undefined) : slots.when) ?? "" };
-      return { q: x.ask(filled), short: x.short(filled), family: x.family, ...(x.chip ? { chip: true } : {}) };
+      return { q: x.ask(filled), short: x.short(filled), family: x.family, ...(x.chip ? { chip: true } : {}), ...(x.list ? { list: true } : {}) };
     });
   // Every award an event gives, its winner's question first: those the questions don't take are Related searches.
   const [award1, ...awards] = event ? AWARDS.filter((x) => x !== s.award).flatMap((award) => fill([AWARD_AT], { ...s, award })) : [];
@@ -207,12 +208,15 @@ function withSeason(l: Line, said: string | undefined): Line {
 
 /** One line from a direct answer, its number apart from the rest, or null when `a` isn't one (no answer card,
  *  nothing found, a list of names). */
-export function lineOf(a: SearchAnswer): Line | null {
+export function lineOf(a: SearchAnswer, list = false): Line | null {
   if (a.sorry || a.weak || a.understood?.fallback) return null;
   if (a.verdict) return { value: a.verdict.answer, rest: a.verdict.label, tone: { verdict: a.verdict.answer } };
   const st = a.stat;
   if (st) {
     if (st.none || !st.headline?.value) return null;
+    // A list question ("which teams played at …"): how many its answer lists, then the first, so the preview never
+    // reads as one team being the whole answer.
+    if (list && st.listed != null && st.listed > 0) return { value: `${st.listed.toLocaleString("en-US")} ${st.listed === 1 ? "team" : "teams"}`, rest: `first: ${st.headline.value}, ${st.headline.label}`, tone: { count: true } };
     // The teams its card draws: two or more as the card lists them, else the one it's about.
     const teams = (st.teams && st.teams.length > 1 ? st.teams : st.team ? [st.team] : []).map((t) => t.number);
     // The headline's own season when the line under it says one on its own (a single match's: "<season> · <date>"),
@@ -309,7 +313,7 @@ async function pick<C extends Candidate & { run: string }>(cs: C[], run: (q: str
   const answers = await Promise.all(cs.map((c) => run(c.run)));
   return cs.flatMap((c, i) => {
     const ans = answers[i];
-    const line = ans && !failureOf(c.run, ans, outcomeTrace(ans)) ? lineOf(ans) : null;
+    const line = ans && !failureOf(c.run, ans, outcomeTrace(ans)) ? lineOf(ans, !!c.list) : null;
     return ans && line ? [{ ...c, ...line, preview: [line.value, line.rest].filter(Boolean).join(" · "), key: answerKey(ans).toLowerCase() }] : [];
   });
 }
