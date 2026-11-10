@@ -22,12 +22,12 @@ function summary(r: any): EventSummary {
   const played = Number(r.played ?? 0), total = Number(r.total ?? 0);
   return {
     season: Number(r.season), code: r.code, name: r.name, type: r.type, typeLabel: eventTypeLabel(r.type), divisionCode: r.division_code ?? null,
-    region: r.region, city: r.city, state: r.state, country: r.country, venue: r.venue ?? null, start: r.start, end: r.end, remote: !!r.remote,
+    region: r.region, ...(r.league ? { league: r.league } : {}), city: r.city, state: r.state, country: r.country, venue: r.venue ?? null, start: r.start, end: r.end, remote: !!r.remote,
     teams: Number(r.teams ?? 0), matchesPlayed: played, matchesTotal: total, status: eventStatus(r, played, total),
   };
 }
 
-const SUMMARY_SQL = `SELECT e.season, e.code, e.name, e.type, e.division_code, e.region, e.venue, e.city, e.state, e.country, e.start, e.end, e.timezone, e.remote,
+const SUMMARY_SQL = `SELECT e.season, e.code, e.name, e.type, e.division_code, e.region, e.league, e.venue, e.city, e.state, e.country, e.start, e.end, e.timezone, e.remote,
   e.address, e.website, e.livestream, e.source, e.detail_synced_at, e.teams_checked_at, e.live_checked_at,
   COALESCE(NULLIF((SELECT COUNT(*) FROM event_teams t WHERE t.season = e.season AND t.code = e.code), 0),
     (SELECT COUNT(*) FROM event_registrations r WHERE r.season = e.season AND r.code = e.code AND r.shared = 0)) teams,

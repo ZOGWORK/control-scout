@@ -429,6 +429,9 @@ export interface TeamProfile {
   events: TeamEventRow[];
   /** Awards across all seasons we hold (newest first). */
   awardsAllTime: { season: number; code: string; event: string; type: string; placement: number; name: string | null }[];
+  /** The team's place in its league's standings that season (FIRST's league rankings, server/api/leagues.ts): its rank
+   *  out of the teams that have played. Absent: no league standing (or an older server). */
+  league?: { region: string; code: string; name: string | null; rank: number; of: number } | null;
 }
 
 /** GET /api/teams/:n/report-card: the predictability report card from live calls (null: no scored live call this season). */
@@ -527,6 +530,8 @@ export interface EventSummary {
   typeLabel: string;
   divisionCode: string | null;
   region: string | null;
+  /** FIRST's league code at a league meet or tournament (a league is its region and code together). */
+  league?: string | null;
   city: string | null;
   state: string | null;
   country: string | null;

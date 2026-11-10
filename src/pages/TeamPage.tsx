@@ -3,6 +3,7 @@
 // generalised from "my team" to every team.
 import { Fragment, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { leagueHref, leagueTitle } from "../shared/leagues";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import {
   Award, Bookmark, BookmarkCheck, CalendarDays, ChevronDown, ClipboardList, ExternalLink, Eye, GraduationCap, Info, Link2, MapPin, Scale, Sparkles, Star, TrendingDown, TrendingUp, Trophy,
@@ -269,6 +270,13 @@ function Hero({ p, onSeason, fellBackFrom }: { p: TeamProfile; onSeason: (s: num
               <Link to={`/events/${last.season}/${last.code}?team=${t.number}`} className="lift flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-3 py-2">
                 <span className="min-w-0 truncate" title={last.name}><span className="text-muted-foreground">Last · </span>{last.name}</span>
                 <span className="shrink-0 tabular-nums text-muted-foreground">{last.rank ? `ranked #${last.rank}` : ""}{last.awards.length ? ` · ${last.awards.length} award${last.awards.length > 1 ? "s" : ""}` : ""}</span>
+              </Link>
+            )}
+            {/* The league's own standing (FIRST's league rankings, every meet so far), beside the meet's rank above. */}
+            {p.league && (
+              <Link to={`${leagueHref(p.season, p.league.region, p.league.code)}?team=${t.number}`} data-league-standing className="lift flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-3 py-2">
+                <span className="min-w-0 truncate"><span className="font-semibold tabular-nums">#{p.league.rank} of {p.league.of}</span> <span className="text-muted-foreground">in the {leagueTitle(p.league.name, p.league.code)}</span></span>
+                <span className="shrink-0 text-muted-foreground">Standings →</span>
               </Link>
             )}
             {next && (
