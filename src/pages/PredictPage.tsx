@@ -401,7 +401,7 @@ function MatchLab() {
     const m = parse(red.join(","), blue.join(","));
     if (!m) return;
     setSubmittedTeams(m);
-    setSp((x) => { x.set("mode", "match"); x.set("season", String(season)); x.set("red", red.join(",")); x.set("blue", blue.join(",")); return x; }, { replace: true });
+    setSp((x) => { x.set("mode", "match"); x.set("season", String(season)); x.set("red", m.red.join(",")); x.set("blue", m.blue.join(",")); return x; }, { replace: true });
   };
   const swap = () => { edits.current++; setRed(blue); setBlue(red); setErrors((e) => [e[2], e[3], e[0], e[1]]); };
   // From the result: the same four teams with the alliances swapped, predicted straight away (they're already checked).

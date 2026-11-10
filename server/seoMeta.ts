@@ -27,6 +27,7 @@ import { listRecords, recordsQuery } from "./api/records.js";
 import { siteTitle, teamHeading, teamTitle } from "../src/shared/teamTitle.js";
 import { pageModule } from "../src/shared/routes.js";
 import { normalMatchKey } from "../src/shared/matchReport.js";
+import { matchupOf } from "../src/shared/predictUrl.js";
 import { allianceText, shareHeadline, shareImagePath, sharePagePath, tierWords, type ShareCardQuery } from "../src/shared/share.js";
 import { latestRankings, rankingsWeek } from "./powerRankings/store.js";
 import { staticRankingsHtml } from "./powerRankings/static.js";
@@ -725,7 +726,11 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
     // itself drawn with its teams when this server can (a production build): server/firstPaint.ts.
     const [mm, firstPaint] = await Promise.all([matchupMeta(sp).catch(() => null), predictFirstPaint(sp).catch(() => null)]);
     if (mm) return firstPaint ? { ...mm, firstPaint } : mm;
-    if (firstPaint) return { ...STATIC["/predict"], description: fitDescription(STATIC["/predict"].description), type: "website", firstPaint };
+    if (firstPaint) {
+      // A head-to-head (one team a side) has no share card, but its title still names the matchup.
+      const m = matchupOf(sp.get("red"), sp.get("blue"));
+      return { ...STATIC["/predict"], ...(m ? { title: `${allianceText(m.red)} vs ${allianceText(m.blue)}: match prediction` } : {}), description: fitDescription(STATIC["/predict"].description), type: "website", firstPaint };
+    }
   }
   // How it works: the whole page in the first paint, prerendered from the real page component at build time
   // (scripts/prerender.mjs), so crawlers read every section without running JavaScript.
