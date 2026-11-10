@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.0.3 — 2026-11-10
+
+A record asked with no team shows the season's best records and asks which team, never one team picked for you.
+
+### Highlights
+- [fixes] "Win loss record decode" shows the season's best records
+- [fixes] A "which team?" row offers one team's own record, one tap each
+- [fixes] "Best record in decode" and "decode records" answer too
+
+### Fixed
+- A record asked with no team ("win loss record decode", "record for decode", "decode win loss record") answered for one team whose name happened to fit a word of the question ("Decode Dynamics", "Lost In Time"). It now shows the season's teams by record, best first, with a "which team?" row above it: the top teams' own record questions, one tap each. "Best record in decode", "worst record decode" and "best record in nj" are that board too. No season said: the current season, then the one before when nothing is played yet. (#1297)
+
 ## 5.0.2 — 2026-11-10
 
 The track record says which number is which: every figure carries its slice and sample.
