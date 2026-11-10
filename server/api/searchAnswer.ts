@@ -201,7 +201,10 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
       const [a, b] = a1 ? [a1, b1!] : [a2!, b2!];
       return next(a, b) ? `${pre ?? ""}20${a}-${b}${post ?? ""}` : w;
     });
-  const years = spelledNumbers(dated) === dated ? dated : spelledNumbers(dated, await inAName());
+  // The names are loaded only when there is a number said as words; the rewrite itself is the name-aware one, on the
+  // text as typed.
+  const saysNumber = spelledNumbers(dated) !== dated;
+  const years = saysNumber ? spelledNumbers(dated, await inAName()) : dated;
   if (years !== said) {
     const b = await searchAnswer(years, opts);
     return carryOutcome(b, { ...b, q: cleanQuery(raw) });

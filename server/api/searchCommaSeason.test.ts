@@ -17,6 +17,7 @@ beforeAll(async () => {
       VALUES (?, 4215, ?, 30, 60, 10, 90, 10, 10, 7, 3, 0)`, [s, opr]);
   }
   for (const n of [2024, 2025]) await run("INSERT INTO teams (number, name, city, state, country, rookie_year) VALUES (?, ?, 'Austin', 'TX', 'USA', 2010)", [n, `Team ${n}`]);
+  await run("INSERT INTO teams (number, name, city, state, country, rookie_year) VALUES (31998, 'Top Ten Robotics', 'Austin', 'TX', 'USA', 2020)");
   await rebuildSearch();
 });
 
@@ -36,5 +37,9 @@ describe("comma seasons", () => {
   it("two four-digit numbers with a comma are two teams, not a season", async () => {
     const a = await ask("compare 2024, 2025");
     expect(JSON.stringify(a)).not.toMatch(/2024-25|2024–25/);
+  });
+  it("number words in a team's name stay the name", async () => {
+    const a = await ask("top ten robotics");
+    expect(a.hits[0]?.title ?? "").toMatch(/Top Ten Robotics/);
   });
 });
