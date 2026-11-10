@@ -25,10 +25,10 @@ A team's league standing in search now shows the whole league table, and a leagu
 - [rankings] "nj league standings" lists New Jersey's leagues, each one tap away
 
 ### Changed
-- The league standing answer is FIRST's official league ranking: "#30 of 34" out of the teams that have played, the league named with its place, then the league's whole table (rank, team, ranking score, record, matches, meets) with the asked team's row marked and scrolled into view, and a link to the league's page.
+- The league standing answer is FIRST's official league ranking: "#30 of 34" out of the teams that have played, the league named with its place, then the league's whole table (rank, team, ranking score, record, matches, meets) with the asked team's row marked and scrolled into view, and a link to the league's page. (#1309)
 
 ### Added
-- League standings asked with no team ("NE league standings", "nj northeast league leaderboard", "who is first in the northeast league", "northeast league rankings 2026-27"): the league is found from its FIRST name, its code and the place its meets are in; the current season unless one is named, said on the card. A code several places use shows the biggest league with the others linked; a place alone lists its leagues.
+- League standings asked with no team ("NE league standings", "nj northeast league leaderboard", "who is first in the northeast league", "northeast league rankings 2026-27"): the league is found from its FIRST name, its code and the place its meets are in; the current season unless one is named, said on the card. A code several places use shows the biggest league with the others linked; a place alone lists its leagues. (#1309)
 
 ## 5.1.1 — 2026-11-10
 
