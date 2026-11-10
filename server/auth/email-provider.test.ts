@@ -2,7 +2,7 @@
 // (trimmed, never the key or the address), and a failed send leaves no code.
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { all, migrate, openDb, setDb } from "../db";
-import { emailEnabled, emailSignInEnabled, setMailer, startEmailSignIn } from "./email";
+import { emailEnabled, emailSignInEnabled, setMailer, startEmailSignIn, verifyEmailCode } from "./email";
 
 const realFetch = globalThis.fetch;
 beforeAll(async () => {
@@ -52,7 +52,7 @@ describe("email provider failures", () => {
 describe("development log mailer (MAIL_DEV_LOG=1)", () => {
   afterEach(() => { delete process.env.MAIL_DEV_LOG; process.env.RESEND_API_KEY = "re_test_key_not_real"; });
 
-  it("writes the code to the log and never calls the provider; the code stays valid", async () => {
+  it("writes the code to the log and never calls the provider; the logged code signs in", async () => {
     delete process.env.RESEND_API_KEY;
     process.env.MAIL_DEV_LOG = "1";
     const fetched = vi.fn();
@@ -61,8 +61,13 @@ describe("development log mailer (MAIL_DEV_LOG=1)", () => {
     expect(await startEmailSignIn("d@example.com")).toEqual({ ok: true });
     expect(fetched).not.toHaveBeenCalled();
     const line = log.mock.calls.map((c) => String(c[0])).find((l) => l.startsWith("[mail] to d@example.com"))!;
-    expect(line).toMatch(/\b\d{6}\b/);
-    expect(await codes("d@example.com")).toEqual([{ email: "d@example.com" }]);
+    const logged = /\[mail\] code (\d{6})\b/.exec(line)?.[1];
+    expect(logged).toMatch(/^\d{6}$/);
+    // The logged code is the one that signs in: a wrong one is refused, the logged one is accepted (once).
+    const wrong = String((Number(logged) + 1) % 1_000_000).padStart(6, "0");
+    expect(await verifyEmailCode("d@example.com", wrong)).toEqual({ ok: false, reason: "invalid" });
+    expect(await verifyEmailCode("d@example.com", logged!)).toEqual({ ok: true, email: "d@example.com" });
+    expect((await verifyEmailCode("d@example.com", logged!)).ok).toBe(false);
   });
 
   it("is ignored in production: no code is logged and sign-in stays off without a provider", async () => {

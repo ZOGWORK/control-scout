@@ -33,13 +33,13 @@ describe("teamsErrors", () => {
     expect(await teamsErrors(["4215", "19163", "4215", "99999"], labels, lookup)).toEqual([
       null,
       null,
-      "4215 is already red team 1. Each team can be in only once.",
+      "4215 is already red team 1. Pick different teams.",
       "There's no FTC team 99999 on record. Check the number.",
     ]);
   });
   it("compares team numbers, not text: 04215 repeats 4215", async () => {
     expect(await teamsErrors(["4215", "19163", "04215", "21059"], labels, lookup)).toEqual([
-      null, null, "4215 is already red team 1. Each team can be in only once.", null,
+      null, null, "4215 is already red team 1. Pick different teams.", null,
     ]);
   });
   it("is all clear for four different known teams", async () => {

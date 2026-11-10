@@ -19,7 +19,7 @@ export async function teamError(value: string, lookup: TeamLookup): Promise<stri
 }
 
 /**
- * Errors for a set of team fields that must all be different (the Predict lab's four).
+ * Errors for a set of team fields that must all be different (the Predict lab's boxes).
  * Each field gets its own message; a repeat names the field it repeats.
  */
 export async function teamsErrors(values: string[], labels: string[], lookup: TeamLookup): Promise<(string | null)[]> {
@@ -27,6 +27,6 @@ export async function teamsErrors(values: string[], labels: string[], lookup: Te
   return own.map((e, i) => {
     if (e) return e;
     const first = values.findIndex((x) => Number(x.trim()) === Number(values[i].trim()));
-    return first < i ? `${Number(values[i].trim())} is already ${labels[first]}. Each team can be in only once.` : null;
+    return first < i ? `${Number(values[i].trim())} is already ${labels[first]}. Pick different teams.` : null;
   });
 }

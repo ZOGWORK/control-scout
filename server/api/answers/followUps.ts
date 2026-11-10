@@ -12,6 +12,7 @@ import { names } from "../query/names.js";
 import { AWARD_WORDS, LEXICON } from "../query/lexicon.js";
 import { keptAnswer } from "../searchReads.js";
 import { searchAnswer } from "../searchAnswer.js";
+import { forecasterBuilds } from "../../predict/engine.js";
 import { failureOf, outcomeTrace } from "../../searchFailures.js";
 
 type Family = SearchFollowUp["family"];
@@ -19,7 +20,7 @@ type Family = SearchFollowUp["family"];
 /** The whole answer for `q` as /api/search?answer=1 gives it, kept a minute: a follow-up checked here is the answer its
  *  tap opens. */
 export const pageAnswer = (q: string, limit: number, prefer: ReadonlySet<string>): Promise<SearchAnswer> =>
-  keptAnswer(JSON.stringify([q, limit, [...prefer].sort()]), () => searchAnswer(q, { limit, prefer }));
+  keptAnswer(JSON.stringify([q, limit, [...prefer].sort(), forecasterBuilds()]), () => searchAnswer(q, { limit, prefer }));
 
 /** At most this many questions are shown, and this many candidates run to find them. */
 export const ASK_MAX = 6, RELATED_MAX = 8;
