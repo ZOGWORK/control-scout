@@ -17,7 +17,7 @@ describe("FTC One Search page route", () => {
   it("routes and titles it, with no hub page above it", () => {
     expect(pageModule("/how-it-works/search")).toBe("SearchDocsPage");
     expect(pageModule("/How-It-Works/Search/")).toBe("SearchDocsPage");
-    expect(pageModule("/how-it-works")).toBe("NotFound");
+    expect(pageModule("/how-it-works")).toBeNull(); // a redirect to /methodology
     expect(pageModule("/methodology")).toBe("MethodologyPage");
     expect(pageTitle("/how-it-works/search")).toBe("How FTC One Search works");
     expect(pageTitle("/methodology")).toBe("How it works");

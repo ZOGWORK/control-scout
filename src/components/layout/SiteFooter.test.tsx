@@ -42,4 +42,14 @@ describe("SiteFooter", () => {
     at("/teams/18360");
     expect(screen.queryByRole("link", { name: "Light version" })).toBeNull();
   });
+
+  it("links Rules only while the owner has the rules reference on", () => {
+    footer(null);
+    expect(screen.getByRole("link", { name: "Rules" }).getAttribute("href")).toBe("/rules");
+    cleanup();
+    resetFlags({ ...DEFAULT_FLAGS, rulesReference: false }, true);
+    footer(null);
+    expect(screen.queryByRole("link", { name: "Rules" })).toBeNull();
+    expect(screen.getByRole("link", { name: "FAQ" })).toBeTruthy();
+  });
 });
