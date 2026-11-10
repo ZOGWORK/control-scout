@@ -217,6 +217,15 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   if (intent === "count-teams") return townCount(p) ? boardSearch(p.q, { kind: "city", stat: "opr", n: 25, region: null, city: p.place!.city, season: null }, opts) : null;
   const scope = readScopeOf(p);
   if (!scope) return null;
+  // One team's question with a season or a year that has no events on record yet (a future one: "4215 opr 2027"),
+  // whatever it asks: the card that says so, never another season's numbers. The stat readers below check this
+  // themselves (after their own reading of a year, such as Worlds held that year); every other one-team intent is
+  // checked here, before any reader can take the year for part of an event's name. A team's prediction and pick
+  // helper read the year as an event's (theirs say when it has none).
+  if (p.teams.length === 1 && !TEAM_INTENTS.has(intent) && intent !== "team-predict" && intent !== "pick-partners") {
+    const future = await noEventsYet(p, p.teams[0].number, intent as IntentId, opts);
+    if (future) return future(opts);
+  }
   // The finals are a filter the match finder applies (and a scope's highlights, read with its filters), and a team's
   // answers from its own match rows (scopeFits): anything else would answer for every playoff match.
   if (p.finals && !p.teams.length && !(FIND[intent] || intent === "top-matches" || intent === "highlights")) return null;

@@ -904,10 +904,10 @@ export async function twoTeamSearch(q: string, two: TwoTeamQuestion, resolve: Re
   // Compare's own link leads a forecast and a season side by side, as plain "12345 vs 67890" always opened it: on the
   // card's season, the one named or else the one the card picks (every team played it).
   const seasonCompare = two.id === "compare" && !s.at && !s.championship && !s.states;
-  const leadSeason = seasonCompare ? scope.season ?? (await compareSeason([a.number, b.number])) : scope.season;
-  const lead = two.id === "predict" || seasonCompare ? (await versusAnswer(`${a.number} vs ${b.number}`, new Set(), leadSeason))?.hits.find((h) => h.kind === "compare") : undefined;
-  // Predict opens on the season the card's call is for.
+  // Predict opens on the season the card's call is for, and so does Compare beside it (one season per answer).
   const predictSeasonOf = two.id === "predict" ? scope.season ?? (await predictionSeason(a.number, b.number)).season : null;
+  const leadSeason = seasonCompare ? scope.season ?? (await compareSeason([a.number, b.number])) : predictSeasonOf ?? scope.season;
+  const lead = two.id === "predict" || seasonCompare ? (await versusAnswer(`${a.number} vs ${b.number}`, new Set(), leadSeason))?.hits.find((h) => h.kind === "compare") : undefined;
   const pages = predictSeasonOf != null ? [{ title: `Predict ${a.number} vs ${b.number}`, href: predictHref({ mode: "match", season: predictSeasonOf, red: [a.number], blue: [b.number] }) }, ...opts.pages] : opts.pages;
   const answer: SearchAnswer = {
     q, hits: [...(lead ? [lead] : []), { ...ta, section: "matches", facts: undefined, events: undefined }, { ...tb, section: "matches", facts: undefined, events: undefined }], pages, step: "deterministic", weak: false,

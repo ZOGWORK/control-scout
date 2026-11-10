@@ -29,9 +29,9 @@ const PREDICT_RULE = "The engine's call for one team on each alliance in a quali
 
 interface RatingRow { team: number; rating_np: number | null; rating_sd: number | null; rating_rank: number | null }
 
-/** The season a prediction reads when none is named: the latest completed one when both teams have a rating there,
- *  else the latest predicted season both have one in (said so), else the latest completed one (its card says what's
- *  missing). */
+/** The season a prediction reads when none is named: the newest season every team has a prediction rating in, the
+ *  season their own team cards show (a team's latest season), so the call, its Predict and Compare links and the team
+ *  cards beside it all read one season; with none, the latest completed one (its card says what's missing). */
 export async function predictionSeason(a: number, b: number): Promise<{ season: number; why: string }> {
   return predictionSeasonOf([a, b]);
 }
@@ -41,8 +41,8 @@ export async function predictionSeasonOf(teams: number[]): Promise<{ season: num
   const def = searchSeason();
   const rows = await all<{ season: number; n: number }>(`SELECT season, COUNT(*) n FROM team_season_stats WHERE team IN (${teams.map(() => "?").join(", ")}) AND rating_np IS NOT NULL AND season >= ? GROUP BY season HAVING COUNT(*) = ? ORDER BY season DESC`, [...teams, FIRST_PREDICT_SEASON, teams.length]);
   const every = rows.map((r) => Number(r.season));
-  if (every.includes(def) || !every.length) return { season: def, why: searchSeasonWhy(def) };
-  return { season: every[0], why: `The season is ${seasonLabel(every[0])}, the latest season ${teams.length === 2 ? "both teams have" : `all ${teams.length} teams have`} a prediction rating in.` };
+  if (!every.length) return { season: def, why: searchSeasonWhy(def) };
+  return { season: every[0], why: `With no season named, the season is ${seasonLabel(every[0])}, the latest season ${teams.length === 2 ? "both teams have" : `all ${teams.length} teams have`} a prediction rating in, as their team cards show.` };
 }
 
 const ALLIANCE_RULE = "The engine's call for a qualification match between the two alliances named, as Predict makes it for the same lineup: each alliance's expected score (without penalties, margin-calibrated), the win chance and the predicted margin, from each team's prediction rating (points per match ± its uncertainty) as their team pages show it.";
