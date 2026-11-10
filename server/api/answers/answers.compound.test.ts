@@ -170,7 +170,8 @@ describe("compound answers", () => {
       const a = await ask(q);
       expect([a.stat?.intent, a.stat?.headline?.value], q).toEqual(["partners-opr-threshold", "1 of 2"]);
     }
-    expect((await ask("who played against 4215 at NJ championship with opr over 80")).stat?.intent).toBe("opponents-opr-threshold");
+    for (const q of ["who played with 4215 at NJ championship with opr over 80", "who played alongside 4215 at NJ championship with opr over 80"]) expect((await ask(q)).stat?.intent, q).toBe("partners-opr-threshold");
+    for (const q of ["who played against 4215 at NJ championship with opr over 80", "who faced 4215 at NJ championship with opr over 80", "who played 4215 at NJ championship with opr over 80"]) expect((await ask(q)).stat?.intent, q).toBe("opponents-opr-threshold");
   });
   it("10: the championship takes in the finals, a division named doesn't; a match off the field meets no one", async () => {
     // A finals match with 1111 (OPR 130) and a division match 4215 sat out with 23268 (OPR 157.9).
