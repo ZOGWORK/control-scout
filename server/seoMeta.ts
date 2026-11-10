@@ -44,7 +44,7 @@ import { pageAnswer } from "./api/answers/followUps.js";
 import { relatedPage } from "./api/answers/relatedPage.js";
 import { withTeamStats } from "./api/searchTeamStats.js";
 import { seasonRecordLine } from "./api/searchHighScores.js";
-import { MATCHES_TABLE_HEADING, SEASON_RECORD_LABEL, SEASON_RECORD_RULE, unofficialMark } from "../src/shared/seasonRecord.js";
+import { MATCHES_TABLE_HEADING, SEASON_RECORD_LABEL, SEASON_RECORD_RULE, recordMarks } from "../src/shared/seasonRecord.js";
 import { withEventParents } from "./api/searchEvents.js";
 import { answerSections } from "../src/shared/searchSections.js";
 import { rebuildSearch } from "./stats/job.js";
@@ -561,7 +561,7 @@ async function matchesTableMeta(query: Record<string, unknown>): Promise<PageMet
   const h = (x: string) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   // The season's record as search gives it (one number on both pages), then the table's own first rows, said for what
   // they are: every played match by alliance score, penalties in, scrimmages and off-season events too.
-  const mark = rec && unofficialMark(rec);
+  const mark = rec && recordMarks(rec);
   const record = rec ? `<p>${h(`${SEASON_RECORD_LABEL} ${seasonInfo(season).label}:`)} <a href="${h(rec.href ?? "")}">${h(rec.text)}</a>${mark ? ` (${h(mark)})` : ""} <small>${h(SEASON_RECORD_RULE)}</small></p>` : "";
   const items = (r.rows as unknown as { eventCode: string; eventName: string; key: string; label: string; stats: Record<string, number | string | null> }[]).map((x) =>
     `<li><a href="${h(eventPath(season, x.eventCode))}?match=${h(x.key)}">${h(`${x.label} at ${x.eventName}`)}</a> <small>${h(`red ${x.stats.redTotalPoints ?? "–"} · blue ${x.stats.blueTotalPoints ?? "–"}`)}</small></li>`).join("");

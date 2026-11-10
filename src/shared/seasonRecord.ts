@@ -9,8 +9,14 @@ export const SEASON_RECORD_RULE = "Official events only, penalties left out, as 
 export const MATCHES_TABLE_HEADING = "every played match by score, penalties in, all events";
 export const seasonRecordPath = (season: number) => `/api/records/${season}/high-score`;
 
-/** The line's own mark when its score is not an official record ("Not an official record: …"), as search shows it. */
-export const unofficialMark = (line: { results?: string[] }) => line.results?.find((r) => r.startsWith(UNOFFICIAL_NOTE)) ?? null;
+/** What search says beside the record's line that changes how to read its number: "Not an official record: …", or
+ *  "Penalties not posted" (the score then includes them, as the only one on record). Joined, or null when none. */
+export const recordMarks = (line: { results?: string[] }) =>
+  (line.results ?? []).filter((r) => r.startsWith(UNOFFICIAL_NOTE) || r === PENALTIES_NOT_POSTED).join("; ") || null;
+/** Search's words for a record whose penalties FIRST never posted (server/api/searchHighScores.ts). */
+export const PENALTIES_NOT_POSTED = "Penalties not posted";
+/** The table under the record, said beside it on the page too. */
+export const MATCHES_TABLE_NOTE = "The table lists every played match by score, penalties in, all events.";
 
 /** A highlights headline's reason, said with its rule where a reader could take it for the score with penalties: the
  *  best score is picked without them ("Best score without penalties: Q6"), while an event's own high score includes them. */

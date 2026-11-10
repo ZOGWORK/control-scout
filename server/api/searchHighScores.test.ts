@@ -117,3 +117,12 @@ describe("the season's record line (the match records page)", () => {
     expect(html).toContain(">300 points: M9 at New Jersey Championship</a>");
   });
 });
+
+describe("recordMarks", () => {
+  it("keeps what changes how the record's number reads, never the alliance line", async () => {
+    const { recordMarks } = await import("../../src/shared/seasonRecord");
+    expect(recordMarks({ results: ["Red alliance: 1 A", "Penalties not posted"] })).toBe("Penalties not posted");
+    expect(recordMarks({ results: ["Red alliance: 1 A", "Not an official record: why"] })).toBe("Not an official record: why");
+    expect(recordMarks({ results: ["Red alliance: 1 A"] })).toBeNull();
+  });
+});
