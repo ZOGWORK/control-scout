@@ -13,7 +13,7 @@ describe("score ranges", () => {
     expect(predictedText({ redMean: 118.4, blueMean: 96, redRange: [104, 132], blueRange: [84, 108] })).toBe("118 ±14 – 96 ±12");
     expect(predictedText({ redMean: 118.4, blueMean: 96 })).toBe("118–96"); // a call from before ranges were stated
     expect(levelPct(0.8)).toBe("80%");
-    expect(rangeSentence([104, 132])).toBe("80% range 104–132: about 8 in 10 real scores land inside");
+    expect(rangeSentence([104, 132])).toBe("80% range 104–132");
   });
 
   it("carries the engine's bands into a match prediction", () => {

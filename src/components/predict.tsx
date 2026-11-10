@@ -11,8 +11,9 @@ import { cn } from "./cn";
 import { ClipLink, MatchVideoLink } from "./MatchClip";
 import { ScoreRange } from "./ScoreRange";
 import { levelPct, predictedText } from "../shared/scoreRange";
+import { useRangeCoverage } from "../lib/rangeCoverage";
 import { Popover, PopoverContent, PopoverTrigger, TapTooltip, Tooltip, TooltipContent, TooltipTrigger } from "./ui/overlay";
-import { matchTime, oddsPct } from "../lib/format";
+import { matchTime, oddsPct, pct } from "../lib/format";
 import { VIDEO_TONE } from "../lib/textTones";
 import { useVideoLinkCount } from "./MatchVideo";
 import { restoredSavedPosition, scrollToElement, smoothBehavior } from "../lib/pageScroll";
@@ -248,6 +249,7 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
   const detailsId = `match-${m.code}-${m.key.replace(/:/g, "-")}`;
   // MotionConfig's reducedMotion only stops transforms; height is a layout animation, so it's turned off here.
   const reduce = !!useReducedMotion();
+  const cov = useRangeCoverage();
   const p = m.prediction;
   const scored = m.played && m.red.score && m.blue.score;
   const red = scored ? m.red.score!.total : null, blue = scored ? m.blue.score!.total : null;
@@ -317,7 +319,7 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
                 <WinBar pRed={p.pRed} size="sm" className="w-12 shrink-0" decorative />
               </button>
             }>
-              {KIND_LABEL[p.kind]} · {p.noScoreBasis ? "no predicted score: when this call was made, the season had no rated matches yet" : `predicted ${predictedText(p)}${p.redRange ? ` (± is the ${levelPct(p.rangeLevel)} range)` : ""}`} · {tierPhrase(p.tier)}
+              {KIND_LABEL[p.kind]} · {p.noScoreBasis ? "no predicted score: when this call was made, the season had no rated matches yet" : `predicted ${predictedText(p)}${p.redRange ? ` (± is the ${levelPct(p.rangeLevel)} range${cov ? `; such ranges have held ${pct(cov.live.coverage, 1)} of ${cov.live.n.toLocaleString("en-US")} live scores` : ""})` : ""}`} · {tierPhrase(p.tier)}
               {p.factors?.length ? <span className="mt-1 block opacity-80">{factorLabel(p.factors[0].label)}</span> : null}
               <CalibrationTip pRed={p.pRed} />
           </TapTooltip>

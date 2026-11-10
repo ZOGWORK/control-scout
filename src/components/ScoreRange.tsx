@@ -1,9 +1,11 @@
 // A predicted score with its stated range: "118 ±14". Every prediction surface uses this, so the range reads
-// the same everywhere; hovering (or a screen reader) gets the plain meaning: "80% range 104–132: about 8 in
-// 10 real scores land inside". Calls logged before engine 2.2 stated no range and show the score alone.
+// the same everywhere; hovering (or a screen reader) gets the plain meaning: "80% range 104–132; 80% ranges have held
+// 91.1% of 5,322 live alliance scores" (measured, from /api/predict/ranges). Calls logged before engine 2.2 stated no
+// range and show the score alone.
 import { cn } from "./cn";
 import type { MatchPredictionView } from "../shared/api";
 import { levelPct, plusMinus, predictedText, rangeSentence } from "../shared/scoreRange";
+import { useRangeCoverage } from "../lib/rangeCoverage";
 
 /**
  * Both predicted scores on one line, for tight live surfaces (live panel, Watch live, pit display):
@@ -11,8 +13,9 @@ import { levelPct, plusMinus, predictedText, rangeSentence } from "../shared/sco
  * the full ranges are in the title and for screen readers.
  */
 export function PredictedPair({ p, className }: { p: Pick<MatchPredictionView, "redMean" | "blueMean" | "redRange" | "blueRange" | "rangeLevel">; className?: string }) {
+  const cov = useRangeCoverage();
   if (!p.redRange || !p.blueRange) return <span className={cn("tabular-nums", className)}>{predictedText(p)}</span>;
-  const full = `Predicted red ${Math.round(p.redMean)}, ${rangeSentence(p.redRange, p.rangeLevel)}; blue ${Math.round(p.blueMean)}, ${rangeSentence(p.blueRange, p.rangeLevel)}`;
+  const full = `Predicted red ${Math.round(p.redMean)}, ${rangeSentence(p.redRange, p.rangeLevel)}; blue ${Math.round(p.blueMean)}, ${rangeSentence(p.blueRange, p.rangeLevel, cov)}`;
   return (
     <span className={cn("tabular-nums", className)} title={full}>
       <span aria-hidden>{predictedText(p)} <span className="text-[0.85em] opacity-80">({levelPct(p.rangeLevel)} range)</span></span>
@@ -31,9 +34,10 @@ export function ScoreRange({ mean, range, level, className, pmClassName, approx 
   /** With no stated range, write the score as "~120" (an estimate, not a result). */
   approx?: boolean;
 }) {
+  const cov = useRangeCoverage();
   const m = Math.round(mean);
   if (!range) return <span className={cn("tabular-nums", className)}>{approx ? "~" : ""}{m}</span>;
-  const sentence = rangeSentence(range, level);
+  const sentence = rangeSentence(range, level, cov);
   return (
     <span className={cn("tabular-nums", className)} title={sentence}>
       {m}<span aria-hidden className={pmClassName ?? "text-[0.85em] font-normal text-muted-foreground"}> ±{plusMinus(mean, range)}</span>

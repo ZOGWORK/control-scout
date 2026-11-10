@@ -53,7 +53,7 @@ import { resultChanges } from "./api/resultChanges.js";
 import { eventDisagreements } from "./api/disagreements.js";
 import { pickRatings } from "./api/pickRatings.js";
 import { MATCH_KEY as REPORT_KEY } from "../src/shared/matchReport.js";
-import { trackRecord } from "./api/accuracy.js";
+import { rangeCoverageNow, trackRecord } from "./api/accuracy.js";
 import { currentWeather } from "./weather.js";
 import { MISSING_FILE, canonicalRedirects, renderPage } from "./seo.js";
 import { CSP_REPORT_PATH, cspReportRouter, securityHeaders, setPageCsp } from "./securityHeaders.js";
@@ -894,6 +894,9 @@ export function createApp(opts: { dist?: string } = {}) {
   }));
 
   api.get("/predict/accuracy", h(async () => trackRecord()));
+  // How the stated score ranges have held (live and replay, with samples): a few bytes every range on a page reads,
+  // instead of the whole track record.
+  api.get("/predict/ranges", h(async () => rangeCoverageNow()));
 
   // Monte Carlo projections (server/projections): stored by the background job, only read here.
   // Advancement odds (the advancementOdds feature toggle): the odds and their live stream answer 403 feature_disabled while it's off.

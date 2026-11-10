@@ -6,7 +6,7 @@
 import { all, kvGet } from "../db.js";
 import { CURRENT_SEASON, PREDICT_SEASONS, SEASONS, bonusLabels } from "../data/seasons.js";
 import { ENGINE_VERSION, type ConfidenceTier } from "@control-scout/predict-engine";
-import type { AccuracyBlock, BonusAccuracy, MarginError, RangeCoverage, ReplayCoverage, ShadowScore, TrackRecord } from "../../src/shared/api.js";
+import type { AccuracyBlock, BonusAccuracy, MarginError, RangeCoverage, RangeCoverageNow, ReplayCoverage, ShadowScore, TrackRecord } from "../../src/shared/api.js";
 import { LIVE_THRESHOLD, pickHeadline } from "../../src/shared/ledger.js";
 import { matchViews } from "./matches.js";
 import { dataVersion } from "../predict/engine.js";
@@ -226,6 +226,20 @@ export async function trackRecord(): Promise<TrackRecord> {
 /** The track record last built, without checking or building anything (null before the first build): for page
  *  HTML, which must never wait on the database. The warm-up keeps it current. */
 export function trackRecordIfReady(): TrackRecord | null { return cached?.value ?? null; }
+
+/**
+ * How the stated score ranges have held, for every surface that shows one (GET /api/predict/ranges and search's
+ * prediction cards): the newest season whose live calls stated ranges, its live coverage and its replay's, each with
+ * its sample. Read off the cached track record, so it never costs a rebuild. Null before any live call stated a range.
+ */
+export async function rangeCoverageNow(): Promise<RangeCoverageNow | null> {
+  const t = await trackRecord();
+  const s = [...t.seasons].sort((a, b) => b.season - a.season).find((x) => (x.live?.ranges?.n ?? 0) > 0);
+  const g = s?.live?.ranges;
+  if (!s || !g) return null;
+  const r = s.backtest?.ranges;
+  return { season: s.season, label: s.label, level: g.level, live: { n: g.n, coverage: g.coverage }, backtest: r && r.n > 0 ? { n: r.n, coverage: r.coverage } : null };
+}
 
 /** Build the track record now if the data moved on (server start, and polled after syncs), so no visitor waits for it. */
 export async function warmTrackRecord(): Promise<void> {
