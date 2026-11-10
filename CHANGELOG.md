@@ -15,6 +15,17 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.2.5 — 2026-11-10
+
+Every follow-up a search offers says which season its numbers are from.
+
+### Highlights
+- [fixes] Related searches say each number's season
+- [fixes] People also ask previews say their season too
+
+### Changed
+- A follow-up's line (People also ask, Related searches, the related searches page and the team's highlights link) ends with the season its numbers are from when the line doesn't already say one: "98 ± 3.2 · #525 worldwide … · 2025–26", "11 awards · 7 performance · 4 judged · all seasons". A record from the latest completed season and a trend from the current one no longer sit side by side unlabelled.
+
 ## 5.2.3 — 2026-11-10
 
 Search reads one season rule in every answer, and says which season (and which state championship) it read.
