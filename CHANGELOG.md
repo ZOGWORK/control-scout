@@ -26,7 +26,7 @@ Compare opens on its teams: a search answer's Compare link lands on both teams w
 
 ### Changed
 - `/compare?teams=…&season=…` is drawn on the server like team and event pages: the stats table, charts, events and awards are in the page itself, so a slow connection shows the teams straight away. Its title names the teams. (#1269)
-- The search page's first paint lists an answer's "Open in Predict" and "Compare side by side" links with the teams and season in them. (#1269)
+- The search page's first paint lists an answer's "Open in Predict" and "Compare side by side" links with the teams and season in them.
 ## 4.9.3 — 2026-11-10
 
 A question search can't answer yet says sorry plainly, and a yes-or-no question gets its Yes or No first.
