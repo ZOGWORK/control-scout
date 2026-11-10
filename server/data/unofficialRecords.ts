@@ -23,3 +23,6 @@ export const unofficialLine = (m: MatchKey) => {
   const why = unofficialWhy(m);
   return why ? `${UNOFFICIAL_NOTE}: ${why}` : null;
 };
+
+/** A match's label in a table, marked when its score is not an official record ("Q49 (not an official record)"). */
+export const markedLabel = (m: MatchKey & { label: string }) => (unofficialWhy(m) ? `${m.label} (${UNOFFICIAL_NOTE.toLowerCase()})` : m.label);

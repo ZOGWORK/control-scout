@@ -1,6 +1,7 @@
 // A team's played matches, read once per team (two bounded queries on match_teams_team) and kept a few minutes: the
 // set every superlative and aggregate answer filters with the scope clauses (./clauses.ts). Scored matches at
 // in-person events only, as every record on the site (src/shared/eventRecord.ts).
+import { unofficialLine } from "../../data/unofficialRecords.js";
 import { all } from "../../db.js";
 import { registerCache } from "../../caches.js";
 import { onRecord } from "../../../src/shared/eventRecord.js";
@@ -184,5 +185,7 @@ export function matchRow(m: TeamMatch, links: Map<number, StatLink>, team?: numb
     date: m.date ? dateRange(m.date.slice(0, 10)) : null, alliance: m.alliance, own: m.own, opp: m.opp, ownNp: m.ownNp, result: m.result,
     partners: m.partners.map(link), opponents: m.opponents.map(link), oppNp: m.oppNp, type: m.type, ...(team != null ? { self: link(team) } : {}),
     phases: m.ownAuto != null || m.ownTeleop != null || m.ownEndgame != null ? phasesOf(m) : null,
+    // A match the owner marked as not an official record says so wherever it is listed.
+    ...(unofficialLine(m) ? { unofficial: unofficialLine(m)! } : {}),
   };
 }

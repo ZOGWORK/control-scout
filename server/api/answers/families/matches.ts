@@ -17,6 +17,7 @@ import { RECORD_RULE } from "../../../../src/shared/eventRecord.js";
 import { RANKED_MIN_MATCHES } from "../../../../src/shared/rankings.js";
 import { teamPageSql } from "../../../../src/shared/teamPages.js";
 import { get } from "../../../db.js";
+import { markedLabel, unofficialLine } from "../../../data/unofficialRecords.js";
 import { inScope, scopeChips, scopePhrase, type Scope } from "../clauses.js";
 import { eventHref, matchRow, teamLinks, upcomingMatches, type TeamMatch, type UpcomingMatch } from "../matchSet.js";
 
@@ -142,13 +143,13 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
       // window can hold two (a week across the season's start).
       if (scope.season == null || scope.window) {
         const per = bySeason(ms).map(([s, xs]) => ({ s, m: [...xs].sort((a, b) => (high ? np(b) - np(a) || b.own - a.own : np(a) - np(b) || a.own - b.own))[0] }));
-        if (per.length > 1) blocks.push({ kind: "table", title: `${high ? "Best" : "Lowest"} score each season (each season is a different game)`, columns: [{ key: "season", label: "Season" }, { key: "score", label: "Score", num: true }, { key: "np", label: "Without penalties", num: true }, { key: "match", label: "Match" }, { key: "event", label: "Event" }], rows: per.map(({ s, m }) => ({ cells: { season: seasonLabel(s), score: m.own, np: np(m), match: m.label, event: m.event }, href: row(m).href, strong: m === top })) });
+        if (per.length > 1) blocks.push({ kind: "table", title: `${high ? "Best" : "Lowest"} score each season (each season is a different game)`, columns: [{ key: "season", label: "Season" }, { key: "score", label: "Score", num: true }, { key: "np", label: "Without penalties", num: true }, { key: "match", label: "Match" }, { key: "event", label: "Event" }], rows: per.map(({ s, m }) => ({ cells: { season: seasonLabel(s), score: m.own, np: np(m), match: markedLabel(m), event: m.event }, href: row(m).href, strong: m === top })) });
       }
       return {
         ...base, family: "superlative", intent: id, title,
         headline: opts.leadEvent
-          ? { value: top.event, label: `${top.own} points in ${top.label} (official score, penalties included)`, sub: [seasonLabel(top.season), r.date, `${np(top)} without penalties`].filter(Boolean).join(" · "), href: eventHref(top.season, top.code, team.number) }
-          : { value: `${top.own} points`, label: `${top.label} at ${top.event} (official score, penalties included)`, sub: [seasonLabel(top.season), r.date, `${top.alliance === "red" ? "Red" : "Blue"} alliance`, `${np(top)} without penalties`].filter(Boolean).join(" · "), href: r.href },
+          ? { value: top.event, label: `${top.own} points in ${top.label} (official score, penalties included)`, sub: [unofficialLine(top) ?? "", seasonLabel(top.season), r.date, `${np(top)} without penalties`].filter(Boolean).join(" · "), href: eventHref(top.season, top.code, team.number) }
+          : { value: `${top.own} points`, label: `${top.label} at ${top.event} (official score, penalties included)`, sub: [unofficialLine(top) ?? "", seasonLabel(top.season), r.date, `${top.alliance === "red" ? "Red" : "Blue"} alliance`, `${np(top)} without penalties`].filter(Boolean).join(" · "), href: r.href },
         blocks, definition: `${SCORE_RULE} ${HIGH_RULE}${note}`,
       };
     }
