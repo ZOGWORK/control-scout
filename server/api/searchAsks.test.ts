@@ -660,6 +660,6 @@ describe("an alliance award at an event (Phase J: \"Who won the Finalist Award a
     const lines = a.card?.lines ?? [];
     expect(lines.map((l) => [l.text, l.detail])).toEqual(expect.arrayContaining([["20265 Heart of RoBots", "Finalist Alliance - Captain"], ["14270 Quantum Robotics", "Finalist Alliance - 1st Team Selected"]]));
     expect(lines.some((l) => l.text.startsWith("6980 ") || /leadership/i.test(l.detail ?? ""))).toBe(false);
-    expect(lines.every((l) => l.results.length === 0)).toBe(true);
+    expect(lines.every((l) => !l.results?.length)).toBe(true);
   });
 });
