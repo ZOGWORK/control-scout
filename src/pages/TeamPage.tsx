@@ -644,7 +644,7 @@ function Upcoming({ p, next: first, last: before }: { p: TeamProfile; next: Team
       {next && !m && (
         <Link to={ADVANCING.has(next.type ?? "") ? `/events/${next.season}/${next.code}?tab=odds&team=${n}` : `/events/${next.season}/${next.code}?team=${n}`} className={cn(row, "border-accent/30 bg-accent/[0.05]")}>
           <span className="min-w-0"><span className="block truncate" title={next.name}><span className="text-muted-foreground">Next event · </span>{next.name}</span>
-            <span className="block text-xs text-muted-foreground">{[dateRange(next.start, next.end), ms.data || !ms.loading ? "match list is posted at the event" : null].filter(Boolean).join(" · ")}</span></span>
+            <span className="block text-xs text-muted-foreground">{[dateRange(next.start, next.end), ms.data ? "match list is posted at the event" : ms.error ? "match list couldn't be checked just now" : null].filter(Boolean).join(" · ")}</span></span>
           <span className="shrink-0 font-medium text-accent-text">{ADVANCING.has(next.type ?? "") ? "Odds to advance →" : "Schedule →"}</span>
         </Link>
       )}
