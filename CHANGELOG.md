@@ -25,7 +25,7 @@ Every league has its own standings page: FIRST's official league ranking over ev
 - [rankings] Phones show a numbers-only table that fits the screen
 
 ### Added
-- League standings pages at `/leagues/<season>/<region>/<league>` (for example the New Jersey Northeast League): FIRST's official league rankings, read from FIRST every few hours while a league's meets are on, with each team's ranking score, win-loss-tie record, qualification matches and league meets played, and the league's meets and tournament below. `?team=` marks one team's row. The page is drawn on the server, so the table is in the first HTML. Last season's league standings are read too.
+- League standings pages at `/leagues/<season>/<region>/<league>` (for example the New Jersey Northeast League): FIRST's official league rankings, read from FIRST every few hours while a league's meets are on, with each team's ranking score, win-loss-tie record, qualification matches and league meets played, and the league's meets and tournament below. `?team=` marks one team's row. The page is drawn on the server, so the table is in the first HTML. Last season's league standings are read too. (#1287)
 
 ## 4.9.2 — 2026-11-09
 
