@@ -6,7 +6,7 @@ import { RANKED_MIN_MATCHES } from "../../../src/shared/rankings.js";
 import { teamPageSql } from "../../../src/shared/teamPages.js";
 import { seasonLabel } from "../../../src/shared/format.js";
 import { get } from "../../db.js";
-import { searchSeason } from "../answers/season.js";
+import { defaultSeason } from "../answers/season.js";
 import { normalise, type ParseContext } from "./parse.js";
 import type { Place } from "./names.js";
 
@@ -48,7 +48,7 @@ export interface TopTeamSaid { typed: string; team: number; name: string | null;
 
 /** `q` with each place's top team said as its number, and which team each phrase was; null when none is said, or a
  *  place named has no rated team. `season`: the one the question names, else the search season. */
-export async function topTeamsSaid(q: string, ctx: ParseContext, season = searchSeason()): Promise<{ q: string; said: TopTeamSaid[]; season: number } | null> {
+export async function topTeamsSaid(q: string, ctx: ParseContext, season = defaultSeason()): Promise<{ q: string; said: TopTeamSaid[]; season: number } | null> {
   const said: TopTeamSaid[] = [];
   let out = "", from = 0;
   const re = new RegExp(TOP_TEAM.source, TOP_TEAM.flags);

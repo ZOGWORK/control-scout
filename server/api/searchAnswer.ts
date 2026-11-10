@@ -215,7 +215,7 @@ const recovery = (q: string, understood: string[], closest: SearchHit[] = []): S
  *  docs/search-layers.md): the readers below are Layer 1, and a query they miss is read again by its words. */
 export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promise<SearchAnswer> {
   // The season a query naming none means (./answers/season.ts), read before the readers that use it.
-  await refreshSearchSeason();
+  await refreshSearchSeason(opts.now);
   if (opts.inner || opts.intents === false || opts.rewrites) return readerAnswer(raw, opts);
   // Informal short forms said in full first ("events happening rn"), in the query as typed (its quotes and operators
   // kept), the answer keeping the query as typed.
@@ -885,12 +885,18 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   }
   // Learned order, read under the same key a pick is counted under (learnQuery).
   if (opts.learn !== false) hits = await rerank(nameWords(rest), hits, { pinTop: exact });
-  const marked = markMatches(rest, uniq(hits));
+  const fuzzed = markMatches(rest, uniq(hits));
+  const named = searchIntent(rest)?.rest ?? rest;
+  // A result whose own name is a near miss of what was typed comes before results matched only by fuzzy words in a
+  // school, city or venue ("lake rbotics": Lake Robotics before a team from Lake Oswego Robotics).
+  const ownNear = fuzzed[0]?.match === "fuzzy" && fuzzyScore(named, nameOf(fuzzed[0])) < 0.6
+    ? fuzzed.reduce<{ i: number; s: number }>((b, h, i) => { const sc = h.match === "fuzzy" ? fuzzyScore(named, nameOf(h)) : 0; return sc > b.s ? { i, s: sc } : b; }, { i: -1, s: 0.6 - Number.EPSILON }).i
+    : -1;
+  const marked = ownNear > 0 ? [fuzzed[ownNear], ...fuzzed.filter((_, i) => i !== ownNear)] : fuzzed;
   // A correction ("did you mean") only for a genuine near miss to a name: the top hit's own name is close to what was
   // typed but not it ("hipnotic robotics"). Words found only in a school, city or venue ("River Dell") are results,
   // labelled as fuzzy matches, never a "correction" to some unrelated name.
   const top = marked[0];
-  const named = searchIntent(rest)?.rest ?? rest;
   const nearName = top.match === "fuzzy" && fuzzyScore(named, nameOf(top)) >= 0.6;
   // Two names as close as each other ("molt bots": Volt Bots and Bolt Bots): both are listed, neither is guessed.
   // Every other near name, not just the next: learned clicks may have put a less close one between them.

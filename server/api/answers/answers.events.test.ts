@@ -170,9 +170,9 @@ describe("winning alliances", () => {
     // Said so, with the latest finished one below, labelled.
     expect((await searchAnswer("who won nj states this year", { limit: 25 })).stat?.none).toMatch(/has no 2026–27 event on record yet\. Below: the latest one finished, 2025–26\.$/);
   });
-  it('"last season" outside a championship question is the season before the latest completed one', () => {
-    expect(readTwoTeam("4215 vs 6980 head to head last season")).toMatchObject({ id: "head-to-head", scope: { season: 2024, lastYear: true } });
-    expect(readStatQuestion("4215 average score last season")).toMatchObject({ scope: { season: 2024 } });
+  it('"last season" outside a championship question is the latest completed season', () => {
+    expect(readTwoTeam("4215 vs 6980 head to head last season")).toMatchObject({ id: "head-to-head", scope: { season: 2025, lastYear: true } });
+    expect(readStatQuestion("4215 average score last season")).toMatchObject({ scope: { season: 2025 } });
   });
   it("a Worlds division's other seasons are that division's", async () => {
     const a = await searchAnswer("decode edison division winners", { limit: 25 });

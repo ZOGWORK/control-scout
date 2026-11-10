@@ -83,7 +83,8 @@ beforeAll(async () => {
 describe("reading compound questions", () => {
   it("reads each of the file's wordings into its clauses", () => {
     expect(readCompound("top 5 NJ team by auto opr who also won inspire")).toMatchObject({ kind: "list", n: 5, stat: "auto", region: { state: "NJ" }, award: { type: "Inspire" } });
-    expect(readCompound("what was 4215's opr at their first event this season compared to last season")).toMatchObject({ kind: "event-pair", core: "4215", which: "first", seasons: [S, S - 1] });
+    // Read as said; the answer takes "this season" as the team's latest with matches, "last season" as the one before it.
+    expect(readCompound("what was 4215's opr at their first event this season compared to last season")).toMatchObject({ kind: "event-pair", core: "4215", which: "first", said: ["this", "last"] });
     expect(readCompound("team from Oradell with opr over 100")).toMatchObject({ kind: "list", city: "oradell", thresholds: [{ stat: "opr", op: "gt", value: 100 }] });
     expect(readCompound("4215 match where they lost by less than 10 points")).toMatchObject({ kind: "margin", core: "4215", result: "L", margin: { op: "lt", value: 10 } });
     expect(readCompound("4215 awards and record in 2025-26 combined")).toMatchObject({ kind: "combined", core: "4215", parts: ["awards", "record"], when: { season: 2025 } });
@@ -164,6 +165,9 @@ describe("compound answers", () => {
     const a = await ask("4215 partners at NJ championship who had opr over 80");
     expect(a.stat?.headline).toMatchObject({ value: "1 of 2" });
     expect(cells(a, /^Partners with OPR there over 80/)).toEqual([expect.objectContaining({ team: "207 Critical Mass", opr: "114.0" })]);
+    // "This season" is the team's latest with matches (S here), so the event is still found in it.
+    const now = await ask("4215 partners at NJ championship this season who had opr over 80");
+    expect([now.stat?.intent, now.stat?.headline?.value]).toEqual(["partners-opr-threshold", "1 of 2"]);
   });
   it("10: the same asked by the verb (launch audit A4): who partnered, teamed up with, played against", async () => {
     for (const q of ["who partnered 4215 at NJ championship with opr over 80", "who teamed up with 4215 at nj championship with an opr above 80", "which teams partnered with 4215 at NJ championship that had opr over 80"]) {
@@ -396,7 +400,8 @@ describe("a team list's filters, however they're said", () => {
   it("lists rookies only", async () => {
     await run("UPDATE teams SET rookie_year = ? WHERE number = 33950", [S]);
     try {
-      const a = await ask("show me a team that started as a rookie this year and already made worlds");
+      // A season named: "this year" asks about no team, so it is the current season (the one season rule).
+      const a = await ask(`show me a team that started as a rookie in ${S}-${String(S + 1).slice(2)} and already made worlds`);
       expect(rows(a)).toEqual(["33950 First Street Kids"]);
       expect(a.stat?.headline?.value).toBe("1 rookie team");
     } finally { await run("UPDATE teams SET rookie_year = NULL WHERE number = 33950"); clearAllCaches(); }
