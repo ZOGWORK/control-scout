@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.9.5 — 2026-11-10
+
+On a phone, every tracked team on My team can be removed again.
+
+### Highlights
+- [fixes] My team on a phone: the remove button shows on every tracked team
+- [fixes] A long event name is cut short instead of pushing the row off the screen
+- [fixes] Tracked events and the win-rate tiles keep to a phone screen too
+
+### Fixed
+- My team › Tracked teams on a phone: a team whose last event has a long name (a league tournament, say) made its row wider than the screen, so the row ran off the right edge and its Stop tracking button couldn't be reached. Rows now keep to the screen's width and the event name is shortened with "…"; the tracked events and win-rate tiles on the same page got the same fix. (#1279)
+
 ## 4.9.4 — 2026-11-10
 
 Compare opens on its teams: a search answer's Compare link lands on both teams with their numbers, from the first paint.
