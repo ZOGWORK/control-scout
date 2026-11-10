@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EventListItem } from "../shared/api";
-import { applyFilters, FIRST_EVENTS, groupWeeks, takeBatch, weekOf } from "./eventsList";
+import { applyFilters, FIRST_EVENTS, groupWeeks, statusPick, takeBatch, videoPick, weekOf } from "./eventsList";
 
 const ev = (code: string, start: string | null, more: Partial<EventListItem> = {}) =>
   ({ code, name: `Event ${code}`, start, end: start, season: 2025, type: "Qualifier", status: "finished", city: "Austin", state: "TX", country: "USA", ...more }) as EventListItem;
@@ -76,5 +76,21 @@ describe("Events list weeks and batches", () => {
     const { shown, hidden } = takeBatch(groupWeeks(season, thisWeek), FIRST_EVENTS);
     expect(shown.reduce((a, [, evs]) => a + evs.length, 0)).toBe(FIRST_EVENTS);
     expect(hidden).toBe(1344 - FIRST_EVENTS);
+  });
+});
+
+describe("Video and status picks never dead-end", () => {
+  const events = [ev("A", "2025-11-08", { video: "clips" }), ev("B", "2025-11-09", { status: "upcoming" }), ev("C", "2025-11-07", { status: "live" })];
+  const f = { ...all, status: "upcoming" as const, video: "all" as const };
+  it("a video pick with no event under the status picked sends the status back to All", () => {
+    expect(videoPick(events, f, "clips")).toEqual({ video: "clips", status: null });
+    expect(videoPick(events, { ...f, status: "finished" }, "clips")).toEqual({ video: "clips" });
+    expect(videoPick(events, f, "all")).toEqual({ video: "all" });
+  });
+  it("a status pick with nothing under the video picked drops the video filter", () => {
+    const clips = { ...all, status: "all" as const, video: "clips" as const };
+    expect(statusPick(events, clips, "live")).toEqual({ status: "live", video: null });
+    expect(statusPick(events, clips, "finished")).toEqual({ status: "finished" });
+    expect(statusPick(events, clips, "all")).toEqual({ status: "all" });
   });
 });

@@ -36,7 +36,8 @@ const SUMMARY_SQL = `SELECT e.season, e.code, e.name, e.type, e.division_code, e
   FROM events e`;
 
 /** Listed event types that have no matches (kept out of event lists and counts unless asked for). */
-export const NO_MATCH_TYPES = ["Kickoff", "Workshop", "DemoExhibition", "VolunteerSignup", "PracticeDay", "InnovationChallenge"] as const;
+export { NO_MATCH_TYPES } from "../../src/shared/labels.js";
+import { NO_MATCH_TYPES } from "../../src/shared/labels.js";
 
 export interface EventListFilter { season: number; from?: string; to?: string; q?: string; type?: string; region?: string; limit?: number; hideNoMatch?: boolean }
 
