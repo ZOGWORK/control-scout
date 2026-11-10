@@ -5,6 +5,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../../db";
 import { rebuildSearch } from "../../stats/job";
 import { searchAnswer } from "../searchAnswer";
+import { saysOtherThanOpr } from "./families/eventVersus";
 
 const S = 2025;
 const ask = (q: string) => searchAnswer(q, { learn: false, limit: 25, full: true, now: Date.parse("2026-05-01T12:00:00Z") });
@@ -76,6 +77,16 @@ describe("a championship's divisions by field strength", () => {
     const e = await ask("easiest division at nj states");
     expect(e.stat?.headline?.label).toBe("average OPR: Birch Division was the easiest");
   });
+  it("by average OPR only: another stat said is no question it answers", async () => {
+    for (const q of ["which division was hardest at nj states, by average auto opr", "hardest division at nj states by average end-game opr", "hardest division at nj states by average tele op opr", "which division was hardest at nj states by average score", "hardest division at nj states by average dc opr"])
+      expect((await ask(q)).stat?.intent, q).not.toBe("division-field");
+    // A place's name is the place, never a stat its letters spell ("DC" is no driver controlled).
+    expect(saysOtherThanOpr("states average opr in dc", "dc")).toBe(false);
+    expect(saysOtherThanOpr("dc average dc opr", "dc")).toBe(true);
+    // OPR said in full is OPR.
+    expect((await ask("hardest division at nj states by average offensive power rating")).stat?.intent).toBe("division-field");
+    expect((await ask("nj states average auto opr")).stat?.intent).not.toBe("event-field");
+  });
   it("the season said, never the latest instead", async () => {
     // Only 2025–26 has divisions here: last season has none to rank.
     expect((await ask("hardest division at nj states last season")).stat?.intent).not.toBe("division-field");
@@ -103,5 +114,33 @@ describe("a place's teams by win streak", () => {
   it("needs a place: the world's every match is left alone", async () => {
     expect((await ask("longest win streak")).stat?.intent).not.toBe("streak-board");
     expect((await ask("longest win streak in texas")).stat?.none).toMatch(/^No matches played by teams from Texas in 2024–25 and 2025–26/);
+  });
+});
+
+describe("a streak's matches in the event's own order", () => {
+  it("by match, never by time: a match without one is still where it was played", async () => {
+    await run("INSERT INTO events (season, code, name, type, division_code, city, state, country, start, end, source) VALUES (?, 'USTXQ1', 'Mesa Qualifier', 'Qualifier', NULL, 'Town', 'TX', 'USA', '2026-02-01', '2026-02-01', 't')", [S]);
+    // Q1 red wins, Q2 (no time on record) blue wins, Q3 red wins: no team has two in a row.
+    for (const [n, time, red, blue] of [[1, "2026-02-01T10:00:00Z", 50, 40], [2, null, 40, 50], [3, "2026-02-01T12:00:00Z", 50, 40]] as const) {
+      await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (?, 'USTXQ1', 'qual', 0, ?, ?, ?, 1, ?, ?, ?, ?, 't')", [S, n, `Q${n}`, time, red, red, blue, blue]);
+      for (const [t, a] of [[6201, "red"], [6202, "blue"]] as const)
+        await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (?, 'USTXQ1', 'qual', 0, ?, ?, ?, 1)", [S, n, t, a]);
+    }
+    expect((await ask("longest win streak in texas")).stat?.headline?.value).toBe("1 win");
+  });
+  it("a double elimination bracket numbered from 0: its first match first", async () => {
+    // A week later: playoff series 0, 1, 2 in that order; 6201 wins the first, loses the next two.
+    await run("INSERT INTO events (season, code, name, type, division_code, city, state, country, start, end, source) VALUES (?, 'USTXQ2', 'Mesa Playoff Day', 'Qualifier', NULL, 'Town', 'TX', 'USA', '2026-02-08', '2026-02-08', 't')", [S]);
+    for (const [series, red, blue] of [[0, 50, 40], [1, 40, 50], [2, 40, 50]] as const) {
+      await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (?, 'USTXQ2', 'playoff', ?, 1, ?, NULL, 1, ?, ?, ?, ?, 't')", [S, series, `M${series + 1}`, red, red, blue, blue]);
+      for (const [t, a] of [[6201, "red"], [6202, "blue"]] as const)
+        await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (?, 'USTXQ2', 'playoff', ?, 1, ?, ?, 1)", [S, series, t, a]);
+    }
+    // In order 6201 is W L W, W L L and 6202 L W L, L W W: both longest runs are 2, and 6202's two is going now.
+    // Series 0 counted last would leave 6201 a run of 1 going now and 6202 none.
+    const a = await ask("longest win streak in texas");
+    expect(a.stat?.headline?.label).toMatch(/^6201 .* and 1 more/);
+    const going = (a.stat?.blocks ?? []).find((b) => b.kind === "table" && b.title.startsWith("Going now"));
+    expect(going?.kind === "table" && going.rows.map((r) => [String(r.cells.team).slice(0, 4), r.cells.streak])).toEqual([["6202", "2 wins"]]);
   });
 });
