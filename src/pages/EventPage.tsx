@@ -4,7 +4,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigationType, useParams, useSearchParams } from "react-router-dom";
 import { pickHelperQuery } from "../shared/scoutSections";
-import { Award, CalendarDays, ChevronDown, Clock, ExternalLink, Gavel, Info, Loader2, Luggage, MapPin, Radar, Radio, RefreshCw, Search, Sparkles, Swords, Trophy, Tv, Users } from "lucide-react";
+import { Award, CalendarDays, ChevronDown, Clock, ExternalLink, Gavel, Info, ListOrdered, Loader2, Luggage, MapPin, Radar, Radio, RefreshCw, Search, Sparkles, Swords, Trophy, Tv, Users } from "lucide-react";
+import { leagueHref } from "../shared/leagues";
 import { BRACKETS, type Slot } from "@control-scout/predict-engine";
 import { advOddsBasis, rankingCoverage, unofficialNote } from "../lib/eventRankingNotes";
 import { useProjections } from "../lib/projections";
@@ -155,6 +156,8 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
         {predictable && <Button variant="outline" size="sm" asChild><Link to={labHref}>Open in what-if lab</Link></Button>}
         {/* A fullscreen screen for the pit TV: no sign-in, no chrome (pages/EventDisplayPage.tsx). Every season: history seasons show results and rankings without odds. */}
         <Button variant="outline" size="sm" asChild><Link to={`/events/${e.season}/${encodeURIComponent(e.code)}/display`} data-pit-display-link><Tv /> Pit display</Link></Button>
+        {/* A league's meet or tournament: the league's whole standing is its own page. */}
+        {e.league && e.region && <Button variant="outline" size="sm" asChild><Link to={`${leagueHref(e.season, e.region, e.league)}${teamParam ? `?team=${teamParam}` : ""}`} data-league-link><ListOrdered /> League standings</Link></Button>}
         {/* The question-box quick reference for this season, where one exists (pages/RulesPage.tsx; built in, so it opens offline). */}
         {rulesOn && hasRuleReference(e.season) && <Button variant="outline" size="sm" asChild><Link to={`/rules?season=${e.season}`} data-rules-link><Gavel /> Rules</Link></Button>}
       </HeaderActions>
