@@ -123,6 +123,9 @@ describe("bracketOdds", () => {
     const fin = bracketOdds({ season: 2025, alliances: alliances(2), matches: [{ ...played(0, 1, 2, 1), call: call(0.6, "live") }, played(0, 1, 2, 2)], price, strength, runs: 200, seed: 1 });
     expect(fin.series[0].before).toMatchObject({ alliance: 1, right: true });
     expect(fin.series[0].before!.p).toBeCloseTo(seriesWinProb(0.6, 3), 9);
+    // Only the second game has a stored call: it may know the first game's result, so the series shows none.
+    const late = bracketOdds({ season: 2025, alliances: alliances(2), matches: [played(0, 1, 2, 1), { ...played(0, 1, 2, 2), call: call(0.6, "live") }], price, strength, runs: 200, seed: 1 });
+    expect(late.series[0].before).toBeNull();
   });
 
   it("plays the replay when the lower alliance wins the grand final", () => {

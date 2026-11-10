@@ -194,7 +194,9 @@ function seriesWins(ms: BracketMatch[], allianceOf: (teams: number[]) => number 
 /** A decided series' call before it began: its first match's stored call, priced as the whole series from 0–0. */
 function beforeCall(ms: BracketMatch[], bestOf: number, winner: number | null, allianceOf: (teams: number[]) => number | null): BracketSeriesView["before"] {
   if (winner == null) return null;
-  const first = [...ms].sort((x, y) => x.number - y.number).find((m) => m.call);
+  // The series' first game only: a later game's call may already know an earlier result, so it is never shown as the
+  // call before the series began.
+  const first = [...ms].sort((x, y) => x.number - y.number)[0];
   const a = first ? allianceOf(first.red) : null, b = first ? allianceOf(first.blue) : null;
   if (!first?.call || a == null || b == null || a === b) return null;
   const pa = seriesWinProb(first.call.pRed, bestOf, 0, 0);
