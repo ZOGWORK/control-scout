@@ -30,6 +30,7 @@ import { awardsAnswer, awardsTitle } from "./families/awards.js";
 import { championshipMatchesAnswer, eventScopeAnswer } from "./families/eventScope.js";
 import { eventAnswer } from "./families/events.js";
 import { factAnswer, readTeamFact, seasonOf as factSeason, type FactQuestion } from "./families/facts.js";
+import { leagueAskAnswer, readLeagueAsk } from "./families/league.js";
 import { OPR_RATING_TITLES, oprRatingAnswer, readOprRating, type OprRatingQuestion } from "./families/oprRating.js";
 import { counts, matchAnswer, whoOf } from "./families/matches.js";
 import { changeAnswer, readChange, type ChangeQuestion } from "./families/seasonChange.js";
@@ -377,6 +378,20 @@ async function findEvent(words: string, season: number | null, opts: { anyPlayed
 
 /** "Top teams", "best 5 teams", "strongest teams": the words that ask for the best teams, with a time said or not. */
 const TOP_TEAMS_SAID = /\b(?:top|best|strongest)\s+(?:\d{1,2}\s+)?teams?\b/i;
+
+/** A league's standings with no team ("NE league standings", "who is first in the northeast league"), found from the
+ *  data (./families/league.ts), or null: a league no data names is left to the other readers. Asked before the search
+ *  pipeline, which would read "leaderboard" as its own board. */
+export async function leagueSearch(q: string, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+  const la = readLeagueAsk(q);
+  if (!la) return null;
+  const season = la.last ? askSeason() - 1 : la.season ?? askSeason();
+  const stat = await leagueAskAnswer(la, season, la.season != null || la.last);
+  // No league by those words: the pipeline reads it. A season with nothing yet ("… in 2027") says so.
+  if (stat.none && season <= askSeason()) return null;
+  return { q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season },
+    intent: { kind: "stat-league-standings", pattern: `[league] standings${la.season != null ? " [season]" : ""}`, met: true, understood: [stat.title] }, ...(opts.full ? { stat } : {}) };
+}
 
 /** The answer for `q`, or null when it isn't a stat question or its team isn't found. */
 export async function statAnswer(q: string, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {

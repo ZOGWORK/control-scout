@@ -131,7 +131,9 @@ function answerTeam(a: SearchAnswer): number | undefined {
 export function candidates(p: Parsed, a: SearchAnswer, team = answerTeam(a)): Candidate[] {
   const n = normalise(p.q);
   const worlds = p.worlds ? WORLDS.find((w) => ` ${n} `.includes(` ${w} `)) : undefined;
-  const said = (meant(p.event?.typed) ? p.event?.typed : undefined) ?? worlds;
+  // A league's standings answer named a league, not an event ("nj league standings" is no event called "Nj League").
+  const league = a.intent?.kind === "stat-league-standings";
+  const said = league ? undefined : (meant(p.event?.typed) ? p.event?.typed : undefined) ?? worlds;
   // As typed, or in title case when typed all in lower case ("north league meet" → "North League Meet").
   const event = said && said === said.toLowerCase() ? said.replace(/(?<![\p{L}\p{N}'])\p{L}/gu, (c) => c.toUpperCase()) : said;
   const teams = p.teams.map((t) => t.number);
