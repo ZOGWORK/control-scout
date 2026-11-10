@@ -28,6 +28,8 @@ export interface ParsedQuestion {
   year: number | null;
   /** "when was the first time …", "… last worlds appearance": the trip the card's headline names. */
   which?: "first" | "last";
+  /** "4215 upcoming events", "next matches": the list asked for in the plural, titled as one ("Upcoming events"). */
+  many?: true;
 }
 
 // The longer names first: "state championship" is one phrase, never "state" and a leftover word.
@@ -39,7 +41,8 @@ const FRAME = /\b(?:how|many|times|often|when|whens|did|does|do|has|have|had|wha
 const squash = (s: string) => s.replace(/\s+/g, " ").trim();
 /** A season named some way other than "in <year>": a question with one is left to search, never answered for all seasons. */
 const OTHER_SEASON = /\b(?:seasons?|20\d\d\s*[-–/]\s*\d\d|(?:last|this|previous|past|next)\s+year)\b/i;
-const coreOf = (s: string) => squash(s.replace(/['’]s\b/gi, " ").replace(FRAME, " "));
+// A possessive with or without its apostrophe ("hypnotic's", "4215s"): the team.
+const coreOf = (s: string) => squash(s.replace(/['’]s\b/gi, " ").replace(/\b(\d{1,6})s\b/gi, "$1").replace(FRAME, " "));
 /** A year only as a date ("in 2025", "during 2024"), never a season's start ("in 2023-24"): a bare 2000–2099 may be a
  *  team ("when did 2025 go to worlds"). */
 const YEAR = /\b(?:in|during)\s+(20\d\d)\b(?!\s*[-–/]\s*\d)/i;
@@ -58,10 +61,12 @@ export function parseQuestion(q: string): ParsedQuestion | null {
   const playAgain = /^(?:when\s+(?:is|will be)\s+)?(?:the\s+)?next\s+time\s+(.+?)\s+(?:play(?:s|ing)?|competes?|competing)\s*$/i.exec(q)
     ?? /^when\s+(?:does|do|will|is)\s+(.+?)\s+(?:play(?:ing)?|plays?|compet(?:e|es|ing))\s+again\s*$/i.exec(q);
   if (playAgain) { const core = coreOf(playAgain[1]); return core ? { kind: "next-match", core, year: null } : null; }
-  const next = /\bnext\s+(match|game|event|competition|tournament|meet)\b/i.exec(q);
+  // "Next" or "upcoming", the noun in either number: "4215 upcoming events" is the list, "next event" the first of it.
+  const next = /\b(?:next|upcoming|coming)\s+(match(?:es)?|games?|events?|competitions?|tournaments?|meets?)\b/i.exec(q);
   if (next) {
     const core = coreOf(q.replace(next[0], " "));
-    return core ? { kind: /match|game/i.test(next[1]) ? "next-match" : "next-event", core, year: null } : null;
+    const many = /s$/i.test(next[1]);
+    return core ? { kind: /match|game/i.test(next[1]) ? "next-match" : "next-event", core, year: null, ...(many ? { many: true as const } : {}) } : null;
   }
   // "When was the first time …": which trip, and the question without those words (never part of the team's name).
   const w = WHICH.exec(q);
@@ -212,20 +217,22 @@ export async function questionCard(it: ParsedQuestion, team: { number: number; n
        FROM match_teams x JOIN matches m ON m.season = x.season AND m.code = x.code AND m.level = x.level AND m.series = x.series AND m.number = x.number
        JOIN events e ON e.season = m.season AND e.code = m.code
        WHERE x.team = ? AND m.played = 0 AND COALESCE(e.end, e.start) >= ? ORDER BY m.time IS NULL, m.time, m.level = 'qual' DESC, m.series, m.number LIMIT 20`, [n, yesterday()])).filter(notEnded);
+    // The plural ("4215 upcoming matches") lists them, the next first; the singular is the next one.
+    if (it.many) card.title = "Upcoming matches";
     if (m[0]) {
-      const r = m[0];
-      card.lines = [{ text: `${r.label} at ${r.name}`, detail: [matchTime(r.time), `${r.alliance[0].toUpperCase()}${r.alliance.slice(1)} alliance`].filter(Boolean).join(" · "), href: `/events/${r.season}/${encodeURIComponent(r.code)}?match=${r.level}:${r.series}:${r.number}` }];
+      card.lines = m.slice(0, it.many ? 10 : 1).map((r) => ({ text: `${r.label} at ${r.name}`, detail: [matchTime(r.time), `${r.alliance[0].toUpperCase()}${r.alliance.slice(1)} alliance`].filter(Boolean).join(" · "), href: `/events/${r.season}/${encodeURIComponent(r.code)}?match=${r.level}:${r.series}:${r.number}` }));
       return card;
     }
-    card.none = `No upcoming match is scheduled for ${who} yet: match lists are published at the event.`;
+    card.none = `No upcoming ${it.many ? "matches are" : "match is"} scheduled for ${who} yet: match lists are published at the event.`;
     card.closest = await nextEvents(n);
     return card;
   }
 
   // Every upcoming event, the next first ("upcoming event" and "upcoming events" are one question).
+  // Asked in the plural ("4215 upcoming events"), the list is titled as one even when it holds one event or none.
   card.lines = await nextEvents(n, 10);
-  if (card.lines.length > 1) card.title = "Upcoming events";
-  if (!card.lines.length) card.none = `No upcoming event is published for ${who} yet.`;
+  if (card.lines.length > 1 || it.many) card.title = "Upcoming events";
+  if (!card.lines.length) card.none = it.many ? `No upcoming events are published for ${who} yet.` : `No upcoming event is published for ${who} yet.`;
   return card;
 }
 
