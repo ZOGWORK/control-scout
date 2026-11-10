@@ -244,7 +244,7 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   const next = (a: string, b: string) => (Number(b) === (Number(a.slice(-2)) + 1) % 100);
   // A possessive after a name ending in punctuation ("die toaster, die!'s worst score"): the name as typed, never a
   // stray "s" every reader would take for a word (or a team named "s").
-  const owned = said.replace(/(?<=[\p{L}\p{N}][!?.]+)['’]s(?=[\s,;:?!]|$)/gu, "");
+  const owned = said.replace(/(?<=[\p{L}\p{N}][^\p{L}\p{N}\s'’]+)['’]s(?=[\s,;:?!]|$)/gu, "");
   const dated = owned.replace(/\b(20\d\d)\s*[-–/]\s*(20\d\d)\b/g, (w, a: string, b: string) => (Number(b) === Number(a) + 1 ? `${a}-${b.slice(2)}` : w))
     .replace(/\b(20\d\d)\s*,\s*(\d\d)\b/g, (w, a: string, b: string) => (next(a, b) ? `${a}-${b}` : w))
     .replace(/\b(season\s+)(\d\d)\s*,\s*(\d\d)\b|\b(\d\d)\s*,\s*(\d\d)(\s+season)\b/gi, (w, pre?: string, a1?: string, b1?: string, a2?: string, b2?: string, post?: string) => {

@@ -89,5 +89,14 @@ describe("a possessive after a name ending in punctuation", () => {
     expect(plain.understood?.label).toContain("(11002)");
     expect(owned.understood?.label).toBe(plain.understood?.label);
     expect(owned.understood?.label).not.toContain("37179");
+    // Any punctuation ending the name: "Green.Griffins;'s record".
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (10092, 'Green.Griffins;', 'Town', 'OH', 'USA')");
+    await run("INSERT INTO team_seasons (season, team) VALUES (?, 10092)", [S]);
+    await run("INSERT INTO team_season_stats (season, team, rating_np, rating_sd, rating_rank, rating_matches, matches, wins, losses, ties) VALUES (?, 10092, 40, 3, 10, 6, 6, 2, 4, 0)", [S]);
+    await rebuildSearch();
+    clearAllCaches();
+    const semi = await ask("Green.Griffins;'s record 2025-26");
+    expect(semi.understood?.label).toContain("(10092)");
+    expect(semi.understood?.label).not.toContain("37179");
   });
 });
