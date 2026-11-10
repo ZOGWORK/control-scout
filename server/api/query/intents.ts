@@ -212,6 +212,10 @@ export const INTENTS: IntentRule[] = [
   R("awards-vs", 2, ["metric:award", "compare"], ["agg:max", "agg:count", "metric:win", "and"]),
   R("compare", 2, ["compare"], ["vs", "and"]),
   R("compare", 2, ["vs"], []),
+  // Two teams and an event, their state championship or Worlds, nothing else asked ("12345 67890 nj champs 2025-26"):
+  // their numbers there, side by side.
+  R("compare", 2, [], ["and"], { event: true }),
+  R("compare", 2, ["worlds"], ["and"]),
   // No team: the best matches anywhere, and ranked lists of teams.
   R("top-matches", 0, ["agg:max", "metric:score"], ["thing:match", "per:match", "nopen"]),
   R("top-matches", 0, ["agg:max", "thing:match"], ["metric:score", "nopen"]),
