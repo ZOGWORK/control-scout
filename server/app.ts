@@ -17,7 +17,7 @@ import { myTeamOf } from "../src/shared/searchMine.js";
 import { withTeamStats } from "./api/searchTeamStats.js";
 import { withEventParents } from "./api/searchEvents.js";
 import { teamHighlights } from "./api/answers/highlights.js";
-import { followUps, pageAnswer } from "./api/answers/followUps.js";
+import { keptFollowUps, pageAnswer } from "./api/answers/followUps.js";
 import { relatedPage } from "./api/answers/relatedPage.js";
 import { withSeason } from "./api/answers/season.js";
 import { refine } from "./api/searchBruno.js";
@@ -445,7 +445,8 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
     const prefer = preferOf(req.query.prefer);
     // The answer's picked season (?season=), as /search asks it: the follow-ups are about the answer shown.
     const asked = await pickedQuery(q, req.query.season);
-    const follow = await followUps(asked, await pageAnswer(asked, SEARCH_PAGE_LIMIT, prefer), prefer);
+    // Kept (keptFollowUps): the /search page's first paint drew the same ones (server/seoMeta.ts searchMeta).
+    const follow = await keptFollowUps(asked, prefer);
     res.setHeader("Cache-Control", "public, max-age=60");
     // Every valid pick is echoed (the app matches it), with the query as asked for the related searches page.
     const season = q.trim() ? pickedSeasonOf(req.query.season) : null;
