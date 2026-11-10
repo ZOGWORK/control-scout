@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.0.6 — 2026-11-10
+## 5.0.7 — 2026-11-10
 
 A finished bracket shows the call each series had before it began, and whether it held.
 
@@ -26,6 +26,18 @@ A finished bracket shows the call each series had before it began, and whether i
 
 ### Changed
 - Event › Playoffs: a decided series showed no call at all, so a finished event's bracket had every call empty. Each decided series now shows the call stored before its first match (logged live before the match, or the season replay's, said which), priced as the whole series, and whether the favourite won: held, missed, or an even call. Undecided series keep the odds from 10,000 simulated playoffs. (#1302)
+
+## 5.0.6 — 2026-11-10
+
+Score ranges say how often they have really held, with the sample, wherever one is shown.
+
+### Highlights
+- [predict] Score ranges say how often they have really held, with the sample
+- [predict] No range reads as exactly 8 in 10 any more
+- [report] Search prediction cards carry the same line under their ranges
+
+### Changed
+- Every predicted score range now comes with how often such ranges have held: "80% ranges have held 91.1% of 5,322 live alliance scores in 2026–27 BIOBUZZ (93.4% of 6,450 in its season replay), so they run wider than 80%", from the track record (GET /api/predict/ranges), never typed in. On Predict's matchup, the match page, a match row's call detail, each range's hover text, and search's prediction cards. The request waits until the page is drawn and the browser is idle. (#1288)
 
 ## 5.0.5 — 2026-11-10
 
