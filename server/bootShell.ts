@@ -13,7 +13,8 @@ import { pageTitle } from "../src/shared/routes.js";
 import { BOOT_CHOICE_GLOBAL, BOOT_CONSENT_ID, HOME_ABOUT, HOME_LEAD, PAGE_DATA_ID, PAGE_FRAME, homeHeadlineAt } from "../src/shared/boot.js";
 import { DEFAULT_HERO_LINES, HERO_LINES_ID, type HeroLinesResponse } from "../src/shared/heroLines.js";
 import { LITE_BOOT_S } from "../src/shared/lite.js";
-import { FOOTER_LINKS } from "../src/shared/footer.js";
+import { footerLinks } from "../src/shared/footer.js";
+import type { Flag } from "../src/shared/flags.js";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -172,7 +173,7 @@ const link = (path: string, it: Item): string => it.children
 /** The static first paint for a page path (see the top of this file). `path` is the request path; `hero`: the
  *  home page's lines in use (server/heroLines.ts liveHeroLines), the built-in ones by default; `lite`: the page's
  *  light twin (src/shared/lite.ts), offered when the app's code still hasn't run after LITE_BOOT_S seconds. */
-export function bootShell(path: string, meta: PageMeta, hero: HeroLinesResponse = { lines: [...DEFAULT_HERO_LINES], custom: false }, lite: string | null = null): string {
+export function bootShell(path: string, meta: PageMeta, hero: HeroLinesResponse = { lines: [...DEFAULT_HERO_LINES], custom: false }, lite: string | null = null, flagOn: (flag: Flag) => boolean = () => true): string {
   const p = path.length > 1 ? path.replace(/\/+$/, "") : "/";
   const home = p === "/";
   const nav = `<div class="csb-grp">${PRIMARY.map((it) => link(p, it)).join("")}</div>`
@@ -206,7 +207,7 @@ export function bootShell(path: string, meta: PageMeta, hero: HeroLinesResponse 
   // The page block is hidden when the service worker served this HTML (made for "/") for another page offline.
   // The site's own pages (src/shared/footer.ts), on every page as in the app (SiteFooter), so none is orphaned before
   // the app loads or without JavaScript.
-  const foot = `<footer class="csb-foot"><nav aria-label="Site">${FOOTER_LINKS.map((l) => `<a href="${l.to}">${esc(l.label)}</a>`).join("")}</nav></footer>`;
+  const foot = `<footer class="csb-foot"><nav aria-label="Site">${footerLinks(flagOn).map((l) => `<a href="${l.to}">${esc(l.label)}</a>`).join("")}</nav></footer>`;
   const guard = `<script>(function(){var b=document.getElementById('cs-boot-page'),p=location.pathname.replace(/\\/+$/,'')||'/';if(b&&b.getAttribute('data-path').toLowerCase()!==p.toLowerCase())b.hidden=true})()</script>`;
   return [
     `<div class="csb">`,

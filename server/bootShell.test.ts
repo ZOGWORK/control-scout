@@ -99,6 +99,12 @@ describe("static first paint", () => {
       for (const to of ["/methodology", "/faq", "/rules", "/settings", "/donate"]) expect(foot, path).toContain(`<a href="${to}">`);
     }
   });
+  it("leaves Rules out of the footer while the owner has the rules reference off", () => {
+    const meta = { title: "T", description: "D", type: "website" } as const;
+    const foot = bootShell("/faq", meta, undefined, null, (f) => f !== "rulesReference").match(/<footer class="csb-foot">.*?<\/footer>/)?.[0] ?? "";
+    expect(foot).not.toContain('href="/rules"');
+    expect(foot).toContain('href="/faq"');
+  });
   it("draws the sidebar's everyday pages, then More, open only on one of its own pages", () => {
     const meta = { title: "T", description: "D", type: "website" } as const;
     const labels = (html: string) => [...html.matchAll(/<span>([^<]+)<\/span>/g)].map((m) => m[1]);
