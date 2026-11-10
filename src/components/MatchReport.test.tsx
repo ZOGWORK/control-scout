@@ -80,7 +80,7 @@ describe("MatchReportView", () => {
     const base = match().prediction!;
     show(report(match({ prediction: { ...base, redRange: [106, 134], blueRange: [86, 112], rangeLevel: 0.8 } })));
     expect(within(screen.getByRole("region", { name: "Red alliance" })).getByText(/to win/).textContent)
-      .toBe("64% to win · 120 ±14 (80% range 106–134: about 8 in 10 real scores land inside) pts confidence: solid");
+      .toBe("64% to win · 120 ±14 (80% range 106–134) pts confidence: solid");
     expect(screen.getByText(/± is the 80% range: red 106–134, blue 86–112/)).toBeTruthy();
   });
 

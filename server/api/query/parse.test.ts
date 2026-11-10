@@ -514,3 +514,15 @@ describe("compare, winner and head to head words", () => {
     expect([p.intent, p.award, p.complete]).toEqual(["awards", "Winner", true]);
   });
 });
+
+// Launch audit (Nov 9 2026, Phase A4): two teams and an event, states or Worlds alone are their numbers there side by side.
+describe("two teams and a place to compare them", () => {
+  it("an event, a state championship or Worlds named with two teams is the compare there", async () => {
+    for (const q of ["4215 6980 nj championship", "4215 and 6980 at new jersey championship 2025-26", "4215 6980 nj states", "4215 6980 at worlds"]) {
+      const p = await parse(q);
+      expect([p.intent, p.complete], q).toEqual(["compare", true]);
+    }
+    // Two teams with nothing named are no question here.
+    expect((await parse("4215 6980")).complete).toBe(false);
+  });
+});
