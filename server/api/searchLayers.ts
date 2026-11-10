@@ -12,6 +12,7 @@
 // without its filler ("what is opr please" read "please" as the team Please Don't Explode), the filler-free answer wins.
 // The first layer with a direct answer wins and the answer appears once; its reading line says how it was read.
 import type { SearchAnswer } from "../../src/shared/api.js";
+import { SORRY_SENTENCE } from "../../src/shared/search.js";
 import { regionOf } from "../../src/shared/searchEventQuery.js";
 import { SEASONS } from "../data/seasons.js";
 import { all, get } from "../db.js";
@@ -439,7 +440,9 @@ export async function stripFiller(q: string): Promise<{ q: string; dropped: stri
 // ---------------------------------------------------------------------------------------------------------------
 // What an answer is, for the layers and for reporting.
 
-export const FALLBACK_NOTE = "isn't answered directly yet";
+/** How a team fallback's reading ends ("Hypnotic Robotics (4215) · Sorry — I can't answer that yet"): the page's sorry
+ *  sentence, so the reading and the page say one thing. The layers and reporting read an answer by it. */
+export const FALLBACK_NOTE = SORRY_SENTENCE;
 
 /** The one team a search is for, when the query was read as that team alone ("4215", "gearview", "4215 2024-25"):
  *  the results page then answers with its highlights (server/app.ts). Never a topic about the team (a section, facts,

@@ -10,7 +10,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerE
 import { Link, useSearchParams } from "react-router-dom";
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, XAxis, YAxis } from "recharts";
 import { ArrowUp, GripVertical, Info, Plus, Scale, Sparkles, Trophy, X } from "lucide-react";
-import { useApi, qs } from "../lib/api";
+import { useApi } from "../lib/api";
 import { useCurrentSeason, usePredictable, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
 import { myTeamsOf } from "../lib/myTeams";
@@ -34,6 +34,7 @@ import { SWING_LINE, swingText, swingTitle } from "../shared/reliability";
 import { useTeamColors } from "../components/TeamColorPicker";
 import { Reveal, Stagger, StaggerItem, m } from "../components/motion";
 import { predictHref } from "../shared/predictUrl";
+import { COMPARE_MAX as MAX, compareApiPath, compareSeasonOf, compareTeamsOf, compareTitle } from "../shared/compareUrl";
 
 const COLORS = ["var(--color-chart-1)", "var(--color-chart-2)", "var(--color-chart-3)", "var(--color-chart-4)"];
 
@@ -41,12 +42,8 @@ const COLORS = ["var(--color-chart-1)", "var(--color-chart-2)", "var(--color-cha
 export function teamPalette(teams: number[], colorOf: (team: number) => { css: string } | null): string[] {
   return teams.map((t, i) => colorOf(t)?.css ?? COLORS[i % COLORS.length]);
 }
-const MAX = 4;
-
-/** The teams in ?teams=, as plain numbers ("04215" is 4215), each once. */
-export function teamsOf(v: string | null): string[] {
-  return [...new Set((v ?? "").split(",").filter((x) => /^\d+$/.test(x) && Number(x) > 0).map((x) => String(Number(x))))];
-}
+/** The teams in ?teams= (src/shared/compareUrl.ts: the server reads the address the same way for the first paint). */
+export const teamsOf = compareTeamsOf;
 
 /** The head-to-head matches for the baseline (the first team): the ones it played with or against another
  *  compared team, each marked from its side. */
@@ -63,11 +60,10 @@ export function baselineMeetings(meetings: CompareView["meetings"], order: numbe
 }
 
 export default function ComparePage() {
-  useTitle("Compare");
   const [sp, setSp] = useSearchParams();
   const current = useCurrentSeason();
-  const asked = Number(sp.get("season")) || null;
-  const teams = teamsOf(sp.get("teams")).slice(0, MAX);
+  const asked = compareSeasonOf(sp.get("season"));
+  const teams = teamsOf(sp.get("teams"));
   const { colorOf } = useTeamColors();
   const palette = teamPalette(teams.map(Number), colorOf);
   const [error, setError] = useState<string | null>(null);
@@ -103,8 +99,8 @@ export default function ComparePage() {
   const addAll = (ns: number[]) => edit((now) => [...now, ...ns.map(String).filter((n) => !now.includes(n))]);
   // Without ?season the server picks the latest season these teams have results in. Asked for in one fixed
   // order, so dragging the columns into another order doesn't fetch again: the URL's order is applied here.
-  const asking = [...teams].sort((a, b) => Number(a) - Number(b)).join(",");
-  const state = useApi<CompareView>(teams.length ? `/api/compare${qs({ teams: asking, season: asked ?? undefined })}` : null);
+  // A page the server drew (server/firstPaint.ts) carries this very answer, so the first render is the comparison.
+  const state = useApi<CompareView>(teams.length ? compareApiPath(teams, asked) : null);
   const order = teams.join(",");
   const view = useMemo(() => {
     if (!state.data) return state.data;
@@ -121,6 +117,8 @@ export default function ComparePage() {
     return rest;
   });
   const season = asked ?? state.data?.season ?? current;
+  // Titled by its teams once they're here, as the server titles a drawn comparison (src/shared/compareUrl.ts).
+  useTitle(teams.length && view?.teams.length ? compareTitle(view.teams) : "Compare");
   const full = teams.length >= MAX;
   const suggestions = useSuggestions(teams.map(Number));
   return (

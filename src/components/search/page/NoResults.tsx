@@ -1,5 +1,5 @@
-// /search when nothing answers the query (the search results guide, §8 "No direct answer"): one sentence saying what's
-// missing, the closest real results as full cards (never as the answer), searches that do answer about them, and
+// /search when nothing answers the query (the search results guide, §8 "No direct answer"; the page's heading says
+// sorry, once): one sentence saying what's missing, the closest real results as full cards (never as the answer), searches that do answer about them, and
 // places to browse, so the page is never an empty shell. What the query was understood as is kept off the page (§7):
 // it travels as a data attribute only.
 import { Link } from "react-router-dom";
@@ -60,7 +60,7 @@ export function NoResults({ query, understood, closest, summaries, onOpen, sorry
       {sorry ? <SorryNote sorry={sorry} /> : (
         <p className={cn(NO_BOX, "text-sm text-foreground")} data-no-answer>
           <span className={NO_CHIP} aria-hidden><SearchX className="size-4" /></span>
-          <span className="mt-1.5"><span className="font-semibold">Search has no answer for “{query}”</span>{cards.length ? "; these are the closest real results." : ". Try a team number, a team or event name, or a place."}</span>
+          <span className="mt-1.5"><span className="font-semibold">Nothing in “{query}” matched a team, event or place I know.</span>{cards.length ? " These are the closest real results." : " Try a team number, a team or event name, or a place."}</span>
         </p>
       )}
       {!!cards.length && (
