@@ -40,6 +40,8 @@ export interface OprRatingQuestion {
   ever: boolean;
   /** "this season": the team's latest season with matches, even when none is named. */
   latest?: boolean;
+  /** A season named that has no events yet ("12345 percentile in 2027"): answered with the no-events card. */
+  future?: { season: number; typed: string };
   /** "auto OPR versus TeleOp OPR": the two phases, as asked. */
   phases?: [Phase, Phase];
   /** "in the top 10 percent": the share asked about. */
@@ -118,14 +120,14 @@ export function readOprRating(raw: string): OprRatingQuestion | null {
     if (phases && phases[0] === phases[1]) return null;
     const pct = r.id === "top-pct" ? Number(m[1]) : undefined;
     if (pct != null && (pct < 1 || pct > 99)) return null;
-    return { id, core, season: scope.season, region, ever: scope.ever, ...(phases ? { phases } : {}), ...(pct != null ? { pct } : {}) };
+    return { id, core, season: scope.season, region, ever: scope.ever, ...(phases ? { phases } : {}), ...(pct != null ? { pct } : {}), ...(scope.future ? { future: scope.future } : {}) };
   }
   // "12345 opr at worlds", "12345 rating at the first championship": the OPR or the rating, Worlds only.
   const { scope, rest } = readScope(q);
   if (scope.championship && !scope.at && !scope.level && !scope.alliance) {
     const which = /\bopr\b/.test(rest) && !/\b(?:auto|tele-?op|end\s?game|rank|vs|versus)\b/.test(rest) ? "opr-worlds" : /\brating\b/.test(rest) && !/\b(?:rank|vs|versus)\b/.test(rest) ? "rating-worlds" : null;
     const core = which ? squash(rest.replace(FILLER, " ")) : "";
-    if (which && core) return { id: which, core, season: scope.season, region: null, ever: scope.ever, ...(scope.latest ? { latest: true } : {}) };
+    if (which && core) return { id: which, core, season: scope.season, region: null, ever: scope.ever, ...(scope.latest ? { latest: true } : {}), ...(scope.future ? { future: scope.future } : {}) };
   }
   return null;
 }

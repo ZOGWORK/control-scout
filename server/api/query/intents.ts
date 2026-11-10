@@ -199,15 +199,17 @@ export const INTENTS: IntentRule[] = [
   // Either alliance: "on the same alliance" (partners only) isn't a filter the shared list takes, so it stays unexplained.
   R("shared-matches", 2, ["together"], ["vs", "and", "thing:match", "list"]),
   R("shared-matches", 2, ["and", "thing:match"], ["list"]),
-  R("head-to-head", 2, ["vs", "thing:match"], ["list", "metric:record"]),
+  // "Head to head score": their meetings, each with its score.
+  R("head-to-head", 2, ["vs", "thing:match"], ["list", "metric:record", "metric:score"]),
   R("h2h-wins", 2, ["vs", "metric:win"], ["agg:count", "thing:match"]),
   // "12345 and 67890 awards" is each team's own list (search's AND list); a versus or a comparison is the side by side.
   R("opr-vs", 2, ["metric:opr", "vs"], ["compare"]),
-  R("opr-vs", 2, ["metric:opr", "compare"], []),
+  // "OPR comparison 12345 and 67890": the side by side, the teams joined any way.
+  R("opr-vs", 2, ["metric:opr", "compare"], ["and"]),
   R("rating-vs", 2, ["metric:rating", "vs"], ["compare"]),
-  R("rating-vs", 2, ["metric:rating", "compare"], []),
+  R("rating-vs", 2, ["metric:rating", "compare"], ["and"]),
   R("awards-vs", 2, ["metric:award", "vs"], ["compare", "agg:max", "agg:count", "metric:win"]),
-  R("awards-vs", 2, ["metric:award", "compare"], ["agg:max", "agg:count", "metric:win"]),
+  R("awards-vs", 2, ["metric:award", "compare"], ["agg:max", "agg:count", "metric:win", "and"]),
   R("compare", 2, ["compare"], ["vs", "and"]),
   R("compare", 2, ["vs"], []),
   // No team: the best matches anywhere, and ranked lists of teams.
@@ -233,7 +235,11 @@ export const INTENTS: IntentRule[] = [
     R("miss-matches", n, ["metric:miss"], ["agg:max", "predict", "thing:match", "thing:team", "vs", "list", "per:match", "metric:score", "over"], { noMatchNo: true }),
   ]),
   R("comeback-matches", 0, ["metric:comeback"], ["agg:max", "thing:match", "metric:win", "and"]),
+  // A record asked with no team ("win loss record decode", "record for decode", "best record in nj"): the season's
+  // best records, with a "which team?" row (./execute.ts), never one team whose name a word happens to fit.
+  R("leaderboard", 0, ["metric:record"], ["metric:win", "metric:loss", "thing:season", "prep:for", "prep:in", "list", "and"], { noEvent: true }),
   ...["agg:max", "agg:min"].flatMap((agg) => [
+    R("leaderboard", 0, [agg, "metric:record"], BOARD_OPT, { noEvent: true }),
     R("leaderboard", 0, [agg, "thing:team"], BOARD_OPT),
     // A team stat asked about everyone, with no "team": "who has the highest auto OPR in NJ".
     ...BOARD_METRICS.map((m) => R("leaderboard", 0, [agg, m], BOARD_OPT)),

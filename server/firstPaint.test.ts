@@ -128,6 +128,21 @@ describe("team page first paint (HTML)", () => {
     expect(drawnWith).toEqual([]);
   });
 
+  it("a pre-filled Predict matchup too: drawn with each team's page answer (their names), in match mode only", async () => {
+    draw();
+    const html = await renderIndex(file, "/predict", { mode: "match", season: String(CURRENT_SEASON), red: "4215" });
+    expect(drawnWith).toEqual([`/predict?mode=match&season=${CURRENT_SEASON}&red=4215`]);
+    const d = data(html);
+    expect(Object.keys(d).sort()).toEqual(["/api/meta", "/api/teams/4215"]);
+    expect(d["/api/teams/4215"].team.name).toBe("Hypnotic Robotics");
+    // Another mode, no team, or a history season with no predictions: the plain Predict page.
+    drawnWith.length = 0;
+    for (const query of [{ mode: "advancement", team: "4215" }, { mode: "match" }, { mode: "match", season: "2021", red: "4215" }]) {
+      expect(await renderIndex(file, "/predict", query), JSON.stringify(query)).not.toContain(PAGE_DATA_ID);
+    }
+    expect(drawnWith).toEqual([]);
+  });
+
   it("keeps the plain first paint (stylesheet not blocking) with no render, a failed one, or no such team", async () => {
     const plain = async (path = "/teams/4215") => {
       const html = await renderIndex(file, path);

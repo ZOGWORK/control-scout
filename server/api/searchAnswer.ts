@@ -501,9 +501,20 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   // 0b. A question with a direct answer, when its team is found (else search goes on with the whole query).
   const question = opts.intents === false ? null : parseQuestion(q);
   if (question) {
+    // Read with its plurals as typed: "4215 upcoming events" is the list, though `q` says "event".
+    if (opts.typed && parseQuestion(opts.typed)?.many) question.many = true;
     const base = await searchAnswer(question.core, { ...opts, intents: false, learn: false });
     const team = base.step !== "recovery" && base.hits[0]?.kind === "team" && !base.hits[0].href ? base.hits[0] : null;
-    if (team) return questionAnswer(q, question, team, base.hits.slice(1), pagesFor(q));
+    if (team) {
+      const ans = await questionAnswer(q, question, team, base.hits.slice(1), pagesFor(q));
+      // The team found by a near spelling of its name ("hypnotik robotics upcoming events"): said as a correction.
+      const said = opts.typed ?? q, name = teamNameOf(team.title);
+      const at = said.toLowerCase().indexOf(question.core.toLowerCase());
+      // A plural ending alone ("hypnotics robotics") is no misspelling: the name is found as typed.
+      const bare = (x: string) => normalize(x).split(" ").map((w) => w.replace(/s$/, "")).join(" ");
+      if (team.match !== "fuzzy" || at < 0 || !name || bare(name) === bare(question.core)) return ans;
+      return { ...ans, step: "did-you-mean", didYouMean: `${said.slice(0, at)}${name}${said.slice(at + question.core.length)}` };
+    }
   }
 
   // 0c. A conversational opening ("how good is simply complex", "where is 12345"): the question's frame, never part of

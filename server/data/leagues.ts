@@ -4,7 +4,7 @@
 // meets was in the last few days (scores still move) and at most every few hours; one whose meets are all long past is
 // read once and kept.
 import type { InStatement } from "@libsql/client";
-import { all, kvGet, kvSet, writeBatch } from "../db.js";
+import { all, kvGet, kvSet, run, writeBatch } from "../db.js";
 import { firstGet } from "../sources/first.js";
 
 /** Leagues read per sync: one request each. */
@@ -41,7 +41,7 @@ export function rankingStatements(season: number, region: string, league: string
   return [
     { sql: "DELETE FROM league_rankings WHERE season = ? AND region = ? AND league = ?", args: [season, region, league] },
     ...rows.map((r) => ({ sql: "INSERT OR REPLACE INTO league_rankings (season, region, league, team, rank, rs, tbp, wins, losses, ties, played, counted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", args: [season, region, league, r.team, r.rank, r.rs, r.tbp, r.wins, r.losses, r.ties, r.played, r.counted] })),
-    { sql: "INSERT INTO leagues (season, region, code, ranked_at) VALUES (?, ?, ?, ?) ON CONFLICT (season, region, code) DO UPDATE SET ranked_at = excluded.ranked_at", args: [season, region, league, at] },
+    { sql: "INSERT INTO leagues (season, region, code, ranked_at, tried_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT (season, region, code) DO UPDATE SET ranked_at = excluded.ranked_at, tried_at = excluded.tried_at", args: [season, region, league, at, at] },
   ];
 }
 
@@ -49,7 +49,8 @@ export function rankingStatements(season: number, region: string, league: string
  * Read the season's league list (once a day) and the standings of the leagues that are due: a league with a meet
  * that has started, never read, or last read over REREAD_HOURS ago and before its latest started meet was SETTLE_DAYS
  * old (so a league whose window was missed, the server down or FIRST failing, still catches up once). At most `limit`
- * leagues; a failed read, or no answer from FIRST, keeps what's stored and is tried again next sync.
+ * leagues, those never tried first, then the longest since tried; a failed read, or no answer from FIRST, keeps what's
+ * stored and is tried again REREAD_HOURS later.
  */
 export async function syncLeagues(season: number, o: { past?: boolean; limit?: number; now?: Date; fetch?: (path: string) => Promise<unknown> } = {}): Promise<{ listed: number; ranked: number; failed: number }> {
   const out = { listed: 0, ranked: 0, failed: 0 };
@@ -71,17 +72,23 @@ export async function syncLeagues(season: number, o: { past?: boolean; limit?: n
   }
   const stale = new Date(now.getTime() - REREAD_HOURS * 3600e3).toISOString();
   const due = await all<{ region: string; league: string }>(
-    `SELECT e.region, e.league, MAX(e.start) latest, l.ranked_at FROM events e LEFT JOIN leagues l ON l.season = e.season AND l.region = e.region AND l.code = e.league
+    `SELECT e.region, e.league, MAX(e.start) latest, l.ranked_at, l.tried_at FROM events e LEFT JOIN leagues l ON l.season = e.season AND l.region = e.region AND l.code = e.league
      WHERE e.season = ? AND e.type = 'LeagueMeet' AND e.league IS NOT NULL AND e.region IS NOT NULL AND e.start <= ?
-     GROUP BY e.region, e.league HAVING l.ranked_at IS NULL OR (l.ranked_at < ? AND l.ranked_at < date(latest, '+${SETTLE_DAYS} days')) ORDER BY l.ranked_at IS NOT NULL, latest DESC`,
+     GROUP BY e.region, e.league
+     HAVING (l.tried_at IS NULL OR l.tried_at < ?) AND (l.ranked_at IS NULL OR l.ranked_at < date(latest, '+${SETTLE_DAYS} days'))
+     ORDER BY l.ranked_at IS NOT NULL, l.tried_at IS NOT NULL, l.tried_at, latest DESC`,
     [season, today, stale]);
   for (const { region, league } of due.slice(0, o.limit ?? LEAGUES_PER_SYNC)) {
+    // An attempt, whatever comes of it: a league that fails waits REREAD_HOURS like any other, so it never holds the
+    // sync's slots from the rest.
+    await run("INSERT INTO leagues (season, region, code, tried_at) VALUES (?, ?, ?, ?) ON CONFLICT (season, region, code) DO UPDATE SET tried_at = excluded.tried_at", [season, region, league, at]);
     let body: unknown;
     try { body = await get(`/${season}/leagues/rankings/${encodeURIComponent(region)}/${encodeURIComponent(league)}`); }
     catch { out.failed++; continue; }
-    // Not found (FIRST answers 404 before a league's standings exist): nothing replaced, asked again next sync.
-    if (body == null) { out.failed++; continue; }
-    const rows = leagueRankingRows(body);
+    // Not found, or nothing ranked (FIRST answers a 404 or an empty list before a league's standings exist): nothing
+    // replaced, asked again next sync.
+    const rows = body == null ? [] : leagueRankingRows(body);
+    if (!rows.length) { out.failed++; continue; }
     await writeBatch(rankingStatements(season, region, league, rows, at));
     out.ranked++;
   }
