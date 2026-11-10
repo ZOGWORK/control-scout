@@ -15,7 +15,7 @@ import { eventTypeLabel } from "../src/shared/labels.js";
 import { canonicalOrigin, canonicalUrl } from "./seo.js";
 import { FAQ, faqJsonLd, faqText } from "../src/shared/faq.js";
 import { ATTENDED, teamKnown } from "./api/teams.js";
-import { eventFirstPaint, teamFirstPaint, type FirstPaint } from "./firstPaint.js";
+import { eventFirstPaint, predictFirstPaint, teamFirstPaint, type FirstPaint } from "./firstPaint.js";
 import { recordOf, recordSql } from "../src/shared/eventRecord.js";
 import { hasTeamPage } from "../src/shared/teamPages.js";
 import { eventHasDataSql, isReachableEventCode, teamHasDataSql } from "./indexable.js";
@@ -721,9 +721,11 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
   // A team or event address that can't be one (/teams/abc, /teams/1234567, /events/2025/a%20b): the app says not found too.
   if (/^\/teams\/[^/]+$/i.test(p) || /^\/events\/[^/]+\/[^/]+$/i.test(p) || /^\/events\/[^/]+\/[^/]+\/match\/[^/]+$/i.test(p) || /^\/events\/[^/]+\/[^/]+\/display$/i.test(p)) return NOT_FOUND;
   if (p === "/predict" && (sp.has("red") || sp.has("blue"))) {
-    // A shared matchup; the Predict page's own values when it isn't one (or ratings aren't ready).
-    const mm = await matchupMeta(sp).catch(() => null);
-    if (mm) return mm;
+    // A shared matchup; the Predict page's own values when it isn't one (or ratings aren't ready). Either way, the page
+    // itself drawn with its teams when this server can (a production build): server/firstPaint.ts.
+    const [mm, firstPaint] = await Promise.all([matchupMeta(sp).catch(() => null), predictFirstPaint(sp).catch(() => null)]);
+    if (mm) return firstPaint ? { ...mm, firstPaint } : mm;
+    if (firstPaint) return { ...STATIC["/predict"], description: fitDescription(STATIC["/predict"].description), type: "website", firstPaint };
   }
   // How it works: the whole page in the first paint, prerendered from the real page component at build time
   // (scripts/prerender.mjs), so crawlers read every section without running JavaScript.

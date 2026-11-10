@@ -34,7 +34,7 @@ import { teamsErrors } from "../lib/teamCheck";
 import { SeasonToggle } from "../components/SeasonToggle";
 import { AdvancementView } from "../components/Advancement";
 import { SearchBox } from "../components/search/SearchBox";
-import { canonicalPredict, parsePick, predictHref, predictParams, readPredict, switchMode, type PredictMode, type PredictPick } from "../shared/predictUrl";
+import { canonicalPredict, matchApiPath, matchupOf, parsePick, predictHref, predictParams, readPredict, switchMode, type PredictMode, type PredictPick } from "../shared/predictUrl";
 import { cn } from "../components/cn";
 import { PredictionBasis } from "../components/PredictionBasis";
 import { marginCalibration, marginText, matchBasis, overlapTotal, scoreSum, scoreTotal } from "../shared/predictionBasis";
@@ -347,7 +347,7 @@ function MatchLab() {
   const [sp, setSp] = useSearchParams();
   // The first empty box takes focus only when nothing else has it (arriving on the Lab); switching to it with the
   // view tabs' arrow keys leaves focus on the tab, as the tabs pattern expects.
-  const [grab] = useState(() => !document.activeElement || document.activeElement === document.body);
+  const [grab] = useState(() => typeof document !== "undefined" && (!document.activeElement || document.activeElement === document.body));
   const current = useCurrentSeason();
   const season = Number(sp.get("season")) || current;
   const init = (k: string) => (sp.get(k) ?? "").split(",").filter(Boolean);
@@ -358,11 +358,8 @@ function MatchLab() {
   // The matchup last asked for (from the URL or the Predict button). Typing in
   // the inputs edits a draft; the season switch never touches the draft.
   type Matchup = { red: number[]; blue: number[] };
-  const parse = (r: string, b: string): Matchup | null => {
-    const red = r.split(",").filter(Boolean).map(Number), blue = b.split(",").filter(Boolean).map(Number);
-    const all = [...red, ...blue];
-    return red.length === 2 && blue.length === 2 && all.every((t) => Number.isInteger(t) && t > 0) && new Set(all).size === 4 ? { red, blue } : null;
-  };
+  // Two a side, or one a side (a head-to-head, as search links it): src/shared/predictUrl.ts.
+  const parse = (r: string, b: string): Matchup | null => matchupOf(r, b);
   const urlRed = sp.get("red") ?? "", urlBlue = sp.get("blue") ?? "";
   const [submittedTeams, setSubmittedTeams] = useState<Matchup | null>(() => parse(urlRed, urlBlue));
   // Saved links and back/forward change the URL on this same page: follow it.
@@ -374,7 +371,8 @@ function MatchLab() {
     setErrors([null, null, null, null]);
     edits.current++;
   }, [urlRed, urlBlue]);
-  const submitted = submittedTeams ? `/api/predict/match${qs({ season, red: submittedTeams.red.join(","), blue: submittedTeams.blue.join(",") })}` : null;
+  // The same path the server draws a pre-filled matchup from (server/firstPaint.ts), so its answer is on screen at once.
+  const submitted = submittedTeams ? matchApiPath(season, submittedTeams.red, submittedTeams.blue) : null;
   const state = useApi<MatchExplanationView>(submitted);
   // Offline: the submitted (validated) matchup — never the half-typed draft.
   const offline = useOfflineFallback(state.error?.offline && submittedTeams ? { season, ...submittedTeams } : null);

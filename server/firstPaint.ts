@@ -11,9 +11,12 @@ import { matchViews } from "./api/matches.js";
 import { eventView } from "./api/eventView.js";
 import { resultChanges } from "./api/resultChanges.js";
 import { siteMeta } from "./api/meta.js";
-import { SEASON_NUMBERS } from "./data/seasons.js";
+import { CURRENT_SEASON, SEASON_NUMBERS, isLegacy } from "./data/seasons.js";
 import { storedEventCode } from "./eventCodes.js";
 import { isEventCodeParam } from "../src/shared/eventCode.js";
+import { matchApiPath, matchupOf, modeOf } from "../src/shared/predictUrl.js";
+import { matchExplanation } from "./api/predictMatch.js";
+import { isEnabled } from "./flags.js";
 
 export interface FirstPaint {
   /** The page's markup, as the app draws it. */
@@ -99,5 +102,28 @@ export async function eventFirstPaint(seasonRaw: string, codeRaw: string, search
     if (!d) return null;
     // The timeline asks by the event's own season and code (src/components/ResultChanges.tsx).
     return { "/api/meta": meta, [base]: d, ...(changes ? { [`/api/events/${d.event.season}/${encodeURIComponent(d.event.code)}/result-changes`]: changes } : {}) };
+  });
+}
+
+/**
+ * A pre-filled Predict matchup as its first paint, for `/predict?mode=match&season=…&red=…&blue=…` (`sp`: the address's
+ * query): the teams in their boxes with their names, and, when both sides are given, the prediction itself (win odds,
+ * scores, the reasons), so a tap from a team page or a search answer lands on the teams, not an empty shell. Null for
+ * another mode, no team at all, a season with no predictions, live predictions switched off, or no render here.
+ */
+export async function predictFirstPaint(sp: URLSearchParams): Promise<FirstPaint | null> {
+  if (modeOf(sp) !== "match") return null;
+  // As the page reads the address (src/pages/PredictPage.tsx MatchLab): the season, or the current one.
+  const season = Number(sp.get("season")) || CURRENT_SEASON;
+  if (!SEASON_NUMBERS.includes(season) || isLegacy(season)) return null;
+  const listed = (v: string | null) => (v ?? "").split(",").map((x) => x.trim()).filter((x) => /^\d{1,6}$/.test(x) && Number(x) > 0).slice(0, 2).map(Number);
+  const teams = [...new Set([...listed(sp.get("red")), ...listed(sp.get("blue"))])];
+  if (!teams.length || !(await isEnabled("livePredictions"))) return null;
+  const m = matchupOf(sp.get("red"), sp.get("blue"));
+  return draw(`/predict?${sp.toString()}`, `predict ${teams.join(",")}`, async () => {
+    const [meta, x, ...profiles] = await Promise.all([siteMeta(), m ? matchExplanation(season, m.red, m.blue) : null, ...teams.map((n) => teamProfile(n))]);
+    // Each team's page answer, as the team boxes look a name up (src/components/TeamInput.tsx): its name under its number.
+    const named = Object.fromEntries(teams.flatMap((n, i) => (profiles[i] ? [[`/api/teams/${n}`, profiles[i]]] : [])));
+    return { "/api/meta": meta, ...named, ...(m && x ? { [matchApiPath(season, m.red, m.blue)]: x } : {}) };
   });
 }
