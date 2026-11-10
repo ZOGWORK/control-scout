@@ -760,6 +760,19 @@ export interface RangeCoverage {
   byTier: Record<ConfidenceTier, { n: number; coverage: number }>;
 }
 
+/** GET /api/predict/ranges: how the stated score ranges have held, for every surface that shows a range. The newest
+ *  season with live calls that stated a range, its live coverage and its season replay's, each with its sample. */
+export interface RangeCoverageNow {
+  season: number;
+  label: string;
+  /** The ranges' stated level (0.8). */
+  level: number;
+  /** Live calls made in advance: alliance scores checked (two per call) and the share inside. */
+  live: { n: number; coverage: number };
+  /** The same season's replay, when it has stated ranges. */
+  backtest: { n: number; coverage: number } | null;
+}
+
 export interface ShadowScore { accuracy: number; brier: number; logLoss: number }
 
 export interface ReplayCoverage {
