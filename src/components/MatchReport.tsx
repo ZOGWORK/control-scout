@@ -24,7 +24,8 @@ import { blendedIndex, type Reliability } from "../shared/reliability";
 import { BonusOdds } from "./BonusOdds";
 import { FactorSheetPanel } from "./FactorSheet";
 import { ScoreRange } from "./ScoreRange";
-import { levelPct } from "../shared/scoreRange";
+import { levelPct, rangeCoverageLine } from "../shared/scoreRange";
+import { useRangeCoverage } from "../lib/rangeCoverage";
 import { matchBasis } from "../shared/predictionBasis";
 import { PredictionBasis } from "./PredictionBasis";
 
@@ -64,6 +65,7 @@ export function MatchReportView({ r, ws, watch }: { r: MatchReport } & ReportWor
 
 /** The prediction (or, once played, the result next to the call made before it). */
 function Call({ m, earned }: { m: MatchView; earned?: MatchReport["bonus"] }) {
+  const cov = useRangeCoverage();
   const p = m.prediction;
   const scored = m.played && m.red.score && m.blue.score ? { red: m.red.score.total, blue: m.blue.score.total } : null;
   const winner: Side | "tie" | null = scored ? (scored.red === scored.blue ? "tie" : scored.red > scored.blue ? "red" : "blue") : null;
@@ -92,7 +94,7 @@ function Call({ m, earned }: { m: MatchView; earned?: MatchReport["bonus"] }) {
           </div>
           {!p.noScoreBasis && (
             <p className="mt-2 text-sm text-muted-foreground">Predicted score <ScoreRange mean={p.redMean} range={p.redRange} level={p.rangeLevel} className="text-red-alliance" /> – <ScoreRange mean={p.blueMean} range={p.blueRange} level={p.rangeLevel} className="text-blue-alliance" />
-              {p.redRange && p.blueRange && <span className="block text-xs">± is the {levelPct(p.rangeLevel)} range: red {p.redRange[0]}–{p.redRange[1]}, blue {p.blueRange[0]}–{p.blueRange[1]}. About {Math.round((p.rangeLevel ?? 0.8) * 10)} in 10 real scores land inside.</span>}</p>
+              {p.redRange && p.blueRange && <span className="block text-xs">± is the {levelPct(p.rangeLevel)} range: red {p.redRange[0]}–{p.redRange[1]}, blue {p.blueRange[0]}–{p.blueRange[1]}. {rangeCoverageLine(cov) ?? ""}</span>}</p>
           )}
           {/* Once played, the call sits next to the bonuses actually earned (as on the match page). */}
           {p.bonus && <BonusOdds season={m.season} bonus={p.bonus} actual={scored ? earned : null} className="mt-3 bg-text-base/[0.02]" />}

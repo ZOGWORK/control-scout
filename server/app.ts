@@ -53,7 +53,7 @@ import { resultChanges } from "./api/resultChanges.js";
 import { eventDisagreements } from "./api/disagreements.js";
 import { pickRatings } from "./api/pickRatings.js";
 import { MATCH_KEY as REPORT_KEY } from "../src/shared/matchReport.js";
-import { trackRecord } from "./api/accuracy.js";
+import { rangeCoverageNow, trackRecord } from "./api/accuracy.js";
 import { currentWeather } from "./weather.js";
 import { MISSING_FILE, canonicalRedirects, renderPage } from "./seo.js";
 import { CSP_REPORT_PATH, cspReportRouter, securityHeaders, setPageCsp } from "./securityHeaders.js";
@@ -67,6 +67,7 @@ import { overlapTotal } from "../src/shared/predictionBasis.js";
 import { FORECAST_RUNS } from "../src/shared/projections.js";
 import { liveForecaster, liveVersion, dataVersion, recentRecords } from "./predict/engine.js";
 import { bonusView } from "../src/shared/bonusOdds.js";
+import { matchExplanation } from "./api/predictMatch.js";
 import { authRouter, meRouter, authProviders } from "./auth/routes.js";
 import { contactRouter } from "./contact.js";
 import { bugReportsRouter } from "./bugReports.js";
@@ -773,18 +774,10 @@ export function createApp(opts: { dist?: string } = {}) {
     // what-if with no level is treated as a qualification match.
     const lv = req.query.level;
     if (lv != null && lv !== "qual" && lv !== "playoff") throw bad("level must be qual or playoff");
-    const level = lv === "playoff" ? "playoff" : "qual";
-    const f = await liveForecaster(s);
-    const x = f.explain(s, red, blue, level, undefined, await recentRecords(s, [...red, ...blue]));
+    // The same answer the first paint of /predict?mode=match draws (server/api/predictMatch.ts).
+    const x = await matchExplanation(s, red, blue, lv === "playoff" ? "playoff" : "qual");
     if (!x) throw new HttpError(503, "Ratings for this season aren't ready yet.");
-    const names = new Map((await all<any>(`SELECT number, name FROM teams WHERE number IN (${[...red, ...blue].map(() => "?").join(",")})`, [...red, ...blue])).map((r) => [Number(r.number), r.name]));
-    return {
-      season: s, red, blue, winProbRed: x.winProbA, winProbBlue: x.winProbB, predictedRed: x.predictedScoreA, predictedBlue: x.predictedScoreB,
-      rangeRed: x.scoreRangeA, rangeBlue: x.scoreRangeB, rangeLevel: x.scoreBandA.level, factors: x.factors, ...((await isEnabled("factorSheet")) ? { factorSheet: compactSheet(x.factorSheet) } : {}), history: x.partnership ? pairHistory(x.partnership) : null, confidence: x.confidence, reasons: x.reasons,
-      teamsRed: x.teamsA.map((t) => ({ ...t, name: names.get(t.team) ?? null })), teamsBlue: x.teamsB.map((t) => ({ ...t, name: names.get(t.team) ?? null })),
-      overlapRed: overlapTotal(x.overlapA), overlapBlue: overlapTotal(x.overlapB), marginScale: x.marginScale,
-      level, probabilityModel: x.probabilityModel, bonus: bonusView(s, x) ?? null, engineVersion: ENGINE_VERSION,
-    };
+    return x;
   }));
 
   // --- Share cards (server/share) ------------------------------------------
@@ -885,6 +878,9 @@ export function createApp(opts: { dist?: string } = {}) {
   }));
 
   api.get("/predict/accuracy", h(async () => trackRecord()));
+  // How the stated score ranges have held (live and replay, with samples): a few bytes every range on a page reads,
+  // instead of the whole track record.
+  api.get("/predict/ranges", h(async () => rangeCoverageNow()));
 
   // Monte Carlo projections (server/projections): stored by the background job, only read here.
   // Advancement odds (the advancementOdds feature toggle): the odds and their live stream answer 403 feature_disabled while it's off.
