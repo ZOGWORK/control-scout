@@ -14,7 +14,8 @@ import { pickShared as pickAmong } from "./shared.js";
 
 /** A name as typed or stored, compared whole: lower case, any run of punctuation and spaces one space. */
 const wholeName = (n: string | null) => (n ?? "").toLowerCase().replace(/[^\p{L}\d]+/gu, " ").trim();
-import { joinThousands } from "../../../src/shared/fuzzy.js";
+import { allowedEdits, joinThousands } from "../../../src/shared/fuzzy.js";
+import { edits } from "../../../src/shared/regions.js";
 
 export interface TeamSlot {
   number: number; name: string | null; typed: string; via: "number" | "name" | "near";
@@ -537,6 +538,19 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
         // Words after it in the run are left unread (the question isn't read whole), never taken for an event here.
         continue;
       }
+      // No longer team, but the words nearly spell the rest of its own name ("girls in roboics": Girls in Robotics):
+      // they are its name, never an event's or a place's; any words after them are left unread.
+      const whole = fold(before.name ?? ""), ownSaid = fold(own.map((t) => t.w).join(" "));
+      for (let end = to; end >= from; end--) {
+        const said = fold([...own, ...toks.slice(from, end + 1)].map((t) => t.w).join(" "));
+        const d = edits(said, whole);
+        if (said.length > ownSaid.length && d > 0 && d <= allowedEdits(whole.replace(/\s/g, "").length)) {
+          before.typed = [...own, ...toks.slice(from, end + 1)].map((t) => t.typed).join(" ");
+          toks.slice(from, end + 1).forEach((t) => (t.used = true));
+          break;
+        }
+      }
+      if (toks[from].used) continue;
     }
     const hasEventWord = toks.slice(from, to + 1).some((t) => EVENT_NAME_WORDS.has(t.w));
     const place = !hasEventWord ? ctx.names.place(words(), typed()) : null;
@@ -598,6 +612,17 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       // ordinary word ("month" is no typo of team Monte).
       if (onlyTopicWords(span.map((t) => t.typed).join(" ")) || onlyOrdinary(span.map((t) => t.w).join(" "))) continue;
       const near = await ctx.nearTeam(span.map((t) => t.w).join(" "));
+      // A name several teams share typed nearly right ("copper roboics", two teams called Copper Robotics) is that
+      // name: its teams, picked or asked about as the name typed right is. A number after it that is no team's
+      // ("girls in roboics 2") is the teams' own numbering, read with the name.
+      const last = toks[to].w, numbering = to > start && /^\d{1,3}$/.test(last) && !ctx.names.team(Number(last));
+      const nameSpan = numbering ? span.slice(0, -1) : span;
+      const shared = near ? [] : ctx.names.nearShared?.(nameSpan.map((t) => t.w).join(" ")) ?? [];
+      if (shared.length && !shared.some((n) => p.teams.some((t) => t.number === n.number))) {
+        p.teams.push({ number: shared[0].number, name: shared[0].name, typed: nameSpan.map((t) => t.typed).join(" "), via: "name", at: start, candidates: shared.map((n) => n.number) });
+        span.forEach((t) => (t.used = true));
+        break;
+      }
       if (!near || p.teams.some((t) => t.number === near.number)) continue;
       p.teams.push({ number: near.number, name: near.name, typed: span.map((t) => t.typed).join(" "), via: "near", at: start });
       span.forEach((t) => (t.used = true));

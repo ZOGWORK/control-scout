@@ -509,8 +509,23 @@ async function sharedName(q: string, opts: AnswerOptions): Promise<SearchAnswer 
       spans.push({ i, len, teams });
     }
   }
-  if (!spans.length) return null;
-  const p = await parseQuery(typed, await parseContext(opts.now, opts.prefer));
+  // No shared name spelled right: the parser's own reading, for a shared name typed nearly right ("girls in roboics",
+  // two teams called Girls in Robotics), read only when a word of the query is no word search knows.
+  const p = spans.length || ws.some((w) => !LEX_WORDS.has(w) && !/^\d+$/.test(w) && !idx.teamsNamed(w).length)
+    ? await parseQuery(typed, await parseContext(opts.now, opts.prefer)) : null;
+  if (!p) return null;
+  if (!spans.length) {
+    for (const t of p.teams) {
+      if (!t.candidates || t.rule || t.candidates.length < 2) continue;
+      const tw = fold(t.typed).split(" ");
+      const i = ws.findIndex((_, k) => tw.every((w, j) => ws[k + j] === w));
+      const teams = t.candidates.map((n) => idx.team(n)).filter((x): x is NonNullable<typeof x> => !!x);
+      // A number right after it that is no team's ("girls in roboics 2") is the teams' own numbering: part of the name.
+      const more = /^\d{1,3}$/.test(ws[i + tw.length] ?? "") && !idx.team(Number(ws[i + tw.length])) ? 1 : 0;
+      if (i >= 0 && teams.length === t.candidates.length && !onlyOrdinary(tw.join(" "))) spans.push({ i, len: tw.length + more, teams });
+    }
+    if (!spans.length) return null;
+  }
   if (p.named) return null;
   // A place typed right after the name ("robo rebels nj", "gear heads from michigan") picks among them, or says plainly
   // that none of the name is there: the team-in-a-place reader's own answer. A place elsewhere is the question's.
@@ -527,7 +542,13 @@ async function sharedName(q: string, opts: AnswerOptions): Promise<SearchAnswer 
   if (spans.some(settledByParse)) return null;
   // Words search reads nothing in ("favorite color") ask what no team's answer holds: the sorry note says so instead.
   const inSpans = new Set(spans.flatMap((sp) => ws.slice(sp.i, sp.i + sp.len)));
-  if (p.leftover.some((w) => !w.split(" ").every((x) => inSpans.has(fold(x))) && !onlyOrdinary(w))) return null;
+  // The shared name as the parser read it, typed nearly right ("girls in roboics" for Girls in Robotics), is the name
+  // too; so is a number right after it that is no team's ("girls in roboics 2": the teams' own numbering), which
+  // the question about which team answers as well as any.
+  const sharedTyped = p.teams.filter((t) => t.candidates && !t.rule).map((t) => fold(t.typed).split(" "));
+  for (const w of sharedTyped.flat()) inSpans.add(w);
+  const numbered = (w: string) => /^\d{1,3}$/.test(w) && !idx.team(Number(w)) && sharedTyped.some((t) => ws[ws.indexOf(w) - 1] === t[t.length - 1]);
+  if (p.leftover.some((w) => !w.split(" ").every((x) => inSpans.has(fold(x))) && !onlyOrdinary(w) && !numbered(w))) return null;
   // The other teams named, settled: never one of the span's own teams (the parser may have settled the span itself).
   const settled = p.teams.filter((t) => !t.candidates || t.rule).map((t) => idx.team(t.number)).filter((t) => !!t);
   const prefer = opts.prefer ?? new Set<string>();
@@ -545,7 +566,11 @@ async function sharedName(q: string, opts: AnswerOptions): Promise<SearchAnswer 
   };
   const shown = (t: { number: number; city: string | null; state: string | null; country: string | null }) => `${t.number} (${[t.city?.trim(), t.state].filter(Boolean).join(", ") || t.country || "?"})`;
   // The name as typed in the question ("ultraviolet"), the team's own spelling once one is picked.
-  const typedOf = (sp: (typeof picks)[number]) => ws.slice(sp.i, sp.i + sp.len).join(" ");
+  // A name typed nearly right is shown as the teams spell it, never with the slip.
+  const typedOf = (sp: (typeof picks)[number]) => {
+    const said = ws.slice(sp.i, sp.i + sp.len).join(" ");
+    return idx.teamsNamed(said).length ? said : fold(sp.teams[0].name ?? said);
+  };
   const nameOfSpan = (sp: (typeof picks)[number]) => cleanTeamName(sp.teams[0].number, sp.teams[0].name) ?? typedOf(sp);
   const tied = picks.find((x) => "tied" in x.r);
   if (tied && "tied" in tied.r) {

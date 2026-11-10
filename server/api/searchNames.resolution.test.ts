@@ -34,6 +34,9 @@ beforeAll(async () => {
     [5602, "Iron Finch", "Detroit", "MI", "USA", [[2025, 4000, 8000]]],
     [5701, "Glass Heron", "Edison", "NJ", "USA", [[2025, 4000, 8000]]],
     [5702, "Glass Heron", "Warren", "MI", "USA", [[2025, 100, 8000]]],
+    // A name two equal teams share whose last word is a generic one ("Robotics").
+    [5801, "Copper Robotics", "Camden", "NJ", "USA", [[2025, 500, 8000]]],
+    [5802, "Copper Robotics", "Flint", "MI", "USA", [[2025, 520, 8000]]],
   ];
   for (const [n, name, city, state, country, seasons] of teams) {
     await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, ?, ?, ?)", [n, name, city, state, country]);
@@ -55,6 +58,13 @@ describe("a typed team number", () => {
 });
 
 describe("a name several teams share", () => {
+  it("typed nearly right, a number of their own after it or not: still which one, under the name as they spell it", async () => {
+    for (const q of ["copper roboics opr", "copper roboics 2 opr"]) {
+      const a = await ask(q);
+      expect(a.understood?.label.startsWith(`${WHICH}copper robotics"? 2 teams have that name: `), q).toBe(true);
+      expect(a.suggest, q).toEqual(["5801 opr", "5802 opr"]);
+    }
+  });
   it("still tied: which one, each with its place, and the same question about each", async () => {
     for (const q of ["did echo kites choke at states or nah", "echo kites opr"]) {
       const a = await ask(q);
