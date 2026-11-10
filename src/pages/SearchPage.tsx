@@ -48,7 +48,7 @@ import { useTitle, useMeta, useCurrentSeason, useMediaQuery } from "../lib/meta"
 import { useApi, qs } from "../lib/api";
 import { cn } from "../components/cn";
 import { Verdict } from "../components/search/page/Verdict";
-import { FollowUpsRail, PeopleAlsoAsk, RelatedSearches, TeamHighlights, useFollowUps } from "../components/search/page/FollowUps";
+import { PeopleAlsoAsk, RelatedSearches, TeamHighlights, useFollowUps } from "../components/search/page/FollowUps";
 
 const RESULT_KINDS = new Set(["place", "team", "event", "match"]);
 
@@ -73,7 +73,6 @@ export default function SearchPage() {
   // Asked at once, and on to the one page a submitted query names (../components/search/direct.ts).
   const leaving = useSubmittedSearch(query, { answer, live, error, searchNow });
   const phone = useMediaQuery("(max-width: 767px)");
-  const wide = useMediaQuery("(min-width: 1024px)");
   const meta = useMeta();
   const season = useCurrentSeason();
   useTitle(query ? `Search: ${query}` : "Search");
@@ -187,12 +186,11 @@ export default function SearchPage() {
       {apps.length ? <><StatBanner stats={appearanceStats(apps, answer?.card?.kind === "worlds" ? "Worlds" : "states")} /><Timeline apps={apps} /></> : quality ? <QualityBanner s={quality} /> : null}
     </BrunoAnswer>
   );
-  // The follow-ups (./search/page/FollowUps.tsx), asked once the answer is on screen. A wide screen gives them their own
-  // column beside the results, always there with an answer so the results never move when they arrive; a phone has
-  // them in the one column, People also ask under the answer and the rest at the end.
+  // The follow-ups (./search/page/FollowUps.tsx): in the answer's column at every width, People also ask under the
+  // answer and Related searches at the end of the page (the launch brief, Phase K). The page's first paint carries
+  // them (server/seoMeta.ts searchMeta), so they're there from the first frame; else asked once the answer is on screen.
   const follow = useFollowUps(query, prefer, !busy && !stale, picked);
-  const railed = wide && found;
-  const side = !!panel || railed;
+  const side = !!panel;
   // A search on its way (just submitted, or a new one run from here): its loading screen, never older results; and
   // while going on to the one page a submitted query names.
   if (query && !error && ((busy && ((stale && !reseason) || !found)) || leaving)) return <SearchSkeleton query={query} top={phone ? <PhoneSearchBar query={query} /> : null} />;
@@ -264,11 +262,10 @@ export default function SearchPage() {
                   head-to-head; else a question's summary (timeline, stats or standing) with the team's pages. With
                   both, the head-to-head keeps the column and the summary goes below the results. Phone: one column,
                   the summary first (H1, badge, summary, cards). */}
-              <div className={cn(side && "lg:grid lg:grid-cols-[minmax(0,720px)_minmax(20rem,1fr)] lg:items-start lg:gap-6")} data-layout={panel ?? (railed ? "rail" : "single")}>
-                {/* The right-hand column: the panel, then the follow-ups. Kept in view while scrolling unless the
-                    follow-ups make it taller than the screen. */}
+              <div className={cn(side && "lg:grid lg:grid-cols-[minmax(0,720px)_minmax(20rem,1fr)] lg:items-start lg:gap-6")} data-layout={panel ?? "single"}>
+                {/* The right-hand column: the panel, kept in view while scrolling. */}
                 {side && (
-                  <div className={cn("space-y-5 lg:col-start-2 lg:row-start-1", !railed && "lg:sticky lg:top-[calc(var(--header-h)+1rem)]")} data-side>
+                  <div className="space-y-5 lg:sticky lg:top-[calc(var(--header-h)+1rem)] lg:col-start-2 lg:row-start-1" data-side>
                     {panel === "summary" && (
                       <aside aria-label="Summary" className="mb-4 space-y-3 lg:mb-0" data-panel="summary">
                         {summary}
@@ -276,7 +273,6 @@ export default function SearchPage() {
                       </aside>
                     )}
                     {panel === "versus" && shownH2h && <aside aria-label="Head-to-head" className="max-lg:hidden" data-panel="versus"><HeadToHead h={shownH2h} now={now.data?.teams} before={asked == null ? before.data?.teams : undefined} season={base} /></aside>}
-                    {railed && <FollowUpsRail f={follow} q={follow.asked ?? query} />}
                   </div>
                 )}
                 <div className="min-w-0 lg:col-start-1 lg:row-start-1">
@@ -293,8 +289,8 @@ export default function SearchPage() {
                     : answer?.card && !inStat && <FactCard card={answer.card} heading={title ?? undefined} season={hits.find((h) => h.kind === "team" && !isCompare(h) && Number(h.ref) === answer.card!.team?.number)?.linkSeason} />}
                   {/* A match or event searched by name (no answer card): its video above the results (./search/page/AnswerVideo.tsx). */}
                   {!answer?.stat && !answer?.card && <AnswerVideo className="mb-5 mt-0 max-sm:mx-0" />}
-                  {/* One column: the next questions search answers directly, under the answer. */}
-                  {!railed && <PeopleAlsoAsk ask={follow.ask} className="mb-5" />}
+                  {/* The next questions search answers directly, under the answer. */}
+                  <PeopleAlsoAsk ask={follow.ask} className="mb-5" />
                   {!!compares.length && (
                     <section aria-label="Compare" className="mb-5" data-section="compare">
                       <h2 className="mb-1.5 text-xs font-semibold text-muted-foreground">Compare</h2>
@@ -319,9 +315,9 @@ export default function SearchPage() {
                     </div>
                   )}
                   {panel === "versus" && summary}
-                  {/* One column: the team's highlights and the related searches, after the results. */}
-                  {!railed && <TeamHighlights h={follow.highlights} className="mt-5" />}
-                  {!railed && <RelatedSearches related={follow.related} seeAll={follow.asked ?? query} className="mt-5" />}
+                  {/* The team's highlights and the related searches, after the results. */}
+                  <TeamHighlights h={follow.highlights} className="mt-5" />
+                  <RelatedSearches related={follow.related} seeAll={follow.asked ?? query} className="mt-5" />
                 </div>
               </div>
             </div>
