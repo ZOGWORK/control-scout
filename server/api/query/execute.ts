@@ -139,9 +139,11 @@ export async function pipelineReads(q: string, now?: number, prefer?: ReadonlySe
     && (p.intent !== "compare" || !!p.event || p.worlds || p.states);
 }
 
+/** A chance asked for in words: "predicted wins" or "prediction this season" ask for something else. */
+const CHANCE_SAID = /\b(?:chances?|odds|probabilit(?:y|ies)|likelihood)\b/i;
 /** One team's chances asked for a season with nothing narrower said ("12345 chances this season", "predicted chances
  *  of 12345 in 2026-27"): no event, match, score, rank, record or next one, only the chance and the season. */
-const seasonOdds = (p: Parsed) => p.teams.length === 1 && !p.event && !p.worlds && !p.states && !p.reach && p.time?.kind === "season"
+const seasonOdds = (p: Parsed) => p.teams.length === 1 && !p.event && !p.worlds && !p.states && !p.reach && p.time?.kind === "season" && CHANCE_SAID.test(p.q)
   && p.symbols.includes("predict") && p.symbols.every((x) => ["predict", "metric:win", "advance", "thing:season", "future", "prep:for", "prep:in"].includes(x));
 
 /** A count of teams the pipeline answers: a town's, with no time, event, championship, match type, side or award said

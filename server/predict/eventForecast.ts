@@ -16,6 +16,7 @@ export class ForecastUnavailable extends Error { constructor(readonly status: nu
 
 const TTL_MS = 120_000, FINISHED_TTL_MS = 24 * 3_600_000;
 const kept = new Map<string, { at: number; ttl: number; v: Promise<ForecastView> }>();
+let queue: Promise<void> = Promise.resolve();
 registerCache("Event forecasts", () => kept.clear());
 
 /** The forecast of `code` in `season` for `team` (its own odds, points and partner view; null for everyone's), in `mode`. */
@@ -24,7 +25,9 @@ export async function eventForecast(season: number, code: string, team: number |
   const key = `${await dataVersion()}|${await liveVersion(season)}|${season}|${code}|${team ?? ""}|${mode}`;
   const hit = kept.get(key);
   if (hit && Date.now() - hit.at < hit.ttl) return hit.v;
-  const v = make(season, code, team, mode);
+  // One simulation at a time: each is seconds of CPU on a small shared VM, and search can ask for them too.
+  const v = queue.then(() => make(season, code, team, mode));
+  queue = v.then(() => undefined, () => undefined);
   const entry = { at: Date.now(), ttl: TTL_MS, v };
   kept.set(key, entry);
   v.then((fc) => { if (mode === "pre-event" && fc.eventEnd && fc.eventEnd < new Date().toISOString().slice(0, 10)) entry.ttl = FINISHED_TTL_MS; }, () => kept.delete(key));

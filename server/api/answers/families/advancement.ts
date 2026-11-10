@@ -60,6 +60,8 @@ async function oddsAt(ev: Ev, team: number, before: boolean) {
     const status = advanceStatus(row);
     return { pAdvance: status === "odds" ? row.pAdvance : null, status, pWin: row.pWin, rank: row.rank ? { p10: row.rank.p10, p50: row.rank.p50, p90: row.rank.p90 } : null, runs: run.runs, slots: run.slots, estimated: run.slotsSource !== "official", notes: [] as string[] };
   }
+  // The engine's own forecast only while live predictions are on (as /api/predict/event); stored runs need only the odds switch.
+  if (!(await isEnabled("livePredictions").catch(() => false))) return null;
   const fc = await eventForecast(Number(ev.season), ev.code, team, before ? "pre-event" : "current").catch(() => null);
   const t = fc?.teams.find((x) => x.team === team);
   if (!fc || !t) return null;
@@ -78,7 +80,7 @@ async function outcome(ev: Ev, team: number, worlds: boolean): Promise<{ value: 
   const [rank, awards, pts, adv, won] = await Promise.all([
     get<{ rank: number | null }>(`SELECT rank FROM event_teams WHERE season = ? AND code = ? AND team = ?`, [ev.season, ev.code, team]),
     all<{ type: string; placement: number }>(`SELECT type, placement FROM awards WHERE season = ? AND code IN (${ph}) AND team = ? ORDER BY placement`, [ev.season, ...codes, team]),
-    get<{ total: number }>(`SELECT total FROM advancement_points WHERE season = ? AND code IN (${ph}) AND team = ? LIMIT 1`, [ev.season, ...codes, team]),
+    get<{ total: number }>(`SELECT total FROM advancement_points WHERE season = ? AND code IN (${ph}) AND team = ? ORDER BY code = ? DESC LIMIT 1`, [ev.season, ...codes, team, ev.code]),
     get<{ slots: number; rows: string }>(`SELECT slots, rows FROM advancement WHERE season = ? AND code IN (${ph}) ORDER BY code = ? DESC LIMIT 1`, [ev.season, ...codes, ev.code]),
     wonEventByRules(Number(ev.season), ev.code, team).catch(() => false),
   ]);
@@ -115,7 +117,10 @@ export async function advancementAt(team: AnswerTeam, ev: Ev, now: number, lead?
     source: `${ev.name}, ${S}${when ? ` · ${when}` : ""} · the engine's simulation, as Predict shows it`,
   };
   if (isLegacy(Number(ev.season))) return { ...base, blocks: [links], none: `Predictions start with ${seasonLabel(FIRST_PREDICT_SEASON)}: ${S} has no advancement odds.` };
-  if (!(await isEnabled("advancementOdds").catch(() => false)) || !(await isEnabled("livePredictions").catch(() => false))) return { ...base, blocks: [links], none: "Advancement odds are switched off just now, so no chance is shown." };
+  if (!(await isEnabled("advancementOdds").catch(() => false))) return { ...base, blocks: [links], none: "Advancement odds are switched off just now, so no chance is shown." };
+  // Only a team listed there (its roster, or FIRST's registrations) has odds there.
+  const listed = await get<{ n: number }>(`SELECT COUNT(*) n FROM ${ROSTER} r WHERE r.season = ? AND r.team = ? AND (r.code = ? OR r.code IN (SELECT code FROM events WHERE season = ? AND division_code = ?))`, [ev.season, team.number, ev.code, ev.season, ev.code]);
+  if (!Number(listed?.n)) return { ...base, blocks: [links], none: `${whoOf(team)} isn't listed at ${ev.name} (${S}), so there are no advancement odds for it there.` };
   const adv = await get<{ slots: number; advances_to: string | null }>(`SELECT slots, advances_to FROM advancement WHERE season = ? AND code IN (?, ?) ORDER BY code = ? DESC LIMIT 1`, [ev.season, ev.code, ev.division_code ?? ev.code, ev.code]);
   const to = await destination(ev, adv?.advances_to ?? null);
   const odds = await oddsAt(ev, team.number, done);
@@ -150,7 +155,8 @@ export async function seasonAdvancement(team: AnswerTeam, o: { season: number | 
        AND NOT EXISTS (SELECT 1 FROM events d WHERE d.season = e.season AND d.division_code = e.code)
      ORDER BY e.start DESC, e.code`, [team.number, FIRST_PREDICT_SEASON, ...types, ...(o.region ? [o.region.country, ...(o.region.state ? [o.region.state] : [])] : [])]);
   const upcoming = evs.filter((e) => (e.end ?? e.start ?? "") >= today && Number(e.season) === (o.season ?? CURRENT_SEASON)).reverse();
-  for (const e of upcoming) {
+  // The soonest few: each may need a simulation, and a team is rarely listed for more than a couple ahead.
+  for (const e of upcoming.slice(0, 3)) {
     const a = await advancementAt(team, e, o.now);
     if (!a.none) return { ...a, scope: [...a.scope, "Its next advancing event"] };
   }

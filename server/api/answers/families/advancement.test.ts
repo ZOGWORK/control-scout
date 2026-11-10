@@ -56,6 +56,11 @@ describe("advancement odds at an event", () => {
     // The only chance on the card is the advancement one: no match's win chance stands in for it.
     expect(a.blocks.filter((b) => b.kind === "chance")).toHaveLength(1);
   });
+  it("a team not listed at the event: said so, no odds", async () => {
+    const a = await advancementAt({ number: 6980, name: "Bad Wolf" }, (await advancementEvent(2025, "USNJCMPTRPK"))!, NOW);
+    expect(chance(a)).toBeUndefined();
+    expect(a.none).toMatch(/^Bad Wolf \(6980\) isn't listed at New Jersey Championship - Turnpike Division/);
+  });
   it("a Worlds division: the step on is its finals, so the chance is to win the division", async () => {
     const a = await advancementAt(team, (await advancementEvent(2025, "FTCCMP1ROSS"))!, NOW);
     expect(chance(a)).toMatchObject({ p: 0.002, label: "to advance to the Worlds finals, before it started" });
