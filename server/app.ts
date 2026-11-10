@@ -107,6 +107,7 @@ import { homeOverview } from "./api/home.js";
 import { coinFlips, radarEtag } from "./api/coinFlips.js";
 import { liveHeroLines } from "./heroLines.js";
 import { listRecords, recordRegions, recordsQuery, RecordsQueryError, streamRecordsCsv, streamRecordsXlsx } from "./api/records.js";
+import { seasonRecordLine } from "./api/searchHighScores.js";
 import { directoryQuery, DirectoryQueryError, listDirectory } from "./api/directory.js";
 import { FilterError } from "../src/shared/filterDsl.js";
 import { RECORDS_EXPORT_MAX, RECORDS_MAX_PAGE_SIZE, SCHEDULE_STAT_KEYS } from "../src/shared/statCatalog.js";
@@ -759,6 +760,8 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
     }
     catch (e) { if (e instanceof DirectoryQueryError) throw bad(e.message); throw e; }
   }));
+  /** The season's record score as search gives it (official events, penalties left out): the match records page's line. */
+  api.get("/records/:season/high-score", recordsLimit, h(async (req) => ({ line: await seasonRecordLine(season(req.params.season)) })));
   /** The region codes a season's records use, named by their main place (for the Region dropdown). */
   api.get("/records/:season/regions", recordsLimit, h(async (req) => ({ regions: await recordRegions(season(req.params.season)) })));
 

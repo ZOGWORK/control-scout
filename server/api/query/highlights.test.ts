@@ -265,7 +265,7 @@ describe("a team's highlights", () => {
   });
 
   it("a recap leads with the last playoff match even when its highlights list it under another reason", async () => {
-    expect((await stat("colorado highlights")).headline?.label).toBe("Best score: M2 at Peak Qualifier");
+    expect((await stat("colorado highlights")).headline?.label).toBe("Best score without penalties: M2 at Peak Qualifier");
     expect((await stat("colorado recap")).headline).toMatchObject({ label: "Latest playoff match: M2 at Peak Qualifier", value: "300 points" });
   });
 

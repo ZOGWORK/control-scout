@@ -43,6 +43,8 @@ import { MAX_QUERY } from "./api/searchAnswer.js";
 import { keptFollowUps, pageAnswer } from "./api/answers/followUps.js";
 import { relatedPage } from "./api/answers/relatedPage.js";
 import { withTeamStats } from "./api/searchTeamStats.js";
+import { seasonRecordLine } from "./api/searchHighScores.js";
+import { MATCHES_TABLE_HEADING, SEASON_RECORD_LABEL, SEASON_RECORD_RULE, recordMarks } from "../src/shared/seasonRecord.js";
 import { withEventParents } from "./api/searchEvents.js";
 import { answerSections } from "../src/shared/searchSections.js";
 import { rebuildSearch } from "./stats/job.js";
@@ -555,11 +557,15 @@ async function teamsTableMeta(query: Record<string, unknown>): Promise<PageMeta>
 async function matchesTableMeta(query: Record<string, unknown>): Promise<PageMeta> {
   const s = STATIC["/matches"], season = recordsSeason(query);
   if (recordsNarrowed(query, ["season"])) return { title: s.title, description: fitDescription(s.description), type: "website", bodyHtml: `<p>${s.description.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>` };
-  const r = await listRecords(season, recordsQuery("match", { sort: "highScore", pageSize: String(RECORD_ROWS) }));
+  const [r, rec] = await Promise.all([listRecords(season, recordsQuery("match", { sort: "highScore", pageSize: String(RECORD_ROWS) })), seasonRecordLine(season)]);
   const h = (x: string) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  // The season's record as search gives it (one number on both pages), then the table's own first rows, said for what
+  // they are: every played match by alliance score, penalties in, scrimmages and off-season events too.
+  const mark = rec && recordMarks(rec);
+  const record = rec ? `<p>${h(`${SEASON_RECORD_LABEL} ${seasonInfo(season).label}:`)} <a href="${h(rec.href ?? "")}">${h(rec.text)}</a>${mark ? ` (${h(mark)})` : ""} <small>${h(SEASON_RECORD_RULE)}</small></p>` : "";
   const items = (r.rows as unknown as { eventCode: string; eventName: string; key: string; label: string; stats: Record<string, number | string | null> }[]).map((x) =>
     `<li><a href="${h(eventPath(season, x.eventCode))}?match=${h(x.key)}">${h(`${x.label} at ${x.eventName}`)}</a> <small>${h(`red ${x.stats.redTotalPoints ?? "–"} · blue ${x.stats.blueTotalPoints ?? "–"}`)}</small></li>`).join("");
-  const bodyHtml = `<p>${h(s.description)}</p>` + (items ? `<h2>${h(seasonInfo(season).label)}: highest scores</h2><ol>${items}</ol>` : "");
+  const bodyHtml = `<p>${h(s.description)}</p>` + record + (items ? `<h2>${h(seasonInfo(season).label)}: ${MATCHES_TABLE_HEADING}</h2><ol>${items}</ol>` : "");
   return { title: s.title, description: fitDescription(s.description), type: "website", bodyHtml };
 }
 
