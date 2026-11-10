@@ -234,10 +234,10 @@ export function trackRecordIfReady(): TrackRecord | null { return cached?.value 
  * the record is still being built.
  */
 export async function rangeCoverageNow(): Promise<RangeCoverageNow | null> {
-  // An optional footnote: read off the track record already built, never waiting for (or rechecking) a build.
-  // With none built yet, one starts in the background and the footnote shows once it's done.
+  // An optional footnote: read off the track record already built, never waiting for, starting or rechecking a build
+  // (the server warms it at start and every 15 s; a build started here would hold up the answer that asked).
   const t = trackRecordIfReady();
-  if (!t) { void warmTrackRecord().catch(() => {}); return null; }
+  if (!t) return null;
   const s = [...t.seasons].sort((a, b) => b.season - a.season).find((x) => (x.live?.ranges?.n ?? 0) > 0);
   const g = s?.live?.ranges;
   if (!s || !g) return null;
