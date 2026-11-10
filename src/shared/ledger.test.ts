@@ -4,7 +4,7 @@
 // words which mode it shows.
 import { describe, expect, it } from "vitest";
 import type { AccuracyBlock, TrackRecord } from "./api";
-import { headlineRule, LIVE_THRESHOLD, ledgerDefault, liveProgress, pickHeadline, REPLAY_HEADLINE_MIN } from "./ledger";
+import { headlineRule, LIVE_THRESHOLD, ledgerDefault, liveCallsLine, liveProgress, pickHeadline, REPLAY_HEADLINE_MIN } from "./ledger";
 
 const b = (n: number, accuracy = 0.7) => ({ n, accuracy }) as AccuracyBlock;
 const season = (s: number, live: number | null, backtest: number | null) =>
@@ -52,5 +52,22 @@ describe("the rule in words", () => {
   it("names live when it leads", () => {
     const lived = [season(2026, 12_000, 20_000)] as TrackRecord["seasons"];
     expect(headlineRule({ seasons: lived, liveThreshold: LIVE_THRESHOLD, headline: pickHeadline(lived) })).toMatch(/^Live calls lead: 2026–27 has 12,000 scored/);
+  });
+});
+
+describe("the live record beside a replay", () => {
+  const live = (n: number, decided: number, accuracy: number, provisional: number): AccuracyBlock =>
+    ({ n, decided, accuracy, brier: 0.2196, byTier: { provisional: { n: provisional, accuracy, brier: 0.22 }, moderate: { n: n - provisional, accuracy, brier: 0.16 }, confident: { n: 0, accuracy: 0, brier: 0 } } }) as unknown as AccuracyBlock;
+  const at = (l: AccuracyBlock | null) => [{ season: 2026, label: "2026–27 BIOBUZZ", live: l, backtest: b(3459) }, { season: 2025, label: "2025–26 DECODE", live: null, backtest: b(41743) }] as TrackRecord["seasons"];
+  it("names the slice, the sample, how early it is and that it isn't the card's figure yet", () => {
+    expect(liveCallsLine({ seasons: at(live(2720, 2683, 0.6231830040998881, 2541)), liveThreshold: LIVE_THRESHOLD }))
+      .toBe("Live calls made in advance, 2026–27 BIOBUZZ: 62.3% of 2,683 decided called right, Brier 0.2196 (early season: 93% of them rough guesses, so the figure is still moving). They aren’t this card’s figure until 10,000 are scored (2,720 so far).");
+  });
+  it("says so when nothing is decided yet, and when live leads", () => {
+    expect(liveCallsLine({ seasons: at(live(3, 0, 0, 3)), liveThreshold: LIVE_THRESHOLD })).toMatch(/^Live calls made in advance, 2026–27 BIOBUZZ: 3 scored, none decided yet/);
+    expect(liveCallsLine({ seasons: at(live(12_000, 11_900, 0.7, 2000)), liveThreshold: LIVE_THRESHOLD })).toMatch(/70\.0% of 11,900 decided called right, Brier 0\.2196\. They lead the headline\.$/);
+  });
+  it("is nothing while no live call is scored", () => {
+    expect(liveCallsLine({ seasons: at(null), liveThreshold: LIVE_THRESHOLD })).toBeNull();
   });
 });

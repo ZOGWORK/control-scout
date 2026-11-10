@@ -13,7 +13,7 @@ import { BONUS_CONFIDENCE_RULE, BONUS_MIN_SAMPLES, BONUS_WINDOW, CONFIDENCE_RULE
 import { useApi } from "../../lib/api";
 import { useCurrentSeason } from "../../lib/meta";
 import type { AccuracyBlock, BonusAccuracy, MarginError, ReplayCoverage, TrackRecord } from "../../shared/api";
-import { brierSkill, headlineRule, LEDGER_MODE, ledgerDefault, type LedgerKind } from "../../shared/ledger";
+import { brierSkill, headlineRule, LEDGER_MODE, ledgerDefault, liveCallsLine, type LedgerKind } from "../../shared/ledger";
 import { ago, pct } from "../../lib/format";
 import { cn } from "../cn";
 import { Badge } from "../ui/basic";
@@ -164,6 +164,7 @@ export function AccuracySection() {
             </div>
           ),<div className="grid grid-cols-2 gap-3 lg:grid-cols-4" role="status" aria-label="Loading the track record">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)}</div>)}
           <p className="mt-3 text-sm text-muted-foreground">Live calls and the season replay are reported separately and never blended.{t && ` ${headlineRule(t)}`}{t && <> <UpdatedAt iso={t.generatedAt} /></>}</p>
+          {t && <SlicesAtAGlance t={t} />}
         </div>
       </Reveal>
 
@@ -252,6 +253,44 @@ export function AccuracySection() {
         </>
       )}
     </section>
+  );
+}
+
+/**
+ * Every headline-sized accuracy figure this site quotes, each with its slice and its sample, in one list: the season in
+ * progress replayed so far (the home card's figure), live calls made in advance (never the card's figure until the
+ * threshold), the headline replay, and the Prediction Engine 2.0 replay from the engine's own write-up. None of them is
+ * "the live accuracy" on its own, and the list reads the same numbers the home card does (the same API answer).
+ */
+export function SlicesAtAGlance({ t }: { t: TrackRecord }) {
+  const n = (x: number) => x.toLocaleString("en-US");
+  const newest = [...t.seasons].sort((a, b) => b.season - a.season);
+  const head = t.headline ? newest.find((s) => s.season === t.headline!.season) : undefined;
+  const soFar = newest.find((s) => s.backtest && s.backtest.n > 0 && s.season !== head?.season && s.season > (head?.season ?? -Infinity));
+  const live = newest.find((s) => (s.live?.n ?? 0) > 0);
+  const rows: { slice: string; value: string; sample: string }[] = [];
+  if (soFar?.backtest) rows.push({ slice: `Season replay · ${soFar.label} so far`, value: soFar.backtest.decided > 0 ? pct(soFar.backtest.accuracy, 1) : "—", sample: `${n(soFar.backtest.decided)} decisive calls of ${n(soFar.backtest.n)} scored, replayed with only earlier matches · the home card's figure` });
+  if (live?.live) {
+    const l = live.live, early = l.n < t.liveThreshold;
+    rows.push({ slice: `Live calls made in advance · ${live.label}`, value: l.decided > 0 ? pct(l.accuracy, 1) : "—", sample: `${n(l.decided)} decided of ${n(l.n)} scored · Brier ${l.brier.toFixed(4)}${early ? ` · early season, ${Math.round((100 * l.byTier.provisional.n) / l.n)}% rough guesses · not the headline until ${n(t.liveThreshold)} are scored` : " · leads the headline"}` });
+  }
+  if (head && t.headline) {
+    const b = head[t.headline.kind];
+    if (b) rows.push({ slice: `Headline · ${head.label} ${t.headline.kind === "live" ? "live calls" : "season replay"}`, value: pct(b.accuracy, 1), sample: `${n(b.decided)} decided of ${n(b.n)} scored · the newest season past the ${n(t.headline.kind === "live" ? t.liveThreshold : 10_000)}-match bar` });
+  }
+  rows.push({ slice: `Prediction Engine 2.0 replay · ${ENG.testSeason}`, value: `${(100 * E2.accuracy).toFixed(2)}%`, sample: `${n(E2.nonTies)} matches with a winner of ${n(E2.matches)} replayed · Brier ${E2.brier.toFixed(4)} (was ${E2.baselineBrier.toFixed(4)}) · the engine's own test, not this site's ledger` });
+  return (
+    <div className="mt-4" data-slices>
+      <p className="text-sm text-muted-foreground"><strong className="text-foreground">{rows.length} figures, {rows.length} slices.</strong> Each one is labelled with what it counts and how many; none of them is "the live accuracy" on its own.{liveCallsLine(t) ? "" : " No live call has been scored yet."}</p>
+      <dl className="mt-2 grid gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid-cols-2">
+        {rows.map((r) => (
+          <div key={r.slice} className="grid min-w-0 content-start gap-0.5 bg-card p-3">
+            <dt className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">{r.slice}</dt>
+            <dd className="text-sm"><b className="font-display text-2xl font-bold tabular-nums text-foreground">{r.value}</b> <span className="text-muted-foreground">{r.sample}</span></dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }
 

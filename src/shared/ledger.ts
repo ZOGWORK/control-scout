@@ -72,6 +72,24 @@ export function headlineRule(t: Pick<TrackRecord, "headline" | "seasons" | "live
   return `No headline yet: a replay needs ${n(REPLAY_HEADLINE_MIN)} matches and live calls ${n(t.liveThreshold)} scored${so}, so this opens on the newest season's replay.`;
 }
 
+/**
+ * The live record said beside a replay, with its slice and sample, so a replay figure is never read as "the live
+ * accuracy": the newest season with live calls, its decided-call accuracy and Brier score, how early it is (and how
+ * much of it is rough guesses), and that it isn't the card's figure until LIVE_THRESHOLD calls are scored. Null when
+ * no live call has been scored yet.
+ */
+export function liveCallsLine(t: Pick<TrackRecord, "seasons" | "liveThreshold">): string | null {
+  const n = (x: number) => x.toLocaleString("en-US");
+  const s = [...t.seasons].sort((a, b) => b.season - a.season).find((x) => (x.live?.n ?? 0) > 0);
+  if (!s?.live) return null;
+  const l = s.live;
+  const early = l.n < t.liveThreshold;
+  const shown = early ? ` They aren’t this card’s figure until ${n(t.liveThreshold)} are scored (${n(l.n)} so far).` : " They lead the headline.";
+  if (l.decided <= 0) return `Live calls made in advance, ${s.label}: ${n(l.n)} scored, none decided yet (every one a tie or a 50:50 call).${shown}`;
+  const rough = Math.round((100 * l.byTier.provisional.n) / l.n);
+  return `Live calls made in advance, ${s.label}: ${(100 * l.accuracy).toFixed(1)}% of ${n(l.decided)} decided called right, Brier ${l.brier.toFixed(4)}${early ? ` (early season: ${rough}% of them rough guesses, so the figure is still moving)` : ""}.${shown}`;
+}
+
 /** Which mode a number is, in words every ledger surface uses. */
 export const LEDGER_MODE: Record<LedgerKind, { tab: string; title: string; detail: string }> = {
   live: { tab: "Logged live", title: "Live calls, logged before each match", detail: "called before each match" },
