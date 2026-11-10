@@ -30,7 +30,7 @@ const PLAY = /^(video|video-fill|white|black)$/;
 // Search's palette: one family per meaning (an award, a phase, a status).
 const PALETTE = new Set<string>(Object.values(SEARCH_PALETTE).map((s) => s.family));
 // Hues a reader can't tell apart, two meanings each: never both on one card.
-const ALIKE: [string, string][] = [["team-b", "orange"], ["team-c", "emerald"], ["team-c", "teal"], ["team-a", "cyan"], ["team-a", "sky"], ["sky", "cyan"], ["sky", "blue"],
+const ALIKE: [string, string][] = [["team-b", "orange"], ["team-c", "emerald"], ["team-c", "teal"], ["team-a", "cyan"], ["team-a", "sky"], ["sky", "cyan"], ["sky", "blue"], ["info", "sky"], ["info", "blue"], ["info", "team-a"],
   ["amber", "yellow"], ["amber", "orange"], ["team-b", "amber"]];
 // Every data visual: none may be all grey.
 const VISUAL = "[data-bar], [data-kpi], [data-phase], [data-rank-pill], [data-rank-badge], [data-award], [data-pill], [data-bar-value], [data-node], [data-block=series] polyline, [data-timeline] polyline, [data-line-icon], [data-line-text], [data-none]";
@@ -92,7 +92,8 @@ export function auditAnswer(card: HTMLElement, { names = [] as string[], contras
       if (TEAM.test(f) || ALLIANCE.test(f)) { hues.add(f.replace(/-(text|ink)$/, "")); continue; }
       if (GOLD.test(f) && el.closest("[data-primary-cta]")) continue;
       if (PLAY.test(f) && el.closest("[data-answer-video], [data-video-control]")) continue;
-      if (PALETTE.has(f)) { hues.add(f); continue; }
+      // A palette family's deeper text shade (info-text) is that family.
+      if (PALETTE.has(f.replace(/-text$/, ""))) { hues.add(f.replace(/-text$/, "")); continue; }
       problems.push(`${GOLD.test(f) ? "gold" : "hue"} on data: ${c} (${el.tagName.toLowerCase()} "${(el.textContent ?? "").trim().slice(0, 30)}")`);
     }
     for (const attr of ["fill", "stroke", "color"]) {

@@ -66,14 +66,15 @@ export function mainRef(a: SearchAnswer): VideoRef | null {
   return null;
 }
 
-/** Every match a stat answer lists (its match rows, a table's rows that link to a match, a video page's tiles), first
- *  seen first. */
+/** Every match an answer lists (a stat answer's match rows, a table's rows that link to a match, a video page's tiles;
+ *  a records card's lines and its closest records), first seen first. */
 export function rowRefs(a: SearchAnswer): (VideoRef & { href: string })[] {
   const out = new Map<string, VideoRef & { href: string }>();
   const add = (href: string | undefined, max = MAX_ROWS) => {
     const r = href && !out.has(href) ? refOfHref(href) : null;
     if (r?.key && out.size < max) out.set(href!, { ...r, href: href! });
   };
+  for (const l of [...(a.card?.lines ?? []), ...(a.card?.closest ?? [])]) add(l.href);
   for (const b of a.stat?.blocks ?? []) {
     if (b.kind === "matches") for (const r of b.rows) add(r.href);
     else if (b.kind === "table") for (const r of b.rows) add(r.href);

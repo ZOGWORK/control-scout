@@ -121,6 +121,18 @@ describe("answerVideo: a list's play buttons", () => {
     });
   });
 
+  it("a records card's lines (a season's best scores) get their clips too, keyed by each line's link", async () => {
+    const card: SearchAnswer = { q: "q", hits: [], pages: [], step: "deterministic", weak: false, card: { kind: "high-scores", title: "Highest scores", lines: [
+      { text: "533 points: M1 at Edison", href: href("FTCCMP1EDIS", "playoff:1:1") }, { text: "404 points: M10 at Massachusetts", href: href("USMACMP", "playoff:10:1") },
+      { text: "240 points: F2 at Chesapeake", href: href("USCHSCMP", "playoff:0:2") }] } };
+    const v = await answerVideo(card, NOW);
+    expect(v?.main).toBeUndefined();
+    expect(v?.rows).toEqual({
+      [href("FTCCMP1EDIS", "playoff:1:1")]: { videoId: "ruupjlPEQns", t: 0, kind: "match", match: "M1" },
+      [href("USMACMP", "playoff:10:1")]: { videoId: "xnQFL9T27fY", t: 33152, kind: "recording", match: "M10" },
+    });
+  });
+
   it("reads the database once for the whole answer, however many rows (the season maps are kept)", async () => {
     await answerVideo(top(), NOW);
     const spy = vi.spyOn(client, "execute");
