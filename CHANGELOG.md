@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.2.4 — 2026-11-10
+
+Search pages carry People also ask and Related searches in the page itself, at every screen width.
+
+### Highlights
+- [fixes] People also ask sits under every search answer
+- [fixes] Related searches close every search page, six to eight of them
+- [speed] Both arrive with the page, no second wait
+
+### Changed
+- The search page's server-drawn first paint carries People also ask (up to six questions, each opening to its answer's line and a link that runs that exact question) under the answer, and Related searches at the end, with a link to the related searches page. The app starts from the same ones, so nothing is asked twice. Both are the follow-ups already checked to answer directly; a set that takes over 1.2 s is left to the app, as before.
+- Wide screens show them in the answer's column too, where a phone already had them, rather than in a column beside it.
+- More short searches to offer: an event's top teams and every award it gives; with nothing named, the season's other boards (Auto, TeleOp, Endgame OPR, best record) and more event weeks (next week, this weekend, past events, upcoming championships). Each is still shown only when it answers directly.
+
 ## 5.2.3 — 2026-11-10
 
 Search reads one season rule in every answer, and says which season (and which state championship) it read.
