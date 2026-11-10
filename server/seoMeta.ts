@@ -50,7 +50,7 @@ import { answerSections } from "../src/shared/searchSections.js";
 import { rebuildSearch } from "./stats/job.js";
 import { SEARCH_HITS_ID, SEARCH_PAGE_LIMIT, SORRY_SENTENCE, cardWho, followApiPath, hitHref, relatedApiPath, relatedQuery, relatedSearch } from "../src/shared/search.js";
 import { hasPhases, phaseNote, teamColumns, teamTableOfLeaderboard, type TeamTable } from "../src/shared/teamTable.js";
-import { badgeUnder, contextBadge, isQualityQuestion, pageTitle } from "../src/shared/searchPage.js";
+import { badgeUnder, contextBadge, isQualityQuestion, pageTitle, repeats, unreadNote } from "../src/shared/searchPage.js";
 
 /** The site's name, the same everywhere a search engine reads one: every <title>, og:site_name, the
  *  WebSite and Organization data. "FTC Control Scout" is its alternate name (in the structured data). */
@@ -672,26 +672,33 @@ async function searchMeta(raw: string): Promise<PageMeta> {
   // The badge says what was understood; with none (nothing found), the reading's own lines do. A fallback is always
   // said, so substitute events are never shown as the answer.
   const fallback = answer.understood?.fallback;
-  const said = [notes.didYouMean ? `Did you mean: <a href="/search?q=${esc(encodeURIComponent(notes.didYouMean))}">${esc(notes.didYouMean)}</a>${notes.corrected ? ". Showing results for that" : ""}` : "", ...(badge ? (fallback ? [esc(fallback)] : []) : sorry ? [] : notes.understood.map(esc)), notes.gap ? `<b>${esc(notes.gap)}</b>` : ""].filter(Boolean);
+  const unread = unreadNote(answer);
+  const said = [notes.didYouMean ? `Did you mean: <a href="/search?q=${esc(encodeURIComponent(notes.didYouMean))}">${esc(notes.didYouMean)}</a>${notes.corrected ? ". Showing results for that" : ""}` : "", ...(badge ? (fallback ? [esc(fallback)] : []) : sorry ? [] : notes.understood.map(esc)), notes.gap ? `<b>${esc(notes.gap)}</b>` : "", unread ? `<small>${esc(unread)}</small>` : ""].filter(Boolean);
   // A yes-or-no question's answer, first and in bold, before the card that is its evidence (the app's Verdict).
   const verdict = answer.verdict ? `<p data-verdict="${esc(answer.verdict.answer)}"><b>${esc(answer.verdict.answer)}</b> · ${esc(answer.verdict.label)}</p>` : "";
   const sorryNote = sorry ? (sorry.understood.length ? `<p data-sorry><b>I read:</b> ${esc(sorry.understood.join(" · "))}</p>` : "")
     + (sorry.suggest.length ? `<h2>Searches that answer about them</h2><ul>${sorry.suggest.map((x) => `<li><a href="/search?q=${esc(encodeURIComponent(x))}">${esc(x)}</a></li>`).join("")}</ul>` : "") : "";
+  // The heading as the app titles it (below); a card's or stat's own title that only repeats it isn't said again, nor a
+  // headline label that does, so the page's first lines are never the same words twice.
+  const heading = answered ? pageTitle(answer, answer.hits, isQualityQuestion(q)) : SORRY_SENTENCE;
+  // As the app hides a title (repeats): one the heading already holds, less the chips at its end.
+  const same = (x: string | null | undefined, chips: readonly string[] = []) => !!x && repeats(heading, x, chips);
   // A question's direct answer (server/api/searchQuestions.ts), as the page shows it: its records, or its plain
   // "none found" with the closest records under it.
   const c = answer.card;
   const cardLines = (ls: SearchCardLine[]) => `<ul>${ls.map((l) => `<li>${l.href ? `<a href="${esc(l.href)}">${esc(l.text)}</a>` : esc(l.text)}${l.detail ? `<br><small>${esc(l.detail)}</small>` : ""}${l.results?.length ? `<ul>${l.results.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>` : ""}</li>`).join("")}</ul>`;
-  const card = c ? `<section aria-label="${esc(c.title)}"><h2>${esc([c.title, cardWho(c)].filter(Boolean).join(" · "))}</h2>`
+  const cardHead = [c?.title, c ? cardWho(c) : ""].filter(Boolean).join(" · ");
+  const card = c ? `<section aria-label="${esc(c.title)}">${same(c.title) && (!cardWho(c) || same(cardWho(c))) ? "" : `<h2>${esc(cardHead)}</h2>`}`
     + (c.none ? `<p>${esc(c.none)}</p>` : "") + (c.table?.rows.length ? teamTableHtml(c.table, c.title) : c.lines.length ? cardLines(c.lines) : c.closest?.length ? `<p>Closest records</p>${cardLines(c.closest)}` : "") + "</section>" : "";
   // A stat answer (server/api/answers/): the number asked for (or its plain "none found"), its headline numbers, how
   // it was counted and from which records; the app draws its tables and charts.
   const s = answer.stat;
   const linked = (text: string, href?: string) => (href ? `<a href="${esc(href)}">${esc(text)}</a>` : esc(text));
   const kpis = s?.blocks.flatMap((b) => (b.kind === "kpis" ? b.items : [])) ?? [];
-  const stat = s ? `<section aria-label="${esc(s.title)}"><h2>${esc(s.title)}</h2>`
+  const stat = s ? `<section aria-label="${esc(s.title)}">${same(s.title, s.scope) ? "" : `<h2>${esc(s.title)}</h2>`}`
     + (s.none ? `<p>${esc(s.none)}</p>` : "")
     // Its teams as chips on the page (an alliance's): named here as links.
-    + (s.headline ? `<p><b>${linked(s.headline.value, s.headline.href)}</b> · ${esc(s.headline.label)}${s.headline.teams?.length ? `: ${s.headline.teams.map((t) => linked(t.label, t.href)).join(", ")}` : ""}${s.headline.sub ? `<br><small>${esc(s.headline.sub)}</small>` : ""}</p>` : "")
+    + (s.headline ? `<p><b>${linked(s.headline.value, s.headline.href)}</b>${same(s.headline.label, s.scope) || s.headline.label === s.title ? "" : ` · ${esc(s.headline.label)}`}${s.headline.teams?.length ? `: ${s.headline.teams.map((t) => linked(t.label, t.href)).join(", ")}` : ""}${s.headline.sub ? `<br><small>${esc(s.headline.sub)}</small>` : ""}</p>` : "")
     // Each tile's line under its number too (which match, which event, when), as the app shows it.
     + (kpis.length ? `<p>${kpis.map((k) => `${esc(k.label)}: <b>${linked(k.value, k.href)}</b>${k.sub ? ` <small>(${esc(k.sub)})</small>` : ""}`).join(" · ")}</p>` : "")
     // A leaderboard's teams, every row, as the app's table has them; its "View more detail" link under it.
@@ -703,7 +710,6 @@ async function searchMeta(raw: string): Promise<PageMeta> {
     + `<p><small>${esc(s.definition)}<br>${esc(s.source)}</small></p></section>` : "";
   // The heading as the app titles it; a badge that only repeats it is left out, as the app leaves it out.
   // Nothing answered (a sorry note, or nothing found at all): the page says sorry, once, as its heading.
-  const heading = answered ? pageTitle(answer, answer.hits, isQualityQuestion(q)) : SORRY_SENTENCE;
   const shown = badge && badgeUnder(heading, badge);
   // The follow-ups as the app places them on a page with an answer: People also ask under the answer, Related searches
   // at the end. With them, their data for the app, so it starts from the same ones (src/lib/pageData.ts).

@@ -143,11 +143,13 @@ export const publishedLine = (w: Pick<PowerRankingsWeek, "published" | "updated"
   `Published ${publishedLabel(w.published)}${w.updated && w.updated !== w.published ? ` · Updated ${publishedLabel(w.updated)}` : ""}`;
 
 /**
- * What the numbers under each blurb are: "Stats as of Oct 16, 2026." for an automatic week (frozen with
- * its text), "Stats are live." for a hand-written one; and, when they come from another season, which.
+ * What the numbers under each blurb are: "Stats as of Oct 16, 2026, frozen with the write-ups, so a rating on a team's
+ * page today can differ." for an automatic week (frozen with its text), "Stats are live." for a hand-written one; and,
+ * when they come from another season, "Ratings and records are from the … season." after it.
  */
 export function statsLine(w: Pick<PowerRankingsWeek, "statsAsOf" | "dataSeason">): string {
-  const asOf = w.statsAsOf ? `Stats as of ${longDate(w.statsAsOf)}.` : "Stats are live.";
+  // Frozen with the write-ups, so a team's rating here can differ from World rankings and its team page, which are live.
+  const asOf = w.statsAsOf ? `Stats as of ${longDate(w.statsAsOf)}, frozen with the write-ups, so a rating on a team's page today can differ.`: "Stats are live.";
   if (w.dataSeason == null) return asOf;
   return `${asOf} Ratings and records are from the ${w.dataSeason}–${String((w.dataSeason + 1) % 100).padStart(2, "0")} season.`;
 }

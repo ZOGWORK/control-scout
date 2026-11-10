@@ -236,7 +236,7 @@ describe("long, conversational queries", () => {
     // #630: the trigger is the appearances card with its last trip as the headline; "last" is read, never called unread.
     const w = await ask("when was the last time 4215 went worlds");
     expect(w.card).toMatchObject({ kind: "worlds", headline: expect.stringMatching(/^Last went to Worlds in /) });
-    expect(w.understood?.label).not.toMatch(/isn't part of this answer/);
+    expect(w.understood?.unread ?? []).toEqual([]);
   });
 
   it("reads the teams around a team's rank as its OPR rank, keeping a season or a place and the whole name", () => {
@@ -301,7 +301,8 @@ describe("the first or the last time, by a team's name", () => {
     expect(a.card?.kind, q).toBe(/states/.test(q) ? "states" : "worlds");
     expect(a.card?.team?.number).toBe(Number(team));
     expect(a.card?.headline).toBe(headline);
-    expect(a.understood?.label).not.toMatch(/isn't part of this answer|isn't answered/);
+    expect(a.understood?.label).not.toMatch(/isn't answered/);
+    expect(a.understood?.unread ?? []).toEqual([]);
   });
 
   it("reads a typo of worlds after the filler is gone", async () => {
@@ -315,7 +316,7 @@ describe("the first or the last time, by a team's name", () => {
     expect(a.card).toMatchObject({ kind: "worlds", team: { number: 6980 } });
     expect(a.card?.headline).toBeUndefined();
     expect(a.card?.none).toMatch(/no last trip to name/);
-    expect(a.understood?.label).not.toMatch(/isn't part of this answer/);
+    expect(a.understood?.unread ?? []).toEqual([]);
   });
 });
 

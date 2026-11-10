@@ -143,7 +143,7 @@ describe("the answers", () => {
     for (const q of ["what if 6980 faced 4215", "suppose 4215 played 6980 next week", "imagine 6980 against 4215 tomorrow", "what if 4215 played 6980 this week", "if 6980 faced 4215, who would win"]) {
       const a = await ask(q);
       expect(a.stat, q).toMatchObject({ intent: "predict", headline: { value: "4215 rated higher", label: "by 47.7 points per match" } });
-      expect(a.understood!.label, q).not.toMatch(/isn't part of this answer/);
+      expect(a.understood!.unread ?? [], q).toEqual([]);
     }
     expect((await ask("imagine 6980 against 4215 tomorrow")).understood!.label).toContain(`tomorrow: an upcoming match, called on ${seasonLabel(S)} ratings`);
     // A day gone by isn't to come: never this call.
