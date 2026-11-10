@@ -175,6 +175,18 @@ describe("states, worlds and a team's own events (complex queries file)", () => 
     expect((await ask("4215 state championship rank")).headline).toMatchObject({ value: "#2 of 2" });
     expect((await ask("4215 states wins and losses")).intent).toBe("record");
   });
+  it("D8: every answer at states is one named event, its season on the card; \"all\" or \"ever\" is every season", async () => {
+    for (const q of ["4215 record at states", "4215 quals matches at states", "how did 4215 do at states", "4215 highest score at states"]) {
+      const r = await ask(q);
+      expect(r.title, q).toMatch(/New Jersey Championship - Parkway Division$/);
+      expect(r.scope, q).toEqual(expect.arrayContaining(["New Jersey Championship - Parkway Division", "2025–26"]));
+    }
+    for (const q of ["4215 record at all state championships", "4215 record at all states", "4215 record at states ever"]) {
+      const r = await ask(q);
+      expect(r.title, q).toBe("Record at state championships");
+      expect(r.scope, q).toEqual(["State championships", "All seasons"]);
+    }
+  });
   it("27, 56: a team with no state championship is told so", async () => {
     expect((await ask("10809 matches at states")).none).toMatch(/^Crow Force \(10809\) has no state championships on record/);
   });
