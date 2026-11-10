@@ -129,6 +129,9 @@ export interface SearchUnderstood {
   /** The query as search read it, when a layer said a long or wordy one the short way ("did 4215 win any awards last
    *  season" → "4215 awards last season"): a quiet "Showing: …" line, never the heading (server/api/searchLayers.ts). */
   showing?: string;
+  /** Words of the query the answer read past ("4215 today opr": "today"): said in a quiet note of their own under the
+   *  answer (unreadNote), never in the label, which titles the page. */
+  unread?: string[];
 }
 
 /** A site page a whole query word names ("records" → the records pages): listed apart, below the results. */

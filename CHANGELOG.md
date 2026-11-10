@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.3.0 — 2026-11-10
+## 5.3.3 — 2026-11-10
 
 Every page links Methodology, FAQ, Rules, Settings and Donate from its footer, and /how-it-works opens How it works.
 
@@ -27,6 +27,51 @@ Every page links Methodology, FAQ, Rules, Settings and Donate from its footer, a
 ### Fixed
 - The footer's links live in one list (`src/shared/footer.ts`) shared by the app's footer and the server's first paint (`server/bootShell.ts`), so they are in every page's HTML before the app loads and without JavaScript: Methodology, FAQ, Rules, Settings, Donate, Contact, Privacy, Terms.
 - `/how-it-works` (and `/how-it-works/`) 301s to `/methodology`, the page the sidebar's How it works opens, in one hop; the app redirects the same way. (#1329)
+
+## 5.3.2 — 2026-11-10
+
+Small words set right: the home headline's spelling, the power rankings' day and snapshot, the contact limit, a league meet's playoffs.
+
+### Highlights
+- [fixes] The home headline reads "Scouting, Reimagined"
+- [rankings] Power rankings say their ratings are frozen with the write-ups
+- [fixes] A league meet's Playoffs tab says league meets have no playoffs
+- [fixes] The contact form stops at its 5,000-character limit
+
+### Fixed
+- The saved home hero line "Scouting, Remagined" reads "Reimagined" (migration 80; next free migration 81).
+- The FAQ no longer promises a Friday publish: a new power-rankings week normally comes out on Friday, the page says the day it did, and it is checked again daily. Each week's stats line says its ratings are frozen with the write-ups and a team's page can differ today, so a rating that moved since (21229: 145.9 there, 146.3 live) is explained on the page.
+- The contact message box's limit is the 5,000 its counter shows (it allowed 5,200), and the counter counts every character the box does.
+- A league meet's Playoffs tab says league meets play qualification matches only (alliances are picked at the league tournament); an event whose last day has passed with no alliances on record says so, instead of "Alliances not selected yet".
+- Records read aloud say "1 loss", "1 win", "1 tie" (`recordWords`), never "1 losses". (#1332)
+
+## 5.3.1 — 2026-11-10
+
+Gold is the accent only: charts, compared teams and team colours use their own hues, and team B is no longer amber beside it.
+
+### Highlights
+- [fixes] Team B on dark is vermilion, no longer amber beside the gold
+- [fixes] Charts and Compare draw teams in team hues, never the accent
+- [fixes] Indigo replaces gold among team colours
+
+### Fixed
+- Team B's colour on dark was Okabe–Ito amber (#e69f00), a step from the accent gold (#eab308): a compared team read as a button. It is now vermilion (#f0763a, the light theme's #d55e00 lifted for dark).
+- The first chart colour was the accent itself, so a team's own trend and Compare's first team were gold. It is team A's blue; Compare draws each team in the team hues search's compare card uses, with a fourth (reddish purple) for a fourth team.
+- Compare marked each row's best value and the baseline column in gold; the best is now bold on a neutral tint, the baseline a neutral tint.
+- The colours a scout gives their teams had Gold; it is Indigo now. A team saved as gold shows in its usual colour. (#1337)
+
+## 5.3.0 — 2026-11-10
+
+A search's heading is the answer's own: words it read past get a quiet note of their own, and no heading is said twice.
+
+### Highlights
+- [fixes] Search headings never carry "isn't part of this answer"
+- [fixes] Words an answer read past get their own small note
+- [fixes] A search page no longer says its heading twice
+
+### Fixed
+- An answer that reads past some of the query's words ("4215 last prediction for East Bergen", "23268 rating going up or down") put `"last" isn't part of this answer` into its label, which titles the page. The words now go in `understood.unread` and show as a quiet note under the answer ("Not used in this answer: "last""), on the page and in its first HTML; the label is the answer's own.
+- The first HTML of a search no longer repeats the heading: a stat's or card's own title that matches it, and a headline label that only repeats the title, are left out (35 of 200 audited pages said their title twice). (#1335)
 
 ## 5.2.9 — 2026-11-10
 

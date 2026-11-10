@@ -53,8 +53,9 @@
      TEAM_TEXT, held to 4.5:1). Dark's are the light-on-dark steps; Dim and Midnight keep them. textTones.test.ts
      holds each to 3:1 against the card as a graphic. */
   --color-team-a: #56b4e9;
-  --color-team-b: #e69f00;
+  --color-team-b: #f0763a;
   --color-team-c: #009e73;
+  --color-team-d: #cc79a7;
   /* Team B and C's numbers as text on their tints: B as is; C a step brighter (bluish green is 4.0:1 on Dim's tint). */
   --color-team-b-text: var(--color-team-b);
   --color-team-c-text: #34c79b;
@@ -101,7 +102,8 @@
   --color-input: var(--sh-input);
   --color-ring: var(--color-accent);
   --color-destructive: var(--sh-destructive);
-  --color-chart-1: var(--color-accent);
+  /* Never the accent: gold/yellow marks the interface (buttons, the current tab), never a value. */
+  --color-chart-1: var(--color-team-a);
   --color-chart-2: var(--sh-chart-2);
   --color-chart-3: var(--sh-chart-3);
   --color-chart-4: var(--sh-chart-4);
@@ -167,6 +169,7 @@ html.light {
   --color-team-a: #0072b2;
   --color-team-b: #d55e00;
   --color-team-c: #009e73;
+  --color-team-d: #a8467f;
   /* Light's B and C as text are a step deeper (vermillion 3.4:1 and bluish green 3.1:1 on their tints): 4.5:1 and up. */
   --color-team-b-text: #9a3f00;
   --color-team-c-text: #006a50;

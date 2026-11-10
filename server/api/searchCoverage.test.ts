@@ -233,7 +233,7 @@ describe("answers on their own", () => {
     // Its answer is the most recent match, and "last" isn't called a word left out.
     const a = await ask("when did 4215 last play");
     expect(a.stat?.intent).toBe("recent-match");
-    expect(a.understood?.label ?? "").not.toMatch(/isn't part of this answer/);
+    expect(a.understood?.unread ?? []).toEqual([]);
   });
   it("a country's teams by an alias, and 'best team' left to the leaderboards", async () => {
     await run("INSERT INTO teams (number, name, city, state, country) VALUES (31000, 'Lions', 'Leeds', NULL, 'United Kingdom')");

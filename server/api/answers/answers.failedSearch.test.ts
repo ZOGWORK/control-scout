@@ -150,7 +150,7 @@ describe("typos the spelling layer missed", () => {
       const a = await full(q);
       expect(a.intent?.kind, q).toBe("stat-winning-alliance");
       expect(a.intent?.understood[0], q).toBe("East Bergen Conference Northern League Tournament · Winning alliance");
-      expect(a.understood?.label, q).not.toMatch(/isn't part of this answer/);
+      expect(a.understood?.unread ?? [], q).toEqual([]);
     }
     expect((await full("east bergen conference winnng")).didYouMean).toBe("east bergen conference winning");
     // A winner word beside a team's name is never an event's ("bad wolf winner").
@@ -252,7 +252,7 @@ describe("leaderboard sorts in plain words", () => {
   it("two phases joined are their OPRs added", async () => {
     const a = await full("best auto right and endgame");
     expect(a.stat?.title).toBe("Top 10 teams by Auto + Endgame OPR worldwide · 2025–26");
-    expect(a.understood?.label).not.toMatch(/isn't part of this answer/);
+    expect(a.understood?.unread ?? []).toEqual([]);
     const board = a.stat!.blocks.find((x) => x.kind === "leaderboard") as { rows: { team: { label: string }; value: number }[] };
     expect(board.rows.slice(0, 3).map((r) => [r.team.label, r.value])).toEqual([["20265 Heart of RoBots", 80], ["23268 Ultraviolet", 70], ["10809 Crow Force", 65]]);
   });

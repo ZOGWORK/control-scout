@@ -142,7 +142,7 @@ describe("compound answers", () => {
   it("16: a region and a Worlds season, with OPR from that season", async () => {
     const a = await ask(`teams in NJ that went to worlds in ${S} and their opr`);
     expect((a.stat?.blocks[0] as any).rows.map((r: any) => [r.team.label, r.display])).toEqual([["23268 Ultraviolet", "237.4"], ["7149 ENFORCERS", "175.3"], ["207 Critical Mass", "90.0"], ["6980 Bad Wolf", "40.0"]]);
-    expect(a.understood?.label).not.toMatch(/isn't part of this answer/);
+    expect(a.understood?.unread ?? []).toEqual([]);
   });
   it("5: OPR at the first event of two seasons", async () => {
     const a = await ask("what was 4215's opr at their first event this season compared to last season");
