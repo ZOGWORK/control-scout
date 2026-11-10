@@ -356,15 +356,15 @@ function MatchLab() {
   const [blue, setBlue] = useState<string[]>(() => { const x = init("blue"); return [x[0] ?? "", x[1] ?? ""]; });
   // One or two robots a side: a search answer's two-team call opens here as one against one. Blank boxes are skipped.
   const filled = (side: string[]) => side.filter((x) => x.trim());
-  const ready = filled(red).length > 0 && filled(blue).length > 0;
+  // As many on each side: two and two, or one and one (a forgotten box never makes a two-against-one call).
+  const ready = filled(red).length > 0 && filled(red).length === filled(blue).length;
   // The matchup last asked for (from the URL or the Predict button). Typing in
   // the inputs edits a draft; the season switch never touches the draft.
   type Matchup = { red: number[]; blue: number[] };
   const parse = (r: string, b: string): Matchup | null => {
     const red = r.split(",").filter(Boolean).map(Number), blue = b.split(",").filter(Boolean).map(Number);
     const all = [...red, ...blue];
-    const sized = (n: number) => n >= 1 && n <= 2;
-    return sized(red.length) && sized(blue.length) && all.every((t) => Number.isInteger(t) && t > 0) && new Set(all).size === all.length ? { red, blue } : null;
+    return red.length >= 1 && red.length <= 2 && red.length === blue.length && all.every((t) => Number.isInteger(t) && t > 0) && new Set(all).size === all.length ? { red, blue } : null;
   };
   const urlRed = sp.get("red") ?? "", urlBlue = sp.get("blue") ?? "";
   const [submittedTeams, setSubmittedTeams] = useState<Matchup | null>(() => parse(urlRed, urlBlue));

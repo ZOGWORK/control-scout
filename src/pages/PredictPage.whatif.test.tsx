@@ -104,4 +104,19 @@ describe("One robot a side", () => {
     expect(new URLSearchParams(where).get("blue")).toBe("3");
     expect(await screen.findByText("Red 1")).toBeTruthy();
   });
+
+  it("two against one is never called: a forgotten box keeps Predict off", () => {
+    render(<TooltipProvider><MemoryRouter initialEntries={["/predict?mode=match&season=2025&red=1,2&blue=3"]}><PredictPage /></MemoryRouter></TooltipProvider>);
+    expect(asked).toEqual([]);
+    fireEvent.change(screen.getByRole("textbox", { name: "Red team 1" }), { target: { value: "1" } });
+    expect((screen.getByRole("button", { name: /Predict this match/ }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("arrow keys move the robot to swap out", async () => {
+    render(<TooltipProvider><MemoryRouter initialEntries={["/predict?mode=match&season=2025&red=1,2&blue=3,4"]}><PredictPage /></MemoryRouter></TooltipProvider>);
+    await screen.findByTestId("what-if");
+    fireEvent.keyDown(screen.getByRole("radio", { name: "1" }), { key: "ArrowRight" });
+    expect(screen.getByRole("radio", { name: "2" }).getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByRole("textbox", { name: "Instead of 2" })).toBeTruthy();
+  });
 });

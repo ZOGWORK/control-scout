@@ -1,7 +1,7 @@
 // What if: one robot of a predicted match swapped for another (a different partner, a different opponent), and the
 // call and margin before and after, side by side. The swap is in the address (?whatif=OLD:NEW), so a what-if can be
 // shared and Back undoes it. Both calls come from the same /api/predict/match the lab uses: nothing is estimated here.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ArrowRight, FlaskConical, Undo2 } from "lucide-react";
 import { useApi, qs } from "../../lib/api";
@@ -43,14 +43,28 @@ export function WhatIf({ base }: { base: MatchExplanationView }) {
   const red = swap ? swapped(base.red, swap.out, swap.in) : base.red, blue = swap ? swapped(base.blue, swap.out, swap.in) : base.blue;
   const after = useApi<MatchExplanationView>(swap ? `/api/predict/match${qs({ season: base.season, red: red.join(","), blue: blue.join(","), ...(base.level === "playoff" ? { level: "playoff" } : {}) })}` : null);
   const set = (v: string | null) => setSp((x) => { if (v) x.set("whatif", v); else x.delete("whatif"); return x; });
+  // The matchup and robot this check is for: a check that finishes after either changed is dropped.
+  const asked = useRef("");
   const run = async () => {
     const n = Number(into.trim());
     if (lineUp.includes(n)) { setError(`${n} is already in this match. Pick a robot that isn't.`); return; }
+    const at = (asked.current = `${key}|${out}|${n}`);
     setChecking(true);
     const [e] = await teamsErrors([into], ["the new robot"], lookupTeamName);
     setChecking(false);
+    if (asked.current !== at) return;
     if (e) { setError(e); return; }
     set(`${out}:${n}`);
+  };
+  useEffect(() => { asked.current = ""; }, [key]);
+  // Arrow keys move the pick along the robots, as a radio group does; only the picked one is a tab stop.
+  const pickKey = (e: KeyboardEvent, i: number) => {
+    const d = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+    if (!d) return;
+    e.preventDefault();
+    const j = (i + d + lineUp.length) % lineUp.length;
+    setOut(lineUp[j]); setError(null); asked.current = "";
+    (e.currentTarget.parentElement?.children[j] as HTMLElement | undefined)?.focus();
   };
   const side = (t: number) => (base.red.includes(t) ? "red" : "blue");
   return (
@@ -59,8 +73,8 @@ export function WhatIf({ base }: { base: MatchExplanationView }) {
       <p className="mt-1 text-sm text-muted-foreground">Swap one robot for another, a different partner or opponent, and see how the call and the margin move. Same ratings, same engine.</p>
       <form onSubmit={(e) => { e.preventDefault(); run(); }} noValidate className="mt-3 flex flex-wrap items-end gap-3">
         <div role="radiogroup" aria-label="Robot to swap out" className="flex flex-wrap gap-1.5">
-          {lineUp.map((t) => (
-            <button key={t} type="button" role="radio" aria-checked={out === t} onClick={() => { setOut(t); setError(null); }}
+          {lineUp.map((t, i) => (
+            <button key={t} type="button" role="radio" aria-checked={out === t} tabIndex={out === t ? 0 : -1} onKeyDown={(e) => pickKey(e, i)} onClick={() => { setOut(t); setError(null); asked.current = ""; }}
               className={cn("h-11 rounded-lg border px-3 font-mono text-sm tabular-nums transition-colors motion-reduce:transition-none",
                 out === t ? (side(t) === "red" ? "border-red-alliance bg-red-alliance/10 text-red-alliance" : "border-blue-alliance bg-blue-alliance/10 text-blue-alliance") : "border-border text-muted-foreground hover:text-foreground")}>
               {t}
