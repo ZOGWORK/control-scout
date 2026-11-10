@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.3.5 — 2026-11-10
+## 5.3.6 — 2026-11-10
 
 Search answers advancement odds: a team's chance to take an advancing slot at an event, from the same engine numbers as Predict.
 
@@ -32,6 +32,22 @@ Search answers advancement odds: a team's chance to take an advancing slot at an
 - A match's win chance is never shown as advancement odds: those queries used to show the average chance to win each match.
 - A chance under 1.5% prints as 1% in search, as Predict prints it, never a false 0%.
 - The advancement card shows its confidence tier and why, by the same rule as Predict's Advancement view.
+
+## 5.3.5 — 2026-11-10
+
+Search suggestions name only six teams, by their names.
+
+### Highlights
+- [home] Home's suggestions name only six New Jersey teams
+- [home] Teams go by name ("Bad Wolf auto OPR") where search answers it
+- [fixes] Filtered suggestions answer this season again
+
+### Changed
+- Home: the suggestion chips and the "Try …" placeholder name only teams 4215 Hypnotic Robotics, 6980 Bad Wolf, 7149 ENFORCERS, 14481 Don't Blink, 23268 Ultraviolet and 19477 Bit by Bit, by name wherever search answers the name. Ultraviolet is four teams' name, and three teams' names side by side don't answer as a comparison yet, so those go by number. Next-event chips are gone until one of the six has a published next event. A test fails on any suggestion naming another team. (#1343)
+- Search: the "Try" example chips and the how-it-works search examples use the same six teams.
+
+### Fixed
+- Home: seven several-filter suggestions ("teams in texas with opr over 150") answered "none" in the young 2026–27 season. Their thresholds now fit this season, or they ask about last season.
 
 ## 5.3.4 — 2026-11-10
 

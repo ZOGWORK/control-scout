@@ -7,7 +7,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { RECENT_KEY } from "../search/discover";
-import { SUGGESTION_HOUR_MS, fitChips, placeholderable, suggestionLabel, suggestionsAt } from "../../shared/homeSuggestions";
+import { SUGGESTION_HOUR_MS, SUGGESTION_TEAMS, fitChips, placeholderable, suggestionLabel, suggestionsAt } from "../../shared/homeSuggestions";
 import { HERO_EXAMPLE_MS, HeroSearch, heroPlaceholder } from "./HeroSearch";
 
 let reduced = false;
@@ -89,6 +89,17 @@ describe("HeroSearch", () => {
     fireEvent.click(screen.getByRole("button", { name: `Leaderboard: search “${board.q}”` }));
     expect(screen.getByTestId("at").textContent).toBe(`/search?q=${encodeURIComponent(board.q)}`);
     expect(JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]")).toContain(board.q);
+  });
+
+  it("names only the six suggestion teams in its chips and placeholder, all day", () => {
+    const allowed = new Set(Object.keys(SUGGESTION_TEAMS));
+    const outside = (text: string) => (text.match(/(?<!\bover )\b\d{3,5}\b(?!\+)/g) ?? []).filter((t) => !allowed.has(t));
+    show();
+    for (let h = 0; h < 24; h++) {
+      const shown = [...chips().map((b) => b.textContent ?? ""), field().getAttribute("placeholder") ?? ""];
+      expect(shown.flatMap(outside), shown.join(" | ")).toEqual([]);
+      act(() => { vi.advanceTimersByTime(SUGGESTION_HOUR_MS); });
+    }
   });
 
   it("never searches for the example in the placeholder", () => {
