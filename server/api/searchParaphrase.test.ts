@@ -52,6 +52,11 @@ describe("the plural is the list", () => {
       const a = await ask(q);
       expect([a.card?.kind, a.didYouMean], q).toEqual([undefined, undefined]);
     }
+    // "In" inside a team's name is the name: the team's own schedule.
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (31996, 'Robots in Disguise', 'Union', 'NJ', 'USA')");
+    await run("INSERT INTO event_teams (season, code, team) VALUES (2026, 'USNJM1', 31996)");
+    await rebuildSearch();
+    for (const q of ["31996 robots in disguise upcoming events", "31996 upcoming events"]) expect((await ask(q)).card, q).toMatchObject({ kind: "next-event", title: "Upcoming events" });
   });
   it("the singular is the next one", async () => {
     expect((await ask("7149 upcoming event")).card).toMatchObject({ kind: "next-event", title: "Next event", lines: [{ text: "Northeast League Meet" }] });
