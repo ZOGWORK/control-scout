@@ -79,9 +79,9 @@ describe("league standings sync", () => {
     expect(await syncLeagues(S, { now: new Date("2026-11-21T12:00:00Z"), fetch: fetcher(asked) })).toMatchObject({ ranked: 0 });
   });
 
-  it("keeps the stored standings when FIRST answers with none (404), and asks again", async () => {
+  it.each([["a 404", null], ["an empty list", { rankings: [] }]])("keeps the stored standings when FIRST answers with %s, and asks again", async (_, none) => {
     await syncLeagues(S, { now: new Date("2026-11-08T12:00:00Z"), fetch: fetcher([]) });
-    const missing = async (path: string) => (path.includes("rankings") ? null : fetcher([])(path));
+    const missing = async (path: string) => (path.includes("rankings") ? none : fetcher([])(path));
     expect(await syncLeagues(S, { now: new Date("2026-11-08T19:00:00Z"), fetch: missing })).toMatchObject({ ranked: 0, failed: 1 });
     expect((await leagueStandings(S, "USNJ", "NE"))!.rows).toHaveLength(3);
     expect(await syncLeagues(S, { now: new Date("2026-11-08T19:05:00Z"), fetch: fetcher([]) })).toMatchObject({ ranked: 1 });

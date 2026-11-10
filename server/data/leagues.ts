@@ -79,9 +79,10 @@ export async function syncLeagues(season: number, o: { past?: boolean; limit?: n
     let body: unknown;
     try { body = await get(`/${season}/leagues/rankings/${encodeURIComponent(region)}/${encodeURIComponent(league)}`); }
     catch { out.failed++; continue; }
-    // Not found (FIRST answers 404 before a league's standings exist): nothing replaced, asked again next sync.
-    if (body == null) { out.failed++; continue; }
-    const rows = leagueRankingRows(body);
+    // Not found, or nothing ranked (FIRST answers a 404 or an empty list before a league's standings exist): nothing
+    // replaced, asked again next sync.
+    const rows = body == null ? [] : leagueRankingRows(body);
+    if (!rows.length) { out.failed++; continue; }
     await writeBatch(rankingStatements(season, region, league, rows, at));
     out.ranked++;
   }
