@@ -57,7 +57,9 @@ import { MATCH_KEY as REPORT_KEY } from "../src/shared/matchReport.js";
 import { rangeCoverageNow, trackRecord } from "./api/accuracy.js";
 import { currentWeather } from "./weather.js";
 import { MISSING_FILE, canonicalRedirects, renderPage } from "./seo.js";
-import { CSP_REPORT_PATH, cspReportRouter, securityHeaders, setPageCsp } from "./securityHeaders.js";
+import { CSP_REPORT_PATH, cspHeaderName, cspReportRouter, securityHeaders, setPageCsp } from "./securityHeaders.js";
+import { CACHED_PAGE, drawPage, pageKey } from "./pageCache.js";
+import { keptPage, PAGE_TTL_MS } from "./api/searchReads.js";
 import { sitemapChunkRoute, sitemapRoute } from "./sitemap.js";
 import { indexNowKeyRoute } from "./indexNow.js";
 import { latestRankings, rankingsWeek } from "./powerRankings/store.js";
@@ -1012,10 +1014,32 @@ export function createApp(opts: { dist?: string } = {}) {
     // app's HTML, so the visitor sees the app's own not-found page (and search engines drop the URL).
     app.get(/^(?!\/api\/|\/packs\/).*/, h(async (req, res) => {
       res.setHeader("Cache-Control", "no-cache");
+      const file = join(dist, "index.html"), query = req.query as Record<string, unknown>;
+      // A team, event, search or home page is kept whole for a short while (server/pageCache.ts): the same address
+      // asked again is the bytes already drawn, gzipped once. The ETag res.send makes keeps a repeat visit a 304.
+      // Before the data can be read (a start, before its migrations: the cache's version check reads kv), the page
+      // is drawn as it always was and nothing is kept.
+      const page = req.method === "GET" && CACHED_PAGE.test(req.path) ? await keptPage(pageKey(req.path, query), () => drawPage(file, req.path, query)).catch(() => null) : null;
+      if (page) {
+        // A search is counted on every visit, the kept page's too (server/api/searchIntents.ts: what people ask for).
+        void recordIntent(page.intent).catch(() => {});
+        res.setHeader(cspHeaderName(), page.csp);
+        res.setHeader("Vary", "Accept-Encoding");
+        // The same for everyone (no personal data in these pages): a browser revalidates every time (the ETag makes it
+        // a cheap 304), and a shared cache such as Cloudflare's may keep a found page for as long as this server does.
+        // Never a search page: each of its visits reaches this server, so it is counted.
+        const shared = /^\/search$/i.test(req.path) ? "" : `, s-maxage=${PAGE_TTL_MS / 1000}`;
+        if (page.status === 200) res.setHeader("Cache-Control", `public, max-age=0, must-revalidate${shared}`);
+        const gz = req.acceptsEncodings("gzip") ? await page.gz.catch(() => null) : null;
+        if (gz) res.setHeader("Content-Encoding", "gzip");
+        res.status(page.status).type("html").send(gz ?? page.html);
+        return;
+      }
       // The query names the page's view: rankings filters, a shared matchup (its card is the link preview).
-      const page = await renderPage(join(dist, "index.html"), req.path, req.query as Record<string, unknown>);
-      setPageCsp(res, page.html);
-      res.status(page.status).type("html").send(page.html);
+      const drawn = await renderPage(file, req.path, query);
+      void recordIntent(drawn.intent).catch(() => {});
+      setPageCsp(res, drawn.html);
+      res.status(drawn.status).type("html").send(drawn.html);
     }));
   }
 
