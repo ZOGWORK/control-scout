@@ -58,7 +58,7 @@ describe("offline team profile (same shape as /api/teams/:n)", () => {
     expect(p.stats).toEqual({
       opr: { np: { value: 55.5, rank: 7, of: 400 }, auto: { value: 10, rank: 9, of: 400 }, teleop: { value: 30, rank: 6, of: 400 }, endgame: { value: 15.5, rank: 5, of: 400 }, pen: 2 },
       rating: { np: 50, auto: 9, teleop: 28, endgame: 13, pen: 2, sd: 6, matches: 3, rank: 8 },
-      record: { wins: 2, losses: 1, ties: 0, matches: 3, events: 1 },
+      record: { wins: 3, losses: 0, ties: 0, matches: 3, events: 1 }, // from the pack's own matches, official events only
       avg: { np: 100, score: 105, pen: 5 },
       // The fixture pack predates the reliability table: read as not computed, never an error.
       reliability: null,

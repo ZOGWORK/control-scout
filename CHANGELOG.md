@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 4.9.7 — 2026-11-10
+## 5.0.0 — 2026-11-10
 
 A team page says what's next, right under the team's name: the next match once a schedule is posted, else the next event, else its last one.
 
@@ -27,6 +27,60 @@ A team page says what's next, right under the team's name: the next match once a
 ### Changed
 - The team page's header has an Upcoming block. With a posted schedule it shows the next match (number, time, alliances, the team's chance to win) with "Event schedule" and "Predict this match"; before that, the next event with "match list is posted at the event"; with none, "No upcoming event is published" and the last event. It is in the first paint, so a slow connection shows it at once. (#1283)
 - On a phone, the Upcoming rows are at least 44 px tall, so each is an easy tap.
+
+
+## 4.9.9 — 2026-11-10
+
+A season record counts official events only, on the team page and in search alike, and says so.
+
+### Highlights
+- [teams] A season record counts official events only, everywhere
+- [teams] Off-season events and scrimmages get their own line on the team page
+- [fixes] Search and the team page show the same record for every team
+
+### Fixed
+- The team page's record counted off-season events and scrimmages, while search's record card counted official events only: 24033 read 46-20-0 on its page and 41-16-0 in search, 17713 31-14-0 and 30-14-0, 23268 (2024–25) 42-20-0 and 37-14-0. One rule now (`isOfficialEvent` in src/shared/eventRecord.ts) for the stats job, the team page and search: official events only (qualifiers, league play, championships, premier events). The record tile and the search card say "Official events only"; the team page adds a line for off-season events and scrimmages ("not in the record: 5-4-0 at 1 event"). Matches played still count every event. Season stats are recomputed once after this release. (#1280)
+
+## 4.9.8 — 2026-11-10
+
+Search reads "comparison", "winner" and "head to head" the way people say them.
+
+### Highlights
+- [fixes] "opr comparison 4215 and 7149" shows the OPR side by side
+- [fixes] "predict winner 4215 6980" shows the match forecast
+- [fixes] "head to head" shows the two teams' meetings, at Worlds when said
+
+### Changed
+- "Comparison", "bigger" and "higher" compare two teams' stat, however the teams are joined ("which opr is bigger, 4215 or 7149").
+- "Winner" in a forecast ("predict 23268 7149 winner", "who is the winner 4215 vs 6980") asks for the match call.
+- "Head to head" and "h2h" read as the teams' meetings card, with a scope said alongside ("4215 versus 6980 worlds head to head score"), never only a Compare link. (#1277)
+
+## 4.9.7 — 2026-11-10
+
+A championship division's awards are read from its championship, and an event named is its newest edition.
+
+### Highlights
+- [fixes] An award asked at a division names the championship's winner
+- [fixes] An event named is its newest edition, not an older look-alike
+- [fixes] The card says the award was given at the championship
+
+### Fixed
+- A division of a championship (New Jersey Championship - Turnpike Division) has no judged awards of its own: FIRST posts them on the championship. An award asked at a division is now the championship's, said so on the card, instead of "No Control Award recorded".
+- "Who won Inspire at NJ Championship Parkway Division" answers for the 2025–26 division, not a 2020–21 event whose name holds extra words. Of the events whose names fit the words best, the newest is picked; a region code typed ("NJ") is read as its name. (#1270)
+
+## 4.9.6 — 2026-11-10
+
+Search answers the plural with the list, and finds a team whose name was typed nearly right even when each word is a real word.
+
+### Highlights
+- [fixes] "4215 upcoming events" lists the team's upcoming events
+- [fixes] A team's name typed nearly right is found, with a Did you mean
+- [fixes] A team's number with an s after it finds the team
+
+### Changed
+- Asked in the plural ("upcoming events", "next events", "upcoming matches"), search shows the list, titled as one, even when it holds one event or none. The singular still shows the next one.
+- A team's name typed nearly right, where each word is still a real word, is read as that team and said as "Did you mean". A team found by a near spelling inside a question says so too.
+- "Partnered" reads as alliance partners, never split into two words. (#1275)
 
 ## 4.9.5 — 2026-11-10
 
@@ -52,7 +106,6 @@ Compare opens on its teams: a search answer's Compare link lands on both teams w
 ### Changed
 - `/compare?teams=…&season=…` is drawn on the server like team and event pages: the stats table, charts, events and awards are in the page itself, so a slow connection shows the teams straight away. Its title names the teams. (#1269)
 - The search page's first paint lists an answer's "Open in Predict" and "Compare side by side" links with the teams and season in them.
-
 ## 4.9.3 — 2026-11-10
 
 A question search can't answer yet says sorry plainly, and a yes-or-no question gets its Yes or No first.
@@ -2505,7 +2558,6 @@ Search answers look like the team page all the way down: an award at an event is
 - **Place card.** "where is 4215 from" draws the place over a map-style grid with a pin, the place big, and its city, state and country as FIRST lists them.
 - **Leaderboards.** The top three's rank badges are coloured (green, blue, orange).
 - **No truncation.** Match rows' event names and partners, and OPR by event's names, wrap instead of being cut off with "…"; the cut-off names under the OPR line are gone (the list under it has every name). Table values such as W-L-T stay on one line on phones. (#648)
-
 ## 3.0.9 — 2026-11-04
 
 Three fixes to the two-team and forecast answers from 3.0.7's last review.
@@ -2621,7 +2673,6 @@ explains how search, predictions and Worlds qualification work.
 - **More team facts.** "what is team 4215 called", "what is the name of team 4215", "4215 region", "4215 city and state" and "4215 organization name" are answered directly. A team number followed by that team's own name ("17670 raider robotics location") is that team.
 - **Fuller fact cards.** Every fact answer also carries where the team is from, its region and that season's numbers (card.support), so the card can show the whole team. A school FIRST doesn't list is still said so, now with the team's city.
 - **How it works.** "how does FTC One Search work", "how are predictions made" and "how does worlds qualification work" get short explainers from the site's own pages and the stored 2026–27 Competition Manual rules; the rating and reliability explainers say more. "what does 4215's reliability score mean" gives the team's reliability.
-
 ## 3.0.2 — 2026-11-04
 
 Search answers a team's events, awards and Worlds history more exactly: one award by name, the newest or first award, the events it ranked 1st at, its Worlds divisions and its matches at a given Worlds.
@@ -2971,7 +3022,6 @@ How a team's rating is read from alliance scores is now stated where the rating 
 
 ### Engine research notes
 - New notes in `docs/engine/research-2026-11/`: the DECODE score sheet mapped onto the engine's categories (no defense category, because no recorded data supports one), how per-team ratings come from alliance scores, and a check of every prediction endpoint for ratings computed inside a request.
-
 ## 2.7.9 — 2026-11-03
 
 FTC One Search reads a question by its words when its phrasing doesn't match: any word order, extra words like "rn" or "please", and long conversational questions all get the same answer as the short form, with a line saying how it was read.
@@ -3887,7 +3937,6 @@ Taps that change something show at once on slow venue Wi-Fi.
 
 ### Speed
 - **Changes show before the round trip.** Done and Reopen on an assignment, sharing a pit entry in the scouting commons, and the email digest switch now change on screen the moment you tap, then save in the background and take the server's answer when it comes. If it doesn't save, the screen goes back to what the server has and tells you "Didn't save" and why. Taps on the same thing go to the server in order, and only the newest decides what shows. Scouting entries, your lists, the pick list and notifications already worked this way. Deletes and owner or admin actions still wait for the server. (#413)
-
 ## 2.1.4 — 2026-11-01
 
 Real-user speed: the owner can see how fast pages load for real visitors.
