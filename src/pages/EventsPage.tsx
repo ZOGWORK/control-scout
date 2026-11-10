@@ -17,34 +17,24 @@ import { CurrentlyTracking } from "../components/CurrentlyTracking";
 import { seasonLabel } from "../lib/format";
 import { useCompactFilters } from "../components/CompactFilters";
 import { EventFilterBar, EventWeeks } from "../components/EventBrowse";
-import { defaultStatus, readFilters, statusParam, type Status } from "./eventsList";
+import { readFilters, statusParam } from "./eventsList";
 
 export default function EventsPage() {
   const current = useCurrentSeason();
   const [sp, setSp] = useSearchParams();
   const season = Number(sp.get("season")) || current;
   const { region, type, from, to, video, q: urlQ } = readFilters((k) => sp.get(k));
-  const asked = statusParam(sp.get("status"));
+  // Status: All unless the address names one (opening on Live now hid the season behind a short list).
+  const status = statusParam(sp.get("status")) ?? "all";
   const state = useApi<{ events: EventListItem[] }>(`/api/events${qs({ season })}`);
-  // With no status in the address: Live now while something is live, else All. Decided once per season, when the
-  // list is in (no chip is lit before, so nothing jumps), and kept: a count changing later never moves the page.
-  const [decided, setDecided] = useState<{ season: number; status: Status } | null>(null);
-  // Only a list decides it: an error leaves it open, so Try again bringing live events still opens on Live now.
-  if (decided?.season !== season && state.data) {
-    setDecided({ season, status: defaultStatus(state.data.events, { region, type, from, to, q: urlQ, video }) });
-  }
-  const fallback: Status | null = decided?.season === season ? decided.status : null;
-  const status = asked ?? fallback ?? "all";
-  // One place for URL edits: empty values drop out, history isn't flooded while typing. A status equal to the
-  // page's own default drops out too; any other (All on a day with something live) is written, so it holds. A tap
-  // before the default is known is always written, so the list arriving can't override it.
+  // One place for URL edits: empty values (and All) drop out, history isn't flooded while typing.
   const set = useCallback((patch: Record<string, string | null>, replace = true) => setSp((x) => {
     for (const [k, v] of Object.entries(patch)) {
-      const none = k === "status" ? v == null || v === fallback : v == null || v === "" || v === "all";
+      const none = v == null || v === "" || v === "all";
       if (none) x.delete(k); else x.set(k, v!);
     }
     return x;
-  }, { replace }), [setSp, fallback]);
+  }, { replace }), [setSp]);
   // The text box is local state, so it updates on the keystroke: router updates run as transitions and
   // land late. The list filters on a deferred copy — the box never waits for the cards, and the cards
   // follow straight after instead of jumping in half a second later.
@@ -56,7 +46,7 @@ export default function EventsPage() {
   const listQ = useDeferredValue(q);
   const clear = useCallback(() => set({ region: null, type: null, status: null, from: null, to: null, q: null, video: null }, false), [set]);
   useTitle(`Events ${seasonLabel(season)}`);
-  const active = !!(region || type !== "all" || status !== (fallback ?? "all") || from || to || q || video !== "all");
+  const active = !!(region || type !== "all" || status !== "all" || from || to || q || video !== "all");
   const compact = useCompactFilters();
   const nav = useNavigate();
   return (
@@ -75,7 +65,7 @@ export default function EventsPage() {
       {/* Today's coin flips across every event on today: only this season's events can be on today. Left out on a day with none. */}
       {season === current && <CoinFlipRadarSection className="mb-8" />}
       {/* The filter bar stays up while loading or on an error, so another season can always be picked. */}
-      <EventFilterBar season={season} onSeason={(s) => set({ season: String(s), from: null, to: null }, false)} events={state.data?.events ?? []} {...{ region, type, from, to, q, video, listQ, onQ, set, active }} status={asked ?? fallback} statusDefault={fallback ?? "all"} onClear={clear} />
+      <EventFilterBar season={season} onSeason={(s) => set({ season: String(s), from: null, to: null }, false)} events={state.data?.events ?? []} {...{ region, type, status, from, to, q, video, listQ, onQ, set, active }} onClear={clear} />
       {/* The placeholder is a screen tall, so the footer starts below the fold: the list arriving pushes nothing
           a reader can see (it used to shove a footer in view down the screen, the page's layout shift on a phone). */}
       <Async state={state} loading={<div className="min-h-[100svh]"><LoadingBlock rows={8} label="Loading events" /></div>} empty={(d) => !d.events.length && <EmptyState icon={CalendarDays} title={`No events listed for ${seasonLabel(season)} yet`} />}>

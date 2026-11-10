@@ -15,6 +15,8 @@ const EVENTS = [
   ev("USNYQ1", "NY Qualifier 1", "2026-11-07", "live", "2026-11-07", 30, 24),
   ev("USNJQ2", "NJ Qualifier 2", "2026-11-21", "upcoming"),
   ev("USNJQ1", "NJ Qualifier 1", "2026-10-31", "finished", "2026-10-31", 28),
+  // A practice day: fetched (a pit can be scouted there), but not in the default list, which is the Events page's set.
+  { ...ev("USNJPD", "NJ Practice Day", "2026-10-24", "finished"), type: "PracticeDay", typeLabel: "Practice Day" } as EventListItem,
 ];
 const asked: (string | null)[] = [];
 vi.mock("../../../lib/personal", () => ({ usePersonal: () => ({ state: { myTeam: null, tracked: { teams: [], events: [] }, bookmarks: [] } }) }));
@@ -57,10 +59,14 @@ describe("EventChooser", () => {
     expect(onPick).toHaveBeenCalledWith("USNJQ3");
   });
 
-  it("lists every event type, practice days too (a pit can be scouted at any)", async () => {
+  it("fetches every event type, practice days too (a pit can be scouted at any), but counts the Events page's set", async () => {
     show();
     await waitFor(() => expect(card("NJ Qualifier 3")).toBeTruthy());
     expect(asked.some((p) => p?.startsWith("/api/events") && new URL(p, "http://x").searchParams.get("all") === "1")).toBe(true);
+    // Same counts as the Events page: the practice day is left out of the list and the status chips.
+    expect(screen.queryByRole("listitem", { name: "NJ Practice Day" })).toBeNull();
+    expect(screen.getByRole("button", { name: /^All/ }).textContent).toMatch(/4$/);
+    expect(screen.getByRole("button", { name: /^Finished/ }).textContent).toMatch(/1$/);
   });
 
   it("filters like the Events page: by text and by status", async () => {

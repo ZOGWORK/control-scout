@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.3.8 — 2026-11-10
+## 5.3.9 — 2026-11-10
 
 The season's highest scores read calmly in blue, play each match's video in the row, and mark every score from an event that didn't play by the usual rules.
 
@@ -31,6 +31,21 @@ The season's highest scores read calmly in blue, play each match's video in the 
 ### Fixed
 - Records: a score can be marked "Not an official record" for a whole event, not just one match. Carolinas Premier Event (DECODE, Jul 25–26, 2026) is now marked as a whole, so Q54 (592) carries the mark like Q49 (714), in search answers, best-score tables and the match finder. (#1341)
 
+
+
+## 5.3.8 — 2026-11-10
+
+The Events page opens on every event, its video and status filters never leave an empty list, and Scout's event picker counts the same events.
+
+### Highlights
+- [fixes] Events opens on All, not Live now
+- [fixes] Picking Match clips with a status picked never shows "No events match"
+- [scout] Scout's event picker counts the same events as the Events page
+
+### Fixed
+- `/events` with no status in the address opened on Live now whenever one event was live, hiding the rest of the season behind a short list. It now opens on All; a status in the address (`?status=live`) still holds.
+- On Events, picking "Match clips" (or "Has a recording") while a status with no such event was picked (Upcoming, Live now) showed "No events match". A video pick now sends that status back to All, and a status tap with nothing under the video picked drops the video filter (`videoPick`, `statusPick` in `src/pages/eventsList.ts`). (#1345)
+- Scout's event picker counted 1,630 events (447 finished) where Events counted 1,411 (230 finished): it listed kickoffs, workshops, practice days and the other types with no matches, which Events leaves out. It now lists the Events page's set, so the counts agree; picking one of those types in its Event type filter still lists them, as a pit can be scouted at a practice day. The list of those types lives once, in `src/shared/labels.ts` (`NO_MATCH_TYPES`), and an event with no type is listed on both.
 
 ## 5.3.7 — 2026-11-10
 

@@ -18,7 +18,7 @@ import { EventStatusChip, LiveDot } from "./EventChips";
 import { dateRange, place } from "../lib/format";
 import { eventTypeLabel } from "../shared/labels";
 import { regionLabel, regionNames } from "../shared/regions";
-import { applyFilters, FIRST_EVENTS, groupWeeks, MORE_EVENTS, placeKey, takeBatch, weekOf, type Filters, type Status } from "../pages/eventsList";
+import { applyFilters, FIRST_EVENTS, statusPick, videoPick, groupWeeks, MORE_EVENTS, placeKey, takeBatch, weekOf, type Filters, type Status, type VideoFilter } from "../pages/eventsList";
 
 const addDays = (d: string, n: number) => { const x = new Date(`${d}T00:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
 // Formatters made once (toLocaleDateString builds a new one on every call).
@@ -42,21 +42,19 @@ const VIDEO_LABEL: Record<"recording" | "clips", string> = { recording: "Has a r
 /** A card's own action, under its link (Scout's picker), and whether to ring the card (the event picked now). */
 export type TileAction = (e: EventListItem) => { node: ReactNode; ring?: boolean };
 
-export function EventFilterBar({ season, onSeason, events, region, type, status: picked, statusDefault = "all", from, to, q, video = "all", listQ, onQ, set, active, onClear }: Omit<Filters, "status"> & {
-  /** Null while the page is still choosing its default (no chip lit, so none jumps once the list is in). */
-  status: Status | null;
-  /** The status the page shows with none in the address: All, or Live now on the Events page while something is live. */
-  statusDefault?: Status;
+export function EventFilterBar({ season, onSeason, events, typeEvents = events, region, type, status, from, to, q, video = "all", listQ, onQ, set, active, onClear }: Filters & {
   season: number; onSeason: (s: number) => void; events: EventListItem[]; active: boolean;
+  /** The events the Event type picker lists types from, when it offers more than the list shows by default (Scout's picker). */
+  typeEvents?: EventListItem[];
   /** The text the list is filtered by (deferred behind the box's own `q`). */
   listQ: string; onQ: (q: string, replace?: boolean) => void; onClear: () => void;
   set: (patch: Record<string, string | null>, replace?: boolean) => void;
 }) {
   const types = useMemo(() => {
     const m = new Map<string, number>();
-    for (const e of events) if (e.type) m.set(e.type, (m.get(e.type) ?? 0) + 1);
+    for (const e of typeEvents) if (e.type) m.set(e.type, (m.get(e.type) ?? 0) + 1);
     return [...m.entries()].sort((a, b) => b[1] - a[1]);
-  }, [events]);
+  }, [typeEvents]);
   // Status counts follow the other filters, so each chip says what tapping it shows.
   const base = useMemo(() => applyFilters(events, { region, type, from, to, q: listQ, video }), [events, region, type, from, to, listQ, video]);
   const counts = { all: base.length, live: 0, upcoming: 0, finished: 0 } as Record<Status, number>;
@@ -72,10 +70,13 @@ export function EventFilterBar({ season, onSeason, events, region, type, status:
       </SelectContent>
     </Select>
   );
+  const now: Filters = { region, type, status, from, to, q: listQ, video };
+  const videoPatch = (v: VideoFilter) => videoPick(events, now, v);
+  const statusPatch = (st: Status) => statusPick(events, now, st);
   const videoCounts = { recording: 0, clips: 0 };
   for (const e of events) { if (e.video) videoCounts.recording++; if (e.video === "clips") videoCounts.clips++; }
   const videoPicker = (
-    <Select value={video} onValueChange={(v) => set({ video: v }, false)}>
+    <Select value={video} onValueChange={(v) => set(videoPatch(v as VideoFilter), false)}>
       <SelectTrigger className={cn("h-9 w-auto gap-2 rounded-lg px-3 font-medium max-sm:h-10", video !== "all" ? "border-accent/60 bg-accent/[0.08]" : "border-line bg-card")} aria-label="Video"><SelectValue /></SelectTrigger>
       <SelectContent className="min-w-[14rem]">
         <SelectItem value="all">Any video</SelectItem>
@@ -91,12 +92,11 @@ export function EventFilterBar({ season, onSeason, events, region, type, status:
       <Input value={q} onChange={(e) => onQ(e.target.value)} placeholder="Name, code, city or state" className="h-9 pl-9 max-sm:h-10" aria-label="Filter events" />
     </div>
   );
-  const status = picked ?? statusDefault;
   const statusChips = STATUS.map((s) => (
-    <button key={s.v} type="button" aria-pressed={picked === s.v} onClick={() => set({ status: s.v }, false)}
+    <button key={s.v} type="button" aria-pressed={status === s.v} onClick={() => set(statusPatch(s.v), false)}
       className={cn("inline-flex h-8 items-center gap-2 rounded-full border px-3 text-xs font-semibold transition-colors max-sm:h-10",
-        picked === s.v ? "border-accent bg-accent text-accent-ink" : "border-line text-muted-foreground hover:border-text-base/25 hover:text-foreground")}>
-      <span className={cn("size-1.5 rounded-full", picked === s.v ? "bg-accent-ink" : s.dot)} />{s.label}<span className={EVENT_FILTER_COUNT}>{counts[s.v]}</span>
+        status === s.v ? "border-accent bg-accent text-accent-ink" : "border-line text-muted-foreground hover:border-text-base/25 hover:text-foreground")}>
+      <span className={cn("size-1.5 rounded-full", status === s.v ? "bg-accent-ink" : s.dot)} />{s.label}<span className={EVENT_FILTER_COUNT}>{counts[s.v]}</span>
     </button>
   ));
 
@@ -106,7 +106,7 @@ export function EventFilterBar({ season, onSeason, events, region, type, status:
     if (type !== "all") chips.push({ id: "type", label: eventTypeLabel(type), name: `Event type: ${eventTypeLabel(type)}`, onRemove: () => set({ type: null }, false) });
     if (from || to) chips.push({ id: "dates", label: dateRangeText(from, to), name: `Dates: ${dateRangeText(from, to)}`, onRemove: () => set({ from: null, to: null }, false) });
     if (video !== "all") chips.push({ id: "video", label: <><MonitorPlay className="inline size-3.5 text-video" aria-hidden /> {VIDEO_LABEL[video]}</>, name: `Video: ${VIDEO_LABEL[video]}`, onRemove: () => set({ video: null }, false) });
-    if (status !== statusDefault) { const s = STATUS.find((x) => x.v === status)!; chips.push({ id: "status", label: s.label, name: `Status: ${s.label}`, onRemove: () => set({ status: null }, false) }); }
+    if (status !== "all") { const s = STATUS.find((x) => x.v === status)!; chips.push({ id: "status", label: s.label, name: `Status: ${s.label}`, onRemove: () => set({ status: null }, false) }); }
     if (q.trim()) chips.push({ id: "q", label: <><Search className="inline size-3.5" aria-hidden /> {q.trim()}</>, name: `Text: ${q.trim()}`, onRemove: () => onQ("", false) });
     const n = counts[status];
     return (
