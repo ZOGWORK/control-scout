@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { AwardsAllTime, OprSection, RowRecord, nextMatch } from "./TeamPage";
+import { AwardsAllTime, OprSection, RowRecord, lineup, nextMatch } from "./TeamPage";
 import type { MatchView, TeamEventRow, TeamProfile } from "../shared/api";
 
 // useMeta as the app's metadata would answer it (null: not loaded yet, as with no provider), and the current season.
@@ -121,5 +121,12 @@ describe("nextMatch (the Upcoming block's next match)", () => {
   it("skips a match whose start passed over half an hour ago with no result (late, not next), and none is none", () => {
     expect(nextMatch([match("NOW", "qual:0:2", false, "2026-11-10T14:00:00Z"), match("NOW", "qual:0:3", false, null)], events, "2026-11-10", now)?.key).toBe("qual:0:3");
     expect(nextMatch([match("OLD", "qual:0:9", false, null)], events, "2026-11-10", now)).toBeNull();
+  });
+});
+
+describe("lineup (Upcoming's Predict link)", () => {
+  it("keeps two robots a side, the team itself first", () => {
+    expect(lineup([{ number: 1 }, { number: 2 }], 9)).toEqual([1, 2]);
+    expect(lineup([{ number: 1 }, { number: 2 }, { number: 4215 }], 4215)).toEqual([4215, 1]);
   });
 });

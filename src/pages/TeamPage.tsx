@@ -571,6 +571,11 @@ function useEventDayRefresh(on: boolean, reload: () => Promise<void>): number {
   return at;
 }
 
+/** An alliance as Predict takes it (two robots at most): this team first when it's on it, then the others, so a playoff
+ *  alliance of three still opens as a matchup Predict can run. */
+export const lineup = (teams: { number: number }[], team: number) =>
+  [...teams.filter((t) => t.number === team), ...teams.filter((t) => t.number !== team)].slice(0, 2).map((t) => t.number);
+
 /** The team's next match on a posted schedule, soonest first (not played, its event not over); null when none is posted. */
 export function nextMatch(matches: MatchView[], events: TeamEventRow[], today: string, now = Date.now()): MatchView | null {
   const live = new Set(events.filter((e) => (e.end ?? e.start ?? "") >= today).map((e) => e.code));
@@ -602,14 +607,14 @@ function Upcoming({ p, next, last }: { p: TeamProfile; next: TeamEventRow | null
       <h2 id={`upcoming-${n}`} className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Upcoming</h2>
       {m && mEvent && (
         <div className="rounded-xl border border-accent/30 bg-accent/[0.05] p-3">
-          <Link to={`/events/${m.season}/${m.code}?team=${n}&match=${m.key}`} className="flex items-baseline justify-between gap-3 hover:underline">
+          <Link to={`/events/${m.season}/${m.code}?team=${n}&match=${m.key}`} className="flex items-baseline justify-between gap-3 hover:underline max-sm:min-h-11 max-sm:items-center">
             <span className="min-w-0"><span className="font-semibold">Next match · {m.label}</span> <span className="text-muted-foreground">{m.time ? matchTime(m.time) : "time not posted yet"}</span></span>
             {chance != null && <span className="shrink-0 tabular-nums font-medium text-accent-text">{oddsPct(chance)} to win</span>}
           </Link>
           <p className="mt-1 truncate text-muted-foreground" title={mEvent.name}>{mEvent.name} · on <span className={side === "red" ? "text-red-alliance" : "text-blue-alliance"}>{side}</span>: {m.red.teams.map((t) => t.number).join(" + ")} vs {m.blue.teams.map((t) => t.number).join(" + ")}</p>
           <div className="mt-2 flex flex-wrap gap-2">
             <Button size="sm" variant="secondary" asChild className="max-sm:h-11"><Link to={`/events/${m.season}/${m.code}?team=${n}&match=${m.key}`}><CalendarDays /> Event schedule</Link></Button>
-            {predictable && <Button size="sm" variant="outline" asChild className="max-sm:h-11"><Link to={predictHref({ mode: "match", season: m.season, red: m.red.teams.map((t) => t.number), blue: m.blue.teams.map((t) => t.number) })}><Sparkles /> Predict this match</Link></Button>}
+            {predictable && <Button size="sm" variant="outline" asChild className="max-sm:h-11"><Link to={predictHref({ mode: "match", season: m.season, red: lineup(m.red.teams, n), blue: lineup(m.blue.teams, n) })}><Sparkles /> Predict this match</Link></Button>}
           </div>
         </div>
       )}
