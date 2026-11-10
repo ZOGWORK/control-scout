@@ -15,7 +15,7 @@ import { eventTypeLabel } from "../src/shared/labels.js";
 import { canonicalOrigin, canonicalUrl } from "./seo.js";
 import { FAQ, faqJsonLd, faqText } from "../src/shared/faq.js";
 import { ATTENDED, teamKnown } from "./api/teams.js";
-import { eventFirstPaint, teamFirstPaint, type FirstPaint } from "./firstPaint.js";
+import { compareFirstPaint, eventFirstPaint, teamFirstPaint, type FirstPaint } from "./firstPaint.js";
 import { recordOf, recordSql } from "../src/shared/eventRecord.js";
 import { hasTeamPage } from "../src/shared/teamPages.js";
 import { eventHasDataSql, isReachableEventCode, teamHasDataSql } from "./indexable.js";
@@ -34,6 +34,7 @@ import { isWeekId, weekLabel, type PowerRankingsResponse } from "../src/shared/p
 import { trackRecordIfReady } from "./api/accuracy.js";
 import { isEnabled } from "./flags.js";
 import type { SearchCardLine, TrackRecord } from "../src/shared/api.js";
+import { compareTitle } from "../src/shared/compareUrl.js";
 import { ensureSearchIndex } from "./api/search.js";
 import { MAX_QUERY, searchAnswer } from "./api/searchAnswer.js";
 import { relatedPage } from "./api/answers/relatedPage.js";
@@ -633,6 +634,10 @@ async function searchMeta(raw: string): Promise<PageMeta> {
     + (kpis.length ? `<p>${kpis.map((k) => `${esc(k.label)}: <b>${linked(k.value, k.href)}</b>`).join(" · ")}</p>` : "")
     // A leaderboard's teams, every row, as the app's table has them; its "View more detail" link under it.
     + s.blocks.map((b) => (b.kind === "leaderboard" ? `<h3>${esc(b.title)}</h3><p><small>${esc(b.note)}</small></p>${teamTableHtml(teamTableOfLeaderboard(b.stat.id, b.stat.label, b.rows, b.teleopWithEndgame), b.title)}${b.more ? `<p><a href="${esc(b.more.href)}">${esc(b.more.label)}</a></p>` : ""}` : "")).join("")
+    // Its links ("Open in Predict", "Compare side by side"), each with the teams and season in its address as the app's
+    // buttons have them: the tap-through from the answer is in the served page, not only in the app's JSON.
+    + s.blocks.map((b) => (b.kind === "links" && b.items.length ? `<p>${esc(b.title)}: ${b.items.map((l) => `<a href="${esc(l.href)}">${esc(l.label)}</a>`).join(" · ")}</p>` : "")).join("")
+    + (s.more ? `<p><a href="${esc(s.more.href)}">${esc(s.more.label)}</a></p>` : "")
     + `<p><small>${esc(s.definition)}<br>${esc(s.source)}</small></p></section>` : "";
   // The heading as the app titles it; a badge that only repeats it is left out, as the app leaves it out.
   // Nothing answered (a sorry note, or nothing found at all): the page says sorry, once, as its heading.
@@ -670,6 +675,22 @@ async function relatedMeta(raw: string): Promise<PageMeta> {
     title, type: "website", bodyHtml: body, pageData: { [relatedApiPath(q)]: r },
     ...(q ? { path: `/related-searches${relatedSearch(q)}` } : {}),
     description: fitDescription(q && r.found ? `${n} FTC searches related to “${q}” on Control Scout, each with its answer: team stats, records, awards and events.` : "Popular FTC searches on Control Scout, each with its answer: top teams, OPR leaders, upcoming events and the season's standout teams."),
+  };
+}
+
+/**
+ * /compare?teams=4215,7149&season=2025: the comparison itself as the first paint (server/firstPaint.ts), so a tap from a
+ * search answer lands on the teams with their numbers, not on an empty picker; its title names the teams. The plain
+ * Compare page's values when there's nothing to draw. Every comparison is the one page (its canonical is /compare).
+ */
+async function compareMeta(sp: URLSearchParams): Promise<PageMeta | null> {
+  const drawn = await compareFirstPaint(sp).catch(() => null);
+  if (!drawn?.view.teams.length) return null;
+  const { view, ...firstPaint } = drawn;
+  const title = compareTitle(view.teams), who = title.replace(/^Compare /, "");
+  return {
+    title, heading: title, type: "website", path: "/compare", firstPaint,
+    description: fitDescription(`${who} side by side in ${seasonInfo(view.season).label}: OPR by game phase, prediction ratings, records, event-by-event form and every match they met in.`),
   };
 }
 
@@ -728,6 +749,11 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
   }
   // A team or event address that can't be one (/teams/abc, /teams/1234567, /events/2025/a%20b): the app says not found too.
   if (/^\/teams\/[^/]+$/i.test(p) || /^\/events\/[^/]+\/[^/]+$/i.test(p) || /^\/events\/[^/]+\/[^/]+\/match\/[^/]+$/i.test(p) || /^\/events\/[^/]+\/[^/]+\/display$/i.test(p)) return NOT_FOUND;
+  // A comparison with teams in its address: drawn whole, as team and event pages are.
+  if (/^\/compare$/i.test(p) && sp.has("teams")) {
+    const cm = await compareMeta(sp);
+    if (cm) return cm;
+  }
   if (p === "/predict" && (sp.has("red") || sp.has("blue"))) {
     // A shared matchup; the Predict page's own values when it isn't one (or ratings aren't ready).
     const mm = await matchupMeta(sp).catch(() => null);
