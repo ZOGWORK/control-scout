@@ -27,7 +27,7 @@ import { seasonOfDate } from "./time.js";
 import { searchToday } from "../searchEvents.js";
 import { eventFor, forecastAt, teamEventOfType } from "./forecast.js";
 import { teamsNamedSearch } from "../answers/teamsNamed.js";
-import { eventFieldAnswer } from "../answers/families/eventVersus.js";
+import { eventFieldAnswer, saysOtherThanOpr } from "../answers/families/eventVersus.js";
 import { asksNow, streakBoardAnswer } from "./streakBoard.js";
 import { pickAnswer, teamPickEvent } from "../answers/families/pick.js";
 import { describe, normalise, parseQuery, type Parsed } from "./parse.js";
@@ -213,6 +213,9 @@ const BOARD_STAT: Partial<Record<string, string>> = {
   "metric:opr": "opr", "metric:rating": "rating", "metric:winrate": "win-rate", "metric:auto": "auto", "metric:teleop": "teleop",
   "metric:endgame": "endgame", "metric:record": "record", "metric:win": "wins", "metric:reliability": "reliability", "metric:penalty": "penalties",
 };
+
+/** Whether `p` names a stat other than OPR (auto, record, penalties …): an answer counted by OPR only isn't it. */
+export const saysOtherStat = (p: Pick<Parsed, "symbols">) => p.symbols.some((s) => BOARD_STAT[s] && BOARD_STAT[s] !== "opr");
 
 async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer | null> {
   const intent = p.intent!;
@@ -606,7 +609,8 @@ async function eventNamed(p: Parsed, scope: ReadScope, opts: PipelineOptions) {
 
 /** An event's field (./intents.ts "event-field"): its teams' average OPR there, the event found as its board finds it. */
 async function eventField(p: Parsed, scope: ReadScope, opts: PipelineOptions): Promise<SearchAnswer | null> {
-  if (p.place?.kind === "city" || scope.window || scope.ever) return null;
+  // Average OPR only: another stat said ("average auto OPR") is left to search.
+  if (saysOtherStat(p) || saysOtherThanOpr(p.q, p.place?.typed) || p.place?.kind === "city" || scope.window || scope.ever) return null;
   const ev = await eventNamed(p, scope, opts);
   // Some of the field only ("NJ teams at worlds"): not this answer's to count.
   if (!ev || ev.home) return null;
@@ -619,7 +623,7 @@ async function eventField(p: Parsed, scope: ReadScope, opts: PipelineOptions): P
 /** The board of the teams at one event named, Worlds or the place's state championship: the season said (a year: the
  *  one held then), else the latest held. OPR only: another stat said is left to search. */
 async function eventBoard(p: Parsed, scope: ReadScope, said: string, opts: PipelineOptions): Promise<SearchAnswer | null> {
-  if (p.symbols.some((s) => BOARD_STAT[s] && BOARD_STAT[s] !== "opr") || p.place?.kind === "city") return null;
+  if (saysOtherStat(p) || p.place?.kind === "city") return null;
   // The best first by OPR only: the lowest first, undefeated teams alone or OPR said not to go by are left to search.
   if (p.agg === "min" || p.undefeated || (p.notMetrics ?? []).some((s) => !BOARD_STAT[s] || BOARD_STAT[s] === "opr")) return null;
   const ev = await eventNamed(p, scope, opts);
