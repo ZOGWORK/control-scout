@@ -9,6 +9,7 @@ import { pathToFileURL } from "node:url";
 import { teamProfile } from "./api/teams.js";
 import { matchViews } from "./api/matches.js";
 import { eventView } from "./api/eventView.js";
+import { leagueStandings } from "./api/leagues.js";
 import { resultChanges } from "./api/resultChanges.js";
 import { siteMeta } from "./api/meta.js";
 import { SEASON_NUMBERS } from "./data/seasons.js";
@@ -99,5 +100,17 @@ export async function eventFirstPaint(seasonRaw: string, codeRaw: string, search
     if (!d) return null;
     // The timeline asks by the event's own season and code (src/components/ResultChanges.tsx).
     return { "/api/meta": meta, [base]: d, ...(changes ? { [`/api/events/${d.event.season}/${encodeURIComponent(d.event.code)}/result-changes`]: changes } : {}) };
+  });
+}
+
+/** A league's page as its first paint, for `/leagues/:season/:region/:code` (as the address has them; `search`: its
+ *  query, "?team=6980" or ""). Null when it can't be drawn here. */
+export async function leagueFirstPaint(seasonRaw: string, region: string, code: string, search: string): Promise<FirstPaint | null> {
+  const season = covered(seasonRaw);
+  if (season == null) return null;
+  return draw(`/leagues/${seasonRaw}/${region}/${code}${search}`, `league ${season} ${region} ${code}`, async () => {
+    const [d, meta] = await Promise.all([leagueStandings(season, region, code), siteMeta()]);
+    // The page asks with the address's own spelling (src/pages/LeaguePage.tsx).
+    return d ? { "/api/meta": meta, [`/api/leagues/${seasonRaw}/${region}/${code}`]: d } : null;
   });
 }

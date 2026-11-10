@@ -1995,6 +1995,41 @@ CREATE TABLE bug_report_files (
 );
 `,
   },
+  {
+    version: 79,
+    name: "leagues and FIRST's league standings",
+    sql: `
+-- A season's leagues as FIRST lists them (server/data/leagues.ts): a league is its region and code together (two
+-- regions can both have an "NE"). ranked_at: when its standings were last read (null: never).
+CREATE TABLE leagues (
+  season INTEGER NOT NULL,
+  region TEXT NOT NULL,
+  code TEXT NOT NULL,
+  name TEXT,
+  location TEXT,
+  ranked_at TEXT,
+  PRIMARY KEY (season, region, code)
+);
+-- FIRST's league rankings (/leagues/rankings): the league's official running standing over every meet so far. rs: the
+-- ranking score (FIRST's first sort key), tbp: its second; played: qualification matches played, counted: those counted.
+CREATE TABLE league_rankings (
+  season INTEGER NOT NULL,
+  region TEXT NOT NULL,
+  league TEXT NOT NULL,
+  team INTEGER NOT NULL,
+  rank INTEGER NOT NULL,
+  rs REAL,
+  tbp REAL,
+  wins INTEGER,
+  losses INTEGER,
+  ties INTEGER,
+  played INTEGER,
+  counted INTEGER,
+  PRIMARY KEY (season, region, league, team)
+);
+CREATE INDEX league_rankings_team ON league_rankings (season, team);
+`,
+  },
 ];
 
 export type Db = Client;

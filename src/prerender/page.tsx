@@ -6,6 +6,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import TeamPage from "../pages/TeamPage";
+import LeaguePage from "../pages/LeaguePage";
 import EventPage from "../pages/EventPage";
 import { StaticPersonalProvider } from "../lib/personal";
 import { MetaProvider } from "../lib/meta";
@@ -29,6 +30,7 @@ export function renderAppPage(url: string, data: Record<string, unknown>): strin
                 <Routes>
                   <Route path="/teams/:number" element={<TeamPage />} />
                   <Route path="/events/:season/:code" element={<EventPage />} />
+                  <Route path="/leagues/:season/:region/:code" element={<LeaguePage />} />
                 </Routes>
               </MemoryRouter>
             </TooltipProvider>

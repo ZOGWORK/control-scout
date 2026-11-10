@@ -15,7 +15,9 @@ import { eventTypeLabel } from "../src/shared/labels.js";
 import { canonicalOrigin, canonicalUrl } from "./seo.js";
 import { FAQ, faqJsonLd, faqText } from "../src/shared/faq.js";
 import { ATTENDED, teamKnown } from "./api/teams.js";
-import { eventFirstPaint, teamFirstPaint, type FirstPaint } from "./firstPaint.js";
+import { eventFirstPaint, leagueFirstPaint, teamFirstPaint, type FirstPaint } from "./firstPaint.js";
+import { leagueStandings } from "./api/leagues.js";
+import { leagueHref, leaguePageTitle } from "../src/shared/leagues.js";
 import { recordOf, recordSql } from "../src/shared/eventRecord.js";
 import { hasTeamPage } from "../src/shared/teamPages.js";
 import { eventHasDataSql, isReachableEventCode, teamHasDataSql } from "./indexable.js";
@@ -306,6 +308,24 @@ async function eventMeta(season: number, code: string): Promise<PageMeta | null>
   const moreHtml = standings ? `<h2>${rows.some((r) => r.rank != null) ? "Rankings" : "Teams"}</h2><ol>${standings}</ol>` : "";
   const bodyHtml = `<p>${x(description)}</p>` + moreHtml;
   return { title: `${e.name} (${seasonInfo(season).label})`, description, type: "website", path: eventPath(season, code), jsonLd: [ev], bodyHtml, ...(data?.ok ? {} : { noData: true }), ...(moreHtml ? { moreHtml } : {}) };
+}
+
+/** A league's standings page (server/api/leagues.ts): its title, a description with the top of the table, and the
+ *  table's words as the first HTML (the drawn page replaces it when this server can draw one). */
+async function leagueMeta(season: number, region: string, code: string): Promise<PageMeta | null> {
+  if (!SEASON_NUMBERS.includes(season)) return null;
+  const d = await leagueStandings(season, region, code);
+  if (!d) return null;
+  const x = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const title = leaguePageTitle(d);
+  const top = d.rows.slice(0, 3).map((r) => `#${r.rank} ${r.team}${r.name ? ` ${r.name}` : ""}`).join(", ");
+  const description = fitDescription(`${title}: FIRST's official FTC league ranking over every meet so far${d.rows.length ? `, ${d.rows.length} teams` : ""}.${top ? ` ${top}.` : ""}`);
+  const items = d.rows.map((r) => {
+    const facts = [record(r.wins, r.losses, r.ties), r.rs != null ? `RS ${Number(r.rs).toFixed(2)}` : "", `${r.meets} meets`].filter(Boolean).join(" · ");
+    return `<li>#${r.rank} <a href="/teams/${r.team}?season=${season}">${x(teamHeading(r.team, r.name))}</a> <small>${x(facts)}</small></li>`;
+  }).join("");
+  const bodyHtml = `<p>${x(description)}</p>${items ? `<h2>Standings</h2><ol>${items}</ol>` : ""}`;
+  return { title, description, type: "website", path: leagueHref(d.season, d.region, d.code), bodyHtml, ...(d.rows.length ? {} : { noData: true }) };
 }
 
 /** At most this many teams in an event page's first HTML (the biggest championships run past it). */
@@ -706,6 +726,13 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
       const code = await storedEventCode(Number(m[1]), m[2]);
       const ev = await eventMeta(Number(m[1]), code);
       return ev ? { ...ev, title: `Pit display: ${ev.title}`, path: eventPath(Number(m[1]), code), jsonLd: undefined, bodyHtml: undefined } : NOT_FOUND;
+    }
+    if ((m = p.match(/^\/leagues\/(\d{4})\/([A-Za-z0-9]{1,16})\/([A-Za-z0-9]{1,16})$/))) {
+      const lm = await leagueMeta(Number(m[1]), m[2], m[3]);
+      if (!lm) return NOT_FOUND;
+      const q = sp.toString();
+      const firstPaint = await leagueFirstPaint(m[1], m[2], m[3], q ? `?${q}` : "");
+      return firstPaint ? { ...lm, firstPaint } : lm;
     }
     if (/^\/rankings$/i.test(p)) return await rankingsMeta(query);
     if (p === "/events") return await eventsListMeta();
