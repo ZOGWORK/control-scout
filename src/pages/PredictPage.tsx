@@ -353,7 +353,8 @@ function MatchLab() {
   const init = (k: string) => (sp.get(k) ?? "").split(",").filter(Boolean);
   const [red, setRed] = useState<string[]>(() => { const x = init("red"); return [x[0] ?? "", x[1] ?? ""]; });
   const [blue, setBlue] = useState<string[]>(() => { const x = init("blue"); return [x[0] ?? "", x[1] ?? ""]; });
-  const ready = red.every((x) => x) && blue.every((x) => x);
+  // One or two teams a side (src/shared/predictUrl.ts matchupOf): an empty second box is a one-team side.
+  const ready = matchupOf(red.join(","), blue.join(",")) != null;
   const query = ready ? `/api/predict/match${qs({ season, red: red.join(","), blue: blue.join(",") })}` : null;
   // The matchup last asked for (from the URL or the Predict button). Typing in
   // the inputs edits a draft; the season switch never touches the draft.
@@ -387,7 +388,11 @@ function MatchLab() {
     if (!ready) return;
     const at = edits.current;
     setChecking(true);
-    const errs = await teamsErrors([...red, ...blue], ["red team 1", "red team 2", "blue team 1", "blue team 2"], lookupTeamName);
+    // Only the boxes filled in are checked (an empty second box is a one-team side); errors land on their own box.
+    const filled = [...red, ...blue].map((v, i) => ({ v, i })).filter((x) => x.v);
+    const found = await teamsErrors(filled.map((x) => x.v), filled.map((x) => ["red team 1", "red team 2", "blue team 1", "blue team 2"][x.i]), lookupTeamName);
+    const errs: (string | null)[] = [null, null, null, null];
+    filled.forEach((x, k) => { errs[x.i] = found[k]; });
     setChecking(false);
     if (edits.current !== at) return;
     setErrors(errs);
@@ -418,7 +423,7 @@ function MatchLab() {
         <form onSubmit={(e) => { e.preventDefault(); run(); }} noValidate className="grid items-start gap-4 md:grid-cols-[1fr_auto_1fr]">
           <fieldset className="rounded-xl border border-red-alliance/30 bg-red-alliance/[0.04] p-4">
             <legend className="px-1 text-sm font-semibold text-red-alliance">Red alliance</legend>
-            <div className="grid grid-cols-2 gap-3">{red.map((v, i) => <TeamInput key={i} label={`Red team ${i + 1}`} tone="red" value={v} onChange={(x) => { setRed((r) => r.map((y, j) => (j === i ? x : y))); clearError(i); }} autoFocus={grab && !v && i === red.indexOf("")} error={errors[i]} inputRef={(el) => { inputs.current[i] = el; }} />)}</div>
+            <div className="grid grid-cols-2 gap-3">{red.map((v, i) => <TeamInput key={i} label={`Red team ${i + 1}`} tone="red" value={v} onChange={(x) => { setRed((r) => r.map((y, j) => (j === i ? x : y))); clearError(i); }} autoFocus={grab && !submittedTeams && !v && i === red.indexOf("")} error={errors[i]} inputRef={(el) => { inputs.current[i] = el; }} />)}</div>
           </fieldset>
           <div className="flex justify-center md:pt-8"><Button type="button" variant="ghost" size="icon" onClick={swap} aria-label="Swap alliances"><ArrowLeftRight /></Button></div>
           <fieldset className="rounded-xl border border-blue-alliance/30 bg-blue-alliance/[0.04] p-4">
@@ -431,7 +436,7 @@ function MatchLab() {
       {submitted && (state.error
         ? (offline.data ? <MatchResult x={offline.data} offlineAsOf={offline.asOf} onSwap={swapResult} /> : offline.loading ? <div className="skeleton h-72 rounded-2xl" /> : <ErrorState error={state.error} onRetry={state.reload} />)
         : !state.data ? <div className="skeleton h-72 rounded-2xl" /> : <MatchResult x={state.data} onSwap={swapResult} />)}
-      {!submitted && <EmptyState icon={Swords} title="Pick four teams" description="Any teams, any season. You'll get win odds, predicted scores with ranges, the three biggest reasons, and how confident the call is." />}
+      {!submitted && <EmptyState icon={Swords} title="Pick the teams" description="One or two a side, any teams, any season. You'll get win odds, predicted scores with ranges, the three biggest reasons, and how confident the call is." />}
       <SavedPredictions />
     </div>
   );

@@ -26,7 +26,7 @@ Predict opens on its teams: a matchup link from a team page or a search answer s
 
 ### Changed
 - `/predict?mode=match&…` with teams in it is drawn on the server like team and event pages: the teams in their boxes with their names and, with both sides given, the odds, predicted scores and reasons.
-- One team a side (as search's "4215 vs 7149 who wins" links it) now shows its call; before, Predict waited for four teams.
+- One team a side (as search's "4215 vs 7149 who wins" links it) now shows its call; before, Predict waited for four teams. The form takes one or two teams a side, and a link that fills it no longer puts the cursor in an empty box (on a phone that opened the keyboard over the call).
 
 ## 4.9.2 — 2026-11-09
 

@@ -117,7 +117,7 @@ describe("predict page first paint (server)", () => {
     const html = renderAppPage(PREDICT_URL, PREDICT);
     const text = words(asDom(html));
     for (const t of ["Red 4215", "Blue 7149", "23%", "77%", "145", "198", "Hypnotic Robotics", "ENFORCERS", "Why: the top 3 factors"]) expect(text, t).toContain(t);
-    expect(text).not.toContain("Pick four teams");
+    expect(text).not.toContain("Pick the teams");
     expect(asDom(html).querySelector(".skeleton")).toBeNull();
   });
 
@@ -126,7 +126,7 @@ describe("predict page first paint (server)", () => {
     const page = asDom(renderAppPage("/predict?mode=match&season=2025&red=4215", one));
     expect((page.querySelector('input[aria-label="Red team 1"]') as HTMLInputElement).getAttribute("value")).toBe("4215");
     expect(words(page)).toContain("Hypnotic Robotics");
-    expect(words(page)).toContain("Pick four teams");
+    expect(words(page)).toContain("Pick the teams");
   });
 });
 
