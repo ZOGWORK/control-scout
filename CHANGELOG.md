@@ -26,7 +26,7 @@ Search answers who won an event's Finalist or Winning Alliance award, for that e
 
 ### Fixed
 - "Who won the Finalist Award at USNJNEM2?" (a 2026–27 NJ league meet) answered with another event's 2019–20 winning alliance. The Finalist and Winning Alliance weren't awards the event-award question knew, so the whole phrase was read as an event's name and matched an old event. Both are now awards (`AWARDS`, `server/api/searchAsks.ts`), and "who won the … award at …" is never read as an event's name, whichever award it names.
-- An award asked about at a league meet now says that league meets give no awards (a league's are given at its league tournament), not "none recorded in any season".
+- An award asked about at a league meet now says that league meets give no awards (a league's are given at its league tournament), not "none recorded in any season". (#1350)
 - The Finalist or Winning Alliance card is titled with the alliance's award, never one division's, lists each team with its role (captain, pick) and no place, and leaves out the FIRST Leadership Award finalists that FIRST files under the same award type.
 
 ## 5.4.0 — 2026-11-10
