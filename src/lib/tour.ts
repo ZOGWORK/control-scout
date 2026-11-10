@@ -239,7 +239,7 @@ export const TOUR_ASK = "who won decode";
 
 /** The team a team-page tour is about (null on other tours). */
 export function tourTeam(origin: string): number | null {
-  const m = /^\/teams\/(\d+)\/?$/i.exec(origin);
+  const m = /^\/teams\/(\d+)\/?$/i.exec(pathOf(origin));
   return m ? Number(m[1]) : null;
 }
 
@@ -256,7 +256,7 @@ export const searchHref = (q: string) => `/search?q=${encodeURIComponent(q)}`;
 export function predictAction(origin: string): { label: string; href: string } {
   const team = tourTeam(origin);
   if (team) return { label: `Predict a match with ${team}`, href: predictHref({ mode: "match", red: [team] }) };
-  const ev = /^\/events\/(\d{4})\/([^/]+)\/?$/i.exec(origin);
+  const ev = /^\/events\/(\d{4})\/([^/]+)\/?$/i.exec(pathOf(origin));
   if (ev) {
     let code = ev[2]!;
     try { code = decodeURIComponent(code); } catch { /* keep as written */ }
