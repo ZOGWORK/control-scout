@@ -39,6 +39,7 @@ import { eventSections, eventStatuses, localDay } from "../components/search/pag
 import { SEARCH_PALETTE } from "../lib/textTones";
 import { EventTree } from "../components/search/page/EventTree";
 import { answerTeams, anyFilter, askedWhen, filteredTitle, filterAlternatives, whenCounts, compareSeason, compareSides, compareTeams, filterChoices, cardTeamName, isCompare, isFuzzy, keeps, pageTitle, contextBadge, badgeUnder, readingOf, fuzzyWords, readFilters, teamParts, withFilters, type AnswerExtra, type PageFilters, type Statuses } from "../components/search/page/results";
+import { unreadNote } from "../shared/searchPage";
 import { SEARCH_PAGE_LIMIT, SORRY_SENTENCE } from "../shared/search";
 import type { AnswerRow, AnswerSection } from "../shared/searchSections";
 import type { SearchHit, TeamSummary } from "../shared/api";
@@ -215,6 +216,7 @@ export default function SearchPage() {
       )}
       {/* A long or wordy query said the short way: quietly, under the heading, which keeps the answer's own words. */}
       {found && ax?.understood?.showing && <p className="mt-1.5 break-words text-xs text-muted-foreground" data-showing>Showing: {ax.understood.showing}</p>}
+      {found && ax && unreadNote(ax) && <p className="mt-1.5 break-words text-xs text-muted-foreground" data-unread>{unreadNote(ax)}</p>}
       <div className="mt-5" aria-live="polite">
         {!query ? <p className="text-sm text-muted-foreground">Search any FTC team, event or match with the search bar at the top.</p>
           // A failed search says so and offers the same search again (it never fixes itself while you wait).

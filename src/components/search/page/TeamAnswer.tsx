@@ -5,6 +5,7 @@
 // and its events, read from the team page's own data (/api/teams/:n). Nothing here is computed: a value the data
 // doesn't hold is a dash. An answer about no team (a rule, a season's list) keeps the card and the title.
 import { Fragment, type ReactNode } from "react";
+import { recordWords } from "../../../shared/format";
 import { Link } from "react-router-dom";
 import { ArrowRight, CalendarDays, GraduationCap, MapPin, Search, Sparkles, Target, Trophy } from "lucide-react";
 import { qs, useApi } from "../../../lib/api";
@@ -50,14 +51,8 @@ export function useTeamProfile(team: number | null | undefined, season: number):
   return r.error ? null : undefined;
 }
 
-/** The card's title says only what the page's heading already says ("Record in 2025–26" under "Hypnotic Robotics
- *  (4215) · Record in 2025–26"): then it's for screen readers only, so nothing reads twice. */
-export const repeats = (heading: string | null | undefined, title: string, chips: readonly string[] = []) => {
-  // The title less what its chips say at its end ("Top 10 teams in New Jersey · 2025–26" with a 2025–26 chip).
-  let t = title.trim();
-  for (let i = t.lastIndexOf(" · "); i > 0 && chips.some((c) => c.trim().toLowerCase() === t.slice(i + 3).trim().toLowerCase()); i = t.lastIndexOf(" · ")) t = t.slice(0, i).trim();
-  return !!heading && !!t && heading.toLowerCase().includes(t.toLowerCase());
-};
+// The card's title says only what the page's heading already says: one check, shared with the server's first paint.
+export { repeats } from "../../../shared/searchPage";
 
 type Who = { number: number; name: string | null };
 
@@ -211,7 +206,7 @@ export function SeasonTiles({ profile, season }: { profile?: TeamProfile | null;
           value={s?.rating ? <><span className={G.rating.text}>{num(s.rating.np)}</span><span className="ml-1 text-base font-medium text-muted-foreground">±{num(s.rating.sd)}</span></> : "—"}
           hint={s?.rating ? `${s.rating.rank ? `#${s.rating.rank.toLocaleString()} worldwide · ` : ""}${s.rating.matches} matches` : `no matches ${when}`} />
         <StatTile tone="neutral" icon={Trophy} label="Record"
-          value={r ? <span className="tabular-nums" aria-label={`${r.wins} wins, ${r.losses} losses, ${r.ties} ties`}><span aria-hidden><span className={G.win.text}>{r.wins}</span><span className="text-muted-foreground">-</span><span className={G.loss.text}>{r.losses}</span><span className="text-muted-foreground">-{r.ties}</span></span></span> : "—"}
+          value={r ? <span className="tabular-nums" aria-label={recordWords(r.wins, r.losses, r.ties)}><span aria-hidden><span className={G.win.text}>{r.wins}</span><span className="text-muted-foreground">-</span><span className={G.loss.text}>{r.losses}</span><span className="text-muted-foreground">-{r.ties}</span></span></span> : "—"}
           hint={r ? `${r.matches} matches · ${r.events} event${r.events === 1 ? "" : "s"}` : `no matches ${when}`}
           bar={r && r.wins + r.losses + r.ties > 0 ? <Meter parts={[{ pc: (100 * r.wins) / (r.wins + r.losses + r.ties), cls: G.win.bar, value: r.wins, scale: r.wins + r.losses + r.ties }, { pc: (100 * r.losses) / (r.wins + r.losses + r.ties), cls: G.loss.bar, value: r.losses, scale: r.wins + r.losses + r.ties }]} /> : null} />
         <StatTile tone="neutral" icon={CalendarDays} label="Events" value={<span className={G.events.text}>{profile.events.length}</span>}

@@ -230,11 +230,26 @@ describe("the answers", () => {
   });
   it("the first paint says the answer before the app loads", async () => {
     const m = await pageMeta("/search", { q: "4215 worlds record" });
-    expect(m.bodyHtml).toMatch(/<h2>Record at Worlds<\/h2>/);
+    // The heading names it ("… · Record at Worlds"), so the stat's own title isn't said again under it.
+    expect(m.heading).toMatch(/Record at Worlds/);
+    expect(m.bodyHtml).not.toMatch(/<h2>Record at Worlds<\/h2>/);
     expect(m.bodyHtml).toContain("<b>2-1-0</b>");
     expect(m.heading).not.toMatch(/^No matches/);
     // A long question is read whole there too, past 80 characters: its last words still count.
     const long = await pageMeta("/search", { q: `${"please ".repeat(12)}4215 worlds record` });
-    expect(long.bodyHtml).toMatch(/<h2>Record at Worlds<\/h2>/);
+    expect(long.heading).toMatch(/Record at Worlds/);
+    expect(long.bodyHtml).toContain("<b>2-1-0</b>");
+  });
+  it("the first paint never says the page's heading twice: a stat or card titled as the heading gets no second one", async () => {
+    for (const q of ["4215 worlds record", "4215 worlds", "4215 record", "4215 opr", "4215 awards", "4215 today opr", "4215 and 6980 record", "4215 vs 6980 opr"]) {
+      const m = await pageMeta("/search", { q });
+      const heading = (m.heading ?? "").toLowerCase();
+      const heads = [...(m.bodyHtml ?? "").matchAll(/<(?:h2|h3)>([^<]*)</g)].map((x) => x[1]).filter(Boolean);
+      expect(new Set(heads.map((x) => x.toLowerCase())).size, `${q}: ${heads.join(" | ")}`).toBe(heads.length);
+      // Not even as part of the heading ("Record in 2025–26" under "Hypnotic Robotics (4215) · Record in 2025–26").
+      for (const h of heads) expect(heading.includes(h.toLowerCase()), `${q}: "${h}" under "${m.heading}"`).toBe(false);
+      expect(`${m.heading} ${m.bodyHtml}`, q).not.toMatch(/isn't part of this answer/);
+    }
+    expect((await pageMeta("/search", { q: "4215 today opr" })).bodyHtml).toContain("Not used in this answer: &quot;today&quot;");
   });
 });

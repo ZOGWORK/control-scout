@@ -222,7 +222,7 @@ describe("states, worlds and a team's own events (complex queries file)", () => 
       const a = await searchAnswer(q, { limit: 25, full: true });
       expect((a.stat as StatAnswer).title, q).toBe("Results at New Jersey Championship - Parkway Division");
       expect(a.understood?.label, q).toMatch(/ · their latest event$/);
-      expect(a.understood?.label, q).not.toMatch(/isn't part of this answer/);
+      expect(a.understood?.unread ?? [], q).toEqual([]);
     }
     expect((await ask("4215 matches at their first event this season")).title).toMatch(/^Results at P1-4 (?:AM|PM) Northern League Meet$/);
   });

@@ -74,6 +74,27 @@ describe("event page heading order (V4-A11Y-001)", () => {
   });
 });
 
+describe("Playoffs with no alliances", () => {
+  const title = async (t: string) => { await waitFor(() => expect(screen.getByText(t)).toBeTruthy()); };
+  it("a league meet has none to pick: it says so, not that selection is still to come", async () => {
+    current = { ...detail(2025), event: { ...detail(2025).event, type: "LeagueMeet", typeLabel: "League Meet" } };
+    mount("/events/2025/AUBRQ2?tab=playoffs");
+    await title("No playoffs at a league meet");
+    expect(screen.queryByText("Alliances not selected yet")).toBeNull();
+  });
+  it("an event whose last day is behind it at the venue has none on record", async () => {
+    mount("/events/2025/AUBRQ2?tab=playoffs");
+    await title("No alliances on record");
+    expect(screen.queryByText("Alliances not selected yet")).toBeNull();
+  });
+  it("an event still on its dates (every posted match played, \"finished\") is still to pick, with the pick helper", async () => {
+    const today = new Date().toISOString().slice(0, 10), later = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
+    current = { ...detail(2025), event: { ...detail(2025).event, start: today, end: later } };
+    mount("/events/2025/AUBRQ2?tab=playoffs");
+    await title("Alliances not selected yet");
+  });
+});
+
 describe("event page ?tab=", () => {
   it("opens a real tab and keeps it in the address", () => {
     mount("/events/2025/AUBRQ2?tab=awards");

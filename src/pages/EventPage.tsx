@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigationType, useParams, useSearchParams } from "react-router-dom";
 import { pickHelperQuery } from "../shared/scoutSections";
+import { eventOver } from "../shared/eventDay";
 import { Award, CalendarDays, ChevronDown, Clock, ExternalLink, Gavel, Info, ListOrdered, Loader2, Luggage, MapPin, Radar, Radio, RefreshCw, Search, Sparkles, Swords, Trophy, Tv, Users } from "lucide-react";
 import { leagueHref } from "../shared/leagues";
 import { BRACKETS, type Slot } from "@control-scout/predict-engine";
@@ -708,7 +709,15 @@ function PickHelperLink({ d }: { d: EventDetail }) {
 
 function Playoffs({ d }: { d: EventDetail }) {
   const al = d.alliances;
-  if (!al.length) return <EmptyState icon={Trophy} title="Alliances not selected yet" description="Alliance selection happens after qualification matches. The pick helper shows which partners fill your gaps." action={<PickHelperLink d={d} />} />;
+  if (!al.length) {
+    // A league meet plays qualification matches only: its alliances are picked at the league tournament. A finished
+    // event with none on record had none to show; only an event still to play its playoffs waits for selection.
+    if (d.event.type === "LeagueMeet") return <EmptyState icon={Trophy} title="No playoffs at a league meet" description="League meets play qualification matches only. Alliances are picked at the league tournament." />;
+    // "Finished" can mean every posted match has a result while the playoffs are still to come: only an event whose last
+    // day is behind it at the venue (eventOver, the app's one "is it over" check) has no selection left to wait for.
+    if (eventOver(d.event)) return <EmptyState icon={Trophy} title="No alliances on record" description="This event finished with no alliance selection in FIRST's results." />;
+    return <EmptyState icon={Trophy} title="Alliances not selected yet" description="Alliance selection happens after qualification matches. The pick helper shows which partners fill your gaps." action={<PickHelperLink d={d} />} />;
+  }
   const playoff = d.matches.filter((m) => m.level === "playoff");
   const bySeries = new Map<number, MatchView[]>();
   for (const m of playoff) bySeries.set(m.series, [...(bySeries.get(m.series) ?? []), m]);

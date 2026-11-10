@@ -39,6 +39,8 @@ const LOOPBACK = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
  *  redirect the same way (src/main.tsx), for in-app links and offline use. */
 export const MOVED_PAGES: [RegExp, string, string][] = [
   [/^\/predict\/how-it-works$/i, "/methodology", ""],
+  // How it works is a fold in the sidebar (Predictions, FTC One Search); its own address opens its first page.
+  [/^\/how-it-works$/i, "/methodology", ""],
   [/^\/predict\/accuracy$/i, "/methodology", "#accuracy"],
 ];
 
@@ -174,7 +176,8 @@ export async function renderPage(file: string, path: string, query: Record<strin
   // The home page's hero lines too (the owner's, or the built-in ones): every page carries them (server/bootShell.ts).
   // And on /events, whether today has coin flips (coinFlipsHint).
   // And whether the light version is on (the first paint offers it on a slow load: server/bootShell.ts).
-  const [meta, hero, flips, lite] = await Promise.all([pageMeta(path, query), liveHeroLines(), coinFlipsHint(path), isEnabled("venueLightMode").catch(() => false)]);
+  // And whether the rules reference is on (the footer links Rules only then).
+  const [meta, hero, flips, lite, rules] = await Promise.all([pageMeta(path, query), liveHeroLines(), coinFlipsHint(path), isEnabled("venueLightMode").catch(() => false), isEnabled("rulesReference").catch(() => false)]);
   // A page the server drew whole (meta.firstPaint) is the app's own markup: its first paint carries the part of the app's
   // stylesheet that markup uses, inline (server/criticalCss.ts), and waits for its text fonts (FIRST_PAINT_FONTS), so it
   // paints once, styled, never as unstyled text that then changes. Nothing else downloads until those fonts are here
@@ -188,7 +191,7 @@ export async function renderPage(file: string, path: string, query: Record<strin
   let html = (deferred ? afterFirstPaint(deferred.html, { css: deferred.href, fonts: FIRST_PAINT_FONT_LOADS }) : afterFirstPaint(nonBlockingCss(shell)))
     // The privacy banner goes after #root, not in it: React's first render replaces #root, and the app's banner takes over from this one.
     // Not on a bare page (the pit display): nobody answers it on a pit TV, and the app shows no banner there to take it over.
-    .replace(/<div id="root">(?:<!--cs-boot-->)?<\/div>/, () => `<div id="root">${bootShell(path, meta, hero, meta.notFound || !lite ? null : liteHref(path, queryString(query)))}</div>${isBareRoute(path) ? "" : bootConsent()}`);
+    .replace(/<div id="root">(?:<!--cs-boot-->)?<\/div>/, () => `<div id="root">${bootShell(path, meta, hero, meta.notFound || !lite ? null : liteHref(path, queryString(query)), (f) => f !== "rulesReference" || rules)}</div>${isBareRoute(path) ? "" : bootConsent()}`);
   if (deferred) html = inlineCriticalCss(html, [join(dirname(file), deferred.href), ...pageStylesheets(file, path)]);
   // A search's intent goes out with the page, for the route to count per visit (PageMeta.intent).
   return { status: meta.notFound ? 404 : 200, html, ...(meta.intent ? { intent: meta.intent } : {}) };

@@ -2,6 +2,7 @@
 // (hero, OPR cards with world rank, one trend chart, event history),
 // generalised from "my team" to every team.
 import { Fragment, useEffect, useMemo, useState } from "react";
+import { recordWords } from "../shared/format";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { leagueHref, leagueTitle } from "../shared/leagues";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
@@ -451,7 +452,7 @@ export function RowRecord({ e }: { e: TeamEventRow }) {
   const q = e.qual;
   return (
     <>
-      <p className="font-medium" aria-label={`${e.wins} wins, ${e.losses ?? 0} losses, ${e.ties ?? 0} ties${q && q.played !== e.played ? ", playoffs included" : ""}`}>{e.wins}-{e.losses ?? 0}-{e.ties ?? 0}</p>
+      <p className="font-medium" aria-label={`${recordWords(e.wins, e.losses, e.ties)}${q && q.played !== e.played ? ", playoffs included" : ""}`}>{e.wins}-{e.losses ?? 0}-{e.ties ?? 0}</p>
       {!e.onField ? <p className="text-[11px] text-muted-foreground">No-show</p>
         : q && q.played !== e.played && <p className="text-[11px] text-muted-foreground">{q.played ? `Quals ${q.wins}-${q.losses}-${q.ties}` : "Playoffs only"}</p>}
     </>
