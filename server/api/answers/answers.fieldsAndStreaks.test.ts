@@ -5,7 +5,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../../db";
 import { rebuildSearch } from "../../stats/job";
 import { searchAnswer } from "../searchAnswer";
-import { saysOtherThanOpr } from "./families/eventVersus";
+import { oprPhaseOf, saysOtherThanOpr } from "./families/eventVersus";
 
 const S = 2025;
 const ask = (q: string) => searchAnswer(q, { learn: false, limit: 25, full: true, now: Date.parse("2026-05-01T12:00:00Z") });
@@ -86,6 +86,10 @@ describe("a championship's divisions by field strength", () => {
       expect(a.stat?.headline, q).toMatchObject({ value: "35.0", label: "average Auto OPR: Birch Division was the hardest" });
       expect(a.stat?.scope, q).toContain("By average Auto OPR");
     }
+    // OPR's long name with hyphens or slashes between its words is OPR all the same.
+    for (const q of ["hardest division at nj states by average auto offensive-power-rating", "hardest division at nj states by average auto offensive/power/rating"])
+      expect(oprPhaseOf(q, "nj"), q).toBe("auto");
+    expect((await ask("hardest division at nj states by average auto offensive-power-rating")).stat?.headline?.label).toBe("average Auto OPR: Birch Division was the hardest");
     // A phase with no OPR on record says so, never the whole OPR instead.
     for (const q of ["hardest division at nj states by average end-game opr", "hardest division at nj states by average tele op opr", "hardest division at nj states by average dc opr"]) {
       const a = await ask(q);
