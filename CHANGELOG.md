@@ -15,6 +15,48 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.1.4 — 2026-11-10
+
+A what-if under every predicted match: swap one robot and see how the call and the margin move.
+
+### Highlights
+- [predict] What if? Swap a partner or opponent and see the call move
+- [predict] Before and after side by side: win chance and margin, with the change
+- [predict] The swap is in the address: share it, or Undo and Back
+
+### Changed
+- Predict › Match shows a What if? panel under the result: pick a robot in the match, type another, and both calls sit side by side with the change in win chance and margin. The swap is in the address, so a what-if can be shared, and Undo or Back takes it out. Both calls come from the same prediction the lab shows. (#1298)
+- The match lab never makes a two-against-one call: a forgotten box is pointed out, and the call waits for as many teams on each side.
+
+## 5.1.3 — 2026-11-10
+
+Search answers four questions it used to miss: a lost match's best score, an event's field, the hardest division and a place's win streaks.
+
+### Highlights
+- [fixes] Highest score in a lost match, with the alliance that lost
+- [fixes] An event's average OPR: "average OPR of teams at <event>"
+- [fixes] The hardest (or easiest) division of Worlds or a state championship
+- [fixes] Win streaks in a state or country: the longest, and going now
+
+### Added
+- "Who has the highest score in a match they lost" and "highest losing score": the losing alliance's best score without penalties, its teams named, ties never counted. Place, season and window filters work as for other match questions.
+- "Average OPR of teams at <event>", "<state> states average OPR", "average OPR at worlds": the field's average OPR, each team once at its best OPR there. A division named is that division alone, and a parent event counts its divisions.
+- "Which championship division was hardest this year, by average OPR", "easiest division at nj states": every division ranked by its field's average OPR. Worlds by default, a state's championship when a state is named, and the latest season with divisions when this one has none yet, said on the card.
+- "Who has the longest winning streak in <state or country> right now": two lists of the place's teams, the longest run over this season and last, and the run going now up to each team's latest match. A tie ends a streak, as on a team's own streak answer. Losing streaks too. (#1307)
+
+## 5.1.2 — 2026-11-10
+
+Records count official events only everywhere, including the wins list and My team.
+
+### Highlights
+- [fixes] The most-wins list ranks teams on their official matches
+- [fixes] My team says "no official results yet" instead of an empty rate
+- [fixes] Scrimmages never make a team eligible for a record list
+
+### Fixed
+- "Top teams by wins" admitted a team by every match it played, scrimmages included, while its wins count official events only: a team with one official match and two scrimmages was ranked. It now needs three official matches, as the record and win-rate lists do, and says "official events only". (#1306)
+- My team's win-rate tile for a team that has played only off-season events or scrimmages showed an empty rate. It now says there are no official results yet and how many off-season matches it played. Its Record tile says "Official events only", with the matches and events in all beside it.
+
 ## 5.1.1 — 2026-11-10
 
 Every league has its own standings page: FIRST's official league ranking over every meet so far.
