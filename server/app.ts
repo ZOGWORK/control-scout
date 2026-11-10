@@ -97,6 +97,7 @@ import { supporters } from "./sponsors.js";
 import { packsRouter } from "./packs/routes.js";
 import { bundleRouter } from "./packs/bundle.js";
 import { cachedPublicUsage, collectRouter, PUBLIC_USAGE_MAX_AGE_S, rateLimiter, statsRouter } from "./analytics.js";
+import { visitorIp } from "./visitorIp.js";
 import { vitalsRouter } from "./vitals.js";
 import { abuseMonitor } from "./moderation.js";
 import { homeOverview } from "./api/home.js";
@@ -183,15 +184,6 @@ const code = (x: unknown) => {
   return c;
 };
 
-/** Tiny per-IP token bucket (heavy endpoints only). */
-/** The visitor's address. Behind Cloudflare the connection nginx sees is Cloudflare's edge, so req.ip (one trusted
- *  proxy) is that edge, shared by every visitor it serves: Cloudflare names the visitor in CF-Connecting-IP. Without
- *  Cloudflare in front (local, tests), req.ip. Only a limit's key: never stored, never logged. */
-export const visitorIp = (req: Request): string => {
-  const cf = req.get("cf-connecting-ip")?.trim();
-  return cf && cf.length <= 64 ? cf : (req.ip ?? "?");
-};
-
 /** Searches one visitor address may make a minute (the /search page and /api/search together). Generous: a person
  *  searches every few seconds at most, and a whole venue can share one address; a script hammering search from one
  *  address gets 429 with Retry-After. Bruno's k6 run (100 users, 5 s apart, one machine) makes ~800 a minute. */
@@ -209,6 +201,7 @@ export function searchLimit(max = SEARCHES_PER_MINUTE, windowMs = SEARCH_WINDOW_
   };
 }
 
+/** Tiny per-visitor token bucket (heavy endpoints only). */
 function limiter(perMinute: number) {
   const buckets = new Map<string, { tokens: number; at: number }>();
   return (req: Request, res: Response, next: NextFunction) => {
@@ -276,7 +269,7 @@ export function createServer(app: express.Express, health: () => Record<string, 
   return server;
 }
 
-export function createApp(opts: { dist?: string } = {}) {
+export function createApp(opts: { dist?: string; /** Tests only: a smaller search limit. */ searchesPerMinute?: number } = {}) {
   const app = express();
   app.disable("x-powered-by");
   app.set("trust proxy", 1);
@@ -302,7 +295,7 @@ export function createApp(opts: { dist?: string } = {}) {
   app.use((req, res, next) => (/^\/api\/(collect(\/vitals)?|digest\/webhook|csp-report)\/?$/i.test(req.path) ? next() : json(req, res, next)));
 
   // One search limit for the page and the API (searchLimit): a visit to /search and the app's request for it count as two.
-  const searches = searchLimit();
+  const searches = searchLimit(opts.searchesPerMinute);
   const api = express.Router();
   // Every route's :code, as stored: an address may spell it in any case (/api/events/2019/2019INMEET10 is event
   // 2019INMeet10). A code that can't be one is left for code() to refuse; a season that isn't digits, for season().
