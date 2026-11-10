@@ -187,21 +187,32 @@ export async function seasonAdvancement(team: AnswerTeam, o: { season: number | 
   // The season asked, when it's over: its latest event, the answer itself. Else the latest one, said why.
   const over = o.season != null && o.season < CURRENT_SEASON;
   // A season named for a championship never reached keeps to that season: another season's odds never stand in.
-  const inSeason = o.season != null ? past.find((e) => Number(e.season) === o.season) : undefined;
-  const latest = inSeason ?? (over || (o.missing && o.season != null) ? undefined : past[0]);
+  const inSeason = o.season != null ? past.filter((e) => Number(e.season) === o.season) : [];
+  const pool = inSeason.length ? inSeason : over || (o.missing && o.season != null) ? [] : past;
   const why = o.missing ?? `No next ${toward} with a team list is published for ${whoOf(team)} in ${S} yet`;
-  if (!latest) {
+  if (!pool.length) {
     return { family: "stat", intent: "advancement-odds", title: `Advancement odds: ${team.number}`, team, scope: [S], definition: ADVANCE_RULE, source: `${team.number}'s events`, blocks: [],
       none: o.missing ? `${o.missing}, and it played no ${toward} there with a forecast, so there are no odds of getting there to show.`
         : over ? `${whoOf(team)} played no ${toward} with a forecast in ${S}.` : `${why}, and it has no earlier ${toward} with a forecast to show instead. The odds appear once the event's team list is in.` };
   }
-  const L = seasonLabel(Number(latest.season));
-  if (over && !o.missing) return advancementAt(team, latest, o.now, undefined, sim);
-  const a = await advancementAt(team, latest, o.now, {
-    title: `Advancement odds: ${team.number}'s latest ${o.toward === "worlds" ? "championship" : "advancing event"} (${L})`,
-    tile: { label: o.missing ? "Not listed there" : `${S} so far`, value: o.missing ? "Not there" : "No event yet", sub: o.missing ? `${why}: these are its odds of getting there, at ${latest.name} (${L})` : `Nothing to come with a team list yet: these are the odds at its latest one (${L})` },
-  }, sim);
-  return { ...a, scope: [...a.scope, o.missing ? "Not at the event asked" : `No next event in ${S} yet`] };
+  // The latest one with a forecast: an event with none (no team list, ratings not ready) gives way to the one before,
+  // a few at most (each may need a simulation); with none among them, the latest says why.
+  const card = async (latest: Ev) => {
+    const L = seasonLabel(Number(latest.season));
+    if (over && !o.missing) return advancementAt(team, latest, o.now, undefined, sim);
+    const a = await advancementAt(team, latest, o.now, {
+      title: `Advancement odds: ${team.number}'s latest ${o.toward === "worlds" ? "championship" : "advancing event"} (${L})`,
+      tile: { label: o.missing ? "Not listed there" : `${S} so far`, value: o.missing ? "Not there" : "No event yet", sub: o.missing ? `${why}: these are its odds of getting there, at ${latest.name} (${L})` : `Nothing to come with a team list yet: these are the odds at its latest one (${L})` },
+    }, sim);
+    return { ...a, scope: [...a.scope, o.missing ? "Not at the event asked" : `No next event in ${S} yet`] };
+  };
+  let first: StatAnswer | null = null;
+  for (const e of pool.slice(0, 3)) {
+    const a = await card(e);
+    if (!a.none) return a;
+    first ??= a;
+  }
+  return first!;
 }
 
 /** Advancement odds asked at an event the team isn't listed at: at a championship, its odds of getting there (its

@@ -12,7 +12,7 @@ vi.mock("../../../predict/eventForecast.js", () => ({
     asked.modes.push(`${code}:${mode}`);
     const t = (n: number, pAdvance: number, pWin: number) => ({ team: n, pAdvance, pWin, pCaptain: 0.3, pPicked: 0.4, pFinalist: 0.1, rank: { mean: 4.2, p10: 1, p90: 9 }, strength: { matches: 9 } });
     return { season, event: code, stage: "pre", runs: 2000, slots: 4, slotsSource: "estimated", prequalified: [], assumptions: ["Championship divisions are treated as their own event; the real slots are shared across divisions."],
-      teams: [t(7149, 0.83, 0.002), t(6980, 0.22, 0.05)], matchesOnly: null, matches: [], bonusDraws: "model", generatedAt: "", bonusModelled: true, eventName: code, eventStart: null, eventEnd: null, myTeam: team, engineVersion: "x", mode, hindsightNote: null } as unknown as ForecastView;
+      teams: code === "USNJNOFC" ? [] : [t(7149, 0.83, 0.002), t(6980, 0.22, 0.05)], matchesOnly: null, matches: [], bonusDraws: "model", generatedAt: "", bonusModelled: true, eventName: code, eventStart: null, eventEnd: null, myTeam: team, engineVersion: "x", mode, hindsightNote: null } as unknown as ForecastView;
   },
   ForecastUnavailable: class extends Error {},
 }));
@@ -38,6 +38,8 @@ beforeAll(async () => {
   await ev(2026, "USNJNOM1", "Northern League Meet", "LeagueMeet", "2026-11-01");
   // A one-day qualifier played today (NOW's date) whose every match has a result: finished, as the event page says.
   await ev(2026, "USNJTODAY", "Today Qualifier", "Qualifier", "2026-11-10");
+  // A later qualifier the engine can't forecast (its mock has no teams for it).
+  await ev(2025, "USNJNOFC", "No Forecast Qualifier", "Qualifier", "2026-02-20");
   // A qualifier with no dates posted yet.
   await run("INSERT INTO events (season, code, name, type, region, source) VALUES (2026, 'USNJNODATE', 'Undated Qualifier', 'Qualifier', 'USNJ', 't')");
   // A qualifier where FIRST's list marks 7149 not eligible to take a slot.
@@ -47,7 +49,7 @@ beforeAll(async () => {
   await ev(2026, "USCALA", "LA Qualifier", "Qualifier", "2026-11-09");
   await run("UPDATE events SET timezone = 'America/Los_Angeles' WHERE code = 'USCALA'");
   await run("INSERT INTO matches (season, code, level, series, number, label, played, source) VALUES (2026, 'USNJTODAY', 'qual', 0, 1, 'Q1', 1, 't'), (2026, 'USNJTODAY', 'qual', 0, 2, 'Q2', 1, 't')");
-  for (const [code, t, rank] of [["USNJCMPTRPK", 7149, 3], ["FTCCMP1ROSS", 7149, 19], ["USNJNOLT", 6980, 5], ["USNJNOLT", 7149, 1], ["USNJNOM1", 7149, 2], ["USNJTODAY", 6980, 1], ["USCALA", 6980, 3], ["USNJQELIG", 7149, 2], ["USNJNODATE", 7149, null]] as const)
+  for (const [code, t, rank] of [["USNJCMPTRPK", 7149, 3], ["FTCCMP1ROSS", 7149, 19], ["USNJNOLT", 6980, 5], ["USNJNOLT", 7149, 1], ["USNJNOM1", 7149, 2], ["USNJTODAY", 6980, 1], ["USCALA", 6980, 3], ["USNJQELIG", 7149, 2], ["USNJNODATE", 7149, null], ["USNJNOFC", 6980, 2]] as const)
     await run("INSERT INTO event_teams (season, code, team, rank) VALUES (?, ?, ?, ?)", [code.startsWith("USNJNOM") || code === "USNJTODAY" || code === "USCALA" || code === "USNJNODATE" ? 2026 : 2025, code, t, rank]);
   await run("INSERT INTO advancement (season, code, slots, advances_to, rows) VALUES (2025, 'USNJCMP', 19, 'FIRST Championship & Premier Events', ?)", [JSON.stringify([{ team: 7149, status: "FIRST", declined: false }])]);
   await run("INSERT INTO advancement (season, code, slots, advances_to, rows) VALUES (2025, 'USNJNOLT', 5, 'USNJCMP', ?)", [JSON.stringify([{ team: 7149, status: "FIRST", declined: false }])]);
@@ -155,6 +157,12 @@ describe("advancement odds for a season", () => {
     const a = await seasonAdvancement({ number: 6980, name: "Bad Wolf" }, { season: null, toward: null, now: Date.parse("2026-11-10T03:00:00Z") });
     expect(a.scope[0]).toBe("LA Qualifier");
     expect(a.scope).toContain("Its next advancing event");
+  });
+  it("the latest event with no forecast gives way to the one before it", async () => {
+    // 6980's latest 2025 event toward states has no forecast; the league tournament before it does.
+    const a = await seasonAdvancement({ number: 6980, name: "Bad Wolf" }, { season: 2025, toward: "states", now: NOW });
+    expect(a.scope[0]).toBe("Northern League Tournament");
+    expect(chance(a)?.p).toBe(0.22);
   });
   it("a season that's over: its own latest event, with no 'nothing to come' line", async () => {
     const a = await seasonAdvancement(team, { season: 2025, toward: "worlds", now: NOW });
