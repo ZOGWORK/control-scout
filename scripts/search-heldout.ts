@@ -77,7 +77,8 @@ for (const x of sets) {
   // A word left unread counts against the pipeline's own answers (it read the query and must explain every word) and
   // against a reader's that says it left a word out; another reader's answer is judged by its card.
   const piped = !!a.intent?.understood?.some((u) => u.startsWith("Intent: "));
-  const leftOut = /isnt part of this answer/.test(text);
+  // Words the answer read past (understood.unread; never in the label, so never in `text`).
+  const leftOut = !!a.understood?.unread?.length;
   // A question search can't answer yet, said so with what was read: its own pattern, never a pass.
   const pattern = !answered ? (a.sorry ? "sorry shown" : a.understood?.fallback || a.step === "recovery" || a.step === "closest" ? "fallback only"
       : a.understood?.kind === "team" ? "team card only" : a.understood?.kind === "events" ? "event list only" : "names only")

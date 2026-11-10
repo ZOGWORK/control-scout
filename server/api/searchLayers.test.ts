@@ -10,6 +10,7 @@ import { FILLER, FORBIDDEN, INTENTS, PARAPHRASES, WEAK_SIGNALS } from "./searchC
 import { extract, loneTeamHit, paraphrase, searchKey, searchOutcome, setLayersForTest, stripFiller, tokens, traceOf } from "./searchLayers";
 import { PARAPHRASE_SETS } from "./searchLayers.sets";
 import { unreadNote } from "../../src/shared/searchPage";
+import { dropdownNotes } from "../../src/components/search/dropdown";
 
 const ask = (q: string) => searchAnswer(q, { limit: 25, learn: false });
 /** What an answer says: the card, the stat and its number, the team hit and the section or link it opens. */
@@ -141,6 +142,9 @@ describe("filler: never changes an answer; forbidden words are never ignored", (
     // Said in its own note, never in the label, which titles the page.
     expect((await ask("4215 today opr")).understood?.label).not.toMatch(/today|part of this answer/);
     expect(unreadNote(await ask("4215 today opr"))).toBe('Not used in this answer: "today"');
+    // The dropdown says it too, under what was understood.
+    const dropped = await ask("4215 today opr");
+    expect(dropdownNotes({ understood: [] } as never, dropped).understood).toContain('Not used in this answer: "today"');
     // The same when a later layer answers it, after filler is taken out.
     expect((await ask("4215 today opr rn")).understood?.unread).toEqual(["today"]);
     const x = await extract("4215 not opr");
