@@ -135,7 +135,8 @@ export function FirstRunTour() {
   // Running: show the step on this page, or wait visibly ("Tour paused") until a page that has it.
   useEffect(() => {
     if (!running || !step) return;
-    if (!ready || !free || samePage(path, "/owner")) { setView(null); return; }
+    // Not now (the owner console, another first-run surface up, consent pending): out of the way, slot given back.
+    if (!ready || !free || samePage(path, "/owner")) { setView(null); shownFor.current = null; releaseFirstRun(SLOT); return; }
     const key = `${path}#${rec!.step}`;
     if (!here) { shownFor.current = null; if (claimFirstRun(SLOT)) setView("pill"); return; }
     if (shownFor.current === key) return;

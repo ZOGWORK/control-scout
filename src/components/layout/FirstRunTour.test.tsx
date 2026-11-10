@@ -326,6 +326,21 @@ describe("leaving the page doesn't end it", () => {
     expect(screen.getByRole("dialog", { name: /Step 3 of 4/ })).toBeTruthy();
   });
 
+  it("the owner console shows nothing and gives the first-run slot back (other surfaces may show)", async () => {
+    mount();
+    await opened();
+    key("ArrowRight");
+    act(() => go("/owner"));
+    await settle();
+    expect(card()).toBeNull();
+    expect(pill()).toBeNull();
+    expect(firstRunHolder()).toBeNull();
+    expect(readTour()).toMatchObject({ status: "paused", step: 1 });
+    // Leaving the console: the paused note is back.
+    act(() => go("/settings"));
+    await waitFor(() => expect(pill()).not.toBeNull());
+  });
+
   it("the paused note's close is an explicit skip", async () => {
     mount();
     await opened();
