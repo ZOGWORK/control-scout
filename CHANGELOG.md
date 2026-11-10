@@ -24,7 +24,7 @@ Every follow-up a search offers says which season its numbers are from.
 - [fixes] People also ask previews say their season too
 
 ### Changed
-- A follow-up's line (People also ask, Related searches, the related searches page and the team's highlights link) ends with the season its numbers are from when the line doesn't already say one: "98 ± 3.2 · #525 worldwide … · 2025–26", "11 awards · 7 performance · 4 judged · all seasons". A record from the latest completed season and a trend from the current one no longer sit side by side unlabelled.
+- A follow-up's line (People also ask, Related searches, the related searches page and the team's highlights link) ends with the season its numbers are from when the line doesn't already say one: "98 ± 3.2 · #525 worldwide … · 2025–26", "11 awards · 7 performance · 4 judged · all seasons". A record from the latest completed season and a trend from the current one no longer sit side by side unlabelled. (#1330)
 
 ## 5.2.3 — 2026-11-10
 
