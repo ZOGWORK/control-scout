@@ -194,9 +194,11 @@ describe("slots", () => {
     expect(p.teams).toEqual([]);
     expect(p.complete).toBe(false);
   });
-  it("picks one of the teams sharing a name by the place named, else the newest played", async () => {
+  it("picks one of the teams sharing a name by the place named, never the newest by default", async () => {
     expect((await parse("ultraviolet record in new jersey")).teams[0]).toMatchObject({ number: 23268, rule: "the one in New Jersey" });
-    expect((await parse("alphatronic record")).teams[0]).toMatchObject({ number: 24033, rule: "the one that played most recently" });
+    // Both played this season or last, neither ranked: still tied (./shared.ts).
+    expect((await parse("alphatronic record")).teams[0].rule).toBeUndefined();
+    expect((await parse("alphatronic record")).complete).toBe(false);
     // Two still tied: never guessed; the other team named breaks it by region.
     expect((await parse("ultraviolet opr")).complete).toBe(false);
     expect((await parse("ultraviolet vs hypnotic robotics")).teams.map((t) => t.number)).toEqual([23268, 4215]);
