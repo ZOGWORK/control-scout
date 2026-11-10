@@ -18,7 +18,7 @@ export interface LeagueStandingRow {
   meets: number;
 }
 
-export interface LeagueMeet { code: string; name: string; start: string | null; type: string | null }
+export interface LeagueMeet { code: string; name: string; start: string | null; type: string | null; /** A match there has a result. */ played: boolean }
 
 export interface LeagueStandings {
   season: number;

@@ -60,7 +60,7 @@ describe("league standings sync", () => {
     const nj = await leagueStandings(S, "usnj", "ne");
     expect(nj).toMatchObject({ region: "USNJ", code: "NE", name: "Northeast", place: "New Jersey" });
     expect(nj!.rows.map((r) => [r.rank, r.team, r.name, r.meets])).toEqual([[1, 7, "Seven", 1], [2, 6980, "Bad Wolf", 2], [3, 8, "Eight", 0]]);
-    expect(nj!.meets.map((m) => m.code)).toEqual(["NJM1", "NJM2", "NJLT"]);
+    expect(nj!.meets.map((m) => [m.code, m.played])).toEqual([["NJM1", true], ["NJM2", true], ["NJLT", false]]);
     expect((await leagueStandings(S, "USFL", "NE"))!.rows.map((r) => r.team)).toEqual([8]);
     expect(await leagueStandings(S, "USNY", "NE")).toBeNull();
     // Out of the teams that have played: team 8 hasn't in New Jersey.

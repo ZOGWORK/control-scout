@@ -32,14 +32,14 @@ export async function leagueStandings(season: number, regionRaw: string, codeRaw
            WHERE et.season = r.season AND et.team = r.team AND e.type = 'LeagueMeet' AND e.region = r.region AND e.league = r.league AND ${PLAYED}) meets
        FROM league_rankings r LEFT JOIN teams t ON t.number = r.team
        WHERE r.season = ? AND r.region = ? AND r.league = ? ORDER BY r.rank, r.team`, [season, region, code]),
-    all<LeagueMeet & { state: string | null; country: string | null }>("SELECT code, name, start, type, state, country FROM events WHERE season = ? AND region = ? AND league = ? ORDER BY start, code", [season, region, code]),
+    all<Omit<LeagueMeet, "played"> & { played: number; state: string | null; country: string | null }>("SELECT e.code, e.name, e.start, e.type, e.state, e.country, EXISTS (SELECT 1 FROM matches m WHERE m.season = e.season AND m.code = e.code AND m.played = 1) played FROM events e WHERE e.season = ? AND e.region = ? AND e.league = ? ORDER BY e.start, e.code", [season, region, code]),
   ]);
   // Where the league plays: its meets' state (or country).
   const at = meets.find((m) => m.state || m.country);
   const place = at ? placeName(at.state, at.country) : null;
   return {
     season, region, code, name: info?.name?.trim() || null, location: info?.location ?? null, place, readAt: info?.ranked_at ?? null,
-    rows: rows.map((r) => ({ ...r, meets: r.meets ?? 0 })), meets: meets.map(({ code, name, start, type }) => ({ code, name, start, type })),
+    rows: rows.map((r) => ({ ...r, meets: r.meets ?? 0 })), meets: meets.map(({ code, name, start, type, played }) => ({ code, name, start, type, played: !!played })),
   };
 }
 
