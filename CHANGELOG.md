@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.2.7 — 2026-11-10
+
+Gold is the accent only: charts, compared teams and team colours use their own hues, and team B is no longer amber beside it.
+
+### Highlights
+- [fixes] Team B on dark is vermilion, no longer amber beside the gold
+- [fixes] Charts and Compare draw teams in team hues, never the accent
+- [fixes] Indigo replaces gold among the colours you give a team
+
+### Fixed
+- Team B's colour on dark was Okabe–Ito amber (#e69f00), a step from the accent gold (#eab308): a compared team read as a button. It is now vermilion (#f0763a, the light theme's #d55e00 lifted for dark).
+- The first chart colour was the accent itself, so a team's own trend and Compare's first team were gold. It is team A's blue; Compare draws each team in the team hues search's compare card uses, with a fourth (reddish purple) for a fourth team.
+- The colours a scout gives their teams had Gold; it is Indigo now. A team saved as gold shows in its usual colour.
+
 ## 5.2.6 — 2026-11-10
 
 Search answers more of the questions people asked and got no answer to: most wins in a place, a stat for a season, a team's chances written "4215s".

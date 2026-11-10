@@ -36,7 +36,8 @@ import { Reveal, Stagger, StaggerItem, m } from "../components/motion";
 import { predictHref } from "../shared/predictUrl";
 import { COMPARE_MAX as MAX, compareApiPath, compareSeasonOf, compareTeamsOf, compareTitle } from "../shared/compareUrl";
 
-const COLORS = ["var(--color-chart-1)", "var(--color-chart-2)", "var(--color-chart-3)", "var(--color-chart-4)"];
+// The team hues (src/index.css --color-team-a…d, Okabe–Ito), as search's compare card has them: never the accent gold.
+const COLORS = ["var(--color-team-a)", "var(--color-team-b)", "var(--color-team-c)", "var(--color-team-d)"];
 
 /** Each compared team's colour: the one the scout gave it on the shortlist, else the usual one for its place. */
 export function teamPalette(teams: number[], colorOf: (team: number) => { css: string } | null): string[] {
