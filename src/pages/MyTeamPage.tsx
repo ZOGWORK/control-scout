@@ -245,7 +245,7 @@ function SeasonSoFar({ p, team, matches, matchesFailed, when, earlier, onSeason 
     <>
       <p className={`mt-3 font-display text-5xl font-semibold tabular-nums ${PROFILE_PERCENTILE_TEXT}`}>{top ?? "Unranked"}</p>
       <p className="text-sm text-muted-foreground">worldwide by OPR{s.opr.np.rank ? ` · #${s.opr.np.rank.toLocaleString()} of ${s.opr.np.of?.toLocaleString()}` : ""}</p>
-      <div className="mt-5 max-sm:mt-4 grid gap-3 sm:grid-cols-2">
+      <div className="mt-5 max-sm:mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="rounded-xl border border-success/30 bg-success/[0.07] p-3">
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Trophy className="size-3.5 text-success" aria-hidden />Win rate</p>
           <p className="mt-1 font-display text-2xl font-semibold tabular-nums text-success">{winRate}%</p>
@@ -306,7 +306,7 @@ function TrackedFeed({ season }: { season: number }) {
           <Async state={evList} loading={<div className="skeleton h-28 rounded-xl" />}>
             {(d) => {
               const evs = d.events.filter((e) => events.includes(`${e.season}:${e.code}`));
-              return <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{evs.map((e) => <EventCard key={e.code} e={e} />)}{!evs.length && <Badge variant="outline">Tracked events aren't in this season's list</Badge>}</div>;
+              return <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">{evs.map((e) => <EventCard key={e.code} e={e} />)}{!evs.length && <Badge variant="outline">Tracked events aren't in this season's list</Badge>}</div>;
             }}
           </Async>
         )}
