@@ -33,6 +33,8 @@ const TEAMS = [
   { number: 30016, name: "Performance", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
   { number: 30017, name: "Girls in Robotics", city: "Town", state: "OH", country: "USA", lastPlayed: 2025 },
   { number: 30018, name: "Girls in Robotics 2", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
+  // The shorter name two teams share.
+  { number: 30019, name: "Girls in Robotics", city: "Town", state: "OH", country: "USA", lastPlayed: 2025 },
 ];
 const EVENTS = ["east bergen conference", "new jersey championship", "nj championship", "turnpike division"];
 const ctx: ParseContext = {
@@ -109,7 +111,8 @@ describe("slots", () => {
     expect(p.event).toBeNull();
     // Typed right, each is its own team.
     expect((await parseQuery("girls in robotics 2 record", near)).teams.map((t) => t.number)).toEqual([30018]);
-    expect((await parseQuery("girls in robotics record", near)).teams.map((t) => t.number)).toEqual([30017]);
+    // Its shorter name is two teams' ("which Girls in Robotics?"), never settled by the longer one's.
+    expect((await parseQuery("girls in robotics record", near)).teams[0]).toMatchObject({ candidates: [30017, 30019] });
   });
   it("reads 'performance' as how a team did, never a team of that name beside another team", async () => {
     const p = await parse("4215 performance at nj championship");
