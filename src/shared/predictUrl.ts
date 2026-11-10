@@ -112,7 +112,8 @@ export function switchMode(s: PredictState, to: PredictMode): Partial<PredictSta
 export function matchupOf(red: string | null, blue: string | null): { red: number[]; blue: number[] } | null {
   const side = (v: string | null) => (v ?? "").split(",").map((x) => x.trim()).filter(Boolean);
   const r = side(red), b = side(blue);
-  if (r.length < 1 || r.length > 2 || b.length < 1 || b.length > 2) return null;
+  // As many each side, one or two: a forgotten box never makes a two-against-one call.
+  if (r.length < 1 || r.length > 2 || b.length !== r.length) return null;
   if (![...r, ...b].every((x) => /^\d{1,6}$/.test(x) && Number(x) > 0)) return null;
   const rn = r.map(Number), bn = b.map(Number), all = [...rn, ...bn];
   return new Set(all).size === all.length ? { red: rn, blue: bn } : null;
