@@ -30,6 +30,7 @@ A team page says what's next, right under the team's name: the next match once a
 - The next match's chance to win carries its confidence tier, like every other call.
 - At an event that advances teams, the next-match card keeps an "Odds to advance" button all event day.
 - Whether an event is over is read on the venue's own calendar: a California event's finals still show as next after UTC midnight. Team event rows carry the venue's time zone for this.
+- A team page left open from the night before starts following the event once its day begins at the venue, and stops once the event is over.
 - Search's "next match" and "next event" answers link to the team's current season, so the team page opens on its Upcoming block (they linked last season's page before).
 
 

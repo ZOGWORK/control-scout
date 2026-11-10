@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { AwardsAllTime, NextChance, OprSection, RowRecord, lineup, nextMatch } from "./TeamPage";
+import { AwardsAllTime, NextChance, OprSection, RowRecord, lineup, nextMatch, useEventDayRefresh } from "./TeamPage";
 import type { MatchView, TeamEventRow, TeamProfile } from "../shared/api";
 
 // useMeta as the app's metadata would answer it (null: not loaded yet, as with no provider), and the current season.
@@ -143,5 +143,25 @@ describe("NextChance (Upcoming's call)", () => {
     render(<NextChance chance={0.23} tier="provisional" />);
     expect(screen.getByText(/23% to win/)).toBeTruthy();
     expect(screen.getByTitle(/^Confidence: /)).toBeTruthy();
+  });
+});
+
+describe("useEventDayRefresh (Upcoming's clock)", () => {
+  afterEach(() => { vi.useRealTimers(); });
+  const ny = { start: "2026-11-11", end: "2026-11-11", timezone: "America/New_York" };
+
+  it("a page opened the night before starts refreshing once the event day begins at the venue, and stops after it", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.parse("2026-11-11T04:58:30Z")); // 23:58:30 on the 10th in New York
+    const reload = vi.fn();
+    renderHook(() => useEventDayRefresh(ny, reload));
+    act(() => { vi.advanceTimersByTime(60_000); }); // 23:59:30: still the night before
+    expect(reload).not.toHaveBeenCalled();
+    act(() => { vi.advanceTimersByTime(60_000); }); // 00:00:30 on the 11th: the event day
+    expect(reload).toHaveBeenCalledTimes(1);
+    vi.setSystemTime(Date.parse("2026-11-12T05:00:30Z")); // 00:00:30 on the 12th: over
+    act(() => { vi.advanceTimersByTime(60_000); });
+    act(() => { vi.advanceTimersByTime(5 * 60_000); });
+    expect(reload).toHaveBeenCalledTimes(1);
   });
 });

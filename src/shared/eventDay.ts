@@ -39,7 +39,7 @@ export function eventToday(now: number, zone: string | null | undefined): { from
   return { from: new Date(now - 12 * 3600_000).toISOString().slice(0, 10), to: new Date(now + 14 * 3600_000).toISOString().slice(0, 10) };
 }
 
-export interface EventCalendar { start: string | null; end: string | null; timezone: string | null }
+export interface EventCalendar { start: string | null; end: string | null; timezone?: string | null }
 
 /** Is today (at the event, see eventToday) one of the event's dates? */
 export function onEventDates(e: EventCalendar, now = Date.now()): boolean {
@@ -49,7 +49,7 @@ export function onEventDates(e: EventCalendar, now = Date.now()): boolean {
 }
 
 /** Is the event over (its last date passed at the venue, see eventToday)? An event with no dates never is. */
-export function eventOver(e: { start: string | null; end: string | null; timezone?: string | null }, now = Date.now()): boolean {
+export function eventOver(e: EventCalendar, now = Date.now()): boolean {
   const last = e.end ?? e.start;
   return !!last && last < eventToday(now, e.timezone).from;
 }

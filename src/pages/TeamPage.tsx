@@ -35,7 +35,7 @@ import { eventTypeLabel } from "../lib/labels";
 import { copyLink } from "../lib/clipboard";
 import { direction, trendLabel } from "../shared/trend";
 import { teamTitle } from "../shared/teamTitle";
-import { eventOver, eventToday } from "../shared/eventDay";
+import { eventOver, onEventDates, type EventCalendar } from "../shared/eventDay";
 import { OFFICIAL_ONLY, OFFICIAL_RULE, RECORD_RULE, offSeasonRecord, wltText } from "../shared/eventRecord";
 import { OfflineNote } from "../components/OfflineNote";
 import { offlineSource } from "../lib/offline/saved";
@@ -565,17 +565,26 @@ function LastEvent({ last, team, className }: { last: TeamEventRow; team: number
 /** How often Upcoming asks for the matches again on an event day (the server checks FIRST about every minute). */
 const UPCOMING_REFRESH_MS = 60_000;
 
-/** While `on` (the team's next event is under way), call `reload` every UPCOMING_REFRESH_MS while the tab is visible and
- *  once on coming back to it; returns the time of the last check (Date.now() otherwise). Hidden tabs run no timer. */
-function useEventDayRefresh(on: boolean, reload: () => Promise<void>): number {
+/** The page's clock for the team's next `event`: a check every UPCOMING_REFRESH_MS while the tab is visible, and once
+ *  on coming back to it. Each check reads the venue's calendar again, so a page opened the night before starts asking
+ *  for the matches (`reload`) once the event day begins there, and stops for good once the event is over. Returns the
+ *  time of the last check. Hidden tabs do nothing. Exported for its test. */
+export function useEventDayRefresh(event: EventCalendar | null, reload: () => Promise<void> | void): number {
   const [at, setAt] = useState(() => Date.now());
   useEffect(() => {
-    if (!on) return;
-    const tick = () => { if (document.visibilityState === "visible") { setAt(Date.now()); void reload(); } };
-    const t = window.setInterval(tick, UPCOMING_REFRESH_MS);
+    if (!event) return;
+    let timer = 0;
+    const tick = () => {
+      if (document.visibilityState !== "visible") return;
+      const t = Date.now();
+      setAt(t);
+      if (eventOver(event, t)) { clearInterval(timer); return; }
+      if (onEventDates(event, t)) void reload();
+    };
+    timer = window.setInterval(tick, UPCOMING_REFRESH_MS);
     document.addEventListener("visibilitychange", tick);
-    return () => { clearInterval(t); document.removeEventListener("visibilitychange", tick); };
-  }, [on, reload]);
+    return () => { clearInterval(timer); document.removeEventListener("visibilitychange", tick); };
+  }, [event, reload]);
   return at;
 }
 
@@ -596,13 +605,16 @@ export function nextMatch(matches: MatchView[], events: TeamEventRow[], now = Da
  * alliances filled in) once a schedule is posted; else its next event, saying the match list comes at the event; else
  * plainly that none is published, with its last event. Drawn in the first paint from the answers the page already has.
  */
-function Upcoming({ p, next, last }: { p: TeamProfile; next: TeamEventRow | null; last: TeamEventRow | null }) {
+function Upcoming({ p, next: first, last: before }: { p: TeamProfile; next: TeamEventRow | null; last: TeamEventRow | null }) {
   const n = p.team.number;
   // The page's own matches request (MatchesSection asks for the same): no second request, and in the drawn page's data.
-  const ms = useApi<{ matches: MatchView[] }>(next ? `/api/teams/${n}/matches?season=${p.season}` : null);
+  const ms = useApi<{ matches: MatchView[] }>(first ? `/api/teams/${n}/matches?season=${p.season}` : null);
   // On the event's day the next match moves as the field plays: asked again every minute while the tab is visible
   // and on coming back to it, and the "late, not next" cutoff is read against the time of that check.
-  const now = useEventDayRefresh(!!next && (next.start ?? "") <= eventToday(Date.now(), next.timezone).to, ms.reload);
+  const now = useEventDayRefresh(first, ms.reload);
+  // Next and last again on that clock: a page left open past the event's end says so instead of "Next event".
+  const next = p.events.find((e) => !eventOver(e, now)) ?? null;
+  const last = next === first ? before : [...p.events].reverse().find((e) => eventOver(e, now)) ?? null;
   const m = next && ms.data ? nextMatch(ms.data.matches, p.events, now) : null;
   const mEvent = m ? p.events.find((e) => e.code === m.code) : null;
   const side = m ? (m.red.teams.some((t) => t.number === n) ? "red" : "blue") : null;
