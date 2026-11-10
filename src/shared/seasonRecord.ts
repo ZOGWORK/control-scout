@@ -19,5 +19,8 @@ export const PENALTIES_NOT_POSTED = "Penalties not posted";
 export const MATCHES_TABLE_NOTE = "The table lists every played match by score, penalties in, all events.";
 
 /** A highlights headline's reason, said with its rule where a reader could take it for the score with penalties: the
- *  best score is picked without them ("Best score without penalties: Q6"), while an event's own high score includes them. */
-export const withoutPenalties = (note: string) => (note === "Best score" ? "Best score without penalties" : note);
+ *  best score is picked without them ("Best score without penalties: Q6"), while an event's own high score includes them.
+ *  `np`: that match's score without penalties; null when FIRST never posted them, so its score may include them and
+ *  is said as such ("Best score, penalties not posted"). */
+export const withoutPenalties = (note: string, np: number | null | undefined) =>
+  note !== "Best score" ? note : np == null ? `Best score, ${PENALTIES_NOT_POSTED.toLowerCase()}` : "Best score without penalties";

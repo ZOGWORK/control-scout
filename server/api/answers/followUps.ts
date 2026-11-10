@@ -216,7 +216,7 @@ export function lineOf(a: SearchAnswer, list = false): Line | null {
     if (st.none || !st.headline?.value) return null;
     // A list question ("which teams played at …"): how many its answer lists, then the first, so the preview never
     // reads as one team being the whole answer.
-    if (list && st.listed != null && st.listed > 1) return { value: `${st.listed.toLocaleString("en-US")} teams`, rest: `first: ${st.headline.value}, ${st.headline.label}`, tone: { count: true } };
+    if (list && st.listed != null && st.listed > 0) return { value: `${st.listed.toLocaleString("en-US")} ${st.listed === 1 ? "team" : "teams"}`, rest: `first: ${st.headline.value}, ${st.headline.label}`, tone: { count: true } };
     // The teams its card draws: two or more as the card lists them, else the one it's about.
     const teams = (st.teams && st.teams.length > 1 ? st.teams : st.team ? [st.team] : []).map((t) => t.number);
     // The headline's own season when the line under it says one on its own (a single match's: "<season> · <date>"),

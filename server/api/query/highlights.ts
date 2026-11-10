@@ -261,7 +261,7 @@ async function workOut(f0: HighlightFind): Promise<StatAnswer> {
   const standout: StatBlock = { kind: "matches", title: `${picks.length} standout ${picks.length === 1 ? "match" : "matches"}`, rows };
   return {
     ...base, ...(f.videos ? { title: `Match videos${at ? ` ${at}` : ""}, ${S}` } : {}),
-    headline: { value: `${best.ownNp ?? best.own} points`, label: `${withoutPenalties(lead.note)}: ${top.label} at ${shortEvent(top.name, top.type)}`, href: best.href, type: top.type,
+    headline: { value: `${best.ownNp ?? best.own} points`, label: `${withoutPenalties(lead.note, best.ownNp)}: ${top.label} at ${shortEvent(top.name, top.type)}`, href: best.href, type: top.type,
       sub: `${best.ownNp != null && best.own !== best.ownNp ? `${best.own} with penalties · ` : ""}${best.alliance === "red" ? "Red" : "Blue"} ${best.result === "W" ? "won" : best.result === "L" ? "lost" : "tied"} ${best.own}–${best.opp}`,
       teams: best.partners, alliance: best.alliance },
     // A scope too big to list keeps its standout matches, the gallery saying why it lists none.

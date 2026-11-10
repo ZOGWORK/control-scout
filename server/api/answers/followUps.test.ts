@@ -296,6 +296,9 @@ describe("a list question's preview", () => {
     expect(lineOf(a, true)).toMatchObject({ value: "10 teams", rest: "first: 12853 Robo Cavos, OPR there 46.0, 4-2-0 · Emerson" });
     // A leader question ("who is best at X") keeps the team as its answer.
     expect(lineOf(a)).toMatchObject({ value: "12853 Robo Cavos" });
+    // One team listed: still the count, never that team as if it were the answer.
+    const one = { ...(a as object), stat: { ...(a as { stat: object }).stat, listed: 1 } } as never;
+    expect(lineOf(one, true)).toMatchObject({ value: "1 team", rest: "first: 12853 Robo Cavos, OPR there 46.0, 4-2-0 · Emerson" });
   });
 });
 

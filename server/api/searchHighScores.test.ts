@@ -126,3 +126,12 @@ describe("recordMarks", () => {
     expect(recordMarks({ results: ["Red alliance: 1 A"] })).toBeNull();
   });
 });
+
+describe("a highlights headline's penalty wording", () => {
+  it("says without penalties only when they were posted", async () => {
+    const { withoutPenalties } = await import("../../src/shared/seasonRecord");
+    expect(withoutPenalties("Best score", 78)).toBe("Best score without penalties");
+    expect(withoutPenalties("Best score", null)).toBe("Best score, penalties not posted");
+    expect(withoutPenalties("Closest finish", null)).toBe("Closest finish");
+  });
+});
