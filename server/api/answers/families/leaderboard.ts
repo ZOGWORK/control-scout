@@ -137,7 +137,7 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
   const rookie = b.kind === "rookie";
   // A record-based list counts the matches on the record (official events only, src/shared/eventRecord.ts), never
   // every match played: a team mostly at scrimmages isn't ranked on two or three official results.
-  const onRecord = st.id === "record" || st.id === "win-rate";
+  const onRecord = st.id === "record" || st.id === "win-rate" || st.id === "wins";
   const ranked = `s.season = ? AND ${st.id === "rating" || st.id === "penalties" ? "s.rating_matches" : onRecord ? "(s.wins + s.losses + s.ties)" : "s.matches"} >= ? AND ${st.sql} IS NOT NULL AND ${teamPageSql("s.team", "t.name")}${regionSql}${rookie ? " AND t.rookie_year = ?" : ""}${b.undefeated ? " AND s.losses = 0" : ""}${b.teams ? ` AND s.team IN (${b.teams.map(() => "?").join(", ")})` : ""}`;
   const from = `team_season_stats s JOIN teams t ON t.number = s.team${st.join ? ` ${st.join}` : ""}`;
   const args = [season, RANKED_MIN_MATCHES, ...regionArgs, ...(rookie ? [season] : []), ...(b.teams ?? [])];
@@ -169,7 +169,7 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
   const board: StatBlock = {
     kind: "leaderboard", title: b.teams ? `${rows.length} ranked by ${st.label}` : rookie ? `Rookie teams by ${st.label}` : b.asc ? `Lowest ${rows.length} by ${st.label}` : `Top ${rows.length} by ${st.label}`, stat: { id: st.id, label: st.label, ...(st.unit ? { unit: st.unit } : {}) },
     ...(reportedTeleopIncludesEndgame(season) ? { teleopWithEndgame: true } : {}), ...(b.asc ? { lowest: true } : {}),
-    note: `${seasonLabel(season)} · ${total.toLocaleString("en-US")} ranked ${rookie ? "rookie " : ""}team${total === 1 ? "" : "s"}${where} · by ${statWords(st)}${onRecord || st.id === "wins" ? ` · ${OFFICIAL_ONLY.toLowerCase()}` : ""}`,
+    note: `${seasonLabel(season)} · ${total.toLocaleString("en-US")} ranked ${rookie ? "rookie " : ""}team${total === 1 ? "" : "s"}${where} · by ${statWords(st)}${onRecord ? ` · ${OFFICIAL_ONLY.toLowerCase()}` : ""}`,
     rows: rows.map((r, i) => ({
       rank: bottom ? total - i : i + 1, team: { label: `${r.team} ${r.name ?? ""}`.trim(), href: teamHref(Number(r.team), season) },
       location: [r.city, r.state, r.country && r.country !== "USA" ? r.country : null].filter(Boolean).join(", ") || null,

@@ -1,6 +1,7 @@
 // My Team dashboard: your team's next matches (with odds), recent results,
 // next event outlook, and activity from the teams and events you track.
 // Works with no account (saved on this device); signed in, it syncs.
+import { OFFICIAL_ONLY } from "../shared/eventRecord";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ArrowRight, CalendarDays, Crosshair, Eye, History, Sparkles, Star, Swords, Target, Trophy, X } from "lucide-react";
@@ -172,7 +173,8 @@ function Dashboard({ team }: { team: number }) {
                   hint={s?.rating ? `${s.rating.rank ? `#${s.rating.rank.toLocaleString()} worldwide · ` : ""}${s.rating.matches} matches` : `no matches ${when}`} /></StaggerItem>
                 <StaggerItem><StatTile tone="emerald" icon={Trophy} label="Record"
                   value={r ? <span aria-label={`${r.wins} wins, ${r.losses} losses, ${r.ties} ties`}><span className="text-success">{r.wins}</span><span className="text-muted-foreground">-</span><span className="text-destructive">{r.losses}</span><span className="text-muted-foreground">-{r.ties}</span></span> : "—"}
-                  hint={r ? `${r.matches} matches · ${r.events} event${r.events === 1 ? "" : "s"}` : `no matches ${when}`}
+                  // The record is official events only; the matches and events counted beside it are every one played.
+                  hint={r ? `${OFFICIAL_ONLY} · ${r.matches} matches at ${r.events} event${r.events === 1 ? "" : "s"} in all` : `no matches ${when}`}
                   bar={r && r.wins + r.losses + r.ties > 0 ? <RecordMeter w={r.wins} l={r.losses} t={r.ties} /> : null} /></StaggerItem>
                 <StaggerItem>{isCurrent
                   ? <StatTile tone="violet" icon={CalendarDays} label="Next event" value={next ? dateRange(next.start, next.end).split(",")[0] : "—"} hint={next?.name ?? "none scheduled in our data"} />
@@ -249,9 +251,13 @@ function SeasonSoFar({ p, team, matches, matchesFailed, when, earlier, onSeason 
       <div className="mt-5 max-sm:mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="rounded-xl border border-success/30 bg-success/[0.07] p-3">
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Trophy className="size-3.5 text-success" aria-hidden />Win rate</p>
+          {/* Off-season matches and scrimmages only: no official result to make a win rate from (the record counts
+              official events only), said so instead of an empty rate. */}
+          {r.wins + r.losses + r.ties === 0 ? <p className="mt-1 text-sm text-muted-foreground" data-no-official>No official results yet: {r.matches} match{r.matches === 1 ? "" : "es"} at off-season events and scrimmages, not in the record.</p> : <>
           <p className="mt-1 font-display text-2xl font-semibold tabular-nums text-success">{winRate}%</p>
           <div className="mt-2"><RecordMeter w={r.wins} l={r.losses} t={r.ties} /></div>
           <p className="mt-1.5 text-xs text-muted-foreground"><span className="font-medium text-success">{r.wins} won</span> · <span className="font-medium text-destructive">{r.losses} lost</span>{r.ties > 0 && <> · {r.ties} tied</>}</p>
+          </>}
         </div>
         {predictable && (
           <div className="rounded-xl border border-info/30 bg-info/[0.07] p-3">
