@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 4.9.6 — 2026-11-10
+
+A season that hasn't started says so, and a prediction's links open on the season its cards show.
+
+### Highlights
+- [fixes] A team stat for a season not played yet says no events yet
+- [fixes] A named year means that season; no year means the latest one
+- [predict] Predict and Compare links open on the prediction's own season
+
+### Changed
+- A one-team question that names a season with no events yet ("opr 2027", "rating in 2027") answers with a no-events card for that season, and a link to the same question for the latest season, instead of reading the year as part of an event name or dropping it. A named year that has been played still answers for exactly that season.
+- A two-team prediction with no season named reads the latest season both teams have a rating in, the one their team cards show, and its Predict and Compare links carry that season too.
+
 ## 4.9.4 — 2026-11-10
 
 Compare opens on its teams: a search answer's Compare link lands on both teams with their numbers, from the first paint.
