@@ -119,6 +119,28 @@ describe("kept pages", () => {
     expect(await keptPage("/search?q=4215", async () => "v3")).toBe("v2");
   });
 
+  it("carries only copies that can still be served, and no more than are kept", async () => {
+    for (let i = 0; i < PAGES_KEPT; i++) await keptPage(`/teams/${i}`, async () => `p${i}`);
+    await kvSet("data:version", "2");
+    tick(3_000);
+    // A few asked again after the move; the rest are carried untouched.
+    for (let i = 0; i < 5; i++) await keptPage(`/x/${i}`, async () => `x${i}`);
+    expect(keptCounts().carried).toBe(PAGES_KEPT);
+    for (let i = 0; i < 5; i++) await keptPage(`/y/${i}`, async () => `y${i}`);
+    await Promise.resolve();
+    await kvSet("data:version", "3");
+    tick(3_000);
+    await keptPage("/z", async () => "z");
+    // The newest PAGES_KEPT of the carried and the newly drawn: never more.
+    expect(keptCounts().carried).toBe(PAGES_KEPT);
+    // Past their time and the stale window, none is carried on.
+    tick(PAGE_TTL_MS + STALE_MS);
+    await kvSet("data:version", "4");
+    tick(3_000);
+    await keptPage("/w", async () => "w");
+    expect(keptCounts().carried).toBe(0);
+  });
+
   it("never serves anything from before Clear caches", async () => {
     await keptPage("/teams/1", async () => "v1");
     clearAllCaches();
@@ -132,7 +154,7 @@ describe("kept pages", () => {
     await searchRead("SELECT 1 AS one");
     expect(keptCounts()).toMatchObject({ pages: 1, rows: 1 });
     clearAllCaches();
-    expect(keptCounts()).toEqual({ rows: 0, answers: 0, pages: 0 });
+    expect(keptCounts()).toEqual({ rows: 0, answers: 0, pages: 0, carried: 0 });
   });
 
   it("keeps at most PAGES_KEPT pages, dropping the least recently used", async () => {

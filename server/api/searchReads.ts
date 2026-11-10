@@ -46,13 +46,19 @@ const fresh = (version = "", checked = 0, writes = dataWriteCount(), before?: St
   /** The answers and pages from before the last data move, served until drawn again (resolved ones only). */
   before: { answers: carried(before, "answers"), pages: carried(before, "pages") },
 });
-/** What a new store keeps from `s` of `which`: its own resolved entries, over what it had carried itself. */
-function carried(s: Store | undefined, which: "answers" | "pages"): Map<string, Kept> {
+/** How long each kind is kept and how many: a carried copy is held to the same (below). */
+const LIMITS = { answers: { ttl: ANSWER_TTL_MS, max: ANSWERS_KEPT }, pages: { ttl: PAGE_TTL_MS, max: PAGES_KEPT } } as const;
+/** What a new store keeps from `s` of `which`: its own resolved entries, over what it had carried itself; only those
+ *  that can still be served (younger than their time plus STALE_MS), and at most as many as are kept (the newest), so
+ *  copies of one-off addresses never pile up over many moves. */
+function carried(s: Store | undefined, which: "answers" | "pages", now = Date.now()): Map<string, Kept> {
   const out = new Map<string, Kept>();
   if (!s) return out;
+  const { ttl, max } = LIMITS[which];
   for (const [k, v] of s.before[which]) out.set(k, v);
   for (const [k, v] of s[which]) if (v.ok) out.set(k, v);
-  return out;
+  const live = [...out].filter(([, v]) => now - v.at < ttl + STALE_MS).sort((x, y) => x[1].at - y[1].at).slice(-max);
+  return new Map(live);
 }
 /** A new store after a data move: the reads go, the answers and pages are carried (above). */
 const moved = (version = "", checked = 0) => fresh(version, checked, dataWriteCount(), kept);
@@ -124,7 +130,7 @@ export const keptAnswer = <T>(key: string, make: () => Promise<T>): Promise<T> =
 /** A whole page, kept PAGE_TTL_MS under `key` (its address: path and query). Shared by every visitor: never changed. */
 export const keptPage = <T>(key: string, make: () => Promise<T>): Promise<T> => keep("pages", key, PAGE_TTL_MS, PAGES_KEPT, make);
 
-/** How many of each are kept right now (the owner portal's caches view, tests). */
-export const keptCounts = () => ({ rows: kept.rows.size, answers: kept.answers.size, pages: kept.pages.size });
+/** How many of each are kept right now, and how many copies from before the last data move (tests). */
+export const keptCounts = () => ({ rows: kept.rows.size, answers: kept.answers.size, pages: kept.pages.size, carried: kept.before.answers.size + kept.before.pages.size });
 
 registerCache("Search reads, answers and pages", () => { kept = fresh(); });
