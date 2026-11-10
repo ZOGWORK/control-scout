@@ -169,8 +169,7 @@ export async function seasonAdvancement(team: AnswerTeam, o: { season: number | 
   // The team's events of those types; a championship split into divisions is the team's division, where its odds are made.
   const evs = await all<Ev>(
     `SELECT DISTINCT ${EV_COLS} FROM ${ROSTER} r JOIN events e ON e.season = r.season AND e.code = r.code
-     WHERE r.team = ? AND e.season >= ? AND (e.type IN (${types.map(() => "?").join(", ")})
-       OR (${o.toward ? "0" : "1"} AND EXISTS (SELECT 1 FROM event_projections x WHERE x.season = e.season AND x.code = e.code)))${o.region ? ` AND e.country = ?${o.region.state ? " AND e.state = ?" : ""}` : ""}
+     WHERE r.team = ? AND e.season >= ? AND e.type IN (${types.map(() => "?").join(", ")})${o.region ? ` AND e.country = ?${o.region.state ? " AND e.state = ?" : ""}` : ""}
        AND NOT EXISTS (SELECT 1 FROM events d WHERE d.season = e.season AND d.division_code = e.code)
      ORDER BY e.start DESC, e.code`, [team.number, FIRST_PREDICT_SEASON, ...types, ...(o.region ? [o.region.country, ...(o.region.state ? [o.region.state] : [])] : [])]);
   const upcoming = evs.filter((e) => !!(e.end ?? e.start) && !ended(e) && Number(e.season) === (o.season ?? CURRENT_SEASON)).reverse();

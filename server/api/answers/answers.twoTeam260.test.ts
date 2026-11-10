@@ -219,8 +219,11 @@ describe("the answers", () => {
     expect(win.understood!.label).toBe("Hypnotic Robotics (4215) · Chance to win their next event");
     expect(win.stat!.definition).not.toMatch(/The season is/);
     expect((await ask("4215 predicted to make playoffs at their next event")).stat!.headline).toMatchObject({ value: "71%" });
-    // Advancement odds: the chance to take a slot, on its bar (./families/advancement.ts), never the win chance.
-    expect((await ask("4215 advancement chances")).stat!.blocks.find((b) => b.kind === "chance")).toMatchObject({ kind: "chance", p: 0.33 });
+    // Advancement odds with no event named: the team's next event that advances teams (./families/advancement.ts); a
+    // league meet, whatever its stored projection, never stands in for one, and the win chance never does either.
+    const adv = (await ask("4215 advancement chances")).stat!;
+    expect(adv.intent).toBe("advancement-odds");
+    expect(JSON.stringify(adv)).not.toContain("Northeast League Meet");
     expect((await ask("4215 predicted wins at their next event")).stat!.headline).toMatchObject({ value: "#3" });
     const none = await ask("33950 chance to win an event");
     expect(none.stat!.headline).toMatchObject({ value: "Not published yet" });
@@ -269,7 +272,8 @@ describe("the answers", () => {
     expect(JSON.stringify(past.stat ?? {})).not.toContain("Northeast League Meet");
     // "This season" is the current one, where the upcoming event is (4215 has no matches in it yet).
     const now = await ask("4215 advancement chances this season");
-    expect(now.stat!.blocks.find((b) => b.kind === "chance")).toMatchObject({ p: 0.33 });
+    expect(now.stat!.intent).toBe("advancement-odds");
+    expect(JSON.stringify(now.stat)).not.toContain("Northeast League Meet");
     // Its heading and links name the current season, not the team's last played one.
     expect(JSON.stringify(now.stat)).not.toContain(`${S}–${String((S + 1) % 100).padStart(2, "0")}`);
     // A season OPR at a named event (its scope holds the event, not a season) reads that event's season.
