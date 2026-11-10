@@ -27,9 +27,9 @@ Small words set right: the home headline's spelling, the power rankings' day and
 
 ### Fixed
 - The saved home hero line "Scouting, Remagined" reads "Reimagined" (migration 80; next free migration 81).
-- The FAQ no longer promises a Friday publish: a new power-rankings week normally comes out on Friday, the page says the day it did, and it is checked again daily. Each week's stats line says its ratings are frozen with the write-ups and World rankings show the latest ones, so a rating that moved since (21229: 145.9 there, 146.3 live) is explained on the page.
-- The contact message box's limit is the 5,000 its counter shows (it allowed 5,200).
-- A league meet's Playoffs tab says league meets play qualification matches only (alliances are picked at the league tournament); a finished event with no alliances on record says so, instead of "Alliances not selected yet".
+- The FAQ no longer promises a Friday publish: a new power-rankings week normally comes out on Friday, the page says the day it did, and it is checked again daily. Each week's stats line says its ratings are frozen with the write-ups and a team's page can differ today, so a rating that moved since (21229: 145.9 there, 146.3 live) is explained on the page.
+- The contact message box's limit is the 5,000 its counter shows (it allowed 5,200), and the counter counts every character the box does.
+- A league meet's Playoffs tab says league meets play qualification matches only (alliances are picked at the league tournament); an event whose last day has passed with no alliances on record says so, instead of "Alliances not selected yet".
 - Records read aloud say "1 loss", "1 win", "1 tie" (`recordWords`), never "1 losses". (#1332)
 
 ## 5.2.4 — 2026-11-10

@@ -712,7 +712,9 @@ function Playoffs({ d }: { d: EventDetail }) {
     // A league meet plays qualification matches only: its alliances are picked at the league tournament. A finished
     // event with none on record had none to show; only an event still to play its playoffs waits for selection.
     if (d.event.type === "LeagueMeet") return <EmptyState icon={Trophy} title="No playoffs at a league meet" description="League meets play qualification matches only. Alliances are picked at the league tournament." />;
-    if (d.event.status === "finished") return <EmptyState icon={Trophy} title="No alliances on record" description="This event finished with no alliance selection in FIRST's results." />;
+    // "Finished" can mean every posted match has a result while the playoffs are still to come: only an event whose last
+    // day is behind it (the day after its end, wherever it was) has no selection left to wait for.
+    if (d.event.end && d.event.end < new Date(Date.now() - 86_400_000).toISOString().slice(0, 10)) return <EmptyState icon={Trophy} title="No alliances on record" description="This event finished with no alliance selection in FIRST's results." />;
     return <EmptyState icon={Trophy} title="Alliances not selected yet" description="Alliance selection happens after qualification matches. The pick helper shows which partners fill your gaps." action={<PickHelperLink d={d} />} />;
   }
   const playoff = d.matches.filter((m) => m.level === "playoff");

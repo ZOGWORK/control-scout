@@ -95,7 +95,7 @@ export const FAQ: FaqGroup[] = [
       ] },
       { id: "rankings", q: "What are world rankings and power rankings?", a: [
         "[World rankings](/rankings) rank every team by rating, with movement since last week, and can be filtered by country, state or your region.",
-        "[Power rankings](/power-rankings) are a weekly top 25 with a short write-up for each team. A new week normally comes out on Friday (a week can come out earlier, and the page says the day it did), and it is checked again every day until the next one. Its ratings are frozen with its write-ups, so World rankings may have moved since.",
+        "[Power rankings](/power-rankings) are a weekly top 25 with a short write-up for each team. A new week normally comes out on Friday (a week can come out earlier, and the page says the day it did), and it is checked again every day until the next one. Its ratings are frozen with its write-ups, so a team's rating on its own page may have moved since.",
       ] },
       // Only once the bot's invite link exists (src/shared/discord.ts).
       ...discordFaq(discordInviteUrl()),
