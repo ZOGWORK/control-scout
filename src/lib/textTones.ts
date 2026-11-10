@@ -104,6 +104,9 @@ export const SEARCH_PALETTE = {
   count: { family: "amber", label: "Count", fill: "bg-amber-500 text-black", text: "text-amber-700 dark:text-amber-400", bar: "bg-amber-600 dark:bg-amber-400", edge: "border-l-amber-600 dark:border-l-amber-400", tint: "bg-amber-500/10", stroke: "stroke-amber-600 dark:stroke-amber-400" },
   // What a word or rule means, and where to read more (a definition, the game manual, a pointer to a page).
   reference: { family: "sky", label: "Reference", fill: "bg-sky-700 text-white", text: "text-sky-700 dark:text-sky-400", bar: "bg-sky-700 dark:bg-sky-500", edge: "border-l-sky-700 dark:border-l-sky-500", tint: "bg-sky-500/10", stroke: "stroke-sky-700 dark:stroke-sky-500" },
+  // A season's best scores (the records card): the theme's info blue (src/index.css --color-info, its deeper -text
+  // shade on light for the bar and edge), calm: nothing on a records card asks anyone to act (Sushil 11-10).
+  record: { family: "info", label: "Record", fill: "bg-info text-black", text: "text-info", bar: "bg-info-text", edge: "border-l-info-text", tint: "bg-info/10", stroke: "stroke-info-text" },
 } as const;
 export type Meaning = keyof typeof SEARCH_PALETTE;
 

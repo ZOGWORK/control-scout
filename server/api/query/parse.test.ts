@@ -92,6 +92,17 @@ describe("slots", () => {
     const p = await parse("highest-scoring match in California this week");
     expect(p).toMatchObject({ intent: "top-matches", complete: true, teams: [], place: { kind: "region", state: "CA" }, time: { kind: "window", from: "2026-11-02", to: "2026-11-08", season: 2026 } });
   });
+  it("reads advancing asked as what's still to come: a state championship, Worlds, or the team's season", async () => {
+    // "Will", "can": a question of what's to come, with "advance" or a reach verb ("make it to states").
+    expect(await parse("will 4215 advance at nj champs")).toMatchObject({ intent: "team-predict", complete: true, teams: [{ number: 4215 }], states: true });
+    expect(await parse("can 4215 make it to states")).toMatchObject({ intent: "team-predict", complete: true, reach: true, states: true });
+    expect(await parse("could 6980 make worlds")).toMatchObject({ intent: "team-predict", complete: true, reach: true, worlds: true });
+    expect((await parse("whats 6980s chance of making worlds next year")).symbols).toContain("advance");
+    // A season's chances, no event said: the forecast intent, read whole.
+    expect(await parse("predicted chances of 4215 this season")).toMatchObject({ intent: "team-predict", complete: true, time: { kind: "season" } });
+    // "Can you" is still a request, never the team's future.
+    expect((await parse("can you show 4215 opr")).symbols).not.toContain("future");
+  });
   it("reads a forecast at a named event", async () => {
     const p = await parse("predicted chances of 4215 east bergen conference");
     expect(p).toMatchObject({ intent: "team-predict", complete: true, teams: [{ number: 4215 }], event: { words: "east bergen conference" }, time: null });
@@ -156,9 +167,13 @@ describe("slots", () => {
       expect(await parse(q), q).toMatchObject({ intent: "team-predict", complete: true });
     }
     // No event named, or no win asked: never this forecast.
-    for (const q of ["will 6980 win their next match", "when will 4215 play next", "will 4215 advance to worlds"]) {
+    for (const q of ["will 6980 win their next match", "when will 4215 play next"]) {
       expect((await parse(q)).complete, q).toBe(false);
     }
+    // Advancing asked instead of winning is its own answer: the advancement odds (./execute.ts).
+    // "Advance to worlds" is getting there; "advance at worlds" is its division there.
+    expect(await parse("will 4215 advance to worlds")).toMatchObject({ intent: "team-predict", complete: true, worlds: true, reach: true });
+    expect((await parse("will 4215 advance at worlds")).reach).toBeUndefined();
   });
   it("reads one team swapped for another, with a partner or not, as the swap's call", async () => {
     for (const q of ["what if we replace 6980 with 24033 alongside 23268", "swapping 23268 out for 4215", "trade 4215 for 24033 beside 6980, how would the odds change",

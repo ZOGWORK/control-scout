@@ -191,6 +191,39 @@ describe("every card kind and block kind has its colour", () => {
   for (const [kind, make] of Object.entries(BLOCK_CARDS)) {
     it(`block ${kind}`, () => expect(auditAnswer(make()).join("\n")).toBe(""));
   }
+  it("a records card is blue (the theme's info), never amber or red; a penalties note is a plain pill, never an award", () => {
+    const el = drawKind({ ...KIND_CARDS["high-scores"], lines: [{ text: "714 points: Q49 at Carolinas Premier Event", href: "/events/2025/FPECAR?match=qual:0:49",
+      results: ["Blue alliance: 23396 Hivemind", "Not an official record: the event did not play by the game's usual rules", "724 with the other alliance's penalties"] }] });
+    expect(el.querySelector("[data-kpi]")!.textContent).toBe("714");
+    expect(el.querySelector("[data-line-icon]")!.className).toContain("bg-info");
+    expect(el.querySelector("[data-line-text]")!.className).toContain("text-info");
+    expect(el.querySelector("[data-lines] a")!.className).toContain("border-l-info");
+    expect(el.querySelector("[data-award]")).toBeNull();
+    expect(el.querySelectorAll("[data-score-note]")).toHaveLength(2);
+    // Beside the blue alliance's pill (the same colour as the theme's info), a score note is never a blue wash: a
+    // neutral pill, its blue only a small icon.
+    for (const note of el.querySelectorAll("[data-score-note]")) {
+      expect(note.className).not.toMatch(/info|blue/);
+      expect(note.querySelector("svg")!.getAttribute("class")).toContain("text-info");
+    }
+    expect(el.querySelector("[data-lines]")!.innerHTML).not.toMatch(/amber|orange|\bred-[0-9]|bg-pen/);
+    expect(auditAnswer(el).join("\n")).toBe("");
+  });
+  it("a records card's row with a video: its picture toward the right, a play button under the text on a phone; a row without stays a link", () => {
+    const lines = [{ text: "714 points: Q49 at Carolinas Premier Event", href: "/events/2025/FPECAR?match=qual:0:49" }, { text: "592 points: Q54 at Carolinas Premier Event", href: "/events/2025/FPECAR?match=qual:0:54" }];
+    const el = draw(<AnswerVideoProvider video={{ rows: { [lines[0].href]: { videoId: "xnQFL9T27fY", t: 90, kind: "recording", match: "Q49" } } } satisfies SearchVideo}>
+      <FactCard card={{ ...KIND_CARDS["high-scores"], lines }} /></AnswerVideoProvider>);
+    const rows = el.querySelectorAll("[data-lines] > li");
+    expect(rows[0].getAttribute("data-line-video")).toBe("recording");
+    // The play buttons sit beside the row's link, never inside it.
+    expect(rows[0].querySelector("a [data-video-control]")).toBeNull();
+    expect(rows[0].querySelector("[data-line-play=wide] img")!.getAttribute("src")).toContain("xnQFL9T27fY");
+    expect(rows[0].querySelector("[data-line-play=wide]")!.className).toMatch(/hidden .*sm:block/);
+    expect(rows[0].querySelector("[data-line-play=phone]")!.className).toContain("sm:hidden");
+    expect(rows[1].querySelector("[data-video-control]")).toBeNull();
+    expect(rows[1].querySelector("a")!.getAttribute("href")).toBe(lines[1].href);
+    expect(auditAnswer(el).join("\n")).toBe("");
+  });
   it("a how-many card's number and sentence in Count's amber, its icon a filled chip, a thick bar", () => {
     const el = drawKind(KIND_CARDS.info);
     expect(el.querySelector("[data-kpi]")!.textContent).toBe("578");

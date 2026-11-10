@@ -127,6 +127,8 @@ const NAME_ENDS = /^(?:from|in|at|near|based|located|during|out)$/;
 const SWAP_WORDS = "swap|swaps|swapped|swapping|switch|switches|switched|switching|replace|replaces|replaced|replacing|substitute|substituted|substituting|sub|subs|subbed|subbing|trade|traded|trading";
 /** Words that say reaching a place ("making worlds", "qualifying for worlds"), and the words that name Worlds. */
 const REACH = new Set(["make", "makes", "making", "reach", "reaches", "reaching", "qualify", "qualifies", "qualifying", "get", "gets", "getting"]);
+/** "Advance" said toward a place ("advance to states"): reaching it, as a reach verb is. */
+const ADVANCE_TO = new Set(["advance", "advances", "advancing"]);
 const WORLDS_WORDS = new Set([
   // Every one-word name the lexicon reads as Worlds or states ("regionals" is states), so a new name is never missed here.
   ...LEXICON.filter((e) => e.words.length === 1 && e.syms.some((x) => x.k === "worlds" || x.k === "states")).map((e) => e.words[0]),
@@ -449,15 +451,19 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   }
   // Reaching Worlds said beside a forecast ("chance of making worlds", "odds of qualifying for worlds"): the chance to
   // advance there, never a count of appearances or qualification matches.
-  if (symbols.has("predict") && (p.worlds || p.states)) {
+  // A question of what is to come said instead ("can 12345 make it to states", "will 12345 make worlds") asks the same.
+  if ((symbols.has("predict") || symbols.has("future")) && (p.worlds || p.states)) {
     // The verb, then any filler or preposition ("making it to the world championship"), then the place's name.
     // The words in between are part of the reach, read with it.
     const between: Tok[] = [];
     const reach = toks.filter((t, i) => {
-      if (!REACH.has(t.w)) return false;
+      // "Advance" reaches a place only said with "to" ("advance to worlds"); "advance at worlds" is its division there.
+      const toward = ADVANCE_TO.has(t.w);
+      if (!REACH.has(t.w) && !toward) return false;
       let j = i + 1;
       while (j < toks.length && REACH_BETWEEN.has(toks[j].w)) j++;
       if (j >= toks.length || !WORLDS_WORDS.has(toks[j].w)) return false;
+      if (toward && !toks.slice(i + 1, j).some((x) => x.w === "to" || x.w === "into")) return false;
       between.push(...toks.slice(i + 1, j));
       return true;
     });

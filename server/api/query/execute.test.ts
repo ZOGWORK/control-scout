@@ -210,11 +210,14 @@ describe("one question, any phrasing, any team", () => {
     await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, division_code, source) VALUES (2025, 'FTCCMP1OHM', 'FIRST Championship - Ohm Division', 'FIRSTChampionship', 'Town', 'TX', 'USA', '2026-04-29', '2026-04-29', 'FTCCMP1', 't')");
     await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'FTCCMP1OHM', 24033, 3), (2025, 'FTCCMP1', 24033, 2)");
     clearAllCaches();
-    for (const q of ["24033 advancement odds at worlds in 2025-26", "alphatronic chance to advance at worlds", "odds 24033 advances at worlds 2026", "24033 prediction at worlds"]) {
+    // The division, where the team's forecast is made; never another event's. Advancing asked: its advancement odds there.
+    for (const q of ["24033 advancement odds at worlds in 2025-26", "alphatronic chance to advance at worlds", "odds 24033 advances at worlds 2026"]) {
       const s = await stat(q);
-      // The division, where the team's forecast is made; never another event's.
-      expect(s, q).toMatchObject({ intent: "pipeline-team-predict-event", title: "Prediction vs result at Worlds · Ohm Division" });
+      expect(s, q).toMatchObject({ intent: "advancement-odds", scope: expect.arrayContaining(["Worlds · Ohm Division"]) });
     }
+    // A season's chances need a chance word: "predicted wins this season" is the predicted wins, never advancement odds.
+    expect((await ask("24033 predicted wins this season")).stat?.intent).not.toBe("advancement-odds");
+    expect(await stat("24033 prediction at worlds")).toMatchObject({ intent: "pipeline-team-predict-event", title: "Prediction vs result at Worlds · Ohm Division" });
     // Never listed at Worlds: left to the other readers, never another event's forecast.
     expect((await ask("4215 advancement odds at worlds in 2025-26")).stat?.intent).not.toBe("pipeline-team-predict-event");
     // "Romania championship" is its state championship.

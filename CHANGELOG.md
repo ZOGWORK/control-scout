@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.4.0 — 2026-11-10
+## 5.4.3 — 2026-11-10
 
 Search asks which team you mean when a name two teams share is typed nearly right.
 
@@ -26,6 +26,58 @@ Search asks which team you mean when a name two teams share is typed nearly righ
 
 ### Fixed
 - A name several teams share, typed one or two letters off, read as one of them or as nothing: two teams called Girls in Robotics, typed with a letter missing and a number after it, read another team's record at an event. It now gets the same "Which …? 2 teams have that name" card as the name typed right, with each team's place, and a number right after the name that is no team's is read as part of it. (`nearShared`, `server/api/query/names.ts`; the near-spelling step in `server/api/query/parse.ts`; `sharedName`, `server/api/searchAnswer.ts`) (#1348)
+
+## 5.4.2 — 2026-11-10
+
+A shorter first-run tour that fits the page you land on and keeps your place.
+
+### Highlights
+- [home] A shorter first-run tour, picked by the page you land on
+- [teams] On a team page: OPR vs Rating, and My team vs Track vs Shortlist
+- [fixes] Leaving the page pauses the tour instead of ending it
+
+### Changed
+- The tour (`src/lib/tour.ts`, `src/components/layout/FirstRunTour.tsx`) is search first, then on a team page OPR vs Rating and saving the team, then highlights; an event page gets search and its recordings; other pages search and highlights. No welcome card. A step whose part isn't on the page is left out.
+- It follows the visitor: search carries on on any page; a step on the start page's own parts shows "Tour paused" elsewhere, with one tap back. Closing the tab or a reload resumes it at the same step. Only Skip (×, Esc) or the last step end it.
+- `cs-tour` keeps `paused`, `finished` and `skipped` apart (`v: 2`). An old record "skipped" at step 0, written by just navigating away, counts as never shown, so those visitors get the new tour once. (#1344)
+
+## 5.4.1 — 2026-11-10
+
+The season's highest scores read calmly in blue, play each match's video in the row, and mark every score from an event that didn't play by the usual rules.
+
+### Highlights
+- [fixes] Highest scores: each match's video toward the right of its row
+- [appearance] Highest scores card in blue, no orange or red
+- [fixes] Every Carolinas Premier Event score marked "Not an official record"
+
+### Changed
+- Search: the "Highest scores" card ("decode world record", "highest score decode") is blue (the theme's info colour) instead of amber, and a score's penalties note ("724 with the other alliance's penalties") is a plain blue pill instead of a red award chip. Alliance chips keep their alliance colours; a team's own best scores keep the team's hue.
+- Search: a row on that card whose match has a video shows the video's picture toward the right on wider screens, or a "Watch" button under the row on a phone; either plays in the app's video dialog. Rows without a video are unchanged.
+
+### Fixed
+- Records: a score can be marked "Not an official record" for a whole event, not just one match. Carolinas Premier Event (DECODE, Jul 25–26, 2026) is now marked as a whole, so Q54 (592) carries the mark like Q49 (714), in search answers, best-score tables and the match finder. (#1341)
+
+
+
+
+
+## 5.4.0 — 2026-11-10
+
+Search answers advancement odds: a team's chance to take an advancing slot at an event, from the same engine numbers as Predict.
+
+### Highlights
+- [predict] Search answers advancement odds, on a 0–100% bar
+- [predict] Past events: the odds the day before, then what happened
+- [predict] "Can 4215 make it to states" and "chances this season" answer too
+
+### Added
+- An advancement-odds answer in search: the team's chance to take a slot at the event asked (its division at a championship), where advancing leads ("to New Jersey Championship", "to the Worlds finals"), the slots, and the simulated runs, with Open in Predict. It reads the stored projection or the same forecast as Predict's Advancement view, so the numbers match. (#1281) An event already played shows the forecast as it stood the day before (Predict's "Before the event") beside what happened: took a slot or didn't, with rank, playoff finish, awards and advancement points. At a Worlds division the step on is the finals, so the chance is the chance to win the division.
+- A season asked with no event ("17670 chances this season", "whats 17713's chance of making worlds next year") answers for the team's next advancing event; with none published yet it says so and shows its latest one. A championship the team never reached says so and shows its odds of getting there.
+
+### Changed
+- A match's win chance is never shown as advancement odds: those queries used to show the average chance to win each match.
+- A chance under 1.5% prints as 1% in search, as Predict prints it, never a false 0%.
+- The advancement card shows its confidence tier and why, by the same rule as Predict's Advancement view.
 
 ## 5.3.9 — 2026-11-10
 

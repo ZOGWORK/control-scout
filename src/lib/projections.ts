@@ -9,6 +9,8 @@ import { packStatus } from "./packPolicy";
 import { savedSeasons } from "./offline/saved";
 import type { ConfidenceTier, EventDetail } from "../shared/api";
 import { PROJECTION_RUNS, type ProjectionRun, type ProjectionsView, type ProjectionTeam } from "../shared/projections";
+import { projectionTier } from "../shared/forecastTier";
+export { projectionTier };
 
 export const projectionsPath = (season: number, code: string) => `/api/projections/${season}/${encodeURIComponent(code)}`;
 
@@ -56,16 +58,6 @@ export function useProjections(season: number, code: string, o: { live: boolean;
     return followProjections(season, code, () => { load(path, true, true).catch(() => {}); });
   }, [season, code, path, o.live]);
   return state;
-}
-
-/** How sure a projection is: the stage of the event and how much of it is still to simulate (shown on the page). */
-export function projectionTier(run: ProjectionRun): { tier: ConfidenceTier; reason: string } {
-  if (run.stage === "selected") return { tier: "confident", reason: "Alliances are set: seeds are final and only the playoffs are simulated." };
-  if (run.stage === "quals") return { tier: "confident", reason: "Quals are over: seeds are official; alliance selection and playoffs are simulated." };
-  const left = run.scheduled ? 1 - run.played / run.scheduled : 1;
-  if (run.played === 0) return { tier: "provisional", reason: "Before the first match every result is simulated from ratings." };
-  if (left > 0.5) return { tier: "provisional", reason: `${run.played} of ${run.scheduled} qualification matches played: most of the event is still simulated.` };
-  return { tier: "moderate", reason: `${run.played} of ${run.scheduled} qualification matches played; the rest are simulated.` };
 }
 
 // ---------------------------------------------------------------------------
