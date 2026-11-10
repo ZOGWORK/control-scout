@@ -28,6 +28,18 @@ A what-if under every predicted match: swap one robot and see how the call and t
 - Predict › Match shows a What if? panel under the result: pick a robot in the match, type another, and both calls sit side by side with the change in win chance and margin. The swap is in the address, so a what-if can be shared, and Undo or Back takes it out. Both calls come from the same prediction the lab shows.
 - The match lab takes one robot a side as well as two, so "Open in Predict" on a two-team search answer opens with both teams in and the call made.
 
+## 4.9.5 — 2026-11-10
+
+On a phone, every tracked team on My team can be removed again.
+
+### Highlights
+- [fixes] My team on a phone: the remove button shows on every tracked team
+- [fixes] A long event name is cut short instead of pushing the row off the screen
+- [fixes] Tracked events and the win-rate tiles keep to a phone screen too
+
+### Fixed
+- My team › Tracked teams on a phone: a team whose last event has a long name (a league tournament, say) made its row wider than the screen, so the row ran off the right edge and its Stop tracking button couldn't be reached. Rows now keep to the screen's width and the event name is shortened with "…"; the tracked events and win-rate tiles on the same page got the same fix. (#1279)
+
 ## 4.9.4 — 2026-11-10
 
 Compare opens on its teams: a search answer's Compare link lands on both teams with their numbers, from the first paint.
