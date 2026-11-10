@@ -274,10 +274,10 @@ const UNITS = ["", "one", "two", "three", "four", "five", "six", "seven", "eight
   "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
 const TENS = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
 const NUMBER_BEFORE = "over|above|under|below|than|least|most|top|last|first|past|next|best|worst|bottom|exceeding|beyond|by|within";
-// "One" alone stays a word ("the best one", "which one"); with a hundred it's the number.
+// "One" alone stays a word ("the best one", "which one"); in a longer number ("a hundred and one") it's the number.
 const UNIT = UNITS.slice(2).join("|"), DIGIT = UNITS.slice(1, 10).join("|"), TEN = TENS.slice(2).join("|");
 const TENS_SAID = `(?:${TEN})(?:[\\s-]+(?:${DIGIT}))?`;
-const NUMBER_SAID = `(?:(?:a|${DIGIT})\\s+hundred(?:\\s+and)?(?:\\s+(?:${TENS_SAID}|${UNIT}))?|${TENS_SAID}|${UNIT})`;
+const NUMBER_SAID = `(?:(?:a|${DIGIT})\\s+hundred(?:\\s+and)?(?:\\s+(?:${TENS_SAID}|${UNIT}|one))?|${TENS_SAID}|${UNIT})`;
 const NUMBER_RE = new RegExp(`\\b(${NUMBER_BEFORE})\\s+(${NUMBER_SAID})(?![\\p{L}\\p{N}])`, "giu");
 
 /** The value of a number said as words ("eighty five", "a hundred and ten"). */
@@ -293,10 +293,15 @@ function numberValue(said: string): number {
 
 /** `q` with each number said as words after a word that takes one written in digits ("over eighty" → "over 80"),
  *  everything else as typed; nothing inside quotes, and never words `named` says are part of a team's or event's
- *  name (a team called "Top Ten Robotics" keeps "top ten"). */
+ *  name: the number with the word before it ("Top Ten Robotics" keeps "top ten") or with the words after it ("won by
+ *  Seven Wonders" keeps "seven"). */
 export function spelledNumbers(q: string, named: (words: string) => boolean = () => false): string {
-  if (q.includes('"')) return q;
-  return q.replace(NUMBER_RE, (w, before: string, said: string) => (named(w) ? w : `${before} ${numberValue(said)}`));
+  return q.replace(NUMBER_RE, (w: string, before: string, said: string, at: number) => {
+    if ((q.slice(0, at).split('"').length - 1) % 2 === 1) return w;
+    const after = q.slice(at + w.length).trim().split(/\s+/).filter(Boolean).slice(0, 2);
+    const runs = [w, ...after.map((_, i) => [said, ...after.slice(0, i + 1)].join(" "))];
+    return runs.some((r) => named(r)) ? w : `${before} ${numberValue(said)}`;
+  });
 }
 
 /** A word without the punctuation around it (`"rn"`, "rn?"): what a form is matched on, the rest kept as typed. */

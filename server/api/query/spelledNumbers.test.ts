@@ -18,6 +18,17 @@ describe("spelledNumbers", () => {
     const named = (w: string) => /top ten/i.test(w);
     expect(spelledNumbers("top ten robotics opr", named)).toBe("top ten robotics opr");
     expect(spelledNumbers("top ten teams in nj", (w) => w === "top five")).toBe("top 10 teams in nj");
+    const wonders = (w: string) => /^seven wonders/i.test(w);
+    expect(spelledNumbers("awards won by seven wonders robotics", wonders)).toBe("awards won by seven wonders robotics");
+  });
+  it("a longer number can end in one", () => {
+    expect(spelledNumbers("scores above a hundred and one points")).toBe("scores above 101 points");
+    expect(spelledNumbers("scores above one hundred one")).toBe("scores above 101");
+    expect(spelledNumbers("over twenty one")).toBe("over 21");
+  });
+  it("only the words inside quotes stay as typed", () => {
+    expect(spelledNumbers('"Top Ten Robotics" opr over eighty')).toBe('"Top Ten Robotics" opr over 80');
+    expect(spelledNumbers('opr over eighty "top ten"')).toBe('opr over 80 "top ten"');
   });
   it("champs is the championship", () => {
     expect(INFORMAL).toContainEqual(["champs", "championship"]);
