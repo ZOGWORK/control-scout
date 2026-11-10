@@ -53,6 +53,17 @@ export const emailEnabled = () => !!env.resendKey || mailer !== resendMailer;
 /** Send one email through the configured mailer (Resend, or a test's). Throws on failure. */
 export const sendEmail: Mailer = (...args) => mailer(...args);
 
+/** Development only (MAIL_DEV_LOG=1, never production), and sign-in codes only: with no real mailer the code goes to
+ *  the server log, so signed-in flows can be tested locally. Digests, contact and bug-report mail stay off. */
+const devCodeLog = () => !emailEnabled() && env.mailDevLog;
+/** Email-code sign-in is offered: a real mailer, or the development code log. */
+export const emailSignInEnabled = () => emailEnabled() || env.mailDevLog;
+const sendCode: Mailer = (to, subject, text, html) => {
+  if (!devCodeLog()) return mailer(to, subject, text, html);
+  console.log(`[mail] to ${to}\n[mail] code ${/\b(\d{6})\b/.exec(text)?.[1] ?? "?"}`);
+  return Promise.resolve();
+};
+
 export const normalizeEmail = (e: string) => e.trim().toLowerCase();
 export const validEmail = (e: string) => e.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e);
 const codeHash = (email: string, code: string) => sha256(`${email}:${code}`);
@@ -60,7 +71,7 @@ const codeHash = (email: string, code: string) => sha256(`${email}:${code}`);
 export type StartResult = { ok: true } | { ok: false; reason: "invalid" | "cooldown" | "limit" | "send-failed" | "disabled"; retryAfter?: number };
 
 export async function startEmailSignIn(rawEmail: string): Promise<StartResult> {
-  if (!emailEnabled()) return { ok: false, reason: "disabled" };
+  if (!emailSignInEnabled()) return { ok: false, reason: "disabled" };
   const email = normalizeEmail(rawEmail);
   if (!validEmail(email)) return { ok: false, reason: "invalid" };
   const now = Date.now();
@@ -81,7 +92,7 @@ export async function startEmailSignIn(rawEmail: string): Promise<StartResult> {
     [email, codeHash(email, code), new Date(now + CODE_TTL_MS).toISOString(), sent, windowStart],
   );
   const { subject, text, html } = codeEmail(code, { minutes: CODE_TTL_MS / 60_000, siteUrl: env.appUrl });
-  try { await mailer(email, subject, text, html); }
+  try { await sendCode(email, subject, text, html); }
   catch (e) {
     console.warn(`[email] sign-in code not sent: ${(e as Error)?.name === "TimeoutError" ? "timeout" : (e as Error)?.message ?? "unknown"}`);
     await run("DELETE FROM email_codes WHERE email = ?", [email]);

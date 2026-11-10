@@ -43,7 +43,7 @@ async function rangedCall(season: number, code: string, red: number[], blue: num
   const x = f.explain(season, red, blue, level === "playoff" ? "playoff" : "qual", code, await recentRecords(season, [...red, ...blue]));
   if (!x) return null;
   const [mo, ro, mp, rp] = own === "red" ? [x.predictedScoreA, x.scoreRangeA, x.predictedScoreB, x.scoreRangeB] : [x.predictedScoreB, x.scoreRangeB, x.predictedScoreA, x.scoreRangeA];
-  const held = rangeCoverageLine(await rangeCoverageNow({ wait: false }).catch(() => null));
+  const held = rangeCoverageLine(await rangeCoverageNow().catch(() => null));
   return { p: own === "red" ? x.winProbA : x.winProbB, note: `Predicted ${Math.round(mo)} ±${plusMinus(mo, ro)} – ${Math.round(mp)} ±${plusMinus(mp, rp)}, with its 80% ranges.${held ? ` ${held}` : ""}` };
 }
 

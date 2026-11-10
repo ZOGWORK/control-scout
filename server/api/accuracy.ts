@@ -230,13 +230,14 @@ export function trackRecordIfReady(): TrackRecord | null { return cached?.value 
 /**
  * How the stated score ranges have held, for every surface that shows one (GET /api/predict/ranges and search's
  * prediction cards): the newest season whose live calls stated ranges, its live coverage and its replay's, each with
- * its sample. Read off the cached track record. Null before any live call stated a range. `wait: false` (search's
- * answers, which must never wait on a ledger build): the record already built, else null while one is started.
+ * its sample. Read off the cached track record. Null before any live call stated a range, and while
+ * the record is still being built.
  */
-export async function rangeCoverageNow(o: { wait?: boolean } = {}): Promise<RangeCoverageNow | null> {
-  const ready = o.wait === false ? trackRecordIfReady() : null;
-  if (o.wait === false && !ready) { void warmTrackRecord().catch(() => {}); return null; }
-  const t = ready ?? (await trackRecord());
+export async function rangeCoverageNow(): Promise<RangeCoverageNow | null> {
+  // An optional footnote: read off the track record already built, never waiting for (or rechecking) a build.
+  // With none built yet, one starts in the background and the footnote shows once it's done.
+  const t = trackRecordIfReady();
+  if (!t) { void warmTrackRecord().catch(() => {}); return null; }
   const s = [...t.seasons].sort((a, b) => b.season - a.season).find((x) => (x.live?.ranges?.n ?? 0) > 0);
   const g = s?.live?.ranges;
   if (!s || !g) return null;

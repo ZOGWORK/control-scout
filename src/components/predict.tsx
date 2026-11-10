@@ -319,7 +319,7 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
                 <WinBar pRed={p.pRed} size="sm" className="w-12 shrink-0" decorative />
               </button>
             }>
-              {KIND_LABEL[p.kind]} · {p.noScoreBasis ? "no predicted score: when this call was made, the season had no rated matches yet" : `predicted ${predictedText(p)}${p.redRange ? ` (± is the ${levelPct(p.rangeLevel)} range${cov ? `; such ranges have held ${pct(cov.live.coverage, 1)} of ${cov.live.n.toLocaleString("en-US")} live scores` : ""})` : ""}`} · {tierPhrase(p.tier)}
+              {KIND_LABEL[p.kind]} · {p.noScoreBasis ? "no predicted score: when this call was made, the season had no rated matches yet" : `predicted ${predictedText(p)}${p.redRange ? ` (± is the ${levelPct(p.rangeLevel)} range${cov ? `; such ranges have held ${pct(cov.live.coverage, 1)} of ${cov.live.n.toLocaleString("en-US")} live alliance scores in ${cov.label}` : ""})` : ""}`} · {tierPhrase(p.tier)}
               {p.factors?.length ? <span className="mt-1 block opacity-80">{factorLabel(p.factors[0].label)}</span> : null}
               <CalibrationTip pRed={p.pRed} />
           </TapTooltip>
