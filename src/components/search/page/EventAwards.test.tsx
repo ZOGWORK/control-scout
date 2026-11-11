@@ -104,4 +104,13 @@ describe("an alliance award (Loopy on #1350)", () => {
     expect(rest.join(" ")).toContain("Leadership");
     expect(rest.join(" ")).not.toContain("Heart of RoBots");
   });
+  it("an alliance stored with no award names (an event synced with none) is listed once, as the roster", () => {
+    const unnamed: SearchCard = {
+      ...finalist, award: "Winner", lines: [{ text: "20265 Heart of RoBots", results: [], href: "/teams/20265" }],
+      awards: [{ type: "Winner", placement: 1, team: 20265, teamName: "Heart of RoBots", name: null }, finalist.awards![3]],
+    };
+    const c = draw(unnamed);
+    expect(c.querySelector("[data-lines]")!.textContent).toContain("20265 Heart of RoBots");
+    expect(c.querySelector("[data-all-awards]")!.textContent).not.toContain("Heart of RoBots");
+  });
 });

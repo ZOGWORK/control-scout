@@ -32,7 +32,8 @@ export function EventAwardsAnswer({ card, heading }: { card: SearchCard; heading
   // chose them (never the FIRST Leadership Award's finalists FIRST files under the same type), drawn as a roster.
   const alliance = card.award === "Winner" || card.award === "Finalist";
   const roster = alliance ? card.lines : [];
-  const inRoster = (a: SearchCardAward) => a.type === card.award && roster.some((l) => l.href === `/teams/${a.team}` && l.detail === nameOf(a));
+  // A row's award name may be missing (an event synced with none) or carry markup: an unnamed line is the team's row.
+  const inRoster = (a: SearchCardAward) => a.type === card.award && roster.some((l) => l.href === `/teams/${a.team}` && (l.detail == null || l.detail.replace(/<[^>]+>/g, "") === nameOf(a)));
   // The podium: the asked award's first three places (a placement each), in podium order 2nd, 1st, 3rd.
   const placed = card.award && !alliance ? awards.filter((a) => a.type === card.award && a.placement >= 1 && a.placement <= 3) : [];
   const podium = [2, 1, 3].map((p) => placed.find((a) => a.placement === p)).filter((a): a is SearchCardAward => !!a);
