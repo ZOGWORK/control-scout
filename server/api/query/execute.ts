@@ -694,14 +694,18 @@ async function eventField(p: Parsed, scope: ReadScope, opts: PipelineOptions): P
 /** The board of the teams at one event named, Worlds or the place's state championship: the season said (a year: the
  *  one held then), else the latest held. OPR only: another stat said is left to search. */
 async function eventBoard(p: Parsed, scope: ReadScope, said: string, opts: PipelineOptions): Promise<SearchAnswer | null> {
-  if (saysOtherStat(p) || p.place?.kind === "city") return null;
+  // OPR, or one phase of it ("top teams by teleop opr at worlds"): that part of each team's OPR there. Any other stat,
+  // or two, is left to search.
+  const others = [...new Set(p.symbols.map((s) => BOARD_STAT[s]).filter((s): s is string => !!s && s !== "opr"))];
+  const phase = others.length === 1 && (others[0] === "auto" || others[0] === "teleop" || others[0] === "endgame") ? others[0] : null;
+  if ((others.length && !phase) || p.place?.kind === "city") return null;
   // The best first by OPR only: the lowest first, undefeated teams alone or OPR said not to go by are left to search.
   if (p.agg === "min" || p.undefeated || (p.notMetrics ?? []).some((s) => !BOARD_STAT[s] || BOARD_STAT[s] === "opr")) return null;
   const ev = await eventNamed(p, scope, opts);
   if (!ev) return null;
   const { season, main, codes, name, home, skipped } = ev;
   const one = p.n == null && /\b(?:team|who)\b/.test(said) && !/\bteams\b/.test(said);
-  const a = await boardSearch(p.q, { kind: "top", stat: "opr", n: Math.min(25, p.n ?? (one ? 5 : 10)), region: null, city: null, season, event: { season, code: main.code, codes, name, home, ...(p.rookie ? { rookies: true } : {}) } }, opts);
+  const a = await boardSearch(p.q, { kind: "top", stat: phase ?? "opr", n: Math.min(25, p.n ?? (one ? 5 : 10)), region: null, city: null, season, event: { season, code: main.code, codes, name, home, ...(p.rookie ? { rookies: true } : {}) } }, opts);
   if (!a?.stat || skipped == null || skipped === season) return a;
   const note = `No teams listed for the ${seasonLabel(skipped)} event yet; showing ${seasonLabel(season)}`;
   return { ...a, stat: { ...a.stat, scope: [note, ...a.stat.scope], definition: `${a.stat.definition} ${note}: no season was named, so the latest was read first.` } };
