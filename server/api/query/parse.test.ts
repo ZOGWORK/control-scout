@@ -125,6 +125,19 @@ describe("slots", () => {
     // Its shorter name is two teams' ("which Girls in Robotics?"), never settled by the longer one's.
     expect((await parseQuery("girls in robotics record", near)).teams[0]).toMatchObject({ candidates: [30017, 30019] });
   });
+  it("reads a name several teams share typed nearly right as that name, a number of the teams' own after it or not", async () => {
+    // With no longer team of that name ("Girls in Robotics 2"), and a name no part of which is another team's.
+    const names = buildNames([...TEAMS.filter((t) => t.number !== 30018), { number: 30020, name: "Copper Robotics", city: "Town", state: "OH", country: "USA", lastPlayed: 2025 }, { number: 30021, name: "Copper Robotics", city: "Newark", state: "NJ", country: "USA", lastPlayed: 2025 }], []);
+    const near = { ...ctx, names, nearTeam: async (w: string) => names.nearTeam(w), isEvent: async (w: string) => w === "roboics 2" || (await ctx.isEvent(w)) };
+    for (const [q, typed, candidates] of [
+      ["girls in roboics 2 record", "girls in roboics", [30017, 30019]], ["girls in roboics record", "girls in roboics", [30017, 30019]],
+      ["copper roboics 2 opr", "copper roboics", [30020, 30021]], ["copper roboics opr", "copper roboics", [30020, 30021]],
+    ] as const) {
+      const p = await parseQuery(q, near);
+      expect(p.teams, q).toMatchObject([{ typed, candidates }]);
+      expect(p.event, q).toBeNull();
+    }
+  });
   it("reads 'performance' as how a team did, never a team of that name beside another team", async () => {
     const p = await parse("4215 performance at nj championship");
     expect(p.teams.map((t) => t.number)).toEqual([4215]);

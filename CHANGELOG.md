@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.4.3 — 2026-11-10
+## 5.4.4 — 2026-11-10
 
 The first-run tour now does the real thing at every step: a real search, a real Track tap, then Predict.
 
@@ -26,6 +26,18 @@ The first-run tour now does the real thing at every step: a real search, a real 
 
 ### Changed
 - Step 1's button runs `who won decode` on the real search page (or the visitor's own question); the card then docks at the bottom so the answer stays readable and asks for a tap on a follow-up question. Step 3 (team pages) is the page's own Track button: tracking moves the tour on, already tracking is noticed, and the team stays tracked. Step 4 runs the highlights search (the team's own, else a season's) and ends on "Predict a match with …" / "Predict a match"; an event page ends on "Predict this event", saying plainly when the event has no recording. While a step points, only the spotlit part and search take taps; typing in search moves the card aside. Tour buttons are 44 px tall on phones. (#1352)
+
+## 5.4.3 — 2026-11-10
+
+Search asks which team you mean when a name two teams share is typed nearly right.
+
+### Highlights
+- [fixes] A shared team name typed with a slip asks which team you mean
+- [fixes] Each team of the name is listed with its place, to pick from
+- [fixes] A number typed right after the name is read as part of it
+
+### Fixed
+- A name several teams share, typed one or two letters off, read as one of them or as nothing: two teams called Girls in Robotics, typed with a letter missing and a number after it, read another team's record at an event. It now gets the same "Which …? 2 teams have that name" card as the name typed right, with each team's place, and a number right after the name that is no team's is read as part of it. (`nearShared`, `server/api/query/names.ts`; the near-spelling step in `server/api/query/parse.ts`; `sharedName`, `server/api/searchAnswer.ts`) (#1348)
 
 ## 5.4.2 — 2026-11-10
 
