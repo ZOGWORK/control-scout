@@ -18,7 +18,7 @@ import { seasonLabel } from "../../src/shared/format.js";
 import { all, get } from "../db.js";
 import { normalize } from "./fuzzy.js";
 import { search, searchIntent } from "./search.js";
-import { pickShared } from "./query/shared.js";
+import { pickShared, whichLine } from "./query/shared.js";
 import { onlyOrdinary } from "./query/ordinary.js";
 import { place } from "../../src/shared/format.js";
 
@@ -109,7 +109,7 @@ function settle(all: TeamFacts[], prefer: ReadonlySet<string>, others: TeamFacts
 }
 
 /** The question a still-tied side asks. */
-const whichOf = (side: Side) => `Which "${side.typed}"? ${side.tied.length} teams have that name: ${side.tied.map((t) => `${t.number} (${placeOf(t)})`).join(", ")}`;
+const whichOf = (side: Side) => whichLine(side.typed, side.pool?.length ?? side.tied.length, side.tied.map((t) => `${t.number} (${placeOf(t)})`));
 
 /** The team `typed` names, by the same fixed rules as a Compare side (a number, an exact name, your team, one that has
  *  played, the newest), or the teams still tied and the question to ask. Never a guess. */

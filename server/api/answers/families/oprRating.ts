@@ -25,7 +25,7 @@ import { seasonTrend, trendAnswer } from "./trends.js";
 export type OprRatingId =
   | "penalty-opr" | "opr-worlds" | "rating-worlds" | "opr-high" | "opr-low" | "opr-trend" | "opr-rank" | "opr-breakdown"
   | "opr-average-events" | "phase-vs" | "opr-vs-team-average" | "rating-rank" | "rating-sd" | "rating-trend" | "rating-best"
-  | "rank" | "percentile" | "top-pct";
+  | "rank" | "percentile" | "top-pct" | "overview";
 
 type Phase = "auto" | "teleop" | "endgame";
 
@@ -138,6 +138,7 @@ export const OPR_RATING_TITLES: Record<OprRatingId, string> = {
   "opr-trend": "OPR trend", "opr-rank": "OPR rank", "opr-breakdown": "OPR by phase", "opr-average-events": "Average event OPR", "phase-vs": "Phase against phase",
   "opr-vs-team-average": "OPR vs the average", "rating-rank": "Prediction rating rank", "rating-sd": "Prediction rating uncertainty", "rating-trend": "Prediction rating trend",
   "rating-best": "Best prediction rating", rank: "Rank", percentile: "OPR percentile", "top-pct": "Top share by OPR",
+  overview: "Season overview",
 };
 
 type Team = { number: number; name: string | null };
@@ -255,6 +256,39 @@ export async function oprRatingAnswer(f: OprRatingQuestion, team: Team, deps: Op
 
   if (season == null) return { ...base(f.id, "Season numbers", [], OPR_RULE, "From the stored season numbers"), none: `${who(team)} has no season with matches on record.` };
   const st = await seasonStats(season, team.number);
+
+  if (f.id === "overview") {
+    // How good the team is, in the team page's own numbers for one season: OPR with its world rank and percentile, the
+    // record and the prediction rating, each as the page's tiles show it. Nothing is worked out but the percentile.
+    const o = st?.opr.np, r = st?.rating, rec = st?.record;
+    const b = base("team-overview", `Season overview in ${S}`, [S],
+      `${OPR_RULE} Top share: the rank over every team with an OPR, rounded up; percentile: the share of those teams ranked below it. Record: its matches that season, as its team page counts them. ${RATING_RULE}${why}`,
+      `From ${possessive(who(team))} ${S} season numbers`);
+    if (!st || !rec?.matches) return { ...b, none: `${who(team)} has no matches on record in ${S}.` };
+    const record = `${rec.wins ?? 0}-${rec.losses ?? 0}-${rec.ties ?? 0}`;
+    const played = `${rec.matches} matches at ${rec.events ?? 0} event${rec.events === 1 ? "" : "s"}`;
+    const rank = Number(o?.rank) || 0, of = Number(o?.of) || 0;
+    const pop = r ? await ratingPop(season) : 0;
+    const rating = r ? `${num(r.np)} ± ${num(r.sd)}` : null;
+    const ratingAt = r?.rank ? `#${n(r.rank)} worldwide${pop ? ` of ${n(pop)}` : ""}` : null;
+    const sub = [`Record ${record}`, rating ? `Rating ${rating}${ratingAt ? ` (${ratingAt})` : ""}` : null, S].filter(Boolean).join(" · ");
+    const headline = o?.value != null && rank && of
+      ? { value: num(o.value), label: `OPR · top ${topPct(rank, of)}% worldwide: #${n(rank)} of ${n(of)}, ${ordinal(Math.floor((100 * (of - rank)) / of))} percentile`, sub }
+      : { value: record, label: `record in ${played}`, sub: [rating ? `Rating ${rating}` : null, "No OPR rank yet", S].filter(Boolean).join(" · ") };
+    const card = await deps.oprCard(season);
+    return {
+      ...b, headline: { ...headline, href: teamHref(team.number, season) },
+      blocks: [
+        { kind: "kpis", items: [
+          { label: "OPR", value: num(o?.value), phase: "np" as const, rank: o?.rank ?? null, of: o?.of ?? null, sub: rank && of ? `#${n(rank)} of ${n(of)} · top ${topPct(rank, of)}%` : "Not ranked yet", tone: "accent" as const },
+          { label: "Record", value: record, sub: played },
+          ...(rating ? [{ label: "Prediction rating", value: rating, sub: ratingAt ?? "Not ranked yet" }] : []),
+          ...(st.reliability ? [{ label: "Reliability", value: `${st.reliability.index} out of 100`, ...(st.reliability.fieldIndex != null ? { sub: `Field average ${st.reliability.fieldIndex}` } : {}) }] : []),
+        ] },
+        ...(card?.blocks ?? []).filter((x) => x.kind === "series"),
+      ],
+    };
+  }
 
   if (f.id === "phase-vs") {
     const [a, c] = f.phases!;

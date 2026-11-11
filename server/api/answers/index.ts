@@ -32,6 +32,7 @@ import { eventAnswer } from "./families/events.js";
 import { factAnswer, readTeamFact, seasonOf as factSeason, type FactQuestion } from "./families/facts.js";
 import { leagueAskAnswer, readLeagueAsk } from "./families/league.js";
 import { OPR_RATING_TITLES, oprRatingAnswer, readOprRating, type OprRatingQuestion } from "./families/oprRating.js";
+import { readOverview } from "./families/overview.js";
 import { counts, matchAnswer, whoOf } from "./families/matches.js";
 import { changeAnswer, readChange, resolveChange, shiftChange, type ChangeQuestion } from "./families/seasonChange.js";
 import { MATCH_STAT_IDS, matchStatAnswer } from "./families/matchStats.js";
@@ -475,7 +476,7 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   if (change) return changeSearch(q, change, resolve, opts);
   // One team's OPR or rating asked a particular way (its rank in a place, its best event, Auto against TeleOp)
   // before the two-team reader takes "auto opr versus teleop opr" for two teams.
-  const or = readOprRating(q);
+  const or = readOprRating(q) ?? readOverview(q);
   if (or) {
     const a = await oprRatingSearch(q, or, resolve, opts);
     if (a) return a;
@@ -806,7 +807,11 @@ async function changeWithoutTeam(q: string, c0: ChangeQuestion, pages: SearchPag
 /** "12345 opr rank in New Jersey", "12345 highest opr ever", "67890 auto opr versus teleop opr": one team's OPR or
  *  rating, read from what its team page (or the place's filtered list) holds; worked out for the page only. */
 async function oprRatingSearch(q: string, f: OprRatingQuestion, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
-  const base = await resolve(f.core);
+  // An overview's team is drawn with its season's numbers on its row (the search box shows no card): the team read
+  // with "stats", as search reads it, when that is the same team.
+  const plain = await resolve(f.core);
+  const said = f.id === "overview" ? await resolve(`${f.core} stats${f.season != null ? ` ${f.season}-${String((f.season + 1) % 100).padStart(2, "0")}` : ""}`) : null;
+  const base = said && said.step !== "recovery" && said.hits[0]?.kind === "team" && said.hits[0].ref === plain.hits[0]?.ref ? { ...plain, hits: [said.hits[0], ...plain.hits.slice(1)] } : plain;
   const top = base.step !== "recovery" ? base.hits[0] : undefined;
   if (!top || top.kind !== "team" || top.href) return null;
   const team = { number: Number(top.ref), name: teamNameOf(top.title) || null };
