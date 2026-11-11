@@ -25,7 +25,7 @@ Asking for a team's match by its score ("a 226 point match") finds that match.
 - [fixes] No match with that score is said plainly
 
 ### Fixed
-- Search: a team's match asked for by its score ("<team> 226 point match", "<team> 226-point game") read the score as a team number, so it answered about a different team. A number right before "point(s) match/game", with no "over" or "at least" before it, is now a score. The answer lists the team's matches where either alliance's final score was that number, highest-scoring first, from the latest season it happened, or says none was found. ([#PR](https://github.com/ZOGWORK/control-scout/pull/PR))
+- Search: a team's match asked for by its score ("<team> 226 point match", "<team> 226-point game") read the score as a team number, so it answered about a different team. A number right before "point(s) match/game", with no "over" or "at least" before it, is now a score. The answer lists the team's matches where either alliance's final score was that number, highest-scoring first, from the latest season it happened, or says none was found. ([#1375](https://github.com/ZOGWORK/control-scout/pull/1375))
 
 ## 5.5.1 — 2026-11-11
 
