@@ -149,7 +149,7 @@ itself, the space and the view are never sent: not in a personal sync
 | `cs-scout-lost:<workspace>` | 3 | No (a restore sends the entry) |
 | `cs-scout-ws-cursor:<workspace>` | sync bookkeeping | Only as the pull's `since=` cursor |
 | `cs-scout-tpl:<ws>:<season>`, `cs-scout-tplv:<ws>:<season>:<v>`, `cs-scout-wss:<ws>` | 2 (cache) | No |
-| `cs-scout-space`, `cs-shortlist-view`, `cs-account-cache`, `cs-tour`, `cs-tour-demo`, `cs-install`, `cs-install-demo`, `cs-recent-searches` | 3 | No |
+| `cs-scout-space`, `cs-shortlist-view`, `cs-account-cache`, `cs-tour`, `cs-tour-demo`, `cs-welcome`, `cs-install`, `cs-install-demo`, `cs-recent-searches` | 3 | No |
 | `cs-sidebar`, `cs-records-cols:<table>`, `cs-saved-filters:v1` | local UI state | No |
 | `cs-consent`, `cs-alerts-sent`, `cs-offline-seasons`, `cs-pack-meta`, `cs-seen` | device state | No |
 | sessionStorage `cs-session`, `cs-stats-session` | this tab only | `cs-stats-session` only as the analytics "new session" bit (no ID) |

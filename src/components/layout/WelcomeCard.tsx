@@ -49,13 +49,14 @@ export function WelcomeCard() {
     const t = window.setTimeout(() => setDue(true), WELCOME_DELAY_MS);
     return () => window.clearTimeout(t);
   }, [wanted, landing, due]);
-  const shown = useFirstRunSlot(SLOT, wanted && due);
+  // Only on a landing page: opening Settings or the owner console puts it away (back on a landing page, it returns).
+  const shown = useFirstRunSlot(SLOT, wanted && landing && due);
 
   const close = () => dismissWelcome();
 
-  // Any search closes it: the visitor has found what it was pointing at.
+  // Any search closes it for good (shown yet or not): the visitor has found what it was pointing at.
   const searched = loc.pathname.replace(/\/+$/, "") === "/search" && !!new URLSearchParams(loc.search).get("q");
-  useEffect(() => { if (shown && searched) close(); }, [shown, searched]);
+  useEffect(() => { if (searched && !closed) close(); }, [searched, closed]);
 
   useEffect(() => {
     if (!shown) return;

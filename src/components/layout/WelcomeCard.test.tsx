@@ -84,6 +84,16 @@ describe("the welcome card", () => {
     } finally { input.remove(); }
   });
 
+  it("is put away off landing pages (Settings, the owner console) and back on one", async () => {
+    mount();
+    await opened();
+    act(() => go("/settings"));
+    await waitFor(() => expect(welcome()).toBeNull());
+    expect(welcomeSeen()).toBe(false);
+    act(() => go("/events"));
+    await opened();
+  });
+
   it("closes on any search the visitor runs", async () => {
     mount();
     await opened();
