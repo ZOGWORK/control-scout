@@ -32,12 +32,14 @@ describe("a match box", () => {
     expect(box.className).toMatch(/@container/);
     expect(box.querySelector("[data-phases]")!.className).not.toMatch(/(^|\s)sm:/);
   });
-  it("fills each phase in search's palette: Auto blue, TeleOp green, Endgame purple, penalties red, white on them", () => {
+  it("fills each scoring phase in search's palette (Auto blue, TeleOp green, Endgame purple, white on them); the penalties a neutral tile with a blue info icon, never red", () => {
     const c = draw();
     const tone = (k: string) => c.querySelector(`[data-phase=${k}]`)!.className;
     expect(tone("auto")).toContain("bg-blue-600 text-white");
     expect(tone("teleop")).toContain("bg-emerald-700 text-white");
     expect(tone("endgame")).toContain("bg-violet-600 text-white");
-    expect(tone("pen")).toContain("bg-red-700 text-white");
+    expect(tone("pen")).toContain("border-border bg-card text-foreground");
+    expect(tone("pen")).not.toMatch(/red|orange|amber/);
+    expect(c.querySelector("[data-phase=pen] [data-note-icon]")!.getAttribute("class")).toContain("text-info");
   });
 });

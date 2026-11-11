@@ -2,8 +2,9 @@
 // and latest matches, two teams' meetings): its place in the list as a podium badge, the match and its event, then a
 // scoreboard, the red alliance over the blue, each with its teams as chips and its score big in its colour (the loser
 // muted, the winner marked), and the listed alliance's points by phase as tiles filled in search's palette colour for
-// each phase (lib/textTones SEARCH_PALETTE: Auto blue, TeleOp green, Endgame purple, penalties red), white on them. Drawn from the row the server sends; nothing is fetched or worked out beyond adding the numbers up.
+// each phase (lib/textTones SEARCH_PALETTE: Auto blue, TeleOp green, Endgame purple), white on them; the penalties given a neutral tile marked by a small blue info icon (Sushil 11-10: nothing orange or red on a record or top-score answer; red here would read as the red alliance or as "act now"). Drawn from the row the server sends; nothing is fetched or worked out beyond adding the numbers up.
 import { Link } from "react-router-dom";
+import { Info } from "lucide-react";
 import { UNOFFICIAL_NOTE, type StatLink, type StatMatchRow } from "../../../shared/searchStat";
 import { PODIUM_CHIP } from "../../../lib/textTones";
 import { cn } from "../../cn";
@@ -95,10 +96,14 @@ export function MatchBox({ r, team, atEvent, noPlay }: { r: StatMatchRow; team?:
         {!!phases?.length && (
           <dl className="grid grid-cols-4 gap-1 self-center @md:w-44 @md:grid-cols-2" aria-label={`${r.alliance === "red" ? "Red" : "Blue"} alliance's points by phase`} data-phases>
             {phases.map(([k, label]) => (
-              // Each phase filled in its colour; the period a list ranks by gets a ring and a bold label.
-              <div key={k} className={cn("min-w-0 rounded-md px-1.5 py-1", SEARCH_PALETTE[k].fill, r.ranked === k && "ring-2 ring-foreground")} data-phase={k} data-ranked={r.ranked === k ? "" : undefined}>
+              // Each scoring phase filled in its colour, the penalties a neutral tile with its note icon; the period a
+              // list ranks by gets a ring and a bold label.
+              <div key={k} className={cn("min-w-0 rounded-md px-1.5 py-1", k === "pen" ? "border border-border bg-card text-foreground" : SEARCH_PALETTE[k].fill, r.ranked === k && "ring-2 ring-foreground")} data-phase={k} data-ranked={r.ranked === k ? "" : undefined}>
                 {/* TeleOp as FIRST reports it: with the endgame where the season counts it so. */}
-                <dt className={cn("truncate text-[10px] leading-tight", r.ranked === k ? "font-bold" : "font-medium")}>{k === "teleop" && r.phases!.teleopWithEndgame ? "TeleOp + end" : label}</dt>
+                <dt className={cn("flex min-w-0 items-center gap-0.5 text-[10px] leading-tight", r.ranked === k ? "font-bold" : "font-medium")}>
+                  {k === "pen" && <Info className="size-3 shrink-0 text-info" aria-hidden data-note-icon />}
+                  <span className="truncate">{k === "teleop" && r.phases!.teleopWithEndgame ? "TeleOp + end" : label}</span>
+                </dt>
                 <dd className="font-semibold tabular-nums">{r.phases![k]}</dd>
               </div>
             ))}

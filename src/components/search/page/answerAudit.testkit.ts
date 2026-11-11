@@ -92,6 +92,9 @@ export function auditAnswer(card: HTMLElement, { names = [] as string[], contras
       if (TEAM.test(f) || ALLIANCE.test(f)) { hues.add(f.replace(/-(text|ink)$/, "")); continue; }
       if (GOLD.test(f) && el.closest("[data-primary-cta]")) continue;
       if (PLAY.test(f) && el.closest("[data-answer-video], [data-video-control]")) continue;
+      // A note's small info icon (a match box's penalties tile) marks a note, not a meaning: its blue never stands for
+      // data, so it isn't one of the card's hues. Its contrast is still checked below.
+      if (f === "info" && el.hasAttribute("data-note-icon")) continue;
       // A palette family's deeper text shade (info-text) is that family.
       if (PALETTE.has(f.replace(/-text$/, ""))) { hues.add(f.replace(/-text$/, "")); continue; }
       problems.push(`${GOLD.test(f) ? "gold" : "hue"} on data: ${c} (${el.tagName.toLowerCase()} "${(el.textContent ?? "").trim().slice(0, 30)}")`);
