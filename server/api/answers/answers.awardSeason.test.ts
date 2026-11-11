@@ -6,6 +6,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../../db";
 import { rebuildSearch } from "../../stats/job";
 import { searchAnswer } from "../searchAnswer";
+import { askAnswer, gameAsSeason, readAsk } from "../searchAsks";
 
 const ask = (q: string) => searchAnswer(q, { limit: 25, learn: false });
 
@@ -78,6 +79,18 @@ describe("an award at Worlds in a season named by its game", () => {
     const a = await ask("who won deans list at worlds 2021-22");
     expect(a.card?.title).toBe("Dean's List Finalist · FIRST Championship - FIRST Tech Challenge · 2021–22");
     expect(a.card?.lines.map((l) => l.results)).toEqual([["Finalist"], ["Finalist"]]);
+  });
+
+  it("a season said by its game, read straight from the ask (no rewrite first): that season only (Loopy on #1363)", async () => {
+    expect(gameAsSeason("worlds in freight frenzy")).toBe("worlds 2021-22");
+    expect(gameAsSeason("worlds during the into the deep season")).toBe("worlds 2024-25");
+    expect(gameAsSeason("new jersey championship")).toBe("new jersey championship");
+    // Inspire at Worlds is recorded in 2024-25 only: 2021-22 asked by its game has none, never 2024-25's said instead.
+    const q = "who won inspire at worlds in freight frenzy";
+    const a = await askAnswer(q, readAsk(q)!, { prefer: new Set(), ask });
+    expect(a?.card?.event).toMatchObject({ season: 2021, code: "FTCCMP1" });
+    expect(a?.card?.lines).toEqual([]);
+    expect(a?.card?.none).toMatch(/in 2021–22\.$/);
   });
 
   it("a place asked is a placed team's, never a finalist FIRST lists second (Loopy on #1363)", async () => {

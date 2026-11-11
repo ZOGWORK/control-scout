@@ -24,7 +24,7 @@ import type { Region } from "../../src/shared/regions.js";
 import { dateRange, possessive, seasonLabel } from "../../src/shared/format.js";
 import { matchDay } from "../../src/shared/coinFlips.js";
 import { teamPageSql } from "../../src/shared/teamPages.js";
-import { CURRENT_SEASON, FIRST_PREDICT_SEASON, isLegacy } from "../data/seasons.js";
+import { CURRENT_SEASON, FIRST_PREDICT_SEASON, SEASONS, isLegacy } from "../data/seasons.js";
 import { all } from "../db.js";
 import { rankings } from "./rankings.js";
 import { search } from "./search.js";
@@ -197,6 +197,17 @@ export function readAsk(q: string): Ask | null {
   // "Who took the most penalties" is a measure, never an event.
   if (m && !/^(?:most|fewest|least|highest|lowest|best|worst|first|last|top|longest|biggest|more|fewer)\b/.test(m[1]) && !Object.hasOwn(AWARDS, m[1].replace(/['’]/g, "").replace(/ award$/, "")) && !/(?:^| )awards? at /.test(m[1])) return { kind: "event-won", event: m[1].split(" ").map((w) => cased.get(w) ?? w).join(" ") };
   return null;
+}
+
+/** A season said by its game ("worlds in freight frenzy", "worlds during the into the deep season") as its years
+ *  ("worlds 2021-22"), the way a season written as one reads; any other words as they are. */
+export function gameAsSeason(words: string): string {
+  for (const s of SEASONS) {
+    const game = [...s.game.toLowerCase().replace(/\s+/g, "")].join("\\s*");
+    const m = new RegExp(`(?:^|\\s)(?:in\\s+|during\\s+)?(?:the\\s+)?${game}(?:\\s+season)?(?=\\s|$)`, "i").exec(words);
+    if (m) return `${words.slice(0, m.index)} ${s.season}-${String((s.season + 1) % 100).padStart(2, "0")} ${words.slice(m.index + m[0].length)}`.replace(/\s+/g, " ").trim();
+  }
+  return words;
 }
 
 /** An event's whole award list and the event itself, in its Awards tab's order (server/api/events.ts) except that a
@@ -458,10 +469,12 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
     }
 
     case "award": {
+      // A season said by its game reads as its years ("worlds in freight frenzy": "worlds 2021-22").
+      const words = gameAsSeason(ask.event);
       // A place's championship ("nj states") or Worlds as "who won" reads it; else the event the name search finds.
-      const won = await eventWon(ask.event, opts.prefer);
+      const won = await eventWon(words, opts.prefer);
       const [wonRow] = won ? await all<any>("SELECT season, code, name, type, venue, city, state, country, start, end, timezone FROM events WHERE season = ? AND code = ?", [won.season, won.code]) : [];
-      let ev = wonRow ? eventHit(wonRow) : await eventOf(ask.event, opts.prefer);
+      let ev = wonRow ? eventHit(wonRow) : await eventOf(words, opts.prefer);
       if (!ev) return null;
       // The event found, or (not held yet, or no such award recorded) the latest season the same event code gave it:
       // "who won Inspire at New Jersey Championship" in November is last season's winner, said with its season.
@@ -472,7 +485,7 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
       const parent = parentRow?.division_code ?? null;
       // A season named ("worlds 2024-25", "… in into the deep" as search rewrites it): that season's award only, never
       // an older season's said in its place.
-      const named = /(?:^|\s)20\d\d(?:\s*[-\u2013/]\s*\d\d(?:\d\d)?)?(?=\s|$)/.test(ask.event);
+      const named = /(?:^|\s)20\d\d(?:\s*[-\u2013/]\s*\d\d(?:\d\d)?)?(?=\s|$)/.test(words);
       const since = named ? Number(found) : 0;
       const latestOf = async (c: string) => (await all<{ season: number }>("SELECT MAX(season) season FROM awards WHERE code = ? AND type = ? AND season <= ? AND season >= ?", [c, ask.award, Number(found), since]))[0]?.season;
       const own = await latestOf(code), fromParentSeason = parent != null ? await latestOf(parent) : undefined;
