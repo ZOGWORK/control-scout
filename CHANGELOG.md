@@ -38,7 +38,7 @@ Search answers three more questions it missed: a game's best score "ever", the o
 
 ### Fixed
 - "Ever" beside a season named ("best decode score ever") was left unread, so the question found nothing. It now means that season's whole run, the same as without it. "First ever" stays a first. (`readTime`, `server/api/query/time.ts`; failed search #1351)
-- "Official" in a record question ("decode official world record") was read as a team's name. It now only says what a record is, from official events. (`FRAME`, `server/api/searchHighScores.ts`; failed search #1339) (#1357)
+- "Official" in a record question ("decode official world record") was read as a team's name. It now only says what a record is, from official events. (`FRAME`, `server/api/searchHighScores.ts`; failed search #1339)
 - "Worlds years" (and "states years") after a team ("Don't Blink's Worlds years") is now that team's appearances. (`parseQuestion`, `server/api/searchQuestions.ts`; failed search #1342) (#1353)
 
 ## 5.4.7 — 2026-11-11
