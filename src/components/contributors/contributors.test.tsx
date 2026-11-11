@@ -28,6 +28,8 @@ vi.mock("../../lib/contributors", async (orig) => ({
   likeVideo: h.like,
 }));
 vi.mock("../../lib/streamSeek", () => ({ playMatchVideo: vi.fn() }));
+const scroll = vi.hoisted(() => vi.fn());
+vi.mock("../../lib/pageScroll", async (orig) => ({ ...(await orig<typeof import("../../lib/pageScroll")>()), scrollToElement: scroll }));
 
 const { VideoCredit } = await import("./VideoCredit");
 const { EventClipsProvider, ClipsGallery, CoverageLine, WatchClipsButton } = await import("./EventClips");
@@ -102,6 +104,13 @@ describe("the event page's clips", () => {
     expect(screen.getByText("Official match video")).toBeTruthy();
     expect(document.body.textContent).toMatch(/Video by Riley Park/);
     expect(document.body.textContent).not.toMatch(/Other Person/);
+  });
+
+  it("Watch Clips goes straight to the gallery (a long smooth glide gets cut short on big events)", () => {
+    h.event = { matches: { "qual:0:1": cv() }, coverage: { played: 1, withVideo: 1 } };
+    page([match(1)]);
+    fireEvent.click(screen.getByRole("button", { name: /Watch Clips/ }));
+    expect(scroll).toHaveBeenCalledWith(document.getElementById("clips"));
   });
 });
 
