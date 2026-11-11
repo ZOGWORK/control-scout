@@ -43,7 +43,8 @@ export function EventAwardsAnswer({ card, heading }: { card: SearchCard; heading
   // The asked award given elsewhere than the event's own list (a championship's divisions each judged it): its lines.
   const elsewhere = !!card.award && !alliance && !onPodium && !placed.length && card.lines.length > 0;
   const shown = onPodium || roster.length > 0 || elsewhere;
-  const rest = shown ? awards.filter((a) => !podium.includes(a) && !inRoster(a)) : awards;
+  // The asked award drawn as lines (all finalists, or judged elsewhere): its own rows aren't listed again either.
+  const rest = shown ? awards.filter((a) => !podium.includes(a) && !inRoster(a) && !(elsewhere && a.type === card.award)) : awards;
   return (
     <AnswerFrame title={card.title} hideTitle={repeats(heading, card.title)}
       sub={ev ? `${ev.name} · ${seasonLabel(ev.season)} · from FIRST's award list for the event` : "From FIRST's award list for the event"}
