@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.4.5 — 2026-11-11
+
+The first-run tour can be taken again any time, from Settings or How it works.
+
+### Highlights
+- [home] "Take the tour" in Settings, About runs the tour again from step 1
+- [home] How it works has a "Show me around" button too
+- [home] The tour picks up on the page you were last on
+
+### Changed
+- "Take the tour" (`src/components/layout/TakeTour.tsx`) restarts the tour from step 1 on the last page this tab was on that has a tour (Home when none), even after it was finished or skipped and whatever the visitor has saved; skipping never hides it. A test holds every step's copy to its rules: a 2–5 word title, one sentence of at most 25 words, no exclamation marks, no team but the tour's own, never "clips". (#PRNUM)
+
 ## 5.4.4 — 2026-11-10
 
 The first-run tour now does the real thing at every step: a real search, a real Track tap, then Predict.
