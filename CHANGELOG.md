@@ -25,7 +25,7 @@ The tour's last card is no longer hidden behind the "Tracking" note on phones.
 - [teams] Tracking a team outside the tour still shows its note as before
 
 ### Fixed
-- When the tour moves on from the Track step, it clears the page's "Tracking …" toast, which sat over the tour's docked card at the bottom of a phone screen for several seconds (seen in the live acceptance run at 390 px). (#PRNUM)
+- When the tour moves on from the Track step, it clears the page's "Tracking …" toast, which sat over the tour's docked card at the bottom of a phone screen for several seconds (seen in the live acceptance run at 390 px). (#1355)
 
 ## 5.4.6 — 2026-11-11
 
