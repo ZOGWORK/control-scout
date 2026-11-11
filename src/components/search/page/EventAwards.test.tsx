@@ -50,6 +50,24 @@ describe("award-at-event answer", () => {
     expect(c.querySelector("[data-all-awards]")!.textContent).toContain("Think Award");
     expect(c.querySelector("[data-awards-page]")!.getAttribute("href")).toBe("/events/2025/USNJNOLT2?tab=awards");
   });
+  it("an award with no podium place (judged in each division, or only finalists): its lines, each team once", () => {
+    const finalists: SearchCard = {
+      ...card, award: "DeansList", title: "Dean's List Finalist · Worlds · 2021–22",
+      lines: [{ text: "4215 Hypnotic Robotics", detail: "Dean's List Finalist", results: ["Finalist"], href: "/teams/4215" }],
+      awards: [
+        { type: "DeansList", placement: 1, team: 4215, teamName: "Hypnotic Robotics", name: "Dean's List Finalist" },
+        { type: "Think", placement: 1, team: 6980, teamName: "Bad Wolf", name: "Think Award" },
+      ],
+    };
+    const c = draw(finalists);
+    expect(c.querySelector("[data-podium]")).toBeNull();
+    expect(c.querySelector("[data-lines]")!.textContent).toContain("4215 Hypnotic Robotics");
+    expect([...c.querySelectorAll("[data-all-awards] [data-award]")].map((x) => x.getAttribute("data-award"))).toEqual(["Think"]);
+    // A championship whose divisions judged it: its own list has none of the award, so the lines are the answer.
+    const divisions = draw({ ...card, award: "Innovate", lines: [{ text: "18840 Reynolds Reybots Too", detail: "Innovate Award · Edison Division", results: ["Winner"], href: "/teams/18840" }] });
+    expect(divisions.querySelector("[data-lines]")!.textContent).toContain("Edison Division");
+    expect(divisions.querySelectorAll("[data-all-awards] [data-award]")).toHaveLength(4);
+  });
   it("draws no podium for a who-won card (no award asked), and an older card's lines as before", () => {
     expect(draw({ ...card, award: undefined }).querySelector("[data-podium]")).toBeNull();
     const old = draw({ kind: "event-awards", title: "Awards", lines });

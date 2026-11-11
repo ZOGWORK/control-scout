@@ -24,7 +24,7 @@ import type { Region } from "../../src/shared/regions.js";
 import { dateRange, possessive, seasonLabel } from "../../src/shared/format.js";
 import { matchDay } from "../../src/shared/coinFlips.js";
 import { teamPageSql } from "../../src/shared/teamPages.js";
-import { CURRENT_SEASON, FIRST_PREDICT_SEASON, isLegacy } from "../data/seasons.js";
+import { CURRENT_SEASON, FIRST_PREDICT_SEASON, SEASONS, isLegacy } from "../data/seasons.js";
 import { all } from "../db.js";
 import { rankings } from "./rankings.js";
 import { search } from "./search.js";
@@ -199,11 +199,23 @@ export function readAsk(q: string): Ask | null {
   return null;
 }
 
-/** An event's whole award list and the event itself, as its Awards tab has them (server/api/events.ts's order). */
+/** A season said by its game ("worlds in freight frenzy", "worlds during the into the deep season") as its years
+ *  ("worlds 2021-22"), the way a season written as one reads; any other words as they are. */
+export function gameAsSeason(words: string): string {
+  for (const s of SEASONS) {
+    const game = [...s.game.toLowerCase().replace(/\s+/g, "")].join("\\s*");
+    const m = new RegExp(`(?:^|\\s)(?:in\\s+|during\\s+)?(?:the\\s+)?${game}(?:\\s+season)?(?=\\s|$)`, "i").exec(words);
+    if (m) return `${words.slice(0, m.index)} ${s.season}-${String((s.season + 1) % 100).padStart(2, "0")} ${words.slice(m.index + m[0].length)}`.replace(/\s+/g, " ").trim();
+  }
+  return words;
+}
+
+/** An event's whole award list and the event itself, in its Awards tab's order (server/api/events.ts) except that a
+ *  judged award's finalists ("… Finalist", placed 1 like its winner) come after its placed teams. */
 async function eventAwards(season: number, code: string, name: string): Promise<Pick<SearchCard, "event" | "awards">> {
   const rows = await all<any>(
     `SELECT a.type, a.placement, a.team, a.name, t.name team_name FROM awards a LEFT JOIN teams t ON t.number = a.team WHERE a.season = ? AND a.code = ?
-     ORDER BY CASE a.type WHEN 'Inspire' THEN 0 WHEN 'Winner' THEN 1 WHEN 'Finalist' THEN 2 ELSE 3 END, a.type, a.placement`, [season, code]);
+     ORDER BY CASE a.type WHEN 'Inspire' THEN 0 WHEN 'Winner' THEN 1 WHEN 'Finalist' THEN 2 ELSE 3 END, a.type, (a.type NOT IN ('Winner', 'Finalist') AND COALESCE(a.name, '') LIKE '%Finalist'), a.placement`, [season, code]);
   const awards: SearchCardAward[] = rows.map((r) => ({ type: r.type, placement: Number(r.placement), team: Number(r.team), teamName: r.team_name ?? null, name: r.name ?? null }));
   return { event: { season, code, name }, awards };
 }
@@ -457,10 +469,12 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
     }
 
     case "award": {
+      // A season said by its game reads as its years ("worlds in freight frenzy": "worlds 2021-22").
+      const words = gameAsSeason(ask.event);
       // A place's championship ("nj states") or Worlds as "who won" reads it; else the event the name search finds.
-      const won = await eventWon(ask.event, opts.prefer);
+      const won = await eventWon(words, opts.prefer);
       const [wonRow] = won ? await all<any>("SELECT season, code, name, type, venue, city, state, country, start, end, timezone FROM events WHERE season = ? AND code = ?", [won.season, won.code]) : [];
-      let ev = wonRow ? eventHit(wonRow) : await eventOf(ask.event, opts.prefer);
+      let ev = wonRow ? eventHit(wonRow) : await eventOf(words, opts.prefer);
       if (!ev) return null;
       // The event found, or (not held yet, or no such award recorded) the latest season the same event code gave it:
       // "who won Inspire at New Jersey Championship" in November is last season's winner, said with its season.
@@ -469,44 +483,76 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
       // division with none of that award recorded reads its parent's, said so on the card.
       const parentRow = (await all<{ division_code: string | null; name: string | null }>("SELECT d.division_code, p.name FROM events d LEFT JOIN events p ON p.season = d.season AND p.code = d.division_code WHERE d.season = ? AND d.code = ?", [Number(found), code]))[0];
       const parent = parentRow?.division_code ?? null;
-      const latestOf = async (c: string) => (await all<{ season: number }>("SELECT MAX(season) season FROM awards WHERE code = ? AND type = ? AND season <= ?", [c, ask.award, Number(found)]))[0]?.season;
+      // A season named ("worlds 2024-25", "… in into the deep" as search rewrites it): that season's award only, never
+      // an older season's said in its place.
+      const named = /(?:^|\s)20\d\d(?:\s*[-\u2013/]\s*\d\d(?:\d\d)?)?(?=\s|$)/.test(words);
+      const since = named ? Number(found) : 0;
+      const latestOf = async (c: string) => (await all<{ season: number }>("SELECT MAX(season) season FROM awards WHERE code = ? AND type = ? AND season <= ? AND season >= ?", [c, ask.award, Number(found), since]))[0]?.season;
       const own = await latestOf(code), fromParentSeason = parent != null ? await latestOf(parent) : undefined;
+      // A championship whose divisions judge the award (Worlds 2024-25's Innovate Award, one per division): its
+      // divisions' places, when they gave it more recently than the championship itself did.
+      const divisionsSeason = parent == null ? (await all<{ season: number }>(
+        "SELECT MAX(a.season) season FROM awards a JOIN events d ON d.season = a.season AND d.code = a.code WHERE d.division_code = ? AND a.type = ? AND a.season <= ? AND a.season >= ?",
+        [code, ask.award, Number(found), since]))[0]?.season : undefined;
       // The championship's, unless the division has that award of its own as recently (some regions judge divisions).
       const fromParent = parent != null && fromParentSeason != null && (own == null || Number(fromParentSeason) > Number(own));
+      const fromDivisions = !fromParent && divisionsSeason != null && (own == null || Number(divisionsSeason) > Number(own));
       const awardCode = fromParent ? parent! : code;
-      const latest = fromParent ? fromParentSeason : own;
+      const latest = fromParent ? fromParentSeason : fromDivisions ? divisionsSeason : own;
       const season = latest != null ? Number(latest) : Number(found);
       // A Winning or Finalist Alliance: its teams, never the FIRST Leadership Award's finalists FIRST files with them.
       const alliance = ask.award === "Winner" || ask.award === "Finalist";
-      const rows = (await all<any>(
-        "SELECT a.placement, a.team, a.name award, t.name FROM awards a LEFT JOIN teams t ON t.number = a.team WHERE a.season = ? AND a.code = ? AND a.type = ? ORDER BY a.placement, a.team",
-        [season, awardCode, ask.award])).filter((r) => !alliance || !/leadership/i.test(r.award ?? ""));
+      // Each division's places, its winners first, named by the division ("Edison Division").
+      const rows = (fromDivisions
+        ? await all<any>(
+          `SELECT a.placement, a.team, a.name award, t.name, d.name division FROM awards a JOIN events d ON d.season = a.season AND d.code = a.code LEFT JOIN teams t ON t.number = a.team
+           WHERE a.season = ? AND d.division_code = ? AND a.type = ? ORDER BY a.placement, d.name, a.team`, [season, code, ask.award])
+        : await all<any>(
+          "SELECT a.placement, a.team, a.name award, t.name FROM awards a LEFT JOIN teams t ON t.number = a.team WHERE a.season = ? AND a.code = ? AND a.type = ? ORDER BY a.placement, a.team",
+          [season, awardCode, ask.award])).filter((r) => !alliance || !/leadership/i.test(r.award ?? ""));
+      // A judged award's finalists, as FIRST names them ("Innovate Award … Finalist", placed 1 like its winner): after
+      // its placed teams, said as finalists.
+      const finalist = (r: any) => !alliance && /\bfinalist\s*$/i.test(String(r.award ?? ""));
+      rows.sort((a, b) => Number(finalist(a)) - Number(finalist(b)));
       // An older season: that season's event, with its own dates and place, and the newer one said when it's still to
       // come or not posted ("The 2026–27 one (Nov 15, 2026) isn't held yet").
       // Only a newer one with no such award recorded: an older year asked, whose newer one has its winner, says nothing.
-      const [newer] = await all<{ season: number; start: string | null; end: string | null }>("SELECT season, start, end FROM events e WHERE e.code = ? AND e.season > ? AND NOT EXISTS (SELECT 1 FROM awards a WHERE a.season = e.season AND a.code IN (e.code, COALESCE(e.division_code, e.code)) AND a.type = ?) ORDER BY e.season DESC LIMIT 1", [code, season, ask.award]);
+      // A season named says nothing of newer ones; a championship's divisions' awards are its own.
+      const [newer] = named ? [] : await all<{ season: number; start: string | null; end: string | null }>("SELECT season, start, end FROM events e WHERE e.code = ? AND e.season > ? AND NOT EXISTS (SELECT 1 FROM awards a WHERE a.season = e.season AND (a.code IN (e.code, COALESCE(e.division_code, e.code)) OR a.code IN (SELECT d.code FROM events d WHERE d.season = e.season AND d.division_code = e.code)) AND a.type = ?) ORDER BY e.season DESC LIMIT 1", [code, season, ask.award]);
       const held = !!newer?.start && (newer.end ?? newer.start) < new Date().toISOString().slice(0, 10);
       const upcoming = newer?.start ? ` · The ${seasonLabel(Number(newer.season))} one (${dateRange(newer.start, newer.end)}) ${held ? "has no award posted yet" : "isn't held yet"}` : "";
-      if (season !== Number(found)) ev = (await search(code, 5, opts.prefer, new Set(["event"]), season)).find((h) => h.kind === "event" && h.ref === `${season}:${code}`)
-        ?? { ...ev, ref: `${season}:${code}`, season, subtitle: seasonLabel(season) };
+      // That season's event, its own dates and place: never the season found's dates under the older season's label.
+      const rowOf = async (c: string) => (await all<any>("SELECT season, code, name, type, division_code, venue, city, state, country, start, end, timezone FROM events WHERE season = ? AND code = ?", [season, c]))[0];
+      if (season !== Number(found)) {
+        const row = await rowOf(code);
+        ev = (await search(code, 5, opts.prefer, new Set(["event"]), season)).find((h) => h.kind === "event" && h.ref === `${season}:${code}`)
+          ?? (row ? eventHit(row) : { ...ev, ref: `${season}:${code}`, season, subtitle: seasonLabel(season), event: undefined });
+      }
       const parentName = !fromParent ? "" : season === Number(found) && parentRow?.name ? parentRow.name
         : (await all<{ name: string }>("SELECT name FROM events WHERE season = ? AND code = ?", [season, parent!]))[0]?.name ?? parentRow?.name ?? parent!;
       // The result under the card is the event the awards were given at: the championship, whose Awards tab holds them.
       const shownHit: SearchHit = fromParent ? (await search(parent!, 5, opts.prefer, new Set(["event"]), season)).find((h) => h.kind === "event" && h.ref === `${season}:${parent}`)
-        ?? { ...ev, ref: `${season}:${parent}`, title: parentName, season, subtitle: seasonLabel(season) } : ev;
+        ?? await rowOf(parent!).then((row) => (row ? eventHit(row) : { ...ev!, ref: `${season}:${parent}`, title: parentName, season, subtitle: seasonLabel(season), event: undefined })) : ev;
       const place = (p: number) => (p === 1 ? "Winner" : `${p}${p === 2 ? "nd" : p === 3 ? "rd" : "th"} place`);
-      const asked = ask.place != null ? rows.filter((r) => Number(r.placement) === ask.place) : [];
+      // A place asked is a placed team's: a finalist's number is only FIRST's order in its list, never a place.
+      const asked = ask.place != null ? rows.filter((r) => Number(r.placement) === ask.place && !finalist(r)) : [];
       // An alliance's teams are its captain and picks, which each row's own name says ("Finalist Alliance - Captain"),
       // never a place; the award is the alliance's, never one division's.
-      const lines = [...asked, ...rows.filter((r) => !asked.includes(r))].map((r) => teamLine(Number(r.team), r.name, alliance ? [] : [place(Number(r.placement))], r.award ?? undefined));
-      const award = (!alliance && rows[0]?.award) || `${AWARD_NAME[ask.award] ?? ask.award} Award`;
+      // A division by its own words ("Edison Division"), its championship's name taken off.
+      const division = (r: any) => (String(r.division ?? "").startsWith(ev!.title) ? String(r.division).slice(ev!.title.length).replace(/^[\s\-\u2013:]+/, "") || r.division : r.division);
+      const lines = [...asked, ...rows.filter((r) => !asked.includes(r))].map((r) => teamLine(Number(r.team), r.name, alliance ? [] : [finalist(r) ? "Finalist" : place(Number(r.placement))],
+        [r.award, fromDivisions ? division(r) : null].filter(Boolean).join(" · ") || undefined));
+      // The award by its winner's name, never a finalist's ("… Finalist") nor a place's ("… 2nd Place"); an award given
+      // only to finalists (Dean's List at Worlds) by the finalists' own name.
+      const award = (!alliance && String((rows.find((r) => !finalist(r)) ?? rows[0])?.award ?? "").replace(/\s+\d(?:st|nd|rd|th) place$/i, "")) || `${AWARD_NAME[ask.award] ?? ask.award} Award`;
       return answer(q, {
         hits: [{ ...shownHit, section: "awards" }], pages: pagesFor(q),
         card: { kind: "event-awards", title: `${award} · ${fromParent ? parentName : ev.title} · ${seasonLabel(season)}`, lines, award: ask.award, ...(ask.place != null ? { place: ask.place } : {}), ...(await eventAwards(season, awardCode, fromParent ? parentName : ev.title)),
           ...(fromParent ? { note: `${ev.title} is a division of ${parentName}: its awards are given at the championship, so this is the championship's ${award}.` } : {}),
+          ...(fromDivisions ? { note: `In ${seasonLabel(season)} the ${award} at ${ev.title} was judged in each division: every division's places, winners first.` } : {}),
           // A league meet gives no awards: a league's are given at its league tournament.
           ...(lines.length ? {} : { none: ev.event?.type === "LeagueMeet" ? `${ev.title} is a league meet, and league meets give no awards: a league's awards, the ${award} among them, are given at its league tournament.`
-            : `No ${award} recorded at ${fromParent ? parentName : ev.title}${parent && !fromParent ? ` or its championship` : ""} in any season on record.` }) },
+            : `No ${award} recorded at ${fromParent ? parentName : ev.title}${parent && !fromParent ? ` or its championship` : ""} ${named ? `in ${seasonLabel(season)}` : "in any season on record"}.` }) },
         understood: { kind: "question", label: `${ask.place != null && ask.place > 1 ? `Who got ${place(ask.place)} for the` : "Who won the"} ${award} at ${ev.title} (${seasonLabel(season)})${fromParent ? ` · given at ${parentName}` : ""}${upcoming}${ask.place != null && rows.length && !asked.length ? ` · No ${place(ask.place)} recorded` : ""}`, season },
       });
     }
