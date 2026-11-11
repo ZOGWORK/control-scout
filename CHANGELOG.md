@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.5.3 — 2026-11-11
+## 5.5.5 — 2026-11-11
 
 First-time visitors get a small welcome card with real searches to try; the step-by-step tour is off unless the owner turns it on.
 
@@ -28,6 +28,31 @@ First-time visitors get a small welcome card with real searches to try; the step
 - First-time visitors see one small "Welcome to Control Scout" card: "Search any team, event or match", with three example searches that answer live ("worlds highlights decode", "4215 vs 6980 who wins", "4215 record"). Tapping one runs it. It closes on X, Esc or any search, and is shown once per visitor. (`WelcomeCard`, `src/components/layout/WelcomeCard.tsx`; `src/lib/welcome.ts`)
 - The step-by-step tour never starts by itself. It sits behind a new owner switch, Step-by-step tour (`onboardingTour`, off by default). While it's on, the welcome card, Settings and How it works offer "Take the tour"; while it's off, there's no tour and no Take the tour button. (`src/shared/flags.ts`, `FirstRunTour`, `TakeTour`)
 - "Clear all local data" in Settings also brings the welcome card back. (#1368)
+
+## 5.5.4 — 2026-11-11
+
+A team number nobody has, asked about, gets the closest real team numbers instead of nothing.
+
+### Highlights
+- [fixes] A missing team number with a question shows the closest teams
+- [fixes] Tap the suggestion to ask the same question of the closest team
+- [teams] Comparing with a number no team has answers the real team's side
+
+### Fixed
+- Search: a team number no team has, followed by what was asked of it ("<number> auto"), lists the closest team numbers, as the number alone does. It offers the same question with the closest one as "Did you mean". Before, nothing was found.
+- Search: a comparison where one side is a number no team has, typed with its own words before the "vs" ("<number> opr vs 4215 opr over time"), answers the other team's question and says the number is no team, as it already did when the number came right before "vs". The missing side's words are added once. ([#1372](https://github.com/ZOGWORK/control-scout/pull/1372))
+
+## 5.5.3 — 2026-11-11
+
+A team named by its name, followed by words search can't read, opens on that team instead of nothing.
+
+### Highlights
+- [fixes] A team's name with unread words now finds the team
+- [teams] Its page and the questions search can answer come first
+- [fixes] Spelling slips in a name still offer the correction
+
+### Fixed
+- Search: a team's whole name followed by words search reads nothing in ("<team name> and <words>") found nothing, though the team's number with the same words opens on the team. It is now read the same way: the team, with the note that the rest can't be answered yet and the questions that can be. A name typed nearly right is still offered as a correction first, and a name shared by several teams still asks which one. ([#1373](https://github.com/ZOGWORK/control-scout/pull/1373))
 
 ## 5.5.2 — 2026-11-11
 
