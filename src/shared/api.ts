@@ -5,6 +5,7 @@ import type { ConfidenceTier, Factor, FactorSheet, Forecast, Partners, TeamStren
 
 export type { ConfidenceTier, Factor, Forecast, Partners, TeamStrength };
 import type { BracketOdds } from "./bracketOdds";
+import type { MatchLives } from "./playoffLives";
 import type { StatAnswer, StatLink } from "./searchStat";
 import type { TeamTable } from "./teamTable";
 export type { BracketOdds, BracketSeriesView, BracketAllianceOdds, BracketSlotView } from "./bracketOdds";
@@ -521,6 +522,9 @@ export interface MatchView {
   red: AllianceScore;
   blue: AllianceScore;
   video: string | null;
+  /** A double-elimination playoff match: each side's lives coming in and after it (shared/playoffLives.ts). None for
+   *  qualification matches or any other playoff format. */
+  lives?: MatchLives;
   /** Where the match starts in the event's recording (server/videos/recordings.ts), on the event's own routes. */
   clip?: MatchClip;
   prediction: MatchPredictionView | null;
