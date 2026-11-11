@@ -268,8 +268,10 @@ export async function editOwnVideo(user: User, id: number, input: AddInput, opts
     [check.videoId!, input.url.trim().slice(0, 500), t, JSON.stringify(check.facts ?? null), dup ? Number(dup.id) : r.duplicate_of ?? null, new Date().toISOString(), id]);
   await recordAudit(accountActor(user), "video.edit", { link: id, from: r.video_id, to: check.videoId });
   const v = await viewerOf(user);
-  const mine = (await all<Row>(`${SELECT} AND cv.id = ?`, [user.id, id]))[0];
-  return { ok: true, video: toVideo(mine, v), shown: true, warnings: check.warnings };
+  // Their own link as it now is, live or hidden by the owner (a hidden one can still be edited; it stays hidden).
+  const mine = (await all<Row>(`${SELECT.replace("WHERE cv.status = 'live'", "WHERE cv.status IN ('live', 'hidden')")} AND cv.id = ?`, [user.id, id]))[0];
+  const shown = r.status === "live" && (await eventVideos(r.season, r.code, v)).get(matchKey(r))?.id === id;
+  return { ok: true, video: toVideo(mine, v), shown, warnings: check.warnings };
 }
 
 /** The contributor's own live links on a match (every one, the winner or not), for their panel. */

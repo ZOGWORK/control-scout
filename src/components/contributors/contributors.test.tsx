@@ -121,4 +121,14 @@ describe("the match page", () => {
     expect(screen.getByText("Share with your team")).toBeTruthy();
     expect(document.querySelector("[data-credit-preview]")?.textContent).toMatch(/Will show as: Video by Sam Lee · Visible to Tigers \(4215\) only/);
   });
+
+  it("says another video plays (not FIRST's) when the owner put a link before FIRST's", () => {
+    h.user = { id: 2 };
+    const me = { status: "verified", source: "application", teams: [], pending: null, rejected: null, ready: true, credit: "Video by Sam Lee" };
+    h.match = { video: cv({ overFirst: true }), own: [{ ...cv({ id: 9, name: "Sam Lee", mine: true }), shown: false }], me };
+    render(<MemoryRouter><MatchContributorPanel m={match(1, { video: "https://youtu.be/FIRSTvideo1" } as Partial<MatchView>)} /></MemoryRouter>);
+    const line = document.querySelector("[data-own-videos]")?.textContent ?? "";
+    expect(line).toMatch(/this match already has a video/);
+    expect(line).not.toMatch(/FIRST's official video plays first/);
+  });
 });

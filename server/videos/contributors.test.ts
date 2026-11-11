@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createClient } from "@libsql/client";
 import { get, migrate, run, setDb } from "../db.js";
 import { getUser, type User } from "../auth/session.js";
-import { addVideo, contributorProfile, eventVideos, removeOwnVideo, reportVideo, setLike, statusOf, viewerOf, SIGNED_OUT } from "./contributors.js";
+import { addVideo, editOwnVideo, contributorProfile, eventVideos, removeOwnVideo, reportVideo, setLike, statusOf, viewerOf, SIGNED_OUT } from "./contributors.js";
 import { approve, claimInvite, createInvite, grantRoster, readInvite, reject, requestFromInvite, revoke, revokeInvite, submitApplication, withdrawApplication } from "./verification.js";
 import { ownerLinkAction, ownerContributors } from "./moderation.js";
 import { forgetMembership } from "./membership.js";
@@ -154,6 +154,15 @@ describe("likes, reports, removal", () => {
     expect(await setLike(hyp2, id, false)).toEqual({ likes: 0, liked: false });
     expect(await setLike(pigeon, id, true)).toBeNull();
     expect(await reportVideo(pigeon, id, "wrong_match", "")).toMatchObject({ ok: false, status: 404 });
+  });
+
+  it("a link the owner hid can still be edited by its contributor, and stays hidden", async () => {
+    const add = await addVideo(hyp, M6, { url: url("teamclip01") });
+    const id = add.ok ? add.video.id : 0;
+    expect(await ownerLinkAction(id, "hide", "owner@example.test", null)).toMatchObject({ ok: true });
+    const out = await editOwnVideo(hyp, id, { url: url("teamclip02") });
+    expect(out).toMatchObject({ ok: true, shown: false, video: { id, videoId: "teamclip02" } });
+    expect((await get<{ status: string }>("SELECT status FROM contributor_videos WHERE id = ?", [id]))?.status).toBe("hidden");
   });
 
   it("one open report per reporter; reports never hide a link; self-removal resolves them as removed", async () => {

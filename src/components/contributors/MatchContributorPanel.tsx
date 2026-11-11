@@ -32,14 +32,14 @@ export function MatchContributorPanel({ m }: { m: MatchView }) {
   return (
     <section className="mt-7 space-y-4" aria-label="Match videos people added" data-videos-path={state.data ? "match" : undefined}>
       {pick?.kind === "contributor" && <ContributorPlayer v={pick.video} label={m.label} teamName={teamName(pick.video.team)} />}
-      {d && <AddArea m={m} me={d.me ?? null} own={d.own ?? []} signedIn={!!user} firstPlays={!!m.video} />}
+      {d && <AddArea m={m} me={d.me ?? null} own={d.own ?? []} signedIn={!!user} firstPlays={!!m.video} overFirst={!!d.video?.overFirst} />}
     </section>
   );
 }
 
 const BOX = "rounded-xl border border-line bg-card p-4";
 
-function AddArea({ m, me, own, signedIn, firstPlays }: { m: MatchView; me: MyContributorStatus | null; own: { id: number; shown: boolean; tier: string; team: number | null; name: string }[]; signedIn: boolean; firstPlays: boolean }) {
+function AddArea({ m, me, own, signedIn, firstPlays, overFirst }: { m: MatchView; me: MyContributorStatus | null; own: { id: number; shown: boolean; tier: string; team: number | null; name: string }[]; signedIn: boolean; firstPlays: boolean; overFirst: boolean }) {
   const openSignIn = useOpenSignIn();
   const { ensure } = useAccountSetup();
   if (!signedIn || !me) {
@@ -54,7 +54,7 @@ function AddArea({ m, me, own, signedIn, firstPlays }: { m: MatchView; me: MyCon
   const teams = me.teams;
   const mineLines = own.length > 0 && (
     <ul className="space-y-1 text-xs text-text-muted" data-own-videos>
-      {own.map((o) => <li key={o.id}>Your video: {tierLabel({ tier: o.tier as "public", team: o.team }, teams.find((t) => t.number === o.team)?.name)}{o.shown ? "" : firstPlays ? " · not playing: FIRST's official video plays first" : " · not playing: this match already has a video (the site owner can swap them)"}</li>)}
+      {own.map((o) => <li key={o.id}>Your video: {tierLabel({ tier: o.tier as "public", team: o.team }, teams.find((t) => t.number === o.team)?.name)}{o.shown ? "" : firstPlays && !overFirst ? " · not playing: FIRST's official video plays first" : " · not playing: this match already has a video (the site owner can swap them)"}</li>)}
     </ul>
   );
   if (!me.ready) {
