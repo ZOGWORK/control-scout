@@ -26,7 +26,7 @@ A team number nobody has, asked about, gets the closest real team numbers instea
 
 ### Fixed
 - Search: a team number no team has, followed by what was asked of it ("<number> auto"), lists the closest team numbers, as the number alone does. It offers the same question with the closest one as "Did you mean". Before, nothing was found.
-- Search: a comparison where one side is a number no team has, typed with its own words before the "vs" ("<number> opr vs 4215 opr over time"), answers the other team's question and says the number is no team, as it already did when the number came right before "vs". The missing side's words are added once. ([#PR](https://github.com/ZOGWORK/control-scout/pull/PR))
+- Search: a comparison where one side is a number no team has, typed with its own words before the "vs" ("<number> opr vs 4215 opr over time"), answers the other team's question and says the number is no team, as it already did when the number came right before "vs". The missing side's words are added once. ([#1372](https://github.com/ZOGWORK/control-scout/pull/1372))
 
 ## 5.5.1 — 2026-11-11
 
