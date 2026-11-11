@@ -21,11 +21,12 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { m } from "../motion";
 import { X } from "lucide-react";
 import { Button } from "../ui/button";
+import { toast } from "../ui/sonner";
 import { cn } from "../cn";
 import { useConsent } from "../../lib/consent";
 import { usePersonal } from "../../lib/personal";
 import { claimFirstRun, releaseFirstRun, useFirstRunHolder } from "../../lib/firstRun";
-import { coversTour, endTour, findTarget, highlightsQuery, isAutomated, isShown, isTourPage, knowsTheApp, predictAction, readTour, rememberTourPage, rereadTour, resolveSteps, samePage, saveTour, searchHref, stepMode, tourDemo, tourKind, tourOver, tourTeam, TOUR_ASK, TOUR_CHANGE, TOUR_KEY, TOUR_STEPS, type TourRecord, type TourStep } from "../../lib/tour";
+import { coversTour, endTour, findTarget, highlightsQuery, isAutomated, isShown, isTourPage, knowsTheApp, predictAction, readTour, rememberTourPage, rereadTour, resolveSteps, samePage, saveTour, searchHref, stepMode, TRACKED_TOAST_ID, tourDemo, tourKind, tourOver, tourTeam, TOUR_ASK, TOUR_CHANGE, TOUR_KEY, TOUR_STEPS, type TourRecord, type TourStep } from "../../lib/tour";
 
 /** After the page is idle, wait this long before opening (the page settles; no flash on a bounce). */
 export const TOUR_DELAY_MS = 900;
@@ -184,6 +185,9 @@ export function FirstRunTour() {
     const r = readTour();
     if (!r || r.status !== "paused" || n < 0 || n >= r.steps.length) return;
     cameBack.current = n < r.step;
+    // Leaving the Track step (by itself, Next, Back or the keys): the page's "Tracking …" note would sit on the
+    // next card (both at the bottom on a phone), and the tour has just shown the change, so that note goes.
+    if (r.steps[r.step] === "save" && n !== r.step) toast.dismiss(TRACKED_TOAST_ID);
     const there = !TOUR_STEPS[r.steps[n]!].home || samePage(pathRef.current, r.origin);
     // Moving on in place: the card stays up (no settle); else the next page is looked at once it loads.
     if (there) shownFor.current = `${pageRef.current}|${stepMode(r.steps[n]!, pathRef.current, queryRef.current)}#${n}`;

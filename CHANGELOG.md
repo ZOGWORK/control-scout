@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.4.7 — 2026-11-11
+## 5.4.8 — 2026-11-11
 
 Search answers three more questions it missed: a game's best score "ever", the official world record, and a team's Worlds years.
 
@@ -28,6 +28,18 @@ Search answers three more questions it missed: a game's best score "ever", the o
 - "Ever" beside a season named ("best decode score ever") was left unread, so the question found nothing. It now means that season's whole run, the same as without it. "First ever" stays a first. (`readTime`, `server/api/query/time.ts`; failed search #1351)
 - "Official" in a record question ("decode official world record") was read as a team's name. It now only says what a record is, from official events. (`FRAME`, `server/api/searchHighScores.ts`; failed search #1339)
 - "Worlds years" (and "states years") after a team ("Don't Blink's Worlds years") is now that team's appearances. (`parseQuestion`, `server/api/searchQuestions.ts`; failed search #1342) (#1353)
+
+## 5.4.7 — 2026-11-11
+
+The tour's last card is no longer hidden behind the "Tracking" note on phones.
+
+### Highlights
+- [fixes] After tapping Track in the tour, its next card shows straight away
+- [fixes] The "Tracking …" note no longer covers the tour on a phone
+- [teams] Tracking a team outside the tour still shows its note as before
+
+### Fixed
+- When the tour moves on from the Track step, it clears the page's "Tracking …" toast, which sat over the tour's docked card at the bottom of a phone screen for several seconds (seen in the live acceptance run at 390 px). (#1355)
 
 ## 5.4.6 — 2026-11-11
 
