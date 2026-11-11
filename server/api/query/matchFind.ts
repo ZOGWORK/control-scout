@@ -203,7 +203,7 @@ export async function matchFindAnswer(f: MatchFind): Promise<StatAnswer> {
   // A score said outright ("<team> 226 point match"): the matches with it, titled by it, each row its own score.
   const exact = f.cond?.op === "=" ? f.cond.n : null;
   if (exact != null) {
-    rule = `a match with a ${exact}-point score is one where either alliance's final score, penalties included, was ${exact}; the highest-scoring of them first`;
+    rule = `a match with a ${exact}-point score is one where either alliance's final score, penalties included, was ${exact}; the highest-scoring of them first.`;
     show = () => `${exact} points`;
     column = "Score";
   }

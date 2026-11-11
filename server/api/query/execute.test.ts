@@ -741,6 +741,8 @@ describe("a team's match by its score", () => {
       expect(s.title, q).toBe("120-point match for Hypnotic Robotics (4215), 2025–26");
       expect(s.headline, q).toMatchObject({ value: "120 points", label: expect.stringMatching(/^Q2 at /) });
       expect(s.blocks, q).toEqual([]);
+      // How it was counted, in whole sentences.
+      expect(s.definition, q).toMatch(/was 120; the highest-scoring of them first\. Only played matches /);
     }
     expect((await stat("hypnotic robotics 150 point match")).headline?.label).toMatch(/^Q1 at /);
     // No match with the score: said so.
