@@ -72,3 +72,45 @@ describe("award-at-event answer", () => {
     expect(c.querySelector("[data-none]")).toBeNull();
   });
 });
+
+describe("an alliance award (Loopy on #1350)", () => {
+  // The server's lines are the alliance's teams; FIRST files the Leadership Award's finalists under type Finalist too.
+  const finalist: SearchCard = {
+    kind: "event-awards", title: "Finalist Alliance Award · New Jersey Championship · 2025–26", award: "Finalist",
+    lines: [
+      { text: "20265 Heart of RoBots", detail: "Finalist Alliance - Captain", results: [], href: "/teams/20265" },
+      { text: "14270 Quantum Robotics", detail: "Finalist Alliance - 1st Team Selected", results: [], href: "/teams/14270" },
+    ],
+    event: { season: 2025, code: "USNJCMP", name: "New Jersey Championship" },
+    awards: [
+      { type: "Finalist", placement: 1, team: 6980, teamName: "Bad Wolf", name: "FIRST Leadership Award Finalists" },
+      { type: "Finalist", placement: 1, team: 20265, teamName: "Heart of RoBots", name: "Finalist Alliance - Captain" },
+      { type: "Finalist", placement: 2, team: 14270, teamName: "Quantum Robotics", name: "Finalist Alliance - 1st Team Selected" },
+      { type: "Think", placement: 1, team: 4215, teamName: "Hypnotic Robotics", name: "Think Award" },
+    ],
+  };
+  it("draws the alliance's teams with their roles, never a podium of places", () => {
+    const c = draw(finalist);
+    expect(c.querySelector("[data-podium]")).toBeNull();
+    const roster = c.querySelector("[data-lines]")!.textContent!;
+    expect(roster).toContain("20265 Heart of RoBots");
+    expect(roster).toContain("Finalist Alliance - 1st Team Selected");
+    expect(roster).not.toContain("Bad Wolf");
+  });
+  it("lists the event's other awards without the roster's teams again", () => {
+    const c = draw(finalist);
+    const rest = [...c.querySelectorAll("[data-all-awards] [data-award]")].map((x) => x.textContent);
+    expect(c.querySelector("[data-all-awards] h3")!.textContent).toBe("Other awards at this event · 2");
+    expect(rest.join(" ")).toContain("Leadership");
+    expect(rest.join(" ")).not.toContain("Heart of RoBots");
+  });
+  it("an alliance stored with no award names (an event synced with none) is listed once, as the roster", () => {
+    const unnamed: SearchCard = {
+      ...finalist, award: "Winner", lines: [{ text: "20265 Heart of RoBots", results: [], href: "/teams/20265" }],
+      awards: [{ type: "Winner", placement: 1, team: 20265, teamName: "Heart of RoBots", name: null }, finalist.awards![3]],
+    };
+    const c = draw(unnamed);
+    expect(c.querySelector("[data-lines]")!.textContent).toContain("20265 Heart of RoBots");
+    expect(c.querySelector("[data-all-awards]")!.textContent).not.toContain("Heart of RoBots");
+  });
+});

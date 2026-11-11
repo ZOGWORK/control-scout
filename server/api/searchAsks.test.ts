@@ -632,3 +632,34 @@ describe("the season with none said: one question, one season, whichever reader 
     }
   });
 });
+
+describe("an alliance award at an event (Phase J: \"Who won the Finalist Award at USNJNEM2?\" read a 2019–20 event's winners)", () => {
+  beforeAll(async () => {
+    // A league meet this season (no awards), and an older event whose name the question's words come close to.
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2026, 'USNJNXM2', 'P1-5 AM Northeast League Meet', 'LeagueMeet', 'Ramsey', 'NJ', 'USA', '2026-11-07', '2026-11-07', 't'), (2019, 'NVFTCNF', 'North League Finals', 'LeagueTournament', 'Reno', 'NV', 'USA', '2020-02-01', '2020-02-01', 't')");
+    await run("INSERT INTO awards (season, code, type, placement, team, name) VALUES (2019, 'NVFTCNF', 'Winner', 1, 6980, 'Winning Alliance - Captain')");
+    // The championship's Finalist Alliance, filed with a FIRST Leadership Award finalist.
+    await run("INSERT INTO awards (season, code, type, placement, team, name) VALUES (?, 'USNJCMP', 'Finalist', 1, 20265, 'Finalist Alliance - Captain'), (?, 'USNJCMP', 'Finalist', 2, 14270, 'Finalist Alliance - 1st Team Selected'), (?, 'USNJCMP', 'Finalist', 1, 6980, 'FIRST Leadership Award Finalists')", [S, S, S]);
+    await rebuildSearch();
+  });
+  it("reads the Finalist and Winning Alliance as awards, and an award at an event never as an event's name", () => {
+    expect(readAsk("who won the finalist award at USNJNXM2")).toMatchObject({ kind: "award", award: "Finalist" });
+    expect(readAsk("who won the winning alliance award at new jersey championship")).toMatchObject({ kind: "award", award: "Winner" });
+    expect(readAsk("who won the finalist alliance at new jersey championship")).toMatchObject({ kind: "award", award: "Finalist" });
+    expect(readAsk("who won the rookie award at new jersey championship")?.kind).not.toBe("event-won");
+  });
+  it("a league meet's award is that meet's, this season, said plainly to be none: league meets give no awards", async () => {
+    const a = await ask("Who won the Finalist Award at USNJNXM2?");
+    expect(a.hits[0]).toMatchObject({ ref: "2026:USNJNXM2", section: "awards" });
+    expect(a.understood?.label).toBe("Who won the Finalist Alliance Award at P1-5 AM Northeast League Meet (2026–27)");
+    expect(a.card?.none).toMatch(/is a league meet, and league meets give no awards/);
+  });
+  it("a Finalist Alliance lists its captain and picks, never the Leadership Award's finalists or a place", async () => {
+    const a = await ask("who won the finalist award at new jersey championship");
+    expect(a.card?.title).toBe(`Finalist Alliance Award · New Jersey Championship · ${seasonLabel(S)}`);
+    const lines = a.card?.lines ?? [];
+    expect(lines.map((l) => [l.text, l.detail])).toEqual(expect.arrayContaining([["20265 Heart of RoBots", "Finalist Alliance - Captain"], ["14270 Quantum Robotics", "Finalist Alliance - 1st Team Selected"]]));
+    expect(lines.some((l) => l.text.startsWith("6980 ") || /leadership/i.test(l.detail ?? ""))).toBe(false);
+    expect(lines.every((l) => !l.results?.length)).toBe(true);
+  });
+});
