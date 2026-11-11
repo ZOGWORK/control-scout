@@ -274,7 +274,9 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     if (k >= 0) at = k + 1;
     return { w, typed: k >= 0 ? typedWords[k] : w, at: k >= 0 ? k : at, used: false };
   });
-  const symbols = new Set<string>(cond ? ["cond"] : []);
+  // A score said outright ("a 226 point match") is its own symbol: only one team's match by its score reads it; a
+  // score to reach ("over 200") stays the match list's.
+  const symbols = new Set<string>(cond ? [cond.cond.op === "=" ? "cond:exact" : "cond"] : []);
   let rate = false;
   const p: Parsed = {
     q: raw, teams: [], event: null, place: null, time, level: null, finals: false, eventKind: null, alliance: null, worlds: false, states: false, award: null, agg: null,

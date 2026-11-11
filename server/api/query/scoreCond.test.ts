@@ -45,6 +45,9 @@ describe("a match search with a score to reach", () => {
     const p = await parse("numbered like a score 180 point match");
     expect(p).toMatchObject({ intent: "season-matches", scoreCond: { side: "either", op: "=", n: 180 }, complete: true });
     expect(p.teams.map((t) => t.number)).toEqual([180]);
+    // A score to reach with one team is not this question: left unread as before, never answered with the limit dropped.
+    const reach = await parse("numbered like a score matches where the losing alliance scored over 150");
+    expect(reach.intent === "season-matches" && reach.complete).toBe(false);
   });
 
   it("a match's own number is never dropped for the list", async () => {

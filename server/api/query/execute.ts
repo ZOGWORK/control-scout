@@ -275,7 +275,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // OPR there), which search's event readers give: the plain list is for a season, a window or a place.
   if (intent === "season-matches" && (p.worlds || p.states)) return null;
   // A team's match by its score ("<team> 226 point match") is the match finder's, below.
-  if (p.teams.length === 1 && TEAM_INTENTS.has(intent) && !(intent === "season-matches" && p.scoreCond?.op === "=")) {
+  if (p.teams.length === 1 && TEAM_INTENTS.has(intent) && !(intent === "season-matches" && p.scoreCond)) {
     // An award with an answer of its own: Inspire (its places) and Finalist finishes. The first or latest Finalist
     // award is the award list's, filtered to Finalist, which takes the pick (Finalist finishes only counts them).
     const pickSaid = p.agg === "first" || p.agg === "last";
