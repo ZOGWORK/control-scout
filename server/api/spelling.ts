@@ -431,6 +431,31 @@ const naming = (a: SearchAnswer, w: string) => a.hits.slice(0, 10).filter((h) =>
  *  word (the corrected reading says what was asked). Else `a`, with the fix offered (`didYouMean` alone) when it is
  *  search's own word and both found near matches alike. An answer that reads the query directly is never second-guessed. */
 export async function spelled(typed: string, a: SearchAnswer, run: (q: string) => Promise<SearchAnswer>): Promise<SearchAnswer> {
+  const s = await spelledFix(typed, a, run);
+  if (strength(a) > 1 || strength(s) > 1 || s.didYouMean) return s;
+  // Still nothing, with a team named by its name and words search reads nothing in ("pirate squad and ita"): read as
+  // the team's number with those words ("21379 and ita"), its page and what search can answer about it, as the number
+  // typed would be. Taken only when that answers better.
+  const asNumber = await namedAsNumbers(typed);
+  if (!asNumber) return s;
+  const b = await run(asNumber);
+  return strength(b) > strength(s) ? carryOutcome(b, { ...b, q: a.q }) : s;
+}
+
+/** `typed` with each team the query parser read by its whole name, as typed, written as its number ("pirate squad and
+ *  ita": "21379 and ita"), or null when it read none. A shared name stays as typed, and a near miss of a name is the
+ *  spelling's correction to offer (nearNamed), never this. */
+export async function namedAsNumbers(typed: string): Promise<string | null> {
+  const [{ parseQuery }, { parseContext }] = await Promise.all([import("./query/parse.js"), import("./query/context.js")]);
+  const p = await parseQuery(typed, await parseContext());
+  const named = p.teams.filter((t) => t.via === "name" && !t.candidates);
+  if (!named.length) return null;
+  const at = (words: string) => new RegExp(words.split(/\s+/).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("[^\\p{L}\\p{N}]+"), "iu");
+  const out = named.reduce((q, t) => q.replace(at(t.typed), String(t.number)), typed);
+  return out !== typed ? out : null;
+}
+
+async function spelledFix(typed: string, a: SearchAnswer, run: (q: string) => Promise<SearchAnswer>): Promise<SearchAnswer> {
   const was = strength(a);
   if (was >= 4) return a;
   // A team number typed wrong ("42-5", "4z15"): the real team numbers one key away.

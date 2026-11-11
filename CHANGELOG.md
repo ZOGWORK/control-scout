@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.5.3 — 2026-11-11
+
+A team named by its name, followed by words search can't read, opens on that team instead of nothing.
+
+### Highlights
+- [fixes] A team's name with unread words now finds the team
+- [teams] Its page and the questions search can answer come first
+- [fixes] Spelling slips in a name still offer the correction
+
+### Fixed
+- Search: a team's whole name followed by words search reads nothing in ("<team name> and <words>") found nothing, though the team's number with the same words opens on the team. It is now read the same way: the team, with the note that the rest can't be answered yet and the questions that can be. A name typed nearly right is still offered as a correction first, and a name shared by several teams still asks which one. ([#1373](https://github.com/ZOGWORK/control-scout/pull/1373))
+
 ## 5.5.2 — 2026-11-11
 
 Best finish now judges a league meet the way the team page shows it: by the team's own rank at that meet.
