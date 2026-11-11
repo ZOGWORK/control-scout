@@ -25,7 +25,7 @@ A search answered by a card alone no longer tells search engines and link previe
 - [share] A shared record search previews its top score
 
 ### Fixed
-- Search: a search page's description (its meta and og:description, what search engines and link previews show) summarises its answer when it has one: a card's title and first record or its plain "none" line, a stat's title and headline, a yes-or-no answer first. It is cut at a word near 160 characters. "decode official world record" previews as "Highest official scores in 2025–26 (DECODE): 574 points: M14 at FIRST Championship …" instead of "No FTC team, event or match matches". A page of app links alone names them. "No FTC team, event or match matches …" is said only when nothing was found. ([#PR](https://github.com/ZOGWORK/control-scout/pull/PR))
+- Search: a search page's description (its meta and og:description, what search engines and link previews show) summarises its answer when it has one: a card's title and first record or its plain "none" line, a stat's title and headline, a yes-or-no answer first. It is cut at a word near 160 characters. "decode official world record" previews as "Highest official scores in 2025–26 (DECODE): 574 points: M14 at FIRST Championship …" instead of "No FTC team, event or match matches". A page of app links alone names them. "No FTC team, event or match matches …" is said only when nothing was found. ([#1370](https://github.com/ZOGWORK/control-scout/pull/1370))
 
 ## 5.5.0 — 2026-11-11
 
