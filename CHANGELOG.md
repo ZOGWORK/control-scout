@@ -17,15 +17,22 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 5.4.9 — 2026-11-11
 
-Search answers "official" record questions with official records only.
+Search answers read more clearly: winners are the big line, follow-up questions sit beside the results, and Worlds' video opens on the winning match.
 
 ### Highlights
-- [fixes] "Official world record" leads with a score that counts as a record
-- [fixes] Asking for official scores leaves out unofficial ones
-- [fixes] The card's title says "official" when you asked for it
+- [fixes] "Who won" shows the winning teams big, "Champions" small
+- [fixes] People also ask sits right of the results on a wide screen
+- [fixes] A comparison's one action is Compare side by side
+- [fixes] Worlds winners' video starts at the deciding final
+
+### Changed
+- A winners answer names its teams as the headline: large team chips, with "Champions" (or "Alliance 1") as a small label above them, instead of the word in large type. (`Headline`, `src/components/search/page/StatAnswer.tsx`)
+- People also ask moves to the right column on wide screens (results keep the left) and comes after the results on a phone. (`src/pages/SearchPage.tsx`)
+- A two-team comparison's card offers Compare side by side as its one primary action; Open in Predict is gone from it. (`src/components/search/page/CompareCard.tsx`)
 
 ### Fixed
-- "decode official world record" led with two Carolinas Premier Event scores marked "Not an official record". When a record or top-scores question says "official", search now lists only matches that are official records, read from the one list of unofficial matches (`officialOnlySql`, `server/data/unofficialRecords.ts`), for any season or game. The title says so ("Highest official scores", "Highest-scoring official matches"). Without "official", the list is unchanged: every score as played, unofficial ones marked. (`searchHighScores.ts`, `answers/families/topMatches.ts`, `query/execute.ts`; failed search #1339) (#1357)
+- The winners answer links the deciding final, so its video plays that match instead of the whole event stream from its start. (`server/api/answers/families/winners.ts`)
+- An award asked about ("Innovate award at …") offers highlights and related searches about that award's winner, not the first team in the event's full award list. (`answerTeam`, `server/api/answers/followUps.ts`) (#1358)
 
 ## 5.4.8 — 2026-11-11
 
