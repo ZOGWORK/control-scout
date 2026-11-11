@@ -25,7 +25,7 @@ Match boxes in search show penalties calmly: no more red tile.
 - [fixes] Hover the tile's name to read it in full
 
 ### Changed
-- Search: in every list of matches (a season's top scores like "highest score decode", a team's best and latest matches, two teams' meetings), the "Pen given" tile is a neutral tile with a small blue info icon instead of a red one. Auto, TeleOp and Endgame keep their colours, and alliance chips keep the alliance colours. (#PRNUM)
+- Search: in every list of matches (a season's top scores like "highest score decode", a team's best and latest matches, two teams' meetings), the "Pen given" tile is a neutral tile with a small blue info icon instead of a red one. Auto, TeleOp and Endgame keep their colours, and alliance chips keep the alliance colours. (#1356)
 
 ## 5.4.8 — 2026-11-11
 
