@@ -42,5 +42,15 @@ function subscribe(cb: () => void) {
   return () => { window.removeEventListener(WELCOME_CHANGE, cb); window.removeEventListener("storage", onStorage); };
 }
 
+/**
+ * Signed in, the welcome card waits for this device's first sync to work (until then an empty state isn't proof of
+ * a new visitor), so a sync that failed or can't run means it won't come. Anything that waits for the card (the
+ * install nudge) waits only while this is true: still loading, or it can still come.
+ */
+export function welcomeMayCome(a: { providers: unknown; user: unknown; sync: string; syncReady: boolean }): boolean {
+  if (a.providers === null || !a.user) return true;
+  return a.syncReady || a.sync === "syncing";
+}
+
 /** welcomeSeen(), as React state: follows a close here, a reset, or another tab. */
 export const useWelcomeSeen = () => useSyncExternalStore(subscribe, welcomeSeen, () => true);

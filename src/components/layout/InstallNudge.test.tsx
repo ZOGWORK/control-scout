@@ -373,6 +373,26 @@ describe("Add-to-home-screen nudge: the welcome card (or a tour asked for) goes 
     expect(nudge()).not.toBeNull();
   });
 
+  it("signed in, a first sync that failed: the welcome card can't come, so the nudge doesn't wait for it", async () => {
+    resetTour();
+    resetWelcome();
+    personal.current = { state: EMPTY_STATE, user: { id: 1 }, providers: { email: true }, sync: "error", syncReady: false } as typeof personal.current;
+    mount("/teams/18360");
+    offerInstall();
+    await settle();
+    expect(nudge()).not.toBeNull();
+  });
+
+  it("signed in, the first sync still running: the nudge waits (the welcome card may still come)", async () => {
+    resetTour();
+    resetWelcome();
+    personal.current = { state: EMPTY_STATE, user: { id: 1 }, providers: { email: true }, sync: "syncing", syncReady: false } as typeof personal.current;
+    mount("/teams/18360");
+    offerInstall();
+    await settle(10_000);
+    expect(nudge()).toBeNull();
+  });
+
   it("shows on landing pages to someone who knows the app (no welcome card comes)", async () => {
     resetTour();
     resetWelcome();
