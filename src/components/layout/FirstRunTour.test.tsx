@@ -10,6 +10,9 @@ import { coversTour, endTour, highlightsQuery, predictAction, rememberTourPage, 
 import { ConsentBanner } from "./ConsentBanner";
 import { FirstRunTour } from "./FirstRunTour";
 import { toast } from "../ui/sonner";
+import { resetFlags } from "../../lib/flags";
+import { DEFAULT_FLAGS } from "../../shared/flags";
+import { replayTour, saveTour } from "../../lib/tour";
 
 const personal = vi.hoisted(() => ({
   current: { state: null as unknown as PersonalState, user: null as unknown, providers: { email: true, google: false } as unknown, sync: "local", syncReady: false },
@@ -48,7 +51,9 @@ let where = "";
 function Nav() { go = useNavigate(); const l = useLocation(); where = l.pathname + l.search; return null; }
 
 type MountOpts = { path?: string; team?: boolean; search?: boolean; matches?: boolean; banner?: boolean };
-function mount(opts: MountOpts = {}) { return render(tree(opts)); }
+/** The visitor asked for the tour (Take the tour) on this page: it never starts by itself. */
+function asked(path: string) { if (!readTour()) saveTour({ status: "paused", step: 0, origin: path, steps: [] }); }
+function mount(opts: MountOpts = {}) { asked(opts.path ?? "/teams/18360"); return render(tree(opts)); }
 function tree(opts: MountOpts) {
   return (
     <MemoryRouter initialEntries={[opts.path ?? "/teams/18360"]}>
@@ -78,6 +83,8 @@ beforeEach(() => {
   personal.current = { state: EMPTY_STATE, user: null, providers: { email: true, google: false }, sync: "local", syncReady: false };
   Element.prototype.getBoundingClientRect = laidOut;
   Element.prototype.scrollIntoView = vi.fn();
+  // The owner's switch is on in these tests (off by default: its own tests below).
+  resetFlags({ ...DEFAULT_FLAGS, onboardingTour: true }, true);
 });
 afterEach(() => {
   cleanup();
@@ -184,7 +191,7 @@ describe("who sees it", () => {
     mount();
     await settle();
     expect(card()).toBeNull();
-    expect(readTour()).toBeNull(); // nothing recorded: a real visit later still gets it
+    expect(readTour()?.steps).toEqual([]); // never started: a real visit later still gets it
   });
 
   it("shows to an automated browser that opted in (npm run shots -- --tour)", async () => {
@@ -194,16 +201,24 @@ describe("who sees it", () => {
     await opened();
   });
 
-  it("stays away from people who clearly know the app", async () => {
-    personal.current = { ...personal.current, state: { ...EMPTY_STATE, tracked: { teams: [18360], events: [] } } };
-    const a = mount();
+  it("never starts by itself, even for a first-time visitor: only when asked for (Take the tour)", async () => {
+    render(tree({}));
     await settle();
     expect(card()).toBeNull();
-    a.unmount();
-    personal.current = { ...personal.current, state: EMPTY_STATE, user: { id: 1, email: "a@b.c", displayName: null, createdAt: "", controlPoint: { member: true, teams: [], url: "", workspaces: [{ id: "w", name: "W", role: "member" }] } } };
+    expect(readTour()).toBeNull();
+  });
+
+  it("the owner's switch off (the default): no tour, not even one asked for, and no Take the tour button", async () => {
+    resetFlags({ ...DEFAULT_FLAGS }, true);
+    expect(DEFAULT_FLAGS.onboardingTour).toBe(false);
     mount();
     await settle();
     expect(card()).toBeNull();
+    render(<MemoryRouter><TakeTour /></MemoryRouter>);
+    expect(screen.queryByRole("button", { name: "Take the tour" })).toBeNull();
+    // Turned on: the tour asked for shows.
+    act(() => resetFlags({ ...DEFAULT_FLAGS, onboardingTour: true }, true));
+    await opened();
   });
 
   it("signed in: decides only once the account's data has synced here (a failed sync isn't enough)", async () => {
@@ -225,7 +240,7 @@ describe("who sees it", () => {
     act(() => go("/"));
     await settle();
     expect(card()).toBeNull();
-    act(() => resetTour());
+    act(() => { resetTour(); replayTour(); });
     await opened();
   });
 
@@ -288,6 +303,7 @@ describe("steps adapt to the page", () => {
   });
 
   it("a team page's parts that render late (still loading past the wait) are still in its tour", async () => {
+    asked("/teams/18360");
     const view = render(
       <MemoryRouter initialEntries={["/teams/18360"]}><Nav /><TeamPage team={false} loading /><FirstRunTour /></MemoryRouter>,
     );
@@ -310,7 +326,7 @@ describe("steps adapt to the page", () => {
     const a = mount({ search: false });
     await settle();
     expect(card()).toBeNull();
-    expect(readTour()).toBeNull();
+    expect(readTour()?.steps).toEqual([]);
     a.unmount();
     mount({ path: "/" });
     await opened();

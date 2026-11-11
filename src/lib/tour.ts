@@ -4,9 +4,9 @@
 // or any other page two. Its record, `cs-tour` (Tier 3, device-only;
 // docs/settings.md), is "paused" while it runs (leaving the page, closing the
 // tab or a reload all keep it there, at the same step) and only an explicit
-// Skip or the last step's action ends it for good. Not synced: someone signed
-// in on a second device who has used the app has tracked teams, a team of
-// their own or a workspace, and `knowsTheApp` already keeps the tour away.
+// Skip or the last step's action ends it for good. It starts only when asked
+// for (Take the tour, while the owner's onboardingTour switch is on), so the
+// record isn't synced: there's nothing to remember across devices.
 import type { PersonalState } from "../shared/personal";
 import { predictHref } from "../shared/predictUrl";
 import type { AccountUser } from "./personal";
@@ -125,8 +125,8 @@ export function tourDemo(): boolean {
 
 /**
  * Someone who clearly knows the app already: a team of their own, tracked teams or events,
- * a shortlist, or (signed in) a Control Point workspace. Keeps a tour from starting, never
- * stops one that's running (tracking a team is one of its steps).
+ * a shortlist, or (signed in) a Control Point workspace. Keeps the welcome card away (and so
+ * the install nudge's wait for it); never stops a tour that's running (tracking a team is one of its steps).
  */
 export function knowsTheApp(state: Pick<PersonalState, "myTeam" | "tracked" | "bookmarks">, user: AccountUser | null): boolean {
   if (state.myTeam != null || state.tracked.teams.length > 0 || state.tracked.events.length > 0 || state.bookmarks.length > 0) return true;

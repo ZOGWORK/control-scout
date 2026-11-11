@@ -849,6 +849,54 @@ A workspace's live entries on a team, rolled up per season (v1.6). Rules in `src
   Signed out, no workspace, a refusal or an error: nothing is shown. No entries: "No scouting on N in
   <workspace> yet" with a link to scout the team there.
 
+## Continue with Control Scout (on Control Point)
+
+The reverse of "Continue with Control Point": someone with a Control Scout
+account signs up for, or signs in to, Control Point with one click.
+
+**Control Point side.** `GET /api/auth/control-scout?intent=signup|login`
+binds a state to the browser (Control Point's usual `cp_oauth_state` cookie)
+and redirects to Scout's `/api/auth/control-point/vouch?state=…`. Its new
+internal route mints the proof:
+
+| route | body | result |
+|---|---|---|
+| `POST /internal/signin/codes` | `{ email, verifiedBy, state, displayName?, myTeam? }` | `200 { code, expiresAt }`: a single-use code (`csv_…`, 2-minute TTL, hashed at rest) bound to `state`. The shared account is upserted as by `resolve`. `400 { error: "invalid_email" \| "invalid_verified_by" \| "invalid_state" \| "invalid_display_name" \| "invalid_team" }`. |
+
+`verifiedBy` is `scout-email-code`, `google`, `discord`, `github` or
+`control-point`; `myTeam` is the FTC team the person follows in Scout
+(1 to 999999). Control Point redeems the code itself at
+`/api/auth/control-scout/callback?code=…&state=…`, checks the state against
+the browser's cookie, and signs the person in by that email:
+
+- **one** active workspace: signed straight in;
+- **several**: a picker (the pick is held in an HttpOnly cookie, never a URL);
+- **none**: Control Point's usual team step (create a workspace, join with a
+  code, or ask to join), with the followed team filled in.
+
+**Scout side** (`server/auth/routes.ts`, `vouchProofFor` and
+`issueSigninCode` in `server/auth/controlPoint.ts`):
+
+- `GET /api/auth/control-point/vouch?state=…`. Off (503) without the
+  `CONTROL_POINT_*` settings. A state that isn't 16 to 128 of `[A-Za-z0-9_-]`
+  goes to Control Point's `/?oauth_error=invalid_state`.
+- **Signed in:** Scout vouches only for an address that was proven: an
+  email-code identity for that exact address, or a link to a shared account
+  with that address (links are only made from a freshly proven email). Then it
+  calls `POST /internal/signin/codes` (3 s timeout) and redirects to Control
+  Point's callback with `code` and `state`. Nothing proven:
+  `?error=unverified&state=…`. Control Point unreachable:
+  `?error=unavailable&state=…`. It only ever redirects to
+  `CONTROL_POINT_PUBLIC_URL`.
+- **Signed out:** the state goes into the `cs_cp_vouch` cookie
+  (`path=/api/auth/control-point`, 10 min) and the visitor goes to
+  `/settings?section=profile&for=control-point`, which says they're signing in
+  to continue to Control Point and hides "Continue with Control Point" (that
+  would go round in a circle). Once signed in by any method, the app goes back
+  to `/api/auth/control-point/vouch` (`src/lib/cpVouch.ts`; remembered for the
+  tab, since Google's sign-in returns to another page), which reads the state
+  from the cookie.
+
 ## Not in scope (yet)
 
 - Signing out of Control Point doesn't end Scout sessions (Scout sessions last

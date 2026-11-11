@@ -23,6 +23,7 @@ import { Input } from "../ui/basic";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/overlay";
 import { toast } from "../ui/sonner";
 import { cn } from "../cn";
+import { clearVouch, noteVouch, VOUCH_URL, vouchPending } from "../../lib/cpVouch";
 import { MergeScreen, ProviderButtons, useShortlistMerge } from "./AccountMerge";
 
 const SYNC_LABEL: Record<string, string> = { synced: "Synced", syncing: "Syncing…", offline: "Offline: will sync", error: "Sync error: will retry", local: "This device only" };
@@ -123,6 +124,13 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     const q = new URLSearchParams(loc.search); q.delete("signin");
     nav({ pathname: loc.pathname, search: q.toString() ? `?${q}` : "" }, { replace: true });
   }, [back, user]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Signing in to continue to Control Point ("Continue with Control Scout" there): once signed in, go back.
+  useEffect(() => { noteVouch(loc.search); }, [loc.search]);
+  useEffect(() => {
+    if (!user || !vouchPending(loc.search)) return;
+    clearVouch();
+    window.location.assign(VOUCH_URL);
+  }, [user, loc.search]);
   const endMerge = () => { setMerging(null); setAdded(null); };
   return <AccountPanelContext.Provider value={{ open, setOpen, flow, setFlow, merging, added, endMerge }}>{children}</AccountPanelContext.Provider>;
 }
@@ -243,6 +251,8 @@ function SignInPanel({ flow, setFlow }: { flow: EmailFlow; setFlow: Dispatch<Set
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Signing in to continue to Control Point: "Continue with Control Point" would only go round in a circle.
+  const vouching = vouchPending(useLocation().search);
   if (!providers) return <div className="skeleton h-32 rounded-lg" />;
   const via = providers.via ?? [];
   const any = providers.email || providers.google || providers.controlPoint || via.length > 0;
@@ -266,7 +276,9 @@ function SignInPanel({ flow, setFlow }: { flow: EmailFlow; setFlow: Dispatch<Set
     <div className="space-y-3">
       <div>
         <p className="font-display text-base font-semibold">Sign in</p>
-        <p className="mt-0.5 text-xs text-muted-foreground">Optional. Keeps my team, tracked teams, shortlist and scouting notes on all your devices. One account with Control Point.</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">{vouching
+          ? "Sign in to Control Scout, then you'll go straight back to Control Point, signed in there too."
+          : "Optional. Keeps my team, tracked teams, shortlist and scouting notes on all your devices. One account with Control Point."}</p>
       </div>
       {!any ? <p className="text-sm text-muted-foreground">Sign-in isn't set up on this server. Everything still works on this device.</p> : (
         <>
@@ -290,7 +302,7 @@ function SignInPanel({ flow, setFlow }: { flow: EmailFlow; setFlow: Dispatch<Set
             <div className="space-y-2">
               {providers.email && <p className="text-center text-[11px] uppercase tracking-wide text-muted-foreground">or</p>}
               <ProviderButtons via={via} />
-              {providers.controlPoint && <Button variant="secondary" className="w-full" asChild><a href="/api/auth/control-point/start"><KeyRound /> Continue with Control Point</a></Button>}
+              {providers.controlPoint && !vouching && <Button variant="secondary" className="w-full" asChild><a href="/api/auth/control-point/start"><KeyRound /> Continue with Control Point</a></Button>}
               {providers.google && !via.includes("google") && <Button variant="secondary" className="w-full" asChild><a href="/api/auth/google/start">Continue with Google</a></Button>}
             </div>
           )}

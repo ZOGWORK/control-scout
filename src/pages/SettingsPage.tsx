@@ -11,6 +11,7 @@ import { TakeTour } from "../components/layout/TakeTour";
 import { useEffect, useRef, useState, type ComponentType } from "react";
 import { smoothBehavior } from "../lib/pageScroll";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { vouchPending } from "../lib/cpVouch";
 import { AnimatePresence } from "motion/react";
 import { m } from "../components/motion";
 import {
@@ -23,6 +24,7 @@ import { useMeta, useTitle } from "../lib/meta";
 import { usePersonal, type AccountUser, type AuthProviders } from "../lib/personal";
 import { resetConsent, useConsent } from "../lib/consent";
 import { resetTour } from "../lib/tour";
+import { resetWelcome } from "../lib/welcome";
 import { resetInstall } from "../lib/installNudge";
 import { clearLocalScouting, localScoutEntries, SCOUT_CHANGED } from "../lib/scouting";
 import { clearRecentSearches } from "../components/search/discover";
@@ -184,6 +186,8 @@ function Profile({ signinFailed }: { signinFailed: boolean }) {
 const BENEFITS = ["My team and the teams and events you track", "Your shortlist and saved predictions", "Scouting notes and video links", "Your settings, on every device"];
 
 function SignIn({ providers, onSignedIn }: { providers: AuthProviders; onSignedIn: (u: AccountUser) => Promise<void> }) {
+  // Sent here by Control Point's "Continue with Control Scout": once signed in, the app goes back there (src/lib/cpVouch.ts).
+  const vouching = vouchPending(useLocation().search);
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [code, setCode] = useState("");
@@ -204,6 +208,12 @@ function SignIn({ providers, onSignedIn }: { providers: AuthProviders; onSignedI
   };
   return (
     <div>
+      {vouching && (
+        <div data-cp-vouch className="mb-6 max-sm:mb-4 rounded-xl border border-accent/40 bg-accent/[0.08] px-4 py-3 text-sm text-foreground">
+          <p className="font-medium">Sign in to continue to Control Point</p>
+          <p className="mt-0.5 text-muted-foreground">Control Point asked to sign you in with your Control Scout account. Sign in here and you'll go straight back, signed in there too.</p>
+        </div>
+      )}
       <div className="relative mb-8 max-sm:mb-5 overflow-hidden rounded-2xl border border-accent/30 bg-card p-6 max-sm:p-4">
         <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 size-56 rounded-full bg-accent opacity-15 blur-3xl" />
         <p className="relative font-display text-xl font-semibold text-foreground">Keep your scouting everywhere</p>
@@ -238,7 +248,7 @@ function SignIn({ providers, onSignedIn }: { providers: AuthProviders; onSignedI
               <Button variant="secondary" asChild><a href="/api/auth/google/start">Continue with Google</a></Button>
             </Row>
           )}
-          {providers.controlPoint && (
+          {providers.controlPoint && !vouching && (
             <Row label="Control Point" description="One account for both apps: use your Control Point sign-in, or sign in here with the same email and it's the same account.">
               <Button variant="secondary" asChild><a href="/api/auth/control-point/start"><KeyRound /> Continue with Control Point</a></Button>
             </Row>
@@ -614,7 +624,7 @@ function Privacy({ onOpen }: { onOpen: (id: SectionId) => void }) {
       </Group>
       <Group title="Remove data">
         <Row label="Clear all local data" description={user ? "Wipes this device. Your account data is untouched." : "Wipes everything Control Scout stored on this device."}>
-          <Button variant="outline" size="sm" onClick={() => { clearLocal(); clearLocalScouting(); try { localStorage.clear(); } catch { /* storage unavailable */ } resetConsent(); resetTour(); resetInstall(); clearRecentSearches(); toast.success("Local data cleared"); }}>Clear</Button>
+          <Button variant="outline" size="sm" onClick={() => { clearLocal(); clearLocalScouting(); try { localStorage.clear(); } catch { /* storage unavailable */ } resetConsent(); resetTour(); resetWelcome(); resetInstall(); clearRecentSearches(); toast.success("Local data cleared"); }}>Clear</Button>
         </Row>
         {user ? (
           <Row label="Delete account" description="Removes your account and everything synced to it: tracking, shortlist, scouting notes, video links. Recordings on this device are separate (Offline data).">
@@ -670,12 +680,16 @@ function About() {
   const meta = useMeta();
   // Error reports switched off by the owner: no bug report box (the contact form below still works).
   const reportsOn = useFlag("errorReporting");
+  // The step-by-step tour is the owner's to turn on (onboardingTour, off by default): no row for it while it's off.
+  const tourOn = useFlag("onboardingTour");
   return (
     <div>
       <Group title="This app">
-        <Row label="Take the tour" description="A short walk through search and the main buttons, on the page you were last on.">
-          <TakeTour />
-        </Row>
+        {tourOn && (
+          <Row label="Take the tour" description="A short walk through search and the main buttons, on the page you were last on.">
+            <TakeTour />
+          </Row>
+        )}
         <Row label="What's new" description={`Every release of Control Scout, newest first.${APP_RELEASE ? ` This is v${APP_RELEASE}.` : ""}`}>
           <Button variant="outline" size="sm" onClick={() => openWhatsNew()}><Megaphone /> What's new</Button>
         </Row>

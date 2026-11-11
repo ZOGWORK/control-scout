@@ -3,7 +3,7 @@
 // nothing is deleted; a workspace's own setting (workspace-scoped toggles) applies at once, with a toast. The
 // console itself is never behind any of these.
 import { useMemo, useState } from "react";
-import { ChartBarBig, ClipboardList, Coins, Dices, Dog, Download, Gavel, Globe, Luggage, MessageCircle, Power, PowerOff, Route, Search, Sparkles, Trophy, TrendingUp, Users, type LucideIcon, Swords } from "lucide-react";
+import { ChartBarBig, ClipboardList, Coins, Compass, Dices, Dog, Download, Gavel, Globe, Luggage, MessageCircle, Power, PowerOff, Route, Search, Sparkles, Trophy, TrendingUp, Users, type LucideIcon, Swords } from "lucide-react";
 import { Section } from "../page";
 import { Async } from "../states";
 import { Badge, Input } from "../ui/basic";
@@ -36,6 +36,7 @@ const LOOK: Partial<Record<Flag, { icon: LucideIcon; chip: string; edge: string 
   scheduleDifficulty: { icon: Dices, chip: "bg-rose-500/15 text-rose-500 dark:text-rose-300", edge: "border-l-rose-500" },
   rulesReference: { icon: Gavel, chip: "bg-orange-500/15 text-orange-500", edge: "border-l-orange-500" },
   dogTheme: { icon: Dog, chip: "bg-accent/15 text-accent-text", edge: "border-l-accent" },
+  onboardingTour: { icon: Compass, chip: "bg-info/15 text-info", edge: "border-l-info" },
 };
 
 /** How many workspaces the overrides list shows before asking for a search. */
