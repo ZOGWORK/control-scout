@@ -28,6 +28,9 @@ export interface Names {
   /** The one team whose name these words nearly spell ("the robcats": The Robocats): one letter off in a name of up
    *  to eight letters, two in a longer one, and no other name as close. Null when none is, or two are. */
   nearTeam(words: string): TeamName | null;
+  /** The teams of the one name several teams share that these words nearly spell, as nearTeam reads a near miss
+   *  ("copper roboics": two teams called Copper Robotics); none when no shared name is the nearest, or two names are. */
+  nearShared?(words: string): TeamName[];
   /** The place these words name, or null. */
   place(words: string, typed?: string): Place | null;
   /** The longest team name, in words (the parser looks no further). */
@@ -117,6 +120,27 @@ export function buildNames(teams: Row[], places: { city: string | null; state: s
   }
   const countries = new Map<string, string>();
   for (const p of [...teams, ...places]) if (p.country) countries.set(fold(p.country), p.country);
+  // The teams of the stored names these words nearly spell, the closest only ("the robcats": The Robocats): one letter
+  // off in a name of up to eight letters, two in a longer one, with the same first letter, as a near miss of a name
+  // starts as the name does. `shared`: only when every closest spelling is one same set of teams (a shared name).
+  const nearest = (w: string, shared = false): TeamName[] => {
+    const f = fold(w);
+    if (f.replace(/\s/g, "").length < 5 || byName.has(f)) return [];
+    const most = f.length <= 8 ? 1 : 2;
+    let best = most + 1, found: string[] = [];
+    for (let len = f.length - most; len <= f.length + most; len++) {
+      for (const k of byLength.get(len) ?? []) {
+        if (k[0] !== f[0]) continue;
+        const d = edits(f, k);
+        if (d > most) continue;
+        if (d < best) { best = d; found = [k]; } else if (d === best) found.push(k);
+      }
+    }
+    // Spellings that tie may be one team's ("a b c robotics" and "abc robotics"): one team is the answer, two never.
+    const sets = found.map((k) => (byName.get(k) ?? []).map((t) => t.number).sort((a, b) => a - b).join(" "));
+    if (shared && new Set(sets).size !== 1) return [];
+    return [...new Set(found.flatMap((k) => byName.get(k) ?? []))];
+  };
   return {
     team: (n) => byNumber.get(n),
     teamsNamed: (w) => byName.get(fold(w)) ?? [],
@@ -127,25 +151,14 @@ export function buildNames(teams: Row[], places: { city: string | null; state: s
       return byCore.get(f) ?? (plain !== f ? byName.get(plain) ?? byCore.get(plain) : undefined) ?? (f.includes(" ") ? byJoined.get(f.replace(/ /g, "")) : undefined) ?? [];
     },
     nearTeam(w) {
-      const f = fold(w);
-      if (f.replace(/\s/g, "").length < 5 || byName.has(f)) return null;
-      const most = f.length <= 8 ? 1 : 2;
-      let best = most + 1, found: string[] = [];
-      for (let len = f.length - most; len <= f.length + most; len++) {
-        for (const k of byLength.get(len) ?? []) {
-          // Same first letter, as a near-miss of a name starts as the name does.
-          if (k[0] !== f[0]) continue;
-          const d = edits(f, k);
-          if (d > most) continue;
-          if (d < best) { best = d; found = [k]; } else if (d === best) found.push(k);
-        }
-      }
-      // Spellings that tie may be one team's ("a b c robotics" and "abc robotics"): one team is the answer, two never.
-      const teams = [...new Set(found.flatMap((k) => byName.get(k) ?? []))];
+      const teams = nearest(w);
       return teams.length === 1 ? teams[0] : null;
     },
-    longest,
-    eventStem: (w) => stems.has(fold(w).slice(0, 3)),
+    nearShared(w) {
+      const teams = nearest(w, true);
+      return teams.length > 1 ? teams : [];
+    },
+    longest,    eventStem: (w) => stems.has(fold(w).slice(0, 3)),
     initialism: (w) => [...(initials.get(fold(w)) ?? [])],
     place(w, typed) {
       const f = fold(w);
