@@ -575,7 +575,7 @@ describe("real actions, never simulated", () => {
     const dismiss = vi.spyOn(toast, "dismiss");
     await waitFor(() => expect(stepId()).toBe("highlights"), { timeout: 3000 });
     // The page's "Tracking …" note goes, so it doesn't sit on the next card.
-    expect(dismiss).toHaveBeenCalled();
+    expect(dismiss).toHaveBeenCalledWith("cs-tracked");
     dismiss.mockRestore();
     key("ArrowLeft");
     expect(stepId()).toBe("save");

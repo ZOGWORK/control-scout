@@ -253,6 +253,9 @@ export function resolveSteps(pathname: string, root: ParentNode = document): Tou
   return ids.length >= 2 ? ids : BY_KIND.other;
 }
 
+/** The team page's "Tracking …" note: the tour clears it (only it) when it moves on from the Track step. */
+export const TRACKED_TOAST_ID = "cs-tracked";
+
 /** The question step 1 runs for someone who doesn't type their own: a real one, with no team in it. */
 export const TOUR_ASK = "who won decode";
 

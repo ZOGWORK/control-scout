@@ -1,6 +1,7 @@
 // Team profile — any team, any season. Control Point's Team Stats design
 // (hero, OPR cards with world rank, one trend chart, event history),
 // generalised from "my team" to every team.
+import { TRACKED_TOAST_ID } from "../lib/tour";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { recordWords } from "../shared/format";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -158,8 +159,9 @@ function Hero({ p, onSeason, fellBackFrom, asked = false }: { p: TeamProfile; on
   const track = () => {
     const on = !flags.tracked;
     flags.toggleTracked();
-    if (!on) { toast(`Stopped tracking ${t.number}`); return; }
+    if (!on) { toast(`Stopped tracking ${t.number}`, { id: TRACKED_TOAST_ID }); return; }
     toast.success(`Tracking ${t.number}`, {
+      id: TRACKED_TOAST_ID,
       description: `It's on My team under Tracked teams, comes first in search and in Predict's quick picks.${personal.settings.notify.trackedTeams ? " While Control Scout is open in a tab, you'll get an alert before its matches." : " Turn on alerts for tracked teams in Settings › Notifications to hear before its matches (while Control Scout is open in a tab)."}`,
       action: { label: workspaceUser ? "Followed team" : "My team", onClick: () => nav(FOLLOWED_TEAM_PATH) },
     });
