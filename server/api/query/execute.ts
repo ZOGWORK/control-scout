@@ -22,7 +22,7 @@ import { eventsNamed, heldInYear, highlightsAnswer, latestPlayed, recentWindow, 
 import { teamHighlights, type TeamHighlightScope } from "../answers/highlights.js";
 import { shortEvent } from "../answers/matchSet.js";
 import { CHAMPIONSHIP_TYPE, OFFICIAL_TYPES, STATES_TYPE } from "../answers/clauses.js";
-import { eventKindOf, matchFindAnswer, type MatchFind, type MatchMeasure } from "./matchFind.js";
+import { FROM as FIND_FROM, eventKindOf, matchFindAnswer, where as findWhere, type MatchFind, type MatchMeasure } from "./matchFind.js";
 import { seasonOfDate } from "./time.js";
 import { searchToday } from "../searchEvents.js";
 import { eventFor, forecastAt, teamEventOfType } from "./forecast.js";
@@ -499,14 +499,10 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     const playedIn = eventKeys?.length && year == null && !p.time ? await get<{ s: number | null }>(
       `SELECT MAX(m.season) s FROM matches m WHERE m.played = 1 AND (${eventKeys.map(() => "(m.season = ? AND m.code = ?)").join(" OR ")})`, eventKeys.flatMap((k) => [k.season, k.code])) : null;
     const eventSeason = events && (year != null || !p.time) ? (playedIn?.s != null ? Number(playedIn.s) : Math.max(...events.map((e) => e.season))) : null;
-    // A team's match by its score, no season said: the latest season the team played a match with that score.
-    const scoredIn = scored && !p.time ? await get<{ s: number | null }>(
-      "SELECT MAX(m.season) s FROM matches m JOIN match_teams x ON x.season = m.season AND x.code = m.code AND x.level = m.level AND x.series = m.series AND x.number = m.number WHERE x.team = ? AND x.on_field = 1 AND m.played = 1 AND (m.red_total = ? OR m.blue_total = ?)",
-      [p.teams[0].number, p.scoreCond!.n, p.scoreCond!.n]) : null;
     const plural = /\b(?:matches|games|scores|upsets|comebacks|blowouts|routs|mismatches|underdogs|wins|losses|predictions|misses)\b/.test(said);
     const f: MatchFind = {
       // The current season is the one today is in.
-      measure: FIND[intent] ?? "high", season: eventSeason ?? (scoredIn?.s != null ? Number(scoredIn.s) : null) ?? placeSeason(p, scope.season, opts), region: regionOf(p), level: p.level, finals: p.finals, kind,
+      measure: FIND[intent] ?? "high", season: eventSeason ?? placeSeason(p, scope.season, opts), region: regionOf(p), level: p.level, finals: p.finals, kind,
       ...(["metric:win", "metric:loss", "outcome:W", "outcome:L"].some((s) => p.symbols.includes(s)) ? { decided: true } : {}),
       ...(scope.window ? { window: scope.window } : {}), n: p.n ?? (plural ? 10 : 5), ...(plural || p.n != null ? { list: true } : {}),
       ...(teamFind ? { team: { number: p.teams[0].number, name: p.teams[0].name } } : {}), ...(p.over != null ? { over: p.over } : {}),
@@ -516,6 +512,13 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
         ...(events.some((e) => !(OFFICIAL_TYPES as readonly string[]).includes(e.type ?? "")) ? { named: true } : {}),
       } : {}),
     };
+    // A team's match by its score, no season said: the latest season, up to the current one, holding one the finder
+    // lists (its own filters: official events, the match type said, the place).
+    if (scored && !p.time && !f.window) {
+      const w = findWhere(f, true);
+      const latest = await get<{ s: number | null }>(`SELECT MAX(m.season) s ${FIND_FROM} WHERE ${w.sql}`, w.args);
+      if (latest?.s != null) f.season = Number(latest.s);
+    }
     const card = async (g: MatchFind): Promise<SearchAnswer> => {
       const stat = await matchFindAnswer(g);
       return { q: p.q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season: g.season }, ...(opts.full ? { stat } : {}),

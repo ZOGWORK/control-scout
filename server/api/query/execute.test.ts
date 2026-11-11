@@ -727,6 +727,12 @@ describe("an event's matches with a score to reach", () => {
 });
 
 describe("a team's match by its score", () => {
+  beforeAll(async () => {
+    // A later 120-point match at an off-season event: the finder never lists it, so it never picks the season.
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2027, 'USNJOFF', 'Summer Scrimmage', 'OffSeason', 'Town', 'NJ', 'USA', '2027-08-01', '2027-08-01', 't')");
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2027, 'USNJOFF', 'qual', 0, 1, 'Q1', '2027-08-01T10:00:00Z', 1, 120, 120, 60, 60, 't')");
+    await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2027, 'USNJOFF', 'qual', 0, 1, 4215, 'red', 1)");
+  });
   it("is that team's match with the score, the number never a team", async () => {
     // Hypnotic Robotics: 150–90 and 80–120; the 120 is the other alliance's, still that match's score.
     for (const q of ["hypnotic robotics 120 point match", "4215 120-point match"]) {
