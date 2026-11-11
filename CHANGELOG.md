@@ -28,7 +28,7 @@ The first-run tour shows instead of explains: it runs real searches and points a
 - The highlights step ("Watch a team's matches") runs a real search with a match video live, "Exodus highlights", and points at the video that comes back. Gone: "a search, not a tab", "no recording yet", "stats only" and the "then predict" pairing. (`TOUR_STEPS`, `src/lib/tour.ts`)
 - Predict has its own last step ("See who would win") on every tour but a team page's: it runs "4215 vs 6980 who wins" and points at the odds. (`src/lib/tour.ts`)
 - The event page's watch step is "Watch any match", in plain words, with no explanation of recordings. (`src/lib/tour.ts`)
-- Once a step's search answers, the tour spotlights the answer's part (the video, the odds) and follows it while the page finishes laying out. (`FirstRunTour`, `src/components/layout/FirstRunTour.tsx`) (#PRNUM)
+- Once a step's search answers, the tour spotlights the answer's part (the video, the odds) and follows it while the page finishes laying out. (`FirstRunTour`, `src/components/layout/FirstRunTour.tsx`) (#1365)
 
 ## 5.4.9 — 2026-11-11
 
