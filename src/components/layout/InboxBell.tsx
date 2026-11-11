@@ -8,7 +8,7 @@ import { useEffect, useId, useRef, useState, type ComponentType } from "react";
 import { AnimatePresence } from "motion/react";
 import { m } from "../motion";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Bell, CheckCheck, ClipboardCheck, Flag, HardDrive, HardDriveDownload, LayoutList, ListOrdered, Loader2, Mail, MailOpen, MessageSquare, PencilLine, Settings, Users } from "lucide-react";
+import { Bell, CheckCheck, ClipboardCheck, Flag, HardDrive, HardDriveDownload, LayoutList, ListOrdered, Loader2, Mail, MailOpen, MessageSquare, PencilLine, Settings, Users, Video } from "lucide-react";
 import { usePersonal } from "../../lib/personal";
 import { useInbox, type InboxFailure, type InboxState } from "../../lib/inbox";
 import { agoShort } from "../../lib/format";
@@ -39,6 +39,7 @@ const ICON: Record<InboxCategory, { icon: ComponentType<{ className?: string }>;
   membership: { icon: Users, tone: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" },
   picklist: { icon: ListOrdered, tone: "bg-orange-500/15 text-orange-700 dark:text-orange-400" },
   comments: { icon: MessageSquare, tone: "bg-pink-500/15 text-pink-700 dark:text-pink-400" },
+  videoContributions: { icon: Video, tone: "bg-amber-500/15 text-amber-700 dark:text-amber-400" },
   ownerAlerts: { icon: HardDrive, tone: "bg-red-500/15 text-red-700 dark:text-red-400" },
 };
 
