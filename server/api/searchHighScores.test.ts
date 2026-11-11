@@ -121,6 +121,14 @@ describe("the season's record line (the match records page)", () => {
     expect(html).toContain("Season record 2025–26:");
     expect(html).toContain(">300 points: M9 at New Jersey Championship</a>");
   });
+  it("a search page answered by the card alone describes that answer, never 'no match'", async () => {
+    const { pageMeta } = await import("../seoMeta");
+    const m = await pageMeta("/search", { q: "world record score decode" });
+    // The page's own answer (a stat here): its title, then its record.
+    expect(m.description).toMatch(/^Highest[^:]*DECODE[^:]*: 300 points .*M9 at New Jersey Championship$/);
+    expect(m.description).not.toMatch(/^No FTC team/);
+    expect((await pageMeta("/search", { q: "zzqqxxvv" })).description).toBe("No FTC team, event or match matches “zzqqxxvv”.");
+  });
 });
 
 describe("recordMarks", () => {
