@@ -52,8 +52,8 @@ describe("the welcome card", () => {
   it("an example runs its search and closes for good", async () => {
     mount();
     await opened();
-    fireEvent.click(screen.getByRole("button", { name: "worlds highlights decode" }));
-    expect(where).toBe("/search?q=worlds%20highlights%20decode");
+    fireEvent.click(screen.getByRole("button", { name: "Worlds highlights decode" }));
+    expect(where).toBe("/search?q=Worlds%20highlights%20decode");
     expect(welcome()).toBeNull();
     expect(welcomeSeen()).toBe(true);
     expect(localStorage.getItem(WELCOME_KEY)).not.toBeNull();

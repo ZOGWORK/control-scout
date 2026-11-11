@@ -9,7 +9,7 @@ export const WELCOME_KEY = "cs-welcome";
 export const WELCOME_CHANGE = "cs-welcome-change";
 
 /** The searches the card offers: each one answers live with a real card, signed out. */
-export const WELCOME_EXAMPLES = ["worlds highlights decode", "4215 vs 6980 who wins", "4215 record"] as const;
+export const WELCOME_EXAMPLES = ["Worlds highlights decode", "4215 vs 6980 who wins", "4215 record"] as const;
 
 let memory = false;
 

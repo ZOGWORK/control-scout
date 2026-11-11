@@ -87,20 +87,17 @@ export function WelcomeCard() {
     <m.section
       role="dialog" aria-labelledby={titleId} data-welcome=""
       initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18, ease: "easeOut" }}
-      className="fixed inset-x-4 bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom)+0.75rem)] max-md:[[data-sticky-actions]_&]:bottom-[calc(var(--tabbar-h)+4rem+env(safe-area-inset-bottom)+0.75rem)] z-[65] overflow-hidden rounded-2xl border border-accent/40 bg-popover p-4 text-popover-foreground shadow-[0_18px_40px_-16px_rgba(0,0,0,.55),0_0_32px_-12px_var(--color-accent)] md:inset-x-auto md:bottom-6 md:right-6 md:w-[380px]"
+      className="fixed inset-x-4 bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom)+0.75rem)] max-md:[[data-sticky-actions]_&]:bottom-[calc(var(--tabbar-h)+4rem+env(safe-area-inset-bottom)+0.75rem)] z-[65] rounded-2xl border border-border bg-popover p-4 text-popover-foreground shadow-[0_18px_40px_-16px_rgba(0,0,0,.55)] md:inset-x-auto md:bottom-6 md:right-6 md:w-[380px]"
     >
-      {/* The brand's yellow washing in from the corner, with a blue and a rose glow: decoration, behind everything. */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_90%_at_0%_0%,color-mix(in_oklab,var(--color-accent)_22%,transparent),transparent_55%),radial-gradient(90%_80%_at_100%_100%,color-mix(in_oklab,var(--color-info)_16%,transparent),transparent_60%)]" />
-      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-accent via-rose-500 to-info" />
-      <div className="relative flex items-start gap-3">
-        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent/15 ring-1 ring-accent/40"><BrandMark className="size-7" /></span>
+      <div className="flex items-start gap-3">
+        <BrandMark className="size-9" />
         <div className="min-w-0 flex-1">
           <h2 id={titleId} className="font-display text-base font-semibold text-foreground">Welcome to <span className="text-accent-text">Control Scout</span></h2>
           <p className="mt-0.5 text-sm text-muted-foreground">Search any team, event or match.</p>
         </div>
         <Button variant="ghost" size="icon-sm" className="-mr-1 -mt-1 shrink-0 max-sm:size-[44px]" aria-label="Close" onClick={close}><X /></Button>
       </div>
-      <ul className="relative mt-3 flex flex-wrap gap-2" aria-label="Try a search">
+      <ul className="mt-3 flex flex-wrap gap-2" aria-label="Try a search">
         {WELCOME_EXAMPLES.map((q, i) => {
           const look = LOOK[i % LOOK.length]!;
           return (
