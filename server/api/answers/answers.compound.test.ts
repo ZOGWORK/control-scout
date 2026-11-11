@@ -331,6 +331,8 @@ describe("the best teams at an event", () => {
         expect(a.stat?.title, q).toMatch(/^Best teams at New Jersey Championship by TeleOp OPR there · /);
         expect(rows(a)[0], q).toEqual(["6980", "200.0"]);
         expect((a.stat?.blocks.find((b) => b.kind === "leaderboard") as any).stat, q).toEqual({ id: "teleop", label: "TeleOp OPR there" });
+        expect(a.stat?.definition, q).toContain("Ranked by each team's TeleOp OPR at the event");
+        expect(a.stat?.definition, q).not.toContain("${");
       }
       // Worlds, with or without its season: its teams by that phase there (60 OPR, 18 of it in Auto).
       for (const q of [`top teams by auto opr at worlds ${S + 1}`, "top teams by auto opr at worlds"]) {
