@@ -8,7 +8,7 @@ import { replayTour } from "../../lib/tour";
 export function TakeTour({ label = "Take the tour", className }: { label?: string; className?: string }) {
   const navigate = useNavigate();
   return (
-    <Button variant="outline" size="sm" className={className ?? "max-sm:h-11"} onClick={() => navigate(replayTour())} data-take-tour="">
+    <Button variant="outline" size="sm" className={className ?? "max-sm:h-[44px]"} onClick={() => navigate(replayTour())} data-take-tour="">
       <Compass /> {label}
     </Button>
   );

@@ -264,8 +264,8 @@ function TourPaused({ onResume, onSkip }: { onResume: () => void; onSkip: () => 
     <div role="status" data-tour-paused=""
       className="fixed left-3 right-3 bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom)+0.75rem)] z-[45] flex items-center gap-1 rounded-xl border border-border bg-popover py-1 pl-3 pr-1 text-sm text-popover-foreground shadow-[0_18px_40px_-16px_rgba(0,0,0,.55)] max-md:[[data-sticky-actions]_&]:bottom-[calc(var(--tabbar-h)+4rem+env(safe-area-inset-bottom)+0.75rem)] md:right-auto md:bottom-6 md:left-4">
       <span className="min-w-0 flex-1 font-medium">Tour paused</span>
-      <Button size="sm" variant="ghost" className="text-accent-text max-sm:h-11" onClick={onResume}>Pick up where you left off</Button>
-      <Button variant="ghost" size="icon-sm" className="max-sm:size-11" aria-label="Skip the tour" onClick={onSkip}><X /></Button>
+      <Button size="sm" variant="ghost" className="text-accent-text max-sm:h-[44px]" onClick={onResume}>Pick up where you left off</Button>
+      <Button variant="ghost" size="icon-sm" className="max-sm:size-[44px]" aria-label="Skip the tour" onClick={onSkip}><X /></Button>
     </div>,
     document.body,
   );
@@ -449,7 +449,7 @@ export function TourOverlay({ step, index: i, count, body, docked = false, prima
             <span className="sr-only">Step {i + 1} of {count}:</span> {step.title}
           </h2>
         </div>
-        <Button variant="ghost" size="icon-sm" className="-mr-1 -mt-1 shrink-0 max-sm:size-11" aria-label="Skip the tour" title="Skip tour" onClick={skip}><X /></Button>
+        <Button variant="ghost" size="icon-sm" className="-mr-1 -mt-1 shrink-0 max-sm:size-[44px]" aria-label="Skip the tour" title="Skip tour" onClick={skip}><X /></Button>
       </div>
       <p id={bodyId} className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{body ?? step.body}</p>
       <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
@@ -457,10 +457,10 @@ export function TourOverlay({ step, index: i, count, body, docked = false, prima
           {Array.from({ length: count }, (_, n) => <span key={n} className={cn("h-1.5 rounded-full", n === i ? "w-4 bg-accent" : "w-1.5 bg-text-base/20")} />)}
         </div>
         {i === 0
-          ? <Button variant="secondary" size="sm" className="max-sm:h-11" onClick={skip}>Skip tour</Button>
-          : <Button variant="secondary" size="sm" className="max-sm:h-11" onClick={back}>Back</Button>}
-        {quietNext && <Button ref={main ? undefined : primaryRef} variant="ghost" size="sm" className="max-sm:h-11" onClick={onNext}>Next</Button>}
-        {main && <Button ref={primaryRef} size="sm" className="max-sm:h-11" onClick={main.run}>{main.label}</Button>}
+          ? <Button variant="secondary" size="sm" className="max-sm:h-[44px]" onClick={skip}>Skip tour</Button>
+          : <Button variant="secondary" size="sm" className="max-sm:h-[44px]" onClick={back}>Back</Button>}
+        {quietNext && <Button ref={main ? undefined : primaryRef} variant="ghost" size="sm" className="max-sm:h-[44px]" onClick={onNext}>Next</Button>}
+        {main && <Button ref={primaryRef} size="sm" className="max-sm:h-[44px]" onClick={main.run}>{main.label}</Button>}
       </div>
     </m.div>
   );
