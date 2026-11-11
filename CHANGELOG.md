@@ -32,7 +32,7 @@ People who record matches can add the video to the match: verified contributors 
 - Event page: a coverage line, a Watch Clips button and a clips gallery (All / Qualifications / Playoffs).
 - Contributor profiles (`/contributors/<username>`, never indexed), a verified badge, likes, and a three-dot menu (Report, or Edit / Remove for your own).
 - Owner console › Video contributors: requests, direct approve and invites, reports (5+ flagged), contributors with name history, link actions, roster. Owner alerts for the two queues; inbox category "Your match videos".
-- Settings › Account: where you stand as a contributor. ([#PR2](https://github.com/ZOGWORK/control-scout/pulls))
+- Settings › Account: where you stand as a contributor. ([#1379](https://github.com/ZOGWORK/control-scout/pull/1379))
 
 ## 5.5.8 — 2026-11-11
 
