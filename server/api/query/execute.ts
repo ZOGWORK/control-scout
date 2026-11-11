@@ -22,7 +22,7 @@ import { eventsNamed, heldInYear, highlightsAnswer, latestPlayed, recentWindow, 
 import { teamHighlights, type TeamHighlightScope } from "../answers/highlights.js";
 import { shortEvent } from "../answers/matchSet.js";
 import { CHAMPIONSHIP_TYPE, OFFICIAL_TYPES, STATES_TYPE } from "../answers/clauses.js";
-import { eventKindOf, matchFindAnswer, type MatchFind, type MatchMeasure } from "./matchFind.js";
+import { FROM as FIND_FROM, eventKindOf, matchFindAnswer, where as findWhere, type MatchFind, type MatchMeasure } from "./matchFind.js";
 import { seasonOfDate } from "./time.js";
 import { searchToday } from "../searchEvents.js";
 import { eventFor, forecastAt, teamEventOfType } from "./forecast.js";
@@ -274,7 +274,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // A team's matches at Worlds or at its state championship are that event's results card (the division, its rank and
   // OPR there), which search's event readers give: the plain list is for a season, a window or a place.
   if (intent === "season-matches" && (p.worlds || p.states)) return null;
-  if (p.teams.length === 1 && TEAM_INTENTS.has(intent)) {
+  // A team's match by its score ("<team> 226 point match") is the match finder's, below.
+  if (p.teams.length === 1 && TEAM_INTENTS.has(intent) && !(intent === "season-matches" && p.scoreCond)) {
     // An award with an answer of its own: Inspire (its places) and Finalist finishes. The first or latest Finalist
     // award is the award list's, filtered to Finalist, which takes the pick (Finalist finishes only counts them).
     const pickSaid = p.agg === "first" || p.agg === "last";
@@ -480,8 +481,10 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // match type's ("playoff matches in NJ") are left to search.
   if (intent === "top-matches" && !p.teams.length && !p.symbols.includes("agg:max") && !scope.window && !p.scoreCond) return null;
   const kind = p.event ? eventKindOf(normalise(p.event.words)) : p.eventKind ? eventKindOf(p.eventKind) : null;
-  const teamFind = p.teams.length === 1 && TEAM_FIND.has(FIND[intent]!);
-  if ((!p.teams.length || teamFind) && (FIND[intent] || (intent === "top-matches" && (p.level || p.finals || kind || p.scoreCond)))) {
+  // One team's match by its score ("<team> 226 point match"): that team's matches with the score, found the same way.
+  const scored = p.teams.length === 1 && p.scoreCond?.op === "=" && (intent === "season-matches" || intent === "top-matches");
+  const teamFind = p.teams.length === 1 && (TEAM_FIND.has(FIND[intent]!) || scored);
+  if ((!p.teams.length || teamFind) && (FIND[intent] || scored || (intent === "top-matches" && (p.level || p.finals || kind || p.scoreCond)))) {
     // An event named with a score to reach ("matches at <event> where both alliances scored over 250"): its matches,
     // its divisions' too. A calendar year said is the edition held that year; none said, its latest.
     const year = p.time?.kind === "season" && p.time.year != null && !p.time.relative ? p.time.year : null;
@@ -509,6 +512,13 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
         ...(events.some((e) => !(OFFICIAL_TYPES as readonly string[]).includes(e.type ?? "")) ? { named: true } : {}),
       } : {}),
     };
+    // A team's match by its score, no season said: the latest season, up to the current one, holding one the finder
+    // lists (its own filters: official events, the match type said, the place).
+    if (scored && !p.time && !f.window) {
+      const w = findWhere(f, true);
+      const latest = await get<{ s: number | null }>(`SELECT MAX(m.season) s ${FIND_FROM} WHERE ${w.sql}`, w.args);
+      if (latest?.s != null) f.season = Number(latest.s);
+    }
     const card = async (g: MatchFind): Promise<SearchAnswer> => {
       const stat = await matchFindAnswer(g);
       return { q: p.q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season: g.season }, ...(opts.full ? { stat } : {}),

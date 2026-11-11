@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.5.7 — 2026-11-11
+
+Asking for a team's match by its score ("a 226 point match") finds that match.
+
+### Highlights
+- [teams] A team's match by its score: "<team> 226 point match"
+- [fixes] The score is never mistaken for another team's number
+- [fixes] No match with that score is said plainly
+
+### Fixed
+- Search: a team's match asked for by its score ("<team> 226 point match", "<team> 226-point game") read the score as a team number, so it answered about a different team. A number right before "point(s) match/game", with no "over" or "at least" before it, is now a score. The answer lists the team's matches where either alliance's final score was that number, highest-scoring first, from the latest season it happened, or says none was found. ([#1375](https://github.com/ZOGWORK/control-scout/pull/1375))
+
 ## 5.5.6 — 2026-11-11
 
 Search answers who advanced from an event, and how many, from FIRST's advancement list.
