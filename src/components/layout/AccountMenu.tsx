@@ -52,6 +52,12 @@ interface AccountPanelApi {
 
 const AccountPanelContext = createContext<AccountPanelApi | null>(null);
 
+/** Open the account panel to sign in (a no-op outside the app's shell, e.g. a test). */
+export function useOpenSignIn(): () => void {
+  const api = useContext(AccountPanelContext);
+  return () => api?.setOpen(true);
+}
+
 export function useAccountPanel(): AccountPanelApi {
   const api = useContext(AccountPanelContext);
   if (!api) throw new Error("useAccountPanel needs an AccountProvider");

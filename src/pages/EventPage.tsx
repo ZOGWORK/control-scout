@@ -52,6 +52,7 @@ import { LiveCountdownChip, LivePanel, useLiveTarget } from "../components/LiveP
 import { HeaderActions } from "../components/EventActions";
 import { EventStatusChip, EventTypeChip, LiveDot } from "../components/EventChips";
 import { WatchLive } from "../components/WatchLive";
+import { ClipsGallery, CoverageLine, EventClipsProvider, WatchClipsButton } from "../components/contributors/EventClips";
 import { isLiveMode, nextMatch, useEventPoll } from "../lib/liveMode";
 import { TeamsSource } from "../components/TeamsSource";
 import { ago, agoSeconds, awardLabel, dateRange, num, place, seasonLabel } from "../lib/format";
@@ -154,7 +155,8 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
         {e.website && <a href={e.website} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 hover:text-foreground pointer-coarse:min-h-[44px]">Website <ExternalLink className="size-3" /></a>}
       </div>
       {d.live && !liveMode && <LiveBar live={d.live} r={refresh} />}
-      <HeaderActions liveMode={liveMode} watch={{ url: e.livestream, stream: !!e.stream, finished: e.status === "finished" }} track={track}>
+      <HeaderActions liveMode={liveMode} watch={{ url: e.livestream, stream: !!e.stream, finished: e.status === "finished" }} track={track}
+        clips={<WatchClipsButton matches={d.matches} primary={e.status === "finished"} />} clipsFirst={e.status === "finished"}>
         {predictable && <Button variant="outline" size="sm" asChild><Link to={labHref}>Open in what-if lab</Link></Button>}
         {/* A fullscreen screen for the pit TV: no sign-in, no chrome (pages/EventDisplayPage.tsx). Every season: history seasons show results and rankings without odds. */}
         <Button variant="outline" size="sm" asChild><Link to={`/events/${e.season}/${encodeURIComponent(e.code)}/display`} data-pit-display-link><Tv /> Pit display</Link></Button>
@@ -163,6 +165,8 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
         {/* The question-box quick reference for this season, where one exists (pages/RulesPage.tsx; built in, so it opens offline). */}
         {rulesOn && hasRuleReference(e.season) && <Button variant="outline" size="sm" asChild><Link to={`/rules?season=${e.season}`} data-rules-link><Gavel /> Rules</Link></Button>}
       </HeaderActions>
+      {/* How much of the event this viewer can watch (docs/contributors.md), seen before the match list. */}
+      <CoverageLine />
       {/* Before FIRST posts the event: the regional site's hosts, times and format, labelled provisional. */}
       {d.provisional && <ProvisionalDetails p={d.provisional} />}
       {!predictable && <p className="mt-3 text-xs text-muted-foreground">{seasonLabel(e.season)} is shown for history: results, rankings and awards, no predictions (those start with 2023–24).</p>}
@@ -182,6 +186,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   const registeredCount = shared ? shared.teams.length : provisionalTeams?.teams.filter((t) => t.status === "registered").length ?? 0;
   const glance = <EventGlance d={d} onTab={setTab} live={liveMode ? { match: target.next, mine: !!target.mine, open: toLivePanel } : undefined} />;
   return (
+    <EventClipsProvider season={e.season} code={e.code}>
     <div>
       <OfflineNote data={d} />
       {slim ? (
@@ -243,6 +248,8 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
       {/* The owner-set stream with the model's calls beside it, above the matches (components/WatchLive.tsx). */}
       {/* Keyed by event and video: moving to another event, or a new stream, starts the player and the rail afresh. */}
       {e.stream && <WatchLive key={`${e.season}:${e.code}:${e.stream.videoId}`} d={d} stream={e.stream} />}
+      {/* Every match with a video this viewer can watch ("Watch Clips" scrolls here). */}
+      <ClipsGallery d={d} />
       <div ref={tabsRef} className="scroll-mt-bar-4" />
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
@@ -325,6 +332,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
         </TabsContent>}
       </Tabs>
     </div>
+    </EventClipsProvider>
   );
 }
 

@@ -158,12 +158,15 @@ export interface MyContributorStatus {
  * recording from its start. The viewer's own saved links stay in their own panel. `overFirst`: the owner chose this
  * contributor video over FIRST's for the match.
  */
-export function pickMatchVideo<F, C extends { overFirst?: boolean }, R>(first: F | null | undefined, contributor: C | null | undefined, recording: R | null | undefined):
+export function pickMatchVideo<F, C extends { overFirst?: boolean; tier?: VideoTier }, R>(first: F | null | undefined, contributor: C | null | undefined, recording: R | null | undefined):
   { kind: "first"; video: F } | { kind: "contributor"; video: C } | { kind: "recording"; video: R } | null {
-  if (contributor && contributor.overFirst) return { kind: "contributor", video: contributor };
+  // A link only its contributor can see is their own, like a personal link: after the recording.
+  const own = contributor?.tier === "self";
+  if (contributor && contributor.overFirst && !own) return { kind: "contributor", video: contributor };
   if (first) return { kind: "first", video: first };
-  if (contributor) return { kind: "contributor", video: contributor };
+  if (contributor && !own) return { kind: "contributor", video: contributor };
   if (recording) return { kind: "recording", video: recording };
+  if (contributor) return { kind: "contributor", video: contributor };
   return null;
 }
 
