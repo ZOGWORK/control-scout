@@ -85,6 +85,10 @@ export function readTime(q: string, today: string, yearOk: (y: number) => boolea
     if (t.kind === "season" && t.season != null && !t.relative) {
       const again = RELATIVE_SEASON.exec(rest);
       if (again) cut(again);
+      // "Ever" beside a season named ("best decode score ever") is that season's whole run, never every season.
+      // "First ever" and "first time ever" stay theirs (a first, ../query/lexicon.ts).
+      const ever = /(?<!\bfirst\s|\btime\s)\b(?:ever|of\s+all[\s-]*time|all[\s-]*time)\b/.exec(rest);
+      if (ever) cut(ever);
     }
     return { time: t, rest: rest.replace(/\s+/g, " ").trim() };
   };

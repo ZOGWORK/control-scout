@@ -80,14 +80,15 @@ export function parseQuestion(q: string): ParsedQuestion | null {
   // "When was the first time …": which trip, and the question without those words (never part of the team's name).
   const w = WHICH.exec(q);
   const which = w ? (/^(?:first|earliest)/i.test(w[1]) ? "first" as const : "last" as const) : undefined;
-  const unasked = w ? q.replace(w[0], " ") : q;
+  // "Worlds years" ("Don't Blink's Worlds years"): the years a team went there, its appearances.
+  const unasked = (w ? q.replace(w[0], " ") : q).replace(/\b(worlds?|states?)\s+years\b/gi, "$1 appearances");
   for (const [kind, words] of [["worlds", WORLDS], ["states", STATES]] as const) {
     if (!words.test(unasked)) continue;
     const y = YEAR.exec(unasked);
     const core = coreOf((y ? unasked.replace(y[0], " ") : unasked).replace(new RegExp(words.source, "gi"), " "));
     // A question needs its frame ("when did … go to worlds", "did … make worlds", "… worlds appearances", "how many
     // times did … go to states"): "worlds" on its own beside a name stays search's ("worlds" is the championship's events).
-    const asked = !!w || /\b(?:when|how\s+many|how\s+often|did|does|has|have|was|were|go|went|make|made|qualif\w*|attend\w*|appearances?|history)\b/i.test(q);
+    const asked = !!w || /\b(?:when|how\s+many|how\s+often|did|does|has|have|was|were|go|went|make|made|qualif\w*|attend\w*|appearances?|history)\b/i.test(unasked);
     return core && asked && !OTHER_SEASON.test(core) ? { kind, core: squash(core.replace(/\bappearances?\b|\bhistory\b/gi, " ")), year: y ? Number(y[1]) : null, ...(which ? { which } : {}) } : null;
   }
   // Wins and awards, in a year when one is given ("in 2024": events held that year). A season named any other way
