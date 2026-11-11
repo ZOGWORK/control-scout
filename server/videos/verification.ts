@@ -26,7 +26,8 @@ const DAY = 864e5;
 
 // --- Invites ----------------------------------------------------------------------------------------------
 
-export type InviteState = "valid" | "claimed" | "expired" | "revoked" | "invalid";
+export type { InviteState } from "../../src/shared/contributors.js";
+import type { InviteState } from "../../src/shared/contributors.js";
 
 /** Make an invite for an account's email (the account must exist). The raw link is returned once and never kept. */
 export async function createInvite(email: string, note: string | null, by: string, now = Date.now()): Promise<{ ok: true; token: string; expiresAt: string; account: { id: number; name: string | null } } | { ok: false; error: string }> {

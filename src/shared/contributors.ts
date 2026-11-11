@@ -150,6 +150,23 @@ export interface MyContributorStatus {
   credit: string | null;
 }
 
+// --- A contributor's profile (/contributors/<username>) ----------------------------------------------------------
+
+export interface ProfileVideo extends ContributorVideo { season: number; code: string; key: string; label: string; event: string; red: number | null; blue: number | null; href: string }
+export interface ContributorProfile {
+  name: string; username: string; verified: boolean; status: "verified" | "team" | "none";
+  teams: { number: number; name: string | null }[];
+  videos: ProfileVideo[];
+  /** Likes on the videos THIS viewer can see (two viewers may see different totals). */
+  likes: number;
+  pending: boolean;
+}
+
+
+/** An invite link's state, as /verify-video reads it. */
+export type InviteState = "valid" | "claimed" | "expired" | "revoked" | "invalid";
+export interface InviteRead { state: InviteState; mine?: boolean; expiresAt?: string }
+
 // --- Which video a match plays (one place, for every surface) -------------------------------------------------
 
 /**

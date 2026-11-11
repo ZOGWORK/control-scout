@@ -20,7 +20,7 @@ import { linkStart } from "../../src/shared/recording.js";
 import { youtubeId } from "../../src/shared/personal.js";
 import {
   isVideoReportReason, LINKS_PER_DAY, LINKS_PER_MATCH_PER_DAY, NOT_APPROVED_TEXT, TEXT_MAX,
-  type ContributorStatus, type ContributorVideo, type ContributorSource, type EventCoverage, type MyContributorStatus, type VideoTier,
+  type ContributorProfile, type ContributorStatus, type ContributorVideo, type ContributorSource, type EventCoverage, type MyContributorStatus, type ProfileVideo, type VideoTier,
 } from "../../src/shared/contributors.js";
 import { creditLine } from "../../src/shared/username.js";
 
@@ -319,16 +319,6 @@ export async function reportVideo(user: User, id: number, reason: unknown, note:
 }
 
 // --- The contributor's profile --------------------------------------------------------------------------------
-
-export interface ProfileVideo extends ContributorVideo { season: number; code: string; key: string; label: string; event: string; red: number | null; blue: number | null; href: string }
-export interface ContributorProfile {
-  name: string; username: string; verified: boolean; status: "verified" | "team" | "none";
-  teams: { number: number; name: string | null }[];
-  videos: ProfileVideo[];
-  /** Likes on the videos THIS viewer can see (two viewers may see different totals). */
-  likes: number;
-  pending: boolean;
-}
 
 export async function contributorProfile(username: string, viewerUser: User | null): Promise<ContributorProfile | null> {
   const u = await get<any>("SELECT id, display_name, username FROM users WHERE lower(username) = lower(?)", [username]);

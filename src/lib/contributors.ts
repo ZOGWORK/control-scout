@@ -4,7 +4,7 @@
 import { useEffect } from "react";
 import { apiFetch, useApi } from "./api";
 import { usePersonal } from "./personal";
-import type { ContributorVideo, EventContributorVideos, MyContributorStatus } from "../shared/contributors";
+import type { ApplicationInput, ContributorVideo, EventContributorVideos, InviteRead, MyContributorStatus } from "../shared/contributors";
 
 const who = (id: number | null | undefined) => `v=${id ?? 0}`;
 
@@ -44,3 +44,10 @@ export interface AddVideoBody { url: string; team?: number | null; t?: number | 
 export interface AddVideoAnswer { ok: true; video: ContributorVideo; shown: boolean; occupiedBy?: string; warnings: ("long" | "unchecked" | "region")[] }
 export const addVideo = (season: number, code: string, key: string, body: AddVideoBody) => apiFetch<AddVideoAnswer>(`/api/videos/match/${season}/${encodeURIComponent(code)}/${key}`, { method: "POST", json: body });
 export const editVideo = (id: number, body: AddVideoBody) => apiFetch<AddVideoAnswer>(`/api/videos/${id}`, { method: "PATCH", json: body });
+
+export type ApplyAnswer = { ok: true; status: MyContributorStatus };
+export const applyForVerification = (body: ApplicationInput) => apiFetch<ApplyAnswer>("/api/videos/apply", { method: "POST", json: body });
+export const withdrawApplication = () => apiFetch<ApplyAnswer>("/api/videos/apply/withdraw", { method: "POST", json: {} });
+export const readInviteLink = (token: string) => apiFetch<InviteRead>(`/api/videos/invite?token=${encodeURIComponent(token)}`);
+export const claimInviteLink = (token: string) => apiFetch<ApplyAnswer>("/api/videos/invite/claim", { method: "POST", json: { token } });
+export const requestFromInviteLink = (token: string) => apiFetch<ApplyAnswer & { already: boolean }>("/api/videos/invite/request", { method: "POST", json: { token } });
