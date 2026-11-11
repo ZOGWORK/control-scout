@@ -20,7 +20,7 @@
 // first so the service worker caches the app, on a production build with --base);
 // selectors are Playwright's (role=button[name="Filters"], text=Apply, css).
 // --name <label> goes in the file name, to tell several states of one route apart.
-// --tour lets the first-run tour show (it's kept out of shots otherwise).
+// --welcome lets the first-visit welcome card show; --tour shows the step-by-step tour as if asked for (both kept out otherwise).
 // --install lets the add-to-home-screen nudge show, with a stand-in install offer.
 // --pull turns on the installed app's pull-to-refresh in the browser tab (cs-pull-demo), with --mobile.
 //
@@ -156,10 +156,28 @@ async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, 
   if (Object.keys(STORAGE).length) await ctx.addInitScript((entries) => { for (const [k, v] of Object.entries(entries)) localStorage.setItem(k, v); }, STORAGE);
   // The first-visit privacy banner would sit on every shot: answer it ("No thanks") unless --banner asks to see it.
   if (!flag("banner") && !("cs-consent" in STORAGE)) await ctx.addInitScript(() => localStorage.setItem("cs-consent", JSON.stringify({ analytics: false, at: "2026-01-01T00:00:00.000Z", v: 1 })));
-  // The first-run tour never shows to a browser driven by automation (this one), so it stays out of shots;
-  // --tour lets it show (src/lib/tour.ts, cs-tour-demo). Each shot is a fresh visitor, so it opens on step 1:
-  // wait for it with --steps '[{"waitFor":"[data-tour-card]"}]' and press ArrowRight for the later steps.
-  if (flag("tour")) await ctx.addInitScript(() => localStorage.setItem("cs-tour-demo", "1"));
+  // First-run surfaces never show to a browser driven by automation (this one), so they stay out of shots.
+  // --welcome lets the welcome card show (src/components/layout/WelcomeCard.tsx, cs-tour-demo): wait for it with
+  // --steps '[{"waitFor":"[data-welcome]"}]'.
+  // --tour shows the step-by-step tour as if the visitor had tapped Take the tour on the shot's page: it turns the
+  // owner's onboardingTour switch on for this browser (the /api/flags answer), asks for the tour there (a paused
+  // cs-tour record) and puts the welcome card away. Each shot is a fresh visitor, so it opens on step 1: wait for
+  // it with --steps '[{"waitFor":"[data-tour-card]"}]' and press ArrowRight for the later steps.
+  if (flag("welcome") || flag("tour")) await ctx.addInitScript(() => localStorage.setItem("cs-tour-demo", "1"));
+  if (flag("tour")) {
+    await ctx.addInitScript(() => {
+      // Once per browser: a later page load keeps whatever the tour has written since.
+      if (localStorage.getItem("cs-tour") === null) {
+        localStorage.setItem("cs-tour", JSON.stringify({ v: 2, at: new Date().toISOString(), status: "paused", step: 0, origin: location.pathname + location.search, steps: [] }));
+      }
+      localStorage.setItem("cs-welcome", "shots");
+    });
+    await ctx.route("**/api/flags*", async (route) => {
+      const res = await route.fetch();
+      const body = await res.json().catch(() => null) as { flags?: Record<string, boolean> } | null;
+      await route.fulfill({ response: res, json: { ...(body ?? {}), flags: { ...(body?.flags ?? {}), onboardingTour: true } } });
+    });
+  }
   // Same for the add-to-home-screen nudge (src/lib/installNudge.ts, cs-install-demo). An automated Chromium
   // never offers an install, so --install also hands the page a stand-in beforeinstallprompt once it has loaded;
   // the nudge opens a few seconds later: wait with --steps '[{"waitFor":"[data-install-nudge]"}]'.
