@@ -220,7 +220,7 @@ export const INTENTS: IntentRule[] = [
   // Playing said with "ever" ("did 12345 ever play 67890", "their match against 67890, if they ever played"): the
   // meetings that happened, never a prediction or a side by side of season numbers. "If" there is "whether", never a
   // supposition.
-  R("head-to-head", 2, ["vs"], ["thing:match", "list", "hypo"], { ever: true }),
+  R("head-to-head", 2, ["vs"], ["thing:match", "list", "hypo", "and"], { ever: true }),
   // "12345 losses to 67890", "has 12345 lost to 67890": the meetings, the losses among them.
   R("head-to-head", 2, ["metric:opponent", "outcome:L"], ["thing:match", "list", "vs"]),
   R("h2h-wins", 2, ["vs", "metric:win"], ["agg:count", "thing:match"]),

@@ -206,7 +206,7 @@ export async function yesNoAnswer(q: string, opts: { full: boolean; pages: Searc
   let stat: StatAnswer | null = null;
   if (t.length === 2 && (sym.has("outcome:L") || sym.has("metric:win")) && [...sym].every((x) => /^(?:metric:(?:opponent|win|loss)|outcome:[WL]|thing:match)$/.test(x))) {
     stat = await beaten(t[0], t[1], sym.has("outcome:L") || sym.has("metric:loss") ? "L" : "W", scope);
-  } else if (t.length === 2 && p.symbols.includes("vs") && p.time?.kind === "ever" && [...sym].every((x) => x === "thing:match" || x === "hypo")) {
+  } else if (t.length === 2 && p.symbols.includes("vs") && p.time?.kind === "ever" && [...sym].every((x) => x === "thing:match" || x === "hypo" || x === "and")) {
     // "Did <team> ever play <team>", "<team>'s match against <team>, if they ever played": whether they met.
     stat = await beaten(t[0], t[1], null, scope);
   } else if (t.length === 1 && (p.award || sym.has("metric:award")) && [...sym].every((x) => /^metric:(?:award|win)$/.test(x))) {

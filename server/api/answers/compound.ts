@@ -264,7 +264,7 @@ export function readCompound(raw: string): CompoundQuestion | null {
   // "can 12345 beat a top 10 worldwide team", "would 12345 beat a team ranked top 5": not a meeting that happened, the
   // engine's call against each of them. What the question adds about the call ("according to predictions", "and by how
   // much would they lose") is the card's own, so it's read as said; any other words are left to the readers after this.
-  if ((m = /^(?:can|could|will|would) (.+?) (?:beat|defeat|win against|win vs|outscore) (?:a|any|an|the) (?:(?:team|opponent)s? (?:that (?:is|are) |who (?:is|are) )?(?:ranked )?(?:in the )?)?top (\d{1,3})(?: (?:teams? )?(?:worldwide|in the world|globally|world ?wide))?(?: (?:team|opponent)s?)?(.*)$/.exec(q))) {
+  if ((m = /^(?:can|could|will|would) (.+?) (?:beat|defeat|win against|win vs|outscore) (?:(?:a|any|an|the) )?(?:(?:team|opponent)s? (?:that (?:is|are) |who (?:is|are) )?(?:ranked )?(?:in the )?)?top (\d{1,3})(?: (?:teams? )?(?:worldwide|in the world|globally|world ?wide))?(?: (?:team|opponent)s?)?(.*)$/.exec(q))) {
     const w = when(m[3].replace(PREDICT_WORDS, " ").replace(/\s+/g, " ").trim());
     if (w && !w.ever && Number(m[2]) >= 1 && Number(m[2]) <= 25) return { kind: "predict-top", core: m[1], n: Number(m[2]), when: w };
   }
