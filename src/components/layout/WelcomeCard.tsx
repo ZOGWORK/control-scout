@@ -20,7 +20,7 @@ import { usePersonal } from "../../lib/personal";
 import { useFlag } from "../../lib/flags";
 import { useFirstRunSlot } from "../../lib/firstRun";
 import { isAutomated, isTourPage, knowsTheApp, rememberTourPage, replayTour, searchHref, tourDemo } from "../../lib/tour";
-import { dismissWelcome, useWelcomeSeen, WELCOME_EXAMPLES } from "../../lib/welcome";
+import { dismissWelcome, useWelcomeSeen, welcomeMayCome, WELCOME_EXAMPLES } from "../../lib/welcome";
 
 const SLOT = "welcome";
 
@@ -48,8 +48,9 @@ export function WelcomeCard() {
   const titleId = useId();
 
   // Signed in, this device knows the account's teams only once its first sync has worked: until then an empty
-  // state isn't proof of a new visitor (no flash for someone who uses the app on another device).
-  const settled = providers !== null && sync !== "syncing" && (!user || syncReady);
+  // state isn't proof of a new visitor (no flash for someone who uses the app on another device). The same rule
+  // tells the install nudge whether to wait for the card (welcomeMayCome); here it must also have answered.
+  const settled = providers !== null && (!user || syncReady) && welcomeMayCome({ providers, user, sync, syncReady });
   const wanted = !closed && decided && settled && !(isAutomated() && !tourDemo()) && !knowsTheApp(state, user);
   // Wait for the page it lands on to settle, on a page a first-timer lands on (not settings or the owner console).
   const landing = isTourPage(loc.pathname);
@@ -61,18 +62,18 @@ export function WelcomeCard() {
   // Only on a landing page: opening Settings or the owner console puts it away (back on a landing page, it returns).
   const shown = useFirstRunSlot(SLOT, wanted && landing && due);
 
-  const close = () => dismissWelcome();
+  const close = dismissWelcome;
 
   // Any search closes it for good (shown yet or not): the visitor has found what it was pointing at.
   const searched = loc.pathname.replace(/\/+$/, "") === "/search" && !!new URLSearchParams(loc.search).get("q");
-  useEffect(() => { if (searched && !closed) close(); }, [searched, closed]);
+  useEffect(() => { if (searched && !closed) dismissWelcome(); }, [searched, closed]);
 
   useEffect(() => {
     if (!shown) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || e.defaultPrevented || editable(e.target)) return;
       e.preventDefault();
-      close();
+      dismissWelcome();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
