@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.5.7 — 2026-11-11
+## 5.5.8 — 2026-11-11
 
 Search answers an award at Worlds in the season you name, even when each division judged it.
 
@@ -28,6 +28,18 @@ Search answers an award at Worlds in the season you name, even when each divisio
 - An award asked at an event in a season named ("Innovate award at Worlds in into the deep") fell back to the newest older season that event gave it (2021–22), because in 2024–25 FIRST judged Worlds' Innovate Award in each division and the championship's own list has none. It now reads that season: every division's places, winners first, each line naming its division. A season named never falls back to another one and adds no note about a newer event. (`askAnswer` "award", `server/api/searchAsks.ts`; failed search)
 - A judged award's finalists, which FIRST places 1 like the winner ("… Finalist"), came first and were said as "Winner", and the card took its title from one. The winner now comes first, its finalists after it as "Finalist", on the card and in its podium; a place asked ("2nd place") is never a finalist's. (`server/api/searchAsks.ts`, `EventAwards.tsx`)
 - An award from an older season showed that season's label over the newer event's dates. The event is now that season's own, with its own dates. (`server/api/searchAsks.ts`) (#1363)
+
+## 5.5.7 — 2026-11-11
+
+Asking for a team's match by its score ("a 226 point match") finds that match.
+
+### Highlights
+- [teams] A team's match by its score: "<team> 226 point match"
+- [fixes] The score is never mistaken for another team's number
+- [fixes] No match with that score is said plainly
+
+### Fixed
+- Search: a team's match asked for by its score ("<team> 226 point match", "<team> 226-point game") read the score as a team number, so it answered about a different team. A number right before "point(s) match/game", with no "over" or "at least" before it, is now a score. The answer lists the team's matches where either alliance's final score was that number, highest-scoring first, from the latest season it happened, or says none was found. ([#1375](https://github.com/ZOGWORK/control-scout/pull/1375))
 
 ## 5.5.6 — 2026-11-11
 
