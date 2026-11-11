@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.5.6 — 2026-11-11
+## 5.5.7 — 2026-11-11
 
 Search answers an award at Worlds in the season you name, even when each division judged it.
 
@@ -28,6 +28,18 @@ Search answers an award at Worlds in the season you name, even when each divisio
 - An award asked at an event in a season named ("Innovate award at Worlds in into the deep") fell back to the newest older season that event gave it (2021–22), because in 2024–25 FIRST judged Worlds' Innovate Award in each division and the championship's own list has none. It now reads that season: every division's places, winners first, each line naming its division. A season named never falls back to another one and adds no note about a newer event. (`askAnswer` "award", `server/api/searchAsks.ts`; failed search)
 - A judged award's finalists, which FIRST places 1 like the winner ("… Finalist"), came first and were said as "Winner", and the card took its title from one. The winner now comes first, its finalists after it as "Finalist", on the card and in its podium; a place asked ("2nd place") is never a finalist's. (`server/api/searchAsks.ts`, `EventAwards.tsx`)
 - An award from an older season showed that season's label over the newer event's dates. The event is now that season's own, with its own dates. (`server/api/searchAsks.ts`) (#1363)
+
+## 5.5.6 — 2026-11-11
+
+Search answers who advanced from an event, and how many, from FIRST's advancement list.
+
+### Highlights
+- [rankings] "How many teams went to states at <event>" answers
+- [rankings] Who advanced from an event, in FIRST's advancement order
+- [fixes] A list FIRST hasn't posted yet says so, with its slots
+
+### Added
+- Search: "how many teams went to states at <event>", "which teams qualified for worlds from <event>" and "who advanced from <event>" answer from the event's advancement list, as its Awards tab shows it. The answer lists the teams that took a slot, in FIRST's advancement order (declined slots left out), says where they go by the next event's name, and links the event. With no season named, it uses the newest event by that name that has a list. A list not posted yet says so, with the number of slots. ([#1376](https://github.com/ZOGWORK/control-scout/pull/1376))
 
 ## 5.5.5 — 2026-11-11
 
