@@ -70,6 +70,8 @@ beforeAll(async () => {
   await match("SHORT", 1, `${DAY}T11:00:00.5`);         // 1 h in
   await match("SHORT", 2, `${DAY}T17:55:00.5`);         // 7 h 55 min in: past the video's length, inside its last 10 min
   await match("SHORT", 3, `${DAY}T18:20:00.5`);         // after the broadcast ended
+  await match("SHORT", 4, `${DAY}T11:08:00.5`);         // 8 min after Q1: started 10 min early, its clip would open on Q1's play
+  await match("SHORT", 5, `${DAY}T11:22:00.5`);         // 14 min after Q4: Q4's play is over before its early start
   await event("TRIMMED", `https://www.youtube.com/watch?v=${TRIMMED_ID}`);
   await match("TRIMMED", 1, `${DAY}T12:30:00.5`);
   await match("TRIMMED", 2, `${DAY}T16:00:00.5`);       // the last match: 4 h in, 10 min before the video ends
@@ -139,9 +141,10 @@ describe("event recordings", () => {
     expect(JSON.parse((await get<{ chapters: string }>("SELECT chapters FROM video_meta WHERE video_id = ?", [CHAPTERED_ID]))!.chapters)[1]).toEqual([1110, "Match one"]);
   });
 
-  it("a broadcast up to 15 min short, the gap unplaced: each match starts early by all of it, marked early", async () => {
+  it("a broadcast up to 15 min short, the gap unplaced: each match starts early by all of it, marked early, but never on the match before", async () => {
     const d = await getJson(`/api/events/${S}/SHORT`);
-    expect(d.matches.map((m: any) => m.clip?.t ?? null)).toEqual([3600 - 600 - 20, 28500 - 600 - 20, null]);
+    const t = Object.fromEntries(d.matches.map((m: any) => [m.label, m.clip?.t ?? null]));
+    expect(t).toEqual({ Q1: 3600 - 600 - 20, Q2: 28500 - 600 - 20, Q3: null, Q4: null, Q5: 4920 - 600 - 20 });
     expect(d.matches[0].clip).toMatchObject({ videoId: SHORT_ID, early: 600 });
     // One match on its own gets the same second.
     expect((await getJson(`/api/events/${S}/SHORT/matches/qual:0:2`)).match.clip).toMatchObject({ t: 28500 - 600 - 20, early: 600 });
