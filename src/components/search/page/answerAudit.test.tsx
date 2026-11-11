@@ -209,6 +209,19 @@ describe("every card kind and block kind has its colour", () => {
     expect(el.querySelector("[data-lines]")!.innerHTML).not.toMatch(/amber|orange|\bred-[0-9]|bg-pen/);
     expect(auditAnswer(el).join("\n")).toBe("");
   });
+  it("the official record's row is labelled so: a neutral pill with a blue note icon, never gold; the card passes the audit", () => {
+    const el = drawKind({ ...KIND_CARDS["high-scores"], lines: [
+      { text: "574 points: M14 at FIRST Championship, Ross Division", href: "/events/2025/FTCCMPROSS?match=playoff:14:1", tag: "Official world record", results: ["Blue alliance: 6980 Bad Wolf"] },
+      { text: "714 points: Q49 at Carolinas Premier Event", href: "/events/2025/FPECAR?match=qual:0:49", results: ["Not an official record: the event did not play by the game's usual rules"] },
+    ] });
+    const tags = el.querySelectorAll("[data-line-tag]");
+    expect(tags).toHaveLength(1);
+    expect(tags[0].textContent).toBe("Official world record");
+    expect(tags[0].closest("li")!.textContent).toContain("574");
+    expect(tags[0].className).not.toMatch(/accent|yellow|amber|gold|orange|info|blue/);
+    expect(tags[0].querySelector("svg")!.getAttribute("class")).toContain("text-info");
+    expect(auditAnswer(el).join("\n")).toBe("");
+  });
   it("a records card's row with a video: its picture toward the right, a play button under the text on a phone; a row without stays a link", () => {
     const lines = [{ text: "714 points: Q49 at Carolinas Premier Event", href: "/events/2025/FPECAR?match=qual:0:49" }, { text: "592 points: Q54 at Carolinas Premier Event", href: "/events/2025/FPECAR?match=qual:0:54" }];
     const el = draw(<AnswerVideoProvider video={{ rows: { [lines[0].href]: { videoId: "xnQFL9T27fY", t: 90, kind: "recording", match: "Q49" } } } satisfies SearchVideo}>

@@ -4,9 +4,10 @@ import { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState
 import { AnimatePresence, useReducedMotion } from "motion/react";
 import { m as Motion } from "./motion";
 import { Link, useLocation } from "react-router-dom";
-import { Check, ChevronDown, CircleDashed, ClipboardList, Gauge, Handshake, History, Radio, ShieldCheck, Video, X } from "lucide-react";
+import { Check, ChevronDown, CircleDashed, ClipboardList, Gauge, Handshake, Heart, HeartCrack, History, Radio, ShieldCheck, Video, X } from "lucide-react";
 import type { AllianceScore, ConfidenceTier, Factor, MatchPredictionView, MatchView, PairHistory } from "../shared/api";
 import { matchReportHref } from "../shared/matchReport";
+import { LIVES, livesLabel, type SideLives } from "../shared/playoffLives";
 import { cn } from "./cn";
 import { ClipLink, MatchVideoLink } from "./MatchClip";
 import { ScoreRange } from "./ScoreRange";
@@ -210,6 +211,26 @@ const FADED: Record<Side, string> = {
 };
 
 /** One alliance: its teams and score in one tinted box. The winner's box is stronger; the loser's fades back. */
+/** A double-elimination alliance's lives as two small hearts in its own colour: filled for each life left, a broken
+ *  one for the life this match took, an outline for one lost before. Each heart names itself; the pair names the
+ *  alliance's state (its title). */
+export function LivesHearts({ side, l }: { side: Side; l: SideLives }) {
+  const tone = side === "red" ? "text-red-alliance" : "text-blue-alliance";
+  const label = livesLabel(l);
+  return (
+    <span className="flex shrink-0 items-center gap-px" title={label} data-lives={l.after} data-lives-lost={l.after < l.before ? "" : undefined}>
+      {Array.from({ length: LIVES }, (_, i) => {
+        const kind = i < l.after ? "left" : i < l.before ? "broken" : "lost";
+        // A held life never says it was lost: the broken heart carries this match's loss, the pair's title the whole state.
+        const what = kind === "lost" ? "A life lost in an earlier match" : kind === "broken" ? label : l.after === LIVES ? `${LIVES} lives left` : "A life left";
+        return kind === "broken"
+          ? <HeartCrack key={i} role="img" aria-label={what} className={cn("size-3.5", tone)} data-heart={kind}><title>{what}</title></HeartCrack>
+          : <Heart key={i} role="img" aria-label={what} className={cn("size-3.5", kind === "left" ? cn(tone, "fill-current") : "text-text-muted")} data-heart={kind}><title>{what}</title></Heart>;
+      })}
+    </span>
+  );
+}
+
 function AllianceBox({ side, m, score, forecast, outcome, highlight }: {
   side: Side; m: MatchView; score: number | null; forecast: { mean: number; range?: [number, number]; level?: number } | null; outcome: "win" | "loss" | "tie" | null; highlight?: number;
 }) {
@@ -222,6 +243,9 @@ function AllianceBox({ side, m, score, forecast, outcome, highlight }: {
       side === "red" ? "border-red-alliance bg-red-alliance/[0.06]" : "border-blue-alliance bg-blue-alliance/[0.06] @min-[330px]:flex-row-reverse @min-[330px]:border-l-0 @min-[330px]:border-r-[3px]",
       outcome === "win" && (side === "red" ? "bg-red-alliance/[0.14]" : "bg-blue-alliance/[0.14]"),
     )}>
+      {/* A double-elimination playoff: the alliance's lives first, at the box's left (the blue box faces the red from
+          the right on wider rows, so its hearts go last in its reversed row: still its left edge). */}
+      {m.lives && <span className={cn(side === "blue" && "@min-[330px]:order-last")}><LivesHearts side={side} l={m.lives[side]} /></span>}
       {/* The teams share the box's width (a playoff alliance of three included), each name truncated to its share. */}
       <div className="grid min-w-0 flex-1 auto-cols-fr grid-flow-col gap-x-1">
         {a.teams.map((t) => <TeamChip key={t.number} t={t} side={side} season={m.season} highlight={highlight} />)}

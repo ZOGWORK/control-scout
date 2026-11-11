@@ -7,7 +7,7 @@
 // (`detail`, `link`) show when they're there.
 import { Link } from "react-router-dom";
 import { useCurrentSeason } from "../../../lib/meta";
-import { ArrowRight, BookOpen, CalendarDays, Globe, GraduationCap, Handshake, Info, MapPin, Medal, Play, PlayCircle, Sparkles, Trophy, type LucideIcon } from "lucide-react";
+import { ArrowRight, BadgeCheck, BookOpen, CalendarDays, Globe, GraduationCap, Handshake, Info, MapPin, Medal, Play, PlayCircle, Sparkles, Trophy, type LucideIcon } from "lucide-react";
 import type { SearchCard, SearchCardFact, SearchCardLine, SearchVideoItem } from "../../../shared/api";
 import { StatTile, type Tone } from "../../StatTile";
 import { TeamTable } from "../TeamTable";
@@ -258,6 +258,8 @@ function Lines({ lines, kind, icon: Icon, team }: { lines: SearchCardLine[]; kin
           <>
             {Icon && <span className={cn("mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg", sw.fill)} data-line-icon><Icon className="size-5" aria-hidden /></span>}
             <span className="min-w-0 flex-1">
+              {/* The official record's label: a neutral pill with its note icon (never gold: it isn't an award). */}
+              {l.tag && <span className="mb-1 inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-0.5 text-xs font-semibold text-foreground" data-line-tag><BadgeCheck className="size-3.5 shrink-0 text-info" aria-hidden data-note-icon />{l.tag}</span>}
               <span className={cn("block break-words font-semibold group-hover:underline", sw.text, n && "font-display text-lg leading-snug sm:text-xl")} data-line-text>
                 {n ? <><span className={cn("text-2xl tabular-nums sm:text-3xl", sw.text)} data-kpi>{n[1]}</span>{n[2]}</> : l.text}
               </span>

@@ -31,6 +31,7 @@ import { ToggleGroup, ToggleGroupItem } from "../components/ui/controls";
 import { MatchList } from "../components/predict";
 import { SortTable, type Col } from "../components/SortTable";
 import { AdvancementView } from "../components/Advancement";
+import { AdvancedTeams } from "../components/AdvancedTeams";
 import { Projections } from "../components/Projections";
 import { OFFLINE_FORECAST } from "../lib/offline/readers";
 import { cn } from "../components/cn";
@@ -299,6 +300,8 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
         {predictable && <TabsContent value="odds" className="mt-5 max-sm:mt-4">
           {/* Every event with a schedule gets match predictions; advancement odds only where teams advance. */}
           <TeamPicker field={d.field} value={teamParam} onChange={setTeam} />
+          {/* No team picked: who advanced, as the Awards tab shows it. */}
+          {teamParam == null && d.advancement && <AdvancedTeams adv={d.advancement} season={e.season} nameOf={nameOf} className="mb-6 max-sm:mb-4" />}
           {/* Offline: the simulator needs a connection, but a saved pack carries the event's stored projections. */}
           {/* Advancement odds switched off by the owner (the advancementOdds feature toggle): said in their place; match odds stay. */}
           {!oddsOn && <FeatureOffState feature="advancementOdds" className="mb-6 max-sm:mb-4" />}
@@ -793,8 +796,9 @@ function Awards({ d, nameOf }: { d: EventDetail; nameOf: (t: number) => string }
   const s = d.event.season;
   return (
     <div className="space-y-6 max-sm:space-y-4">
-      {/* The tab's heading for screen readers: Advancement (h3) sits under it. */}
+      {/* The tab's heading for screen readers: Advancement (h3) sits under it, first. */}
       <h2 className="sr-only">Awards</h2>
+      {d.advancement && <AdvancedTeams adv={d.advancement} season={s} nameOf={nameOf} />}
       {!d.awards.length ?<EmptyState icon={Award} title="No awards published yet" description="Awards appear after the closing ceremony." /> : (
         <ul className="grid gap-2 sm:grid-cols-2">
           {d.awards.map((a) => (
@@ -804,18 +808,6 @@ function Awards({ d, nameOf }: { d: EventDetail; nameOf: (t: number) => string }
             </li>
           ))}
         </ul>
-      )}
-      {d.advancement && (
-        <div>
-          <h3 className="mb-2 text-base font-semibold">Advancement <span className="text-sm font-normal text-muted-foreground">· {d.advancement.slots} slots{d.advancement.advancesTo ? ` to ${d.advancement.advancesTo}` : ""}</span></h3>
-          <div className="flex flex-wrap gap-2">
-            {d.advancement.rows.map((r) => (
-              <Link key={r.team} to={`/teams/${r.team}?season=${s}`} className="rounded-lg border border-border bg-card px-2.5 py-1.5 text-sm hover:border-accent/40">
-                <span className="font-mono">{r.team}</span> <span className="text-xs text-muted-foreground">{r.status === "FIRST" ? "advanced" : r.status === "ALREADY_ADVANCING" ? "already qualified" : r.status.toLowerCase()}{r.declined ? " · declined" : ""}</span>
-              </Link>
-            ))}
-          </div>
-        </div>
       )}
     </div>
   );

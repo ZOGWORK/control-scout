@@ -94,20 +94,22 @@ describe("match breakdown", () => {
     expect(rowLead({ label: "Flower", red: null, blue: 12 })).toEqual({ side: null, text: "—" });
   });
 
-  it("shows each bonus RP once: icon as the label, its name and both sides (earned or missed) in the tip, no name on screen", () => {
-    const odds = { tier: "provisional", red: [0.67, 0.06, 0.01], blue: [0.69, 0.07, 0.01], rpRed: 2.3, rpBlue: 2.3 } as never;
-    render(<MemoryRouter><TooltipProvider><BonusRows season={2026} odds={odds} actual={{ labels: ["Swarm", "Pollinator 1", "Pollinator 2"], red: [true, false, false], blue: [false, false, false] } as never} /></TooltipProvider></MemoryRouter>);
-    const rows = screen.getByTestId("bonus-odds");
-    const buttons = within(rows).getAllByRole("button");
-    expect(buttons[0].getAttribute("aria-label")).toBe("Swarm: bonus ranking point. Red 67%, earned, Blue 69%, missed.");
-    expect(buttons[1].getAttribute("aria-label")).toBe("Pollinator 1: bonus ranking point. Red 6%, missed, Blue 7%, missed.");
-    expect(buttons[3].getAttribute("aria-label")).toMatch(/^Expected ranking points: Red 2.3, Blue 2.3\./);
-    // On screen: numbers and marks only, never the RP's name.
-    const visible = Array.from(rows.querySelectorAll("li")).map((li) => Array.from(li.querySelectorAll("span:not(.sr-only)")).map((x) => x.textContent).join(" ")).join(" | ");
-    expect(visible).not.toMatch(/Swarm|Pollinator/);
-    const swarm = rows.querySelector("[data-bonus='Swarm']")!.textContent;
-    expect(swarm).toContain("67%✓–69%");
-    expect(rows.querySelector("[style*='width']")).toBeNull();
+  it("shows each bonus RP as a labelled row of the call table: its name, each side's chance and whether it earned it, who earned it in the middle", () => {
+    const odds = { tier: "provisional", red: [0.67, 0.06, 0.01], blue: [0.69, 0.07, 0.01], rpRed: 2.3, rpBlue: 2.1 } as never;
+    const { container } = render(<MemoryRouter><TooltipProvider><ul><BonusRows season={2026} odds={odds} actual={{ labels: ["Swarm", "Pollinator 1", "Pollinator 2"], red: [true, false, false], blue: [false, false, false] } as never} /></ul></TooltipProvider></MemoryRouter>);
+    const swarm = container.querySelector("[data-bonus='Swarm']")!;
+    expect(swarm.getAttribute("title")).toBe("Swarm: bonus ranking point. Red 67%, earned, Blue 69%, missed.");
+    // The name on screen, as a row label; the marks in words for screen readers too.
+    expect(swarm.textContent).toContain("Swarm RP");
+    expect(swarm.textContent).toContain("67%✓earned");
+    expect(swarm.textContent).toContain("Red earned");
+    expect(swarm.textContent).toContain("69%✗missed");
+    expect(container.querySelector("[data-bonus='Pollinator 1']")!.textContent).toContain("Neither");
+    const expected = container.querySelector("[data-bonus-expected]")!;
+    expect(expected.textContent).toContain("Expected RP");
+    expect(expected.textContent).toContain("Red +0.2");
+    expect(expected.getAttribute("title")).toMatch(/^Expected ranking points. 3 for a win/);
+    expect(container.querySelector("[style*='width']")).toBeNull();
   });
 
   it("gives BIOBUZZ's three bonus RPs three different icons", () => {
