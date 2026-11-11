@@ -595,6 +595,16 @@ describe("real actions, never simulated", () => {
     fireEvent.click(other);
     fireEvent.click(track);
     expect(seen).toEqual(["track"]);
+    // Navigation always works mid-tour (the sidebar's Events, say).
+    const nav = document.createElement("nav");
+    const link = document.createElement("a");
+    nav.appendChild(link);
+    document.body.appendChild(nav);
+    try {
+      link.addEventListener("click", (e) => { e.preventDefault(); seen.push("nav"); });
+      fireEvent.click(link);
+      expect(seen).toEqual(["track", "nav"]);
+    } finally { nav.remove(); }
   });
 
   it("an event streaming live: the step says so, and promises no recording yet", async () => {

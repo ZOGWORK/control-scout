@@ -357,13 +357,15 @@ export function TourOverlay({ step, index: i, count, body, docked = false, prima
     return () => ro.disconnect();
   }, [i, docked]);
 
-  // Pointing: clicks reach only the spotlit part, search (its suggestions included) and the card itself; the
-  // rest of the page waits until the tour moves on. Docked: the page is free.
+  // Pointing: clicks reach only the spotlit part, search (its suggestions included), navigation and the card
+  // itself; the rest of the page waits until the tour moves on. Docked: the page is free.
   useEffect(() => {
     if (docked) return;
     const allowed = (t: EventTarget | null) => {
       if (!(t instanceof Element)) return false;
-      if (t.closest("[data-tour-card], [data-search-box], [data-tour-paused]")) return true;
+      // Navigation (the sidebar, the phone tab bar and menu, the top bar) always works: leaving mid-tour
+      // is fine, the tour follows or waits, paused.
+      if (t.closest("[data-tour-card], [data-search-box], [data-tour-paused], nav, header")) return true;
       const el = findTarget(step);
       return !!el && el.contains(t);
     };
