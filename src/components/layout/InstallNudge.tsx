@@ -23,7 +23,8 @@ import { Button } from "../ui/button";
 import { useConsent } from "../../lib/consent";
 import { usePersonal } from "../../lib/personal";
 import { claimFirstRun, firstRunHolder, releaseFirstRun, useFirstRunHolder } from "../../lib/firstRun";
-import { isAutomated, isShown, isTourPage, knowsTheApp, readTour, tourDemo } from "../../lib/tour";
+import { isAutomated, isShown, isTourPage, knowsTheApp, tourDemo } from "../../lib/tour";
+import { useWelcomeSeen } from "../../lib/welcome";
 import { claimDailyShow, installDemo, isIosSafari, markDismissed, promptInstall, relatedAppInstalled, ruledOut, runningInstalled, useInstallState } from "../../lib/installNudge";
 
 /** After the page is idle, wait this long before showing (the page settles first). */
@@ -57,6 +58,7 @@ export function InstallNudge() {
   const loc = useLocation();
   const { decided } = useConsent();
   const { state, user } = usePersonal();
+  const welcomeSeen = useWelcomeSeen();
   const holder = useFirstRunHolder();
   const { offer, record } = useInstallState();
   const [open, setOpen] = useState<Kind | null>(null);
@@ -73,11 +75,12 @@ export function InstallNudge() {
 
   const automated = isAutomated() && !installDemo();
   const tourAutomated = isAutomated() && !tourDemo();
-  // The tour hasn't happened yet and could open on this page: it goes first.
-  const tourFirst = readTour() === null && !tourAutomated && !knowsTheApp(state, user) && isTourPage(loc.pathname);
+  // The welcome card hasn't been closed yet and could open on this page: it goes first (the tour no longer starts
+  // by itself, so it's no reason to wait).
+  const welcomeFirst = !welcomeSeen && !tourAutomated && !knowsTheApp(state, user) && isTourPage(loc.pathname);
   const kind: Kind | null = offer ? "prompt" : isIosSafari() ? "ios" : null;
   const eligible = !open && kind !== null && !automated && decided && !runningInstalled() && !related
-    && !ruledOut(record) && !tourFirst && yieldedOn !== loc.key && (holder === null || holder === SLOT);
+    && !ruledOut(record) && !welcomeFirst && yieldedOn !== loc.key && (holder === null || holder === SLOT);
 
   useEffect(() => {
     if (!eligible || !kind) return;

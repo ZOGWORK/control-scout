@@ -5,6 +5,7 @@ import type { ConfidenceTier, Factor, FactorSheet, Forecast, Partners, TeamStren
 
 export type { ConfidenceTier, Factor, Forecast, Partners, TeamStrength };
 import type { BracketOdds } from "./bracketOdds";
+import type { MatchLives } from "./playoffLives";
 import type { StatAnswer, StatLink } from "./searchStat";
 import type { TeamTable } from "./teamTable";
 export type { BracketOdds, BracketSeriesView, BracketAllianceOdds, BracketSlotView } from "./bracketOdds";
@@ -286,7 +287,9 @@ export interface SearchCardAward { type: string; placement: number; team: number
 export interface SearchCardFact { label: string; values: string[]; detail?: string; link?: boolean }
 /** `detail`: when and where ("2022–23 · Mar 12, 2023 · Rockaway, NJ"); `results`: how it went, one point each ("Ranked #1", "OPR 102.6"). */
 /** `game`: the season's game name ("CENTERSTAGE"), for a line about one season's event. */
-export interface SearchCardLine { text: string; detail?: string; results?: string[]; href?: string; game?: string }
+export interface SearchCardLine { text: string; detail?: string; results?: string[]; href?: string; game?: string;
+  /** A label above the line's text: on a records card, the official record ("Official world record"). */
+  tag?: string }
 
 /** An understood intent (server/api/searchIntents.ts): counted as `kind` and `pattern` (placeholders, no query text). */
 export interface SearchIntentNote {
@@ -521,6 +524,9 @@ export interface MatchView {
   red: AllianceScore;
   blue: AllianceScore;
   video: string | null;
+  /** A double-elimination playoff match: each side's lives coming in and after it (shared/playoffLives.ts). None for
+   *  qualification matches or any other playoff format. */
+  lives?: MatchLives;
   /** Where the match starts in the event's recording (server/videos/recordings.ts), on the event's own routes. */
   clip?: MatchClip;
   prediction: MatchPredictionView | null;
@@ -602,7 +608,9 @@ export interface EventDetail {
   matches: MatchView[];
   alliances: { number: number; name: string | null; captain: number | null; pick1: number | null; pick2: number | null; backup: number | null }[];
   awards: { type: string; placement: number; team: number; name: string | null }[];
-  advancement: { slots: number; advancesTo: string | null; rows: { team: number; status: string; declined: boolean }[] } | null;
+  /** Who advanced, in FIRST's advancement order. `advancesTo` is FTC Events' value (a code or words);
+   *  `advancesToName` that event's name when the code is one of ours; `points` FIRST's advancement points there. */
+  advancement: { slots: number; advancesTo: string | null; advancesToName?: string | null; rows: { team: number; status: string; declined: boolean; points?: number | null }[] } | null;
   /** Can this event be forecast (advancement simulator)? Null when yes, else why not. */
   forecastUnsupported: string | null;
   /** Events on today (in their own time zone): how fresh the results are. Null on other days. */

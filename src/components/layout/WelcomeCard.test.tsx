@@ -12,7 +12,7 @@ import { resetWelcome, welcomeSeen, WELCOME_EXAMPLES, WELCOME_KEY } from "../../
 import { WelcomeCard } from "./WelcomeCard";
 
 const personal = vi.hoisted(() => ({
-  current: { state: null as unknown as PersonalState, user: null as unknown, providers: { email: true, google: false } as unknown },
+  current: { state: null as unknown as PersonalState, user: null as unknown, providers: { email: true, google: false } as unknown, sync: "local", syncReady: false },
 }));
 vi.mock("../../lib/personal", () => ({ usePersonal: () => personal.current }));
 
@@ -33,7 +33,7 @@ beforeEach(() => {
   resetFlags({ ...DEFAULT_FLAGS }, true);
   setAnalyticsConsent(false);
   setWebdriver(false);
-  personal.current = { state: EMPTY_STATE, user: null, providers: { email: true, google: false } };
+  personal.current = { state: EMPTY_STATE, user: null, providers: { email: true, google: false }, sync: "local", syncReady: false };
 });
 afterEach(() => { cleanup(); resetConsent(); setWebdriver(false); });
 
@@ -120,6 +120,27 @@ describe("the welcome card", () => {
     // Screenshots opt in.
     setWebdriver(true);
     localStorage.setItem(TOUR_DEMO_KEY, "1");
+    mount();
+    await opened();
+  });
+
+  it("Clear all local data (resetWelcome) brings it back without a reload", async () => {
+    mount();
+    await opened();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(welcome()).toBeNull();
+    act(() => resetWelcome());
+    await opened();
+  });
+
+  it("signed in: waits for this device's first sync before deciding (no flash for someone who uses the app)", async () => {
+    const user = { id: 1, email: "a@b.c", displayName: null, createdAt: "", controlPoint: null };
+    personal.current = { ...personal.current, user, sync: "syncing", syncReady: false } as typeof personal.current;
+    const a = mount();
+    await settle();
+    expect(welcome()).toBeNull();
+    a.unmount();
+    personal.current = { ...personal.current, user, sync: "synced", syncReady: true } as typeof personal.current;
     mount();
     await opened();
   });

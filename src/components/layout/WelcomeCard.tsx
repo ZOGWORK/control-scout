@@ -18,7 +18,7 @@ import { usePersonal } from "../../lib/personal";
 import { useFlag } from "../../lib/flags";
 import { useFirstRunSlot } from "../../lib/firstRun";
 import { isAutomated, isTourPage, knowsTheApp, rememberTourPage, replayTour, searchHref, tourDemo } from "../../lib/tour";
-import { dismissWelcome, welcomeSeen, WELCOME_EXAMPLES } from "../../lib/welcome";
+import { dismissWelcome, useWelcomeSeen, WELCOME_EXAMPLES } from "../../lib/welcome";
 
 const SLOT = "welcome";
 /** After the page has loaded, wait this long before showing it (the page settles first; no flash on a bounce). */
@@ -31,13 +31,17 @@ export function WelcomeCard() {
   const loc = useLocation();
   const navigate = useNavigate();
   const { decided } = useConsent();
-  const { state, user, providers } = usePersonal();
+  const { state, user, providers, sync, syncReady } = usePersonal();
   const tourOn = useFlag("onboardingTour");
-  const [closed, setClosed] = useState(() => welcomeSeen());
+  // Follows a reset ("Clear all local data") and other tabs, not only this card's own close.
+  const closed = useWelcomeSeen();
   const [due, setDue] = useState(false);
   const titleId = useId();
 
-  const wanted = !closed && decided && providers !== null && !(isAutomated() && !tourDemo()) && !knowsTheApp(state, user);
+  // Signed in, this device knows the account's teams only once its first sync has worked: until then an empty
+  // state isn't proof of a new visitor (no flash for someone who uses the app on another device).
+  const settled = providers !== null && sync !== "syncing" && (!user || syncReady);
+  const wanted = !closed && decided && settled && !(isAutomated() && !tourDemo()) && !knowsTheApp(state, user);
   // Wait for the page it lands on to settle, on a page a first-timer lands on (not settings or the owner console).
   const landing = isTourPage(loc.pathname);
   useEffect(() => {
@@ -47,7 +51,7 @@ export function WelcomeCard() {
   }, [wanted, landing, due]);
   const shown = useFirstRunSlot(SLOT, wanted && due);
 
-  const close = () => { dismissWelcome(); setClosed(true); };
+  const close = () => dismissWelcome();
 
   // Any search closes it: the visitor has found what it was pointing at.
   const searched = loc.pathname.replace(/\/+$/, "") === "/search" && !!new URLSearchParams(loc.search).get("q");

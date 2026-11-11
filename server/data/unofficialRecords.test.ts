@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { markedLabel, unofficialLine, unofficialWhy, type UnofficialEntry } from "./unofficialRecords";
+import { markedLabel, officialOnlySql, unofficialLine, unofficialWhy, type UnofficialEntry } from "./unofficialRecords";
 import { allianceRow, type Row } from "../api/answers/families/topMatches";
 
 const q49 = { season: 2025, code: "FPECAR", level: "qual", series: 0, number: 49 };
@@ -40,5 +40,13 @@ describe("matches that are not official records", () => {
     expect(markedLabel({ ...q49, label: "Q49" })).toBe("Q49 (not an official record)");
     expect(markedLabel({ ...q49, number: 54, label: "Q54" })).toBe("Q54 (not an official record)");
     expect(markedLabel({ ...q49, code: "USNCCMP", label: "Q50" })).toBe("Q50");
+  });
+  it("an 'official' question leaves out a whole event's matches, or one match, of that season only", () => {
+    const entries: UnofficialEntry[] = [{ season: 2025, code: "FPECAR", why: "x" }, { season: 2025, code: "USNJCMP", level: "qual", series: 0, number: 3, why: "y" }, { season: 2024, code: "OLD", why: "z" }];
+    expect(officialOnlySql(2025, entries)).toEqual({
+      sql: ["m.code <> ?", "NOT (m.code = ? AND m.level = ? AND m.series = ? AND m.number = ?)"],
+      args: ["FPECAR", "USNJCMP", "qual", 0, 3],
+    });
+    expect(officialOnlySql(2023, entries)).toEqual({ sql: [], args: [] });
   });
 });

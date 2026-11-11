@@ -125,7 +125,6 @@ export const HOME_SUGGESTIONS: readonly HomeSuggestion[] = [
   { q: "teams from houston with opr over 15", kind: "filters", label: "Houston teams, OPR 15+" },
   { q: "teams in new jersey that won inspire with opr over 80 last season", kind: "filters", label: "NJ Inspire teams, OPR 80+" },
   { q: "teams in florida with opr over 60", kind: "filters", label: "Florida teams, OPR 60+" },
-  { q: "4215 not 6980 record", kind: "filters" },
 ];
 
 /** How many chips show at once, and how long one set stays: a UTC hour. */

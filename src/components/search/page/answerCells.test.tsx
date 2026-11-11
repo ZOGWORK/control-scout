@@ -125,11 +125,12 @@ describe("match box", () => {
     const c = html(<ul><MatchBox r={{ ...m, noPenalties: true }} /></ul>);
     expect(c.querySelector("[data-scoreboard]")!.textContent).not.toContain("with penalties");
   });
-  it("the listed score's phases as tiles filled in the palette's phase colours, red and blue only on the alliances", () => {
+  it("the listed score's phases as tiles filled in the palette's phase colours, the penalties a neutral tile, red and blue only on the alliances", () => {
     const c = html(<ul><MatchBox r={m} /></ul>);
     const tiles = [...c.querySelectorAll("[data-phases] > div")];
     expect(tiles.map((t) => t.textContent)).toEqual(["Auto80", "TeleOp256", "Endgame80", "Pen given0"]);
-    expect(tiles.map((t) => t.className.split(" ").find((x) => /^bg-[a-z]+-\d+$/.test(x)))).toEqual(["bg-blue-600", "bg-emerald-700", "bg-violet-600", "bg-red-700"]);
+    expect(tiles.map((t) => t.className.split(" ").find((x) => /^bg-[a-z]+-\d+$/.test(x)))).toEqual(["bg-blue-600", "bg-emerald-700", "bg-violet-600", undefined]);
+    expect(tiles[3].className).toContain("bg-card");
     expect(c.querySelector("[data-scoreboard]")!.innerHTML).not.toMatch(/(text|bg|border)-(success|info|sky|emerald|violet|rose|teal)/);
   });
   it("a row's own team (a list across several teams) goes first on its alliance, with no card team", () => {

@@ -1,13 +1,19 @@
 // The welcome card (src/components/layout/WelcomeCard.tsx): shown once to each first-time visitor, then never
 // again here. The dismissal is kept in localStorage, and in memory too, so blocked storage (a private window,
-// storage off) still holds for this page's lifetime and never throws.
+// storage off) still holds for this page's lifetime and never throws. Changes are announced (WELCOME_CHANGE, and
+// the storage event across tabs), so the card and the install nudge follow a reset without a reload.
+import { useSyncExternalStore } from "react";
 
 export const WELCOME_KEY = "cs-welcome";
+/** Fired on window when this tab changes it (closed, or reset by "Clear all local data"). */
+export const WELCOME_CHANGE = "cs-welcome-change";
 
 /** The searches the card offers: each one answers live with a real card, signed out. */
 export const WELCOME_EXAMPLES = ["worlds highlights decode", "4215 vs 6980 who wins", "Bad Wolf record"] as const;
 
 let memory = false;
+
+const announce = () => { if (typeof window !== "undefined") window.dispatchEvent(new Event(WELCOME_CHANGE)); };
 
 /** This visitor has already closed it (or used it). */
 export function welcomeSeen(): boolean {
@@ -19,10 +25,22 @@ export function welcomeSeen(): boolean {
 export function dismissWelcome(): void {
   memory = true;
   try { localStorage.setItem(WELCOME_KEY, new Date().toISOString()); } catch { /* memory holds it */ }
+  announce();
 }
 
 /** Tests, and "Clear all local data": as if new. */
 export function resetWelcome(): void {
   memory = false;
   try { localStorage.removeItem(WELCOME_KEY); } catch { /* nothing kept */ }
+  announce();
 }
+
+function subscribe(cb: () => void) {
+  const onStorage = (e: StorageEvent) => { if (e.key === null || e.key === WELCOME_KEY) cb(); };
+  window.addEventListener(WELCOME_CHANGE, cb);
+  window.addEventListener("storage", onStorage);
+  return () => { window.removeEventListener(WELCOME_CHANGE, cb); window.removeEventListener("storage", onStorage); };
+}
+
+/** welcomeSeen(), as React state: follows a close here, a reset, or another tab. */
+export const useWelcomeSeen = () => useSyncExternalStore(subscribe, welcomeSeen, () => true);

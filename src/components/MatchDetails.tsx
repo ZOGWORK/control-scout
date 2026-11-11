@@ -3,9 +3,9 @@
 // Blue table (phases first, their parts a tap away); then the call on the same columns (odds, predicted, actual,
 // off by, bonus ranking points as icons with their names a hover or tap away), its reasons, the full breakdown a
 // tap away, official result changes and the match's video. Fewer words, the same numbers.
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { ChevronDown, ChevronLeft, ChevronRight, ClipboardList, History, Radio, Video } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Crosshair, Flag, History, MoveHorizontal, Percent, Radio, Sigma, Video, type LucideIcon } from "lucide-react";
 import { ClipLink, MatchVideoLink } from "./MatchClip";
 import { clipTime } from "../shared/recording";
 import type { MatchDetail, MatchView } from "../shared/api";
@@ -286,18 +286,46 @@ export function Breakdown({ d }: { d: MatchDetail }) {
   return (
     <section aria-label="Score breakdown">
       {/* The column names say what the table is: no title. */}
-      <div className={cn(GRID, "pb-1.5 text-[11px] text-text-muted")}>
-        <span><span className="sr-only">Phase</span></span>
-        <span className="text-right text-red-alliance">Red</span>
-        <span className="text-center">Difference</span>
-        <span className="text-blue-alliance">Blue</span>
-      </div>
-      <ul className="divide-y divide-border border-y border-border">
+      <TableHead first="Phase" middle="Difference" />
+      <ul className={TABLE}>
         {groups.map((g, i) => <Phase key={`${g.row.label}:${i}`} g={g} open={open.has(i)} onToggle={() => toggle(i)} id={`${id}-${i}`} />)}
       </ul>
     </section>
   );
 }
+
+/** The score table's and the call table's column names: Red, the middle column, Blue. */
+function TableHead({ first, middle }: { first: string; middle: string }) {
+  return (
+    <div className={cn(GRID, "pb-1.5 text-[11px] text-text-muted")}>
+      <span><span className="sr-only">{first}</span></span>
+      <span className="text-right text-red-alliance">Red</span>
+      <span className="text-center">{middle}</span>
+      <span className="text-blue-alliance">Blue</span>
+    </div>
+  );
+}
+
+/** The tables' rows: ruled between, ruled above and below. */
+const TABLE = "divide-y divide-border border-y border-border";
+
+type RowIcon = LucideIcon | ((p: { size?: number; className?: string }) => ReactNode);
+
+/** A call-table row's label: its icon and its name, as the score table draws a phase. */
+function RowLabel({ icon: Icon, label, title, children }: { icon: RowIcon; label: string; title?: string; children?: ReactNode }) {
+  return (
+    <span className="flex min-w-0 items-center gap-1.5 text-sm" title={title}>
+      <Icon size={16} className="shrink-0 text-text-muted" />
+      <span className="min-w-0 break-words">{label}</span>{children}
+    </span>
+  );
+}
+
+/** A side's value in the call table, in its alliance colour (the score table's leading-side look). */
+const sideValue = (s: Side, extra?: string) => cn("text-sm font-semibold tabular-nums", s === "red" ? "text-right" : "text-left", TONE[s].text, extra);
+/** The call table's middle cell: words, in the colour of the side they're about (the Difference cell's look). */
+const middleCell = (tone?: string) => cn("text-center text-xs font-semibold", tone ?? "text-text-muted");
+const ROW = cn(GRID, "min-h-[44px] py-2");
 
 const rowData = (r: BreakdownRow) => ({ title: r.note, "data-depth": r.depth ?? 0, "data-label": r.label, "data-red": r.red ?? "", "data-blue": r.blue ?? "" });
 
@@ -347,14 +375,14 @@ function Cells({ x, open }: { x: BreakdownRow; open?: boolean }) {
   );
 }
 
-function Prediction({ d }: { d: MatchDetail }) {
+export function Prediction({ d }: { d: MatchDetail }) {
   const m = d.match, p = m.prediction;
   if (!p) {
     const full = [m.red, m.blue].every((a) => a.teams.filter((t) => t.onField).length === 2);
     return (
       <div className="space-y-3">
         <p className="text-sm text-text-muted">{full ? "No prediction was recorded for this match." : "No prediction: the engine predicts full 2-against-2 matches only, and a robot was missing here."}</p>
-        {d.bonus && <BonusRows season={m.season} odds={null} actual={d.bonus} />}
+        {d.bonus && <div><TableHead first="Bonus" middle="Earned" /><ul className={TABLE}><BonusRows season={m.season} odds={null} actual={d.bonus} /></ul></div>}
       </div>
     );
   }
@@ -369,50 +397,55 @@ function Prediction({ d }: { d: MatchDetail }) {
     // The call on the score table's own columns, so predicted, actual and off by sit under Red and Blue.
     <section className="space-y-6" aria-label={`Prediction: ${KIND_LABEL[p.kind]}`}>
       <div>
-        {/* The call's small controls on their own short row, so a narrow panel never pushes them into the odds. */}
-        <div className="flex flex-wrap items-center gap-x-2">
+        {/* What the call is, how sure it was, and its share button on their own short row above the table. */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pb-2">
           <Tooltip>
             <TooltipTrigger asChild>
               <span className="inline-flex text-text-muted" tabIndex={0} aria-label={KIND_LABEL[p.kind]}><Kind className="size-3.5" aria-hidden /></span>
             </TooltipTrigger>
             <TooltipContent className="max-w-64">{KIND_LABEL[p.kind]}</TooltipContent>
           </Tooltip>
-          <ConfidenceBadge tier={p.tier} quiet />
+          <span className="inline-flex items-center gap-1.5 text-xs text-text-muted" data-confidence={p.tier}><span aria-hidden>Confidence</span>{/* Neutral here: the tier is a fact about the call, not a warning. */}<ConfidenceBadge tier={p.tier} className="border-border bg-transparent text-foreground" /></span>
           {red.length > 0 && blue.length > 0 && (
             <ShareMatch query={{ season: m.season, red, blue, event: m.code, match: m.key }} pRed={p.pRed} tier={p.tier} played={!!played} iconOnly />
           )}
         </div>
-        <div className={cn(GRID, "min-h-[44px]")}>
-          <span className={label}>Odds</span>
-          <span className="text-right text-sm font-semibold tabular-nums text-red-alliance">{oddsPct(p.pRed)}</span>
-          <WinBar pRed={p.pRed} size="sm" />
-          <span className="text-sm font-semibold tabular-nums text-blue-alliance">{oddsPct(1 - p.pRed)}</span>
-        </div>
-        {!p.noScoreBasis && (
-          <div className={cn(GRID, "py-1.5")} data-testid="call-predicted">
-            <span className={label}>Predicted</span>
-            <span className="text-right text-sm tabular-nums"><ScoreRange mean={p.redMean} range={p.redRange} level={p.rangeLevel} className="text-red-alliance" pmClassName="text-[10px] text-text-muted" /></span>
-            <span className="text-center text-xs" data-testid="predicted-margin" title={marginText(p.redMean, p.blueMean)}>{marginWords(p.redMean, p.blueMean)}</span>
-            <span className="text-sm tabular-nums"><ScoreRange mean={p.blueMean} range={p.blueRange} level={p.rangeLevel} className="text-blue-alliance" pmClassName="text-[10px] text-text-muted" /></span>
-          </div>
-        )}
-        {played && (
-          <div className={cn(GRID, "py-1.5")} data-testid="call-actual">
-            <span className={label}>Actual</span>
-            <span className="text-right text-sm tabular-nums text-red-alliance">{m.red.score!.total}</span>
-            <span className={cn("text-center text-xs font-semibold", called == null ? "text-text-muted" : called ? "text-success" : "text-warning")} title="Whether the side the call favoured won">{called == null ? "Tie" : called ? "Called it" : "Upset"}</span>
-            <span className="text-sm tabular-nums text-blue-alliance">{m.blue.score!.total}</span>
-          </div>
-        )}
-        {played && !p.noScoreBasis && (
-          <div className={cn(GRID, "py-1.5")} data-testid="call-off">
-            <span className={label} title="Actual minus predicted">Off by</span>
-            <span className="text-right text-xs tabular-nums text-text-muted">{signed(m.red.score!.total - p.redMean)}</span>
-            <span className="text-center text-[11px] text-text-muted" title="Whether each score landed inside its predicted range">{p.redRange && p.blueRange ? rangeWords(inside(m.red.score!.total, p.redRange), inside(m.blue.score!.total, p.blueRange)) : ""}</span>
-            <span className="text-xs tabular-nums text-text-muted">{signed(m.blue.score!.total - p.blueMean)}</span>
-          </div>
-        )}
-        {(p.bonus || d.bonus) && <BonusRows season={m.season} odds={p.bonus ?? null} actual={played ? d.bonus : null} tier={p.tier} />}
+        {/* The call on the score table's own columns and look: Red, the call in words, Blue. */}
+        <TableHead first="Item" middle="Call" />
+        <ul className={TABLE} data-call-table>
+          <li className={ROW} data-testid="call-odds">
+            <RowLabel icon={Percent} label="Odds" title="Each side's chance to win, from the call" />
+            <span className={sideValue("red")}>{oddsPct(p.pRed)}</span>
+            <WinBar pRed={p.pRed} size="sm" />
+            <span className={sideValue("blue")}>{oddsPct(1 - p.pRed)}</span>
+          </li>
+          {!p.noScoreBasis && (
+            <li className={ROW} data-testid="call-predicted">
+              <RowLabel icon={Crosshair} label="Predicted" />
+              <span className={sideValue("red")}><ScoreRange mean={p.redMean} range={p.redRange} level={p.rangeLevel} className={TONE.red.text} pmClassName="text-[10px] font-normal text-text-muted" /></span>
+              <span className={middleCell(p.redMean === p.blueMean ? undefined : TONE[p.redMean > p.blueMean ? "red" : "blue"].text)} data-testid="predicted-margin" title={marginText(p.redMean, p.blueMean)}>{marginWords(p.redMean, p.blueMean)}</span>
+              <span className={sideValue("blue")}><ScoreRange mean={p.blueMean} range={p.blueRange} level={p.rangeLevel} className={TONE.blue.text} pmClassName="text-[10px] font-normal text-text-muted" /></span>
+            </li>
+          )}
+          {played && (
+            <li className={ROW} data-testid="call-actual">
+              <RowLabel icon={Flag} label="Actual" />
+              <span className={sideValue("red")}>{m.red.score!.total}</span>
+              {/* Whether the favoured side won: a right call in the success green, an upset in the theme's info blue (never a warning colour: nothing to act on). */}
+              <span className={middleCell(called == null ? undefined : called ? "text-success" : "text-info")} title="Whether the side the call favoured won" data-called={called == null ? "tie" : called ? "right" : "upset"}>{called == null ? "Tie" : called ? "Called it" : "Upset"}</span>
+              <span className={sideValue("blue")}>{m.blue.score!.total}</span>
+            </li>
+          )}
+          {played && !p.noScoreBasis && (
+            <li className={ROW} data-testid="call-off">
+              <RowLabel icon={MoveHorizontal} label="Off by" title="Actual minus predicted" />
+              <span className="text-right text-sm tabular-nums text-text-muted">{signed(m.red.score!.total - p.redMean)}</span>
+              <span className={middleCell()} title="Whether each score landed inside its predicted range">{p.redRange && p.blueRange ? rangeWords(inside(m.red.score!.total, p.redRange), inside(m.blue.score!.total, p.blueRange)) : ""}</span>
+              <span className="text-sm tabular-nums text-text-muted">{signed(m.blue.score!.total - p.blueMean)}</span>
+            </li>
+          )}
+          {(p.bonus || d.bonus) && <BonusRows season={m.season} odds={p.bonus ?? null} actual={played ? d.bonus : null} tier={p.tier} />}
+        </ul>
       </div>
       {p.factors?.length || p.history ? (
         <div aria-label="Why">
@@ -435,10 +468,9 @@ function Prediction({ d }: { d: MatchDetail }) {
 
 const RP_NOTE = "3 for a win and 1 for a tie, weighted by their chances (a tie is about 1% in an even match), plus each bonus chance, from each alliance's likely score this season. Qualification matches only.";
 
-/** The bonus ranking points on one line: per RP its icon with Red's and Blue's chances beside it (a ✓ after a side
- *  that earned it), then the expected RP. No names on screen: each item is one button whose tip (hover or tap)
- *  names the RP and says both sides' chances and whether each earned it, which is also its accessible name.
- *  With no odds, the icons carry only what was earned. */
+/** The bonus ranking points as rows of the call table: each RP's icon and name, then per side its chance (when the
+ *  call had one) and whether it was earned (✓ earned, ✗ missed, in words for screen readers), the middle cell saying
+ *  who earned it; then the expected RP. Rows only: the caller's table holds them. */
 export function BonusRows({ season, odds, actual, tier }: {
   season: number;
   odds: NonNullable<MatchDetail["match"]["prediction"]>["bonus"] | null;
@@ -449,39 +481,46 @@ export function BonusRows({ season, odds, actual, tier }: {
   if (!labels) return null;
   const got = (s: Side, i: number) => (actual?.[s] ? actual[s]![i] : null);
   const word = (g: boolean | null) => (g == null ? "" : g ? ", earned" : ", missed");
-  const mark = (g: boolean | null) => (g ? <span className="text-success">✓</span> : null);
-  const item = "tap-44 inline-flex min-h-11 items-center gap-1.5 rounded px-1 text-xs tabular-nums outline-none hover:bg-text-base/[0.04] focus-visible:ring-2 focus-visible:ring-ring/60";
+  const cell = (s: Side, i: number) => {
+    const g = got(s, i);
+    return (
+      <span className={sideValue(s, cn("inline-flex items-center gap-1", s === "red" ? "justify-end" : "justify-start"))}>
+        {odds && <span>{oddsPct(odds[s][i])}</span>}
+        {g != null && <span className={g ? "text-success" : "font-normal text-text-muted"} aria-hidden>{g ? "✓" : "✗"}</span>}
+        {g == null && !odds && <span className="text-text-muted">—</span>}
+        {g != null && <span className="sr-only">{g ? "earned" : "missed"}</span>}
+      </span>
+    );
+  };
+  const who = (i: number) => {
+    const r = got("red", i), b = got("blue", i);
+    if (r == null || b == null) return "";
+    return r && b ? "Both earned" : r ? "Red earned" : b ? "Blue earned" : "Neither";
+  };
   return (
-    <ul className="mt-1 flex flex-wrap items-center gap-x-3 border-t border-border/60 pt-1" aria-label="Bonus ranking points" data-testid="bonus-odds">
+    <>
       {labels.map((l, i) => {
-        const Icon = rpIcon(l);
-        const gr = got("red", i), gb = got("blue", i);
-        const tip = `${l}: bonus ranking point. Red${odds ? ` ${oddsPct(odds.red[i])}` : ""}${word(gr)}, Blue${odds ? ` ${oddsPct(odds.blue[i])}` : ""}${word(gb)}.${odds && tier ? ` ${tierPhrase(odds.tier)}.` : ""}`;
+        const r = got("red", i), b = got("blue", i);
+        const tip = `${l}: bonus ranking point. Red${odds ? ` ${oddsPct(odds.red[i])}` : ""}${word(r)}, Blue${odds ? ` ${oddsPct(odds.blue[i])}` : ""}${word(b)}.${odds && tier ? ` ${tierPhrase(odds.tier)}.` : ""}`;
         return (
-          <li key={l} data-bonus={l}>
-            <TapTooltip className="max-w-64" trigger={
-              <button type="button" className={item} aria-label={tip}>
-                <Icon size={18} className="text-text-muted" aria-hidden />
-                <span aria-hidden>
-                  {odds
-                    ? <><span className="text-red-alliance">{oddsPct(odds.red[i])}</span>{mark(gr)}<span className="text-text-muted">–</span><span className="text-blue-alliance">{oddsPct(odds.blue[i])}</span>{mark(gb)}</>
-                    : <><span className="text-red-alliance">{gr == null ? "—" : gr ? "✓" : "✗"}</span><span className="text-text-muted"> </span><span className="text-blue-alliance">{gb == null ? "—" : gb ? "✓" : "✗"}</span></>}
-                </span>
-              </button>
-            }>{tip}</TapTooltip>
+          <li key={l} className={ROW} data-bonus={l} title={tip}>
+            <RowLabel icon={rpIcon(l)} label={`${l} RP`} />
+            {cell("red", i)}
+            <span className={middleCell(r && !b ? TONE.red.text : b && !r ? TONE.blue.text : undefined)}>{who(i)}</span>
+            {cell("blue", i)}
           </li>
         );
       })}
       {odds && (
-        <li>
-          <TapTooltip className="max-w-72" trigger={
-            <button type="button" className={item} aria-label={`Expected ranking points: Red ${odds.rpRed.toFixed(1)}, Blue ${odds.rpBlue.toFixed(1)}. ${RP_NOTE}`}>
-              <span className="text-text-muted" aria-hidden>RP</span>
-              <span className="font-semibold" aria-hidden><span className="text-red-alliance">{odds.rpRed.toFixed(1)}</span><span className="text-text-muted">–</span><span className="text-blue-alliance">{odds.rpBlue.toFixed(1)}</span></span>
-            </button>
-          }>Expected ranking points. {RP_NOTE} <Link to="/methodology#bonus" className="underline">How</Link></TapTooltip>
+        <li className={ROW} data-bonus-expected title={`Expected ranking points. ${RP_NOTE}`}>
+          <RowLabel icon={Sigma} label="Expected RP">
+            <Link to="/methodology#bonus" className="tap-44 shrink-0 text-xs text-text-muted underline">How</Link>
+          </RowLabel>
+          <span className={sideValue("red")}>{odds.rpRed.toFixed(1)}</span>
+          <span className={middleCell()}>{odds.rpRed === odds.rpBlue ? "Even" : `${odds.rpRed > odds.rpBlue ? "Red" : "Blue"} +${Math.abs(odds.rpRed - odds.rpBlue).toFixed(1)}`}</span>
+          <span className={sideValue("blue")}>{odds.rpBlue.toFixed(1)}</span>
         </li>
       )}
-    </ul>
+    </>
   );
 }

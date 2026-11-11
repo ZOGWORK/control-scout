@@ -93,6 +93,14 @@ export async function cachedEventDetail(season: number, code: string): Promise<E
 
 const LEGACY_NOTE ="Seasons before 2023–24 are shown for history: results and stats, no predictions.";
 
+/** An event's advancement row as the page shows it: each row with FIRST's advancement points there, when posted. */
+function advancementOf(adv: { slots: number; advances_to: string | null; advances_to_name: string | null; rows: string; points: string | null }): NonNullable<EventDetail["advancement"]> {
+  const pts: Record<string, number> = adv.points ? JSON.parse(adv.points) : {};
+  // Each added only when known: the event's page response never grows for an event with neither.
+  const rows = (JSON.parse(adv.rows) as { team: number; status: string; declined: boolean }[]).map((r) => (pts[String(r.team)] != null ? { ...r, points: pts[String(r.team)] } : r));
+  return { slots: adv.slots, advancesTo: adv.advances_to, ...(adv.advances_to_name ? { advancesToName: adv.advances_to_name } : {}), rows };
+}
+
 export async function eventDetail(season: number, code: string): Promise<EventDetail | null> {
   const r = await get<any>(`${SUMMARY_SQL} WHERE e.season = ? AND e.code = ?`, [season, code]);
   if (!r) return null;
@@ -101,7 +109,8 @@ export async function eventDetail(season: number, code: string): Promise<EventDe
     all<any>("SELECT team, opr_np, opr_auto, opr_teleop, opr_endgame, opr_pen, avg_np FROM team_event_stats WHERE season = ? AND code = ?", [season, code]),
     all<any>("SELECT number, name, captain, pick1, pick2, backup FROM alliances WHERE season = ? AND code = ? ORDER BY number", [season, code]),
     all<any>("SELECT type, placement, team, name FROM awards WHERE season = ? AND code = ? ORDER BY CASE type WHEN 'Inspire' THEN 0 WHEN 'Winner' THEN 1 WHEN 'Finalist' THEN 2 ELSE 3 END, type, placement", [season, code]),
-    get<any>("SELECT slots, advances_to, rows FROM advancement WHERE season = ? AND code = ?", [season, code]),
+    // With the next event's name (when its code is one of the season's events) and FIRST's advancement points here.
+    get<any>("SELECT a.slots, a.advances_to, a.rows, n.name advances_to_name, (SELECT json_group_object(p.team, p.total) FROM advancement_points p WHERE p.season = a.season AND p.code = a.code) points FROM advancement a LEFT JOIN events n ON n.season = a.season AND n.code = a.advances_to WHERE a.season = ? AND a.code = ?", [season, code]),
     matchViews({ season, code }, { predictUnplayed: true }),
     // Season OPR for the "At a glance" card before the event starts (the event's own OPR is empty then).
     all<any>(`SELECT s.team, s.opr_np FROM team_season_stats s JOIN ${ROSTER} et ON et.season = s.season AND et.team = s.team WHERE et.season = ? AND et.code = ?`, [season, code]),
@@ -140,7 +149,7 @@ export async function eventDetail(season: number, code: string): Promise<EventDe
     alliances: alliances.map((a) => ({ number: a.number, name: a.name, captain: a.captain, pick1: a.pick1, pick2: a.pick2, backup: a.backup })),
     bracket: f ? eventBracket(season, code, f, await liveVersion(season), field, matches, alliances) : null,
     awards: awards.map((a) => ({ type: a.type, placement: a.placement, team: a.team, name: a.name })),
-    advancement: adv ? { slots: adv.slots, advancesTo: adv.advances_to, rows: JSON.parse(adv.rows) } : null,
+    advancement: adv ? advancementOf(adv) : null,
     forecastUnsupported: isLegacy(season) ? LEGACY_NOTE : f ? f.unsupportedReason(input) : "Predictions are still loading.",
     // Without FIRST credentials only the 5-minute FTC Scout fetch runs, so that's the cadence the page shows.
     live: isEventDay(r) ? { checkedAt: latest(r.live_checked_at, r.detail_synced_at), everySeconds: liveIo.canProbe() ? liveSyncSeconds() : FULL_EVERY_MS / 1000, auto: liveSyncOn() } : null,
