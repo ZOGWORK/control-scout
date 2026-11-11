@@ -15,6 +15,25 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.4.9 — 2026-11-11
+
+Search answers read more clearly: winners are the big line, follow-up questions sit beside the results, and Worlds' video opens on the winning match.
+
+### Highlights
+- [fixes] "Who won" shows the winning teams big, "Champions" small
+- [fixes] People also ask sits right of the results on a wide screen
+- [fixes] A comparison's one action is Compare side by side
+- [fixes] Worlds winners' video starts at the deciding final
+
+### Changed
+- A winners answer names its teams as the headline: large team chips, with "Champions" (or "Alliance 1") as a small label above them, instead of the word in large type. (`Headline`, `src/components/search/page/StatAnswer.tsx`)
+- People also ask moves to the right column on wide screens (results keep the left) and comes after the results on a phone. (`src/pages/SearchPage.tsx`)
+- A two-team comparison's card offers Compare side by side as its one primary action; Open in Predict is gone from it. (`src/components/search/page/CompareCard.tsx`)
+
+### Fixed
+- The winners answer links the deciding final, so its video plays that match instead of the whole event stream from its start. (`server/api/answers/families/winners.ts`)
+- An award asked about ("Innovate award at …") offers highlights and related searches about that award's winner, not the first team in the event's full award list. (`answerTeam`, `server/api/answers/followUps.ts`) (#PRNUM)
+
 ## 5.4.8 — 2026-11-11
 
 Search answers three more questions it missed: a game's best score "ever", the official world record, and a team's Worlds years.
