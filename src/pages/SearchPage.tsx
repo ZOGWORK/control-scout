@@ -190,7 +190,10 @@ export default function SearchPage() {
   // answer and Related searches at the end of the page (the launch brief, Phase K). The page's first paint carries
   // them (server/seoMeta.ts searchMeta), so they're there from the first frame; else asked once the answer is on screen.
   const follow = useFollowUps(query, prefer, !busy && !stale, picked);
-  const side = !!panel;
+  // People also ask goes beside the results on a wide screen (the results keep the left), after them on a phone.
+  const wide = useMediaQuery("(min-width: 1024px)");
+  const askAside = wide && follow.ask.length > 0;
+  const side = !!panel || askAside;
   // A search on its way (just submitted, or a new one run from here): its loading screen, never older results; and
   // while going on to the one page a submitted query names.
   if (query && !error && ((busy && ((stale && !reseason) || !found)) || leaving)) return <SearchSkeleton query={query} top={phone ? <PhoneSearchBar query={query} /> : null} />;
@@ -273,6 +276,7 @@ export default function SearchPage() {
                       </aside>
                     )}
                     {panel === "versus" && shownH2h && <aside aria-label="Head-to-head" className="max-lg:hidden" data-panel="versus"><HeadToHead h={shownH2h} now={now.data?.teams} before={asked == null ? before.data?.teams : undefined} season={base} /></aside>}
+                    {askAside && <PeopleAlsoAsk ask={follow.ask} />}
                   </div>
                 )}
                 <div className="min-w-0 lg:col-start-1 lg:row-start-1">
@@ -289,8 +293,6 @@ export default function SearchPage() {
                     : answer?.card && !inStat && <FactCard card={answer.card} heading={title ?? undefined} season={hits.find((h) => h.kind === "team" && !isCompare(h) && Number(h.ref) === answer.card!.team?.number)?.linkSeason} />}
                   {/* A match or event searched by name (no answer card): its video above the results (./search/page/AnswerVideo.tsx). */}
                   {!answer?.stat && !answer?.card && <AnswerVideo className="mb-5 mt-0 max-sm:mx-0" />}
-                  {/* The next questions search answers directly, under the answer. */}
-                  <PeopleAlsoAsk ask={follow.ask} className="mb-5" />
                   {!!compares.length && (
                     <section aria-label="Compare" className="mb-5" data-section="compare">
                       <h2 className="mb-1.5 text-xs font-semibold text-muted-foreground">Compare</h2>
@@ -315,6 +317,8 @@ export default function SearchPage() {
                     </div>
                   )}
                   {panel === "versus" && summary}
+                  {/* The next questions search answers directly: after the results here, in the right column when wide. */}
+                  {!wide && <PeopleAlsoAsk ask={follow.ask} className="mt-5" />}
                   {/* The team's highlights and the related searches, after the results. */}
                   <TeamHighlights h={follow.highlights} className="mt-5" />
                   <RelatedSearches related={follow.related} seeAll={follow.asked ?? query} className="mt-5" />

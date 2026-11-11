@@ -31,8 +31,9 @@ export function CompareCard({ stat, b, extra }: { stat: StatAnswer; b: Compare; 
   const teams: Who[] = stat.teams ?? [];
   const h = stat.headline;
   const links = stat.blocks.find((x) => x.kind === "links") as Extract<StatBlock, { kind: "links" }> | undefined;
-  const primary = links?.items.find((l) => /^Open in Predict$/.test(l.label));
-  const rest = links?.items.filter((l) => l !== primary) ?? [];
+  // Comparing teams: seeing them side by side is the next step, so it's the one button (Predict isn't offered here).
+  const primary = links?.items.find((l) => /^Compare side by side$/.test(l.label));
+  const rest = links?.items.filter((l) => l !== primary && !/^Open in Predict/.test(l.label)) ?? [];
   const eyebrow = [...stat.scope, b.title].join(" · ");
   const title = teams.map((t) => `${t.number}${t.name ? ` ${t.name}` : ""}`).join(" — ");
   return (

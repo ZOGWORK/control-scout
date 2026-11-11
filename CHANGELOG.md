@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.4.9 — 2026-11-11
+## 5.5.0 — 2026-11-11
 
 Search answers an award at Worlds in the season you name, even when each division judged it.
 
@@ -28,6 +28,25 @@ Search answers an award at Worlds in the season you name, even when each divisio
 - An award asked at an event in a season named ("Innovate award at Worlds in into the deep") fell back to the newest older season that event gave it (2021–22), because in 2024–25 FIRST judged Worlds' Innovate Award in each division and the championship's own list has none. It now reads that season: every division's places, winners first, each line naming its division. A season named never falls back to another one and adds no note about a newer event. (`askAnswer` "award", `server/api/searchAsks.ts`; failed search)
 - A judged award's finalists, which FIRST places 1 like the winner ("… Finalist"), came first and were said as "Winner", and the card took its title from one. The winner now comes first, its finalists after it as "Finalist", on the card and in its podium. (`server/api/searchAsks.ts`, `EventAwards.tsx`)
 - An award from an older season showed that season's label over the newer event's dates. The event is now that season's own, with its own dates. (`server/api/searchAsks.ts`) (#1363)
+
+## 5.4.9 — 2026-11-11
+
+Search answers read more clearly: winners are the big line, follow-up questions sit beside the results, and Worlds' video opens on the winning match.
+
+### Highlights
+- [fixes] "Who won" shows the winning teams big, "Champions" small
+- [fixes] People also ask sits right of the results on a wide screen
+- [fixes] A comparison's one action is Compare side by side
+- [fixes] Worlds winners' video starts at the deciding final
+
+### Changed
+- A winners answer names its teams as the headline: large team chips, with "Champions" (or "Alliance 1") as a small label above them, instead of the word in large type. (`Headline`, `src/components/search/page/StatAnswer.tsx`)
+- People also ask moves to the right column on wide screens (results keep the left) and comes after the results on a phone. (`src/pages/SearchPage.tsx`)
+- A two-team comparison's card offers Compare side by side as its one primary action; Open in Predict is gone from it. (`src/components/search/page/CompareCard.tsx`)
+
+### Fixed
+- The winners answer links the deciding final, so its video plays that match instead of the whole event stream from its start. (`server/api/answers/families/winners.ts`)
+- An award asked about ("Innovate award at …") offers highlights and related searches about that award's winner, not the first team in the event's full award list. (`answerTeam`, `server/api/answers/followUps.ts`) (#1358)
 
 ## 5.4.8 — 2026-11-11
 
