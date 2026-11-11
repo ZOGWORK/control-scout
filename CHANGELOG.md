@@ -17,22 +17,15 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 5.4.9 — 2026-11-11
 
-Search answers read more clearly: winners are the big line, follow-up questions sit beside the results, and Worlds' video opens on the winning match.
+The home page stops suggesting a search that reads as nonsense.
 
 ### Highlights
-- [fixes] "Who won" shows the winning teams big, "Champions" small
-- [fixes] People also ask sits right of the results on a wide screen
-- [fixes] A comparison's one action is Compare side by side
-- [fixes] Worlds winners' video starts at the deciding final
+- [home] "4215 not 6980 record" is no longer a home suggestion
+- [home] Every home suggestion is a question people actually ask
+- [fixes] Searches with "not" still work as before
 
 ### Changed
-- A winners answer names its teams as the headline: large team chips, with "Champions" (or "Alliance 1") as a small label above them, instead of the word in large type. (`Headline`, `src/components/search/page/StatAnswer.tsx`)
-- People also ask moves to the right column on wide screens (results keep the left) and comes after the results on a phone. (`src/pages/SearchPage.tsx`)
-- A two-team comparison's card offers Compare side by side as its one primary action; Open in Predict is gone from it. (`src/components/search/page/CompareCard.tsx`)
-
-### Fixed
-- The winners answer links the deciding final, so its video plays that match instead of the whole event stream from its start. (`server/api/answers/families/winners.ts`)
-- An award asked about ("Innovate award at …") offers highlights and related searches about that award's winner, not the first team in the event's full award list. (`answerTeam`, `server/api/answers/followUps.ts`) (#1358)
+- Home: the suggestion chip "4215 not 6980 record" is gone. It ran, but a record "not with" one named team is not a question people ask, so it read as a mistake. Searches using "not" still work; only the chip is removed. (`HOME_SUGGESTIONS`, `src/shared/homeSuggestions.ts`) (#1361)
 
 ## 5.4.8 — 2026-11-11
 
