@@ -12,7 +12,7 @@ import { clearMalformedSession, currentUser, deleteUser, endSession, readCookie,
 import { emailSignInEnabled, startEmailSignIn, verifyEmailCode } from "./email.js";
 import { copyToAdminSpaces } from "../scout/adminCopies.js";
 import { accessError, checkScoutEntry, cleanScoutEntry, INVALID_ENTRY, pushWorkspaceEntries, storedEntryFields, supersedeBound, supersedes, workspaceAccess, workspacePaused, type ScoutEntryInput } from "../scout/entries.js";
-import { CP_PROVIDER, controlPointEnabled, isWorkspaceId, controlPointInfo, controlPointVia, isCpVia, rememberInfo, linkedAccountId, linkToSharedAccount, logFailure, provenEmailFor, redeemHandoff } from "./controlPoint.js";
+import { CP_PROVIDER, controlPointEnabled, isWorkspaceId, controlPointInfo, controlPointVia, isCpVia, rememberInfo, linkedAccountId, linkToSharedAccount, logFailure, provenEmailFor, redeemHandoff, issueSigninCode, vouchProofFor } from "./controlPoint.js";
 
 export const authProviders = () => ({ email: emailSignInEnabled(), google: !!(env.googleClientId && env.googleClientSecret), controlPoint: controlPointEnabled() });
 
@@ -163,7 +163,58 @@ export function authRouter(): Router {
     res.clearCookie("cs_cp_back", { path: "/api/auth/control-point" });
     res.redirect(`${back ?? "/my-team"}${back?.includes("?") ? "&" : "?"}signin=ok`);
   }));
+
+  // --- Continue with Control Scout (on Control Point; docs/shared-accounts.md) ----------------
+  // The reverse of the above: Control Point asks who is signed in here. Scout vouches for them server
+  // to server (Control Point's /internal/signin/codes, bound to Control Point's state) and sends the
+  // browser back with the code. Signed out: sign in here first; the app comes back here afterwards
+  // (src/lib/cpVouch.ts), with the state kept in a cookie meanwhile.
+  r.get("/control-point/vouch", h(async (req, res) => {
+    if (!controlPointEnabled()) { res.status(503).json({ error: "Control Point sign-in isn't set up on this server." }); return; }
+    const home = new URL(env.appUrl);
+    if (req.hostname !== home.hostname) { res.redirect(302, `${home.origin}${req.originalUrl}`); return; }
+    const cp = env.controlPointPublicUrl!.replace(/\/$/, "");
+    const back = (q: Record<string, string>) => `${cp}/api/auth/control-scout/callback?${new URLSearchParams(q)}`;
+    const opts = { httpOnly: true, sameSite: "lax" as const, secure: env.production, path: "/api/auth/control-point", maxAge: 10 * 60_000 };
+    const asked = typeof req.query.state === "string" ? req.query.state : null;
+    const state = asked ?? readCookie(req, VOUCH_COOKIE);
+    // Only Control Point's own state goes back (it checks it against the browser that started).
+    if (!state || !VOUCH_STATE.test(state)) { res.clearCookie(VOUCH_COOKIE, { path: opts.path }); res.redirect(`${cp}/?oauth_error=invalid_state`); return; }
+    const user = await currentUser(req);
+    if (!user) {
+      res.cookie(VOUCH_COOKIE, state, opts);
+      res.redirect(`/settings?section=profile&${VOUCH_PARAM}`);
+      return;
+    }
+    res.clearCookie(VOUCH_COOKIE, { path: opts.path });
+    // Control Point unreachable while checking a linked account: say it's unavailable (retry), not unverified.
+    let verifiedBy: Awaited<ReturnType<typeof vouchProofFor>>;
+    try { verifiedBy = await vouchProofFor(user); }
+    catch (e) { logFailure("vouch account", e); res.redirect(back({ error: "unavailable", state })); return; }
+    if (!verifiedBy) { console.warn("[shared-accounts] vouch refused: no proven email for this account"); res.redirect(back({ error: "unverified", state })); return; }
+    const myTeam = await followedTeam(user.id);
+    const code = await issueSigninCode({ email: user.email!.trim().toLowerCase(), verifiedBy, state, displayName: user.displayName, myTeam })
+      .catch((e) => { logFailure("vouch", e); return null; });
+    res.redirect(back(code ? { code, state } : { error: "unavailable", state }));
+  }));
   return r;
+}
+
+/** "Continue with Control Scout": Control Point's state while a signed-out visitor signs in here. */
+const VOUCH_COOKIE = "cs_cp_vouch";
+/** Control Point's state: 16 to 128 of [A-Za-z0-9_-] (its isHandoffState). */
+const VOUCH_STATE = /^[A-Za-z0-9_-]{16,128}$/;
+/** On the sign-in page, marks a sign-in that continues to Control Point (src/lib/cpVouch.ts reads it). */
+export const VOUCH_PARAM = "for=control-point";
+
+/** The team this user follows ("My team"), for Control Point to fill in at team setup; null when none. */
+async function followedTeam(userId: number): Promise<number | null> {
+  const row = await get<{ value: string }>("SELECT value FROM user_state WHERE user_id = ? AND key = 'myTeam'", [userId]);
+  if (!row) return null;
+  try {
+    const n = cleanValue("myTeam", JSON.parse(row.value));
+    return typeof n === "number" && Number.isInteger(n) && n >= 1 && n <= 999999 ? n : null;
+  } catch { return null; }
 }
 
 // ---------------------------------------------------------------------------
