@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.5.5 — 2026-11-11
+
+Asking for the average OPR "of teams" in a place now answers, as asking for the average OPR in that place already did.
+
+### Highlights
+- [rankings] "Average OPR of teams in a state" gives the state's average
+- [fixes] "Of teams", "of all the teams" and "among teams" read alike
+- [fixes] A dropped first letter still reaches the average
+
+### Fixed
+- Search: "average OPR of teams in <place>" (also "of all the teams", "among teams from", or "of teams" alone) found nothing, though "average OPR in <place>" answered. The teams said before the place are now read the same way, so the same average card answers. ([#1374](https://github.com/ZOGWORK/control-scout/pull/1374))
+
 ## 5.5.4 — 2026-11-11
 
 A team number nobody has, asked about, gets the closest real team numbers instead of nothing.
