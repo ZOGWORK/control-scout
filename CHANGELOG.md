@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.5.0 — 2026-11-11
+
+First-time visitors get a small welcome card with real searches to try; the step-by-step tour is off unless the owner turns it on.
+
+### Highlights
+- [home] A welcome card with three searches to try, shown once
+- [home] Tap "worlds highlights decode" to see Worlds' best matches
+- [home] The step-by-step tour is off; the owner can turn it back on
+
+### Changed
+- First-time visitors see one small "Welcome to Control Scout" card: "Search any team, event or match", with three example searches that answer live ("worlds highlights decode", "4215 vs 6980 who wins", "Bad Wolf record"). Tapping one runs it. It closes on X, Esc or any search, and is shown once per visitor. (`WelcomeCard`, `src/components/layout/WelcomeCard.tsx`; `src/lib/welcome.ts`)
+- The step-by-step tour never starts by itself. It sits behind a new owner switch, Step-by-step tour (`onboardingTour`, off by default). While it's on, the welcome card, Settings and How it works offer "Take the tour"; while it's off, there's no tour and no Take the tour button. (`src/shared/flags.ts`, `FirstRunTour`, `TakeTour`)
+- "Clear all local data" in Settings also brings the welcome card back. (#PRNUM)
+
 ## 5.4.9 — 2026-11-11
 
 Search answers read more clearly: winners are the big line, follow-up questions sit beside the results, and Worlds' video opens on the winning match.
