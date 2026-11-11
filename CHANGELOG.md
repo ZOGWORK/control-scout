@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.5.2 — 2026-11-11
+
+Best finish now judges a league meet the way the team page shows it: by the team's own rank at that meet.
+
+### Highlights
+- [teams] Best finish: a league meet by your own rank there
+- [teams] Each meet reads "#4 of 10 at the meet", as on the team page
+- [fixes] League standing used only when a meet's own rank isn't posted
+
+### Fixed
+- Search: "best finish" and "worst finish" judged a league meet by the league's running standing (#14 of 34), not the team's own finish there. They now use its rank among the teams ranked at that meet, as the team page shows it ("#4 of 10 at the meet"), and fall back to the league standing only when that isn't posted. (#1369)
+
 ## 5.5.1 — 2026-11-11
 
 A search answered by a card alone no longer tells search engines and link previews that nothing matched.
