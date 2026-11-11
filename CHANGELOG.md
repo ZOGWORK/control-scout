@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.6.5 — 2026-11-11
+## 5.6.7 — 2026-11-11
 
 Search answers a question about two teams' past matches with the matches they really played.
 
@@ -30,6 +30,35 @@ Search answers a question about two teams' past matches with the matches they re
 
 ### Added
 - "Can 33950 beat a top 10 worldwide team, according to predictions, and by how much would they lose": the engine's call (one team per alliance, as Predict makes it) against each team ranked in the world's top N by prediction rating, how many the team is favoured against, its best chance, and the average and biggest predicted loss, each row opening Predict. (`server/api/answers/compound.ts`, `families/predict.ts`)
+
+## 5.6.6 — 2026-11-11
+
+Search's "ever" means every season, and a few more ways to ask about a team's best and worst matches are understood.
+
+### Highlights
+- [fixes] "4215 best match ever" shows the team's highest score from any season
+- [fixes] "Win by the most points" and "lost by the least" now get answers
+- [fixes] "Rating over the 2025-26 season" shows the rating event by event
+- [fixes] A question about a team's coach says search can't answer it yet
+
+### Fixed
+- "Ever" or "all time" beside a team's best or worst match, or its biggest win or loss, showed the latest season's while the card said "All seasons". It now picks from every season, and each season's own best is still listed below it. Without "ever", the latest season's is shown, as before. "Best match" no longer adds a note on how it was read. (`server/api/answers/families/matches.ts`, `server/api/searchCoverage.ts`)
+- "Win by the most points" read as the highest score, and "lost by the least" found no answer. They are now the biggest win and the closest loss. (`server/api/query/lexicon.ts`)
+- A number asked "over" a named season ("14450 rating over the 2025-26 season") showed one number. It now shows the trend, as "over the season" does. (`server/api/query/parse.ts`)
+- "Who is 4215's coach" showed the team's highlights. A question about a team's people now gets the sorry state, with what was read and searches that do answer. (`server/api/searchIntents.ts`) (#1395)
+
+## 5.6.5 — 2026-11-11
+
+A match's video always shows that match: never another match in its place, and never a clip that opens on another match.
+
+### Highlights
+- [fixes] A search card about one match never plays a different match's video
+- [fixes] No clip of the match? The card links to the day's full recording instead
+- [fixes] A clip that would open on another match being played is left out
+
+### Fixed
+- A search card about one match ("23268 highlights": best score Q85) played another listed match (Q18) when its own match had no clip, under the first match's headline. Q85 was played on the Sunday, whose broadcast ran 15 h 20 min while its video is 9 h 43 min long with no chapters, so its times can't be placed. The card now plays only its own match. When that match has no clip, it shows "No clip of Q85" and links to the recording the match is in ("Watch the Sunday recording"). The other listed matches keep their own play buttons. Video pages and a team's match lists follow the same rule. (`answerVideo`, `server/api/answers/video.ts`; `AnswerVideo.tsx`)
+- A video missing 3 to 15 minutes of its broadcast at an unknown point starts each clip early by all of the missing time. That early start could open on the match before being played: at Glen Allen VA #1 Qualifier, Q10's clip played Q8 and Q9 first. A clip like that is now left out unless the match before it has finished playing by the clip's start, so the clip opens on the previous result or the field reset. In the data on hand, 851 of 1,251 early clips (38 videos) were left out. Clips on videos whose times are trusted (7,746) are unchanged; Q18's clip was checked against the video and lands on its 2:30 start. (`clearOfPrevious`, `src/shared/recording.ts`; `withClips`, `server/videos/recordings.ts`)
 
 ## 5.6.4 — 2026-11-11
 

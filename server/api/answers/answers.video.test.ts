@@ -73,9 +73,10 @@ describe("answerVideo: the one match or event an answer is about", () => {
     expect(v?.main).toEqual({ videoId: "xnQFL9T27fY", t: 9991, kind: "recording", match: "Q12" });
   });
 
-  it("a match the recording doesn't hold gets the event's stream from its start (Chesapeake F1, the next day)", async () => {
+  it("a match the recording doesn't hold: no player, a link to the event's recording (Chesapeake F1, the next day)", async () => {
     const v = await answerVideo(stat({ headline: { value: "216–218", label: "F1", href: href("USCHSCMP", "playoff:0:1") } }), NOW);
-    expect(v?.main).toEqual({ videoId: "Z2ArRHRiwh0", t: 0, kind: "stream" });
+    expect(v?.main).toBeUndefined();
+    expect(v?.watch).toEqual({ videoId: "Z2ArRHRiwh0", t: 0, kind: "stream", match: "F1" });
   });
 
   it("an event answer plays the event's stream: a headline's event, a card's event, matches all at one event", async () => {
@@ -147,18 +148,19 @@ describe("answerVideo: an answer about a team plays one of its own matches", () 
   const theirs = (rows: StatMatchRow[]) => stat({ intent: "team-highlights", team: { number: 4215, name: null },
     headline: { value: "x", label: "x", href: rows[0].href }, blocks: [{ kind: "matches", title: "Highlights", rows: rows.map((r, i) => ({ ...r, note: `Reason ${i}` })) }] });
 
-  it("its best match with no clip: its next listed match with one, never the event's recording from its start", async () => {
+  it("its best match with no clip: no other match plays under it; the others keep their own buttons", async () => {
     // Chesapeake's Sunday finals have no second in its Saturday recording.
     const v = await answerVideo(theirs([row("USCHSCMP", "playoff:0:1", "F1"), row("USCHSCMP", "playoff:0:2", "F2"), row("FTCCMP1EDIS", "playoff:1:1", "M1")]), NOW);
-    expect(v?.main).toEqual({ videoId: "ruupjlPEQns", t: 0, kind: "match", match: "M1" });
-    expect(v?.mainRow).toBe(href("FTCCMP1EDIS", "playoff:1:1"));
-    expect(v?.rows?.[href("FTCCMP1EDIS", "playoff:1:1")]).toBeUndefined();
+    expect(v?.main).toBeUndefined();
+    expect(v?.mainRow).toBeUndefined();
+    expect(v?.watch).toEqual({ videoId: "Z2ArRHRiwh0", t: 0, kind: "stream", match: "F1" });
+    expect(v?.rows?.[href("FTCCMP1EDIS", "playoff:1:1")]).toEqual({ videoId: "ruupjlPEQns", t: 0, kind: "match", match: "M1" });
   });
 
-  it("none of its matches has a clip: the event's recording, the fallback", async () => {
+  it("none of its matches has a clip: a link to the event's recording, no player", async () => {
     const v = await answerVideo(theirs([row("USCHSCMP", "playoff:0:1", "F1"), row("USCHSCMP", "playoff:0:2", "F2")]), NOW);
-    expect(v?.main).toEqual({ videoId: "Z2ArRHRiwh0", t: 0, kind: "stream" });
-    expect(v?.mainRow).toBeUndefined();
+    expect(v?.main).toBeUndefined();
+    expect(v?.watch).toEqual({ videoId: "Z2ArRHRiwh0", t: 0, kind: "stream", match: "F1" });
   });
 
   it("about the team at an event, no match listed (\"<team> opr at worlds\"): its best-scoring match there with a clip", async () => {
@@ -177,17 +179,20 @@ describe("answerVideo: an answer about a team plays one of its own matches", () 
     expect((await answerVideo(opr, NOW))?.main).toEqual({ videoId: "njq5njq5njq", t: 0, kind: "match", match: "Q5" });
   });
 
-  it("highlights with every match beside them: a highlight stands in, never another event's match from the grid", async () => {
+  it("highlights with every match beside them: no match stands in for the headline's, a highlight or the grid's", async () => {
     const tile = (code: string, key: string, label: string) => ({ label, href: href(code, key), level: "playoff" as const, red: [], blue: [], redScore: 1, blueScore: 0 });
     // The best score and its runner-up have no second in the recording; the grid's M1, another event's, has a video.
     const highlights = (lead: StatMatchRow[]) => stat({ intent: "scope-highlights", headline: { value: "x", label: "x", href: lead[0].href },
       blocks: [{ kind: "matches", title: "Highlights", rows: lead.map((r, i) => ({ ...r, note: `Reason ${i}` })) },
         { kind: "videos", title: "Every match", tiles: [tile("FTCCMP1EDIS", "playoff:1:1", "M1")] }] });
     const v = await answerVideo(highlights([row("USCHSCMP", "playoff:0:1", "F1"), row("USCHSCMP", "playoff:0:2", "F2")]), NOW);
-    expect(v?.main).toEqual({ videoId: "Z2ArRHRiwh0", t: 0, kind: "stream" });
+    expect(v?.main).toBeUndefined();
     expect(v?.mainRow).toBeUndefined();
-    // A highlight with a clip still stands in.
-    expect((await answerVideo(highlights([row("USCHSCMP", "playoff:0:1", "F1"), row("FTCCMP1EDIS", "playoff:1:1", "M1")]), NOW))?.main).toMatchObject({ kind: "match", match: "M1" });
+    expect(v?.watch).toEqual({ videoId: "Z2ArRHRiwh0", t: 0, kind: "stream", match: "F1" });
+    // A highlight with a clip doesn't stand in either: it keeps its own button.
+    const w = await answerVideo(highlights([row("USCHSCMP", "playoff:0:1", "F1"), row("FTCCMP1EDIS", "playoff:1:1", "M1")]), NOW);
+    expect(w?.main).toBeUndefined();
+    expect(w?.rows?.[href("FTCCMP1EDIS", "playoff:1:1")]).toMatchObject({ kind: "match", match: "M1" });
   });
 
   it("an event with no recording and no match video: no video at all", async () => {
@@ -209,24 +214,68 @@ describe("answerVideo: a video page", () => {
 
 describe("answerVideo: a video page whose lead has no clip", () => {
   const tile = (code: string, key: string, label: string) => ({ label, href: href(code, key), level: "playoff" as const, red: [], blue: [], redScore: 1, blueScore: 0 });
-  it("plays the event's next listed match with one, not the event's recording from its start", async () => {
+  it("no other match of the event plays under it: a link to the recording; the other tile keeps its clip", async () => {
     const v = await answerVideo(stat({ headline: { value: "x", label: "x", href: href("USMACMP", "playoff:9:9") },
       blocks: [{ kind: "videos", title: "Every match", tiles: [tile("USMACMP", "playoff:9:9", "M9"), tile("USMACMP", "qual:0:12", "Q12")] }] }), NOW);
-    expect(v?.main).toMatchObject({ kind: "recording", match: "Q12" });
+    expect(v?.main).toBeUndefined();
+    expect(v?.watch).toEqual({ videoId: "xnQFL9T27fY", t: 0, kind: "stream" });
+    expect(v?.rows?.[href("USMACMP", "qual:0:12")]).toMatchObject({ kind: "recording", match: "Q12" });
   });
 
-  it("never another event's match: the headline's event recording, or no player", async () => {
+  it("never another event's match: a link to the headline's event recording", async () => {
     const v = await answerVideo(stat({ headline: { value: "x", label: "x", href: href("USCHSCMP", "playoff:0:2") },
       blocks: [{ kind: "videos", title: "Every match", tiles: [tile("USCHSCMP", "playoff:0:2", "F2"), tile("FTCCMP1EDIS", "playoff:1:1", "M1")] }] }), NOW);
-    expect(v?.main).toEqual({ videoId: "Z2ArRHRiwh0", t: 0, kind: "stream" });
+    expect(v?.main).toBeUndefined();
+    expect(v?.watch).toEqual({ videoId: "Z2ArRHRiwh0", t: 0, kind: "stream", match: "F2" });
     // The grid's match keeps its own button.
     expect(v?.rows?.[href("FTCCMP1EDIS", "playoff:1:1")]).toMatchObject({ kind: "match", match: "M1" });
   });
 
-  it("a team's own match list (no reasons): its next match with a clip, at any event", async () => {
+  it("a team's own match list (no reasons) under a match headline: no other match plays in its place", async () => {
     const v = await answerVideo(stat({ team: { number: 4215, name: null }, headline: { value: "x", label: "x", href: href("USCHSCMP", "playoff:0:2") },
       blocks: [{ kind: "matches", title: "Best scores", rows: [row("USCHSCMP", "playoff:0:2", "F2"), row("FTCCMP1EDIS", "playoff:1:1", "M1")] }] }), NOW);
+    expect(v?.main).toBeUndefined();
+    expect(v?.rows?.[href("FTCCMP1EDIS", "playoff:1:1")]).toMatchObject({ kind: "match", match: "M1" });
+  });
+
+  it("a team's matches at an event (no one match as its headline): its first listed match with a clip", async () => {
+    const v = await answerVideo(stat({ team: { number: 4215, name: null }, headline: { value: "x", label: "x", href: "/events/2025/USCHSCMP?team=4215" },
+      blocks: [{ kind: "matches", title: "Best scores", rows: [row("USCHSCMP", "playoff:0:2", "F2"), row("FTCCMP1EDIS", "playoff:1:1", "M1")] }] }), NOW);
     expect(v?.main).toMatchObject({ kind: "match", match: "M1" });
+  });
+});
+
+describe("answerVideo: a headline match whose day's video can't be placed (23268 highlights, Multinational Tech Invitational)", () => {
+  // As synced: the Saturday broadcast's video is whole (Q18's clip lands on its field overlay at 2:30); the Sunday one
+  // ran on 15 h 20 min and its video is 9 h 43 min, with no chapters: its matches get no clip. Before: the card about
+  // Q85 (best score, Sunday) played Q18 (biggest win, Saturday) from 2:10:23.
+  beforeAll(async () => {
+    const live = "https://youtube.com/@funroboticsnetwork/streams";
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, timezone, livestream, source) VALUES (2025, 'USCHSLAOS', 'Multinational Tech Invitational', 'OffSeason', 'Laurel', 'MD', 'USA', '2026-06-26', '2026-06-28', 'America/New_York', ?, 't')", [live]);
+    // The first day's video is also the event's link (server/videos/channelStreams.ts).
+    await run("INSERT INTO event_stream_links (season, code, url, video_id, checked_at) VALUES (2025, 'USCHSLAOS', ?, 'a7WJBT3RHZU', '2026-11-04T07:01:00.000Z')", [live]);
+    await run("INSERT INTO event_broadcasts (season, code, video_id, url, start) VALUES (2025, 'USCHSLAOS', 'a7WJBT3RHZU', ?, '2026-06-27T16:30:06.000Z'), (2025, 'USCHSLAOS', 'W6ywzjs-MUM', ?, '2026-06-28T11:55:24.000Z')", [live, live]);
+    await run("INSERT INTO video_meta (video_id, status, start, end, duration, live, checked_at, chapters) VALUES ('a7WJBT3RHZU', 'ok', '2026-06-27T16:30:06.000Z', '2026-06-27T21:43:02.000Z', 18774, 0, '2026-11-04T07:01:00.000Z', NULL), ('W6ywzjs-MUM', 'ok', '2026-06-28T11:55:24.000Z', '2026-06-29T03:15:59.000Z', 34990, 0, '2026-11-04T07:01:00.000Z', '[]')");
+    const ms = [["qual", 0, 1, "Q1", "2026-06-27T13:12:07.784"], ["qual", 0, 18, "Q18", "2026-06-27T14:40:49.95"], ["qual", 0, 45, "Q45", "2026-06-27T17:22:25.555"],
+      ["qual", 0, 50, "Q50", "2026-06-28T08:06:37.108"], ["qual", 0, 85, "Q85", "2026-06-28T11:31:52.218"], ["playoff", 14, 2, "M14-2", "2026-06-28T17:02:32.86"]] as const;
+    for (const [level, series, number, label, time] of ms) {
+      await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'USCHSLAOS', ?, ?, ?, ?, ?, 1, 1, 1, 0, 0, 't')", [level, series, number, label, time]);
+    }
+    forgetRecordings();
+  });
+
+  it("the card about Q85 never plays Q18: no player, a link to the Sunday recording; Q18 keeps its own clip", async () => {
+    const highlights = stat({ intent: "team-highlights", team: { number: 23268, name: "Ultraviolet" },
+      headline: { value: "412 points", label: "Best score without penalties: Q85", href: href("USCHSLAOS", "qual:0:85") },
+      blocks: [{ kind: "matches", title: "4 standout matches", rows: [
+        { ...row("USCHSLAOS", "qual:0:85", "Q85"), note: "Best score" }, { ...row("USCHSLAOS", "qual:0:18", "Q18"), note: "Biggest win" }] }] });
+    const v = await answerVideo(highlights, NOW);
+    expect(v?.main).toBeUndefined();
+    expect(v?.mainRow).toBeUndefined();
+    expect(v?.watch).toEqual({ videoId: "W6ywzjs-MUM", t: 0, kind: "stream", match: "Q85", day: "Sunday" });
+    // 14:40:49.95 EDT is 18:40:49.95Z, 2 h 10 min 43 s into the Saturday broadcast, less the 20 s lead-in.
+    expect(v?.rows?.[href("USCHSLAOS", "qual:0:18")]).toEqual({ videoId: "a7WJBT3RHZU", t: 7823, kind: "recording", match: "Q18" });
+    expect(v?.rows?.[href("USCHSLAOS", "qual:0:85")]).toBeUndefined();
   });
 });
 

@@ -19,7 +19,7 @@ import { teamWords } from "../../src/shared/teamTitle.js";
 import { inRegion, namedTeamHit, teamsByName } from "./teamsByName.js";
 
 /** Things people ask search for that no view answers yet: the note says so, and the closest real result stands. */
-const MISSING: { id: string; words: RegExp; label: string; note: (compare: boolean) => string }[] = [
+const MISSING: { id: string; words: RegExp; label: string; note: (compare: boolean) => string; sorry?: true }[] = [
   {
     id: "reputation", label: "reputation",
     words: /\b(?:reputation|reputable|respected|prestige|prestigious|famous|popularity|popular|well[- ]known|legacy)\b/i,
@@ -34,6 +34,8 @@ const MISSING: { id: string; words: RegExp; label: string; note: (compare: boole
     id: "roster", label: "team members",
     words: /\b(?:roster|members|students|mentors?|coach(?:es)?|captain|who is on)\b/i,
     note: () => "Team members aren't listed: FIRST doesn't publish rosters.",
+    // A question about people ("who is 12345's coach") is one search can't answer yet: its sorry state.
+    sorry: true,
   },
   {
     id: "budget", label: "budget",
@@ -157,6 +159,9 @@ export async function intentAnswer(q: string, it: ParsedIntent, base: SearchAnsw
     if (local) base = { ...base, hits: [local, ...base.hits.filter((h) => !(h.kind === "team" && h.ref === local.ref))] };
   }
   const team = !compare && base.step !== "recovery" && base.hits[0]?.kind === "team" ? base.hits[0] : null;
+  // A question about a team's people ("who is 12345's coach") with nothing else read: not answered here, so search
+  // goes on to its sorry state (what was read, and the searches that do answer), never the team's page standing in.
+  if (it.missing?.sorry && team && !it.region && !it.ranking && it.season == null) return null;
   const season = it.season ?? null;
   const understood: string[] = [];
   if (compare) understood.push(`A comparison: ${base.hits[0].title}`);
