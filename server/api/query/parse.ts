@@ -232,9 +232,15 @@ export function queryTime(q0: string, names: Names, today: string): TimeRead {
 const SIDE: Record<string, ScoreCond["side"]> = { losing: "losing", losers: "losing", winning: "winning", winners: "winning", both: "both", each: "both", either: "either", one: "either" };
 const OP: [RegExp, ScoreCond["op"]][] = [[/^(?:over|more than|above)$/, ">"], [/^at least$/, ">="], [/^(?:under|less than|below|fewer than)$/, "<"], [/^at most$/, "<="]];
 const COND_RE = /(?:^| )(?:(?:where|with|in which|when|that|and) )?(?:the )?(losing|losers|winning|winners|both|each|either|one) (?:of the )?(?:alliances?|sides?)(?: each)? (?:scored|scores|score|had|got|put up|reached|hit|with) (over|more than|above|at least|under|less than|below|fewer than|at most) (\d{1,4})(?: points?| pts)?(?= |$)/;
+/** "A 226 point match", "226-point games": a score said outright, by either alliance (no comparison word before it:
+ *  "over 200 points" is a floor). Its number is never a team. */
+const EXACT_RE = /(?:^| )(?<!(?:than|over|above|exceeding|beyond|least|most|under|below) )(?:an? )?(\d{1,4})[ -]?(?:points?|pts|pt)(?= (?:match|matches|game|games)(?: |$))/;
 export function scoreCondOf(q: string): { cond: ScoreCond; rest: string; said: string } | null {
   const m = COND_RE.exec(q);
-  if (!m) return null;
+  if (!m) {
+    const x = EXACT_RE.exec(q);
+    return x ? { cond: { side: "either", op: "=", n: Number(x[1]) }, rest: `${q.slice(0, x.index)} ${q.slice(x.index + x[0].length)}`.replace(/\s+/g, " ").trim(), said: x[0].trim() } : null;
+  }
   const op = OP.find(([re]) => re.test(m[2]))![1];
   return { cond: { side: SIDE[m[1]], op, n: Number(m[3]) }, rest: `${q.slice(0, m.index)} ${q.slice(m.index + m[0].length)}`.replace(/\s+/g, " ").trim(), said: m[0].trim() };
 }
@@ -268,7 +274,9 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     if (k >= 0) at = k + 1;
     return { w, typed: k >= 0 ? typedWords[k] : w, at: k >= 0 ? k : at, used: false };
   });
-  const symbols = new Set<string>(cond ? ["cond"] : []);
+  // A score said outright ("a 226 point match") is its own symbol: only one team's match by its score reads it; a
+  // score to reach ("over 200") stays the match list's.
+  const symbols = new Set<string>(cond ? [cond.cond.op === "=" ? "cond:exact" : "cond"] : []);
   let rate = false;
   const p: Parsed = {
     q: raw, teams: [], event: null, place: null, time, level: null, finals: false, eventKind: null, alliance: null, worlds: false, states: false, award: null, agg: null,
