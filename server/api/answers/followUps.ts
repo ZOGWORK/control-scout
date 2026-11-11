@@ -141,6 +141,10 @@ export type Candidate = { q: string; short: string; family: Family; chip?: boole
 function answerTeam(a: SearchAnswer): number | undefined {
   // A leaderboard's team is its first row, the headline's link.
   const led = /^\/teams\/(\d+)(?:[?#]|$)/.exec(a.stat?.headline?.href ?? "");
+  // One award asked about ("Innovate award at …"): its winner, never the first of the event's other awards.
+  const won = a.card?.award ? (a.card.lines.find((l) => l.results?.includes("Winner") && !/Finalist/i.test(l.detail ?? "")) ?? a.card.lines[0]) : undefined;
+  const wonTeam = /^\/teams\/(\d+)(?:[?#]|$)/.exec(won?.href ?? "");
+  if (a.card?.award) return wonTeam ? Number(wonTeam[1]) : undefined;
   return a.stat?.team?.number ?? a.stat?.teams?.[0]?.number ?? a.card?.team?.number ?? a.card?.awards?.[0]?.team ?? (led ? Number(led[1]) : undefined);
 }
 

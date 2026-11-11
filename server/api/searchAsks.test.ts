@@ -495,6 +495,8 @@ describe("who won a division (owner: \"who won nj turnpike division this year\" 
     expect(c?.champions?.map((x) => [x.label, x.number, chips(x)])).toEqual([["Champions", undefined, ["23268 Ultraviolet", "6980 Bad Wolf"]], ["North Division winners", 1, ["23268 Ultraviolet", "6980 Bad Wolf"]]]);
     const a = await ask("who won the vermont championship");
     expect(a.stat?.headline).toMatchObject({ value: "Champions", alliance: "blue" });
+    // The headline is the deciding final, so the answer's video plays that match, not the stream from its start.
+    expect(a.stat?.headline?.href).toMatch(/^\/events\/2025\/USVTCMP\w*\?match=playoff:\d+:\d+$/);
     expect(a.stat?.blocks.find((b) => b.kind === "links" && b.title === "Inspire Award")).toMatchObject({ items: [{ label: "20265 Heart of RoBots" }] });
   });
   it("\"this year\" before the event's season: said so, its latest one finished below", async () => {

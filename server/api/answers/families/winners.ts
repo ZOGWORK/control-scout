@@ -197,7 +197,8 @@ export async function winnersAnswer(core: string, season: number | null, champio
     ...base, blocks,
     ...(which.before != null && parent.season < which.before ? { none: `${shortEvent(parent.name, parent.type)} has no ${seasonLabel(which.before)} event on record yet. Below: the latest one finished, ${seasonLabel(parent.season)}.` } : {}),
     // The winners as team chips in the colour they played the final in; from the award alone, their names.
-    ...(top ? { headline: { value: top.finals.length ? (top.alliance != null && !divisions.length ? `Alliance ${top.alliance}` : "Champions") : alliance(top.teams), ...(top.finals.length ? { teams: top.teams.map((t) => links.get(t)!).filter(Boolean), alliance: top.finals[0].alliance } : {}), label: worlds ? `${seasonLabel(parent.season)} FIRST Championship winners (the finals between the division winners)` : `Won ${shortEvent(parent.name, parent.type)}`, sub: top.finals.map((f) => `${f.label} ${f.own}–${f.opp}`).join(" · ") || undefined, href: eventHref(parent.season, parent.code) } } : {}),
+    // The headline links the deciding final, so its video plays that match (not the whole stream from the start).
+    ...(top ? { headline: { value: top.finals.length ? (top.alliance != null && !divisions.length ? `Alliance ${top.alliance}` : "Champions") : alliance(top.teams), ...(top.finals.length ? { teams: top.teams.map((t) => links.get(t)!).filter(Boolean), alliance: top.finals[0].alliance } : {}), label: worlds ? `${seasonLabel(parent.season)} FIRST Championship winners (the finals between the division winners)` : `Won ${shortEvent(parent.name, parent.type)}`, sub: top.finals.map((f) => `${f.label} ${f.own}–${f.opp}`).join(" · ") || undefined, href: top.finals.at(-1)?.href ?? eventHref(parent.season, parent.code) } } : {}),
   };
 }
 

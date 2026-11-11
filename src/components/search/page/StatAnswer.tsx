@@ -136,12 +136,15 @@ function Headline({ h, hue, tone, hideLabel }: { h: NonNullable<StatAnswer["head
   // One event's headline: its type and season as neutral badges (the season leaves the line under it, so it isn't
   // said twice).
   const ev = h.type !== undefined;
+  // A word, not a number ("Champions", "Alliance 1"), with the teams it names: the teams are the answer, so they
+  // are the big line and the word is the small label over them.
+  const named = !!h.teams?.length && !!h.alliance && !/\d/.test(h.value.replace(/^Alliance \d+$/, "Alliance"));
   const season = ev ? statedSeason(h.sub) : null;
   const sub = h.sub && season != null ? h.sub.split(" · ").filter((x) => x !== seasonLabel(season)).join(" · ") : h.sub;
   const body = (
     <>
-      <p className={cn("break-words font-display text-4xl font-semibold leading-tight tabular-nums group-hover:underline", tone)}><HeadlineValue value={h.value} win={hue ? TEAM_TEXT : tone} /></p>
-      <p className={hideLabel ? "sr-only" : "mt-1 text-sm text-foreground"}><RichText text={h.label} /></p>
+      {!named && <p className={cn("break-words font-display text-4xl font-semibold leading-tight tabular-nums group-hover:underline", tone)}><HeadlineValue value={h.value} win={hue ? TEAM_TEXT : tone} /></p>}
+      <p className={hideLabel ? "sr-only" : named ? "text-sm text-foreground" : "mt-1 text-sm text-foreground"}><RichText text={h.label} /></p>
       {sub && <p className="mt-0.5 text-xs text-muted-foreground"><RichText text={sub} /></p>}
       {ev && (h.type || season != null) && (
         <p className="mt-2 flex flex-wrap gap-1.5" data-headline-chips>
@@ -156,8 +159,16 @@ function Headline({ h, hue, tone, hideLabel }: { h: NonNullable<StatAnswer["head
   return (
     <div className="flex gap-3" data-headline>
       <div className="min-w-0 flex-1">
+        {named && (
+          <>
+            <p className={cn("text-sm font-semibold", tone)} data-headline-word>{h.value}</p>
+            <p className="mt-1.5 flex flex-wrap gap-2" aria-label={`${h.value}: ${h.alliance === "red" ? "red" : "blue"} alliance`} data-headline-teams>
+              {h.teams!.map((t) => <TeamChip key={t.href} t={t} side={h.alliance!} large />)}
+            </p>
+          </>
+        )}
         {main}
-        {!!h.teams?.length && h.alliance && (
+        {!named && !!h.teams?.length && h.alliance && (
           <p className="mt-1 flex flex-wrap gap-1" aria-label={`${h.alliance === "red" ? "Red" : "Blue"} alliance`} data-headline-teams>
             {h.teams.map((t) => <TeamChip key={t.href} t={t} side={h.alliance!} />)}
           </p>
