@@ -51,7 +51,8 @@ describe("rewrites: said the way a reader answers", () => {
     expect(rewriteQuery("4215 at nj states")?.q).toBe("4215 at New Jersey championship");
     expect(rewriteQuery("4215 penalties")?.q).toBe("4215 penalty points given");
     expect(rewriteQuery("4215 no shows")).toMatchObject({ q: "4215 reliability", note: expect.stringMatching(/no-shows/) });
-    expect(rewriteQuery("4215 best match")).toMatchObject({ q: "4215 highest score", note: expect.stringMatching(/highest-scoring/) });
+    // The card's own title says it is the highest score: no note on how it was read.
+    expect(rewriteQuery("4215 best match")).toEqual({ q: "4215 highest score", pre: true });
     expect(rewriteQuery("4215 worst match")?.q).toBe("4215 lowest score");
     expect(rewriteQuery("4215 best event")?.q).toBe("4215 best finish");
     expect(rewriteQuery("4215 partners")?.q).toBe("4215 most frequent partner");

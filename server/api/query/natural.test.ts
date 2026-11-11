@@ -278,12 +278,14 @@ describe("who, what, where and the best, said more ways (3d, 3e)", () => {
     }
   });
   it("the best match, ever or not: the highest score", async () => {
-    const SAID = ["what was 4215's best score", "4215 highest scoring match", "4215 best match", "4215 best match ever", "4215 best game of all time"];
+    const SAID = ["what was 4215's best score", "4215 highest scoring match", "4215 best match"];
     const first = card(await ask(SAID[0]));
     expect(first).toMatchObject({ kind: "highest-score", headline: "170 points" });
     for (const q of SAID.slice(1)) expect(card(await ask(q)).headline, q).toBe("170 points");
+    // "Ever" and "of all time" search every season: the older, higher score.
+    for (const q of ["4215 best match ever", "4215 best game of all time"]) expect(card(await ask(q)), q).toMatchObject({ kind: "highest-score", headline: "190 points" });
   });
-  it("ever: every season's own best (or worst) below the latest season's, an older higher score included", async () => {
+  it("ever: the best (or worst) of every season, each season's own below it", async () => {
     /** Each season's row of the "each season" table: season, score, event. */
     const seasons = async (q: string) => (await ask(q)).stat!.blocks.flatMap((b) => (b.kind === "table" ? b.rows.map((r) => [r.cells.season, r.cells.score, r.cells.event]) : []));
     for (const q of ["4215 best match ever", "4215 best game of all time"]) {
