@@ -725,3 +725,19 @@ describe("an event's matches with a score to reach", () => {
     expect(s.source).toMatch(/^From 1 played match /);
   });
 });
+
+describe("a team's match by its score", () => {
+  it("is that team's match with the score, the number never a team", async () => {
+    // Hypnotic Robotics: 150–90 and 80–120; the 120 is the other alliance's, still that match's score.
+    for (const q of ["hypnotic robotics 120 point match", "4215 120-point match"]) {
+      const s = await stat(q);
+      expect(s.intent, q).toBe("find-high");
+      expect(s.title, q).toBe("120-point match for Hypnotic Robotics (4215), 2025–26");
+      expect(s.headline, q).toMatchObject({ value: "120 points", label: expect.stringMatching(/^Q2 at /) });
+      expect(s.blocks, q).toEqual([]);
+    }
+    expect((await stat("hypnotic robotics 150 point match")).headline?.label).toMatch(/^Q1 at /);
+    // No match with the score: said so.
+    expect((await stat("hypnotic robotics 999 point match")).none).toMatch(/^No played matches/);
+  });
+});

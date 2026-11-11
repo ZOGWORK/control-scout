@@ -159,6 +159,8 @@ export const INTENTS: IntentRule[] = [
   R("results", 1, ["worlds"], ["list"]),
   // Its matches, no measure asked ("12345 matches in 2025-26"): every one in the scope. After the rules above (a tie goes to the first), so a
   // measure, an outcome, a match type or an event said ("12345 matches at states") still picks its own answer.
+  // One team's match by its score ("<team> 226 point match"): the match finder, with the team and the score.
+  R("season-matches", 1, ["thing:match", "cond"], ["list"], { noEvent: true, noMatchNo: true }),
   R("season-matches", 1, ["thing:match"], ["list"], { noEvent: true, noMatchNo: true }),
   // Partners and opponents.
   R("best-partner", 1, ["agg:max", "metric:partner"], ["thing:team"]),

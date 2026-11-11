@@ -274,7 +274,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // A team's matches at Worlds or at its state championship are that event's results card (the division, its rank and
   // OPR there), which search's event readers give: the plain list is for a season, a window or a place.
   if (intent === "season-matches" && (p.worlds || p.states)) return null;
-  if (p.teams.length === 1 && TEAM_INTENTS.has(intent)) {
+  // A team's match by its score ("<team> 226 point match") is the match finder's, below.
+  if (p.teams.length === 1 && TEAM_INTENTS.has(intent) && !(intent === "season-matches" && p.scoreCond?.op === "=")) {
     // An award with an answer of its own: Inspire (its places) and Finalist finishes. The first or latest Finalist
     // award is the award list's, filtered to Finalist, which takes the pick (Finalist finishes only counts them).
     const pickSaid = p.agg === "first" || p.agg === "last";
@@ -480,8 +481,10 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // match type's ("playoff matches in NJ") are left to search.
   if (intent === "top-matches" && !p.teams.length && !p.symbols.includes("agg:max") && !scope.window && !p.scoreCond) return null;
   const kind = p.event ? eventKindOf(normalise(p.event.words)) : p.eventKind ? eventKindOf(p.eventKind) : null;
-  const teamFind = p.teams.length === 1 && TEAM_FIND.has(FIND[intent]!);
-  if ((!p.teams.length || teamFind) && (FIND[intent] || (intent === "top-matches" && (p.level || p.finals || kind || p.scoreCond)))) {
+  // One team's match by its score ("<team> 226 point match"): that team's matches with the score, found the same way.
+  const scored = p.teams.length === 1 && p.scoreCond?.op === "=" && (intent === "season-matches" || intent === "top-matches");
+  const teamFind = p.teams.length === 1 && (TEAM_FIND.has(FIND[intent]!) || scored);
+  if ((!p.teams.length || teamFind) && (FIND[intent] || scored || (intent === "top-matches" && (p.level || p.finals || kind || p.scoreCond)))) {
     // An event named with a score to reach ("matches at <event> where both alliances scored over 250"): its matches,
     // its divisions' too. A calendar year said is the edition held that year; none said, its latest.
     const year = p.time?.kind === "season" && p.time.year != null && !p.time.relative ? p.time.year : null;
@@ -496,10 +499,14 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     const playedIn = eventKeys?.length && year == null && !p.time ? await get<{ s: number | null }>(
       `SELECT MAX(m.season) s FROM matches m WHERE m.played = 1 AND (${eventKeys.map(() => "(m.season = ? AND m.code = ?)").join(" OR ")})`, eventKeys.flatMap((k) => [k.season, k.code])) : null;
     const eventSeason = events && (year != null || !p.time) ? (playedIn?.s != null ? Number(playedIn.s) : Math.max(...events.map((e) => e.season))) : null;
+    // A team's match by its score, no season said: the latest season the team played a match with that score.
+    const scoredIn = scored && !p.time ? await get<{ s: number | null }>(
+      "SELECT MAX(m.season) s FROM matches m JOIN match_teams x ON x.season = m.season AND x.code = m.code AND x.level = m.level AND x.series = m.series AND x.number = m.number WHERE x.team = ? AND x.on_field = 1 AND m.played = 1 AND (m.red_total = ? OR m.blue_total = ?)",
+      [p.teams[0].number, p.scoreCond!.n, p.scoreCond!.n]) : null;
     const plural = /\b(?:matches|games|scores|upsets|comebacks|blowouts|routs|mismatches|underdogs|wins|losses|predictions|misses)\b/.test(said);
     const f: MatchFind = {
       // The current season is the one today is in.
-      measure: FIND[intent] ?? "high", season: eventSeason ?? placeSeason(p, scope.season, opts), region: regionOf(p), level: p.level, finals: p.finals, kind,
+      measure: FIND[intent] ?? "high", season: eventSeason ?? (scoredIn?.s != null ? Number(scoredIn.s) : null) ?? placeSeason(p, scope.season, opts), region: regionOf(p), level: p.level, finals: p.finals, kind,
       ...(["metric:win", "metric:loss", "outcome:W", "outcome:L"].some((s) => p.symbols.includes(s)) ? { decided: true } : {}),
       ...(scope.window ? { window: scope.window } : {}), n: p.n ?? (plural ? 10 : 5), ...(plural || p.n != null ? { list: true } : {}),
       ...(teamFind ? { team: { number: p.teams[0].number, name: p.teams[0].name } } : {}), ...(p.over != null ? { over: p.over } : {}),

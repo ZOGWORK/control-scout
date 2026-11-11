@@ -21,14 +21,14 @@ export type MatchMeasure = "high" | "low" | "closest" | "lopsided" | "penalties"
  *  `side` is whose final score (penalties included, as the result was decided) is held to it. The losing or winning
  *  alliance's needs a decided match. Both alliances over a number is the lower score over it, under one the higher
  *  score under it; either alliance the other way round. */
-export interface ScoreCond { side: "losing" | "winning" | "both" | "either"; op: ">" | ">=" | "<" | "<="; n: number }
+export interface ScoreCond { side: "losing" | "winning" | "both" | "either"; op: ">" | ">=" | "<" | "<=" | "="; n: number }
 const LOW = "MIN(m.red_total, m.blue_total)", HIGH = "MAX(m.red_total, m.blue_total)";
 /** The score a condition holds to its number. */
 export function condValue(c: ScoreCond): string {
   const upper = c.op === "<" || c.op === "<=";
   return c.side === "losing" ? LOW : c.side === "winning" ? HIGH : (c.side === "both") === upper ? HIGH : LOW;
 }
-const OP_WORDS: Record<ScoreCond["op"], string> = { ">": "over", ">=": "at least", "<": "under", "<=": "at most" };
+const OP_WORDS: Record<ScoreCond["op"], string> = { ">": "over", ">=": "at least", "<": "under", "<=": "at most", "=": "exactly" };
 /** The condition in words: "the losing alliance scored over 200". */
 export function condWords(c: ScoreCond): string {
   const who = c.side === "both" ? "both alliances" : c.side === "either" ? "an alliance" : `the ${c.side} alliance`;
@@ -158,7 +158,9 @@ export function where(f: MatchScope, upTo = false) {
   if (f.level) { sql.push("m.level = ?"); args.push(f.level); }
   if (f.finals) sql.push(FINAL);
   if (f.decided || f.cond?.side === "losing" || f.cond?.side === "winning") sql.push("m.red_total <> m.blue_total");
-  if (f.cond) { sql.push(`${condValue(f.cond)} ${f.cond.op} ?`); args.push(f.cond.n); }
+  // A score said outright ("a 226 point match"): either alliance's final score is that number.
+  if (f.cond?.op === "=") { sql.push("(m.red_total = ? OR m.blue_total = ?)"); args.push(f.cond.n, f.cond.n); }
+  else if (f.cond) { sql.push(`${condValue(f.cond)} ${f.cond.op} ?`); args.push(f.cond.n); }
   if (f.team) {
     sql.push("EXISTS (SELECT 1 FROM match_teams x WHERE x.season = m.season AND x.code = m.code AND x.level = m.level AND x.series = m.series AND x.number = m.number AND x.on_field = 1 AND x.team = ?)");
     args.push(f.team.number);
@@ -198,15 +200,22 @@ export async function matchFindAnswer(f: MatchFind): Promise<StatAnswer> {
     show = (v) => `Favourite by ${v.toFixed(1)} rating lost`;
     column = "Rating gap";
   }
+  // A score said outright ("<team> 226 point match"): the matches with it, titled by it, each row its own score.
+  const exact = f.cond?.op === "=" ? f.cond.n : null;
+  if (exact != null) {
+    rule = `a match with a ${exact}-point score is one where either alliance's final score, penalties included, was ${exact}; the highest-scoring of them first`;
+    show = () => `${exact} points`;
+    column = "Score";
+  }
   const place = f.region?.name ?? null;
   const filters = [f.finals ? "finals" : f.level === "qual" ? "qualification" : f.level === "playoff" ? "playoff" : null].filter(Boolean)[0];
   // An event named: its name in the card's season, as that season held it.
   const eventName = f.events?.find((e) => e.season === f.season && e.name)?.name ?? null;
   const who = f.team ? (f.team.name ? `${f.team.name} (${f.team.number})` : `Team ${f.team.number}`) : null;
   const over = f.over ? `Off by ${f.over.atLeast ? `${f.over.n} points or more` : `more than ${f.over.n} points`}` : null;
-  const typed = [who ? `for ${who}` : null, eventName ? `at ${eventName}` : null, f.kind ? `at ${f.kind.label.toLowerCase()}` : null, place ? `in ${place}` : null, f.window ? f.window.label : null, f.cond ? `where ${condWords(f.cond)}` : null].filter(Boolean).join(" ");
+  const typed = [who ? `for ${who}` : null, eventName ? `at ${eventName}` : null, f.kind ? `at ${f.kind.label.toLowerCase()}` : null, place ? `in ${place}` : null, f.window ? f.window.label : null, f.cond && exact == null ? `where ${condWords(f.cond)}` : null].filter(Boolean).join(" ");
   // A list asked for is titled as one ("Biggest upsets in California"), its table under no heading of its own.
-  const head = over ? `Predictions ${over.toLowerCase()}` : f.list ? ms.plural : ms.title;
+  const head = exact != null ? `${exact}-point match${f.list || rows.length > 1 ? "es" : ""}` : over ? `Predictions ${over.toLowerCase()}` : f.list ? ms.plural : ms.title;
   const title = `${(filters ? `${head.replace(/match/, `${filters} match`)}` : head)}${typed ? ` ${typed}` : ""}, ${seasonLabel(f.season)}`;
   const scope = [seasonLabel(f.season), ...(place ? [place] : []), ...(f.window ? [f.window.label.replace(/^./, (c) => c.toUpperCase())] : []),
     ...(f.finals ? ["Finals"] : f.level === "qual" ? ["Qualification matches"] : f.level === "playoff" ? ["Playoff matches"] : []), ...(f.kind ? [f.kind.label] : []), ...(f.cond ? [condWords(f.cond).replace(/^./, (c) => c.toUpperCase())] : []), ...(f.decided ? ["No ties"] : []), ...(over ? [over] : []), ...(f.named ? [] : ["Official events"])];
