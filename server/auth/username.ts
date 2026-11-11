@@ -74,6 +74,8 @@ export async function setUsername(user: User, raw: string, team: number | null =
   // Another change got there first: decide again on what it left.
   if (!changed) {
     const again = await getUserRow(user);
+    // The other change set this very username (two tabs saving the same name): it's saved, so say so.
+    if (again.username === u) return { ok: true, username: u };
     return (await checkUsername(again, u, team, now)).ok ? { ok: false, reason: "tooSoon", error: USERNAME_PROBLEM_TEXT.tooSoon, suggestions: [] } : checkUsername(again, u, team, now);
   }
   await recordAudit(accountActor(user), "account.username", { userId: user.id }, null, { from: current.username, to: u });
