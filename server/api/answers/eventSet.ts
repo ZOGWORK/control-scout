@@ -17,6 +17,9 @@ export interface TeamEvent {
    *  Shown, labelled, in event lists; the best and worst finish judge the meet by it (as a share of the league's ranked
    *  teams); the mean rank leaves it out. */
   standing?: { n: number; of: number | null } | null;
+  /** A league meet's own finish: the team's rank at that meet among the teams ranked there, as its team page shows
+   *  it (team_event_records). The best and worst finish judge a meet by it, the league standing only without it. */
+  meet?: { n: number; of: number | null } | null;
   /** The team's OPR at the event, without penalties (as on its pages), and its phases. */
   opr: number | null; auto: number | null; teleop: number | null; endgame: number | null;
   matches: number;
@@ -86,6 +89,9 @@ async function load(team: number): Promise<{ events: TeamEvent[]; seasons: TeamS
               -- standing counts them), not the meet's own roster.
               CASE WHEN e.type = 'LeagueMeet' THEN (SELECT COUNT(DISTINCT o.team) FROM event_teams o JOIN events oe ON oe.season = o.season AND oe.code = o.code
                 WHERE o.season = et.season AND o.rank IS NOT NULL AND (oe.code = e.code OR (e.league IS NOT NULL AND oe.league = e.league AND oe.region IS e.region AND oe.type = 'LeagueMeet' AND oe.start <= e.start))) END league_ranked,
+              -- A league meet's own rank, and how many teams ranked at that meet (the team page's figures).
+              CASE WHEN e.type = 'LeagueMeet' THEN (SELECT r.rank FROM team_event_records r WHERE r.season = et.season AND r.code = et.code AND r.team = et.team) END meet_rank,
+              CASE WHEN e.type = 'LeagueMeet' THEN (SELECT COUNT(*) FROM team_event_records r WHERE r.season = et.season AND r.code = et.code AND r.rank IS NOT NULL) END meet_ranked,
               s.opr_np, s.opr_auto, s.opr_teleop, s.opr_endgame, COALESCE(s.matches, 0) matches,
               s.avg_score, s.avg_pen, s.wins, s.losses, s.ties, et.rp
        FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
@@ -114,7 +120,8 @@ async function load(team: number): Promise<{ events: TeamEvent[]; seasons: TeamS
       city: r.city ?? null, state: r.state ?? null, country: r.country ?? null, division: r.division_code ?? null,
       // A league meet's stored rank is the league's running standing, not the team's finish there: left out.
       rank: r.type === "LeagueMeet" ? null : num(r.rank), of: r.type === "LeagueMeet" ? null : Number(r.ranked) || null,
-      standing: r.type === "LeagueMeet" && r.rank != null ? { n: Number(r.rank), of: Number(r.league_ranked) >= Number(r.rank) ? Number(r.league_ranked) : null } : null, opr: num(r.opr_np), auto: num(r.opr_auto), teleop: num(r.opr_teleop), endgame: num(r.opr_endgame),
+      standing: r.type === "LeagueMeet" && r.rank != null ? { n: Number(r.rank), of: Number(r.league_ranked) >= Number(r.rank) ? Number(r.league_ranked) : null } : null,
+      meet: r.type === "LeagueMeet" && r.meet_rank != null ? { n: Number(r.meet_rank), of: Number(r.meet_ranked) >= Number(r.meet_rank) ? Number(r.meet_ranked) : null } : null, opr: num(r.opr_np), auto: num(r.opr_auto), teleop: num(r.opr_teleop), endgame: num(r.opr_endgame),
       matches: Number(r.matches) || 0,
       avgScore: num(r.avg_score), avgPen: num(r.avg_pen), wins: num(r.wins), losses: num(r.losses), ties: num(r.ties),
       rp: r.type === "LeagueMeet" ? null : num(r.rp),
