@@ -32,7 +32,7 @@ Search answers read more clearly: winners are the big line, follow-up questions 
 
 ### Fixed
 - The winners answer links the deciding final, so its video plays that match instead of the whole event stream from its start. (`server/api/answers/families/winners.ts`)
-- An award asked about ("Innovate award at …") offers highlights and related searches about that award's winner, not the first team in the event's full award list. (`answerTeam`, `server/api/answers/followUps.ts`) (#PRNUM)
+- An award asked about ("Innovate award at …") offers highlights and related searches about that award's winner, not the first team in the event's full award list. (`answerTeam`, `server/api/answers/followUps.ts`) (#1358)
 
 ## 5.4.8 — 2026-11-11
 
