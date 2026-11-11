@@ -646,13 +646,13 @@ describe("open questions about a team, and where it's from (launch sign-off, Tie
     for (const q of ["is 23268 actually that good or just hype", "can u tell me if bad wolf is good, be honest", "how good is 4215 really, like in plain numbers", "whats up with 23268, are they cracked", "show me 23268 stuff, like everything"]) {
       const a = await page(q);
       expect(a.stat, q).toMatchObject({ family: "stat", intent: "team-overview", title: `Season overview in ${seasonLabel(S)}`, scope: [seasonLabel(S)] });
-      const kpis = a.stat!.blocks.find((b) => b.kind === "kpis");
+      const kpis = { kind: "kpis" as const, items: a.stat!.blocks.flatMap((b) => (b.kind === "kpis" ? b.items : [])) };
       expect(kpis?.kind === "kpis" ? kpis.items.map((i) => i.label) : [], q).toEqual(expect.arrayContaining(["OPR", "Record", "Prediction rating"]));
     }
     // A season said is that season's numbers (fixture: 90 OPR, 12-8 then).
     const past = await page(`is 23268 actually that good or just hype, in ${S - 1}-${String(S % 100).padStart(2, "0")}`);
     expect(past.stat).toMatchObject({ intent: "team-overview", scope: [seasonLabel(S - 1)] });
-    const kp = past.stat!.blocks.find((b) => b.kind === "kpis");
+    const kp = { kind: "kpis" as const, items: past.stat!.blocks.flatMap((b) => (b.kind === "kpis" ? b.items : [])) };
     expect(kp?.kind === "kpis" ? Object.fromEntries(kp.items.map((i) => [i.label, i.value])) : {}).toMatchObject({ OPR: "90", Record: "12-8-0" });
     // One thing asked about the team is that thing's answer, never the overview.
     for (const q of ["how good is 4215 at auto", "is 4215 good at auto"]) expect((await page(q)).stat?.intent, q).not.toBe("team-overview");

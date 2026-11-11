@@ -281,6 +281,9 @@ export async function oprRatingAnswer(f: OprRatingQuestion, team: Team, deps: Op
       blocks: [
         { kind: "kpis", items: [
           { label: "OPR", value: num(o?.value), phase: "np" as const, rank: o?.rank ?? null, of: o?.of ?? null, sub: rank && of ? `#${n(rank)} of ${n(of)} · top ${topPct(rank, of)}%` : "Not ranked yet", tone: "accent" as const },
+        ] },
+        // The page draws a row with a phase tile as OPR tiles only: the record and rating are a row of their own.
+        { kind: "kpis", items: [
           { label: "Record", value: record, sub: played },
           ...(rating ? [{ label: "Prediction rating", value: rating, sub: ratingAt ?? "Not ranked yet" }] : []),
           ...(st.reliability ? [{ label: "Reliability", value: `${st.reliability.index} out of 100`, ...(st.reliability.fieldIndex != null ? { sub: `Field average ${st.reliability.fieldIndex}` } : {}) }] : []),
