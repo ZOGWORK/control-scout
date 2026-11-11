@@ -166,7 +166,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
         {rulesOn && hasRuleReference(e.season) && <Button variant="outline" size="sm" asChild><Link to={`/rules?season=${e.season}`} data-rules-link><Gavel /> Rules</Link></Button>}
       </HeaderActions>
       {/* How much of the event this viewer can watch (docs/contributors.md), seen before the match list. */}
-      <CoverageLine />
+      <CoverageLine reserve={d.matches.some((m) => m.played)} />
       {/* Before FIRST posts the event: the regional site's hosts, times and format, labelled provisional. */}
       {d.provisional && <ProvisionalDetails p={d.provisional} />}
       {!predictable && <p className="mt-3 text-xs text-muted-foreground">{seasonLabel(e.season)} is shown for history: results, rankings and awards, no predictions (those start with 2023–24).</p>}
@@ -248,8 +248,6 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
       {/* The owner-set stream with the model's calls beside it, above the matches (components/WatchLive.tsx). */}
       {/* Keyed by event and video: moving to another event, or a new stream, starts the player and the rail afresh. */}
       {e.stream && <WatchLive key={`${e.season}:${e.code}:${e.stream.videoId}`} d={d} stream={e.stream} />}
-      {/* Every match with a video this viewer can watch ("Watch Clips" scrolls here). */}
-      <ClipsGallery d={d} />
       <div ref={tabsRef} className="scroll-mt-bar-4" />
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
@@ -331,6 +329,9 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
           <MatchOdds d={d} team={teamParam} onTab={setTab} />
         </TabsContent>}
       </Tabs>
+      {/* Every match with a video this viewer can watch ("Watch Clips" scrolls here). Last on the page: it arrives
+          after the first paint (it's per viewer), so nothing above it moves. */}
+      <ClipsGallery d={d} />
     </div>
     </EventClipsProvider>
   );

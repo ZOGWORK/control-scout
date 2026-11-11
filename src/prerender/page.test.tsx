@@ -190,6 +190,7 @@ describe("first render (app), from the page's data", () => {
     const { first, host } = await appFirstRender("/events/2025/USNJNOM3", EVENT);
     expect(first).toBe(server);
     expect(host.querySelector(".skeleton")).toBeNull();
-    expect(fetch).not.toHaveBeenCalled();
+    // Only the match videos people added, read for this viewer after the paint (never in a shared first paint).
+    expect(vi.mocked(fetch).mock.calls.map((c) => String(c[0]).split("?")[0])).toEqual(["/api/videos/event/2025/USNJNOM3"]);
   });
 });

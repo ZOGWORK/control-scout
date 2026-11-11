@@ -53,7 +53,7 @@ export interface OwnerContributors {
 
 const who = (p: Person) => p.name?.trim() || p.username || p.email || `Account ${p.id}`;
 const day = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—");
-const teamsText = (ts: MembershipTeam[]) => ts.length ? ts.map((t) => `${t.name ? `${t.name} ` : ""}${t.number} (${t.sources.map((s) => (s === "controlPoint" ? "Control Point" : "roster")).join(" + ")})`).join(", ") : "No team";
+const teamsText = (ts: MembershipTeam[]) => ts.length ? ts.map((t) => `${t.name ? `${t.name} ` : ""}${t.number} (${t.sources.map((s) => (s === "controlPoint" ? "Control Point" : "roster")).join(" + ")})`).join(", ") : "No team on file";
 const TIER_TEXT: Record<VideoTier, string> = { public: "Public", team: "Team only", self: "Only them" };
 const CHANNEL_TEXT = { yes: "Channel found on YouTube", no: "No such channel on YouTube", unknown: "Couldn't check the channel (YouTube didn't answer)" } as const;
 
@@ -176,6 +176,7 @@ function RequestCard({ r, onDone }: { r: Request; onDone: () => void }) {
           <dt className="text-text-muted">6. Recorded by</dt><dd>{RECORDED_LABEL[a.recorded] ?? a.recorded}</dd>
           <dt className="text-text-muted">7. Why</dt><dd className="whitespace-pre-wrap">{a.why}</dd>
           {a.extra && <><dt className="text-text-muted">8. Anything else</dt><dd className="whitespace-pre-wrap">{a.extra}</dd></>}
+          <dt className="text-text-muted">Checks</dt><dd data-honest-check>{a.sampleVideoId ? "Checked: link exists and plays." : "Checked: couldn't confirm the link plays (YouTube didn't answer)."} Not checked: that this person recorded it.</dd>
           <dt className="text-text-muted">Agreements</dt><dd>{a.agreements.every((x) => x.checked) ? "All five ticked" : `${a.agreements.filter((x) => x.checked).length} of 5 ticked`}</dd>
         </dl>
       )}
