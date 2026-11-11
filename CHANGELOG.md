@@ -15,6 +15,22 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.6.5 — 2026-11-11
+
+Search answers a question about two teams' past matches with the matches they really played.
+
+### Highlights
+- [fixes] "Did 4215 ever play 6980" shows their meetings with a Yes or No
+- [fixes] "7149 losses to 23268" lists their meetings, never a side by side
+- [predict] "Can 33950 beat a top 10 team" gives the engine's call against each of them
+
+### Fixed
+- A question about matches two teams really played ("did 4215 ever play 6980", "show me 24033's match against 17713, if they ever played", "7149 losses to 23268") got a Compare card or a Prediction, and "did … ever play" a "Yes" read off the Compare card's leading team number. "Ever", "lost to" and "losses to" with two teams now give their meetings, with the Yes or No from those meetings ("if they ever played" is whether they did, not a supposition). A team number leading a card's headline is never read as a count. (`server/api/query/intents.ts`, `lexicon.ts`, `server/api/answers/yesNo.ts`)
+- A team and an event with nothing else asked ("4215 at NJ championship in 2025-26") gave the Sorry state. It now gives the team's results there, the same card "4215 matches at NJ championship" gives. (`server/api/query/intents.ts`)
+
+### Added
+- "Can 33950 beat a top 10 worldwide team, according to predictions, and by how much would they lose": the engine's call (one team per alliance, as Predict makes it) against each team ranked in the world's top N by prediction rating, how many the team is favoured against, its best chance, and the average and biggest predicted loss, each row opening Predict. (`server/api/answers/compound.ts`, `families/predict.ts`)
+
 ## 5.6.4 — 2026-11-11
 
 Search answers an award at Worlds in the season you name, even when each division judged it.
