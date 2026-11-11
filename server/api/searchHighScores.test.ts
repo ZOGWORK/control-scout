@@ -164,4 +164,13 @@ describe("\"official\" asked: official records only (failed search #1339, Caroli
     expect(off.stat?.headline?.value).toBe("300 points");
     expect((await searchAnswer("best decode score", { limit: 10, learn: false, full: true })).stat?.headline?.value).toBe("714 points");
   });
+  it("every season's best, 'official' said: each heading says so, and the season's row is its official record (Loopy on #1357)", async () => {
+    const a = await searchAnswer("highest official score ever", { limit: 10, learn: false, full: true });
+    expect(a.stat?.title).toBe("Highest-scoring official match each season");
+    const table = a.stat?.blocks.find((b) => b.kind === "table");
+    expect(table?.kind === "table" && table.title).toBe("Highest official alliance score each season (each season is a different game)");
+    const row = table?.kind === "table" ? table.rows.find((r) => String(r.cells.season).includes("2025–26")) : undefined;
+    expect(row?.cells.score).toBe(300);
+    expect(a.stat?.definition).toContain("Only official records are listed");
+  });
 });

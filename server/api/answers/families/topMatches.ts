@@ -262,12 +262,14 @@ export async function everTopMatches(t: TopMatchesQuestion, findEvent: Parameter
   const gameOf = (s: number) => gameOfSeason(s) ?? seasonLabel(s);
   // A period asked: every heading says which ("Highest alliance auto score each season").
   const p = t.phase ? `${PHASE_LABEL[t.phase].toLowerCase()} ` : "";
-  const table: StatBlock = { kind: "table", title: `Highest alliance ${p}score each season (each season is a different game)`, columns: [{ key: "season", label: "Season" }, { key: "score", label: t.phase ? `${PHASE_LABEL[t.phase]} score` : "Score", num: true }, { key: "match", label: "Match" }, { key: "event", label: "Event" }],
+  // "Official" said: every heading says the list holds official records only.
+  const O = t.official ? "official " : "";
+  const table: StatBlock = { kind: "table", title: `Highest ${O}alliance ${p}score each season (each season is a different game)`, columns: [{ key: "season", label: "Season" }, { key: "score", label: t.phase ? `${PHASE_LABEL[t.phase]} score` : "Score", num: true }, { key: "match", label: "Match" }, { key: "event", label: "Event" }],
     rows: per.map(({ s, r }) => ({ cells: { season: `${gameOf(s)} ${seasonLabel(s)}`, score: r!.score, match: markedLabel(r!), event: shortEvent(r!.name, r!.type) }, href: matchHref(r!), strong: s === per[0].s })) };
   const place = ev ? ` at ${shortEvent(ev.name, ev.type)}` : t.region ? ` in ${t.region.name}` : "";
   // The latest season's lists only when it has scores here (a place's newest season may have none yet).
   return {
-    ...latest, none: undefined, title: t.phase ? `Highest ${p}score each season${place}` : `Highest-scoring match each season${place}`, scope: ["Every season", ...latest.scope.slice(1)], blocks: [table, ...(latest.headline ? latest.blocks : [])],
-    definition: `${latest.definition} Each season is a different game that scores on its own scale, so there is no all-time record: each season's best is listed apart, and the latest season's lists below.`,
+    ...latest, none: undefined, title: t.phase ? `Highest ${O}${p}score each season${place}` : `Highest-scoring ${O}match each season${place}`, scope: ["Every season", ...latest.scope.slice(1)], blocks: [table, ...(latest.headline ? latest.blocks : [])],
+    definition: `${latest.definition}${t.official ? " Only official records are listed: matches marked not an official record are left out." : ""} Each season is a different game that scores on its own scale, so there is no all-time record: each season's best is listed apart, and the latest season's lists below.`,
   };
 }
