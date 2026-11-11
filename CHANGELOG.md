@@ -21,7 +21,7 @@ Search's "ever" means every season, and a few more ways to ask about a team's be
 
 ### Highlights
 - [fixes] "4215 best match ever" shows the team's highest score from any season
-- [fixes] "Win by the most points" shows the biggest win; "lost by the least" the closest loss
+- [fixes] "Win by the most points" and "lost by the least" now get answers
 - [fixes] "Rating over the 2025-26 season" shows the rating event by event
 - [fixes] A question about a team's coach or members says search can't answer it yet
 
@@ -29,7 +29,7 @@ Search's "ever" means every season, and a few more ways to ask about a team's be
 - "Ever" or "all time" beside a team's best or worst match, or its biggest win or loss, showed the latest season's while the card said "All seasons". It now picks from every season, and each season's own best is still listed below it. Without "ever", the latest season's is shown, as before. "Best match" no longer adds a note on how it was read. (`server/api/answers/families/matches.ts`, `server/api/searchCoverage.ts`)
 - "Win by the most points" read as the highest score, and "lost by the least" found no answer. They are now the biggest win and the closest loss. (`server/api/query/lexicon.ts`)
 - A number asked "over" a named season ("14450 rating over the 2025-26 season") showed one number. It now shows the trend, as "over the season" does. (`server/api/query/parse.ts`)
-- "Who is 4215's coach" showed the team's highlights. A question about a team's people now gets the sorry state, with what was read and searches that do answer. (`server/api/searchIntents.ts`)
+- "Who is 4215's coach" showed the team's highlights. A question about a team's people now gets the sorry state, with what was read and searches that do answer. (`server/api/searchIntents.ts`) (#1395)
 
 ## 5.6.5 — 2026-11-11
 
