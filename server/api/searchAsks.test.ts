@@ -704,4 +704,11 @@ describe("who advanced from an event, or how many", () => {
     expect(a.card?.none).toBe("No team took one of the 2 slots to the New Jersey Championship: each listed team declined or had already qualified.");
     expect(a.card?.lines.map((l) => [l.text, l.results])).toEqual([["6980 Bad Wolf", ["Declined"]], ["4215 Hypnotic Robotics", ["Already qualified"]]]);
   });
+  it("only the reasons the list holds: an ineligible team is said so, never 'already qualified'", async () => {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'USNJLT6', 'Brookside Conference League Tournament', 'LeagueTournament', 'Union', 'NJ', 'USA', '2026-02-24', '2026-02-24', 't')", [S]);
+    await run("INSERT INTO advancement (season, code, slots, advances_to, rows) VALUES (?, 'USNJLT6', 1, 'USNJCMP', ?)", [S, JSON.stringify([{ team: 23268, status: "INELIGIBLE", declined: false }])]);
+    const a = await ask("who advanced from brookside conference");
+    expect(a.card?.none).toBe("No team took the slot to the New Jersey Championship: the listed team was ineligible.");
+    expect(a.card?.lines.map((l) => l.results)).toEqual([["Ineligible"]]);
+  });
 });

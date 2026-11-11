@@ -540,11 +540,16 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
       const said = `${n} team${n === 1 ? "" : "s"} advanced from ${ev.name} to ${dest}`;
       const season = seasonLabel(Number(ev.season));
       const slots = `${ev.slots} slot${ev.slots === 1 ? "" : "s"} to ${dest}`;
+      // Why no slot was taken, from the reasons the list holds only ("declined or had already qualified"), as each team's
+      // own line says it.
+      const REASON: Record<string, string> = { Declined: "declined", "Already qualified": "had already qualified", Ineligible: "was ineligible" };
+      const reasons = [...new Set(shown.map((r) => REASON[why(r)] ?? `was listed as ${why(r).toLowerCase()}`))];
+      const reasonWords = reasons.length > 1 ? `${reasons.slice(0, -1).join(", ")} or ${reasons[reasons.length - 1]}` : reasons[0];
       // A count is said only from a posted list: none posted is not zero.
       return answer(q, {
         hits: [{ ...eventHit(ev), section: "awards" }], pages: pagesFor(q),
         card: { kind: "info", title: `${ask.count && rows.length ? said : `Teams that advanced from ${ev.name}`} · ${season}`, lines,
-          ...(n ? {} : { none: rows.length ? `No team took one of the ${slots}: each listed team declined or had already qualified.` : `FIRST hasn't posted who advanced from ${ev.name} (${season}) yet: ${slots}.` }) },
+          ...(n ? {} : { none: rows.length ? `No team took ${ev.slots === 1 ? `the slot to ${dest}` : `one of the ${slots}`}: ${reasons.length > 1 ? "each listed team" : shown.length > 1 ? "every listed team" : "the listed team"} ${reasonWords}.` : `FIRST hasn't posted who advanced from ${ev.name} (${season}) yet: ${slots}.` }) },
         understood: { kind: "question", label: `${rows.length ? said : `Who advanced from ${ev.name}`} (${season}), in FIRST's advancement order`, season: Number(ev.season) },
       });
     }
