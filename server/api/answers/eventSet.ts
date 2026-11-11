@@ -15,7 +15,7 @@ export interface TeamEvent {
   rank: number | null; of: number | null;
   /** A league meet's posted rank: the league's running standing after it, as the event page shows it (#1 of 20).
    *  Shown, labelled, in event lists; the best and worst finish fall back to it (as a share of the league's ranked
-   *  teams) only when the meet's own rank (\`meet\`) isn't posted; the mean rank leaves it out. */
+   *  teams) only when the meet's own rank (`meet`) isn't posted; the mean rank leaves it out. */
   standing?: { n: number; of: number | null } | null;
   /** A league meet's own finish: the team's rank at that meet among the teams ranked there, as its team page shows
    *  it (team_event_records). The best and worst finish judge a meet by it, the league standing only without it. */
