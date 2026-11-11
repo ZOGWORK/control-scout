@@ -40,9 +40,9 @@ const rec = (s: { wins: number; losses: number; ties: number }) => `${s.wins}-${
 const opr = (v: number | null) => (v == null ? "–" : v.toFixed(1));
 const rankText = (e: TeamEvent) => (e.rank != null ? `#${e.rank}${e.of ? ` of ${e.of}` : ""}` : "–");
 /** An event list's rank cell: the event's rank, else a league meet's standing said as the league's ("#1 of 20 league"). */
+const rankCell = (e: TeamEvent) => (e.rank == null && e.standing ? `#${e.standing.n}${e.standing.of ? ` of ${e.standing.of}` : ""} league` : rankText(e));
 /** A finish's rank: a league meet's own rank there ("#4 of 10 at the meet") when known, else as rankCell. */
 const finishRank = (e: TeamEvent) => (e.rank == null && e.meet ? `#${e.meet.n}${e.meet.of ? ` of ${e.meet.of}` : ""} at the meet` : rankCell(e));
-const rankCell = (e: TeamEvent) => (e.rank == null && e.standing ? `#${e.standing.n}${e.standing.of ? ` of ${e.standing.of}` : ""} league` : rankText(e));
 /** The team's record at the event as its team page shows it, or a dash. */
 const evRec = (e: TeamEvent) => (e.record ? `${e.record.wins}-${e.record.losses}-${e.record.ties}` : "–");
 /** Win share at the event (a tie counts half), for breaking a tie on rank. */
