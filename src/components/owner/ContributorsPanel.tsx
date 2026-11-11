@@ -32,7 +32,7 @@ interface Request {
 interface Contributor {
   user: Person; status: string; source: string; decidedAt: string | null; decidedBy: string | null; reasonShared: string | null; privateNote: string | null;
   reapplyAfter: string | null; revokedAt: string | null; revokeReason: string | null; promoted: number; liveLinks: number; teams: MembershipTeam[];
-  names: { name: string | null; at: string }[]; noName: boolean;
+  names: { at: string; field: "name" | "username"; from: string | null; to: string | null }[]; noName: boolean;
 }
 interface OwnerLink {
   id: number; match: string; label: string; event: string; href: string; videoId: string; url: string; t: number; contributor: Person;
@@ -87,7 +87,7 @@ export function ContributorsPanel() {
             {d.contributors.length ? <ul className="space-y-3">{d.contributors.map((c) => <ContributorCard key={c.user.id} c={c} onDone={reload} />)}</ul>
               : <EmptyState icon={Users} title="No contributors yet" description="Approved and rejected people show here." />}
           </Section>
-          <Section title="Links" description="Every live or hidden link, newest first. Team-only contributors' links are here too.">
+          <Section title="Links" collapsible summary={`${d.links.length} live or hidden link${d.links.length === 1 ? "" : "s"}, newest first`} description="Every live or hidden link, newest first. Team-only contributors' links are here too.">
             {d.links.length ? <ul className="space-y-3">{d.links.map((l) => <LinkCard key={l.id} l={l} onDone={reload} />)}</ul>
               : <EmptyState icon={Video} title="No links yet" description="Videos people add to matches show here." />}
           </Section>
@@ -235,7 +235,8 @@ function ContributorCard({ c, onDone }: { c: Contributor; onDone: () => void }) 
   const [revoking, setRevoking] = useState(false);
   const [reason, setReason] = useState("");
   const tone = c.status === "verified" ? "success" : c.status === "revoked" ? "destructive" : "secondary";
-  const earlier = c.names.filter((n) => n.name && n.name !== c.user.name);
+  // Every change of actual name or username, oldest first (from the audit log).
+  const changes = c.names.filter((n) => n.from !== n.to);
   return (
     <Card data-contributor={c.status}>
       <div className="flex flex-wrap items-center gap-2">
@@ -249,7 +250,7 @@ function ContributorCard({ c, onDone }: { c: Contributor; onDone: () => void }) 
         {c.source === "invite" ? "Invite" : c.source === "direct" ? "Approved directly" : "Application"} · decided {day(c.decidedAt)}{c.decidedBy ? ` by ${c.decidedBy}` : ""} · {c.liveLinks} live link{c.liveLinks === 1 ? "" : "s"}{c.promoted ? ` · ${c.promoted} made public on approval` : ""}
       </p>
       <p className="mt-0.5 text-sm text-text-muted">Teams: {teamsText(c.teams)}</p>
-      {earlier.length > 0 && <p className="mt-0.5 text-xs text-text-muted" data-name-history>Earlier names: {earlier.map((n) => `${n.name} (until ${day(n.at)})`).join(", ")}</p>}
+      {changes.length > 0 && <p className="mt-0.5 text-xs text-text-muted" data-name-history>Name history: {changes.map((n) => `${n.field === "username" ? "username" : "name"} ${n.from ?? "none"} → ${n.to ?? "none"} (${day(n.at)})`).join("; ")}</p>}
       {c.reasonShared && <p className="mt-0.5 text-xs text-text-muted">Told them: {c.reasonShared}</p>}
       {c.privateNote && <p className="mt-0.5 text-xs text-text-muted">Private note: {c.privateNote}</p>}
       {c.revokeReason && <p className="mt-0.5 text-xs text-text-muted">Revoked {day(c.revokedAt)}: {c.revokeReason}</p>}

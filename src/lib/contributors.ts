@@ -41,7 +41,7 @@ export const likeVideo = (id: number, on: boolean) => apiFetch<{ likes: number; 
 export const reportVideo = (id: number, reason: string, note: string) => apiFetch<{ ok: true; already: boolean; message: string }>(`/api/videos/${id}/report`, { method: "POST", json: { reason, note } });
 export const removeVideo = (id: number) => apiFetch<{ ok: true }>(`/api/videos/${id}`, { method: "DELETE", json: {} });
 export interface AddVideoBody { url: string; team?: number | null; t?: number | null; confirmDuplicate?: boolean; confirmLong?: boolean }
-export interface AddVideoAnswer { ok: true; video: ContributorVideo; shown: boolean; occupiedBy?: string; warnings: ("long" | "unchecked" | "region")[] }
+export interface AddVideoAnswer { ok: true; video: ContributorVideo; shown: boolean; occupiedBy?: string; firstPlays?: boolean; warnings: ("long" | "unchecked" | "region")[] }
 export const addVideo = (season: number, code: string, key: string, body: AddVideoBody) => apiFetch<AddVideoAnswer>(`/api/videos/match/${season}/${encodeURIComponent(code)}/${key}`, { method: "POST", json: body });
 export const editVideo = (id: number, body: AddVideoBody) => apiFetch<AddVideoAnswer>(`/api/videos/${id}`, { method: "PATCH", json: body });
 

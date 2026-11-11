@@ -156,15 +156,15 @@ export { NOT_APPROVED_TEXT };
 // --- Adding a link -------------------------------------------------------------------------------------------
 
 export type AddResult =
-  | { ok: true; video: ContributorVideo; shown: boolean; occupiedBy?: string; warnings: LinkCheck["warnings"] }
+  | { ok: true; video: ContributorVideo; shown: boolean; occupiedBy?: string; firstPlays?: boolean; warnings: LinkCheck["warnings"] }
   | { ok: false; status: number; code: string; error: string; field?: string; duplicate?: { label: string; event: string; href: string }; warnings?: LinkCheck["warnings"] };
 
 export interface AddInput { url: string; team?: number | null; t?: number | null; confirmDuplicate?: boolean; confirmLong?: boolean }
 
 /** The match, when it exists and was played (its label and event name for the words). */
 async function playedMatch(m: MatchId) {
-  return get<{ played: number; label: string; name: string }>(
-    "SELECT m.played, m.label, e.name FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE m.season = ? AND m.code = ? AND m.level = ? AND m.series = ? AND m.number = ?",
+  return get<{ played: number; label: string; name: string; video: string | null }>(
+    "SELECT m.played, m.label, e.name, m.video FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE m.season = ? AND m.code = ? AND m.level = ? AND m.series = ? AND m.number = ?",
     [m.season, m.code, m.level, m.series, m.number]);
 }
 
@@ -220,7 +220,9 @@ export async function addVideo(user: User, m: MatchId, input: AddInput, opts: { 
   const win = all_.get(matchKey(m));
   const mine = (await all<Row>(`${SELECT} AND cv.id = ?`, [user.id, id]))[0];
   const video = toVideo(mine, v);
-  return { ok: true, video, shown: win?.id === id, ...(win && win.id !== id ? { occupiedBy: win.name } : {}), warnings: check.warnings };
+  // FIRST's own video plays first unless the owner chose this link over it (pickMatchVideo): then it's saved, not shown.
+  const firstPlays = !!match.video && !win?.overFirst;
+  return { ok: true, video, shown: win?.id === id && !firstPlays, ...(firstPlays ? { firstPlays: true } : win && win.id !== id ? { occupiedBy: win.name } : {}), warnings: check.warnings };
 }
 
 // --- The contributor's own link ------------------------------------------------------------------------
@@ -275,8 +277,9 @@ export async function ownVideosOn(user: User, m: MatchId): Promise<(ContributorV
   const v = await viewerOf(user);
   const rows = await all<Row>(`${SELECT} AND cv.season = ? AND cv.code = ? AND cv.level = ? AND cv.series = ? AND cv.number = ? AND cv.contributor_user_id = ? ORDER BY cv.id`,
     [user.id, m.season, m.code, m.level, m.series, m.number, user.id]);
-  const win = (await eventVideos(m.season, m.code, v)).get(matchKey(m));
-  return rows.map((r) => ({ ...toVideo(r, v), shown: win?.id === Number(r.id) }));
+  const [win, match] = await Promise.all([eventVideos(m.season, m.code, v).then((x) => x.get(matchKey(m))), playedMatch(m)]);
+  const firstPlays = !!match?.video && !win?.overFirst;
+  return rows.map((r) => ({ ...toVideo(r, v), shown: win?.id === Number(r.id) && !firstPlays }));
 }
 
 // --- Likes and reports: only on a link the viewer may see (else 404, as if it didn't exist) -------------------

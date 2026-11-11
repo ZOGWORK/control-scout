@@ -121,7 +121,7 @@ function AddForm({ m, me, mode, teams }: { m: MatchView; me: MyContributorStatus
     try {
       const r = await addVideo(m.season, m.code, m.key, body);
       setUrl(""); setT(""); setAsk(null); setConfirmed({});
-      toast.success(r.shown ? tierLabel(r.video, teamOf(r.video.team)?.name) : `Saved. This match already has a video by ${r.occupiedBy ?? "someone else"}, so yours doesn't show yet: the site owner can swap them.`);
+      toast.success(r.shown ? tierLabel(r.video, teamOf(r.video.team)?.name) : r.firstPlays ? "Saved. FIRST's official video plays first for this match, so yours doesn't show yet." : `Saved. This match already has a video by ${r.occupiedBy ?? "someone else"}, so yours doesn't show yet: the site owner can swap them.`);
       if (r.warnings.includes("unchecked")) toast("Couldn't check this video — if it's private or deleted, it won't play.");
       if (r.warnings.includes("region")) toast("YouTube says this video is blocked in some countries, so it may not play for everyone.");
       announceVideosChanged();

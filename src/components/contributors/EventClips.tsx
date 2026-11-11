@@ -75,20 +75,18 @@ export function ClipsGallery({ d }: { d: Pick<EventDetail, "matches"> }) {
   const [level, setLevel] = useState<Level>("all");
   const [all, setAll] = useState(false);
   if (!items.length) return null;
-  const levels = (["qual", "playoff"] as const).filter((l) => items.some((i) => i.m.level === l));
+  const count = (l: Level) => (l === "all" ? items.length : items.filter((i) => i.m.level === l).length);
   const shown = items.filter((i) => level === "all" || i.m.level === level);
   return (
     <section id={CLIPS_ID} className="scroll-mt-bar-4 mt-6" aria-labelledby="clips-title" data-clips-gallery>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 id="clips-title" className="font-display text-lg font-semibold">Clips · {shown.length}</h2>
-        {levels.length > 1 && (
-          <div role="group" aria-label="Show" className="inline-flex rounded-lg border border-line p-0.5 text-xs font-medium">
-            {(["all", ...levels] as Level[]).map((l) => (
-              <button key={l} type="button" aria-pressed={level === l} onClick={() => { setLevel(l); setAll(false); }} data-clips-level={l}
-                className={cn("min-h-9 rounded-md px-3 pointer-coarse:min-h-11", level === l ? "bg-text-base text-primary" : "text-text-muted hover:text-text-base")}>{LEVELS[l]}</button>
-            ))}
-          </div>
-        )}
+        <div role="group" aria-label="Show" className="inline-flex rounded-lg border border-line p-0.5 text-xs font-medium">
+          {(["all", "qual", "playoff"] as Level[]).map((l) => (
+            <button key={l} type="button" aria-pressed={level === l} disabled={!count(l)} onClick={() => { setLevel(l); setAll(false); }} data-clips-level={l}
+              className={cn("min-h-9 rounded-md px-3 pointer-coarse:min-h-11 disabled:opacity-50", level === l ? "bg-text-base text-primary" : "text-text-muted hover:text-text-base")}>{LEVELS[l]} <span className="tabular-nums opacity-70">{count(l)}</span></button>
+          ))}
+        </div>
       </div>
       <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {(all ? shown : shown.slice(0, FIRST_TILES)).map((i) => <ClipTile key={i.m.key} i={i} />)}
