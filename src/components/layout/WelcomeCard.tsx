@@ -73,7 +73,7 @@ export function WelcomeCard() {
     <m.section
       role="dialog" aria-labelledby={titleId} data-welcome=""
       initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18, ease: "easeOut" }}
-      className="fixed inset-x-3 bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom)+0.75rem)] z-[65] rounded-2xl border border-border bg-popover p-4 text-popover-foreground shadow-[0_18px_40px_-16px_rgba(0,0,0,.55)] md:inset-x-auto md:bottom-6 md:right-6 md:w-[360px]"
+      className="fixed inset-x-4 bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom)+0.75rem)] z-[65] rounded-2xl border border-border bg-popover p-4 text-popover-foreground shadow-[0_18px_40px_-16px_rgba(0,0,0,.55)] md:inset-x-auto md:bottom-6 md:right-6 md:w-[360px]"
     >
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
@@ -82,20 +82,20 @@ export function WelcomeCard() {
         </div>
         <Button variant="ghost" size="icon-sm" className="-mr-1 -mt-1 shrink-0 max-sm:size-[44px]" aria-label="Close" onClick={close}><X /></Button>
       </div>
-      <ul className="mt-3 flex flex-col gap-2" aria-label="Try a search">
+      <ul className="mt-3 flex flex-wrap gap-2" aria-label="Try a search">
         {WELCOME_EXAMPLES.map((q) => (
-          <li key={q}>
-            <Button variant="outline" size="sm" className="w-full justify-start max-sm:h-[44px]" onClick={() => run(q)} data-welcome-example="">
-              <Search className="text-muted-foreground" /> {q}
+          <li key={q} className="min-w-0">
+            <Button variant="outline" size="sm" className="max-w-full rounded-full max-sm:h-[44px]" onClick={() => run(q)} data-welcome-example="">
+              <Search className="text-muted-foreground" /> <span className="truncate">{q}</span>
             </Button>
           </li>
         ))}
+        {tourOn && (
+          <li>
+            <Button variant="ghost" size="sm" className="max-sm:h-[44px]" onClick={tour} data-take-tour=""><Compass /> Take the tour</Button>
+          </li>
+        )}
       </ul>
-      {tourOn && (
-        <div className="mt-3 flex justify-end">
-          <Button variant="ghost" size="sm" className="max-sm:h-[44px]" onClick={tour} data-take-tour=""><Compass /> Take the tour</Button>
-        </div>
-      )}
     </m.section>,
     document.body,
   );
