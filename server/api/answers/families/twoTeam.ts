@@ -5,7 +5,8 @@
 //   Head to head: the matches the two teams played on opposite alliances, both robots on the field, at official
 //     events; the record is the first team's, by the site's one record rule (src/shared/eventRecord.ts).
 //   Toughest opponent: of the opponents met 3 times or more, the one with the best record against the team.
-//   Best partner: of the partners played with 3 times or more, the one with the best record together.
+//   Best partner: the partner the team scored the most points with together (the alliance's own points, without the
+//     other alliance's penalties), any number of matches; a tie goes to more matches together, then the better record.
 //   Teams never played: teams from the team's state that played official matches that season, never met as an
 //     opponent in any recorded match.
 import type { StatAnswer, StatBlock } from "../../../../src/shared/searchStat.js";
@@ -15,7 +16,7 @@ import { predictHref } from "../../../../src/shared/predictUrl.js";
 import { isLegacy } from "../../../data/seasons.js";
 import { all, get } from "../../../db.js";
 import { OFFICIAL_TYPES, inScope, scopeChips, scopePhrase, type Scope } from "../clauses.js";
-import { matchRow, teamHref, teamLinks, type TeamMatch } from "../matchSet.js";
+import { matchHref, matchRow, teamHref, teamLinks, type TeamMatch } from "../matchSet.js";
 import type { TwoTeamId, IntentId } from "../read.js";
 import { teamReliability } from "../../teams.js";
 import { currentSeason, seasonWhy } from "../season.js";
@@ -173,9 +174,43 @@ const tally = (ms: TeamMatch[], side: "partners" | "opponents"): Tally[] => {
   return [...g.entries()].map(([team, xs]) => ({ team, ms: xs }));
 };
 
+/** The alliance's own points in a match (without the other alliance's penalties, as records count them). */
+const ownPoints = (m: TeamMatch) => m.ownNp ?? m.own;
+/** A partner's best match together: the highest own points, the earlier on a tie (the first to reach it). */
+const bestTogether = (x: Tally): TeamMatch => x.ms.reduce((b, m) => (ownPoints(m) > ownPoints(b) || (ownPoints(m) === ownPoints(b) && String(m.date ?? "") < String(b.date ?? "")) ? m : b));
+
+/** The best alliance partner: the partner the team scored the most with together, its best match named, the
+ *  matches together and the record together beside it. */
+async function bestPartnerAnswer(team: AnswerTeam, ms: TeamMatch[], scope: Scope): Promise<StatAnswer> {
+  const where = scopePhrase(scope);
+  const recent = (x: Tally) => String(x.ms[0]?.date ?? "");
+  const ranked = tally(ms, "partners").map((x) => ({ ...x, best: bestTogether(x) }))
+    .sort((x, y) => ownPoints(y.best) - ownPoints(x.best) || y.ms.length - x.ms.length || rateOf(recOf(y.ms)) - rateOf(recOf(x.ms)) || recent(y).localeCompare(recent(x)));
+  const base = {
+    family: "two-team" as const, intent: "best-partner" as const, title: `Best alliance partner${where}`, team, scope: scopeChips(scope), source: sourceOf(ms),
+    definition: `Best alliance partner: the partner the team scored the most points with on one alliance (the alliance's own points, without the other alliance's penalties; any number of matches together). A tie goes to more matches together, then the better record together. Matches at official events, both robots on the field. ${RECORD_RULE}`,
+  };
+  const top = ranked[0];
+  if (!top) return { ...base, blocks: [], none: `No partner played with${where} found for ${whoOf(team)}.` };
+  const links = await teamLinks(ranked.slice(0, TOP).map((x) => x.team));
+  const name = (n: number) => links.get(n)?.label ?? String(n);
+  const at = (m: TeamMatch) => `${m.label} at ${m.event}`;
+  const r = recOf(top.ms);
+  return {
+    ...base,
+    headline: { value: name(top.team), label: `${ownPoints(top.best)} points together in ${at(top.best)}, ${seasonLabel(top.best.season)}`, sub: `${recText(r)} together in ${top.ms.length} match${top.ms.length === 1 ? "" : "es"}`, href: matchHref(top.best) },
+    blocks: [{
+      kind: "table", title: `Top ${Math.min(TOP, ranked.length)}, by the highest score together`,
+      columns: [{ key: "team", label: "Team" }, { key: "best", label: "Best score together", num: true }, { key: "match", label: "Match" }, { key: "n", label: "Together", num: true }, { key: "record", label: "W-L-T together" }],
+      rows: ranked.slice(0, TOP).map((x) => ({ cells: { team: name(x.team), best: ownPoints(x.best), match: at(x.best), n: x.ms.length, record: recText(recOf(x.ms)) }, href: teamHref(x.team), strong: x === top })),
+    }],
+  };
+}
+
 /** Most played or toughest opponent, best or most frequent partner. */
 export async function opponentsAnswer(id: IntentId, team: AnswerTeam, msAll: TeamMatch[], scope: Scope): Promise<StatAnswer> {
   const ms = counted(msAll, scope);
+  if (id === "best-partner") return bestPartnerAnswer(team, ms, scope);
   const partners = id === "best-partner" || id === "frequent-partner";
   const where = scopePhrase(scope);
   const t = tally(ms, partners ? "partners" : "opponents");

@@ -246,7 +246,9 @@ describe("two teams", () => {
     const m = await searchAnswer("4215 most played opponent", { limit: 25 });
     expect(m.stat!.headline).toMatchObject({ value: "7149 ENFORCERS" });
     const p = await searchAnswer("4215 best alliance partner", { limit: 25 });
-    expect(p.stat!.none).toBe("No partner played with 3 or more times found for Hypnotic Robotics (4215).");
+    // Any partner counts (no minimum): the one with the highest score together, its match named.
+    expect(p.stat!.none).toBeUndefined();
+    expect(p.stat!.headline!.label).toMatch(/^\d+ points together in \S+ at /);
     const f = await searchAnswer("4215 most frequent partner", { limit: 25 });
     expect(f.stat!.headline!.value).toMatch(/^(207|6980|23268) /);
     // Only teams with matches at an official event count (a scrimmage-only season isn't one): 6980 played Parkway.
