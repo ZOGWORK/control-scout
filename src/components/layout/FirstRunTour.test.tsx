@@ -9,6 +9,7 @@ import { TakeTour } from "./TakeTour";
 import { coversTour, endTour, highlightsQuery, predictAction, rememberTourPage, TOUR_ASK, TOUR_STEPS, isAutomated, isTourPage, knowsTheApp, readTour, resetTour, tourKind, TOUR_DEMO_KEY, TOUR_KEY } from "../../lib/tour";
 import { ConsentBanner } from "./ConsentBanner";
 import { FirstRunTour } from "./FirstRunTour";
+import { toast } from "../ui/sonner";
 
 const personal = vi.hoisted(() => ({
   current: { state: null as unknown as PersonalState, user: null as unknown, providers: { email: true, google: false } as unknown, sync: "local", syncReady: false },
@@ -571,7 +572,11 @@ describe("real actions, never simulated", () => {
     expect(stepId()).toBe("rating");
     key("ArrowRight");
     expect(stepId()).toBe("save");
+    const dismiss = vi.spyOn(toast, "dismiss");
     await waitFor(() => expect(stepId()).toBe("highlights"), { timeout: 3000 });
+    // The page's "Tracking …" note goes, so it doesn't sit on the next card.
+    expect(dismiss).toHaveBeenCalled();
+    dismiss.mockRestore();
     key("ArrowLeft");
     expect(stepId()).toBe("save");
     await settle();

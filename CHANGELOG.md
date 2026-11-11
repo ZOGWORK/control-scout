@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.4.7 — 2026-11-11
+
+The tour's last card is no longer hidden behind the "Tracking" note on phones.
+
+### Highlights
+- [fixes] After tapping Track in the tour, its next card shows straight away
+- [fixes] The "Tracking …" note no longer covers the tour on a phone
+- [teams] Tracking a team outside the tour still shows its note as before
+
+### Fixed
+- When the tour moves on from the Track step, it clears the page's "Tracking …" toast, which sat over the tour's docked card at the bottom of a phone screen for several seconds (seen in the live acceptance run at 390 px). (#PRNUM)
+
 ## 5.4.6 — 2026-11-11
 
 The first-run tour can be taken again any time, from Settings or How it works.

@@ -21,6 +21,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { m } from "../motion";
 import { X } from "lucide-react";
 import { Button } from "../ui/button";
+import { toast } from "../ui/sonner";
 import { cn } from "../cn";
 import { useConsent } from "../../lib/consent";
 import { usePersonal } from "../../lib/personal";
@@ -198,7 +199,9 @@ export function FirstRunTour() {
   const onCard = view === "card";
   useEffect(() => {
     if (stepId !== "save" || !onCard || !tracked || cameBack.current) return;
-    const t = window.setTimeout(() => goTo((readTour()?.step ?? 0) + 1), TRACKED_PAUSE_MS);
+    // The page's own "Tracking …" note would sit on the next card (both at the bottom on a phone): the tour has
+    // just shown the change, so it goes.
+    const t = window.setTimeout(() => { toast.dismiss(); goTo((readTour()?.step ?? 0) + 1); }, TRACKED_PAUSE_MS);
     return () => window.clearTimeout(t);
   }, [stepId, onCard, tracked, goTo]);
 
