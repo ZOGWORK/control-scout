@@ -9,7 +9,7 @@ import type { SearchAnswer, SearchCard, SearchCardLine, SearchHit } from "../../
 import { dateRange, place, seasonLabel } from "../../src/shared/format.js";
 import { get, all } from "../db.js";
 import { CURRENT_SEASON, SEASONS, ownScorePenalties } from "../data/seasons.js";
-import { officialOnlySql, unofficialLine } from "../data/unofficialRecords.js";
+import { UNOFFICIAL_NOTE, officialOnlySql, unofficialLine } from "../data/unofficialRecords.js";
 import { PENALTIES_NOT_POSTED } from "../../src/shared/seasonRecord.js";
 import { teamNameOf, teamWords } from "../../src/shared/teamTitle.js";
 
@@ -81,6 +81,13 @@ export async function highScoreCard(it: HighScoreQuestion, team: { number: numbe
   const card: SearchCard = { kind: "high-scores", title: label ? `${what} in ${label}` : what, ...(team ? { team } : {}), lines: [] };
   if (season == null) { card.none = team ? `No played matches found for ${team.name ?? `team ${team.number}`}.` : "No played matches are recorded yet."; return card; }
   card.lines = await best(season, team?.number ?? null, RECORD_TYPES, !!it.official);
+  // "Official" said and every match left out: they were played, but none is an official record, and why.
+  const played = !card.lines.length && it.official ? (await best(season, team?.number ?? null, RECORD_TYPES))[0] : undefined;
+  if (played) {
+    const why = played.results?.find((r) => r.startsWith(UNOFFICIAL_NOTE));
+    card.none = `No official ${label} records${team ? ` for ${team.name ?? `team ${team.number}`}` : ""}: the matches played are not official records${why ? ` (${why.replace(/^[^:]*:\s*/, "")})` : ""}.`;
+    return card;
+  }
   if (!card.lines.length) {
     const who = team ? ` for ${team.name ?? `team ${team.number}`}` : "";
     card.closest = await best(season, team?.number ?? null, PRACTICE_TYPES);

@@ -11,7 +11,7 @@ import { all, get } from "../../../db.js";
 import { SEASONS, gameOf as gameOfSeason, ownScorePenalties, reportedTeleopIncludesEndgame } from "../../../data/seasons.js";
 import { parseHighScore } from "../../searchHighScores.js";
 import { OFFICIAL_TYPES } from "../clauses.js";
-import { markedLabel, officialOnlySql, unofficialLine } from "../../../data/unofficialRecords.js";
+import { markedLabel, officialOnlySql, unofficialLine, unofficialWhy } from "../../../data/unofficialRecords.js";
 import { eventHref, matchHref, shortEvent, teamLinks } from "../matchSet.js";
 
 /** How many matches each list shows. */
@@ -227,6 +227,12 @@ export async function topMatchesAnswer(t: TopMatchesQuestion, findEvent: (words:
     definition: `${phase ? `An alliance's ${P!.toLowerCase()} score is its own points in that period${phase === "teleop" && reportedTeleopIncludesEndgame(season) ? ", with the endgame, as FIRST reports TeleOp this season" : ""} (penalties are never a period's points); a combined score is both alliances'.${phase !== "auto" ? " A match posted as totals only has no reported split and isn't counted." : ""} ` : ""}${ruleOf(season, !!t.noPenalties)}${t.season == null && !ev ? ` The season is ${gameOf(season)} (${seasonLabel(season)}), the latest with official matches played.` : ""}`,
     source: `From ${top.count.toLocaleString("en-US")} played match${top.count === 1 ? "" : "es"} at official events, ${scopeWords}`,
   };
+  // "Official" said and every match here left out: they were played, but none is an official record, and why.
+  if (!top.alliances.length && t.official) {
+    const [played] = (await topOf(season, t.region, ev, phase, t.window, 1)).alliances;
+    const why = played ? unofficialWhy(played) : null;
+    if (played) return { ...base, blocks: [], none: `No official records${place ? ` ${ev ? "at" : "in"} ${place}` : ""}${t.window ? ` ${t.window.label}` : ` in ${seasonLabel(season)}`}: the matches played are not official records${why ? ` (${why})` : ""}.` };
+  }
   if (!top.alliances.length) return { ...base, blocks: [], none: `No played matches at official events${place ? ` in ${place}` : ""}${t.window ? ` ${t.window.label}` : ` in ${seasonLabel(season)}`} yet.` };
   // Penalties said to be left out: no score with them and no penalty points, only the scores without them.
   const noPen = (m: StatMatchRow): StatMatchRow => (t.noPenalties ? { ...m, noPenalties: true, phases: m.phases && (({ pen: _pen, ...rest }) => rest)(m.phases) } : m);

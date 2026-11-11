@@ -144,6 +144,7 @@ describe("\"official\" asked: official records only (failed search #1339, Caroli
     await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, 'FPECAR', 'Carolinas Premier Event', 'Premier', 'Raleigh', 'NC', 'USA', '2026-07-25', '2026-07-26', 't')");
     await run("INSERT INTO matches (season, code, level, series, number, label, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'FPECAR', 'qual', 0, 49, 'Q49', 1, 714, 714, 100, 100, 't')");
     await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'FPECAR', 'qual', 0, 49, 4215, 'red', 1)");
+    await rebuildSearch();
   });
   it("reads 'official' as asked", () => {
     expect(parseHighScore("decode official world record")).toMatchObject({ season: 2025, core: "", official: true });
@@ -172,5 +173,10 @@ describe("\"official\" asked: official records only (failed search #1339, Caroli
     const row = table?.kind === "table" ? table.rows.find((r) => String(r.cells.season).includes("2025–26")) : undefined;
     expect(row?.cells.score).toBe(300);
     expect(a.stat?.definition).toContain("Only official records are listed");
+  });
+  it("an event whose matches are none of them official records says so, never that none were played (Loopy on #1357)", async () => {
+    const a = await searchAnswer("best official score at FPECAR", { limit: 10, learn: false, full: true });
+    expect(a.stat?.none).toBe("No official records at Carolinas Premier Event in 2025–26: the matches played are not official records (the event did not play by the game's usual rules).");
+    expect((await searchAnswer("best score at FPECAR", { limit: 10, learn: false, full: true })).stat?.headline?.value).toBe("714 points");
   });
 });
