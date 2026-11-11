@@ -14,7 +14,8 @@ export interface TeamEvent {
    *  standing). */
   rank: number | null; of: number | null;
   /** A league meet's posted rank: the league's running standing after it, as the event page shows it (#1 of 20).
-   *  Shown, labelled, in event lists; never a finish (best, worst or mean rank leave it out). */
+   *  Shown, labelled, in event lists; the best and worst finish judge the meet by it (as a share of the league's ranked
+   *  teams); the mean rank leaves it out. */
   standing?: { n: number; of: number | null } | null;
   /** The team's OPR at the event, without penalties (as on its pages), and its phases. */
   opr: number | null; auto: number | null; teleop: number | null; endgame: number | null;

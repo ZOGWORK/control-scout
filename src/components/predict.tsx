@@ -221,7 +221,8 @@ export function LivesHearts({ side, l }: { side: Side; l: SideLives }) {
     <span className="flex shrink-0 items-center gap-px" title={label} data-lives={l.after} data-lives-lost={l.after < l.before ? "" : undefined}>
       {Array.from({ length: LIVES }, (_, i) => {
         const kind = i < l.after ? "left" : i < l.before ? "broken" : "lost";
-        const what = kind === "lost" ? "A life lost in an earlier match" : label;
+        // A held life never says it was lost: the broken heart carries this match's loss, the pair's title the whole state.
+        const what = kind === "lost" ? "A life lost in an earlier match" : kind === "broken" ? label : l.after === LIVES ? `${LIVES} lives left` : "A life left";
         return kind === "broken"
           ? <HeartCrack key={i} role="img" aria-label={what} className={cn("size-3.5", tone)} data-heart={kind}><title>{what}</title></HeartCrack>
           : <Heart key={i} role="img" aria-label={what} className={cn("size-3.5", kind === "left" ? cn(tone, "fill-current") : "text-text-muted")} data-heart={kind}><title>{what}</title></Heart>;

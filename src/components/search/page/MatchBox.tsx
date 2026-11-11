@@ -96,18 +96,18 @@ export function MatchBox({ r, team, atEvent, noPlay }: { r: StatMatchRow; team?:
         </div>
         {!!phases?.length && (
           <dl className="grid grid-cols-4 gap-1 self-center @md:w-44 @md:grid-cols-2" aria-label={`${r.alliance === "red" ? "Red" : "Blue"} alliance's points by phase`} data-phases>
-            {phases.map(([k, label]) => (
+            {phases.map(([k, name]) => { const label = k === "teleop" && r.phases!.teleopWithEndgame ? "TeleOp + end" : name; return (
               // Each scoring phase filled in its colour, the penalties a neutral tile with its note icon; the period a
               // list ranks by gets a ring and a bold label.
               <div key={k} className={cn("min-w-0 rounded-md px-1.5 py-1", k === "pen" ? "border border-border bg-card text-foreground" : SEARCH_PALETTE[k].fill, r.ranked === k && "ring-2 ring-foreground")} data-phase={k} data-ranked={r.ranked === k ? "" : undefined}>
                 {/* TeleOp as FIRST reports it: with the endgame where the season counts it so. */}
                 <dt className={cn("flex min-w-0 items-center gap-0.5 text-[10px] leading-tight", r.ranked === k ? "font-bold" : "font-medium")}>
                   {k === "pen" && <Info className="size-3 shrink-0 text-info" aria-hidden data-note-icon />}
-                  <span className="truncate" title={label}>{k === "teleop" && r.phases!.teleopWithEndgame ? "TeleOp + end" : label}</span>
+                  <span className="truncate" title={label}>{label}</span>
                 </dt>
                 <dd className="font-semibold tabular-nums">{r.phases![k]}</dd>
               </div>
-            ))}
+            ); })}
           </dl>
         )}
       </div>

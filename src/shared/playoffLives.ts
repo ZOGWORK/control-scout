@@ -20,8 +20,10 @@ export interface MatchLives { red: SideLives; blue: SideLives }
 /** Lives each alliance starts a double-elimination playoff with. */
 export const LIVES = 2;
 
-/** Each playoff match's lives by "series:number", empty when the event's playoff isn't double-elimination. */
-export function playoffLives(season: number, matches: LivesMatch[]): Map<string, MatchLives> {
+/** Each playoff match's lives by "series:number", empty when the event's playoff isn't double-elimination. `posted`:
+ *  the event's posted alliance count, when known: a live bracket's top seeds haven't played in its first matches, so
+ *  the alliances seen so far can be fewer than the bracket's. */
+export function playoffLives(season: number, matches: LivesMatch[], posted = 0): Map<string, MatchLives> {
   const out = new Map<string, MatchLives>();
   // The alliances: teams joined by playing on one side together.
   const parent = new Map<number, number>();
@@ -33,7 +35,7 @@ export function playoffLives(season: number, matches: LivesMatch[]): Map<string,
   for (const m of matches) { join(m.red); join(m.blue); }
   const allianceOf = (ts: number[]) => (ts.length ? find(ts[0]) : null);
   const alliances = new Set([...parent.keys()].map(find));
-  const shape = bracketShape(season, alliances.size, matches.map((m) => m.series));
+  const shape = bracketShape(season, Math.max(posted, alliances.size), matches.map((m) => m.series));
   if (shape?.format !== "double") return out;
 
   const losses = new Map<number, number>();

@@ -211,27 +211,26 @@ async function bestPartnerAnswer(team: AnswerTeam, ms: TeamMatch[], scope: Scope
 export async function opponentsAnswer(id: IntentId, team: AnswerTeam, msAll: TeamMatch[], scope: Scope): Promise<StatAnswer> {
   const ms = counted(msAll, scope);
   if (id === "best-partner") return bestPartnerAnswer(team, ms, scope);
-  const partners = id === "best-partner" || id === "frequent-partner";
+  const partners = id === "frequent-partner";
   const where = scopePhrase(scope);
   const t = tally(ms, partners ? "partners" : "opponents");
   // From the team's side: an opponent's record against it is the team's losses-wins-ties.
   const theirs = (x: Tally): Rec => { const r = recOf(x.ms); return partners ? r : { wins: r.losses, losses: r.wins, ties: r.ties }; };
   const recent = (x: Tally) => String(x.ms[0]?.date ?? "");
-  const ranked = id === "toughest-opponent" || id === "best-partner"
+  const ranked = id === "toughest-opponent"
     ? t.filter((x) => x.ms.length >= MIN_MEETINGS).sort((x, y) => rateOf(theirs(y)) - rateOf(theirs(x)) || y.ms.length - x.ms.length || recent(y).localeCompare(recent(x)))
     : t.sort((x, y) => y.ms.length - x.ms.length || rateOf(theirs(y)) - rateOf(theirs(x)) || recent(y).localeCompare(recent(x)));
   const titles: Record<string, string> = { "most-played-opponent": "Most played opponent", "toughest-opponent": "Toughest opponent", "best-partner": "Best alliance partner", "frequent-partner": "Most frequent partner" };
   const rules: Record<string, string> = {
     "most-played-opponent": "Most played opponent: the team met most often on the other alliance (a tie goes to the better record against the team).",
     "toughest-opponent": `Toughest opponent: of the opponents met ${MIN_MEETINGS} times or more, the one with the best record against the team (wins over meetings; a tie goes to more meetings).`,
-    "best-partner": `Best alliance partner: of the partners played with ${MIN_MEETINGS} times or more, the one with the best record together (wins over matches; a tie goes to more matches).`,
     "frequent-partner": "Most frequent partner: the team played with most often on the same alliance (a tie goes to the better record together).",
   };
   const title = `${titles[id]}${where}`;
   const base = { family: "two-team" as const, intent: id, title, team, scope: scopeChips(scope), definition: `${rules[id]} Matches at official events, both robots on the field. ${RECORD_RULE}`, source: sourceOf(ms) };
   const top = ranked[0];
   if (!top) {
-    const need = id === "toughest-opponent" || id === "best-partner" ? ` ${MIN_MEETINGS} or more times` : "";
+    const need = id === "toughest-opponent" ? ` ${MIN_MEETINGS} or more times` : "";
     return { ...base, blocks: [], none: `No ${partners ? "partner played with" : "opponent met"}${need}${where} found for ${whoOf(team)}.` };
   }
   const links = await teamLinks(ranked.slice(0, TOP).map((x) => x.team));

@@ -130,14 +130,20 @@ async function livesOf(season: number, rows: any[], lu: Map<string, { red: Match
   const out = new Map<string, MatchLives>();
   const codes = [...new Set(rows.filter((r) => r.level === "playoff").map((r) => r.code as string))];
   if (season < DOUBLE_ELIM_FROM || !codes.length) return out;
-  const ps = await all<any>(`SELECT code, series, number, played, red_total, blue_total FROM matches WHERE season = ? AND level = 'playoff' AND code IN (${codes.map(() => "?").join(",")})`, [season, ...codes]);
+  const inCodes = `code IN (${codes.map(() => "?").join(",")})`;
+  const [ps, posted] = await Promise.all([
+    all<any>(`SELECT code, series, number, played, red_total, blue_total FROM matches WHERE season = ? AND level = 'playoff' AND ${inCodes}`, [season, ...codes]),
+    // The posted alliances: a live bracket's top seeds haven't played in its first matches.
+    all<any>(`SELECT code, COUNT(*) n FROM alliances WHERE season = ? AND ${inCodes} GROUP BY code`, [season, ...codes]),
+  ]);
+  const postedOf = new Map(posted.map((p) => [p.code as string, Number(p.n) || 0]));
   for (const code of codes) {
     const ms = ps.filter((p) => p.code === code).map((p) => {
       const l = lu.get(`${code}|playoff:${p.series}:${p.number}`) ?? { red: [], blue: [] };
       return { series: Number(p.series), number: Number(p.number), red: l.red.map((t) => t.number), blue: l.blue.map((t) => t.number), played: !!p.played,
         redScore: p.red_total == null ? null : Number(p.red_total), blueScore: p.blue_total == null ? null : Number(p.blue_total) };
     });
-    for (const [k, v] of playoffLives(season, ms)) out.set(`${code}|${k}`, v);
+    for (const [k, v] of playoffLives(season, ms, postedOf.get(code) ?? 0)) out.set(`${code}|${k}`, v);
   }
   return out;
 }

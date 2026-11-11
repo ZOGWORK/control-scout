@@ -32,6 +32,8 @@ describe("double-elimination lives on a match row", () => {
     expect(hearts(c, "blue").map((h) => h.getAttribute("data-heart"))).toEqual(["left", "broken"]);
     expect(hearts(c, "red")[0].getAttribute("aria-label")).toBe("2 lives left");
     expect(hearts(c, "blue")[1].getAttribute("aria-label")).toBe("Lost a life this match: down to the lower bracket");
+    // The life it still holds is never labelled as the one just lost.
+    expect(hearts(c, "blue")[0].getAttribute("aria-label")).toBe("A life left");
     for (const h of [...hearts(c, "red"), ...hearts(c, "blue")]) {
       expect(h.getAttribute("role")).toBe("img");
       expect(h.querySelector("title")?.textContent).toBe(h.getAttribute("aria-label"));
