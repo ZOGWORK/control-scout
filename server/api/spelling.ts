@@ -437,9 +437,11 @@ export async function spelled(typed: string, a: SearchAnswer, run: (q: string) =
   if (was <= 1) { const n = await numberFix(typed); if (n) return carryOutcome(a, { ...n, q: a.q }); }
   // A team number no team has, then what was asked of it ("33960 auto"): the closest team numbers, the question offered
   // again with the closest one ("33660 auto"). Offered only (step "deterministic"): the list is the closest teams, never
-  // that question's results, so the page never says it is showing them.
+  // that question's results, so the page never says it is showing them. Never when the words after the number name a
+  // team ("33960 hypnotic robotics", or that name typed nearly right): that team is kept, in its closest matches and
+  // the corrections below.
   const led = was <= 1 ? /^(?:team\s*)?#?(\d{2,6})\s+(\p{L}.*)$/iu.exec(typed.trim()) : null;
-  if (led) {
+  if (led && !(await namesTeam(led[2]))) {
     const n = await numberFix(led[1]);
     if (n?.didYouMean) return carryOutcome(a, { ...n, q: a.q, step: "deterministic", didYouMean: `${n.didYouMean} ${led[2]}` });
   }
@@ -489,6 +491,13 @@ export async function spelled(typed: string, a: SearchAnswer, run: (q: string) =
   }
   if (fix.own && now === was && was === 2 && !a.didYouMean) return carryOutcome(a, { ...a, didYouMean: said });
   return a;
+}
+
+/** Whether the query parser reads a team in `words` by its name (as typed, shared, or nearly right). */
+async function namesTeam(words: string): Promise<boolean> {
+  // Loaded when asked: the parser's context reads search's answers, which read this module.
+  const [{ parseQuery }, { parseContext }] = await Promise.all([import("./query/parse.js"), import("./query/context.js")]);
+  return (await parseQuery(words, await parseContext())).teams.some((t) => t.via !== "number");
 }
 
 /** `typed` with each team name the query parser read as a near miss ("hypnotic robotix") written as the team's own

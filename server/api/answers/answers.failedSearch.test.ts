@@ -224,6 +224,10 @@ describe("a bare number with no team", () => {
     expect(a.understood?.label).toMatch(/^No team 676767: the closest team numbers?$/);
     expect(a.hits[0].ref).toBe("38702");
     expect(a.didYouMean).toBe("38702 auto");
+    // Words naming a team keep that team: never traded for the numbers near the missing one.
+    const named = await full("676767 hypnotic robotics");
+    expect([...named.hits, ...(named.recovery?.closest ?? [])].map((h) => h.ref)).toContain("4215");
+    expect(named.understood?.label ?? "").not.toMatch(/^No team 676767/);
   });
 });
 
