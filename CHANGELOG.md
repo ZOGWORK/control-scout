@@ -27,7 +27,7 @@ First-time visitors get a small welcome card with real searches to try; the step
 ### Changed
 - First-time visitors see one small "Welcome to Control Scout" card: "Search any team, event or match", with three example searches that answer live ("worlds highlights decode", "4215 vs 6980 who wins", "Bad Wolf record"). Tapping one runs it. It closes on X, Esc or any search, and is shown once per visitor. (`WelcomeCard`, `src/components/layout/WelcomeCard.tsx`; `src/lib/welcome.ts`)
 - The step-by-step tour never starts by itself. It sits behind a new owner switch, Step-by-step tour (`onboardingTour`, off by default). While it's on, the welcome card, Settings and How it works offer "Take the tour"; while it's off, there's no tour and no Take the tour button. (`src/shared/flags.ts`, `FirstRunTour`, `TakeTour`)
-- "Clear all local data" in Settings also brings the welcome card back. (#PRNUM)
+- "Clear all local data" in Settings also brings the welcome card back. (#1368)
 
 ## 5.4.9 — 2026-11-11
 
