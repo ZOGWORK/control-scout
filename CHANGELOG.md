@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.5.5 — 2026-11-11
+## 5.5.6 — 2026-11-11
 
 Search answers an award at Worlds in the season you name, even when each division judged it.
 
@@ -28,6 +28,18 @@ Search answers an award at Worlds in the season you name, even when each divisio
 - An award asked at an event in a season named ("Innovate award at Worlds in into the deep") fell back to the newest older season that event gave it (2021–22), because in 2024–25 FIRST judged Worlds' Innovate Award in each division and the championship's own list has none. It now reads that season: every division's places, winners first, each line naming its division. A season named never falls back to another one and adds no note about a newer event. (`askAnswer` "award", `server/api/searchAsks.ts`; failed search)
 - A judged award's finalists, which FIRST places 1 like the winner ("… Finalist"), came first and were said as "Winner", and the card took its title from one. The winner now comes first, its finalists after it as "Finalist", on the card and in its podium; a place asked ("2nd place") is never a finalist's. (`server/api/searchAsks.ts`, `EventAwards.tsx`)
 - An award from an older season showed that season's label over the newer event's dates. The event is now that season's own, with its own dates. (`server/api/searchAsks.ts`) (#1363)
+
+## 5.5.5 — 2026-11-11
+
+Asking for the average OPR "of teams" in a place now answers, as asking for the average OPR in that place already did.
+
+### Highlights
+- [rankings] "Average OPR of teams in a state" gives the state's average
+- [fixes] "Of teams", "of all the teams" and "among teams" read alike
+- [fixes] A dropped first letter still reaches the average
+
+### Fixed
+- Search: "average OPR of teams in <place>" (also "of all the teams", "among teams from", or "of teams" alone) found nothing, though "average OPR in <place>" answered. The teams said before the place are now read the same way, so the same average card answers. ([#1374](https://github.com/ZOGWORK/control-scout/pull/1374))
 
 ## 5.5.4 — 2026-11-11
 
