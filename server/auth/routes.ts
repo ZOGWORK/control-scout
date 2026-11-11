@@ -187,7 +187,10 @@ export function authRouter(): Router {
       return;
     }
     res.clearCookie(VOUCH_COOKIE, { path: opts.path });
-    const verifiedBy = await vouchProofFor(user);
+    // Control Point unreachable while checking a linked account: say it's unavailable (retry), not unverified.
+    let verifiedBy: Awaited<ReturnType<typeof vouchProofFor>>;
+    try { verifiedBy = await vouchProofFor(user); }
+    catch (e) { logFailure("vouch account", e); res.redirect(back({ error: "unavailable", state })); return; }
     if (!verifiedBy) { console.warn("[shared-accounts] vouch refused: no proven email for this account"); res.redirect(back({ error: "unverified", state })); return; }
     const myTeam = await followedTeam(user.id);
     const code = await issueSigninCode({ email: user.email!.trim().toLowerCase(), verifiedBy, state, displayName: user.displayName, myTeam })

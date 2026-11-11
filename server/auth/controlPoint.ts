@@ -231,13 +231,15 @@ export type VouchProof = "scout-email-code" | "google" | "control-point";
  * Signing someone in on Control Point opens their workspaces there, so the address must be one Scout
  * (or Control Point) actually proved: an email-code identity for that exact address, or a link to a
  * shared account with that address (links are only ever made from a freshly proven email).
+ * Throws when Control Point can't be asked about the linked account: an outage isn't a refusal.
  */
 export async function vouchProofFor(user: User): Promise<VouchProof | null> {
   if (!user.email) return null;
   if (await provenEmailFor(user)) return "scout-email-code";
   const id = await linkedAccountId(user.id);
   if (id == null) return null;
-  const account = await getAccount(id).catch((e) => { logFailure("vouch account", e); return null; });
+  // null only when Control Point says the account doesn't exist (404); other failures throw.
+  const account = await getAccount(id);
   if (!account || account.email.trim().toLowerCase() !== user.email.trim().toLowerCase()) return null;
   const google = await get<{ n: number }>("SELECT 1 AS n FROM identities WHERE user_id = ? AND provider = 'google'", [user.id]);
   return google ? "google" : "control-point";

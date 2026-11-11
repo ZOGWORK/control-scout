@@ -360,6 +360,17 @@ describe("Continue with Control Scout (Control Point asks Scout to vouch)", () =
     expect(back(r).searchParams.get("state")).toBe(STATE);
   });
 
+  it("Control Point down while checking a linked account: unavailable (retry), never unverified", async () => {
+    const c = client();
+    await cpSignIn(c, "linked.down@example.com");
+    const calls = signinCalls.length;
+    cpDown = true; // the account read fails, not just the code
+    const r = await vouch(c);
+    expect(back(r).searchParams.get("error")).toBe("unavailable");
+    expect(back(r).searchParams.get("state")).toBe(STATE);
+    expect(signinCalls).toHaveLength(calls);
+  });
+
   it("a bad or missing state goes back to Control Point's sign-in, and the feature off is 503", async () => {
     // The state is checked before anything else, signed in or not.
     const c = client();
