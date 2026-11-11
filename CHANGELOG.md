@@ -26,7 +26,7 @@ Sign up for Control Point with your Control Scout account, in one click.
 
 ### Added
 - Accounts: Control Point's sign-up and sign-in pages have a "Continue with Control Scout" button. Control Scout tells Control Point who you are (your email, name and the team you follow), and you land in your workspace there: straight in with one, a choice with several, the usual team setup with none. Control Scout only vouches for an email address it proved.
-- Accounts: started while signed out here, Settings › Profile says you're signing in to continue to Control Point, and once you're in you go straight back.
+- Accounts: started while signed out here, Settings › Profile says you're signing in to continue to Control Point, and once you're in you go straight back. ([#1378](https://github.com/ZOGWORK/control-scout/pull/1378))
 
 ## 5.5.4 — 2026-11-11
 
