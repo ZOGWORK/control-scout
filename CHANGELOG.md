@@ -25,7 +25,7 @@ The first-run tour can be taken again any time, from Settings or How it works.
 - [home] The tour picks up on the page you were last on
 
 ### Changed
-- "Take the tour" (`src/components/layout/TakeTour.tsx`) restarts the tour from step 1 on the last page this tab was on that has a tour (Home when none), even after it was finished or skipped and whatever the visitor has saved; skipping never hides it. A test holds every step's copy to its rules: a 2–5 word title, one sentence of at most 25 words, no exclamation marks, no team but the tour's own, never "clips". (#PRNUM)
+- "Take the tour" (`src/components/layout/TakeTour.tsx`) restarts the tour from step 1 on the last page this tab was on that has a tour (Home when none), even after it was finished or skipped and whatever the visitor has saved; skipping never hides it. A test holds every step's copy to its rules: a 2–5 word title, one sentence of at most 25 words, no exclamation marks, no team but the tour's own, never "clips". (#1354)
 
 ## 5.4.4 — 2026-11-10
 
