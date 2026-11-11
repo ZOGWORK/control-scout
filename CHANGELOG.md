@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.5.5 — 2026-11-11
+## 5.5.8 — 2026-11-11
 
 Sign up for Control Point with your Control Scout account, in one click.
 
@@ -27,6 +27,42 @@ Sign up for Control Point with your Control Scout account, in one click.
 ### Added
 - Accounts: Control Point's sign-up and sign-in pages have a "Continue with Control Scout" button. Control Scout tells Control Point who you are (your email, name and the team you follow), and you land in your workspace there: straight in with one, a choice with several, the usual team setup with none. Control Scout only vouches for an email address it proved.
 - Accounts: started while signed out here, Settings › Profile says you're signing in to continue to Control Point, and once you're in you go straight back. ([#1378](https://github.com/ZOGWORK/control-scout/pull/1378))
+
+## 5.5.7 — 2026-11-11
+
+Asking for a team's match by its score ("a 226 point match") finds that match.
+
+### Highlights
+- [teams] A team's match by its score: "<team> 226 point match"
+- [fixes] The score is never mistaken for another team's number
+- [fixes] No match with that score is said plainly
+
+### Fixed
+- Search: a team's match asked for by its score ("<team> 226 point match", "<team> 226-point game") read the score as a team number, so it answered about a different team. A number right before "point(s) match/game", with no "over" or "at least" before it, is now a score. The answer lists the team's matches where either alliance's final score was that number, highest-scoring first, from the latest season it happened, or says none was found. ([#1375](https://github.com/ZOGWORK/control-scout/pull/1375))
+
+## 5.5.6 — 2026-11-11
+
+Search answers who advanced from an event, and how many, from FIRST's advancement list.
+
+### Highlights
+- [rankings] "How many teams went to states at <event>" answers
+- [rankings] Who advanced from an event, in FIRST's advancement order
+- [fixes] A list FIRST hasn't posted yet says so, with its slots
+
+### Added
+- Search: "how many teams went to states at <event>", "which teams qualified for worlds from <event>" and "who advanced from <event>" answer from the event's advancement list, as its Awards tab shows it. The answer lists the teams that took a slot, in FIRST's advancement order (declined slots left out), says where they go by the next event's name, and links the event. With no season named, it uses the newest event by that name that has a list. A list not posted yet says so, with the number of slots. ([#1376](https://github.com/ZOGWORK/control-scout/pull/1376))
+
+## 5.5.5 — 2026-11-11
+
+Asking for the average OPR "of teams" in a place now answers, as asking for the average OPR in that place already did.
+
+### Highlights
+- [rankings] "Average OPR of teams in a state" gives the state's average
+- [fixes] "Of teams", "of all the teams" and "among teams" read alike
+- [fixes] A dropped first letter still reaches the average
+
+### Fixed
+- Search: "average OPR of teams in <place>" (also "of all the teams", "among teams from", or "of teams" alone) found nothing, though "average OPR in <place>" answered. The teams said before the place are now read the same way, so the same average card answers. ([#1374](https://github.com/ZOGWORK/control-scout/pull/1374))
 
 ## 5.5.4 — 2026-11-11
 

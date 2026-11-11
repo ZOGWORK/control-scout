@@ -21,6 +21,11 @@ describe("whose score, which way, how many", () => {
     expect(scoreCondOf("matches where the winning alliance scored under 90")).toMatchObject({ cond: { side: "winning", op: "<", n: 90 } });
     expect(scoreCondOf("matches where one alliance scored more than 400")).toMatchObject({ cond: { side: "either", op: ">", n: 400 } });
     expect(scoreCondOf("180 highest score")).toBeNull();
+    // A score said outright before "match": either alliance's, exactly; never after a comparison word (a floor).
+    expect(scoreCondOf("numbered like a score 180 point match")).toEqual({ cond: { side: "either", op: "=", n: 180 }, rest: "numbered like a score match", said: "180 point" });
+    expect(scoreCondOf("a 180-point game")).toMatchObject({ cond: { op: "=", n: 180 }, rest: "game" });
+    expect(scoreCondOf("matches over 180 points")).toBeNull();
+    expect(scoreCondOf("180 points in auto")).toBeNull();
   });
 
   it("says it back in words", () => {
@@ -34,6 +39,15 @@ describe("a match search with a score to reach", () => {
     expect(await parse("games in ohio last week where the losing side scored over 180")).toMatchObject({ intent: "top-matches", teams: [], scoreCond: { side: "losing", n: 180 }, place: { name: "Ohio" }, complete: true });
     expect(await parse("matches at ohio championship where each alliance scored over 180")).toMatchObject({ intent: "top-matches", teams: [], event: { words: "ohio championship" }, complete: true });
     expect(await parse("highest scoring matches where both alliances scored at least 180")).toMatchObject({ intent: "top-matches", complete: true });
+  });
+
+  it("a team's match by its score: the team's matches, the score never a second team", async () => {
+    const p = await parse("numbered like a score 180 point match");
+    expect(p).toMatchObject({ intent: "season-matches", scoreCond: { side: "either", op: "=", n: 180 }, complete: true });
+    expect(p.teams.map((t) => t.number)).toEqual([180]);
+    // A score to reach with one team is not this question: left unread as before, never answered with the limit dropped.
+    const reach = await parse("numbered like a score matches where the losing alliance scored over 150");
+    expect(reach.intent === "season-matches" && reach.complete).toBe(false);
   });
 
   it("a match's own number is never dropped for the list", async () => {
