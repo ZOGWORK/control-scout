@@ -50,6 +50,9 @@ describe("no hearts outside double elimination", () => {
     const live = [m(1, [3, 33], [6, 66], 150, 100), m(2, [4, 44], [5, 55], 90, 130), ...Array.from({ length: 9 }, (_, i) => m(i + 3, [], [], null, null))];
     expect(playoffLives(2025, live).size).toBe(0);
     expect(playoffLives(2025, live, 6).get("1:1")).toEqual({ red: { before: 2, after: 2 }, blue: { before: 2, after: 1 } });
+    // Only two alliances seen yet: the first match's loser drops to the lower bracket, never "the final".
+    const first = [m(1, [3, 33], [6, 66], 150, 100), ...Array.from({ length: 10 }, (_, i) => m(i + 2, [], [], null, null))];
+    expect(playoffLives(2025, first, 6).get("1:1")).toEqual({ red: { before: 2, after: 2 }, blue: { before: 2, after: 1 } });
   });
   it("a best-of-3 final (2 alliances) has none", () => {
     expect(playoffLives(2025, [m(1, A[1], A[2], 100, 90, 1), m(1, A[1], A[2], 80, 90, 2), m(1, A[1], A[2], 100, 90, 3)]).size).toBe(0);

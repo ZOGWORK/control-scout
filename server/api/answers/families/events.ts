@@ -79,7 +79,8 @@ export function eventAnswer(id: IntentId, team: AnswerTeam, set: { events: TeamE
     case "best-finish":
     case "worst-finish": {
       // Every event it played (league meets included), judged by its whole result: playoffs, advancing, then rank.
-      const ranked = evs.filter((e) => e.matches > 0 || e.rank != null || e.standing != null || e.playoff || e.advanced);
+      // Only an event with a result: one still in its qualifications has no finish yet.
+      const ranked = evs.filter((e) => e.rank != null || e.standing != null || e.playoff || e.advanced);
       const best = id === "best-finish";
       // "Best event": on an equal finish, the better record there (the worse for the worst), then the latest.
       const byRec = (a: TeamEvent, b: TeamEvent) => (opts.byRecord ? (best ? evRate(b) - evRate(a) : evRate(a) - evRate(b)) : 0);
@@ -192,10 +193,10 @@ export function eventAnswer(id: IntentId, team: AnswerTeam, set: { events: TeamE
     case "average-rank": {
       const ranked = evs.filter((e) => e.rank != null && e.type !== "LeagueMeet");
       const title = `Average event rank${where}`;
-      if (!ranked.length) return { ...base, family: "aggregate", intent: id, title, blocks: [], definition: FINISH_RULE, source: evSource, none: none("ranked events") };
+      if (!ranked.length) return { ...base, family: "aggregate", intent: id, title, blocks: [], definition: `${FINISH_BASE} The average is the mean of those ranks.`, source: evSource, none: none("ranked events") };
       const mean = ranked.reduce((a, e) => a + e.rank!, 0) / ranked.length;
       return {
-        ...base, family: "aggregate", intent: id, title, source: evSource, definition: `${FINISH_RULE} The average is the mean of those ranks.`,
+        ...base, family: "aggregate", intent: id, title, source: evSource, definition: `${FINISH_BASE} The average is the mean of those ranks.`,
         headline: { value: `#${mean.toFixed(1)}`, label: `mean rank over ${ranked.length} event${ranked.length === 1 ? "" : "s"}`, sub: `Best #${Math.min(...ranked.map((e) => e.rank!))} · lowest #${Math.max(...ranked.map((e) => e.rank!))}` },
         blocks: [{ kind: "series", title: "Rank at each event (lower is better)", unit: "rank", points: ranked.map((e) => ({ x: e.name, y: e.rank, href: eventHref(e.season, e.code, team.number), note: seasonLabel(e.season) })) }],
       };

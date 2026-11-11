@@ -44,7 +44,8 @@ export function playoffLives(season: number, matches: LivesMatch[], posted = 0):
     const red = allianceOf(m.red), blue = allianceOf(m.blue);
     // A slot not filled yet (a later round before its alliances are known): nothing to say.
     if (red == null || blue == null || red === blue) continue;
-    const alive = [...alliances].filter((a) => left(a) > 0).length;
+    // The bracket's posted alliances are all alive from the start, seen in a lineup yet or not.
+    const alive = Math.max(posted, alliances.size) - [...alliances].filter((a) => left(a) <= 0).length;
     const before = { red: left(red), blue: left(blue) };
     const decided = m.played && m.redScore != null && m.blueScore != null && m.redScore !== m.blueScore;
     // A tie is replayed: nobody loses a life.
