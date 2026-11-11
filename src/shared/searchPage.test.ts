@@ -2,7 +2,7 @@
 // title takes), a Compare by both sides, a question by its team and what it asked, else the server's reading.
 import { describe, expect, it } from "vitest";
 import type { SearchAnswer, SearchHit } from "./api";
-import { badgeUnder, capWords, cardTitle, contextBadge, pageTitle, teamParts } from "./searchPage";
+import { answerDescription, badgeUnder, capWords, cardTitle, contextBadge, pageTitle, teamParts } from "./searchPage";
 
 const a = (hits: SearchHit[], extra: Partial<Omit<SearchAnswer, "understood">> & { understood?: { label: string } } = {}) => ({ q: "", hits, pages: [], step: "deterministic" as const, weak: false, ...extra });
 const team = (title: string): SearchHit => ({ kind: "team", ref: "18061", title, subtitle: "", season: 2025 });
@@ -88,5 +88,29 @@ describe("badgeUnder", () => {
     // "How good is X": X names the page even when the reading says more.
     const q = { ...a, q: "how good is simply complex", understood: { label: "Simply Complex (18061) — OPR" } } as typeof a;
     expect(pageTitle(q, [{ kind: "team", ref: "18061", title: "18061 | Simply Complex", subtitle: "", season: 2025 }], true)).toBe("Simply Complex (18061)");
+  });
+});
+
+describe("answerDescription", () => {
+  const card = (extra: object = {}) => ({ kind: "high-scores" as const, title: "Highest official scores in 2025–26 (DECODE)", lines: [{ text: "574 points: M14 at FIRST Championship" }], ...extra });
+  it("says a card's title and its first record", () => {
+    expect(answerDescription(a([], { card: card() } as never))).toBe("Highest official scores in 2025–26 (DECODE): 574 points: M14 at FIRST Championship");
+  });
+  it("says a card's plain 'none' instead, and a verdict first", () => {
+    expect(answerDescription(a([], { card: card({ lines: [], none: "No official records yet." }) } as never))).toBe("Highest official scores in 2025–26 (DECODE): No official records yet.");
+    expect(answerDescription(a([], { card: card(), verdict: { answer: "Yes", label: "Played at Worlds" } } as never))).toMatch(/^Yes: Played at Worlds\. Highest official/);
+  });
+  it("says a stat's title and headline", () => {
+    const stat = { title: "Highlights at Worlds, 2025–26", headline: { value: "574 points", label: "Best score without penalties" }, blocks: [] };
+    expect(answerDescription(a([], { stat } as never))).toBe("Highlights at Worlds, 2025–26: 574 points · Best score without penalties");
+  });
+  it("cuts a long one at a word", () => {
+    const d = answerDescription(a([], { card: card({ lines: [{ text: "word ".repeat(60) }] }) } as never))!;
+    expect(d.length).toBeLessThanOrEqual(160);
+    expect(d).toMatch(/ word…$/);
+  });
+  it("is null with nothing answered, or for a sorry", () => {
+    expect(answerDescription(a([]))).toBeNull();
+    expect(answerDescription(a([], { card: card(), sorry: { understood: [], suggest: [] } } as never))).toBeNull();
   });
 });

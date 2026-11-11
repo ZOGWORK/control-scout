@@ -123,3 +123,27 @@ export const repeats = (heading: string | null | undefined, title: string, chips
   for (let i = t.lastIndexOf(" · "); i > 0 && chips.some((c) => c.trim().toLowerCase() === t.slice(i + 3).trim().toLowerCase()); i = t.lastIndexOf(" · ")) t = t.slice(0, i).trim();
   return !!heading && !!t && heading.toLowerCase().includes(t.toLowerCase());
 };
+
+/** The longest a page's description runs before it is cut at a word, as search engines show about this much. */
+const DESCRIPTION_MAX = 160;
+
+/** A search page's description when it answers with a card, a stat or a yes-or-no verdict: that answer in words, its
+ *  title and what it leads with ("Highest official scores in 2025–26 (DECODE): 574 points: M14 at FIRST Championship…").
+ *  Null when there is no such answer (the hits-count line or the real miss line is said instead), or for a sorry. */
+export function answerDescription(a: AnswerExtra): string | null {
+  if (a.sorry) return null;
+  const card = a.card, stat = a.stat;
+  const topRow = (r?: { team: number; name: string | null }) => (r ? `first, ${r.team}${r.name ? ` ${r.name}` : ""}` : null);
+  const lead = (title: string, first: string | null | undefined) => (first?.trim() ? `${title}: ${first.trim()}` : title);
+  const said = stat
+    ? lead(stat.title, stat.none ?? (stat.headline ? [stat.headline.value, stat.headline.label].filter(Boolean).join(" · ") : null))
+    : card
+      ? lead(cardTitle(card), card.none ?? card.headline ?? card.lines[0]?.text ?? topRow(card.table?.rows[0]) ?? null)
+      : null;
+  const verdict = a.verdict ? `${a.verdict.answer}: ${a.verdict.label}` : null;
+  const text = [verdict, said].filter(Boolean).join(". ");
+  if (!text) return null;
+  if (text.length <= DESCRIPTION_MAX) return text;
+  const cut = text.slice(0, DESCRIPTION_MAX - 1);
+  return `${cut.slice(0, Math.max(cut.lastIndexOf(" "), DESCRIPTION_MAX / 2)).replace(/[\s,.:;·–-]+$/, "")}…`;
+}
