@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.6.2 — 2026-11-11
+
+Watch Clips takes you to the clips on every event, the longest included.
+
+### Highlights
+- [fixes] Watch Clips lands on the clips gallery on big events
+- [live] Worlds divisions: one tap from the top to every match video
+- [fixes] Works the same on phones and desktop
+
+### Fixed
+- Event page: on a long event (Worlds divisions, 157 matches) "Watch Clips" glided a third of the way down the match list and stopped, leaving the clips gallery off screen. It now goes straight to the gallery and keeps it in place while the rows above finish drawing. ([#PR](https://github.com/ZOGWORK/control-scout/pulls))
+
 ## 5.6.1 — 2026-11-11
 
 People who record matches can add the video to the match: verified contributors for everyone, others for their team.

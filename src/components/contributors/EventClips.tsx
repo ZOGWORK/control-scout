@@ -15,7 +15,7 @@ import { clipTime, linkStart } from "../../shared/recording";
 import { youtubeId } from "../../shared/personal";
 import { useEventVideos, useReloadOnVideoChange } from "../../lib/contributors";
 import { playMatchVideo } from "../../lib/streamSeek";
-import { scrollToElement, smoothBehavior } from "../../lib/pageScroll";
+import { scrollToElement } from "../../lib/pageScroll";
 import { Button } from "../ui/button";
 import { VideoCredit } from "./VideoCredit";
 import { cn } from "../cn";
@@ -62,7 +62,21 @@ export function CoverageLine({ className, reserve }: { className?: string; reser
 export function WatchClipsButton({ matches, primary }: { matches: MatchView[]; primary?: boolean }) {
   const n = useClipItems(matches).length;
   if (!n) return null;
-  const go = () => { const el = document.getElementById(CLIPS_ID); if (el) scrollToElement(el, smoothBehavior()); };
+  // The gallery is last on the page, often thousands of pixels down a long match list: a smooth glide that far gets cut
+  // short as rows above render (Worlds divisions stopped a third of the way). So: straight there, then put it right again
+  // for a few frames while the rows above settle.
+  const go = () => {
+    const el = document.getElementById(CLIPS_ID);
+    if (!el) return;
+    scrollToElement(el);
+    let n = 0;
+    const settle = () => {
+      const margin = parseFloat(getComputedStyle(el).scrollMarginTop) || 0;
+      if (Math.abs(el.getBoundingClientRect().top - margin) > 4) scrollToElement(el);
+      if (++n < 10) requestAnimationFrame(settle);
+    };
+    requestAnimationFrame(settle);
+  };
   return <Button size="sm" variant={primary ? "default" : "outline"} onClick={go} data-watch-clips><PlayCircle /> Watch Clips</Button>;
 }
 
