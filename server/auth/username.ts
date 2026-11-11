@@ -48,22 +48,41 @@ export async function checkUsername(user: User, raw: string, team: number | null
   return { ok: true };
 }
 
-/** Set `user`'s username. The unique index settles two accounts racing for one name: the loser is told it's taken. */
+/** Set `user`'s username. Decided on the account's row as it is now (never the request's copy), and the write only
+ *  lands while that row still holds the username it was decided on and its 30 days have passed: two changes sent at
+ *  once can't both pass. The unique index settles two accounts racing for one name: the loser is told it's taken. */
 export async function setUsername(user: User, raw: string, team: number | null = null, now = Date.now()): Promise<UsernameCheck & { username?: string }> {
   const u = raw.trim();
-  const check = await checkUsername(user, u, team, now);
+  const row = await get<{ username: string | null; username_changed_at: string | null }>("SELECT username, username_changed_at FROM users WHERE id = ?", [user.id]);
+  const current: User = { ...user, username: row?.username ?? null, usernameChangedAt: row?.username_changed_at ?? null };
+  const check = await checkUsername(current, u, team, now);
   if (!check.ok) return check;
-  if (user.username === u) return { ok: true, username: u };
+  if (current.username === u) return { ok: true, username: u };
   // A change of letter case only is the same username: it keeps its date (and its 30 days).
-  const caseOnly = !!user.username && usernameKey(user.username) === usernameKey(u);
+  const caseOnly = !!current.username && usernameKey(current.username) === usernameKey(u);
+  const cutoff = new Date(now - USERNAME_CHANGE_DAYS * 864e5).toISOString();
+  let changed: number;
   try {
-    await run(`UPDATE users SET username = ?${caseOnly ? "" : ", username_changed_at = ?"} WHERE id = ?`, caseOnly ? [u, user.id] : [u, new Date(now).toISOString(), user.id]);
+    changed = await run(
+      `UPDATE users SET username = ?${caseOnly ? "" : ", username_changed_at = ?"} WHERE id = ? AND username IS ?
+         AND (username IS NULL OR username_changed_at IS NULL OR username_changed_at <= ? OR lower(username) = lower(?))`,
+      [u, ...(caseOnly ? [] : [new Date(now).toISOString()]), user.id, current.username ?? null, cutoff, u]);
   } catch (e) {
     if (/UNIQUE/i.test(String((e as Error)?.message))) return { ok: false, reason: "taken", error: USERNAME_PROBLEM_TEXT.taken, suggestions: await suggestionsFor(u, user.id, team) };
     throw e;
   }
-  await recordAudit(accountActor(user), "account.username", { userId: user.id }, null, { from: user.username ?? null, to: u });
+  // Another change got there first: decide again on what it left.
+  if (!changed) {
+    const again = await getUserRow(user);
+    return (await checkUsername(again, u, team, now)).ok ? { ok: false, reason: "tooSoon", error: USERNAME_PROBLEM_TEXT.tooSoon, suggestions: [] } : checkUsername(again, u, team, now);
+  }
+  await recordAudit(accountActor(user), "account.username", { userId: user.id }, null, { from: current.username, to: u });
   return { ok: true, username: u };
+}
+
+async function getUserRow(user: User): Promise<User> {
+  const row = await get<{ username: string | null; username_changed_at: string | null }>("SELECT username, username_changed_at FROM users WHERE id = ?", [user.id]);
+  return { ...user, username: row?.username ?? null, usernameChangedAt: row?.username_changed_at ?? null };
 }
 
 /** Set `user`'s actual name (display name). Returns the stored name; logs the change when it is one. */

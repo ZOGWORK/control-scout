@@ -22,12 +22,10 @@ Accounts get usernames: the handle for adding match videos, never shown on them.
 ### Highlights
 - [scout] Introducing usernames: add yours when you sign in, or later
 - [scout] Your actual name is the credit on videos you add
-- [alerts] A new notification switch for your match videos
 
 ### Added
 - Accounts: a username (3–20 letters, numbers or underscores, starting with a letter; unique ignoring case; reserved names refused; one change in 30 days). Asked once per sign-in with "Introducing usernames"; "Browse first" closes it and nothing is blocked, and Home shows a reminder until it's dismissed. There is no deadline. A taken name offers free ones (the team number first).
 - Settings › Account: "Actual name" (the credit "Video by …" on match videos you add) and "Username". Every change to either goes in the owner audit log.
-- Settings › Notifications: "Your match videos" (verification decisions, and changes the owner makes to a video you added).
 - Owner console › Accounts: each account's username beside its name and email, searchable. ([#1377](https://github.com/ZOGWORK/control-scout/pull/1377))
 
 ## 5.5.4 — 2026-11-11

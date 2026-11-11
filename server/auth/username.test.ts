@@ -73,3 +73,15 @@ describe("setUsername", () => {
     expect((await getUser(a.id))!.username).toBeNull();
   });
 });
+
+describe("two changes at once", () => {
+  it("only one lands inside the 30 days", async () => {
+    const a = await user("a@example.test");
+    await setUsername(a, "first_one");
+    await run("UPDATE users SET username_changed_at = ? WHERE id = ?", [new Date(Date.now() - 31 * 864e5).toISOString(), a.id]);
+    const stale = (await getUser(a.id))!;
+    const [x, y] = await Promise.all([setUsername(stale, "second_one"), setUsername(stale, "third_one")]);
+    expect([x.ok, y.ok].filter(Boolean).length).toBe(1);
+    expect(["second_one", "third_one"]).toContain((await getUser(a.id))!.username);
+  });
+});

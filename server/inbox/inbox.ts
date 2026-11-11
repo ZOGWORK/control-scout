@@ -290,26 +290,7 @@ export async function fanOut(item: ActivityNotice): Promise<number[]> {
 
 // --- Owner alerts (the hand-off from server/portal/alerts.ts) --------------------------------
 
-const alertLink = (kind: string) => (kind === "photo-storage" ? "/owner?panel=storage" : kind.startsWith("video-") ? `/owner?panel=contributors${kind === "video-reports" ? "#reports" : ""}` : "/owner");
-
-/**
- * A notice for one account about its own match videos (docs/contributors.md): its verification decided, a video it
- * added removed, hidden, made team-only or made public. Written straight into inbox_items like an owner alert (it is
- * no workspace activity), when the account has the switch on and still exists. Never for the account's own action:
- * callers only send what someone else (the owner) did. Returns whether an item was made. Never throws.
- */
-export async function notifyContributor(userId: number, n: { type: string; title: string; body: string; link: string; subject?: string }): Promise<boolean> {
-  try {
-    const s = await get<{ value: string | null }>("SELECT value FROM user_state WHERE user_id = ? AND key = 'settings'", [userId]);
-    if (!inboxCategoryOn(parseSettings(s?.value ?? null)?.notify, "videoContributions")) return false;
-    const made = await run(
-      `INSERT INTO inbox_items (user_id, at, workspace_id, workspace_name, category, type, subject, actor_name, title, body, link)
-       SELECT ?, ?, NULL, '', 'videoContributions', ?, ?, 'Control Scout', ?, ?, ? WHERE EXISTS (SELECT 1 FROM users WHERE id = ?)`,
-      [userId, Date.now(), n.type.slice(0, 60), (n.subject ?? "").slice(0, 120), n.title.slice(0, 200), n.body.slice(0, 400), n.link.slice(0, 300), userId]);
-    if (made) await notifyUsers([userId]);
-    return made > 0;
-  } catch (e) { console.error("[inbox] contributor notice", e); return false; }
-}
+const alertLink = (kind: string) => (kind === "photo-storage" ? "/owner?panel=storage" : "/owner");
 
 /**
  * Deliver every open owner alert not delivered yet: one item per owner account with the switch on, then

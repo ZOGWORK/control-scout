@@ -102,21 +102,11 @@ The hand-off runs when an alert is first raised, and every 6 hours from the sche
 scheduler run covers an alert raised before any owner account existed. Resolving an alert
 marks its items read. The storage alert opens `/owner?panel=storage`.
 
-## Video contributor notices
-
-Category `videoContributions` (switch `inboxVideoContributions`): an account is told when its video
-verification is approved or rejected, and when the owner removes, hides, demotes or publishes a video it
-added ([contributors.md](contributors.md)). These are no workspace activity: `notifyContributor()` in
-`server/inbox/inbox.ts` writes one item straight into `inbox_items` (no `workspace_id`), the way owner
-alerts are, when the switch is on and the account exists. Nobody is told about their own action (a
-contributor removing their own video makes no item). The link opens a match page or the contributor
-profile, never the owner console.
-
 ## Per-kind switches
 
 These are Tier 1 personal settings in `settings.notify` (`src/shared/inbox.ts`
 `INBOX_TOGGLE`): `inboxAssignments`, `inboxEdits`, `inboxTemplate`, `inboxMembership`,
-`inboxPicklist`, `inboxComments`, `inboxVideoContributions` and `inboxOwnerAlerts`. They appear in
+`inboxPicklist`, `inboxComments` and `inboxOwnerAlerts`. They appear in
 Settings › Personal › Notifications. Each key is optional, and a missing key means on, so
 a `notify` value saved before these switches existed keeps the same bytes. `cleanValue`
 keeps only known `notify` keys with boolean values, on the client and on the server.
