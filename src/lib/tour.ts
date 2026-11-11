@@ -70,6 +70,22 @@ export function rereadTour(): TourRecord | null {
   return readTour();
 }
 
+/** The last page this tab was on that a tour can start from: "Take the tour" runs that page's tour. */
+let lastTourPage: string | null = null;
+export function rememberTourPage(path: string): void { if (isTourPage(path.replace(/[?#].*$/, ""))) lastTourPage = path; }
+export const tourPageToReplay = () => lastTourPage ?? "/";
+
+/**
+ * "Take the tour" (Settings, How it works): start again from step 1, on the page the visitor came from, even
+ * after it was finished or skipped and whatever they've saved. Returns the page to go to.
+ */
+export function replayTour(): string {
+  const page = tourPageToReplay();
+  saveTour({ status: "paused", step: 0, origin: page, steps: [] });
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(TOUR_CHANGE));
+  return page;
+}
+
 /** Finished or skipped: it never shows on its own again here. */
 export const tourOver = (r: TourRecord | null) => r?.status === "finished" || r?.status === "skipped";
 

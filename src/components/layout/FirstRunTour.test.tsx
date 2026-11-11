@@ -5,7 +5,8 @@ import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
 import { EMPTY_STATE, type PersonalState } from "../../shared/personal";
 import { resetConsent, setAnalyticsConsent } from "../../lib/consent";
 import { claimFirstRun, firstRunHolder, releaseFirstRun, resetFirstRunForTests } from "../../lib/firstRun";
-import { coversTour, endTour, predictAction, isAutomated, isTourPage, knowsTheApp, readTour, resetTour, tourKind, TOUR_DEMO_KEY, TOUR_KEY } from "../../lib/tour";
+import { TakeTour } from "./TakeTour";
+import { coversTour, endTour, highlightsQuery, predictAction, rememberTourPage, TOUR_ASK, TOUR_STEPS, isAutomated, isTourPage, knowsTheApp, readTour, resetTour, tourKind, TOUR_DEMO_KEY, TOUR_KEY } from "../../lib/tour";
 import { ConsentBanner } from "./ConsentBanner";
 import { FirstRunTour } from "./FirstRunTour";
 
@@ -594,6 +595,16 @@ describe("real actions, never simulated", () => {
     fireEvent.click(other);
     fireEvent.click(track);
     expect(seen).toEqual(["track"]);
+    // Navigation always works mid-tour (the sidebar's Events, say).
+    const nav = document.createElement("nav");
+    const link = document.createElement("a");
+    nav.appendChild(link);
+    document.body.appendChild(nav);
+    try {
+      link.addEventListener("click", (e) => { e.preventDefault(); seen.push("nav"); });
+      fireEvent.click(link);
+      expect(seen).toEqual(["track", "nav"]);
+    } finally { nav.remove(); }
   });
 
   it("an event streaming live: the step says so, and promises no recording yet", async () => {
@@ -624,5 +635,53 @@ describe("real actions, never simulated", () => {
     expect(where).toBe(predictAction("/events/2025/USNJNEM3").href);
     expect(where).toContain("code=USNJNEM3");
     expect(readTour()).toMatchObject({ status: "finished" });
+  });
+});
+
+describe("replay and copy", () => {
+  it("Take the tour: after a skip, runs the last tour page's tour from step 1, whatever the visitor has saved", async () => {
+    endTour("skipped", 1);
+    personal.current = { ...personal.current, state: { ...EMPTY_STATE, myTeam: 18360, tracked: { teams: [18360], events: [] } } };
+    rememberTourPage("/teams/18360");
+    rememberTourPage("/settings"); // not a tour page: ignored
+    render(
+      <MemoryRouter initialEntries={["/settings"]}>
+        <Nav />
+        <TakeTour />
+        <TeamPage />
+        <FirstRunTour />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Take the tour" }));
+    expect(where).toBe("/teams/18360");
+    await opened();
+    expect(screen.getByRole("dialog", { name: /Step 1 of 4/ })).toBeTruthy();
+    expect(readTour()).toMatchObject({ status: "paused", step: 0, origin: "/teams/18360" });
+  });
+
+  it("every step: a 2–5 word title, one sentence of at most 25 words, no exclamation marks", () => {
+    const sentences = Object.values(TOUR_STEPS).flatMap((s) => [s.body, ...(s.after ? [s.after] : []), ...(s.live ? [s.live] : [])]);
+    for (const s of Object.values(TOUR_STEPS)) {
+      const words = s.title.split(/\s+/).length;
+      expect(words, s.title).toBeGreaterThanOrEqual(2);
+      expect(words, s.title).toBeLessThanOrEqual(5);
+      expect(s.title).not.toContain("!");
+    }
+    for (const b of sentences) {
+      expect(b.split(/\s+/).length, b).toBeLessThanOrEqual(25);
+      expect(b, b).toMatch(/\.$/);
+      expect(b.slice(0, -1), b).not.toMatch(/[.!?](\s|$)/);
+      expect(b).not.toContain("!");
+    }
+  });
+
+  it("tour searches name no team but the tour's own: 4215-free examples elsewhere, never a banned query", () => {
+    expect(TOUR_ASK).toBe("who won decode");
+    expect(highlightsQuery("/")).toBe("decode finals match highlights");
+    expect(highlightsQuery("/teams/4215?season=2025")).toBe("4215 highlights");
+    const all = [TOUR_ASK, highlightsQuery("/"), ...Object.values(TOUR_STEPS).flatMap((s) => [s.body, s.after ?? "", s.live ?? ""])].join(" ");
+    expect(all).not.toMatch(/\d{3,5}/);
+    expect(all.toLowerCase()).not.toContain("houston");
+    expect(all.toLowerCase()).not.toContain("clip");
   });
 });

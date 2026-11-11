@@ -3,6 +3,7 @@
 // frame), reveals are CSS transitions marked by one shared observer, and the hero's example card only
 // cycles while it is on screen.
 import { act, cleanup, render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // IntersectionObserver: record each observed element, so a test can bring it into view.
@@ -93,7 +94,7 @@ describe("Hero", async () => {
   const { Hero } = await import("./Hero");
   it("cycles the example card, and pulses its live dot, only while the card is on screen", () => {
     vi.useFakeTimers();
-    render(<Hero />);
+    render(<MemoryRouter><Hero /></MemoryRouter>);
     const card = screen.getByRole("group", { name: /Example match predictions/ });
     const label = () => card.firstElementChild!.firstElementChild!.textContent;
     const first = label();

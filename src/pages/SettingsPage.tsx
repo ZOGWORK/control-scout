@@ -7,6 +7,7 @@
 // Two kinds of settings (docs/settings.md): Personal (yours, synced with your account, and the only
 // ones that set your view, inside a workspace too) and Workspace (shared by a Control Point
 // workspace, changed by its admins; shown only to its members).
+import { TakeTour } from "../components/layout/TakeTour";
 import { useEffect, useRef, useState, type ComponentType } from "react";
 import { smoothBehavior } from "../lib/pageScroll";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
@@ -668,6 +669,9 @@ function About() {
   return (
     <div>
       <Group title="This app">
+        <Row label="Take the tour" description="A short walk through search and the main buttons, on the page you were last on.">
+          <TakeTour />
+        </Row>
         <Row label="What's new" description={`Every release of Control Scout, newest first.${APP_RELEASE ? ` This is v${APP_RELEASE}.` : ""}`}>
           <Button variant="outline" size="sm" onClick={() => openWhatsNew()}><Megaphone /> What's new</Button>
         </Row>
