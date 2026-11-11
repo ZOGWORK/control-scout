@@ -25,7 +25,7 @@ A team named by its name, followed by words search can't read, opens on that tea
 - [fixes] Spelling slips in a name still offer the correction
 
 ### Fixed
-- Search: a team's whole name followed by words search reads nothing in ("<team name> and <words>") found nothing, though the team's number with the same words opens on the team. It is now read the same way: the team, with the note that the rest can't be answered yet and the questions that can be. A name typed nearly right is still offered as a correction first, and a name shared by several teams still asks which one. ([#PR](https://github.com/ZOGWORK/control-scout/pull/PR))
+- Search: a team's whole name followed by words search reads nothing in ("<team name> and <words>") found nothing, though the team's number with the same words opens on the team. It is now read the same way: the team, with the note that the rest can't be answered yet and the questions that can be. A name typed nearly right is still offered as a correction first, and a name shared by several teams still asks which one. ([#1373](https://github.com/ZOGWORK/control-scout/pull/1373))
 
 ## 5.5.1 — 2026-11-11
 
