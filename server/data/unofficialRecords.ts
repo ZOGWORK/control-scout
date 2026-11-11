@@ -22,6 +22,16 @@ export function unofficialWhy(m: MatchKey, entries: UnofficialEntry[] = UNOFFICI
   return (own ?? at.find((x) => x.level == null))?.why ?? null;
 }
 
+/** The matches of `season` that aren't official records, as SQL conditions on matches table `m` that leave them out
+ *  (a whole event's, or one match's), with their arguments: for a question that asks for official records only. */
+export function officialOnlySql(season: number, entries: UnofficialEntry[] = UNOFFICIAL): { sql: string[]; args: (string | number)[] } {
+  const xs = entries.filter((x) => x.season === Number(season));
+  return {
+    sql: xs.map((x) => (x.level == null ? "m.code <> ?" : "NOT (m.code = ? AND m.level = ? AND m.series = ? AND m.number = ?)")),
+    args: xs.flatMap((x) => (x.level == null ? [x.code] : [x.code, x.level, x.series, x.number])),
+  };
+}
+
 /** "Not an official record: the event …", for a line under a marked match. */
 export const unofficialLine = (m: MatchKey) => {
   const why = unofficialWhy(m);

@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.5.0 — 2026-11-11
+## 5.5.2 — 2026-11-11
 
 Search answers an award at Worlds in the season you name, even when each division judged it.
 
@@ -26,8 +26,45 @@ Search answers an award at Worlds in the season you name, even when each divisio
 
 ### Fixed
 - An award asked at an event in a season named ("Innovate award at Worlds in into the deep") fell back to the newest older season that event gave it (2021–22), because in 2024–25 FIRST judged Worlds' Innovate Award in each division and the championship's own list has none. It now reads that season: every division's places, winners first, each line naming its division. A season named never falls back to another one and adds no note about a newer event. (`askAnswer` "award", `server/api/searchAsks.ts`; failed search)
-- A judged award's finalists, which FIRST places 1 like the winner ("… Finalist"), came first and were said as "Winner", and the card took its title from one. The winner now comes first, its finalists after it as "Finalist", on the card and in its podium. (`server/api/searchAsks.ts`, `EventAwards.tsx`)
+- A judged award's finalists, which FIRST places 1 like the winner ("… Finalist"), came first and were said as "Winner", and the card took its title from one. The winner now comes first, its finalists after it as "Finalist", on the card and in its podium; a place asked ("2nd place") is never a finalist's. (`server/api/searchAsks.ts`, `EventAwards.tsx`)
 - An award from an older season showed that season's label over the newer event's dates. The event is now that season's own, with its own dates. (`server/api/searchAsks.ts`) (#1363)
+
+## 5.5.1 — 2026-11-11
+
+A search answered by a card alone no longer tells search engines and link previews that nothing matched.
+
+### Highlights
+- [fixes] Answered searches describe their answer in link previews
+- [fixes] "No match" in a preview now means nothing was found
+- [share] A shared record search previews its top score
+
+### Fixed
+- Search: a search page's description (its meta and og:description, what search engines and link previews show) summarises its answer when it has one: a card's title and first record or its plain "none" line, a stat's title and headline, a yes-or-no answer first. It is cut at a word near 160 characters. "decode official world record" previews as "Highest official scores in 2025–26 (DECODE): 574 points: M14 at FIRST Championship …" instead of "No FTC team, event or match matches". A page of app links alone names them. "No FTC team, event or match matches …" is said only when nothing was found. ([#1370](https://github.com/ZOGWORK/control-scout/pull/1370))
+
+## 5.5.0 — 2026-11-11
+
+Playoff rows show each alliance's lives, the match page's call reads like its score table, an event shows who advanced by name, and search answers best partner, best finish and official records the way you'd expect.
+
+### Highlights
+- [history] Hearts beside each playoff alliance show its lives left
+- [predict] The match page's call is a table: Red, Call, Blue, each row named
+- [teams] Best partner by score together; best finish counts every event
+- [rankings] Who advanced, named and in order, first on Awards and Odds
+- [fixes] Official record questions list official records only
+
+### Added
+- Matches: in a double-elimination playoff, every match row shows each alliance's two lives as hearts at the left of its box. A filled heart is a life left, an outline is a life lost earlier, and a broken heart is the life this match took (down to the lower bracket, or out). Lives are read from the event's playoff results in bracket order. The final works the usual way: the upper-bracket alliance comes in with two lives, the lower one with one. Qualification matches and other playoff formats show no hearts. This applies wherever the match row appears: the event's Matches tab, a team's matches, My team and compare.
+
+### Changed
+- Match page: the prediction is drawn like the score table beside it. It has Red / Call / Blue columns and a row each for Odds, Predicted, Actual and Off by, each with its icon and name, the call in words in the middle. Each bonus ranking point gets its own named row saying whether each side earned it and who did, with the expected RP below. An upset shows in blue, not orange. The confidence is a labelled badge.
+- Search: "best alliance partner" ranks partners by the highest score made together (the alliance's own points), naming that score and its match. Matches together and the record together stay as columns. Any partner counts, however many matches.
+- Search: "best finish" (and "worst finish", "best event") judges every event the team played, league meets included by their league standing, by the whole result. A Winning Alliance beats a Finalist Alliance, which beats advancing, which beats a playoff alliance, which beats any qualification rank alone. Every event is listed with its playoff result and rank, best first.
+- Search: in every list of matches (a season's top scores, a team's best and latest matches, two teams' meetings), the "Pen given" tile is a neutral tile with a small blue info icon instead of a red one.
+- Home: the "4215 not 6980 record" suggestion is gone.
+- Events: who advanced is one section, first on the Awards tab and on the Odds tab before a team is picked. Each advancing team is a chip in the success colour with its place in FIRST's advancement order, its number and name, and FIRST's advancement points beneath. The heading names where they go in words ("5 teams advance to the New Jersey Championship"), never by event code; with no name known, "the next event". The At a glance card's Advancing cell names it the same way.
+
+### Fixed
+- Search: a question asking for the "official" record lists official records only, says so in its headings, and says plainly when every match it found was unofficial. A world record question leads with the best score from an event played by the usual rules, labelled "Official world record" (a team's: "Official best"), with any higher score that isn't an official record after it, marked. The match records page's record is the official one too. (#1356)
 
 ## 5.4.9 — 2026-11-11
 

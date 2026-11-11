@@ -17,6 +17,8 @@ import { pairHistory } from "../../src/shared/pairHistory.js";
 import { rangesOf } from "../../src/shared/scoreRange.js";
 import { compactSheet, parseSheet, type FactorSheet } from "../../src/shared/factorSheet.js";
 import { isEnabled } from "../flags.js";
+import { playoffLives, type MatchLives } from "../../src/shared/playoffLives.js";
+import { DOUBLE_ELIM_FROM } from "../../src/shared/bracketOdds.js";
 
 const score = (r: any, p: "red" | "blue") => r[`${p}_np`] == null ? null : {
   total: Number(r[`${p}_total`]), np: Number(r[`${p}_np`]), auto: Number(r[`${p}_auto`] ?? 0),
@@ -60,6 +62,7 @@ export async function matchViews(f: MatchFilter, opts: { predictUnplayed?: boole
     e[p.kind as "live" | "backtest"] = p;
     pmap.set(k, e);
   }
+  const lives = await livesOf(f.season, rows, lu);
   const forecaster = opts.predictUnplayed && !isLegacy(f.season) ? await liveForecaster(f.season).catch(() => null) : null;
   // No rated matches this season yet (e.g. only scrimmages, which the engine skips):
   // ratings are carried over without a scoring baseline, so win odds stand but point predictions don't.
@@ -113,8 +116,34 @@ export async function matchViews(f: MatchFilter, opts: { predictUnplayed?: boole
       red: { teams: l.red, score: r.played ? score(r, "red") : null },
       blue: { teams: l.blue, score: r.played ? score(r, "blue") : null },
       video: r.video ?? null,
+      ...((x) => (x ? { lives: x } : {}))(r.level === "playoff" ? lives.get(`${r.code}|${r.series}:${r.number}`) : undefined),
       prediction,
     });
+  }
+  return out;
+}
+
+/** Each double-elimination playoff match's lives, by "code|series:number", for the events these rows are from. A
+ *  team's list holds only its own matches, so the events' whole playoffs are read (one small read; the lineups are
+ *  already loaded for every match of these events). Seasons before double elimination read nothing. */
+async function livesOf(season: number, rows: any[], lu: Map<string, { red: MatchView["red"]["teams"]; blue: MatchView["blue"]["teams"] }>): Promise<Map<string, MatchLives>> {
+  const out = new Map<string, MatchLives>();
+  const codes = [...new Set(rows.filter((r) => r.level === "playoff").map((r) => r.code as string))];
+  if (season < DOUBLE_ELIM_FROM || !codes.length) return out;
+  const inCodes = `code IN (${codes.map(() => "?").join(",")})`;
+  const [ps, posted] = await Promise.all([
+    all<any>(`SELECT code, series, number, played, red_total, blue_total FROM matches WHERE season = ? AND level = 'playoff' AND ${inCodes}`, [season, ...codes]),
+    // The posted alliances: a live bracket's top seeds haven't played in its first matches.
+    all<any>(`SELECT code, COUNT(*) n FROM alliances WHERE season = ? AND ${inCodes} GROUP BY code`, [season, ...codes]),
+  ]);
+  const postedOf = new Map(posted.map((p) => [p.code as string, Number(p.n) || 0]));
+  for (const code of codes) {
+    const ms = ps.filter((p) => p.code === code).map((p) => {
+      const l = lu.get(`${code}|playoff:${p.series}:${p.number}`) ?? { red: [], blue: [] };
+      return { series: Number(p.series), number: Number(p.number), red: l.red.map((t) => t.number), blue: l.blue.map((t) => t.number), played: !!p.played,
+        redScore: p.red_total == null ? null : Number(p.red_total), blueScore: p.blue_total == null ? null : Number(p.blue_total) };
+    });
+    for (const [k, v] of playoffLives(season, ms, postedOf.get(code) ?? 0)) out.set(`${code}|${k}`, v);
   }
   return out;
 }

@@ -71,4 +71,12 @@ describe("an award at Worlds in a season named by its game", () => {
     expect(a.hits[0].event?.start).toBe("2022-04-20");
     expect(a.understood?.label).not.toMatch(/isn't held yet|no award posted/);
   });
+
+  it("a place asked is a placed team's, never a finalist FIRST lists second (Loopy on #1363)", async () => {
+    const a = await ask("who got 2nd place innovate at worlds in freight frenzy");
+    expect(a.card?.lines.map((l) => [l.text, l.results])).toEqual([
+      ["16461 Infinite Turtles", ["Winner"]], ["7149 ENFORCERS", ["Finalist"]], ["11260 Up-A-Creek Robotics", ["Finalist"]],
+    ]);
+    expect(a.understood?.label).toMatch(/ · No 2nd place recorded$/);
+  });
 });

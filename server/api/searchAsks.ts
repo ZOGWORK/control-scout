@@ -514,7 +514,8 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
       const shownHit: SearchHit = fromParent ? (await search(parent!, 5, opts.prefer, new Set(["event"]), season)).find((h) => h.kind === "event" && h.ref === `${season}:${parent}`)
         ?? await rowOf(parent!).then((row) => (row ? eventHit(row) : { ...ev!, ref: `${season}:${parent}`, title: parentName, season, subtitle: seasonLabel(season), event: undefined })) : ev;
       const place = (p: number) => (p === 1 ? "Winner" : `${p}${p === 2 ? "nd" : p === 3 ? "rd" : "th"} place`);
-      const asked = ask.place != null ? rows.filter((r) => Number(r.placement) === ask.place) : [];
+      // A place asked is a placed team's: a finalist's number is only FIRST's order in its list, never a place.
+      const asked = ask.place != null ? rows.filter((r) => Number(r.placement) === ask.place && !finalist(r)) : [];
       // An alliance's teams are its captain and picks, which each row's own name says ("Finalist Alliance - Captain"),
       // never a place; the award is the alliance's, never one division's.
       // A division by its own words ("Edison Division"), its championship's name taken off.
