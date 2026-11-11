@@ -1121,8 +1121,8 @@ export async function teamListAnswer(q: string): Promise<SearchAnswer | null> {
     const lines = rows.map((r) => lineOf(r, [`Rookie year ${seasonLabel(Number(r.rookie_year))}`]));
     return card(title, lines, `No ${word.toLowerCase()}${p ? ` in ${p.name}` : ""} found.`, [{ title: "Browse the teams", href: "/teams" }], `${title}, by FIRST's rookie year`);
   }
-  // An average OPR: "average opr in nj".
-  if ((m = /^(?:the\s+)?(?:average|mean|avg)\s+opr(?:\s+(?:in|of|for)\s+(.+?))?(?:\s+this season)?$/.exec(t))) {
+  // An average OPR: "average opr in nj", "average opr of teams in nj" (the teams said, then the place, or none).
+  if ((m = /^(?:the\s+)?(?:average|mean|avg)\s+opr(?:\s+(?:of|for|among|across)\s+(?:all\s+)?(?:the\s+)?(?:ftc\s+)?teams?)?(?:\s+(?:in|of|for|from)\s+(.+?))?(?:\s+this season)?$/.exec(t))) {
     const p = m[1] ? await placeOf(cased(q, m[1])) : null;
     if (m[1] && !p) return null;
     const row = await get<any>(`SELECT AVG(s.opr_np) a, COUNT(*) n, MAX(s.opr_np) hi FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE ${ranked} AND s.opr_np IS NOT NULL${placeSql(p)}`, [season, ...placeArgs(p)]);

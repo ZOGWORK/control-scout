@@ -151,6 +151,20 @@ describe("answers on their own", () => {
     // The number asked for: the USA has three ranked teams here.
     expect((await teamListAnswer("top 2 teams in usa"))?.card?.lines.map((l) => l.text)).toEqual(["23268 Ultraviolet", "6980 Bad Wolf"]);
   });
+  it("an average OPR, with the teams said before the place or alone", async () => {
+    const inUsa = await teamListAnswer("average opr in usa");
+    expect(inUsa?.card?.title).toMatch(/^Average OPR in /);
+    for (const q of ["average opr of teams in usa", "the average opr of all teams in usa", "mean opr among teams from usa"]) {
+      const a = await teamListAnswer(q);
+      expect(a?.card?.title, q).toBe(inUsa?.card?.title);
+      expect(a?.card?.lines, q).toEqual(inUsa?.card?.lines);
+    }
+    expect((await teamListAnswer("average opr of teams"))?.card?.title).toBe((await teamListAnswer("average opr"))?.card?.title);
+    // Its first letter dropped: the spelling's correction reaches the same card.
+    const slip = await ask("verage opr of teams in usa");
+    expect(slip.card?.title).toBe(inUsa?.card?.title);
+    expect(slip.didYouMean).toBe("average opr of teams in usa");
+  });
   it("undefeated teams and the highest win rate", async () => {
     // Undefeated is a leaderboard filter the pipeline applies (server/api/query/): no losses, the most wins first.
     const u = (await ask("undefeated teams")).stat?.blocks[0];

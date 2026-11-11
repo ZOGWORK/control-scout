@@ -74,6 +74,14 @@ describe("a versus with a number no team has", () => {
     expect(short.step).not.toBe("recovery");
     expect(short.understood?.label).toContain("No FTC team 99 in our data");
   });
+  it("the missing side's own words before the versus count too, said once", async () => {
+    for (const q of ["99 record vs 7149 record 2025-26", "99 record vs 7149 2025-26"]) {
+      const a = await ask(q);
+      expect(a.step, q).not.toBe("recovery");
+      expect(a.understood?.label, q).toContain("ENFORCERS (7149)");
+      expect(a.understood?.label, q).toContain("No FTC team 99 in our data");
+    }
+  });
 });
 
 describe("a possessive after a name ending in punctuation", () => {
