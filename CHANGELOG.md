@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.5.2 — 2026-11-11
+## 5.5.4 — 2026-11-11
 
 A team number nobody has, asked about, gets the closest real team numbers instead of nothing.
 
@@ -27,6 +27,30 @@ A team number nobody has, asked about, gets the closest real team numbers instea
 ### Fixed
 - Search: a team number no team has, followed by what was asked of it ("<number> auto"), lists the closest team numbers, as the number alone does. It offers the same question with the closest one as "Did you mean". Before, nothing was found.
 - Search: a comparison where one side is a number no team has, typed with its own words before the "vs" ("<number> opr vs 4215 opr over time"), answers the other team's question and says the number is no team, as it already did when the number came right before "vs". The missing side's words are added once. ([#1372](https://github.com/ZOGWORK/control-scout/pull/1372))
+
+## 5.5.3 — 2026-11-11
+
+A team named by its name, followed by words search can't read, opens on that team instead of nothing.
+
+### Highlights
+- [fixes] A team's name with unread words now finds the team
+- [teams] Its page and the questions search can answer come first
+- [fixes] Spelling slips in a name still offer the correction
+
+### Fixed
+- Search: a team's whole name followed by words search reads nothing in ("<team name> and <words>") found nothing, though the team's number with the same words opens on the team. It is now read the same way: the team, with the note that the rest can't be answered yet and the questions that can be. A name typed nearly right is still offered as a correction first, and a name shared by several teams still asks which one. ([#1373](https://github.com/ZOGWORK/control-scout/pull/1373))
+
+## 5.5.2 — 2026-11-11
+
+Best finish now judges a league meet the way the team page shows it: by the team's own rank at that meet.
+
+### Highlights
+- [teams] Best finish: a league meet by your own rank there
+- [teams] Each meet reads "#4 of 10 at the meet", as on the team page
+- [fixes] League standing used only when a meet's own rank isn't posted
+
+### Fixed
+- Search: "best finish" and "worst finish" judged a league meet by the league's running standing (#14 of 34), not the team's own finish there. They now use its rank among the teams ranked at that meet, as the team page shows it ("#4 of 10 at the meet"), and fall back to the league standing only when that isn't posted. (#1369)
 
 ## 5.5.1 — 2026-11-11
 
