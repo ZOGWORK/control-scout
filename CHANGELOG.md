@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.5.5 — 2026-11-11
+## 5.5.6 — 2026-11-11
 
 First-time visitors get a small welcome card with real searches to try; the step-by-step tour is off unless the owner turns it on.
 
@@ -28,6 +28,18 @@ First-time visitors get a small welcome card with real searches to try; the step
 - First-time visitors see one small "Welcome to Control Scout" card: "Search any team, event or match", with three example searches that answer live ("Worlds highlights decode", "4215 vs 6980 who wins", "4215 record"). Tapping one runs it. It closes on X, Esc or any search, and is shown once per visitor. (`WelcomeCard`, `src/components/layout/WelcomeCard.tsx`; `src/lib/welcome.ts`)
 - The step-by-step tour never starts by itself. It sits behind a new owner switch, Step-by-step tour (`onboardingTour`, off by default). While it's on, the welcome card, Settings and How it works offer "Take the tour"; while it's off, there's no tour and no Take the tour button. (`src/shared/flags.ts`, `FirstRunTour`, `TakeTour`)
 - "Clear all local data" in Settings also brings the welcome card back. (#1368)
+
+## 5.5.5 — 2026-11-11
+
+Asking for the average OPR "of teams" in a place now answers, as asking for the average OPR in that place already did.
+
+### Highlights
+- [rankings] "Average OPR of teams in a state" gives the state's average
+- [fixes] "Of teams", "of all the teams" and "among teams" read alike
+- [fixes] A dropped first letter still reaches the average
+
+### Fixed
+- Search: "average OPR of teams in <place>" (also "of all the teams", "among teams from", or "of teams" alone) found nothing, though "average OPR in <place>" answered. The teams said before the place are now read the same way, so the same average card answers. ([#1374](https://github.com/ZOGWORK/control-scout/pull/1374))
 
 ## 5.5.4 — 2026-11-11
 
