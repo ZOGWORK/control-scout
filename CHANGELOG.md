@@ -25,7 +25,7 @@ Search answers who advanced from an event, and how many, from FIRST's advancemen
 - [fixes] A list FIRST hasn't posted yet says so, with its slots
 
 ### Added
-- Search: "how many teams went to states at <event>", "which teams qualified for worlds from <event>" and "who advanced from <event>" answer from the event's advancement list, as its Awards tab shows it. The answer lists the teams that took a slot, in FIRST's advancement order (declined slots left out), says where they go by the next event's name, and links the event. With no season named, it uses the newest event by that name that has a list. A list not posted yet says so, with the number of slots. ([#PR](https://github.com/ZOGWORK/control-scout/pull/PR))
+- Search: "how many teams went to states at <event>", "which teams qualified for worlds from <event>" and "who advanced from <event>" answer from the event's advancement list, as its Awards tab shows it. The answer lists the teams that took a slot, in FIRST's advancement order (declined slots left out), says where they go by the next event's name, and links the event. With no season named, it uses the newest event by that name that has a list. A list not posted yet says so, with the number of slots. ([#1376](https://github.com/ZOGWORK/control-scout/pull/1376))
 
 ## 5.5.1 — 2026-11-11
 
