@@ -157,8 +157,9 @@ export const INTENTS: IntentRule[] = [
   R("results", 1, ["thing:match"], ["list", "metric:score", "metric:record"], { event: true }),
   R("event-rank", 1, ["metric:rank"], [], { event: true }),
   R("event-opr", 1, ["metric:opr"], [], { event: true }),
-  // A team and an event, nothing else asked ("12345 at <event> in 2025-26"): its results there.
-  R("results", 1, [], [], { event: true }),
+  // A team at an event, nothing else asked ("12345 at <event> in 2025-26"): its results there. "At" said, so a word read
+  // loosely as an event's name ("how old is 12345") is never taken for one.
+  R("results", 1, ["prep:at"], [], { event: true }),
   // A state championship or Worlds alone ("12345 states", "12345 at worlds"): the team's results there.
   R("results", 1, ["states"], ["list"]),
   R("results", 1, ["worlds"], ["list"]),
