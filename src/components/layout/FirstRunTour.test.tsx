@@ -650,7 +650,7 @@ describe("replay and copy", () => {
   });
 
   it("every step: a 2–5 word title, one sentence of at most 25 words, no exclamation marks", () => {
-    const sentences = Object.values(TOUR_STEPS).flatMap((s) => [s.body, ...(s.after ? [s.after] : [])]);
+    const sentences = Object.values(TOUR_STEPS).flatMap((s) => [s.body, ...(s.after ? [s.after] : []), ...(s.live ? [s.live] : [])]);
     for (const s of Object.values(TOUR_STEPS)) {
       const words = s.title.split(/\s+/).length;
       expect(words, s.title).toBeGreaterThanOrEqual(2);
@@ -669,7 +669,7 @@ describe("replay and copy", () => {
     expect(TOUR_ASK).toBe("who won decode");
     expect(highlightsQuery("/")).toBe("decode finals match highlights");
     expect(highlightsQuery("/teams/4215?season=2025")).toBe("4215 highlights");
-    const all = [TOUR_ASK, highlightsQuery("/"), ...Object.values(TOUR_STEPS).flatMap((s) => [s.body, s.after ?? ""])].join(" ");
+    const all = [TOUR_ASK, highlightsQuery("/"), ...Object.values(TOUR_STEPS).flatMap((s) => [s.body, s.after ?? "", s.live ?? ""])].join(" ");
     expect(all).not.toMatch(/\d{3,5}/);
     expect(all.toLowerCase()).not.toContain("houston");
     expect(all.toLowerCase()).not.toContain("clip");
