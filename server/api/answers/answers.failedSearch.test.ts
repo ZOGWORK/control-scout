@@ -217,6 +217,30 @@ describe("a bare number with no team", () => {
     expect((await full("8")).hits.map((h) => h.ref)).toContain("7");
     expect((await full("676767")).hits[0].ref).toBe("38702");
   });
+  it("with what was asked of it: the closest team numbers, the question offered with the closest one", async () => {
+    const a = await full("676767 auto");
+    // Offered, not run: the list is the closest teams, not that question's answer.
+    expect(a.step).toBe("deterministic");
+    expect(a.understood?.label).toMatch(/^No team 676767: the closest team numbers?$/);
+    expect(a.hits[0].ref).toBe("38702");
+    expect(a.didYouMean).toBe("38702 auto");
+    // Words naming a team keep that team: never traded for the numbers near the missing one.
+    const named = await full("676767 hypnotic robotics");
+    expect([...named.hits, ...(named.recovery?.closest ?? [])].map((h) => h.ref)).toContain("4215");
+    expect(named.understood?.label ?? "").not.toMatch(/^No team 676767/);
+  });
+});
+
+describe("a team named by its name, then words search reads nothing in", () => {
+  it("is the team, as its number with the same words would be, never nothing found", async () => {
+    for (const q of ["hypnotic robotics and ita", "enforcers and it's a secter"]) {
+      const a = await full(q);
+      expect(a.step, q).not.toBe("recovery");
+      expect(a.hits[0]?.ref, q).toBe(q.startsWith("hyp") ? "4215" : "7149");
+      // Never said as a correction of what was typed.
+      expect(a.didYouMean, q).toBeUndefined();
+    }
+  });
 });
 
 describe("leaderboard sorts in plain words", () => {

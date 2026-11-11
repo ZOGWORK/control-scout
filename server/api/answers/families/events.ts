@@ -17,12 +17,14 @@ import type { IntentId } from "../read.js";
 import { whoOf, type AnswerTeam } from "./matches.js";
 
 const FINISH_BASE = "Finish: the team's qualification rank at the event, out of the teams ranked there. League meets are left out (their rank is the league's running standing).";
-const FINISH_RULE = "Finish: the whole result at each event the team played, league meets included. A Winning Alliance beats a Finalist Alliance, which beats advancing, which beats being on a playoff alliance, which beats any qualification rank alone; then the better qualification rank (a league meet's standing in its league) as a share of the teams ranked; then the latest event.";
+const FINISH_RULE = "Finish: the whole result at each event the team played, league meets included. A Winning Alliance beats a Finalist Alliance, which beats advancing, which beats being on a playoff alliance, which beats any qualification rank alone; then the better qualification rank as a share of the teams ranked (a league meet's own rank among the teams ranked at that meet, as the team page shows it; its league standing only when that isn't posted); then the latest event.";
 
 /** An event's playoff result and advancement as a finish, ranked: higher is better. */
 const PLAYOFF_RANK = { won: 2, finalist: 1, alliance: 0 } as const;
 const finishKey = (e: TeamEvent): number[] => {
-  const n = e.rank ?? e.standing?.n ?? null, of = e.of ?? e.standing?.of ?? null;
+  // A league meet by its own finish there (its rank among the teams ranked at that meet), else the league standing.
+  const at = e.rank != null ? { n: e.rank, of: e.of } : e.meet ?? e.standing ?? null;
+  const n = at?.n ?? null, of = at?.of ?? null;
   const share = n == null ? 2 : of ? n / of : 1 + n / 1e4;
   return [e.playoff === "won" || e.playoff === "finalist" ? PLAYOFF_RANK[e.playoff] + 1 : 0, e.advanced ? 1 : 0, e.playoff ? 1 : 0, -share];
 };
@@ -39,6 +41,8 @@ const opr = (v: number | null) => (v == null ? "–" : v.toFixed(1));
 const rankText = (e: TeamEvent) => (e.rank != null ? `#${e.rank}${e.of ? ` of ${e.of}` : ""}` : "–");
 /** An event list's rank cell: the event's rank, else a league meet's standing said as the league's ("#1 of 20 league"). */
 const rankCell = (e: TeamEvent) => (e.rank == null && e.standing ? `#${e.standing.n}${e.standing.of ? ` of ${e.standing.of}` : ""} league` : rankText(e));
+/** A finish's rank: a league meet's own rank there ("#4 of 10 at the meet") when known, else as rankCell. */
+const finishRank = (e: TeamEvent) => (e.rank == null && e.meet ? `#${e.meet.n}${e.meet.of ? ` of ${e.meet.of}` : ""} at the meet` : rankCell(e));
 /** The team's record at the event as its team page shows it, or a dash. */
 const evRec = (e: TeamEvent) => (e.record ? `${e.record.wins}-${e.record.losses}-${e.record.ties}` : "–");
 /** Win share at the event (a tie counts half), for breaking a tie on rank. */
@@ -49,7 +53,7 @@ function eventRows(evs: TeamEvent[], team: number, title: string, opts: { opr?: 
   return {
     kind: "table", title,
     columns: [{ key: "event", label: "Event" }, { key: "season", label: "Season" }, { key: "date", label: "Date" }, ...(opts.finish ? [{ key: "finish", label: "Playoffs" }] : []), { key: "rank", label: "Rank" }, { key: "record", label: "W-L-T" }, ...(opts.opr === false ? [] : [{ key: "opr", label: "OPR", num: true }])],
-    rows: evs.slice(0, 25).map((e) => ({ cells: { event: e.name, season: seasonLabel(e.season), date: dateRange(e.start, e.end), ...(opts.finish ? { finish: finishText(e) || "–" } : {}), rank: rankCell(e), record: evRec(e), opr: opr(e.opr) }, href: eventHref(e.season, e.code, team), type: e.type })),
+    rows: evs.slice(0, 25).map((e) => ({ cells: { event: e.name, season: seasonLabel(e.season), date: dateRange(e.start, e.end), ...(opts.finish ? { finish: finishText(e) || "–" } : {}), rank: opts.finish ? finishRank(e) : rankCell(e), record: evRec(e), opr: opr(e.opr) }, href: eventHref(e.season, e.code, team), type: e.type })),
   };
 }
 
@@ -80,7 +84,7 @@ export function eventAnswer(id: IntentId, team: AnswerTeam, set: { events: TeamE
     case "worst-finish": {
       // Every event it played (league meets included), judged by its whole result: playoffs, advancing, then rank.
       // Only an event with a result: one still in its qualifications has no finish yet.
-      const ranked = evs.filter((e) => e.rank != null || e.standing != null || e.playoff || e.advanced);
+      const ranked = evs.filter((e) => e.rank != null || e.meet != null || e.standing != null || e.playoff || e.advanced);
       const best = id === "best-finish";
       // "Best event": on an equal finish, the better record there (the worse for the worst), then the latest.
       const byRec = (a: TeamEvent, b: TeamEvent) => (opts.byRecord ? (best ? evRate(b) - evRate(a) : evRate(a) - evRate(b)) : 0);
@@ -89,10 +93,10 @@ export function eventAnswer(id: IntentId, team: AnswerTeam, set: { events: TeamE
       const rule = opts.byRecord ? `${FINISH_RULE.replace(/; then the latest event\.$/, "")}; then the ${best ? "better" : "worse"} record there (win share, a tie counting half); then the latest event.` : FINISH_RULE;
       const e = sorted[0];
       if (!e) return { ...base, family: "superlative", intent: id, title, blocks: [], definition: rule, source: evSource, none: none("events played") };
-      const fin = finishText(e), rk = rankCell(e);
+      const fin = finishText(e), rk = finishRank(e);
       return {
         ...base, family: "superlative", intent: id, title, source: evSource, definition: rule,
-        headline: { value: fin || rk, label: e.name, sub: [fin && rk !== "–" ? `${e.rank == null && e.standing ? "League standing" : "Ranked"} ${rk.replace(/ league$/, "")}` : "", e.record ? `${evRec(e)} there` : "", seasonLabel(e.season), dateRange(e.start, e.end), place(e.city, e.state)].filter(Boolean).join(" · "), href: eventHref(e.season, e.code, team.number), type: e.type },
+        headline: { value: fin || rk, label: e.name, sub: [fin && rk !== "–" ? `${e.rank == null && !e.meet && e.standing ? "League standing" : "Ranked"} ${rk.replace(/ league$/, "")}` : "", e.record ? `${evRec(e)} there` : "", seasonLabel(e.season), dateRange(e.start, e.end), place(e.city, e.state)].filter(Boolean).join(" · "), href: eventHref(e.season, e.code, team.number), type: e.type },
         blocks: [eventRows(sorted, team.number, best ? "Each event, best finish first" : "Each event, lowest finish first", { finish: true })],
       };
     }
