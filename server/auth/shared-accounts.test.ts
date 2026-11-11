@@ -5,7 +5,7 @@ import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import express from "express";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { all, migrate, openDb, setDb } from "../db";
+import { all, migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
 import { setMailer } from "./email";
 
@@ -19,6 +19,9 @@ const accounts = new Map<string, { id: number; email: string; displayName: strin
 const handoffs = new Map<string, { email: string; state: string; used: boolean }>();
 const resolveCalls: { email: string; verifiedBy: string }[] = [];
 let cpDown = false;
+/** "Continue with Control Scout": what Scout asked Control Point to vouch for. */
+const signinCalls: Record<string, unknown>[] = [];
+let signinDown = false;
 let accountReads = 0;
 let cpHang = false;
 const accountFor = (email: string) => {
@@ -47,6 +50,11 @@ beforeAll(async () => {
     res.json({ account: a });
   });
   stub.get("/api/auth/config", (_req, res) => { res.json({ googleEnabled: true, discordEnabled: false, githubEnabled: true, youtubeEnabled: true }); });
+  stub.post("/internal/signin/codes", (req, res) => {
+    if (signinDown) { res.status(500).json({ error: "down" }); return; }
+    signinCalls.push(req.body);
+    res.json({ code: `csv_${String(signinCalls.length).padStart(43, "0")}`, expiresAt: new Date(Date.now() + 120_000).toISOString() });
+  });
   stub.post("/internal/handoff/redeem", (req, res) => {
     const h = handoffs.get(req.body.code);
     if (!h || h.used || h.state !== req.body.state) { res.status(400).json({ error: "invalid code" }); return; }
@@ -70,7 +78,7 @@ afterAll(() => {
   for (const k of ["CONTROL_POINT_INTERNAL_URL", "CONTROL_POINT_PUBLIC_URL", "CONTROL_POINT_INTERNAL_KEY", "APP_URL"]) delete process.env[k];
 });
 beforeEach(() => {
-  cpDown = false; cpHang = false;
+  cpDown = false; cpHang = false; signinDown = false;
   Object.assign(process.env, { CONTROL_POINT_INTERNAL_URL: cpBase, CONTROL_POINT_PUBLIC_URL: "https://cp.test", CONTROL_POINT_INTERNAL_KEY: KEY, APP_URL: "http://127.0.0.1" });
 });
 
@@ -276,5 +284,89 @@ describe("shared accounts", () => {
     expect(r.headers.get("location")).toBe("/settings?signin=failed");
     expect((await me(replay)).user).toBeNull();
     expect((await all<any>("SELECT COUNT(*) n FROM sessions"))[0].n).toBe(sessionsAfterFirst);
+  });
+});
+
+describe("Continue with Control Scout (Control Point asks Scout to vouch)", () => {
+  const STATE = "cpState_ABCDEFGH-123456";
+  const vouch = (c: ReturnType<typeof client>, q = `?state=${STATE}`) => c.req(`/api/auth/control-point/vouch${q}`);
+  const back = (r: Response) => new URL(r.headers.get("location")!);
+  /** Sign in through "Continue with Control Point" (the email-code sign-in's per-IP limiter is shared by this whole file). */
+  const cpSignIn = async (c: ReturnType<typeof client>, email: string) => {
+    const start = await c.req("/api/auth/control-point/start");
+    const state = new URL(start.headers.get("location")!).searchParams.get("state")!;
+    const code = `code-${email}`;
+    handoffs.set(code, { email, state, used: false });
+    expect((await c.req(`/api/auth/control-point/callback?code=${encodeURIComponent(code)}&state=${state}`)).headers.get("location")).toBe("/my-team?signin=ok");
+  };
+
+  it("signed in by email code: vouches with the proven email, name and followed team, back to Control Point", async () => {
+    const c = client();
+    expect((await c.signIn("vee@example.com")).status).toBe(200);
+    await c.req("/api/me", { method: "PATCH", json: { displayName: "Vee Scout" } });
+    await c.req("/api/me/state/myTeam", { method: "PUT", json: { value: 4215, updatedAt: Date.now() } });
+    const r = await vouch(c);
+    expect(r.status).toBe(302);
+    const u = back(r);
+    expect(u.origin + u.pathname).toBe("https://cp.test/api/auth/control-scout/callback");
+    expect(u.searchParams.get("state")).toBe(STATE);
+    expect(u.searchParams.get("code")).toMatch(/^csv_/);
+    expect(signinCalls.at(-1)).toEqual({ email: "vee@example.com", verifiedBy: "scout-email-code", state: STATE, displayName: "Vee Scout", myTeam: 4215 });
+  });
+
+  it("signed out: keeps the state in a cookie, sends them to sign in, and the same route finishes once they have", async () => {
+    const c = client();
+    const r = await vouch(c);
+    expect(r.headers.get("location")).toBe("/settings?section=profile&for=control-point");
+    expect(c.cookie()).toContain(`cs_cp_vouch=${STATE}`);
+    const calls = signinCalls.length;
+    expect((await c.signIn("new.scout@example.com")).status).toBe(200);
+    // The app comes back without the state in the URL (src/lib/cpVouch.ts): the cookie has it.
+    const done = await vouch(c, "");
+    expect(back(done).searchParams.get("state")).toBe(STATE);
+    expect(back(done).searchParams.get("code")).toMatch(/^csv_/);
+    expect(signinCalls).toHaveLength(calls + 1);
+    expect(signinCalls.at(-1)).toMatchObject({ email: "new.scout@example.com", verifiedBy: "scout-email-code" });
+    expect(c.cookie()).not.toContain("cs_cp_vouch=");
+  });
+
+  it("signed in through Control Point: the linked account's email counts as proven", async () => {
+    const c = client();
+    await cpSignIn(c, "linked@example.com");
+    const r = await vouch(c);
+    expect(back(r).searchParams.get("code")).toMatch(/^csv_/);
+    expect(signinCalls.at(-1)).toMatchObject({ email: "linked@example.com", verifiedBy: "control-point", state: STATE });
+    expect(signinCalls.at(-1)).not.toHaveProperty("myTeam");
+  });
+
+  it("never vouches for an address nobody proved: Control Point hears 'unverified'", async () => {
+    const c = client();
+    await cpSignIn(c, "odd@example.com");
+    // The account's email no longer matches anything proven (no email-code identity, and the linked account has another address).
+    await run("UPDATE users SET email = 'other@example.com' WHERE email = 'odd@example.com'");
+    const calls = signinCalls.length;
+    const r = await vouch(c);
+    expect(back(r).searchParams.get("error")).toBe("unverified");
+    expect(back(r).searchParams.has("code")).toBe(false);
+    expect(signinCalls).toHaveLength(calls);
+  });
+
+  it("Control Point unreachable: back with error=unavailable, never a code", async () => {
+    const c = client();
+    await cpSignIn(c, "down@example.com");
+    signinDown = true;
+    const r = await vouch(c);
+    expect(back(r).searchParams.get("error")).toBe("unavailable");
+    expect(back(r).searchParams.get("state")).toBe(STATE);
+  });
+
+  it("a bad or missing state goes back to Control Point's sign-in, and the feature off is 503", async () => {
+    // The state is checked before anything else, signed in or not.
+    const c = client();
+    for (const q of ["", "?state=short", "?state=has%20space%20in%20it%20padding"]) {
+      expect((await vouch(c, q)).headers.get("location"), q).toBe("https://cp.test/?oauth_error=invalid_state");
+    }
+    delete process.env.CONTROL_POINT_INTERNAL_KEY;
+    expect((await vouch(c)).status).toBe(503);
   });
 });

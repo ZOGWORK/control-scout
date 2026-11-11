@@ -221,6 +221,43 @@ export async function provenEmailFor(user: User): Promise<string | null> {
   return r ? user.email : null;
 }
 
+// --- Continue with Control Scout (on Control Point; docs/shared-accounts.md) ---------------------
+
+/** How Scout proved an email when it vouches for a Control Point sign-in. */
+export type VouchProof = "scout-email-code" | "google" | "control-point";
+
+/**
+ * Whether Scout can vouch for this user's email to Control Point, and how it was proved, or null.
+ * Signing someone in on Control Point opens their workspaces there, so the address must be one Scout
+ * (or Control Point) actually proved: an email-code identity for that exact address, or a link to a
+ * shared account with that address (links are only ever made from a freshly proven email).
+ */
+export async function vouchProofFor(user: User): Promise<VouchProof | null> {
+  if (!user.email) return null;
+  if (await provenEmailFor(user)) return "scout-email-code";
+  const id = await linkedAccountId(user.id);
+  if (id == null) return null;
+  const account = await getAccount(id).catch((e) => { logFailure("vouch account", e); return null; });
+  if (!account || account.email.trim().toLowerCase() !== user.email.trim().toLowerCase()) return null;
+  const google = await get<{ n: number }>("SELECT 1 AS n FROM identities WHERE user_id = ? AND provider = 'google'", [user.id]);
+  return google ? "google" : "control-point";
+}
+
+const SIGNIN_CODE = /^csv_[A-Za-z0-9_-]{43}$/;
+
+/**
+ * Control Point's POST /internal/signin/codes: a single-use code (2 minutes) that signs this person in
+ * there, bound to the state Control Point started with. Throws on network errors, timeouts and non-2xx.
+ */
+export async function issueSigninCode(body: { email: string; verifiedBy: VouchProof; state: string; displayName?: string | null; myTeam?: number | null }): Promise<string> {
+  const r = await internal<{ code?: unknown }>("/internal/signin/codes", {
+    method: "POST",
+    body: { email: body.email, verifiedBy: body.verifiedBy, state: body.state, ...(body.displayName ? { displayName: body.displayName } : {}), ...(body.myTeam ? { myTeam: body.myTeam } : {}) },
+  });
+  if (typeof r.code !== "string" || !SIGNIN_CODE.test(r.code)) throw new Error("Control Point sent an unexpected code");
+  return r.code;
+}
+
 /**
  * A workspace as /api/auth/me lists it: Control Point's, plus `orphaned` while its scout space is read-only
  * (Task 19). A workspace deleted in Control Point stays in its former members' list this way.
