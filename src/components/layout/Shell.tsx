@@ -21,6 +21,7 @@ import { AccountFooter, AccountProvider, useAccountPanel } from "./AccountMenu";
 import { ClockWeather, showsClockWeather } from "./TopBarExtras";
 import { OfflineStatus } from "../OfflineNote";
 import { InboxBell } from "./InboxBell";
+import { AccountSetupProvider } from "../AccountSetup";
 import { BugReportButton } from "./BugReport";
 import { usePersonal } from "../../lib/personal";
 import { isBareRoute, pageTitle } from "../../shared/routes";
@@ -304,6 +305,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const bare = isBareRoute(loc.pathname);
   return (
     <AccountProvider>
+    <AccountSetupProvider>
     <AccountSheetBridge menu={menu} openMenu={() => openMenu(menuRef.current)} />
     <MotionConfig reducedMotion="user">
       <TooltipProvider delayDuration={250}>
@@ -381,6 +383,7 @@ export function Shell({ children }: { children: ReactNode }) {
         </div>
       </TooltipProvider>
     </MotionConfig>
+    </AccountSetupProvider>
     </AccountProvider>
   );
 }

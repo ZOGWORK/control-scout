@@ -2040,6 +2040,19 @@ CREATE INDEX league_rankings_team ON league_rankings (season, team);
 UPDATE hero_lines SET plain = REPLACE(plain, 'Remagined', 'Reimagined'), accent = REPLACE(accent, 'Remagined', 'Reimagined'), updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE plain LIKE '%Remagined%' OR accent LIKE '%Remagined%';
 `,
   },
+  {
+    version: 81,
+    name: "usernames",
+    sql: `
+-- An account's username (src/shared/username.ts, docs/contributors.md): a Scout-only handle, needed to add videos,
+-- like, report or get verified; never shown on a video (the credit there is display_name, the actual name). Unique
+-- ignoring case. username_changed_at: when it was last set, for the once-in-30-days rule. Null for accounts that
+-- haven't picked one (every account before this; they're asked on sign-in, and nothing they view is blocked).
+ALTER TABLE users ADD COLUMN username TEXT;
+ALTER TABLE users ADD COLUMN username_changed_at TEXT;
+CREATE UNIQUE INDEX users_username ON users (lower(username)) WHERE username IS NOT NULL;
+`,
+  },
 ];
 
 export type Db = Client;
