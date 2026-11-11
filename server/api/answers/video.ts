@@ -7,7 +7,7 @@
 // the team's own listed matches before the event's recording: the recording from its start shows whatever was on
 // then (another team's match, an award), so it's the fallback only when no listed match has a clip.
 import { all } from "../../db.js";
-import { seasonRecordings, withClips, type Recording } from "../../videos/recordings.js";
+import { dayLabel, recordingAt, seasonRecordings, withClips, type Recording } from "../../videos/recordings.js";
 import { linkStart } from "../../../src/shared/recording.js";
 import { youtubeId } from "../../../src/shared/personal.js";
 import { localToUtcMs } from "../../../src/shared/time.js";
@@ -145,11 +145,15 @@ export async function answerVideo(a: SearchAnswer, now = Date.now(), viewer?: Vi
   const byEvent = new Map<string, PlayedRow[]>();
   for (const r of played) { const k = `${r.season}:${r.code}`; (byEvent.get(k) ?? byEvent.set(k, []).get(k)!).push(r); }
   const items = new Map<string, SearchVideoItem>();
+  // The headline's own match, when it has one: its start places it in a recording broadcast a day at a time.
+  let mainMatch = null as { label: string; startsAt: string | null; timezone: string | null } | null;
   for (const [k, ms] of byEvent) {
     const rec = recs.get(k) ?? null;
     const views = ms.map((r): Pick<MatchView, "label" | "time" | "startsAt" | "played" | "clip"> & { key: string; video: string | null } => {
       const at = localToUtcMs(r.time, r.timezone);
-      return { label: String(r.label), time: r.time, startsAt: at == null ? null : new Date(at).toISOString(), played: true, key: `${r.level}:${r.series}:${r.number}`, video: r.video };
+      const v = { label: String(r.label), time: r.time, startsAt: at == null ? null : new Date(at).toISOString(), played: true as const, key: `${r.level}:${r.series}:${r.number}`, video: r.video };
+      if (main?.key && k === evKey(main) && v.key === main.key) mainMatch = { label: v.label, startsAt: v.startsAt, timezone: r.timezone };
+      return v;
     });
     for (const v of withClips(views, rec, now)) {
       const own = v.video ? youtubeId(v.video) : null;
@@ -177,22 +181,32 @@ export async function answerVideo(a: SearchAnswer, now = Date.now(), viewer?: Vi
   if (main) {
     const rec = recs.get(evKey(main));
     out.main = mainHref ? items.get(mainHref) : undefined;
-    if (!out.main && aboutTeam(a)) {
-      // The first listed match with a clip (a team's highlights: its best one). An answer with a list of highlights
-      // stands in only one of those: a video page's grid beside them is every match, never one the headline is about.
-      // A scope's video page with none (no team) stands in a match at the headline's own event, never another
-      // event's; a team's answer keeps its own next match, at any event.
-      const lead = highlightHrefs(a);
-      const grid = !lead && teamOf(a) == null && !!main.key && !!a.stat?.blocks.some((x) => x.kind === "videos");
-      const first = rows.find((r) => (lead ? lead.has(r.href) : !grid || evKey(r) === evKey(main)) && items.has(`${evKey(r)}:${r.key}`));
-      if (first) { mainHref = `${evKey(first)}:${first.key}`; out.main = items.get(mainHref); }
+    if (!out.main && main.key) {
+      // A headline about one match plays that match or nothing: another match's clip under it reads as this one
+      // (23268's highlights: best score Q85 on the Sunday, whose video can't be placed, played Q18 from the Saturday),
+      // and the recording from its start shows whatever was on then. The listed matches keep their own buttons, and
+      // the card links to the recording the match is in, to watch it there.
+      const m = mainMatch;
+      if (rec) {
+        const day = recordingAt(rec, m?.startsAt, now);
+        out.watch = { videoId: day.videoId, t: 0, kind: "stream", ...(m ? { match: m.label } : {}),
+          ...(rec.more?.length && day.meta?.start ? { day: dayLabel(day.meta.start, m?.timezone) } : {}), ...(day.meta?.live ? { live: true } : {}) };
+      }
+    } else if (!out.main) {
+      if (aboutTeam(a)) {
+        // An answer about a team with no one match as its headline: its first listed match with a clip (a list of
+        // highlights: the first of those, never a video page's grid beside them).
+        const lead = highlightHrefs(a);
+        const first = rows.find((r) => (!lead || lead.has(r.href)) && items.has(`${evKey(r)}:${r.key}`));
+        if (first) { mainHref = `${evKey(first)}:${first.key}`; out.main = items.get(mainHref); }
+      }
+      if (!out.main && teamAt) {
+        const theirs = played.filter((r) => r.own != null && `${r.season}:${r.code}` === evKey(teamAt)).sort((x, y) => Number(y.own) - Number(x.own));
+        const best = theirs.find((r) => items.has(`${evKey(teamAt)}:${r.level}:${r.series}:${r.number}`));
+        if (best) out.main = items.get(`${evKey(teamAt)}:${best.level}:${best.series}:${best.number}`);
+      }
+      out.main ??= rec ? { videoId: rec.videoId, t: 0, kind: "stream", ...(rec.meta?.live ? { live: true } : {}) } : undefined;
     }
-    if (!out.main && teamAt) {
-      const theirs = played.filter((r) => r.own != null && `${r.season}:${r.code}` === evKey(teamAt)).sort((x, y) => Number(y.own) - Number(x.own));
-      const best = theirs.find((r) => items.has(`${evKey(teamAt)}:${r.level}:${r.series}:${r.number}`));
-      if (best) out.main = items.get(`${evKey(teamAt)}:${best.level}:${best.series}:${best.number}`);
-    }
-    out.main ??= rec ? { videoId: rec.videoId, t: 0, kind: "stream", ...(rec.meta?.live ? { live: true } : {}) } : undefined;
   }
   // The listed match the main video is (not the event's recording standing in for it).
   if (out.main && out.main.kind !== "stream" && mainHref) {
@@ -211,5 +225,5 @@ export async function answerVideo(a: SearchAnswer, now = Date.now(), viewer?: Vi
     if (rec) (out.rows ??= {})[s.href] = { videoId: rec.videoId, t: 0, kind: "stream", ...(rec.meta?.live ? { live: true } : {}) };
   }
   if (!out.main) delete out.main;
-  return out.main || out.rows ? out : undefined;
+  return out.main || out.rows || out.watch ? out : undefined;
 }

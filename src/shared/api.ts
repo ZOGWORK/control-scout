@@ -207,6 +207,9 @@ export interface SearchVideo {
   rows?: Record<string, SearchVideoItem>;
   /** The listed match the main video is (its row's href), so a video grid's tile for it plays the same clip. */
   mainRow?: string;
+  /** The headline's match has no clip (main is then unset: never another match under it): the recording it's in, from
+   *  its start, as a link to watch it on YouTube. `day`: that video's weekday, for an event broadcast a day at a time. */
+  watch?: SearchVideoItem & { day?: string };
 }
 
 /** A next question after a search (server/api/answers/followUps.ts, GET /api/search/follow): one search answers

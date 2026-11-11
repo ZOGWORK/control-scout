@@ -32,9 +32,22 @@ export function videoCaption(v: SearchVideoItem): string {
 
 /** The card's player: 16:9, the card's full width on a phone, loaded on a click. */
 export function AnswerVideo({ className }: { className?: string }) {
-  const v = useContext(Video).video?.main;
+  const video = useContext(Video).video;
+  const v = video?.main;
   // Another answer's video starts at its picture again.
-  return v ? <Player key={`${v.videoId}:${v.t}`} v={v} className={className} /> : null;
+  if (v) return <Player key={`${v.videoId}:${v.t}`} v={v} className={className} />;
+  // The headline's match has no clip: a link to the recording it's in, never another match's clip in its place.
+  const w = video?.watch;
+  if (!w) return null;
+  const what = w.live ? "live stream" : "recording";
+  return (
+    <p className={cn("my-3 flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground", className)} data-answer-watch>
+      {w.match && <span>No clip of {w.match}.</span>}
+      <a href={watchUrl(w.videoId)} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 font-medium text-foreground underline-offset-4 hover:underline max-md:min-h-[44px] pointer-coarse:min-h-[44px]">
+        Watch the {w.day ? `${w.day} ` : ""}{what} <ExternalLink className="size-3.5" aria-hidden />
+      </a>
+    </p>
+  );
 }
 
 function Player({ v, className }: { v: SearchVideoItem; className?: string }) {
