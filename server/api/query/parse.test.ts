@@ -236,6 +236,21 @@ describe("slots", () => {
     expect(lost.symbols).toContain("metric:loss");
     expect(lost.symbols).not.toContain("metric:win");
   });
+  it("reads a win by the most points as the biggest margin, a loss by the least as the smallest", async () => {
+    const win = await parse("4215 win by the most points");
+    expect(win.intent).toBe("biggest-win");
+    expect(win.complete).toBe(true);
+    const loss = await parse("4215 lost by the least");
+    expect(loss.intent).toBe("closest-match");
+    expect(loss.symbols).toEqual(expect.arrayContaining(["metric:loss", "metric:margin", "agg:min"]));
+  });
+  it("reads a number over a named season as its trend", async () => {
+    const p = await parse("4215 rating over the 2025-26 season");
+    expect(p.intent).toBe("rating-trend");
+    expect(p.time).toMatchObject({ kind: "season", season: 2025 });
+    // The season alone stays one number.
+    expect((await parse("4215 rating in the 2025-26 season")).intent).not.toBe("rating-trend");
+  });
   it("reads a forecast held up against what happened as the forecast at the event (its card shows both)", async () => {
     for (const q of [
       "4215 last prediction for east bergen conference", "show me 4215's predictions before and after east bergen conference",

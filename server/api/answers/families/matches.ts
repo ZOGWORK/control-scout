@@ -115,12 +115,14 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
   const none = (what: string) => `No ${what}${where} found for ${who} in the recorded matches.`;
   const matchesBlock = (title: string, xs: TeamMatch[], more?: string): StatBlock => ({ kind: "matches", title, rows: xs.slice(0, LIST_CAP).map(row), ...(xs.length > LIST_CAP ? { more: more ?? `Showing ${LIST_CAP} of ${xs.length}` } : {}) });
   // Each season is a different game, so points are never compared across seasons: with several seasons and none named,
-  // the answer is the latest season's (said so) and each season's own is listed below it.
+  // the answer is the latest season's (said so) and each season's own is listed below it. "Ever" or "all time" asks
+  // for the best of every season outright: that one, with each season's own still listed below it.
   const latestOnly = (xs: TeamMatch[]) => {
     const ss = new Set(xs.map((m) => m.season));
-    if (scope.season != null || ss.size < 2) return { xs, note: "" };
+    if (scope.season != null || ss.size < 2) return { xs, note: "", one: null as number | null };
+    if (scope.ever) return { xs, note: " Every season is searched, as asked. Each season is a different game, so each season's own is listed below.", one: null };
     const s = Math.max(...ss);
-    return { xs: xs.filter((m) => m.season === s), note: ` Each season is a different game, so points are never compared across seasons: the answer is ${seasonLabel(s)}'s, the latest here, and each season's own is listed below.` };
+    return { xs: xs.filter((m) => m.season === s), one: s as number | null, note: ` Each season is a different game, so points are never compared across seasons: the answer is ${seasonLabel(s)}'s, the latest here, and each season's own is listed below.` };
   };
 
   switch (id) {
@@ -128,7 +130,7 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
     case "lowest-score": {
       const high = id === "highest-score";
       const sorted = [...ms].sort((a, b) => (high ? np(b) - np(a) || b.own - a.own : np(a) - np(b) || a.own - b.own) || String(a.date).localeCompare(String(b.date)));
-      const { xs: pick, note } = latestOnly(sorted);
+      const { xs: pick, note, one } = latestOnly(sorted);
       const top = pick[0];
       const title = high ? (opts.leadEvent ? `Event with the highest score${where}` : `Highest score${where}`) : `Lowest score${where}`;
       if (!top) return { ...base, family: "superlative", intent: id, title, blocks: [], definition: `${SCORE_RULE} ${HIGH_RULE}`, none: scope.championship ? `No Worlds matches found for ${who}.` : none("matches") };
@@ -143,7 +145,7 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
           // number contradicted.
           ...(byOfficial !== top ? [{ label: `${high ? "Highest" : "Lowest"} official score`, value: String(byOfficial.own), sub: `Another match: ${[`${byOfficial.label} at ${byOfficial.event}`, row(byOfficial).date].filter(Boolean).join(", ")}. ${byOfficial.own - np(byOfficial)} from the other alliance's fouls (its own points ${np(byOfficial)})`, href: row(byOfficial).href }] : []),
         ] },
-        matchesBlock(`${high ? "Best scores" : "Lowest scores"} by points without penalties${note ? `, ${seasonLabel(top.season)}` : ""}`, pick.slice(0, 5)),
+        matchesBlock(`${high ? "Best scores" : "Lowest scores"} by points without penalties${one != null ? `, ${seasonLabel(one)}` : ""}`, pick.slice(0, 5)),
       ];
       // Each season is a different game: its best (or worst) beside the others, never compared as one record. A date
       // window can hold two (a week across the season's start).
@@ -180,7 +182,7 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
         : opts.outcome === "W" ? "Closest win" : opts.outcome === "L" ? "Closest loss" : "Closest match";
       const title = id === "biggest-win" ? `Biggest win${where}` : id === "biggest-loss" ? `Biggest loss${where}` : `${closest}${where}`;
       // A biggest margin is points too: one season's, each season's listed below (a closest gap compares fine).
-      const { xs: pick, note } = id === "closest-match" ? { xs, note: "" } : latestOnly(xs);
+      const { xs: pick, note, one } = id === "closest-match" ? { xs, note: "", one: null } : latestOnly(xs);
       const top = pick[0];
       const def = by != null ? `Decided by ${pts(by)}: the gap between the two alliances' official scores is exactly that; newest first. ${RESULT_RULE}`
         : under != null ? `Decided by less than ${pts(under)}: the gap between the two alliances' official scores is under that (a tie is 0); the closest first. ${RESULT_RULE}`
@@ -196,7 +198,7 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
       if (!top) return { ...base, family: "superlative", intent: id, title, blocks: [], definition: def, none: none(by != null ? `${kindOf} by exactly ${pts(by)}` : kindOf) };
       const list = by != null || under != null ? closest : id === "closest-match" ? (opts.outcome === "W" ? "Closest wins" : opts.outcome === "L" ? "Closest losses" : "Closest matches") : id === "biggest-win" ? "Biggest wins" : "Biggest losses";
       // A bound lists every match inside it (the list says how many it shows of how many); else the top five.
-      const blocks: StatBlock[] = [matchesBlock(`${list}${note ? `, ${seasonLabel(top.season)}` : ""}`, under != null ? pick : pick.slice(0, 5))];
+      const blocks: StatBlock[] = [matchesBlock(`${list}${one != null ? `, ${seasonLabel(one)}` : ""}`, under != null ? pick : pick.slice(0, 5))];
       if (note) {
         const per = bySeason(xs).map(([s, ys]) => ({ s, m: ys[0] }));
         blocks.push({ kind: "table", title: `${id === "biggest-win" ? "Biggest win" : "Biggest loss"} each season (each season is a different game)`, columns: [{ key: "season", label: "Season" }, { key: "margin", label: "Margin", num: true }, { key: "score", label: "Score" }, { key: "event", label: "Event" }], rows: per.map(({ s, m }) => ({ cells: { season: seasonLabel(s), margin: Math.abs(margin(m)), score: `${m.own}–${m.opp}`, event: m.event }, href: row(m).href, strong: m === top })) });

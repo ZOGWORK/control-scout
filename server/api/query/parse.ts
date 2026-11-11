@@ -277,6 +277,12 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   // A score said outright ("a 226 point match") is its own symbol: only one team's match by its score reads it; a
   // score to reach ("over 200") stays the match list's.
   const symbols = new Set<string>(cond ? [cond.cond.op === "=" ? "cond:exact" : "cond"] : []);
+  // A season said as the span a number moved over ("rating over the 2025-26 season"): its trend, as "over the season"
+  // says it when no season is named. Read on `q`, the whole query: only `rest` has the season's words taken out.
+  if (time?.kind === "season" && / season$/.test(time.typed)) {
+    const span = time.typed.replace(/^the /, "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (new RegExp(`(?:^| )(?:over|across|through|throughout) (?:the )?${span}(?= |$)`).test(q)) symbols.add("trend");
+  }
   let rate = false;
   const p: Parsed = {
     q: raw, teams: [], event: null, place: null, time, level: null, finals: false, eventKind: null, alliance: null, worlds: false, states: false, award: null, agg: null,
