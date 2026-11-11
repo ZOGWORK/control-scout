@@ -28,6 +28,8 @@ beforeAll(async () => {
     for (let i = 1; i <= n; i++) await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, ?, ?, ?)", [code, i === rank ? T : 50000 + i, i]);
   };
   await field("QWIN", 20, 6); await field("QADV", 20, 10); await field("QTOP", 20, 2); await field("LMEET", 5, 4); await field("LTOUR", 17, 14);
+  // The league meet's own finish, as the team page shows it: #2 of the 3 teams ranked at that meet.
+  for (const [t, rank] of [[T, 2], [50001, 1], [50002, 3]]) await run("INSERT INTO team_event_records (season, code, team, rank) VALUES (2025, 'LMEET', ?, ?)", [t, rank]);
   await run("INSERT INTO awards (season, code, type, placement, team, name) VALUES (2025, 'QWIN', 'Winner', 1, ?, 'Winning Alliance Captain')", [T]);
   await run("INSERT INTO alliances (season, code, number, captain, pick1) VALUES (2025, 'QWIN', 1, ?, 50001)", [T]);
   await run("INSERT INTO advancement (season, code, slots, advances_to, rows) VALUES (2025, 'QADV', 2, 'USNJCMP', ?)", [JSON.stringify([{ team: T, status: "FIRST", declined: false }])]);
@@ -43,7 +45,7 @@ describe("best finish", () => {
       ["Won Qualifier", "Won", "#6 of 20"],
       ["Advanced Qualifier", "Advanced", "#10 of 20"],
       ["Ranked Qualifier", "–", "#2 of 20"],
-      ["Northeast League Meet", "–", "#4 of 5 league"],
+      ["Northeast League Meet", "–", "#2 of 3 at the meet"],
       ["Northeast League Tournament", "–", "#14 of 17"],
     ]);
     expect(a.source).toMatch(/^From 5 event records/);
