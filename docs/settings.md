@@ -25,7 +25,8 @@ is, isn't rewritten on load, and syncs byte for byte
 **Notification inbox switches** (Task 14, [inbox.md](inbox.md)) live in
 `settings.notify`, beside the match alerts: `inboxAssignments`, `inboxEdits`,
 `inboxTemplate` (template and workspace settings changes), `inboxMembership`,
-`inboxPicklist`, `inboxComments` and `inboxOwnerAlerts` (owners only). They're
+`inboxPicklist`, `inboxComments`, `inboxVideoContributions` (your match videos,
+[contributors.md](contributors.md)) and `inboxOwnerAlerts` (owners only). They're
 optional and a missing key means on, so an older `notify` value still syncs
 byte for byte. `cleanValue` keeps only known `notify` keys with boolean values.
 They're shown in Settings › Personal › Notifications. The server reads them from

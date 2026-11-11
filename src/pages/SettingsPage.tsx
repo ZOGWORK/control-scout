@@ -52,6 +52,7 @@ import { packStatus } from "../lib/packPolicy";
 import { useSavedSeasons } from "../lib/offline/saved";
 import { workspacesOf } from "../lib/scoutSpace";
 import { Group, Row } from "../components/settings/rows";
+import { UsernameRow } from "../components/settings/UsernameRow";
 import { WorkspaceSection } from "../components/settings/WorkspaceSection";
 import { TabBarSettings } from "../components/settings/TabBarSettings";
 import { openWhatsNew } from "../components/WhatsNew";
@@ -274,7 +275,7 @@ function SignedIn({ user, sync, onSignOut }: { user: AccountUser; sync: string; 
   return (
     <div>
       <Group title="Details" description="How you appear in Control Scout.">
-        <Row label="Display name" htmlFor="display-name" stack>
+        <Row label="Actual name" htmlFor="display-name" description="The credit on match videos you add (Video by …). Your real name, as your team knows it." stack>
           <form onSubmit={(e) => { e.preventDefault(); saveName(); }} noValidate className="max-w-md">
             <div className="flex gap-2">
               <Input ref={nameInput} id="display-name" value={name} onChange={(e) => { setName(e.target.value); setNameErr(null); }} placeholder="Your name" className="h-10" maxLength={60}
@@ -284,6 +285,7 @@ function SignedIn({ user, sync, onSignOut }: { user: AccountUser; sync: string; 
             <FieldError id="display-name-error">{nameErr}</FieldError>
           </form>
         </Row>
+        <UsernameRow user={user} />
       </Group>
       <Group title="Account facts">
         <Row label="Email" description="Used to sign in."><span className="text-sm text-foreground">{user.email}</span></Row>

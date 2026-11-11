@@ -24,6 +24,8 @@ import { noteArrived, watchRequest } from "./liteSuggest";
  * `feature`: which feature, for feature_disabled.
  */
 export class ApiError extends Error {
+  /** The error answer's JSON as sent (a form's field errors, a username's suggestions), when there was one. */
+  body?: unknown;
   constructor(readonly status: number, message: string, readonly offline = false, readonly code?: string, readonly feature?: string) { super(message); }
 }
 
@@ -292,7 +294,9 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
   if (!res.ok) {
     // Switched off by the owner: the server's own words, and the code that tells it from a lost membership.
     if (res.status === 403 && body?.error === FEATURE_DISABLED) throw new ApiError(403, typeof body.message === "string" ? body.message : featureOffMessage(String(body.feature ?? "")), false, FEATURE_DISABLED, typeof body.feature === "string" ? body.feature : undefined);
-    throw new ApiError(res.status, body?.error ?? `Request failed (${res.status})`, false, typeof body?.code === "string" ? body.code : undefined);
+    const err = new ApiError(res.status, body?.error ?? `Request failed (${res.status})`, false, typeof body?.code === "string" ? body.code : undefined);
+    err.body = body ?? undefined;
+    throw err;
   }
   // A success whose body can't be read (cut short, or a page from something in between) is a failed
   // answer, not "no data": an empty body (204) or an explicit JSON null still answer null.

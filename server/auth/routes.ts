@@ -8,7 +8,8 @@ import { all, db, get, run, writeBatch } from "../db.js";
 import { env } from "../env.js";
 import { cleanValue, mergeValue, PERSONAL_KEYS, type PersonalKey, type Stamped } from "../../src/shared/personal.js";
 import { isOwnerEmail } from "../owner.js";
-import { clearMalformedSession, currentUser, deleteUser, endSession, readCookie, startSession, token, userForIdentity, type User } from "./session.js";
+import { clearMalformedSession, currentUser, deleteUser, endSession, readCookie, sessionMark, startSession, token, userForIdentity, type User } from "./session.js";
+import { checkUsername, nextUsernameChange, setDisplayName, setUsername } from "./username.js";
 import { emailSignInEnabled, startEmailSignIn, verifyEmailCode } from "./email.js";
 import { copyToAdminSpaces } from "../scout/adminCopies.js";
 import { accessError, checkScoutEntry, cleanScoutEntry, INVALID_ENTRY, pushWorkspaceEntries, storedEntryFields, supersedeBound, supersedes, workspaceAccess, workspacePaused, type ScoutEntryInput } from "../scout/entries.js";
@@ -49,7 +50,7 @@ export function safeBack(v: unknown): string | null {
   return (path || "/") + (rest ? `?${rest}` : "");
 }
 
-const publicUser = (u: User) => ({ id: u.id, email: u.email, displayName: u.displayName, createdAt: u.createdAt });
+const publicUser = (u: User) => ({ id: u.id, email: u.email, displayName: u.displayName, createdAt: u.createdAt, username: u.username ?? null, usernameChangedAt: u.usernameChangedAt ?? null, usernameNextChange: nextUsernameChange(u) });
 /** The owner portal's nav item shows only for owners (OWNER_EMAILS): they get isOwner: true, everyone else nothing at all. */
 const ownerMark = (u: User) => (isOwnerEmail(u.email) ? { isOwner: true as const } : {});
 
@@ -71,7 +72,7 @@ export function authRouter(): Router {
     }
     // Membership is only ever shown to the signed-in owner of the address (never before it's proven).
     const controlPoint = linked != null ? await controlPointInfo(linked) : null;
-    return { user: { ...publicUser(u), ...ownerMark(u), controlPointLinked: linked != null, controlPoint }, providers: { ...authProviders(), via } };
+    return { user: { ...publicUser(u), ...ownerMark(u), session: sessionMark(req), controlPointLinked: linked != null, controlPoint }, providers: { ...authProviders(), via } };
   }));
 
   r.post("/email/start", ipLimit(20, 15 * 60_000), h(async (req, res) => {
@@ -96,9 +97,9 @@ export function authRouter(): Router {
     }
     const user = await userForIdentity("email", out.email, out.email);
     const linked = await linkToSharedAccount(user, "scout-email-code", out.email); // the shared account (best effort, 3 s max)
-    await startSession(res, user, req.get("user-agent"));
+    const session = await startSession(res, user, req.get("user-agent"));
     const id = linked?.id ?? (controlPointEnabled() ? await linkedAccountId(user.id) : null);
-    return { user: { ...publicUser(user), ...ownerMark(user), controlPointLinked: id != null, controlPoint: id != null ? await controlPointInfo(id) : null } };
+    return { user: { ...publicUser(user), ...ownerMark(user), session, controlPointLinked: id != null, controlPoint: id != null ? await controlPointInfo(id) : null } };
   }));
 
   r.post("/logout", h(async (req, res) => { await endSession(req, res); return { ok: true }; }));
@@ -209,9 +210,18 @@ export function meRouter(): Router {
 
   r.get("/", h(async (req) => ({ user: publicUser((req as any).user) })));
   r.patch("/", h(async (req) => {
-    const name = typeof req.body?.displayName === "string" ? req.body.displayName.trim().slice(0, 60) : null;
-    await run("UPDATE users SET display_name = ? WHERE id = ?", [name || null, uid(req)]);
-    return { ok: true };
+    // The actual name: the credit on videos the account adds. Every change is logged (owner console name history).
+    const name = await setDisplayName((req as any).user as User, typeof req.body?.displayName === "string" ? req.body.displayName : "");
+    return { ok: true, displayName: name };
+  }));
+  // The username (src/shared/username.ts): check one as it is typed (with free suggestions when it is taken), and set it.
+  const teamHint = (v: unknown) => { const n = Number(v); return Number.isInteger(n) && n > 0 && n <= 999999 ? n : null; };
+  r.get("/username/check", h(async (req) => checkUsername((req as any).user as User, String(req.query.u ?? "").slice(0, 40), teamHint(req.query.team))));
+  r.put("/username", h(async (req, res) => {
+    const raw = typeof req.body?.username === "string" ? req.body.username.slice(0, 40) : "";
+    const out = await setUsername((req as any).user as User, raw, teamHint(req.body?.team));
+    if (!out.ok) { res.status(out.reason === "taken" ? 409 : out.reason === "tooSoon" ? 429 : 400).json(out); return; }
+    return { ok: true, username: out.username };
   }));
   r.delete("/", h(async (req, res) => {
     if (req.body?.confirm !== "DELETE") { res.status(400).json({ error: "Confirm with {\"confirm\":\"DELETE\"}" }); return; }

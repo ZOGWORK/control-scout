@@ -226,6 +226,8 @@ export interface OwnerPowerRankings {
 /** GET /api/owner/users: one account in the list. */
 export interface OwnerUser {
   id: number; email: string | null; displayName: string | null; createdAt: string; lastSeen: string | null;
+  /** The account's username (src/shared/username.ts); null when none is set. Owner console only. */
+  username?: string | null;
   /** Sign-in methods (email, google, control-point). */
   providers: string[];
   personalEntries: number;
@@ -236,6 +238,7 @@ export interface OwnerUser {
 /** GET /api/owner/users/:id */
 export interface OwnerUserDetail {
   id: number; email: string | null; displayName: string | null; createdAt: string; lastSeen: string | null;
+  username?: string | null;
   signIns: string[];
   controlPointAccount: number | null;
   /** How many devices are signed in right now (unexpired sessions). A count only: no browser or device strings

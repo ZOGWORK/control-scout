@@ -9,7 +9,13 @@ import { env } from "../env.js";
 export const SESSION_COOKIE = "cs_session";
 const SESSION_DAYS = 30;
 
-export interface User { id: number; email: string | null; displayName: string | null; createdAt: string }
+export interface User {
+  id: number; email: string | null; displayName: string | null; createdAt: string;
+  /** The account's handle (src/shared/username.ts); null until picked. Never shown on a video. */
+  username?: string | null;
+  /** When the username was last set (ISO), for the once-in-30-days rule. */
+  usernameChangedAt?: string | null;
+}
 
 export const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 export const token = (bytes = 32) => randomBytes(bytes).toString("base64url");
@@ -31,16 +37,19 @@ export async function userForIdentity(provider: string, subject: string, email: 
 }
 
 export async function getUser(id: number): Promise<User | null> {
-  const u = await get<any>("SELECT id, email, display_name, created_at FROM users WHERE id = ?", [id]);
-  return u ? { id: Number(u.id), email: u.email, displayName: u.display_name, createdAt: u.created_at } : null;
+  const u = await get<any>("SELECT id, email, display_name, created_at, username, username_changed_at FROM users WHERE id = ?", [id]);
+  return u ? { id: Number(u.id), email: u.email, displayName: u.display_name, createdAt: u.created_at, username: u.username ?? null, usernameChangedAt: u.username_changed_at ?? null } : null;
 }
 
-export async function startSession(res: Response, user: User, userAgent?: string): Promise<void> {
+/** Start a session; returns its mark (sessionMark). */
+export async function startSession(res: Response, user: User, userAgent?: string): Promise<string> {
   const t = token();
   const expires = new Date(Date.now() + SESSION_DAYS * 864e5);
   await run("INSERT INTO sessions (id, user_id, created_at, expires_at, user_agent) VALUES (?, ?, ?, ?, ?)", [sha256(t), user.id, new Date().toISOString(), expires.toISOString(), (userAgent ?? "").slice(0, 200)]);
   res.cookie(SESSION_COOKIE, t, { httpOnly: true, sameSite: "lax", secure: env.production, path: "/", expires });
+  return markOf(t);
 }
+const markOf = (t: string) => sha256(`mark:${sha256(t)}`).slice(0, 12);
 
 /** The raw (still percent-encoded) value of a cookie, or null. */
 function rawCookie(req: Request, name: string): string | null {
@@ -74,6 +83,13 @@ export async function currentUser(req: Request): Promise<User | null> {
   const user = await getUser(Number(s.user_id));
   if (user) await run("UPDATE users SET last_seen = ? WHERE id = ?", [new Date().toISOString(), user.id]);
   return user;
+}
+
+/** A short mark of this request's session, the same for its whole life and different for each sign-in (the
+ *  username prompt shows once per sign-in: src/components/UsernamePrompt.tsx). Not the session id, nor usable as one. */
+export function sessionMark(req: Request): string | null {
+  const t = readCookie(req, SESSION_COOKIE);
+  return t ? markOf(t) : null;
 }
 
 export async function endSession(req: Request, res: Response): Promise<void> {
