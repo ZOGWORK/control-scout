@@ -102,7 +102,7 @@ export function MatchBox({ r, team, atEvent, noPlay }: { r: StatMatchRow; team?:
                 {/* TeleOp as FIRST reports it: with the endgame where the season counts it so. */}
                 <dt className={cn("flex min-w-0 items-center gap-0.5 text-[10px] leading-tight", r.ranked === k ? "font-bold" : "font-medium")}>
                   {k === "pen" && <Info className="size-3 shrink-0 text-info" aria-hidden data-note-icon />}
-                  <span className="truncate">{k === "teleop" && r.phases!.teleopWithEndgame ? "TeleOp + end" : label}</span>
+                  <span className="truncate" title={label}>{k === "teleop" && r.phases!.teleopWithEndgame ? "TeleOp + end" : label}</span>
                 </dt>
                 <dd className="font-semibold tabular-nums">{r.phases![k]}</dd>
               </div>
