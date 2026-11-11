@@ -5,6 +5,7 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, Trophy } from "lucide-react";
+import { advancesToWords } from "./AdvancedTeams";
 import type { EventDetail, MatchView } from "../shared/api";
 import { matchReportHref } from "../shared/matchReport";
 import { glanceStats, type GlanceStats, type Phase } from "../lib/eventGlance";
@@ -107,7 +108,7 @@ export function EventGlance({ d, onTab, live }: { d: EventDetail; onTab: (t: str
   cells.splice(next ? 1 : 0, 0, ...lead); // after the next match (live), before the scoring stats
   if (d.advancement?.slots) cells.push(<Cell key="adv" testId="advancing" label="Advancing" wide>
     <button type="button" onClick={() => onTab(predictable ? "odds" : "awards")} className="tap-44 text-left hover:text-accent-text">
-      {d.advancement.slots} slots{d.advancement.advancesTo ? <span className="font-normal text-muted-foreground"> → {d.advancement.advancesTo}</span> : null}
+      {d.advancement.slots} slots<span className="font-normal text-muted-foreground"> → {advancesToWords(d.advancement)}</span>
     </button>
   </Cell>);
 

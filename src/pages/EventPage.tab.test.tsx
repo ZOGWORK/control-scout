@@ -69,8 +69,42 @@ describe("event page heading order (V4-A11Y-001)", () => {
   it("Awards: Advancement sits under the tab's h2", () => {
     current = { ...detail(2025), awards: [{ type: "INSPIRE", placement: 1, team: 11, name: null }], advancement: { slots: 2, advancesTo: "AUCMP", rows: [{ team: 11, status: "FIRST", declined: false }] } };
     mount("/events/2025/AUBRQ2?tab=awards");
-    expect(screen.getByRole("heading", { level: 3, name: /^Advancement/ })).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 3, name: "1 team advances to the next event" })).toBeTruthy();
     expect(headingSkips()).toEqual([]);
+  });
+});
+
+describe("who advanced: first on the Awards tab, and on the Odds tab with no team picked (Sushil, 11-11)", () => {
+  const team = (n: number, name: string) => ({ team: n, name, city: null, state: null, rank: null, rp: null, tbp: null, wins: null, losses: null, ties: null, qualPlayed: null, opr: { np: null, auto: null, teleop: null, endgame: null, pen: null }, avgNp: null, rating: null, seasonOpr: null }) as unknown as EventDetail["field"][number];
+  // USNJNOLT2 2025–26, as FIRST's advancement report has it.
+  const advanced = (): EventDetail => ({
+    ...detail(2025),
+    field: [team(4215, "Hypnotic Robotics"), team(207, "Critical Mass"), team(15762, "Pandamonium"), team(12853, "Mechanical Mayhem"), team(13617, "Bectobots")],
+    awards: [{ type: "INSPIRE", placement: 1, team: 207, name: null }],
+    forecastUnsupported: "No forecast here.",
+    advancement: { slots: 5, advancesTo: "USNJCMP", advancesToName: "New Jersey Championship", rows: [[4215, 136], [207, 105], [15762, 55], [12853, 49], [13617, 48]].map(([t, p]) => ({ team: t, status: "FIRST", declined: false, points: p })) },
+  });
+  const chips = () => [...document.querySelectorAll("[data-advanced-teams] li")].map((li) => li.textContent);
+  it("Awards: the section comes before the award cards, each team with its order, name and points; the next event by name", () => {
+    current = advanced();
+    mount("/events/2025/AUBRQ2?tab=awards");
+    const panel = screen.getByRole("tabpanel");
+    const section = panel.querySelector("[data-advanced-teams]")!;
+    expect(section.textContent).toContain("5 teams advance to the New Jersey Championship");
+    expect(panel.textContent).not.toContain("USNJCMP");
+    expect(section.compareDocumentPosition(panel.querySelector("ul.grid")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(chips()).toEqual(["14215 Hypnotic Robotics136 advancement points", "2207 Critical Mass105 advancement points", "315762 Pandamonium55 advancement points", "412853 Mechanical Mayhem49 advancement points", "513617 Bectobots48 advancement points"]);
+    expect(section.innerHTML).not.toMatch(/accent|gold|amber|orange|yellow|warning/);
+  });
+  it("Odds with no team picked shows the same section; with a team picked it's left to that team's odds", () => {
+    current = advanced();
+    mount("/events/2025/AUBRQ2?tab=odds");
+    expect(selected()).toEqual(["Odds"]);
+    expect(screen.getByRole("heading", { level: 3, name: "5 teams advance to the New Jersey Championship" })).toBeTruthy();
+    expect(chips()).toHaveLength(5);
+    cleanup();
+    mount("/events/2025/AUBRQ2?tab=odds&team=4215");
+    expect(document.querySelector("[data-advanced-teams]")).toBeNull();
   });
 });
 

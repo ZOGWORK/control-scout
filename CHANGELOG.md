@@ -17,13 +17,13 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 5.5.0 — 2026-11-11
 
-Playoff rows show each alliance's lives, the match page's call reads like its score table, and search answers best partner, best finish and official records the way you'd expect.
+Playoff rows show each alliance's lives, the match page's call reads like its score table, an event shows who advanced by name, and search answers best partner, best finish and official records the way you'd expect.
 
 ### Highlights
 - [history] Hearts beside each playoff alliance show its lives left
 - [predict] The match page's call is a table: Red, Call, Blue, each row named
-- [teams] Best alliance partner: the one you scored the most with
-- [teams] Best finish counts every event, league meets too, and playoff results
+- [teams] Best partner by score together; best finish counts every event
+- [rankings] Who advanced, named and in order, first on Awards and Odds
 - [fixes] Official record questions list official records only
 
 ### Added
@@ -35,6 +35,7 @@ Playoff rows show each alliance's lives, the match page's call reads like its sc
 - Search: "best finish" (and "worst finish", "best event") judges every event the team played, league meets included by their league standing, by the whole result. A Winning Alliance beats a Finalist Alliance, which beats advancing, which beats a playoff alliance, which beats any qualification rank alone. Every event is listed with its playoff result and rank, best first.
 - Search: in every list of matches (a season's top scores, a team's best and latest matches, two teams' meetings), the "Pen given" tile is a neutral tile with a small blue info icon instead of a red one.
 - Home: the "4215 not 6980 record" suggestion is gone.
+- Events: who advanced is one section, first on the Awards tab and on the Odds tab before a team is picked. Each advancing team is a chip in the success colour with its place in FIRST's advancement order, its number and name, and FIRST's advancement points beneath. The heading names where they go in words ("5 teams advance to the New Jersey Championship"), never by event code; with no name known, "the next event". The At a glance card's Advancing cell names it the same way.
 
 ### Fixed
 - Search: a question asking for the "official" record lists official records only, says so in its headings, and says plainly when every match it found was unofficial. A world record question leads with the best score from an event played by the usual rules, labelled "Official world record" (a team's: "Official best"), with any higher score that isn't an official record after it, marked. The match records page's record is the official one too. (#1356)

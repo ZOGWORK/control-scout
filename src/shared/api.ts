@@ -608,7 +608,9 @@ export interface EventDetail {
   matches: MatchView[];
   alliances: { number: number; name: string | null; captain: number | null; pick1: number | null; pick2: number | null; backup: number | null }[];
   awards: { type: string; placement: number; team: number; name: string | null }[];
-  advancement: { slots: number; advancesTo: string | null; rows: { team: number; status: string; declined: boolean }[] } | null;
+  /** Who advanced, in FIRST's advancement order. `advancesTo` is FTC Events' value (a code or words);
+   *  `advancesToName` that event's name when the code is one of ours; `points` FIRST's advancement points there. */
+  advancement: { slots: number; advancesTo: string | null; advancesToName?: string | null; rows: { team: number; status: string; declined: boolean; points?: number | null }[] } | null;
   /** Can this event be forecast (advancement simulator)? Null when yes, else why not. */
   forecastUnsupported: string | null;
   /** Events on today (in their own time zone): how fresh the results are. Null on other days. */
