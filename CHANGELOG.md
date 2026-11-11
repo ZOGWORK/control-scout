@@ -32,7 +32,7 @@ Search answers "how good is this team" with one card of its season's numbers, an
 ### Fixed
 - A name several teams share ignored the place an event's name says: "ultraviolet's matches at the NJ championship" asked which Ultraviolet. The event's region or country now picks the team, as a place typed does. (`server/api/query/parse.ts` eventPlace, `server/api/searchAnswer.ts` sharedName)
 - With no place, the stronger-team rule needed 25 percentile points between teams, so a top-0.1% team and a top-5% one were still asked about. A team whose top share is a tenth of every other's or less is now the stronger one too. (`server/api/query/shared.ts`)
-- "How many teams named ultraviolet" counted every team with a page by the name, while the which-team question gave only the ones still playing as the name's count. Both now count the same teams, and the question says how many of them still play. (`server/api/query/shared.ts` whichLine, `server/api/answers/teamsNamed.ts`)
+- "How many teams named ultraviolet" counted every team with a page by the name, while the which-team question gave only the ones still playing as the name's count. Both now count the same teams, and the question says how many of them still play. (`server/api/query/shared.ts` whichLine, `server/api/answers/teamsNamed.ts`) (#1397)
 
 ## 5.6.5 — 2026-11-11
 
