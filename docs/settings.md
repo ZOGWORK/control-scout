@@ -214,7 +214,7 @@ and its next match"). Home never redirects to My team. It sells speed, never off
   back to the same page later counts). So on a first visit the
   welcome card comes first and the nudge follows on a later page. "First app open"
   is therefore the first page view where the browser offers an install and
-  the tour isn't due.
+  the welcome card isn't due.
 - **Never in front of anything:** after the privacy choice, once the page is
   idle (then 2.5 s), and not while typing or while a dialog or menu is open.
   On phones it sits above the tab bar, and above the sticky action bar on
