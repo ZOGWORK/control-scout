@@ -25,7 +25,7 @@ Watch Clips takes you to the clips on every event, the longest included.
 - [fixes] Works the same on phones and desktop
 
 ### Fixed
-- Event page: on a long event (Worlds divisions, 157 matches) "Watch Clips" glided a third of the way down the match list and stopped, leaving the clips gallery off screen. It now goes straight to the gallery and keeps it in place while the rows above finish drawing. ([#PR](https://github.com/ZOGWORK/control-scout/pulls))
+- Event page: on a long event (Worlds divisions, 157 matches) "Watch Clips" glided a third of the way down the match list and stopped, leaving the clips gallery off screen. It now goes straight to the gallery and keeps it in place while the rows above finish drawing. ([#1382](https://github.com/ZOGWORK/control-scout/pull/1382))
 
 ## 5.6.1 — 2026-11-11
 
