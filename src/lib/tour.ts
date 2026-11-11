@@ -8,6 +8,7 @@
 // in on a second device who has used the app has tracked teams, a team of
 // their own or a workspace, and `knowsTheApp` already keeps the tour away.
 import type { PersonalState } from "../shared/personal";
+import { predictHref } from "../shared/predictUrl";
 import type { AccountUser } from "./personal";
 
 export const TOUR_KEY = "cs-tour";
@@ -67,6 +68,22 @@ export function readTour(): TourRecord | null {
 export function rereadTour(): TourRecord | null {
   memory = null;
   return readTour();
+}
+
+/** The last page this tab was on that a tour can start from: "Take the tour" runs that page's tour. */
+let lastTourPage: string | null = null;
+export function rememberTourPage(path: string): void { if (isTourPage(path.replace(/[?#].*$/, ""))) lastTourPage = path; }
+export const tourPageToReplay = () => lastTourPage ?? "/";
+
+/**
+ * "Take the tour" (Settings, How it works): start again from step 1, on the page the visitor came from, even
+ * after it was finished or skipped and whatever they've saved. Returns the page to go to.
+ */
+export function replayTour(): string {
+  const page = tourPageToReplay();
+  saveTour({ status: "paused", step: 0, origin: page, steps: [] });
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(TOUR_CHANGE));
+  return page;
 }
 
 /** Finished or skipped: it never shows on its own again here. */
@@ -149,6 +166,10 @@ export interface TourStep {
   title: string;
   /** One sentence, at most 25 words. */
   body: string;
+  /** Instead of `body` once its search has answered (search), or with no recording on the page (watch). */
+  after?: string;
+  /** Watch only: the event is streaming live (no recording yet). */
+  live?: string;
   /** Where it points: the first of these selectors with a visible element wins. */
   targets: string[];
   /** Points at the start page's own parts: shown only there (elsewhere the tour waits, paused). */
@@ -160,7 +181,8 @@ export const TOUR_STEPS: Record<TourStepId, TourStep> = {
   search: {
     id: "search",
     title: "Ask it a question",
-    body: "Type a question in plain words, like who won a season or a team's awards, and search answers it.",
+    body: "Type any question in plain words, or tap Ask to run this one.",
+    after: "Search answered it; tap a question under the answer for another one.",
     targets: ['[data-tour="search"]'],
     home: false,
   },
@@ -174,21 +196,23 @@ export const TOUR_STEPS: Record<TourStepId, TourStep> = {
   save: {
     id: "save",
     title: "Save this team",
-    body: "Track follows this team on My team and puts it first in search; My team marks your own, Shortlist builds a pick list.",
+    body: "Tap Track to follow this team on My team and first in search; My team marks your own, Shortlist builds a pick list.",
     targets: ['[data-tour="save"]'],
     home: true,
   },
   highlights: {
     id: "highlights",
     title: "Highlights, then predict",
-    body: "Search for highlights to see a team's best matches; most events have no recording yet, so many show stats only.",
+    body: "Highlights are a search, not a tab, and most events have no recording yet, so the card often shows stats only.",
     targets: ['[data-tour="search"]'],
     home: false,
   },
   watch: {
     id: "watch",
     title: "Watch, then predict",
-    body: "A recorded event has one full video, and each match's Watch button jumps to it; most events have no recording yet.",
+    body: "This event's recording is one full video, and each match's Watch button jumps to that match in it.",
+    after: "Most events have no recording yet; ones that do are under Events, Any video, with a jump to each match.",
+    live: "This event is streaming live here; once it ends, the recording has a jump to each match.",
     targets: ["[data-watch-live]", '[data-tour="event-matches"]'],
     home: true,
   },
@@ -227,4 +251,48 @@ export function resolveSteps(pathname: string, root: ParentNode = document): Tou
   // An event page with nothing of its own on screen yet (no schedule, no recording): everyone else's tour,
   // search then highlights, rather than none.
   return ids.length >= 2 ? ids : BY_KIND.other;
+}
+
+/** The question step 1 runs for someone who doesn't type their own: a real one, with no team in it. */
+export const TOUR_ASK = "who won decode";
+
+/** The team a team-page tour is about (null on other tours). */
+export function tourTeam(origin: string): number | null {
+  const m = /^\/teams\/(\d+)\/?$/i.exec(pathOf(origin));
+  return m ? Number(m[1]) : null;
+}
+
+/** Step 4's search: the tour's own team's highlights, else a season's (no team named). */
+export const highlightsQuery = (origin: string) => {
+  const team = tourTeam(origin);
+  return team ? `${team} highlights` : "decode finals match highlights";
+};
+
+/** The search page with this query. */
+export const searchHref = (q: string) => `/search?q=${encodeURIComponent(q)}`;
+
+/** Where the tour ends: Predict, with the tour's team or event already picked. */
+export function predictAction(origin: string): { label: string; href: string } {
+  const team = tourTeam(origin);
+  if (team) return { label: `Predict a match with ${team}`, href: predictHref({ mode: "match", red: [team] }) };
+  const ev = /^\/events\/(\d{4})\/([^/]+)\/?$/i.exec(pathOf(origin));
+  if (ev) {
+    let code = ev[2]!;
+    try { code = decodeURIComponent(code); } catch { /* keep as written */ }
+    return { label: "Predict this event", href: predictHref({ mode: "advancement", season: Number(ev[1]), code }) };
+  }
+  return { label: "Predict a match", href: predictHref({ mode: "match" }) };
+}
+
+/**
+ * How a step shows on this page: "point" (spotlight its part), "ask" (spotlight search, with a button that
+ * runs the step's search) or "answer" (its search has answered: a small card docked out of the way, the page
+ * left free to use).
+ */
+export type TourMode = "point" | "ask" | "answer";
+export function stepMode(id: TourStepId, pathname: string, query: string): TourMode {
+  const onSearch = trim(pathname) === "/search" && query.trim() !== "";
+  if (id === "search") return onSearch ? "answer" : "ask";
+  if (id === "highlights") return onSearch && /highlight/i.test(query) ? "answer" : "ask";
+  return "point";
 }

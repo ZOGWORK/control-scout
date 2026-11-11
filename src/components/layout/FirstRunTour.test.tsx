@@ -5,7 +5,8 @@ import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
 import { EMPTY_STATE, type PersonalState } from "../../shared/personal";
 import { resetConsent, setAnalyticsConsent } from "../../lib/consent";
 import { claimFirstRun, firstRunHolder, releaseFirstRun, resetFirstRunForTests } from "../../lib/firstRun";
-import { coversTour, endTour, isAutomated, isTourPage, knowsTheApp, readTour, resetTour, tourKind, TOUR_DEMO_KEY, TOUR_KEY } from "../../lib/tour";
+import { TakeTour } from "./TakeTour";
+import { coversTour, endTour, highlightsQuery, predictAction, rememberTourPage, TOUR_ASK, TOUR_STEPS, isAutomated, isTourPage, knowsTheApp, readTour, resetTour, tourKind, TOUR_DEMO_KEY, TOUR_KEY } from "../../lib/tour";
 import { ConsentBanner } from "./ConsentBanner";
 import { FirstRunTour } from "./FirstRunTour";
 
@@ -45,14 +46,16 @@ let go: (to: string) => void = () => {};
 let where = "";
 function Nav() { go = useNavigate(); const l = useLocation(); where = l.pathname + l.search; return null; }
 
-function mount(opts: { path?: string; team?: boolean; search?: boolean; matches?: boolean; banner?: boolean } = {}) {
-  return render(
+type MountOpts = { path?: string; team?: boolean; search?: boolean; matches?: boolean; banner?: boolean };
+function mount(opts: MountOpts = {}) { return render(tree(opts)); }
+function tree(opts: MountOpts) {
+  return (
     <MemoryRouter initialEntries={[opts.path ?? "/teams/18360"]}>
       <Nav />
       <TeamPage team={opts.team} search={opts.search} matches={opts.matches} />
       {opts.banner && <ConsentBanner />}
       <FirstRunTour />
-    </MemoryRouter>,
+    </MemoryRouter>
   );
 }
 
@@ -83,16 +86,34 @@ afterEach(() => {
 });
 
 describe("who sees it", () => {
-  it("a fresh visitor on a team page gets the four-step team tour once: search, rating, save, highlights", async () => {
-    mount();
+  it("a fresh visitor on a team page: a real search, OPR vs Rating, a real Track tap, highlights, then Predict", async () => {
+    const view = mount();
     await opened();
     expect(screen.getByRole("dialog", { name: /Step 1 of 4: Ask it a question/ })).toBeTruthy();
-    const seen = [stepId()];
-    for (let n = 0; n < 3; n++) { fireEvent.click(screen.getByRole("button", { name: "Next" })); seen.push(stepId()); }
-    expect(seen).toEqual(["search", "rating", "save", "highlights"]);
-    // Running: kept as paused, at the step it's on (a reload picks it up there).
+    // Step 1 runs a real search: the search page, with the answer, and the card docked out of the way.
+    fireEvent.click(screen.getByRole("button", { name: "Ask \u201cwho won decode\u201d" }));
+    expect(where).toBe("/search?q=who%20won%20decode");
+    await waitFor(() => expect(card()?.hasAttribute("data-tour-docked")).toBe(true));
+    expect(stepId()).toBe("search");
+    expect(card()!.textContent).toContain("tap a question under the answer");
+    // Next: the team page's own step takes the visitor back there.
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(where).toBe("/teams/18360");
+    await waitFor(() => expect(stepId()).toBe("rating"));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(stepId()).toBe("save");
+    // Step 3 is the real Track button: tracking the team moves the tour on (and nothing untracks it).
+    personal.current = { ...personal.current, state: { ...EMPTY_STATE, tracked: { teams: [18360], events: [] } } };
+    view.rerender(tree({}));
+    await waitFor(() => expect(stepId()).toBe("highlights"), { timeout: 3000 });
+    expect(personal.current.state.tracked.teams).toEqual([18360]);
     expect(readTour()).toMatchObject({ v: 2, status: "paused", step: 3, origin: "/teams/18360" });
-    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    // Step 4: the team's highlights, then Predict with the team picked, which ends the tour.
+    fireEvent.click(screen.getByRole("button", { name: "Show highlights" }));
+    expect(where).toBe("/search?q=18360%20highlights");
+    await waitFor(() => expect(card()?.hasAttribute("data-tour-docked")).toBe(true));
+    fireEvent.click(screen.getByRole("button", { name: "Predict a match with 18360" }));
+    expect(where).toBe(predictAction("/teams/18360").href);
     expect(card()).toBeNull();
     expect(JSON.parse(localStorage.getItem(TOUR_KEY)!)).toMatchObject({ v: 2, status: "finished", step: 3 });
     // Back on another page in the same visit: not again.
@@ -127,7 +148,7 @@ describe("who sees it", () => {
   it("never shows again after it was skipped, across reloads", async () => {
     const first = mount();
     await opened();
-    fireEvent.click(screen.getByRole("button", { name: "Skip" }));
+    fireEvent.click(screen.getByRole("button", { name: "Skip tour" }));
     expect(card()).toBeNull();
     expect(readTour()).toMatchObject({ status: "skipped", step: 0 });
     first.unmount();
@@ -199,7 +220,7 @@ describe("who sees it", () => {
   it("Clear all local data (resetTour) lets it show again without a reload", async () => {
     mount();
     await opened();
-    fireEvent.click(screen.getByRole("button", { name: "Skip" }));
+    fireEvent.click(screen.getByRole("button", { name: "Skip tour" }));
     act(() => go("/"));
     await settle();
     expect(card()).toBeNull();
@@ -245,7 +266,10 @@ describe("steps adapt to the page", () => {
     expect(screen.getByRole("dialog", { name: /Step 1 of 2/ })).toBeTruthy();
     key("ArrowRight");
     expect(stepId()).toBe("highlights");
-    expect(screen.getByRole("button", { name: "Done" })).toBeTruthy();
+    // A season's highlights (no team named), then Predict.
+    fireEvent.click(screen.getByRole("button", { name: "Show highlights" }));
+    expect(where).toBe("/search?q=decode%20finals%20match%20highlights");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Predict a match" })).toBeTruthy());
   });
 
   it("an event page: search, then its matches and recordings", async () => {
@@ -425,7 +449,7 @@ describe("keyboard and screen readers", () => {
     mount();
     document.getElementById("before")!.focus();
     await opened();
-    expect(document.activeElement?.textContent).toBe("Next");
+    expect(document.activeElement?.textContent).toBe("Ask \u201cwho won decode\u201d");
     key("ArrowRight");
     expect(stepId()).toBe("rating");
     key("ArrowRight");
@@ -447,7 +471,7 @@ describe("keyboard and screen readers", () => {
     expect(dialog.getAttribute("aria-modal")).toBe("true");
     expect(dialog.getAttribute("aria-describedby")).toBeTruthy();
     const buttons = [...dialog.querySelectorAll("button")];
-    expect(buttons.map((b) => b.getAttribute("aria-label") ?? b.textContent)).toEqual(["Skip the tour", "Skip", "Next"]);
+    expect(buttons.map((b) => b.getAttribute("aria-label") ?? b.textContent)).toEqual(["Skip the tour", "Skip tour", "Ask \u201cwho won decode\u201d"]);
     buttons[2]!.focus();
     fireEvent.keyDown(dialog, { key: "Tab" });
     expect(document.activeElement).toBe(buttons[0]);
@@ -523,5 +547,141 @@ describe("helpers", () => {
       expect(localStorage.getItem(TOUR_KEY)).toBeNull();
       expect(readTour()).toMatchObject({ status: "skipped" });
     } finally { spy.mockRestore(); }
+  });
+});
+
+describe("real actions, never simulated", () => {
+  it("typing their own question counts: step 1 goes on with their answer, not the demo query", async () => {
+    mount();
+    await opened();
+    act(() => go("/search?q=4215%20awards"));
+    await waitFor(() => expect(card()?.hasAttribute("data-tour-docked")).toBe(true));
+    expect(stepId()).toBe("search");
+    // A follow-up question on the answer page: still step 1, still docked.
+    act(() => go("/search?q=what%20is%204215%27s%20record"));
+    await settle();
+    expect(stepId()).toBe("search");
+  });
+
+  it("already tracking the team: the save step notices and moves on; Back to it stays put", async () => {
+    personal.current = { ...personal.current, state: { ...EMPTY_STATE, tracked: { teams: [18360], events: [] } } };
+    localStorage.setItem(TOUR_KEY, JSON.stringify({ v: 2, status: "paused", at: "", step: 1, origin: "/teams/18360", steps: ["search", "rating", "save", "highlights"] }));
+    mount();
+    await opened();
+    expect(stepId()).toBe("rating");
+    key("ArrowRight");
+    expect(stepId()).toBe("save");
+    await waitFor(() => expect(stepId()).toBe("highlights"), { timeout: 3000 });
+    key("ArrowLeft");
+    expect(stepId()).toBe("save");
+    await settle();
+    expect(stepId()).toBe("save");
+    expect(screen.getByRole("button", { name: "Next" })).toBeTruthy();
+  });
+
+  it("not tracking yet: the card's button is a quiet Next; the step's action is the page's Track button", async () => {
+    mount();
+    await opened();
+    key("ArrowRight");
+    key("ArrowRight");
+    expect(stepId()).toBe("save");
+    expect(screen.getByRole("button", { name: "Next" }).className).not.toContain("bg-accent");
+    // Clicks reach the spotlit part (Track), not the rest of the page.
+    const track = screen.getByRole("button", { name: "Track" });
+    const other = document.getElementById("before")!;
+    const seen: string[] = [];
+    track.addEventListener("click", () => seen.push("track"));
+    other.addEventListener("click", () => seen.push("other"));
+    fireEvent.click(other);
+    fireEvent.click(track);
+    expect(seen).toEqual(["track"]);
+    // Navigation always works mid-tour (the sidebar's Events, say).
+    const nav = document.createElement("nav");
+    const link = document.createElement("a");
+    nav.appendChild(link);
+    document.body.appendChild(nav);
+    try {
+      link.addEventListener("click", (e) => { e.preventDefault(); seen.push("nav"); });
+      fireEvent.click(link);
+      expect(seen).toEqual(["track", "nav"]);
+    } finally { nav.remove(); }
+  });
+
+  it("an event streaming live: the step says so, and promises no recording yet", async () => {
+    const live = document.createElement("section");
+    live.setAttribute("data-watch-live", "");
+    document.body.appendChild(live);
+    try {
+      mount({ path: "/events/2025/USNJNEM3", team: false, matches: true });
+      await opened();
+      key("ArrowRight");
+      expect(stepId()).toBe("watch");
+      expect(card()!.textContent).toContain("streaming live");
+      live.setAttribute("data-recording", "");
+      key("ArrowLeft");
+      key("ArrowRight");
+      expect(card()!.textContent).toContain("one full video");
+    } finally { live.remove(); }
+  });
+
+  it("an event page ends with Predict on that event, and says plainly most events have no recording", async () => {
+    mount({ path: "/events/2025/USNJNEM3", team: false, matches: true });
+    await opened();
+    key("ArrowRight");
+    expect(stepId()).toBe("watch");
+    expect(card()!.textContent).toContain("Most events have no recording yet");
+    expect(card()!.textContent).not.toMatch(/clip/i);
+    fireEvent.click(screen.getByRole("button", { name: "Predict this event" }));
+    expect(where).toBe(predictAction("/events/2025/USNJNEM3").href);
+    expect(where).toContain("code=USNJNEM3");
+    expect(readTour()).toMatchObject({ status: "finished" });
+  });
+});
+
+describe("replay and copy", () => {
+  it("Take the tour: after a skip, runs the last tour page's tour from step 1, whatever the visitor has saved", async () => {
+    endTour("skipped", 1);
+    personal.current = { ...personal.current, state: { ...EMPTY_STATE, myTeam: 18360, tracked: { teams: [18360], events: [] } } };
+    rememberTourPage("/teams/18360");
+    rememberTourPage("/settings"); // not a tour page: ignored
+    render(
+      <MemoryRouter initialEntries={["/settings"]}>
+        <Nav />
+        <TakeTour />
+        <TeamPage />
+        <FirstRunTour />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Take the tour" }));
+    expect(where).toBe("/teams/18360");
+    await opened();
+    expect(screen.getByRole("dialog", { name: /Step 1 of 4/ })).toBeTruthy();
+    expect(readTour()).toMatchObject({ status: "paused", step: 0, origin: "/teams/18360" });
+  });
+
+  it("every step: a 2–5 word title, one sentence of at most 25 words, no exclamation marks", () => {
+    const sentences = Object.values(TOUR_STEPS).flatMap((s) => [s.body, ...(s.after ? [s.after] : []), ...(s.live ? [s.live] : [])]);
+    for (const s of Object.values(TOUR_STEPS)) {
+      const words = s.title.split(/\s+/).length;
+      expect(words, s.title).toBeGreaterThanOrEqual(2);
+      expect(words, s.title).toBeLessThanOrEqual(5);
+      expect(s.title).not.toContain("!");
+    }
+    for (const b of sentences) {
+      expect(b.split(/\s+/).length, b).toBeLessThanOrEqual(25);
+      expect(b, b).toMatch(/\.$/);
+      expect(b.slice(0, -1), b).not.toMatch(/[.!?](\s|$)/);
+      expect(b).not.toContain("!");
+    }
+  });
+
+  it("tour searches name no team but the tour's own: 4215-free examples elsewhere, never a banned query", () => {
+    expect(TOUR_ASK).toBe("who won decode");
+    expect(highlightsQuery("/")).toBe("decode finals match highlights");
+    expect(highlightsQuery("/teams/4215?season=2025")).toBe("4215 highlights");
+    const all = [TOUR_ASK, highlightsQuery("/"), ...Object.values(TOUR_STEPS).flatMap((s) => [s.body, s.after ?? "", s.live ?? ""])].join(" ");
+    expect(all).not.toMatch(/\d{3,5}/);
+    expect(all.toLowerCase()).not.toContain("houston");
+    expect(all.toLowerCase()).not.toContain("clip");
   });
 });

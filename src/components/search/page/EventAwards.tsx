@@ -28,12 +28,19 @@ const awardsHref = (e: NonNullable<SearchCard["event"]>) => `/events/${e.season}
 export function EventAwardsAnswer({ card, heading }: { card: SearchCard; heading?: string }) {
   const awards = card.awards ?? [];
   const ev = card.event;
+  // A Winning or Finalist Alliance has no places: its teams (captain and picks) are the card's lines, as the server
+  // chose them (never the FIRST Leadership Award's finalists FIRST files under the same type), drawn as a roster.
+  const alliance = card.award === "Winner" || card.award === "Finalist";
+  const roster = alliance ? card.lines : [];
+  // A row's award name may be missing (an event synced with none) or carry markup: an unnamed line is the team's row.
+  const inRoster = (a: SearchCardAward) => a.type === card.award && roster.some((l) => l.href === `/teams/${a.team}` && (l.detail == null || l.detail.replace(/<[^>]+>/g, "") === nameOf(a)));
   // The podium: the asked award's first three places (a placement each), in podium order 2nd, 1st, 3rd.
-  const placed = card.award ? awards.filter((a) => a.type === card.award && a.placement >= 1 && a.placement <= 3) : [];
+  const placed = card.award && !alliance ? awards.filter((a) => a.type === card.award && a.placement >= 1 && a.placement <= 3) : [];
   const podium = [2, 1, 3].map((p) => placed.find((a) => a.placement === p)).filter((a): a is SearchCardAward => !!a);
-  // The rest of the event's awards: the podium's places aren't listed again (each fact once).
-  const shown = podium.some((a) => a.placement === 1);
-  const rest = shown ? awards.filter((a) => !podium.includes(a)) : awards;
+  // The rest of the event's awards: the podium's places and the roster's teams aren't listed again (each fact once).
+  const onPodium = podium.some((a) => a.placement === 1);
+  const shown = onPodium || roster.length > 0;
+  const rest = shown ? awards.filter((a) => !podium.includes(a) && !inRoster(a)) : awards;
   return (
     <AnswerFrame title={card.title} hideTitle={repeats(heading, card.title)}
       sub={ev ? `${ev.name} · ${seasonLabel(ev.season)} · from FIRST's award list for the event` : "From FIRST's award list for the event"}
@@ -41,10 +48,10 @@ export function EventAwardsAnswer({ card, heading }: { card: SearchCard; heading
       {card.note && <p className="text-sm text-muted-foreground" data-note>{card.note}</p>}
       {card.none && <p className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm text-foreground" data-none>{card.none}</p>}
       {!!card.champions?.length && <Champions champions={card.champions} />}
-      {shown && <Podium places={podium} season={ev?.season} asked={card.place} />}
+      {onPodium && <Podium places={podium} season={ev?.season} asked={card.place} />}
       <AnswerVideo />
-      {/* An older server's card (no award list): its lines, as before. */}
-      {!awards.length && !card.champions?.length && !!card.lines.length && (
+      {/* An alliance's roster, or an older server's card (no award list): its lines. */}
+      {(alliance || (!awards.length && !card.champions?.length)) && !!card.lines.length && (
         <ul className="grid gap-2 sm:grid-cols-2" data-lines>
           {card.lines.map((l) => (
             <li key={l.text}>
