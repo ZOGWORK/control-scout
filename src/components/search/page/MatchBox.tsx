@@ -24,10 +24,11 @@ export function RankBadge({ rank }: { rank: number }) {
 /** A team as a chip in its alliance's colour (neutral when none is known): the number bold, the name muted (cut on
  *  narrow boxes). The chip never shrinks below its number (a 5-digit team stays whole inside its border); only the
  *  name gives way. */
-export function TeamChip({ t, side, self }: { t: StatLink; side?: "red" | "blue"; self?: boolean }) {
+export function TeamChip({ t, side, self, large }: { t: StatLink; side?: "red" | "blue"; self?: boolean; large?: boolean }) {
   const [num, ...rest] = t.label.split(" ");
   return (
-    <Link to={t.href} title={t.label} className={cn("inline-flex min-h-7 max-w-full shrink-0 items-center gap-1 rounded-md border px-1.5 text-xs hover:underline", TAP,
+    <Link to={t.href} title={t.label} className={cn("inline-flex max-w-full shrink-0 items-center gap-1 rounded-md border hover:underline", TAP,
+      large ? "min-h-11 gap-1.5 rounded-lg px-3 font-display text-lg sm:text-xl" : "min-h-7 px-1.5 text-xs",
       side === "red" ? "border-red-alliance/30 bg-red-alliance/10" : side === "blue" ? "border-blue-alliance/30 bg-blue-alliance/10" : "border-border bg-muted/40", self && "ring-1 ring-foreground/40")} data-team-chip={num}>
       <b className={cn("shrink-0 font-semibold tabular-nums", side === "red" ? "text-red-alliance-ink" : side === "blue" ? "text-blue-alliance-text" : "text-foreground")}>{num}</b>
       {rest.length > 0 && <span className="truncate text-muted-foreground">{rest.join(" ")}</span>}

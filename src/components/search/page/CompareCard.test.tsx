@@ -104,7 +104,8 @@ describe("comparison card (the guide's contract)", () => {
     const card = c.querySelector<HTMLElement>("[data-comparison]")!;
     expect(audit(card, ["Ultraviolet", "ENFORCERS"])).toEqual([]);
     expect(card.querySelectorAll("[data-primary-cta]")).toHaveLength(1);
-    expect(card.querySelector("[data-primary-cta]")!.textContent).toBe("Open in Predict");
+    expect(card.querySelector("[data-primary-cta]")!.textContent).toBe("Compare side by side");
+    expect(card.textContent).not.toContain("Open in Predict");
     // The method behind a 44px info button.
     const info = card.querySelector<HTMLButtonElement>("[data-method]")!;
     expect(info.className).toContain("size-[44px]");

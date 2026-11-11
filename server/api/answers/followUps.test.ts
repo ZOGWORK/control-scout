@@ -179,6 +179,16 @@ describe("people also ask", () => {
     expect(qs.filter((x) => /\bin in\b/i.test(x))).toEqual([]);
   });
 
+  it("one award asked about: the follow-ups are about its winner, never the first of the event's other awards", async () => {
+    await run("INSERT INTO awards (season, code, team, type, placement, name) VALUES (2025, 'USNJQ1', 7149, 'Innovate', 1, 'Innovate Award')");
+    clearAllCaches();
+    const q = "Innovate award at Garden State Qualifier";
+    const a = await pageAnswer(q, 25, new Set());
+    expect(a.card?.award).toBe("Innovate");
+    expect((await followUps(q, a)).about).toBe(7149);
+    await run("DELETE FROM awards WHERE type = 'Innovate'");
+    clearAllCaches();
+  });
   it("never asks about a place the card answered without", async () => {
     const q = "best teams in new jersey by opr";
     const p = await parseQuery(q, await parseContext());

@@ -17,18 +17,22 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 5.4.9 — 2026-11-11
 
-Playoff match rows show each alliance's lives in double elimination, and match boxes in search show penalties calmly.
+Search answers read more clearly: winners are the big line, follow-up questions sit beside the results, and Worlds' video opens on the winning match.
 
 ### Highlights
-- [history] Hearts beside each playoff alliance show its lives left
-- [history] A broken heart marks the match that sent an alliance down or out
-- [appearance] Search's penalties tile is neutral, no more red
-
-### Added
-- Matches: in a double-elimination playoff, every match row shows each alliance's two lives as hearts at the left of its box. A filled heart is a life left, an outline is a life lost earlier, and a broken heart is the life this match took (down to the lower bracket, or out). Lives are read from the event's playoff results in bracket order. The final works the usual way: the upper-bracket alliance comes in with two lives, the lower one with one. Qualification matches and other playoff formats (a best-of-3 final, the older semifinal brackets) show no hearts. This applies wherever the match row appears: the event's Matches tab, a team's matches, My team and compare. Each heart is named for screen readers and on hover. (#1356)
+- [fixes] "Who won" shows the winning teams big, "Champions" small
+- [fixes] People also ask sits right of the results on a wide screen
+- [fixes] A comparison's one action is Compare side by side
+- [fixes] Worlds winners' video starts at the deciding final
 
 ### Changed
-- Search: in every list of matches (a season's top scores like "highest score decode", a team's best and latest matches, two teams' meetings), the "Pen given" tile is a neutral tile with a small blue info icon instead of a red one. Auto, TeleOp and Endgame keep their colours, and alliance chips keep the alliance colours.
+- A winners answer names its teams as the headline: large team chips, with "Champions" (or "Alliance 1") as a small label above them, instead of the word in large type. (`Headline`, `src/components/search/page/StatAnswer.tsx`)
+- People also ask moves to the right column on wide screens (results keep the left) and comes after the results on a phone. (`src/pages/SearchPage.tsx`)
+- A two-team comparison's card offers Compare side by side as its one primary action; Open in Predict is gone from it. (`src/components/search/page/CompareCard.tsx`)
+
+### Fixed
+- The winners answer links the deciding final, so its video plays that match instead of the whole event stream from its start. (`server/api/answers/families/winners.ts`)
+- An award asked about ("Innovate award at …") offers highlights and related searches about that award's winner, not the first team in the event's full award list. (`answerTeam`, `server/api/answers/followUps.ts`) (#1358)
 
 ## 5.4.8 — 2026-11-11
 
