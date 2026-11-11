@@ -118,7 +118,7 @@ const TABLE: [string, Sym | Sym[]][] = [
   // Winning a match, as a question ("did they ever win a match"): its wins.
   ["win a match|won a match|win a game|won a game|win any match|won any match|win any matches|won any matches", [{ k: "metric", v: "win" }, { k: "thing", v: "match" }]],
   // Losing to someone: the opponents that beat the team.
-  ["lose to|lost to|loses to|losing to|lost against|beaten by|defeated by|beat by", [{ k: "metric", v: "opponent" }, { k: "outcome", v: "L" }]],
+  ["lose to|lost to|loses to|losing to|lost against|beaten by|defeated by|beat by|losses to|loss to|losses against|loss against", [{ k: "metric", v: "opponent" }, { k: "outcome", v: "L" }]],
   // The same asked about the other side: "who beat <team>" is the teams that beat it.
   ["who beat|who has beaten|who have beaten|who beats|who defeated|who has defeated|who knocked out|who eliminated", [{ k: "metric", v: "opponent" }, { k: "outcome", v: "L" }]],
   ["tie|ties|tied|draw|draws", { k: "metric", v: "tie" }],

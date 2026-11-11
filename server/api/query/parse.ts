@@ -696,7 +696,9 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   if (unread) p.leftover.unshift(unread);
   if (p.teams.some((t) => t.candidates && !t.rule)) p.leftover.push(...p.teams.filter((t) => t.candidates && !t.rule).map((t) => t.typed));
   p.symbols = [...symbols];
-  const pick = pickIntent(symbols, p.teams.length, { event: !!p.event, n: p.n != null, matchNo: p.matchNumber != null, rate });
+  // "Ever" as typed, never "all time" or "all seasons": those scope a side by side, "ever" asks what happened.
+  const ever = p.time?.kind === "ever" && /\bever\b/i.test(p.time.typed ?? "");
+  const pick = pickIntent(symbols, p.teams.length, { event: !!p.event, n: p.n != null, matchNo: p.matchNumber != null, rate, ever });
   if (pick) { p.intent = pick.rule.id; p.rule = pick.rule; p.unexplained = pick.unexplained; }
   // "Without penalties" is a slot only the rules that list it take (the season's best matches); anywhere else the
   // parse is left incomplete rather than answered with penalties in.
