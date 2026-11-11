@@ -322,6 +322,30 @@ describe("the best teams at an event", () => {
     expect(rows(await ask(`best teams at worlds ${S + 1}`))).toEqual([["4215", "60.0"]]);
     expect((await ask("best teams at nj states")).stat?.title).toMatch(/^Best teams at New Jersey Championship by OPR there/);
   });
+  it("by one phase's OPR there when it's said, at an event, Worlds or a state's championship", async () => {
+    // 6980 leads TeleOp at the New Jersey Championship though it trails on OPR.
+    await run("UPDATE team_event_stats SET opr_teleop = 200 WHERE team = 6980 AND season = ? AND code LIKE 'USNJCMP%' AND opr_teleop IS NOT NULL", [S]);
+    try {
+      for (const q of ["top teams by teleop opr at the new jersey championship", "best teleop opr at nj states"]) {
+        const a = await ask(q);
+        expect(a.stat?.title, q).toMatch(/^Best teams at New Jersey Championship by TeleOp OPR there · /);
+        expect(rows(a)[0], q).toEqual(["6980", "200.0"]);
+        expect((a.stat?.blocks.find((b) => b.kind === "leaderboard") as any).stat, q).toEqual({ id: "teleop", label: "TeleOp OPR there" });
+        expect(a.stat?.definition, q).toContain("Ranked by each team's TeleOp OPR at the event");
+        expect(a.stat?.definition, q).not.toContain("${");
+      }
+      // Worlds, with or without its season: its teams by that phase there (60 OPR, 18 of it in Auto).
+      for (const q of [`top teams by auto opr at worlds ${S + 1}`, "top teams by auto opr at worlds"]) {
+        const a = await ask(q);
+        expect(a.stat?.title, q).toMatch(/ by Auto OPR there · /);
+        expect(rows(a), q).toEqual([["4215", "18.0"]]);
+      }
+      // Two phases at once is no one board: left to search.
+      expect((await ask("top teams by teleop and auto opr at the new jersey championship")).stat?.intent).not.toBe("event-best");
+    } finally {
+      await run("UPDATE team_event_stats SET opr_teleop = opr_np * 0.6 WHERE team = 6980 AND season = ? AND code LIKE 'USNJCMP%' AND opr_teleop IS NOT NULL", [S]);
+    }
+  });
   it("reads a state with a championship word as its championship, and the ones worth watching as the best", async () => {
     // Teams to scout are the ones worth watching, and an aside saying "the good ones" again is read past (#900, #921).
     for (const q of ["teams worth watching at the nj championship", "which teams should we watch at new jersey champs", "who should we watch at the new jersey championship", "who to watch at nj states",
