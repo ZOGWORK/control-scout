@@ -242,8 +242,8 @@ export async function predictTopAnswer(team: AnswerTeam, season: number, n: numb
     return {
       ...base, definition: `${TOP_RULE}${extra}`,
       headline: { value: above === tops.length ? "Rated below all" : `Rated above ${tops.length - above}`, label: `of the ${S} top ${n} worldwide`, sub: `${off ? "Live predictions are switched off just now." : "The engine's ratings are still loading: Predict shows the call."} ${ownLine}` },
-      blocks: [{ kind: "table", title: `The top ${n}, ${S}`, columns: [{ key: "rank", label: "Rank", num: true }, { key: "team", label: "Team" }, { key: "rating", label: "Rating", num: true }, { key: "gap", label: `${team.number} gap`, num: true }],
-        rows: tops.map((r) => ({ cells: { rank: `#${r.rating_rank}`, team: who(r), rating: num1(r.rating_np), gap: num1(Number(own.rating_np) - Number(r.rating_np)) }, href: predictHref({ mode: "match", season, red: [team.number], blue: [Number(r.team)] }) })) }, ranks],
+      blocks: [{ kind: "table", title: `The top ${n}, ${S}`, columns: [{ key: "team", label: "World rank" }, { key: "rating", label: "Rating", num: true }, { key: "gap", label: "Gap", num: true }],
+        rows: tops.map((r) => ({ cells: { team: `#${r.rating_rank} · ${r.team}`, rating: num1(r.rating_np), gap: num1(Number(own.rating_np) - Number(r.rating_np)) }, href: predictHref({ mode: "match", season, red: [team.number], blue: [Number(r.team)] }) })) }, ranks],
     };
   }
   const rows = calls.map(({ r, x }) => ({ r, p: x!.winProbA, a: x!.predictedScoreA, b: x!.predictedScoreB, margin: x!.predictedScoreA - x!.predictedScoreB }));
@@ -268,8 +268,9 @@ export async function predictTopAnswer(team: AnswerTeam, season: number, n: numb
         { label: "Average predicted loss", value: avgLoss == null ? "–" : `${Math.round(avgLoss)} pts`, sub: loseBy.length ? `in ${lose.length} predicted ${lose.length === 1 ? "loss" : "losses"}` : "No predicted loss" },
         { label: "Biggest predicted loss", value: loseBy.length ? `${Math.round(Math.max(...loseBy))} pts` : "–" },
       ] },
-      { kind: "table", title: `${team.number} against each of the top ${n}, ${S}`, columns: [{ key: "rank", label: "Rank", num: true }, { key: "team", label: "Team" }, { key: "chance", label: `${team.number} win chance`, num: true }, { key: "score", label: "Predicted", num: true }, { key: "margin", label: "Margin", num: true }],
-        rows: rows.map((c) => ({ cells: { rank: `#${c.r.rating_rank}`, team: who(c.r), chance: chance(c.p), score: `${Math.round(c.a)}–${Math.round(c.b)}`, margin: `${c.margin >= 0 ? "+" : "−"}${Math.abs(Math.round(c.margin))}` }, href: predictHref({ mode: "match", season, red: [team.number], blue: [Number(c.r.team)] }) })) },
+      { kind: "table", title: `${team.number} against each of the top ${n}, ${S}`, columns: [{ key: "team", label: "World rank" }, { key: "chance", label: "Win %", num: true }, { key: "score", label: "Score", num: true }, { key: "margin", label: "Margin", num: true }],
+        // Four short columns, so the chance and the margin fit a phone; each row opens the team's call in Predict.
+        rows: rows.map((c) => ({ cells: { team: `#${c.r.rating_rank} · ${c.r.team}`, chance: chance(c.p), score: `${Math.round(c.a)}–${Math.round(c.b)}`, margin: `${c.margin >= 0 ? "+" : "−"}${Math.abs(Math.round(c.margin))}` }, href: predictHref({ mode: "match", season, red: [team.number], blue: [Number(c.r.team)] }) })) },
       ranks,
     ],
   };
