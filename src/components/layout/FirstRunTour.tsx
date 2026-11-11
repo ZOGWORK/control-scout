@@ -6,10 +6,12 @@
 // they go back. Leaving, closing the tab or a reload keep it paused at the same
 // step; only Skip (×, Esc) or the last step's action end it for good.
 //
-// When: after the privacy choice is made (the banner sits where the tour
-// would), once the page's data has loaded, and only while no other first-run
-// surface is up (src/lib/firstRun.ts). Never to crawlers or automated
-// browsers (screenshots, audits), nor to anyone who clearly knows the app.
+// When: only while the owner has it on (onboardingTour, off by default), and
+// only when the visitor asks for it ("Take the tour" on the welcome card, in
+// Settings or on How it works): it never starts by itself. Then after the
+// privacy choice is made, once the page's data has loaded, and only while no
+// other first-run surface is up (src/lib/firstRun.ts). Never to crawlers or
+// automated browsers (screenshots, audits).
 //
 // Keyboard: focus moves into the card (the primary button); Tab cycles inside
 // it while focus is there; ←/→ step back and forth, Enter on the card goes on,
@@ -25,8 +27,9 @@ import { toast } from "../ui/sonner";
 import { cn } from "../cn";
 import { useConsent } from "../../lib/consent";
 import { usePersonal } from "../../lib/personal";
+import { useFlag } from "../../lib/flags";
 import { claimFirstRun, releaseFirstRun, useFirstRunHolder } from "../../lib/firstRun";
-import { coversTour, endTour, findTarget, highlightsQuery, isAutomated, isShown, isTourPage, knowsTheApp, predictAction, readTour, rememberTourPage, rereadTour, resolveSteps, samePage, saveTour, searchHref, stepMode, TRACKED_TOAST_ID, tourDemo, tourKind, tourOver, tourTeam, TOUR_ASK, TOUR_CHANGE, TOUR_KEY, TOUR_STEPS, type TourRecord, type TourStep } from "../../lib/tour";
+import { coversTour, endTour, findTarget, highlightsQuery, isAutomated, isShown, isTourPage, predictAction, readTour, rememberTourPage, rereadTour, resolveSteps, samePage, saveTour, searchHref, stepMode, TRACKED_TOAST_ID, tourDemo, tourKind, tourOver, tourTeam, TOUR_ASK, TOUR_CHANGE, TOUR_KEY, TOUR_STEPS, type TourRecord, type TourStep } from "../../lib/tour";
 
 /** After the page is idle, wait this long before opening (the page settles; no flash on a bounce). */
 export const TOUR_DELAY_MS = 900;
@@ -109,17 +112,20 @@ export function FirstRunTour() {
   const queryRef = useRef("");
   queryRef.current = new URLSearchParams(loc.search).get("q") ?? "";
   const automated = isAutomated() && !tourDemo();
+  // The owner's switch (off by default): while it's off the tour never shows, not even one already under way.
+  const tourOn = useFlag("onboardingTour");
   // Signed-in data (tracked teams, workspaces) arrives with /api/auth/me and the first sync: wait for both.
   // Signed in, only a sync that worked counts (a failed one leaves this device without the account's data).
   const settled = providers !== null && sync !== "syncing" && (!user || syncReady);
-  const ready = !automated && decided && settled;
+  const ready = tourOn && !automated && decided && settled;
   const free = holder === null || holder === SLOT;
   const over = tourOver(rec);
   const running = !over && rec?.status === "paused" && rec.steps.length > 0;
   const stepId = running ? rec.steps[rec.step]! : null;
   const step = stepId ? TOUR_STEPS[stepId] : null;
-  // Not started: a fresh visitor (or a replay waiting for a page) on a page it can start on.
-  const startable = ready && !over && !running && (rec !== null || !knowsTheApp(state, user)) && isTourPage(path);
+  // Not started: a replay the visitor asked for (Take the tour), waiting for a page it can start on. It never
+  // starts by itself: first-time visitors get the welcome card (WelcomeCard.tsx), which offers it.
+  const startable = ready && !over && !running && rec !== null && isTourPage(path);
   // Running: this page can show the step (the start page's own parts are shown only there).
   const here = !!step && coversTour(path) && (!step.home || samePage(path, rec!.origin));
   const query = new URLSearchParams(loc.search).get("q") ?? "";
