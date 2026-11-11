@@ -17,15 +17,15 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 5.4.9 — 2026-11-11
 
-The home page stops suggesting a search that reads as nonsense.
+Search answers "official" record questions with official records only.
 
 ### Highlights
-- [home] "4215 not 6980 record" is no longer a home suggestion
-- [home] Every home suggestion is a question people actually ask
-- [fixes] Searches with "not" still work as before
+- [fixes] "Official world record" leads with a score that counts as a record
+- [fixes] Asking for official scores leaves out unofficial ones
+- [fixes] The card's title says "official" when you asked for it
 
-### Changed
-- Home: the suggestion chip "4215 not 6980 record" is gone. It ran, but a record "not with" one named team is not a question people ask, so it read as a mistake. Searches using "not" still work; only the chip is removed. (`HOME_SUGGESTIONS`, `src/shared/homeSuggestions.ts`) (#1361)
+### Fixed
+- "decode official world record" led with two Carolinas Premier Event scores marked "Not an official record". When a record or top-scores question says "official", search now lists only matches that are official records, read from the one list of unofficial matches (`officialOnlySql`, `server/data/unofficialRecords.ts`), for any season or game. The title says so ("Highest official scores", "Highest-scoring official matches"). Without "official", the list is unchanged: every score as played, unofficial ones marked. (`searchHighScores.ts`, `answers/families/topMatches.ts`, `query/execute.ts`; failed search #1339) (#1357)
 
 ## 5.4.8 — 2026-11-11
 

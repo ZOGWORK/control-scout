@@ -137,3 +137,46 @@ describe("a highlights headline's penalty wording", () => {
     expect(withoutPenalties("Closest finish", null)).toBe("Closest finish");
   });
 });
+
+describe("\"official\" asked: official records only (failed search #1339, Carolinas Premier Event)", () => {
+  beforeAll(async () => {
+    // An event that didn't play by the game's usual rules (server/data/unofficialRecords.ts): its scores are no record.
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, 'FPECAR', 'Carolinas Premier Event', 'Premier', 'Raleigh', 'NC', 'USA', '2026-07-25', '2026-07-26', 't')");
+    await run("INSERT INTO matches (season, code, level, series, number, label, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'FPECAR', 'qual', 0, 49, 'Q49', 1, 714, 714, 100, 100, 't')");
+    await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'FPECAR', 'qual', 0, 49, 4215, 'red', 1)");
+    await rebuildSearch();
+  });
+  it("reads 'official' as asked", () => {
+    expect(parseHighScore("decode official world record")).toMatchObject({ season: 2025, core: "", official: true });
+    expect(parseHighScore("decode world record")).not.toHaveProperty("official");
+  });
+  it("the record card leads with an official record, titled so; without 'official' the marked score stays first", async () => {
+    const off = await searchAnswer("decode official world record", { limit: 10, learn: false });
+    expect(off.card?.title).toBe("Highest official scores in 2025–26 (DECODE)");
+    expect(off.card?.lines[0].text).toBe("300 points: M9 at New Jersey Championship");
+    expect(off.card?.lines.some((l) => l.text.includes("Carolinas"))).toBe(false);
+    const all = await searchAnswer("decode world record", { limit: 10, learn: false });
+    expect(all.card?.lines[0].text).toBe("714 points: Q49 at Carolinas Premier Event");
+    expect(all.card?.lines[0].results).toContain("Not an official record: the event did not play by the game's usual rules");
+  });
+  it("the top-matches answer leads with an official record too", async () => {
+    const off = await searchAnswer("best official decode score", { limit: 10, learn: false, full: true });
+    expect(off.stat?.title).toMatch(/^Highest-scoring official matches/);
+    expect(off.stat?.headline?.value).toBe("300 points");
+    expect((await searchAnswer("best decode score", { limit: 10, learn: false, full: true })).stat?.headline?.value).toBe("714 points");
+  });
+  it("every season's best, 'official' said: each heading says so, and the season's row is its official record (Loopy on #1357)", async () => {
+    const a = await searchAnswer("highest official score ever", { limit: 10, learn: false, full: true });
+    expect(a.stat?.title).toBe("Highest-scoring official match each season");
+    const table = a.stat?.blocks.find((b) => b.kind === "table");
+    expect(table?.kind === "table" && table.title).toBe("Highest official alliance score each season (each season is a different game)");
+    const row = table?.kind === "table" ? table.rows.find((r) => String(r.cells.season).includes("2025–26")) : undefined;
+    expect(row?.cells.score).toBe(300);
+    expect(a.stat?.definition).toContain("Only official records are listed");
+  });
+  it("an event whose matches are none of them official records says so, never that none were played (Loopy on #1357)", async () => {
+    const a = await searchAnswer("best official score at FPECAR", { limit: 10, learn: false, full: true });
+    expect(a.stat?.none).toBe("No official records at Carolinas Premier Event in 2025–26: the matches played are not official records (the event did not play by the game's usual rules).");
+    expect((await searchAnswer("best score at FPECAR", { limit: 10, learn: false, full: true })).stat?.headline?.value).toBe("714 points");
+  });
+});
