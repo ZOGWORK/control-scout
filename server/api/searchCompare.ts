@@ -152,7 +152,7 @@ export async function versusLoneTeam(q: string, prefer: ReadonlySet<string>): Pr
   // The other side a team: its number typed first, or its name.
   if (firsts[1 - i] == null && !(await readSide(typedSides[1 - i], prefer)).team) return null;
   // The other side as typed, then what the missing side asked that it doesn't already say ("980 opr vs 4215 opr over
-  // time": "4215 opr over time"; "12345 vs 99 opr": "12345 opr").
+  // time": "4215 opr over time"; "4215 vs 99 opr", 99 no team: "4215 opr").
   const other = typedSides[1 - i];
   const has = new Set(other.toLowerCase().split(/\s+/));
   const extra = typedSides[i].split(/\s+/).slice(1).filter((w) => !has.has(w.toLowerCase()));
