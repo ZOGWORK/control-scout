@@ -11,7 +11,7 @@ import { all, get } from "../../../db.js";
 import { SEASONS, gameOf as gameOfSeason, ownScorePenalties, reportedTeleopIncludesEndgame } from "../../../data/seasons.js";
 import { parseHighScore } from "../../searchHighScores.js";
 import { OFFICIAL_TYPES } from "../clauses.js";
-import { markedLabel, unofficialLine } from "../../../data/unofficialRecords.js";
+import { markedLabel, officialOnlySql, unofficialLine } from "../../../data/unofficialRecords.js";
 import { eventHref, matchHref, shortEvent, teamLinks } from "../matchSet.js";
 
 /** How many matches each list shows. */
@@ -25,6 +25,8 @@ export interface TopMatchesQuestion {
   region: Region | null;
   /** "at <event>": the words naming the event (found by search). */
   event: string | null;
+  /** "Official" said: only matches that are official records (../../../data/unofficialRecords.ts). */
+  official?: true;
   /** "this week", "on Mar 15, 2026": only matches played in this window (YYYY-MM-DD, inclusive). */
   window?: { from: string; to: string; label: string };
   /** "the highest-scoring match": how many to list (the lists' own length when not said). */
@@ -96,7 +98,7 @@ export function readTopMatches(raw: string): TopMatchesQuestion | null {
   const whole = placeWords.length && words.split(" ").every((w) => placeWords.includes(w)) ? regionOf(placeWords.map((w) => asTyped.find((x) => x.toLowerCase() === w) ?? w)) : null;
   const region = words ? whole ?? regionOf(typed) : null;
   if (words && !region) return null;
-  return { season, game: hs.game, ever: ever && season == null, region, event: event || null, phase: ph ? phaseOf(ph[1]) : null, noPenalties: !!noPen, ...(n != null ? { n } : {}) };
+  return { season, game: hs.game, ever: ever && season == null, region, event: event || null, phase: ph ? phaseOf(ph[1]) : null, noPenalties: !!noPen, ...(n != null ? { n } : {}), ...(hs.official ? { official: true as const } : {}) };
 }
 
 export interface Row { season: number; code: string; level: string; series: number; number: number; label: string; time: string | null; name: string; type: string | null; start: string | null; end: string | null; red_total: number | null; red_np: number | null; blue_total: number | null; blue_np: number | null;
@@ -126,7 +128,7 @@ type Window = TopMatchesQuestion["window"];
 
 /** The matches' scope: official events of the season, in the place (a region, or a whole country when it has no
  *  state), the event and the date window asked. */
-function where(season: number, region: Region | null, event: { season: number; code: string } | null, phase: Phase | null = null, window?: Window) {
+function where(season: number, region: Region | null, event: { season: number; code: string } | null, phase: Phase | null = null, window?: Window, official = false) {
   const sql = [`m.season = ? AND m.played = 1 AND e.type IN (${OFFICIAL_TYPES.map(() => "?").join(", ")})`];
   // TeleOp and Endgame records only from reported splits, never a totals-only match's estimate.
   if (phase === "teleop" || phase === "endgame") sql.push("(m.breakdown IS NULL OR m.breakdown != 0)");
@@ -134,6 +136,7 @@ function where(season: number, region: Region | null, event: { season: number; c
   if (region) { sql.push(region.state ? "e.country = ? AND e.state = ?" : "e.country = ?"); args.push(region.country, ...(region.state ? [region.state] : [])); }
   if (window) { sql.push("substr(COALESCE(m.time, e.start), 1, 10) BETWEEN ? AND ?"); args.push(window.from, window.to); }
   if (event) { sql.push("(e.code = ? OR e.division_code = ?)"); args.push(event.code, event.code); }
+  if (official) { const o = officialOnlySql(season); sql.push(...o.sql); args.push(...o.args); }
   return { sql: sql.join(" AND "), args };
 }
 
@@ -141,15 +144,15 @@ const SIDE_FROM = "FROM matches m JOIN events e ON e.season = m.season AND e.cod
 const side = (s: "red" | "blue", w: string, season: number, phase: Phase | null = null) => `SELECT ${COLS}, '${s}' side, ${scoreSql(s, phase, season)} score ${SIDE_FROM} WHERE ${w} AND ${scoreSql(s, phase, season)} IS NOT NULL`;
 
 /** One season's best alliance score only (the "ever" table's row). */
-async function bestOf(season: number, region: Region | null, event: { season: number; code: string } | null, phase: Phase | null = null) {
-  const w = where(season, region, event, phase);
+async function bestOf(season: number, region: Region | null, event: { season: number; code: string } | null, phase: Phase | null = null, official = false) {
+  const w = where(season, region, event, phase, undefined, official);
   // select-star: the derived table's own columns (side() names each one), not a table's.
   return (await get<Row & { side: "red" | "blue"; score: number }>(`SELECT * FROM (${side("red", w.sql, season, phase)} UNION ALL ${side("blue", w.sql, season, phase)}) ORDER BY score DESC, start, code, label LIMIT 1`, [...w.args, ...w.args])) ?? null;
 }
 
 /** The top alliance scores (each side its own row) and the top combined scores, in one season's scope. */
-async function topOf(season: number, region: Region | null, event: { season: number; code: string } | null, phase: Phase | null = null, window?: Window, n = TOP_MATCHES) {
-  const w = where(season, region, event, phase, window);
+async function topOf(season: number, region: Region | null, event: { season: number; code: string } | null, phase: Phase | null = null, window?: Window, n = TOP_MATCHES, official = false) {
+  const w = where(season, region, event, phase, window, official);
   const from = SIDE_FROM;
   const [alliances, combined, count] = await Promise.all([
     // select-star: the derived table's own columns (side() names each one), not a table's.
@@ -205,7 +208,9 @@ export async function topMatchesAnswer(t: TopMatchesQuestion, findEvent: (words:
   if (!Number.isFinite(season)) return null;
   const gameOf = (s: number) => gameOfSeason(s) ?? seasonLabel(s);
   const phase = t.phase ?? null, P = phase ? PHASE_LABEL[phase] : null;
-  const top = await topOf(season, t.region, ev, phase, t.window, t.n ?? TOP_MATCHES);
+  const top = await topOf(season, t.region, ev, phase, t.window, t.n ?? TOP_MATCHES, !!t.official);
+  // "Official" said: the official records only, said in the title.
+  const O = t.official ? "official " : "";
   const all2 = [...top.alliances, ...top.combined];
   const ups = await lineups(all2);
   const links = await teamLinks([...ups.values()].flat());
@@ -214,9 +219,9 @@ export async function topMatchesAnswer(t: TopMatchesQuestion, findEvent: (words:
   const one = t.n === 1;
   const at = `${place ? ` ${ev ? "at" : "in"} ${place}` : ""}${t.window ? ` ${t.window.label}` : ""}`;
   // A period asked, or penalties said: the one score ranked, named with its season's game.
-  const title = phase ? `Highest ${P!.toLowerCase()} score${one ? "" : "s"} in ${gameOf(season)} (${seasonLabel(season)})${at}`
-    : t.noPenalties ? `Highest match score in ${gameOf(season)} (${seasonLabel(season)})${at} without penalties`
-    : `Highest-scoring match${one ? "" : "es"}${at}, ${gameOf(season)} ${seasonLabel(season)}`;
+  const title = phase ? `Highest ${O}${P!.toLowerCase()} score${one ? "" : "s"} in ${gameOf(season)} (${seasonLabel(season)})${at}`
+    : t.noPenalties ? `Highest ${O}match score in ${gameOf(season)} (${seasonLabel(season)})${at} without penalties`
+    : `Highest-scoring ${O}match${one ? "" : "es"}${at}, ${gameOf(season)} ${seasonLabel(season)}`;
   const base = {
     family: "superlative" as const, intent: "season-top-matches", title, scope: [seasonLabel(season), ...(place ? [place] : []), ...(t.window ? [t.window.label.replace(/^./, (c) => c.toUpperCase())] : []), "Official events"],
     definition: `${phase ? `An alliance's ${P!.toLowerCase()} score is its own points in that period${phase === "teleop" && reportedTeleopIncludesEndgame(season) ? ", with the endgame, as FIRST reports TeleOp this season" : ""} (penalties are never a period's points); a combined score is both alliances'.${phase !== "auto" ? " A match posted as totals only has no reported split and isn't counted." : ""} ` : ""}${ruleOf(season, !!t.noPenalties)}${t.season == null && !ev ? ` The season is ${gameOf(season)} (${seasonLabel(season)}), the latest with official matches played.` : ""}`,
@@ -252,7 +257,7 @@ export async function everTopMatches(t: TopMatchesQuestion, findEvent: Parameter
   // An event named is the same event (its code) each season it was held.
   const ev = t.event ? await findEvent(t.event, null) : null;
   const seasons = (await all<{ s: number }>(`SELECT DISTINCT m.season s ${SIDE_FROM} WHERE m.played = 1 AND e.type IN (${OFFICIAL_TYPES.map(() => "?").join(", ")})${ev ? " AND (e.code = ? OR e.division_code = ?)" : ""} ORDER BY m.season DESC`, [...OFFICIAL_TYPES, ...(ev ? [ev.code, ev.code] : [])])).map((r) => Number(r.s));
-  const per = (await Promise.all(seasons.map(async (s) => ({ s, r: await bestOf(s, t.region, ev ? { season: s, code: ev.code } : null, t.phase ?? null) })))).filter((p) => p.r);
+  const per = (await Promise.all(seasons.map(async (s) => ({ s, r: await bestOf(s, t.region, ev ? { season: s, code: ev.code } : null, t.phase ?? null, !!t.official) })))).filter((p) => p.r);
   if (!per.length) return latest;
   const gameOf = (s: number) => gameOfSeason(s) ?? seasonLabel(s);
   // A period asked: every heading says which ("Highest alliance auto score each season").

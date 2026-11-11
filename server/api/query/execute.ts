@@ -543,6 +543,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
       // An event with no time said: its latest edition with a match played (null lets the reader find it).
       season: scope.ever ? scope.season : p.event && !p.time ? null : placeSeason(p, scope.season, opts), game: null, ever: scope.ever, region: p.event ? null : regionOf(p), event: p.event ? p.event.words : null,
       ...(scope.window ? { window: scope.window } : {}), ...(p.n != null ? { n: p.n } : one ? { n: 1 } : {}), ...(p.noPenalties ? { noPenalties: true } : {}),
+      // "Official" said ("best official decode score"): official records only.
+      ...(/\bofficial(?:ly)?\b/i.test(p.q) ? { official: true as const } : {}),
     };
     const a = await topSearch(p.q, t, opts);
     // No time said: the event's latest edition played, already found. "This season" falls back below, as for a season.

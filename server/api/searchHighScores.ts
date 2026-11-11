@@ -9,7 +9,7 @@ import type { SearchAnswer, SearchCard, SearchCardLine, SearchHit } from "../../
 import { dateRange, place, seasonLabel } from "../../src/shared/format.js";
 import { get, all } from "../db.js";
 import { CURRENT_SEASON, SEASONS, ownScorePenalties } from "../data/seasons.js";
-import { unofficialLine } from "../data/unofficialRecords.js";
+import { officialOnlySql, unofficialLine } from "../data/unofficialRecords.js";
 import { PENALTIES_NOT_POSTED } from "../../src/shared/seasonRecord.js";
 import { teamNameOf, teamWords } from "../../src/shared/teamTitle.js";
 
@@ -32,6 +32,8 @@ export interface HighScoreQuestion {
   game: string | null;
   /** What's left: a team ("12345", "hypnotic robotics"), or "" for the whole season. */
   core: string;
+  /** "Official" said ("decode official world record"): only scores that are official records are listed. */
+  official?: true;
 }
 
 /** A game's name as typed: any spacing between its letters ("bio buzz", "BIOBUZZ", "into the deep", "center stage"). */
@@ -50,7 +52,8 @@ export function parseHighScore(q: string): HighScoreQuestion | null {
   if (season == null && label && (Number(label[1]) + 1) % 100 === Number(label[2])) { season = Number(label[1]); rest = rest.replace(label[0], " "); }
   const rel = /\b(?:last|previous|past)\s+(?:year|season)'?s?\b|\b(?:this|current)\s+(?:year|season)'?s?\b/i.exec(rest);
   if (rel) { season ??= /^(?:last|previous|past)/i.test(rel[0]) ? CURRENT_SEASON - 1 : CURRENT_SEASON; rest = rest.replace(rel[0], " "); }
-  return { season, game, core: squash(rest.replace(/['’]s\b/gi, " ").replace(/[?!.,]/g, " ").replace(FRAME, " ")) };
+  const official = /\bofficial(?:ly)?\b/i.test(q);
+  return { season, game, core: squash(rest.replace(/['’]s\b/gi, " ").replace(/[?!.,]/g, " ").replace(FRAME, " ")), ...(official ? { official: true as const } : {}) };
 }
 
 interface ScoreRow { season: number; code: string; level: string; series: number; number: number; label: string; time: string | null; name: string; start: string | null; end: string | null; city: string | null; state: string | null; side: string; total: number | null; np: number | null }
@@ -64,18 +67,20 @@ async function seasonFor(asked: number | null, team: number | null): Promise<num
   return r?.s ?? null;
 }
 
-const sideSql = (side: "red" | "blue", team: boolean, types: number) => `SELECT m.season, m.code, m.level, m.series, m.number, m.label, m.time, e.name, e.start, e.end, e.city, e.state, '${side}' side, m.${side}_total total, m.${side}_np np
+const sideSql = (side: "red" | "blue", team: boolean, types: number, extra = "") => `SELECT m.season, m.code, m.level, m.series, m.number, m.label, m.time, e.name, e.start, e.end, e.city, e.state, '${side}' side, m.${side}_total total, m.${side}_np np
   FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code
   ${team ? `JOIN match_teams x ON x.season = m.season AND x.code = m.code AND x.level = m.level AND x.series = m.series AND x.number = m.number AND x.alliance = '${side}' AND x.team = ? AND x.on_field = 1` : ""}
-  WHERE m.season = ? AND m.played = 1 AND COALESCE(m.${side}_np, m.${side}_total) IS NOT NULL AND e.type IN (${Array(types).fill("?").join(", ")})`;
+  WHERE m.season = ? AND m.played = 1 AND COALESCE(m.${side}_np, m.${side}_total) IS NOT NULL AND e.type IN (${Array(types).fill("?").join(", ")})${extra}`;
 
 /** The card: the season's best scores (`team` null) or the team's, each a link to its match. */
 export async function highScoreCard(it: HighScoreQuestion, team: { number: number; name: string | null } | null): Promise<SearchCard> {
   const season = await seasonFor(it.season, team?.number ?? null);
   const label = season != null ? `${seasonLabel(season)}${it.game ? ` (${it.game})` : ""}` : "";
-  const card: SearchCard = { kind: "high-scores", title: label ? `Highest scores in ${label}` : "Highest scores", ...(team ? { team } : {}), lines: [] };
+  // "Official" said: the scores that are official records only, the title says so.
+  const what = it.official ? "Highest official scores" : "Highest scores";
+  const card: SearchCard = { kind: "high-scores", title: label ? `${what} in ${label}` : what, ...(team ? { team } : {}), lines: [] };
   if (season == null) { card.none = team ? `No played matches found for ${team.name ?? `team ${team.number}`}.` : "No played matches are recorded yet."; return card; }
-  card.lines = await best(season, team?.number ?? null, RECORD_TYPES);
+  card.lines = await best(season, team?.number ?? null, RECORD_TYPES, !!it.official);
   if (!card.lines.length) {
     const who = team ? ` for ${team.name ?? `team ${team.number}`}` : "";
     card.closest = await best(season, team?.number ?? null, PRACTICE_TYPES);
@@ -92,12 +97,15 @@ export async function seasonRecordLine(season: number): Promise<SearchCardLine |
   return (await best(season, null, RECORD_TYPES))[0] ?? null;
 }
 
-/** The best scores (without penalties) at events of `types`, as card lines, each a link to its match. */
-async function best(season: number, team: number | null, types: string[]): Promise<SearchCardLine[]> {
-  const args = (side: "red" | "blue") => [...(team != null ? [team] : []), season, ...types];
+/** The best scores (without penalties) at events of `types`, as card lines, each a link to its match; `official`:
+ *  only the matches that are official records. */
+async function best(season: number, team: number | null, types: string[], official = false): Promise<SearchCardLine[]> {
+  const only = official ? officialOnlySql(season) : { sql: [], args: [] };
+  const off = { sql: only.sql.map((c) => ` AND ${c}`).join(""), args: only.args };
+  const args = (side: "red" | "blue") => [...(team != null ? [team] : []), season, ...types, ...off.args];
   const rows = await all<ScoreRow>(
     // select-star: the derived table's own columns (sideSql names each one), not a table's.
-    `SELECT * FROM (${sideSql("red", team != null, types.length)} UNION ALL ${sideSql("blue", team != null, types.length)}) ORDER BY COALESCE(np, total) DESC, total DESC, start, code, label LIMIT ?`,
+    `SELECT * FROM (${sideSql("red", team != null, types.length, off.sql)} UNION ALL ${sideSql("blue", team != null, types.length, off.sql)}) ORDER BY COALESCE(np, total) DESC, total DESC, start, code, label LIMIT ?`,
     [...args("red"), ...args("blue"), HIGH_SCORE_LINES]);
   const lineups = await alliances(rows);
   return rows.map((r): SearchCardLine => ({

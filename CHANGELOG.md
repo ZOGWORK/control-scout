@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.4.9 — 2026-11-11
+
+Search answers "official" record questions with official records only.
+
+### Highlights
+- [fixes] "Official world record" leads with a score that counts as a record
+- [fixes] Asking for official scores leaves out unofficial ones
+- [fixes] The card's title says "official" when you asked for it
+
+### Fixed
+- "decode official world record" led with two Carolinas Premier Event scores marked "Not an official record". When a record or top-scores question says "official", search now lists only matches that are official records, read from the one list of unofficial matches (`officialOnlySql`, `server/data/unofficialRecords.ts`), for any season or game. The title says so ("Highest official scores", "Highest-scoring official matches"). Without "official", the list is unchanged: every score as played, unofficial ones marked. (`searchHighScores.ts`, `answers/families/topMatches.ts`, `query/execute.ts`; failed search #1339)
+
 ## 5.4.8 — 2026-11-11
 
 Search answers three more questions it missed: a game's best score "ever", the official world record, and a team's Worlds years.

@@ -137,3 +137,31 @@ describe("a highlights headline's penalty wording", () => {
     expect(withoutPenalties("Closest finish", null)).toBe("Closest finish");
   });
 });
+
+describe("\"official\" asked: official records only (failed search #1339, Carolinas Premier Event)", () => {
+  beforeAll(async () => {
+    // An event that didn't play by the game's usual rules (server/data/unofficialRecords.ts): its scores are no record.
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, 'FPECAR', 'Carolinas Premier Event', 'Premier', 'Raleigh', 'NC', 'USA', '2026-07-25', '2026-07-26', 't')");
+    await run("INSERT INTO matches (season, code, level, series, number, label, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'FPECAR', 'qual', 0, 49, 'Q49', 1, 714, 714, 100, 100, 't')");
+    await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'FPECAR', 'qual', 0, 49, 4215, 'red', 1)");
+  });
+  it("reads 'official' as asked", () => {
+    expect(parseHighScore("decode official world record")).toMatchObject({ season: 2025, core: "", official: true });
+    expect(parseHighScore("decode world record")).not.toHaveProperty("official");
+  });
+  it("the record card leads with an official record, titled so; without 'official' the marked score stays first", async () => {
+    const off = await searchAnswer("decode official world record", { limit: 10, learn: false });
+    expect(off.card?.title).toBe("Highest official scores in 2025–26 (DECODE)");
+    expect(off.card?.lines[0].text).toBe("300 points: M9 at New Jersey Championship");
+    expect(off.card?.lines.some((l) => l.text.includes("Carolinas"))).toBe(false);
+    const all = await searchAnswer("decode world record", { limit: 10, learn: false });
+    expect(all.card?.lines[0].text).toBe("714 points: Q49 at Carolinas Premier Event");
+    expect(all.card?.lines[0].results).toContain("Not an official record: the event did not play by the game's usual rules");
+  });
+  it("the top-matches answer leads with an official record too", async () => {
+    const off = await searchAnswer("best official decode score", { limit: 10, learn: false, full: true });
+    expect(off.stat?.title).toMatch(/^Highest-scoring official matches/);
+    expect(off.stat?.headline?.value).toBe("300 points");
+    expect((await searchAnswer("best decode score", { limit: 10, learn: false, full: true })).stat?.headline?.value).toBe("714 points");
+  });
+});
