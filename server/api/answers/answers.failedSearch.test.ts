@@ -219,7 +219,8 @@ describe("a bare number with no team", () => {
   });
   it("with what was asked of it: the closest team numbers, the question offered with the closest one", async () => {
     const a = await full("676767 auto");
-    expect(a.step).toBe("did-you-mean");
+    // Offered, not run: the list is the closest teams, not that question's answer.
+    expect(a.step).toBe("deterministic");
     expect(a.understood?.label).toMatch(/^No team 676767: the closest team numbers?$/);
     expect(a.hits[0].ref).toBe("38702");
     expect(a.didYouMean).toBe("38702 auto");
