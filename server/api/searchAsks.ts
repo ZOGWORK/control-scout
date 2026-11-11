@@ -192,8 +192,8 @@ export function readAsk(q: string): Ask | null {
   return null;
 }
 
-/** An event's whole award list and the event itself, as its Awards tab has them (server/api/events.ts's order), a
- *  judged award's finalists ("… Finalist", placed 1 like its winner) after its placed teams. */
+/** An event's whole award list and the event itself, in its Awards tab's order (server/api/events.ts) except that a
+ *  judged award's finalists ("… Finalist", placed 1 like its winner) come after its placed teams. */
 async function eventAwards(season: number, code: string, name: string): Promise<Pick<SearchCard, "event" | "awards">> {
   const rows = await all<any>(
     `SELECT a.type, a.placement, a.team, a.name, t.name team_name FROM awards a LEFT JOIN teams t ON t.number = a.team WHERE a.season = ? AND a.code = ?
