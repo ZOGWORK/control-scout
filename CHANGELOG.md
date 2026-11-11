@@ -22,6 +22,7 @@ Accounts get usernames: the handle for adding match videos, never shown on them.
 ### Highlights
 - [scout] Introducing usernames: add yours when you sign in, or later
 - [scout] Your actual name is the credit on videos you add
+- [scout] Change your username in Settings, once a month
 
 ### Added
 - Accounts: a username (3–20 letters, numbers or underscores, starting with a letter; unique ignoring case; reserved names refused; one change in 30 days). Asked once per sign-in with "Introducing usernames"; "Browse first" closes it and nothing is blocked, and Home shows a reminder until it's dismissed. There is no deadline. A taken name offers free ones (the team number first).
