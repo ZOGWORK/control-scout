@@ -388,8 +388,12 @@ describe("events, awards and Worlds history (260-query list)", () => {
     const t = a.stat!.blocks.find((b) => b.kind === "table");
     expect(t && t.kind === "table" && t.rows[0].cells).toMatchObject({ event: "Pine Barrens Qualifier", rank: "Ranked #1 of 1", record: "1-0-0" });
     expect(JSON.stringify(a.stat)).not.toMatch(/Winning Alliance\)|Inspire Award"/);
-    expect((await searchAnswer("4215 best event ever", { limit: 25 })).stat).toMatchObject({ title: "Best event", headline: { value: "#1 of 1", label: "Pine Barrens Qualifier", sub: expect.stringMatching(/^1-0-0 there/) } });
-    expect((await searchAnswer("4215 worst event ever", { limit: 25 })).stat).toMatchObject({ title: "Worst event", headline: { label: "New Jersey Championship - Parkway Division" } });
+    // A finish is the whole result: the Finalist Alliance at Parkway beats ranking #1 of 1 at Pine Barrens.
+    const best = (await searchAnswer("4215 best event ever", { limit: 25 })).stat!;
+    expect(best).toMatchObject({ title: "Best event", headline: { value: "Finalist", label: "New Jersey Championship - Parkway Division", sub: expect.stringMatching(/^Ranked #2 of 4 · 1-2-0 there/) } });
+    const bt = best.blocks.find((b) => b.kind === "table");
+    expect(bt && bt.kind === "table" && bt.rows.slice(0, 2).map((r) => [r.cells.event, r.cells.finish, r.cells.rank])).toEqual([["New Jersey Championship - Parkway Division", "Finalist", "#2 of 4"], ["Pine Barrens Qualifier", "–", "#1 of 1"]]);
+    expect((await searchAnswer("4215 worst event ever", { limit: 25 })).stat).toMatchObject({ title: "Worst event", headline: { label: "Pine Barrens Qualifier" } });
     expect((await searchAnswer("4215 event schedule this season", { limit: 25 })).stat!.headline).toMatchObject({ value: "2 events" });
   });
   it("Worlds divisions with their seasons, wins at Worlds, Worlds matches by the year it was held", async () => {

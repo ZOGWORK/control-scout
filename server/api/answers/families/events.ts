@@ -3,8 +3,9 @@
 //   best/worst finish, first/last event, best OPR event, best/first/most improved season, total events, average
 //   event rank, seasons played and how many.
 // The rules stated with each answer:
-//   Finish: the team's qualification rank at an event (league meets left out: their rank is the league's running
-//     standing, not that meet's). Best is the lowest number; on a tie the latest event.
+//   Finish (best or worst): the whole result at each event the team played, league meets included: how its playoffs
+//     went (the Winning Alliance, then the Finalist Alliance), then whether it advanced, then whether it was on a
+//     playoff alliance, then its qualification rank (a league meet's own standing) as a share of the teams ranked.
 //   Best season and most improved: by OPR rank among the season's ranked teams (as a top-percent share), since each
 //     season is a different game and its OPR numbers can't be compared across seasons.
 import type { StatAnswer, StatBlock } from "../../../../src/shared/searchStat.js";
@@ -16,7 +17,18 @@ import type { IntentId } from "../read.js";
 import { whoOf, type AnswerTeam } from "./matches.js";
 
 const FINISH_BASE = "Finish: the team's qualification rank at the event, out of the teams ranked there. League meets are left out (their rank is the league's running standing).";
-const FINISH_RULE = `${FINISH_BASE} On equal ranks, the latest event.`;
+const FINISH_RULE = "Finish: the whole result at each event the team played, league meets included. A Winning Alliance beats a Finalist Alliance, which beats advancing, which beats being on a playoff alliance, which beats any qualification rank alone; then the better qualification rank (a league meet's standing in its league) as a share of the teams ranked; then the latest event.";
+
+/** An event's playoff result and advancement as a finish, ranked: higher is better. */
+const PLAYOFF_RANK = { won: 2, finalist: 1, alliance: 0 } as const;
+const finishKey = (e: TeamEvent): number[] => {
+  const n = e.rank ?? e.standing?.n ?? null, of = e.of ?? e.standing?.of ?? null;
+  const share = n == null ? 2 : of ? n / of : 1 + n / 1e4;
+  return [e.playoff === "won" || e.playoff === "finalist" ? PLAYOFF_RANK[e.playoff] + 1 : 0, e.advanced ? 1 : 0, e.playoff ? 1 : 0, -share];
+};
+const compareKeys = (a: number[], b: number[]) => { for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] - b[i]; return 0; };
+/** The finish in words: the playoffs, then advancing ("Won · Advanced"), or "" when neither. */
+const finishText = (e: TeamEvent) => [e.playoff === "won" ? "Won" : e.playoff === "finalist" ? "Finalist" : e.playoff === "alliance" ? "Playoffs" : "", e.advanced ? "Advanced" : ""].filter(Boolean).join(" · ");
 const SEASON_RULE = "Seasons are compared by OPR rank among that season's ranked teams (as the team page shows it), as a top-percent share: each season is a different game, so its OPR numbers aren't comparable across seasons.";
 const EVENT_RULE = "Events the team attended (on the field at a played match, or on the roster of an event not played yet) at official events: qualifiers, league play, championships and premier events.";
 
@@ -33,11 +45,11 @@ const evRec = (e: TeamEvent) => (e.record ? `${e.record.wins}-${e.record.losses}
 const evRate = (e: TeamEvent) => { const r = e.record, g = r ? r.wins + r.losses + r.ties : 0; return r && g ? (r.wins + r.ties / 2) / g : 0; };
 const WORLDS_RULE = "Worlds: the FIRST Championship. One appearance per season the team attended it, shown as its division (where it ranked), with the finals noted when it played them.";
 
-function eventRows(evs: TeamEvent[], team: number, title: string, opts: { opr?: boolean } = {}): StatBlock {
+function eventRows(evs: TeamEvent[], team: number, title: string, opts: { opr?: boolean; finish?: boolean } = {}): StatBlock {
   return {
     kind: "table", title,
-    columns: [{ key: "event", label: "Event" }, { key: "season", label: "Season" }, { key: "date", label: "Date" }, { key: "rank", label: "Rank" }, { key: "record", label: "W-L-T" }, ...(opts.opr === false ? [] : [{ key: "opr", label: "OPR", num: true }])],
-    rows: evs.slice(0, 25).map((e) => ({ cells: { event: e.name, season: seasonLabel(e.season), date: dateRange(e.start, e.end), rank: rankCell(e), record: evRec(e), opr: opr(e.opr) }, href: eventHref(e.season, e.code, team), type: e.type })),
+    columns: [{ key: "event", label: "Event" }, { key: "season", label: "Season" }, { key: "date", label: "Date" }, ...(opts.finish ? [{ key: "finish", label: "Playoffs" }] : []), { key: "rank", label: "Rank" }, { key: "record", label: "W-L-T" }, ...(opts.opr === false ? [] : [{ key: "opr", label: "OPR", num: true }])],
+    rows: evs.slice(0, 25).map((e) => ({ cells: { event: e.name, season: seasonLabel(e.season), date: dateRange(e.start, e.end), ...(opts.finish ? { finish: finishText(e) || "–" } : {}), rank: rankCell(e), record: evRec(e), opr: opr(e.opr) }, href: eventHref(e.season, e.code, team), type: e.type })),
   };
 }
 
@@ -66,19 +78,21 @@ export function eventAnswer(id: IntentId, team: AnswerTeam, set: { events: TeamE
   switch (id) {
     case "best-finish":
     case "worst-finish": {
-      const ranked = evs.filter((e) => e.rank != null && e.type !== "LeagueMeet");
+      // Every event it played (league meets included), judged by its whole result: playoffs, advancing, then rank.
+      const ranked = evs.filter((e) => e.matches > 0 || e.rank != null || e.standing != null || e.playoff || e.advanced);
       const best = id === "best-finish";
-      // "Best event": on equal ranks, the better record there (the worse for the worst), then the latest.
+      // "Best event": on an equal finish, the better record there (the worse for the worst), then the latest.
       const byRec = (a: TeamEvent, b: TeamEvent) => (opts.byRecord ? (best ? evRate(b) - evRate(a) : evRate(a) - evRate(b)) : 0);
-      const sorted = [...ranked].sort((a, b) => (best ? a.rank! - b.rank! : b.rank! - a.rank!) || byRec(a, b) || String(b.start).localeCompare(String(a.start)));
+      const sorted = [...ranked].sort((a, b) => (best ? compareKeys(finishKey(b), finishKey(a)) : compareKeys(finishKey(a), finishKey(b))) || byRec(a, b) || String(b.start).localeCompare(String(a.start)));
       const title = `${best ? "Best" : "Worst"} event${opts.byRecord ? "" : " finish"}${where}`;
-      const rule = opts.byRecord ? `${FINISH_BASE} On equal ranks, the ${best ? "better" : "worse"} record there (win share, a tie counting half), then the latest event.` : FINISH_RULE;
+      const rule = opts.byRecord ? `${FINISH_RULE.replace(/; then the latest event\.$/, "")}; then the ${best ? "better" : "worse"} record there (win share, a tie counting half); then the latest event.` : FINISH_RULE;
       const e = sorted[0];
-      if (!e) return { ...base, family: "superlative", intent: id, title, blocks: [], definition: rule, source: evSource, none: none("ranked events") };
+      if (!e) return { ...base, family: "superlative", intent: id, title, blocks: [], definition: rule, source: evSource, none: none("events played") };
+      const fin = finishText(e), rk = rankCell(e);
       return {
         ...base, family: "superlative", intent: id, title, source: evSource, definition: rule,
-        headline: { value: rankText(e), label: e.name, sub: [e.record ? `${evRec(e)} there` : "", seasonLabel(e.season), dateRange(e.start, e.end), place(e.city, e.state)].filter(Boolean).join(" · "), href: eventHref(e.season, e.code, team.number), type: e.type },
-        blocks: [eventRows(sorted.slice(0, 5), team.number, best ? "Best finishes" : "Lowest finishes")],
+        headline: { value: fin || rk, label: e.name, sub: [fin && rk !== "–" ? `${e.rank == null && e.standing ? "League standing" : "Ranked"} ${rk.replace(/ league$/, "")}` : "", e.record ? `${evRec(e)} there` : "", seasonLabel(e.season), dateRange(e.start, e.end), place(e.city, e.state)].filter(Boolean).join(" · "), href: eventHref(e.season, e.code, team.number), type: e.type },
+        blocks: [eventRows(sorted, team.number, best ? "Each event, best finish first" : "Each event, lowest finish first", { finish: true })],
       };
     }
     case "first-place-events": {

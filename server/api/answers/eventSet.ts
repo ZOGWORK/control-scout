@@ -26,6 +26,11 @@ export interface TeamEvent {
   record: { wins: number; losses: number; ties: number } | null;
   /** Its reliability index there (0–100), only on reliabilityEvents' rows. */
   reliability?: number | null;
+  /** How its playoffs went there: on the Winning Alliance, the Finalist Alliance, or on an alliance that went out
+   *  earlier (from FIRST's awards and alliance lists); null when it wasn't on a playoff alliance. */
+  playoff?: "won" | "finalist" | "alliance" | null;
+  /** It took an advancing slot there (FIRST's advancement list; a declined slot isn't one). */
+  advanced?: boolean;
 }
 
 /** The team's events with a reliability row (team_reliability, one per event), oldest first: an event where it missed
@@ -72,7 +77,7 @@ export function teamEventSet(team: number): Promise<{ events: TeamEvent[]; seaso
 const num = (v: unknown) => (v == null ? null : Number(v));
 
 async function load(team: number): Promise<{ events: TeamEvent[]; seasons: TeamSeason[] }> {
-  const [evs, ss, recs] = await Promise.all([
+  const [evs, ss, recs, alAwards, onAlliance, advLists] = await Promise.all([
     all<any>(
       `SELECT e.season, e.code, e.name, e.type, e.start, e.end, e.city, e.state, e.country, e.division_code, et.rank,
               (SELECT COUNT(*) FROM event_teams r WHERE r.season = et.season AND r.code = et.code AND r.rank IS NOT NULL) ranked,
@@ -90,8 +95,18 @@ async function load(team: number): Promise<{ events: TeamEvent[]; seasons: TeamS
       `SELECT season, opr_np, opr_auto, opr_teleop, opr_endgame, rank_np, ranked_teams, rating_np, rating_sd, rating_rank, events, matches, wins, losses, ties, avg_np
        FROM team_season_stats WHERE team = ? ORDER BY season`, [team]),
     all<any>(recordSql("mt.team = ?"), [team]),
+    // The playoffs and advancement at each of its events: the alliance awards (the Winning Alliance's, never a
+    // leadership award of the same type), the alliances it was on, and the advancement lists it is on.
+    all<any>(`SELECT season, code, type FROM awards WHERE team = ? AND type IN ('Winner', 'Finalist') AND COALESCE(name, '') NOT LIKE '%Leadership%'`, [team]),
+    all<any>("SELECT season, code FROM alliances WHERE ? IN (captain, pick1, pick2, backup)", [team]),
+    all<any>("SELECT a.season, a.code, a.rows FROM advancement a JOIN event_teams et ON et.season = a.season AND et.code = a.code AND et.team = ?", [team]),
   ]);
   const rec = new Map(recs.map((r) => [`${r.season}|${r.code}`, { wins: Number(r.wins) || 0, losses: Number(r.losses) || 0, ties: Number(r.ties) || 0 }]));
+  const k = (r: { season: unknown; code: unknown }) => `${r.season}|${r.code}`;
+  const won = new Set(alAwards.filter((a) => a.type === "Winner").map(k)), finalist = new Set(alAwards.filter((a) => a.type === "Finalist").map(k));
+  const allied = new Set(onAlliance.map(k));
+  const advanced = new Set(advLists.filter((a) => { try { return (JSON.parse(a.rows) as { team: number; status: string; declined?: boolean }[]).some((x) => Number(x.team) === team && x.status === "FIRST" && !x.declined); } catch { return false; } }).map(k));
+  const playoffOf = (r: { season: unknown; code: unknown }) => (won.has(k(r)) ? "won" as const : finalist.has(k(r)) ? "finalist" as const : allied.has(k(r)) ? "alliance" as const : null);
   return {
     events: evs.map((r) => ({
       season: Number(r.season), code: r.code, name: shortEvent(r.name, r.type ?? null), type: r.type ?? null, start: r.start ?? null, end: r.end ?? null,
@@ -103,6 +118,7 @@ async function load(team: number): Promise<{ events: TeamEvent[]; seasons: TeamS
       avgScore: num(r.avg_score), avgPen: num(r.avg_pen), wins: num(r.wins), losses: num(r.losses), ties: num(r.ties),
       rp: r.type === "LeagueMeet" ? null : num(r.rp),
       record: rec.get(`${r.season}|${r.code}`) ?? null,
+      playoff: playoffOf(r), advanced: advanced.has(k(r)),
     })),
     seasons: ss.map((r) => ({
       season: Number(r.season), opr: num(r.opr_np), auto: num(r.opr_auto), teleop: num(r.opr_teleop), endgame: num(r.opr_endgame),
