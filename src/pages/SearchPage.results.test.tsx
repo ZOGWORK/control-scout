@@ -86,7 +86,7 @@ describe("search results page", () => {
     expect([...header.querySelectorAll("a")].map((a) => [a.getAttribute("aria-label"), a.getAttribute("href")])).toEqual([["Hypnotic Robotics (4215)", "/teams/4215"], ["Bad Wolf (6980)", "/teams/6980"]]);
   });
 
-  it("a comparison's \"Open in Predict\" is the page's one primary action; its other links are text", () => {
+  it("a comparison's \"Compare side by side\" is the page's one primary action, with no Open in Predict", () => {
     const stat: StatAnswer = {
       family: "two-team", intent: "opr-vs", title: "OPR: 23268 vs 7149 in 2025–26", team: { number: 23268, name: "Ultraviolet" }, teams: [{ number: 23268, name: "Ultraviolet" }, { number: 7149, name: "ENFORCERS" }], scope: ["2025–26"],
       headline: { value: "23268 leads 157.9 – 115.3", label: "+42.6" },
@@ -99,8 +99,8 @@ describe("search results page", () => {
     state.answer = answer([team(23268, "Ultraviolet", "Hackettstown, NJ"), team(7149, "ENFORCERS", "Egg Harbor Township, NJ")], { stat });
     const { container } = show("/search?q=23268%20vs%207149%20opr");
     const ctas = [...container.querySelectorAll("[data-primary-cta]")];
-    expect(ctas.map((c) => c.textContent)).toEqual(["Open in Predict"]);
-    expect(within(container).getByRole("link", { name: "Compare side by side" }).className).toContain("underline");
+    expect(ctas.map((c) => c.textContent)).toEqual(["Compare side by side"]);
+    expect(within(container).queryByRole("link", { name: "Open in Predict" })).toBeNull();
   });
   it("a fact answer is one card in the team page's look: the team's header, the fact once, no TEAMS card, no gold", () => {
     const card = { kind: "info" as const, title: "Where they're from", team: { number: 4215, name: "Hypnotic Robotics" }, facts: [{ label: "Where they're from", values: ["Oradell, NJ, USA"] }],
