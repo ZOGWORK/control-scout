@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.5.4 — 2026-11-11
+## 5.5.5 — 2026-11-11
 
 Search answers an award at Worlds in the season you name, even when each division judged it.
 
@@ -28,6 +28,19 @@ Search answers an award at Worlds in the season you name, even when each divisio
 - An award asked at an event in a season named ("Innovate award at Worlds in into the deep") fell back to the newest older season that event gave it (2021–22), because in 2024–25 FIRST judged Worlds' Innovate Award in each division and the championship's own list has none. It now reads that season: every division's places, winners first, each line naming its division. A season named never falls back to another one and adds no note about a newer event. (`askAnswer` "award", `server/api/searchAsks.ts`; failed search)
 - A judged award's finalists, which FIRST places 1 like the winner ("… Finalist"), came first and were said as "Winner", and the card took its title from one. The winner now comes first, its finalists after it as "Finalist", on the card and in its podium; a place asked ("2nd place") is never a finalist's. (`server/api/searchAsks.ts`, `EventAwards.tsx`)
 - An award from an older season showed that season's label over the newer event's dates. The event is now that season's own, with its own dates. (`server/api/searchAsks.ts`) (#1363)
+
+## 5.5.4 — 2026-11-11
+
+A team number nobody has, asked about, gets the closest real team numbers instead of nothing.
+
+### Highlights
+- [fixes] A missing team number with a question shows the closest teams
+- [fixes] Tap the suggestion to ask the same question of the closest team
+- [teams] Comparing with a number no team has answers the real team's side
+
+### Fixed
+- Search: a team number no team has, followed by what was asked of it ("<number> auto"), lists the closest team numbers, as the number alone does. It offers the same question with the closest one as "Did you mean". Before, nothing was found.
+- Search: a comparison where one side is a number no team has, typed with its own words before the "vs" ("<number> opr vs 4215 opr over time"), answers the other team's question and says the number is no team, as it already did when the number came right before "vs". The missing side's words are added once. ([#1372](https://github.com/ZOGWORK/control-scout/pull/1372))
 
 ## 5.5.3 — 2026-11-11
 
