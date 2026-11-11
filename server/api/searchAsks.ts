@@ -47,6 +47,8 @@ export type Ask =
   | { kind: "advance"; team: string }
   | { kind: "award"; award: string; event: string; place?: number }
   | { kind: "event-won"; event: string }
+  /** Who advanced from an event, or how many ("how many teams went to states at <event>"). */
+  | { kind: "advanced"; event: string; count: boolean }
   | { kind: "how" }
   /** How to get a call for any lineup, or whether it updates as the lineup changes: Predict's Custom matchup. */
   | { kind: "predict-lineup";
@@ -184,6 +186,11 @@ export function readAsk(q: string): Ask | null {
     const w = m[2].replace(/['’]/g, ""); // "Judges' Choice", "Judges’ Choice"
     if (Object.hasOwn(AWARDS, w)) return { kind: "award", award: AWARDS[w], event: m[3], ...(m[1] ? { place: Number(m[1]) } : {}) };
   }
+  // Who advanced from an event, or how many ("how many teams went to states at <event>", "which teams qualified for
+  // worlds from <event>", "who advanced from <event>"): the event's advancement list. The step named is only words:
+  // the list says where its teams go.
+  m = /^(?:(how many|which|what) teams?|who) (?:went|go|got|advanced|advance|advancing|qualified|qualify|made it|moved on|move on)(?: on)?(?: (?:to|for|into) (?:the )?(?:states?|state championships?|state champs|regionals?|regional championships?|worlds|world championships?|first championship|next (?:level|event|round)))? (?:from|at|out of) (?:the )?(.+)$/.exec(t);
+  if (m) return { kind: "advanced", event: m[2].split(" ").map((w) => cased.get(w) ?? w).join(" "), count: m[1] === "how many" };
   // Who won an event ("who won nj states", "winners of the New Jersey Championship"): never "won" as a name word, nor
   // an award at an event ("who won the … award at …"), whichever award it is.
   m = /^(?:who (?:won|took|was the winner of|were the winners of|were the champions of|was the champion of)|winners? of|champions? of) (?:the )?(.+)$/.exec(t);
@@ -501,6 +508,49 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
           ...(lines.length ? {} : { none: ev.event?.type === "LeagueMeet" ? `${ev.title} is a league meet, and league meets give no awards: a league's awards, the ${award} among them, are given at its league tournament.`
             : `No ${award} recorded at ${fromParent ? parentName : ev.title}${parent && !fromParent ? ` or its championship` : ""} in any season on record.` }) },
         understood: { kind: "question", label: `${ask.place != null && ask.place > 1 ? `Who got ${place(ask.place)} for the` : "Who won the"} ${award} at ${ev.title} (${seasonLabel(season)})${fromParent ? ` · given at ${parentName}` : ""}${upcoming}${ask.place != null && rows.length && !asked.length ? ` · No ${place(ask.place)} recorded` : ""}`, season },
+      });
+    }
+
+    case "advanced": {
+      // The newest event by that name with an advancement list (a league's tournament, a qualifier), every word of
+      // the name in it; a season or year named, that one's.
+      const sm = /(?:^|\s)(20\d\d)(?:\s*[-–/]\s*\d\d(?:\d\d)?)?(?=\s|$)/.exec(ask.event);
+      const words = ask.event.replace(sm?.[0] ?? "", " ").toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 1 && !/^(?:the|of|and|ftc)$/.test(w));
+      if (!words.length) return null;
+      const [ev] = await all<any>(
+        `SELECT e.season, e.code, e.name, e.type, e.division_code, e.venue, e.city, e.state, e.country, e.start, e.end, e.timezone, a.slots, a.advances_to, a.rows, n.name to_name
+         FROM advancement a JOIN events e ON e.season = a.season AND e.code = a.code LEFT JOIN events n ON n.season = a.season AND n.code = a.advances_to
+         WHERE ${words.map(() => "lower(e.name) LIKE ?").join(" AND ")}${sm ? " AND (e.season = ? OR e.start LIKE ?)" : ""}
+         ORDER BY e.season DESC, e.start DESC LIMIT 1`,
+        [...words.map((w) => `%${w}%`), ...(sm ? [Number(sm[1]), `${sm[1]}%`] : [])]);
+      if (!ev) return null;
+      const rows = JSON.parse(ev.rows) as { team: number; status: string; declined: boolean }[];
+      const took = rows.filter((r) => r.status === "FIRST" && !r.declined);
+      // A list posted with no slot taken (every one declined, or its teams already qualified): its teams, each with why,
+      // as the event's Awards tab lists them; each team once.
+      const shown = took.length ? took : rows.filter((r, i) => rows.findIndex((x) => x.team === r.team) === i);
+      const names = shown.length ? await all<{ number: number; name: string | null }>(`SELECT number, name FROM teams WHERE number IN (${shown.map(() => "?").join(", ")})`, shown.map((r) => r.team)) : [];
+      const nameOf = new Map(names.map((t) => [Number(t.number), t.name]));
+      // Where they go, in words: the next event's name, FTC Events' own words, else "the next event" (never a code).
+      const to = ev.to_name?.trim() || (ev.advances_to && !/^[A-Z0-9]+$/.test(ev.advances_to.trim()) ? ev.advances_to.trim().replace(/ Events$/, " events") : null);
+      const dest = to ? (/^the\b/i.test(to) ? to : `the ${to}`) : "the next event";
+      const why = (r: (typeof rows)[number]) => (r.status === "FIRST" ? "Declined" : r.status === "ALREADY_ADVANCING" ? "Already qualified" : r.status.replace(/_/g, " ").toLowerCase().replace(/^./, (c) => c.toUpperCase()));
+      const lines = shown.map((r, i) => ({ ...teamLine(r.team, nameOf.get(r.team) ?? null, [took.length ? `#${i + 1} in advancement order` : why(r)]), href: `/teams/${r.team}?season=${ev.season}` }));
+      const n = took.length;
+      const said = `${n} team${n === 1 ? "" : "s"} advanced from ${ev.name} to ${dest}`;
+      const season = seasonLabel(Number(ev.season));
+      const slots = `${ev.slots} slot${ev.slots === 1 ? "" : "s"} to ${dest}`;
+      // Why no slot was taken, from the reasons the list holds only ("declined or had already qualified"), as each team's
+      // own line says it.
+      const REASON: Record<string, string> = { Declined: "declined", "Already qualified": "had already qualified", Ineligible: "was ineligible" };
+      const reasons = [...new Set(shown.map((r) => REASON[why(r)] ?? `was listed as ${why(r).toLowerCase()}`))];
+      const reasonWords = reasons.length > 1 ? `${reasons.slice(0, -1).join(", ")} or ${reasons[reasons.length - 1]}` : reasons[0];
+      // A count is said only from a posted list: none posted is not zero.
+      return answer(q, {
+        hits: [{ ...eventHit(ev), section: "awards" }], pages: pagesFor(q),
+        card: { kind: "info", title: `${ask.count && rows.length ? said : `Teams that advanced from ${ev.name}`} · ${season}`, lines,
+          ...(n ? {} : { none: rows.length ? `No team took ${ev.slots === 1 ? `the slot to ${dest}` : `one of the ${slots}`}: ${reasons.length > 1 ? "each listed team" : shown.length > 1 ? "every listed team" : "the listed team"} ${reasonWords}.` : `FIRST hasn't posted who advanced from ${ev.name} (${season}) yet: ${slots}.` }) },
+        understood: { kind: "question", label: `${rows.length ? said : `Who advanced from ${ev.name}`} (${season}), in FIRST's advancement order`, season: Number(ev.season) },
       });
     }
 

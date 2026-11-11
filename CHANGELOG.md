@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.5.6 — 2026-11-11
+## 5.5.7 — 2026-11-11
 
 First-time visitors get a small welcome card with real searches to try; the step-by-step tour is off unless the owner turns it on.
 
@@ -28,6 +28,18 @@ First-time visitors get a small welcome card with real searches to try; the step
 - First-time visitors see one small "Welcome to Control Scout" card: "Search any team, event or match", with three example searches that answer live ("Worlds highlights decode", "4215 vs 6980 who wins", "4215 record"). Tapping one runs it. It closes on X, Esc or any search, and is shown once per visitor. (`WelcomeCard`, `src/components/layout/WelcomeCard.tsx`; `src/lib/welcome.ts`)
 - The step-by-step tour never starts by itself. It sits behind a new owner switch, Step-by-step tour (`onboardingTour`, off by default). While it's on, the welcome card, Settings and How it works offer "Take the tour"; while it's off, there's no tour and no Take the tour button. (`src/shared/flags.ts`, `FirstRunTour`, `TakeTour`)
 - "Clear all local data" in Settings also brings the welcome card back. (#1368)
+
+## 5.5.6 — 2026-11-11
+
+Search answers who advanced from an event, and how many, from FIRST's advancement list.
+
+### Highlights
+- [rankings] "How many teams went to states at <event>" answers
+- [rankings] Who advanced from an event, in FIRST's advancement order
+- [fixes] A list FIRST hasn't posted yet says so, with its slots
+
+### Added
+- Search: "how many teams went to states at <event>", "which teams qualified for worlds from <event>" and "who advanced from <event>" answer from the event's advancement list, as its Awards tab shows it. The answer lists the teams that took a slot, in FIRST's advancement order (declined slots left out), says where they go by the next event's name, and links the event. With no season named, it uses the newest event by that name that has a list. A list not posted yet says so, with the number of slots. ([#1376](https://github.com/ZOGWORK/control-scout/pull/1376))
 
 ## 5.5.5 — 2026-11-11
 
