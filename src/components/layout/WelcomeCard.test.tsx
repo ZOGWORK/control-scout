@@ -45,6 +45,8 @@ describe("the welcome card", () => {
     expect(welcome()!.textContent).toContain("Search any team, event or match.");
     expect([...document.querySelectorAll("[data-welcome-example]")].map((b) => b.textContent!.trim())).toEqual([...WELCOME_EXAMPLES]);
     expect(screen.queryByRole("button", { name: "Take the tour" })).toBeNull();
+    // On a phone it clears a page's sticky action bar (Track, Share) like every other floating prompt.
+    expect(welcome()!.className).toContain("max-md:[[data-sticky-actions]_&]:bottom-[calc(var(--tabbar-h)+4rem+env(safe-area-inset-bottom)+0.75rem)]");
   });
 
   it("an example runs its search and closes for good", async () => {
