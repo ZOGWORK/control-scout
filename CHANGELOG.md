@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.5.2 — 2026-11-11
+
+A team number nobody has, asked about, gets the closest real team numbers instead of nothing.
+
+### Highlights
+- [fixes] A missing team number with a question shows the closest teams
+- [fixes] Tap the suggestion to ask the same question of the closest team
+- [teams] Comparing with a number no team has answers the real team's side
+
+### Fixed
+- Search: a team number no team has, followed by what was asked of it ("<number> auto"), lists the closest team numbers, as the number alone does. It offers the same question with the closest one as "Did you mean". Before, nothing was found.
+- Search: a comparison where one side is a number no team has, typed with its own words before the "vs" ("<number> opr vs 4215 opr over time"), answers the other team's question and says the number is no team, as it already did when the number came right before "vs". The missing side's words are added once. ([#PR](https://github.com/ZOGWORK/control-scout/pull/PR))
+
 ## 5.5.1 — 2026-11-11
 
 A search answered by a card alone no longer tells search engines and link previews that nothing matched.

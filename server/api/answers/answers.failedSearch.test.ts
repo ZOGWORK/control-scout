@@ -217,6 +217,13 @@ describe("a bare number with no team", () => {
     expect((await full("8")).hits.map((h) => h.ref)).toContain("7");
     expect((await full("676767")).hits[0].ref).toBe("38702");
   });
+  it("with what was asked of it: the closest team numbers, the question offered with the closest one", async () => {
+    const a = await full("676767 auto");
+    expect(a.step).toBe("did-you-mean");
+    expect(a.understood?.label).toMatch(/^No team 676767: the closest team numbers?$/);
+    expect(a.hits[0].ref).toBe("38702");
+    expect(a.didYouMean).toBe("38702 auto");
+  });
 });
 
 describe("leaderboard sorts in plain words", () => {

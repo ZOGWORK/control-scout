@@ -435,6 +435,13 @@ export async function spelled(typed: string, a: SearchAnswer, run: (q: string) =
   if (was >= 4) return a;
   // A team number typed wrong ("42-5", "4z15"): the real team numbers one key away.
   if (was <= 1) { const n = await numberFix(typed); if (n) return carryOutcome(a, { ...n, q: a.q }); }
+  // A team number no team has, then what was asked of it ("33960 auto"): the closest team numbers, the question offered
+  // again with the closest one ("33660 auto").
+  const led = was <= 1 ? /^(?:team\s*)?#?(\d{2,6})\s+(\p{L}.*)$/iu.exec(typed.trim()) : null;
+  if (led) {
+    const n = await numberFix(led[1]);
+    if (n?.didYouMean) return carryOutcome(a, { ...n, q: a.q, didYouMean: `${n.didYouMean} ${led[2]}` });
+  }
   // "What is the bet", "what is the best time": search ranks teams, so "… best team" is offered (and shown when the
   // query as typed found nothing that matches).
   const best = was <= 3 ? bestFix(typed) : null;

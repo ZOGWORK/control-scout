@@ -151,8 +151,12 @@ export async function versusLoneTeam(q: string, prefer: ReadonlySet<string>): Pr
   const i = unknown.indexOf(true), n = firsts[i]!;
   // The other side a team: its number typed first, or its name.
   if (firsts[1 - i] == null && !(await readSide(typedSides[1 - i], prefer)).team) return null;
-  const vs = VERSUS.source;
-  const rest = (i === 1 ? q.replace(new RegExp(`${vs}${n}(?=\\s|$)`, "i"), " ") : q.replace(new RegExp(`(?:^|\\s)${n}${vs}`, "i"), " ")).replace(/\s+/g, " ").trim();
+  // The other side as typed, then what the missing side asked that it doesn't already say ("980 opr vs 4215 opr over
+  // time": "4215 opr over time"; "12345 vs 99 opr": "12345 opr").
+  const other = typedSides[1 - i];
+  const has = new Set(other.toLowerCase().split(/\s+/));
+  const extra = typedSides[i].split(/\s+/).slice(1).filter((w) => !has.has(w.toLowerCase()));
+  const rest = [other, ...extra].join(" ").replace(/\s+/g, " ").trim();
   return rest === q.trim() ? null : { q: rest, missing: Number(n) };
 }
 
