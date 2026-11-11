@@ -84,7 +84,7 @@ describe("Tier 3: device-only state never leaves the device", () => {
     localStorage.setItem("cs-personal-owner", "");
     rememberSpace("77", "Secret Space", 1);
     saveView("grid");
-    endTour("done", 4);
+    endTour("finished", 4);
     markShown();
     markDismissed();
     saveScoutEntry({ uuid: "pppppppppppp", season: 2025, team: 18360, eventCode: null, matchLabel: "Q1", kind: "match", data: {}, notes: "" });
@@ -107,7 +107,7 @@ describe("Tier 3: device-only state never leaves the device", () => {
     // The keys are still on the device.
     expect(localStorage.getItem("cs-scout-space")).toContain("Secret Space");
     expect(localStorage.getItem("cs-shortlist-view")).toBe("grid");
-    expect(localStorage.getItem("cs-tour")).toContain('"done"');
+    expect(localStorage.getItem("cs-tour")).toContain('"finished"');
     expect(localStorage.getItem("cs-install")).toContain('"dismissed"');
   });
 });

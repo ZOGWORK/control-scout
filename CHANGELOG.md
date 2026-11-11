@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.4.1 — 2026-11-10
+## 5.4.5 — 2026-11-10
 
 Search answers who won an event's Finalist or Winning Alliance award, for that event and season.
 
@@ -28,6 +28,64 @@ Search answers who won an event's Finalist or Winning Alliance award, for that e
 - "Who won the Finalist Award at USNJNEM2?" (a 2026–27 NJ league meet) answered with another event's 2019–20 winning alliance. The Finalist and Winning Alliance weren't awards the event-award question knew, so the whole phrase was read as an event's name and matched an old event. Both are now awards (`AWARDS`, `server/api/searchAsks.ts`), and "who won the … award at …" is never read as an event's name, whichever award it names.
 - An award asked about at a league meet now says that league meets give no awards (a league's are given at its league tournament), not "none recorded in any season". (#1350)
 - The Finalist or Winning Alliance card is titled with the alliance's award, never one division's, lists each team with its role (captain, pick) and no place, and leaves out the FIRST Leadership Award finalists that FIRST files under the same award type.
+
+## 5.4.4 — 2026-11-10
+
+The first-run tour now does the real thing at every step: a real search, a real Track tap, then Predict.
+
+### Highlights
+- [home] The tour's first step asks search a real question and shows the answer
+- [teams] Tap Track on the team itself; the tour moves on once it's tracked
+- [predict] The tour ends by opening Predict with the team or event picked
+
+### Changed
+- Step 1's button runs `who won decode` on the real search page (or the visitor's own question); the card then docks at the bottom so the answer stays readable and asks for a tap on a follow-up question. Step 3 (team pages) is the page's own Track button: tracking moves the tour on, already tracking is noticed, and the team stays tracked. Step 4 runs the highlights search (the team's own, else a season's) and ends on "Predict a match with …" / "Predict a match"; an event page ends on "Predict this event", saying plainly when the event has no recording. While a step points, only the spotlit part and search take taps; typing in search moves the card aside. Tour buttons are 44 px tall on phones. (#1352)
+
+## 5.4.3 — 2026-11-10
+
+Search asks which team you mean when a name two teams share is typed nearly right.
+
+### Highlights
+- [fixes] A shared team name typed with a slip asks which team you mean
+- [fixes] Each team of the name is listed with its place, to pick from
+- [fixes] A number typed right after the name is read as part of it
+
+### Fixed
+- A name several teams share, typed one or two letters off, read as one of them or as nothing: two teams called Girls in Robotics, typed with a letter missing and a number after it, read another team's record at an event. It now gets the same "Which …? 2 teams have that name" card as the name typed right, with each team's place, and a number right after the name that is no team's is read as part of it. (`nearShared`, `server/api/query/names.ts`; the near-spelling step in `server/api/query/parse.ts`; `sharedName`, `server/api/searchAnswer.ts`) (#1348)
+
+## 5.4.2 — 2026-11-10
+
+A shorter first-run tour that fits the page you land on and keeps your place.
+
+### Highlights
+- [home] A shorter first-run tour, picked by the page you land on
+- [teams] On a team page: OPR vs Rating, and My team vs Track vs Shortlist
+- [fixes] Leaving the page pauses the tour instead of ending it
+
+### Changed
+- The tour (`src/lib/tour.ts`, `src/components/layout/FirstRunTour.tsx`) is search first, then on a team page OPR vs Rating and saving the team, then highlights; an event page gets search and its recordings; other pages search and highlights. No welcome card. A step whose part isn't on the page is left out.
+- It follows the visitor: search carries on on any page; a step on the start page's own parts shows "Tour paused" elsewhere, with one tap back. Closing the tab or a reload resumes it at the same step. Only Skip (×, Esc) or the last step end it.
+- `cs-tour` keeps `paused`, `finished` and `skipped` apart (`v: 2`). An old record "skipped" at step 0, written by just navigating away, counts as never shown, so those visitors get the new tour once. (#1344)
+
+## 5.4.1 — 2026-11-10
+
+The season's highest scores read calmly in blue, play each match's video in the row, and mark every score from an event that didn't play by the usual rules.
+
+### Highlights
+- [fixes] Highest scores: each match's video toward the right of its row
+- [appearance] Highest scores card in blue, no orange or red
+- [fixes] Every Carolinas Premier Event score marked "Not an official record"
+
+### Changed
+- Search: the "Highest scores" card ("decode world record", "highest score decode") is blue (the theme's info colour) instead of amber, and a score's penalties note ("724 with the other alliance's penalties") is a plain blue pill instead of a red award chip. Alliance chips keep their alliance colours; a team's own best scores keep the team's hue.
+- Search: a row on that card whose match has a video shows the video's picture toward the right on wider screens, or a "Watch" button under the row on a phone; either plays in the app's video dialog. Rows without a video are unchanged.
+
+### Fixed
+- Records: a score can be marked "Not an official record" for a whole event, not just one match. Carolinas Premier Event (DECODE, Jul 25–26, 2026) is now marked as a whole, so Q54 (592) carries the mark like Q49 (714), in search answers, best-score tables and the match finder. (#1341)
+
+
+
+
 
 ## 5.4.0 — 2026-11-10
 
