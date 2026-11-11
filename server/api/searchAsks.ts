@@ -529,8 +529,9 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
       const division = (r: any) => (String(r.division ?? "").startsWith(ev!.title) ? String(r.division).slice(ev!.title.length).replace(/^[\s\-\u2013:]+/, "") || r.division : r.division);
       const lines = [...asked, ...rows.filter((r) => !asked.includes(r))].map((r) => teamLine(Number(r.team), r.name, alliance ? [] : [finalist(r) ? "Finalist" : place(Number(r.placement))],
         [r.award, fromDivisions ? division(r) : null].filter(Boolean).join(" · ") || undefined));
-      // The award by its winner's name, never a finalist's ("… Finalist") nor a place's ("… 2nd Place").
-      const award = (!alliance && String(rows.find((r) => !finalist(r))?.award ?? "").replace(/\s+\d(?:st|nd|rd|th) place$/i, "")) || `${AWARD_NAME[ask.award] ?? ask.award} Award`;
+      // The award by its winner's name, never a finalist's ("… Finalist") nor a place's ("… 2nd Place"); an award given
+      // only to finalists (Dean's List at Worlds) by the finalists' own name.
+      const award = (!alliance && String((rows.find((r) => !finalist(r)) ?? rows[0])?.award ?? "").replace(/\s+\d(?:st|nd|rd|th) place$/i, "")) || `${AWARD_NAME[ask.award] ?? ask.award} Award`;
       return answer(q, {
         hits: [{ ...shownHit, section: "awards" }], pages: pagesFor(q),
         card: { kind: "event-awards", title: `${award} · ${fromParent ? parentName : ev.title} · ${seasonLabel(season)}`, lines, award: ask.award, ...(ask.place != null ? { place: ask.place } : {}), ...(await eventAwards(season, awardCode, fromParent ? parentName : ev.title)),

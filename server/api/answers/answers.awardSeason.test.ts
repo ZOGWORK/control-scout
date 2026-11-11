@@ -27,7 +27,9 @@ beforeAll(async () => {
   await run(`INSERT INTO awards (season, code, type, placement, team, name) VALUES
     (2021, 'FTCCMP1', 'Innovate', 1, 7149, 'Innovate Award sponsored by Raytheon Technologies Finalist'),
     (2021, 'FTCCMP1', 'Innovate', 1, 16461, 'Innovate Award sponsored by Raytheon Technologies'),
-    (2021, 'FTCCMP1', 'Innovate', 2, 11260, 'Innovate Award sponsored by Raytheon Technologies Finalist')`);
+    (2021, 'FTCCMP1', 'Innovate', 2, 11260, 'Innovate Award sponsored by Raytheon Technologies Finalist'),
+    (2021, 'FTCCMP1', 'DeansList', 1, 11260, 'Dean''s List Finalist'),
+    (2021, 'FTCCMP1', 'DeansList', 2, 7149, 'Dean''s List Finalist')`);
   // 2024-25: the championship's own list has no Innovate Award; each division judged its own.
   await run(`INSERT INTO awards (season, code, type, placement, team, name) VALUES
     (2024, 'FTCCMP1', 'Inspire', 1, 7149, 'Inspire Award'),
@@ -70,6 +72,12 @@ describe("an award at Worlds in a season named by its game", () => {
     expect(a.hits[0]).toMatchObject({ ref: "2021:FTCCMP1", season: 2021 });
     expect(a.hits[0].event?.start).toBe("2022-04-20");
     expect(a.understood?.label).not.toMatch(/isn't held yet|no award posted/);
+  });
+
+  it("an award given only to finalists is titled by their own name (Loopy on #1363)", async () => {
+    const a = await ask("who won deans list at worlds 2021-22");
+    expect(a.card?.title).toBe("Dean's List Finalist · FIRST Championship - FIRST Tech Challenge · 2021–22");
+    expect(a.card?.lines.map((l) => l.results)).toEqual([["Finalist"], ["Finalist"]]);
   });
 
   it("a place asked is a placed team's, never a finalist FIRST lists second (Loopy on #1363)", async () => {
