@@ -25,7 +25,7 @@ The best teams at Worlds, or at any event, can be ranked by one phase's OPR ther
 - [fixes] Asking for one phase never falls back to overall OPR
 
 ### Fixed
-- Search: the best teams at an event, at Worlds (with or without its season) or at a state's championship, asked by one phase's OPR ("top teams by teleop opr at worlds", "best auto opr at nj states") found nothing or ranked by overall OPR. They now rank by that phase's OPR at the event (a division's for a championship), or the season's before the event is played, with the column and card named for it. Two phases at once is still left to search. ([#PR](https://github.com/ZOGWORK/control-scout/pull/PR))
+- Search: the best teams at an event, at Worlds (with or without its season) or at a state's championship, asked by one phase's OPR ("top teams by teleop opr at worlds", "best auto opr at nj states") found nothing or ranked by overall OPR. They now rank by that phase's OPR at the event (a division's for a championship), or the season's before the event is played, with the column and card named for it. Two phases at once is still left to search. ([#1383](https://github.com/ZOGWORK/control-scout/pull/1383))
 
 ## 5.6.2 — 2026-11-11
 
