@@ -25,7 +25,7 @@ Asking for the average OPR "of teams" in a place now answers, as asking for the 
 - [fixes] A dropped first letter still reaches the average
 
 ### Fixed
-- Search: "average OPR of teams in <place>" (also "of all the teams", "among teams from", or "of teams" alone) found nothing, though "average OPR in <place>" answered. The teams said before the place are now read the same way, so the same average card answers. ([#PR](https://github.com/ZOGWORK/control-scout/pull/PR))
+- Search: "average OPR of teams in <place>" (also "of all the teams", "among teams from", or "of teams" alone) found nothing, though "average OPR in <place>" answered. The teams said before the place are now read the same way, so the same average card answers. ([#1374](https://github.com/ZOGWORK/control-scout/pull/1374))
 
 ## 5.5.1 — 2026-11-11
 
