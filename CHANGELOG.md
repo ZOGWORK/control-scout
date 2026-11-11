@@ -25,7 +25,7 @@ The home page stops suggesting a search that reads as nonsense.
 - [fixes] Searches with "not" still work as before
 
 ### Changed
-- Home: the suggestion chip "4215 not 6980 record" is gone. It ran, but a record "not with" one named team is not a question people ask, so it read as a mistake. Searches using "not" still work; only the chip is removed. (`HOME_SUGGESTIONS`, `src/shared/homeSuggestions.ts`)
+- Home: the suggestion chip "4215 not 6980 record" is gone. It ran, but a record "not with" one named team is not a question people ask, so it read as a mistake. Searches using "not" still work; only the chip is removed. (`HOME_SUGGESTIONS`, `src/shared/homeSuggestions.ts`) (#1361)
 
 ## 5.4.8 — 2026-11-11
 
