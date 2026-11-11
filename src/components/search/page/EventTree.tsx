@@ -55,7 +55,7 @@ export function EventTree({ f, open: first, onOpen }: { f: EventFamily; open: bo
                 <StatusChip status={status} />
                 {typeShown && <span className="text-xs text-muted-foreground" data-family-type>{typeShown}</span>}
               </div>
-              <Link to={familyHref(f)} className="mt-1 block font-semibold leading-snug text-foreground hover:underline max-md:py-2" data-family-link>{f.name}</Link>
+              <Link to={familyHref(f)} className="mt-1 flex min-h-[44px] items-center font-semibold leading-snug text-foreground hover:underline md:block md:min-h-0" data-family-link>{f.name}</Link>
             </div>
           </div>
           <p className="mt-2 text-sm font-medium text-foreground" data-family-season>{season} season</p>
@@ -87,13 +87,13 @@ export function EventTree({ f, open: first, onOpen }: { f: EventFamily; open: bo
                     <span aria-hidden className={cn("grid size-8 place-items-center rounded-lg", node.tint, node.icon)}>{finals ? <Trophy className="size-4" /> : <Layers className="size-4" />}</span>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-x-2">
-                        <Link to={hitHref(m.hit)} onClick={() => onOpen(m.hit)} className={cn("flex min-h-[44px] min-w-0 items-center text-foreground hover:underline md:min-h-8", finals ? "font-bold" : "font-medium")}>{m.label}</Link>
+                        <Link to={hitHref(m.hit)} onClick={() => onOpen(m.hit)} className={cn("flex min-h-[44px] min-w-[44px] items-center text-foreground hover:underline md:min-h-8 md:min-w-0", finals ? "font-bold" : "font-medium")}>{m.label}</Link>
                         {own !== status && <StatusChip status={own} />}
                         {e.teams != null && e.teams > 0 && <span className="inline-flex items-center gap-1 whitespace-nowrap text-xs tabular-nums text-muted-foreground" data-division-teams><Users className="size-3" aria-hidden />{e.teams} teams</span>}
                       </div>
                     </div>
                     <nav aria-label={`${m.label}: pages`} className="col-start-2 -mx-1 flex flex-wrap text-xs" data-quick-links>
-                      {quickLinks(e.status).map((l) => <Link key={l.tab} to={`/events/${s}/${c}?tab=${l.tab}`} onClick={() => onOpen(m.hit)} className="inline-flex min-h-[44px] items-center px-1 font-medium text-muted-foreground hover:text-foreground hover:underline md:min-h-8 pointer-coarse:min-h-[44px]">{l.label}</Link>)}
+                      {quickLinks(e.status).map((l) => <Link key={l.tab} to={`/events/${s}/${c}?tab=${l.tab}`} onClick={() => onOpen(m.hit)} className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center px-1 font-medium text-muted-foreground hover:text-foreground hover:underline md:min-h-8 pointer-coarse:min-h-[44px]">{l.label}</Link>)}
                     </nav>
                   </div>
                 </li>

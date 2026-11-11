@@ -2,7 +2,7 @@
 // title takes), a Compare by both sides, a question by its team and what it asked, else the server's reading.
 import { describe, expect, it } from "vitest";
 import type { SearchAnswer, SearchHit } from "./api";
-import { answerDescription, badgeUnder, capWords, cardTitle, contextBadge, pageTitle, teamParts } from "./searchPage";
+import { answerDescription, badgeUnder, capWords, cardTitle, contextBadge, headingOver, pageTitle, repeats, teamParts } from "./searchPage";
 
 const a = (hits: SearchHit[], extra: Partial<Omit<SearchAnswer, "understood">> & { understood?: { label: string } } = {}) => ({ q: "", hits, pages: [], step: "deterministic" as const, weak: false, ...extra });
 const team = (title: string): SearchHit => ({ kind: "team", ref: "18061", title, subtitle: "", season: 2025 });
@@ -112,5 +112,24 @@ describe("answerDescription", () => {
   it("is null with nothing answered, or for a sorry", () => {
     expect(answerDescription(a([]))).toBeNull();
     expect(answerDescription(a([], { card: card(), sorry: { understood: [], suggest: [] } } as never))).toBeNull();
+  });
+});
+
+describe("headingOver", () => {
+  it("takes a card title that says the heading and more, so the words show once", () => {
+    expect(headingOver("Teams in Oradell", "Teams in Oradell, NJ")).toBe("Teams in Oradell, NJ");
+    expect(repeats(headingOver("Teams in Oradell", "Teams in Oradell, NJ"), "Teams in Oradell, NJ")).toBe(true);
+  });
+  it("keeps the heading otherwise", () => {
+    expect(headingOver("Teams in Oradell", "Highest scores")).toBe("Teams in Oradell");
+    expect(headingOver("Teams in Oradell", "teams in oradell")).toBe("Teams in Oradell");
+    expect(headingOver("Teams in Oradell", undefined)).toBe("Teams in Oradell");
+  });
+});
+
+describe("badgeUnder a heading that says it and more", () => {
+  it("drops the badge", () => {
+    expect(badgeUnder("Teams in Oradell, NJ", "Teams in Oradell")).toBeNull();
+    expect(badgeUnder("Teams in Oradell, NJ", "Teams in Ora")).toBe("Teams in Ora");
   });
 });
