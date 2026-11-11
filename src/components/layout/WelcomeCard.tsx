@@ -10,9 +10,11 @@
 import { useEffect, useId, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Compass, Search, X } from "lucide-react";
+import { Clapperboard, Compass, Swords, Trophy, X, type LucideIcon } from "lucide-react";
 import { m } from "../motion";
 import { Button } from "../ui/button";
+import { cn } from "../cn";
+import { BrandMark } from "./Shell";
 import { useConsent } from "../../lib/consent";
 import { usePersonal } from "../../lib/personal";
 import { useFlag } from "../../lib/flags";
@@ -21,6 +23,13 @@ import { isAutomated, isTourPage, knowsTheApp, rememberTourPage, replayTour, sea
 import { dismissWelcome, useWelcomeSeen, WELCOME_EXAMPLES } from "../../lib/welcome";
 
 const SLOT = "welcome";
+
+/** Each example in its own colour, with an icon for what it answers: a match video, a prediction, a record. */
+const LOOK: { icon: LucideIcon; chip: string; icon_: string }[] = [
+  { icon: Clapperboard, chip: "border-rose-500/45 bg-rose-500/10 hover:bg-rose-500/20", icon_: "text-rose-500 dark:text-rose-300" },
+  { icon: Swords, chip: "border-info/45 bg-info/10 hover:bg-info/20", icon_: "text-info" },
+  { icon: Trophy, chip: "border-success/45 bg-success/10 hover:bg-success/20", icon_: "text-success" },
+];
 /** After the page has loaded, wait this long before showing it (the page settles first; no flash on a bounce). */
 export const WELCOME_DELAY_MS = 900;
 
@@ -78,23 +87,30 @@ export function WelcomeCard() {
     <m.section
       role="dialog" aria-labelledby={titleId} data-welcome=""
       initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18, ease: "easeOut" }}
-      className="fixed inset-x-4 bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom)+0.75rem)] max-md:[[data-sticky-actions]_&]:bottom-[calc(var(--tabbar-h)+4rem+env(safe-area-inset-bottom)+0.75rem)] z-[65] rounded-2xl border border-border bg-popover p-4 text-popover-foreground shadow-[0_18px_40px_-16px_rgba(0,0,0,.55)] md:inset-x-auto md:bottom-6 md:right-6 md:w-[360px]"
+      className="fixed inset-x-4 bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom)+0.75rem)] max-md:[[data-sticky-actions]_&]:bottom-[calc(var(--tabbar-h)+4rem+env(safe-area-inset-bottom)+0.75rem)] z-[65] overflow-hidden rounded-2xl border border-accent/40 bg-popover p-4 text-popover-foreground shadow-[0_18px_40px_-16px_rgba(0,0,0,.55),0_0_32px_-12px_var(--color-accent)] md:inset-x-auto md:bottom-6 md:right-6 md:w-[380px]"
     >
-      <div className="flex items-start gap-3">
+      {/* The brand's yellow washing in from the corner, with a blue and a rose glow: decoration, behind everything. */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_90%_at_0%_0%,color-mix(in_oklab,var(--color-accent)_22%,transparent),transparent_55%),radial-gradient(90%_80%_at_100%_100%,color-mix(in_oklab,var(--color-info)_16%,transparent),transparent_60%)]" />
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-accent via-rose-500 to-info" />
+      <div className="relative flex items-start gap-3">
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent/15 ring-1 ring-accent/40"><BrandMark className="size-7" /></span>
         <div className="min-w-0 flex-1">
-          <h2 id={titleId} className="font-display text-base font-semibold text-foreground">Welcome to Control Scout</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Search any team, event or match.</p>
+          <h2 id={titleId} className="font-display text-base font-semibold text-foreground">Welcome to <span className="text-accent-text">Control Scout</span></h2>
+          <p className="mt-0.5 text-sm text-muted-foreground">Search any team, event or match.</p>
         </div>
         <Button variant="ghost" size="icon-sm" className="-mr-1 -mt-1 shrink-0 max-sm:size-[44px]" aria-label="Close" onClick={close}><X /></Button>
       </div>
-      <ul className="mt-3 flex flex-wrap gap-2" aria-label="Try a search">
-        {WELCOME_EXAMPLES.map((q) => (
-          <li key={q} className="min-w-0">
-            <Button variant="outline" size="sm" className="max-w-full rounded-full max-sm:h-[44px]" onClick={() => run(q)} data-welcome-example="">
-              <Search className="text-muted-foreground" /> <span className="truncate">{q}</span>
-            </Button>
-          </li>
-        ))}
+      <ul className="relative mt-3 flex flex-wrap gap-2" aria-label="Try a search">
+        {WELCOME_EXAMPLES.map((q, i) => {
+          const look = LOOK[i % LOOK.length]!;
+          return (
+            <li key={q} className="min-w-0">
+              <Button variant="outline" size="sm" className={cn("max-w-full rounded-full text-foreground max-sm:h-[44px]", look.chip)} onClick={() => run(q)} data-welcome-example="">
+                <look.icon className={look.icon_} /> <span className="truncate">{q}</span>
+              </Button>
+            </li>
+          );
+        })}
         {tourOn && (
           <li>
             <Button variant="ghost" size="sm" className="max-sm:h-[44px]" onClick={tour} data-take-tour=""><Compass /> Take the tour</Button>
