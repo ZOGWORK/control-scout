@@ -36,7 +36,13 @@ export function resetWelcome(): void {
 }
 
 function subscribe(cb: () => void) {
-  const onStorage = (e: StorageEvent) => { if (e.key === null || e.key === WELCOME_KEY) cb(); };
+  const onStorage = (e: StorageEvent) => {
+    if (e.key !== null && e.key !== WELCOME_KEY) return;
+    // Cleared in another tab ("Clear all local data"): this tab's copy goes too, so the card can come back here.
+    // Only when storage itself says so (blocked storage keeps the copy: there's nothing else to go by).
+    try { if (localStorage.getItem(WELCOME_KEY) === null) memory = false; } catch { /* keep this tab's copy */ }
+    cb();
+  };
   window.addEventListener(WELCOME_CHANGE, cb);
   window.addEventListener("storage", onStorage);
   return () => { window.removeEventListener(WELCOME_CHANGE, cb); window.removeEventListener("storage", onStorage); };

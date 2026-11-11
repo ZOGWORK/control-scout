@@ -145,6 +145,18 @@ describe("the welcome card", () => {
     await opened();
   });
 
+  it("cleared in another tab: the storage event brings it back here too, without a reload", async () => {
+    mount();
+    await opened();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(welcome()).toBeNull();
+    // Another tab's "Clear all local data": storage is emptied there, and this tab hears a storage event.
+    localStorage.removeItem(WELCOME_KEY);
+    act(() => { window.dispatchEvent(new StorageEvent("storage", { key: WELCOME_KEY })); });
+    expect(welcomeSeen()).toBe(false);
+    await opened();
+  });
+
   it("signed in: waits for this device's first sync before deciding (no flash for someone who uses the app)", async () => {
     const user = { id: 1, email: "a@b.c", displayName: null, createdAt: "", controlPoint: null };
     personal.current = { ...personal.current, user, sync: "syncing", syncReady: false } as typeof personal.current;
