@@ -596,6 +596,23 @@ describe("real actions, never simulated", () => {
     expect(seen).toEqual(["track"]);
   });
 
+  it("an event streaming live: the step says so, and promises no recording yet", async () => {
+    const live = document.createElement("section");
+    live.setAttribute("data-watch-live", "");
+    document.body.appendChild(live);
+    try {
+      mount({ path: "/events/2025/USNJNEM3", team: false, matches: true });
+      await opened();
+      key("ArrowRight");
+      expect(stepId()).toBe("watch");
+      expect(card()!.textContent).toContain("streaming live");
+      live.setAttribute("data-recording", "");
+      key("ArrowLeft");
+      key("ArrowRight");
+      expect(card()!.textContent).toContain("one full video");
+    } finally { live.remove(); }
+  });
+
   it("an event page ends with Predict on that event, and says plainly most events have no recording", async () => {
     mount({ path: "/events/2025/USNJNEM3", team: false, matches: true });
     await opened();

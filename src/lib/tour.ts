@@ -152,6 +152,8 @@ export interface TourStep {
   body: string;
   /** Instead of `body` once its search has answered (search), or with no recording on the page (watch). */
   after?: string;
+  /** Watch only: the event is streaming live (no recording yet). */
+  live?: string;
   /** Where it points: the first of these selectors with a visible element wins. */
   targets: string[];
   /** Points at the start page's own parts: shown only there (elsewhere the tour waits, paused). */
@@ -194,6 +196,7 @@ export const TOUR_STEPS: Record<TourStepId, TourStep> = {
     title: "Watch, then predict",
     body: "This event's recording is one full video, and each match's Watch button jumps to that match in it.",
     after: "Most events have no recording yet; ones that do are under Events, Any video, with a jump to each match.",
+    live: "This event is streaming live here; once it ends, the recording has a jump to each match.",
     targets: ["[data-watch-live]", '[data-tour="event-matches"]'],
     home: true,
   },

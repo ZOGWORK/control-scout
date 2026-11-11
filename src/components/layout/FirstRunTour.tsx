@@ -216,7 +216,7 @@ export function FirstRunTour() {
   if (step.id === "search") primary = mode === "ask" ? { label: `Ask “${TOUR_ASK}”`, run: run(TOUR_ASK) } : undefined, body = mode === "answer" ? step.after : undefined;
   else if (step.id === "highlights") primary = mode === "ask" ? { label: "Show highlights", run: run(highlightsQuery(origin)) } : end();
   else if (step.id === "save") primary = tracked ? undefined : null;
-  else if (step.id === "watch") { primary = end(); if (!document.querySelector("[data-watch-live]")) body = step.after; }
+  else if (step.id === "watch") { primary = end(); body = document.querySelector("[data-watch-live][data-recording]") ? undefined : document.querySelector("[data-watch-live]") ? step.live : step.after; }
   return (
     <TourOverlay
       step={step} index={n} count={count} body={body} docked={mode === "answer" || (mode === "ask" && !findTarget(step))} primary={primary}

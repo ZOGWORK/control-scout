@@ -31,7 +31,7 @@ export function WatchLive({ d, stream }: { d: EventDetail; stream: EventStream }
   const rail = useRail(d);
   const liveCall: OverlayCall | null = finished ? null : rail.result ? { match: rail.result, phase: "after" } : rail.current ? { match: rail.current, phase: "before" } : null;
   return (
-    <section id={WATCH_ID} aria-labelledby={`${WATCH_ID}-h`} className="mb-8 scroll-mt-bar-4" data-watch-live>
+    <section id={WATCH_ID} aria-labelledby={`${WATCH_ID}-h`} className="mb-8 scroll-mt-bar-4" data-watch-live data-recording={finished ? "" : undefined}>
       <h2 id={`${WATCH_ID}-h`} className="mb-3 font-display text-lg font-semibold text-foreground">{finished ? "Watch the recording" : "Watch live"}</h2>
       <div className={cn("grid gap-4", !finished && "lg:grid-cols-3")}>
         <div className={cn("min-w-0", finished ? "max-w-4xl" : "lg:col-span-2")}>
