@@ -2053,6 +2053,145 @@ ALTER TABLE users ADD COLUMN username_changed_at TEXT;
 CREATE UNIQUE INDEX users_username ON users (lower(username)) WHERE username IS NOT NULL;
 `,
   },
+  {
+    version: 82,
+    name: "match video contributors",
+    sql: `
+-- Match video contributors (docs/contributors.md, server/videos/contributors.ts). No video is ever stored: YouTube ids
+-- and links only, as everywhere else.
+--
+-- video_contributors: one row per account that asked to be (or was made) a contributor. status is the source of truth
+-- for public videos: pending | verified | revoked | rejected. source: invite | application | direct. reapply_after: a
+-- rejection's 7-day cooldown. decision_note: the reason the owner chose to share with a rejected person;
+-- private_note: the owner's own, never shown to them.
+CREATE TABLE video_contributors (
+  user_id INTEGER PRIMARY KEY,
+  status TEXT NOT NULL,
+  source TEXT NOT NULL,
+  application_id INTEGER,
+  invite_hash TEXT,
+  requested_at TEXT NOT NULL,
+  decided_at TEXT,
+  decided_by TEXT,
+  decision_note TEXT,
+  private_note TEXT,
+  revoked_at TEXT,
+  revoke_reason TEXT,
+  reapply_after TEXT,
+  promoted INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX video_contributors_status ON video_contributors (status, requested_at);
+-- The "Get Verified" form, one row per application (an account may have several over time, one pending at a time).
+-- agreements_json holds the five agreements, every one true: an application with one unticked is never written.
+CREATE TABLE verification_applications (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  status TEXT NOT NULL,
+  team_number INTEGER NOT NULL,
+  team_name TEXT NOT NULL,
+  role TEXT NOT NULL,
+  role_other TEXT,
+  events_text TEXT NOT NULL,
+  channel_url TEXT NOT NULL,
+  channel_check TEXT NOT NULL DEFAULT 'unknown',
+  sample_video_url TEXT NOT NULL,
+  sample_video_id TEXT NOT NULL,
+  recorded_self TEXT NOT NULL,
+  why_text TEXT NOT NULL,
+  extra_text TEXT,
+  agreements_json TEXT NOT NULL,
+  submitted_at TEXT NOT NULL,
+  decided_at TEXT,
+  decided_by TEXT,
+  decision_note TEXT,
+  private_note TEXT,
+  reapply_after TEXT,
+  withdrawn_reason TEXT
+);
+CREATE UNIQUE INDEX verification_applications_pending ON verification_applications (user_id) WHERE status = 'pending';
+CREATE INDEX verification_applications_user ON verification_applications (user_id, submitted_at);
+-- An invite link: only the token's sha256 is kept (the link is shown to the owner once). Single use, 14 days.
+CREATE TABLE contributor_invites (
+  token_hash TEXT PRIMARY KEY,
+  email TEXT NOT NULL,
+  note TEXT,
+  created_by TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  claimed_by_user_id INTEGER,
+  claimed_at TEXT,
+  revoked_at TEXT
+);
+-- The owner's team roster, for teams with no Control Point workspace. A revoked row stays (revoked_at), for the record.
+CREATE TABLE team_members (
+  team_number INTEGER NOT NULL,
+  user_id INTEGER NOT NULL,
+  granted_by TEXT NOT NULL,
+  granted_at TEXT NOT NULL,
+  revoked_at TEXT,
+  revoked_by TEXT,
+  note TEXT,
+  PRIMARY KEY (team_number, user_id)
+);
+CREATE INDEX team_members_user ON team_members (user_id);
+-- One row per link. team_number: the team it's scoped to when it isn't public (also kept on a verified one: where it
+-- falls back to if the contributor is revoked). Public = the contributor is verified now and the owner hasn't made it
+-- team_only or self_only. status: live | removed | hidden; only live is ever served. preferred_at: the owner picked it
+-- for its match's slot (first live otherwise); over_first: played before FIRST's own video of the match.
+-- self_reason: why it is only-theirs (owner: the owner demoted it; revoke: a revocation, undone by verifying again).
+-- facts_json: what YouTube said when it was added or last checked. duplicate_of: the confirmed "also linked to" id.
+CREATE TABLE contributor_videos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  season INTEGER NOT NULL,
+  code TEXT NOT NULL,
+  level TEXT NOT NULL,
+  series INTEGER NOT NULL,
+  number INTEGER NOT NULL,
+  video_id TEXT NOT NULL,
+  url TEXT NOT NULL,
+  t INTEGER NOT NULL DEFAULT 0,
+  contributor_user_id INTEGER NOT NULL,
+  team_number INTEGER,
+  team_only INTEGER NOT NULL DEFAULT 0,
+  self_only INTEGER NOT NULL DEFAULT 0,
+  self_reason TEXT,
+  status TEXT NOT NULL DEFAULT 'live',
+  preferred_at TEXT,
+  over_first INTEGER NOT NULL DEFAULT 0,
+  facts_json TEXT,
+  duplicate_of INTEGER,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  removed_by TEXT,
+  removed_reason TEXT
+);
+CREATE INDEX contributor_videos_match ON contributor_videos (season, code, level, series, number) WHERE status = 'live';
+CREATE INDEX contributor_videos_user ON contributor_videos (contributor_user_id, created_at);
+CREATE INDEX contributor_videos_video ON contributor_videos (video_id) WHERE status = 'live';
+-- Likes: one per account per link. The contributor sees the count only.
+CREATE TABLE contributor_video_likes (
+  video_id INTEGER NOT NULL,
+  user_id INTEGER NOT NULL,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (video_id, user_id)
+) WITHOUT ROWID;
+-- Reports, the scouting commons' shape: one open per reporter per link, 20 a day each, an optional 500-character note.
+CREATE TABLE contributor_video_reports (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  video_id INTEGER NOT NULL,
+  reporter_user_id INTEGER NOT NULL,
+  reason TEXT NOT NULL,
+  note TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  resolved_at TEXT,
+  resolved_by TEXT,
+  resolution TEXT
+);
+CREATE UNIQUE INDEX contributor_video_reports_open ON contributor_video_reports (video_id, reporter_user_id) WHERE resolved_at IS NULL;
+CREATE INDEX contributor_video_reports_queue ON contributor_video_reports (resolved_at, created_at);
+CREATE INDEX contributor_video_reports_reporter ON contributor_video_reports (reporter_user_id, created_at);
+`,
+  },
 ];
 
 export type Db = Client;

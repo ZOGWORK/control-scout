@@ -5,7 +5,7 @@
 // section that now holds that panel (PANEL_ALIASES).
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
-import {
+import { Clapperboard,
   Activity, AlertTriangle, Bug, Building2, CheckCircle2, ClipboardList, Database, DatabaseZap, Gauge, HardDrive, HardDriveDownload,
   Inbox, LayoutDashboard, Link2, MonitorPlay, PackageOpen, Radio, Megaphone, RefreshCw, ScrollText, Search, ServerCog, ShieldAlert, Target, Timer, ToggleRight, Trophy, Unlink, UserRound, Users,
 } from "lucide-react";
@@ -47,6 +47,7 @@ import { CommonsPanel } from "../components/owner/CommonsPanel";
 import { FeedbackPanel } from "../components/owner/FeedbackPanel";
 import { ErrorsPanel } from "../components/owner/ErrorsPanel";
 import { BugReportsPanel } from "../components/owner/BugReportsPanel";
+import { ContributorsPanel } from "../components/owner/ContributorsPanel";
 import { AnalyticsPanel } from "../components/owner/AnalyticsPanel";
 
 const PANELS = [
@@ -57,6 +58,7 @@ const PANELS = [
   { id: "content", label: "Rankings & content", icon: Trophy, group: "Product" },
   { id: "features", label: "Features", icon: ToggleRight, group: "Product" },
   { id: "moderation", label: "Moderation", icon: ShieldAlert, group: "People & trust" },
+  { id: "contributors", label: "Video contributors", icon: Clapperboard, group: "People & trust" },
   { id: "feedback", label: "Feedback & errors", icon: Inbox, group: "People & trust" },
   { id: "bugs", label: "Bug reports", icon: Bug, group: "People & trust" },
   { id: "analytics", label: "Analytics", icon: Activity, group: "People & trust" },
@@ -87,10 +89,13 @@ export default function OwnerPage() {
   // Counts for the sections (what's waiting), from the overview every panel shares.
   const overview = useApi<OwnerOverview>("/api/owner/overview");
   const o = overview.data;
+  // Video contributors' queues (docs/contributors.md): requests waiting, and links with open reports.
+  const vc = useApi<{ requests: number; reports: number }>("/api/owner/contributors/counts").data;
   const badges: Partial<Record<PanelId, { n: number; what: string; urgent?: boolean }[]>> = o ? {
     feedback: [{ n: o.inbox.openFeedback, what: "open feedback" }, { n: o.inbox.errorReports, what: "error reports", urgent: true }],
     accounts: [{ n: o.orphanedWorkspaces ?? 0, what: "orphaned spaces" }],
     moderation: [{ n: o.commonsReports ?? 0, what: "reported commons entries", urgent: true }],
+    ...(vc ? { contributors: [{ n: vc.requests, what: "verification requests" }, { n: vc.reports, what: "reported videos", urgent: true }] } : {}),
   } : {};
   // Phones and tablets: keep the open section's chip in view in the scrolling row.
   const navRef = useRef<HTMLUListElement>(null);
@@ -164,6 +169,7 @@ export default function OwnerPage() {
           {panel === "moderation" && <div className="space-y-8"><CommonsPanel /><ModerationPanel onOpenResync={() => go("data")} /></div>}
           {panel === "feedback" && <div className="space-y-8"><FeedbackPanel onOpenResync={() => go("data")} /><ErrorsPanel /></div>}
           {panel === "bugs" && <BugReportsPanel />}
+          {panel === "contributors" && <ContributorsPanel />}
           {panel === "analytics" && <div className="space-y-8"><AnalyticsPanel /><UsagePanel /></div>}
           {panel === "accounts" && <div className="space-y-8"><UsersPanel /><OrphanedPanel /></div>}
           {panel === "storage" && <StoragePanel />}

@@ -6,7 +6,7 @@
 // device shows the same words and a tap opens the same place.
 
 /** What an item is about: one switch each in Settings › Notifications. */
-export const INBOX_CATEGORIES = ["assignments", "edits", "template", "membership", "picklist", "comments", "ownerAlerts"] as const;
+export const INBOX_CATEGORIES = ["assignments", "edits", "template", "membership", "picklist", "comments", "videoContributions", "ownerAlerts"] as const;
 export type InboxCategory = (typeof INBOX_CATEGORIES)[number];
 
 /** The settings key (in settings.notify) that switches a category off when false. Missing means on. */
@@ -17,6 +17,7 @@ export const INBOX_TOGGLE = {
   membership: "inboxMembership",
   picklist: "inboxPicklist",
   comments: "inboxComments",
+  videoContributions: "inboxVideoContributions",
   ownerAlerts: "inboxOwnerAlerts",
 } as const satisfies Record<InboxCategory, string>;
 export type InboxToggleKey = (typeof INBOX_TOGGLE)[InboxCategory];
@@ -33,6 +34,7 @@ export const INBOX_CATEGORY_INFO: Record<InboxCategory, { label: string; hint: s
   membership: { label: "Workspace membership", hint: "You're added to a workspace or removed from one" },
   picklist: { label: "Pick list", hint: "Someone updates a workspace's pick list" },
   comments: { label: "Comments", hint: "Someone comments on an entry you made" },
+  videoContributions: { label: "Your match videos", hint: "Your verification request is decided, or a video you added is removed, hidden or made public" },
   ownerAlerts: { label: "Owner alerts", hint: "Things to act on for this server, such as photo storage running low", ownerOnly: true },
 };
 
@@ -41,7 +43,7 @@ export interface InboxItem {
   id: number;
   /** ms */
   at: number;
-  /** Control Point's workspace id; null for owner alerts. */
+  /** Control Point's workspace id; null for owner alerts and video contributor notices. */
   workspaceId: string | null;
   workspaceName: string;
   category: InboxCategory;

@@ -15,6 +15,25 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.6.1 — 2026-11-11
+
+People who record matches can add the video to the match: verified contributors for everyone, others for their team.
+
+### Highlights
+- [scout] Add a match video from its page, credited "Video by" your name
+- [scout] Get Verified to share match videos with everyone
+- [live] Watch Clips on an event page: every match with a video
+- [scout] Like a video, or report one that's wrong
+
+### Added
+- Match videos people add: a played match's page has "Add a Link" for verified contributors (public) and "Share with your team" for accounts on a team (Control Point workspace or the owner's roster; "My team" never counts). Each shows "Will show as: Video by <name>" first. YouTube only; private or deleted videos are refused, long videos ask for the start time, the same video on two matches asks first. 20 links a day, 5 per match.
+- The video a match plays is the same everywhere (match page, event rows, clips, search): FIRST's video first unless the owner chose otherwise, then a contributor's, then the recording.
+- Get Verified (`/get-verified`) and invite links (`/verify-video`, single use, 14 days, only the hash kept): one owner queue, Review Pending while it waits, a 7-day wait after a rejection.
+- Event page: a coverage line, a Watch Clips button and a clips gallery (All / Qualifications / Playoffs).
+- Contributor profiles (`/contributors/<username>`, never indexed), a verified badge, likes, and a three-dot menu (Report, or Edit / Remove for your own).
+- Owner console › Video contributors: requests, direct approve and invites, reports (5+ flagged), contributors with name history, link actions, roster. Owner alerts for the two queues; inbox category "Your match videos".
+- Settings › Account: where you stand as a contributor. ([#1379](https://github.com/ZOGWORK/control-scout/pull/1379))
+
 ## 5.6.0 — 2026-11-11
 
 Accounts get usernames: the handle for adding match videos, never shown on them.

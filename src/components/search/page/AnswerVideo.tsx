@@ -11,6 +11,7 @@ import { embedUrl, thumbnailUrl } from "../../../shared/stream";
 import { clipTime, watchUrl } from "../../../shared/recording";
 import { playMatchVideo } from "../../../lib/streamSeek";
 import { cn } from "../../cn";
+import { VideoCredit } from "../../contributors/VideoCredit";
 
 /** The answer's video, and how many row clips were played: each one stops the card's player, so two never play at once. */
 const Video = createContext<{ video?: SearchVideo; rowPlays: number; rowPlayed: () => void }>({ rowPlays: 0, rowPlayed: () => {} });
@@ -24,6 +25,7 @@ export function AnswerVideoProvider({ video, children }: { video: SearchVideo | 
 /** What the video is, in words: the match once, or the event's stream (the card's title already names the event). */
 export function videoCaption(v: SearchVideoItem): string {
   if (v.kind === "match") return `${v.match}: official match video`;
+  if (v.kind === "contributor") return `${v.match}: video by ${v.contributor?.name ?? "a contributor"}`;
   if (v.kind === "recording") return `${v.match} in the event's ${v.live ? "live stream" : "recording"}, from ${clipTime(v.t)}`;
   return v.live ? "The event's live stream" : "The event's recording";
 }
@@ -59,7 +61,7 @@ function Player({ v, className }: { v: SearchVideoItem; className?: string }) {
         )}
       </div>
       <figcaption className="mt-1.5 flex flex-wrap items-center justify-between gap-x-3 text-xs text-muted-foreground max-sm:px-4">
-        <span data-video-caption>{caption}</span>
+        {v.contributor ? <VideoCredit c={v.contributor} className="min-w-0 flex-1" /> : <span data-video-caption>{caption}</span>}
         <a href={watchUrl(v.videoId, v.t)} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 hover:text-foreground max-md:min-h-[44px] pointer-coarse:min-h-[44px]">
           Open on YouTube <ExternalLink className="size-3" aria-hidden />
         </a>
@@ -105,7 +107,7 @@ export function RowPlay({ href, label, className }: { href: string; label: strin
   return (
     <button type="button" onClick={() => { rowPlayed(); playMatchVideo({ videoId: v.videoId, t: v.t, label }); }}
       className={cn("inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-text-base/[0.06] hover:text-foreground max-md:size-[44px] pointer-coarse:size-[44px]", className)}
-      aria-label={`Play ${label}: ${v.kind === "match" ? "official match video" : `the event's recording from ${clipTime(v.t)}`}`} title={videoCaption(v)} data-row-play={v.kind} data-video-control>
+      aria-label={`Play ${label}: ${v.kind === "match" ? "official match video" : v.kind === "contributor" ? `video by ${v.contributor?.name}` : `the event's recording from ${clipTime(v.t)}`}`} title={videoCaption(v)} data-row-play={v.kind} data-video-control>
       <PlayCircle className="size-5" aria-hidden />
     </button>
   );

@@ -44,6 +44,8 @@ import { cachedEventDetail, eventDetail, listEvents, toEventInput } from "./api/
 import { withBracketGate } from "./api/bracket.js";
 import { scheduleGate } from "./api/eventGates.js";
 import { eventView, withStream } from "./api/eventView.js";
+import { videosRouter } from "./videos/routes.js";
+import { viewerOf } from "./videos/contributors.js";
 import { leagueStandings } from "./api/leagues.js";
 import { perTeamOf, simulatedRankings } from "./projections/rankingSim.js";
 import { eventRecording, recordingStream, seasonRecordings, seasonVideoKinds, withClips, eventMatchSpan } from "./videos/recordings.js";
@@ -312,7 +314,7 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
   // Anything personal stays no-store (case-insensitive, like Express routing),
   // and so does every error response, so a retry never replays a cached 503.
   api.use((req, res, next) => {
-    const personal = /^\/(me|auth|health|stats|reports|scout|owner|inbox|digest)(\/|$)/i.test(req.path);
+    const personal = /^\/(me|auth|health|stats|reports|scout|owner|inbox|digest|videos)(\/|$)/i.test(req.path);
     res.setHeader("Cache-Control", req.method === "GET" && !personal ? "public, max-age=60, stale-while-revalidate=300" : "no-store");
     const writeHead = res.writeHead;
     res.writeHead = function (this: typeof res, ...a: Parameters<typeof writeHead>) {
@@ -395,7 +397,7 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
     return s;
   }));
 
-  api.get("/search", searches, h(async (req) => {
+  api.get("/search", searches, h(async (req, res) => {
     await ensureSearchIndex(rebuildSearch);
     const prefer = preferOf(req.query.prefer);
     // ?kinds=event,place: only those kinds, picked before the limit (unknown names are ignored).
@@ -431,7 +433,10 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
       const highlights = lone ? await teamHighlights({ number: Number(lone.ref), name: teamParts(lone.title)?.name ?? null }, lone.linkSeason).catch(() => null) : null;
       const full = highlights ? { ...ans, stat: highlights } : ans;
       // Its video (server/api/answers/video.ts): one read for the whole answer, beside the team rows'.
-      const [hits, video] = await Promise.all([withEventParents(full.hits).then(withTeamStats), answerVideo(full).catch(() => undefined)]);
+      // Match videos people added are for the viewer asking (docs/contributors.md): an answer carrying one is never cached.
+      const viewer = await viewerOf(await currentUser(req).catch(() => null));
+      const [hits, video] = await Promise.all([withEventParents(full.hits).then(withTeamStats), answerVideo(full, Date.now(), viewer).catch(() => undefined)]);
+      if (video && (video.main?.kind === "contributor" || Object.values(video.rows ?? {}).some((x) => x.kind === "contributor"))) res.setHeader("Cache-Control", "private, no-store");
       return { ...full, hits, ...(video ? { video } : {}) };
     }
     return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, MAX_QUERY), limit, prefer, kinds) };
@@ -954,6 +959,8 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
   api.use("/bug-reports", bugReportsRouter());
   api.use("/reports", reportsRouter());
   api.use("/reports/search-failures", searchFailuresRouter((q) => searchAnswer(q, { limit: 12, learn: false })));
+  // Match videos people add (docs/contributors.md): per viewer, never cached anywhere shared.
+  api.use("/videos", videosRouter(limiter));
   api.use("/owner", ownerRouter());
 
   // An event code without its season → the newest season's event (the app's /events/:code route; the page's own load gets a 301 below).

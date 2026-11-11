@@ -36,10 +36,13 @@ export function LivestreamButton({ watch, className }: { watch: WatchTarget; cla
  * The header's action row under the event's date and venue. While live (the LIVE panel is up) the stream and
  * tracking sit in the panel instead, so they're left out here and only the page's own extras (`children`) remain.
  */
-export function HeaderActions({ liveMode, watch, track, children }: { liveMode: boolean; watch: WatchTarget; track: TrackControl; children?: ReactNode }) {
+export function HeaderActions({ liveMode, watch, track, clips, clipsFirst, children }: { liveMode: boolean; watch: WatchTarget; track: TrackControl; clips?: ReactNode; clipsFirst?: boolean; children?: ReactNode }) {
+  // "Watch Clips" (match videos, docs/contributors.md): first once the event is over, beside the stream while it runs.
   return (
     <div className="mt-5 max-sm:mt-4 flex flex-wrap gap-2 empty:hidden" data-header-actions>
+      {clipsFirst && clips}
       {!liveMode && <LivestreamButton watch={watch} />}
+      {!clipsFirst && clips}
       {!liveMode && <TrackEventButton track={track} label={{ on: "Tracking this event", off: "Track event" }} />}
       {children}
     </div>

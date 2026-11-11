@@ -16,6 +16,7 @@ import { Async } from "./states";
 import { CalibrationLine, ConfidenceBadge, FactorList, KIND_LABEL, PairHistoryLine, WinBar } from "./predict";
 import { TapTooltip, Tooltip, TooltipContent, TooltipTrigger } from "./ui/overlay";
 import { VideoPanel, useVideoCount } from "./MatchVideo";
+import { MatchContributorPanel } from "./contributors/MatchContributorPanel";
 import { ShareMatch } from "./ShareMatch";
 import { ResultChanges } from "./ResultChanges";
 import { bonusLabels } from "../shared/labels";
@@ -87,6 +88,8 @@ function Body({ d, eventName }: { d: MatchDetail; eventName?: string }) {
         <Prediction d={d} />
       </div>
      </div>
+      {/* Match videos people added (docs/contributors.md): the one this viewer may see, and adding one, in the open. */}
+      <MatchContributorPanel m={m} />
       {/* Asks again whenever this match's result or schedule on screen changes (live checks, refreshes). */}
       <div className="mt-7">
         <ResultChanges season={m.season} code={m.code} matchKey={m.key} bare
