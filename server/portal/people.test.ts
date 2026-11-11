@@ -55,7 +55,7 @@ describe("owner users and workspaces", () => {
     expect(json.total).toBe(2);
     // (The owner's own requests just refreshed their last-seen, so they're first.)
     expect(json.users.map((u) => u.email)).toEqual(["owner@example.com", "priya@example.com"]);
-    expect(json.users[1]).toEqual({ id: scoutId, email: "priya@example.com", displayName: "Priya", createdAt: "2026-10-01T00:00:00Z", lastSeen: expect.any(String), providers: ["control-point", "email"], personalEntries: 2, workspaces: 2 });
+    expect(json.users[1]).toEqual({ id: scoutId, email: "priya@example.com", displayName: "Priya", username: null, createdAt: "2026-10-01T00:00:00Z", lastSeen: expect.any(String), providers: ["control-point", "email"], personalEntries: 2, workspaces: 2 });
   });
 
   it("searches by email or name", async () => {

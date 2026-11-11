@@ -307,7 +307,7 @@ function UsersPanel() {
                     <TableCell className="max-w-[18rem]">
                       <button type="button" onClick={(e) => { e.stopPropagation(); setOpen(u.id); }} className="block min-w-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 rounded">
                         <span className="block truncate font-medium">{u.displayName || u.email || `Account ${u.id}`}</span>
-                        {u.displayName && u.email && <span className="block truncate text-xs text-muted-foreground">{u.email}</span>}
+                        {(u.username || (u.displayName && u.email)) && <span className="block truncate text-xs text-muted-foreground">{[u.username ? `@${u.username}` : null, u.displayName ? u.email : null].filter(Boolean).join(" · ")}</span>}
                       </button>
                     </TableCell>
                     <TableCell><span className="flex flex-wrap gap-1">{u.providers.length ? u.providers.map((p) => <Badge key={p} variant="outline" className="text-[11px]">{signInLabel(p)}</Badge>) : <span className="text-xs text-muted-foreground">—</span>}</span></TableCell>
@@ -344,6 +344,7 @@ function UserSheet({ id, onClose }: { id: number | null; onClose: () => void }) 
             {(d) => (
               <>
                 <Facts single rows={[
+                  ["Username", d.username ? <span className="font-mono">@{d.username}</span> : "none yet"],
                   ["Joined", day(d.createdAt)],
                   ["Last seen", d.lastSeen ? ago(d.lastSeen) : "never"],
                   ["Signs in with", d.signIns.length ? d.signIns.map(signInLabel).join(", ") : "—"],

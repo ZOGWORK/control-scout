@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.6.0 — 2026-11-11
+
+Accounts get usernames: the handle for adding match videos, never shown on them.
+
+### Highlights
+- [scout] Introducing usernames: add yours when you sign in, or later
+- [scout] Your actual name is the credit on videos you add
+- [scout] Change your username in Settings, once a month
+
+### Added
+- Accounts: a username (3–20 letters, numbers or underscores, starting with a letter; unique ignoring case; reserved names refused; one change in 30 days). Asked once per sign-in with "Introducing usernames"; "Browse first" closes it and nothing is blocked, and Home shows a reminder until it's dismissed. There is no deadline. A taken name offers free ones (the team number first).
+- Settings › Account: "Actual name" (the credit "Video by …" on match videos you add) and "Username". Every change to either goes in the owner audit log.
+- Owner console › Accounts: each account's username beside its name and email, searchable. ([#1377](https://github.com/ZOGWORK/control-scout/pull/1377))
+
 ## 5.5.9 — 2026-11-11
 
 First-time visitors get a small welcome card with real searches to try; the step-by-step tour is off unless the owner turns it on.

@@ -13,6 +13,13 @@ import { flagsAccountChanged } from "./flags";
 import { setOptimisticAccount } from "./optimistic";
 
 export interface AccountUser { id: number; email: string | null; displayName: string | null; createdAt: string; /** Tied to the shared account Control Point keeps (docs/shared-accounts.md). */ controlPointLinked?: boolean;
+  /** The account's handle (src/shared/username.ts): needed to add videos, like, report or get verified. Null until picked;
+   *  missing from older servers. Never shown on a video (the credit is displayName). */
+  username?: string | null;
+  /** When the username can change next (ISO); null: now. */
+  usernameNextChange?: string | null;
+  /** A mark of this sign-in (the username prompt shows once per sign-in). */
+  session?: string | null;
   /** Only present (true) for the owner (OWNER_EMAILS): shows the owner portal's nav item. The server enforces access. */
   isOwner?: true;
   /** The signed-in owner's Control Point side: whether they're a member there, and their teams. */

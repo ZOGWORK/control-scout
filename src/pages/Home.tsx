@@ -4,6 +4,7 @@
 // opt-in usage. On a phone it reads in task order: search, the season, your team
 // and events come before the atlas. The brand lives in the shell's chrome.
 import { useEffect, useRef, useState } from "react";
+import { UsernameBanner } from "../components/AccountSetup";
 import { Link, useSearchParams } from "react-router-dom";
 import { ArrowRight, ArrowUpRight, CalendarDays, LockOpen, MapPin, Sparkles } from "lucide-react";
 import { useApi, qs } from "../lib/api";
@@ -55,6 +56,7 @@ export default function Home() {
   const search = useSearch();
   return (
     <div className="@container/home">
+      <UsernameBanner />
       <div className="home-grid">
         <div className="[grid-area:hero]"><Hero query={query} /></div>
         <div className="[grid-area:strip]"><SeasonCoverage state={overview} /></div>

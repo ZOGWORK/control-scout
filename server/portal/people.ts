@@ -24,15 +24,15 @@ function membershipsSql(tables: Set<string>): string | null {
 export async function listUsers(q: string | null, limit = 300): Promise<{ users: OwnerUser[]; total: number }> {
   const tables = await tablesPresent();
   const like = q ? `%${q.toLowerCase()}%` : null;
-  const where = like ? "WHERE lower(COALESCE(u.email, '')) LIKE ? OR lower(COALESCE(u.display_name, '')) LIKE ?" : "";
-  const args = like ? [like, like] : [];
+  const where = like ? "WHERE lower(COALESCE(u.email, '')) LIKE ? OR lower(COALESCE(u.display_name, '')) LIKE ? OR lower(COALESCE(u.username, '')) LIKE ?" : "";
+  const args = like ? [like, like, like] : [];
   const ms = membershipsSql(tables);
   // Distinct spaces: someone both cached and kept as a former member of a deleted workspace counts once.
   const members = ms
     ? `(SELECT COUNT(DISTINCT m.cp_workspace_id) FROM (${ms}) m JOIN identities ci ON ci.provider = '${CP_PROVIDER}' AND CAST(ci.subject AS INTEGER) = m.account_id WHERE ci.user_id = u.id)`
     : "NULL";
   const rows = await all<any>(
-    `SELECT u.id, u.email, u.display_name, u.created_at, u.last_seen,
+    `SELECT u.id, u.email, u.display_name, u.username, u.created_at, u.last_seen,
        (SELECT group_concat(provider, ',') FROM identities i WHERE i.user_id = u.id) providers,
        (SELECT COUNT(*) FROM scout_entries s WHERE s.user_id = u.id AND s.deleted = 0) entries,
        ${members} workspaces
@@ -42,7 +42,7 @@ export async function listUsers(q: string | null, limit = 300): Promise<{ users:
   return {
     total,
     users: rows.map((r): OwnerUser => ({
-      id: n(r.id), email: r.email ?? null, displayName: r.display_name ?? null, createdAt: r.created_at, lastSeen: r.last_seen ?? null,
+      id: n(r.id), email: r.email ?? null, displayName: r.display_name ?? null, username: r.username ?? null, createdAt: r.created_at, lastSeen: r.last_seen ?? null,
       providers: r.providers ? [...new Set(String(r.providers).split(","))].sort() : [],
       personalEntries: n(r.entries), workspaces: r.workspaces == null ? null : n(r.workspaces),
     })),
@@ -51,7 +51,7 @@ export async function listUsers(q: string | null, limit = 300): Promise<{ users:
 
 /** One account in full: sign-in methods, how many devices are signed in (a count, no device strings), what's saved for it, and its workspaces. */
 export async function userDetail(id: number, now = Date.now()): Promise<OwnerUserDetail | null> {
-  const u = await get<any>("SELECT id, email, display_name, created_at, last_seen FROM users WHERE id = ?", [id]);
+  const u = await get<any>("SELECT id, email, display_name, username, created_at, last_seen FROM users WHERE id = ?", [id]);
   if (!u) return null;
   const tables = await tablesPresent();
   const [ids, sessions, state, entries] = await Promise.all([
@@ -76,7 +76,7 @@ export async function userDetail(id: number, now = Date.now()): Promise<OwnerUse
   const workspaces = rows.filter((w) => !seen.has(String(w.cp_workspace_id)) && !!seen.add(String(w.cp_workspace_id)))
     .sort((a, b) => String(a.name ?? "").localeCompare(String(b.name ?? "")));
   return {
-    id: n(u.id), email: u.email ?? null, displayName: u.display_name ?? null, createdAt: u.created_at, lastSeen: u.last_seen ?? null,
+    id: n(u.id), email: u.email ?? null, displayName: u.display_name ?? null, username: u.username ?? null, createdAt: u.created_at, lastSeen: u.last_seen ?? null,
     signIns: ids.map((i) => i.provider),
     controlPointAccount: account,
     sessions: n(sessions?.c),
