@@ -219,6 +219,18 @@ describe("a bare number with no team", () => {
   });
 });
 
+describe("a team named by its name, then words search reads nothing in", () => {
+  it("is the team, as its number with the same words would be, never nothing found", async () => {
+    for (const q of ["hypnotic robotics and ita", "enforcers and it's a secter"]) {
+      const a = await full(q);
+      expect(a.step, q).not.toBe("recovery");
+      expect(a.hits[0]?.ref, q).toBe(q.startsWith("hyp") ? "4215" : "7149");
+      // Never said as a correction of what was typed.
+      expect(a.didYouMean, q).toBeUndefined();
+    }
+  });
+});
+
 describe("leaderboard sorts in plain words", () => {
   it("reads the sort, the phase and the direction", () => {
     expect(readLeaderboard("what is the best team sorted by auto")).toMatchObject({ kind: "top", stat: "auto", n: 10 });
