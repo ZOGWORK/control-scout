@@ -22,7 +22,7 @@ export const HIGH_SCORE_LINES = 5;
 
 // The question: a record or a high score. "record" alone is a team's win-loss record, never this.
 const ASKED = /\b(?:world[\s-]+records?|records?\s+scores?|score\s+records?|(?:high(?:est)?|best|top|max(?:imum)?|biggest|most)\s+(?:match\s+)?(?:scores?|points)|highest[\s-]+scoring(?:\s+match(?:es)?)?)\b/i;
-const FRAME = /\b(?:what|whats|what's|is|was|the|a|an|of|in|for|during|ever|this|current|last|season|year|games?|ftc|match|matches|by|team|their|its|score|scores|scored|points|world|record|records|now|so|far|has|have|had|did|does)\b/gi;
+const FRAME = /\b(?:what|whats|what's|is|was|the|a|an|of|in|for|during|ever|this|current|last|season|year|games?|ftc|match|matches|by|team|their|its|score|scores|scored|points|world|record|records|now|so|far|has|have|had|did|does|official|officially)\b/gi;
 const squash = (s: string) => s.replace(/\s+/g, " ").trim();
 
 export interface HighScoreQuestion {

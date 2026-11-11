@@ -45,6 +45,9 @@ describe("what's read as a question", () => {
     expect(parseQuestion("when did hypnotics robotics go to worlds")).toEqual({ kind: "worlds", core: "hypnotics robotics", year: null });
     expect(parseQuestion("did hypnotic go to worlds in 2025")).toEqual({ kind: "worlds", core: "hypnotic", year: 2025 });
     expect(parseQuestion("when did 4215 go to worlds")).toMatchObject({ kind: "worlds", core: "4215" });
+    // A team's "Worlds years" are its appearances (failed search #1342).
+    expect(parseQuestion("don't blink's worlds years")).toMatchObject({ kind: "worlds", core: "don't blink" });
+    expect(parseQuestion("4215 states years")).toMatchObject({ kind: "states", core: "4215" });
     expect(parseQuestion("what events did hypnotic win")).toMatchObject({ kind: "wins", core: "hypnotic" });
     expect(parseQuestion("has bad wolf won anything")).toMatchObject({ kind: "awards", core: "bad wolf" });
     expect(parseQuestion("when is hypnotic's next match")).toMatchObject({ kind: "next-match", core: "hypnotic" });

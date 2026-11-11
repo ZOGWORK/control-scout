@@ -138,6 +138,11 @@ describe("slots", () => {
       expect(p.event, q).toBeNull();
     }
   });
+  it("reads 'ever' beside a season named as that season's whole run (failed search #1351), and alone as every season", async () => {
+    expect(await parse("best decode score ever")).toMatchObject({ intent: "top-matches", complete: true, leftover: [], time: { kind: "season", season: 2025 } });
+    expect((await parse("highest score ever")).time).toMatchObject({ kind: "ever" });
+    expect(await parse("4215 first ever match in decode")).toMatchObject({ agg: "first", time: { kind: "season", season: 2025 } });
+  });
   it("reads 'performance' as how a team did, never a team of that name beside another team", async () => {
     const p = await parse("4215 performance at nj championship");
     expect(p.teams.map((t) => t.number)).toEqual([4215]);

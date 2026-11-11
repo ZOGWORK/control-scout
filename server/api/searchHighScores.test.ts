@@ -47,6 +47,8 @@ describe("what's read as a high-score question", () => {
     expect(parseHighScore("what is the highest score in 2025-26")).toMatchObject({ season: 2025, core: "" });
     expect(parseHighScore("4215 high score")).toEqual({ season: null, game: null, core: "4215" });
     expect(parseHighScore("hypnotic robotics best score this season")).toMatchObject({ season: 2026, core: "hypnotic robotics" });
+    // "Official" only says what a record is (official events): never a team's words (failed search #1339).
+    expect(parseHighScore("decode official world record")).toMatchObject({ season: 2025, core: "" });
   });
   it("a team's win-loss record or a plain search is never one", () => {
     for (const q of ["4215 record", "hypnotic robotics", "score", "records"]) expect(parseHighScore(q), q).toBeNull();
