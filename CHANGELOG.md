@@ -37,7 +37,7 @@ Playoff rows show each alliance's lives, the match page's call reads like its sc
 - Home: the "4215 not 6980 record" suggestion is gone.
 
 ### Fixed
-- Search: a question asking for the "official" record lists official records only, says so in its headings, and says plainly when every match it found was unofficial. (#1356)
+- Search: a question asking for the "official" record lists official records only, says so in its headings, and says plainly when every match it found was unofficial. A world record question leads with the best score from an event played by the usual rules, labelled "Official world record" (a team's: "Official best"), with any higher score that isn't an official record after it, marked. The match records page's record is the official one too. (#1356)
 
 ## 5.4.9 — 2026-11-11
 

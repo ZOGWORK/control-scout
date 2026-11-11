@@ -81,6 +81,15 @@ export async function highScoreCard(it: HighScoreQuestion, team: { number: numbe
   const card: SearchCard = { kind: "high-scores", title: label ? `${what} in ${label}` : what, ...(team ? { team } : {}), lines: [] };
   if (season == null) { card.none = team ? `No played matches found for ${team.name ?? `team ${team.number}`}.` : "No played matches are recorded yet."; return card; }
   card.lines = await best(season, team?.number ?? null, RECORD_TYPES, !!it.official);
+  // The record leads: the best score from an event that played by the usual rules, first and labelled, whether or not
+  // "official" was said. A higher score that isn't an official record comes after it, marked (unofficialRecords.ts).
+  if (card.lines.length) {
+    const record = it.official ? card.lines[0] : (await best(season, team?.number ?? null, RECORD_TYPES, true))[0];
+    if (record) {
+      const same = (l: SearchCardLine) => l.href === record.href && l.text === record.text;
+      card.lines = [{ ...record, tag: team ? "Official best" : "Official world record" }, ...card.lines.filter((l) => !same(l))].slice(0, HIGH_SCORE_LINES);
+    }
+  }
   // "Official" said and every match left out: they were played, but none is an official record, and why.
   const played = !card.lines.length && it.official ? (await best(season, team?.number ?? null, RECORD_TYPES))[0] : undefined;
   if (played) {
@@ -101,7 +110,8 @@ export async function highScoreCard(it: HighScoreQuestion, team: { number: numbe
 /** The season's record score, as "highest score this season" answers it (official events, penalties left out), for
  *  the match records page (/matches), so both pages give one number. Null: no official match played that season. */
 export async function seasonRecordLine(season: number): Promise<SearchCardLine | null> {
-  return (await best(season, null, RECORD_TYPES))[0] ?? null;
+  // The record is an official one: a score from an event that didn't play by the usual rules never is.
+  return (await best(season, null, RECORD_TYPES, true))[0] ?? null;
 }
 
 /** The best scores (without penalties) at events of `types`, as card lines, each a link to its match; `official`:

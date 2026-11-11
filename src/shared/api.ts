@@ -287,7 +287,9 @@ export interface SearchCardAward { type: string; placement: number; team: number
 export interface SearchCardFact { label: string; values: string[]; detail?: string; link?: boolean }
 /** `detail`: when and where ("2022–23 · Mar 12, 2023 · Rockaway, NJ"); `results`: how it went, one point each ("Ranked #1", "OPR 102.6"). */
 /** `game`: the season's game name ("CENTERSTAGE"), for a line about one season's event. */
-export interface SearchCardLine { text: string; detail?: string; results?: string[]; href?: string; game?: string }
+export interface SearchCardLine { text: string; detail?: string; results?: string[]; href?: string; game?: string;
+  /** A label above the line's text: on a records card, the official record ("Official world record"). */
+  tag?: string }
 
 /** An understood intent (server/api/searchIntents.ts): counted as `kind` and `pattern` (placeholders, no query text). */
 export interface SearchIntentNote {

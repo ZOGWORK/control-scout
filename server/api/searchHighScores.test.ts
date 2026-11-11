@@ -108,7 +108,10 @@ describe("the season's record line (the match records page)", () => {
     const { seasonRecordLine } = await import("./searchHighScores");
     const a = await searchAnswer("world record score decode");
     const line = await seasonRecordLine(2025);
-    expect(line).toEqual(a.card!.lines[0]);
+    // The same line, without the card's label for it.
+    const { tag, ...first } = a.card!.lines[0];
+    expect(tag).toBe("Official world record");
+    expect(line).toEqual(first);
     expect(line?.text).toBe("300 points: M9 at New Jersey Championship");
     expect(await seasonRecordLine(2019)).toBeNull();
   });
@@ -150,14 +153,18 @@ describe("\"official\" asked: official records only (failed search #1339, Caroli
     expect(parseHighScore("decode official world record")).toMatchObject({ season: 2025, core: "", official: true });
     expect(parseHighScore("decode world record")).not.toHaveProperty("official");
   });
-  it("the record card leads with an official record, titled so; without 'official' the marked score stays first", async () => {
+  it("the record card leads with the official record, titled and labelled so; without 'official' it still leads, the marked score after it", async () => {
     const off = await searchAnswer("decode official world record", { limit: 10, learn: false });
     expect(off.card?.title).toBe("Highest official scores in 2025–26 (DECODE)");
-    expect(off.card?.lines[0].text).toBe("300 points: M9 at New Jersey Championship");
+    expect(off.card?.lines[0]).toMatchObject({ text: "300 points: M9 at New Jersey Championship", tag: "Official world record" });
     expect(off.card?.lines.some((l) => l.text.includes("Carolinas"))).toBe(false);
     const all = await searchAnswer("decode world record", { limit: 10, learn: false });
-    expect(all.card?.lines[0].text).toBe("714 points: Q49 at Carolinas Premier Event");
-    expect(all.card?.lines[0].results).toContain("Not an official record: the event did not play by the game's usual rules");
+    expect(all.card?.lines[0]).toMatchObject({ text: "300 points: M9 at New Jersey Championship", tag: "Official world record" });
+    expect(all.card?.lines[1].text).toBe("714 points: Q49 at Carolinas Premier Event");
+    expect(all.card?.lines[1].results).toContain("Not an official record: the event did not play by the game's usual rules");
+    expect(all.card?.lines.filter((l) => l.tag)).toHaveLength(1);
+    // A team's: its own official best, labelled so.
+    expect((await searchAnswer("4215 decode world record", { limit: 10, learn: false })).card?.lines[0]).toMatchObject({ text: "250 points: Q1 at New Jersey Championship", tag: "Official best" });
   });
   it("the top-matches answer leads with an official record too", async () => {
     const off = await searchAnswer("best official decode score", { limit: 10, learn: false, full: true });
@@ -178,5 +185,27 @@ describe("\"official\" asked: official records only (failed search #1339, Caroli
     const a = await searchAnswer("best official score at FPECAR", { limit: 10, learn: false, full: true });
     expect(a.stat?.none).toBe("No official records at Carolinas Premier Event in 2025–26: the matches played are not official records (the event did not play by the game's usual rules).");
     expect((await searchAnswer("best score at FPECAR", { limit: 10, learn: false, full: true })).stat?.headline?.value).toBe("714 points");
+  });
+});
+
+describe("\"decode official world record\": the official record first and labelled (Sushil, 11-11)", () => {
+  beforeAll(async () => {
+    // As live: 714 and 592 at Carolinas Premier Event (not official records), 574 in M14 at FIRST Championship, Ross Division.
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, 'FTCCMPROSS', 'FIRST Championship, Ross Division', 'Championship', 'Houston', 'TX', 'USA', '2026-04-15', '2026-04-18', 't')");
+    await run("INSERT INTO matches (season, code, level, series, number, label, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'FPECAR', 'qual', 0, 54, 'Q54', 1, 592, 592, 100, 100, 't')");
+    await run("INSERT INTO matches (season, code, level, series, number, label, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'FTCCMPROSS', 'playoff', 14, 1, 'M14', 1, 120, 120, 594, 574, 't')");
+    await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'FTCCMPROSS', 'playoff', 14, 1, 6980, 'blue', 1)");
+    await rebuildSearch();
+  });
+  it("the first row is the 574 in M14 at Ross Division, labelled the official world record; no unofficial score is listed", async () => {
+    const a = await searchAnswer("decode official world record", { limit: 10, learn: false });
+    expect(a.card?.lines[0]).toMatchObject({ text: "574 points: M14 at FIRST Championship, Ross Division", tag: "Official world record" });
+    expect(a.card?.lines.some((l) => /Carolinas/.test(l.text))).toBe(false);
+  });
+  it("\"decode world record\": the same official record leads, the higher unofficial scores after it, marked", async () => {
+    const lines = (await searchAnswer("decode world record", { limit: 10, learn: false })).card!.lines;
+    expect(lines.map((l) => l.text.split(" at ")[0])).toEqual(["574 points: M14", "714 points: Q49", "592 points: Q54", "300 points: M9", "250 points: Q1"]);
+    expect(lines[0].tag).toBe("Official world record");
+    for (const l of lines.slice(1, 3)) expect(l.results).toContain("Not an official record: the event did not play by the game's usual rules");
   });
 });
