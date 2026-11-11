@@ -278,7 +278,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   // score to reach ("over 200") stays the match list's.
   const symbols = new Set<string>(cond ? [cond.cond.op === "=" ? "cond:exact" : "cond"] : []);
   // A season said as the span a number moved over ("rating over the 2025-26 season"): its trend, as "over the season"
-  // says it when no season is named. The time read took the season's words, so "over" is read beside them here.
+  // says it when no season is named. Read on `q`, the whole query: only `rest` has the season's words taken out.
   if (time?.kind === "season" && / season$/.test(time.typed)) {
     const span = time.typed.replace(/^the /, "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     if (new RegExp(`(?:^| )(?:over|across|through|throughout) (?:the )?${span}(?= |$)`).test(q)) symbols.add("trend");
