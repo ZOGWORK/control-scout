@@ -96,8 +96,9 @@ const LEGACY_NOTE ="Seasons before 2023–24 are shown for history: results and 
 /** An event's advancement row as the page shows it: each row with FIRST's advancement points there, when posted. */
 function advancementOf(adv: { slots: number; advances_to: string | null; advances_to_name: string | null; rows: string; points: string | null }): NonNullable<EventDetail["advancement"]> {
   const pts: Record<string, number> = adv.points ? JSON.parse(adv.points) : {};
-  const rows = (JSON.parse(adv.rows) as { team: number; status: string; declined: boolean }[]).map((r) => ({ ...r, points: pts[String(r.team)] ?? null }));
-  return { slots: adv.slots, advancesTo: adv.advances_to, advancesToName: adv.advances_to_name ?? null, rows };
+  // Each added only when known: the event's page response never grows for an event with neither.
+  const rows = (JSON.parse(adv.rows) as { team: number; status: string; declined: boolean }[]).map((r) => (pts[String(r.team)] != null ? { ...r, points: pts[String(r.team)] } : r));
+  return { slots: adv.slots, advancesTo: adv.advances_to, ...(adv.advances_to_name ? { advancesToName: adv.advances_to_name } : {}), rows };
 }
 
 export async function eventDetail(season: number, code: string): Promise<EventDetail | null> {

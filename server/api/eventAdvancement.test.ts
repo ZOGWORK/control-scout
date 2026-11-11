@@ -24,9 +24,9 @@ describe("an event's advancement", () => {
     expect(a).toMatchObject({ slots: 5, advancesTo: "USNJCMP", advancesToName: "New Jersey Championship" });
     expect(a.rows.map((r) => [r.team, r.points])).toEqual([[4215, 136], [207, 105], [15762, 55], [12853, 49], [13617, 48]]);
   });
-  it("a code that isn't one of ours has no name, and no points posted reads null", async () => {
+  it("a code that isn't one of ours has no name, and with no points posted a row has none (neither is sent)", async () => {
     const a = (await eventDetail(2025, "USNJXX"))!.advancement!;
-    expect(a.advancesToName).toBeNull();
-    expect(a.rows[0].points).toBeNull();
+    expect(a).not.toHaveProperty("advancesToName");
+    expect(a.rows[0]).not.toHaveProperty("points");
   });
 });
