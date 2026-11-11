@@ -20,6 +20,21 @@ export const GAP_TOLERANCE_S = 180;
 /** The most a video may fall short of its broadcast, where the gap can't be placed, for its matches still to get a
  *  clip: each then starts early by all the time missing, so it never starts after its match, at most this early. */
 export const GAP_SLACK_MAX_S = 900;
+/** A match's play on screen: 2:30 of play and the few seconds to its final score. */
+export const MATCH_PLAY_S = 160;
+
+/**
+ * Whether a clip started early by `slack` (gapSlack) is clear of the match before it: started that early, it must
+ * never open on another match being played. The gap may sit anywhere, so the match before may be where its clock
+ * says while this one is too; the clip then starts slack + CLIP_LEAD_S before this match, and that match's play
+ * must have ended by then. Glen Allen VA #1 Qualifier 2024 (9 min short): Q10's clip started early enough to play
+ * Q8 and Q9 first. No early start, or no match before it in the video: clear.
+ */
+export function clearOfPrevious(startsAt: string | null | undefined, previous: string | null | undefined, slack: number): boolean {
+  if (!slack || !previous || !startsAt) return true;
+  return (Date.parse(startsAt) - Date.parse(previous)) / 1000 >= slack + CLIP_LEAD_S + MATCH_PLAY_S;
+}
+
 /** How soon after the last match's start a video trimmed at the event's end stops. */
 export const TAIL_TRIM_S = 900;
 
@@ -155,7 +170,8 @@ export function clipSecond(startsAt: string | null | undefined, rec: RecordingTi
  * How many seconds early a clip starts for a gap that can't be placed: 0 for a video whose times are trusted
  * (timingTrusted); else, for an archive at most GAP_SLACK_MAX_S short of its broadcast (a drop-out, its dead air cut),
  * all the time missing: a match sits between that much earlier and its clock time, so starting there never misses
- * it (Royal Oak Qualifier 2026: 13 min short, no chapters). Null for more missing, or none known.
+ * it (Royal Oak Qualifier 2026: 13 min short, no chapters). Null for more missing, or none known. A match whose
+ * early start would reach back into the match before it gets no clip at all (clearOfPrevious).
  */
 export function gapSlack(rec: RecordingTiming): number | null {
   if (timingTrusted(rec)) return 0;

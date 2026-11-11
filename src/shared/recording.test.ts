@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { actualStart, chapterLabel, chaptersConfirm, CHAPTER_MIN_ANCHORS, CHAPTER_MIN_GAP_S, CHAPTER_TAIL, CLIP_LEAD_S, clipSecond, clipTime, gapSlack, GAP_SLACK_MAX_S, timingTrusted, watchUrl, type Chapter } from "./recording";
+import { actualStart, chapterLabel, chaptersConfirm, CHAPTER_MIN_ANCHORS, CHAPTER_MIN_GAP_S, CHAPTER_TAIL, CLIP_LEAD_S, clearOfPrevious, clipSecond, clipTime, gapSlack, GAP_SLACK_MAX_S, MATCH_PLAY_S, timingTrusted, watchUrl, type Chapter } from "./recording";
 
 const rec = { start: "2026-05-02T12:58:13Z", length: 4 * 3600, live: false };
 
@@ -65,6 +65,18 @@ describe("a video with a gap", () => {
     expect(clipSecond("2026-11-08T00:00:00Z", short13)).toBe(39774 - 796 - CLIP_LEAD_S);
     expect(clipSecond("2026-11-08T00:00:36Z", short13)).toBeNull();
     expect(gapSlack({ ...short13, length: 39809 - GAP_SLACK_MAX_S })).toBe(GAP_SLACK_MAX_S);
+  });
+  it("an early start never reaches back into the match before's play (Glen Allen VA #1 Qualifier 2024: Q10 played Q8 and Q9 first)", () => {
+    // 532 s missing; Q9 started 4 min 18 s before Q10 by the clock, so Q10's clip, 552 s early, opened on Q8's play.
+    expect(clearOfPrevious("2024-12-14T16:22:18.606Z", "2024-12-14T16:18:00.862Z", 532)).toBe(false);
+    // Far enough after the one before: its play is over when the clip starts (its results, the field reset).
+    expect(clearOfPrevious("2024-12-14T16:30:00Z", "2024-12-14T16:15:00Z", 532)).toBe(true);
+    const at = Date.parse("2024-12-14T16:30:00Z"), edge = (s: number) => new Date(at - s * 1000).toISOString();
+    expect(clearOfPrevious("2024-12-14T16:30:00Z", edge(532 + CLIP_LEAD_S + MATCH_PLAY_S), 532)).toBe(true);
+    expect(clearOfPrevious("2024-12-14T16:30:00Z", edge(532 + CLIP_LEAD_S + MATCH_PLAY_S - 1), 532)).toBe(false);
+    // On time (a trusted video), or the video's first match: nothing before it to reach.
+    expect(clearOfPrevious("2024-12-14T16:22:18.606Z", "2024-12-14T16:18:00.862Z", 0)).toBe(true);
+    expect(clearOfPrevious("2024-12-14T16:22:18.606Z", null, 532)).toBe(true);
   });
 });
 

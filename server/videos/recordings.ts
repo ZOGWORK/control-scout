@@ -10,7 +10,7 @@ import { all, run } from "../db.js";
 import { registerCache } from "../caches.js";
 import { seasonStreams } from "../portal/streams.js";
 import { embedUrl, parseStreamUrl } from "../../src/shared/stream.js";
-import { CHAPTER_MIN_GAP_S, actualStart, chaptersConfirm, clipSecond, gapSlack, timingTrusted, watchUrl, type Chapter } from "../../src/shared/recording.js";
+import { CHAPTER_MIN_GAP_S, actualStart, chaptersConfirm, clearOfPrevious, clipSecond, gapSlack, timingTrusted, watchUrl, type Chapter } from "../../src/shared/recording.js";
 import { localToUtcMs } from "../../src/shared/time.js";
 import type { EventStream, MatchView } from "../../src/shared/api.js";
 import { env } from "../env.js";
@@ -178,7 +178,7 @@ export const recordingStream = (r: Recording, timezone?: string | null): EventSt
 });
 
 /** A broadcast's weekday at the venue ("Saturday"); "Day" when its start isn't known. */
-function dayLabel(start: string | null | undefined, timezone: string | null | undefined): string {
+export function dayLabel(start: string | null | undefined, timezone: string | null | undefined): string {
   const t = start ? Date.parse(start) : NaN;
   if (!Number.isFinite(t)) return "Day";
   try { return new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: timezone ?? "UTC" }).format(t); } catch { return new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: "UTC" }).format(t); }
@@ -228,9 +228,12 @@ export function withClips<M extends Pick<MatchView, "label" | "time" | "startsAt
   const videos = [{ videoId: r.videoId, meta: r.meta }, ...(r.more ?? [])].flatMap((v) => {
     const meta = v.meta;
     if (!meta || meta.status !== "ok") return [];
-    const timing = withConfirmed(meta, r.daily || r.more?.length ? eventSpan(whole.starts.filter((s) => within(s.startsAt, meta, now))) : whole);
+    const held = r.daily || r.more?.length ? eventSpan(whole.starts.filter((s) => within(s.startsAt, meta, now))) : whole;
+    const timing = withConfirmed(meta, held);
     const slack = gapSlack(timing);
-    return slack == null ? [] : [{ videoId: v.videoId, timing, slack }];
+    // Its matches' starts in order: an early clip must be clear of the one before (clearOfPrevious).
+    const starts = held.starts.map((s) => (s.startsAt ? Date.parse(s.startsAt) : NaN)).filter(Number.isFinite).sort((a, b) => a - b);
+    return slack == null ? [] : [{ videoId: v.videoId, timing, slack, starts }];
   });
   if (!videos.length) return matches;
   return matches.map((x) => {
@@ -238,10 +241,26 @@ export function withClips<M extends Pick<MatchView, "label" | "time" | "startsAt
     if (!x.played || !actualStart(x.time)) return x;
     for (const v of videos) {
       const t = clipSecond(x.startsAt, v.timing, now);
-      if (t != null) return { ...x, clip: { videoId: v.videoId, t, url: watchUrl(v.videoId, t), ...(v.slack ? { early: v.slack } : {}) } };
+      if (t == null || !clearOfPrevious(x.startsAt, v.slack ? previousStart(v.starts, x.startsAt) : null, v.slack)) continue;
+      return { ...x, clip: { videoId: v.videoId, t, url: watchUrl(v.videoId, t), ...(v.slack ? { early: v.slack } : {}) } };
     }
     return x;
   });
+}
+
+/** The latest of some match starts (ms, in order) before a match's start, as UTC ISO; null for none. */
+function previousStart(starts: number[], startsAt: string | null | undefined): string | null {
+  const at = startsAt ? Date.parse(startsAt) : NaN;
+  let prev: number | null = null;
+  for (const s of starts) { if (s >= at) break; prev = s; }
+  return prev == null ? null : new Date(prev).toISOString();
+}
+
+/** The video of a recording that holds a match's start (a day's video, for an event broadcast a day at a time), else
+ *  its first one. */
+export function recordingAt(r: Recording, startsAt: string | null | undefined, now = Date.now()): { videoId: string; meta: VideoMeta | null } {
+  const all = [{ videoId: r.videoId, meta: r.meta }, ...(r.more ?? [])];
+  return all.find((v) => v.meta?.status === "ok" && within(startsAt, v.meta, now)) ?? all[0];
 }
 
 /** Whether a match start falls inside a broadcast (from its start to its end, or to now while it's live). */
