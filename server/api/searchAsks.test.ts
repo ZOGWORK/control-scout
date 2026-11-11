@@ -676,6 +676,11 @@ describe("who advanced from an event, or how many", () => {
     // One with its list not posted yet.
     await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'USNJLT8', 'Hillside Conference League Tournament', 'LeagueTournament', 'Union', 'NJ', 'USA', '2026-02-22', '2026-02-22', 't')", [S]);
     await run("INSERT INTO advancement (season, code, slots, advances_to, rows) VALUES (?, 'USNJLT8', 4, 'USNJCMP', '[]')", [S]);
+    // One posted with no slot taken: a declined slot and a team already qualified.
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'USNJLT9', 'Lakeside Conference League Tournament', 'LeagueTournament', 'Union', 'NJ', 'USA', '2026-02-23', '2026-02-23', 't')", [S]);
+    await run("INSERT INTO advancement (season, code, slots, advances_to, rows) VALUES (?, 'USNJLT9', 2, 'USNJCMP', ?)", [S, JSON.stringify([
+      { team: 6980, status: "FIRST", declined: true }, { team: 4215, status: "ALREADY_ADVANCING", declined: false },
+    ])]);
   });
   it("reads the event, and whether a count was asked", () => {
     expect(readAsk("how many teams went to states at riverside conference")).toEqual({ kind: "advanced", event: "riverside conference", count: true });
@@ -689,7 +694,14 @@ describe("who advanced from an event, or how many", () => {
     expect(a.hits[0]?.title).toBe("Riverside Conference League Tournament");
     expect((await ask("who advanced from riverside conference")).card?.title).toBe(`Teams that advanced from Riverside Conference League Tournament · ${seasonLabel(S)}`);
   });
-  it("a list not posted yet is said so, with its slots", async () => {
+  it("a list not posted yet is said so, with its slots, and a count is never said as zero", async () => {
     expect((await ask("who advanced from hillside conference")).card?.none).toBe(`FIRST hasn't posted who advanced from Hillside Conference League Tournament (${seasonLabel(S)}) yet: 4 slots to the New Jersey Championship.`);
+    expect((await ask("how many teams went to states at hillside conference")).card?.title).toBe(`Teams that advanced from Hillside Conference League Tournament · ${seasonLabel(S)}`);
+  });
+  it("a list posted with no slot taken: its teams with why, never 'not posted'", async () => {
+    const a = await ask("how many teams went to states at lakeside conference");
+    expect(a.card?.title).toBe(`0 teams advanced from Lakeside Conference League Tournament to the New Jersey Championship · ${seasonLabel(S)}`);
+    expect(a.card?.none).toBe("No team took one of the 2 slots to the New Jersey Championship: each listed team declined or had already qualified.");
+    expect(a.card?.lines.map((l) => [l.text, l.results])).toEqual([["6980 Bad Wolf", ["Declined"]], ["4215 Hypnotic Robotics", ["Already qualified"]]]);
   });
 });

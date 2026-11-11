@@ -524,20 +524,28 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
          ORDER BY e.season DESC, e.start DESC LIMIT 1`,
         [...words.map((w) => `%${w}%`), ...(sm ? [Number(sm[1]), `${sm[1]}%`] : [])]);
       if (!ev) return null;
-      const took = (JSON.parse(ev.rows) as { team: number; status: string; declined: boolean }[]).filter((r) => r.status === "FIRST" && !r.declined);
-      const names = took.length ? await all<{ number: number; name: string | null }>(`SELECT number, name FROM teams WHERE number IN (${took.map(() => "?").join(", ")})`, took.map((r) => r.team)) : [];
+      const rows = JSON.parse(ev.rows) as { team: number; status: string; declined: boolean }[];
+      const took = rows.filter((r) => r.status === "FIRST" && !r.declined);
+      // A list posted with no slot taken (every one declined, or its teams already qualified): its teams, each with why,
+      // as the event's Awards tab lists them; each team once.
+      const shown = took.length ? took : rows.filter((r, i) => rows.findIndex((x) => x.team === r.team) === i);
+      const names = shown.length ? await all<{ number: number; name: string | null }>(`SELECT number, name FROM teams WHERE number IN (${shown.map(() => "?").join(", ")})`, shown.map((r) => r.team)) : [];
       const nameOf = new Map(names.map((t) => [Number(t.number), t.name]));
       // Where they go, in words: the next event's name, FTC Events' own words, else "the next event" (never a code).
       const to = ev.to_name?.trim() || (ev.advances_to && !/^[A-Z0-9]+$/.test(ev.advances_to.trim()) ? ev.advances_to.trim().replace(/ Events$/, " events") : null);
-      const dest = to ? (/^the/i.test(to) ? to : `the ${to}`) : "the next event";
-      const lines = took.map((r, i) => ({ ...teamLine(r.team, nameOf.get(r.team) ?? null, [`#${i + 1} in advancement order`]), href: `/teams/${r.team}?season=${ev.season}` }));
+      const dest = to ? (/^the\b/i.test(to) ? to : `the ${to}`) : "the next event";
+      const why = (r: (typeof rows)[number]) => (r.status === "FIRST" ? "Declined" : r.status === "ALREADY_ADVANCING" ? "Already qualified" : r.status.replace(/_/g, " ").toLowerCase().replace(/^./, (c) => c.toUpperCase()));
+      const lines = shown.map((r, i) => ({ ...teamLine(r.team, nameOf.get(r.team) ?? null, [took.length ? `#${i + 1} in advancement order` : why(r)]), href: `/teams/${r.team}?season=${ev.season}` }));
       const n = took.length;
       const said = `${n} team${n === 1 ? "" : "s"} advanced from ${ev.name} to ${dest}`;
+      const season = seasonLabel(Number(ev.season));
+      const slots = `${ev.slots} slot${ev.slots === 1 ? "" : "s"} to ${dest}`;
+      // A count is said only from a posted list: none posted is not zero.
       return answer(q, {
         hits: [{ ...eventHit(ev), section: "awards" }], pages: pagesFor(q),
-        card: { kind: "info", title: `${ask.count ? said : `Teams that advanced from ${ev.name}`} · ${seasonLabel(Number(ev.season))}`, lines,
-          ...(n ? {} : { none: `FIRST hasn't posted who advanced from ${ev.name} (${seasonLabel(Number(ev.season))}) yet: ${ev.slots} slot${ev.slots === 1 ? "" : "s"} to ${dest}.` }) },
-        understood: { kind: "question", label: `${n ? said : `Who advanced from ${ev.name}`} (${seasonLabel(Number(ev.season))}), in FIRST's advancement order`, season: Number(ev.season) },
+        card: { kind: "info", title: `${ask.count && rows.length ? said : `Teams that advanced from ${ev.name}`} · ${season}`, lines,
+          ...(n ? {} : { none: rows.length ? `No team took one of the ${slots}: each listed team declined or had already qualified.` : `FIRST hasn't posted who advanced from ${ev.name} (${season}) yet: ${slots}.` }) },
+        understood: { kind: "question", label: `${rows.length ? said : `Who advanced from ${ev.name}`} (${season}), in FIRST's advancement order`, season: Number(ev.season) },
       });
     }
 
