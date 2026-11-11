@@ -20,6 +20,8 @@ export function localDbPath(url = env.databaseUrl): string | null {
 /** Tables holding people's own data or site usage, never in the snapshot. Emptied in this order: workspace entries before the workspaces they reference.
  *  owner_audit, feature_flags and request_metrics_daily are this server's own operations (the owner's email, its switches, its traffic). */
 export const PRIVATE_TABLES = [
+  // Match videos people add (migration 82, docs/contributors.md): accounts' links, likes, reports, applications, invites. Never shipped.
+  "contributor_video_reports", "contributor_video_likes", "contributor_videos", "contributor_invites", "verification_applications", "video_contributors", "team_members",
   "users", "sessions", "identities", "email_codes", "user_state", "scout_entries", "error_reports", "search_failures", "contact_messages", "bug_report_files", "bug_reports", "analytics_daily",
   "workspace_members", "entry_photos", "workspace_scout_entries", "workspace_template_versions", "workspace_assignments", "workspace_match_assignments", "scout_alliances", "scout_alliance_members", "scout_alliance_copy_queue", "scout_alliance_copies", "workspace_former_members", "workspace_pending_departures",
   // The scouting commons (migrations 58-59): shares, opt-ins, readers' reports and mutes, the owner's switches and takedowns (their email). Before workspaces, which they reference.

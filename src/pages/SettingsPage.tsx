@@ -55,6 +55,7 @@ import { useSavedSeasons } from "../lib/offline/saved";
 import { workspacesOf } from "../lib/scoutSpace";
 import { Group, Row } from "../components/settings/rows";
 import { UsernameRow } from "../components/settings/UsernameRow";
+import { VerificationRow } from "../components/settings/VerificationRow";
 import { WorkspaceSection } from "../components/settings/WorkspaceSection";
 import { TabBarSettings } from "../components/settings/TabBarSettings";
 import { openWhatsNew } from "../components/WhatsNew";
@@ -296,6 +297,7 @@ function SignedIn({ user, sync, onSignOut }: { user: AccountUser; sync: string; 
           </form>
         </Row>
         <UsernameRow user={user} />
+        <VerificationRow user={user} />
       </Group>
       <Group title="Account facts">
         <Row label="Email" description="Used to sign in."><span className="text-sm text-foreground">{user.email}</span></Row>

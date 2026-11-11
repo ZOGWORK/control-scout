@@ -9,6 +9,7 @@ import type { StatAnswer, StatBlock } from "../../../shared/searchStat";
 import { thumbnailUrl } from "../../../shared/stream";
 import { clipTime } from "../../../shared/recording";
 import { useAnyVideo, useClip } from "./AnswerVideo";
+import { VideoCredit } from "../../contributors/VideoCredit";
 import { MatchBox } from "./MatchBox";
 import { cn } from "../../cn";
 import { swatchOf } from "./answerCells";
@@ -46,13 +47,14 @@ function Tile({ r, team, atEvent, said }: { r: Matches["rows"][number]; team?: {
     <li className={cn("flex min-w-0 flex-col gap-2 rounded-xl border-l-[6px] pl-2", swatchOf(r.note).edge)} data-video-tile={r.label}>
       <span className={cn("self-start rounded-md px-2.5 py-1 text-sm font-bold", swatchOf(r.note).fill)} data-tile-note>{r.note}</span>
       {v ? (
-        <button type="button" onClick={() => play(label)} aria-label={`Play ${r.note}: ${label}, ${v.kind === "match" ? "official match video" : "in the event's recording"}`}
+        <button type="button" onClick={() => play(label)} aria-label={`Play ${r.note}: ${label}, ${v.kind === "match" ? "official match video" : v.kind === "contributor" ? `video by ${v.contributor?.name}` : "in the event's recording"}`}
           className="group block w-full rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60" data-tile-play={v.kind}>
           <Picture v={v} />
         </button>
       ) : !said && (
         <p className="text-xs text-muted-foreground" data-no-video>No video</p>
       )}
+      {v?.contributor && <VideoCredit c={v.contributor} size="sm" />}
       {/* The box's own list, so the tile stays one list item. */}
       <ul className="contents"><MatchBox r={{ ...r, note: undefined }} team={team} atEvent={atEvent} noPlay /></ul>
     </li>
@@ -66,7 +68,7 @@ export function Picture({ v }: { v: SearchVideoItem }) {
   return (
     <span className="relative block aspect-video w-full overflow-hidden rounded-lg border border-border bg-black" data-video-control>
       <img src={thumbnailUrl(v.videoId)} alt="" loading="lazy" decoding="async" onError={(e) => { e.currentTarget.hidden = true; }} className="absolute inset-0 size-full object-cover opacity-90 transition-opacity group-hover:opacity-100 motion-reduce:transition-none" />
-      {v.kind !== "match" && <span className="absolute inset-x-0 bottom-0 bg-black/70 px-2.5 py-1.5 text-xs font-medium text-white">{v.kind === "stream" ? (v.live ? "The event's live stream" : "The event's whole recording") : `In the event's recording, from ${clipTime(v.t)}`}</span>}
+      {v.kind !== "match" && v.kind !== "contributor" && <span className="absolute inset-x-0 bottom-0 bg-black/70 px-2.5 py-1.5 text-xs font-medium text-white">{v.kind === "stream" ? (v.live ? "The event's live stream" : "The event's whole recording") : `In the event's recording, from ${clipTime(v.t)}`}</span>}
       <span className="absolute inset-0 grid place-items-center">
         <span className="grid size-12 place-items-center rounded-full bg-black/70 text-white ring-1 ring-white/40"><Play className="size-6 translate-x-px fill-current" aria-hidden /></span>
       </span>

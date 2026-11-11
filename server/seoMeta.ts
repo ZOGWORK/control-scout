@@ -168,6 +168,8 @@ const STATIC: Record<string, { title: string; description: string; noindex?: boo
   "/scout": { title: "Scout", description: "Your scouting notes on Control Scout.", noindex: true },
   "/settings": { title: "Settings", description: "Control Scout settings: theme, text size and offline data.", noindex: true },
   "/digest/unsubscribed": { title: "Email digest", description: "Unsubscribe from the Control Scout email digest.", noindex: true },
+  "/get-verified": { title: "Get Verified", description: "Apply to add match videos everyone can watch on Control Scout.", noindex: true },
+  "/verify-video": { title: "Contributor invite", description: "An invite to add match videos on Control Scout.", noindex: true },
 };
 
 const fmt1 = (x: number) => (Math.round(x * 10) / 10).toFixed(1);
@@ -876,6 +878,8 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
   // The supporters list names people: never indexed, at any spelling of the address. Marked like /search's, so the
   // app drops it once the visitor moves on (src/lib/meta.tsx SearchRobotsSync).
   if (/^\/supporters$/i.test(p)) return { title: "Supporters", description: "The people who sponsor Control Scout on GitHub.", type: "website", searchPage: true };
+  // A contributor's profile names a person: never indexed (docs/contributors.md).
+  if (/^\/contributors\/[^/]+$/i.test(p)) return { title: "Contributor", description: "Match videos added by a Control Scout contributor.", type: "website", noindex: true };
   const s = STATIC[p];
   if (s) return { title: s.title, description: s.noindex ? s.description : fitDescription(s.description), type: "website", ...(s.noindex ? { noindex: true } : {}) };
   // The app's routes (src/shared/routes.ts, as React Router matches them): anything else is its not-found page.

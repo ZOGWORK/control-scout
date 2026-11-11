@@ -17,6 +17,7 @@ import { Popover, PopoverContent, PopoverTrigger, TapTooltip, Tooltip, TooltipCo
 import { matchTime, oddsPct, pct } from "../lib/format";
 import { VIDEO_TONE } from "../lib/textTones";
 import { useVideoLinkCount } from "./MatchVideo";
+import { ContributorRowMark, useContributorVideo } from "./contributors/EventClips";
 import { restoredSavedPosition, scrollToElement, smoothBehavior } from "../lib/pageScroll";
 
 const MatchDetails = lazy(() => import("./MatchDetails").then((x) => ({ default: x.MatchDetails })));
@@ -271,6 +272,9 @@ function AllianceBox({ side, m, score, forecast, outcome, highlight }: {
 /** `rowProps`: a windowed list's props for the row's element (useVirtualRows: it measures the row). */
 export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, outcomeAccent, live, rowProps }: { m: MatchView; highlight?: number; showEvent?: string; eventName?: string; open?: boolean; onToggle?: () => void; outcomeAccent?: boolean; live?: boolean; rowProps?: Record<string, unknown> }) {
   const videos = useVideoLinkCount(`${m.season}:${m.code}:${m.level}:${m.series}:${m.number}`);
+  // A video someone added, when it is the one this match plays (docs/contributors.md).
+  const added = useContributorVideo(m.key);
+  const addedPlays = !!added && (!m.video || !!added.overFirst);
   const detailsId = `match-${m.code}-${m.key.replace(/:/g, "-")}`;
   // MotionConfig's reducedMotion only stops transforms; height is a layout animation, so it's turned off here.
   const reduce = !!useReducedMotion();
@@ -353,7 +357,7 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
             {m.played ? (missing ? "No call · a robot sat out" : "No call") : m.red.teams.length > 2 || m.blue.teams.length > 2 ? "Lineup TBD" : "—"}
           </span>
         )}
-        {(p || m.video || m.clip || videos > 0) && (
+        {(p || m.video || m.clip || videos > 0 || addedPlays) && (
           <div className="relative z-[1] flex flex-wrap items-center justify-end gap-1 text-[11px] text-text-muted pointer-coarse:min-h-[44px] pointer-coarse:gap-y-[26px]" data-call-status>
             {/* Right and Upset share one width, so the chips after them line up from row to row. */}
             {called === true && <span className={cn(STATUS_CHIP, "min-w-[3.25rem] justify-center bg-success/12 text-success")} data-outcome="right"><Check className="size-3" aria-hidden /> Right</span>}
@@ -368,7 +372,8 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
               </span>
             )}
             {m.clip && <ClipLink clip={m.clip} label={m.label} matchKey={m.key} className={cn(STATUS_CHIP, "tap-44", VIDEO_TONE.chip, "still-hover:bg-video/20")}><span className="text-[10px]">Watch</span></ClipLink>}
-            {m.video && <MatchVideoLink url={m.video} label={m.label} matchKey={m.key} className={cn(STATUS_CHIP, "tap-44", "still-hover:text-text-base", m.clip && "pointer-coarse:ml-[10px]")} />}
+            {addedPlays && <ContributorRowMark m={m} className={cn(STATUS_CHIP, "tap-44", VIDEO_TONE.chip, "still-hover:bg-video/20")} />}
+            {m.video && !(addedPlays && added?.overFirst) && <MatchVideoLink url={m.video} label={m.label} matchKey={m.key} className={cn(STATUS_CHIP, "tap-44", "still-hover:text-text-base", m.clip && "pointer-coarse:ml-[10px]")} />}
             {videos > 0 && <span className={cn(STATUS_CHIP, "text-accent-text")} title={`${videos} saved video link${videos > 1 ? "s" : ""}`}><Video className="size-3.5" /><span className="text-[10px]">{videos}</span></span>}
           </div>
         )}

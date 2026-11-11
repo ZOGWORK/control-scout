@@ -12,6 +12,7 @@ import type { SearchVideoItem } from "../../../shared/api";
 import type { StatBlock, VideoTile } from "../../../shared/searchStat";
 import { useClips } from "./AnswerVideo";
 import { Picture } from "./HighlightGrid";
+import { VideoCredit } from "../../contributors/VideoCredit";
 import { cn } from "../../cn";
 
 type Videos = Extract<StatBlock, { kind: "videos" }>;
@@ -116,6 +117,7 @@ function Tile({ t, v, onPlay }: { t: VideoTile; v: SearchVideoItem; onPlay: () =
           </span>
         </span>
       </button>
+      {v.contributor && <VideoCredit c={v.contributor} size="sm" className="mt-0.5" />}
     </li>
   );
 }
