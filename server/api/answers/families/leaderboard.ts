@@ -323,10 +323,14 @@ async function windowCount(b: BoardQuestion, w: { from: string; to: string; labe
 async function eventBoardAnswer(b: BoardQuestion, ev: NonNullable<BoardQuestion["event"]>): Promise<StatAnswer> {
   const home = ev.home ?? null;
   const inList = ev.codes.map(() => "?").join(", ");
+  // A phase's OPR asked ("top teams by teleop opr at worlds"): that part of each OPR, there and in the season, else OPR.
+  const phase = Object.hasOwn(PHASE_LABEL, b.stat.id) ? b.stat.id : null;
+  const col = phase ? `opr_${phase}` : "opr_np";
+  const OPR = phase ? `${PHASE_LABEL[phase]} OPR` : "OPR";
   const everyone = await all<{ team: number; name: string | null; city: string | null; state: string | null; country: string | null; rookie_year: number | null; eo: number | null;
     so: number | null; sw: number | null; sl: number | null; st: number | null; po: number | null }>(
-    `SELECT et.team, t.name, t.city, t.state, t.country, t.rookie_year, MAX(x.opr_np) eo,
-            MAX(s.opr_np) so, MAX(s.wins) sw, MAX(s.losses) sl, MAX(s.ties) st, MAX(p.opr_np) po
+    `SELECT et.team, t.name, t.city, t.state, t.country, t.rookie_year, MAX(x.${col}) eo,
+            MAX(s.${col}) so, MAX(s.wins) sw, MAX(s.losses) sl, MAX(s.ties) st, MAX(p.${col}) po
      FROM events e JOIN event_teams et ON et.season = e.season AND et.code = e.code JOIN teams t ON t.number = et.team
      LEFT JOIN team_event_stats x ON x.season = et.season AND x.code = et.code AND x.team = et.team
      LEFT JOIN team_season_stats s ON s.season = e.season AND s.team = et.team
@@ -348,7 +352,7 @@ async function eventBoardAnswer(b: BoardQuestion, ev: NonNullable<BoardQuestion[
   }
   const S = seasonLabel(ev.season), P = seasonLabel(ev.season - 1);
   const mode = everyone.some((r) => r.eo != null) ? "event" : everyone.some((r) => r.so != null) ? "season" : "before";
-  const by = mode === "event" ? "OPR there" : mode === "season" ? `${S} OPR` : `${P} OPR`;
+  const by = mode === "event" ? `${OPR} there` : mode === "season" ? `${S} ${OPR}` : `${P} ${OPR}`;
   const v = (r: (typeof rows)[number]) => (mode === "event" ? r.eo : mode === "season" ? r.so : r.po);
   const ranked = rows.filter((r) => v(r) != null).sort((x, y) => Number(v(y)) - Number(v(x)) || Number(x.team) - Number(y.team));
   const shown = ranked.slice(0, b.n);
@@ -357,10 +361,10 @@ async function eventBoardAnswer(b: BoardQuestion, ev: NonNullable<BoardQuestion[
   const title = `${who} at ${ev.name} by ${by}`;
   const base = {
     family: "leaderboard" as const, intent: "event-best", title: `${title} · ${S}`, scope: [ev.name, ...(home ? [`From ${home.name}`] : []), ...(ev.rookies ? ["Rookies"] : []), S, `By ${by}`],
-    definition: `The ${rows.length}${ev.rookies ? " rookie" : ""} team${rows.length === 1 ? "" : "s"}${home ? ` from ${home.name}` : ""}${ev.rookies ? ` (in their first season, ${S})` : ""} on the event's list (its divisions' too). ${mode === "event" ? "Ranked by each team's OPR at the event (its best division's), without penalties, as the event page shows it; the record is its matches there, playoffs included." : mode === "season" ? `The event's matches aren't played yet: ranked by the ${S} OPR each team brings, as its team page shows it; the record is its ${S} season's.` : `Neither the event's matches nor any ${S} OPR are on record yet: ranked by each team's ${P} OPR.`} A team with no such OPR isn't ranked.`,
-    source: `${ranked.length} of ${rows.length} teams at ${ev.name} with ${mode === "event" ? "an OPR there" : `a ${mode === "season" ? S : P} OPR`}`,
+    definition: `The ${rows.length}${ev.rookies ? " rookie" : ""} team${rows.length === 1 ? "" : "s"}${home ? ` from ${home.name}` : ""}${ev.rookies ? ` (in their first season, ${S})` : ""} on the event's list (its divisions' too). ${mode === "event" ? "Ranked by each team's ${OPR} at the event (its best division's), without penalties, as the event page shows it; the record is its matches there, playoffs included." : mode === "season" ? `The event's matches aren't played yet: ranked by the ${S} ${OPR} each team brings, as its team page shows it; the record is its ${S} season's.` : `Neither the event's matches nor any ${S} ${OPR} are on record yet: ranked by each team's ${P} ${OPR}.`} A team with no such ${OPR} isn't ranked.${phase ? ` ${PHASE_LABEL[phase]} OPR is the part of OPR scored in that phase.` : ""}`,
+    source: `${ranked.length} of ${rows.length} teams at ${ev.name} with ${mode === "event" ? `an ${OPR} there` : `a ${mode === "season" ? S : P} ${OPR}`}`,
   };
-  if (!shown.length) return { ...base, blocks: [], none: rows.length ? `None of the ${rows.length} teams at ${ev.name} has ${mode === "before" ? `a ${P}` : "an"} OPR on record yet.` : `No${ev.rookies ? " rookie" : ""} teams${home ? ` from ${home.name}` : ""} are listed for ${ev.name} in ${S}${home || ev.rookies ? "" : " yet"}.` };
+  if (!shown.length) return { ...base, blocks: [], none: rows.length ? `None of the ${rows.length} teams at ${ev.name} has ${mode === "before" ? `a ${P}` : "an"} ${OPR} on record yet.` : `No${ev.rookies ? " rookie" : ""} teams${home ? ` from ${home.name}` : ""} are listed for ${ev.name} in ${S}${home || ev.rookies ? "" : " yet"}.` };
   const top = shown[0];
   const fmt1 = (x: number | null) => (x == null ? "–" : (Math.round(x * 10) / 10).toFixed(1));
   return {
@@ -368,7 +372,7 @@ async function eventBoardAnswer(b: BoardQuestion, ev: NonNullable<BoardQuestion[
     headline: { value: `${top.team} ${top.name ?? ""}`.trim(), label: `${by} ${fmt1(v(top))}, ${record(rec(top))}${top.city ? ` · ${top.city}` : ""}`, sub: `#1 of ${ranked.length} ranked at ${ev.name}`, href: teamHref(Number(top.team), ev.season) },
     listed: rows.length,
     blocks: [{
-      kind: "leaderboard", title: `Top ${shown.length} at ${ev.name}`, stat: { id: "opr", label: mode === "event" ? "OPR there" : by },
+      kind: "leaderboard", title: `Top ${shown.length} at ${ev.name}`, stat: { id: phase ?? "opr", label: by },
       ...(reportedTeleopIncludesEndgame(ev.season) ? { teleopWithEndgame: true } : {}),
       note: `${S} · ${ranked.length} ranked of ${rows.length} teams · by ${by}`,
       rows: shown.map((r, i) => ({ rank: i + 1, team: { label: `${r.team} ${r.name ?? ""}`.trim(), href: teamHref(Number(r.team), ev.season) },

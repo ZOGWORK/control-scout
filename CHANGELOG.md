@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.6.3 — 2026-11-11
+
+The best teams at Worlds, or at any event, can be ranked by one phase's OPR there.
+
+### Highlights
+- [rankings] "Top teams by TeleOp OPR at Worlds" ranks by TeleOp OPR there
+- [rankings] Auto and endgame OPR work the same way, at any event
+- [fixes] Asking for one phase never falls back to overall OPR
+
+### Fixed
+- Search: the best teams at an event, at Worlds (with or without its season) or at a state's championship, asked by one phase's OPR ("top teams by teleop opr at worlds", "best auto opr at nj states") found nothing or ranked by overall OPR. They now rank by that phase's OPR at the event (a division's for a championship), or the season's before the event is played, with the column and card named for it. Two phases at once is still left to search. ([#PR](https://github.com/ZOGWORK/control-scout/pull/PR))
+
 ## 5.6.2 — 2026-11-11
 
 Watch Clips takes you to the clips on every event, the longest included.
