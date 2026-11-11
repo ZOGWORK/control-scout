@@ -209,8 +209,9 @@ export async function nextEventPrediction(id: IntentId, team: AnswerTeam, now = 
 
 const TOP_RULE = "The engine's call for one team on each alliance in a qualification match, as Predict makes it, made once against each team ranked in the world's top N by prediction rating that season (the Rankings page's order): each side's expected score (without penalties, margin-calibrated), the win chance and the predicted margin. A real FTC match is two alliances of two, so a real match's call also needs the partners: Predict works it out for any lineup.";
 
-/** A win chance as said on a card: never 0% or 100%, which the engine never claims. */
-const chance = (p: number) => (p < 0.005 ? "<1%" : p > 0.995 ? ">99%" : pct(p));
+/** A win chance as said on a card: never 0% or 100%, which the engine never claims (anything that would round to one is
+ *  "<1%" or ">99%"). */
+const chance = (p: number) => (p < 0.01 ? "<1%" : p > 0.99 ? ">99%" : pct(p));
 
 /** "Can 12345 beat a top 10 team worldwide, and by how much would they lose": the engine's call for the team against each
  *  team ranked in the world's top `n` by prediction rating in `season`, the favoured ones counted and the predicted
