@@ -107,6 +107,12 @@ export async function deleteUser(id: number): Promise<void> {
   for (const t of ["sessions", "identities", "user_state", "scout_entries", "inbox_items", "push_subscriptions", "digest_prefs", "digest_sends", "commons_mutes"]) await run(`DELETE FROM ${t} WHERE user_id = ?`, [id]);
   // Their reports in the scouting commons (the note is theirs); a report already acted on leaves its outcome in the audit log.
   await run("DELETE FROM commons_reports WHERE reporter_user_id = ?", [id]);
+  // Match videos they added go with the account (gone from everyone's view at once), with the likes and reports on
+  // them; their own likes and reports on others' too. The audit log keeps what the owner decided.
+  await run("DELETE FROM contributor_video_likes WHERE user_id = ? OR video_id IN (SELECT id FROM contributor_videos WHERE contributor_user_id = ?)", [id, id]);
+  await run("DELETE FROM contributor_video_reports WHERE reporter_user_id = ? OR video_id IN (SELECT id FROM contributor_videos WHERE contributor_user_id = ?)", [id, id]);
+  await run("DELETE FROM contributor_videos WHERE contributor_user_id = ?", [id]);
+  for (const t of ["video_contributors", "verification_applications", "team_members"]) await run(`DELETE FROM ${t} WHERE user_id = ?`, [id]);
 }
 
 export async function sessionsFor(id: number) {

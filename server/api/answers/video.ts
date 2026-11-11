@@ -12,6 +12,8 @@ import { linkStart } from "../../../src/shared/recording.js";
 import { youtubeId } from "../../../src/shared/personal.js";
 import { localToUtcMs } from "../../../src/shared/time.js";
 import type { MatchView, SearchAnswer, SearchVideo, SearchVideoItem } from "../../../src/shared/api.js";
+import { matchVideos, type Viewer } from "../../videos/contributors.js";
+import { contributorItem, pickMatchVideo } from "../../../src/shared/contributors.js";
 
 /** A match or an event an answer links to. */
 export interface VideoRef { season: number; code: string; key?: string }
@@ -113,8 +115,10 @@ function teamOf(a: SearchAnswer): number | null {
 /** `own`: the team's alliance's points without penalties, when the answer is about a team at the event (else null). */
 interface PlayedRow { season: number; code: string; level: string; series: number; number: number; label: string; time: string | null; video: string | null; timezone: string | null; own?: number | null }
 
-/** The answer's video, or undefined when the site has none for it. */
-export async function answerVideo(a: SearchAnswer, now = Date.now()): Promise<SearchVideo | undefined> {
+/** The answer's video, or undefined when the site has none for it. `viewer`: who is asking, for the match videos people
+ *  added (docs/contributors.md), which only a viewer entitled to each gets; without one, none are read (a shared
+ *  answer, such as a page drawn for everyone, never carries one). */
+export async function answerVideo(a: SearchAnswer, now = Date.now(), viewer?: Viewer): Promise<SearchVideo | undefined> {
   const main = mainRef(a);
   const rows = rowRefs(a);
   const streams = streamRefs(a);
@@ -152,6 +156,20 @@ export async function answerVideo(a: SearchAnswer, now = Date.now()): Promise<Se
       const item: SearchVideoItem | null = own ? { videoId: own, t: linkStart(v.video!), kind: "match", match: v.label }
         : v.clip ? { videoId: v.clip.videoId, t: v.clip.t, kind: "recording", match: v.label, ...(rec?.meta?.live ? { live: true } : {}) } : null;
       if (item) items.set(`${k}:${v.key}`, item);
+    }
+  }
+  // Match videos people added, for this viewer: the same order as every surface (src/shared/contributors.ts
+  // pickMatchVideo): FIRST's own video first (unless the owner chose the added one), then the added one, then the
+  // recording. A link this viewer may not see was never read.
+  if (viewer && played.length) {
+    const added = await matchVideos(played.map((r) => `${r.season}:${r.code}:${r.level}:${r.series}:${r.number}`), viewer).catch(() => new Map());
+    for (const r of played) {
+      const key = `${r.season}:${r.code}:${r.level}:${r.series}:${r.number}`;
+      const c = added.get(key);
+      if (!c) continue;
+      const cur = items.get(key);
+      const pick = pickMatchVideo(cur?.kind === "match" ? cur : null, c, cur && cur.kind !== "match" ? cur : null);
+      if (pick?.kind === "contributor") items.set(key, contributorItem(c, String(r.label)));
     }
   }
   const out: SearchVideo = {};
