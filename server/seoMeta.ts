@@ -50,7 +50,7 @@ import { answerSections } from "../src/shared/searchSections.js";
 import { rebuildSearch } from "./stats/job.js";
 import { SEARCH_HITS_ID, SEARCH_PAGE_LIMIT, SORRY_SENTENCE, cardWho, followApiPath, hitHref, relatedApiPath, relatedQuery, relatedSearch } from "../src/shared/search.js";
 import { hasPhases, phaseNote, teamColumns, teamTableOfLeaderboard, type TeamTable } from "../src/shared/teamTable.js";
-import { badgeUnder, contextBadge, isQualityQuestion, pageTitle, repeats, unreadNote } from "../src/shared/searchPage.js";
+import { answerDescription, badgeUnder, contextBadge, isQualityQuestion, pageTitle, repeats, unreadNote } from "../src/shared/searchPage.js";
 
 /** The site's name, the same everywhere a search engine reads one: every <title>, og:site_name, the
  *  WebSite and Organization data. "FTC Control Scout" is its alternate name (in the structured data). */
@@ -724,7 +724,8 @@ async function searchMeta(raw: string): Promise<PageMeta> {
   return {
     title: `Search: ${q}`, heading, type: "website", bodyHtml: body + data, searchPage: true, intent: answer.intent,
     ...(follow ? { pageData: { [followApiPath(q)]: { q, ...follow } } } : {}),
-    description: n ? `${n === SEARCH_PAGE_LIMIT ? `The top ${n}` : n} FTC team, event and match results for “${q}” on Control Scout.` : `No FTC team, event or match matches “${q}”.`,
+    // An answer (a card, a stat, a verdict) is said as such, hits or not; only a real miss says nothing matches.
+    description: answerDescription(answer) ?? (n ? `${n === SEARCH_PAGE_LIMIT ? `The top ${n}` : n} FTC team, event and match results for “${q}” on Control Scout.` : answer.pages.length ? `Control Scout pages for “${q}”: ${answer.pages.map((p) => p.title).join(", ")}.` : `No FTC team, event or match matches “${q}”.`),
   };
 }
 
