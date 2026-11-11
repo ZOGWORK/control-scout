@@ -236,7 +236,7 @@ function placeOf(at: string) {
  *  latest season with matches at official events (said so), else every season. */
 async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
   const s = it.scope;
-  const scope: Scope = { season: s.season, championship: s.championship, states: s.states, level: s.level ?? undefined, ...(s.finals ? { finals: true } : {}), alliance: s.alliance ?? undefined };
+  const scope: Scope = { season: s.season, championship: s.championship, states: s.states, level: s.level ?? undefined, ...(s.finals ? { finals: true } : {}), alliance: s.alliance ?? undefined, ...(s.ever ? { ever: true } : {}) };
   if (s.place) scope.place = { country: s.place.country, state: s.place.state, name: s.place.name };
   if (s.area) scope.place = { country: s.area.country, state: s.area.state ?? "", name: s.area.name };
   if (s.window) scope.window = s.window;

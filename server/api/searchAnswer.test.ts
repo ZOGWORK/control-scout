@@ -151,6 +151,12 @@ describe("intents and their counts (T71–T75)", () => {
     expect(specs.hits[0].facts).toBeUndefined();
     expect((await searchAnswer("qqzzxx wwvvb")).intent).toBeUndefined();
   });
+  it("a question about a team's people: the sorry state, never the team standing in", async () => {
+    const r = await searchAnswer("who is 4215's coach", { full: true, limit: 25 });
+    expect(r.step).not.toBe("closest");
+    expect(r.intent).toBeUndefined();
+    expect(r.sorry?.understood).toEqual(expect.arrayContaining([expect.stringContaining("4215")]));
+  });
   it("season and region words are read, a game name only as a season", async () => {
     const a = await searchAnswer("hypnotic in new jersey");
     expect(a.intent).toMatchObject({ kind: "region", met: true });

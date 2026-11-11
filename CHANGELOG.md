@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.6.6 — 2026-11-11
+## 5.6.7 — 2026-11-11
 
 Search answers "how good is this team" with one card of its season's numbers, and tells same-name teams apart by the event or by a clear gap in rank.
 
@@ -33,6 +33,22 @@ Search answers "how good is this team" with one card of its season's numbers, an
 - A name several teams share ignored the place an event's name says: "ultraviolet's matches at the NJ championship" asked which Ultraviolet. The event's region or country now picks the team, as a place typed does. (`server/api/query/parse.ts` eventPlace, `server/api/searchAnswer.ts` sharedName)
 - With no place, the stronger-team rule needed 25 percentile points between teams, so a top-0.1% team and a top-5% one were still asked about. A team whose top share is a tenth of every other's or less is now the stronger one too. (`server/api/query/shared.ts`)
 - "How many teams named ultraviolet" counted every team with a page by the name, while the which-team question gave only the ones still playing as the name's count. Both now count the same teams, and the question says how many of them still play. (`server/api/query/shared.ts` whichLine, `server/api/answers/teamsNamed.ts`) (#1397)
+
+## 5.6.6 — 2026-11-11
+
+Search's "ever" means every season, and a few more ways to ask about a team's best and worst matches are understood.
+
+### Highlights
+- [fixes] "4215 best match ever" shows the team's highest score from any season
+- [fixes] "Win by the most points" and "lost by the least" now get answers
+- [fixes] "Rating over the 2025-26 season" shows the rating event by event
+- [fixes] A question about a team's coach says search can't answer it yet
+
+### Fixed
+- "Ever" or "all time" beside a team's best or worst match, or its biggest win or loss, showed the latest season's while the card said "All seasons". It now picks from every season, and each season's own best is still listed below it. Without "ever", the latest season's is shown, as before. "Best match" no longer adds a note on how it was read. (`server/api/answers/families/matches.ts`, `server/api/searchCoverage.ts`)
+- "Win by the most points" read as the highest score, and "lost by the least" found no answer. They are now the biggest win and the closest loss. (`server/api/query/lexicon.ts`)
+- A number asked "over" a named season ("14450 rating over the 2025-26 season") showed one number. It now shows the trend, as "over the season" does. (`server/api/query/parse.ts`)
+- "Who is 4215's coach" showed the team's highlights. A question about a team's people now gets the sorry state, with what was read and searches that do answer. (`server/api/searchIntents.ts`) (#1395)
 
 ## 5.6.5 — 2026-11-11
 

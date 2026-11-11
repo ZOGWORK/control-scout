@@ -100,19 +100,31 @@ describe("the answers", () => {
     // The Worlds follow-ups still sit under it, never in its place.
     expect(c.stat!.blocks.map((b) => b.kind)).toEqual(["links", "related"]);
   });
-  it("ever: every season, the best of each season beside it; a scrimmage never counts", async () => {
+  it("ever: the best of every season, each season's own beside it; a scrimmage never counts", async () => {
     const a = await searchAnswer("4215 highest score ever", { limit: 25 });
-    // Never one record across seasons (owner rule): the latest season's best, every season's own below it.
-    expect(a.stat!.headline).toMatchObject({ value: "140 points", label: expect.stringContaining("Q3 at New Jersey Qualifier"), sub: expect.stringContaining("2025–26") });
-    expect(a.stat!.definition).toContain("points are never compared across seasons: the answer is 2025–26's");
+    // "Ever" searches every season (launch sign-off 2026-11-11): the best of all of them, each season's own below it.
+    expect(a.stat!.headline).toMatchObject({ value: "340 points", sub: expect.stringContaining("2024–25") });
+    expect(a.stat!.scope).toEqual(["All seasons"]);
+    expect(a.stat!.definition).toContain("Every season is searched");
+    expect(a.stat!.definition).not.toContain("the latest here");
     const per = a.stat!.blocks.find((b) => b.kind === "table");
     expect(per && per.kind === "table" && per.rows.map((r) => [r.cells.score, r.cells.np])).toEqual([[140, 140], [340, 330]]);
+    // No season named and no "ever": still the latest season's, said so.
+    expect((await searchAnswer("4215 highest score", { limit: 25 })).stat!.headline).toMatchObject({ value: "140 points" });
+    // "Best match ever" is the same question, with no note on how it was read.
+    const best = await searchAnswer("4215 best match ever", { limit: 25 });
+    expect(best.stat!.headline).toMatchObject({ value: "340 points" });
+    expect(JSON.stringify(best)).not.toMatch(/read as/);
   });
   it("a biggest win is one season's too, each season's below it", async () => {
     const a = await searchAnswer("4215 biggest win", { limit: 25 });
     expect(a.stat!.headline).toMatchObject({ value: "100 points", label: "140–40 in Q3 at New Jersey Qualifier" });
     const per = a.stat!.blocks.find((b) => b.kind === "table");
     expect(per && per.kind === "table" && per.rows.map((r) => [r.cells.season, r.cells.margin])).toEqual([["2025–26", 100], ["2024–25", 240]]);
+  });
+  it("a win by the most points is the biggest win; a loss by the least is the closest loss", async () => {
+    expect((await searchAnswer("4215 win by the most points", { limit: 25 })).stat).toMatchObject({ intent: "biggest-win", headline: { value: "100 points" } });
+    expect((await searchAnswer("4215 lost by the least", { limit: 25 })).stat).toMatchObject({ intent: "closest-match", title: "Closest loss" });
   });
   it("which event: the same rule, the answer leads with the event", async () => {
     const a = await searchAnswer("Which event did 4215 score highest in", { limit: 25 });
