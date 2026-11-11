@@ -6,7 +6,7 @@ import { EMPTY_STATE, type PersonalState } from "../../shared/personal";
 import { resetConsent, setAnalyticsConsent } from "../../lib/consent";
 import { claimFirstRun, firstRunHolder, releaseFirstRun, resetFirstRunForTests } from "../../lib/firstRun";
 import { TakeTour } from "./TakeTour";
-import { coversTour, endTour, highlightsQuery, predictAction, rememberTourPage, TOUR_ASK, TOUR_STEPS, isAutomated, isTourPage, knowsTheApp, readTour, resetTour, tourKind, TOUR_DEMO_KEY, TOUR_KEY } from "../../lib/tour";
+import { coversTour, endTour, rememberTourPage, TOUR_ASK, TOUR_STEPS, isAutomated, isTourPage, knowsTheApp, readTour, resetTour, tourKind, TOUR_DEMO_KEY, TOUR_KEY } from "../../lib/tour";
 import { ConsentBanner } from "./ConsentBanner";
 import { FirstRunTour } from "./FirstRunTour";
 import { toast } from "../ui/sonner";
@@ -23,7 +23,7 @@ const setWebdriver = (on: boolean) => Object.defineProperty(navigator, "webdrive
 // jsdom lays nothing out: give the tour's targets a box.
 const realRect = Element.prototype.getBoundingClientRect;
 function laidOut(this: Element) {
-  const on = this.hasAttribute("data-tour") || this.hasAttribute("data-watch-live");
+  const on = this.hasAttribute("data-tour") || this.hasAttribute("data-watch-live") || this.hasAttribute("data-answer-video");
   const r = on ? { top: 100, left: 100, width: 120, height: 40 } : { top: 0, left: 0, width: 0, height: 0 };
   return { ...r, x: r.left, y: r.top, right: r.left + r.width, bottom: r.top + r.height, toJSON: () => r } as DOMRect;
 }
@@ -109,12 +109,12 @@ describe("who sees it", () => {
     await waitFor(() => expect(stepId()).toBe("highlights"), { timeout: 3000 });
     expect(personal.current.state.tracked.teams).toEqual([18360]);
     expect(readTour()).toMatchObject({ v: 2, status: "paused", step: 3, origin: "/teams/18360" });
-    // Step 4: the team's highlights, then Predict with the team picked, which ends the tour.
-    fireEvent.click(screen.getByRole("button", { name: "Show highlights" }));
-    expect(where).toBe("/search?q=18360%20highlights");
+    // Step 4 shows, not tells: it runs a real highlights search, and Done ends the tour.
+    fireEvent.click(screen.getByRole("button", { name: "Search “Exodus highlights”" }));
+    expect(where).toBe("/search?q=Exodus%20highlights");
     await waitFor(() => expect(card()?.hasAttribute("data-tour-docked")).toBe(true));
-    fireEvent.click(screen.getByRole("button", { name: "Predict a match with 18360" }));
-    expect(where).toBe(predictAction("/teams/18360").href);
+    expect(card()!.textContent).toContain("Search any team + highlights to watch its matches.");
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(card()).toBeNull();
     expect(JSON.parse(localStorage.getItem(TOUR_KEY)!)).toMatchObject({ v: 2, status: "finished", step: 3 });
     // Back on another page in the same visit: not again.
@@ -261,30 +261,51 @@ describe("who sees it", () => {
 });
 
 describe("steps adapt to the page", () => {
-  it("Events (and every page but team and event pages): search, then highlights; never the team page's steps", async () => {
+  it("Events (and every page but team and event pages): search, highlights, then a prediction; never the team page's steps", async () => {
     mount({ path: "/events" }); // the team page's bits are on screen, but this isn't a team page
     await opened();
-    expect(screen.getByRole("dialog", { name: /Step 1 of 2/ })).toBeTruthy();
+    expect(screen.getByRole("dialog", { name: /Step 1 of 3/ })).toBeTruthy();
     key("ArrowRight");
     expect(stepId()).toBe("highlights");
-    // A season's highlights (no team named), then Predict.
-    fireEvent.click(screen.getByRole("button", { name: "Show highlights" }));
-    expect(where).toBe("/search?q=decode%20finals%20match%20highlights");
-    await waitFor(() => expect(screen.getByRole("button", { name: "Predict a match" })).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Search “Exodus highlights”" }));
+    expect(where).toBe("/search?q=Exodus%20highlights");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Next" })).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(stepId()).toBe("predict");
+    fireEvent.click(screen.getByRole("button", { name: "Search “4215 vs 6980 who wins”" }));
+    expect(where).toBe("/search?q=4215%20vs%206980%20who%20wins");
+    await waitFor(() => expect(card()!.textContent).toContain("Ask who wins any matchup to see the odds."));
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(readTour()).toMatchObject({ status: "finished" });
   });
 
-  it("an event page: search, then its matches and recordings", async () => {
+  it("once its search answers, a step points at what came back (the video), not at the search box", async () => {
+    mount({ path: "/events" });
+    await opened();
+    key("ArrowRight");
+    const video = document.createElement("figure");
+    video.setAttribute("data-answer-video", "match");
+    document.body.appendChild(video);
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "Search “Exodus highlights”" }));
+      await waitFor(() => expect(card()?.hasAttribute("data-tour-docked")).toBe(false));
+      expect(stepId()).toBe("highlights");
+      expect(card()!.textContent).toContain("Search any team + highlights");
+    } finally { video.remove(); }
+  });
+
+  it("an event page: search, its matches, then a prediction", async () => {
     mount({ path: "/events/2025/USNJNEM3", team: false, matches: true });
     await opened();
-    expect(screen.getByRole("dialog", { name: /Step 1 of 2/ })).toBeTruthy();
+    expect(screen.getByRole("dialog", { name: /Step 1 of 3/ })).toBeTruthy();
     key("ArrowRight");
     expect(stepId()).toBe("watch");
   });
 
-  it("a team page that will never have a part (no rating this season) leaves its step out, without waiting for it", async () => {
+  it("a team page that will never have a part (no rating this season) gets everyone else's tour, without waiting for it", async () => {
     mount({ team: false });
     await opened();
-    expect(screen.getByRole("dialog", { name: /Step 1 of 2/ })).toBeTruthy();
+    expect(screen.getByRole("dialog", { name: /Step 1 of 3/ })).toBeTruthy();
   });
 
   it("a team page's parts that render late (still loading past the wait) are still in its tour", async () => {
@@ -298,10 +319,10 @@ describe("steps adapt to the page", () => {
     expect(screen.getByRole("dialog", { name: /Step 1 of 4/ })).toBeTruthy();
   });
 
-  it("an event page with nothing of its own yet (no schedule, no recording): search then highlights", async () => {
+  it("an event page with nothing of its own yet (no schedule, no recording): search, highlights, a prediction", async () => {
     mount({ path: "/events/2026/USNJNEM9", team: false });
     await opened();
-    expect(screen.getByRole("dialog", { name: /Step 1 of 2/ })).toBeTruthy();
+    expect(screen.getByRole("dialog", { name: /Step 1 of 3/ })).toBeTruthy();
     key("ArrowRight");
     expect(stepId()).toBe("highlights");
   });
@@ -621,25 +642,23 @@ describe("real actions, never simulated", () => {
       await opened();
       key("ArrowRight");
       expect(stepId()).toBe("watch");
-      expect(card()!.textContent).toContain("streaming live");
+      expect(card()!.textContent).toContain("is live");
       live.setAttribute("data-recording", "");
       key("ArrowLeft");
       key("ArrowRight");
-      expect(card()!.textContent).toContain("one full video");
+      expect(card()!.textContent).toContain("Tap Watch on a match");
     } finally { live.remove(); }
   });
 
-  it("an event page ends with Predict on that event, and says plainly most events have no recording", async () => {
+  it("an event page with no recording: the watch step points at its matches in plain words", async () => {
     mount({ path: "/events/2025/USNJNEM3", team: false, matches: true });
     await opened();
     key("ArrowRight");
     expect(stepId()).toBe("watch");
-    expect(card()!.textContent).toContain("Most events have no recording yet");
-    expect(card()!.textContent).not.toMatch(/clip/i);
-    fireEvent.click(screen.getByRole("button", { name: "Predict this event" }));
-    expect(where).toBe(predictAction("/events/2025/USNJNEM3").href);
-    expect(where).toContain("code=USNJNEM3");
-    expect(readTour()).toMatchObject({ status: "finished" });
+    expect(card()!.textContent).toContain("Tap a match to see its score and who played.");
+    expect(card()!.textContent).not.toMatch(/clip|recording/i);
+    key("ArrowRight");
+    expect(stepId()).toBe("predict");
   });
 });
 
@@ -680,12 +699,13 @@ describe("replay and copy", () => {
     }
   });
 
-  it("tour searches name no team but the tour's own: 4215-free examples elsewhere, never a banned query", () => {
+  it("the tour's searches are fixed real ones (each answers live with a card); its words name no team and explain no internals", () => {
     expect(TOUR_ASK).toBe("who won decode");
-    expect(highlightsQuery("/")).toBe("decode finals match highlights");
-    expect(highlightsQuery("/teams/4215?season=2025")).toBe("4215 highlights");
-    const all = [TOUR_ASK, highlightsQuery("/"), ...Object.values(TOUR_STEPS).flatMap((s) => [s.body, s.after ?? "", s.live ?? ""])].join(" ");
+    expect(TOUR_STEPS.highlights.ask).toBe("Exodus highlights");
+    expect(TOUR_STEPS.predict.ask).toBe("4215 vs 6980 who wins");
+    const all = Object.values(TOUR_STEPS).flatMap((s) => [s.title, s.body, s.after ?? "", s.live ?? ""]).join(" ");
     expect(all).not.toMatch(/\d{3,5}/);
+    expect(all).not.toMatch(/not a tab|no recording|stats only|then predict/i);
     expect(all.toLowerCase()).not.toContain("houston");
     expect(all.toLowerCase()).not.toContain("clip");
   });

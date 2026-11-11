@@ -8,7 +8,6 @@
 // in on a second device who has used the app has tracked teams, a team of
 // their own or a workspace, and `knowsTheApp` already keeps the tour away.
 import type { PersonalState } from "../shared/personal";
-import { predictHref } from "../shared/predictUrl";
 import type { AccountUser } from "./personal";
 
 export const TOUR_KEY = "cs-tour";
@@ -22,7 +21,7 @@ export const TOUR_DEMO_KEY = "cs-tour-demo";
 export const TOUR_CHANGE = "cs-tour-change";
 
 export type TourStatus = "paused" | "finished" | "skipped";
-export type TourStepId = "search" | "rating" | "save" | "highlights" | "watch";
+export type TourStepId = "search" | "rating" | "save" | "highlights" | "watch" | "predict";
 export interface TourRecord {
   v: 2;
   status: TourStatus;
@@ -35,7 +34,7 @@ export interface TourRecord {
   steps: TourStepId[];
 }
 
-const STEP_IDS = new Set<string>(["search", "rating", "save", "highlights", "watch"]);
+const STEP_IDS = new Set<string>(["search", "rating", "save", "highlights", "watch", "predict"]);
 // The record when saving failed (storage blocked or full): it holds for this page's lifetime.
 let memory: TourRecord | null = null;
 
@@ -172,6 +171,10 @@ export interface TourStep {
   live?: string;
   /** Where it points: the first of these selectors with a visible element wins. */
   targets: string[];
+  /** Once its search has answered: the part of the answer it points at (the video, the prediction). */
+  answer?: string[];
+  /** The search its button runs, typed into the box: a real one that answers live with a card. */
+  ask?: string;
   /** Points at the start page's own parts: shown only there (elsewhere the tour waits, paused). */
   home: boolean;
 }
@@ -202,26 +205,39 @@ export const TOUR_STEPS: Record<TourStepId, TourStep> = {
   },
   highlights: {
     id: "highlights",
-    title: "Highlights, then predict",
-    body: "Highlights are a search, not a tab, and most events have no recording yet, so the card often shows stats only.",
+    title: "Watch a team's matches",
+    body: "Search a team's name with “highlights” to watch its best matches.",
+    after: "Search any team + highlights to watch its matches.",
     targets: ['[data-tour="search"]'],
+    answer: ["[data-answer-video]"],
+    ask: "Exodus highlights",
     home: false,
   },
   watch: {
     id: "watch",
-    title: "Watch, then predict",
-    body: "This event's recording is one full video, and each match's Watch button jumps to that match in it.",
-    after: "Most events have no recording yet; ones that do are under Events, Any video, with a jump to each match.",
-    live: "This event is streaming live here; once it ends, the recording has a jump to each match.",
+    title: "Watch any match",
+    body: "Tap Watch on a match to jump straight to it.",
+    after: "Tap a match to see its score and who played.",
+    live: "This event is live: watch it right here.",
     targets: ["[data-watch-live]", '[data-tour="event-matches"]'],
     home: true,
+  },
+  predict: {
+    id: "predict",
+    title: "See who would win",
+    body: "Ask who wins between two teams to see the odds.",
+    after: "Ask who wins any matchup to see the odds.",
+    targets: ['[data-tour="search"]'],
+    answer: ['[data-stat-answer] [data-block="kpis"]', "[data-stat-answer]"],
+    ask: "4215 vs 6980 who wins",
+    home: false,
   },
 };
 
 const BY_KIND: Record<TourKind, TourStepId[]> = {
   team: ["search", "rating", "save", "highlights"],
-  event: ["search", "watch"],
-  other: ["search", "highlights"],
+  event: ["search", "watch", "predict"],
+  other: ["search", "highlights", "predict"],
 };
 
 /** Shown on screen: laid out, not hidden, not inert. */
@@ -248,9 +264,9 @@ export function findTarget(step: TourStep, root: ParentNode = document): HTMLEle
 export function resolveSteps(pathname: string, root: ParentNode = document): TourStepId[] {
   const ids = BY_KIND[tourKind(pathname)].filter((id) => findTarget(TOUR_STEPS[id], root) !== null);
   if (ids[0] !== "search") return [];
-  // An event page with nothing of its own on screen yet (no schedule, no recording): everyone else's tour,
-  // search then highlights, rather than none.
-  return ids.length >= 2 ? ids : BY_KIND.other;
+  // A page with none of its own parts on screen yet (an event with no schedule or recording): everyone else's
+  // tour, search, highlights and a prediction, rather than none.
+  return ids.length >= 2 && ids.some((id) => TOUR_STEPS[id].home) ? ids : BY_KIND.other;
 }
 
 /** The team page's "Tracking …" note: the tour clears it (only it) when it moves on from the Track step. */
@@ -265,27 +281,8 @@ export function tourTeam(origin: string): number | null {
   return m ? Number(m[1]) : null;
 }
 
-/** Step 4's search: the tour's own team's highlights, else a season's (no team named). */
-export const highlightsQuery = (origin: string) => {
-  const team = tourTeam(origin);
-  return team ? `${team} highlights` : "decode finals match highlights";
-};
-
 /** The search page with this query. */
 export const searchHref = (q: string) => `/search?q=${encodeURIComponent(q)}`;
-
-/** Where the tour ends: Predict, with the tour's team or event already picked. */
-export function predictAction(origin: string): { label: string; href: string } {
-  const team = tourTeam(origin);
-  if (team) return { label: `Predict a match with ${team}`, href: predictHref({ mode: "match", red: [team] }) };
-  const ev = /^\/events\/(\d{4})\/([^/]+)\/?$/i.exec(pathOf(origin));
-  if (ev) {
-    let code = ev[2]!;
-    try { code = decodeURIComponent(code); } catch { /* keep as written */ }
-    return { label: "Predict this event", href: predictHref({ mode: "advancement", season: Number(ev[1]), code }) };
-  }
-  return { label: "Predict a match", href: predictHref({ mode: "match" }) };
-}
 
 /**
  * How a step shows on this page: "point" (spotlight its part), "ask" (spotlight search, with a button that
@@ -296,6 +293,7 @@ export type TourMode = "point" | "ask" | "answer";
 export function stepMode(id: TourStepId, pathname: string, query: string): TourMode {
   const onSearch = trim(pathname) === "/search" && query.trim() !== "";
   if (id === "search") return onSearch ? "answer" : "ask";
-  if (id === "highlights") return onSearch && /highlight/i.test(query) ? "answer" : "ask";
+  const ask = TOUR_STEPS[id].ask;
+  if (ask) return onSearch && query.trim().toLowerCase() === ask.toLowerCase() ? "answer" : "ask";
   return "point";
 }

@@ -15,7 +15,7 @@
 // it while focus is there; ←/→ step back and forth, Enter on the card goes on,
 // Esc skips. Focus goes back where it was when the tour ends. Reduced motion:
 // no smooth scrolling and no sliding spotlight.
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 import { m } from "../motion";
@@ -26,7 +26,7 @@ import { cn } from "../cn";
 import { useConsent } from "../../lib/consent";
 import { usePersonal } from "../../lib/personal";
 import { claimFirstRun, releaseFirstRun, useFirstRunHolder } from "../../lib/firstRun";
-import { coversTour, endTour, findTarget, highlightsQuery, isAutomated, isShown, isTourPage, knowsTheApp, predictAction, readTour, rememberTourPage, rereadTour, resolveSteps, samePage, saveTour, searchHref, stepMode, TRACKED_TOAST_ID, tourDemo, tourKind, tourOver, tourTeam, TOUR_ASK, TOUR_CHANGE, TOUR_KEY, TOUR_STEPS, type TourRecord, type TourStep } from "../../lib/tour";
+import { coversTour, endTour, findTarget, isAutomated, isShown, isTourPage, knowsTheApp, readTour, rememberTourPage, rereadTour, resolveSteps, samePage, saveTour, searchHref, stepMode, TRACKED_TOAST_ID, tourDemo, tourKind, tourOver, tourTeam, TOUR_ASK, TOUR_CHANGE, TOUR_KEY, TOUR_STEPS, type TourRecord, type TourStep } from "../../lib/tour";
 
 /** After the page is idle, wait this long before opening (the page settles; no flash on a bounce). */
 export const TOUR_DELAY_MS = 900;
@@ -208,6 +208,18 @@ export function FirstRunTour() {
 
   useEffect(() => () => releaseFirstRun(SLOT), []);
 
+  // A step that shows by doing: once its search has answered, it points at what came back (the video, the
+  // prediction), looked for again until the answer has drawn it (about 10 s), docked until then.
+  const shown = useMemo(() => (step && mode === "answer" && step.answer ? { ...step, targets: step.answer } : null), [step, mode]);
+  const [, redraw] = useState(0);
+  const found = !!shown && onCard && !!findTarget(shown);
+  useEffect(() => {
+    if (!shown || !onCard || found) return;
+    let tries = 0;
+    const t = window.setInterval(() => { if (findTarget(shown) || ++tries >= 20) { window.clearInterval(t); redraw((x) => x + 1); } }, 500);
+    return () => window.clearInterval(t);
+  }, [shown, onCard, found]);
+
   if (!running || !step || !view) return null;
   if (view === "pill") {
     return <TourPaused onResume={() => { shownFor.current = null; if (here) setNonce((x) => x + 1); else navigate(rec!.origin); }} onSkip={() => finish("skipped")} />;
@@ -216,16 +228,17 @@ export function FirstRunTour() {
   const count = rec!.steps.length;
   const origin = rec!.origin;
   const run = (q: string) => () => navigate(searchHref(q));
-  const end = () => { const p = predictAction(origin); return { label: p.label, run: () => { finish("finished"); navigate(p.href); } }; };
   let primary: TourPrimary | null | undefined;
   let body: string | undefined;
+  // A step that shows by doing: its button runs its search; once answered, it points at what came back.
   if (step.id === "search") primary = mode === "ask" ? { label: `Ask “${TOUR_ASK}”`, run: run(TOUR_ASK) } : undefined, body = mode === "answer" ? step.after : undefined;
-  else if (step.id === "highlights") primary = mode === "ask" ? { label: "Show highlights", run: run(highlightsQuery(origin)) } : end();
+  else if (step.ask) primary = mode === "ask" ? { label: `Search “${step.ask}”`, run: run(step.ask) } : undefined, body = mode === "answer" ? step.after : undefined;
   else if (step.id === "save") primary = tracked ? undefined : null;
-  else if (step.id === "watch") { primary = end(); body = document.querySelector("[data-watch-live][data-recording]") ? undefined : document.querySelector("[data-watch-live]") ? step.live : step.after; }
+  else if (step.id === "watch") body = document.querySelector("[data-watch-live][data-recording]") ? undefined : document.querySelector("[data-watch-live]") ? step.live : step.after;
+  const pointAt = shown && found ? shown : null;
   return (
     <TourOverlay
-      step={step} index={n} count={count} body={body} docked={mode === "answer" || (mode === "ask" && !findTarget(step))} primary={primary}
+      step={pointAt ?? step} index={n} count={count} body={body} docked={!pointAt && (mode === "answer" || (mode === "ask" && !findTarget(step)))} primary={primary}
       onNext={() => (n === count - 1 ? finish("finished") : goTo(n + 1))}
       onBack={() => goTo(n - 1)}
       onSkip={() => finish("skipped")}
@@ -346,7 +359,10 @@ export function TourOverlay({ step, index: i, count, body, docked = false, prima
     const follow = () => { until = performance.now() + 250; cancelAnimationFrame(raf); loop(); };
     window.addEventListener("resize", follow);
     window.addEventListener("scroll", follow, true);
-    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", follow); window.removeEventListener("scroll", follow, true); };
+    // The page around it can still move it with no scroll or resize (a search answer's side column arriving):
+    // look again now and then.
+    const tick = window.setInterval(measure, 400);
+    return () => { cancelAnimationFrame(raf); window.clearInterval(tick); window.removeEventListener("resize", follow); window.removeEventListener("scroll", follow, true); };
   }, [step, reduced, docked]);
 
   // The card's own size, for placing it beside the target.
@@ -381,7 +397,7 @@ export function TourOverlay({ step, index: i, count, body, docked = false, prima
 
   // Typing a question into the spotlit search: step aside until focus leaves it.
   useEffect(() => {
-    if (docked || (step.id !== "search" && step.id !== "highlights")) { setTyping(false); return; }
+    if (docked || !step.targets.includes('[data-tour="search"]')) { setTyping(false); return; }
     const check = () => setTyping(!!(document.activeElement as Element | null)?.closest("[data-search-box]"));
     let t = 0;
     const later = () => { window.clearTimeout(t); t = window.setTimeout(check, 0); };
