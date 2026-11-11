@@ -126,7 +126,8 @@ These keys never leave the device (`DEVICE_ONLY_KEYS`):
 | `cs-account-cache` | The signed-in account as `/api/auth/me` last answered (`src/lib/personal.tsx`). When the app opens offline it stands in for the account, so the scout space (and where new entries go) is the workspace it was. Removed on sign-out or when `/me` says signed out; used only for the device's own account |
 | `cs-scout-lost:<workspace>` | Edits this device lost to a newer one from someone else, kept so they can be compared and restored (`src/lib/lostEdits.ts`; at most 30 per workspace, 30 days). A restore sends the entry, as any edit; the list itself never leaves the device |
 | `cs-tour` | The first-run tour on this device (`src/lib/tour.ts`): `{v: 2, status: "paused" \| "finished" \| "skipped", at, step, origin, steps}`. Paused while it runs (leaving, a reload or closing the tab keep it at the same step); finished or skipped, it never shows on its own again here. An old `{v: 1}` "skipped" at step 0 (written by just navigating away) counts as never shown. See "First-run tour" below |
-| `cs-tour-demo` | `"1"` lets a browser driven by automation see the tour (`npm run shots -- --tour`); real visitors never have it |
+| `cs-tour-demo` | `"1"` lets a browser driven by automation see the tour and the welcome card (`npm run shots -- --tour`); real visitors never have it |
+| `cs-welcome` | When this visitor closed the welcome card (`src/lib/welcome.ts`; X, Esc, a search or an example): it's shown once per visitor. "Clear all local data" brings it back |
 | `cs-install` | The add-to-home-screen nudge on this device (`src/lib/installNudge.ts`): `{v, lastShown: "YYYY-MM-DD", dismissed?, installed?}`. See "Add-to-home-screen nudge" below |
 | `cs-install-demo` | `"1"` lets a browser driven by automation see the nudge (`npm run shots -- --install`); real visitors never have it |
 | `cs-recent-searches` | This device's recent searches (`src/components/search/discover.tsx`): up to 6 query strings, newest first, shown in an empty search box's list with one tap to run again. "Clear" removes them all |
@@ -152,6 +153,14 @@ itself, the space and the view are never sent: not in a personal sync
 | `cs-sidebar`, `cs-records-cols:<table>`, `cs-saved-filters:v1` | local UI state | No |
 | `cs-consent`, `cs-alerts-sent`, `cs-offline-seasons`, `cs-pack-meta`, `cs-seen` | device state | No |
 | sessionStorage `cs-session`, `cs-stats-session` | this tab only | `cs-stats-session` only as the analytics "new session" bit (no ID) |
+
+### Welcome card and the step-by-step tour
+
+A first-time visitor gets one small welcome card (`src/components/layout/WelcomeCard.tsx`): "Search any team,
+event or match", with three example searches that answer live. It's shown once per visitor (`cs-welcome`).
+The step-by-step tour never starts by itself: it's behind the owner's Features toggle Step-by-step tour
+(`onboardingTour`, off by default). While that's on, the welcome card, Settings → This app and How it works
+offer "Take the tour"; while it's off, there's no tour and no Take the tour button or row anywhere.
 
 ### First-run tour: device-only on purpose
 
@@ -197,13 +206,13 @@ and its next match"). Home never redirects to My team. It sells speed, never off
   `navigator.standalone`), the `appinstalled` event or an accepted install
   dialog (`installed`), or `navigator.getInstalledRelatedApps()` finding it
   (the manifest's `related_applications` names the app on controlscout.org).
-- **The tour goes first.** It shares the first-run slot (`src/lib/firstRun.ts`).
-  On a page where the tour may still open (not finished or skipped here, not
-  an automated browser, not someone who knows the app, a tour page) the nudge
-  stays away; in the page view where the tour (or any other first-run
+- **The welcome card goes first.** It shares the first-run slot (`src/lib/firstRun.ts`).
+  On a page where the welcome card may still open (not closed here, not
+  an automated browser, not someone who knows the app, a landing page) the nudge
+  stays away; in the page view where the welcome card, a tour (or any other first-run
   surface) held the slot it waits for the next page view or visit (coming
   back to the same page later counts). So on a first visit the
-  tour comes first and the nudge follows on a later page. "First app open"
+  welcome card comes first and the nudge follows on a later page. "First app open"
   is therefore the first page view where the browser offers an install and
   the tour isn't due.
 - **Never in front of anything:** after the privacy choice, once the page is

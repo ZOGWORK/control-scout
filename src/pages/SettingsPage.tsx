@@ -667,12 +667,16 @@ function About() {
   const meta = useMeta();
   // Error reports switched off by the owner: no bug report box (the contact form below still works).
   const reportsOn = useFlag("errorReporting");
+  // The step-by-step tour is the owner's to turn on (onboardingTour, off by default): no row for it while it's off.
+  const tourOn = useFlag("onboardingTour");
   return (
     <div>
       <Group title="This app">
-        <Row label="Take the tour" description="A short walk through search and the main buttons, on the page you were last on.">
-          <TakeTour />
-        </Row>
+        {tourOn && (
+          <Row label="Take the tour" description="A short walk through search and the main buttons, on the page you were last on.">
+            <TakeTour />
+          </Row>
+        )}
         <Row label="What's new" description={`Every release of Control Scout, newest first.${APP_RELEASE ? ` This is v${APP_RELEASE}.` : ""}`}>
           <Button variant="outline" size="sm" onClick={() => openWhatsNew()}><Megaphone /> What's new</Button>
         </Row>
