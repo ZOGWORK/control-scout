@@ -175,9 +175,15 @@ export async function submitApplication(user: User, input: Partial<ApplicationIn
   try {
     const r = await get<{ id: number }>(
       `INSERT INTO verification_applications (user_id, status, team_number, team_name, role, role_other, events_text, channel_url, channel_check, sample_video_url, sample_video_id,
-         recorded_self, why_text, extra_text, agreements_json, submitted_at) VALUES (?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-      [user.id, team, teamName, role, role === "other" ? roleOther : null, events, chan, channelCheck, sample, sampleId, recorded, why, extra || null, JSON.stringify(agreements), iso(now)]);
-    const id = Number(r!.id);
+         recorded_self, why_text, extra_text, agreements_json, submitted_at)
+       SELECT ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        WHERE (SELECT COUNT(*) FROM verification_applications WHERE user_id = ? AND submitted_at > ?) < ?
+       RETURNING id`,
+      [user.id, team, teamName, role, role === "other" ? roleOther : null, events, chan, channelCheck, sample, sampleId, recorded, why, extra || null, JSON.stringify(agreements), iso(now),
+        user.id, iso(now - 30 * DAY), APPLICATIONS_PER_30_DAYS]);
+    // The 30-day cap is in the insert itself, so applications sent at once can't each pass a separate count.
+    if (!r) return { ok: false, status: 429, code: "spam", error: "You've applied a few times recently — check back later." };
+    const id = Number(r.id);
     await run(`INSERT INTO video_contributors (user_id, status, source, application_id, requested_at) VALUES (?, 'pending', 'application', ?, ?)
                ON CONFLICT (user_id) DO UPDATE SET status = 'pending', source = 'application', application_id = excluded.application_id, invite_hash = NULL,
                  requested_at = excluded.requested_at, decided_at = NULL, decided_by = NULL, decision_note = NULL, private_note = NULL, reapply_after = NULL`, [user.id, id, iso(now)]);

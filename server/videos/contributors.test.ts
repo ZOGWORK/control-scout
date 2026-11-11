@@ -243,6 +243,15 @@ describe("verification", () => {
     expect((await submitApplication(loner, form())).ok).toBe(true);
   });
 
+  it("three applications in 30 days at most, even sent at once", async () => {
+    for (let i = 0; i < 2; i++) { expect((await submitApplication(loner, form())).ok).toBe(true); expect(await withdrawApplication(loner)).toBe(true); }
+    const both = await Promise.all([submitApplication(loner, form()), submitApplication(loner, form())]);
+    expect(both.filter((x) => x.ok)).toHaveLength(1);
+    expect(await withdrawApplication(loner)).toBe(true);
+    expect(await submitApplication(loner, form())).toMatchObject({ ok: false, status: 429 });
+    expect((await get<{ n: number }>("SELECT COUNT(*) n FROM verification_applications"))?.n).toBe(3);
+  });
+
   it("a rejection shares its reason (or the plain line), and holds re-applying for 7 days, invites included", async () => {
     await submitApplication(loner, form());
     await reject(loner.id, "owner@example.test", "Send a sample from an NJ event", "looked thin");
