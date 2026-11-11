@@ -84,4 +84,12 @@ describe("two changes at once", () => {
     expect([x.ok, y.ok].filter(Boolean).length).toBe(1);
     expect(["second_one", "third_one"]).toContain((await getUser(a.id))!.username);
   });
+
+  it("two saves of the same new username both say it's saved", async () => {
+    const a = await user("a@example.test");
+    const fresh = (await getUser(a.id))!;
+    const [x, y] = await Promise.all([setUsername(fresh, "same_name"), setUsername(fresh, "same_name")]);
+    expect([x.ok, y.ok]).toEqual([true, true]);
+    expect((await getUser(a.id))!.username).toBe("same_name");
+  });
 });
