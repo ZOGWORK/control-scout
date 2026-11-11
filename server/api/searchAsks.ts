@@ -77,9 +77,11 @@ const AWARDS: Record<string, string> = {
   inspire: "Inspire", think: "Think", innovate: "Innovate", design: "Design", reach: "Reach", sustain: "Sustain",
   connect: "Connect", control: "Control", motivate: "Motivate", compass: "Compass", judges: "JudgesChoice", "judges choice": "JudgesChoice",
   "deans list": "DeansList", "dean's list": "DeansList",
+  // The performance awards, by the alliance each names ("who won the finalist award at …").
+  finalist: "Finalist", finalists: "Finalist", "finalist alliance": "Finalist", "winning alliance": "Winner",
 };
 /** An award type's name in words, where FIRST's type isn't one ("JudgesChoice"). */
-const AWARD_NAME: Record<string, string> = { JudgesChoice: "Judges' Choice", DeansList: "Dean's List" };
+const AWARD_NAME: Record<string, string> = { JudgesChoice: "Judges' Choice", DeansList: "Dean's List", Finalist: "Finalist Alliance", Winner: "Winning Alliance" };
 
 /** A region named by the words `s` (all of them), or null. */
 const regionWords = (s: string): Region | null => regionOf(s.trim().replace(/^(?:the )?(?:state of )?/i, "").split(/\s+/).filter(Boolean));
@@ -182,10 +184,11 @@ export function readAsk(q: string): Ask | null {
     const w = m[2].replace(/['’]/g, ""); // "Judges' Choice", "Judges’ Choice"
     if (Object.hasOwn(AWARDS, w)) return { kind: "award", award: AWARDS[w], event: m[3], ...(m[1] ? { place: Number(m[1]) } : {}) };
   }
-  // Who won an event ("who won nj states", "winners of the New Jersey Championship"): never "won" as a name word.
+  // Who won an event ("who won nj states", "winners of the New Jersey Championship"): never "won" as a name word, nor
+  // an award at an event ("who won the … award at …"), whichever award it is.
   m = /^(?:who (?:won|took|was the winner of|were the winners of|were the champions of|was the champion of)|winners? of|champions? of) (?:the )?(.+)$/.exec(t);
   // "Who took the most penalties" is a measure, never an event.
-  if (m && !/^(?:most|fewest|least|highest|lowest|best|worst|first|last|top|longest|biggest|more|fewer)\b/.test(m[1]) && !Object.hasOwn(AWARDS, m[1].replace(/['’]/g, "").replace(/ award$/, ""))) return { kind: "event-won", event: m[1].split(" ").map((w) => cased.get(w) ?? w).join(" ") };
+  if (m && !/^(?:most|fewest|least|highest|lowest|best|worst|first|last|top|longest|biggest|more|fewer)\b/.test(m[1]) && !Object.hasOwn(AWARDS, m[1].replace(/['’]/g, "").replace(/ award$/, "")) && !/(?:^| )awards? at /.test(m[1])) return { kind: "event-won", event: m[1].split(" ").map((w) => cased.get(w) ?? w).join(" ") };
   return null;
 }
 
@@ -466,9 +469,11 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
       const awardCode = fromParent ? parent! : code;
       const latest = fromParent ? fromParentSeason : own;
       const season = latest != null ? Number(latest) : Number(found);
-      const rows = await all<any>(
+      // A Winning or Finalist Alliance: its teams, never the FIRST Leadership Award's finalists FIRST files with them.
+      const alliance = ask.award === "Winner" || ask.award === "Finalist";
+      const rows = (await all<any>(
         "SELECT a.placement, a.team, a.name award, t.name FROM awards a LEFT JOIN teams t ON t.number = a.team WHERE a.season = ? AND a.code = ? AND a.type = ? ORDER BY a.placement, a.team",
-        [season, awardCode, ask.award]);
+        [season, awardCode, ask.award])).filter((r) => !alliance || !/leadership/i.test(r.award ?? ""));
       // An older season: that season's event, with its own dates and place, and the newer one said when it's still to
       // come or not posted ("The 2026–27 one (Nov 15, 2026) isn't held yet").
       // Only a newer one with no such award recorded: an older year asked, whose newer one has its winner, says nothing.
@@ -484,13 +489,17 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
         ?? { ...ev, ref: `${season}:${parent}`, title: parentName, season, subtitle: seasonLabel(season) } : ev;
       const place = (p: number) => (p === 1 ? "Winner" : `${p}${p === 2 ? "nd" : p === 3 ? "rd" : "th"} place`);
       const asked = ask.place != null ? rows.filter((r) => Number(r.placement) === ask.place) : [];
-      const lines = [...asked, ...rows.filter((r) => !asked.includes(r))].map((r) => teamLine(Number(r.team), r.name, [place(Number(r.placement))], r.award ?? undefined));
-      const award = rows[0]?.award ?? `${AWARD_NAME[ask.award] ?? ask.award} Award`;
+      // An alliance's teams are its captain and picks, which each row's own name says ("Finalist Alliance - Captain"),
+      // never a place; the award is the alliance's, never one division's.
+      const lines = [...asked, ...rows.filter((r) => !asked.includes(r))].map((r) => teamLine(Number(r.team), r.name, alliance ? [] : [place(Number(r.placement))], r.award ?? undefined));
+      const award = (!alliance && rows[0]?.award) || `${AWARD_NAME[ask.award] ?? ask.award} Award`;
       return answer(q, {
         hits: [{ ...shownHit, section: "awards" }], pages: pagesFor(q),
         card: { kind: "event-awards", title: `${award} · ${fromParent ? parentName : ev.title} · ${seasonLabel(season)}`, lines, award: ask.award, ...(ask.place != null ? { place: ask.place } : {}), ...(await eventAwards(season, awardCode, fromParent ? parentName : ev.title)),
           ...(fromParent ? { note: `${ev.title} is a division of ${parentName}: its awards are given at the championship, so this is the championship's ${award}.` } : {}),
-          ...(lines.length ? {} : { none: `No ${award} recorded at ${fromParent ? parentName : ev.title}${parent && !fromParent ? ` or its championship` : ""} in any season on record.` }) },
+          // A league meet gives no awards: a league's are given at its league tournament.
+          ...(lines.length ? {} : { none: ev.event?.type === "LeagueMeet" ? `${ev.title} is a league meet, and league meets give no awards: a league's awards, the ${award} among them, are given at its league tournament.`
+            : `No ${award} recorded at ${fromParent ? parentName : ev.title}${parent && !fromParent ? ` or its championship` : ""} in any season on record.` }) },
         understood: { kind: "question", label: `${ask.place != null && ask.place > 1 ? `Who got ${place(ask.place)} for the` : "Who won the"} ${award} at ${ev.title} (${seasonLabel(season)})${fromParent ? ` · given at ${parentName}` : ""}${upcoming}${ask.place != null && rows.length && !asked.length ? ` · No ${place(ask.place)} recorded` : ""}`, season },
       });
     }
