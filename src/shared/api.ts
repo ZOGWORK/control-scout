@@ -188,18 +188,15 @@ export interface SearchAnswer {
  *   match      FIRST's own video of the match
  *   recording  the event's recording (or live stream), from the match's second in it
  *   stream     the event's recording or live stream, from its start
- *   contributor a match video someone added (docs/contributors.md), credited to them; only to a viewer who may see it
  */
 export interface SearchVideoItem {
   videoId: string;
   t: number;
-  kind: "match" | "recording" | "stream" | "contributor";
+  kind: "match" | "recording" | "stream";
   /** The match's label ("Q12", "M3"): match and recording only. */
   match?: string;
   /** The broadcast is still live (a stream or recording only). */
   live?: boolean;
-  /** A contributor video's credit (the actual name, never a username), badge, likes and the viewer's own part. */
-  contributor?: { id: number; name: string; verified: boolean; profile: string | null; likes: number; liked: boolean; mine: boolean; tier: "public" | "team" | "self" };
 }
 export interface SearchVideo {
   main?: SearchVideoItem;
