@@ -71,6 +71,9 @@ export type Sym =
 const TABLE: [string, Sym | Sym[]][] = [
   ["margin of victory|victory margin|winning margin|margin of win", [{ k: "metric", v: "margin" }, { k: "outcome", v: "W" }]],
   ["margin of defeat|losing margin|margin of loss|defeat margin", [{ k: "metric", v: "margin" }, { k: "outcome", v: "L" }]],
+  // A win or a loss "by the most points" or "by the least" is its margin, the biggest or the smallest.
+  ["by the most points", [{ k: "metric", v: "margin" }, { k: "agg", v: "max" }]],
+  ["by the least|by the least points|by the fewest points", [{ k: "metric", v: "margin" }, { k: "agg", v: "min" }]],
   // Aggregations.
   ["highest|high|best|top|max|maximum|biggest|largest|greatest|most|record high|world record|peak|strongest|winningest|career high|personal best|longest|most times|the most times", { k: "agg", v: "max" }],
   // The ones worth watching are the best: "what team should i watch at nj states".

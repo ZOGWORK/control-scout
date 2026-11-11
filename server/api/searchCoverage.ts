@@ -237,8 +237,8 @@ export function rewriteQuery(q: string, named: ReadonlySet<string> = new Set()):
   // A team's division at Worlds asked as a question ("what division was <team> in at worlds"): its Worlds divisions.
   if ((m = new RegExp(`^(?:what|which)\\s+divisions?\\s+(?:is|was|were|are|did)\\s+${TEAM}\\s+(?:(?:in|play in|compete in)\\s+)?(?:at|for)\\s+(?:the\\s+)?(?:worlds|first championship|world championships?)((?:\\s+(?:in\\s+)?20\\d\\d(?:\\s*-\\s*\\d\\d)?)?)$`).exec(t))) return { q: squash(`${m[1]} worlds division ${m[2]}`), pre: true };
   // "Ever" or "of all time" after a match is every season, kept.
-  if ((m = /^(\d{1,6})\s+(best|top|greatest)\s+(?:match|game)(?:es)?(\s+(?:ever|of all time|all time))?$/.exec(t))) return { q: `${m[1]} highest score${m[3] ? " ever" : ""}`, note: "the best match is read as the highest-scoring one", pre: true };
-  if ((m = /^(\d{1,6})\s+(?:worst)\s+(?:match|game)(?:es)?(\s+(?:ever|of all time|all time))?$/.exec(t))) return { q: `${m[1]} lowest score${m[2] ? " ever" : ""}`, note: "the worst match is read as the lowest-scoring one", pre: true };
+  if ((m = /^(\d{1,6})\s+(best|top|greatest)\s+(?:match|game)(?:es)?(\s+(?:ever|of all time|all time))?$/.exec(t))) return { q: `${m[1]} highest score${m[3] ? " ever" : ""}`, pre: true };
+  if ((m = /^(\d{1,6})\s+(?:worst)\s+(?:match|game)(?:es)?(\s+(?:ever|of all time|all time))?$/.exec(t))) return { q: `${m[1]} lowest score${m[2] ? " ever" : ""}`, pre: true };
   if ((m = /^(\d{1,6})\s+(?:best|top|greatest)\s+(?:event|competition|tournament)s?$/.exec(t))) return { q: `${m[1]} best finish`, note: "the best event is read as the best finish", pre: true };
   // A team's partners and opponents: who it played with (or against) most often, every one counted.
   if ((m = /^(\d{1,6})\s+(?:alliance\s+)?(?:partners?|teammates?)$/.exec(t))) return { q: `${m[1]} most frequent partner`, pre: true };
