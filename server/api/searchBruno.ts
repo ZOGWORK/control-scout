@@ -20,8 +20,9 @@ const cache = new Map<string, { at: number; refined: string | null }>();
 export const resetBrunoCache = () => cache.clear();
 
 /** Bruno's rewrite of `q`, cached a day; undefined when he can't be asked (off, unconfigured, failed, timed out). */
-export async function brunoReading(q: string, now = Date.now()): Promise<string | null | undefined> {
-  if (!(await isEnabled("brunoSearch").catch(() => false)) || !brunoAvailable()) return undefined;
+/** `flag`: the switch that allows him here (the website's brunoSearch; the Discord bot's own discordBruno). */
+export async function brunoReading(q: string, now = Date.now(), flag: "brunoSearch" | "discordBruno" = "brunoSearch"): Promise<string | null | undefined> {
+  if (!(await isEnabled(flag).catch(() => false)) || !brunoAvailable()) return undefined;
   const k = normalize(q);
   const hit = cache.get(k);
   if (hit && now - hit.at < CACHE_TTL_MS) return hit.refined;
@@ -42,10 +43,10 @@ export async function brunoReading(q: string, now = Date.now()): Promise<string 
  * unreachable, or his reading finds no more than search did (the app then keeps its own answer). When he read it
  * but search finds nothing on his words, the recovery state says so (his reading included).
  */
-export async function refine(raw: string, opts: AnswerOptions = {}): Promise<SearchAnswer | null> {
+export async function refine(raw: string, opts: AnswerOptions = {}, flag: "brunoSearch" | "discordBruno" = "brunoSearch"): Promise<SearchAnswer | null> {
   const q = cleanQuery(raw);
   if (!q) return null;
-  const refined = await brunoReading(q);
+  const refined = await brunoReading(q, Date.now(), flag);
   if (refined === undefined) return null;
   const base = await searchAnswer(q, { ...opts, learn: false });
   if (refined === null || normalize(refined) === normalize(q)) {

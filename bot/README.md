@@ -20,13 +20,20 @@ an embed that links back to controlscout.org:
 `bot/ask.ts` takes the same path `/search` does, in the same order, in the bot's own process:
 
 1. `searchAnswer(q, { learn: false })`: the deterministic answer, always. Numbers only from stored data.
-2. Only when that answer is weak (`did-you-mean`, `recovery`), the `brunoSearch` switch is on and Control Point is
-   configured: `refine(q)`. Bruno rewrites the query; search runs again on his words.
-3. Only for a question (`isBrunoQuestion`), the `brunoAnswers` switch on and Control Point configured:
+2. Only when that answer is weak (`did-you-mean`, `recovery`), the bot's `discordBruno` switch is on and Control
+   Point is configured: `refine(q)`. Bruno rewrites the query; search runs again on his words.
+3. Every ask (/ask is a question however it's typed; sent with a "?" so the site's question check passes),
+   `discordBruno` on and Control Point configured:
    `brunoAnswer(q)`. A sentence from search's facts; dropped by the site's `grounded()` check if any number isn't in them.
 
-The embed is the website's answer: the stat or card (lists cut at 5, "…and N more on the website"), the top results
-when there's no card, Bruno's sentence quoted, and a link to the same answer on controlscout.org. Questions it
+**Bruno is the bot's own switch.** `discordBruno` (owner console, "Bruno AI in the Discord bot", on by default) is
+the only one /ask reads. The website's `brunoSearch` and `brunoAnswers` only ever affect /search, so Bruno can
+answer in Discord while the website stays search-only.
+
+**Short by design.** The answer only: a stat's headline alone when it has one ("who won decode" is one line: the
+champions and the finals scores), else its first block cut at 3 rows; a card's headline and 3 lines; 3 top results.
+About 500 characters as read at most. Everything else (more blocks, the source) is behind the link. The embed also
+carries Bruno's sentence quoted, and a link to the same answer on controlscout.org. Questions it
 can't answer get "Sorry — I can't answer that yet", what was read, and questions that work as copyable
 `/ask question: …` text (no buttons). An answer Bruno helped with carries **Bruno AI, from Control Point** in the
 footer above Control Scout's line; a deterministic one never does. Bruno off, unconfigured, failing or slow: the

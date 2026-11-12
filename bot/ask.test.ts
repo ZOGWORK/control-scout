@@ -76,15 +76,16 @@ describe("the embed, step by step", () => {
     expect(e.description!.split("\n").slice(0, 2)).toEqual(["**First went to Worlds in 2021–22**", `• [2021–22 Franklin](${SITE}/events/2021/FRANKLIN) · Rank 12`]);
   });
 
-  it("a stat answer: headline, blocks (lists capped at 5, the rest left to the website), the source", () => {
+  it("a stat answer with a headline: the headline alone (it is the answer), the rest one tap away", () => {
     const rows = Array.from({ length: 7 }, (_, i) => ({ rank: i + 1, team: { label: `${100 + i}`, href: `/teams/${100 + i}` }, location: null, record: "5–1–0", opr: 50, value: 50 - i, display: `${50 - i}.0` }));
-    const a = base({ stat: { family: "leaderboard", intent: "opr-top", title: "Top OPR", scope: [], headline: { value: "50.0", label: "OPR", href: "/teams/100" }, blocks: [{ kind: "leaderboard", title: "Top 7", stat: { id: "opr", label: "OPR" }, note: "2025–26 · 7 teams", rows }], definition: "OPR without penalties", source: "2025–26 matches" } });
-    const e = askEmbed("top opr", a, null, SITE);
-    const lines = e.description!.split("\n");
-    expect(lines[0]).toBe(`**[50.0](${SITE}/teams/100)** OPR`);
+    const stat = { family: "leaderboard", intent: "opr-top", title: "Top OPR", scope: [], blocks: [{ kind: "leaderboard", title: "Top 7", stat: { id: "opr", label: "OPR" }, note: "2025–26 · 7 teams", rows }], definition: "OPR without penalties", source: "2025–26 matches" } as const;
+    const e = askEmbed("top opr", base({ stat: { ...stat, headline: { value: "50.0", label: "OPR", href: "/teams/100" } } as never }), null, SITE);
+    expect(e.description!.split("\n")).toEqual([`**[50.0](${SITE}/teams/100)** OPR`, `[Open this answer on controlscout.org](${SITE}/search?q=top%20opr)`]);
+    // No headline: the first block, its list cut at 3.
+    const lines = askEmbed("top opr", base({ stat: stat as never }), null, SITE).description!.split("\n");
     expect(lines).toContain(`1. [100](${SITE}/teams/100) **50.0** · 5–1–0`);
-    expect(lines).toContain("…and 2 more on the website");
-    expect(lines).toContain("*2025–26 matches*");
+    expect(lines).toContain("…and 4 more on the website");
+    expect(lines).not.toContain("*2025–26 matches*");
   });
 
   it("a yes-or-no question leads with its verdict", () => {
@@ -103,16 +104,16 @@ describe("the embed, step by step", () => {
 });
 
 describe("the same path as the website, Bruno only where it would use him", () => {
-  it("a strong answer: no rewrite asked for; a statement (not a question): no sentence", async () => {
+  it("a strong answer: no rewrite asked for; any ask, even a statement, gets Bruno's short answer", async () => {
     const d = deps(base());
     const r = await ask("4215 highlights", d, SITE);
     expect(d.refine).not.toHaveBeenCalled();
-    expect(d.bruno).not.toHaveBeenCalled();
-    expect(r.meta).toEqual({ step: "deterministic", refined: false, sentence: false });
-    expect(r.embed.footer!.text).not.toMatch(/Bruno/);
+    expect(d.bruno).toHaveBeenCalledWith("4215 highlights");
+    expect(r.meta).toEqual({ step: "deterministic", refined: false, sentence: true });
+    expect(r.embed.footer!.text.split("\n")[0]).toBe("Bruno AI, from Control Point");
   });
 
-  it("a weak answer with brunoSearch on: his rewrite, credited", async () => {
+  it("a weak answer with discordBruno on: his rewrite, credited", async () => {
     const d = deps(base({ step: "recovery", hits: [] }));
     const r = await ask("hypnotic trophies", d, SITE);
     expect(d.refine).toHaveBeenCalledWith("hypnotic trophies");
@@ -120,19 +121,19 @@ describe("the same path as the website, Bruno only where it would use him", () =
     expect(r.embed.footer!.text).toMatch(/^Bruno AI, from Control Point\n/);
   });
 
-  it("brunoSearch off: no rewrite is asked for, and the deterministic answer posts", async () => {
-    const d = deps(base({ step: "recovery", hits: [], recovery: { understood: ["a name"], closest: [], browse: [] } }), { enabled: vi.fn(async (f) => f !== "brunoSearch") });
+  it("discordBruno off: no rewrite is asked for, and the deterministic answer posts", async () => {
+    const d = deps(base({ step: "recovery", hits: [], recovery: { understood: ["a name"], closest: [], browse: [] } }), { enabled: vi.fn(async () => false) });
     const r = await ask("hypnotic trophies", d, SITE);
     expect(d.refine).not.toHaveBeenCalled();
     expect(r.embed.title).toBe("Sorry — I can't answer that yet");
     expect(r.embed.footer!.text).not.toMatch(/Bruno/);
   });
 
-  it("a question with brunoAnswers on: one sentence, credited; brunoAnswers off: none, no credit", async () => {
+  it("a question with discordBruno on: one sentence, credited; off: none, no credit", async () => {
     const on = await ask("who won the most awards in 2025?", deps(base()), SITE);
     expect(on.meta.sentence).toBe(true);
     expect(on.embed.description).toMatch(/^> 4215 won 3 awards\./);
-    const d = deps(base(), { enabled: vi.fn(async (f) => f !== "brunoAnswers") });
+    const d = deps(base(), { enabled: vi.fn(async () => false) });
     const off = await ask("who won the most awards in 2025?", d, SITE);
     expect(d.bruno).not.toHaveBeenCalled();
     expect(off.embed.footer!.text).not.toMatch(/Bruno/);
@@ -158,11 +159,21 @@ describe("the same path as the website, Bruno only where it would use him", () =
 });
 
 describe("a long answer in the channel", () => {
-  it("is cut to about a phone screen as read (links count as their text), the rest one tap away", () => {
+  it("is a few short lines as read (links count as their text), the rest one tap away", () => {
     const a = base({ hits: [], card: { kind: "info", title: "Long", lines: Array.from({ length: 10 }, (_, i) => ({ text: `Line ${i} `.padEnd(200, "x"), href: `/events/2025/E${i}` })) } });
     const e = askEmbed("long", a, null, SITE);
     const read = e.description!.replace(/\]\([^)]*\)/g, "]").length;
-    expect(read).toBeLessThanOrEqual(1200 + 80);
+    expect(read).toBeLessThanOrEqual(500 + 80);
     expect(e.description).toMatch(/…more on the website\n\[Open this answer on controlscout\.org\]\(.*\)$/);
+  });
+});
+
+describe("the bot's own switch", () => {
+  it("the real deps read discordBruno only, never the website's brunoSearch / brunoAnswers", async () => {
+    const src = (await import("node:fs")).readFileSync(new URL("./ask.ts", import.meta.url), "utf8");
+    expect(src).toContain('isEnabled("discordBruno")');
+    expect(src).toContain('}, "discordBruno"),');
+    expect(src).toContain('undefined, "discordBruno"),');
+    expect(src).not.toMatch(/isEnabled\("bruno(Search|Answers)"\)/);
   });
 });

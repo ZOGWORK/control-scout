@@ -1,16 +1,16 @@
 // /ask: a question in plain words, answered with the website's own search answer (docs/search.md), as one embed.
 // The same path /search takes, in the same order, called in this process (no HTTP to the site):
 //   1. searchAnswer(q, { learn: false })  deterministic, always (learn off: a Discord ask never teaches search)
-//   2. refine(q)                          only when that answer is weak (did-you-mean, recovery), the brunoSearch
-//                                         switch is on and Bruno is configured: he rewrites the QUERY, search runs again
-//   3. brunoAnswer(q)                     only for a question (isBrunoQuestion), the brunoAnswers switch on and Bruno
+//   2. refine(q)                          only when that answer is weak (did-you-mean, recovery), the bot's own
+//                                         discordBruno switch is on and Bruno is configured: he rewrites the QUERY, search runs again
+//   3. brunoAnswer(q)                     every ask (/ask is always a question, however it's typed), discordBruno on and Bruno
 //                                         configured: a sentence from search's facts, dropped if any number isn't in them
 // Every number in the embed is search's own (or a sentence the grounded check passed). Bruno off, unconfigured,
 // failing or slow: the deterministic answer still posts, with no credit line. An answer that used him says so.
 import type { APIEmbed } from "discord.js";
 import type { SearchAnswer, SearchCardLine, SearchHit } from "../src/shared/api.js";
 import type { StatAnswer, StatBlock, StatLink, StatMatchRow } from "../src/shared/searchStat.js";
-import { SEARCH_PAGE_LIMIT, SORRY_SENTENCE, hitHref, isBrunoQuestion } from "../src/shared/search.js";
+import { SEARCH_PAGE_LIMIT, SORRY_SENTENCE, hitHref } from "../src/shared/search.js";
 import { FOOTER, VOLT, teamLink } from "./views.js";
 
 /** The credit an answer Bruno helped with carries, in the footer above Control Scout's own line. */
@@ -20,13 +20,13 @@ export const DESCRIPTION_MAX = 4096;
 export const EMBED_MAX = 6000;
 /** How much of an answer a reader sees in the channel (links counted as their text): a phone screen or so. The rest
  *  is one tap away on the website, so a long answer never becomes a wall in the channel. */
-export const READ_MAX = 1200;
+export const READ_MAX = 500;
 /** What a reader sees of a line: a link's text, not its address. */
 const readLen = (s: string) => s.replace(/\]\([^)]*\)/g, "]").length;
 /** Rows of one list block shown before "…and N more on the website". */
-const ROWS = 5;
+const ROWS = 3;
 /** Top results listed when the card doesn't already cover them. */
-const HITS = 5;
+const HITS = 3;
 
 export interface BrunoSentence { text: string; points: string[] }
 
@@ -35,7 +35,8 @@ export interface AskDeps {
   search: (q: string) => Promise<SearchAnswer>;
   refine: (q: string) => Promise<SearchAnswer | null>;
   bruno: (q: string) => Promise<BrunoSentence | null>;
-  enabled: (flag: "brunoSearch" | "brunoAnswers") => Promise<boolean>;
+  /** The bot's own Bruno switch (discordBruno). The website's brunoSearch / brunoAnswers never affect /ask. */
+  enabled: () => Promise<boolean>;
   available: () => boolean;
 }
 
@@ -51,9 +52,10 @@ export async function realAskDeps(): Promise<AskDeps> {
   ]);
   return {
     search: (q) => searchAnswer(q, { learn: false, limit: SEARCH_PAGE_LIMIT }),
-    refine: (q) => refine(q, { learn: false, limit: SEARCH_PAGE_LIMIT }),
-    bruno: (q) => brunoAnswer(q, { limit: SEARCH_PAGE_LIMIT }),
-    enabled: (f) => isEnabled(f).catch(() => false),
+    refine: (q) => refine(q, { learn: false, limit: SEARCH_PAGE_LIMIT }, "discordBruno"),
+    // /ask is a question however it's typed ("hi bruno", "4215 highlights"): asked as one, so Bruno writes the short answer.
+    bruno: (q) => brunoAnswer(q.trim().endsWith("?") ? q : `${q.trim()}?`, { limit: SEARCH_PAGE_LIMIT }, Date.now(), undefined, "discordBruno"),
+    enabled: () => isEnabled("discordBruno").catch(() => false),
     available: brunoAvailable,
   };
 }
@@ -62,11 +64,11 @@ export async function realAskDeps(): Promise<AskDeps> {
 export async function ask(q: string, deps: AskDeps, site: string): Promise<AskReply> {
   let answer = await deps.search(q);
   let refined = false;
-  if ((answer.step === "did-you-mean" || answer.step === "recovery") && deps.available() && (await deps.enabled("brunoSearch"))) {
+  if ((answer.step === "did-you-mean" || answer.step === "recovery") && deps.available() && (await deps.enabled())) {
     const r = await deps.refine(q).catch(() => null);
     if (r) { answer = r; refined = r.step === "ai"; }
   }
-  const sentence = isBrunoQuestion(q) && deps.available() && (await deps.enabled("brunoAnswers")) ? await deps.bruno(q).catch(() => null) : null;
+  const sentence = deps.available() && (await deps.enabled()) ? await deps.bruno(q).catch(() => null) : null;
   return { embed: askEmbed(q, answer, sentence, site), meta: { step: answer.step, refined, sentence: !!sentence } };
 }
 
@@ -91,8 +93,7 @@ function lineOf(l: SearchCardLine, site: string): string {
 
 function matchRow(r: StatMatchRow, site: string): string {
   const score = r.result === "W" ? `**${r.own}**–${r.opp}` : r.result === "L" ? `${r.own}–**${r.opp}**` : `${r.own}–${r.opp}`;
-  const who = [r.partners?.length ? `with ${teams(r.partners, site)}` : null, r.opponents?.length ? `vs ${teams(r.opponents, site)}` : null].filter(Boolean).join(" ");
-  return `${r.rank ? `${r.rank}. ` : ""}${link(r.label, r.href, site)} ${score} ${r.result} · ${statLink(r.event, site)} (${r.season})${who ? ` · ${who}` : ""}${r.note ? ` · ${md(r.note)}` : ""}${r.unofficial ? ` · *${md(r.unofficial)}*` : ""}`;
+  return `${r.rank ? `${r.rank}. ` : ""}${link(r.label, r.href, site)} ${score} ${r.result} · ${statLink(r.event, site)} (${r.season})${r.unofficial ? ` · *${md(r.unofficial)}*` : ""}`;
 }
 
 /** One stat block as lines (lists capped at ROWS, the rest left to the website). */
@@ -123,16 +124,19 @@ export function blockLines(b: StatBlock, site: string): string[] {
   }
 }
 
+/** The short answer: the headline when there is one (it is the answer), else the first block that says anything.
+ *  Everything else (more blocks, the source) is one tap away on the website. */
 function statLines(s: StatAnswer, site: string): string[] {
-  const lines: string[] = [];
   if (s.headline) {
     const h = s.headline;
-    lines.push(`**${link(h.value, h.href, site)}** ${md(h.label)}${h.sub ? ` · ${md(h.sub)}` : ""}${h.teams?.length ? ` · ${teams(h.teams, site)}` : ""}`);
+    return [`**${link(h.value, h.href, site)}** ${md(h.label)}${h.sub ? ` · ${md(h.sub)}` : ""}${h.teams?.length ? ` · ${teams(h.teams, site)}` : ""}`];
   }
-  if (s.none) lines.push(md(s.none));
-  for (const b of s.blocks) lines.push(...blockLines(b, site));
-  if (s.source) lines.push(`*${md(s.source)}*`);
-  return lines;
+  if (s.none) return [md(s.none)];
+  for (const b of s.blocks) {
+    const lines = blockLines(b, site).filter(Boolean);
+    if (lines.length) return lines;
+  }
+  return [];
 }
 
 const hitLine = (h: SearchHit, site: string) => `${link(h.title, hitHref(h), site)}${h.subtitle ? ` · ${md(h.subtitle)}` : ""}${h.facts?.length ? ` · ${h.facts.map((f) => `${md(f.label)} **${md(f.value)}**`).join(", ")}` : ""}`;
@@ -165,7 +169,7 @@ export function askEmbed(q: string, a: SearchAnswer, sentence: BrunoSentence | n
   const cant = !!a.sorry || (a.step === "recovery" && !a.card && !a.stat);
   if (cant) {
     const understood = a.sorry?.understood ?? a.recovery?.understood ?? [];
-    const tries = [...(a.sorry?.suggest ?? []), ...(a.suggest ?? [])].filter((x, i, all) => all.indexOf(x) === i).slice(0, 4);
+    const tries = [...(a.sorry?.suggest ?? []), ...(a.suggest ?? [])].filter((x, i, all) => all.indexOf(x) === i).slice(0, 3);
     const lines = [
       understood.length ? `I read it as: ${understood.map(md).join(" · ")}` : null,
       a.recovery?.ai?.refined ? `Bruno AI read it as: **${md(a.recovery.ai.refined)}**` : null,
@@ -190,15 +194,14 @@ export function askEmbed(q: string, a: SearchAnswer, sentence: BrunoSentence | n
     const c = a.card;
     title = `${c.title}${c.team ? ` · ${c.team.number}${c.team.name ? ` ${c.team.name}` : ""}` : ""}`;
     if (c.headline) lines.push(`**${md(c.headline)}**`);
-    lines.push(...c.lines.slice(0, 10).map((l) => `• ${lineOf(l, site)}`), ...more(c.lines.length - 10));
+    lines.push(...c.lines.slice(0, ROWS).map((l) => `• ${lineOf(l, site)}`), ...more(c.lines.length - ROWS));
     if (c.none) lines.push(md(c.none));
-    if (c.closest?.length) lines.push("**Closest records:**", ...c.closest.slice(0, ROWS).map((l) => `• ${lineOf(l, site)}`));
+    if (c.closest?.length && !c.lines.length) lines.push("**Closest records:**", ...c.closest.slice(0, ROWS).map((l) => `• ${lineOf(l, site)}`));
   } else {
     title = a.hits[0] ? a.hits[0].title : q;
   }
   // The top results, when the answer didn't already cover them.
   if (!a.stat && !a.card) lines.push(...a.hits.slice(0, HITS).map((h) => `• ${hitLine(h, site)}`), ...more(a.hits.length - HITS));
-  if (a.suggest?.length && !a.stat && !a.card) lines.push("**Also answers:**", ...a.suggest.slice(0, 3).map(askable));
   // The link stays: lines are cut from the bottom of the answer, never the link to the whole of it.
   const body = fitLines(lines, DESCRIPTION_MAX - close.length - 1, READ_MAX);
   return { title: title.length > 256 ? `${title.slice(0, 255)}…` : title, url: page, description: `${body ? `${body}\n` : ""}${close}`, color: VOLT, footer };

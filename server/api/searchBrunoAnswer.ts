@@ -113,13 +113,13 @@ export function grounded(text: string, facts: string[], question: string): boole
 
 /**
  * Bruno's answer to the question `raw`, or null (not a question, off, unconfigured, nothing to say, failed the
- * check). `opts`: the page's own search choices (its preferred teams, its limit), so he reads the results it shows.
+ * check). `flag`: the switch that allows him here (the website's brunoAnswers; the Discord bot's own discordBruno). `opts`: the page's own search choices (its preferred teams, its limit), so he reads the results it shows.
  */
-export async function brunoAnswer(raw: string, opts: Pick<AnswerOptions, "prefer" | "limit"> = {}, now = Date.now(), onPreview?: BrunoPreview): Promise<BrunoAnswer | null> {
+export async function brunoAnswer(raw: string, opts: Pick<AnswerOptions, "prefer" | "limit"> = {}, now = Date.now(), onPreview?: BrunoPreview, flag: "brunoAnswers" | "discordBruno" = "brunoAnswers"): Promise<BrunoAnswer | null> {
   // A question by its "?" too ("hypnotic opr?"): read before cleaning, which drops it.
   const q = cleanQuery(raw);
   if (!q || !isBrunoQuestion(raw.trim().slice(0, 200))) return null;
-  if (!(await isEnabled("brunoAnswers").catch(() => false)) || !brunoAvailable()) return null;
+  if (!(await isEnabled(flag).catch(() => false)) || !brunoAvailable()) return null;
   const k = `${normalize(q)}|${[...(opts.prefer ?? [])].sort().join(",")}`;
   const hit = cache.get(k);
   if (hit && now - hit.at < CACHE_TTL_MS) return hit.answer;
