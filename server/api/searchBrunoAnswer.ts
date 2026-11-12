@@ -74,7 +74,8 @@ function blockFacts(b: StatBlock): string[] {
     case "leaderboard": return [...title, ...b.rows.map((r) => `- #${r.rank} ${r.team.label}: ${b.stat.label} ${r.display}${r.record ? `, record ${r.record}` : ""}`), b.note];
     case "compare": return [...title, `${names(b.teams)}:`, ...b.rows.map((r) => `- ${r.label}: ${r.values.join(" vs ")}${r.gap ? ` (${r.gap})` : ""}`)];
     case "league": return [...title, ...b.rows.map((r) => `- #${r.rank} ${r.team}${r.name ? ` ${r.name}` : ""}${r.wins != null ? `, ${r.wins}-${r.losses ?? 0}-${r.ties ?? 0}` : ""}`)];
-    case "chance": return [`${b.label}: ${Math.round(b.p * 100)}% ${b.who}${b.note ? ` (${b.note})` : ""}`];
+    // A forecast is never certain: shown 1% to 99% unless it's decided, as the page shows it, so Bruno can't say 0% or 100%.
+    case "chance": { const r = Math.round(b.p * 100); return [`${b.label}: ${b.decided ? r : Math.min(99, Math.max(1, r))}% ${b.who}${b.note ? ` (${b.note})` : ""}`]; }
     case "series": return [...title, b.points.filter((p) => p.y != null).map((p) => `${p.x} ${p.y}${b.unit ? ` ${b.unit}` : ""}`).join("; ")];
     case "bars": return [...title, ...b.groups.map((g) => `- ${g.label}: ${g.items.map((i) => `${i.label} ${i.value ?? "-"}`).join(", ")}`)];
     case "videos": return [...title, ...b.tiles.map((t) => `- ${t.label} ${t.redScore}-${t.blueScore}${t.event ? `, ${t.event}` : ""}`)];

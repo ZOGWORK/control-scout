@@ -276,3 +276,12 @@ describe("a stat answer's facts (who won, head-to-heads, records …)", () => {
     expect(grounded("Exodus won the finals 514–506.", f, "who won decode")).toBe(true);
   });
 });
+
+describe("a forecast in Bruno's facts", () => {
+  it("is never 0% or 100% unless decided, as the page shows it", () => {
+    const f = (p: number, decided?: boolean) => statFacts({ family: "x", intent: "x", title: "Advance", scope: [], blocks: [{ kind: "chance", label: "Advances", p, who: "4215", decided }] } as never)[1];
+    expect(f(0)).toBe("Advances: 1% 4215");
+    expect(f(1)).toBe("Advances: 99% 4215");
+    expect(f(1, true)).toBe("Advances: 100% 4215");
+  });
+});
