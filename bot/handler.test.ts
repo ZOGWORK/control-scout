@@ -391,7 +391,7 @@ describe("a chat with Bruno in Discord", () => {
     expect(sent[0]).toMatchObject({ content: "re: hi bruno (0)\n-# Bruno AI · controlscout.org", embeds: [] });
     const c = command("ask", { question: "who won decode" });
     await h(c.i);
-    expect(c.calls.at(-1)!.payload).toEqual({ content: "> **who won decode**\nre: who won decode (0)\n-# Bruno AI · controlscout.org", embeds: [] });
+    expect(c.calls.at(-1)!.payload).toEqual({ content: "> **who won decode**\nre: who won decode (0)\n-# Bruno AI · controlscout.org", embeds: [], allowedMentions: { parse: [], repliedUser: false } });
   });
 
   it("a reply to his answer carries the thread on, even without a mention; replies to others or with no text are left alone", async () => {
@@ -408,5 +408,21 @@ describe("a chat with Bruno in Discord", () => {
     await h.mention(message("hello", { reference: { messageId: "x" }, mentions: { repliedUser: { id: "someone" } } }).m, BOT);
     await h.mention(message("", { reference: { messageId: "bot-1" }, mentions: { repliedUser: { id: BOT } } }).m, BOT);
     expect(ask).toHaveBeenCalledTimes(n);
+  });
+});
+
+describe("answers ping nobody", () => {
+  it("a reply, the fallback plain message and /ask all send with no mentions allowed", async () => {
+    const pinged = { text: "@everyone <@&5> <@9> look", search: false };
+    const ask = vi.fn(async (q: string) => ({ embed: ok(`ask ${q}`), meta: { step: "deterministic" as const, refined: false, sentence: false, chat: true }, chat: pinged }));
+    const h = createHandler(() => {}, lookups({ ask }), { cooldownMs: 0 });
+    const opts: any[] = [];
+    await h.mention({ author: { id: "u", bot: false }, guildId: "g", content: "<@7> hi", reply: async (o) => { opts.push(o); }, channel: {} }, "7");
+    await h.mention({ author: { id: "u", bot: false }, guildId: "g", content: "<@7> yo", reply: async () => { throw new Error("Missing Permissions"); }, channel: { send: async (o) => { opts.push(o); } } }, "7");
+    const c = command("ask", { question: "hey" });
+    await h(c.i);
+    opts.push(c.calls.at(-1)!.payload);
+    expect(opts).toHaveLength(3);
+    for (const o of opts) expect(o.allowedMentions).toEqual({ parse: [], repliedUser: false });
   });
 });

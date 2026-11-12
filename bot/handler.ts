@@ -75,6 +75,9 @@ const THREADS_MAX = 2000;
 const TURN_MAX = 600;
 const turn = (role: BrunoChatTurn["role"], text: string): BrunoChatTurn => ({ role, text: text.trim().replace(/\s+/g, " ").slice(0, TURN_MAX) });
 
+/** An answer pings nobody: not the asker, not @everyone, a role or a person named in Bruno's text. */
+export const NO_PINGS = { parse: [] as never[], repliedUser: false };
+
 /** What one answer posts: Bruno's chat reply as text, or the card (with its video link as the text). */
 export interface AskPost { content?: string; embeds: APIEmbed[] }
 
@@ -183,7 +186,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
         log(`${describe(i)} failed: ${(e as Error)?.message ?? String(e)}`);
         post = { embeds: [pride(unavailableEmbed())] };
       }
-      const sent = await i.editReply(post);
+      const sent = await i.editReply({ ...post, allowedMentions: NO_PINGS });
       if (r) remember((sent as { id?: string } | undefined)?.id, [], question, r);
       return;
     }
@@ -226,9 +229,10 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       if (!new RegExp(`<@!?${botId}>`).test(m.content) && !(replyTo && m.content.trim())) return;
       const q = m.content.replace(/<@[!&]?\d+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 500);
       const history = (replyTo && threads.get(replyTo)) || [];
-      const send = (post: AskPost) => m.reply({ ...post, allowedMentions: { repliedUser: false } })
+      // Nobody is pinged by an answer (his text could name @everyone, a role or a person), reply or not.
+      const send = (post: AskPost) => m.reply({ ...post, allowedMentions: NO_PINGS })
         // No Read Message History in that channel: a plain message instead of a reply.
-        .catch(() => m.channel.send?.(post));
+        .catch(() => m.channel.send?.({ ...post, allowedMentions: NO_PINGS }));
       const card = (embed: APIEmbed) => send({ embeds: [pride(embed)] });
       if (lookups.enabled && !(await lookups.enabled("discordBot"))) {
         await card(errorEmbed(BOT_OFF_TITLE, "Control Scout's Discord bot is turned off by the owner right now. Everything on controlscout.org still works, and this server's follows are kept for when it's back."));
@@ -277,6 +281,6 @@ export interface MentionMessage {
   /** The message it replies to, and that message's author. */
   reference?: { messageId?: string } | null;
   mentions?: { repliedUser?: { id: string } | null };
-  reply: (opts: { content?: string; embeds: APIEmbed[]; allowedMentions: { repliedUser: boolean } }) => Promise<unknown>;
-  channel: { send?: (opts: { content?: string; embeds: APIEmbed[] }) => Promise<unknown>; sendTyping?: () => Promise<unknown> };
+  reply: (opts: { content?: string; embeds: APIEmbed[]; allowedMentions: { parse: never[]; repliedUser: boolean } }) => Promise<unknown>;
+  channel: { send?: (opts: { content?: string; embeds: APIEmbed[]; allowedMentions: { parse: never[]; repliedUser: boolean } }) => Promise<unknown>; sendTyping?: () => Promise<unknown> };
 }
