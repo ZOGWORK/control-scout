@@ -140,14 +140,18 @@ export function scheduleEmbed(due: EventDue, d: EventDetail, site: string): APIE
   const zone = d.event.timezone ?? null;
   const fields = due.teams.map((t) => {
     const quals = d.matches.filter((m) => m.level === "qual" && teamsOf(m).includes(t));
-    // "**Q12** 4:30 PM · 🔵 with 23545 vs 23314 & 8902 · 54%": the team's side, partner, opponents and its chance.
+    // "`Q12   4:30 PM` **Blue** 54% · with 23545 vs 23314 & 8902": the match and its time in one monospace column so
+    // the rows line up, then the team's side in words (an emoji per row reads as a wall of blobs), its chance,
+    // partner and opponents.
+    const width = Math.max(0, ...quals.map((m) => m.label.length));
     const lines = quals.map((m) => {
       const red = sideTeams(m.red, false).includes(t);
       const p = m.prediction;
-      const odds = p ? ` · ${oddsPct(red ? p.pRed : 1 - p.pRed)}` : "";
+      const odds = p ? ` ${oddsPct(red ? p.pRed : 1 - p.pRed)}` : "";
       const partner = sideTeams(red ? m.red : m.blue, false).filter((n) => n !== t).join(" & ");
       const opp = sideTeams(red ? m.blue : m.red, false).join(" & ");
-      return `**${m.label}** ${clock(m, zone)} · ${red ? "🔴" : "🔵"}${partner ? ` with ${partner}` : ""}${opp ? ` vs ${opp}` : ""}${odds}`;
+      const who = [partner ? `with ${partner}` : null, opp ? `vs ${opp}` : null].filter(Boolean).join(" ");
+      return `\`${m.label.padEnd(width)} ${clock(m, zone).padStart(8)}\` **${red ? "Red" : "Blue"}**${odds}${who ? ` · ${who}` : ""}`;
     });
     return { name: `${t}: ${quals.length} qualification match${quals.length === 1 ? "" : "es"}`, value: clipLines(lines, FIELD_MAX, SCHEDULE_MAX) || "None posted yet." };
   });

@@ -100,7 +100,7 @@ describe("the posts", () => {
   it("the schedule: each qual with its time at the venue, side, partner and win odds", () => {
     const d = detail([q(12, local("2026-10-24", "10:42"), [1, 2], [3, 4], undefined, 0.62), q(15, local("2026-10-24", "11:30"), [3, 4], [1, 2], undefined, 0.7)]);
     const e = scheduleEmbed({ channel: "c1", teams: [1], kind: "schedule", key: "schedule" }, d, SITE);
-    expect(e.fields![0]).toEqual({ name: "1: 2 qualification matches", value: "**Q12** 10:42 AM · 🔴 with 2 vs 3 & 4 · 62%\n**Q15** 11:30 AM · 🔵 with 2 vs 3 & 4 · 30%" });
+    expect(e.fields![0]).toEqual({ name: "1: 2 qualification matches", value: "`Q12 10:42 AM` **Red** 62% · with 2 vs 3 & 4\n`Q15 11:30 AM` **Blue** 30% · with 2 vs 3 & 4" });
     expect(e.footer!.text).toMatch(/^Win odds from today's ratings, confidence: fair/);
   });
 
@@ -130,7 +130,7 @@ describe("the redesign's rules for event posts", () => {
     const v = e.fields![0].value;
     expect(v.length).toBeLessThanOrEqual(FIELD_MAX);
     expect(v).toMatch(/\n…and \d+ more$/);
-    const shown = v.split("\n").filter((l) => l.startsWith("**Q")).length;
+    const shown = v.split("\n").filter((l) => l.startsWith("`Q")).length;
     expect(Number(v.match(/…and (\d+) more$/)![1])).toBe(20 - shown);
     expect(shown).toBeLessThanOrEqual(SCHEDULE_MAX);
   });

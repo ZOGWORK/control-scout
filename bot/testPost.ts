@@ -26,7 +26,10 @@ if (ch.guild_id !== guild) {
   process.exit(2);
 }
 const SITE = "https://controlscout.org";
+// `npm run bot:test-post -- 7 7b` posts only those journeys.
+const only = process.argv.slice(2).filter((a) => a !== "tick");
 const post = async (label: string, embed: APIEmbed) => {
+  if (label !== "tick" && only.length && !only.some((o) => label.startsWith(`${o}.`))) return;
   await rest.post(Routes.channelMessages(channel), { body: { content: `**${label}**`, embeds: [embed] } });
   console.log(`posted: ${label} (${JSON.stringify(embed).length} chars)`);
 };
@@ -73,7 +76,14 @@ await post("8. Eve (4215)", eveEmbed({ channel, teams: [4215], kind: "eve", key:
 await post("9. Day recap (4215)", recapEmbed({ channel, teams: [4215], kind: "recap", key: "recap:2026-11-07:4215" }, d, "2026-11-07", SITE));
 await post("10. /predict on a played match (Q16)", predictEmbed(d, q(16), SITE));
 await post("11. /predict before a match (Q16)", predictEmbed(d, unplayed(q(16)), SITE));
-// A long event's schedule (Discord's 1,024-character field cap): a 20-match copy of this event's quals.
-const long = { ...before, matches: Array.from({ length: 20 }, (_, i) => ({ ...unplayed(q((i % 6) + 1)), key: `qual:0:${i + 1}`, number: i + 1, label: `Q${i + 1}`, red: { ...q(16).red, score: null }, blue: { ...q(16).blue, score: null } })) } as EventDetail;
+// A long event's schedule (more than 15 matches, so "…and N more" shows): a test copy of this event's 17 real quals
+// and 3 more, in time order, with 4215 placed on alternating sides of each real lineup.
+const t0 = Date.parse(q(1).startsAt!);
+const long = { ...before, matches: Array.from({ length: 20 }, (_, i) => {
+  const src = unplayed(q((i % 17) + 1)), side = i % 2 ? "blue" : "red";
+  const put = (s: MatchView["red"]) => ({ ...s, teams: s.teams.some((x) => x.number === 4215) ? s.teams : [{ ...s.teams[0], number: 4215 }, ...s.teams.slice(1)] });
+  return { ...src, key: `qual:0:${i + 1}`, number: i + 1, label: `Q${i + 1}`, startsAt: new Date(t0 + i * 8 * 60_000).toISOString(),
+    red: side === "red" ? put(src.red) : src.red, blue: side === "blue" ? put(src.blue) : src.blue };
+}) } as EventDetail;
 await post("7b. Schedule, long event (test copy: 20 quals)", scheduleEmbed({ channel, teams: [4215], kind: "schedule", key: "schedule:4215" }, long, SITE));
 process.exit(0);
