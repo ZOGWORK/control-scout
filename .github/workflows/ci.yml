@@ -55,8 +55,10 @@ jobs:
       # Every shard runs to the end and reports, even when another one fails.
       fail-fast: false
       matrix:
+        # Raise `total` and add the next number to `shard` together; nothing else changes.
         shard: [1, 2, 3]
-    name: test (shard ${{ matrix.shard }}/3)
+        total: [3]
+    name: test (shard ${{ matrix.shard }}/${{ matrix.total }})
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -64,8 +66,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci --no-audit --no-fund --loglevel=error
-      # The same `npm test` (vitest run), split by file: shards 1..3 together run every test file once.
-      - run: npm test -- --shard=${{ matrix.shard }}/3
+      # The same `npm test` (vitest run), split by file: the shards together run every test file once.
+      - run: npm test -- --shard=${{ matrix.shard }}/${{ matrix.total }}
 
   build:
     runs-on: ubuntu-24.04
