@@ -13,6 +13,7 @@ import { PRERENDERED_PAGES } from "../src/shared/prerendered.js";
 import { isEnabled } from "./flags.js";
 import { offeredManifest } from "./packs/routes.js";
 import { highlightsLastmods, highlightsPath } from "./teamHighlightsPage.js";
+import { recordSplitLastmods, recordSplitPath } from "./teamRecordPage.js";
 import { leagueHref } from "../src/shared/leagues.js";
 import { SEASON_NUMBERS } from "./data/seasons.js";
 
@@ -39,7 +40,7 @@ const xmlEsc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").rep
 /** Every URL for the sitemap, in a stable order. */
 export async function sitemapEntries(): Promise<Entry[]> {
   const today = new Date().toISOString().slice(0, 10);
-  const [lastmods, teamRows, events, leagues, highlights] = await Promise.all([
+  const [lastmods, teamRows, events, leagues, highlights, recordSplits] = await Promise.all([
     // A team page changes when the team plays: its lastmod is the last day of its latest event that has started (today
     // while one is on), or a later change the source marked on one. Not teams.updated_at: every sync stamps that on
     // every team, so it said nothing about the page. Only events it took part in (a league roster lists teams that never
@@ -75,6 +76,9 @@ export async function sitemapEntries(): Promise<Entry[]> {
     // Each team's highlights page (server/teamHighlightsPage.ts), by the page's own rule: a team listed above (a page
     // to index) with a match to pick from. lastmod: the last day its highlights' season changed.
     highlightsLastmods(),
+    // Each team's record-split page (server/teamRecordPage.ts), by the page's own rule: a team listed above whose latest
+    // season holds qualification and playoff matches. lastmod: the last day that season changed.
+    recordSplitLastmods(),
   ]);
   const lastmod = new Map(lastmods.map((t) => [t.number, t.lastmod]));
   const listed = new Set(teamRows.map((t) => Number(t.number)));
@@ -95,6 +99,7 @@ export async function sitemapEntries(): Promise<Entry[]> {
     ...events.filter((e) => isReachableEventCode(e.code)).map((e) => ({ loc: canonicalUrl(eventPath(e.season, e.code)), lastmod: day(e.upstream_updated) })),
     ...teamRows.map((t) => ({ loc: canonicalUrl(`/teams/${t.number}`), lastmod: day(lastmod.get(t.number)) })),
     ...highlights.filter((t) => listed.has(t.number)).map((t) => ({ loc: canonicalUrl(highlightsPath(t.number)), lastmod: day(t.lastmod) })),
+    ...recordSplits.filter((t) => listed.has(Number(t.number))).map((t) => ({ loc: canonicalUrl(recordSplitPath(Number(t.number))), lastmod: day(t.lastmod) })),
     // Only a region and code the page's address can carry (server/seoMeta.ts: letters and digits, up to 16).
     ...leagues.filter((l) => LEAGUE_PART.test(l.region) && LEAGUE_PART.test(l.code)).map((l) => ({ loc: canonicalUrl(leagueHref(l.season, l.region, l.code)), lastmod: day(l.ranked_at) })),
   ];

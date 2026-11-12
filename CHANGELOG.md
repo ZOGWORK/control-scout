@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.8.1 — 2026-11-12
+
+Each team whose season reached the playoffs gets a page with its record there and in qualification matches, the same card Search shows for "<number> record".
+
+### Highlights
+- [teams] A Quals vs playoffs button on the team page opens its record split
+- [teams] Wins, losses and ties in qualifications and playoffs side by side
+- [history] Each record page can be found from search engines
+
+### Added
+- `/teams/<number>/record-split`: the answer Search gives for "<number> record" (the team's latest season with matches: its record, its win rate and world rank by win rate, and its qualification and playoff records apart), at an address of its own. Its first HTML holds the whole answer as text, with the three records in a table, and a title and description that name the team, the season and the records. It links to the team page, and the team page links to it with a Quals vs playoffs button. A team whose latest season doesn't hold both a qualification and a playoff match on its record has no page (404) and no sitemap entry; on local data the rule and Search's own answer agreed for 600 of 600 teams checked. The sitemap lists each page once, with the last day that season's matches or results changed as lastmod. (`server/teamRecordPage.ts`, `server/seoMeta.ts`, `server/sitemap.ts`, `src/pages/TeamRecordSplitPage.tsx`, `src/pages/TeamPage.tsx`) (#1410)
+
 ## 5.8.0 — 2026-11-12
 
 The search box now answers "nj teams ranked by opr" and "nj teams opr" too, with a link to New Jersey's OPR board.

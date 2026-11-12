@@ -48,6 +48,7 @@ import { videosRouter } from "./videos/routes.js";
 import { viewerOf } from "./videos/contributors.js";
 import { leagueStandings } from "./api/leagues.js";
 import { teamHighlightsPage } from "./teamHighlightsPage.js";
+import { teamRecordPage } from "./teamRecordPage.js";
 import { perTeamOf, simulatedRankings } from "./projections/rankingSim.js";
 import { eventRecording, recordingStream, seasonRecordings, seasonVideoKinds, withClips, eventMatchSpan } from "./videos/recordings.js";
 import { answerVideo } from "./api/answers/video.js";
@@ -548,6 +549,13 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
   api.get("/teams/:number/highlights", h(async (req) => {
     const p = await teamHighlightsPage(int(req.params.number, "team", { min: 1, max: 999999 }));
     if (!p) throw new HttpError(404, `No highlights for team ${req.params.number}`);
+    return p;
+  }));
+  // A team's record-split page (server/teamRecordPage.ts): Search's "<team> record" answer, qualifications and
+  // playoffs apart. Not found for a team whose latest season doesn't hold both.
+  api.get("/teams/:number/record-split", h(async (req) => {
+    const p = await teamRecordPage(int(req.params.number, "team", { min: 1, max: 999999 }));
+    if (!p) throw new HttpError(404, `No quals and playoffs record for team ${req.params.number}`);
     return p;
   }));
 
