@@ -156,3 +156,13 @@ describe("the same path as the website, Bruno only where it would use him", () =
     expect(grounded("4215 won 7 awards.", facts, "how many awards did 4215 win?")).toBe(false);
   });
 });
+
+describe("a long answer in the channel", () => {
+  it("is cut to about a phone screen as read (links count as their text), the rest one tap away", () => {
+    const a = base({ hits: [], card: { kind: "info", title: "Long", lines: Array.from({ length: 10 }, (_, i) => ({ text: `Line ${i} `.padEnd(200, "x"), href: `/events/2025/E${i}` })) } });
+    const e = askEmbed("long", a, null, SITE);
+    const read = e.description!.replace(/\]\([^)]*\)/g, "]").length;
+    expect(read).toBeLessThanOrEqual(1200 + 80);
+    expect(e.description).toMatch(/…more on the website\n\[Open this answer on controlscout\.org\]\(.*\)$/);
+  });
+});

@@ -18,6 +18,11 @@ export const BRUNO_CREDIT = "Bruno AI, from Control Point";
 /** Discord's caps: an embed's description, and all of one message's text. */
 export const DESCRIPTION_MAX = 4096;
 export const EMBED_MAX = 6000;
+/** How much of an answer a reader sees in the channel (links counted as their text): a phone screen or so. The rest
+ *  is one tap away on the website, so a long answer never becomes a wall in the channel. */
+export const READ_MAX = 1200;
+/** What a reader sees of a line: a link's text, not its address. */
+const readLen = (s: string) => s.replace(/\]\([^)]*\)/g, "]").length;
 /** Rows of one list block shown before "…and N more on the website". */
 const ROWS = 5;
 /** Top results listed when the card doesn't already cover them. */
@@ -132,16 +137,19 @@ function statLines(s: StatAnswer, site: string): string[] {
 
 const hitLine = (h: SearchHit, site: string) => `${link(h.title, hitHref(h), site)}${h.subtitle ? ` · ${md(h.subtitle)}` : ""}${h.facts?.length ? ` · ${h.facts.map((f) => `${md(f.label)} **${md(f.value)}**`).join(", ")}` : ""}`;
 
-/** The lines that fit in `max` characters, cut from the bottom ("…more on the website" when any were cut). */
-export function fitLines(lines: string[], max: number): string {
+/** The lines that fit in `max` characters (and `read` as a reader sees them), cut from the bottom ("…more on the
+ *  website" when any were cut). */
+export function fitLines(lines: string[], max: number, read = Infinity): string {
   const out: string[] = [];
-  let used = 0;
+  let used = 0, seen = 0;
+  const tail = "\n…more on the website".length;
   for (let i = 0; i < lines.length; i++) {
-    const add = (out.length ? 1 : 0) + lines[i].length;
-    const tail = "\n…more on the website".length;
-    if (used + add + (i < lines.length - 1 ? tail : 0) > max) { out.push("…more on the website"); break; }
+    const add = (out.length ? 1 : 0) + lines[i].length, look = (out.length ? 1 : 0) + readLen(lines[i]);
+    const room = i < lines.length - 1 ? tail : 0;
+    if (used + add + room > max || seen + look + room > read) { out.push("…more on the website"); break; }
     out.push(lines[i]);
     used += add;
+    seen += look;
   }
   return out.join("\n");
 }
@@ -164,9 +172,9 @@ export function askEmbed(q: string, a: SearchAnswer, sentence: BrunoSentence | n
       ...(tries.length ? ["**Questions that work:**", ...tries.map(askable)] : []),
       ...(a.recovery?.closest?.length ? ["**Closest matches:**", ...a.recovery.closest.slice(0, HITS).map((h) => hitLine(h, site))] : []),
       (a.recovery?.browse ?? []).map((b) => link(b.title, b.href, site)).join(" · ") || null,
-      close,
     ].filter((x): x is string => !!x);
-    return { title: SORRY_SENTENCE, url: page, description: fitLines(lines, DESCRIPTION_MAX), color: VOLT, footer };
+    // The link to the whole answer stays: lines are cut from the bottom, never it.
+    return { title: SORRY_SENTENCE, url: page, description: `${fitLines(lines, DESCRIPTION_MAX - close.length - 1, READ_MAX)}\n${close}`, color: VOLT, footer };
   }
 
   const lines: string[] = [];
@@ -192,6 +200,6 @@ export function askEmbed(q: string, a: SearchAnswer, sentence: BrunoSentence | n
   if (!a.stat && !a.card) lines.push(...a.hits.slice(0, HITS).map((h) => `• ${hitLine(h, site)}`), ...more(a.hits.length - HITS));
   if (a.suggest?.length && !a.stat && !a.card) lines.push("**Also answers:**", ...a.suggest.slice(0, 3).map(askable));
   // The link stays: lines are cut from the bottom of the answer, never the link to the whole of it.
-  const body = fitLines(lines, DESCRIPTION_MAX - close.length - 1);
+  const body = fitLines(lines, DESCRIPTION_MAX - close.length - 1, READ_MAX);
   return { title: title.length > 256 ? `${title.slice(0, 255)}…` : title, url: page, description: `${body ? `${body}\n` : ""}${close}`, color: VOLT, footer };
 }
