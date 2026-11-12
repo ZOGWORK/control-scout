@@ -3,7 +3,7 @@
 // whole answer as text (server/seoMeta.ts); the card here draws it with its match videos. Linked from the team page,
 // and it links back.
 import { Sparkles } from "lucide-react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { useApi } from "../lib/api";
 import { useTitle } from "../lib/meta";
 import { PageHeader, EmptyState } from "../components/page";
@@ -29,10 +29,10 @@ export default function TeamHighlightsPage() {
       <Async state={state}>
         {(d) => (
           <>
-            <PageHeader eyebrow={d.stat.scope[0] ? `${d.stat.scope[0]} highlights` : "Highlights"} title={teamHeading(d.team.number, d.team.name)}
+            {/* The card names the team and links its page (Full team page): the header names the page only. */}
+            <PageHeader title={`${teamHeading(d.team.number, d.team.name)} highlights`}
               description="Its standout matches of the season: best score, biggest win, latest playoff win, best Auto and closest win, each with its video when there is one."
-              phoneDescription="Its standout matches of the season."
-              actions={<Link to={`/teams/${d.team.number}`} className="inline-flex h-[44px] items-center rounded-lg border border-border bg-card px-3 text-sm font-medium hover:border-accent/60" data-team-page>Team page</Link>} />
+              phoneDescription="Its standout matches of the season." />
             <AnswerVideoProvider video={d.video}>
               <StatAnswerCard stat={d.stat} />
             </AnswerVideoProvider>
