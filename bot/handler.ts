@@ -10,6 +10,7 @@ import { BOT_COMMANDS } from "../src/shared/discord.js";
 import { eventChoices, eventLookup, predictLookup, rankChoices, rankingsLookup, site, teamLookup } from "./lookups.js";
 import { isEnabled } from "../server/flags.js";
 import { featureOffMessage } from "../src/shared/flags.js";
+import { ask as askSearch, realAskDeps, type AskDeps, type AskReply } from "./ask.js";
 
 export type Log = (m: string) => void;
 
@@ -22,6 +23,8 @@ export interface Lookups {
   follow: (guild: string, channel: string, team: number, by: string) => Promise<"added" | "already">;
   unfollow: (guild: string, team: number, channel?: string | null) => Promise<number>;
   following: (guild: string) => Promise<APIEmbed>;
+  /** /ask: the website's search answer to a question (bot/ask.ts). */
+  ask: (question: string) => Promise<AskReply>;
   /** The owner's feature toggles the bot follows (server/flags.ts); absent: always on. */
   enabled?: (flag: "discordBot" | "livePredictions") => Promise<boolean>;
 }
@@ -35,8 +38,14 @@ export const realLookups: Lookups = {
   follow: addFollow,
   unfollow: removeFollow,
   following: async (guild) => followingEmbed(await listFollows(guild), site()),
+  ask: async (question) => askSearch(question, await (askDeps ??= realAskDeps()), site()),
   enabled: (flag) => isEnabled(flag),
 };
+let askDeps: Promise<AskDeps> | undefined;
+
+/** /ask's own pace: a Bruno call costs Control Point and can take up to 12 s, so one ask per person every 10 s (the
+ *  other commands keep 3 s). The same question within a minute is the answer already given (no second lookup). */
+export const ASK_COOLDOWN_MS = 10_000;
 
 /** What every command answers while the owner has the bot switched off (the discordBot feature toggle). */
 export const BOT_OFF_TITLE = "Turned off for now";
@@ -69,9 +78,21 @@ export function describe(i: Pick<ChatInputCommandInteraction, "commandName" | "o
   return [`/${i.commandName}`, ...args].join(" ");
 }
 
-export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { ttlMs?: number; cooldownMs?: number } = {}) {
+export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { ttlMs?: number; cooldownMs?: number; askCooldownMs?: number } = {}) {
   const cache = new AnswerCache<APIEmbed>(opts.ttlMs ?? 60_000, 2000, (e) => e instanceof Friendly);
   const cooldown = new Cooldown(opts.cooldownMs ?? 3000);
+  const asks = new AnswerCache<AskReply>(opts.ttlMs ?? 60_000, 2000);
+  const askCooldown = new Cooldown(opts.askCooldownMs ?? ASK_COOLDOWN_MS);
+
+  /** /ask, logged with the question and how it was answered (never who asked). */
+  async function askAnswer(i: ChatInputCommandInteraction, key: string): Promise<APIEmbed> {
+    const t0 = Date.now();
+    let fresh = false;
+    const r = await asks.get(key, () => { fresh = true; return lookups.ask(i.options.getString("question", true)); });
+    const bruno = [r.meta.refined ? "rewrite" : null, r.meta.sentence ? "sentence" : null].filter(Boolean).join("+") || "no";
+    log(`${key} step=${r.meta.step} bruno=${bruno} ${fresh ? "" : "cached "}${Date.now() - t0}ms`);
+    return r.embed;
+  }
 
   function answer(i: ChatInputCommandInteraction): Promise<APIEmbed> {
     const key = describe(i);
@@ -81,6 +102,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       case "event": return cache.get(key, () => lookups.event(i.options.getString("code", true)));
       case "rankings": return cache.get(key, () => lookups.rankings());
       case "help": return Promise.resolve(helpEmbed());
+      case "ask": return askAnswer(i, key);
       case "follow": case "unfollow": case "following": return manage(i);
       default: return Promise.reject(new Friendly("Unknown command", "This command isn't one Control Scout knows. Try /help for the list."));
     }
@@ -122,9 +144,11 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       await i.reply({ embeds: [pride(errorEmbed(BOT_OFF_TITLE, "Control Scout's Discord bot is turned off by the owner right now. Everything on controlscout.org still works, and this server's follows are kept for when it's back."))], flags: MessageFlags.Ephemeral });
       return;
     }
-    const wait = cooldown.take(i.user.id);
+    const asking = i.commandName === "ask";
+    const wait = (asking ? askCooldown : cooldown).take(i.user.id);
     if (wait > 0) {
-      await i.reply({ embeds: [pride(errorEmbed("Slow down", `One command every 3 seconds. Try again in ${Math.ceil(wait / 1000)} s.`))], flags: MessageFlags.Ephemeral });
+      const pace = asking ? "One question every 10 seconds" : "One command every 3 seconds";
+      await i.reply({ embeds: [pride(errorEmbed("Slow down", `${pace}. Try again in ${Math.ceil(wait / 1000)} s.`))], flags: MessageFlags.Ephemeral });
       return;
     }
     await i.deferReply();

@@ -38,6 +38,7 @@ function lookups(over: Partial<Lookups> = {}): Lookups {
     follow: vi.fn(async () => "added" as const),
     unfollow: vi.fn(async () => 1),
     following: vi.fn(async () => ok("following")),
+    ask: vi.fn(async (q: string) => ({ embed: ok(`ask ${q}`), meta: { step: "deterministic" as const, refined: false, sentence: false } })),
     ...over,
   };
 }
@@ -188,7 +189,7 @@ describe("Cooldown", () => {
 
 describe("registration", () => {
   it("the commands, each one on the site's list; follow and unfollow need Manage Server, in servers only", () => {
-    expect(COMMANDS.map((c) => c.name)).toEqual(["team", "predict", "event", "rankings", "follow", "unfollow", "following", "help"]);
+    expect(COMMANDS.map((c) => c.name)).toEqual(["team", "predict", "event", "rankings", "follow", "unfollow", "following", "ask", "help"]);
     for (const c of COMMANDS) expect(BOT_COMMANDS.some((b) => b.usage.startsWith(`/${c.name}`)), c.name).toBe(true);
     for (const name of ["follow", "unfollow"]) {
       const c = COMMANDS.find((x) => x.name === name)!;
@@ -252,5 +253,60 @@ describe("follows", () => {
     await createHandler(() => {}, lookups(), { cooldownMs: 0 })(i);
     const text = calls[1].payload.embeds[0].description as string;
     for (const c of BOT_COMMANDS) expect(text).toContain(c.usage);
+  });
+});
+
+describe("/ask's pace", () => {
+  it("a second ask inside 10 seconds is refused privately; other people still get answers", async () => {
+    const l = lookups();
+    const h = createHandler(() => {}, l, { cooldownMs: 0 });
+    await h(command("ask", { question: "who won decode" }).i);
+    const second = command("ask", { question: "4215 vs 6980" });
+    await h(second.i);
+    expect(second.calls).toHaveLength(1);
+    expect(second.calls[0].payload.flags).toBe(64);
+    expect(second.calls[0].payload.embeds[0].description).toMatch(/^One question every 10 seconds\. Try again in \d+ s\.$/);
+    const other = command("ask", { question: "4215 vs 6980" }, "u2");
+    await h(other.i);
+    expect(other.calls.map((c) => c.kind)).toEqual(["defer", "edit"]);
+    // Other commands keep their own 3-second pace: asking doesn't hold them back.
+    const team = command("team", { number: 1 });
+    await h(team.i);
+    expect(team.calls.map((c) => c.kind)).toEqual(["defer", "edit"]);
+  });
+
+  it("the same question within a minute is one lookup (whoever asks, however it's cased), logged without who asked", async () => {
+    const l = lookups();
+    const logs: string[] = [];
+    const h = createHandler((m) => logs.push(m), l, { cooldownMs: 0, askCooldownMs: 0 });
+    await h(command("ask", { question: "who won decode" }, "u1").i);
+    await h(command("ask", { question: "Who won DECODE" }, "u2").i);
+    expect(l.ask).toHaveBeenCalledTimes(1);
+    expect(logs).toHaveLength(2);
+    expect(logs[0]).toMatch(/^\/ask question=WHO WON DECODE step=deterministic bruno=no \d+ms$/);
+    expect(logs[1]).toMatch(/ cached \d+ms$/);
+    expect(logs.join(" ")).not.toMatch(/u1|u2/);
+  });
+
+  it("ten asks in a minute from one person: no crash, one lookup each question at most, and the bot still answers others", async () => {
+    const l = lookups();
+    const h = createHandler(() => {}, l, { cooldownMs: 0 });
+    const replies = [];
+    for (let n = 0; n < 10; n++) { const c = command("ask", { question: "who won decode" }, "spam"); await h(c.i); replies.push(c.calls[0].kind); }
+    expect(replies.filter((k) => k === "defer")).toHaveLength(1);
+    expect(replies.filter((k) => k === "reply")).toHaveLength(9);
+    expect(l.ask).toHaveBeenCalledTimes(1);
+    const other = command("ask", { question: "who won decode" }, "someone");
+    await h(other.i);
+    expect(other.calls[1].payload.embeds[0].title).toBe("ask who won decode");
+  });
+
+  it("turned off by the owner: /ask gets the turned-off note and nothing runs", async () => {
+    const l = lookups({ enabled: async (f) => f !== "discordBot" });
+    const h = createHandler(() => {}, l, { cooldownMs: 0 });
+    const { i, calls } = command("ask", { question: "who won decode" });
+    await h(i);
+    expect(calls[0].payload.embeds[0].title).toBe("Turned off for now");
+    expect(l.ask).not.toHaveBeenCalled();
   });
 });

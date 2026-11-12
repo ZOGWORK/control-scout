@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.7.3 — 2026-11-11
+
+Ask the Discord bot anything in plain words: `/ask` answers with the website's own search answer.
+
+### Highlights
+- [alerts] `/ask who won decode` in Discord gives the same answer and numbers as the website's search
+- [alerts] Questions it can't answer yet say so, with questions that do work
+- [alerts] An answer Bruno AI helped with says so: "Bruno AI, from Control Point"
+
+### Added
+- `/ask question:` (up to 500 characters): the same path `/search` takes, in its order: the deterministic answer always (`searchAnswer`, learning off); Bruno's query rewrite only for a weak answer with the `brunoSearch` switch on; his sentence only for a question with `brunoAnswers` on, kept only if every number is in search's facts. One embed: the stat or card, top results, his sentence, and a link to the same answer on controlscout.org; "Sorry — I can't answer that yet" with what was read and questions that work. One ask per person every 10 seconds; the same question within a minute is one lookup. (`bot/ask.ts`, `bot/handler.ts`, `bot/commands.ts`)
+- `/help` and the site's "Control Scout in Discord" list name `/ask`. (`src/shared/discord.ts`)
+
 ## 5.7.2 — 2026-11-11
 
 The Discord bot's event posts: a schedule that always fits, the first match the evening before, and a plain day recap.

@@ -1,6 +1,6 @@
 # Control Scout Discord bot
 
-A public bot any FTC team can add to its own Discord server. Four slash commands, each answering with
+A public bot any FTC team can add to its own Discord server. Slash commands, each answering with
 an embed that links back to controlscout.org:
 
 | Command | What it shows |
@@ -12,7 +12,34 @@ an embed that links back to controlscout.org:
 | `/follow team: channel:` | Automatic posts in a channel: the evening before each event, the schedule once posted, 15 minutes before each match, each result, and a recap at the end of each day. Manage Server only |
 | `/unfollow team: channel:` | Stop them (every channel if none is given). Manage Server only |
 | `/following` | The server's followed teams and where each posts (up to 10 per server) |
+| `/ask question:` | Anything in plain words, answered with the website's own search answer (below) |
 | `/help` | Every command, from the same list the site shows (`BOT_COMMANDS` in `src/shared/discord.ts`) |
+
+## /ask
+
+`bot/ask.ts` takes the same path `/search` does, in the same order, in the bot's own process:
+
+1. `searchAnswer(q, { learn: false })`: the deterministic answer, always. Numbers only from stored data.
+2. Only when that answer is weak (`did-you-mean`, `recovery`), the `brunoSearch` switch is on and Control Point is
+   configured: `refine(q)`. Bruno rewrites the query; search runs again on his words.
+3. Only for a question (`isBrunoQuestion`), the `brunoAnswers` switch on and Control Point configured:
+   `brunoAnswer(q)`. A sentence from search's facts; dropped by the site's `grounded()` check if any number isn't in them.
+
+The embed is the website's answer: the stat or card (lists cut at 5, "…and N more on the website"), the top results
+when there's no card, Bruno's sentence quoted, and a link to the same answer on controlscout.org. Questions it
+can't answer get "Sorry — I can't answer that yet", what was read, and questions that work as copyable
+`/ask question: …` text (no buttons). An answer Bruno helped with carries **Bruno AI, from Control Point** in the
+footer above Control Scout's line; a deterministic one never does. Bruno off, unconfigured, failing or slow: the
+deterministic answer posts anyway.
+
+Pace: one ask per person every 10 seconds (a Bruno call can take 12 s and costs Control Point); the same question
+within a minute is the answer already given. Every ask is logged as the command, the step, whether Bruno helped
+and the time, never who asked. The bot reads the site's search index and never writes it.
+
+**@mention answers are Phase 2, not built.** They need the `GuildMessages` intent plus the privileged
+`MessageContent` intent (Discord approval past 100 servers, and the bot reading every message in every server it's
+in), a `MessageCreate` handler that ignores the bot's own messages and DMs, and the same `ask()` path. That's an
+owner decision on privacy and approval, so the bot keeps the `Guilds` intent only.
 
 `event` and `code` autocomplete over events on now, coming up, or finished in the last 3 days (name or
 code; you can also type a code yourself).

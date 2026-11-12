@@ -22,6 +22,7 @@ export const BOT_COMMANDS: { usage: string; what: string; admin?: true }[] = [
   { usage: "/predict event: match:", what: "Win odds and predicted score for a qual match; once played, how the call went." },
   { usage: "/event code:", what: "An event's status, matches played, top 5 by OPR and the winning alliance." },
   { usage: "/rankings", what: "The world top 10 by rating, with movement since last week." },
+  { usage: "/ask question:", what: "Anything in plain words, answered as the website's search answers it." },
   { usage: "/follow team: channel:", what: "Posts in a channel for a team: the evening before an event, its schedule, 15 minutes before each match and its result, and a recap each day.", admin: true },
   { usage: "/unfollow team:", what: "Stop those posts for a team.", admin: true },
   { usage: "/following", what: "The teams this server follows, and where each one posts." },
