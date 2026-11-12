@@ -145,8 +145,9 @@ export async function answerFacts(a: SearchAnswer): Promise<string[]> {
 }
 
 /** The numbers in `s`, each whole as written: "101.6", "2025", a record "26-6-0" and a season "2023-24" are one each
- *  (so a "6" can't borrow from a record), with thousands separators dropped and every dash read as "-". */
-const numbers = (s: string) => (s.replace(/[–—]/g, "-").replace(/(\d),(?=\d{3}\b)/g, "$1").match(/\d+(?:\.\d+)?(?:-\d+(?:\.\d+)?)*/g) ?? []).map((n) => n.replace(/^0+(?=\d)/, ""));
+ *  (so a "6" can't borrow from a record), with thousands separators dropped (an ordinal too: "1,384th" is 1384) and
+ *  every dash read as "-". */
+const numbers = (s: string) => (s.replace(/[–—]/g, "-").replace(/(\d),(?=\d{3}(?!\d))/g, "$1").match(/\d+(?:\.\d+)?(?:-\d+(?:\.\d+)?)*/g) ?? []).map((n) => n.replace(/^0+(?=\d)/, ""));
 
 /** Whether every number in `text` is one the facts or the question have (counting words like "three" don't count as numbers). */
 export function grounded(text: string, facts: string[], question: string): boolean {
