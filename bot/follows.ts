@@ -89,7 +89,10 @@ export function dueNow(follows: Follow[], matches: MatchView[], now: number): Du
   for (const m of matches) {
     const at = startOf(m);
     if (!Number.isFinite(at)) continue;
-    const kind: Kind | null = !m.played ? (at > now && at - now <= REMIND_MS ? "reminder" : null) : (now - at <= RESULT_WINDOW_MS ? "result" : null);
+    // A played match counts as a result only once both scores are posted: marked played with a score missing, it
+    // waits (posting it would read as a tie at 0, and its claim would keep the real result from ever posting).
+    const scored = !!m.red.score && !!m.blue.score;
+    const kind: Kind | null = !m.played ? (at > now && at - now <= REMIND_MS ? "reminder" : null) : (scored && now - at <= RESULT_WINDOW_MS ? "result" : null);
     if (!kind) continue;
     const teams = inMatch(m);
     for (const f of follows) {
