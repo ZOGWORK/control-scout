@@ -211,6 +211,8 @@ const TOP_RULE = "The engine's call for one team on each alliance in a qualifica
 
 /** A win chance as said on a card: never 0% or 100%, which the engine never claims (anything that would round to one is
  *  "<1%" or ">99%"). */
+/** The engine's confidence tier as a card says it ("High"). */
+const tierWord = (t: string) => t[0].toUpperCase() + t.slice(1);
 const chance = (p: number) => (p < 0.01 ? "<1%" : p > 0.99 ? ">99%" : pct(p));
 
 /** "Can 12345 beat a top 10 team worldwide, and by how much would they lose": the engine's call for the team against each
@@ -247,7 +249,7 @@ export async function predictTopAnswer(team: AnswerTeam, season: number, n: numb
         rows: tops.map((r) => ({ cells: { team: `#${r.rating_rank} · ${r.team}`, rating: num1(r.rating_np), gap: num1(Number(own.rating_np) - Number(r.rating_np)) }, href: predictHref({ mode: "match", season, red: [team.number], blue: [Number(r.team)] }) })) }, ranks],
     };
   }
-  const rows = calls.map(({ r, x }) => ({ r, p: x!.winProbA, a: x!.predictedScoreA, b: x!.predictedScoreB, margin: x!.predictedScoreA - x!.predictedScoreB }));
+  const rows = calls.map(({ r, x }) => ({ r, p: x!.winProbA, a: x!.predictedScoreA, b: x!.predictedScoreB, margin: x!.predictedScoreA - x!.predictedScoreB, confidence: x!.confidence }));
   const fav = rows.filter((c) => c.p >= 0.5), lose = rows.filter((c) => c.p < 0.5);
   const best = rows.reduce((x, y) => (y.p > x.p ? y : x));
   const loseBy = lose.map((c) => Math.abs(c.margin));
@@ -268,10 +270,12 @@ export async function predictTopAnswer(team: AnswerTeam, season: number, n: numb
         { label: "Best win chance", value: chance(best.p), sub: `vs ${best.r.team} (#${best.r.rating_rank})` },
         { label: "Average predicted loss", value: avgLoss == null ? "–" : `${Math.round(avgLoss)} pts`, sub: loseBy.length ? `in ${lose.length} predicted ${lose.length === 1 ? "loss" : "losses"}` : "No predicted loss" },
         { label: "Biggest predicted loss", value: loseBy.length ? `${Math.round(Math.max(...loseBy))} pts` : "–" },
+        // The engine's confidence in the call, as the other prediction cards say it: the best chance's call's tier and why.
+        { label: "Confidence", value: tierWord(best.confidence.tier), sub: `vs ${best.r.team}: ${best.confidence.reason}` },
       ] },
-      { kind: "table", title: `${team.number} against each of the top ${n}, ${S}`, columns: [{ key: "team", label: "World rank" }, { key: "chance", label: "Win %", num: true }, { key: "score", label: "Score", num: true }, { key: "margin", label: "Margin", num: true }],
-        // Four short columns, so the chance and the margin fit a phone; each row opens the team's call in Predict.
-        rows: rows.map((c) => ({ cells: { team: `#${c.r.rating_rank} · ${c.r.team}`, chance: chance(c.p), score: `${Math.round(c.a)}–${Math.round(c.b)}`, margin: `${c.margin >= 0 ? "+" : "−"}${Math.abs(Math.round(c.margin))}` }, href: predictHref({ mode: "match", season, red: [team.number], blue: [Number(c.r.team)] }) })) },
+      { kind: "table", title: `${team.number} against each of the top ${n}, ${S}`, columns: [{ key: "team", label: "World rank" }, { key: "chance", label: "Win %", num: true }, { key: "score", label: "Score", num: true }, { key: "margin", label: "Margin", num: true }, { key: "confidence", label: "Confidence" }],
+        // Short columns, so the chance, the margin and the engine's confidence fit a phone; each row opens the call in Predict.
+        rows: rows.map((c) => ({ cells: { team: `#${c.r.rating_rank} · ${c.r.team}`, chance: chance(c.p), score: `${Math.round(c.a)}–${Math.round(c.b)}`, margin: `${c.margin >= 0 ? "+" : "−"}${Math.abs(Math.round(c.margin))}`, confidence: tierWord(c.confidence.tier) }, href: predictHref({ mode: "match", season, red: [team.number], blue: [Number(c.r.team)] }) })) },
       ranks,
     ],
   };
