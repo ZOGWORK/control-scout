@@ -40,19 +40,29 @@ if (process.argv[2] === "tick") {
   const { isEnabled, setFlag } = await import("../server/flags.js");
   const wasOn = await isEnabled("discordBot");
   const now = Date.parse("2026-11-07T21:00:00Z");
-  await run("DELETE FROM discord_follows WHERE channel_id = ?", [channel]);
-  await run("DELETE FROM discord_posts WHERE channel_id = ?", [channel]);
-  const created = now - 3 * 3600_000;
-  console.log("follow 4215:", await addFollow(guild, channel, 4215, "test", created), "· again:", await addFollow(guild, channel, 4215, "test", created));
-  const send = async (_c: string, embed: APIEmbed) => { await post("tick", embed); return "ok" as const; };
-  const log = (m: string) => console.log(m);
-  console.log("tick 1 posted", await notifyTick(send, SITE, log, now));
-  console.log("tick 2 posted", await notifyTick(send, SITE, log, now + 60_000), "(nothing twice)");
-  await run("DELETE FROM discord_posts WHERE channel_id = ?", [channel]);
-  await setFlag("discordBot", false, "bot:test-post");
-  console.log("flag off: tick posted", await notifyTick(send, SITE, log, now));
-  await setFlag("discordBot", wasOn, "bot:test-post");
-  await run("DELETE FROM discord_follows WHERE channel_id = ?", [channel]);
+  // The follow and its post log live under a fixture server and channel of their own, so no real follow or post
+  // record is ever touched; every post the tick makes still goes to the test channel (send below).
+  const FIXTURE = "bot-test-post";
+  const clean = async () => {
+    await run("DELETE FROM discord_posts WHERE channel_id = ?", [FIXTURE]);
+    await run("DELETE FROM discord_follows WHERE channel_id = ?", [FIXTURE]);
+  };
+  await clean();
+  try {
+    const created = now - 3 * 3600_000;
+    console.log("follow 4215:", await addFollow(FIXTURE, FIXTURE, 4215, "test", created), "· again:", await addFollow(FIXTURE, FIXTURE, 4215, "test", created));
+    const send = async (c: string, embed: APIEmbed) => (c === FIXTURE ? (await post("tick", embed), "ok" as const) : "error" as const);
+    const log = (m: string) => console.log(m);
+    console.log("tick 1 posted", await notifyTick(send, SITE, log, now));
+    console.log("tick 2 posted", await notifyTick(send, SITE, log, now + 60_000), "(nothing twice)");
+    await run("DELETE FROM discord_posts WHERE channel_id = ?", [FIXTURE]);
+    await setFlag("discordBot", false, "bot:test-post");
+    console.log("flag off: tick posted", await notifyTick(send, SITE, log, now));
+  } finally {
+    // Whatever happened, the owner's switch goes back as it was and the fixture leaves nothing behind.
+    await setFlag("discordBot", wasOn, "bot:test-post");
+    await clean();
+  }
   process.exit(0);
 }
 

@@ -20,11 +20,11 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 The Discord bot's event posts: a schedule that always fits, the first match the evening before, and a plain day recap.
 
 ### Highlights
-- [alerts] The schedule post lines up each match with side, chance, partner and opponents by name, and never overflows
-- [alerts] The evening-before post names the team's first match once the schedule is out
-- [alerts] The day recap says "Calls: 4 of 5 right" and, on a multi-day event, tomorrow's first match
+- [alerts] The schedule names every team and never overflows
+- [alerts] The evening-before post names the team's first match
+- [alerts] The day recap says "Calls: 4 of 5 right", then tomorrow's first match
 - [fixes] At a league meet the recap ranks the team among that meet's teams
-- [appearance] Every bot post has a pride-flag border: red, orange, yellow, green, blue or purple
+- [appearance] Every bot post has a pride-flag border
 
 ### Changed
 - Schedule posts: one line per match, `` `Q12  4:30 PM` **Blue** 54% · with 23545 Gear Grinders vs 23314 Bolts & 8902 Hex ``: the match and time in one aligned column, the side in words, the chance, then partner and opponents by number and name. Up to 15 matches; a long list continues in the next field instead of passing Discord's 1,024 characters per field (a field over the cap made Discord reject the whole post), then `…and N more`. (`bot/eventAlerts.ts`)
@@ -34,7 +34,7 @@ The Discord bot's event posts: a schedule that always fits, the first match the 
 - `npm run bot:test-post` posts every message design to a test server's channel from the real Nov 7 meet, and `-- tick` runs the real minute tick there. (`bot/testPost.ts`, `bot/README.md`)
 
 ### Fixed
-- At a league meet the recap said "Rank 18 of 11": FIRST's rank there is the league's running standing. It now gives the meet's own rank. (`bot/eventAlerts.ts`)
+- At a league meet the recap said "Rank 18 of 11": FIRST's rank there is the league's running standing. It now gives the meet's own rank. (`bot/eventAlerts.ts`) (#1405)
 
 ## 5.7.1 — 2026-11-11
 
