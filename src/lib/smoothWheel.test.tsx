@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render } from "@testing-library/react";
 import { loader, useSmoothWheel } from "./smoothWheel";
 import { jumpPageTo, scrollToElement, setSmoothWheel, SMOOTH_SCROLL_QUERY } from "./pageScroll";
-import { keepNativeWheel, pageScrollLocked } from "./smoothWheelEngine";
+import { keepNativeWheel, pageScrollLocked, startSmoothWheel } from "./smoothWheelEngine";
 
 // A matchMedia whose answer for SMOOTH_SCROLL_QUERY can change, as a window resized across 1024 px would.
 function screenQuery(desktop: boolean) {
@@ -120,5 +120,45 @@ describe("which wheels stay the browser's", () => {
     expect(pageScrollLocked()).toBe(false);
     document.body.setAttribute("data-scroll-locked", "1");
     expect(pageScrollLocked()).toBe(true);
+  });
+});
+
+describe("the engine (a real Lenis) with a wheel over the page", () => {
+  class RO { observe() {} unobserve() {} disconnect() {} }
+  let engine: ReturnType<typeof startSmoothWheel> | null = null;
+  beforeEach(() => {
+    vi.stubGlobal("ResizeObserver", RO);
+    vi.stubGlobal("matchMedia", (q: string) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {} }));
+  });
+  afterEach(() => { engine?.destroy(); engine = null; vi.unstubAllGlobals(); document.body.innerHTML = ""; document.body.removeAttribute("data-scroll-locked"); });
+
+  // Whether the engine took the wheel for the page (Lenis cancels the browser's own scroll when it does).
+  const wheelOver = (el: Element) => {
+    const e = new WheelEvent("wheel", { deltaY: 100, bubbles: true, cancelable: true });
+    el.dispatchEvent(e);
+    return e.defaultPrevented;
+  };
+
+  it("takes the wheel over the page itself", () => {
+    document.body.innerHTML = `<main><p id="t">row</p></main>`;
+    engine = startSmoothWheel();
+    expect(wheelOver(document.getElementById("t")!)).toBe(true);
+  });
+
+  it("leaves it to a dialog, popover, menu or data-lenis-prevent box even over a child deep inside one", () => {
+    document.body.innerHTML = `
+      <div role="dialog"><div><p><span id="a">deep in a dialog</span></p></div></div>
+      <div data-radix-popper-content-wrapper><div role="group"><button id="b">in a popover</button></div></div>
+      <ul role="menu"><li><a id="c">in a menu</a></li></ul>
+      <section data-lenis-prevent><div><em id="d">in a marked box</em></div></section>`;
+    engine = startSmoothWheel();
+    for (const id of ["a", "b", "c", "d"]) expect(wheelOver(document.getElementById(id)!)).toBe(false);
+  });
+
+  it("stands aside while a dialog or sheet locks the page", () => {
+    document.body.innerHTML = `<main><p id="t">row</p></main>`;
+    engine = startSmoothWheel();
+    document.body.setAttribute("data-scroll-locked", "1");
+    expect(wheelOver(document.getElementById("t")!)).toBe(false);
   });
 });

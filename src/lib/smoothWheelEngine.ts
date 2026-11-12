@@ -28,7 +28,9 @@ export const WHEEL_LERP = 0.14;
 const NATIVE_BOXES = "[data-lenis-prevent],[role=dialog],[role=alertdialog],[role=listbox],[role=menu],[data-radix-popper-content-wrapper],[data-radix-scroll-area-viewport]";
 
 /**
- * Whether the wheel over `node` (each box the pointer sits in is asked) stays the browser's own. Boxes that
+ * Whether the wheel over `node` stays the browser's own. Lenis asks this of every element on the wheel event's
+ * path, from its target up to the page (event.composedPath()), so a child deep inside a dialog or popover is
+ * covered by the dialog's own answer: no need for closest() here, which would walk the same path again per element. Boxes that
  * scroll by themselves are Lenis's own check (allowNestedScroll): one that can still move the wheel's way keeps
  * it, and so does one at its end that keeps its scroll to itself (overscroll-behavior contain or none).
  */
