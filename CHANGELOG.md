@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.7.4 — 2026-11-12
+## 5.8.1 — 2026-11-12
 
 Each team whose season reached the playoffs gets a page with its record there and in qualification matches, the same card Search shows for "<number> record".
 
@@ -26,6 +26,131 @@ Each team whose season reached the playoffs gets a page with its record there an
 
 ### Added
 - `/teams/<number>/record-split`: the answer Search gives for "<number> record" (the team's latest season with matches: its record, its win rate and world rank by win rate, and its qualification and playoff records apart), at an address of its own. Its first HTML holds the whole answer as text, with the three records in a table, and a title and description that name the team, the season and the records. It links to the team page, and the team page links to it with a Quals vs playoffs button. A team whose latest season doesn't hold both a qualification and a playoff match on its record has no page (404) and no sitemap entry; on local data the rule and Search's own answer agreed for 600 of 600 teams checked. The sitemap lists each page once, with the last day that season's matches or results changed as lastmod. (`server/teamRecordPage.ts`, `server/seoMeta.ts`, `server/sitemap.ts`, `src/pages/TeamRecordSplitPage.tsx`, `src/pages/TeamPage.tsx`) (#1410)
+
+## 5.8.0 — 2026-11-12
+
+The search box now answers "nj teams ranked by opr" and "nj teams opr" too, with a link to New Jersey's OPR board.
+
+### Highlights
+- [fixes] Search box: "nj teams ranked by opr" links to NJ's OPR board
+- [fixes] "nj teams opr" in the search box links to the same board
+- [fixes] Re-checking these failed searches now reads them right
+
+### Fixed
+- 5.7.4 answered these two failed searches on the results page, but the search box's short list (and the owner's re-check of a failed search, which asks the same way) still said "Sorry" for "nj teams ranked by opr" and listed matching names for "nj teams opr". In the box, a board of teams with no team named was left to the asks' short cards, which don't read these wordings. A board of teams those cards don't read now gets the board's own short card, a link to the page's list, as the other boards do in the box. Boards the asks read ("best opr in nj"), event boards, penalty boards and boards with no "teams" said keep their cards as before. Asked of every held-out question in the box, 10 more that said "Sorry" ("top 5 teams in Romania by rating, not OPR", "best team in Oradell, NJ, by record") now get the same board title as their results page, and nothing else changed but the board link's query, now as typed. (`server/api/query/execute.ts`) (#1412)
+
+## 5.7.9 — 2026-11-12
+
+Search answers six more questions people asked: a prediction against what happened, predicted against actual rank at every event, a record in two months side by side, a team against itself, the top teams of two places, and a Discord /ask line pasted in.
+
+### Highlights
+- [predict] Predicted vs actual rank at every event, side by side
+- [predict] "Chances before <event>, versus what happened" gets its answer
+- [history] A record this month versus last month, side by side
+- [fixes] "4215 vs 4215" says a team can't play itself
+- [fixes] "The top NJ team vs the top Romania team" works in a new season
+
+### Added
+- A team's predicted rank against its actual rank at every event of a season (#1385). No rank forecast is kept for a finished event, so the predicted rank comes from the engine's stored pre-match calls: each ranked team's expected qualification wins put the event's teams in order. Each event uses one kind of call (logged live, else the replay), and the card says which. (`server/api/query/rankReview.ts`, intent `predict-rank-events`)
+- One team's question in two time windows set against each other ("17965 record this month, versus last month", #1386). Each window is read exactly as asked and never widened to its season, and each tile shows its dates. A window with no matches says so. (`server/api/query/windowPair.ts`, `exact` in `server/api/query/execute.ts`)
+- A team asked against itself ("predict 4215 vs 4215", "what if 4215 plays against itself", #1387) gets a card that says no match can be called, with Predict on the team's scheduled matches and its page. (`server/api/query/selfMatch.ts`)
+
+### Fixed
+- "What were 23268's chances before the NJ Championship Turnpike, versus what actually happened" read "versus" as a second team. It now opens Prediction vs result there (#1384). (`server/api/query/lexicon.ts`, `server/api/searchLayers.ts`)
+- "The top NJ team and the top Romania team" found no team, because 2026–27 has no rated team there yet. With no season named, each place's leader now comes from the season before, both from the same season, and the card names it (#1388). (`server/api/query/topTeams.ts`)
+- A Discord command written out ("/ask question:how did 4215 do last event") is read as its question: the same card as "what was the last event 4215 played" (#1406). A lone "no" clause ("…, lol, no, predict …") takes back what came before it. (`server/api/searchAnswer.ts`) (#1413)
+
+## 5.7.8 — 2026-11-12
+
+Six more kinds of ranked list in search: filters on the OPR board, a rating-gain board, events by average score, and unbeaten teams at championships.
+
+### Highlights
+- [fixes] "OPR team that has never won an award" leaves out award winners
+- [fixes] "teams with a name that includes Robot" filters the OPR board
+- [fixes] "fastest growing team by rating gain" ranks the rating gained
+- [fixes] "highest average match score in Romania" ranks Romania's events
+- [fixes] "a perfect 8-0 record at any championship" lists unbeaten runs
+
+### Fixed
+- "top teams opr at worlds decode" and "top teams by teleop opr at worlds decode" (failed searches from the live site) showed Worlds' board on the results page, but the search box answered "No team, event or match matched". An event's board now gives the box its link to the results page. (#1381)
+- "highest OPR team that has never won an award" (#1389): the OPR board, without any team that has an award on record in any season (winning and finalist alliances count). The card says which season awards start from.
+- "show me teams with a name that includes Robot, sorted by OPR" (#1394): the OPR board of the teams whose name has those letters anywhere in it. The word after "name that includes" is the filter, never read as a team's name.
+- "whats the fastest growing team in the world in 2025-26, by rating gain across the season" (#1392): the prediction rating gained, from the weekly Rankings snapshot after each team's first event to its season rating after its last. "Gain" with OPR keeps the OPR-gained board.
+- "which event had the highest average match score in Romania this season" (#1390): a place's official events ranked by average alliance score, divisions counted with their event, once 10 matches are played. With nothing played yet this season, it shows the season before and says so.
+- "teams with a perfect 8-0 record at any championship event this season" (#1391): every team with at least one win and no losses at a league, state or regional championship or Worlds, with its record there, one row per team and event. A record like "8-0" beside "perfect" or "record" is read as no losses.
+
+## 5.7.7 — 2026-11-12
+
+Ask the Discord bot anything in plain words: `/ask` answers with the website's own search answer.
+
+### Highlights
+- [alerts] Ask the Discord bot anything: the website's own answer and numbers
+- [alerts] Or just mention it: @Control Scout who won decode
+- [alerts] Short answers: one line, the rest one tap away on the website
+- [alerts] Bruno AI writes a one-line answer in Discord, credited to him
+- [alerts] Questions it can't answer yet say so, with questions that work
+
+### Added
+- `/ask question:` (up to 500 characters): the same path `/search` takes, in its order: the deterministic answer always (`searchAnswer`, learning off); Bruno's query rewrite for a weak answer; his short answer for every ask, kept only if every number is in search's facts. Both only with the new `discordBruno` switch on ("Bruno AI in the Discord bot", on by default); the website's `brunoSearch` / `brunoAnswers` never affect the bot, and `discordBruno` never affects the website (`refine` and `brunoAnswer` take the switch to check). Short by design: a stat's headline alone, else its first block cut at 3 rows, about 500 characters as read. One embed: the question as asked ("Asked: who won decode"), his sentence, the answer, up to 2 questions to ask next, and a link to the same answer on controlscout.org; "Sorry — I can't answer that yet" with what was read and questions that work. The same 3-second pace as every command; the same question within a minute is one lookup. (`bot/ask.ts`, `bot/handler.ts`, `bot/commands.ts`)
+- `@Control Scout who won decode`: mention the bot with a question and it replies with the `/ask` answer (same cache and pace). Only direct mentions from people in a server; it needs the non-privileged `GuildMessages` intent only, so the bot never reads other messages. (`bot/handler.ts`, `bot/index.ts`)
+- An answer with match videos (highlights, a match, the finals) links up to 3 of them (`▶ Watch: Q85 · Q18 · M4`), and the first one's YouTube link is the message's text, so Discord plays it under the answer. The same videos the website plays, public ones only. Bruno's facts say which videos there are, so he never says there are none. (`videoLinks` in `bot/ask.ts`, `server/api/searchBrunoAnswer.ts`)
+- `/help` and the site's "Control Scout in Discord" list name `/ask` and the mention. (`src/shared/discord.ts`)
+
+### Fixed
+- Bruno's facts now carry a stat answer (its headline and every block row) and a yes-or-no verdict. Before, a stat question like "who won decode" sent him only the line about when records start, so he never answered it. A forecast's chance reaches him as 1% to 99% unless decided, as the page shows it. (`statFacts` in `server/api/searchBrunoAnswer.ts`) (#1407)
+
+## 5.7.6 — 2026-11-12
+
+The Discord bot's event posts: a schedule that always fits, the first match the evening before, and a plain day recap.
+
+### Highlights
+- [alerts] The schedule names every team and never overflows
+- [alerts] The evening-before post names the team's first match
+- [alerts] The day recap says "Calls: 4 of 5 right", then tomorrow's first match
+- [fixes] At a league meet the recap ranks the team among that meet's teams
+- [appearance] Every bot post has a pride-flag border
+
+### Changed
+- Schedule posts: one line per match, `` `Q12  4:30 PM` **Blue** 54% · with 23545 Gear Grinders vs 23314 Bolts & 8902 Hex ``: the match and time in one aligned column, the side in words, the chance, then partner and opponents by number and name. Up to 15 matches; a long list continues in the next field instead of passing Discord's 1,024 characters per field (a field over the cap made Discord reject the whole post), then `…and N more`. (`bot/eventAlerts.ts`)
+- The evening-before post adds `First match: Q3 · 9:00 AM` per followed team once the schedule is posted, and links the team and the strongest teams there. (`bot/eventAlerts.ts`)
+- The day recap reads `Calls: 4 of 5 right`; an even call (45–55%) isn't counted as a call; a multi-day event adds `Tomorrow: first match Q3 · 9:00 AM`. (`bot/eventAlerts.ts`)
+- Every embed the bot sends (follow posts, command answers, errors) has a border in one of the pride flag's six colours, picked from its title so the same post keeps its colour and a channel runs through the rainbow. It replaces 5.7.1's win / loss / tie borders and the volt default. (`pride` in `bot/views.ts`, `bot/follows.ts`, `bot/handler.ts`)
+- `npm run bot:test-post` posts every message design to a test server's channel from the real Nov 7 meet, and `-- tick` runs the real minute tick there. (`bot/testPost.ts`, `bot/README.md`)
+
+### Fixed
+- At a league meet the recap said "Rank 18 of 11": FIRST's rank there is the league's running standing. It now gives the meet's own rank. (`bot/eventAlerts.ts`) (#1405)
+
+## 5.7.5 — 2026-11-12
+
+The Discord bot's match posts tell one story each: who won, by how much, and whether the call was right.
+
+### Highlights
+- [alerts] A result post is the score line and one story, no fields
+- [fixes] A 50% or 54% call that loses is an even call, never an "upset"
+- [alerts] A reminder says which side the team is on, with whom, and when
+- [alerts] Every team number in a match post opens that team's page
+
+### Changed
+- Result posts (follows and `/predict` on a played match): the title leads with the match (`Q16 · P1-5 PM Northeast League Meet`); the description is the score line (every team linked, the winner's score bold), the story (`Even call — predicted Red by 4, Red won by 16.`, `Called it ✅ — Red 68% (predicted 72–58), won by 22.`, `Upset ❌ — Blue was 71% (predicted 55–74), Red won by 18.`) and the followed team's next unplayed match with links to it and the event. The Red / Blue / Final score / Predicted / Verdict fields are gone, and so is the confidence tier (it was the pre-match confidence, stale once the match is played). The border is green when the followed team won, rose when it lost, slate on a tie, volt when two followed teams had opposite results or for `/predict`. (`bot/views.ts`, `bot/follows.ts`)
+- Reminders and `/predict` before a match: the first line is the followed team's side, partner and time (`4215 on Blue with 23545, in 15 minutes (4:30 PM).`), the second the lineup and the call with its confidence once (`Even call · predicted 97–93 · rough guess`). The two win-bar fields, the score, confidence and time fields are gone. (`bot/views.ts`, `bot/follows.ts`)
+- The footer names the call's kind only when it isn't a live call logged before the match: `Replayed call` or `From today's ratings`. (`bot/views.ts`)
+- `/event`'s winning alliance and `/following`'s teams are linked. (`bot/views.ts`, `bot/follows.ts`)
+
+### Fixed
+- A call is a favourite only when its chance reads 55% or more; inside 45–55% it's an even call with no verdict. Q16 at the Nov 7 Northeast League Meet (Blue 50%) and Q17 (Red 54%) were posted as "❌ Upset". (`verdict` in `bot/views.ts`) (#1404)
+
+## 5.7.4 — 2026-11-12
+
+A place typed before "teams" and a stat now gets that place's board, instead of a sorry page or a list of events.
+
+### Highlights
+- [fixes] "nj teams ranked by opr" shows New Jersey's top teams by OPR
+- [fixes] "nj teams opr" shows the same board, not a list of NJ events
+- [fixes] The word "teams" beside a stat no longer stops a place's board
+- [fixes] "teams ranked by opr" keeps its worldwide board, read directly
+
+### Fixed
+- "nj teams ranked by opr" (a failed search from the live site) answered "Sorry — I can't answer that yet", reading "nj ranked" as a team's name, and "nj teams opr" (another) listed New Jersey's events. The rule for a stat said with no team ("opr nj", "2027 opr") now also takes the word "teams", so both read as the stat and the place, and answer with the same New Jersey OPR board as "top teams by OPR in New Jersey". "teams ranked by opr" keeps its worldwide board, now read directly instead of by the fallback. (`server/api/query/intents.ts`) (#1409)
 
 ## 5.7.3 — 2026-11-12
 

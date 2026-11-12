@@ -55,6 +55,11 @@ export const COMMANDS: CommandDef[] = [
     contexts: [InteractionContextType.Guild],
   },
   {
+    name: "ask",
+    description: "Ask anything in plain words: the website's search answers it",
+    options: [{ type: ApplicationCommandOptionType.String, name: "question", description: "Like the search box: who won decode, 4215 vs 6980, 4215 highlights", required: true, max_length: 500 }],
+  },
+  {
     name: "help",
     description: "Everything Control Scout can do here",
   },

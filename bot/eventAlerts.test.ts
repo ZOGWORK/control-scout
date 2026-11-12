@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EventDetail, FieldRow, MatchView } from "../src/shared/api";
-import { EVE_HOUR, RECAP_AFTER_MS, eveEmbed, eventDue, recapEmbed, scheduleEmbed, venueClock } from "./eventAlerts";
+import { EVE_HOUR, FIELD_MAX, RECAP_AFTER_MS, SCHEDULE_MAX, eveEmbed, packLines, eventDue, recapEmbed, scheduleEmbed, venueClock } from "./eventAlerts";
 import type { Follow } from "./follows";
 
 const SITE = "https://controlscout.org";
@@ -93,13 +93,14 @@ describe("the posts", () => {
     const v = Object.fromEntries(e.fields!.map((x) => [x.name, x.value]));
     expect(v.Where).toBe("Arena, Austin, TX");
     expect(v["1 Gear Grinders"]).toBe("Season OPR **98.2** · #584 world");
-    expect(v["Strongest there"]).toBe("2 Team 2 · 80.0\n3 Team 3 · 60.0");
+    expect(v["Strongest there"]).toBe(`[2](${SITE}/teams/2) Team 2 · 80.0\n[3](${SITE}/teams/3) Team 3 · 60.0`);
+    expect(e.description).toBe(`[1](${SITE}/teams/1) competes tomorrow.`);
   });
 
   it("the schedule: each qual with its time at the venue, side, partner and win odds", () => {
     const d = detail([q(12, local("2026-10-24", "10:42"), [1, 2], [3, 4], undefined, 0.62), q(15, local("2026-10-24", "11:30"), [3, 4], [1, 2], undefined, 0.7)]);
     const e = scheduleEmbed({ channel: "c1", teams: [1], kind: "schedule", key: "schedule" }, d, SITE);
-    expect(e.fields![0]).toEqual({ name: "1: 2 qualification matches", value: "**Q12** 10:42 AM · red with 2 · 62% to win\n**Q15** 11:30 AM · blue with 2 · 30% to win" });
+    expect(e.fields![0]).toEqual({ name: "1 Team 1: 2 qualification matches", value: "`Q12 10:42 AM` **Red** 62% · with 2 Team 2 vs 3 Team 3 & 4 Team 4\n`Q15 11:30 AM` **Blue** 30% · with 2 Team 2 vs 3 Team 3 & 4 Team 4" });
     expect(e.footer!.text).toMatch(/^Win odds from today's ratings, confidence: fair/);
   });
 
@@ -109,7 +110,7 @@ describe("the posts", () => {
       q(2, local("2026-10-24", "11:00"), [1, 3], [2, 4], [70, 90], 0.6), // upset
     ], { status: "live" }, [row(1, { rank: 3, wins: 1, losses: 1, ties: 0 }), row(2), row(3), row(4)]);
     const e = recapEmbed({ channel: "c1", teams: [1], kind: "recap", key: "recap:2026-10-24" }, d, "2026-10-24", SITE);
-    expect(e.fields![0]).toEqual({ name: "1 Team 1", value: "Rank **3** of 4 · 1–1–0 · 2 matches today · live calls right: 1 of 2" });
+    expect(e.fields![0]).toEqual({ name: "1 Team 1", value: "Rank **3** of 4 · 1–1–0 · 2 matches today · Calls: 1 of 2 right" });
   });
 
   it("a record the source hasn't reported is left out, and replayed (backtest) calls don't count as calls right", () => {
@@ -118,5 +119,84 @@ describe("the posts", () => {
     const d = detail([replayed], { status: "live" }, [row(1, { rank: 2 }), row(2), row(3), row(4)]);
     const e = recapEmbed({ channel: "c1", teams: [1], kind: "recap", key: "recap:2026-10-24:1" }, d, "2026-10-24", SITE);
     expect(e.fields![0].value).toBe("Rank **2** of 4 · 1 match today");
+  });
+});
+
+describe("the redesign's rules for event posts", () => {
+  it("a long schedule with team names continues across fields, none past 1,024 characters, and says how many it left out", () => {
+    // A long event: 20 quals for team 1, five-digit partners and opponents with long names on every line.
+    const ms = Array.from({ length: 20 }, (_, i) => q(i + 1, local("2026-10-24", `${String(9 + Math.floor(i / 6)).padStart(2, "0")}:${String((i * 10) % 60).padStart(2, "0")}`), [1, 23545 + i], [23314 + i, 18902 + i]));
+    const nums = [1, ...ms.flatMap((m) => [...m.red.teams, ...m.blue.teams].map((x) => x.number))];
+    const field = [...new Set(nums)].map((n) => row(n, { name: `Robotics Team Number ${n}` }));
+    const e = scheduleEmbed({ channel: "c1", teams: [1], kind: "schedule", key: "schedule:1" }, detail(ms, {}, field), SITE);
+    expect(e.fields!.length).toBeGreaterThan(1);
+    expect(e.fields![0].name).toBe("1 Robotics Team Num…: 20 qualification matches");
+    expect(e.fields!.slice(1).every((f) => f.name === "​")).toBe(true);
+    for (const f of e.fields!) expect(f.value.length).toBeLessThanOrEqual(FIELD_MAX);
+    const all = e.fields!.map((f) => f.value).join("\n");
+    expect(all).toMatch(/with 23545 Robotics Team Num… vs 23314 Robotics Team Num… & 18902 Robotics Team Num…/);
+    expect(all).toMatch(/\n…and 5 more$/);
+    expect(all.split("\n").filter((l) => l.startsWith("`Q")).length).toBe(SCHEDULE_MAX);
+    expect(JSON.stringify(e).length).toBeLessThan(6000);
+  });
+
+  it("a schedule post naming many teams never passes Discord's 25 fields", () => {
+    const teams = Array.from({ length: 30 }, (_, i) => 100 + i);
+    const ms = teams.map((t, i) => q(i + 1, local("2026-10-24", "10:00"), [t, 1], [2, 3]));
+    const e = scheduleEmbed({ channel: "c1", teams, kind: "schedule", key: "schedule" }, detail(ms), SITE);
+    expect(e.fields!.length).toBeLessThanOrEqual(25);
+  });
+
+  it("packLines: continues in a new field at the cap, stops at the line cap or the post's budget", () => {
+    const lines = Array.from({ length: 40 }, (_, i) => `line ${i} `.padEnd(100, "x"));
+    const out = packLines(lines, 15);
+    expect(out.every((v) => v.length <= FIELD_MAX)).toBe(true);
+    expect(out.join("\n").split("\n")).toHaveLength(16);
+    expect(out.at(-1)).toMatch(/…and 25 more$/);
+    expect(packLines(["a", "b"])).toEqual(["a\nb"]);
+    expect(packLines(["a", "b", "c"], 2)).toEqual(["a\nb\n…and 1 more"]);
+    expect(packLines(lines, Infinity, FIELD_MAX, 1000).join("\n")).toMatch(/…and 31 more$/);
+    expect(packLines([])).toEqual([]);
+  });
+
+  it("the evening before names the team's first match once the schedule is posted, and only then", () => {
+    const s = [{ team: 1, name: null, opr: 50, worldRank: null }];
+    const due = { channel: "c1", teams: [1], kind: "eve" as const, key: "eve" };
+    const withSchedule = eveEmbed(due, detail([q(7, local("2026-10-24", "11:00"), [3, 4], [1, 2]), q(3, local("2026-10-24", "09:00"), [1, 2], [3, 4])]), s, SITE);
+    expect(withSchedule.fields!.find((x) => x.name === "1")!.value).toBe("Season OPR **50.0**\nFirst match: Q3 · 9:00 AM");
+    expect(withSchedule.footer!.text).toBe("Control Scout • controlscout.org");
+    const before = eveEmbed(due, detail([]), s, SITE);
+    expect(before.fields!.find((x) => x.name === "1")!.value).toBe("Season OPR **50.0**");
+    expect(before.footer!.text).toMatch(/^The schedule posts here once FIRST publishes it/);
+  });
+
+  it("a first match with no posted instant still shows, with its venue time or TBA", () => {
+    const s = [{ team: 1, name: null, opr: 50, worldRank: null }];
+    const noInstant = { ...q(3, local("2026-10-24", "09:00"), [1, 2], [3, 4]), startsAt: null, time: "2026-10-24T09:00:00" };
+    const e = eveEmbed({ channel: "c1", teams: [1], kind: "eve", key: "eve" }, detail([noInstant]), s, SITE);
+    expect(e.fields!.find((x) => x.name === "1")!.value).toBe("Season OPR **50.0**\nFirst match: Q3 · 09:00");
+    const tba = { ...noInstant, time: null };
+    const e2 = eveEmbed({ channel: "c1", teams: [1], kind: "eve", key: "eve" }, detail([tba]), s, SITE);
+    expect(e2.fields!.find((x) => x.name === "1")!.value).toBe("Season OPR **50.0**\nFirst match: Q3 · time TBA");
+  });
+
+  it("the recap: an even call isn't counted as a call; a multi-day event names tomorrow's first match", () => {
+    const d = detail([
+      q(1, local("2026-10-24", "10:00"), [1, 2], [3, 4], [100, 80], 0.7), // called
+      q(2, local("2026-10-24", "11:00"), [1, 3], [2, 4], [70, 90], 0.52), // even call: no verdict
+      q(9, local("2026-10-25", "09:30"), [3, 1], [2, 4]), // tomorrow
+    ], { status: "live", end: "2026-10-25" }, [row(1, { rank: 3, wins: 1, losses: 1, ties: 0 }), row(2), row(3), row(4)]);
+    const e = recapEmbed({ channel: "c1", teams: [1], kind: "recap", key: "recap:2026-10-24:1" }, d, "2026-10-24", SITE);
+    expect(e.fields![0].value).toBe("Rank **3** of 4 · 1–1–0 · 2 matches today · Calls: 1 of 1 right\nTomorrow: first match Q9 · 9:30 AM");
+    expect(e.fields![0].value).not.toMatch(/live calls right/);
+  });
+});
+
+describe("the recap at a league meet", () => {
+  it("ranks the team among this meet's teams, not by the league's running standing", () => {
+    const d = detail([q(1, local("2026-10-24", "10:00"), [1, 2], [3, 4], [100, 80], 0.7)], { status: "live" },
+      [row(1, { rank: 18, wins: 1, losses: 0, ties: 0, meet: { rank: 2, rs: 2, tb: [], wins: 1, losses: 0, ties: 0, played: 1 } }), row(2), row(3), row(4)]);
+    const e = recapEmbed({ channel: "c1", teams: [1], kind: "recap", key: "recap:2026-10-24:1" }, d, "2026-10-24", SITE);
+    expect(e.fields![0].value).toMatch(/^Rank \*\*2\*\* of 4 · /);
   });
 });

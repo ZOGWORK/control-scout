@@ -12,7 +12,7 @@ export type PipelineIntent =
   | "wins-count" | "losses" | "ties-count" | "record" | "win-percent" | "average-score" | "median-score" | "average-margin" | "total-points"
   | "total-matches" | "total-events" | "seasons-count" | "current-streak" | "longest-streak" | "highest-auto" | "highest-teleop" | "highest-endgame"
   | "most-penalties" | "penalties" | "score-range" | "score-consistency" | "awards" | "total-awards" | "results" | "event-rank" | "event-opr"
-  | "best-partner" | "partners" | "opponents" | "team-opr" | "team-rating" | "team-predict" | "playoff-matches" | "qual-matches"
+  | "best-partner" | "partners" | "opponents" | "team-opr" | "team-rating" | "team-predict" | "predict-rank-events" | "playoff-matches" | "qual-matches"
   | "match-lookup" | "avg-penalties" | "inspire-awards" | "finalist-finishes" | "lost-to-most" | "season-matches"
   // Two teams.
   | "head-to-head" | "shared-matches" | "two-predict" | "opr-vs" | "rating-vs" | "compare" | "h2h-wins" | "awards-vs"
@@ -40,6 +40,8 @@ export type PipelineIntent =
   | "event-field"
   // No team: a place's teams by their current or longest win streak (./streakBoard.ts).
   | "streak-board"
+  // No team: a place's events ranked by their average match score (../answers/families/eventScores.ts).
+  | "event-scores"
   // A team's or everyone's matches by how far the saved prediction was off (./matchFind.ts).
   | "miss-matches" | "accurate-matches";
 
@@ -75,7 +77,8 @@ const OUTCOMES = ["metric:win", "metric:loss", "outcome:W", "outcome:L"];
 const BOARD_METRICS = ["metric:opr", "metric:rating", "metric:winrate", "metric:auto", "metric:teleop", "metric:endgame", "metric:reliability"];
 /** What a leaderboard takes in: its stats, a record beside them (every row shows it), "by". */
 // Penalties only beside "team" ("which team fouls the least"): the most penalties alone are the matches with the most.
-const BOARD_OPT = ["thing:team", ...BOARD_METRICS, "metric:penalty", "per:match", "metric:record", "metric:win", "prep:by", "list"];
+// A filter on the teams ranked: part of their name, or no award ever won.
+const BOARD_OPT = ["thing:team", ...BOARD_METRICS, "metric:penalty", "per:match", "metric:record", "metric:win", "prep:by", "list", "name-has", "no-award"];
 const R = (id: PipelineIntent, teams: 0 | 1 | 2 | 3 | 4, all: string[], opt: string[] = [], more: Partial<IntentRule> = {}): IntentRule => ({ id, teams, all, opt, ...more });
 
 /** Every rule. Order breaks a tie between rules that explain the same symbols. */
@@ -187,6 +190,8 @@ export const INTENTS: IntentRule[] = [
   ]),
   R("team-opr", 1, ["metric:opr"], ["agg:last"], { noEvent: true }),
   R("team-rating", 1, ["metric:rating"], ["agg:last"], { noEvent: true }),
+  // "Predicted vs actual rank at every event": the engine's predicted rank beside the real one, event by event.
+  R("predict-rank-events", 1, ["predict", "metric:rank", "per:event"], ["review", "compare", "thing:event", "list"], { noEvent: true }),
   R("team-predict", 1, ["predict"], ["metric:win", "metric:record", "metric:score", "metric:rank", "thing:event", "thing:match", "agg:next", "metric:playoffs", "review", "agg:last", "advance", "outcome:W"]),
   // Who to pick at an event, by Scout's pick helper: the axes said ("by complementing their auto") are what it weighs.
   // "Would" or a supposition around it ("who would 12345 pick", "if 12345 is a captain, who should it pick") asks the same.
@@ -282,8 +287,14 @@ export const INTENTS: IntentRule[] = [
     // A team stat asked about everyone, with no "team": "who has the highest auto OPR in NJ".
     ...BOARD_METRICS.map((m) => R("leaderboard", 0, [agg, m], BOARD_OPT)),
   ]),
-  // A team stat alone with a season or a place and no team ("2027 opr", "opr nj"): everyone's board by it (./execute.ts).
-  ...BOARD_METRICS.map((m) => R("leaderboard", 0, [m], ["thing:season", "prep:in", "prep:for"], { noEvent: true })),
+  // A team stat alone with a season or a place and no one team ("2027 opr", "opr nj", "nj teams ranked by opr"): everyone's
+  // board by it (./execute.ts).
+  ...BOARD_METRICS.map((m) => R("leaderboard", 0, [m], ["thing:team", "thing:season", "prep:in", "prep:for", "name-has", "no-award"], { noEvent: true })),
+  // A number's rise over the season, each team's first event to its last ("fastest growing team by rating gain across
+  // the season"): the board of the most gained.
+  R("leaderboard", 0, ["gain"], [...BOARD_OPT, "agg:max", "trend", "thing:season"], { noEvent: true }),
+  // A place's events by their average match score ("which event had the highest average match score in Romania").
+  R("event-scores", 0, ["thing:event", "agg:mean", "metric:score"], ["agg:max", "agg:min", "thing:match", "per:match", "list"], { noEvent: true }),
   // Standout matches: a scope's ("worlds highlights", "new jersey highlights 2024-25"), or one team's ("<team> best
   // matches at worlds"), or the latest week of play's ("recent highlights"); its match videos ("jackson division recap",
   // "watch <team>") are its highlights too.

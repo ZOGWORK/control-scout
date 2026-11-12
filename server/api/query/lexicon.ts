@@ -63,7 +63,13 @@ export type Sym =
   /** Its match videos: "jackson division recap", "<team> videos" (read as its highlights). */
   | { k: "videos" }
   /** A name asked about as words ("teams named …", "called …"): the words after it are the name (./parse.ts). */
-  | { k: "named" };
+  | { k: "named" }
+  /** Words a team's name has in it ("teams with a name that includes Robot"): the words after it, a filter on a board. */
+  | { k: "name-has" }
+  /** No award in any season on record ("the highest OPR team that has never won an award"): a filter on a board. */
+  | { k: "no-award" }
+  /** A number's rise over a season, from a team's first event to its last ("fastest growing team by rating gain"). */
+  | { k: "gain" };
 
 /** Each entry: the phrases (`|`-separated, words separated by spaces) and the symbol they mean (or several: "margin of
  *  victory" is a margin of wins only). Longer phrases win over shorter ones at the same place, so "win rate" is one
@@ -168,9 +174,9 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["worlds|world|world championship|world championships|world champs|first championship|first champs|championship of the world|cmp|houston championship|houston", { k: "worlds" }],
   ["states|state|state championship|state championships|state champs|state finals|regionals|regional championship|regional", { k: "states" }],
   // Forecasts.
-  ["prediction|predictions|predicted|predict|forecast|forecasts|projected|projection|expected|expect|chance|chances|odds|probability|likely|likelihood|favourite|favorite|favored|favoured|who wins|who will win|who would win|matchup|matchups|match up|custom matchup|custom match|hypothetical matchup|hypothetical match", { k: "predict" }],
+  ["prediction|predictions|predicted|predict|forecast|forecasts|projected|projection|expected|expect|chance|chances|odds|chances before|chance before|odds before|probability|likely|likelihood|favourite|favorite|favored|favoured|who wins|who will win|who would win|matchup|matchups|match up|custom matchup|custom match|hypothetical matchup|hypothetical match", { k: "predict" }],
   ["trend|trends|trending|over time|progression|rising or falling|falling or rising|getting better or worse|improving or flat|improving or not|improving or declining|going up or down|going up|going down|up or down|improving|getting better|getting worse|rising|falling|event by event|over the season|across the season|through the season|week by week|after each event", { k: "trend" }],
-  ["vs actual|versus actual|vs the actual|compared to actual|vs what happened|vs reality|vs result|vs results|vs the result|actual|actually happened|what happened|before and after|before vs after|before or after|right or wrong|get it right|got it right|was it right|were they right|was it accurate|how accurate|accurate|accuracy|way off|or was it way off|or way off|or was it off|or not|how far off|hit or miss", { k: "review" }],
+  ["vs actual|versus actual|vs the actual|compared to actual|vs what happened|versus what happened|vs what actually happened|versus what actually happened|vs reality|vs result|vs results|vs the result|actual|actually happened|what happened|before and after|before vs after|before or after|right or wrong|get it right|got it right|was it right|were they right|was it accurate|how accurate|accurate|accuracy|way off|or was it way off|or way off|or was it off|or not|how far off|hit or miss", { k: "review" }],
   ["pick|picks|pick first|first pick|second pick|third pick|draft|choose|select|choose as|select as|invite|ally with|team up with|take as|complement|complements|complementing|complementary|would be best|would be the best|would fit best|best fit|fits best|fill the gap|fills the gap|fill their gap|fill its gap", { k: "pick" }],
   ["weak|weakness|weaknesses|weaker|lacking|lacks", { k: "gap" }],
   ["should|shall", { k: "filler" }],
@@ -210,6 +216,12 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["recap|recaps|replay|replays|video|videos|clip|clips|watch|watch back|rewatch|stream|streams|livestream|live stream|vod|vods|footage|match videos|match video|youtube", { k: "videos" }],
   // A name said as words, never a team read from them: "teams named …", "how many teams are called …".
   ["named|called|with the name|have the name|has the name|having the name|by the name|by the name of|go by|goes by|going by|known as", { k: "named" }],
+  // Part of a name, as a filter on a board: "teams with a name that includes Robot, sorted by OPR".
+  ["with a name that includes|with a name that contains|with a name containing|name that includes|name that contains|name includes|name contains|whose name includes|whose name contains", { k: "name-has" }],
+  // No award ever won, as a filter on a board: "the highest OPR team that has never won an award".
+  ["never won an award|never won any award|never won any awards|never won awards", { k: "no-award" }],
+  // A number's rise over the season: "the fastest growing team by rating gain".
+  ["fastest growing|gain|gained|gains|growth", { k: "gain" }],
   // Penalty points left out.
   ["without penalties|no penalties|excluding penalties|minus penalties|penalty free|np|non penalty", { k: "nopen" }],
   // Prepositions that say which slot follows.

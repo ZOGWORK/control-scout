@@ -273,6 +273,22 @@ describe("leaderboard sorts in plain words", () => {
     expect(rows(await ask("teleop ranked"))[0].team.label).toBe("7149 ENFORCERS");
     expect(rows(await ask("endgame ranked"))[0].team.label).toBe("30030 Exodus");
   });
+  it("a place's code before \"teams\" and a stat is the place's board, never a name or an event list (failed searches)", async () => {
+    const labels = (s: StatAnswer) => (s.blocks.find((x) => x.kind === "leaderboard") as { rows: { team: { label: string } }[] }).rows.map((r) => r.team.label);
+    const board = labels(await ask("top teams by OPR in New Jersey"));
+    expect(board.length).toBeGreaterThan(0);
+    for (const q of ["nj teams ranked by opr", "nj teams opr"]) {
+      const a = await full(q);
+      expect(a.step, q).toBe("deterministic");
+      expect(a.stat?.title, q).toBe("Top 10 teams by OPR in New Jersey · 2025–26");
+      expect(labels(a.stat!), q).toEqual(board);
+      // The search box (and the owner's re-check) reads it the same: the board's short card, linking to the page.
+      const box = await searchAnswer(q, { limit: 12, learn: false });
+      expect(box.step, q).toBe("deterministic");
+      expect(box.understood?.label, q).toBe("Top 10 teams by OPR in New Jersey");
+      expect(box.pages[0]?.href, q).toBe(`/search?q=${encodeURIComponent(q)}`);
+    }
+  });
   it("two phases joined are their OPRs added", async () => {
     const a = await full("best auto right and endgame");
     expect(a.stat?.title).toBe("Top 10 teams by Auto + Endgame OPR worldwide · 2025–26");
