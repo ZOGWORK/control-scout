@@ -15,6 +15,27 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.7.9 — 2026-11-12
+
+Search answers six more questions people asked: a prediction against what happened, predicted against actual rank at every event, a record in two months side by side, a team against itself, the top teams of two places, and a Discord /ask line pasted in.
+
+### Highlights
+- [predict] Predicted vs actual rank at every event, side by side
+- [predict] "Chances before <event>, versus what happened" gets its answer
+- [history] A record this month versus last month, side by side
+- [fixes] "4215 vs 4215" says a team can't play itself
+- [fixes] "The top NJ team vs the top Romania team" works in a new season
+
+### Added
+- A team's predicted rank against its actual rank at every event of a season (#1385). No rank forecast is kept for a finished event, so the predicted rank comes from the engine's stored pre-match calls: each ranked team's expected qualification wins put the event's teams in order. Each event uses one kind of call (logged live, else the replay), and the card says which. (`server/api/query/rankReview.ts`, intent `predict-rank-events`)
+- One team's question in two time windows set against each other ("17965 record this month, versus last month", #1386). Each window is read exactly as asked and never widened to its season, and each tile shows its dates. A window with no matches says so. (`server/api/query/windowPair.ts`, `exact` in `server/api/query/execute.ts`)
+- A team asked against itself ("predict 4215 vs 4215", "what if 4215 plays against itself", #1387) gets a card that says no match can be called, with Predict on the team's scheduled matches and its page. (`server/api/query/selfMatch.ts`)
+
+### Fixed
+- "What were 23268's chances before the NJ Championship Turnpike, versus what actually happened" read "versus" as a second team. It now opens Prediction vs result there (#1384). (`server/api/query/lexicon.ts`, `server/api/searchLayers.ts`)
+- "The top NJ team and the top Romania team" found no team, because 2026–27 has no rated team there yet. With no season named, each place's leader now comes from the season before, both from the same season, and the card names it (#1388). (`server/api/query/topTeams.ts`)
+- A Discord command written out ("/ask question:how did 4215 do last event") is read as its question: the same card as "what was the last event 4215 played" (#1406). A lone "no" clause ("…, lol, no, predict …") takes back what came before it. (`server/api/searchAnswer.ts`) (#1413)
+
 ## 5.7.8 — 2026-11-12
 
 Six more kinds of ranked list in search: filters on the OPR board, a rating-gain board, events by average score, and unbeaten teams at championships.

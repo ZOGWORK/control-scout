@@ -101,11 +101,15 @@ export function cleanQuery(raw: string): string {
   return (q[MAX_QUERY] === " " ? cut : cut.replace(/\s+\S*$/, "")).trim() || cut;
 }
 
-/** `q` without a comma clause that only says what isn't asked: "not just …"/"not only …" (more than that is wanted), or
+/** `q` without a comma clause that only says what isn't asked: a clause taken back by a lone "no", "not just …"/"not only …" (more than that is wanted), or
  *  "not" and a season ("not 2025", "not this season": the season said beside it is the one). Any other "not" clause
  *  ("…, not rookies") is a filter and stays, and a quoted phrase is never touched (it asks for exactly those words). */
 export function withoutContrast(q: string): string {
   if (q.includes('"')) return q;
+  // "No" said as a clause of its own takes back what came before it ("what if 12345 plays itself, lol, no, predict
+  // 12345 vs 12345"): the question is what follows.
+  const takenBack = /^.*,\s*no\s*,\s*(\S.*)$/is.exec(q);
+  if (takenBack) return takenBack[1];
   const SEASON = String.raw`(?:(?:the |this |last |next |that )?(?:season|year)|20\d\d(?:\s*[-–/]\s*\d{2,4})?)`;
   return q.replace(new RegExp(String.raw`\s*,\s*not\s+(?:(?:just|only)\s+[^,]*?|${SEASON})\s*(?=,|[?.!]*\s*$)`, "gi"), "");
 }
@@ -140,6 +144,8 @@ export async function withoutAside(q: string, opts: { now?: number; prefer?: Rea
   return again.leftover.length ? q : rest;
 }
 /** The lexicon's one-word filler ("i", "please"). */
+/** A chat command and its option name, written before the question: "/ask question:", "/ask question: ". */
+const SLASH_COMMAND = /^\s*\/[a-z]+\s+[a-z_]+\s*:\s*/i;
 const FILLER_ONE = new Set(LEXICON.filter((e) => e.words.length === 1 && e.syms.every((x) => x.k === "filler")).map((e) => e.words[0]));
 
 const SHORT_FORMS: Record<string, string> = { champs: "championship", champ: "championship", cmp: "championship", quals: "qualifier", worlds: "first championship", states: "state championship" };
@@ -218,6 +224,13 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   // The season a query naming none means (./answers/season.ts), read before the readers that use it.
   await refreshSearchSeason(opts.now);
   if (opts.inner || opts.intents === false || opts.rewrites) return readerAnswer(raw, opts);
+  // A chat command written out with its option ("/ask question:how did 4215 do last event", as the Discord bot's
+  // "Ask next" text reads, pasted into a message or the search box): the option's value is the question.
+  const command = String(raw ?? "").replace(SLASH_COMMAND, "");
+  if (command !== String(raw ?? "") && command.trim()) {
+    const b = await searchAnswer(command, opts);
+    return carryOutcome(b, { ...b, q: cleanQuery(raw) });
+  }
   // Informal short forms said in full first ("events happening rn"), in the query as typed (its quotes and operators
   // kept), the answer keeping the query as typed.
   // A clause saying what isn't asked ("…, not just one number", "in 2024-25, not this season") goes; the rest is the ask.
