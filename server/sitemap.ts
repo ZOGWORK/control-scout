@@ -21,10 +21,10 @@ import { SEASON_NUMBERS } from "./data/seasons.js";
 // prerendered at build (src/shared/prerendered.ts); Download (its season files) while it offers any; power rankings,
 // league standings and team highlights below. Never listed: /records and /support (redirects), /supporters and
 // /search (noindex), any filter, sort or search variant (a ?query address), and two nav pages left out on their first
-// HTML, read live 2026-11-11: /predict (an input form: its first HTML is the heading "Predict an FTC match" and one line, the teams
-// are picked in the app) and /compare (a team picker: the heading "Compare FTC teams" and one line; a pair is a view of
-// two team pages, and /compare?teams=… is a query address). Both stay crawlable and indexable from their links; list
-// one only once its first HTML carries content of its own.
+// HTML, read live 2026-11-11: /predict (an input form: its first HTML is the heading "Predict an FTC match" and one
+// line, the teams are picked in the app) and /compare (a team picker: the heading "Compare FTC teams" and one line; a
+// pair is a view of two team pages, and /compare?teams=… is a query address). Both stay crawlable and indexable from
+// their links; list one only once its first HTML carries content of its own.
 export const STATIC_PAGES = ["/", "/events", "/rankings", "/teams", "/matches", "/how-it-works/search", "/related-searches", "/methodology", "/faq", ...Object.keys(PRERENDERED_PAGES)];
 export const CHUNK = 45_000; // under the 50,000-URL limit, and far under 50 MB
 
