@@ -33,7 +33,8 @@ function foundTitle(hits: SearchHit[]): string {
 export function badgeUnder(title: string, badge: string | null): string | null {
   if (!badge) return null;
   const t = norm(title), b = norm(badge);
-  if (!b || b === t || b.startsWith(`${t} `)) return null;
+  // A title that says the badge and more ("Teams in Oradell, NJ" over "Teams in Oradell") leaves it nothing to add.
+  if (!b || b === t || b.startsWith(`${t} `) || t.startsWith(`${b} `)) return null;
   // "Where Bad Wolf (6980) is from" over "Bad Wolf (6980) · Where they're from": the same team and the same fact.
   const parts = badge.split(" · ");
   if (parts.length === 2) {
@@ -113,6 +114,14 @@ export function contextBadge(a: AnswerExtra, understood: string[] = []): string 
 export function unreadNote(a: { understood?: { unread?: string[] } }): string | null {
   const w = a.understood?.unread ?? [];
   return w.length ? `Not used in this answer: ${w.map((x) => `"${x}"`).join(", ")}` : null;
+}
+
+/** The page's heading when the answer card's own title says the same and more ("Teams in Oradell, NJ" under "Teams in
+ *  Oradell"): the card's title, which the card then doesn't say again (`repeats`), so the words show once. Otherwise the
+ *  heading as it was. */
+export function headingOver(heading: string, cardTitle: string | null | undefined): string {
+  const t = cardTitle?.trim();
+  return t && t.length > heading.length && t.toLowerCase().startsWith(heading.trim().toLowerCase()) ? t : heading;
 }
 
 /** The card's title says only what the page's heading already says ("Record in 2025–26" under "Hypnotic Robotics

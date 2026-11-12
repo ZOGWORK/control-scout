@@ -39,7 +39,7 @@ import { eventSections, eventStatuses, localDay } from "../components/search/pag
 import { SEARCH_PALETTE } from "../lib/textTones";
 import { EventTree } from "../components/search/page/EventTree";
 import { answerTeams, anyFilter, askedWhen, filteredTitle, filterAlternatives, whenCounts, compareSeason, compareSides, compareTeams, filterChoices, cardTeamName, isCompare, isFuzzy, keeps, pageTitle, contextBadge, badgeUnder, readingOf, fuzzyWords, readFilters, teamParts, withFilters, type AnswerExtra, type PageFilters, type Statuses } from "../components/search/page/results";
-import { unreadNote } from "../shared/searchPage";
+import { headingOver, unreadNote } from "../shared/searchPage";
 import { SEARCH_PAGE_LIMIT, SORRY_SENTENCE } from "../shared/search";
 import type { AnswerRow, AnswerSection } from "../shared/searchSections";
 import type { SearchHit, TeamSummary } from "../shared/api";
@@ -152,7 +152,9 @@ export default function SearchPage() {
   // (the search results guide).
   // A set of events the filters narrow says what's left ("…, 2024–25"), as the tabs and cards count it.
   const narrowed = filteredTitle(ax, filters, askedTime);
-  const title = found ? (answer?.stat && comparisonOf(answer.stat) ? answer.stat.title : narrowed ?? pageTitle(ax, hits, isQualityQuestion(query))) : null;
+  // A stat card whose title says the heading and more ("Teams in Oradell, NJ" under "Teams in Oradell") names the page
+  // itself, and the card leaves its title to the heading: the words show once (headingOver).
+  const title = found ? (answer?.stat && comparisonOf(answer.stat) ? answer.stat.title : narrowed ?? headingOver(pageTitle(ax, hits, isQualityQuestion(query)), answer?.stat?.title)) : null;
   // A question card's heading names its team in bold ("Where **Hypnotic Robotics (4215)** is from").
   const strong = title && ax?.card?.team ? cardTeamName(ax.card.team) : null;
   const shownTitle = strong && title!.includes(strong)
