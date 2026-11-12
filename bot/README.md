@@ -6,7 +6,7 @@ an embed that links back to controlscout.org:
 | Command | What it shows |
 | --- | --- |
 | `/team number:` | Location, season record, OPR (total and auto / TeleOp / endgame), world ranking, next event (or the last one) |
-| `/predict event: match:` | Win odds as bars, predicted score and confidence for a qualification match. Once it's played: the final score, what was predicted, and ✅ / ❌ for whether the call was right |
+| `/predict event: match:` | The lineup, the favourite's win chance (or "Even call"), the predicted score and its confidence for a qualification match. Once it's played: the score, and the call against it (called, upset, or an even call) |
 | `/event code:` | Dates, place, status, matches played, top 5 by OPR, and the winning alliance once it's over |
 | `/rankings` | The world top 10 by rating, with movement since last week |
 | `/follow team: channel:` | Automatic posts in a channel: the evening before each event, the schedule once posted, 15 minutes before each match, each result, and a recap at the end of each day. Manage Server only |
@@ -83,6 +83,39 @@ so the shipped snapshot is restored. On ready it logs `ready as Control Scout#12
 whether the commands were registered or unchanged.
 
 Tests: `npx vitest run bot`.
+
+### See every message in a test server
+
+```bash
+# .env: a TEST application's DISCORD_BOT_TOKEN, DISCORD_DEV_GUILD_ID, and DISCORD_TEST_CHANNEL_ID (a channel there)
+npm run bot:test-post          # every post design, from the real Nov 7, 2026 meet (bot/fixtures)
+npm run bot:test-post -- tick  # the real minute tick on the local database: posts once, nothing with the bot off
+```
+
+It refuses to post unless the channel belongs to `DISCORD_DEV_GUILD_ID`. Never point it at a live server.
+For `tick`, sync the meet first: `npm run sync -- --event 2026:USNJNEM3`.
+
+## How the messages read
+
+- **One story, told once, in the description.** Fields only for lists (schedule lines, the eve's teams,
+  the top 5). Every team number in a description or list value is a link to its page (field names can't
+  hold links; the schedule's lines name each team as `10243 Gear Grinders` instead, in a monospace match/time
+  column, and a long schedule continues in the next field).
+- **Result:** the score line (winner bold), then the story: `Called it ✅ — Red 68% (predicted 72–58), won by
+  22.` / `Upset ❌ — Blue was 71% (predicted 55–74), Red won by 18.` / `Even call — predicted Red by 4, Red won
+  by 16.`, then `Next: Q21 · 5:10 PM · Match · Event` when the followed team has another match (else just the
+  event link).
+- **Pride borders.** Every embed sent (posts, answers, errors) takes one of the pride flag's six colours,
+  picked from its title (`pride` in `bot/views.ts`).
+- **A favourite needs 55%.** A call that reads 45–55% is an even call: no verdict, and it isn't counted in the
+  day recap's `Calls: N of M right`.
+- **Reminder:** the followed team's side, partner and time, then the lineup and the call with its confidence
+  in plain words once. No win bars.
+- **Footer:** `Control Scout • controlscout.org`, plus the call's kind only when it isn't live: `Replayed call`
+  or `From today's ratings`.
+- **Budgets** (tested on the real Q16/Q17): a result is at most 4 blocks (title + description lines + fields)
+  and 600 characters as read; a reminder 3 blocks and 400; a field never past Discord's 1,024 characters
+  (a schedule continues in the next field, at most 15 matches, then `…and N more`).
 
 ## On the VM
 

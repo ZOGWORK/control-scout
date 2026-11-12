@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.7.5 — 2026-11-12
+## 5.7.7 — 2026-11-12
 
 Six more kinds of ranked list in search: filters on the OPR board, a rating-gain board, events by average score, and unbeaten teams at championships.
 
@@ -33,6 +33,45 @@ Six more kinds of ranked list in search: filters on the OPR board, a rating-gain
 - "whats the fastest growing team in the world in 2025-26, by rating gain across the season" (#1392): the prediction rating gained, from the weekly Rankings snapshot after each team's first event to its season rating after its last. "Gain" with OPR keeps the OPR-gained board.
 - "which event had the highest average match score in Romania this season" (#1390): a place's official events ranked by average alliance score, divisions counted with their event, once 10 matches are played. With nothing played yet this season, it shows the season before and says so.
 - "teams with a perfect 8-0 record at any championship event this season" (#1391): every team with at least one win and no losses at a league, state or regional championship or Worlds, with its record there, one row per team and event. A record like "8-0" beside "perfect" or "record" is read as no losses.
+## 5.7.6 — 2026-11-12
+
+The Discord bot's event posts: a schedule that always fits, the first match the evening before, and a plain day recap.
+
+### Highlights
+- [alerts] The schedule names every team and never overflows
+- [alerts] The evening-before post names the team's first match
+- [alerts] The day recap says "Calls: 4 of 5 right", then tomorrow's first match
+- [fixes] At a league meet the recap ranks the team among that meet's teams
+- [appearance] Every bot post has a pride-flag border
+
+### Changed
+- Schedule posts: one line per match, `` `Q12  4:30 PM` **Blue** 54% · with 23545 Gear Grinders vs 23314 Bolts & 8902 Hex ``: the match and time in one aligned column, the side in words, the chance, then partner and opponents by number and name. Up to 15 matches; a long list continues in the next field instead of passing Discord's 1,024 characters per field (a field over the cap made Discord reject the whole post), then `…and N more`. (`bot/eventAlerts.ts`)
+- The evening-before post adds `First match: Q3 · 9:00 AM` per followed team once the schedule is posted, and links the team and the strongest teams there. (`bot/eventAlerts.ts`)
+- The day recap reads `Calls: 4 of 5 right`; an even call (45–55%) isn't counted as a call; a multi-day event adds `Tomorrow: first match Q3 · 9:00 AM`. (`bot/eventAlerts.ts`)
+- Every embed the bot sends (follow posts, command answers, errors) has a border in one of the pride flag's six colours, picked from its title so the same post keeps its colour and a channel runs through the rainbow. It replaces 5.7.1's win / loss / tie borders and the volt default. (`pride` in `bot/views.ts`, `bot/follows.ts`, `bot/handler.ts`)
+- `npm run bot:test-post` posts every message design to a test server's channel from the real Nov 7 meet, and `-- tick` runs the real minute tick there. (`bot/testPost.ts`, `bot/README.md`)
+
+### Fixed
+- At a league meet the recap said "Rank 18 of 11": FIRST's rank there is the league's running standing. It now gives the meet's own rank. (`bot/eventAlerts.ts`) (#1405)
+
+## 5.7.5 — 2026-11-12
+
+The Discord bot's match posts tell one story each: who won, by how much, and whether the call was right.
+
+### Highlights
+- [alerts] A result post is the score line and one story, no fields
+- [fixes] A 50% or 54% call that loses is an even call, never an "upset"
+- [alerts] A reminder says which side the team is on, with whom, and when
+- [alerts] Every team number in a match post opens that team's page
+
+### Changed
+- Result posts (follows and `/predict` on a played match): the title leads with the match (`Q16 · P1-5 PM Northeast League Meet`); the description is the score line (every team linked, the winner's score bold), the story (`Even call — predicted Red by 4, Red won by 16.`, `Called it ✅ — Red 68% (predicted 72–58), won by 22.`, `Upset ❌ — Blue was 71% (predicted 55–74), Red won by 18.`) and the followed team's next unplayed match with links to it and the event. The Red / Blue / Final score / Predicted / Verdict fields are gone, and so is the confidence tier (it was the pre-match confidence, stale once the match is played). The border is green when the followed team won, rose when it lost, slate on a tie, volt when two followed teams had opposite results or for `/predict`. (`bot/views.ts`, `bot/follows.ts`)
+- Reminders and `/predict` before a match: the first line is the followed team's side, partner and time (`4215 on Blue with 23545, in 15 minutes (4:30 PM).`), the second the lineup and the call with its confidence once (`Even call · predicted 97–93 · rough guess`). The two win-bar fields, the score, confidence and time fields are gone. (`bot/views.ts`, `bot/follows.ts`)
+- The footer names the call's kind only when it isn't a live call logged before the match: `Replayed call` or `From today's ratings`. (`bot/views.ts`)
+- `/event`'s winning alliance and `/following`'s teams are linked. (`bot/views.ts`, `bot/follows.ts`)
+
+### Fixed
+- A call is a favourite only when its chance reads 55% or more; inside 45–55% it's an even call with no verdict. Q16 at the Nov 7 Northeast League Meet (Blue 50%) and Q17 (Red 54%) were posted as "❌ Upset". (`verdict` in `bot/views.ts`) (#1404)
 
 ## 5.7.4 — 2026-11-12
 
