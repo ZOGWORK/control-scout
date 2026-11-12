@@ -1721,7 +1721,7 @@
  },
  "/api/teams/101?season=2026": {
   "status": 200,
-  "bytes": 2065,
+  "bytes": 2083,
   "body": {
    "team": {
     "number": 101,
@@ -1912,7 +1912,8 @@
      "name": "Inspire Award"
     }
    ],
-   "league": null
+   "league": null,
+   "highlights": true
   }
  },
  "/api/teams/101/report-card?season=2026": {
