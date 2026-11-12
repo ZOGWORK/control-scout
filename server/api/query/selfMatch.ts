@@ -33,7 +33,8 @@ export function selfMatchAnswer(p: Parsed, hit: SearchHit | undefined, pages: Se
     source: "FTC match rules",
   };
   return {
-    q: p.q, hits: hit ? [{ ...hit, facts: undefined, events: undefined }] : [], pages: [{ title: predict.label, href: predict.href }, ...pages],
+    q: p.q, hits: hit ? [{ ...hit, facts: undefined, events: undefined }] : [], // Predict printed once: the card's link on the page, the pages' first link in the search box (no card drawn).
+    pages: full ? pages : [{ title: predict.label, href: predict.href }, ...pages],
     step: "deterministic", weak: false, understood: { kind: "question", label: stat.title }, ...(full ? { stat } : {}),
     intent: { kind: "stat-predict-self-match", pattern: "[team] vs [same team]", met: true, understood: [] },
   };
