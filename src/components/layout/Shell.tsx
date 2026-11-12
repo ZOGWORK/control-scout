@@ -28,6 +28,7 @@ import { isBareRoute, pageTitle } from "../../shared/routes";
 import { SiteFooter } from "./SiteFooter";
 import { useYoursRow, FOLLOWED_TEAM_PATH } from "../../lib/yoursRow";
 import { HEADER_ID, usePageScroll } from "../../lib/pageScroll";
+import { useSmoothWheel } from "../../lib/smoothWheel";
 import { tabDef, useTabBar } from "../../lib/tabBar";
 import { watchTextSize } from "../../lib/textSize";
 import { useFlag } from "../../lib/flags";
@@ -289,6 +290,8 @@ export function Shell({ children }: { children: ReactNode }) {
   // The page scrolls the document (so phone browsers fold their toolbars away). Back/forward return to where
   // the page was left once its data is back, and a new page starts at the top (src/lib/pageScroll.ts).
   usePageScroll(mainRef);
+  // On desktop the wheel and trackpad ease the page along instead of stepping it (src/lib/smoothWheel.ts).
+  useSmoothWheel();
   const loc = useLocation();
   const { user } = usePersonal();
   const sections = useSections();

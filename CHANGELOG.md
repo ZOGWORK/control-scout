@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.7.2 — 2026-11-11
+## 5.7.4 — 2026-11-12
 
 The Discord bot's event posts: a schedule that always fits, the first match the evening before, and a plain day recap.
 
@@ -36,7 +36,7 @@ The Discord bot's event posts: a schedule that always fits, the first match the 
 ### Fixed
 - At a league meet the recap said "Rank 18 of 11": FIRST's rank there is the league's running standing. It now gives the meet's own rank. (`bot/eventAlerts.ts`) (#1405)
 
-## 5.7.1 — 2026-11-11
+## 5.7.3 — 2026-11-12
 
 The Discord bot's match posts tell one story each: who won, by how much, and whether the call was right.
 
@@ -54,6 +54,35 @@ The Discord bot's match posts tell one story each: who won, by how much, and whe
 
 ### Fixed
 - A call is a favourite only when its chance reads 55% or more; inside 45–55% it's an even call with no verdict. Q16 at the Nov 7 Northeast League Meet (Blue 50%) and Q17 (Red 54%) were posted as "❌ Upset". (`verdict` in `bot/views.ts`) (#1404)
+
+## 5.7.2 — 2026-11-12
+
+On a computer the mouse wheel and trackpad ease the page along instead of stepping it. Phones and tablets keep their own scrolling.
+
+### Highlights
+- [speed] Wheel and trackpad scrolling glide smoothly on desktops and laptops
+- [speed] Phones, tablets and reduced motion keep the device's own scrolling
+- [fixes] A link clicked while the page still glides takes the click
+
+### Changed
+- On a desktop (at least 1024px wide, a mouse or trackpad, no reduced-motion setting) the wheel and trackpad now ease the page toward where they send it, with Lenis 1.3.27 (`lenis`, MIT). It loads as its own 6 KB chunk once the page is idle, and only on those screens; phones, tablets and reduced motion never download it, and narrowing the window or turning on reduced motion hands scrolling straight back to the browser. Its animation loop runs only while a glide is on its way. Boxes with their own scroll (the search palette, menus, pickers, wide tables, dialogs) keep the browser's own wheel, a dialog that locks the page keeps it still, and a click or a key ends a glide at once. A new page still opens at the top at once, back and forward still return to where you were, and the long lists' windowing keeps up. (`src/lib/smoothWheel.ts`, `src/lib/smoothWheelEngine.ts`, `src/lib/pageScroll.ts`, `src/components/layout/Shell.tsx`)
+
+### Fixed
+- While the page scrolled under a mouse, a click landed on the scroll shield and was lost until 140ms after the last scroll. Once the mouse moves mid-scroll the shield now stands aside, so a click on a link while the page still glides opens it. (`src/lib/pageScroll.ts`, `src/index.css`) (#1403)
+
+## 5.7.1 — 2026-11-12
+
+Search engines find the Download page and every league's standings in the sitemap.
+
+### Highlights
+- [offline] Download lists every season file and its size on first load
+- [rankings] League standings pages are listed for search engines
+- [history] Search engines read Download's season files without running the app
+
+### Changed
+- `/download` serves its season files (season, size and what each holds) in its first HTML, and the sitemap lists it while offline packs are on and built. With packs off or none built it is a heading and a line, and stays out. (`server/seoMeta.ts`, `server/packs/routes.ts`, `server/sitemap.ts`)
+- The sitemap lists each league standings page (`/leagues/<season>/<region>/<code>`) that has FIRST's standings on it, with the day they were last read as its lastmod. A league with no standings yet is noindex, so it stays out until they arrive. (`server/sitemap.ts`)
+- `/predict` and `/compare` stay out of the sitemap. Their first HTML (checked live on 2026-11-11) is a heading and one line above an empty form or picker. The reason is now written beside the list. (`server/sitemap.ts`) (#1400)
 
 ## 5.7.0 — 2026-11-11
 
