@@ -20,11 +20,15 @@ const linkClass = "inline-flex h-[44px] items-center rounded-lg border border-bo
 
 export default function EventHighlightsPage() {
   const { season = "", code = "" } = useParams();
-  const ok = /^\d{4}$/.test(season) && isEventCodeParam(code);
-  const eventHref = `/events/${season}/${encodeURIComponent(code.toUpperCase())}`;
-  const state = useApi<EventHighlights>(ok ? `/api/events/${season}/${encodeURIComponent(code)}/highlights` : null);
+  // A season by value, as on the server (/events/02025/X is 2025), in the API's range.
+  const seasonNum = /^\d+$/.test(season) ? Number(season) : NaN;
+  const ok = seasonNum >= 2000 && seasonNum <= 2100 && isEventCodeParam(code);
+  const eventHref = `/events/${seasonNum}/${encodeURIComponent(code.toUpperCase())}`;
+  // Asked with the address's own spelling, as the first HTML primes it (server/seoMeta.ts eventHighlightsMeta), so a
+  // lowercase or padded address is drawn from the page's own data, not fetched again.
+  const state = useApi<EventHighlights>(ok ? `/api/events/${season}/${code}/highlights` : null);
   const name = state.data?.event.name ?? code.toUpperCase();
-  useTitle(`${name} highlights${ok ? `, ${seasonLabel(Number(season))}` : ""}`);
+  useTitle(`${name} highlights${ok ? `, ${seasonLabel(seasonNum)}` : ""}`);
   if (!ok) return <EmptyState icon={Sparkles} title="No such event" description="This address doesn't name an FTC event." />;
   // No highlights page for this event (no match with scores yet, or not an event we list): said plainly, with the way
   // to its page, never a broken-looking error.

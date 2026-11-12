@@ -41,6 +41,12 @@ describe("event highlights page", () => {
     expect(titles.at(-1)).toBe("North Meet 3 highlights, 2025–26");
   });
 
+  it("a padded season or lowercase code asks with the address's own spelling (as the first HTML primes it)", () => {
+    open("/events/02025/usnjnom3/highlights");
+    expect(asked).toContain("/api/events/02025/usnjnom3/highlights");
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("North Meet 3 highlights");
+  });
+
   it("asks for nothing at an address that names no event", () => {
     open("/events/abc/USNJNOM3/highlights");
     expect(asked.every((p) => p == null)).toBe(true);

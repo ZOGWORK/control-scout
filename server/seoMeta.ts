@@ -818,7 +818,7 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
     // An event's highlights page (server/eventHighlightsPage.ts): Search's "<event> highlights" answer, whole, in the
     // first HTML. Not found for an event with none (no page to index, or no match to pick from): never an empty page.
     if ((m = p.match(/^\/events\/(\d+)\/([^/]+)\/highlights$/i)) && isEventCodeParam(m[2])) {
-      return (await eventHighlightsMeta(Number(m[1]), await storedEventCode(Number(m[1]), m[2]))) ?? NOT_FOUND;
+      return (await eventHighlightsMeta(Number(m[1]), await storedEventCode(Number(m[1]), m[2]), `/api/events/${m[1]}/${m[2]}/highlights`)) ?? NOT_FOUND;
     }
     // The pit display: the event must exist. Its canonical is the event page (the one to find), so search engines
     // fold it in there. No noindex: the app keeps no per-page robots tag in step on navigation, so it would
@@ -1087,7 +1087,7 @@ function standoutHtml(stat: StatAnswer): string {
 
 /** An event's highlights page: its title and description name the event, the intent and the season; its first HTML is
  *  the whole answer and a link to the event's page. The app's data for the page rides along (src/lib/pageData.ts). */
-async function eventHighlightsMeta(season: number, code: string): Promise<PageMeta | null> {
+async function eventHighlightsMeta(season: number, code: string, apiPath: string): Promise<PageMeta | null> {
   const page = await eventHighlightsPage(season, code);
   if (!page) return null;
   const { event, stat } = page;
@@ -1101,7 +1101,8 @@ async function eventHighlightsMeta(season: number, code: string): Promise<PageMe
   const more = picks.slice(1).map((r) => r.note?.toLowerCase()).filter(Boolean);
   const description = fitDescription(`The standout FTC matches of ${event.name} (${S})${best ? `: ${best}` : ""}${more.length ? `; also its ${more.join(", ")}` : ""}. Scores, alliances and match videos.`);
   return { title, heading: title, description, type: "website", path: eventHighlightsPath(event.season, event.code), bodyHtml: eventHighlightsHtml(page),
-    pageData: { [`/api/events/${event.season}/${encodeURIComponent(event.code)}/highlights`]: page } };
+    // Keyed by the address's own spelling, as the page asks (src/pages/EventHighlightsPage.tsx; as eventFirstPaint does).
+    pageData: { [apiPath]: page } };
 }
 
 /** The event highlights answer as text, with the way back to the event's page. */

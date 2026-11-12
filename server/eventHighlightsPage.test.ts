@@ -59,6 +59,11 @@ describe("event highlights page", () => {
     expect(body).toContain("Won 120–80 (110 without penalties)");
     expect(body).toContain('<a href="/teams/7149');
     expect(body).toContain('<a href="/events/2025/USNJNOM3">North Meet 3: event page</a>'); // links back
+    // The page's data, keyed as the page asks: by the address's own spelling.
+    expect(Object.keys(m.pageData ?? {})).toEqual(["/api/events/2025/usnjnom3/highlights"]);
+    const padded = await pageMeta("/events/02025/USNJNOM3/highlights");
+    expect(padded.path).toBe("/events/2025/USNJNOM3/highlights");
+    expect(Object.keys(padded.pageData ?? {})).toEqual(["/api/events/02025/USNJNOM3/highlights"]);
   });
 
   it("an event read through its divisions, and an off-season event, have one too", async () => {
