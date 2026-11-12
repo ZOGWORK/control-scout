@@ -47,6 +47,7 @@ import { eventView, withStream } from "./api/eventView.js";
 import { videosRouter } from "./videos/routes.js";
 import { viewerOf } from "./videos/contributors.js";
 import { leagueStandings } from "./api/leagues.js";
+import { teamHighlightsPage } from "./teamHighlightsPage.js";
 import { perTeamOf, simulatedRankings } from "./projections/rankingSim.js";
 import { eventRecording, recordingStream, seasonRecordings, seasonVideoKinds, withClips, eventMatchSpan } from "./videos/recordings.js";
 import { answerVideo } from "./api/answers/video.js";
@@ -539,6 +540,14 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
   api.get("/teams/:number", h(async (req) => {
     const p = await teamProfile(int(req.params.number, "team", { min: 1, max: 999999 }), req.query.season ? season(req.query.season) : undefined);
     if (!p) throw new HttpError(404, `No FTC team ${req.params.number} in our data`);
+    return p;
+  }));
+
+  // A team's highlights page (server/teamHighlightsPage.ts): Search's "<team> highlights" answer, the same for
+  // every visitor. Not found for a team with no page to index or no match to pick from.
+  api.get("/teams/:number/highlights", h(async (req) => {
+    const p = await teamHighlightsPage(int(req.params.number, "team", { min: 1, max: 999999 }));
+    if (!p) throw new HttpError(404, `No highlights for team ${req.params.number}`);
     return p;
   }));
 

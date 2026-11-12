@@ -49,3 +49,13 @@ export const teamHasDataSql = (col: string): string =>
 
 /** SQL, for the team number in `col` (its teams row's name in `nameCol`, when joined): it has a page worth indexing. */
 export const teamIndexableSql = (col: string, nameCol?: string): string => `(${teamPageSql(col, nameCol)} AND ${teamHasDataSql(col)})`;
+
+/** SQL (constants only), for the team number in `col`: it has a match its highlights page can pick from (a played
+ *  match its robot was on the field for, scores reported, at an event that isn't remote: the matches
+ *  server/api/answers/matchSet.ts reads). With teamIndexableSql, the rule for /teams/<n>/highlights
+ *  (server/teamHighlightsPage.ts): the page, its API, the team page's link to it and the sitemap. */
+export const hasHighlightsSql = (col: string): string =>
+  `EXISTS (SELECT 1 FROM match_teams hx
+     JOIN matches hm ON hm.season = hx.season AND hm.code = hx.code AND hm.level = hx.level AND hm.series = hx.series AND hm.number = hx.number
+     JOIN events he ON he.season = hx.season AND he.code = hx.code
+     WHERE hx.team = ${col} AND hx.on_field = 1 AND hm.played = 1 AND hm.red_np IS NOT NULL AND hm.blue_np IS NOT NULL AND COALESCE(he.remote, 0) = 0)`;
