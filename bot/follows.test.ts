@@ -5,9 +5,9 @@ import { all, kvSet, migrate, openDb, run, setDb } from "../server/db";
 import { clearAllCaches } from "../server/caches";
 import { setFlag } from "../server/flags";
 import { CURRENT_SEASON as S } from "../server/data/seasons";
-import type { MatchView } from "../src/shared/api";
-import { MAX_FAILURES, REMIND_MS, addFollow, dueNow, listFollows, notifyTick, postEmbed, removeFollow, type Follow } from "./follows";
-import { Friendly } from "./views";
+import type { EventDetail, MatchView } from "../src/shared/api";
+import { MAX_FAILURES, REMIND_MS, addFollow, dueNow, listFollows, nextMatch, notifyTick, postEmbed, removeFollow, type Follow } from "./follows";
+import { Friendly, LOSS, VOLT, WIN, embedBlocks } from "./views";
 
 const NOW = Date.parse("2026-10-24T15:00:00Z");
 /** These tests are about the per-match posts: the event's schedule post (bot/eventAlerts.ts) counts as already sent. */
@@ -46,11 +46,46 @@ describe("dueNow", () => {
     expect(dueNow([f(1, "c1"), f(1, "c2")], [m(1, NOW + 60_000)], NOW).map((x) => x.channel)).toEqual(["c1", "c2"]);
   });
 
-  it("the post leads with the team: when it plays, or how it did", () => {
-    const [r] = dueNow([f(1)], [m(1, NOW + 60_000)], NOW);
-    expect(postEmbed(r, "Austin Qualifier", "https://controlscout.org").description).toMatch(/^\*\*1\*\* plays <t:\d+:R>/);
-    const [res] = dueNow([f(3)], [m(1, NOW - 60_000, true)], NOW);
-    expect(postEmbed(res, "Austin Qualifier", "https://controlscout.org").description).toBe("**3** lost Q1.");
+  const SITE = "https://controlscout.org";
+  const L = (n: number) => `[${n}](${SITE}/teams/${n})`;
+  const ev = (matches: MatchView[]) => ({ event: { name: "Austin Qualifier" }, matches }) as unknown as Pick<EventDetail, "event" | "matches">;
+
+  it("the reminder starts with the followed team's side, partner and time; 3 blocks, no fields", () => {
+    const match = m(1, NOW + 60_000);
+    const [r] = dueNow([f(3)], [match], NOW);
+    const e = postEmbed(r, ev([match]), SITE);
+    const at = Math.floor((NOW + 60_000) / 1000);
+    expect(e.description!.split("\n")[0]).toBe(`${L(3)} on Blue with ${L(4)}, <t:${at}:R> (<t:${at}:t>).`);
+    expect(e.description!.split("\n")[1]).toBe(`🔴 ${L(1)} & ${L(2)} vs ${L(3)} & ${L(4)} 🔵 · Red 60% to win · predicted 50–40 · fair`);
+    expect(e.fields).toBeUndefined();
+    expect(embedBlocks(e)).toBe(3);
+    // Two followed teams on opposite sides: both named, each with its side.
+    const [both] = dueNow([f(1), f(4)], [match], NOW);
+    expect(postEmbed(both, ev([match]), SITE).description!.split("\n")[0]).toBe(`${L(1)} on Red with ${L(2)}; ${L(4)} on Blue with ${L(3)}, <t:${at}:R> (<t:${at}:t>).`);
+  });
+
+  it("the result tells the outcome once, colours by it, and names the next match only when there is one", () => {
+    const done = m(1, NOW - 60_000, true), next = m(5, NOW + 3_600_000), later = m(9, NOW + 7_200_000);
+    const [res] = dueNow([f(3)], [done], NOW);
+    const e = postEmbed(res, ev([done, later, next]), SITE);
+    const lines = e.description!.split("\n");
+    expect(lines[0]).toBe(`🔴 ${L(1)} & ${L(2)} **50** – 40 ${L(3)} & ${L(4)} 🔵`);
+    expect(lines[1]).toBe("Called it ✅ — Red 60% (predicted 50–40), won by 10.");
+    expect(lines[2]).toBe(`Next: Q5 · <t:${Math.floor((NOW + 3_600_000) / 1000)}:t> · [Match](${SITE}/events/${S}/X/match/qual:0:5) · [Event](${SITE}/events/${S}/X)`);
+    expect(e.description!.match(/won|lost/g)).toHaveLength(1);
+    expect(e.color).toBe(LOSS);
+    expect(postEmbed(dueNow([f(1)], [done], NOW)[0], ev([done]), SITE).color).toBe(WIN);
+    expect(postEmbed(dueNow([f(1), f(3)], [done], NOW)[0], ev([done]), SITE).color).toBe(VOLT); // mixed
+    // No next match: no Next line, just the event link.
+    expect(postEmbed(res, ev([done]), SITE).description!.split("\n")[2]).toBe(`[Event](${SITE}/events/${S}/X)`);
+    expect(embedBlocks(e)).toBeLessThanOrEqual(4);
+  });
+
+  it("nextMatch: the earliest unplayed one with a followed team, never a played or an earlier one", () => {
+    const done = m(4, NOW, true);
+    expect(nextMatch([m(2, NOW - 600_000), m(6, NOW + 900_000, true), m(8, NOW + 1_800_000), m(7, NOW + 1_200_000)], done, [1])?.match.label).toBe("Q7");
+    expect(nextMatch([m(2, NOW - 600_000)], done, [1])).toBeNull();
+    expect(nextMatch([m(7, NOW + 1_200_000)], done, [1, 3])?.team).toBe(1);
   });
 });
 
@@ -88,8 +123,9 @@ describe("follows and the tick, on a database", () => {
     expect(send).toHaveBeenCalledTimes(1);
     const [channel, embed] = send.mock.calls[0] as unknown as [string, { title: string; description: string }];
     expect(channel).toBe("c1");
-    expect(embed.title).toBe("Austin Qualifier · Q7");
-    expect(embed.description).toMatch(/^\*\*18360\*\* & \*\*4215\*\* play/);
+    expect(embed.title).toBe("Q7 · Austin Qualifier");
+    // One post naming both followed teams (here on one alliance: named together, with its side).
+    expect(embed.description.split("\n")[0]).toMatch(/^\[18360\]\(.*\) & \[4215\]\(.*\) on (Red|Blue), <t:\d+:R>/);
   });
 
   it("turned off by the owner (the discordBot toggle): nothing is posted and every follow is kept; back on, the post goes", async () => {

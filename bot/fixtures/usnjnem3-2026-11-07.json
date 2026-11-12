@@ -1,0 +1,1781 @@
+{
+ "_source": "https://controlscout.org/api/events/2026/USNJNEM3, fetched 2026-11-11 (trimmed to what the bot reads)",
+ "event": {
+  "season": 2026,
+  "code": "USNJNEM3",
+  "name": "P1-5 PM Northeast League Meet",
+  "status": "finished",
+  "start": "2026-11-07",
+  "end": "2026-11-07",
+  "timezone": "America/New_York",
+  "venue": "Don Bosco Prep High School",
+  "city": "Ramsey",
+  "state": "NJ",
+  "country": "USA",
+  "teams": 11,
+  "matchesPlayed": 17,
+  "matchesTotal": 17
+ },
+ "field": [
+  {
+   "team": 23314,
+   "name": "Galactic Pigeon",
+   "city": "Glen Rock",
+   "state": "NJ",
+   "rank": 1,
+   "rp": 2.4,
+   "tbp": 51.7,
+   "wins": 6,
+   "losses": 0,
+   "ties": 0,
+   "qualPlayed": 6,
+   "opr": {
+    "np": 68.62,
+    "auto": 16.55,
+    "teleop": 52.07,
+    "endgame": 4,
+    "pen": -0.28
+   },
+   "avgNp": 86.17,
+   "rating": {
+    "np": 70,
+    "sd": 3.2,
+    "matches": 6
+   },
+   "seasonOpr": 68.62,
+   "swing": {
+    "value": 0.462,
+    "matches": 6,
+    "reason": null
+   },
+   "meet": {
+    "rank": 1,
+    "rs": 4,
+    "wins": 6,
+    "losses": 0,
+    "ties": 0,
+    "played": 6,
+    "tb": [
+     86.16666666666667,
+     2.8333333333333335,
+     21.333333333333332
+    ]
+   }
+  },
+  {
+   "team": 13107,
+   "name": "Ironmen Pi",
+   "city": "Ramsey",
+   "state": "NJ",
+   "rank": 7,
+   "rp": 1.6,
+   "tbp": 34,
+   "wins": 3,
+   "losses": 2,
+   "ties": 1,
+   "qualPlayed": 6,
+   "opr": {
+    "np": 30.48,
+    "auto": 11.44,
+    "teleop": 19.05,
+    "endgame": 4.33,
+    "pen": -0.54
+   },
+   "avgNp": 56.67,
+   "rating": {
+    "np": 34,
+    "sd": 3.2,
+    "matches": 6
+   },
+   "seasonOpr": 30.48,
+   "swing": {
+    "value": 0.5243,
+    "matches": 6,
+    "reason": null
+   },
+   "meet": {
+    "rank": 2,
+    "rs": 2.6666666666666665,
+    "wins": 3,
+    "losses": 2,
+    "ties": 1,
+    "played": 6,
+    "tb": [
+     56.666666666666664,
+     1.6666666666666667,
+     18.333333333333332
+    ]
+   }
+  },
+  {
+   "team": 23545,
+   "name": "Ramsey Dusters",
+   "city": "Ramsey",
+   "state": "NJ",
+   "rank": 9,
+   "rp": 1.5,
+   "tbp": 28.4,
+   "wins": 3,
+   "losses": 2,
+   "ties": 1,
+   "qualPlayed": 6,
+   "opr": {
+    "np": 30.81,
+    "auto": 14.97,
+    "teleop": 15.84,
+    "endgame": 3.71,
+    "pen": -0.12
+   },
+   "avgNp": 47.33,
+   "rating": {
+    "np": 30.6,
+    "sd": 3.2,
+    "matches": 7
+   },
+   "seasonOpr": 30.81,
+   "swing": {
+    "value": 0.5093,
+    "matches": 7,
+    "reason": null
+   },
+   "meet": {
+    "rank": 3,
+    "rs": 2.5,
+    "wins": 3,
+    "losses": 2,
+    "ties": 1,
+    "played": 6,
+    "tb": [
+     47.333333333333336,
+     1.1666666666666667,
+     18.333333333333332
+    ]
+   }
+  },
+  {
+   "team": 10243,
+   "name": "Ramsey Ramblers",
+   "city": "Ramsey",
+   "state": "NJ",
+   "rank": 10,
+   "rp": 1.5,
+   "tbp": 26.7,
+   "wins": 4,
+   "losses": 2,
+   "ties": 0,
+   "qualPlayed": 6,
+   "opr": {
+    "np": 17.13,
+    "auto": 1.18,
+    "teleop": 15.95,
+    "endgame": 4.08,
+    "pen": 0.3
+   },
+   "avgNp": 44.5,
+   "rating": {
+    "np": 21.8,
+    "sd": 3.2,
+    "matches": 6
+   },
+   "seasonOpr": 17.13,
+   "swing": {
+    "value": 0.4405,
+    "matches": 5,
+    "reason": null
+   },
+   "meet": {
+    "rank": 4,
+    "rs": 2.5,
+    "wins": 4,
+    "losses": 2,
+    "ties": 0,
+    "played": 6,
+    "tb": [
+     44.5,
+     1.3333333333333333,
+     9
+    ]
+   }
+  },
+  {
+   "team": 23694,
+   "name": "GEARHEADS",
+   "city": "Ramsey",
+   "state": "NJ",
+   "rank": 11,
+   "rp": 1.5,
+   "tbp": 23.3,
+   "wins": 3,
+   "losses": 2,
+   "ties": 1,
+   "qualPlayed": 6,
+   "opr": {
+    "np": 14.55,
+    "auto": 3.64,
+    "teleop": 10.91,
+    "endgame": 5.7,
+    "pen": -0.76
+   },
+   "avgNp": 38.83,
+   "rating": {
+    "np": 17.9,
+    "sd": 3.2,
+    "matches": 7
+   },
+   "seasonOpr": 14.55,
+   "swing": {
+    "value": 0.3555,
+    "matches": 7,
+    "reason": null
+   },
+   "meet": {
+    "rank": 5,
+    "rs": 2.5,
+    "wins": 3,
+    "losses": 2,
+    "ties": 1,
+    "played": 6,
+    "tb": [
+     38.833333333333336,
+     0.6666666666666666,
+     10.333333333333334
+    ]
+   }
+  },
+  {
+   "team": 36142,
+   "name": "NOVA Robotics",
+   "city": "Jersey City",
+   "state": "NJ",
+   "rank": 15,
+   "rp": 1.3,
+   "tbp": 23.2,
+   "wins": 3,
+   "losses": 3,
+   "ties": 0,
+   "qualPlayed": 6,
+   "opr": {
+    "np": 14.13,
+    "auto": 4.81,
+    "teleop": 9.32,
+    "endgame": 2.08,
+    "pen": 3.25
+   },
+   "avgNp": 38.67,
+   "rating": {
+    "np": 20.7,
+    "sd": 3.2,
+    "matches": 6
+   },
+   "seasonOpr": 14.13,
+   "swing": {
+    "value": 0.3789,
+    "matches": 5,
+    "reason": null
+   },
+   "meet": {
+    "rank": 6,
+    "rs": 2.1666666666666665,
+    "wins": 3,
+    "losses": 3,
+    "ties": 0,
+    "played": 6,
+    "tb": [
+     38.666666666666664,
+     0.6666666666666666,
+     13.333333333333334
+    ]
+   }
+  },
+  {
+   "team": 4215,
+   "name": "Hypnotic Robotics",
+   "city": "Oradell",
+   "state": "NJ",
+   "rank": 18,
+   "rp": 1.2,
+   "tbp": 26.9,
+   "wins": 2,
+   "losses": 3,
+   "ties": 1,
+   "qualPlayed": 6,
+   "opr": {
+    "np": 16.02,
+    "auto": 1.35,
+    "teleop": 14.68,
+    "endgame": 5.55,
+    "pen": 0.28
+   },
+   "avgNp": 44.83,
+   "rating": {
+    "np": 28.9,
+    "sd": 3.2,
+    "matches": 6
+   },
+   "seasonOpr": 16.02,
+   "swing": {
+    "value": 0.4351,
+    "matches": 6,
+    "reason": null
+   },
+   "meet": {
+    "rank": 7,
+    "rs": 2,
+    "wins": 2,
+    "losses": 3,
+    "ties": 1,
+    "played": 6,
+    "tb": [
+     44.833333333333336,
+     1,
+     9.333333333333334
+    ]
+   }
+  },
+  {
+   "team": 8902,
+   "name": "Cosmic Goose",
+   "city": "Glen Rock",
+   "state": "NJ",
+   "rank": 19,
+   "rp": 1.2,
+   "tbp": 22.3,
+   "wins": 3,
+   "losses": 3,
+   "ties": 0,
+   "qualPlayed": 6,
+   "opr": {
+    "np": 12.98,
+    "auto": 6.31,
+    "teleop": 6.68,
+    "endgame": 4.25,
+    "pen": -0.84
+   },
+   "avgNp": 37.17,
+   "rating": {
+    "np": 21.7,
+    "sd": 3.2,
+    "matches": 6
+   },
+   "seasonOpr": 12.98,
+   "swing": {
+    "value": 0.3716,
+    "matches": 5,
+    "reason": null
+   },
+   "meet": {
+    "rank": 8,
+    "rs": 2,
+    "wins": 3,
+    "losses": 3,
+    "ties": 0,
+    "played": 6,
+    "tb": [
+     37.166666666666664,
+     0.5,
+     14
+    ]
+   }
+  },
+  {
+   "team": 6980,
+   "name": "Bad Wolf",
+   "city": "Oradell",
+   "state": "NJ",
+   "rank": 30,
+   "rp": 0.9,
+   "tbp": 17.2,
+   "wins": 2,
+   "losses": 4,
+   "ties": 0,
+   "qualPlayed": 6,
+   "opr": {
+    "np": 11.26,
+    "auto": 0.15,
+    "teleop": 11.11,
+    "endgame": 4.89,
+    "pen": -0.3
+   },
+   "avgNp": 28.67,
+   "rating": {
+    "np": 12.1,
+    "sd": 3.2,
+    "matches": 6
+   },
+   "seasonOpr": 11.26,
+   "swing": {
+    "value": 0.3662,
+    "matches": 6,
+    "reason": null
+   },
+   "meet": {
+    "rank": 9,
+    "rs": 1.5,
+    "wins": 2,
+    "losses": 4,
+    "ties": 0,
+    "played": 6,
+    "tb": [
+     28.666666666666668,
+     0.3333333333333333,
+     5.333333333333333
+    ]
+   }
+  },
+  {
+   "team": 18757,
+   "name": "Ironmen Rho",
+   "city": "Ramsey",
+   "state": "NJ",
+   "rank": 32,
+   "rp": 0.6,
+   "tbp": 17,
+   "wins": 1,
+   "losses": 5,
+   "ties": 0,
+   "qualPlayed": 6,
+   "opr": {
+    "np": 13.26,
+    "auto": 7.2,
+    "teleop": 6.07,
+    "endgame": 1.78,
+    "pen": 3.34
+   },
+   "avgNp": 28.33,
+   "rating": {
+    "np": 13.3,
+    "sd": 3.2,
+    "matches": 6
+   },
+   "seasonOpr": 13.26,
+   "swing": {
+    "value": 0.371,
+    "matches": 5,
+    "reason": null
+   },
+   "meet": {
+    "rank": 10,
+    "rs": 1,
+    "wins": 1,
+    "losses": 5,
+    "ties": 0,
+    "played": 6,
+    "tb": [
+     28.333333333333332,
+     0.16666666666666666,
+     12
+    ]
+   }
+  },
+  {
+   "team": 18760,
+   "name": "Ironmen Upsilon",
+   "city": "Ramsey",
+   "state": "NJ",
+   "rank": 33,
+   "rp": 0.4,
+   "tbp": 14.5,
+   "wins": 1,
+   "losses": 5,
+   "ties": 0,
+   "qualPlayed": 6,
+   "opr": {
+    "np": 7.02,
+    "auto": 2.48,
+    "teleop": 4.54,
+    "endgame": 3.07,
+    "pen": -0.86
+   },
+   "avgNp": 35,
+   "rating": {
+    "np": 17.5,
+    "sd": 5.5,
+    "matches": 2
+   },
+   "seasonOpr": 7.02,
+   "swing": {
+    "value": null,
+    "matches": 2,
+    "reason": "Only 2 qualification matches with a partner's OPR known (needs 5)"
+   },
+   "meet": {
+    "rank": 11,
+    "rs": 0.6666666666666666,
+    "wins": 1,
+    "losses": 5,
+    "ties": 0,
+    "played": 6,
+    "tb": [
+     24.166666666666668,
+     0.16666666666666666,
+     8.833333333333334
+    ]
+   }
+  }
+ ],
+ "matches": [
+  {
+   "season": 2026,
+   "code": "USNJNEM3",
+   "key": "qual:0:1",
+   "level": "qual",
+   "series": 0,
+   "number": 1,
+   "label": "Q1",
+   "time": "2026-11-07T14:12:56.993",
+   "startsAt": "2026-11-07T19:12:56.993Z",
+   "played": true,
+   "red": {
+    "teams": [
+     {
+      "number": 13107,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Ironmen Pi"
+     },
+     {
+      "number": 23545,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Ramsey Dusters"
+     }
+    ],
+    "score": {
+     "total": 34,
+     "np": 34,
+     "auto": 26,
+     "teleop": 3,
+     "endgame": 5,
+     "pen": 0,
+     "tips": 1
+    }
+   },
+   "blue": {
+    "teams": [
+     {
+      "number": 10243,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Ramsey Ramblers"
+     },
+     {
+      "number": 23314,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Galactic Pigeon"
+     }
+    ],
+    "score": {
+     "total": 70,
+     "np": 70,
+     "auto": 3,
+     "teleop": 62,
+     "endgame": 5,
+     "pen": 0,
+     "tips": 3
+    }
+   },
+   "video": null,
+   "prediction": {
+    "pRed": 0.36364009903700617,
+    "redMean": 42,
+    "blueMean": 64,
+    "tier": "provisional",
+    "kind": "backtest",
+    "predictedAt": null
+   }
+  },
+  {
+   "season": 2026,
+   "code": "USNJNEM3",
+   "key": "qual:0:2",
+   "level": "qual",
+   "series": 0,
+   "number": 2,
+   "label": "Q2",
+   "time": "2026-11-07T14:20:34.834",
+   "startsAt": "2026-11-07T19:20:34.834Z",
+   "played": true,
+   "red": {
+    "teams": [
+     {
+      "number": 18760,
+      "surrogate": false,
+      "dq": false,
+      "onField": false,
+      "name": "Ironmen Upsilon"
+     },
+     {
+      "number": 18757,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Ironmen Rho"
+     }
+    ],
+    "score": {
+     "total": 17,
+     "np": 17,
+     "auto": 8,
+     "teleop": 4,
+     "endgame": 5,
+     "pen": 0,
+     "tips": 0
+    }
+   },
+   "blue": {
+    "teams": [
+     {
+      "number": 36142,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "NOVA Robotics"
+     },
+     {
+      "number": 8902,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Cosmic Goose"
+     }
+    ],
+    "score": {
+     "total": 22,
+     "np": 22,
+     "auto": 8,
+     "teleop": 9,
+     "endgame": 5,
+     "pen": 0,
+     "tips": 0
+    }
+   },
+   "video": null,
+   "prediction": null
+  },
+  {
+   "season": 2026,
+   "code": "USNJNEM3",
+   "key": "qual:0:3",
+   "level": "qual",
+   "series": 0,
+   "number": 3,
+   "label": "Q3",
+   "time": "2026-11-07T14:28:56.351",
+   "startsAt": "2026-11-07T19:28:56.351Z",
+   "played": true,
+   "red": {
+    "teams": [
+     {
+      "number": 23694,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "GEARHEADS"
+     },
+     {
+      "number": 4215,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Hypnotic Robotics"
+     }
+    ],
+    "score": {
+     "total": 24,
+     "np": 24,
+     "auto": 8,
+     "teleop": 6,
+     "endgame": 10,
+     "pen": 0,
+     "tips": 0
+    }
+   },
+   "blue": {
+    "teams": [
+     {
+      "number": 18757,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Ironmen Rho"
+     },
+     {
+      "number": 6980,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Bad Wolf"
+     }
+    ],
+    "score": {
+     "total": 23,
+     "np": 23,
+     "auto": 8,
+     "teleop": 10,
+     "endgame": 5,
+     "pen": 0,
+     "tips": 0
+    }
+   },
+   "video": null,
+   "prediction": {
+    "pRed": 0.6790219546688409,
+    "redMean": 72,
+    "blueMean": 45,
+    "tier": "provisional",
+    "kind": "backtest",
+    "predictedAt": null
+   }
+  },
+  {
+   "season": 2026,
+   "code": "USNJNEM3",
+   "key": "qual:0:4",
+   "level": "qual",
+   "series": 0,
+   "number": 4,
+   "label": "Q4",
+   "time": "2026-11-07T14:35:46.861",
+   "startsAt": "2026-11-07T19:35:46.861Z",
+   "played": true,
+   "red": {
+    "teams": [
+     {
+      "number": 23545,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Ramsey Dusters"
+     },
+     {
+      "number": 8902,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Cosmic Goose"
+     }
+    ],
+    "score": {
+     "total": 49,
+     "np": 49,
+     "auto": 16,
+     "teleop": 23,
+     "endgame": 10,
+     "pen": 0,
+     "tips": 1
+    }
+   },
+   "blue": {
+    "teams": [
+     {
+      "number": 18760,
+      "surrogate": false,
+      "dq": false,
+      "onField": false,
+      "name": "Ironmen Upsilon"
+     },
+     {
+      "number": 36142,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "NOVA Robotics"
+     }
+    ],
+    "score": {
+     "total": 18,
+     "np": 18,
+     "auto": 3,
+     "teleop": 10,
+     "endgame": 5,
+     "pen": 0,
+     "tips": 0
+    }
+   },
+   "video": null,
+   "prediction": null
+  },
+  {
+   "season": 2026,
+   "code": "USNJNEM3",
+   "key": "qual:0:5",
+   "level": "qual",
+   "series": 0,
+   "number": 5,
+   "label": "Q5",
+   "time": "2026-11-07T14:40:37.225",
+   "startsAt": "2026-11-07T19:40:37.225Z",
+   "played": true,
+   "red": {
+    "teams": [
+     {
+      "number": 6980,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Bad Wolf"
+     },
+     {
+      "number": 4215,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Hypnotic Robotics"
+     }
+    ],
+    "score": {
+     "total": 20,
+     "np": 20,
+     "auto": 0,
+     "teleop": 10,
+     "endgame": 10,
+     "pen": 0,
+     "tips": 0
+    }
+   },
+   "blue": {
+    "teams": [
+     {
+      "number": 13107,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Ironmen Pi"
+     },
+     {
+      "number": 10243,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Ramsey Ramblers"
+     }
+    ],
+    "score": {
+     "total": 61,
+     "np": 61,
+     "auto": 11,
+     "teleop": 40,
+     "endgame": 10,
+     "pen": 0,
+     "tips": 2
+    }
+   },
+   "video": null,
+   "prediction": {
+    "pRed": 0.6304360783203585,
+    "redMean": 55,
+    "blueMean": 37,
+    "tier": "provisional",
+    "kind": "backtest",
+    "predictedAt": null
+   }
+  },
+  {
+   "season": 2026,
+   "code": "USNJNEM3",
+   "key": "qual:0:6",
+   "level": "qual",
+   "series": 0,
+   "number": 6,
+   "label": "Q6",
+   "time": "2026-11-07T14:49:24.221",
+   "startsAt": "2026-11-07T19:49:24.221Z",
+   "played": true,
+   "red": {
+    "teams": [
+     {
+      "number": 4215,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Hypnotic Robotics"
+     },
+     {
+      "number": 23314,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Galactic Pigeon"
+     }
+    ],
+    "score": {
+     "total": 75,
+     "np": 75,
+     "auto": 11,
+     "teleop": 54,
+     "endgame": 10,
+     "pen": 0,
+     "tips": 2
+    }
+   },
+   "blue": {
+    "teams": [
+     {
+      "number": 23694,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "GEARHEADS"
+     },
+     {
+      "number": 18760,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Ironmen Upsilon"
+     }
+    ],
+    "score": {
+     "total": 19,
+     "np": 19,
+     "auto": 3,
+     "teleop": 6,
+     "endgame": 10,
+     "pen": 0,
+     "tips": 0
+    }
+   },
+   "video": null,
+   "prediction": {
+    "pRed": 0.8820268489233495,
+    "redMean": 73,
+    "blueMean": 18,
+    "tier": "provisional",
+    "kind": "backtest",
+    "predictedAt": null
+   }
+  },
+  {
+   "season": 2026,
+   "code": "USNJNEM3",
+   "key": "qual:0:7",
+   "level": "qual",
+   "series": 0,
+   "number": 7,
+   "label": "Q7",
+   "time": "2026-11-07T14:58:59.237",
+   "startsAt": "2026-11-07T19:58:59.237Z",
+   "played": true,
+   "red": {
+    "teams": [
+     {
+      "number": 23694,
+      "surrogate": true,
+      "dq": false,
+      "onField": true,
+      "name": "GEARHEADS"
+     },
+     {
+      "number": 36142,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "NOVA Robotics"
+     }
+    ],
+    "score": {
+     "total": 30,
+     "np": 30,
+     "auto": 11,
+     "teleop": 9,
+     "endgame": 10,
+     "pen": 0,
+     "tips": 0
+    }
+   },
+   "blue": {
+    "teams": [
+     {
+      "number": 10243,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Ramsey Ramblers"
+     },
+     {
+      "number": 23545,
+      "surrogate": true,
+      "dq": false,
+      "onField": true,
+      "name": "Ramsey Dusters"
+     }
+    ],
+    "score": {
+     "total": 44,
+     "np": 44,
+     "auto": 26,
+     "teleop": 8,
+     "endgame": 10,
+     "pen": 0,
+     "tips": 1
+    }
+   },
+   "video": null,
+   "prediction": {
+    "pRed": 0.35171649434967356,
+    "redMean": 37,
+    "blueMean": 51,
+    "tier": "provisional",
+    "kind": "live",
+    "predictedAt": "2026-11-07T19:19:30.027Z"
+   }
+  },
+  {
+   "season": 2026,
+   "code": "USNJNEM3",
+   "key": "qual:0:8",
+   "level": "qual",
+   "series": 0,
+   "number": 8,
+   "label": "Q8",
+   "time": "2026-11-07T15:05:09.945",
+   "startsAt": "2026-11-07T20:05:09.945Z",
+   "played": true,
+   "red": {
+    "teams": [
+     {
+      "number": 8902,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Cosmic Goose"
+     },
+     {
+      "number": 18757,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Ironmen Rho"
+     }
+    ],
+    "score": {
+     "total": 21,
+     "np": 21,
+     "auto": 8,
+     "teleop": 8,
+     "endgame": 5,
+     "pen": 0,
+     "tips": 0
+    }
+   },
+   "blue": {
+    "teams": [
+     {
+      "number": 13107,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Ironmen Pi"
+     },
+     {
+      "number": 6980,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Bad Wolf"
+     }
+    ],
+    "score": {
+     "total": 38,
+     "np": 38,
+     "auto": 8,
+     "teleop": 20,
+     "endgame": 10,
+     "pen": 0,
+     "tips": 1
+    }
+   },
+   "video": null,
+   "prediction": {
+    "pRed": 0.6527027797080712,
+    "redMean": 72,
+    "blueMean": 45,
+    "tier": "provisional",
+    "kind": "live",
+    "predictedAt": "2026-11-07T19:19:30.027Z"
+   }
+  },
+  {
+   "season": 2026,
+   "code": "USNJNEM3",
+   "key": "qual:0:9",
+   "level": "qual",
+   "series": 0,
+   "number": 9,
+   "label": "Q9",
+   "time": "2026-11-07T15:10:01.42",
+   "startsAt": "2026-11-07T20:10:01.420Z",
+   "played": true,
+   "red": {
+    "teams": [
+     {
+      "number": 23314,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Galactic Pigeon"
+     },
+     {
+      "number": 36142,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "NOVA Robotics"
+     }
+    ],
+    "score": {
+     "total": 92,
+     "np": 92,
+     "auto": 31,
+     "teleop": 56,
+     "endgame": 5,
+     "pen": 0,
+     "tips": 3
+    }
+   },
+   "blue": {
+    "teams": [
+     {
+      "number": 10243,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Ramsey Ramblers"
+     },
+     {
+      "number": 4215,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Hypnotic Robotics"
+     }
+    ],
+    "score": {
+     "total": 41,
+     "np": 41,
+     "auto": 11,
+     "teleop": 20,
+     "endgame": 10,
+     "pen": 0,
+     "tips": 1
+    }
+   },
+   "video": null,
+   "prediction": {
+    "pRed": 0.3535020084999266,
+    "redMean": 65,
+    "blueMean": 88,
+    "tier": "provisional",
+    "kind": "live",
+    "predictedAt": "2026-11-07T19:19:30.027Z"
+   }
+  },
+  {
+   "season": 2026,
+   "code": "USNJNEM3",
+   "key": "qual:0:10",
+   "level": "qual",
+   "series": 0,
+   "number": 10,
+   "label": "Q10",
+   "time": "2026-11-07T15:16:54.531",
+   "startsAt": "2026-11-07T20:16:54.531Z",
+   "played": true,
+   "red": {
+    "teams": [
+     {
+      "number": 18757,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Ironmen Rho"
+     },
+     {
+      "number": 13107,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Ironmen Pi"
+     }
+    ],
+    "score": {
+     "total": 45,
+     "np": 45,
+     "auto": 16,
+     "teleop": 24,
+     "endgame": 5,
+     "pen": 0,
+     "tips": 1
+    }
+   },
+   "blue": {
+    "teams": [
+     {
+      "number": 23545,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Ramsey Dusters"
+     },
+     {
+      "number": 18760,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Ironmen Upsilon"
+     }
+    ],
+    "score": {
+     "total": 51,
+     "np": 51,
+     "auto": 28,
+     "teleop": 13,
+     "endgame": 10,
+     "pen": 0,
+     "tips": 1
+    }
+   },
+   "video": null,
+   "prediction": {
+    "pRed": 0.4407346242043339,
+    "redMean": 35,
+    "blueMean": 40,
+    "tier": "provisional",
+    "kind": "live",
+    "predictedAt": "2026-11-07T19:19:30.027Z"
+   }
+  },
+  {
+   "season": 2026,
+   "code": "USNJNEM3",
+   "key": "qual:0:11",
+   "level": "qual",
+   "series": 0,
+   "number": 11,
+   "label": "Q11",
+   "time": "2026-11-07T15:21:34.5",
+   "startsAt": "2026-11-07T20:21:34.500Z",
+   "played": true,
+   "red": {
+    "teams": [
+     {
+      "number": 23694,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "GEARHEADS"
+     },
+     {
+      "number": 23314,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Galactic Pigeon"
+     }
+    ],
+    "score": {
+     "total": 81,
+     "np": 81,
+     "auto": 11,
+     "teleop": 60,
+     "endgame": 10,
+     "pen": 0,
+     "tips": 3
+    }
+   },
+   "blue": {
+    "teams": [
+     {
+      "number": 8902,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Cosmic Goose"
+     },
+     {
+      "number": 6980,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Bad Wolf"
+     }
+    ],
+    "score": {
+     "total": 27,
+     "np": 27,
+     "auto": 8,
+     "teleop": 9,
+     "endgame": 10,
+     "pen": 0,
+     "tips": 0
+    }
+   },
+   "video": null,
+   "prediction": {
+    "pRed": 0.5036238299012038,
+    "redMean": 72,
+    "blueMean": 80,
+    "tier": "provisional",
+    "kind": "live",
+    "predictedAt": "2026-11-07T19:19:30.027Z"
+   }
+  },
+  {
+   "season": 2026,
+   "code": "USNJNEM3",
+   "key": "qual:0:12",
+   "level": "qual",
+   "series": 0,
+   "number": 12,
+   "label": "Q12",
+   "time": "2026-11-07T15:28:03.238",
+   "startsAt": "2026-11-07T20:28:03.238Z",
+   "played": true,
+   "red": {
+    "teams": [
+     {
+      "number": 23545,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Ramsey Dusters"
+     },
+     {
+      "number": 23694,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "GEARHEADS"
+     }
+    ],
+    "score": {
+     "total": 44,
+     "np": 44,
+     "auto": 16,
+     "teleop": 23,
+     "endgame": 5,
+     "pen": 0,
+     "tips": 1
+    }
+   },
+   "blue": {
+    "teams": [
+     {
+      "number": 4215,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Hypnotic Robotics"
+     },
+     {
+      "number": 13107,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Ironmen Pi"
+     }
+    ],
+    "score": {
+     "total": 44,
+     "np": 44,
+     "auto": 13,
+     "teleop": 21,
+     "endgame": 10,
+     "pen": 0,
+     "tips": 1
+    }
+   },
+   "video": null,
+   "prediction": {
+    "pRed": 0.26313800832786033,
+    "redMean": 51,
+    "blueMean": 78,
+    "tier": "provisional",
+    "kind": "live",
+    "predictedAt": "2026-11-07T19:19:30.027Z"
+   }
+  },
+  {
+   "season": 2026,
+   "code": "USNJNEM3",
+   "key": "qual:0:13",
+   "level": "qual",
+   "series": 0,
+   "number": 13,
+   "label": "Q13",
+   "time": "2026-11-07T15:37:20.225",
+   "startsAt": "2026-11-07T20:37:20.225Z",
+   "played": true,
+   "red": {
+    "teams": [
+     {
+      "number": 6980,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Bad Wolf"
+     },
+     {
+      "number": 10243,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Ramsey Ramblers"
+     }
+    ],
+    "score": {
+     "total": 34,
+     "np": 34,
+     "auto": 0,
+     "teleop": 24,
+     "endgame": 10,
+     "pen": 0,
+     "tips": 1
+    }
+   },
+   "blue": {
+    "teams": [
+     {
+      "number": 8902,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Cosmic Goose"
+     },
+     {
+      "number": 18760,
+      "surrogate": false,
+      "dq": false,
+      "onField": false,
+      "name": "Ironmen Upsilon"
+     }
+    ],
+    "score": {
+     "total": 23,
+     "np": 23,
+     "auto": 8,
+     "teleop": 10,
+     "endgame": 5,
+     "pen": 0,
+     "tips": 0
+    }
+   },
+   "video": null,
+   "prediction": {
+    "pRed": 0.42628635959350286,
+    "redMean": 54,
+    "blueMean": 63,
+    "tier": "provisional",
+    "kind": "live",
+    "predictedAt": "2026-11-07T19:19:30.027Z"
+   }
+  },
+  {
+   "season": 2026,
+   "code": "USNJNEM3",
+   "key": "qual:0:14",
+   "level": "qual",
+   "series": 0,
+   "number": 14,
+   "label": "Q14",
+   "time": "2026-11-07T15:42:10.772",
+   "startsAt": "2026-11-07T20:42:10.772Z",
+   "played": true,
+   "red": {
+    "teams": [
+     {
+      "number": 36142,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "NOVA Robotics"
+     },
+     {
+      "number": 18757,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Ironmen Rho"
+     }
+    ],
+    "score": {
+     "total": 29,
+     "np": 29,
+     "auto": 16,
+     "teleop": 8,
+     "endgame": 5,
+     "pen": 20,
+     "tips": 0
+    }
+   },
+   "blue": {
+    "teams": [
+     {
+      "number": 23314,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Galactic Pigeon"
+     },
+     {
+      "number": 13107,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Ironmen Pi"
+     }
+    ],
+    "score": {
+     "total": 138,
+     "np": 118,
+     "auto": 36,
+     "teleop": 72,
+     "endgame": 10,
+     "pen": 0,
+     "tips": 4
+    }
+   },
+   "video": null,
+   "prediction": {
+    "pRed": 0.23224045995310852,
+    "redMean": 37,
+    "blueMean": 62,
+    "tier": "provisional",
+    "kind": "live",
+    "predictedAt": "2026-11-07T19:19:30.027Z"
+   }
+  },
+  {
+   "season": 2026,
+   "code": "USNJNEM3",
+   "key": "qual:0:15",
+   "level": "qual",
+   "series": 0,
+   "number": 15,
+   "label": "Q15",
+   "time": "2026-11-07T15:50:30.002",
+   "startsAt": "2026-11-07T20:50:30.002Z",
+   "played": true,
+   "red": {
+    "teams": [
+     {
+      "number": 18760,
+      "surrogate": false,
+      "dq": false,
+      "onField": false,
+      "name": "Ironmen Upsilon"
+     },
+     {
+      "number": 10243,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Ramsey Ramblers"
+     }
+    ],
+    "score": {
+     "total": 17,
+     "np": 17,
+     "auto": 3,
+     "teleop": 9,
+     "endgame": 5,
+     "pen": 0,
+     "tips": 0
+    }
+   },
+   "blue": {
+    "teams": [
+     {
+      "number": 18757,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Ironmen Rho"
+     },
+     {
+      "number": 23694,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "GEARHEADS"
+     }
+    ],
+    "score": {
+     "total": 35,
+     "np": 35,
+     "auto": 16,
+     "teleop": 9,
+     "endgame": 10,
+     "pen": 0,
+     "tips": 0
+    }
+   },
+   "video": null,
+   "prediction": {
+    "pRed": 0.5090061532312771,
+    "redMean": 35,
+    "blueMean": 43,
+    "tier": "provisional",
+    "kind": "live",
+    "predictedAt": "2026-11-07T19:19:30.027Z"
+   }
+  },
+  {
+   "season": 2026,
+   "code": "USNJNEM3",
+   "key": "qual:0:16",
+   "level": "qual",
+   "series": 0,
+   "number": 16,
+   "label": "Q16",
+   "time": "2026-11-07T15:55:22.254",
+   "startsAt": "2026-11-07T20:55:22.254Z",
+   "played": true,
+   "red": {
+    "teams": [
+     {
+      "number": 23314,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Galactic Pigeon"
+     },
+     {
+      "number": 8902,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Cosmic Goose"
+     }
+    ],
+    "score": {
+     "total": 81,
+     "np": 81,
+     "auto": 36,
+     "teleop": 35,
+     "endgame": 10,
+     "pen": 0,
+     "tips": 2
+    }
+   },
+   "blue": {
+    "teams": [
+     {
+      "number": 4215,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Hypnotic Robotics"
+     },
+     {
+      "number": 23545,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Ramsey Dusters"
+     }
+    ],
+    "score": {
+     "total": 65,
+     "np": 65,
+     "auto": 13,
+     "teleop": 42,
+     "endgame": 10,
+     "pen": 0,
+     "tips": 2
+    }
+   },
+   "video": null,
+   "prediction": {
+    "pRed": 0.4985222204659513,
+    "redMean": 97,
+    "blueMean": 93,
+    "tier": "provisional",
+    "kind": "live",
+    "predictedAt": "2026-11-07T19:19:30.027Z"
+   }
+  },
+  {
+   "season": 2026,
+   "code": "USNJNEM3",
+   "key": "qual:0:17",
+   "level": "qual",
+   "series": 0,
+   "number": 17,
+   "label": "Q17",
+   "time": "2026-11-07T16:03:57.499",
+   "startsAt": "2026-11-07T21:03:57.499Z",
+   "played": true,
+   "red": {
+    "teams": [
+     {
+      "number": 6980,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Bad Wolf"
+     },
+     {
+      "number": 23694,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "GEARHEADS"
+     }
+    ],
+    "score": {
+     "total": 30,
+     "np": 30,
+     "auto": 8,
+     "teleop": 12,
+     "endgame": 10,
+     "pen": 0,
+     "tips": 0
+    }
+   },
+   "blue": {
+    "teams": [
+     {
+      "number": 36142,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "NOVA Robotics"
+     },
+     {
+      "number": 23545,
+      "surrogate": false,
+      "dq": false,
+      "onField": true,
+      "name": "Ramsey Dusters"
+     }
+    ],
+    "score": {
+     "total": 41,
+     "np": 41,
+     "auto": 11,
+     "teleop": 25,
+     "endgame": 5,
+     "pen": 0,
+     "tips": 1
+    }
+   },
+   "video": null,
+   "prediction": {
+    "pRed": 0.5392728394518373,
+    "redMean": 53,
+    "blueMean": 43,
+    "tier": "provisional",
+    "kind": "live",
+    "predictedAt": "2026-11-07T19:19:30.027Z"
+   }
+  }
+ ],
+ "awards": [],
+ "alliances": []
+}

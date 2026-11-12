@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { EventDetail, FieldRow, MatchView } from "../src/shared/api";
-import { dates, eventEmbed, movement, predictEmbed, rankingsEmbed, topByOpr, verdict, winBar, winningAlliance } from "./views";
+import {
+  LOSS, TIE, VOLT, WIN, dates, embedBlocks, embedReadChars, eventEmbed, movement, preMatchEmbed, predictEmbed, rankingsEmbed, resultColor, resultEmbed,
+  storyLine, topByOpr, verdict, winningAlliance,
+} from "./views";
+import fixture from "./fixtures/usnjnem3-2026-11-07.json";
 
 const SITE = "https://controlscout.org";
 
@@ -15,16 +19,6 @@ function m(over: Partial<MatchView> = {}): MatchView {
 }
 const scored = (red: number, blue: number) => ({ total: red, np: red, auto: 0, teleop: 0, endgame: 0, pen: 0 });
 
-describe("winBar", () => {
-  it("ten blocks and the percentage", () => {
-    expect(winBar(0.62)).toBe("██████░░░░ 62%");
-  });
-  it("never a full or an empty bar (or 0% / 100%) before the match", () => {
-    expect(winBar(0.999)).toBe("█████████░ 99%");
-    expect(winBar(0.001)).toBe("█░░░░░░░░░ 1%");
-  });
-});
-
 describe("movement", () => {
   it("arrows as the rankings page shows them", () => {
     expect([movement(3), movement(-2), movement(0), movement(null), movement("new")]).toEqual(["↑3", "↓2", "—", "—", "new"]);
@@ -38,11 +32,21 @@ describe("dates", () => {
   });
 });
 
+/** A played match with this call and final score. */
+const played = (pRed: number, red: number, blue: number, means: [number, number] = [100, 90], kind: "live" | "backtest" = "live") =>
+  m({ played: true, red: { ...m().red, score: scored(red, red) }, blue: { ...m().blue, score: scored(blue, blue) }, prediction: { ...m().prediction!, pRed, redMean: means[0], blueMean: means[1], kind } });
+
 describe("verdict", () => {
-  it("called, upset, tie, and nothing before the match", () => {
-    expect(verdict(m({ played: true, red: { ...m().red, score: scored(150, 100) }, blue: { ...m().blue, score: scored(100, 100) } }))?.called).toBe(true);
-    expect(verdict(m({ played: true, red: { ...m().red, score: scored(90, 90) }, blue: { ...m().blue, score: scored(100, 100) } }))?.text).toBe("❌ Upset");
-    expect(verdict(m({ played: true, red: { ...m().red, score: scored(100, 100) }, blue: { ...m().blue, score: scored(100, 100) } }))?.called).toBeNull();
+  it("a favourite (55%+) is called or upset; an even call (45–55%) and a tie have no verdict", () => {
+    expect(verdict(played(0.68, 150, 100))).toEqual({ called: true, text: "Called it ✅" });
+    expect(verdict(played(0.29, 100, 80))).toEqual({ called: false, text: "Upset ❌" });
+    expect(verdict(played(0.5, 80, 100))).toEqual({ called: null, text: "Even call" });
+    expect(verdict(played(0.499, 81, 65))).toEqual({ called: null, text: "Even call" }); // Q16: Blue 50%
+    expect(verdict(played(0.539, 30, 41))).toEqual({ called: null, text: "Even call" }); // Q17: Red 54%
+    expect(verdict(played(0.546, 30, 41))?.called).toBe(false); // reads 55%: a favourite
+    expect(verdict(played(0.454, 30, 41))?.called).toBe(true); // Blue reads 55%
+    expect(verdict(played(0.544, 30, 41))?.called).toBeNull(); // reads 54%
+    expect(verdict(played(0.7, 90, 90))).toEqual({ called: null, text: "Tie" });
     expect(verdict(m())).toBeNull();
   });
 });
@@ -50,27 +54,111 @@ describe("verdict", () => {
 describe("predictEmbed", () => {
   const d = { event: { name: "Austin Qualifier" } } as Pick<EventDetail, "event">;
 
-  it("links the match report and says where the call came from", () => {
-    const e = predictEmbed(d, m(), SITE);
+  it("before the match: the lineup and the call in one description, no fields, no win bars", () => {
+    const e = predictEmbed(d, m({ startsAt: "2026-10-24T15:15:00Z" }), SITE);
+    expect(e.title).toBe("Qual 12 · Austin Qualifier");
     expect(e.url).toBe(`${SITE}/events/2025/USTXAUQ/match/qual:0:12`);
+    expect(e.fields).toBeUndefined();
+    expect(e.description).toBe(`Starts <t:1792854900:R> (<t:1792854900:t>).\n🔴 [1](${SITE}/teams/1) & [2](${SITE}/teams/2) vs [3](${SITE}/teams/3) & [4](${SITE}/teams/4) 🔵 · Red 62% to win · predicted 148–121 · solid`);
+    expect(e.description).not.toMatch(/█/);
     expect(e.footer?.text).toBe("From today's ratings · Control Scout • controlscout.org");
   });
 
-  it("a replayed (backtest) call is labelled as one, never as called before the match", () => {
-    const p = { ...m().prediction!, kind: "backtest" as const };
-    const e = predictEmbed(d, m({ played: true, prediction: p, red: { ...m().red, score: scored(150, 150) }, blue: { ...m().blue, score: scored(100, 100) } }), SITE);
-    expect(e.footer?.text).toMatch(/^Replayed call \(walk-forward backtest\)/);
+  it("an even call before the match says so, with its confidence in plain words once", () => {
+    const e = predictEmbed(d, m({ prediction: { ...m().prediction!, pRed: 0.52, tier: "provisional" } }), SITE);
+    expect(e.description).toMatch(/· Even call · predicted 148–121 · rough guess$/);
+    expect(e.description!.match(/rough guess/g)).toHaveLength(1);
+  });
+
+  it("a played match: score line, story and the event link; no Red/Blue/Final score/Predicted/Verdict fields", () => {
+    const e = predictEmbed(d, played(0.68, 74, 52, [72, 58]), SITE);
+    expect(e.fields).toBeUndefined();
+    expect(e.description!.split("\n")).toEqual([
+      `🔴 [1](${SITE}/teams/1) & [2](${SITE}/teams/2) **74** – 52 [3](${SITE}/teams/3) & [4](${SITE}/teams/4) 🔵`,
+      "Called it ✅ — Red 68% (predicted 72–58), won by 22.",
+      `[Event](${SITE}/events/2025/USTXAUQ)`,
+    ]);
+    expect(e.color).toBe(VOLT); // ad-hoc /predict: volt
+    expect(e.description).not.toMatch(/confidence|rough guess|fair|solid/i);
+  });
+
+  it("the story: called, upset, even, tie and no logged call", () => {
+    expect(storyLine(played(0.68, 74, 52, [72, 58]))).toBe("Called it ✅ — Red 68% (predicted 72–58), won by 22.");
+    expect(storyLine(played(0.29, 78, 60, [55, 74]))).toBe("Upset ❌ — Blue was 71% (predicted 55–74), Red won by 18.");
+    expect(storyLine(played(0.29, 60, 78, [55, 74]))).toBe("Called it ✅ — Blue 71% (predicted 55–74), won by 18.");
+    expect(storyLine(played(0.539, 30, 41, [53, 43]))).toBe("Even call — predicted Red by 10, Blue won by 11.");
+    expect(storyLine(played(0.7, 44, 44))).toBe("Tie at 44 — no winner to call.");
+    expect(storyLine({ ...played(0.7, 50, 40), prediction: null })).toBe("No prediction was logged for this match.");
+    const even = played(0.5, 74, 52);
+    expect(storyLine({ ...even, prediction: { ...even.prediction!, noScoreBasis: true } })).toBe("Even call — Red won by 22.");
+  });
+
+  it("footer: no label on a live call, the kind on a replayed or today's-ratings one", () => {
+    expect(predictEmbed(d, played(0.68, 74, 52), SITE).footer?.text).toBe("Control Scout • controlscout.org");
+    expect(predictEmbed(d, played(0.68, 74, 52, [72, 58], "backtest"), SITE).footer?.text).toBe("Replayed call · Control Scout • controlscout.org");
   });
 
   it("no predicted score when the season has nothing to base one on", () => {
     const e = predictEmbed(d, m({ prediction: { ...m().prediction!, noScoreBasis: true } }), SITE);
-    expect(e.fields?.some((f) => f.name === "Predicted score")).toBe(false);
+    expect(e.description).not.toMatch(/predicted/);
   });
 
   it("a played match lists the robots that were on the field", () => {
     const t = (n: number, onField: boolean) => ({ number: n, surrogate: false, dq: false, onField });
     const e = predictEmbed(d, m({ played: true, red: { teams: [t(1, true), t(2, true), t(5, false)], score: scored(10, 10) }, blue: { ...m().blue, score: scored(5, 5) } }), SITE);
-    expect(e.fields?.[0].value).toBe("1 & 2");
+    expect(e.description).toMatch(/^🔴 \[1\]\(.*\) & \[2\]\(.*\) \*\*10\*\* – 5 /);
+    expect(e.description).not.toMatch(/teams\/5\)/);
+  });
+});
+
+describe("the real Nov 7, 2026 posts (P1-5 PM Northeast League Meet)", () => {
+  const ev = fixture as unknown as EventDetail;
+  const q = (n: number) => ev.matches.find((x) => x.level === "qual" && x.number === n)!;
+
+  it("Q16: an even call, never an upset; 4 blocks, under 600 characters", () => {
+    const e = resultEmbed(ev.event.name, q(16), SITE, { followed: [4215] });
+    expect(e.title).toBe("Q16 · P1-5 PM Northeast League Meet");
+    expect(e.description!.split("\n").slice(0, 2)).toEqual([
+      `🔴 [23314](${SITE}/teams/23314) & [8902](${SITE}/teams/8902) **81** – 65 [4215](${SITE}/teams/4215) & [23545](${SITE}/teams/23545) 🔵`,
+      // The logged call: Blue 50% to win, predicted 97–93 (Red by 4).
+      "Even call — predicted Red by 4, Red won by 16.",
+    ]);
+    expect(e.description).not.toMatch(/Upset/);
+    expect(e.color).toBe(LOSS);
+    expect(embedBlocks(e)).toBeLessThanOrEqual(4);
+    expect(embedReadChars(e)).toBeLessThanOrEqual(600);
+  });
+
+  it("Q17: the same shape and budget", () => {
+    const e = resultEmbed(ev.event.name, q(17), SITE, { followed: [6980] });
+    expect(e.description!.split("\n")[1]).toBe("Even call — predicted Red by 10, Blue won by 11.");
+    expect(e.color).toBe(LOSS);
+    expect(embedBlocks(e)).toBeLessThanOrEqual(4);
+    expect(embedReadChars(e)).toBeLessThanOrEqual(600);
+  });
+
+  it("every team number is a link, and no fact repeats in a field", () => {
+    for (const n of [16, 17]) {
+      const e = resultEmbed(ev.event.name, q(n), SITE);
+      const bare = e.description!.replace(/\[[^\]]*\]\([^)]*\)/g, "").match(/\b\d{4,5}\b/g);
+      expect(bare).toBeNull();
+      expect(e.fields ?? []).toEqual([]);
+    }
+  });
+
+  it("a reminder before Q16 stays inside 3 blocks and 400 characters", () => {
+    const before = { ...q(16), played: false, red: { ...q(16).red, score: null }, blue: { ...q(16).blue, score: null } };
+    const e = preMatchEmbed(ev.event.name, before, SITE, "[4215](x) on Blue with [23545](x), <t:1:R> (<t:1:t>).");
+    expect(e.description!.split("\n")[1]).toMatch(/🔵 · Even call · predicted 97–93 · rough guess$/);
+    expect(embedBlocks(e)).toBeLessThanOrEqual(3);
+    expect(embedReadChars(e)).toBeLessThanOrEqual(400);
+  });
+});
+
+describe("the followed team's colour", () => {
+  it("green on a win, red on a loss, grey on a tie, volt when mixed or unfollowed", () => {
+    const g = played(0.6, 50, 40);
+    expect([resultColor(g, [1]), resultColor(g, [3]), resultColor(played(0.6, 40, 40), [1]), resultColor(g, [1, 3]), resultColor(g, [])]).toEqual([WIN, LOSS, TIE, VOLT, VOLT]);
   });
 });
 
@@ -93,7 +181,7 @@ describe("eventEmbed", () => {
       awards: [{ type: "Winner", placement: 1, team: 3, name: null }, { type: "Winner", placement: 1, team: 1, name: null }],
     } as unknown as EventDetail;
     const e = eventEmbed(d, SITE);
-    expect(e.fields?.find((f) => f.name === "Winning alliance")?.value).toBe("Alliance 2: 3 & 1");
+    expect(e.fields?.find((f) => f.name === "Winning alliance")?.value).toBe(`Alliance 2: [3](${SITE}/teams/3) & [1](${SITE}/teams/1)`);
     expect(e.description).toBe("Mar 1–2 · Austin, TX, USA · X");
     expect(e.fields?.find((f) => f.name === "Matches played")?.value).toBe("40 of 40");
   });

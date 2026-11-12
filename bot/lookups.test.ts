@@ -65,30 +65,27 @@ describe("teamLookup", () => {
 });
 
 describe("predictLookup", () => {
-  it("an unplayed match: both alliances, the bars, the predicted score and the tier", async () => {
+  it("an unplayed match: the lineup and the call in the description (one favourite, no bars), the tier once", async () => {
     const e = await predictLookup("ustxauq", 3);
-    expect(e.title).toBe("Austin Qualifier · Qual 3");
+    expect(e.title).toBe("Qual 3 · Austin Qualifier");
     expect(e.url).toMatch(/\/events\/\d+\/USTXAUQ\/match\/qual:0:3$/);
-    const v = Object.fromEntries((e.fields ?? []).map((f) => [f.name, f.value]));
-    expect(v["🔴 Red"]).toBe("18360 & 21058");
-    expect(v["Red win"]).toBe("`████░░░░░░ 40%`");
-    expect(v["Blue win"]).toBe("`██████░░░░ 60%`");
-    expect(v["Predicted score"]).toBe("148 – 121");
-    expect(v.Confidence).toBe("Fair");
-    expect(e.footer?.text).toMatch(/^Called before the match/);
+    expect(e.fields).toBeUndefined();
+    const lineup = e.description!.split("\n").at(-1)!;
+    expect(lineup).toMatch(/^🔴 \[18360\]\(.*\) & \[21058\]\(.*\) vs .* 🔵 · Blue 60% to win · predicted 148–121 · fair$/);
+    expect(e.description).not.toMatch(/█/);
+    expect(e.footer?.text).toBe("Control Scout • controlscout.org"); // a live call: no label
   });
 
-  it("a played match: the result, the call, and whether it was right", async () => {
-    const hit = Object.fromEntries((await predictLookup("USTXAUQ", 1)).fields!.map((f) => [f.name, f.value]));
-    expect(hit["Final score"]).toBe("Red **148** – 121 Blue");
-    expect(hit.Predicted).toBe("Red 62% · 148 – 121 · confidence: fair");
-    expect(hit.Verdict).toBe("✅ Called it");
-    const miss = Object.fromEntries((await predictLookup("USTXAUQ", 2)).fields!.map((f) => [f.name, f.value]));
-    expect(miss.Verdict).toBe("❌ Upset");
+  it("a played match: the score line and the story, the verdict by the 55% rule", async () => {
+    const hit = (await predictLookup("USTXAUQ", 1)).description!.split("\n");
+    expect(hit[0]).toMatch(/\*\*148\*\* – 121/);
+    expect(hit[1]).toBe("Called it ✅ — Red 62% (predicted 148–121), won by 27.");
+    const miss = (await predictLookup("USTXAUQ", 2)).description!.split("\n");
+    expect(miss[1]).toMatch(/^Upset ❌ — /);
   });
 
   it("finds the event by its exact name too", async () => {
-    expect((await predictLookup("austin qualifier", 1)).title).toBe("Austin Qualifier · Qual 1");
+    expect((await predictLookup("austin qualifier", 1)).title).toBe("Qual 1 · Austin Qualifier");
   });
 
   it("no schedule, a match past the end, and an unknown event are friendly errors", async () => {

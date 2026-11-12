@@ -7,7 +7,7 @@ import { AnswerCache, Cooldown } from "./guard.js";
 import { FOOTER, Friendly, VOLT, errorEmbed, unavailableEmbed } from "./views.js";
 import { addFollow, followingEmbed, listFollows, removeFollow } from "./follows.js";
 import { BOT_COMMANDS } from "../src/shared/discord.js";
-import { eventChoices, eventLookup, predictLookup, rankChoices, rankingsLookup, teamLookup } from "./lookups.js";
+import { eventChoices, eventLookup, predictLookup, rankChoices, rankingsLookup, site, teamLookup } from "./lookups.js";
 import { isEnabled } from "../server/flags.js";
 import { featureOffMessage } from "../src/shared/flags.js";
 
@@ -34,7 +34,7 @@ export const realLookups: Lookups = {
   choices: async (typed) => rankChoices(await eventChoices(), typed),
   follow: addFollow,
   unfollow: removeFollow,
-  following: async (guild) => followingEmbed(await listFollows(guild)),
+  following: async (guild) => followingEmbed(await listFollows(guild), site()),
   enabled: (flag) => isEnabled(flag),
 };
 
