@@ -103,6 +103,19 @@ describe("predictEmbed", () => {
     expect(e.description).not.toMatch(/predicted/);
   });
 
+  it("a match marked played with one score still missing says so, never \"Starts\"", () => {
+    const partial = m({ played: true, startsAt: "2026-10-24T15:15:00Z", red: { ...m().red, score: scored(80, 80) } });
+    const e = predictEmbed(d, partial, SITE);
+    expect(e.description!.split("\n")[0]).toBe("Played: the final score isn't posted yet.");
+    expect(e.description).not.toMatch(/Starts/);
+  });
+
+  it("the next-match line links the followed team it names", () => {
+    const next = m({ key: "qual:0:20", number: 20, label: "Qual 20" });
+    const e = resultEmbed("Austin Qualifier", played(0.68, 74, 52), SITE, { next: { match: next, team: 3 } });
+    expect(e.description!.split("\n")[2]).toMatch(/^Next for \[3\]\(https:\/\/controlscout\.org\/teams\/3\): Qual 20 · /);
+  });
+
   it("a played match lists the robots that were on the field", () => {
     const t = (n: number, onField: boolean) => ({ number: n, surrogate: false, dq: false, onField });
     const e = predictEmbed(d, m({ played: true, red: { teams: [t(1, true), t(2, true), t(5, false)], score: scored(10, 10) }, blue: { ...m().blue, score: scored(5, 5) } }), SITE);
