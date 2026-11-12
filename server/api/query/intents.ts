@@ -282,8 +282,9 @@ export const INTENTS: IntentRule[] = [
     // A team stat asked about everyone, with no "team": "who has the highest auto OPR in NJ".
     ...BOARD_METRICS.map((m) => R("leaderboard", 0, [agg, m], BOARD_OPT)),
   ]),
-  // A team stat alone with a season or a place and no team ("2027 opr", "opr nj"): everyone's board by it (./execute.ts).
-  ...BOARD_METRICS.map((m) => R("leaderboard", 0, [m], ["thing:season", "prep:in", "prep:for"], { noEvent: true })),
+  // A team stat alone with a season or a place and no one team ("2027 opr", "opr nj", "nj teams ranked by opr"): everyone's
+  // board by it (./execute.ts).
+  ...BOARD_METRICS.map((m) => R("leaderboard", 0, [m], ["thing:team", "thing:season", "prep:in", "prep:for"], { noEvent: true })),
   // Standout matches: a scope's ("worlds highlights", "new jersey highlights 2024-25"), or one team's ("<team> best
   // matches at worlds"), or the latest week of play's ("recent highlights"); its match videos ("jackson division recap",
   // "watch <team>") are its highlights too.

@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.7.3 — 2026-11-12
+
+A place typed before "teams" and a stat now gets that place's board, instead of a sorry page or a list of events.
+
+### Highlights
+- [fixes] "nj teams ranked by opr" shows New Jersey's top teams by OPR
+- [fixes] "nj teams opr" shows the same board, not a list of NJ events
+- [fixes] The word "teams" beside a stat no longer stops a place's board
+- [fixes] "teams ranked by opr" keeps its worldwide board, read directly
+
+### Fixed
+- "nj teams ranked by opr" (a failed search from the live site) answered "Sorry — I can't answer that yet", reading "nj ranked" as a team's name, and "nj teams opr" (another) listed New Jersey's events. The rule for a stat said with no team ("opr nj", "2027 opr") now also takes the word "teams", so both read as the stat and the place, and answer with the same New Jersey OPR board as "top teams by OPR in New Jersey". "teams ranked by opr" keeps its worldwide board, now read directly instead of by the fallback. (`server/api/query/intents.ts`) (#PR)
+
 ## 5.7.2 — 2026-11-12
 
 On a computer the mouse wheel and trackpad ease the page along instead of stepping it. Phones and tablets keep their own scrolling.
