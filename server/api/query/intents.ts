@@ -12,7 +12,7 @@ export type PipelineIntent =
   | "wins-count" | "losses" | "ties-count" | "record" | "win-percent" | "average-score" | "median-score" | "average-margin" | "total-points"
   | "total-matches" | "total-events" | "seasons-count" | "current-streak" | "longest-streak" | "highest-auto" | "highest-teleop" | "highest-endgame"
   | "most-penalties" | "penalties" | "score-range" | "score-consistency" | "awards" | "total-awards" | "results" | "event-rank" | "event-opr"
-  | "best-partner" | "partners" | "opponents" | "team-opr" | "team-rating" | "team-predict" | "playoff-matches" | "qual-matches"
+  | "best-partner" | "partners" | "opponents" | "team-opr" | "team-rating" | "team-predict" | "predict-rank-events" | "playoff-matches" | "qual-matches"
   | "match-lookup" | "avg-penalties" | "inspire-awards" | "finalist-finishes" | "lost-to-most" | "season-matches"
   // Two teams.
   | "head-to-head" | "shared-matches" | "two-predict" | "opr-vs" | "rating-vs" | "compare" | "h2h-wins" | "awards-vs"
@@ -187,6 +187,8 @@ export const INTENTS: IntentRule[] = [
   ]),
   R("team-opr", 1, ["metric:opr"], ["agg:last"], { noEvent: true }),
   R("team-rating", 1, ["metric:rating"], ["agg:last"], { noEvent: true }),
+  // "Predicted vs actual rank at every event": the engine's predicted rank beside the real one, event by event.
+  R("predict-rank-events", 1, ["predict", "metric:rank", "per:event"], ["review", "compare", "thing:event", "list"], { noEvent: true }),
   R("team-predict", 1, ["predict"], ["metric:win", "metric:record", "metric:score", "metric:rank", "thing:event", "thing:match", "agg:next", "metric:playoffs", "review", "agg:last", "advance", "outcome:W"]),
   // Who to pick at an event, by Scout's pick helper: the axes said ("by complementing their auto") are what it weighs.
   // "Would" or a supposition around it ("who would 12345 pick", "if 12345 is a captain, who should it pick") asks the same.
