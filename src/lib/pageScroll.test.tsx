@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render } from "@testing-library/react";
 import { BrowserRouter, MemoryRouter, useLocation as useLocationProbe, useNavigate, type NavigateFunction } from "react-router-dom";
@@ -446,6 +447,18 @@ describe("scrollToElement", () => {
     expect(css.slice(at, css.indexOf("}", at))).toMatch(/html\s*\{\s*scroll-behavior:\s*smooth;/);
     // The only smooth rule in the file is that one: no unconditional html { scroll-behavior: smooth }.
     expect(css.match(/scroll-behavior:\s*smooth/g)).toHaveLength(1);
+  });
+
+  it("is the only way the app asks for a glide: no scroll call names \"smooth\" itself (phones would glide)", () => {
+    const files = (readdirSync("src", { recursive: true }) as string[]).filter((f) => /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f));
+    const direct = files.flatMap((f) => {
+      const text = readFileSync(join("src", f), "utf8");
+      // A "smooth" handed to a scroll: a ternary's branch, an option, or an argument. Comparisons and comments don't count.
+      const handed = /(?:\?|:|behavior:|,)\s*["']smooth["']\s*[,)}:]/g;
+      return [...text.matchAll(handed)].map(() => f.split("\\").join("/"));
+    });
+    // pageScroll.ts hands it out from smoothBehavior(), the one place that knows the screen.
+    expect([...new Set(direct)].sort()).toEqual(["lib/pageScroll.ts"]);
   });
 
   it("jumps instead of gliding under reduced motion", () => {

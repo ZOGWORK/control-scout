@@ -26,7 +26,7 @@ Smooth scrolling is for desktops and laptops only: phones, tablets and reduced m
 
 ### Changed
 - Gliding jumps (a #link, the skip link, "see the odds", a scrolled-to card) now need a desktop: at least 1024px wide, with a mouse or trackpad, and no reduced-motion setting. Phones and tablets get the browser's native, instant jumps. CSS and the app's own scrolls use one query, `SMOOTH_SCROLL_QUERY`. (`src/index.css`, `src/lib/pageScroll.ts`)
-- Scouting's scroll to the top after a save or a pit pick, the match list's "current match" jump, the match chip strip and the first-run tour followed reduced motion only; they now follow the same desktop rule. (`src/pages/ScoutPage.tsx`, `src/components/scout/redesign/*`, `src/components/layout/FirstRunTour.tsx`) (#1399)
+- Scouting's scroll to the top after a save or a pit pick, the match list's "current match" jump, the match chip strip, the first-run tour, How it works' section strip and contents links, and the sliding segmented control followed reduced motion only; they now follow the same desktop rule. (`src/pages/ScoutPage.tsx`, `src/components/scout/redesign/*`, `src/components/layout/FirstRunTour.tsx`, `src/components/howitworks/SectionNav.tsx`, `src/components/arc/segmented-control/segmented-control.tsx`) (#1399)
 
 ## 5.6.9 — 2026-11-11
 
