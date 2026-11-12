@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EventDetail, FieldRow, MatchView } from "../src/shared/api";
-import { EVE_HOUR, FIELD_MAX, RECAP_AFTER_MS, SCHEDULE_MAX, clipLines, eveEmbed, eventDue, recapEmbed, scheduleEmbed, venueClock } from "./eventAlerts";
+import { EVE_HOUR, FIELD_MAX, RECAP_AFTER_MS, SCHEDULE_MAX, eveEmbed, packLines, eventDue, recapEmbed, scheduleEmbed, venueClock } from "./eventAlerts";
 import type { Follow } from "./follows";
 
 const SITE = "https://controlscout.org";
@@ -100,7 +100,7 @@ describe("the posts", () => {
   it("the schedule: each qual with its time at the venue, side, partner and win odds", () => {
     const d = detail([q(12, local("2026-10-24", "10:42"), [1, 2], [3, 4], undefined, 0.62), q(15, local("2026-10-24", "11:30"), [3, 4], [1, 2], undefined, 0.7)]);
     const e = scheduleEmbed({ channel: "c1", teams: [1], kind: "schedule", key: "schedule" }, d, SITE);
-    expect(e.fields![0]).toEqual({ name: "1: 2 qualification matches", value: "`Q12 10:42 AM` **Red** 62% · with 2 vs 3 & 4\n`Q15 11:30 AM` **Blue** 30% · with 2 vs 3 & 4" });
+    expect(e.fields![0]).toEqual({ name: "1 Team 1: 2 qualification matches", value: "`Q12 10:42 AM` **Red** 62% · with 2 Team 2 vs 3 Team 3 & 4 Team 4\n`Q15 11:30 AM` **Blue** 30% · with 2 Team 2 vs 3 Team 3 & 4 Team 4" });
     expect(e.footer!.text).toMatch(/^Win odds from today's ratings, confidence: fair/);
   });
 
@@ -123,25 +123,33 @@ describe("the posts", () => {
 });
 
 describe("the redesign's rules for event posts", () => {
-  it("a schedule field never passes Discord's 1,024 characters, and says how many it left out", () => {
-    // A long event: 20 quals for team 1, with five-digit partners and opponents on every line.
+  it("a long schedule with team names continues across fields, none past 1,024 characters, and says how many it left out", () => {
+    // A long event: 20 quals for team 1, five-digit partners and opponents with long names on every line.
     const ms = Array.from({ length: 20 }, (_, i) => q(i + 1, local("2026-10-24", `${String(9 + Math.floor(i / 6)).padStart(2, "0")}:${String((i * 10) % 60).padStart(2, "0")}`), [1, 23545 + i], [23314 + i, 18902 + i]));
-    const e = scheduleEmbed({ channel: "c1", teams: [1], kind: "schedule", key: "schedule:1" }, detail(ms), SITE);
-    const v = e.fields![0].value;
-    expect(v.length).toBeLessThanOrEqual(FIELD_MAX);
-    expect(v).toMatch(/\n…and \d+ more$/);
-    const shown = v.split("\n").filter((l) => l.startsWith("`Q")).length;
-    expect(Number(v.match(/…and (\d+) more$/)![1])).toBe(20 - shown);
-    expect(shown).toBeLessThanOrEqual(SCHEDULE_MAX);
+    const nums = [1, ...ms.flatMap((m) => [...m.red.teams, ...m.blue.teams].map((x) => x.number))];
+    const field = [...new Set(nums)].map((n) => row(n, { name: `Robotics Team Number ${n}` }));
+    const e = scheduleEmbed({ channel: "c1", teams: [1], kind: "schedule", key: "schedule:1" }, detail(ms, {}, field), SITE);
+    expect(e.fields!.length).toBeGreaterThan(1);
+    expect(e.fields![0].name).toBe("1 Robotics Team Num…: 20 qualification matches");
+    expect(e.fields!.slice(1).every((f) => f.name === "​")).toBe(true);
+    for (const f of e.fields!) expect(f.value.length).toBeLessThanOrEqual(FIELD_MAX);
+    const all = e.fields!.map((f) => f.value).join("\n");
+    expect(all).toMatch(/with 23545 Robotics Team Num… vs 23314 Robotics Team Num… & 18902 Robotics Team Num…/);
+    expect(all).toMatch(/\n…and 5 more$/);
+    expect(all.split("\n").filter((l) => l.startsWith("`Q")).length).toBe(SCHEDULE_MAX);
+    expect(JSON.stringify(e).length).toBeLessThan(6000);
   });
 
-  it("clipLines counts characters, not just lines", () => {
-    const lines = Array.from({ length: 40 }, (_, i) => `line ${i} `.padEnd(60, "x"));
-    const out = clipLines(lines);
-    expect(out.length).toBeLessThanOrEqual(FIELD_MAX);
-    expect(out).toMatch(/…and 24 more$/);
-    expect(clipLines(["a", "b"])).toBe("a\nb");
-    expect(clipLines(["a", "b", "c"], FIELD_MAX, 2)).toBe("a\nb\n…and 1 more");
+  it("packLines: continues in a new field at the cap, stops at the line cap or the post's budget", () => {
+    const lines = Array.from({ length: 40 }, (_, i) => `line ${i} `.padEnd(100, "x"));
+    const out = packLines(lines, 15);
+    expect(out.every((v) => v.length <= FIELD_MAX)).toBe(true);
+    expect(out.join("\n").split("\n")).toHaveLength(16);
+    expect(out.at(-1)).toMatch(/…and 25 more$/);
+    expect(packLines(["a", "b"])).toEqual(["a\nb"]);
+    expect(packLines(["a", "b", "c"], 2)).toEqual(["a\nb\n…and 1 more"]);
+    expect(packLines(lines, Infinity, FIELD_MAX, 1000).join("\n")).toMatch(/…and 31 more$/);
+    expect(packLines([])).toEqual([]);
   });
 
   it("the evening before names the team's first match once the schedule is posted, and only then", () => {

@@ -87,21 +87,37 @@ export const FIELD_MAX = 1024;
 /** Schedule lines per team before "…and N more" (the character cap can cut sooner). */
 export const SCHEDULE_MAX = 15;
 
-/** Lines into one field value, never past `max` characters nor `cap` lines: the rest becomes "…and N more". */
-export function clipLines(lines: string[], max = FIELD_MAX, cap = Infinity): string {
-  const out: string[] = [];
-  let used = 0;
-  for (let i = 0; i < lines.length; i++) {
-    const add = (out.length ? 1 : 0) + lines[i].length;
-    // Room for the "…and N more" line, whenever a line would still be left after this one.
-    const left = lines.length - i - 1;
-    const room = left > 0 ? 1 + `…and ${left} more`.length : 0;
-    if (i >= cap || used + add + room > max) { out.push(`…and ${lines.length - i} more`); break; }
-    out.push(lines[i]);
-    used += add;
+/** One post's budget across all its fields (Discord's limit for a whole message is 6,000). */
+export const EMBED_FIELDS_MAX = 5000;
+
+/**
+ * Lines into as many field values as they need, each within `max` characters: at most `cap` lines and `total`
+ * characters in all, the rest as "…and N more" at the end. A long schedule continues in the next field instead of
+ * being cut at Discord's 1,024 per field.
+ */
+export function packLines(lines: string[], cap = Infinity, max = FIELD_MAX, total = EMBED_FIELDS_MAX): string[] {
+  const shown: string[] = [];
+  let sum = 0;
+  for (const l of lines.slice(0, cap)) {
+    if (sum + l.length + 1 > total) break;
+    shown.push(l.slice(0, max));
+    sum += l.length + 1;
   }
-  return out.join("\n");
+  if (lines.length > shown.length) shown.push(`…and ${lines.length - shown.length} more`);
+  const out: string[] = [];
+  let cur = "";
+  for (const l of shown) {
+    if (cur && cur.length + 1 + l.length > max) { out.push(cur); cur = l; } else cur = cur ? `${cur}\n${l}` : l;
+  }
+  if (cur) out.push(cur);
+  return out;
 }
+
+/** A team as the schedule names it: "10243 Gear Grinders" (the name clipped to 18 characters). */
+const named = (d: EventDetail, n: number) => {
+  const name = d.field.find((f) => f.team === n)?.name?.trim();
+  return name ? `${n} ${name.length > 18 ? `${name.slice(0, 17)}…` : name}` : String(n);
+};
 
 /** A team's first unplayed qualification match (on one venue day, when given): "Q3 · 9:00 AM". */
 function firstOn(d: EventDetail, team: number, date: string | null): string | null {
@@ -138,22 +154,26 @@ export function eveEmbed(due: EventDue, d: EventDetail, seasons: TeamSeason[], s
 
 export function scheduleEmbed(due: EventDue, d: EventDetail, site: string): APIEmbed {
   const zone = d.event.timezone ?? null;
-  const fields = due.teams.map((t) => {
+  const fields = due.teams.flatMap((t) => {
     const quals = d.matches.filter((m) => m.level === "qual" && teamsOf(m).includes(t));
-    // "`Q12   4:30 PM` **Blue** 54% · with 23545 vs 23314 & 8902": the match and its time in one monospace column so
-    // the rows line up, then the team's side in words (an emoji per row reads as a wall of blobs), its chance,
-    // partner and opponents.
+    // "`Q12   4:30 PM` **Blue** 54% · with 23545 Gear Grinders vs 23314 Bolts & 8902 Hex": the match and its time in
+    // one monospace column so the rows line up, then the team's side in words (an emoji per row reads as a wall of
+    // blobs), its chance, partner and opponents by number and name.
     const width = Math.max(0, ...quals.map((m) => m.label.length));
     const lines = quals.map((m) => {
       const red = sideTeams(m.red, false).includes(t);
       const p = m.prediction;
       const odds = p ? ` ${oddsPct(red ? p.pRed : 1 - p.pRed)}` : "";
-      const partner = sideTeams(red ? m.red : m.blue, false).filter((n) => n !== t).join(" & ");
-      const opp = sideTeams(red ? m.blue : m.red, false).join(" & ");
+      const partner = sideTeams(red ? m.red : m.blue, false).filter((n) => n !== t).map((n) => named(d, n)).join(" & ");
+      const opp = sideTeams(red ? m.blue : m.red, false).map((n) => named(d, n)).join(" & ");
       const who = [partner ? `with ${partner}` : null, opp ? `vs ${opp}` : null].filter(Boolean).join(" ");
       return `\`${m.label.padEnd(width)} ${clock(m, zone).padStart(8)}\` **${red ? "Red" : "Blue"}**${odds}${who ? ` · ${who}` : ""}`;
     });
-    return { name: `${t}: ${quals.length} qualification match${quals.length === 1 ? "" : "es"}`, value: clipLines(lines, FIELD_MAX, SCHEDULE_MAX) || "None posted yet." };
+    // Several followed teams share the post's budget.
+    const values = packLines(lines, SCHEDULE_MAX, FIELD_MAX, Math.floor(EMBED_FIELDS_MAX / due.teams.length));
+    const name = `${named(d, t)}: ${quals.length} qualification match${quals.length === 1 ? "" : "es"}`;
+    // Continuation fields carry a blank name (a zero-width space), so the list reads as one.
+    return values.length ? values.map((value, i) => ({ name: i ? "​" : name, value })) : [{ name, value: "None posted yet." }];
   });
   const tier = d.matches.find((m) => m.prediction)?.prediction?.tier;
   return {

@@ -99,7 +99,8 @@ For `tick`, sync the meet first: `npm run sync -- --event 2026:USNJNEM3`.
 
 - **One story, told once, in the description.** Fields only for lists (schedule lines, the eve's teams,
   the top 5). Every team number in a description or list value is a link to its page (field names can't
-  hold links; the schedule's lines keep plain numbers so a whole event fits in one field).
+  hold links; the schedule's lines name each team as `10243 Gear Grinders` instead, in a monospace match/time
+  column, and a long schedule continues in the next field).
 - **Result:** the score line (winner bold), then the story: `Called it ✅ — Red 68% (predicted 72–58), won by
   22.` / `Upset ❌ — Blue was 71% (predicted 55–74), Red won by 18.` / `Even call — predicted Red by 4, Red won
   by 16.`, then `Next: Q21 · 5:10 PM · Match · Event` when the followed team has another match (else just the
@@ -112,7 +113,7 @@ For `tick`, sync the meet first: `npm run sync -- --event 2026:USNJNEM3`.
   or `From today's ratings`.
 - **Budgets** (tested on the real Q16/Q17): a result is at most 4 blocks (title + description lines + fields)
   and 600 characters as read; a reminder 3 blocks and 400; a field never past Discord's 1,024 characters
-  (`…and N more`).
+  (a schedule continues in the next field, at most 15 matches, then `…and N more`).
 
 ## On the VM
 
