@@ -12,7 +12,7 @@ import { eventPath } from "../src/shared/eventCode.js";
 import { PRERENDERED_PAGES } from "../src/shared/prerendered.js";
 import { isEnabled } from "./flags.js";
 import { offeredManifest } from "./packs/routes.js";
-import { highlightsEntries, highlightsPath } from "./teamHighlightsPage.js";
+import { highlightsLastmods, highlightsPath } from "./teamHighlightsPage.js";
 import { leagueHref } from "../src/shared/leagues.js";
 import { SEASON_NUMBERS } from "./data/seasons.js";
 
@@ -72,11 +72,12 @@ export async function sitemapEntries(): Promise<Entry[]> {
        WHERE r.season IN (${SEASON_NUMBERS.join(", ")})
          AND (l.code IS NOT NULL OR EXISTS (SELECT 1 FROM events e WHERE e.season = r.season AND e.region = r.region AND e.league = r.league))
        ORDER BY r.season DESC, r.region, r.league`),
-    // Each team's highlights page (server/teamHighlightsPage.ts), by the page's own rule: none for a team with no
-    // match to pick from. lastmod: the last day its highlights' season changed (server/teamHighlightsPage.ts).
-    highlightsEntries(),
+    // Each team's highlights page (server/teamHighlightsPage.ts), by the page's own rule: a team listed above (a page
+    // to index) with a match to pick from. lastmod: the last day its highlights' season changed.
+    highlightsLastmods(),
   ]);
   const lastmod = new Map(lastmods.map((t) => [t.number, t.lastmod]));
+  const listed = new Set(teamRows.map((t) => Number(t.number)));
   // Power rankings: the hub and every published week, newest first (none until the first is; never sample weeks).
   const weeks = (await publishedWeeks()).filter((w) => !w.sample).reverse();
   // The rules reference only while the owner has it on (flag rulesReference); off, its page is noindex.
@@ -93,7 +94,7 @@ export async function sitemapEntries(): Promise<Entry[]> {
     // Only a code the page can look up, at its canonical address (upper case, encoded: src/shared/eventCode.ts).
     ...events.filter((e) => isReachableEventCode(e.code)).map((e) => ({ loc: canonicalUrl(eventPath(e.season, e.code)), lastmod: day(e.upstream_updated) })),
     ...teamRows.map((t) => ({ loc: canonicalUrl(`/teams/${t.number}`), lastmod: day(lastmod.get(t.number)) })),
-    ...highlights.map((t) => ({ loc: canonicalUrl(highlightsPath(t.number)), lastmod: day(t.lastmod) })),
+    ...highlights.filter((t) => listed.has(t.number)).map((t) => ({ loc: canonicalUrl(highlightsPath(t.number)), lastmod: day(t.lastmod) })),
     // Only a region and code the page's address can carry (server/seoMeta.ts: letters and digits, up to 16).
     ...leagues.filter((l) => LEAGUE_PART.test(l.region) && LEAGUE_PART.test(l.code)).map((l) => ({ loc: canonicalUrl(leagueHref(l.season, l.region, l.code)), lastmod: day(l.ranked_at) })),
   ];

@@ -2,7 +2,7 @@
 // link, the first HTML and the sitemap: only a team with a page to index and a match to pick from has one.
 import { beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "./db";
-import { highlightsEntries, teamHighlightsPage } from "./teamHighlightsPage";
+import { highlightsLastmods, teamHighlightsPage } from "./teamHighlightsPage";
 import { pageMeta, headTags } from "./seoMeta";
 import { buildSitemap, resetSitemapCache, sitemapEntries } from "./sitemap";
 import { teamProfile } from "./api/teams";
@@ -62,7 +62,7 @@ describe("team highlights page", () => {
   });
 
   it("the sitemap lists each exactly once, with the day its season last changed", async () => {
-    const hs = await highlightsEntries();
+    const hs = await highlightsLastmods();
     expect(hs.map((h) => h.number)).toEqual([4215, 7149, 8000, 8001]);
     // The source's change marker on USNJNOM3 (Nov 20) is later than its matches (Nov 8); OLD's (2025-03-01) is the
     // season before, so it never counts.

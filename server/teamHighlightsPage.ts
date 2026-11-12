@@ -39,10 +39,12 @@ export async function teamHighlightsPage(n: number): Promise<TeamHighlightsPage 
 }
 
 /**
- * Every team with a highlights page and its lastmod: the latest day its highlights' season changed, the last day of
- * a match it played that season or a later change the source marked on one of those events. Never the build date.
+ * Every team with a match its highlights can pick from, and its lastmod: the latest day its highlights' season
+ * changed, the last day of a match it played that season or a later change the source marked on one of those events.
+ * Never the build date. The page also needs a team page to index (teamIndexableSql): the sitemap keeps only the teams
+ * it already lists by that rule, so the rule is read once per build, not twice.
  */
-export async function highlightsEntries(): Promise<{ number: number; lastmod: string | null }[]> {
+export async function highlightsLastmods(): Promise<{ number: number; lastmod: string | null }[]> {
   return all<{ number: number; lastmod: string | null }>(
     `WITH h AS (
        SELECT hx.team, hx.season, substr(COALESCE(hm.time, he.end, he.start), 1, 10) played, substr(he.upstream_updated, 1, 10) changed
@@ -51,8 +53,7 @@ export async function highlightsEntries(): Promise<{ number: number; lastmod: st
        JOIN events he ON he.season = hx.season AND he.code = hx.code
        WHERE hx.on_field = 1 AND hm.played = 1 AND hm.red_np IS NOT NULL AND hm.blue_np IS NOT NULL AND COALESCE(he.remote, 0) = 0),
      latest AS (SELECT team, MAX(season) season FROM h GROUP BY team)
-     SELECT t.number, MAX(MAX(COALESCE(h.played, ''), COALESCE(h.changed, ''))) lastmod
-     FROM teams t JOIN latest l ON l.team = t.number JOIN h ON h.team = l.team AND h.season = l.season
-     WHERE ${teamIndexableSql("t.number", "t.name")}
-     GROUP BY t.number ORDER BY t.number`);
+     SELECT h.team number, MAX(MAX(COALESCE(h.played, ''), COALESCE(h.changed, ''))) lastmod
+     FROM latest l JOIN h ON h.team = l.team AND h.season = l.season
+     GROUP BY h.team ORDER BY h.team`);
 }
