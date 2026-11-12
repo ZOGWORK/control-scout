@@ -11,15 +11,23 @@ import { eventHasDataSql, isReachableEventCode, teamIndexableSql } from "./index
 import { eventPath } from "../src/shared/eventCode.js";
 import { PRERENDERED_PAGES } from "../src/shared/prerendered.js";
 import { isEnabled } from "./flags.js";
+import { downloadsOffered } from "./packs/routes.js";
+import { leagueHref } from "../src/shared/leagues.js";
+import { SEASON_NUMBERS } from "./data/seasons.js";
 
 // The pages whose first HTML is their content (server/seoMeta.ts bodyHtml): the home page, the event list, the world
 // rankings, the record tables (their top rows), both How it works pages, the FAQ and the plain content pages
-// prerendered at build (src/shared/prerendered.ts); power rankings below. Left out, though crawlable and indexable from
-// its links: /predict, an input form whose first HTML is a heading and a line. Never listed: /records and /support
-// (redirects), /supporters and /search (noindex), Compare (empty until teams are picked; a pair is a view of two team
-// pages) and any filter, sort or search variant (a ?query address).
+// prerendered at build (src/shared/prerendered.ts); Download (its season files) while it offers any; power rankings
+// and league standings below. Never listed: /records and /support (redirects), /supporters and /search (noindex), any
+// filter, sort or search variant (a ?query address), and two nav pages left out on their first HTML, read live
+// 2026-11-11: /predict (an input form: its first HTML is the heading "Predict an FTC match" and one line, the teams
+// are picked in the app) and /compare (a team picker: the heading "Compare FTC teams" and one line; a pair is a view of
+// two team pages, and /compare?teams=… is a query address). Both stay crawlable and indexable from their links; list
+// one only once its first HTML carries content of its own.
 export const STATIC_PAGES = ["/", "/events", "/rankings", "/teams", "/matches", "/how-it-works/search", "/related-searches", "/methodology", "/faq", ...Object.keys(PRERENDERED_PAGES)];
 export const CHUNK = 45_000; // under the 50,000-URL limit, and far under 50 MB
+
+const LEAGUE_PART = /^[A-Za-z0-9]{1,16}$/;
 
 interface Entry { loc: string; lastmod?: string }
 const day = (s: string | null | undefined) => (s && /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : undefined);
@@ -30,7 +38,7 @@ const xmlEsc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").rep
 /** Every URL for the sitemap, in a stable order. */
 export async function sitemapEntries(): Promise<Entry[]> {
   const today = new Date().toISOString().slice(0, 10);
-  const [lastmods, teamRows, events] = await Promise.all([
+  const [lastmods, teamRows, events, leagues] = await Promise.all([
     // A team page changes when the team plays: its lastmod is the last day of its latest event that has started (today
     // while one is on), or a later change the source marked on one. Not teams.updated_at: every sync stamps that on
     // every team, so it said nothing about the page. Only events it took part in (a league roster lists teams that never
@@ -53,20 +61,35 @@ export async function sitemapEntries(): Promise<Entry[]> {
     all<{ number: number }>(`SELECT t.number FROM teams t WHERE ${teamIndexableSql("t.number", "t.name")} ORDER BY t.number`),
     // Only an event with teams or a played match (server/indexable.ts); one with neither is noindex until it has.
     all<{ season: number; code: string; upstream_updated: string | null }>(`SELECT e.season, e.code, e.upstream_updated FROM events e WHERE ${eventHasDataSql("e")} ORDER BY e.season DESC, e.code`),
+    // League standings pages (server/api/leagues.ts): a league with standings rows (FIRST's league rankings) that the
+    // page can look up (a leagues row, or meets naming it: storedLeague), at the stored region and code. One with no
+    // rows is the page's no-data case (noindex), left out like an empty team or event. lastmod: the day its standings
+    // were last read from FIRST, when known.
+    all<{ season: number; region: string; code: string; ranked_at: string | null }>(
+      `SELECT r.season, r.region, r.league code, l.ranked_at FROM (SELECT DISTINCT season, region, league FROM league_rankings) r
+       LEFT JOIN leagues l ON l.season = r.season AND l.region = r.region AND l.code = r.league
+       WHERE r.season IN (${SEASON_NUMBERS.join(", ")})
+         AND (l.code IS NOT NULL OR EXISTS (SELECT 1 FROM events e WHERE e.season = r.season AND e.region = r.region AND e.league = r.league))
+       ORDER BY r.season DESC, r.region, r.league`),
   ]);
   const lastmod = new Map(lastmods.map((t) => [t.number, t.lastmod]));
   // Power rankings: the hub and every published week, newest first (none until the first is; never sample weeks).
   const weeks = (await publishedWeeks()).filter((w) => !w.sample).reverse();
   // The rules reference only while the owner has it on (flag rulesReference); off, its page is noindex.
   const rulesOn = await isEnabled("rulesReference").catch(() => false);
+  // Download only while it lists season files (offline packs on and built); else it is a heading and a line.
+  const downloads = await downloadsOffered().catch(() => false);
   return [
     ...STATIC_PAGES.filter((p) => p !== "/rules" || rulesOn).map((p) => ({ loc: canonicalUrl(p) })),
+    ...(downloads ? [{ loc: canonicalUrl("/download") }] : []),
     ...(weeks.length ? [{ loc: canonicalUrl("/power-rankings"), lastmod: lastmodOf(weeks[0]) }] : []),
     ...weeks.map((w) => ({ loc: canonicalUrl(`/power-rankings/${w.week}`), lastmod: lastmodOf(w) })),
     // lastmod: the source's own change marker (late results, awards and advancement move it); none when unknown.
     // Only a code the page can look up, at its canonical address (upper case, encoded: src/shared/eventCode.ts).
     ...events.filter((e) => isReachableEventCode(e.code)).map((e) => ({ loc: canonicalUrl(eventPath(e.season, e.code)), lastmod: day(e.upstream_updated) })),
     ...teamRows.map((t) => ({ loc: canonicalUrl(`/teams/${t.number}`), lastmod: day(lastmod.get(t.number)) })),
+    // Only a region and code the page's address can carry (server/seoMeta.ts: letters and digits, up to 16).
+    ...leagues.filter((l) => LEAGUE_PART.test(l.region) && LEAGUE_PART.test(l.code)).map((l) => ({ loc: canonicalUrl(leagueHref(l.season, l.region, l.code)), lastmod: day(l.ranked_at) })),
   ];
 }
 

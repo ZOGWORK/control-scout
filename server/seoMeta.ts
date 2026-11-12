@@ -36,6 +36,8 @@ import { staticRankingsHtml } from "./powerRankings/static.js";
 import { isWeekId, weekLabel, type PowerRankingsResponse } from "../src/shared/powerRankings.js";
 import { trackRecordIfReady } from "./api/accuracy.js";
 import { isEnabled } from "./flags.js";
+import { downloadsOffered, presentManifest } from "./packs/routes.js";
+import type { Manifest } from "./packs/build.js";
 import type { SearchCardLine, SearchFollowUps, SearchIntentNote, TrackRecord } from "../src/shared/api.js";
 import { compareTitle } from "../src/shared/compareUrl.js";
 import { ensureSearchIndex } from "./api/search.js";
@@ -880,6 +882,14 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
   if (/^\/supporters$/i.test(p)) return { title: "Supporters", description: "The people who sponsor Control Scout on GitHub.", type: "website", searchPage: true };
   // A contributor's profile names a person: never indexed (docs/contributors.md).
   if (/^\/contributors\/[^/]+$/i.test(p)) return { title: "Contributor", description: "Match videos added by a Control Scout contributor.", type: "website", noindex: true };
+  // Download: the season files on offer, each with what it holds and its size, as the page lists them, so the first
+  // HTML is the list itself (its sitemap entry needs that: server/sitemap.ts). Plain text, no links: a crawler never
+  // fetches a 40 MB file from it. Offline packs off, or none built: the page's own words alone.
+  if (/^\/download$/i.test(p)) {
+    const d = STATIC["/download"];
+    const m = (await downloadsOffered()) ? presentManifest() : null;
+    return { title: d.title, description: fitDescription(d.description), type: "website", ...(m ? { bodyHtml: downloadHtml(d.description, m) } : {}) };
+  }
   const s = STATIC[p];
   if (s) return { title: s.title, description: s.noindex ? s.description : fitDescription(s.description), type: "website", ...(s.noindex ? { noindex: true } : {}) };
   // The app's routes (src/shared/routes.ts, as React Router matches them): anything else is its not-found page.
@@ -968,4 +978,15 @@ export function resetMethodologyHtml(): void { prerendered.clear(); }
 function faqHtml(): string {
   const h = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   return FAQ.map((g) => `<h2>${h(g.title)}</h2>${g.items.map((i) => `<h3>${h(i.q)}</h3>${i.a.map((p) => `<p>${h(faqText(p))}</p>`).join("")}`).join("")}`).join("");
+}
+
+const mb = (bytes: number) => `${(bytes / 1_048_576).toFixed(1)} MB`;
+
+/** /download's first HTML: its line, then every season file (newest season first, as built) and the offline pack. */
+export function downloadHtml(lead: string, m: Manifest): string {
+  const item = (name: string, f: Manifest["full"][number]) => `<li><b>${esc(name)}</b> · ${esc(mb(f.bytes))}<br><small>${esc(f.contents)}</small></li>`;
+  const full = m.full.map((f) => item(`${f.seasons.map((x) => seasonInfo(x).label).join(", ")} season file (SQLite)`, f)).join("");
+  const asOf = m.dataAsOf ? ` Data as of ${m.dataAsOf.slice(0, 10)}.` : "";
+  return `<p>${esc(lead)}</p>${full ? `<h2>Season files</h2><ul>${full}</ul>` : ""}`
+    + (m.lite ? `<h2>Offline predictions</h2><ul>${item("Offline prediction pack", m.lite)}</ul>` : "") + `<p><small>Built ${esc(m.builtAt.slice(0, 10))}.${esc(asOf)}</small></p>`;
 }

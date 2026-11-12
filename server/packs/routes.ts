@@ -21,11 +21,21 @@ export function packsEngine(): string | null {
 }
 
 export function packsPresent(): boolean {
+  return presentManifest() != null;
+}
+
+/** The manifest when it parses and every file it lists is on disk (null otherwise): what /download offers. */
+export function presentManifest(): Manifest | null {
   try {
     const m = JSON.parse(readFileSync(join(packsDir(), "latest.json"), "utf8")) as Manifest;
     const files = [m.lite, ...(m.full ?? [])].filter((f): f is NonNullable<typeof f> => !!f);
-    return files.length > 0 && files.every((f) => existsSync(join(packsDir(), f.name)));
-  } catch { return false; }
+    return files.length > 0 && files.every((f) => existsSync(join(packsDir(), f.name))) ? m : null;
+  } catch { return null; }
+}
+
+/** Whether /download offers files: the owner has offline packs on and a built set is on disk. */
+export async function downloadsOffered(): Promise<boolean> {
+  return presentManifest() != null && (await isEnabled("offlinePacks").catch(() => false));
 }
 
 export function packsRouter(): Router {

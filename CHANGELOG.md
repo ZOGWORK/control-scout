@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.7.0 — 2026-11-11
+
+Search engines find the Download page and every league's standings in the sitemap.
+
+### Highlights
+- [history] Download's first page load lists every season file and its size
+- [rankings] League standings pages are in the sitemap
+- [fixes] Download works without JavaScript: its file list is in the page
+
+### Changed
+- `/download` serves its season files (season, size and what each holds) in its first HTML, and the sitemap lists it while offline packs are on and built. With packs off or none built it is a heading and a line, and stays out. (`server/seoMeta.ts`, `server/packs/routes.ts`, `server/sitemap.ts`)
+- The sitemap lists each league standings page (`/leagues/<season>/<region>/<code>`) that has FIRST's standings on it, with the day they were last read as its lastmod. A league with no standings yet is noindex, so it stays out until they arrive. (`server/sitemap.ts`)
+- `/predict` and `/compare` stay out of the sitemap. Their first HTML (checked live on 2026-11-11) is a heading and one line above an empty form or picker. The reason is now written beside the list. (`server/sitemap.ts`)
+
 ## 5.6.9 — 2026-11-11
 
 Search answers a question about two teams' past matches with the matches they really played.
