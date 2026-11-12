@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.8.2 — 2026-11-12
+## 5.8.3 — 2026-11-12
 
 Each event with played matches gets a highlights page: its standout matches, the same card Search shows for "<event> highlights".
 
@@ -26,6 +26,18 @@ Each event with played matches gets a highlights page: its standout matches, the
 
 ### Added
 - `/events/<season>/<code>/highlights`: the answer Search gives for "<event> highlights" (its standout matches, read over the event and the divisions that feed it, official events' matches only unless the event itself is off-season), at an address of its own. Its first HTML holds the whole answer as text, with a title and description that name the event, the season and its best match. It links to the event page, and the event page links to it with a Highlights button. An event with no played match with scores, a remote event, or one whose page isn't indexed has no page (404) and no sitemap entry; on local data the rule and the answer agreed for 1,000 of 1,000 events checked. The sitemap lists each page once, with the last day its matches or results changed as lastmod; above 45,000 URLs it is an index of files, each under 50,000. (`server/eventHighlightsPage.ts`, `server/seoMeta.ts`, `server/sitemap.ts`, `server/api/eventView.ts`, `src/pages/EventHighlightsPage.tsx`, `src/pages/EventPage.tsx`) (#1415)
+
+## 5.8.2 — 2026-11-12
+
+The Discord bot stays up: it had been running out of memory and restarting every few minutes, so it rarely answered.
+
+### Highlights
+- [fixes] The Discord bot stays online and answers again
+- [fixes] It has room for the whole season's data, so it no longer restarts
+- [alerts] Mentions, /ask and match alerts reach your server again
+
+### Fixed
+- The bot's service gave Node a heap of about 380 MB (a 768M cap and no heap flag); with the full data it ran out every few minutes (since at least Nov 10) and systemd restarted it, so commands and mentions mostly went unanswered. Now `--max-old-space-size=1536` under `MemoryMax=2G` (the VM has 24 GB). (`deploy/oracle-vm-setup.sh`) (#1416)
 
 ## 5.8.1 — 2026-11-12
 
