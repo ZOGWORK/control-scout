@@ -71,16 +71,22 @@ export function startSmoothWheel(): SmoothWheel & { destroy(): void } {
   const wake = () => { if (!frame) frame = requestAnimationFrame(tick); };
   const offWheel = lenis.on("virtual-scroll", wake);
 
-  // Lenis's reset (typed private): stop the glide and take the page's current position as its own.
+  // Lenis's reset (typed private, stable across 1.x): stops the glide and takes the page's current position as its
+  // own, touching nothing else. The public ways round are worse here: stop() then start() puts overflow: clip on
+  // <html> in between (lenis-stopped), and start() reads scrollY under it; scrollTo(current, { immediate }) clamps
+  // to Lenis's page height, which lags a growing page by its 250 ms resize debounce and would pull a restore back.
   const reset = () => (lenis as unknown as { reset(): void }).reset();
   const halt = () => {
     if (frame) { cancelAnimationFrame(frame); frame = 0; fresh = true; }
     reset();
   };
   const haltIfGliding = () => { if (lenis.isScrolling === "smooth") halt(); };
+  // A key that scrolls or acts ends the glide; a modifier pressed on its own (Shift, Ctrl, Alt, Meta) scrolls nothing.
+  const MODIFIERS = new Set(["Shift", "Control", "Alt", "Meta", "CapsLock", "Fn"]);
+  const onKey = (e: KeyboardEvent) => { if (!MODIFIERS.has(e.key)) haltIfGliding(); };
   const opts = { capture: true, passive: true } as const;
   window.addEventListener("pointerdown", haltIfGliding, opts);
-  window.addEventListener("keydown", haltIfGliding, opts);
+  window.addEventListener("keydown", onKey, opts);
 
   return {
     halt,
@@ -88,7 +94,7 @@ export function startSmoothWheel(): SmoothWheel & { destroy(): void } {
       halt();
       offWheel();
       window.removeEventListener("pointerdown", haltIfGliding, opts);
-      window.removeEventListener("keydown", haltIfGliding, opts);
+      window.removeEventListener("keydown", onKey, opts);
       lenis.destroy();
     },
   };

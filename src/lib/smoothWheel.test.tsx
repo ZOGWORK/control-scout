@@ -174,6 +174,21 @@ describe("the engine (a real Lenis) with a wheel over the page", () => {
     for (const id of ["a", "b", "c", "d"]) expect(wheelOver(document.getElementById(id)!)).toBe(false);
   });
 
+  it("a key ends a glide on its way, but a modifier pressed on its own does not", async () => {
+    document.body.innerHTML = `<main><p id="t">row</p></main>`;
+    // A page taller than the window, so a wheel has somewhere to glide to.
+    Object.defineProperty(document.documentElement, "scrollHeight", { configurable: true, get: () => 5000 });
+    engine = startSmoothWheel();
+    const gliding = () => document.documentElement.classList.contains("lenis-smooth");
+    wheelOver(document.getElementById("t")!);
+    expect(gliding()).toBe(true);
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Shift" }));
+    expect(gliding()).toBe(true);
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "PageDown" }));
+    expect(gliding()).toBe(false);
+    delete (document.documentElement as { scrollHeight?: number }).scrollHeight;
+  });
+
   it("stands aside while a dialog or sheet locks the page", () => {
     document.body.innerHTML = `<main><p id="t">row</p></main>`;
     engine = startSmoothWheel();
