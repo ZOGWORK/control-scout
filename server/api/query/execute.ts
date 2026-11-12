@@ -35,10 +35,13 @@ import { describe, normalise, parseQuery, type Parsed } from "./parse.js";
 import { parseContext } from "./context.js";
 import { topTeamsNote, topTeamsSaid } from "./topTeams.js";
 import { asksSelfMatch, selfMatchAnswer } from "./selfMatch.js";
+import { PAIR_SPLIT, windowPairAnswer } from "./windowPair.js";
 import type { PipelineIntent } from "./intents.js";
 import { place } from "../../../src/shared/format.js";
 
-export interface PipelineOptions { full: boolean; pages: SearchPageLink[]; resolve: Resolve; now?: number; prefer?: ReadonlySet<string> }
+export interface PipelineOptions { full: boolean; pages: SearchPageLink[]; resolve: Resolve; now?: number; prefer?: ReadonlySet<string>;
+  /** A window read exactly as asked: one with nothing in it says so, never relaxed to its season (two windows side by side). */
+  exact?: boolean }
 
 /** The pipeline's answer for `q`, or null when it leaves the query to search's other readers. */
 export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<SearchAnswer | null> {
@@ -56,6 +59,12 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
   if (asksSelfMatch(q, p)) {
     const n = String(p.teams[0].number);
     return selfMatchAnswer(p, (await opts.resolve(n)).hits.find((h) => h.kind === "team" && h.ref === n), opts.pages, opts.full);
+  }
+  // One team's question in two time windows set against each other ("12345 record this month, versus last month"):
+  // asked in each, exactly as said, side by side.
+  if (!p.complete) {
+    const pair = await windowPair(q, ctx, opts);
+    if (pair) return pair;
   }
   // A place's top team said where a team would be ("the top NJ team vs the top Romania team"): two teams compared,
   // read again with their numbers, the card saying which team each phrase was.
@@ -318,7 +327,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     const a = await statAnswerOf(p.q, it, opts.resolve, opts);
     // Nothing in the window asked ("this week"): its season, then the season before, said on the card.
     // A window with its year typed ("march 2026", a date) keeps that year: only a window said against today is relaxed.
-    if (!opts.full || !scope.window || scope.season == null || p.time?.year != null) return a;
+    if (!opts.full || opts.exact || !scope.window || scope.season == null || p.time?.year != null) return a;
     return relaxed(a, windowSteps(scope.window, scope.season), (season) => statAnswerOf(p.q, { ...it, scope: { ...scope, window: undefined, season } }, opts.resolve, opts));
   }
   // A forecast at an event named: before and after, side by side (./forecast.ts). With no event, two teams' head-on
@@ -819,6 +828,23 @@ async function highlights(p: Parsed, scope: ReadScope, opts: PipelineOptions): P
   if (latest == null) return a;
   const name = f.eventName?.get(latest)?.name;
   return relaxed(a, defaultSteps(f.season, name ? ` at ${name}` : f.at ? ` ${f.at}` : "", "matches", latest), (season) => card(season));
+}
+
+/** "<one team's question in a window>, versus <another window>": the question asked in each window (nothing relaxed),
+ *  the two answers side by side (./windowPair.ts). Null unless the words before the "versus" are a complete one-team
+ *  question with a time, and the words after it are a time and nothing else. */
+async function windowPair(q: string, ctx: Awaited<ReturnType<typeof parseContext>>, opts: PipelineOptions): Promise<SearchAnswer | null> {
+  const m = PAIR_SPLIT.exec(q);
+  if (!m) return null;
+  const left = q.slice(0, m.index).replace(/[\s,;]+$/, ""), right = q.slice(m.index + m[0].length);
+  const [a, b] = await Promise.all([parseQuery(left, ctx), parseQuery(right, ctx)]);
+  if (!a.complete || !a.intent || !TEAM_INTENTS.has(a.intent) || a.teams.length !== 1 || !a.time || !b.time) return null;
+  if (b.teams.length || b.event || b.place || b.worlds || b.states || b.leftover.length || b.symbols.length || b.intent) return null;
+  if (a.time.kind !== b.time.kind || a.time.label === b.time.label) return null;
+  const other: Parsed = { ...a, time: b.time, q: left.replace(new RegExp(escRe(a.time.typed), "i"), b.time.typed) };
+  const [x, y] = await Promise.all([execute(a, { ...opts, full: true, exact: true }), execute(other, { ...opts, full: true, exact: true })]);
+  if (!x?.stat || !y?.stat) return null;
+  return windowPairAnswer(q, [a.time, b.time], x, y, opts);
 }
 
 /** The slots as the scope a stat answer reads (server/api/answers/read.ts ReadScope). Null: a slot no answer applies. */
