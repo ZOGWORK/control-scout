@@ -47,8 +47,16 @@ export interface TopTeamSaid { typed: string; team: number; name: string | null;
   part?: string }
 
 /** `q` with each place's top team said as its number, and which team each phrase was; null when none is said, or a
- *  place named has no rated team. `season`: the one the question names, else the search season. */
-export async function topTeamsSaid(q: string, ctx: ParseContext, season = defaultSeason()): Promise<{ q: string; said: TopTeamSaid[]; season: number } | null> {
+ *  place named has no rated team. `season`: the one the question names. None named: the search season, else (a new
+ *  season with no rated team yet in a place named) the season before, so every place's leader is from one season and
+ *  the note says which. */
+export async function topTeamsSaid(q: string, ctx: ParseContext, season?: number): Promise<{ q: string; said: TopTeamSaid[]; season: number } | null> {
+  if (season != null) return topTeamsIn(q, ctx, season);
+  const now = defaultSeason();
+  return (await topTeamsIn(q, ctx, now)) ?? topTeamsIn(q, ctx, now - 1);
+}
+
+async function topTeamsIn(q: string, ctx: ParseContext, season: number): Promise<{ q: string; said: TopTeamSaid[]; season: number } | null> {
   const said: TopTeamSaid[] = [];
   let out = "", from = 0;
   const re = new RegExp(TOP_TEAM.source, TOP_TEAM.flags);

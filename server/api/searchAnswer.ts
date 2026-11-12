@@ -140,6 +140,8 @@ export async function withoutAside(q: string, opts: { now?: number; prefer?: Rea
   return again.leftover.length ? q : rest;
 }
 /** The lexicon's one-word filler ("i", "please"). */
+/** A chat command and its option name, written before the question: "/ask question:", "/ask question: ". */
+const SLASH_COMMAND = /^\s*\/[a-z]+\s+[a-z_]+\s*:\s*/i;
 const FILLER_ONE = new Set(LEXICON.filter((e) => e.words.length === 1 && e.syms.every((x) => x.k === "filler")).map((e) => e.words[0]));
 
 const SHORT_FORMS: Record<string, string> = { champs: "championship", champ: "championship", cmp: "championship", quals: "qualifier", worlds: "first championship", states: "state championship" };
@@ -218,6 +220,13 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   // The season a query naming none means (./answers/season.ts), read before the readers that use it.
   await refreshSearchSeason(opts.now);
   if (opts.inner || opts.intents === false || opts.rewrites) return readerAnswer(raw, opts);
+  // A chat command written out with its option ("/ask question:how did 4215 do last event", as the Discord bot's
+  // "Ask next" text reads, pasted into a message or the search box): the option's value is the question.
+  const command = String(raw ?? "").replace(SLASH_COMMAND, "");
+  if (command !== String(raw ?? "") && command.trim()) {
+    const b = await searchAnswer(command, opts);
+    return carryOutcome(b, { ...b, q: cleanQuery(raw) });
+  }
   // Informal short forms said in full first ("events happening rn"), in the query as typed (its quotes and operators
   // kept), the answer keeping the query as typed.
   // A clause saying what isn't asked ("…, not just one number", "in 2024-25, not this season") goes; the rest is the ask.
