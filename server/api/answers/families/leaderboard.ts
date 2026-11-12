@@ -651,7 +651,8 @@ async function unbeatenAtAnswer(b: BoardQuestion, kind: { types: string[]; label
   const types = kind.types.map(() => "?").join(", ");
   const recs = await all<{ team: number; code: string; wins: number; losses: number; ties: number }>(
     recordSql(`mt.season = ? AND e.type IN (${types})`), [season, ...kind.types]);
-  const unbeaten = recs.filter((r) => Number(r.losses) === 0 && Number(r.wins) + Number(r.ties) > 0);
+  // Unbeaten with a win: a tie alone is no perfect record.
+  const unbeaten = recs.filter((r) => Number(r.losses) === 0 && Number(r.wins) > 0);
   const codes = [...new Set(unbeaten.map((r) => r.code))];
   const [evs, teams] = codes.length ? await Promise.all([
     all<{ code: string; name: string; type: string | null; division: string | null; start: string | null }>(`SELECT code, name, type, division_code division, start FROM events WHERE season = ? AND code IN (${codes.map(() => "?").join(", ")})`, [season, ...codes]),
@@ -667,7 +668,7 @@ async function unbeatenAtAnswer(b: BoardQuestion, kind: { types: string[]; label
   const said = b.recordSaid ? ` (“${b.recordSaid}” read as no losses: each team's record there is shown)` : "";
   const base = {
     family: "leaderboard" as const, intent: "unbeaten-at", title: `Teams${where} unbeaten at ${kind.label.replace(/ \(.*\)$/, "")} · ${S}`, scope: [...chips, kind.label.replace(/^./, (c) => c.toUpperCase())],
-    definition: `Unbeaten: no losses in the team's matches at the event, qualification and playoffs, ties allowed, by the official rule each event page uses${said}. ${kind.label.replace(/^./, (c) => c.toUpperCase())}: events of those types in ${S}; a division is its own event. One row per team and event, the most wins first.${why}`,
+    definition: `Unbeaten: at least one win and no losses in the team's matches at the event, qualification and playoffs, ties allowed, by the official rule each event page uses${said}. ${kind.label.replace(/^./, (c) => c.toUpperCase())}: events of those types in ${S}; a division is its own event. One row per team and event, the most wins first.${why}`,
     source: `From ${recs.length.toLocaleString("en-US")} team records at ${S} ${kind.label.replace(/ \(.*\)$/, "")} · ${teamsN.toLocaleString("en-US")} team${teamsN === 1 ? "" : "s"}${where} unbeaten`,
   };
   if (!shown.length) return { ...base, blocks: [], none: `No team${where} went unbeaten at ${kind.label.replace(/ \(.*\)$/, "")} in ${S}${recs.length ? "" : ": none of those events has played matches on record yet"}.` };
