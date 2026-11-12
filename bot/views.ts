@@ -5,8 +5,8 @@
 import type { APIEmbed, APIEmbedField } from "discord.js";
 import type { EventDetail, FieldRow, MatchView, TeamProfile } from "../src/shared/api.js";
 import type { RankingRow } from "../src/shared/rankings.js";
-import { allianceText, oddsPct, tierWords } from "../src/shared/share.js";
-import { TIER_WORD } from "../src/shared/tierWords.js";
+import { oddsPct } from "../src/shared/share.js";
+import { tierWord } from "../src/shared/tierWords.js";
 import { matchReportHref } from "../src/shared/matchReport.js";
 
 /** Volt (the site's accent, --color-accent) for answers; the site's danger red for errors. */
@@ -40,15 +40,6 @@ const one = (x: number | null | undefined) => (x == null || !Number.isFinite(x) 
 const place = (...parts: (string | null | undefined)[]) => parts.filter((p) => p && p.trim()).join(", ");
 const record = (w: number | null | undefined, l: number | null | undefined, t: number | null | undefined) => `${w ?? 0}–${l ?? 0}–${t ?? 0}`;
 const clip = (s: string, n: number) => (s.length <= n ? s : `${s.slice(0, n - 1)}…`);
-
-/**
- * A win chance as a ten-block bar and its percentage: `██████░░░░ 62%`. Until the match is decided the
- * bar keeps at least one block of each, like the percentage it stands for (never a flat 0% or 100%).
- */
-export function winBar(p: number): string {
-  const blocks = Math.min(9, Math.max(1, Math.round(p * 10)));
-  return `${"█".repeat(blocks)}${"░".repeat(10 - blocks)} ${oddsPct(p)}`;
-}
 
 /** Movement against last week, as the rankings page shows it: ↑3, ↓1, — (no change), new. */
 export function movement(move: RankingRow["move"]): string {
@@ -102,63 +93,186 @@ export function teamEmbed(c: TeamCard, site: string): APIEmbed {
 }
 
 // ---------------------------------------------------------------------------
-// /predict
+// /predict, and the follow posts built on it (bot/follows.ts)
 // ---------------------------------------------------------------------------
+//
+// One story, told once, in the description; no fields. A result is the score line (every team a link, the
+// winner's score bold), the story (the call, predicted against actual) and where to go next. A pre-match post
+// is the lineup and the call, with its confidence in plain words once. A live call (logged before the match)
+// is the default and carries no label; the footer names only the exceptions, so a replayed (backtest) call is
+// never mixed up with one logged beforehand.
 
+/** Result colours: the followed team won (the site's success green), lost (the red alliance's rose, not the
+ *  error colour), or tied (slate). Volt everywhere else. */
+export const WIN = 0x34d399;
+export const LOSS = 0xf43f5e;
+export const TIE = 0x94a3b8;
+
+/** The call's kind in the footer, only when it isn't a live call (logged before the match). */
 const KIND: Record<string, string> = {
-  live: "Called before the match",
   now: "From today's ratings",
-  backtest: "Replayed call (walk-forward backtest), not logged before the match",
+  backtest: "Replayed call",
 };
+const footerFor = (p: MatchView["prediction"]) => ({ text: p && KIND[p.kind] ? `${KIND[p.kind]} · ${FOOTER.text}` : FOOTER.text });
 
-const teamsOf = (side: MatchView["red"], played: boolean) => (played && side.teams.some((t) => t.onField) ? side.teams.filter((t) => t.onField) : side.teams).map((t) => t.number);
+/** A team number as a link to its page. */
+export const teamLink = (n: number, site: string) => `[${n}](${site}/teams/${n})`;
+const joinAnd = (xs: string[]) => (xs.length <= 1 ? (xs[0] ?? "") : `${xs.slice(0, -1).join(", ")} & ${xs[xs.length - 1]}`);
+/** An alliance as linked team numbers, "[4215](…) & [23545](…)"; TBD when it isn't posted. */
+export const linkedAlliance = (teams: readonly number[], site: string) => (teams.length ? joinAnd(teams.map((t) => teamLink(t, site))) : "TBD");
+export const eventHref = (m: { season: number; code: string }, site: string) => `${site}/events/${m.season}/${encodeURIComponent(m.code)}`;
 
-/** The match's call in words (called / upset / tie), as the site's match rows say it. */
+/** The robots on the field for a played match (a playoff alliance lists a third who may sit out), else everyone listed. */
+export const teamsOf = (side: MatchView["red"], played: boolean) => (played && side.teams.some((t) => t.onField) ? side.teams.filter((t) => t.onField) : side.teams).map((t) => t.number);
+const SIDE = { red: "Red", blue: "Blue" } as const;
+
+/** A call has a favourite only when its chance reads 55% or more; inside 45–55% it's an even call. */
+export const FAVOURITE_PCT = 55;
+
+/** The favoured side and its chance, or null for an even call (a coin flip that loses is not an upset). */
+export function favouriteOf(p: { pRed: number }): { side: "red" | "blue"; p: number } | null {
+  const side = p.pRed >= 0.5 ? "red" : "blue";
+  const q = side === "red" ? p.pRed : 1 - p.pRed;
+  return Math.round(q * 100) >= FAVOURITE_PCT ? { side, p: q } : null;
+}
+
+type Prediction = NonNullable<MatchView["prediction"]>;
+/** The predicted score as the story writes it, "97–93"; null when the season has nothing to base one on. */
+export const predictedScore = (p: Prediction) => (p.noScoreBasis ? null : `${Math.round(p.redMean)}–${Math.round(p.blueMean)}`);
+
+/** The predicted margin, "predicted Red by 4" (or "predicted level"); null without a score basis. */
+function predictedMargin(p: Prediction): string | null {
+  if (p.noScoreBasis) return null;
+  const r = Math.round(p.redMean), b = Math.round(p.blueMean);
+  return r === b ? "predicted level" : `predicted ${r > b ? "Red" : "Blue"} by ${Math.abs(r - b)}`;
+}
+
+/**
+ * The match's call in words, wherever a verdict is shown: "Called it ✅" / "Upset ❌" for a favourite (55%+);
+ * no verdict (called: null) for an even call or a tie; null before the match or without a logged call.
+ */
 export function verdict(m: MatchView): { called: boolean | null; text: string } | null {
   const p = m.prediction;
   if (!p || !m.played || !m.red.score || !m.blue.score) return null;
   const red = m.red.score.total, blue = m.blue.score.total;
-  if (red === blue) return { called: null, text: "Tie: no winner to call" };
-  if (p.pRed === 0.5) return { called: null, text: "Even call: no favourite" };
-  const called = (p.pRed > 0.5) === (red > blue);
-  return { called, text: called ? "✅ Called it" : "❌ Upset" };
+  if (red === blue) return { called: null, text: "Tie" };
+  const f = favouriteOf(p);
+  if (!f) return { called: null, text: "Even call" };
+  const called = (f.side === "red") === (red > blue);
+  return { called, text: called ? "Called it ✅" : "Upset ❌" };
 }
 
-export function predictEmbed(d: Pick<EventDetail, "event">, m: MatchView, site: string): APIEmbed {
-  const red = teamsOf(m.red, m.played), blue = teamsOf(m.blue, m.played);
+/** "🔴 [23314](…) & [8902](…) **81** – 65 [4215](…) & [23545](…) 🔵": the winner's score bold. */
+export function scoreLine(m: MatchView, site: string): string {
+  const r = m.red.score?.total ?? 0, b = m.blue.score?.total ?? 0;
+  return `🔴 ${linkedAlliance(teamsOf(m.red, true), site)} ${r > b ? `**${r}**` : r} – ${b > r ? `**${b}**` : b} ${linkedAlliance(teamsOf(m.blue, true), site)} 🔵`;
+}
+
+/** The result's story in one line: the call, then predicted against actual. */
+export function storyLine(m: MatchView): string {
+  const r = m.red.score?.total ?? 0, b = m.blue.score?.total ?? 0;
+  if (r === b) return `Tie at ${r} — no winner to call.`;
   const p = m.prediction;
-  const fields: APIEmbedField[] = [
-    { name: "🔴 Red", value: allianceText(red) || "TBD", inline: true },
-    { name: "🔵 Blue", value: allianceText(blue) || "TBD", inline: true },
-  ];
-  const score = p && !p.noScoreBasis ? `${Math.round(p.redMean)} – ${Math.round(p.blueMean)}` : null;
-  if (m.played && m.red.score && m.blue.score) {
-    const r = m.red.score.total, b = m.blue.score.total;
-    fields.push({ name: "Final score", value: `Red ${r > b ? `**${r}**` : r} – ${b > r ? `**${b}**` : b} Blue` });
-    if (p) {
-      const fav = p.pRed === 0.5 ? `Even call (${oddsPct(0.5)} each)` : p.pRed > 0.5 ? `Red ${oddsPct(p.pRed)}` : `Blue ${oddsPct(1 - p.pRed)}`;
-      fields.push({ name: "Predicted", value: `${fav}${score ? ` · ${score}` : ""} · ${tierWords(p.tier)}` });
-      const v = verdict(m);
-      if (v) fields.push({ name: "Verdict", value: v.text });
-    } else {
-      fields.push({ name: "Predicted", value: "No prediction was logged for this match." });
-    }
-  } else if (p) {
-    fields.push({ name: "Red win", value: `\`${winBar(p.pRed)}\`` });
-    fields.push({ name: "Blue win", value: `\`${winBar(1 - p.pRed)}\`` });
-    if (score) fields.push({ name: "Predicted score", value: score, inline: true });
-    fields.push({ name: "Confidence", value: TIER_WORD[p.tier] ?? p.tier, inline: true });
-  } else {
-    fields.push({ name: "Prediction", value: "No prediction for this match yet." });
+  if (!p) return "No prediction was logged for this match.";
+  const won = r > b ? "Red" : "Blue", by = Math.abs(r - b);
+  const f = favouriteOf(p);
+  if (!f) {
+    const margin = predictedMargin(p);
+    return `Even call — ${margin ? `${margin}, ` : ""}${won} won by ${by}.`;
   }
-  if (!m.played && m.time) fields.push({ name: "Scheduled", value: m.startsAt ? `<t:${Math.floor(Date.parse(m.startsAt) / 1000)}:t>` : m.time.slice(11, 16), inline: true });
+  const score = predictedScore(p), pct = oddsPct(f.p), fav = SIDE[f.side];
+  const predicted = score ? ` (predicted ${score})` : "";
+  return (f.side === "red") === (r > b)
+    ? `Called it ✅ — ${fav} ${pct}${predicted}, won by ${by}.`
+    : `Upset ❌ — ${fav} was ${pct}${predicted}, ${won} won by ${by}.`;
+}
+
+/** The pre-match call: "Blue 62% to win · predicted 97–93 · solid", or "Even call · predicted 97–93 · rough guess". */
+export function callLine(p: MatchView["prediction"]): string {
+  if (!p) return "No prediction for this match yet";
+  const f = favouriteOf(p), score = predictedScore(p);
+  return [f ? `${SIDE[f.side]} ${oddsPct(f.p)} to win` : "Even call", score ? `predicted ${score}` : null, tierWord(p.tier)].filter(Boolean).join(" · ");
+}
+
+const unix = (iso: string) => Math.floor(Date.parse(iso) / 1000);
+const matchTitle = (m: MatchView, eventName: string) => clip(`${m.label} · ${eventName}`, 256);
+
+/** A followed team's outcome in a played match. */
+export function outcomeFor(m: MatchView, team: number): "won" | "lost" | "tied" {
+  const r = m.red.score?.total ?? 0, b = m.blue.score?.total ?? 0;
+  if (r === b) return "tied";
+  return teamsOf(m.red, m.played).includes(team) === r > b ? "won" : "lost";
+}
+
+/** The border: the followed teams' outcome when it's one clear outcome; volt when mixed or nobody's followed. */
+export function resultColor(m: MatchView, followed: readonly number[]): number {
+  if (!followed.length) return VOLT;
+  const outs = new Set(followed.map((t) => outcomeFor(m, t)));
+  if (outs.size > 1) return VOLT;
+  return outs.has("won") ? WIN : outs.has("lost") ? LOSS : TIE;
+}
+
+export interface ResultOptions {
+  /** The followed teams it's about (follow posts): they set the colour. */
+  followed?: readonly number[];
+  /** The followed team's next unplayed match at the event (named when the post is about more than one team).
+   *  No next match, no line: never invented. */
+  next?: { match: MatchView; team: number | null } | null;
+}
+
+/** "Next: Q21 · 5:10 PM · [Match](…) · [Event](…)"; just the event link when there's no next match. */
+function nextLine(m: MatchView, site: string, next: ResultOptions["next"]): string {
+  const ev = `[Event](${eventHref(m, site)})`;
+  if (!next) return ev;
+  const n = next.match;
+  // A next match on another day shows its date too.
+  const otherDay = m.startsAt && n.startsAt && Math.abs(Date.parse(n.startsAt) - Date.parse(m.startsAt)) > 12 * 3600_000;
+  const when = n.startsAt ? ` · <t:${unix(n.startsAt)}:${otherDay ? "f" : "t"}>` : "";
+  return `Next${next.team != null ? ` for ${teamLink(next.team, site)}` : ""}: ${n.label}${when} · [Match](${site}${matchReportHref(n)}) · ${ev}`;
+}
+
+/** A played match: the score line, the story, and what's next. No fields. */
+export function resultEmbed(eventName: string, m: MatchView, site: string, o: ResultOptions = {}): APIEmbed {
   return {
-    title: clip(`${d.event.name} · ${m.label}`, 256),
+    title: matchTitle(m, eventName),
     url: `${site}${matchReportHref(m)}`,
-    color: VOLT,
-    fields,
-    footer: { text: p ? `${KIND[p.kind] ?? ""} · ${FOOTER.text}` : FOOTER.text },
+    description: [scoreLine(m, site), storyLine(m), nextLine(m, site, o.next)].join("\n"),
+    color: resultColor(m, o.followed ?? []),
+    footer: footerFor(m.prediction),
   };
+}
+
+/**
+ * A match not played yet: a lead line (the follow reminder's side and time; /predict's start when known), then
+ * the lineup and the call. No fields, no win bars.
+ */
+export function preMatchEmbed(eventName: string, m: MatchView, site: string, lead?: string | null): APIEmbed {
+  // Marked played with a score still to come: never "Starts …" for a match that's already happened.
+  const starts = m.played ? "Played: the final score isn't posted yet." : m.startsAt ? `Starts <t:${unix(m.startsAt)}:R> (<t:${unix(m.startsAt)}:t>).` : m.time ? `Scheduled ${m.time.slice(11, 16)}.` : null;
+  const lineup = `🔴 ${linkedAlliance(teamsOf(m.red, false), site)} vs ${linkedAlliance(teamsOf(m.blue, false), site)} 🔵 · ${callLine(m.prediction)}`;
+  return {
+    title: matchTitle(m, eventName),
+    url: `${site}${matchReportHref(m)}`,
+    description: [lead === undefined ? starts : lead, lineup].filter(Boolean).join("\n"),
+    color: VOLT,
+    footer: footerFor(m.prediction),
+  };
+}
+
+/** /predict: the result design once played, the pre-match design before. */
+export function predictEmbed(d: Pick<EventDetail, "event">, m: MatchView, site: string): APIEmbed {
+  return m.played && m.red.score && m.blue.score ? resultEmbed(d.event.name, m, site) : preMatchEmbed(d.event.name, m, site);
+}
+
+/** How tall an embed renders: its title, each description line and each field (the footer isn't counted). */
+export function embedBlocks(e: APIEmbed): number {
+  return (e.title ? 1 : 0) + (e.description ? e.description.split("\n").length : 0) + (e.fields?.length ?? 0);
+}
+
+/** The characters a reader sees: a link counts as its text, a timestamp as the time it shows. */
+export function embedReadChars(e: APIEmbed): number {
+  const seen = (s = "") => s.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/<t:\d+:R>/g, "in 15 minutes").replace(/<t:\d+:[tf]>/g, "10:00 AM").replace(/\*\*/g, "");
+  return seen(e.title).length + seen(e.description).length + (e.fields ?? []).reduce((n, f) => n + seen(f.name).length + seen(f.value).length, 0) + seen(e.footer?.text).length;
 }
 
 // ---------------------------------------------------------------------------
@@ -205,7 +319,7 @@ export function eventEmbed(d: EventDetail, site: string): APIEmbed {
   }
   if (e.status === "finished") {
     const w = winningAlliance(d);
-    fields.push({ name: "Winning alliance", value: w ? `${w.alliance ? `Alliance ${w.alliance}: ` : ""}${allianceText(w.teams)}` : "Not posted yet (it comes with the awards)" });
+    fields.push({ name: "Winning alliance", value: w ? `${w.alliance ? `Alliance ${w.alliance}: ` : ""}${linkedAlliance(w.teams, site)}` : "Not posted yet (it comes with the awards)" });
   }
   return {
     title: clip(e.name, 256),

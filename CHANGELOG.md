@@ -15,6 +15,25 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.7.5 — 2026-11-12
+
+The Discord bot's match posts tell one story each: who won, by how much, and whether the call was right.
+
+### Highlights
+- [alerts] A result post is the score line and one story, no fields
+- [fixes] A 50% or 54% call that loses is an even call, never an "upset"
+- [alerts] A reminder says which side the team is on, with whom, and when
+- [alerts] Every team number in a match post opens that team's page
+
+### Changed
+- Result posts (follows and `/predict` on a played match): the title leads with the match (`Q16 · P1-5 PM Northeast League Meet`); the description is the score line (every team linked, the winner's score bold), the story (`Even call — predicted Red by 4, Red won by 16.`, `Called it ✅ — Red 68% (predicted 72–58), won by 22.`, `Upset ❌ — Blue was 71% (predicted 55–74), Red won by 18.`) and the followed team's next unplayed match with links to it and the event. The Red / Blue / Final score / Predicted / Verdict fields are gone, and so is the confidence tier (it was the pre-match confidence, stale once the match is played). The border is green when the followed team won, rose when it lost, slate on a tie, volt when two followed teams had opposite results or for `/predict`. (`bot/views.ts`, `bot/follows.ts`)
+- Reminders and `/predict` before a match: the first line is the followed team's side, partner and time (`4215 on Blue with 23545, in 15 minutes (4:30 PM).`), the second the lineup and the call with its confidence once (`Even call · predicted 97–93 · rough guess`). The two win-bar fields, the score, confidence and time fields are gone. (`bot/views.ts`, `bot/follows.ts`)
+- The footer names the call's kind only when it isn't a live call logged before the match: `Replayed call` or `From today's ratings`. (`bot/views.ts`)
+- `/event`'s winning alliance and `/following`'s teams are linked. (`bot/views.ts`, `bot/follows.ts`)
+
+### Fixed
+- A call is a favourite only when its chance reads 55% or more; inside 45–55% it's an even call with no verdict. Q16 at the Nov 7 Northeast League Meet (Blue 50%) and Q17 (Red 54%) were posted as "❌ Upset". (`verdict` in `bot/views.ts`) (#1404)
+
 ## 5.7.4 — 2026-11-12
 
 A place typed before "teams" and a stat now gets that place's board, instead of a sorry page or a list of events.
