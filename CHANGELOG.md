@@ -26,7 +26,7 @@ A place typed before "teams" and a stat now gets that place's board, instead of 
 - [fixes] "teams ranked by opr" keeps its worldwide board, read directly
 
 ### Fixed
-- "nj teams ranked by opr" (a failed search from the live site) answered "Sorry — I can't answer that yet", reading "nj ranked" as a team's name, and "nj teams opr" (another) listed New Jersey's events. The rule for a stat said with no team ("opr nj", "2027 opr") now also takes the word "teams", so both read as the stat and the place, and answer with the same New Jersey OPR board as "top teams by OPR in New Jersey". "teams ranked by opr" keeps its worldwide board, now read directly instead of by the fallback. (`server/api/query/intents.ts`) (#PR)
+- "nj teams ranked by opr" (a failed search from the live site) answered "Sorry — I can't answer that yet", reading "nj ranked" as a team's name, and "nj teams opr" (another) listed New Jersey's events. The rule for a stat said with no team ("opr nj", "2027 opr") now also takes the word "teams", so both read as the stat and the place, and answer with the same New Jersey OPR board as "top teams by OPR in New Jersey". "teams ranked by opr" keeps its worldwide board, now read directly instead of by the fallback. (`server/api/query/intents.ts`) (#1409)
 
 ## 5.7.2 — 2026-11-12
 
