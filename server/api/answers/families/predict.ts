@@ -244,7 +244,7 @@ export async function predictTopAnswer(team: AnswerTeam, season: number, n: numb
     const above = tops.filter((r) => Number(r.rating_np) > Number(own.rating_np)).length;
     return {
       ...base, definition: `${TOP_RULE}${extra}`,
-      headline: { value: above === tops.length ? "Rated below all" : `Rated above ${tops.length - above}`, label: `of the ${S} top ${n} worldwide`, sub: `${off ? "Live predictions are switched off just now." : "The engine's ratings are still loading: Predict shows the call."} ${ownLine}` },
+      headline: { value: above === tops.length ? "Rated below all" : `Rated above ${tops.length - above}`, label: inTop ? `of the other ${tops.length} teams in the ${S} top ${n} worldwide` : `of the ${S} top ${n} worldwide`, sub: `${off ? "Live predictions are switched off just now." : "The engine's ratings are still loading: Predict shows the call."} ${ownLine}` },
       blocks: [{ kind: "table", title: `The top ${n}, ${S}`, columns: [{ key: "team", label: "World rank" }, { key: "rating", label: "Rating", num: true }, { key: "gap", label: "Gap", num: true }],
         rows: tops.map((r) => ({ cells: { team: `#${r.rating_rank} · ${r.team}`, rating: num1(r.rating_np), gap: num1(Number(own.rating_np) - Number(r.rating_np)) }, href: predictHref({ mode: "match", season, red: [team.number], blue: [Number(r.team)] }) })) }, ranks],
     };
@@ -255,27 +255,31 @@ export async function predictTopAnswer(team: AnswerTeam, season: number, n: numb
   const loseBy = lose.map((c) => Math.abs(c.margin));
   const avgLoss = loseBy.length ? loseBy.reduce((s, v) => s + v, 0) / loseBy.length : null;
   const N = rows.length;
-  const lossText = loseBy.length ? `would lose by ${Math.round(avgLoss!)} points on average (${Math.round(Math.min(...loseBy))}–${Math.round(Math.max(...loseBy))})` : "no predicted loss";
+  // The teams called: the top N, or, when the team is one of them, the other N − 1 (it never plays itself).
+  const field = inTop ? `the other ${N} teams in the top ${n} worldwide` : `the top ${n} worldwide`;
+  // A predicted loss of under half a point is said as "<1", never "0" (it is still a loss).
+  const pts = (v: number) => (v < 0.5 ? "<1" : String(Math.round(v)));
+  const lossText = loseBy.length ? `would lose by ${pts(avgLoss!)} points on average (${pts(Math.min(...loseBy))}–${pts(Math.max(...loseBy))})` : "no predicted loss";
   return {
     ...base, definition: `${TOP_RULE}${extra}`,
     headline: {
       value: fav.length ? "Yes" : "No",
-      label: fav.length ? `Favoured against ${fav.length} of the top ${n} worldwide` : `Underdog against every one of the top ${n} worldwide`,
-      sub: `${lose.length ? `Predicted to lose ${lose.length} of ${N}: ${lossText}` : `Favoured in all ${N}`} · best chance ${chance(best.p)} vs ${best.r.team} (#${best.r.rating_rank}) · ${ownLine}`,
+      label: fav.length ? `Favoured against ${fav.length} of ${field}` : `Underdog against every one of ${field}`,
+      sub: `${lose.length ? `Predicted to lose ${lose.length} of ${N}: ${lossText}` : `Favoured in all ${N}`}${inTop ? ` · ${team.number} is #${own.rating_rank} itself` : ""} · best chance ${chance(best.p)} vs ${best.r.team} (#${best.r.rating_rank}) · ${ownLine}`,
       href: predictHref({ mode: "match", season, red: [team.number], blue: [Number(best.r.team)] }),
     },
     blocks: [
       { kind: "kpis", items: [
         { label: "Favoured in", value: `${fav.length} of ${N}`, ...(fav.length ? { tone: "good" as const } : {}) },
         { label: "Best win chance", value: chance(best.p), sub: `vs ${best.r.team} (#${best.r.rating_rank})` },
-        { label: "Average predicted loss", value: avgLoss == null ? "–" : `${Math.round(avgLoss)} pts`, sub: loseBy.length ? `in ${lose.length} predicted ${lose.length === 1 ? "loss" : "losses"}` : "No predicted loss" },
-        { label: "Biggest predicted loss", value: loseBy.length ? `${Math.round(Math.max(...loseBy))} pts` : "–" },
+        { label: "Average predicted loss", value: avgLoss == null ? "–" : `${pts(avgLoss)} pts`, sub: loseBy.length ? `in ${lose.length} predicted ${lose.length === 1 ? "loss" : "losses"}` : "No predicted loss" },
+        { label: "Biggest predicted loss", value: loseBy.length ? `${pts(Math.max(...loseBy))} pts` : "–" },
         // The engine's confidence in the call, as the other prediction cards say it: the best chance's call's tier and why.
         { label: "Confidence", value: tierWord(best.confidence.tier), sub: `vs ${best.r.team}: ${best.confidence.reason}` },
       ] },
-      { kind: "table", title: `${team.number} against each of the top ${n}, ${S}`, columns: [{ key: "team", label: "World rank" }, { key: "chance", label: "Win %", num: true }, { key: "score", label: "Score", num: true }, { key: "margin", label: "Margin", num: true }, { key: "confidence", label: "Confidence" }],
+      { kind: "table", title: `${team.number} against each of ${field.replace(/ worldwide$/, "")}, ${S}`, columns: [{ key: "team", label: "World rank" }, { key: "chance", label: "Win %", num: true }, { key: "score", label: "Score", num: true }, { key: "margin", label: "Margin", num: true }, { key: "confidence", label: "Confidence" }],
         // Short columns, so the chance, the margin and the engine's confidence fit a phone; each row opens the call in Predict.
-        rows: rows.map((c) => ({ cells: { team: `#${c.r.rating_rank} · ${c.r.team}`, chance: chance(c.p), score: `${Math.round(c.a)}–${Math.round(c.b)}`, margin: `${c.margin >= 0 ? "+" : "−"}${Math.abs(Math.round(c.margin))}`, confidence: tierWord(c.confidence.tier) }, href: predictHref({ mode: "match", season, red: [team.number], blue: [Number(c.r.team)] }) })) },
+        rows: rows.map((c) => ({ cells: { team: `#${c.r.rating_rank} · ${c.r.team}`, chance: chance(c.p), score: `${Math.round(c.a)}–${Math.round(c.b)}`, margin: Math.abs(c.margin) < 0.5 ? "Level" : `${c.margin > 0 ? "+" : "−"}${Math.abs(Math.round(c.margin))}`, confidence: tierWord(c.confidence.tier) }, href: predictHref({ mode: "match", season, red: [team.number], blue: [Number(c.r.team)] }) })) },
       ranks,
     ],
   };
