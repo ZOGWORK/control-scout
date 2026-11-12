@@ -12,7 +12,7 @@ import { cachedEventDetail } from "../server/api/events.js";
 import { seasonStats, teamKnown } from "../server/api/teams.js";
 import { eventDue, eveEmbed, recapEmbed, scheduleEmbed, venueClock } from "./eventAlerts.js";
 import type { EventDetail, MatchView } from "../src/shared/api.js";
-import { FOOTER, Friendly, VOLT, linkedAlliance, preMatchEmbed, resultEmbed, teamLink, teamsOf } from "./views.js";
+import { FOOTER, Friendly, VOLT, linkedAlliance, pride, preMatchEmbed, resultEmbed, teamLink, teamsOf } from "./views.js";
 
 /** How long before a match the reminder goes out. */
 export const REMIND_MS = 15 * 60_000;
@@ -135,7 +135,7 @@ export function nextMatch(matches: MatchView[], after: MatchView, teams: number[
 /** The post: the match design, about the followed teams (their side before, their outcome after). */
 export function postEmbed(d: Due, ev: Pick<EventDetail, "event" | "matches">, site: string): APIEmbed {
   if (d.kind === "reminder") return preMatchEmbed(ev.event.name, d.match, site, reminderLead(d, site));
-  return resultEmbed(ev.event.name, d.match, site, { followed: d.teams, next: nextMatch(ev.matches, d.match, d.teams) });
+  return resultEmbed(ev.event.name, d.match, site, { next: nextMatch(ev.matches, d.match, d.teams) });
 }
 
 export type Send = (channel: string, embed: APIEmbed) => Promise<"ok" | "gone" | "error">;
@@ -170,7 +170,7 @@ export async function notifyTick(send: Send, site: string, log: (m: string) => v
         "UPDATE discord_posts SET claimed_at = ? WHERE channel_id = ? AND season = ? AND code = ? AND match_key = ? AND kind = ? AND sent_at IS NULL AND claimed_at < ?",
         [t, ...k, new Date(now - CLAIM_STALE_MS).toISOString()]));
     if (!claimed) return;
-    const r = await send(channel, await embed());
+    const r = await send(channel, pride(await embed()));
     if (r === "ok") {
       posted++;
       await run("UPDATE discord_posts SET sent_at = ? WHERE channel_id = ? AND season = ? AND code = ? AND match_key = ? AND kind = ?", [new Date().toISOString(), ...k]);

@@ -12,7 +12,7 @@ import { REST, Routes, type APIEmbed } from "discord.js";
 import type { EventDetail, MatchView } from "../src/shared/api.js";
 import { eveEmbed, recapEmbed, scheduleEmbed } from "./eventAlerts.js";
 import { addFollow, notifyTick, postEmbed, reminderLead, type Due } from "./follows.js";
-import { preMatchEmbed, predictEmbed } from "./views.js";
+import { preMatchEmbed, predictEmbed, pride } from "./views.js";
 
 const token = process.env.DISCORD_BOT_TOKEN, guild = process.env.DISCORD_DEV_GUILD_ID, channel = process.env.DISCORD_TEST_CHANNEL_ID;
 if (!token || !guild || !channel) {
@@ -30,7 +30,7 @@ const SITE = "https://controlscout.org";
 const only = process.argv.slice(2).filter((a) => a !== "tick");
 const post = async (label: string, embed: APIEmbed) => {
   if (label !== "tick" && only.length && !only.some((o) => label.startsWith(`${o}.`))) return;
-  await rest.post(Routes.channelMessages(channel), { body: { content: `**${label}**`, embeds: [embed] } });
+  await rest.post(Routes.channelMessages(channel), { body: { content: `**${label}**`, embeds: [pride(embed)] } });
   console.log(`posted: ${label} (${JSON.stringify(embed).length} chars)`);
 };
 

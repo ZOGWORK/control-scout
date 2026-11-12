@@ -104,7 +104,9 @@ For `tick`, sync the meet first: `npm run sync -- --event 2026:USNJNEM3`.
 - **Result:** the score line (winner bold), then the story: `Called it ✅ — Red 68% (predicted 72–58), won by
   22.` / `Upset ❌ — Blue was 71% (predicted 55–74), Red won by 18.` / `Even call — predicted Red by 4, Red won
   by 16.`, then `Next: Q21 · 5:10 PM · Match · Event` when the followed team has another match (else just the
-  event link). Green border when the followed team won, rose when it lost, slate on a tie, volt otherwise.
+  event link).
+- **Pride borders.** Every embed sent (posts, answers, errors) takes one of the pride flag's six colours,
+  picked from its title (`pride` in `bot/views.ts`).
 - **A favourite needs 55%.** A call that reads 45–55% is an even call: no verdict, and it isn't counted in the
   day recap's `Calls: N of M right`.
 - **Reminder:** the followed team's side, partner and time, then the lineup and the call with its confidence

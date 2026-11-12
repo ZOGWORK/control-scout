@@ -24,11 +24,13 @@ The Discord bot's event posts: a schedule that always fits, the first match the 
 - [alerts] The evening-before post names the team's first match once the schedule is out
 - [alerts] The day recap says "Calls: 4 of 5 right" and, on a multi-day event, tomorrow's first match
 - [fixes] At a league meet the recap ranks the team among that meet's teams
+- [appearance] Every bot post has a pride-flag border: red, orange, yellow, green, blue or purple
 
 ### Changed
 - Schedule posts: one line per match, `` `Q12  4:30 PM` **Blue** 54% · with 23545 Gear Grinders vs 23314 Bolts & 8902 Hex ``: the match and time in one aligned column, the side in words, the chance, then partner and opponents by number and name. Up to 15 matches; a long list continues in the next field instead of passing Discord's 1,024 characters per field (a field over the cap made Discord reject the whole post), then `…and N more`. (`bot/eventAlerts.ts`)
 - The evening-before post adds `First match: Q3 · 9:00 AM` per followed team once the schedule is posted, and links the team and the strongest teams there. (`bot/eventAlerts.ts`)
 - The day recap reads `Calls: 4 of 5 right`; an even call (45–55%) isn't counted as a call; a multi-day event adds `Tomorrow: first match Q3 · 9:00 AM`. (`bot/eventAlerts.ts`)
+- Every embed the bot sends (follow posts, command answers, errors) has a border in one of the pride flag's six colours, picked from its title so the same post keeps its colour and a channel runs through the rainbow. It replaces 5.7.1's win / loss / tie borders and the volt default. (`pride` in `bot/views.ts`, `bot/follows.ts`, `bot/handler.ts`)
 - `npm run bot:test-post` posts every message design to a test server's channel from the real Nov 7 meet, and `-- tick` runs the real minute tick there. (`bot/testPost.ts`, `bot/README.md`)
 
 ### Fixed

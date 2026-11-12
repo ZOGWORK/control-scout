@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { EventDetail, FieldRow, MatchView } from "../src/shared/api";
 import {
-  LOSS, TIE, VOLT, WIN, dates, embedBlocks, embedReadChars, eventEmbed, movement, preMatchEmbed, predictEmbed, rankingsEmbed, resultColor, resultEmbed,
+  PRIDE, VOLT, dates, embedBlocks, embedReadChars, eventEmbed, movement, preMatchEmbed, predictEmbed, rankingsEmbed, pride, resultEmbed,
   storyLine, topByOpr, verdict, winningAlliance,
 } from "./views";
 import fixture from "./fixtures/usnjnem3-2026-11-07.json";
@@ -116,7 +116,7 @@ describe("the real Nov 7, 2026 posts (P1-5 PM Northeast League Meet)", () => {
   const q = (n: number) => ev.matches.find((x) => x.level === "qual" && x.number === n)!;
 
   it("Q16: an even call, never an upset; 4 blocks, under 600 characters", () => {
-    const e = resultEmbed(ev.event.name, q(16), SITE, { followed: [4215] });
+    const e = resultEmbed(ev.event.name, q(16), SITE);
     expect(e.title).toBe("Q16 · P1-5 PM Northeast League Meet");
     expect(e.description!.split("\n").slice(0, 2)).toEqual([
       `🔴 [23314](${SITE}/teams/23314) & [8902](${SITE}/teams/8902) **81** – 65 [4215](${SITE}/teams/4215) & [23545](${SITE}/teams/23545) 🔵`,
@@ -124,15 +124,13 @@ describe("the real Nov 7, 2026 posts (P1-5 PM Northeast League Meet)", () => {
       "Even call — predicted Red by 4, Red won by 16.",
     ]);
     expect(e.description).not.toMatch(/Upset/);
-    expect(e.color).toBe(LOSS);
     expect(embedBlocks(e)).toBeLessThanOrEqual(4);
     expect(embedReadChars(e)).toBeLessThanOrEqual(600);
   });
 
   it("Q17: the same shape and budget", () => {
-    const e = resultEmbed(ev.event.name, q(17), SITE, { followed: [6980] });
+    const e = resultEmbed(ev.event.name, q(17), SITE);
     expect(e.description!.split("\n")[1]).toBe("Even call — predicted Red by 10, Blue won by 11.");
-    expect(e.color).toBe(LOSS);
     expect(embedBlocks(e)).toBeLessThanOrEqual(4);
     expect(embedReadChars(e)).toBeLessThanOrEqual(600);
   });
@@ -155,10 +153,14 @@ describe("the real Nov 7, 2026 posts (P1-5 PM Northeast League Meet)", () => {
   });
 });
 
-describe("the followed team's colour", () => {
-  it("green on a win, red on a loss, grey on a tie, volt when mixed or unfollowed", () => {
-    const g = played(0.6, 50, 40);
-    expect([resultColor(g, [1]), resultColor(g, [3]), resultColor(played(0.6, 40, 40), [1]), resultColor(g, [1, 3]), resultColor(g, [])]).toEqual([WIN, LOSS, TIE, VOLT, VOLT]);
+describe("pride borders", () => {
+  it("every sent embed gets one of the pride flag's six colours, the same one for the same post", () => {
+    const titles = ["Q1 · Meet", "Q2 · Meet", "Q3 · Meet", "Q4 · Meet", "Q5 · Meet", "Q6 · Meet", "Schedule posted: Meet", "Something went wrong"];
+    const colours = titles.map((title) => pride({ title, color: VOLT }).color);
+    for (const c of colours) expect(PRIDE).toContain(c);
+    expect(new Set(colours).size).toBeGreaterThan(2);
+    expect(pride({ title: "Q1 · Meet", color: VOLT }).color).toBe(colours[0]);
+    expect(PRIDE).toEqual([0xe40303, 0xff8c00, 0xffed00, 0x008026, 0x004cff, 0x732982]);
   });
 });
 
