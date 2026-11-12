@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render } from "@testing-library/react";
 import { BrowserRouter, MemoryRouter, useLocation as useLocationProbe, useNavigate, type NavigateFunction } from "react-router-dom";
 import { StrictMode, useRef } from "react";
-import { chase, entryKey, HEADER_ID, jumpPageTo, pageScroller, pageTop, planScroll, scrollToElement, smoothBehavior, restoredSavedPosition, RESTORE_WINDOW_MS, SCROLL_IDLE_MS, SCROLLING_BY_TOUCH, ScrollPositions, usePageScroll } from "./pageScroll";
+import { chase, entryKey, HEADER_ID, jumpPageTo, pageScroller, pageTop, planScroll, scrollToElement, smoothBehavior, SMOOTH_SCROLL_QUERY, restoredSavedPosition, RESTORE_WINDOW_MS, SCROLL_IDLE_MS, SCROLLING_BY_TOUCH, ScrollPositions, usePageScroll } from "./pageScroll";
 
 describe("planScroll", () => {
   const base = { prevPath: "/events", path: "/teams/4215", hash: "", saved: undefined };
@@ -77,6 +77,10 @@ function fakeScroller(el: HTMLElement, height: { current: number }, viewport = 8
 
 beforeEach(() => { vi.useFakeTimers(); vi.stubGlobal("ResizeObserver", FakeResizeObserver); observers.clear(); sessionStorage.clear(); });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+// A screen for matchMedia: "desktop" (wide, mouse), "phone" (touch, narrow) or "reduced" (desktop asking for reduced motion).
+function onScreen(kind: "desktop" | "phone" | "reduced") {
+  vi.stubGlobal("matchMedia", (q: string) => ({ matches: q === SMOOTH_SCROLL_QUERY ? kind === "desktop" : q.includes("reduce") && kind === "reduced" }));
+}
 
 describe("chase", () => {
   it("re-applies on every resize until the window runs out", () => {
@@ -303,6 +307,7 @@ describe("usePageScroll", () => {
     follow();
     expect(page.scrollTop).toBe(500);
     // Followed for real: the click is heard (not cancelled) and the browser adds the #sec entry. It glides there.
+    onScreen("desktop");
     const glide = vi.fn((o: ScrollToOptions) => { page.scrollTop = o.top ?? 0; });
     vi.stubGlobal("scrollTo", glide);
     act(() => { link.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true })); });
@@ -405,22 +410,45 @@ describe("scrollToElement", () => {
     expect(document.documentElement.scrollTop).toBe(0);
     const to = vi.fn();
     vi.stubGlobal("scrollTo", to);
+    onScreen("desktop");
     placeAt("t", 900, "48px");
     scrollToElement(el, "smooth");
     expect(to).toHaveBeenCalledWith({ top: 852, behavior: "smooth" });
+  });
+
+  it("jumps instead of gliding on a phone or tablet: smooth scrolling is desktop only", () => {
+    const el = target();
+    const to = vi.fn();
+    vi.stubGlobal("scrollTo", to);
+    onScreen("phone");
+    placeAt("t", 900, "48px");
+    scrollToElement(el, "smooth");
+    expect(to).not.toHaveBeenCalled();
+    expect(document.documentElement.scrollTop).toBe(852);
+    expect(smoothBehavior()).toBe("auto");
+    // No matchMedia at all (an old browser): native, instant jumps.
+    vi.stubGlobal("matchMedia", undefined);
+    expect(smoothBehavior()).toBe("auto");
+  });
+
+  it("asks for a wide screen with a hovering mouse or trackpad, and no reduced motion", () => {
+    expect(SMOOTH_SCROLL_QUERY).toContain("(min-width: 1024px)");
+    expect(SMOOTH_SCROLL_QUERY).toContain("(hover: hover)");
+    expect(SMOOTH_SCROLL_QUERY).toContain("(pointer: fine)");
+    expect(SMOOTH_SCROLL_QUERY).toContain("(prefers-reduced-motion: no-preference)");
   });
 
   it("jumps instead of gliding under reduced motion", () => {
     const el = target();
     const to = vi.fn();
     vi.stubGlobal("scrollTo", to);
-    vi.stubGlobal("matchMedia", (q: string) => ({ matches: q.includes("reduce") }));
+    onScreen("reduced");
     placeAt("t", 900, "48px");
     scrollToElement(el, "smooth");
     expect(to).not.toHaveBeenCalled();
     expect(document.documentElement.scrollTop).toBe(852);
     expect(smoothBehavior()).toBe("auto");
-    vi.stubGlobal("matchMedia", () => ({ matches: false }));
+    onScreen("desktop");
     expect(smoothBehavior()).toBe("smooth");
   });
 });

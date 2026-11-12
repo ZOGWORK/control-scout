@@ -1,6 +1,7 @@
 // Manual scouting: your own match and pit observations on top of public data.
 // Offline-first: saved on this device the moment you press Save; synced to
 // your account when signed in and online.
+import { smoothBehavior } from "../lib/pageScroll";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ChevronLeft, ClipboardCheck, ClipboardList, Cloud, CloudOff, Download, Handshake, History, Info, LayoutList, ListOrdered, Loader2, Lock, Pause, Plus, SearchX, Video, X } from "lucide-react";
@@ -324,7 +325,7 @@ export default function ScoutPage() {
   const openPit = (team: number) => {
     setManual(null);
     setSp((x) => { x.set("tab", "event"); x.set("pit", String(team)); x.delete("at"); x.delete("entry"); return x; });
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({ top: 0, behavior: smoothBehavior() });
   };
   const closePit = () => setSp((x) => { x.delete("pit"); return x; });
   const closeEdit = () => setSp((x) => { x.delete("entry"); x.delete("new"); return x; });
