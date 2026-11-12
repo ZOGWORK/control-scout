@@ -183,6 +183,8 @@ describe("the bot's own switch", () => {
     expect(src).toContain('isEnabled("discordBruno")');
     expect(src).toContain('}, "discordBruno"),');
     expect(src).toContain('undefined, "discordBruno"),');
+    // His facts come from the same unlearned search the bot shows, never a click-reordered one.
+    expect(src).toContain('{ limit: SEARCH_PAGE_LIMIT, learn: false }, Date.now(), undefined, "discordBruno")');
     expect(src).not.toMatch(/isEnabled\("bruno(Search|Answers)"\)/);
   });
 });

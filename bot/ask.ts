@@ -59,7 +59,7 @@ export async function realAskDeps(): Promise<AskDeps> {
     search: (q) => searchAnswer(q, { learn: false, limit: SEARCH_PAGE_LIMIT }),
     refine: (q) => refine(q, { learn: false, limit: SEARCH_PAGE_LIMIT }, "discordBruno"),
     // /ask is a question however it's typed ("hi bruno", "4215 highlights"): asked as one, so Bruno writes the short answer.
-    bruno: (q) => brunoAnswer(q.trim().endsWith("?") ? q : `${q.trim()}?`, { limit: SEARCH_PAGE_LIMIT }, Date.now(), undefined, "discordBruno"),
+    bruno: (q) => brunoAnswer(q.trim().endsWith("?") ? q : `${q.trim()}?`, { limit: SEARCH_PAGE_LIMIT, learn: false }, Date.now(), undefined, "discordBruno"),
     enabled: () => isEnabled("discordBruno").catch(() => false),
     available: brunoAvailable,
     // No viewer: only the site's own match clips and recordings, as a page drawn for everyone gets.

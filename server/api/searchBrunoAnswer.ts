@@ -158,12 +158,13 @@ export function grounded(text: string, facts: string[], question: string): boole
  * Bruno's answer to the question `raw`, or null (not a question, off, unconfigured, nothing to say, failed the
  * check). `flag`: the switch that allows him here (the website's brunoAnswers; the Discord bot's own discordBruno). `opts`: the page's own search choices (its preferred teams, its limit), so he reads the results it shows.
  */
-export async function brunoAnswer(raw: string, opts: Pick<AnswerOptions, "prefer" | "limit"> = {}, now = Date.now(), onPreview?: BrunoPreview, flag: "brunoAnswers" | "discordBruno" = "brunoAnswers"): Promise<BrunoAnswer | null> {
+export async function brunoAnswer(raw: string, opts: Pick<AnswerOptions, "prefer" | "limit" | "learn"> = {}, now = Date.now(), onPreview?: BrunoPreview, flag: "brunoAnswers" | "discordBruno" = "brunoAnswers"): Promise<BrunoAnswer | null> {
   // A question by its "?" too ("hypnotic opr?"): read before cleaning, which drops it.
   const q = cleanQuery(raw);
   if (!q || !isBrunoQuestion(raw.trim().slice(0, 200))) return null;
   if (!(await isEnabled(flag).catch(() => false)) || !brunoAvailable()) return null;
-  const k = `${normalize(q)}|${[...(opts.prefer ?? [])].sort().join(",")}`;
+  // `learn: false` (the Discord bot): his facts come from the same unlearned search the bot shows, kept apart.
+  const k = `${normalize(q)}|${[...(opts.prefer ?? [])].sort().join(",")}${opts.learn === false ? "|nolearn" : ""}`;
   const hit = cache.get(k);
   if (hit && now - hit.at < CACHE_TTL_MS) return hit.answer;
   let flight = pending.get(k);
@@ -242,8 +243,8 @@ export function previewOf(raw: string, facts: string[], question: string): Bruno
   return grounded([shown.text, ...shown.points].join(" "), facts, question) ? shown : undefined;
 }
 
-async function ask(q: string, opts: Pick<AnswerOptions, "prefer" | "limit">, k: string, now: number, show?: BrunoPreview): Promise<BrunoAnswer | null> {
-  const facts = await answerFacts(await searchAnswer(q, { ...opts, learn: true }));
+async function ask(q: string, opts: Pick<AnswerOptions, "prefer" | "limit" | "learn">, k: string, now: number, show?: BrunoPreview): Promise<BrunoAnswer | null> {
+  const facts = await answerFacts(await searchAnswer(q, { ...opts, learn: opts.learn ?? true }));
   let answer: BrunoAnswer | null = null;
   try {
     // Streamed for a page that watches: each new checked part goes to it; once a part fails the check, the page is
