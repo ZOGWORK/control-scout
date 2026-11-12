@@ -11,7 +11,7 @@ import { eventHasDataSql, isReachableEventCode, teamIndexableSql } from "./index
 import { eventPath } from "../src/shared/eventCode.js";
 import { PRERENDERED_PAGES } from "../src/shared/prerendered.js";
 import { isEnabled } from "./flags.js";
-import { downloadsOffered } from "./packs/routes.js";
+import { offeredManifest } from "./packs/routes.js";
 import { leagueHref } from "../src/shared/leagues.js";
 import { SEASON_NUMBERS } from "./data/seasons.js";
 
@@ -78,7 +78,7 @@ export async function sitemapEntries(): Promise<Entry[]> {
   // The rules reference only while the owner has it on (flag rulesReference); off, its page is noindex.
   const rulesOn = await isEnabled("rulesReference").catch(() => false);
   // Download only while it lists season files (offline packs on and built); else it is a heading and a line.
-  const downloads = await downloadsOffered().catch(() => false);
+  const downloads = !!(await offeredManifest().catch(() => null));
   return [
     ...STATIC_PAGES.filter((p) => p !== "/rules" || rulesOn).map((p) => ({ loc: canonicalUrl(p) })),
     ...(downloads ? [{ loc: canonicalUrl("/download") }] : []),
