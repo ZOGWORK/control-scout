@@ -8,6 +8,14 @@ name: CI
 #   the home page never downloads the charts chunk
 # The server under test starts from an empty database and restores the
 # shipped snapshot, so the numbers use real data with no credentials.
+#
+# The legs run side by side, so the wall clock is the slowest leg, not the sum:
+#   lint   types + the shell-script tests
+#   test   the full vitest suite, split into shards (every file runs in exactly one shard)
+#   build  production build, server bundle starts, performance budgets (needs the build only, not the tests)
+#   search-eval
+# `check` waits for all four and fails unless every one of them (and every shard) passed, so it is the one status
+# to read before merging.
 
 on:
   pull_request:
@@ -22,11 +30,11 @@ permissions:
   contents: read
 
 jobs:
-  check:
+  lint:
     # Pinned: ubuntu-latest moved to 26.04 on 2026-10-21, where Playwright has no Chromium build yet ("Playwright
     # does not support chromium on ubuntu26.04-x64"), so the browser install failed every run. Unpin once it does.
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -35,11 +43,40 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund --loglevel=error
       - run: npm run lint
-      - run: npm test
       - name: Uptime script tests (fake curl and gh, no network)
         run: bash .github/scripts/uptime.test.sh
       - name: Changelog guard tests
         run: bash .github/scripts/changelog-guard.test.sh
+
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      # Every shard runs to the end and reports, even when another one fails.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    name: test (shard ${{ matrix.shard }}/3)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund --loglevel=error
+      # The same `npm test` (vitest run), split by file: shards 1..3 together run every test file once.
+      - run: npm test -- --shard=${{ matrix.shard }}/3
+
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund --loglevel=error
       - run: npm run build
       # The VM starts the server from this bundle (scripts/build-server.mjs): a bundle that can't start fails here,
       # not on the live site. It must answer ready, and quickly (it restores the shipped snapshot first here).
@@ -53,8 +90,22 @@ jobs:
             sleep 1
           done
           cat "$RUNNER_TEMP/bundle.log"; exit 1
+      # The Chromium download is cached per Playwright version; the system libraries still install every run.
+      - name: Playwright version
+        id: pw
+        run: echo "version=$(node -p "require('playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Playwright browser cache
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-24.04-${{ steps.pw.outputs.version }}-chromium
       - name: Playwright browser
+        if: steps.pw-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
+      - name: Playwright system libraries
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
       - name: Performance budgets
         run: npm run perf -- --budgets --json perf.json
       - name: Keep the numbers
@@ -80,3 +131,18 @@ jobs:
       - run: npm ci --no-audit --no-fund --loglevel=error
       - name: Search eval
         run: DATA_DIR="$RUNNER_TEMP/evaldata" DATABASE_URL="file:$RUNNER_TEMP/evaldata/scout.db" CS_NO_SCHEDULER=1 npm run search:eval
+
+  # The one status to gate a merge on. `if: always()` makes it run (and fail) when a leg failed or was cancelled,
+  # instead of being skipped, which would read as neither pass nor fail.
+  check:
+    needs: [lint, test, build, search-eval]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Every leg passed
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          echo "$RESULTS" | jq -e 'all(.[]; .result == "success")' > /dev/null
