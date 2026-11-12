@@ -347,8 +347,12 @@ async function withVerdict(raw: string, a: SearchAnswer, opts: AnswerOptions): P
   // Whether a team is from a place: its own card (the place asked, yes or no, the country named), never the bare
   // "where they're from" card the question was also read as.
   if (yn?.stat?.intent === "yes-no-location") return carryOutcome(a, { ...yn, q: a.q });
+  // Whether a team was at an event is its own card: where it played, or what it played instead, never only the
+  // results there ("was 12345 at <event>" is a team at an event to the parser too). Any other card that answered
+  // (Worlds, its state championship) keeps the verdict above it.
+  const own = yn?.stat?.intent === "yes-no-attended" && a.stat?.intent === "results";
   // A copy keeps the outcome failed-search reporting reads (./searchLayers.ts).
-  return answered ? carryOutcome(a, { ...a, verdict }) : { ...yn!, q: a.q };
+  return answered && !own ? carryOutcome(a, { ...a, verdict }) : { ...yn!, q: a.q };
 }
 
 /** A question search can't answer yet: sorry, with what was read and the searches that do answer about it

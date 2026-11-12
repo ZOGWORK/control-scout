@@ -164,15 +164,16 @@ async function wonAward(t: Team, award: string | null, s: EventScope | null, eve
   };
 }
 
-/** "Has <team> ever lost to (or beaten) <team>": the matches they met in on opposite alliances. */
-async function beaten(a: Team, b: Team, outcome: "W" | "L", s: EventScope | null): Promise<StatAnswer> {
+/** "Has <team> ever lost to (or beaten) <team>", "did <team> ever play <team>" (`outcome` null): the matches they met
+ *  in on opposite alliances. */
+async function beaten(a: Team, b: Team, outcome: "W" | "L" | null, s: EventScope | null): Promise<StatAnswer> {
   const home = (await get<{ r: string | null }>("SELECT home_region r FROM teams WHERE number = ?", [a.number]))?.r ?? null;
   const events = s ? new Set((await playedAt(a.number)).filter(inScope(s, home)).map((e) => `${e.season}|${e.code}`)) : null;
   // The matches on the team's record, as the head-to-head counts them: never one it played as a surrogate.
   const met = (await teamMatches(a.number)).filter((m) => m.counted && m.onField && (OFFICIAL_TYPES as readonly string[]).includes(m.type ?? "") && m.opponents.includes(b.number) && (!events || events.has(`${m.season}|${m.code}`))).reverse();
-  const hit = met.filter((m) => m.result === outcome);
+  const hit = outcome ? met.filter((m) => m.result === outcome) : met;
   const links = await teamLinks(met.flatMap((m) => [...m.partners, ...m.opponents]));
-  const verb = outcome === "L" ? `lost to ${who(b)}` : `beaten ${who(b)}`;
+  const verb = outcome === "L" ? `lost to ${who(b)}` : outcome === "W" ? `beaten ${who(b)}` : `played against ${who(b)}`;
   const where = s ? ` ${at(s)}` : "";
   const ok = hit.length > 0;
   const wins = met.filter((m) => m.result === "W").length, losses = met.filter((m) => m.result === "L").length, ties = met.length - wins - losses;
@@ -180,7 +181,7 @@ async function beaten(a: Team, b: Team, outcome: "W" | "L", s: EventScope | null
     family: "two-team", intent: "yes-no-beaten", title: `Has ${who(a)} ${verb}${where}?`, team: a, teams: [a, b], scope: [s?.season != null ? seasonLabel(s.season) : "All seasons"],
     headline: { value: yes(ok), label: ok ? `${who(a)} has ${verb}${where}: ${hit.length} ${hit.length === 1 ? "time" : "times"}` : met.length ? `${who(a)} has never ${verb}${where}` : `${who(a)} and ${who(b)} have never played against each other${where}`,
       ...(met.length ? { sub: `${met.length} ${met.length === 1 ? "meeting" : "meetings"}: ${a.number} ${wins}-${losses}-${ties}` } : {}) },
-    blocks: met.length ? [{ kind: "matches", title: ok ? (outcome === "L" ? "Their losses" : "Their wins") : "Every meeting", rows: (ok ? hit : met).slice(0, 25).map((m) => matchRow(m, links, a.number)) }] : [],
+    blocks: met.length ? [{ kind: "matches", title: ok && outcome ? (outcome === "L" ? "Their losses" : "Their wins") : "Every meeting", rows: (ok ? hit : met).slice(0, 25).map((m) => matchRow(m, links, a.number)) }] : [],
     definition: "Meetings are the matches the two teams played on opposite alliances at official events; a win or a loss is the official result, penalties included.",
     source: `From ${met.length} ${met.length === 1 ? "meeting" : "meetings"} on record`,
   };
@@ -199,6 +200,10 @@ export function derivedVerdict(q: string, a: SearchAnswer): NonNullable<SearchAn
   const head = a.stat?.headline ?? (a.card?.headline ? { value: a.card.headline, label: "" } : undefined);
   const m = head && /^(\d[\d,]*)\s+\p{L}/u.exec(head.value.trim());
   if (!m) return null;
+  // A team's number leading the headline ("4215 leads 101.6 – 46.9", "4215 leads 2–0") is who, never a count: a side by
+  // side's numbers are no yes or no.
+  const named = [a.stat?.team?.number, ...(a.stat?.teams ?? []).map((t) => t.number), ...a.hits.filter((h) => h.kind === "team").map((h) => Number(h.ref))];
+  if (named.includes(Number(m[1].replace(/,/g, "")))) return null;
   const count = Number(m[1].replace(/,/g, ""));
   return { answer: count > 0 ? "Yes" : "No", label: [head.value.trim(), head.label, "sub" in head ? head.sub : undefined].filter(Boolean).join(" · ") };
 }
@@ -206,8 +211,12 @@ export function derivedVerdict(q: string, a: SearchAnswer): NonNullable<SearchAn
 /** The answer for a yes-or-no question, or null when `q` isn't one of the shapes answered here. */
 export async function yesNoAnswer(q: string, opts: { full: boolean; pages: SearchPageLink[]; now?: number; prefer?: ReadonlySet<string>; resolve: (core: string) => Promise<SearchAnswer> }): Promise<(SearchAnswer & { verdict: NonNullable<SearchAnswer["verdict"]> }) | null> {
   const n = normalise(q);
-  if (!FRAME.test(n) || ASKS.test(n)) return null;
+  if (ASKS.test(n)) return null;
   const p = await parseQuery(q, await parseContext(opts.now, opts.prefer));
+  // Losses to a team ("12345 losses to 67890") are the meetings that happened however the question opens: "Yes" or "No"
+  // is whether there were any. Every other shape is a yes-or-no question only when framed as one.
+  const lostTo = p.teams.length === 2 && p.symbols.includes("metric:opponent") && p.symbols.includes("outcome:L");
+  if (!FRAME.test(n) && !lostTo) return null;
   if (p.leftover.some((w) => !VERBS.test(w.toLowerCase())) || p.n != null || p.matchNumber != null || p.level || p.alliance || p.finals) return null;
   // Whether a team is from a place ("is <team> from <place>", "is <team> really based in <place> or what").
   const home = p.place && p.teams.length === 1 && FROM.test(n) && !p.event && !p.eventKind && !p.worlds && !p.states && !p.time && !p.award
@@ -221,6 +230,9 @@ export async function yesNoAnswer(q: string, opts: { full: boolean; pages: Searc
   let stat: StatAnswer | null = home;
   if (stat) { /* answered above */ } else if (t.length === 2 && (sym.has("outcome:L") || sym.has("metric:win")) && [...sym].every((x) => /^(?:metric:(?:opponent|win|loss)|outcome:[WL]|thing:match)$/.test(x))) {
     stat = await beaten(t[0], t[1], sym.has("outcome:L") || sym.has("metric:loss") ? "L" : "W", scope);
+  } else if (t.length === 2 && p.symbols.includes("vs") && p.time?.kind === "ever" && [...sym].every((x) => x === "thing:match" || x === "hypo" || x === "and")) {
+    // "Did <team> ever play <team>", "<team>'s match against <team>, if they ever played": whether they met.
+    stat = await beaten(t[0], t[1], null, scope);
   } else if (t.length === 1 && (p.award || sym.has("metric:award")) && [...sym].every((x) => /^metric:(?:award|win)$/.test(x))) {
     stat = await wonAward(t[0], p.award, scope);
   } else if (t.length === 1 && sym.has("metric:win") && (scope && !scope.bare ? !!p.eventKind || !!p.event : sym.has("thing:event")) && [...sym].every((x) => x === "metric:win" || x === "thing:event")) {

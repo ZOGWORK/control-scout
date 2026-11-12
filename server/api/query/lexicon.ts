@@ -121,7 +121,7 @@ const TABLE: [string, Sym | Sym[]][] = [
   // Winning a match, as a question ("did they ever win a match"): its wins.
   ["win a match|won a match|win a game|won a game|win any match|won any match|win any matches|won any matches", [{ k: "metric", v: "win" }, { k: "thing", v: "match" }]],
   // Losing to someone: the opponents that beat the team.
-  ["lose to|lost to|loses to|losing to|lost against|beaten by|defeated by|beat by", [{ k: "metric", v: "opponent" }, { k: "outcome", v: "L" }]],
+  ["lose to|lost to|loses to|losing to|lost against|beaten by|defeated by|beat by|losses to|loss to|losses against|loss against|losses vs|losses versus|lost vs|lost versus", [{ k: "metric", v: "opponent" }, { k: "outcome", v: "L" }]],
   // The same asked about the other side: "who beat <team>" is the teams that beat it.
   ["who beat|who has beaten|who have beaten|who beats|who defeated|who has defeated|who knocked out|who eliminated", [{ k: "metric", v: "opponent" }, { k: "outcome", v: "L" }]],
   ["tie|ties|tied|draw|draws", { k: "metric", v: "tie" }],
@@ -181,6 +181,8 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["advance|advances|advancing|advancement|advancements|advance to the finals|make the finals|making the finals|go through|goes through|get through|gets through", { k: "advance" }],
   // Two teams.
   ["vs|v|versus|against|facing|face|faced|play|played|playing|plays|vs.", { k: "vs" }],
+  // "Played each other", "faced one another": the two teams on opposite sides.
+  ["each other|one another", { k: "vs" }],
   ["swap|swaps|swapped|swapping|swap out|switch|switches|switched|switching|switch out|replace|replaces|replaced|replacing|substitute|substituted|substituting|sub|subs|subbed|subbing|sub out|trade|traded|trading|if i swap|if we swap|what if i swap|what if we swap|if i replace|if we replace|if i switch|if we switch|if i sub|if we sub|if i substitute|if we substitute", { k: "swap" }],
   ["sub in|swap in|switch in|bring in|subbing in|swapping in|switching in|bringing in", [{ k: "swap" }, { k: "swap-in" }]],
   ["odds change|change the odds|chances change|change the chances|how do the odds change|how would the odds change|how do the chances change|how does that change|how would that change|how does it change|how would it change", { k: "predict" }],

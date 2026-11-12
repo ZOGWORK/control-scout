@@ -206,3 +206,81 @@ export async function nextEventPrediction(id: IntentId, team: AnswerTeam, now = 
     ],
   };
 }
+
+const TOP_RULE = "The engine's call for one team on each alliance in a qualification match, as Predict makes it, made once against each team ranked in the world's top N by prediction rating that season (the Rankings page's order): each side's expected score (without penalties, margin-calibrated), the win chance and the predicted margin. A real FTC match is two alliances of two, so a real match's call also needs the partners: Predict works it out for any lineup.";
+
+/** A win chance as said on a card: never 0% or 100%, which the engine never claims (anything that would round to one is
+ *  "<1%" or ">99%"). */
+/** The engine's confidence tier as a card says it ("High"). */
+const tierWord = (t: string) => t[0].toUpperCase() + t.slice(1);
+const chance = (p: number) => (p < 0.01 ? "<1%" : p > 0.99 ? ">99%" : pct(p));
+
+/** "Can 12345 beat a top 10 team worldwide, and by how much would they lose": the engine's call for the team against each
+ *  team ranked in the world's top `n` by prediction rating in `season`, the favoured ones counted and the predicted
+ *  losses' margins said. With no call to make (predictions off, ratings still loading), the ratings gaps, never a guess. */
+export async function predictTopAnswer(team: AnswerTeam, season: number, n: number): Promise<StatAnswer> {
+  const S = seasonLabel(season);
+  const title = `${team.number} against the top ${n} worldwide`;
+  const base = { family: "stat" as const, intent: "predict-vs-top", title, team, scope: [S, `World top ${n} by prediction rating`, "Qualification match, one team per alliance"], definition: TOP_RULE, source: `From the engine's ${S} prediction ratings` };
+  const ranks: StatBlock = { kind: "links", title: "Try it", items: [{ label: `${S} rankings`, href: `/rankings?season=${season}` }] };
+  if (isLegacy(season)) return { ...base, blocks: [ranks], none: `Predictions start with 2023–24: ${S} has no prediction ratings.` };
+  const own = (await all<RatingRow>("SELECT team, rating_np, rating_sd, rating_rank FROM team_season_stats WHERE season = ? AND team = ?", [season, team.number]))[0];
+  if (own?.rating_np == null) return { ...base, blocks: [ranks], none: `No ${S} prediction rating for ${whoOf(team)} yet, so there's no call to make.` };
+  // The world's top N, the team itself left out (it never plays itself).
+  const tops = (await all<RatingRow & { name: string | null }>("SELECT s.team, s.rating_np, s.rating_sd, s.rating_rank, t.name FROM team_season_stats s LEFT JOIN teams t ON t.number = s.team WHERE s.season = ? AND s.rating_rank IS NOT NULL AND s.rating_rank <= ? ORDER BY s.rating_rank", [season, n]))
+    .filter((r) => Number(r.team) !== team.number);
+  if (!tops.length) return { ...base, blocks: [ranks], none: `No ${S} world ranks by prediction rating yet.` };
+  const inTop = own.rating_rank != null && Number(own.rating_rank) <= n;
+  const who = (r: { team: number; name: string | null }) => whoOf({ number: Number(r.team), name: r.name });
+  const off = !(await isEnabled("livePredictions").catch(() => false));
+  const f = off ? null : readyForecaster(season);
+  const engine = f ? await f : null;
+  const recent = engine ? await recentRecords(season, [team.number, ...tops.map((r) => Number(r.team))]) : undefined;
+  const calls = engine ? tops.map((r) => ({ r, x: engine.explain(season, [team.number], [Number(r.team)], "qual", undefined, recent) })) : [];
+  const ownLine = `${whoOf(team)}: ${num1(own.rating_np)} ±${Math.round(own.rating_sd ?? 0)}${own.rating_rank ? `, #${own.rating_rank} worldwide` : ""}`;
+  const extra = inTop ? ` ${team.number} is itself in the top ${n}, so ${tops.length} teams are called.` : "";
+  if (!calls.length || calls.some((c) => !c.x)) {
+    // No call to show: the ratings gaps, said plainly.
+    const above = tops.filter((r) => Number(r.rating_np) > Number(own.rating_np)).length;
+    return {
+      ...base, definition: `${TOP_RULE}${extra}`,
+      headline: { value: above === tops.length ? "Rated below all" : `Rated above ${tops.length - above}`, label: inTop ? `of the other ${tops.length} teams in the ${S} top ${n} worldwide` : `of the ${S} top ${n} worldwide`, sub: `${off ? "Live predictions are switched off just now." : "The engine's ratings are still loading: Predict shows the call."} ${ownLine}` },
+      blocks: [{ kind: "table", title: `The top ${n}, ${S}`, columns: [{ key: "team", label: "World rank" }, { key: "rating", label: "Rating", num: true }, { key: "gap", label: "Gap", num: true }],
+        rows: tops.map((r) => ({ cells: { team: `#${r.rating_rank} · ${r.team}`, rating: num1(r.rating_np), gap: num1(Number(own.rating_np) - Number(r.rating_np)) }, href: predictHref({ mode: "match", season, red: [team.number], blue: [Number(r.team)] }) })) }, ranks],
+    };
+  }
+  const rows = calls.map(({ r, x }) => ({ r, p: x!.winProbA, a: x!.predictedScoreA, b: x!.predictedScoreB, margin: x!.predictedScoreA - x!.predictedScoreB, confidence: x!.confidence }));
+  const fav = rows.filter((c) => c.p >= 0.5), lose = rows.filter((c) => c.p < 0.5);
+  const best = rows.reduce((x, y) => (y.p > x.p ? y : x));
+  const loseBy = lose.map((c) => Math.abs(c.margin));
+  const avgLoss = loseBy.length ? loseBy.reduce((s, v) => s + v, 0) / loseBy.length : null;
+  const N = rows.length;
+  // The teams called: the top N, or, when the team is one of them, the other N − 1 (it never plays itself).
+  const field = inTop ? `the other ${N} teams in the top ${n} worldwide` : `the top ${n} worldwide`;
+  // A predicted loss of under half a point is said as "<1", never "0" (it is still a loss).
+  const pts = (v: number) => (v < 0.5 ? "<1" : String(Math.round(v)));
+  const lossText = loseBy.length ? `would lose by ${pts(avgLoss!)} points on average (${pts(Math.min(...loseBy))}–${pts(Math.max(...loseBy))})` : "no predicted loss";
+  return {
+    ...base, definition: `${TOP_RULE}${extra}`,
+    headline: {
+      value: fav.length ? "Yes" : "No",
+      label: fav.length ? `Favoured against ${fav.length} of ${field}` : `Underdog against every one of ${field}`,
+      sub: `${lose.length ? `Predicted to lose ${lose.length} of ${N}: ${lossText}` : `Favoured in all ${N}`}${inTop ? ` · ${team.number} is #${own.rating_rank} itself` : ""} · best chance ${chance(best.p)} vs ${best.r.team} (#${best.r.rating_rank}) · ${ownLine}`,
+      href: predictHref({ mode: "match", season, red: [team.number], blue: [Number(best.r.team)] }),
+    },
+    blocks: [
+      { kind: "kpis", items: [
+        { label: "Favoured in", value: `${fav.length} of ${N}`, ...(fav.length ? { tone: "good" as const } : {}) },
+        { label: "Best win chance", value: chance(best.p), sub: `vs ${best.r.team} (#${best.r.rating_rank})` },
+        { label: "Average predicted loss", value: avgLoss == null ? "–" : `${pts(avgLoss)} pts`, sub: loseBy.length ? `in ${lose.length} predicted ${lose.length === 1 ? "loss" : "losses"}` : "No predicted loss" },
+        { label: "Biggest predicted loss", value: loseBy.length ? `${pts(Math.max(...loseBy))} pts` : "–" },
+        // The engine's confidence in the call, as the other prediction cards say it: the best chance's call's tier and why.
+        { label: "Confidence", value: tierWord(best.confidence.tier), sub: `vs ${best.r.team}: ${best.confidence.reason}` },
+      ] },
+      { kind: "table", title: `${team.number} against each of ${field.replace(/ worldwide$/, "")}, ${S}`, columns: [{ key: "team", label: "World rank" }, { key: "chance", label: "Win %", num: true }, { key: "score", label: "Score", num: true }, { key: "margin", label: "Margin", num: true }, { key: "confidence", label: "Confidence" }],
+        // Short columns, so the chance, the margin and the engine's confidence fit a phone; each row opens the call in Predict.
+        rows: rows.map((c) => ({ cells: { team: `#${c.r.rating_rank} · ${c.r.team}`, chance: chance(c.p), score: `${Math.round(c.a)}–${Math.round(c.b)}`, margin: Math.abs(c.margin) < 0.5 ? "Level" : `${c.margin > 0 ? "+" : "−"}${Math.abs(Math.round(c.margin))}`, confidence: tierWord(c.confidence.tier) }, href: predictHref({ mode: "match", season, red: [team.number], blue: [Number(c.r.team)] }) })) },
+      ranks,
+    ],
+  };
+}

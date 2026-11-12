@@ -223,6 +223,21 @@ describe("yes or no, with the evidence (3c)", () => {
     }
     expect(await yn("did 7149 ever beat 23268")).toMatchObject({ answer: "Yes" });
   });
+  it("words about the past between two teams are their meetings: never a prediction, never a verdict from compare numbers", async () => {
+    // Losses to a team, however it opens: the same meetings and the same verdict as "has … ever lost to".
+    expect(await yn("7149 losses to 23268")).toMatchObject({ kind: "head-to-head", answer: "No", label: "Enforcers (7149) has never lost to Ultraviolet (23268) · 1 meeting: 7149 1-0-0" });
+    // Playing said with "ever": whether they met, from the meetings ("if they ever played" is whether, not a supposition).
+    for (const q of ["did 7149 ever play 23268", "show me 7149's match against 23268, if they ever played"]) {
+      expect(await yn(q), q).toMatchObject({ kind: "head-to-head", answer: "Yes", label: "Enforcers (7149) has played against Ultraviolet (23268): 1 time · 1 meeting: 7149 1-0-0" });
+    }
+    // Never met: "No", said as never played, not a side by side's lead read as a count.
+    expect(await yn("did 4215 ever play 24033")).toMatchObject({ answer: "No", label: "Hypnotic Robotics (4215) and Alphatronic (24033) have never played against each other" });
+    // A supposition stays a prediction, and a plain versus stays the side by side, with no verdict.
+    expect((await ask("if 7149 played 23268 who would win")).stat?.intent).toBe("predict");
+    expect(await yn("7149 vs 23268")).toMatchObject({ kind: "compare", answer: undefined });
+    // A team and an event alone: its results there, as "matches at" gives.
+    for (const q of ["7149 at NJ championship in 2025-26", "7149 matches at NJ championship in 2025-26"]) expect((await ask(q)).stat?.intent, q).toBe("results");
+  });
   it("a season said alone narrows the answer", async () => {
     expect(await yn("has 7149 won inspire in 2025-26")).toMatchObject({ answer: "Yes" });
     expect(await yn("has 7149 won inspire in 2024-25")).toMatchObject({ answer: "No", label: "Enforcers (7149) has never won the Inspire Award in 2024–25" });
