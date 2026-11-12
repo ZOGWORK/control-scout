@@ -36,6 +36,7 @@ import { parseContext } from "./context.js";
 import { topTeamsNote, topTeamsSaid } from "./topTeams.js";
 import type { PipelineIntent } from "./intents.js";
 import { place } from "../../../src/shared/format.js";
+import { readAsk } from "../searchAsks.js";
 
 export interface PipelineOptions { full: boolean; pages: SearchPageLink[]; resolve: Resolve; now?: number; prefer?: ReadonlySet<string> }
 
@@ -578,8 +579,9 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
       intent: { kind: "stat-streak-board", pattern: "streak [place]", met: true, understood: [stat.title] } };
   }
   if (!p.teams.length && intent === "leaderboard") {
-    // The search box keeps the asks' own short card; the page draws the list.
-    if (!opts.full) return null;
+    // The search box keeps the asks' own short card, and an event's board stays the page's; the page draws the list. A
+    // board of teams the asks don't read ("nj teams ranked by opr") gets the board's own short card below, never a sorry.
+    if (!opts.full && (readAsk(p.q) || !p.symbols.includes("thing:team") || p.event || p.worlds || p.states)) return null;
     // The teams at one event, Worlds or a state championship ("east bergen conference best teams", "top teams at nj
     // states"): that event's board.
     if ((p.event || p.worlds || p.states) && !p.level && !p.alliance && !p.finals && !p.eventKind && !scope.window && !scope.ever) return eventBoard(p, scope, said, opts);
@@ -612,6 +614,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
       kind: "top", stat: stats[0] ?? (p.undefeated ? "wins" : town || p.place?.kind === "country" ? "opr" : "rating"), ...(p.undefeated ? { undefeated: true } : {}), n: one ? 5 : Math.min(25, p.n ?? 10), region, city: null, town: town?.city ?? null, season: placeSeason(p, scope.season, opts),
       ...(one ? { best: true } : {}), ...((p.agg === "min") !== goodWord ? { asc: true } : {}),
     };
+    // A fewer-is-better board (penalties) is titled by its card on the page ("… with the most penalties"), never here.
+    if (!opts.full && BOARD_STATS[b.stat]?.fewerBetter) return null;
     // A stat said not to go by is never the one ranked by (a default included): with no other stat said, left unanswered.
     if ((p.notMetrics ?? []).some((s) => BOARD_STAT[s] === b.stat)) return null;
     // A stat said not to go by is named on the card, never silently dropped.
@@ -623,6 +627,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     // row first, each a team's own record question.
     const asked = b.stat === "record" && !p.agg && !p.undefeated ? whichTeam : (x: SearchAnswer | null) => x;
     const a = await board(b);
+    // The search box's short card links to the page, which steps the season (as ../answers/index.ts statAnswer does).
+    if (!opts.full) return a;
     // No season said, or "this season": the current one, then the one before when nobody has played enough yet.
     if (scope.season != null || !(p.time == null || (p.time.kind === "season" && p.time.relative === "this"))) return asked(a);
     return asked(await relaxed(a, defaultSteps(b.season!, town ? ` in ${town.city}` : region ? ` in ${region.name}` : "", b.undefeated ? "undefeated teams" : b.kind === "top" ? "ranked teams" : "teams"), (season) => board({ ...b, season })));

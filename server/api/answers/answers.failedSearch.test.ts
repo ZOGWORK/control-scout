@@ -282,6 +282,11 @@ describe("leaderboard sorts in plain words", () => {
       expect(a.step, q).toBe("deterministic");
       expect(a.stat?.title, q).toBe("Top 10 teams by OPR in New Jersey · 2025–26");
       expect(labels(a.stat!), q).toEqual(board);
+      // The search box (and the owner's re-check) reads it the same: the board's short card, linking to the page.
+      const box = await searchAnswer(q, { limit: 12, learn: false });
+      expect(box.step, q).toBe("deterministic");
+      expect(box.understood?.label, q).toBe("Top 10 teams by OPR in New Jersey");
+      expect(box.pages[0]?.href, q).toBe(`/search?q=${encodeURIComponent(q)}`);
     }
   });
   it("two phases joined are their OPRs added", async () => {

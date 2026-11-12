@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.7.5 — 2026-11-12
+
+The search box now answers "nj teams ranked by opr" and "nj teams opr" too, with a link to New Jersey's OPR board.
+
+### Highlights
+- [fixes] Search box: "nj teams ranked by opr" links to NJ's OPR board
+- [fixes] "nj teams opr" in the search box links to the same board
+- [fixes] Re-checking these failed searches now reads them right
+
+### Fixed
+- 5.7.4 answered these two failed searches on the results page, but the search box's short list (and the owner's re-check of a failed search, which asks the same way) still said "Sorry" for "nj teams ranked by opr" and listed matching names for "nj teams opr". In the box, a board of teams with no team named was left to the asks' short cards, which don't read these wordings. A board of teams those cards don't read now gets the board's own short card, a link to the page's list, as the other boards do in the box. Boards the asks read ("best opr in nj"), event boards, penalty boards and boards with no "teams" said keep their cards as before. Asked of every held-out question in the box, 10 more that said "Sorry" ("top 5 teams in Romania by rating, not OPR", "best team in Oradell, NJ, by record") now get the same board title as their results page, and nothing else changed but the board link's query, now as typed. (`server/api/query/execute.ts`) (#PR)
+
 ## 5.7.4 — 2026-11-12
 
 A place typed before "teams" and a stat now gets that place's board, instead of a sorry page or a list of events.
