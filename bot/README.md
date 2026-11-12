@@ -157,8 +157,9 @@ For `tick`, sync the meet first: `npm run sync -- --event 2026:USNJNEM3`.
 ## On the VM
 
 `deploy/oracle-vm-setup.sh` (run by every deploy) writes `/etc/systemd/system/control-scout-bot.service`:
-the same user, release directory and `.env` as the site, `Restart=always` except on exit 78, a 768 MB
-memory cap and a lower CPU priority than the site. When `DISCORD_BOT_TOKEN` is set in
+the same user, release directory and `.env` as the site, `Restart=always` except on exit 78, a 1.5 GB
+Node heap under a 2 GB memory cap (768 MB gave Node about 380 MB, which the bot outgrew with the full data) and a
+lower CPU priority than the site. When `DISCORD_BOT_TOKEN` is set in
 `/opt/control-scout/shared/.env` the deploy enables and restarts it after the site; without one the unit is
 disabled. A bot that fails to start never fails a deploy.
 

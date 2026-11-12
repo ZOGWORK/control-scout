@@ -170,13 +170,15 @@ Wants=network-online.target
 User=$APP_USER
 WorkingDirectory=$APP_DIR/current
 EnvironmentFile=$SHARED/.env
-ExecStart=$(command -v node) --import tsx bot/index.ts
+# A 1.5 GB heap: with the site's full data the bot needs more than the ~380 MB Node gave it under a 768M cap
+# (it ran out of memory and restarted every few minutes, so it never stayed up to answer).
+ExecStart=$(command -v node) --max-old-space-size=1536 --import tsx bot/index.ts
 Restart=always
 RestartSec=10
 RestartPreventExitStatus=78
 TimeoutStopSec=15
 Nice=5
-MemoryMax=768M
+MemoryMax=2G
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
