@@ -27,7 +27,7 @@ Search on a phone: every link in an answer is at least 44px to tap, and a headin
 ### Fixed
 - An event family's name was 33px tall on a phone, and short division and quick links ("Finals", "Teams") under 44px wide. They are now 44px at least, everywhere the event tree shows. (`src/components/search/page/EventTree.tsx`)
 - A trend card's event links had no minimum width, so a short name ("Cyber7") made a 36px target. They now take 44px at least on phones. (`src/components/search/page/StatAnswer.tsx`)
-- When an answer card's title said the page heading and more ("Teams in Oradell, NJ" under "Teams in Oradell"), both showed. The heading now takes the card's fuller title and the card doesn't repeat it; the reading badge is left out when the heading already says it. (`src/shared/searchPage.ts`, `src/pages/SearchPage.tsx`) (#1398)
+- When an answer card's title said the page heading and more ("Teams in Oradell, NJ" under "Teams in Oradell"), both showed. The heading now takes the card's fuller title and the card doesn't repeat it; the reading badge is left out when the heading already says it. The page's first paint does the same. (`src/shared/searchPage.ts`, `src/pages/SearchPage.tsx`, `server/seoMeta.ts`) (#1398)
 
 ## 5.6.6 — 2026-11-11
 

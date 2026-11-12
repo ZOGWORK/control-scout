@@ -9,6 +9,7 @@ import { searchAnswer } from "../searchAnswer";
 import { namedTeam } from "../searchCompare";
 import { readCompound } from "./compound";
 import { refreshSearchSeason, resetSearchSeason } from "./season";
+import { pageMeta } from "../../seoMeta";
 
 // The latest completed season: the fixture's Worlds below has finished.
 const S = CURRENT_SEASON - 1;
@@ -429,5 +430,17 @@ describe("a team list's filters, however they're said", () => {
       expect(rows(a)).toEqual(["33950 First Street Kids"]);
       expect(a.stat?.headline?.value).toBe("1 rookie team");
     } finally { await run("UPDATE teams SET rookie_year = NULL WHERE number = 33950"); clearAllCaches(); }
+  });
+});
+
+describe("a place's count, first paint", () => {
+  // "Teams in Oradell, NJ" under "Teams in Oradell" said the place twice: the fuller card title is the heading, and the
+  // card doesn't say it again (headingOver, as the app does).
+  it("says the card's fuller title once, as the heading", async () => {
+    const title = (await ask("how many teams from Oradell")).stat?.title ?? "";
+    expect(title).toMatch(/^Teams in Oradell, NJ/);
+    const m = await pageMeta("/search", { q: "how many teams from Oradell" });
+    expect(m.heading).toBe(title);
+    expect(m.bodyHtml ?? "").not.toMatch(/<h[23][^>]*>Teams in Oradell/);
   });
 });
