@@ -23,7 +23,7 @@ export const BOT_COMMANDS: { usage: string; what: string; admin?: true }[] = [
   { usage: "/event code:", what: "An event's status, matches played, top 5 by OPR and the winning alliance." },
   { usage: "/rankings", what: "The world top 10 by rating, with movement since last week." },
   { usage: "/ask question:", what: "Anything in plain words, answered as the website's search answers it." },
-  { usage: "@Control Scout question", what: "The same answer as /ask, as a reply: mention the bot with your question." },
+  { usage: "@Control Scout question", what: "Chat with Bruno AI: mention the bot with anything, and reply to his answer to keep talking." },
   { usage: "/follow team: channel:", what: "Posts in a channel for a team: the evening before an event, its schedule, 15 minutes before each match and its result, and a recap each day.", admin: true },
   { usage: "/unfollow team:", what: "Stop those posts for a team.", admin: true },
   { usage: "/following", what: "The teams this server follows, and where each one posts." },

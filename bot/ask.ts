@@ -3,16 +3,22 @@
 //   1. searchAnswer(q, { learn: false })  deterministic, always (learn off: a Discord ask never teaches search)
 //   2. refine(q)                          only when that answer is weak (did-you-mean, recovery), the bot's own
 //                                         discordBruno switch is on and Bruno is configured: he rewrites the QUERY, search runs again
-//   3. brunoAnswer(q)                     every ask (/ask is always a question, however it's typed), discordBruno on and Bruno
+//   3. brunoAnswer(q)                     only where the chat below isn't wired (tests, older callers), discordBruno on and Bruno
 //                                         configured: a sentence from search's facts, dropped if any number isn't in them
 // Every number in the embed is search's own (or a sentence the grounded check passed). Bruno off, unconfigured,
 // failing or slow: the deterministic answer still posts, with no credit line. An answer that used him says so.
+//
+// A chat first: with Bruno on, the message (and the reply thread before it) goes to Control Point's Bruno chat
+// (/internal/bruno/discord-chat) with search's facts, and his reply is the post: plain text like a chat, the
+// answer's video and a link to the website under it only when the facts answer the message. Any number in his
+// reply that isn't in the facts, the message or the thread drops it, and the card above posts instead.
 import type { APIEmbed } from "discord.js";
 import type { SearchAnswer, SearchCardLine, SearchHit, SearchVideo } from "../src/shared/api.js";
 import { watchUrl } from "../src/shared/recording.js";
 import type { StatAnswer, StatBlock, StatLink, StatMatchRow } from "../src/shared/searchStat.js";
 import { SEARCH_PAGE_LIMIT, SORRY_SENTENCE, hitHref } from "../src/shared/search.js";
 import { FOOTER, VOLT, teamLink } from "./views.js";
+import type { BrunoChatTurn } from "../server/auth/controlPoint.js";
 
 /** The credit an answer Bruno helped with carries, in the footer above Control Scout's own line. */
 export const BRUNO_CREDIT = "Bruno AI, from Control Point";
@@ -41,16 +47,32 @@ export interface AskDeps {
   available: () => boolean;
   /** The answer's match videos, as the website finds them (public ones only: never a video people added). */
   video?: (a: SearchAnswer) => Promise<SearchVideo | undefined>;
+  /** Search's facts for an answer, as Bruno reads them (server/api/searchBrunoAnswer.ts answerFacts). */
+  facts?: (a: SearchAnswer) => Promise<string[]>;
+  /** Bruno's chat reply (Control Point's discord-chat), or null: off, unavailable, or a number not in the facts. */
+  chat?: (message: string, facts: string[], history: BrunoChatTurn[]) => Promise<ChatReply | null>;
 }
 
+/** Bruno's chat reply; `search`: the facts answer the message, so the answer's video and page go with it. */
+export interface ChatReply { text: string; search: boolean }
+/** Facts sent with a chat, at most (Control Point's caps: 40 lines, 8,000 characters). */
+const CHAT_FACTS = 40;
+const CHAT_FACTS_CHARS = 7500;
+
 /** What one ask did, for the log (never who asked). */
-export interface AskMeta { step: SearchAnswer["step"]; refined: boolean; sentence: boolean }
-/** `content`: the main video's YouTube link as the message's text, so Discord shows it as a player under the answer. */
-export interface AskReply { embed: APIEmbed; meta: AskMeta; content?: string }
+export interface AskMeta { step: SearchAnswer["step"]; refined: boolean; sentence: boolean; chat?: boolean }
+/**
+ * `content`: the main video's YouTube link as the message's text, so Discord shows it as a player under the answer.
+ * `chat`: Bruno's chat reply, posted as text (chatPost) with no embed; `embed` is then the card it stands in for.
+ */
+export interface AskReply { embed: APIEmbed; meta: AskMeta; content?: string; chat?: { text: string; video?: string; page?: string } }
+
+/** How long a chat waits for Bruno before the card posts instead. */
+export const CHAT_TIMEOUT_MS = 15_000;
 
 export async function realAskDeps(): Promise<AskDeps> {
   // The search index is the site's (it builds and refreshes it); the bot only reads it, like every other table but its own.
-  const [{ searchAnswer }, { refine }, { brunoAnswer }, { isEnabled }, { brunoAvailable }] = await Promise.all([
+  const [{ searchAnswer }, { refine }, { brunoAnswer, answerFacts, ungrounded }, { isEnabled }, { brunoAvailable, brunoDiscordChat }] = await Promise.all([
     import("../server/api/searchAnswer.js"), import("../server/api/searchBruno.js"), import("../server/api/searchBrunoAnswer.js"),
     import("../server/flags.js"), import("../server/auth/controlPoint.js"),
   ]);
@@ -64,21 +86,96 @@ export async function realAskDeps(): Promise<AskDeps> {
     available: brunoAvailable,
     // No viewer: only the site's own match clips and recordings, as a page drawn for everyone gets.
     video: (a) => answerVideo(a),
+    facts: (a) => answerFacts(a),
+    chat: async (message, facts, history) => {
+      if (!brunoAvailable() || !(await isEnabled("discordBruno").catch(() => false))) return null;
+      const r = await brunoDiscordChat(message, facts, history, CHAT_TIMEOUT_MS);
+      if (!r || typeof r.text !== "string" || !r.text.trim()) return null;
+      // Every number his: the facts', the message's or the thread's, or nothing posts from him.
+      const unknown = ungrounded(r.text, [...facts, ...history.map((t) => t.text)], message);
+      // Logged (the numbers only, never who asked) so a dropped reply can be traced to the number that failed.
+      if (unknown.length) { console.info(`[bot] chat dropped: numbers not in the facts: ${unknown.slice(0, 8).join(", ")}`); return null; }
+      return { text: r.text.trim(), search: r.search === true };
+    },
   };
 }
 
-/** The website's answer to `q`, with Bruno's help where the site would use it. */
-export async function ask(q: string, deps: AskDeps, site: string): Promise<AskReply> {
+/** The website's answer to `q`, with Bruno's help where the site would use it: his chat reply first (the reply
+ *  thread before it in `history`), else the card. */
+export async function ask(q: string, deps: AskDeps, site: string, history: BrunoChatTurn[] = []): Promise<AskReply> {
   let answer = await deps.search(q);
   let refined = false;
   if ((answer.step === "did-you-mean" || answer.step === "recovery") && deps.available() && (await deps.enabled())) {
     const r = await deps.refine(q).catch(() => null);
     if (r) { answer = r; refined = r.step === "ai"; }
   }
-  const sentence = deps.available() && (await deps.enabled()) ? await deps.bruno(q).catch(() => null) : null;
+  // With the chat wired, he's asked once: a chat that's off, failed, timed out or named a number not in the facts is
+  // never followed by a second call for a sentence; the card posts at once (bounded by the chat's own timeout).
+  const chatting = !!(deps.chat && deps.facts);
+  if (chatting) {
+    const reply = await chatWith(q, answer, history, deps).catch(() => null);
+    if (reply) {
+      const video = reply.search && deps.video ? await deps.video(answer).catch(() => undefined) : undefined;
+      const watch = videoLinks(video);
+      return {
+        embed: askEmbed(q, answer, null, site, video),
+        meta: { step: answer.step, refined, sentence: false, chat: true },
+        chat: { text: reply.text, ...(watch[0] ? { video: watch[0].url } : {}), ...(reply.search ? { page: searchHref(q, site) } : {}) },
+      };
+    }
+  }
+  const sentence = !chatting && deps.available() && (await deps.enabled()) ? await deps.bruno(q).catch(() => null) : null;
   const video = deps.video ? await deps.video(answer).catch(() => undefined) : undefined;
   const watch = videoLinks(video);
   return { embed: askEmbed(q, answer, sentence, site, video), meta: { step: answer.step, refined, sentence: !!sentence }, ...(watch[0] ? { content: watch[0].url } : {}) };
+}
+
+/** Bruno's chat reply to `q`: search's facts for it (and for the thread's last question, so a follow-up like "and
+ *  second place?" has the records it's about), then his reply. */
+async function chatWith(q: string, answer: SearchAnswer, history: BrunoChatTurn[], deps: AskDeps): Promise<ChatReply | null> {
+  const facts = await deps.facts!(answer);
+  const before = [...history].reverse().find((t) => t.role === "user")?.text;
+  if (!before || before.trim().toUpperCase() === q.trim().toUpperCase()) return deps.chat!(q, fit(facts, CHAT_FACTS, CHAT_FACTS_CHARS), history);
+  const earlier = (await deps.search(before).then((a) => deps.facts!(a)).catch(() => [] as string[])).filter((f) => !facts.includes(f));
+  // Both questions' records get a share: the new one's first half, then the earlier one's, then whatever room is left
+  // for the rest of either (a broad new answer must not crowd out the records the follow-up is about).
+  const half = Math.floor(CHAT_FACTS / 2), halfChars = Math.floor(CHAT_FACTS_CHARS / 2);
+  const now = fit(facts, half, halfChars);
+  const then = fit(earlier, CHAT_FACTS - now.length, CHAT_FACTS_CHARS - chars(now));
+  const kept = [...now, ...then];
+  const rest = fit([...facts.slice(now.length), ...earlier.slice(then.length)], CHAT_FACTS - kept.length, CHAT_FACTS_CHARS - chars(kept));
+  return deps.chat!(q, [...now, ...rest.filter((f) => facts.includes(f)), ...then, ...rest.filter((f) => !facts.includes(f))], history);
+}
+
+/** Characters `lines` take as sent (one line each). */
+const chars = (lines: string[]) => lines.reduce((n, f) => n + f.length + 1, 0);
+/** The first of `lines` that fit in `max` lines and `maxChars` characters. */
+function fit(lines: string[], max: number, maxChars: number): string[] {
+  const kept: string[] = [];
+  let size = 0;
+  for (const f of lines.slice(0, Math.max(0, max))) {
+    if (size + f.length + 1 > maxChars) break;
+    kept.push(f);
+    size += f.length + 1;
+  }
+  return kept;
+}
+
+/**
+ * A chat reply as the message's text: the question quoted when asked (a slash command's reply doesn't show it),
+ * Bruno's words, the answer's video (Discord plays it under the text) and a small line crediting him, with the
+ * website link Discord shows no preview for.
+ */
+export function chatPost(q: string, chat: NonNullable<AskReply["chat"]>, opts: { quote: boolean }): string {
+  const question = q.trim().replace(/\s+/g, " ");
+  const lines = [
+    opts.quote ? `> **${md(question.length > 200 ? `${question.slice(0, 199)}…` : question)}**` : null,
+    chat.text,
+    chat.video ?? null,
+    `-# Bruno AI · ${chat.page ? `[more on controlscout.org](<${chat.page}>)` : "controlscout.org"}`,
+  ].filter((x): x is string => !!x);
+  const text = lines.join("\n");
+  return text.length > 2000 ? `${text.slice(0, 1999)}…` : text;
 }
 
 /** The answer's videos as links, the main one first, then the listed matches' clips: at most 3. */

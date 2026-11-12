@@ -10,7 +10,8 @@ import { BOT_COMMANDS } from "../src/shared/discord.js";
 import { eventChoices, eventLookup, predictLookup, rankChoices, rankingsLookup, site, teamLookup } from "./lookups.js";
 import { isEnabled } from "../server/flags.js";
 import { featureOffMessage } from "../src/shared/flags.js";
-import { ask as askSearch, realAskDeps, type AskDeps, type AskReply } from "./ask.js";
+import { ask as askSearch, chatPost, realAskDeps, type AskDeps, type AskReply } from "./ask.js";
+import type { BrunoChatTurn } from "../server/auth/controlPoint.js";
 
 export type Log = (m: string) => void;
 
@@ -23,8 +24,8 @@ export interface Lookups {
   follow: (guild: string, channel: string, team: number, by: string) => Promise<"added" | "already">;
   unfollow: (guild: string, team: number, channel?: string | null) => Promise<number>;
   following: (guild: string) => Promise<APIEmbed>;
-  /** /ask: the website's search answer to a question (bot/ask.ts). */
-  ask: (question: string) => Promise<AskReply>;
+  /** /ask and a mention: Bruno's chat reply, else the website's search answer (bot/ask.ts); `history`: the reply thread before it. */
+  ask: (question: string, history?: BrunoChatTurn[]) => Promise<AskReply>;
   /** The owner's feature toggles the bot follows (server/flags.ts); absent: always on. */
   enabled?: (flag: "discordBot" | "livePredictions") => Promise<boolean>;
 }
@@ -38,7 +39,7 @@ export const realLookups: Lookups = {
   follow: addFollow,
   unfollow: removeFollow,
   following: async (guild) => followingEmbed(await listFollows(guild), site()),
-  ask: async (question) => askSearch(question, await (askDeps ??= realAskDeps()), site()),
+  ask: async (question, history) => askSearch(question, await (askDeps ??= realAskDeps()), site(), history),
   enabled: (flag) => isEnabled(flag),
 };
 let askDeps: Promise<AskDeps> | undefined;
@@ -68,6 +69,18 @@ function canPost(i: ChatInputCommandInteraction, channelId: string): boolean {
   } catch { return true; }
 }
 
+/** Turns of a reply thread Bruno sees, at most (Control Point's cap), and the threads remembered. */
+export const THREAD_TURNS = 6;
+const THREADS_MAX = 2000;
+const TURN_MAX = 600;
+const turn = (role: BrunoChatTurn["role"], text: string): BrunoChatTurn => ({ role, text: text.trim().replace(/\s+/g, " ").slice(0, TURN_MAX) });
+
+/** An answer pings nobody: not the asker, not @everyone, a role or a person named in Bruno's text. */
+export const NO_PINGS = { parse: [] as never[], repliedUser: false };
+
+/** What one answer posts: Bruno's chat reply as text, or the card (with its video link as the text). */
+export interface AskPost { content?: string; embeds: APIEmbed[] }
+
 /** The command and its arguments as one line, for the cache key and the log. */
 export function describe(i: Pick<ChatInputCommandInteraction, "commandName" | "options">): string {
   const args = i.options.data.map((o) => `${o.name}=${String(o.value ?? "").trim().toUpperCase().slice(0, 100)}`).sort();
@@ -80,21 +93,32 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
   // /ask keeps every command's 3-second pace; the same question within a minute is the answer already given.
   const asks = new AnswerCache<AskReply>(opts.ttlMs ?? 60_000, 2000);
 
-  /** /ask, logged with the question and how it was answered (never who asked). */
-  async function askAnswer(question: string, key: string): Promise<APIEmbed> {
+  /**
+   * /ask and a mention, logged with the question and how it was answered (never who asked). Cached by the whole
+   * question (the log line's key is cut at 100 characters; two long questions alike that far are still two
+   * questions), the same for /ask and a mention, whatever its case or spacing, and by the thread before it: a
+   * follow-up in a thread is its own question.
+   */
+  async function askReply(question: string, key: string, history: BrunoChatTurn[] = []): Promise<AskReply> {
     const t0 = Date.now();
     let fresh = false;
-    // Cached by the whole question (the log line's key is cut at 100 characters; two long questions alike that far
-    // are still two questions), the same for /ask and a mention, whatever its case or spacing.
-    const r = await asks.get(question.trim().replace(/\s+/g, " ").toUpperCase(), () => { fresh = true; return lookups.ask(question); });
-    const bruno = [r.meta.refined ? "rewrite" : null, r.meta.sentence ? "sentence" : null].filter(Boolean).join("+") || "no";
-    log(`${key} step=${r.meta.step} bruno=${bruno}${r.content ? " video" : ""} ${fresh ? "" : "cached "}${Date.now() - t0}ms`);
-    if (r.content) videoOf.set(r.embed, r.content);
-    return r.embed;
+    const k = [question, ...history.map((t) => `${t.role}:${t.text}`)].join("\u0000").trim().replace(/\s+/g, " ").toUpperCase();
+    const r = await asks.get(k, () => { fresh = true; return lookups.ask(question, history); });
+    const bruno = [r.meta.chat ? "chat" : null, r.meta.refined ? "rewrite" : null, r.meta.sentence ? "sentence" : null].filter(Boolean).join("+") || "no";
+    log(`${key} step=${r.meta.step} bruno=${bruno}${history.length ? ` thread=${history.length}` : ""}${r.content || r.chat?.video ? " video" : ""} ${fresh ? "" : "cached "}${Date.now() - t0}ms`);
+    return r;
   }
-  /** An answer's main video link, sent as the message's text so Discord shows a player under the embed. */
-  const videoOf = new WeakMap<APIEmbed, string>();
-  const withVideo = (embed: APIEmbed) => { const content = videoOf.get(embed); return { ...(content ? { content } : {}), embeds: [pride(embed)] }; };
+  /** An answer as a post: Bruno's chat reply as text, else the card with its video link as the text. `quote`: show the
+   *  question (a slash command's reply doesn't; a reply to a message already does). */
+  const askPost = (question: string, r: AskReply, quote: boolean): AskPost =>
+    r.chat ? { content: chatPost(question, r.chat, { quote }), embeds: [] } : { ...(r.content ? { content: r.content } : {}), embeds: [pride(r.embed)] };
+  /** The thread a post of the bot's carries on, by its message id: every turn up to and including that answer. */
+  const threads = new Map<string, BrunoChatTurn[]>();
+  function remember(id: string | undefined, history: BrunoChatTurn[], question: string, r: AskReply) {
+    if (!id || !r.chat) return;
+    if (threads.size >= THREADS_MAX) threads.delete(threads.keys().next().value!);
+    threads.set(id, [...history, turn("user", question), turn("bruno", r.chat.text)].slice(-THREAD_TURNS));
+  }
 
   function answer(i: ChatInputCommandInteraction): Promise<APIEmbed> {
     const key = describe(i);
@@ -104,7 +128,6 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       case "event": return cache.get(key, () => lookups.event(i.options.getString("code", true)));
       case "rankings": return cache.get(key, () => lookups.rankings());
       case "help": return Promise.resolve(helpEmbed());
-      case "ask": return askAnswer(i.options.getString("question", true), key);
       case "follow": case "unfollow": case "following": return manage(i);
       default: return Promise.reject(new Friendly("Unknown command", "This command isn't one Control Scout knows. Try /help for the list."));
     }
@@ -152,6 +175,21 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       return;
     }
     await i.deferReply();
+    if (i.commandName === "ask") {
+      const question = i.options.getString("question", true);
+      let post: AskPost;
+      let r: AskReply | undefined;
+      try {
+        r = await askReply(question, describe(i));
+        post = askPost(question, r, true);
+      } catch (e) {
+        log(`${describe(i)} failed: ${(e as Error)?.message ?? String(e)}`);
+        post = { embeds: [pride(unavailableEmbed())] };
+      }
+      const sent = await i.editReply({ ...post, allowedMentions: NO_PINGS });
+      if (r) remember((sent as { id?: string } | undefined)?.id, [], question, r);
+      return;
+    }
     let embed: APIEmbed;
     try {
       embed = await answer(i);
@@ -162,7 +200,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
         embed = unavailableEmbed();
       }
     }
-    await i.editReply(withVideo(embed));
+    await i.editReply({ embeds: [pride(embed)] });
   }
 
   async function autocomplete(i: AutocompleteInteraction): Promise<void> {
@@ -177,38 +215,47 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
   }
 
   /**
-   * "@Control Scout who won decode": the same answer as /ask (same cache, same 3-second pace), as a reply. Only a
-   * message that @mentions the bot itself, in a server, from a person: never its own or another bot's, never a reply
-   * that only pings it, never @everyone or a role. Discord sends the text of a message that mentions the bot without
-   * the privileged Message Content intent, so the bot never reads anything else.
+   * "@Control Scout who won decode", or a reply to one of its answers: a chat with Bruno (the same answer as /ask,
+   * same cache, same 3-second pace), as a reply. A reply to his answer carries the thread on: he sees the turns
+   * before it. Only a message from a person in a server that @mentions the bot itself or replies to its post:
+   * never its own or another bot's, never @everyone or a role. Discord sends the text of a message that mentions
+   * the bot without the privileged Message Content intent, so the bot never reads anything else (a reply that
+   * arrives without its text is left alone).
    */
   async function mention(m: MentionMessage, botId: string): Promise<void> {
     try {
       if (m.author.bot || !m.guildId) return;
-      if (!new RegExp(`<@!?${botId}>`).test(m.content)) return;
+      const replyTo = m.reference?.messageId && m.mentions?.repliedUser?.id === botId ? m.reference.messageId : null;
+      if (!new RegExp(`<@!?${botId}>`).test(m.content) && !(replyTo && m.content.trim())) return;
       const q = m.content.replace(/<@[!&]?\d+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 500);
-      const send = (embed: APIEmbed) => m.reply({ ...withVideo(embed), allowedMentions: { repliedUser: false } })
+      const history = (replyTo && threads.get(replyTo)) || [];
+      // Nobody is pinged by an answer (his text could name @everyone, a role or a person), reply or not.
+      const send = (post: AskPost) => m.reply({ ...post, allowedMentions: NO_PINGS })
         // No Read Message History in that channel: a plain message instead of a reply.
-        .catch(() => m.channel.send?.(withVideo(embed)));
+        .catch(() => m.channel.send?.({ ...post, allowedMentions: NO_PINGS }));
+      const card = (embed: APIEmbed) => send({ embeds: [pride(embed)] });
       if (lookups.enabled && !(await lookups.enabled("discordBot"))) {
-        await send(errorEmbed(BOT_OFF_TITLE, "Control Scout's Discord bot is turned off by the owner right now. Everything on controlscout.org still works, and this server's follows are kept for when it's back."));
+        await card(errorEmbed(BOT_OFF_TITLE, "Control Scout's Discord bot is turned off by the owner right now. Everything on controlscout.org still works, and this server's follows are kept for when it's back."));
         return;
       }
       // Too fast: nothing in the channel (a public "slow down" would be noise); the next one past 3 s is answered.
       if (cooldown.take(m.author.id) > 0) return;
       if (!q) {
-        await send({ title: "Ask me anything", description: "Write your question after the mention, like the website's search box:\n`@Control Scout who won decode` · `@Control Scout 4215 vs 6980`\nOr use `/ask question:`.", color: VOLT, footer: FOOTER });
+        await card({ title: "Ask me anything", description: "Write your question after the mention, like the website's search box:\n`@Control Scout who won decode` · `@Control Scout 4215 vs 6980`\nOr use `/ask question:`. Reply to my answer to keep talking.", color: VOLT, footer: FOOTER });
         return;
       }
       void m.channel.sendTyping?.().catch(() => {});
-      let embed: APIEmbed;
+      let r: AskReply;
       try {
-        embed = await askAnswer(q, `/ask question=${q.toUpperCase().slice(0, 100)}`);
+        r = await askReply(q, `@mention question=${q.toUpperCase().slice(0, 100)}`, history);
       } catch (e) {
         log(`@mention ask failed: ${(e as Error)?.message ?? String(e)}`);
-        embed = unavailableEmbed();
+        await card(unavailableEmbed());
+        return;
       }
-      await send(embed);
+      // The reply quotes the message it answers: no need to repeat the question.
+      const sent = await send(askPost(q, r, false));
+      remember((sent as { id?: string } | undefined)?.id, history, q, r);
     } catch (e) {
       log(`mention failed: ${(e as Error)?.message ?? String(e)}`);
     }
@@ -231,6 +278,9 @@ export interface MentionMessage {
   author: { id: string; bot: boolean };
   guildId: string | null;
   content: string;
-  reply: (opts: { content?: string; embeds: APIEmbed[]; allowedMentions: { repliedUser: boolean } }) => Promise<unknown>;
-  channel: { send?: (opts: { content?: string; embeds: APIEmbed[] }) => Promise<unknown>; sendTyping?: () => Promise<unknown> };
+  /** The message it replies to, and that message's author. */
+  reference?: { messageId?: string } | null;
+  mentions?: { repliedUser?: { id: string } | null };
+  reply: (opts: { content?: string; embeds: APIEmbed[]; allowedMentions: { parse: never[]; repliedUser: boolean } }) => Promise<unknown>;
+  channel: { send?: (opts: { content?: string; embeds: APIEmbed[]; allowedMentions: { parse: never[]; repliedUser: boolean } }) => Promise<unknown>; sendTyping?: () => Promise<unknown> };
 }

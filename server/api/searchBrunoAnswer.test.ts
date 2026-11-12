@@ -95,6 +95,9 @@ describe("grounding", () => {
   it("every number must be one the facts or the question have", () => {
     expect(grounded("Yes: 4215 went to states, ranked #7 with OPR 117.3 (3-2-0) in 2024–25.", facts, Q)).toBe(true);
     expect(grounded("Its OPR rank is 616 of 8,375.", facts, Q)).toBe(true);
+    // An ordinal with a thousands separator is one number ("1,384th" is 1384), as the facts write it "#1,384".
+    expect(grounded("4215 ranks 1,384th of 2,230 worldwide.", ["16 OPR (#1,384 of 2,230 worldwide)"], "4215 opr")).toBe(true);
+    expect(grounded("4215 ranks 1,385th.", ["16 OPR (#1,384 of 2,230 worldwide)"], "4215 opr")).toBe(false);
     expect(grounded("Its OPR was 120.", facts, Q)).toBe(false);
     expect(grounded("It went 5 times.", facts, Q)).toBe(false);
   });
