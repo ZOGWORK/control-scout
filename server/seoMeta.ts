@@ -39,7 +39,8 @@ import { isEnabled } from "./flags.js";
 import { offeredManifest } from "./packs/routes.js";
 import { highlightsPath, teamHighlightsPage, type TeamHighlightsPage } from "./teamHighlightsPage.js";
 import { recordSplitPath, splitOf, teamRecordPage, type TeamRecordPage } from "./teamRecordPage.js";
-import type { StatBlock } from "../src/shared/searchStat.js";
+import { eventHighlightsPage, eventHighlightsPath, type EventHighlightsPage } from "./eventHighlightsPage.js";
+import type { StatAnswer, StatBlock } from "../src/shared/searchStat.js";
 import type { Manifest } from "./packs/build.js";
 import type { SearchCardLine, SearchFollowUps, SearchIntentNote, TrackRecord } from "../src/shared/api.js";
 import { compareTitle } from "../src/shared/compareUrl.js";
@@ -814,6 +815,11 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
       const key = normalMatchKey(m[3]);
       return (key && (await matchReportMeta(Number(m[1]), await storedEventCode(Number(m[1]), m[2]), key))) || NOT_FOUND;
     }
+    // An event's highlights page (server/eventHighlightsPage.ts): Search's "<event> highlights" answer, whole, in the
+    // first HTML. Not found for an event with none (no page to index, or no match to pick from): never an empty page.
+    if ((m = p.match(/^\/events\/(\d+)\/([^/]+)\/highlights$/i)) && isEventCodeParam(m[2])) {
+      return (await eventHighlightsMeta(Number(m[1]), await storedEventCode(Number(m[1]), m[2]))) ?? NOT_FOUND;
+    }
     // The pit display: the event must exist. Its canonical is the event page (the one to find), so search engines
     // fold it in there. No noindex: the app keeps no per-page robots tag in step on navigation, so it would
     // follow the visitor back to the event page (as powerRankingsMeta notes).
@@ -1058,6 +1064,12 @@ const resultWord = (r: "W" | "L" | "T") => (r === "W" ? "Won" : r === "L" ? "Los
 
 /** The highlights answer as text (the app's card, server/teamHighlightsPage.ts). */
 export function highlightsHtml({ team, stat }: TeamHighlightsPage): string {
+  return standoutHtml(stat) + `<p><a href="/teams/${team.number}">${esc(teamHeading(team.number, team.name))}: team page</a></p>`;
+}
+
+/** A highlights answer as text (its headline, every standout match with why it's there, score, partners and
+ *  opponents, its match videos, and where it reads from): the team and event highlights pages' first HTML. */
+function standoutHtml(stat: StatAnswer): string {
   const a = (l: { label: string; href: string }) => `<a href="${esc(l.href)}">${esc(l.label)}</a>`;
   const hl = stat.headline;
   const head = hl ? `<p><b>${hl.href ? a({ label: hl.value, href: hl.href }) : esc(hl.value)}</b> · ${esc(hl.label)}${hl.sub ? `<br><small>${esc(hl.sub)}</small>` : ""}</p>` : "";
@@ -1070,6 +1082,29 @@ export function highlightsHtml({ team, stat }: TeamHighlightsPage): string {
     if (b.kind === "videos" && b.tiles.length) return `<h2>${esc(b.title)}</h2><ul>${b.tiles.map((t) => `<li>${a(t)}${t.event ? ` · ${esc(t.event)}` : ""} · red ${esc(t.red.join(", "))} ${t.redScore}–${t.blueScore} blue ${esc(t.blue.join(", "))}</li>`).join("")}</ul>`;
     return "";
   }).join("");
-  return head + blocks + `<p><small>${esc(stat.definition)}<br>${esc(stat.source)}</small></p>`
-    + `<p><a href="/teams/${team.number}">${esc(teamHeading(team.number, team.name))}: team page</a></p>`;
+  return head + blocks + `<p><small>${esc(stat.definition)}<br>${esc(stat.source)}</small></p>`;
+}
+
+/** An event's highlights page: its title and description name the event, the intent and the season; its first HTML is
+ *  the whole answer and a link to the event's page. The app's data for the page rides along (src/lib/pageData.ts). */
+async function eventHighlightsMeta(season: number, code: string): Promise<PageMeta | null> {
+  const page = await eventHighlightsPage(season, code);
+  if (!page) return null;
+  const { event, stat } = page;
+  const S = seasonInfo(season).label;
+  const standout = stat.blocks.find((b): b is Extract<StatBlock, { kind: "matches" }> => b.kind === "matches");
+  const picks = standout?.rows ?? [];
+  const title = `${event.name} highlights, ${S}`;
+  // "Best score without penalties: Q12 at North Meet 3" and "237 points": "best score without penalties, 237 points, in Q12".
+  const hl = stat.headline, why = hl ? hl.label.split(": ")[0] : "", which = hl ? hl.label.split(": ").slice(1).join(": ").replace(/ at .*$/, "") : "";
+  const best = hl ? `${why.charAt(0).toLowerCase()}${why.slice(1)}, ${hl.value}${which ? `, in ${which}` : ""}` : "";
+  const more = picks.slice(1).map((r) => r.note?.toLowerCase()).filter(Boolean);
+  const description = fitDescription(`The standout FTC matches of ${event.name} (${S})${best ? `: ${best}` : ""}${more.length ? `; also its ${more.join(", ")}` : ""}. Scores, alliances and match videos.`);
+  return { title, heading: title, description, type: "website", path: eventHighlightsPath(event.season, event.code), bodyHtml: eventHighlightsHtml(page),
+    pageData: { [`/api/events/${event.season}/${encodeURIComponent(event.code)}/highlights`]: page } };
+}
+
+/** The event highlights answer as text, with the way back to the event's page. */
+export function eventHighlightsHtml({ event, stat }: EventHighlightsPage): string {
+  return standoutHtml(stat) + `<p><a href="${esc(eventPath(event.season, event.code))}">${esc(event.name)}: event page</a></p>`;
 }

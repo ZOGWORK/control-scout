@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.8.2 — 2026-11-12
+
+Each event with played matches gets a highlights page: its standout matches, the same card Search shows for "<event> highlights".
+
+### Highlights
+- [history] A Highlights button on the event page opens its standout matches
+- [history] Best score, biggest margin, closest finish and more, each with its video
+- [history] Each event's highlights can be found from search engines
+
+### Added
+- `/events/<season>/<code>/highlights`: the answer Search gives for "<event> highlights" (its standout matches, read over the event and the divisions that feed it, official events' matches only unless the event itself is off-season), at an address of its own. Its first HTML holds the whole answer as text, with a title and description that name the event, the season and its best match. It links to the event page, and the event page links to it with a Highlights button. An event with no played match with scores, a remote event, or one whose page isn't indexed has no page (404) and no sitemap entry; on local data the rule and the answer agreed for 1,000 of 1,000 events checked. The sitemap lists each page once, with the last day its matches or results changed as lastmod; above 45,000 URLs it is an index of files, each under 50,000. (`server/eventHighlightsPage.ts`, `server/seoMeta.ts`, `server/sitemap.ts`, `server/api/eventView.ts`, `src/pages/EventHighlightsPage.tsx`, `src/pages/EventPage.tsx`) (#PR)
+
 ## 5.8.1 — 2026-11-12
 
 Each team whose season reached the playoffs gets a page with its record there and in qualification matches, the same card Search shows for "<number> record".
