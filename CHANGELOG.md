@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.7.0 — 2026-11-11
+## 5.7.1 — 2026-11-11
 
 Search engines find the Download page and every league's standings in the sitemap.
 
@@ -28,6 +28,19 @@ Search engines find the Download page and every league's standings in the sitema
 - `/download` serves its season files (season, size and what each holds) in its first HTML, and the sitemap lists it while offline packs are on and built. With packs off or none built it is a heading and a line, and stays out. (`server/seoMeta.ts`, `server/packs/routes.ts`, `server/sitemap.ts`)
 - The sitemap lists each league standings page (`/leagues/<season>/<region>/<code>`) that has FIRST's standings on it, with the day they were last read as its lastmod. A league with no standings yet is noindex, so it stays out until they arrive. (`server/sitemap.ts`)
 - `/predict` and `/compare` stay out of the sitemap. Their first HTML (checked live on 2026-11-11) is a heading and one line above an empty form or picker. The reason is now written beside the list. (`server/sitemap.ts`) (#1400)
+
+## 5.7.0 — 2026-11-11
+
+Smooth scrolling is for desktops and laptops only: phones, tablets and reduced motion jump straight to the spot.
+
+### Highlights
+- [appearance] On a computer, links and buttons that move the page glide there
+- [fixes] Phones and tablets jump at once, as the phone itself scrolls
+- [fixes] A new page still opens at the top at once, never sliding up
+
+### Changed
+- Gliding jumps (a #link, the skip link, "see the odds", a scrolled-to card) now need a desktop: at least 1024px wide, with a mouse or trackpad, and no reduced-motion setting. Phones and tablets get the browser's native, instant jumps. CSS and the app's own scrolls use one query, `SMOOTH_SCROLL_QUERY`. (`src/index.css`, `src/lib/pageScroll.ts`)
+- Scouting's scroll to the top after a save or a pit pick, the match list's "current match" jump, the match chip strip, the first-run tour, How it works' section strip and contents links, and the sliding segmented control followed reduced motion only; they now follow the same desktop rule. (`src/pages/ScoutPage.tsx`, `src/components/scout/redesign/*`, `src/components/layout/FirstRunTour.tsx`, `src/components/howitworks/SectionNav.tsx`, `src/components/arc/segmented-control/segmented-control.tsx`) (#1399)
 
 ## 5.6.9 — 2026-11-11
 
