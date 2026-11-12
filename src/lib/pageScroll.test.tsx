@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render } from "@testing-library/react";
 import { BrowserRouter, MemoryRouter, useLocation as useLocationProbe, useNavigate, type NavigateFunction } from "react-router-dom";
 import { StrictMode, useRef } from "react";
-import { chase, entryKey, HEADER_ID, jumpPageTo, pageScroller, pageTop, planScroll, scrollToElement, smoothBehavior, SMOOTH_SCROLL_QUERY, restoredSavedPosition, RESTORE_WINDOW_MS, SCROLL_IDLE_MS, SCROLLING_BY_TOUCH, ScrollPositions, usePageScroll } from "./pageScroll";
+import { chase, entryKey, HEADER_ID, jumpPageTo, pageScroller, pageTop, planScroll, scrollToElement, smoothBehavior, SMOOTH_SCROLL_QUERY, restoredSavedPosition, RESTORE_WINDOW_MS, SCROLL_IDLE_MS, SCROLLING_BY_TOUCH, SCROLLING_POINTER_MOVED, ScrollPositions, usePageScroll } from "./pageScroll";
 
 describe("planScroll", () => {
   const base = { prevPath: "/events", path: "/teams/4215", hash: "", saved: undefined };
@@ -280,6 +280,24 @@ describe("usePageScroll", () => {
     input("pointermove", "touch");
     input("pointermove", "mouse");
     scrollTo(40);
+    expect(area.getAttribute("data-scrolling")).toBe("");
+  });
+
+  it("drops the shield once the mouse moves mid-scroll (aiming for a link), but not for a pointer the page slides under", () => {
+    height.current = 5000;
+    render(<MemoryRouter initialEntries={["/"]}><Harness /></MemoryRouter>);
+    const area = main.parentElement!;
+    const move = (dx: number) => act(() => { window.dispatchEvent(Object.assign(new Event("pointermove"), { pointerType: "mouse", movementX: dx, movementY: 0 })); });
+    scrollTo(10);
+    move(0); // the browser's own hover update as rows slide under a still pointer
+    expect(area.getAttribute("data-scrolling")).toBe("");
+    move(3);
+    expect(area.getAttribute("data-scrolling")).toBe(SCROLLING_POINTER_MOVED);
+    scrollTo(20); // still scrolling: stays aside
+    expect(area.getAttribute("data-scrolling")).toBe(SCROLLING_POINTER_MOVED);
+    act(() => { vi.advanceTimersByTime(SCROLL_IDLE_MS + 10); });
+    expect(area.hasAttribute("data-scrolling")).toBe(false);
+    scrollTo(30); // the next scroll shields again
     expect(area.getAttribute("data-scrolling")).toBe("");
   });
 
