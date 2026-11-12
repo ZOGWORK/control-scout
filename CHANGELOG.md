@@ -20,11 +20,11 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 Search answers six more questions people asked: a prediction against what happened, predicted against actual rank at every event, a record in two months side by side, a team against itself, the top teams of two places, and a Discord /ask line pasted in.
 
 ### Highlights
-- [predict] "Predicted vs actual rank at every event" sets the engine's rank beside the real one
-- [predict] "Chances before <event>, versus what actually happened" opens Prediction vs result
-- [history] "Record this month, versus last month" puts the two months side by side
-- [fixes] "Predict 4215 vs 4215" says a team can't play itself, and opens its own forecasts
-- [fixes] "The top NJ team and the top Romania team" works early in a new season
+- [predict] Predicted vs actual rank at every event, side by side
+- [predict] "Chances before <event>, versus what happened" gets its answer
+- [history] A record this month versus last month, side by side
+- [fixes] "4215 vs 4215" says a team can't play itself
+- [fixes] "The top NJ team vs the top Romania team" works in a new season
 
 ### Added
 - A team's predicted rank against its actual rank at every event of a season (#1385). No rank forecast is kept for a finished event, so the predicted rank comes from the engine's stored pre-match calls: each ranked team's expected qualification wins put the event's teams in order. Each event uses one kind of call (logged live, else the replay), and the card says which. (`server/api/query/rankReview.ts`, intent `predict-rank-events`)
