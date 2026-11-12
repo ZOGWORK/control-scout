@@ -13,6 +13,7 @@ an embed that links back to controlscout.org:
 | `/unfollow team: channel:` | Stop them (every channel if none is given). Manage Server only |
 | `/following` | The server's followed teams and where each posts (up to 10 per server) |
 | `/ask question:` | Anything in plain words, answered with the website's own search answer (below) |
+| `@Control Scout question` | The same as `/ask`, as a reply |
 | `/help` | Every command, from the same list the site shows (`BOT_COMMANDS` in `src/shared/discord.ts`) |
 
 ## /ask
@@ -43,10 +44,12 @@ Pace: the same as every command (one per person every 3 seconds, no longer wait 
 within a minute is the answer already given. Every ask is logged as the command, the step, whether Bruno helped
 and the time, never who asked. The bot reads the site's search index and never writes it.
 
-**@mention answers are Phase 2, not built.** They need the `GuildMessages` intent plus the privileged
-`MessageContent` intent (Discord approval past 100 servers, and the bot reading every message in every server it's
-in), a `MessageCreate` handler that ignores the bot's own messages and DMs, and the same `ask()` path. That's an
-owner decision on privacy and approval, so the bot keeps the `Guilds` intent only.
+**@mention answers.** `@Control Scout who won decode` gets the same answer as `/ask` (same cache, same
+3-second pace), as a reply (a plain message where the bot can't reply). Only a message that mentions the bot itself,
+from a person, in a server: not a reply that only pings it, not @everyone or a role. Just the mention: how to ask.
+Too fast: nothing (no public "slow down"). It needs only the `GuildMessages` intent, which isn't privileged: Discord
+sends a bot the text of messages that mention it without the Message Content intent, so the bot reads nothing else
+and needs no approval past 100 servers.
 
 `event` and `code` autocomplete over events on now, coming up, or finished in the last 3 days (name or
 code; you can also type a code yourself).

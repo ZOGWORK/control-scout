@@ -2,7 +2,7 @@
 // per-person cooldown, and friendly errors for every failure (never the exception's words).
 import { describe, expect, it, vi } from "vitest";
 import type { APIEmbed } from "discord.js";
-import { createHandler, type Lookups } from "./handler";
+import { createHandler, type Lookups, type MentionMessage } from "./handler";
 import { Friendly } from "./views";
 import { AnswerCache, Cooldown } from "./guard";
 import { COMMANDS, sameCommands } from "./commands";
@@ -299,5 +299,52 @@ describe("/ask's pace", () => {
     await h(i);
     expect(calls[0].payload.embeds[0].title).toBe("Turned off for now");
     expect(l.ask).not.toHaveBeenCalled();
+  });
+});
+
+describe("@mention answers", () => {
+  const BOT = "1562258217873047562";
+  function msg(content: string, over: Partial<MentionMessage> = {}) {
+    const sent: { kind: string; embeds: APIEmbed[] }[] = [];
+    const m: MentionMessage = {
+      author: { id: "u1", bot: false }, guildId: "g1", content,
+      reply: vi.fn(async (o) => { sent.push({ kind: "reply", embeds: o.embeds }); }),
+      channel: { send: vi.fn(async (o) => { sent.push({ kind: "send", embeds: o.embeds }); }), sendTyping: vi.fn(async () => {}) },
+      ...over,
+    };
+    return { m, sent };
+  }
+
+  it("\"@Control Scout who won decode\" answers as /ask does, as a reply, sharing /ask's cache", async () => {
+    const l = lookups();
+    const h = createHandler(() => {}, l, { cooldownMs: 0 });
+    const { m, sent } = msg(`<@${BOT}> who won decode`);
+    await h.mention(m, BOT);
+    expect(l.ask).toHaveBeenCalledWith("who won decode");
+    expect(sent).toHaveLength(1);
+    expect(sent[0].kind).toBe("reply");
+    expect(sent[0].embeds[0].title).toBe("ask who won decode");
+    await h(command("ask", { question: "Who won decode" }, "u2").i);
+    expect(l.ask).toHaveBeenCalledTimes(1);
+  });
+
+  it("stays silent unless the bot itself is mentioned by a person in a server", async () => {
+    const l = lookups();
+    const h = createHandler(() => {}, l, { cooldownMs: 0 });
+    for (const { m } of [msg("who won decode"), msg("<@999> who won decode"), msg("@everyone who won decode"), msg(`<@${BOT}> hi`, { author: { id: "b", bot: true } }), msg(`<@${BOT}> hi`, { guildId: null })]) await h.mention(m, BOT);
+    expect(l.ask).not.toHaveBeenCalled();
+  });
+
+  it("just the mention: how to ask; a reply it can't make: a plain message; too fast: nothing; turned off: the note", async () => {
+    const h = createHandler(() => {}, lookups(), { cooldownMs: 3000 });
+    const empty = msg(`<@!${BOT}>`, { reply: vi.fn(async () => { throw new Error("Missing Permissions"); }) });
+    await h.mention(empty.m, BOT);
+    expect(empty.sent.map((s) => [s.kind, s.embeds[0].title])).toEqual([["send", "Ask me anything"]]);
+    const fast = msg(`<@${BOT}> 4215`);
+    await h.mention(fast.m, BOT);
+    expect(fast.sent).toHaveLength(0);
+    const off = msg(`<@${BOT}> 4215`);
+    await createHandler(() => {}, lookups({ enabled: async (f) => f !== "discordBot" }), { cooldownMs: 0 }).mention(off.m, BOT);
+    expect(off.sent[0].embeds[0].title).toBe("Turned off for now");
   });
 });

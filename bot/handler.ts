@@ -81,10 +81,10 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
   const asks = new AnswerCache<AskReply>(opts.ttlMs ?? 60_000, 2000);
 
   /** /ask, logged with the question and how it was answered (never who asked). */
-  async function askAnswer(i: ChatInputCommandInteraction, key: string): Promise<APIEmbed> {
+  async function askAnswer(question: string, key: string): Promise<APIEmbed> {
     const t0 = Date.now();
     let fresh = false;
-    const r = await asks.get(key, () => { fresh = true; return lookups.ask(i.options.getString("question", true)); });
+    const r = await asks.get(key, () => { fresh = true; return lookups.ask(question); });
     const bruno = [r.meta.refined ? "rewrite" : null, r.meta.sentence ? "sentence" : null].filter(Boolean).join("+") || "no";
     log(`${key} step=${r.meta.step} bruno=${bruno} ${fresh ? "" : "cached "}${Date.now() - t0}ms`);
     return r.embed;
@@ -98,7 +98,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       case "event": return cache.get(key, () => lookups.event(i.options.getString("code", true)));
       case "rankings": return cache.get(key, () => lookups.rankings());
       case "help": return Promise.resolve(helpEmbed());
-      case "ask": return askAnswer(i, key);
+      case "ask": return askAnswer(i.options.getString("question", true), key);
       case "follow": case "unfollow": case "following": return manage(i);
       default: return Promise.reject(new Friendly("Unknown command", "This command isn't one Control Scout knows. Try /help for the list."));
     }
@@ -170,7 +170,45 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     await i.respond(list.slice(0, 25));
   }
 
-  return async function handle(i: Interaction): Promise<void> {
+  /**
+   * "@Control Scout who won decode": the same answer as /ask (same cache, same 3-second pace), as a reply. Only a
+   * message that @mentions the bot itself, in a server, from a person: never its own or another bot's, never a reply
+   * that only pings it, never @everyone or a role. Discord sends the text of a message that mentions the bot without
+   * the privileged Message Content intent, so the bot never reads anything else.
+   */
+  async function mention(m: MentionMessage, botId: string): Promise<void> {
+    try {
+      if (m.author.bot || !m.guildId) return;
+      if (!new RegExp(`<@!?${botId}>`).test(m.content)) return;
+      const q = m.content.replace(/<@[!&]?\d+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 500);
+      const send = (embed: APIEmbed) => m.reply({ embeds: [pride(embed)], allowedMentions: { repliedUser: false } })
+        // No Read Message History in that channel: a plain message instead of a reply.
+        .catch(() => m.channel.send?.({ embeds: [pride(embed)] }));
+      if (lookups.enabled && !(await lookups.enabled("discordBot"))) {
+        await send(errorEmbed(BOT_OFF_TITLE, "Control Scout's Discord bot is turned off by the owner right now. Everything on controlscout.org still works, and this server's follows are kept for when it's back."));
+        return;
+      }
+      // Too fast: nothing in the channel (a public "slow down" would be noise); the next one past 3 s is answered.
+      if (cooldown.take(m.author.id) > 0) return;
+      if (!q) {
+        await send({ title: "Ask me anything", description: "Write your question after the mention, like the website's search box:\n`@Control Scout who won decode` · `@Control Scout 4215 vs 6980`\nOr use `/ask question:`.", color: VOLT, footer: FOOTER });
+        return;
+      }
+      void m.channel.sendTyping?.().catch(() => {});
+      let embed: APIEmbed;
+      try {
+        embed = await askAnswer(q, `/ask question=${q.toUpperCase().slice(0, 100)}`);
+      } catch (e) {
+        log(`@mention ask failed: ${(e as Error)?.message ?? String(e)}`);
+        embed = unavailableEmbed();
+      }
+      await send(embed);
+    } catch (e) {
+      log(`mention failed: ${(e as Error)?.message ?? String(e)}`);
+    }
+  }
+
+  async function handle(i: Interaction): Promise<void> {
     try {
       if (i.isChatInputCommand()) await command(i);
       else if (i.isAutocomplete()) await autocomplete(i);
@@ -178,5 +216,15 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       // Discord itself failed (the interaction expired, the network dropped): log it and stay up.
       log(`interaction failed: ${(e as Error)?.message ?? String(e)}`);
     }
-  };
+  }
+  return Object.assign(handle, { mention });
+}
+
+/** The parts of a discord.js Message a mention answer uses (a stand-in in tests). */
+export interface MentionMessage {
+  author: { id: string; bot: boolean };
+  guildId: string | null;
+  content: string;
+  reply: (opts: { embeds: APIEmbed[]; allowedMentions: { repliedUser: boolean } }) => Promise<unknown>;
+  channel: { send?: (opts: { embeds: APIEmbed[] }) => Promise<unknown>; sendTyping?: () => Promise<unknown> };
 }

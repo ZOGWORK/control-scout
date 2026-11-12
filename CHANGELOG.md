@@ -22,13 +22,14 @@ Ask the Discord bot anything in plain words: `/ask` answers with the website's o
 ### Highlights
 - [alerts] `/ask who won decode` in Discord gives the same answer and numbers as the website's search
 - [alerts] Questions it can't answer yet say so, with questions that do work
+- [alerts] Or just mention it: `@Control Scout who won decode`
 - [alerts] Short answers: "who won decode" is one line, the rest one tap away on the website
-- [alerts] Bruno AI writes the short answer in Discord, under its own owner switch, separate from the website's
-- [alerts] An answer Bruno AI helped with says so: "Bruno AI, from Control Point"
+- [alerts] Bruno AI writes the short answer in Discord, credited "Bruno AI, from Control Point", under its own owner switch
 
 ### Added
 - `/ask question:` (up to 500 characters): the same path `/search` takes, in its order: the deterministic answer always (`searchAnswer`, learning off); Bruno's query rewrite for a weak answer; his short answer for every ask, kept only if every number is in search's facts. Both only with the new `discordBruno` switch on ("Bruno AI in the Discord bot", on by default); the website's `brunoSearch` / `brunoAnswers` never affect the bot, and `discordBruno` never affects the website (`refine` and `brunoAnswer` take the switch to check). Short by design: a stat's headline alone, else its first block cut at 3 rows, about 500 characters as read. One embed: the question as asked ("Asked: who won decode"), his sentence, the answer, up to 2 questions to ask next, and a link to the same answer on controlscout.org; "Sorry — I can't answer that yet" with what was read and questions that work. The same 3-second pace as every command; the same question within a minute is one lookup. (`bot/ask.ts`, `bot/handler.ts`, `bot/commands.ts`)
-- `/help` and the site's "Control Scout in Discord" list name `/ask`. (`src/shared/discord.ts`)
+- `@Control Scout who won decode`: mention the bot with a question and it replies with the `/ask` answer (same cache and pace). Only direct mentions from people in a server; it needs the non-privileged `GuildMessages` intent only, so the bot never reads other messages. (`bot/handler.ts`, `bot/index.ts`)
+- `/help` and the site's "Control Scout in Discord" list name `/ask` and the mention. (`src/shared/discord.ts`)
 
 ### Fixed
 - Bruno's facts now carry a stat answer (its headline and every block row) and a yes-or-no verdict. Before, a stat question like "who won decode" sent him only the line about when records start, so he never answered it. (`statFacts` in `server/api/searchBrunoAnswer.ts`)
