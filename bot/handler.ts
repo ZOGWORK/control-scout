@@ -43,10 +43,6 @@ export const realLookups: Lookups = {
 };
 let askDeps: Promise<AskDeps> | undefined;
 
-/** /ask's own pace: a Bruno call costs Control Point and can take up to 12 s, so one ask per person every 10 s (the
- *  other commands keep 3 s). The same question within a minute is the answer already given (no second lookup). */
-export const ASK_COOLDOWN_MS = 10_000;
-
 /** What every command answers while the owner has the bot switched off (the discordBot feature toggle). */
 export const BOT_OFF_TITLE = "Turned off for now";
 
@@ -78,11 +74,11 @@ export function describe(i: Pick<ChatInputCommandInteraction, "commandName" | "o
   return [`/${i.commandName}`, ...args].join(" ");
 }
 
-export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { ttlMs?: number; cooldownMs?: number; askCooldownMs?: number } = {}) {
+export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { ttlMs?: number; cooldownMs?: number } = {}) {
   const cache = new AnswerCache<APIEmbed>(opts.ttlMs ?? 60_000, 2000, (e) => e instanceof Friendly);
   const cooldown = new Cooldown(opts.cooldownMs ?? 3000);
+  // /ask keeps every command's 3-second pace; the same question within a minute is the answer already given.
   const asks = new AnswerCache<AskReply>(opts.ttlMs ?? 60_000, 2000);
-  const askCooldown = new Cooldown(opts.askCooldownMs ?? ASK_COOLDOWN_MS);
 
   /** /ask, logged with the question and how it was answered (never who asked). */
   async function askAnswer(i: ChatInputCommandInteraction, key: string): Promise<APIEmbed> {
@@ -144,11 +140,9 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       await i.reply({ embeds: [pride(errorEmbed(BOT_OFF_TITLE, "Control Scout's Discord bot is turned off by the owner right now. Everything on controlscout.org still works, and this server's follows are kept for when it's back."))], flags: MessageFlags.Ephemeral });
       return;
     }
-    const asking = i.commandName === "ask";
-    const wait = (asking ? askCooldown : cooldown).take(i.user.id);
+    const wait = cooldown.take(i.user.id);
     if (wait > 0) {
-      const pace = asking ? "One question every 10 seconds" : "One command every 3 seconds";
-      await i.reply({ embeds: [pride(errorEmbed("Slow down", `${pace}. Try again in ${Math.ceil(wait / 1000)} s.`))], flags: MessageFlags.Ephemeral });
+      await i.reply({ embeds: [pride(errorEmbed("Slow down", `One command every 3 seconds. Try again in ${Math.ceil(wait / 1000)} s.`))], flags: MessageFlags.Ephemeral });
       return;
     }
     await i.deferReply();

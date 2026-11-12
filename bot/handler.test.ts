@@ -257,28 +257,19 @@ describe("follows", () => {
 });
 
 describe("/ask's pace", () => {
-  it("a second ask inside 10 seconds is refused privately; other people still get answers", async () => {
+  it("no 10-second wait: /ask has every command's pace, so a second ask once that passes is answered", async () => {
     const l = lookups();
     const h = createHandler(() => {}, l, { cooldownMs: 0 });
     await h(command("ask", { question: "who won decode" }).i);
     const second = command("ask", { question: "4215 vs 6980" });
     await h(second.i);
-    expect(second.calls).toHaveLength(1);
-    expect(second.calls[0].payload.flags).toBe(64);
-    expect(second.calls[0].payload.embeds[0].description).toMatch(/^One question every 10 seconds\. Try again in \d+ s\.$/);
-    const other = command("ask", { question: "4215 vs 6980" }, "u2");
-    await h(other.i);
-    expect(other.calls.map((c) => c.kind)).toEqual(["defer", "edit"]);
-    // Other commands keep their own 3-second pace: asking doesn't hold them back.
-    const team = command("team", { number: 1 });
-    await h(team.i);
-    expect(team.calls.map((c) => c.kind)).toEqual(["defer", "edit"]);
+    expect(second.calls.map((c) => c.kind)).toEqual(["defer", "edit"]);
   });
 
   it("the same question within a minute is one lookup (whoever asks, however it's cased), logged without who asked", async () => {
     const l = lookups();
     const logs: string[] = [];
-    const h = createHandler((m) => logs.push(m), l, { cooldownMs: 0, askCooldownMs: 0 });
+    const h = createHandler((m) => logs.push(m), l, { cooldownMs: 0 });
     await h(command("ask", { question: "who won decode" }, "u1").i);
     await h(command("ask", { question: "Who won DECODE" }, "u2").i);
     expect(l.ask).toHaveBeenCalledTimes(1);
@@ -290,7 +281,7 @@ describe("/ask's pace", () => {
 
   it("ten asks in a minute from one person: no crash, one lookup each question at most, and the bot still answers others", async () => {
     const l = lookups();
-    const h = createHandler(() => {}, l, { cooldownMs: 0 });
+    const h = createHandler(() => {}, l, { cooldownMs: 3000 });
     const replies = [];
     for (let n = 0; n < 10; n++) { const c = command("ask", { question: "who won decode" }, "spam"); await h(c.i); replies.push(c.calls[0].kind); }
     expect(replies.filter((k) => k === "defer")).toHaveLength(1);

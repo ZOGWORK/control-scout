@@ -39,7 +39,7 @@ can't answer get "Sorry — I can't answer that yet", what was read, and questio
 footer above Control Scout's line; a deterministic one never does. Bruno off, unconfigured, failing or slow: the
 deterministic answer posts anyway.
 
-Pace: one ask per person every 10 seconds (a Bruno call can take 12 s and costs Control Point); the same question
+Pace: the same as every command (one per person every 3 seconds, no longer wait for /ask); the same question
 within a minute is the answer already given. Every ask is logged as the command, the step, whether Bruno helped
 and the time, never who asked. The bot reads the site's search index and never writes it.
 
