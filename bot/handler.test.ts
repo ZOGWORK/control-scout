@@ -361,3 +361,16 @@ describe("an answer with a video", () => {
     expect((sent[0] as { content?: string }).content).toBe("https://www.youtube.com/watch?v=AAA");
   });
 });
+
+describe("the ask cache key", () => {
+  it("is the whole question: two long questions alike for 100 characters are answered apart", async () => {
+    const l = lookups();
+    const h = createHandler(() => {}, l, { cooldownMs: 0 });
+    const head = "x".repeat(120);
+    await h(command("ask", { question: `${head} one` }, "a").i);
+    await h(command("ask", { question: `${head} two` }, "b").i);
+    expect(l.ask).toHaveBeenCalledTimes(2);
+    await h(command("ask", { question: `${head}   ONE` }, "c").i);
+    expect(l.ask).toHaveBeenCalledTimes(2);
+  });
+});
