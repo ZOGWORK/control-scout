@@ -28,7 +28,7 @@ On a computer the mouse wheel and trackpad ease the page along instead of steppi
 - On a desktop (at least 1024px wide, a mouse or trackpad, no reduced-motion setting) the wheel and trackpad now ease the page toward where they send it, with Lenis 1.3.27 (`lenis`, MIT). It loads as its own 6 KB chunk once the page is idle, and only on those screens; phones, tablets and reduced motion never download it, and narrowing the window or turning on reduced motion hands scrolling straight back to the browser. Its animation loop runs only while a glide is on its way. Boxes with their own scroll (the search palette, menus, pickers, wide tables, dialogs) keep the browser's own wheel, a dialog that locks the page keeps it still, and a click or a key ends a glide at once. A new page still opens at the top at once, back and forward still return to where you were, and the long lists' windowing keeps up. (`src/lib/smoothWheel.ts`, `src/lib/smoothWheelEngine.ts`, `src/lib/pageScroll.ts`, `src/components/layout/Shell.tsx`)
 
 ### Fixed
-- While the page scrolled under a mouse, a click landed on the scroll shield and was lost until 140ms after the last scroll. Once the mouse moves mid-scroll the shield now stands aside, so a click on a link while the page still glides opens it. (`src/lib/pageScroll.ts`, `src/index.css`)
+- While the page scrolled under a mouse, a click landed on the scroll shield and was lost until 140ms after the last scroll. Once the mouse moves mid-scroll the shield now stands aside, so a click on a link while the page still glides opens it. (`src/lib/pageScroll.ts`, `src/index.css`) (#1403)
 
 ## 5.7.1 — 2026-11-12
 
