@@ -25,7 +25,7 @@ Every team that has played gets a highlights page of its own: its standout match
 - [history] Each highlights page can be found from search engines
 
 ### Added
-- `/teams/<number>/highlights`: the answer Search gives for "<number> highlights" (best score, biggest win, latest playoff win, best Auto and closest win of the team's latest season with matches, with match videos), at an address of its own. Its first HTML holds the whole answer as text, with a title and description that name the team, the season and its best match. It links to the team page, and the team page links to it with a Highlights button. A team with nothing to pick from has no page (404) and no sitemap entry. The sitemap lists each page once, with the last day its season's matches or results changed as lastmod. (`server/teamHighlightsPage.ts`, `server/seoMeta.ts`, `server/sitemap.ts`, `src/pages/TeamHighlightsPage.tsx`, `src/pages/TeamPage.tsx`)
+- `/teams/<number>/highlights`: the answer Search gives for "<number> highlights" (best score, biggest win, latest playoff win, best Auto and closest win of the team's latest season with matches, with match videos), at an address of its own. Its first HTML holds the whole answer as text, with a title and description that name the team, the season and its best match. It links to the team page, and the team page links to it with a Highlights button. A team with nothing to pick from has no page (404) and no sitemap entry. The sitemap lists each page once, with the last day its season's matches or results changed as lastmod. (`server/teamHighlightsPage.ts`, `server/seoMeta.ts`, `server/sitemap.ts`, `src/pages/TeamHighlightsPage.tsx`, `src/pages/TeamPage.tsx`) (#1402)
 
 ## 5.7.1 — 2026-11-11
 
