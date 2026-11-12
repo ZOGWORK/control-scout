@@ -170,6 +170,16 @@ describe("the redesign's rules for event posts", () => {
     expect(before.footer!.text).toMatch(/^The schedule posts here once FIRST publishes it/);
   });
 
+  it("a first match with no posted instant still shows, with its venue time or TBA", () => {
+    const s = [{ team: 1, name: null, opr: 50, worldRank: null }];
+    const noInstant = { ...q(3, local("2026-10-24", "09:00"), [1, 2], [3, 4]), startsAt: null, time: "2026-10-24T09:00:00" };
+    const e = eveEmbed({ channel: "c1", teams: [1], kind: "eve", key: "eve" }, detail([noInstant]), s, SITE);
+    expect(e.fields!.find((x) => x.name === "1")!.value).toBe("Season OPR **50.0**\nFirst match: Q3 · 09:00");
+    const tba = { ...noInstant, time: null };
+    const e2 = eveEmbed({ channel: "c1", teams: [1], kind: "eve", key: "eve" }, detail([tba]), s, SITE);
+    expect(e2.fields!.find((x) => x.name === "1")!.value).toBe("Season OPR **50.0**\nFirst match: Q3 · time TBA");
+  });
+
   it("the recap: an even call isn't counted as a call; a multi-day event names tomorrow's first match", () => {
     const d = detail([
       q(1, local("2026-10-24", "10:00"), [1, 2], [3, 4], [100, 80], 0.7), // called
