@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.8.3 — 2026-11-12
+
+Mention the Discord bot and Bruno AI chats back, like Control Point's Bruno chat, with scouting answers from Control Scout's records.
+
+### Highlights
+- [alerts] Mention the bot to chat with Bruno AI in your server
+- [alerts] Reply to Bruno's answer to keep the conversation going
+- [alerts] Plain chat replies, with a video only when it fits
+
+### Changed
+- `@Control Scout …`, a reply to the bot and `/ask` go to Control Point's new Bruno chat (`/internal/bruno/discord-chat`, on Control Point) with search's facts and the thread before it. His reply posts as text; the answer's video and page link follow only when the records answer the message. Any number not in the facts, message or thread, or Bruno off, slow or failing: the answer card as before. "hi bruno" no longer answers with a team from San Bruno. (#1417)
+
 ## 5.8.2 — 2026-11-12
 
 The Discord bot stays up: it had been running out of memory and restarting every few minutes, so it rarely answered.

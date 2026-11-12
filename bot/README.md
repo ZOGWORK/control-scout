@@ -13,7 +13,7 @@ an embed that links back to controlscout.org:
 | `/unfollow team: channel:` | Stop them (every channel if none is given). Manage Server only |
 | `/following` | The server's followed teams and where each posts (up to 10 per server) |
 | `/ask question:` | Anything in plain words, answered with the website's own search answer (below) |
-| `@Control Scout question` | The same as `/ask`, as a reply |
+| `@Control Scout question` | Chat with Bruno AI, as a reply; reply to his answer to keep talking |
 | `/help` | Every command, from the same list the site shows (`BOT_COMMANDS` in `src/shared/discord.ts`) |
 
 ## /ask
@@ -44,12 +44,17 @@ Pace: the same as every command (one per person every 3 seconds, no longer wait 
 within a minute is the answer already given. Every ask is logged as the command, the step, whether Bruno helped
 and the time, never who asked. The bot reads the site's search index and never writes it.
 
-**@mention answers.** `@Control Scout who won decode` gets the same answer as `/ask` (same cache, same
-3-second pace), as a reply (a plain message where the bot can't reply). Only a message that mentions the bot itself,
-from a person, in a server: not a reply that only pings it, not @everyone or a role. Just the mention: how to ask.
-Too fast: nothing (no public "slow down"). It needs only the `GuildMessages` intent, which isn't privileged: Discord
-sends a bot the text of messages that mention it without the Message Content intent, so the bot reads nothing else
-and needs no approval past 100 servers.
+**@mention answers: a chat with Bruno.** `@Control Scout who won decode` or `@Control Scout hi bruno` goes to Control
+Point's Bruno chat (`POST /internal/bruno/discord-chat`) with the facts the website's search found for it, and his
+reply posts as plain text, like a chat: a greeting gets a greeting, a records question gets the answer, with the
+answer's video and a small "more on controlscout.org" link only when the records answer it. Replying to his answer
+carries the thread on (the bot remembers its last 2,000 threads in memory, up to 6 turns each; a restart forgets
+them). `/ask` answers the same way, with the question quoted. Every number in his reply must be in the facts, the
+message or the thread, or the website's answer card posts instead, as it does when Bruno is off (`discordBruno`),
+unconfigured, slow (15 s) or failing. Same cache and 3-second pace as every command. Only a message from a person in a
+server that mentions the bot itself, or replies to its post: not @everyone or a role. Discord sends a bot the text of
+messages that mention it (a reply pings it) without the Message Content intent, so the bot reads nothing else; a
+reply that arrives without its text is left alone.
 
 `event` and `code` autocomplete over events on now, coming up, or finished in the last 3 days (name or
 code; you can also type a code yourself).
