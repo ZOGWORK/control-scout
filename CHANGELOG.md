@@ -25,7 +25,7 @@ Mention the Discord bot and Bruno AI chats back, like Control Point's Bruno chat
 - [alerts] Plain chat replies, with a video only when it fits
 
 ### Changed
-- `@Control Scout …`, a reply to the bot and `/ask` go to Control Point's new Bruno chat (`/internal/bruno/discord-chat`, Control Point #353) with search's facts and the thread before it. His reply posts as text; the answer's video and page link follow only when the records answer the message. Any number not in the facts, message or thread, or Bruno off, slow or failing: the answer card as before. "hi bruno" no longer answers with a team from San Bruno. (#PRNUM)
+- `@Control Scout …`, a reply to the bot and `/ask` go to Control Point's new Bruno chat (`/internal/bruno/discord-chat`, Control Point #353) with search's facts and the thread before it. His reply posts as text; the answer's video and page link follow only when the records answer the message. Any number not in the facts, message or thread, or Bruno off, slow or failing: the answer card as before. "hi bruno" no longer answers with a team from San Bruno. (#1417)
 
 ## 5.8.2 — 2026-11-12
 
