@@ -26,7 +26,7 @@ export function selfMatchAnswer(p: Parsed, hit: SearchHit | undefined, pages: Se
   const t = p.teams[0], who = `${t.name ?? `Team ${t.number}`} (${t.number})`;
   const predict = { label: `Open in Predict: ${t.number}'s scheduled matches`, href: predictHref({ mode: "scheduled", pick: { kind: "team", team: t.number } }) };
   const stat: StatAnswer = {
-    family: "stat", intent: "self-match", title: `${t.number} can't play itself`, team: { number: t.number, name: t.name },
+    family: "stat", intent: "predict-self-match", title: `${t.number} can't play itself`, team: { number: t.number, name: t.name },
     scope: [], blocks: [{ kind: "links", title: "Open", items: [predict, { label: `${who}'s page`, href: `/teams/${t.number}` }] }],
     none: `A match puts two different teams on opposite alliances, so there's no prediction for ${who} against itself. Its own forecasts are in Predict.`,
     definition: "A match is played between two alliances of different teams; one team can't be on both.",
@@ -35,6 +35,6 @@ export function selfMatchAnswer(p: Parsed, hit: SearchHit | undefined, pages: Se
   return {
     q: p.q, hits: hit ? [{ ...hit, facts: undefined, events: undefined }] : [], pages: [{ title: predict.label, href: predict.href }, ...pages],
     step: "deterministic", weak: false, understood: { kind: "question", label: stat.title }, ...(full ? { stat } : {}),
-    intent: { kind: "stat-self-match", pattern: "[team] vs [same team]", met: true, understood: [] },
+    intent: { kind: "stat-predict-self-match", pattern: "[team] vs [same team]", met: true, understood: [] },
   };
 }

@@ -48,14 +48,14 @@ describe("a team asked against itself (#1387)", () => {
   it("says no match can be called, and opens the team's own forecasts in Predict", async () => {
     for (const q of ["predict 4215 vs 4215", "what happens if 4215 plays against itself, lol, no, predict 4215 vs 4215", "what if 4215 plays against itself"]) {
       const a = await ask(q);
-      expect(a.stat, q).toMatchObject({ intent: "self-match", title: "4215 can't play itself", none: expect.stringContaining("no prediction for Hypnotic Robotics (4215) against itself") });
+      expect(a.stat, q).toMatchObject({ intent: "predict-self-match", title: "4215 can't play itself", none: expect.stringContaining("no prediction for Hypnotic Robotics (4215) against itself") });
       const links = a.stat?.blocks.find((b) => b.kind === "links");
       expect(links?.kind === "links" && links.items[0].href, q).toBe("/predict?mode=scheduled&for=team:4215");
     }
   });
   it("two different teams, or one team's two seasons, are never read as one team against itself", async () => {
-    expect((await ask("predict 4215 vs 6980")).stat?.intent).not.toBe("self-match");
-    expect((await ask(`4215 ${S} vs 4215 ${S - 1}`)).stat?.intent).not.toBe("self-match");
+    expect((await ask("predict 4215 vs 6980")).stat?.intent).not.toBe("predict-self-match");
+    expect((await ask(`4215 ${S} vs 4215 ${S - 1}`)).stat?.intent).not.toBe("predict-self-match");
   });
 });
 
@@ -69,7 +69,7 @@ describe("a clause taken back by a lone 'no'", () => {
 describe("a chat command written out with its option (#1406)", () => {
   it("is the option's question, answered as typed without it", async () => {
     const a = await ask("/ask question:predict 4215 vs 4215");
-    expect(a.stat?.intent).toBe("self-match");
+    expect(a.stat?.intent).toBe("predict-self-match");
     expect(a.q).toBe("/ask question:predict 4215 vs 4215");
   });
 });
