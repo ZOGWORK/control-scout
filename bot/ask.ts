@@ -185,7 +185,8 @@ export function askEmbed(q: string, a: SearchAnswer, sentence: BrunoSentence | n
   if (a.step === "did-you-mean" && a.didYouMean) lines.push(`Did you mean **${md(a.didYouMean)}**?`);
   if (a.step === "ai" && a.refined) lines.push(`Bruno AI read it as: **${md(a.refined)}**`);
   if (a.verdict) lines.push(`**${a.verdict.answer}** · ${md(a.verdict.label)}`);
-  if (sentence) lines.push(...[sentence.text, ...sentence.points.map((p) => `• ${p}`)].map((s) => `> ${md(s)}`));
+  // His one sentence only: his points repeat the answer below it, and Discord gets the short answer.
+  if (sentence) lines.push(`> ${md(sentence.text)}`);
   let title: string;
   if (a.stat) {
     title = a.stat.heading ?? a.stat.title;

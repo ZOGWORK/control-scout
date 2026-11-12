@@ -30,6 +30,9 @@ Ask the Discord bot anything in plain words: `/ask` answers with the website's o
 - `/ask question:` (up to 500 characters): the same path `/search` takes, in its order: the deterministic answer always (`searchAnswer`, learning off); Bruno's query rewrite for a weak answer; his short answer for every ask, kept only if every number is in search's facts. Both only with the new `discordBruno` switch on ("Bruno AI in the Discord bot", on by default); the website's `brunoSearch` / `brunoAnswers` never affect the bot, and `discordBruno` never affects the website (`refine` and `brunoAnswer` take the switch to check). Short by design: a stat's headline alone, else its first block cut at 3 rows, about 500 characters as read. One embed: the answer, his sentence, and a link to the same answer on controlscout.org; "Sorry — I can't answer that yet" with what was read and questions that work. The same 3-second pace as every command; the same question within a minute is one lookup. (`bot/ask.ts`, `bot/handler.ts`, `bot/commands.ts`)
 - `/help` and the site's "Control Scout in Discord" list name `/ask`. (`src/shared/discord.ts`)
 
+### Fixed
+- Bruno's facts now carry a stat answer (its headline and every block row) and a yes-or-no verdict. Before, a stat question like "who won decode" sent him only the line about when records start, so he never answered it. (`statFacts` in `server/api/searchBrunoAnswer.ts`)
+
 ## 5.7.2 — 2026-11-11
 
 The Discord bot's event posts: a schedule that always fits, the first match the evening before, and a plain day recap.

@@ -41,9 +41,10 @@ describe("the embed, step by step", () => {
     expect(e.footer!.text).toBe(`${BRUNO_CREDIT}\nControl Scout • controlscout.org`);
   });
 
-  it("a Bruno sentence: quoted in the answer, credited", () => {
+  it("a Bruno sentence: his one sentence quoted (not his points: the short answer), credited", () => {
     const e = askEmbed("how many awards did 4215 win?", base(), { text: "4215 won 3 awards.", points: ["Inspire 2024"] }, SITE);
-    expect(e.description).toMatch(/^> 4215 won 3 awards\.\n> • Inspire 2024\n/);
+    expect(e.description).toMatch(/^> 4215 won 3 awards\.\n• \[4215/);
+    expect(e.description).not.toMatch(/Inspire 2024/);
     expect(e.footer!.text.split("\n")[0]).toBe("Bruno AI, from Control Point");
   });
 

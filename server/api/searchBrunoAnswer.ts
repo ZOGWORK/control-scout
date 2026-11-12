@@ -8,6 +8,7 @@
 // Streamed to a page that asks for it (?stream=1): the answer shows as he writes it, each part checked the same way
 // before it's sent (previewOf), and ends at the same answer; the model call, prompt and cache are the same.
 import type { SearchAnswer, SearchCardLine, SearchHit } from "../../src/shared/api.js";
+import type { StatAnswer, StatBlock, StatLink } from "../../src/shared/searchStat.js";
 import { seasonLabel } from "../../src/shared/format.js";
 import { isBrunoQuestion } from "../../src/shared/search.js";
 import { brunoAvailable, brunoSearchAnswer, brunoSearchAnswerStream } from "../auth/controlPoint.js";
@@ -60,12 +61,48 @@ async function eventWinners(h: SearchHit): Promise<string | null> {
   return `Won ${h.title} (${seasonLabel(Number(season))}): ${parts.join("; ")}.`;
 }
 
+const names = (ls?: StatLink[]) => (ls ?? []).map((l) => l.label).join(", ");
+
+/** One stat block as plain lines: the same rows the page shows, every number as the page has it. */
+function blockFacts(b: StatBlock): string[] {
+  const title = "title" in b && b.title ? [`${b.title}:`] : [];
+  switch (b.kind) {
+    case "kpis": return [b.items.map((k) => `${k.label} ${k.value}${k.sub ? ` (${k.sub})` : ""}`).join("; ")];
+    case "record": return [...title, `- record ${b.wins}-${b.losses}-${b.ties} (W-L-T)${b.split ? `; quals ${b.split.quals.wins}-${b.split.quals.losses}-${b.split.quals.ties}, playoffs ${b.split.playoffs.wins}-${b.split.playoffs.losses}-${b.split.playoffs.ties}` : ""}`];
+    case "matches": return [...title, ...b.rows.map((r) => `- ${r.label}: ${r.own}-${r.opp} ${r.result === "W" ? "won" : r.result === "L" ? "lost" : "tied"}, ${r.event.label} (${r.season})${r.partners?.length ? `, with ${names(r.partners)}` : ""}${r.opponents?.length ? `, vs ${names(r.opponents)}` : ""}`)];
+    case "table": return [...title, ...b.rows.map((r) => `- ${b.columns.map((c) => `${c.label} ${r.cells[c.key] ?? "-"}`).join(", ")}${r.teams ? `; red ${names(r.teams.red)} vs blue ${names(r.teams.blue)}` : ""}`)];
+    case "leaderboard": return [...title, ...b.rows.map((r) => `- #${r.rank} ${r.team.label}: ${b.stat.label} ${r.display}${r.record ? `, record ${r.record}` : ""}`), b.note];
+    case "compare": return [...title, `${names(b.teams)}:`, ...b.rows.map((r) => `- ${r.label}: ${r.values.join(" vs ")}${r.gap ? ` (${r.gap})` : ""}`)];
+    case "league": return [...title, ...b.rows.map((r) => `- #${r.rank} ${r.team}${r.name ? ` ${r.name}` : ""}${r.wins != null ? `, ${r.wins}-${r.losses ?? 0}-${r.ties ?? 0}` : ""}`)];
+    case "chance": return [`${b.label}: ${Math.round(b.p * 100)}% ${b.who}${b.note ? ` (${b.note})` : ""}`];
+    case "series": return [...title, b.points.filter((p) => p.y != null).map((p) => `${p.x} ${p.y}${b.unit ? ` ${b.unit}` : ""}`).join("; ")];
+    case "bars": return [...title, ...b.groups.map((g) => `- ${g.label}: ${g.items.map((i) => `${i.label} ${i.value ?? "-"}`).join(", ")}`)];
+    case "videos": return [...title, ...b.tiles.map((t) => `- ${t.label} ${t.redScore}-${t.blueScore}${t.event ? `, ${t.event}` : ""}`)];
+    case "links": return b.items.length ? [...title, b.items.map((l) => l.label).join(", ")] : b.none ? [b.none] : [];
+    default: return [];
+  }
+}
+
+/** A stat answer (who won, records, head-to-heads, highlights …) as plain lines: its headline first, then its blocks. */
+export function statFacts(s: StatAnswer): string[] {
+  const out: string[] = [`${s.heading ?? s.title}:`];
+  const h = s.headline;
+  if (h) out.push(`${h.value} ${h.label}${h.sub ? ` (${h.sub})` : ""}${h.teams?.length ? `: ${names(h.teams)}` : ""}`);
+  if (s.none) out.push(s.none);
+  for (const b of s.blocks) out.push(...blockFacts(b));
+  if (s.source) out.push(`Source: ${s.source}`);
+  return out.filter(Boolean);
+}
+
 /** The facts search found for `a` (its answer to the question), as plain lines for Bruno. */
 export async function answerFacts(a: SearchAnswer): Promise<string[]> {
   const facts: string[] = [];
   // What the event records cover (the events table's own range, not the seasons the site lists).
   const first = (await get<{ s: number | null }>("SELECT MIN(season) s FROM events"))?.s ?? CURRENT_SEASON;
   facts.push(`Control Scout's event records start with the ${seasonLabel(first)} FTC season; nothing earlier is recorded.`);
+  // The answer search gave, first: what the page shows above everything else.
+  if (a.verdict) facts.push(`Answer: ${a.verdict.answer}, ${a.verdict.label}`);
+  if (a.stat) facts.push(...statFacts(a.stat));
   if (a.card) {
     const c = a.card;
     const who = c.team ? ` for team ${`${c.team.number} ${c.team.name ?? ""}`.trim()}` : "";

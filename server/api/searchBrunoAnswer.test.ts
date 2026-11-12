@@ -8,7 +8,7 @@ import { migrate, openDb, run, setDb } from "../db";
 import { invalidateFlags, setFlag } from "../flags";
 import { rebuildSearch } from "../stats/job";
 import { searchAnswer } from "./searchAnswer";
-import { BRUNO_ANSWER_TIMEOUT_MS, answerFacts, brunoAnswer, grounded, partialAnswer, previewOf, resetBrunoAnswerCache, type BrunoAnswer } from "./searchBrunoAnswer";
+import { BRUNO_ANSWER_TIMEOUT_MS, answerFacts, brunoAnswer, grounded, partialAnswer, previewOf, resetBrunoAnswerCache, statFacts, type BrunoAnswer } from "./searchBrunoAnswer";
 import { isBrunoQuestion } from "../../src/shared/search";
 
 let fake: Server;
@@ -256,5 +256,23 @@ describe("reading a reply as it's written", () => {
     expect(previewOf('{"text": "OPR 111.5", "points": ["OPR 1', facts, "q")).toEqual({ text: "OPR 111.5", points: ["OPR"] });
     expect(previewOf('{"text": "OPR 120 and', facts, "q")).toBeUndefined();
     expect(previewOf('{"text": null}', facts, "q")).toBeNull();
+  });
+});
+
+describe("a stat answer's facts (who won, head-to-heads, records …)", () => {
+  it("its headline and every block row reach Bruno, so he has the answer itself to go on", () => {
+    const f = statFacts({
+      family: "leaderboard", intent: "winners", title: "Winners", heading: "DECODE 2025–26 FIRST Championship winning alliances", scope: [],
+      headline: { value: "Champions", label: "2025–26 FIRST Championship winners", sub: "M16 514–506", teams: [{ label: "30030 Exodus" }, { label: "21087 Velocity Red" }] },
+      blocks: [{ kind: "compare", title: "Head to head", teams: [{ label: "4215" }, { label: "6980" }], rows: [{ label: "OPR", values: ["101.6", "46.9"], best: 0 }] }],
+      source: "2025–26 matches",
+    } as never);
+    expect(f).toEqual([
+      "DECODE 2025–26 FIRST Championship winning alliances:",
+      "Champions 2025–26 FIRST Championship winners (M16 514–506): 30030 Exodus, 21087 Velocity Red",
+      "Head to head:", "4215, 6980:", "- OPR: 101.6 vs 46.9",
+      "Source: 2025–26 matches",
+    ]);
+    expect(grounded("Exodus won the finals 514–506.", f, "who won decode")).toBe(true);
   });
 });
