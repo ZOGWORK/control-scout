@@ -8,7 +8,9 @@
 //   5. the only one that has played
 //   6. the only one still active: played in the newest season any of them played, or the season before
 //   7. the clearly stronger one: its best OPR rank in its last two seasons is at least STRONGER points of percentile
-//      above every other's ("Delta Force": a top-2% team and a bottom-third one); every one of them ranked
+//      above every other's ("Delta Force": a top-2% team and a bottom-third one), or its top share (rank over teams
+//      ranked) is at most a STRONGER_SHARE-th of every other's (a top-0.1% team and a top-5% one: near the top a few
+//      percentile points are a wide gap in rank); every one of them ranked
 // Still tied: no team. Search then asks which, listing each with its place, and never answers for one of them.
 import type { Place } from "./names.js";
 
@@ -22,6 +24,8 @@ export interface SharedCandidate {
 
 /** Percentile points one team has to be above every other to be the one a shared name means. */
 export const STRONGER = 0.25;
+/** How many times smaller one team's top share (1 − percentile) has to be than every other's to be the one meant. */
+export const STRONGER_SHARE = 10;
 
 export type SharedPick<T> = { team: T; rule: string } | { tied: T[] };
 
@@ -58,7 +62,15 @@ export function pickShared<T extends SharedCandidate>(cands0: T[], ctx: { mine?:
   // Stronger only between ranks known: a team never ranked is unknown, not weak.
   if (active.every((t) => t.strength != null)) {
     const [first, second] = [...active].sort((a, b) => b.strength! - a.strength!);
-    if (first.strength! - second.strength! >= STRONGER) return { team: first, rule: "the stronger one" };
+    if (first.strength! - second.strength! >= STRONGER || 1 - second.strength! >= STRONGER_SHARE * (1 - first.strength!)) return { team: first, rule: "the stronger one" };
   }
   return { tied: active };
+}
+
+/** How many teams a shared name is, said one way by every reader: `total` is every team with a page by the name (the
+ *  count "teams named <name>" gives, ../answers/teamsNamed.ts), `tied` the ones still left to ask about, each with its
+ *  place. "Which "ultraviolet"? 6 teams have that name; 4 of them still play: …". */
+export function whichLine(typed: string, total: number, tied: string[]): string {
+  const n = Math.max(total, tied.length);
+  return `Which "${typed}"? ${n} teams have that name${tied.length < n ? `; ${tied.length} of them still play` : ""}: ${tied.join(", ")}`;
 }

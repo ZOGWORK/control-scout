@@ -15,6 +15,25 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.6.7 — 2026-11-11
+
+Search answers "how good is this team" with one card of its season's numbers, and tells same-name teams apart by the event or by a clear gap in rank.
+
+### Highlights
+- [teams] "How good is 7149" shows OPR, world rank, record and rating
+- [teams] "Is Delta Force from Romania" says Yes or No, country named
+- [fixes] A shared team name is told apart by the event's region
+- [fixes] "Which team?" counts a name's teams as "teams named" does
+
+### Added
+- An open question about a team ("how good is <team>", "is <team> good", "can u tell me if <team> is good", "whats up with <team>", "<team> stuff", "everything about <team>") gets a season overview card: OPR with its world rank, top share and percentile as the headline, then the record, the prediction rating with its world rank, reliability and OPR by event, all from the team page's stored numbers. The season said, else the team's latest with matches. One thing asked ("how good is <team> at auto") stays that thing's answer. (`server/api/answers/families/overview.ts`, `oprRating.ts` "overview")
+- "Is <team> from <place>" answers Yes or No, with the team's city, state and country, in place of the plain "where they're from" card. (`server/api/answers/yesNo.ts`)
+
+### Fixed
+- A name several teams share ignored the place an event's name says: "ultraviolet's matches at the NJ championship" asked which Ultraviolet. The event's region or country now picks the team, as a place typed does. (`server/api/query/parse.ts` eventPlace, `server/api/searchAnswer.ts` sharedName)
+- With no place, the stronger-team rule needed 25 percentile points between teams, so a top-0.1% team and a top-5% one were still asked about. A team whose top share is a tenth of every other's or less is now the stronger one too. (`server/api/query/shared.ts`)
+- "How many teams named ultraviolet" counted every team with a page by the name, while the which-team question gave only the ones still playing as the name's count. Both now count the same teams, and the question says how many of them still play. (`server/api/query/shared.ts` whichLine, `server/api/answers/teamsNamed.ts`) (#1397)
+
 ## 5.6.6 — 2026-11-11
 
 Search's "ever" means every season, and a few more ways to ask about a team's best and worst matches are understood.
