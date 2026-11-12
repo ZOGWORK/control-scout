@@ -218,7 +218,7 @@ function nextLine(m: MatchView, site: string, next: ResultOptions["next"]): stri
   // A next match on another day shows its date too.
   const otherDay = m.startsAt && n.startsAt && Math.abs(Date.parse(n.startsAt) - Date.parse(m.startsAt)) > 12 * 3600_000;
   const when = n.startsAt ? ` · <t:${unix(n.startsAt)}:${otherDay ? "f" : "t"}>` : "";
-  return `Next${next.team != null ? ` for ${next.team}` : ""}: ${n.label}${when} · [Match](${site}${matchReportHref(n)}) · ${ev}`;
+  return `Next${next.team != null ? ` for ${teamLink(next.team, site)}` : ""}: ${n.label}${when} · [Match](${site}${matchReportHref(n)}) · ${ev}`;
 }
 
 /** A played match: the score line, the story, and what's next. No fields. */
@@ -237,7 +237,8 @@ export function resultEmbed(eventName: string, m: MatchView, site: string, o: Re
  * the lineup and the call. No fields, no win bars.
  */
 export function preMatchEmbed(eventName: string, m: MatchView, site: string, lead?: string | null): APIEmbed {
-  const starts = m.startsAt ? `Starts <t:${unix(m.startsAt)}:R> (<t:${unix(m.startsAt)}:t>).` : m.time ? `Scheduled ${m.time.slice(11, 16)}.` : null;
+  // Marked played with a score still to come: never "Starts …" for a match that's already happened.
+  const starts = m.played ? "Played: the final score isn't posted yet." : m.startsAt ? `Starts <t:${unix(m.startsAt)}:R> (<t:${unix(m.startsAt)}:t>).` : m.time ? `Scheduled ${m.time.slice(11, 16)}.` : null;
   const lineup = `🔴 ${linkedAlliance(teamsOf(m.red, false), site)} vs ${linkedAlliance(teamsOf(m.blue, false), site)} 🔵 · ${callLine(m.prediction)}`;
   return {
     title: matchTitle(m, eventName),
