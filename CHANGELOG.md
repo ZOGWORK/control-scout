@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.7.2 — 2026-11-11
+
+Every team that has played gets a highlights page of its own: its standout matches of the season, the same card Search shows.
+
+### Highlights
+- [teams] A Highlights button on the team page opens its standout matches
+- [teams] Best score, biggest win, best Auto and closest win on one page
+- [history] Each highlights page can be found from search engines
+
+### Added
+- `/teams/<number>/highlights`: the answer Search gives for "<number> highlights" (best score, biggest win, latest playoff win, best Auto and closest win of the team's latest season with matches, with match videos), at an address of its own. Its first HTML holds the whole answer as text, with a title and description that name the team, the season and its best match. It links to the team page, and the team page links to it with a Highlights button. A team with nothing to pick from has no page (404) and no sitemap entry. The sitemap lists each page once, with the last day its season's matches or results changed as lastmod. (`server/teamHighlightsPage.ts`, `server/seoMeta.ts`, `server/sitemap.ts`, `src/pages/TeamHighlightsPage.tsx`, `src/pages/TeamPage.tsx`)
+
 ## 5.7.1 — 2026-11-11
 
 Search engines find the Download page and every league's standings in the sitemap.
