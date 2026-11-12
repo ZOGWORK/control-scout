@@ -7,7 +7,7 @@
 /** A lazily loaded page module under src/pages (the file name without .tsx). */
 export type PageModule =
   | "TeamPage" | "EventsPage" | "RecordsPage" | "RankingsPage" | "EventPage" | "PredictPage" | "ComparePage" | "MyTeamPage" | "MyTeamsPage"
-  | "ShortlistPage" | "ScoutPage" | "DownloadPage" | "SettingsPage" | "MethodologyPage" | "SearchDocsPage" | "PrivacyPage" | "TermsPage" | "ContactPage" | "DonatePage" | "SupportersPage" | "FaqPage" | "RulesPage" | "MatchReportPage" | "PowerRankingsPage" | "EventDisplayPage" | "EventCodeRedirect" | "DigestUnsubscribedPage" | "BundlePage" | "SearchPage" | "RelatedSearchesPage" | "LeaguePage" | "TeamHighlightsPage" | "TeamRecordSplitPage" | "ContributorPage" | "GetVerifiedPage" | "VerifyVideoPage" | "NotFound";
+  | "ShortlistPage" | "ScoutPage" | "DownloadPage" | "SettingsPage" | "MethodologyPage" | "SearchDocsPage" | "PrivacyPage" | "TermsPage" | "ContactPage" | "DonatePage" | "SupportersPage" | "FaqPage" | "RulesPage" | "MatchReportPage" | "PowerRankingsPage" | "EventDisplayPage" | "EventCodeRedirect" | "DigestUnsubscribedPage" | "BundlePage" | "SearchPage" | "RelatedSearchesPage" | "LeaguePage" | "TeamHighlightsPage" | "TeamRecordSplitPage" | "EventHighlightsPage" | "ContributorPage" | "GetVerifiedPage" | "VerifyVideoPage" | "NotFound";
 
 // React Router matches case-insensitively, a trailing slash included: so do these.
 const ROUTES: [RegExp, PageModule | null][] = [
@@ -23,6 +23,7 @@ const ROUTES: [RegExp, PageModule | null][] = [
   [/^\/events\/[^/]+\/[^/]+\/?$/i, "EventPage"],
   [/^\/events\/[^/]+\/[^/]+\/match\/[^/]+\/?$/i, "MatchReportPage"],
   [/^\/events\/[^/]+\/[^/]+\/display\/?$/i, "EventDisplayPage"],
+  [/^\/events\/[^/]+\/[^/]+\/highlights\/?$/i, "EventHighlightsPage"],
   [/^\/predict\/?$/i, "PredictPage"],
   [/^\/predict\/accuracy\/?$/i, null], // a redirect to /methodology
   [/^\/compare\/?$/i, "ComparePage"],
@@ -65,6 +66,7 @@ export function pageModule(path: string): PageModule | null {
 const TITLES: [RegExp, string][] = [
   [/^\/events\/[^/]+\/[^/]+\/match\/[^/]+$/, "Match report"],
   [/^\/events\/[^/]+\/[^/]+\/display$/, "Pit display"],
+  [/^\/events\/[^/]+\/[^/]+\/highlights$/, "Event highlights"],
   [/^\/teams\/[^/]+\/highlights$/, "Team highlights"], [/^\/teams\/[^/]+\/record-split$/, "Team record"], [/^\/teams\/[^/]+$/, "Team"], [/^\/teams$/, "Teams"], [/^\/rankings$/, "Rankings"], [/^\/matches$/, "Match records"], [/^\/events\/[^/]+\/[^/]+$/, "Event"], [/^\/events$/, "Events"], [/^\/predict(\/accuracy)?$/, "Predict"],
   [/^\/compare$/, "Compare"], [/^\/my-team$/, "My team"], [/^\/my-teams$/, "My teams"], [/^\/shortlist$/, "Shortlist"], [/^\/scout$/, "Scout"], [/^\/download$/, "Download"],
   [/^\/bundle\/[^/]+\/[^/]+$/, "Event-day bundle"], [/^\/bundle\/[^/]+\/[^/]+\/picklist$/, "Pick list snapshot"],

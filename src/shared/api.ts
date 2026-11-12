@@ -638,6 +638,9 @@ export interface EventDetail {
   /** When this server last read the event's team list from FIRST without error (its full fetch, or its registrations):
    *  the event page's "last synced" time. Null: never read. Absent (time unknown) from older servers and saved packs. */
   teamsSyncedAt?: string | null;
+  /** The event has a highlights page (/events/<season>/<code>/highlights: server/eventHighlightsPage.ts). Absent: an
+   *  older server or a saved pack. */
+  highlights?: boolean;
   /** Each team's qualification schedule next to the field's (src/shared/scheduleDifficulty.ts): the full schedule, and
    *  what's left once quals are under way. Null without a posted schedule or ratings; absent from older servers and packs. */
   scheduleDifficulty?: ScheduleDifficulty | null;

@@ -158,6 +158,8 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
       <HeaderActions liveMode={liveMode} watch={{ url: e.livestream, stream: !!e.stream, finished: e.status === "finished" }} track={track}
         clips={<WatchClipsButton matches={d.matches} primary={e.status === "finished"} />} clipsFirst={e.status === "finished"}>
         {predictable && <Button variant="outline" size="sm" asChild><Link to={labHref}>Open in what-if lab</Link></Button>}
+        {/* Its standout matches, Search's "<event> highlights" card at its own address (pages/EventHighlightsPage.tsx). */}
+        {d.highlights && <Button variant="outline" size="sm" asChild><Link to={`/events/${e.season}/${encodeURIComponent(e.code)}/highlights`} data-highlights-link><Sparkles /> Highlights</Link></Button>}
         {/* A fullscreen screen for the pit TV: no sign-in, no chrome (pages/EventDisplayPage.tsx). Every season: history seasons show results and rankings without odds. */}
         <Button variant="outline" size="sm" asChild><Link to={`/events/${e.season}/${encodeURIComponent(e.code)}/display`} data-pit-display-link><Tv /> Pit display</Link></Button>
         {/* A league's meet or tournament: the league's whole standing is its own page. */}

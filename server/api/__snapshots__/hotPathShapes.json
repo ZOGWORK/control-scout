@@ -42,7 +42,7 @@
  },
  "/api/events/2026/DONE": {
   "status": 200,
-  "bytes": 4231,
+  "bytes": 4249,
   "body": {
    "event": {
     "season": 2026,
@@ -416,12 +416,13 @@
    "provisional": null,
    "sharedSessions": null,
    "teamsSyncedAt": "2025-10-01T00:00:00Z",
-   "scheduleDifficulty": null
+   "scheduleDifficulty": null,
+   "highlights": true
   }
  },
  "/api/events/2026/NEXT": {
   "status": 200,
-  "bytes": 3515,
+  "bytes": 3534,
   "body": {
    "event": {
     "season": 2026,
@@ -725,7 +726,8 @@
    "provisional": null,
    "sharedSessions": null,
    "teamsSyncedAt": "2025-10-01T00:00:00Z",
-   "scheduleDifficulty": null
+   "scheduleDifficulty": null,
+   "highlights": false
   }
  },
  "/api/events/2026/DONE/matches/qual:0:1": {

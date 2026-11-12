@@ -49,6 +49,7 @@ import { viewerOf } from "./videos/contributors.js";
 import { leagueStandings } from "./api/leagues.js";
 import { teamHighlightsPage } from "./teamHighlightsPage.js";
 import { teamRecordPage } from "./teamRecordPage.js";
+import { eventHighlightsPage } from "./eventHighlightsPage.js";
 import { perTeamOf, simulatedRankings } from "./projections/rankingSim.js";
 import { eventRecording, recordingStream, seasonRecordings, seasonVideoKinds, withClips, eventMatchSpan } from "./videos/recordings.js";
 import { answerVideo } from "./api/answers/video.js";
@@ -633,6 +634,15 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
     // On an event day results move every minute: revalidate every time (the ETag keeps that a cheap 304).
     if (d.live) res.setHeader("Cache-Control", "no-cache");
     return d;
+  }));
+
+  // An event's highlights page (server/eventHighlightsPage.ts): Search's "<event> highlights" answer, the same for
+  // every visitor. Not found for an event with no page to index or no match to pick from.
+  api.get("/events/:season/:code/highlights", h(async (req) => {
+    const s = season(req.params.season), c = code(req.params.code);
+    const p = await eventHighlightsPage(s, c);
+    if (!p) throw new HttpError(404, `No highlights for event ${req.params.code} in ${req.params.season}`);
+    return p;
   }));
 
   // A league's standings (api/leagues.ts): FIRST's league rankings, as the sync last read them.
