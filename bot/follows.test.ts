@@ -39,6 +39,12 @@ describe("dueNow", () => {
     expect(dueNow([f(3, "c1", NOW)], [m(1, NOW - 600_000, true)], NOW)).toEqual([]);
   });
 
+  it("a match marked played before its scores are posted waits: no result (never a tie at 0) until both are in", () => {
+    const unscored = { ...m(1, NOW - 600_000, true), red: { ...m(1, NOW, true).red, score: null } };
+    expect(dueNow([f(3)], [unscored], NOW)).toEqual([]);
+    expect(dueNow([f(3)], [{ ...unscored, blue: { ...unscored.blue, score: null } }], NOW)).toEqual([]);
+  });
+
   it("two followed teams in one match: one post in that channel naming both; other teams' matches: nothing", () => {
     const d = dueNow([f(1), f(4), f(9)], [m(1, NOW + 60_000)], NOW);
     expect(d).toHaveLength(1);

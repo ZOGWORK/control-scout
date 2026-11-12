@@ -124,9 +124,11 @@ const named = (d: EventDetail, n: number) => {
 /** A team's first unplayed qualification match (on one venue day, when given): "Q3 · 9:00 AM". */
 function firstOn(d: EventDetail, team: number, date: string | null): string | null {
   const zone = d.event.timezone ?? null;
+  // A match without a posted instant still counts (its venue-local time, or "time TBA"); quals go in number order.
+  const day = (x: MatchView) => dayOf(x, zone) ?? x.time?.slice(0, 10) ?? null;
   const m = d.matches
-    .filter((x) => x.level === "qual" && !x.played && teamsOf(x).includes(team) && Number.isFinite(at(x)) && (date == null || dayOf(x, zone) === date))
-    .sort((a, b) => at(a) - at(b))[0];
+    .filter((x) => x.level === "qual" && !x.played && teamsOf(x).includes(team) && (date == null || day(x) === date))
+    .sort((a, b) => a.number - b.number)[0];
   return m ? `${m.label} · ${clock(m, zone)}` : null;
 }
 const num1 = (x: number | null) => (x == null ? "—" : (Math.round(x * 10) / 10).toFixed(1));
