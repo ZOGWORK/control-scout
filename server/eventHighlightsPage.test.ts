@@ -24,6 +24,7 @@ beforeAll(async () => {
   await ev(2025, "CMPD1", "State Championship Division 1", "Championship", "2026-02-21", { division: "CMP" });
   await ev(2025, "EMPTY", "Registered Only", "Qualifier", "2026-03-07");
   await ev(2025, "REMOTE", "Remote Meet", "Qualifier", "2025-12-06", { remote: 1 });
+  await ev(2025, "NOTOTAL", "Half Reported", "Qualifier", "2025-12-13");
   await run("INSERT INTO event_teams (season, code, team, qual_played) VALUES (2025, 'USNJNOM3', 4215, 2), (2025, 'USNJNOM3', 7149, 2), (2025, 'USNJNOM3', 8000, 2), (2025, 'USNJNOM3', 8001, 2), (2025, 'EMPTY', 4215, 0), (2025, 'CMP', 4215, 0)");
   const match = async (code: string, n: number, red: [number, number], blue: [number, number], date: string) => {
     await run("INSERT INTO matches (season, code, level, series, number, label, played, time, red_total, blue_total, red_np, blue_np, red_auto, blue_auto, source) VALUES (2025, ?, 'qual', 0, ?, ?, 1, ?, ?, ?, ?, ?, 20, 10, 't')",
@@ -38,6 +39,11 @@ beforeAll(async () => {
   // The championship's matches are its division's: the main event's page reads them, as Search does.
   await match("CMPD1", 1, [200, 190], [150, 150], "2026-02-21T10:00:00Z");
   await match("REMOTE", 1, [99, 99], [10, 10], "2025-12-06T10:00:00Z");
+  // Played, both scores without penalties in, but a final total still missing: Search's highlights never read it
+  // (matchFind.ts where), so the event has no page, no button and no sitemap entry.
+  await run("INSERT INTO event_teams (season, code, team, qual_played) VALUES (2025, 'NOTOTAL', 4215, 1)");
+  await match("NOTOTAL", 1, [88, 88], [40, 40], "2025-12-13T10:00:00Z");
+  await run("UPDATE matches SET blue_total = NULL WHERE season = 2025 AND code = 'NOTOTAL'");
   resetSitemapCache();
 });
 
@@ -73,7 +79,7 @@ describe("event highlights page", () => {
   });
 
   it("is not found for an event with no match to pick from, a remote one, or no event at all", async () => {
-    for (const code of ["EMPTY", "REMOTE", "NOPE"]) {
+    for (const code of ["EMPTY", "REMOTE", "NOTOTAL", "NOPE"]) {
       expect(await eventHighlightsPage(2025, code)).toBeNull();
       expect((await pageMeta(`/events/2025/${code}/highlights`)).notFound).toBe(true);
     }
@@ -95,6 +101,7 @@ describe("event highlights page", () => {
     expect(await hasEventHighlights(2025, "USNJNOM3")).toBe(true);
     expect(await hasEventHighlights(2025, "EMPTY")).toBe(false);
     expect(await hasEventHighlights(2025, "REMOTE")).toBe(false);
+    expect(await hasEventHighlights(2025, "NOTOTAL")).toBe(false);
   });
 
   it("the sitemap lists each exactly once, with the day its matches last changed", async () => {
@@ -108,6 +115,7 @@ describe("event highlights page", () => {
     expect(locs.filter((l) => l === "https://controlscout.org/events/2025/USNJNOM3/highlights")).toHaveLength(1);
     expect(locs).not.toContain("https://controlscout.org/events/2025/EMPTY/highlights");
     expect(locs).not.toContain("https://controlscout.org/events/2025/REMOTE/highlights");
+    expect(locs).not.toContain("https://controlscout.org/events/2025/NOTOTAL/highlights");
     expect(new Set(locs).size).toBe(locs.length);
     expect(buildSitemap(e).main).toContain("<url><loc>https://controlscout.org/events/2025/USNJNOM3/highlights</loc><lastmod>2025-11-20</lastmod></url>");
   });
