@@ -63,6 +63,9 @@ export interface IntentRule {
   noMatchNo?: boolean;
   /** "A match" only, never a rate said ("per match", "each game"): the answer is a count, never one per match. */
   noRate?: boolean;
+  /** "Ever" said ("did they ever play"): a question about what happened, so it wins over a rule that reads the same
+   *  symbols as a prediction or a side by side. */
+  ever?: boolean;
 }
 
 const SCORE_LIKE = ["metric:score", "thing:match", "thing:event"];
@@ -154,6 +157,9 @@ export const INTENTS: IntentRule[] = [
   R("results", 1, ["thing:match"], ["list", "metric:score", "metric:record"], { event: true }),
   R("event-rank", 1, ["metric:rank"], [], { event: true }),
   R("event-opr", 1, ["metric:opr"], [], { event: true }),
+  // A team at an event, nothing else asked ("12345 at <event> in 2025-26"): its results there. "At" said, so a word read
+  // loosely as an event's name ("how old is 12345") is never taken for one.
+  R("results", 1, ["prep:at"], [], { event: true }),
   // A state championship or Worlds alone ("12345 states", "12345 at worlds"): the team's results there.
   R("results", 1, ["states"], ["list"]),
   R("results", 1, ["worlds"], ["list"]),
@@ -212,6 +218,12 @@ export const INTENTS: IntentRule[] = [
   // "Head to head score": their meetings, each with its score.
   // The teams joined by "and" ("A and B head to head score") read the same as "vs".
   R("head-to-head", 2, ["vs", "thing:match"], ["list", "metric:record", "metric:score", "and"]),
+  // Playing said with "ever" ("did 12345 ever play 67890", "their match against 67890, if they ever played"): the
+  // meetings that happened, never a prediction or a side by side of season numbers. "If" there is "whether", never a
+  // supposition.
+  R("head-to-head", 2, ["vs"], ["thing:match", "list", "hypo", "and"], { ever: true }),
+  // "12345 losses to 67890", "has 12345 lost to 67890": the meetings, the losses among them.
+  R("head-to-head", 2, ["metric:opponent", "outcome:L"], ["thing:match", "list", "vs"]),
   R("h2h-wins", 2, ["vs", "metric:win"], ["agg:count", "thing:match"]),
   // "12345 and 67890 awards" is each team's own list (search's AND list); a versus or a comparison is the side by side.
   R("opr-vs", 2, ["metric:opr", "vs"], ["compare"]),
@@ -299,7 +311,7 @@ export const SLOT_SYMBOLS = /^(?:level|finals|alliance|worlds|states|award|prep|
 export interface IntentPick { rule: IntentRule; unexplained: string[] }
 
 /** The rule for these symbols, `teams` teams named and an event named or not, or null. */
-export function pickIntent(symbols: Set<string>, teams: number, opts: { event: boolean; n: boolean; matchNo?: boolean; rate?: boolean }): IntentPick | null {
+export function pickIntent(symbols: Set<string>, teams: number, opts: { event: boolean; n: boolean; matchNo?: boolean; rate?: boolean; ever?: boolean }): IntentPick | null {
   const atEvent = opts.event || symbols.has("states");
   const asked = [...symbols].filter((s) => !SLOT_SYMBOLS.test(s) || s === "level:playoff" || s === "level:qual");
   let best: { rule: IntentRule; score: number; unexplained: string[] } | null = null;
@@ -310,6 +322,7 @@ export function pickIntent(symbols: Set<string>, teams: number, opts: { event: b
     if (rule.noMatchNo && opts.matchNo) continue;
     if (rule.noRate && opts.rate) continue;
     if (rule.n && !opts.n) continue;
+    if (rule.ever && !opts.ever) continue;
     // A match's number is only a match lookup's, and a match lookup needs one.
     if (!!rule.matchNo !== !!opts.matchNo && (rule.matchNo || rule.event)) continue;
     if (!rule.all.every((s) => symbols.has(s))) continue;
@@ -317,7 +330,7 @@ export function pickIntent(symbols: Set<string>, teams: number, opts: { event: b
     // A match type is a scope for every rule but the match-type lists themselves.
     // A match type is a scope for every rule but the match-type lists themselves.
     const unexplained = asked.filter((s) => !took.has(s) && !/^level:/.test(s));
-    const score = rule.all.length * 2 + (rule.opt ?? []).filter((s) => symbols.has(s)).length - unexplained.length * 3 + (rule.n ? 1 : 0) + (rule.matchNo ? 1 : 0);
+    const score = rule.all.length * 2 + (rule.opt ?? []).filter((s) => symbols.has(s)).length - unexplained.length * 3 + (rule.n ? 1 : 0) + (rule.matchNo ? 1 : 0) + (rule.ever ? 2 : 0);
     if (!best || score > best.score) best = { rule, score, unexplained };
   }
   return best ? { rule: best.rule, unexplained: best.unexplained } : null;

@@ -37,6 +37,8 @@ export type CompoundQuestion =
   | { kind: "combined"; core: string; parts: ("record" | "awards" | "opr")[]; when: SeasonWords }
   /** A team's partners (or opponents) at an event or in a season, filtered by their OPR. */
   | { kind: "side-threshold"; core: string; side: "partners" | "opponents"; at: string | null; threshold: Threshold; when: SeasonWords }
+  /** The engine's call for a team against each team ranked in the world's top N ("can 12345 beat a top 10 team"). */
+  | { kind: "predict-top"; core: string; n: number; when: SeasonWords }
   /** Whether a team beat a team ranked in the world's top N. */
   | { kind: "beat-top"; core: string; n: number; by: "rating" | "opr"; when: SeasonWords }
   /** Two picks from one season's events: its best (or worst) by rank, OPR or record. */
@@ -199,6 +201,9 @@ function readList(said: string): CompoundQuestion | null {
 }
 
 const SIDE_END = String.raw`(.*)$`;
+/** Words about a prediction a question says beside it: "according to (the) predictions", "and by how much would they
+ *  lose", "by what margin". */
+const PREDICT_WORDS = /\b(?:and )?(?:according to|based on|using|per) (?:the )?(?:predictions?|engine|ratings?|forecasts?|predict)\b|\b(?:and )?(?:by )?(?:how much|what margin|how many points)(?: (?:would|will|could|do|does) (?:they|it|we) (?:lose|win))?(?: by)?\b/g;
 
 /** The compound question `raw` asks, or null. `raw` is the query as search cleaned it (plurals singular). */
 export function readCompound(raw: string): CompoundQuestion | null {
@@ -254,6 +259,14 @@ export function readCompound(raw: string): CompoundQuestion | null {
     const scoped = at && (at.season != null || at.ever) ? { season: at.season, ever: at.ever, latest: at.latest } : null;
     // An OPR is one season's: "ever" across seasons isn't read here.
     if (w && !(scoped ?? w).ever) return { kind: "side-threshold", core: sided.core, side: sided.against ? "opponents" : "partners", at: at?.rest || null, threshold: { op: opOf(op), value: Number(value) }, when: scoped && w.season == null ? scoped : w };
+  }
+
+  // "can 12345 beat a top 10 worldwide team", "would 12345 beat a team ranked top 5": not a meeting that happened, the
+  // engine's call against each of them. What the question adds about the call ("according to predictions", "and by how
+  // much would they lose") is the card's own, so it's read as said; any other words are left to the readers after this.
+  if ((m = /^(?:can|could|will|would) (.+?) (?:beat|defeat|win against|win vs|outscore) (?:(?:a|any|an|the) )?(?:(?:team|opponent)s? (?:that (?:is|are) |who (?:is|are) )?(?:ranked )?(?:in the )?)?top (\d{1,3})(?: (?:teams? )?(?:worldwide|in the world|globally|world ?wide))?(?: (?:team|opponent)s?)?(.*)$/.exec(q))) {
+    const w = when(m[3].replace(PREDICT_WORDS, " ").replace(/\s+/g, " ").trim());
+    if (w && !w.ever && Number(m[2]) >= 1 && Number(m[2]) <= 25) return { kind: "predict-top", core: m[1], n: Number(m[2]), when: w };
   }
 
   // "did 12345 ever beat a team ranked top 10 worldwide".

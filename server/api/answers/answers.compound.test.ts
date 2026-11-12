@@ -91,6 +91,12 @@ describe("reading compound questions", () => {
     expect(readCompound("4215 awards and record in 2025-26 combined")).toMatchObject({ kind: "combined", core: "4215", parts: ["awards", "record"], when: { season: 2025 } });
     expect(readCompound("4215 partners at NJ championship who had opr over 80")).toMatchObject({ kind: "side-threshold", side: "partners", at: "nj championship", threshold: { op: "gt", value: 80 } });
     expect(readCompound("did 4215 ever beat a team ranked top 10 worldwide")).toMatchObject({ kind: "beat-top", n: 10, by: "rating", when: { ever: true } });
+    // A match not yet played against the world's top N: the engine's call against each, never the meetings.
+    expect(readCompound("can 33950 beat a top 10 worldwide team, according to predictions, and by how much would they lose")).toMatchObject({ kind: "predict-top", core: "33950", n: 10 });
+    expect(readCompound("would 7149 beat a team ranked top 5 in the world")).toMatchObject({ kind: "predict-top", core: "7149", n: 5 });
+    expect(readCompound("could 4215 beat a top 10 team in 2025-26")).toMatchObject({ kind: "predict-top", n: 10, when: { season: 2025 } });
+    // Words the card doesn't answer are left to the readers after this one.
+    expect(readCompound("can 4215 beat a top 10 team at worlds")).toBeNull();
     expect(readCompound("4215's best event by rank and worst event by opr in same season")).toMatchObject({ kind: "event-picks", picks: [{ pick: "best", by: "rank" }, { pick: "worst", by: "opr" }] });
     expect(readCompound("team in NJ that went to worlds in 2025 and their opr")).toMatchObject({ kind: "list", region: { state: "NJ" }, worlds: true, season: 2024, outputs: ["opr"] });
     // "How many" before the teams asks for the same list, which leads with its count (failed-search #1062).

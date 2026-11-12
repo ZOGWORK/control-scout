@@ -11,11 +11,12 @@ import type { CompoundQuestion, SeasonWords } from "./compound.js";
 import { fuzzyScore } from "../fuzzy.js";
 import { teamEventSet, type TeamEvent } from "./eventSet.js";
 import { teamMatches } from "./matchSet.js";
-import { defaultSeason, seasonWhy, teamSeason } from "./season.js";
+import { currentSeason, defaultSeason, seasonWhy, teamSeason } from "./season.js";
 import { awardsAnswer } from "./families/awards.js";
 import { beatTopAnswer, combinedAnswer, eventPairAnswer, eventPicksAnswer, listAnswer, listPairAnswer, listTitle, marginAnswer, oprExcludingAnswer, reliabilitySetAnswer, sideThresholdAnswer, winLossAverageAnswer } from "./families/compound.js";
 import { matchAnswer, whoOf, type AnswerTeam } from "./families/matches.js";
 import { compareAnswer } from "./families/twoTeam.js";
+import { predictTopAnswer } from "./families/predict.js";
 import type { Resolve } from "./index.js";
 
 /** What index.ts already decides for every stat answer, passed in so both read the same rule. */
@@ -29,7 +30,7 @@ type Opts = { full: boolean; pages: SearchPageLink[] };
 
 const TITLES: Record<Exclude<CompoundQuestion["kind"], "list" | "list-pair" | "set-best">, string> = {
   "event-pair": "OPR at their first event, two seasons", margin: "Matches by margin", combined: "Two answers", "side-threshold": "Partners by OPR",
-  "beat-top": "Wins against top-ranked teams", "event-picks": "Best and worst events", "win-loss-average": "Average score in wins and losses", "opr-excluding": "OPR without one event",
+  "beat-top": "Wins against top-ranked teams", "predict-top": "Predicted against the world's top teams", "event-picks": "Best and worst events", "win-loss-average": "Average score in wins and losses", "opr-excluding": "OPR without one event",
 };
 
 /** The season a team's answer reads: the one named; every season for "ever"; else the default season, or the team's
@@ -109,6 +110,14 @@ export async function compoundSearch(q: string, c: CompoundQuestion, resolve: Re
     if (!opts.full) return a;
     const set = await teamEventSet(team.number);
     return done(a, eventPairAnswer(team, set.events, set.seasons, c.which, seasons));
+  }
+  if (c.kind === "predict-top") {
+    // A call is one season's: the one named, else the team's latest season (seasonFor, never every season).
+    const s = await seasonFor(c.when, team.number, deps, false);
+    const season = s.season ?? currentSeason();
+    const a = answer(`${whoOf(team)} · ${TITLES[c.kind]}`, season, "matches");
+    if (!opts.full) return a;
+    return done(a, await predictTopAnswer(team, season, c.n), s.why);
   }
   const s = await seasonFor(c.when, team.number, deps, c.kind === "margin" || c.kind === "beat-top" || c.kind === "combined" || c.kind === "win-loss-average");
   const scope: Scope = { season: s.season };
