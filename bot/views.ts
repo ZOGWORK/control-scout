@@ -102,11 +102,18 @@ export function teamEmbed(c: TeamCard, site: string): APIEmbed {
 // is the default and carries no label; the footer names only the exceptions, so a replayed (backtest) call is
 // never mixed up with one logged beforehand.
 
-/** Result colours: the followed team won (the site's success green), lost (the red alliance's rose, not the
- *  error colour), or tied (slate). Volt everywhere else. */
-export const WIN = 0x34d399;
-export const LOSS = 0xf43f5e;
-export const TIE = 0x94a3b8;
+/** The pride flag's six colours: every embed's border is one of them (pride() below). */
+export const PRIDE = [0xe40303, 0xff8c00, 0xffed00, 0x008026, 0x004cff, 0x732982] as const;
+
+/**
+ * Every embed the bot sends, with a pride-flag border: the colour comes from its title, so one post (a match, an
+ * event's schedule) always gets the same one and a channel's posts run through the rainbow.
+ */
+export function pride<E extends APIEmbed>(e: E): E {
+  let h = 0;
+  for (const c of e.title ?? e.description ?? "") h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return { ...e, color: PRIDE[h % PRIDE.length] };
+}
 
 /** The call's kind in the footer, only when it isn't a live call (logged before the match). */
 const KIND: Record<string, string> = {
@@ -197,24 +204,7 @@ export function callLine(p: MatchView["prediction"]): string {
 const unix = (iso: string) => Math.floor(Date.parse(iso) / 1000);
 const matchTitle = (m: MatchView, eventName: string) => clip(`${m.label} · ${eventName}`, 256);
 
-/** A followed team's outcome in a played match. */
-export function outcomeFor(m: MatchView, team: number): "won" | "lost" | "tied" {
-  const r = m.red.score?.total ?? 0, b = m.blue.score?.total ?? 0;
-  if (r === b) return "tied";
-  return teamsOf(m.red, m.played).includes(team) === r > b ? "won" : "lost";
-}
-
-/** The border: the followed teams' outcome when it's one clear outcome; volt when mixed or nobody's followed. */
-export function resultColor(m: MatchView, followed: readonly number[]): number {
-  if (!followed.length) return VOLT;
-  const outs = new Set(followed.map((t) => outcomeFor(m, t)));
-  if (outs.size > 1) return VOLT;
-  return outs.has("won") ? WIN : outs.has("lost") ? LOSS : TIE;
-}
-
 export interface ResultOptions {
-  /** The followed teams it's about (follow posts): they set the colour. */
-  followed?: readonly number[];
   /** The followed team's next unplayed match at the event (named when the post is about more than one team).
    *  No next match, no line: never invented. */
   next?: { match: MatchView; team: number | null } | null;
@@ -237,7 +227,7 @@ export function resultEmbed(eventName: string, m: MatchView, site: string, o: Re
     title: matchTitle(m, eventName),
     url: `${site}${matchReportHref(m)}`,
     description: [scoreLine(m, site), storyLine(m), nextLine(m, site, o.next)].join("\n"),
-    color: resultColor(m, o.followed ?? []),
+    color: VOLT,
     footer: footerFor(m.prediction),
   };
 }

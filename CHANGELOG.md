@@ -15,6 +15,27 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.7.6 — 2026-11-12
+
+The Discord bot's event posts: a schedule that always fits, the first match the evening before, and a plain day recap.
+
+### Highlights
+- [alerts] The schedule names every team and never overflows
+- [alerts] The evening-before post names the team's first match
+- [alerts] The day recap says "Calls: 4 of 5 right", then tomorrow's first match
+- [fixes] At a league meet the recap ranks the team among that meet's teams
+- [appearance] Every bot post has a pride-flag border
+
+### Changed
+- Schedule posts: one line per match, `` `Q12  4:30 PM` **Blue** 54% · with 23545 Gear Grinders vs 23314 Bolts & 8902 Hex ``: the match and time in one aligned column, the side in words, the chance, then partner and opponents by number and name. Up to 15 matches; a long list continues in the next field instead of passing Discord's 1,024 characters per field (a field over the cap made Discord reject the whole post), then `…and N more`. (`bot/eventAlerts.ts`)
+- The evening-before post adds `First match: Q3 · 9:00 AM` per followed team once the schedule is posted, and links the team and the strongest teams there. (`bot/eventAlerts.ts`)
+- The day recap reads `Calls: 4 of 5 right`; an even call (45–55%) isn't counted as a call; a multi-day event adds `Tomorrow: first match Q3 · 9:00 AM`. (`bot/eventAlerts.ts`)
+- Every embed the bot sends (follow posts, command answers, errors) has a border in one of the pride flag's six colours, picked from its title so the same post keeps its colour and a channel runs through the rainbow. It replaces 5.7.1's win / loss / tie borders and the volt default. (`pride` in `bot/views.ts`, `bot/follows.ts`, `bot/handler.ts`)
+- `npm run bot:test-post` posts every message design to a test server's channel from the real Nov 7 meet, and `-- tick` runs the real minute tick there. (`bot/testPost.ts`, `bot/README.md`)
+
+### Fixed
+- At a league meet the recap said "Rank 18 of 11": FIRST's rank there is the league's running standing. It now gives the meet's own rank. (`bot/eventAlerts.ts`) (#1405)
+
 ## 5.7.5 — 2026-11-12
 
 The Discord bot's match posts tell one story each: who won, by how much, and whether the call was right.

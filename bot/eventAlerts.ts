@@ -9,7 +9,7 @@ import type { APIEmbed } from "discord.js";
 import type { EventDetail, MatchView } from "../src/shared/api.js";
 import { localDate } from "../src/shared/eventDay.js";
 import { oddsPct, tierWords } from "../src/shared/share.js";
-import { FOOTER, VOLT, dates } from "./views.js";
+import { FOOTER, VOLT, dates, favouriteOf, linkedAlliance, teamLink, teamsOf as sideTeams } from "./views.js";
 import type { Follow } from "./follows.js";
 
 export type EventKind = "eve" | "schedule" | "recap";
@@ -82,7 +82,55 @@ const clock = (m: MatchView, zone: string | null) => {
   return m.time ? m.time.slice(11, 16) : "time TBA";
 };
 const eventUrl = (d: EventDetail, site: string) => `${site}/events/${d.event.season}/${encodeURIComponent(d.event.code)}`;
-const bold = (teams: number[]) => teams.map((t) => `**${t}**`).join(" & ");
+/** Discord's cap on one field's value. */
+export const FIELD_MAX = 1024;
+/** Schedule lines per team before "…and N more" (the character cap can cut sooner). */
+export const SCHEDULE_MAX = 15;
+
+/** One post's budget across all its fields (Discord's limit for a whole message is 6,000). */
+export const EMBED_FIELDS_MAX = 5000;
+/** Discord's cap on fields in one embed. */
+export const FIELDS_MAX = 25;
+
+/**
+ * Lines into as many field values as they need, each within `max` characters: at most `cap` lines and `total`
+ * characters in all, the rest as "…and N more" at the end. A long schedule continues in the next field instead of
+ * being cut at Discord's 1,024 per field.
+ */
+export function packLines(lines: string[], cap = Infinity, max = FIELD_MAX, total = EMBED_FIELDS_MAX): string[] {
+  const shown: string[] = [];
+  let sum = 0;
+  for (const l of lines.slice(0, cap)) {
+    if (sum + l.length + 1 > total) break;
+    shown.push(l.slice(0, max));
+    sum += l.length + 1;
+  }
+  if (lines.length > shown.length) shown.push(`…and ${lines.length - shown.length} more`);
+  const out: string[] = [];
+  let cur = "";
+  for (const l of shown) {
+    if (cur && cur.length + 1 + l.length > max) { out.push(cur); cur = l; } else cur = cur ? `${cur}\n${l}` : l;
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
+/** A team as the schedule names it: "10243 Gear Grinders" (the name clipped to 18 characters). */
+const named = (d: EventDetail, n: number) => {
+  const name = d.field.find((f) => f.team === n)?.name?.trim();
+  return name ? `${n} ${name.length > 18 ? `${name.slice(0, 17)}…` : name}` : String(n);
+};
+
+/** A team's first unplayed qualification match (on one venue day, when given): "Q3 · 9:00 AM". */
+function firstOn(d: EventDetail, team: number, date: string | null): string | null {
+  const zone = d.event.timezone ?? null;
+  // A match without a posted instant still counts (its venue-local time, or "time TBA"); quals go in number order.
+  const day = (x: MatchView) => dayOf(x, zone) ?? x.time?.slice(0, 10) ?? null;
+  const m = d.matches
+    .filter((x) => x.level === "qual" && !x.played && teamsOf(x).includes(team) && (date == null || day(x) === date))
+    .sort((a, b) => a.number - b.number)[0];
+  return m ? `${m.label} · ${clock(m, zone)}` : null;
+}
 const num1 = (x: number | null) => (x == null ? "—" : (Math.round(x * 10) / 10).toFixed(1));
 
 export function eveEmbed(due: EventDue, d: EventDetail, seasons: TeamSeason[], site: string): APIEmbed {
@@ -91,39 +139,53 @@ export function eveEmbed(due: EventDue, d: EventDetail, seasons: TeamSeason[], s
   return {
     title: `Tomorrow: ${e.name}`,
     url: eventUrl(d, site),
-    description: `${bold(due.teams)} ${due.teams.length > 1 ? "compete" : "competes"} tomorrow.`,
+    description: `${linkedAlliance(due.teams, site)} ${due.teams.length > 1 ? "compete" : "competes"} tomorrow.`,
     color: VOLT,
     fields: [
       { name: "When", value: dates(e.start, e.end), inline: true },
       { name: "Where", value: [e.venue, e.city, e.state].filter(Boolean).join(", ") || "Not posted", inline: true },
       { name: "Teams", value: String(d.field.length || e.teams), inline: true },
-      ...seasons.map((s) => ({ name: `${s.team}${s.name ? ` ${s.name}` : ""}`, value: `Season OPR **${num1(s.opr)}**${s.worldRank ? ` · #${s.worldRank.toLocaleString("en-US")} world` : ""}` })),
-      ...(strongest.length ? [{ name: "Strongest there", value: strongest.map((f) => `${f.team}${f.name ? ` ${f.name}` : ""} · ${f.rating!.np.toFixed(1)}`).join("\n") }] : []),
+      ...seasons.map((s) => {
+        // Once the schedule is posted, the team's first match (nothing before it is).
+        const first = firstOn(d, s.team, null);
+        return { name: `${s.team}${s.name ? ` ${s.name}` : ""}`, value: `Season OPR **${num1(s.opr)}**${s.worldRank ? ` · #${s.worldRank.toLocaleString("en-US")} world` : ""}${first ? `\nFirst match: ${first}` : ""}` };
+      }),
+      ...(strongest.length ? [{ name: "Strongest there", value: strongest.map((f) => `${teamLink(f.team, site)}${f.name ? ` ${f.name}` : ""} · ${f.rating!.np.toFixed(1)}`).join("\n") }] : []),
     ],
-    footer: { text: `The schedule posts here once FIRST publishes it · ${FOOTER.text}` },
+    footer: { text: `${d.matches.some((m) => m.level === "qual") ? "" : "The schedule posts here once FIRST publishes it · "}${FOOTER.text}` },
   };
 }
 
 export function scheduleEmbed(due: EventDue, d: EventDetail, site: string): APIEmbed {
   const zone = d.event.timezone ?? null;
-  const fields = due.teams.map((t) => {
+  const fields = due.teams.flatMap((t) => {
     const quals = d.matches.filter((m) => m.level === "qual" && teamsOf(m).includes(t));
-    const lines = quals.slice(0, 15).map((m) => {
-      const red = m.red.teams.some((x) => x.number === t);
+    // "`Q12   4:30 PM` **Blue** 54% · with 23545 Gear Grinders vs 23314 Bolts & 8902 Hex": the match and its time in
+    // one monospace column so the rows line up, then the team's side in words (an emoji per row reads as a wall of
+    // blobs), its chance, partner and opponents by number and name.
+    const width = Math.max(0, ...quals.map((m) => m.label.length));
+    const lines = quals.map((m) => {
+      const red = sideTeams(m.red, false).includes(t);
       const p = m.prediction;
-      const odds = p ? ` · ${oddsPct(red ? p.pRed : 1 - p.pRed)} to win` : "";
-      const partner = (red ? m.red : m.blue).teams.map((x) => x.number).filter((n) => n !== t).join(" & ");
-      return `**${m.label}** ${clock(m, zone)} · ${red ? "red" : "blue"}${partner ? ` with ${partner}` : ""}${odds}`;
+      const odds = p ? ` ${oddsPct(red ? p.pRed : 1 - p.pRed)}` : "";
+      const partner = sideTeams(red ? m.red : m.blue, false).filter((n) => n !== t).map((n) => named(d, n)).join(" & ");
+      const opp = sideTeams(red ? m.blue : m.red, false).map((n) => named(d, n)).join(" & ");
+      const who = [partner ? `with ${partner}` : null, opp ? `vs ${opp}` : null].filter(Boolean).join(" ");
+      return `\`${m.label.padEnd(width)} ${clock(m, zone).padStart(8)}\` **${red ? "Red" : "Blue"}**${odds}${who ? ` · ${who}` : ""}`;
     });
-    if (quals.length > 15) lines.push(`…and ${quals.length - 15} more`);
-    return { name: `${t}: ${quals.length} qualification match${quals.length === 1 ? "" : "es"}`, value: lines.join("\n") || "None posted yet." };
+    // Several followed teams share the post's budget.
+    const values = packLines(lines, SCHEDULE_MAX, FIELD_MAX, Math.floor(EMBED_FIELDS_MAX / due.teams.length));
+    const name = `${named(d, t)}: ${quals.length} qualification match${quals.length === 1 ? "" : "es"}`;
+    // Continuation fields carry a blank name (a zero-width space), so the list reads as one.
+    return values.length ? values.map((value, i) => ({ name: i ? "​" : name, value })) : [{ name, value: "None posted yet." }];
   });
   const tier = d.matches.find((m) => m.prediction)?.prediction?.tier;
   return {
     title: `Schedule posted: ${d.event.name}`,
     url: eventUrl(d, site),
     color: VOLT,
-    fields,
+    // A schedule post is one team's (eventDue keys it per team), at most a few fields; never past Discord's cap.
+    fields: fields.slice(0, FIELDS_MAX),
     footer: { text: `${tier ? `Win odds from today's ratings, ${tierWords(tier)} · ` : ""}A post 15 minutes before each match · ${FOOTER.text}` },
   };
 }
@@ -134,16 +196,22 @@ export function recapEmbed(due: EventDue, d: EventDetail, today: string, site: s
     const row = d.field.find((f) => f.team === t);
     const todays = d.matches.filter((m) => m.played && teamsOf(m).includes(t) && dayOf(m, zone) === today);
     // Only calls logged before the match count: a replayed (backtest) one wasn't made beforehand.
-    const calls = todays.filter((m) => m.prediction?.kind === "live" && m.prediction.pRed !== 0.5 && m.red.score && m.blue.score && m.red.score.total !== m.blue.score.total);
-    const right = calls.filter((m) => (m.prediction!.pRed > 0.5) === (m.red.score!.total > m.blue.score!.total)).length;
+    // An even call (45–55%) or a tie has no verdict, so it counts neither way.
+    const calls = todays.filter((m) => m.prediction?.kind === "live" && favouriteOf(m.prediction) && m.red.score && m.blue.score && m.red.score.total !== m.blue.score.total);
+    const right = calls.filter((m) => (favouriteOf(m.prediction!)!.side === "red") === (m.red.score!.total > m.blue.score!.total)).length;
+    // A multi-day event: the team's first match tomorrow, once it's on the schedule.
+    const tomorrow = d.event.end && d.event.end > today ? firstOn(d, t, addDays(today, 1)) : null;
+    // At a league meet FIRST's rank is the league's running standing (it can be past the meet's team count): the
+    // meet's own rank is the one "of N" here.
+    const rank = row?.meet !== undefined ? row.meet?.rank ?? null : row?.rank ?? null;
     const parts = [
-      row?.rank != null ? `Rank **${row.rank}** of ${d.field.length}` : null,
+      rank != null ? `Rank **${rank}** of ${d.field.length}` : null,
       // A record the source hasn't reported is left out, never shown as 0–0–0.
       row && row.wins != null && row.losses != null ? `${row.wins}–${row.losses}–${row.ties ?? 0}` : null,
       `${todays.length} match${todays.length === 1 ? "" : "es"} today`,
-      calls.length ? `live calls right: ${right} of ${calls.length}` : null,
+      calls.length ? `Calls: ${right} of ${calls.length} right` : null,
     ].filter(Boolean);
-    return { name: `${t}${row?.name ? ` ${row.name}` : ""}`, value: parts.join(" · ") };
+    return { name: `${t}${row?.name ? ` ${row.name}` : ""}`, value: `${parts.join(" · ")}${tomorrow ? `\nTomorrow: first match ${tomorrow}` : ""}` };
   });
   return {
     title: `Day recap: ${d.event.name}`,

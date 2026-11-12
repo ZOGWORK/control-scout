@@ -7,7 +7,7 @@ import { setFlag } from "../server/flags";
 import { CURRENT_SEASON as S } from "../server/data/seasons";
 import type { EventDetail, MatchView } from "../src/shared/api";
 import { MAX_FAILURES, REMIND_MS, addFollow, dueNow, listFollows, nextMatch, notifyTick, postEmbed, removeFollow, type Follow } from "./follows";
-import { Friendly, LOSS, VOLT, WIN, embedBlocks } from "./views";
+import { Friendly, PRIDE, embedBlocks } from "./views";
 
 const NOW = Date.parse("2026-10-24T15:00:00Z");
 /** These tests are about the per-match posts: the event's schedule post (bot/eventAlerts.ts) counts as already sent. */
@@ -70,7 +70,7 @@ describe("dueNow", () => {
     expect(postEmbed(both, ev([match]), SITE).description!.split("\n")[0]).toBe(`${L(1)} on Red with ${L(2)}; ${L(4)} on Blue with ${L(3)}, <t:${at}:R> (<t:${at}:t>).`);
   });
 
-  it("the result tells the outcome once, colours by it, and names the next match only when there is one", () => {
+  it("the result tells the outcome once and names the next match only when there is one", () => {
     const done = m(1, NOW - 60_000, true), next = m(5, NOW + 3_600_000), later = m(9, NOW + 7_200_000);
     const [res] = dueNow([f(3)], [done], NOW);
     const e = postEmbed(res, ev([done, later, next]), SITE);
@@ -79,9 +79,6 @@ describe("dueNow", () => {
     expect(lines[1]).toBe("Called it ✅ — Red 60% (predicted 50–40), won by 10.");
     expect(lines[2]).toBe(`Next: Q5 · <t:${Math.floor((NOW + 3_600_000) / 1000)}:t> · [Match](${SITE}/events/${S}/X/match/qual:0:5) · [Event](${SITE}/events/${S}/X)`);
     expect(e.description!.match(/won|lost/g)).toHaveLength(1);
-    expect(e.color).toBe(LOSS);
-    expect(postEmbed(dueNow([f(1)], [done], NOW)[0], ev([done]), SITE).color).toBe(WIN);
-    expect(postEmbed(dueNow([f(1), f(3)], [done], NOW)[0], ev([done]), SITE).color).toBe(VOLT); // mixed
     // No next match: no Next line, just the event link.
     expect(postEmbed(res, ev([done]), SITE).description!.split("\n")[2]).toBe(`[Event](${SITE}/events/${S}/X)`);
     expect(embedBlocks(e)).toBeLessThanOrEqual(4);
@@ -135,9 +132,10 @@ describe("follows and the tick, on a database", () => {
     expect(await notifyTick(send, "https://controlscout.org", () => {}, NOW)).toBe(1);
     expect(await notifyTick(send, "https://controlscout.org", () => {}, NOW + 60_000)).toBe(0);
     expect(send).toHaveBeenCalledTimes(1);
-    const [channel, embed] = send.mock.calls[0] as unknown as [string, { title: string; description: string }];
+    const [channel, embed] = send.mock.calls[0] as unknown as [string, { title: string; description: string; color: number }];
     expect(channel).toBe("c1");
     expect(embed.title).toBe("Q7 · Austin Qualifier");
+    expect(PRIDE).toContain((embed as { color?: number }).color); // sent with a pride-flag border
     // One post naming both followed teams (here on one alliance: named together, with its side).
     expect(embed.description.split("\n")[0]).toMatch(/^\[18360\]\(.*\) & \[4215\]\(.*\) on (Red|Blue), <t:\d+:R>/);
   });
