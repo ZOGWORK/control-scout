@@ -33,11 +33,10 @@ export default function TeamRecordSplitPage() {
       <Async state={state}>
         {(d) => (
           <>
-            {/* The record card doesn't link the team's page: the header does. */}
+            {/* The card names the team and links its page (Full team page): the header names the page only. */}
             <PageHeader title={`${teamHeading(d.team.number, d.team.name)} record`}
               description="Its wins, losses and ties of the season, qualification matches and playoffs apart."
-              phoneDescription="Quals and playoffs apart."
-              actions={<Link to={`/teams/${d.team.number}`} data-team-link className="inline-flex h-[44px] items-center rounded-lg border border-border bg-card px-3 text-sm font-medium hover:border-accent/60">Team page</Link>} />
+              phoneDescription="Quals and playoffs apart." />
             <StatAnswerCard stat={d.stat} />
           </>
         )}

@@ -28,13 +28,14 @@ const open = (path: string) => render(<MemoryRouter initialEntries={[path]}><Rou
 afterEach(() => { cleanup(); asked.length = 0; titles.length = 0; });
 
 describe("team record-split page", () => {
-  it("draws Search's record card under its own heading, and links back to the team page", () => {
+  it("draws Search's record card under its own heading", () => {
     open("/teams/4215/record-split");
     expect(asked).toContain("/api/teams/4215/record-split");
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("4215 Hypnotic Robotics record");
     expect(document.body.textContent).toContain("26-6-0");
     expect(document.body.textContent).toMatch(/22.?4.?0/); // the quals record, apart
-    expect(screen.getAllByRole("link").some((a) => a.getAttribute("href") === "/teams/4215")).toBe(true);
+    // The card's team header (its "Full team page" link) reads the team itself; the first HTML's link back is in
+    // server/teamRecordPage.test.ts.
     expect(titles.at(-1)).toBe("4215 Hypnotic Robotics record, quals vs playoffs, 2025–26");
   });
 
