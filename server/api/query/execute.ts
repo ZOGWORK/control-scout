@@ -22,6 +22,7 @@ import { eventsNamed, heldInYear, highlightsAnswer, latestPlayed, recentWindow, 
 import { teamHighlights, type TeamHighlightScope } from "../answers/highlights.js";
 import { shortEvent } from "../answers/matchSet.js";
 import { CHAMPIONSHIP_TYPE, OFFICIAL_TYPES, STATES_TYPE } from "../answers/clauses.js";
+import { eventScoresAnswer, eventScoresTitle, type EventScoresQuestion } from "../answers/families/eventScores.js";
 import { FROM as FIND_FROM, eventKindOf, matchFindAnswer, where as findWhere, type MatchFind, type MatchMeasure } from "./matchFind.js";
 import { seasonOfDate } from "./time.js";
 import { searchToday } from "../searchEvents.js";
@@ -216,7 +217,7 @@ function placeSeason(p: Parsed, said: number | null | undefined, _opts: Pipeline
 }
 /** The answers a win or a loss said with them narrows ("closest loss", "first win", "longest losing streak"). */
 const OUTCOME_IDS = new Set(["closest-match", "current-streak", "average-margin", "first-match", "recent-match", "last-matches", "longest-streak"]);
-const ANSWERED = new Set<PipelineIntent>([...TEAM_INTENTS, ...(Object.keys(TWO_TEAM) as PipelineIntent[]), ...(Object.keys(FIND) as PipelineIntent[]), "top-matches", "leaderboard", "team-predict", "highlights", "teams-named", "count-teams", "alliance-predict", "swap-predict", "pick-partners", ...(Object.keys(TREND_ASK) as PipelineIntent[])]);
+const ANSWERED = new Set<PipelineIntent>([...TEAM_INTENTS, ...(Object.keys(TWO_TEAM) as PipelineIntent[]), ...(Object.keys(FIND) as PipelineIntent[]), "top-matches", "leaderboard", "event-scores", "team-predict", "highlights", "teams-named", "count-teams", "alliance-predict", "swap-predict", "pick-partners", ...(Object.keys(TREND_ASK) as PipelineIntent[])]);
 /** The leaderboard's stat for a metric said ("by opr"); the prediction rating when none is. */
 const BOARD_STAT: Partial<Record<string, string>> = {
   "metric:opr": "opr", "metric:rating": "rating", "metric:winrate": "win-rate", "metric:auto": "auto", "metric:teleop": "teleop",
@@ -268,8 +269,9 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // The finals are a filter the match finder applies (and a scope's highlights, read with its filters), and a team's
   // answers from its own match rows (scopeFits): anything else would answer for every playoff match.
   if (p.finals && !p.teams.length && !(FIND[intent] || intent === "top-matches" || intent === "highlights")) return null;
-  // So is a kind of event by its type words alone ("at a league meet").
-  if (p.eventKind && (p.teams.length || !(FIND[intent] || intent === "top-matches" || intent === "highlights"))) return null;
+  // So is a kind of event by its type words alone ("at a league meet"), and the teams unbeaten at one ("teams with a
+  // perfect record at any championship event").
+  if (p.eventKind && (p.teams.length || !(FIND[intent] || intent === "top-matches" || intent === "highlights" || (intent === "leaderboard" && p.undefeated)))) return null;
   const said = normalise(p.q);
   // A team's matches at Worlds or at its state championship are that event's results card (the division, its rank and
   // OPR there), which search's event readers give: the plain list is for a season, a window or a place.
@@ -577,13 +579,23 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     return { q: p.q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label: stat.title }, ...(opts.full ? { stat } : {}),
       intent: { kind: "stat-streak-board", pattern: "streak [place]", met: true, understood: [stat.title] } };
   }
+  if (!p.teams.length && intent === "event-scores") return eventScores(p, scope, opts);
   if (!p.teams.length && intent === "leaderboard") {
-    // The search box keeps the asks' own short card; the page draws the list.
-    if (!opts.full) return null;
+    // A board only this reader reads: an event's teams, a filter on the teams (part of their name, no award ever won,
+    // unbeaten at a kind of event) or a number's gain over the season.
+    const own = !!(p.event || p.worlds || p.states || p.nameHas || (p.undefeated && p.eventKind)) || p.symbols.includes("no-award") || p.symbols.includes("gain");
+    // The search box keeps the asks' own short card; the page draws the list. A board only this reader reads gives the
+    // box its link to the page (boardSearch), never nothing.
+    if (!opts.full && !own) return null;
     // The teams at one event, Worlds or a state championship ("east bergen conference best teams", "top teams at nj
     // states"): that event's board.
     if ((p.event || p.worlds || p.states) && !p.level && !p.alliance && !p.finals && !p.eventKind && !scope.window && !scope.ever) return eventBoard(p, scope, said, opts);
     if (p.event || p.worlds || p.states || p.level || p.alliance || scope.window || scope.ever) return null;
+    // Unbeaten at a kind of event only ("a perfect record at any championship event"): its own board, below.
+    const atKind = p.eventKind ? championshipLevel(eventKindOf(p.eventKind)) : null;
+    if (p.eventKind && !atKind) return null;
+    // A gain over the season ranks by OPR or the rating, each team's first event to its last.
+    const gain = p.symbols.includes("gain");
     // A "leaderboard" the leaderboard reader reads (a state's, by a stat) is its own; a country's is answered here.
     if (/\bleader ?boards?\b/.test(said) && readLeaderboard(p.q)) return null;
     let stats = [...new Set(p.symbols.map((s) => BOARD_STAT[s]).filter((s): s is string => !!s && !!BOARD_STATS[s]))];
@@ -592,6 +604,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     // Wins said with a record ("wins losses record") are the record itself; with another stat, the record is a column.
     if (stats.length > 1) { const rest = stats.filter((s) => s !== "record" && s !== "wins"); stats = rest.length || !stats.includes("record") ? rest : ["record"]; }
     if (stats.length > 1) return null;
+    if (gain && stats[0] && stats[0] !== "opr" && stats[0] !== "rating") return null;
     // A stat alone, no "best", "team" or count said, is everyone's board only for a season or a place said ("2027 opr").
     if (!p.agg && !p.undefeated && !p.symbols.includes("thing:team") && stats[0] !== "record" && !p.time && !p.place) return null;
     // Wins with no "team" said are a count only beside "most", "fewest" or "least": "biggest win in nj" is a match.
@@ -609,8 +622,10 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     const goodWord = !!stats[0] && !!BOARD_STATS[stats[0]].fewerBetter && /\b(?:best|better|cleanest|worst|weakest)\b/.test(said);
     const region: Region | null = town ? { key: `${town.country}:${town.state ?? ""}`, country: town.country, state: town.state ?? "", name: town.state ?? town.country } : regionOf(p);
     const b: LeaderboardQuestion = {
-      kind: "top", stat: stats[0] ?? (p.undefeated ? "wins" : town || p.place?.kind === "country" ? "opr" : "rating"), ...(p.undefeated ? { undefeated: true } : {}), n: one ? 5 : Math.min(25, p.n ?? 10), region, city: null, town: town?.city ?? null, season: placeSeason(p, scope.season, opts),
+      kind: gain ? "gain" : "top", stat: stats[0] ?? (gain ? "opr" : p.undefeated ? "wins" : town || p.place?.kind === "country" ? "opr" : "rating"), ...(p.undefeated ? { undefeated: true } : {}), n: one ? 5 : Math.min(25, p.n ?? 10), region, city: null, town: town?.city ?? null, season: placeSeason(p, scope.season, opts),
       ...(one ? { best: true } : {}), ...((p.agg === "min") !== goodWord ? { asc: true } : {}),
+      ...(p.nameHas ? { nameHas: p.nameHas.typed } : {}), ...(p.symbols.includes("no-award") ? { noAward: true } : {}),
+      ...(atKind ? { atKind, ...(p.recordSaid ? { recordSaid: p.recordSaid } : {}) } : {}),
     };
     // A stat said not to go by is never the one ranked by (a default included): with no other stat said, left unanswered.
     if ((p.notMetrics ?? []).some((s) => BOARD_STAT[s] === b.stat)) return null;
@@ -625,7 +640,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     const a = await board(b);
     // No season said, or "this season": the current one, then the one before when nobody has played enough yet.
     if (scope.season != null || !(p.time == null || (p.time.kind === "season" && p.time.relative === "this"))) return asked(a);
-    return asked(await relaxed(a, defaultSteps(b.season!, town ? ` in ${town.city}` : region ? ` in ${region.name}` : "", b.undefeated ? "undefeated teams" : b.kind === "top" ? "ranked teams" : "teams"), (season) => board({ ...b, season })));
+    return asked(await relaxed(a, defaultSteps(b.season!, town ? ` in ${town.city}` : region ? ` in ${region.name}` : "", b.atKind ? `teams unbeaten at ${b.atKind.label.replace(/ \(.*\)$/, "")}` : b.undefeated ? "undefeated teams" : b.kind === "top" ? "ranked teams" : "teams"), (season) => board({ ...b, season })));
   }
   return null;
 }
@@ -709,6 +724,33 @@ async function eventBoard(p: Parsed, scope: ReadScope, said: string, opts: Pipel
   if (!a?.stat || skipped == null || skipped === season) return a;
   const note = `No teams listed for the ${seasonLabel(skipped)} event yet; showing ${seasonLabel(season)}`;
   return { ...a, stat: { ...a.stat, scope: [note, ...a.stat.scope], definition: `${a.stat.definition} ${note}: no season was named, so the latest was read first.` } };
+}
+
+/** A kind of event said ("at any championship event"), as a board filters to it: "championship" is the championship
+ *  level, a league's championship (its tournament) as well as a state's or region's and Worlds. Null for none. */
+function championshipLevel(kind: ReturnType<typeof eventKindOf>): { types: string[]; label: string } | null {
+  if (!kind) return null;
+  if (!kind.types.includes("Championship")) return kind;
+  return { types: [...new Set(["LeagueTournament", ...kind.types])], label: "championship events (league, state and regional championships, and Worlds)" };
+}
+
+/** "Which event had the highest average match score in Romania this season": a place's events, the highest average
+ *  first (../answers/families/eventScores.ts). No season said, or "this season": the current one, then the one before. */
+async function eventScores(p: Parsed, scope: ReadScope, opts: PipelineOptions): Promise<SearchAnswer | null> {
+  if (p.place?.kind === "city" || p.event || p.worlds || p.states || p.eventKind || p.level || p.finals || p.alliance || scope.window || scope.ever) return null;
+  const region = regionOf(p);
+  const q: EventScoresQuestion = { region, season: placeSeason(p, scope.season, opts), n: Math.min(25, p.n ?? 10), asc: p.agg === "min" && !p.symbols.includes("agg:max") };
+  const card = async (x: EventScoresQuestion): Promise<SearchAnswer> => {
+    const label = eventScoresTitle(x);
+    const base: SearchAnswer = { q: p.q, hits: [], pages: opts.pages, step: "deterministic", weak: false, understood: { kind: "question", label, season: x.season },
+      intent: { kind: "stat-event-scores", pattern: `event average score${x.region ? " [place]" : ""}`, met: true, understood: [label] } };
+    // The search box: a link to the answer page, nothing counted while typing.
+    if (!opts.full) return { ...base, pages: [{ title: label, href: `/search?q=${encodeURIComponent(p.q)}` }, ...opts.pages] };
+    return { ...base, stat: await eventScoresAnswer(x) };
+  };
+  const a = await card(q);
+  if (scope.season != null || !(p.time == null || (p.time.kind === "season" && p.time.relative === "this"))) return a;
+  return relaxed(a, defaultSteps(q.season, region ? ` in ${region.name}` : "", "events with played matches"), (season) => card({ ...q, season }));
 }
 
 /** A Worlds or a state championship said, as the kind of event it filters to. */
