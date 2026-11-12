@@ -25,7 +25,7 @@ The Discord bot stays up: it had been running out of memory and restarting every
 - [alerts] Mentions, /ask and match alerts reach your server again
 
 ### Fixed
-- The bot's service gave Node a heap of about 380 MB (a 768M cap and no heap flag); with the full data it ran out every few minutes (since at least Nov 10) and systemd restarted it, so commands and mentions mostly went unanswered. Now `--max-old-space-size=1536` under `MemoryMax=2G` (the VM has 24 GB). (`deploy/oracle-vm-setup.sh`)
+- The bot's service gave Node a heap of about 380 MB (a 768M cap and no heap flag); with the full data it ran out every few minutes (since at least Nov 10) and systemd restarted it, so commands and mentions mostly went unanswered. Now `--max-old-space-size=1536` under `MemoryMax=2G` (the VM has 24 GB). (`deploy/oracle-vm-setup.sh`) (#1416)
 
 ## 5.8.1 — 2026-11-12
 
