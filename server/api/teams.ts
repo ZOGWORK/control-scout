@@ -11,6 +11,7 @@ import { hasTeamPage } from "../../src/shared/teamPages.js";
 import { eventSchedule } from "../predict/scheduleDifficulty.js";
 import { teamLeagueStanding } from "./leagues.js";
 import { hasHighlightsSql, teamIndexableSql } from "../indexable.js";
+import { hasRecordSplit } from "../teamRecordPage.js";
 
 /**
  * Many teams' stored season reliability, in the order asked (null: none stored). Public match data only; also
@@ -163,13 +164,15 @@ export async function teamProfile(number: number, season?: number): Promise<Team
   }
   // Report cards and schedule difficulty are their own requests (teamReportCards, teamSchedule), asked for when
   // the team page's collapsed sections are first opened.
-  const [stats, events, awardsAllTime, league, highlights] = await Promise.all([
+  const [stats, events, awardsAllTime, league, highlights, recordSplit] = await Promise.all([
     seasonStats(s, number),
     s === CURRENT_SEASON && current ? current : teamEvents(s, number),
     all<any>("SELECT a.season, a.code, e.name event, a.type, a.placement, a.name FROM awards a JOIN events e ON e.season = a.season AND e.code = a.code WHERE a.team = ? ORDER BY a.season DESC, e.start DESC", [number]),
     teamLeagueStanding(s, number),
     // Whether its highlights page exists (server/teamHighlightsPage.ts), for the page's Highlights link.
     get(`SELECT 1 FROM teams t WHERE t.number = ? AND ${teamIndexableSql("t.number", "t.name")} AND ${hasHighlightsSql("t.number")}`, [number]),
+    // Whether its record-split page exists (server/teamRecordPage.ts), for the page's Quals vs playoffs link.
+    hasRecordSplit(number),
   ]);
   return {
     team: team ?? { number, name: null, fullName: null, school: null, sponsors: [], city: null, state: null, country: null, rookieYear: null, website: null, homeRegion: null },
@@ -177,6 +180,7 @@ export async function teamProfile(number: number, season?: number): Promise<Team
     awardsAllTime: awardsAllTime.map((a) => ({ season: a.season, code: a.code, event: a.event, type: a.type, placement: a.placement, name: a.name })),
     league,
     highlights: !!highlights,
+    recordSplit,
   };
 }
 

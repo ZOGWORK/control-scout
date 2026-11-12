@@ -38,6 +38,7 @@ import { trackRecordIfReady } from "./api/accuracy.js";
 import { isEnabled } from "./flags.js";
 import { offeredManifest } from "./packs/routes.js";
 import { highlightsPath, teamHighlightsPage, type TeamHighlightsPage } from "./teamHighlightsPage.js";
+import { recordSplitPath, splitOf, teamRecordPage, type TeamRecordPage } from "./teamRecordPage.js";
 import type { StatBlock } from "../src/shared/searchStat.js";
 import type { Manifest } from "./packs/build.js";
 import type { SearchCardLine, SearchFollowUps, SearchIntentNote, TrackRecord } from "../src/shared/api.js";
@@ -790,6 +791,9 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
     // A team's highlights page (server/teamHighlightsPage.ts): Search's "<team> highlights" answer, whole, in the first
     // HTML. Not found for a team with none (no page to index, or no match to pick from): never an empty page.
     if ((m = p.match(/^\/teams\/(\d+)\/highlights$/i))) return (await teamHighlightsMeta(Number(m[1]))) ?? NOT_FOUND;
+    // A team's record-split page (server/teamRecordPage.ts): Search's "<team> record" answer, its qualification and
+    // playoff records apart, whole, in the first HTML. Not found for a team whose latest season doesn't hold both.
+    if ((m = p.match(/^\/teams\/(\d+)\/record-split$/i))) return (await teamRecordMeta(Number(m[1]))) ?? NOT_FOUND;
     // An event address without its season that got this far wasn't redirected (server/app.ts): no such event.
     if (/^\/events\/[^/]+$/i.test(p)) return NOT_FOUND;
     // The season by value too (/events/02025/X is 2025, as in the app and the API).
@@ -1014,6 +1018,40 @@ async function teamHighlightsMeta(n: number): Promise<PageMeta | null> {
   const more = picks.slice(1).map((r) => r.note?.toLowerCase()).filter(Boolean);
   const description = fitDescription(`${who}'s standout FTC matches of ${S}${best ? `: ${best}` : ""}${more.length ? `; also its ${more.join(", ")}` : ""}. Scores, partners and match videos.`);
   return { title, heading: title, description, type: "website", path: highlightsPath(team.number), bodyHtml: highlightsHtml(page), pageData: { [`/api/teams/${team.number}/highlights`]: page } };
+}
+
+/** A team's record-split page: its title and description name the team, the intent and the season, and give the
+ *  three records; its first HTML is the whole answer (the record, qualifications and playoffs apart, the win rate and
+ *  its rank) and a link to the team's page. The app's data for the page rides along (src/lib/pageData.ts). */
+async function teamRecordMeta(n: number): Promise<PageMeta | null> {
+  const page = await teamRecordPage(n);
+  if (!page) return null;
+  const { team, stat } = page;
+  const r = splitOf(stat)!;
+  const who = teamHeading(team.number, team.name);
+  const S = stat.scope[0] ?? "";
+  const title = `${who} record, quals vs playoffs${S ? `, ${S}` : ""}`;
+  const description = fitDescription(`${who} went ${rec(r)} in ${S}: ${rec(r.split.quals)} in qualification matches and ${rec(r.split.playoffs)} in the playoffs. ${stat.headline?.label ?? ""}, at official events.`.replace(/\s+/g, " "));
+  return { title, heading: title, description, type: "website", path: recordSplitPath(team.number), bodyHtml: recordHtml(page), pageData: { [`/api/teams/${team.number}/record-split`]: page } };
+}
+
+const rec = (r: { wins: number; losses: number; ties: number }) => `${r.wins}-${r.losses}-${r.ties}`;
+const winRate = (r: { wins: number; losses: number; ties: number }) => { const n = r.wins + r.losses + r.ties; return n ? `${Math.round((100 * r.wins) / n)}%` : "–"; };
+
+/** The record answer as text (the app's card, server/teamRecordPage.ts): the record, then qualifications and playoffs
+ *  apart as a table, the card's figures, how it was counted and the way to the team's page. */
+export function recordHtml({ team, stat }: TeamRecordPage): string {
+  const r = splitOf(stat)!;
+  const hl = stat.headline;
+  const head = hl ? `<p><b>${esc(hl.value)}</b> · ${esc(hl.label)}${hl.sub ? `<br><small>${esc(hl.sub)}</small>` : ""}</p>` : "";
+  const row = (label: string, x: { wins: number; losses: number; ties: number }) =>
+    `<tr><th scope="row">${label}</th><td>${x.wins}</td><td>${x.losses}</td><td>${x.ties}</td><td>${winRate(x)}</td></tr>`;
+  const table = `<h2>${esc(r.title ?? "Wins, losses and ties")}</h2><table><thead><tr><th scope="col">Matches</th><th scope="col">Wins</th><th scope="col">Losses</th><th scope="col">Ties</th><th scope="col">Win rate</th></tr></thead><tbody>`
+    + row("Qualifications", r.split.quals) + row("Playoffs", r.split.playoffs) + row("All", r) + `</tbody></table>`;
+  const kpis = stat.blocks.filter((b): b is Extract<StatBlock, { kind: "kpis" }> => b.kind === "kpis")
+    .map((b) => `<ul>${b.items.map((i) => `<li>${esc(i.label)}: <b>${esc(i.value)}</b>${i.sub ? ` (${esc(i.sub)})` : ""}</li>`).join("")}</ul>`).join("");
+  return head + table + kpis + `<p><small>${esc(stat.definition)}<br>${esc(stat.source)}</small></p>`
+    + `<p><a href="/teams/${team.number}">${esc(teamHeading(team.number, team.name))}: team page</a></p>`;
 }
 
 const resultWord = (r: "W" | "L" | "T") => (r === "W" ? "Won" : r === "L" ? "Lost" : "Tied");

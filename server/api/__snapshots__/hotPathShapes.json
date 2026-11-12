@@ -1721,7 +1721,7 @@
  },
  "/api/teams/101?season=2026": {
   "status": 200,
-  "bytes": 2083,
+  "bytes": 2103,
   "body": {
    "team": {
     "number": 101,
@@ -1913,7 +1913,8 @@
     }
    ],
    "league": null,
-   "highlights": true
+   "highlights": true,
+   "recordSplit": false
   }
  },
  "/api/teams/101/report-card?season=2026": {

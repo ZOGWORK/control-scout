@@ -452,6 +452,8 @@ export interface TeamProfile {
   league?: { region: string; code: string; name: string | null; rank: number; of: number; played: boolean } | null;
   /** The team has a highlights page (/teams/<number>/highlights: server/teamHighlightsPage.ts). Absent: an older server. */
   highlights?: boolean;
+  /** The team has a record-split page (/teams/<number>/record-split: server/teamRecordPage.ts). Absent: an older server. */
+  recordSplit?: boolean;
 }
 
 /** GET /api/teams/:n/report-card: the predictability report card from live calls (null: no scored live call this season). */
