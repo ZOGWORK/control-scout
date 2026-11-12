@@ -107,8 +107,10 @@ export async function ask(q: string, deps: AskDeps, site: string, history: Bruno
     const r = await deps.refine(q).catch(() => null);
     if (r) { answer = r; refined = r.step === "ai"; }
   }
+  // A chat that failed or timed out isn't followed by a second call to him: the card posts at once, no sentence.
+  let chatFailed = false;
   if (deps.chat && deps.facts) {
-    const reply = await chatWith(q, answer, history, deps).catch(() => null);
+    const reply = await chatWith(q, answer, history, deps).catch(() => { chatFailed = true; return null; });
     if (reply) {
       const video = reply.search && deps.video ? await deps.video(answer).catch(() => undefined) : undefined;
       const watch = videoLinks(video);
@@ -119,7 +121,7 @@ export async function ask(q: string, deps: AskDeps, site: string, history: Bruno
       };
     }
   }
-  const sentence = deps.available() && (await deps.enabled()) ? await deps.bruno(q).catch(() => null) : null;
+  const sentence = !chatFailed && deps.available() && (await deps.enabled()) ? await deps.bruno(q).catch(() => null) : null;
   const video = deps.video ? await deps.video(answer).catch(() => undefined) : undefined;
   const watch = videoLinks(video);
   return { embed: askEmbed(q, answer, sentence, site, video), meta: { step: answer.step, refined, sentence: !!sentence }, ...(watch[0] ? { content: watch[0].url } : {}) };
