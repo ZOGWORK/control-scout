@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render } from "@testing-library/react";
 import { BrowserRouter, MemoryRouter, useLocation as useLocationProbe, useNavigate, type NavigateFunction } from "react-router-dom";
@@ -436,6 +437,15 @@ describe("scrollToElement", () => {
     expect(SMOOTH_SCROLL_QUERY).toContain("(hover: hover)");
     expect(SMOOTH_SCROLL_QUERY).toContain("(pointer: fine)");
     expect(SMOOTH_SCROLL_QUERY).toContain("(prefers-reduced-motion: no-preference)");
+  });
+
+  it("is the same query index.css puts html's scroll-behavior: smooth under, and html glides nowhere else", () => {
+    const css = readFileSync("src/index.css", "utf8");
+    const at = css.indexOf(`@media ${SMOOTH_SCROLL_QUERY} {`);
+    expect(at).toBeGreaterThan(-1);
+    expect(css.slice(at, css.indexOf("}", at))).toMatch(/html\s*\{\s*scroll-behavior:\s*smooth;/);
+    // The only smooth rule in the file is that one: no unconditional html { scroll-behavior: smooth }.
+    expect(css.match(/scroll-behavior:\s*smooth/g)).toHaveLength(1);
   });
 
   it("jumps instead of gliding under reduced motion", () => {
