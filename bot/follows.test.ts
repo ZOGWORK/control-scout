@@ -84,6 +84,14 @@ describe("dueNow", () => {
     expect(nextMatch([m(2, NOW - 600_000)], done, [1])).toBeNull();
     expect(nextMatch([m(7, NOW + 1_200_000)], done, [1, 3])?.team).toBe(1);
   });
+
+  it("nextMatch: a next match with no posted time still counts, and its line goes without a time", () => {
+    const done = m(4, NOW - 60_000, true);
+    const tba = { ...m(9, NOW), startsAt: null };
+    expect(nextMatch([tba], done, [1])?.match.label).toBe("Q9");
+    const [res] = dueNow([f(1)], [done], NOW);
+    expect(postEmbed(res, ev([done, tba]), SITE).description!.split("\n")[2]).toBe(`Next: Q9 · [Match](${SITE}/events/${S}/X/match/qual:0:9) · [Event](${SITE}/events/${S}/X)`);
+  });
 });
 
 describe("follows and the tick, on a database", () => {

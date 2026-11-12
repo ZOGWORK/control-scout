@@ -121,12 +121,13 @@ export function reminderLead(d: Pick<Due, "match" | "teams">, site: string): str
 
 /** The followed teams' next unplayed match at the event after this one (the earliest, when there are several). */
 export function nextMatch(matches: MatchView[], after: MatchView, teams: number[]): { match: MatchView; team: number | null } | null {
-  const from = startOf(after);
-  const order = (m: MatchView) => (Number.isFinite(startOf(m)) ? startOf(m) : Infinity);
+  // Schedule order (quals before playoffs, then series and number), so a match whose time isn't posted yet still
+  // counts; its line just goes without a time.
+  const order = (a: MatchView, b: MatchView) => (a.level === b.level ? 0 : a.level === "qual" ? -1 : 1) || a.series - b.series || a.number - b.number;
   const next = matches
-    .filter((m) => !m.played && m.key !== after.key && Number.isFinite(startOf(m)) && (!Number.isFinite(from) || startOf(m) > from))
+    .filter((m) => !m.played && m.key !== after.key && order(m, after) > 0)
     .filter((m) => teams.some((t) => teamsOf(m.red, false).includes(t) || teamsOf(m.blue, false).includes(t)))
-    .sort((a, b) => order(a) - order(b))[0];
+    .sort(order)[0];
   if (!next) return null;
   const team = teams.length > 1 ? teams.find((t) => teamsOf(next.red, false).includes(t) || teamsOf(next.blue, false).includes(t)) ?? null : null;
   return { match: next, team };
