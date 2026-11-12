@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.7.5 — 2026-11-12
+## 5.7.6 — 2026-11-12
 
 Ask the Discord bot anything in plain words: `/ask` answers with the website's own search answer.
 
@@ -35,7 +35,7 @@ Ask the Discord bot anything in plain words: `/ask` answers with the website's o
 ### Fixed
 - Bruno's facts now carry a stat answer (its headline and every block row) and a yes-or-no verdict. Before, a stat question like "who won decode" sent him only the line about when records start, so he never answered it. A forecast's chance reaches him as 1% to 99% unless decided, as the page shows it. (`statFacts` in `server/api/searchBrunoAnswer.ts`) (#1407)
 
-## 5.7.4 — 2026-11-12
+## 5.7.5 — 2026-11-12
 
 The Discord bot's event posts: a schedule that always fits, the first match the evening before, and a plain day recap.
 
@@ -56,7 +56,7 @@ The Discord bot's event posts: a schedule that always fits, the first match the 
 ### Fixed
 - At a league meet the recap said "Rank 18 of 11": FIRST's rank there is the league's running standing. It now gives the meet's own rank. (`bot/eventAlerts.ts`) (#1405)
 
-## 5.7.3 — 2026-11-12
+## 5.7.4 — 2026-11-12
 
 The Discord bot's match posts tell one story each: who won, by how much, and whether the call was right.
 
@@ -74,6 +74,18 @@ The Discord bot's match posts tell one story each: who won, by how much, and whe
 
 ### Fixed
 - A call is a favourite only when its chance reads 55% or more; inside 45–55% it's an even call with no verdict. Q16 at the Nov 7 Northeast League Meet (Blue 50%) and Q17 (Red 54%) were posted as "❌ Upset". (`verdict` in `bot/views.ts`) (#1404)
+
+## 5.7.3 — 2026-11-12
+
+Every team that has played gets a highlights page of its own: its standout matches of the season, the same card Search shows.
+
+### Highlights
+- [teams] A Highlights button on the team page opens its standout matches
+- [teams] Best score, biggest win, best Auto and closest win on one page
+- [history] Each highlights page can be found from search engines
+
+### Added
+- `/teams/<number>/highlights`: the answer Search gives for "<number> highlights" (best score, biggest win, latest playoff win, best Auto and closest win of the team's latest season with matches, with match videos), at an address of its own. Its first HTML holds the whole answer as text, with a title and description that name the team, the season and its best match. It links to the team page, and the team page links to it with a Highlights button. A team with nothing to pick from has no page (404) and no sitemap entry. The sitemap lists each page once, with the last day its season's matches or results changed as lastmod. (`server/teamHighlightsPage.ts`, `server/seoMeta.ts`, `server/sitemap.ts`, `src/pages/TeamHighlightsPage.tsx`, `src/pages/TeamPage.tsx`) (#1402)
 
 ## 5.7.2 — 2026-11-12
 
