@@ -11,7 +11,7 @@ import { eventHasDataSql, isReachableEventCode, teamIndexableSql } from "./index
 import { eventPath } from "../src/shared/eventCode.js";
 import { PRERENDERED_PAGES } from "../src/shared/prerendered.js";
 import { isEnabled } from "./flags.js";
-import { downloadsOffered } from "./packs/routes.js";
+import { offeredManifest } from "./packs/routes.js";
 import { highlightsEntries, highlightsPath } from "./teamHighlightsPage.js";
 import { leagueHref } from "../src/shared/leagues.js";
 import { SEASON_NUMBERS } from "./data/seasons.js";
@@ -19,9 +19,9 @@ import { SEASON_NUMBERS } from "./data/seasons.js";
 // The pages whose first HTML is their content (server/seoMeta.ts bodyHtml): the home page, the event list, the world
 // rankings, the record tables (their top rows), both How it works pages, the FAQ and the plain content pages
 // prerendered at build (src/shared/prerendered.ts); Download (its season files) while it offers any; power rankings,
-// league standings and team highlights below. Never listed: /records and /support (redirects), /supporters and /search (noindex), any
-// filter, sort or search variant (a ?query address), and two nav pages left out on their first HTML, read live
-// 2026-11-11: /predict (an input form: its first HTML is the heading "Predict an FTC match" and one line, the teams
+// league standings and team highlights below. Never listed: /records and /support (redirects), /supporters and
+// /search (noindex), any filter, sort or search variant (a ?query address), and two nav pages left out on their first
+// HTML, read live 2026-11-11: /predict (an input form: its first HTML is the heading "Predict an FTC match" and one line, the teams
 // are picked in the app) and /compare (a team picker: the heading "Compare FTC teams" and one line; a pair is a view of
 // two team pages, and /compare?teams=… is a query address). Both stay crawlable and indexable from their links; list
 // one only once its first HTML carries content of its own.
@@ -82,7 +82,7 @@ export async function sitemapEntries(): Promise<Entry[]> {
   // The rules reference only while the owner has it on (flag rulesReference); off, its page is noindex.
   const rulesOn = await isEnabled("rulesReference").catch(() => false);
   // Download only while it lists season files (offline packs on and built); else it is a heading and a line.
-  const downloads = await downloadsOffered().catch(() => false);
+  const downloads = !!(await offeredManifest().catch(() => null));
   return [
     ...STATIC_PAGES.filter((p) => p !== "/rules" || rulesOn).map((p) => ({ loc: canonicalUrl(p) })),
     ...(downloads ? [{ loc: canonicalUrl("/download") }] : []),

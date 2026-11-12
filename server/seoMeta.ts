@@ -36,7 +36,7 @@ import { staticRankingsHtml } from "./powerRankings/static.js";
 import { isWeekId, weekLabel, type PowerRankingsResponse } from "../src/shared/powerRankings.js";
 import { trackRecordIfReady } from "./api/accuracy.js";
 import { isEnabled } from "./flags.js";
-import { downloadsOffered, presentManifest } from "./packs/routes.js";
+import { offeredManifest } from "./packs/routes.js";
 import { highlightsPath, teamHighlightsPage, type TeamHighlightsPage } from "./teamHighlightsPage.js";
 import type { StatBlock } from "../src/shared/searchStat.js";
 import type { Manifest } from "./packs/build.js";
@@ -892,7 +892,7 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
   // fetches a 40 MB file from it. Offline packs off, or none built: the page's own words alone.
   if (/^\/download$/i.test(p)) {
     const d = STATIC["/download"];
-    const m = (await downloadsOffered()) ? presentManifest() : null;
+    const m = await offeredManifest();
     return { title: d.title, description: fitDescription(d.description), type: "website", ...(m ? { bodyHtml: downloadHtml(d.description, m) } : {}) };
   }
   const s = STATIC[p];

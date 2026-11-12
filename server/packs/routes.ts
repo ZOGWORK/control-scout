@@ -33,9 +33,10 @@ export function presentManifest(): Manifest | null {
   } catch { return null; }
 }
 
-/** Whether /download offers files: the owner has offline packs on and a built set is on disk. */
-export async function downloadsOffered(): Promise<boolean> {
-  return presentManifest() != null && (await isEnabled("offlinePacks").catch(() => false));
+/** What /download offers: the built set while the owner has offline packs on and every file is on disk, else null. */
+export async function offeredManifest(): Promise<Manifest | null> {
+  const m = presentManifest();
+  return m && (await isEnabled("offlinePacks").catch(() => false)) ? m : null;
 }
 
 export function packsRouter(): Router {
