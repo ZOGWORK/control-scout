@@ -84,7 +84,9 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
   async function askAnswer(question: string, key: string): Promise<APIEmbed> {
     const t0 = Date.now();
     let fresh = false;
-    const r = await asks.get(key, () => { fresh = true; return lookups.ask(question); });
+    // Cached by the whole question (the log line's key is cut at 100 characters; two long questions alike that far
+    // are still two questions), the same for /ask and a mention, whatever its case or spacing.
+    const r = await asks.get(question.trim().replace(/\s+/g, " ").toUpperCase(), () => { fresh = true; return lookups.ask(question); });
     const bruno = [r.meta.refined ? "rewrite" : null, r.meta.sentence ? "sentence" : null].filter(Boolean).join("+") || "no";
     log(`${key} step=${r.meta.step} bruno=${bruno}${r.content ? " video" : ""} ${fresh ? "" : "cached "}${Date.now() - t0}ms`);
     if (r.content) videoOf.set(r.embed, r.content);
