@@ -114,6 +114,18 @@ export async function brunoSearchAnswer(question: string, facts: string[], timeo
   return internal<{ text: string | null; points?: unknown }>("/internal/bruno/search-answer", { method: "POST", body: { question, facts } }, timeoutMs);
 }
 
+/** One turn of a Discord reply thread, oldest first: what someone asked, or what Bruno answered. */
+export interface BrunoChatTurn { role: "user" | "bruno"; text: string }
+
+/**
+ * Control Point's POST /internal/bruno/discord-chat: Bruno chats back to a mention of the Discord bot (or a reply to
+ * it) from the facts Scout's search found and the thread before it. `search`: the facts answer the message.
+ * Throws on network errors, timeouts and non-2xx answers (a Control Point without the route answers 404).
+ */
+export async function brunoDiscordChat(message: string, facts: string[], history: BrunoChatTurn[], timeoutMs: number): Promise<{ text: string; search: boolean }> {
+  return internal<{ text: string; search: boolean }>("/internal/bruno/discord-chat", { method: "POST", body: { message, facts, history } }, timeoutMs);
+}
+
 /**
  * The same call, streamed (Accept: application/x-ndjson): `onRaw` gets the model's raw reply so far each time a piece
  * arrives, and the result is the same answer brunoSearchAnswer gives. A Control Point that answers plain JSON (the

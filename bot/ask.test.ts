@@ -1,7 +1,7 @@
 // /ask: the website's search answer as one embed, Bruno only where the site would use him, credited only then.
 import { describe, expect, it, vi } from "vitest";
 import type { SearchAnswer, SearchHit } from "../src/shared/api";
-import { BRUNO_CREDIT, DESCRIPTION_MAX, ask, askEmbed, fitLines, videoLinks, type AskDeps } from "./ask";
+import { BRUNO_CREDIT, DESCRIPTION_MAX, ask, askEmbed, chatPost, fitLines, videoLinks, type AskDeps } from "./ask";
 import { grounded } from "../server/api/searchBrunoAnswer";
 
 const SITE = "https://controlscout.org";
@@ -201,5 +201,54 @@ describe("videos", () => {
     const r = await ask("23268 highlights", deps(base(), { video: vi.fn(async () => v) }), SITE);
     expect(r.content).toBe("https://www.youtube.com/watch?v=AAA&t=90s");
     expect((await ask("23268", deps(base()), SITE)).content).toBeUndefined();
+  });
+});
+
+describe("a chat with Bruno", () => {
+  const vid = { main: { videoId: "AAA", t: 90, kind: "match" as const, match: "Q85" } };
+  const chatDeps = (reply: { text: string; search: boolean } | null, over: Partial<AskDeps> = {}) => deps(base(), {
+    facts: vi.fn(async (a: SearchAnswer) => [`Result: ${a.hits[0]?.title ?? "none"}`]),
+    chat: vi.fn(async () => reply),
+    video: vi.fn(async () => vid),
+    ...over,
+  });
+
+  it("a greeting: his reply is the post, with no video, no website link and no search sentence", async () => {
+    const d = chatDeps({ text: "Hey! I'm Bruno. Ask me about any FTC team.", search: false });
+    const r = await ask("hi bruno", d, SITE);
+    expect(r.chat).toEqual({ text: "Hey! I'm Bruno. Ask me about any FTC team." });
+    expect(r.meta).toMatchObject({ chat: true, sentence: false });
+    expect(d.bruno).not.toHaveBeenCalled();
+    expect(d.video).not.toHaveBeenCalled();
+    expect(d.chat).toHaveBeenCalledWith("hi bruno", ["Result: 4215 | Team 4215"], []);
+  });
+
+  it("a records answer: the answer's video and its page go with his reply", async () => {
+    const r = await ask("who won decode", chatDeps({ text: "30030 Exodus won.", search: true }), SITE);
+    expect(r.chat).toEqual({ text: "30030 Exodus won.", video: "https://www.youtube.com/watch?v=AAA&t=90s", page: `${SITE}/search?q=who%20won%20decode` });
+  });
+
+  it("no reply from him (off, failed, a number not in the facts): the card, as before", async () => {
+    for (const d of [chatDeps(null), chatDeps(null, { chat: vi.fn(async () => { throw new Error("404"); }) })]) {
+      const r = await ask("4215", d, SITE);
+      expect(r.chat).toBeUndefined();
+      expect(r.embed.title).toBe("4215 | Team 4215");
+      expect(r.meta.sentence).toBe(true);
+    }
+  });
+
+  it("a follow-up in a thread: he gets the thread, and the facts for the last question too", async () => {
+    const search = vi.fn(async (q: string) => base({ hits: [hit(q === "who won decode" ? 30030 : 4215)] }));
+    const d = chatDeps({ text: "Second were 4215.", search: true }, { search });
+    const history = [{ role: "user" as const, text: "who won decode" }, { role: "bruno" as const, text: "30030 Exodus won." }];
+    await ask("and second?", d, SITE, history);
+    expect(d.chat).toHaveBeenCalledWith("and second?", ["Result: 4215 | Team 4215", "Result: 30030 | Team 30030"], history);
+  });
+
+  it("the post: the question quoted for /ask, his words, the video, and a small credit line with an unpreviewed link", () => {
+    expect(chatPost("who  won decode", { text: "30030 Exodus won.", video: "https://youtu.be/A", page: `${SITE}/search?q=x` }, { quote: true }).split("\n")).toEqual([
+      "> **who won decode**", "30030 Exodus won.", "https://youtu.be/A", `-# Bruno AI · [more on controlscout.org](<${SITE}/search?q=x>)`,
+    ]);
+    expect(chatPost("hi", { text: "Hey!" }, { quote: false })).toBe("Hey!\n-# Bruno AI · controlscout.org");
   });
 });

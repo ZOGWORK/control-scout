@@ -320,7 +320,7 @@ describe("@mention answers", () => {
     const h = createHandler(() => {}, l, { cooldownMs: 0 });
     const { m, sent } = msg(`<@${BOT}> who won decode`);
     await h.mention(m, BOT);
-    expect(l.ask).toHaveBeenCalledWith("who won decode");
+    expect(l.ask).toHaveBeenCalledWith("who won decode", []);
     expect(sent).toHaveLength(1);
     expect(sent[0].kind).toBe("reply");
     expect(sent[0].embeds[0].title).toBe("ask who won decode");
@@ -372,5 +372,41 @@ describe("the ask cache key", () => {
     expect(l.ask).toHaveBeenCalledTimes(2);
     await h(command("ask", { question: `${head}   ONE` }, "c").i);
     expect(l.ask).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("a chat with Bruno in Discord", () => {
+  const BOT = "77";
+  const chatAsk = () => vi.fn(async (q: string, history?: unknown[]) => ({ embed: ok(`ask ${q}`), meta: { step: "deterministic" as const, refined: false, sentence: false, chat: true }, chat: { text: `re: ${q} (${(history ?? []).length})` } }));
+  function message(content: string, over: Partial<MentionMessage> = {}, id = "m1") {
+    const sent: any[] = [];
+    const m: MentionMessage = { author: { id: "u1", bot: false }, guildId: "g", content, reply: async (o) => { sent.push(o); return { id }; }, channel: {}, ...over };
+    return { m, sent };
+  }
+
+  it("a mention gets his reply as plain text, no embed; /ask quotes the question", async () => {
+    const h = createHandler(() => {}, lookups({ ask: chatAsk() }), { cooldownMs: 0 });
+    const { m, sent } = message(`<@${BOT}> hi bruno`);
+    await h.mention(m, BOT);
+    expect(sent[0]).toMatchObject({ content: "re: hi bruno (0)\n-# Bruno AI · controlscout.org", embeds: [] });
+    const c = command("ask", { question: "who won decode" });
+    await h(c.i);
+    expect(c.calls.at(-1)!.payload).toEqual({ content: "> **who won decode**\nre: who won decode (0)\n-# Bruno AI · controlscout.org", embeds: [] });
+  });
+
+  it("a reply to his answer carries the thread on, even without a mention; replies to others or with no text are left alone", async () => {
+    const ask = chatAsk();
+    const h = createHandler(() => {}, lookups({ ask }), { cooldownMs: 0 });
+    await h.mention(message(`<@${BOT}> who won decode`, {}, "bot-1").m, BOT);
+    const follow = message("and second?", { reference: { messageId: "bot-1" }, mentions: { repliedUser: { id: BOT } } }, "bot-2");
+    await h.mention(follow.m, BOT);
+    expect(ask).toHaveBeenLastCalledWith("and second?", [{ role: "user", text: "who won decode" }, { role: "bruno", text: "re: who won decode (0)" }]);
+    expect(follow.sent[0].content).toMatch(/^re: and second\? \(2\)/);
+    await h.mention(message("and third?", { reference: { messageId: "bot-2" }, mentions: { repliedUser: { id: BOT } } }).m, BOT);
+    expect((ask.mock.calls.at(-1) as unknown[])[1]).toHaveLength(4);
+    const n = ask.mock.calls.length;
+    await h.mention(message("hello", { reference: { messageId: "x" }, mentions: { repliedUser: { id: "someone" } } }).m, BOT);
+    await h.mention(message("", { reference: { messageId: "bot-1" }, mentions: { repliedUser: { id: BOT } } }).m, BOT);
+    expect(ask).toHaveBeenCalledTimes(n);
   });
 });
