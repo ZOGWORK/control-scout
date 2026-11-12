@@ -1,0 +1,61 @@
+# Official event videos
+
+Scout plays an event's recording from the organiser's own YouTube channel when FIRST's event page doesn't link one,
+or links only one day of it. No video is hosted, downloaded or re-encoded: only YouTube ids are kept, and every video
+plays through the same YouTube embed as FIRST's own links.
+
+## What counts as official
+
+A channel is official for an event when it is one of:
+
+- the FIRST partner organisation for the country or region (Nație Prin Educație for Romania, NY Excelsior FIRST,
+  FIRST in Texas, FIRST Chesapeake, FTC Iowa, …),
+- the event's own organiser or league (NTX FTC for FiT-North, GEARS for the Michiana Premier Event, …),
+- or the channel FIRST's event page names as the livestream (FIRST HQ's "FIRST Tech Challenge" channel carries the
+  2026 Championship's division broadcasts, and FIRST's own event pages link its Day 4 videos).
+
+A team's channel, a spectator's upload, a re-upload or a local TV broadcast is never used, even of the same event.
+`server/data/officialVideos.json` lists the channels each kept video came from.
+
+## How a video is matched to an event
+
+A video is kept only when all of these hold (`server/data/officialVideos.json` was built this way, and the
+auto-watcher uses the same rules):
+
+1. It's on an official channel, it exists, it's public or unlisted, it can be embedded, and YouTube doesn't block it
+   in most countries.
+2. It's a live broadcast whose start, at the venue, falls inside the event's dates in Scout. An upload has no
+   broadcast date, so it can't prove its day, and is left out.
+3. Its title names the event: a distinctive word of the event's name or city (the league, the venue, "Mockingbird"),
+   or the event's designators (an NTX league letter, a meet number, a UIL class, a stage). A state or region name
+   alone counts only for that region's one championship on that date.
+4. Where the event has divisions, the title names the division ("COANDĂ", "Franklin", "Black"), and a division video
+   never goes to another division or to the parent event. A parent event gets only a video that names no division
+   (Romania's Finals & awards stream).
+5. Where the title names a day, the days follow the broadcast dates in order (an event listed with a setup day first
+   has its "Day 1" on its second date; that offset must be the same, or keep increasing, across the event's videos).
+   Where the title names a weekday or a date, it must be the broadcast's.
+6. The title fits exactly one Scout event. Two events that fit equally (two league meets that day, AM and PM halves of
+   one meet) mean the video is left out.
+7. The event doesn't already play a video for that day: FIRST's link, a short link's video, a channel's broadcasts, or
+   the owner's stream. A day with two videos is kept only when the titles name the parts (the awards ceremony, the
+   eliminations, "Matches 1–5" and "Matches 6–14").
+
+Per-match clips are never mapped from a title outside FIRST's own per-match videos (the Championship's are already
+FIRST's match videos, `matches.video`). A recording never hides FIRST's per-match video or a verified contributor's
+link: it's the fallback, the clip of the match inside the day's broadcast.
+
+## How it plays
+
+`server/videos/officialVideos.ts` writes the list into `official_videos` (migration 83) once per video, at boot. The
+recording path (`server/videos/recordings.ts`) treats each kept recording as one day of the event's broadcast: an event
+without FIRST's link gets its first day as its video; every other day joins it, in broadcast order, and the event
+page's Watch section shows a button per day ("Friday", "Saturday", "Sunday · Awards"). Each match links to its second
+in its own day's video when YouTube's timing for that video holds (the same checks as FIRST's links).
+
+A removed row (`removed_at`) is never written again, so taking a video out sticks.
+
+## Highlights
+
+A highlight (`kind = 'highlight'`) is a short reel from the same official channels. It's shown on the event page as a
+highlight only: never as a match's video and never as the event's recording.
