@@ -178,7 +178,7 @@ export function askEmbed(q: string, a: SearchAnswer, sentence: BrunoSentence | n
       (a.recovery?.browse ?? []).map((b) => link(b.title, b.href, site)).join(" · ") || null,
     ].filter((x): x is string => !!x);
     // The link to the whole answer stays: lines are cut from the bottom, never it.
-    return { title: SORRY_SENTENCE, url: page, description: `${fitLines(lines, DESCRIPTION_MAX - close.length - 1, READ_MAX)}\n${close}`, color: VOLT, footer };
+    return { author: asked(q), title: SORRY_SENTENCE, url: page, description: `${fitLines(lines, DESCRIPTION_MAX - close.length - 1, READ_MAX)}\n${close}`, color: VOLT, footer };
   }
 
   const lines: string[] = [];
@@ -203,7 +203,22 @@ export function askEmbed(q: string, a: SearchAnswer, sentence: BrunoSentence | n
   }
   // The top results, when the answer didn't already cover them.
   if (!a.stat && !a.card) lines.push(...a.hits.slice(0, HITS).map((h) => `• ${hitLine(h, site)}`), ...more(a.hits.length - HITS));
+  // What to ask next, as the website offers it (the answer's related questions, else search's own suggestions).
+  const next = nextQuestions(a);
+  if (next.length) lines.push(`**Ask next:** ${next.map(askable).join(" · ")}`);
   // The link stays: lines are cut from the bottom of the answer, never the link to the whole of it.
   const body = fitLines(lines, DESCRIPTION_MAX - close.length - 1, READ_MAX);
-  return { title: title.length > 256 ? `${title.slice(0, 255)}…` : title, url: page, description: `${body ? `${body}\n` : ""}${close}`, color: VOLT, footer };
+  return { author: asked(q), title: title.length > 256 ? `${title.slice(0, 255)}…` : title, url: page, description: `${body ? `${body}\n` : ""}${close}`, color: VOLT, footer };
+}
+
+/** The question as asked, above the answer: everyone in the channel sees what was asked, not just "used /ask". */
+export const asked = (q: string) => {
+  const t = `Asked: ${q.trim().replace(/\s+/g, " ")}`;
+  return { name: t.length > 256 ? `${t.slice(0, 255)}…` : t };
+};
+
+/** Up to 2 questions to ask next: the answer's related questions, else search's suggestions. */
+function nextQuestions(a: SearchAnswer): string[] {
+  const related = a.stat?.blocks.flatMap((b) => (b.kind === "related" ? b.queries : [])) ?? [];
+  return [...related, ...(a.suggest ?? [])].filter((x, i, all) => x && all.indexOf(x) === i).slice(0, 2);
 }

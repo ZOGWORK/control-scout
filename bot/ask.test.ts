@@ -89,6 +89,14 @@ describe("the embed, step by step", () => {
     expect(lines).not.toContain("*2025–26 matches*");
   });
 
+  it("shows the question as asked above every answer (and the sorry), plus up to 2 questions to ask next", () => {
+    expect(askEmbed("who  won decode", base(), null, SITE).author).toEqual({ name: "Asked: who won decode" });
+    expect(askEmbed("x", base({ step: "recovery", hits: [], sorry: { understood: [], suggest: [] } }), null, SITE).author!.name).toBe("Asked: x");
+    const e = askEmbed("4215", base({ suggest: ["4215 awards", "4215 opr", "4215 worlds"] }), null, SITE);
+    expect(e.description).toContain("**Ask next:** `/ask question: 4215 awards` · `/ask question: 4215 opr`");
+    expect(e.description).not.toContain("4215 worlds");
+  });
+
   it("a yes-or-no question leads with its verdict", () => {
     const e = askEmbed("has 4215 been to worlds", base({ verdict: { answer: "Yes", label: "4215 has been to Worlds 2 times" } }), null, SITE);
     expect(e.description!.split("\n")[0]).toBe("**Yes** · 4215 has been to Worlds 2 times");
