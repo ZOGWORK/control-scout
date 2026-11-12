@@ -985,7 +985,7 @@ const mb = (bytes: number) => `${(bytes / 1_048_576).toFixed(1)} MB`;
 /** /download's first HTML: its line, then every season file (newest season first, as built) and the offline pack. */
 export function downloadHtml(lead: string, m: Manifest): string {
   const item = (name: string, f: Manifest["full"][number]) => `<li><b>${esc(name)}</b> · ${esc(mb(f.bytes))}<br><small>${esc(f.contents)}</small></li>`;
-  const full = m.full.map((f) => item(`${f.seasons.map((x) => seasonInfo(x).label).join(", ")} season file (SQLite)`, f)).join("");
+  const full = (m.full ?? []).map((f) => item(`${f.seasons.map((x) => seasonInfo(x).label).join(", ")} season file (SQLite)`, f)).join("");
   const asOf = m.dataAsOf ? ` Data as of ${m.dataAsOf.slice(0, 10)}.` : "";
   return `<p>${esc(lead)}</p>${full ? `<h2>Season files</h2><ul>${full}</ul>` : ""}`
     + (m.lite ? `<h2>Offline predictions</h2><ul>${item("Offline prediction pack", m.lite)}</ul>` : "") + `<p><small>Built ${esc(m.builtAt.slice(0, 10))}.${esc(asOf)}</small></p>`;

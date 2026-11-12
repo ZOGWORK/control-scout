@@ -77,11 +77,12 @@ export async function sitemapEntries(): Promise<Entry[]> {
   const weeks = (await publishedWeeks()).filter((w) => !w.sample).reverse();
   // The rules reference only while the owner has it on (flag rulesReference); off, its page is noindex.
   const rulesOn = await isEnabled("rulesReference").catch(() => false);
-  // Download only while it lists season files (offline packs on and built); else it is a heading and a line.
-  const downloads = !!(await offeredManifest().catch(() => null));
+  // Download only while it lists season files (offline packs on and built); else it is a heading and a line. lastmod:
+  // the day of the data its files hold (the manifest's dataAsOf), else the day they were built.
+  const packs = await offeredManifest().catch(() => null);
   return [
     ...STATIC_PAGES.filter((p) => p !== "/rules" || rulesOn).map((p) => ({ loc: canonicalUrl(p) })),
-    ...(downloads ? [{ loc: canonicalUrl("/download") }] : []),
+    ...(packs ? [{ loc: canonicalUrl("/download"), lastmod: day(packs.dataAsOf ?? packs.builtAt) }] : []),
     ...(weeks.length ? [{ loc: canonicalUrl("/power-rankings"), lastmod: lastmodOf(weeks[0]) }] : []),
     ...weeks.map((w) => ({ loc: canonicalUrl(`/power-rankings/${w.week}`), lastmod: lastmodOf(w) })),
     // lastmod: the source's own change marker (late results, awards and advancement move it); none when unknown.
