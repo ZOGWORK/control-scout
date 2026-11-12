@@ -41,7 +41,7 @@ The Discord bot's event posts: a schedule that always fits, the first match the 
 The Discord bot's match posts tell one story each: who won, by how much, and whether the call was right.
 
 ### Highlights
-- [alerts] A result post is the score line and one story line, with no fields under it
+- [alerts] A result post is the score line and one story, no fields
 - [fixes] A 50% or 54% call that loses is an even call, never an "upset"
 - [alerts] A reminder says which side the team is on, with whom, and when
 - [alerts] Every team number in a match post opens that team's page
@@ -53,7 +53,7 @@ The Discord bot's match posts tell one story each: who won, by how much, and whe
 - `/event`'s winning alliance and `/following`'s teams are linked. (`bot/views.ts`, `bot/follows.ts`)
 
 ### Fixed
-- A call is a favourite only when its chance reads 55% or more; inside 45–55% it's an even call with no verdict. Q16 at the Nov 7 Northeast League Meet (Blue 50%) and Q17 (Red 54%) were posted as "❌ Upset". (`verdict` in `bot/views.ts`)
+- A call is a favourite only when its chance reads 55% or more; inside 45–55% it's an even call with no verdict. Q16 at the Nov 7 Northeast League Meet (Blue 50%) and Q17 (Red 54%) were posted as "❌ Upset". (`verdict` in `bot/views.ts`) (#1404)
 
 ## 5.7.0 — 2026-11-11
 
