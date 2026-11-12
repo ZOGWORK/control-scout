@@ -34,6 +34,7 @@ import { pickAnswer, teamPickEvent } from "../answers/families/pick.js";
 import { describe, normalise, parseQuery, type Parsed } from "./parse.js";
 import { parseContext } from "./context.js";
 import { topTeamsNote, topTeamsSaid } from "./topTeams.js";
+import { asksSelfMatch, selfMatchAnswer } from "./selfMatch.js";
 import type { PipelineIntent } from "./intents.js";
 import { place } from "../../../src/shared/format.js";
 
@@ -50,6 +51,11 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
   if (byName) {
     const again = await parseQuery(byName, ctx);
     if (again.complete && again.intent === p.intent && again.teams.length === 1) p = { ...again, q };
+  }
+  // One team against itself ("predict 12345 vs 12345"): no match to call, said so, with its own forecasts to open.
+  if (asksSelfMatch(q, p)) {
+    const n = String(p.teams[0].number);
+    return selfMatchAnswer(p, (await opts.resolve(n)).hits.find((h) => h.kind === "team" && h.ref === n), opts.pages, opts.full);
   }
   // A place's top team said where a team would be ("the top NJ team vs the top Romania team"): two teams compared,
   // read again with their numbers, the card saying which team each phrase was.

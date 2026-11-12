@@ -101,11 +101,15 @@ export function cleanQuery(raw: string): string {
   return (q[MAX_QUERY] === " " ? cut : cut.replace(/\s+\S*$/, "")).trim() || cut;
 }
 
-/** `q` without a comma clause that only says what isn't asked: "not just …"/"not only …" (more than that is wanted), or
+/** `q` without a comma clause that only says what isn't asked: a clause taken back by a lone "no", "not just …"/"not only …" (more than that is wanted), or
  *  "not" and a season ("not 2025", "not this season": the season said beside it is the one). Any other "not" clause
  *  ("…, not rookies") is a filter and stays, and a quoted phrase is never touched (it asks for exactly those words). */
 export function withoutContrast(q: string): string {
   if (q.includes('"')) return q;
+  // "No" said as a clause of its own takes back what came before it ("what if 12345 plays itself, lol, no, predict
+  // 12345 vs 12345"): the question is what follows.
+  const takenBack = /^.*,\s*no\s*,\s*(\S.*)$/is.exec(q);
+  if (takenBack) return takenBack[1];
   const SEASON = String.raw`(?:(?:the |this |last |next |that )?(?:season|year)|20\d\d(?:\s*[-–/]\s*\d{2,4})?)`;
   return q.replace(new RegExp(String.raw`\s*,\s*not\s+(?:(?:just|only)\s+[^,]*?|${SEASON})\s*(?=,|[?.!]*\s*$)`, "gi"), "");
 }
