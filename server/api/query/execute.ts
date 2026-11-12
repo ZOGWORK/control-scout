@@ -581,9 +581,9 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   }
   if (!p.teams.length && intent === "event-scores") return eventScores(p, scope, opts);
   if (!p.teams.length && intent === "leaderboard") {
-    // A board only this reader reads: an event's teams, a filter on the teams (part of their name, no award ever won,
-    // unbeaten at a kind of event) or a number's gain over the season.
-    const own = !!(p.event || p.worlds || p.states || p.nameHas || (p.undefeated && p.eventKind)) || p.symbols.includes("no-award") || p.symbols.includes("gain");
+    // A board only this reader reads: the teams at Worlds, a filter on the teams (part of their name, no award ever won,
+    // unbeaten at a kind of event) or a number's gain over the season. An event named keeps the box's event results.
+    const own = !!(p.worlds || p.nameHas || (p.undefeated && p.eventKind)) || p.symbols.includes("no-award") || p.symbols.includes("gain");
     // The search box keeps the asks' own short card; the page draws the list. A board only this reader reads gives the
     // box its link to the page (boardSearch), never nothing.
     if (!opts.full && !own) return null;
