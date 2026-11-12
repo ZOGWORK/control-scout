@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.7.2 — 2026-11-12
+## 5.7.3 — 2026-11-12
 
 Every team that has played gets a highlights page of its own: its standout matches of the season, the same card Search shows.
 
@@ -26,6 +26,21 @@ Every team that has played gets a highlights page of its own: its standout match
 
 ### Added
 - `/teams/<number>/highlights`: the answer Search gives for "<number> highlights" (best score, biggest win, latest playoff win, best Auto and closest win of the team's latest season with matches, with match videos), at an address of its own. Its first HTML holds the whole answer as text, with a title and description that name the team, the season and its best match. It links to the team page, and the team page links to it with a Highlights button. A team with nothing to pick from has no page (404) and no sitemap entry. The sitemap lists each page once, with the last day its season's matches or results changed as lastmod. (`server/teamHighlightsPage.ts`, `server/seoMeta.ts`, `server/sitemap.ts`, `src/pages/TeamHighlightsPage.tsx`, `src/pages/TeamPage.tsx`) (#1402)
+
+## 5.7.2 — 2026-11-12
+
+On a computer the mouse wheel and trackpad ease the page along instead of stepping it. Phones and tablets keep their own scrolling.
+
+### Highlights
+- [speed] Wheel and trackpad scrolling glide smoothly on desktops and laptops
+- [speed] Phones, tablets and reduced motion keep the device's own scrolling
+- [fixes] A link clicked while the page still glides takes the click
+
+### Changed
+- On a desktop (at least 1024px wide, a mouse or trackpad, no reduced-motion setting) the wheel and trackpad now ease the page toward where they send it, with Lenis 1.3.27 (`lenis`, MIT). It loads as its own 6 KB chunk once the page is idle, and only on those screens; phones, tablets and reduced motion never download it, and narrowing the window or turning on reduced motion hands scrolling straight back to the browser. Its animation loop runs only while a glide is on its way. Boxes with their own scroll (the search palette, menus, pickers, wide tables, dialogs) keep the browser's own wheel, a dialog that locks the page keeps it still, and a click or a key ends a glide at once. A new page still opens at the top at once, back and forward still return to where you were, and the long lists' windowing keeps up. (`src/lib/smoothWheel.ts`, `src/lib/smoothWheelEngine.ts`, `src/lib/pageScroll.ts`, `src/components/layout/Shell.tsx`)
+
+### Fixed
+- While the page scrolled under a mouse, a click landed on the scroll shield and was lost until 140ms after the last scroll. Once the mouse moves mid-scroll the shield now stands aside, so a click on a link while the page still glides opens it. (`src/lib/pageScroll.ts`, `src/index.css`) (#1403)
 
 ## 5.7.1 — 2026-11-12
 
