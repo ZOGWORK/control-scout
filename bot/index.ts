@@ -51,7 +51,9 @@ async function waitForSite(timeoutMs = 180_000): Promise<void> {
   log("the site didn't report ready in 3 minutes; starting anyway (lookups say so if the data isn't there)");
 }
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+// GuildMessages (not privileged) for "@Control Scout …": Discord sends the text only of messages that mention the
+// bot, so without the privileged Message Content intent it never reads anything else.
+const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
 const handle = createHandler(log);
 
 async function register(appId: string): Promise<void> {
@@ -110,6 +112,7 @@ setInterval(() => {
     .finally(() => { ticking = false; });
 }, 60_000).unref();
 client.on(Events.InteractionCreate, (i) => { void handle(i); });
+client.on(Events.MessageCreate, (m) => { if (client.user) void handle.mention(m as never, client.user.id); });
 client.on(Events.GuildCreate, (g) => log(`added to a server (${client.guilds.cache.size} now): ${g.id}`));
 client.on(Events.GuildDelete, (g) => log(`removed from a server (${client.guilds.cache.size} now): ${g.id}`));
 client.on(Events.Error, (e) => log(`client error: ${e.message}`));
