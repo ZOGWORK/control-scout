@@ -9,7 +9,7 @@
 export const FLAGS = [
   "livePredictions", "advancementOdds", "bracketOdds", "powerRankings", "coinFlips", "factorSheet", "offlinePacks", "eventBundle", "discordBot", "workspaceScouting", "scoutingAlliances", "scoutingCommons", "rulesReference", "venueLightMode", "scheduleDifficulty",
   "realtime", "errorReporting", "failedSearchReports", "photos", "push", "autoPowerRankings", "dailyPowerRankings", "weeklyDigest",
-  "seasonRoadMap", "brunoSearch", "brunoAnswers", "searchLearning", "dogTheme", "onboardingTour",
+  "seasonRoadMap", "brunoSearch", "brunoAnswers", "searchLearning", "dogTheme", "onboardingTour", "discordBruno",
 ] as const;
 export type Flag = (typeof FLAGS)[number];
 export type FlagSet = Record<Flag, boolean>;
@@ -56,6 +56,7 @@ export const FLAG_META: Record<Flag, { group: FlagGroup; scope: FlagScope }> = {
   seasonRoadMap: { group: "feature", scope: "global" },
   brunoSearch: { group: "feature", scope: "global" },
   brunoAnswers: { group: "feature", scope: "global" },
+  discordBruno: { group: "feature", scope: "global" },
   searchLearning: { group: "feature", scope: "global" },
 };
 
@@ -87,6 +88,7 @@ export const FEATURE_OFF_MESSAGE: Partial<Record<Flag, string>> = {
   seasonRoadMap: "The season road map is switched off for now. The rest of this team's page still works.",
   brunoSearch: "Bruno's search help is switched off for now. Search works as normal.",
   brunoAnswers: "Bruno's answers are switched off for now. Search works as normal.",
+  discordBruno: "Bruno AI in the Discord bot is switched off for now. /ask still answers from search.",
   searchLearning: "Search learning is switched off for now. Search works as normal.",
   workspaceScouting: "Workspace scouting is paused by the owner right now. Your entries stay on this device and sync once it's back; personal scouting still syncs.",
   scoutingAlliances: "Scouting alliances are switched off for now. Each workspace sees only its own scouting; links and their entries are kept and come back when they do.",
@@ -116,6 +118,11 @@ export const FLAG_INFO: Record<Flag, { label: string; on: string; off: string; p
     label: "Bruno answers on /search",
     on: "A search that reads as a question gets a short written answer from Bruno AI (Control Point) above the results, written only from the records search found. An answer naming any number that isn't in those records is dropped. Cached per question for 6 hours.",
     off: "/search shows search's own results and cards only; Bruno is never asked.",
+  },
+  discordBruno: {
+    label: "Bruno AI in the Discord bot",
+    on: "The bot's /ask uses Bruno AI (Control Point): he rewrites a question search only guessed at, and writes one short sentence for a question, only from the records search found (any number not in them is dropped). Credited as Bruno AI in the answer. The website's own Bruno switches are separate and never affect the bot.",
+    off: "/ask posts search's own answer only; Bruno is never asked from Discord.",
   },
   searchLearning: {
     label: "Search learning",

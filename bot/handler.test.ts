@@ -2,7 +2,7 @@
 // per-person cooldown, and friendly errors for every failure (never the exception's words).
 import { describe, expect, it, vi } from "vitest";
 import type { APIEmbed } from "discord.js";
-import { createHandler, type Lookups } from "./handler";
+import { createHandler, type Lookups, type MentionMessage } from "./handler";
 import { Friendly } from "./views";
 import { AnswerCache, Cooldown } from "./guard";
 import { COMMANDS, sameCommands } from "./commands";
@@ -38,6 +38,7 @@ function lookups(over: Partial<Lookups> = {}): Lookups {
     follow: vi.fn(async () => "added" as const),
     unfollow: vi.fn(async () => 1),
     following: vi.fn(async () => ok("following")),
+    ask: vi.fn(async (q: string) => ({ embed: ok(`ask ${q}`), meta: { step: "deterministic" as const, refined: false, sentence: false } })),
     ...over,
   };
 }
@@ -188,7 +189,7 @@ describe("Cooldown", () => {
 
 describe("registration", () => {
   it("the commands, each one on the site's list; follow and unfollow need Manage Server, in servers only", () => {
-    expect(COMMANDS.map((c) => c.name)).toEqual(["team", "predict", "event", "rankings", "follow", "unfollow", "following", "help"]);
+    expect(COMMANDS.map((c) => c.name)).toEqual(["team", "predict", "event", "rankings", "follow", "unfollow", "following", "ask", "help"]);
     for (const c of COMMANDS) expect(BOT_COMMANDS.some((b) => b.usage.startsWith(`/${c.name}`)), c.name).toBe(true);
     for (const name of ["follow", "unfollow"]) {
       const c = COMMANDS.find((x) => x.name === name)!;
@@ -252,5 +253,124 @@ describe("follows", () => {
     await createHandler(() => {}, lookups(), { cooldownMs: 0 })(i);
     const text = calls[1].payload.embeds[0].description as string;
     for (const c of BOT_COMMANDS) expect(text).toContain(c.usage);
+  });
+});
+
+describe("/ask's pace", () => {
+  it("no 10-second wait: /ask has every command's pace, so a second ask once that passes is answered", async () => {
+    const l = lookups();
+    const h = createHandler(() => {}, l, { cooldownMs: 0 });
+    await h(command("ask", { question: "who won decode" }).i);
+    const second = command("ask", { question: "4215 vs 6980" });
+    await h(second.i);
+    expect(second.calls.map((c) => c.kind)).toEqual(["defer", "edit"]);
+  });
+
+  it("the same question within a minute is one lookup (whoever asks, however it's cased), logged without who asked", async () => {
+    const l = lookups();
+    const logs: string[] = [];
+    const h = createHandler((m) => logs.push(m), l, { cooldownMs: 0 });
+    await h(command("ask", { question: "who won decode" }, "u1").i);
+    await h(command("ask", { question: "Who won DECODE" }, "u2").i);
+    expect(l.ask).toHaveBeenCalledTimes(1);
+    expect(logs).toHaveLength(2);
+    expect(logs[0]).toMatch(/^\/ask question=WHO WON DECODE step=deterministic bruno=no \d+ms$/);
+    expect(logs[1]).toMatch(/ cached \d+ms$/);
+    expect(logs.join(" ")).not.toMatch(/u1|u2/);
+  });
+
+  it("ten asks in a minute from one person: no crash, one lookup each question at most, and the bot still answers others", async () => {
+    const l = lookups();
+    const h = createHandler(() => {}, l, { cooldownMs: 3000 });
+    const replies = [];
+    for (let n = 0; n < 10; n++) { const c = command("ask", { question: "who won decode" }, "spam"); await h(c.i); replies.push(c.calls[0].kind); }
+    expect(replies.filter((k) => k === "defer")).toHaveLength(1);
+    expect(replies.filter((k) => k === "reply")).toHaveLength(9);
+    expect(l.ask).toHaveBeenCalledTimes(1);
+    const other = command("ask", { question: "who won decode" }, "someone");
+    await h(other.i);
+    expect(other.calls[1].payload.embeds[0].title).toBe("ask who won decode");
+  });
+
+  it("turned off by the owner: /ask gets the turned-off note and nothing runs", async () => {
+    const l = lookups({ enabled: async (f) => f !== "discordBot" });
+    const h = createHandler(() => {}, l, { cooldownMs: 0 });
+    const { i, calls } = command("ask", { question: "who won decode" });
+    await h(i);
+    expect(calls[0].payload.embeds[0].title).toBe("Turned off for now");
+    expect(l.ask).not.toHaveBeenCalled();
+  });
+});
+
+describe("@mention answers", () => {
+  const BOT = "1562258217873047562";
+  function msg(content: string, over: Partial<MentionMessage> = {}) {
+    const sent: { kind: string; embeds: APIEmbed[] }[] = [];
+    const m: MentionMessage = {
+      author: { id: "u1", bot: false }, guildId: "g1", content,
+      reply: vi.fn(async (o) => { sent.push({ kind: "reply", embeds: o.embeds }); }),
+      channel: { send: vi.fn(async (o) => { sent.push({ kind: "send", embeds: o.embeds }); }), sendTyping: vi.fn(async () => {}) },
+      ...over,
+    };
+    return { m, sent };
+  }
+
+  it("\"@Control Scout who won decode\" answers as /ask does, as a reply, sharing /ask's cache", async () => {
+    const l = lookups();
+    const h = createHandler(() => {}, l, { cooldownMs: 0 });
+    const { m, sent } = msg(`<@${BOT}> who won decode`);
+    await h.mention(m, BOT);
+    expect(l.ask).toHaveBeenCalledWith("who won decode");
+    expect(sent).toHaveLength(1);
+    expect(sent[0].kind).toBe("reply");
+    expect(sent[0].embeds[0].title).toBe("ask who won decode");
+    await h(command("ask", { question: "Who won decode" }, "u2").i);
+    expect(l.ask).toHaveBeenCalledTimes(1);
+  });
+
+  it("stays silent unless the bot itself is mentioned by a person in a server", async () => {
+    const l = lookups();
+    const h = createHandler(() => {}, l, { cooldownMs: 0 });
+    for (const { m } of [msg("who won decode"), msg("<@999> who won decode"), msg("@everyone who won decode"), msg(`<@${BOT}> hi`, { author: { id: "b", bot: true } }), msg(`<@${BOT}> hi`, { guildId: null })]) await h.mention(m, BOT);
+    expect(l.ask).not.toHaveBeenCalled();
+  });
+
+  it("just the mention: how to ask; a reply it can't make: a plain message; too fast: nothing; turned off: the note", async () => {
+    const h = createHandler(() => {}, lookups(), { cooldownMs: 3000 });
+    const empty = msg(`<@!${BOT}>`, { reply: vi.fn(async () => { throw new Error("Missing Permissions"); }) });
+    await h.mention(empty.m, BOT);
+    expect(empty.sent.map((s) => [s.kind, s.embeds[0].title])).toEqual([["send", "Ask me anything"]]);
+    const fast = msg(`<@${BOT}> 4215`);
+    await h.mention(fast.m, BOT);
+    expect(fast.sent).toHaveLength(0);
+    const off = msg(`<@${BOT}> 4215`);
+    await createHandler(() => {}, lookups({ enabled: async (f) => f !== "discordBot" }), { cooldownMs: 0 }).mention(off.m, BOT);
+    expect(off.sent[0].embeds[0].title).toBe("Turned off for now");
+  });
+});
+
+describe("an answer with a video", () => {
+  it("sends the video link as the message's text, for /ask and a mention alike", async () => {
+    const l = lookups({ ask: vi.fn(async (q: string) => ({ embed: { title: `ask ${q}` }, meta: { step: "deterministic" as const, refined: false, sentence: false }, content: "https://www.youtube.com/watch?v=AAA" })) });
+    const h = createHandler(() => {}, l, { cooldownMs: 0 });
+    const c = command("ask", { question: "23268 highlights" });
+    await h(c.i);
+    expect(c.calls.at(-1)!.payload.content).toBe("https://www.youtube.com/watch?v=AAA");
+    const sent: unknown[] = [];
+    await h.mention({ author: { id: "u9", bot: false }, guildId: "g", content: "<@1> 23268 highlights", reply: async (o) => { sent.push(o); }, channel: {} }, "1");
+    expect((sent[0] as { content?: string }).content).toBe("https://www.youtube.com/watch?v=AAA");
+  });
+});
+
+describe("the ask cache key", () => {
+  it("is the whole question: two long questions alike for 100 characters are answered apart", async () => {
+    const l = lookups();
+    const h = createHandler(() => {}, l, { cooldownMs: 0 });
+    const head = "x".repeat(120);
+    await h(command("ask", { question: `${head} one` }, "a").i);
+    await h(command("ask", { question: `${head} two` }, "b").i);
+    expect(l.ask).toHaveBeenCalledTimes(2);
+    await h(command("ask", { question: `${head}   ONE` }, "c").i);
+    expect(l.ask).toHaveBeenCalledTimes(2);
   });
 });

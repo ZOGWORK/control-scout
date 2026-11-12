@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.7.7 — 2026-11-12
+## 5.7.8 — 2026-11-12
 
 Six more kinds of ranked list in search: filters on the OPR board, a rating-gain board, events by average score, and unbeaten teams at championships.
 
@@ -33,6 +33,27 @@ Six more kinds of ranked list in search: filters on the OPR board, a rating-gain
 - "whats the fastest growing team in the world in 2025-26, by rating gain across the season" (#1392): the prediction rating gained, from the weekly Rankings snapshot after each team's first event to its season rating after its last. "Gain" with OPR keeps the OPR-gained board.
 - "which event had the highest average match score in Romania this season" (#1390): a place's official events ranked by average alliance score, divisions counted with their event, once 10 matches are played. With nothing played yet this season, it shows the season before and says so.
 - "teams with a perfect 8-0 record at any championship event this season" (#1391): every team with at least one win and no losses at a league, state or regional championship or Worlds, with its record there, one row per team and event. A record like "8-0" beside "perfect" or "record" is read as no losses.
+
+## 5.7.7 — 2026-11-12
+
+Ask the Discord bot anything in plain words: `/ask` answers with the website's own search answer.
+
+### Highlights
+- [alerts] Ask the Discord bot anything: the website's own answer and numbers
+- [alerts] Or just mention it: @Control Scout who won decode
+- [alerts] Short answers: one line, the rest one tap away on the website
+- [alerts] Bruno AI writes a one-line answer in Discord, credited to him
+- [alerts] Questions it can't answer yet say so, with questions that work
+
+### Added
+- `/ask question:` (up to 500 characters): the same path `/search` takes, in its order: the deterministic answer always (`searchAnswer`, learning off); Bruno's query rewrite for a weak answer; his short answer for every ask, kept only if every number is in search's facts. Both only with the new `discordBruno` switch on ("Bruno AI in the Discord bot", on by default); the website's `brunoSearch` / `brunoAnswers` never affect the bot, and `discordBruno` never affects the website (`refine` and `brunoAnswer` take the switch to check). Short by design: a stat's headline alone, else its first block cut at 3 rows, about 500 characters as read. One embed: the question as asked ("Asked: who won decode"), his sentence, the answer, up to 2 questions to ask next, and a link to the same answer on controlscout.org; "Sorry — I can't answer that yet" with what was read and questions that work. The same 3-second pace as every command; the same question within a minute is one lookup. (`bot/ask.ts`, `bot/handler.ts`, `bot/commands.ts`)
+- `@Control Scout who won decode`: mention the bot with a question and it replies with the `/ask` answer (same cache and pace). Only direct mentions from people in a server; it needs the non-privileged `GuildMessages` intent only, so the bot never reads other messages. (`bot/handler.ts`, `bot/index.ts`)
+- An answer with match videos (highlights, a match, the finals) links up to 3 of them (`▶ Watch: Q85 · Q18 · M4`), and the first one's YouTube link is the message's text, so Discord plays it under the answer. The same videos the website plays, public ones only. Bruno's facts say which videos there are, so he never says there are none. (`videoLinks` in `bot/ask.ts`, `server/api/searchBrunoAnswer.ts`)
+- `/help` and the site's "Control Scout in Discord" list name `/ask` and the mention. (`src/shared/discord.ts`)
+
+### Fixed
+- Bruno's facts now carry a stat answer (its headline and every block row) and a yes-or-no verdict. Before, a stat question like "who won decode" sent him only the line about when records start, so he never answered it. A forecast's chance reaches him as 1% to 99% unless decided, as the page shows it. (`statFacts` in `server/api/searchBrunoAnswer.ts`) (#1407)
+
 ## 5.7.6 — 2026-11-12
 
 The Discord bot's event posts: a schedule that always fits, the first match the evening before, and a plain day recap.
