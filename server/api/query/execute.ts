@@ -14,7 +14,7 @@ import { allianceForecast, predictionSeasonOf } from "../answers/families/predic
 import { CURRENT_SEASON, isLegacy } from "../../data/seasons.js";
 import { predictHref } from "../../../src/shared/predictUrl.js";
 import { boardSearch, statAnswer, statAnswerOf, topSearch, twoTeamSearch, type Resolve } from "../answers/index.js";
-import { currentSeason, defaultSeason, lastSeason } from "../answers/season.js";
+import { currentSeason, defaultSeason, lastSeason, seasonWhy, teamSeason } from "../answers/season.js";
 import { BOARD_STATS } from "../answers/families/leaderboard.js";
 import type { TopMatchesQuestion } from "../answers/families/topMatches.js";
 import { defaultSteps, isEmpty, relaxed, windowSteps } from "./relax.js";
@@ -35,11 +35,16 @@ import { pickAnswer, teamPickEvent } from "../answers/families/pick.js";
 import { describe, normalise, parseQuery, type Parsed } from "./parse.js";
 import { parseContext } from "./context.js";
 import { topTeamsNote, topTeamsSaid } from "./topTeams.js";
+import { asksSelfMatch, selfMatchAnswer } from "./selfMatch.js";
+import { PAIR_SPLIT, windowPairAnswer } from "./windowPair.js";
+import { rankReviewAnswer } from "./rankReview.js";
 import type { PipelineIntent } from "./intents.js";
 import { place } from "../../../src/shared/format.js";
 import { readAsk } from "../searchAsks.js";
 
-export interface PipelineOptions { full: boolean; pages: SearchPageLink[]; resolve: Resolve; now?: number; prefer?: ReadonlySet<string> }
+export interface PipelineOptions { full: boolean; pages: SearchPageLink[]; resolve: Resolve; now?: number; prefer?: ReadonlySet<string>;
+  /** A window read exactly as asked: one with nothing in it says so, never relaxed to its season (two windows side by side). */
+  exact?: boolean }
 
 /** The pipeline's answer for `q`, or null when it leaves the query to search's other readers. */
 export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<SearchAnswer | null> {
@@ -52,6 +57,17 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
   if (byName) {
     const again = await parseQuery(byName, ctx);
     if (again.complete && again.intent === p.intent && again.teams.length === 1) p = { ...again, q };
+  }
+  // One team against itself ("predict 12345 vs 12345"): no match to call, said so, with its own forecasts to open.
+  if (asksSelfMatch(q, p)) {
+    const n = String(p.teams[0].number);
+    return selfMatchAnswer(p, (await opts.resolve(n)).hits.find((h) => h.kind === "team" && h.ref === n), opts.pages, opts.full);
+  }
+  // One team's question in two time windows set against each other ("12345 record this month, versus last month"):
+  // asked in each, exactly as said, side by side.
+  if (!p.complete) {
+    const pair = await windowPair(q, ctx, opts);
+    if (pair) return pair;
   }
   // A place's top team said where a team would be ("the top NJ team vs the top Romania team"): two teams compared,
   // read again with their numbers, the card saying which team each phrase was.
@@ -218,7 +234,7 @@ function placeSeason(p: Parsed, said: number | null | undefined, _opts: Pipeline
 }
 /** The answers a win or a loss said with them narrows ("closest loss", "first win", "longest losing streak"). */
 const OUTCOME_IDS = new Set(["closest-match", "current-streak", "average-margin", "first-match", "recent-match", "last-matches", "longest-streak"]);
-const ANSWERED = new Set<PipelineIntent>([...TEAM_INTENTS, ...(Object.keys(TWO_TEAM) as PipelineIntent[]), ...(Object.keys(FIND) as PipelineIntent[]), "top-matches", "leaderboard", "event-scores", "team-predict", "highlights", "teams-named", "count-teams", "alliance-predict", "swap-predict", "pick-partners", ...(Object.keys(TREND_ASK) as PipelineIntent[])]);
+const ANSWERED = new Set<PipelineIntent>([...TEAM_INTENTS, ...(Object.keys(TWO_TEAM) as PipelineIntent[]), ...(Object.keys(FIND) as PipelineIntent[]), "top-matches", "leaderboard", "event-scores", "team-predict", "predict-rank-events", "highlights", "teams-named", "count-teams", "alliance-predict", "swap-predict", "pick-partners", ...(Object.keys(TREND_ASK) as PipelineIntent[])]);
 /** The leaderboard's stat for a metric said ("by opr"); the prediction rating when none is. */
 const BOARD_STAT: Partial<Record<string, string>> = {
   "metric:opr": "opr", "metric:rating": "rating", "metric:winrate": "win-rate", "metric:auto": "auto", "metric:teleop": "teleop",
@@ -263,7 +279,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // themselves (after their own reading of a year, such as Worlds held that year); every other one-team intent is
   // checked here, before any reader can take the year for part of an event's name. A team's prediction and pick
   // helper read the year as an event's (theirs say when it has none).
-  if (p.teams.length === 1 && !TEAM_INTENTS.has(intent) && intent !== "team-predict" && intent !== "pick-partners") {
+  if (p.teams.length === 1 && !TEAM_INTENTS.has(intent) && intent !== "team-predict" && intent !== "pick-partners" && intent !== "predict-rank-events") {
     const future = await noEventsYet(p, p.teams[0].number, intent as IntentId, opts);
     if (future) return future(opts);
   }
@@ -315,7 +331,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     const a = await statAnswerOf(p.q, it, opts.resolve, opts);
     // Nothing in the window asked ("this week"): its season, then the season before, said on the card.
     // A window with its year typed ("march 2026", a date) keeps that year: only a window said against today is relaxed.
-    if (!opts.full || !scope.window || scope.season == null || p.time?.year != null) return a;
+    if (!opts.full || opts.exact || !scope.window || scope.season == null || p.time?.year != null) return a;
     return relaxed(a, windowSteps(scope.window, scope.season), (season) => statAnswerOf(p.q, { ...it, scope: { ...scope, window: undefined, season } }, opts.resolve, opts));
   }
   // A forecast at an event named: before and after, side by side (./forecast.ts). With no event, two teams' head-on
@@ -326,6 +342,23 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // event, the stored projection's, as "chance to advance to worlds" reads; never a forecast made at Worlds itself.
   // One team's chances for a season, no event or match said ("predicted chances of 12345 this season", "12345 win
   // chances in 2026-27"): its advancement odds at its next advancing event (or, said so, its latest).
+  // One team's predicted rank against its actual rank at every event of a season (./rankReview.ts): the season named,
+  // "last season", else the team's latest season played (said so).
+  if (intent === "predict-rank-events") {
+    if (p.teams.length !== 1 || scope.level || scope.alliance || scope.place || scope.area || scope.window || scope.at || scope.ever || p.event || p.worlds || p.states) return null;
+    const t = p.teams[0], team = { number: t.number, name: t.name };
+    const named = p.time?.kind === "season" && !p.time.relative ? p.time.season : null;
+    const own = named ?? (p.time?.relative === "last" ? lastSeason() : await teamSeason(t.number));
+    if (own == null) return null;
+    const why = named != null ? undefined : p.time?.relative === "last" ? seasonWhy("last", own) : seasonWhy(p.time?.relative === "this" ? "this" : "team", own, String(t.number));
+    const stat = await rankReviewAnswer(team, own, why);
+    const hit = (await opts.resolve(String(t.number))).hits.find((h) => h.kind === "team" && h.ref === String(t.number));
+    return {
+      q: p.q, hits: hit ? [{ ...hit, facts: undefined, events: undefined }] : [], pages: opts.pages, step: "deterministic", weak: false,
+      understood: { kind: "question", label: stat.title, season: own }, ...(opts.full ? { stat } : {}),
+      intent: { kind: `stat-${stat.intent}`, pattern: "[team] predicted vs actual rank [per event]", met: !stat.none, understood: [] },
+    };
+  }
   if (intent === "team-predict" && seasonOdds(p)) {
     if (scope.level || scope.alliance || scope.place || scope.area || scope.window || scope.at) return null;
     // The season as the scope read it: named, or "last season" (the one before); "this season" is the current one.
@@ -862,6 +895,23 @@ async function highlights(p: Parsed, scope: ReadScope, opts: PipelineOptions): P
   if (latest == null) return a;
   const name = f.eventName?.get(latest)?.name;
   return relaxed(a, defaultSteps(f.season, name ? ` at ${name}` : f.at ? ` ${f.at}` : "", "matches", latest), (season) => card(season));
+}
+
+/** "<one team's question in a window>, versus <another window>": the question asked in each window (nothing relaxed),
+ *  the two answers side by side (./windowPair.ts). Null unless the words before the "versus" are a complete one-team
+ *  question with a time, and the words after it are a time and nothing else. */
+async function windowPair(q: string, ctx: Awaited<ReturnType<typeof parseContext>>, opts: PipelineOptions): Promise<SearchAnswer | null> {
+  const m = PAIR_SPLIT.exec(q);
+  if (!m) return null;
+  const left = q.slice(0, m.index).replace(/[\s,;]+$/, ""), right = q.slice(m.index + m[0].length);
+  const [a, b] = await Promise.all([parseQuery(left, ctx), parseQuery(right, ctx)]);
+  if (!a.complete || !a.intent || !TEAM_INTENTS.has(a.intent) || a.teams.length !== 1 || !a.time || !b.time) return null;
+  if (b.teams.length || b.event || b.place || b.worlds || b.states || b.leftover.length || b.symbols.length || b.intent) return null;
+  if (a.time.kind !== b.time.kind || a.time.label === b.time.label) return null;
+  const other: Parsed = { ...a, time: b.time, q: left.replace(new RegExp(escRe(a.time.typed), "i"), b.time.typed) };
+  const [x, y] = await Promise.all([execute(a, { ...opts, full: true, exact: true }), execute(other, { ...opts, full: true, exact: true })]);
+  if (!x?.stat || !y?.stat) return null;
+  return windowPairAnswer(q, [a.time, b.time], x, y, opts);
 }
 
 /** The slots as the scope a stat answer reads (server/api/answers/read.ts ReadScope). Null: a slot no answer applies. */

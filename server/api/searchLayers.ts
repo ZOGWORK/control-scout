@@ -52,8 +52,10 @@ export interface SearchOutcome {
 
 const outcomes = new WeakMap<SearchAnswer, SearchOutcome>();
 /** A forbidden word an answer names in its own words, so it was read, not dropped. */
-// "More than 200" is said "over 200" ("Scores over 200"), "fewer than" as "under".
-const SAID_AS: Record<string, RegExp> = { last: /\b(?:latest|most recent)\b/, next: /\bupcoming\b/, and: /\s\+\s/, than: /\b(?:over|above|under|below|more than|fewer than|less than)\s+\d/ };
+// "More than 200" is said "over 200" ("Scores over 200"), "fewer than" as "under". A forecast held up against its
+// result ("Prediction vs result at <event>") sets what was said before beside what happened after.
+const SAID_AS: Record<string, RegExp> = { last: /\b(?:latest|most recent)\b/, next: /\bupcoming\b/, and: /\s\+\s/, than: /\b(?:over|above|under|below|more than|fewer than|less than)\s+\d/,
+  before: /\bprediction vs result\b/ };
 
 const LAYER_NUMBER: Record<LayerId, string> = { normalize: "0", template: "1", longform: "1L", keyword: "2", paraphrase: "3", filler: "4", scope: "5", fallback: "6" };
 /** An outcome as failed-search reporting's trace reads it (server/searchFailures.ts SearchTrace): layers by number,
