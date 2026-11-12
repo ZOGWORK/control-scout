@@ -50,9 +50,10 @@ import { asksOfTeams, pipelineAnswer, pipelineReads } from "./query/execute.js";
 import { derivedVerdict, yesNoAnswer } from "./answers/yesNo.js";
 import { sorryFor } from "./answers/sorry.js";
 import { fold, names } from "./query/names.js";
-import { normalise, parseQuery } from "./query/parse.js";
+import { eventPlace, normalise, parseQuery } from "./query/parse.js";
 import { parseContext } from "./query/context.js";
-import { pickShared } from "./query/shared.js";
+import { pickShared, whichLine } from "./query/shared.js";
+import { withPage } from "./answers/teamsNamed.js";
 import { asideWord, asksWhich, onlyOrdinary } from "./query/ordinary.js";
 import { LEXICON } from "./query/lexicon.js";
 import { awardQuery, bottomAnswer, calledTeams, countAnswer, eventCodeAnswer, eventPageAnswer, explainAnswer, explainTeamAnswer, monthAnswer, nearMeAnswer, namedParts, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
@@ -343,6 +344,9 @@ async function withVerdict(raw: string, a: SearchAnswer, opts: AnswerOptions): P
   // Any other yes-or-no question answered with a count: its yes or no from the count (./answers/yesNo.ts derivedVerdict).
   const verdict = yn?.verdict ?? (answered ? derivedVerdict(q, a) : null);
   if (!verdict) return null;
+  // Whether a team is from a place: its own card (the place asked, yes or no, the country named), never the bare
+  // "where they're from" card the question was also read as.
+  if (yn?.stat?.intent === "yes-no-location") return carryOutcome(a, { ...yn, q: a.q });
   // Whether a team was at an event is its own card: where it played, or what it played instead, never only the
   // results there ("was 12345 at <event>" is a team at an event to the parser too). Any other card that answered
   // (Worlds, its state championship) keeps the verdict above it.
@@ -543,7 +547,8 @@ async function sharedName(q: string, opts: AnswerOptions): Promise<SearchAnswer 
   };
   if (pl && spans.some(placeAfter)) return null;
   // A name the parser settled by the place typed beside it ("robo rebels michigan") is the team-in-a-place answer.
-  const settledByParse = (sp: (typeof spans)[number]) => p.teams.some((t) => t.rule?.startsWith("the one in ") && !t.rule.startsWith("the one in the same") && t.candidates?.some((n) => sp.teams.some((x) => x.number === n)));
+  // (The place an event's name says, "at the NJ championship", settles it here instead, as below.)
+  const settledByParse = (sp: (typeof spans)[number]) => !!pl && p.teams.some((t) => t.rule === `the one in ${pl.name}` && t.candidates?.some((n) => sp.teams.some((x) => x.number === n)));
   if (spans.some(settledByParse)) return null;
   // Words search reads nothing in ("favorite color") ask what no team's answer holds: the sorry note says so instead.
   const inSpans = new Set(spans.flatMap((sp) => ws.slice(sp.i, sp.i + sp.len)));
@@ -560,7 +565,7 @@ async function sharedName(q: string, opts: AnswerOptions): Promise<SearchAnswer 
   const picks = spans.map((sp) => {
     const own = new Set(sp.teams.map((t) => t.number));
     const others = settled.filter((t) => !own.has(t.number));
-    return { ...sp, r: pickShared(sp.teams, { mine: (n) => prefer.has(`team:${n}`), others }) };
+    return { ...sp, r: pickShared(sp.teams, { mine: (n) => prefer.has(`team:${n}`), place: eventPlace(p, idx), others }) };
   });
   // The query with each name's team number in its place; a name with none given stays as typed. Right to left by
   // position, so each name's place is still its own.
@@ -589,12 +594,12 @@ async function sharedName(q: string, opts: AnswerOptions): Promise<SearchAnswer 
       .filter((h): h is SearchHit => !!h).map((h) => ({ ...h, match: "exact" as const }));
     return answer(q, {
       hits, step: "deterministic",
-      understood: { kind: "names", label: `${WHICH}${typedOf(tied)}"? ${choices.length} teams have that name: ${choices.map(shown).join(", ")}` },
+      understood: { kind: "names", label: whichLine(typedOf(tied), withPage(tied.teams).length, choices.map(shown)) },
       suggest: choices.slice(0, 4).map((t) => asked(fixed.map((n, k) => (k === at ? t.number : n)))),
     });
   }
   const numbers = picks.map((x) => ("team" in x.r ? x.r.team.number : 0));
-  const said = picks.map((x) => ("team" in x.r ? `${nameOfSpan(x)}: ${shown(x.r.team)}, ${x.r.rule} of ${x.teams.length} teams with the name` : ""));
+  const said = picks.map((x) => ("team" in x.r ? `${nameOfSpan(x)}: ${shown(x.r.team)}, ${x.r.rule}${withPage(x.teams).length > 1 ? ` of ${withPage(x.teams).length} teams with the name` : ""}` : ""));
   const a = await searchAnswer(opts.asked ? `${asked(numbers)}?` : asked(numbers), { ...opts, rewrites: (opts.rewrites ?? 0) + 1 });
   const u = a.understood ?? understoodOf(a);
   return carryOutcome(a, { ...a, q, understood: { ...u, label: `${u.label} · ${said.join(" · ")}` } });

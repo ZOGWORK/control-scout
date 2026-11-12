@@ -2,7 +2,7 @@
 // about, a place's name is the place, and ordinary words are words. Fixture names only, none of the audit's teams.
 import { describe, expect, it } from "vitest";
 import { buildNames } from "./names";
-import { parseQuery, type ParseContext } from "./parse";
+import { eventPlace, parseQuery, type ParseContext } from "./parse";
 import { pickShared, STRONGER } from "./shared";
 import { asksWhich, onlyOrdinary } from "./ordinary";
 
@@ -26,7 +26,7 @@ const TEAMS = [
   { number: 4602, name: "Quite Early", city: "Town", state: "WA", country: "USA", lastPlayed: 2025 },
   { number: 4603, name: "Monte", city: "Town", state: "BJ", country: "China", lastPlayed: 2025 },
 ];
-const EVENTS = ["river conference", "jersey championship"];
+const EVENTS = ["river conference", "jersey championship", "nj championship"];
 const ctx: ParseContext = {
   names: buildNames(TEAMS, [{ city: "Bucharest", state: "B", country: "Romania" }]),
   today: "2026-11-10",
@@ -53,6 +53,22 @@ describe("a name several teams share", () => {
   it("is the clearly stronger one, or the only one still playing", async () => {
     expect((await parse("gamma squad record")).teams[0]).toMatchObject({ number: 4301, rule: "the stronger one" });
     expect((await parse("old gears opr")).teams[0]).toMatchObject({ number: 4402, rule: "the only one still playing" });
+  });
+  it("is the one in the place an event's name says", async () => {
+    for (const q of ["prism bots matches at the nj championship", "prism bots matches at the NJ championship", "prism bots record at NJ championship"]) {
+      expect((await parse(q)).teams[0], q).toMatchObject({ number: 4201, rule: "the one in New Jersey" });
+    }
+    // A code that is also a word counts only as typed in capitals.
+    expect(eventPlace({ event: { words: "mi championship", typed: "MI championship" } }, ctx.names)).toMatchObject({ state: "MI" });
+    expect(eventPlace({ event: { words: "in championship", typed: "in championship" } }, ctx.names)).toBeNull();
+    expect(eventPlace({ event: { words: "in championship", typed: "IN championship" } }, ctx.names)).toMatchObject({ state: "IN" });
+  });
+  it("is the one far ahead in rank near the top, though a few percentile points apart", () => {
+    const a = { number: 1, state: "NJ", country: "USA", city: null, lastPlayed: 2025, strength: 0.999 };
+    const b = { number: 2, state: "MI", country: "USA", city: null, lastPlayed: 2026, strength: 0.955 };
+    expect(pickShared([a, b], {})).toMatchObject({ team: a, rule: "the stronger one" });
+    // Top 3% and top 7% are no clear gap.
+    expect(pickShared([{ ...a, strength: 0.97 }, { ...b, strength: 0.93 }], {})).toMatchObject({ tied: expect.any(Array) });
   });
   it("is the one in the place named, or the one whose number is typed beside it", async () => {
     expect((await parse("prism bots michigan record")).teams[0]).toMatchObject({ number: 4202 });

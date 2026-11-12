@@ -50,7 +50,7 @@ import { answerSections } from "../src/shared/searchSections.js";
 import { rebuildSearch } from "./stats/job.js";
 import { SEARCH_HITS_ID, SEARCH_PAGE_LIMIT, SORRY_SENTENCE, cardWho, followApiPath, hitHref, relatedApiPath, relatedQuery, relatedSearch } from "../src/shared/search.js";
 import { hasPhases, phaseNote, teamColumns, teamTableOfLeaderboard, type TeamTable } from "../src/shared/teamTable.js";
-import { answerDescription, badgeUnder, contextBadge, isQualityQuestion, pageTitle, repeats, unreadNote } from "../src/shared/searchPage.js";
+import { answerDescription, badgeUnder, contextBadge, headingOver, isQualityQuestion, pageTitle, repeats, unreadNote } from "../src/shared/searchPage.js";
 
 /** The site's name, the same everywhere a search engine reads one: every <title>, og:site_name, the
  *  WebSite and Organization data. "FTC Control Scout" is its alternate name (in the structured data). */
@@ -680,9 +680,9 @@ async function searchMeta(raw: string): Promise<PageMeta> {
   const verdict = answer.verdict ? `<p data-verdict="${esc(answer.verdict.answer)}"><b>${esc(answer.verdict.answer)}</b> · ${esc(answer.verdict.label)}</p>` : "";
   const sorryNote = sorry ? (sorry.understood.length ? `<p data-sorry><b>I read:</b> ${esc(sorry.understood.join(" · "))}</p>` : "")
     + (sorry.suggest.length ? `<h2>Searches that answer about them</h2><ul>${sorry.suggest.map((x) => `<li><a href="/search?q=${esc(encodeURIComponent(x))}">${esc(x)}</a></li>`).join("")}</ul>` : "") : "";
-  // The heading as the app titles it (below); a card's or stat's own title that only repeats it isn't said again, nor a
+  // The heading as the app titles it (below; a stat title that says it and more is the heading, headingOver); a card's or stat's own title that only repeats it isn't said again, nor a
   // headline label that does, so the page's first lines are never the same words twice.
-  const heading = answered ? pageTitle(answer, answer.hits, isQualityQuestion(q)) : SORRY_SENTENCE;
+  const heading = answered ? headingOver(pageTitle(answer, answer.hits, isQualityQuestion(q)), answer.stat?.title) : SORRY_SENTENCE;
   // As the app hides a title (repeats): one the heading already holds, less the chips at its end.
   const same = (x: string | null | undefined, chips: readonly string[] = []) => !!x && repeats(heading, x, chips);
   // A question's direct answer (server/api/searchQuestions.ts), as the page shows it: its records, or its plain

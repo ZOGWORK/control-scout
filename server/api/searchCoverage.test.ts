@@ -640,3 +640,30 @@ describe("explain questions, asked any way", () => {
     expect(inner).toBeNull();
   });
 });
+
+describe("open questions about a team, and where it's from (launch sign-off, Tier 1)", () => {
+  const page = (q: string) => searchAnswer(q, { limit: 40, full: true, learn: false });
+  it("how good a team is: one card with its season's OPR, record and rating, the season asked or the team's latest", async () => {
+    for (const q of ["is 23268 actually that good or just hype", "can u tell me if bad wolf is good, be honest", "how good is 4215 really, like in plain numbers", "whats up with 23268, are they cracked", "show me 23268 stuff, like everything"]) {
+      const a = await page(q);
+      expect(a.stat, q).toMatchObject({ family: "stat", intent: "team-overview", title: `Season overview in ${seasonLabel(S)}`, scope: [seasonLabel(S)] });
+      const kpis = { kind: "kpis" as const, items: a.stat!.blocks.flatMap((b) => (b.kind === "kpis" ? b.items : [])) };
+      expect(kpis?.kind === "kpis" ? kpis.items.map((i) => i.label) : [], q).toEqual(expect.arrayContaining(["OPR", "Record", "Prediction rating"]));
+    }
+    // A season said is that season's numbers (fixture: 90 OPR, 12-8 then).
+    const past = await page(`is 23268 actually that good or just hype, in ${S - 1}-${String(S % 100).padStart(2, "0")}`);
+    expect(past.stat).toMatchObject({ intent: "team-overview", scope: [seasonLabel(S - 1)] });
+    const kp = { kind: "kpis" as const, items: past.stat!.blocks.flatMap((b) => (b.kind === "kpis" ? b.items : [])) };
+    expect(kp?.kind === "kpis" ? Object.fromEntries(kp.items.map((i) => [i.label, i.value])) : {}).toMatchObject({ OPR: "90", Record: "12-8-0" });
+    // One thing asked about the team is that thing's answer, never the overview.
+    for (const q of ["how good is 4215 at auto", "is 4215 good at auto"]) expect((await page(q)).stat?.intent, q).not.toBe("team-overview");
+  });
+  it("is a team from a place: Yes or No, and where it is from with its country", async () => {
+    const yes = await page("is 23268 actually from new jersey or what");
+    expect(yes.verdict).toMatchObject({ answer: "Yes", label: "Ultraviolet (23268) is from Hackettstown, NJ, USA" });
+    expect(yes.stat).toMatchObject({ intent: "yes-no-location", title: "Is Ultraviolet (23268) from New Jersey?" });
+    const no = await page("is 23268 from romania");
+    expect(no.verdict).toMatchObject({ answer: "No", label: "Ultraviolet (23268) is from Hackettstown, NJ, USA, not Romania" });
+    expect((await page("is quantum robotics from romania")).verdict).toMatchObject({ answer: "Yes", label: "Quantum Robotics (14270) is from Bucharest, Romania" });
+  });
+});

@@ -69,7 +69,7 @@ describe("a name several teams share (Requirement 13.4)", () => {
   it("still tied: the candidates, never a guess", async () => {
     const a = await ask("ultraviolet vs dominican ultraviolet");
     expect(a.hits.filter((h) => h.kind === "compare").map((h) => h.ref)).toEqual(["9637,20245", "9637,23268"]);
-    expect(a.understood?.label).toBe('Which "ultraviolet"? 2 teams have that name: 20245 (Norton Shores, MI), 23268 (Hackettstown, NJ)');
+    expect(a.understood?.label).toBe('Which "ultraviolet"? 3 teams have that name; 2 of them still play: 20245 (Norton Shores, MI), 23268 (Hackettstown, NJ)');
   });
 });
 
@@ -111,7 +111,7 @@ describe("Greptile on #436, round 2", () => {
 describe("Greptile on #436, round 3", () => {
   it("the shared-name question is in the notes every surface shows", async () => {
     const { notes } = answerSections(await ask("ultraviolet vs dominican ultraviolet"));
-    expect(notes.understood).toContain('Which "ultraviolet"? 2 teams have that name: 20245 (Norton Shores, MI), 23268 (Hackettstown, NJ)');
+    expect(notes.understood).toContain('Which "ultraviolet"? 3 teams have that name; 2 of them still play: 20245 (Norton Shores, MI), 23268 (Hackettstown, NJ)');
   });
   it("no stored state is never 'the same state'", async () => {
     await run("INSERT INTO teams (number, name, city, state, country) VALUES (66661, 'Nowhere', 'X', NULL, 'Romania'), (66662, 'Twins', 'A', NULL, 'Romania'), (66663, 'Twins', 'B', 'TX', 'USA')");
