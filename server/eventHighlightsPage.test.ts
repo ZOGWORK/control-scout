@@ -1,7 +1,9 @@
 // /events/<season>/<code>/highlights: Search's "<event> highlights" answer at its own address. One rule for the page,
 // the event page's link, the first HTML and the sitemap: only an event with a page to index and a match to pick from
 // has one.
+import type { AddressInfo } from "node:net";
 import { beforeAll, describe, expect, it } from "vitest";
+import { createApp } from "./app";
 import { migrate, openDb, run, setDb } from "./db";
 import { eventHighlightsLastmods, eventHighlightsPage, hasEventHighlights } from "./eventHighlightsPage";
 import { pageMeta, headTags } from "./seoMeta";
@@ -70,6 +72,18 @@ describe("event highlights page", () => {
       expect(await eventHighlightsPage(2025, code)).toBeNull();
       expect((await pageMeta(`/events/2025/${code}/highlights`)).notFound).toBe(true);
     }
+  });
+
+  it("its API takes the code in any case, as every event address does (api.param resolves the stored code)", async () => {
+    const server = createApp().listen(0);
+    await new Promise((r) => server.once("listening", r));
+    const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    try {
+      const lower = await fetch(`${base}/api/events/2025/usnjnom3/highlights`);
+      expect(lower.status).toBe(200);
+      expect(((await lower.json()) as { event: { code: string } }).event.code).toBe("USNJNOM3");
+      expect((await fetch(`${base}/api/events/2025/empty/highlights`)).status).toBe(404);
+    } finally { await new Promise((r) => server.close(r)); }
   });
 
   it("the event page links to it only when it exists", async () => {
