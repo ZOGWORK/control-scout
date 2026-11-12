@@ -228,20 +228,14 @@ describe("a chat with Bruno", () => {
     expect(r.chat).toEqual({ text: "30030 Exodus won.", video: "https://www.youtube.com/watch?v=AAA&t=90s", page: `${SITE}/search?q=who%20won%20decode` });
   });
 
-  it("no reply from him (off, a number not in the facts): the card, as before, with his search sentence", async () => {
-    const r = await ask("4215", chatDeps(null), SITE);
-    expect(r.chat).toBeUndefined();
-    expect(r.embed.title).toBe("4215 | Team 4215");
-    expect(r.meta.sentence).toBe(true);
-  });
-
-  it("a chat that failed or timed out: the card at once, no second call to him for a sentence", async () => {
-    const d = chatDeps(null, { chat: vi.fn(async () => { throw new Error("The operation was aborted due to timeout"); }) });
-    const r = await ask("4215", d, SITE);
-    expect(r.chat).toBeUndefined();
-    expect(r.embed.title).toBe("4215 | Team 4215");
-    expect(r.meta.sentence).toBe(false);
-    expect(d.bruno).not.toHaveBeenCalled();
+  it("no chat reply (off, failed, timed out, a number not in the facts): the card at once, no second call to him", async () => {
+    for (const d of [chatDeps(null), chatDeps(null, { chat: vi.fn(async () => { throw new Error("The operation was aborted due to timeout"); }) })]) {
+      const r = await ask("4215", d, SITE);
+      expect(r.chat).toBeUndefined();
+      expect(r.embed.title).toBe("4215 | Team 4215");
+      expect(r.meta.sentence).toBe(false);
+      expect(d.bruno).not.toHaveBeenCalled();
+    }
   });
 
   it("a follow-up in a thread: he gets the thread, and the facts for the last question too", async () => {

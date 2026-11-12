@@ -3,7 +3,7 @@
 //   1. searchAnswer(q, { learn: false })  deterministic, always (learn off: a Discord ask never teaches search)
 //   2. refine(q)                          only when that answer is weak (did-you-mean, recovery), the bot's own
 //                                         discordBruno switch is on and Bruno is configured: he rewrites the QUERY, search runs again
-//   3. brunoAnswer(q)                     every ask (/ask is always a question, however it's typed), discordBruno on and Bruno
+//   3. brunoAnswer(q)                     only where the chat below isn't wired (tests, older callers), discordBruno on and Bruno
 //                                         configured: a sentence from search's facts, dropped if any number isn't in them
 // Every number in the embed is search's own (or a sentence the grounded check passed). Bruno off, unconfigured,
 // failing or slow: the deterministic answer still posts, with no credit line. An answer that used him says so.
@@ -107,10 +107,11 @@ export async function ask(q: string, deps: AskDeps, site: string, history: Bruno
     const r = await deps.refine(q).catch(() => null);
     if (r) { answer = r; refined = r.step === "ai"; }
   }
-  // A chat that failed or timed out isn't followed by a second call to him: the card posts at once, no sentence.
-  let chatFailed = false;
-  if (deps.chat && deps.facts) {
-    const reply = await chatWith(q, answer, history, deps).catch(() => { chatFailed = true; return null; });
+  // With the chat wired, he's asked once: a chat that's off, failed, timed out or named a number not in the facts is
+  // never followed by a second call for a sentence; the card posts at once (bounded by the chat's own timeout).
+  const chatting = !!(deps.chat && deps.facts);
+  if (chatting) {
+    const reply = await chatWith(q, answer, history, deps).catch(() => null);
     if (reply) {
       const video = reply.search && deps.video ? await deps.video(answer).catch(() => undefined) : undefined;
       const watch = videoLinks(video);
@@ -121,7 +122,7 @@ export async function ask(q: string, deps: AskDeps, site: string, history: Bruno
       };
     }
   }
-  const sentence = !chatFailed && deps.available() && (await deps.enabled()) ? await deps.bruno(q).catch(() => null) : null;
+  const sentence = !chatting && deps.available() && (await deps.enabled()) ? await deps.bruno(q).catch(() => null) : null;
   const video = deps.video ? await deps.video(answer).catch(() => undefined) : undefined;
   const watch = videoLinks(video);
   return { embed: askEmbed(q, answer, sentence, site, video), meta: { step: answer.step, refined, sentence: !!sentence }, ...(watch[0] ? { content: watch[0].url } : {}) };
