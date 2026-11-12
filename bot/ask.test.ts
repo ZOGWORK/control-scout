@@ -269,3 +269,11 @@ describe("a follow-up's facts", () => {
     expect(sent[20]).toBe("earlier fact 0");
   });
 });
+
+describe("ungrounded numbers", () => {
+  it("names the numbers a reply has that the facts and question don't, so a dropped chat can be traced", async () => {
+    const { ungrounded } = await import("../server/api/searchBrunoAnswer");
+    expect(ungrounded("OPR 16, ranked #1,378 of 2,227 in 2026–27", ["16 OPR (#1,378 of 2,227 worldwide · 2026–27)"], "4215 opr")).toEqual([]);
+    expect(ungrounded("OPR 16.4, bottom 38%", ["16 OPR · top 62%"], "4215 opr")).toEqual(["16.4", "38"]);
+  });
+});
