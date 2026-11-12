@@ -5,9 +5,10 @@
 // are answered, every other one is left to search's readers (null).
 import type { SearchAnswer, SearchPageLink } from "../../../src/shared/api.js";
 import type { StatAnswer, StatBlock } from "../../../src/shared/searchStat.js";
-import { dateRange, seasonLabel } from "../../../src/shared/format.js";
+import { dateRange, place, seasonLabel } from "../../../src/shared/format.js";
 import { all, get } from "../../db.js";
 import { normalise, parseQuery, type Parsed } from "../query/parse.js";
+import { fold, type Place } from "../query/names.js";
 import { parseContext } from "../query/context.js";
 import { eventsNamed } from "../query/highlights.js";
 import { eventKindOf } from "../query/matchFind.js";
@@ -117,6 +118,25 @@ async function attended(t: Team, s: EventScope): Promise<StatAnswer> {
   };
 }
 
+/** "From", "based in", "located in": a question about where a team is from. */
+const FROM = /\b(?:from|based\s+in|located\s+in)\b/;
+
+/** "Is <team> from <place>": yes or no, then where the team is from in full, its country always named (FIRST's
+ *  listing: city, state or province, country). */
+async function fromPlace(t: { number: number; name: string | null }, pl: Place): Promise<StatAnswer | null> {
+  const row = await get<{ city: string | null; state: string | null; country: string | null }>("SELECT city, state, country FROM teams WHERE number = ?", [t.number]);
+  if (!row?.country) return null;
+  const ok = row.country === pl.country && (pl.state == null || row.state === pl.state) && (pl.city == null || fold(row.city ?? "") === fold(pl.city));
+  const where = place(row.city, row.state, row.country);
+  return {
+    family: "stat", intent: "yes-no-location", title: `Is ${who(t)} from ${pl.name}?`, team: t, scope: [pl.name],
+    headline: { value: yes(ok), label: ok ? `${who(t)} is from ${where}` : `${who(t)} is from ${where}, not ${pl.name}` },
+    blocks: [{ kind: "kpis", items: [{ label: "From", value: where, href: `/teams/${t.number}` }, ...(row.country !== pl.country ? [{ label: "Country", value: row.country }] : [])] }],
+    definition: "Where a team is from: the city, state or province and country FIRST lists for it.",
+    source: "From FIRST's team listing",
+  };
+}
+
 /** "Has <team> won <award>", or an event won (`eventWin`: "won a championship", its Winning Alliance or 1st-place
  *  Inspire there). The Winning Alliance award asked by name is that award alone. */
 async function wonAward(t: Team, award: string | null, s: EventScope | null, eventWin = false): Promise<StatAnswer> {
@@ -188,14 +208,18 @@ export async function yesNoAnswer(q: string, opts: { full: boolean; pages: Searc
   const n = normalise(q);
   if (!FRAME.test(n) || ASKS.test(n)) return null;
   const p = await parseQuery(q, await parseContext(opts.now, opts.prefer));
-  if (p.leftover.some((w) => !VERBS.test(w.toLowerCase())) || p.n != null || p.matchNumber != null || p.level || p.alliance || p.finals || p.place) return null;
+  if (p.leftover.some((w) => !VERBS.test(w.toLowerCase())) || p.n != null || p.matchNumber != null || p.level || p.alliance || p.finals) return null;
+  // Whether a team is from a place ("is <team> from <place>", "is <team> really based in <place> or what").
+  const home = p.place && p.teams.length === 1 && FROM.test(n) && !p.event && !p.eventKind && !p.worlds && !p.states && !p.time && !p.award
+    && p.symbols.every((x) => /^(?:prep:\w+|compare|thing:team)$/.test(x)) ? await fromPlace(p.teams[0], p.place) : null;
+  if (!home && p.place) return null;
   // "Been to", "went to", "made it to" (metric:appearance) are the question's frame, as its verbs are.
   const sym = new Set(p.symbols.filter((x) => !/^(?:prep|vs)(?::|$)|^(?:worlds|states|metric:appearance)$/.test(x)));
   const scope = await scopeOf(p);
   if (scope === undefined) return null;
   const t = p.teams.map((x) => ({ number: x.number, name: x.name }));
-  let stat: StatAnswer | null = null;
-  if (t.length === 2 && (sym.has("outcome:L") || sym.has("metric:win")) && [...sym].every((x) => /^(?:metric:(?:opponent|win|loss)|outcome:[WL]|thing:match)$/.test(x))) {
+  let stat: StatAnswer | null = home;
+  if (stat) { /* answered above */ } else if (t.length === 2 && (sym.has("outcome:L") || sym.has("metric:win")) && [...sym].every((x) => /^(?:metric:(?:opponent|win|loss)|outcome:[WL]|thing:match)$/.test(x))) {
     stat = await beaten(t[0], t[1], sym.has("outcome:L") || sym.has("metric:loss") ? "L" : "W", scope);
   } else if (t.length === 1 && (p.award || sym.has("metric:award")) && [...sym].every((x) => /^metric:(?:award|win)$/.test(x))) {
     stat = await wonAward(t[0], p.award, scope);
@@ -215,6 +239,6 @@ export async function yesNoAnswer(q: string, opts: { full: boolean; pages: Searc
     q, hits: hits.map((h) => ({ ...h, facts: undefined, events: undefined })), pages: opts.pages, step: "deterministic", weak: false,
     understood: { kind: "question", label: stat.title }, verdict,
     ...(opts.full ? { stat } : { card: { kind: "info", title: stat.title, lines: [{ text: `${verdict.answer}: ${verdict.label}` }] } }),
-    intent: { kind: `stat-${stat.intent}`, pattern: `${t.map(() => "[team]").join(" ")} ever ${stat.intent.slice(7)}${scope ? " [scope]" : ""}`, met: true, understood: [] },
+    intent: { kind: `stat-${stat.intent}`, pattern: home ? "is [team] from [place]" : `${t.map(() => "[team]").join(" ")} ever ${stat.intent.slice(7)}${scope ? " [scope]" : ""}`, met: true, understood: [] },
   };
 }

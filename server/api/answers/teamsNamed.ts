@@ -15,6 +15,10 @@ import { place } from "../../../src/shared/format.js";
 const plural = (n: number) => `${n.toLocaleString("en-US")} ${n === 1 ? "team" : "teams"}`;
 const from = (t: TeamName) => place(t.city, t.state, t.country === "USA" ? null : t.country);
 
+/** The teams a name counts: only those with a page, never a placeholder registration or a stand-in number. The one
+ *  count of a name's teams: this list, and the which-team question (../searchAnswer.ts sharedName) says it too. */
+export const withPage = <T extends { number: number; name: string | null }>(teams: T[]): T[] => teams.filter((t) => hasTeamPage(t.number, t.name));
+
 /** The season a time said names (null: every season), or undefined when the time is one no list of names takes (a
  *  window: teams aren't named by the week). */
 function seasonOf(p: Parsed): number | null | undefined {
@@ -33,8 +37,7 @@ export async function teamsNamedSearch(p: Parsed, opts: { full: boolean; pages: 
   const idx = await names();
   const place = p.place;
   const inPlace = (t: TeamName) => !place || (t.country === place.country && (place.state == null || t.state === place.state) && (place.city == null || fold(t.city ?? "") === fold(place.city)));
-  // Only teams with a page: never a placeholder registration or a stand-in number.
-  const named = idx.teamsNamed(p.named.words).filter((t) => hasTeamPage(t.number, t.name));
+  const named = withPage(idx.teamsNamed(p.named.words));
   let teams = named.filter(inPlace);
   if (season != null && teams.length) {
     const played = new Set((await all<{ team: number }>(`SELECT DISTINCT team FROM team_event_stats WHERE season = ? AND matches > 0 AND team IN (${teams.map(() => "?").join(",")})`, [season, ...teams.map((t) => t.number)])).map((r) => Number(r.team)));

@@ -728,8 +728,26 @@ function pickShared(slot: TeamSlot, p: Parsed, ctx: ParseContext): Partial<TeamS
   const cands = (slot.candidates ?? []).map((n) => ctx.names.team(n)).filter((t): t is TeamName => !!t);
   // Only teams already settled count as "the other team": a name still shared holds an arbitrary first candidate.
   const others = p.teams.filter((t) => t !== slot && (!t.candidates || t.rule)).map((t) => ctx.names.team(t.number)).filter((t): t is TeamName => !!t);
-  const r = pickAmong(cands, { mine: (n) => !!ctx.prefer?.has(`team:${n}`), place: p.place, others });
+  const r = pickAmong(cands, { mine: (n) => !!ctx.prefer?.has(`team:${n}`), place: p.place ?? eventPlace(p, ctx.names), others });
   return "team" in r ? { number: r.team.number, name: r.team.name, rule: r.rule } : {};
+}
+
+/** The region or country an event's own name says ("NJ championship", "Romania National Championship"): where the
+ *  teams at it are from, so it tells a shared name apart as a place typed would. A town in an event's name is often a
+ *  venue's, never read. Each run is looked up with its words as typed too, so a code that is also a word counts only
+ *  in capitals ("the IN championship" is Indiana's, "in championship" no place). */
+export function eventPlace(p: Pick<Parsed, "event">, idx: Pick<Names, "place">): Place | null {
+  const ws = p.event?.words.split(/\s+/).filter(Boolean) ?? [];
+  const typed = p.event?.typed.split(/\s+/).filter(Boolean) ?? [];
+  const asTyped = typed.length === ws.length ? typed : ws;
+  for (let len = ws.length; len >= 1; len--) {
+    for (let i = 0; i + len <= ws.length; i++) {
+      const said = ws.slice(i, i + len).join(" ");
+      const pl = idx.place(said, asTyped.slice(i, i + len).join(" "));
+      if (pl && pl.kind !== "city") return pl;
+    }
+  }
+  return null;
 }
 
 /** The slots in words, for the card's "Read as" line: "Intent: highest score · Team 12345 · In California · This week". */

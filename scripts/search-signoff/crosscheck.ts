@@ -39,6 +39,8 @@ export async function crosscheck(base: string, r: Live): Promise<Check> {
   // names no part of it (playoffs, a month, an event, a side). A filtered number is left to the grade.
   const whole = (title: RegExp) => (s.scope ?? []).length === 1 && /^20\d\d[–-]\d\d$/.test(s.scope![0]) && title.test(s.title ?? "");
   if (s.family === "stat" && s.intent === "opr" && whole(/^OPR in 20\d\d[–-]\d\d$/)) return near(num(v), st?.opr?.np?.value, "OPR");
+  // A team's season overview leads with its OPR (its record when it has no OPR rank yet, checked below).
+  if (s.family === "stat" && s.intent === "team-overview" && whole(/^Season overview in 20\d\d[–-]\d\d$/) && !wlt(v)) return near(num(v), st?.opr?.np?.value, "OPR");
   if (s.family === "stat" && s.intent === "rating" && whole(/^(?:Prediction )?[Rr]ating in 20\d\d[–-]\d\d$/)) return near(num(v), st?.rating?.np, "rating");
   const card = wlt(v);
   if (card && s.intent === "record" && whole(/^Record in 20\d\d[–-]\d\d$/)) {
