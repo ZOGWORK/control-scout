@@ -1,8 +1,20 @@
 // sitemap.xml from the database: the content pages, every team and event page with data (server/indexable.test.ts
 // has the rule's cases), apex URLs, no personal pages; split into an index past the limit.
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { migrate, openDb, run, setDb } from "./db";
 import { buildSitemap, resetSitemapCache, sitemapEntries } from "./sitemap";
+import { setFlag } from "./flags";
+import { pageMeta } from "./seoMeta";
+
+const savedDataDir = process.env.DATA_DIR;
+const dataDir = mkdtempSync(join(tmpdir(), "cs-sitemap-"));
+afterAll(() => {
+  if (savedDataDir === undefined) delete process.env.DATA_DIR; else process.env.DATA_DIR = savedDataDir;
+  rmSync(dataDir, { recursive: true, force: true });
+});
 
 beforeAll(async () => {
   process.env.APP_URL = "https://controlscout.org";
@@ -19,8 +31,27 @@ beforeAll(async () => {
   await run("INSERT INTO event_teams (season, code, team) VALUES (2025, 'LEAGUE', 4215), (2025, 'LEAGUE', 18360)");
   await run("INSERT INTO matches (season, code, level, series, number, label, played, source) VALUES (2025, 'LEAGUE', 'playoff', 1, 1, 'M1', 1, 't')");
   await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'LEAGUE', 'playoff', 1, 1, 18360, 'red', 1), (2025, 'LEAGUE', 'playoff', 1, 1, 4215, 'blue', 0)");
+  // Leagues: NE (2025, USNJ) has FIRST's standings; SO (a meet names it) has none yet, and stays out.
+  await run("INSERT INTO leagues (season, region, code, name, ranked_at) VALUES (2025, 'USNJ', 'NE', 'Northeast', '2026-01-11T09:00:00Z'), (2025, 'USNJ', 'SO', 'Southern', NULL)");
+  await run("INSERT INTO league_rankings (season, region, league, team, rank, wins, losses, ties, played) VALUES (2025, 'USNJ', 'NE', 18360, 1, 3, 0, 0, 3), (2025, 'USNJ', 'NE', 4215, 2, 1, 2, 0, 3)");
+  // Only a meet names this one (no leagues row): the page still finds it (storedLeague), so it's listed too.
+  await run("INSERT INTO events (season, code, name, start, end, remote, hybrid, source, region, league, type) VALUES (2025, 'USNJNOM9', 'North meet', '2025-11-15', '2025-11-15', 0, 0, 't', 'USNJ', 'NO', 'LeagueMeet')");
+  await run("INSERT INTO league_rankings (season, region, league, team, rank, played) VALUES (2025, 'USNJ', 'NO', 4215, 1, 2)");
+  process.env.DATA_DIR = dataDir;
   resetSitemapCache();
 });
+
+/** A built set of offline packs on disk (server/packs/routes.ts presentManifest). */
+function writePacks() {
+  const dir = join(dataDir, "packs");
+  mkdirSync(dir, { recursive: true });
+  const f = (name: string, seasons: number[], kind: "lite" | "full", contents: string) => { writeFileSync(join(dir, name), "x"); return { name, url: `/packs/${name}`, bytes: 6_578_176, sha256: "0", seasons, kind, contents }; };
+  writeFileSync(join(dir, "latest.json"), JSON.stringify({
+    format: 1, version: "2026-11-11.1", builtAt: "2026-11-11T00:00:00Z", engineVersion: "x", dataAsOf: "2026-11-10T23:00:00Z",
+    lite: f("scout-pack-1-lite.json.gz", [2025], "lite", "Every team's prediction rating."),
+    full: [f("scout-pack-1-2025.db", [2025], "full", "Every 2025–26 DECODE event, team and match — a plain SQLite file.")],
+  }));
+}
 
 describe("sitemap", () => {
   it("lists public pages, teams and events at apex URLs with lastmod; never personal pages or /api", async () => {
@@ -58,6 +89,44 @@ describe("sitemap", () => {
     expect(chunks).toHaveLength(0);
     expect(main).toMatch(/^<\?xml version="1.0" encoding="UTF-8"\?>\n<urlset xmlns="http:\/\/www.sitemaps.org\/schemas\/sitemap\/0.9">/);
     expect(main).toContain("<url><loc>https://controlscout.org/teams/4215</loc><lastmod>2025-12-02</lastmod></url>");
+  });
+
+  it("lists Download only while it offers season files, with them in its first HTML", async () => {
+    const has = async () => (await sitemapEntries()).some((x) => x.loc === "https://controlscout.org/download");
+    // No packs built: the page is a heading and a line, so it stays out.
+    expect(await has()).toBe(false);
+    expect((await pageMeta("/download")).bodyHtml).toBeUndefined();
+    writePacks();
+    expect(await has()).toBe(true);
+    // lastmod: the day of the data the files hold (dataAsOf), never the build date of the sitemap.
+    expect((await sitemapEntries()).find((x) => x.loc === "https://controlscout.org/download")?.lastmod).toBe("2026-11-10");
+    const body = (await pageMeta("/download")).bodyHtml!;
+    expect(body).toContain("<h2>Season files</h2>");
+    expect(body).toContain("2025–26");
+    expect(body).toContain("6.3 MB");
+    expect(body).toContain("a plain SQLite file.");
+    expect(body).not.toContain("href="); // no link to a 40 MB file for a crawler to fetch
+    // An older manifest with no season files listed: the offline pack alone, never a failed page.
+    const { downloadHtml } = await import("./seoMeta");
+    expect(downloadHtml("Lead.", { format: 1, version: "v", builtAt: "2026-11-01T00:00:00Z", engineVersion: "x", dataAsOf: null, lite: null, full: undefined as never })).toBe("<p>Lead.</p><p><small>Built 2026-11-01.</small></p>");
+    // Offline packs switched off by the owner: the page offers nothing, so out again.
+    await setFlag("offlinePacks", false, "test");
+    expect(await has()).toBe(false);
+    expect((await pageMeta("/download")).bodyHtml).toBeUndefined();
+    await setFlag("offlinePacks", true, "test");
+  });
+
+  it("lists every league with standings at its page's address, never one with none", async () => {
+    const e = await sitemapEntries();
+    const ne = e.find((x) => x.loc === "https://controlscout.org/leagues/2025/USNJ/NE");
+    expect(ne?.lastmod).toBe("2026-01-11"); // the day its standings were read
+    expect(e.find((x) => x.loc === "https://controlscout.org/leagues/2025/USNJ/NO")?.lastmod).toBeUndefined();
+    expect(e.some((x) => x.loc.endsWith("/leagues/2025/USNJ/SO"))).toBe(false);
+    // The page agrees: standings on it, no noindex; the empty one is the page's no-data case.
+    const m = await pageMeta("/leagues/2025/USNJ/NE");
+    expect(m.noData).toBeUndefined();
+    expect(m.bodyHtml).toContain("<h2>Standings</h2>");
+    expect((await pageMeta("/leagues/2025/USNJ/SO")).noData).toBe(true);
   });
 
   it("past the limit: an index of chunks, every URL exactly once", async () => {

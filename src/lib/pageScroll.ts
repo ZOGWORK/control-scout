@@ -108,8 +108,22 @@ export function scrollToElement(el: Element, behavior: ScrollBehavior = "auto") 
   const margin = parseFloat(getComputedStyle(el).scrollMarginTop) || 0;
   const page = pageScroller();
   const y = Math.max(0, Math.round(el.getBoundingClientRect().top + page.scrollTop - margin));
-  if (behavior === "smooth" && smoothScrolling()) window.scrollTo({ top: y, behavior });
-  else jumpPageTo(y);
+  if (behavior === "smooth" && smoothScrolling()) {
+    // A wheel glide still on its way would overwrite the browser's own glide frame by frame.
+    smoothWheel?.halt();
+    window.scrollTo({ top: y, behavior });
+  } else jumpPageTo(y);
+}
+
+/**
+ * The desktop's eased wheel scrolling (src/lib/smoothWheel.ts, Lenis), while it runs. A jump the app makes stops a
+ * wheel glide still on its way, or the glide would carry on from the old position over the jump.
+ */
+export type SmoothWheel = { halt(): void };
+let smoothWheel: SmoothWheel | null = null;
+/** Registers (or, with null, clears) the running smooth wheel. */
+export function setSmoothWheel(engine: SmoothWheel | null) {
+  smoothWheel = engine;
 }
 
 /** Whether the reader asked for reduced motion (then every scroll the app makes is instant). */
@@ -139,7 +153,7 @@ export function smoothBehavior(): ScrollBehavior {
  * plain scrollTop write glide, so the root's own style says "auto" for the write: the browser reads the
  * behavior when the write happens, and putting the style back afterwards doesn't animate it. (Not
  * window.scrollTo({ behavior: "instant" }): older Safari rejects that value outright.) It also stops a glide
- * still on its way.
+ * still on its way, the browser's or the desktop's eased wheel (setSmoothWheel).
  */
 export function jumpPageTo(y: number, by = false) {
   const page = pageScroller();
@@ -148,12 +162,19 @@ export function jumpPageTo(y: number, by = false) {
   if (by) page.scrollTop += y;
   else page.scrollTop = y;
   page.style.scrollBehavior = was;
+  // After the write, so the wheel's own idea of where the page is starts from the new position.
+  smoothWheel?.halt();
 }
 
 /** How long a restore keeps chasing its position while the page's content loads in. */
 export const RESTORE_WINDOW_MS = 2500;
 /** data-scrolling's value for a scroll started by a finger (index.css keeps the scroll shield off for it). */
 export const SCROLLING_BY_TOUCH = "touch";
+/**
+ * data-scrolling's value once the mouse moves while the page scrolls: the shield stands aside (index.css), so a
+ * reader heading for a link mid-scroll (the desktop wheel's glide eases out over half a second) can click it.
+ */
+export const SCROLLING_POINTER_MOVED = "moved";
 /** How long after the last scroll event the page counts as still scrolling. */
 export const SCROLL_IDLE_MS = 140;
 
@@ -290,7 +311,11 @@ export function usePageScroll(content: RefObject<HTMLElement | null>) {
     // shield: on a touchscreen laptop (which still matches pointer: fine) a swipe on a sideways table right
     // after a touch scroll must reach the table. A mouse moving or a wheel turning switches it back.
     let touch = false;
-    const onPointer = (e: PointerEvent) => { touch = e.pointerType === "touch"; };
+    const onPointer = (e: PointerEvent) => {
+      touch = e.pointerType === "touch";
+      // A mouse that really moves (not the still pointer that rows slide under) is aiming for something.
+      if (!touch && e.type === "pointermove" && (e.movementX || e.movementY) && flagOn.getAttribute("data-scrolling") === "") flagOn.setAttribute("data-scrolling", SCROLLING_POINTER_MOVED);
+    };
     const onWheel = () => { touch = false; };
     const onScroll = () => {
       // Not while a followed #link's jump is on its way: that position is the next entry's, not this one's.
