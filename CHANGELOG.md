@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.8.2 — 2026-11-12
+
+The Discord bot stays up: it had been running out of memory and restarting every few minutes, so it rarely answered.
+
+### Highlights
+- [fixes] The Discord bot stays online and answers again
+- [fixes] It has room for the whole season's data, so it no longer restarts
+- [alerts] Mentions, /ask and match alerts reach your server again
+
+### Fixed
+- The bot's service gave Node a heap of about 380 MB (a 768M cap and no heap flag); with the full data it ran out every few minutes (since at least Nov 10) and systemd restarted it, so commands and mentions mostly went unanswered. Now `--max-old-space-size=1536` under `MemoryMax=2G` (the VM has 24 GB). (`deploy/oracle-vm-setup.sh`)
+
 ## 5.8.1 — 2026-11-12
 
 Each team whose season reached the playoffs gets a page with its record there and in qualification matches, the same card Search shows for "<number> record".
