@@ -90,13 +90,14 @@ const PAGES = {
   SearchPage: lazyPage(() => import("./pages/SearchPage")),
   RelatedSearchesPage: lazyPage(() => import("./pages/RelatedSearchesPage")),
   LeaguePage: lazyPage(() => import("./pages/LeaguePage")),
+  TeamHighlightsPage: lazyPage(() => import("./pages/TeamHighlightsPage")),
   BundlePage: lazyPage(() => import("./pages/BundlePage")),
   NotFound: lazyPage(() => import("./pages/NotFound")),
   EventCodeRedirect: lazyPage(() => import("./pages/EventCodeRedirect")),
 } satisfies Record<PageModule, unknown>;
 // Dev only: one piece of the Scout redesign at a time, for screenshots (the import is dropped from production builds).
 const ScoutPreviewPage = import.meta.env.DEV ? lazy(() => import("./pages/ScoutPreviewPage")) : () => null;
-const { TeamPage, EventsPage, RecordsPage, RankingsPage, EventPage, PredictPage, ComparePage, MyTeamPage, MyTeamsPage, ShortlistPage, ScoutPage, DownloadPage, SettingsPage, MethodologyPage, SearchDocsPage, PrivacyPage, TermsPage, ContactPage, DonatePage, SupportersPage, FaqPage, RulesPage, MatchReportPage, PowerRankingsPage, EventDisplayPage, EventCodeRedirect, DigestUnsubscribedPage, BundlePage, SearchPage, RelatedSearchesPage, LeaguePage, ContributorPage, GetVerifiedPage, VerifyVideoPage, NotFound } = PAGES;
+const { TeamPage, EventsPage, RecordsPage, RankingsPage, EventPage, PredictPage, ComparePage, MyTeamPage, MyTeamsPage, ShortlistPage, ScoutPage, DownloadPage, SettingsPage, MethodologyPage, SearchDocsPage, PrivacyPage, TermsPage, ContactPage, DonatePage, SupportersPage, FaqPage, RulesPage, MatchReportPage, PowerRankingsPage, EventDisplayPage, EventCodeRedirect, DigestUnsubscribedPage, BundlePage, SearchPage, RelatedSearchesPage, LeaguePage, TeamHighlightsPage, ContributorPage, GetVerifiedPage, VerifyVideoPage, NotFound } = PAGES;
 const BundlePicklistPage = named(() => import("./pages/BundlePage"), "BundlePicklistPage");
 
 // Offline: the service worker precaches the app so it opens with no signal.
@@ -168,6 +169,7 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
                   <Route path="/teams" element={<RecordsPage />} />
                   <Route path="/matches" element={<RecordsPage matches />} />
                   <Route path="/teams/:number" element={<TeamPage />} />
+                  <Route path="/teams/:number/highlights" element={<TeamHighlightsPage />} />
                   <Route path="/rankings" element={<RankingsPage />} />
                   <Route path="/events" element={<EventsPage />} />
                   <Route path="/events/:code" element={<EventCodeRedirect />} />

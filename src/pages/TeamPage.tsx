@@ -234,6 +234,7 @@ function Hero({ p, onSeason, fellBackFrom, asked = false }: { p: TeamProfile; on
               {flags.bookmarked ? <BookmarkCheck /> : <Bookmark />} {flags.bookmarked ? "Shortlisted" : "Shortlist"}
             </Button>
             <Button variant="outline" size="sm" asChild className="max-sm:h-10"><Link to={`/compare?teams=${t.number}`}><Scale /> Compare</Link></Button>
+            {p.highlights && <Button variant="outline" size="sm" asChild className="max-sm:h-10"><Link to={`/teams/${t.number}/highlights`} data-highlights-link><Sparkles /> Highlights</Link></Button>}
             <Button variant="outline" size="sm" onClick={share} className="max-sm:h-10"><Link2 /> Share</Button>
           </div>
           <a href="https://tryctrlpoint.org" target="_blank" rel="noreferrer noopener" className="tap-44 relative mt-4 inline-flex items-center gap-1.5 text-xs text-muted-foreground underline decoration-current/40 underline-offset-2 hover:text-accent-text">
