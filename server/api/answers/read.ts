@@ -556,6 +556,13 @@ export interface LeaderboardQuestion {
   cityIn?: Region;
   /** One event's teams (its divisions' too): the board of the teams there. */
   event?: { season: number; code: string; codes: string[]; name: string; home?: Region | null; rookies?: boolean };
+  /** Part of the teams' names, as typed ("Robot"): only the teams whose name has it. */
+  nameHas?: string;
+  /** Only the teams with no award on record, any season. */
+  noAward?: boolean;
+  /** With `undefeated`: unbeaten at one event of these types, each such event a row. `recordSaid`: the record typed. */
+  atKind?: { types: string[]; label: string };
+  recordSaid?: string;
 }
 
 const BOARD_STAT_WORDS: [string, RegExp][] = [

@@ -1,6 +1,6 @@
 # Control Scout Discord bot
 
-A public bot any FTC team can add to its own Discord server. Four slash commands, each answering with
+A public bot any FTC team can add to its own Discord server. Slash commands, each answering with
 an embed that links back to controlscout.org:
 
 | Command | What it shows |
@@ -12,7 +12,44 @@ an embed that links back to controlscout.org:
 | `/follow team: channel:` | Automatic posts in a channel: the evening before each event, the schedule once posted, 15 minutes before each match, each result, and a recap at the end of each day. Manage Server only |
 | `/unfollow team: channel:` | Stop them (every channel if none is given). Manage Server only |
 | `/following` | The server's followed teams and where each posts (up to 10 per server) |
+| `/ask question:` | Anything in plain words, answered with the website's own search answer (below) |
+| `@Control Scout question` | The same as `/ask`, as a reply |
 | `/help` | Every command, from the same list the site shows (`BOT_COMMANDS` in `src/shared/discord.ts`) |
+
+## /ask
+
+`bot/ask.ts` takes the same path `/search` does, in the same order, in the bot's own process:
+
+1. `searchAnswer(q, { learn: false })`: the deterministic answer, always. Numbers only from stored data.
+2. Only when that answer is weak (`did-you-mean`, `recovery`), the bot's `discordBruno` switch is on and Control
+   Point is configured: `refine(q)`. Bruno rewrites the query; search runs again on his words.
+3. Every ask (/ask is a question however it's typed; sent with a "?" so the site's question check passes),
+   `discordBruno` on and Control Point configured:
+   `brunoAnswer(q)`. A sentence from search's facts; dropped by the site's `grounded()` check if any number isn't in them.
+
+**Bruno is the bot's own switch.** `discordBruno` (owner console, "Bruno AI in the Discord bot", on by default) is
+the only one /ask reads. The website's `brunoSearch` and `brunoAnswers` only ever affect /search, so Bruno can
+answer in Discord while the website stays search-only.
+
+**Short by design.** The answer only: a stat's headline alone when it has one ("who won decode" is one line: the
+champions and the finals scores), else its first block cut at 3 rows; a card's headline and 3 lines; 3 top results.
+About 500 characters as read at most. Everything else (more blocks, the source) is behind the link. The embed also
+carries Bruno's sentence quoted, and a link to the same answer on controlscout.org. Questions it
+can't answer get "Sorry — I can't answer that yet", what was read, and questions that work as copyable
+`/ask question: …` text (no buttons). An answer Bruno helped with carries **Bruno AI, from Control Point** in the
+footer above Control Scout's line; a deterministic one never does. Bruno off, unconfigured, failing or slow: the
+deterministic answer posts anyway.
+
+Pace: the same as every command (one per person every 3 seconds, no longer wait for /ask); the same question
+within a minute is the answer already given. Every ask is logged as the command, the step, whether Bruno helped
+and the time, never who asked. The bot reads the site's search index and never writes it.
+
+**@mention answers.** `@Control Scout who won decode` gets the same answer as `/ask` (same cache, same
+3-second pace), as a reply (a plain message where the bot can't reply). Only a message that mentions the bot itself,
+from a person, in a server: not a reply that only pings it, not @everyone or a role. Just the mention: how to ask.
+Too fast: nothing (no public "slow down"). It needs only the `GuildMessages` intent, which isn't privileged: Discord
+sends a bot the text of messages that mention it without the Message Content intent, so the bot reads nothing else
+and needs no approval past 100 servers.
 
 `event` and `code` autocomplete over events on now, coming up, or finished in the last 3 days (name or
 code; you can also type a code yourself).

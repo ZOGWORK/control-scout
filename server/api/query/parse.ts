@@ -83,6 +83,10 @@ export interface Parsed {
   reach?: true;
   /** A name asked about as words ("teams named <name>"): the words, never read as a team. */
   named?: { words: string; typed: string };
+  /** Words a team's name has in it, as a board's filter ("teams with a name that includes Robot"): never a team. */
+  nameHas?: { words: string; typed: string };
+  /** A record with no losses as typed ("8-0" of "a perfect 8-0 record"): no losses asked (`undefeated`), said on the card. */
+  recordSaid?: string;
   /** A score an alliance had to reach ("where the losing alliance scored over 200"): the match finder's filter. */
   scoreCond?: ScoreCond;
   /** Every word explained and an intent found. */
@@ -319,6 +323,21 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     span.forEach((t) => (t.used = true));
   }
 
+  // 0a. Part of a name as a board's filter ("teams with a name that includes Robot, sorted by OPR"): the word after the
+  // phrase, and any after it that search reads no other way, never a team read from them.
+  for (let i = 0; i < toks.length && !p.nameHas; i++) {
+    const e = lexAt(i);
+    if (!e?.syms.some((s) => s.k === "name-has")) continue;
+    const from = i + e.words.length;
+    let to = from;
+    if (to < toks.length && !toks[to].used && !NAME_ENDS.test(toks[to].w)) to++;
+    while (to > from && to < toks.length && !toks[to].used && !lexAt(to) && !isLex(toks[to].w) && !NAME_ENDS.test(toks[to].w)) to++;
+    if (to === from) continue;
+    const span = toks.slice(from, to);
+    p.nameHas = { words: span.map((t) => t.w).join(" "), typed: span.map((t) => t.typed).join(" ") };
+    span.forEach((t) => (t.used = true));
+  }
+
   // 0b. Rookie teams ("rookie teams", "first-year teams", "first year teams"): the group, read before any name ("rookie
   // year" is the team's own fact, never this). Only right before the teams word.
   for (let i = 0; i < toks.length; i++) {
@@ -381,6 +400,14 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     // A team's number with its possessive typed without the apostrophe ("4215s chances"): that team's number.
     const poss = /^(\d{1,5})s$/.exec(t.w);
     if (poss && ctx.names.team(Number(poss[1]))) t.w = poss[1];
+    // A record with no losses said beside "record" or "perfect" ("a perfect 8-0 record"): no losses asked, the record
+    // said kept to state on the card. Never a team or a score.
+    const unbeaten = /^(\d{1,2})-0(?:-\d{1,2})?$/.exec(t.w);
+    if (unbeaten && Number(unbeaten[1]) > 0 && (/^(?:records?|perfect|undefeated|unbeaten)$/.test(toks[i + 1]?.w ?? "") || /^(?:perfect|undefeated|unbeaten)$/.test(toks[i - 1]?.w ?? ""))) {
+      p.undefeated = true; p.recordSaid = t.typed; symbols.add("undefeated"); t.used = true;
+      if (toks[i - 1]?.w === "perfect") toks[i - 1].used = true;
+      continue;
+    }
     if (!/^\d{1,5}$/.test(t.w)) continue;
     const n = Number(t.w), prev = toks[i - 1]?.w, next = toks[i + 1]?.w;
     if (prev && MATCH_BEFORE.test(prev) && n <= 400) { p.matchNumber = n; t.used = true; toks[i - 1].used = true; symbols.add("thing:match"); if (prev !== "match" && prev !== "game") p.level = "qual"; continue; }
@@ -758,6 +785,7 @@ export function describe(p: Parsed): string[] {
     p.intent ? `Intent: ${p.intent.replace(/-/g, " ")}` : "",
     ...p.teams.map((t) => `Team ${t.number}${t.name ? ` ${t.name}` : ""}`),
     p.named ? `Name: ${p.named.typed}` : "",
+    p.nameHas ? `Name includes: ${p.nameHas.typed}` : "",
     p.event ? `Event: ${p.event.typed}` : "",
     p.worlds ? "FIRST Championship" : p.states ? "State championship" : "",
     p.place ? `${p.place.kind === "city" ? "From" : "In"} ${p.place.name}` : "",

@@ -8,12 +8,14 @@
 // Streamed to a page that asks for it (?stream=1): the answer shows as he writes it, each part checked the same way
 // before it's sent (previewOf), and ends at the same answer; the model call, prompt and cache are the same.
 import type { SearchAnswer, SearchCardLine, SearchHit } from "../../src/shared/api.js";
+import type { StatAnswer, StatBlock, StatLink } from "../../src/shared/searchStat.js";
 import { seasonLabel } from "../../src/shared/format.js";
 import { isBrunoQuestion } from "../../src/shared/search.js";
 import { brunoAvailable, brunoSearchAnswer, brunoSearchAnswerStream } from "../auth/controlPoint.js";
 import { all, get } from "../db.js";
 import { CURRENT_SEASON } from "../data/seasons.js";
 import { isEnabled } from "../flags.js";
+import { answerVideo } from "./answers/video.js";
 import { normalize } from "./fuzzy.js";
 import { cleanQuery, searchAnswer, type AnswerOptions } from "./searchAnswer.js";
 
@@ -60,12 +62,53 @@ async function eventWinners(h: SearchHit): Promise<string | null> {
   return `Won ${h.title} (${seasonLabel(Number(season))}): ${parts.join("; ")}.`;
 }
 
+const names = (ls?: StatLink[]) => (ls ?? []).map((l) => l.label).join(", ");
+
+/** One stat block as plain lines: the same rows the page shows, every number as the page has it. */
+function blockFacts(b: StatBlock): string[] {
+  const title = "title" in b && b.title ? [`${b.title}:`] : [];
+  switch (b.kind) {
+    case "kpis": return [b.items.map((k) => `${k.label} ${k.value}${k.sub ? ` (${k.sub})` : ""}`).join("; ")];
+    case "record": return [...title, `- record ${b.wins}-${b.losses}-${b.ties} (W-L-T)${b.split ? `; quals ${b.split.quals.wins}-${b.split.quals.losses}-${b.split.quals.ties}, playoffs ${b.split.playoffs.wins}-${b.split.playoffs.losses}-${b.split.playoffs.ties}` : ""}`];
+    case "matches": return [...title, ...b.rows.map((r) => `- ${r.label}: ${r.own}-${r.opp} ${r.result === "W" ? "won" : r.result === "L" ? "lost" : "tied"}, ${r.event.label} (${r.season})${r.partners?.length ? `, with ${names(r.partners)}` : ""}${r.opponents?.length ? `, vs ${names(r.opponents)}` : ""}`)];
+    case "table": return [...title, ...b.rows.map((r) => `- ${b.columns.map((c) => `${c.label} ${r.cells[c.key] ?? "-"}`).join(", ")}${r.teams ? `; red ${names(r.teams.red)} vs blue ${names(r.teams.blue)}` : ""}`)];
+    case "leaderboard": return [...title, ...b.rows.map((r) => `- #${r.rank} ${r.team.label}: ${b.stat.label} ${r.display}${r.record ? `, record ${r.record}` : ""}`), b.note];
+    case "compare": return [...title, `${names(b.teams)}:`, ...b.rows.map((r) => `- ${r.label}: ${r.values.join(" vs ")}${r.gap ? ` (${r.gap})` : ""}`)];
+    case "league": return [...title, ...b.rows.map((r) => `- #${r.rank} ${r.team}${r.name ? ` ${r.name}` : ""}${r.wins != null ? `, ${r.wins}-${r.losses ?? 0}-${r.ties ?? 0}` : ""}`)];
+    // A forecast is never certain: shown 1% to 99% unless it's decided, as the page shows it, so Bruno can't say 0% or 100%.
+    case "chance": { const r = Math.round(b.p * 100); return [`${b.label}: ${b.decided ? r : Math.min(99, Math.max(1, r))}% ${b.who}${b.note ? ` (${b.note})` : ""}`]; }
+    case "series": return [...title, b.points.filter((p) => p.y != null).map((p) => `${p.x} ${p.y}${b.unit ? ` ${b.unit}` : ""}`).join("; ")];
+    case "bars": return [...title, ...b.groups.map((g) => `- ${g.label}: ${g.items.map((i) => `${i.label} ${i.value ?? "-"}`).join(", ")}`)];
+    case "videos": return [...title, ...b.tiles.map((t) => `- ${t.label} ${t.redScore}-${t.blueScore}${t.event ? `, ${t.event}` : ""}`)];
+    case "links": return b.items.length ? [...title, b.items.map((l) => l.label).join(", ")] : b.none ? [b.none] : [];
+    default: return [];
+  }
+}
+
+/** A stat answer (who won, records, head-to-heads, highlights …) as plain lines: its headline first, then its blocks. */
+export function statFacts(s: StatAnswer): string[] {
+  const out: string[] = [`${s.heading ?? s.title}:`];
+  const h = s.headline;
+  if (h) out.push(`${h.value} ${h.label}${h.sub ? ` (${h.sub})` : ""}${h.teams?.length ? `: ${names(h.teams)}` : ""}`);
+  if (s.none) out.push(s.none);
+  for (const b of s.blocks) out.push(...blockFacts(b));
+  if (s.source) out.push(`Source: ${s.source}`);
+  return out.filter(Boolean);
+}
+
 /** The facts search found for `a` (its answer to the question), as plain lines for Bruno. */
 export async function answerFacts(a: SearchAnswer): Promise<string[]> {
   const facts: string[] = [];
   // What the event records cover (the events table's own range, not the seasons the site lists).
   const first = (await get<{ s: number | null }>("SELECT MIN(season) s FROM events"))?.s ?? CURRENT_SEASON;
   facts.push(`Control Scout's event records start with the ${seasonLabel(first)} FTC season; nothing earlier is recorded.`);
+  // The answer search gave, first: what the page shows above everything else.
+  if (a.verdict) facts.push(`Answer: ${a.verdict.answer}, ${a.verdict.label}`);
+  if (a.stat) facts.push(...statFacts(a.stat));
+  // Its videos, as the page plays them (public ones only), so he never says there are none when there are.
+  const v = await answerVideo(a).catch(() => undefined);
+  const clips = v ? [v.main ?? v.watch, ...Object.values(v.rows ?? {})].filter((i): i is NonNullable<typeof i> => !!i && i.kind !== "contributor") : [];
+  if (clips.length) facts.push(`Videos on Control Scout for this answer: ${[...new Set(clips.map((i) => i.match ?? (i.kind === "stream" ? "a stream" : "an event recording")))].join(", ")}.`);
   if (a.card) {
     const c = a.card;
     const who = c.team ? ` for team ${`${c.team.number} ${c.team.name ?? ""}`.trim()}` : "";
@@ -113,14 +156,15 @@ export function grounded(text: string, facts: string[], question: string): boole
 
 /**
  * Bruno's answer to the question `raw`, or null (not a question, off, unconfigured, nothing to say, failed the
- * check). `opts`: the page's own search choices (its preferred teams, its limit), so he reads the results it shows.
+ * check). `flag`: the switch that allows him here (the website's brunoAnswers; the Discord bot's own discordBruno). `opts`: the page's own search choices (its preferred teams, its limit), so he reads the results it shows.
  */
-export async function brunoAnswer(raw: string, opts: Pick<AnswerOptions, "prefer" | "limit"> = {}, now = Date.now(), onPreview?: BrunoPreview): Promise<BrunoAnswer | null> {
+export async function brunoAnswer(raw: string, opts: Pick<AnswerOptions, "prefer" | "limit" | "learn"> = {}, now = Date.now(), onPreview?: BrunoPreview, flag: "brunoAnswers" | "discordBruno" = "brunoAnswers"): Promise<BrunoAnswer | null> {
   // A question by its "?" too ("hypnotic opr?"): read before cleaning, which drops it.
   const q = cleanQuery(raw);
   if (!q || !isBrunoQuestion(raw.trim().slice(0, 200))) return null;
-  if (!(await isEnabled("brunoAnswers").catch(() => false)) || !brunoAvailable()) return null;
-  const k = `${normalize(q)}|${[...(opts.prefer ?? [])].sort().join(",")}`;
+  if (!(await isEnabled(flag).catch(() => false)) || !brunoAvailable()) return null;
+  // `learn: false` (the Discord bot): his facts come from the same unlearned search the bot shows, kept apart.
+  const k = `${normalize(q)}|${[...(opts.prefer ?? [])].sort().join(",")}${opts.learn === false ? "|nolearn" : ""}`;
   const hit = cache.get(k);
   if (hit && now - hit.at < CACHE_TTL_MS) return hit.answer;
   let flight = pending.get(k);
@@ -199,8 +243,8 @@ export function previewOf(raw: string, facts: string[], question: string): Bruno
   return grounded([shown.text, ...shown.points].join(" "), facts, question) ? shown : undefined;
 }
 
-async function ask(q: string, opts: Pick<AnswerOptions, "prefer" | "limit">, k: string, now: number, show?: BrunoPreview): Promise<BrunoAnswer | null> {
-  const facts = await answerFacts(await searchAnswer(q, { ...opts, learn: true }));
+async function ask(q: string, opts: Pick<AnswerOptions, "prefer" | "limit" | "learn">, k: string, now: number, show?: BrunoPreview): Promise<BrunoAnswer | null> {
+  const facts = await answerFacts(await searchAnswer(q, { ...opts, learn: opts.learn ?? true }));
   let answer: BrunoAnswer | null = null;
   try {
     // Streamed for a page that watches: each new checked part goes to it; once a part fails the check, the page is

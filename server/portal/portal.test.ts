@@ -155,6 +155,8 @@ describe("feature flags", () => {
       dogTheme: false,
       // So does the step-by-step tour: first-time visitors get the welcome card; the owner turns the tour on.
       onboardingTour: false,
+      // Bruno AI in the Discord bot: its own switch, on by default.
+      discordBruno: true,
     });
     expect(r.headers.get("cache-control")).toBe("public, max-age=15");
   });
