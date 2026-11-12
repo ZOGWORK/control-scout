@@ -20,11 +20,11 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 Six more kinds of ranked list in search: filters on the OPR board, a rating-gain board, events by average score, and unbeaten teams at championships.
 
 ### Highlights
-- [fixes] "highest OPR team that has never won an award" ranks only teams with no award on record
-- [fixes] "teams with a name that includes Robot, sorted by OPR" filters the OPR board by name
-- [fixes] "fastest growing team … by rating gain" ranks the rating gained from first event to last
-- [fixes] "which event had the highest average match score in Romania" ranks Romania's events
-- [fixes] "teams with a perfect 8-0 record at any championship event" lists unbeaten runs at championships
+- [fixes] "OPR team that has never won an award" leaves out award winners
+- [fixes] "teams with a name that includes Robot" filters the OPR board
+- [fixes] "fastest growing team by rating gain" ranks the rating gained
+- [fixes] "highest average match score in Romania" ranks Romania's events
+- [fixes] "a perfect 8-0 record at any championship" lists unbeaten runs
 
 ### Fixed
 - "top teams opr at worlds decode" and "top teams by teleop opr at worlds decode" (failed searches from the live site) showed Worlds' board on the results page, but the search box answered "No team, event or match matched". An event's board now gives the box its link to the results page. (#1381)
