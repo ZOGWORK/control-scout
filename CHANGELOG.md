@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.8.4 — 2026-11-12
+
+When the Discord bot drops a Bruno chat reply for a number not in the records, its log now says which number.
+
+### Highlights
+- [fixes] The bot logs why it skipped a Bruno reply, to tune his answers
+- [alerts] Bruno chat in Discord gets tuned from what it logs
+- [fixes] No change to what the bot posts in the channel today
+
+### Fixed
+- A chat reply that failed the number check fell back to the card silently; the bot's log now names the numbers that weren't in the facts (`[bot] chat dropped: numbers not in the facts: …`), never who asked. (#1418)
+
 ## 5.8.3 — 2026-11-12
 
 Mention the Discord bot and Bruno AI chats back, like Control Point's Bruno chat, with scouting answers from Control Scout's records.
