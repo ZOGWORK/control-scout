@@ -140,6 +140,13 @@ describe("the redesign's rules for event posts", () => {
     expect(JSON.stringify(e).length).toBeLessThan(6000);
   });
 
+  it("a schedule post naming many teams never passes Discord's 25 fields", () => {
+    const teams = Array.from({ length: 30 }, (_, i) => 100 + i);
+    const ms = teams.map((t, i) => q(i + 1, local("2026-10-24", "10:00"), [t, 1], [2, 3]));
+    const e = scheduleEmbed({ channel: "c1", teams, kind: "schedule", key: "schedule" }, detail(ms), SITE);
+    expect(e.fields!.length).toBeLessThanOrEqual(25);
+  });
+
   it("packLines: continues in a new field at the cap, stops at the line cap or the post's budget", () => {
     const lines = Array.from({ length: 40 }, (_, i) => `line ${i} `.padEnd(100, "x"));
     const out = packLines(lines, 15);

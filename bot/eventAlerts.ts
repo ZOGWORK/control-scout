@@ -89,6 +89,8 @@ export const SCHEDULE_MAX = 15;
 
 /** One post's budget across all its fields (Discord's limit for a whole message is 6,000). */
 export const EMBED_FIELDS_MAX = 5000;
+/** Discord's cap on fields in one embed. */
+export const FIELDS_MAX = 25;
 
 /**
  * Lines into as many field values as they need, each within `max` characters: at most `cap` lines and `total`
@@ -180,7 +182,8 @@ export function scheduleEmbed(due: EventDue, d: EventDetail, site: string): APIE
     title: `Schedule posted: ${d.event.name}`,
     url: eventUrl(d, site),
     color: VOLT,
-    fields,
+    // A schedule post is one team's (eventDue keys it per team), at most a few fields; never past Discord's cap.
+    fields: fields.slice(0, FIELDS_MAX),
     footer: { text: `${tier ? `Win odds from today's ratings, ${tierWords(tier)} · ` : ""}A post 15 minutes before each match · ${FOOTER.text}` },
   };
 }
