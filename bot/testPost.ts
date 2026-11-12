@@ -6,7 +6,7 @@
 //   npm run bot:test-post -- tick         the real minute tick against the local database (dedup, flag off)
 //
 // .env: DISCORD_BOT_TOKEN (a test application's), DISCORD_DEV_GUILD_ID, DISCORD_TEST_CHANNEL_ID.
-import "../server/env.js";
+import { env } from "../server/env.js";
 import { readFileSync } from "node:fs";
 import { REST, Routes, type APIEmbed } from "discord.js";
 import type { EventDetail, MatchView } from "../src/shared/api.js";
@@ -14,7 +14,7 @@ import { eveEmbed, recapEmbed, scheduleEmbed } from "./eventAlerts.js";
 import { addFollow, notifyTick, postEmbed, reminderLead, type Due } from "./follows.js";
 import { preMatchEmbed, predictEmbed, pride } from "./views.js";
 
-const token = process.env.DISCORD_BOT_TOKEN, guild = process.env.DISCORD_DEV_GUILD_ID, channel = process.env.DISCORD_TEST_CHANNEL_ID;
+const token = env.discordBotToken, guild = env.discordDevGuildId, channel = env.discordTestChannelId;
 if (!token || !guild || !channel) {
   console.error("Set DISCORD_BOT_TOKEN, DISCORD_DEV_GUILD_ID and DISCORD_TEST_CHANNEL_ID (a test server's channel) in .env.");
   process.exit(2);
