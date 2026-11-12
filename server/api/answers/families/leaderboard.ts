@@ -604,31 +604,30 @@ async function gainAnswer(b: BoardQuestion, season: number, where: string, regio
  *  the weekly Rankings snapshot after the team's first event (the first one on or after the Monday after it ended, as
  *  its rating trend reads it) to its season rating (the team page's, after its last event). */
 async function ratingGainAnswer(b: BoardQuestion, season: number, where: string, regionSql: string, regionArgs: string[], chips: string[], why: string): Promise<StatAnswer> {
-  // Each team's first and last event with matches, by date; the Monday after the first ended (weekOf in SQL).
-  const ev = `SELECT x.team, e.name, COALESCE(e.end, e.start) d,
-      ROW_NUMBER() OVER (PARTITION BY x.team ORDER BY e.start, e.code) a, ROW_NUMBER() OVER (PARTITION BY x.team ORDER BY e.start DESC, e.code DESC) z,
-      COUNT(*) OVER (PARTITION BY x.team) k
-    FROM team_event_stats x JOIN events e ON e.season = x.season AND e.code = x.code
-    WHERE x.season = ? AND x.matches > 0 AND e.start IS NOT NULL`;
-  const from = `ev f JOIN ev l ON l.team = f.team AND l.z = 1
-    JOIN team_season_stats s ON s.season = ? AND s.team = f.team
-    JOIN teams t ON t.number = f.team
-    JOIN ranking_snapshots r ON r.season = ? AND r.team = f.team
-      AND r.week = (SELECT MIN(w.week) FROM ranking_snapshots w WHERE w.season = ? AND w.team = f.team AND w.week >= date(f.d, '+1 day', 'weekday 1'))
-    WHERE f.a = 1 AND f.k >= 2 AND r.week < l.d AND s.rating_np IS NOT NULL AND s.rating_matches >= ? AND ${teamPageSql("f.team", "t.name")}${regionSql}`;
-  const args = [season, season, season, season, RANKED_MIN_MATCHES, ...regionArgs];
-  const [rows, count] = await Promise.all([
-    all<{ team: number; name: string | null; city: string | null; r0: number; r1: number; week: string; n0: string; n1: string; k: number }>(
-      `WITH ev AS (${ev}) SELECT f.team, t.name, t.city, r.rating r0, s.rating_np r1, r.week, f.name n0, l.name n1, f.k k FROM ${from}
-       ORDER BY s.rating_np - r.rating DESC, f.team LIMIT ?`, [...args, b.n]),
-    get<{ n: number }>(`WITH ev AS (${ev}) SELECT COUNT(*) n FROM ${from}`, args),
-  ]);
+  // Each team's first and last event with matches, by date, worked out once; the Monday after the first ended (weekOf
+  // in SQL), and the first weekly snapshot taken on or after it (ranking_weeks, a few dozen rows), looked up by its key.
+  const all1 = await all<{ team: number; name: string | null; city: string | null; r0: number; r1: number; n0: string; n1: string; k: number }>(
+    `WITH ev AS MATERIALIZED (SELECT x.team, e.name, COALESCE(e.end, e.start) d,
+         ROW_NUMBER() OVER (PARTITION BY x.team ORDER BY e.start, e.code) a, ROW_NUMBER() OVER (PARTITION BY x.team ORDER BY e.start DESC, e.code DESC) z,
+         COUNT(*) OVER (PARTITION BY x.team) k
+       FROM team_event_stats x JOIN events e ON e.season = x.season AND e.code = x.code
+       WHERE x.season = ? AND x.matches > 0 AND e.start IS NOT NULL),
+     fw AS MATERIALIZED (SELECT f.team, f.name n0, l.name n1, l.d last, f.k,
+         (SELECT MIN(w.week) FROM ranking_weeks w WHERE w.season = ? AND w.week >= date(f.d, '+1 day', 'weekday 1')) week
+       FROM ev f JOIN ev l ON l.team = f.team AND l.z = 1 WHERE f.a = 1 AND f.k >= 2)
+     SELECT fw.team, t.name, t.city, r.rating r0, s.rating_np r1, fw.n0, fw.n1, fw.k
+     FROM fw JOIN ranking_snapshots r ON r.season = ? AND r.week = fw.week AND r.team = fw.team
+       JOIN team_season_stats s ON s.season = ? AND s.team = fw.team JOIN teams t ON t.number = fw.team
+     WHERE fw.week < fw.last AND s.rating_np IS NOT NULL AND s.rating_matches >= ? AND ${teamPageSql("fw.team", "t.name")}${regionSql}
+     ORDER BY s.rating_np - r.rating DESC, fw.team`, [season, season, season, season, RANKED_MIN_MATCHES, ...regionArgs]);
+  const rows = all1.slice(0, b.n);
+  const count = { n: all1.length };
   const S = seasonLabel(season), total = Number(count?.n ?? 0);
   const f1 = (x: number) => (Math.round(x * 10) / 10).toFixed(1);
   const gain = (r: (typeof rows)[number]) => { const g = Number(r.r1) - Number(r.r0); return `${g >= 0 ? "+" : "−"}${f1(Math.abs(g))}`; };
   const base = {
     family: "leaderboard" as const, intent: "rating-gain", title: `Most prediction rating gained${where} between first and last event · ${S}`, scope: chips,
-    definition: `Rating gained: the team's ${S} prediction rating after its last event (the team page's season rating) less its rating after its first, from the weekly Rankings snapshot taken the Monday after that event (the next one on record when that week's is missing); teams with 2 or more events and ${RANKED_MIN_MATCHES}+ rated matches. The prediction rating is the engine's points-per-match strength.${why}`,
+    definition: `Rating gained: the team's ${S} prediction rating after its last event (the team page's season rating) less its rating after its first, from the first weekly Rankings snapshot taken on or after the Monday after that event; teams with 2 or more events and ${RANKED_MIN_MATCHES}+ rated matches. The prediction rating is the engine's points-per-match strength.${why}`,
     source: `From the weekly rating snapshots and season ratings of ${total.toLocaleString("en-US")} team${total === 1 ? "" : "s"}${where} with 2+ events in ${S}`,
   };
   if (!rows.length) return { ...base, blocks: [], none: `No team${where} has a rating after its first event and a later event in ${S}.` };
@@ -665,11 +664,12 @@ async function unbeatenAtAnswer(b: BoardQuestion, kind: { types: string[]; label
     .sort((x, y) => Number(y.wins) - Number(x.wins) || Number(x.ties) - Number(y.ties) || (event.get(x.code)?.start ?? "").localeCompare(event.get(y.code)?.start ?? "") || Number(x.team) - Number(y.team));
   const S = seasonLabel(season), shown = rows.slice(0, LEADERBOARD_MAX);
   const teamsN = new Set(rows.map((r) => Number(r.team))).size;
+  const played = new Set(recs.map((r) => r.code)).size;
   const said = b.recordSaid ? ` (“${b.recordSaid}” read as no losses: each team's record there is shown)` : "";
   const base = {
     family: "leaderboard" as const, intent: "unbeaten-at", title: `Teams${where} unbeaten at ${kind.label.replace(/ \(.*\)$/, "")} · ${S}`, scope: [...chips, kind.label.replace(/^./, (c) => c.toUpperCase())],
     definition: `Unbeaten: at least one win and no losses in the team's matches at the event, qualification and playoffs, ties allowed, by the official rule each event page uses${said}. ${kind.label.replace(/^./, (c) => c.toUpperCase())}: events of those types in ${S}; a division is its own event. One row per team and event, the most wins first.${why}`,
-    source: `From ${recs.length.toLocaleString("en-US")} team records at ${S} ${kind.label.replace(/ \(.*\)$/, "")} · ${teamsN.toLocaleString("en-US")} team${teamsN === 1 ? "" : "s"}${where} unbeaten`,
+    source: `From the team records at ${played.toLocaleString("en-US")} ${S} ${kind.label.replace(/ \(.*\)$/, "")} with played matches · ${teamsN.toLocaleString("en-US")} team${teamsN === 1 ? "" : "s"}${where} unbeaten`,
   };
   if (!shown.length) return { ...base, blocks: [], none: `No team${where} went unbeaten at ${kind.label.replace(/ \(.*\)$/, "")} in ${S}${recs.length ? "" : ": none of those events has played matches on record yet"}.` };
   const top = shown[0], tt = team.get(Number(top.team))!, te = event.get(top.code);

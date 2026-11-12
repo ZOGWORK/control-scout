@@ -67,6 +67,7 @@ beforeAll(async () => {
     await run("INSERT INTO team_event_stats (season, code, team, opr_np, opr_auto, opr_teleop, opr_endgame, matches) VALUES (2025, 'FTCCMP1ROSS', ?, ?, 30, ?, 10, 8)", [t, opr, opr - 40]);
   }
   // Each Romanian team's first event (the qualifier) and last (the championship); its rating the Monday after the first.
+  await run("INSERT INTO ranking_weeks (season, week, teams, taken_at) VALUES (2025, '2026-01-12', 2, '2026-01-12T06:00:00Z')");
   for (const [t, after] of [[14270, 86], [15993, 19]] as const) {
     for (const code of ["ROQ1", "ROCMP"]) await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (2025, ?, ?, 100, 10)", [code, t]);
     await run("INSERT INTO ranking_snapshots (season, week, team, rank, rating) VALUES (2025, '2026-01-12', ?, 1, ?)", [t, after]);
