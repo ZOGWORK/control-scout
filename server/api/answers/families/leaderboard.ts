@@ -653,10 +653,11 @@ async function unbeatenAtAnswer(b: BoardQuestion, kind: { types: string[]; label
   // Unbeaten with a win: a tie alone is no perfect record.
   const unbeaten = recs.filter((r) => Number(r.losses) === 0 && Number(r.wins) > 0);
   const codes = [...new Set(unbeaten.map((r) => r.code))];
+  const nums = [...new Set(unbeaten.map((r) => Number(r.team)))];
   const [evs, teams] = codes.length ? await Promise.all([
     all<{ code: string; name: string; type: string | null; division: string | null; start: string | null }>(`SELECT code, name, type, division_code division, start FROM events WHERE season = ? AND code IN (${codes.map(() => "?").join(", ")})`, [season, ...codes]),
     all<{ team: number; name: string | null; city: string | null; state: string | null; country: string | null }>(
-      `SELECT t.number team, t.name, t.city, t.state, t.country FROM teams t WHERE t.number IN (${[...new Set(unbeaten.map((r) => Number(r.team)))].join(", ")}) AND ${teamPageSql("t.number", "t.name")}${regionSql}`, regionArgs),
+      `SELECT t.number team, t.name, t.city, t.state, t.country FROM teams t WHERE t.number IN (${nums.map(() => "?").join(", ")}) AND ${teamPageSql("t.number", "t.name")}${regionSql}`, [...nums, ...regionArgs]),
   ]) : [[], []];
   const event = new Map(evs.map((e) => [e.code, e]));
   const team = new Map(teams.map((t) => [Number(t.team), t]));
