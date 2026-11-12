@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.8.5 — 2026-11-12
+
+Bruno AI's answers that rank a team ("1,384th of 2,230") no longer get thrown out by the number check.
+
+### Highlights
+- [fixes] Bruno answers rank questions in Discord instead of the plain card
+- [fixes] Ranks like "1,384th" pass Bruno's number check on Search too
+- [alerts] More Discord asks get Bruno's chat reply
+
+### Fixed
+- The check that every number in Bruno's answer is in the records read "1,384th" as two numbers, 1 and 384, because a thousands comma was dropped only before a word break. So `/ask what is 4215 opr this season` fell back to the card (traced with 5.8.4's log). Now a comma before exactly three digits is a separator whatever follows. (#1419)
+
 ## 5.8.4 — 2026-11-12
 
 When the Discord bot drops a Bruno chat reply for a number not in the records, its log now says which number.
