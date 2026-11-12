@@ -1,7 +1,7 @@
 // /ask: the website's search answer as one embed, Bruno only where the site would use him, credited only then.
 import { describe, expect, it, vi } from "vitest";
 import type { SearchAnswer, SearchHit } from "../src/shared/api";
-import { BRUNO_CREDIT, DESCRIPTION_MAX, ask, askEmbed, fitLines, type AskDeps } from "./ask";
+import { BRUNO_CREDIT, DESCRIPTION_MAX, ask, askEmbed, fitLines, videoLinks, type AskDeps } from "./ask";
 import { grounded } from "../server/api/searchBrunoAnswer";
 
 const SITE = "https://controlscout.org";
@@ -184,5 +184,20 @@ describe("the bot's own switch", () => {
     expect(src).toContain('}, "discordBruno"),');
     expect(src).toContain('undefined, "discordBruno"),');
     expect(src).not.toMatch(/isEnabled\("bruno(Search|Answers)"\)/);
+  });
+});
+
+describe("videos", () => {
+  const v = { main: { videoId: "AAA", t: 90, kind: "match" as const, match: "Q85" }, mainRow: "/m/85", rows: { "/m/85": { videoId: "AAA", t: 90, kind: "match" as const, match: "Q85" }, "/m/18": { videoId: "BBB", t: 0, kind: "match" as const, match: "Q18" }, "/m/9": { videoId: "CCC", t: 5, kind: "contributor" as const, match: "Q9" } } };
+  it("the main one first, then the listed matches' clips; never a video people added; at most 3", () => {
+    expect(videoLinks(v)).toEqual([{ label: "Q85", url: "https://www.youtube.com/watch?v=AAA&t=90s" }, { label: "Q18", url: "https://www.youtube.com/watch?v=BBB" }]);
+    expect(videoLinks(undefined)).toEqual([]);
+  });
+  it("a Watch line in the answer, and the main video as the message's text (a player under the embed)", async () => {
+    const e = askEmbed("23268 highlights", base(), null, SITE, v);
+    expect(e.description).toContain("▶ Watch: [Q85](https://www.youtube.com/watch?v=AAA&t=90s) · [Q18](https://www.youtube.com/watch?v=BBB)");
+    const r = await ask("23268 highlights", deps(base(), { video: vi.fn(async () => v) }), SITE);
+    expect(r.content).toBe("https://www.youtube.com/watch?v=AAA&t=90s");
+    expect((await ask("23268", deps(base()), SITE)).content).toBeUndefined();
   });
 });

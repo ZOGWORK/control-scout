@@ -8,7 +8,8 @@
 // Every number in the embed is search's own (or a sentence the grounded check passed). Bruno off, unconfigured,
 // failing or slow: the deterministic answer still posts, with no credit line. An answer that used him says so.
 import type { APIEmbed } from "discord.js";
-import type { SearchAnswer, SearchCardLine, SearchHit } from "../src/shared/api.js";
+import type { SearchAnswer, SearchCardLine, SearchHit, SearchVideo } from "../src/shared/api.js";
+import { watchUrl } from "../src/shared/recording.js";
 import type { StatAnswer, StatBlock, StatLink, StatMatchRow } from "../src/shared/searchStat.js";
 import { SEARCH_PAGE_LIMIT, SORRY_SENTENCE, hitHref } from "../src/shared/search.js";
 import { FOOTER, VOLT, teamLink } from "./views.js";
@@ -38,11 +39,14 @@ export interface AskDeps {
   /** The bot's own Bruno switch (discordBruno). The website's brunoSearch / brunoAnswers never affect /ask. */
   enabled: () => Promise<boolean>;
   available: () => boolean;
+  /** The answer's match videos, as the website finds them (public ones only: never a video people added). */
+  video?: (a: SearchAnswer) => Promise<SearchVideo | undefined>;
 }
 
 /** What one ask did, for the log (never who asked). */
 export interface AskMeta { step: SearchAnswer["step"]; refined: boolean; sentence: boolean }
-export interface AskReply { embed: APIEmbed; meta: AskMeta }
+/** `content`: the main video's YouTube link as the message's text, so Discord shows it as a player under the answer. */
+export interface AskReply { embed: APIEmbed; meta: AskMeta; content?: string }
 
 export async function realAskDeps(): Promise<AskDeps> {
   // The search index is the site's (it builds and refreshes it); the bot only reads it, like every other table but its own.
@@ -50,6 +54,7 @@ export async function realAskDeps(): Promise<AskDeps> {
     import("../server/api/searchAnswer.js"), import("../server/api/searchBruno.js"), import("../server/api/searchBrunoAnswer.js"),
     import("../server/flags.js"), import("../server/auth/controlPoint.js"),
   ]);
+  const { answerVideo } = await import("../server/api/answers/video.js");
   return {
     search: (q) => searchAnswer(q, { learn: false, limit: SEARCH_PAGE_LIMIT }),
     refine: (q) => refine(q, { learn: false, limit: SEARCH_PAGE_LIMIT }, "discordBruno"),
@@ -57,6 +62,8 @@ export async function realAskDeps(): Promise<AskDeps> {
     bruno: (q) => brunoAnswer(q.trim().endsWith("?") ? q : `${q.trim()}?`, { limit: SEARCH_PAGE_LIMIT }, Date.now(), undefined, "discordBruno"),
     enabled: () => isEnabled("discordBruno").catch(() => false),
     available: brunoAvailable,
+    // No viewer: only the site's own match clips and recordings, as a page drawn for everyone gets.
+    video: (a) => answerVideo(a),
   };
 }
 
@@ -69,7 +76,19 @@ export async function ask(q: string, deps: AskDeps, site: string): Promise<AskRe
     if (r) { answer = r; refined = r.step === "ai"; }
   }
   const sentence = deps.available() && (await deps.enabled()) ? await deps.bruno(q).catch(() => null) : null;
-  return { embed: askEmbed(q, answer, sentence, site), meta: { step: answer.step, refined, sentence: !!sentence } };
+  const video = deps.video ? await deps.video(answer).catch(() => undefined) : undefined;
+  const watch = videoLinks(video);
+  return { embed: askEmbed(q, answer, sentence, site, video), meta: { step: answer.step, refined, sentence: !!sentence }, ...(watch[0] ? { content: watch[0].url } : {}) };
+}
+
+/** The answer's videos as links, the main one first, then the listed matches' clips: at most 3. */
+export function videoLinks(v: SearchVideo | undefined): { label: string; url: string }[] {
+  if (!v) return [];
+  const first = v.main ?? v.watch;
+  const items = [...(first ? [first] : []), ...Object.entries(v.rows ?? {}).filter(([href]) => href !== v.mainRow).map(([, i]) => i)];
+  const seen = new Set<string>();
+  return items.filter((i) => i.kind !== "contributor" && !seen.has(`${i.videoId}:${i.t}`) && seen.add(`${i.videoId}:${i.t}`))
+    .slice(0, 3).map((i) => ({ label: i.match ?? (i.kind === "stream" ? "Stream" : "Recording"), url: watchUrl(i.videoId, i.t) }));
 }
 
 // ---------------------------------------------------------------------------
@@ -159,7 +178,7 @@ export function fitLines(lines: string[], max: number, read = Infinity): string 
 }
 
 /** The website's answer as one embed. */
-export function askEmbed(q: string, a: SearchAnswer, sentence: BrunoSentence | null, site: string): APIEmbed {
+export function askEmbed(q: string, a: SearchAnswer, sentence: BrunoSentence | null, site: string, video?: SearchVideo): APIEmbed {
   const page = searchHref(q, site);
   const bruno = a.step === "ai" || !!sentence;
   const footer = { text: bruno ? `${BRUNO_CREDIT}\n${FOOTER.text}` : FOOTER.text };
@@ -203,6 +222,9 @@ export function askEmbed(q: string, a: SearchAnswer, sentence: BrunoSentence | n
   }
   // The top results, when the answer didn't already cover them.
   if (!a.stat && !a.card) lines.push(...a.hits.slice(0, HITS).map((h) => `• ${hitLine(h, site)}`), ...more(a.hits.length - HITS));
+  // The videos, as the website plays them: watched on YouTube.
+  const vids = videoLinks(video);
+  if (vids.length) lines.push(`▶ Watch: ${vids.map((v) => `[${md(v.label)}](${v.url})`).join(" · ")}`);
   // What to ask next, as the website offers it (the answer's related questions, else search's own suggestions).
   const next = nextQuestions(a);
   if (next.length) lines.push(`**Ask next:** ${next.map(askable).join(" · ")}`);

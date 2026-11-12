@@ -15,6 +15,7 @@ import { brunoAvailable, brunoSearchAnswer, brunoSearchAnswerStream } from "../a
 import { all, get } from "../db.js";
 import { CURRENT_SEASON } from "../data/seasons.js";
 import { isEnabled } from "../flags.js";
+import { answerVideo } from "./answers/video.js";
 import { normalize } from "./fuzzy.js";
 import { cleanQuery, searchAnswer, type AnswerOptions } from "./searchAnswer.js";
 
@@ -104,6 +105,10 @@ export async function answerFacts(a: SearchAnswer): Promise<string[]> {
   // The answer search gave, first: what the page shows above everything else.
   if (a.verdict) facts.push(`Answer: ${a.verdict.answer}, ${a.verdict.label}`);
   if (a.stat) facts.push(...statFacts(a.stat));
+  // Its videos, as the page plays them (public ones only), so he never says there are none when there are.
+  const v = await answerVideo(a).catch(() => undefined);
+  const clips = v ? [v.main ?? v.watch, ...Object.values(v.rows ?? {})].filter((i): i is NonNullable<typeof i> => !!i && i.kind !== "contributor") : [];
+  if (clips.length) facts.push(`Videos on Control Scout for this answer: ${[...new Set(clips.map((i) => i.match ?? (i.kind === "stream" ? "a stream" : "an event recording")))].join(", ")}.`);
   if (a.card) {
     const c = a.card;
     const who = c.team ? ` for team ${`${c.team.number} ${c.team.name ?? ""}`.trim()}` : "";

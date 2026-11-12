@@ -86,9 +86,13 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     let fresh = false;
     const r = await asks.get(key, () => { fresh = true; return lookups.ask(question); });
     const bruno = [r.meta.refined ? "rewrite" : null, r.meta.sentence ? "sentence" : null].filter(Boolean).join("+") || "no";
-    log(`${key} step=${r.meta.step} bruno=${bruno} ${fresh ? "" : "cached "}${Date.now() - t0}ms`);
+    log(`${key} step=${r.meta.step} bruno=${bruno}${r.content ? " video" : ""} ${fresh ? "" : "cached "}${Date.now() - t0}ms`);
+    if (r.content) videoOf.set(r.embed, r.content);
     return r.embed;
   }
+  /** An answer's main video link, sent as the message's text so Discord shows a player under the embed. */
+  const videoOf = new WeakMap<APIEmbed, string>();
+  const withVideo = (embed: APIEmbed) => { const content = videoOf.get(embed); return { ...(content ? { content } : {}), embeds: [pride(embed)] }; };
 
   function answer(i: ChatInputCommandInteraction): Promise<APIEmbed> {
     const key = describe(i);
@@ -156,7 +160,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
         embed = unavailableEmbed();
       }
     }
-    await i.editReply({ embeds: [pride(embed)] });
+    await i.editReply(withVideo(embed));
   }
 
   async function autocomplete(i: AutocompleteInteraction): Promise<void> {
@@ -181,9 +185,9 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
       if (m.author.bot || !m.guildId) return;
       if (!new RegExp(`<@!?${botId}>`).test(m.content)) return;
       const q = m.content.replace(/<@[!&]?\d+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 500);
-      const send = (embed: APIEmbed) => m.reply({ embeds: [pride(embed)], allowedMentions: { repliedUser: false } })
+      const send = (embed: APIEmbed) => m.reply({ ...withVideo(embed), allowedMentions: { repliedUser: false } })
         // No Read Message History in that channel: a plain message instead of a reply.
-        .catch(() => m.channel.send?.({ embeds: [pride(embed)] }));
+        .catch(() => m.channel.send?.(withVideo(embed)));
       if (lookups.enabled && !(await lookups.enabled("discordBot"))) {
         await send(errorEmbed(BOT_OFF_TITLE, "Control Scout's Discord bot is turned off by the owner right now. Everything on controlscout.org still works, and this server's follows are kept for when it's back."));
         return;
@@ -225,6 +229,6 @@ export interface MentionMessage {
   author: { id: string; bot: boolean };
   guildId: string | null;
   content: string;
-  reply: (opts: { embeds: APIEmbed[]; allowedMentions: { repliedUser: boolean } }) => Promise<unknown>;
-  channel: { send?: (opts: { embeds: APIEmbed[] }) => Promise<unknown>; sendTyping?: () => Promise<unknown> };
+  reply: (opts: { content?: string; embeds: APIEmbed[]; allowedMentions: { repliedUser: boolean } }) => Promise<unknown>;
+  channel: { send?: (opts: { content?: string; embeds: APIEmbed[] }) => Promise<unknown>; sendTyping?: () => Promise<unknown> };
 }

@@ -348,3 +348,16 @@ describe("@mention answers", () => {
     expect(off.sent[0].embeds[0].title).toBe("Turned off for now");
   });
 });
+
+describe("an answer with a video", () => {
+  it("sends the video link as the message's text, for /ask and a mention alike", async () => {
+    const l = lookups({ ask: vi.fn(async (q: string) => ({ embed: { title: `ask ${q}` }, meta: { step: "deterministic" as const, refined: false, sentence: false }, content: "https://www.youtube.com/watch?v=AAA" })) });
+    const h = createHandler(() => {}, l, { cooldownMs: 0 });
+    const c = command("ask", { question: "23268 highlights" });
+    await h(c.i);
+    expect(c.calls.at(-1)!.payload.content).toBe("https://www.youtube.com/watch?v=AAA");
+    const sent: unknown[] = [];
+    await h.mention({ author: { id: "u9", bot: false }, guildId: "g", content: "<@1> 23268 highlights", reply: async (o) => { sent.push(o); }, channel: {} }, "1");
+    expect((sent[0] as { content?: string }).content).toBe("https://www.youtube.com/watch?v=AAA");
+  });
+});
