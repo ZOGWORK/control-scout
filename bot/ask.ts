@@ -130,18 +130,30 @@ export async function ask(q: string, deps: AskDeps, site: string, history: Bruno
 async function chatWith(q: string, answer: SearchAnswer, history: BrunoChatTurn[], deps: AskDeps): Promise<ChatReply | null> {
   const facts = await deps.facts!(answer);
   const before = [...history].reverse().find((t) => t.role === "user")?.text;
-  if (before && before.trim().toUpperCase() !== q.trim().toUpperCase()) {
-    const earlier = await deps.search(before).then((a) => deps.facts!(a)).catch(() => [] as string[]);
-    facts.push(...earlier.filter((f) => !facts.includes(f)));
-  }
+  if (!before || before.trim().toUpperCase() === q.trim().toUpperCase()) return deps.chat!(q, fit(facts, CHAT_FACTS, CHAT_FACTS_CHARS), history);
+  const earlier = (await deps.search(before).then((a) => deps.facts!(a)).catch(() => [] as string[])).filter((f) => !facts.includes(f));
+  // Both questions' records get a share: the new one's first half, then the earlier one's, then whatever room is left
+  // for the rest of either (a broad new answer must not crowd out the records the follow-up is about).
+  const half = Math.floor(CHAT_FACTS / 2), halfChars = Math.floor(CHAT_FACTS_CHARS / 2);
+  const now = fit(facts, half, halfChars);
+  const then = fit(earlier, CHAT_FACTS - now.length, CHAT_FACTS_CHARS - chars(now));
+  const kept = [...now, ...then];
+  const rest = fit([...facts.slice(now.length), ...earlier.slice(then.length)], CHAT_FACTS - kept.length, CHAT_FACTS_CHARS - chars(kept));
+  return deps.chat!(q, [...now, ...rest.filter((f) => facts.includes(f)), ...then, ...rest.filter((f) => !facts.includes(f))], history);
+}
+
+/** Characters `lines` take as sent (one line each). */
+const chars = (lines: string[]) => lines.reduce((n, f) => n + f.length + 1, 0);
+/** The first of `lines` that fit in `max` lines and `maxChars` characters. */
+function fit(lines: string[], max: number, maxChars: number): string[] {
   const kept: string[] = [];
   let size = 0;
-  for (const f of facts.slice(0, CHAT_FACTS)) {
-    if (size + f.length > CHAT_FACTS_CHARS) break;
+  for (const f of lines.slice(0, Math.max(0, max))) {
+    if (size + f.length + 1 > maxChars) break;
     kept.push(f);
     size += f.length + 1;
   }
-  return deps.chat!(q, kept, history);
+  return kept;
 }
 
 /**

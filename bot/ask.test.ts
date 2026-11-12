@@ -252,3 +252,19 @@ describe("a chat with Bruno", () => {
     expect(chatPost("hi", { text: "Hey!" }, { quote: false })).toBe("Hey!\n-# Bruno AI · controlscout.org");
   });
 });
+
+describe("a follow-up's facts", () => {
+  it("a broad new answer doesn't crowd out the earlier question's records: both get a share, inside the caps", async () => {
+    const many = (p: string) => Array.from({ length: 40 }, (_, i) => `${p} fact ${i}`);
+    const search = vi.fn(async (q: string) => base({ q }));
+    const facts = vi.fn(async (a: SearchAnswer) => many(a.q === "who won decode" ? "earlier" : "new"));
+    const chat = vi.fn(async () => ({ text: "ok", search: false }));
+    await ask("and second?", deps(base({ q: "and second?" }), { search, facts, chat }), SITE, [{ role: "user", text: "who won decode" }, { role: "bruno", text: "30030 won." }]);
+    const sent = (chat.mock.calls[0] as unknown[])[1] as string[];
+    expect(sent).toHaveLength(40);
+    expect(sent.filter((f) => f.startsWith("new"))).toHaveLength(20);
+    expect(sent.filter((f) => f.startsWith("earlier"))).toHaveLength(20);
+    expect(sent[0]).toBe("new fact 0");
+    expect(sent[20]).toBe("earlier fact 0");
+  });
+});
