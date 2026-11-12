@@ -126,6 +126,8 @@ export const env = {
   get discordBotToken() { return str("DISCORD_BOT_TOKEN"); },
   /** A test server's ID: slash commands register there (instantly) instead of globally. */
   get discordDevGuildId() { return str("DISCORD_DEV_GUILD_ID"); },
+  /** A channel in the DISCORD_DEV_GUILD_ID test server for `npm run bot:test-post` (bot/testPost.ts); never a live one. */
+  get discordTestChannelId() { return str("DISCORD_TEST_CHANNEL_ID"); },
   get dataDir() { return str("DATA_DIR") ?? join(process.cwd(), ".data"); },
   /** Where an FTC Scout raw cache can be imported from (seed). */
   get scoutCacheDir() { return str("SCOUT_CACHE_DIR"); },

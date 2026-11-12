@@ -15,17 +15,65 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.7.5 — 2026-11-12
+## 5.7.7 — 2026-11-12
 
-The search box now answers "nj teams ranked by opr" and "nj teams opr" too, with a link to New Jersey's OPR board.
+Ask the Discord bot anything in plain words: `/ask` answers with the website's own search answer.
 
 ### Highlights
-- [fixes] Search box: "nj teams ranked by opr" links to NJ's OPR board
-- [fixes] "nj teams opr" in the search box links to the same board
-- [fixes] Re-checking these failed searches now reads them right
+- [alerts] Ask the Discord bot anything: the website's own answer and numbers
+- [alerts] Or just mention it: @Control Scout who won decode
+- [alerts] Short answers: one line, the rest one tap away on the website
+- [alerts] Bruno AI writes a one-line answer in Discord, credited to him
+- [alerts] Questions it can't answer yet say so, with questions that work
+
+### Added
+- `/ask question:` (up to 500 characters): the same path `/search` takes, in its order: the deterministic answer always (`searchAnswer`, learning off); Bruno's query rewrite for a weak answer; his short answer for every ask, kept only if every number is in search's facts. Both only with the new `discordBruno` switch on ("Bruno AI in the Discord bot", on by default); the website's `brunoSearch` / `brunoAnswers` never affect the bot, and `discordBruno` never affects the website (`refine` and `brunoAnswer` take the switch to check). Short by design: a stat's headline alone, else its first block cut at 3 rows, about 500 characters as read. One embed: the question as asked ("Asked: who won decode"), his sentence, the answer, up to 2 questions to ask next, and a link to the same answer on controlscout.org; "Sorry — I can't answer that yet" with what was read and questions that work. The same 3-second pace as every command; the same question within a minute is one lookup. (`bot/ask.ts`, `bot/handler.ts`, `bot/commands.ts`)
+- `@Control Scout who won decode`: mention the bot with a question and it replies with the `/ask` answer (same cache and pace). Only direct mentions from people in a server; it needs the non-privileged `GuildMessages` intent only, so the bot never reads other messages. (`bot/handler.ts`, `bot/index.ts`)
+- An answer with match videos (highlights, a match, the finals) links up to 3 of them (`▶ Watch: Q85 · Q18 · M4`), and the first one's YouTube link is the message's text, so Discord plays it under the answer. The same videos the website plays, public ones only. Bruno's facts say which videos there are, so he never says there are none. (`videoLinks` in `bot/ask.ts`, `server/api/searchBrunoAnswer.ts`)
+- `/help` and the site's "Control Scout in Discord" list name `/ask` and the mention. (`src/shared/discord.ts`)
 
 ### Fixed
-- 5.7.4 answered these two failed searches on the results page, but the search box's short list (and the owner's re-check of a failed search, which asks the same way) still said "Sorry" for "nj teams ranked by opr" and listed matching names for "nj teams opr". In the box, a board of teams with no team named was left to the asks' short cards, which don't read these wordings. A board of teams those cards don't read now gets the board's own short card, a link to the page's list, as the other boards do in the box. Boards the asks read ("best opr in nj"), event boards, penalty boards and boards with no "teams" said keep their cards as before. Asked of every held-out question in the box, 10 more that said "Sorry" ("top 5 teams in Romania by rating, not OPR", "best team in Oradell, NJ, by record") now get the same board title as their results page, and nothing else changed but the board link's query, now as typed. (`server/api/query/execute.ts`) (#1412)
+- Bruno's facts now carry a stat answer (its headline and every block row) and a yes-or-no verdict. Before, a stat question like "who won decode" sent him only the line about when records start, so he never answered it. A forecast's chance reaches him as 1% to 99% unless decided, as the page shows it. (`statFacts` in `server/api/searchBrunoAnswer.ts`) (#1407)
+
+## 5.7.6 — 2026-11-12
+
+The Discord bot's event posts: a schedule that always fits, the first match the evening before, and a plain day recap.
+
+### Highlights
+- [alerts] The schedule names every team and never overflows
+- [alerts] The evening-before post names the team's first match
+- [alerts] The day recap says "Calls: 4 of 5 right", then tomorrow's first match
+- [fixes] At a league meet the recap ranks the team among that meet's teams
+- [appearance] Every bot post has a pride-flag border
+
+### Changed
+- Schedule posts: one line per match, `` `Q12  4:30 PM` **Blue** 54% · with 23545 Gear Grinders vs 23314 Bolts & 8902 Hex ``: the match and time in one aligned column, the side in words, the chance, then partner and opponents by number and name. Up to 15 matches; a long list continues in the next field instead of passing Discord's 1,024 characters per field (a field over the cap made Discord reject the whole post), then `…and N more`. (`bot/eventAlerts.ts`)
+- The evening-before post adds `First match: Q3 · 9:00 AM` per followed team once the schedule is posted, and links the team and the strongest teams there. (`bot/eventAlerts.ts`)
+- The day recap reads `Calls: 4 of 5 right`; an even call (45–55%) isn't counted as a call; a multi-day event adds `Tomorrow: first match Q3 · 9:00 AM`. (`bot/eventAlerts.ts`)
+- Every embed the bot sends (follow posts, command answers, errors) has a border in one of the pride flag's six colours, picked from its title so the same post keeps its colour and a channel runs through the rainbow. It replaces 5.7.1's win / loss / tie borders and the volt default. (`pride` in `bot/views.ts`, `bot/follows.ts`, `bot/handler.ts`)
+- `npm run bot:test-post` posts every message design to a test server's channel from the real Nov 7 meet, and `-- tick` runs the real minute tick there. (`bot/testPost.ts`, `bot/README.md`)
+
+### Fixed
+- At a league meet the recap said "Rank 18 of 11": FIRST's rank there is the league's running standing. It now gives the meet's own rank. (`bot/eventAlerts.ts`) (#1405)
+
+## 5.7.5 — 2026-11-12
+
+The Discord bot's match posts tell one story each: who won, by how much, and whether the call was right.
+
+### Highlights
+- [alerts] A result post is the score line and one story, no fields
+- [fixes] A 50% or 54% call that loses is an even call, never an "upset"
+- [alerts] A reminder says which side the team is on, with whom, and when
+- [alerts] Every team number in a match post opens that team's page
+
+### Changed
+- Result posts (follows and `/predict` on a played match): the title leads with the match (`Q16 · P1-5 PM Northeast League Meet`); the description is the score line (every team linked, the winner's score bold), the story (`Even call — predicted Red by 4, Red won by 16.`, `Called it ✅ — Red 68% (predicted 72–58), won by 22.`, `Upset ❌ — Blue was 71% (predicted 55–74), Red won by 18.`) and the followed team's next unplayed match with links to it and the event. The Red / Blue / Final score / Predicted / Verdict fields are gone, and so is the confidence tier (it was the pre-match confidence, stale once the match is played). The border is green when the followed team won, rose when it lost, slate on a tie, volt when two followed teams had opposite results or for `/predict`. (`bot/views.ts`, `bot/follows.ts`)
+- Reminders and `/predict` before a match: the first line is the followed team's side, partner and time (`4215 on Blue with 23545, in 15 minutes (4:30 PM).`), the second the lineup and the call with its confidence once (`Even call · predicted 97–93 · rough guess`). The two win-bar fields, the score, confidence and time fields are gone. (`bot/views.ts`, `bot/follows.ts`)
+- The footer names the call's kind only when it isn't a live call logged before the match: `Replayed call` or `From today's ratings`. (`bot/views.ts`)
+- `/event`'s winning alliance and `/following`'s teams are linked. (`bot/views.ts`, `bot/follows.ts`)
+
+### Fixed
+- A call is a favourite only when its chance reads 55% or more; inside 45–55% it's an even call with no verdict. Q16 at the Nov 7 Northeast League Meet (Blue 50%) and Q17 (Red 54%) were posted as "❌ Upset". (`verdict` in `bot/views.ts`) (#1404)
 
 ## 5.7.4 — 2026-11-12
 

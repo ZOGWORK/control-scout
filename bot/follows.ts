@@ -11,8 +11,8 @@ import { CURRENT_SEASON } from "../server/data/seasons.js";
 import { cachedEventDetail } from "../server/api/events.js";
 import { seasonStats, teamKnown } from "../server/api/teams.js";
 import { eventDue, eveEmbed, recapEmbed, scheduleEmbed, venueClock } from "./eventAlerts.js";
-import type { MatchView } from "../src/shared/api.js";
-import { Friendly, VOLT, predictEmbed } from "./views.js";
+import type { EventDetail, MatchView } from "../src/shared/api.js";
+import { FOOTER, Friendly, VOLT, linkedAlliance, pride, preMatchEmbed, resultEmbed, teamLink, teamsOf } from "./views.js";
 
 /** How long before a match the reminder goes out. */
 export const REMIND_MS = 15 * 60_000;
@@ -53,14 +53,14 @@ export async function listFollows(guild: string): Promise<{ team: number; channe
 }
 
 /** /following: the server's teams and where each one posts. */
-export function followingEmbed(rows: { team: number; channel_id: string; name: string | null }[]): APIEmbed {
+export function followingEmbed(rows: { team: number; channel_id: string; name: string | null }[], site: string): APIEmbed {
   return {
     title: "Teams this server follows",
     description: rows.length
-      ? rows.map((r) => `**${r.team}**${r.name ? ` ${r.name}` : ""} → <#${r.channel_id}>`).join("\n")
+      ? rows.map((r) => `**${teamLink(r.team, site)}**${r.name ? ` ${r.name}` : ""} → <#${r.channel_id}>`).join("\n")
       : "None yet. Use /follow team: to get a post before each of a team's matches and its result.",
     color: VOLT,
-    footer: { text: `Up to ${MAX_FOLLOWS_PER_SERVER} teams · Control Scout • controlscout.org` },
+    footer: { text: `Up to ${MAX_FOLLOWS_PER_SERVER} teams · ${FOOTER.text}` },
   };
 }
 
@@ -89,7 +89,10 @@ export function dueNow(follows: Follow[], matches: MatchView[], now: number): Du
   for (const m of matches) {
     const at = startOf(m);
     if (!Number.isFinite(at)) continue;
-    const kind: Kind | null = !m.played ? (at > now && at - now <= REMIND_MS ? "reminder" : null) : (now - at <= RESULT_WINDOW_MS ? "result" : null);
+    // A played match counts as a result only once both scores are posted: marked played with a score missing, it
+    // waits (posting it would read as a tie at 0, and its claim would keep the real result from ever posting).
+    const scored = !!m.red.score && !!m.blue.score;
+    const kind: Kind | null = !m.played ? (at > now && at - now <= REMIND_MS ? "reminder" : null) : (scored && now - at <= RESULT_WINDOW_MS ? "result" : null);
     if (!kind) continue;
     const teams = inMatch(m);
     for (const f of follows) {
@@ -104,21 +107,39 @@ export function dueNow(follows: Follow[], matches: MatchView[], now: number): Du
   return [...out.values()];
 }
 
-/** The post: the site's match embed, led by which followed team it's about. */
-export function postEmbed(d: Due, eventName: string, site: string): APIEmbed {
-  const e = predictEmbed({ event: { name: eventName } } as never, d.match, site);
-  const who = d.teams.map((t) => `**${t}**`).join(" & ");
-  if (d.kind === "reminder") {
-    const at = Math.floor(startOf(d.match) / 1000);
-    return { ...e, description: `${who} ${d.teams.length > 1 ? "play" : "plays"} <t:${at}:R> (<t:${at}:t>).` };
-  }
-  const red = d.match.red.score?.total ?? 0, blue = d.match.blue.score?.total ?? 0;
-  const side = (t: number) => (d.match.red.teams.some((x) => x.number === t) ? "red" : "blue");
-  const line = d.teams.map((t) => {
-    const s = side(t), won = red === blue ? null : (red > blue) === (s === "red");
-    return `**${t}** ${won == null ? "tied" : won ? "won" : "lost"}`;
-  }).join(", ");
-  return { ...e, description: `${line} ${d.match.label}.` };
+/**
+ * The reminder's first line: each followed team's side and partner, then the time.
+ * "[4215](…) on Blue with [23545](…), in 15 minutes (4:30 PM)." (Discord shows the times in each reader's zone.)
+ */
+export function reminderLead(d: Pick<Due, "match" | "teams">, site: string): string {
+  const m = d.match, at = Math.floor(startOf(m) / 1000);
+  const sides = (["red", "blue"] as const).map((s) => {
+    const all = teamsOf(m[s], false), mine = d.teams.filter((t) => all.includes(t));
+    if (!mine.length) return null;
+    const partners = all.filter((t) => !mine.includes(t));
+    return `${linkedAlliance(mine, site)} on ${s === "red" ? "Red" : "Blue"}${partners.length ? ` with ${linkedAlliance(partners, site)}` : ""}`;
+  }).filter(Boolean);
+  return `${sides.join("; ")}, <t:${at}:R> (<t:${at}:t>).`;
+}
+
+/** The followed teams' next unplayed match at the event after this one (the earliest, when there are several). */
+export function nextMatch(matches: MatchView[], after: MatchView, teams: number[]): { match: MatchView; team: number | null } | null {
+  // Schedule order (quals before playoffs, then series and number), so a match whose time isn't posted yet still
+  // counts; its line just goes without a time.
+  const order = (a: MatchView, b: MatchView) => (a.level === b.level ? 0 : a.level === "qual" ? -1 : 1) || a.series - b.series || a.number - b.number;
+  const next = matches
+    .filter((m) => !m.played && m.key !== after.key && order(m, after) > 0)
+    .filter((m) => teams.some((t) => teamsOf(m.red, false).includes(t) || teamsOf(m.blue, false).includes(t)))
+    .sort(order)[0];
+  if (!next) return null;
+  const team = teams.length > 1 ? teams.find((t) => teamsOf(next.red, false).includes(t) || teamsOf(next.blue, false).includes(t)) ?? null : null;
+  return { match: next, team };
+}
+
+/** The post: the match design, about the followed teams (their side before, their outcome after). */
+export function postEmbed(d: Due, ev: Pick<EventDetail, "event" | "matches">, site: string): APIEmbed {
+  if (d.kind === "reminder") return preMatchEmbed(ev.event.name, d.match, site, reminderLead(d, site));
+  return resultEmbed(ev.event.name, d.match, site, { next: nextMatch(ev.matches, d.match, d.teams) });
 }
 
 export type Send = (channel: string, embed: APIEmbed) => Promise<"ok" | "gone" | "error">;
@@ -153,7 +174,7 @@ export async function notifyTick(send: Send, site: string, log: (m: string) => v
         "UPDATE discord_posts SET claimed_at = ? WHERE channel_id = ? AND season = ? AND code = ? AND match_key = ? AND kind = ? AND sent_at IS NULL AND claimed_at < ?",
         [t, ...k, new Date(now - CLAIM_STALE_MS).toISOString()]));
     if (!claimed) return;
-    const r = await send(channel, await embed());
+    const r = await send(channel, pride(await embed()));
     if (r === "ok") {
       posted++;
       await run("UPDATE discord_posts SET sent_at = ? WHERE channel_id = ? AND season = ? AND code = ? AND match_key = ? AND kind = ?", [new Date().toISOString(), ...k]);
@@ -170,7 +191,7 @@ export async function notifyTick(send: Send, site: string, log: (m: string) => v
   for (const ev of events) {
     const d = await cachedEventDetail(CURRENT_SEASON, ev.code);
     if (!d) continue;
-    for (const due of dueNow(follows, d.matches, now)) await deliver(due.channel, ev.code, due.match.key, due.kind, () => postEmbed(due, d.event.name, site));
+    for (const due of dueNow(follows, d.matches, now)) await deliver(due.channel, ev.code, due.match.key, due.kind, () => postEmbed(due, d, site));
     const today = venueClock(now, d.event.timezone ?? null).date;
     for (const due of eventDue(follows, d, now)) {
       await deliver(due.channel, ev.code, due.key, due.kind, async () => {

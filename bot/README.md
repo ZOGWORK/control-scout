@@ -1,18 +1,55 @@
 # Control Scout Discord bot
 
-A public bot any FTC team can add to its own Discord server. Four slash commands, each answering with
+A public bot any FTC team can add to its own Discord server. Slash commands, each answering with
 an embed that links back to controlscout.org:
 
 | Command | What it shows |
 | --- | --- |
 | `/team number:` | Location, season record, OPR (total and auto / TeleOp / endgame), world ranking, next event (or the last one) |
-| `/predict event: match:` | Win odds as bars, predicted score and confidence for a qualification match. Once it's played: the final score, what was predicted, and ✅ / ❌ for whether the call was right |
+| `/predict event: match:` | The lineup, the favourite's win chance (or "Even call"), the predicted score and its confidence for a qualification match. Once it's played: the score, and the call against it (called, upset, or an even call) |
 | `/event code:` | Dates, place, status, matches played, top 5 by OPR, and the winning alliance once it's over |
 | `/rankings` | The world top 10 by rating, with movement since last week |
 | `/follow team: channel:` | Automatic posts in a channel: the evening before each event, the schedule once posted, 15 minutes before each match, each result, and a recap at the end of each day. Manage Server only |
 | `/unfollow team: channel:` | Stop them (every channel if none is given). Manage Server only |
 | `/following` | The server's followed teams and where each posts (up to 10 per server) |
+| `/ask question:` | Anything in plain words, answered with the website's own search answer (below) |
+| `@Control Scout question` | The same as `/ask`, as a reply |
 | `/help` | Every command, from the same list the site shows (`BOT_COMMANDS` in `src/shared/discord.ts`) |
+
+## /ask
+
+`bot/ask.ts` takes the same path `/search` does, in the same order, in the bot's own process:
+
+1. `searchAnswer(q, { learn: false })`: the deterministic answer, always. Numbers only from stored data.
+2. Only when that answer is weak (`did-you-mean`, `recovery`), the bot's `discordBruno` switch is on and Control
+   Point is configured: `refine(q)`. Bruno rewrites the query; search runs again on his words.
+3. Every ask (/ask is a question however it's typed; sent with a "?" so the site's question check passes),
+   `discordBruno` on and Control Point configured:
+   `brunoAnswer(q)`. A sentence from search's facts; dropped by the site's `grounded()` check if any number isn't in them.
+
+**Bruno is the bot's own switch.** `discordBruno` (owner console, "Bruno AI in the Discord bot", on by default) is
+the only one /ask reads. The website's `brunoSearch` and `brunoAnswers` only ever affect /search, so Bruno can
+answer in Discord while the website stays search-only.
+
+**Short by design.** The answer only: a stat's headline alone when it has one ("who won decode" is one line: the
+champions and the finals scores), else its first block cut at 3 rows; a card's headline and 3 lines; 3 top results.
+About 500 characters as read at most. Everything else (more blocks, the source) is behind the link. The embed also
+carries Bruno's sentence quoted, and a link to the same answer on controlscout.org. Questions it
+can't answer get "Sorry — I can't answer that yet", what was read, and questions that work as copyable
+`/ask question: …` text (no buttons). An answer Bruno helped with carries **Bruno AI, from Control Point** in the
+footer above Control Scout's line; a deterministic one never does. Bruno off, unconfigured, failing or slow: the
+deterministic answer posts anyway.
+
+Pace: the same as every command (one per person every 3 seconds, no longer wait for /ask); the same question
+within a minute is the answer already given. Every ask is logged as the command, the step, whether Bruno helped
+and the time, never who asked. The bot reads the site's search index and never writes it.
+
+**@mention answers.** `@Control Scout who won decode` gets the same answer as `/ask` (same cache, same
+3-second pace), as a reply (a plain message where the bot can't reply). Only a message that mentions the bot itself,
+from a person, in a server: not a reply that only pings it, not @everyone or a role. Just the mention: how to ask.
+Too fast: nothing (no public "slow down"). It needs only the `GuildMessages` intent, which isn't privileged: Discord
+sends a bot the text of messages that mention it without the Message Content intent, so the bot reads nothing else
+and needs no approval past 100 servers.
 
 `event` and `code` autocomplete over events on now, coming up, or finished in the last 3 days (name or
 code; you can also type a code yourself).
@@ -83,6 +120,39 @@ so the shipped snapshot is restored. On ready it logs `ready as Control Scout#12
 whether the commands were registered or unchanged.
 
 Tests: `npx vitest run bot`.
+
+### See every message in a test server
+
+```bash
+# .env: a TEST application's DISCORD_BOT_TOKEN, DISCORD_DEV_GUILD_ID, and DISCORD_TEST_CHANNEL_ID (a channel there)
+npm run bot:test-post          # every post design, from the real Nov 7, 2026 meet (bot/fixtures)
+npm run bot:test-post -- tick  # the real minute tick on the local database: posts once, nothing with the bot off
+```
+
+It refuses to post unless the channel belongs to `DISCORD_DEV_GUILD_ID`. Never point it at a live server.
+For `tick`, sync the meet first: `npm run sync -- --event 2026:USNJNEM3`.
+
+## How the messages read
+
+- **One story, told once, in the description.** Fields only for lists (schedule lines, the eve's teams,
+  the top 5). Every team number in a description or list value is a link to its page (field names can't
+  hold links; the schedule's lines name each team as `10243 Gear Grinders` instead, in a monospace match/time
+  column, and a long schedule continues in the next field).
+- **Result:** the score line (winner bold), then the story: `Called it ✅ — Red 68% (predicted 72–58), won by
+  22.` / `Upset ❌ — Blue was 71% (predicted 55–74), Red won by 18.` / `Even call — predicted Red by 4, Red won
+  by 16.`, then `Next: Q21 · 5:10 PM · Match · Event` when the followed team has another match (else just the
+  event link).
+- **Pride borders.** Every embed sent (posts, answers, errors) takes one of the pride flag's six colours,
+  picked from its title (`pride` in `bot/views.ts`).
+- **A favourite needs 55%.** A call that reads 45–55% is an even call: no verdict, and it isn't counted in the
+  day recap's `Calls: N of M right`.
+- **Reminder:** the followed team's side, partner and time, then the lineup and the call with its confidence
+  in plain words once. No win bars.
+- **Footer:** `Control Scout • controlscout.org`, plus the call's kind only when it isn't live: `Replayed call`
+  or `From today's ratings`.
+- **Budgets** (tested on the real Q16/Q17): a result is at most 4 blocks (title + description lines + fields)
+  and 600 characters as read; a reminder 3 blocks and 400; a field never past Discord's 1,024 characters
+  (a schedule continues in the next field, at most 15 matches, then `…and N more`).
 
 ## On the VM
 
