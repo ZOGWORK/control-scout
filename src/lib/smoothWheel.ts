@@ -31,7 +31,16 @@ export function useSmoothWheel() {
       engine.destroy();
       engine = null;
     };
+    const cancelPending = () => {
+      if (idle !== undefined) { w.cancelIdleCallback?.(idle); idle = undefined; }
+      clearTimeout(timer);
+      timer = undefined;
+    };
     const load = (ticket: number) => {
+      idle = undefined;
+      timer = undefined;
+      // The screen may have stopped matching since this was scheduled: then nothing is downloaded.
+      if (ticket !== wanted || !query.matches) return;
       loader.load().then((e) => {
         if (ticket !== wanted || !query.matches || engine) { e.destroy(); return; }
         engine = e;
@@ -40,6 +49,7 @@ export function useSmoothWheel() {
     };
     const sync = () => {
       const ticket = ++wanted;
+      cancelPending();
       if (!query.matches) { stop(); return; }
       if (engine) return;
       // After the page has painted and settled: smooth wheel never competes with the first paint.
@@ -51,8 +61,7 @@ export function useSmoothWheel() {
     return () => {
       wanted++;
       query.removeEventListener("change", sync);
-      if (idle !== undefined) w.cancelIdleCallback?.(idle);
-      clearTimeout(timer);
+      cancelPending();
       stop();
     };
   }, []);

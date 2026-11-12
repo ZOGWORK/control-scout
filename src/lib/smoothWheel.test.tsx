@@ -69,6 +69,25 @@ describe("useSmoothWheel", () => {
     expect(engines).toHaveLength(2);
   });
 
+  it("never downloads the engine when the screen stops matching before the idle wait ends (a desktop narrowed to phone size)", async () => {
+    const screen = screenQuery(true);
+    render(<Probe />);
+    act(() => screen.set(false)); // narrowed before the page went idle
+    await settle();
+    expect(loader.load).not.toHaveBeenCalled();
+    act(() => screen.set(true)); // wide again: loads once, not twice
+    await settle();
+    expect(loader.load).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not schedule a second load when a change keeps it a desktop (reduced motion off again)", async () => {
+    const screen = screenQuery(true);
+    render(<Probe />);
+    act(() => screen.set(true));
+    await settle();
+    expect(loader.load).toHaveBeenCalledTimes(1);
+  });
+
   it("drops an engine that finished loading after the screen stopped matching", async () => {
     const screen = screenQuery(true);
     let finish!: () => void;
