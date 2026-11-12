@@ -3,8 +3,8 @@
 // whole answer as text (server/seoMeta.ts); the card here draws it with its match videos. Linked from the team page,
 // and it links back.
 import { Sparkles } from "lucide-react";
-import { useParams } from "react-router-dom";
-import { useApi } from "../lib/api";
+import { Link, useParams } from "react-router-dom";
+import { useApi, type ApiError } from "../lib/api";
 import { useTitle } from "../lib/meta";
 import { PageHeader, EmptyState } from "../components/page";
 import { Async } from "../components/states";
@@ -24,6 +24,13 @@ export default function TeamHighlightsPage() {
   const who = state.data ? teamHeading(state.data.team.number, state.data.team.name) : `Team ${number}`;
   useTitle(`${who} highlights${state.data?.stat.scope[0] ? `, ${state.data.stat.scope[0]}` : ""}`);
   if (!ok) return <EmptyState icon={Sparkles} title="No such team" description="This address doesn't name an FTC team." />;
+  // No highlights page for this team (it hasn't played a match with scores, or it isn't a team we list): said plainly,
+  // with the way to its page, never a broken-looking error.
+  const err = state.error as ApiError | undefined;
+  if (err?.status === 404 && !err.offline) {
+    return <EmptyState icon={Sparkles} title="No highlights yet" description="Highlights show here once this team has played a match with scores."
+      action={<Link to={`/teams/${n}`} className="inline-flex h-[44px] items-center rounded-lg border border-border bg-card px-3 text-sm font-medium hover:border-accent/60">Team {n}</Link>} />;
+  }
   return (
     <div className="space-y-5">
       <Async state={state}>

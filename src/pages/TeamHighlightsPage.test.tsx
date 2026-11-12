@@ -19,9 +19,10 @@ const stat: StatAnswer = {
 };
 const asked: (string | null)[] = [];
 let answer: { team: { number: number; name: string | null }; stat: StatAnswer } | undefined = { team: { number: 4215, name: "Hypnotic Robotics" }, stat };
+let failure: { status: number; offline: boolean } | undefined;
 vi.mock("../lib/api", async (orig) => ({
   ...(await orig<typeof import("../lib/api")>()),
-  useApi: (path: string | null) => { asked.push(path); return { data: path ? answer : undefined, error: undefined, loading: false, reload: () => {} }; },
+  useApi: (path: string | null) => { asked.push(path); return { data: path && !failure ? answer : undefined, error: failure, loading: false, reload: () => {} }; },
 }));
 const titles: string[] = [];
 vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useTitle: (t: string) => { titles.push(t); } }));
@@ -46,6 +47,14 @@ describe("team highlights page", () => {
     expect(asked.every((p) => p == null)).toBe(true);
     expect(screen.getByText("No such team")).toBeTruthy();
     answer = { team: { number: 4215, name: "Hypnotic Robotics" }, stat };
+  });
+
+  it("a team with no highlights page: says so plainly, with the way to its team page", () => {
+    failure = { status: 404, offline: false };
+    open("/teams/5555/highlights");
+    expect(screen.getByText("No highlights yet")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Team 5555" }).getAttribute("href")).toBe("/teams/5555");
+    failure = undefined;
   });
 
   it("is its own route and top-bar name; any other suffix is still not found", () => {
