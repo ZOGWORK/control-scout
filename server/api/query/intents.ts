@@ -40,6 +40,8 @@ export type PipelineIntent =
   | "event-field"
   // No team: a place's teams by their current or longest win streak (./streakBoard.ts).
   | "streak-board"
+  // No team: a place's events ranked by their average match score (../answers/families/eventScores.ts).
+  | "event-scores"
   // A team's or everyone's matches by how far the saved prediction was off (./matchFind.ts).
   | "miss-matches" | "accurate-matches";
 
@@ -75,7 +77,8 @@ const OUTCOMES = ["metric:win", "metric:loss", "outcome:W", "outcome:L"];
 const BOARD_METRICS = ["metric:opr", "metric:rating", "metric:winrate", "metric:auto", "metric:teleop", "metric:endgame", "metric:reliability"];
 /** What a leaderboard takes in: its stats, a record beside them (every row shows it), "by". */
 // Penalties only beside "team" ("which team fouls the least"): the most penalties alone are the matches with the most.
-const BOARD_OPT = ["thing:team", ...BOARD_METRICS, "metric:penalty", "per:match", "metric:record", "metric:win", "prep:by", "list"];
+// A filter on the teams ranked: part of their name, or no award ever won.
+const BOARD_OPT = ["thing:team", ...BOARD_METRICS, "metric:penalty", "per:match", "metric:record", "metric:win", "prep:by", "list", "name-has", "no-award"];
 const R = (id: PipelineIntent, teams: 0 | 1 | 2 | 3 | 4, all: string[], opt: string[] = [], more: Partial<IntentRule> = {}): IntentRule => ({ id, teams, all, opt, ...more });
 
 /** Every rule. Order breaks a tie between rules that explain the same symbols. */
@@ -284,7 +287,12 @@ export const INTENTS: IntentRule[] = [
   ]),
   // A team stat alone with a season or a place and no one team ("2027 opr", "opr nj", "nj teams ranked by opr"): everyone's
   // board by it (./execute.ts).
-  ...BOARD_METRICS.map((m) => R("leaderboard", 0, [m], ["thing:team", "thing:season", "prep:in", "prep:for"], { noEvent: true })),
+  ...BOARD_METRICS.map((m) => R("leaderboard", 0, [m], ["thing:team", "thing:season", "prep:in", "prep:for", "name-has", "no-award"], { noEvent: true })),
+  // A number's rise over the season, each team's first event to its last ("fastest growing team by rating gain across
+  // the season"): the board of the most gained.
+  R("leaderboard", 0, ["gain"], [...BOARD_OPT, "agg:max", "trend", "thing:season"], { noEvent: true }),
+  // A place's events by their average match score ("which event had the highest average match score in Romania").
+  R("event-scores", 0, ["thing:event", "agg:mean", "metric:score"], ["agg:max", "agg:min", "thing:match", "per:match", "list"], { noEvent: true }),
   // Standout matches: a scope's ("worlds highlights", "new jersey highlights 2024-25"), or one team's ("<team> best
   // matches at worlds"), or the latest week of play's ("recent highlights"); its match videos ("jackson division recap",
   // "watch <team>") are its highlights too.

@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.7.8 — 2026-11-12
+## 5.7.9 — 2026-11-12
 
 The search box now answers "nj teams ranked by opr" and "nj teams opr" too, with a link to New Jersey's OPR board.
 
@@ -26,6 +26,25 @@ The search box now answers "nj teams ranked by opr" and "nj teams opr" too, with
 
 ### Fixed
 - 5.7.4 answered these two failed searches on the results page, but the search box's short list (and the owner's re-check of a failed search, which asks the same way) still said "Sorry" for "nj teams ranked by opr" and listed matching names for "nj teams opr". In the box, a board of teams with no team named was left to the asks' short cards, which don't read these wordings. A board of teams those cards don't read now gets the board's own short card, a link to the page's list, as the other boards do in the box. Boards the asks read ("best opr in nj"), event boards, penalty boards and boards with no "teams" said keep their cards as before. Asked of every held-out question in the box, 10 more that said "Sorry" ("top 5 teams in Romania by rating, not OPR", "best team in Oradell, NJ, by record") now get the same board title as their results page, and nothing else changed but the board link's query, now as typed. (`server/api/query/execute.ts`) (#1412)
+
+## 5.7.8 — 2026-11-12
+
+Six more kinds of ranked list in search: filters on the OPR board, a rating-gain board, events by average score, and unbeaten teams at championships.
+
+### Highlights
+- [fixes] "OPR team that has never won an award" leaves out award winners
+- [fixes] "teams with a name that includes Robot" filters the OPR board
+- [fixes] "fastest growing team by rating gain" ranks the rating gained
+- [fixes] "highest average match score in Romania" ranks Romania's events
+- [fixes] "a perfect 8-0 record at any championship" lists unbeaten runs
+
+### Fixed
+- "top teams opr at worlds decode" and "top teams by teleop opr at worlds decode" (failed searches from the live site) showed Worlds' board on the results page, but the search box answered "No team, event or match matched". An event's board now gives the box its link to the results page. (#1381)
+- "highest OPR team that has never won an award" (#1389): the OPR board, without any team that has an award on record in any season (winning and finalist alliances count). The card says which season awards start from.
+- "show me teams with a name that includes Robot, sorted by OPR" (#1394): the OPR board of the teams whose name has those letters anywhere in it. The word after "name that includes" is the filter, never read as a team's name.
+- "whats the fastest growing team in the world in 2025-26, by rating gain across the season" (#1392): the prediction rating gained, from the weekly Rankings snapshot after each team's first event to its season rating after its last. "Gain" with OPR keeps the OPR-gained board.
+- "which event had the highest average match score in Romania this season" (#1390): a place's official events ranked by average alliance score, divisions counted with their event, once 10 matches are played. With nothing played yet this season, it shows the season before and says so.
+- "teams with a perfect 8-0 record at any championship event this season" (#1391): every team with at least one win and no losses at a league, state or regional championship or Worlds, with its record there, one row per team and event. A record like "8-0" beside "perfect" or "record" is read as no losses.
 
 ## 5.7.7 — 2026-11-12
 
