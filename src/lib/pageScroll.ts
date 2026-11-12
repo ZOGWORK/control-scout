@@ -13,10 +13,10 @@
 // - A #hash scrolls to its element once it exists: gliding there for a #link followed on this page, at once
 //   on arrival from another page.
 //
-// The page glides to whatever it's sent to on the page itself (html's scroll-behavior: smooth, index.css), so a
-// jump this module makes on a route change, a restore or a drag's edge scroll goes through jumpPageTo, which is
-// always instant: a new page never slides up from the old page's position. Under prefers-reduced-motion every
-// jump is instant (index.css, smoothBehavior).
+// On desktop the page glides to whatever it's sent to on the page itself (html's scroll-behavior: smooth,
+// index.css, under SMOOTH_SCROLL_QUERY), so a jump this module makes on a route change, a restore or a drag's
+// edge scroll goes through jumpPageTo, which is always instant: a new page never slides up from the old page's
+// position. Phones, tablets and prefers-reduced-motion get instant jumps everywhere (index.css, smoothBehavior).
 //
 // It also marks the page area while it is scrolling (`data-scrolling` on the content's parent), so CSS
 // can hold the ambient background still meanwhile and put a shield over the page that takes a resting
@@ -108,7 +108,7 @@ export function scrollToElement(el: Element, behavior: ScrollBehavior = "auto") 
   const margin = parseFloat(getComputedStyle(el).scrollMarginTop) || 0;
   const page = pageScroller();
   const y = Math.max(0, Math.round(el.getBoundingClientRect().top + page.scrollTop - margin));
-  if (behavior === "smooth" && !prefersReducedMotion()) window.scrollTo({ top: y, behavior });
+  if (behavior === "smooth" && smoothScrolling()) window.scrollTo({ top: y, behavior });
   else jumpPageTo(y);
 }
 
@@ -117,13 +117,25 @@ export function prefersReducedMotion(): boolean {
   try { return typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true; } catch { return false; }
 }
 
-/** The behavior for a jump the reader asked for (a link, a button, a tab): smooth, or instant under reduced motion. */
+/**
+ * The screens that get smooth scrolling: a desktop or laptop (at least the desktop layout's width, with a mouse
+ * or trackpad that hovers) whose reader hasn't asked for reduced motion. Phones and tablets (touch first, or
+ * narrow) keep native, instant jumps. index.css gives html scroll-behavior: smooth under the same query.
+ */
+export const SMOOTH_SCROLL_QUERY = "(min-width: 1024px) and (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)";
+
+/** Whether scrolls the app makes may glide (SMOOTH_SCROLL_QUERY): desktop only, never under reduced motion. */
+export function smoothScrolling(): boolean {
+  try { return typeof window !== "undefined" && window.matchMedia?.(SMOOTH_SCROLL_QUERY).matches === true && !prefersReducedMotion(); } catch { return false; }
+}
+
+/** The behavior for a jump the reader asked for (a link, a button, a tab): smooth on desktop, otherwise instant. */
 export function smoothBehavior(): ScrollBehavior {
-  return prefersReducedMotion() ? "auto" : "smooth";
+  return smoothScrolling() ? "smooth" : "auto";
 }
 
 /**
- * Puts the page at `y` (or moves it by `by`) at once. html's scroll-behavior: smooth (index.css) would make a
+ * Puts the page at `y` (or moves it by `by`) at once. html's scroll-behavior: smooth (index.css, desktop) would make a
  * plain scrollTop write glide, so the root's own style says "auto" for the write: the browser reads the
  * behavior when the write happens, and putting the style back afterwards doesn't animate it. (Not
  * window.scrollTo({ behavior: "instant" }): older Safari rejects that value outright.) It also stops a glide

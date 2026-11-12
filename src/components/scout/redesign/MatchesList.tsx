@@ -4,6 +4,7 @@
 // page can pass who has the other teams (`others`), shown under each row.
 // Built for 30–120 rows: statuses are worked out once per input change, rows are memoized and skip
 // layout off screen (content-visibility), and "Jump to now" scrolls to the current match.
+import { smoothBehavior } from "../../../lib/pageScroll";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LocateFixed } from "lucide-react";
 import { Button } from "../../ui/button";
@@ -183,7 +184,7 @@ export function MatchesList({ schedule, watching, scouted, currentIndex, nextInd
     setJumps((n) => n + 1);
   };
   useEffect(() => {
-    if (jumps) listRef.current?.querySelector<HTMLElement>(`[data-index="${currentIndex}"]`)?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+    if (jumps) listRef.current?.querySelector<HTMLElement>(`[data-index="${currentIndex}"]`)?.scrollIntoView?.({ block: "center", behavior: smoothBehavior() });
     // Only a tap scrolls; a new current match doesn't move the list under the scout's finger.
   }, [jumps]);
   // A list that scrolls inside its own box opens on the current match. Only the box moves, never the page.

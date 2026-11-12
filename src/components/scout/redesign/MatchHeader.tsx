@@ -3,6 +3,7 @@
 // alliances with the teams this scout watches picked out. Built from the app's own pieces: the alliance boxes and
 // team highlight are MatchRow's (components/predict.tsx), the states are EmptyState / Skeleton / OfflineNote's look. ScheduleState is the line or card the page shows
 // instead while the schedule loads, isn't published, or can't be fetched.
+import { smoothBehavior } from "../../../lib/pageScroll";
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, CalendarX, ChevronLeft, ChevronRight, RefreshCw, WifiOff } from "lucide-react";
 import { Button } from "../../ui/button";
@@ -69,8 +70,8 @@ export function MatchHeader({ schedule, index, watching, progress, onIndex, next
     // From both boxes, so where the strip sits on the page never counts.
     const sr = strip.getBoundingClientRect(), cr = cur.getBoundingClientRect();
     const left = strip.scrollLeft + (cr.left - sr.left) - (strip.clientWidth - cr.width) / 2;
-    const reduce = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (typeof strip.scrollTo === "function") strip.scrollTo({ left: Math.max(0, left), behavior: reduce ? "auto" : "smooth" });
+    // Glides on desktop; instant on phones, tablets and under reduced motion (smoothBehavior).
+    if (typeof strip.scrollTo === "function") strip.scrollTo({ left: Math.max(0, left), behavior: smoothBehavior() });
     else strip.scrollLeft = Math.max(0, left);
   }, [index, schedule.length]);
 

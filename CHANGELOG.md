@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.7.0 — 2026-11-11
+
+Smooth scrolling is for desktops and laptops only: phones, tablets and reduced motion jump straight to the spot.
+
+### Highlights
+- [appearance] On a computer, links and buttons that move the page glide there
+- [fixes] Phones and tablets jump at once, as the phone itself scrolls
+- [fixes] A new page still opens at the top at once, never sliding up
+
+### Changed
+- Gliding jumps (a #link, the skip link, "see the odds", a scrolled-to card) now need a desktop: at least 1024px wide, with a mouse or trackpad, and no reduced-motion setting. Phones and tablets get the browser's native, instant jumps. CSS and the app's own scrolls use one query, `SMOOTH_SCROLL_QUERY`. (`src/index.css`, `src/lib/pageScroll.ts`)
+- Scouting's scroll to the top after a save or a pit pick, the match list's "current match" jump, the match chip strip, the first-run tour, How it works' section strip and contents links, and the sliding segmented control followed reduced motion only; they now follow the same desktop rule. (`src/pages/ScoutPage.tsx`, `src/components/scout/redesign/*`, `src/components/layout/FirstRunTour.tsx`, `src/components/howitworks/SectionNav.tsx`, `src/components/arc/segmented-control/segmented-control.tsx`) (#1399)
+
 ## 5.6.9 — 2026-11-11
 
 Search answers a question about two teams' past matches with the matches they really played.

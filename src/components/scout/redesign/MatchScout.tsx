@@ -2,6 +2,7 @@
 // scout watches (team tabs, one phase at a time, the match timer), saved as one entry per team with one Save
 // that moves on to the next match. The pieces are the redesign's own (MatchHeader, TeamTabs, PhaseForm,
 // SaveMatchBar, useMatchDraft); this joins them to the page's state.
+import { smoothBehavior } from "../../../lib/pageScroll";
 import { useEffect, useMemo, useState } from "react";
 import { MatchHeader, ScheduleState } from "./MatchHeader";
 import { StatusDot, TeamTabs } from "./TeamTabs";
@@ -79,7 +80,7 @@ export function MatchScout(p: MatchScoutProps) {
       {/* A match of its own: its timer, phase and open tab start fresh. */}
       <OneMatch key={`${p.space ?? "personal"}:${p.season}:${session.eventCode}:${schedule.matches[index].key}`} {...p} match={schedule.matches[index]}
         nextLabel={index + 1 < schedule.matches.length ? schedule.matches[index + 1].label : null} nextIndex={Math.min(index + 1, schedule.matches.length - 1)}
-        onSaved={(i) => { p.onAnySave?.(); p.onMatch(schedule.matches[i].label); window.scrollTo({ top: 0, behavior: "smooth" }); }} />
+        onSaved={(i) => { p.onAnySave?.(); p.onMatch(schedule.matches[i].label); window.scrollTo({ top: 0, behavior: smoothBehavior() }); }} />
     </div>
   );
 }

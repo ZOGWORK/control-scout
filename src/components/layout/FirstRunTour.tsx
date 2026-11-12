@@ -17,6 +17,7 @@
 // it while focus is there; ←/→ step back and forth, Enter on the card goes on,
 // Esc skips. Focus goes back where it was when the tour ends. Reduced motion:
 // no smooth scrolling and no sliding spotlight.
+import { smoothBehavior } from "../../lib/pageScroll";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -333,7 +334,7 @@ export function TourOverlay({ step, index: i, count, body, docked = false, prima
   useLayoutEffect(() => {
     if (docked) { setBox(null); return; }
     let el = findTarget(step);
-    if (el) el.scrollIntoView({ block: "center", inline: "nearest", behavior: reduced ? "auto" : "smooth" });
+    if (el) el.scrollIntoView({ block: "center", inline: "nearest", behavior: smoothBehavior() });
     let raf = 0;
     let until = performance.now() + 900;
     let had = !!el;

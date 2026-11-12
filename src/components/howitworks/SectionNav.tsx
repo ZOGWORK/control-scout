@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { m } from "../motion";
 import { cn } from "../cn";
 import { useReduced } from "./ui";
-import { pageScroller, pageTop, scrollToElement } from "../../lib/pageScroll";
+import { pageScroller, pageTop, scrollToElement, smoothBehavior } from "../../lib/pageScroll";
 import { scrollStripTo, stopStripGlide } from "../../lib/revealInStrip";
 
 export const SECTIONS = [
@@ -40,7 +40,7 @@ export function activeSection(tops: readonly SectionTop[], y: number, line: numb
 export function scrollToId(id: string, reduced: boolean) {
   const el = document.getElementById(id);
   if (!el) return;
-  scrollToElement(el, reduced ? "auto" : "smooth");
+  scrollToElement(el, reduced ? "auto" : smoothBehavior());
   history.replaceState(history.state, "", `#${id}`);
 }
 
@@ -90,7 +90,7 @@ export function SectionNav({ sections = SECTIONS }: { sections?: readonly NavSec
     if (!box || !a) return;
     const l = a.offsetLeft, r = l + a.offsetWidth;
     // Already showing: a glide still heading for the section just left stops here (src/lib/revealInStrip.ts).
-    if (l < box.scrollLeft || r > box.scrollLeft + box.clientWidth) scrollStripTo(box, l - 12, reduced ? "auto" : "smooth");
+    if (l < box.scrollLeft || r > box.scrollLeft + box.clientWidth) scrollStripTo(box, l - 12, reduced ? "auto" : smoothBehavior()); // glides on desktop only
     else stopStripGlide(box);
   }, [active, reduced]);
 
