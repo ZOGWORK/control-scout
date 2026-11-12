@@ -224,6 +224,27 @@ curious", "only", "da") are filler and never a team's name. No season said follo
 the current season once a team is ranked in it, else the one before, said ("No 2026–27 ranked teams yet in Romania;
 showing 2025–26").
 
+Filters and measures of its own (5.7.8, from failed searches #1381 and #1389–#1394):
+
+- **Part of a name** (lexicon `name-has`: "with a name that includes", "name contains"): the word after it, read before
+  any team's name so it is never a team, keeps the teams whose name has it ("teams with a name that includes Robot,
+  sorted by OPR").
+- **No award ever won** (`no-award`: "never won an award"): the teams with no award on record in any season, winning and
+  finalist alliances counted; the card says which season awards start from.
+- **Gain over the season** (`gain`: "fastest growing", "gain", "growth"): the OPR gained from a team's first event to
+  its last, or, with the rating said, the prediction rating from the weekly snapshot after its first event to its season
+  rating.
+- **Unbeaten at a kind of event**: undefeated with a kind of event ("a perfect 8-0 record at any championship event"; a
+  record like "8-0" beside "perfect" or "record" is no losses) lists each team with a win and no loss at one such event,
+  its record there. "Championship" is the championship level: league tournaments, state and regional championships
+  and Worlds.
+- **Events by average match score** (intent `event-scores`: an event, an average and a score, no event named): a place's
+  official events ranked by the mean alliance score, divisions with their event, once 10 matches are played
+  (`answers/families/eventScores.ts`).
+
+These boards, and the teams at Worlds, give the search box a link to the results page; an event named keeps the box's
+own event results.
+
 ## A team's wins and losses
 
 A win or a loss said with one team's match question is a filter on its matches, in any of its words ("lose", "lost",
