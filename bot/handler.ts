@@ -4,10 +4,10 @@
 // event list and never throws.
 import { MessageFlags, PermissionFlagsBits, type APIEmbed, type AutocompleteInteraction, type ChatInputCommandInteraction, type Interaction } from "discord.js";
 import { AnswerCache, Cooldown } from "./guard.js";
-import { FOOTER, Friendly, VOLT, errorEmbed, unavailableEmbed } from "./views.js";
+import { FOOTER, Friendly, VOLT, errorEmbed, pride, unavailableEmbed } from "./views.js";
 import { addFollow, followingEmbed, listFollows, removeFollow } from "./follows.js";
 import { BOT_COMMANDS } from "../src/shared/discord.js";
-import { eventChoices, eventLookup, predictLookup, rankChoices, rankingsLookup, teamLookup } from "./lookups.js";
+import { eventChoices, eventLookup, predictLookup, rankChoices, rankingsLookup, site, teamLookup } from "./lookups.js";
 import { isEnabled } from "../server/flags.js";
 import { featureOffMessage } from "../src/shared/flags.js";
 
@@ -34,7 +34,7 @@ export const realLookups: Lookups = {
   choices: async (typed) => rankChoices(await eventChoices(), typed),
   follow: addFollow,
   unfollow: removeFollow,
-  following: async (guild) => followingEmbed(await listFollows(guild)),
+  following: async (guild) => followingEmbed(await listFollows(guild), site()),
   enabled: (flag) => isEnabled(flag),
 };
 
@@ -119,12 +119,12 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
   async function command(i: ChatInputCommandInteraction): Promise<void> {
     // Switched off by the owner: a short, private note for whoever asked, and nothing else runs (follows are kept).
     if (lookups.enabled && !(await lookups.enabled("discordBot"))) {
-      await i.reply({ embeds: [errorEmbed(BOT_OFF_TITLE, "Control Scout's Discord bot is turned off by the owner right now. Everything on controlscout.org still works, and this server's follows are kept for when it's back.")], flags: MessageFlags.Ephemeral });
+      await i.reply({ embeds: [pride(errorEmbed(BOT_OFF_TITLE, "Control Scout's Discord bot is turned off by the owner right now. Everything on controlscout.org still works, and this server's follows are kept for when it's back."))], flags: MessageFlags.Ephemeral });
       return;
     }
     const wait = cooldown.take(i.user.id);
     if (wait > 0) {
-      await i.reply({ embeds: [errorEmbed("Slow down", `One command every 3 seconds. Try again in ${Math.ceil(wait / 1000)} s.`)], flags: MessageFlags.Ephemeral });
+      await i.reply({ embeds: [pride(errorEmbed("Slow down", `One command every 3 seconds. Try again in ${Math.ceil(wait / 1000)} s.`))], flags: MessageFlags.Ephemeral });
       return;
     }
     await i.deferReply();
@@ -138,7 +138,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
         embed = unavailableEmbed();
       }
     }
-    await i.editReply({ embeds: [embed] });
+    await i.editReply({ embeds: [pride(embed)] });
   }
 
   async function autocomplete(i: AutocompleteInteraction): Promise<void> {
