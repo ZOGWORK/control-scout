@@ -98,12 +98,17 @@ describe("sitemap", () => {
     expect((await pageMeta("/download")).bodyHtml).toBeUndefined();
     writePacks();
     expect(await has()).toBe(true);
+    // lastmod: the day of the data the files hold (dataAsOf), never the build date of the sitemap.
+    expect((await sitemapEntries()).find((x) => x.loc === "https://controlscout.org/download")?.lastmod).toBe("2026-11-10");
     const body = (await pageMeta("/download")).bodyHtml!;
     expect(body).toContain("<h2>Season files</h2>");
     expect(body).toContain("2025–26");
     expect(body).toContain("6.3 MB");
     expect(body).toContain("a plain SQLite file.");
     expect(body).not.toContain("href="); // no link to a 40 MB file for a crawler to fetch
+    // An older manifest with no season files listed: the offline pack alone, never a failed page.
+    const { downloadHtml } = await import("./seoMeta");
+    expect(downloadHtml("Lead.", { format: 1, version: "v", builtAt: "2026-11-01T00:00:00Z", engineVersion: "x", dataAsOf: null, lite: null, full: undefined as never })).toBe("<p>Lead.</p><p><small>Built 2026-11-01.</small></p>");
     // Offline packs switched off by the owner: the page offers nothing, so out again.
     await setFlag("offlinePacks", false, "test");
     expect(await has()).toBe(false);
