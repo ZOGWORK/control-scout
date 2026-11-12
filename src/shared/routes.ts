@@ -7,13 +7,14 @@
 /** A lazily loaded page module under src/pages (the file name without .tsx). */
 export type PageModule =
   | "TeamPage" | "EventsPage" | "RecordsPage" | "RankingsPage" | "EventPage" | "PredictPage" | "ComparePage" | "MyTeamPage" | "MyTeamsPage"
-  | "ShortlistPage" | "ScoutPage" | "DownloadPage" | "SettingsPage" | "MethodologyPage" | "SearchDocsPage" | "PrivacyPage" | "TermsPage" | "ContactPage" | "DonatePage" | "SupportersPage" | "FaqPage" | "RulesPage" | "MatchReportPage" | "PowerRankingsPage" | "EventDisplayPage" | "EventCodeRedirect" | "DigestUnsubscribedPage" | "BundlePage" | "SearchPage" | "RelatedSearchesPage" | "LeaguePage" | "ContributorPage" | "GetVerifiedPage" | "VerifyVideoPage" | "NotFound";
+  | "ShortlistPage" | "ScoutPage" | "DownloadPage" | "SettingsPage" | "MethodologyPage" | "SearchDocsPage" | "PrivacyPage" | "TermsPage" | "ContactPage" | "DonatePage" | "SupportersPage" | "FaqPage" | "RulesPage" | "MatchReportPage" | "PowerRankingsPage" | "EventDisplayPage" | "EventCodeRedirect" | "DigestUnsubscribedPage" | "BundlePage" | "SearchPage" | "RelatedSearchesPage" | "LeaguePage" | "TeamHighlightsPage" | "ContributorPage" | "GetVerifiedPage" | "VerifyVideoPage" | "NotFound";
 
 // React Router matches case-insensitively, a trailing slash included: so do these.
 const ROUTES: [RegExp, PageModule | null][] = [
   [/^\/$/, null], // Home is in the main bundle.
   [/^\/(teams|matches)\/?$/i, "RecordsPage"],
   [/^\/teams\/[^/]+\/?$/i, "TeamPage"],
+  [/^\/teams\/[^/]+\/highlights\/?$/i, "TeamHighlightsPage"],
   [/^\/rankings\/?$/i, "RankingsPage"],
   [/^\/events\/?$/i, "EventsPage"],
   // A season alone (/events/2025) is no event: the page not found, as EventCodeRedirect renders it.

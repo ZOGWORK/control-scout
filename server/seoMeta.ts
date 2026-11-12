@@ -37,6 +37,8 @@ import { isWeekId, weekLabel, type PowerRankingsResponse } from "../src/shared/p
 import { trackRecordIfReady } from "./api/accuracy.js";
 import { isEnabled } from "./flags.js";
 import { downloadsOffered, presentManifest } from "./packs/routes.js";
+import { highlightsPath, teamHighlightsPage, type TeamHighlightsPage } from "./teamHighlightsPage.js";
+import type { StatBlock } from "../src/shared/searchStat.js";
 import type { Manifest } from "./packs/build.js";
 import type { SearchCardLine, SearchFollowUps, SearchIntentNote, TrackRecord } from "../src/shared/api.js";
 import { compareTitle } from "../src/shared/compareUrl.js";
@@ -785,6 +787,9 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
     let m: RegExpMatchArray | null;
     // Any number of digits: the value is what counts (/teams/0004215 is team 4215, as in the app; a huge one is out of range).
     if ((m = p.match(/^\/teams\/(\d+)$/i))) return await teamMeta(Number(m[1]), qstr(query.season) ?? undefined);
+    // A team's highlights page (server/teamHighlightsPage.ts): Search's "<team> highlights" answer, whole, in the first
+    // HTML. Not found for a team with none (no page to index, or no match to pick from): never an empty page.
+    if ((m = p.match(/^\/teams\/(\d+)\/highlights$/i))) return (await teamHighlightsMeta(Number(m[1]))) ?? NOT_FOUND;
     // An event address without its season that got this far wasn't redirected (server/app.ts): no such event.
     if (/^\/events\/[^/]+$/i.test(p)) return NOT_FOUND;
     // The season by value too (/events/02025/X is 2025, as in the app and the API).
@@ -989,4 +994,44 @@ export function downloadHtml(lead: string, m: Manifest): string {
   const asOf = m.dataAsOf ? ` Data as of ${m.dataAsOf.slice(0, 10)}.` : "";
   return `<p>${esc(lead)}</p>${full ? `<h2>Season files</h2><ul>${full}</ul>` : ""}`
     + (m.lite ? `<h2>Offline predictions</h2><ul>${item("Offline prediction pack", m.lite)}</ul>` : "") + `<p><small>Built ${esc(m.builtAt.slice(0, 10))}.${esc(asOf)}</small></p>`;
+}
+
+/** A team's highlights page: its title and description name the team, the intent and the season; its first HTML is
+ *  the whole answer (the headline, every standout match with why it's there, score, partners and opponents, every
+ *  match of the season) and a link to the team's page. The app's data for the page rides along (src/lib/pageData.ts). */
+async function teamHighlightsMeta(n: number): Promise<PageMeta | null> {
+  const page = await teamHighlightsPage(n);
+  if (!page) return null;
+  const { team, stat } = page;
+  const who = teamHeading(team.number, team.name);
+  const S = stat.scope[0] ?? "";
+  const standout = stat.blocks.find((b): b is Extract<StatBlock, { kind: "matches" }> => b.kind === "matches");
+  const picks = standout?.rows ?? [];
+  const title = `${who} highlights${S ? `, ${S}` : ""}`;
+  // "Best score without penalties: Q1 at North Meet 3" and "110 points": "best score without penalties, 110 points, in Q1 at North Meet 3".
+  const hl = stat.headline, [why, where] = hl ? [hl.label.split(": ")[0], hl.label.split(": ").slice(1).join(": ")] : ["", ""];
+  const best = hl ? `${why.charAt(0).toLowerCase()}${why.slice(1)}, ${hl.value}${where ? `, in ${where}` : ""}` : "";
+  const more = picks.slice(1).map((r) => r.note?.toLowerCase()).filter(Boolean);
+  const description = fitDescription(`${who}'s standout FTC matches of ${S}${best ? `: ${best}` : ""}${more.length ? `; also its ${more.join(", ")}` : ""}. Scores, partners and match videos.`);
+  return { title, heading: title, description, type: "website", path: highlightsPath(team.number), bodyHtml: highlightsHtml(page), pageData: { [`/api/teams/${team.number}/highlights`]: page } };
+}
+
+const resultWord = (r: "W" | "L" | "T") => (r === "W" ? "Won" : r === "L" ? "Lost" : "Tied");
+
+/** The highlights answer as text (the app's card, server/teamHighlightsPage.ts). */
+export function highlightsHtml({ team, stat }: TeamHighlightsPage): string {
+  const a = (l: { label: string; href: string }) => `<a href="${esc(l.href)}">${esc(l.label)}</a>`;
+  const hl = stat.headline;
+  const head = hl ? `<p><b>${hl.href ? a({ label: hl.value, href: hl.href }) : esc(hl.value)}</b> · ${esc(hl.label)}${hl.sub ? `<br><small>${esc(hl.sub)}</small>` : ""}</p>` : "";
+  const blocks = stat.blocks.map((b) => {
+    if (b.kind === "matches") return `<h2>${esc(b.title)}</h2><ol>${b.rows.map((r) => {
+      const np = r.ownNp != null && r.ownNp !== r.own ? ` (${r.ownNp} without penalties)` : "";
+      const sides = [r.partners?.length ? `with ${r.partners.map(a).join(", ")}` : "", r.opponents?.length ? `against ${r.opponents.map(a).join(", ")}` : ""].filter(Boolean).join(" ");
+      return `<li>${r.note ? `<b>${esc(r.note)}</b>: ` : ""}${a(r)} at ${a(r.event)}${r.date ? `, ${esc(r.date)}` : ""} · ${resultWord(r.result)} ${r.own}–${r.opp}${esc(np)}${sides ? `<br><small>${sides}</small>` : ""}</li>`;
+    }).join("")}</ol>`;
+    if (b.kind === "videos" && b.tiles.length) return `<h2>${esc(b.title)}</h2><ul>${b.tiles.map((t) => `<li>${a(t)}${t.event ? ` · ${esc(t.event)}` : ""} · red ${esc(t.red.join(", "))} ${t.redScore}–${t.blueScore} blue ${esc(t.blue.join(", "))}</li>`).join("")}</ul>`;
+    return "";
+  }).join("");
+  return head + blocks + `<p><small>${esc(stat.definition)}<br>${esc(stat.source)}</small></p>`
+    + `<p><a href="/teams/${team.number}">${esc(teamHeading(team.number, team.name))}: team page</a></p>`;
 }
