@@ -16,6 +16,7 @@ import { matchVideo, parseRule, type ChannelRule, type Verdict, type WatchEvent,
 
 export const WATCH_EVERY_MS = 6 * 3600_000;
 const RUN_STALE_MS = 25 * 60_000;
+const NEVER_FINISHED = "database busy or a restart: the run never finished, tried again within 30 minutes";
 const BUSY_STOP = "database busy (the data sync was writing): stopped, tried again within 30 minutes";
 /** The last run that counts for the 6-hour wait: one that finished, and wasn't cut short by a busy database (those are
  * tried again on the next half-hourly check, like a run that never started). */
@@ -113,17 +114,25 @@ export async function runOfficialWatch(log: (s: string) => void, opts: { apiKey?
   const out: WatchRun = { units: 0, channels: 0, seen: 0, added: 0, queued: 0, duplicates: 0, error: null };
   // A failed start (a busy database) must not leave the watcher latched off for the rest of the process.
   let runId = 0;
-  // The run's claim, under the lease, so it holds across processes too: not while another run is going (one unfinished
-  // and under 25 minutes old: older is a run that died), and for a scheduled check, not within 6 hours of the last
-  // run that counts. The sync holding the lease now: skip this run (no row, nothing read); the next check tries again.
+  // The run's claim, under the lease, so it holds across processes too. Not while another run is going: one unfinished
+  // that started, or wrote a channel's checked_at (every channel ends with one), in the last 25 minutes; past that it
+  // died (a restart), and is closed here as never finished, which doesn't count toward the 6-hour wait. For a scheduled
+  // check, also not within 6 hours of the last run that counts. The sync holding the lease now: skip this run (no row,
+  // nothing read); the next check tries again.
   const at = now();
+  const stale = new Date(at - RUN_STALE_MS).toISOString();
   try {
-    runId = await locked(async () => Number((await get<{ id: number }>(
-      `INSERT INTO official_watch_runs (started_at) SELECT ?1
-       WHERE NOT EXISTS (SELECT 1 FROM official_watch_runs WHERE finished_at IS NULL AND started_at > ?2)
-         AND (?3 IS NULL OR NOT EXISTS (SELECT 1 FROM official_watch_runs WHERE finished_at IS NOT NULL AND COALESCE(error, '') NOT LIKE 'database busy%' AND started_at > ?3))
-       RETURNING id`,
-      [new Date(at).toISOString(), new Date(at - RUN_STALE_MS).toISOString(), opts.scheduled ? new Date(at - WATCH_EVERY_MS).toISOString() : null]))?.id ?? 0));
+    runId = await locked(async () => {
+      const id = Number((await get<{ id: number }>(
+        `INSERT INTO official_watch_runs (started_at) SELECT ?1
+         WHERE NOT EXISTS (SELECT 1 FROM official_watch_runs r WHERE r.finished_at IS NULL
+                             AND (r.started_at > ?2 OR EXISTS (SELECT 1 FROM official_channels c WHERE c.checked_at > ?2 AND c.checked_at >= r.started_at)))
+           AND (?3 IS NULL OR NOT EXISTS (SELECT 1 FROM official_watch_runs WHERE finished_at IS NOT NULL AND COALESCE(error, '') NOT LIKE 'database busy%' AND started_at > ?3))
+         RETURNING id`,
+        [new Date(at).toISOString(), stale, opts.scheduled ? new Date(at - WATCH_EVERY_MS).toISOString() : null]))?.id ?? 0);
+      if (id) await run("UPDATE official_watch_runs SET finished_at = ?, error = ? WHERE finished_at IS NULL AND id < ?", [new Date(at).toISOString(), NEVER_FINISHED, id]);
+      return id;
+    });
   } catch (e) { busy = false; if (e instanceof LockBusy) return null; throw e; }
   if (!runId) { busy = false; return null; }
   try {

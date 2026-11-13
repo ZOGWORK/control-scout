@@ -208,10 +208,18 @@ describe("the official-video watcher", () => {
     const T2 = T + 3 * 3600_000;
     await run("INSERT INTO official_watch_runs (started_at) VALUES (?)", [new Date(T2 - 60_000).toISOString()]);
     expect(await runOfficialWatch(() => {}, opts(T2))).toBeNull();
-    expect(await runOfficialWatch(() => {}, opts(T2 + 26 * 60_000))).not.toBeNull();
+    // A long run still going (started 40 minutes ago, a channel checked a minute ago) blocks it too.
+    const T3 = T2 + 2 * 3600_000;
+    const long = await get<{ id: number }>("INSERT INTO official_watch_runs (started_at) VALUES (?) RETURNING id", [new Date(T3 - 40 * 60_000).toISOString()]);
+    await run("UPDATE official_channels SET checked_at = ? WHERE channel_id = ?", [new Date(T3 - 60_000).toISOString(), TX]);
+    expect(await runOfficialWatch(() => {}, opts(T3))).toBeNull();
+    // Once it has gone quiet for 25 minutes it's dead: a new run starts and closes it as never finished.
+    expect(await runOfficialWatch(() => {}, opts(T3 + 26 * 60_000))).not.toBeNull();
+    expect(await get<any>("SELECT error FROM official_watch_runs WHERE id = ?", [long!.id])).toMatchObject({ error: expect.stringMatching(/never finished/) });
+    expect(await get<any>("SELECT COUNT(*) AS n FROM official_watch_runs WHERE finished_at IS NULL")).toMatchObject({ n: 0 });
     // A scheduled check re-checks the 6-hour wait as it claims the run (another process may have just run).
-    expect(await runOfficialWatch(() => {}, { ...opts(T2 + 60 * 60_000), scheduled: true })).toBeNull();
-    expect(await runOfficialWatch(() => {}, { ...opts(T2 + 7 * 3600_000), scheduled: true })).not.toBeNull();
+    expect(await runOfficialWatch(() => {}, { ...opts(T3 + 60 * 60_000), scheduled: true })).toBeNull();
+    expect(await runOfficialWatch(() => {}, { ...opts(T3 + 7 * 3600_000), scheduled: true })).not.toBeNull();
   });
 
   it("checks a channel the owner adds or edits", async () => {
