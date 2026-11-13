@@ -21,7 +21,7 @@ const NODES = [
   node("PRIVATE", "amy", "2026-12-07T00:00:00Z"), // public once: stays listed
 ];
 const reply = (nodes: unknown[], hasNextPage = false, endCursor: string | null = null) =>
-  new Response(JSON.stringify({ data: { viewer: { sponsorshipsAsMaintainer: { pageInfo: { hasNextPage, endCursor }, nodes } } } }), { status: 200 });
+  new Response(JSON.stringify({ data: { organization: { sponsorshipsAsMaintainer: { pageInfo: { hasNextPage, endCursor }, nodes } } } }), { status: 200 });
 
 const saved = process.env.GITHUB_SPONSORS_TOKEN;
 afterEach(() => { setSponsorsFetch(null); clearAllCaches(); if (saved === undefined) delete process.env.GITHUB_SPONSORS_TOKEN; else process.env.GITHUB_SPONSORS_TOKEN = saved; });

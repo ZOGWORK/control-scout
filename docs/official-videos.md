@@ -27,8 +27,9 @@ auto-watcher uses the same rules):
 2. It's a live broadcast whose start, at the venue, falls inside the event's dates in Scout. An upload has no
    broadcast date, so it can't prove its day, and is left out.
 3. Its title names the event: a distinctive word of the event's name or city (the league, the venue, "Mockingbird"),
-   or the event's designators (an NTX league letter, a meet number, a UIL class, a stage). A state or region name
-   alone counts only for that region's one championship on that date.
+   or the event's designators (an NTX league letter, a meet number, a UIL class, a stage). An event named by an
+   acronym ("APOC") also fits a title spelling it out in words in a row ("Asia Pacific Open Championship"); a common
+   one ("FTC") never counts. A state or region name alone counts only for that region's one championship on that date.
 4. Where the event has divisions, the title names the division ("COANDĂ", "Franklin", "Black"), and a division video
    never goes to another division or to the parent event. A parent event gets only a video that names no division
    (Romania's Finals & awards stream).

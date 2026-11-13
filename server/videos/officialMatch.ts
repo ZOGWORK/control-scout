@@ -49,6 +49,16 @@ const STOP = new Set(("the a of and de la le at in on for by with from first tec
   + "quals finals final playoffs full recording part city usa remote hybrid " + US).split(" "));
 export const norm = (s: string | null | undefined) => (s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 const toks = (s: string, extra: Set<string>) => new Set(norm(s).split(" ").filter((t) => t.length > 2 && !/^\d+$/.test(t) && !STOP.has(t) && !extra.has(t)));
+/** The acronyms an event's name goes by: its all-capital words of 3 letters or more ("APOC"), lowercased, leaving out
+ *  the common ones ("FTC") and the region's own words. */
+const acronyms = (name: string, extra: Set<string>) => (name.match(/\b[A-Z]{3,}\b/g) ?? []).map((w) => w.toLowerCase()).filter((a) => !STOP.has(a) && !extra.has(a));
+/** Every acronym a title spells out with 3 to 6 words in a row ("Asia Pacific Open Championship" → "apoc"). */
+function spelled(title: string): Set<string> {
+  const w = norm(title).split(" ").filter((t) => /^[a-z]/.test(t));
+  const out = new Set<string>();
+  for (let i = 0; i < w.length; i++) for (let n = 3; n <= 6 && i + n <= w.length; n++) out.add(w.slice(i, i + n).map((t) => t[0]).join(""));
+  return out;
+}
 
 const ROMAN: Record<string, number> = { i: 1, ii: 2, iii: 3, iv: 4, v: 5 };
 const num = (s: string) => ROMAN[s.toLowerCase()] ?? Number(s);
@@ -102,6 +112,7 @@ export function matchVideo(v: WatchVideo, rule: ChannelRule, events: WatchEvent[
   const extra = new Set(norm(rule.words).split(" ").filter(Boolean));
   const vt = toks(v.title, extra);
   const td = designators(v.title);
+  const spelledOut = spelled(v.title);
   const dn = /\bday\s*(\d)\b/i.exec(v.title)?.[1] ?? null;
   const dw = /\bday (one|two|three|four)\b/i.exec(v.title)?.[1]?.toLowerCase();
   const titleDay = dn ? Number(dn) : dw ? ({ one: 1, two: 2, three: 3, four: 4 } as Record<string, number>)[dw] : null;
@@ -139,6 +150,8 @@ export function matchVideo(v: WatchVideo, rule: ChannelRule, events: WatchEvent[
     for (const [re, ty] of TYPEHINT) if (re.test(v.title) && ty.includes(e.type)) score++;
     for (const k of ["letter", "uil", "stage", "n", "meet"] as const) if (td[k] != null && td[k] === ed[k]) { score++; real = true; }
     for (const t of vt) if (et.has(t)) { score++; real = true; }
+    // An event named by its acronym, and a title spelling it out: "APOC" and "Asia Pacific Open Championship".
+    for (const a of acronyms(e.name, extra)) if (!vt.has(a) && spelledOut.has(a)) { score++; real = true; }
     if (!real && idHit && score > 0) real = true;
     cands.push({ e, d, score, real, why });
   }
