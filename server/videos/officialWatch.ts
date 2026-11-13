@@ -11,10 +11,16 @@ import { recordAudit } from "../portal/audit.js";
 import { OFFICIAL_CHANNELS } from "../data/officialChannels.js";
 import { eventVideosByDay, forgetOfficial } from "./officialVideos.js";
 import { isoDuration } from "./youtube.js";
+import { STARTUP_CYCLE_MS } from "../warm.js";
 import { LockBusy, isBusy, lockHolder, withDataLock } from "../data/lock.js";
 import { matchVideo, parseRule, type ChannelRule, type Verdict, type WatchEvent, type WatchVideo } from "./officialMatch.js";
 
 export const WATCH_EVERY_MS = 6 * 3600_000;
+/** The half-hourly check's first one after boot: 7.5 minutes after the startup sync (server/warm.ts STARTUP_CYCLE_MS),
+ * so every check lands midway between the sync's 5-minute ticks, never as an event day's 15-minute sync starts and
+ * takes the writer lease. */
+export const WATCH_FIRST_MS = STARTUP_CYCLE_MS + 7.5 * 60_000;
+export const WATCH_CHECK_MS = 30 * 60_000;
 const RUN_STALE_MS = 25 * 60_000;
 const NEVER_FINISHED = "database busy or a restart: the run never finished, tried again within 30 minutes";
 const BUSY_STOP = "database busy (the data sync was writing): stopped, tried again within 30 minutes";
@@ -108,7 +114,7 @@ export async function runOfficialWatch(log: (s: string) => void, opts: { apiKey?
   const now = opts.now ?? Date.now;
   // Every write of the run under the shared writer lease (server/data/lock.ts): the data sync holds it through long
   // write transactions, which a write here would otherwise wait out and fail on. YouTube's reads stay outside it.
-  const locked = <T>(fn: () => Promise<T>) => withDataLock("official videos watcher", fn, { ttlMs: 60_000, waitMs: opts.lockWaitMs ?? 30_000, pollMs: 1000 });
+  const locked = <T>(fn: () => Promise<T>) => withDataLock("official videos watcher", fn, { ttlMs: 60_000, waitMs: opts.lockWaitMs ?? 3 * 60_000, pollMs: 1000 });
   const fetchImpl = opts.fetchImpl ?? fetch;
   const maxUnits = opts.maxUnits ?? MAX_UNITS;
   const out: WatchRun = { units: 0, channels: 0, seen: 0, added: 0, queued: 0, duplicates: 0, error: null };

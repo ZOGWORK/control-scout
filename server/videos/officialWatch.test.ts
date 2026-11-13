@@ -5,7 +5,8 @@
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { all, get, migrate, openDb, run, setDb } from "../db";
 import { OFFICIAL_CHANNELS } from "../data/officialChannels";
-import { approveWatched, ownerOfficial, rejectWatched, removeChannel, removeOfficial, runOfficialWatch, saveChannel, seedOfficialChannels, watchIfDue } from "./officialWatch";
+import { STARTUP_CYCLE_MS } from "../warm";
+import { WATCH_CHECK_MS, WATCH_FIRST_MS, approveWatched, ownerOfficial, rejectWatched, removeChannel, removeOfficial, runOfficialWatch, saveChannel, seedOfficialChannels, watchIfDue } from "./officialWatch";
 
 const TX = "UCKezDYNRPpAy2_1XRMBWKSw";
 const T0 = Date.parse("2026-01-10T00:00:00Z");
@@ -50,6 +51,14 @@ beforeAll(async () => {
 beforeEach(() => { calls = []; playlists = []; quota = false; });
 
 describe("the official-video watcher", () => {
+  it("checks midway between the sync's ticks, never as an event day's sync starts", () => {
+    // The sync: STARTUP_CYCLE_MS after boot, then on 5-minute ticks (every 15 minutes on event days).
+    for (let k = 0; k < 48; k++) {
+      const offGrid = (WATCH_FIRST_MS + k * WATCH_CHECK_MS - STARTUP_CYCLE_MS) % (5 * 60_000);
+      expect(offGrid).toBe(2.5 * 60_000);
+    }
+  });
+
   it("seeds the watchlist once; a removed channel never comes back", async () => {
     expect((await all("SELECT channel_id FROM official_channels")).length).toBe(OFFICIAL_CHANNELS.length);
     const vt = OFFICIAL_CHANNELS.find((c) => c.title === "FIRST in Vermont")!.channelId;

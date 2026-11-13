@@ -16,6 +16,7 @@ import type { EventStream, MatchView } from "../../src/shared/api.js";
 import { env } from "../env.js";
 import { fetchFromApi, fetchWatchPage, type WatchPageFacts } from "./youtube.js";
 import { officialRecordingIds, seasonOfficial } from "./officialVideos.js";
+import { checkedTo } from "../data/checkedTimings.js";
 
 export interface VideoMeta extends WatchPageFacts { videoId: string; checkedAt: string }
 /** One of a recording's videos. day: its broadcast's date at the venue, when an official list gave it; part: a named
@@ -215,11 +216,12 @@ export interface EventSpan extends MatchSpan { starts: MatchStart[] }
 
 const eventSpan = (starts: MatchStart[]): EventSpan => ({ ...matchSpan(starts.map((s) => s.startsAt)), starts });
 
-/** A video's timing for an event: its span, and, when that alone can't be trusted, how far the video's chapters vouch for it. */
-function withConfirmed(meta: VideoMeta, span: EventSpan) {
+/** A video's timing for an event: its span, and, when that alone can't be trusted, how far the video's chapters vouch
+ *  for it, or else how far its frames were checked by eye (server/data/checkedTimings.ts). */
+function withConfirmed(videoId: string, meta: VideoMeta, span: EventSpan) {
   const { starts, ...rest } = span;
   const timing = { ...meta, ...rest };
-  return timingTrusted(timing) ? timing : { ...timing, confirmedTo: chaptersConfirm(timing, meta.chapters, starts) };
+  return timingTrusted(timing) ? timing : { ...timing, confirmedTo: chaptersConfirm(timing, meta.chapters, starts) ?? checkedTo(videoId) };
 }
 
 /** The earliest and latest of some UTC ISO match starts. */
@@ -253,7 +255,7 @@ export function withClips<M extends Pick<MatchView, "label" | "time" | "startsAt
     const meta = v.meta;
     if (!meta || meta.status !== "ok") return [];
     const held = r.daily || r.more?.length ? eventSpan(whole.starts.filter((s) => within(s.startsAt, meta, now))) : whole;
-    const timing = withConfirmed(meta, held);
+    const timing = withConfirmed(v.videoId, meta, held);
     const slack = gapSlack(timing);
     // Its matches' starts in order: an early clip must be clear of the one before (clearOfPrevious).
     const starts = held.starts.map((s) => (s.startsAt ? Date.parse(s.startsAt) : NaN)).filter(Number.isFinite).sort((a, b) => a - b);
