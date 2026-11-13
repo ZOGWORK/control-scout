@@ -104,7 +104,7 @@ export async function runOfficialWatch(log: (s: string) => void, opts: { apiKey?
   const runId = Number((await get<{ id: number }>("INSERT INTO official_watch_runs (started_at) VALUES (?) RETURNING id", [new Date(now()).toISOString()]))?.id);
   try {
     await seedOfficialChannels(now());
-    const channels = (await all<any>("SELECT * FROM official_channels WHERE removed_at IS NULL ORDER BY checked_at IS NOT NULL, checked_at, channel_id")).map(channelOf);
+    const channels = (await all<any>("SELECT channel_id, title, region, words, title_pattern, watch_from, checked_at, last_error, removed_at FROM official_channels WHERE removed_at IS NULL ORDER BY checked_at IS NOT NULL, checked_at, channel_id")).map(channelOf);
     for (const ch of channels) {
       if (out.units >= maxUnits) { out.error = `stopped at the run's ${maxUnits} units; the rest next run`; break; }
       try {
@@ -230,7 +230,7 @@ const watchOf = (r: any): WatchRow => ({
   durationS: r.duration == null ? null : Number(r.duration), status: String(r.status), season: r.season == null ? null : Number(r.season), code: r.code ?? null,
   day: r.day ?? null, part: r.part ?? null, why: String(r.why), seenAt: String(r.seen_at), decidedAt: r.decided_at ?? null, decidedBy: r.decided_by ?? null,
 });
-const WATCH_SELECT = "SELECT w.*, c.title AS channel FROM official_watch w LEFT JOIN official_channels c ON c.channel_id = w.channel_id";
+const WATCH_SELECT = "SELECT w.video_id, w.channel_id, w.title, w.start, w.published, w.duration, w.status, w.season, w.code, w.day, w.part, w.why, w.seen_at, w.decided_at, w.decided_by, c.title AS channel FROM official_watch w LEFT JOIN official_channels c ON c.channel_id = w.channel_id";
 
 export async function pendingCount(): Promise<number> {
   return Number((await get<{ n: number }>("SELECT COUNT(*) AS n FROM official_watch WHERE status = 'pending'"))?.n ?? 0);
@@ -244,8 +244,8 @@ export async function ownerOfficial(now = Date.now()) {
     all<any>(`${WATCH_SELECT} WHERE w.status = 'ignored' ORDER BY w.seen_at DESC LIMIT 50`),
     all<any>(`${WATCH_SELECT} WHERE w.status = 'duplicate' ORDER BY w.seen_at DESC LIMIT 50`),
     all<any>(`${WATCH_SELECT} WHERE w.status IN ('added', 'approved', 'rejected') ORDER BY COALESCE(w.decided_at, w.seen_at) DESC LIMIT 50`),
-    all<any>("SELECT * FROM official_watch_runs ORDER BY id DESC LIMIT 10"),
-    all<any>("SELECT * FROM official_channels WHERE removed_at IS NULL ORDER BY title"),
+    all<any>("SELECT id, started_at, finished_at, units, channels, seen, added, queued, duplicates, error FROM official_watch_runs ORDER BY id DESC LIMIT 10"),
+    all<any>("SELECT channel_id, title, region, words, title_pattern, watch_from, checked_at, last_error, removed_at FROM official_channels WHERE removed_at IS NULL ORDER BY title"),
     get<{ n: number }>("SELECT COALESCE(SUM(units), 0) AS n FROM official_watch_runs WHERE started_at >= ?", [since]),
     get<{ n: number; e: number }>("SELECT COUNT(*) AS n, COUNT(DISTINCT season || '/' || code) AS e FROM official_videos WHERE removed_at IS NULL AND kind = 'recording'"),
   ]);
@@ -266,7 +266,7 @@ type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
 /** The owner adds a video from the queue (or the set-aside list) to an event: as a day's recording or a highlight. */
 export async function approveWatched(videoId: string, body: { season?: unknown; code?: unknown; day?: unknown; part?: unknown; kind?: unknown }, actor: string, now = Date.now()): Promise<Result> {
-  const w = await get<any>("SELECT * FROM official_watch WHERE video_id = ?", [videoId]);
+  const w = await get<any>("SELECT channel_id, title, status, why FROM official_watch WHERE video_id = ?", [videoId]);
   if (!w) return { ok: false, error: "That video isn't in the review queue." };
   if (!["pending", "ignored"].includes(String(w.status))) return { ok: false, error: `Already ${w.status}.` };
   const kind = body.kind === "highlight" ? "highlight" : "recording";
@@ -331,7 +331,7 @@ export async function saveChannel(body: { channelId?: unknown; title?: unknown; 
   const pattern = typeof body.titlePattern === "string" && body.titlePattern.trim() ? body.titlePattern.trim().slice(0, 200) : null;
   if (pattern) { try { new RegExp(pattern, "i"); } catch { return { ok: false, error: "The title pattern isn't a valid regular expression." }; } }
   const at = new Date(now).toISOString();
-  const was = await get<any>("SELECT * FROM official_channels WHERE channel_id = ?", [id]);
+  const was = await get<any>("SELECT region, removed_at FROM official_channels WHERE channel_id = ?", [id]);
   // Added (or brought back): watched from now on; edited: the rule changes, what was read stays read.
   await run(`INSERT INTO official_channels (channel_id, title, region, words, title_pattern, watch_from, added_at, added_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
              ON CONFLICT(channel_id) DO UPDATE SET title = excluded.title, region = excluded.region, words = excluded.words, title_pattern = excluded.title_pattern,
