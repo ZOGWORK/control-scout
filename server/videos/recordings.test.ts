@@ -334,4 +334,19 @@ describe("with a YouTube API key", () => {
     await event("STUCK2", "https://www.youtube.com/watch?v=Stuck000002");
     expect(await backfillVideoMeta(() => {}, { apiKey: "KEY", gapMs: 0, fetchImpl: api })).toBe(1);
   });
+
+  it("a pass overtaken while it waited saves nothing of what it read", async () => {
+    await event("LATE", "https://www.youtube.com/watch?v=Late0000001");
+    let release!: (r: Response) => void;
+    const slow = (async () => new Promise<Response>((r) => { release = r; })) as unknown as typeof fetch;
+    const old = backfillVideoMeta(() => {}, { apiKey: "KEY", gapMs: 0, fetchImpl: slow });
+    await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+    // A newer pass takes over and saves what YouTube says now.
+    const now = (async (url: string) => Response.json({ items: new URL(url).searchParams.get("id")!.split(",").map((id) => ({ id, contentDetails: { duration: "PT4H35M41S" }, liveStreamingDetails: { actualStartTime: `${DAY}T12:58:13Z`, actualEndTime: `${DAY}T17:33:56Z` } })) })) as unknown as typeof fetch;
+    expect(await backfillVideoMeta(() => {}, { apiKey: "KEY", gapMs: 0, fetchImpl: now, stuckMs: 0 })).toBe(1);
+    // The old pass's read comes back late, with older facts (still live, no end): it isn't saved over the newer ones.
+    release(Response.json({ items: [{ id: "Late0000001", contentDetails: { duration: "PT1H" }, liveStreamingDetails: { actualStartTime: `${DAY}T12:58:13Z` } }] }));
+    expect(await old).toBe(0);
+    expect(await get("SELECT duration, end FROM video_meta WHERE video_id = ?", ["Late0000001"])).toEqual({ duration: 16541, end: `${DAY}T17:33:56.000Z` });
+  });
 });
