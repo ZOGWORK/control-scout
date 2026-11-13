@@ -97,7 +97,8 @@ export function matchVideo(v: WatchVideo, rule: ChannelRule, events: WatchEvent[
   const inRegion = parseRule(rule.region);
   if (!inRegion) return { kind: "review", why: `the channel's region rule "${rule.region}" can't be read` };
   if (!v.start) return { kind: "review", why: "an upload, not a live broadcast: no broadcast date confirms its day" };
-  if (v.durationS != null && v.durationS < MIN_RECORDING_S) return { kind: "review", why: `${Math.round(v.durationS / 60)} minutes long: a clip or highlight, not a day's recording` };
+  if (v.durationS == null) return { kind: "review", why: "YouTube gave no length for it, so it can't be told from a clip" };
+  if (v.durationS < MIN_RECORDING_S) return { kind: "review", why: `${Math.round(v.durationS / 60)} minutes long: a clip or highlight, not a day's recording` };
   const extra = new Set(norm(rule.words).split(" ").filter(Boolean));
   const vt = toks(v.title, extra);
   const td = designators(v.title);
