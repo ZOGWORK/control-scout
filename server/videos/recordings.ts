@@ -10,13 +10,14 @@ import { all, run } from "../db.js";
 import { registerCache } from "../caches.js";
 import { seasonStreams } from "../portal/streams.js";
 import { embedUrl, parseStreamUrl } from "../../src/shared/stream.js";
-import { CHAPTER_MIN_GAP_S, actualStart, chaptersConfirm, clearOfPrevious, clipSecond, gapSlack, timingTrusted, watchUrl, type Chapter } from "../../src/shared/recording.js";
+import { CHAPTER_MIN_GAP_S, CLIP_LEAD_S, actualStart, chaptersConfirm, clearOfPrevious, clipSecond, gapSlack, timingTrusted, watchUrl, type Chapter } from "../../src/shared/recording.js";
 import { localToUtcMs } from "../../src/shared/time.js";
 import type { EventStream, MatchView } from "../../src/shared/api.js";
 import { env } from "../env.js";
 import { fetchFromApi, fetchWatchPage, type WatchPageFacts } from "./youtube.js";
 import { officialRecordingIds, seasonOfficial } from "./officialVideos.js";
 import { checkedTo } from "../data/checkedTimings.js";
+import { frameStart, hasFrames } from "../data/frameTimings.js";
 
 export interface VideoMeta extends WatchPageFacts { videoId: string; checkedAt: string }
 /** One of a recording's videos. day: its broadcast's date at the venue, when an official list gave it; part: a named
@@ -28,6 +29,8 @@ export interface Recording extends RecordingVideo {
   /** owner: the owner's stream; official: an organiser's recording (officialVideos.ts); first: FIRST's link, or the
    *  short link or channel FIRST's event page gives. */
   source: "owner" | "first" | "official"; more?: RecordingVideo[];
+  /** The event it's the recording of (its frame-read timings are kept by event: server/data/frameTimings.ts). */
+  code?: string;
   /** Broadcast a day at a time (event_broadcasts): each video holds its own day's matches only, even when one day is left. */
   daily?: true;
 }
@@ -132,9 +135,9 @@ export async function seasonRecordings(season: number): Promise<Map<string, Reco
     // A day at a time: in the order they were broadcast (FIRST's link can be any of the days).
     if (all.length > 1) all.sort((a, b) => dayKey(a).localeCompare(dayKey(b)));
     const [main, ...days] = all;
-    if (main) out.set(code, { ...main, source: extra.has(main.videoId) ? "official" : "first", ...(days.length ? { more: days } : {}), ...(daily.has(code) ? { daily: true as const } : {}) });
+    if (main) out.set(code, { ...main, code, source: extra.has(main.videoId) ? "official" : "first", ...(days.length ? { more: days } : {}), ...(daily.has(code) ? { daily: true as const } : {}) });
   }
-  for (const [code, s] of owner) out.set(code, { videoId: s.videoId, source: "owner", meta: meta.get(s.videoId) ?? null });
+  for (const [code, s] of owner) out.set(code, { videoId: s.videoId, code, source: "owner", meta: meta.get(s.videoId) ?? null });
   for (const [code, r] of out) if (r.meta?.status === "unavailable") out.delete(code);
   return out;
 }
@@ -156,7 +159,17 @@ export function seasonVideoKinds(season: number, now = Date.now()): Promise<Map<
     const out = new Map<string, "clips" | "recording">();
     // Every recording with a broadcast start: whether its timing holds can depend on the event's last match (timingTrusted).
     const timed = [...recs].filter(([, r]) => [r.meta, ...(r.more ?? []).map((d) => d.meta)].some((m) => m?.status === "ok" && m.start));
+    // A recording with a played match read off its own frames (server/data/frameTimings.ts) has clips.
     const withClip = new Set<string>();
+    const framed = [...recs].filter(([code, r]) => [r, ...(r.more ?? [])].some((d) => hasFrames(d.videoId, code)));
+    if (framed.length) {
+      const rows = await all<{ code: string; label: string }>(`SELECT code, label FROM matches WHERE season = ? AND played = 1 AND code IN (${framed.map(() => "?").join(",")})`, [season, ...framed.map(([c]) => c)]);
+      const recOf = new Map(framed);
+      for (const r of rows) {
+        const rec = recOf.get(String(r.code))!;
+        if ([rec, ...(rec.more ?? [])].some((d) => d.meta?.status !== "unavailable" && frameStart(d.videoId, String(r.code), String(r.label)) != null)) withClip.add(String(r.code));
+      }
+    }
     for (let i = 0; i < timed.length; i += 200) {
       const part = timed.slice(i, i + 200);
       const rows = await all<{ code: string; label: string; time: string; timezone: string | null }>(
@@ -245,10 +258,21 @@ export async function eventMatchSpan(season: number, code: string): Promise<Even
 
 /**
  * The matches with their place in the recording (clip); the given objects are never changed. `span`: the event's
- * played matches (timingTrusted, chaptersConfirm), read from `matches` when they're the whole event.
+ * played matches (timingTrusted, chaptersConfirm), read from `matches` when they're the whole event. A match whose
+ * start was read off the recording's frames (server/data/frameTimings.ts) plays from there, whatever YouTube's facts
+ * say; `frames: false` leaves those out (the script that reads them, for what the facts alone give).
  */
-export function withClips<M extends Pick<MatchView, "label" | "time" | "startsAt" | "played" | "clip">>(matches: M[], r: Recording | null, now = Date.now(), span?: EventSpan): M[] {
+export function withClips<M extends Pick<MatchView, "label" | "time" | "startsAt" | "played" | "clip">>(matches: M[], r: Recording | null, now = Date.now(), span?: EventSpan, opts: { frames?: boolean } = {}): M[] {
   if (!r) return matches;
+  // The recording's videos YouTube still plays, for their frame-read starts.
+  const framed = opts.frames === false || !r.code ? [] : [{ videoId: r.videoId, meta: r.meta }, ...(r.more ?? [])].filter((v) => v.meta?.status !== "unavailable" && hasFrames(v.videoId, r.code!));
+  const fromFrames = (label: string) => {
+    for (const v of framed) {
+      const s = frameStart(v.videoId, r.code!, label);
+      if (s != null) { const t = Math.max(0, s - CLIP_LEAD_S); return { videoId: v.videoId, t, url: watchUrl(v.videoId, t) }; }
+    }
+    return null;
+  };
   const whole = span ?? eventSpan(matches.filter((x) => x.played && actualStart(x.time)).map((x) => ({ label: x.label, startsAt: x.startsAt })));
   // Each video with its timing, judged on the matches it holds: the event's all for one video, a day's for a day's video.
   const videos = [{ videoId: r.videoId, meta: r.meta }, ...(r.more ?? [])].flatMap((v) => {
@@ -261,8 +285,11 @@ export function withClips<M extends Pick<MatchView, "label" | "time" | "startsAt
     const starts = held.starts.map((s) => (s.startsAt ? Date.parse(s.startsAt) : NaN)).filter(Number.isFinite).sort((a, b) => a - b);
     return slack == null ? [] : [{ videoId: v.videoId, timing, slack, starts }];
   });
-  if (!videos.length) return matches;
+  if (!videos.length && !framed.length) return matches;
   return matches.map((x) => {
+    // Seen being played in the recording's own frames.
+    const seen = x.played && framed.length ? fromFrames(x.label) : null;
+    if (seen) return { ...x, clip: seen };
     // Played matches with a real start only: an unplayed one's time, or a result posted without a start, is the schedule.
     if (!x.played || !actualStart(x.time)) return x;
     for (const v of videos) {
