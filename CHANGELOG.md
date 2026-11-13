@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 5.9.8 — 2026-11-13
+## 6.0.0 — 2026-11-13
 
 The old first-visit welcome card and step-by-step tour are gone, ahead of a new onboarding built from scratch.
 
@@ -29,6 +29,33 @@ The old first-visit welcome card and step-by-step tour are gone, ahead of a new 
 
 ### Changed
 - The add-to-home-screen nudge only waits for the first-run slot now, not for a welcome card. `isAutomated` moved to `src/lib/automation.ts` and `isShown` to `src/lib/visible.ts`.
+
+## 5.9.9 — 2026-11-13
+
+A stuck read of event recordings no longer stops every later one: matches keep getting their clips.
+
+### Highlights
+- [fixes] Event recordings keep being read even after one read gets stuck
+- [fixes] Live broadcasts keep their match clips coming during a long event
+- [fixes] New recordings get their match clips within minutes again
+
+### Fixed
+- On the live server, one pass reading recordings from YouTube stopped part way on a read that never settled and held every later pass off for nearly two hours, until a restart: no recording, live broadcasts included, was read in that time. A pass that began more than 30 minutes ago no longer holds the next one, which says so in the log and reads what's due (`server/videos/recordings.ts`) (#1450).
+
+## 5.9.8 — 2026-11-13
+
+Australia's events play FIRST Australia's own recordings, a day at a time, and its new broadcasts that name their event are added as they're posted.
+
+### Highlights
+- [fixes] Australia's Championship and APOC play FIRST Australia's recordings
+- [fixes] Sydney, Brisbane and Victoria qualifiers have their recordings
+- [fixes] New FIRST Australia streams naming their event join on their own
+
+### Added
+- FIRST Australia (youtube.com/@FirstAustralia) is an official channel: the watcher reads its uploads for Australia's events (`server/data/officialChannels.ts`). A broadcast whose title names its event (a qualifier's city or name, the Australian Championship, APOC) is added on its own; one naming nothing distinctive ("Australian Qualifier") waits in Owner › Official videos for review. An event named by an acronym now fits a title that spells it out (APOC and "Asia Pacific Open Championship") (`server/videos/officialMatch.ts`). Its past recordings are on their events, each a day's broadcast checked against that event's played matches (`server/data/officialVideos.json`) (#1447):
+  - 2024–25: Australia Championship (both days), APOC 2025 (both match days).
+  - 2025–26: Sydney South Qualifier (Sunday only), Sydney North Qualifier (both days), Australia Championship (both days), APOC 2026 (three days, Saturday in two parts).
+  - 2026–27: Brisbane South Qualifier (both days), Victoria Qualifier.
 
 ## 5.9.7 — 2026-11-13
 

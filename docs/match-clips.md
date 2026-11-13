@@ -34,6 +34,15 @@ video's chapters (the same list a visitor gets), so they're read from it (`parse
 Generated chapters can be wrong. Terra Division 2026's playoff chapters sit 13 min apart where its matches were
 6–8 min apart. Chapters therefore only ever confirm the clock; they never place a match on their own.
 
+## One pass at a time, never stuck
+
+The server reads YouTube's facts in one pass every 5 minutes (`backfillVideoMeta`), one pass at a time. On 13 Nov a
+pass on the live server stopped part way (at 20:05 UTC, with 78 recordings still due) on a read that never settled,
+and held every later pass off for nearly two hours, until a restart: no recording was read in that time, live
+broadcasts included. A pass that began more than 30 minutes ago no longer holds the next one: that one logs
+"recordings: the pass begun … never finished; starting anew" and reads what's due. A stuck pass that wakes up late
+saves nothing of what it read (it may be older than what the newer pass saved) and leaves the newer one be.
+
 ## The events list and the event page
 
 - `seasonVideoKinds`: "clips" when at least one played match gets a clip, "recording" for a recording with none.
