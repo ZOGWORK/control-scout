@@ -26,7 +26,7 @@ Donations now go to the ZOGWORK organization, and the supporters page reads its 
 
 ### Changed
 - The donate link is `github.com/sponsors/ZOGWORK` (was the owner's personal profile). One value, `SPONSOR_ORG` in `src/shared/sponsor.ts`.
-- The supporters list asks GitHub for the organization's sponsorships instead of the token owner's. The token must be a classic token from an owner of ZOGWORK with `read:user` and `read:org`; with `read:user` alone GitHub refuses sponsor names and the page showed an error. (`server/sponsors.ts`)
+- The supporters list asks GitHub for the organization's sponsorships instead of the token owner's. The token must be a classic token from an owner of ZOGWORK with `read:user` and `read:org`; with `read:user` alone GitHub refuses sponsor names and the page showed an error. (`server/sponsors.ts`) (#1448)
 
 ## 5.9.6 — 2026-11-13
 
