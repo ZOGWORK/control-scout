@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.8.9 — 2026-11-12
+
+The official channels are watched: each new event recording that passes every check plays on its event page within hours, and anything less certain waits for the owner.
+
+### Highlights
+- [live] New event recordings from official channels show up on their own
+- [live] Only a recording that fits exactly one event and day is added
+- [workspace] The owner reviews the rest in Owner › Official videos
+
+### Added
+- The official-video watcher: every 6 hours, each watched official channel's new uploads are read with the YouTube Data API (the channel's own uploads list, never a search) and matched to Scout's events by the checked list's rules. A finished live broadcast that fits exactly one event of the channel's region on its broadcast date, agrees with it on division, designators, date and day, and lands on a day the event has no video for is added; everything else waits in a review queue, and what isn't a competition stream is set aside. Each video is read once, so an added, rejected or set-aside video is never proposed again. Owner › Official videos shows the queue (with an "N to review" badge), approve as a day's recording or a highlight, reject, remove, the watched channels and their region rules, and each run's API units, results and errors, with Run now. Every action is audited. Migration 84 (`official_channels`, `official_watch`, `official_watch_runs`). (`server/videos/officialWatch.ts`, `server/videos/officialMatch.ts`, `server/videos/officialOwnerRoutes.ts`, `server/data/officialChannels.ts`, `src/components/owner/OfficialVideosPanel.tsx`, `docs/official-videos.md`)
+
 ## 5.8.8 — 2026-11-12
 
 An event's highlight videos from its organiser's official channel show on the event page, labelled as highlights.

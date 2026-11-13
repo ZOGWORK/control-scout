@@ -61,3 +61,42 @@ A highlight (`kind = 'highlight'`) is a short reel from the same official channe
 highlight only: never as a match's video and never as the event's recording. The event page's "Highlight videos"
 section (`src/components/HighlightVideos.tsx`) labels each one and plays it in the app's video dialog
 (`playInDialog`, `src/lib/streamSeek.ts`), never in the Watch section's player, even when the event has a recording.
+
+## The auto-watcher
+
+`server/videos/officialWatch.ts` reads each watched channel every 6 hours with the YouTube Data API. It reads only
+the channel's own uploads list (`playlistItems` on its `UU…` playlist, then `videos` for the new ones). It **never
+searches YouTube**. It needs `YOUTUBE_API_KEY`, and without one it doesn't run. The scheduler checks every 30
+minutes and starts a run only when the last one is 6 hours old, so a deploy doesn't add runs.
+
+- **Watchlist** (`official_channels`, migration 84): seeded once each from `server/data/officialChannels.ts` with the
+  channels the checked list came from. Each channel has a region rule (`country=Romania`, `state=VA,MD,DC`,
+  `country=USA;type=Premier,OffSeason`, `state=IN;name=michiana|gears`), the region's own words (too common in its
+  titles to count as evidence) and, optionally, a pattern for titles that name the region itself. Only videos
+  published after a channel started being watched are read; the older ones went through the checked list. The
+  owner adds, edits or removes channels in Owner › Official videos, and a removed channel is never seeded back.
+- **Each new video, once** (`official_watch`): it gets matched with the list's rules (`server/videos/officialMatch.ts`).
+  A recording is **added** (`official_videos`, source `watcher`) only when all of these hold:
+  - it is a finished live broadcast of at least 45 minutes, public and embeddable, and not blocked in 50 or more countries;
+  - it fits exactly one event of the channel's region on its broadcast date at the venue;
+  - the title agrees on the division, designators, date, weekday and day number. Taken one at a time, a title's
+    "Day N" must be the event's own day N;
+  - the event has no video for that day yet, and none whose day isn't known yet.
+
+  Anything short of that goes **to review**, with the reason and the event it fits best. Titles that aren't
+  competition streams (webinars, kickoffs, FRC, …) are **set aside**. A video still live, or still to come, is read
+  again after it ends.
+- **The owner's queue** (Owner › Official videos, with an "N to review" badge on the console's menu):
+  - Approve a video as a day's recording (season, event code, day at the venue, and optionally a part of the day) or
+    as a highlight. The server checks the event exists, the day falls within it and the day isn't already taken.
+  - Reject a video.
+  - Remove any official video from its event.
+  - Every action is in the audit log (`officialVideo.approve`, `.reject`, `.remove`, `.runNow`,
+    `officialChannel.add`, `.edit`, `.remove`).
+
+  An added, approved, rejected or set-aside video is never proposed again.
+- **Runs** (`official_watch_runs`): each run logs its API units, channels read, new videos, adds, queued videos and the
+  error that stopped it, if any. A run uses at most 1,500 units (YouTube allows 10,000 a day, and the timing backfill
+  shares them) and stops when YouTube says the quota is spent. A channel's own error is kept on its row. The panel
+  shows the last run, the units used today, the next run and a Run now button. Run now refuses within 10 minutes of
+  the last run.

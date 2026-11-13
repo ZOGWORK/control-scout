@@ -65,7 +65,7 @@ function Status({ d }: { d: OwnerOfficialVideos }) {
   const [busy, setBusy] = useState(false);
   const last = d.runs[0];
   return (
-    <Section title="Official videos" description={`Recordings and highlights from the organisers' own YouTube channels: ${d.recordings} day recordings for ${d.events} events. The watcher reads each watched channel's new uploads every ${d.everyHours} hours with the YouTube Data API (never a search) and adds a recording only when every check passes; the rest waits below.`}
+    <Section title="Official videos" description={`Recordings and highlights from the organisers' own YouTube channels: ${d.recordings} day recordings for ${d.events} events. The watcher reads each watched channel's new uploads every ${d.everyHours} hours with the YouTube Data API (never a search) and adds a recording only when every check passes; the rest waits below.`} stackAction
       action={<Button variant="outline" disabled={busy || !d.apiKey} onClick={async () => { setBusy(true); await act("/run", { method: "POST" }, "Watcher ran."); setBusy(false); }}><RefreshCw className={busy ? "animate-spin" : ""} /> Run now</Button>}>
       <dl className="grid gap-3 text-sm sm:grid-cols-4">
         <div className="rounded-xl border border-border bg-card p-3"><dt className="text-muted-foreground">YouTube API key</dt><dd className="mt-1 font-medium">{d.apiKey ? "Set" : <span className="text-danger">Not set: the watcher can't run</span>}</dd></div>
@@ -92,7 +92,7 @@ function VideoHead({ w }: { w: OfficialWatchRow }) {
         <Play className="absolute inset-0 m-auto size-6 fill-white text-white" aria-hidden />
       </a>
       <div className="min-w-0">
-        <a href={watchUrl(w.videoId)} target="_blank" rel="noreferrer noopener" className="inline-flex items-start gap-1 font-medium text-foreground hover:underline">{w.title}<ExternalLink className="mt-1 size-3 shrink-0" aria-hidden /></a>
+        <a href={watchUrl(w.videoId)} target="_blank" rel="noreferrer noopener" className="inline-flex items-start gap-1 break-words font-medium text-foreground hover:underline [overflow-wrap:anywhere]">{w.title}<ExternalLink className="mt-1 size-3 shrink-0" aria-hidden /></a>
         <p className="text-xs text-muted-foreground">{w.channel} · {w.start ? `broadcast ${when(w.start)}` : `uploaded ${when(w.published)}`}{w.durationS ? ` · ${mins(w.durationS)}` : ""}</p>
         <p className="mt-1 text-sm">{w.why}</p>
       </div>
@@ -109,16 +109,16 @@ function Review({ w }: { w: OfficialWatchRow }) {
   const [busy, setBusy] = useState(false);
   const run = async (fn: () => Promise<boolean>) => { setBusy(true); await fn(); setBusy(false); };
   return (
-    <li className="rounded-xl border border-border bg-card p-3" data-review={w.videoId}>
+    <li className="min-w-0 rounded-xl border border-border bg-card p-3" data-review={w.videoId}>
       <VideoHead w={w} />
-      <form className="mt-3 grid gap-2 sm:grid-cols-[5.5rem_9rem_9.5rem_minmax(0,1fr)_auto] sm:items-end" noValidate
+      <form className="mt-3 grid gap-2 sm:grid-cols-[5.5rem_minmax(0,9rem)_minmax(0,10rem)_minmax(0,1fr)] sm:items-end" noValidate
         onSubmit={(e) => { e.preventDefault(); void run(() => act(`/${w.videoId}/approve`, { method: "POST", json: { season: Number(season), code, day: kind === "recording" ? day : null, part: kind === "recording" ? part : null, kind } }, `Added to ${code.toUpperCase()}.`)); }}>
         <label className="grid gap-1 text-xs"><span className="text-muted-foreground">Season</span><Input inputMode="numeric" value={season} onChange={(e) => setSeason(e.target.value.replace(/\D/g, "").slice(0, 4))} /></label>
         <label className="grid gap-1 text-xs"><span className="text-muted-foreground">Event code</span><Input value={code} onChange={(e) => setCode(e.target.value.toUpperCase().slice(0, 40))} spellCheck={false} /></label>
         <label className="grid gap-1 text-xs"><span className="text-muted-foreground">{kind === "recording" ? "Day (at the venue)" : "Kind"}</span>
           {kind === "recording" ? <Input type="date" value={day} onChange={(e) => setDay(e.target.value)} /> : <span className="flex h-9 items-center text-sm">Highlight</span>}</label>
-        <label className="grid gap-1 text-xs"><span className="text-muted-foreground">Part of the day (optional)</span><Input value={part} disabled={kind === "highlight"} placeholder="Awards" onChange={(e) => setPart(e.target.value.slice(0, 60))} /></label>
-        <span className="flex flex-wrap gap-2">
+        <label className="grid gap-1 text-xs"><span className="text-muted-foreground">Part (optional)</span><Input value={part} disabled={kind === "highlight"} placeholder="Awards" onChange={(e) => setPart(e.target.value.slice(0, 60))} /></label>
+        <span className="flex flex-wrap gap-2 sm:col-span-4">
           <span className="inline-flex h-9 items-center rounded-lg border border-border p-0.5 text-xs" role="group" aria-label="Add as">
             {(["recording", "highlight"] as const).map((k) => <button key={k} type="button" aria-pressed={kind === k} onClick={() => setKind(k)} className={kind === k ? "h-full rounded-md bg-accent px-2 text-accent-ink" : "h-full rounded-md px-2 text-muted-foreground"}>{k === "recording" ? "Recording" : "Highlight"}</button>)}
           </span>
