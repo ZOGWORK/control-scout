@@ -105,6 +105,6 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
   shares them) and stops when YouTube says the quota is spent. A channel's own error is kept on its row. The panel
   shows the last run, the units used today, the next run and a Run now button. Run now refuses within 10 minutes of
   the last run. Every write of the watcher's takes the data writer lease (`server/data/lock.ts`), the same one the sync
-  and the live lane share; YouTube's reads happen outside it. When the sync holds it for 30 seconds or more the run
+  and the live lane share; YouTube's reads happen outside it. When the sync holds it for 3 minutes or more the run
   doesn't start, or stops as "database busy", and that run doesn't count toward the 6-hour wait, so the next
-  half-hourly check runs it again.
+  half-hourly check runs it again. The checks start 17.5 minutes after boot, midway between the sync's 5-minute ticks.

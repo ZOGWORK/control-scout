@@ -15,6 +15,17 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.9.1 — 2026-11-13
+
+The video watcher checks midway between the data syncs, so it no longer meets a sync just starting.
+
+### Highlights
+- [fixes] The video watcher checks between data syncs, not as one starts
+- [fixes] A watcher write waits up to 3 minutes for a sync to finish
+
+### Fixed
+- The official-video watcher's half-hourly check started 10 minutes after boot, the same second as the startup sync, and every event day's 15-minute sync after it fell on a watcher check too: each check met a sync that had just taken the writer lease and stopped as busy (seen live 13 Nov, 03:36 UTC). The checks now start 17.5 minutes after boot, 2.5 minutes off the sync's 5-minute ticks, and a watcher write waits up to 3 minutes for the lease instead of 30 seconds. (`server/index.ts`, `server/videos/officialWatch.ts`) (#PR)
+
 ## 5.9.0 — 2026-11-13
 
 The video watcher waits for the data sync to finish writing instead of stopping until the next 6-hour run.
