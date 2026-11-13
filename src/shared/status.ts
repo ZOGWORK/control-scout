@@ -20,8 +20,9 @@ export interface ServiceStatus {
 }
 
 export interface StatusResponse {
-  /** "up": every service passed its newest check; "partial": some didn't; "down": none did; "unknown": no checks yet. */
-  overall: "up" | "partial" | "down" | "unknown";
+  /** "up": every service passed its newest check; "partial": some didn't; "down": none did; "unknown": no checks yet;
+   *  "stale": checks ran before but none in the last STALE_AFTER_MIN minutes (the checker stopped). */
+  overall: "up" | "partial" | "down" | "unknown" | "stale";
   checkedAt: number | null;
   everyMinutes: number;
   services: ServiceStatus[];
@@ -29,6 +30,8 @@ export interface StatusResponse {
 
 export const STATUS_BARS = 45;
 export const CHECK_EVERY_MIN = 2;
+/** No check for this long means the checker stopped: the newest results are too old to say anything is up. */
+export const STALE_AFTER_MIN = 10;
 
 export function overallOf(services: Pick<ServiceStatus, "up">[]): StatusResponse["overall"] {
   const known = services.filter((s) => s.up !== null);

@@ -55,6 +55,13 @@ describe("statusNow", () => {
     expect(s.services.find((x) => x.key === "bot")!.up).toBe(null);
     expect(s.overall).toBe("up");
   });
+  it("says the checks paused when the newest is older than STALE_AFTER_MIN, keeping each service's last result", async () => {
+    const later = Date.now() + 3 * 3600_000;
+    const s = await statusNow(later);
+    expect(s.overall).toBe("stale");
+    expect(s.services.find((x) => x.key === "api")!.up).toBe(true);
+    expect(s.checkedAt).not.toBeNull();
+  });
   it("overall: partial when some are down, down when none is up, unknown before any check", () => {
     expect(overallOf([{ up: true }, { up: false }])).toBe("partial");
     expect(overallOf([{ up: false }, { up: null }])).toBe("down");

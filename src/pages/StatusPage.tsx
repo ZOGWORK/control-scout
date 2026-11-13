@@ -22,6 +22,7 @@ const BANNER: Record<StatusResponse["overall"], { title: string; body: string; i
   up: { title: "Everything is running", body: "Every part of Control Scout passed its last check.", icon: CheckCircle2, tone: "border-success/40 bg-success/10 text-success" },
   partial: { title: "Some parts are down", body: "The rest is working. Each part below says which.", icon: CircleAlert, tone: "border-warning/40 bg-warning/10 text-warning" },
   down: { title: "Control Scout is down", body: "No part passed its last check. We're on it.", icon: XCircle, tone: "border-danger/40 bg-danger/10 text-danger" },
+  stale: { title: "Checks have paused", body: "The newest results below are from the last check that ran.", icon: CircleHelp, tone: "border-warning/40 bg-warning/10 text-warning" },
   unknown: { title: "No checks yet", body: "The first checks land within a few minutes.", icon: CircleHelp, tone: "border-line bg-surface text-text-muted" },
 };
 

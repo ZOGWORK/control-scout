@@ -11,7 +11,7 @@
 import { db, primaryDb } from "./db.js";
 import { env } from "./env.js";
 import { checkSite, oneLine, type FetchLike } from "../deploy/uptime-worker/src/uptime.js";
-import { CHECK_EVERY_MIN, STATUS_BARS, overallOf, type ServiceKey, type ServiceStatus, type StatusBar, type StatusResponse } from "../src/shared/status.js";
+import { CHECK_EVERY_MIN, STALE_AFTER_MIN, STATUS_BARS, overallOf, type ServiceKey, type ServiceStatus, type StatusBar, type StatusResponse } from "../src/shared/status.js";
 
 export const SERVICES: { key: ServiceKey; label: string; about: string }[] = [
   { key: "site", label: "Website", about: "The pages you browse" },
@@ -109,19 +109,23 @@ export async function statusNow(now = Date.now()): Promise<StatusResponse> {
   const since30 = now - 30 * 24 * 3600_000;
   const since24 = now - 24 * 3600_000;
   const sinceBars = now - STATUS_BARS * STEP_MS;
-  const [agg, recent] = await Promise.all([
+  const [agg, recent, latest] = await Promise.all([
     db().execute({
       sql: "SELECT service, COUNT(*) AS n, SUM(ok) AS up, SUM(CASE WHEN at >= ? THEN 1 ELSE 0 END) AS n24, SUM(CASE WHEN at >= ? THEN ok ELSE 0 END) AS up24 FROM uptime_checks WHERE at >= ? GROUP BY service",
       args: [since24, since24, since30],
     }),
     db().execute({ sql: "SELECT service, at, ok FROM uptime_checks WHERE at >= ? ORDER BY at", args: [sinceBars] }),
+    // Each service's newest check at any age (SQLite takes ok from the row with the MAX), so a checker that stopped
+    // reads as stopped, never as a fresh install.
+    db().execute({ sql: "SELECT service, ok, MAX(at) AS at FROM uptime_checks WHERE at >= ? GROUP BY service", args: [since30] }),
   ]);
   const pct = (up: number, n: number) => (n ? Math.round((up / n) * 10000) / 100 : null);
   let checkedAt: number | null = null;
   const services: ServiceStatus[] = SERVICES.map((s) => {
     const a = agg.rows.find((r) => r.service === s.key);
     const mine = recent.rows.filter((r) => r.service === s.key).map((r) => ({ at: Number(r.at), ok: Number(r.ok) === 1 }));
-    const last = mine[mine.length - 1];
+    const l = latest.rows.find((r) => r.service === s.key);
+    const last = l ? { at: Number(l.at), ok: Number(l.ok) === 1 } : undefined;
     if (last && (checkedAt === null || last.at > checkedAt)) checkedAt = last.at;
     return {
       ...s,
@@ -131,7 +135,8 @@ export async function statusNow(now = Date.now()): Promise<StatusResponse> {
       bars: barsOf(mine, now),
     };
   });
-  const value: StatusResponse = { overall: overallOf(services), checkedAt, everyMinutes: CHECK_EVERY_MIN, services };
+  const stale = checkedAt !== null && now - checkedAt > STALE_AFTER_MIN * 60_000;
+  const value: StatusResponse = { overall: stale ? "stale" : overallOf(services), checkedAt, everyMinutes: CHECK_EVERY_MIN, services };
   cached = { at: now, value };
   return value;
 }
