@@ -7,6 +7,7 @@ import { backfillVideoMeta } from "./videos/recordings.js";
 import { resolveStreamLinks } from "./videos/streamLinks.js";
 import { resolveChannelStreams } from "./videos/channelStreams.js";
 import { seedOfficialVideos } from "./videos/officialVideos.js";
+import { watchIfDue } from "./videos/officialWatch.js";
 import "./env.js";
 import { env } from "./env.js";
 import { migrate, all, openReplicaIfRemote } from "./db.js";
@@ -227,6 +228,12 @@ if (!process.env.CS_NO_SCHEDULER) {
   };
   setTimeout(recordings, 150_000).unref();
   setInterval(recordings, 5 * 60_000).unref();
+  // The official-video watcher (server/videos/officialWatch.ts, docs/official-videos.md): each watched official
+  // channel's new uploads, every 6 hours with the YouTube Data API (never a search). Checked every 30 minutes, from
+  // 10 minutes after boot: a deploy doesn't start a run of its own when the last one is less than 6 hours old.
+  const watch = () => { watchIfDue(log).catch((e) => log(`official videos: watcher: ${(e as Error).message}`)); };
+  setTimeout(watch, 10 * 60_000).unref();
+  setInterval(watch, 30 * 60_000).unref();
 }
 // The live fast lane: events on today, every LIVE_SYNC_SECONDS (60), results within about a minute
 // (server/data/live.ts). It shares a writer lease with the cycle above, so the two never write at once.

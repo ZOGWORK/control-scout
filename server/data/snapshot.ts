@@ -27,6 +27,8 @@ export const PRIVATE_TABLES = [
   // The scouting commons (migrations 58-59): shares, opt-ins, readers' reports and mutes, the owner's switches and takedowns (their email). Before workspaces, which they reference.
   "commons_reports", "commons_mutes", "commons_entries", "commons_workspaces", "commons_events",
   "workspaces",
+  // The official-video watcher (migration 84): the owner's watchlist, review decisions (their email) and runs.
+  "official_watch", "official_watch_runs", "official_channels",
   "owner_audit", "feature_flags", "request_metrics_daily", "owner_alerts", "workspace_activity", "inbox_items", "workspace_entry_comments",
   "workspace_picklist", "workspace_picklist_versions", "workspace_picklist_ops", "workspace_entry_versions", "push_subscriptions", "push_sent",
   // Search's click counts (migration 64): aggregate, but what visitors opened, so never shipped.
