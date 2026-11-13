@@ -194,9 +194,10 @@ export default function SearchPage() {
   const follow = useFollowUps(query, prefer, !busy && !stale, picked);
   // People also ask goes beside the results on a wide screen (the results keep the left), after them on a phone. An
   // answered search holds that column from its first frame, its questions filling it when they come: the page never
-  // waits for them, and never moves from one column to two when they arrive.
+  // waits for them, and never moves from one column to two when they arrive. Back with none (or failed): the column
+  // is let go rather than left blank.
   const wide = useMediaQuery("(min-width: 1024px)");
-  const askAside = wide && (follow.ask.length > 0 || (found && !!query && !error));
+  const askAside = wide && (follow.ask.length > 0 || (follow.pending && found && !!query && !error));
   const side = !!panel || askAside;
   // A search on its way (just submitted, or a new one run from here): its loading screen, never older results; and
   // while going on to the one page a submitted query names.

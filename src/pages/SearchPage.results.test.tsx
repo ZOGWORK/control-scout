@@ -618,6 +618,14 @@ describe("search results page, wide screen: People also ask's column (owner, 13 
     expect(first.container.querySelector('[data-side] [data-block="people-also-ask"]')).not.toBeNull();
     expect(first.container.querySelector('[data-block="people-also-ask-pending"]')).toBeNull();
   });
+
+  it("back with no questions: the held column is let go, never left blank", () => {
+    state.answer = answer([ev("A", "Next Meet", "2099-11-17")]);
+    followUps.v = { q: "next meet", ask: [], related: [] };
+    const { container } = show("/search?q=next%20meet");
+    expect(container.querySelector("[data-results-column]")!.getAttribute("data-results-column")).toBe("");
+    expect(container.querySelector("[data-side]")).toBeNull();
+  });
 });
 
 describe("search results page, phone (Part B 3b)", () => {
