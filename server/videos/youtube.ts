@@ -48,7 +48,11 @@ export function parseWatchPage(html: string): WatchPageFacts {
     // YouTube shows some servers, an age check, a status not seen before) is tried again later.
     const reason = /"playabilityStatus":\{"status":"[A-Z_]+","reason":"([^"]*)"/.exec(html)?.[1] ?? "";
     const gone = playability === "ERROR" || playability === "UNPLAYABLE" || (playability === "LOGIN_REQUIRED" && /private/i.test(reason));
-    return gone ? UNAVAILABLE : ERROR;
+    if (gone) return UNAVAILABLE;
+    // The sign-in wall still carries the video's chapters (the same list a visitor's page has, checked against one for
+    // the Terra Division 2026 recording: 57 of 57): kept, as the server's only way to them (the Data API has none).
+    const chapters = parseChapters(html);
+    return chapters.length ? { ...ERROR, chapters } : ERROR;
   }
   const length = Number(/"lengthSeconds":"(\d+)"/.exec(html)?.[1]);
   const b = /"liveBroadcastDetails":(\{[^{}]*\})/.exec(html)?.[1];
