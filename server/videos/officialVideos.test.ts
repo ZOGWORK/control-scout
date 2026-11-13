@@ -67,12 +67,17 @@ describe("official videos", () => {
     expect(r?.videoId).toBe(D1);
     expect(r?.more?.map((d) => d.videoId)).toEqual([D2, D3]);
     expect(r?.daily).toBe(true);
+    // The organiser's video, never labelled FIRST's.
+    expect(r?.source).toBe("official");
+    expect(recordingStream(r!, "Europe/Bucharest").source).toBe("official");
     expect(recordingStream(r!, "Europe/Bucharest").days?.map((d) => d.label)).toEqual(["Friday", "Saturday", "Sunday"]);
   });
 
   it("puts FIRST's link among the official days by its broadcast date", async () => {
     const r = await eventRecording(S, "FTCCMP1FRAN");
     expect([r!.videoId, ...(r!.more ?? []).map((d) => d.videoId)]).toEqual([W1, W4]);
+    // An official day sorted first is still the organiser's, not FIRST's link.
+    expect(r?.source).toBe("official");
     expect(recordingStream(r!, "America/Chicago").days?.map((d) => d.label)).toEqual(["Wednesday", "Saturday"]);
   });
 

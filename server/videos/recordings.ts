@@ -23,7 +23,9 @@ export interface VideoMeta extends WatchPageFacts { videoId: string; checkedAt: 
  *  part of a day that has more than one video ("Awards"). */
 export interface RecordingVideo { videoId: string; meta: VideoMeta | null; day?: string | null; part?: string | null }
 export interface Recording extends RecordingVideo {
-  source: "owner" | "first"; more?: RecordingVideo[];
+  /** owner: the owner's stream; official: an organiser's recording (officialVideos.ts); first: FIRST's link, or the
+   *  short link or channel FIRST's event page gives. */
+  source: "owner" | "first" | "official"; more?: RecordingVideo[];
   /** Broadcast a day at a time (event_broadcasts): each video holds its own day's matches only, even when one day is left. */
   daily?: true;
 }
@@ -128,7 +130,7 @@ export async function seasonRecordings(season: number): Promise<Map<string, Reco
     // A day at a time: in the order they were broadcast (FIRST's link can be any of the days).
     if (all.length > 1) all.sort((a, b) => dayKey(a).localeCompare(dayKey(b)));
     const [main, ...days] = all;
-    if (main) out.set(code, { ...main, source: "first", ...(days.length ? { more: days } : {}), ...(daily.has(code) ? { daily: true as const } : {}) });
+    if (main) out.set(code, { ...main, source: extra.has(main.videoId) ? "official" : "first", ...(days.length ? { more: days } : {}), ...(daily.has(code) ? { daily: true as const } : {}) });
   }
   for (const [code, s] of owner) out.set(code, { videoId: s.videoId, source: "owner", meta: meta.get(s.videoId) ?? null });
   for (const [code, r] of out) if (r.meta?.status === "unavailable") out.delete(code);
@@ -192,7 +194,7 @@ export async function eventRecording(season: number, code: string): Promise<Reco
 }
 
 export const recordingStream = (r: Recording, timezone?: string | null): EventStream => ({
-  videoId: r.videoId, streamUrl: embedUrl(r.videoId), ...(r.source === "first" ? { source: "first" as const } : {}),
+  videoId: r.videoId, streamUrl: embedUrl(r.videoId), ...(r.source !== "owner" ? { source: r.source } : {}),
   // A day at a time: each day's video, named by its weekday at the venue (the broadcast's start).
   // A day with a second video (the awards) names it: "Sunday · Awards".
   ...(r.more?.length ? { days: [r, ...r.more].map((d) => ({ videoId: d.videoId, label: dayLabel(d.meta?.start ?? (d.day ? `${d.day}T12:00:00Z` : null), d.meta?.start ? timezone : "UTC") + (d.part ? ` · ${d.part}` : "") })) } : {}),
