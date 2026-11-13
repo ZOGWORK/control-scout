@@ -48,7 +48,7 @@ import { useTitle, useMeta, useCurrentSeason, useMediaQuery } from "../lib/meta"
 import { useApi, qs } from "../lib/api";
 import { cn } from "../components/cn";
 import { Verdict } from "../components/search/page/Verdict";
-import { PeopleAlsoAsk, RelatedSearches, TeamHighlights, useFollowUps } from "../components/search/page/FollowUps";
+import { PeopleAlsoAsk, PeopleAlsoAskPending, RelatedSearches, TeamHighlights, useFollowUps } from "../components/search/page/FollowUps";
 
 const RESULT_KINDS = new Set(["place", "team", "event", "match"]);
 
@@ -192,10 +192,28 @@ export default function SearchPage() {
   // answer and Related searches at the end of the page (the launch brief, Phase K). The page's first paint carries
   // them (server/seoMeta.ts searchMeta), so they're there from the first frame; else asked once the answer is on screen.
   const follow = useFollowUps(query, prefer, !busy && !stale, picked);
-  // People also ask goes beside the results on a wide screen (the results keep the left), after them on a phone.
+  // People also ask goes beside the results on a wide screen (the results keep the left), after them on a phone. An
+  // answered search holds that column from its first frame, its questions filling it when they come: the page never
+  // waits for them, and never moves from one column to two when they arrive. Back with none (or failed): the column
+  // is let go rather than left blank.
   const wide = useMediaQuery("(min-width: 1024px)");
-  const askAside = wide && follow.ask.length > 0;
+  // Any search does (answered or not): the loading screen has the same two columns, so the answer replacing it moves
+  // nothing either.
+  const askAside = wide && (follow.ask.length > 0 || (follow.pending && !!query && !error));
   const side = !!panel || askAside;
+  // The right-hand column: the panel, kept in view while scrolling (beside the results, or beside "nothing found").
+  const sideColumn = side ? (
+    <div className="space-y-5 lg:sticky lg:top-[calc(var(--header-h)+1rem)] lg:col-start-2 lg:row-start-1" data-side>
+      {panel === "summary" && (
+        <aside aria-label="Summary" className="mb-4 space-y-3 lg:mb-0" data-panel="summary">
+          {summary}
+          {aboutTeam && <TeamLinks team={aboutTeam} season={apps.length ? null : quality?.season} />}
+        </aside>
+      )}
+      {panel === "versus" && shownH2h && <aside aria-label="Head-to-head" className="max-lg:hidden" data-panel="versus"><HeadToHead h={shownH2h} now={now.data?.teams} before={asked == null ? before.data?.teams : undefined} season={base} /></aside>}
+      {askAside && (follow.ask.length ? <PeopleAlsoAsk ask={follow.ask} /> : follow.pending ? <PeopleAlsoAskPending /> : null)}
+    </div>
+  ) : null;
   // A search on its way (just submitted, or a new one run from here): its loading screen, never older results; and
   // while going on to the one page a submitted query names.
   if (query && !error && ((busy && ((stale && !reseason) || !found)) || leaving)) return <SearchSkeleton query={query} top={phone ? <PhoneSearchBar query={query} /> : null} />;
@@ -238,11 +256,16 @@ export default function SearchPage() {
                 <>
                   {/* Nothing for the corrected query either: the correction is still said, as a tap. */}
                   {notes.didYouMean && <AnswerNotesView notes={{ didYouMean: notes.didYouMean, corrected: false, understood: [] }} className="mb-4 text-sm" onDidYouMean={runFix} />}
-                  <NoResults
-                    query={query} onOpen={open}
-                    understood={readingOf(ax) ? [readingOf(ax)!] : notes.understood}
-                    closest={closest} summaries={summaries} sorry={ax?.sorry}
-                  />
+                  <div className={cn(side && "lg:grid lg:grid-cols-[minmax(0,720px)_minmax(20rem,1fr)] lg:items-start lg:gap-6")}>
+                    {sideColumn}
+                    <div className="min-w-0 lg:col-start-1 lg:row-start-1">
+                      <NoResults
+                        query={query} onOpen={open}
+                        understood={readingOf(ax) ? [readingOf(ax)!] : notes.understood}
+                        closest={closest} summaries={summaries} sorry={ax?.sorry}
+                      />
+                    </div>
+                  </div>
                 </>
               )
           ) : (
@@ -268,19 +291,7 @@ export default function SearchPage() {
                   both, the head-to-head keeps the column and the summary goes below the results. Phone: one column,
                   the summary first (H1, badge, summary, cards). */}
               <div className={cn(side && "lg:grid lg:grid-cols-[minmax(0,720px)_minmax(20rem,1fr)] lg:items-start lg:gap-6")} data-layout={panel ?? "single"}>
-                {/* The right-hand column: the panel, kept in view while scrolling. */}
-                {side && (
-                  <div className="space-y-5 lg:sticky lg:top-[calc(var(--header-h)+1rem)] lg:col-start-2 lg:row-start-1" data-side>
-                    {panel === "summary" && (
-                      <aside aria-label="Summary" className="mb-4 space-y-3 lg:mb-0" data-panel="summary">
-                        {summary}
-                        {aboutTeam && <TeamLinks team={aboutTeam} season={apps.length ? null : quality?.season} />}
-                      </aside>
-                    )}
-                    {panel === "versus" && shownH2h && <aside aria-label="Head-to-head" className="max-lg:hidden" data-panel="versus"><HeadToHead h={shownH2h} now={now.data?.teams} before={asked == null ? before.data?.teams : undefined} season={base} /></aside>}
-                    {askAside && <PeopleAlsoAsk ask={follow.ask} />}
-                  </div>
-                )}
+                {sideColumn}
                 <div className="min-w-0 lg:col-start-1 lg:row-start-1">
                   {!panel && summary}
                   {/* A stat question's answer ("4215 highest score in worlds"): ./search/page/StatAnswer.tsx. */}

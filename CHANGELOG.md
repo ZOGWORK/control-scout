@@ -35,6 +35,20 @@ Search answers and People also ask come back faster: the slowest database reads 
 - A stored country's own name is read once when the names index is built, not again for every word of every query read: a fifth of an answer's time went to it. (`server/api/query/names.ts`)
 - `/api/search?answer=1` and `/api/search/follow` send a `Server-Timing` header (the answer, the rest, the follow-ups, in milliseconds), and who's asking is read beside the team's highlights rather than after them. (`server/app.ts`, `server/api/searchTiming.ts`)
 
+## 5.9.2 — 2026-11-13
+
+Search answers a team's highlights in a place and its best match, and the results page keeps its layout as it loads.
+
+### Highlights
+- [fixes] "<team> highlights in Romania": its standout matches there
+- [fixes] "<team> best match" is its highest score, even misspelt
+- [appearance] Search results keep their layout while People also ask loads
+
+### Fixed
+- A team's highlights with a place said ("quantum robotics highlights in romania") said "Sorry — I can't answer that yet": the pipeline read the team and the place, then gave up on any place but a state championship's. The place now narrows the team's matches to events held there ("Highlights in Romania"), and a place it never played says so with its events. (`server/api/query/execute.ts`)
+- "<team> best match" was read as the team's record or its results at the event ("aicitzns best match in romania champs" gave AiCitizens' results at the Romania Championship): "best match" now reads as the team's highest score, by its number, its name or a misspelling search corrects, at an event too. With no team it stays the top matches. (`server/api/query/intents.ts`, `server/api/query/execute.ts`)
+- The search results page drew its answer in one column, then moved everything into two when People also ask arrived. On a wide screen an answered search now holds that column from its first frame, with a placeholder the questions replace, and the loading screen uses the same grid, so nothing moves. The answer never waits for People also ask. (`src/pages/SearchPage.tsx`, `src/components/search/page/FollowUps.tsx`, `src/components/search/SearchSkeleton.tsx`) (#1439)
+
 ## 5.9.1 — 2026-11-13
 
 The Multinational Tech Invitational's Sunday matches get their video clips, and the video watcher checks midway between the data syncs.

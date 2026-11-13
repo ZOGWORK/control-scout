@@ -21,6 +21,9 @@ export const relatedQuery = (q: string) => q.trim().slice(0, RELATED_QUERY_MAX).
 export const relatedSearch = (q: string) => (relatedQuery(q) ? `?q=${encodeURIComponent(relatedQuery(q))}` : "");
 /** The follow-ups' API path (People also ask, Related searches) as /search asks it and its first paint carries it:
  *  the query, the visitor's preferred teams and the answer's picked season, each only when there is one. */
+/** People also ask's most questions (server/api/answers/followUps.ts): the page holds a place this tall for them. */
+export const ASK_MAX = 6;
+
 export const followApiPath = (q: string, prefer = "", season: number | null = null) => {
   const p = new URLSearchParams();
   if (q) p.set("q", q);
