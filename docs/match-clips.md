@@ -40,8 +40,8 @@ The server reads YouTube's facts in one pass every 5 minutes (`backfillVideoMeta
 pass on the live server stopped part way (at 20:05 UTC, with 78 recordings still due) on a read that never settled,
 and held every later pass off for nearly two hours, until a restart: no recording was read in that time, live
 broadcasts included. A pass that began more than 30 minutes ago no longer holds the next one: that one logs
-"recordings: the pass begun … never finished; starting anew" and reads what's due. A stuck pass that ends late
-leaves the newer one be.
+"recordings: the pass begun … never finished; starting anew" and reads what's due. A stuck pass that wakes up late
+saves nothing of what it read (it may be older than what the newer pass saved) and leaves the newer one be.
 
 ## The events list and the event page
 
