@@ -61,7 +61,7 @@ function readChapters(json: string): Chapter[] {
 /** Whether a finished broadcast's video falls far enough short of it that its chapters are worth reading (chaptersConfirm). */
 export function cutShort(f: { status: string; start: string | null; end: string | null; length: number | null; live: boolean }): boolean {
   if (f.status !== "ok" || f.live || !f.start || !f.end || f.length == null) return false;
-  return (Date.parse(f.end) - Date.parse(f.start)) / 1000 - f.length >= CHAPTER_MIN_GAP_S;
+  return (Date.parse(f.end) - Date.parse(f.start)) / 1000 - f.length > CHAPTER_MIN_GAP_S;
 }
 
 function seasonData(season: number, now = Date.now()) {
@@ -359,13 +359,15 @@ export async function backfillVideoMeta(log: (s: string) => void, opts: { max?: 
       for (let tries = fromApi.has(id) ? 0 : 1; cutShort(f) && !f.chapters?.length && tries < 2; tries++) {
         await new Promise((r) => setTimeout(r, opts.gapMs ?? 1500));
         const w = await fetchWatchPage(id, opts.fetchImpl);
-        if (w.status === "ok") f = { ...f, chapters: w.chapters ?? [] };
+        // A sign-in wall's page (an error) still gives the chapters (parseWatchPage); its other facts aren't read.
+        if (w.status === "ok" || w.chapters?.length) f = { ...f, chapters: w.chapters ?? [] };
       }
       if (f.status === "error") errors++;
       // A page that couldn't be read keeps the facts read before, live included (a broadcast's start doesn't change,
       // and one still live is read again on the live beat).
       const before = known.get(id);
-      if (f.status === "error" && before?.status === "ok") await saveMeta(id, before, now());
+      // A sign-in wall's chapters join them.
+      if (f.status === "error" && before?.status === "ok") await saveMeta(id, f.chapters?.length ? { ...before, chapters: f.chapters } : before, now());
       else await saveMeta(id, f, now());
       n++;
     }
