@@ -49,13 +49,14 @@ export function useClipItems(matches: MatchView[]): Item[] {
   }), [matches, byKey]);
 }
 
-/** The coverage line, as this viewer can watch it. Nothing until it's known (no flash of "no recording"). */
-export function CoverageLine({ className, reserve }: { className?: string; reserve?: boolean }) {
+/** The coverage line, as this viewer can watch it. Nothing until it's known (no flash of "no recording"). `recorded`: the
+ *  page plays the event's recording, so it never says there's none. */
+export function CoverageLine({ className, reserve, recorded }: { className?: string; reserve?: boolean; recorded?: boolean }) {
   const { coverage } = useContext(Ctx);
   // Until it's known, an event with played matches keeps the line's room (it's read after the first paint).
   if (!coverage) return reserve ? <p aria-hidden className={cn("mt-3 h-5", className)} /> : null;
   if (!coverage.played) return null;
-  return <p className={cn("mt-3 flex h-5 items-center gap-1.5 text-sm text-text-muted", className)} data-coverage={coverage.withVideo >= coverage.played ? "full" : coverage.withVideo ? "partial" : "none"}><Clapperboard className="size-4 shrink-0" aria-hidden />{coverageText(coverage)}</p>;
+  return <p className={cn("mt-3 flex h-5 items-center gap-1.5 text-sm text-text-muted", className)} data-coverage={coverage.withVideo >= coverage.played ? "full" : coverage.withVideo ? "partial" : recorded ? "recording" : "none"}><Clapperboard className="size-4 shrink-0" aria-hidden />{coverageText(coverage, recorded)}</p>;
 }
 
 /** "Watch Clips": shown only when the event has at least one clip this viewer can watch. */

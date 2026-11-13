@@ -158,8 +158,9 @@ revocation, and a link the owner removed or hid.
 
 ## The event page
 
-A coverage line ("Every match has video", "Partially recorded — 12 of 48 matches have video", or
-"No recording for this event — stats only."), counted for this viewer. "Watch Clips" shows only when
+A coverage line ("Every match has video", "Partially recorded — 12 of 48 matches have video",
+"Full recording only — no match clips in it yet" when the page plays the event's recording but no match is placed in
+it, or "No recording for this event — stats only."), counted for this viewer. "Watch Clips" shows only when
 there's at least one clip (first among the header buttons once the event is over), and scrolls to the
 clips gallery: every played match with a video, filtered All / Qualifications / Playoffs.
 

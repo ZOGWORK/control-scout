@@ -95,6 +95,15 @@ describe("the event page's clips", () => {
     expect(screen.getByText("No recording for this event — stats only.")).toBeTruthy();
   });
 
+  it("an event whose recording plays on the page but has no match placed in it never says there's no recording", () => {
+    // USTXCMP4T 2026 said "No recording for this event — stats only." over its own "Watch the recording" player.
+    h.event = { matches: {}, coverage: { played: 2, withVideo: 0 } };
+    render(<MemoryRouter><EventClipsProvider season={2025} code="USTXCMP4T"><CoverageLine recorded /></EventClipsProvider></MemoryRouter>);
+    expect(screen.queryByText(/No recording/)).toBeNull();
+    expect(screen.getByText("Full recording only — no match clips in it yet")).toBeTruthy();
+    expect(document.querySelector("[data-coverage]")?.getAttribute("data-coverage")).toBe("recording");
+  });
+
   it("lists every match with a video, FIRST's own first, with the credit on the one someone added", () => {
     h.event = { matches: { "qual:0:1": cv(), "qual:0:2": cv({ id: 8, name: "Other Person" }) }, coverage: { played: 3, withVideo: 2 } };
     page([match(1), match(2, { video: "https://youtu.be/FIRSTvideo1" } as Partial<MatchView>), match(3)]);
