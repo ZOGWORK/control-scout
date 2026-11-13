@@ -4,6 +4,7 @@
 // left on screen looking current while a new search loads. The query itself stays in the top bar.
 import type { ReactNode } from "react";
 import { Loader2 } from "lucide-react";
+import { PeopleAlsoAskPending } from "./page/FollowUps";
 
 const Card = () => (
   <div className="rounded-xl border border-border bg-card p-4" aria-hidden>
@@ -26,21 +27,14 @@ export function SearchSkeleton({ query, top }: { query: string; top?: ReactNode 
       <p role="status" className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="size-4 shrink-0 animate-spin text-accent motion-reduce:animate-none" aria-hidden />Searching teams, events and matches…
       </p>
-      <div className="mt-5 lg:grid lg:grid-cols-[minmax(0,65fr)_minmax(0,35fr)] lg:items-start lg:gap-6">
+      {/* The answer's own grid (SearchPage: results at most 720px, People also ask's column beside them), so nothing
+          moves when the answer replaces it. */}
+      <div className="mt-5 lg:grid lg:grid-cols-[minmax(0,720px)_minmax(20rem,1fr)] lg:items-start lg:gap-6">
         <div className="min-w-0">
           <div className="skeleton mb-2 h-3 w-20" aria-hidden />
           <div className="grid gap-3 sm:grid-cols-2"><Card /><Card /><Card /><Card /></div>
         </div>
-        <div className="rounded-xl border border-border bg-card p-4 max-lg:hidden" aria-hidden data-loading-panel>
-          <div className="skeleton h-3.5 w-28" />
-          <div className="mt-4 grid grid-cols-2 gap-3"><div className="skeleton h-5" /><div className="skeleton h-5" /></div>
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="mt-4 border-t border-border pt-3">
-              <div className="skeleton h-3 w-16" />
-              <div className="mt-2 grid grid-cols-2 gap-3"><div className="skeleton h-5" /><div className="skeleton h-5" /></div>
-            </div>
-          ))}
-        </div>
+        <div className="max-lg:hidden" data-loading-panel><PeopleAlsoAskPending /></div>
       </div>
     </div>
   );

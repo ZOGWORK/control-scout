@@ -43,12 +43,32 @@ type Follow = SearchFollowUps & { q: string; season?: number };
  *  picked season (./SeasonPick.tsx), which they're asked about too. The ones the page's first paint carried (no
  *  preferred teams, no picked season: server/seoMeta.ts searchMeta) show from the first frame, while the answer is
  *  read again and until the visitor's own ones arrive: the served blocks never go away and come back. */
-export function useFollowUps(q: string, prefer: string | undefined, ready: boolean, season: number | null = null): SearchFollowUps {
+/** The follow-ups, and `pending` while they're still on their way (the page holds their place meanwhile). */
+export function useFollowUps(q: string, prefer: string | undefined, ready: boolean, season: number | null = null): SearchFollowUps & { pending: boolean } {
   const served = q && season == null ? followApiPath(q) : null;
-  const own = useApi<Follow>(ready && q ? followApiPath(q, prefer, season) : null).data;
+  const ownCall = useApi<Follow>(ready && q ? followApiPath(q, prefer, season) : null);
   const first = useApi<Follow>(served && fromFirstPaint(served) ? served : null).data;
   const mine = (d: Follow | undefined) => (d?.q === q && (d.season ?? null) === season ? d : null);
-  return mine(own) ?? mine(first) ?? NONE;
+  const got = mine(ownCall.data) ?? mine(first);
+  // Not asked yet (the answer still loading) or asked and not back: on its way. A failed call is done, with none.
+  return got ? { ...got, pending: false } : { ...NONE, pending: !!q && !ownCall.error };
+}
+
+/** People also ask's place while its questions are on their way: the same heading and rows, so nothing moves when
+ *  they arrive. */
+export function PeopleAlsoAskPending({ className }: { className?: string }) {
+  return (
+    <section aria-hidden className={className} data-block="people-also-ask-pending">
+      <h2 className={PART}>People also ask</h2>
+      <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
+        {[72, 64, 58, 68, 52].map((w) => (
+          <div key={w} className="flex min-h-[44px] items-center px-4 py-2.5">
+            <span className="h-3.5 animate-pulse rounded bg-muted motion-reduce:animate-none" style={{ width: `${w}%` }} />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 export function PeopleAlsoAsk({ ask, className }: { ask: SearchFollowUp[]; className?: string }) {

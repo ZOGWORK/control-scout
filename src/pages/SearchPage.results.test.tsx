@@ -26,7 +26,9 @@ const teamMatches = { matches: [
   { season: 2025, code: "USNJQ1", key: "qual:0:3", level: "qual", series: 0, number: 3, label: "Q3", time: null, startsAt: null, played: true, red: side(4215, 120), blue: side(1, 90), video: null, prediction: null },
   { season: 2025, code: "USNJQ1", key: "qual:0:9", level: "qual", series: 0, number: 9, label: "Q9", time: null, startsAt: null, played: true, red: side(2, 150), blue: side(4215, 101), video: null, prediction: null },
 ] };
-vi.mock("../lib/api", async (orig) => ({ ...(await orig<typeof import("../lib/api")>()), useApi: (p: string | null) => { paths.push(p); return { data: p?.includes("/matches") ? teamMatches : p ? { teams: summaries } : undefined, error: null, loading: false }; } }));
+// People also ask, once it's back (unset: still on its way).
+const followUps = vi.hoisted(() => ({ v: undefined as unknown }));
+vi.mock("../lib/api", async (orig) => ({ ...(await orig<typeof import("../lib/api")>()), useApi: (p: string | null) => { paths.push(p); return { data: p?.includes("/search/follow") && followUps.v ? followUps.v : p?.includes("/matches") ? teamMatches : p ? { teams: summaries } : undefined, error: null, loading: false }; } }));
 vi.mock("../lib/flags", async (orig) => ({ ...(await orig<typeof import("../lib/flags")>()), useServerFlag: () => false }));
 // The privacy choice: made (the Compare bar waits for it), unless a test says otherwise.
 const consent = vi.hoisted(() => ({ decided: true }));
@@ -592,6 +594,29 @@ describe("search results page, Phase 3 layout", () => {
     const { container } = show("/search?q=x");
     expect(container.querySelector("[data-layout]")!.getAttribute("data-layout")).toBe("single");
     expect(container.querySelector("[data-panel]")).toBeNull();
+  });
+});
+
+describe("search results page, wide screen: People also ask's column (owner, 13 Nov: the page jumped from one column to two)", () => {
+  const real = window.matchMedia;
+  beforeEach(() => {
+    window.matchMedia = ((q: string) => ({ matches: /min-width/.test(q), media: q, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia;
+  });
+  afterEach(() => { window.matchMedia = real; followUps.v = undefined; });
+
+  it("an answered search holds the side column from its first frame; the questions fill it when they come, nothing else moves", () => {
+    state.answer = answer([ev("A", "Next Meet", "2099-11-17")]);
+    const first = show("/search?q=next%20meet");
+    const column = () => first.container.querySelector("[data-results-column]")!.getAttribute("data-results-column");
+    expect(column()).toBe("with-panel");
+    expect(first.container.querySelector('[data-side] [data-block="people-also-ask-pending"]')).not.toBeNull();
+    expect(first.container.querySelector('[data-block="people-also-ask"]')).toBeNull();
+    // The questions arrive: they take the held place, in the same column.
+    followUps.v = { q: "next meet", ask: [{ q: "What events are coming up?", family: "events", preview: "988 events · Upcoming events", value: "988 events", rest: "Upcoming events", tone: { count: true } }], related: [] };
+    first.rerender(<MemoryRouter initialEntries={["/search?q=next%20meet"]}><SearchPage /><Where /></MemoryRouter>);
+    expect(column()).toBe("with-panel");
+    expect(first.container.querySelector('[data-side] [data-block="people-also-ask"]')).not.toBeNull();
+    expect(first.container.querySelector('[data-block="people-also-ask-pending"]')).toBeNull();
   });
 });
 
