@@ -22,8 +22,8 @@ A team's channel, a spectator's upload, a re-upload or a local TV broadcast is n
 A video is kept only when all of these hold (`server/data/officialVideos.json` was built this way, and the
 auto-watcher uses the same rules):
 
-1. It's on an official channel, it exists, it's public or unlisted, it can be embedded, and YouTube doesn't block it
-   in most countries.
+1. It's on an official channel, it exists, it's public, it can be embedded, and YouTube doesn't block it in most
+   countries.
 2. It's a live broadcast whose start, at the venue, falls inside the event's dates in Scout. An upload has no
    broadcast date, so it can't prove its day, and is left out.
 3. Its title names the event: a distinctive word of the event's name or city (the league, the venue, "Mockingbird"),

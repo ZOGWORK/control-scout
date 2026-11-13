@@ -18,10 +18,11 @@ import { fetchFromApi, fetchWatchPage, type WatchPageFacts } from "./youtube.js"
 import { officialRecordingIds, seasonOfficial } from "./officialVideos.js";
 
 export interface VideoMeta extends WatchPageFacts { videoId: string; checkedAt: string }
-/** An event's recording: its video, and, for an event broadcast a day at a time (event_broadcasts), the other days' videos in order. */
 /** One of a recording's videos. day: its broadcast's date at the venue, when an official list gave it; part: a named
  *  part of a day that has more than one video ("Awards"). */
 export interface RecordingVideo { videoId: string; meta: VideoMeta | null; day?: string | null; part?: string | null }
+/** An event's recording: its video, and, for an event broadcast a day at a time (a channel's broadcasts, or the
+ *  organiser's official days), the other days' videos in broadcast order. */
 export interface Recording extends RecordingVideo {
   /** owner: the owner's stream; official: an organiser's recording (officialVideos.ts); first: FIRST's link, or the
    *  short link or channel FIRST's event page gives. */
