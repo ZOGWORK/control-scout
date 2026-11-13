@@ -4,7 +4,7 @@
 // does. Only a modifier click or a middle click follows the link to YouTube.
 
 /** What to play: a YouTube video from a second (0: its start), and which match it is, for the title and the overlay. */
-export interface MatchPlay { videoId: string; t: number; label: string; matchKey?: string }
+export interface MatchPlay { videoId: string; t: number; label: string; matchKey?: string; /** A highlight video, not a match's. */ highlight?: boolean }
 type Play = (p: MatchPlay) => void;
 let player: Play | null = null;
 let dialog: Play | null = null;
@@ -19,6 +19,14 @@ export function onStreamSeek(play: Play): () => void {
 export function onVideoDialog(play: Play): () => void {
   dialog = play;
   return () => { if (dialog === play) dialog = null; };
+}
+
+/** Play a video in the app's dialog, never the page's player (a highlight is never the event's recording or a
+ *  match's video). False when the dialog isn't mounted. */
+export function playInDialog(p: MatchPlay): boolean {
+  if (!dialog) return false;
+  dialog(p);
+  return true;
 }
 
 /** Play a match's video in the app: the page's player, else the dialog. False when neither is mounted. */

@@ -17,7 +17,7 @@ export function VideoDialog() {
       {play && (
         <DialogContent className="max-w-4xl gap-3 p-4 sm:p-5" data-video-dialog>
           <DialogTitle className="pr-8 text-base">{play.label}</DialogTitle>
-          <DialogDescription className="sr-only">{play.t ? `The event's recording, from ${clipTime(play.t)}` : "The match's video"}</DialogDescription>
+          <DialogDescription className="sr-only">{play.highlight ? "The event's highlight video, from the organiser's channel" : play.t ? `The event's recording, from ${clipTime(play.t)}` : "The match's video"}</DialogDescription>
           <div className="aspect-video w-full overflow-hidden rounded-xl border border-border bg-black">
             <iframe key={`${play.videoId}:${play.t}`} className="size-full" src={src!} title={`${play.label} video`}
               allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen" referrerPolicy="strict-origin-when-cross-origin" />

@@ -6,6 +6,7 @@ import { withBracketGate } from "./bracket.js";
 import { scheduleGate } from "./eventGates.js";
 import { hasEventHighlights } from "../eventHighlightsPage.js";
 import { eventRecording, recordingStream, withClips } from "../videos/recordings.js";
+import { eventHighlightVideos } from "../videos/officialVideos.js";
 
 /** An event's detail with its recording (server/videos/recordings.ts: the owner's stream, else FIRST's YouTube link)
  *  and each played match's place in it, for every route that answers with one (the page and "Refresh results" alike,
@@ -18,7 +19,8 @@ export async function withStream<T extends { event: { season: number; code: stri
 
 /** The event page's answer (null: no such event): the cached detail, its recording, and the bracket and schedule gates. */
 export async function eventView(season: number, code: string): Promise<EventDetail | null> {
-  const [cached, highlights] = await Promise.all([cachedEventDetail(season, code), hasEventHighlights(season, code)]);
-  // Whether its highlights page exists (server/eventHighlightsPage.ts), for the page's Highlights link.
-  return cached ? { ...(await scheduleGate(await withBracketGate(await withStream(cached)))), highlights } : null;
+  const [cached, highlights, reels] = await Promise.all([cachedEventDetail(season, code), hasEventHighlights(season, code), eventHighlightVideos(season, code).catch(() => [])]);
+  // Whether its highlights page exists (server/eventHighlightsPage.ts), for the page's Highlights link; and the
+  // organiser's highlight videos (server/videos/officialVideos.ts), shown as highlights only, never as a match's video.
+  return cached ? { ...(await scheduleGate(await withBracketGate(await withStream(cached)))), highlights, ...(reels.length ? { highlightVideos: reels } : {}) } : null;
 }

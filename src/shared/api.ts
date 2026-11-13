@@ -642,6 +642,10 @@ export interface EventDetail {
   /** The event has a highlights page (/events/<season>/<code>/highlights: server/eventHighlightsPage.ts). Absent: an
    *  older server or a saved pack. */
   highlights?: boolean;
+  /** The organiser's highlight videos of the event, from its official channel (server/videos/officialVideos.ts):
+   *  shown on the event page as highlights only, never as a match's video or the event's recording. Absent: none, an
+   *  older server or a saved pack. */
+  highlightVideos?: { videoId: string; title: string }[];
   /** Each team's qualification schedule next to the field's (src/shared/scheduleDifficulty.ts): the full schedule, and
    *  what's left once quals are under way. Null without a posted schedule or ratings; absent from older servers and packs. */
   scheduleDifficulty?: ScheduleDifficulty | null;

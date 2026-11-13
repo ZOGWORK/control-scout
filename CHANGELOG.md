@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.8.8 — 2026-11-12
+
+An event's highlight videos from its organiser's official channel show on the event page, labelled as highlights.
+
+### Highlights
+- [history] Highlight videos from the organiser show on the event page
+- [history] They play in the app, apart from the recording and match videos
+- [history] Each one is labelled Highlights, so it is never taken for a match
+
+### Added
+- Highlight videos on the event page: the short reels an event's organiser posted on its official channel (Romania's championship and regionals, FIRST UK's 2024–25 championship), from the same checked list as the recordings. A "Highlight videos" section under the Watch section shows each with a Highlights label; it plays in the app's video dialog, never in the event's recording player and never as a match's video. (`server/api/eventView.ts`, `src/components/HighlightVideos.tsx`, `src/lib/streamSeek.ts`, `src/components/VideoDialog.tsx`)
+
 ## 5.8.7 — 2026-11-12
 
 Event recordings from the organisers' own YouTube channels play on the event page, a day at a time, where FIRST links none or only one day.
