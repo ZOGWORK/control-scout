@@ -168,7 +168,7 @@ describe("the official-video watcher", () => {
 
   it("waits out a busy database: no run while the sync holds the lease, a busy stop is tried again in 30 minutes", async () => {
     const T = NOW + 10 * 3600_000;
-    const opts = (at: number, f: typeof fetch = fakeFetch) => ({ apiKey: "k", fetchImpl: f, clock: () => at, lockWaitMs: 0 });
+    const opts = (at: number, f: typeof fetch = fakeFetch) => ({ apiKey: "k", fetchImpl: f, clock: () => at, now: () => at, lockWaitMs: 0 });
     const lease = () => run("INSERT INTO kv (key, value, updated_at) VALUES ('lock:data-writer', ?, 'x') ON CONFLICT(key) DO UPDATE SET value = excluded.value", [JSON.stringify({ token: "t", what: "cycle", until: Date.now() + 60_000 })]);
     // The data sync holds the writer lease: the watcher doesn't start (no run row, nothing read).
     await lease();
@@ -190,18 +190,28 @@ describe("the official-video watcher", () => {
     uploads = [];
     // A write that waits out the busy timeout stops the run as busy (not as the channel's own error)...
     const busyFetch = (async () => { throw Object.assign(new Error("SQLITE_BUSY: database is locked"), { code: "SQLITE_BUSY" }); }) as unknown as typeof fetch;
-    const stopped = await watchIfDue(() => {}, T, opts(T, busyFetch));
+    // (26 minutes on: the raced run above is unfinished, and blocks a start until then, like another process's run.)
+    const S = T + 26 * 60_000;
+    const stopped = await watchIfDue(() => {}, S, opts(S, busyFetch));
     expect(stopped?.error).toMatch(/database busy/);
     expect(await get<any>("SELECT COUNT(*) AS n FROM official_channels WHERE last_error LIKE '%SQLITE_BUSY%'")).toMatchObject({ n: 0 });
     // ...and doesn't count as the 6-hourly run: the next check, 30 minutes on, runs.
-    const again = await watchIfDue(() => {}, T + 30 * 60_000, opts(T + 30 * 60_000));
+    const again = await watchIfDue(() => {}, S + 30 * 60_000, opts(S + 30 * 60_000));
     expect(again?.error).toBeNull();
     // A run that finished does count: the next check waits.
-    expect(await watchIfDue(() => {}, T + 60 * 60_000, opts(T + 60 * 60_000))).toBeNull();
-    expect((await ownerOfficial(T + 60 * 60_000)).nextRunAt).toBe(new Date(T + 30 * 60_000 + 6 * 3600_000).toISOString());
+    expect(await watchIfDue(() => {}, S + 60 * 60_000, opts(S + 60 * 60_000))).toBeNull();
+    expect((await ownerOfficial(S + 60 * 60_000)).nextRunAt).toBe(new Date(S + 30 * 60_000 + 6 * 3600_000).toISOString());
     // Two starts at once (a scheduled check and Run now): only one runs.
-    const both = await Promise.all([runOfficialWatch(() => {}, opts(T + 61 * 60_000)), runOfficialWatch(() => {}, opts(T + 61 * 60_000))]);
+    const both = await Promise.all([runOfficialWatch(() => {}, opts(S + 61 * 60_000)), runOfficialWatch(() => {}, opts(S + 61 * 60_000))]);
     expect(both.filter((x) => x === null)).toHaveLength(1);
+    // Another process's run: one still going (unfinished, minutes old) blocks a start here; one that died long ago doesn't.
+    const T2 = T + 3 * 3600_000;
+    await run("INSERT INTO official_watch_runs (started_at) VALUES (?)", [new Date(T2 - 60_000).toISOString()]);
+    expect(await runOfficialWatch(() => {}, opts(T2))).toBeNull();
+    expect(await runOfficialWatch(() => {}, opts(T2 + 26 * 60_000))).not.toBeNull();
+    // A scheduled check re-checks the 6-hour wait as it claims the run (another process may have just run).
+    expect(await runOfficialWatch(() => {}, { ...opts(T2 + 60 * 60_000), scheduled: true })).toBeNull();
+    expect(await runOfficialWatch(() => {}, { ...opts(T2 + 7 * 3600_000), scheduled: true })).not.toBeNull();
   });
 
   it("checks a channel the owner adds or edits", async () => {

@@ -15,6 +15,7 @@ import { LockBusy, isBusy, lockHolder, withDataLock } from "../data/lock.js";
 import { matchVideo, parseRule, type ChannelRule, type Verdict, type WatchEvent, type WatchVideo } from "./officialMatch.js";
 
 export const WATCH_EVERY_MS = 6 * 3600_000;
+const RUN_STALE_MS = 25 * 60_000;
 const BUSY_STOP = "database busy (the data sync was writing): stopped, tried again within 30 minutes";
 /** The last run that counts for the 6-hour wait: one that finished, and wasn't cut short by a busy database (those are
  * tried again on the next half-hourly check, like a run that never started). */
@@ -98,7 +99,7 @@ export interface WatchRun { units: number; channels: number; seen: number; added
  * One pass over the watchlist. Without YOUTUBE_API_KEY nothing is read (the owner panel says so). Stops when the run's
  * units are spent or YouTube says the day's quota is.
  */
-export async function runOfficialWatch(log: (s: string) => void, opts: { apiKey?: string | null; fetchImpl?: Fetch; now?: () => number; maxUnits?: number; lockWaitMs?: number } = {}): Promise<WatchRun | null> {
+export async function runOfficialWatch(log: (s: string) => void, opts: { apiKey?: string | null; fetchImpl?: Fetch; now?: () => number; maxUnits?: number; lockWaitMs?: number; scheduled?: boolean } = {}): Promise<WatchRun | null> {
   const key = opts.apiKey === undefined ? env.youtubeApiKey : opts.apiKey;
   if (!key || busy) return null;
   // Reserved before any await: a scheduled check and Run now never both start.
@@ -112,9 +113,19 @@ export async function runOfficialWatch(log: (s: string) => void, opts: { apiKey?
   const out: WatchRun = { units: 0, channels: 0, seen: 0, added: 0, queued: 0, duplicates: 0, error: null };
   // A failed start (a busy database) must not leave the watcher latched off for the rest of the process.
   let runId = 0;
-  // The sync holding the lease now: skip this run (no row, nothing read); the next half-hourly check tries again.
-  try { runId = await locked(async () => Number((await get<{ id: number }>("INSERT INTO official_watch_runs (started_at) VALUES (?) RETURNING id", [new Date(now()).toISOString()]))?.id)); }
-  catch (e) { busy = false; if (e instanceof LockBusy) return null; throw e; }
+  // The run's claim, under the lease, so it holds across processes too: not while another run is going (one unfinished
+  // and under 25 minutes old: older is a run that died), and for a scheduled check, not within 6 hours of the last
+  // run that counts. The sync holding the lease now: skip this run (no row, nothing read); the next check tries again.
+  const at = now();
+  try {
+    runId = await locked(async () => Number((await get<{ id: number }>(
+      `INSERT INTO official_watch_runs (started_at) SELECT ?1
+       WHERE NOT EXISTS (SELECT 1 FROM official_watch_runs WHERE finished_at IS NULL AND started_at > ?2)
+         AND (?3 IS NULL OR NOT EXISTS (SELECT 1 FROM official_watch_runs WHERE finished_at IS NOT NULL AND COALESCE(error, '') NOT LIKE 'database busy%' AND started_at > ?3))
+       RETURNING id`,
+      [new Date(at).toISOString(), new Date(at - RUN_STALE_MS).toISOString(), opts.scheduled ? new Date(at - WATCH_EVERY_MS).toISOString() : null]))?.id ?? 0));
+  } catch (e) { busy = false; if (e instanceof LockBusy) return null; throw e; }
+  if (!runId) { busy = false; return null; }
   try {
     await locked(() => seedOfficialChannels(now()));
     const channels = (await all<any>("SELECT channel_id, title, region, words, title_pattern, watch_from, checked_at, last_error, removed_at FROM official_channels WHERE removed_at IS NULL ORDER BY checked_at IS NOT NULL, checked_at, channel_id")).map(channelOf);
@@ -178,7 +189,7 @@ export async function watchIfDue(log: (s: string) => void, now = Date.now(), opt
   if (!key) return null;
   const last = await get<{ started_at: string }>(LAST_RUN);
   if (last && now - Date.parse(last.started_at) < WATCH_EVERY_MS) return null;
-  return runOfficialWatch(log, { apiKey: key, fetchImpl: opts.fetchImpl, now: opts.clock, lockWaitMs: opts.lockWaitMs });
+  return runOfficialWatch(log, { apiKey: key, fetchImpl: opts.fetchImpl, now: opts.clock, lockWaitMs: opts.lockWaitMs, scheduled: true });
 }
 
 /** A channel's uploads published since it's been watched and not read before, newest first (one unit a page). */
