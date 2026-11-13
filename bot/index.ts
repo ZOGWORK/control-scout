@@ -1,7 +1,8 @@
 // The Control Scout Discord bot: its own process (systemd unit control-scout-bot on the VM), so a bot
 // crash, restart or deploy never touches the site, and the other way round. It reads the site's
-// database through the site's own modules (bot/lookups.ts). It writes only its own two tables: the teams
-// servers follow and the log of what it posted for them (bot/follows.ts, migration 35).
+// database through the site's own modules (bot/lookups.ts). It writes only its own tables: the teams
+// servers follow and the log of what it posted for them (bot/follows.ts, migration 35), and its row in
+// service_heartbeats, once a minute while connected, for the /status page (server/uptime.ts, migration 86).
 //
 //   DISCORD_BOT_TOKEN      required (bot/README.md: developer portal → Bot → Reset Token)
 //   DISCORD_DEV_GUILD_ID   optional: register the commands in that one server (instant) instead of globally
