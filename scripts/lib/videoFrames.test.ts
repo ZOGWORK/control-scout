@@ -28,6 +28,10 @@ describe("the frame reader", () => {
     expect(elapsed({ where: "top", left: 20, auto: true })).toBe(10);
     expect(elapsed({ where: "top", left: 100, auto: false })).toBe(58);
     expect(elapsed({ where: "top", left: 120, auto: false })).toBeNull();
+    // 8 s or less: the switch to TeleOp ("0:05" under a hand) reads the same as TeleOp's last seconds, so neither.
+    expect(elapsed({ where: "bottom", left: 5, auto: false })).toBeNull();
+    expect(elapsed({ where: "top", left: 8, auto: false })).toBeNull();
+    expect(elapsed({ where: "bottom", left: 9, auto: false })).toBe(149);
   });
 
   it("drops a read that breaks the video's only-ever-losing-time order, and fills between agreeing reads", () => {
