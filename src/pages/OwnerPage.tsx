@@ -7,7 +7,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 import { useSearchParams } from "react-router-dom";
 import { Clapperboard,
   Activity, AlertTriangle, Bug, Building2, CheckCircle2, ClipboardList, Database, DatabaseZap, Gauge, HardDrive, HardDriveDownload,
-  Inbox, LayoutDashboard, Link2, MonitorPlay, PackageOpen, Radio, Megaphone, RefreshCw, ScrollText, Search, ServerCog, ShieldAlert, Target, Timer, ToggleRight, Trophy, Unlink, UserRound, Users,
+  Inbox, LayoutDashboard, Link2, MonitorPlay, PackageOpen, Radio, Megaphone, RefreshCw, ScrollText, Search, ServerCog, ShieldAlert, Target, Timer, ToggleRight, Trophy, Unlink, UserRound, Users, Tv,
 } from "lucide-react";
 import { PageHeader, Section, EmptyState } from "../components/page";
 import { StatTile, Meter } from "../components/StatTile";
@@ -48,12 +48,14 @@ import { FeedbackPanel } from "../components/owner/FeedbackPanel";
 import { ErrorsPanel } from "../components/owner/ErrorsPanel";
 import { BugReportsPanel } from "../components/owner/BugReportsPanel";
 import { ContributorsPanel } from "../components/owner/ContributorsPanel";
+import { OfficialVideosPanel } from "../components/owner/OfficialVideosPanel";
 import { AnalyticsPanel } from "../components/owner/AnalyticsPanel";
 
 const PANELS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard, group: "Health" },
   { id: "data", label: "Data & sync", icon: DatabaseZap, group: "Data" },
   { id: "packs", label: "Packs & offline", icon: PackageOpen, group: "Data" },
+  { id: "officialVideos", label: "Official videos", icon: Tv, group: "Data" },
   { id: "predictions", label: "Predictions & ledger", icon: Target, group: "Product" },
   { id: "content", label: "Rankings & content", icon: Trophy, group: "Product" },
   { id: "features", label: "Features", icon: ToggleRight, group: "Product" },
@@ -91,10 +93,13 @@ export default function OwnerPage() {
   const o = overview.data;
   // Video contributors' queues (docs/contributors.md): requests waiting, and links with open reports.
   const vc = useApi<{ requests: number; reports: number }>("/api/owner/contributors/counts").data;
+  // The official-video watcher's review queue (docs/official-videos.md).
+  const ov = useApi<{ pending: number }>("/api/owner/official-videos/counts").data;
   const badges: Partial<Record<PanelId, { n: number; what: string; urgent?: boolean }[]>> = o ? {
     feedback: [{ n: o.inbox.openFeedback, what: "open feedback" }, { n: o.inbox.errorReports, what: "error reports", urgent: true }],
     accounts: [{ n: o.orphanedWorkspaces ?? 0, what: "orphaned spaces" }],
     moderation: [{ n: o.commonsReports ?? 0, what: "reported commons entries", urgent: true }],
+    ...(ov ? { officialVideos: [{ n: ov.pending, what: "to review" }] } : {}),
     ...(vc ? { contributors: [{ n: vc.requests, what: "verification requests" }, { n: vc.reports, what: "reported videos", urgent: true }] } : {}),
   } : {};
   // Phones and tablets: keep the open section's chip in view in the scrolling row.
@@ -170,6 +175,7 @@ export default function OwnerPage() {
           {panel === "feedback" && <div className="space-y-8"><FeedbackPanel onOpenResync={() => go("data")} /><ErrorsPanel /></div>}
           {panel === "bugs" && <BugReportsPanel />}
           {panel === "contributors" && <ContributorsPanel />}
+          {panel === "officialVideos" && <OfficialVideosPanel />}
           {panel === "analytics" && <div className="space-y-8"><AnalyticsPanel /><UsagePanel /></div>}
           {panel === "accounts" && <div className="space-y-8"><UsersPanel /><OrphanedPanel /></div>}
           {panel === "storage" && <StoragePanel />}

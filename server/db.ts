@@ -2222,6 +2222,68 @@ CREATE TABLE official_videos (
 CREATE INDEX official_videos_event ON official_videos (season, code) WHERE removed_at IS NULL;
 `,
   },
+  {
+    version: 84,
+    name: "official video watcher",
+    sql: `
+-- The auto-watcher (server/videos/officialWatch.ts, docs/official-videos.md): official channels read on a schedule
+-- with the YouTube Data API (each channel's own uploads; never a search). official_channels: the watchlist, owner
+-- editable. region: which events can be the channel's (server/videos/officialMatch.ts parseRule); watch_from: only
+-- videos published from then on are read (older ones were checked by hand into the list). A removed channel stays
+-- removed: the seed never writes it back.
+CREATE TABLE official_channels (
+  channel_id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  region TEXT NOT NULL,
+  words TEXT,
+  title_pattern TEXT,
+  watch_from TEXT NOT NULL,
+  added_at TEXT NOT NULL,
+  added_by TEXT,
+  removed_at TEXT,
+  checked_at TEXT,
+  last_error TEXT
+);
+-- Every video the watcher has read, once: status added (every check passed: written to official_videos), pending
+-- (for the owner to decide), duplicate (its event already plays a video for that day, or this very video: logged,
+-- never added or queued), ignored (not a competition stream), rejected (the owner said no), approved (the owner
+-- added it). A video here is never proposed again. season/code/day/part: the event it fits best, when one does.
+CREATE TABLE official_watch (
+  video_id TEXT PRIMARY KEY,
+  channel_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  start TEXT,
+  published TEXT,
+  duration INTEGER,
+  status TEXT NOT NULL,
+  season INTEGER,
+  code TEXT,
+  day TEXT,
+  part TEXT,
+  why TEXT NOT NULL,
+  seen_at TEXT NOT NULL,
+  decided_at TEXT,
+  decided_by TEXT
+);
+CREATE INDEX official_watch_status ON official_watch (status, seen_at);
+-- One official recording per event, day and part (a named part such as the awards is its own), so two approvals or
+-- adds at once can't both land on one day.
+CREATE UNIQUE INDEX official_videos_day ON official_videos (season, code, day, COALESCE(part, '')) WHERE kind = 'recording' AND removed_at IS NULL;
+-- One row a run: API units used (of YouTube's 10,000 a day), what it read and did, and the error that stopped it.
+CREATE TABLE official_watch_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  started_at TEXT NOT NULL,
+  finished_at TEXT,
+  units INTEGER NOT NULL DEFAULT 0,
+  channels INTEGER NOT NULL DEFAULT 0,
+  seen INTEGER NOT NULL DEFAULT 0,
+  added INTEGER NOT NULL DEFAULT 0,
+  queued INTEGER NOT NULL DEFAULT 0,
+  duplicates INTEGER NOT NULL DEFAULT 0,
+  error TEXT
+);
+`,
+  },
 ];
 
 export type Db = Client;
