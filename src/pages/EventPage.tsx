@@ -169,7 +169,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
         {rulesOn && hasRuleReference(e.season) && <Button variant="outline" size="sm" asChild><Link to={`/rules?season=${e.season}`} data-rules-link><Gavel /> Rules</Link></Button>}
       </HeaderActions>
       {/* How much of the event this viewer can watch (docs/contributors.md), seen before the match list. */}
-      <CoverageLine reserve={d.matches.some((m) => m.played)} />
+      <CoverageLine reserve={d.matches.some((m) => m.played)} recorded={!!e.stream} />
       {/* Before FIRST posts the event: the regional site's hosts, times and format, labelled provisional. */}
       {d.provisional && <ProvisionalDetails p={d.provisional} />}
       {!predictable && <p className="mt-3 text-xs text-muted-foreground">{seasonLabel(e.season)} is shown for history: results, rankings and awards, no predictions (those start with 2023–24).</p>}

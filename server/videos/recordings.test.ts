@@ -164,6 +164,23 @@ describe("event recordings", () => {
     const by = Object.fromEntries(events.map((e: any) => [e.code, e.video ?? null]));
     expect(by).toEqual({ CLIPS: "clips", OWNER: "clips", CHAPTERED: "clips", OFFICIAL: "clips", UPLOAD: "recording", GAPPED: "recording", TRIMMED: "clips", SHORT: "clips", ELSEWHEN: "recording", GONE: null, CHANNEL: null, TWITCH: null });
   });
+
+  it("an event above divisions shows the best of its divisions' video (USTXCMP4 2026 had none, its divisions had video)", async () => {
+    await event("CHAMP", null);
+    await event("PAIR", null);
+    await run("UPDATE events SET division_code = 'CHAMP' WHERE season = ? AND code IN ('UPLOAD', 'CLIPS')", [S]);
+    await run("UPDATE events SET division_code = 'PAIR' WHERE season = ? AND code = 'GAPPED'", [S]);
+    try {
+      clearAllCaches();
+      const { events } = await getJson(`/api/events?season=${S}&all=1`);
+      const by = Object.fromEntries(events.map((e: any) => [e.code, e.video ?? null]));
+      expect(by).toMatchObject({ CHAMP: "clips", PAIR: "recording", UPLOAD: "recording", CLIPS: "clips", GAPPED: "recording" });
+    } finally {
+      await run("UPDATE events SET division_code = NULL WHERE season = ? AND code IN ('UPLOAD', 'CLIPS', 'GAPPED')", [S]);
+      await run("DELETE FROM events WHERE season = ? AND code IN ('CHAMP', 'PAIR')", [S]);
+      clearAllCaches();
+    }
+  });
 });
 
 describe("a page that can't be read", () => {
