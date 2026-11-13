@@ -2,9 +2,9 @@
 // reads dropped when the data moves (search:version, data:version, a write to a data table), its answers and pages
 // served from before the move until drawn again once, and everything dropped by "Clear caches".
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { kvSet, migrate, openDb, setDb } from "../db";
+import { db, kvSet, migrate, openDb, setDb } from "../db";
 import { clearAllCaches } from "../caches";
-import { keptAnswer, keptCounts, keptPage, PAGE_TTL_MS, PAGES_KEPT, searchRead, STALE_MS } from "./searchReads";
+import { keptAnswer, keptCounts, keptPage, PAGE_TTL_MS, PAGES_KEPT, searchGet, searchRead, searchVersion, STALE_MS } from "./searchReads";
 
 beforeEach(async () => {
   const c = openDb(":memory:");
@@ -168,5 +168,41 @@ describe("kept pages", () => {
   it("does not keep a page that failed to draw", async () => {
     await expect(keptPage("/teams/1", async () => { throw new Error("no"); })).rejects.toThrow("no");
     expect(await keptPage("/teams/1", async () => "ok")).toBe("ok");
+  });
+});
+
+describe("the search index's version", () => {
+  // A write that doesn't go through this process's db helpers: another process's (the stats job's rebuild).
+  const elsewhere = (v: string) => db().execute({ sql: "INSERT INTO kv (key, value, updated_at) VALUES ('search:version', ?, '') ON CONFLICT(key) DO UPDATE SET value = excluded.value", args: [JSON.stringify(v)] });
+
+  it("is read once for a burst of asks, and again a couple of seconds on", async () => {
+    await kvSet("search:version", "v1");
+    expect(await searchVersion()).toBe("v1");
+    await elsewhere("v2");
+    expect(await searchVersion()).toBe("v1");
+    tick(2_100);
+    expect(await searchVersion()).toBe("v2");
+  });
+
+  it("is read again at once after this process writes what search reads", async () => {
+    await kvSet("search:version", "v1");
+    expect(await searchVersion()).toBe("v1");
+    await kvSet("search:version", "v2");
+    expect(await searchVersion()).toBe("v2");
+  });
+
+  it("is \"0\" before the index was ever built, and Clear caches reads it again", async () => {
+    expect(await searchVersion()).toBe("0");
+    await elsewhere("v3");
+    clearAllCaches();
+    expect(await searchVersion()).toBe("v3");
+  });
+});
+
+describe("searchGet", () => {
+  it("is the first kept row, or undefined", async () => {
+    await kvSet("a", 1);
+    expect(await searchGet<{ value: string }>("SELECT value FROM kv WHERE key = ?", ["a"])).toEqual({ value: "1" });
+    expect(await searchGet("SELECT value FROM kv WHERE key = ?", ["none"])).toBeUndefined();
   });
 });

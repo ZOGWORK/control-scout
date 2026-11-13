@@ -12,7 +12,7 @@ import { RANKED_MIN_MATCHES } from "../../../../src/shared/rankings.js";
 import { scheduleRankText, scheduleWord } from "../../../../src/shared/scheduleDifficulty.js";
 import { all, get } from "../../../db.js";
 import { isEnabled } from "../../../flags.js";
-import { ATTENDED, seasonStats, teamEvents, teamReliability, teamReportCards, teamSchedule } from "../../teams.js";
+import { ATTENDED, LEAGUE_RANKED, seasonStats, teamEvents, teamReliability, teamReportCards, teamSchedule } from "../../teams.js";
 import { readScope } from "../read.js";
 import { currentSeason, seasonWhy, teamSeason } from "../season.js";
 import { ratingKpis } from "./oprRating.js";
@@ -347,7 +347,7 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
   // league-rank: FIRST's ranking at a league meet is the league's running standing, out of the teams ranked in that
   // league's meets (its region's: a league code can repeat across regions) this season up to that meet's date (a meet lists only its own teams, so its count alone is too small;
   // a later meet's teams aren't in that standing yet).
-  const r = await get<any>(`SELECT e.code, e.name, e.type, e.league, e.start, et.rank, (SELECT COUNT(DISTINCT o.team) FROM event_teams o JOIN events oe ON oe.season = o.season AND oe.code = o.code WHERE o.season = et.season AND o.rank IS NOT NULL AND (oe.code = e.code OR (e.league IS NOT NULL AND oe.league = e.league AND oe.region IS e.region AND oe.type = 'LeagueMeet' AND oe.start <= e.start))) n
+  const r = await get<any>(`SELECT e.code, e.name, e.type, e.league, e.start, et.rank, ${LEAGUE_RANKED} n
     FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code WHERE et.team = ? AND et.season = ? AND e.type = 'LeagueMeet' AND et.rank IS NOT NULL AND ${ATTENDED} ORDER BY e.start DESC LIMIT 1`, [team.number, season]);
   const b = base("league-rank", `League standing in ${S}`, [S], `A league's standing is FIRST's ranking at the team's latest league meet, which counts every meet so far that season.${why}`, `From the ${S} league meets`);
   // FIRST's whole league table, when the sync has read it (server/data/leagues.ts): the standing is its row, out of the

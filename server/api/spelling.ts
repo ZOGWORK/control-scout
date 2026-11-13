@@ -12,7 +12,8 @@
 // rather than guessing one.
 import type { SearchAnswer, SearchHit } from "../../src/shared/api.js";
 import { search } from "./search.js";
-import { all, kvGet } from "../db.js";
+import { all } from "../db.js";
+import { searchVersion } from "./searchReads.js";
 import { teamPageSql } from "../../src/shared/teamPages.js";
 import { registerCache } from "../caches.js";
 import { SEASONS } from "../data/seasons.js";
@@ -141,7 +142,7 @@ let vocabCache: { version: string; vocab: Promise<Vocab> } | null = null;
 
 /** The vocabulary from the database, rebuilt when the search index is (its "search:version"). */
 async function vocab(): Promise<Vocab> {
-  const version = (await kvGet<string>("search:version")) ?? "0";
+  const version = await searchVersion();
   if (vocabCache?.version === version) return vocabCache.vocab;
   const v = Promise.all([
     all<TeamRow>("SELECT name, school, city, state FROM teams"),

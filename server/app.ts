@@ -25,6 +25,7 @@ import { brunoAnswer } from "./api/searchBrunoAnswer.js";
 import { SEARCH_PAGE_LIMIT } from "../src/shared/search.js";
 import { teamParts } from "../src/shared/searchPage.js";
 import { loneTeamHit } from "./api/searchLayers.js";
+import { searchTiming } from "./api/searchTiming.js";
 
 /** A search's preferred teams and events (?prefer=team:4215,event:2025:USNJCMP), the visitor's own: ranked first. */
 /** ?season=2024 (the answer's season picker): the query asked about that season instead, whatever season it names
@@ -401,6 +402,7 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
   }));
 
   api.get("/search", searches, h(async (req, res) => {
+    const started = performance.now();
     await ensureSearchIndex(rebuildSearch);
     const prefer = preferOf(req.query.prefer);
     // ?kinds=event,place: only those kinds, picked before the limit (unknown names are ignored).
@@ -416,6 +418,7 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
       const typed = await pageAnswer(q, limit, prefer);
       // "My" and "our" with no team named: the visitor's My team, sent as ?my= (server/api/searchMine.ts).
       const ans = (await mineAnswer(q, typed, myTeamOf(req.query.my), (x) => pageAnswer(x, limit, prefer))) ?? typed;
+      const answered = performance.now();
       // How it was read (server/api/searchLayers.ts), taken from the answer object itself, before it's copied.
       const trace = outcomeTrace(ans);
       const at = Date.now();
@@ -432,14 +435,19 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
       // (server/api/answers/highlights.ts), its matches' videos with it. Never in the header's short list, and never for
       // a topic about the team (a section, facts, an event pick). A season asked for ("4215 2024-25") is the one shown.
       // Nor for a question about the team search couldn't answer ("will 4215 win …", "how many teams named …").
+      // Who's asking (for the videos below) is read beside the highlights, not after them.
+      const asking = currentUser(req).catch(() => null).then(viewerOf);
+      asking.catch(() => {}); // awaited below; never an unhandled rejection meanwhile
       const lone = limit >= SEARCH_PAGE_LIMIT ? loneTeamHit(ans) : undefined;
       const highlights = lone ? await teamHighlights({ number: Number(lone.ref), name: teamParts(lone.title)?.name ?? null }, lone.linkSeason).catch(() => null) : null;
       const full = highlights ? { ...ans, stat: highlights } : ans;
       // Its video (server/api/answers/video.ts): one read for the whole answer, beside the team rows'.
       // Match videos people added are for the viewer asking (docs/contributors.md): an answer carrying one is never cached.
-      const viewer = await viewerOf(await currentUser(req).catch(() => null));
+      const viewer = await asking;
       const [hits, video] = await Promise.all([withEventParents(full.hits).then(withTeamStats), answerVideo(full, Date.now(), viewer).catch(() => undefined)]);
       if (video && (video.main?.kind === "contributor" || Object.values(video.rows ?? {}).some((x) => x.kind === "contributor"))) res.setHeader("Cache-Control", "private, no-store");
+      // This process's own time (searchTiming): the answer, then the rest (highlights, team numbers, video).
+      res.setHeader("Server-Timing", searchTiming({ answer: answered - started, extras: performance.now() - answered }));
       return { ...full, hits, ...(video ? { video } : {}) };
     }
     return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, MAX_QUERY), limit, prefer, kinds) };
@@ -454,7 +462,9 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
     // The answer's picked season (?season=), as /search asks it: the follow-ups are about the answer shown.
     const asked = await pickedQuery(q, req.query.season);
     // Kept (keptFollowUps): the /search page's first paint drew the same ones (server/seoMeta.ts searchMeta).
+    const started = performance.now();
     const follow = await keptFollowUps(asked, prefer);
+    res.setHeader("Server-Timing", searchTiming({ follow: performance.now() - started }));
     res.setHeader("Cache-Control", "public, max-age=60");
     // Every valid pick is echoed (the app matches it), with the query as asked for the related searches page.
     const season = q.trim() ? pickedSeasonOf(req.query.season) : null;

@@ -4,7 +4,7 @@
 import { all } from "../../db.js";
 import { registerCache } from "../../caches.js";
 import { recordSql } from "../../../src/shared/eventRecord.js";
-import { ATTENDED } from "../teams.js";
+import { ATTENDED, LEAGUE_RANKED } from "../teams.js";
 import { shortEvent } from "./matchSet.js";
 
 export interface TeamEvent {
@@ -87,8 +87,7 @@ async function load(team: number): Promise<{ events: TeamEvent[]; seasons: TeamS
               (SELECT COUNT(*) FROM event_teams r WHERE r.season = et.season AND r.code = et.code AND r.rank IS NOT NULL) ranked,
               -- A league meet's standing is out of the league's ranked teams through that meet (as facts.ts's league
               -- standing counts them), not the meet's own roster.
-              CASE WHEN e.type = 'LeagueMeet' THEN (SELECT COUNT(DISTINCT o.team) FROM event_teams o JOIN events oe ON oe.season = o.season AND oe.code = o.code
-                WHERE o.season = et.season AND o.rank IS NOT NULL AND (oe.code = e.code OR (e.league IS NOT NULL AND oe.league = e.league AND oe.region IS e.region AND oe.type = 'LeagueMeet' AND oe.start <= e.start))) END league_ranked,
+              CASE WHEN e.type = 'LeagueMeet' THEN ${LEAGUE_RANKED} END league_ranked,
               -- A league meet's own rank, and how many teams ranked at that meet (the team page's figures).
               CASE WHEN e.type = 'LeagueMeet' THEN (SELECT r.rank FROM team_event_records r WHERE r.season = et.season AND r.code = et.code AND r.team = et.team) END meet_rank,
               CASE WHEN e.type = 'LeagueMeet' THEN (SELECT COUNT(*) FROM team_event_records r WHERE r.season = et.season AND r.code = et.code AND r.rank IS NOT NULL) END meet_ranked,

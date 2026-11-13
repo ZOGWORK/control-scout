@@ -7,7 +7,10 @@
 // for a team). Scores of different games are never compared, so there is no all-time record.
 import type { SearchAnswer, SearchCard, SearchCardLine, SearchHit } from "../../src/shared/api.js";
 import { dateRange, place, seasonLabel } from "../../src/shared/format.js";
-import { get, all } from "../db.js";
+// A season's best scores walk every match of the season (130–320 ms a read, measured 2026-11-13): kept as search's
+// own reads are (searchReads.ts, until the data moves), so "highest score in decode", "decode world record" and the
+// match records page read them once.
+import { searchGet as get, searchRead as all } from "./searchReads.js";
 import { CURRENT_SEASON, SEASONS, ownScorePenalties } from "../data/seasons.js";
 import { UNOFFICIAL_NOTE, officialOnlySql, unofficialLine } from "../data/unofficialRecords.js";
 import { PENALTIES_NOT_POSTED } from "../../src/shared/seasonRecord.js";
@@ -155,7 +158,7 @@ const key = (r: { season: number; code: string; level: string; series: number; n
 
 /** Each listed alliance's teams that played ("12345 Hypnotic Robotics"), by match and side: a playoff alliance's team
  *  sitting the match out isn't on it, and never gets its score as a team's best (on_field, above too). */
-async function alliances(rows: ScoreRow[]): Promise<Map<string, string[]>> {
+async function alliances(rows: readonly ScoreRow[]): Promise<Map<string, string[]>> {
   const out = new Map<string, string[]>();
   if (!rows.length) return out;
   const ts = await all<{ season: number; code: string; level: string; series: number; number: number; alliance: string; team: number; name: string | null }>(

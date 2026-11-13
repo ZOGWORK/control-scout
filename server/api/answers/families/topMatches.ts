@@ -7,7 +7,9 @@ import type { StatAnswer, StatBlock, StatMatchRow } from "../../../../src/shared
 import type { Region } from "../../../../src/shared/regions.js";
 import { dateRange, seasonLabel } from "../../../../src/shared/format.js";
 import { regionOf } from "../../../../src/shared/searchEventQuery.js";
-import { all, get } from "../../../db.js";
+// A season's best matches walk every match of it (50–130 ms a read, measured 2026-11-13): kept as search's own reads
+// are (searchReads.ts, until the data moves), so the highlights questions asked over one season read them once.
+import { searchGet as get, searchRead as all } from "../../searchReads.js";
 import { SEASONS, gameOf as gameOfSeason, ownScorePenalties, reportedTeleopIncludesEndgame } from "../../../data/seasons.js";
 import { parseHighScore } from "../../searchHighScores.js";
 import { OFFICIAL_TYPES } from "../clauses.js";

@@ -1,7 +1,8 @@
 // The names the parser recognises, read from the stored data (docs/search-pipeline.md, "Entities"): every team number
 // and name, every place a team or event is in (a region, a country, a town), held in memory and rebuilt with the
 // search index. Nothing here is typed by hand: a new team, town or country is known as soon as it's synced.
-import { all, kvGet } from "../../db.js";
+import { all } from "../../db.js";
+import { searchVersion } from "../searchReads.js";
 import { registerCache } from "../../caches.js";
 import { countryOf, countryOfDemonym } from "../../../src/shared/countries.js";
 import { regionOf, regionPartOf } from "../../../src/shared/searchEventQuery.js";
@@ -120,6 +121,9 @@ export function buildNames(teams: Row[], places: { city: string | null; state: s
   }
   const countries = new Map<string, string>();
   for (const p of [...teams, ...places]) if (p.country) countries.set(fold(p.country), p.country);
+  // Each stored country's own country (countryOf), read once here rather than for every word a query is read with:
+  // in the stored order, so the first stored label for a country is still the one found.
+  const storedCountries = [...countries.values()].flatMap((label) => { const c = countryOf(label); return c ? [{ label, c }] : []; });
   // The teams of the stored names these words nearly spell, the closest only ("the robcats": The Robocats): one letter
   // off in a name of up to eight letters, two in a longer one, with the same first letter, as a near miss of a name
   // starts as the name does. `shared`: only when every closest spelling is one same set of teams (a shared name).
@@ -169,7 +173,8 @@ export function buildNames(teams: Row[], places: { city: string | null; state: s
       // A country as the data stores it ("Romania", "USA") or by another of its names ("Turkey", "UK").
       // Or by its people's word ("Romanian teams").
       const people = countryOfDemonym(f);
-      const stored = countries.get(f) ?? [...countries.values()].find((c) => countryOf(c) && (countryOf(c) === countryOf(w) || (!!people && countryOf(c) === people)));
+      const said = countryOf(w);
+      const stored = countries.get(f) ?? storedCountries.find(({ c }) => c === said || (!!people && c === people))?.label;
       if (stored && f.length >= 3) return { kind: "country", country: stored, state: null, city: null, name: countryOf(stored)?.name ?? stored };
       const town = towns.get(f);
       if (town && town.size === 1 && f.length >= 3) {
@@ -189,7 +194,7 @@ let cache: { version: string; names: Promise<Names> } | null = null;
 
 /** The index from the database, rebuilt when the search index is. */
 export async function names(): Promise<Names> {
-  const version = (await kvGet<string>("search:version")) ?? "0";
+  const version = await searchVersion();
   if (cache?.version === version) return cache.names;
   const n = Promise.all([
     // Its strength: the best world OPR percentile in its two latest ranked seasons (./shared.ts).
