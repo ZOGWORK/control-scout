@@ -25,7 +25,7 @@ Australia's events play FIRST Australia's own recordings, a day at a time, and n
 - [fixes] New FIRST Australia streams are found on their own
 
 ### Added
-- FIRST Australia (youtube.com/@FirstAustralia) is an official channel: the watcher reads its uploads for Australia's events and APOC (`server/data/officialChannels.ts`). Its past recordings are on their events, each a day's broadcast checked against that event's played matches (`server/data/officialVideos.json`) (#PR):
+- FIRST Australia (youtube.com/@FirstAustralia) is an official channel: the watcher reads its uploads for Australia's events and APOC (`server/data/officialChannels.ts`). Its past recordings are on their events, each a day's broadcast checked against that event's played matches (`server/data/officialVideos.json`) (#1447):
   - 2024–25: Australia Championship (both days), APOC 2025 (both match days).
   - 2025–26: Sydney South Qualifier, Sydney North Qualifier (both days), Australia Championship (both days), APOC 2026 (three days, Saturday in two parts).
   - 2026–27: Brisbane South Qualifier (both days), Victoria Qualifier.
