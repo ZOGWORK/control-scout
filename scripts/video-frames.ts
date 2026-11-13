@@ -125,9 +125,11 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   };
   const note = (r: Read) => { if (r.label && r.start != null && byLabel.has(r.label)) seen.set(byLabel.get(r.label)!, r.start); };
 
-  // An upload: find any match first, a frame every 10 minutes.
+  // Any match at all, a frame every 10 minutes: where there's no clock to go by (an upload), or the clock's guesses read
+  // nothing (a broadcast whose start YouTube has wrong).
+  const scan = async () => { for (let t = 300; t < length && !seen.size; t += 600) { note(await readAt(page, t)); reads++; } };
   if (shift == null) {
-    for (let t = 300; t < length && !seen.size; t += 600) { note(await readAt(page, t)); reads++; }
+    await scan();
     if (!seen.size) { log("    no match found in it"); return new Map(); }
   }
 
@@ -166,6 +168,10 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
     await span(mid, j);
   }
   await span(0, ms.length - 1);
+  if (blind() && shift != null) {
+    await scan();
+    if (seen.size) { log(`    the clock read nothing; found by scanning, ${reads} frames in`); missed = 0; await span(0, ms.length - 1); }
+  }
   if (blind()) log(`    no overlay read in ${reads} frames`);
   const out = placed(ms, seen);
   log(`    ${out.size} of ${ms.length} placed, ${seen.size} read, ${reads} frames${out.size < ms.length ? `; not placed: ${ms.filter((m) => !out.has(m.label)).map((m) => m.label).join(" ")}` : ""}`);
