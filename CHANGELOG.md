@@ -22,6 +22,7 @@ Donations now go to the ZOGWORK organization, and the supporters page reads its 
 ### Highlights
 - [fixes] The Sponsor button opens ZOGWORK's GitHub Sponsors page
 - [fixes] The supporters page lists ZOGWORK's sponsors
+- [fixes] The supporters page no longer shows an error while it waits for sponsors
 
 ### Changed
 - The donate link is `github.com/sponsors/ZOGWORK` (was the owner's personal profile). One value, `SPONSOR_ORG` in `src/shared/sponsor.ts`.
