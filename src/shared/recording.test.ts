@@ -155,7 +155,7 @@ describe("a recording cut short, its chapters checked", () => {
       "Qualification match twenty one recap", "Playoff Match 7 - upper bracket"].map(chapterLabel)).toEqual(["Q16", "Q1", "Q1", "Q1", "Q1", "Q21", "M7"]);
     // Two matches, or no number of its own.
     expect(["Match 7 and 8", "Match 7 & 8", "Match 7-8", "Match 7, 8", "Matches 7 to 9", "Match 7 then Match 8", "Match setup and team intro",
-      "Match announcement", "Q&A Session", "Meeting setup", "Match 123456", "Match 12b", "Q1 Q2", "M3 / M4", "Qualification 5 / Qualification 6"].map(chapterLabel)).toEqual(Array(15).fill(null));
+      "Match announcement", "Q&A Session", "Meeting setup", "Match 123456", "Match 12b", "Q1 Q2", "M3 / M4", "Qualification 5 / Qualification 6", "Match 7 and 12", "Match 7 - 112", "Match 7 then match 12"].map(chapterLabel)).toEqual(Array(18).fill(null));
   });
   const clock = (n: number) => 1100 + (n - 1) * 500; // Qn's second by the clock
   const shift = (from: number, by: number) => chapters.map(([t, title], i): Chapter => [i >= from && i <= 30 ? t - by : t, title]);
