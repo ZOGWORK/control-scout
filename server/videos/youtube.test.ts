@@ -43,6 +43,9 @@ describe("reading a watch page", () => {
     expect(parseWatchPage(wall)).toEqual({ status: "ok", start: "2026-05-02T12:58:13.000Z", end: "2026-05-02T17:33:56.000Z", length: 16541, live: false, chapters: [[600, "Match 1"]] });
     // The length alone (no broadcast times) is no clock to place matches by: still the error.
     expect(parseWatchPage(page("LOGIN_REQUIRED")).status).toBe("error");
+    // So is an empty or start-less broadcast block: an error, read again later, never an "ok" with no clock.
+    expect(parseWatchPage(page("LOGIN_REQUIRED", `"liveBroadcastDetails":{}`)).status).toBe("error");
+    expect(parseWatchPage(page("LOGIN_REQUIRED", `"liveBroadcastDetails":{"isLiveNow":false,"endTimestamp":"2026-05-02T17:33:56+00:00"}`)).status).toBe("error");
   });
   it("a page without a player response (a consent wall) is an error, never a guess", () => {
     expect(parseWatchPage("<html>Before you continue to YouTube</html>").status).toBe("error");
