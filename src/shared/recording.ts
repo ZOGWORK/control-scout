@@ -68,8 +68,10 @@ export function timingTrusted(rec: RecordingTiming): boolean {
 /** A video chapter: its start in seconds and its title (YouTube's own, often generated: "Match five", "Playoff match two"). */
 export type Chapter = [t: number, title: string];
 
-/** Chapter evidence counts only for this much missing time: below it, the length check (timingTrusted) is the one to go by. */
-export const CHAPTER_MIN_GAP_S = 1800;
+/** Chapter evidence counts only for more missing time than an early start covers (gapSlack): at or below it, the
+ *  length check (timingTrusted, gapSlack) is the one to go by. It was 30 min, which left a video 15 to 30 min short with
+ *  neither (Minnesota Championship Nano 2026: 21 min short, 0 clips). */
+export const CHAPTER_MIN_GAP_S = GAP_SLACK_MAX_S;
 /** How many chapters must name a played match before they say anything. */
 export const CHAPTER_MIN_ANCHORS = 6;
 /** How far the matches' distance from their chapters (typically: the median) may move before that's a gap: generated
@@ -90,14 +92,39 @@ function numberOf(word: string): number | null {
   return t >= 2 && o >= 1 && o <= 9 ? t * 10 + o : null;
 }
 
-/** The match a chapter names, as its label (Q5, M2), or null: a chapter naming two matches, or anything else. */
+/** A chapter's number at its start ("21 analysis", "twenty one", "five gameplay") and what follows it, or null. */
+function leadingNumber(rest: string): { n: number; tail: string } | null {
+  const d = /^(\d{1,3})(?!\d)(.*)$/s.exec(rest);
+  if (d) return { n: Number(d[1]), tail: d[2] };
+  const w = /^([a-z]+)(?:([-\s]+)([a-z]+))?(.*)$/is.exec(rest);
+  if (!w) return null;
+  // Two words first ("twenty one", "twenty-one"), then one ("five gameplay").
+  if (w[3]) {
+    const two = numberOf(`${w[1]}-${w[3]}`.toLowerCase());
+    if (two != null && TENS.indexOf(w[1].toLowerCase()) >= 2) return { n: two, tail: w[4] };
+  }
+  const one = numberOf(w[1].toLowerCase());
+  return one == null ? null : { n: one, tail: rest.slice(w[1].length) };
+}
+
+/** A number token ("7", "seven"): a chapter that goes on to name it ("Match 7 and 8") names two matches. */
+const NUMBER_WORD = `\\d|${[...ONES.slice(1), ...TENS.slice(2)].join("|")}`;
+const SECOND_MATCH = new RegExp(`^\\s*(?:and|&|\\+|,|/|to|through|thru|-|–|—)\\s*(?:${NUMBER_WORD})\\b|\\bmatch(?:es)?\\s*#?\\s*(?:${NUMBER_WORD})\\b`, "i");
+
+/**
+ * The match a chapter names, as its label (Q5, M2), or null: a chapter naming two matches, or anything else. YouTube's
+ * generated chapters often say more after the number ("Match 16 analysis", "Match one gameplay"), and an organiser's
+ * may list the teams ("Q1 🔵20288 Mechanical Mages …"): the match is the one its title starts with.
+ */
 export function chapterLabel(title: string): string | null {
-  const m = /^\s*(playoff match|qualification(?: match)?|qual(?:s)?|match|q|m)\s*#?\s*([a-z]+(?:[-\s][a-z]+)?|\d{1,3})\s*$/i.exec(title);
+  const m = /^\s*(playoff match|qualification(?: match)?|quals?|match|q|m)\s*#?\s*(.*)$/is.exec(title);
   if (!m) return null;
-  const n = numberOf(m[2].toLowerCase());
-  if (n == null || n < 1) return null;
+  const num = leadingNumber(m[2]);
+  if (!num || num.n < 1) return null;
+  // The number must end there ("Match 5", "Match 5 recap"), and the title must not go on to a second match.
+  if (/^[a-z0-9]/i.test(num.tail) || SECOND_MATCH.test(num.tail)) return null;
   const kind = m[1].toLowerCase();
-  return `${kind === "playoff match" || kind === "m" ? "M" : "Q"}${n}`;
+  return `${kind === "playoff match" || kind === "m" ? "M" : "Q"}${num.n}`;
 }
 
 /** The middle value (the lower of the two middle ones for an even count, so one stray value never decides it). */
@@ -120,7 +147,7 @@ const median = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b); retu
 export function chaptersConfirm(rec: RecordingTiming, chapters: Chapter[] | null | undefined, matches: { label: string; startsAt: string | null | undefined }[]): number | null {
   if (!rec.start || !rec.end || rec.length == null || !chapters?.length) return null;
   const from = Date.parse(rec.start), missing = (Date.parse(rec.end) - from) / 1000 - rec.length;
-  if (!Number.isFinite(missing) || missing < CHAPTER_MIN_GAP_S) return null;
+  if (!Number.isFinite(missing) || missing <= CHAPTER_MIN_GAP_S) return null;
   const at = new Map<string, number>();
   for (const [t, title] of chapters) { const l = chapterLabel(title); if (l && !at.has(l)) at.set(l, t); }
   const anchors: { clock: number; off: number }[] = [];
