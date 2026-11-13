@@ -25,7 +25,7 @@ An event with a recording no longer says it has none, and a championship shows V
 - [fixes] The events list's video filter finds championships with filmed divisions
 
 ### Fixed
-- An event whose recording plays on its page but has no match placed in it said "No recording for this event — stats only." right above its "Watch the recording" player (every such event checked, USTXCMP4T 2026 among them). It now says "Full recording only — no match clips in it yet". (`src/shared/contributors.ts`, `src/components/contributors/EventClips.tsx`, `src/pages/EventPage.tsx`) (#PR)
+- An event whose recording plays on its page but has no match placed in it said "No recording for this event — stats only." right above its "Watch the recording" player (every such event checked, USTXCMP4T 2026 among them). It now says "Full recording only — no match clips in it yet". (`src/shared/contributors.ts`, `src/components/contributors/EventClips.tsx`, `src/pages/EventPage.tsx`) (#1446)
 - An event above divisions had no Video badge when only its divisions were filmed (FIRST links each division's stream): it now shows the best of its divisions' video. On the 2025–26 data: 20 of 33 such events show it, 11 of them newly (USTXCMP4, USMNCMP, FPEIST, FPEWE among them). (`server/videos/recordings.ts`)
 
 ## 5.9.4 — 2026-11-13
