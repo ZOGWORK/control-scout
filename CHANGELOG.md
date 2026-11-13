@@ -25,7 +25,7 @@ The video watcher waits for the data sync to finish writing instead of stopping 
 - [workspace] Run now says when the data sync is writing
 
 ### Fixed
-- The official-video watcher's first live run stopped with "database is locked": the data sync held the database through a long write, every write of the watcher's waited out the 5-second busy timeout, and its run log was never closed. The watcher now skips a check while the sync holds the writer lease, stops a run cleanly when a write still finds the database busy (not as the channel's own error), and counts only runs that finished without a busy stop for the 6-hour wait, so the next half-hourly check runs it again. Run now says when the sync is writing. (`server/videos/officialWatch.ts`) (#PR)
+- The official-video watcher's first live run stopped with "database is locked": the data sync held the database through a long write, every write of the watcher's waited out the 5-second busy timeout, and its run log was never closed. The watcher now skips a check while the sync holds the writer lease, stops a run cleanly when a write still finds the database busy (not as the channel's own error), and counts only runs that finished without a busy stop for the 6-hour wait, so the next half-hourly check runs it again. Run now says when the sync is writing. (`server/videos/officialWatch.ts`) (#1431)
 
 ## 5.8.9 — 2026-11-12
 
