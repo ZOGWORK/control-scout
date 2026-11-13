@@ -148,6 +148,15 @@ describe("a recording cut short, its chapters checked", () => {
     expect(["Match five", "Match twenty-one", "Qualification 12", "Q7", "Playoff match three", "Match 40"].map(chapterLabel)).toEqual(["Q5", "Q21", "Q12", "Q7", "M3", "Q40"]);
     expect(["Match seven and eight", "Lunch break", "Showcase match", "Match zero"].map(chapterLabel)).toEqual([null, null, null, null]);
   });
+  it("reads a match whose chapter goes on after its number (YouTube's generated words, an organiser's team list)", () => {
+    // Seen on 2025–26 recordings: Match 16 analysis (USTXDASQ), Match one gameplay (NLZEQ), Qualification match 1
+    // (USIAMPM11), Match 1 Highlights (USTXNIM2), Q1 with its teams (USORRCLT).
+    expect(["Match 16 analysis", "Match one gameplay", "Qualification match 1", "Match 1 Highlights", "Q1 🔵20288 Mechanical Mages 🔵 7604 DWAI",
+      "Qualification match twenty one recap", "Playoff Match 7 - upper bracket"].map(chapterLabel)).toEqual(["Q16", "Q1", "Q1", "Q1", "Q1", "Q21", "M7"]);
+    // Two matches, or no number of its own.
+    expect(["Match 7 and 8", "Match 7 & 8", "Match 7-8", "Match 7, 8", "Matches 7 to 9", "Match 7 then Match 8", "Match setup and team intro",
+      "Match announcement", "Q&A Session", "Meeting setup", "Match 123456", "Match 12b"].map(chapterLabel)).toEqual(Array(12).fill(null));
+  });
   const clock = (n: number) => 1100 + (n - 1) * 500; // Qn's second by the clock
   const shift = (from: number, by: number) => chapters.map(([t, title], i): Chapter => [i >= from && i <= 30 ? t - by : t, title]);
   const clips = (rec: typeof timing & { confirmedTo?: number | null }) => quals.map((q) => clipSecond(q.startsAt, rec) != null);
@@ -194,5 +203,12 @@ describe("a recording cut short, its chapters checked", () => {
     expect(chaptersConfirm(timing, undefined, quals)).toBeNull();
     expect(chaptersConfirm({ ...timing, length: 52972 - CHAPTER_MIN_GAP_S + 1 }, chapters, quals)).toBeNull();
     expect(chaptersConfirm({ ...timing, end: null }, chapters, quals)).toBeNull();
+  });
+  it("chapters count from where an early start stops covering, so no shortfall is left with neither", () => {
+    expect(CHAPTER_MIN_GAP_S).toBe(GAP_SLACK_MAX_S);
+    // 21 min short (Minnesota Championship Nano 2026): more than an early start covers, and the chapters are heard.
+    const nano = { ...timing, length: 52972 - 21 * 60 };
+    expect(gapSlack(nano)).toBeNull();
+    expect(chaptersConfirm(nano, chapters, quals)).toBe(clock(30 - CHAPTER_TAIL + 1));
   });
 });
