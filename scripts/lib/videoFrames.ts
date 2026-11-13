@@ -26,6 +26,9 @@ export const secondsOf = (s: string) => { const m = /(\d):([0-5]\d)/.exec(s); re
 /** Seconds since the match started, from its timer (where it's running: a timer standing at its full time is a match
  *  not started yet). */
 export function elapsed(t: { where: "bottom" | "top"; left: number; auto: boolean }): number | null {
+  // Between Auto and TeleOp the timer counts down the 8 s to pick up the controllers ("0:05" under a hand): the same
+  // digits as TeleOp's last seconds. Either could be meant, so no reading that low is used.
+  if (t.left <= SWITCH_S) return null;
   if (t.where === "bottom") {
     if (t.left >= AUTO_S + TELEOP_S) return null;
     return t.left > TELEOP_S ? AUTO_S + TELEOP_S - t.left : AUTO_S + SWITCH_S + TELEOP_S - t.left;
