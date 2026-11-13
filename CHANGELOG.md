@@ -24,7 +24,7 @@ The video watcher checks midway between the data syncs, so it no longer meets a 
 - [fixes] A watcher write waits up to 3 minutes for a sync to finish
 
 ### Fixed
-- The official-video watcher's half-hourly check started 10 minutes after boot, the same second as the startup sync, and every event day's 15-minute sync after it fell on a watcher check too: each check met a sync that had just taken the writer lease and stopped as busy (seen live 13 Nov, 03:36 UTC). The checks now start 17.5 minutes after boot, 2.5 minutes off the sync's 5-minute ticks, and a watcher write waits up to 3 minutes for the lease instead of 30 seconds. (`server/index.ts`, `server/videos/officialWatch.ts`) (#PR)
+- The official-video watcher's half-hourly check started 10 minutes after boot, the same second as the startup sync, and every event day's 15-minute sync after it fell on a watcher check too: each check met a sync that had just taken the writer lease and stopped as busy (seen live 13 Nov, 03:36 UTC). The checks now start 17.5 minutes after boot, 2.5 minutes off the sync's 5-minute ticks, and a watcher write waits up to 3 minutes for the lease instead of 30 seconds. (`server/index.ts`, `server/videos/officialWatch.ts`) (#1432)
 
 ## 5.9.0 — 2026-11-13
 
