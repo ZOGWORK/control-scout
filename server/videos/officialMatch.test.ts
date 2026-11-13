@@ -69,6 +69,18 @@ describe("the watcher's matcher", () => {
     expect(fin.kind === "add" && fin.event.code).toBe("ROCMP");
   });
 
+  it("FIRST Australia's seeded rule knows APOC by name (a word boundary, not a backspace)", async () => {
+    const { OFFICIAL_CHANNELS } = await import("../data/officialChannels");
+    const au = OFFICIAL_CHANNELS.find((c) => c.channelId === "UCal7624DPridi_9iKLrAbqw")!;
+    expect(au.titlePattern).not.toMatch(/\x08/);
+    const named = new RegExp(au.titlePattern!, "i");
+    expect(["FTC APOC 2025, Qualification & Playoff matches", "FIRST Tech Challenge Asia Pacific Open Championship 2026 day 3", "FIRST Tech Challenge Australian National Championship Day 2"].map((t) => named.test(t))).toEqual([true, true, true]);
+    expect(named.test("Tapocalypse scrimmage")).toBe(false);
+    const apoc = ev("AUSYOS", "APOC", { country: "Australia", state: "NSW", city: "Sydney", type: "OffSeason", start: "2026-07-03", end: "2026-07-05", timezone: "Australia/Sydney" });
+    const v = matchVideo(vid("FTC APOC 2026, Qualifications Day 1", { start: "2026-07-03T05:19:22Z" }), au, [apoc]);
+    expect(v.kind === "add" && v.event.code).toBe("AUSYOS");
+  });
+
   it("adds FIRST HQ's Championship broadcasts by the seeded rule", async () => {
     const { OFFICIAL_CHANNELS } = await import("../data/officialChannels");
     const hq = OFFICIAL_CHANNELS.find((c) => c.channelId === "UCkWMXdRQr5yoZRz7gFYyRcw")!;
