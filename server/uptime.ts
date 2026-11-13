@@ -45,15 +45,16 @@ async function checkControlPoint(fetchFn: FetchLike, url: string, timeoutMs: num
   }
 }
 
-async function checkBot(now: number): Promise<CheckRow> {
+/** Null while the bot has never reported (no bot on this host, or not started yet): a gap, never a failure. */
+async function checkBot(now: number): Promise<CheckRow | null> {
   // From the primary: the bot writes from another process, and an embedded replica can be minutes behind.
   const r = await primaryDb().execute({ sql: "SELECT at FROM service_heartbeats WHERE service = 'bot'", args: [] });
   const at = r.rows[0] ? Number(r.rows[0].at) : null;
-  if (at === null) return { service: "bot", ok: false, ms: null, reason: "no heartbeat yet" };
+  if (at === null) return null;
   return now - at <= BOT_STALE_MS ? { service: "bot", ok: true, ms: null } : { service: "bot", ok: false, ms: null, reason: "heartbeat stale" };
 }
 
-/** Every service once. */
+/** Every service once (the bot only once it has ever reported). */
 export async function runChecks(opts: { fetchFn?: FetchLike; site?: string; controlPointUrl?: string; now?: number; timeoutMs?: number } = {}): Promise<CheckRow[]> {
   const fetchFn = opts.fetchFn ?? ((u, i) => fetch(u, i));
   const timeoutMs = opts.timeoutMs ?? 10_000;
@@ -67,7 +68,7 @@ export async function runChecks(opts: { fetchFn?: FetchLike; site?: string; cont
     const c = site.checks.find((x) => x.name === name)!;
     return { service: key, ok: c.ok, ms: c.status === null ? null : c.latencyMs, reason: c.reason };
   };
-  return [of("home", "site"), of("api", "api"), cp, bot];
+  return bot ? [of("home", "site"), of("api", "api"), cp, bot] : [of("home", "site"), of("api", "api"), cp];
 }
 
 export async function recordChecks(rows: CheckRow[], at = Date.now()): Promise<void> {

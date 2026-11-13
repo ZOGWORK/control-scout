@@ -21,7 +21,8 @@ describe("runChecks", () => {
   it("passes every service that answers as it should, and the bot only with a fresh heartbeat", async () => {
     const now = Date.now();
     let rows = await runChecks({ fetchFn: okFetch(), site: "https://scout.test", controlPointUrl: "https://cp.test/api/health", now });
-    expect(rows.map((r) => [r.service, r.ok])).toEqual([["site", true], ["api", true], ["controlPoint", true], ["bot", false]]);
+    // A bot that never reported is a gap (no row), never a failure.
+    expect(rows.map((r) => [r.service, r.ok])).toEqual([["site", true], ["api", true], ["controlPoint", true]]);
     await beat("bot", now - 60_000);
     rows = await runChecks({ fetchFn: okFetch(), site: "https://scout.test", controlPointUrl: "https://cp.test/api/health", now });
     expect(rows.find((r) => r.service === "bot")!.ok).toBe(true);
