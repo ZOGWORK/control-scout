@@ -25,7 +25,7 @@ An event's highlight videos from its organiser's official channel show on the ev
 - [history] Each one is labelled Highlights, so it is never taken for a match
 
 ### Added
-- Highlight videos on the event page: the short reels an event's organiser posted on its official channel (Romania's championship and regionals, FIRST UK's 2024–25 championship), from the same checked list as the recordings. A "Highlight videos" section under the Watch section shows each with a Highlights label; it plays in the app's video dialog, never in the event's recording player and never as a match's video. (`server/api/eventView.ts`, `src/components/HighlightVideos.tsx`, `src/lib/streamSeek.ts`, `src/components/VideoDialog.tsx`)
+- Highlight videos on the event page: the short reels an event's organiser posted on its official channel (Romania's championship and regionals, FIRST UK's 2024–25 championship), from the same checked list as the recordings. A "Highlight videos" section under the Watch section shows each with a Highlights label; it plays in the app's video dialog, never in the event's recording player and never as a match's video. (`server/api/eventView.ts`, `src/components/HighlightVideos.tsx`, `src/lib/streamSeek.ts`, `src/components/VideoDialog.tsx`) (#1425)
 
 ## 5.8.7 — 2026-11-12
 
