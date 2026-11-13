@@ -71,7 +71,7 @@ describe("statusNow", () => {
     expect(s.overall).toBe("up");
   });
   it("says the checks paused when the newest is older than STALE_AFTER_MIN, keeping each service's last result", async () => {
-    const later = Date.now() + 3 * 3600_000;
+    const later = Date.now() + 40 * 24 * 3600_000; // past the 30-day window: still paused, never "no checks yet"
     const s = await statusNow(later);
     expect(s.overall).toBe("stale");
     expect(s.services.find((x) => x.key === "api")!.up).toBe(true);

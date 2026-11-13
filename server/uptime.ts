@@ -116,9 +116,9 @@ export async function statusNow(now = Date.now()): Promise<StatusResponse> {
       args: [since24, since24, since30],
     }),
     db().execute({ sql: "SELECT service, at, ok FROM uptime_checks WHERE at >= ? ORDER BY at", args: [sinceBars] }),
-    // Each service's newest check at any age (SQLite takes ok from the row with the MAX), so a checker that stopped
+    // Each service's newest check at any age (up to the 90 days kept) (SQLite takes ok from the row with the MAX), so a checker that stopped
     // reads as stopped, never as a fresh install.
-    db().execute({ sql: "SELECT service, ok, MAX(at) AS at FROM uptime_checks WHERE at >= ? GROUP BY service", args: [since30] }),
+    db().execute({ sql: "SELECT service, ok, MAX(at) AS at FROM uptime_checks GROUP BY service", args: [] }),
   ]);
   const pct = (up: number, n: number) => (n ? Math.round((up / n) * 10000) / 100 : null);
   let checkedAt: number | null = null;
