@@ -33,7 +33,7 @@ Search answers and People also ask come back faster: the slowest database reads 
 - The search index's version is read at most every 2 seconds (and at once after this server writes what search reads) instead of on every use of each in-memory index: one People also ask asked it about 500 times. (`server/api/searchReads.ts`)
 - People also ask's checks (up to 40 searches for one search) run one at a time, with a turn for other requests between them. The database never gives the server's one thread back on its own, so asked all at once they held every other visitor's search for their whole run, 2 to 4 seconds (one live search waited 18 seconds); now a search that comes in meanwhile waits for one check at most. The same checks run, the same follow-ups come back. (`server/api/answers/followUps.ts`)
 - A stored country's own name is read once when the names index is built, not again for every word of every query read: a fifth of an answer's time went to it. (`server/api/query/names.ts`)
-- `/api/search?answer=1` and `/api/search/follow` send a `Server-Timing` header (the answer, the rest, the follow-ups, in milliseconds), and who's asking is read beside the team's highlights rather than after them. (`server/app.ts`, `server/api/searchTiming.ts`)
+- `/api/search?answer=1` and `/api/search/follow` send a `Server-Timing` header (the answer, the rest, the follow-ups, in milliseconds), and who's asking is read beside the team's highlights rather than after them. (`server/app.ts`, `server/api/searchTiming.ts`) (#1440)
 
 ## 5.9.2 — 2026-11-13
 
