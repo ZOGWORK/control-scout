@@ -334,14 +334,19 @@ export function due(m: VideoMeta | null, now: number, withKey = false): boolean 
   return false;
 }
 
-let busy = false;
+/** When the pass in progress began (0: none). One pass at a time, but a pass that never finishes (a read that never
+ *  settles) mustn't stop every later one: after STUCK_MS the next run starts anew. */
+let busy = 0;
+const STUCK_MS = 30 * 60_000;
 /**
  * Read YouTube's facts for every linked video that has none yet or is due again (newest seasons first),
  * one page at a time, at most `max` per run. Returns how many it read.
  */
-export async function backfillVideoMeta(log: (s: string) => void, opts: { max?: number; gapMs?: number; fetchImpl?: typeof fetch; now?: () => number; apiKey?: string | null } = {}): Promise<number> {
-  if (busy) return 0;
-  busy = true;
+export async function backfillVideoMeta(log: (s: string) => void, opts: { max?: number; gapMs?: number; fetchImpl?: typeof fetch; now?: () => number; apiKey?: string | null; stuckMs?: number } = {}): Promise<number> {
+  const began = Date.now();
+  if (busy && began - busy < (opts.stuckMs ?? STUCK_MS)) return 0;
+  if (busy) log(`recordings: the pass begun ${new Date(busy).toISOString()} never finished; starting anew`);
+  busy = began;
   const now = opts.now ?? Date.now;
   try {
     const links = await all<{ season: number; livestream: string }>("SELECT season, livestream FROM events WHERE livestream LIKE '%youtu%' ORDER BY season DESC, start DESC");
@@ -382,6 +387,7 @@ export async function backfillVideoMeta(log: (s: string) => void, opts: { max?: 
     if (n) { forgetRecordings(); log(`recordings: read ${n} YouTube video${n === 1 ? "" : "s"}${key ? " (API)" : ""}${errors ? `, ${errors} not readable now` : ""}`); }
     return n;
   } finally {
-    busy = false;
+    // Only this pass's own end frees the way (a stuck pass that ends late leaves the newer one be).
+    if (busy === began) busy = 0;
   }
 }
