@@ -53,10 +53,13 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
   // A team's highlights asked by part of its name ("hypnotic highlights") or by a name teams share, with its place
   // ("ultraviolet nj highlights"): the parser takes only a whole name that is one team's, so search's own team lookup
   // reads the words left over, as it does for a team's stats, and the question is read again with the team's number.
-  const byName = !p.complete && p.intent === "highlights" ? await leftoverTeam(q, p, opts.resolve) : null;
+  // A team's best match by such a name ("aicitizens best match at romania champs", "<misspelt name> best match") is read
+  // the same way: with no team the words were the top matches; with the team's number, its highest score.
+  const asTeam: Partial<Record<PipelineIntent, PipelineIntent>> = { highlights: "highlights", "top-matches": "highest-score" };
+  const byName = !p.complete && p.intent && asTeam[p.intent] ? await leftoverTeam(q, p, opts.resolve) : null;
   if (byName) {
     const again = await parseQuery(byName, ctx);
-    if (again.complete && again.intent === p.intent && again.teams.length === 1) p = { ...again, q };
+    if (again.complete && again.intent === asTeam[p.intent!] && again.teams.length === 1) p = { ...again, q };
   }
   // One team against itself ("predict 12345 vs 12345"): no match to call, said so, with its own forecasts to open.
   if (asksSelfMatch(q, p)) {
@@ -138,7 +141,9 @@ async function leftoverTeam(q: string, p: Parsed, resolve: Resolve): Promise<str
     const home = (h.subtitle ?? "").split(/,\s*/).map((x) => x.toLowerCase());
     return place.state ? home.includes(place.state.toLowerCase()) : home.includes(place.country.toLowerCase());
   };
-  const teams = r.hits.filter((h) => h.kind === "team" && !h.href && named(h));
+  // Search's own correction of a misspelt name ("aicitzns": did you mean AiCitizens) counts as naming its top team.
+  const corrected = r.step === "did-you-mean" && r.hits[0]?.kind === "team" && !r.hits[0].href ? r.hits[0] : null;
+  const teams = r.hits.filter((h) => h.kind === "team" && !h.href && (named(h) || h === corrected));
   // A place that limits the event ("<name> highlights at nj states") stays the event's; only a place said with the
   // name alone picks the team.
   const place = p.place && !p.states && !p.worlds && !p.event ? p.place : null;

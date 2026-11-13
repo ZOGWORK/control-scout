@@ -278,6 +278,20 @@ describe("a team's highlights", () => {
     expect(rows(none)).toEqual([]);
   });
 
+  it("a team's best match is its highest score, by its number, its name or a misspelling of it, at an event too (owner: \"aicitzns best match in romania champs\")", async () => {
+    for (const q of ["4215 best match", "hypnotic robotics best match", "hypnotik robotics best match"]) {
+      expect((await ask(q)).stat?.intent, q).toBe("highest-score");
+      expect((await ask(q)).stat?.team?.number, q).toBe(4215);
+    }
+    for (const q of ["4215 best match at nj championship", "hypnotik robotics best match at nj championship"]) {
+      const s = await stat(q);
+      expect(s.intent, q).toBe("highest-score");
+      expect(s.title, q).toMatch(/^Highest score at New Jersey Championship/);
+    }
+    // No team: still the top matches.
+    expect((await ask("best match 2024-25")).stat?.intent).not.toBe("highest-score");
+  });
+
   it("a recap leads with the last playoff match even when its highlights list it under another reason", async () => {
     expect((await stat("colorado highlights")).headline?.label).toBe("Best score without penalties: M2 at Peak Qualifier");
     expect((await stat("colorado recap")).headline).toMatchObject({ label: "Latest playoff match: M2 at Peak Qualifier", value: "300 points" });
