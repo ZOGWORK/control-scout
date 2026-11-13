@@ -146,6 +146,12 @@ describe("the official-video watcher", () => {
     expect(o.unitsToday).toBeGreaterThan(0);
     expect(o.nextRunAt).toBeTruthy();
     expect(await runOfficialWatch(() => {}, { apiKey: null, fetchImpl: fakeFetch })).toBeNull();
+    // A run that can't even start (its log row fails) leaves the watcher free for the next one.
+    await run("ALTER TABLE official_watch_runs RENAME TO official_watch_runs_away");
+    await expect(runOfficialWatch(() => {}, { apiKey: "k", fetchImpl: fakeFetch, now: () => NOW + 2500 })).rejects.toThrow();
+    await run("ALTER TABLE official_watch_runs_away RENAME TO official_watch_runs");
+    quota = false;
+    expect(await runOfficialWatch(() => {}, { apiKey: "k", fetchImpl: fakeFetch, now: () => NOW + 2600 })).not.toBeNull();
     expect(await watchIfDue(() => {}, NOW + 3000)).toBeNull(); // no key in tests, and the last run was moments ago
   });
 
