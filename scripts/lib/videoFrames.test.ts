@@ -19,10 +19,14 @@ describe("the frame reader", () => {
   });
 
   it("turns either layout's timer into seconds since the match started", () => {
-    // Bottom bar: 2:30 counting down; Auto above 2:00, then 8 s to switch.
-    expect(elapsed({ where: "bottom", left: 150, auto: true })).toBeNull();
-    expect(elapsed({ where: "bottom", left: 140, auto: true })).toBe(10);
+    // Bottom bar counting the whole match down from 2:30: Auto above 2:00, then 8 s to switch.
+    expect(elapsed({ where: "bottom", left: 150, auto: false })).toBeNull();
+    expect(elapsed({ where: "bottom", left: 140, auto: false })).toBe(10);
     expect(elapsed({ where: "bottom", left: 100, auto: false })).toBe(58);
+    // Bottom bar counting Auto down from 0:30 (what FTC Live's DECODE bar does): "0:20" is Auto when the read 45 s on
+    // says so, 10 s in, never TeleOp's 0:20 (138 s in, where taking it for TeleOp put matches 2 minutes early).
+    expect(elapsed({ where: "bottom", left: 20, auto: true })).toBe(10);
+    expect(elapsed({ where: "bottom", left: 20, auto: false })).toBe(138);
     // Top bar: 0:30 Auto, then 2:00 TeleOp.
     expect(elapsed({ where: "top", left: 30, auto: true })).toBeNull();
     expect(elapsed({ where: "top", left: 20, auto: true })).toBe(10);
