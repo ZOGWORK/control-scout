@@ -38,6 +38,12 @@ describe("reading a watch page", () => {
     // A private video's wall is still unavailable, chapters or not.
     expect(parseWatchPage(`"playabilityStatus":{"status":"LOGIN_REQUIRED","reason":"This video is private"}{"chapterRenderer":{"title":{"simpleText":"Match 1"},"timeRangeStartMillis":0}}`).status).toBe("unavailable");
   });
+  it("a sign-in wall that does carry the length and broadcast times is read like a visitor's page", () => {
+    const wall = `${page("LOGIN_REQUIRED", BROADCAST)}<script>{"chapterRenderer":{"title":{"simpleText":"Match 1"},"timeRangeStartMillis":600000}}</script>`;
+    expect(parseWatchPage(wall)).toEqual({ status: "ok", start: "2026-05-02T12:58:13.000Z", end: "2026-05-02T17:33:56.000Z", length: 16541, live: false, chapters: [[600, "Match 1"]] });
+    // The length alone (no broadcast times) is no clock to place matches by: still the error.
+    expect(parseWatchPage(page("LOGIN_REQUIRED")).status).toBe("error");
+  });
   it("a page without a player response (a consent wall) is an error, never a guess", () => {
     expect(parseWatchPage("<html>Before you continue to YouTube</html>").status).toBe("error");
   });
