@@ -55,9 +55,14 @@ export const tierLabel = (v: Pick<ContributorVideo, "tier" | "team">, teamName?:
     : v.tier === "team" ? `Team only — ${teamName ? `${teamName} (${v.team})` : `team ${v.team}`}`
       : "Only you can see this";
 
-/** The event page's coverage line ("No recording …" is the same words the search page uses for an event with none). */
-export function coverageText(c: EventCoverage): string {
-  if (!c.played || !c.withVideo) return "No recording for this event — stats only.";
+/** Said of an event with a recording to watch but no match placed in it (its timing can't be checked yet). */
+export const RECORDING_ONLY_TEXT = "Full recording only — no match clips in it yet";
+
+/** The event page's coverage line ("No recording …" is the same words the search page uses for an event with none).
+ *  `recorded`: the event has a recording to watch (the page's player), so none of its matches having a clip never reads
+ *  as no recording at all. */
+export function coverageText(c: EventCoverage, recorded = false): string {
+  if (!c.played || !c.withVideo) return recorded && c.played ? RECORDING_ONLY_TEXT : "No recording for this event — stats only.";
   if (c.withVideo >= c.played) return "Every match has video";
   return `Partially recorded — ${c.withVideo} of ${c.played} matches have video`;
 }

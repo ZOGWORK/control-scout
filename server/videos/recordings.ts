@@ -193,6 +193,14 @@ export function seasonVideoKinds(season: number, now = Date.now()): Promise<Map<
     }
     for (const [code] of recs) out.set(code, withClip.has(code) ? "clips" : "recording");
     for (const code of official) out.set(code, "clips");
+    // A championship's divisions are filmed, the event above them rarely is (FIRST links each division's stream): it
+    // shows the best of its divisions' video, so the list's Video filter and badge find it (USTXCMP4 2026: its Aero
+    // and Terra Divisions had video, it had none).
+    const divisions = await all<{ code: string; parent: string }>("SELECT code, division_code AS parent FROM events WHERE season = ? AND division_code IS NOT NULL AND division_code != code", [season]);
+    for (const d of divisions) {
+      const k = out.get(String(d.code)), parent = String(d.parent);
+      if (k && out.get(parent) !== "clips") out.set(parent, k);
+    }
     return out;
   })();
   kinds.set(season, { at: now, v });
