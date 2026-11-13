@@ -79,7 +79,7 @@ Supporting copy:
 
 Place the existing full search directly beneath this copy. Keep the full team's-number/name, event, and match search behavior even if the visible placeholder is shorter. The field must paint immediately and accept typing while the atlas loads.
 
-The primary button is **Predict a match**, routing to `/predict`. The secondary button is **Find an event**, routing to `/events`. Both must be above the fold at ordinary laptop and phone sizes. Preserve command/control-K, the page search ref, keyboard selection, and meaningful first-run tour anchors.
+The primary button is **Predict a match**, routing to `/predict`. The secondary button is **Find an event**, routing to `/events`. Both must be above the fold at ordinary laptop and phone sizes. Preserve command/control-K, the page search ref and keyboard selection.
 
 At approximately 1024px and above, aim for a 45/55 split between the editorial area and atlas, using the actual content width after the sidebar. Give search enough space before increasing the globe size. The atlas should feel integrated into the page, with a quiet local toolbar rather than a large nested dashboard frame.
 
@@ -215,7 +215,7 @@ A new `GET /api/home/overview?season=...` can provide season coverage and countr
 
 Keep personal information out of shared public caches. Request a personal next-match block only when a real local/synced team is selected. Cache country/season aggregates by data version and season. Reuse the existing cached track-record endpoint rather than recalculating historical predictions on every home request.
 
-Review the homepage's existing boot/SEO shell and shared `HOME_TAGLINE` when changing hero content. Initial markup, accessible headings, metadata, loaded React content, and the first-run tour should remain coherent. A failed atlas should not gate the rest of the page.
+Review the homepage's existing boot/SEO shell and shared `HOME_TAGLINE` when changing hero content. Initial markup, accessible headings, metadata and loaded React content should remain coherent. A failed atlas should not gate the rest of the page.
 
 ## 7. Responsive design, appearance, and accessibility
 

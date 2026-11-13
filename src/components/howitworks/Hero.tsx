@@ -7,7 +7,6 @@ import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { cn } from "../cn";
 import { CERTAINTY, MODEL, heroFoot, range80, sigma, winProb } from "./math";
 import { Eyebrow, useReduced } from "./ui";
-import { TakeTour } from "../layout/TakeTour";
 
 const ease = [0.2, 0.8, 0.2, 1] as const;
 
@@ -55,8 +54,6 @@ export function Hero() {
         >
           Predicts FTC seasons 2023–24 to 2026–27 (results back to 2019–20) · engine v{ENGINE_VERSION}, shared with Control Point · tested on {tested.toLocaleString("en-US")} matches it never saw while tuning
         </m.p>
-        {/* New here: the app's short tour (it starts on the page you came from). */}
-        <div><TakeTour label="Show me around" className="max-sm:h-[44px]" /></div>
       </div>
       <m.div initial={reduced ? false : { opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease, delay: 0.3 }} className="min-w-0">
         <MatchCard />

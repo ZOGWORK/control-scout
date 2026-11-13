@@ -52,8 +52,6 @@ const SeasonUpdateWatcher = named(() => import("./lib/offline/updateWatcher"), "
 const ScoutQueueSync = named(() => import("./lib/scoutSpace"), "ScoutQueueSync");
 const OwnerRoute = named(() => import("./pages/OwnerRoute"), "OwnerRoute");
 const ErrorReportPrompt = named(() => import("./components/layout/ErrorReportPrompt"), "ErrorReportPrompt");
-const FirstRunTour = named(() => import("./components/layout/FirstRunTour"), "FirstRunTour");
-const WelcomeCard = named(() => import("./components/layout/WelcomeCard"), "WelcomeCard");
 const InstallNudge = named(() => import("./components/layout/InstallNudge"), "InstallNudge");
 const PullToRefresh = named(() => import("./components/layout/PullToRefresh"), "PullToRefresh");
 
@@ -226,7 +224,7 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
             <CanonicalSync />
             <SearchRobotsSync />
             <NoDataRobotsSync />
-            {/* The pit display (a TV nobody touches) gets no prompts over it: no privacy banner (unanswered, so no analytics), tour, nudge or alerts. */}
+            {/* The pit display (a TV nobody touches) gets no prompts over it: no privacy banner (unanswered, so no analytics), nudge or alerts. */}
             <NotOnBareRoute><ConsentBanner /></NotOnBareRoute>
             {/* In the main bundle, not a chunk of its own: it's for when chunks are crawling (src/lib/liteSuggest.ts). */}
             <NotOnBareRoute><LiteSuggest /></NotOnBareRoute>
@@ -238,8 +236,6 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
               <LitePackSync />
               <NotOnBareRoute><SeasonUpdateWatcher /></NotOnBareRoute>
               <ScoutQueueSync />
-              <NotOnBareRoute><WelcomeCard /></NotOnBareRoute>
-              <NotOnBareRoute><FirstRunTour /></NotOnBareRoute>
               <NotOnBareRoute><InstallNudge /></NotOnBareRoute>
               <NotOnBareRoute><PullToRefresh /></NotOnBareRoute>
             </OptionalParts>
