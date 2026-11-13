@@ -27,7 +27,7 @@ export function HighlightVideos({ videos }: { videos: NonNullable<EventDetail["h
                 <span className="absolute left-2 top-2 rounded-md bg-black/70 px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white">Highlights</span>
                 <span className="absolute inset-0 grid place-items-center"><span className="grid size-12 place-items-center rounded-full bg-video-fill text-white shadow-lg"><Play className="size-5 translate-x-0.5 fill-current" aria-hidden /></span></span>
               </span>
-              <span className="line-clamp-2 px-3 py-2 text-sm font-medium text-foreground">{v.title}</span>
+              <span className="block px-3 py-2"><span className="line-clamp-2 text-sm font-medium leading-snug text-foreground" title={v.title}>{v.title}</span></span>
             </a>
           </li>
         ))}
