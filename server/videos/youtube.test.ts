@@ -30,6 +30,14 @@ describe("reading a watch page", () => {
     expect(parseWatchPage(page("LOGIN_REQUIRED")).status).toBe("error");
     expect(parseWatchPage(page("CONTENT_CHECK_REQUIRED")).status).toBe("error");
   });
+  it("the sign-in wall still gives the video's chapters (the server's only way to them), and nothing else", () => {
+    const wall = `${page("LOGIN_REQUIRED")}<script>{"chapterRenderer":{"title":{"simpleText":"Match 1"},"timeRangeStartMillis":600000},"chapterRenderer":{"title":{"simpleText":"Match 2"},"timeRangeStartMillis":840000}}</script>`;
+    expect(parseWatchPage(wall)).toEqual({ status: "error", start: null, end: null, length: null, live: false, chapters: [[600, "Match 1"], [840, "Match 2"]] });
+    // A wall with none: the plain error, no empty list (an empty list would say "read, and it has none").
+    expect(parseWatchPage(page("LOGIN_REQUIRED"))).not.toHaveProperty("chapters");
+    // A private video's wall is still unavailable, chapters or not.
+    expect(parseWatchPage(`"playabilityStatus":{"status":"LOGIN_REQUIRED","reason":"This video is private"}{"chapterRenderer":{"title":{"simpleText":"Match 1"},"timeRangeStartMillis":0}}`).status).toBe("unavailable");
+  });
   it("a page without a player response (a consent wall) is an error, never a guess", () => {
     expect(parseWatchPage("<html>Before you continue to YouTube</html>").status).toBe("error");
   });
