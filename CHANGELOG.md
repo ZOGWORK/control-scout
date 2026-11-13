@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.9.9 — 2026-11-13
+
+A stuck read of event recordings no longer stops every later one: matches keep getting their clips.
+
+### Highlights
+- [fixes] Event recordings keep being read even after one read gets stuck
+- [fixes] Live broadcasts keep their match clips coming during a long event
+- [fixes] New recordings get their match clips within minutes again
+
+### Fixed
+- On the live server, one pass reading recordings from YouTube stopped part way on a read that never settled and held every later pass off for nearly two hours, until a restart: no recording, live broadcasts included, was read in that time. A pass that began more than 30 minutes ago no longer holds the next one, which says so in the log and reads what's due (`server/videos/recordings.ts`) (#1450).
+
 ## 5.9.8 — 2026-11-13
 
 Australia's events play FIRST Australia's own recordings, a day at a time, and its new broadcasts that name their event are added as they're posted.
