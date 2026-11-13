@@ -107,9 +107,11 @@ function leadingNumber(rest: string): { n: number; tail: string } | null {
   return one == null ? null : { n: one, tail: rest.slice(w[1].length) };
 }
 
-/** A number token ("7", "seven"): a chapter that goes on to name it ("Match 7 and 8") names two matches. */
+/** A number token ("7", "seven"): a chapter that goes on to name it ("Match 7 and 8"), or another match by name
+ *  ("Q1 Q2", "Qualification 5 / Qualification 6"), names two matches. */
 const NUMBER_WORD = `\\d|${[...ONES.slice(1), ...TENS.slice(2)].join("|")}`;
-const SECOND_MATCH = new RegExp(`^\\s*(?:and|&|\\+|,|/|to|through|thru|-|–|—)\\s*(?:${NUMBER_WORD})\\b|\\bmatch(?:es)?\\s*#?\\s*(?:${NUMBER_WORD})\\b`, "i");
+const SECOND_MATCH = new RegExp(`^\\s*(?:and|&|\\+|,|/|to|through|thru|-|–|—)\\s*(?:${NUMBER_WORD})\\b`
+  + `|\\b(?:playoff match|qualification|quals?|match(?:es)?)\\s*#?\\s*(?:${NUMBER_WORD})\\b|\\b[qm]\\s*#?\\d{1,3}\\b`, "i");
 
 /**
  * The match a chapter names, as its label (Q5, M2), or null: a chapter naming two matches, or anything else. YouTube's
