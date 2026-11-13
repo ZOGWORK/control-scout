@@ -25,7 +25,7 @@ A stuck read of event recordings no longer stops every later one: matches keep g
 - [fixes] New recordings get their match clips within minutes again
 
 ### Fixed
-- On the live server, one pass reading recordings from YouTube stopped part way on a read that never settled and held every later pass off for nearly two hours, until a restart: no recording, live broadcasts included, was read in that time. A pass that began more than 30 minutes ago no longer holds the next one, which says so in the log and reads what's due (`server/videos/recordings.ts`) (#PR).
+- On the live server, one pass reading recordings from YouTube stopped part way on a read that never settled and held every later pass off for nearly two hours, until a restart: no recording, live broadcasts included, was read in that time. A pass that began more than 30 minutes ago no longer holds the next one, which says so in the log and reads what's due (`server/videos/recordings.ts`) (#1450).
 
 ## 5.9.6 — 2026-11-13
 
