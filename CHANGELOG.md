@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.9.6 — 2026-11-13
+
+An event with a recording no longer says it has none, and a championship shows Video when its divisions were filmed.
+
+### Highlights
+- [fixes] An event page with a recording never says "No recording" over it
+- [fixes] A championship shows the Video badge when its divisions have video
+- [fixes] The events list's video filter finds championships with filmed divisions
+
+### Fixed
+- An event whose recording plays on its page but has no match placed in it said "No recording for this event — stats only." right above its "Watch the recording" player (every such event checked, USTXCMP4T 2026 among them). It now says "Full recording only — no match clips in it yet". (`src/shared/contributors.ts`, `src/components/contributors/EventClips.tsx`, `src/pages/EventPage.tsx`) (#PR)
+- An event above divisions had no Video badge when only its divisions were filmed (FIRST links each division's stream): it now shows the best of its divisions' video. On the 2025–26 data: 20 of 33 such events show it, 11 of them newly (USTXCMP4, USMNCMP, FPEIST, FPEWE among them). (`server/videos/recordings.ts`)
+
 ## 5.9.4 — 2026-11-13
 
 Search answers and People also ask come back faster: the slowest database reads behind them are gone or kept.
