@@ -62,7 +62,8 @@ export async function runChecks(opts: { fetchFn?: FetchLike; site?: string; cont
   const [site, cp, bot] = await Promise.all([
     checkSite(fetchFn, (opts.site ?? env.canonicalUrl).replace(/\/$/, ""), { timeoutMs }),
     checkControlPoint(fetchFn, opts.controlPointUrl ?? env.controlPointHealthUrl, timeoutMs),
-    checkBot(now).catch((e): CheckRow => ({ service: "bot", ok: false, ms: null, reason: oneLine(String((e as Error)?.message ?? e), 120) })),
+    // A heartbeat that couldn't be read says nothing about the bot: a gap, not a failure.
+    checkBot(now).catch((): null => null),
   ]);
   const of = (name: "home" | "api", key: ServiceKey): CheckRow => {
     const c = site.checks.find((x) => x.name === name)!;

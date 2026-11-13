@@ -31,6 +31,21 @@ describe("runChecks", () => {
   });
 });
 
+describe("runChecks, heartbeat unreadable", () => {
+  it("leaves the bot out (a gap) when its heartbeat can't be read", async () => {
+    const { primaryDb } = await import("./db");
+    const c = primaryDb();
+    const orig = c.execute.bind(c);
+    (c as { execute: unknown }).execute = async () => { throw new Error("database busy"); };
+    try {
+      const rows = await runChecks({ fetchFn: okFetch(), site: "https://scout.test", controlPointUrl: "https://cp.test/api/health" });
+      expect(rows.map((r) => r.service)).toEqual(["site", "api", "controlPoint"]);
+    } finally {
+      (c as { execute: unknown }).execute = orig;
+    }
+  });
+});
+
 describe("barsOf", () => {
   it("puts each check in its 2-minute slot, leaves gaps empty, and keeps a failed slot failed", () => {
     const now = 10_000_000;
