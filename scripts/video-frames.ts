@@ -51,11 +51,13 @@ const worker = await createWorker("eng");
 const digits = await createWorker("eng");
 await digits.setParameters({ tessedit_char_whitelist: "0123456789:", tessedit_pageseg_mode: "7" });
 
-/** The timer's two places: FTC Live's bar along the bottom (the 2:30 a match counts down from), or along the top (a
- *  0:30 Auto, then a 2:00 TeleOp; FIRST Texas's layout). */
+/** The timer's places: FTC Live's bar along the bottom, or its box over the field under a bar across the top (FTC
+ *  Ontario's layout), both the 2:30 a match counts down from ("bottom"); or a bar along the top with a 0:30 Auto, then a
+ *  2:00 TeleOp (FIRST Texas's layout, "top"). */
 const TIMERS = [
   { where: "bottom" as const, clip: { x: 565, y: 618, width: 150, height: 86 } },
   { where: "top" as const, clip: { x: 603, y: 101, width: 74, height: 38 } },
+  { where: "bottom" as const, clip: { x: 565, y: 175, width: 150, height: 68 } },
 ];
 
 /** The timer's reading. `auto`: the bottom bar's 2:30 is in Auto above 2:00; the top bar's Auto is told by readAt. */
@@ -129,13 +131,14 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
     if (!seen.size) { log("    no match found in it"); return new Map(); }
   }
 
-  // A video without FTC Live's overlay (a camera-only stream) reads nothing: stop after a few matches in a row, and
-  // never spend more than a few reads per match.
+  // A video without FTC Live's overlay (a camera-only stream) reads nothing: stop after a few matches in a row with no
+  // read at all. Any video: never more than a few reads per match.
   let missed = 0;
+  const blind = () => missed >= MISSES && !seen.size;
   const budget = Math.max(40, 4 * ms.length);
   async function anchor(i: number): Promise<number | null> {
     if (seen.has(i)) return seen.get(i)!;
-    if (missed >= MISSES || reads >= budget) return null;
+    if (blind() || reads >= budget) return null;
     for (let k = 0; k < TRIES; k++) {
       const est = ms[i].epoch + near(i)!;
       // Into the match (its timer running), then either side of where it should be.
@@ -154,8 +157,8 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   async function span(i: number, j: number): Promise<void> {
     let a = await anchor(i), b = await anchor(j);
     // A match that can't be read: its neighbour inward stands in.
-    while (a == null && i < j && missed < MISSES) a = await anchor(++i);
-    while (b == null && j > i && missed < MISSES) b = await anchor(--j);
+    while (a == null && i < j && !blind() && reads < budget) a = await anchor(++i);
+    while (b == null && j > i && !blind() && reads < budget) b = await anchor(--j);
     if (a == null || b == null) return;
     if (Math.abs((a - ms[i].epoch) - (b - ms[j].epoch)) <= SAME_S || j - i <= 1) return;
     const mid = (i + j) >> 1;
@@ -163,7 +166,7 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
     await span(mid, j);
   }
   await span(0, ms.length - 1);
-  if (missed >= MISSES && !seen.size) log(`    no overlay read in ${reads} frames`);
+  if (blind()) log(`    no overlay read in ${reads} frames`);
   const out = placed(ms, seen);
   log(`    ${out.size} of ${ms.length} placed, ${seen.size} read, ${reads} frames${out.size < ms.length ? `; not placed: ${ms.filter((m) => !out.has(m.label)).map((m) => m.label).join(" ")}` : ""}`);
   // Each stretch the video holds without a gap: its matches and how far the video sits from the clock there.
@@ -243,6 +246,8 @@ async function doCode(code: string): Promise<void> {
       await page.waitForFunction(() => (document.querySelector("video")?.readyState ?? 0) >= 2, null, { timeout: 30000 });
       // No captions over the overlay.
       await page.evaluate(() => { try { (document.querySelector("#movie_player") as any)?.unloadModule?.("captions"); } catch { /* none */ } });
+      // Auto-captions sit right over the bottom bar's timer, and the embed's own bars over the top: hidden.
+      await page.addStyleTag({ content: ".ytp-caption-window-container, .caption-window, .ytp-chrome-top, .ytp-pause-overlay, .ytp-show-cards-title, .ytp-ce-element, .ytp-player-content.ytp-iv-player-content, .ytp-large-play-button, .ytp-bezel, .ytp-chrome-bottom { display: none !important; }" });
       log(`  ${v.videoId}: ${mine.length} matches`);
       console.error(`${new Date().toISOString().slice(11, 19)} ${code} ${v.videoId}: ${mine.length} matches`);
       const out = await placeVideo(page, mine, from == null ? null : -from, m.length!, log);
