@@ -209,8 +209,10 @@ describe("when a video is read again", () => {
     // Read with none: none yet, or a page served without them: weekly.
     expect(due({ ...cut, chapters: [] }, t("2026-05-10T00:00:00Z"))).toBe(false);
     expect(due({ ...cut, chapters: [] }, t("2026-05-11T01:00:00Z"))).toBe(true);
-    // Short of it by under half an hour: chapters wouldn't be used, so never read for them.
-    expect(due({ ...cut, length: 38000 }, t("2027-01-01T00:00:00Z"))).toBe(false);
+    // Short of it by 15 min or less (an early start covers that: gapSlack): chapters wouldn't be used, so never read for them.
+    expect(due({ ...cut, length: 39600 - 900 }, t("2027-01-01T00:00:00Z"))).toBe(false);
+    // 26 min short: read (it was left out under the old half-hour mark, with no early start either).
+    expect(due({ ...cut, length: 38000 }, t("2026-05-05T01:00:00Z"))).toBe(true);
   });
 });
 
@@ -250,6 +252,26 @@ describe("with a YouTube API key", () => {
     await backfillVideoMeta(() => {}, { apiKey: "KEY", gapMs: 0, fetchImpl: both });
     expect(asked).toEqual([CHAPTERED_ID]);
     expect(await get("SELECT duration, chapters IS NOT NULL AS read FROM video_meta WHERE video_id = ?", [CHAPTERED_ID])).toEqual({ duration: 18000, read: 1 });
+    clearAllCaches();
+    expect((await getJson(`/api/events/${S}/CHAPTERED`)).matches[0].clip.t).toBe(1200 - 20);
+  });
+
+  it("a video cut short whose watch page is YouTube's sign-in wall still has its chapters read from that page", async () => {
+    await run("DELETE FROM video_meta WHERE video_id = ?", [CHAPTERED_ID]);
+    // The server is shown "Sign in to confirm you're not a bot": no facts, but the chapters are on the page.
+    const wall = pages[CHAPTERED_ID].replace('"status":"OK"', '"status":"LOGIN_REQUIRED","reason":"Sign in to confirm you’re not a bot"');
+    const both = (async (url: string) => {
+      const u = new URL(url);
+      if (u.hostname === "www.googleapis.com") {
+        const ids = u.searchParams.get("id")!.split(",");
+        return Response.json({ items: ids.map((id) => ({ id, contentDetails: { duration: "PT5H" }, liveStreamingDetails: { actualStartTime: `${DAY}T12:00:00Z`, actualEndTime: `${DAY}T${id === CHAPTERED_ID ? 23 : 17}:00:00Z` } })) });
+      }
+      return u.searchParams.get("v") === CHAPTERED_ID ? new Response(wall) : fakeFetch(url);
+    }) as unknown as typeof fetch;
+    await backfillVideoMeta(() => {}, { apiKey: "KEY", gapMs: 0, fetchImpl: both });
+    const row = await get<{ status: string; duration: number; chapters: string }>("SELECT status, duration, chapters FROM video_meta WHERE video_id = ?", [CHAPTERED_ID]);
+    expect(row).toMatchObject({ status: "ok", duration: 18000 });
+    expect(JSON.parse(row!.chapters)[1]).toEqual([1110, "Match one"]);
     clearAllCaches();
     expect((await getJson(`/api/events/${S}/CHAPTERED`)).matches[0].clip.t).toBe(1200 - 20);
   });
