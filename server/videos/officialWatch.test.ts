@@ -166,6 +166,29 @@ describe("the official-video watcher", () => {
     expect(await watchIfDue(() => {}, NOW + 3000)).toBeNull(); // no key in tests, and the last run was moments ago
   });
 
+  it("waits out a busy database: no run while the sync holds the lease, a busy stop is tried again in 30 minutes", async () => {
+    const T = NOW + 10 * 3600_000;
+    const opts = (at: number, f: typeof fetch = fakeFetch) => ({ apiKey: "k", fetchImpl: f, clock: () => at });
+    // The data sync holds the writer lease: the watcher doesn't start (no run row, nothing read).
+    await run("INSERT INTO kv (key, value, updated_at) VALUES ('lock:data-writer', ?, 'x')", [JSON.stringify({ token: "t", what: "cycle", until: Date.now() + 60_000 })]);
+    const before = (await all("SELECT id FROM official_watch_runs")).length;
+    expect(await watchIfDue(() => {}, T, opts(T))).toBeNull();
+    expect(calls).toHaveLength(0);
+    expect((await all("SELECT id FROM official_watch_runs")).length).toBe(before);
+    await run("DELETE FROM kv WHERE key = 'lock:data-writer'");
+    // A write that waits out the busy timeout stops the run as busy (not as the channel's own error)...
+    const busyFetch = (async () => { throw Object.assign(new Error("SQLITE_BUSY: database is locked"), { code: "SQLITE_BUSY" }); }) as unknown as typeof fetch;
+    const stopped = await watchIfDue(() => {}, T, opts(T, busyFetch));
+    expect(stopped?.error).toMatch(/database busy/);
+    expect(await get<any>("SELECT COUNT(*) AS n FROM official_channels WHERE last_error LIKE '%SQLITE_BUSY%'")).toMatchObject({ n: 0 });
+    // ...and doesn't count as the 6-hourly run: the next check, 30 minutes on, runs.
+    const again = await watchIfDue(() => {}, T + 30 * 60_000, opts(T + 30 * 60_000));
+    expect(again?.error).toBeNull();
+    // A run that finished does count: the next check waits.
+    expect(await watchIfDue(() => {}, T + 60 * 60_000, opts(T + 60 * 60_000))).toBeNull();
+    expect((await ownerOfficial(T + 60 * 60_000)).nextRunAt).toBe(new Date(T + 30 * 60_000 + 6 * 3600_000).toISOString());
+  });
+
   it("checks a channel the owner adds or edits", async () => {
     expect(await saveChannel({ channelId: "nope", title: "x", region: "state=TX" }, "o")).toMatchObject({ ok: false, error: /starts with UC/ });
     expect(await saveChannel({ channelId: "UCaaaaaaaaaaaaaaaaaaaaaa", title: "x", region: "planet=Mars" }, "o")).toMatchObject({ ok: false, error: /region rule/ });

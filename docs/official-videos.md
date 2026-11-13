@@ -104,4 +104,6 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
   error that stopped it, if any, and the duplicates it logged. A run uses at most 1,500 units (YouTube allows 10,000 a day, and the timing backfill
   shares them) and stops when YouTube says the quota is spent. A channel's own error is kept on its row. The panel
   shows the last run, the units used today, the next run and a Run now button. Run now refuses within 10 minutes of
-  the last run.
+  the last run. While the data sync holds the writer lease (`server/data/lock.ts`) the watcher doesn't start; a run
+  whose write still finds the database busy stops as "database busy" and doesn't count toward the 6-hour wait, so the
+  next half-hourly check runs it again.

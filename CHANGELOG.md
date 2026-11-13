@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.9.0 — 2026-11-13
+
+The video watcher waits for the data sync to finish writing instead of stopping until the next 6-hour run.
+
+### Highlights
+- [fixes] The video watcher waits while the data sync is writing
+- [fixes] A run stopped by a busy database is tried again in 30 minutes
+- [workspace] Run now says when the data sync is writing
+
+### Fixed
+- The official-video watcher's first live run stopped with "database is locked": the data sync held the database through a long write, every write of the watcher's waited out the 5-second busy timeout, and its run log was never closed. The watcher now skips a check while the sync holds the writer lease, stops a run cleanly when a write still finds the database busy (not as the channel's own error), and counts only runs that finished without a busy stop for the 6-hour wait, so the next half-hourly check runs it again. Run now says when the sync is writing. (`server/videos/officialWatch.ts`) (#PR)
+
 ## 5.8.9 — 2026-11-12
 
 The official channels are watched: each new event recording that passes every check plays on its event page within hours, and anything less certain waits for the owner.
