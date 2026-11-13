@@ -63,9 +63,9 @@ const isId = (s: unknown): s is string => typeof s === "string" && /^[A-Za-z0-9_
 
 /**
  * The videos an event already plays, with their broadcast date at the venue when known: FIRST's link, a short link's
- * video, a channel's broadcasts, the owner's stream, and its official recordings. timed: YouTube's timing for it has
- * been read (video_meta), or the date came from the list or the channel's broadcast; false: not read yet, so its
- * day can't be told.
+ * video, a channel's broadcasts, the owner's stream, and its official recordings. timed: its day is known (the list's
+ * day, the channel broadcast's start, or YouTube's start for it), or YouTube says it can't be played (it holds no
+ * day); false: its day can't be told yet (timing not read, or read without a start), so nothing may join that event.
  */
 export async function eventVideosByDay(season: number, code: string): Promise<{ videoId: string; day: string | null; part: string | null; timed: boolean }[]> {
   const ev = await all<{ livestream: string | null; timezone: string | null }>("SELECT livestream, timezone FROM events WHERE season = ? AND code = ?", [season, code]);
@@ -80,12 +80,16 @@ export async function eventVideosByDay(season: number, code: string): Promise<{ 
     [season, code, season, code, season, code, season, code]);
   const ids = [...new Set([...(first ? [first] : []), ...others.map((o) => String(o.video_id))])];
   const starts = new Map<string, string | null>();
-  if (ids.length) for (const r of await all<{ video_id: string; start: string | null }>(`SELECT video_id, start FROM video_meta WHERE video_id IN (${ids.map(() => "?").join(",")})`, ids)) starts.set(String(r.video_id), r.start ?? null);
+  const gone = new Set<string>();
+  if (ids.length) for (const r of await all<{ video_id: string; start: string | null; status: string }>(`SELECT video_id, start, status FROM video_meta WHERE video_id IN (${ids.map(() => "?").join(",")})`, ids)) {
+    if (r.start) starts.set(String(r.video_id), r.start);
+    if (r.status === "unavailable") gone.add(String(r.video_id));
+  }
   return ids.map((id) => {
     const os = others.filter((x) => String(x.video_id) === id);
     const listed = os.find((x) => x.day)?.day ?? null;
     const start = starts.get(id) ?? os.find((x) => x.start)?.start ?? null;
-    return { videoId: id, day: listed ?? (start ? localDate(start, tz) : null), part: os.find((x) => x.part)?.part ?? null, timed: !!listed || starts.has(id) || !!start };
+    return { videoId: id, day: listed ?? (start ? localDate(start, tz) : null), part: os.find((x) => x.part)?.part ?? null, timed: !!listed || !!start || gone.has(id) };
   });
 }
 

@@ -70,8 +70,11 @@ describe("official videos", () => {
     // FIRST's link isn't timed yet: either day could be its, so nothing is written.
     expect(await seedOfficialVideos((x) => logs.push(x), later, Date.now(), true)).toBe(0);
     expect(logs.at(-1)).toMatch(/2 waiting for a video's timing/);
+    // A read that failed (no start): its day still can't be told.
+    await run("INSERT INTO video_meta (video_id, status, start, end, duration, live, checked_at) VALUES (?, 'error', NULL, NULL, NULL, 0, '2026-11-12T00:00:00Z')", [L]);
+    expect(await seedOfficialVideos(() => {}, later, Date.now(), true)).toBe(0);
     // Once the backfill has read it (Saturday's broadcast), Sunday is added and Saturday stays FIRST's.
-    await run("INSERT INTO video_meta (video_id, status, start, end, duration, live, checked_at) VALUES (?, 'ok', '2026-02-07T07:00:00Z', '2026-02-07T15:00:00Z', 28800, 0, '2026-11-12T00:00:00Z')", [L]);
+    await run("UPDATE video_meta SET status = 'ok', start = '2026-02-07T07:00:00Z', end = '2026-02-07T15:00:00Z', duration = 28800 WHERE video_id = ?", [L]);
     expect(await seedOfficialVideos(() => {}, later, Date.now(), true)).toBe(1);
     expect((await all<{ video_id: string }>("SELECT video_id FROM official_videos WHERE code = 'ROWAIT'")).map((r) => r.video_id)).toEqual([SUN]);
   });
