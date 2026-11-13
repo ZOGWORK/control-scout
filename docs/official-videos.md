@@ -57,6 +57,10 @@ A removed row (`removed_at`) is never written again, so taking a video out stick
 
 ## Highlights
 
+In the events list, a parent event shows the best video of its divisions ("Match clips" over "Video"): FIRST links each
+division's stream, so a parent is rarely filmed itself, but its divisions are what a visitor filtering for video wants
+(`seasonVideoKinds`, `server/videos/recordings.ts`). It still has no player of its own.
+
 A highlight (`kind = 'highlight'`) is a short reel from the same official channels. It's shown on the event page as a
 highlight only: never as a match's video and never as the event's recording. The event page's "Highlight videos"
 section (`src/components/HighlightVideos.tsx`) labels each one and plays it in the app's video dialog
