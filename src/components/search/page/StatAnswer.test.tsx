@@ -72,6 +72,12 @@ describe("StatAnswerCard, a team's OPR", () => {
     expect(h.textContent).toContain("Hypnotic Robotics");
     expect(c.querySelector("[data-answer-season]")!.textContent).toBe("2025–26");
   });
+  it("the header holds the facts line's place while it's read, in fixed columns, so the card never jumps when it comes (owner, 13 Nov)", () => {
+    const h = draw(opr).querySelector("[data-answer-team]")!;
+    expect(h.querySelector("[data-team-facts-pending]")).not.toBeNull();
+    expect(h.className.split(" ")).toContain("sm:grid-cols-[minmax(0,1fr)_auto]");
+    expect(h.className.split(" ")).toContain("sm:grid");
+  });
   // Greptile on #1094: a card comparing two seasons offers no one season to pick (a pick would drop the other).
   it("a card about two seasons side by side has no season picker, and keeps both season chips", () => {
     const pair: StatAnswer = { family: "leaderboard", intent: "filtered-list-pair", title: "How many teams in New Jersey: Worlds 2024 (2023–24) against Worlds 2025 (2024–25)",
