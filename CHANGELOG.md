@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.9.7 — 2026-11-13
+
+Donations now go to the ZOGWORK organization, and the supporters page reads its sponsors from there.
+
+### Highlights
+- [fixes] The Sponsor button opens ZOGWORK's GitHub Sponsors page
+- [fixes] The supporters page lists ZOGWORK's sponsors
+- [fixes] The supporters page no longer shows an error while it waits for sponsors
+
+### Changed
+- The donate link is `github.com/sponsors/ZOGWORK` (was the owner's personal profile). One value, `SPONSOR_ORG` in `src/shared/sponsor.ts`.
+- The supporters list asks GitHub for the organization's sponsorships instead of the token owner's. The token must be a classic token from an owner of ZOGWORK with `read:user` and `read:org`; with `read:user` alone GitHub refuses sponsor names and the page showed an error. (`server/sponsors.ts`) (#1448)
+
 ## 5.9.6 — 2026-11-13
 
 More event recordings now give each match its own clip: the server reads a recording's chapters even when YouTube shows it a sign-in wall, and understands more chapter names.
