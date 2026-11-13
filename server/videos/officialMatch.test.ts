@@ -76,6 +76,10 @@ describe("the watcher's matcher", () => {
     const named = new RegExp(au.titlePattern!, "i");
     expect(["FTC APOC 2025, Qualification & Playoff matches", "FIRST Tech Challenge Asia Pacific Open Championship 2026 day 3", "FIRST Tech Challenge Australian National Championship Day 2"].map((t) => named.test(t))).toEqual([true, true, true]);
     expect(named.test("Tapocalypse scrimmage")).toBe(false);
+    // The country's name alone isn't one of its own events: an "Australian Qualifier" goes to review, never added.
+    expect(named.test("FIRST Tech Challenge Australian Qualifier")).toBe(false);
+    const q = ev("AUSYQ1", "Sydney South Qualifier", { country: "Australia", state: "NSW", city: "Sydney", start: "2025-11-16", end: "2025-11-16", timezone: "Australia/Sydney" });
+    expect(matchVideo(vid("Australian Qualifier", { start: "2025-11-15T22:00:00Z" }), au, [q]).kind).toBe("review");
     const apoc = ev("AUSYOS", "APOC", { country: "Australia", state: "NSW", city: "Sydney", type: "OffSeason", start: "2026-07-03", end: "2026-07-05", timezone: "Australia/Sydney" });
     const v = matchVideo(vid("FTC APOC 2026, Qualifications Day 1", { start: "2026-07-03T05:19:22Z" }), au, [apoc]);
     expect(v.kind === "add" && v.event.code).toBe("AUSYOS");
