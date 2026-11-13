@@ -246,7 +246,8 @@ describe("answerVideo: a video page whose lead has no clip", () => {
 });
 
 describe("answerVideo: a headline match whose day's video can't be placed (23268 highlights, Multinational Tech Invitational)", () => {
-  // As synced: the Saturday broadcast's video is whole (Q18's clip lands on its field overlay at 2:30); the Sunday one
+  // As synced (with the Sunday video's id made up: the real one, W6ywzjs-MUM, was since checked by eye, below): the
+  // Saturday broadcast's video is whole (Q18's clip lands on its field overlay at 2:30); the Sunday one
   // ran on 15 h 20 min and its video is 9 h 43 min, with no chapters: its matches get no clip. Before: the card about
   // Q85 (best score, Sunday) played Q18 (biggest win, Saturday) from 2:10:23.
   beforeAll(async () => {
@@ -254,8 +255,8 @@ describe("answerVideo: a headline match whose day's video can't be placed (23268
     await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, timezone, livestream, source) VALUES (2025, 'USCHSLAOS', 'Multinational Tech Invitational', 'OffSeason', 'Laurel', 'MD', 'USA', '2026-06-26', '2026-06-28', 'America/New_York', ?, 't')", [live]);
     // The first day's video is also the event's link (server/videos/channelStreams.ts).
     await run("INSERT INTO event_stream_links (season, code, url, video_id, checked_at) VALUES (2025, 'USCHSLAOS', ?, 'a7WJBT3RHZU', '2026-11-04T07:01:00.000Z')", [live]);
-    await run("INSERT INTO event_broadcasts (season, code, video_id, url, start) VALUES (2025, 'USCHSLAOS', 'a7WJBT3RHZU', ?, '2026-06-27T16:30:06.000Z'), (2025, 'USCHSLAOS', 'W6ywzjs-MUM', ?, '2026-06-28T11:55:24.000Z')", [live, live]);
-    await run("INSERT INTO video_meta (video_id, status, start, end, duration, live, checked_at, chapters) VALUES ('a7WJBT3RHZU', 'ok', '2026-06-27T16:30:06.000Z', '2026-06-27T21:43:02.000Z', 18774, 0, '2026-11-04T07:01:00.000Z', NULL), ('W6ywzjs-MUM', 'ok', '2026-06-28T11:55:24.000Z', '2026-06-29T03:15:59.000Z', 34990, 0, '2026-11-04T07:01:00.000Z', '[]')");
+    await run("INSERT INTO event_broadcasts (season, code, video_id, url, start) VALUES (2025, 'USCHSLAOS', 'a7WJBT3RHZU', ?, '2026-06-27T16:30:06.000Z'), (2025, 'USCHSLAOS', 'uncheckedxx', ?, '2026-06-28T11:55:24.000Z')", [live, live]);
+    await run("INSERT INTO video_meta (video_id, status, start, end, duration, live, checked_at, chapters) VALUES ('a7WJBT3RHZU', 'ok', '2026-06-27T16:30:06.000Z', '2026-06-27T21:43:02.000Z', 18774, 0, '2026-11-04T07:01:00.000Z', NULL), ('uncheckedxx', 'ok', '2026-06-28T11:55:24.000Z', '2026-06-29T03:15:59.000Z', 34990, 0, '2026-11-04T07:01:00.000Z', '[]')");
     const ms = [["qual", 0, 1, "Q1", "2026-06-27T13:12:07.784"], ["qual", 0, 18, "Q18", "2026-06-27T14:40:49.95"], ["qual", 0, 45, "Q45", "2026-06-27T17:22:25.555"],
       ["qual", 0, 50, "Q50", "2026-06-28T08:06:37.108"], ["qual", 0, 85, "Q85", "2026-06-28T11:31:52.218"], ["playoff", 14, 2, "M14-2", "2026-06-28T17:02:32.86"]] as const;
     for (const [level, series, number, label, time] of ms) {
@@ -272,10 +273,27 @@ describe("answerVideo: a headline match whose day's video can't be placed (23268
     const v = await answerVideo(highlights, NOW);
     expect(v?.main).toBeUndefined();
     expect(v?.mainRow).toBeUndefined();
-    expect(v?.watch).toEqual({ videoId: "W6ywzjs-MUM", t: 0, kind: "stream", match: "Q85", day: "Sunday" });
+    expect(v?.watch).toEqual({ videoId: "uncheckedxx", t: 0, kind: "stream", match: "Q85", day: "Sunday" });
     // 14:40:49.95 EDT is 18:40:49.95Z, 2 h 10 min 43 s into the Saturday broadcast, less the 20 s lead-in.
     expect(v?.rows?.[href("USCHSLAOS", "qual:0:18")]).toEqual({ videoId: "a7WJBT3RHZU", t: 7823, kind: "recording", match: "Q18" });
     expect(v?.rows?.[href("USCHSLAOS", "qual:0:85")]).toBeUndefined();
+  });
+
+  it("once the Sunday video's timing is checked by eye (server/data/checkedTimings.ts), Q85 plays from its own second", async () => {
+    await run("UPDATE event_broadcasts SET video_id = 'W6ywzjs-MUM' WHERE video_id = 'uncheckedxx'");
+    await run("UPDATE video_meta SET video_id = 'W6ywzjs-MUM' WHERE video_id = 'uncheckedxx'");
+    forgetRecordings();
+    const highlights = stat({ intent: "team-highlights", team: { number: 23268, name: "Ultraviolet" },
+      headline: { value: "412 points", label: "Best score without penalties: Q85", href: href("USCHSLAOS", "qual:0:85") },
+      blocks: [{ kind: "matches", title: "4 standout matches", rows: [
+        { ...row("USCHSLAOS", "qual:0:85", "Q85"), note: "Best score" }, { ...row("USCHSLAOS", "qual:0:18", "Q18"), note: "Biggest win" }] }] });
+    const v = await answerVideo(highlights, NOW);
+    // The card's player is Q85 itself: 11:31:52.218 EDT is 15:31:52Z, 3 h 36 min 28 s into the Sunday broadcast, less
+    // the 20 s lead-in. No "watch the Sunday recording" link any more.
+    expect(v?.main).toEqual({ videoId: "W6ywzjs-MUM", t: 12968, kind: "recording", match: "Q85" });
+    expect(v?.mainRow).toBe(href("USCHSLAOS", "qual:0:85"));
+    expect(v?.rows?.[href("USCHSLAOS", "qual:0:18")]).toEqual({ videoId: "a7WJBT3RHZU", t: 7823, kind: "recording", match: "Q18" });
+    expect(v?.watch).toBeUndefined();
   });
 });
 
