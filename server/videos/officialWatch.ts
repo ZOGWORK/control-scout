@@ -71,19 +71,23 @@ async function eventsAround(day: string): Promise<WatchEvent[]> {
   }));
 }
 
-/** An "add" checked against what the event already plays: a day it has a video for, or one whose day isn't known yet, goes to review. */
-async function settle(v: Verdict & { kind: "add" }): Promise<Verdict> {
+/** A watcher's verdict: the match's, or a duplicate of a video an event already plays (logged, never added or queued). */
+export type WatchVerdict = Verdict | { kind: "duplicate"; why: string; event?: WatchEvent; day?: string; part?: string | null };
+
+/** An "add" checked against what the event already plays: a day it has a video for is a duplicate; one whose day
+ *  isn't known yet sends it to review. */
+async function settle(v: Verdict & { kind: "add" }): Promise<WatchVerdict> {
   const has = await eventVideosByDay(v.event.season, v.event.code);
   const at = { event: v.event, day: v.day, part: v.part };
   const same = has.find((h) => h.day === v.day && (h.part ?? null) === (v.part ?? null));
-  if (same) return { kind: "review", why: `${v.event.code} already plays ${same.videoId} for ${v.day}`, ...at };
+  if (same) return { kind: "duplicate", why: `duplicate: ${v.event.code} already plays ${same.videoId} for ${v.day}${v.part ? ` (${v.part})` : ""}`, ...at };
   const unknown = has.find((h) => !h.timed);
   if (unknown) return { kind: "review", why: `${v.event.code} plays ${unknown.videoId}, whose day isn't known yet`, ...at };
   return v;
 }
 
 let busy = false;
-export interface WatchRun { units: number; channels: number; seen: number; added: number; queued: number; error: string | null }
+export interface WatchRun { units: number; channels: number; seen: number; added: number; queued: number; duplicates: number; error: string | null }
 
 /**
  * One pass over the watchlist. Without YOUTUBE_API_KEY nothing is read (the owner panel says so). Stops when the run's
@@ -96,7 +100,7 @@ export async function runOfficialWatch(log: (s: string) => void, opts: { apiKey?
   const now = opts.now ?? Date.now;
   const fetchImpl = opts.fetchImpl ?? fetch;
   const maxUnits = opts.maxUnits ?? MAX_UNITS;
-  const out: WatchRun = { units: 0, channels: 0, seen: 0, added: 0, queued: 0, error: null };
+  const out: WatchRun = { units: 0, channels: 0, seen: 0, added: 0, queued: 0, duplicates: 0, error: null };
   const runId = Number((await get<{ id: number }>("INSERT INTO official_watch_runs (started_at) VALUES (?) RETURNING id", [new Date(now()).toISOString()]))?.id);
   try {
     await seedOfficialChannels(now());
@@ -128,6 +132,7 @@ export async function runOfficialWatch(log: (s: string) => void, opts: { apiKey?
             await record(v, ch, verdict, published, now());
             if (verdict.kind === "add") out.added++;
             else if (verdict.kind === "review") out.queued++;
+            else if (verdict.kind === "duplicate") out.duplicates++;
           }
         }
         await run("UPDATE official_channels SET checked_at = ?, last_error = NULL WHERE channel_id = ?", [new Date(now()).toISOString(), ch.channelId]);
@@ -140,12 +145,12 @@ export async function runOfficialWatch(log: (s: string) => void, opts: { apiKey?
     out.error = String((e as Error).message ?? e).slice(0, 300);
   } finally {
     busy = false;
-    await run("UPDATE official_watch_runs SET finished_at = ?, units = ?, channels = ?, seen = ?, added = ?, queued = ?, error = ? WHERE id = ?",
-      [new Date(now()).toISOString(), out.units, out.channels, out.seen, out.added, out.queued, out.error, runId]).catch(() => {});
+    await run("UPDATE official_watch_runs SET finished_at = ?, units = ?, channels = ?, seen = ?, added = ?, queued = ?, duplicates = ?, error = ? WHERE id = ?",
+      [new Date(now()).toISOString(), out.units, out.channels, out.seen, out.added, out.queued, out.duplicates, out.error, runId]).catch(() => {});
   }
   // The event pages read it within a minute (the recordings cache).
   if (out.added) forgetOfficial();
-  if (out.seen || out.error) log(`official videos: watched ${out.channels} channels (${out.units} units): ${out.seen} new, ${out.added} added, ${out.queued} to review${out.error ? `; ${out.error}` : ""}`);
+  if (out.seen || out.error) log(`official videos: watched ${out.channels} channels (${out.units} units): ${out.seen} new, ${out.added} added, ${out.queued} to review, ${out.duplicates} duplicates${out.error ? `; ${out.error}` : ""}`);
   return out;
 }
 
@@ -184,19 +189,26 @@ async function newUploads(ch: ChannelRow, key: string, fetchImpl: Fetch, out: Wa
 }
 
 /** The verdict for one video: the match, then (for an add) the event's own videos. */
-export async function decide(v: WatchVideo, ch: Pick<ChannelRow, "region" | "words" | "titlePattern">): Promise<Verdict> {
+export async function decide(v: WatchVideo, ch: Pick<ChannelRow, "region" | "words" | "titlePattern">): Promise<WatchVerdict> {
+  // Already an event's video another way (FIRST's link, a short link, a channel broadcast, the owner's stream).
+  const played = await get<{ season: number; code: string; via: string }>(
+    `SELECT season, code, 'the channel broadcasts' AS via FROM event_broadcasts WHERE video_id = ?1
+     UNION ALL SELECT season, code, 'its stream link' FROM event_stream_links WHERE video_id = ?1
+     UNION ALL SELECT season, code, 'the owner''s stream' FROM event_streams WHERE video_id = ?1
+     UNION ALL SELECT season, code, 'FIRST''s event link' FROM events WHERE livestream LIKE '%' || ?1 || '%' LIMIT 1`, [v.videoId]);
+  if (played) return { kind: "duplicate", why: `duplicate: already ${played.season} ${played.code}'s video (${played.via})` };
   const rule: ChannelRule = { region: ch.region, words: ch.words, titlePattern: ch.titlePattern };
   const events = v.start ? await eventsAround(v.start.slice(0, 10)) : [];
   const verdict = matchVideo(v, rule, events);
   return verdict.kind === "add" ? settle(verdict) : verdict;
 }
 
-async function record(v: WatchVideo, ch: ChannelRow, verdict: Verdict, published: string | null, now: number): Promise<void> {
+async function record(v: WatchVideo, ch: ChannelRow, verdict: WatchVerdict, published: string | null, now: number): Promise<void> {
   const at = new Date(now).toISOString();
   const ev = verdict.kind === "ignore" ? null : verdict.event ?? null;
   const day = verdict.kind === "ignore" ? null : verdict.day ?? null;
   const part = verdict.kind === "ignore" ? null : verdict.part ?? null;
-  const status = verdict.kind === "add" ? "added" : verdict.kind === "review" ? "pending" : "ignored";
+  const status = verdict.kind === "add" ? "added" : verdict.kind === "review" ? "pending" : verdict.kind === "duplicate" ? "duplicate" : "ignored";
   const writes = [{
     sql: `INSERT INTO official_watch (video_id, channel_id, title, start, published, duration, status, season, code, day, part, why, seen_at, decided_at, decided_by)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(video_id) DO NOTHING`,
@@ -227,9 +239,10 @@ export async function pendingCount(): Promise<number> {
 export async function ownerOfficial(now = Date.now()) {
   await seedOfficialChannels(now);
   const since = new Date(now).toISOString().slice(0, 10);
-  const [pending, ignored, decided, runs, channels, today, list] = await Promise.all([
-    all<any>(`${WATCH_SELECT} WHERE w.status = 'pending' ORDER BY w.seen_at DESC LIMIT 200`),
+  const [pending, ignored, duplicates, decided, runs, channels, today, list] = await Promise.all([
+    all<any>(`${WATCH_SELECT} WHERE w.status = 'pending' ORDER BY w.seen_at, COALESCE(w.start, w.published) LIMIT 200`),
     all<any>(`${WATCH_SELECT} WHERE w.status = 'ignored' ORDER BY w.seen_at DESC LIMIT 50`),
+    all<any>(`${WATCH_SELECT} WHERE w.status = 'duplicate' ORDER BY w.seen_at DESC LIMIT 50`),
     all<any>(`${WATCH_SELECT} WHERE w.status IN ('added', 'approved', 'rejected') ORDER BY COALESCE(w.decided_at, w.seen_at) DESC LIMIT 50`),
     all<any>("SELECT * FROM official_watch_runs ORDER BY id DESC LIMIT 10"),
     all<any>("SELECT * FROM official_channels WHERE removed_at IS NULL ORDER BY title"),
@@ -243,8 +256,8 @@ export async function ownerOfficial(now = Date.now()) {
     nextRunAt: last?.started_at ? new Date(Date.parse(last.started_at) + WATCH_EVERY_MS).toISOString() : null,
     unitsToday: Number(today?.n ?? 0),
     recordings: Number(list?.n ?? 0), events: Number(list?.e ?? 0),
-    pending: pending.map(watchOf), ignored: ignored.map(watchOf), decided: decided.map(watchOf),
-    runs: runs.map((r) => ({ id: Number(r.id), startedAt: String(r.started_at), finishedAt: r.finished_at ?? null, units: Number(r.units), channels: Number(r.channels), seen: Number(r.seen), added: Number(r.added), queued: Number(r.queued), error: r.error ?? null })),
+    pending: pending.map(watchOf), ignored: ignored.map(watchOf), duplicates: duplicates.map(watchOf), decided: decided.map(watchOf),
+    runs: runs.map((r) => ({ id: Number(r.id), startedAt: String(r.started_at), finishedAt: r.finished_at ?? null, units: Number(r.units), channels: Number(r.channels), seen: Number(r.seen), added: Number(r.added), queued: Number(r.queued), duplicates: Number(r.duplicates ?? 0), error: r.error ?? null })),
     channels: channels.map(channelOf),
   };
 }

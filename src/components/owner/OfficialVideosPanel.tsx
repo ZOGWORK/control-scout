@@ -19,6 +19,7 @@ import type { OfficialChannelRow, OfficialWatchRow, OwnerOfficialVideos } from "
 
 const PATH = "/api/owner/official-videos";
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—");
+const dups = (n: number) => `${n} duplicate${n === 1 ? "" : "s"}`;
 const mins = (s: number | null) => (s == null ? "" : s >= 3600 ? `${Math.floor(s / 3600)} h ${Math.round((s % 3600) / 60)} min` : `${Math.round(s / 60)} min`);
 
 async function act(path: string, init: { method: string; json?: unknown }, done: string): Promise<boolean> {
@@ -42,13 +43,17 @@ export function OfficialVideosPanel() {
         <div className="grid gap-8">
           <Status d={d} />
           <Section title={<>To review {d.pending.length > 0 && <Badge variant="soft" className="ml-1 align-middle">{d.pending.length}</Badge>}</>}
-            description="Videos the watcher found on an official channel but couldn't add on its own: why, and the event it fits best. Approve one as a day's recording or as a highlight, or reject it. Either way it's never proposed again.">
+            description="Videos the watcher found on an official channel but couldn't add on its own, oldest first: why, and the event it fits best. Approve one as a day's recording or as a highlight, or reject it. Either way it's never proposed again.">
             {d.pending.length ? <ul className="grid gap-3">{d.pending.map((w) => <Review key={w.videoId} w={w} />)}</ul>
               : <EmptyState icon={Tv} title="Nothing to review" description="New videos on the watched channels show here when they can't be added on their own." />}
           </Section>
           <Section title="Added and decided lately" description="The watcher's own adds, and your approvals and rejections. Removing a video takes it off its event for good.">
             {d.decided.length ? <ul className="grid gap-2">{d.decided.map((w) => <Decided key={w.videoId} w={w} />)}</ul>
               : <p className="text-sm text-muted-foreground">Nothing yet.</p>}
+          </Section>
+          <Section title={`Duplicates (${d.duplicates.length})`} collapsible summary="Videos whose event already plays a video for that day, or this very video: logged, never added."
+            description="Videos whose event already plays a video for that day, or this very video: logged, never added.">
+            {d.duplicates.length ? <ul className="grid gap-2">{d.duplicates.map((w) => <Decided key={w.videoId} w={w} />)}</ul> : <p className="text-sm text-muted-foreground">None.</p>}
           </Section>
           <Section title={`Set aside (${d.ignored.length})`} collapsible summary="Not competition streams by their title: webinars, kickoffs, FRC and so on. Any can still be approved."
             description="Not competition streams by their title: webinars, kickoffs, FRC and so on. Any can still be approved.">
@@ -69,7 +74,7 @@ function Status({ d }: { d: OwnerOfficialVideos }) {
       action={<Button variant="outline" disabled={busy || !d.apiKey} onClick={async () => { setBusy(true); await act("/run", { method: "POST" }, "Watcher ran."); setBusy(false); }}><RefreshCw className={busy ? "animate-spin" : ""} /> Run now</Button>}>
       <dl className="grid gap-3 text-sm sm:grid-cols-4">
         <div className="rounded-xl border border-border bg-card p-3"><dt className="text-muted-foreground">YouTube API key</dt><dd className="mt-1 font-medium">{d.apiKey ? "Set" : <span className="text-danger">Not set: the watcher can't run</span>}</dd></div>
-        <div className="rounded-xl border border-border bg-card p-3"><dt className="text-muted-foreground">Last run</dt><dd className="mt-1 font-medium" data-last-run>{last ? `${ago(last.startedAt)}: ${last.seen} new, ${last.added} added, ${last.queued} to review` : "Not yet"}</dd>
+        <div className="rounded-xl border border-border bg-card p-3"><dt className="text-muted-foreground">Last run</dt><dd className="mt-1 font-medium" data-last-run>{last ? `${ago(last.startedAt)}: ${last.seen} new, ${last.added} added, ${last.queued} to review, ${dups(last.duplicates)}` : "Not yet"}</dd>
           {last?.error && <dd className="mt-1 text-danger">{last.error}</dd>}</div>
         <div className="rounded-xl border border-border bg-card p-3"><dt className="text-muted-foreground">Quota used today</dt><dd className="mt-1 font-medium tabular-nums">{d.unitsToday} of 10,000 units</dd></div>
         <div className="rounded-xl border border-border bg-card p-3"><dt className="text-muted-foreground">Next run</dt><dd className="mt-1 font-medium">{d.apiKey ? (d.nextRunAt ? when(d.nextRunAt) : "Within 30 minutes") : "—"}</dd></div>
@@ -77,7 +82,7 @@ function Status({ d }: { d: OwnerOfficialVideos }) {
       {d.runs.length > 1 && (
         <details className="mt-3 text-sm">
           <summary className="cursor-pointer text-muted-foreground">Earlier runs</summary>
-          <ul className="mt-2 grid gap-1">{d.runs.map((r) => <li key={r.id} className="tabular-nums">{when(r.startedAt)} · {r.units} units · {r.channels} channels · {r.seen} new · {r.added} added · {r.queued} to review{r.error ? <span className="text-danger"> · {r.error}</span> : null}</li>)}</ul>
+          <ul className="mt-2 grid gap-1">{d.runs.map((r) => <li key={r.id} className="tabular-nums">{when(r.startedAt)} · {r.units} units · {r.channels} channels · {r.seen} new · {r.added} added · {r.queued} to review · {dups(r.duplicates)}{r.error ? <span className="text-danger"> · {r.error}</span> : null}</li>)}</ul>
         </details>
       )}
     </Section>
@@ -93,8 +98,9 @@ function VideoHead({ w }: { w: OfficialWatchRow }) {
       </a>
       <div className="min-w-0">
         <a href={watchUrl(w.videoId)} target="_blank" rel="noreferrer noopener" className="inline-flex items-start gap-1 break-words font-medium text-foreground hover:underline [overflow-wrap:anywhere]">{w.title}<ExternalLink className="mt-1 size-3 shrink-0" aria-hidden /></a>
-        <p className="text-xs text-muted-foreground">{w.channel} · {w.start ? `broadcast ${when(w.start)}` : `uploaded ${when(w.published)}`}{w.durationS ? ` · ${mins(w.durationS)}` : ""}</p>
+        <p className="text-xs text-muted-foreground">{w.channel} · <span className="font-mono">{w.videoId}</span> · published {when(w.published)}{w.start ? ` · broadcast ${when(w.start)}` : ""}{w.durationS ? ` · ${mins(w.durationS)}` : ""}</p>
         <p className="mt-1 text-sm">{w.why}</p>
+        <p className="text-xs text-muted-foreground">Best guess: {w.code && w.season ? <Link to={`/events/${w.season}/${w.code}`} className="font-medium text-foreground hover:underline">{w.season} {w.code}{w.day ? `, ${w.day}` : ""}</Link> : "no event"}</p>
       </div>
     </div>
   );
@@ -131,7 +137,7 @@ function Review({ w }: { w: OfficialWatchRow }) {
 }
 
 const STATUS: Record<string, { label: string; variant: "success" | "info" | "destructive" | "secondary" }> = {
-  added: { label: "Added by the watcher", variant: "success" }, approved: { label: "Approved", variant: "info" }, rejected: { label: "Rejected", variant: "destructive" },
+  added: { label: "Added by the watcher", variant: "success" }, duplicate: { label: "Duplicate", variant: "secondary" }, approved: { label: "Approved", variant: "info" }, rejected: { label: "Rejected", variant: "destructive" },
 };
 
 function Decided({ w }: { w: OfficialWatchRow }) {

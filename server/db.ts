@@ -2245,7 +2245,8 @@ CREATE TABLE official_channels (
   last_error TEXT
 );
 -- Every video the watcher has read, once: status added (every check passed: written to official_videos), pending
--- (for the owner to decide), ignored (not a competition stream), rejected (the owner said no), approved (the owner
+-- (for the owner to decide), duplicate (its event already plays a video for that day, or this very video: logged,
+-- never added or queued), ignored (not a competition stream), rejected (the owner said no), approved (the owner
 -- added it). A video here is never proposed again. season/code/day/part: the event it fits best, when one does.
 CREATE TABLE official_watch (
   video_id TEXT PRIMARY KEY,
@@ -2275,6 +2276,7 @@ CREATE TABLE official_watch_runs (
   seen INTEGER NOT NULL DEFAULT 0,
   added INTEGER NOT NULL DEFAULT 0,
   queued INTEGER NOT NULL DEFAULT 0,
+  duplicates INTEGER NOT NULL DEFAULT 0,
   error TEXT
 );
 `,

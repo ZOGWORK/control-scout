@@ -10,11 +10,12 @@ import { approveWatched, ownerOfficial, rejectWatched, removeChannel, removeOffi
 const TX = "UCKezDYNRPpAy2_1XRMBWKSw";
 const T0 = Date.parse("2026-01-10T00:00:00Z");
 const NOW = Date.parse("2026-01-20T00:00:00Z");
-const ADD = "addaddaddad", REV = "revrevrevre", IGN = "ignignignig", OLD = "oldoldoldol", LIVE = "livelivelive".slice(0, 11), DUP = "dupdupdupdu";
+const FIRSTS = "firstlinkxx", ADD = "addaddaddad", REV = "revrevrevre", IGN = "ignignignig", OLD = "oldoldoldol", LIVE = "livelivelive".slice(0, 11), DUP = "dupdupdupdu";
 
 type Item = { id: string; title: string; published: string; start?: string | null; minutes?: number; live?: string };
 let uploads: Item[] = [];
 let calls: string[] = [];
+let playlists: string[] = [];
 let quota = false;
 const fakeFetch = (async (url: string) => {
   const u = new URL(url);
@@ -23,6 +24,7 @@ const fakeFetch = (async (url: string) => {
   const json = (b: unknown, status = 200) => ({ ok: status === 200, status, json: async () => b }) as Response;
   if (quota) return json({ error: { errors: [{ reason: "quotaExceeded" }] } }, 403);
   if (u.pathname.endsWith("/playlistItems")) {
+    playlists.push(u.searchParams.get("playlistId")!);
     if (u.searchParams.get("playlistId") !== `UU${TX.slice(2)}`) return json({ items: [] });
     return json({ items: uploads.map((i) => ({ contentDetails: { videoId: i.id, videoPublishedAt: i.published } })) });
   }
@@ -45,7 +47,7 @@ beforeAll(async () => {
   await run("INSERT INTO video_meta (video_id, status, start, end, duration, live, checked_at) VALUES ('firstlinkxx', 'ok', '2026-01-17T14:00:00Z', '2026-01-17T22:00:00Z', 28800, 0, 'x')");
   await seedOfficialChannels(T0, true);
 });
-beforeEach(() => { calls = []; quota = false; });
+beforeEach(() => { calls = []; playlists = []; quota = false; });
 
 describe("the official-video watcher", () => {
   it("seeds the watchlist once; a removed channel never comes back", async () => {
@@ -64,10 +66,16 @@ describe("the official-video watcher", () => {
       { id: IGN, title: "Coach webinar: judging", published: "2026-01-16T20:00:00Z" },
       { id: LIVE, title: "FiT Houston Qualifier", published: "2026-01-17T15:00:00Z", live: "live" },
       { id: OLD, title: "FiT Mockingbird Qualifier 2025", published: "2025-12-01T00:00:00Z" },
+      // FIRST's own link for the Pecan Qualifier, uploaded on the channel too.
+      { id: FIRSTS, title: "FiT Pecan Qualifier - live", published: "2026-01-17T22:30:00Z", start: "2026-01-17T14:00:00Z" },
     ];
     const logs: string[] = [];
     const out = await runOfficialWatch((s) => logs.push(s), { apiKey: "k", fetchImpl: fakeFetch, now: () => NOW });
-    expect(out).toMatchObject({ seen: 4, added: 1, queued: 2, error: null });
+    // Journeys 23-26: the sure one added, the ambiguous one queued with why, duplicates logged, unwatched channels never read.
+    expect(out).toMatchObject({ seen: 5, added: 1, queued: 1, duplicates: 2, error: null });
+    const vt = OFFICIAL_CHANNELS.find((c) => c.title === "FIRST in Vermont")!.channelId;
+    expect(playlists).not.toContain(`UU${vt.slice(2)}`);
+    expect(playlists.every((p) => OFFICIAL_CHANNELS.some((c) => `UU${c.channelId.slice(2)}` === p))).toBe(true);
     // One uploads page per watched channel, and one videos call for this channel's new ones.
     expect(out!.units).toBe(OFFICIAL_CHANNELS.length - 1 + 1);
     expect(calls.filter((c) => c === "videos")).toHaveLength(1);
@@ -75,14 +83,16 @@ describe("the official-video watcher", () => {
     expect(st.get(ADD)?.status).toBe("added");
     expect(st.get(REV)?.status).toBe("pending");
     expect(st.get(REV)?.why).toMatch(/day 2/);
-    expect(st.get(DUP)?.status).toBe("pending");
-    expect(st.get(DUP)?.why).toMatch(/already plays firstlinkxx/);
+    expect(st.get(DUP)?.status).toBe("duplicate");
+    expect(st.get(DUP)?.why).toMatch(/duplicate: USTXPEQ already plays firstlinkxx for 2026-01-17/);
+    expect(st.get(FIRSTS)?.status).toBe("duplicate");
+    expect(st.get(FIRSTS)?.why).toContain("already 2025 USTXPEQ's video (FIRST's event link)");
     expect(st.get(IGN)?.status).toBe("ignored");
     expect(st.has(OLD)).toBe(false); // published before the channel was watched
     expect(st.has(LIVE)).toBe(false); // still live: read once it's over
     const added = await get<any>("SELECT season, code, day, source FROM official_videos WHERE video_id = ?", [ADD]);
     expect(added).toMatchObject({ code: "USTXMOQ", day: "2026-01-17", source: "watcher" });
-    expect(logs.at(-1)).toMatch(/1 added, 2 to review/);
+    expect(logs.at(-1)).toMatch(/1 added, 1 to review, 2 duplicates/);
 
     // Again: nothing is proposed twice; the live one, now over, is read.
     uploads = uploads.map((u) => (u.id === LIVE ? { ...u, live: "none", start: "2026-01-17T15:00:00Z" } : u));
@@ -99,14 +109,24 @@ describe("the official-video watcher", () => {
     expect((await approveWatched(REV, { season: 2025, code: "ustxmoq", day: "2026-01-18", kind: "recording" }, "owner@example.test")).ok).toBe(true);
     expect(await get<any>("SELECT code, day, source, added_by FROM official_videos WHERE video_id = ?", [REV])).toMatchObject({ code: "USTXMOQ", day: "2026-01-18", source: "owner", added_by: "owner@example.test" });
     expect((await approveWatched(REV, { season: 2025, code: "USTXMOQ", day: "2026-01-18" }, "owner@example.test")).ok).toBe(false); // decided already
-    expect((await rejectWatched(DUP, "same as FIRST's link", "owner@example.test")).ok).toBe(true);
+    expect((await rejectWatched(DUP, "x", "owner@example.test")).ok).toBe(false); // a duplicate isn't in the queue
     // A set-aside video can still go on as a highlight.
     expect((await approveWatched(IGN, { season: 2025, code: "USTXMOQ", kind: "highlight" }, "owner@example.test")).ok).toBe(true);
     expect((await get<any>("SELECT kind, day FROM official_videos WHERE video_id = ?", [IGN]))).toMatchObject({ kind: "highlight", day: null });
     expect((await removeOfficial(ADD, "owner@example.test")).ok).toBe(true);
     expect((await get<any>("SELECT removed_at FROM official_videos WHERE video_id = ?", [ADD]))?.removed_at).toBeTruthy();
     const actions = (await all<{ action: string }>("SELECT action FROM owner_audit ORDER BY id")).map((r) => r.action);
-    expect(actions).toEqual(expect.arrayContaining(["officialVideo.approve", "officialVideo.reject", "officialVideo.remove", "officialChannel.remove"]));
+    expect(actions).toEqual(expect.arrayContaining(["officialVideo.approve", "officialVideo.remove", "officialChannel.remove"]));
+    // Journey 27: a rejected video never comes back to the queue.
+    const REJ = "rejrejrejre";
+    uploads = [{ id: REJ, title: "Qualifier", published: "2026-01-18T23:00:00Z", start: "2026-01-18T15:00:00Z" }];
+    await runOfficialWatch(() => {}, { apiKey: "k", fetchImpl: fakeFetch, now: () => NOW + 10_000 });
+    expect((await get<any>("SELECT status FROM official_watch WHERE video_id = ?", [REJ]))?.status).toBe("pending");
+    expect((await rejectWatched(REJ, "not sure which event", "owner@example.test")).ok).toBe(true);
+    await runOfficialWatch(() => {}, { apiKey: "k", fetchImpl: fakeFetch, now: () => NOW + 20_000 });
+    expect((await get<any>("SELECT status FROM official_watch WHERE video_id = ?", [REJ]))?.status).toBe("rejected");
+    expect(await get<any>("SELECT 1 FROM official_videos WHERE video_id = ?", [REJ])).toBeUndefined();
+    expect((await all<{ action: string }>("SELECT action FROM owner_audit WHERE action = 'officialVideo.reject'")).length).toBe(1);
     const o = await ownerOfficial(NOW);
     expect(o.pending).toHaveLength(0);
     expect(o.decided.map((w) => w.status)).toEqual(expect.arrayContaining(["approved", "rejected"]));
@@ -120,6 +140,11 @@ describe("the official-video watcher", () => {
     const last = await get<any>("SELECT error, finished_at FROM official_watch_runs ORDER BY id DESC LIMIT 1");
     expect(last.error).toMatch(/quotaExceeded/);
     expect(last.finished_at).toBeTruthy();
+    // Journey 28: the owner sees the last run, its error and the units used today.
+    const o = await ownerOfficial(NOW + 2000);
+    expect(o.runs[0].error).toMatch(/quota used up/);
+    expect(o.unitsToday).toBeGreaterThan(0);
+    expect(o.nextRunAt).toBeTruthy();
     expect(await runOfficialWatch(() => {}, { apiKey: null, fetchImpl: fakeFetch })).toBeNull();
     expect(await watchIfDue(() => {}, NOW + 3000)).toBeNull(); // no key in tests, and the last run was moments ago
   });

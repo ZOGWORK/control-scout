@@ -1004,12 +1004,12 @@ export interface ResultChangesView {
 export interface OfficialWatchRow {
   videoId: string; channelId: string; channel: string; title: string; start: string | null; published: string | null; durationS: number | null;
   /** pending: to review · ignored: set aside, not a competition stream · added: by the watcher · approved / rejected: by the owner. */
-  status: "pending" | "ignored" | "added" | "approved" | "rejected";
+  status: "pending" | "ignored" | "duplicate" | "added" | "approved" | "rejected";
   season: number | null; code: string | null; day: string | null; part: string | null; why: string; seenAt: string; decidedAt: string | null; decidedBy: string | null;
 }
 export interface OfficialChannelRow { channelId: string; title: string; region: string; words: string | null; titlePattern: string | null; watchFrom: string; checkedAt: string | null; lastError: string | null }
-export interface OfficialWatchRunRow { id: number; startedAt: string; finishedAt: string | null; units: number; channels: number; seen: number; added: number; queued: number; error: string | null }
+export interface OfficialWatchRunRow { id: number; startedAt: string; finishedAt: string | null; units: number; channels: number; seen: number; added: number; queued: number; duplicates: number; error: string | null }
 export interface OwnerOfficialVideos {
   apiKey: boolean; everyHours: number; nextRunAt: string | null; unitsToday: number; recordings: number; events: number;
-  pending: OfficialWatchRow[]; ignored: OfficialWatchRow[]; decided: OfficialWatchRow[]; runs: OfficialWatchRunRow[]; channels: OfficialChannelRow[];
+  pending: OfficialWatchRow[]; ignored: OfficialWatchRow[]; duplicates: OfficialWatchRow[]; decided: OfficialWatchRow[]; runs: OfficialWatchRunRow[]; channels: OfficialChannelRow[];
 }

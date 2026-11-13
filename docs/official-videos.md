@@ -83,10 +83,15 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
     "Day N" must be the event's own day N;
   - the event has no video for that day yet, and none whose day isn't known yet.
 
+  A video the event already plays for that day, or one that is already some event's video (FIRST's link, a short
+  link, a channel broadcast, the owner's stream), is logged as a **duplicate** and never added or queued.
+
   Anything short of that goes **to review**, with the reason and the event it fits best. Titles that aren't
   competition streams (webinars, kickoffs, FRC, …) are **set aside**. A video still live, or still to come, is read
   again after it ends.
-- **The owner's queue** (Owner › Official videos, with an "N to review" badge on the console's menu):
+- **The owner's queue** (Owner › Official videos, with an "N to review" badge on the console's menu), oldest first. Each
+  row shows the title, channel, video id, published and broadcast times, length, the best-guess event and why it
+  wasn't added:
   - Approve a video as a day's recording (season, event code, day at the venue, and optionally a part of the day) or
     as a highlight. The server checks the event exists, the day falls within it and the day isn't already taken.
   - Reject a video.
@@ -94,9 +99,9 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
   - Every action is in the audit log (`officialVideo.approve`, `.reject`, `.remove`, `.runNow`,
     `officialChannel.add`, `.edit`, `.remove`).
 
-  An added, approved, rejected or set-aside video is never proposed again.
+  An added, approved, rejected, duplicate or set-aside video is never proposed again.
 - **Runs** (`official_watch_runs`): each run logs its API units, channels read, new videos, adds, queued videos and the
-  error that stopped it, if any. A run uses at most 1,500 units (YouTube allows 10,000 a day, and the timing backfill
+  error that stopped it, if any, and the duplicates it logged. A run uses at most 1,500 units (YouTube allows 10,000 a day, and the timing backfill
   shares them) and stops when YouTube says the quota is spent. A channel's own error is kept on its row. The panel
   shows the last run, the units used today, the next run and a Run now button. Run now refuses within 10 minutes of
   the last run.
