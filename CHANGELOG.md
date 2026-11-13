@@ -22,7 +22,7 @@ Search answers and People also ask come back faster: the slowest database reads 
 ### Highlights
 - [speed] People also ask and Related searches arrive faster
 - [speed] One search's follow-ups no longer hold up everyone else's search
-- [speed] Award and championship questions answer about 10× faster
+- [speed] Award and championship questions answer several times faster
 - [speed] Record-score and leaderboard questions reuse what's already read
 - [speed] Search sends its own timing, so slow searches can be traced
 
