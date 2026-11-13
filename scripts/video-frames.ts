@@ -52,20 +52,20 @@ const digits = await createWorker("eng");
 await digits.setParameters({ tessedit_char_whitelist: "0123456789:", tessedit_pageseg_mode: "7" });
 
 /** The timer's places: FTC Live's bar along the bottom, or its box over the field under a bar across the top (FTC
- *  Ontario's layout), both the 2:30 a match counts down from ("bottom"); or a bar along the top with a 0:30 Auto, then a
- *  2:00 TeleOp (FIRST Texas's layout, "top"). */
+ *  Ontario's layout) ("bottom"); or a bar along the top (FIRST Texas's layout, "top"). Each counts a 0:30 Auto, then a
+ *  2:00 TeleOp (elapsed, scripts/lib/videoFrames.ts). */
 const TIMERS = [
   { where: "bottom" as const, clip: { x: 565, y: 618, width: 150, height: 86 } },
   { where: "top" as const, clip: { x: 603, y: 101, width: 74, height: 38 } },
   { where: "bottom" as const, clip: { x: 565, y: 175, width: 150, height: 68 } },
 ];
 
-/** The timer's reading. `auto`: the bottom bar's 2:30 is in Auto above 2:00; the top bar's Auto is told by readAt. */
+/** The timer's reading. `auto`: whether a reading of 0:30 or less is Auto, told by readAt. */
 async function timer(page: Page): Promise<{ where: "bottom" | "top"; left: number; auto: boolean } | null> {
   for (const t of TIMERS) {
     const left = secondsOf((await digits.recognize(await page.screenshot({ clip: t.clip }))).data.text);
     if (left == null || left > AUTO_S + SWITCH_S + TELEOP_S) continue;
-    return { where: t.where, left, auto: t.where === "bottom" ? left > TELEOP_S : false };
+    return { where: t.where, left, auto: false };
   }
   return null;
 }
@@ -95,12 +95,12 @@ async function readAt(page: Page, t: number): Promise<Read> {
   const ran = a.left - b.left, played = atB - atA;
   // Running: down by the time played (to the second either side). A paused or standing timer: not in play.
   if (played < 0.5 || Math.abs(ran - played) > 1.6) return { label, start: null, at, text };
-  // The top bar's last 30 s: Auto, or the end of TeleOp. 45 s on, Auto has become TeleOp's 2:00 (well over 30 s left);
-  // the end of TeleOp has finished.
-  if (a.where === "top" && a.left <= AUTO_S) {
+  // 0:30 or less on either bar: Auto, or the end of TeleOp. 45 s on, Auto has become TeleOp's 2:00 (well over 30 s
+  // left); the end of TeleOp has finished.
+  if (a.left <= AUTO_S) {
     await seek(page, atA + 45);
     const c = await timer(page);
-    a.auto = !!c && c.where === "top" && c.left > AUTO_S && overlayLabel((await worker.recognize(await page.screenshot())).data.text) === label;
+    a.auto = !!c && c.where === a.where && c.left > AUTO_S && overlayLabel((await worker.recognize(await page.screenshot())).data.text) === label;
   }
   const e = elapsed(a);
   return { label, start: e == null ? null : Math.round(atA - e), at, text };
