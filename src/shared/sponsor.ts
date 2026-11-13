@@ -1,8 +1,10 @@
-// Where a donation goes: the owner's GitHub Sponsors profile, for /donate (src/pages/DonatePage.tsx).
+// Where a donation goes: the ZOGWORK organization's GitHub Sponsors profile, for /donate (src/pages/DonatePage.tsx).
 // The one place this link lives. Payment happens on GitHub (with Stripe); Control Scout never sees it.
 // Tiers and amounts, if any, are set on that profile in GitHub, never in Scout.
 
-export const SPONSOR_URL = "https://github.com/sponsors/sushilm20";
+/** The GitHub organization whose Sponsors profile takes donations and lists supporters. */
+export const SPONSOR_ORG = "ZOGWORK";
+export const SPONSOR_URL = `https://github.com/sponsors/${SPONSOR_ORG}`;
 
 /** GET /api/supporters: GitHub Sponsors as the sponsors chose there. Public ones by name; private ones only
  *  counted. Never an amount or tier. configured false: no token on the server yet, so nothing can be read. */
