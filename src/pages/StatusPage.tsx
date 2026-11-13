@@ -2,7 +2,7 @@
 // one card per part: up/down, its uptime over a day and a month, and a strip of its last 90 minutes of checks.
 // The checks run on the server every 2 minutes (server/uptime.ts); there are no alerts. Gated by statusPage.
 import { Activity, Bot, CheckCircle2, CircleAlert, CircleHelp, Globe, Database, Workflow, XCircle } from "lucide-react";
-import type { ComponentType } from "react";
+import { useEffect, type ComponentType } from "react";
 import { useTitle } from "../lib/meta";
 import { useApi } from "../lib/api";
 import { PageHeader } from "../components/page";
@@ -91,6 +91,14 @@ function ServiceCard({ s }: { s: ServiceStatus }) {
 export default function StatusPage() {
   useTitle("Status");
   const state = useApi<StatusResponse>("/api/status");
+  // Fresh results while the page stays open: once per check, and on coming back to the tab.
+  const { reload } = state;
+  useEffect(() => {
+    const again = () => { if (document.visibilityState === "visible") reload().catch(() => {}); };
+    const t = setInterval(again, CHECK_EVERY_MIN * 60_000);
+    document.addEventListener("visibilitychange", again);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", again); };
+  }, [reload]);
   return (
     <div>
       <PageHeader title="Status" description={`Is Control Scout running? Every part is checked every ${CHECK_EVERY_MIN} minutes.`} />
