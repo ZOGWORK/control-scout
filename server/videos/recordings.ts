@@ -64,7 +64,7 @@ function readChapters(json: string): Chapter[] {
 /** Whether a finished broadcast's video falls far enough short of it that its chapters are worth reading (chaptersConfirm). */
 export function cutShort(f: { status: string; start: string | null; end: string | null; length: number | null; live: boolean }): boolean {
   if (f.status !== "ok" || f.live || !f.start || !f.end || f.length == null) return false;
-  return (Date.parse(f.end) - Date.parse(f.start)) / 1000 - f.length >= CHAPTER_MIN_GAP_S;
+  return (Date.parse(f.end) - Date.parse(f.start)) / 1000 - f.length > CHAPTER_MIN_GAP_S;
 }
 
 function seasonData(season: number, now = Date.now()) {
@@ -361,14 +361,19 @@ export function due(m: VideoMeta | null, now: number, withKey = false): boolean 
   return false;
 }
 
-let busy = false;
+/** When the pass in progress began (0: none). One pass at a time, but a pass that never finishes (a read that never
+ *  settles) mustn't stop every later one: after STUCK_MS the next run starts anew. */
+let busy = 0;
+const STUCK_MS = 30 * 60_000;
 /**
  * Read YouTube's facts for every linked video that has none yet or is due again (newest seasons first),
  * one page at a time, at most `max` per run. Returns how many it read.
  */
-export async function backfillVideoMeta(log: (s: string) => void, opts: { max?: number; gapMs?: number; fetchImpl?: typeof fetch; now?: () => number; apiKey?: string | null } = {}): Promise<number> {
-  if (busy) return 0;
-  busy = true;
+export async function backfillVideoMeta(log: (s: string) => void, opts: { max?: number; gapMs?: number; fetchImpl?: typeof fetch; now?: () => number; apiKey?: string | null; stuckMs?: number } = {}): Promise<number> {
+  const began = Date.now();
+  if (busy && began - busy < (opts.stuckMs ?? STUCK_MS)) return 0;
+  if (busy) log(`recordings: the pass begun ${new Date(busy).toISOString()} never finished; starting anew`);
+  busy = began;
   const now = opts.now ?? Date.now;
   try {
     const links = await all<{ season: number; livestream: string }>("SELECT season, livestream FROM events WHERE livestream LIKE '%youtu%' ORDER BY season DESC, start DESC");
@@ -394,19 +399,24 @@ export async function backfillVideoMeta(log: (s: string) => void, opts: { max?: 
       for (let tries = fromApi.has(id) ? 0 : 1; cutShort(f) && !f.chapters?.length && tries < 2; tries++) {
         await new Promise((r) => setTimeout(r, opts.gapMs ?? 1500));
         const w = await fetchWatchPage(id, opts.fetchImpl);
-        if (w.status === "ok") f = { ...f, chapters: w.chapters ?? [] };
+        // A sign-in wall's page (an error) still gives the chapters (parseWatchPage); its other facts aren't read.
+        if (w.status === "ok" || w.chapters?.length) f = { ...f, chapters: w.chapters ?? [] };
       }
       if (f.status === "error") errors++;
       // A page that couldn't be read keeps the facts read before, live included (a broadcast's start doesn't change,
       // and one still live is read again on the live beat).
       const before = known.get(id);
-      if (f.status === "error" && before?.status === "ok") await saveMeta(id, before, now());
+      // Overtaken while it waited (a newer pass began): what this one read may be older than what that one saves.
+      if (busy !== began) break;
+      // A sign-in wall's chapters join them.
+      if (f.status === "error" && before?.status === "ok") await saveMeta(id, f.chapters?.length ? { ...before, chapters: f.chapters } : before, now());
       else await saveMeta(id, f, now());
       n++;
     }
     if (n) { forgetRecordings(); log(`recordings: read ${n} YouTube video${n === 1 ? "" : "s"}${key ? " (API)" : ""}${errors ? `, ${errors} not readable now` : ""}`); }
     return n;
   } finally {
-    busy = false;
+    // Only this pass's own end frees the way (a stuck pass that ends late leaves the newer one be).
+    if (busy === began) busy = 0;
   }
 }

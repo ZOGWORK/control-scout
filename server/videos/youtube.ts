@@ -48,14 +48,25 @@ export function parseWatchPage(html: string): WatchPageFacts {
     // YouTube shows some servers, an age check, a status not seen before) is tried again later.
     const reason = /"playabilityStatus":\{"status":"[A-Z_]+","reason":"([^"]*)"/.exec(html)?.[1] ?? "";
     const gone = playability === "ERROR" || playability === "UNPLAYABLE" || (playability === "LOGIN_REQUIRED" && /private/i.test(reason));
-    return gone ? UNAVAILABLE : ERROR;
+    if (gone) return UNAVAILABLE;
+    // The sign-in wall still carries the video's chapters (the same list a visitor's page has, checked against one for
+    // the Terra Division 2026 recording: 57 of 57): kept, as the server's only way to them (the Data API has none).
+    // The walls seen so far leave out the length and broadcast times; one that carries both (a broadcast start, not
+    // only an empty block) is read like a visitor's page. Anything less stays the error, so it's read again later.
+    if (/"lengthSeconds":"\d+"/.test(html) && /"liveBroadcastDetails":\{[^{}]*"startTimestamp":"[^"]+"/.test(html)) return pageFacts(html, false);
+    const chapters = parseChapters(html);
+    return chapters.length ? { ...ERROR, chapters } : ERROR;
   }
+  return pageFacts(html, playability === "LIVE_STREAM_OFFLINE");
+}
+
+/** The timing facts and chapters of a page that carries the player response. */
+function pageFacts(html: string, offline: boolean): WatchPageFacts {
   const length = Number(/"lengthSeconds":"(\d+)"/.exec(html)?.[1]);
   const b = /"liveBroadcastDetails":(\{[^{}]*\})/.exec(html)?.[1];
   let details: { isLiveNow?: boolean; startTimestamp?: string; endTimestamp?: string } = {};
   if (b) try { details = JSON.parse(b); } catch { /* left empty: no broadcast times */ }
-  // Not started yet: any start YouTube shows is the schedule, never a time to line matches up with.
-  const offline = playability === "LIVE_STREAM_OFFLINE";
+  // Not started yet (offline): any start YouTube shows is the schedule, never a time to line matches up with.
   return {
     status: "ok",
     start: offline ? null : iso(details.startTimestamp),

@@ -15,6 +15,60 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.9.9 — 2026-11-13
+
+A stuck read of event recordings no longer stops every later one: matches keep getting their clips.
+
+### Highlights
+- [fixes] Event recordings keep being read even after one read gets stuck
+- [fixes] Live broadcasts keep their match clips coming during a long event
+- [fixes] New recordings get their match clips within minutes again
+
+### Fixed
+- On the live server, one pass reading recordings from YouTube stopped part way on a read that never settled and held every later pass off for nearly two hours, until a restart: no recording, live broadcasts included, was read in that time. A pass that began more than 30 minutes ago no longer holds the next one, which says so in the log and reads what's due (`server/videos/recordings.ts`) (#1450).
+
+## 5.9.8 — 2026-11-13
+
+Australia's events play FIRST Australia's own recordings, a day at a time, and its new broadcasts that name their event are added as they're posted.
+
+### Highlights
+- [fixes] Australia's Championship and APOC play FIRST Australia's recordings
+- [fixes] Sydney, Brisbane and Victoria qualifiers have their recordings
+- [fixes] New FIRST Australia streams naming their event join on their own
+
+### Added
+- FIRST Australia (youtube.com/@FirstAustralia) is an official channel: the watcher reads its uploads for Australia's events (`server/data/officialChannels.ts`). A broadcast whose title names its event (a qualifier's city or name, the Australian Championship, APOC) is added on its own; one naming nothing distinctive ("Australian Qualifier") waits in Owner › Official videos for review. An event named by an acronym now fits a title that spells it out (APOC and "Asia Pacific Open Championship") (`server/videos/officialMatch.ts`). Its past recordings are on their events, each a day's broadcast checked against that event's played matches (`server/data/officialVideos.json`) (#1447):
+  - 2024–25: Australia Championship (both days), APOC 2025 (both match days).
+  - 2025–26: Sydney South Qualifier (Sunday only), Sydney North Qualifier (both days), Australia Championship (both days), APOC 2026 (three days, Saturday in two parts).
+  - 2026–27: Brisbane South Qualifier (both days), Victoria Qualifier.
+
+## 5.9.7 — 2026-11-13
+
+Donations now go to the ZOGWORK organization, and the supporters page reads its sponsors from there.
+
+### Highlights
+- [fixes] The Sponsor button opens ZOGWORK's GitHub Sponsors page
+- [fixes] The supporters page lists ZOGWORK's sponsors
+- [fixes] The supporters page no longer shows an error while it waits for sponsors
+
+### Changed
+- The donate link is `github.com/sponsors/ZOGWORK` (was the owner's personal profile). One value, `SPONSOR_ORG` in `src/shared/sponsor.ts`.
+- The supporters list asks GitHub for the organization's sponsorships instead of the token owner's. The token must be a classic token from an owner of ZOGWORK with `read:user` and `read:org`; with `read:user` alone GitHub refuses sponsor names and the page showed an error. (`server/sponsors.ts`) (#1448)
+
+## 5.9.6 — 2026-11-13
+
+More event recordings now give each match its own clip: the server reads a recording's chapters even when YouTube shows it a sign-in wall, and understands more chapter names.
+
+### Highlights
+- [fixes] More event recordings jump straight to each match
+- [fixes] Recordings 15 to 30 minutes short of their stream get match clips
+- [fixes] Chapter names like "Match 16 analysis" now find their match
+
+### Fixed
+- YouTube shows the server "Sign in to confirm you're not a bot" instead of a watch page, so no recording ever had its chapters read on the live site (0 of the 68 recordings cut short of their broadcast in 2025–26). That page still carries the video's chapters, the same list a visitor's page has (57 of 57 for the Terra Division 2026 recording): they're kept now, and are what tells a video cut at the end from one with a gap. (`server/videos/youtube.ts`, `server/videos/recordings.ts`) (#1445)
+- A recording 15 to 30 minutes shorter than its broadcast got no clips at all: an early start covers up to 15 minutes, and chapters only counted from 30. Chapters now count from 15 (Minnesota Championship Nano 2026, 21 min short). (`src/shared/recording.ts`)
+- Chapter names that go on after the number ("Match 16 analysis", "Match one gameplay", "Qualification match 1", "Q1" with its teams) now name their match; one naming two matches ("Match 7 and 8") still names none. On the live site's 2025–26 recordings: events with match clips 315 → 329 of 411. (`src/shared/recording.ts`)
+
 ## 5.9.5 — 2026-11-13
 
 An event with a recording no longer says it has none, and a championship shows Video when its divisions were filmed.

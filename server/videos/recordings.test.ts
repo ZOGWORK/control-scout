@@ -3,7 +3,7 @@
 // the events list says what there is to watch, and a removed video, a channel page or Twitch gives nothing.
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { get, kvSet, migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
 import { clearAllCaches } from "../caches";
@@ -269,8 +269,10 @@ describe("when a video is read again", () => {
     // Read with none: none yet, or a page served without them: weekly.
     expect(due({ ...cut, chapters: [] }, t("2026-05-10T00:00:00Z"))).toBe(false);
     expect(due({ ...cut, chapters: [] }, t("2026-05-11T01:00:00Z"))).toBe(true);
-    // Short of it by under half an hour: chapters wouldn't be used, so never read for them.
-    expect(due({ ...cut, length: 38000 }, t("2027-01-01T00:00:00Z"))).toBe(false);
+    // Short of it by 15 min or less (an early start covers that: gapSlack): chapters wouldn't be used, so never read for them.
+    expect(due({ ...cut, length: 39600 - 900 }, t("2027-01-01T00:00:00Z"))).toBe(false);
+    // 26 min short: read (it was left out under the old half-hour mark, with no early start either).
+    expect(due({ ...cut, length: 38000 }, t("2026-05-05T01:00:00Z"))).toBe(true);
   });
 });
 
@@ -314,6 +316,26 @@ describe("with a YouTube API key", () => {
     expect((await getJson(`/api/events/${S}/CHAPTERED`)).matches[0].clip.t).toBe(1200 - 20);
   });
 
+  it("a video cut short whose watch page is YouTube's sign-in wall still has its chapters read from that page", async () => {
+    await run("DELETE FROM video_meta WHERE video_id = ?", [CHAPTERED_ID]);
+    // The server is shown "Sign in to confirm you're not a bot": no facts, but the chapters are on the page.
+    const wall = pages[CHAPTERED_ID].replace('"status":"OK"', '"status":"LOGIN_REQUIRED","reason":"Sign in to confirm you’re not a bot"');
+    const both = (async (url: string) => {
+      const u = new URL(url);
+      if (u.hostname === "www.googleapis.com") {
+        const ids = u.searchParams.get("id")!.split(",");
+        return Response.json({ items: ids.map((id) => ({ id, contentDetails: { duration: "PT5H" }, liveStreamingDetails: { actualStartTime: `${DAY}T12:00:00Z`, actualEndTime: `${DAY}T${id === CHAPTERED_ID ? 23 : 17}:00:00Z` } })) });
+      }
+      return u.searchParams.get("v") === CHAPTERED_ID ? new Response(wall) : fakeFetch(url);
+    }) as unknown as typeof fetch;
+    await backfillVideoMeta(() => {}, { apiKey: "KEY", gapMs: 0, fetchImpl: both });
+    const row = await get<{ status: string; duration: number; chapters: string }>("SELECT status, duration, chapters FROM video_meta WHERE video_id = ?", [CHAPTERED_ID]);
+    expect(row).toMatchObject({ status: "ok", duration: 18000 });
+    expect(JSON.parse(row!.chapters)[1]).toEqual([1110, "Match one"]);
+    clearAllCaches();
+    expect((await getJson(`/api/events/${S}/CHAPTERED`)).matches[0].clip.t).toBe(1200 - 20);
+  });
+
   it("reads due videos 50 to a request through the API, every batch saved, never the watch page", async () => {
     await run("DELETE FROM video_meta");
     // 51 more linked videos, so the due ones need two requests.
@@ -334,5 +356,40 @@ describe("with a YouTube API key", () => {
     expect(await get("SELECT status, duration FROM video_meta WHERE video_id = ?", [FIRST_ID])).toEqual({ status: "ok", duration: 16541 });
     expect(await get("SELECT status, duration FROM video_meta WHERE video_id = ?", [extra[extra.length - 1]])).toEqual({ status: "ok", duration: 16541 });
     expect(await get("SELECT status FROM video_meta WHERE video_id = ?", [GONE_ID])).toEqual({ status: "unavailable" });
+  });
+
+  it("a pass that never finishes doesn't stop the next one for good", async () => {
+    await event("STUCK", "https://www.youtube.com/watch?v=Stuck000001");
+    // A read that never settles: the pass waits on it for ever.
+    let hung = false;
+    const never = (async () => { hung = true; return new Promise<Response>(() => {}); }) as unknown as typeof fetch;
+    void backfillVideoMeta(() => {}, { apiKey: "KEY", gapMs: 0, fetchImpl: never });
+    await vi.waitFor(() => expect(hung).toBe(true));
+    const api = (async (url: string) => Response.json({ items: new URL(url).searchParams.get("id")!.split(",").map((id) => ({ id, contentDetails: { duration: "PT4H35M41S" }, liveStreamingDetails: { actualStartTime: `${DAY}T12:58:13Z`, actualEndTime: `${DAY}T17:33:56Z` } })) })) as unknown as typeof fetch;
+    // While it's young, runs wait for it.
+    expect(await backfillVideoMeta(() => {}, { apiKey: "KEY", gapMs: 0, fetchImpl: api })).toBe(0);
+    // Once it's past its time, the next run starts anew, says so, and reads what's due.
+    const said: string[] = [];
+    expect(await backfillVideoMeta((s) => said.push(s), { apiKey: "KEY", gapMs: 0, fetchImpl: api, stuckMs: 0 })).toBeGreaterThan(0);
+    expect(said[0]).toMatch(/never finished; starting anew/);
+    expect(await get("SELECT status FROM video_meta WHERE video_id = ?", ["Stuck000001"])).toEqual({ status: "ok" });
+    // And that pass's own end freed the way, though the stuck one never ended: the next run isn't held.
+    await event("STUCK2", "https://www.youtube.com/watch?v=Stuck000002");
+    expect(await backfillVideoMeta(() => {}, { apiKey: "KEY", gapMs: 0, fetchImpl: api })).toBe(1);
+  });
+
+  it("a pass overtaken while it waited saves nothing of what it read", async () => {
+    await event("LATE", "https://www.youtube.com/watch?v=Late0000001");
+    let release!: (r: Response) => void;
+    const slow = (async () => new Promise<Response>((r) => { release = r; })) as unknown as typeof fetch;
+    const old = backfillVideoMeta(() => {}, { apiKey: "KEY", gapMs: 0, fetchImpl: slow });
+    await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+    // A newer pass takes over and saves what YouTube says now.
+    const now = (async (url: string) => Response.json({ items: new URL(url).searchParams.get("id")!.split(",").map((id) => ({ id, contentDetails: { duration: "PT4H35M41S" }, liveStreamingDetails: { actualStartTime: `${DAY}T12:58:13Z`, actualEndTime: `${DAY}T17:33:56Z` } })) })) as unknown as typeof fetch;
+    expect(await backfillVideoMeta(() => {}, { apiKey: "KEY", gapMs: 0, fetchImpl: now, stuckMs: 0 })).toBe(1);
+    // The old pass's read comes back late, with older facts (still live, no end): it isn't saved over the newer ones.
+    release(Response.json({ items: [{ id: "Late0000001", contentDetails: { duration: "PT1H" }, liveStreamingDetails: { actualStartTime: `${DAY}T12:58:13Z` } }] }));
+    expect(await old).toBe(0);
+    expect(await get("SELECT duration, end FROM video_meta WHERE video_id = ?", ["Late0000001"])).toEqual({ duration: 16541, end: `${DAY}T17:33:56.000Z` });
   });
 });

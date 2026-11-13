@@ -1,10 +1,11 @@
 // The supporters page's list (GET /api/supporters, src/pages/SupportersPage.tsx), read from GitHub Sponsors
-// with the profile owner's token (env.githubSponsorsToken). Each sponsor chose there whether to be public:
+// with a token from an owner of the SPONSOR_ORG organization (env.githubSponsorsToken, classic PAT with
+// read:user + read:org). Each sponsor chose there whether to be public:
 // public ones are listed by GitHub name, private ones are only counted, and no amount or tier is ever read
 // out. Nothing is stored: the list lives in memory for an hour (a failed refresh keeps the last good one).
 import { env } from "./env.js";
 import { registerCache } from "./caches.js";
-import type { Supporter, SupportersResponse } from "../src/shared/sponsor.js";
+import { SPONSOR_ORG, type Supporter, type SupportersResponse } from "../src/shared/sponsor.js";
 
 export const SUPPORTERS_TTL_MS = 60 * 60 * 1000;
 const RETRY_MS = 5 * 60 * 1000;
@@ -16,14 +17,14 @@ let fetchImpl: Fetch | null = null;
 export function setSponsorsFetch(f: Fetch | null) { fetchImpl = f; }
 
 // Past sponsors too (activeOnly: false): a one-time sponsor is still thanked after the month ends.
-const QUERY = `query($after: String) {
-  viewer { sponsorshipsAsMaintainer(first: ${PAGE}, after: $after, includePrivate: true, activeOnly: false) {
+const QUERY = `query($org: String!, $after: String) {
+  organization(login: $org) { sponsorshipsAsMaintainer(first: ${PAGE}, after: $after, includePrivate: true, activeOnly: false) {
     pageInfo { hasNextPage endCursor }
     nodes { privacyLevel createdAt sponsorEntity { ... on User { login name } ... on Organization { login name } } }
   } }
 }`;
 interface Node { privacyLevel: "PUBLIC" | "PRIVATE"; createdAt: string; sponsorEntity: { login?: string; name?: string | null } | null }
-interface Page { data?: { viewer?: { sponsorshipsAsMaintainer?: { pageInfo: { hasNextPage: boolean; endCursor: string | null }; nodes: Node[] } } }; errors?: unknown[] }
+interface Page { data?: { organization?: { sponsorshipsAsMaintainer?: { pageInfo: { hasNextPage: boolean; endCursor: string | null }; nodes: Node[] } } }; errors?: unknown[] }
 
 /** Sponsorships → the page's list: one row per public sponsor (first sponsorship's date), oldest first; the
  *  private ones (and any whose account is gone) as a count of distinct sponsors. Private names are dropped here. */
@@ -52,12 +53,12 @@ async function fetchAll(token: string): Promise<Node[]> {
     const res = await (fetchImpl ?? fetch)("https://api.github.com/graphql", {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "User-Agent": "control-scout-supporters" },
-      body: JSON.stringify({ query: QUERY, variables: { after } }),
+      body: JSON.stringify({ query: QUERY, variables: { org: SPONSOR_ORG, after } }),
       signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) throw new Error(`GitHub ${res.status}`);
     const body = (await res.json()) as Page;
-    const conn = body.data?.viewer?.sponsorshipsAsMaintainer;
+    const conn = body.data?.organization?.sponsorshipsAsMaintainer;
     if (!conn || body.errors?.length) throw new Error("GitHub answered without sponsorships");
     out.push(...conn.nodes);
     if (!conn.pageInfo.hasNextPage) break;
