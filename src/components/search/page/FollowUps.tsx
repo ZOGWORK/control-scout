@@ -7,7 +7,7 @@
 import { Link } from "react-router-dom";
 import { ChevronDown, Clapperboard, Search } from "lucide-react";
 import { useApi } from "../../../lib/api";
-import { followApiPath } from "../../../shared/search";
+import { ASK_MAX, followApiPath } from "../../../shared/search";
 import { fromFirstPaint } from "../../../lib/pageData";
 import type { FollowUpTone, SearchFollowUp, SearchFollowUps } from "../../../shared/api";
 import { SEARCH_PALETTE } from "../../../lib/textTones";
@@ -54,16 +54,16 @@ export function useFollowUps(q: string, prefer: string | undefined, ready: boole
   return got ? { ...got, pending: false } : { ...NONE, pending: !!q && !ownCall.error };
 }
 
-/** People also ask's place while its questions are on their way: the same heading and rows, so nothing moves when
- *  they arrive. */
+/** People also ask's place while its questions are on their way: the same heading and its most rows (ASK_MAX), so
+ *  nothing below it moves when they arrive. */
 export function PeopleAlsoAskPending({ className }: { className?: string }) {
   return (
     <section aria-hidden className={className} data-block="people-also-ask-pending">
       <h2 className={PART}>People also ask</h2>
       <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
-        {[72, 64, 58, 68, 52].map((w) => (
-          <div key={w} className="flex min-h-[44px] items-center px-4 py-2.5">
-            <span className="h-3.5 animate-pulse rounded bg-muted motion-reduce:animate-none" style={{ width: `${w}%` }} />
+        {Array.from({ length: ASK_MAX }, (_, i) => (
+          <div key={i} className="flex min-h-[44px] items-center px-4 py-2.5">
+            <span className="h-3.5 animate-pulse rounded bg-muted motion-reduce:animate-none" style={{ width: `${[72, 64, 58, 68, 52, 62][i % 6]}%` }} />
           </div>
         ))}
       </div>

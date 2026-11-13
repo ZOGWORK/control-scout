@@ -10,7 +10,8 @@ import { prime } from "../../../lib/api";
 import { readPageData } from "../../../lib/pageData";
 import { PAGE_DATA_ID } from "../../../shared/boot";
 import { followApiPath } from "../../../shared/search";
-import { PeopleAlsoAsk, RelatedSearches, useFollowUps } from "./FollowUps";
+import { PeopleAlsoAsk, PeopleAlsoAskPending, RelatedSearches, useFollowUps } from "./FollowUps";
+import { ASK_MAX } from "../../../shared/search";
 import { TEAM_TEXT } from "./answerCells";
 import { SEARCH_PALETTE } from "../../../lib/textTones";
 
@@ -83,5 +84,13 @@ describe("useFollowUps", () => {
     expect(result.current.ask).toEqual(theirs.ask);
     // Another season picked: never the served (no season) ones.
     expect(renderHook(() => useFollowUps("6980 opr", undefined, false, 2024)).result.current.ask).toEqual([]);
+  });
+});
+
+describe("People also ask's held place", () => {
+  it("is as tall as its most questions, so none arriving pushes anything below it", () => {
+    const c = draw(<PeopleAlsoAskPending />);
+    expect(c.querySelector('[data-block="people-also-ask-pending"]')!.getAttribute("aria-hidden")).toBe("true");
+    expect(c.querySelectorAll('[data-block="people-also-ask-pending"] .divide-y > div')).toHaveLength(ASK_MAX);
   });
 });
