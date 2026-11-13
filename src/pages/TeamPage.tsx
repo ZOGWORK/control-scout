@@ -49,6 +49,9 @@ import { ReliabilitySection } from "../components/Reliability";
 import { TeamScheduleSection } from "../components/ScheduleDifficulty";
 import { predictHref } from "../shared/predictUrl";
 
+/** Track and stop-tracking notes share one toast, so tapping Track twice replaces the note rather than stacking two. */
+const TRACK_NOTE = "team-track-note";
+
 /** The record rule, mid-sentence ("Records count every match played, …"). */
 const RECORD_RULE_LOWER = RECORD_RULE.charAt(0).toLowerCase() + RECORD_RULE.slice(1);
 
@@ -158,8 +161,9 @@ function Hero({ p, onSeason, fellBackFrom, asked = false }: { p: TeamProfile; on
   const track = () => {
     const on = !flags.tracked;
     flags.toggleTracked();
-    if (!on) { toast(`Stopped tracking ${t.number}`); return; }
+    if (!on) { toast(`Stopped tracking ${t.number}`, { id: TRACK_NOTE }); return; }
     toast.success(`Tracking ${t.number}`, {
+      id: TRACK_NOTE,
       description: `It's on My team under Tracked teams, comes first in search and in Predict's quick picks.${personal.settings.notify.trackedTeams ? " While Control Scout is open in a tab, you'll get an alert before its matches." : " Turn on alerts for tracked teams in Settings › Notifications to hear before its matches (while Control Scout is open in a tab)."}`,
       action: { label: workspaceUser ? "Followed team" : "My team", onClick: () => nav(FOLLOWED_TEAM_PATH) },
     });

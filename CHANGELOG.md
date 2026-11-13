@@ -25,7 +25,7 @@ The old first-visit welcome card and step-by-step tour are gone, ahead of a new 
 - [fixes] The add-to-home-screen offer no longer waits for a welcome card
 
 ### Removed
-- The welcome card (`WelcomeCard.tsx`, `src/lib/welcome.ts`, `cs-welcome`) and the step-by-step tour (`FirstRunTour.tsx`, `TakeTour.tsx`, `src/lib/tour.ts`, `cs-tour`, `cs-tour-demo`), with everything that served only them: the owner's Step-by-step tour switch (`onboardingTour`), the Take the tour row in Settings and the Show me around button on How it works, the `data-tour` anchors on Home, team, event and search, the team page's Tracking-note id, and `npm run shots -- --welcome` / `--tour`. (#1451)
+- The welcome card (`WelcomeCard.tsx`, `src/lib/welcome.ts`, `cs-welcome`) and the step-by-step tour (`FirstRunTour.tsx`, `TakeTour.tsx`, `src/lib/tour.ts`, `cs-tour`, `cs-tour-demo`), with everything that served only them: the owner's Step-by-step tour switch (`onboardingTour`), the Take the tour row in Settings and the Show me around button on How it works, the `data-tour` anchors on Home, team, event and search, and `npm run shots -- --welcome` / `--tour`. (#1451)
 
 ### Changed
 - The add-to-home-screen nudge only waits for the first-run slot now, not for a welcome card. `isAutomated` moved to `src/lib/automation.ts` and `isShown` to `src/lib/visible.ts`.
