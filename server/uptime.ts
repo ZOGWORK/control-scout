@@ -8,7 +8,7 @@
 //   heartbeat older than BOT_STALE_MS means it's down.
 //
 // A check this server didn't run (it was restarting, or down itself) is a gap on the page, never counted either way.
-import { db } from "./db.js";
+import { db, primaryDb } from "./db.js";
 import { env } from "./env.js";
 import { checkSite, oneLine, type FetchLike } from "../deploy/uptime-worker/src/uptime.js";
 import { CHECK_EVERY_MIN, STATUS_BARS, overallOf, type ServiceKey, type ServiceStatus, type StatusBar, type StatusResponse } from "../src/shared/status.js";
@@ -46,7 +46,8 @@ async function checkControlPoint(fetchFn: FetchLike, url: string, timeoutMs: num
 }
 
 async function checkBot(now: number): Promise<CheckRow> {
-  const r = await db().execute({ sql: "SELECT at FROM service_heartbeats WHERE service = 'bot'", args: [] });
+  // From the primary: the bot writes from another process, and an embedded replica can be minutes behind.
+  const r = await primaryDb().execute({ sql: "SELECT at FROM service_heartbeats WHERE service = 'bot'", args: [] });
   const at = r.rows[0] ? Number(r.rows[0].at) : null;
   if (at === null) return { service: "bot", ok: false, ms: null, reason: "no heartbeat yet" };
   return now - at <= BOT_STALE_MS ? { service: "bot", ok: true, ms: null } : { service: "bot", ok: false, ms: null, reason: "heartbeat stale" };

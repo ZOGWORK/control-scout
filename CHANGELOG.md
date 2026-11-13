@@ -25,7 +25,7 @@ A new Status page shows whether Control Scout is running: the website, its data,
 - [live] A strip of the last 90 minutes of checks, green for up and red for down
 
 ### Added
-- `/status`, linked from the footer: one banner for the whole site, then a card per part (Website, Data, Control Point, Discord bot) with an Up/Down chip, its last 45 checks and its uptime over 24 hours and 30 days. The server checks every part every 2 minutes, the way a visitor reaches it, and keeps 90 days of checks (migration 86); the Discord bot reports a heartbeat every minute while connected. No alerts. The owner can switch the page off in Features (Status page). (`server/uptime.ts`, `src/pages/StatusPage.tsx`, `bot/index.ts`)
+- `/status`, linked from the footer: one banner for the whole site, then a card per part (Website, Data, Control Point, Discord bot) with an Up/Down chip, its last 45 checks and its uptime over 24 hours and 30 days. The server checks every part every 2 minutes, the way a visitor reaches it, and keeps 90 days of checks (migration 86); the Discord bot reports a heartbeat every minute while connected. No alerts. The owner can switch the page off in Features (Status page). (`server/uptime.ts`, `src/pages/StatusPage.tsx`, `bot/index.ts`) (#1449)
 
 ## 5.9.6 — 2026-11-13
 
