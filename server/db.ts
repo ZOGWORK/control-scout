@@ -2192,6 +2192,36 @@ CREATE INDEX contributor_video_reports_queue ON contributor_video_reports (resol
 CREATE INDEX contributor_video_reports_reporter ON contributor_video_reports (reporter_user_id, created_at);
 `,
   },
+  {
+    version: 83,
+    name: "official event videos",
+    sql: `
+-- Official event videos (server/videos/officialVideos.ts, docs/official-videos.md): a YouTube video from an event
+-- organiser's own channel (a FIRST partner, the event's organiser, or the channel FIRST's event page names), checked
+-- against the event's name, city, dates, division and day before it's kept. YouTube ids only: no video is stored.
+-- kind: recording (a day's broadcast: played on the event page and timed to its matches like FIRST's own link, one
+-- video a day, a day's second video only as a named part such as the awards) | highlight (a short reel, shown on the
+-- event page as a highlight and never as a match's video). day: the broadcast's date at the venue (recordings).
+-- source: list (server/data/officialVideos.json, checked by hand) | watcher (found on a watched channel) | owner
+-- (approved from the owner's review queue). A row is never re-added once removed: removed_at keeps it out.
+CREATE TABLE official_videos (
+  video_id TEXT PRIMARY KEY,
+  season INTEGER NOT NULL,
+  code TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  day TEXT,
+  part TEXT,
+  channel_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  source TEXT NOT NULL,
+  why TEXT,
+  added_at TEXT NOT NULL,
+  added_by TEXT,
+  removed_at TEXT
+);
+CREATE INDEX official_videos_event ON official_videos (season, code) WHERE removed_at IS NULL;
+`,
+  },
 ];
 
 export type Db = Client;

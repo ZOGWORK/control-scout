@@ -27,6 +27,9 @@ const PUBLIC_TABLES = [
   "event_registrations",
   // FIRST's league list and league standings (server/data/leagues.ts): each read replaces a league's whole ranking.
   "leagues", "league_rankings",
+  // Not official_videos (server/videos/officialVideos.ts): the target keeps its own rows, so a video the owner removed
+  // there (removed_at) stays removed. Pushing a local copy would replace the target's rows and could bring one back;
+  // a fresh target gets the checked list written at its first boot.
 ];
 /** Small tables whose target rows the source's replace whole (lists each read replaces, not rows that accumulate):
  *  read in full first, then swapped in one transaction, so a failed push leaves the target's as they were. */

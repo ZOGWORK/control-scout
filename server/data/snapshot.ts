@@ -84,6 +84,8 @@ export const PUBLIC_TABLES = [
   "video_meta",
   // Where FIRST's short stream links led while each event was on (migration 66).
   "event_stream_links", "event_broadcasts",
+  // Official event recordings and highlights from the organisers' own channels (migration 83): public video ids.
+  "official_videos",
 ];
 
 /** True only when replacing the file can't lose anything: it's missing or zero

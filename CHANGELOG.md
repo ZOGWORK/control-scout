@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.8.7 — 2026-11-12
+
+Event recordings from the organisers' own YouTube channels play on the event page, a day at a time, where FIRST links none or only one day.
+
+### Highlights
+- [live] Hundreds more events play their recording, from official channels
+- [live] An event broadcast over several days shows a button per day, in order
+- [live] Each match jumps to its second in its own day's broadcast
+
+### Added
+- Official event recordings: 514 day broadcasts for 437 events, from 30 official channels (FIRST HQ, the regional FIRST partners and event organisers), listed from each channel with the YouTube API and kept only when the broadcast's date at the venue and the title's event name, city, division and day all fit exactly one Scout event, and the event has no video for that day yet. FIRST's own links and per-match videos are unchanged and come first; a removed row never comes back. Migration 83 (`official_videos`). (`server/data/officialVideos.json`, `server/videos/officialVideos.ts`, `server/videos/recordings.ts`, `docs/official-videos.md`) (#1424)
+
 ## 5.8.6 — 2026-11-12
 
 Each event with played matches gets a highlights page: its standout matches, the same card Search shows for "<event> highlights".

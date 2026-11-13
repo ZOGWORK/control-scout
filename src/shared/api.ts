@@ -604,7 +604,8 @@ export interface FieldRow {
 
 /** An event's live stream as the owner set it (server/portal/streams.ts): YouTube, played from youtube-nocookie.com. */
 export interface EventStream {
-  videoId: string; streamUrl: string; /** "first": FIRST's liveStreamUrl, not one the owner set. */ source?: "first";
+  videoId: string; streamUrl: string; /** "first": FIRST's liveStreamUrl (or the short link or channel its event page gives); "official": an organiser's
+   *  recording from its official channel (server/videos/officialVideos.ts); absent: one the owner set. */ source?: "first" | "official";
   /** An event broadcast a day at a time: each day's video in order (the first is videoId), named by its weekday. Absent: one video. */
   days?: { videoId: string; label: string }[];
 }

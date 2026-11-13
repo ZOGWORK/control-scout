@@ -6,6 +6,7 @@ import { sweepBugReports } from "./bugReports.js";
 import { backfillVideoMeta } from "./videos/recordings.js";
 import { resolveStreamLinks } from "./videos/streamLinks.js";
 import { resolveChannelStreams } from "./videos/channelStreams.js";
+import { seedOfficialVideos } from "./videos/officialVideos.js";
 import "./env.js";
 import { env } from "./env.js";
 import { migrate, all, openReplicaIfRemote } from "./db.js";
@@ -217,8 +218,10 @@ if (!process.env.CS_NO_SCHEDULER) {
   // Event recordings (server/videos/recordings.ts): YouTube's timing for each linked video, so matches link to their
   // second in it. New links soon after boot and every 5 minutes (a live broadcast is read again on that beat). Short
   // stream links of events on now are followed first (server/videos/streamLinks.ts), so the video they lead to is read too.
+  // The checked list of official recordings (server/videos/officialVideos.ts) is written first: new rows after a deploy, none after.
   const recordings = () => {
-    resolveStreamLinks(log).catch((e) => log(`recordings: ${(e as Error).message}`))
+    seedOfficialVideos(log).catch((e) => log(`official videos: ${(e as Error).message}`))
+      .then(() => resolveStreamLinks(log)).catch((e) => log(`recordings: ${(e as Error).message}`))
       .then(() => resolveChannelStreams(log)).catch((e) => log(`recordings: ${(e as Error).message}`))
       .then(() => backfillVideoMeta(log)).catch((e) => log(`recordings: ${(e as Error).message}`));
   };
