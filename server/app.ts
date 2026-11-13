@@ -43,7 +43,7 @@ import { teamRoadMap } from "./api/roadmap.js";
 import { cachedEventDetail, eventDetail, listEvents, toEventInput } from "./api/events.js";
 import { withBracketGate } from "./api/bracket.js";
 import { scheduleGate } from "./api/eventGates.js";
-import { eventView, withStream } from "./api/eventView.js";
+import { eventView, withPageExtras, withStream } from "./api/eventView.js";
 import { videosRouter } from "./videos/routes.js";
 import { viewerOf } from "./videos/contributors.js";
 import { leagueStandings } from "./api/leagues.js";
@@ -663,7 +663,7 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
     if (out.status === "not-live") throw new HttpError(409, "Only events that are on today (in their time zone) can be refreshed. Other events update with the regular sync.");
     const detail = await eventDetail(s, c);
     if (!detail) throw new HttpError(404, `No event ${c} in ${s}`);
-    return { outcome: out.status, message: refreshMessage(out), detail: await scheduleGate(await withBracketGate(await withStream(detail))) };
+    return { outcome: out.status, message: refreshMessage(out), detail: await withPageExtras(await scheduleGate(await withBracketGate(await withStream(detail)))) };
   }));
 
   api.get("/events/:season/:code/matches/:key", h(async (req) => {
