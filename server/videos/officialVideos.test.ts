@@ -61,6 +61,21 @@ describe("official videos", () => {
     expect(await seedOfficialVideos(() => {}, list, Date.now(), true)).toBe(0);
   });
 
+  it("waits while a video the event plays has no timing yet, then decides on a later run", async () => {
+    const ev = "INSERT INTO events (season, code, name, type, city, start, end, timezone, remote, hybrid, livestream, source) VALUES (?, ?, ?, 'Qualifier', 'Iasi', '2026-02-07', '2026-02-08', 'Europe/Bucharest', 0, 0, ?, 'test')";
+    const L = "ddddddddddd", SAT = "eeeeeeeeeee", SUN = "fffffffffff";
+    await run(ev, [S, "ROWAIT", "Iasi Qualifier", `https://youtu.be/${L}`]);
+    const later: OfficialList = { channels: list.channels, videos: [v("ROWAIT", SAT, "2026-02-07"), v("ROWAIT", SUN, "2026-02-08")] };
+    const logs: string[] = [];
+    // FIRST's link isn't timed yet: either day could be its, so nothing is written.
+    expect(await seedOfficialVideos((x) => logs.push(x), later, Date.now(), true)).toBe(0);
+    expect(logs.at(-1)).toMatch(/2 waiting for a video's timing/);
+    // Once the backfill has read it (Saturday's broadcast), Sunday is added and Saturday stays FIRST's.
+    await run("INSERT INTO video_meta (video_id, status, start, end, duration, live, checked_at) VALUES (?, 'ok', '2026-02-07T07:00:00Z', '2026-02-07T15:00:00Z', 28800, 0, '2026-11-12T00:00:00Z')", [L]);
+    expect(await seedOfficialVideos(() => {}, later, Date.now(), true)).toBe(1);
+    expect((await all<{ video_id: string }>("SELECT video_id FROM official_videos WHERE code = 'ROWAIT'")).map((r) => r.video_id)).toEqual([SUN]);
+  });
+
   it("plays an event's official days a day at a time, in broadcast order", async () => {
     clearAllCaches();
     const r = await eventRecording(S, "ROCMPCND");

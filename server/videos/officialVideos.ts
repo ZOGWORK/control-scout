@@ -63,26 +63,29 @@ const isId = (s: unknown): s is string => typeof s === "string" && /^[A-Za-z0-9_
 
 /**
  * The videos an event already plays, with their broadcast date at the venue when known: FIRST's link, a short link's
- * video, a channel's broadcasts, the owner's stream, and its official recordings.
+ * video, a channel's broadcasts, the owner's stream, and its official recordings. timed: YouTube's timing for it has
+ * been read (video_meta), or the date came from the list or the channel's broadcast; false: not read yet, so its
+ * day can't be told.
  */
-export async function eventVideosByDay(season: number, code: string): Promise<{ videoId: string; day: string | null; part: string | null }[]> {
+export async function eventVideosByDay(season: number, code: string): Promise<{ videoId: string; day: string | null; part: string | null; timed: boolean }[]> {
   const ev = await all<{ livestream: string | null; timezone: string | null }>("SELECT livestream, timezone FROM events WHERE season = ? AND code = ?", [season, code]);
   if (!ev.length) return [];
   const tz = ev[0].timezone;
   const first = /(?:v=|youtu\.be\/|\/live\/|\/embed\/)([A-Za-z0-9_-]{11})/.exec(ev[0].livestream ?? "")?.[1] ?? null;
-  const others = await all<{ video_id: string; day: string | null; part: string | null }>(
-    `SELECT video_id, NULL AS day, NULL AS part FROM event_stream_links WHERE season = ? AND code = ? AND video_id IS NOT NULL
-     UNION SELECT video_id, NULL, NULL FROM event_broadcasts WHERE season = ? AND code = ?
-     UNION SELECT video_id, NULL, NULL FROM event_streams WHERE season = ? AND code = ?
-     UNION SELECT video_id, day, part FROM official_videos WHERE season = ? AND code = ? AND kind = 'recording' AND removed_at IS NULL`,
+  const others = await all<{ video_id: string; day: string | null; part: string | null; start: string | null }>(
+    `SELECT video_id, NULL AS day, NULL AS part, NULL AS start FROM event_stream_links WHERE season = ? AND code = ? AND video_id IS NOT NULL
+     UNION SELECT video_id, NULL, NULL, start FROM event_broadcasts WHERE season = ? AND code = ?
+     UNION SELECT video_id, NULL, NULL, NULL FROM event_streams WHERE season = ? AND code = ?
+     UNION SELECT video_id, day, part, NULL FROM official_videos WHERE season = ? AND code = ? AND kind = 'recording' AND removed_at IS NULL`,
     [season, code, season, code, season, code, season, code]);
   const ids = [...new Set([...(first ? [first] : []), ...others.map((o) => String(o.video_id))])];
   const starts = new Map<string, string | null>();
   if (ids.length) for (const r of await all<{ video_id: string; start: string | null }>(`SELECT video_id, start FROM video_meta WHERE video_id IN (${ids.map(() => "?").join(",")})`, ids)) starts.set(String(r.video_id), r.start ?? null);
   return ids.map((id) => {
-    const o = others.find((x) => String(x.video_id) === id);
-    const start = starts.get(id) ?? null;
-    return { videoId: id, day: o?.day ?? (start ? localDate(start, tz) : null), part: o?.part ?? null };
+    const os = others.filter((x) => String(x.video_id) === id);
+    const listed = os.find((x) => x.day)?.day ?? null;
+    const start = starts.get(id) ?? os.find((x) => x.start)?.start ?? null;
+    return { videoId: id, day: listed ?? (start ? localDate(start, tz) : null), part: os.find((x) => x.part)?.part ?? null, timed: !!listed || starts.has(id) || !!start };
   });
 }
 
@@ -92,6 +95,7 @@ export async function eventVideosByDay(season: number, code: string): Promise<{ 
  * already plays another video for the same day and part (the one there stays). Returns how many it wrote.
  */
 let seeded = false;
+let waitingWas = -1;
 export async function seedOfficialVideos(log: (s: string) => void, data: OfficialList = list as OfficialList, now = Date.now(), again = false): Promise<number> {
   // Once a process: the list only changes with a deploy, which starts a new one.
   if (seeded && !again) return 0;
@@ -107,12 +111,16 @@ export async function seedOfficialVideos(log: (s: string) => void, data: Officia
   }
   const at = new Date(now).toISOString();
   const writes: { sql: string; args: (string | number | null)[] }[] = [];
-  let skipped = 0;
+  let skipped = 0, waiting = 0;
   const byEvent = new Map<string, OfficialVideo[]>();
   for (const v of todo) if (events.has(`${v.season}/${v.code}`)) (byEvent.get(`${v.season}/${v.code}`) ?? byEvent.set(`${v.season}/${v.code}`, []).get(`${v.season}/${v.code}`)!).push(v); else skipped++;
   for (const vs of byEvent.values()) {
     const has = vs.some((v) => v.kind === "recording") ? await eventVideosByDay(vs[0].season, vs[0].code) : [];
+    // A video the event plays whose timing isn't read yet (the backfill runs after this): its day can't be told, so the
+    // event's recordings wait for a later run rather than risk a second video for one day.
+    const unknown = has.some((h) => !h.timed);
     for (const v of vs) {
+      if (v.kind === "recording" && unknown && !has.some((h) => h.videoId === v.videoId)) { waiting++; continue; }
       if (v.kind === "recording" && has.some((h) => h.videoId === v.videoId || (h.day && h.day === v.day && (h.part ?? null) === (v.part ?? null)))) { skipped++; continue; }
       writes.push({
         sql: `INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, why, added_at, added_by)
@@ -123,7 +131,9 @@ export async function seedOfficialVideos(log: (s: string) => void, data: Officia
   }
   for (let i = 0; i < writes.length; i += 100) await db().batch(writes.slice(i, i + 100), "write");
   if (writes.length) forgetOfficial();
-  seeded = true;
-  if (writes.length || !again) log(`official videos: ${writes.length} added from the checked list${skipped ? `, ${skipped} skipped (event not here or already has that day)` : ""}`);
+  // Done for this process unless some wait on a video's timing: then again on the next run, after the backfill.
+  seeded = waiting === 0;
+  if (writes.length || waiting !== waitingWas) log(`official videos: ${writes.length} added from the checked list${skipped ? `, ${skipped} skipped (event not here or already has that day)` : ""}${waiting ? `, ${waiting} waiting for a video's timing` : ""}`);
+  waitingWas = waiting;
   return writes.length;
 }
