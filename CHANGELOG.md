@@ -15,6 +15,21 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.9.8 — 2026-11-13
+
+The old first-visit welcome card and step-by-step tour are gone, ahead of a new onboarding built from scratch.
+
+### Highlights
+- [home] No welcome card pops up on a first visit any more
+- [home] The step-by-step tour and its Take the tour buttons are gone
+- [fixes] The add-to-home-screen offer no longer waits for a welcome card
+
+### Removed
+- The welcome card (`WelcomeCard.tsx`, `src/lib/welcome.ts`, `cs-welcome`) and the step-by-step tour (`FirstRunTour.tsx`, `TakeTour.tsx`, `src/lib/tour.ts`, `cs-tour`, `cs-tour-demo`), with everything that served only them: the owner's Step-by-step tour switch (`onboardingTour`), the Take the tour row in Settings and the Show me around button on How it works, the `data-tour` anchors on Home, team, event and search, the team page's Tracking-note id, and `npm run shots -- --welcome` / `--tour`.
+
+### Changed
+- The add-to-home-screen nudge only waits for the first-run slot now, not for a welcome card. `isAutomated` moved to `src/lib/automation.ts` and `isShown` to `src/lib/visible.ts`.
+
 ## 5.9.7 — 2026-11-13
 
 Donations now go to the ZOGWORK organization, and the supporters page reads its sponsors from there.
