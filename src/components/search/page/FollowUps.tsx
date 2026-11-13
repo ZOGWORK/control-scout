@@ -49,9 +49,15 @@ export function useFollowUps(q: string, prefer: string | undefined, ready: boole
   const ownCall = useApi<Follow>(ready && q ? followApiPath(q, prefer, season) : null);
   const first = useApi<Follow>(served && fromFirstPaint(served) ? served : null).data;
   const mine = (d: Follow | undefined) => (d?.q === q && (d.season ?? null) === season ? d : null);
-  const got = mine(ownCall.data) ?? mine(first);
-  // Not asked yet (the answer still loading) or asked and not back: on its way. A failed call is done, with none.
-  return got ? { ...got, pending: false } : { ...NONE, pending: !!q && !ownCall.error };
+  // The visitor's own answer, once back, is the one; a failed call is done, with none.
+  const own = mine(ownCall.data);
+  if (own) return { ...own, pending: false };
+  const failed = !!ownCall.error;
+  // The questions the page was served with stand in while the visitor's own are on their way; served with none, the
+  // place is still held for those.
+  const given = mine(first);
+  if (given?.ask.length && !failed) return { ...given, pending: false };
+  return { ...NONE, pending: !!q && !failed };
 }
 
 /** People also ask's place while its questions are on their way: the same heading and its most rows (ASK_MAX), so

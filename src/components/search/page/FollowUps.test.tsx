@@ -87,6 +87,17 @@ describe("useFollowUps", () => {
   });
 });
 
+describe("useFollowUps: on its way or done", () => {
+  it("served with no questions while the visitor's own are on their way: still pending, never settled empty", () => {
+    const doc = document.implementation.createHTMLDocument("");
+    doc.body.innerHTML = `<script type="application/json" id="${PAGE_DATA_ID}">${JSON.stringify({ [followApiPath("7149 opr")]: { q: "7149 opr", ask: [], related: [] } })}</script>`;
+    readPageData(doc);
+    const r = renderHook(() => useFollowUps("7149 opr", "team:7149", false)).result.current;
+    expect(r.ask).toEqual([]);
+    expect(r.pending).toBe(true);
+  });
+});
+
 describe("People also ask's held place", () => {
   it("is as tall as its most questions, so none arriving pushes anything below it", () => {
     const c = draw(<PeopleAlsoAskPending />);
