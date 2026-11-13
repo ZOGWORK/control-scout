@@ -379,6 +379,8 @@ export async function backfillVideoMeta(log: (s: string) => void, opts: { max?: 
       // A page that couldn't be read keeps the facts read before, live included (a broadcast's start doesn't change,
       // and one still live is read again on the live beat).
       const before = known.get(id);
+      // Overtaken while it waited (a newer pass began): what this one read may be older than what that one saves.
+      if (busy !== began) break;
       // A sign-in wall's chapters join them.
       if (f.status === "error" && before?.status === "ok") await saveMeta(id, f.chapters?.length ? { ...before, chapters: f.chapters } : before, now());
       else await saveMeta(id, f, now());
