@@ -33,6 +33,17 @@ describe("the watcher's matcher", () => {
     expect(matchVideo(vid("Mockingbird Qualifier Day 2"), TX, one)).toMatchObject({ kind: "review", why: /day 2/ });
     expect(matchVideo(vid("Mockingbird Qualifier - Sunday"), TX, one)).toMatchObject({ kind: "review", why: /says sunday/ });
     expect(matchVideo(vid("Mockingbird Qualifier 1/18/2026"), TX, one)).toMatchObject({ kind: "review", why: /date/ });
+    // The year counts too.
+    expect(matchVideo(vid("Mockingbird Qualifier 1/17/2027"), TX, one)).toMatchObject({ kind: "review", why: /2027-01-17/ });
+    expect(matchVideo(vid("Mockingbird Qualifier 1/17/2026"), TX, one).kind).toBe("add");
+    expect(matchVideo(vid("Mockingbird Qualifier 17.01.26"), TX, one).kind).toBe("add");
+    expect(matchVideo(vid("Mockingbird Qualifier 17.01.27"), TX, one).kind).toBe("review");
+    // Any weekday the title names must be the broadcast's (2026-01-17 was a Saturday).
+    expect(matchVideo(vid("Mockingbird Qualifier - Monday"), TX, one)).toMatchObject({ kind: "review", why: /says monday/ });
+    expect(matchVideo(vid("Mockingbird Qualifier - Saturday"), TX, one).kind).toBe("add");
+    // Two events that both fit go to review, even when one scores higher.
+    const two = [ev("USTXMOQ", "TX Mockingbird Qualifier"), ev("USTXMOM3", "TX Mockingbird League Meet 3")];
+    expect(matchVideo(vid("Mockingbird League Meet 3"), TX, two)).toMatchObject({ kind: "review", why: /fits both/ });
     expect(matchVideo(vid("Mockingbird Qualifier", { blockedIn: 249 }), TX, one)).toMatchObject({ kind: "review", why: /blocked in 249/ });
     expect(matchVideo(vid("Mockingbird Qualifier", { embeddable: false }), TX, one)).toMatchObject({ kind: "review", why: /not embeddable/ });
     // A state name and a type alone aren't evidence.

@@ -104,9 +104,15 @@ export function matchVideo(v: WatchVideo, rule: ChannelRule, events: WatchEvent[
   const dn = /\bday\s*(\d)\b/i.exec(v.title)?.[1] ?? null;
   const dw = /\bday (one|two|three|four)\b/i.exec(v.title)?.[1]?.toLowerCase();
   const titleDay = dn ? Number(dn) : dw ? ({ one: 1, two: 2, three: 3, four: 4 } as Record<string, number>)[dw] : null;
-  const wd = /\b(friday|saturday|sunday|thursday)\b/i.exec(v.title)?.[1]?.toLowerCase() ?? null;
+  const wd = /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i.exec(v.title)?.[1]?.toLowerCase() ?? null;
+  // A date in the title, year included: 2026-01-17 · 1/17/2026 · 1/17/26 · 17.01.26 or 26.01.17 (either reading may fit).
   const dm = /(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})|\b(\d{1,2})\/(\d{1,2})\/(\d{2,4})\b|\b(\d{2})\.(\d{2})\.(\d{2})\b/.exec(v.title);
-  const tMD = dm ? (dm[1] ? [Number(dm[2]), Number(dm[3])] : dm[4] ? [Number(dm[4]), Number(dm[5])] : [Number(dm[8]), Number(dm[9])]) : null;
+  const yr = (y: string) => (y.length === 2 ? 2000 + Number(y) : Number(y));
+  const iso = (y: number, m: number, d: number) => `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  const titleDates = !dm ? null
+    : dm[1] ? [iso(Number(dm[1]), Number(dm[2]), Number(dm[3]))]
+    : dm[4] ? [iso(yr(dm[6]), Number(dm[4]), Number(dm[5]))]
+    : [iso(yr(dm[9]), Number(dm[8]), Number(dm[7])), iso(yr(dm[7]), Number(dm[8]), Number(dm[9]))];
   const idHit = (() => { if (!rule.titlePattern) return false; try { return new RegExp(rule.titlePattern, "i").test(v.title); } catch { return false; } })();
   type Cand = { e: WatchEvent; d: string; score: number; real: boolean; why: string[] };
   const cands: Cand[] = [];
@@ -124,7 +130,7 @@ export function matchVideo(v: WatchVideo, rule: ChannelRule, events: WatchEvent[
     const isDiv = !!(e.divisionCode && e.divisionCode !== e.code);
     const divName = isDiv ? norm(DIVRE.exec(e.name)?.[1] ?? "").split(" ").pop() : null;
     if (isDiv && divName && !norm(v.title).split(" ").includes(divName)) why.push("division");
-    if (!isDiv && e.parent && /\bdivision\b/i.test(v.title)) why.push("parent-but-division");
+    if (!isDiv && e.parent && /\bdivi(?:sion|zia|sione|sie)\b/i.test(v.title)) why.push("parent-but-division");
     const et = toks(`${e.name} ${e.city ?? ""}`, extra);
     // Evidence beyond the event type: a designator or a distinctive word of its name or city that agree; or, for a
     // title naming the region itself (its championship), the type alone.
@@ -143,8 +149,9 @@ export function matchVideo(v: WatchVideo, rule: ChannelRule, events: WatchEvent[
     return { kind: "review", why: `no event on that date fits the title${best ? ` (closest: ${best.e.code}${best.why.length ? `, differs on ${best.why.join(", ")}` : ""})` : ""}`, ...(best ? { event: best.e, day: best.d } : {}) };
   }
   const at = { event: a.e, day: a.d, part: partOf(v.title) };
-  if (b && b.score === a.score) return { kind: "review", why: `the title fits both ${a.e.code} and ${b.e.code}`, ...at };
-  if (tMD && (tMD[0] !== Number(a.d.slice(5, 7)) || tMD[1] !== Number(a.d.slice(8, 10)))) return { kind: "review", why: `the title's date ${tMD.join("/")} isn't the broadcast's (${a.d})`, ...at };
+  // Two events that both fit, whatever their scores, are for the owner to tell apart.
+  if (b) return { kind: "review", why: `the title fits both ${a.e.code} and ${b.e.code}`, ...at };
+  if (titleDates && !titleDates.includes(a.d)) return { kind: "review", why: `the title's date ${titleDates[0]} isn't the broadcast's (${a.d})`, ...at };
   if (wd && wd !== weekday(v.start, a.e.timezone)) return { kind: "review", why: `the title says ${wd}, the broadcast was on ${weekday(v.start, a.e.timezone)}`, ...at };
   if (v.privacy === "private" || !v.embeddable || v.blockedIn >= 50) return { kind: "review", why: `can't be played here (${v.privacy}${v.embeddable ? "" : ", not embeddable"}${v.blockedIn ? `, blocked in ${v.blockedIn} countries` : ""})`, ...at };
   // One video at a time can't check the days line up across the event (the list could), so a title's day must be the event's own.
