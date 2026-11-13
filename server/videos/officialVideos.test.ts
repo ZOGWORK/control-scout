@@ -148,6 +148,25 @@ describe("the shipped list", () => {
       k.add(key);
     }
   });
+  it("puts FIRST Australia's recordings on the Australian event each title names, inside that event's season", () => {
+    const au = data.videos.filter((x) => x.channelId === "UCal7624DPridi_9iKLrAbqw");
+    // Each event's own name, as its broadcasts' titles give it.
+    const names: Record<string, RegExp> = {
+      AUCMP: /australian national championship/i, AUSYOS: /\bAPOC\b|asia pacific open/i, AUSYQ1: /sydney south/i,
+      AUSYQ2: /sydney north/i, AUBRQ1: /brisbane south/i, AUTBQ: /victoria/i,
+    };
+    expect(au).toHaveLength(16);
+    for (const x of au) {
+      expect(x.kind, x.videoId).toBe("recording");
+      expect(names[x.code], `${x.code} ${x.videoId}`).toBeTruthy();
+      expect(x.title, x.videoId).toMatch(names[x.code]);
+      // A season runs from its kickoff (September) to the next summer's off-season events.
+      expect(x.day! >= `${x.season}-09-01` && x.day! <= `${x.season + 1}-08-31`, `${x.videoId} ${x.day}`).toBe(true);
+    }
+    // A day in two parts says so, one row each.
+    const apocSat = au.filter((x) => x.code === "AUSYOS" && x.day === "2026-07-04");
+    expect(apocSat.map((x) => x.part).sort()).toEqual(["Part 1", "Part 2"]);
+  });
   it("leaves out what the brief rules out", () => {
     const ids = new Set(data.videos.map((x) => x.videoId));
     // Ambiguous, unofficial, a different broadcaster, or blocked (docs/official-videos.md).
