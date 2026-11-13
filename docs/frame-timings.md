@@ -17,9 +17,13 @@ match ("Qualification 21 of 36", "Playoff Match 7") and runs its timer.
 point, and reads two things with tesseract.js:
 
 1. **The overlay's match**: `overlayLabel` turns "Qualification 21 of 36" into Q21 and "Playoff Match 10" into M10.
-2. **The timer**, in one of two layouts:
+2. **The timer**, in one of three places:
    - the bar along the bottom (FTC Live's default): a 2:30 countdown, Auto while above 2:00;
+   - a box over the field, under a bar across the top (FTC Ontario): the same 2:30 countdown;
    - the bar along the top (FIRST in Texas): a 0:30 Auto, then a 2:00 TeleOp.
+
+   YouTube's auto-captions sit right over the bottom bar's timer, so the player's caption layer is hidden before
+   any frame is read.
 
    `elapsed` turns a reading into seconds since the match started, counting the 8 s switch between Auto and TeleOp.
    A timer has to be seen running (two reads 1.5 s apart), so a frame of a match not started yet, or one standing on
@@ -33,6 +37,9 @@ or an overlay left on the previous match) and fills each stretch between two rea
 
 A match is kept only where a read saw it, or where two agreeing reads hold it between them. A match in a gap (the
 stream was off) stays without a clip.
+
+A video where three matches in a row give no read, and nothing has been read yet, counts as one without the overlay
+and is left. Any video gets at most 4 reads per match (40 at least).
 
 ## Where the timings live
 
@@ -62,7 +69,8 @@ through a PR like any other change.
 ## Checked against the clock
 
 On GATOR (USOHSHOS, a full recording the server already places from the clock), frames land 9 to 14 s after the
-clock (median 10 s): YouTube's live delay. That's within the 20 s lead-in each clip starts with.
+clock (median 10 s): YouTube's live delay. That's within the 20 s lead-in each clip starts with. On FTC Ontario's
+layout (Sudbury, Bolton), frames land 6 to 8 s after the clock where the video kept its broadcast whole.
 
 ## Not covered
 
