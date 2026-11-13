@@ -1,7 +1,7 @@
 // The follow-ups' checks run one at a time, giving the event loop a turn between them (followUps.ts inTurn): the
 // database never gives it back on its own, so 40 searches asked at once held every other request for seconds.
 import { describe, expect, it } from "vitest";
-import { inTurn } from "./followUps";
+import { inTurn, inTurns } from "./followUps";
 
 /** A search that holds the thread for its whole run, as one answered from the database does. */
 const busy = (ms: number) => { const end = performance.now() + ms; while (performance.now() < end) { /* the database at work */ } };
@@ -31,5 +31,19 @@ describe("inTurn", () => {
     expect(a).toEqual({ status: "fulfilled", value: 1 });
     expect(b.status).toBe("rejected");
     expect(c).toEqual({ status: "fulfilled", value: 3 });
+  });
+
+  it("is one queue for the whole process: two requests' checks made at once never run in the same turn of the loop", async () => {
+    // A turn counter: a timer re-armed each turn of the loop. Each check notes the turn it ran in.
+    let turn = 0, on = true;
+    const tick = () => { turn++; if (on) setTimeout(tick, 0); };
+    setTimeout(tick, 0);
+    const ran: { who: string; turn: number }[] = [];
+    const check = (who: string) => inTurns(async () => { busy(5); ran.push({ who, turn }); });
+    // Two follow-up requests, each asking for its checks all at once (followUps.ts run).
+    await Promise.all([...["a1", "a2", "a3"].map(check), ...["b1", "b2", "b3"].map(check)]);
+    on = false;
+    expect(ran.map((r) => r.who)).toEqual(["a1", "a2", "a3", "b1", "b2", "b3"]);
+    expect(new Set(ran.map((r) => r.turn)).size).toBe(ran.length);
   });
 });
