@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.9.6 — 2026-11-13
+
+More event recordings now give each match its own clip: the server reads a recording's chapters even when YouTube shows it a sign-in wall, and understands more chapter names.
+
+### Highlights
+- [fixes] More event recordings jump straight to each match
+- [fixes] Recordings 15 to 30 minutes short of their stream get match clips
+- [fixes] Chapter names like "Match 16 analysis" now find their match
+
+### Fixed
+- YouTube shows the server "Sign in to confirm you're not a bot" instead of a watch page, so no recording ever had its chapters read on the live site (0 of the 68 recordings cut short of their broadcast in 2025–26). That page still carries the video's chapters, the same list a visitor's page has (57 of 57 for the Terra Division 2026 recording): they're kept now, and are what tells a video cut at the end from one with a gap. (`server/videos/youtube.ts`, `server/videos/recordings.ts`) (#1445)
+- A recording 15 to 30 minutes shorter than its broadcast got no clips at all: an early start covers up to 15 minutes, and chapters only counted from 30. Chapters now count from 15 (Minnesota Championship Nano 2026, 21 min short). (`src/shared/recording.ts`)
+- Chapter names that go on after the number ("Match 16 analysis", "Match one gameplay", "Qualification match 1", "Q1" with its teams) now name their match; one naming two matches ("Match 7 and 8") still names none. On the live site's 2025–26 recordings: events with match clips 315 → 329 of 411. (`src/shared/recording.ts`)
+
 ## 5.9.5 — 2026-11-13
 
 An event with a recording no longer says it has none, and a championship shows Video when its divisions were filmed.
