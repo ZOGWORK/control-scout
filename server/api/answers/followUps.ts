@@ -5,7 +5,7 @@
 // headline, so the numbers are the ones the linked page shows. No team, event or year is written here: the words come
 // from the query as typed, the answer and the lexicon.
 import type { SearchAnswer, SearchFollowUp, SearchFollowUps } from "../../../src/shared/api.js";
-import { SEARCH_PAGE_LIMIT } from "../../../src/shared/search.js";
+import { ASK_MAX, SEARCH_PAGE_LIMIT } from "../../../src/shared/search.js";
 import { seasonLabel } from "../../../src/shared/format.js";
 import { normalise, parseQuery, type Parsed } from "../query/parse.js";
 import { parseContext } from "../query/context.js";
@@ -29,7 +29,8 @@ export const keptFollowUps = (q: string, prefer: ReadonlySet<string> = new Set()
   keptAnswer(JSON.stringify(["follow", q, [...prefer].sort(), forecasterBuilds()]), async () => followUps(q, await pageAnswer(q, SEARCH_PAGE_LIMIT, prefer), prefer));
 
 /** At most this many questions are shown, and this many candidates run to find them. */
-export const ASK_MAX = 6, RELATED_MAX = 8;
+export { ASK_MAX };
+export const RELATED_MAX = 8;
 const CHECK_MAX = 16;
 /** At most this many of the searches the page already offers are read, to leave out questions that repeat them. */
 const SHOWN_MAX = 8;

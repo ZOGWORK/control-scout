@@ -85,6 +85,8 @@ const R = (id: PipelineIntent, teams: 0 | 1 | 2 | 3 | 4, all: string[], opt: str
 export const INTENTS: IntentRule[] = [
   // One team: the best or worst of its matches.
   R("highest-score", 1, ["agg:max", "metric:score"], ["thing:match", "thing:event"]),
+  // "<team> best match": its highest score, as "best match" with no team is the top matches (below).
+  R("highest-score", 1, ["agg:max", "thing:match"], ["metric:score", "thing:event"]),
   R("lowest-score", 1, ["agg:min", "metric:score"], ["thing:match", "thing:event"]),
   R("biggest-win", 1, ["agg:max", "metric:win"], ["metric:margin", "thing:match", "outcome:W"]),
   R("biggest-win", 1, ["agg:max", "metric:margin"], ["outcome:W", "thing:match"]),

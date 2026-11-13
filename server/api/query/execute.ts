@@ -53,10 +53,13 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
   // A team's highlights asked by part of its name ("hypnotic highlights") or by a name teams share, with its place
   // ("ultraviolet nj highlights"): the parser takes only a whole name that is one team's, so search's own team lookup
   // reads the words left over, as it does for a team's stats, and the question is read again with the team's number.
-  const byName = !p.complete && p.intent === "highlights" ? await leftoverTeam(q, p, opts.resolve) : null;
+  // A team's best match by such a name ("aicitizens best match at romania champs", "<misspelt name> best match") is read
+  // the same way: with no team the words were the top matches; with the team's number, its highest score.
+  const asTeam: Partial<Record<PipelineIntent, PipelineIntent>> = { highlights: "highlights", "top-matches": "highest-score" };
+  const byName = !p.complete && p.intent && asTeam[p.intent] ? await leftoverTeam(q, p, opts.resolve) : null;
   if (byName) {
     const again = await parseQuery(byName, ctx);
-    if (again.complete && again.intent === p.intent && again.teams.length === 1) p = { ...again, q };
+    if (again.complete && again.intent === asTeam[p.intent!] && again.teams.length === 1) p = { ...again, q };
   }
   // One team against itself ("predict 12345 vs 12345"): no match to call, said so, with its own forecasts to open.
   if (asksSelfMatch(q, p)) {
@@ -138,7 +141,9 @@ async function leftoverTeam(q: string, p: Parsed, resolve: Resolve): Promise<str
     const home = (h.subtitle ?? "").split(/,\s*/).map((x) => x.toLowerCase());
     return place.state ? home.includes(place.state.toLowerCase()) : home.includes(place.country.toLowerCase());
   };
-  const teams = r.hits.filter((h) => h.kind === "team" && !h.href && named(h));
+  // Search's own correction of a misspelt name ("aicitzns": did you mean AiCitizens) counts as naming its top team.
+  const corrected = r.step === "did-you-mean" && r.hits[0]?.kind === "team" && !r.hits[0].href ? r.hits[0] : null;
+  const teams = r.hits.filter((h) => h.kind === "team" && !h.href && (named(h) || h === corrected));
   // A place that limits the event ("<name> highlights at nj states") stays the event's; only a place said with the
   // name alone picks the team.
   const place = p.place && !p.states && !p.worlds && !p.event ? p.place : null;
@@ -830,13 +835,15 @@ async function highlights(p: Parsed, scope: ReadScope, opts: PipelineOptions): P
   const byMain = evs ? [...evs].sort((a, b) => b.season - a.season || Number(a.division != null) - Number(b.division != null)) : null;
   if (p.teams.length) {
     // A team's own: a season, or its matches at an event named, Worlds or a state championship.
-    // A place only narrows a state championship ("<team> highlights at nj states").
-    if (p.teams.length > 1 || (scope.place && !(p.states && region)) || scope.area || scope.level || p.finals || p.eventKind) return null;
+    // A place narrows its matches to events held there ("<team> highlights in romania"), or a state championship to
+    // that state's ("<team> highlights at nj states"); a whole country or region read by the pipeline (scope.area) the same.
+    if (p.teams.length > 1 || ((scope.place || scope.area) && !region) || scope.level || p.finals || p.eventKind) return null;
     const t = p.teams[0];
     const said = heldIn ?? (p.time ? placeSeason(p, scope.season, opts) : null);
     const place: TeamHighlightScope | undefined = evs ? { has: (m) => evs.some((e) => e.season === m.season && (e.code === m.code || e.code === m.division)), label: shortEvent(byMain![0].name, byMain![0].type) }
       : p.worlds ? { has: (m) => m.type === CHAMPIONSHIP_TYPE, label: "the FIRST Championship" }
-      : p.states ? { has: (m) => STATES_KIND.types.includes(m.type ?? "") && (!region || (m.country === region.country && (!region.state || m.state === region.state))), label: region ? `the ${region.name} championship` : "a state championship" } : undefined;
+      : p.states ? { has: (m) => STATES_KIND.types.includes(m.type ?? "") && (!region || (m.country === region.country && (!region.state || m.state === region.state))), label: region ? `the ${region.name} championship` : "a state championship" }
+      : region ? { has: (m) => m.country === region.country && (!region.state || m.state === region.state), label: region.name, phrase: `in ${region.name}` } : undefined;
     // A time said ("in December", "this week"): its matches played on those days, in an event named too when one is.
     const w = scope.window;
     const when: TeamHighlightScope | undefined = w ? { has: (m) => { const d = (m.date ?? "").slice(0, 10); return d >= w.from && d <= w.to && (!place || place.has(m)); }, label: place?.label ?? w.label, phrase: `${place ? `at ${place.label} ` : ""}${WHEN_WORD.test(w.label) ? w.label : `in ${w.label}`}`, ...(said != null ? { season: said } : {}) } : place;
