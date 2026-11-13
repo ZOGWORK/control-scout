@@ -116,6 +116,10 @@ describe("the official-video watcher", () => {
     expect(raced.ok).toBe(false);
     expect((await get<any>("SELECT status FROM official_watch WHERE video_id = 'raceraceRAC'"))?.status).toBe("pending");
     expect((await rejectWatched("raceraceRAC", "same day", "owner@example.test")).ok).toBe(true);
+    // A rejection can't overwrite a decision that landed first.
+    expect(await rejectWatched("raceraceRAC", "again", "owner@example.test")).toMatchObject({ ok: false });
+    expect(await rejectWatched(REV, "late", "owner@example.test")).toMatchObject({ ok: false });
+    expect((await get<any>("SELECT status FROM official_watch WHERE video_id = ?", [REV]))?.status).toBe("approved");
     expect((await rejectWatched(DUP, "x", "owner@example.test")).ok).toBe(false); // a duplicate isn't in the queue
     // A set-aside video can still go on as a highlight.
     expect((await approveWatched(IGN, { season: 2025, code: "USTXMOQ", kind: "highlight" }, "owner@example.test")).ok).toBe(true);

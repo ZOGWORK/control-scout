@@ -68,6 +68,18 @@ describe("the watcher's matcher", () => {
     expect(fin.kind === "add" && fin.event.code).toBe("ROCMP");
   });
 
+  it("adds FIRST HQ's Championship broadcasts by the seeded rule", async () => {
+    const { OFFICIAL_CHANNELS } = await import("../data/officialChannels");
+    const hq = OFFICIAL_CHANNELS.find((c) => c.channelId === "UCkWMXdRQr5yoZRz7gFYyRcw")!;
+    const cmp = { country: "USA", state: "TX", city: "Houston", type: "FIRSTChampionship", start: "2026-04-29", end: "2026-05-02" } as const;
+    const events = [ev("FTCCMP1", "FIRST Championship", { ...cmp, parent: true }), ev("FTCCMP1FRAN", "FIRST Championship - Franklin Division", { ...cmp, divisionCode: "FTCCMP1" })];
+    const day = { start: "2026-05-02T20:00:00Z" };
+    const parent = matchVideo(vid("FIRST Championship Houston - Einstein Finals", day), hq, events);
+    expect(parent.kind === "add" && parent.event.code).toBe("FTCCMP1");
+    const div = matchVideo(vid("2026 FIRST Championship - Franklin Division", { start: "2026-04-30T14:00:00Z" }), hq, events);
+    expect(div.kind === "add" && div.event.code).toBe("FTCCMP1FRAN");
+  });
+
   it("makes designators agree: league letters, meet numbers, UIL classes", () => {
     const events = [ev("USTXNTAM1", "NTX A-League Meet 1"), ev("USTXNTBM1", "NTX B-League Meet 1")];
     const v = matchVideo(vid("NTX B-League Meet 1"), { region: "state=TX", words: "texas ntx" }, events);

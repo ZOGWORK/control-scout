@@ -314,8 +314,10 @@ export async function rejectWatched(videoId: string, reason: string | null, acto
   const w = await get<any>("SELECT status, why FROM official_watch WHERE video_id = ?", [videoId]);
   if (!w) return { ok: false, error: "That video isn't in the review queue." };
   if (!["pending", "ignored"].includes(String(w.status))) return { ok: false, error: `Already ${w.status}.` };
-  await run("UPDATE official_watch SET status = 'rejected', decided_at = ?, decided_by = ?, why = ? WHERE video_id = ?",
+  // Only while it's still undecided: an approval that landed meanwhile stands.
+  const changed = await run("UPDATE official_watch SET status = 'rejected', decided_at = ?, decided_by = ?, why = ? WHERE video_id = ? AND status IN ('pending', 'ignored')",
     [new Date(now).toISOString(), actor, reason ? `${reason.slice(0, 200)} (was: ${w.why})`.slice(0, 500) : String(w.why), videoId]);
+  if (!changed) return { ok: false, error: "Already decided." };
   await recordAudit(actor, "officialVideo.reject", { videoId, reason, was: String(w.status) });
   return { ok: true };
 }
