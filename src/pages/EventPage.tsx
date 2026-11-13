@@ -52,6 +52,7 @@ import { LiveCountdownChip, LivePanel, useLiveTarget } from "../components/LiveP
 import { HeaderActions } from "../components/EventActions";
 import { EventStatusChip, EventTypeChip, LiveDot } from "../components/EventChips";
 import { WatchLive } from "../components/WatchLive";
+import { HighlightVideos } from "../components/HighlightVideos";
 import { ClipsGallery, CoverageLine, EventClipsProvider, WatchClipsButton } from "../components/contributors/EventClips";
 import { isLiveMode, nextMatch, useEventPoll } from "../lib/liveMode";
 import { TeamsSource } from "../components/TeamsSource";
@@ -250,6 +251,8 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
       {/* The owner-set stream with the model's calls beside it, above the matches (components/WatchLive.tsx). */}
       {/* Keyed by event and video: moving to another event, or a new stream, starts the player and the rail afresh. */}
       {e.stream && <WatchLive key={`${e.season}:${e.code}:${e.stream.videoId}`} d={d} stream={e.stream} />}
+      {/* The organiser's highlight videos, as highlights only (components/HighlightVideos.tsx). */}
+      {d.highlightVideos && <HighlightVideos videos={d.highlightVideos} />}
       <div ref={tabsRef} className="scroll-mt-bar-4" />
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>

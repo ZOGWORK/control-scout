@@ -6,6 +6,7 @@ import { withBracketGate } from "./bracket.js";
 import { scheduleGate } from "./eventGates.js";
 import { hasEventHighlights } from "../eventHighlightsPage.js";
 import { eventRecording, recordingStream, withClips } from "../videos/recordings.js";
+import { eventHighlightVideos } from "../videos/officialVideos.js";
 
 /** An event's detail with its recording (server/videos/recordings.ts: the owner's stream, else FIRST's YouTube link)
  *  and each played match's place in it, for every route that answers with one (the page and "Refresh results" alike,
@@ -16,9 +17,17 @@ export async function withStream<T extends { event: { season: number; code: stri
   return rec ? { ...d, event: { ...d.event, stream: recordingStream(rec, d.event.timezone) }, matches: withClips(d.matches, rec) } : d;
 }
 
-/** The event page's answer (null: no such event): the cached detail, its recording, and the bracket and schedule gates. */
+/** What the event page shows beside the detail, for every route that answers with one (the page and "Refresh
+ *  results" alike, or a refresh would take them away): whether its highlights page exists (server/eventHighlightsPage.ts),
+ *  for the Highlights link; and the organiser's highlight videos (server/videos/officialVideos.ts), shown as highlights
+ *  only, never as a match's video. */
+export async function withPageExtras<T extends { event: { season: number; code: string } }>(d: T): Promise<T & { highlights: boolean; highlightVideos?: { videoId: string; title: string }[] }> {
+  const [highlights, reels] = await Promise.all([hasEventHighlights(d.event.season, d.event.code), eventHighlightVideos(d.event.season, d.event.code).catch(() => [])]);
+  return { ...d, highlights, ...(reels.length ? { highlightVideos: reels } : {}) };
+}
+
+/** The event page's answer (null: no such event): the cached detail, its recording, the bracket and schedule gates, and its extras. */
 export async function eventView(season: number, code: string): Promise<EventDetail | null> {
-  const [cached, highlights] = await Promise.all([cachedEventDetail(season, code), hasEventHighlights(season, code)]);
-  // Whether its highlights page exists (server/eventHighlightsPage.ts), for the page's Highlights link.
-  return cached ? { ...(await scheduleGate(await withBracketGate(await withStream(cached)))), highlights } : null;
+  const cached = await cachedEventDetail(season, code);
+  return cached ? withPageExtras(await scheduleGate(await withBracketGate(await withStream(cached)))) : null;
 }

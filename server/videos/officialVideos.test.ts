@@ -7,6 +7,7 @@ import { all, migrate, openDb, run, setDb } from "../db";
 import { clearAllCaches } from "../caches";
 import { eventRecording, recordingStream } from "./recordings";
 import { eventHighlightVideos, localDate, seedOfficialVideos, type OfficialList } from "./officialVideos";
+import { eventView, withPageExtras } from "../api/eventView";
 import shipped from "../data/officialVideos.json" with { type: "json" };
 
 const S = 2025;
@@ -105,6 +106,17 @@ describe("official videos", () => {
     expect(r?.more).toBeUndefined();
     expect(await eventHighlightVideos(S, "ROCMP")).toEqual([{ videoId: HL, title: `t ${HL}` }]);
     expect(await eventHighlightVideos(S, "ROCMPCND")).toEqual([]);
+  });
+
+  it("the event page gets an event's highlights beside its recording, never in it", async () => {
+    const d = await eventView(S, "ROCMP");
+    expect(d?.highlightVideos).toEqual([{ videoId: HL, title: `t ${HL}` }]);
+    expect(d?.event.stream?.videoId).toBe(AW);
+    expect(JSON.stringify(d?.event.stream)).not.toContain(HL);
+    expect(d?.matches.some((m) => m.clip?.videoId === HL || m.video?.includes(HL))).toBe(false);
+    expect((await eventView(S, "ROCMPCND"))?.highlightVideos).toBeUndefined();
+    // "Refresh results" answers through the same extras, so the section doesn't vanish on a refresh.
+    expect((await withPageExtras({ event: { season: S, code: "ROCMP" } })).highlightVideos).toEqual(d?.highlightVideos);
   });
 
   it("dates a broadcast at the venue", () => {

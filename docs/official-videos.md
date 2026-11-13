@@ -58,4 +58,6 @@ A removed row (`removed_at`) is never written again, so taking a video out stick
 ## Highlights
 
 A highlight (`kind = 'highlight'`) is a short reel from the same official channels. It's shown on the event page as a
-highlight only: never as a match's video and never as the event's recording.
+highlight only: never as a match's video and never as the event's recording. The event page's "Highlight videos"
+section (`src/components/HighlightVideos.tsx`) labels each one and plays it in the app's video dialog
+(`playInDialog`, `src/lib/streamSeek.ts`), never in the Watch section's player, even when the event has a recording.
