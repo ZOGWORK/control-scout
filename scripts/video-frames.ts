@@ -19,7 +19,7 @@
 //   DATABASE_URL=file:/path/to/copy.db npx tsx scripts/video-frames.ts [--season 2025] [--codes USTXCMP4T,ROCMPVLC]
 //     [--all] [--check] [--limit 10] [--dry]
 //
-//   --all     every recording, not only those with a match the server can't place now
+//   --all     every recording, not only those with a match the server can't place now (and again those read on an earlier run)
 //   --check   recordings the server already places, to compare: prints how far the frames are from the clock
 //   --dry     print, don't write
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
@@ -104,6 +104,9 @@ async function readAt(page: Page, t: number): Promise<Read> {
   return { label, start: e == null ? null : Math.round(atA - e), at, text };
 }
 
+/** Matches in a row with no read before a video counts as one without the overlay. */
+const MISSES = 3;
+
 // --- Finding each match --------------------------------------------------------------------------------------------
 
 /** The second each of a video's matches starts at, as far as its frames show. `shift`: the video's second for a moment
@@ -126,8 +129,13 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
     if (!seen.size) { log("    no match found in it"); return new Map(); }
   }
 
+  // A video without FTC Live's overlay (a camera-only stream) reads nothing: stop after a few matches in a row, and
+  // never spend more than a few reads per match.
+  let missed = 0;
+  const budget = Math.max(40, 4 * ms.length);
   async function anchor(i: number): Promise<number | null> {
     if (seen.has(i)) return seen.get(i)!;
+    if (missed >= MISSES || reads >= budget) return null;
     for (let k = 0; k < TRIES; k++) {
       const est = ms[i].epoch + near(i)!;
       // Into the match (its timer running), then either side of where it should be.
@@ -136,8 +144,9 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
       const r = await readAt(page, t);
       reads++;
       note(r);
-      if (seen.has(i)) return seen.get(i)!;
+      if (seen.has(i)) { missed = 0; return seen.get(i)!; }
     }
+    missed++;
     return null;
   }
 
@@ -145,8 +154,8 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   async function span(i: number, j: number): Promise<void> {
     let a = await anchor(i), b = await anchor(j);
     // A match that can't be read: its neighbour inward stands in.
-    while (a == null && i < j) a = await anchor(++i);
-    while (b == null && j > i) b = await anchor(--j);
+    while (a == null && i < j && missed < MISSES) a = await anchor(++i);
+    while (b == null && j > i && missed < MISSES) b = await anchor(--j);
     if (a == null || b == null) return;
     if (Math.abs((a - ms[i].epoch) - (b - ms[j].epoch)) <= SAME_S || j - i <= 1) return;
     const mid = (i + j) >> 1;
@@ -154,6 +163,7 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
     await span(mid, j);
   }
   await span(0, ms.length - 1);
+  if (missed >= MISSES && !seen.size) log(`    no overlay read in ${reads} frames`);
   const out = placed(ms, seen);
   log(`    ${out.size} of ${ms.length} placed, ${seen.size} read, ${reads} frames${out.size < ms.length ? `; not placed: ${ms.filter((m) => !out.has(m.label)).map((m) => m.label).join(" ")}` : ""}`);
   // Each stretch the video holds without a gap: its matches and how far the video sits from the clock there.
@@ -207,6 +217,8 @@ async function doCode(code: string): Promise<void> {
   const placed = R.withClips(views, rec, Date.now(), span, { frames: false });
   const missing = placed.filter((v) => !v.clip).map((v) => v.label);
   if (CHECK ? !placed.some((v) => v.clip) : !ALL && !missing.length) return;
+  // Read on an earlier run (each event is written as it finishes): not again, unless --all.
+  if (!CHECK && !ALL && [...kept.values()].some((f) => f.code === code)) return;
   done++;
   // An event's lines together (events run side by side).
   const lines: string[] = [];
@@ -232,6 +244,7 @@ async function doCode(code: string): Promise<void> {
       // No captions over the overlay.
       await page.evaluate(() => { try { (document.querySelector("#movie_player") as any)?.unloadModule?.("captions"); } catch { /* none */ } });
       log(`  ${v.videoId}: ${mine.length} matches`);
+      console.error(`${new Date().toISOString().slice(11, 19)} ${code} ${v.videoId}: ${mine.length} matches`);
       const out = await placeVideo(page, mine, from == null ? null : -from, m.length!, log);
       for (const l of out.keys()) held.add(l);
       if (CHECK) {
