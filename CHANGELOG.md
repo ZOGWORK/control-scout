@@ -15,6 +15,21 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.9.5 — 2026-11-13
+
+Australia's events play FIRST Australia's own recordings, a day at a time, and new ones are picked up as they're posted.
+
+### Highlights
+- [fixes] Australia's Championship and APOC play FIRST Australia's recordings
+- [fixes] Sydney, Brisbane and Victoria qualifiers have their recordings
+- [fixes] New FIRST Australia streams are found on their own
+
+### Added
+- FIRST Australia (youtube.com/@FirstAustralia) is an official channel: the watcher reads its uploads for Australia's events and APOC (`server/data/officialChannels.ts`). Its past recordings are on their events, each a day's broadcast checked against that event's played matches (`server/data/officialVideos.json`) (#PR):
+  - 2024–25: Australia Championship (both days), APOC 2025 (both match days).
+  - 2025–26: Sydney South Qualifier, Sydney North Qualifier (both days), Australia Championship (both days), APOC 2026 (three days, Saturday in two parts).
+  - 2026–27: Brisbane South Qualifier (both days), Victoria Qualifier.
+
 ## 5.9.4 — 2026-11-13
 
 Search answers and People also ask come back faster: the slowest database reads behind them are gone or kept.
