@@ -285,7 +285,7 @@ export async function followUps(q: string, a: SearchAnswer, prefer: ReadonlySet<
   // again in other words, they'd be offered twice. Their answers, kept the same way, say what they answer.
   const shown = [...new Set([...(a.suggest ?? []), ...(a.sorry?.suggest ?? []), ...(a.stat?.blocks ?? []).flatMap((b) => (b.kind === "related" ? b.queries : []))])].slice(0, SHOWN_MAX);
   const all = candidates(p, a);
-  const run = (x: string) => pageAnswer(x, SEARCH_PAGE_LIMIT, prefer).catch(() => null);
+  const run = inTurn((x: string) => pageAnswer(x, SEARCH_PAGE_LIMIT, prefer).catch(() => null));
   const [offered, asked] = await Promise.all([Promise.all(shown.map(run)), pick(all.filter((c) => !c.chip).slice(0, CHECK_MAX).map((c) => ({ ...c, run: c.q })), run)]);
   const seen = new Set([a, ...offered].flatMap((x) => (x ? [answerKey(x).toLowerCase()] : [])));
   const ask = fresh(asked, seen, ASK_MAX);
@@ -303,6 +303,21 @@ export async function followUps(q: string, a: SearchAnswer, prefer: ReadonlySet<
   const [best] = fresh(lit, seen, 1);
   const view = (x: Omit<SearchFollowUp, "q"> & { run: string }): SearchFollowUp => ({ q: x.run, family: x.family, preview: x.preview, value: x.value, rest: x.rest, tone: x.tone });
   return { ask: ask.map(view), related: related.map(view), ...(best ? { highlights: { ...view(best), team: about! } } : {}), ...(about != null ? { about } : {}) };
+}
+
+/** `f`, its calls run one at a time in the order made, each after this process has looked at what else is waiting
+ *  (other visitors' requests, timers). The database answers without ever giving the event loop back (its reads
+ *  resolve as microtasks), so the up to 40 searches checked for one search's follow-ups, all asked at once, held this
+ *  process for their whole run, 2 to 4 seconds, and every other request waited behind them. One
+ *  at a time with a turn of the loop between them, a request that comes in meanwhile waits for one search at most.
+ *  The same searches run either way, each the same kept answer: only when they run changes. */
+export function inTurn<A extends unknown[], R>(f: (...args: A) => Promise<R>): (...args: A) => Promise<R> {
+  let last: Promise<unknown> = Promise.resolve();
+  return (...args) => {
+    const next = last.then(() => new Promise<void>((go) => setImmediate(go))).then(() => f(...args));
+    last = next.catch(() => {});
+    return next;
+  };
 }
 
 /** The first `max` of `xs` whose answers none before them (nor `seen`) gives, each added to `seen`. */
