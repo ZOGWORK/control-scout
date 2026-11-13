@@ -15,6 +15,7 @@ import { COMMANDS, sameCommands } from "./commands.js";
 import { createHandler } from "./handler.js";
 import { notifyTick, type Send } from "./follows.js";
 import { site } from "./lookups.js";
+import { beat } from "../server/uptime.js";
 
 const log = (m: string) => console.log(`[${new Date().toISOString()}] [bot] ${m}`);
 
@@ -102,6 +103,8 @@ const send: Send = async (channelId, embed) => {
     return code === 10003 || code === 50001 || code === 50013 ? "gone" : "error";
   }
 };
+// The /status page's heartbeat (server/uptime.ts): every minute while connected to Discord.
+setInterval(() => { if (client.isReady()) beat("bot").catch(() => {}); }, 60_000).unref();
 let ticking = false;
 setInterval(() => {
   if (ticking || !client.isReady()) return;

@@ -9,6 +9,7 @@ export const FOOTER_LINKS: { to: string; label: string; flag?: Flag }[] = [
   { to: "/rules", label: "Rules", flag: "rulesReference" },
   { to: "/settings", label: "Settings" },
   { to: "/donate", label: "Donate" },
+  { to: "/status", label: "Status", flag: "statusPage" },
   { to: "/contact", label: "Contact" },
   { to: "/privacy", label: "Privacy" },
   { to: "/terms", label: "Terms" },

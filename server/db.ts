@@ -2294,6 +2294,26 @@ CREATE TABLE official_watch_runs (
 CREATE INDEX events_division ON events (division_code, season);
 `,
   },
+  {
+    version: 86,
+    name: "uptime checks",
+    sql: `
+-- The public /status page (server/uptime.ts): one row per check of each service, every 2 minutes, kept 90 days.
+CREATE TABLE uptime_checks (
+  service TEXT NOT NULL,
+  at INTEGER NOT NULL,
+  ok INTEGER NOT NULL,
+  ms INTEGER,
+  reason TEXT
+);
+CREATE INDEX uptime_checks_service_at ON uptime_checks (service, at);
+-- Services with no address to check (the Discord bot) write here while they run; a stale row means down.
+CREATE TABLE service_heartbeats (
+  service TEXT PRIMARY KEY,
+  at INTEGER NOT NULL
+);
+`,
+  },
 ];
 
 export type Db = Client;

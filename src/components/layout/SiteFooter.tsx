@@ -21,10 +21,11 @@ export function SiteFooter({ discordInvite = discordInviteUrl(), release = curre
   const lite = useFlag("venueLightMode") ? liteHref(loc.pathname, loc.search) : null;
   // Rules only while the owner has the rules reference on (rulesReference), as the sidebar has it.
   const rules = useFlag("rulesReference");
+  const status = useFlag("statusPage");
   return (
     <footer className="mt-16 flex flex-col gap-3 border-t border-line pt-6 max-sm:pt-4 text-xs text-text-muted sm:flex-row sm:items-center sm:justify-between">
       <nav aria-label="Site" className="flex flex-wrap gap-x-5 gap-y-2">
-        {footerLinks((f) => f !== "rulesReference" || rules).map((l) => (
+        {footerLinks((f) => (f === "rulesReference" ? rules : f === "statusPage" ? status : true)).map((l) => (
           <Link key={l.to} to={l.to} className={LINK}>{l.label}</Link>
         ))}
         {/* The Discord bot's invite, once it has a client ID (src/shared/discord.ts). */}
