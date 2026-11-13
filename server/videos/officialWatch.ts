@@ -11,9 +11,16 @@ import { recordAudit } from "../portal/audit.js";
 import { OFFICIAL_CHANNELS } from "../data/officialChannels.js";
 import { eventVideosByDay, forgetOfficial } from "./officialVideos.js";
 import { isoDuration } from "./youtube.js";
+import { LockBusy, isBusy, lockHolder, withDataLock } from "../data/lock.js";
 import { matchVideo, parseRule, type ChannelRule, type Verdict, type WatchEvent, type WatchVideo } from "./officialMatch.js";
 
 export const WATCH_EVERY_MS = 6 * 3600_000;
+const RUN_STALE_MS = 25 * 60_000;
+const NEVER_FINISHED = "database busy or a restart: the run never finished, tried again within 30 minutes";
+const BUSY_STOP = "database busy (the data sync was writing): stopped, tried again within 30 minutes";
+/** The last run that counts for the 6-hour wait: one that finished, and wasn't cut short by a busy database (those are
+ * tried again on the next half-hourly check, like a run that never started). */
+const LAST_RUN = `SELECT started_at FROM official_watch_runs WHERE finished_at IS NOT NULL AND COALESCE(error, '') NOT LIKE 'database busy%' ORDER BY id DESC LIMIT 1`;
 /** Units one run may use at most (YouTube gives 10,000 a day, shared with the timing backfill). */
 const MAX_UNITS = 1500;
 /** Pages of a channel's uploads read in one run (50 a page, newest first). */
@@ -93,20 +100,43 @@ export interface WatchRun { units: number; channels: number; seen: number; added
  * One pass over the watchlist. Without YOUTUBE_API_KEY nothing is read (the owner panel says so). Stops when the run's
  * units are spent or YouTube says the day's quota is.
  */
-export async function runOfficialWatch(log: (s: string) => void, opts: { apiKey?: string | null; fetchImpl?: Fetch; now?: () => number; maxUnits?: number } = {}): Promise<WatchRun | null> {
+export async function runOfficialWatch(log: (s: string) => void, opts: { apiKey?: string | null; fetchImpl?: Fetch; now?: () => number; maxUnits?: number; lockWaitMs?: number; scheduled?: boolean } = {}): Promise<WatchRun | null> {
   const key = opts.apiKey === undefined ? env.youtubeApiKey : opts.apiKey;
   if (!key || busy) return null;
+  // Reserved before any await: a scheduled check and Run now never both start.
   busy = true;
   const now = opts.now ?? Date.now;
+  // Every write of the run under the shared writer lease (server/data/lock.ts): the data sync holds it through long
+  // write transactions, which a write here would otherwise wait out and fail on. YouTube's reads stay outside it.
+  const locked = <T>(fn: () => Promise<T>) => withDataLock("official videos watcher", fn, { ttlMs: 60_000, waitMs: opts.lockWaitMs ?? 30_000, pollMs: 1000 });
   const fetchImpl = opts.fetchImpl ?? fetch;
   const maxUnits = opts.maxUnits ?? MAX_UNITS;
   const out: WatchRun = { units: 0, channels: 0, seen: 0, added: 0, queued: 0, duplicates: 0, error: null };
   // A failed start (a busy database) must not leave the watcher latched off for the rest of the process.
   let runId = 0;
-  try { runId = Number((await get<{ id: number }>("INSERT INTO official_watch_runs (started_at) VALUES (?) RETURNING id", [new Date(now()).toISOString()]))?.id); }
-  catch (e) { busy = false; throw e; }
+  // The run's claim, under the lease, so it holds across processes too. Not while another run is going: one unfinished
+  // that started, or wrote a channel's checked_at (every channel ends with one), in the last 25 minutes; past that it
+  // died (a restart), and is closed here as never finished, which doesn't count toward the 6-hour wait. For a scheduled
+  // check, also not within 6 hours of the last run that counts. The sync holding the lease now: skip this run (no row,
+  // nothing read); the next check tries again.
+  const at = now();
+  const stale = new Date(at - RUN_STALE_MS).toISOString();
   try {
-    await seedOfficialChannels(now());
+    runId = await locked(async () => {
+      const id = Number((await get<{ id: number }>(
+        `INSERT INTO official_watch_runs (started_at) SELECT ?1
+         WHERE NOT EXISTS (SELECT 1 FROM official_watch_runs r WHERE r.finished_at IS NULL
+                             AND (r.started_at > ?2 OR EXISTS (SELECT 1 FROM official_channels c WHERE c.checked_at > ?2 AND c.checked_at >= r.started_at)))
+           AND (?3 IS NULL OR NOT EXISTS (SELECT 1 FROM official_watch_runs WHERE finished_at IS NOT NULL AND COALESCE(error, '') NOT LIKE 'database busy%' AND started_at > ?3))
+         RETURNING id`,
+        [new Date(at).toISOString(), stale, opts.scheduled ? new Date(at - WATCH_EVERY_MS).toISOString() : null]))?.id ?? 0);
+      if (id) await run("UPDATE official_watch_runs SET finished_at = ?, error = ? WHERE finished_at IS NULL AND id < ?", [new Date(at).toISOString(), NEVER_FINISHED, id]);
+      return id;
+    });
+  } catch (e) { busy = false; if (e instanceof LockBusy) return null; throw e; }
+  if (!runId) { busy = false; return null; }
+  try {
+    await locked(() => seedOfficialChannels(now()));
     const channels = (await all<any>("SELECT channel_id, title, region, words, title_pattern, watch_from, checked_at, last_error, removed_at FROM official_channels WHERE removed_at IS NULL ORDER BY checked_at IS NOT NULL, checked_at, channel_id")).map(channelOf);
     for (const ch of channels) {
       if (out.units >= maxUnits) { out.error = `stopped at the run's ${maxUnits} units; the rest next run`; break; }
@@ -118,38 +148,43 @@ export async function runOfficialWatch(log: (s: string) => void, opts: { apiKey?
           const part = fresh.slice(i, i + 50);
           out.units++;
           const body = await api("videos", { part: "snippet,contentDetails,status,liveStreamingDetails", id: part.map((p) => p.id).join(","), maxResults: "50" }, key, fetchImpl);
-          for (const item of Array.isArray(body?.items) ? body.items : []) {
-            const live = String(item?.snippet?.liveBroadcastContent ?? "none");
-            // Live now or still to come: read again next run, once it's over.
-            if (live === "live" || live === "upcoming") continue;
-            const v: WatchVideo = {
-              videoId: String(item.id), title: String(item?.snippet?.title ?? "").slice(0, 300),
-              start: item?.liveStreamingDetails?.actualStartTime ?? null, durationS: isoDuration(item?.contentDetails?.duration),
-              privacy: String(item?.status?.privacyStatus ?? "public"), embeddable: item?.status?.embeddable !== false,
-              blockedIn: Array.isArray(item?.contentDetails?.regionRestriction?.blocked) ? item.contentDetails.regionRestriction.blocked.length : 0,
-            };
-            if (!VIDEO_ID.test(v.videoId)) continue;
-            out.seen++;
-            const verdict = await decide(v, ch);
-            const published = part.find((p) => p.id === v.videoId)?.published ?? null;
-            await record(v, ch, verdict, published, now());
-            if (verdict.kind === "add") out.added++;
-            else if (verdict.kind === "review") out.queued++;
-            else if (verdict.kind === "duplicate") out.duplicates++;
-          }
+          const items: any[] = Array.isArray(body?.items) ? body.items : [];
+          // Each verdict reads what the one before it wrote, so deciding and writing go together, under the lease.
+          await locked(async () => {
+            for (const item of items) {
+              const live = String(item?.snippet?.liveBroadcastContent ?? "none");
+              // Live now or still to come: read again next run, once it's over.
+              if (live === "live" || live === "upcoming") continue;
+              const v: WatchVideo = {
+                videoId: String(item.id), title: String(item?.snippet?.title ?? "").slice(0, 300),
+                start: item?.liveStreamingDetails?.actualStartTime ?? null, durationS: isoDuration(item?.contentDetails?.duration),
+                privacy: String(item?.status?.privacyStatus ?? "public"), embeddable: item?.status?.embeddable !== false,
+                blockedIn: Array.isArray(item?.contentDetails?.regionRestriction?.blocked) ? item.contentDetails.regionRestriction.blocked.length : 0,
+              };
+              if (!VIDEO_ID.test(v.videoId)) continue;
+              out.seen++;
+              const verdict = await decide(v, ch);
+              const published = part.find((p) => p.id === v.videoId)?.published ?? null;
+              await record(v, ch, verdict, published, now());
+              if (verdict.kind === "add") out.added++;
+              else if (verdict.kind === "review") out.queued++;
+              else if (verdict.kind === "duplicate") out.duplicates++;
+            }
+          });
         }
-        await run("UPDATE official_channels SET checked_at = ?, last_error = NULL WHERE channel_id = ?", [new Date(now()).toISOString(), ch.channelId]);
+        await locked(() => run("UPDATE official_channels SET checked_at = ?, last_error = NULL WHERE channel_id = ?", [new Date(now()).toISOString(), ch.channelId]));
       } catch (e) {
-        if (e instanceof QuotaError) throw e;
-        await run("UPDATE official_channels SET checked_at = ?, last_error = ? WHERE channel_id = ?", [new Date(now()).toISOString(), String((e as Error).message).slice(0, 300), ch.channelId]);
+        if (e instanceof QuotaError || e instanceof LockBusy || isBusy(e)) throw e;
+        await locked(() => run("UPDATE official_channels SET checked_at = ?, last_error = ? WHERE channel_id = ?", [new Date(now()).toISOString(), String((e as Error).message).slice(0, 300), ch.channelId]));
       }
     }
   } catch (e) {
-    out.error = String((e as Error).message ?? e).slice(0, 300);
+    out.error = e instanceof LockBusy || isBusy(e) ? BUSY_STOP : String((e as Error).message ?? e).slice(0, 300);
   } finally {
     busy = false;
-    await run("UPDATE official_watch_runs SET finished_at = ?, units = ?, channels = ?, seen = ?, added = ?, queued = ?, duplicates = ?, error = ? WHERE id = ?",
-      [new Date(now()).toISOString(), out.units, out.channels, out.seen, out.added, out.queued, out.duplicates, out.error, runId]).catch(() => {});
+    // Not written (still busy): the run stays unfinished, so it doesn't count toward the 6-hour wait.
+    await locked(() => run("UPDATE official_watch_runs SET finished_at = ?, units = ?, channels = ?, seen = ?, added = ?, queued = ?, duplicates = ?, error = ? WHERE id = ?",
+      [new Date(now()).toISOString(), out.units, out.channels, out.seen, out.added, out.queued, out.duplicates, out.error, runId])).catch(() => {});
   }
   // The event pages read it within a minute (the recordings cache).
   if (out.added) forgetOfficial();
@@ -158,11 +193,12 @@ export async function runOfficialWatch(log: (s: string) => void, opts: { apiKey?
 }
 
 /** The scheduled run: only when the last one started 6 hours ago or more (a restart doesn't add runs). */
-export async function watchIfDue(log: (s: string) => void, now = Date.now()): Promise<WatchRun | null> {
-  if (!env.youtubeApiKey) return null;
-  const last = await get<{ started_at: string }>("SELECT started_at FROM official_watch_runs ORDER BY id DESC LIMIT 1");
+export async function watchIfDue(log: (s: string) => void, now = Date.now(), opts: { apiKey?: string | null; fetchImpl?: Fetch; clock?: () => number; lockWaitMs?: number } = {}): Promise<WatchRun | null> {
+  const key = opts.apiKey === undefined ? env.youtubeApiKey : opts.apiKey;
+  if (!key) return null;
+  const last = await get<{ started_at: string }>(LAST_RUN);
   if (last && now - Date.parse(last.started_at) < WATCH_EVERY_MS) return null;
-  return runOfficialWatch(log);
+  return runOfficialWatch(log, { apiKey: key, fetchImpl: opts.fetchImpl, now: opts.clock, lockWaitMs: opts.lockWaitMs, scheduled: true });
 }
 
 /** A channel's uploads published since it's been watched and not read before, newest first (one unit a page). */
@@ -252,7 +288,7 @@ export async function ownerOfficial(now = Date.now()) {
     get<{ n: number }>("SELECT COALESCE(SUM(units), 0) AS n FROM official_watch_runs WHERE started_at >= ?", [since]),
     get<{ n: number; e: number }>("SELECT COUNT(*) AS n, COUNT(DISTINCT season || '/' || code) AS e FROM official_videos WHERE removed_at IS NULL AND kind = 'recording'"),
   ]);
-  const last = runs[0];
+  const last = await get<{ started_at: string }>(LAST_RUN);
   return {
     apiKey: !!env.youtubeApiKey,
     everyHours: WATCH_EVERY_MS / 3600_000,
@@ -371,8 +407,10 @@ export async function runNow(actor: string, log: (s: string) => void, now = Date
   if (!env.youtubeApiKey) return { ok: false, error: "YOUTUBE_API_KEY isn't set on the server, so the watcher can't read channels." };
   const last = await get<{ started_at: string }>("SELECT started_at FROM official_watch_runs ORDER BY id DESC LIMIT 1");
   if (last && now - Date.parse(last.started_at) < 10 * 60_000) return { ok: false, error: "The watcher ran less than 10 minutes ago." };
+  const holder = await lockHolder();
+  if (holder) return { ok: false, error: `The data sync is writing right now (${holder.what}): try again in a few minutes.` };
   const out = await runOfficialWatch(log);
-  if (!out) return { ok: false, error: "The watcher is already running: its results show here when it's done." };
+  if (!out) return { ok: false, error: "The watcher is already running, or the data sync is writing: its results show here when it's done, or try again in a few minutes." };
   await recordAudit(actor, "officialVideo.runNow", { ...out });
   return { ok: true, run: out };
 }
