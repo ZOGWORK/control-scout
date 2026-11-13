@@ -168,14 +168,26 @@ describe("the official-video watcher", () => {
 
   it("waits out a busy database: no run while the sync holds the lease, a busy stop is tried again in 30 minutes", async () => {
     const T = NOW + 10 * 3600_000;
-    const opts = (at: number, f: typeof fetch = fakeFetch) => ({ apiKey: "k", fetchImpl: f, clock: () => at });
+    const opts = (at: number, f: typeof fetch = fakeFetch) => ({ apiKey: "k", fetchImpl: f, clock: () => at, lockWaitMs: 0 });
+    const lease = () => run("INSERT INTO kv (key, value, updated_at) VALUES ('lock:data-writer', ?, 'x') ON CONFLICT(key) DO UPDATE SET value = excluded.value", [JSON.stringify({ token: "t", what: "cycle", until: Date.now() + 60_000 })]);
     // The data sync holds the writer lease: the watcher doesn't start (no run row, nothing read).
-    await run("INSERT INTO kv (key, value, updated_at) VALUES ('lock:data-writer', ?, 'x')", [JSON.stringify({ token: "t", what: "cycle", until: Date.now() + 60_000 })]);
+    await lease();
     const before = (await all("SELECT id FROM official_watch_runs")).length;
     expect(await watchIfDue(() => {}, T, opts(T))).toBeNull();
     expect(calls).toHaveLength(0);
     expect((await all("SELECT id FROM official_watch_runs")).length).toBe(before);
     await run("DELETE FROM kv WHERE key = 'lock:data-writer'");
+    // The sync takes the lease after the run started: the run's writes wait for it, and stop as busy (nothing is
+    // written while the sync holds it; the run isn't closed, so it doesn't count).
+    const seenBefore = (await all("SELECT video_id FROM official_watch")).length;
+    uploads = [{ id: "leaseleasel", title: "FIRST in Texas - Mockingbird Qualifier", published: "2026-01-17T23:00:00Z", start: "2026-01-17T14:00:00Z" }];
+    const takeLease = (async (url: string) => { await lease(); return fakeFetch(url); }) as unknown as typeof fetch;
+    const raced = await watchIfDue(() => {}, T, opts(T, takeLease));
+    expect(raced?.error).toMatch(/database busy/);
+    expect((await all("SELECT video_id FROM official_watch")).length).toBe(seenBefore);
+    expect(await get<any>("SELECT finished_at FROM official_watch_runs ORDER BY id DESC LIMIT 1")).toMatchObject({ finished_at: null });
+    await run("DELETE FROM kv WHERE key = 'lock:data-writer'");
+    uploads = [];
     // A write that waits out the busy timeout stops the run as busy (not as the channel's own error)...
     const busyFetch = (async () => { throw Object.assign(new Error("SQLITE_BUSY: database is locked"), { code: "SQLITE_BUSY" }); }) as unknown as typeof fetch;
     const stopped = await watchIfDue(() => {}, T, opts(T, busyFetch));
@@ -187,6 +199,9 @@ describe("the official-video watcher", () => {
     // A run that finished does count: the next check waits.
     expect(await watchIfDue(() => {}, T + 60 * 60_000, opts(T + 60 * 60_000))).toBeNull();
     expect((await ownerOfficial(T + 60 * 60_000)).nextRunAt).toBe(new Date(T + 30 * 60_000 + 6 * 3600_000).toISOString());
+    // Two starts at once (a scheduled check and Run now): only one runs.
+    const both = await Promise.all([runOfficialWatch(() => {}, opts(T + 61 * 60_000)), runOfficialWatch(() => {}, opts(T + 61 * 60_000))]);
+    expect(both.filter((x) => x === null)).toHaveLength(1);
   });
 
   it("checks a channel the owner adds or edits", async () => {
