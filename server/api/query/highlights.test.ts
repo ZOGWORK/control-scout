@@ -264,6 +264,20 @@ describe("a team's highlights", () => {
     expect((await ask("4215 top 0 highlights")).stat?.intent).not.toBe("team-highlights");
   });
 
+  it("in a place: only its matches at events held there; a place it never played says so (owner: \"quantum robotics highlights in romania\")", async () => {
+    const s = await stat("4215 highlights in new jersey");
+    expect(s.intent).toBe("team-highlights");
+    expect(s.title).toBe("Highlights in New Jersey, 2025–26");
+    expect(rows(s).length).toBeGreaterThan(0);
+    expect(rows(s).every((r) => /^USNJ/.test(codeOf(r)))).toBe(true);
+    // The same team's highlights with no place still read every event (Worlds included).
+    expect(rows(await stat("4215 highlights 2024-25")).some((r) => /^FTCCMP1/.test(codeOf(r)))).toBe(true);
+    const none = await stat("10809 highlights in new jersey");
+    expect(none.title).toBe("No highlights in New Jersey");
+    expect(none.none).toBe("Crow Force (10809) has no played matches in New Jersey. Its 2024–25 events are below.");
+    expect(rows(none)).toEqual([]);
+  });
+
   it("a recap leads with the last playoff match even when its highlights list it under another reason", async () => {
     expect((await stat("colorado highlights")).headline?.label).toBe("Best score without penalties: M2 at Peak Qualifier");
     expect((await stat("colorado recap")).headline).toMatchObject({ label: "Latest playoff match: M2 at Peak Qualifier", value: "300 points" });

@@ -830,13 +830,15 @@ async function highlights(p: Parsed, scope: ReadScope, opts: PipelineOptions): P
   const byMain = evs ? [...evs].sort((a, b) => b.season - a.season || Number(a.division != null) - Number(b.division != null)) : null;
   if (p.teams.length) {
     // A team's own: a season, or its matches at an event named, Worlds or a state championship.
-    // A place only narrows a state championship ("<team> highlights at nj states").
-    if (p.teams.length > 1 || (scope.place && !(p.states && region)) || scope.area || scope.level || p.finals || p.eventKind) return null;
+    // A place narrows its matches to events held there ("<team> highlights in romania"), or a state championship to
+    // that state's ("<team> highlights at nj states"); a whole country or region read by the pipeline (scope.area) the same.
+    if (p.teams.length > 1 || ((scope.place || scope.area) && !region) || scope.level || p.finals || p.eventKind) return null;
     const t = p.teams[0];
     const said = heldIn ?? (p.time ? placeSeason(p, scope.season, opts) : null);
     const place: TeamHighlightScope | undefined = evs ? { has: (m) => evs.some((e) => e.season === m.season && (e.code === m.code || e.code === m.division)), label: shortEvent(byMain![0].name, byMain![0].type) }
       : p.worlds ? { has: (m) => m.type === CHAMPIONSHIP_TYPE, label: "the FIRST Championship" }
-      : p.states ? { has: (m) => STATES_KIND.types.includes(m.type ?? "") && (!region || (m.country === region.country && (!region.state || m.state === region.state))), label: region ? `the ${region.name} championship` : "a state championship" } : undefined;
+      : p.states ? { has: (m) => STATES_KIND.types.includes(m.type ?? "") && (!region || (m.country === region.country && (!region.state || m.state === region.state))), label: region ? `the ${region.name} championship` : "a state championship" }
+      : region ? { has: (m) => m.country === region.country && (!region.state || m.state === region.state), label: region.name, phrase: `in ${region.name}` } : undefined;
     // A time said ("in December", "this week"): its matches played on those days, in an event named too when one is.
     const w = scope.window;
     const when: TeamHighlightScope | undefined = w ? { has: (m) => { const d = (m.date ?? "").slice(0, 10); return d >= w.from && d <= w.to && (!place || place.has(m)); }, label: place?.label ?? w.label, phrase: `${place ? `at ${place.label} ` : ""}${WHEN_WORD.test(w.label) ? w.label : `in ${w.label}`}`, ...(said != null ? { season: said } : {}) } : place;
