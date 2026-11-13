@@ -17,10 +17,12 @@ match ("Qualification 21 of 36", "Playoff Match 7") and runs its timer.
 point, and reads two things with tesseract.js:
 
 1. **The overlay's match**: `overlayLabel` turns "Qualification 21 of 36" into Q21 and "Playoff Match 10" into M10.
-2. **The timer**, in one of three places:
-   - the bar along the bottom (FTC Live's default): a 2:30 countdown, Auto while above 2:00;
-   - a box over the field, under a bar across the top (FTC Ontario): the same 2:30 countdown;
-   - the bar along the top (FIRST in Texas): a 0:30 Auto, then a 2:00 TeleOp.
+2. **The timer**, in one of three places: the bar along the bottom (FTC Live's default), a box over the field under
+   a bar across the top (FTC Ontario), or the bar along the top (FIRST in Texas). Each counts Auto down from 0:30,
+   then 8 s to pick up the controllers ("0:05" under a hand), then TeleOp from 2:00. A reading of 0:30 or less is
+   Auto or the end of TeleOp, so it's read again 45 s on: still the same match with well over 30 s left means Auto.
+   A reading of 8 s or less (the switch, or TeleOp's last seconds) is never used. Taking an Auto "0:20" for TeleOp's
+   would put a match 2 minutes early, the mistake a frame-by-frame check of Western Edge Sand's Q53 caught.
 
    YouTube's auto-captions sit right over the bottom bar's timer, so the player's caption layer is hidden before
    any frame is read.
