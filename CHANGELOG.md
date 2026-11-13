@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.9.3 — 2026-11-13
+
+A search answer's team card no longer jumps when the team's details come in, and the footer stays put while results load.
+
+### Highlights
+- [appearance] A team's card in search keeps its shape as its details load
+- [appearance] The season picker stays top right of a search answer's card
+- [appearance] The page footer no longer flashes up while search loads
+
+### Fixed
+- A search answer's team card moved about 100 px down when the team's place, school and rookie year arrived: a long line wrapped the header and pushed the season picker, the team page link and the whole card under it (measured live, 0.12 of layout shift on "quantum robotics highlights in romania"). The header now has two fixed columns from a small screen up, and the facts line's place is held while it loads. The loading screen is at least a screen tall, so the footer is never shown under it and then pushed away. (`src/components/search/page/TeamAnswer.tsx`, `src/components/search/SearchSkeleton.tsx`) (#1441)
+
 ## 5.9.2 — 2026-11-13
 
 Search answers a team's highlights in a place and its best match, and the results page keeps its layout as it loads.

@@ -98,12 +98,16 @@ function TeamHeader({ who, profile, season }: { who: Who; profile?: TeamProfile 
   const name = t?.name ?? who.name;
   const loc = t ? place(t.city, t.state, t.country) : null;
   return (
-    <header className="flex flex-wrap items-start justify-between gap-4 border-b border-border p-4 sm:p-6" data-answer-team={who.number}>
+    // Two fixed columns from a small screen up: the facts line arriving (or wrapping) never moves the season and the
+    // team page link, nor the card below (owner, 13 Nov: the card jumped when they came in).
+    <header className="flex flex-wrap items-start justify-between gap-4 border-b border-border p-4 sm:grid sm:grid-cols-[minmax(0,1fr)_auto] sm:p-6" data-answer-team={who.number}>
       <div className="min-w-0">
         <Link to={`/teams/${who.number}${season != null ? `?season=${season}` : ""}`} className="group block max-w-full rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
           <span className="block font-display text-4xl font-semibold leading-none tracking-tight text-foreground transition-colors group-hover:text-accent-text">{who.number}</span>
           <span className="mt-1.5 block break-words text-lg text-foreground/90">{name ?? "Name not on file"}</span>
         </Link>
+        {/* While the team's facts are read: their line's place, held. */}
+        {profile === undefined && <p className="mt-2 h-5" aria-hidden data-team-facts-pending><span className="skeleton block h-3.5 w-56 max-w-full" /></p>}
         {t && (loc || t.school || t.rookieYear) && (
           <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground" data-team-facts>
             {loc && <span className="inline-flex items-center gap-1.5"><MapPin className="size-4 shrink-0" aria-hidden />{loc}</span>}
