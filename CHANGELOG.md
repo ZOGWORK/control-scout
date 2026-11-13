@@ -15,6 +15,26 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 5.9.4 — 2026-11-13
+
+Search answers and People also ask come back faster: the slowest database reads behind them are gone or kept.
+
+### Highlights
+- [speed] People also ask and Related searches arrive faster
+- [speed] One search's follow-ups no longer hold up everyone else's search
+- [speed] Award and championship questions answer about 10× faster
+- [speed] Record-score and leaderboard questions reuse what's already read
+- [speed] Search sends its own timing, so slow searches can be traced
+
+### Changed
+- An event's divisions are found by their parent's code (migration 85, `events_division`): every award and championship question ("who won the Think award at the New Jersey Championship") read every award of the seasons asked about to find them, 15 ms a read and dozens of reads for People also ask; now 0.2 ms. (`server/db.ts`)
+- A league meet's standing counts its league's teams starting from the league's own meets instead of from every ranked team of the season: 290 ms for a team with many league meets, now 5 ms, the same count. The two places that count it share one query. (`server/api/teams.ts`, `server/api/answers/eventSet.ts`, `server/api/answers/families/facts.ts`)
+- The season-wide reads behind leaderboards, record scores and top matches (100–320 ms each) are kept as search's other reads are, until the data moves: the next question over the same rows ("highest score in decode", then "decode world record") reads no SQL. (`server/api/answers/families/leaderboard.ts`, `server/api/searchHighScores.ts`, `server/api/answers/families/topMatches.ts`)
+- The search index's version is read at most every 2 seconds (and at once after this server writes what search reads) instead of on every use of each in-memory index: one People also ask asked it about 500 times. (`server/api/searchReads.ts`)
+- People also ask's checks (up to 40 searches for one search) run one at a time, with a turn for other requests between them. The database never gives the server's one thread back on its own, so asked all at once they held every other visitor's search for their whole run, 2 to 4 seconds (one live search waited 18 seconds); now a search that comes in meanwhile waits for one check at most. The same checks run, the same follow-ups come back. (`server/api/answers/followUps.ts`)
+- A stored country's own name is read once when the names index is built, not again for every word of every query read: a fifth of an answer's time went to it. (`server/api/query/names.ts`)
+- `/api/search?answer=1` and `/api/search/follow` send a `Server-Timing` header (the answer, the rest, the follow-ups, in milliseconds), and who's asking is read beside the team's highlights rather than after them. (`server/app.ts`, `server/api/searchTiming.ts`) (#1440)
+
 ## 5.9.3 — 2026-11-13
 
 A search answer's team card no longer jumps when the team's details come in, and the footer stays put while results load.

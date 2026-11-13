@@ -17,7 +17,7 @@ import { teamPageSql } from "../../src/shared/teamPages.js";
 import { searchTeamTitle, teamNameOf } from "../../src/shared/teamTitle.js";
 import { nameWords, onlyCommonWords } from "../../src/shared/searchQuery.js";
 import { placeHit } from "./searchEvents.js";
-import { searchRead } from "./searchReads.js";
+import { searchRead, searchVersion } from "./searchReads.js";
 import { place } from "../../src/shared/format.js";
 
 /** Turn free text into a safe FTS5 query: every word as a quoted prefix term. */
@@ -94,7 +94,7 @@ export function searchIntent(q: string, typos = false): { topic: SearchTopic | n
 /** `season`: the season a query named ("last season", "2024-25"): a team's numbers and links are that season's. */
 /** `asked`: the query as typed ended in "?" (a question: its own words name nothing, src/shared/searchQuery.ts). */
 export async function search(q: string, limit = 12, prefer: ReadonlySet<string> = new Set(), kinds?: ReadonlySet<SearchHit["kind"]>, season?: number | null, asked = false): Promise<SearchHit[]> {
-  const version = (await kvGet<string>("search:version")) ?? "0";
+  const version = await searchVersion();
   if (version !== memoVersion) { memo.clear(); memoVersion = version; }
   // The one flag search reads (a team's schedule difficulty) is part of the key.
   const difficulty = await isEnabled("scheduleDifficulty").catch(() => false);
@@ -412,7 +412,7 @@ let indexCache: { version: string; index: Promise<FuzzyIndex> } | null = null;
 
 /** The typo index in memory (reloaded when the search index is rebuilt). */
 async function fuzzyIndex(): Promise<FuzzyIndex> {
-  const version = (await kvGet<string>("search:version")) ?? "0";
+  const version = await searchVersion();
   if (indexCache?.version === version) return indexCache.index;
   const index = all<any>("SELECT kind, ref, season, weight, title, subtitle, name FROM search_fuzzy").then(buildFuzzyIndex);
   indexCache = { version, index };

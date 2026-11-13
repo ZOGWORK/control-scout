@@ -92,6 +92,14 @@ export async function seasonStats(season: number, team: number): Promise<TeamSea
  * if this team was on the field in a played match
  * (scheduled no-shows don't count). An event with no results yet (upcoming, or a remote one) counts as listed.
  */
+/** How many teams a league meet's standing is out of (FIRST's league ranking at a meet is the league's running table):
+ *  the teams ranked at that meet or at its league's earlier meets of the season (its region's: a league code can repeat
+ *  across regions). For a row of event_teams `et` at event `e`. The events are read first, each one's teams by its key
+ *  (CROSS JOIN keeps that order): the other way round walked every ranked team of the season, 290 ms for a team with
+ *  many league meets against 5 ms (measured 2026-11-13). */
+export const LEAGUE_RANKED = `(SELECT COUNT(DISTINCT o.team) FROM events oe CROSS JOIN event_teams o ON o.season = oe.season AND o.code = oe.code
+  WHERE oe.season = et.season AND o.rank IS NOT NULL AND (oe.code = e.code OR (e.league IS NOT NULL AND oe.league = e.league AND oe.region IS e.region AND oe.type = 'LeagueMeet' AND oe.start <= e.start)))`;
+
 export const ATTENDED = `(NOT EXISTS (SELECT 1 FROM matches m WHERE m.season = et.season AND m.code = et.code AND m.played = 1)
             OR EXISTS (SELECT 1 FROM match_teams x JOIN matches m
                          ON m.season = x.season AND m.code = x.code AND m.level = x.level AND m.series = x.series AND m.number = x.number

@@ -18,7 +18,10 @@ import { teamPageSql } from "../../../../src/shared/teamPages.js";
 import { OFFICIAL_ONLY, recordSql } from "../../../../src/shared/eventRecord.js";
 import { countryOf } from "../../../../src/shared/countries.js";
 import type { Region } from "../../../../src/shared/regions.js";
-import { all, get } from "../../../db.js";
+// Every read here is a whole season's (or every season's) board: kept as search's own reads are (searchReads.ts, until
+// the data moves), so the next board question over the same rows ("best opr in texas", then "top teams in texas")
+// reads no SQL. A gain or a growth board walks every team's events: 100–300 ms a read (measured 2026-11-13).
+import { searchGet as get, searchRead as all } from "../../searchReads.js";
 import { currentSeason, searchSeasonWhy } from "../season.js";
 import { reportedTeleopIncludesEndgame } from "../../../data/seasons.js";
 import { eventHref, teamHref } from "../matchSet.js";

@@ -123,6 +123,24 @@ async function keep<T>(which: "rows" | "answers" | "pages", key: string, ttl: nu
 export const searchRead = <T>(sql: string, args: (string | number | null)[] = []): Promise<readonly T[]> =>
   keep("rows", `${sql}\u0000${JSON.stringify(args)}`, READ_TTL_MS, READS_KEPT, () => all<T>(sql, args));
 
+let version: { at: number; writes: number; value: Promise<string> } | null = null;
+/** The search index's version ("search:version", moved by the stats job's rebuild), read at most every
+ *  VERSION_CHECK_MS, and again after any write this process makes to what search reads (as the kept reads are). Every
+ *  in-memory index search holds (the names, the typo index, the spelling vocabulary, the hits memo) asks it on each
+ *  use: one answer asked it about 60 times, and People also ask's checks about 500 times a search. */
+export function searchVersion(now = Date.now()): Promise<string> {
+  if (version && version.writes === dataWriteCount() && now - version.at < VERSION_CHECK_MS) return version.value;
+  const value = kvGet<string>("search:version").then((v) => v ?? "0");
+  const mine = { at: now, writes: dataWriteCount(), value };
+  version = mine;
+  // A failed read isn't kept: the next ask reads again.
+  value.catch(() => { if (version === mine) version = null; });
+  return value;
+}
+
+/** `get(sql, args)`, kept as `searchRead` is: the first row, or undefined. */
+export const searchGet = async <T>(sql: string, args: (string | number | null)[] = []): Promise<T | undefined> => (await searchRead<T>(sql, args))[0];
+
 /** A whole answer, kept a minute under `key` (the query and every option that changes its answer). Shared by every
  *  caller: never changed. */
 export const keptAnswer = <T>(key: string, make: () => Promise<T>): Promise<T> => keep("answers", key, ANSWER_TTL_MS, ANSWERS_KEPT, make);
@@ -133,4 +151,4 @@ export const keptPage = <T>(key: string, make: () => Promise<T>): Promise<T> => 
 /** How many of each are kept right now, and how many copies from before the last data move (tests). */
 export const keptCounts = () => ({ rows: kept.rows.size, answers: kept.answers.size, pages: kept.pages.size, carried: kept.before.answers.size + kept.before.pages.size });
 
-registerCache("Search reads, answers and pages", () => { kept = fresh(); });
+registerCache("Search reads, answers and pages", () => { kept = fresh(); version = null; });
