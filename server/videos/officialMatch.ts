@@ -153,7 +153,7 @@ export function matchVideo(v: WatchVideo, rule: ChannelRule, events: WatchEvent[
   if (b) return { kind: "review", why: `the title fits both ${a.e.code} and ${b.e.code}`, ...at };
   if (titleDates && !titleDates.includes(a.d)) return { kind: "review", why: `the title's date ${titleDates[0]} isn't the broadcast's (${a.d})`, ...at };
   if (wd && wd !== weekday(v.start, a.e.timezone)) return { kind: "review", why: `the title says ${wd}, the broadcast was on ${weekday(v.start, a.e.timezone)}`, ...at };
-  if (v.privacy === "private" || !v.embeddable || v.blockedIn >= 50) return { kind: "review", why: `can't be played here (${v.privacy}${v.embeddable ? "" : ", not embeddable"}${v.blockedIn ? `, blocked in ${v.blockedIn} countries` : ""})`, ...at };
+  if (v.privacy !== "public" || !v.embeddable || v.blockedIn >= 50) return { kind: "review", why: `not a public video that plays here (${v.privacy}${v.embeddable ? "" : ", not embeddable"}${v.blockedIn ? `, blocked in ${v.blockedIn} countries` : ""})`, ...at };
   // One video at a time can't check the days line up across the event (the list could), so a title's day must be the event's own.
   const eventDay = daysBetween(a.e.start, a.d) + 1;
   if (titleDay != null && titleDay !== eventDay) return { kind: "review", why: `the title says day ${titleDay}, the broadcast was the event's day ${eventDay}`, ...at };

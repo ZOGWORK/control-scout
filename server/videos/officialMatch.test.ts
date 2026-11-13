@@ -46,6 +46,7 @@ describe("the watcher's matcher", () => {
     expect(matchVideo(vid("Mockingbird League Meet 3"), TX, two)).toMatchObject({ kind: "review", why: /fits both/ });
     expect(matchVideo(vid("Mockingbird Qualifier", { blockedIn: 249 }), TX, one)).toMatchObject({ kind: "review", why: /blocked in 249/ });
     expect(matchVideo(vid("Mockingbird Qualifier", { embeddable: false }), TX, one)).toMatchObject({ kind: "review", why: /not embeddable/ });
+    expect(matchVideo(vid("Mockingbird Qualifier", { privacy: "unlisted" }), TX, one)).toMatchObject({ kind: "review", why: /unlisted/ });
     // A state name and a type alone aren't evidence.
     expect(matchVideo(vid("Texas Qualifier"), TX, one)).toMatchObject({ kind: "review", why: /no event on that date fits/ });
     // No event of the channel's region that day.

@@ -287,13 +287,24 @@ export async function approveWatched(videoId: string, body: { season?: unknown; 
   }
   const at = new Date(now).toISOString();
   const why = `approved from the watcher's queue: ${w.why}`;
-  await db().batch([
-    { sql: `INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, why, added_at, added_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'owner', ?, ?, ?) ON CONFLICT(video_id) DO NOTHING`,
-      args: [videoId, Number(ev.season), String(ev.code), kind, kind === "recording" ? day : null, kind === "recording" ? part : null, String(w.channel_id), String(w.title), why.slice(0, 500), at, actor] },
-    { sql: "UPDATE official_watch SET status = 'approved', season = ?, code = ?, day = ?, part = ?, decided_at = ?, decided_by = ? WHERE video_id = ?",
-      args: [Number(ev.season), String(ev.code), day, part, at, actor, videoId] },
-  ], "write");
+  // One write: the queue row is claimed only while it's still undecided, and the recording goes in only if no other
+  // official recording holds that event, day and part (official_videos_day) — or the whole approval is undone.
+  const tx = await db().transaction("write");
+  try {
+    const claimed = await tx.execute({ sql: "UPDATE official_watch SET status = 'approved', season = ?, code = ?, day = ?, part = ?, decided_at = ?, decided_by = ? WHERE video_id = ? AND status IN ('pending', 'ignored')",
+      args: [Number(ev.season), String(ev.code), day, part, at, actor, videoId] });
+    if (!claimed.rowsAffected) { await tx.rollback(); return { ok: false, error: "Already decided." }; }
+    const put = await tx.execute({ sql: `INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, why, added_at, added_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'owner', ?, ?, ?) ON CONFLICT DO NOTHING`,
+      args: [videoId, Number(ev.season), String(ev.code), kind, kind === "recording" ? day : null, kind === "recording" ? part : null, String(w.channel_id), String(w.title), why.slice(0, 500), at, actor] });
+    if (!put.rowsAffected) { await tx.rollback(); return { ok: false, error: `${ev.code} already has an official video for ${day}${part ? ` (${part})` : ""}, or this video is already on an event.` }; }
+    await tx.commit();
+  } catch (e) {
+    await tx.rollback().catch(() => {});
+    throw e;
+  } finally {
+    tx.close();
+  }
   forgetOfficial();
   await recordAudit(actor, "officialVideo.approve", { videoId, season: Number(ev.season), code: String(ev.code), kind, day, part, was: String(w.status) });
   return { ok: true };
@@ -359,6 +370,7 @@ export async function runNow(actor: string, log: (s: string) => void, now = Date
   const last = await get<{ started_at: string }>("SELECT started_at FROM official_watch_runs ORDER BY id DESC LIMIT 1");
   if (last && now - Date.parse(last.started_at) < 10 * 60_000) return { ok: false, error: "The watcher ran less than 10 minutes ago." };
   const out = await runOfficialWatch(log);
-  await recordAudit(actor, "officialVideo.runNow", out ? { ...out } : { busy: true });
+  if (!out) return { ok: false, error: "The watcher is already running: its results show here when it's done." };
+  await recordAudit(actor, "officialVideo.runNow", { ...out });
   return { ok: true, run: out };
 }

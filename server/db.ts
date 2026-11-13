@@ -2266,6 +2266,9 @@ CREATE TABLE official_watch (
   decided_by TEXT
 );
 CREATE INDEX official_watch_status ON official_watch (status, seen_at);
+-- One official recording per event, day and part (a named part such as the awards is its own), so two approvals or
+-- adds at once can't both land on one day.
+CREATE UNIQUE INDEX official_videos_day ON official_videos (season, code, day, COALESCE(part, '')) WHERE kind = 'recording' AND removed_at IS NULL;
 -- One row a run: API units used (of YouTube's 10,000 a day), what it read and did, and the error that stopped it.
 CREATE TABLE official_watch_runs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

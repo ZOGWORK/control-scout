@@ -108,7 +108,14 @@ describe("the official-video watcher", () => {
     expect(await approveWatched(REV, { season: 2025, code: "NOPE", day: "2026-01-17" }, "owner@example.test")).toMatchObject({ ok: false });
     expect((await approveWatched(REV, { season: 2025, code: "ustxmoq", day: "2026-01-18", kind: "recording" }, "owner@example.test")).ok).toBe(true);
     expect(await get<any>("SELECT code, day, source, added_by FROM official_videos WHERE video_id = ?", [REV])).toMatchObject({ code: "USTXMOQ", day: "2026-01-18", source: "owner", added_by: "owner@example.test" });
-    expect((await approveWatched(REV, { season: 2025, code: "USTXMOQ", day: "2026-01-18" }, "owner@example.test")).ok).toBe(false); // decided already
+    expect(await approveWatched(REV, { season: 2025, code: "USTXMOQ", day: "2026-01-18" }, "owner@example.test")).toMatchObject({ ok: false }); // decided already
+    // Two approvals of one day at once: the second can't land (the unique day index under the same write).
+    await run("INSERT INTO official_watch (video_id, channel_id, title, status, why, seen_at) VALUES ('raceraceRAC', ?, 't', 'pending', 'x', 'x')", [TX]);
+    await expect(run("INSERT INTO official_videos (video_id, season, code, kind, day, part, channel_id, title, source, added_at) VALUES ('raceraceRA2', 2025, 'USTXMOQ', 'recording', '2026-01-18', NULL, ?, 't', 'owner', 'x')", [TX])).rejects.toThrow(/UNIQUE/);
+    const raced = await approveWatched("raceraceRAC", { season: 2025, code: "USTXMOQ", day: "2026-01-18", kind: "recording" }, "owner@example.test");
+    expect(raced.ok).toBe(false);
+    expect((await get<any>("SELECT status FROM official_watch WHERE video_id = 'raceraceRAC'"))?.status).toBe("pending");
+    expect((await rejectWatched("raceraceRAC", "same day", "owner@example.test")).ok).toBe(true);
     expect((await rejectWatched(DUP, "x", "owner@example.test")).ok).toBe(false); // a duplicate isn't in the queue
     // A set-aside video can still go on as a highlight.
     expect((await approveWatched(IGN, { season: 2025, code: "USTXMOQ", kind: "highlight" }, "owner@example.test")).ok).toBe(true);
@@ -126,7 +133,7 @@ describe("the official-video watcher", () => {
     await runOfficialWatch(() => {}, { apiKey: "k", fetchImpl: fakeFetch, now: () => NOW + 20_000 });
     expect((await get<any>("SELECT status FROM official_watch WHERE video_id = ?", [REJ]))?.status).toBe("rejected");
     expect(await get<any>("SELECT 1 FROM official_videos WHERE video_id = ?", [REJ])).toBeUndefined();
-    expect((await all<{ action: string }>("SELECT action FROM owner_audit WHERE action = 'officialVideo.reject'")).length).toBe(1);
+    expect((await all<{ action: string }>("SELECT action FROM owner_audit WHERE action = 'officialVideo.reject'")).length).toBe(2);
     const o = await ownerOfficial(NOW);
     expect(o.pending).toHaveLength(0);
     expect(o.decided.map((w) => w.status)).toEqual(expect.arrayContaining(["approved", "rejected"]));
