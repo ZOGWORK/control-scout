@@ -18,7 +18,8 @@ const Card = () => (
 /** `top`: what the page keeps above it while loading (a phone's search bar holding the query). */
 export function SearchSkeleton({ query, top }: { query: string; top?: ReactNode }) {
   return (
-    <div className="w-full max-w-6xl pt-4 sm:pt-8" data-search-loading aria-busy="true">
+    // At least a screen tall: the footer stays below, never shown under the loading shapes and then pushed away.
+    <div className="min-h-[100dvh] w-full max-w-6xl pt-4 sm:pt-8" data-search-loading aria-busy="true">
       {top}
       <p className="text-xs font-semibold text-accent-text max-md:hidden">FTC One Search</p>
       <h1 className="sr-only">Searching for “{query}”</h1>
