@@ -16,6 +16,7 @@ import { mineAnswer } from "./api/searchMine.js";
 import { myTeamOf } from "../src/shared/searchMine.js";
 import { answerHits, pickedQuery, pickedSeasonOf, withHighlights } from "./api/searchPageAnswer.js";
 import { keptFollowUps, pageAnswer } from "./api/answers/followUps.js";
+import { withVideoAlternatives } from "./api/answers/videoSuggest.js";
 import { relatedPage } from "./api/answers/relatedPage.js";
 import { refine } from "./api/searchBruno.js";
 import { brunoAnswer } from "./api/searchBrunoAnswer.js";
@@ -444,11 +445,16 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
       const viewer = await asking;
       const [hits, video] = await Promise.all([answerHits(full.hits), answerVideo(full, Date.now(), viewer).then((v) => v ?? null, () => undefined)]);
       if (video && (video.main?.kind === "contributor" || Object.values(video.rows ?? {}).some((x) => x.kind === "contributor"))) res.setHeader("Cache-Control", "private, no-store");
+      // Asked to watch and nothing plays (server/api/answers/videoSuggest.ts): questions that do, each checked. Only
+      // when the video was read: a failed read says nothing either way.
+      const offered = video === undefined ? full : await withVideoAlternatives(q, full, video, (x) => pageAnswer(x, limit, prefer), (b) => answerVideo(b, Date.now(), viewer), undefined, undefined, viewer?.userId != null ? `u${viewer.userId}` : "").catch(() => full);
+      // Checked for this viewer (a video they added may be what plays): questions offered to one viewer are never cached.
+      if (viewer?.userId != null && offered !== full) res.setHeader("Cache-Control", "private, no-store");
       // This process's own time (searchTiming): the answer, then the rest (highlights, team numbers, video).
       res.setHeader("Server-Timing", searchTiming({ answer: answered - started, extras: performance.now() - answered }));
       // null: read, and nothing plays (the page then says so); a read that failed sends none, as a first paint carries
       // none (src/shared/api.ts): the page then says nothing about video.
-      return { ...full, hits, ...(video !== undefined ? { video } : {}) };
+      return { ...offered, hits, ...(video !== undefined ? { video } : {}) };
     }
     return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, MAX_QUERY), limit, prefer, kinds) };
   }));
