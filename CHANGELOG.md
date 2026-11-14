@@ -26,7 +26,7 @@ With no internet, an event you downloaded now shows its Result changes too, and 
 
 ### Fixed
 - The event pack now holds the event's result changes and each match's (`/api/events/:season/:code/result-changes` and `/matches/:key/result-changes`), read through the same `resultChanges()` the routes call, so with no signal the event page's Result changes section and each match's show the server's own answer instead of "You're offline. This page needs a connection". A real event's pack grows by 0.2–2.6 KB gzipped (measured locally on five 2026 events).
-- The home page's season totals (`/api/home/overview`) are kept on the device like the scouting reads (`lib/offline/kept.ts`). With no signal the strip shows the last totals this device loaded, with the offline note saying when; if none were ever loaded, the strip is left out instead of an error with Try again. No number is ever made up.
+- The home page's season totals (`/api/home/overview`) are kept on the device like the scouting reads (`lib/offline/kept.ts`). With no signal the strip shows the last totals this device loaded, with the offline note saying when; if none were ever loaded, the strip is left out instead of an error with Try again. No number is ever made up. (#1496)
 
 ## 6.2.5 — 2026-11-14
 
