@@ -19,6 +19,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useSyncExternalStore } from "react";
 import { offlineSource, savedSeasons } from "./offline/saved";
 import { bundleCanAnswer, bundleFor, comparePacksSaved, savedBundles } from "./offline/bundleMeta";
+import { answerableOffline, keepable, keepAnswer, keptAt, keptOwner, keptPaths } from "./offline/kept";
 import { packStatus } from "./packPolicy";
 import { FEATURE_DISABLED, featureOffMessage } from "../shared/flags";
 import { noteArrived, watchRequest } from "./liteSuggest";
@@ -59,6 +60,20 @@ export const OFFLINE_TIMEOUT_MS = 4000;
 /** A match report an event-day bundle holds a frozen copy of (the page shows it with no signal). */
 const REPORT_PATH = /^\/api\/events\/(\d{4})\/([^/?]+)\/matches\/([^/?]+)\/report(\?|$)/;
 
+/** A kept read (lib/offline/kept.ts) this device could answer with no signal: its own last answer, another kept
+ *  answer of the same kind (the event list, the shortlist rows), or an event-day bundle. */
+function keptReady(path: string): boolean {
+  if (!answerableOffline(path)) return false;
+  if (keepable(path) && keptAt(path) != null) return true;
+  const route = path.split("?")[0];
+  // The shortlist always answers: a team with nothing kept is still listed, by number (scoutReads.offlineShortlist).
+  if (route === "/api/shortlist") return true;
+  if (route === "/api/events" || /^\/api\/teams\/\d+\/matches$/.test(route)) {
+    return savedBundles().length > 0 || keptPaths((p) => p.split("?")[0] === route).length > 0;
+  }
+  return false;
+}
+
 function offlineKind(path: string, method: string | undefined): "saved" | "lite" | "snapshot" | null {
   if ((method ?? "GET").toUpperCase() !== "GET") return null;
   // A saved event pack holds the server's own answer for this read (team and match pages, Compare of its teams).
@@ -71,8 +86,10 @@ function offlineKind(path: string, method: string | undefined): "saved" | "lite"
     if (saved.length && (season == null || saved.some((s) => s.season === season))) return "saved";
     // An event-day bundle answers its own event's page (docs/event-bundle.md).
     const ev = /^\/api\/events\/(\d{4})\/([^/?]+)$/.exec(url.pathname);
-    return ev && bundleFor(Number(ev[1]), decodeURIComponent(ev[2])) ? "saved" : null;
+    return ev && bundleFor(Number(ev[1]), decodeURIComponent(ev[2])) ? "saved" : keptReady(path) ? "saved" : null;
   }
+  // A scouting page's read this device kept the last answer to (lib/offline/kept.ts), or can make from a bundle.
+  if (keptReady(path)) return "saved";
   // A report the bundle froze: no answer in OFFLINE_TIMEOUT_MS counts as no signal, so the page shows the
   // snapshot and the request is retried until the server answers (live takes over).
   const rep = REPORT_PATH.exec(path);
@@ -147,7 +164,9 @@ function savedAnswerOrError(path: string): Promise<{ data: unknown } | { error: 
  *  server's answer stands. */
 async function offlineOr<T>(path: string, method: string | undefined, error: ApiError): Promise<T> {
   // A comparison with a team no saved pack holds still reaches the saved data, which says which team is missing.
-  if ((method ?? "GET").toUpperCase() !== "GET" || !(OFFLINE_PATHS.test(path) || bundleCanAnswer(path) || comparePacksSaved(path)) || (!savedSeasons().length && !savedBundles().length)) throw error;
+  const get = (method ?? "GET").toUpperCase() === "GET";
+  const saved = (OFFLINE_PATHS.test(path) || bundleCanAnswer(path) || comparePacksSaved(path)) && (savedSeasons().length > 0 || savedBundles().length > 0);
+  if (!get || (!saved && !keptReady(path))) throw error;
   const got = await savedAnswerOrError(path);
   if ("error" in got) throw got.error;
   const data = got.data;
@@ -310,6 +329,8 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
   if (ctrl && outer) { if (outer.aborted) ctrl.abort(); else outer.addEventListener("abort", forward, { once: true }); }
   // Slow or failing requests while online offer the light version (src/lib/liteSuggest.ts).
   const watch = watchRequest(path, rest.method);
+  // Whose answer this is: a scouting read is kept for the account signed in when it was asked (lib/offline/kept.ts).
+  const asker = keepable(path, rest.method) ? keptOwner() : undefined;
   let res: Response;
   let answered = false;
   try {
@@ -381,6 +402,8 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
   }
   // Only a good, readable answer is the page's data arriving.
   watch.done(res.ok && !unreadable);
+  // A scouting page's read: kept on the device for when there's no signal (lib/offline/kept.ts).
+  if (res.ok && !unreadable && asker !== undefined) void keepAnswer(path, body, asker);
   if (!res.ok) {
     // Switched off by the owner: the server's own words, and the code that tells it from a lost membership.
     if (res.status === 403 && body?.error === FEATURE_DISABLED) throw new ApiError(403, typeof body.message === "string" ? body.message : featureOffMessage(String(body.feature ?? "")), false, FEATURE_DISABLED, typeof body.feature === "string" ? body.feature : undefined);

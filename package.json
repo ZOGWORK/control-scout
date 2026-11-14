@@ -47,7 +47,6 @@
     "audit:flows": "tsx scripts/audit-flows.ts",
     "a11y": "tsx scripts/a11y.ts",
     "perf": "tsx scripts/perf.ts",
-    "offline:check": "tsx scripts/offline-check.ts",
     "query-profile": "tsx scripts/query-profile.ts",
     "power-rankings:new": "tsx scripts/power-rankings-new.ts",
     "power-rankings:check": "tsx scripts/power-rankings-check.ts",
