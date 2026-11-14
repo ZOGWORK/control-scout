@@ -583,7 +583,8 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
           className={cn("min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground", lg ? "text-base" : "text-sm")}
         />
         {!q && hint && <kbd className="hidden shrink-0 rounded border border-border px-1.5 font-mono text-[10px] text-muted-foreground sm:inline">{hint}</kbd>}
-        {q && <button type="button" onClick={() => setQ("")} aria-label="Clear search" className="rounded p-0.5 text-muted-foreground hover:text-foreground"><X className="size-4" /></button>}
+        {/* A touch screen: a 44px target (the icon alone is too small to hit), pulled into the row's padding. */}
+        {q && <button type="button" onClick={() => setQ("")} aria-label="Clear search" className="flex shrink-0 items-center justify-center rounded p-0.5 text-muted-foreground hover:text-foreground pointer-coarse:-my-1 pointer-coarse:-mr-2 pointer-coarse:size-[44px]"><X className="size-4" /></button>}
       </div>
       {showList && (
         <m.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.14, ease: [0.2, 0.8, 0.2, 1] }}
