@@ -582,9 +582,9 @@ export interface OwnerCoverageEvent {
   videos: CoverageVideo[]; daysMissing: ClipCoverage["daysMissing"]; missing: CoverageMatch[];
 }
 /** Open (not yet reviewed) events first; totals over every recorded event checked. */
-/** One page (from `offset`) of the open or the reviewed list; `open`, `reviewed`: how many each holds; totals over every
+/** One page (after a given event) of the open or the reviewed list; `open`, `reviewed`: how many each holds; totals over every
  *  recorded event checked. */
-export interface OwnerClipCoverage { events: OwnerCoverageEvent[]; offset: number; open: number; reviewed: number; totals: { events: number; played: number; withClip: number; full: number } }
+export interface OwnerClipCoverage { events: OwnerCoverageEvent[]; open: number; reviewed: number; totals: { events: number; played: number; withClip: number; full: number } }
 
 export interface EventSummary {
   season: number;
