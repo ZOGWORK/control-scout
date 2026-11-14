@@ -1,7 +1,7 @@
 // No dead ends for video (./videoSuggest.ts, search video brief point 7): a search asking to watch whose answer plays
 // nothing gets questions that do play, each checked by asking it; never one whose answer has no video, never when the
 // answer already plays, and never holding the answer up.
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SearchAnswer, SearchVideo } from "../../../src/shared/api";
 import { asksVideo, forgetVideoChecks, hasVideo, withVideoAlternatives } from "./videoSuggest";
 
@@ -130,6 +130,24 @@ describe("withVideoAlternatives", () => {
     const second = withVideoAlternatives("6980 at east bergen with video", answer(), undefined, ask, videoOf, 1000, one("b highlights"));
     await Promise.all([first, second]);
     expect(slowAsks).toBe(1);
+  });
+
+  it("a check still running past its minute is still shared, never started again", async () => {
+    let asks = 0, release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    const ask = async (q: string) => { asks++; await gate; return askOf(q); };
+    const one = async () => ["b highlights"];
+    const t0 = Date.now();
+    const first = withVideoAlternatives("6980 at east bergen with video", answer(), undefined, ask, videoOf, 5000, one);
+    await new Promise((r) => setTimeout(r, 10));
+    const now = vi.spyOn(Date, "now").mockReturnValue(t0 + 61_000);
+    try {
+      const second = withVideoAlternatives("6980 at east bergen with video", answer(), undefined, ask, videoOf, 5000, one);
+      await new Promise((r) => setTimeout(r, 10));
+      release();
+      await Promise.all([first, second]);
+    } finally { now.mockRestore(); }
+    expect(asks).toBe(1);
   });
 
   it("stray spaces around a query are no watch word", async () => {
