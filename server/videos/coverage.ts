@@ -31,6 +31,8 @@ const weekday = (date: string) => new Intl.DateTimeFormat("en-US", { weekday: "l
 const mins = (s: number) => Math.round(s / 60);
 /** 4520 → "1 h 15 min", 900 → "15 min". */
 export function span(s: number): string {
+  // Under a minute: in seconds, never "0 min".
+  if (s < 60) return `${Math.max(1, Math.round(s))} s`;
   const m = mins(s);
   return m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ""}` : `${m} min`;
 }
