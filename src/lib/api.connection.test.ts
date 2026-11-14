@@ -112,6 +112,19 @@ describe("a Wi-Fi that carries nothing", () => {
     await expect(records).rejects.toMatchObject({ offline: true, message: "You're offline." });
     expect(offlineSource(await team)).toEqual(src);
   });
+  it("headers in, body hung: when the check finds no internet the read is answered the offline way, not with the browser's abort text", async () => {
+    writeSaved([saved]);
+    // The server's headers arrive, then its body never does (the Wi-Fi died mid-answer).
+    const hungBody = (_p: string, init?: RequestInit) => Promise.resolve(new Response(new ReadableStream({
+      start(c) { init?.signal?.addEventListener("abort", () => c.error(new DOMException("The operation was aborted.", "AbortError"))); },
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    vi.stubGlobal("fetch", vi.fn(hungBody));
+    const team = apiFetch("/api/teams/7?season=2025");
+    await new Promise((r) => setTimeout(r, 0)); // headers in; the body read is waiting
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
+    await checkInternet();
+    expect(offlineSource(await team)).toEqual(src);
+  });
 });
 
 describe("a Wi-Fi sign-in page", () => {

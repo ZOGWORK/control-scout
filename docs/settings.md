@@ -154,7 +154,7 @@ itself, the space and the view are never sent: not in a personal sync
 | `cs-scout-space`, `cs-shortlist-view`, `cs-account-cache`, `cs-onboarding`, `cs-onboarding-demo`, `cs-install`, `cs-install-demo`, `cs-lite-demo`, `cs-connection-demo`, `cs-recent-searches` | 3 | No |
 | `cs-sidebar`, `cs-records-cols:<table>`, `cs-saved-filters:v1` | local UI state | No |
 | `cs-consent`, `cs-alerts-sent`, `cs-offline-seasons`, `cs-pack-meta`, `cs-seen` | device state | No |
-| sessionStorage `cs-session`, `cs-stats-session` | this tab only | `cs-stats-session` only as the analytics "new session" bit (no ID) |
+| sessionStorage `cs-session`, `cs-stats-session`, `cs-connection-last` | this tab only | `cs-stats-session` only as the analytics "new session" bit (no ID); `cs-connection-last` is the last connection answer (`{internet, at}`, used for 2 min so the next page load starts from it) |
 
 ### First-visit onboarding
 

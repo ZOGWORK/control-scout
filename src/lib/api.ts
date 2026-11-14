@@ -326,6 +326,8 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
     : () => {};
   const outer = rest.signal;
   const forward = () => ctrl?.abort();
+  // Kept through the body read too: a Wi-Fi that dies after the headers (body hung) is let go the same way.
+  const release = () => { stopWatching(); outer?.removeEventListener("abort", forward); };
   if (ctrl && outer) { if (outer.aborted) ctrl.abort(); else outer.addEventListener("abort", forward, { once: true }); }
   // Slow or failing requests while online offer the light version (src/lib/liteSuggest.ts).
   const watch = watchRequest(path, rest.method);
@@ -365,15 +367,14 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
     return offlineOr<T>(path, rest.method, unreachable());
   } finally {
     // Answered from saved data, or failed: settled. A server answer settles once its body is in (below).
-    if (!answered) watch.done();
-    stopWatching();
-    outer?.removeEventListener("abort", forward);
+    if (!answered) { watch.done(); release(); }
   }
   // Server still starting (it opens its port before its data is ready): wait
   // as asked and try again, so a cold start reads as a slow load, not an error.
   // It answered, so this isn't "no signal"; each try gets its own timeout.
   if (res.status === 503 && res.headers.has("Retry-After") && _tries < 8) {
     watch.done(false); // the retry is watched on its own
+    release();
     // The caller letting go (a newer search, or searchOnline's deadline) ends the wait too.
     await new Promise<void>((done, fail) => {
       if (outer?.aborted) { fail(callerAborted()); return; }
@@ -386,7 +387,16 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
   // The server answered: whatever came from saved data goes back to the server's.
   if (res.status < 500) setUsingSaved(false);
   let text: string;
-  try { text = await res.text(); } catch (e) { watch.done(false); throw e; }
+  try { text = await res.text(); }
+  catch (e) {
+    watch.done(false);
+    release();
+    // Headers in, body hung, and the connection check found no internet: the offline answer, not the browser's abort text.
+    if (flipped && !outer?.aborted) { noteRequestFailed(); return answerOffline<T>(path, init); }
+    if (outer?.aborted) throw callerAborted();
+    throw e;
+  }
+  release();
   let body: any = null;
   let unreadable = false;
   try { body = text ? JSON.parse(text) : null; } catch { unreadable = true; }
