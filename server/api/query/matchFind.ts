@@ -21,7 +21,8 @@ export type MatchMeasure = "high" | "low" | "closest" | "lopsided" | "penalties"
  *  `side` is whose final score (penalties included, as the result was decided) is held to it. The losing or winning
  *  alliance's needs a decided match. Both alliances over a number is the lower score over it, under one the higher
  *  score under it; either alliance the other way round. */
-export interface ScoreCond { side: "losing" | "winning" | "both" | "either"; op: ">" | ">=" | "<" | "<=" | "="; n: number }
+export type { ScoreCond } from "../../../src/shared/query/parse.js";
+import type { ScoreCond } from "../../../src/shared/query/parse.js";
 const LOW = "MIN(m.red_total, m.blue_total)", HIGH = "MAX(m.red_total, m.blue_total)";
 /** The score a condition holds to its number. */
 export function condValue(c: ScoreCond): string {

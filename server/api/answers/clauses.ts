@@ -2,7 +2,6 @@
 // season, championship, official events, place, event, match type and alliance colour. An answer names its scope as a
 // Scope; `inScope` applies it to a team's matches (./matchSet.ts), `eventSql` to event rows (awards, placements), and
 // `scopeChips` says it in words. No intent filters on its own.
-import { seasonLabel } from "../../../src/shared/format.js";
 import { isOfficialEvent } from "../../../src/shared/eventRecord.js";
 
 /** Events whose matches count for scores and records (as server/api/searchHighScores.ts's records, and the team page's
@@ -14,35 +13,8 @@ export { OFFICIAL_TYPES } from "../../../src/shared/eventRecord.js";
 export const CHAMPIONSHIP_TYPE = "FIRSTChampionship";
 export const STATES_TYPE = "Championship";
 
-export interface Scope {
-  /** One season, or null for every season on record. */
-  season: number | null;
-  /** Every season was asked for outright ("ever", "all time", "career"): a best or worst is the best of all of them. */
-  ever?: boolean;
-  /** How the season was chosen, said in the answer ("latest season with matches for 12345"). */
-  seasonWhy?: string;
-  /** Only FIRST Championship (Worlds) events. */
-  championship?: boolean;
-  /** Only region (state) championships. */
-  states?: boolean;
-  /** One event ("season:CODE"), and its name for the chips. `codes`: every event the words named that the team played
-   *  in that season (a championship's division and its finals, an AM and a PM meet), read as one; `code` is the one
-   *  whose rank and OPR the answer shows. `absent`: the team played none of them (the answer says so; "never": it has
-   *  none of that kind on record, as a state championship). */
-  event?: { season: number; code: string; name: string; codes?: string[]; absent?: boolean | "never" };
-  /** Events held at one venue, any season ("River Dell High School"): their "season:CODE" keys. */
-  venue?: { name: string; keys: string[] };
-  /** Events in one region (by the event's own state and country), or with `outside`, every event outside it (the
-   *  team's home state: "out-of-state events"). */
-  place?: { country: string; state: string; name: string; outside?: boolean };
-  /** A date window (YYYY-MM-DD, inclusive: "this week", "on Mar 15, 2026", "in March"), and how it was said. A match
-   *  counts by its own date (its time, else its event's first day); an event when any of its days is in the window. */
-  window?: { from: string; to: string; label: string };
-  level?: "qual" | "playoff";
-  /** The finals only, of the playoffs (a match's `final`, ./matchSet.ts). Set with `level: "playoff"`. */
-  finals?: boolean;
-  alliance?: "red" | "blue";
-}
+export type { Scope } from "../../../src/shared/searchVersus.js";
+import type { Scope } from "../../../src/shared/searchVersus.js";
 
 /** What an event-level clause reads: the event's season, code, type, country and state. */
 export interface EventFacts { season: number; code: string; type: string | null; country?: string | null; state?: string | null; start?: string | null; end?: string | null; date?: string | null }
@@ -109,27 +81,6 @@ export function eventSql(s: Scope, alias = "e"): { sql: string; args: (string | 
   return { sql: parts.length ? parts.join(" AND ") : "1 = 1", args };
 }
 
-const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
-
-/** The scope in words, as chips: "FIRST Championship (Worlds)", "2025–26", "Playoffs", "Red alliance". */
-export function scopeChips(s: Scope): string[] {
-  return [
-    s.event ? s.event.name : s.venue ? `At ${s.venue.name}` : "",
-    s.championship ? "FIRST Championship (Worlds)" : s.states ? "State championships" : "",
-    s.place ? `Events ${s.place.outside ? "outside" : "in"} ${s.place.name}` : "",
-    s.window ? cap(s.window.label) : "",
-    // One event's answer names the event's season too, so the card always states which season it reads.
-    s.season != null ? seasonLabel(s.season) : s.event ? seasonLabel(s.event.season) : "All seasons",
-    s.finals ? "Finals" : s.level === "qual" ? "Qualification matches" : s.level === "playoff" ? "Playoff matches" : "",
-    s.alliance ? `${s.alliance === "red" ? "Red" : "Blue"} alliance` : "",
-  ].filter(Boolean);
-}
-
-/** The scope as a phrase in a sentence: "at Worlds", "in 2025–26", "in playoffs at New Jersey Championship", "" for
- *  all. The match type is said first, so a title always names it ("Record in quals in 2025–26"). */
-export function scopePhrase(s: Scope): string {
-  const level = s.finals ? " in the finals" : s.level === "qual" ? " in quals" : s.level === "playoff" ? " in playoffs" : "";
-  const where = s.event ? ` at ${s.event.name}` : s.venue ? ` at ${s.venue.name}` : s.championship ? " at Worlds" : s.states ? " at state championships" : s.place ? ` at events ${s.place.outside ? "outside" : "in"} ${s.place.name}` : "";
-  const when = s.window ? ` ${s.window.label}` : s.season != null && !s.event ? ` in ${seasonLabel(s.season)}` : "";
-  return `${level}${where}${when}`;
-}
+/** The scope in words, as chips, and as a phrase in a sentence: src/shared/searchVersus.ts (the event pack says it the
+ *  same way with no signal). */
+export { scopeChips, scopePhrase } from "../../../src/shared/searchVersus.js";

@@ -11,6 +11,7 @@
 //   - "last season" / "last year": the latest completed season, said on the card;
 //   - a season named is honoured exactly.
 import { seasonLabel } from "../../../src/shared/format.js";
+import { seasonWhyAt, type SeasonWhyKind } from "../../../src/shared/searchVersus.js";
 import { CURRENT_SEASON } from "../../data/seasons.js";
 import { get } from "../../db.js";
 import { CHAMPIONSHIP_TYPE, OFFICIAL_TYPES } from "./clauses.js";
@@ -96,21 +97,8 @@ export function resetSearchSeason(): void { cached = null; }
  *  "any": no team named, no season said (the current season); "team": a team's, no season said (its latest);
  *  "this": "this season" for a team (its latest); "this-any": "this season" for no team (the current season);
  *  "last": "last season" / "last year"; "teams": two or more teams, no season said (the latest they all played). */
-export function seasonWhy(kind: "any" | "team" | "teams" | "this" | "this-any" | "last", season: number, who?: string): string {
-  const S = seasonLabel(season);
-  const current = season === currentSeason();
-  switch (kind) {
-    case "any": return current ? `With no season named, the season is ${S}, the current season.`
-      : `With no season named, the season is ${S}, the latest season with matches on record (no ${seasonLabel(currentSeason())} matches yet).`;
-    case "this-any": return `"This season" is ${S}, the current season.`;
-    case "team": return current ? `With no season named, the season is ${S}, the current season, which ${who ?? "the team"} has played in.`
-      : `With no season named, the season is ${S}, the latest season ${who ?? "the team"} has played in (no ${seasonLabel(currentSeason())} match played yet).`;
-    case "this": return current ? `"This season" is ${S}, the current season, which ${who ?? "the team"} has played in.`
-      : `"This season" here is ${S}, the latest season ${who ?? "the team"} has played in (no ${seasonLabel(currentSeason())} match played yet).`;
-    case "teams": return current ? `With no season named, the season is ${S}, the current season, which every team here has played in.`
-      : `With no season named, the season is ${S}, the latest season every team here has played in.`;
-    case "last": return `"Last season" is ${S}, the latest completed season.`;
-  }
+export function seasonWhy(kind: SeasonWhyKind, season: number, who?: string): string {
+  return seasonWhyAt(kind, season, currentSeason(), who);
 }
 
 /** The answer's note on the season it chose, when the query named none and no team is asked about. */

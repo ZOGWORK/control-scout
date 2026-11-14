@@ -157,7 +157,8 @@ export function shortEvent(name: string, type: string | null): string {
 export const matchHref = (m: { season: number; code: string; level: string; series: number; number: number }) =>
   `/events/${m.season}/${encodeURIComponent(m.code)}?match=${m.level}:${m.series}:${m.number}`;
 export const eventHref = (season: number, code: string, team?: number) => `/events/${season}/${encodeURIComponent(code)}${team ? `?team=${team}` : ""}`;
-export const teamHref = (n: number, season?: number | null) => `/teams/${n}${season != null ? `?season=${season}` : ""}`;
+export { teamHref } from "../../../src/shared/searchVersus.js";
+import { teamHref } from "../../../src/shared/searchVersus.js";
 
 /** Team numbers → "12345 Hypnotic Robotics" links, read once for every row of an answer. */
 export async function teamLinks(numbers: Iterable<number>): Promise<Map<number, StatLink>> {

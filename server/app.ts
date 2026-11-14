@@ -12,19 +12,14 @@ import { siteMeta } from "./api/meta.js";
 import { CURRENT_SEASON, SEASONS, SEASON_NUMBERS, isLegacy, seasonInfo } from "./data/seasons.js";
 import { ensureSearchIndex, search } from "./api/search.js";
 import { MAX_QUERY, cleanQuery, learnQuery, searchAnswer } from "./api/searchAnswer.js";
-import { mineAnswer } from "./api/searchMine.js";
 import { myTeamOf } from "../src/shared/searchMine.js";
-import { withTeamStats } from "./api/searchTeamStats.js";
-import { withEventParents } from "./api/searchEvents.js";
-import { teamHighlights } from "./api/answers/highlights.js";
-import { keptFollowUps, pageAnswer } from "./api/answers/followUps.js";
+import { keptFollowUps } from "./api/answers/followUps.js";
+import { finishPageAnswer, typedPageAnswer } from "./api/searchPage.js";
 import { relatedPage } from "./api/answers/relatedPage.js";
 import { withSeason } from "./api/answers/season.js";
 import { refine } from "./api/searchBruno.js";
 import { brunoAnswer } from "./api/searchBrunoAnswer.js";
 import { SEARCH_PAGE_LIMIT } from "../src/shared/search.js";
-import { teamParts } from "../src/shared/searchPage.js";
-import { loneTeamHit } from "./api/searchLayers.js";
 import { searchTiming } from "./api/searchTiming.js";
 
 /** A search's preferred teams and events (?prefer=team:4215,event:2025:USNJCMP), the visitor's own: ranked first. */
@@ -53,7 +48,6 @@ import { teamRecordPage } from "./teamRecordPage.js";
 import { eventHighlightsPage } from "./eventHighlightsPage.js";
 import { perTeamOf, simulatedRankings } from "./projections/rankingSim.js";
 import { recordingStream, seasonRecordings, seasonVideoKinds } from "./videos/recordings.js";
-import { answerVideo } from "./api/answers/video.js";
 import { matchViews } from "./api/matches.js";
 import { matchDetailAnswer, teamMatchesAnswer, teamReportCardAnswer, teamScheduleAnswer } from "./api/reads.js";
 import { matchReport } from "./api/matchReport.js";
@@ -428,10 +422,9 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
     if (req.query.answer === "1" && !kinds.size) {
       const q = await pickedQuery(req.query.q, req.query.season);
       // The same query asked again within a minute (a retry, another visitor) is the answer already worked out
-      // (server/api/searchReads.ts).
-      const typed = await pageAnswer(q, limit, prefer);
-      // "My" and "our" with no team named: the visitor's My team, sent as ?my= (server/api/searchMine.ts).
-      const ans = (await mineAnswer(q, typed, myTeamOf(req.query.my), (x) => pageAnswer(x, limit, prefer))) ?? typed;
+      // (server/api/searchReads.ts); "my" and "our" with no team named: the visitor's My team, sent as ?my=
+      // (server/api/searchMine.ts). The event pack ships these same answers (server/api/searchPage.ts).
+      const ans = await typedPageAnswer(q, limit, prefer, myTeamOf(req.query.my));
       const answered = performance.now();
       // How it was read (server/api/searchLayers.ts), taken from the answer object itself, before it's copied.
       const trace = outcomeTrace(ans);
@@ -445,24 +438,16 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
         const p = failureOf(q, ans, trace) ? await patternFor(q) : null;
         noteSearch(q, ans, req.ip ?? "?", trace, at, p?.key ?? (await keyFor(q)), p?.missed);
       }).catch(() => {});
-      // A search for one team alone ("4215") on the results page: the team's highlights as its answer
-      // (server/api/answers/highlights.ts), its matches' videos with it. Never in the header's short list, and never for
-      // a topic about the team (a section, facts, an event pick). A season asked for ("4215 2024-25") is the one shown.
-      // Nor for a question about the team search couldn't answer ("will 4215 win …", "how many teams named …").
-      // Who's asking (for the videos below) is read beside the highlights, not after them.
+      // A lone team's highlights, the rows' numbers and the answer's video (server/api/searchPage.ts). Who's asking (for
+      // the videos) is read beside the highlights, not after them.
       const asking = currentUser(req).catch(() => null).then(viewerOf);
-      asking.catch(() => {}); // awaited below; never an unhandled rejection meanwhile
-      const lone = limit >= SEARCH_PAGE_LIMIT ? loneTeamHit(ans) : undefined;
-      const highlights = lone ? await teamHighlights({ number: Number(lone.ref), name: teamParts(lone.title)?.name ?? null }, lone.linkSeason).catch(() => null) : null;
-      const full = highlights ? { ...ans, stat: highlights } : ans;
-      // Its video (server/api/answers/video.ts): one read for the whole answer, beside the team rows'.
+      asking.catch(() => {}); // awaited inside; never an unhandled rejection meanwhile
+      const { body, contributor } = await finishPageAnswer(ans, limit, asking);
       // Match videos people added are for the viewer asking (docs/contributors.md): an answer carrying one is never cached.
-      const viewer = await asking;
-      const [hits, video] = await Promise.all([withEventParents(full.hits).then(withTeamStats), answerVideo(full, Date.now(), viewer).catch(() => undefined)]);
-      if (video && (video.main?.kind === "contributor" || Object.values(video.rows ?? {}).some((x) => x.kind === "contributor"))) res.setHeader("Cache-Control", "private, no-store");
+      if (contributor) res.setHeader("Cache-Control", "private, no-store");
       // This process's own time (searchTiming): the answer, then the rest (highlights, team numbers, video).
       res.setHeader("Server-Timing", searchTiming({ answer: answered - started, extras: performance.now() - answered }));
-      return { ...full, hits, ...(video ? { video } : {}) };
+      return body;
     }
     return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, MAX_QUERY), limit, prefer, kinds) };
   }));

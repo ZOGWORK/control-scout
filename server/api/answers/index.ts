@@ -15,6 +15,7 @@ import { eventTypeLabel } from "../../../src/shared/labels.js";
 import { CURRENT_SEASON, SEASON_NUMBERS } from "../../data/seasons.js";
 import { completedSeason, currentSeason, defaultSeason, seasonWhy } from "./season.js";
 import { teamNameOf } from "../../../src/shared/teamTitle.js";
+import { teamSetAnswer, twoTeamCompareAnswer } from "../../../src/shared/searchVersus.js";
 import { teamPageSql } from "../../../src/shared/teamPages.js";
 import { all, get } from "../../db.js";
 import { fuzzyScore } from "../fuzzy.js";
@@ -980,6 +981,8 @@ export async function twoTeamSearch(q: string, two: TwoTeamQuestion, resolve: Re
   const stat = await twoTeamStat(two, a, b, scoped);
   if (scoped.seasonWhy) stat.definition = `${stat.definition} ${scoped.seasonWhy}`;
   if (stat.none) await missingSide(stat, a, b, scoped, s.at);
+  // A plain comparison is put together by src/shared/searchVersus.ts, as the event pack does with no signal.
+  if (two.id === "compare") return twoTeamCompareAnswer(q, ta, tb, lead, scoped, pages, answer.intent!.understood, stat);
   return { ...answer, understood: { kind: "question", label: `${TWO_TEAM_TITLES[two.id]}${scopePhrase(scoped)}: ${whoOf(a)} vs ${whoOf(b)}`, ...(scoped.season != null ? { season: scoped.season } : {}) }, stat };
 }
 
@@ -1180,20 +1183,12 @@ async function teamSetSearch(q: string, set: TeamSetQuestion, resolve: Resolve, 
   if (hits.some((h) => !h)) return null;
   const found = hits as SearchHit[];
   const teams = found.map((h) => ({ number: Number(h.ref), name: teamNameOf(h.title) || null }));
-  const label = `Compare: ${teams.map(whoOf).join(" vs ")}`;
   // Compare's own hit for the set leads, as it does for "12345 vs 67890 vs 33950"; the card is the numbers.
   const found0 = (await resolve(set.teams.join(" vs "))).hits.find((h) => h.kind === "compare");
   // It opens on the card's season: the one named, else the one the card picks (every team played it).
   const season = set.season ?? (await compareSeason(set.teams));
-  const compare = found0 && season != null && found0.href && !/[?&]season=/.test(found0.href)
-    ? { ...found0, href: `${found0.href}${found0.href.includes("?") ? "&" : "?"}season=${season}` } : found0;
-  const answer: SearchAnswer = {
-    q, hits: [...(compare ? [compare] : []), ...found.map((h) => ({ ...h, facts: undefined, events: undefined }))], pages: opts.pages, step: "deterministic", weak: false,
-    understood: { kind: "question", label, ...(set.season != null ? { season: set.season } : {}) },
-    intent: { kind: "stat-compare", pattern: `[team] [team] [team] compare${set.season != null ? " [season]" : ""}`, met: true, understood: [`Teams ${teams.map(whoOf).join(", ")}`, "Compare"] },
-  };
-  if (!opts.full) return answer;
-  return { ...answer, stat: await compareAnswer(teams, { season: set.season }) };
+  // Put together by src/shared/searchVersus.ts, as the event pack does with no signal.
+  return teamSetAnswer(q, found, found0, season, set.season, opts.pages, opts.full ? await compareAnswer(teams, { season: set.season }) : undefined);
 }
 
 /** The asks' own leaderboards ("top teams in the world", "best auto team", "highest opr in texas": ../searchAsks.ts

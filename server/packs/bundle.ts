@@ -131,7 +131,7 @@ export async function buildBundle(input: BuildInput): Promise<BuiltBundle | null
     : null;
   const rules = await rulesProvider(season, code).catch(() => null);
   // The event pack: every team's and match's page as the server answers it, and each team's Compare column.
-  const { api, compare } = await packApi(season, ev);
+  const { api, compare, search } = await packApi(season, ev);
   const apiPaths = packApiPaths(api);
   const venue = venueOf(ev);
 
@@ -141,6 +141,7 @@ export async function buildBundle(input: BuildInput): Promise<BuiltBundle | null
     section("ratings", "Ratings for offline predictions", ratings && { ...ratings, now: 0 }, ratings?.ratings.length ?? 0, ratings ? null : "No ratings for this season yet."),
     section("api", "Team and match pages", api, apiPaths.length),
     section("compare", "Compare for every team", compare, Object.keys(compare).length),
+    section("search", "Search for its teams", search, Object.keys(search.teams).length),
     section("reports", "Know your match reports", reportData, reports.length,
       team == null ? "Pick your team to include its matches." : !mine.length ? `Team ${team} has no matches scheduled here yet.` : null, reports),
     section("picklist", "Pick list", wsPart ? { picks: wsPart.picks, field: ev.field.map((f) => [f.team, f.name, f.rank, f.opr.np]) } : null, picklist?.count ?? 0, workspace ? null : "Sign in with a scouting workspace to include its pick list.", picklist),
@@ -152,7 +153,7 @@ export async function buildBundle(input: BuildInput): Promise<BuiltBundle | null
     format: BUNDLE_FORMAT, season, code: ev.event.code, name: ev.event.name, end: ev.event.end ?? ev.event.start, version, builtAt, dataAsOf,
     engineVersion: ENGINE_VERSION, team, workspace, sections, field: ev.field.map((f) => [f.team, f.name]), reportKeys: reports.map((r) => r.key), apiPaths,
   };
-  const body: EventBundle = { format: BUNDLE_FORMAT, manifest: head, event: ev, ratings, reports, picklist, rules, venue, api, compare, currentSeason: CURRENT_SEASON };
+  const body: EventBundle = { format: BUNDLE_FORMAT, manifest: head, event: ev, ratings, reports, picklist, rules, venue, api, compare, search, currentSeason: CURRENT_SEASON };
   const gz = gzipSync(Buffer.from(JSON.stringify(body)), { level: 9 });
   const q = new URLSearchParams({ ...(team != null ? { team: String(team) } : {}), ...(workspace ? { workspace: workspace.id } : {}), v: version });
   const manifest: BundleManifest = { ...head, url: `/api/bundles/${season}/${encodeURIComponent(ev.event.code)}/file?${q}`, bytes: gz.length, sha256: sha(gz) };

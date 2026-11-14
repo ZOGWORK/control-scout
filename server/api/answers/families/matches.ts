@@ -37,8 +37,8 @@ function upcomingBlock(xs: UpcomingMatch[], team: number): StatBlock {
 const UPCOMING_CAP = 30;
 import type { IntentId } from "../read.js";
 
-export interface AnswerTeam { number: number; name: string | null }
-export const whoOf = (t: AnswerTeam) => (t.name ? `${t.name} (${t.number})` : `Team ${t.number}`);
+export { whoOf, type AnswerTeam } from "../../../../src/shared/searchVersus.js";
+import { whoOf, type AnswerTeam } from "../../../../src/shared/searchVersus.js";
 
 export const SCORE_RULE = "Scores are the alliance's official score, penalties included, as the team page's match list shows it (the score without penalties beside it), in matches the team was on the field for, at official events: qualifiers, league play, championships and premier events, never scrimmages or off-season events.";
 const HIGH_RULE = "The highest and lowest score are picked by the alliance's own points, without penalties (as the season records are: the other alliance's fouls never make a record), and shown at the official score, penalties included, as the match list shows it. A higher official score that fouls made is shown beside it.";
