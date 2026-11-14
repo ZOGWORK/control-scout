@@ -447,6 +447,10 @@ export function RecordsTable(p: RecordsTableProps) {
           </div>
         ) : (api.error as ApiError).offline && filtered
           ? <Problem title="Filters need a connection" detail={api.error.message} onClear={() => setState(clearFilters(state))} />
+          : (api.error as ApiError).offline && (state.sort !== defaultSort || state.dir !== defaultDir(defaultSort, scope) || state.page > 1)
+          // Another sort or a page past the saved ones: the saved view is one tap away (a Try again here never could).
+          ? <Problem title="This view needs a connection" detail={api.error.message} clearLabel="Back to the saved view"
+              onClear={() => setState({ ...state, sort: defaultSort, dir: defaultDir(defaultSort, scope), page: 1 })} />
           : (api.error as ApiError).status === 400
           ? <Problem title="That filter doesn't work here" detail={api.error.message} onClear={() => setState(clearFilters(state))} />
           : <ErrorState error={api.error} onRetry={api.reload} />
