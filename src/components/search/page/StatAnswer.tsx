@@ -423,7 +423,7 @@ function Table({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
                       </td>
                     );
                   })}
-                  {plays && <td className="w-0 px-1 py-0.5 align-middle">{r.href && <RowPlay href={r.href} label={[r.cells.match, r.cells.event].filter(Boolean).join(" · ") || "This match"} />}</td>}
+                  {plays && <td className="w-0 px-1 py-0.5 align-middle">{r.href && !r.upcoming && <RowPlay href={r.href} label={[r.cells.match, r.cells.event].filter(Boolean).join(" · ") || "This match"} />}</td>}
                 </tr>
               );
             })}
@@ -481,7 +481,7 @@ function MatchTable({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
                     {r.teams.blue.map((t) => <NumChip key={t.href} t={t} side="blue" />)}
                   </span>
                 )}
-                {r.href && <RowPlay href={r.href} label={`${r.cells.match} · ${r.cells.event}`} className="-my-1 -mr-1" />}
+                {r.href && !r.upcoming && <RowPlay href={r.href} label={`${r.cells.match} · ${r.cells.event}`} className="-my-1 -mr-1" />}
               </span>
             </li>
           );
