@@ -309,8 +309,10 @@ async function doCode(code: string): Promise<void> {
   const missing = placed.filter((v) => !v.clip).map((v) => v.label);
   if (CHECK ? !placed.some((v) => v.clip) : !ALL && !missing.length) return;
   // Read on an earlier run (each event is written as it finishes): not again, unless --all.
-  // A video that couldn't be played at all doesn't count as read.
-  if (!CHECK && !ALL && [...kept.values()].some((f) => f.code === code && !Object.values(f.missing ?? {}).some((w) => w.startsWith(PLAY_FAILED)))) return;
+  // Any of its videos that couldn't be played at all keeps the event unread, so the next run tries it again. (An event's
+  // rows are saved once all its videos are read, so a run cut short leaves none of them.)
+  const read = [...kept.values()].filter((f) => f.code === code);
+  if (!CHECK && !ALL && read.length && !read.some((f) => Object.values(f.missing ?? {}).some((w) => w.startsWith(PLAY_FAILED)))) return;
   // Checked again once claimed: a lane that passed its check while another was still loading would read past --limit.
   if (++done > limit) return;
   // An event's lines together (events run side by side).
