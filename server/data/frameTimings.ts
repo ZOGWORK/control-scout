@@ -32,9 +32,25 @@ export interface FrameTiming {
 
 let byKey: Map<string, Record<string, number>> | null = null;
 
+/** Two placed starts closer than this (a match's 2:38 less a read's slack) overlap: one of them is wrong. */
+const OVERLAP_S = 152;
+
+/** A row's starts that can be clips: any two closer than a match overlap (a misread, or an older read written before
+ *  the plausibility check), and neither is used. */
+export function plausibleStarts(starts: Record<string, number>): Record<string, number> {
+  const sorted = Object.entries(starts).sort((a, b) => a[1] - b[1]);
+  const bad = new Set<string>();
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i][1] - sorted[i - 1][1] < OVERLAP_S) { bad.add(sorted[i][0]); bad.add(sorted[i - 1][0]); }
+  }
+  return Object.fromEntries(sorted.filter(([l]) => !bad.has(l)));
+}
+
+const keyed = () => new Map(FRAME_TIMINGS.map((f) => [`${f.videoId}|${f.code}`, plausibleStarts(f.starts)]));
+
 /** The second a match starts at in a video, from its frames, or null when they weren't read for it. */
 export function frameStart(videoId: string, code: string, label: string): number | null {
-  byKey ??= new Map(FRAME_TIMINGS.map((f) => [`${f.videoId}|${f.code}`, f.starts]));
+  byKey ??= keyed();
   return byKey.get(`${videoId}|${code}`)?.[label] ?? null;
 }
 
@@ -43,7 +59,7 @@ export function frameNextStart(videoId: string, after: number): number | null {
   let next: number | null = null;
   for (const f of FRAME_TIMINGS) {
     if (f.videoId !== videoId) continue;
-    for (const s of Object.values(f.starts)) if (s > after && (next == null || s < next)) next = s;
+    for (const s of Object.values(plausibleStarts(f.starts))) if (s > after && (next == null || s < next)) next = s;
   }
   return next;
 }
@@ -51,7 +67,7 @@ export function frameNextStart(videoId: string, after: number): number | null {
 /** Whether any of a video's matches for an event were placed from its frames (a video read with none placed, only
  *  review or missing ones, doesn't count). */
 export function hasFrames(videoId: string, code: string): boolean {
-  byKey ??= new Map(FRAME_TIMINGS.map((f) => [`${f.videoId}|${f.code}`, f.starts]));
+  byKey ??= keyed();
   const starts = byKey.get(`${videoId}|${code}`);
   return !!starts && Object.keys(starts).length > 0;
 }
