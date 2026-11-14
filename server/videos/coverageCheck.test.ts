@@ -119,4 +119,13 @@ describe("clip coverage check", () => {
     expect(n).toMatchObject({ state: "none", played: 1, withClip: 0 });
     expect((await fetch(`${base}/api/events/${S}/NOPE/coverage`)).status).toBe(404);
   });
+
+  it("drops an event from review once it has no recording left (stats only)", async () => {
+    await run("UPDATE events SET livestream = NULL WHERE code = 'TWODAY'");
+    forgetRecordings();
+    expect(await checkClipCoverage(() => {})).toBe(1);
+    expect(await get<any>("SELECT state FROM clip_coverage WHERE code = 'TWODAY'")).toEqual({ state: "none" });
+    expect(await openCoverageCount()).toBe(0);
+    expect((await ownerClipCoverage()).events).toEqual([]);
+  });
 });
