@@ -52,26 +52,18 @@ let channelsSeeded = false;
 export async function seedOfficialChannels(now = Date.now(), again = false): Promise<number> {
   if (channelsSeeded && !again) return 0;
   const at = new Date(now).toISOString();
-  // touched: the owner saved or removed it (saveChannel keeps added_by on an edit, so the audit log is the record).
-  const rows = await all<{ channel_id: string; region: string; title_pattern: string | null; removed_at: string | null; added_by: string | null; touched: number }>(
-    `SELECT c.channel_id, c.region, c.title_pattern, c.removed_at, c.added_by,
-            EXISTS (SELECT 1 FROM owner_audit a WHERE a.action LIKE 'officialChannel.%' AND instr(a.details, c.channel_id) > 0) AS touched
-     FROM official_channels c`);
-  const known = new Map(rows.map((r) => [String(r.channel_id), r]));
+  const known = new Set((await all<{ channel_id: string }>("SELECT channel_id FROM official_channels")).map((r) => String(r.channel_id)));
   const todo = OFFICIAL_CHANNELS.filter((c) => !known.has(c.channelId));
-  // A seeded channel that later gained a title pattern gets it, as long as the row is still the seed's:
-  // watched, never saved by the owner, same region, no pattern of its own. An owner's edit or removal is never overwritten.
-  const patterns = OFFICIAL_CHANNELS.filter((c) => {
-    const r = known.get(c.channelId);
-    return c.titlePattern && r && !r.removed_at && !r.added_by && !Number(r.touched) && r.title_pattern == null && String(r.region) === c.region;
-  });
+  // A seeded channel that later gained a title pattern gets it, as long as the row is still the seed's: watched, same
+  // region, no pattern, never saved or removed by the owner (added_by, or an officialChannel.* audit entry). The write
+  // itself decides, so an owner save landing after the read above still stands.
+  const patterns = OFFICIAL_CHANNELS.filter((c) => c.titlePattern && known.has(c.channelId));
   const writes = [
     ...todo.map((c) => ({
       sql: "INSERT INTO official_channels (channel_id, title, region, words, title_pattern, watch_from, added_at, added_by) VALUES (?, ?, ?, ?, ?, ?, ?, NULL) ON CONFLICT(channel_id) DO NOTHING",
       args: [c.channelId, c.title, c.region, c.words ?? null, c.titlePattern ?? null, at, at],
     })),
     ...patterns.map((c) => ({
-      // Every guard again in the write itself, so an owner save landing after the read above still stands.
       sql: `UPDATE official_channels SET title_pattern = ? WHERE channel_id = ? AND region = ? AND title_pattern IS NULL AND removed_at IS NULL AND added_by IS NULL
               AND NOT EXISTS (SELECT 1 FROM owner_audit a WHERE a.action LIKE 'officialChannel.%' AND instr(a.details, official_channels.channel_id) > 0)`,
       args: [c.titlePattern!, c.channelId, c.region],
