@@ -23,7 +23,7 @@ Two more sections make the whole event work with no signal, with the same number
 
 | Section | What | Where it's used with no signal |
 | --- | --- | --- |
-| `api` | The server's own JSON for API GET paths (`PackApi`): for every team in the field and every lineup, `/api/teams/N` (with and without `?season=`), its season matches, report cards and schedule difficulty; for every match, its detail and its Know your match report; the event's projections and pick ratings | Team pages, match pages, the opened match on the event page, the pick helper (`lib/offline/answer.ts` `packAnswer`) |
+| `api` | The server's own JSON for API GET paths (`PackApi`): for every team in the field and every lineup, `/api/teams/N` (with and without `?season=`), its season matches, report cards and schedule difficulty; for every match, its detail, its Know your match report and its result changes; the event's projections, pick ratings and result changes | Team pages, match pages, the opened match on the event page, the pick helper, Result changes (`lib/offline/answer.ts` `packAnswer`) |
 | `compare` | Each team's Compare column for the season (`compareBlockOf`) and the latest season it has results in | `/api/compare` for any of the pack's teams (`compareFromPacks`) |
 
 - The list of paths is one array, `PACK_READS` in `server/packs/eventApi.ts`. Each path is read through the function its

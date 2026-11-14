@@ -17,6 +17,9 @@ import { cn } from "../cn";
 import { eventState, homeReplays, shortDay, usageView, type RecordView } from "./homeModel";
 import { headlineRule, LEDGER_MODE, liveCallsLine } from "../../shared/ledger";
 import { CURRENT_ENGINE, CURRENT_ENGINE_ROWS } from "../howitworks/currentEngine";
+import { OfflineNote } from "../OfflineNote";
+import { shownOffline, useConnection } from "../../lib/connection";
+import { useOnline } from "../../lib/offline/online";
 
 const fmt = (n: number) => n.toLocaleString();
 
@@ -29,6 +32,10 @@ function Kicker({ children, id }: { children: React.ReactNode; id?: string }) {
 
 export function SeasonCoverage({ state }: { state: ApiState<HomeOverview> }) {
   const o = state.data;
+  // No signal: the last totals this device loaded answer (lib/offline/kept.ts), with the offline note. None loaded
+  // yet: the strip stays out of the way instead of an error a retry can't fix (never a made-up number).
+  const offline = shownOffline(useConnection()) || !useOnline();
+  if (!o && state.error?.offline && offline) return null;
   const items = [
     { n: o?.coverage.teamListings, label: "team listings this season", hint: "Teams registered for the season, each counted once", tone: "text-accent-text" },
     { n: o?.coverage.events, label: "events on the calendar", hint: "Competition events listed for the season (kickoffs and workshops left out)", tone: "text-info" },
@@ -41,6 +48,7 @@ export function SeasonCoverage({ state }: { state: ApiState<HomeOverview> }) {
         <p className="flex flex-wrap items-center gap-3 text-sm text-text-muted">Season totals couldn’t load. <Button variant="secondary" size="sm" onClick={state.reload}><RefreshCw /> Try again</Button></p>
       ) : (
         <>
+          <OfflineNote data={o} className="mb-3" />
           <dl className="grid grid-cols-3 gap-3 @md/strip:gap-5">
             {items.map((x, i) => (
               <div key={x.label} className={cn("min-w-0", i > 0 && "border-l border-line pl-3 @md/strip:pl-5")} title={x.hint}>

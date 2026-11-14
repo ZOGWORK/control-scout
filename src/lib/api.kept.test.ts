@@ -40,6 +40,19 @@ describe("kept reads", () => {
     await expect(apiFetch("/api/events/2026/OTHER/pick-ratings")).rejects.toBeInstanceOf(ApiError);
   });
 
+  it("the home page's season totals are kept, and answer with no network", async () => {
+    const home = "/api/home/overview?season=2026";
+    vi.stubGlobal("fetch", vi.fn(async () => ok({ season: 2026, coverage: { teamListings: 8123, events: 412, matchScores: 9050 } })));
+    await apiFetch(home);
+    await vi.waitFor(() => expect(keptAt(home)).not.toBeNull());
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
+    const got = await apiFetch<{ coverage: { teamListings: number } }>(home);
+    expect(got.coverage.teamListings).toBe(8123);
+    expect(offlineSource(got)?.kept).toBe(true);
+    // Another season was never loaded here: no answer, never someone else's numbers.
+    await expect(apiFetch("/api/home/overview?season=2025")).rejects.toBeInstanceOf(ApiError);
+  });
+
   it("a shortlist made entirely offline (nothing kept, no bundle) still lists its teams, by number", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
     const got = await apiFetch<{ teams: { team: number; opr: number | null }[] }>("/api/shortlist?teams=18439%2C23332&season=2026");
