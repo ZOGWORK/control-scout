@@ -35,7 +35,7 @@ The leaderboards work with no signal from a saved season: world rankings, record
 
 ### Changed
 - Match records mark a score that isn't an official record ("Not an official record", the reason on hover), on the table and the phone cards.
-- Season packs now include every rated team, so the ranking names them as online does.
+- Season packs now include every rated team, so the ranking names them as online does. (#1488)
 
 ## 6.1.5 — 2026-11-14
 
