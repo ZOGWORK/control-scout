@@ -62,7 +62,7 @@ export async function videoCandidates(a: SearchAnswer, now = Date.now()): Promis
       `SELECT e.name FROM events e, (SELECT country, state, start FROM events WHERE season = ? AND code = ?) x
        WHERE e.season = ? AND e.code IN (${filmed.map(() => "?").join(",")}) AND e.division_code IS NULL AND e.type IN (${OFFICIAL_TYPES.map(() => "?").join(",")})
        ORDER BY COALESCE(e.state, '') = COALESCE(x.state, '') AND COALESCE(e.country, '') = COALESCE(x.country, '') DESC, COALESCE(e.country, '') = COALESCE(x.country, '') DESC,
-         e.type IN (${BIG.map(() => "?").join(",")}) DESC, ABS(julianday(e.start) - julianday(x.start)) LIMIT ?`,
+         e.type IN (${BIG.map(() => "?").join(",")}) DESC, e.start IS NULL, ABS(julianday(e.start) - julianday(x.start)) LIMIT ?`,
       [at.season, at.code, s, ...filmed, ...OFFICIAL_TYPES, ...BIG, TRY_MAX]) : await all<{ name: string }>(
       `SELECT name FROM events WHERE season = ? AND code IN (${filmed.map(() => "?").join(",")}) AND division_code IS NULL AND type IN (${OFFICIAL_TYPES.map(() => "?").join(",")})
        ORDER BY type IN (${BIG.map(() => "?").join(",")}) DESC, start DESC LIMIT ?`, [s, ...filmed, ...OFFICIAL_TYPES, ...BIG, TRY_MAX]);
@@ -86,41 +86,53 @@ export async function withVideoAlternatives(q: string, a: SearchAnswer, v: Searc
   // The ones found by then are offered all the same.
   let gaveUp = false;
   const offered: string[] = [];
+  // The check this search is waiting on now: past its own wait, it stops waiting on it.
+  let mine: Check | null = null;
   const find = (async () => {
     for (const c of await candidates(a).catch(() => [])) {
       if (offered.length >= OFFER_MAX || gaveUp) break;
       // Each check takes its turn in the process's one queue (./followUps.ts inTurns), so other requests and the
       // wait's own timer run between them.
       // One check per question and viewer (`who`) at a time, kept a minute: two searches asking at once share it.
-      const key = `${who}|${c}`, kept = checks.get(key);
-      let ok: boolean | null;
-      if (kept && Date.now() - kept.at < CHECK_TTL_MS) ok = await kept.v;
-      else {
-        const p = inTurns(async (): Promise<boolean | null> => {
-          // Its turn may come after the wait: then it never runs (and is never kept).
-          if (gaveUp) return null;
-          const b = await ask(c).catch(() => null);
-          return !!b?.stat && !b.stat.none && hasVideo(await video(b).catch(() => undefined));
+      // Each search waiting on a check counts itself in and, past its own wait, out: the check runs while any search
+      // still waits on it. A check that never ran, or whose reads failed, is never kept.
+      const key = `${who}|${c}`;
+      let check = checks.get(key);
+      if (!check || Date.now() - check.at >= CHECK_TTL_MS) {
+        const e: Check = { at: Date.now(), waiting: 0, v: Promise.resolve(null) };
+        e.v = inTurns(async (): Promise<boolean | null> => {
+          if (e.waiting === 0) return null;
+          let b: SearchAnswer;
+          try { b = await ask(c); } catch { return null; }
+          if (!b?.stat || b.stat.none) return false;
+          let bv: SearchVideo | undefined;
+          try { bv = await video(b); } catch { return null; }
+          return hasVideo(bv);
         }).catch(() => null);
+        void e.v.then((r) => { if (r === null && checks.get(key) === e) checks.delete(key); });
         if (checks.size >= CHECK_MAX) checks.clear();
-        checks.set(key, { at: Date.now(), v: p });
-        ok = await p;
-        if (ok === null) checks.delete(key);
+        checks.set(key, e);
+        check = e;
       }
+      check.waiting++;
+      mine = check;
+      const ok = await check.v;
+      if (mine === check) { check.waiting--; mine = null; }
       if (ok && !gaveUp) offered.push(c);
     }
     return offered;
   })();
   find.catch(() => {});
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const found = await Promise.race([find, new Promise<string[]>((r) => { timer = setTimeout(() => { gaveUp = true; r([...offered]); }, waitMs); })]).finally(() => clearTimeout(timer));
+  const found = await Promise.race([find, new Promise<string[]>((r) => { timer = setTimeout(() => { gaveUp = true; if (mine) { mine.waiting--; mine = null; } r([...offered]); }, waitMs); })]).finally(() => clearTimeout(timer));
   if (!found.length) return a;
   const block: StatAnswer["blocks"][number] = { kind: "related", title: "Questions with video", queries: found };
   return { ...a, stat: { ...a.stat, blocks: [block, ...a.stat.blocks] } };
 }
 
 /** Questions checked lately (whether each plays, per viewer), shared by searches asking at once. */
-const checks = new Map<string, { at: number; v: Promise<boolean | null> }>();
+interface Check { at: number; v: Promise<boolean | null>; waiting: number }
+const checks = new Map<string, Check>();
 const CHECK_TTL_MS = 60_000;
 const CHECK_MAX = 500;
 /** Forgets the questions checked (tests). */
