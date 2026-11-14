@@ -11,6 +11,12 @@ A channel is official for an event when it is one of:
 - the FIRST partner organisation for the country or region (Nație Prin Educație for Romania, NY Excelsior FIRST,
   FIRST in Texas, FIRST Chesapeake, FTC Iowa, …),
 - the event's own organiser or league (NTX FTC for FiT-North, GEARS for the Michiana Premier Event, …),
+- the region's delivery partner or its event streamer in Rhode Island (Rhode Island FTC), Ontario (FTC Ontario),
+  Long Island (FIRST Long Island) and New York City (NYC FIRST, the channel FIRST's 2021-22 NYC pages link, under its
+  current handle). Town of Penfield Television is watched for upstate NY Excelsior events only: its videos are
+  edited uploads of days NY Excelsior FIRST's own recordings already cover, so none is linked. Where one day's
+  broadcast was restarted, the two consecutive broadcasts are kept as Part 1 and Part 2 in broadcast order; a
+  title whose own date or number disagrees with the broadcast is left out,
 - or the channel FIRST's event page names as the livestream (FIRST HQ's "FIRST Tech Challenge" channel carries the
   2026 Championship's division broadcasts, and FIRST's own event pages link its Day 4 videos).
 
