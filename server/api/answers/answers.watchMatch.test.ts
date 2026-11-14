@@ -114,3 +114,25 @@ describe("asking to watch one match: the same answer, and that match's clip", ()
     for (const q of ["11148 highlights", "11148 best matches", "11148 best highlights", "barker greybacks highlights"]) expect((await ask(q)).a.stat?.intent, q).toBe("team-highlights");
   });
 });
+
+// A match asked for by its number (search video brief, point 4): the card is that exact match and plays its own clip.
+describe("a match by its number", () => {
+  it("a team's match by its number, no event named: that match, playing its second in the recording", async () => {
+    const { a, video } = await ask("11148 M10 2025-26");
+    expect(a.stat?.headline?.href).toBe(maM10);
+    expect(video?.main).toMatchObject({ kind: "recording", match: "M10", videoId: "xnQFL9T27fY" });
+    expect(video?.main?.end).toBeGreaterThan(video!.main!.t);
+  });
+
+  it("a team's number with no such match says so, never another match", async () => {
+    const { a, video } = await ask("4215 M10 2025-26");
+    expect(a.stat?.none).toMatch(/no M10/);
+    expect(video?.main).toBeUndefined();
+  });
+
+  it("a match's number at Worlds, no team: that match, FIRST's own video first", async () => {
+    const { a, video } = await ask("m2 at worlds 2025-26");
+    expect(a.stat?.headline?.href).toBe(edisonM2);
+    expect(video?.main).toEqual({ videoId: "4elyC6MxtEY", t: 0, kind: "match", match: "M2" });
+  });
+});
