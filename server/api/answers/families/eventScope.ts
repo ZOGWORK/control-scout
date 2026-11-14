@@ -124,7 +124,7 @@ export async function matchLabelAnswer(team: AnswerTeam, all: TeamMatch[], scope
   // "Ever": every season's, the latest first; else the season asked, else the latest with one.
   const ever = !!scope.ever && scope.season == null;
   const season = ever ? -1 : scope.season ?? Math.max(-1, ...[...byEvent.values()].map((m) => m.season));
-  const found = [...byEvent.values()].filter((m) => ever || m.season === season).reverse();
+  const found = [...byEvent.values()].filter((m) => ever || !!scope.window || m.season === season).reverse();
   const who = whoOf(team);
   const at = scope.championship ? " at Worlds" : scope.states ? " at states" : "";
   const title = `${label}${at}${season >= 0 ? `, ${seasonLabel(season)}` : ""}`;
