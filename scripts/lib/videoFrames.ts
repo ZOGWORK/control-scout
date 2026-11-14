@@ -74,9 +74,11 @@ export function dataRows<T>(text: string): T[] {
 export function judge(ms: M[], seen: Map<number, number>, shift: number | null, length: number, read: Set<number> = new Set(seen.keys())): Judged {
   const idx = [...seen.keys()].sort((a, b) => a - b);
   const d = (i: number) => seen.get(i)! - ms[i].epoch;
-  const len = idx.map(() => 1), from = idx.map(() => -1);
+  // low: the least distance on the run so far. A read may sit at most a read's slack above it, so slack can't add up
+  // read by read into a rise (0, +6, +12).
+  const len = idx.map(() => 1), from = idx.map(() => -1), low = idx.map((i) => d(i));
   for (let b = 0; b < idx.length; b++) for (let a = 0; a < b; a++) {
-    if (d(idx[b]) <= d(idx[a]) + SAME_S && len[a] + 1 > len[b]) { len[b] = len[a] + 1; from[b] = a; }
+    if (d(idx[b]) <= low[a] + SAME_S && len[a] + 1 > len[b]) { len[b] = len[a] + 1; from[b] = a; low[b] = Math.min(low[a], d(idx[b])); }
   }
   // Of the longest runs, the one with the most reads that agree with a neighbour (0, -120, 0 keeps the two zeros, not
   // a zero and the misread); then the later one.
@@ -93,7 +95,8 @@ export function judge(ms: M[], seen: Map<number, number>, shift: number | null, 
   const stretches: number[][] = [];
   for (const i of kept) {
     const s = stretches.at(-1);
-    if (s && Math.abs(d(s.at(-1)!) - d(i)) <= SAME_S) s.push(i);
+    // Against the stretch's first read, so a slow drift (0, +6, +12) isn't taken as agreement.
+    if (s && Math.abs(d(s[0]) - d(i)) <= SAME_S) s.push(i);
     else stretches.push([i]);
   }
   for (const s of stretches) {
