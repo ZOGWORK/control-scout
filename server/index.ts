@@ -111,7 +111,8 @@ log("ready");
 // ratings in use and the track record right away, in the background, so no
 // visitor's request is the one that waits for them (pages keep the previous
 // ones until they're done).
-setInterval(() => { refreshForecasters().catch(() => {}).then(() => warmTrackRecord()).catch(() => {}); }, 15_000).unref();
+// Then the event packs asked for lately (server/packs/eventApi.ts), so the next look at one isn't the one that builds it.
+setInterval(() => { refreshForecasters().catch(() => {}).then(() => warmTrackRecord()).catch(() => {}).then(() => import("./packs/eventApi.js")).then((m) => m.rewarmPacks()).catch(() => {}); }, 15_000).unref();
 
 // One cycle at a time in this process, whether the schedule or the owner portal started it (data/jobs.ts).
 async function cycle(reason: string) {

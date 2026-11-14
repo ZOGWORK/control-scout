@@ -2,8 +2,9 @@
 // The finished match's breakdown is display only: every number it renders is the match's own data, unchanged
 // (each phase, the fouls, the total and the margin), and each bonus RP chip says earned or missed exactly as
 // the data does, in words and a mark as well as colour.
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { markOffline } from "../lib/offline/saved";
 import type { MatchDetail } from "../shared/api";
 import { BonusRows, Breakdown, Headline, breakdownRows, groupRows, rowLead } from "./MatchDetails";
 import { MemoryRouter } from "react-router-dom";
@@ -153,5 +154,36 @@ describe("a match video", () => {
     const box = screen.getByTestId("match-video-buttons");
     expect(box.textContent).toContain("Watch the match");
     expect(box.querySelector("a")!.className).toContain("bg-video");
+  });
+
+  // Journey 6: videos are never saved, so with the page from the pack (or the browser offline) the button says it
+  // needs a connection instead of opening a player that can't load; the score and breakdown stay.
+  const withClip = () => {
+    const d = detail();
+    (d.match as { video: string | null }).video = "https://www.youtube.com/watch?v=abcdefghijk";
+    (d.match as { clip?: unknown }).clip = { videoId: "zyxwvutsrqp", t: 754, url: "https://youtu.be/zyxwvutsrqp?t=754" };
+    return d;
+  };
+  it("says it needs a connection when the match came from the saved pack, and the stats still show", () => {
+    const d = markOffline(withClip(), { season: 2026, savedAt: 1, dataAsOf: null, bundle: { builtAt: "2026-11-01T00:00:00Z", name: "Test" } });
+    render(<MemoryRouter><TooltipProvider><Headline d={d} /></TooltipProvider></MemoryRouter>);
+    const box = screen.getByTestId("match-video-buttons");
+    expect(box.querySelector("a")).toBeNull();
+    expect(box.textContent).toContain("Match video · Needs a connection");
+    expect(box.textContent).toContain("Official video · Needs a connection");
+    expect(box.querySelectorAll("[data-needs-connection][aria-disabled=true]")).toHaveLength(2);
+    expect(screen.getByTestId("breakdown-margin").textContent).toContain("124");
+  });
+
+  it("says the same when the browser is offline, and plays again once it's back", () => {
+    const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    render(<MemoryRouter><TooltipProvider><Headline d={withClip()} /></TooltipProvider></MemoryRouter>);
+    expect(screen.getByTestId("match-video-buttons").textContent).toContain("Needs a connection");
+    online.mockReturnValue(true);
+    act(() => { window.dispatchEvent(new Event("online")); });
+    const box = screen.getByTestId("match-video-buttons");
+    expect(box.querySelectorAll("a")).toHaveLength(2);
+    expect(box.textContent).toContain("Watch the match · 12:34");
+    online.mockRestore();
   });
 });
