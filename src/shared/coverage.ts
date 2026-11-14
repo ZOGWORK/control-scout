@@ -1,5 +1,5 @@
 // Clip coverage words shared by the event page, the owner console and the audit script (server/videos/coverage.ts).
-import type { CoverageMatch } from "./api";
+import type { CoverageMatch, CoverageTriage } from "./api";
 
 /** Q11, Q12, Q13, Q15, M1 → "Q11–Q13, Q15, M1": runs of one kind of match, sorted (qualifications first, then each other
  *  kind in the order it first appears), whatever order they were played in (a replayed Q2 after Q1). A replay ("M6-2",
@@ -38,3 +38,19 @@ export function missingGroups(matches: CoverageMatch[]): { why: string; videoId:
   }
   return [...by.values()];
 }
+
+/** Owner › Clip coverage triage categories (server/videos/coverageTriage.ts), in the order shown: names and one line
+ *  each on what lands there. Only Actionable is "To review". */
+export const TRIAGE_ORDER = ["actionable", "no-timing", "early-start", "old-season"] as const satisfies readonly CoverageTriage[];
+export const TRIAGE_LABEL: Record<CoverageTriage, string> = {
+  actionable: "Actionable",
+  "no-timing": "No timing",
+  "early-start": "Early start / unsafe",
+  "old-season": "Old season",
+};
+export const TRIAGE_ABOUT: Record<CoverageTriage, string> = {
+  actionable: "A clip may still be placeable: a match the clock puts outside the broadcast, not yet checked against the video, or no reason found.",
+  "no-timing": "Nothing to place a clip from: no clock, video unavailable, shorter than its broadcast with nothing to place the gap, no real start from FIRST, or no recording that day.",
+  "early-start": "Placing a clip would open on the match before: the system didn't guess.",
+  "old-season": "Older than last season, and nothing actionable.",
+};
