@@ -92,6 +92,18 @@ describe("AnswerVideo", () => {
     expect(c.textContent).not.toMatch(/video|recording/i);
   });
 
+  it("the card's own match the only clip: the other listed match says No video", () => {
+    const c = draw({ main: video.main, mainRow: M10 });
+    expect(c.querySelectorAll("[data-row-play]")).toHaveLength(0);
+    expect(c.querySelector("[data-match-box='Q12'] [data-row-no-video]")).not.toBeNull();
+    expect(c.querySelector("[data-match-box='M10'] [data-row-no-video]")).toBeNull();
+  });
+
+  it("the event's recording from its start is no match's clip: rows say nothing", () => {
+    const c = draw({ main: { videoId: "xnQFL9T27fY", t: 0, kind: "stream" } });
+    expect(c.querySelector("[data-row-no-video]")).toBeNull();
+  });
+
   it("a listed match with no clip says No video, never a Play that goes nowhere; the card's own match says nothing", () => {
     const Q1 = "/events/2025/USMACMP?match=qual:0:1";
     const three: StatAnswer = { ...stat, blocks: [{ kind: "matches", title: "x", rows: [M10, Q12, Q1].map((href, i) => ({ ...(stat.blocks[0] as Extract<StatAnswer["blocks"][number], { kind: "matches" }>).rows[0], label: ["M10", "Q12", "Q1"][i], href })) }] };
