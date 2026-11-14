@@ -90,5 +90,7 @@ export async function nameTypos(): Promise<ReadonlySet<string>> {
 
 /** Builds the set ahead of a search (server start, and after the data moves). */
 export const warmNameTypos = (): Promise<void> => refresh();
-// The owner's Clear caches builds it again; the last one is used until then.
-registerCache("Search answers: event-name typos", () => { if (built) built = { ...built, version: "" }; void refresh().catch(() => {}); });
+// The owner's Clear caches marks it stale: the next use, or server/index.ts's next warm, builds it again in the
+// background, and the last one is used until then. Never read here: a process with no database open (a test) would
+// open the default one.
+registerCache("Search answers: event-name typos", () => { if (built) built = { ...built, version: "" }; });
