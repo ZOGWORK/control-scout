@@ -9,7 +9,7 @@ import { WifiOff } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useOfflineMode } from "../lib/api";
 import { offlineSource } from "../lib/offline/saved";
-import { ago, dayDate, seasonLabel } from "../lib/format";
+import { ago, dayDate, dayTime, seasonLabel } from "../lib/format";
 import { SnapshotBanner } from "./offline/Snapshot";
 import { Badge } from "./ui/basic";
 import { cn } from "./cn";
@@ -21,9 +21,24 @@ export function keptClock(ms: number, now = new Date()): string {
   return d.toLocaleString(undefined, today ? { hour: "numeric", minute: "2-digit" } : { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-export function OfflineNote({ data, className }: { data: unknown; className?: string }) {
+/** `what` ("Rankings"): a leaderboard's own words, with its data time `at` (else the saved data's): "Offline: Rankings
+ *  as of Nov 13, 8:09 PM, from your saved 2026–27 data." */
+export function OfflineNote({ data, className, what, at }: { data: unknown; className?: string; what?: string; at?: string | null }) {
   const src = offlineSource(data);
   if (!src) return null;
+  if (what && !src.bundle) {
+    const when = at ?? src.dataAsOf;
+    return (
+      <p role="status" className={cn("mb-4 flex items-start gap-2 rounded-lg border border-info/30 bg-info/[0.06] px-3 py-2 text-xs", className)}>
+        <WifiOff className="mt-px size-3.5 shrink-0 text-info" />
+        <span>
+          Offline: {what}{when ? ` as of ${dayTime(when)}` : ""}, from your saved {seasonLabel(src.season)} data (saved {ago(new Date(src.savedAt).toISOString())}).
+          It refreshes when you're back online.{" "}
+          <Link to="/download" className="underline">Saved seasons</Link>
+        </span>
+      </p>
+    );
+  }
   if (src.bundle) {
     // From an event-day bundle: its time and age, always (docs/event-bundle.md).
     return (

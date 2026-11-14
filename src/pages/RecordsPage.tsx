@@ -15,6 +15,8 @@ import { smoothBehavior } from "../lib/pageScroll";
 import { useApi } from "../lib/api";
 import { MATCHES_TABLE_NOTE, SEASON_RECORD_LABEL, SEASON_RECORD_RULE, recordMarks, seasonRecordPath } from "../shared/seasonRecord";
 import type { SearchCardLine } from "../shared/api";
+// The default sorts are the view a saved season pack holds (src/shared/recordsBoard.ts).
+import { RECORDS_PAGE_SORT } from "../shared/recordsBoard";
 
 type View = "events" | "season" | "listed" | "matches";
 
@@ -122,14 +124,14 @@ export default function RecordsPage({ matches }: { matches?: boolean }) {
       ) : view === "matches" ? (
         <>
         <SeasonRecord season={season} />
-        <RecordsTable key={`m${season}`} scope="match" season={season} predictable={predictable} defaultCols={MATCH_COLS} defaultSort="highScore"
+        <RecordsTable key={`m${season}`} scope="match" season={season} predictable={predictable} defaultCols={MATCH_COLS} defaultSort={RECORDS_PAGE_SORT.match}
           storageKey="matches" noun="matches" controls={{ onSeason: setSeason, region: true, eventType: true, dates: true }} />
         </>
       ) : view === "season" ? (
-        <RecordsTable key={`s${season}`} scope="teamSeason" season={season} predictable={predictable} defaultCols={SEASON_COLS} defaultSort="totalPointsNpOpr"
+        <RecordsTable key={`s${season}`} scope="teamSeason" season={season} predictable={predictable} defaultCols={SEASON_COLS} defaultSort={RECORDS_PAGE_SORT.teamSeason}
           storageKey="team-seasons" noun="teams" selectable controls={{ onSeason: setSeason, region: true }} />
       ) : (
-        <RecordsTable key={`e${season}`} scope="teamEvent" season={season} predictable={predictable} defaultCols={TEAM_COLS} defaultSort="totalPointsNpOpr"
+        <RecordsTable key={`e${season}`} scope="teamEvent" season={season} predictable={predictable} defaultCols={TEAM_COLS} defaultSort={RECORDS_PAGE_SORT.teamEvent}
           storageKey="team-events" noun="team-events" selectable controls={{ onSeason: setSeason, region: true, eventType: true, dates: true }} />
       )}
     </div>

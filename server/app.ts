@@ -29,7 +29,7 @@ import { recordIntent } from "./api/searchIntents.js";
 import { rebuildSearch } from "./stats/job.js";
 import { teamProfile, compareAnswer, teamSummaries, shortlistTeams, reliabilityMany } from "./api/teams.js";
 import { teamRoadMap } from "./api/roadmap.js";
-import { cachedEventDetail, eventDetail, listEvents, toEventInput } from "./api/events.js";
+import { cachedEventDetail, eventDetail, toEventInput } from "./api/events.js";
 import { withBracketGate } from "./api/bracket.js";
 import { scheduleGate } from "./api/eventGates.js";
 import { eventView, withPageExtras, withStream } from "./api/eventView.js";
@@ -40,10 +40,10 @@ import { teamHighlightsPage } from "./teamHighlightsPage.js";
 import { teamRecordPage } from "./teamRecordPage.js";
 import { eventHighlightsPage } from "./eventHighlightsPage.js";
 import { perTeamOf, simulatedRankings } from "./projections/rankingSim.js";
-import { recordingStream, seasonRecordings, seasonVideoKinds } from "./videos/recordings.js";
+import { recordingStream } from "./videos/recordings.js";
 import { answerVideo } from "./api/answers/video.js";
 import { matchViews } from "./api/matches.js";
-import { matchDetailAnswer, teamMatchesAnswer, teamReportCardAnswer, teamScheduleAnswer } from "./api/reads.js";
+import { eventListAnswer, matchDetailAnswer, teamMatchesAnswer, teamReportCardAnswer, teamScheduleAnswer } from "./api/reads.js";
 import { matchReport } from "./api/matchReport.js";
 import { resultChanges } from "./api/resultChanges.js";
 import { eventDisagreements } from "./api/disagreements.js";
@@ -615,21 +615,12 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
   }));
 
   api.get("/events", h(async (req) => {
-    // Events with a recording (the owner's stream or FIRST's YouTube link): stream: true, for the LIVE dot; and
-    // what video there is to watch, for the list's video filter.
-    const [streams, videos] = await Promise.all([seasonRecordings(season(req.query.season)).catch(() => new Map()), seasonVideoKinds(season(req.query.season)).catch(() => new Map())]);
-    return {
-    // The list view's fields only (detail pages use /events/:season/:code):
-    // venue, division, region and remote aren't shown in lists.
-    events: (await listEvents({
+    // The list (server/api/reads.ts eventListAnswer; a season pack's boards carry the default one).
+    return eventListAnswer({
       season: season(req.query.season), from: req.query.from ? String(req.query.from) : undefined, to: req.query.to ? String(req.query.to) : undefined,
       q: req.query.q ? String(req.query.q).slice(0, 60) : undefined, type: req.query.type ? String(req.query.type) : undefined,
       region: req.query.region ? String(req.query.region) : undefined, hideNoMatch: req.query.all !== "1", limit: boundedCount(req.query.limit, "limit", 3000, 1, 3000),
-    })).map(({ venue: _v, divisionCode: _d, region: _r, remote: _m, ...e }) => {
-      const video = videos.get(e.code);
-      return { ...e, ...(streams.has(e.code) ? { stream: true as const } : {}), ...(video ? { video } : {}) };
-    }),
-    };
+    });
   }));
 
 

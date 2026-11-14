@@ -38,8 +38,9 @@ export const isFeatureDisabled = (e: unknown, feature?: string): boolean => {
 /** A 403 that means this account has no access (not a member any more): every 403 but feature_disabled. */
 export const isAccessDenied = (e: unknown): boolean => (e as { status?: unknown } | null)?.status === 403 && !isFeatureDisabled(e);
 
-/** The reads a saved season can answer (see lib/offline). */
-const OFFLINE_PATHS = /^\/api\/(teams\/\d+(\/matches|\/schedule)?|events\/\d{4}\/[^/?]+|projections\/\d{4}\/[^/?]+|search)(\?|$)/;
+/** The reads a saved season can answer (see lib/offline): team, event and match pages, search, and the leaderboards
+ *  (world ranking, records, league standings, the events list, power rankings: lib/offline/boards.ts). */
+const OFFLINE_PATHS = /^\/api\/(teams\/\d+(\/matches|\/schedule)?|events\/\d{4}\/[^/?]+|projections\/\d{4}\/[^/?]+|search|events|rankings(\/places)?|records\/\d{4}\/(high-score|regions|teams|matches)|leagues\/\d{4}\/[^/?]+\/[^/?]+|power-rankings(\/[^/?]+)?)(\?|$)/;
 /** The read the lite pack can answer (the Predict page runs the engine on it: PredictPage's useOfflineFallback). */
 const PACK_PREDICT_PATH = /^\/api\/predict\/match(\?|$)/;
 /** No answer in this long, for a read this device could answer itself: treat it as no signal. */
@@ -76,7 +77,7 @@ function offlineKind(path: string, method: string | undefined): "saved" | "lite"
   const asked = Number(url.searchParams.get("season")) || null;
   if (OFFLINE_PATHS.test(path)) {
     const saved = savedSeasons();
-    const season = Number(/^\/api\/(?:events|projections)\/(\d{4})\//.exec(url.pathname)?.[1]) || asked;
+    const season = Number(/^\/api\/(?:events|projections|records|leagues)\/(\d{4})\//.exec(url.pathname)?.[1]) || asked;
     if (saved.length && (season == null || saved.some((s) => s.season === season))) return "saved";
     // An event-day bundle answers its own event's page (docs/event-bundle.md).
     const ev = /^\/api\/events\/(\d{4})\/([^/?]+)$/.exec(url.pathname);

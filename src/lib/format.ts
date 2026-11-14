@@ -22,6 +22,14 @@ export function dayDate(at: string | number | Date): string {
   return dateRange(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
 }
 
+/** A day and time ("Nov 13, 8:09 PM"; the year too when it isn't this one), for an offline board's "as of". */
+export function dayTime(at: string | number | Date): string {
+  const d = new Date(at);
+  const day = dayDate(d);
+  const short = d.getFullYear() === new Date().getFullYear() ? day.replace(/, \d{4}$/, "") : day;
+  return `${short}, ${d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
+}
+
 /** To the second, for live freshness: "just now", "40 s ago", "3 min ago" (then like ago()). */
 export function agoSeconds(iso: string | null | undefined, now = Date.now()): string {
   if (!iso) return "never";
