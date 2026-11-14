@@ -32,6 +32,7 @@ describe("the watcher's matcher", () => {
     expect(matchVideo(vid("Mockingbird Qualifier", { durationS: 180 }), TX, one)).toMatchObject({ kind: "review", why: /clip or highlight/ });
     expect(matchVideo(vid("Mockingbird Qualifier", { durationS: null }), TX, one)).toMatchObject({ kind: "review", why: /no length/ });
     expect(matchVideo(vid("Mockingbird Qualifier Day 2"), TX, one)).toMatchObject({ kind: "review", why: /day 2/ });
+    expect(matchVideo(vid("Mockingbird Qualifier Day 10"), TX, one)).toMatchObject({ kind: "review", why: /says day 10,/ });
     expect(matchVideo(vid("Mockingbird Qualifier - Sunday"), TX, one)).toMatchObject({ kind: "review", why: /says sunday/ });
     expect(matchVideo(vid("Mockingbird Qualifier 1/18/2026"), TX, one)).toMatchObject({ kind: "review", why: /date/ });
     // The year counts too.
