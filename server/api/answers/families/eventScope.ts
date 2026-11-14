@@ -107,3 +107,33 @@ export async function eventScopeAnswer(id: IntentId, team: AnswerTeam, all: Team
     definition: `${RANK_RULE} ${RECORD_RULE}`,
   };
 }
+
+/** "4215 Q6", "4215 M3", "4215 match 6 2024-25": a team's match by its number with no event named. Its matches with
+ *  that number (a qualification's number, a playoff match's "M" label; "match 6" either, the qualification first) at
+ *  each event of the season asked, else of its latest season with one, the latest first: the headline is the latest,
+ *  so the answer plays that match (../video.ts), and each other one is a row with its own clip. */
+export async function matchLabelAnswer(team: AnswerTeam, all: TeamMatch[], scope: Scope, n: number): Promise<StatAnswer> {
+  const keep = inScope({ ...scope, level: undefined });
+  const level = scope.level ?? null;
+  const label = level === "qual" ? `Q${n}` : level === "playoff" ? `M${n}` : `Match ${n}`;
+  const isIt = (m: TeamMatch) => (level !== "playoff" && m.level === "qual" && m.number === n) || (level !== "qual" && m.level === "playoff" && m.label.toUpperCase() === `M${n}`);
+  const mine = all.filter((m) => m.onField && keep(m) && isIt(m));
+  // An event with both (a qualification 6 and an M6): the qualification, as "match 6" reads at one event.
+  const byEvent = new Map<string, TeamMatch>();
+  for (const m of mine) { const k = `${m.season}|${m.code}`; const had = byEvent.get(k); if (!had || (had.level !== "qual" && m.level === "qual")) byEvent.set(k, m); }
+  const season = scope.season ?? Math.max(-1, ...[...byEvent.values()].map((m) => m.season));
+  const found = [...byEvent.values()].filter((m) => m.season === season).reverse();
+  const who = whoOf(team);
+  const title = `${label}${season >= 0 ? `, ${seasonLabel(season)}` : ""}`;
+  const definition = `${level === null ? "A match's number: a qualification match by its number, else a playoff match by its M label. " : ""}Scores are the official result, penalties included. ${RECORD_RULE}`;
+  const base = { team, scope: scopeChips({ ...scope, season: season >= 0 ? season : scope.season }), family: "event" as const, intent: "match-lookup", title, definition };
+  if (!found.length) return { ...base, source: `${who}'s matches checked`, blocks: [], none: `${who} has no ${label}${scope.season != null ? ` in ${seasonLabel(scope.season)}` : " on record"}.` };
+  const links = await teamLinks(found.flatMap((m) => [...m.partners, ...m.opponents]));
+  const row = (m: TeamMatch) => matchRow(m, links, team.number);
+  const m = found[0];
+  return {
+    ...base, source: sourceOf(found),
+    headline: { value: `${m.result === "W" ? "Won" : m.result === "L" ? "Lost" : "Tied"} ${m.own}–${m.opp}`, label: `${m.label} at ${m.event}`, sub: [row(m).date, `${m.alliance === "red" ? "Red" : "Blue"} alliance`, found.length > 1 ? `the latest of ${found.length}` : ""].filter(Boolean).join(" · "), href: row(m).href },
+    blocks: [{ kind: "matches", title: found.length > 1 ? `${label} at each event, latest first` : "The match", rows: found.map(row) }],
+  };
+}
