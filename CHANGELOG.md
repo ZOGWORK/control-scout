@@ -27,6 +27,9 @@ Georgia's Marietta-Wheeler league meets and the Northwest League Tournament now 
 ### Added
 - Official videos: CircuitRunners Robotics (`UCzxcU4h8qFiLWkdrmV9_TLw`) and Microchips & Queso (`UCLpE1wCLHdIMZ-cKpsVWsqQ`), read from the YouTube Data API, join the official channels and the auto-watcher's list: CircuitRunners for Marietta-Wheeler and Northwest League events in Georgia, Microchips & Queso for its Queso Bowl in Texas. Five CircuitRunners streams are checked against each event's name, date and meet number: Marietta-Wheeler League Meets 2, 3 and 4 and the Northwest League Tournament of 2026-02-07 in two parts (FIRST's link for it no longer plays). The Queso Bowls and Sharpe Pursuits' North Carolina Championship stream are FIRST's own links already, and Sharpe Pursuits, an event company with one FTC stream, isn't watched. Streams that can't be embedded and short fragments are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1482)
 
+### Fixed
+- Official videos: the auto-watcher now adds FIRST in Missouri's championship stream ("FTC Missouri/Kansas Championship", "FiMO FTC State Championship") to the Missouri/Kansas Championship instead of leaving it for review: those titles name only the region, so the channel now has a title pattern for them. League meets still need their own name. (`server/data/officialChannels.ts`)
+
 ## 6.1.5 — 2026-11-14
 
 One download now takes a whole event offline: every team page, every match page and Compare for its teams work with no signal, with the same numbers as online.
