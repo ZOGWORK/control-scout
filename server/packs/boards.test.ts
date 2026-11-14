@@ -6,7 +6,7 @@
 // the pack doesn't hold says so, unofficial records stay marked, and the event pack carries its league's standings.
 import type { AddressInfo } from "node:net";
 import { get as httpGet, type Server } from "node:http";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import initSqlJs from "sql.js";
@@ -16,6 +16,7 @@ import { createApp } from "../app";
 import { setFlag } from "../flags";
 import { CURRENT_SEASON } from "../data/seasons";
 import { buildFull } from "./build";
+import { setBoardReads } from "./boards";
 import { buildPackApi, setPackReads, PACK_READS } from "./eventApi";
 import { eventDetail } from "../api/events";
 import { WEEK_MS, weekOf } from "../../src/shared/rankings";
@@ -217,4 +218,32 @@ describe("event pack", () => {
     const got = packLookup(parts.api, `/api/leagues/${S}/USTX/LS`);
     expect(got && "body" in got ? got.body : null).toEqual((await get(`/api/leagues/${S}/USTX/LS`)).body);
   }, 60_000);
+});
+
+describe("building a season pack", () => {
+  const V0 = "2026-11-14T01:09:00.000Z", V1 = "2026-11-14T09:30:00.000Z";
+  afterAll(async () => { setBoardReads(null); await kvSet("data:version", V0); });
+
+  it("a sync during the build: the pack is built again and labelled with the data its rows are from, never an older version", async () => {
+    let reads = 0;
+    // The first build's boards land while a sync moves the data on.
+    setBoardReads([async (s) => [{ path: `/api/records/${s}/high-score`, read: async () => { if (++reads === 1) await kvSet("data:version", V1); return { line: null }; } }]]);
+    const d = mkdtempSync(join(tmpdir(), "cs-boards-v-"));
+    const logs: string[] = [];
+    const f = await buildFull(S, "2026-11-14.8", d, (m) => logs.push(m));
+    expect(reads).toBe(2);
+    expect(logs.some((m) => m.includes("building again"))).toBe(true);
+    const SQL = await initSqlJs();
+    const db = wrap(new SQL.Database(readFileSync(join(d, f!.name))));
+    expect(db.all("SELECT value FROM pack_info WHERE key = 'data_version'")).toEqual([{ value: V1 }]);
+    expect((await readRankings(db, S, new URLSearchParams()))!.asOf).toBe(V1);
+    expect(readdirSync(d).filter((x) => x.endsWith(".tmp"))).toEqual([]);
+  }, 120_000);
+
+  it("a build that fails part-way closes its file and leaves no temp file behind", async () => {
+    setBoardReads([async (s) => [{ path: `/api/records/${s}/high-score`, read: async () => { throw new Error("boom"); } }]]);
+    const d = mkdtempSync(join(tmpdir(), "cs-boards-f-"));
+    await expect(buildFull(S, "2026-11-14.9", d, () => {})).rejects.toThrow(/boom/);
+    expect(readdirSync(d)).toEqual([]);
+  }, 120_000);
 });

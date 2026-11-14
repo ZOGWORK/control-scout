@@ -446,7 +446,9 @@ export function RecordsTable(p: RecordsTableProps) {
             {p.offlineFallback}
           </div>
         ) : (api.error as ApiError).offline && filtered
-          ? <Problem title="Filters need a connection" detail={api.error.message} onClear={() => setState(clearFilters(state))} />
+          // One tap lands on the saved view: the filters go, and so does a sort or page the pack doesn't hold.
+          ? <Problem title="Filters need a connection" detail={api.error.message} clearLabel="Back to the saved view"
+              onClear={() => setState({ ...clearFilters(state), sort: defaultSort, dir: defaultDir(defaultSort, scope), page: 1 })} />
           : (api.error as ApiError).offline && (state.sort !== defaultSort || state.dir !== defaultDir(defaultSort, scope) || state.page > 1)
           // Another sort or a page past the saved ones: the saved view is one tap away (a Try again here never could).
           ? <Problem title="This view needs a connection" detail={api.error.message} clearLabel="Back to the saved view"

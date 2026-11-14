@@ -18,7 +18,8 @@ vi.mock("../../lib/api", async (orig) => {
       if (!records) return { data: undefined, error: undefined, loading: false, reload: () => {} };
       const sp = new URL(path!, "http://x").searchParams;
       // The saved view: the default sort in its default direction (recordsUrl always sends dir), page 1.
-      const saved = (sp.get("sort") ?? "totalPointsNpOpr") === "totalPointsNpOpr" && (sp.get("dir") ?? "desc") === "desc" && Number(sp.get("page") ?? 1) === 1;
+      const saved = (sp.get("sort") ?? "totalPointsNpOpr") === "totalPointsNpOpr" && (sp.get("dir") ?? "desc") === "desc" && Number(sp.get("page") ?? 1) === 1
+        && !sp.get("filter") && !sp.get("region");
       if (saved) return { data: SAVED, error: undefined, loading: false, reload: () => {} };
       const error = Object.assign(new Error(REFUSED), { offline: true, status: 0 });
       return { data: undefined, error, loading: false, reload: () => {} };
@@ -64,6 +65,15 @@ describe("records table offline, no filters", () => {
     expect(screen.getByText("This view needs a connection")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Back to the saved view/ }));
     expect(search).not.toContain("page=");
+    expect(screen.queryByText("This view needs a connection")).toBeNull();
+    expect(screen.getAllByText("Saved Row Robotics").length).toBeGreaterThan(0);
+  });
+  it("a filter with another sort and page: one tap lands on the saved view (filters, sort and page all go)", () => {
+    mount("/teams?view=season&season=2025&region=USTX&sort=autoPointsOpr&dir=asc&page=2");
+    expect(screen.getByText("Filters need a connection")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Back to the saved view/ }));
+    for (const k of ["region=", "sort=", "dir=", "page="]) expect(search).not.toContain(k);
+    expect(screen.queryByText("Filters need a connection")).toBeNull();
     expect(screen.queryByText("This view needs a connection")).toBeNull();
     expect(screen.getAllByText("Saved Row Robotics").length).toBeGreaterThan(0);
   });

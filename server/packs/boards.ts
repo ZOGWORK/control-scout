@@ -63,8 +63,12 @@ export const BOARD_READS: Reads[] = [
   },
 ];
 
+let boardReads: Reads[] = BOARD_READS;
+/** Tests: build boards from another list (null: BOARD_READS again). */
+export function setBoardReads(r: Reads[] | null) { boardReads = r ?? BOARD_READS; }
+
 /** Every board of a season, read through the routes' own functions. */
-export async function readBoards(season: number, reads: Reads[] = BOARD_READS): Promise<Map<string, unknown>> {
+export async function readBoards(season: number, reads: Reads[] = boardReads): Promise<Map<string, unknown>> {
   const list = (await Promise.all(reads.map((r) => r(season)))).flat();
   const out = new Map<string, unknown>();
   for (const r of list) {

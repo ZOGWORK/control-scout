@@ -90,18 +90,64 @@ export async function buildFull(season: number, version: string, dir: string, lo
   const n = await all<{ c: number }>("SELECT COUNT(*) c FROM matches WHERE season = ?", [season]);
   if (!Number(n[0]?.c)) return null;
   const name = `scout-pack-${version.replace(/\./g, "-")}-${season}.db`;
+  // The pack is labelled with the data version its rows are from (the ranking's asOf offline). A sync can land while
+  // the rows are copied, with no lock across the copy: the version is read before and after, and a pack whose data
+  // moved underneath it is built again in the same file (after the last try it carries the newer version, never an
+  // older one). The pack is built in memory and written out whole at the end (VACUUM INTO), so a build that fails
+  // part-way leaves no file behind, and the database is always closed.
   const tmp = join(dir, `${name}.tmp`);
-  if (existsSync(tmp)) { try { rmSync(tmp); } catch { /* in use */ } }
-  const out = createClient({ url: `file:${tmp.replace(/\\/g, "/")}` });
-  await out.execute("PRAGMA journal_mode = OFF");
+  await dropFile(tmp);
+  let rows = 0, teams = 0;
+  const out = createClient({ url: ":memory:" });
+  let ok = false;
+  try {
+    for (let attempt = 1; ; attempt++) {
+      const before = await dataVersion();
+      ({ rows, teams } = await writeFullPack(out, season, version, log));
+      const after = await dataVersion();
+      if (after === before || attempt >= VERSION_TRIES) {
+        await out.execute({ sql: "INSERT INTO pack_info VALUES ('data_version', ?)", args: [after] });
+        break;
+      }
+      log(`full ${season}: data changed while packing (${before} → ${after}), building again`);
+      // Start the file over: every table and index this try wrote goes.
+      for (const t of (await out.execute("SELECT name FROM sqlite_master WHERE type = 'table'")).rows) await out.execute(`DROP TABLE "${String(t.name)}"`);
+    }
+    await out.execute({ sql: "VACUUM INTO ?", args: [tmp] });
+    ok = true;
+  } finally {
+    out.close();
+    if (!ok) await dropFile(tmp);
+  }
+  // Windows can hold the file briefly after it's written: copy, then clean up the temp file.
+  copyFileSync(tmp, join(dir, name));
+  await dropFile(tmp);
+  const buf = readFileSync(join(dir, name));
+  log(`full ${season}: ${rows + teams} rows → ${(buf.length / 1e6).toFixed(1)} MB`);
+  return { name, url: `/packs/${name}`, bytes: buf.length, sha256: sha256(buf), seasons: [season], kind: "full",
+    contents: `Every ${seasonInfo(season).label} ${seasonInfo(season).game} event, team, match (scores, breakdowns, penalties, lineups), ranking, alliance, award and computed stat — a plain SQLite file.` };
+}
+
+/** Remove a file, retrying briefly while Windows still holds it after its database closed (best effort: a leftover
+ *  temp file is removed by the next build's sweep, buildPacksUnlocked). */
+async function dropFile(f: string): Promise<void> {
+  for (let i = 0; i < 40 && existsSync(f); i++) {
+    try { rmSync(f); return; } catch { await new Promise((r) => setTimeout(r, 50)); }
+  }
+}
+
+/** Builds of one season pack before it ships with the newer data version anyway. */
+const VERSION_TRIES = 3;
+
+/** A season pack's tables and rows (everything but its data version), written into `out`. */
+async function writeFullPack(out: Client, season: number, version: string, log: (m: string) => void): Promise<{ rows: number; teams: number }> {
   await out.execute("CREATE TABLE pack_info (key TEXT PRIMARY KEY, value TEXT)");
   await out.batch([
     { sql: "INSERT INTO pack_info VALUES ('format', ?)", args: [String(PACK_FORMAT)] },
     { sql: "INSERT INTO pack_info VALUES ('version', ?)", args: [version] },
     { sql: "INSERT INTO pack_info VALUES ('season', ?)", args: [String(season)] },
-    // For the world ranking offline (src/shared/rankingsBoard.ts): the live list's data time (the route's asOf) and
-    // which season is current (a finished season's live list has no "last week").
-    { sql: "INSERT INTO pack_info VALUES ('data_version', ?)", args: [await dataVersion()] },
+    // For the world ranking offline (src/shared/rankingsBoard.ts): which season is current (a finished season's live
+    // list has no "last week"). Its data_version (the route's asOf) is written once every row is in (buildFull).
     { sql: "INSERT INTO pack_info VALUES ('current_season', ?)", args: [String(CURRENT_SEASON)] },
     { sql: "INSERT INTO pack_info VALUES ('game', ?)", args: [seasonInfo(season).game] },
     { sql: "INSERT INTO pack_info VALUES ('built_at', ?)", args: [new Date().toISOString()] },
@@ -142,15 +188,7 @@ export async function buildFull(season: number, version: string, dir: string, lo
     await out.batch(teams.slice(i, i + 1000).map((r) => ({ sql: "INSERT INTO teams VALUES (?,?,?,?,?,?,?,?,?,?,?)", args: [r.number, r.name, r.full_name, r.school, r.sponsors, r.city, r.state, r.country, r.rookie_year, r.website, r.home_region] })), "write");
   }
   for (const ix of PACK_INDEXES) await out.execute(ix);
-  await out.execute("VACUUM");
-  out.close();
-  // Windows can hold the file briefly after close: copy, then clean up the temp file.
-  copyFileSync(tmp, join(dir, name));
-  try { rmSync(tmp); } catch { /* removed on the next build */ }
-  const buf = readFileSync(join(dir, name));
-  log(`full ${season}: ${rows + teams.length} rows → ${(buf.length / 1e6).toFixed(1)} MB`);
-  return { name, url: `/packs/${name}`, bytes: buf.length, sha256: sha256(buf), seasons: [season], kind: "full",
-    contents: `Every ${seasonInfo(season).label} ${seasonInfo(season).game} event, team, match (scores, breakdowns, penalties, lineups), ranking, alliance, award and computed stat — a plain SQLite file.` };
+  return { rows, teams: teams.length };
 }
 
 /** Copy the season's ranking weeks (all) and, for the current season, the newest RANKING_PACK_WEEKS weeks' rows plus the
