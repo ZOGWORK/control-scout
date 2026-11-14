@@ -119,6 +119,12 @@ describe("clipCoverage", () => {
     expect(l.matches[0]).toMatchObject({ clip: true, basis: "clock, broadcast still live" });
   });
 
+  it("says when the event's time zone can't place a real start, never 'after the broadcast'", () => {
+    const one: Recording = { videoId: fri.videoId, meta: fri, source: "first" };
+    const z = clipCoverage([{ ...m("Q1", "2026-03-06T14:00:00"), startsAt: null }], one, one, null, NOW);
+    expect(z.matches[0]).toMatchObject({ clip: false, reason: "no-zone", videoId: fri.videoId });
+  });
+
   it("says spans in hours and minutes", () => {
     expect([span(900), span(4520), span(14_400), span(25), span(0.4)]).toEqual(["15 min", "1 h 15 min", "4 h", "25 s", "1 s"]);
   });
