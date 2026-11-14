@@ -126,6 +126,11 @@ describe("with video, as a filter", () => {
     expect(listed(a)).toEqual(["/events/2025/USMACMP?match=qual:0:30"]);
   });
 
+  it("a team's match by its score with video, no season said: the latest season holding one with video", async () => {
+    const { a } = await ask("4215 88 point match with video");
+    expect(listed(a)).toEqual(["/events/2025/USMACMP?match=qual:0:30"]);
+  });
+
   it("a scope's best match with video skips a better one with none, and every listed one plays", async () => {
     const { a, video } = await ask("lowest score with video 2025-26");
     expect(listed(a)).not.toContain("/events/2025/USNJQ1?match=qual:0:1");
