@@ -63,6 +63,26 @@ describe("the event page's coverage line, wired to the coverage check", () => {
     expect(document.querySelector("p[aria-hidden]")).toBeTruthy();
   });
 
+  it("a live event's new result asks again: the line keeps the last answer meanwhile, never blanking", () => {
+    h.api.data = coverage([{ date: "2026-05-29", label: "Friday", matches: 1 }]);
+    const tree = (ms: MatchView[]) => (
+      <MemoryRouter>
+        <EventClipsProvider season={2025} code="FPEWESEA">
+          <RecordingCoverageLine season={2025} code="FPEWESEA" recorded matches={ms} videos={["SATURDAYv01"]} reserve playable unplayable={false} />
+        </EventClipsProvider>
+      </MemoryRouter>
+    );
+    const { rerender } = render(tree(matches));
+    expect(state()).toBe("partial");
+    const first = h.paths[h.paths.length - 1];
+    // A new result: a new path, its answer not in yet.
+    h.api.data = undefined;
+    rerender(tree([...matches, m(4, "2026-05-31")]));
+    expect(h.paths[h.paths.length - 1]).not.toBe(first);
+    expect(state()).toBe("partial");
+    expect(screen.getByText("Partially recorded — 0 of 3 matches have video")).toBeTruthy();
+  });
+
   it("goes on without the check when it fails", () => {
     h.api.error = new Error("offline");
     line();
