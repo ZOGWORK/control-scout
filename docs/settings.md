@@ -157,7 +157,7 @@ itself, the space and the view are never sent: not in a personal sync
 ### First-visit onboarding
 
 Four short steps in a locked dialog (`src/components/onboarding/Onboarding.tsx`): what Control Scout is, pick
-your team (saved as My team, so Home leads with its next match), search answers plain questions, and where the
+your team (saved as My team: its next match and odds), search answers plain questions, and where the
 main places are.
 
 - **Who:** someone new, on Home: nothing saved on the device or the account (no team, tracked teams or events,

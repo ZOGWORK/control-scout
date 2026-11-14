@@ -1,5 +1,5 @@
 // The first-visit onboarding: four short steps in a locked dialog. 1 what Control Scout is, 2 pick your team (it
-// becomes My team, so Home leads with its next match), 3 search answers plain questions, 4 where the main places are.
+// becomes My team: its next match and odds), 3 search answers plain questions, 4 where the main places are.
 // Who gets it and its record: src/lib/onboarding.ts.
 //
 // Locked: while it shows, Skip (top right, the same place on every step) is the only way out besides finishing.
@@ -17,6 +17,7 @@ import { Button } from "../ui/button";
 import { cn } from "../cn";
 import { BrandMark } from "../layout/Shell";
 import { apiFetch } from "../../lib/api";
+import { FOLLOWED_TEAM_PATH } from "../../lib/yoursRow";
 import { isAutomated } from "../../lib/automation";
 import { useConsent } from "../../lib/consent";
 import { claimFirstRun, releaseFirstRun, useFirstRunHolder } from "../../lib/firstRun";
@@ -141,9 +142,9 @@ export function OnboardingDialog({ step }: { step: number }) {
   const skip = () => endOnboarding("skipped");
   const finish = () => {
     endOnboarding("finished");
-    navigate("/");
+    // A team: its own page on My team (next match, odds). No team: Home, straight into search, the way to everything.
+    navigate(savedTeam != null ? FOLLOWED_TEAM_PATH : "/");
     window.scrollTo({ top: 0 });
-    // No team: straight into search, the way to everything.
     if (savedTeam == null) {
       window.setTimeout(() => {
         const input = [...document.querySelectorAll<HTMLInputElement>("[data-search-box] input")].find((el) => el.getClientRects().length > 0);
@@ -157,7 +158,6 @@ export function OnboardingDialog({ step }: { step: number }) {
   };
 
   const last = step === ONBOARDING_STEPS - 1;
-  const teamName = savedTeam != null ? (team?.number === savedTeam ? team.name : null) : null;
 
   let title: string;
   let body: ReactNode;
@@ -177,7 +177,7 @@ export function OnboardingDialog({ step }: { step: number }) {
   } else {
     title = "Find your way";
     body = <StepPlaces />;
-    primary = { label: savedTeam != null ? `Show ${teamName ?? `team ${savedTeam}`}` : "Start searching", run: finish };
+    primary = { label: savedTeam != null ? "Open My team" : "Start searching", run: finish };
   }
 
   return (
@@ -306,7 +306,7 @@ function StepTeam({ inputRef, picked, savedTeam, onPick, onNone, onEnter }: {
 
   return (
     <div>
-      <p className="text-[15px] leading-relaxed text-text-muted">Pick it and Home leads with its next match and odds. It stays on this device; no account needed.</p>
+      <p className="text-[15px] leading-relaxed text-text-muted">Pick it and My team shows its next match and odds, on Home too. It stays on this device; no account needed.</p>
       {chosen ? (
         <div className="mt-4 flex items-center gap-3 rounded-xl border border-accent/50 bg-accent/10 p-3" data-onboarding-team={chosen.number}>
           <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent text-black"><Star className="size-[18px] fill-current" aria-hidden /></span>

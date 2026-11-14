@@ -191,6 +191,7 @@ async function runEngine(engine: string) {
         check(!(await open(page)), `${tag(size)} · J4 the last step ("${label.trim()}") ends it`);
         const mine = await page.evaluate(() => localStorage.getItem("cs-personal:myTeam"));
         check(!!mine && mine.includes("4215"), `${tag(size)} · J4 the picked team is now My team`);
+        check(new URL(page.url()).pathname === "/my-team", `${tag(size)} · J4 with a team, it ends on My team (${new URL(page.url()).pathname})`);
         await shot(page, `${engine}-${size}-after-finish`);
         await page.reload({ waitUntil: "domcontentloaded" }); await page.waitForTimeout(QUIET_MS);
         check(!(await open(page)), `${tag(size)} · J4 not back after a reload`);
