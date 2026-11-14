@@ -157,14 +157,6 @@ registerCache("Search spelling vocabulary", () => { vocabCache = null; });
 /** Builds the vocabulary ahead of the first search (server start). */
 export const warmSpelling = async (): Promise<void> => { await vocab(); };
 
-/** Whether a text reads as spelled right by `v`: no word of four letters or more is one search would correct. A
- *  name's one-off spelling in the data ("Wnterberry", beside "Winterberry" at eight events) reads as a typo. */
-export const spelledWith = (text: string, v: Vocab): boolean =>
-  !(text.toLowerCase().match(/\p{L}{4,}/gu) ?? []).some((w) => correctWord(w, v));
-/** The same, by the stored data's vocabulary: a question offered to try (answers/videoSuggest.ts) must never read as
- *  our typo. */
-export const spelledRight = async (text: string): Promise<boolean> => spelledWith(text, await vocab());
-
 /** One word differs from the other only by a plural ending ("gear", "gears"): a different word, never a typo. */
 const pluralPair = (a: string, b: string) => {
   const [s, l] = a.length < b.length ? [a, b] : [b, a];
