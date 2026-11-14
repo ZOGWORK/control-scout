@@ -4,7 +4,7 @@
 // apart from the card's link to the event. The button says whether your teams compete there and how far this
 // space's scouting has got there (src/shared/scoutProgress.ts), once there's any.
 import { useCallback, useDeferredValue, useEffect, useId, useMemo, useState } from "react";
-import { ArrowRight, CalendarDays, Users } from "lucide-react";
+import { ArrowRight, CalendarDays, HardDriveDownload, Users } from "lucide-react";
 import { apiFetch, qs, useApi } from "../../../lib/api";
 import { dateRange, seasonLabel } from "../../../lib/format";
 import type { EventListItem, TeamProfile } from "../../../shared/api";
@@ -17,6 +17,9 @@ import { EventFilterBar, EventWeeks, type TileAction } from "../../EventBrowse";
 import { readFilters } from "../../../pages/eventsList";
 import { isNoMatchType } from "../../../shared/labels";
 import { cn } from "../../cn";
+import { chooserEventsPath } from "../../../lib/offline/warm";
+import { useSavedBundles } from "../../../lib/offline/bundleMeta";
+import { OfflineNote } from "../../OfflineNote";
 
 /** Today's date on this device, as event dates are written (YYYY-MM-DD, event-local). */
 export function localToday(now = new Date()): string {
@@ -33,8 +36,6 @@ export function ourUpcoming(events: readonly EventListItem[], ours: ReadonlyMap<
     .sort((a, b) => (a.start ?? "9").localeCompare(b.start ?? "9") || a.name.localeCompare(b.name));
 }
 
-/** Enough for any season's every event (the list's own default is 2,000). */
-const ALL_EVENTS = 3000;
 
 type Entry = Parameters<typeof pitProgress>[0][number];
 
@@ -63,7 +64,8 @@ export function EventChooser({ season, currentSeason, onSeason, entries, ourTeam
   // Every event type, practice days and the like too: a pit can be scouted at any of them. The list shows the
   // Events page's own set (no kickoffs, workshops, practice days…) until the Event type filter picks one of those,
   // so the two count the same events.
-  const state = useApi<{ events: EventListItem[] }>(`/api/events${qs({ season, all: 1, limit: ALL_EVENTS })}`);
+  // Kept on the device (lib/offline/kept.ts): with no signal, the last list loaded plus the events bundled here.
+  const state = useApi<{ events: EventListItem[] }>(chooserEventsPath(season));
 
   // The filters live here, not in the URL: Scout's own query string is the entry list's.
   const [f, setF] = useState<Record<string, string>>({});
@@ -132,6 +134,8 @@ export function EventChooser({ season, currentSeason, onSeason, entries, ourTeam
   const allEvents = state.data?.events;
   const events = useMemo(() => (allEvents && !isNoMatchType(type) ? allEvents.filter((e) => !isNoMatchType(e.type)) : allEvents), [allEvents, type]);
   const mineSoon = useMemo(() => ourUpcoming(allEvents ?? [], ours, today), [allEvents, ours, today]);
+  // The events downloaded to this device: one tap, with or without signal.
+  const bundles = useSavedBundles().filter((b) => b.season === season);
 
   return (
     <section aria-labelledby={titleId}>
@@ -156,10 +160,24 @@ export function EventChooser({ season, currentSeason, onSeason, entries, ourTeam
           </div>
         </div>
       )}
+      {bundles.length > 0 && (
+        <div className="mb-5" data-saved-events>
+          <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold"><HardDriveDownload className="size-4 text-accent-text" aria-hidden />Saved on this device</p>
+          <div className="flex flex-wrap gap-2">
+            {bundles.map((b) => (
+              <Button key={b.code} variant="outline" size="sm" onClick={() => onPick(b.code)} aria-label={`Scout ${b.name}`} className={cn("h-auto min-h-11 max-w-full flex-col items-start gap-0 py-1.5 text-left", b.code.toUpperCase() === start && "border-accent/70")}>
+                <span className="max-w-[16rem] truncate">{b.name}</span>
+                <span className="text-[11px] font-normal text-muted-foreground">Works with no signal{b.teams?.length ? ` · ${b.teams.length} teams` : ""}</span>
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
       {/* The events you track: a card picks it here (this season's only, as Scout scouts one season at a time). */}
       <CurrentlyTracking season={season} current={currentSeason} events={allEvents} listSettled={!state.loading} className="mb-6 max-sm:mb-5"
         onPick={(_, code) => onPick(code)} picked={start ? `${season}:${start}` : null} only={(e) => e.season === season} />
       <EventFilterBar season={season} onSeason={onSeason} events={events ?? []} typeEvents={allEvents ?? []} {...{ region, type, status, from, to, q, video, listQ, set, active }} onQ={setQ} onClear={clear} />
+      <OfflineNote data={state.data} />
       <Async state={state} loading={<LoadingBlock rows={6} label="Loading events" />} empty={(d) => !d.events.length && <EmptyState icon={CalendarDays} title={`No events listed for ${seasonLabel(season)} yet`} />}>
         {() => <EventWeeks events={events ?? []} {...{ region, type, status, from, to, video }} q={listQ} onClear={clear} tileAction={tileAction} />}
       </Async>
