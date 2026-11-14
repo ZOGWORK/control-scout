@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.1.0 — 2026-11-14
+## 6.1.1 — 2026-11-14
 
 West Michigan's league meets at GVSU now play their streams from the FIRST Alumni Network Grand Valley, and Saturday's Meet 5 shows its stream before, during and after it airs. Scout also watches the Central Ohio league's own streamer for its next meets.
 
@@ -26,6 +26,20 @@ West Michigan's league meets at GVSU now play their streams from the FIRST Alumn
 
 ### Added
 - Official videos: the FIRST Alumni Network Grand Valley (`UCaojFS3JFPWY9kaoW6bhvvQ`) and Stars of the Galaxy (FTC 12099, `UC576ZA1td9ZvsAUwPq1Ymaw`), both read from the YouTube Data API, join the official channels and the auto-watcher's list, for West Michigan and Central Ohio league events only. Two FANGV streams are checked against each event's name, city, date and meet number: West Michigan Meet 2 (Nov 7) and Meet 5 (Nov 14, listed before it airs). Every Stars of the Galaxy stream is already FIRST's own event link, so none is added twice, and FANGV's Robot in 3 Days streams (FRC) are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1469)
+
+## 6.1.0 — 2026-11-14
+
+Five more official channels: Kazakhstan, France, Italy, Türkiye and Thailand. Their event streams now play on Scout's event pages, each on its own division and day, and the auto-watcher reads the five channels from now on.
+
+### Highlights
+- [history] Istanbul Premier Event: Rumeli and Valens, every day of each
+- [history] Italy and Central Asia Championships play their match days
+- [history] France's 2026 regionals and Thailand's championship play
+- [history] Türkiye Championship 2025 and both Üsküdar days now play
+
+### Added
+- Official videos: USTEM Foundation (Kazakhstan), Robotique FIRST France, Associazione Artù APS (Italy), the Fikret Yüksel Foundation (Türkiye) and The PRC Channel (Thailand) join the official channels and the auto-watcher, each for its own country only. Their ids come from the YouTube Data API. 33 recordings are checked against each event's name, city, dates, division and day: the 2026 Central Asia Championship (Janibek and Kerei, each on its own division), the Istanbul Premier Event (Rumeli and Valens, Days 1 to 3), the Italy Championships of 2025 and 2026 (match days only), France's six 2026 regionals and Lyon 2023, the 2025 Türkiye Championship and the second days of the Üsküdar tournaments, and Thailand's 2025 championship. The France Finale's full version, Istanbul's Finals & Closing (FIRST's own links already play those days), the Italy opening ceremony, short fragments, kickoffs and multi-programme festival streams are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1476)
+
 
 ## 6.0.9 — 2026-11-14
 
