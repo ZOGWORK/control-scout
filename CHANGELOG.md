@@ -15,20 +15,35 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.0.1 — 2026-11-13
+## 6.0.2 — 2026-11-13
 
 Searching for one match, such as a team's best Auto or highest score, now shows a View clip button under People also ask. It plays that match's own video, the whole match.
 
 ### Highlights
 - [fixes] View clip under People also ask plays the match your search is about
 - [fixes] It plays the whole match, never a cut of one part
-- [fixes] "best auto highlights" and "highest score video" now answer instead of saying Sorry
+- [fixes] "best auto highlights" now answers instead of saying Sorry
 
 ### Added
 - Search: a "Watch this match" box with a View clip button under People also ask (the side column when wide, right after it on a phone) for a card or stat answer about one match that has a clip. It plays the clip the answer already has (FIRST's match video from its start, a contributor's, or the match's second in the event's recording) in the app's video dialog, and stops the card's player first. There is no box when the match has no clip, and none on a highlights page, whose tiles already play their own. (`src/components/search/page/AnswerVideo.tsx`, `src/pages/SearchPage.tsx`) (#1453)
 
 ### Fixed
 - "<team> best auto highlights", "<team> highest score video" and the other one-match questions (lowest score, best TeleOp/Endgame, biggest win/loss, closest match) with "highlights" or "video" no longer say Sorry: they ask to watch that match and get its answer. "<team> highlights" alone stays the team's highlights page. (`server/api/query/intents.ts`)
+
+## 6.0.1 — 2026-11-13
+
+The old first-visit welcome card and step-by-step tour are gone, ahead of a new onboarding built from scratch.
+
+### Highlights
+- [home] No welcome card pops up on a first visit any more
+- [home] The step-by-step tour and its Take the tour buttons are gone
+- [fixes] The add-to-home-screen offer no longer waits for a welcome card
+
+### Removed
+- The welcome card (`WelcomeCard.tsx`, `src/lib/welcome.ts`, `cs-welcome`) and the step-by-step tour (`FirstRunTour.tsx`, `TakeTour.tsx`, `src/lib/tour.ts`, `cs-tour`, `cs-tour-demo`), with everything that served only them: the owner's Step-by-step tour switch (`onboardingTour`), the Take the tour row in Settings and the Show me around button on How it works, the `data-tour` anchors on Home, team, event and search, and `npm run shots -- --welcome` / `--tour`. (#1451)
+
+### Changed
+- The add-to-home-screen nudge only waits for the first-run slot now, not for a welcome card. `isAutomated` moved to `src/lib/automation.ts` and `isShown` to `src/lib/visible.ts`.
 
 ## 6.0.0 — 2026-11-13
 

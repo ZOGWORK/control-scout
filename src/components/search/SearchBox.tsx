@@ -292,8 +292,6 @@ export interface SearchBoxProps {
   onEscape?: () => void;
   /** Keyboard shortcut shown at the right while the field is empty (e.g. "⌘K"). */
   hint?: string;
-  /** What the first-run tour calls this box (data-tour), e.g. "search". */
-  tour?: string;
   /** Text to start with, its results already open (a search arriving in the URL). Read on mount only. */
   initialQuery?: string;
   /** The last row, "See all results for …", and plain Enter open the full results page (/search?q=…). Off for a box
@@ -382,7 +380,7 @@ export function AnswerCard({ card, compact, onOpen }: { card: SearchCard; compac
   );
 }
 
-export function SearchBox({ onPick, kinds, placeholder, label, size = "md", className, inputRef, emptyHint, autoFocus, onClose, onEscape, hint, tour, initialQuery, seeAll = true, discover, examples, syncQuery }: SearchBoxProps) {
+export function SearchBox({ onPick, kinds, placeholder, label, size = "md", className, inputRef, emptyHint, autoFocus, onClose, onEscape, hint, initialQuery, seeAll = true, discover, examples, syncQuery }: SearchBoxProps) {
   const [q, setQ] = useState(initialQuery ?? syncQuery ?? "");
   const [open, setOpen] = useState(!!initialQuery);
   const synced = useRef(syncQuery);
@@ -549,7 +547,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
   const room = useRoomAboveKeyboard(list, showList);
   const lg = size === "lg";
   return (
-    <div ref={box} data-search-box data-opens-search={seeAll && !kinds ? "" : undefined} data-tour={tour} className={cn("relative", className)} onBlur={(e) => { if (!box.current?.contains(e.relatedTarget as Node | null)) { setOpen(false); onClose?.(); } }}>
+    <div ref={box} data-search-box data-opens-search={seeAll && !kinds ? "" : undefined} className={cn("relative", className)} onBlur={(e) => { if (!box.current?.contains(e.relatedTarget as Node | null)) { setOpen(false); onClose?.(); } }}>
       <div className={cn("flex items-center gap-2.5 rounded-xl border border-border bg-card text-foreground transition-[border-color,box-shadow] focus-within:border-accent/60 focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]", lg ? "h-14 px-4" : "h-9 px-3")}>
         {/* The magnifier searches, like Enter: it never just focuses the field (only an empty one, with nothing to
             search). The press keeps focus in the field so the list stays open until the search goes; going closes

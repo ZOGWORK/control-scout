@@ -9,7 +9,7 @@
 export const FLAGS = [
   "livePredictions", "advancementOdds", "bracketOdds", "powerRankings", "coinFlips", "factorSheet", "offlinePacks", "eventBundle", "discordBot", "workspaceScouting", "scoutingAlliances", "scoutingCommons", "rulesReference", "venueLightMode", "scheduleDifficulty",
   "realtime", "errorReporting", "failedSearchReports", "photos", "push", "autoPowerRankings", "dailyPowerRankings", "weeklyDigest",
-  "seasonRoadMap", "brunoSearch", "brunoAnswers", "searchLearning", "dogTheme", "onboardingTour", "discordBruno", "statusPage",
+  "seasonRoadMap", "brunoSearch", "brunoAnswers", "searchLearning", "dogTheme", "discordBruno", "statusPage",
 ] as const;
 export type Flag = (typeof FLAGS)[number];
 export type FlagSet = Record<Flag, boolean>;
@@ -19,9 +19,8 @@ export type FlagScope = "global" | "workspace";
 export const isFlag = (x: unknown): x is Flag => typeof x === "string" && (FLAGS as readonly string[]).includes(x);
 
 /** Flags a fresh server starts with off, until the owner turns them on: Bruno AI in search waits on the owner's pick
- *  from its experiment report (docs/search.md); the dog theme and the step-by-step tour are the owner's to turn on
- *  when they like (first-time visitors get the welcome card either way). */
-export const OFF_BY_DEFAULT: readonly Flag[] = ["brunoSearch", "dogTheme", "onboardingTour"];
+ *  from its experiment report (docs/search.md); the dog theme is the owner's to turn on when they like. */
+export const OFF_BY_DEFAULT: readonly Flag[] = ["brunoSearch", "dogTheme"];
 
 /** Every flag on but OFF_BY_DEFAULT: what a fresh server, or one whose flags can't be read, runs with. */
 export const DEFAULT_FLAGS: FlagSet = Object.fromEntries(FLAGS.map((f) => [f, !OFF_BY_DEFAULT.includes(f)])) as FlagSet;
@@ -45,7 +44,6 @@ export const FLAG_META: Record<Flag, { group: FlagGroup; scope: FlagScope }> = {
   venueLightMode: { group: "feature", scope: "global" },
   statusPage: { group: "feature", scope: "global" },
   dogTheme: { group: "feature", scope: "global" },
-  onboardingTour: { group: "feature", scope: "global" },
   realtime: { group: "kill", scope: "global" },
   errorReporting: { group: "kill", scope: "global" },
   failedSearchReports: { group: "kill", scope: "global" },
@@ -175,11 +173,6 @@ export const FLAG_INFO: Record<Flag, { label: string; on: string; off: string; p
     label: "Scouting alliances",
     on: "Workspace admins can share scouting with other teams for one meet (a Scout-only alliance of any number of teams, never a Control Point membership); every team in it then reads the others' entries and assignments at that event and shares one consensus.",
     off: "No new links, and nothing is read across workspaces through existing ones: each workspace sees only its own scouting again. Links are kept (and still end with their event), so switching back on resumes them.",
-  },
-  onboardingTour: {
-    label: "Step-by-step tour",
-    on: "The welcome card offers \"Take the tour\" (and so do Settings and How it works): a short step-by-step tour of search and the page it starts on. It never starts by itself.",
-    off: "No tour anywhere: first-time visitors get only the welcome card with its example searches, and the Take the tour buttons are hidden.",
   },
   dogTheme: {
     label: "Dog theme",

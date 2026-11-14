@@ -12,7 +12,7 @@
 // - The indicator follows the finger with resistance (half the drag, capped), and a release past the
 //   threshold reloads. Letting go short of it, or a second finger, cancels.
 import { runningInstalled } from "./installNudge";
-import { isShown } from "./tour";
+import { isShown } from "./visible";
 
 /** Indicator travel (px) a release has to pass to reload. */
 export const PULL_THRESHOLD = 72;

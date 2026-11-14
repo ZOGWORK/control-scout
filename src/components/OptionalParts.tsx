@@ -1,4 +1,4 @@
-// The app's optional background parts (syncs, prompts, the tour): each loads its own chunk after the page. If one of
+// The app's optional background parts (syncs, prompts): each loads its own chunk after the page. If one of
 // those downloads fails (a dropped connection before the service worker has it), that part is skipped and the page,
 // navigation and every other part keep working; React would otherwise unmount the whole app. Each child gets its own
 // boundary, so one failure doesn't take the others with it.

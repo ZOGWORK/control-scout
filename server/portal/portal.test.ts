@@ -153,8 +153,6 @@ describe("feature flags", () => {
       brunoSearch: false, brunoAnswers: true, searchLearning: true,
       // The dog theme starts off too: the owner turns it on when they like.
       dogTheme: false,
-      // So does the step-by-step tour: first-time visitors get the welcome card; the owner turns the tour on.
-      onboardingTour: false,
       // Bruno AI in the Discord bot: its own switch, on by default.
       discordBruno: true,
       statusPage: true,

@@ -101,7 +101,7 @@ export function GlobalSearch({ part }: { part?: "button" | "field" }) {
   return (
     <>
       {part !== "field" && (
-        <button type="button" onClick={open} className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg text-text-muted pointer-coarse:size-[44px] outline-none transition-colors hover:bg-text-base/[0.06] hover:text-text-base focus-visible:ring-2 focus-visible:ring-ring/60 md:hidden", expanded && "invisible")} aria-label="Search" data-tour="search">
+        <button type="button" onClick={open} className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg text-text-muted pointer-coarse:size-[44px] outline-none transition-colors hover:bg-text-base/[0.06] hover:text-text-base focus-visible:ring-2 focus-visible:ring-ring/60 md:hidden", expanded && "invisible")} aria-label="Search">
           <Search className="size-5" />
         </button>
       )}
@@ -110,7 +110,7 @@ export function GlobalSearch({ part }: { part?: "button" | "field" }) {
         label="Search teams, events and matches"
         placeholder="Search teams, events, matches…"
         hint={SEARCH_HINT}
-        tour="search" discover examples syncQuery={syncQuery}
+        discover examples syncQuery={syncQuery}
         onPick={(h) => nav(hitHref(h))}
         onClose={() => setExpanded(false)}
         onEscape={restoreFocus}

@@ -126,9 +126,6 @@ These keys never leave the device (`DEVICE_ONLY_KEYS`):
 | `cs-scout-dirty`, `cs-scout-ws-dirty:<workspace>` | Entries waiting to sync |
 | `cs-account-cache` | The signed-in account as `/api/auth/me` last answered (`src/lib/personal.tsx`). When the app opens offline it stands in for the account, so the scout space (and where new entries go) is the workspace it was. Removed on sign-out or when `/me` says signed out; used only for the device's own account |
 | `cs-scout-lost:<workspace>` | Edits this device lost to a newer one from someone else, kept so they can be compared and restored (`src/lib/lostEdits.ts`; at most 30 per workspace, 30 days). A restore sends the entry, as any edit; the list itself never leaves the device |
-| `cs-tour` | The first-run tour on this device (`src/lib/tour.ts`): `{v: 2, status: "paused" \| "finished" \| "skipped", at, step, origin, steps}`. Paused while it runs (leaving, a reload or closing the tab keep it at the same step); finished or skipped, it never shows on its own again here. An old `{v: 1}` "skipped" at step 0 (written by just navigating away) counts as never shown. See "First-run tour" below |
-| `cs-tour-demo` | `"1"` lets a browser driven by automation see the welcome card (`npm run shots -- --welcome`) and a tour it asked for (`--tour`, which also seeds a paused `cs-tour` and turns `onboardingTour` on for that browser); real visitors never have it |
-| `cs-welcome` | When this visitor closed the welcome card (`src/lib/welcome.ts`; X, Esc, a search or an example): it's shown once per visitor. "Clear all local data" brings it back |
 | `cs-install` | The add-to-home-screen nudge on this device (`src/lib/installNudge.ts`): `{v, lastShown: "YYYY-MM-DD", dismissed?, installed?}`. See "Add-to-home-screen nudge" below |
 | `cs-install-demo` | `"1"` lets a browser driven by automation see the nudge (`npm run shots -- --install`); real visitors never have it |
 | `cs-recent-searches` | This device's recent searches (`src/components/search/discover.tsx`): up to 6 query strings, newest first, shown in an empty search box's list with one tap to run again. "Clear" removes them all |
@@ -150,30 +147,10 @@ itself, the space and the view are never sent: not in a personal sync
 | `cs-scout-lost:<workspace>` | 3 | No (a restore sends the entry) |
 | `cs-scout-ws-cursor:<workspace>` | sync bookkeeping | Only as the pull's `since=` cursor |
 | `cs-scout-tpl:<ws>:<season>`, `cs-scout-tplv:<ws>:<season>:<v>`, `cs-scout-wss:<ws>` | 2 (cache) | No |
-| `cs-scout-space`, `cs-shortlist-view`, `cs-account-cache`, `cs-tour`, `cs-tour-demo`, `cs-welcome`, `cs-install`, `cs-install-demo`, `cs-recent-searches` | 3 | No |
+| `cs-scout-space`, `cs-shortlist-view`, `cs-account-cache`, `cs-install`, `cs-install-demo`, `cs-recent-searches` | 3 | No |
 | `cs-sidebar`, `cs-records-cols:<table>`, `cs-saved-filters:v1` | local UI state | No |
 | `cs-consent`, `cs-alerts-sent`, `cs-offline-seasons`, `cs-pack-meta`, `cs-seen` | device state | No |
 | sessionStorage `cs-session`, `cs-stats-session` | this tab only | `cs-stats-session` only as the analytics "new session" bit (no ID) |
-
-### Welcome card and the step-by-step tour
-
-A first-time visitor gets one small welcome card (`src/components/layout/WelcomeCard.tsx`): "Search any team,
-event or match", with three example searches that answer live. It's shown once per visitor (`cs-welcome`).
-The step-by-step tour never starts by itself: it's behind the owner's Features toggle Step-by-step tour
-(`onboardingTour`, off by default). While that's on, the welcome card, Settings → This app and How it works
-offer "Take the tour"; while it's off, there's no tour and no Take the tour button or row anywhere.
-
-### First-run tour: device-only on purpose
-
-Whether the tour was finished or skipped is kept per device, not in Tier 1.
-Syncing it would only matter for someone signed in on a second device who
-hasn't seen the tour there, and that person has already used the app: they
-have a team of their own, tracked teams or events, a shortlist, or a Control
-Point workspace, which do sync. The tour never shows to anyone with any of
-those (`knowsTheApp` in `src/lib/tour.ts`), so a synced flag would add a
-personal key, its server validation and a merge rule for no visible change.
-The worst case is a signed-in person with none of those seeing the short
-tour once more on a new device.
 
 ### Add-to-home-screen nudge
 
@@ -207,26 +184,21 @@ and its next match"). Home never redirects to My team. It sells speed, never off
   `navigator.standalone`), the `appinstalled` event or an accepted install
   dialog (`installed`), or `navigator.getInstalledRelatedApps()` finding it
   (the manifest's `related_applications` names the app on controlscout.org).
-- **The welcome card goes first.** It shares the first-run slot (`src/lib/firstRun.ts`).
-  On a page where the welcome card may still open (not closed here, not
-  an automated browser, not someone who knows the app, a landing page) the nudge
-  stays away; in the page view where the welcome card, a tour (or any other first-run
-  surface) held the slot it waits for the next page view or visit (coming
-  back to the same page later counts). So on a first visit the
-  welcome card comes first and the nudge follows on a later page. "First app open"
-  is therefore the first page view where the browser offers an install and
-  the welcome card isn't due.
+- **One first-run surface at a time.** It shares the first-run slot
+  (`src/lib/firstRun.ts`): in the page view where another first-run surface
+  held the slot it waits for the next page view or visit (coming back to the
+  same page later counts).
 - **Never in front of anything:** after the privacy choice, once the page is
   idle (then 2.5 s), and not while typing or while a dialog or menu is open.
   On phones it sits above the tab bar, and above the sticky action bar on
   pages that have one; from md up, bottom left. The error-report prompt is at
   the top and the bell is in the top bar, so they never meet.
-- **Never to bots** or browsers driven by automation (the tour's
-  `isAutomated`). `npm run shots -- --install` opts a shot in: it sets
+- **Never to bots** or browsers driven by automation (`isAutomated` in
+  `src/lib/automation.ts`). `npm run shots -- --install` opts a shot in: it sets
   `cs-install-demo` and hands the page a stand-in install offer, since an
   automated Chromium never makes a real one.
 
-Device-only, like the tour: an install is per device, and a "No thanks" on a
+Device-only: an install is per device, and a "No thanks" on a
 laptop says nothing about a phone.
 
 ## Precedence

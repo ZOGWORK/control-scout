@@ -6,9 +6,8 @@
 //
 // When: after the privacy choice, once the page is idle, while nothing else
 // has the visitor's attention, and only with the first-run slot
-// (src/lib/firstRun.ts). The tour goes first: on a page where the tour may
-// still open the nudge stays away, and in the page view where the tour (or another
-// first-run surface) held the slot it waits for the next page or visit. Never
+// (src/lib/firstRun.ts): in the page view where another first-run surface
+// held the slot it waits for the next page or visit. Never
 // to crawlers or automated browsers (`npm run shots -- --install` opts in).
 //
 // Where: phones, just above the tab bar (and above a page's sticky action bar
@@ -23,8 +22,8 @@ import { Button } from "../ui/button";
 import { useConsent } from "../../lib/consent";
 import { usePersonal } from "../../lib/personal";
 import { claimFirstRun, firstRunHolder, releaseFirstRun, useFirstRunHolder } from "../../lib/firstRun";
-import { isAutomated, isShown, isTourPage, knowsTheApp, tourDemo } from "../../lib/tour";
-import { useWelcomeSeen, welcomeMayCome } from "../../lib/welcome";
+import { isAutomated } from "../../lib/automation";
+import { isShown } from "../../lib/visible";
 import { claimDailyShow, installDemo, isIosSafari, markDismissed, promptInstall, relatedAppInstalled, ruledOut, runningInstalled, useInstallState } from "../../lib/installNudge";
 
 /** After the page is idle, wait this long before showing (the page settles first). */
@@ -57,8 +56,7 @@ function busyElsewhere(): boolean {
 export function InstallNudge() {
   const loc = useLocation();
   const { decided } = useConsent();
-  const { state, user, providers, sync, syncReady } = usePersonal();
-  const welcomeSeen = useWelcomeSeen();
+  const { state } = usePersonal();
   const holder = useFirstRunHolder();
   const { offer, record } = useInstallState();
   const [open, setOpen] = useState<Kind | null>(null);
@@ -67,22 +65,16 @@ export function InstallNudge() {
   const [yieldedOn, setYieldedOn] = useState<string | null>(null);
   const openedOn = useRef<string | null>(null);
 
-  // Read the live holder: the tour may have let go in this same commit (it closes when the page changes).
+  // Read the live holder: another surface may have let go in this same commit.
   useEffect(() => {
     const h = firstRunHolder();
     if (h && h !== SLOT) setYieldedOn(loc.key);
   }, [holder, loc.key]);
 
   const automated = isAutomated() && !installDemo();
-  const tourAutomated = isAutomated() && !tourDemo();
-  // The welcome card hasn't been closed yet and could open on this page: it goes first (the tour no longer starts
-  // by itself, so it's no reason to wait).
-  // A signed-in visitor whose first sync failed never gets the card: no waiting for it then.
-  const welcomeFirst = !welcomeSeen && !tourAutomated && !knowsTheApp(state, user) && isTourPage(loc.pathname)
-    && welcomeMayCome({ providers, user, sync, syncReady });
   const kind: Kind | null = offer ? "prompt" : isIosSafari() ? "ios" : null;
   const eligible = !open && kind !== null && !automated && decided && !runningInstalled() && !related
-    && !ruledOut(record) && !welcomeFirst && yieldedOn !== loc.key && (holder === null || holder === SLOT);
+    && !ruledOut(record) && yieldedOn !== loc.key && (holder === null || holder === SLOT);
 
   useEffect(() => {
     if (!eligible || !kind) return;

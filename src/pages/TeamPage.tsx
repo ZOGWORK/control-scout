@@ -1,7 +1,6 @@
 // Team profile — any team, any season. Control Point's Team Stats design
 // (hero, OPR cards with world rank, one trend chart, event history),
 // generalised from "my team" to every team.
-import { TRACKED_TOAST_ID } from "../lib/tour";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { recordWords } from "../shared/format";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -49,6 +48,9 @@ import { ReportCardSection } from "../components/ReportCard";
 import { ReliabilitySection } from "../components/Reliability";
 import { TeamScheduleSection } from "../components/ScheduleDifficulty";
 import { predictHref } from "../shared/predictUrl";
+
+/** Track and stop-tracking notes share one toast, so tapping Track twice replaces the note rather than stacking two. */
+const TRACK_NOTE = "team-track-note";
 
 /** The record rule, mid-sentence ("Records count every match played, …"). */
 const RECORD_RULE_LOWER = RECORD_RULE.charAt(0).toLowerCase() + RECORD_RULE.slice(1);
@@ -159,9 +161,9 @@ function Hero({ p, onSeason, fellBackFrom, asked = false }: { p: TeamProfile; on
   const track = () => {
     const on = !flags.tracked;
     flags.toggleTracked();
-    if (!on) { toast(`Stopped tracking ${t.number}`, { id: TRACKED_TOAST_ID }); return; }
+    if (!on) { toast(`Stopped tracking ${t.number}`, { id: TRACK_NOTE }); return; }
     toast.success(`Tracking ${t.number}`, {
-      id: TRACKED_TOAST_ID,
+      id: TRACK_NOTE,
       description: `It's on My team under Tracked teams, comes first in search and in Predict's quick picks.${personal.settings.notify.trackedTeams ? " While Control Scout is open in a tab, you'll get an alert before its matches." : " Turn on alerts for tracked teams in Settings › Notifications to hear before its matches (while Control Scout is open in a tab)."}`,
       action: { label: workspaceUser ? "Followed team" : "My team", onClick: () => nav(FOLLOWED_TEAM_PATH) },
     });
@@ -223,11 +225,11 @@ function Hero({ p, onSeason, fellBackFrom, asked = false }: { p: TeamProfile; on
               <button type="button" onClick={() => onSeason(fellBackFrom)} className="tap-44 -my-1 py-1 font-medium text-accent-text underline-offset-2 hover:underline">See {seasonLabel(fellBackFrom)}</button>
             </p>
           )}
-          <div className="relative mt-4 flex flex-wrap gap-2" data-tour="save">
+          <div className="relative mt-4 flex flex-wrap gap-2">
             <Button variant={flags.isMine ? "secondary" : "outline"} size="sm" aria-pressed={flags.isMine} onClick={() => flags.setMine(!flags.isMine)} className="max-sm:h-10">
               <Star className={cn(flags.isMine && "fill-accent text-accent")} /> {flags.isMine ? "My team" : "Mark as my team"}
             </Button>
-            <Button variant={flags.tracked ? "secondary" : "outline"} size="sm" aria-pressed={flags.tracked} onClick={track} className="max-sm:h-10" data-tour="track" title={flags.tracked ? "Tracked: on My team, first in search. Click to stop." : "Follow this team: it goes on My team and comes first in search"}>
+            <Button variant={flags.tracked ? "secondary" : "outline"} size="sm" aria-pressed={flags.tracked} onClick={track} className="max-sm:h-10" title={flags.tracked ? "Tracked: on My team, first in search. Click to stop." : "Follow this team: it goes on My team and comes first in search"}>
               <Eye className={cn(flags.tracked && "text-accent")} /> {flags.tracked ? "Tracking" : "Track"}
             </Button>
             <Button variant={flags.bookmarked ? "secondary" : "outline"} size="sm" aria-pressed={flags.bookmarked} onClick={shortlist} className="max-sm:h-10">
@@ -263,7 +265,7 @@ function Hero({ p, onSeason, fellBackFrom, asked = false }: { p: TeamProfile; on
             <>
               <p className={cn("mt-3 font-display text-5xl font-semibold tabular-nums", PROFILE_PERCENTILE_TEXT)}>{top ?? "Unranked"}</p>
               <p className="text-sm text-muted-foreground">worldwide by OPR{s.opr.np.rank ? ` · #${s.opr.np.rank.toLocaleString()} of ${s.opr.np.of?.toLocaleString()} teams with an OPR` : ""}</p>
-              <dl className={cn("mt-5 max-sm:mt-4 grid gap-3", s.reliability ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3")} data-tour={predictable && s.rating ? "rating" : undefined}>
+              <dl className={cn("mt-5 max-sm:mt-4 grid gap-3", s.reliability ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3")}>
                 <div><dt className="text-xs text-muted-foreground" title={OPR_TERM}>OPR</dt><dd className="font-display text-2xl font-semibold tabular-nums">{num(s.opr.np.value)}</dd></div>
                 {predictable
                   ? <div><dt className="text-xs text-muted-foreground" title={RATING_TERM}>Rating</dt><dd className="font-display text-2xl font-semibold tabular-nums">{s.rating ? num(s.rating.np) : "—"}{s.rating && <span className="text-sm font-normal text-muted-foreground"> ±{num(s.rating.sd, 0)}</span>}</dd></div>
@@ -279,7 +281,7 @@ function Hero({ p, onSeason, fellBackFrom, asked = false }: { p: TeamProfile; on
           {p.league && <LeagueStanding league={p.league} season={p.season} team={t.number} />}
           {predictable ? (
             <div className="mt-5 max-sm:mt-4 flex flex-wrap gap-2">
-              <Button size="sm" asChild><Link to={matchHref} data-tour="predict"><Sparkles /> Predict a match with {t.number}</Link></Button>
+              <Button size="sm" asChild><Link to={matchHref}><Sparkles /> Predict a match with {t.number}</Link></Button>
               {!(next && ADVANCING.has(next.type ?? "")) && <Button size="sm" variant="secondary" asChild><Link to={predictHref({ mode: "advancement", season: p.season, team: t.number })}><Trophy /> Advancement odds</Link></Button>}
             </div>
           ) : <p className="mt-5 max-sm:mt-4 text-xs text-muted-foreground">{seasonLabel(p.season)} is shown for history: results and stats, no predictions (those start with 2023–24).</p>}
