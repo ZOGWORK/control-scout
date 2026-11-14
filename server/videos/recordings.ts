@@ -10,14 +10,14 @@ import { all, run } from "../db.js";
 import { registerCache } from "../caches.js";
 import { seasonStreams } from "../portal/streams.js";
 import { embedUrl, parseStreamUrl } from "../../src/shared/stream.js";
-import { CHAPTER_MIN_GAP_S, CLIP_LEAD_S, actualStart, chaptersConfirm, clearOfPrevious, clipSecond, gapSlack, timingTrusted, watchUrl, type Chapter } from "../../src/shared/recording.js";
+import { CHAPTER_MIN_GAP_S, CLIP_LEAD_S, actualStart, chaptersConfirm, clearOfPrevious, clipEnd, clipSecond, frameClipEnd, gapSlack, timingTrusted, watchUrl, type Chapter } from "../../src/shared/recording.js";
 import { localToUtcMs } from "../../src/shared/time.js";
 import type { EventStream, MatchView } from "../../src/shared/api.js";
 import { env } from "../env.js";
 import { fetchFromApi, fetchWatchPage, type WatchPageFacts } from "./youtube.js";
 import { officialRecordingIds, seasonOfficial } from "./officialVideos.js";
 import { checkedTo } from "../data/checkedTimings.js";
-import { frameStart, hasFrames } from "../data/frameTimings.js";
+import { frameNextStart, frameStart, hasFrames } from "../data/frameTimings.js";
 
 export interface VideoMeta extends WatchPageFacts { videoId: string; checkedAt: string }
 /** One of a recording's videos. day: its broadcast's date at the venue, when an official list gave it; part: a named
@@ -279,7 +279,11 @@ export function withClips<M extends Pick<MatchView, "label" | "time" | "startsAt
   const fromFrames = (label: string) => {
     for (const v of framed) {
       const s = frameStart(v.videoId, r.code!, label);
-      if (s != null) { const t = Math.max(0, s - CLIP_LEAD_S); return { videoId: v.videoId, t, url: watchUrl(v.videoId, t) }; }
+      if (s != null) {
+        const t = Math.max(0, s - CLIP_LEAD_S);
+        const end = frameClipEnd(s, frameNextStart(v.videoId, s), v.meta?.length ?? null);
+        return { videoId: v.videoId, t, url: watchUrl(v.videoId, t), ...(end > t ? { end } : {}) };
+      }
     }
     return null;
   };
@@ -305,7 +309,8 @@ export function withClips<M extends Pick<MatchView, "label" | "time" | "startsAt
     for (const v of videos) {
       const t = clipSecond(x.startsAt, v.timing, now);
       if (t == null || !clearOfPrevious(x.startsAt, v.slack ? previousStart(v.starts, x.startsAt) : null, v.slack)) continue;
-      return { ...x, clip: { videoId: v.videoId, t, url: watchUrl(v.videoId, t), ...(v.slack ? { early: v.slack } : {}) } };
+      const end = clipEnd(x.startsAt, v.timing, nextStart(v.starts, x.startsAt), now);
+      return { ...x, clip: { videoId: v.videoId, t, url: watchUrl(v.videoId, t), ...(v.slack ? { early: v.slack } : {}), ...(end != null && end > t ? { end } : {}) } };
     }
     return x;
   });
@@ -324,6 +329,13 @@ function previousStart(starts: number[], startsAt: string | null | undefined): s
 export function recordingAt(r: Recording, startsAt: string | null | undefined, now = Date.now()): { videoId: string; meta: VideoMeta | null } {
   const all = [{ videoId: r.videoId, meta: r.meta }, ...(r.more ?? [])];
   return all.find((v) => v.meta?.status === "ok" && within(startsAt, v.meta, now)) ?? all[0];
+}
+
+/** The earliest of some match starts (ms, in order) after a match's start, as UTC ISO; null for none. */
+function nextStart(starts: number[], startsAt: string | null | undefined): string | null {
+  const at = startsAt ? Date.parse(startsAt) : NaN;
+  const next = starts.find((s) => s > at);
+  return next == null ? null : new Date(next).toISOString();
 }
 
 /** Whether a match start falls inside a broadcast (from its start to its end, or to now while it's live). */

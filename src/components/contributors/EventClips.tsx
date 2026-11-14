@@ -34,7 +34,7 @@ export function EventClipsProvider({ season, code, children }: { season: number;
 }
 export const useContributorVideo = (key: string): ContributorVideo | undefined => useContext(Ctx).byKey[key];
 
-type Item = { m: MatchView; play: { videoId: string; t: number }; kind: "first" | "contributor" | "recording"; c?: ContributorVideo };
+type Item = { m: MatchView; play: { videoId: string; t: number; end?: number }; kind: "first" | "contributor" | "recording"; c?: ContributorVideo };
 
 /** Every played match with a video this viewer can watch, in the event's order. */
 export function useClipItems(matches: MatchView[]): Item[] {
@@ -45,7 +45,7 @@ export function useClipItems(matches: MatchView[]): Item[] {
     if (!pick) return [];
     if (pick.kind === "contributor") return [{ m, kind: "contributor", play: { videoId: pick.video.videoId, t: pick.video.t }, c: pick.video }];
     if (pick.kind === "first") return [{ m, kind: "first", play: pick.video }];
-    return [{ m, kind: "recording", play: { videoId: pick.video.videoId, t: pick.video.t } }];
+    return [{ m, kind: "recording", play: { videoId: pick.video.videoId, t: pick.video.t, end: pick.video.end } }];
   }), [matches, byKey]);
 }
 

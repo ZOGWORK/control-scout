@@ -112,13 +112,14 @@ describe("event recordings", () => {
   it("puts each played match inside the video on its second, with a lead-in", async () => {
     const d = await getJson(`/api/events/${S}/CLIPS`);
     const clip = (n: number) => d.matches.find((m: any) => m.number === n).clip ?? null;
-    expect(clip(1)).toEqual({ videoId: FIRST_ID, t: 100, url: `https://www.youtube.com/watch?v=${FIRST_ID}&t=100s` });
-    expect(clip(2).t).toBe(14205);
+    // It stops at the match's end: its second (120) + its play (160) + the live delay and final score (60).
+    expect(clip(1)).toEqual({ videoId: FIRST_ID, t: 100, url: `https://www.youtube.com/watch?v=${FIRST_ID}&t=100s`, end: 340 });
+    expect(clip(2)).toMatchObject({ t: 14205, end: 14445 });
     expect(clip(3)).toBeNull(); // after the video ends
     expect(clip(4)).toBeNull(); // not played
     expect(clip(5)).toBeNull(); // played, on the minute: a schedule
     const m = await getJson(`/api/events/${S}/CLIPS/matches/qual:0:1`);
-    expect(m.match.clip.t).toBe(100);
+    expect(m.match.clip).toMatchObject({ t: 100, end: 340 }); // the match's own route: the same end
   });
 
   it("the owner's stream wins, with its own timing", async () => {
@@ -148,8 +149,13 @@ describe("event recordings", () => {
     const t = Object.fromEntries(d.matches.map((m: any) => [m.label, m.clip?.t ?? null]));
     expect(t).toEqual({ Q1: 3600 - 600 - 20, Q2: 28500 - 600 - 20, Q3: null, Q4: null, Q5: 4920 - 600 - 20 });
     expect(d.matches[0].clip).toMatchObject({ videoId: SHORT_ID, early: 600 });
+    // Each stops from its own place by the clock, never moved earlier by the early start: Q5 at 4,920 s + 220 s.
+    // Q1's next match (Q4, 8 min on) may sit 10 min early: it stops once its own play is over at the latest (+174 s).
+    const end = Object.fromEntries(d.matches.map((m: any) => [m.label, m.clip?.end ?? null]));
+    expect(end).toMatchObject({ Q1: 3600 + 174, Q5: 4920 + 220 });
     // One match on its own gets the same second.
-    expect((await getJson(`/api/events/${S}/SHORT/matches/qual:0:2`)).match.clip).toMatchObject({ t: 28500 - 600 - 20, early: 600 });
+    // Its end is never past the video's (28,200 s), though its own place (28,500 s) is.
+    expect((await getJson(`/api/events/${S}/SHORT/matches/qual:0:2`)).match.clip).toMatchObject({ t: 28500 - 600 - 20, early: 600, end: 28200 });
   });
 
   it("an upload, or a broadcast with a gap, plays but has no clips; a removed video, a channel page and Twitch give no player", async () => {

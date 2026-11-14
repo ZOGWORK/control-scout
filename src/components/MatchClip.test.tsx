@@ -82,8 +82,19 @@ describe("Watch", () => {
     expect(card()).toBeNull();
     expect(localStorage.getItem("cs-video-predictions")).toBe("0");
   });
-  it("with the video open and the player answering, Watch moves it within the video (same player, seekTo then play)", () => {
-    render(<MemoryRouter><WatchLive d={d} stream={stream} /><ClipLink clip={clip}>Watch</ClipLink></MemoryRouter>);
+  it("Watch opens the recording at its match and stops at that match's end (start= and end=)", () => {
+    render(<MemoryRouter><WatchLive d={d} stream={stream} /><ClipLink clip={{ ...clip, end: 340 }}>Watch</ClipLink></MemoryRouter>);
+    expect(fireEvent.click(screen.getByRole("link", { name: /Watch this match/ }))).toBe(false);
+    const q = new URL(document.querySelector("iframe")!.getAttribute("src")!).searchParams;
+    expect([q.get("start"), q.get("end")]).toEqual(["100", "340"]);
+  });
+  it("the recording from its picture plays on: no end", () => {
+    render(<MemoryRouter><WatchLive d={d} stream={stream} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: /^Play:/ }));
+    expect(new URL(document.querySelector("iframe")!.getAttribute("src")!).searchParams.get("end")).toBeNull();
+  });
+  it("with the video open and the player answering, Watch loads that match's clip in the same player, to its end", () => {
+    render(<MemoryRouter><WatchLive d={d} stream={stream} /><ClipLink clip={{ ...clip, end: 340 }}>Watch</ClipLink></MemoryRouter>);
     fireEvent.click(screen.getByRole("button", { name: /^Play:/ }));
     const frame = document.querySelector("iframe")!;
     const sent: unknown[] = [];
@@ -93,9 +104,9 @@ describe("Watch", () => {
     sent.length = 0;
     expect(fireEvent.click(screen.getByRole("link", { name: /Watch this match/ }))).toBe(false);
     expect(document.querySelector("iframe")).toBe(frame); // no reload
+    // Loaded, not sought: a seekTo would leave an earlier end= in place, and YouTube plays on past an end after one.
     expect(sent).toEqual([
-      { event: "command", func: "seekTo", args: [100, true], id: 1, channel: "widget" },
-      { event: "command", func: "playVideo", args: [], id: 1, channel: "widget" },
+      { event: "command", func: "loadVideoById", args: [{ videoId: "WQUBVjbh-hM", startSeconds: 100, endSeconds: 340 }], id: 1, channel: "widget" },
     ]);
   });
   it("a match's own video plays in the page's player, with the way back to the recording", () => {
