@@ -142,6 +142,11 @@ describe("comparison card: the teams' matches together", () => {
     expect(at(Q4).querySelector("[data-video-facade]")).not.toBeNull();
   });
 
+  it("past the cap, the section says how many it shows", () => {
+    const capped: StatAnswer = { ...withMatches, blocks: withMatches.blocks.map((b) => (b.kind === "matches" ? { ...b, more: "Showing the latest 10 of 14" } : b)) };
+    expect(html(capped).querySelector("[data-block='together'] [data-more]")?.textContent).toBe("Showing the latest 10 of 14");
+  });
+
   it("no matches together: no section", () => {
     expect(html(VS).querySelector("[data-block='together']")).toBeNull();
   });
