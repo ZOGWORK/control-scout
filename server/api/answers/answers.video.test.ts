@@ -325,9 +325,9 @@ describe("search's answer, end to end", () => {
 });
 
 describe("matches still to play", () => {
-  it("a table of them lists no match with video, and a predicted score's headline is its event", async () => {
+  it("a table of them lists no match with video; a predicted score's headline keeps its match", async () => {
     const ahead = stat({ blocks: [{ kind: "table", title: "Still to play", upcoming: true, columns: [{ key: "match", label: "Match" }], rows: [{ cells: { match: "Q12" }, href: href("USMACMP", "qual:0:12") }] }] });
     expect(rowRefs(ahead)).toEqual([]);
-    expect(mainRef(stat({ headline: { value: "120–90", label: "Q12", href: href("USMACMP", "qual:0:12"), upcoming: true } }))).toEqual({ season: 2025, code: "USMACMP" });
+    expect(mainRef(stat({ headline: { value: "120–90", label: "Q12", href: href("USMACMP", "qual:0:12"), upcoming: true } }))).toEqual({ season: 2025, code: "USMACMP", key: "qual:0:12" });
   });
 });
