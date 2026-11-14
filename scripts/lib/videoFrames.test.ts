@@ -1,7 +1,7 @@
 // The pure parts of the frame reader (scripts/video-frames.ts): the overlay's match, the timer's elapsed time, and
 // placing a video's matches from what was read.
 import { describe, expect, it } from "vitest";
-import { elapsed, judge, overlayLabel, placed, secondsOf, type M } from "./videoFrames";
+import { elapsed, judge, overlayLabel, secondsOf, type M } from "./videoFrames";
 
 describe("the frame reader", () => {
   it("names the match the overlay shows, and nothing else", () => {
@@ -43,17 +43,19 @@ describe("the frame reader", () => {
     const ms: M[] = Array.from({ length: 10 }, (_, i) => ({ label: `Q${i + 1}`, epoch: 1000 + i * 400 }));
     // Q1 and Q4 sit 29 s early, Q5 is a misread (227 s), Q6 and Q10 sit 107 s early.
     const seen = new Map([[0, 1000 - 29], [3, 2200 - 29], [4, 2600 - 227], [5, 3000 - 107], [9, 4600 - 107]]);
-    const out = placed(ms, seen);
-    expect(out.has("Q5")).toBe(false);
-    expect([...out.keys()]).toEqual(["Q1", "Q2", "Q3", "Q4", "Q6", "Q7", "Q8", "Q9", "Q10"]);
-    expect(out.get("Q3")).toBe(1800 - 29);
-    expect(out.get("Q8")).toBe(3800 - 107);
+    const j = judge(ms, seen, null, 10_000);
+    expect(j.missing.get("Q5")).toBe("its frame read disagrees with the matches around it");
+    expect([...j.placed.keys()]).toEqual(["Q1", "Q2", "Q3", "Q4", "Q6", "Q7", "Q8", "Q9", "Q10"]);
+    expect(j.placed.get("Q3")).toEqual({ t: 1800 - 29, confidence: "medium" });
+    expect(j.placed.get("Q8")).toEqual({ t: 3800 - 107, confidence: "medium" });
   });
 
-  it("keeps a match only where a read saw it or agreeing reads hold it", () => {
+  it("never places a match on one read alone: two reads that disagree each go to review", () => {
     const ms: M[] = Array.from({ length: 4 }, (_, i) => ({ label: `M${i + 1}`, epoch: i * 500 }));
-    const out = placed(ms, new Map([[0, 10], [3, 1500 - 300]]));
-    expect([...out.keys()]).toEqual(["M1", "M4"]);
+    const j = judge(ms, new Map([[0, 10], [3, 1500 - 300]]), null, 10_000);
+    expect(j.placed.size).toBe(0);
+    expect([...j.review.keys()]).toEqual(["M1", "M4"]);
+    expect(j.missing.get("M2")).toMatch(/in a gap/);
   });
 
   describe("judging a video's matches (clock first, frames must agree)", () => {
