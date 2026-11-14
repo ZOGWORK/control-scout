@@ -53,8 +53,9 @@ export const seasonClause = (s: Scope) => (e: EventFacts) => s.season == null ||
 /** Championship scope clause (Worlds), and the states one. */
 export const championshipClause = (s: Scope) => (e: EventFacts) => !s.championship || e.type === CHAMPIONSHIP_TYPE;
 export const statesClause = (s: Scope) => (e: EventFacts) => !s.states || e.type === STATES_TYPE;
-/** Official events only: always on for scores and records. */
-export const officialClause = () => (e: EventFacts) => isOfficialEvent(e.type);
+/** Official events only: always on for scores and records, except the event a question names itself ("26000 at APOC",
+ *  an off-season event): its own matches are the answer, never "no scored matches". */
+export const officialClause = (s?: Scope) => (e: EventFacts) => isOfficialEvent(e.type) || (!!s?.event && eventClause(s)(e));
 /** Event clause. */
 export const eventClause = (s: Scope) => (e: EventFacts) => !s.event || (e.season === s.event.season && (s.event.codes ?? [s.event.code]).includes(e.code));
 /** Venue clause. */
@@ -76,7 +77,7 @@ export const allianceClause = (s: Scope) => (m: { alliance: string }) => !s.alli
 
 /** Every event-level clause of a scope, as one test. */
 export function eventInScope(s: Scope): (e: EventFacts) => boolean {
-  const cs = [seasonClause(s), championshipClause(s), statesClause(s), officialClause(), eventClause(s), venueClause(s), placeClause(s), windowClause(s)];
+  const cs = [seasonClause(s), championshipClause(s), statesClause(s), officialClause(s), eventClause(s), venueClause(s), placeClause(s), windowClause(s)];
   return (e) => cs.every((c) => c(e));
 }
 

@@ -17,7 +17,7 @@ import { OPR_CARDS, oprRankHint } from "../../oprCards";
 import { SEARCH_PALETTE, meaningOf } from "../../../lib/textTones";
 import { AnswerFrame, RelatedQuestions, TAP, repeats, statedSeason, useAnswerSeason, useTeamProfile } from "./TeamAnswer";
 import { rangeCaption } from "../../../shared/format";
-import { AnswerVideo, RowPlay, useRowPlays } from "./AnswerVideo";
+import { AnswerVideo, NoVideoLine, RowPlay, useRowPlays } from "./AnswerVideo";
 import { useSeasonPick } from "./SeasonPick";
 import { Cell, EventMarker, HeadlineValue, INK_BAR, MethodNote, TEAM_BAR, TEAM_TEXT, AwardChip, TEAM_SWATCH, kpiSwatches, swatchOf, type Swatch, RecordText, RichText, SeasonChip, better, columnMax, foldsOnPhone } from "./answerCells";
 import { MatchBox, RankBadge, TeamChip } from "./MatchBox";
@@ -98,6 +98,7 @@ function OneCard({ stat, heading, extra }: { stat: StatAnswer; heading?: string;
       {stat.headline && <Headline h={{ ...stat.headline, ...oneContext(stat.headline.label, stat.headline.sub, stat.scope) }} hue={one} tone={headlineTone(stat, teams)}
         hideLabel={repeats(heading, stat.headline.label, stat.scope) || stat.headline.label === stat.title} />}
       <AnswerVideo />
+      <NoVideoLine stat={stat} />
       {stat.none && (
         // Nothing found is the answer "no": No's slate, a thick bar and a filled chip.
         <p className={cn("mt-3 flex items-start gap-3 rounded-xl border border-l-[6px] border-border px-4 py-3 text-sm font-semibold text-foreground", SEARCH_PALETTE.no.edge, SEARCH_PALETTE.no.tint)} data-none>
@@ -422,7 +423,7 @@ function Table({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
                       </td>
                     );
                   })}
-                  {plays && <td className="w-0 px-1 py-0.5 align-middle">{r.href && <RowPlay href={r.href} label={[r.cells.match, r.cells.event].filter(Boolean).join(" · ") || "This match"} />}</td>}
+                  {plays && <td className="w-0 px-1 py-0.5 align-middle">{r.href && !r.upcoming && <RowPlay href={r.href} label={[r.cells.match, r.cells.event].filter(Boolean).join(" · ") || "This match"} />}</td>}
                 </tr>
               );
             })}
@@ -480,7 +481,7 @@ function MatchTable({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
                     {r.teams.blue.map((t) => <NumChip key={t.href} t={t} side="blue" />)}
                   </span>
                 )}
-                {r.href && <RowPlay href={r.href} label={`${r.cells.match} · ${r.cells.event}`} className="-my-1 -mr-1" />}
+                {r.href && !r.upcoming && <RowPlay href={r.href} label={`${r.cells.match} · ${r.cells.event}`} className="-my-1 -mr-1" />}
               </span>
             </li>
           );

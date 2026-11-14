@@ -175,10 +175,10 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
     const p = await get<any>("SELECT p_red, red_mean, blue_mean FROM predictions WHERE kind = 'live' AND season = ? AND code = ? AND level = ? AND series = ? AND number = ?", [m.season, m.code, m.level, m.series, m.number]);
     const own = m.alliance === "red" ? "red" : "blue";
     const label = `${m.label} at ${shortEvent(m.name, m.type)}${m.time ? ` · ${String(m.time).slice(0, 16).replace("T", " ")}` : ""}`;
-    if (!p) return { ...b, headline: { value: m.label, label, sub: `On ${own}. The prediction is logged shortly before the match; the match page shows it then.`, href: matchHref(m) } };
+    if (!p) return { ...b, headline: { value: m.label, label, sub: `On ${own}. The prediction is logged shortly before the match; the match page shows it then.`, href: matchHref(m), upcoming: true } };
     const mine = own === "red" ? p.red_mean : p.blue_mean, theirs = own === "red" ? p.blue_mean : p.red_mean;
     const win = own === "red" ? p.p_red : 1 - p.p_red;
-    return { ...b, headline: { value: `${Math.round(mine)}–${Math.round(theirs)}`, label, sub: `${own === "red" ? "Red" : "Blue"} (${possessive(who(team))} alliance) ${Math.round(win * 100)}% to win`, href: matchHref(m) },
+    return { ...b, headline: { value: `${Math.round(mine)}–${Math.round(theirs)}`, label, sub: `${own === "red" ? "Red" : "Blue"} (${possessive(who(team))} alliance) ${Math.round(win * 100)}% to win`, href: matchHref(m), upcoming: true },
       blocks: [{ kind: "bars", title: "Predicted scores", groups: [{ label: m.label, items: [{ label: `${own === "red" ? "Red" : "Blue"} (with ${team.number})`, value: Math.round(mine), tone: "a" }, { label: own === "red" ? "Blue" : "Red", value: Math.round(theirs), tone: "b" }] }] }] };
   }
 
