@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.0.0 — 2026-11-13
+## 6.0.1 — 2026-11-13
 
 The old first-visit welcome card and step-by-step tour are gone, ahead of a new onboarding built from scratch.
 
@@ -29,6 +29,18 @@ The old first-visit welcome card and step-by-step tour are gone, ahead of a new 
 
 ### Changed
 - The add-to-home-screen nudge only waits for the first-run slot now, not for a welcome card. `isAutomated` moved to `src/lib/automation.ts` and `isShown` to `src/lib/visible.ts`.
+
+## 6.0.0 — 2026-11-13
+
+A new Status page shows whether Control Scout is running: the website, its data, Control Point and the Discord bot, each with its uptime and its last 90 minutes of checks.
+
+### Highlights
+- [live] New Status page: is every part of Control Scout running right now
+- [history] Uptime for each part over the last day and the last 30 days
+- [live] A strip of the last 90 minutes of checks, green for up and red for down
+
+### Added
+- `/status`, linked from the footer: one banner for the whole site, then a card per part (Website, Data, Control Point, Discord bot) with an Up/Down chip, its last 45 checks and its uptime over 24 hours and 30 days. The server checks every part every 2 minutes, the way a visitor reaches it, and keeps 90 days of checks (migration 86); the Discord bot reports a heartbeat every minute while connected. No alerts. The owner can switch the page off in Features (Status page). (`server/uptime.ts`, `src/pages/StatusPage.tsx`, `bot/index.ts`) (#1449)
 
 ## 5.9.9 — 2026-11-13
 

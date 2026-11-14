@@ -103,6 +103,7 @@ import { vapidReady } from "./push/push.js";
 import { reportsRouter } from "./errorReports.js";
 import { failureOf, keyFor, noteSearch, outcomeTrace, patternFor, reportingOn, searchFailuresRouter } from "./searchFailures.js";
 import { supporters } from "./sponsors.js";
+import { statusNow } from "./uptime.js";
 import { packsRouter } from "./packs/routes.js";
 import { bundleRouter } from "./packs/bundle.js";
 import { cachedPublicUsage, collectRouter, PUBLIC_USAGE_MAX_AGE_S, rateLimiter, statsRouter } from "./analytics.js";
@@ -399,6 +400,12 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
     const s = await supporters();
     res.setHeader("Cache-Control", "public, max-age=300");
     return s;
+  }));
+
+  // The public /status page: each part's newest checks and its uptime (server/uptime.ts).
+  api.get("/status", requireFeature("statusPage"), h(async (_req, res) => {
+    res.setHeader("Cache-Control", "public, max-age=30");
+    return statusNow();
   }));
 
   api.get("/search", searches, h(async (req, res) => {

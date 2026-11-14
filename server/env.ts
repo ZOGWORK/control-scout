@@ -40,6 +40,10 @@ export const env = {
   /** The one public origin search engines should index (canonical, OG, sitemap URLs). In production it's
    *  controlscout.org even on a backup host whose APP_URL is its own address (Render). */
   get canonicalUrl() { return str("CANONICAL_URL") ?? (this.production ? "https://controlscout.org" : this.appUrl); },
+  /** The /status checks (server/uptime.ts) run in production, or anywhere with UPTIME_CHECKS=1; UPTIME_CHECKS=0 stops them. */
+  get uptimeChecks() { const v = str("UPTIME_CHECKS"); return v === "1" || (v !== "0" && this.production); },
+  /** Control Point's health address, checked for /status. */
+  get controlPointHealthUrl() { return str("CONTROL_POINT_HEALTH_URL") ?? "https://tryctrlpoint.org/api/health"; },
   get databaseUrl() { return str("DATABASE_URL") ?? `file:${join(process.cwd(), ".data", "scout.db").replace(/\\/g, "/")}`; },
   get databaseToken() { return str("DATABASE_AUTH_TOKEN"); },
   get firstUser() { return str("FTC_EVENTS_USERNAME"); },
