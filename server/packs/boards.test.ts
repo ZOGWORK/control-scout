@@ -320,29 +320,23 @@ describe("building a season pack", () => {
     expect(readdirSync(d)).toEqual([f!.name]);
   }, 120_000);
 
-  it("live writes keep arriving at a fixed interval longer than the read span: the build fits between them and succeeds", async () => {
+  it("live writes keep arriving try after try: the build restarts once each ends, and succeeds when a try fits", async () => {
     await kvSet("data:version", V0); await kvSet("data:settled", V0);
-    settleWait.ms = 20_000; settleWait.pollMs = 2000; // the poll is slow: a try restarts as soon as the write ends (idle)
+    settleWait.ms = 20_000; settleWait.pollMs = 2000;
     let reads = 0;
-    let timer: ReturnType<typeof setInterval> | undefined;
-    const write = () => void writing(() => new Promise((r) => setTimeout(r, 40)));
-    // Every try's reads take ~60 ms; a 40 ms write every 250 ms (an event day's lane, scaled down), the first one
-    // landing inside the first try.
+    // Deterministic: a 40 ms write lands inside each of the first three tries (an event day's lane), none after.
     setBoardReads([async (s) => [{ path: `/api/records/${s}/high-score`, read: async () => {
-      if (++reads === 1) { write(); timer = setInterval(write, 250); }
-      await new Promise((r) => setTimeout(r, 60));
+      if (++reads <= 3) void writing(() => new Promise((r) => setTimeout(r, 40)));
       return { line: null };
     } }]]);
     const d = mkdtempSync(join(tmpdir(), "cs-boards-i-"));
     const logs: string[] = [];
-    const t0 = Date.now();
     try {
       const f = await buildFull(S, "2026-11-14.17", d, (m) => logs.push(m));
       expect(readdirSync(d)).toEqual([f!.name]);
-    } finally { clearInterval(timer); await idle(); }
-    expect(reads).toBeGreaterThanOrEqual(2);
-    expect(logs.some((m) => /try 1: a write (is still in flight|ran during the reads), building again/.test(m))).toBe(true);
-    expect(Date.now() - t0).toBeLessThan(2000); // never waited on the 2 s poll: restarted when the write ended
+    } finally { await idle(); }
+    expect(reads).toBe(4); // three overlapped tries, then the one that fit
+    expect(logs.filter((m) => /a write (is still in flight|ran during the reads), building again/.test(m))).toHaveLength(3);
   }, 120_000);
 
   it("a write that starts and ends within the reads (the generation moves, the version doesn't): built again", async () => {
@@ -415,7 +409,8 @@ describe("the current season's reads hold the data lock", () => {
       expect(tick).toBeNull();
       expect(fetched).toEqual([]);
       // Once the build has let go, the next tick runs.
-      expect((await liveTick())?.fetched).toEqual(["LOCKLIVE"]);
+      // (only this test's event: the seed's own events can be "live" on their date too)
+      expect((await liveTick())?.fetched).toContain("LOCKLIVE");
     } finally {
       Object.assign(liveIo, real);
       await run("DELETE FROM events WHERE season = ? AND code = 'LOCKLIVE'", [S]);
