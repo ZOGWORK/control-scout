@@ -77,9 +77,12 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
 - **Watchlist** (`official_channels`, migration 84): seeded once each from `server/data/officialChannels.ts` with the
   channels the checked list came from. Each channel has a region rule (`country=Romania`, `state=VA,MD,DC`,
   `country=USA;type=Premier,OffSeason`, `state=IN;name=michiana|gears`), the region's own words (too common in its
-  titles to count as evidence) and, optionally, a pattern for titles that name the region itself. Only videos
-  published after a channel started being watched are read; the older ones went through the checked list. The
-  owner adds, edits or removes channels in Owner › Official videos, and a removed channel is never seeded back.
+  titles to count as evidence) and, optionally, a pattern for titles that name the region itself. Each run reads a
+  channel's uploads back to the earlier of the date it started being watched and 180 days ago (`LOOKBACK_MS`), up to
+  10 pages of 50. A stream is listed when it's scheduled, often weeks before it airs, so a cut at the watch date alone
+  skipped every stream scheduled before it, for good, once it aired (the 2026-11-13 audit found 55: FTC Iowa's league
+  meets, Pennsylvania's championship, Arizona's qualifiers). A video already read, or already an official video, isn't
+  read again. The owner adds, edits or removes channels in Owner › Official videos, and a removed channel is never seeded back.
 - **Each new video, once** (`official_watch`): it gets matched with the list's rules (`server/videos/officialMatch.ts`).
   A recording is **added** (`official_videos`, source `watcher`) only when all of these hold:
   - it is a finished live broadcast of at least 45 minutes, public and embeddable, and not blocked in 50 or more countries;
@@ -92,8 +95,23 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
   link, a channel broadcast, the owner's stream), is logged as a **duplicate** and never added or queued.
 
   Anything short of that goes **to review**, with the reason and the event it fits best. Titles that aren't
-  competition streams (webinars, kickoffs, FRC, …) are **set aside**. A video still live, or still to come, is read
-  again after it ends.
+  competition streams (webinars, kickoffs, FRC, …) are **set aside**, and so is a video under 45 minutes that fits no
+  event (an upload, a program call, a team's reel): it can't be a day's recording, and the owner can still add it as a
+  highlight from the set-aside list. A title naming the region itself ("FTC Iowa …") makes all its events that day
+  plausible, so when the title also names one event by its own word or designator ("Iris", "Waterloo", "Meet #1" and
+  not "Meet #1a"), the events it fits by the region's name alone drop out. Two events sharing a word ("CTX GEMS
+  Diamond League Meet 2" and "… Emerald …") are told apart the same way: an event whose name has a word the title
+  doesn't say ("Emerald"), while the title says a word of the other's name ("Diamond"), drops out when the event left
+  outscores it. A title naming two events (a joint meet) stays in review.
+
+  Every video read ends in exactly one state, its reason in `official_watch.why`: **added** (every check passed),
+  **pending** (the owner's review), or **set aside**, **duplicate** or **rejected**. The only videos not written yet are
+  ones still live or still to come (read again every run until they end) and ones YouTube returns no facts for yet
+  (read again next run).
+- **After a recording is added** (by the watcher, or by the owner's approval), every `onRecordingAdded` listener
+  (`server/videos/officialWatch.ts`) gets each event, day, part and video, once per run. It's the hook for checking
+  the event's clip coverage again; nothing registers on it yet, so until the coverage check does, an add notifies no
+  one. A failing listener is logged and never undoes the add.
 - **The owner's queue** (Owner › Official videos, with an "N to review" badge on the console's menu), oldest first. Each
   row shows the title, channel, video id, published and broadcast times, length, the best-guess event and why it
   wasn't added:

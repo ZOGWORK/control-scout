@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.0.8 — 2026-11-14
+
+The official-channel video watcher now picks up event streams that were scheduled before it started watching a channel, so recordings from FTC Iowa, Pennsylvania, Arizona and others aren't missed once they air.
+
+### Highlights
+- [fixes] Event streams scheduled ahead of time are no longer missed
+- [fixes] More official recordings join their event without waiting
+- [fixes] Calls and team reels no longer wait in the owner's review
+
+### Fixed
+- Official videos watcher: it read only uploads published after a channel started being watched, but a stream is listed when it's scheduled, so every stream scheduled before that (55 found: FTC Iowa's league meets, Pennsylvania's championship and qualifiers, Arizona's qualifiers) would never be read once it aired. It now reads back to the earlier of that date and 180 days ago, up to 10 pages. A title naming the region ("FTC Iowa …") and one event's own word ("Iris") or designator (meet 1, not meet 1a) now fits that event instead of every event of the region that day, and a title naming one of two leagues on the same day ("CTX GEMS Diamond League Meet 2") fits that league, never the other (Emerald). A video under 45 minutes that fits no event is set aside with its reason instead of waiting in review. Duplicates name the event that already plays them, and an `onRecordingAdded` hook runs after each added recording so its event's clips can be checked again. (`server/videos/officialWatch.ts`, `server/videos/officialMatch.ts`, `docs/official-videos.md`) (#1456)
+
 ## 6.0.7 — 2026-11-14
 
 A match's Watch button now plays just that match: the recording stops once its final score is up, before the next match starts.
