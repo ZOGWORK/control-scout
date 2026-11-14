@@ -10,7 +10,7 @@ import { all, get, kvSet, migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
 import { forgetRecordings } from "./recordings";
 import { currentSeason } from "../api/answers/season";
-import { checkClipCoverage, markCoverageBulkReviewed, markCoverageReviewed, openCoverageCount, ownerClipCoverage } from "./coverageCheck";
+import { checkClipCoverage, markCoverageBulkReviewed, markCoverageReviewed, openCoverageCount, ownerClipCoverage, triageUntriaged } from "./coverageCheck";
 
 const S = currentSeason();
 const OLD = S - 3;
@@ -148,6 +148,20 @@ describe("clip coverage check and triage", () => {
       ["owner@test", { category: null, season: OLD, count: 1 }],
     ]);
     await run("DELETE FROM clip_coverage WHERE code LIKE 'BULK%'");
+  });
+
+  it("rows from before triage are triaged at boot from the missing list they hold, reviewed ones kept reviewed", async () => {
+    const detail = (reasons: string[]) => JSON.stringify({ videos: [], daysMissing: [], missing: reasons.map((reason, i) => ({ key: `qual:0:${i + 1}`, label: `Q${i + 1}`, clip: false, videoId: null, reason })) });
+    await run("INSERT INTO clip_coverage (season, code, fingerprint, checked_at, state, played, with_clip, missing_key, detail) VALUES (?, 'PRE1', 'x', '2026-11-01T00:00:00Z', 'unplaced', 2, 0, 'k', ?)", [S, detail(["video-unavailable", "video-unavailable"])]);
+    await run("INSERT INTO clip_coverage (season, code, fingerprint, checked_at, state, played, with_clip, missing_key, detail, reviewed_at, reviewed_by) VALUES (?, 'PRE2', 'x', '2026-11-01T00:00:00Z', 'partial', 3, 2, 'k', ?, '2026-11-02T00:00:00Z', 'owner@test')", [S, detail(["before-broadcast"])]);
+    // Untriaged, a row reads as actionable: PRE1 would be To review until triaged.
+    expect((await ownerClipCoverage()).events.map((e) => e.code)).toContain("PRE1");
+    expect(await triageUntriaged(() => {})).toBe(2);
+    expect(await row("PRE1")).toMatchObject({ triage: "no-timing", triage_why: "2 matches: Video unavailable or private", reviewed_at: null });
+    expect(await row("PRE2")).toMatchObject({ triage: "actionable", reviewed_at: "2026-11-02T00:00:00Z" });
+    expect((await ownerClipCoverage()).events.map((e) => e.code)).not.toContain("PRE1");
+    expect(await triageUntriaged(() => {})).toBe(0);
+    await run("DELETE FROM clip_coverage WHERE code LIKE 'PRE%'");
   });
 
   it("pages the owner's list, every event reachable", async () => {
