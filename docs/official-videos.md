@@ -53,8 +53,8 @@ exceptions rules 2 and 7 name for the checked list only, and the auto-watcher us
    the owner's stream. A day with two videos is kept only when the titles name the parts (the awards ceremony, the
    eliminations, "Matches 1–5" and "Matches 6–14"), or, in the checked list only, when they are one day's broadcast
    restarted on the same channel: the second starts at most 30 minutes after the first ends, they don't overlap, and
-   the rows say "Part 1" and "Part 2" in broadcast order (Montana's 2023 State, NorCal's 2022 Santa Clara QT, 7419's
-   East Bay Meet 1).
+   the rows say "Part 1" and "Part 2" in broadcast order (Montana's 2023 State: Part 1 ended 23:13:53Z, Part 2 began
+   23:15:48Z).
 
 Per-match clips are never mapped from a title outside FIRST's own per-match videos (the Championship's are already
 FIRST's match videos, `matches.video`). A recording never hides FIRST's per-match video or a verified contributor's
