@@ -19,6 +19,7 @@ import { isBareRoute, pageModule } from "../src/shared/routes.js";
 import { APP_CSS_ID } from "../src/shared/boot.js";
 import { COIN_FLIPS_META, hasFlips } from "../src/shared/coinFlips.js";
 import { liteHref } from "../src/shared/lite.js";
+import { footerFlagOn } from "../src/shared/footer.js";
 import { isEnabled } from "./flags.js";
 import type { SearchIntentNote } from "../src/shared/api.js";
 
@@ -177,7 +178,7 @@ export async function renderPage(file: string, path: string, query: Record<strin
   // And on /events, whether today has coin flips (coinFlipsHint).
   // And whether the light version is on (the first paint offers it on a slow load: server/bootShell.ts).
   // And whether the rules reference is on (the footer links Rules only then).
-  const [meta, hero, flips, lite, rules] = await Promise.all([pageMeta(path, query), liveHeroLines(), coinFlipsHint(path), isEnabled("venueLightMode").catch(() => false), isEnabled("rulesReference").catch(() => false)]);
+  const [meta, hero, flips, lite, rules, status] = await Promise.all([pageMeta(path, query), liveHeroLines(), coinFlipsHint(path), isEnabled("venueLightMode").catch(() => false), isEnabled("rulesReference").catch(() => false), isEnabled("statusPage").catch(() => false)]);
   // A page the server drew whole (meta.firstPaint) is the app's own markup: its first paint carries the part of the app's
   // stylesheet that markup uses, inline (server/criticalCss.ts), and waits for its text fonts (FIRST_PAINT_FONTS), so it
   // paints once, styled, never as unstyled text that then changes. Nothing else downloads until those fonts are here
@@ -191,7 +192,7 @@ export async function renderPage(file: string, path: string, query: Record<strin
   let html = (deferred ? afterFirstPaint(deferred.html, { css: deferred.href, fonts: FIRST_PAINT_FONT_LOADS }) : afterFirstPaint(nonBlockingCss(shell)))
     // The privacy banner goes after #root, not in it: React's first render replaces #root, and the app's banner takes over from this one.
     // Not on a bare page (the pit display): nobody answers it on a pit TV, and the app shows no banner there to take it over.
-    .replace(/<div id="root">(?:<!--cs-boot-->)?<\/div>/, () => `<div id="root">${bootShell(path, meta, hero, meta.notFound || !lite ? null : liteHref(path, queryString(query)), (f) => f !== "rulesReference" || rules)}</div>${isBareRoute(path) ? "" : bootConsent()}`);
+    .replace(/<div id="root">(?:<!--cs-boot-->)?<\/div>/, () => `<div id="root">${bootShell(path, meta, hero, meta.notFound || !lite ? null : liteHref(path, queryString(query)), footerFlagOn({ rulesReference: rules, statusPage: status }))}</div>${isBareRoute(path) ? "" : bootConsent()}`);
   if (deferred) html = inlineCriticalCss(html, [join(dirname(file), deferred.href), ...pageStylesheets(file, path)]);
   // A search's intent goes out with the page, for the route to count per visit (PageMeta.intent).
   return { status: meta.notFound ? 404 : 200, html, ...(meta.intent ? { intent: meta.intent } : {}) };
