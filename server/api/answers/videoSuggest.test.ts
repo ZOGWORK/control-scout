@@ -45,11 +45,13 @@ describe("withVideoAlternatives", () => {
     const a = answer();
     expect(await withVideoAlternatives("6980 at east bergen with video", a, clip, askOf, videoOf, 1000, cands)).toBe(a);
     expect(await withVideoAlternatives("6980 at east bergen", a, undefined, askOf, videoOf, 1000, cands)).toBe(a);
+    // Spacing alone is no watch word.
+    expect(await withVideoAlternatives("6980  results at east bergen", a, undefined, askOf, videoOf, 1000, cands)).toBe(a);
     expect(await withVideoAlternatives("6980 at east bergen with video", a, undefined, askOf, async () => undefined, 1000, cands)).toBe(a);
   });
 
   it("a question whose answer says none is never offered", async () => {
-    const out = await withVideoAlternatives("6980 with video", answer("season-matches"), undefined, async (q) => ({ ...answer("results", "None"), q }), videoOf, 1000, cands);
+    const out = await withVideoAlternatives("6980 at east bergen with video", answer("season-matches"), undefined, async (q) => ({ ...answer("results", "None"), q }), videoOf, 1000, cands);
     expect(out.stat?.blocks.some((b) => b.kind === "related")).toBe(false);
   });
 
