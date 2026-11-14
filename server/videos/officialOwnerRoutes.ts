@@ -2,6 +2,7 @@
 // auto-watcher's review queue, its runs and quota, and the watched channels. Every decision is audited where it's
 // made (./officialWatch.ts).
 import type { NextFunction, Request, Response, Router } from "express";
+import { isEventCodeParam } from "../../src/shared/eventCode.js";
 import { markCoverageReviewed, openCoverageCount, ownerClipCoverage } from "./coverageCheck.js";
 import { approveWatched, ownerOfficial, pendingCount, rejectWatched, removeChannel, removeOfficial, runNow, saveChannel } from "./officialWatch.js";
 
@@ -12,12 +13,14 @@ const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
 /** /api/owner/clip-coverage: Owner > Clip coverage (server/videos/coverageCheck.ts): every event with a played match
  *  missing a clip, its days and videos checked and each match's reason; marking one reviewed is audited. */
 export function clipCoverageOwnerRoutes(r: Router, h: H, actor: (req: Request) => string): void {
-  r.get("/clip-coverage", h(async () => ownerClipCoverage()));
+  r.get("/clip-coverage", h(async (req) => ownerClipCoverage({ reviewed: req.query.list === "reviewed", offset: Number(req.query.offset) || 0 })));
   r.get("/clip-coverage/counts", h(async () => ({ open: await openCoverageCount() })));
   r.post("/clip-coverage/:season/:code/reviewed", h(async (req, res) => {
-    const season = Number(req.params.season), code = String(req.params.code).toUpperCase();
-    if (!Number.isInteger(season) || !/^[A-Z0-9]{2,20}$/.test(code)) { res.status(400).json({ error: "Not an event." }); return; }
-    if (!await markCoverageReviewed(season, code, actor(req))) { res.status(404).json({ error: "Not waiting for review." }); return; }
+    const season = Number(req.params.season), code = String(req.params.code), version = str(req.body?.version, 64);
+    if (!Number.isInteger(season) || !isEventCodeParam(code)) { res.status(400).json({ error: "Not an event." }); return; }
+    const out = await markCoverageReviewed(season, code, version, actor(req));
+    if (out === "none") { res.status(404).json({ error: "Not waiting for review." }); return; }
+    if (out === "changed") { res.status(409).json({ error: "Its missing list changed since you opened it: look again." }); return; }
     return ownerClipCoverage();
   }));
 }
