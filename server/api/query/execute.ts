@@ -523,6 +523,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // ("matches at <event> where both alliances scored over 250"), listed best first; "matches" alone, a place's or a
   // match type's ("playoff matches in NJ") are left to search.
   if (intent === "top-matches" && !p.teams.length && !p.symbols.includes("agg:max") && !scope.window && !p.scoreCond) return null;
+  // A match's number with an event named by name is the names reader's (its exact event and match, search.ts).
+  if (intent === "match-label" && p.event) return null;
   const labelled = intent === "match-label" && p.matchNumber != null;
   // A match's number at Worlds ("q6 at worlds"): Worlds' matches with it, its divisions' and finals'.
   const kind = labelled && p.worlds ? WORLDS_KIND : p.event ? eventKindOf(normalise(p.event.words)) : p.eventKind ? eventKindOf(p.eventKind) : null;
