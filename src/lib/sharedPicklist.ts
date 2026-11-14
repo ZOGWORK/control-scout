@@ -372,24 +372,33 @@ export async function retryFailedChange(id: number, opts: { force?: boolean } = 
     if (b) settle(BLOCKED_MESSAGE[b], { blocked: b });
     return !!b;
   };
-  let op = f.op;
   const asker = keptOwner();
-  // What the list is now, and whether this change already went (an earlier send whose answer was lost, or another tab).
-  const check = await checkList(f.space, f.season, f.opId ? [f.opId] : []);
-  if ("error" in check) {
-    if (!blockedBy(check.error)) settle(`Not saved: ${check.error.message}`);
-    return;
-  }
-  if (f.opId && check.applied.has(f.opId)) { settle(null, {}, true); return; }
-  if (check.list && f.base) {
-    const c = conflictOf(f.op, f.base, check.list.picks.map((p) => p.team), ownTeams(f));
-    if (c && (c.kind === "gone" || !opts.force)) { settle(f.message, { conflict: c }); return; }
-    if (c?.kind === "anchor") op = c.rebased;
-  }
+  // The check and the send hold the list's write line together: a change the page makes meanwhile waits behind this
+  // older one, so it's never applied first and then undone by it (the check would see nothing of it).
+  const turn = await inLine(f.space, async (): Promise<{ r: { list: unknown } } | { e: unknown } | null> => {
+    let op = f.op;
+    // What the list is now, and whether this change already went (an earlier send whose answer was lost, or another tab).
+    const check = await checkList(f.space, f.season, f.opId ? [f.opId] : []);
+    if ("error" in check) {
+      if (!blockedBy(check.error)) settle(`Not saved: ${check.error.message}`);
+      return null;
+    }
+    if (f.opId && check.applied.has(f.opId)) { settle(null, {}, true); return null; }
+    if (check.list && f.base) {
+      const c = conflictOf(f.op, f.base, check.list.picks.map((p) => p.team), ownTeams(f));
+      if (c && (c.kind === "gone" || !opts.force)) { settle(f.message, { conflict: c }); return null; }
+      if (c?.kind === "anchor") op = c.rebased;
+    }
+    try {
+      return { r: await apiFetch<{ list: unknown }>(url(f.space), {
+        method: "POST", json: { season: f.season, ...op, ...(f.opId ? { opId: f.opId } : {}), ...(f.account != null ? { account: f.account } : {}) },
+      }) };
+    } catch (e) { return { e }; }
+  });
+  if (!turn) return;
   try {
-    const r = await inLine(f.space, () => apiFetch<{ list: unknown }>(url(f.space), {
-      method: "POST", json: { season: f.season, ...op, ...(f.opId ? { opId: f.opId } : {}), ...(f.account != null ? { account: f.account } : {}) },
-    }));
+    if ("e" in turn) throw turn.e;
+    const r = turn.r;
     if (isPickList(r.list)) { announcePicklist(r.list); keepList(r.list, asker); }
     settle(null, {}, true);
   } catch (e) {
