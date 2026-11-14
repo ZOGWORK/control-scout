@@ -40,6 +40,11 @@ export const OFFICIAL_CHANNELS: OfficialChannelSeed[] = [
   { channelId: "UCHVeR960xGMtQ2rHxYAebTw", title: "High Tech Kids (Minnesota)", region: "state=MN", words: "minnesota htk", titlePattern: "minnesota" },
   { channelId: "UCbppRk83Rf7nh_Zug261h7A", title: "FIRST in Vermont", region: "state=VT", words: "vermont", titlePattern: "vermont" },
   { channelId: "UCUpv6m5YLRZgqZQlasOjKVQ", title: "FIRST UK", region: "country=United Kingdom", words: "uk" },
+  // The owner's audited channels (2026-11-14), ids from the YouTube Data API (channels?forHandle). Overcharged
+  // (@overcharged12599, FTC 12599) streams Oregon's Rose City League; Leo RHS Robotics (@leoRHSrobotics, Roseburg HS)
+  // streams the SOAR League. FIRST's own Oregon event pages link both channels' streams. Each for its league only.
+  { channelId: "UCT6yIFUf6Wr_klDFpdmLsGg", title: "Overcharged (Rose City League)", region: "state=OR;name=\\bRose City\\b", words: "oregon" },
+  { channelId: "UC2MP84F_QCCnbLqHBFBxxeQ", title: "Leo RHS Robotics (SOAR League)", region: "state=OR;name=\\bSOAR\\b", words: "oregon" },
   // The 2026-11-14 audited channels (ids from the YouTube Data API, forHandle): FIRST's delivery partners for
   // Kazakhstan, France, Italy and Türkiye, and the Prince Royal's College channel that streamed Thailand's championship
   // (its only event so far: the weakest watchlist entry, for the owner to drop if no second event comes).
