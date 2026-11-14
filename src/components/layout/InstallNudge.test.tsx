@@ -6,8 +6,6 @@ import { createElement, forwardRef, type ReactNode } from "react";
 import { EMPTY_STATE, type PersonalState } from "../../shared/personal";
 import { resetConsent, setAnalyticsConsent } from "../../lib/consent";
 import { claimFirstRun, firstRunHolder, releaseFirstRun, resetFirstRunForTests } from "../../lib/firstRun";
-import { endTour, resetTour } from "../../lib/tour";
-import { dismissWelcome, resetWelcome } from "../../lib/welcome";
 import { captureInstallPrompt, dayKey, INSTALL_DEMO_KEY, installOffer, isIosSafari, readInstall, resetInstallForTests } from "../../lib/installNudge";
 import { InstallNudge } from "./InstallNudge";
 
@@ -69,9 +67,6 @@ beforeEach(() => {
   localStorage.clear();
   resetInstallForTests();
   resetFirstRunForTests();
-  resetTour();
-  endTour("finished", 4); // the tour is behind this device unless a test says otherwise
-  dismissWelcome(); // so is the welcome card
   setAnalyticsConsent(false);
   setWebdriver(false);
   setUA(realUA);
@@ -242,7 +237,6 @@ describe("Add-to-home-screen nudge: dismissed", () => {
     expect(readInstall().dismissed).toBeTruthy();
 
     localStorage.clear();
-    endTour("finished", 4);
     setAnalyticsConsent(false);
     reload();
     mount();
@@ -332,16 +326,16 @@ describe("Add-to-home-screen nudge: installed", () => {
   });
 });
 
-describe("Add-to-home-screen nudge: the welcome card (or a tour asked for) goes first", () => {
-  it("doesn't show while the tour holds the first-run slot, nor on the page where it did", async () => {
+describe("Add-to-home-screen nudge: another first-run surface goes first", () => {
+  it("doesn't show while another surface holds the first-run slot, nor on the page where it did", async () => {
     mount("/teams/18360");
-    act(() => { claimFirstRun("tour"); });
+    act(() => { claimFirstRun("other"); });
     offerInstall();
     await settle(10_000);
     expect(nudge()).toBeNull();
-    act(() => releaseFirstRun("tour"));
+    act(() => releaseFirstRun("other"));
     await settle(10_000);
-    expect(nudge()).toBeNull(); // same page: the tour had it
+    expect(nudge()).toBeNull(); // same page: the other surface had it
     act(() => go("/teams/1234"));
     await settle();
     expect(nudge()).not.toBeNull(); // a later page
@@ -361,53 +355,18 @@ describe("Add-to-home-screen nudge: the welcome card (or a tour asked for) goes 
     expect(nudge()).not.toBeNull();
   });
 
-  it("stays off pages where the welcome card may still open, and shows elsewhere", async () => {
-    resetTour();
-    resetWelcome();
-    mount("/teams/18360");
-    offerInstall();
-    await settle(10_000);
-    expect(nudge()).toBeNull();
-    act(() => go("/settings")); // not a tour page
-    await settle();
-    expect(nudge()).not.toBeNull();
-  });
-
-  it("signed in, a first sync that failed: the welcome card can't come, so the nudge doesn't wait for it", async () => {
-    resetTour();
-    resetWelcome();
-    personal.current = { state: EMPTY_STATE, user: { id: 1 }, providers: { email: true }, sync: "error", syncReady: false } as typeof personal.current;
+  it("a first-time visitor on a landing page gets it on the first app open (nothing else to wait for)", async () => {
     mount("/teams/18360");
     offerInstall();
     await settle();
     expect(nudge()).not.toBeNull();
   });
 
-  it("signed in, the first sync still running: the nudge waits (the welcome card may still come)", async () => {
-    resetTour();
-    resetWelcome();
-    personal.current = { state: EMPTY_STATE, user: { id: 1 }, providers: { email: true }, sync: "syncing", syncReady: false } as typeof personal.current;
-    mount("/teams/18360");
-    offerInstall();
-    await settle(10_000);
-    expect(nudge()).toBeNull();
-  });
-
-  it("shows on landing pages to someone who knows the app (no welcome card comes)", async () => {
-    resetTour();
-    resetWelcome();
-    personal.current = { state: { ...EMPTY_STATE, tracked: { teams: [18360], events: [] } } as PersonalState, user: null };
-    mount("/teams/18360");
-    offerInstall();
-    await settle();
-    expect(nudge()).not.toBeNull();
-  });
-
-  it("holds the slot while shown, so the tour waits", async () => {
+  it("holds the slot while shown, so other surfaces wait", async () => {
     mount();
     offerInstall();
     await settle();
-    expect(claimFirstRun("tour")).toBe(false);
+    expect(claimFirstRun("other")).toBe(false);
   });
 });
 

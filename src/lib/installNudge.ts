@@ -23,7 +23,7 @@ import { useSyncExternalStore } from "react";
 
 export const INSTALL_KEY = "cs-install";
 /**
- * Automation opt-in, like the tour's: browsers driven by tools never get the nudge, so
+ * Automation opt-in: browsers driven by tools never get the nudge, so
  * screenshots and audits stay clean. "1" lets one see it (`npm run shots -- --install`).
  */
 export const INSTALL_DEMO_KEY = "cs-install-demo";

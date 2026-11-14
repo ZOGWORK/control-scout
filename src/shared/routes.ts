@@ -7,7 +7,7 @@
 /** A lazily loaded page module under src/pages (the file name without .tsx). */
 export type PageModule =
   | "TeamPage" | "EventsPage" | "RecordsPage" | "RankingsPage" | "EventPage" | "PredictPage" | "ComparePage" | "MyTeamPage" | "MyTeamsPage"
-  | "ShortlistPage" | "ScoutPage" | "DownloadPage" | "SettingsPage" | "MethodologyPage" | "SearchDocsPage" | "PrivacyPage" | "TermsPage" | "ContactPage" | "DonatePage" | "SupportersPage" | "FaqPage" | "RulesPage" | "MatchReportPage" | "PowerRankingsPage" | "EventDisplayPage" | "EventCodeRedirect" | "DigestUnsubscribedPage" | "BundlePage" | "SearchPage" | "RelatedSearchesPage" | "LeaguePage" | "TeamHighlightsPage" | "TeamRecordSplitPage" | "EventHighlightsPage" | "ContributorPage" | "GetVerifiedPage" | "VerifyVideoPage" | "NotFound";
+  | "ShortlistPage" | "ScoutPage" | "DownloadPage" | "SettingsPage" | "MethodologyPage" | "SearchDocsPage" | "PrivacyPage" | "TermsPage" | "ContactPage" | "DonatePage" | "StatusPage" | "SupportersPage" | "FaqPage" | "RulesPage" | "MatchReportPage" | "PowerRankingsPage" | "EventDisplayPage" | "EventCodeRedirect" | "DigestUnsubscribedPage" | "BundlePage" | "SearchPage" | "RelatedSearchesPage" | "LeaguePage" | "TeamHighlightsPage" | "TeamRecordSplitPage" | "EventHighlightsPage" | "ContributorPage" | "GetVerifiedPage" | "VerifyVideoPage" | "NotFound";
 
 // React Router matches case-insensitively, a trailing slash included: so do these.
 const ROUTES: [RegExp, PageModule | null][] = [
@@ -43,6 +43,7 @@ const ROUTES: [RegExp, PageModule | null][] = [
   [/^\/contact\/?$/i, "ContactPage"],
   [/^\/donate\/?$/i, "DonatePage"],
   [/^\/support\/?$/i, null], // a redirect to /donate
+  [/^\/status\/?$/i, "StatusPage"],
   [/^\/supporters\/?$/i, "SupportersPage"],
   [/^\/faq\/?$/i, "FaqPage"],
   [/^\/rules\/?$/i, "RulesPage"],
@@ -70,7 +71,7 @@ const TITLES: [RegExp, string][] = [
   [/^\/teams\/[^/]+\/highlights$/, "Team highlights"], [/^\/teams\/[^/]+\/record-split$/, "Team record"], [/^\/teams\/[^/]+$/, "Team"], [/^\/teams$/, "Teams"], [/^\/rankings$/, "Rankings"], [/^\/matches$/, "Match records"], [/^\/events\/[^/]+\/[^/]+$/, "Event"], [/^\/events$/, "Events"], [/^\/predict(\/accuracy)?$/, "Predict"],
   [/^\/compare$/, "Compare"], [/^\/my-team$/, "My team"], [/^\/my-teams$/, "My teams"], [/^\/shortlist$/, "Shortlist"], [/^\/scout$/, "Scout"], [/^\/download$/, "Download"],
   [/^\/bundle\/[^/]+\/[^/]+$/, "Event-day bundle"], [/^\/bundle\/[^/]+\/[^/]+\/picklist$/, "Pick list snapshot"],
-  [/^\/settings$/, "Settings"], [/^\/(methodology|predict\/how-it-works|how-it-works)$/, "How it works"], [/^\/how-it-works\/search$/, "How FTC One Search works"], [/^\/privacy$/, "Privacy"], [/^\/terms$/, "Terms"], [/^\/contact$/, "Contact"], [/^\/(donate|support)$/, "Donate"], [/^\/supporters$/, "Supporters"], [/^\/faq$/, "FAQ"], [/^\/rules$/, "Rules"],
+  [/^\/settings$/, "Settings"], [/^\/(methodology|predict\/how-it-works|how-it-works)$/, "How it works"], [/^\/how-it-works\/search$/, "How FTC One Search works"], [/^\/privacy$/, "Privacy"], [/^\/terms$/, "Terms"], [/^\/contact$/, "Contact"], [/^\/(donate|support)$/, "Donate"], [/^\/supporters$/, "Supporters"], [/^\/status$/, "Status"], [/^\/faq$/, "FAQ"], [/^\/rules$/, "Rules"],
   [/^\/power-rankings(\/[^/]+)?$/, "Power rankings"], [/^\/digest\/unsubscribed$/, "Email digest"], [/^\/search$/, "Search"], [/^\/related-searches$/, "Related searches"],
   [/^\/leagues\/[^/]+\/[^/]+\/[^/]+$/, "League"],
   [/^\/contributors\/[^/]+$/, "Contributor"], [/^\/get-verified$/, "Get Verified"], [/^\/verify-video$/, "Contributor invite"],

@@ -3,6 +3,7 @@
 // the prediction ledger after every sync), and every minute for events that
 // are on right now (the live fast lane).
 import { sweepBugReports } from "./bugReports.js";
+import { startUptimeChecks } from "./uptime.js";
 import { backfillVideoMeta } from "./videos/recordings.js";
 import { resolveStreamLinks } from "./videos/streamLinks.js";
 import { resolveChannelStreams } from "./videos/channelStreams.js";
@@ -163,6 +164,8 @@ if (!process.env.CS_NO_SCHEDULER) {
   setInterval(() => { sweepBugReports().catch((e) => log(`bug reports: sweep failed: ${(e as Error)?.message ?? e}`)); }, 10 * 60_000).unref();
   // Failed searches → GitHub issues, every 10 minutes (server/searchFailures.ts).
   startSearchFailureJobs(log);
+  // The public /status page's checks, every 2 minutes (server/uptime.ts). No alerts.
+  startUptimeChecks(log);
   setInterval(() => { photoSchedulerTick(log).catch((e) => log(`photos: ${(e as Error).message}`)); }, 15 * 60_000).unref();
   // Workspace activity feeds keep 90 days (server/scout/activityLog.ts): a small indexed delete, every 6 hours, and once soon after boot.
   const prune = () => { pruneActivity().then((n) => { if (n) log(`activity: pruned ${n} items older than 90 days`); }).catch((e) => log(`activity: ${(e as Error).message}`)); };

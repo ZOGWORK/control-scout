@@ -52,8 +52,6 @@ const SeasonUpdateWatcher = named(() => import("./lib/offline/updateWatcher"), "
 const ScoutQueueSync = named(() => import("./lib/scoutSpace"), "ScoutQueueSync");
 const OwnerRoute = named(() => import("./pages/OwnerRoute"), "OwnerRoute");
 const ErrorReportPrompt = named(() => import("./components/layout/ErrorReportPrompt"), "ErrorReportPrompt");
-const FirstRunTour = named(() => import("./components/layout/FirstRunTour"), "FirstRunTour");
-const WelcomeCard = named(() => import("./components/layout/WelcomeCard"), "WelcomeCard");
 const InstallNudge = named(() => import("./components/layout/InstallNudge"), "InstallNudge");
 const PullToRefresh = named(() => import("./components/layout/PullToRefresh"), "PullToRefresh");
 
@@ -77,6 +75,7 @@ const PAGES = {
   TermsPage: lazyPage(() => import("./pages/TermsPage")),
   ContactPage: lazyPage(() => import("./pages/ContactPage")),
   DonatePage: lazyPage(() => import("./pages/DonatePage")),
+  StatusPage: lazyPage(() => import("./pages/StatusPage")),
   SupportersPage: lazyPage(() => import("./pages/SupportersPage")),
   ContributorPage: lazyPage(() => import("./pages/ContributorPage")),
   GetVerifiedPage: lazyPage(() => import("./pages/GetVerifiedPage")),
@@ -99,7 +98,7 @@ const PAGES = {
 } satisfies Record<PageModule, unknown>;
 // Dev only: one piece of the Scout redesign at a time, for screenshots (the import is dropped from production builds).
 const ScoutPreviewPage = import.meta.env.DEV ? lazy(() => import("./pages/ScoutPreviewPage")) : () => null;
-const { TeamPage, EventsPage, RecordsPage, RankingsPage, EventPage, PredictPage, ComparePage, MyTeamPage, MyTeamsPage, ShortlistPage, ScoutPage, DownloadPage, SettingsPage, MethodologyPage, SearchDocsPage, PrivacyPage, TermsPage, ContactPage, DonatePage, SupportersPage, FaqPage, RulesPage, MatchReportPage, PowerRankingsPage, EventDisplayPage, EventCodeRedirect, DigestUnsubscribedPage, BundlePage, SearchPage, RelatedSearchesPage, LeaguePage, TeamHighlightsPage, TeamRecordSplitPage, EventHighlightsPage, ContributorPage, GetVerifiedPage, VerifyVideoPage, NotFound } = PAGES;
+const { TeamPage, EventsPage, RecordsPage, RankingsPage, EventPage, PredictPage, ComparePage, MyTeamPage, MyTeamsPage, ShortlistPage, ScoutPage, DownloadPage, SettingsPage, MethodologyPage, SearchDocsPage, PrivacyPage, TermsPage, ContactPage, DonatePage, StatusPage, SupportersPage, FaqPage, RulesPage, MatchReportPage, PowerRankingsPage, EventDisplayPage, EventCodeRedirect, DigestUnsubscribedPage, BundlePage, SearchPage, RelatedSearchesPage, LeaguePage, TeamHighlightsPage, TeamRecordSplitPage, EventHighlightsPage, ContributorPage, GetVerifiedPage, VerifyVideoPage, NotFound } = PAGES;
 const BundlePicklistPage = named(() => import("./pages/BundlePage"), "BundlePicklistPage");
 
 // Offline: the service worker precaches the app so it opens with no signal.
@@ -200,6 +199,7 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
                   <Route path="/terms" element={<TermsPage />} />
                   <Route path="/contact" element={<ContactPage />} />
                   <Route path="/donate" element={<DonatePage />} />
+                  <Route path="/status" element={<StatusPage />} />
                   <Route path="/support" element={<Navigate to="/donate" replace />} />
                   <Route path="/supporters" element={<SupportersPage />} />
                   <Route path="/contributors/:username" element={<ContributorPage />} />
@@ -226,7 +226,7 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
             <CanonicalSync />
             <SearchRobotsSync />
             <NoDataRobotsSync />
-            {/* The pit display (a TV nobody touches) gets no prompts over it: no privacy banner (unanswered, so no analytics), tour, nudge or alerts. */}
+            {/* The pit display (a TV nobody touches) gets no prompts over it: no privacy banner (unanswered, so no analytics), nudge or alerts. */}
             <NotOnBareRoute><ConsentBanner /></NotOnBareRoute>
             {/* In the main bundle, not a chunk of its own: it's for when chunks are crawling (src/lib/liteSuggest.ts). */}
             <NotOnBareRoute><LiteSuggest /></NotOnBareRoute>
@@ -238,8 +238,6 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
               <LitePackSync />
               <NotOnBareRoute><SeasonUpdateWatcher /></NotOnBareRoute>
               <ScoutQueueSync />
-              <NotOnBareRoute><WelcomeCard /></NotOnBareRoute>
-              <NotOnBareRoute><FirstRunTour /></NotOnBareRoute>
               <NotOnBareRoute><InstallNudge /></NotOnBareRoute>
               <NotOnBareRoute><PullToRefresh /></NotOnBareRoute>
             </OptionalParts>

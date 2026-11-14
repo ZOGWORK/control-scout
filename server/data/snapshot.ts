@@ -29,7 +29,7 @@ export const PRIVATE_TABLES = [
   "workspaces",
   // The official-video watcher (migration 84): the owner's watchlist, review decisions (their email) and runs.
   "official_watch", "official_watch_runs", "official_channels",
-  "owner_audit", "feature_flags", "request_metrics_daily", "owner_alerts", "workspace_activity", "inbox_items", "workspace_entry_comments",
+  "owner_audit", "feature_flags", "request_metrics_daily", "uptime_checks", "service_heartbeats", "owner_alerts", "workspace_activity", "inbox_items", "workspace_entry_comments",
   "workspace_picklist", "workspace_picklist_versions", "workspace_picklist_ops", "workspace_entry_versions", "push_subscriptions", "push_sent",
   // Search's click counts (migration 64): aggregate, but what visitors opened, so never shipped.
   "search_clicks", "search_intents",

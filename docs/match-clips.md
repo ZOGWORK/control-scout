@@ -47,3 +47,20 @@ saves nothing of what it read (it may be older than what the newer pass saved) a
 
 - `seasonVideoKinds`: "clips" when at least one played match gets a clip, "recording" for a recording with none.
 - The event page's coverage line counts the matches with a clip ([contributors.md](contributors.md)).
+
+## Search: View clip
+
+A search answer about one match ("barker greybacks best auto in decode", "11148 highest score in decode") carries
+that match's clip (`answerVideo`, `server/api/answers/video.ts`). Under People also ask (the side column on a wide
+screen, right after it on a phone), a "Watch this match" box with a **View clip** button plays it in the app's video
+dialog (`AnswerClip`, `src/components/search/page/AnswerVideo.tsx`).
+
+- It plays the match's own clip, whole: FIRST's video of it from its start, a contributor's video, or the match's
+  second in the event's recording less the 20 s lead-in. Never a new cut of one phase: a best Auto answer shows the
+  whole match, Auto included.
+- Only the headline's match (`video.mainRow` equal to the stat's headline link). No clip of it: no box, never another
+  match's clip and never an event's stream from its start in its place.
+- No box on a page of match videos (highlights): each tile already plays its own.
+- "highlights" or "video" with a one-match question ("<team> best auto highlights") asks to watch that match, so it
+  gets the same answer (`WATCH` in `server/api/query/intents.ts`). "<team> highlights" alone stays the team's
+  highlights page.

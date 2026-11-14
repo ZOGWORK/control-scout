@@ -145,7 +145,7 @@ function Hero({ query }: { query?: string }) {
       <HeroSearch inputRef={searchRef} onEscape={restoreFocus} hint={SEARCH_HINT} initialQuery={query} />
       {/* The page's main actions, above the fold at every size; they paint with the rest of the hero. */}
       <div className="mt-4 flex max-w-[36rem] flex-wrap gap-3">
-        <Button size="lg" asChild className="max-sm:flex-1"><Link to="/predict" data-tour="predict"><Sparkles /> Predict a match <ArrowUpRight /></Link></Button>
+        <Button size="lg" asChild className="max-sm:flex-1"><Link to="/predict"><Sparkles /> Predict a match <ArrowUpRight /></Link></Button>
         <Button size="lg" variant="secondary" asChild className="max-sm:flex-1"><Link to="/events"><CalendarDays /> Find an event <ArrowRight /></Link></Button>
       </div>
       <p className="mt-3 flex items-start gap-1.5 text-sm text-text-muted"><LockOpen className="mt-0.5 size-4 shrink-0" aria-hidden /> {HOME_ABOUT}</p>
