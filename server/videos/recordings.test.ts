@@ -201,8 +201,10 @@ describe("matches read off a recording's own frames", () => {
     ]);
     try {
       clearAllCaches();
-      expect((await getJson(`/api/events/${S}/UPLOAD`)).matches[0].clip).toEqual({ videoId: UPLOAD_ID, t: 80, url: `https://www.youtube.com/watch?v=${UPLOAD_ID}&t=80s` });
-      expect((await getJson(`/api/events/${S}/GAPPED`)).matches[0].clip).toMatchObject({ videoId: GAPPED_ID, t: 1480 });
+      // A 213 s upload: the clip stops at the video's end.
+      expect((await getJson(`/api/events/${S}/UPLOAD`)).matches[0].clip).toEqual({ videoId: UPLOAD_ID, t: 80, url: `https://www.youtube.com/watch?v=${UPLOAD_ID}&t=80s`, end: 213 });
+      // Its timer starts at 1500 s: the clip stops at 1710 s, its play over (+160) and its final score up (+50).
+      expect((await getJson(`/api/events/${S}/GAPPED`)).matches[0].clip).toMatchObject({ videoId: GAPPED_ID, t: 1480, end: 1710 });
       // A match's own page: the same second.
       expect((await getJson(`/api/events/${S}/UPLOAD/matches/qual:0:1`)).match.clip.t).toBe(80);
       // The clock's clips elsewhere are untouched.
