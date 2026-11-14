@@ -51,12 +51,13 @@ function count(name: string, fallback: number): number {
   const v = arg(name);
   if (v == null) return fallback;
   const n = Number(v);
-  if (!Number.isFinite(n) || n < 1) { console.error(`--${name} ${v}: give a whole number, 1 or more`); process.exit(2); }
+  if (!Number.isInteger(n) || n < 1) { console.error(`--${name} ${v}: give a whole number, 1 or more`); process.exit(2); }
   return Math.floor(n);
 }
 const season = count("season", 2025);
 const only = arg("codes")?.split(",").map((c) => c.trim().toUpperCase()).filter(Boolean);
-const limit = count("limit", Infinity);
+const limit = arg("limit") == null ? Infinity : count("limit", 1);
+const lanes = count("lanes", 3);
 const CHECK = flag("check"), ALL = flag("all"), DRY = flag("dry");
 
 const { migrate, all } = await import("../server/db.js");
@@ -341,7 +342,10 @@ function save(): void {
     try {
       const text = readFileSync(file, "utf8");
       const head = text.split("// --- Data")[0];
-      for (const f of dataRows<FrameTiming>(text)) { const key = `${f.videoId}|${f.code}`; if (!touched.has(key)) kept.set(key, f); }
+      // The file is what counts for every row this run didn't write: added there, changed there, or deleted there.
+      const onDisk = new Map(dataRows<FrameTiming>(text).map((f) => [`${f.videoId}|${f.code}`, f]));
+      for (const key of [...kept.keys()]) if (!touched.has(key) && !onDisk.has(key)) kept.delete(key);
+      for (const [key, f] of onDisk) if (!touched.has(key)) kept.set(key, f);
       const list = [...kept.values()].sort((a, b) => a.code.localeCompare(b.code) || a.videoId.localeCompare(b.videoId));
       const rows = list.map((f) => `  ${JSON.stringify(f)},`).join("\n");
       writeFileSync(file, `${head}// --- Data (scripts/video-frames.ts writes from here on) ---\nexport const FRAME_TIMINGS: FrameTiming[] = [\n${rows}\n];\n`);
@@ -382,6 +386,9 @@ async function doCode(code: string): Promise<void> {
     "SELECT m.label, m.time, e.timezone, m.played FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE m.season = ? AND m.code = ? AND m.played = 1 AND m.time IS NOT NULL", [season, code]);
   const played = rows.filter((r) => actualStart(r.time)).map((r) => ({ label: String(r.label), time: String(r.time), epoch: (localToUtcMs(r.time, r.timezone) ?? NaN) / 1000 }))
     .filter((m) => Number.isFinite(m.epoch)).sort((a, b) => a.epoch - b.epoch);
+  // A played match with no time the clock can place (the event has no timezone) can't be read: said, not skipped quietly.
+  const timeless = rows.filter((r) => actualStart(r.time)).length - played.length;
+  if (timeless) report.push(`${code}: ${timeless} played matches not read: no timezone for the event, so their start can't be placed`);
   if (!played.length) return;
   const span = await R.eventMatchSpan(season, code);
   const views = played.map((m) => ({ label: m.label, time: m.time, played: true, startsAt: new Date(m.epoch * 1000).toISOString(), clip: undefined as any }));
@@ -503,7 +510,7 @@ const lane = async () => {
     try { await doCode(code); } catch (e) { failedEvents++; console.error(`${code}: ${(e as Error).message.split("\n")[0]} (not read)`); }
   }
 };
-await Promise.all(Array.from({ length: count("lanes", 3) }, lane));
+await Promise.all(Array.from({ length: lanes }, lane));
 // The last save's retry comes before cleanup, and no cleanup step can skip what follows it.
 if (!CHECK && !DRY && unsaved) save();
 await browser.close().catch(() => {});
