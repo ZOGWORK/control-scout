@@ -13,6 +13,9 @@ export interface RecordingTiming {
   /** The clock's second (from the broadcast's start) up to which the video's own chapters line up with it
    *  (chaptersConfirm): trusted that far though its length falls short. */
   confirmedTo?: number | null;
+  /** Seconds cut off the video's start (chaptersConfirm): a match `shift` seconds into the broadcast by the clock is
+   *  at the video's start. 0 or absent for a video that begins with its broadcast. */
+  shift?: number | null;
 }
 
 /** How far the video's length may fall short of the broadcast's start-to-end time before its times can't be trusted. */
@@ -132,9 +135,13 @@ export function chapterLabel(title: string): string | null {
 /** The middle value (the lower of the two middle ones for an even count, so one stray value never decides it). */
 const median = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b); return s[(s.length - 1) >> 1]; };
 
+/** What a video's chapters vouch for (chaptersConfirm): the clock up to `to` (seconds into the broadcast), its seconds
+ *  `shift` behind it (a start cut off the video). */
+export interface ChapterTiming { to: number; shift: number }
+
 /**
  * How far into the broadcast (seconds, by the clock) the video's chapters say its seconds still follow the clock,
- * where its length alone can't (timingTrusted); null for not at all. A video far shorter than its broadcast was cut
+ * where its length alone can't (timingTrusted), and how far behind it; null for not at all. A video far shorter than its broadcast was cut
  * (a stream left running all night, kept to its first part) or dropped out and came back, or both. A drop-out
  * moves every match after it away from its chapter by the time lost, for good; a cut moves none. So, over the
  * chapters that name a played match (Q5 at "Match five"), in clock order: the first ones must sit near their
@@ -145,8 +152,14 @@ const median = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b); retu
  * than CHAPTER_MIN_ANCHORS behind it. Only a large shortfall (CHAPTER_MIN_GAP_S) is judged this way, however much a
  * cut at the end also took. DECODE Preview Event (USTXFMS1) 2025: 6 h 32 min missing; chapters 1 to 13 min early
  * and back, trusted to M8 of 11.
+ *
+ * Time lost before the first match (a video whose start was cut off, or a stream that dropped out before play began)
+ * puts every match the same distance from its chapter: the clock and the chapters then agree on that shift, and the
+ * video's seconds are the clock's less it. It's taken from the chapters' median distance over the matches they vouch
+ * for, never more than the time missing, and only when it is all the time missing (within GAP_TOLERANCE_S). APOC 2026 (AUSYOS) Saturday part 1: its first 4 h 20 min cut off, chapters
+ * 15,442 to 15,994 s from their matches, Q11 to Q30; it had no clips at all.
  */
-export function chaptersConfirm(rec: RecordingTiming, chapters: Chapter[] | null | undefined, matches: { label: string; startsAt: string | null | undefined }[]): number | null {
+export function chaptersConfirm(rec: RecordingTiming, chapters: Chapter[] | null | undefined, matches: { label: string; startsAt: string | null | undefined }[]): ChapterTiming | null {
   if (!rec.start || !rec.end || rec.length == null || !chapters?.length) return null;
   const from = Date.parse(rec.start), missing = (Date.parse(rec.end) - from) / 1000 - rec.length;
   if (!Number.isFinite(missing) || missing <= CHAPTER_MIN_GAP_S) return null;
@@ -163,8 +176,9 @@ export function chaptersConfirm(rec: RecordingTiming, chapters: Chapter[] | null
   if (anchors.length < CHAPTER_MIN_ANCHORS + CHAPTER_TAIL - 1) return null;
   anchors.sort((a, b) => a.clock - b.clock);
   const offs = anchors.map((a) => a.off);
-  // Lost before the first match: every chapter that far off.
-  if (Math.abs(median(offs.slice(0, CHAPTER_MIN_ANCHORS))) > CHAPTER_DRIFT_S) return null;
+  // Lost before the first match: every chapter that far off, the same way. A video never holds more than its broadcast.
+  const lead = median(offs.slice(0, CHAPTER_MIN_ANCHORS)), cut = Math.abs(lead) > CHAPTER_DRIFT_S;
+  if (cut && (lead < 0 || lead > missing + CHAPTER_DRIFT_S)) return null;
   let to = anchors.length - CHAPTER_TAIL;
   for (let p = 1; p <= anchors.length - CHAPTER_TAIL; p++) {
     // At least the first CHAPTER_MIN_ANCHORS set what "before" is: one stray early chapter is no gap after it.
@@ -172,7 +186,17 @@ export function chaptersConfirm(rec: RecordingTiming, chapters: Chapter[] | null
     const jumps = (xs: number[]) => Math.abs(median(xs) - before) > CHAPTER_DRIFT_S;
     if (jumps(offs.slice(p, p + CHAPTER_TAIL)) && jumps(offs.slice(p))) { to = p - 1; break; }
   }
-  return to + 1 >= CHAPTER_MIN_ANCHORS ? anchors[to].clock : null;
+  if (to + 1 < CHAPTER_MIN_ANCHORS) return null;
+  const shift = Math.max(0, cut ? Math.min(Math.round(median(offs.slice(0, to + 1))), Math.floor(missing)) : 0);
+  if (!cut) return { to: anchors[to].clock, shift: 0 };
+  // A cut moves every match: one at its own clock time (a video that began with its broadcast and lost time later,
+  // Qualifier Hasselt 2026's Q1 then a drop-out over lunch) is a gap after it, not a cut before it.
+  if (offs.some((o) => Math.abs(o - shift) > CHAPTER_DRIFT_S)) return null;
+  // A cut is taken only when it's all the time missing: none left for a gap anywhere after it, so the whole video
+  // follows the clock that far behind, its last few matches too. With time still unaccounted for, a drop-out under
+  // CHAPTER_DRIFT_S can hide between chapters and put a match on the one before it: frames showed it (Qualifier
+  // Hasselt 2026, NLHAQ: Q5 placed on Q1; Northern Qualifier, USCOSEQ: Q6 on Q5), so those get none.
+  return missing - shift <= GAP_TOLERANCE_S ? { to: rec.length + shift, shift } : null;
 }
 
 /**
@@ -187,11 +211,14 @@ export function clipSecond(startsAt: string | null | undefined, rec: RecordingTi
   if (!startsAt || !rec.start || slack == null) return null;
   const from = Date.parse(rec.start), at = Date.parse(startsAt);
   if (!Number.isFinite(from) || !Number.isFinite(at) || at < from) return null;
-  const offset = Math.floor((at - from) / 1000);
-  const end = rec.live ? Math.floor((now - from) / 1000) : rec.length;
+  const clock = Math.floor((at - from) / 1000);
+  // Trusted on the chapters' word: only as far as they vouch for (by the clock).
+  if (rec.confirmedTo != null && clock > rec.confirmedTo) return null;
+  // A start cut off the video: its seconds that far behind the clock, and a match before the cut isn't in it.
+  const offset = clock - (rec.shift ?? 0);
+  if (offset < 0) return null;
+  const end = rec.live ? Math.floor((now - from) / 1000) - (rec.shift ?? 0) : rec.length;
   if (end == null || offset - slack > end) return null;
-  // Trusted on the chapters' word: only as far as they vouch for.
-  if (rec.confirmedTo != null && offset > rec.confirmedTo) return null;
   return Math.max(0, offset - slack - CLIP_LEAD_S);
 }
 
