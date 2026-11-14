@@ -297,7 +297,11 @@ describe("questions with video", () => {
     forgetVideoQuestions(true);
     const asking = (q: string) => searchAnswer(q, { learn: false, limit: 25 });
     const playing = (b: SearchAnswer) => answerVideo(b, NOW);
-    await warmVideoQuestions({ ask: asking, video: playing, version: async () => "fixture" });
+    // The version as the server reads it: the event-name typos are built for the same one.
+    await warmVideoQuestions({ ask: asking, video: playing });
+    const { nameTyposVersion } = await import("./nameTypos");
+    const { searchVersion } = await import("../searchReads");
+    expect(nameTyposVersion()).toBe(await searchVersion());
     const { a } = await ask("5555 matches with video");
     const out = await withVideoAlternatives("5555 matches with video", a, undefined, asking, playing, 5000, async () => ["New Jersey Qualifier 2026 highlights 2026-27"], "", 0);
     const offered = out.stat?.blocks.find((b) => b.kind === "related" && b.title === "Questions with video");
