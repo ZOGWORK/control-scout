@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.2.8 — 2026-11-14
+## 6.2.9 — 2026-11-14
 
 One Network & offline screen in Settings answers it all in plain words: are you online, on Wi-Fi or mobile data, how much data this visit and each download uses, whether Lite would help right now, and what's downloaded. The download and update choices live only there now, each saying what it does before you pick it.
 
@@ -36,6 +36,19 @@ One Network & offline screen in Settings answers it all in plain words: are you 
 - Downloads: "Wi-Fi only" / "Wi-Fi and mobile data", the second with the real sizes it may use. Updates: "Update packs automatically on Wi-Fi" / "Never update automatically (I'll tap Update)". Same stored settings as before (`offlineNetwork`, `offlineUpdates`), so nothing changes for anyone. On a browser that doesn't say Wi-Fi or mobile data (every iPhone), updates still count it as Wi-Fi, and the words say so: "This browser can't tell Wi-Fi from mobile data, so automatic updates may still use mobile data."
 - Download sizes say why they're missing to someone online: packs paused (the server's own words), none published yet, or the list couldn't be read. One Check again asks for the list once. The Lite row says "Checking your connection…" during the first check. `/network` is a 301 that keeps its query (`/network?lite=0`).
 - The Download page no longer has its own copy of those two settings: it links to Network & offline. Old links to Settings › Offline data (`?section=offline`, `#offline`) open Network & offline. (#1491)
+
+## 6.2.8 — 2026-11-14
+
+With no internet, an event you downloaded now shows its Result changes too, and the home page's season totals show the last ones this device loaded instead of an error.
+
+### Highlights
+- [offline] Result changes work offline for downloaded events
+- [offline] Home season totals show your last loaded numbers offline
+- [fixes] No more "Season totals couldn't load" error with no internet
+
+### Fixed
+- The event pack now holds the event's result changes and each match's (`/api/events/:season/:code/result-changes` and `/matches/:key/result-changes`), read through the same `resultChanges()` the routes call, so with no signal the event page's Result changes section and each match's show the server's own answer instead of "You're offline. This page needs a connection". A real event's pack grows by 0.2–2.6 KB gzipped (measured locally on five 2026 events).
+- The home page's season totals (`/api/home/overview`) are kept on the device like the scouting reads (`lib/offline/kept.ts`). With no signal the strip shows the last totals this device loaded, with the offline note saying when; if none were ever loaded, the strip is left out instead of an error with Try again. No number is ever made up. (#1496)
 
 ## 6.2.7 — 2026-11-14
 
