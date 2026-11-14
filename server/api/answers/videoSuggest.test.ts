@@ -28,13 +28,13 @@ describe("asksVideo", () => {
 
 describe("withVideoAlternatives", () => {
   const plays = new Set(["b highlights", "d highlights", "e highlights", "f highlights"]);
-  const asked: string[] = [];
-  const askOf = async (q: string) => { asked.push(q); return { ...answer(), q }; };
+  const askOf = async (q: string) => ({ ...answer(), q });
   const videoOf = async (a: SearchAnswer) => (plays.has(a.q) ? clip : undefined);
   const cands = async () => ["a highlights", "b highlights", "c highlights", "d highlights", "e highlights", "f highlights"];
 
   it("offers at most three that play, first among the answer's blocks", async () => {
-    const out = await withVideoAlternatives("6980 at east bergen with video", answer(), undefined, askOf, videoOf, 1000, cands);
+    const asked: string[] = [];
+    const out = await withVideoAlternatives("6980 at east bergen with video", answer(), undefined, async (q) => { asked.push(q); return askOf(q); }, videoOf, 1000, cands);
     expect(out.stat?.blocks[0]).toEqual({ kind: "related", title: "Questions with video", queries: ["b highlights", "d highlights", "e highlights"] });
     expect(out.stat?.blocks).toHaveLength(2);
     // Stops asking once three are found.
