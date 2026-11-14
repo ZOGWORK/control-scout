@@ -20,3 +20,10 @@ describe("officialClause", () => {
     expect(eventInScope(s)(nj)).toBe(false);
   });
 });
+
+describe("an answer about a named off-season event", () => {
+  it("its method says the event's own matches count", async () => {
+    const { NAMED_OFF_SEASON } = await import("./index");
+    expect(NAMED_OFF_SEASON).toMatch(/off-season event: its own matches count/);
+  });
+});
