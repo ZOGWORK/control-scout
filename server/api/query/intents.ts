@@ -18,6 +18,8 @@ export type PipelineIntent =
   | "head-to-head" | "shared-matches" | "two-predict" | "opr-vs" | "rating-vs" | "compare" | "h2h-wins" | "awards-vs"
   // No team.
   | "top-matches" | "leaderboard"
+  // No team: the matches with a number said ("M14 decode finals"), best first (./matchFind.ts label).
+  | "match-label"
   // A scope's standout matches, or one team's (./highlights.ts).
   | "highlights"
   // No team: the teams with a name said as words (server/api/answers/teamsNamed.ts), and a town's teams counted.
@@ -161,7 +163,9 @@ export const INTENTS: IntentRule[] = [
   R("total-awards", 1, ["agg:sum", "metric:award"], ["metric:win", "list"]),
   R("awards", 1, ["metric:award"], ["list", "agg:first", "agg:last", "metric:win"]),
   // At one event.
-  R("match-lookup", 1, ["thing:match"], ["metric:score", "metric:record", "metric:win", "metric:loss"], { event: true, matchNo: true }),
+  // A team's match by its number: at the event named, else each event of its season with one ("<team> Q6"). Asked to
+  // watch ("<team> Q6 video"), the same answer: it plays that match.
+  R("match-lookup", 1, ["thing:match"], ["metric:score", "metric:record", "metric:win", "metric:loss", ...WATCH], { matchNo: true }),
   R("results", 1, ["thing:match"], ["list", "metric:score", "metric:record"], { event: true }),
   R("event-rank", 1, ["metric:rank"], [], { event: true }),
   R("event-opr", 1, ["metric:opr"], [], { event: true }),
@@ -250,6 +254,9 @@ export const INTENTS: IntentRule[] = [
   R("compare", 2, [], ["and"], { event: true }),
   R("compare", 2, ["worlds"], ["and"]),
   // No team: the best matches anywhere, and ranked lists of teams.
+  // A match by its number with no team ("M14 decode finals", "q6 at worlds"): every match with that number in the
+  // scope, the highest-scoring first, each playing its own clip.
+  R("match-label", 0, ["thing:match"], ["metric:score", "list", ...WATCH], { matchNo: true }),
   R("top-matches", 0, ["agg:max", "metric:score"], ["thing:match", "per:match", "nopen"]),
   R("top-matches", 0, ["agg:max", "thing:match"], ["metric:score", "nopen"]),
   // Matches where an alliance reached a score ("matches where the losing alliance scored over 200"): the highest first.
