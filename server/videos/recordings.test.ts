@@ -163,6 +163,9 @@ describe("event recordings", () => {
       expect(d.matches[0].clip).toBeUndefined();
     }
     for (const code of ["GONE", "CHANNEL", "TWITCH"]) expect((await getJson(`/api/events/${S}/${code}`)).event.stream).toBeUndefined();
+    // A linked video YouTube won't play is still named, so the page can say why its matches have no clip; no link, nothing.
+    expect((await getJson(`/api/events/${S}/GONE`)).event.recordingUnavailable).toEqual([GONE_ID]);
+    expect((await getJson(`/api/events/${S}/TWITCH`)).event.recordingUnavailable).toBeUndefined();
   });
 
   it("the events list says what there is to watch (match clips only when a played match gets one)", async () => {

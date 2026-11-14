@@ -104,6 +104,14 @@ describe("the event page's clips", () => {
     expect(document.querySelector("[data-coverage]")?.getAttribute("data-coverage")).toBe("recording");
   });
 
+  it("an event whose linked recording won't play says so, never that there's none", () => {
+    h.event = { matches: {}, coverage: { played: 2, withVideo: 0 } };
+    render(<MemoryRouter><EventClipsProvider season={2025} code="GONE"><CoverageLine unplayable /></EventClipsProvider></MemoryRouter>);
+    expect(screen.queryByText(/No recording/)).toBeNull();
+    expect(screen.getByText("This event's recording won't play (private or removed) — stats only")).toBeTruthy();
+    expect(document.querySelector("[data-coverage]")?.getAttribute("data-coverage")).toBe("unplayable");
+  });
+
   it("lists every match with a video, FIRST's own first, with the credit on the one someone added", () => {
     h.event = { matches: { "qual:0:1": cv(), "qual:0:2": cv({ id: 8, name: "Other Person" }) }, coverage: { played: 3, withVideo: 2 } };
     page([match(1), match(2, { video: "https://youtu.be/FIRSTvideo1" } as Partial<MatchView>), match(3)]);
