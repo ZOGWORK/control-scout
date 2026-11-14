@@ -10,6 +10,7 @@ import { forgetRecordings } from "../../videos/recordings";
 import { rebuildSearch } from "../../stats/job";
 import { searchAnswer } from "../searchAnswer";
 import { answerVideo } from "./video";
+import type { SearchAnswer } from "../../../src/shared/api";
 
 type Side = [np: number, auto: number, teleop: number, endgame: number];
 const NOW = Date.parse("2026-11-05T00:00:00Z");
@@ -289,5 +290,20 @@ describe("questions with video", () => {
     const out = await withVideoAlternatives("4215 matches with video", none, undefined, (q) => searchAnswer(q, { learn: false, limit: 25 }), (b) => answerVideo(b, NOW), 5000);
     const offered = out.stat?.blocks.find((b) => b.kind === "related" && b.title === "Questions with video");
     expect(offered && offered.kind === "related" ? offered.queries.length : 0).toBeGreaterThan(0);
+  });
+
+  it("nothing near the answer's own plays: the questions checked in the background, each of which plays", async () => {
+    const { forgetVideoQuestions, hasVideo, warmVideoQuestions, withVideoAlternatives } = await import("./videoSuggest");
+    forgetVideoQuestions(true);
+    const asking = (q: string) => searchAnswer(q, { learn: false, limit: 25 });
+    const playing = (b: SearchAnswer) => answerVideo(b, NOW);
+    await warmVideoQuestions({ ask: asking, video: playing, version: async () => "fixture" });
+    const { a } = await ask("5555 matches with video");
+    const out = await withVideoAlternatives("5555 matches with video", a, undefined, asking, playing, 5000, async () => ["New Jersey Qualifier 2026 highlights 2026-27"], "", 0);
+    const offered = out.stat?.blocks.find((b) => b.kind === "related" && b.title === "Questions with video");
+    const qs = offered && offered.kind === "related" ? offered.queries : [];
+    expect(qs).toContain("Massachusetts Championship highlights 2025-26");
+    for (const q of qs) expect(hasVideo(await playing(await asking(q))), q).toBe(true);
+    forgetVideoQuestions(true);
   });
 });
