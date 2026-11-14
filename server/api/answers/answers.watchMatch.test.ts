@@ -136,3 +136,16 @@ describe("a match by its number", () => {
     expect(video?.main).toEqual({ videoId: "4elyC6MxtEY", t: 0, kind: "match", match: "M2" });
   });
 });
+
+describe("a team's match by its number at Worlds", () => {
+  it("is that match at Worlds, playing FIRST's own video; none there plays nothing", async () => {
+    const { a, video } = await ask("11148 M2 at worlds 2025-26");
+    expect(a.stat?.headline?.href).toBe(edisonM2);
+    expect(a.stat?.title).toMatch(/^M2 at Worlds/);
+    expect(video?.main).toEqual({ videoId: "4elyC6MxtEY", t: 0, kind: "match", match: "M2" });
+    // A team with no Worlds match: no match is offered as its M2, and nothing plays.
+    const none = await ask("4215 M2 at worlds 2025-26");
+    expect(none.a.stat?.headline).toBeUndefined();
+    expect(none.video?.main).toBeUndefined();
+  });
+});
