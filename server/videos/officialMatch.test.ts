@@ -145,6 +145,33 @@ describe("the watcher's matcher", () => {
     expect(designators("Meet 1 - 11-07-26")).toMatchObject({ meet: "1" });
   });
 
+  it("tells two leagues of one meet day apart by the word the title says: Diamond is never Emerald", () => {
+    const day = { city: "Austin", type: "LeagueMeet", start: "2026-11-14", end: "2026-11-14" } as const;
+    const events = [ev("USTXCEGDM2", "CTX GEMS Diamond League Meet 2", day), ev("USTXCEGEM2", "CTX GEMS Emerald League Meet 2", day),
+      ev("USTXCEXAM1", "CTX X-Stream A League Meet 1", day)];
+    const WW = { region: "state=TX;name=\\bCTX\\b|FiT-Central|GEMS", words: "texas fit central ctx" };
+    const at = { start: "2026-11-14T17:00:00Z" };
+    const d = matchVideo(vid("CTX GEMS Diamond League Meet 2 | FTC® BIOBUZZ™", at), WW, events);
+    expect(d.kind === "add" && d.event.code).toBe("USTXCEGDM2");
+    const e = matchVideo(vid("CTX GEMS Emerald League Meet 2 | FTC® BIOBUZZ™", at), WW, events);
+    expect(e.kind === "add" && e.event.code).toBe("USTXCEGEM2");
+    // Naming neither league: still the owner's.
+    expect(matchVideo(vid("CTX GEMS League Meet 2", at), WW, events)).toMatchObject({ kind: "review", why: /fits both/ });
+    // A city too: Austin's semi-regional isn't San Antonio's.
+    const sr = { type: "SuperQualifier", start: "2026-02-14", end: "2026-02-14" } as const;
+    const semis = [ev("USTXAUSQ", "FiT-Central Austin Semi-Regional", { ...sr, city: "Austin" }), ev("USTXSASQ", "FiT-Central San Antonio Semi-Regional", { ...sr, city: "San Antonio" })];
+    const a = matchVideo(vid("FiT-Central Austin Semi-Regional | FTC® DECODE™", { start: "2026-02-14T17:21:17Z" }), WW, semis);
+    expect(a.kind === "add" && a.event.code).toBe("USTXAUSQ");
+  });
+
+  it("a title naming two events (a joint meet) stays the owner's, never a third event that shares one word", () => {
+    const day = { city: "San Antonio", type: "LeagueMeet", start: "2024-12-14", end: "2024-12-14" } as const;
+    const events = [ev("USTXCAM3", "FiT-Central Hill Country League Meet 2", day), ev("USTXCAM4", "FiT-Central North San Antonio League Meet 2", day),
+      ev("USTXNINLT", "FiT-North I&N Tournament", { ...day, type: "LeagueTournament", city: "Richardson" })];
+    const v = matchVideo(vid("FIRST Tech Challenge- Into the Deep: Hill Country & North SA League Meet 2", { start: "2024-12-14T16:00:00Z" }), { region: "state=TX", words: "texas fit" }, events);
+    expect(v).toMatchObject({ kind: "review", why: /fits both USTXCAM3 and USTXCAM4/ });
+  });
+
   it("sets aside a short video that names no event: an upload, a call, a team's reel", () => {
     const one = [ev("USTXMOQ", "TX Mockingbird Qualifier")];
     expect(matchVideo(vid("Compact Differential Swerve Drive | 23334 Axiom | FTC BIOBUZZ Snapshot", { start: null, durationS: 79 }), TX, one)).toMatchObject({ kind: "ignore", why: /1-minute upload/ });
