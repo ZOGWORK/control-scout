@@ -3,7 +3,7 @@
 // word accounted for. Names come from the data (./names.ts), words from the lexicon (./lexicon.ts), times from
 // ./time.ts, the intent from ./intents.ts. Nothing here names a team, an event or a place.
 import { AWARD_ONE_WORD, EVENT_NAME_WORDS, LEXICON, type Agg, type Sym } from "./lexicon.js";
-import { pickIntent, type IntentRule, type PipelineIntent } from "./intents.js";
+import { WITH_VIDEO, pickIntent, type IntentRule, type PipelineIntent } from "./intents.js";
 import { readTime, type TimeRead, type TimeSlot } from "./time.js";
 import type { ScoreCond } from "./matchFind.js";
 import { fold, type Names, type Place, type TeamName } from "./names.js";
@@ -56,6 +56,9 @@ export interface Parsed {
   /** Penalty points left out of scores ("without penalties"): read, and an intent that can't apply it leaves the parse
    *  incomplete. */
   noPenalties: boolean;
+  /** Only matches with video ("with video"): a filter only the match finder applies; anywhere else the parse is left
+   *  incomplete (./intents.ts WITH_VIDEO). */
+  withVideo?: boolean;
   /** A floor in points ("more than 50 points", "at least 30 pts", that number counting): only a rule that takes "over"
    *  applies it. */
   over?: { n: number; atLeast: boolean };
@@ -396,7 +399,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     const t = toks[i];
     if (t.used) continue;
     const qm = /^(?:q|qm|qual|m)(\d{1,3})$/.exec(t.w);
-    if (qm) { p.matchNumber = Number(qm[1]); if (/^q/.test(t.w)) p.level = "qual"; t.used = true; symbols.add("thing:match"); continue; }
+    if (qm) { p.matchNumber = Number(qm[1]); if (/^q/.test(t.w)) p.level = "qual"; else if (/^m\d/.test(t.w)) p.level = "playoff"; t.used = true; symbols.add("thing:match"); continue; }
     // A team's number with its possessive typed without the apostrophe ("4215s chances"): that team's number.
     const poss = /^(\d{1,5})s$/.exec(t.w);
     if (poss && ctx.names.team(Number(poss[1]))) t.w = poss[1];
@@ -480,6 +483,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       else if (s.k === "states") p.states = true;
       else if (s.k === "award") { p.award = s.v; symbols.add("metric:award"); }
       else if (s.k === "nopen") p.noPenalties = true;
+      else if (s.k === "withvideo") p.withVideo = true;
       else if (s.k === "undefeated") p.undefeated = true;
       else if (s.k === "agg" && !p.agg) p.agg = s.v;
       else if (s.k === "vs" && p.vsAt == null) p.vsAt = i;
@@ -737,6 +741,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   // parse is left incomplete rather than answered with penalties in.
   if (pick && p.noPenalties && !(pick.rule.opt ?? []).includes("nopen")) pick.unexplained.push("nopen");
   if (pick && p.over != null && !(pick.rule.opt ?? []).includes("over")) pick.unexplained.push("over");
+  if (pick && p.withVideo && !WITH_VIDEO.has(pick.rule.id)) pick.unexplained.push("withvideo");
   // The awards side-by-side counts every award: one award named ("12345 vs 67890 inspire awards") is left to the
   // readers that count that award alone.
   if (pick && p.award && pick.rule.id === "awards-vs") pick.unexplained.push(`award:${p.award}`);

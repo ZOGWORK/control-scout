@@ -18,6 +18,8 @@ export type PipelineIntent =
   | "head-to-head" | "shared-matches" | "two-predict" | "opr-vs" | "rating-vs" | "compare" | "h2h-wins" | "awards-vs"
   // No team.
   | "top-matches" | "leaderboard"
+  // No team: the matches with a number said ("M14 decode finals"), best first (./matchFind.ts label).
+  | "match-label"
   // A scope's standout matches, or one team's (./highlights.ts).
   | "highlights"
   // No team: the teams with a name said as words (server/api/answers/teamsNamed.ts), and a town's teams counted.
@@ -161,7 +163,9 @@ export const INTENTS: IntentRule[] = [
   R("total-awards", 1, ["agg:sum", "metric:award"], ["metric:win", "list"]),
   R("awards", 1, ["metric:award"], ["list", "agg:first", "agg:last", "metric:win"]),
   // At one event.
-  R("match-lookup", 1, ["thing:match"], ["metric:score", "metric:record", "metric:win", "metric:loss"], { event: true, matchNo: true }),
+  // A team's match by its number: at the event named, else each event of its season with one ("<team> Q6"). Asked to
+  // watch ("<team> Q6 video"), the same answer: it plays that match.
+  R("match-lookup", 1, ["thing:match"], ["metric:score", "metric:record", "metric:win", "metric:loss", ...WATCH], { matchNo: true }),
   R("results", 1, ["thing:match"], ["list", "metric:score", "metric:record"], { event: true }),
   R("event-rank", 1, ["metric:rank"], [], { event: true }),
   R("event-opr", 1, ["metric:opr"], [], { event: true }),
@@ -176,6 +180,8 @@ export const INTENTS: IntentRule[] = [
   // One team's match by its score ("<team> 226 point match"): the match finder, with the team and the score.
   R("season-matches", 1, ["thing:match", "cond:exact"], ["list"], { noEvent: true, noMatchNo: true }),
   R("season-matches", 1, ["thing:match"], ["list"], { noEvent: true, noMatchNo: true }),
+  // A team's matches with video, at an event named or not ("<team> matches with video").
+  R("season-matches", 1, ["thing:match", "withvideo"], ["list"], { noMatchNo: true }),
   // Partners and opponents.
   R("best-partner", 1, ["agg:max", "metric:partner"], ["thing:team"]),
   R("partners", 1, ["metric:partner"], ["list", "thing:team"]),
@@ -250,12 +256,17 @@ export const INTENTS: IntentRule[] = [
   R("compare", 2, [], ["and"], { event: true }),
   R("compare", 2, ["worlds"], ["and"]),
   // No team: the best matches anywhere, and ranked lists of teams.
+  // A match by its number with no team ("M14 decode finals", "q6 at worlds"): every match with that number in the
+  // scope, the highest-scoring first, each playing its own clip.
+  R("match-label", 0, ["thing:match"], ["metric:score", "list", ...WATCH], { matchNo: true }),
   R("top-matches", 0, ["agg:max", "metric:score"], ["thing:match", "per:match", "nopen"]),
   R("top-matches", 0, ["agg:max", "thing:match"], ["metric:score", "nopen"]),
   // Matches where an alliance reached a score ("matches where the losing alliance scored over 200"): the highest first.
   R("top-matches", 0, ["thing:match", "cond"], ["list", "agg:max", "metric:score"], { noMatchNo: true }),
   // Matches in a window, no measure said ("matches from yesterday"): the window's best first (./execute.ts needs the window).
   R("top-matches", 0, ["thing:match"], ["list"], { noEvent: true, noMatchNo: true }),
+  // Matches with video, no measure said ("matches with video at <event>"): the best first.
+  R("top-matches", 0, ["thing:match", "withvideo"], ["list", "agg:max", "metric:score"], { noMatchNo: true }),
   // Matches by a measure ("and" is "with": "the match with the most penalty points").
   R("low-matches", 0, ["agg:min", "metric:score"], ["thing:match", "nopen", "and"]),
   R("low-matches", 0, ["agg:min", "thing:match"], ["metric:score", "nopen", "and"]),
@@ -322,7 +333,15 @@ export const INTENTS: IntentRule[] = [
 ];
 
 /** Symbols that are slots, never what is asked: always taken in. */
-export const SLOT_SYMBOLS = /^(?:level|finals|alliance|worlds|states|award|prep|filler)(?::|$)/;
+export const SLOT_SYMBOLS = /^(?:level|finals|alliance|worlds|states|award|prep|filler|withvideo)(?::|$)/;
+
+/** The rules that take a word asking to watch ("<team> best auto highlights"): their answer is the match to play. */
+export const WATCH_TAKERS = new Set<string>(INTENTS.filter((r) => r.opt?.includes("highlights") || r.all.includes("highlights")).map((r) => r.id));
+
+/** The intents "with video" filters (./execute.ts, the match finder): a scope's matches by a measure, a match's number,
+ *  one team's matches or its best; and highlights, which are the matches' videos already ("<team> highlights with
+ *  video"). Any other leaves the parse incomplete, never answered without the filter. */
+export const WITH_VIDEO = new Set<PipelineIntent>(["highlights", "top-matches", "match-label", "low-matches", "close-matches", "lopsided-matches", "penalty-matches", "loss-matches", "upset-matches", "comeback-matches", "miss-matches", "accurate-matches", "season-matches", "highest-score"]);
 
 export interface IntentPick { rule: IntentRule; unexplained: string[] }
 

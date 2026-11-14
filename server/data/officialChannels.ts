@@ -19,7 +19,7 @@ export const OFFICIAL_CHANNELS: OfficialChannelSeed[] = [
   // FIRST in Missouri (the Missouri/Kansas partner) streams the St. Louis leagues, the Southeast and Southwest leagues and
   // the championship; FIRST MOKS streams the Kansas City meets one session at a time ("8AM", "1030AM", "1PM", as
   // Scout's meet names give them). Channel ids from the YouTube Data API (forHandle), 2026-11-14.
-  { channelId: "UCoo2NYUOcTUZB65dGMAp1vg", title: "FIRST in Missouri", region: "state=MO,KS", words: "missouri kansas fimo stl" },
+  { channelId: "UCoo2NYUOcTUZB65dGMAp1vg", title: "FIRST in Missouri", region: "state=MO,KS", words: "missouri kansas fimo stl", titlePattern: "(missouri\\W+kansas|fimo ftc state) championship" },
   { channelId: "UCy_GHfjX6LsALdrIceg8_pw", title: "FIRST MOKS (Missouri/Kansas)", region: "state=MO,KS", words: "missouri kansas moks" },
   { channelId: "UCFGmQAl2O4T-NmVh4kSDMlg", title: "Hawaii FIRST Robotics", region: "state=HI", words: "hawaii", titlePattern: "hawaii" },
   { channelId: "UCz3j-0bLZOevINcN3WMINDQ", title: "Pennsylvania FIRST Tech Challenge", region: "state=PA", words: "pennsylvania", titlePattern: "pennsylvania" },
@@ -37,9 +37,22 @@ export const OFFICIAL_CHANNELS: OfficialChannelSeed[] = [
   { channelId: "UCN5qzssJPqSLLBgoXG0mO2g", title: "New England FIRST", region: "state=MA,NH,ME,VT,RI,CT", words: "england" },
   { channelId: "UCsWISiGfIiL5E-i9DPK2ftQ", title: "SoCal FTC", region: "state=CA", words: "california socal" },
   { channelId: "UCto1RvN3qyamf8GH7P7_abQ", title: "Georgia FIRST", region: "state=GA", words: "georgia", titlePattern: "\\bGA\\b|georgia" },
+  // The owner's audited list (2026-11-14); channel ids from the YouTube Data API (forHandle). CircuitRunners Robotics
+  // (FTC 1002, Marietta) streams the Marietta-Wheeler league and the Northwest League Tournament; Microchips & Queso
+  // (FTC 23350, San Antonio) its own off-season Queso Bowl, whose streams FIRST's event pages already link.
+  { channelId: "UCzxcU4h8qFiLWkdrmV9_TLw", title: "CircuitRunners Robotics (Georgia)", region: "state=GA;name=marietta|wheeler|northwest league", words: "georgia circuitrunners" },
+  { channelId: "UCLpE1wCLHdIMZ-cKpsVWsqQ", title: "Microchips & Queso (Texas)", region: "state=TX;name=queso", words: "texas queso microchips" },
   { channelId: "UCMkHRhdD35Jwg-rhbvspQEg", title: "FIRST in Alabama", region: "state=AL", words: "alabama", titlePattern: "alabama" },
   { channelId: "UCTaHVJzv8Hciyv6Sm8xGmiw", title: "FTC South Africa", region: "country=South Africa", words: "south african africa", titlePattern: "south africa" },
   { channelId: "UCuNd3shXL4BZsN7O7e3OPzQ", title: "Mississippi FIRST Tech Challenge", region: "state=MS", words: "mississippi", titlePattern: "mississippi" },
+  // The owner's audited list (2026-11-14); channel ids from the YouTube Data API (forHandle). Tulsa Robotics Center
+  // streams eastern Oklahoma's leagues, its own scrimmages and the state championship; SeaCow Robotics (FTC 21418) its
+  // Mountain Home, Benton and Bentonville qualifiers, and Shiloh Saints (Shiloh Christian School) the Arkansas
+  // Championship only, a school sports channel otherwise; FTC Louisiana every Louisiana event.
+  { channelId: "UC6y0o2J7b05YIL7w95cwg0w", title: "Tulsa Robotics Center (Oklahoma)", region: "state=OK", words: "oklahoma tulsa trc", titlePattern: "oklahoma (state )?championship" },
+  { channelId: "UClcqdD9sHnwtN7FCW6Vj1Ug", title: "SeaCow Robotics (Arkansas)", region: "state=AR;name=mountain home|benton", words: "arkansas seacow" },
+  { channelId: "UCvA42eBzkRpd-x23-AvOnvw", title: "Shiloh Saints (Arkansas Championship)", region: "state=AR;type=Championship", words: "arkansas shiloh", titlePattern: "\\bFTC\\b|first tech challenge" },
+  { channelId: "UCQYT4ZXN54khn_n7ebsRRtQ", title: "FTC Louisiana", region: "state=LA", words: "louisiana", titlePattern: "louisiana .*(regional|state) championship" },
   { channelId: "UCMQ-I5i7wiucrll3657GK4w", title: "FTC Utah", region: "state=UT", words: "utah", titlePattern: "utah" },
   { channelId: "UCyck0fFjiYFOz1S-TYCNiQA", title: "FIRST Illinois Robotics", region: "state=IL", words: "illinois", titlePattern: "illinois" },
   { channelId: "UCHVeR960xGMtQ2rHxYAebTw", title: "High Tech Kids (Minnesota)", region: "state=MN", words: "minnesota htk", titlePattern: "minnesota" },
@@ -86,5 +99,17 @@ export const OFFICIAL_CHANNELS: OfficialChannelSeed[] = [
   // Town of Penfield Television (@PenfieldTV): a town channel that broadcasts NY Excelsior qualifiers with Penfield
   // Robotics. Upstate Excelsior events only; its uploads carry no broadcast date, so the watcher sends them to review.
   { channelId: "UCLctix0o61bACiWd6Oa-S5Q", title: "Town of Penfield Television (NY Excelsior)", region: "state=NY;name=Excelsior|Finger Lakes|Penfield|Corning|Peekskill|Clarkson|Albany|Buffalo|Utica|Syracuse|Ravena|Broadalbin|John Jay", words: "york excelsior penfield" },
+  // The owner's audited channels (2026-11-14), ids from the YouTube Data API (channels?forHandle). NorCal FIRST Tech
+  // Challenge (@norcalfirsttechchallenge, Playing at Learning): Northern California's own events, all named "NorCal …"
+  // from 2026-27. FTC SoCal League G (@ftc_socal_league_g): League G's meets in Carson, and no other SoCal league's.
+  // A title auto-adds only when its meet number fits an event named "Meet N" (2024's names); with Scout's "Scrimmage N"
+  // names (2025 on) "Meet 1" is no evidence, so each such video goes to the owner's review with its closest event.
+  { channelId: "UCsWixqR83vr2poZHfU_FgcQ", title: "NorCal FIRST Tech Challenge", region: "state=CA;name=^NorCal\\b", words: "norcal california" },
+  { channelId: "UCJAVhMsmeKHf7riEsPafi9w", title: "FTC SoCal League G", region: "state=CA;name=^SoCal(?: FTC)?(?: -| League| Group)? G\\b", words: "socal california" },
+  // The owner's audited channels (2026-11-14), ids from the YouTube Data API (channels?forHandle). Overcharged
+  // (@overcharged12599, FTC 12599) streams Oregon's Rose City League; Leo RHS Robotics (@leoRHSrobotics, Roseburg HS)
+  // streams the SOAR League. FIRST's own Oregon event pages link both channels' streams. Each for its league only.
+  { channelId: "UCT6yIFUf6Wr_klDFpdmLsGg", title: "Overcharged (Rose City League)", region: "state=OR;name=\\bRose City\\b", words: "oregon" },
+  { channelId: "UC2MP84F_QCCnbLqHBFBxxeQ", title: "Leo RHS Robotics (SOAR League)", region: "state=OR;name=\\bSOAR\\b", words: "oregon" },
   { channelId: "UCal7624DPridi_9iKLrAbqw", title: "FIRST Australia", region: "country=Australia", words: "australia australian", titlePattern: "australian? (national )?championship|\\bAPOC\\b|asia pacific open" },
 ];

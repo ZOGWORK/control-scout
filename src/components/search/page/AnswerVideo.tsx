@@ -7,6 +7,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { ExternalLink, Play, PlayCircle } from "lucide-react";
 import type { SearchAnswer, SearchVideo, SearchVideoItem } from "../../../shared/api";
+import type { StatAnswer } from "../../../shared/searchStat";
 import { embedUrl, thumbnailUrl } from "../../../shared/stream";
 import { clipTime, watchUrl } from "../../../shared/recording";
 import { clipParams, playMatchVideo } from "../../../lib/streamSeek";
@@ -15,12 +16,13 @@ import { VideoCredit } from "../../contributors/VideoCredit";
 import { Button } from "../../ui/button";
 
 /** The answer's video, and how many row clips were played: each one stops the card's player, so two never play at once. */
-const Video = createContext<{ video?: SearchVideo; rowPlays: number; rowPlayed: () => void }>({ rowPlays: 0, rowPlayed: () => {} });
+const Video = createContext<{ video?: SearchVideo; known: boolean; rowPlays: number; rowPlayed: () => void }>({ known: false, rowPlays: 0, rowPlayed: () => {} });
 
 /** The answer's video, for the card's player and the rows' buttons under it. */
-export function AnswerVideoProvider({ video, children }: { video: SearchVideo | undefined; children: ReactNode }) {
+/** `video`: null when read and there is none; undefined before it's read (a first paint), when nothing says "no video". */
+export function AnswerVideoProvider({ video, children }: { video: SearchVideo | null | undefined; children: ReactNode }) {
   const [rowPlays, setRowPlays] = useState(0);
-  return <Video.Provider value={{ video, rowPlays, rowPlayed: () => setRowPlays((n) => n + 1) }}>{children}</Video.Provider>;
+  return <Video.Provider value={{ video: video ?? undefined, known: video !== undefined, rowPlays, rowPlayed: () => setRowPlays((n) => n + 1) }}>{children}</Video.Provider>;
 }
 
 /** What the video is, in words: the match once, or the event's stream (the card's title already names the event). */
@@ -31,9 +33,11 @@ export function videoCaption(v: SearchVideoItem): string {
   return v.live ? "The event's live stream" : "The event's recording";
 }
 
-/** The card's player: 16:9, the card's full width on a phone, loaded on a click. */
-export function AnswerVideo({ className }: { className?: string }) {
+/** The card's player: 16:9, the card's full width on a phone, loaded on a click. `only`: the matches a section lists;
+ *  the player shows there only when the answer's match is one of them, never another match's clip. */
+export function AnswerVideo({ className, only }: { className?: string; only?: string[] }) {
   const video = useContext(Video).video;
+  if (only && !(video?.mainRow && only.includes(video.mainRow))) return null;
   const v = video?.main;
   // Another answer's video starts at its picture again.
   if (v) return <Player key={`${v.videoId}:${v.t}`} v={v} className={className} />;
@@ -123,8 +127,10 @@ export function AnswerClip({ about, className }: { about?: string; className?: s
 
 /** Whether any of these rows has a clip (a table then gives its buttons a column). */
 export function useRowPlays(hrefs: (string | undefined)[]): boolean {
-  const rows = useContext(Video).video?.rows;
-  return !!rows && hrefs.some((h) => h && rows[h]);
+  const v = useContext(Video).video;
+  const rows = v?.rows;
+  // The card's own match among them plays too (not the event's recording): the others then say "No video".
+  return (!!rows && hrefs.some((h) => h && rows[h])) || (!!v?.mainRow && v.main?.kind !== "stream" && hrefs.includes(v.mainRow));
 }
 
 /** A listed match's clip, the card's own video's match included (a video grid draws a picture for each), and playing
@@ -144,22 +150,58 @@ export function useClips(): { clip: (href: string) => SearchVideoItem | undefine
   };
 }
 
+/** Whether the answer's video has been read (false on a first paint, before it arrives): only then may a card say none. */
+export const useVideoKnown = (): boolean => useContext(Video).known;
+
 /** Whether the answer has any video at all (its own, or a listed match's clip). */
 export function useAnyVideo(): boolean {
   const v = useContext(Video).video;
   return !!v?.main || !!(v?.rows && Object.keys(v.rows).length);
 }
 
-/** A listed match's play button, when it has a clip: it plays in the app's video dialog. `label` names the match in it. */
+/** A listed match's play button, when it has a clip: it plays in the app's video dialog. `label` names the match in it.
+ *  A row with no clip in an answer that plays others says "No video" (never a button that goes nowhere); the match the
+ *  card already plays, and an answer with no video at all (its one line says so: NoVideoLine), say nothing. */
 export function RowPlay({ href, label, className }: { href: string; label: string; className?: string }) {
   const { video, rowPlayed } = useContext(Video);
   const v = video?.rows?.[href];
-  if (!v) return null;
+  if (!v) {
+    // Another match plays (a row's clip, or the card's own match, never the event's recording from its start).
+    const others = !!(video?.rows && Object.keys(video.rows).length) || (!!video?.mainRow && video.main?.kind !== "stream");
+    if (!others || video?.mainRow === href) return null;
+    return <span className={cn("shrink-0 whitespace-nowrap text-[11px] text-muted-foreground", className)} data-row-no-video>No video</span>;
+  }
   return (
     <button type="button" onClick={() => { rowPlayed(); playMatchVideo({ videoId: v.videoId, t: v.t, end: v.end, label }); }}
       className={cn("inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-text-base/[0.06] hover:text-foreground max-md:size-[44px] pointer-coarse:size-[44px]", className)}
       aria-label={`Play ${label}: ${v.kind === "match" ? "official match video" : v.kind === "contributor" ? `video by ${v.contributor?.name}` : `the event's recording from ${clipTime(v.t)}`}`} title={videoCaption(v)} data-row-play={v.kind} data-video-control>
       <PlayCircle className="size-5" aria-hidden />
     </button>
+  );
+}
+
+/** The links of the played matches an answer lists or is about (its headline's match, its match rows, a table's rows
+ *  that link to a match; never a table of matches still to play, which no one has filmed yet). */
+function matchLinks(stat: StatAnswer): string[] {
+  const isMatch = (h: string | undefined): h is string => !!h && /^\/events\/\d{4}\/[^/?#]+\?(?:[^#]*&)?match=/.test(h);
+  return [stat.headline?.upcoming ? undefined : stat.headline?.href, ...stat.blocks.flatMap((b) => (b.kind === "matches" || (b.kind === "table" && !b.upcoming) ? b.rows.filter((r) => !("upcoming" in r && r.upcoming)).map((r) => r.href) : []))].filter(isMatch);
+}
+
+/** One line when an answer lists matches and none of them has video: "No recording for this event — stats only." (all
+ *  at one event), else "No video for these matches — stats only.". A list of highlights or a video page says it in its
+ *  own grid; an answer linking to the recording its match is in (AnswerVideo's watch line) says that instead. */
+export function NoVideoLine({ stat, className }: { stat: StatAnswer; className?: string }) {
+  const { video, known } = useContext(Video);
+  // Not read yet (the page's first paint): never "no recording" ahead of a video that's on its way.
+  if (!known) return null;
+  if (video?.main || video?.watch || (video?.rows && Object.keys(video.rows).length)) return null;
+  if (stat.blocks.some((b) => b.kind === "videos" || (b.kind === "matches" && b.rows.length > 0 && b.rows.every((r) => r.note)))) return null;
+  const links = matchLinks(stat);
+  if (!links.length) return null;
+  const events = new Set(links.map((h) => h.split("?")[0]));
+  return (
+    <p className={cn("mt-3 text-sm font-medium text-foreground", className)} data-no-recording>
+      {events.size === 1 ? "No recording for this event — stats only." : "No video for these matches — stats only."}
+    </p>
   );
 }

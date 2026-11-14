@@ -17,6 +17,7 @@ import { completedSeason, currentSeason, defaultSeason, seasonWhy } from "./seas
 import { teamNameOf } from "../../../src/shared/teamTitle.js";
 import { teamPageSql } from "../../../src/shared/teamPages.js";
 import { all, get } from "../../db.js";
+import { OFFICIAL_ONLY, isOfficialEvent } from "../../../src/shared/eventRecord.js";
 import { fuzzyScore } from "../fuzzy.js";
 import { search } from "../search.js";
 import { askSeason, eventWon, readAsk } from "../searchAsks.js";
@@ -27,7 +28,7 @@ import { predictHref } from "../../../src/shared/predictUrl.js";
 import { CHAMPIONSHIP_TYPE, STATES_TYPE, inScope, officialClause, scopeChips, scopePhrase, type Scope } from "./clauses.js";
 import { reliabilityEvents, teamEventSet, type TeamEvent } from "./eventSet.js";
 import { awardsAnswer, awardsTitle } from "./families/awards.js";
-import { championshipMatchesAnswer, eventScopeAnswer } from "./families/eventScope.js";
+import { championshipMatchesAnswer, eventScopeAnswer, matchLabelAnswer } from "./families/eventScope.js";
 import { eventAnswer } from "./families/events.js";
 import { factAnswer, readTeamFact, seasonOf as factSeason, type FactQuestion } from "./families/facts.js";
 import { leagueAskAnswer, readLeagueAsk } from "./families/league.js";
@@ -582,6 +583,7 @@ export async function statAnswerOf(q: string, it0: StatQuestion, resolve: Resolv
   const stat = scope.event?.absent ? await absentAnswer(q, it, team, scope, title) : await build(it, team, scope);
   if (!stat) return null;
   if (scope.seasonWhy) stat.definition = `${stat.definition} ${scope.seasonWhy}`;
+  await noteNamedEvent(stat, scope);
   // A state championship read as one season's: the team's other seasons there, each its own question (by the year held).
   if (it.scope.states && scope.event && !scope.event.absent) {
     const other = [...new Set((await teamEventSet(team.number)).events.filter((e) => e.type === STATES_TYPE && played(e) && e.season !== scope.event!.season).map((e) => e.season))].sort((x, y) => y - x);
@@ -671,6 +673,37 @@ async function absentAnswer(q: string, it: StatQuestion, team: AnswerTeam, scope
   };
 }
 
+/** The note an answer about a named off-season event adds to its method. */
+export const NAMED_OFF_SEASON = "The event asked about is an off-season event: its own matches count here, though season records count official events only.";
+/** The same note for a scrimmage, and for any other event that isn't official. */
+export const NAMED_SCRIMMAGE = "The event asked about is a scrimmage: its own matches count here, though season records count official events only.";
+const NAMED_UNOFFICIAL = "The event asked about is not an official event: its own matches count here, though season records count official events only.";
+
+/** The type of an event the question names (any of its codes) when it isn't official, else null. */
+async function namedUnofficialType(e: NonNullable<Scope["event"]>): Promise<string | null> {
+  const codes = e.codes ?? [e.code];
+  const rows = await all<{ type: string | null }>(`SELECT type FROM events WHERE season = ? AND code IN (${codes.map(() => "?").join(", ")})`, [e.season, ...codes]);
+  const r = rows.find((x) => !isOfficialEvent(x.type));
+  return r ? (r.type ?? "") : null;
+}
+
+/** The note for a named event of this type that isn't official: an off-season event, a scrimmage, any other. */
+function unofficialNote(type: string | null): string {
+  return type === "OffSeason" ? NAMED_OFF_SEASON : /scrimmage/i.test(type ?? "") ? NAMED_SCRIMMAGE : NAMED_UNOFFICIAL;
+}
+
+/** A named event that isn't official counts its own matches (./clauses.ts officialClause), while every family's method
+ *  note says official events only: the exception is said once, for whichever answered (one team's, two teams'), named
+ *  as what the event is (an off-season event, a scrimmage). A headline saying "Official events only" says so too. */
+async function noteNamedEvent(stat: StatAnswer, scope: Scope): Promise<void> {
+  if (!scope.event || scope.event.absent) return;
+  const type = await namedUnofficialType(scope.event);
+  if (type == null) return;
+  const off = type === "OffSeason", scrim = /scrimmage/i.test(type);
+  stat.definition = `${stat.definition} ${unofficialNote(type)}`;
+  if (stat.headline?.sub?.includes(OFFICIAL_ONLY)) stat.headline = { ...stat.headline, sub: stat.headline.sub.replace(OFFICIAL_ONLY, `${off ? "Off-season event" : scrim ? "Scrimmage" : "Not an official event"}, its own matches`) };
+}
+
 /** The season a Worlds answer is about: its headline's (the match or event it names), else the latest in the data. */
 const worldsSeason = (s: StatAnswer): number | null => {
   const m = /\b(20\d\d)–\d\d\b/.exec(s.headline?.sub ?? "") ?? /\b(20\d\d)–\d\d\b/.exec(s.headline?.label ?? "");
@@ -702,6 +735,9 @@ async function build(it: StatQuestion, team: { number: number; name: string | nu
     const at = await eventScopeAnswer(it.id, team, ms, evs.find((e) => e.code === scope.event!.code), scope, { n: it.n, each: evs });
     if (at) return at;
   }
+  // A match by its number with no event named ("<team> Q6", "<team> M14 at worlds"): each event's in the scope, of
+  // one season.
+  if (it.id === "match-lookup" && it.n != null) return matchLabelAnswer(team, ms, scope, it.n);
   if (MATCH_STAT_IDS.has(it.id)) return matchStatAnswer(it.id, team, ms, scope, { n: it.n, variant: it.variant });
   if (it.id === "results" && (scope.championship || scope.states)) return championshipMatchesAnswer(team, ms, scope);
   return matchAnswer(it.id, team, ms, scope, { leadEvent: it.leadEvent, n: it.n, outcome: it.outcome, perEvent: it.variant === "per-event", ...(it.under != null ? { under: it.under } : {}) });
@@ -979,6 +1015,7 @@ export async function twoTeamSearch(q: string, two: TwoTeamQuestion, resolve: Re
   const scoped = at ? at.scope : scope;
   const stat = await twoTeamStat(two, a, b, scoped);
   if (scoped.seasonWhy) stat.definition = `${stat.definition} ${scoped.seasonWhy}`;
+  await noteNamedEvent(stat, scoped);
   if (stat.none) await missingSide(stat, a, b, scoped, s.at);
   return { ...answer, understood: { kind: "question", label: `${TWO_TEAM_TITLES[two.id]}${scopePhrase(scoped)}: ${whoOf(a)} vs ${whoOf(b)}`, ...(scoped.season != null ? { season: scoped.season } : {}) }, stat };
 }
@@ -1123,8 +1160,10 @@ async function compareAt(two: TwoTeamQuestion, a: AnswerTeam, b: AnswerTeam, sco
   // Their matches together at the event compared (by its own name, without the divisions note), not every event the
   // words named ("Lakeside League Meet": the AM meet both played, never the PM one too).
   const there = `${name.replace(/\s*\([^)]*\)$/, "").toLowerCase()} in ${S}-${String((S + 1) % 100).padStart(2, "0")}`;
+  // An event that isn't official (an off-season event named): its rows count here, said as every answer says it.
+  const unofficial = rows.find((e) => !isOfficialEvent(e.type));
   return {
-    ...base, title: `${a.number} vs ${b.number} at ${name}`, scope: [name, seasonLabel(S)],
+    ...base, title: `${a.number} vs ${b.number} at ${name}`, scope: [name, seasonLabel(S)], ...(unofficial ? { definition: `${AT_EVENT_RULE} ${unofficialNote(unofficial.type ?? null)}` } : {}),
     headline: crow[0] && rows.some((e) => e.opr != null) ? leadHeadline(teams, crow[0], [...ranks, decidedText(crow)], eventHref(S, rows[0].code)) : { value: ranks.join(" · "), label: `No OPR at ${name} on record` },
     blocks: [block, { kind: "links", title: "Try it", items: [{ label: `${a.number} and ${b.number} matches together there`, href: `/search?q=${encodeURIComponent(`${a.number} and ${b.number} matches together at ${there}`)}` }] }],
   };

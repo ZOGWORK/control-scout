@@ -2,19 +2,20 @@
 // paged, with movement against last week's snapshot (rules: src/shared/rankings.ts; snapshots:
 // server/stats/rankings.ts). Built to be linked around: the whole ranked list is read once per data
 // version and season, each page's JSON is cached with its ETag, and a repeat visit is a 304.
+// The reads and the page itself are shared with the app offline (src/shared/rankingsBoard.ts): a saved
+// season pack runs the same SQL and the same assembly, so it shows the same numbers.
 import { createHash } from "node:crypto";
 import { all, get } from "../db.js";
 import { CURRENT_SEASON, PREDICT_SEASONS } from "../data/seasons.js";
 import { dataVersion } from "../predict/engine.js";
 import { registerCache } from "../caches.js";
+import { RANKED_MIN_MATCHES, inPlaces, placeKey, type PlaceFilter, type RankingPlaces, type RankingsResponse } from "../../src/shared/rankings.js";
 import {
-  RANKED_MIN_MATCHES, RANKINGS_PAGE_SIZE, WEEK_MS, inPlaces, movementOf, placeKey, rankTeams, weekStartMs,
-  type PlaceFilter, type RankingPlaces, type RankingRow, type RankingsResponse,
-} from "../../src/shared/rankings.js";
-import { teamPageSql } from "../../src/shared/teamPages.js";
-import { swingCell } from "../../src/shared/reliability.js";
+  baselineWeek as sharedBaseline, rankingCountries, rankingsFrom, readLiveList, readMine, readSnapshot, readSwing, readWeekList, readWeeks,
+  type RankingRows, type RankingTeamRow, type RankingsQuery,
+} from "../../src/shared/rankingsBoard.js";
 
-interface TeamRow { rank: number; team: number; rating: number; name: string | null; state: string | null; country: string | null }
+export type { RankingsQuery };
 
 /** Short-lived memo (the stats job can rewrite a season's rows under a version it already set). */
 function memo<T>(ttlMs: number, max = 200) {
@@ -31,24 +32,17 @@ function memo<T>(ttlMs: number, max = 200) {
   return Object.assign(fn, { clear: () => m.clear() });
 }
 
-const listMemo = memo<TeamRow[]>(120_000, 20);
+const listMemo = memo<RankingTeamRow[]>(120_000, 20);
 const snapMemo = memo<Map<number, { rank: number; rating: number }>>(600_000, 20);
 const pageMemo = memo<{ body: string; etag: string }>(120_000, 500);
 const placesMemo = memo<Omit<RankingPlaces, "mine" | "weeks">>(600_000, 20);
 registerCache("World rankings", () => { listMemo.clear(); snapMemo.clear(); pageMemo.clear(); placesMemo.clear(); });
 
-const teamCols = "t.name, t.state, t.country";
-
-// Teams without a public page (src/shared/teamPages.ts: placeholders like "Off-Season Demo Team") are never
-// ranked: the live list leaves them out before ranking, and a stored week is renumbered without them (in its
-// stored order), so the teams below move up a place and no rank is skipped.
-const ranked = teamPageSql("s.team", "t.name"), rankedNoJoin = teamPageSql("s.team");
+const rows: RankingRows = (sql, args) => all(sql, args);
 
 /** The live ranking: every team with a rating from 3+ rated matches this season (team_season_stats). */
-async function liveList(season: number): Promise<TeamRow[]> {
-  return listMemo(`${await dataVersion()}|live|${season}`, async () => rankTeams(await all<TeamRow>(
-    `SELECT s.team, s.rating_np rating, ${teamCols} FROM team_season_stats s LEFT JOIN teams t ON t.number = s.team
-     WHERE s.season = ? AND s.rating_np IS NOT NULL AND s.rating_matches >= ? AND ${ranked}`, [season, RANKED_MIN_MATCHES])));
+async function liveList(season: number): Promise<RankingTeamRow[]> {
+  return listMemo(`${await dataVersion()}|live|${season}`, () => readLiveList(rows, season));
 }
 
 /** A team's place in one region's live ranking for a season: its position among the region's ranked teams, how many
@@ -61,23 +55,20 @@ export async function regionPlace(season: number, team: number, place: PlaceFilt
 }
 
 /** A snapshot week's ranking, with team names (as stored then: order and rating; names as now). */
-async function weekList(season: number, week: string): Promise<TeamRow[]> {
-  return listMemo(`${await dataVersion()}|week|${season}|${week}`, async () => (await all<TeamRow>(
-    `SELECT s.team, s.rating, ${teamCols} FROM ranking_snapshots s LEFT JOIN teams t ON t.number = s.team
-     WHERE s.season = ? AND s.week = ? AND ${ranked} ORDER BY s.rank`, [season, week])).map((r, i) => ({ ...r, rank: i + 1, team: Number(r.team), rating: Number(r.rating) })));
+async function weekList(season: number, week: string): Promise<RankingTeamRow[]> {
+  return listMemo(`${await dataVersion()}|week|${season}|${week}`, () => readWeekList(rows, season, week));
 }
 
 /** A week's ranks and ratings by team, numbered as weekList numbers them. A written week's rows never change, but
  *  which teams count does (a team renamed to a placeholder by a sync), so the key carries the data version as the
  *  live list's does: both always agree on who is ranked. */
 async function snapshot(season: number, week: string) {
-  return snapMemo(`${await dataVersion()}|${season}|${week}`, async () => new Map((await all<{ team: number; rating: number }>(
-    `SELECT s.team, s.rating FROM ranking_snapshots s WHERE s.season = ? AND s.week = ? AND ${rankedNoJoin} ORDER BY s.rank`, [season, week])).map((r, i) => [Number(r.team), { rank: i + 1, rating: Number(r.rating) }])));
+  return snapMemo(`${await dataVersion()}|${season}|${week}`, () => readSnapshot(rows, season, week));
 }
 
 /** The season's snapshot weeks, newest first. */
 export async function snapshotWeeks(season: number): Promise<string[]> {
-  return (await all<{ week: string }>("SELECT week FROM ranking_weeks WHERE season = ? ORDER BY week DESC", [season])).map((r) => r.week);
+  return readWeeks(rows, season);
 }
 
 /**
@@ -86,9 +77,7 @@ export async function snapshotWeeks(season: number): Promise<string[]> {
  * week from its own instant, so it's the week exactly before it.
  */
 export function baselineWeek(weeks: string[], season: number, week: string | null, now: number): string | null {
-  if (!week && season !== CURRENT_SEASON) return null;
-  const limit = (week ? weekStartMs(week) : now) - WEEK_MS;
-  return weeks.find((w) => weekStartMs(w) <= limit) ?? null;
+  return sharedBaseline(weeks, season, week, now, CURRENT_SEASON);
 }
 
 /** The season /rankings opens on: the current one once anyone is rated in it, else the latest that has ratings. */
@@ -99,31 +88,16 @@ export async function defaultRankingsSeason(): Promise<number> {
   return r?.season ? Number(r.season) : CURRENT_SEASON;
 }
 
-export interface RankingsQuery { season: number; week: string | null; places: PlaceFilter[]; page: number }
-
 /** One page of the ranking (pure over the lists it reads; `now` picks last week's snapshot). */
 export async function rankings(q: RankingsQuery, now = Date.now()): Promise<RankingsResponse> {
-  const weeks = await snapshotWeeks(q.season);
-  const list = q.week ? (weeks.includes(q.week) ? await weekList(q.season, q.week) : []) : await liveList(q.season);
-  const base = baselineWeek(weeks, q.season, q.week, now);
-  const prev = base ? await snapshot(q.season, base) : null;
-  const matching = q.places.length ? list.filter((t) => inPlaces(t, q.places)) : list;
-  const pages = Math.max(1, Math.ceil(matching.length / RANKINGS_PAGE_SIZE));
-  const page = Math.min(Math.max(1, q.page), pages);
-  const slice = matching.slice((page - 1) * RANKINGS_PAGE_SIZE, page * RANKINGS_PAGE_SIZE);
-  // Swing (the consistency stat) is today's, so the live ranking shows it and a snapshot week doesn't.
-  const swing = q.week || !slice.length ? null : new Map((await all<{ team: number; swing: number | null; contrib_n: number }>(
-    `SELECT team, swing, contrib_n FROM team_reliability WHERE season = ? AND code = '' AND team IN (${slice.map(() => "?").join(",")})`,
-    [q.season, ...slice.map((t) => Number(t.team))])).map((r) => [Number(r.team), swingCell(r.swing == null ? null : Number(r.swing), Number(r.contrib_n))]));
-  const rows: RankingRow[] = slice.map((t) => ({
-    rank: t.rank, team: Number(t.team), name: t.name ?? null, state: t.state ?? null, country: t.country ?? null,
-    rating: t.rating, ...movementOf(t, prev, Number(t.team)),
-    ...(swing?.has(Number(t.team)) ? { swing: swing.get(Number(t.team))! } : {}),
-  }));
-  return {
-    season: q.season, week: q.week, asOf: q.week ? new Date(weekStartMs(q.week)).toISOString() : await dataVersion().then((v) => (v === "0" ? null : v)),
-    baseline: base, weeks, places: q.places.map(placeKey), ranked: list.length, total: matching.length, page, pages, pageSize: RANKINGS_PAGE_SIZE, rows,
-  };
+  return rankingsFrom(q, {
+    weeks: await snapshotWeeks(q.season),
+    list: (week) => (week ? weekList(q.season, week) : liveList(q.season)),
+    snapshot: (week) => snapshot(q.season, week),
+    swing: (teams) => readSwing(rows, q.season, teams),
+    asOf: await dataVersion().then((v) => (v === "0" ? null : v)),
+    currentSeason: CURRENT_SEASON,
+  }, now);
 }
 
 /**
@@ -142,26 +116,7 @@ export async function rankingsPage(q: RankingsQuery, now = Date.now()): Promise<
 
 /** Countries (and their states) with ranked teams this season, most teams first; plus the snapshot weeks. */
 export async function rankingPlaces(season: number, team: number | null): Promise<RankingPlaces> {
-  const base = await placesMemo(`${await dataVersion()}|${season}`, async () => {
-    const list = await liveList(season);
-    const byCountry = new Map<string, { teams: number; states: Map<string, number> }>();
-    for (const t of list) {
-      if (!t.country) continue;
-      let c = byCountry.get(t.country);
-      if (!c) { c = { teams: 0, states: new Map() }; byCountry.set(t.country, c); }
-      c.teams++;
-      if (t.state) { const s = t.state.toUpperCase(); c.states.set(s, (c.states.get(s) ?? 0) + 1); }
-    }
-    return {
-      season,
-      countries: [...byCountry].map(([country, c]) => ({ country, teams: c.teams, states: [...c.states].map(([state, teams]) => ({ state, teams })).sort((a, b) => b.teams - a.teams || a.state.localeCompare(b.state)) }))
-        .sort((a, b) => b.teams - a.teams || a.country.localeCompare(b.country)),
-    };
-  });
-  let mine: string | null | undefined;
-  if (team != null) {
-    const t = await get<{ state: string | null; country: string | null }>("SELECT state, country FROM teams WHERE number = ?", [team]);
-    mine = t?.country ? placeKey({ country: t.country, state: t.state ? t.state.toUpperCase() : null }) : null;
-  }
+  const base = await placesMemo(`${await dataVersion()}|${season}`, async () => ({ season, countries: rankingCountries(await liveList(season)) }));
+  const mine = team != null ? await readMine(rows, team) : undefined;
   return { ...base, weeks: await snapshotWeeks(season), ...(mine !== undefined ? { mine } : {}) };
 }

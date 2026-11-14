@@ -6,6 +6,7 @@ import { useSearch } from "./layout/Search";
 import { Button } from "./ui/button";
 import { EmptyState } from "./page";
 import { isFeatureDisabled, type ApiError, type ApiState } from "../lib/api";
+import { useConnection } from "../lib/connection";
 import { featureOffMessage, type Flag } from "../shared/flags";
 import { cn } from "./cn";
 
@@ -46,8 +47,11 @@ export function ErrorState({ error, onRetry, className }: { error: ApiError | Er
 
 function FetchErrorState({ error, onRetry, className }: { error: ApiError | Error; onRetry?: () => void; className?: string }) {
   const offline = (error as ApiError).offline;
-  // "Offline" only when the device says it has no network; online with no answer is the server's fault, not yours.
-  const noNetwork = offline && typeof navigator !== "undefined" && navigator.onLine === false;
+  const conn = useConnection();
+  // "Offline" only when there's no internet (the device says so, or the connection check found none or a Wi-Fi
+  // sign-in page, src/lib/connection.ts); online with no answer is the server's fault, not yours.
+  const portal = offline && conn.internet === "portal";
+  const noNetwork = offline && (conn.internet === "no" || portal || (typeof navigator !== "undefined" && navigator.onLine === false));
   const status = (error as ApiError).status;
   const search = useSearch();
   const missing = status === 404 || status === 400;
@@ -55,8 +59,9 @@ function FetchErrorState({ error, onRetry, className }: { error: ApiError | Erro
     <EmptyState
       className={className}
       icon={noNetwork ? WifiOff : offline ? ServerOff : missing ? SearchX : AlertTriangle}
-      title={noNetwork ? "You're offline" : offline ? "Can't reach the server" : status === 404 ? "Not found" : status === 400 ? "That isn't valid" : "Couldn't load this"}
-      description={noNetwork ? "This page needs a connection. Predictions still work offline from a downloaded lite pack (see Download)."
+      title={portal ? "No internet on this Wi-Fi" : noNetwork ? "You're offline" : offline ? "Can't reach the server" : status === 404 ? "Not found" : status === 400 ? "That isn't valid" : "Couldn't load this"}
+      description={portal ? "This Wi-Fi isn't giving internet. It may need you to sign in: open any website to see its sign-in page. This page needs a connection."
+        : noNetwork ? "This page needs a connection. Predictions still work offline from a downloaded lite pack (see Download)."
         : offline ? "Control Scout didn't answer. Try again in a moment; predictions still work from a downloaded lite pack (see Download)." : error.message}
       // A bad or missing address won't fix itself: no "Try again" for 400/404.
       // A missing or bad address can't be retried: offer the way forward instead.

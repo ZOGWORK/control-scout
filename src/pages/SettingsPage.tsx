@@ -14,8 +14,8 @@ import { vouchPending } from "../lib/cpVouch";
 import { AnimatePresence } from "motion/react";
 import { m } from "../components/motion";
 import {
-  ArrowDown, ArrowUp, BellRing, Bug, ClipboardList, Download, ExternalLink, HardDriveDownload, Info, KeyRound, Link2, LogOut, Mail, Palette,
-  Star, Upload, UserRound, Users, X,
+  ArrowDown, ArrowUp, BellRing, Bug, ClipboardList, Download, ExternalLink, Info, KeyRound, Link2, LogOut, Mail, Palette,
+  Star, Upload, UserRound, Users, Wifi, X,
   Megaphone,
 } from "lucide-react";
 import { apiFetch } from "../lib/api";
@@ -29,7 +29,6 @@ import { clearRecentSearches } from "../components/search/discover";
 import { applyScoutImport, downloadJson, importMessage, importRows, planKey, previewScoutImport, scoutExportJson, type DuplicatePolicy, type ImportPreview } from "../lib/scoutImport";
 import { ImportPreviewDialog } from "../components/settings/ImportPreviewDialog";
 import { isoOrBlank } from "../shared/scoutEntry";
-import { clearRecordings, fmtBytes } from "../lib/recordings";
 import { downloadCsv } from "../lib/csv";
 import { manualReport, sendReport } from "../lib/errorReporting";
 import { useFlag } from "../lib/flags";
@@ -47,9 +46,7 @@ import { toast } from "../components/ui/sonner";
 import { OtpInput } from "../components/arc/otp-input/otp-input";
 import { HoldToConfirm } from "../components/arc/hold-to-confirm/hold-to-confirm";
 import { cn } from "../components/cn";
-import { ago, dayDate, seasonLabel } from "../lib/format";
-import { packStatus } from "../lib/packPolicy";
-import { useSavedSeasons } from "../lib/offline/saved";
+import { ago } from "../lib/format";
 import { workspacesOf } from "../lib/scoutSpace";
 import { Group, Row } from "../components/settings/rows";
 import { UsernameRow } from "../components/settings/UsernameRow";
@@ -58,10 +55,10 @@ import { WorkspaceSection } from "../components/settings/WorkspaceSection";
 import { TabBarSettings } from "../components/settings/TabBarSettings";
 import { openWhatsNew } from "../components/WhatsNew";
 import { TEXT_SIZES, isTextSize, setTextSize, useTextSize } from "../lib/textSize";
-import { UpdateModeToggle, UpdateNetworkToggle, connectionNote, useConnection, useUpdatePrefs } from "../components/offline/UpdateSettings";
+import { NetworkSection } from "../components/settings/NetworkSection";
 import { currentRelease } from "../lib/changelog";
 
-type SectionId = "profile" | "appearance" | "tracking" | "notifications" | "offline" | "scouting" | "privacy" | "workspace" | "about";
+type SectionId = "profile" | "appearance" | "tracking" | "notifications" | "network" | "scouting" | "privacy" | "workspace" | "about";
 type SectionGroup = "Personal" | "Workspace" | "About";
 interface SectionDef { id: SectionId; label: string; hint: string; icon: ComponentType<{ className?: string }>; group: SectionGroup }
 
@@ -70,14 +67,14 @@ const ALL_SECTIONS: SectionDef[] = [
   { id: "appearance", label: "Appearance", hint: "Theme, text size, background, phone tab bar", icon: Palette, group: "Personal" },
   { id: "tracking", label: "My team & tracking", hint: "Your team, and the teams and events you follow", icon: Star, group: "Personal" },
   { id: "notifications", label: "Notifications", hint: "Push, match alerts and the email digest", icon: BellRing, group: "Personal" },
-  { id: "offline", label: "Offline data", hint: "Packs, cache and recordings on this device", icon: HardDriveDownload, group: "Personal" },
+  { id: "network", label: "Network & offline", hint: "Your connection, data use, Lite, downloads and cache", icon: Wifi, group: "Personal" },
   { id: "scouting", label: "Scouting data", hint: "Export, import and clear your notes", icon: ClipboardList, group: "Personal" },
   { id: "privacy", label: "Account & privacy", hint: "What lives where, and how to remove it", icon: KeyRound, group: "Personal" },
   { id: "workspace", label: "Workspace", hint: "Shared by your Control Point workspace: defaults, template, entry policy", icon: Users, group: "Workspace" },
   { id: "about", label: "About", hint: "Data sources, engine and credits", icon: Info, group: "About" },
 ];
-/** Old in-page anchors (#account …) → sections. */
-const HASHES: Record<string, SectionId> = { account: "profile", appearance: "appearance", tracking: "tracking", notifications: "notifications", offline: "offline", scouting: "scouting", privacy: "privacy", about: "about" };
+/** Old in-page anchors (#account …) → sections. #offline was the Offline data section, now part of Network & offline. */
+const HASHES: Record<string, SectionId> = { account: "profile", appearance: "appearance", tracking: "tracking", notifications: "notifications", network: "network", offline: "network", scouting: "scouting", privacy: "privacy", about: "about" };
 
 export default function SettingsPage() {
   const [params, setParams] = useSearchParams();
@@ -89,7 +86,9 @@ export default function SettingsPage() {
   const loc = useLocation();
   const hash = loc.hash.replace(/^#/, "");
   const fromHash = Object.prototype.hasOwnProperty.call(HASHES, hash) ? HASHES[hash] : undefined;
-  const requested = params.get("section") as SectionId | null;
+  // ?section=offline: the old Offline data section's address (the FAQ, older links).
+  const asked = params.get("section");
+  const requested = (asked === "offline" ? "network" : asked) as SectionId | null;
   const active: SectionId = SECTIONS.some((s) => s.id === requested) ? requested! : fromHash ?? "profile";
   const current = SECTIONS.find((s) => s.id === active)!;
   useTitle(`Settings · ${current.label}`);
@@ -152,7 +151,7 @@ export default function SettingsPage() {
               {active === "appearance" && <Appearance />}
               {active === "tracking" && <Tracking />}
               {active === "notifications" && <Notifications />}
-              {active === "offline" && <OfflineData />}
+              {active === "network" && <NetworkSection />}
               {active === "scouting" && <ScoutingData />}
               {active === "privacy" && <Privacy onOpen={go} />}
               {active === "workspace" && <WorkspaceSection />}
@@ -446,65 +445,6 @@ function InboxToggles() {
   );
 }
 
-// --- Offline data ---------------------------------------------------------------------------
-
-function OfflineData() {
-  const [est, setEst] = useState<{ usage?: number; quota?: number } | null>(null);
-  const pack = packStatus();
-  const saved = useSavedSeasons();
-  useEffect(() => { navigator.storage?.estimate?.().then(setEst, () => setEst({})); }, [saved]);
-  const remove = (season: number) => import("../lib/offline/seasons").then((s) => s.removeSeason(season)).then(() => toast(`${seasonLabel(season)} removed from this device`), (e) => toast.error(e.message));
-  return (
-    <div>
-      <Group title="Saved seasons" description={<>A saved season's team pages, event pages and search work on this device with no connection, showing the data as of its release. <Link to="/download" className="underline">Save a season</Link></>}>
-        {saved.length ? saved.map((s) => (
-          <Row key={s.season} label={seasonLabel(s.season)}
-            description={`${fmtBytes(s.bytes)} · saved ${ago(new Date(s.savedAt).toISOString())}${s.dataAsOf ? ` · results up to ${dayDate(s.dataAsOf)}` : ""}`}>
-            <Button variant="outline" size="sm" onClick={() => remove(s.season)}><X /> Remove</Button>
-          </Row>
-        )) : (
-          <Row label="None saved yet" description="Save a season before an event to browse it with no wifi.">
-            <Button variant="outline" size="sm" asChild><Link to="/download"><HardDriveDownload /> Save a season</Link></Button>
-          </Row>
-        )}
-      </Group>
-      <OfflineUpdates />
-      <Group title="Offline pack" description={<>Packs let predictions run on this device with no connection, e.g. at a venue with no signal. <Link to="/download" className="underline">Download page</Link></>}>
-        <Row label="Offline predictions on this device" description={pack ? `Pack ${pack.version} · ${fmtBytes(pack.bytes)} · saved ${ago(new Date(pack.savedAt).toISOString())}` : "None saved yet."}>
-          <Button variant="outline" size="sm" asChild><Link to="/download"><Download /> {pack ? "Open Download" : "Get the pack"}</Link></Button>
-        </Row>
-        <Row label="Storage used by this site" description="Cached pages, packs, saved seasons and recordings.">
-          <span className="text-sm tabular-nums text-foreground">{est?.usage != null ? `${fmtBytes(est.usage)}${est.quota ? ` of ${fmtBytes(est.quota)}` : ""}` : "—"}</span>
-        </Row>
-      </Group>
-      <Group title="Clean up">
-        <Row label="Cached data" description="Pages and data saved for offline use. They're downloaded again when needed.">
-          <Button variant="outline" size="sm" onClick={() => { if ("caches" in window) caches.keys().then((ks) => Promise.all(ks.map((k) => caches.delete(k)))).then(() => toast.success("Cached data cleared")); else toast("Nothing cached"); }}>Clear cached data</Button>
-        </Row>
-        <Row label="Recordings" description="Match videos recorded in the app live only on this device.">
-          <Button variant="outline" size="sm" onClick={() => clearRecordings().then(() => toast.success("Recordings deleted from this device"), (e) => toast.error(e.message))}>Delete all recordings</Button>
-        </Row>
-      </Group>
-    </div>
-  );
-}
-
-/** The Download page's two update settings, here too (synced with your account). */
-function OfflineUpdates() {
-  const { mode, network, setMode, setNetwork } = useUpdatePrefs();
-  const connection = useConnection();
-  return (
-    <Group title="Updates" description="Saved seasons are checked for a newer release in the background. A download that fails never replaces the saved copy.">
-      <Row label="When updates are out" description="Ask me shows one pop-up per release, and a notification when you're signed in.">
-        <UpdateModeToggle value={mode} onChange={setMode} />
-      </Row>
-      <Row label="Download updates on" description={connectionNote(connection)}>
-        <UpdateNetworkToggle value={network} onChange={setNetwork} />
-      </Row>
-    </Group>
-  );
-}
-
 // --- Scouting data ------------------------------------------------------------------------------
 
 function ScoutingData() {
@@ -625,7 +565,7 @@ function Privacy({ onOpen }: { onOpen: (id: SectionId) => void }) {
           <Button variant="outline" size="sm" onClick={() => { clearLocal(); clearLocalScouting(); try { localStorage.clear(); } catch { /* storage unavailable */ } resetConsent(); resetOnboarding(); resetInstall(); clearRecentSearches(); toast.success("Local data cleared"); }}>Clear</Button>
         </Row>
         {user ? (
-          <Row label="Delete account" description="Removes your account and everything synced to it: tracking, shortlist, scouting notes, video links. Recordings on this device are separate (Offline data).">
+          <Row label="Delete account" description="Removes your account and everything synced to it: tracking, shortlist, scouting notes, video links. Recordings on this device are separate (Network & offline).">
             <div ref={delBox}>
               <HoldToConfirm label="Hold to delete account" confirmedLabel="Deleted" tone="danger" onConfirm={del} confirmed={deleted} aria-describedby={delErr ? "delete-account-error" : undefined} />
               <FieldError id="delete-account-error" className="max-w-xs">{delErr}</FieldError>

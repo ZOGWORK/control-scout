@@ -15,6 +15,7 @@ import { localToUtcMs } from "../../src/shared/time.js";
 import type { EventStream, MatchView } from "../../src/shared/api.js";
 import { env } from "../env.js";
 import { fetchFromApi, fetchWatchPage, type WatchPageFacts } from "./youtube.js";
+import { youtubeId } from "../../src/shared/personal.js";
 import { officialRecordingIds, seasonOfficial } from "./officialVideos.js";
 import { checkedTo } from "../data/checkedTimings.js";
 
@@ -33,7 +34,21 @@ export interface Recording extends RecordingVideo {
 }
 
 const TTL_MS = 60_000;
-type SeasonData = { first: Map<string, string>; more: Map<string, string[]>; daily: Set<string>; official: Set<string>; meta: Map<string, VideoMeta>; extra: Map<string, { day: string | null; part: string | null }> };
+type SeasonData = { first: Map<string, string>; more: Map<string, string[]>; daily: Set<string>; official: Set<string>; meta: Map<string, VideoMeta>; extra: Map<string, { day: string | null; part: string | null }>; failed: string[] };
+
+/** Maps read without one of their sources (the owner's streams, the official recordings): online they're shown as
+ *  they are (and the failure is logged); the season pack's events board refuses them (isPartial, api/reads.ts). */
+const partial = new WeakSet<object>();
+export const isPartial = (m: object): boolean => partial.has(m);
+/** A source read that may fail: online the answer goes on without it (logged), and `failed` names it. */
+function soft<T>(what: string, season: number, failed: string[], p: Promise<T>, empty: () => T): Promise<T> {
+  return p.catch((e) => {
+    const msg = `${what} for ${season}: ${(e as Error)?.message ?? e}`;
+    failed.push(msg);
+    console.warn(`[recordings] ${msg} (read without them)`);
+    return empty();
+  });
+}
 let cache = new Map<number, { at: number; v: Promise<SeasonData>; ready?: boolean }>();
 registerCache("Event recordings", () => { cache = new Map(); });
 
@@ -68,6 +83,7 @@ function seasonData(season: number, now = Date.now()) {
   const hit = cache.get(season);
   if (hit && now - hit.at < TTL_MS) return hit.v;
   const v = (async () => {
+    const failed: string[] = [];
     const [links, short, official, days] = await Promise.all([
       all<{ code: string; livestream: string }>("SELECT code, livestream FROM events WHERE season = ? AND livestream LIKE '%youtu%'", [season]),
       // Short links followed while their event was on, while FIRST still gives the same link.
@@ -94,21 +110,21 @@ function seasonData(season: number, now = Date.now()) {
     // Official recordings (server/videos/officialVideos.ts): an organiser's day broadcasts, checked against the event.
     // An event without a link of FIRST's gets its first day as its video; every other day joins it, a day at a time.
     const extra = new Map<string, { day: string | null; part: string | null }>();
-    for (const o of (await seasonOfficial(season).catch(() => [])).filter((x) => x.kind === "recording")) {
+    for (const o of (await soft("official recordings", season, failed, seasonOfficial(season), () => [])).filter((x) => x.kind === "recording")) {
       extra.set(o.videoId, { day: o.day ?? null, part: o.part ?? null });
       const list = more.get(o.code) ?? [];
       if (!first.has(o.code)) first.set(o.code, o.videoId);
       else if (first.get(o.code) !== o.videoId && !list.includes(o.videoId)) more.set(o.code, [...list, o.videoId]);
       if (more.get(o.code)?.length) daily.add(o.code);
     }
-    const owner = await seasonStreams(season).catch(() => new Map<string, EventStream>());
+    const owner = await soft("owner streams", season, failed, seasonStreams(season), () => new Map<string, EventStream>());
     const ids = [...new Set([...first.values(), ...[...more.values()].flat(), ...[...owner.values()].map((s) => s.videoId)])];
     const meta = new Map<string, VideoMeta>();
     for (let i = 0; i < ids.length; i += 200) {
       const part = ids.slice(i, i + 200);
       for (const r of await all<any>(`SELECT ${META_COLUMNS} FROM video_meta WHERE video_id IN (${part.map(() => "?").join(",")})`, part)) meta.set(String(r.video_id), metaOf(r));
     }
-    return { first, more, daily, official: new Set(official.map((o) => String(o.code))), meta, extra };
+    return { first, more, daily, official: new Set(official.map((o) => String(o.code))), meta, extra, failed };
   })();
   // A map read before keeps being given while its next read runs (search reads these on its answer path: a read
   // costs a season's matches); forgetRecordings drops it at once when the links change.
@@ -125,8 +141,10 @@ const dayKey = (v: RecordingVideo) => v.meta?.start ?? (v.day ? `${v.day}T12:00:
 /** Every event's recording in a season, by event code; a video YouTube says won't play is left out (`keepUnavailable`:
  *  kept, for the coverage check, server/videos/coverage.ts, which names it as the reason its day has no clips). */
 export async function seasonRecordings(season: number, keepUnavailable = false): Promise<Map<string, Recording>> {
-  const [{ first, more, daily, meta, extra }, owner] = await Promise.all([seasonData(season), seasonStreams(season).catch(() => new Map<string, EventStream>())]);
+  const failed: string[] = [];
+  const [{ first, more, daily, meta, extra, failed: dataFailed }, owner] = await Promise.all([seasonData(season), soft("owner streams", season, failed, seasonStreams(season), () => new Map<string, EventStream>())]);
   const out = new Map<string, Recording>();
+  if (failed.length || dataFailed.length) partial.add(out);
   for (const [code, videoId] of first) {
     // Every day YouTube still plays, in order: the first of them is the event's video (a day made private leaves the others).
     const all = [videoId, ...(more.get(code) ?? [])].map((id): RecordingVideo => ({ videoId: id, meta: meta.get(id) ?? null, ...(extra.get(id) ?? {}) })).filter((d) => keepUnavailable || d.meta?.status !== "unavailable");
@@ -153,8 +171,9 @@ export function seasonVideoKinds(season: number, now = Date.now()): Promise<Map<
   const hit = kinds.get(season);
   if (hit && now - hit.at < KINDS_TTL_MS) return hit.v;
   const v = (async () => {
-    const [recs, { official }] = await Promise.all([seasonRecordings(season), seasonData(season)]);
+    const [recs, { official, failed }] = await Promise.all([seasonRecordings(season), seasonData(season)]);
     const out = new Map<string, "clips" | "recording">();
+    if (isPartial(recs) || failed.length) partial.add(out);
     // Every recording with a broadcast start: whether its timing holds can depend on the event's last match (timingTrusted).
     const timed = [...recs].filter(([, r]) => [r.meta, ...(r.more ?? []).map((d) => d.meta)].some((m) => m?.status === "ok" && m.start));
     const withClip = new Set<string>();
@@ -196,8 +215,52 @@ export function seasonVideoKinds(season: number, now = Date.now()): Promise<Map<
   return v;
 }
 
+let clipKeys = new Map<number, { at: number; v: Promise<Set<string>> }>();
+registerCache("Match clip keys", () => { clipKeys = new Map(); });
+
+/**
+ * Every played match of a season with video to play, as "code|level|series|number": FIRST's own video of it
+ * (matches.video), else its place in its event's recording, by the same check as the event page and an answer's video
+ * (withClips, each event's whole span). Search's "with video" filter reads it (server/api/query/matchFind.ts). A video
+ * someone added is the viewer's own (docs/contributors.md), never a filter's. Kept for 10 minutes.
+ */
+export function seasonClipKeys(season: number, now = Date.now()): Promise<Set<string>> {
+  const hit = clipKeys.get(season);
+  if (hit && now - hit.at < KINDS_TTL_MS) return hit.v;
+  const v = (async () => {
+    const out = new Set<string>();
+    const own = await all<{ code: string; level: string; series: number; number: number; video: string }>("SELECT code, level, series, number, video FROM matches WHERE season = ? AND played = 1 AND video IS NOT NULL AND video != ''", [season]);
+    // Only a video an answer can play (a YouTube link), as answerVideo and the event page read it.
+    for (const r of own) if (youtubeId(String(r.video))) out.add(`${r.code}|${r.level}|${Number(r.series)}|${Number(r.number)}`);
+    const recs = [...(await seasonRecordings(season))].filter(([, r]) => [r.meta, ...(r.more ?? []).map((d) => d.meta)].some((m) => m?.status === "ok" && m.start));
+    for (let i = 0; i < recs.length; i += 200) {
+      const part = recs.slice(i, i + 200);
+      const rows = await all<{ code: string; level: string; series: number; number: number; label: string; time: string; timezone: string | null }>(
+        `SELECT m.code, m.level, m.series, m.number, m.label, m.time, e.timezone FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code
+         WHERE m.season = ? AND m.played = 1 AND m.time IS NOT NULL AND m.code IN (${part.map(() => "?").join(",")})`, [season, ...part.map(([c]) => c)]);
+      const byCode = new Map<string, (MatchStart & { time: string; key: string })[]>();
+      for (const r of rows) {
+        const ms = localToUtcMs(r.time, r.timezone);
+        const code = String(r.code);
+        (byCode.get(code) ?? byCode.set(code, []).get(code)!).push({ label: String(r.label), time: String(r.time), startsAt: ms == null ? null : new Date(ms).toISOString(), key: `${code}|${r.level}|${Number(r.series)}|${Number(r.number)}` });
+      }
+      for (const [code, rec] of part) {
+        const ms = byCode.get(code);
+        if (!ms) continue;
+        const span = eventSpan(ms.filter((x) => actualStart(x.time)).map(({ label, startsAt }) => ({ label, startsAt })));
+        const views = ms.map((x) => ({ label: x.label, time: x.time, startsAt: x.startsAt ?? null, played: true, clip: undefined, key: x.key }));
+        for (const x of withClips(views, rec, now, span)) if (x.clip) out.add(x.key);
+      }
+    }
+    return out;
+  })();
+  clipKeys.set(season, { at: now, v });
+  v.catch(() => { if (clipKeys.get(season)?.v === v) clipKeys.delete(season); });
+  return v;
+}
+
 /** Drop the season maps, after the links they're read from changed. */
-export function forgetRecordings() { cache = new Map(); kinds = new Map(); }
+export function forgetRecordings() { cache = new Map(); kinds = new Map(); clipKeys = new Map(); }
 
 /** The page's player for an event, or null. */
 export async function eventRecording(season: number, code: string): Promise<Recording | null> {

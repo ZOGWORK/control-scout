@@ -6,18 +6,21 @@ import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { all, get, migrate, openDb, run, setDb } from "../db";
 import { OFFICIAL_CHANNELS } from "../data/officialChannels";
 import { STARTUP_CYCLE_MS } from "../warm";
-import { WATCH_CHECK_MS, WATCH_FIRST_MS, approveWatched, ownerOfficial, rejectWatched, removeChannel, removeOfficial, runOfficialWatch, saveChannel, seedOfficialChannels, watchIfDue } from "./officialWatch";
+import { release, tryAcquire } from "../data/lock";
+import { WATCH_CHECK_MS, WATCH_FIRST_MS, approveWatched, onRecordingAdded, type RecordingAdded, ownerOfficial, rejectWatched, removeChannel, removeOfficial, resetChannelsSeeded, runOfficialWatch, saveChannel, seedOfficialChannels, watchIfDue } from "./officialWatch";
 
 const TX = "UCKezDYNRPpAy2_1XRMBWKSw";
 const T0 = Date.parse("2026-01-10T00:00:00Z");
 const NOW = Date.parse("2026-01-20T00:00:00Z");
-const FIRSTS = "firstlinkxx", ADD = "addaddaddad", REV = "revrevrevre", IGN = "ignignignig", OLD = "oldoldoldol", LIVE = "livelivelive".slice(0, 11), DUP = "dupdupdupdu";
+const FIRSTS = "firstlinkxx", ADD = "addaddaddad", REV = "revrevrevre", IGN = "ignignignig", OLD = "oldoldoldol", LIVE = "livelivelive".slice(0, 11), DUP = "dupdupdupdu", SCHED = "schedschedS";
 
 type Item = { id: string; title: string; published: string; start?: string | null; minutes?: number; live?: string };
 let uploads: Item[] = [];
 let calls: string[] = [];
 let playlists: string[] = [];
 let quota = false;
+/** Uploads per playlistItems page (YouTube's is 50); a test lowers it to read past the first page. */
+let pageSize = 50;
 const fakeFetch = (async (url: string) => {
   const u = new URL(url);
   calls.push(u.pathname.split("/").pop()!);
@@ -27,7 +30,9 @@ const fakeFetch = (async (url: string) => {
   if (u.pathname.endsWith("/playlistItems")) {
     playlists.push(u.searchParams.get("playlistId")!);
     if (u.searchParams.get("playlistId") !== `UU${TX.slice(2)}`) return json({ items: [] });
-    return json({ items: uploads.map((i) => ({ contentDetails: { videoId: i.id, videoPublishedAt: i.published } })) });
+    const page = Number(u.searchParams.get("pageToken") || 0);
+    const items = uploads.slice(page * pageSize, (page + 1) * pageSize);
+    return json({ items: items.map((i) => ({ contentDetails: { videoId: i.id, videoPublishedAt: i.published } })), ...(uploads.length > (page + 1) * pageSize ? { nextPageToken: String(page + 1) } : {}) });
   }
   const ids = (u.searchParams.get("id") ?? "").split(",");
   return json({ items: uploads.filter((i) => ids.includes(i.id)).map((i) => ({
@@ -48,7 +53,7 @@ beforeAll(async () => {
   await run("INSERT INTO video_meta (video_id, status, start, end, duration, live, checked_at) VALUES ('firstlinkxx', 'ok', '2026-01-17T14:00:00Z', '2026-01-17T22:00:00Z', 28800, 0, 'x')");
   await seedOfficialChannels(T0, true);
 });
-beforeEach(() => { calls = []; playlists = []; quota = false; });
+beforeEach(() => { calls = []; playlists = []; quota = false; pageSize = 50; });
 
 describe("the official-video watcher", () => {
   it("checks midway between the sync's ticks, never as an event day's sync starts", () => {
@@ -67,6 +72,54 @@ describe("the official-video watcher", () => {
     expect((await get<{ removed_at: string | null }>("SELECT removed_at FROM official_channels WHERE channel_id = ?", [vt]))?.removed_at).toBeTruthy();
   });
 
+  it("keeps a seeded channel's title pattern the seed's (added, narrowed or dropped), never over the owner's edit", async () => {
+    const pattern = (id: string) => get<{ title_pattern: string | null }>("SELECT title_pattern FROM official_channels WHERE channel_id = ?", [id]).then((r) => r?.title_pattern ?? null);
+    const fimo = OFFICIAL_CHANNELS.find((c) => c.title === "FIRST in Missouri")!;
+    const iowa = OFFICIAL_CHANNELS.find((c) => c.title === "FTC Iowa")!;
+    // Both rows were seeded before their pattern shipped.
+    await run("UPDATE official_channels SET title_pattern = NULL WHERE channel_id IN (?, ?)", [fimo.channelId, iowa.channelId]);
+    // The owner saves Iowa with the same region and no pattern: theirs stands.
+    expect((await saveChannel({ channelId: iowa.channelId, title: iowa.title, region: iowa.region, words: iowa.words }, "owner@example.test", T0)).ok).toBe(true);
+    expect(await seedOfficialChannels(T0, true)).toBe(0);
+    expect(await pattern(fimo.channelId)).toBe(fimo.titlePattern);
+    expect(await pattern(iowa.channelId)).toBeNull();
+    // The save made the row the owner's in the same write (added_by); the seed's write alone decides, so each of its
+    // guards holds by itself: the owner's audit entry, and a region that isn't the seed's.
+    expect((await get<{ added_by: string | null }>("SELECT added_by FROM official_channels WHERE channel_id = ?", [iowa.channelId]))?.added_by).toBe("owner@example.test");
+    await run("UPDATE official_channels SET added_by = NULL WHERE channel_id = ?", [iowa.channelId]);
+    expect(await seedOfficialChannels(T0, true)).toBe(0);
+    expect(await pattern(iowa.channelId)).toBeNull();
+    const hawaii = OFFICIAL_CHANNELS.find((c) => c.title === "Hawaii FIRST Robotics")!;
+    await run("UPDATE official_channels SET title_pattern = NULL, region = 'state=HI;type=Championship' WHERE channel_id = ?", [hawaii.channelId]);
+    expect(await seedOfficialChannels(T0, true)).toBe(0);
+    expect(await pattern(hawaii.channelId)).toBeNull();
+    await run("UPDATE official_channels SET title_pattern = ?, region = ? WHERE channel_id = ?", [hawaii.titlePattern!, hawaii.region, hawaii.channelId]);
+    // A pattern the seed later narrows or drops follows it on a seed-owned row.
+    const moks = OFFICIAL_CHANNELS.find((c) => c.title.startsWith("FIRST MOKS"))!;
+    expect(moks.titlePattern).toBeUndefined();
+    await run("UPDATE official_channels SET title_pattern = 'missouri' WHERE channel_id = ?", [moks.channelId]);
+    await run("UPDATE official_channels SET title_pattern = 'missouri|kansas' WHERE channel_id = ?", [fimo.channelId]);
+    expect(await seedOfficialChannels(T0, true)).toBe(0);
+    expect(await pattern(moks.channelId)).toBeNull();
+    expect(await pattern(fimo.channelId)).toBe(fimo.titlePattern);
+    // While a data sync holds the writer lease, the owner panel still loads, and doesn't write.
+    await run("UPDATE official_channels SET title_pattern = 'missouri' WHERE channel_id = ?", [moks.channelId]);
+    resetChannelsSeeded();
+    const token = await tryAcquire("data sync", 60_000);
+    expect(token).toBeTruthy();
+    try { expect((await ownerOfficial(T0)).channels.length).toBeGreaterThan(0); } finally { await release(token!); }
+    expect(await pattern(moks.channelId)).toBe("missouri");
+    // Once the lease is free, the next load seeds.
+    await ownerOfficial(T0);
+    expect(await pattern(moks.channelId)).toBeNull();
+    // Seeded, a load doesn't ask for the lease: while a sync holds it, the load doesn't wait for it.
+    const held = await tryAcquire("data sync", 60_000);
+    expect(held).toBeTruthy();
+    const t = Date.now();
+    try { await ownerOfficial(T0); } finally { await release(held!); }
+    expect(Date.now() - t).toBeLessThan(1000);
+  });
+
   it("reads each watched channel's new uploads once: adds the sure one, queues the rest, sets aside the rest", async () => {
     uploads = [
       { id: ADD, title: "FiT Mockingbird Qualifier - Day 1", published: "2026-01-17T23:00:00Z", start: "2026-01-17T15:00:00Z" },
@@ -74,14 +127,25 @@ describe("the official-video watcher", () => {
       { id: DUP, title: "FiT Pecan Qualifier", published: "2026-01-17T23:40:00Z", start: "2026-01-17T15:10:00Z" },
       { id: IGN, title: "Coach webinar: judging", published: "2026-01-16T20:00:00Z" },
       { id: LIVE, title: "FiT Houston Qualifier", published: "2026-01-17T15:00:00Z", live: "live" },
-      { id: OLD, title: "FiT Mockingbird Qualifier 2025", published: "2025-12-01T00:00:00Z" },
+      // Older than the lookback: the checked list covered it.
+      { id: OLD, title: "FiT Mockingbird Qualifier 2025", published: "2025-06-01T00:00:00Z" },
+      // Scheduled (listed) before the channel was watched, aired after: still read, never skipped for its listing date.
+      { id: SCHED, title: "FiT Mockingbird Qualifier - Awards", published: "2026-01-05T00:00:00Z", start: "2026-01-18T22:00:00Z" },
       // FIRST's own link for the Pecan Qualifier, uploaded on the channel too.
       { id: FIRSTS, title: "FiT Pecan Qualifier - live", published: "2026-01-17T22:30:00Z", start: "2026-01-17T14:00:00Z" },
     ];
     const logs: string[] = [];
+    const heard: RecordingAdded[][] = [];
+    const stop = onRecordingAdded((a) => { heard.push(a); });
     const out = await runOfficialWatch((s) => logs.push(s), { apiKey: "k", fetchImpl: fakeFetch, now: () => NOW });
     // Journeys 23-26: the sure one added, the ambiguous one queued with why, duplicates logged, unwatched channels never read.
-    expect(out).toMatchObject({ seen: 5, added: 1, queued: 1, duplicates: 2, error: null });
+    expect(out).toMatchObject({ seen: 6, added: 2, queued: 1, duplicates: 2, error: null });
+    // What was added is handed on once, for the event's clip coverage to be checked again.
+    expect(heard).toEqual([[
+      { season: 2025, code: "USTXMOQ", day: "2026-01-17", part: null, videoId: ADD, by: "watcher" },
+      { season: 2025, code: "USTXMOQ", day: "2026-01-18", part: "Awards", videoId: SCHED, by: "watcher" },
+    ]]);
+    stop();
     const vt = OFFICIAL_CHANNELS.find((c) => c.title === "FIRST in Vermont")!.channelId;
     expect(playlists).not.toContain(`UU${vt.slice(2)}`);
     expect(playlists.every((p) => OFFICIAL_CHANNELS.some((c) => `UU${c.channelId.slice(2)}` === p))).toBe(true);
@@ -97,11 +161,14 @@ describe("the official-video watcher", () => {
     expect(st.get(FIRSTS)?.status).toBe("duplicate");
     expect(st.get(FIRSTS)?.why).toContain("already 2025 USTXPEQ's video (FIRST's event link)");
     expect(st.get(IGN)?.status).toBe("ignored");
-    expect(st.has(OLD)).toBe(false); // published before the channel was watched
+    expect(st.has(OLD)).toBe(false); // published before the lookback
+    expect(st.get(SCHED)?.status).toBe("added");
+    // A duplicate names the event that already plays it.
+    expect(await get<any>("SELECT season, code FROM official_watch WHERE video_id = ?", [FIRSTS])).toMatchObject({ season: 2025, code: "USTXPEQ" });
     expect(st.has(LIVE)).toBe(false); // still live: read once it's over
     const added = await get<any>("SELECT season, code, day, source FROM official_videos WHERE video_id = ?", [ADD]);
     expect(added).toMatchObject({ code: "USTXMOQ", day: "2026-01-17", source: "watcher" });
-    expect(logs.at(-1)).toMatch(/1 added, 1 to review, 2 duplicates/);
+    expect(logs.at(-1)).toMatch(/2 added, 1 to review, 2 duplicates/);
 
     // Again: nothing is proposed twice; the live one, now over, is read.
     uploads = uploads.map((u) => (u.id === LIVE ? { ...u, live: "none", start: "2026-01-17T15:00:00Z" } : u));
@@ -115,7 +182,11 @@ describe("the official-video watcher", () => {
     expect(await approveWatched(REV, { season: 2025, code: "USTXMOQ", day: "2026-01-19", kind: "recording" }, "owner@example.test")).toMatchObject({ ok: false, error: /runs 2026-01-17 to 2026-01-18/ });
     expect(await approveWatched(REV, { season: 2025, code: "USTXMOQ", day: "2026-01-17", kind: "recording" }, "owner@example.test")).toMatchObject({ ok: false, error: /already plays addaddaddad/ });
     expect(await approveWatched(REV, { season: 2025, code: "NOPE", day: "2026-01-17" }, "owner@example.test")).toMatchObject({ ok: false });
+    const heard: RecordingAdded[][] = [];
+    const stop = onRecordingAdded((x) => { heard.push(x); });
     expect((await approveWatched(REV, { season: 2025, code: "ustxmoq", day: "2026-01-18", kind: "recording" }, "owner@example.test")).ok).toBe(true);
+    expect(heard).toEqual([[{ season: 2025, code: "USTXMOQ", day: "2026-01-18", part: null, videoId: REV, by: "owner" }]]);
+    stop();
     expect(await get<any>("SELECT code, day, source, added_by FROM official_videos WHERE video_id = ?", [REV])).toMatchObject({ code: "USTXMOQ", day: "2026-01-18", source: "owner", added_by: "owner@example.test" });
     expect(await approveWatched(REV, { season: 2025, code: "USTXMOQ", day: "2026-01-18" }, "owner@example.test")).toMatchObject({ ok: false }); // decided already
     // Two approvals of one day at once: the second can't land (the unique day index under the same write).
@@ -238,5 +309,24 @@ describe("the official-video watcher", () => {
     expect((await saveChannel({ channelId: "UCaaaaaaaaaaaaaaaaaaaaaa", title: "Test FTC", region: "state=TX" }, "o", NOW)).ok).toBe(true);
     expect((await saveChannel({ channelId: "UCaaaaaaaaaaaaaaaaaaaaaa", title: "Test FTC", region: "state=OK" }, "o", NOW + 5)).ok).toBe(true);
     expect(await get<any>("SELECT region, watch_from FROM official_channels WHERE channel_id = 'UCaaaaaaaaaaaaaaaaaaaaaa'")).toMatchObject({ region: "state=OK", watch_from: new Date(NOW).toISOString() });
+  });
+
+  it("pages back through a channel's uploads to a stream scheduled before the watch, and stops at the lookback", async () => {
+    const LATER = NOW + 30 * 864e5;
+    pageSize = 2;
+    uploads = [
+      { id: "pageonepg1a", title: "Coach webinar A", published: new Date(LATER - 864e5).toISOString() },
+      { id: "pageonepg1b", title: "Coach webinar B", published: new Date(LATER - 2 * 864e5).toISOString() },
+      // Page 2: listed before the channel was watched (T0) but within the lookback, then one older than it.
+      { id: "pagetwopg2a", title: "Coach webinar C", published: "2025-12-01T00:00:00Z" },
+      { id: "pagetwopg2b", title: "Coach webinar D", published: "2025-01-01T00:00:00Z" },
+      // Page 3 is never asked for: page 2 already reached the lookback.
+      { id: "pagethreep3", title: "Coach webinar E", published: "2024-12-01T00:00:00Z" },
+    ];
+    const out = await runOfficialWatch(() => {}, { apiKey: "k", fetchImpl: fakeFetch, now: () => LATER });
+    expect(out).toMatchObject({ seen: 3, error: null });
+    expect(playlists.filter((p) => p === `UU${TX.slice(2)}`)).toHaveLength(2);
+    const seen = new Set((await all<{ video_id: string }>("SELECT video_id FROM official_watch WHERE video_id LIKE 'page%'")).map((r) => r.video_id));
+    expect([...seen].sort()).toEqual(["pageonepg1a", "pageonepg1b", "pagetwopg2a"]);
   });
 });

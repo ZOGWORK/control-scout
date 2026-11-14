@@ -30,6 +30,14 @@ describe("donate page", () => {
     }
   });
 
+  it("/network redirects to Settings › Network & offline with a 301, query kept (?lite=0 reaches the full screen)", async () => {
+    for (const [from, to] of [["/network", "/settings#network"], ["/network?lite=0", "/settings?lite=0#network"]]) {
+      const res = await fetch(`${base}${from}`, { redirect: "manual" });
+      expect(res.status, from).toBe(301);
+      expect(res.headers.get("location"), from).toBe(to);
+    }
+  });
+
   it("is in the sitemap, indexable, and never called a charity", async () => {
     expect((await sitemapEntries()).some((e) => new URL(e.loc).pathname === "/donate")).toBe(true);
     const m = await pageMeta("/donate");

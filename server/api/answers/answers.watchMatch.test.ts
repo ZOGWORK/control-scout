@@ -4,7 +4,7 @@
 // under People also ask (src/components/search/page/AnswerVideo.tsx AnswerClip). Never a cut of one phase, never
 // another match. A fixture of two real 2025–26 events: Massachusetts (one recording of the day) and Edison Division
 // (FIRST's own video of each playoff match), plus a qualifier with no video at all.
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { migrate, openDb, run, setDb } from "../../db";
 import { forgetRecordings } from "../../videos/recordings";
 import { rebuildSearch } from "../../stats/job";
@@ -15,6 +15,9 @@ type Side = [np: number, auto: number, teleop: number, endgame: number];
 const NOW = Date.parse("2026-11-05T00:00:00Z");
 
 beforeAll(async () => {
+  // The current season is today's: pinned, so "no season said" reads 2026–27 whatever the machine's clock.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(NOW));
   const c = openDb(":memory:");
   setDb(c);
   await migrate(c);
@@ -47,9 +50,20 @@ beforeAll(async () => {
   // 4215: its best Auto (88) is at a qualifier with no video at all.
   await match("USNJQ1", "qual", 1, "2026-01-10T10:00:00Z", null, [150, 88, 42, 20], [60, 10, 30, 20], [4215, 207], [6980, 9999]);
   await match("USMACMP", "qual", 30, "2026-03-15T15:04:12.812", null, [88, 20, 48, 20], [178, 40, 118, 20], [4215, 6980], [207, 9999]);
+  // 4215's Q1 in 2024–25 (for "ever"), and a played 2026–27 playoff match with no M10, team 5555's (for the season note).
+  await run("INSERT INTO teams (number, name, city, state, country, rookie_year) VALUES (5555, 'Note Bots', 'Edison', 'NJ', 'USA', 2020)");
+  for (const [season, code, n, team, level] of [[2024, "USNJQ0", 1, 4215, "qual"], [2026, "USNJQ9", 4, 5555, "playoff"]] as const) {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, timezone, source) VALUES (?, ?, ?, 'Qualifier', 'Edison', 'NJ', 'USA', ?, ?, 'America/New_York', 't')", [season, code, `New Jersey Qualifier ${season}`, `${season + 1}-01-10`, `${season + 1}-01-10`]);
+    await run(`INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, red_auto, red_teleop, red_endgame, red_pen, blue_total, blue_np, blue_auto, blue_teleop, blue_endgame, blue_pen, breakdown, source)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 1, 40, 40, 10, 20, 10, 0, 30, 30, 10, 10, 10, 0, 1, 't')`, [season, code, level, level === "qual" ? 0 : n, level === "qual" ? n : 1, `${level === "qual" ? "Q" : "M"}${n}`, `${season + 1}-01-10T10:00:00Z`]);
+    await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance) VALUES (?, ?, ?, ?, ?, ?, 'red')", [season, code, level, level === "qual" ? 0 : n, level === "qual" ? n : 1, team]);
+    await run("INSERT INTO team_seasons (season, team) VALUES (?, ?) ON CONFLICT DO NOTHING", [season, team]);
+  }
   await rebuildSearch();
   forgetRecordings();
 });
+
+afterAll(() => { vi.useRealTimers(); });
 
 /** The answer and its video, as the search route sends them. */
 async function ask(q: string) {
@@ -112,5 +126,158 @@ describe("asking to watch one match: the same answer, and that match's clip", ()
 
   it("highlights alone stay highlights: a team's, its best matches, a scope's", async () => {
     for (const q of ["11148 highlights", "11148 best matches", "11148 best highlights", "barker greybacks highlights"]) expect((await ask(q)).a.stat?.intent, q).toBe("team-highlights");
+  });
+});
+
+// A match asked for by its number (search video brief, point 4): the card is that exact match and plays its own clip.
+describe("a match by its number", () => {
+  it("a team's match by its number, no event named: that match, playing its second in the recording", async () => {
+    const { a, video } = await ask("11148 M10 2025-26");
+    expect(a.stat?.headline?.href).toBe(maM10);
+    expect(video?.main).toMatchObject({ kind: "recording", match: "M10", videoId: "xnQFL9T27fY" });
+    expect(video?.main?.end).toBeGreaterThan(video!.main!.t);
+  });
+
+  it("a team's number with no such match says so, never another match", async () => {
+    const { a, video } = await ask("4215 M10 2025-26");
+    expect(a.stat?.none).toMatch(/no M10/);
+    expect(video?.main).toBeUndefined();
+  });
+
+  it("a match's number at Worlds, no team: that match, FIRST's own video first", async () => {
+    const { a, video } = await ask("m2 at worlds 2025-26");
+    expect(a.stat?.headline?.href).toBe(edisonM2);
+    expect(video?.main).toEqual({ videoId: "4elyC6MxtEY", t: 0, kind: "match", match: "M2" });
+  });
+});
+
+describe("a team's match by its number at Worlds", () => {
+  it("is that match at Worlds, playing FIRST's own video; none there plays nothing", async () => {
+    const { a, video } = await ask("11148 M2 at worlds 2025-26");
+    expect(a.stat?.headline?.href).toBe(edisonM2);
+    expect(a.stat?.title).toMatch(/^M2 at Worlds/);
+    expect(video?.main).toEqual({ videoId: "4elyC6MxtEY", t: 0, kind: "match", match: "M2" });
+    // A team with no Worlds match: no match is offered as its M2, and nothing plays.
+    const none = await ask("4215 M2 at worlds 2025-26");
+    expect(none.a.stat?.headline).toBeUndefined();
+    expect(none.video?.main).toBeUndefined();
+  });
+});
+
+describe("a match number across seasons", () => {
+  it("\"ever\" lists the team's match with that number in every season, the latest first", async () => {
+    const { a } = await ask("4215 q1 ever");
+    const hrefs = [a.stat?.headline?.href, ...(a.stat?.blocks ?? []).flatMap((b) => (b.kind === "matches" || b.kind === "table" ? b.rows.map((r) => r.href) : []))].filter(Boolean);
+    expect(hrefs.slice(1)).toEqual(["/events/2025/USNJQ1?match=qual:0:1", "/events/2024/USNJQ0?match=qual:0:1"]);
+  });
+  it("no season said, the current one played but with no such number: the note names the number, not matches", async () => {
+    const { a } = await ask("m10");
+    expect(a.stat?.headline?.href).toBe(maM10);
+    expect(a.stat?.scope[0]).toBe("No 2026–27 M10 yet; showing 2025–26");
+    // At Worlds: that match there, never "no matches" while others were played.
+    const worlds = await ask("m2 at worlds");
+    expect(worlds.a.stat?.headline?.href).toBe(edisonM2);
+    expect(worlds.a.stat?.scope[0]).toBe("No 2026–27 M2 at Worlds yet; showing 2025–26");
+  });
+  it("a match's number at states, no team: that match at state championships", async () => {
+    const { a } = await ask("m10 at states 2025-26");
+    expect(a.stat?.headline?.href).toBe(maM10);
+    expect(a.stat?.title).toMatch(/^M10 at state championships/);
+    // A bare year is the championship held that year.
+    const held = await ask("m10 at states 2026");
+    expect(held.a.stat?.headline?.href).toBe(maM10);
+  });
+  it("an event kind's relaxed note names the kind, never states", async () => {
+    const { a } = await ask("q1 qualifier");
+    const chip = a.stat?.scope[0] ?? "";
+    expect(a.stat?.headline?.href).toBe("/events/2025/USNJQ1?match=qual:0:1");
+    expect(chip).toMatch(/^No 2026–27 Q1 at (?!states)/);
+  });
+});
+
+describe("a match number beside other words", () => {
+  it("a bare year at Worlds is the championship held that year", async () => {
+    const { a } = await ask("11148 M2 at worlds 2026");
+    expect(a.stat?.headline?.href).toBe(edisonM2);
+    // A number with no match there says that match is missing, never that nothing was played.
+    const missing = await ask("m30 at worlds 2025-26");
+    expect(missing.a.stat?.none).toBe("No M30 played at worlds in 2025–26 yet.");
+    expect((await ask("m30 finals 2025-26")).a.stat?.none).toBe("No M30 played in the finals in 2025–26 yet.");
+    // No team said: the same championship.
+    const bare = await ask("m2 at worlds 2026");
+    expect(bare.a.stat?.headline?.href).toBe(edisonM2);
+  });
+  it("a superlative with a match number never answers for every match", async () => {
+    const { a } = await ask("highest scoring m2 matches 2025-26");
+    const h = a.stat?.headline?.href;
+    if (h) expect(h).toBe(edisonM2);
+    expect(a.stat?.headline?.href ?? "").not.toBe(maM10);
+  });
+});
+
+// "With video" as a filter (search video brief, point 5): only matches with a clip to play, FIRST's own video or a
+// second in the event's recording; a match with none is never listed.
+describe("with video, ever", () => {
+  it("\"lowest score ever with video\" reads every season's matches with video, never the lowest without", async () => {
+    const { a } = await ask("lowest score ever with video");
+    expect(a.stat?.scope).toEqual(expect.arrayContaining(["All seasons", "With video"]));
+    // The qualifier's match has no video: never the answer.
+    expect(a.stat?.headline?.href ?? "").not.toContain("USNJQ1");
+  });
+});
+
+describe("with video, as a filter", () => {
+  const listed = (a: Awaited<ReturnType<typeof ask>>["a"]) => [a.stat?.headline?.href, ...(a.stat?.blocks ?? []).flatMap((b) => (b.kind === "table" ? b.rows.map((r) => r.href) : []))].filter(Boolean);
+
+  it("a team's matches with video leave out the ones with none", async () => {
+    const { a } = await ask("4215 matches with video 2025-26");
+    expect(a.stat?.scope).toContain("With video");
+    expect(listed(a)).toEqual(["/events/2025/USMACMP?match=qual:0:30"]);
+  });
+
+  it("a team's match by its score with video, no season said: the latest season holding one with video", async () => {
+    const { a } = await ask("4215 88 point match with video");
+    expect(listed(a)).toEqual(["/events/2025/USMACMP?match=qual:0:30"]);
+  });
+
+  it("a scope's best match with video skips a better one with none, and every listed one plays", async () => {
+    const { a, video } = await ask("lowest score with video 2025-26");
+    expect(listed(a)).not.toContain("/events/2025/USNJQ1?match=qual:0:1");
+    // The headline's match is the card's own video; each row after it has its own.
+    expect(video?.main?.kind).not.toBe("stream");
+    for (const h of listed(a).slice(1)) expect(!!video?.rows?.[h!], h).toBe(true);
+  });
+
+  it("an event's matches with video play the first one's own clip, never the recording from its start", async () => {
+    const { a, video } = await ask("matches with video at massachusetts championship 2025-26");
+    expect(listed(a).length).toBeGreaterThan(1);
+    expect(video?.main).toMatchObject({ kind: "recording" });
+    expect(video?.main?.t).toBeGreaterThan(0);
+  });
+});
+
+describe("highlights with video", () => {
+  it("is the team's highlights card", async () => {
+    const { a, video } = await ask("11148 highlights with video 2025-26");
+    expect(a.stat?.blocks.some((b) => b.kind === "videos" || (b.kind === "matches" && b.rows.every((r) => r.note)))).toBe(true);
+    expect(video?.main).toBeDefined();
+  });
+});
+
+// No dead ends (search video brief, point 7): the questions offered when nothing plays are the team's own seasons with
+// a clip, then the events with clips, each one a search whose answer plays.
+describe("questions with video", () => {
+  it("a team's own season with a clip, then events with clips; each of them plays", async () => {
+    const { videoCandidates, withVideoAlternatives } = await import("./videoSuggest");
+    const { a } = await ask("4215 matches 2025-26");
+    const cs = await videoCandidates(a, NOW);
+    expect(cs[0]).toBe("4215 highlights 2025-26");
+    expect(cs).toContain("Massachusetts Championship highlights 2025-26");
+    // A qualifier with no video is never offered.
+    expect(cs.some((c) => /New Jersey Qualifier/.test(c))).toBe(false);
+    const none = { ...a, stat: { ...a.stat!, none: "No played matches with video" } };
+    const out = await withVideoAlternatives("4215 matches with video", none, undefined, (q) => searchAnswer(q, { learn: false, limit: 25 }), (b) => answerVideo(b, NOW), 5000);
+    const offered = out.stat?.blocks.find((b) => b.kind === "related" && b.title === "Questions with video");
+    expect(offered && offered.kind === "related" ? offered.queries.length : 0).toBeGreaterThan(0);
   });
 });
