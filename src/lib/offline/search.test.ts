@@ -24,6 +24,7 @@ function pack(): EventBundle {
   const api: PackApi = { answers: {}, same: {}, errors: {} };
   const lone: SearchAnswer = { q: "11", hits: [hit(11, NAMES[11])], pages: [], step: "deterministic", weak: false, understood: { kind: "team", label: "Gear Grinders (11)" } };
   api.answers[packPath(searchPackPath("11"))!] = lone;
+  api.answers[packPath(searchPackPath("Gear Grinders"))!] = { ...lone, q: "Gear Grinders" };
   api.answers[packPath(`/api/teams-summary?season=${S}&teams=12`)!] = { season: S, teams: [{ number: 12, name: "Bolt Brigade" }] };
   api.answers[packPath(`/api/teams-summary?season=${S}&teams=11`)!] = { season: S, teams: [{ number: 11, name: "Gear Grinders" }] };
   const search: PackSearch = {
@@ -86,4 +87,37 @@ describe("search with no signal, from a saved event pack", () => {
     expect(a.notInPack?.about).toEqual(["the 2025–26 season"]);
     expect(performance.now() - t0).toBeLessThan(2000);
   });
+
+  it("reads the query as the server does: a question mark or a thousands comma still finds the pack's answer", async () => {
+    for (const q of ["gear%20grinders%3F", "11%3F", "Gear%20Grinders!"]) {
+      const a = await offlineAnswer(`/api/search?q=${q}&limit=25&answer=1`) as SearchAnswer;
+      expect(a.notInPack, q).toBeUndefined();
+      expect(a.hits.map((h) => h.ref), q).toEqual(["11"]);
+    }
+  });
+
+  it("lib/api.ts: a search the pack can't answer while the server is up is bounded: SEARCH_SLOW_MS, then one more try", async () => {
+    const { apiFetch, SEARCH_SLOW_MS } = await import("../api");
+    const answer: SearchAnswer = { q: "who won decode", hits: [hit(11, NAMES[11])], pages: [], step: "deterministic", weak: false };
+    let searches = 0;
+    const aborted: number[] = [];
+    vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => {
+      if (!String(url).startsWith("/api/search")) return Promise.resolve(new Response("{}"));
+      const n = ++searches;
+      // The first try never answers (a stuck connection); the retry does.
+      if (n > 1) return Promise.resolve(new Response(JSON.stringify(answer)));
+      return new Promise<Response>((_, reject) => init?.signal?.addEventListener("abort", () => { aborted.push(n); reject(new DOMException("aborted", "AbortError")); }));
+    }));
+    // The server answers other requests: it's up.
+    await apiFetch("/api/health");
+    const t0 = performance.now();
+    const a = await apiFetch<SearchAnswer>("/api/search?q=who%20won%20decode&limit=25&answer=1");
+    const took = performance.now() - t0;
+    expect(a.notInPack).toBeUndefined();
+    expect(a.hits.map((h) => h.ref)).toEqual(["11"]);
+    expect(searches).toBe(2);
+    expect(aborted).toEqual([1]);
+    expect(took).toBeGreaterThanOrEqual(SEARCH_SLOW_MS - 50);
+    expect(took).toBeLessThan(SEARCH_SLOW_MS + 3000);
+  }, 30_000);
 });

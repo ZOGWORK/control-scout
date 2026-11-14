@@ -1,6 +1,7 @@
 // Search hits as the app and the server show them: the header's dropdown and the /search page (the app),
 // and /search's first paint (server/seoMeta.ts).
 import type { SearchHit, SearchPageLink, SearchSection } from "./api.js";
+import { joinThousands } from "./fuzzy.js";
 
 /** The kinds in the order they're listed, with their group names. */
 export const SEARCH_GROUPS: [SearchHit["kind"], string][] = [["compare", "Compare"], ["place", "Places"], ["team", "Teams"], ["event", "Events"], ["match", "Matches"]];
@@ -13,7 +14,24 @@ export const SORRY_SENTENCE = "Sorry — I can't answer that yet";
  *  (firstCards). */
 export const SEARCH_PAGE_LIMIT = 25;
 
-/** The longest query search reads (server/api/searchAnswer.ts MAX_QUERY): the related searches page's too. */
+/** The longest query read: a full question ("did the prediction for 12345 at the state championship get it right, or
+ *  was it way off") fits. Longer is cut at a word, never inside one. */
+export const SEARCH_MAX_QUERY = 160;
+
+/** The query as search reads it (server/api/searchAnswer.ts, and the event pack with no signal): punctuation that
+ *  never means anything dropped, spaces folded, at most SEARCH_MAX_QUERY (cut at the last whole word: a word cut in
+ *  two, "2025-2", would be read as another). */
+export function cleanQuery(raw: string): string {
+  // "1,000" is one number before its comma could be dropped as punctuation; a stored name written that way is indexed
+  // as one number too (SEARCH_INDEX_SCHEMA 6). "40+ teams" is "40 or more teams" (a size, as the events-over-a-size
+  // answer reads it), kept before "+" is cleaned.
+  const q = joinThousands(String(raw ?? "")).replace(/(\d)\s*\+\s*(?=teams?\b)/gi, "$1 or more ").replace(/[!?,;"<>(){}[\]|\\^*`~=+]/g, " ").replace(/\s+/g, " ").trim();
+  if (q.length <= SEARCH_MAX_QUERY) return q;
+  const cut = q.slice(0, SEARCH_MAX_QUERY);
+  return (q[SEARCH_MAX_QUERY] === " " ? cut : cut.replace(/\s+\S*$/, "")).trim() || cut;
+}
+
+/** The longest query search reads (SEARCH_MAX_QUERY): the related searches page's too. */
 export const RELATED_QUERY_MAX = 160;
 /** The query a related searches page is about: as typed, trimmed, to the length search reads. */
 export const relatedQuery = (q: string) => q.trim().slice(0, RELATED_QUERY_MAX).trim();

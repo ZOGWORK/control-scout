@@ -82,7 +82,7 @@ describe("the event pack's searches", () => {
   it("answer with no signal exactly as online: team, name, event and match queries", async () => {
     for (const q of ["1111", "Circuit Owls", EV, "Midland Robot Qualifier", `${EV} Q2`]) expect(JSON.stringify(await offline(q)), q).toBe(JSON.stringify(await online(q)));
     // However it's typed: case and spacing.
-    expect(await offline("  circuit   OWLS ")).toEqual(await online("Circuit Owls"));
+    expect(JSON.stringify(await offline("  circuit   OWLS "))).toBe(JSON.stringify(await online("  circuit   OWLS ")));
     expect((await online(`${EV} Q2`)).hits[0]).toMatchObject({ kind: "match" });
   });
 
@@ -93,6 +93,23 @@ describe("the event pack's searches", () => {
       expect(on.stat?.intent, q).toBe("compare");
       expect(JSON.stringify(await offline(q)), q).toBe(JSON.stringify(on));
     }
+  });
+
+  it("reads the query as the route does: punctuation and thousands commas still find the pack's answer", async () => {
+    for (const q of ["gear grinders?", "Circuit Owls!", "1,111"]) {
+      const off = await offline(q);
+      expect(off.notInPack, q).toBeUndefined();
+      expect(JSON.stringify(off), q).toBe(JSON.stringify(await online(q)));
+    }
+  });
+
+  it("a versus naming a season compares that season, as online", async () => {
+    for (const q of ["1111 vs 3333 2024-25", "2222 vs 4444 vs 1111 2024-25", "1111 vs 3333 2025-26", "2222 vs 5555 2024-25"]) {
+      const on = await online(q);
+      expect(on.stat?.intent, q).toBe("compare");
+      expect(JSON.stringify(await offline(q)), q).toBe(JSON.stringify(on));
+    }
+    expect((await offline("1111 vs 3333 2024-25")).stat?.title).toBe("1111 vs 3333, 2024–25");
   });
 
   it("anything else says what it needs that isn't in the pack, and what is", async () => {

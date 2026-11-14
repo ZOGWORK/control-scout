@@ -12,6 +12,7 @@
 import type { NotInPack, SearchAnswer, TeamSummary } from "./api";
 import { packLookup, searchPackPath, type EventBundle } from "./eventBundle";
 import { versusFromPack, versusNumbers } from "./searchVersus";
+import { cleanQuery } from "./search";
 import { describe, parseQuery, type ParseContext, type Parsed } from "./query/parse";
 import { packParseContext } from "./query/packContext";
 import { seasonLabel } from "./format";
@@ -27,7 +28,8 @@ const todayOf = (now: number) => new Date(now).toISOString().slice(0, 10);
  *  kinds, an empty query) or there are none. `ctx`: the parser's context for these packs (packParseContext). */
 export async function searchFromPacks(path: string, packs: SearchPack[], now = Date.now(), ctx: ParseContext = packParseContext(packs, todayOf(now))): Promise<FromPack<SearchAnswer> | null> {
   const url = new URL(path, "http://offline.invalid");
-  const q = (url.searchParams.get("q") ?? "").trim().replace(/\s+/g, " ");
+  // Read as the route reads it (cleanQuery): "gear grinders?" finds the pack's "Gear Grinders", "1,000" its 1000.
+  const q = cleanQuery(url.searchParams.get("q") ?? "");
   if (url.searchParams.get("answer") !== "1" || url.searchParams.get("kinds") || !q || !packs.length) return null;
   const limit = Number(url.searchParams.get("limit")) || 0;
   // The season picker and "my team" ask the server for another answer than the pack's: those say what's missing.
@@ -37,18 +39,19 @@ export async function searchFromPacks(path: string, packs: SearchPack[], now = D
     for (const [from, pack] of packs.entries()) {
       const got = packLookup(pack.api, searchPackPath(q));
       if (got && "body" in got && got.body && typeof got.body === "object") {
-        const body = structuredClone(got.body) as SearchAnswer;
+        // Online echoes the query as typed (cleaned); the pack kept it as the pack asked it.
+        const body = { ...(structuredClone(got.body) as SearchAnswer), q };
         // The header's short list asks for fewer rows than the page the pack kept: the first ones.
         return { body: limit > 0 && body.hits.length > limit ? { ...body, hits: body.hits.slice(0, limit) } : body, from };
       }
     }
   }
   // 2. The pack's teams side by side.
-  const nums = asked ? versusNumbers(q) : null;
+  const nums = asked ? versusNumbers(q, ctx.today)?.teams : null;
   if (nums) {
     const read = nums.length === 2 ? await twoTeamReading(q, ctx) : null;
     for (const [from, pack] of packs.entries()) {
-      const a = pack.search ? versusFromPack(q, pack.search, read) : null;
+      const a = pack.search ? versusFromPack(q, pack.search, read, ctx.today) : null;
       if (a) return { body: a, from };
     }
   }

@@ -9,6 +9,7 @@ import { seasonLabel, place } from "./format";
 import { cleanTeamName, searchTeamTitle, teamNameOf, teamWords } from "./teamTitle";
 import { predictHref } from "./predictUrl";
 import { VERSUS, pagesFor } from "./search";
+import { readTime } from "./query/time";
 
 // --- Teams and links -------------------------------------------------------------------------------------------------
 
@@ -342,37 +343,47 @@ export interface PackSearch {
   legacy: number[];
 }
 
-/** The team numbers a query sets against each other, typed order ("12722 vs 17064 vs 27851"): every side a number
- *  alone, 2 to 4 of them, no team twice. Null for anything else (left to the rest of search). */
-export function versusNumbers(q: string): number[] | null {
-  const sides = q.trim().split(VERSUS).map((s) => s.trim());
+/** The team numbers a query sets against each other, typed order ("12722 vs 17064 vs 27851"), and the season it names
+ *  the way search's parser reads one (./query/time.ts readTime: "2024-25", "2024–2025", a game's name; never a bare
+ *  year, which could be a team): every side a number alone, 2 to 4 of them, no team twice. Null for anything else (left
+ *  to the rest of search). `today`: YYYY-MM-DD, what time words are read against. */
+export function versusNumbers(q: string, today = new Date().toISOString().slice(0, 10)): { teams: number[]; season: number | null } | null {
+  const t = readTime(q.trim(), today, () => false);
+  const named = t.time?.kind === "season" && t.time.season != null && !t.time.relative ? t.time.season : null;
+  const said = named != null ? t.rest : q;
+  const sides = said.trim().split(VERSUS).map((s) => s.trim());
   if (sides.length < 2 || sides.length > 4 || !sides.every((s) => /^\d{1,6}$/.test(s))) return null;
   const nums = sides.map(Number);
-  return new Set(nums).size === nums.length ? nums : null;
+  return new Set(nums).size === nums.length ? { teams: nums, season: named } : null;
 }
 
 /** The answer for a versus of the pack's teams, built as the server builds it (above), or null when the query isn't
- *  one or names a team the pack doesn't hold. `read`: the parser's reading of a two-team query (its describe; null:
- *  not read as a comparison, so not answered here). */
-export function versusFromPack(q: string, pack: PackSearch, read: string[] | null): SearchAnswer | null {
-  const nums = versusNumbers(q);
-  if (!nums) return null;
+ *  one or names a team the pack doesn't hold. A season named ("12722 vs 17064 2024-25") is the one compared, as online.
+ *  `read`: the parser's reading of a two-team query (its describe; null: not read as a comparison, so not answered
+ *  here). */
+export function versusFromPack(q: string, pack: PackSearch, read: string[] | null, today?: string): SearchAnswer | null {
+  const said = versusNumbers(q, today);
+  if (!said) return null;
+  const { teams: nums, season } = said;
   const parts = nums.map((n) => pack.teams[String(n)]);
   if (parts.some((p) => !p)) return null;
   const query = q.trim().replace(/\s+/g, " ");
-  const all = parts.flatMap((p) => p.rows).sort((x, y) => y.season - x.season);
-  const picked = pickSeasonRows(nums, all, null, pack.current);
+  const all = parts.flatMap((p) => p.rows).filter((r) => season == null || r.season === season).sort((x, y) => y.season - x.season);
+  const picked = pickSeasonRows(nums, all, season, pack.current);
+  const scope: Scope = { season };
   const teams = parts.map((p) => ({ number: Number(p.hit.ref), name: teamNameOf(p.hit.title) || null }));
-  const stat = compareStat(teams, { season: null }, picked, picked.season != null ? pack.scales[String(picked.season)] ?? {} : {}, (s) => pack.legacy.includes(s));
+  // The scales are read only for a season every team played (the server's compareAnswer).
+  const scale = picked.season != null && !picked.rows.some((r) => !r) ? pack.scales[String(picked.season)] ?? {} : {};
+  const stat = compareStat(teams, scope, picked, scale, (s) => pack.legacy.includes(s));
   // The rows as search finds them, before the route puts each team's season numbers on (`team`, last: withNumbers).
   const rows = parts.map(({ hit: { team: _numbers, ...h } }) => h as SearchHit);
   if (nums.length === 2) {
     if (!read) return null;
     const lead = compareHit(parts.map((p) => p.facts), `${nums[0]} vs ${nums[1]}`, picked.season, []);
-    return withNumbers(twoTeamCompareAnswer(query, rows[0], rows[1], lead, { season: null }, pagesFor(query), read, stat), parts);
+    return withNumbers(twoTeamCompareAnswer(query, rows[0], rows[1], lead, scope, pagesFor(query), read, stat), parts);
   }
   const top = compareHit(parts.map((p) => p.facts), nums.join(" vs "), null, []);
-  return withNumbers(teamSetAnswer(query, rows, top, picked.season, null, pagesFor(query), stat), parts);
+  return withNumbers(teamSetAnswer(query, rows, top, picked.season, season, pagesFor(query), stat), parts);
 }
 
 /** Each team row with its season numbers put on as the search route does (server/api/searchTeamStats.ts: the row,

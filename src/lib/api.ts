@@ -184,8 +184,14 @@ async function respond<T>(request: Promise<Response>, kind: "saved" | "lite" | "
     throw won.error;
   }
   if (won.data == null) return request;
-  // A search the packs can't answer while the server answers other requests: slow, not offline. It's waited for.
-  if (SEARCH_PATH.test(path) && serverUp() && (won.data as { notInPack?: unknown }).notInPack) return request;
+  // A search the packs can't answer while the server answers other requests: slow, not offline. It's waited for as
+  // any slow search is: up to SEARCH_SLOW_MS in all, then one more try (searchOnline), then said to be slow.
+  if (SEARCH_PATH.test(path) && serverUp() && (won.data as { notInPack?: unknown }).notInPack) {
+    const more = await Promise.race([request, new Promise<typeof TIMED_OUT>((r) => { timer = setTimeout(() => r(TIMED_OUT), SEARCH_SLOW_MS - OFFLINE_TIMEOUT_MS); })]).finally(() => clearTimeout(timer));
+    if (more !== TIMED_OUT) return more;
+    ctrl.abort();
+    throw new ApiError(0, SEARCH_SLOW, false, SEARCH_RETRY);
+  }
   ctrl.abort();
   return { saved: won.data as T };
 }
