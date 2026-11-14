@@ -142,6 +142,14 @@ describe("the Offline page's layout", () => {
     expect(await screen.findByRole("list", { name: "Seasons" })).toBeTruthy();
   });
 
+  it("Whole current season counts only what this device still lacks", async () => {
+    saved = [sv(2026, "a")];
+    mount("/download");
+    const radios = within(await screen.findByRole("radiogroup", { name: "What to save" })).getAllByRole("radio");
+    expect(radios[2].textContent).toMatch(/Whole current season.*Saved$/);
+    expect(await screen.findByText(/is on this device and current/)).toBeTruthy(); // the panel below agrees
+  });
+
   it("lists a half download as paused (never as saved), and Delete frees it", async () => {
     const { download, partialDownloads } = await import("../lib/offline/download");
     const data = new Uint8Array(4000).fill(7);

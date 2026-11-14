@@ -147,11 +147,14 @@ function Choices({ m, pick, onPick, local }: { m: PackManifest; pick: Choice; on
   const singles = m.full.filter((f) => f.kind === "full" && f.seasons.length === 1);
   const sizes = singles.map(transferBytes);
   const cur = currentFile(m, season);
-  const whole = (cur ? transferBytes(cur) : 0) + (m.lite && local?.version !== m.version ? m.lite.bytes : 0);
+  const saved = useSavedSeasons();
+  // What the Whole current season download still costs: the season only if this device lacks that copy (as WholeSeason counts it).
+  const curSaved = !!cur && saved.some((s) => s.season === cur.seasons[0] && s.sha256 === cur.sha256);
+  const whole = (cur && !curSaved ? transferBytes(cur) : 0) + (m.lite && local?.version !== m.version ? m.lite.bytes : 0);
   const choices: { id: Choice; icon: typeof Trophy; title: string; line: string; size: string }[] = [
     { id: "event", icon: Trophy, title: "This event", line: first ? first.name : "Your team's next event", size: eventBytes?.key === eventKey ? fmtBytes(eventBytes.bytes) : first ? "…" : "" },
     { id: "season", icon: CalendarDays, title: "A season", line: singles.length ? `${singles.length} seasons to pick from` : "None published", size: sizes.length ? (sizes.length === 1 ? fmtBytes(sizes[0]) : `${fmtBytes(Math.min(...sizes))} to ${fmtBytes(Math.max(...sizes))}`) : "" },
-    { id: "whole", icon: Layers, title: "Whole current season", line: `${seasonLabel(cur?.seasons[0] ?? season)}: every event, team and prediction`, size: fmtBytes(whole) },
+    { id: "whole", icon: Layers, title: "Whole current season", line: `${seasonLabel(cur?.seasons[0] ?? season)}: every event, team and prediction`, size: whole > 0 ? fmtBytes(whole) : "Saved" },
   ];
   return (
     <div role="radiogroup" aria-label="What to save" className="grid gap-2 sm:grid-cols-3">
