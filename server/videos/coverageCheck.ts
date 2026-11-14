@@ -110,6 +110,28 @@ export async function checkClipCoverage(log: (s: string) => void, now = Date.now
   } finally { busy = false; }
 }
 
+/** Rows checked before triage existed (migration 89), triaged at boot from the missing list they already hold (each
+ *  match's reason), so the minutes before the first check pass don't show every event as To review. Reviewed stays
+ *  reviewed; the next check rewrites each row anyway. Returns how many were triaged. */
+export async function triageUntriaged(log: (s: string) => void): Promise<number> {
+  const rows = await all<{ season: number; code: string; detail: string }>("SELECT season, code, detail FROM clip_coverage WHERE triage IS NULL AND with_clip < played AND state != 'none'");
+  if (!rows.length) return 0;
+  const current = currentSeason();
+  const writes = rows.map((r) => {
+    const t = triageCoverage(Number(r.season), JSON.parse(String(r.detail)).missing ?? [], current);
+    return { sql: "UPDATE clip_coverage SET triage = ?, triage_why = ? WHERE season = ? AND code = ? AND triage IS NULL", args: [t.triage, t.why, r.season, r.code] };
+  });
+  try {
+    await withDataLock("clip coverage triage", () => writeBatch(writes, 200), { ttlMs: 60_000, waitMs: 60_000, pollMs: 1000 });
+  } catch (e) {
+    // The sync holding the writer lease: the first check pass triages them instead.
+    if (e instanceof LockBusy) return 0;
+    throw e;
+  }
+  log(`clip coverage: triaged ${rows.length} event${rows.length === 1 ? "" : "s"} from their stored missing lists`);
+  return rows.length;
+}
+
 export const TRIAGES: readonly CoverageTriage[] = ["actionable", "no-timing", "early-start", "old-season"];
 /** An event missing a clip (in the owner's lists at all), and one not reviewed yet. A row checked before triage existed
  *  (NULL until its next check) reads as actionable. */
