@@ -260,6 +260,12 @@ async function run(file: DownloadFile, opts: DownloadOptions): Promise<Uint8Arra
 
 const RANGE = /^bytes (\d+)-(\d+)\/(\d+|\*)$/;
 
+/** The connection dropped: a pause when something is kept to pick up from, else a plain "try again" (nothing came). */
+function stoppedAt(have: number, total: number): Error {
+  if (have > 0) return new DownloadPaused(have, total);
+  return new Error(typeof navigator !== "undefined" && navigator.onLine === false ? "You're offline: the download starts when you're back online." : "Can't reach the server right now. Try again in a moment.");
+}
+
 async function attempt(file: DownloadFile, prev: PartialDownload | undefined, opts: DownloadOptions): Promise<Uint8Array> {
   const s = db();
   const now = Date.now();
@@ -281,8 +287,7 @@ async function attempt(file: DownloadFile, prev: PartialDownload | undefined, op
     try { res = await (opts.fetch ?? fetch)(file.url, { headers, signal: opts.signal }); }
     catch (e) {
       if ((e as Error)?.name === "AbortError") throw e;
-      if (p.have > 0) throw new DownloadPaused(p.have, file.bytes);
-      throw new Error(typeof navigator !== "undefined" && navigator.onLine === false ? "You're offline: the download starts when you're back online." : "Can't reach the server right now. Try again in a moment.");
+      throw stoppedAt(p.have, file.bytes);
     }
     if (res.status === 416 && p.have > 0) {
       await res.body?.cancel().catch(() => {});
@@ -370,9 +375,9 @@ async function receive(body: ReadableStream<Uint8Array>, start: PartialDownload,
     await flush();
     changed();
     if ((e as Error)?.name === "AbortError") throw e;
-    throw new DownloadPaused(p.have, file.bytes);
+    throw stoppedAt(p.have, file.bytes);
   }
-  if (p.have < file.bytes) { changed(); throw new DownloadPaused(p.have, file.bytes); }
+  if (p.have < file.bytes) { changed(); throw stoppedAt(p.have, file.bytes); }
   return p;
 }
 

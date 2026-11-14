@@ -72,7 +72,7 @@ describe("event-day bundles on the device", () => {
       if (String(url).includes("/manifest")) return new Response(JSON.stringify(m));
       return new Response(new ReadableStream({ pull(c) { c.error(new TypeError("network error")); } }));
     }));
-    await expect(downloadBundle({ season: 2025, code: "USTXQ1", team: 13, workspace: null }, undefined, m)).rejects.toThrow(/connection dropped/);
+    await expect(downloadBundle({ season: 2025, code: "USTXQ1", team: 13, workspace: null }, undefined, m)).rejects.toThrow(/Try again/i);
     expect(calls).toEqual(["/api/bundles/2025/USTXQ1/file"]); // no fresh manifest, no second file request
     expect(bundleFor(2025, "USTXQ1")).toBeNull();
   });

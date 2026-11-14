@@ -351,6 +351,23 @@ describe("callers sharing one download", () => {
   });
 });
 
+describe("a connection that drops before anything came", () => {
+  it("never promises kept bytes: a plain try-again, and no paused row", async () => {
+    const data = bytes(PIECE + 10, 13);
+    const file = { url: "/packs/nothing", bytes: data.length, sha256: sha(data) };
+    const e = await download(file, { owner, fetch: server(data, { cut: 0 }).fn }).catch((x) => x);
+    expect(e).not.toBeInstanceOf(DownloadPaused);
+    expect(String(e.message)).toMatch(/Try again|offline/);
+    expect(String(e.message)).not.toMatch(/kept/);
+    expect(await partialDownloads()).toEqual([]);
+    // A body that ends at zero bytes says the same.
+    const empty = (async () => new Response(new Uint8Array(0), { status: 200 })) as unknown as typeof fetch;
+    const e2 = await download(file, { owner, fetch: empty }).catch((x) => x);
+    expect(e2).not.toBeInstanceOf(DownloadPaused);
+    expect(await partialDownloads()).toEqual([]);
+  });
+});
+
 describe("storage failures", () => {
   it("a write the device refuses (not for room) is said as a storage problem, never as a dropped connection", async () => {
     const data = bytes(PIECE + 10, 9);
