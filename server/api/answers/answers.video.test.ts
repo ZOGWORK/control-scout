@@ -315,7 +315,8 @@ describe("search's answer, end to end", () => {
   it("a match typed by its event's code and number plays from its second", async () => {
     await rebuildSearch();
     const a = await searchAnswer("USMACMP Q12", { learn: false, limit: 25 });
-    expect(a.hits[0]).toMatchObject({ kind: "match", ref: "2025:USMACMP:qual:0:12" });
+    // The match by its number at the event named (../query/matchFind.ts label): its card, headed by that match.
+    expect(a.stat?.headline?.href).toBe("/events/2025/USMACMP?match=qual:0:12");
     expect((await answerVideo(a, NOW))?.main).toEqual({ videoId: "xnQFL9T27fY", t: 9991, end: 10231, kind: "recording", match: "Q12" });
   });
 });
