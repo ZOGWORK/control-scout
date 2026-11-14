@@ -98,13 +98,16 @@ export async function checkClipCoverage(log: (s: string) => void, now = Date.now
 
 /** Events with a played match missing a clip, a page at a time: open ones or the reviewed, newest season first, then by
  *  code. That order doesn't move when the 5-minute check rewrites a row, so paging never shows one twice or skips one. */
-export async function ownerClipCoverage(o: { reviewed?: boolean; offset?: number; limit?: number } = {}): Promise<OwnerClipCoverage> {
-  const limit = Math.min(Math.max(o.limit ?? PAGE, 1), 200), offset = Math.max(Math.floor(o.offset ?? 0), 0);
-  const where = `c.with_clip < c.played AND c.state != 'none' AND c.reviewed_at IS ${o.reviewed ? "NOT NULL" : "NULL"}`;
+export async function ownerClipCoverage(o: { reviewed?: boolean; after?: { season: number; code: string } | null; limit?: number } = {}): Promise<OwnerClipCoverage> {
+  const limit = Math.min(Math.max(o.limit ?? PAGE, 1), 200);
+  // The next page starts after the last event shown (season, then code), not at a count: rows leaving or joining the
+  // list meanwhile (clips placed, a review elsewhere) can't make it skip one.
+  const after = o.after ? " AND (c.season < ? OR (c.season = ? AND c.code > ?))" : "";
+  const where = `c.with_clip < c.played AND c.state != 'none' AND c.reviewed_at IS ${o.reviewed ? "NOT NULL" : "NULL"}${after}`;
   const [rows, t, n] = await Promise.all([
     all<any>(`SELECT c.season, c.code, e.name, c.state, c.played, c.with_clip, c.checked_at, c.reviewed_at, c.reviewed_by, c.missing_key, c.detail
               FROM clip_coverage c LEFT JOIN events e ON e.season = c.season AND e.code = c.code
-              WHERE ${where} ORDER BY c.season DESC, c.code LIMIT ? OFFSET ?`, [limit, offset]),
+              WHERE ${where} ORDER BY c.season DESC, c.code LIMIT ?`, [...(o.after ? [o.after.season, o.after.season, o.after.code] : []), limit]),
     get<any>(`SELECT COUNT(*) AS events, COALESCE(SUM(played), 0) AS played, COALESCE(SUM(with_clip), 0) AS with_clip,
               SUM(CASE WHEN played > 0 AND with_clip >= played THEN 1 ELSE 0 END) AS full FROM clip_coverage WHERE state != 'none'`),
     get<any>(`SELECT SUM(CASE WHEN reviewed_at IS NULL THEN 1 ELSE 0 END) AS open, SUM(CASE WHEN reviewed_at IS NOT NULL THEN 1 ELSE 0 END) AS reviewed
@@ -119,7 +122,7 @@ export async function ownerClipCoverage(o: { reviewed?: boolean; offset?: number
     };
   });
   return {
-    events, offset, open: Number(n?.open ?? 0), reviewed: Number(n?.reviewed ?? 0),
+    events, open: Number(n?.open ?? 0), reviewed: Number(n?.reviewed ?? 0),
     totals: { events: Number(t?.events ?? 0), played: Number(t?.played ?? 0), withClip: Number(t?.with_clip ?? 0), full: Number(t?.full ?? 0) },
   };
 }
