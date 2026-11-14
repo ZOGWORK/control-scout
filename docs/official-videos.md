@@ -14,9 +14,8 @@ A channel is official for an event when it is one of:
 - the region's delivery partner or its event streamer in Rhode Island (Rhode Island FTC), Ontario (FTC Ontario),
   Long Island (FIRST Long Island) and New York City (NYC FIRST, the channel FIRST's 2021-22 NYC pages link, under its
   current handle). Town of Penfield Television is watched for upstate NY Excelsior events only: its videos are
-  edited uploads of days NY Excelsior FIRST's own recordings already cover, so none is linked. Where one day's
-  broadcast was restarted, the two consecutive broadcasts are kept as Part 1 and Part 2 in broadcast order; a
-  title whose own date or number disagrees with the broadcast is left out,
+  edited uploads of days NY Excelsior FIRST's own recordings already cover, so none is linked. A title whose own
+  date or number disagrees with the broadcast is left out,
 - or the channel FIRST's event page names as the livestream (FIRST HQ's "FIRST Tech Challenge" channel carries the
   2026 Championship's division broadcasts, and FIRST's own event pages link its Day 4 videos).
 
@@ -52,7 +51,11 @@ auto-watcher uses the same rules):
    one meet) mean the video is left out.
 7. The event doesn't already play a video for that day: FIRST's link, a short link's video, a channel's broadcasts, or
    the owner's stream. A day with two videos is kept only when the titles name the parts (the awards ceremony, the
-   eliminations, "Matches 1–5" and "Matches 6–14").
+   eliminations, "Matches 1–5" and "Matches 6–14"). The one exception, in the checked list only (the watcher never
+   does it): a broadcast restarted on the same channel that day, with identical titles, where the second broadcast
+   starts after the first one ends. Both are kept as Part 1 and Part 2 in broadcast order (NYC FIRST's 2025-26
+   Qualifiers 6 and 11 and Super Qualifier 2, its 2024-25 Super Qualifier 1 and its 2023-24 Qualifier 3). A second broadcast that overlaps
+   the first, or one the event's FIRST link already plays, is still left out.
 
 Per-match clips are never mapped from a title outside FIRST's own per-match videos (the Championship's are already
 FIRST's match videos, `matches.video`). A recording never hides FIRST's per-match video or a verified contributor's
