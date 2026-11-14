@@ -446,7 +446,8 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
       if (video && (video.main?.kind === "contributor" || Object.values(video.rows ?? {}).some((x) => x.kind === "contributor"))) res.setHeader("Cache-Control", "private, no-store");
       // This process's own time (searchTiming): the answer, then the rest (highlights, team numbers, video).
       res.setHeader("Server-Timing", searchTiming({ answer: answered - started, extras: performance.now() - answered }));
-      return { ...full, hits, ...(video ? { video } : {}) };
+      // null: read, and nothing plays (the page then says so); a first paint carries no video at all (src/shared/api.ts).
+      return { ...full, hits, video: video ?? null };
     }
     return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, MAX_QUERY), limit, prefer, kinds) };
   }));
