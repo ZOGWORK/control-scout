@@ -11,6 +11,8 @@ import { clipTime } from "../shared/recording";
 import type { MatchDetail, MatchView } from "../shared/api";
 import { matchReportHref } from "../shared/matchReport";
 import { useApi } from "../lib/api";
+import { offlineSource } from "../lib/offline/saved";
+import { useOnline } from "../lib/offline/online";
 import { matchTime, oddsPct } from "../lib/format";
 import { Async } from "./states";
 import { CalibrationLine, ConfidenceBadge, FactorList, KIND_LABEL, PairHistoryLine, WinBar } from "./predict";
@@ -118,6 +120,8 @@ export function Headline({ d, eventName, href }: { d: MatchDetail; eventName?: s
   const win: Side | null = played && diff !== 0 ? (diff > 0 ? "red" : "blue") : null;
   const num = (s: Side) => cn("tabular-nums", win === s || !win ? cn("font-bold", TONE[s].text) : cn("font-normal", FADED[s]));
   const penalties = played && win && Math.sign(r!.np - b!.np) !== Math.sign(diff);
+  const online = useOnline();
+  const noVideo = !online || !!offlineSource(d);
   const nav = "inline-flex items-center rounded px-1.5 py-0.5 tap-44 hover:bg-text-base/[0.06] hover:text-text-base";
   return (
     <header data-testid="match-headline">
@@ -130,10 +134,12 @@ export function Headline({ d, eventName, href }: { d: MatchDetail; eventName?: s
         </p>
       )}
       {/* A video of this match: the one loud button besides the score, so it's never missed. */}
+      {/* No connection (the page is from the saved pack, or the browser is offline): videos aren't saved, so the
+          button says it needs a connection instead of opening a player that can't load. */}
       {(m.clip || m.video) && (
         <div className="mt-3 flex flex-wrap gap-2" data-testid="match-video-buttons">
-          {m.clip && <ClipLink clip={m.clip} label={m.label} matchKey={m.key} className={WATCH}>Watch the match · {clipTime(m.clip.t)}</ClipLink>}
-          {m.video && <MatchVideoLink url={m.video} label={m.label} matchKey={m.key} className={WATCH}>{m.clip ? "Official video" : "Watch the match"}</MatchVideoLink>}
+          {m.clip && <ClipLink clip={m.clip} label={m.label} matchKey={m.key} className={WATCH} offline={noVideo}>{noVideo ? "Match video · Needs a connection" : <>Watch the match · {clipTime(m.clip.t)}</>}</ClipLink>}
+          {m.video && <MatchVideoLink url={m.video} label={m.label} matchKey={m.key} className={WATCH} offline={noVideo}>{noVideo ? (m.clip ? "Official video · Needs a connection" : "Match video · Needs a connection") : m.clip ? "Official video" : "Watch the match"}</MatchVideoLink>}
         </div>
       )}
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">

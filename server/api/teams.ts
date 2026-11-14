@@ -1,13 +1,14 @@
 // Team profile + compare.
 import { all, get, kvGet } from "../db.js";
 import { CURRENT_SEASON } from "../data/seasons.js";
-import type { CompareView, ReportCard, ReportCardField, ShortlistTeam, TeamReportCards, TeamEventRow, TeamInfo, TeamProfile, TeamSchedule, TeamSeasonStats, TeamSummary } from "../../src/shared/api.js";
+import type { CompareTeam, CompareView, MatchView, ReportCard, ReportCardField, ShortlistTeam, TeamReportCards, TeamEventRow, TeamInfo, TeamProfile, TeamSchedule, TeamSeasonStats, TeamSummary } from "../../src/shared/api.js";
 import { matchViews } from "./matches.js";
 import { REPORT_PRIOR } from "../stats/reportCards.js";
 import { RELIABILITY_COLUMNS, consistencyFieldKey, reliabilityFromRow, type ConsistencyField, type Reliability, type ReliabilityResponse } from "../../src/shared/reliability.js";
 import { recordSql, recordsFromRows, wltText } from "../../src/shared/eventRecord.js";
 import { KEEP_COLUMNS, keepEvent, teamEventRows, teamEventsQuery } from "../../src/shared/teamEventRows.js";
 import { hasTeamPage } from "../../src/shared/teamPages.js";
+import { compareBlock, compareFromParts } from "../../src/shared/compare.js";
 import { eventSchedule } from "../predict/scheduleDifficulty.js";
 import { teamLeagueStanding } from "./leagues.js";
 import { hasHighlightsSql, teamIndexableSql } from "../indexable.js";
@@ -203,21 +204,8 @@ export async function teamSchedule(season: number, team: number): Promise<TeamSc
   }))).flat();
 }
 
-/** Schedule order, as matchViews returns matches: by time (none first), event, quals before playoffs, series, number. */
-export function bySchedule(a: { time: string | null; code: string; level: string; series: number; number: number }, b: typeof a): number {
-  return (a.time ?? "").localeCompare(b.time ?? "") || a.code.localeCompare(b.code) || b.level.localeCompare(a.level) || a.series - b.series || a.number - b.number;
-}
-
-/** How a match relates the compared teams, seen from the first of them in it: "opponents" when another compared
- *  team was on the other side, "partners" when only on the same side, null when no other compared team played. */
-export function relationOf(numbers: number[], red: number[], blue: number[]): "opponents" | "partners" | null {
-  const base = numbers.find((n) => red.includes(n) || blue.includes(n));
-  if (base == null) return null;
-  const mine = red.includes(base) ? red : blue, theirs = mine === red ? blue : red;
-  const others = numbers.filter((n) => n !== base);
-  if (others.some((o) => theirs.includes(o))) return "opponents";
-  return others.some((o) => mine.includes(o)) ? "partners" : null;
-}
+// The comparison's pure parts live in src/shared/compare.ts (the offline answer assembles with them too).
+export { bySchedule, relationOf } from "../../src/shared/compare.js";
 
 /** The comparison /api/compare answers: `season` when asked for, else the latest season any of the teams has results
  *  in (like the team page), never an empty current season (the current one when none of them has results). */
@@ -231,37 +219,28 @@ export async function compareAnswer(numbers: number[], season?: number): Promise
   return compareTeams(numbers, s);
 }
 
+/** One team's column of a comparison in `season` (src/shared/compare.ts compareBlock), as /api/compare shows it and
+ *  an event pack carries it (server/packs/eventApi.ts). */
+export async function compareBlockOf(n: number, season: number): Promise<CompareTeam> {
+  const [info, stats, events, awards] = await Promise.all([teamInfo(n), seasonStats(season, n), teamEvents(season, n),
+    all<any>("SELECT a.code, e.name event, a.type, a.placement FROM awards a JOIN events e ON e.season = a.season AND e.code = a.code WHERE a.team = ? AND a.season = ? ORDER BY e.start DESC, a.type, a.placement", [n, season])]);
+  return compareBlock(n, info, stats, events, awards);
+}
+
+/** The latest season a team has results in (one team's share of compareAnswer's default season): null when none. */
+export async function latestResultsSeason(n: number): Promise<number | null> {
+  const r = await get<{ season: number | null }>("SELECT MAX(season) season FROM team_season_stats WHERE team = ? AND matches > 0", [n]);
+  return r?.season ?? null;
+}
+
+/** Its parts read from the database, assembled by the one shared function (compareFromParts) that an event pack's
+ *  offline answer calls too: online and offline give the same comparison. Each team's season matches, as the
+ *  meetings need them: every compared team's but the last (a meeting always holds one of those). */
 export async function compareTeams(numbers: number[], season: number): Promise<CompareView> {
-  const teams = await Promise.all(numbers.map(async (n) => {
-    const [info, stats, events, awards] = await Promise.all([teamInfo(n), seasonStats(season, n), teamEvents(season, n),
-      all<any>("SELECT a.code, e.name event, a.type, a.placement FROM awards a JOIN events e ON e.season = a.season AND e.code = a.code WHERE a.team = ? AND a.season = ? ORDER BY e.start DESC, a.type, a.placement", [n, season])]);
-    return {
-      team: info ?? { number: n, name: null, fullName: null, school: null, sponsors: [], city: null, state: null, country: null, rookieYear: null, website: null, homeRegion: null },
-      stats,
-      events: events.map((e) => ({ code: e.code, name: e.name, start: e.start, opr: e.opr.np, auto: e.opr.auto, teleop: e.opr.teleop, endgame: e.opr.endgame, rank: e.rank })),
-      awards: awards.map((a) => ({ code: a.code, event: a.event, type: a.type, placement: Number(a.placement) })),
-    };
-  }));
-  // Matches where at least two of the compared teams both played, between any of them: the page shows the ones
-  // its first team (the baseline, which the member can change without asking again) played in. `relation` is from
-  // the side of the first requested team that played.
-  const meetings: CompareView["meetings"] = [];
-  if (numbers.length >= 2) {
-    const seen = new Set<string>();
-    for (const n of numbers.slice(0, -1)) {
-      for (const m of await matchViews({ season, team: n })) {
-        const id = `${m.code}:${m.key}`;
-        if (!m.played || seen.has(id)) continue;
-        const relation = relationOf(numbers, m.red.teams.map((t) => t.number), m.blue.teams.map((t) => t.number));
-        if (!relation) continue;
-        seen.add(id);
-        meetings.push({ ...m, relation });
-      }
-    }    // Each team's list comes in schedule order; merged, they're put back in it (as matchViews orders: time, event,
-    // quals before playoffs, series, number), so an event's matches stay together in one section.
-    meetings.sort(bySchedule);
-  }
-  return { season, teams, meetings };
+  const blocks = await Promise.all(numbers.map((n) => compareBlockOf(n, season)));
+  const matches = new Map<number, MatchView[]>();
+  if (numbers.length >= 2) for (const n of numbers.slice(0, -1)) matches.set(n, await matchViews({ season, team: n }));
+  return compareFromParts(numbers, season, blocks, (n) => matches.get(n) ?? []);
 }
 
 /** Compact summaries for many teams (shortlist, tracked-teams feed). */
