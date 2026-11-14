@@ -32,7 +32,7 @@ Offline downloads pick up where they stopped when the connection drops, show rea
 - Offline page (`/download`, "Offline" in the menu): This event / A season / Whole current season at the top, each with its download size; On this device below with every pack's size here, when its data is from ("Data from Nov 13, 8:09 PM"), what a newer release brings ("Newer data from Nov 14, 9:02 AM · 214 new matches from 3 more events"), Update and Delete; half downloads as "Paused at 24% · not saved yet" with Resume and Delete; one total and the browser's own storage estimate. (`src/pages/DownloadPage.tsx`, `src/lib/offline/storage.ts`)
 
 ### Changed
-- Delete really deletes: the predictions pack's bytes are removed from IndexedDB (they were overwritten with null), and every delete says "Freed 6.9 MB". The browser is asked to keep this site's storage on the first download of any kind. Event-day bundles show real bytes while downloading. (`src/lib/packs.ts`, `src/lib/offline/bundles.ts`, `src/components/offline/EventBundles.tsx`)
+- Delete really deletes: the predictions pack's bytes are removed from IndexedDB (they were overwritten with null), and every delete says "Freed 6.9 MB". The browser is asked to keep this site's storage on the first download of any kind. Event-day bundles show real bytes while downloading. The menu calls the page Offline. (`src/lib/packs.ts`, `src/lib/offline/bundles.ts`, `src/components/offline/EventBundles.tsx`) (#1462)
 
 ## 6.0.4 — 2026-11-14
 
