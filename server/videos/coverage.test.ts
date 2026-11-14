@@ -72,6 +72,31 @@ describe("clipCoverage", () => {
     expect(f).toMatchObject({ state: "full", withClip: 1 });
   });
 
+  it("names a day with no video even when none of its matches has a real start", () => {
+    // Sunday's results all posted without their starts (the schedule): still an unrecorded day, not counted in Friday.
+    const noStart = [m("Q1", "2026-03-06T14:00:00"), { ...m("Q2", "2026-03-08T14:00:00"), time: "2026-03-08T14:00:00", startsAt: "2026-03-08T14:00:00Z" }];
+    const one: Recording = { videoId: fri.videoId, meta: fri, source: "first" };
+    const c2 = clipCoverage(noStart, one, one, "UTC", NOW);
+    expect(c2.daysMissing).toEqual([{ date: "2026-03-08", label: "Sunday", matches: 1 }]);
+    expect(c2.matches[1]).toMatchObject({ reason: "no-start", videoId: null });
+    expect(c2.videos[0]).toMatchObject({ matches: 1, clipped: 1 });
+  });
+
+  it("a video with its start cut off (AUSYOS Saturday part 1): clips from the chapters' shift, a match before them said so", () => {
+    const start = "2026-07-03T23:42:02.000Z", s0 = Date.parse(start);
+    const clockAt = [15600, 16199, 16776, 17355, 17892, 18354, 18760, 19194, 19530, 20047, 20584, 21147, 21526, 22119, 22648, 23128, 23563, 24325, 24915, 25737];
+    const chapterAt = [0, 693, 1188, 1913, 2343, 2768, 3174, 3651, 4022, 4381, 4956, 5469, 6000, 6326, 7036, 7462, 8032, 8425, 9294, 9743];
+    const iso = (c: number) => new Date(s0 + c * 1000).toISOString().slice(0, 19);
+    const v = meta("fBZOzjZr-60", start, "2026-07-04T07:04:47.000Z", 11120, { chapters: chapterAt.map((t, i) => [t, `Match ${i + 11} qualification`] as [number, string]) });
+    // Q10 played 10 min before Q11, the first match its chapters name.
+    const ms = [m("Q10", iso(15000)), ...clockAt.map((c, i) => m(`Q${i + 11}`, iso(c)))];
+    const r: Recording = { videoId: v.videoId, meta: v, source: "official" };
+    const cut = clipCoverage(ms, r, r, "UTC", NOW);
+    expect(cut.withClip).toBe(20);
+    expect(cut.matches[0]).toMatchObject({ label: "Q10", reason: "before-chapters", why: expect.stringMatching(/^Before the part of the video its chapters confirm/) });
+    expect(cut.matches[1].basis).toMatch(/^clock \+ YouTube chapters \(its first 4 h \d+ min cut off\)$/);
+  });
+
   it("says spans in hours and minutes", () => {
     expect([span(900), span(4520), span(14_400)]).toEqual(["15 min", "1 h 15 min", "4 h"]);
   });
