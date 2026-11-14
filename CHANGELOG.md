@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 6.1.4 — 2026-11-14
+## 6.1.5 — 2026-11-14
 
 Nevada, North Dakota and Montana events now play their recordings from the state's own channels: FIRST Nevada's league meets, tournaments and State Championships, Dakota FTC's qualifiers and State, and Montana's older State and Butte streams.
 
@@ -26,6 +26,18 @@ Nevada, North Dakota and Montana events now play their recordings from the state
 
 ### Added
 - Official videos: FIRST Nevada (`UCqDnAXt0clPQww74v7bUVkQ`), BCA Activities for Dakota FTC (`UCowF1UaXnuuFV_sNIvpX-zQ`) and MT Robotics Alliance (`UCpPjg0KF7cwfbWoKAl0jiXQ`), ids read from the YouTube Data API, join the official channels and the auto-watcher's list, each for its own state only. 57 recordings are checked against each event's name, city, dates, meet number and North or South: 46 from Nevada (2023-24 on), 7 from North Dakota, 4 from Montana. A Nevada video blocked in nearly every country, an empty stream, an opening-ceremony clip, undated uploads and the streams FIRST's own pages already link are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1475)
+
+## 6.1.4 — 2026-11-14
+
+FiT-Central's GEMS league events in Austin now play their recordings from Westwood Robotics, the team channel that streams them with the official overlay: Diamond and Emerald League Meets back to 2024, the GEMS League Tournaments and the Austin semi-regionals. Saturday's Meet 2 shows its stream before, during and after it airs.
+
+### Highlights
+- [live] GEMS Diamond and Emerald League Meet 2 stream on their event pages
+- [history] GEMS league meets from 2024 on play their recordings
+- [history] Austin Semi-Regional and GEMS League Tournament recordings
+
+### Added
+- Official videos: Westwood Robotics (`UCyv6fRBcoK6mD6Br5M366yA`, read from the YouTube Data API) joins the official channels and the auto-watcher's list, for FiT-Central, CTX and GEMS events in Texas only. 21 of its recordings are checked against each event's name, city, dates, league (Diamond or Emerald) and meet number: the 2026 Diamond and Emerald League Meets 1 and 2 (Meet 2 listed before it airs, like FIRST's own livestream link), the 2025 and 2024 Meets 1 to 3, both GEMS League Tournaments, and the Austin semi-regionals. The overlays-only test stream, a scheduled stream that never aired, and the 2023 "Round Rock Gems" titles (whose city doesn't match the events) are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1468)
 
 ## 6.1.3 — 2026-11-14
 

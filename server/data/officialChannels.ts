@@ -45,6 +45,9 @@ export const OFFICIAL_CHANNELS: OfficialChannelSeed[] = [
   { channelId: "UCHVeR960xGMtQ2rHxYAebTw", title: "High Tech Kids (Minnesota)", region: "state=MN", words: "minnesota htk", titlePattern: "minnesota" },
   { channelId: "UCbppRk83Rf7nh_Zug261h7A", title: "FIRST in Vermont", region: "state=VT", words: "vermont", titlePattern: "vermont" },
   { channelId: "UCUpv6m5YLRZgqZQlasOjKVQ", title: "FIRST UK", region: "country=United Kingdom", words: "uk" },
+  // FRC 2583 (Westwood High School, Austin): the event stream of FiT-Central's GEMS league and Austin events, official
+  // overlay on screen. Channel id from the YouTube Data API (forHandle @westwoodrobotics2583), 2026-11-14.
+  { channelId: "UCyv6fRBcoK6mD6Br5M366yA", title: "Westwood Robotics (FiT-Central)", region: "state=TX;name=\\bCTX\\b|FiT-Central|GEMS", words: "texas fit central ctx" },
   // The 2026-11-14 audited channels (ids from the YouTube Data API, forHandle): FIRST's delivery partners for
   // Kazakhstan, France, Italy and Türkiye, and the Prince Royal's College channel that streamed Thailand's championship
   // (its only event so far: the weakest watchlist entry, for the owner to drop if no second event comes).
