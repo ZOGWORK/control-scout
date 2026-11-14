@@ -41,7 +41,7 @@ export function ClipCoveragePanel() {
           <p className="text-sm text-muted-foreground" data-coverage-totals>
             {d.totals.events.toLocaleString()} recorded events checked · {d.totals.full.toLocaleString()} fully clipped · {d.totals.withClip.toLocaleString()} of {d.totals.played.toLocaleString()} played matches have a clip
           </p>
-          <Section title={`To review (${d.open})`} description="Recorded events with played matches that have no clip, newest check first. Checked again after every recording is added or refreshed.">
+          <Section title={`To review (${d.open})`} description="Recorded events with played matches that have no clip, newest season first. Checked again after every recording is added or refreshed.">
             {d.open ? <Pages key={`open-${round}`} first={d} reviewed={false} onDone={() => setRound((n) => n + 1)} />
               : <EmptyState icon={Film} title="Nothing to review" description="Every played match of every recorded event has a clip, or its gap was reviewed." />}
           </Section>
