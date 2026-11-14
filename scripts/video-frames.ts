@@ -269,14 +269,24 @@ const today = new Date().toISOString().slice(0, 10);
 let done = 0;
 const report: string[] = [];
 
-/** Write the timings kept so far (after each event, so a run cut short keeps what it read). */
+/** Write the timings kept so far (after each event, so a run cut short keeps what it read). A file another program
+ *  holds open for a moment (an editor, git, a test run reading it) only delays the write: it's tried again, and if it
+ *  still can't be written the next event's save writes everything kept. */
 function save() {
   if (CHECK || DRY) return;
   const file = "server/data/frameTimings.ts";
-  const head = readFileSync(file, "utf8").split("// --- Data")[0];
-  const list = [...kept.values()].sort((a, b) => a.code.localeCompare(b.code) || a.videoId.localeCompare(b.videoId));
-  const rows = list.map((f) => `  ${JSON.stringify(f)},`).join("\n");
-  writeFileSync(file, `${head}// --- Data (scripts/video-frames.ts writes from here on) ---\nexport const FRAME_TIMINGS: FrameTiming[] = [\n${rows}\n];\n`);
+  for (let tries = 1; ; tries++) {
+    try {
+      const head = readFileSync(file, "utf8").split("// --- Data")[0];
+      const list = [...kept.values()].sort((a, b) => a.code.localeCompare(b.code) || a.videoId.localeCompare(b.videoId));
+      const rows = list.map((f) => `  ${JSON.stringify(f)},`).join("\n");
+      writeFileSync(file, `${head}// --- Data (scripts/video-frames.ts writes from here on) ---\nexport const FRAME_TIMINGS: FrameTiming[] = [\n${rows}\n];\n`);
+      return;
+    } catch (e) {
+      if (tries >= 5) { console.error(`couldn't write ${file} (${(e as Error).message.split("\n")[0]}): the next save tries again`); return; }
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500 * tries);
+    }
+  }
 }
 
 /** The start of the reason a match is missing when its video couldn't be played at all: such a video is tried again
