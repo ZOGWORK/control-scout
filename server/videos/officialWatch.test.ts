@@ -67,6 +67,19 @@ describe("the official-video watcher", () => {
     expect((await get<{ removed_at: string | null }>("SELECT removed_at FROM official_channels WHERE channel_id = ?", [vt]))?.removed_at).toBeTruthy();
   });
 
+  it("gives a seeded channel its later title pattern, never over the owner's edit", async () => {
+    const pattern = (id: string) => get<{ title_pattern: string | null }>("SELECT title_pattern FROM official_channels WHERE channel_id = ?", [id]).then((r) => r?.title_pattern ?? null);
+    const fimo = OFFICIAL_CHANNELS.find((c) => c.title === "FIRST in Missouri")!;
+    const iowa = OFFICIAL_CHANNELS.find((c) => c.title === "FTC Iowa")!;
+    // Both rows were seeded before their pattern shipped.
+    await run("UPDATE official_channels SET title_pattern = NULL WHERE channel_id IN (?, ?)", [fimo.channelId, iowa.channelId]);
+    // The owner saves Iowa with the same region and no pattern: theirs stands.
+    expect((await saveChannel({ channelId: iowa.channelId, title: iowa.title, region: iowa.region, words: iowa.words }, "owner@example.test", T0)).ok).toBe(true);
+    expect(await seedOfficialChannels(T0, true)).toBe(0);
+    expect(await pattern(fimo.channelId)).toBe(fimo.titlePattern);
+    expect(await pattern(iowa.channelId)).toBeNull();
+  });
+
   it("reads each watched channel's new uploads once: adds the sure one, queues the rest, sets aside the rest", async () => {
     uploads = [
       { id: ADD, title: "FiT Mockingbird Qualifier - Day 1", published: "2026-01-17T23:00:00Z", start: "2026-01-17T15:00:00Z" },
