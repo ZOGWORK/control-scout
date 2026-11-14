@@ -10,6 +10,7 @@
 import { useSyncExternalStore } from "react";
 import type { PersonalState } from "../shared/personal";
 import type { AccountUser } from "./personal";
+import { sendOnboarding } from "./onboardingStats";
 
 export const ONBOARDING_KEY = "cs-onboarding";
 /**
@@ -32,6 +33,10 @@ export interface OnboardingRecord {
   /** The team step 2 saved as My team (null: none, or one the person already had), so "I'm not on a team" can take
    *  back only that one, even after a reload. */
   team: number | null;
+  /** The furthest step reached (0-based): a step counts as reached once, however often Back and Next go over it. */
+  max: number;
+  /** Opened from Settings (Show the welcome again): its moments aren't counted (the counts are about first visits). */
+  replay: boolean;
   at: string;
 }
 
@@ -45,7 +50,8 @@ function parse(raw: string | null): OnboardingRecord | null {
     if (!r || r.v !== 1 || (r.status !== "open" && r.status !== "finished" && r.status !== "skipped")) return null;
     const step = Math.min(Math.max(0, Math.floor(Number(r.step) || 0)), ONBOARDING_STEPS - 1);
     const team = Number.isInteger(r.team) && (r.team as number) > 0 ? (r.team as number) : null;
-    return { v: 1, status: r.status, step, team, at: String(r.at ?? "") };
+    const max = Math.min(Math.max(step, Math.floor(Number(r.max) || 0)), ONBOARDING_STEPS - 1);
+    return { v: 1, status: r.status, step, team, max, replay: r.replay === true, at: String(r.at ?? "") };
   } catch { return null; }
 }
 
@@ -57,23 +63,34 @@ export function readOnboarding(): OnboardingRecord | null {
 
 const announce = () => { if (typeof window !== "undefined") window.dispatchEvent(new Event(ONBOARDING_CHANGE)); };
 
-function write(status: OnboardingStatus, step: number, team: number | null): OnboardingRecord {
-  const rec: OnboardingRecord = { v: 1, status, step: Math.min(Math.max(0, step), ONBOARDING_STEPS - 1), team, at: new Date().toISOString() };
+function write(status: OnboardingStatus, step: number, team: number | null, max: number, replay: boolean): OnboardingRecord {
+  const s = Math.min(Math.max(0, step), ONBOARDING_STEPS - 1);
+  const rec: OnboardingRecord = { v: 1, status, step: s, team, max: Math.max(s, max), replay, at: new Date().toISOString() };
   memory = rec;
   try { localStorage.setItem(ONBOARDING_KEY, JSON.stringify(rec)); } catch { /* storage blocked: memory holds it */ }
   announce();
   return rec;
 }
 
-/** Open it at step 1: a new visitor's first time, or "Show the welcome again". */
-export const openOnboarding = () => write("open", 0, null);
+/** Open it at step 1: a new visitor's first time, or (`replay`) "Show the welcome again". */
+export function openOnboarding(replay = false): OnboardingRecord {
+  if (!replay) sendOnboarding("shown", 1);
+  return write("open", 0, null, 0, replay);
+}
 /** Move to step `n` (0-based) while it's open; `team` records (or, with null, forgets) the team step 2 saved. */
 export function moveOnboarding(n: number, team?: number | null): OnboardingRecord | null {
   const r = readOnboarding();
-  return r?.status === "open" ? write("open", n, team === undefined ? r.team : team) : r;
+  if (r?.status !== "open") return r;
+  if (!r.replay && n > r.max) sendOnboarding("reached", n + 1);
+  return write("open", n, team === undefined ? r.team : team, r.max, r.replay);
 }
 /** End it for good here: Skip, or the last step's button. */
-export const endOnboarding = (status: "finished" | "skipped") => { const r = readOnboarding(); return write(status, r?.step ?? 0, r?.team ?? null); };
+export function endOnboarding(status: "finished" | "skipped"): OnboardingRecord {
+  const r = readOnboarding();
+  const step = r?.step ?? 0;
+  if (r?.status === "open" && !r.replay) sendOnboarding(status, status === "finished" ? ONBOARDING_STEPS : step + 1, status === "finished" && r.team != null);
+  return write(status, step, r?.team ?? null, r?.max ?? step, r?.replay ?? false);
+}
 
 /** Forget it ("Clear all local data", tests): a new visitor again. */
 export function resetOnboarding(): void {
@@ -86,7 +103,7 @@ let snapshot: { raw: OnboardingRecord | null; key: string } = { raw: null, key: 
 /** A stable value for useSyncExternalStore: the same object until the record changes. */
 function current(): OnboardingRecord | null {
   const r = readOnboarding();
-  const key = r ? `${r.status}:${r.step}:${r.team}:${r.at}` : "";
+  const key = r ? `${r.status}:${r.step}:${r.team}:${r.max}:${r.at}` : "";
   if (key !== snapshot.key) snapshot = { raw: r, key };
   return snapshot.raw;
 }

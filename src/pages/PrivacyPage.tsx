@@ -93,6 +93,7 @@ const SECTIONS: LegalSectionDef[] = [
         <ul>
           <li><strong>If you allow them,</strong> each page view sends Control Scout's own server: the page's path (like <span className="font-mono text-[0.8125rem]">/events</span>), the domain of the site that linked you here, and a rough screen-size group (phone, tablet or desktop).</li>
           <li><strong>How fast pages load for you:</strong> when you leave or hide a page, a few timings (how long the page took to appear and to answer a tap, and how much it jumped around while loading) with the same kind of path and screen-size group. Nothing about what's on the page or what you searched for.</li>
+          <li><strong>The first-visit welcome:</strong> whether it opened, which step you reached or skipped on, and whether you picked a team (not which one), with the same screen-size group.</li>
           <li><strong>Nothing that identifies you:</strong> no cookies, no IP address stored, no ID that follows you between visits or sites. The statistics go to our server only, never to an analytics company or advertiser.</li>
           <li><strong>If you decline,</strong> nothing is sent.</li>
         </ul>
