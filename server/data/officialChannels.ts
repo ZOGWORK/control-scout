@@ -47,7 +47,7 @@ export const OFFICIAL_CHANNELS: OfficialChannelSeed[] = [
   { channelId: "UC6y0o2J7b05YIL7w95cwg0w", title: "Tulsa Robotics Center (Oklahoma)", region: "state=OK", words: "oklahoma tulsa trc", titlePattern: "oklahoma (state )?championship" },
   { channelId: "UClcqdD9sHnwtN7FCW6Vj1Ug", title: "SeaCow Robotics (Arkansas)", region: "state=AR;name=mountain home|benton", words: "arkansas seacow" },
   { channelId: "UCvA42eBzkRpd-x23-AvOnvw", title: "Shiloh Saints (Arkansas Championship)", region: "state=AR;type=Championship", words: "arkansas shiloh", titlePattern: "\\bFTC\\b|first tech challenge" },
-  { channelId: "UCQYT4ZXN54khn_n7ebsRRtQ", title: "FTC Louisiana", region: "state=LA", words: "louisiana", titlePattern: "louisiana" },
+  { channelId: "UCQYT4ZXN54khn_n7ebsRRtQ", title: "FTC Louisiana", region: "state=LA", words: "louisiana", titlePattern: "louisiana .*(regional|state) championship" },
   { channelId: "UCMQ-I5i7wiucrll3657GK4w", title: "FTC Utah", region: "state=UT", words: "utah", titlePattern: "utah" },
   { channelId: "UCyck0fFjiYFOz1S-TYCNiQA", title: "FIRST Illinois Robotics", region: "state=IL", words: "illinois", titlePattern: "illinois" },
   { channelId: "UCHVeR960xGMtQ2rHxYAebTw", title: "High Tech Kids (Minnesota)", region: "state=MN", words: "minnesota htk", titlePattern: "minnesota" },
