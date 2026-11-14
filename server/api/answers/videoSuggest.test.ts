@@ -170,7 +170,7 @@ describe("withVideoAlternatives", () => {
   });
 
   describe("the questions checked in the background", () => {
-    const warm = (version = "v1") => warmVideoQuestions({ ask: askOf, video: videoOf, version: async () => version, candidates: async () => ["a highlights", "b highlights", "d highlights"] });
+    const warm = (version = "v1", now = Date.now) => warmVideoQuestions({ ask: askOf, video: videoOf, version: async () => version, now, candidates: async () => ["a highlights", "b highlights", "d highlights"] });
     const none = async () => undefined;
     it("only those that play, the general question tried too", async () => {
       const asked: string[] = [];
@@ -209,18 +209,50 @@ describe("withVideoAlternatives", () => {
         candidates: async () => { order.push("candidates"); return ["b highlights"]; } });
       expect(order).toEqual(["typos", "candidates"]);
     });
-    it("a check that never settles counts as not playing, and frees the queue", async () => {
-      const ask = (q: string) => (q === "a highlights" ? new Promise<SearchAnswer>(() => {}) : askOf(q));
-      await warmVideoQuestions({ ask, video: videoOf, version: async () => "v1", candidates: async () => ["a highlights", "b highlights"], checkMs: 30 });
+    it("a check that never settles or fails is unknown: the set found is used, and built again after a wait", async () => {
+      let asks = 0, t = Date.now();
+      const ask = (q: string) => { asks++; return q === "a highlights" ? new Promise<SearchAnswer>(() => {}) : q === "c highlights" ? Promise.reject(new Error("busy")) : askOf(q); };
+      const o = { ask, video: videoOf, version: async () => "v1", now: () => t, candidates: async () => ["a highlights", "c highlights", "b highlights"], checkMs: 30 };
+      await warmVideoQuestions(o);
       expect((await withVideoAlternatives("6980 at east bergen with video", answer(), undefined, askOf, none, 1000, cands)).stat?.blocks[0]).toMatchObject({ queries: ["b highlights"] });
+      // Unsure, so built again, but only after the wait (two minutes, then doubling).
+      const first = asks;
+      await warmVideoQuestions(o);
+      expect(asks).toBe(first);
+      t += 2 * 60_000 + 1;
+      await warmVideoQuestions(o);
+      expect(asks).toBeGreaterThan(first);
+      const second = asks;
+      t += 2 * 60_000 + 1;
+      await warmVideoQuestions(o);
+      expect(asks).toBe(second);
+      t += 2 * 60_000;
+      await warmVideoQuestions(o);
+      expect(asks).toBeGreaterThan(second);
+    });
+    it("a sure set is built again once it is half an hour old, never before", async () => {
+      let asks = 0, t = Date.now();
+      const o = { ask: async (q: string) => { asks++; return askOf(q); }, video: videoOf, version: async () => "v1", now: () => t, candidates: async () => ["b highlights"] };
+      await warmVideoQuestions(o);
+      const first = asks;
+      t += 10 * 60_000;
+      await warmVideoQuestions(o);
+      expect(asks).toBe(first);
+      t += 21 * 60_000;
+      await warmVideoQuestions(o);
+      expect(asks).toBeGreaterThan(first);
     });
     it("a build that never ends is dropped past its cap: it never writes, and the next warm builds", async () => {
       let release!: (v: string[]) => void;
       const stuck = new Promise<string[]>((r) => { release = r; });
-      await warmVideoQuestions({ ask: askOf, video: videoOf, version: async () => "v1", candidates: () => stuck, buildMs: 30 });
+      const t0 = Date.now();
+      await warmVideoQuestions({ ask: askOf, video: videoOf, version: async () => "v1", now: () => t0, candidates: () => stuck, buildMs: 30 });
       const a = answer();
       expect(await withVideoAlternatives("6980 at east bergen with video", a, undefined, askOf, none, 20, cands, "", 0)).toBe(a);
-      await warm();
+      // Within the wait after a dropped build, none is started; after it, one is.
+      await warm("v1", () => t0 + 60_000);
+      expect(await withVideoAlternatives("6980 at east bergen with video", a, undefined, askOf, none, 20, cands, "", 0)).toBe(a);
+      await warm("v1", () => t0 + 2 * 60_000 + 1);
       // The dropped one finishing late changes nothing.
       release(["f highlights"]);
       await new Promise((r) => setTimeout(r, 20));
@@ -232,10 +264,13 @@ describe("withVideoAlternatives", () => {
       const building = warmVideoQuestions({ ask: async (q) => { await gate; return askOf(q); }, video: videoOf, version: async () => "v1", candidates: async () => ["b highlights"] });
       await new Promise((r) => setTimeout(r, 10));
       forgetVideoQuestions(true);
+      // And the next warm is a build of its own, never the dropped one.
+      let asks = 0;
+      await warmVideoQuestions({ ask: async (q) => { asks++; return askOf(q); }, video: videoOf, version: async () => "v1", candidates: async () => ["d highlights"] });
+      expect(asks).toBeGreaterThan(0);
       release();
       await building;
-      const a = answer();
-      expect(await withVideoAlternatives("6980 at east bergen with video", a, undefined, askOf, none, 20, cands, "", 0)).toBe(a);
+      expect((await withVideoAlternatives("6980 at east bergen with video", answer(), undefined, askOf, none, 1000, cands)).stat?.blocks[0]).toMatchObject({ queries: ["d highlights"] });
     });
     it("never built (a process that never warmed it): nothing offered from it, nothing read", async () => {
       const a = answer();
