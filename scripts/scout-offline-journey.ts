@@ -37,8 +37,14 @@ async function main() {
     const [name, ...v] = COOKIE.split("=");
     await ctx.addCookies([{ name, value: v.join("="), url: BASE }]);
   }
-  let page = await ctx.newPage();
-  page.on("pageerror", (e) => console.log("  page error:", e.message));
+  // A new test account is asked to finish signing up: "Browse first" puts it off, whenever it shows.
+  const opened = async () => {
+    const p = await ctx.newPage();
+    p.on("pageerror", (e) => console.log("  page error:", e.message));
+    await p.addLocatorHandler(p.getByRole("button", { name: "Browse first" }), (b) => b.click());
+    return p;
+  };
+  let page = await opened();
 
   // --- Online, once: the app opens (the service worker installs), then the event's bundle downloads.
   await page.goto(`${BASE}/`, { waitUntil: "load" });
@@ -50,7 +56,7 @@ async function main() {
   await dl.click();
   await page.getByText("On this device and current").waitFor({ timeout: 60_000 });
   // The scouting reads are kept in the background once the bundle is saved (src/lib/offline/warm.ts).
-  await page.waitForFunction(() => (localStorage.getItem("cs-kept-answers") ?? "").includes("pick-ratings"), null, { timeout: 30_000 }).catch(() => {});
+  await page.waitForFunction(() => (JSON.parse(localStorage.getItem("cs-kept-answers") ?? "[]") as unknown[]).length >= 4, null, { timeout: 30_000 }).catch(() => {});
   const kept = await page.evaluate(() => JSON.parse(localStorage.getItem("cs-kept-answers") ?? "[]").map((x: [string, number]) => x[0].split("|")[1]));
   check("online: bundle downloaded, scouting reads kept", kept.length >= 3, kept.join(" "));
 
@@ -65,10 +71,6 @@ async function main() {
   if (!pickerOk) return finish();
   await page.waitForTimeout(1500);
   const dialog = page.locator("[role=dialog]");
-  // A new test account is asked to finish signing up first: "Browse first" puts it off.
-  const later = page.getByRole("button", { name: "Browse first" });
-  if (await later.isVisible().catch(() => false)) await later.click();
-  console.log("  kept note on the picker:", await page.locator("[data-offline-kept]").count());
   await saved.click();
   await page.waitForTimeout(1500);
   await shot(page, "2-scout-offline-event");
@@ -78,12 +80,17 @@ async function main() {
   // Each of the four teams: left the start zone; then Save, which saves on the device at once.
   const leaves = page.getByRole("button", { name: /Left start zone$/ });
   const nTeams = await leaves.count();
+  // This run's entries: the ones on the device now that weren't before (an account may hold earlier runs' entries).
+  const keys = () => page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("cs-scout:") || k.startsWith("cs-scout-ws:")));
+  const mine = (ks: string[]) => ks.filter((k) => !before.has(k)).map((k) => k.slice(k.lastIndexOf(":") + 1));
+  const entries = async () => mine(await keys()).length;
+  const before = new Set(await keys());
   for (let i = 0; i < nTeams; i++) await leaves.nth(i).click();
   t0 = Date.now();
   await page.getByRole("button", { name: /^Save Q1/ }).click();
-  const entries = () => page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("cs-scout:") || k.startsWith("cs-scout-ws:")).length);
-  await page.waitForFunction((n) => Object.keys(localStorage).filter((k) => k.startsWith("cs-scout:") || k.startsWith("cs-scout-ws:")).length >= n, nTeams, { timeout: 5000 }).catch(() => {});
-  const afterSave = await entries();
+  await page.waitForFunction((n) => Object.keys(localStorage).filter((k) => k.startsWith("cs-scout:") || k.startsWith("cs-scout-ws:")).length >= n, before.size + nTeams, { timeout: 5000 }).catch(() => {});
+  const made = mine(await keys());
+  const afterSave = made.length;
   check(`offline: scout Q1 for ${nTeams} teams, saved on the device`, nTeams >= 2 && afterSave === nTeams, `${afterSave} entries on the device`, Date.now() - t0);
   const chip = await page.locator("[data-sync-state]").first().textContent().catch(() => "");
   check("offline: the page says it's saved on this device", /Saved on this device/.test(chip ?? ""), chip ?? "");
@@ -125,7 +132,7 @@ async function main() {
 
   // Close the app and open it again, still offline: nothing lost.
   await page.close();
-  page = await ctx.newPage();
+  page = await opened();
   t0 = Date.now();
   await page.goto(`${BASE}/scout?tab=entries`, { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(1500);
@@ -142,11 +149,12 @@ async function main() {
   net.online();
   await page.goto(`${BASE}/scout?tab=entries`, { waitUntil: "load" });
   await page.waitForTimeout(COOKIE ? 6000 : 2500);
-  const onlineEntries = await entries();
-  check("online again: the same entries, none doubled", onlineEntries === nTeams, `${onlineEntries} entries`);
+  const nowKeys = await keys();
+  const onDevice = made.map((u) => nowKeys.filter((k) => k.endsWith(`:${u}`)).length);
+  check("online again: this run's entries still on the device, each once", onDevice.every((n) => n === 1), `${onDevice.join(",")} copies`);
   if (COOKIE) {
-    const mine = await page.evaluate(async () => (await (await fetch("/api/me/scout")).json()).entries as { uuid: string; eventCode: string | null }[]);
-    const here = mine.filter((e) => e.eventCode?.toUpperCase() === "AUBRQ1");
+    const onServer = await page.evaluate(async () => (await (await fetch("/api/me/scout")).json()).entries as { uuid: string; eventCode: string | null }[]);
+    const here = onServer.filter((e) => made.includes(e.uuid));
     const uuids = new Set(here.map((e) => e.uuid));
     check("online again: the server holds each entry exactly once", here.length === nTeams && uuids.size === here.length, `${here.length} on the server, ${uuids.size} distinct`);
     const state = await page.evaluate(async () => (await (await fetch("/api/me/state")).json()).state as { bookmarks?: { value: number[] } });
