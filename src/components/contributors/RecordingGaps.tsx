@@ -40,10 +40,12 @@ function useRecordingCoverage({ season, code, recorded, matches, videos = [] }: 
 }
 
 /** The coverage line, told when a day of the event has no recording, so a partly recorded event never reads as only
- *  "Recording" (FPEWESEA 2025: Friday and Sunday unrecorded). `playable`: the page plays the recording. */
+ *  "Recording" (FPEWESEA 2025: Friday and Sunday unrecorded). `playable`: the page plays the recording; one that won't
+ *  play keeps saying so. While the check is out, a line with no clip waits; if it fails, the line goes on without it. */
 export function RecordingCoverageLine({ reserve, playable, unplayable, ...rec }: RecordingProps & { reserve?: boolean; playable: boolean; unplayable: boolean }) {
   const { gap, s } = useRecordingCoverage(rec);
-  return <CoverageLine reserve={reserve} recorded={playable} unplayable={unplayable} partial={gap && !!s.data?.daysMissing.length} />;
+  const asks = playable && gap;
+  return <CoverageLine reserve={reserve} recorded={playable} unplayable={unplayable} partial={asks && !!s.data?.daysMissing.length} hold={asks && !s.data && !s.error} />;
 }
 
 export function RecordingGaps(rec: RecordingProps) {
