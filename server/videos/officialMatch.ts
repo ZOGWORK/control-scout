@@ -171,11 +171,13 @@ export function matchVideo(v: WatchVideo, rule: ChannelRule, events: WatchEvent[
   const own = fits.some((c) => c.strong) ? fits.filter((c) => c.strong) : fits;
   // Two events sharing a word ("CTX GEMS Diamond League Meet 2" and "… Emerald …", "Austin Semi-Regional" and "San
   // Antonio Semi-Regional"): one is contradicted when the title says a word of the other's name that it lacks
-  // ("Diamond") and its own name has a word the title doesn't say ("Emerald"). It drops out only when what's left
-  // outscores it; otherwise (a title naming two events, a joint meet) every fit stays and the owner decides.
+  // ("Diamond") and its own name has a word the title doesn't say ("Emerald"), and the title says no word of its own
+  // name that other lacks. Named that way both ways (a joint meet: "Hill Country & North SA") nothing drops out, and
+  // it drops out only when what's left outscores it: otherwise every fit stays and the owner decides.
   const said = (t: string) => vt.has(t) || spelledOut.has(t);
+  const namedOver = (c: Cand, o: Cand) => [...c.words].some((t) => said(t) && !o.words.has(t));
   const contradicted = (c: Cand) => [...c.words].some((t) => !said(t))
-    && own.some((o) => o !== c && [...o.words].some((t) => said(t) && !c.words.has(t)));
+    && own.some((o) => o !== c && namedOver(o, c) && !namedOver(c, o));
   const keep = own.filter((c) => !contradicted(c));
   const top = Math.max(0, ...keep.map((c) => c.score));
   const ok = (keep.length && own.every((c) => keep.includes(c) || c.score < top) ? keep : own).sort((a, b) => b.score - a.score);
