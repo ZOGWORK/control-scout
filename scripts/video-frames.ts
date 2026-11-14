@@ -44,7 +44,7 @@ type FrameTiming = (typeof FRAME_TIMINGS)[number];
 const T: any = await import(process.env.TESSERACT_JS ?? "tesseract.js");
 const createWorker = T.createWorker ?? T.default?.createWorker;
 
-type Read = { label: string | null; start: number | null; at: number; text: string };
+type Read = { label: string | null; start: number | null; at: number; text: string; why?: string };
 
 // --- Reading a frame -----------------------------------------------------------------------------------------------
 
@@ -103,10 +103,10 @@ async function readAtOnce(page: Page, t: number): Promise<Read> {
   await page.waitForTimeout(1500);
   const b = await timer(page);
   const atB = await now(page);
-  if (!a || !b || a.where !== b.where) return { label, start: null, at, text };
+  if (!a || !b || a.where !== b.where) return { label, start: null, at, text, why: `timer read ${a ? `${a.where} ${a.left}` : "nothing"}, then ${b ? `${b.where} ${b.left}` : "nothing"}` };
   const ran = a.left - b.left, played = atB - atA;
   // Running: down by the time played (to the second either side). A paused or standing timer: not in play.
-  if (played < 0.5 || Math.abs(ran - played) > 1.6) return { label, start: null, at, text };
+  if (played < 0.5 || Math.abs(ran - played) > 1.6) return { label, start: null, at, text, why: `timer ${a.left} then ${b.left} over ${played.toFixed(1)} s played` };
   // 0:30 or less on either bar: Auto, or the end of TeleOp. 45 s on, Auto has become TeleOp's 2:00 (well over 30 s
   // left); the end of TeleOp has finished.
   if (a.left <= AUTO_S) {
@@ -115,17 +115,30 @@ async function readAtOnce(page: Page, t: number): Promise<Read> {
     a.auto = !!c && c.where === a.where && c.left > AUTO_S && overlayLabel((await worker.recognize(await page.screenshot())).data.text) === label;
   }
   const e = elapsed(a);
-  return { label, start: e == null ? null : Math.round(atA - e), at, text };
+  return { label, start: e == null ? null : Math.round(atA - e), at, text, ...(e == null ? { why: `timer ${a.left} isn't a running match's` } : {}) };
 }
+
+/** Seconds into a match the confirming read is tried at, in turn (all TeleOp, well clear of its last 8 s). */
+const CONFIRM_AFTER = [70, 80, 95];
 
 /** A read stands only when frames before and after its start agree: 70 s on (TeleOp), the overlay names the same match
  *  and its timer gives the same start; 25 s before, that match isn't running yet. One read alone is never a start
  *  (a wrong match number on screen for a few seconds, a replay, a digit read wrong). */
 async function confirmed(page: Page, label: string, start: number): Promise<string | null> {
-  const at = await readAt(page, start + 70);
-  if (at.label !== label) return `70 s on the overlay read ${at.label ?? "nothing"}`;
-  if (at.start == null) return "70 s on its timer wasn't read running";
-  if (Math.abs(at.start - start) > SAME_S) return `70 s on its timer gave a start ${Math.round(at.start - start)} s off`;
+  // A frame that reads nothing (the player still buffering after a long seek, the timer not caught running) says
+  // nothing either way, so a later point of TeleOp is tried; a frame that reads another match or start disagrees.
+  let why = "";
+  for (const after of CONFIRM_AFTER) {
+    const at = await readAt(page, start + after);
+    if (at.label && at.label !== label) return `${after} s on the overlay read ${at.label}`;
+    if (at.label && at.start != null) {
+      if (Math.abs(at.start - start) > SAME_S) return `${after} s on its timer gave a start ${Math.round(at.start - start)} s off`;
+      why = "";
+      break;
+    }
+    why = at.label ? `${CONFIRM_AFTER.join(", ")} s on its timer wasn't read running (last: ${at.why})` : `${CONFIRM_AFTER.join(", ")} s on the overlay read nothing`;
+  }
+  if (why) return why;
   const before = await readAt(page, start - 25);
   if (before.label === label && before.start != null) return `25 s before it was already running (start ${Math.round(before.start - start)} s off)`;
   return null;
@@ -154,7 +167,7 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
     const i = byLabel.get(r.label)!;
     tried.add(i);
     if (seen.has(i)) return;
-    reads += 2;
+    reads += 2; // at least: a confirming read after, one before
     const no = await confirmed(page, r.label, r.start);
     if (no == null) seen.set(i, r.start);
     else { unconfirmed++; log(`    ${r.label} at ${r.start} s not confirmed: ${no}`); }
