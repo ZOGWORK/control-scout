@@ -2,7 +2,7 @@
 // no scripts, images or charts, always links back to its full version, stays inside its payload budget, caches
 // like the API when it's public, and the pick list asks for what the rich one asks for.
 import type { AddressInfo } from "node:net";
-import type { Server } from "node:http";
+import { request, type Server } from "node:http";
 import { gzipSync } from "node:zlib";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -16,7 +16,8 @@ import { renderPage } from "../seo";
 import { CURRENT_SEASON } from "../data/seasons";
 import { fullHref, liteHref } from "../../src/shared/lite";
 import { liteEvent, nextMatches } from "./trim";
-import { eventPage } from "./render";
+import { LITE_STYLE, LITE_TAP_CLASSES, eventPage } from "./render";
+import { LITE_CSP, pageVary, safeNext } from "./routes";
 import type { EventDetail, MatchView } from "../../src/shared/api";
 
 let server: Server;
@@ -68,14 +69,19 @@ async function lightPage(path: string, full: string) {
   expect(r.status, path).toBe(200);
   expect(r.headers.get("content-type")).toMatch(/^text\/html/);
   const html = await r.text();
-  expect(html).not.toMatch(/<script|<img|<svg|<canvas|<iframe|<link rel="stylesheet"/i);
-  expect(html).toContain(`<a class="full" href="${full}">Full version</a>`);
+  expect(html).not.toMatch(/<script|<img|<image|<canvas|<iframe|<link rel="stylesheet"|xlink:href|<use\b/i);
+  // One inline drawing, the C-mark: markup in the page, nothing fetched.
+  expect(html.match(/<svg/g)).toHaveLength(1);
+  expect(html).toContain(`<a class="btn p full" href="${full}">Full version</a>`);
   // One way back, top right: never a second button at the bottom.
   expect(html.match(/>Full version<\/a>/g)).toHaveLength(1);
   expect(gzipSync(html).length, `${path}: ${gzipSync(html).length} bytes gzipped`).toBeLessThan(BUDGET_GZIP);
   // Nothing else to fetch: the page allows no scripts, images or connections.
   const csp = r.headers.get("content-security-policy") ?? r.headers.get("content-security-policy-report-only");
-  expect(csp).toContain("default-src 'none'");
+  expect(csp).toBe(LITE_CSP);
+  expect(LITE_CSP).toBe("default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'self'");
+  // Every link is a 44px tap target: it carries one of the classes the stylesheet sizes.
+  for (const [a] of html.matchAll(/<a\b[^>]*>/g)) expect(LITE_TAP_CLASSES.some((c) => new RegExp(`class="(?:[^"]* )?${c}(?: [^"]*)?"`).test(a)), a).toBe(true);
   return { r, html };
 }
 
@@ -83,11 +89,13 @@ describe("light pages", () => {
   it("event: rankings and the whole schedule as tables, results and calls, linked to light team and match pages", async () => {
     const { r, html } = await lightPage(`/lite/events/${S}/njq1`, `/events/${S}/NJQ1`);
     expect(html).toContain("<h1>Edison Qualifier</h1>");
-    expect(html).toContain(`<a href="/lite/teams/10000?season=${S}">10000</a>`);
+    expect(html).toContain(`<a class="cell" href="/lite/teams/10000?season=${S}"><b>10000</b>`);
     // Names are escaped, never markup.
     expect(html).toContain("Robo &lt;Team&gt; 10000");
     expect(html).toContain(`href="/lite/events/${S}/NJQ1/match/qual:0:80"`);
     expect(html).toMatch(/<span class="r w">115<\/span>–<span class="b">90<\/span>/);
+    // Each alliance is named, not told by colour alone.
+    expect(html).toMatch(/<span class="r"><span class="vh">Red: <\/span>\d+ \d+<\/span><br><span class="b"><span class="vh">Blue: <\/span>/);
     // On today: revalidated every time (results move), like the API on an event day.
     expect(r.headers.get("cache-control")).toBe("no-cache");
     expect(html).toContain(`<link rel="canonical" href="https://controlscout.org/events/${S}/NJQ1">`);
@@ -120,7 +128,7 @@ describe("light pages", () => {
     const { html } = await lightPage("/lite/teams/10005", "/teams/10005");
     expect(html).toContain("<h1>10005 Robo &lt;Team&gt; 10005</h1>");
     expect(html).toContain("Next matches");
-    expect(html).toContain(`<a href="/lite/events/${S}/NJQ1">Edison Qualifier</a>`);
+    expect(html).toContain(`<a class="cell" href="/lite/events/${S}/NJQ1"><b>Edison Qualifier</b>`);
     const { html: seasonal } = await lightPage(`/lite/teams/10005?season=${S}`, `/teams/10005?season=${S}`);
     expect(seasonal).toContain("10005");
   });
@@ -139,7 +147,7 @@ describe("light pages", () => {
       const r = await get(path);
       expect(r.status, path).toBe(404);
       expect(r.headers.get("cache-control")).toBe("no-store");
-      expect(await r.text()).toContain(`<a class="full" href="${full}">Full version</a>`);
+      expect(await r.text()).toContain(`<a class="btn p full" href="${full}">Full version</a>`);
     }
   });
 
@@ -158,7 +166,105 @@ describe("light pages", () => {
     expect(r.headers.get("cache-control")).toBe("no-store");
     const html = await r.text();
     expect(html).toContain("Sign in first");
-    expect(html).toContain(`<a class="full" href="/scout?space=ws1&amp;tab=planning&amp;view=picklist&amp;season=2025">Full version</a>`);
+    expect(html).toContain(`<a class="btn p full" href="/scout?space=ws1&amp;tab=planning&amp;view=picklist&amp;season=2025">Full version</a>`);
+  });
+});
+
+describe("the app's theme and text size (cookies)", () => {
+  const page = async (cookie: string) => {
+    const r = await get(`/lite/teams/10005`, { headers: { cookie } });
+    expect(r.headers.get("vary")).toMatch(/Cookie/);
+    return r.text();
+  };
+  it("draws each theme as the app does: a class on <html>, System following the device", async () => {
+    expect(await page("")).toMatch(/<html lang="en"><head>/);
+    expect(await page("cs-theme=dark")).toMatch(/<html lang="en"><head>/);
+    for (const t of ["light", "dim", "midnight"]) expect(await page(`a=1; cs-theme=${t}`)).toContain(`<html lang="en" class="${t}">`);
+    const sys = await page("cs-theme=system");
+    expect(sys).toContain(`<html lang="en" class="sys">`);
+    expect(sys).toContain(`<meta name="color-scheme" content="dark light">`);
+    expect(LITE_STYLE).toContain("@media(prefers-color-scheme:light){html.sys{");
+    expect(await page("cs-theme=light")).toContain(`<meta name="color-scheme" content="light">`);
+    // Anything else is the default, never markup.
+    expect(await page("cs-theme=%22%3E%3Cb%3E")).toMatch(/<html lang="en"><head>/);
+  });
+  it("scales the root font size with the app's text size", async () => {
+    for (const t of ["s", "l", "xl"]) expect(await page(`cs-text-size=${t}`)).toContain(`<html lang="en" data-text-size="${t}">`);
+    expect(await page("cs-text-size=m")).toMatch(/<html lang="en"><head>/);
+    expect(await page("cs-theme=dim; cs-text-size=xl")).toContain(`<html lang="en" class="dim" data-text-size="xl">`);
+    expect(LITE_STYLE).toContain("html[data-text-size=xl]{--s:1.25}");
+    expect(LITE_STYLE).toContain("font-size:calc(100% * var(--b) * var(--s))");
+  });
+});
+
+describe("tap targets", () => {
+  it("every link class is at least 44px tall in the stylesheet", () => {
+    for (const c of LITE_TAP_CLASSES) {
+      const rule = new RegExp(`(?:^|})\\.${c}\\{([^}]*)\\}`).exec(LITE_STYLE);
+      expect(rule, c).toBeTruthy();
+      const h = /min-height:(\d+)px/.exec(rule![1]);
+      expect(Number(h?.[1]), `.${c} min-height`).toBeGreaterThanOrEqual(44);
+    }
+    // Table cells and list rows keep their padding (nothing touching).
+    expect(LITE_STYLE).toContain("th,td{padding:10px 12px;");
+    expect(LITE_STYLE).toMatch(/\.in\{[^}]*padding:0 16px/);
+  });
+});
+
+describe("Lite on (sticky)", () => {
+  const nav = { "sec-fetch-mode": "navigate", accept: "text/html" };
+  it("/lite/on sets the cookie and goes on; /lite/off clears it and goes to the full page", async () => {
+    const on = await get(`/lite/on?next=${encodeURIComponent(`/lite/teams/10005?season=${S}`)}`);
+    expect(on.status).toBe(302);
+    expect(on.headers.get("location")).toBe(`/lite/teams/10005?season=${S}`);
+    expect(on.headers.get("set-cookie")).toMatch(/^cs-lite=1; Max-Age=31536000; Path=\/; Expires=.*; SameSite=Lax$/);
+    expect(on.headers.get("cache-control")).toBe("no-store");
+    const off = await get(`/lite/off?next=${encodeURIComponent(`/lite/teams/10005?season=${S}`)}`, { headers: { cookie: "cs-lite=1" } });
+    expect(off.status).toBe(302);
+    expect(off.headers.get("location")).toBe(`/teams/10005?season=${S}`);
+    expect(off.headers.get("set-cookie")).toMatch(/^cs-lite=; Path=\/; Expires=Thu, 01 Jan 1970/);
+    expect((await get("/lite/off?next=/events")).headers.get("location")).toBe("/events");
+  });
+  it("never sends anyone to another site", () => {
+    for (const bad of ["https://evil.example", "//evil.example", "/\\evil.example", "\\\\evil", "", undefined, "/a\nb", ["/x"], "/a/..//evil.example", "/a/../\\evil.example", "/./%2e%2e//evil.example"]) expect(safeNext(bad), String(bad)).toBe("/");
+    expect(safeNext("/teams/1?season=2025")).toBe("/teams/1?season=2025");
+    expect(safeNext("/a/../teams/1")).toBe("/teams/1");
+  });
+  it("a next that normalizes to another site goes home, from both endpoints", async () => {
+    for (const ep of ["on", "off"]) expect((await get(`/lite/${ep}?next=${encodeURIComponent("/a/..//evil.example")}`)).headers.get("location"), ep).toBe("/");
+  });
+  it("app pages with a Lite twin are kept per cookie by caches (with Lite on they answer with a redirect)", () => {
+    expect(pageVary("/teams/10005", "?season=2025")).toBe("Accept-Encoding, Cookie");
+    expect(pageVary(`/events/${S}/NJQ1`)).toBe("Accept-Encoding, Cookie");
+    expect(pageVary("/predict")).toBe("Accept-Encoding");
+    expect(pageVary("/")).toBe("Accept-Encoding");
+  });
+  /** A request as a browser sends it (fetch puts its own "cors" in Sec-Fetch-Mode). */
+  const raw = (path: string, headers: Record<string, string>) => new Promise<{ status: number; headers: Record<string, string | string[] | undefined> }>((ok, fail) => {
+    request(`${base}${path}`, { headers }, (res) => { res.resume(); ok({ status: res.statusCode ?? 0, headers: res.headers }); }).on("error", fail).end();
+  });
+  it("a page load of a page with a Lite version goes there; ?lite=0, the app's own requests and other pages don't", async () => {
+    const r = await raw(`/teams/10005?season=${S}`, { ...nav, cookie: "cs-lite=1" });
+    expect(r.status).toBe(302);
+    expect(r.headers.location).toBe(`/lite/teams/10005?season=${S}`);
+    expect(r.headers["cache-control"]).toBe("no-store");
+    expect((await raw(`/events/${S}/NJQ1`, { ...nav, cookie: "cs-lite=1" })).headers.location).toBe(`/lite/events/${S}/NJQ1`);
+    // A browser without Sec-Fetch headers: a page load asks for HTML.
+    expect((await raw(`/teams/10005`, { accept: "text/html", cookie: "cs-lite=1" })).status).toBe(302);
+    expect((await raw(`/teams/10005?lite=0`, { ...nav, cookie: "cs-lite=1" })).status).not.toBe(302);
+    expect((await raw(`/teams/10005`, nav)).status).not.toBe(302);
+    expect((await raw(`/predict`, { ...nav, cookie: "cs-lite=1" })).status).not.toBe(302);
+    expect((await raw(`/api/teams/10005`, { cookie: "cs-lite=1", "sec-fetch-mode": "cors", accept: "application/json" })).status).not.toBe(302);
+    expect((await raw(`/teams/10005`, { cookie: "cs-lite=1", "sec-fetch-mode": "cors", accept: "text/html" })).status).not.toBe(302);
+  });
+  it("on a Lite page: Full version opens the full page this once, and Turn off Lite is offered", async () => {
+    const html = await (await get(`/lite/teams/10005`, { headers: { cookie: "cs-lite=1" } })).text();
+    expect(html).toContain(`<a class="btn p full" href="/teams/10005?lite=0">Full version</a>`);
+    expect(html).toContain(`href="/lite/off?next=%2Fteams%2F10005">Turn off Lite</a>`);
+    expect(html).not.toContain("Always open Lite");
+    const off = await (await get(`/lite/teams/10005`)).text();
+    expect(off).toContain(`href="/lite/on?next=%2Flite%2Fteams%2F10005">Always open Lite</a>`);
+    expect(off).not.toContain("Turn off Lite");
   });
 });
 
@@ -166,11 +272,11 @@ describe("switched off by the owner (venueLightMode)", () => {
   it("light addresses go to their full page, ?lite=1 is ignored, and the first paint offers nothing", async () => {
     const index = join(mkdtempSync(join(tmpdir(), "cs-lite-")), "index.html");
     writeFileSync(index, `<html><head><title>x</title></head><body><div id="root"></div></body></html>`);
-    const offer = `<a href="/lite/teams/10005">Open the light version</a>`;
+    const offer = `<a href="/lite/teams/10005">Open Control Scout Lite</a>`;
     expect((await renderPage(index, "/teams/10005")).html).toContain(offer);
     await setFlag("venueLightMode", false, "owner@example.com");
     try {
-      expect((await renderPage(index, "/teams/10005")).html).not.toContain("Open the light version");
+      expect((await renderPage(index, "/teams/10005")).html).not.toContain("Open Control Scout Lite");
       for (const [path, full] of [[`/lite/events/${S}/NJQ1`, `/events/${S}/NJQ1`], ["/lite/teams/10005?season=" + S, `/teams/10005?season=${S}`], ["/lite/picklist?space=ws1", "/scout?space=ws1&tab=planning&view=picklist"]]) {
         const r = await get(path);
         expect(r.status, path).toBe(302);
