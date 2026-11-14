@@ -5,6 +5,7 @@
 import { sweepBugReports } from "./bugReports.js";
 import { startUptimeChecks } from "./uptime.js";
 import { backfillVideoMeta } from "./videos/recordings.js";
+import { checkClipCoverage } from "./videos/coverageCheck.js";
 import { resolveStreamLinks } from "./videos/streamLinks.js";
 import { resolveChannelStreams } from "./videos/channelStreams.js";
 import { seedOfficialVideos } from "./videos/officialVideos.js";
@@ -227,7 +228,10 @@ if (!process.env.CS_NO_SCHEDULER) {
     seedOfficialVideos(log).catch((e) => log(`official videos: ${(e as Error).message}`))
       .then(() => resolveStreamLinks(log)).catch((e) => log(`recordings: ${(e as Error).message}`))
       .then(() => resolveChannelStreams(log)).catch((e) => log(`recordings: ${(e as Error).message}`))
-      .then(() => backfillVideoMeta(log)).catch((e) => log(`recordings: ${(e as Error).message}`));
+      .then(() => backfillVideoMeta(log)).catch((e) => log(`recordings: ${(e as Error).message}`))
+      // Then every event whose recording or played matches changed: a clip for each played match, or its missing list
+      // for the owner's review (server/videos/coverageCheck.ts).
+      .then(() => checkClipCoverage(log)).catch((e) => log(`clip coverage: ${(e as Error).message}`));
   };
   setTimeout(recordings, 150_000).unref();
   setInterval(recordings, 5 * 60_000).unref();
@@ -235,7 +239,11 @@ if (!process.env.CS_NO_SCHEDULER) {
   // channel's new uploads, every 6 hours with the YouTube Data API (never a search). Checked every 30 minutes, from
   // 17.5 minutes after boot (midway between the sync's ticks, WATCH_FIRST_MS): a deploy doesn't start a run of its own
   // when the last one is less than 6 hours old.
-  const watch = () => { watchIfDue(log).catch((e) => log(`official videos: watcher: ${(e as Error).message}`)); };
+  // A run that added a recording has its event's coverage checked at once (server/videos/coverageCheck.ts).
+  const watch = () => {
+    watchIfDue(log).then((r) => (r?.added ? checkClipCoverage(log) : 0))
+      .catch((e) => log(`official videos: watcher: ${(e as Error).message}`));
+  };
   setTimeout(() => { watch(); setInterval(watch, WATCH_CHECK_MS).unref(); }, WATCH_FIRST_MS).unref();
 }
 // The live fast lane: events on today, every LIVE_SYNC_SECONDS (60), results within about a minute
