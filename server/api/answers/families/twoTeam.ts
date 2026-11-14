@@ -27,7 +27,7 @@ const LIST_CAP = 25, TOP = 10;
 /** Meetings an opponent (or matches a partner) needs before "toughest" or "best" ranks it. */
 export const MIN_MEETINGS = 3;
 
-const H2H_RULE = `Head to head: the matches the two teams played on opposite alliances, both robots on the field, at official events (never scrimmages or off-season events). Results use the official scores, penalties included. ${RECORD_RULE}`;
+const H2H_RULE = `Head to head: the matches the two teams played on opposite alliances, both robots on the field, at official events (never scrimmages or off-season events, unless the question names one). Results use the official scores, penalties included. ${RECORD_RULE}`;
 const SEASON_RULE = "From each team's stored season numbers, as their team pages show them: OPR is the season's offensive power rating without penalties, by game phase; the prediction rating is the engine's points-per-match strength (± its uncertainty).";
 const RECORD_VERDICT = `A season's record is the team's matches that season (wins-losses-ties); the better record is the higher win rate (wins over matches played, ties counted as played). ${RECORD_RULE}`;
 
