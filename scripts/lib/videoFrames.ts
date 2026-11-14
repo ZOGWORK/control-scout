@@ -61,3 +61,82 @@ export function placed(ms: M[], seen: Map<number, number>): Map<string, number> 
   return out;
 }
 
+/** A match's start in the video, and how sure: "high" (a confirmed read, with another read or the broadcast's own
+ *  clock agreeing on how far the video sits from the clock), "medium" (between two reads that agree). */
+export type Placed = { t: number; confidence: "high" | "medium" };
+/** What a video's frames say about each of its matches: placed, for review (one signal only, or implausible), or
+ *  missing with the reason. */
+export type Judged = { placed: Map<string, Placed>; review: Map<string, { t: number; why: string }>; missing: Map<string, string> };
+
+/** The least a match can take in a video: 30 s Auto, 8 s switch, 2:00 TeleOp. Two placed starts closer than this
+ *  overlap. */
+export const MATCH_S = AUTO_S + SWITCH_S + TELEOP_S;
+
+/**
+ * Judge a video's matches from its confirmed reads (index → start second). The clock (FIRST's actual start of each
+ * match) is the anchor; the frames are the second signal. A read is kept only in the longest run that never rises (as
+ * `placed`). Reads that agree on how far the video sits from the clock form stretches. A stretch of two or more reads
+ * places its reads ("high") and every match between them ("medium"). A stretch of one read places it only where the
+ * broadcast's own clock (`shift`, the video's second minus the epoch, when YouTube gives the broadcast start and the
+ * video kept it) agrees; otherwise that one read is all there is, and it goes to review. Placed starts must be in order,
+ * a match apart and inside the video; any that aren't go to review too. Every other match is missing, with the reason.
+ */
+export function judge(ms: M[], seen: Map<number, number>, shift: number | null, length: number, read: Set<number> = new Set(seen.keys())): Judged {
+  const idx = [...seen.keys()].sort((a, b) => a - b);
+  const d = (i: number) => seen.get(i)! - ms[i].epoch;
+  const len = idx.map(() => 1), from = idx.map(() => -1);
+  for (let b = 0; b < idx.length; b++) for (let a = 0; a < b; a++) {
+    if (d(idx[b]) <= d(idx[a]) + SAME_S && len[a] + 1 > len[b]) { len[b] = len[a] + 1; from[b] = a; }
+  }
+  const kept: number[] = [];
+  for (let k = len.indexOf(Math.max(0, ...len)); k >= 0; k = from[k]) kept.unshift(idx[k]);
+  const dropped = new Set(idx.filter((i) => !kept.includes(i)));
+
+  const placedAt = new Map<string, Placed>();
+  const review = new Map<string, { t: number; why: string }>();
+  // Stretches: kept reads in a row agreeing on the distance.
+  const stretches: number[][] = [];
+  for (const i of kept) {
+    const s = stretches.at(-1);
+    if (s && Math.abs(d(s.at(-1)!) - d(i)) <= SAME_S) s.push(i);
+    else stretches.push([i]);
+  }
+  for (const s of stretches) {
+    if (s.length === 1) {
+      const i = s[0];
+      if (shift != null && Math.abs(d(i) - shift) <= SAME_S) placedAt.set(ms[i].label, { t: seen.get(i)!, confidence: "high" });
+      else review.set(ms[i].label, { t: seen.get(i)!, why: "one frame read, and nothing else agrees where the video sits" });
+      continue;
+    }
+    for (let n = 0; n < s.length; n++) {
+      placedAt.set(ms[s[n]].label, { t: seen.get(s[n])!, confidence: "high" });
+      const j = s[n + 1];
+      if (j != null) for (let k = s[n] + 1; k < j; k++) placedAt.set(ms[k].label, { t: Math.round(ms[k].epoch + d(s[n])), confidence: "medium" });
+    }
+  }
+
+  // Plausible: inside the video, in order, a match apart.
+  const order = ms.map((m) => m.label).filter((l) => placedAt.has(l));
+  const bad = new Set<string>();
+  order.forEach((l, n) => {
+    const t = placedAt.get(l)!.t;
+    if (t < 0 || t + MATCH_S > length + SAME_S) bad.add(l);
+    const next = order[n + 1];
+    if (next != null && placedAt.get(next)!.t - t < MATCH_S - SAME_S) { bad.add(l); bad.add(next); }
+  });
+  for (const l of bad) { review.set(l, { t: placedAt.get(l)!.t, why: "placed outside the video, out of order, or overlapping the next match" }); placedAt.delete(l); }
+
+  const missing = new Map<string, string>();
+  ms.forEach((m, i) => {
+    if (placedAt.has(m.label) || review.has(m.label)) return;
+    const before = kept.filter((k) => k < i).at(-1), after = kept.find((k) => k > i);
+    missing.set(m.label,
+      dropped.has(i) ? "its frame read disagrees with the matches around it"
+      : read.has(i) ? "its frames didn't confirm a start"
+      : before != null && after != null ? "in a gap: the reads either side disagree where the video sits, so it may not be in the video"
+      : !kept.length ? "no frame of the video could be read"
+      : "no frame read of it, and no agreeing reads on both sides");
+  });
+  return { placed: placedAt, review, missing };
+}
+
