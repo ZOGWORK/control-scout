@@ -125,9 +125,11 @@ async function main() {
   await page.waitForTimeout(500);
   const helperTab = page.getByRole("tab", { name: /Pick helper/ }).or(page.getByRole("button", { name: /Pick helper/ })).first();
   if (await helperTab.isVisible().catch(() => false)) await helperTab.click();
-  await page.getByText(/Couldn't load the ratings|offline: last loaded/i).first().waitFor({ timeout: 15_000 }).catch(() => {});
+  // Answered by the event pack (its own ratings, with the bundle's time) or by the last answer kept on the device.
+  const SAVED = /last loaded on this device|this is your event-day bundle/i;
+  await page.getByText(/Couldn't load the ratings|offline: last loaded|this is your event-day bundle/i).first().waitFor({ timeout: 15_000 }).catch(() => {});
   const ph = await text(page);
-  check("offline: pick helper shows the event's ratings", /last loaded on this device/i.test(ph) && !/Couldn't load the ratings/.test(ph), ph.slice(0, 240), Date.now() - t0);
+  check("offline: pick helper shows the event's ratings", SAVED.test(ph) && !/Couldn't load the ratings/.test(ph), ph.slice(0, 240), Date.now() - t0);
   await shot(page, "6-pick-helper-offline");
 
   // Close the app and open it again, still offline: nothing lost.
