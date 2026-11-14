@@ -127,11 +127,15 @@ describe("audited channels: California", () => {
     expect(OFFICIAL_CHANNELS.some((c) => c.channelId === T7419)).toBe(false);
   });
 
-  it("the watcher sends League G's new videos to the owner, never auto-adds them: 'Meet 1' isn't Scout's 'Scrimmage 1'", () => {
+  it("the watcher adds a League G 'Meet N' only to an event named 'Meet N'; against Scout's 'Scrimmage N' it goes to review", () => {
     const seed = OFFICIAL_CHANNELS.find((c) => c.channelId === G)!;
     const e = (code: string, name: string, day: string): WatchEvent => ({ season: 2026, code, name, type: "Scrimmage", city: "Carson", state: "CA", country: "USA", start: day, end: day, timezone: "America/Los_Angeles", divisionCode: null, parent: false });
     const events = [e("USCALACAS4", "SoCal - G - Scrimmage 2", "2026-12-12"), e("USCALAA1S2", "SoCal - A1 - Scrimmage 2", "2026-12-12")];
     const v: WatchVideo = { videoId: "xxxxxxxxxxx", title: "2026 SoCal FTC League G: Meet 2", start: "2026-12-12T17:00:00Z", durationS: 3 * 3600, privacy: "public", embeddable: true, blockedIn: 0 };
     expect(matchVideo(v, seed, events).kind).toBe("review");
+    // 2024's naming: the meet numbers agree, so it's sure.
+    const meet3 = { ...e("USCALAGM3", "SoCal FTC League G - Meet 3", "2026-12-12"), type: "LeagueMeet" };
+    expect(matchVideo({ ...v, title: "SoCal FTC League G: Meet 3" }, seed, [meet3, events[1]])).toMatchObject({ kind: "add", event: { code: "USCALAGM3" } });
+    expect(matchVideo({ ...v, title: "SoCal FTC League G: Meet 2" }, seed, [meet3, events[1]]).kind).toBe("review");
   });
 });
