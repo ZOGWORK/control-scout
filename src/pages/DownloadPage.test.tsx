@@ -16,7 +16,9 @@ let failSeason: number | null = null;
 let gate: Promise<void> | null = null;
 const toastErr = vi.fn(), toastOk = vi.fn();
 
-vi.mock("../lib/packs", async (orig) => ({ ...(await orig<typeof import("../lib/packs")>()), fetchManifest: async () => MANIFEST, packStatus: () => null, syncLite: async () => null }));
+// The predictions pack syncLite would leave (null: none); packStatus reads the same.
+const lite = vi.hoisted(() => ({ saved: null as null | { version: string; bytes: number; savedAt: number; builtAt: string; engineVersion: string } }));
+vi.mock("../lib/packs", async (orig) => ({ ...(await orig<typeof import("../lib/packs")>()), fetchManifest: async () => MANIFEST, packStatus: () => lite.saved, syncLite: async () => lite.saved }));
 vi.mock("../lib/offline/seasons", () => ({
   useSavedSeasons: () => saved,
   saveSeason: async (f: PackFile, _m: PackManifest, onProgress?: (d: number, t: number) => void) => {
@@ -35,13 +37,13 @@ vi.mock("../components/ui/sonner", () => ({ toast: Object.assign(vi.fn(), { succ
 vi.mock("../lib/personal", () => ({ usePersonal: () => ({ state: { settings: {} }, update: vi.fn() }) }));
 vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useTitle: () => {} }));
 
-const { default: DownloadPage, seasonSpan } = await import("./DownloadPage");
+const { default: DownloadPage, seasonSpan, getLite, releaseOrder } = await import("./DownloadPage");
 const { resetSeasonBatch, runSeasonBatch } = await import("../lib/offline/seasonBatch");
 const { TooltipProvider } = await import("../components/ui/overlay");
 const mount = (url = "/download?pick=season") => render(<MemoryRouter initialEntries={[url]}><TooltipProvider><DownloadPage /></TooltipProvider></MemoryRouter>);
 const sv = (season: number, sha: string) => ({ season, sha256: sha, version: "2026-09-01.1", bytes: 9_000_000, savedAt: 1 }) as unknown as SavedSeason;
 
-beforeEach(() => { saved = []; order.length = 0; failSeason = null; gate = null; resetSeasonBatch(); toastErr.mockClear(); toastOk.mockClear(); });
+beforeEach(() => { lite.saved = null; saved = []; order.length = 0; failSeason = null; gate = null; resetSeasonBatch(); toastErr.mockClear(); toastOk.mockClear(); });
 afterEach(cleanup);
 
 describe("Download page seasons", () => {
@@ -186,5 +188,34 @@ describe("the Offline page's layout", () => {
     expect(screen.getByText(/Packs use/).textContent).toBe("Packs use 18.0 MB");
     fireEvent.click(screen.getByRole("button", { name: "Delete 2025–26 season" }));
     await waitFor(() => expect(toastOk).toHaveBeenCalledWith("Freed 9.0 MB", { description: "2025–26 season deleted from this device." }));
+  });
+});
+
+describe("getting the predictions pack", () => {
+  it("a newer release saved meanwhile counts as done; an older one or none is an error", async () => {
+    lite.saved = { version: "2026-11-14.2", bytes: 1, savedAt: 1, builtAt: "b", engineVersion: "e" };
+    await expect(getLite("2026-11-14.1")).resolves.toBeUndefined();
+    await expect(getLite("2026-11-14.2")).resolves.toBeUndefined();
+    lite.saved = { version: "2026-11-13.9", bytes: 1, savedAt: 1, builtAt: "b", engineVersion: "e" };
+    await expect(getLite("2026-11-14.1")).rejects.toThrow(/Couldn't finish/);
+    lite.saved = null;
+    await expect(getLite("2026-11-14.1")).rejects.toThrow(/Couldn't finish/);
+  });
+
+  it("orders releases by day, then by the build that day", () => {
+    expect(releaseOrder("2026-11-14.10", "2026-11-14.9")).toBeGreaterThan(0);
+    expect(releaseOrder("2026-11-13.9", "2026-11-14.1")).toBeLessThan(0);
+    expect(releaseOrder("2026-11-14.1", "2026-11-14.1")).toBe(0);
+  });
+});
+
+describe("sizes say what they are", () => {
+  it("a season not saved says what it would take, never that it's on the device", async () => {
+    saved = [sv(2025, "b")];
+    mount();
+    const rows = within(await screen.findByRole("list", { name: "Seasons" })).getAllByRole("listitem");
+    const row = (s: string) => rows.find((r) => r.textContent?.startsWith(s))!;
+    expect(row("2026–27").textContent).toContain("Takes 10.0 MB on this device");
+    expect(row("2025–26").textContent).toContain("Uses 10.0 MB on this device");
   });
 });

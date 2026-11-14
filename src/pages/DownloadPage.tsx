@@ -196,8 +196,7 @@ function WholeSeason({ m, local }: { m: PackManifest; local: PackMeta | null }) 
         if (r.failed[0]) { toast.error(r.failed[0].error.message); return; }
       }
       if (liteNeeded) {
-        const meta = await syncLite();
-        if (meta?.version !== m.version) { toast.error("The predictions pack didn't download. Try again."); return; }
+        try { await getLite(m.version); } catch (e) { toast.error((e as Error).message); return; }
       }
       toast.success(`${label} season saved on this device`, { description: "Team pages, event pages, search and predictions now work with no connection." });
     } finally { setRunning(false); }
@@ -217,7 +216,7 @@ function WholeSeason({ m, local }: { m: PackManifest; local: PackMeta | null }) 
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="font-medium">{p.name}</p>
-                <p className="text-xs text-muted-foreground">{p.what} · {fmtBytes(p.onDevice)} on this device</p>
+                <p className="text-xs text-muted-foreground">{p.what} · {p.done ? `${fmtBytes(p.onDevice)} on this device` : `takes ${fmtBytes(p.onDevice)} on this device`}</p>
               </div>
               {p.done ? <span className="inline-flex shrink-0 items-center gap-1 text-xs text-success"><CheckCircle2 className="size-3.5" />Saved</span>
                 : <span className="shrink-0 text-sm font-semibold tabular-nums">{fmtBytes(p.bytes)}</span>}
@@ -331,7 +330,7 @@ function SeasonRowView({ r, version, dataAsOf, current, active, queued, disabled
         {active ? <Downloading a={active} label={`Saving ${label}`} />
           : queued ? <p>Waiting to save…</p> : (
           <p className="flex flex-wrap gap-x-3 gap-y-0.5">
-            <span><span className="text-foreground tabular-nums">{fmtBytes(r.file.bytes)}</span> on this device</span>
+            <span>{r.saved ? "Uses" : "Takes"} <span className="text-foreground tabular-nums">{fmtBytes(r.file.bytes)}</span> on this device</span>
             <span>Version {version}</span>
             {r.saved && r.state === "update" && <span>{whatChanged(r.saved, { dataAsOf, stats: r.file.stats })}</span>}
             {/* The full hash on a tap too (a title needs a mouse), to check a download against. */}
@@ -361,7 +360,14 @@ function SeasonRowView({ r, version, dataAsOf, current, active, queued, disabled
 export async function getLite(version: string | undefined): Promise<void> {
   const meta = await syncLite();
   const have = packStatus();
-  if (!meta || !have || (version && have.version !== version)) throw new Error("Couldn't finish downloading the predictions pack. Try again in a moment.");
+  // syncLite reads the manifest again, so a release published meanwhile is a success too: at least the one asked for.
+  if (!meta || !have || (version && releaseOrder(have.version, version) < 0)) throw new Error("Couldn't finish downloading the predictions pack. Try again in a moment.");
+}
+
+/** Pack releases ("2026-11-13.1": the day, then the build that day) in order: negative when `a` is older than `b`. */
+export function releaseOrder(a: string, b: string): number {
+  const [da, na] = a.split("."), [db, nb] = b.split(".");
+  return da !== db ? (da < db ? -1 : 1) : Number(na ?? 0) - Number(nb ?? 0);
 }
 
 function OnDevice({ m, local }: { m: PackManifest | null; local: PackMeta | null }) {
