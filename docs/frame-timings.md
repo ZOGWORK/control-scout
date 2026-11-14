@@ -35,7 +35,7 @@ point, and reads two things with tesseract.js:
 A video can lose time but never gain it, so "video second minus real start" only ever falls from match to match. Two
 matches the same distance apart (within 6 s) hold every match between them at that distance too. So the script reads
 the first and last match a video holds, and the middle of any stretch whose ends disagree: a video with one gap takes
-about 2 log n reads. `placed` then keeps the longest run of reads that never rise (dropping misreads such as a replay
+about 2 log n reads. `judge` then keeps the longest run of reads that never rise (dropping misreads such as a replay
 or an overlay left on the previous match) and fills each stretch between two reads that agree.
 
 ## Two signals, never one
