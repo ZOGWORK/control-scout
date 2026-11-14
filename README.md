@@ -5,10 +5,6 @@
 <h3 align="center">Free-forever FTC scouting and predictions for <em>every</em> team.</h3>
 
 <p align="center">
-  <strong><a href="https://controlscout.org">Live at — controlscout.org</a></strong>
-</p>
-
-<p align="center">
   <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black" alt="React 19" />
   <img src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white" alt="TypeScript" />
   <img src="https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white" alt="Vite" />
@@ -23,7 +19,7 @@ prediction lab who wins a what-if alliance or how likely a team is to advance
 from any event — and check the public track record of how often those
 predictions came true.
 
-Sister app of [Control Point](https://tryctrlpoint.org) (team management).
+Sister app of Control Point (team management).
 Same design language, and the **same prediction engine**: both apps run
 [`@control-scout/predict-engine`](packages/predict-engine), one versioned
 package, so predictions can never be better in one app than the other.
@@ -98,7 +94,7 @@ personal stays on the device.
 
 ## Hosting
 
-* https://controlscout.org runs on the Oracle VM next to Control Point:
+* Runs on the Oracle VM next to Control Point:
   [docs/deploy.md](docs/deploy.md) (deploys, rollback, alerts). A `Dockerfile`
   runs anywhere else. (Render was retired on 2026-10-14.)
 
