@@ -117,3 +117,23 @@ describe("comparison card (the guide's contract)", () => {
     expect(audit(bad.querySelector<HTMLElement>("[data-comparison]")!, ["Ultraviolet"])).toEqual(expect.arrayContaining(["Ultraviolet printed 2 times", "meta text /read as/i", "meta text /\\bNaN\\b/"]));
   });
 });
+
+describe("comparison card: the teams' matches together", () => {
+  const Q4 = "/events/2025/USNJQ1?match=qual:0:4";
+  const Q2 = "/events/2025/USNJQ1?match=qual:0:2";
+  const row = (label: string, href: string) => ({ label, href, event: { label: "New Jersey Qualifier", href: "/events/2025/USNJQ1" }, season: "2025–26", date: null, alliance: "red" as const, own: 120, opp: 60, result: "W" as const, opponents: [{ label: "7149", href: "/teams/7149" }] });
+  const withMatches: StatAnswer = { ...VS, blocks: [VS.blocks[0], { kind: "matches", title: "Their matches together in 2025–26", rows: [row("Q4", Q4), row("Q2", Q2)] }, VS.blocks[1]] };
+
+  it("lists each match under the numbers, a Play on each that has a clip", async () => {
+    const { AnswerVideoProvider } = await import("./AnswerVideo");
+    const c = render(<MemoryRouter><AnswerVideoProvider video={{ rows: { [Q4]: { videoId: "xnQFL9T27fY", t: 9991, end: 10231, kind: "recording", match: "Q4" } } }}><StatAnswerCard stat={withMatches} /></AnswerVideoProvider></MemoryRouter>).container;
+    const section = c.querySelector("[data-block='together']");
+    expect(section?.querySelector("h3")?.textContent).toBe("Their matches together in 2025–26");
+    expect([...section!.querySelectorAll("[data-match-box]")].map((b) => b.getAttribute("data-match-box"))).toEqual(["Q4", "Q2"]);
+    expect(section!.querySelectorAll("[data-row-play]")).toHaveLength(1);
+  });
+
+  it("no matches together: no section", () => {
+    expect(html(VS).querySelector("[data-block='together']")).toBeNull();
+  });
+});
