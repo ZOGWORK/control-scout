@@ -15,6 +15,21 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.0.1 — 2026-11-13
+
+Searching for one match, such as a team's best Auto or highest score, now shows a View clip button under People also ask. It plays that match's own video, the whole match.
+
+### Highlights
+- [fixes] View clip under People also ask plays the match your search is about
+- [fixes] The whole match plays, from FIRST's video or the event's recording, never a cut of one part
+- [fixes] "best auto highlights" and "highest score video" now answer instead of saying Sorry
+
+### Added
+- Search: a "Watch this match" box with a View clip button under People also ask (the side column when wide, right after it on a phone) for a card or stat answer about one match that has a clip. It plays the clip the answer already has (FIRST's match video from its start, a contributor's, or the match's second in the event's recording) in the app's video dialog, and stops the card's player first. There is no box when the match has no clip, and none on a highlights page, whose tiles already play their own. (`src/components/search/page/AnswerVideo.tsx`, `src/pages/SearchPage.tsx`) (#1453)
+
+### Fixed
+- "<team> best auto highlights", "<team> highest score video" and the other one-match questions (lowest score, best TeleOp/Endgame, biggest win/loss, closest match) with "highlights" or "video" no longer say Sorry: they ask to watch that match and get its answer. "<team> highlights" alone stays the team's highlights page. (`server/api/query/intents.ts`)
+
 ## 6.0.0 — 2026-11-13
 
 A new Status page shows whether Control Scout is running: the website, its data, Control Point and the Discord bot, each with its uptime and its last 90 minutes of checks.
