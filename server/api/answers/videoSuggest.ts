@@ -16,7 +16,7 @@ import { inTurns, pageAnswer } from "./followUps.js";
 import { answerVideo, refOfHref, rowRefs } from "./video.js";
 import { searchVersion } from "../searchReads.js";
 import { SEARCH_PAGE_LIMIT } from "../../../src/shared/search.js";
-import { nameTypos, spelledBy } from "./nameTypos.js";
+import { nameTypos, spelledBy, warmNameTypos } from "./nameTypos.js";
 
 /** Most questions offered, and most tried to find them. */
 const OFFER_MAX = 3;
@@ -178,29 +178,52 @@ let known: { version: string; qs: string[]; o: WarmReads } | null = null;
 let knowing: Promise<void> | null = null;
 /** Clear caches pressed so far: a build one overlapped is kept as stale (as ./nameTypos.ts). */
 let knownClears = 0;
+/** Builds dropped so far (forgetVideoQuestions(true), or past BUILD_MS): one started before never writes. */
+let knownGen = 0;
 const NO_ANSWER: SearchAnswer = { q: "", hits: [], pages: [], step: "deterministic", weak: false };
 interface WarmReads {
   /** The page's own kept answer, and its video as a visitor signed out sees it (tests give their own). */
   ask?: (q: string) => Promise<SearchAnswer>; video?: (a: SearchAnswer) => Promise<SearchVideo | undefined>;
   candidates?: () => Promise<string[]>; version?: () => Promise<string>;
+  /** The event-name typos built for the data as it is (tests give their own). */
+  typosReady?: () => Promise<void>;
+  checkMs?: number; buildMs?: number;
 }
+/** Longest one question's check takes in the background (past it, the question doesn't play), and the whole build
+ *  (past it, the build is dropped and the next warm starts again): a check that never settles never holds it. */
+const CHECK_MS = 5000;
+const BUILD_MS = 60_000;
+/** A promise, or `or` once `ms` have passed. */
+const within = <T,>(p: Promise<T>, ms: number, or: T): Promise<T> => {
+  let t: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([p, new Promise<T>((r) => { t = setTimeout(() => r(or), ms); })]).finally(() => clearTimeout(t));
+};
 export function warmVideoQuestions(o: WarmReads = {}): Promise<void> {
   const ask = o.ask ?? ((x: string) => pageAnswer(x, SEARCH_PAGE_LIMIT, new Set()));
   const video = o.video ?? ((b: SearchAnswer) => answerVideo(b, Date.now()));
   return knowing ??= (async () => {
-    const at = knownClears;
-    const version = await (o.version ?? searchVersion)();
-    if (known?.version === version) return;
-    const qs: string[] = [];
-    for (const c of [...new Set([...await (o.candidates ?? (() => videoCandidates(NO_ANSWER)))(), ...GENERAL])]) {
-      if (qs.length >= OFFER_MAX) break;
-      // In the process's one queue, as a search's own checks are: other requests run between them.
-      const ok = await inTurns(async () => {
-        try { const b = await ask(c); return !!b?.stat && !b.stat.none && hasVideo(await video(b)); } catch { return false; }
-      }).catch(() => false);
-      if (ok) qs.push(c);
-    }
-    known = { version: at === knownClears ? version : "", qs, o };
+    const gen = knownGen, at = knownClears;
+    const build = (async () => {
+      const version = await (o.version ?? searchVersion)();
+      if (known?.version === version) return;
+      // The event-name typos for the data as it is now: the set in use may be the last version's, without a typo
+      // this one added (./nameTypos.ts keeps serving it while it builds the next).
+      if (o.typosReady) await o.typosReady(); else if (!o.candidates) await warmNameTypos();
+      const qs: string[] = [];
+      for (const c of [...new Set([...await (o.candidates ?? (() => videoCandidates(NO_ANSWER)))(), ...GENERAL])]) {
+        if (qs.length >= OFFER_MAX || gen !== knownGen) break;
+        // In the process's one queue, as a search's own checks are: other requests run between them. Bounded inside
+        // its turn, so one that never settles frees the queue too.
+        const ok = await inTurns(() => within((async () => {
+          try { const b = await ask(c); return !!b?.stat && !b.stat.none && hasVideo(await video(b)); } catch { return false; }
+        })(), o.checkMs ?? CHECK_MS, false)).catch(() => false);
+        if (ok) qs.push(c);
+      }
+      if (gen === knownGen) known = { version: at === knownClears ? version : "", qs, o };
+    })();
+    build.catch(() => {});
+    // Past the cap the build is dropped: it never writes, and the next warm starts a new one.
+    if (!(await within(build.then(() => true), o.buildMs ?? BUILD_MS, false))) knownGen++;
   })().finally(() => { knowing = null; });
 }
 /** The background set's questions, never the search's own. */
@@ -209,7 +232,7 @@ const fallback = (q: string) => (known?.qs ?? []).filter((x) => x.toLowerCase() 
  *  database open opens none. */
 export function forgetVideoQuestions(drop = false) {
   knownClears++;
-  if (drop) known = null; else if (known) known = { ...known, version: "" };
+  if (drop) { knownGen++; known = null; } else if (known) known = { ...known, version: "" };
 }
 registerCache("Search answers: questions with video, checked in the background", () => forgetVideoQuestions());
 
