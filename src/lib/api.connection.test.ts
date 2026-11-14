@@ -9,7 +9,7 @@ const offlineAnswer = vi.fn();
 vi.mock("./offline/answer", () => ({ offlineAnswer: (path: string) => offlineAnswer(path) }));
 
 import { apiFetch, useApi, useOfflineAsOf, useOfflineMode } from "./api";
-import { checkInternet, connection, resetConnection } from "./connection";
+import { checkInternet, connection, resetConnection, startConnectionWatch } from "./connection";
 import { markOffline, offlineSource, writeSaved, type SavedSeason } from "./offline/saved";
 import { PACK_META_KEY } from "./packPolicy";
 
@@ -83,6 +83,20 @@ describe("known offline: no network try, no wait", () => {
     vi.stubGlobal("fetch", fetch);
     expect(await apiFetch("/api/me/state", { method: "PUT", json: {} })).toEqual({ saved: true });
     expect(fetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("a Wi-Fi sign-in page", () => {
+  it("a web page where our JSON should be is no signal: saved data answers, and the check runs", async () => {
+    writeSaved([saved]);
+    const stop = startConnectionWatch();
+    try {
+      const fetch = vi.fn(async () => new Response("<html>Sign in to Venue Wi-Fi</html>", { status: 200, headers: { "Content-Type": "text/html" } }));
+      vi.stubGlobal("fetch", fetch);
+      const data = await apiFetch("/api/teams/100?season=2025");
+      expect(offlineSource(data)).toEqual(src);
+      await waitFor(() => expect(connection().internet).toBe("portal"));
+    } finally { stop(); }
   });
 });
 

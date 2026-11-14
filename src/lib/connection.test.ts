@@ -4,7 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import {
-  CHECK_TIMEOUT_MS, DEMO_KEY, FAIL_DEBOUNCE_MS, RETRY_MS, checkInternet, classify, connection, noteRequestFailed, noteServerAnswer,
+  CARRY_MS, CHECK_TIMEOUT_MS, DEMO_KEY, FAIL_DEBOUNCE_MS, LAST_KEY, RETRY_MS, checkInternet, classify, connection, noteRequestFailed, noteServerAnswer,
   offlineNow, resetConnection, shownOffline, startConnectionWatch, useConnection,
 } from "./connection";
 
@@ -129,6 +129,27 @@ describe("watching", () => {
     noteServerAnswer();
     expect(connection().internet).toBe("yes");
     expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("the next page load", () => {
+  it("starts from this tab's last 'no internet' answer (for a while), and checks again at once", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
+    await checkInternet();
+    expect(JSON.parse(sessionStorage.getItem(LAST_KEY)!)).toMatchObject({ internet: "no" });
+    // A new page: the module's state starts over from what this tab saw.
+    const raw = sessionStorage.getItem(LAST_KEY);
+    resetConnection(); // clears it, as a test reset
+    sessionStorage.setItem(LAST_KEY, raw!);
+    vi.resetModules();
+    const again = await import("./connection");
+    expect(again.connection().internet).toBe("no");
+    expect(again.offlineNow()).toBe(true);
+    // Too old: forgotten.
+    sessionStorage.setItem(LAST_KEY, JSON.stringify({ internet: "no", at: Date.now() - CARRY_MS - 1 }));
+    vi.resetModules();
+    expect((await import("./connection")).connection().internet).toBe("unknown");
+    sessionStorage.removeItem(LAST_KEY);
   });
 });
 

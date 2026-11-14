@@ -66,9 +66,23 @@ function typeNow(online: boolean): ConnectionType {
   return k === "unknown" ? "unknown" : k;
 }
 
+/** sessionStorage: the last answer in this tab ({ internet, at }). A page opened (or reloaded) soon after one found no
+ *  internet starts from that, so its first reads don't try the network first; it's checked again at once. */
+export const LAST_KEY = "cs-connection-last";
+/** How long a "no internet" answer carries over to the next page load. */
+export const CARRY_MS = 2 * 60_000;
+
+function carried(): Internet | null {
+  try {
+    const v = JSON.parse(sessionStorage.getItem(LAST_KEY) ?? "null") as { internet?: Internet; at?: number } | null;
+    return v && (v.internet === "no" || v.internet === "portal") && typeof v.at === "number" && Math.abs(Date.now() - v.at) < CARRY_MS ? v.internet : null;
+  } catch { return null; }
+}
+
 const initial = (): ConnectionState => {
   const online = browserOnline();
-  return { online, internet: online ? "unknown" : "no", type: typeNow(online), saveData: info()?.saveData === true, checkedAt: 0 };
+  // checkedAt 0: a carried answer is never fresh, so the first read that needs the server checks first.
+  return { online, internet: online ? carried() ?? "unknown" : "no", type: typeNow(online), saveData: info()?.saveData === true, checkedAt: 0 };
 };
 let state: ConnectionState = initial();
 const listeners = new Set<() => void>();
@@ -80,6 +94,9 @@ function set(next: Partial<ConnectionState>) {
   const changed = merged.online !== state.online || merged.internet !== state.internet || merged.type !== state.type || merged.saveData !== state.saveData;
   const prev = state.internet;
   if (changed || merged.checkedAt !== state.checkedAt) state = merged;
+  if (merged.checkedAt && merged.internet !== "unknown") {
+    try { sessionStorage.setItem(LAST_KEY, JSON.stringify({ internet: merged.internet, at: merged.checkedAt })); } catch { /* storage blocked */ }
+  }
   if (changed) {
     listeners.forEach((f) => f());
     if (prev !== state.internet) internetListeners.forEach((f) => f(state.internet, prev));
@@ -181,7 +198,7 @@ let failTimer: ReturnType<typeof setTimeout> | undefined;
 /** A request couldn't reach the server (api.ts): check soon, so the next tap knows. */
 export function noteRequestFailed() {
   if (!started || failTimer) return;
-  failTimer = setTimeout(() => { failTimer = undefined; void checkInternet(); }, FAIL_DEBOUNCE_MS);
+  failTimer = setTimeout(() => { failTimer = undefined; void checkInternet(); }, state.internet === "unknown" ? 0 : FAIL_DEBOUNCE_MS);
 }
 
 /** The server answered a request with its own JSON (api.ts): there's internet, no check needed. */
@@ -221,8 +238,9 @@ export function startConnectionWatch(): () => void {
   const c = info() as (ConnectionInfo & Partial<EventTarget>) | null;
   c?.addEventListener?.("change", onConn);
   // The page's own first requests usually settle it (an answer is "yes", a failure checks): the first check waits a
-  // moment so it doesn't compete with them, unless the browser already says it's offline.
-  const first = setTimeout(() => { if (state.internet === "unknown" || !state.checkedAt) void checkInternet(); }, browserOnline() ? FIRST_CHECK_MS : 0);
+  // moment so it doesn't compete with them, unless the browser already says it's offline or this tab's last page
+  // found no internet (then at once).
+  const first = setTimeout(() => { if (state.internet === "unknown" || !state.checkedAt) void checkInternet(); }, browserOnline() && state.internet === "unknown" ? FIRST_CHECK_MS : 0);
   return () => {
     clearTimeout(first);
     started = false;
@@ -242,6 +260,7 @@ export function resetConnection() {
   inflight = null;
   shown = null;
   answeredAt = 0;
+  try { sessionStorage.removeItem(LAST_KEY); } catch { /* none */ }
   state = initial();
   listeners.forEach((f) => f());
 }

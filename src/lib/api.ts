@@ -352,6 +352,13 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
   try { body = text ? JSON.parse(text) : null; } catch { unreadable = true; }
   // Our server's own JSON came back: there's internet (a Wi-Fi sign-in page answers with HTML).
   if (!unreadable && text && res.status < 500) noteServerAnswer();
+  // A web page where our JSON should be: a Wi-Fi sign-in page answered, not our server. That's no signal: the
+  // connection check finds out, and saved data answers a read it can.
+  if (unreadable && /text\/html/i.test(res.headers.get("Content-Type") ?? "") && (rest.method ?? "GET").toUpperCase() === "GET" && !_online) {
+    watch.done(false);
+    noteRequestFailed();
+    return offlineOr<T>(path, rest.method, unreachable());
+  }
   // Only a good, readable answer is the page's data arriving.
   watch.done(res.ok && !unreadable);
   if (!res.ok) {

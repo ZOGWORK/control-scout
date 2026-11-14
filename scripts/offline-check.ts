@@ -223,6 +223,8 @@ async function main() {
     // A page that never loaded (a dead network) can leave the tab unusable: each journey gets a fresh one if so.
     if (page.isClosed()) page = await ctx.newPage();
     const r = await open(page, url);
+    // The pill and the offer get a second to settle (the connection check runs as the page draws): not counted in ms.
+    await page.waitForTimeout(1000).catch(() => {});
     const pill = await pillText(page);
     // The slow-connection offer must not show with no internet (Lite can't load either).
     const lite = await page.locator("[data-lite-suggest]").count().catch(() => 0);
