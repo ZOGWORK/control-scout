@@ -60,9 +60,11 @@ export const OFFICIAL_CHANNELS: OfficialChannelSeed[] = [
   // (@firstnevada1941) is Nevada's FIRST partner; its titles name the meet ("# 4S") and the half of the state.
   { channelId: "UCqDnAXt0clPQww74v7bUVkQ", title: "FIRST Nevada", region: "state=NV", words: "nevada", titlePattern: "nevada state championship|state championship - nevada" },
   // BCA Activities (@BCAActivities-sg6ef, Bismarck Career Academy): North Dakota's "Dakota FTC" events. A school
-  // channel that streams other activities too, so neither the state's words nor its event places (Bismarck, Minot,
-  // Fargo) count as evidence and there's no title pattern: every new video goes to the owner's review, never auto-adds.
-  { channelId: "UCowF1UaXnuuFV_sNIvpX-zQ", title: "BCA Activities (Dakota FTC)", region: "state=ND", words: "north dakota bca bismarck minot fargo" },
+  // channel that streams other activities too, so no word of North Dakota's FTC event names or cities counts as
+  // evidence (every one Scout has from 2020 on: places, halves, venues, and "scrimmage") and there's no title
+  // pattern: every new video goes to the owner's review, never auto-adds. A new ND event naming a new word needs that
+  // word added here.
+  { channelId: "UCowF1UaXnuuFV_sNIvpX-zQ", title: "BCA Activities (Dakota FTC)", region: "state=ND", words: "north dakota dakotaftc bca bismarck minot fargo alexander comets western eastern ndsu daa adventist scrimmage" },
   // MT Robotics Alliance (@mtra-stream), Montana's FTC partner; FIRST's Montana event pages name the channel.
   { channelId: "UCpPjg0KF7cwfbWoKAl0jiXQ", title: "MT Robotics Alliance (Montana)", region: "state=MT", words: "montana mt", titlePattern: "\\bstate\\b|championship" },
   // Team 12099 (Centennial HS, Columbus): FIRST's event pages name its streams for the Central Ohio league (scrimmage,
