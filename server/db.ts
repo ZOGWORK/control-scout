@@ -2331,6 +2331,30 @@ CREATE TABLE onboarding_daily (
 );
 `,
   },
+  {
+    version: 88,
+    name: "clip coverage",
+    sql: `
+-- Each event's clip coverage as last checked (server/videos/coverageCheck.ts): rechecked whenever its recording's videos,
+-- their YouTube facts or its played matches change (the fingerprint). An event with played matches and no clip is
+-- the owner's to review (Owner > Clip coverage): open until reviewed_at, and opened again when the missing list changes.
+CREATE TABLE clip_coverage (
+  season INTEGER NOT NULL,
+  code TEXT NOT NULL,
+  fingerprint TEXT NOT NULL,
+  checked_at TEXT NOT NULL,
+  state TEXT NOT NULL,
+  played INTEGER NOT NULL,
+  with_clip INTEGER NOT NULL,
+  missing_key TEXT NOT NULL,   -- the missing matches and their reasons, to tell a changed list from the same one
+  detail TEXT NOT NULL,        -- JSON: { videos, daysMissing, missing } (src/shared/api.ts ClipCoverage)
+  reviewed_at TEXT,
+  reviewed_by TEXT,
+  PRIMARY KEY (season, code)
+);
+CREATE INDEX clip_coverage_open ON clip_coverage (reviewed_at, season);
+`,
+  },
 ];
 
 export type Db = Client;

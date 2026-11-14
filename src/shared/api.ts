@@ -551,6 +551,41 @@ export interface MatchView {
  *  there. */
 export interface MatchClip { videoId: string; t: number; url: string; early?: number; end?: number }
 
+/** Why a played match has no clip (server/videos/coverage.ts), each said in plain words beside it (`why`). */
+export type CoverageReason = "no-start" | "no-zone" | "no-recording-day" | "outside-span" | "before-broadcast" | "after-broadcast" | "video-unavailable"
+  | "video-unread" | "no-clock" | "gap-unplaced" | "past-chapters" | "past-video-end" | "before-cut" | "before-chapters" | "overlaps-previous" | "no-first-video" | "unexplained";
+/** One played match's clip, or why it has none. `basis`: what a clip's place stands on (the clock, chapters, frames). */
+export interface CoverageMatch { key: string; label: string; date: string | null; teams?: number[]; clip: boolean; videoId: string | null; reason?: CoverageReason; why?: string; basis?: string }
+/** One video of an event's recording: its day (and part), how many played matches it holds and how many got a clip;
+ *  `why`: why it gives no clips at all. */
+export interface CoverageVideo { videoId: string; label: string; date: string | null; matches: number; clipped: number; why?: string; basis?: string }
+/**
+ * An event's clip coverage (/api/events/:season/:code/coverage). state: none — no recording, no match video (stats
+ * only); full — every played match has a clip; partial — some do; unplaced — a recording, no clip in it; pending —
+ * nothing played yet. daysMissing: days with played matches and no video of their own.
+ */
+export interface ClipCoverage {
+  state: "none" | "full" | "partial" | "unplaced" | "pending";
+  played: number; withClip: number;
+  videos: CoverageVideo[];
+  recordedDays: string[];
+  daysMissing: { date: string; label: string; matches: number }[];
+  matches: CoverageMatch[];
+}
+
+/** Owner > Clip coverage (server/videos/coverageCheck.ts): one event with a played match missing a clip, as last checked. */
+export interface OwnerCoverageEvent {
+  season: number; code: string; name: string; state: ClipCoverage["state"]; played: number; withClip: number; checkedAt: string;
+  reviewedAt: string | null; reviewedBy: string | null;
+  /** The missing list's version, sent back with Reviewed: a list that changed meanwhile isn't marked. */
+  version: string;
+  videos: CoverageVideo[]; daysMissing: ClipCoverage["daysMissing"]; missing: CoverageMatch[];
+}
+/** Open (not yet reviewed) events first; totals over every recorded event checked. */
+/** One page (after a given event) of the open or the reviewed list; `open`, `reviewed`: how many each holds; totals over every
+ *  recorded event checked. */
+export interface OwnerClipCoverage { events: OwnerCoverageEvent[]; open: number; reviewed: number; totals: { events: number; played: number; withClip: number; full: number } }
+
 export interface EventSummary {
   season: number;
   code: string;
@@ -618,7 +653,7 @@ export interface EventStream {
 export interface OwnerStreamRow { season: number; code: string; name: string | null; start: string | null; end: string | null; url: string; videoId: string; updatedAt: string }
 
 export interface EventDetail {
-  event: EventSummary & { /** The venue's street address (FIRST's event list); absent from older servers and saved packs. */ address?: string | null; website: string | null; livestream: string | null; timezone: string | null; source: string; /** The Watch live section's stream; absent or null: no section. */ stream?: EventStream | null };
+  event: EventSummary & { /** The venue's street address (FIRST's event list); absent from older servers and saved packs. */ address?: string | null; website: string | null; livestream: string | null; timezone: string | null; source: string; /** The Watch live section's stream; absent or null: no section. */ stream?: EventStream | null; /** A recording is linked but YouTube won't play it (private, removed): its videos' ids, no stream; the page says why its matches have no clip (server/videos/coverage.ts). */ recordingUnavailable?: string[] };
   field: FieldRow[];
   matches: MatchView[];
   alliances: { number: number; name: string | null; captain: number | null; pick1: number | null; pick2: number | null; backup: number | null }[];
