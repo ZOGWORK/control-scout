@@ -13,7 +13,11 @@ const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
 /** /api/owner/clip-coverage: Owner > Clip coverage (server/videos/coverageCheck.ts): every event with a played match
  *  missing a clip, its days and videos checked and each match's reason; marking one reviewed is audited. */
 export function clipCoverageOwnerRoutes(r: Router, h: H, actor: (req: Request) => string): void {
-  r.get("/clip-coverage", h(async (req) => ownerClipCoverage({ reviewed: req.query.list === "reviewed", offset: Number(req.query.offset) || 0 })));
+  r.get("/clip-coverage", h(async (req) => {
+    // ?after=<season>/<code>: the page after that event.
+    const m = /^(\d{4})\/(.{1,40})$/.exec(String(req.query.after ?? ""));
+    return ownerClipCoverage({ reviewed: req.query.list === "reviewed", after: m ? { season: Number(m[1]), code: m[2] } : null });
+  }));
   r.get("/clip-coverage/counts", h(async () => ({ open: await openCoverageCount() })));
   r.post("/clip-coverage/:season/:code/reviewed", h(async (req, res) => {
     const season = Number(req.params.season), code = String(req.params.code), version = str(req.body?.version, 64);
