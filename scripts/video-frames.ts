@@ -158,10 +158,14 @@ const MISSES = 3;
 /** The second each of a video's matches starts at, as far as its frames show. `shift`: the video's second for a moment
  *  minus that moment (epoch seconds), when YouTube gives the broadcast's start (an upload has none). */
 async function placeVideo(page: Page, ms: M[], shift: number | null, length: number, log: (s: string) => void): Promise<Judged> {
-  const byLabel = new Map(ms.map((m, i) => [m.label, i]));
+  // The overlay names a replay ("M14-2", a tiebreak) by its match alone (M14): each name, its matches in order.
+  const byName = new Map<string, number[]>();
+  ms.forEach((m, i) => { const n = m.label.replace(/-\d+$/, ""); byName.set(n, [...(byName.get(n) ?? []), i]); });
   const seen = new Map<number, number>(); // index → confirmed start second
   const tried = new Set<number>(); // matches a read named, confirmed or not
   const from = pageReads.get(page) ?? 0, reads = () => (pageReads.get(page) ?? 0) - from;
+  // At most a few reads per match, every read counted (confirming ones too): checked before each read or confirmation.
+  const budget = Math.max(40, 4 * ms.length);
   let unconfirmed = 0;
   const near = (i: number): number | null => {
     // The distance of the read nearest by order, else the broadcast's.
@@ -170,18 +174,21 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
     return best ?? shift;
   };
   const note = async (r: Read) => {
-    if (!r.label || r.start == null || !byLabel.has(r.label)) return;
-    const i = byLabel.get(r.label)!;
+    const named = r.label ? byName.get(r.label) : undefined;
+    if (!named || r.start == null) return;
+    // Of a match and its replays, the one whose clock place (by the nearest read's distance) the read's start is nearest.
+    const off = (k: number) => Math.abs(r.start! - (ms[k].epoch + (near(k) ?? 0)));
+    const i = named.reduce((a, b) => (off(b) < off(a) ? b : a));
     tried.add(i);
-    if (seen.has(i)) return;
-    const no = await confirmed(page, r.label, r.start);
+    if (seen.has(i) || reads() >= budget) return;
+    const no = await confirmed(page, r.label!, r.start);
     if (no == null) seen.set(i, r.start);
     else { unconfirmed++; log(`    ${r.label} at ${r.start} s not confirmed: ${no}`); }
   };
 
   // Any match at all, a frame every 10 minutes: where there's no clock to go by (an upload), or the clock's guesses read
   // nothing (a broadcast whose start YouTube has wrong).
-  const scan = async () => { for (let t = 300; t < length && !seen.size; t += 600) { await note(await readAt(page, t)); } };
+  const scan = async () => { for (let t = 300; t < length && !seen.size && reads() < budget; t += 600) { await note(await readAt(page, t)); } };
   if (shift == null) {
     await scan();
     if (!seen.size) { log("    no match found in it"); return judge(ms, seen, shift, length, tried); }
@@ -191,11 +198,10 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   // read at all. Any video: never more than a few reads per match.
   let missed = 0;
   const blind = () => missed >= MISSES && !seen.size;
-  const budget = Math.max(40, 4 * ms.length);
   async function anchor(i: number): Promise<number | null> {
     if (seen.has(i)) return seen.get(i)!;
     if (blind() || reads() >= budget) return null;
-    for (let k = 0; k < TRIES; k++) {
+    for (let k = 0; k < TRIES && reads() < budget; k++) {
       const est = ms[i].epoch + near(i)!;
       // Into the match (its timer running), then either side of where it should be.
       const t = est + [45, 100, -40, 160, -120, 240, -240][k];
@@ -311,8 +317,10 @@ async function doCode(code: string): Promise<void> {
   // Read on an earlier run (each event is written as it finishes): not again, unless --all.
   // Any of its videos that couldn't be played at all keeps the event unread, so the next run tries it again. (An event's
   // rows are saved once all its videos are read, so a run cut short leaves none of them.)
+  // So does a video whose facts YouTube hasn't given yet (it isn't read until they come).
   const read = [...kept.values()].filter((f) => f.code === code);
-  if (!CHECK && !ALL && read.length && !read.some((f) => Object.values(f.missing ?? {}).some((w) => w.startsWith(PLAY_FAILED)))) return;
+  const waiting = [rec, ...(rec.more ?? [])].some((v) => !v.meta || v.meta.status === "error");
+  if (!CHECK && !ALL && read.length && !waiting && !read.some((f) => Object.values(f.missing ?? {}).some((w) => w.startsWith(PLAY_FAILED)))) return;
   // Checked again once claimed: a lane that passed its check while another was still loading would read past --limit.
   if (++done > limit) return;
   // An event's lines together (events run side by side).
@@ -329,8 +337,10 @@ async function doCode(code: string): Promise<void> {
     const mine = played.filter((x) => !held.has(x.label) && (from == null ? !videos.some((o) => o !== v && o.meta?.start && Date.parse(o.meta.start) / 1000 <= x.epoch && (!o.meta.end || x.epoch <= Date.parse(o.meta.end) / 1000))
       : from <= x.epoch && (!m.end || x.epoch <= Date.parse(m.end) / 1000)));
     if (!mine.length) continue;
-    let page = await player();
+    // Made inside the try: a browser that can't open a page fails this video, not the run.
+    let page: Page | null = null;
     try {
+      page = await player();
       await open(page, v.videoId);
       log(`  ${v.videoId}: ${mine.length} matches`);
       console.error(`${new Date().toISOString().slice(11, 19)} ${code} ${v.videoId}: ${mine.length} matches`);
@@ -374,7 +384,7 @@ async function doCode(code: string): Promise<void> {
         kept.set(key, { videoId: v.videoId, code, checked: today, starts: {}, missing: Object.fromEntries(mine.map((x) => [x.label, `${PLAY_FAILED}: ${why}`])) });
       }
     } finally {
-      await page.context().close();
+      await page?.context().close().catch(() => {});
     }
   }
   } finally {
