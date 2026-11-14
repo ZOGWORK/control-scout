@@ -39,7 +39,7 @@ const preferOf = (raw: unknown) => new Set(String(raw ?? "").split(",").filter((
 import { recordClick } from "./api/searchLearn.js";
 import { recordIntent } from "./api/searchIntents.js";
 import { rebuildSearch } from "./stats/job.js";
-import { teamProfile, compareAnswer, teamSummaries, shortlistTeams, reliabilityMany, teamReportCards, teamSchedule } from "./api/teams.js";
+import { teamProfile, compareAnswer, teamSummaries, shortlistTeams, reliabilityMany } from "./api/teams.js";
 import { teamRoadMap } from "./api/roadmap.js";
 import { cachedEventDetail, eventDetail, listEvents, toEventInput } from "./api/events.js";
 import { withBracketGate } from "./api/bracket.js";
@@ -52,10 +52,11 @@ import { teamHighlightsPage } from "./teamHighlightsPage.js";
 import { teamRecordPage } from "./teamRecordPage.js";
 import { eventHighlightsPage } from "./eventHighlightsPage.js";
 import { perTeamOf, simulatedRankings } from "./projections/rankingSim.js";
-import { eventRecording, recordingStream, seasonRecordings, seasonVideoKinds, withClips, eventMatchSpan } from "./videos/recordings.js";
+import { recordingStream, seasonRecordings, seasonVideoKinds } from "./videos/recordings.js";
 import { eventClipCoverage } from "./videos/coverage.js";
 import { answerVideo } from "./api/answers/video.js";
-import { matchDetail, matchViews } from "./api/matches.js";
+import { matchViews } from "./api/matches.js";
+import { matchDetailAnswer, teamMatchesAnswer, teamReportCardAnswer, teamScheduleAnswer } from "./api/reads.js";
 import { matchReport } from "./api/matchReport.js";
 import { resultChanges } from "./api/resultChanges.js";
 import { eventDisagreements } from "./api/disagreements.js";
@@ -223,7 +224,12 @@ function limiter(perMinute: number) {
     const b = buckets.get(ip) ?? { tokens: perMinute, at: now };
     b.tokens = Math.min(perMinute, b.tokens + ((now - b.at) / 60000) * perMinute);
     b.at = now;
-    if (b.tokens < 1) { res.status(429).json({ error: "Too many requests — try again in a minute." }); return; }
+    if (b.tokens < 1) {
+      // When the next request will get through, so a client that waits (an event pack being prepared) can.
+      res.setHeader("Retry-After", String(Math.max(1, Math.ceil(((1 - b.tokens) / perMinute) * 60))));
+      res.status(429).json({ error: "Too many requests — try again in a minute." });
+      return;
+    }
     b.tokens -= 1;
     buckets.set(ip, b);
     if (buckets.size > 10000) buckets.clear();
@@ -581,20 +587,17 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
 
   // The team page's collapsed sections, each asked for when first opened: report cards and schedule difficulty.
   api.get("/teams/:number/report-card", h(async (req) => {
-    const team = int(req.params.number, "team", { min: 1, max: 999999 }), s = season(req.query.season);
-    return { team, season: s, reportCards: await teamReportCards(s, team) };
+    return teamReportCardAnswer(int(req.params.number, "team", { min: 1, max: 999999 }), season(req.query.season));
   }));
   api.get("/teams/:number/schedule", requireFeature("scheduleDifficulty"), h(async (req) => {
-    const team = int(req.params.number, "team", { min: 1, max: 999999 }), s = season(req.query.season);
-    return { team, season: s, schedule: await teamSchedule(s, team) };
+    return teamScheduleAnswer(int(req.params.number, "team", { min: 1, max: 999999 }), season(req.query.season));
   }));
 
   // The team page's season road map (server/api/roadmap.ts).
   api.get("/teams/:number/roadmap", requireFeature("seasonRoadMap"), h(async (req) => teamRoadMap(season(req.query.season), int(req.params.number, "team", { min: 1, max: 999999 }))));
 
   api.get("/teams/:number/matches", h(async (req) => {
-    const team = int(req.params.number, "team", { min: 1, max: 999999 });
-    return { team, season: season(req.query.season), matches: await matchViews({ season: season(req.query.season), team }, { predictUnplayed: true }) };
+    return teamMatchesAnswer(int(req.params.number, "team", { min: 1, max: 999999 }), season(req.query.season));
   }));
 
   /**
@@ -688,11 +691,9 @@ export function createApp(opts: { dist?: string; /** Tests only: a smaller searc
   api.get("/events/:season/:code/matches/:key", h(async (req) => {
     const key = String(req.params.key);
     if (!/^(qual|playoff):\d{1,3}:\d{1,4}$/.test(key)) throw new HttpError(400, "Match key looks like qual:0:12");
-    const d = await matchDetail(season(req.params.season), code(req.params.code), key);
+    const d = await matchDetailAnswer(season(req.params.season), code(req.params.code), key);
     if (!d) throw new HttpError(404, `No match ${key} at ${req.params.code}`);
-    const rec = await eventRecording(d.event.season, d.event.code).catch(() => null);
-    // The event's own first and last matches, so this match gets the clip it has on the event page.
-    return rec ? { ...d, match: withClips([d.match], rec, Date.now(), await eventMatchSpan(d.event.season, d.event.code))[0] } : d;
+    return d;
   }));
 
   // Clip coverage (server/videos/coverage.ts): which days and parts are recorded, and each played match without a clip
