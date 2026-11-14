@@ -97,6 +97,15 @@ describe("clipCoverage", () => {
     expect(cut.matches[1].basis).toMatch(/^clock \+ YouTube chapters \(its first 4 h \d+ min cut off\)$/);
   });
 
+  it("a match past what was checked frame by frame is said so, never blamed on chapters (USCHSLAOS Sunday)", () => {
+    const v = meta("W6ywzjs-MUM", "2026-02-15T11:55:24Z", "2026-02-16T03:15:59Z", 34_990);
+    const at = (s: number) => new Date(Date.parse(v.start!) + s * 1000).toISOString().slice(0, 19);
+    const r: Recording = { videoId: v.videoId, meta: v, source: "official" };
+    const c = clipCoverage([m("Q49", at(401)), m("Q50", at(33_500))], r, r, "UTC", NOW);
+    expect(c.matches[0].clip).toBeTruthy();
+    expect(c.matches[1]).toMatchObject({ reason: "past-checked", why: expect.stringMatching(/^Past the part of the video checked frame by frame \(to 9 h 7 min/) });
+  });
+
   it("says a finished video with no length from YouTube can't place a match", () => {
     const noLength = { ...meta("NOLENGTHv01", "2026-03-06T13:00:00Z", "2026-03-06T18:00:00Z", 0), length: null };
     const r: Recording = { videoId: noLength.videoId, meta: noLength, source: "first" };
