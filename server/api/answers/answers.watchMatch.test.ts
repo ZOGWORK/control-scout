@@ -4,7 +4,7 @@
 // under People also ask (src/components/search/page/AnswerVideo.tsx AnswerClip). Never a cut of one phase, never
 // another match. A fixture of two real 2025–26 events: Massachusetts (one recording of the day) and Edison Division
 // (FIRST's own video of each playoff match), plus a qualifier with no video at all.
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { migrate, openDb, run, setDb } from "../../db";
 import { forgetRecordings } from "../../videos/recordings";
 import { rebuildSearch } from "../../stats/job";
@@ -15,6 +15,9 @@ type Side = [np: number, auto: number, teleop: number, endgame: number];
 const NOW = Date.parse("2026-11-05T00:00:00Z");
 
 beforeAll(async () => {
+  // The current season is today's: pinned, so "no season said" reads 2026–27 whatever the machine's clock.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(NOW));
   const c = openDb(":memory:");
   setDb(c);
   await migrate(c);
@@ -59,6 +62,8 @@ beforeAll(async () => {
   await rebuildSearch();
   forgetRecordings();
 });
+
+afterAll(() => { vi.useRealTimers(); });
 
 /** The answer and its video, as the search route sends them. */
 async function ask(q: string) {
@@ -163,7 +168,7 @@ describe("a match number across seasons", () => {
   it("\"ever\" lists the team's match with that number in every season, the latest first", async () => {
     const { a } = await ask("4215 q1 ever");
     const hrefs = [a.stat?.headline?.href, ...(a.stat?.blocks ?? []).flatMap((b) => (b.kind === "matches" || b.kind === "table" ? b.rows.map((r) => r.href) : []))].filter(Boolean);
-    expect(hrefs).toEqual(expect.arrayContaining(["/events/2025/USNJQ1?match=qual:0:1", "/events/2024/USNJQ0?match=qual:0:1"]));
+    expect(hrefs.slice(1)).toEqual(["/events/2025/USNJQ1?match=qual:0:1", "/events/2024/USNJQ0?match=qual:0:1"]);
   });
   it("no season said, the current one played but with no such number: the note names the number, not matches", async () => {
     const { a } = await ask("m10");
@@ -197,6 +202,7 @@ describe("a match number beside other words", () => {
     // A number with no match there says that match is missing, never that nothing was played.
     const missing = await ask("m30 at worlds 2025-26");
     expect(missing.a.stat?.none).toBe("No M30 played at worlds in 2025–26 yet.");
+    expect((await ask("m30 finals 2025-26")).a.stat?.none).toBe("No M30 played in the finals in 2025–26 yet.");
     // No team said: the same championship.
     const bare = await ask("m2 at worlds 2026");
     expect(bare.a.stat?.headline?.href).toBe(edisonM2);
