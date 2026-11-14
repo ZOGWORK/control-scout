@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 6.1.2 — 2026-11-14
+
+Northern California's QTs, league meets and Regional Championship divisions now play their recordings from NorCal FTC's own channel, back to 2021; SoCal League G's meets and East Bay Meet 1 of 2026 play theirs too.
+
+### Highlights
+- [history] NorCal QTs and Regional Championship divisions play their streams
+- [live] The NorCal BIOBUZZ Screamage plays its recording
+- [history] SoCal League G and East Bay Meet 1 play their recordings
+
+### Added
+- Official videos: NorCal FIRST Tech Challenge (`UCsWixqR83vr2poZHfU_FgcQ`) and FTC SoCal League G (`UCJAVhMsmeKHf7riEsPafi9w`), ids read from the YouTube Data API, join the official channels and the auto-watcher's list, for events named "NorCal …" and League G's own meets only. 7419 Tech Support (`UCesNcwI6hz2m5T44R2_9rlA`) is linked once, not watched. 41 recordings are checked against each event's name, city, dates, division, QT number and meet: 33 from NorCal (Gold and Silicon each on its own division), 6 from League G, and East Bay Meet 1's two parts from 7419. Streams FIRST's pages already link, an undated upload, false starts and a scrimmage Scout has no event for are left out. (`server/data/officialVideos.json`, `server/data/officialChannels.ts`, `docs/official-videos.md`) (#1478)
+
 ## 6.0.9 — 2026-11-14
 
 The slow-connection pop-up is clearer: it says what it saw, what Lite changes, and gives two big buttons.
