@@ -1,116 +1,57 @@
-// Offline journeys, measured the same way every time (the offline + Lite brief, journeys 1–4, 6, 11, 12):
+// Offline journeys, measured the same way every time (the offline + Lite brief, journeys 1–4, 6, 12):
 //
 //   npm run offline:check -- --base https://controlscout.org --event 2026:USMIMIQ1
-//   npm run offline:check -- --prod --event 2025:USMIMIQ1          # the local production build (npm run build first)
-//   npm run offline:check -- … --season        # also save the season pack
-//   npm run offline:check -- … --portal        # a Wi-Fi sign-in page instead of no network
-//   npm run offline:check -- … --throttle      # a slow connection (~400 kbps, 400 ms round trip) instead
-//   npm run offline:check -- … --json out.json --shots <dir>
+//   npm run offline:check -- --base https://controlscout.org --event 2026:USMIMIQ1 --season   # also save the season pack
+//   npm run offline:check -- … --json out.json
 //
-// A 390×844 phone (touch, 3× scale). Online: open Home so the service worker installs and controls the page, then
-// download the event's pack from /download (and with --season the season's file). Then the network changes (below) and
-// each page opens by a full navigation, as a tap from the home screen would. A page counts as open when its content is
-// on screen: no skeleton and no busy region left, and the main area holds text. Each page reports its time in ms and
-// what it showed (ok / "needs connection" / blank), and the run prints the sizes the device keeps and what the top
-// bar's Offline pill said.
-//
-// --prod starts the production server on AUDIT_PROD_PORT (scripts/lib/servers.ts, default 3299) like audit:flows'
-// venue check, from the build in dist/ and the local data in .data/.
+// A 390×844 phone (touch, 3× scale). Online: open Home so the service worker installs and controls the page,
+// then download the event's pack from /download (and with --season the season's file). Then the network goes
+// off (Playwright's offline switch: every request fails, as on a phone with Wi-Fi and data off) and each page
+// opens by a full navigation, as a tap from the home screen would. A page counts as open when its content is on
+// screen: no skeleton and no busy region left, and the main area holds text. Each page reports its time in ms
+// and what it showed (ok / "needs connection" / blank), and the run prints the sizes the device keeps.
 import { chromium, type Page } from "playwright";
-import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { writeFileSync } from "node:fs";
-import { createServer, request as httpRequest, type IncomingMessage, type ServerResponse } from "node:http";
-import { connect as netConnect, type Socket } from "node:net";
-import { Transform } from "node:stream";
-import { PROD_PORT, waitUp } from "./lib/servers.js";
+import { createConnection, createServer, type Socket } from "node:net";
 
 /**
  * The network, as the phone sees it: every request (the page's, and the service worker's own, which Playwright's
- * offline switch doesn't reach) goes through this local proxy, localhost included.
- *   online:   passes everything through.
- *   offline:  drops each connection at once (Wi-Fi and data off).
- *   portal:   a Wi-Fi that wants a sign-in first. Plain-HTTP API and pack requests get the sign-in page (HTML, 200);
- *             anything else is dropped (an HTTPS site can't be answered by a portal without a certificate, so its
- *             requests fail, and so does a page load here: the service worker then opens the app from its cache).
- *   throttle: passes everything through at ~THROTTLE_KBPS, each request or tunnel waiting THROTTLE_RTT_MS first.
+ * offline switch doesn't reach) goes through this local proxy. "online" tunnels to the site; "offline" drops each
+ * connection at once (Wi-Fi and data off); (A captive portal mode comes with the detection work.)
  */
-type Mode = "online" | "offline" | "portal" | "throttle";
-let mode: Mode = "online";
-const THROTTLE_KBPS = 400;
-const THROTTLE_RTT_MS = 400;
+let mode: "online" | "offline" = "online";
 const live = new Set<Socket>();
-const PORTAL_PAGE = "<!doctype html><html><head><title>Venue Wi-Fi</title></head><body><h1>Welcome to Venue Wi-Fi</h1><p>Accept the terms to get online.</p></body></html>";
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-/** Paces a stream to THROTTLE_KBPS (only while throttling). */
-function pace(): Transform {
-  return new Transform({
-    transform(chunk: Buffer, _enc, done) {
-      if (mode !== "throttle") return done(null, chunk);
-      const ms = (chunk.length * 8) / THROTTLE_KBPS; // bits / (kbit/s) = ms
-      setTimeout(() => done(null, chunk), ms);
-    },
-  });
-}
-
-function track(s: Socket) { live.add(s); s.on("close", () => live.delete(s)); }
-
-async function onRequest(req: IncomingMessage, res: ServerResponse) {
-  track(req.socket);
-  const url = new URL(req.url ?? "/", "http://invalid");
-  if (mode === "offline") return req.socket.destroy();
-  if (mode === "portal") {
-    if (/^\/(api|packs)\//.test(url.pathname)) { res.writeHead(200, { "Content-Type": "text/html", "Cache-Control": "no-store" }); return res.end(PORTAL_PAGE); }
-    return req.socket.destroy();
-  }
-  if (mode === "throttle") await sleep(THROTTLE_RTT_MS);
-  const up = httpRequest({ host: url.hostname, port: url.port || 80, method: req.method, path: url.pathname + url.search, headers: req.headers }, (r) => {
-    res.writeHead(r.statusCode ?? 502, r.headers);
-    r.pipe(pace()).pipe(res);
-  });
-  up.on("error", () => req.socket.destroy());
-  req.pipe(up);
-}
-
-function onConnect(req: IncomingMessage, client: Socket, head: Buffer) {
-  track(client);
-  if (mode === "offline") return client.destroy();
-  if (mode === "portal") { client.end("HTTP/1.1 302 Found\r\nLocation: http://portal.invalid/\r\nContent-Length: 0\r\n\r\n"); return; }
-  const [host, port] = (req.url ?? "").split(":");
-  const start = async () => {
-    if (mode === "throttle") await sleep(THROTTLE_RTT_MS);
-    const upstream = netConnect({ host, port: Number(port) || 443 }, () => {
-      client.write("HTTP/1.1 200 Connection Established\r\n\r\n");
-      if (head.length) upstream.write(head);
-      upstream.pipe(pace()).pipe(client);
-      client.pipe(upstream);
-    });
-    track(upstream);
-    upstream.on("error", () => client.destroy());
-    client.on("error", () => upstream.destroy());
-  };
-  void start();
-}
-
 function startProxy(): Promise<number> {
-  const server = createServer(onRequest);
-  server.on("connect", onConnect);
-  server.on("clientError", (_e, s) => s.destroy());
+  const server = createServer((client) => {
+    live.add(client);
+    client.on("close", () => live.delete(client));
+    client.once("data", (head) => {
+      if (mode === "offline") return client.destroy();
+      const m = /^CONNECT ([^:\s]+):(\d+)/.exec(head.toString("latin1"));
+      if (!m) return client.destroy();
+      const upstream = createConnection({ host: m[1], port: Number(m[2]) }, () => {
+        client.write("HTTP/1.1 200 Connection Established\r\n\r\n");
+        upstream.pipe(client); client.pipe(upstream);
+      });
+      live.add(upstream);
+      upstream.on("close", () => live.delete(upstream));
+      upstream.on("error", () => client.destroy());
+      client.on("error", () => upstream.destroy());
+    });
+  });
   return new Promise((res) => server.listen(0, "127.0.0.1", () => res((server.address() as { port: number }).port)));
 }
-function setMode(m: Mode) { mode = m; for (const s of live) s.destroy(); live.clear(); }
+function goOffline() { mode = "offline"; for (const s of live) s.destroy(); live.clear(); }
 
 const args = process.argv.slice(2);
 const opt = (f: string) => { const i = args.indexOf(`--${f}`); return i >= 0 ? args[i + 1] : undefined; };
 const flag = (f: string) => args.includes(`--${f}`);
-const PROD = flag("prod");
-const BASE = (opt("base") ?? (PROD ? `http://localhost:${PROD_PORT}` : "http://localhost:3000")).replace(/\/$/, "");
+const BASE = (opt("base") ?? "http://localhost:3000").replace(/\/$/, "");
 const [SEASON, CODE] = (opt("event") ?? "2026:USMIMIQ1").split(":");
 const OUT = opt("json");
 const SHOTS = opt("shots");
-const AFTER: Mode = flag("portal") ? "portal" : flag("throttle") ? "throttle" : "offline";
 
-interface Row { page: string; url: string; ms: number; state: string; note?: string; pill?: string }
+interface Row { page: string; url: string; ms: number; state: string; note?: string }
 
 async function settle(page: Page, timeout = 15_000): Promise<{ ms: number; state: string; note?: string }> {
   const t0 = Date.now();
@@ -124,7 +65,7 @@ async function settle(page: Page, timeout = 15_000): Promise<{ ms: number; state
     return { ms: Date.now() - t0, state: "timeout", note: ((await page.locator("main").textContent().catch(() => "")) ?? "").trim().slice(0, 120) };
   }
   const text = ((await page.locator("main").textContent().catch(() => "")) ?? "").replace(/\s+/g, " ");
-  const bad = /needs a connection|can't reach|couldn't load|you're offline\b|no internet on this wi-fi|something went wrong|not available offline/i.exec(text);
+  const bad = /needs a connection|can't reach|couldn't load|you're offline\.|something went wrong|not available offline/i.exec(text);
   return { ms: Date.now() - t0, state: bad ? "error" : "ok", ...(bad ? { note: text.slice(Math.max(0, bad.index - 40), bad.index + 100) } : {}) };
 }
 
@@ -136,30 +77,9 @@ async function open(page: Page, url: string): Promise<{ ms: number; state: strin
   return { ...r, ms: Date.now() - t0 };
 }
 
-/** What the top bar's Offline pill (or the old badge) says, if anything. */
-async function pillText(page: Page): Promise<string> {
-  return page.evaluate(() => {
-    const el = document.querySelector("[data-connection-pill]") ?? document.querySelector("header [role=status] a");
-    return (el?.getAttribute("aria-label") ?? el?.textContent ?? "").trim();
-  }).catch(() => "");
-}
-
-let server: ChildProcess | null = null;
-function stopServer() {
-  if (!server) return;
-  if (process.platform === "win32" && server.pid) spawnSync("taskkill", ["/pid", String(server.pid), "/T", "/F"], { stdio: "ignore" });
-  else server.kill();
-  server = null;
-}
-
 async function main() {
-  if (PROD) {
-    server = spawn("npx", ["tsx", "server/index.ts"], { env: { ...process.env, NODE_ENV: "production", PORT: String(PROD_PORT), CS_NO_SCHEDULER: "1" }, shell: true, stdio: "ignore" });
-    if (!(await waitUp(`${BASE}/api/health`, 180))) throw new Error(`the production server on ${BASE} didn't become ready (npm run build first)`);
-  }
   const port = await startProxy();
-  // Loopback through the proxy too (Chromium skips the proxy for localhost unless told otherwise).
-  const browser = await chromium.launch({ proxy: { server: `http://127.0.0.1:${port}`, bypass: "<-loopback>" } });
+  const browser = await chromium.launch({ proxy: { server: `http://127.0.0.1:${port}` } });
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true, serviceWorkers: "allow" });
   await ctx.addInitScript(() => localStorage.setItem("cs-consent", JSON.stringify({ analytics: false, at: "2026-01-01T00:00:00.000Z", v: 1 })));
   const page = await ctx.newPage();
@@ -199,8 +119,8 @@ async function main() {
   console.log(`Downloads took ${Date.now() - dl0} ms. ${bundleNote.trim()}`);
   console.log(`Storage in use: ${sizes.usage != null ? (sizes.usage / 1048576).toFixed(2) + " MB" : "?"}`);
 
-  setMode(AFTER);
-  console.log(`Network: ${AFTER}`);
+  // Offline.
+  goOffline();
   const pages: [string, string][] = [
     ["Home", "/"],
     ["Event", `/events/${SEASON}/${CODE}`],
@@ -217,24 +137,12 @@ async function main() {
   const rows: Row[] = [];
   for (const [name, url] of pages) {
     const r = await open(page, url);
-    const pill = await pillText(page);
-    // The slow-connection offer must not show with no internet (Lite can't load either).
-    const lite = await page.locator("[data-lite-suggest]").count().catch(() => 0);
-    rows.push({ page: name, url, ...r, pill, ...(lite ? { note: `${r.note ?? ""} [Lite offer shown]`.trim() } : {}) });
+    rows.push({ page: name, url, ...r });
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name.replace(/\W+/g, "-").toLowerCase()}.png`, scale: "css" }).catch(() => {});
-    console.log(`${name.padEnd(12)} ${String(r.ms).padStart(6)} ms  ${r.state}${r.note ? `  — ${r.note}` : ""}${lite ? "  [Lite offer shown]" : ""}${pill ? `  pill: ${pill}` : ""}`);
-  }
-
-  // Back online: the pages refresh by themselves (journey 11).
-  if (AFTER !== "throttle") {
-    await open(page, `/events/${SEASON}/${CODE}`);
-    setMode("online");
-    const t0 = Date.now();
-    const back = await page.waitForFunction(() => !document.querySelector("[data-connection-pill]"), null, { timeout: 45_000, polling: 100 }).then(() => Date.now() - t0, () => null);
-    console.log(back != null ? `Back online: the Offline pill went after ${back} ms, with no reload` : "Back online: the Offline pill was still up after 45 s");
+    console.log(`${name.padEnd(12)} ${String(r.ms).padStart(6)} ms  ${r.state}${r.note ? `  — ${r.note}` : ""}`);
   }
   await browser.close();
-  if (OUT) writeFileSync(OUT, JSON.stringify({ base: BASE, event: `${SEASON}:${CODE}`, network: AFTER, at: new Date().toISOString(), sizes, rows }, null, 2));
+  if (OUT) writeFileSync(OUT, JSON.stringify({ base: BASE, event: `${SEASON}:${CODE}`, at: new Date().toISOString(), sizes, rows }, null, 2));
 }
 
-main().then(() => { stopServer(); process.exit(0); }, (e) => { console.error(e); stopServer(); process.exit(1); });
+main().catch((e) => { console.error(e); process.exit(1); });
