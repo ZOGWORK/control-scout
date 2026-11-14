@@ -141,3 +141,21 @@ describe("with video, as a filter", () => {
     expect(video?.main?.t).toBeGreaterThan(0);
   });
 });
+
+// No dead ends (search video brief, point 7): the questions offered when nothing plays are the team's own seasons with
+// a clip, then the events with clips, each one a search whose answer plays.
+describe("questions with video", () => {
+  it("a team's own season with a clip, then events with clips; each of them plays", async () => {
+    const { videoCandidates, withVideoAlternatives } = await import("./videoSuggest");
+    const { a } = await ask("4215 matches 2025-26");
+    const cs = await videoCandidates(a, NOW);
+    expect(cs[0]).toBe("4215 highlights 2025-26");
+    expect(cs).toContain("Massachusetts Championship highlights 2025-26");
+    // A qualifier with no video is never offered.
+    expect(cs.some((c) => /New Jersey Qualifier/.test(c))).toBe(false);
+    const none = { ...a, stat: { ...a.stat!, none: "No played matches with video" } };
+    const out = await withVideoAlternatives("4215 matches with video", none, undefined, (q) => searchAnswer(q, { learn: false, limit: 25 }), (b) => answerVideo(b, NOW), 5000);
+    const offered = out.stat?.blocks.find((b) => b.kind === "related" && b.title === "Questions with video");
+    expect(offered && offered.kind === "related" ? offered.queries.length : 0).toBeGreaterThan(0);
+  });
+});
