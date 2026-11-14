@@ -227,6 +227,17 @@ describe("a recording cut short, its chapters checked", () => {
     const gapAfterQ1 = chapters.map(([t, x], i): Chapter => [i >= 2 && i <= 30 ? t - 2400 : t, x]);
     expect(chaptersConfirm(cutRec, gapAfterQ1, quals)).toBeNull();
   });
+  it("matches before the first chapter-named one get no shifted clip: a gap after them looks like a cut", () => {
+    // Q1 to Q4 in place with no chapters, then 40 min lost: the later chapters all agree on the shift, but Q1 to Q4
+    // shifted would land 40 min early, on other matches. Only from Q5, the first a chapter names.
+    const noEarly = chapters.filter(([, x]) => !/^Match (one|two|three|four)$/.test(x)).map(([t, x]): Chapter => [x.startsWith("Match") ? t - 2400 : t, x]);
+    const c = chaptersConfirm(cutRec, noEarly, quals)!;
+    expect(c.from).toBe(clock(5));
+    // The first named match itself keeps its clip (its clock to the second, as clipSecond reads it).
+    expect(clipSecond(quals[4].startsAt, { ...cutRec, confirmedTo: c.to, shift: c.shift, confirmedFrom: c.from })).toBe(clock(5) - 2400 - CLIP_LEAD_S);
+    const rec = { ...cutRec, confirmedTo: c.to, shift: c.shift, confirmedFrom: c.from };
+    expect(clips(rec)).toEqual(quals.map((_, i) => i >= 4));
+  });
   it("APOC 2026 Saturday part 1 (AUSYOS): 4 h 20 min cut off its start, Q11 to Q30 named by their chapters", () => {
     // Its broadcast and video as YouTube gives them; each match's real start (FIRST), and its chapter.
     const sat = { start: "2026-07-03T23:42:02.000Z", end: "2026-07-04T07:04:47.000Z", length: 11120, live: false };
