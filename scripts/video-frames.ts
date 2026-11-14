@@ -23,7 +23,7 @@
 //   --check   recordings the server already places, to compare: prints how far the frames are from the clock
 //   --dry     print, don't write
 //   TESSERACT_JS=<path to tesseract.js's entry>  where tesseract.js is, when it isn't in node_modules
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { AUTO_S, SAME_S, SWITCH_S, TELEOP_S, TRIES, elapsed, judge, NOTHING_READ, overlayLabel, secondsOf, type Judged, type M } from "./lib/videoFrames";
 
@@ -84,7 +84,10 @@ async function seek(page: Page, t: number) {
 /** The most a frame read may take (seconds): a page that stops answering (a frozen player, OCR that never returns)
  *  fails its video with that reason instead of holding the run forever. */
 const READ_LIMIT_S = 120;
+/** Frames read so far (each point a read looks at, confirming reads included): what a video's budget counts. */
+let framesRead = 0;
 function readAt(page: Page, t: number): Promise<Read> {
+  framesRead++;
   let timer: ReturnType<typeof setTimeout> | undefined;
   return Promise.race([
     readAtOnce(page, t).finally(() => clearTimeout(timer)),
@@ -157,7 +160,8 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   const byLabel = new Map(ms.map((m, i) => [m.label, i]));
   const seen = new Map<number, number>(); // index → confirmed start second
   const tried = new Set<number>(); // matches a read named, confirmed or not
-  let reads = 0, unconfirmed = 0;
+  const from = framesRead, reads = () => framesRead - from;
+  let unconfirmed = 0;
   const near = (i: number): number | null => {
     // The distance of the read nearest by order, else the broadcast's.
     let best: number | null = null, d = Infinity;
@@ -169,7 +173,6 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
     const i = byLabel.get(r.label)!;
     tried.add(i);
     if (seen.has(i)) return;
-    reads += 2; // at least: a confirming read after, one before
     const no = await confirmed(page, r.label, r.start);
     if (no == null) seen.set(i, r.start);
     else { unconfirmed++; log(`    ${r.label} at ${r.start} s not confirmed: ${no}`); }
@@ -177,7 +180,7 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
 
   // Any match at all, a frame every 10 minutes: where there's no clock to go by (an upload), or the clock's guesses read
   // nothing (a broadcast whose start YouTube has wrong).
-  const scan = async () => { for (let t = 300; t < length && !seen.size; t += 600) { await note(await readAt(page, t)); reads++; } };
+  const scan = async () => { for (let t = 300; t < length && !seen.size; t += 600) { await note(await readAt(page, t)); } };
   if (shift == null) {
     await scan();
     if (!seen.size) { log("    no match found in it"); return judge(ms, seen, shift, length, tried); }
@@ -190,14 +193,13 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   const budget = Math.max(40, 4 * ms.length);
   async function anchor(i: number): Promise<number | null> {
     if (seen.has(i)) return seen.get(i)!;
-    if (blind() || reads >= budget) return null;
+    if (blind() || reads() >= budget) return null;
     for (let k = 0; k < TRIES; k++) {
       const est = ms[i].epoch + near(i)!;
       // Into the match (its timer running), then either side of where it should be.
       const t = est + [45, 100, -40, 160, -120, 240, -240][k];
       if (t < 0 || t > length) continue;
       const r = await readAt(page, t);
-      reads++;
       await note(r);
       if (seen.has(i)) { missed = 0; return seen.get(i)!; }
     }
@@ -209,8 +211,8 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   async function span(i: number, j: number): Promise<void> {
     let a = await anchor(i), b = await anchor(j);
     // A match that can't be read: its neighbour inward stands in.
-    while (a == null && i < j && !blind() && reads < budget) a = await anchor(++i);
-    while (b == null && j > i && !blind() && reads < budget) b = await anchor(--j);
+    while (a == null && i < j && !blind() && reads() < budget) a = await anchor(++i);
+    while (b == null && j > i && !blind() && reads() < budget) b = await anchor(--j);
     if (a == null || b == null) return;
     if (Math.abs((a - ms[i].epoch) - (b - ms[j].epoch)) <= SAME_S || j - i <= 1) return;
     const mid = (i + j) >> 1;
@@ -220,13 +222,13 @@ async function placeVideo(page: Page, ms: M[], shift: number | null, length: num
   await span(0, ms.length - 1);
   if (blind() && shift != null) {
     await scan();
-    if (seen.size) { log(`    the clock read nothing; found by scanning, ${reads} frames in`); missed = 0; await span(0, ms.length - 1); }
+    if (seen.size) { log(`    the clock read nothing; found by scanning, ${reads()} frames in`); missed = 0; await span(0, ms.length - 1); }
   }
-  if (blind()) log(`    no overlay read in ${reads} frames`);
+  if (blind()) log(`    no overlay read in ${reads()} frames`);
   const j = judge(ms, seen, shift, length, tried);
   const out = new Map([...j.placed].map(([l, p]) => [l, p.t]));
   const high = [...j.placed.values()].filter((p) => p.confidence === "high").length;
-  log(`    ${out.size} of ${ms.length} placed (${high} high, ${out.size - high} medium), ${seen.size} read, ${unconfirmed} reads not confirmed, ${reads} frames`);
+  log(`    ${out.size} of ${ms.length} placed (${high} high, ${out.size - high} medium), ${seen.size} read, ${unconfirmed} reads not confirmed, ${reads()} frames`);
   if (j.review.size) log(`    for review: ${[...j.review].map(([l, r]) => `${l} (${r.why})`).join("; ")}`);
   if (j.missing.size) {
     const why = new Map<string, string[]>();
@@ -373,5 +375,6 @@ await browser.close();
 await worker.terminate();
 await digits.terminate();
 if (!CHECK && !DRY) console.log(`wrote ${kept.size} videos to server/data/frameTimings.ts`);
+mkdirSync(".data", { recursive: true });
 writeFileSync(".data/video-frames-report.txt", report.join("\n"));
 process.exit(0);
