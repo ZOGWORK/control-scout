@@ -144,7 +144,10 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
   - it fits exactly one event of the channel's region on its broadcast date at the venue;
   - the title agrees on the division, designators, date, weekday and day number. Taken one at a time, a title's
     "Day N" must be the event's own day N;
-  - the event has no video for that day yet, and none whose day isn't known yet.
+  - the event has no video for that day yet (a second video of a day is kept only when both name their parts, such
+    as "Matches" and "Awards"), and none whose day isn't known yet. Another programme's stream at the same venue (FIRST
+    Global, a drone or simulator contest) is set aside, and "Meeting" or "Sports Day 2026" no longer reads as a meet or a
+    day number.
 
   A video the event already plays for that day, or one that is already some event's video (FIRST's link, a short
   link, a channel broadcast, the owner's stream), is logged as a **duplicate** and never added or queued.
@@ -164,9 +167,10 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
   ones still live or still to come (read again every run until they end) and ones YouTube returns no facts for yet
   (read again next run).
 - **After a recording is added** (by the watcher, or by the owner's approval), every `onRecordingAdded` listener
-  (`server/videos/officialWatch.ts`) gets each event, day, part and video, once per run. It's the hook for checking
-  the event's clip coverage again; nothing registers on it yet, so until the coverage check does, an add notifies no
-  one. A failing listener is logged and never undoes the add.
+  (`server/videos/officialWatch.ts`) gets each event, day, part and video, once per run. It's the hook for
+  follow-up work. Clip coverage (`checkClipCoverage`, `server/videos/coverageCheck.ts`) is checked by the 5-minute
+  recordings pass once the new video's facts are read (and after a watcher run that added one), not inside the add or
+  the owner's approval: the clips need those facts first. A failing listener is logged and never undoes the add.
 - **The owner's queue** (Owner › Official videos, with an "N to review" badge on the console's menu), oldest first. Each
   row shows the title, channel, video id, published and broadcast times, length, the best-guess event and why it
   wasn't added:

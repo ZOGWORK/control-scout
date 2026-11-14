@@ -77,8 +77,8 @@ export function designators(s: string): Designators {
   return d;
 }
 
-const COMP = /(champs|championship|campionat|qualif|tournament|turneu|regional|league|meet|invitational|premier|scrimmage|state cup|uil|division|\bday\s*\d|super|showcase|\bcup\b|competi|ftc|tech challenge|rodeo|madness|roundup)/i;
-const NOT = /(webinar|training|sesiune|workshop|kick ?off|q&a|interview|judg|referee|pregatire|informativ|\bfrc\b|first robotics competition|lego|\bfll\b|\bvex\b|banquet|town hall|info session|mentor|district event|\bweek \d|inspection status|opening ceremon|practice day|test stream|livestream test|pre-?show)/i;
+const COMP = /(champs|championship|campionat|qualif|tournament|turneu|regional|league|\bmeets?(?![a-z])|invitational|premier|scrimmage|state cup|uil|division|\bday\s*\d{1,2}(?!\d)|super|showcase|\bcup\b|competi|ftc|tech challenge|rodeo|madness|roundup)/i;
+const NOT = /(webinar|training|sesiune|workshop|kick ?off|q&a|interview|judg|referee|pregatire|informativ|\bfrc\b|first robotics competition|lego|\bfll\b|\bvex\b|banquet|town hall|info session|mentor|district event|\bweek \d|inspection status|opening ceremon|practice day|test stream|livestream test|pre-?show|first global|\bfgc\b|\bdrones?\b|\bdcl\b|simulator)/i;
 const PART = /(ceremon|award|premier[ei]|finala|finals?\b|alliance selection|playoff|elimination)/i;
 const PART_NAME: [RegExp, string][] = [[/alliance selection/i, "Alliance selection & finals"], [/finala/i, "Finals & awards"], [/ceremon|award|premier[ei]/i, "Awards"], [/finals?\b/i, "Finals"], [/playoff/i, "Playoffs"], [/elimination/i, "Eliminations"]];
 const FIELD = /(divizia|\bfield\s*\d|\bfield [ab]\b|teren)/i;
@@ -118,7 +118,7 @@ export function matchVideo(v: WatchVideo, rule: ChannelRule, events: WatchEvent[
   const vt = toks(v.title, extra);
   const td = designators(v.title);
   const spelledOut = spelled(v.title);
-  const dn = /\bday\s*(\d)\b/i.exec(v.title)?.[1] ?? null;
+  const dn = /\bday\s*(\d{1,2})(?!\d)/i.exec(v.title)?.[1] ?? null;
   const dw = /\bday (one|two|three|four)\b/i.exec(v.title)?.[1]?.toLowerCase();
   const titleDay = dn ? Number(dn) : dw ? ({ one: 1, two: 2, three: 3, four: 4 } as Record<string, number>)[dw] : null;
   const wd = /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i.exec(v.title)?.[1]?.toLowerCase() ?? null;
