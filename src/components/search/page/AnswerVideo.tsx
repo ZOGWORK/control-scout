@@ -124,8 +124,10 @@ export function AnswerClip({ about, className }: { about?: string; className?: s
 
 /** Whether any of these rows has a clip (a table then gives its buttons a column). */
 export function useRowPlays(hrefs: (string | undefined)[]): boolean {
-  const rows = useContext(Video).video?.rows;
-  return !!rows && hrefs.some((h) => h && rows[h]);
+  const v = useContext(Video).video;
+  const rows = v?.rows;
+  // The card's own match among them plays too (not the event's recording): the others then say "No video".
+  return (!!rows && hrefs.some((h) => h && rows[h])) || (!!v?.mainRow && v.main?.kind !== "stream" && hrefs.includes(v.mainRow));
 }
 
 /** A listed match's clip, the card's own video's match included (a video grid draws a picture for each), and playing
