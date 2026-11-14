@@ -167,10 +167,10 @@ minutes and starts a run only when the last one is 6 hours old, so a deploy does
   ones still live or still to come (read again every run until they end) and ones YouTube returns no facts for yet
   (read again next run).
 - **After a recording is added** (by the watcher, or by the owner's approval), every `onRecordingAdded` listener
-  (`server/videos/officialWatch.ts`) gets each event, day, part and video, once per run. It's the hook for checking
-  the event's clip coverage again: `server/index.ts` registers `checkClipCoverage` (`server/videos/coverageCheck.ts`)
-  at boot, so every played match of a new recording's day gets a clip or lands on the owner's missing list. A failing
-  listener is logged and never undoes the add.
+  (`server/videos/officialWatch.ts`) gets each event, day, part and video, once per run. It's the hook for
+  follow-up work. Clip coverage (`checkClipCoverage`, `server/videos/coverageCheck.ts`) is checked by the 5-minute
+  recordings pass once the new video's facts are read (and after a watcher run that added one), not inside the add or
+  the owner's approval: the clips need those facts first. A failing listener is logged and never undoes the add.
 - **The owner's queue** (Owner › Official videos, with an "N to review" badge on the console's menu), oldest first. Each
   row shows the title, channel, video id, published and broadcast times, length, the best-guess event and why it
   wasn't added:
