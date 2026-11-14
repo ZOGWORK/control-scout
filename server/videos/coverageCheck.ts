@@ -99,7 +99,7 @@ export async function checkClipCoverage(log: (s: string) => void, now = Date.now
 /** Events with a played match missing a clip, a page at a time: open ones (newest check first) or the reviewed. */
 export async function ownerClipCoverage(o: { reviewed?: boolean; offset?: number; limit?: number } = {}): Promise<OwnerClipCoverage> {
   const limit = Math.min(Math.max(o.limit ?? PAGE, 1), 200), offset = Math.max(Math.floor(o.offset ?? 0), 0);
-  const where = `c.with_clip < c.played AND c.reviewed_at IS ${o.reviewed ? "NOT NULL" : "NULL"}`;
+  const where = `c.with_clip < c.played AND c.state != 'none' AND c.reviewed_at IS ${o.reviewed ? "NOT NULL" : "NULL"}`;
   const [rows, t, n] = await Promise.all([
     all<any>(`SELECT c.season, c.code, e.name, c.state, c.played, c.with_clip, c.checked_at, c.reviewed_at, c.reviewed_by, c.missing_key, c.detail
               FROM clip_coverage c LEFT JOIN events e ON e.season = c.season AND e.code = c.code
@@ -107,7 +107,7 @@ export async function ownerClipCoverage(o: { reviewed?: boolean; offset?: number
     get<any>(`SELECT COUNT(*) AS events, COALESCE(SUM(played), 0) AS played, COALESCE(SUM(with_clip), 0) AS with_clip,
               SUM(CASE WHEN played > 0 AND with_clip >= played THEN 1 ELSE 0 END) AS full FROM clip_coverage WHERE state != 'none'`),
     get<any>(`SELECT SUM(CASE WHEN reviewed_at IS NULL THEN 1 ELSE 0 END) AS open, SUM(CASE WHEN reviewed_at IS NOT NULL THEN 1 ELSE 0 END) AS reviewed
-              FROM clip_coverage WHERE with_clip < played`),
+              FROM clip_coverage WHERE with_clip < played AND state != 'none'`),
   ]);
   const events = rows.map((r): OwnerCoverageEvent => {
     const d = JSON.parse(String(r.detail));
@@ -126,13 +126,13 @@ const PAGE = 50;
 
 /** How many events wait for the owner's review. */
 export async function openCoverageCount(): Promise<number> {
-  return Number((await get<{ n: number }>("SELECT COUNT(*) AS n FROM clip_coverage WHERE with_clip < played AND reviewed_at IS NULL"))?.n ?? 0);
+  return Number((await get<{ n: number }>("SELECT COUNT(*) AS n FROM clip_coverage WHERE with_clip < played AND state != 'none' AND reviewed_at IS NULL"))?.n ?? 0);
 }
 
 /** The owner has seen an event's missing list (`version`: the one shown, missingKey): it moves to Reviewed until that list
  *  changes. A list that changed since it was shown isn't marked: "changed", to show the new one. */
 export async function markCoverageReviewed(season: number, code: string, version: string, actor: string, now = Date.now()): Promise<"ok" | "changed" | "none"> {
-  const row = await get<{ code: string }>("SELECT code FROM clip_coverage WHERE season = ? AND code = ? COLLATE NOCASE AND reviewed_at IS NULL AND with_clip < played", [season, code]);
+  const row = await get<{ code: string }>("SELECT code FROM clip_coverage WHERE season = ? AND code = ? COLLATE NOCASE AND reviewed_at IS NULL AND with_clip < played AND state != 'none'", [season, code]);
   if (!row) return "none";
   const n = await run("UPDATE clip_coverage SET reviewed_at = ?, reviewed_by = ? WHERE season = ? AND code = ? AND reviewed_at IS NULL AND missing_key = ?", [new Date(now).toISOString(), actor, season, row.code, version]);
   if (!n) return "changed";
