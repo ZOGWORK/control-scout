@@ -9,7 +9,7 @@
 export const FLAGS = [
   "livePredictions", "advancementOdds", "bracketOdds", "powerRankings", "coinFlips", "factorSheet", "offlinePacks", "eventBundle", "discordBot", "workspaceScouting", "scoutingAlliances", "scoutingCommons", "rulesReference", "venueLightMode", "scheduleDifficulty",
   "realtime", "errorReporting", "failedSearchReports", "photos", "push", "autoPowerRankings", "dailyPowerRankings", "weeklyDigest",
-  "seasonRoadMap", "brunoSearch", "brunoAnswers", "searchLearning", "dogTheme", "onboardingTour", "discordBruno",
+  "seasonRoadMap", "brunoSearch", "brunoAnswers", "searchLearning", "dogTheme", "onboardingTour", "discordBruno", "statusPage",
 ] as const;
 export type Flag = (typeof FLAGS)[number];
 export type FlagSet = Record<Flag, boolean>;
@@ -43,6 +43,7 @@ export const FLAG_META: Record<Flag, { group: FlagGroup; scope: FlagScope }> = {
   scheduleDifficulty: { group: "feature", scope: "global" },
   rulesReference: { group: "feature", scope: "global" },
   venueLightMode: { group: "feature", scope: "global" },
+  statusPage: { group: "feature", scope: "global" },
   dogTheme: { group: "feature", scope: "global" },
   onboardingTour: { group: "feature", scope: "global" },
   realtime: { group: "kill", scope: "global" },
@@ -94,6 +95,7 @@ export const FEATURE_OFF_MESSAGE: Partial<Record<Flag, string>> = {
   scoutingAlliances: "Scouting alliances are switched off for now. Each workspace sees only its own scouting; links and their entries are kept and come back when they do.",
   scoutingCommons: "The scouting commons is switched off for now. Your workspace's own scouting carries on as normal.",
   venueLightMode: "The light version is switched off for now. Here's the full page.",
+  statusPage: "The status page is switched off for now.",
   scheduleDifficulty: "Schedule difficulty is switched off for now. The rest of this page still works.",
 };
 export const featureOffMessage = (flag: string): string => FEATURE_OFF_MESSAGE[flag as Flag] ?? "This is switched off for now.";
@@ -183,6 +185,11 @@ export const FLAG_INFO: Record<Flag, { label: string; on: string; off: string; p
     label: "Dog theme",
     on: "Every page is tinted yellow in every theme (Light, Dim, Dark and Midnight), with the dog's photo faintly across the background. Cards, text and answer colours stay as they are.",
     off: "The usual page colours, no photo.",
+  },
+  statusPage: {
+    label: "Status page",
+    on: "/status shows whether the website, data, Control Point and the Discord bot are running, with each one's uptime and its last 90 minutes of checks, linked from the footer.",
+    off: "/status says it's switched off and the footer link is hidden. Checks keep running and are kept, so switching back on shows the full history.",
   },
   venueLightMode: {
     label: "Light version (venue mode)",
