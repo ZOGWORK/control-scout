@@ -4,7 +4,7 @@
 import { smoothBehavior } from "../lib/pageScroll";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ChevronLeft, ClipboardCheck, ClipboardList, Cloud, CloudOff, Download, Handshake, History, Info, LayoutList, ListOrdered, Loader2, Lock, Pause, Plus, SearchX, Video, X } from "lucide-react";
+import { ChevronLeft, ClipboardCheck, ClipboardList, Cloud, CloudOff, Download, HardDriveDownload, Handshake, History, Info, LayoutList, ListOrdered, Loader2, Lock, Pause, Plus, SearchX, Video, X } from "lucide-react";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
 import { canDeleteScoutEntry, localScoutEntries, refusalMessage, SCOUT_REFUSED, type ScoutRefusal, usePendingScoutCounts, useScouting, type ScoutSpace } from "../lib/scouting";
@@ -17,6 +17,7 @@ import { activeFilterCount } from "../shared/scoutFilter";
 import { EntryFilterBar } from "../components/scout/EntryFilterBar";
 import { useEntryFeed, type FeedViewer } from "../lib/scoutFeed";
 import { qs, useApi } from "../lib/api";
+import { warmScoutReads } from "../lib/offline/warm";
 import type { EventListItem } from "../shared/api";
 import { TemplateEditor } from "../components/scout/TemplateEditor";
 import { useScoutSpaces, workspaceLabel } from "../lib/scoutSpace";
@@ -71,6 +72,8 @@ export function dataExportUrl(workspaceId: string, sp: URLSearchParams, season: 
 
 export default function ScoutPage() {
   useTitle("Scout");
+  // While there's signal: what Scout reads at the events downloaded here, kept for when the venue's wifi goes.
+  useEffect(() => { void warmScoutReads(); }, []);
   const [sp, setSp] = useSearchParams();
   const current = useCurrentSeason();
   // One team in the filter (a link from a team page, or picked in the filter bar): a new entry starts with it.
@@ -520,12 +523,15 @@ export default function ScoutPage() {
 }
 
 function SyncChip({ status, pending, onSync, signedIn, live }: { status: string; pending: number; onSync: () => void; signedIn: boolean; live: LiveMode }) {
-  if (!signedIn) return <Badge variant="secondary"><CloudOff /> On this device only</Badge>;
+  // Signed out: personal scouting lives on this device (nothing to sync to).
+  if (!signedIn) return <Badge variant="secondary" data-sync-state="device"><HardDriveDownload /> Saved on this device</Badge>;
   const synced = status !== "syncing" && status !== "offline" && status !== "error" && !pending;
+  // No signal is calm, not a warning: every entry is saved here and goes up by itself once the signal is back.
+  const offline = status === "offline";
   return (
-    <button onClick={onSync} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground">
-      {status === "syncing" ? <Loader2 className="size-3.5 animate-spin" /> : status === "offline" || status === "error" ? <CloudOff className="size-3.5 text-warning" /> : <Cloud className="size-3.5 text-success" />}
-      {status === "syncing" ? "Syncing…" : status === "offline" ? `Offline — ${pending} pending` : status === "error" ? `Sync failed — ${pending} pending · retry` : pending ? `${pending} pending` : "Synced"}
+    <button onClick={onSync} data-sync-state={status} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground max-sm:min-h-11">
+      {status === "syncing" ? <Loader2 className="size-3.5 animate-spin" /> : offline ? <HardDriveDownload className="size-3.5" /> : status === "error" ? <CloudOff className="size-3.5 text-warning" /> : <Cloud className="size-3.5 text-success" />}
+      {status === "syncing" ? "Syncing…" : offline ? (pending ? `Saved on this device · ${pending} will sync` : "Saved on this device") : status === "error" ? `Sync failed — ${pending} pending · retry` : pending ? `${pending} pending` : "Synced"}
       {synced && live === "live" && <span className="inline-flex items-center gap-1 text-success"><span aria-hidden className="size-1.5 rounded-full bg-success" />Live</span>}
       {synced && live === "polling" && <span>· checks every 15 s</span>}
     </button>
