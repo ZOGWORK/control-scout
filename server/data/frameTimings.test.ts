@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { frameNextStart, frameStart, hasFrames, plausibleStarts, setFrameTimingsForTests } from "./frameTimings";
+import { frameConfidence, frameNextStart, frameStart, hasFrames, plausibleStarts, setFrameTimingsForTests } from "./frameTimings";
 
 afterEach(() => setFrameTimingsForTests([]));
 
@@ -11,6 +11,9 @@ describe("frame timings the server plays from", () => {
     expect(frameStart("v", "E", "Q33")).toBeNull();
     expect(frameStart("v", "E", "Q34")).toBeNull();
     expect(frameStart("v", "E", "Q36")).toBe(18500);
+    // Nor is a left-out start given a confidence: it never becomes a clip.
+    expect(frameConfidence("v", "E", "Q33")).toBeNull();
+    expect(frameConfidence("v", "E", "Q36")).toBe("high");
     // A clip ends at the next start that is played, not at a left-out one.
     expect(frameNextStart("v", 17000)).toBe(18500);
   });
