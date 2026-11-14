@@ -150,6 +150,8 @@ const REACH_BETWEEN = new Set([
 ]);
 /** The kind words an event's name can end with. */
 const KIND_WORDS = new Set(["meet", "meets", "tournament", "tournaments", "event", "events", "competition", "competitions"]);
+/** Every word of search's own phrases (./lexicon.ts): no event's own word. */
+const SEARCH_WORDS = new Set(LEXICON.flatMap((e) => e.words));
 /** The words before a number that make it a count ("top 5", "last 10") or a match's number ("match 3"). */
 const COUNT_BEFORE = /^(?:top|last|first|best|latest|past|recent|bottom|worst|highest|lowest)$/;
 const MATCH_BEFORE = /^(?:match|qual|q|game|qualification)$/;
@@ -349,6 +351,25 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     if (!w || toks.slice(i, i + w).some((t) => t.used) || !/^teams?$/.test(toks[i + w]?.w ?? "")) continue;
     p.rookie = true;
     toks.slice(i, i + w).forEach((t) => (t.used = true));
+  }
+
+  // 0c. An event by its whole stored name, read before any of its words is a team, a number or a place: a meet's own
+  // number ("Ritchie League Meet 1" is never team 1), a town or region in its name ("Iris Ames" is never the town
+  // Ames, "West Michigan Meet 4" never Michigan). The longest such run first. Only a name with a word of its own,
+  // never one of search's own words and numbers only ("League Meet 1" is a kind of event and a number), never a team's
+  // whole name, and never a place with only event words beside it ("Texas Championship" is the state's, read below).
+  for (let len = Math.min(ctx.names.eventLongest ?? 0, toks.length); len >= 2 && !p.event; len--) {
+    for (let i = 0; i + len <= toks.length && !p.event; i++) {
+      const span = toks.slice(i, i + len);
+      const said = span.map((t) => t.w).join(" ");
+      if (span.some((t) => t.used) || !ctx.names.eventNamed?.(said) || ctx.names.teamsNamed(said).length) continue;
+      const own = span.filter((t) => !EVENT_NAME_WORDS.has(t.w) && !KIND_WORDS.has(t.w) && !SEARCH_WORDS.has(t.w) && !/^\d+$/.test(t.w));
+      if (!own.length) continue;
+      const numbered = span.some((t) => /^\d+$/.test(t.w));
+      if (!numbered && ctx.names.place(own.map((t) => t.w).join(" "), own.map((t) => t.typed).join(" "))) continue;
+      p.event = { words: said, typed: span.map((t) => t.typed).join(" ") };
+      span.forEach((t) => (t.used = true));
+    }
   }
 
   // 1. Teams by their whole name, longest first: a name made only of search's own words ("The Best") isn't claimed,
