@@ -117,6 +117,15 @@ describe("asking to watch one match: the same answer, and that match's clip", ()
 
 // "With video" as a filter (search video brief, point 5): only matches with a clip to play, FIRST's own video or a
 // second in the event's recording; a match with none is never listed.
+describe("with video, ever", () => {
+  it("\"lowest score ever with video\" reads every season's matches with video, never the lowest without", async () => {
+    const { a } = await ask("lowest score ever with video");
+    expect(a.stat?.scope).toEqual(expect.arrayContaining(["All seasons", "With video"]));
+    // The qualifier's match has no video: never the answer.
+    expect(a.stat?.headline?.href ?? "").not.toContain("USNJQ1");
+  });
+});
+
 describe("with video, as a filter", () => {
   const listed = (a: Awaited<ReturnType<typeof ask>>["a"]) => [a.stat?.headline?.href, ...(a.stat?.blocks ?? []).flatMap((b) => (b.kind === "table" ? b.rows.map((r) => r.href) : []))].filter(Boolean);
 
