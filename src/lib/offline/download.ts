@@ -43,6 +43,10 @@ export class ChecksumError extends Error {
 export class StorageFull extends Error {
   constructor() { super("Not enough storage on this device for this download. Delete a pack you don't need, or free some space."); }
 }
+/** This device's storage refused a write (not for room): said as it is, never as a dropped connection. */
+export class StorageError extends Error {
+  constructor(cause?: unknown) { super("This device's storage wouldn't keep the download. Reload the page and try again; if it keeps happening, check the browser's site storage settings.", { cause }); }
+}
 /** The connection dropped: what came is kept, and the next try picks up from there. */
 export class DownloadPaused extends Error {
   constructor(readonly have: number, readonly total: number) {
@@ -147,7 +151,10 @@ export function askPersist() {
   try { void navigator.storage?.persist?.().catch(() => {}); } catch { /* not offered */ }
 }
 
-const inflight = new Map<string, Promise<Uint8Array>>();
+/** One run per file, shared by every caller asking for it at once; each caller keeps its own progress and Stop. */
+interface Shared { p: Promise<Uint8Array>; progress: Set<Progress>; callers: number; ctrl: AbortController }
+const inflight = new Map<string, Shared>();
+const stopped = () => new DOMException("The download was stopped.", "AbortError");
 
 export interface DownloadOptions { owner: DownloadOwner; onProgress?: Progress; signal?: AbortSignal; fetch?: typeof fetch }
 
@@ -158,9 +165,16 @@ export interface DownloadOptions { owner: DownloadOwner; onProgress?: Progress; 
  * ChecksumError when the whole file doesn't match (nothing kept).
  */
 export function download(file: DownloadFile, opts: DownloadOptions): Promise<Uint8Array> {
-  const running = inflight.get(file.sha256);
-  if (running) return running;
-  const p = withPieces(file.sha256, () => run(file, opts))
+  return join(inflight.get(file.sha256) ?? start(file, opts), opts);
+}
+
+function start(file: DownloadFile, opts: DownloadOptions): Shared {
+  const progress = new Set<Progress>();
+  const ctrl = new AbortController();
+  const shared: Shared = { p: null as never, progress, callers: 0, ctrl };
+  // The run answers to every caller: their progress callbacks all hear it, and it stops only once all have stopped.
+  const runOpts: DownloadOptions = { ...opts, signal: ctrl.signal, onProgress: (d, t) => { for (const f of progress) f(d, t); } };
+  const p = withPieces(file.sha256, () => run(file, runOpts))
     .catch(async (e) => {
       // An event pack is small and built per request: a failed one starts again, so its pieces aren't kept.
       if (opts.owner.kind === "bundle") {
@@ -171,8 +185,34 @@ export function download(file: DownloadFile, opts: DownloadOptions): Promise<Uin
       throw e;
     })
     .finally(() => { inflight.delete(file.sha256); setActive(ownerKey(opts.owner), null); changed(); });
-  inflight.set(file.sha256, p);
-  return p;
+  p.catch(() => {}); // each caller hears the failure through join()
+  shared.p = p;
+  inflight.set(file.sha256, shared);
+  return shared;
+}
+
+/** One caller's view of a shared run: its own progress, and its own Stop (the run stops when its last caller does). */
+function join(s: Shared, opts: DownloadOptions): Promise<Uint8Array> {
+  const { signal, onProgress } = opts;
+  if (signal?.aborted) {
+    if (s.callers === 0) s.ctrl.abort();
+    return Promise.reject(stopped());
+  }
+  s.callers++;
+  if (onProgress) s.progress.add(onProgress);
+  return new Promise<Uint8Array>((resolve, reject) => {
+    let left = false;
+    const leave = (stop: boolean) => {
+      if (left) return;
+      left = true;
+      if (onProgress) s.progress.delete(onProgress);
+      signal?.removeEventListener("abort", onAbort);
+      if (--s.callers === 0 && stop) s.ctrl.abort();
+    };
+    const onAbort = () => { leave(true); reject(stopped()); };
+    signal?.addEventListener("abort", onAbort, { once: true });
+    s.p.then((v) => { leave(false); resolve(v); }, (e) => { leave(false); reject(e); });
+  });
 }
 
 /** One tab at a time works on a file's pieces (downloading, reading them back, dropping them): two tabs saving the
@@ -308,7 +348,7 @@ async function receive(body: ReadableStream<Uint8Array>, start: PartialDownload,
     buffered = 0;
     try { await s.append(next, p.pieces, piece); }
     catch (e) {
-      throw (e as DOMException)?.name === "QuotaExceededError" ? new StorageFull() : e;
+      throw (e as DOMException)?.name === "QuotaExceededError" ? new StorageFull() : new StorageError(e);
     }
     p = next;
   };
@@ -325,7 +365,7 @@ async function receive(body: ReadableStream<Uint8Array>, start: PartialDownload,
     }
     await flush();
   } catch (e) {
-    if (e instanceof ChecksumError || e instanceof StorageFull) throw e;
+    if (e instanceof ChecksumError || e instanceof StorageFull || e instanceof StorageError) throw e;
     // Keep what came (a storage failure here is the error to show), else it's the connection.
     await flush();
     changed();

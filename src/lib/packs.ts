@@ -187,10 +187,12 @@ const liteDeleted = () => { try { return localStorage.getItem(LITE_DELETED_KEY) 
 /** Delete the lite pack from this device (the stored bytes too, not just the list). Returns the bytes freed. */
 export async function removeLite(): Promise<number> {
   const freed = packStatus()?.bytes ?? 0;
+  // The mark first: a background sync saving in another tab right now checks it after its write, so it takes
+  // back whatever it wrote whether its write lands before or after the del below.
+  try { localStorage.setItem(LITE_DELETED_KEY, "1"); } catch { /* storage blocked */ }
   await del(LITE_KEY);
   await del(OLD_LITE_KEY);
   localStorage.removeItem(META);
-  try { localStorage.setItem(LITE_DELETED_KEY, "1"); } catch { /* storage blocked */ }
   cached = null;
   window.dispatchEvent(new Event(PACK_EVENT));
   return freed;

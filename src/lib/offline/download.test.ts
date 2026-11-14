@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ChecksumError, DownloadPaused, PIECE, download, finishDownload, partialDownloads, resetDownloadStore, type DownloadOwner } from "./download";
+import { ChecksumError, DownloadPaused, PIECE, StorageError, download, finishDownload, partialDownloads, resetDownloadStore, type DownloadOwner } from "./download";
 import { deviceItems, pausedItems, totalBytes, whatChanged } from "./storage";
 import { downloadLite, getv, packStatus, removeLite, syncLite, type PackFile, type PackManifest } from "../packs";
 
@@ -159,6 +159,18 @@ describe("the lite pack through the downloader", () => {
   const lite: PackFile = { name: "scout-pack-v1-lite.json.gz", url: "/packs/lite.json.gz", bytes: gz.length, sha256: sha(gz), seasons: [2026], kind: "lite", contents: "" };
   const manifest = { format: 1, version: "v1", builtAt: "2026-11-13T20:09:39Z", engineVersion: "3.5.0", dataAsOf: "2026-11-13T19:58:54Z", lite, full: [] } as PackManifest;
 
+  it("Delete marks the pack deleted before it touches storage, so a sync saving in another tab meanwhile takes back its write", async () => {
+    // A background sync checks the mark after its write. Were the mark set only after Delete's own storage work,
+    // a sync whose write landed after Delete's del (and whose check ran before the mark) would leave bytes behind.
+    vi.stubGlobal("fetch", server(gz).fn);
+    await downloadLite(lite, manifest);
+    const deleting = removeLite();
+    expect(localStorage.getItem("cs-lite-deleted")).toBe("1"); // already, before any await
+    expect(await deleting).toBe(gz.length);
+    expect(packStatus()).toBeNull();
+    localStorage.removeItem("cs-lite-deleted");
+  });
+
   it("a wrong file never becomes the saved copy", async () => {
     vi.stubGlobal("fetch", server(bytes(gz.length)).fn);
     await expect(downloadLite(lite, manifest)).rejects.toThrow(/checksum/);
@@ -277,6 +289,85 @@ function lockRequest(held: Map<string, Promise<unknown>>) {
     return run;
   };
 }
+
+describe("callers sharing one download", () => {
+  /** Sends the first piece, then waits for `go` before the rest. Records each request's signal. */
+  function gated(data: Uint8Array) {
+    let go!: () => void;
+    const gate = new Promise<void>((r) => { go = r; });
+    const signals: AbortSignal[] = [];
+    const fn = vi.fn(async (_u: string, init?: RequestInit) => {
+      signals.push(init!.signal!);
+      let sent = 0;
+      return new Response(new ReadableStream({
+        async pull(c) {
+          if (sent >= data.length) { c.close(); return; }
+          if (sent >= PIECE) await gate;
+          const n = Math.min(PIECE, data.length - sent);
+          c.enqueue(data.slice(sent, sent + n));
+          sent += n;
+        },
+      }));
+    });
+    return { fn: fn as unknown as typeof fetch, calls: fn, signals, go: () => go() };
+  }
+
+  it("a second caller hears progress, and its Stop leaves only it: the first still gets the file", async () => {
+    const data = bytes(PIECE * 2 + 9, 5);
+    const file = { url: "/packs/shared", bytes: data.length, sha256: sha(data) };
+    const s = gated(data);
+    const a = download(file, { owner, fetch: s.fn });
+    const stopB = new AbortController();
+    const seenB: number[] = [];
+    const b = download(file, { owner, fetch: s.fn, signal: stopB.signal, onProgress: (d) => seenB.push(d) });
+    await vi.waitFor(() => expect(Math.max(0, ...seenB)).toBeGreaterThanOrEqual(PIECE));
+    stopB.abort();
+    await expect(b).rejects.toMatchObject({ name: "AbortError" });
+    expect(s.signals[0].aborted).toBe(false); // the first caller still wants it
+    const heardB = seenB.length;
+    s.go();
+    expect(sha(await a)).toBe(file.sha256);
+    expect(seenB).toHaveLength(heardB); // a caller that stopped hears nothing more
+    expect(s.calls).toHaveBeenCalledTimes(1); // one run for both
+    await finishDownload(file.sha256);
+  });
+
+  it("the download itself stops once every caller has stopped", async () => {
+    const data = bytes(PIECE * 2 + 9, 3);
+    const file = { url: "/packs/stopped", bytes: data.length, sha256: sha(data) };
+    const s = gated(data);
+    const stopA = new AbortController(), stopB = new AbortController();
+    const a = download(file, { owner, fetch: s.fn, signal: stopA.signal });
+    const b = download(file, { owner, fetch: s.fn, signal: stopB.signal });
+    await vi.waitFor(() => expect(s.signals).toHaveLength(1));
+    stopA.abort();
+    expect(s.signals[0].aborted).toBe(false);
+    stopB.abort();
+    expect(s.signals[0].aborted).toBe(true);
+    await expect(a).rejects.toMatchObject({ name: "AbortError" });
+    await expect(b).rejects.toMatchObject({ name: "AbortError" });
+    s.go();
+    await finishDownload(file.sha256); // waits for the stopped run to let go of its pieces
+  });
+});
+
+describe("storage failures", () => {
+  it("a write the device refuses (not for room) is said as a storage problem, never as a dropped connection", async () => {
+    const data = bytes(PIECE + 10, 9);
+    const file = { url: "/packs/refused", bytes: data.length, sha256: sha(data) };
+    const put = IDBObjectStore.prototype.put;
+    const spy = vi.spyOn(IDBObjectStore.prototype, "put").mockImplementation(function (this: IDBObjectStore, ...a: Parameters<IDBObjectStore["put"]>) {
+      if (this.name === "pieces") throw new DOMException("The database connection is closing.", "InvalidStateError");
+      return put.apply(this, a);
+    });
+    const e = await download(file, { owner, fetch: server(data).fn }).catch((x) => x);
+    spy.mockRestore();
+    expect(e).toBeInstanceOf(StorageError);
+    expect(e).not.toBeInstanceOf(DownloadPaused);
+    expect(String(e.message)).toMatch(/storage/);
+    await finishDownload(file.sha256);
+  });
+});
 
 describe("two downloads of one file", () => {
   it("in two tabs, take turns on its pieces: the first tab's cleanup waits until the second has read them back", async () => {
