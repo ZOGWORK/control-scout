@@ -11,6 +11,9 @@ A channel is official for an event when it is one of:
 - the FIRST partner organisation for the country or region (Nație Prin Educație for Romania, NY Excelsior FIRST,
   FIRST in Texas, FIRST Chesapeake, FTC Iowa, …),
 - the event's own organiser or league (NTX FTC for FiT-North, GEARS for the Michiana Premier Event, …),
+- the event's own streamer, where FIRST's event pages or the host name it: Stars of the Galaxy (FTC 12099) for the
+  Central Ohio league in Columbus, and the FIRST Alumni Network Grand Valley for the West Michigan league at GVSU in
+  Grand Rapids (watched for those events only; FANGV's Robot in 3 Days streams are FRC and never used),
 - the region's delivery partner or its event streamer in Rhode Island (Rhode Island FTC), Ontario (FTC Ontario),
   Long Island (FIRST Long Island) and New York City (NYC FIRST, the channel FIRST's 2021-22 NYC pages link, under its
   current handle). Town of Penfield Television is watched for upstate NY Excelsior events only: its videos are
@@ -21,6 +24,10 @@ A channel is official for an event when it is one of:
 
 A team's channel, a spectator's upload, a re-upload or a local TV broadcast is never used, even of the same event.
 `server/data/officialVideos.json` lists the channels each kept video came from.
+
+Regional streamers from the owner's audited list (2026-11-14), each read through the YouTube Data API's uploads list
+and checked by hand: FIRST in Missouri (the Missouri/Kansas partner: St. Louis, Southeast and Southwest leagues, the
+championship) and FIRST MOKS (Kansas City, one video per meet session).
 
 The owner's audited channel list (2026-11-14) adds four FIRST delivery partners: USTEM Foundation (Kazakhstan),
 Robotique FIRST France, Associazione Artù APS (Italy) and the Fikret Yüksel Foundation (Türkiye). It also adds The
@@ -36,7 +43,10 @@ auto-watcher uses the same rules):
 1. It's on an official channel, it exists, it's public, it can be embedded, and YouTube doesn't block it in most
    countries.
 2. It's a live broadcast whose start, at the venue, falls inside the event's dates in Scout. An upload has no
-   broadcast date, so it can't prove its day, and is left out.
+   broadcast date, so it can't prove its day, and is left out. The checked list makes one exception, by hand: an
+   upload whose title names its date and, where a venue holds several meets that day, its session (FIRST MOKS's
+   "FTC Meet @ Belton 8AM (2026-11-7)" is "Belton Meet @ 8 AM"), or an upload of an event that played every match on
+   one day (Scout's match times say which).
 3. Its title names the event: a distinctive word of the event's name or city (the league, the venue, "Mockingbird"),
    or the event's designators (an NTX league letter, a meet number, a UIL class, a stage). An event named by an
    acronym ("APOC") also fits a title spelling it out in words in a row ("Asia Pacific Open Championship"); a common
