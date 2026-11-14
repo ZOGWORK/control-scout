@@ -18,7 +18,7 @@ describe("saveState", () => {
     expect(saveState({ status: "local", pending: 2 }, true).text).toBe("Saved on this device");
     expect(saveState({ status: "syncing", pending: 3 }, true).text).toBe("Saving… 3 to sync");
     expect(saveState({ status: "idle", pending: 1 }, true).text).toBe("Saving… 1 to sync");
-    expect(saveState({ status: "offline", pending: 4 }, true).text).toBe("Queued offline · 4 to sync");
+    expect(saveState({ status: "offline", pending: 4 }, true).text).toBe("Saved on this device · 4 will sync");
     expect(saveState({ status: "error", pending: 2 }, true).text).toBe("Sync failed · 2 to sync");
     expect(saveState({ status: "idle", pending: 0 }, true)).toEqual({ kind: "saved", text: "Saved" });
     // Nothing saved yet this visit: how saving works, not "Saved".

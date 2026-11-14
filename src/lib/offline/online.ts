@@ -12,3 +12,6 @@ function subscribe(fn: () => void) {
 export function useOnline(): boolean {
   return useSyncExternalStore(subscribe, () => typeof navigator === "undefined" || navigator.onLine !== false, () => true);
 }
+
+/** Does the device say it has no network? For code outside React (the same word useOnline reads). */
+export const deviceOffline = (): boolean => typeof navigator !== "undefined" && navigator.onLine === false;
