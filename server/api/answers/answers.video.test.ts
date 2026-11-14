@@ -7,7 +7,7 @@ import { migrate, openDb, run, setDb } from "../../db";
 import { forgetRecordings } from "../../videos/recordings";
 import { rebuildSearch } from "../../stats/job";
 import { searchAnswer } from "../searchAnswer";
-import { answerVideo, mainRef, refOfHref } from "./video";
+import { answerVideo, mainRef, refOfHref, rowRefs } from "./video";
 import type { SearchAnswer } from "../../../src/shared/api";
 import type { StatAnswer, StatMatchRow } from "../../../src/shared/searchStat";
 
@@ -321,5 +321,13 @@ describe("search's answer, end to end", () => {
     const a = await searchAnswer("USMACMP Q12", { learn: false, limit: 25 });
     expect(a.hits[0]).toMatchObject({ kind: "match", ref: "2025:USMACMP:qual:0:12" });
     expect((await answerVideo(a, NOW))?.main).toEqual({ videoId: "xnQFL9T27fY", t: 9991, end: 10231, kind: "recording", match: "Q12" });
+  });
+});
+
+describe("matches still to play", () => {
+  it("a table of them lists no match with video, and a predicted score's headline is its event", async () => {
+    const ahead = stat({ blocks: [{ kind: "table", title: "Still to play", upcoming: true, columns: [{ key: "match", label: "Match" }], rows: [{ cells: { match: "Q12" }, href: href("USMACMP", "qual:0:12") }] }] });
+    expect(rowRefs(ahead)).toEqual([]);
+    expect(mainRef(stat({ headline: { value: "120–90", label: "Q12", href: href("USMACMP", "qual:0:12"), upcoming: true } }))).toEqual({ season: 2025, code: "USMACMP" });
   });
 });
