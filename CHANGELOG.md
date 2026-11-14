@@ -20,7 +20,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 The owner can now see how far new visitors get through the first-visit welcome, counted anonymously and only for visitors who allow usage statistics.
 
 ### Highlights
-- [report] Owner console › Usage shows how far first-time visitors get through the welcome
+- [report] Owner console › Usage shows how far new visitors get in the welcome
 - [report] Where people skip, how many finish, and how many pick a team
 - [fixes] The privacy page lists exactly what the welcome counts
 
