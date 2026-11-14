@@ -8,7 +8,7 @@ describe("the frame reader", () => {
     expect(overlayLabel("FIRST AGE  Qualification 21 of 36  2:05")).toBe("Q21");
     expect(overlayLabel("Playoff Match 10")).toBe("M10");
     expect(overlayLabel("APOC Decode 2026  Finals Match 2")).toBe("F2");
-    expect(overlayLabel("Match 7")).toBeNull();
+    expect(overlayLabel("FiT-North I&S League Tournament  Match 1  DECODE")).toBe("M1");
     expect(overlayLabel("Upcoming matches")).toBeNull();
   });
 
