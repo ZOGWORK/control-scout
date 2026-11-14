@@ -218,15 +218,16 @@ describe("matches read off a recording's own frames", () => {
     }
   });
   it("leave out a start that breaks the order the matches were played in (a replay in a break, an older misread)", async () => {
-    // USMNCMPGLXY's older read: Q19 at the lunch break, after Q20 and Q21.
-    setFrameTimingsForTests([{ videoId: UPLOAD_ID, code: "UPLOAD", checked: "2026-11-14", starts: { Q1: 100, Q2: 5000, Q3: 400, Q4: 700 } }]);
+    // USMNCMPGLXY's older read: Q19 at the lunch break, after Q20 and Q21. On the 8.5 h gapped video, Q3 starts 180 s
+    // after Q1, before Q1's clip would end on its own (+210 s).
+    setFrameTimingsForTests([{ videoId: GAPPED_ID, code: "GAPPED", checked: "2026-11-14", starts: { Q1: 1000, Q2: 9000, Q3: 1180, Q4: 1600 } }]);
     try {
-      const rec = (await seasonRecordings(S)).get("UPLOAD")!;
-      const m: Pick<MatchView, "label" | "time" | "startsAt" | "played" | "clip">[] = [1, 2, 3, 4].map((n) => ({ label: `Q${n}`, time: `${DAY}T13:0${n}:13`, startsAt: `${DAY}T13:0${n}:13.000Z`, played: true, clip: undefined }));
-      const clips = withClips(m, rec).map((x) => x.clip?.t ?? null);
-      expect(clips).toEqual([80, null, 380, 680]);
-      // Q1's clip stops at the next start that plays (Q3's, 400), not at the left-out one; the video is 213 s long.
-      expect(withClips(m, rec)[0].clip?.end).toBe(213);
+      const rec = (await seasonRecordings(S)).get("GAPPED")!;
+      const m: Pick<MatchView, "label" | "time" | "startsAt" | "played" | "clip">[] = [1, 2, 3, 4].map((n) => ({ label: `Q${n}`, time: `${DAY}T10:3${n}:13`, startsAt: `${DAY}T10:3${n}:13.000Z`, played: true, clip: undefined }));
+      const clips = withClips(m, rec);
+      expect(clips.map((x) => x.clip?.t ?? null)).toEqual([980, null, 1160, 1580]);
+      // Q1's clip stops where Q3's timer starts (1180), the next start that plays, not at the left-out Q2's 9000.
+      expect(clips[0].clip?.end).toBe(1180);
     } finally {
       setFrameTimingsForTests([]);
     }
