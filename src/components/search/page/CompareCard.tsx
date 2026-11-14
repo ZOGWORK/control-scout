@@ -11,6 +11,8 @@ import { teamFill } from "../../../lib/textTones";
 import { cn } from "../../cn";
 import { buttonVariants } from "../../ui/button";
 import { MethodNote, TAP } from "./answerCells";
+import { AnswerVideo } from "./AnswerVideo";
+import { MatchBox } from "./MatchBox";
 
 type Compare = Extract<StatBlock, { kind: "compare" }>;
 type Who = { number: number; name: string | null };
@@ -31,6 +33,7 @@ export function CompareCard({ stat, b, extra }: { stat: StatAnswer; b: Compare; 
   const teams: Who[] = stat.teams ?? [];
   const h = stat.headline;
   const links = stat.blocks.find((x) => x.kind === "links") as Extract<StatBlock, { kind: "links" }> | undefined;
+  const together = stat.blocks.find((x) => x.kind === "matches") as Extract<StatBlock, { kind: "matches" }> | undefined;
   // Comparing teams: seeing them side by side is the next step, so it's the one button (Predict isn't offered here).
   const primary = links?.items.find((l) => /^Compare side by side$/.test(l.label));
   const rest = links?.items.filter((l) => l !== primary && !/^Open in Predict/.test(l.label)) ?? [];
@@ -60,6 +63,14 @@ export function CompareCard({ stat, b, extra }: { stat: StatAnswer; b: Compare; 
             {b.rows.map((r) => <Metric key={r.label} r={r} teams={teams} />)}
           </div>
         </>
+      )}
+      {together && (
+        // The matches they all played in, each with its clip (./AnswerVideo.tsx): one alone plays in the card.
+        <section className="mt-5" data-block="together">
+          <h3 className="mb-2 text-sm font-semibold text-foreground">{together.title}</h3>
+          <AnswerVideo />
+          <ul className="grid gap-3 sm:grid-cols-2">{together.rows.map((r) => <MatchBox key={`${r.href}|${r.alliance}`} r={r} team={teams[0]} />)}</ul>
+        </section>
       )}
       {extra}
       <MethodNote lead={b.scale ? `Bars start at 0; each row's max is ${b.scale} · ` : ""} source={stat.source} definition={stat.definition}>
