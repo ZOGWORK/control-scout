@@ -63,7 +63,8 @@ function ReviewedList() {
 function Pages({ first, reviewed: isReviewed, onDone }: { first: OwnerClipCoverage; reviewed: boolean; onDone: () => void }) {
   const [more, setMore] = useState<OwnerCoverageEvent[]>([]);
   const [busy, setBusy] = useState(false);
-  const shown = [...first.events, ...more];
+  // An event that moved between lists while paging (reviewed elsewhere) is shown once.
+  const shown = [...first.events, ...more].filter((e, i, all) => all.findIndex((x) => x.season === e.season && x.code === e.code) === i);
   const total = isReviewed ? first.reviewed : first.open;
   const next = async () => {
     setBusy(true);
