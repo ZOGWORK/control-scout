@@ -32,7 +32,7 @@ Control Scout Lite, the text-only version for a weak signal, has a new layout: r
 - "Light version" is now "Control Scout Lite" in the footer link and the slow first paint's offer.
 
 ### Added
-- Lite on: "Always open Lite" at the foot of a Lite page (or `/lite/on`) makes team, event and match pages you open go straight to Lite. While it's on, Full version opens the full page once, and "Turn off Lite" (`/lite/off`) switches it back. Pages with no Lite version open as usual. (`server/lite/routes.ts`, docs/lite.md)
+- Lite on: "Always open Lite" at the foot of a Lite page (or `/lite/on`) makes team, event and match pages you open go straight to Lite. While it's on, Full version opens the full page once, and "Turn off Lite" (`/lite/off`) switches it back. Pages with no Lite version open as usual. (`server/lite/routes.ts`, docs/lite.md) (#1463)
 
 ## 6.0.3 — 2026-11-13
 
