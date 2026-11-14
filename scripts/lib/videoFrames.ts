@@ -54,6 +54,12 @@ export const NOTHING_READ = "no frame of the video could be read";
  *  overlap. */
 export const MATCH_S = AUTO_S + SWITCH_S + TELEOP_S;
 
+/** The rows of server/data/frameTimings.ts as written (one JSON row a line after the data marker). */
+export function dataRows<T>(text: string): T[] {
+  const data = text.split("// --- Data")[1] ?? "";
+  return data.split("\n").flatMap((line) => { const m = /^\s*(\{.*\}),?\s*$/.exec(line); return m ? [JSON.parse(m[1]) as T] : []; });
+}
+
 /**
  * Judge a video's matches from its confirmed reads (index → start second). The clock (FIRST's actual start of each
  * match) is the anchor; the frames are the second signal. A video loses time and never gains it, so how far it sits
@@ -72,8 +78,13 @@ export function judge(ms: M[], seen: Map<number, number>, shift: number | null, 
   for (let b = 0; b < idx.length; b++) for (let a = 0; a < b; a++) {
     if (d(idx[b]) <= d(idx[a]) + SAME_S && len[a] + 1 > len[b]) { len[b] = len[a] + 1; from[b] = a; }
   }
-  const kept: number[] = [];
-  for (let k = len.indexOf(Math.max(0, ...len)); k >= 0; k = from[k]) kept.unshift(idx[k]);
+  // Of the longest runs, the one with the most reads that agree with a neighbour (0, -120, 0 keeps the two zeros, not
+  // a zero and the misread); then the later one.
+  const runOf = (k: number) => { const r: number[] = []; for (; k >= 0; k = from[k]) r.unshift(idx[k]); return r; };
+  const agreeing = (r: number[]) => r.filter((i, n) => [r[n - 1], r[n + 1]].some((o) => o != null && Math.abs(d(o) - d(i)) <= SAME_S)).length;
+  let kept: number[] = [];
+  const longest = Math.max(0, ...len);
+  len.forEach((l, k) => { if (l === longest) { const r = runOf(k); if (!kept.length || agreeing(r) >= agreeing(kept)) kept = r; } });
   const dropped = new Set(idx.filter((i) => !kept.includes(i)));
 
   const placedAt = new Map<string, Placed>();
@@ -118,7 +129,7 @@ export function judge(ms: M[], seen: Map<number, number>, shift: number | null, 
       dropped.has(i) ? "its frame read disagrees with the matches around it"
       : read.has(i) ? "its frames didn't confirm a start"
       : before != null && after != null ? "in a gap: the reads either side disagree where the video sits, so it may not be in the video"
-      : !kept.length ? NOTHING_READ
+      : !kept.length && !read.size ? NOTHING_READ
       : "no frame read of it, and no agreeing reads on both sides");
   });
   return { placed: placedAt, review, missing };
