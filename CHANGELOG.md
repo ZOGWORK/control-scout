@@ -28,7 +28,7 @@ A recorded event's page now says which days and parts its video covers and which
 - Event page: under the coverage line, a chip for each day or part of a recorded event (its clips out of its played matches) and one for each day with no recording, then "N matches have no clip — why": the matches grouped by reason, such as "Video 4 h 17 min shorter than its broadcast", "No recording for Sunday" or "No real start time from FIRST". Only for an event with a recording where a played match has no video. (`src/components/contributors/RecordingGaps.tsx`, `server/videos/coverage.ts`, `/api/events/:season/:code/coverage`)
 - Owner console › Clip coverage: every recorded event with a played match missing a clip, with its days and parts, the video checked for each, the days with no recording and each match's reason, to mark reviewed. It opens again on its own when the missing list changes. (`src/components/owner/ClipCoveragePanel.tsx`)
 - After every recordings pass and every official-channel watcher run that adds a video, each event whose recording or played matches changed is checked again; a missing list goes to Owner › Clip coverage, never only to a log. (`server/videos/coverageCheck.ts`, migration 87)
-- `scripts/clip-coverage.ts`: the full coverage audit (every event, video and played match, every season) as Markdown, CSV and JSON.
+- `scripts/clip-coverage.ts`: the full coverage audit (every event, video and played match, every season) as Markdown, CSV and JSON. (#1457)
 
 ## 6.0.2 — 2026-11-13
 
