@@ -54,6 +54,7 @@ import { EventStatusChip, EventTypeChip, LiveDot } from "../components/EventChip
 import { WatchLive } from "../components/WatchLive";
 import { HighlightVideos } from "../components/HighlightVideos";
 import { ClipsGallery, CoverageLine, EventClipsProvider, WatchClipsButton } from "../components/contributors/EventClips";
+import { RecordingGaps } from "../components/contributors/RecordingGaps";
 import { isLiveMode, nextMatch, useEventPoll } from "../lib/liveMode";
 import { TeamsSource } from "../components/TeamsSource";
 import { ago, agoSeconds, awardLabel, dateRange, num, place, seasonLabel } from "../lib/format";
@@ -170,6 +171,8 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
       </HeaderActions>
       {/* How much of the event this viewer can watch (docs/contributors.md), seen before the match list. */}
       <CoverageLine reserve={d.matches.some((m) => m.played)} recorded={!!e.stream} />
+      {/* A recorded event's days and parts, and the matches its video doesn't place, each with why (server/videos/coverage.ts). */}
+      <RecordingGaps season={e.season} code={e.code} recorded={!!e.stream} matches={d.matches} />
       {/* Before FIRST posts the event: the regional site's hosts, times and format, labelled provisional. */}
       {d.provisional && <ProvisionalDetails p={d.provisional} />}
       {!predictable && <p className="mt-3 text-xs text-muted-foreground">{seasonLabel(e.season)} is shown for history: results, rankings and awards, no predictions (those start with 2023–24).</p>}
