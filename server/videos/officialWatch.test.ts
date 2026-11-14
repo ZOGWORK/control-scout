@@ -6,7 +6,8 @@ import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { all, get, migrate, openDb, run, setDb } from "../db";
 import { OFFICIAL_CHANNELS } from "../data/officialChannels";
 import { STARTUP_CYCLE_MS } from "../warm";
-import { WATCH_CHECK_MS, WATCH_FIRST_MS, approveWatched, onRecordingAdded, type RecordingAdded, ownerOfficial, rejectWatched, removeChannel, removeOfficial, runOfficialWatch, saveChannel, seedOfficialChannels, watchIfDue } from "./officialWatch";
+import { release, tryAcquire } from "../data/lock";
+import { WATCH_CHECK_MS, WATCH_FIRST_MS, approveWatched, onRecordingAdded, type RecordingAdded, ownerOfficial, rejectWatched, removeChannel, removeOfficial, resetChannelsSeeded, runOfficialWatch, saveChannel, seedOfficialChannels, watchIfDue } from "./officialWatch";
 
 const TX = "UCKezDYNRPpAy2_1XRMBWKSw";
 const T0 = Date.parse("2026-01-10T00:00:00Z");
@@ -101,6 +102,16 @@ describe("the official-video watcher", () => {
     expect(await seedOfficialChannels(T0, true)).toBe(0);
     expect(await pattern(moks.channelId)).toBeNull();
     expect(await pattern(fimo.channelId)).toBe(fimo.titlePattern);
+    // While a data sync holds the writer lease, the owner panel still loads, and doesn't write.
+    await run("UPDATE official_channels SET title_pattern = 'missouri' WHERE channel_id = ?", [moks.channelId]);
+    resetChannelsSeeded();
+    const token = await tryAcquire("data sync", 60_000);
+    expect(token).toBeTruthy();
+    try { expect((await ownerOfficial(T0)).channels.length).toBeGreaterThan(0); } finally { await release(token!); }
+    expect(await pattern(moks.channelId)).toBe("missouri");
+    // Once the lease is free, the next load seeds.
+    await ownerOfficial(T0);
+    expect(await pattern(moks.channelId)).toBeNull();
   });
 
   it("reads each watched channel's new uploads once: adds the sure one, queues the rest, sets aside the rest", async () => {
