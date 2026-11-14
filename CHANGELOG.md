@@ -17,7 +17,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 6.1.1 — 2026-11-14
 
-Rhode Island, New York City, Long Island and Ontario events now play their recordings from the region's own channels, back to 2022: 76 checked days, with restarted broadcasts as Part 1 and Part 2.
+Rhode Island, New York City, Long Island and Ontario events now play their recordings from the region's own channels, back to 2022: 76 checked recordings, with restarted broadcasts as Part 1 and Part 2.
 
 ### Highlights
 - [history] NYC qualifiers and championships play recordings from 2022
