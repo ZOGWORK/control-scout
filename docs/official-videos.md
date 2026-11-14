@@ -10,7 +10,10 @@ A channel is official for an event when it is one of:
 
 - the FIRST partner organisation for the country or region (Nație Prin Educație for Romania, NY Excelsior FIRST,
   FIRST in Texas, FIRST Chesapeake, FTC Iowa, …),
-- the event's own organiser or league (NTX FTC for FiT-North, GEARS for the Michiana Premier Event, …),
+- the event's own organiser or league (NTX FTC for FiT-North, GEARS for the Michiana Premier Event, NorCal FIRST
+  Tech Challenge for Northern California, FTC SoCal League G for League G's meets in Carson, …), or the host that
+  streamed its one event (7419 Tech Support, at its own school, for NorCal East Bay Meet 1 of 2026: linked once,
+  not watched),
 - or the channel FIRST's event page names as the livestream (FIRST HQ's "FIRST Tech Challenge" channel carries the
   2026 Championship's division broadcasts, and FIRST's own event pages link its Day 4 videos).
 
