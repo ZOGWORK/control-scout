@@ -28,16 +28,21 @@ describe("typoWords", () => {
       expect(spelledBy(`${n} highlights 2025-26`, t), n).toBe(true);
     }
   });
-  it("a word one name has, its usual spelling in only one other: not enough to call it a typo", () => {
-    expect(typoWords(["Wnterberry Waterloo", "Winterberry Waverly"]).size).toBe(0);
+  it("a word one name has, its usual spelling in only two others: not enough to call it a typo", () => {
+    expect(typoWords(["Wnterberry Waterloo", "Winterberry Waverly", "Winterberry Denver"]).size).toBe(0);
+    expect(typoWords(["Wnterberry Waterloo", "Winterberry Waverly", "Winterberry Denver", "Winterberry Mall"])).toEqual(new Set(["wnterberry"]));
   });
-  it("slip: a letter dropped, added or two swapped inside the word, never its first or last letter, never one changed", () => {
+  it("slip: a letter dropped, doubled or two swapped inside the word; never one changed, added or at its end", () => {
     expect(slip("wnterberry", "winterberry")).toBe(true);
     expect(slip("scrimamge", "scrimmage")).toBe(true);
     expect(slip("herritage", "heritage")).toBe(true);
     expect(slip("australian", "australia")).toBe(false);
     expect(slip("grant", "grand")).toBe(false);
     expect(slip("stone", "store")).toBe(false);
+    // Real names a letter longer than common words.
+    expect(slip("texans", "texas")).toBe(false);
+    expect(slip("johnston", "johnson")).toBe(false);
+    expect(slip("rocbots", "robots")).toBe(false);
   });
 });
 
